@@ -2234,6 +2234,13 @@
 .workbench-inspector-body {
   padding: 2px;
 }
+.workbench-inspector.is-potentiometer .workbench-inspector-body > label {
+  grid-template-columns: 104px minmax(0, 1fr);
+}
+.workbench-inspector.is-potentiometer .workbench-inspector-body > label > span {
+  overflow-wrap: normal;
+  word-break: normal;
+}
 .workbench-inspector-body > label,
 .workbench-state-controls label {
   display: grid;

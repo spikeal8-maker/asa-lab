@@ -302,6 +302,15 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(sidebarSource).toContain('workbench-inspector-help-popover');
     expect(sidebarSource).toContain('aria-label="Подключение выводов"');
     expect(sidebarSource).toContain('workbench-terminal-status');
+    expect(sidebarSource).toContain("if (kind === 'potentiometer') return 'Сопротивление'");
+    expect(sidebarSource).toContain("selectedIsPotentiometer ? ' is-potentiometer' : ''");
+    expect(sidebarSource).toContain("c.selectedComponent.kind === 'potentiometer' && helpOpen");
+    expect(sidebarSource).toContain('aria-label="Положение движка"');
+    expect(sidebarSource).not.toContain('Положение движка: {Math.round');
+    expect(sidebarSource).toContain('(!selectedIsPotentiometer || helpOpen)');
+    expect(workbenchCss).toMatch(
+      /\.workbench-inspector\.is-potentiometer \.workbench-inspector-body > label\s*\{[^}]*grid-template-columns:\s*104px minmax\(0, 1fr\);/s,
+    );
     expect(sidebarSource).not.toContain('workbench-led-electrical-state');
     expect(editorSource).toContain('window.print()');
     expect(editorSource).toContain('text/csv;charset=utf-8');

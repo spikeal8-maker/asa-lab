@@ -21,7 +21,7 @@ import type { ElectronicsWorkbenchController } from './use-electronics-workbench
 function valueLabel(kind: string): string {
   if (kind === 'source') return 'Напряжение';
   if (kind === 'diode') return 'Прямое падение';
-  if (kind === 'potentiometer') return 'Полное сопротивление';
+  if (kind === 'potentiometer') return 'Сопротивление';
   if (kind === 'lamp') return 'Сопротивление нити';
   return 'Сопротивление';
 }
@@ -87,6 +87,7 @@ export function WorkbenchSidebars({
     ? c.resultByComponent.get(c.selectedComponent.id)
     : undefined;
   const selectedIsArduino = c.selectedEntry?.key === 'arduino-uno';
+  const selectedIsPotentiometer = c.selectedComponent?.kind === 'potentiometer';
   useEffect(() => setHelpOpen(false), [c.selectedComponent?.id]);
   const resistanceComponent =
     c.selectedComponent && ['resistor', 'potentiometer', 'lamp'].includes(c.selectedComponent.kind)
@@ -272,7 +273,9 @@ export function WorkbenchSidebars({
 
       {c.selection ? (
         <aside
-          className={`workbench-inspector${c.libraryOpen ? '' : ' library-hidden'}`}
+          className={`workbench-inspector${
+            selectedIsPotentiometer ? ' is-potentiometer' : ''
+          }${c.libraryOpen ? '' : ' library-hidden'}`}
           aria-label="Параметры выделения"
         >
           <div className="workbench-inspector-heading">
@@ -309,7 +312,9 @@ export function WorkbenchSidebars({
           c.selection.kind === 'component' &&
           c.selection.ids.length === 1 ? (
             <div className="workbench-inspector-body">
-              {c.selectedFamily && c.selectedFamily.variants.length > 1 ? (
+              {c.selectedFamily &&
+              c.selectedFamily.variants.length > 1 &&
+              (!selectedIsPotentiometer || helpOpen) ? (
                 <label>
                   <span>Вариант</span>
                   <select
@@ -502,13 +507,11 @@ export function WorkbenchSidebars({
                   Удерживать кнопку
                 </button>
               ) : null}
-              {c.selectedComponent.kind === 'potentiometer' ? (
+              {c.selectedComponent.kind === 'potentiometer' && helpOpen ? (
                 <label>
-                  <span>
-                    Положение движка: {Math.round((c.selectedComponent.wiperPosition ?? 0.5) * 100)}
-                    %
-                  </span>
+                  <span>Положение</span>
                   <input
+                    aria-label="Положение движка"
                     type="range"
                     min="0"
                     max="1"
@@ -688,7 +691,8 @@ export function WorkbenchSidebars({
               ) : null}
 
               {!['led-5mm', 'rgb-led'].includes(c.selectedEntry.key) &&
-              (!selectedIsArduino || helpOpen) ? (
+              (!selectedIsArduino || helpOpen) &&
+              (!selectedIsPotentiometer || helpOpen) ? (
                 <dl
                   className="workbench-terminal-list"
                   aria-label="Подключение выводов"
@@ -721,7 +725,8 @@ export function WorkbenchSidebars({
               ) : null}
 
               {!['led-5mm', 'rgb-led'].includes(c.selectedEntry.key) &&
-              Object.keys(c.selectedComponent.holeBindings ?? {}).length > 0 ? (
+              Object.keys(c.selectedComponent.holeBindings ?? {}).length > 0 &&
+              (!selectedIsPotentiometer || helpOpen) ? (
                 <div className="workbench-hole-bindings" data-testid="hole-bindings">
                   <strong>Отверстия макетки</strong>
                   {Object.entries(c.selectedComponent.holeBindings ?? {}).map(
@@ -737,7 +742,8 @@ export function WorkbenchSidebars({
               {c.simulationRunning &&
               measurement &&
               !['led-5mm', 'rgb-led'].includes(c.selectedEntry.key) &&
-              (!selectedIsArduino || helpOpen) ? (
+              (!selectedIsArduino || helpOpen) &&
+              (!selectedIsPotentiometer || helpOpen) ? (
                 <dl className="workbench-measurements">
                   {c.selectedComponent.kind === 'transistor' ? (
                     <>
