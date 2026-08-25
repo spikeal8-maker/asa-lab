@@ -129,7 +129,7 @@ POST /api/learning/activities/{activityId}/publish
 GET  /api/learning/activities/{activityId}/versions
 ```
 
-`pnpm contracts:check` validates 57 paths. No learner execution endpoint or UI is claimed.
+`pnpm contracts:check` validates 59 paths after integration with current `main`. No learner execution endpoint or UI is claimed.
 
 ## REQUIREMENTS STATUS
 
@@ -153,7 +153,7 @@ GET  /api/learning/activities/{activityId}/versions
 
 - `pnpm test:learning-m1-001`: 2 files, 14 tests passed.
 - five focused legacy regression files: 22 tests passed.
-- `NX_SKIP_NX_CACHE=true pnpm gate:data`: 162 files / 1111 tests plus 15/15 RLS tests passed.
+- `NX_SKIP_NX_CACHE=true pnpm gate:data`: 169 files / 1146 tests plus 15/15 RLS tests passed after rebuilding and integrating current `main`.
 - `NX_SKIP_NX_CACHE=true pnpm gate:code`: PASS; Nx lint/typecheck/build cache skipped; contracts/security/release/build passed; Compose rendering was explicitly `SKIPPED` because Docker CLI is unavailable.
 - browser: N/A because this task adds no UI and switches no learner/teacher surface.
 
