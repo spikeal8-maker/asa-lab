@@ -2,6 +2,7 @@
 
 **Baseline SHA:** `24ff391386d3ea6acb99bcbb73a0542802a1f785`
 **Issue / PR:** `#154` / `#155`
+**Evidence head / merge:** `ee43c1830a69ce2343466c18a547e1050f074f3d` / `c1991b1029645ef148c5e9db858cd0cbf94bbc1e`
 **Production status:** NOT DEPLOYED
 
 ## CANONICAL LEARNINGACTIVITY MODEL
@@ -158,7 +159,15 @@ GET  /api/learning/activities/{activityId}/versions
 - five focused legacy regression files: 22 tests passed.
 - `NX_SKIP_NX_CACHE=true pnpm gate:data`: 169 files / 1147 tests plus 15/15 RLS tests passed after rebuilding and integrating current `main`.
 - `NX_SKIP_NX_CACHE=true pnpm gate:code`: PASS; Nx lint/typecheck/build cache skipped; contracts/security/release/build passed; Compose rendering was explicitly `SKIPPED` because Docker CLI is unavailable.
+- GitHub final-head governance, format/build and both PostgreSQL/RLS jobs: PASS on `ee43c1830a69ce2343466c18a547e1050f074f3d`.
 - browser: N/A because this task adds no UI and switches no learner/teacher surface.
+
+Two repository-wide focused browser workflows remain red on the same final head, outside Learning-owned paths and without a Learning surface:
+
+- Checkers expects a project URL without `?module=checkers` and expects `404` where CURRENT returns `409`;
+- 3D times out waiting for the obsolete `Положение X, мм` label.
+
+These failures were reproduced both before and after the review-hardening commit. They are not represented as Learning PASS evidence and were not changed in this task. PR `#155` was merged through the ordinary protected-branch flow without administrator bypass.
 
 ## KNOWN GAPS
 

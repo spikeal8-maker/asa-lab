@@ -304,14 +304,14 @@ parallel_lanes:
       base_branch: main
       pr: 155
       pr_draft: false
-      status: in_progress
-      checkpoint: current_audit_execution_spec
+      status: done
+      checkpoint: merged_to_main
       owner_acceptance: pending
     revisions:
       convergence_baseline_sha: 24ff391386d3ea6acb99bcbb73a0542802a1f785
-      head_sha: 24ff391386d3ea6acb99bcbb73a0542802a1f785
+      head_sha: ee43c1830a69ce2343466c18a547e1050f074f3d
       owner_accepted_sha: 24ff391386d3ea6acb99bcbb73a0542802a1f785
-      product_merge_sha: 24ff391386d3ea6acb99bcbb73a0542802a1f785
+      product_merge_sha: c1991b1029645ef148c5e9db858cd0cbf94bbc1e
     execution_lease:
       executor_id: codex-learning-m1-001
       holder: unassigned
