@@ -1,0 +1,223 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://asa-lab.ru/schemas/electronics/help-content.v1.json",
+  "title": "ASA Lab electronics help content registry",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "entries"],
+  "properties": {
+    "schemaVersion": { "const": "1.0.0" },
+    "entries": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/entry" }
+    }
+  },
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*$"
+    },
+    "safeText": {
+      "type": "string",
+      "minLength": 1,
+      "not": { "pattern": "<\\/?[A-Za-z][^>]*>" }
+    },
+    "entry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "componentFamilyId",
+        "locale",
+        "contentVersion",
+        "title",
+        "shortDescription",
+        "blocks",
+        "variantOverrides",
+        "sourceReferences",
+        "contentStatus",
+        "contentFormat"
+      ],
+      "properties": {
+        "componentFamilyId": { "$ref": "#/$defs/identifier" },
+        "locale": {
+          "type": "string",
+          "pattern": "^[a-z]{2,3}(-[A-Z]{2})?$"
+        },
+        "localeFallback": {
+          "type": "string",
+          "pattern": "^[a-z]{2,3}(-[A-Z]{2})?$"
+        },
+        "contentVersion": { "type": "integer", "minimum": 1 },
+        "contentFormat": { "const": "structured_blocks_no_html" },
+        "title": { "$ref": "#/$defs/safeText" },
+        "shortDescription": { "$ref": "#/$defs/safeText" },
+        "blocks": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/block" }
+        },
+        "variantOverrides": {
+          "type": "object",
+          "propertyNames": { "$ref": "#/$defs/identifier" },
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["replaceSections", "blocks"],
+            "properties": {
+              "replaceSections": {
+                "type": "array",
+                "minItems": 1,
+                "uniqueItems": true,
+                "items": { "$ref": "#/$defs/section" }
+              },
+              "blocks": {
+                "type": "array",
+                "minItems": 1,
+                "items": { "$ref": "#/$defs/block" }
+              }
+            }
+          }
+        },
+        "sourceReferences": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/sourceReference" }
+        },
+        "contentStatus": {
+          "enum": ["draft", "needs_review", "approved"]
+        }
+      }
+    },
+    "block": {
+      "oneOf": [
+        { "$ref": "#/$defs/paragraph" },
+        { "$ref": "#/$defs/list" },
+        { "$ref": "#/$defs/warning" },
+        { "$ref": "#/$defs/pinoutTable" },
+        { "$ref": "#/$defs/approvedImage" },
+        { "$ref": "#/$defs/approvedCircuitExample" }
+      ]
+    },
+    "paragraph": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "section", "text"],
+      "properties": {
+        "type": { "const": "paragraph" },
+        "section": { "$ref": "#/$defs/section" },
+        "text": { "$ref": "#/$defs/safeText" }
+      }
+    },
+    "list": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "section", "items"],
+      "properties": {
+        "type": { "const": "list" },
+        "section": { "$ref": "#/$defs/section" },
+        "items": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/safeText" }
+        }
+      }
+    },
+    "warning": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "section", "severity", "text"],
+      "properties": {
+        "type": { "const": "warning" },
+        "section": { "$ref": "#/$defs/section" },
+        "severity": { "enum": ["info", "warning", "danger"] },
+        "text": { "$ref": "#/$defs/safeText" }
+      }
+    },
+    "pinoutTable": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "section", "terminals"],
+      "properties": {
+        "type": { "const": "pinoutTable" },
+        "section": { "const": "pinout" },
+        "terminals": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["terminalId", "label", "role"],
+            "properties": {
+              "terminalId": { "$ref": "#/$defs/identifier" },
+              "label": { "$ref": "#/$defs/safeText" },
+              "role": { "$ref": "#/$defs/safeText" },
+              "polarity": { "enum": ["positive", "negative", "neutral", "conditional"] }
+            }
+          }
+        }
+      }
+    },
+    "approvedImage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "section", "assetId", "sha256", "alt", "provenance", "reviewStatus"],
+      "properties": {
+        "type": { "const": "approvedImage" },
+        "section": { "$ref": "#/$defs/section" },
+        "assetId": { "$ref": "#/$defs/identifier" },
+        "sha256": { "$ref": "#/$defs/sha256" },
+        "alt": { "$ref": "#/$defs/safeText" },
+        "caption": { "$ref": "#/$defs/safeText" },
+        "provenance": { "$ref": "#/$defs/safeText" },
+        "reviewStatus": { "const": "approved" }
+      }
+    },
+    "approvedCircuitExample": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "section", "assetId", "sha256", "fixtureDigest", "alt", "sourceReferenceIds", "reviewStatus"],
+      "properties": {
+        "type": { "const": "approvedCircuitExample" },
+        "section": { "const": "starter_example" },
+        "assetId": { "$ref": "#/$defs/identifier" },
+        "sha256": { "$ref": "#/$defs/sha256" },
+        "fixtureDigest": { "$ref": "#/$defs/sha256" },
+        "alt": { "$ref": "#/$defs/safeText" },
+        "sourceReferenceIds": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/identifier" }
+        },
+        "reviewStatus": { "const": "approved" }
+      }
+    },
+    "section": {
+      "enum": [
+        "description",
+        "principle",
+        "pinout",
+        "connection",
+        "usage",
+        "starter_example",
+        "common_mistakes",
+        "safety",
+        "more"
+      ]
+    },
+    "sourceReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sourceId", "title", "publisher", "verifiedAt"],
+      "properties": {
+        "sourceId": { "$ref": "#/$defs/identifier" },
+        "title": { "$ref": "#/$defs/safeText" },
+        "publisher": { "$ref": "#/$defs/safeText" },
+        "url": { "type": "string", "format": "uri", "pattern": "^https://" },
+        "verifiedAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  }
+}

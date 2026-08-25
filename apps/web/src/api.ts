@@ -2,6 +2,7 @@
  * client never sends or stores tenant identifiers. */
 
 import type { ModulePreviewDescriptor } from '@asa-lab/module-sdk';
+import { projectDraftMutationId } from './modules/project-draft-mutation';
 import { fetchWithSessionRefresh, notifySessionLoggedOut } from './session-fetch';
 
 export interface PublicUser {
@@ -980,6 +981,13 @@ export interface SolveResult {
     sourceVoltageToleranceVolt: number;
   };
   topologySignature?: string;
+  simulationInputDigest?: string;
+  solverRevision?: 'asa-electronics-solver-v1';
+  modelSetDigest?: 'asa-electronics-model-set-v1';
+  analysis?: {
+    electricalMode: 'dc' | 'transient';
+    controllerRuntime: 'none' | 'arduino';
+  };
 }
 
 export interface ApiError {
@@ -1902,11 +1910,20 @@ export const api = {
       versions: ProjectVersion[];
       result: TResult | null;
     }>(`/api/projects/${encodeURIComponent(projectId)}`),
-  saveDraft: <TDocument = unknown, TResult = unknown>(projectId: string, document: TDocument) =>
-    call<{ draft: ProjectDraft<TDocument>; result: TResult | null }>(
+  saveDraft: async <TDocument = unknown, TResult = unknown>(
+    projectId: string,
+    document: TDocument,
+    baseRevision: number,
+  ) => {
+    const mutationId = await projectDraftMutationId(projectId, baseRevision, document);
+    return call<{ draft: ProjectDraft<TDocument>; result: TResult | null }>(
       `/api/projects/${encodeURIComponent(projectId)}/draft`,
-      { method: 'PUT', body: JSON.stringify({ document }) },
-    ),
+      {
+        method: 'PUT',
+        body: JSON.stringify({ document, baseRevision, mutationId }),
+      },
+    );
+  },
   /**
    * Uploads the editor's picture of the project. `keepalive` lets a capture
    * taken while the page is closing still leave the browser; it caps the body
@@ -1915,13 +1932,14 @@ export const api = {
   saveProjectSnapshot: (
     projectId: string,
     imageDataUrl: string,
+    sourceRevision: number,
     options: { unloading?: boolean } = {},
   ) =>
     call<{ snapshot: ProjectSnapshotInfo }>(
       `/api/projects/${encodeURIComponent(projectId)}/snapshot`,
       {
         method: 'PUT',
-        body: JSON.stringify({ imageDataUrl }),
+        body: JSON.stringify({ imageDataUrl, sourceRevision }),
         ...(options.unloading === true ? { keepalive: true } : {}),
       },
     ),

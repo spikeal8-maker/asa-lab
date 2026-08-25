@@ -148,6 +148,7 @@ export function ChessPuzzleTrainer({
   const [lesson, setLesson] = useState<ChessLesson | null>(null);
   const saveQueue = useRef(createChessSaveQueue());
   const serial = useRef(0);
+  const serverRevision = useRef<number | null>(null);
 
   const puzzle: ChessPuzzle = ASA_CHESS_PUZZLES[puzzleIndex] ?? ASA_CHESS_PUZZLES[0]!;
   const attempt = document ? chessLearningAttempt(document.learning, puzzle) : null;
@@ -182,6 +183,7 @@ export function ChessPuzzleTrainer({
         return;
       }
       setDocument(parsed.value);
+      serverRevision.current = response.data.draft.revision;
       const selectedIndex = ASA_CHESS_PUZZLES.findIndex(
         (candidate) => candidate.id === parsed.value.learning.activePuzzleId,
       );
@@ -203,9 +205,17 @@ export function ChessPuzzleTrainer({
   async function persist(next: ChessDocument): Promise<void> {
     setDocument(next);
     setSaveState('saving');
-    const response = await saveQueue.current.run(() =>
-      api.saveDraft<ChessDocument>(projectId, next),
-    );
+    const response = await saveQueue.current.run(() => {
+      const baseRevision = serverRevision.current;
+      return baseRevision === null
+        ? Promise.resolve(null)
+        : api.saveDraft<ChessDocument>(projectId, next, baseRevision);
+    });
+    if (response === null) {
+      setSaveState('error');
+      setNotice('Не удалось определить сохранённую версию проекта.');
+      return;
+    }
     if (!response.ok) {
       setSaveState('error');
       setNotice(`Прогресс не сохранён: ${response.error.message}`);
@@ -218,6 +228,7 @@ export function ChessPuzzleTrainer({
       return;
     }
     setDocument(parsed.value);
+    serverRevision.current = response.data.draft.revision;
     setSaveState('saved');
   }
 

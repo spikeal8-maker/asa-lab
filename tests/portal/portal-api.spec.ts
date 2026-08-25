@@ -202,7 +202,11 @@ describe('classrooms', () => {
       method: 'PUT',
       url: `/api/projects/${studentProjectId}/draft`,
       cookies: { asa_session: token },
-      payload: { document: studentOpened.json().draft.document },
+      payload: {
+        document: studentOpened.json().draft.document,
+        baseRevision: studentOpened.json().draft.revision,
+        mutationId: crypto.randomUUID(),
+      },
     });
     expect(teacherEdits.statusCode).toBe(200);
 

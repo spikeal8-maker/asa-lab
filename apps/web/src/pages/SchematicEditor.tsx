@@ -438,19 +438,25 @@ export function SchematicEditor({
   // The card picture is the stage as the learner sees it, rasterised from the
   // live SVG. Project Core owns the size, the format and the schedule.
   useEffect(() => {
-    const release = registerProjectSnapshotSource(projectId, () => {
-      const stage = controller.stageRef.current;
-      if (!stage) return null;
-      return rasteriseSvgStage(stage, SNAPSHOT_WIDTH, {
-        contentSelector: '[data-testid="schematic-component"],[data-testid="wire-segment"]',
-      });
-    });
+    const release = registerProjectSnapshotSource(
+      projectId,
+      () => {
+        const stage = controller.stageRef.current;
+        if (!stage) return null;
+        return rasteriseSvgStage(stage, SNAPSHOT_WIDTH, {
+          contentSelector: '[data-testid="schematic-component"],[data-testid="wire-segment"]',
+        });
+      },
+      // A dirty SVG is newer than serverRevision, so wait until that document
+      // has been confirmed before publishing its card image.
+      () => (controller.saveStatus === 'saved' ? controller.serverRevision : null),
+    );
     const stop = startProjectSnapshots(projectId);
     return () => {
       stop();
       release();
     };
-  }, [controller.stageRef, projectId]);
+  }, [controller.saveStatus, controller.serverRevision, controller.stageRef, projectId]);
   function updateNotes(value: string): void {
     setNotes(value);
     localStorage.setItem(notesStorageKey, value);

@@ -2,7 +2,14 @@ import { type ElectronicsDocument, type SchematicComponent, type Terminal } from
 import { arduinoOutputBranches, isArduinoUno } from './arduino-model.js';
 import { buildNetlist, terminalKey, type Netlist } from './netlist.js';
 import { electricalModelFor } from './model-registry.js';
-import { solveCircuit, transistorTypeOf, type Diagnostic, type SolveResult } from './solver.js';
+import {
+  solveCircuit,
+  transistorTypeOf,
+  type ComponentResult,
+  type Diagnostic,
+  type SolveResult,
+} from './solver.js';
+import { simulationInputDigest } from './simulation-input-digest.js';
 
 export type SimulationStatus = 'solved' | 'unsupported' | 'invalid' | 'nonconvergent';
 
@@ -33,11 +40,76 @@ export interface SimulationResult extends SolveResult {
   readonly status: SimulationStatus;
   readonly quality: SimulationQuality;
   readonly topologySignature: string;
+  readonly simulationInputDigest: string;
+  readonly solverRevision: 'asa-electronics-solver-v1';
+  readonly modelSetDigest: 'asa-electronics-model-set-v1';
+  readonly analysis: {
+    readonly electricalMode: 'dc' | 'transient';
+    readonly controllerRuntime: 'none' | 'arduino';
+  };
 }
 
 const CLOSED_RESISTANCE = 1e-4;
 const KCL_TOLERANCE_A = 1e-6;
 const SOURCE_VOLTAGE_TOLERANCE_V = 1e-9;
+
+function ordinalCompare(left: string, right: string): number {
+  return left < right ? -1 : left > right ? 1 : 0;
+}
+
+function orderedRecord<T>(
+  record: Readonly<Record<string, T>> | undefined,
+): Record<string, T> | undefined {
+  return record
+    ? Object.fromEntries(
+        Object.entries(record).sort(([left], [right]) => ordinalCompare(left, right)),
+      )
+    : undefined;
+}
+
+function deterministicComponentResult(component: ComponentResult): ComponentResult {
+  return {
+    ...component,
+    terminalVoltages: orderedRecord(component.terminalVoltages) ?? {},
+    ...(component.branchCurrents !== undefined
+      ? { branchCurrents: orderedRecord(component.branchCurrents) as Record<string, number> }
+      : {}),
+    ...(component.branchBrightness !== undefined
+      ? { branchBrightness: orderedRecord(component.branchBrightness) as Record<string, number> }
+      : {}),
+  };
+}
+
+function deterministicSolveResult(result: SolveResult): SolveResult {
+  return {
+    ...result,
+    components: [...result.components]
+      .sort((left, right) => ordinalCompare(left.componentId, right.componentId))
+      .map(deterministicComponentResult),
+    nodes: [...result.nodes]
+      .sort((left, right) => ordinalCompare(left.id, right.id))
+      .map((node) => ({ ...node, terminals: [...node.terminals].sort(ordinalCompare) })),
+    diagnostics: [...result.diagnostics]
+      .map((diagnostic) => ({
+        ...diagnostic,
+        ...(diagnostic.componentIds
+          ? { componentIds: [...diagnostic.componentIds].sort(ordinalCompare) }
+          : {}),
+        ...(diagnostic.wireIds ? { wireIds: [...diagnostic.wireIds].sort(ordinalCompare) } : {}),
+        ...(diagnostic.netIds ? { netIds: [...diagnostic.netIds].sort(ordinalCompare) } : {}),
+        ...(diagnostic.anchors
+          ? {
+              anchors: [...diagnostic.anchors].sort((left, right) =>
+                ordinalCompare(`${left.kind}\u0000${left.id}`, `${right.kind}\u0000${right.id}`),
+              ),
+            }
+          : {}),
+      }))
+      .sort((left, right) =>
+        ordinalCompare(`${left.code}\u0000${left.message}`, `${right.code}\u0000${right.message}`),
+      ),
+  };
+}
 
 const SEVEN_SEGMENT_TERMINALS: Readonly<Record<string, Terminal>> = {
   a: 'top-4',
@@ -369,6 +441,13 @@ export function analyseCircuit(
   options: SimulationOptions = {},
 ): SimulationResult {
   const compiled = compileCircuit(document);
+  const inputDigest = simulationInputDigest(document, options.simulationTimeMs ?? 0);
+  const analysis = {
+    electricalMode: options.simulationTimeMs && options.simulationTimeMs > 0 ? 'transient' : 'dc',
+    controllerRuntime: document.components.some((component) => isArduinoUno(component))
+      ? 'arduino'
+      : 'none',
+  } as const;
   if (compiled.unsupportedComponentIds.length > 0) {
     const diagnostic: Diagnostic = {
       code: 'unsupported_component',
@@ -391,10 +470,14 @@ export function analyseCircuit(
       numericalTolerance: 0,
       quality: failedQuality(),
       topologySignature: compiled.topologySignature,
+      simulationInputDigest: inputDigest,
+      solverRevision: 'asa-electronics-solver-v1',
+      modelSetDigest: 'asa-electronics-model-set-v1',
+      analysis,
     };
   }
 
-  const solved = solveCircuit(document, options);
+  const solved = deterministicSolveResult(solveCircuit(document, options));
   const quality = verifyQuality(document, compiled, solved, options);
   if (solved.solved && !quality.passed) {
     const diagnostic: Diagnostic = {
@@ -412,6 +495,10 @@ export function analyseCircuit(
       diagnostics: [...solved.diagnostics, diagnostic],
       quality,
       topologySignature: compiled.topologySignature,
+      simulationInputDigest: inputDigest,
+      solverRevision: 'asa-electronics-solver-v1',
+      modelSetDigest: 'asa-electronics-model-set-v1',
+      analysis,
     };
   }
 
@@ -420,5 +507,9 @@ export function analyseCircuit(
     status: statusFor(solved),
     quality,
     topologySignature: compiled.topologySignature,
+    simulationInputDigest: inputDigest,
+    solverRevision: 'asa-electronics-solver-v1',
+    modelSetDigest: 'asa-electronics-model-set-v1',
+    analysis,
   };
 }

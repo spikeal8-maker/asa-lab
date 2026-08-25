@@ -1,4 +1,4 @@
-import { analyseCircuit } from '@asa-lab/electronics/simulation';
+import { analyseCircuit, simulationInputDigest } from '@asa-lab/electronics/simulation';
 import type { SchematicDocument, SolveResult } from '../api';
 
 /**
@@ -12,7 +12,12 @@ export function calculateLiveSimulation(
   running: boolean,
   simulationTimeMs = 0,
 ): SolveResult | null {
-  if (!running || !document) return persistedResult;
+  if (!document) return null;
+  if (!running) {
+    return persistedResult?.simulationInputDigest === simulationInputDigest(document)
+      ? persistedResult
+      : null;
+  }
   return calculateSimulationPreflight(document, simulationTimeMs);
 }
 

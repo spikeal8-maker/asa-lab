@@ -51,6 +51,7 @@ function error(code: string, message: string): { error: { code: string; message:
 const STATUS_BY_CODE: Record<ProjectErrorCode, number> = {
   validation_error: 400,
   idempotency_conflict: 409,
+  project_revision_conflict: 409,
   classroom_not_found: 404,
   project_not_found: 404,
 };
@@ -313,13 +314,24 @@ export class ProjectsController {
     @Body() rawBody: unknown,
   ): Promise<{ draft: unknown; result: unknown }> {
     const context = await this.requireContext(request);
-    const shape = checkBodyShape(rawBody, ['document']);
+    const shape = checkBodyShape(rawBody, ['document', 'baseRevision', 'mutationId']);
     if (!shape.ok) throw new HttpException(error('validation_error', shape.message), 400);
+    if (
+      !Number.isSafeInteger(shape.body['baseRevision']) ||
+      Number(shape.body['baseRevision']) < 0
+    ) {
+      throw new HttpException(
+        error('validation_error', 'baseRevision must be a non-negative integer'),
+        400,
+      );
+    }
     const result = await this.saveUseCase.execute({
       tenantId: context.tenantId,
       projectId,
       actor: ProjectsController.actorOf(context),
       document: shape.body['document'],
+      baseRevision: Number(shape.body['baseRevision']),
+      mutationId: String(shape.body['mutationId'] ?? ''),
     });
     if (!result.ok) ProjectsController.reject(result.code, result.message);
     const opened = await this.openUseCase.execute(
@@ -349,13 +361,14 @@ export class ProjectsController {
     @Body() rawBody: unknown,
   ): Promise<{ snapshot: unknown }> {
     const context = await this.requireContext(request);
-    const shape = checkBodyShape(rawBody, ['imageDataUrl']);
+    const shape = checkBodyShape(rawBody, ['imageDataUrl', 'sourceRevision']);
     if (!shape.ok) throw new HttpException(error('validation_error', shape.message), 400);
     const result = await this.saveSnapshotUseCase.execute({
       tenantId: context.tenantId,
       projectId,
       actor: ProjectsController.actorOf(context),
       imageDataUrl: shape.body['imageDataUrl'],
+      sourceRevision: shape.body['sourceRevision'],
     });
     if (!result.ok) ProjectsController.reject(result.code, result.message);
     return { snapshot: result.value };

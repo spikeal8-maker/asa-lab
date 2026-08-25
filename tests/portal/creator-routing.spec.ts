@@ -47,11 +47,13 @@ describe('Creator Portal routing', () => {
     expect(creatorViewFromHash(home)).toEqual({
       kind: 'editor',
       projectId: '3d project/one',
+      moduleKey: 'three-d',
       returnTo: { kind: 'home' },
     });
     expect(creatorViewFromHash(projects)).toEqual({
       kind: 'editor',
       projectId: '3d-project-two',
+      moduleKey: 'three-d',
       returnTo: { kind: 'my-projects' },
     });
   });
@@ -92,6 +94,7 @@ describe('Creator Portal routing', () => {
     const view: CreatorPortalView = {
       kind: 'editor',
       projectId: 'class-project',
+      moduleKey: 'chess',
       returnTo: {
         kind: 'classroom-projects',
         classroomId: 'class-one',
@@ -100,6 +103,27 @@ describe('Creator Portal routing', () => {
     };
 
     expect(creatorViewFromHash(creatorViewToHash(view))).toEqual(view);
+  });
+
+  it('keeps the module key across a personal editor refresh', () => {
+    const view: CreatorPortalView = {
+      kind: 'editor',
+      projectId: 'personal-project',
+      moduleKey: 'checkers',
+      returnTo: { kind: 'home' },
+    };
+
+    expect(creatorViewToHash(view)).toBe('#/home/personal-project?module=checkers');
+    expect(creatorViewFromHash(creatorViewToHash(view))).toEqual(view);
+  });
+
+  it('restores the module key from canonical Chess URLs', () => {
+    expect(creatorViewFromHash('#/chess/chess-project/home')).toEqual({
+      kind: 'editor',
+      projectId: 'chess-project',
+      moduleKey: 'chess',
+      returnTo: { kind: 'my-projects' },
+    });
   });
 
   it('keeps a co-teacher invitation token through sign-in and refresh navigation', () => {

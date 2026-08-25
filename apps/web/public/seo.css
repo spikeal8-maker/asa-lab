@@ -27,6 +27,32 @@ body {
     sans-serif;
 }
 
+.app-boot-shell {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: #f4f7fa;
+  color: #0b3558;
+}
+
+.app-boot-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.8rem;
+  font-size: 1.45rem;
+  font-weight: 900;
+  letter-spacing: -0.04em;
+}
+
+.app-boot-brand img {
+  display: block;
+}
+
+.app-boot-brand strong {
+  color: #087fa4;
+}
+
 .seo-fallback,
 .seo-page {
   min-height: 100vh;

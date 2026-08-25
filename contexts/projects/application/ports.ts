@@ -47,6 +47,10 @@ export interface SaveDraftInput {
   readonly actor: ProjectActor;
   readonly document: unknown;
   readonly preview: ProjectPreview | null;
+  /** The exact server revision the editor opened or last saved. */
+  readonly baseRevision: number;
+  /** Stable across retries of this exact document mutation. */
+  readonly mutationId: string;
 }
 
 export interface SaveSnapshotInput {
@@ -54,6 +58,8 @@ export interface SaveSnapshotInput {
   readonly projectId: string;
   readonly actor: ProjectActor;
   readonly image: SnapshotImage;
+  /** The confirmed draft revision from which the editor rendered this image. */
+  readonly sourceRevision: number;
 }
 
 export type ProjectDocumentValidation =
@@ -144,9 +150,8 @@ export interface ProjectRepositoryPort {
     actor: ProjectActor,
   ): Promise<readonly ProjectVersion[] | null>;
   /**
-   * Stores the picture against the draft revision the server currently holds.
-   * The revision is never taken from the caller: it is what decides whether a
-   * cached card is still valid, so a client must not be able to name it.
+   * Stores the picture only while the draft still has sourceRevision. The
+   * compare prevents an older canvas from being labelled as a newer project.
    */
   saveSnapshot(input: SaveSnapshotInput): Promise<ProjectSnapshot | null>;
   loadSnapshot(

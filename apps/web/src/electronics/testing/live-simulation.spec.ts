@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import type { SchematicDocument, SolveResult } from '../../api';
-import { calculateLiveSimulation, prepareLiveSimulationStart } from '../live-simulation';
+import { simulationInputDigest } from '@asa-lab/electronics/simulation';
+import {
+  calculateLiveSimulation,
+  calculateSimulationPreflight,
+  prepareLiveSimulationStart,
+} from '../live-simulation';
 
 const circuit: SchematicDocument = {
   schemaVersion: 3,
@@ -44,8 +49,20 @@ describe('live Electronics simulation', () => {
       iterations: 0,
       numericalResidual: 0,
       numericalTolerance: 0,
+      simulationInputDigest: simulationInputDigest(circuit),
     };
     expect(calculateLiveSimulation(circuit, persisted, false)).toBe(persisted);
+  });
+
+  it('hides a persisted result when an electrical input changed', () => {
+    const persisted = calculateSimulationPreflight(circuit);
+    const changed: SchematicDocument = {
+      ...circuit,
+      components: circuit.components.map((component) =>
+        component.id === 'resistor' ? { ...component, value: 2200 } : component,
+      ),
+    };
+    expect(calculateLiveSimulation(changed, persisted, false)).toBeNull();
   });
 
   it('starts the visible simulation mode while an unsupported circuit stays fail-closed', () => {

@@ -130,11 +130,10 @@ describe('ASA 3D primitive geometry', () => {
     expect(material?.depthTest).toBe(true);
     expect(material?.depthWrite).toBe(false);
     expect(material?.opacity).toBeGreaterThanOrEqual(0.8);
-    expect(material?.customProgramCacheKey()).toBe('asa-model-outline-depth-bias-v1');
-
-    const shader = { vertexShader: '#include <project_vertex>' };
-    material?.onBeforeCompile(shader as THREE.WebGLProgramParametersWithUniforms, {} as never);
-    expect(shader.vertexShader).toContain('gl_Position.z -= 0.00035 * gl_Position.w');
+    const surface = mesh?.material as THREE.MeshStandardMaterial | undefined;
+    expect(surface?.polygonOffset).toBe(true);
+    expect(surface?.polygonOffsetFactor).toBe(1);
+    expect(surface?.polygonOffsetUnits).toBe(1);
     if (mesh) disposeObject(mesh);
   });
 
@@ -514,6 +513,46 @@ describe('ASA 3D primitive geometry', () => {
       }
       geometry?.dispose();
     }
+  });
+
+  it('keeps an open spherical cut concave instead of shading it as a solid sphere', () => {
+    const box = createThreeDNode('box', 'concave-cut-box');
+    const sphereSource = createThreeDNode('sphere', 'concave-cut-sphere');
+    const radius = 8;
+    const center = new THREE.Vector3(
+      box.transform.position.x,
+      box.transform.position.y,
+      box.transform.position.z + 8,
+    );
+    const sphere = {
+      ...sphereSource,
+      operation: 'hole' as const,
+      dimensions: { width: radius * 2, depth: radius * 2, height: radius * 2 },
+      transform: {
+        ...sphereSource.transform,
+        position: { x: center.x, y: center.y, z: center.z },
+      },
+    };
+    const geometry = createBooleanGeometry([box, sphere], 'difference');
+    const positions = geometry?.getAttribute('position');
+    const normals = geometry?.getAttribute('normal');
+    const cavityDots: number[] = [];
+
+    for (let index = 0; positions && normals && index < positions.count; index += 1) {
+      const point = new THREE.Vector3().fromBufferAttribute(positions, index);
+      const radial = point.clone().sub(center);
+      if (Math.abs(radial.length() - radius) > 0.05) continue;
+      // The opening rim is shared with the box's flat front face. Assert the
+      // curved cavity itself, away from that intentional hard boundary.
+      if (point.z > box.transform.position.z + box.dimensions.depth / 2 - 0.5) continue;
+      cavityDots.push(
+        new THREE.Vector3().fromBufferAttribute(normals, index).normalize().dot(radial.normalize()),
+      );
+    }
+
+    expect(cavityDots.length).toBeGreaterThan(12);
+    expect(Math.max(...cavityDots)).toBeLessThan(-0.8);
+    geometry?.dispose();
   });
 
   it('keeps feature outlines finite and compact for house, curved union and hole workflows', () => {

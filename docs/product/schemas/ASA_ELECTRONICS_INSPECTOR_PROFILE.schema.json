@@ -1,0 +1,213 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://asa-lab.ru/schemas/electronics/inspector-profile.v1.json",
+  "title": "ASA Lab electronics inspector profile registry",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "profiles"],
+  "properties": {
+    "schemaVersion": { "const": "1.0.0" },
+    "profiles": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/profile" }
+    }
+  },
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*$"
+    },
+    "profile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "componentFamilyId",
+        "componentClasses",
+        "compactFields",
+        "technicalMetrics",
+        "terminalPresentation",
+        "capabilities",
+        "variantOverrides"
+      ],
+      "properties": {
+        "componentFamilyId": { "$ref": "#/$defs/identifier" },
+        "componentClasses": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "passive",
+              "semiconductor",
+              "source",
+              "sensor",
+              "actuator",
+              "display",
+              "controller",
+              "breadboard",
+              "instrument",
+              "interconnect"
+            ]
+          }
+        },
+        "compactFields": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/compactField" }
+        },
+        "technicalMetrics": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/metric" }
+        },
+        "terminalPresentation": {
+          "enum": ["hidden", "summary", "grouped", "full"]
+        },
+        "capabilities": { "$ref": "#/$defs/capabilities" },
+        "diagnosticPresentation": {
+          "enum": ["anchored_only", "anchored_and_global"]
+        },
+        "variantOverrides": {
+          "type": "object",
+          "propertyNames": { "$ref": "#/$defs/identifier" },
+          "additionalProperties": { "$ref": "#/$defs/variantOverride" }
+        }
+      }
+    },
+    "compactField": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["fieldId", "labelKey", "priority", "editor"],
+      "properties": {
+        "fieldId": { "$ref": "#/$defs/identifier" },
+        "labelKey": { "type": "string", "minLength": 1 },
+        "propertyBindingId": { "$ref": "#/$defs/identifier" },
+        "priority": { "enum": ["primary", "secondary", "advanced"] },
+        "editor": { "enum": ["text", "number", "select", "toggle", "action"] },
+        "unit": { "type": "string", "minLength": 1 },
+        "minimum": { "type": "number" },
+        "maximum": { "type": "number" },
+        "step": { "type": "number", "exclusiveMinimum": 0 },
+        "required": { "type": "boolean" },
+        "optionsSourceId": { "$ref": "#/$defs/identifier" },
+        "actionId": { "$ref": "#/$defs/identifier" },
+        "variantIds": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/identifier" }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "editor": { "const": "action" } },
+            "required": ["editor"]
+          },
+          "then": {
+            "properties": { "actionId": { "$ref": "#/$defs/identifier" } },
+            "required": ["actionId"]
+          },
+          "else": {
+            "properties": { "propertyBindingId": { "$ref": "#/$defs/identifier" } },
+            "required": ["propertyBindingId"]
+          }
+        },
+        {
+          "if": {
+            "properties": { "editor": { "const": "select" } },
+            "required": ["editor"]
+          },
+          "then": {
+            "properties": { "optionsSourceId": { "$ref": "#/$defs/identifier" } },
+            "required": ["optionsSourceId"]
+          }
+        }
+      ]
+    },
+    "metric": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "metricId",
+        "labelKey",
+        "metricBindingId",
+        "unit",
+        "precision",
+        "signConvention",
+        "supportedAnalyses",
+        "visibilityWhen",
+        "zeroIsMeaningful",
+        "stalePolicy"
+      ],
+      "properties": {
+        "metricId": { "$ref": "#/$defs/identifier" },
+        "labelKey": { "type": "string", "minLength": 1 },
+        "metricBindingId": { "$ref": "#/$defs/identifier" },
+        "unit": { "type": "string", "minLength": 1 },
+        "precision": { "type": "integer", "minimum": 0, "maximum": 9 },
+        "signConvention": { "type": "string", "minLength": 1 },
+        "terminalPair": {
+          "type": "array",
+          "prefixItems": [
+            { "$ref": "#/$defs/identifier" },
+            { "$ref": "#/$defs/identifier" }
+          ],
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "supportedAnalyses": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["electricalModes", "controllerRuntimes"],
+          "properties": {
+            "electricalModes": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": { "enum": ["dc", "transient"] }
+            },
+            "controllerRuntimes": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": { "enum": ["none", "arduino"] }
+            }
+          }
+        },
+        "visibilityWhen": {
+          "enum": ["result_current", "simulation_running", "always_if_supported"]
+        },
+        "zeroIsMeaningful": { "type": "boolean" },
+        "stalePolicy": { "enum": ["hide", "label"] }
+      }
+    },
+    "capabilities": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["simulation", "programmable", "interactiveStimulus", "instrument"],
+      "properties": {
+        "simulation": { "type": "boolean" },
+        "programmable": { "type": "boolean" },
+        "interactiveStimulus": { "type": "boolean" },
+        "instrument": { "type": "boolean" }
+      }
+    },
+    "variantOverride": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "compactFields": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/compactField" }
+        },
+        "technicalMetrics": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/metric" }
+        },
+        "terminalPresentation": {
+          "enum": ["hidden", "summary", "grouped", "full"]
+        },
+        "capabilities": { "$ref": "#/$defs/capabilities" }
+      },
+      "minProperties": 1
+    }
+  }
+}

@@ -38,7 +38,17 @@ const KEEPALIVE_LIMIT_BYTES = 60_000;
  */
 export type SnapshotSource = () => HTMLCanvasElement | null | Promise<HTMLCanvasElement | null>;
 
-const sources = new Map<string, SnapshotSource>();
+interface RegisteredSnapshotSource {
+  readonly capture: SnapshotSource;
+  readonly revision: () => number | null;
+}
+
+interface CapturedSnapshot {
+  readonly image: string;
+  readonly sourceRevision: number;
+}
+
+const sources = new Map<string, RegisteredSnapshotSource>();
 const lastSent = new Map<string, string>();
 
 /**
@@ -48,10 +58,12 @@ const lastSent = new Map<string, string>();
 export function registerProjectSnapshotSource(
   projectId: string,
   source: SnapshotSource,
+  revision: () => number | null,
 ): () => void {
-  sources.set(projectId, source);
+  const registration = { capture: source, revision };
+  sources.set(projectId, registration);
   return () => {
-    if (sources.get(projectId) === source) sources.delete(projectId);
+    if (sources.get(projectId) === registration) sources.delete(projectId);
   };
 }
 
@@ -86,15 +98,20 @@ export function encodeSnapshot(canvas: HTMLCanvasElement): string | null {
   return encoded.startsWith('data:image/') ? encoded : null;
 }
 
-export async function captureProjectSnapshot(projectId: string): Promise<string | null> {
-  const source = sources.get(projectId);
-  if (!source) return null;
+export async function captureProjectSnapshot(projectId: string): Promise<CapturedSnapshot | null> {
+  const registered = sources.get(projectId);
+  if (!registered) return null;
   try {
+    const sourceRevision = registered.revision();
+    if (sourceRevision === null || !Number.isSafeInteger(sourceRevision) || sourceRevision < 1) {
+      return null;
+    }
     // A synchronous source is encoded in this same turn: awaiting a plain value
     // would still yield, and a WebGL drawing buffer does not survive that.
-    const produced = source();
+    const produced = registered.capture();
     const canvas = produced instanceof Promise ? await produced : produced;
-    return canvas ? encodeSnapshot(canvas) : null;
+    const image = canvas ? encodeSnapshot(canvas) : null;
+    return image ? { image, sourceRevision } : null;
   } catch {
     // An editor mid-teardown, a lost WebGL context, a module bug: none of them
     // are worth interrupting the learner over.
@@ -110,14 +127,21 @@ export async function sendProjectSnapshot(
   projectId: string,
   options: { unloading?: boolean } = {},
 ): Promise<boolean> {
-  const image = await captureProjectSnapshot(projectId);
-  if (!image || lastSent.get(projectId) === image) return false;
-  if (options.unloading === true && image.length > KEEPALIVE_LIMIT_BYTES) return false;
-  // Recorded before the request completes: a failure is not worth retrying on
-  // the next tick with the same bytes, and the next real change will differ.
-  lastSent.set(projectId, image);
-  const result = await api.saveProjectSnapshot(projectId, image, options);
-  return result.ok;
+  const captured = await captureProjectSnapshot(projectId);
+  if (!captured || lastSent.get(projectId) === captured.image) return false;
+  if (options.unloading === true && captured.image.length > KEEPALIVE_LIMIT_BYTES) return false;
+  const result = await api.saveProjectSnapshot(
+    projectId,
+    captured.image,
+    captured.sourceRevision,
+    options,
+  );
+  // Only a server-confirmed image is deduplicated. A timeout, an offline
+  // browser or a revision conflict must leave the same bytes eligible for the
+  // next scheduled attempt.
+  if (!result.ok) return false;
+  lastSent.set(projectId, captured.image);
+  return true;
 }
 
 /**

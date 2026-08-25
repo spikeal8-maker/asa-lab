@@ -32,6 +32,7 @@ import { seatAvatar } from './creator-portal/default-avatars';
 import { CreateProjectModal } from './components/CreateProjectModal';
 import { AsaLabWordmark } from './brand/AsaLabBrand';
 import { ModuleEditorHost } from './modules/ModuleEditorHost';
+import { AppBootShell } from './components/AppBootShell';
 import { leaveMaxLaunch, readMaxInitData } from './max-auth';
 import { onSessionLoggedOut } from './session-fetch';
 import {
@@ -355,11 +356,7 @@ export function App(): JSX.Element {
   }, [session]);
 
   if (session.kind === 'checking') {
-    return (
-      <div className="page-center" role="status" aria-live="polite">
-        Загрузка…
-      </div>
-    );
+    return <AppBootShell />;
   }
   if (session.kind === 'error') {
     return (
@@ -525,6 +522,7 @@ export function App(): JSX.Element {
       <SchoolTimeProvider timeZone={portalSession.timeZone}>
         <ModuleEditorHost
           projectId={view.projectId}
+          {...(view.moduleKey ? { moduleKey: view.moduleKey } : {})}
           onBack={() => setView(view.returnTo)}
           onModuleResolved={handleModuleResolved}
           returnTo={view.returnTo}

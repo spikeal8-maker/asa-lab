@@ -20,7 +20,7 @@ function releaseFixture(): string {
   writeFileSync(join(root, 'api', 'dist', 'main.js'), 'console.log("api")\n');
   writeFileSync(join(root, 'api', 'package.json'), '{"name":"fixture"}\n');
   writeFileSync(join(root, 'pnpm-lock.yaml'), 'lockfileVersion: 9\n');
-  writeFileSync(join(root, 'migrations', '0088_fixture.sql'), 'SELECT 1;\n');
+  writeFileSync(join(root, 'migrations', '0090_fixture.sql'), 'SELECT 1;\n');
   writeFileSync(
     join(root, 'web', 'dist', 'build-metadata.json'),
     JSON.stringify({ revision: 'a'.repeat(40), builtAt: '2026-08-25T00:00:00.000Z' }),
@@ -47,7 +47,7 @@ describe('immutable production release artifact', () => {
   it('verifies the complete file set, web graph and schema as one unit', () => {
     const manifest = verifyReleaseArtifact(releaseFixture());
     expect(manifest.releaseRole).toBe('candidate');
-    expect(manifest.expectedSchemaVersion).toBe(88);
+    expect(manifest.expectedSchemaVersion).toBe(90);
     expect(
       manifest.files.some((entry: { path: string }) => entry.path === 'api/dist/main.js'),
     ).toBe(true);

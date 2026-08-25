@@ -6,6 +6,8 @@ const defaultFiles = [
   'tests/portal/creator-home.spec.ts',
   'tests/portal/capability-navigation.spec.ts',
   'tests/portal/creator-routing.spec.ts',
+  'tests/portal/boot-shell.spec.ts',
+  'tests/portal/project-integrity-contract.spec.ts',
 ];
 const forwarded = process.argv.slice(2).filter((argument) => argument !== '--');
 const runFlag = forwarded.indexOf('--run');

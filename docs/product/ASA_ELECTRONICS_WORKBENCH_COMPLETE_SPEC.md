@@ -3,6 +3,8 @@
 **Статус:** нормативный кандидат R0 для R4 Electronics parity.  
 **Машиночитаемый каталог:** [`ASA_ELECTRONICS_TOOL_CATALOG.yaml`](ASA_ELECTRONICS_TOOL_CATALOG.yaml).  
 **Общий Project lifecycle:** [`TINKERCAD_PARITY_SPEC.md`](TINKERCAD_PARITY_SPEC.md).
+**Карточки, состояние и справка компонентов:**
+[`ASA_ELECTRONICS_COMPONENT_INFORMATION_SYSTEM.md`](ASA_ELECTRONICS_COMPONENT_INFORMATION_SYSTEM.md).
 
 ## 1. Цель
 
@@ -207,6 +209,12 @@ select terminal
 Перемещение компонента обновляет визуальную геометрию, но не меняет stable endpoint references.
 
 ## 7. Inspector
+
+Архитектура информации компонента, разделение компактных свойств, технического
+состояния и учебной справки определены в
+[`ASA_ELECTRONICS_COMPONENT_INFORMATION_SYSTEM.md`](ASA_ELECTRONICS_COMPONENT_INFORMATION_SYSTEM.md).
+Этот раздел перечисляет совокупную функциональность inspector surface, но не
+требует одновременно показывать все перечисленные данные в компактной карточке.
 
 Для выбранного component:
 

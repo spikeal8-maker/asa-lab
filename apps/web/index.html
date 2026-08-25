@@ -18,6 +18,47 @@
     <link rel="alternate" hreflang="x-default" href="https://asa-lab.ru/" />
     <link rel="icon" type="image/svg+xml" href="/asa-lab-mark.svg" />
     <link rel="stylesheet" href="/seo.css" />
+    <style>
+      /* Critical first-frame shell. It is deliberately inline: the old SEO
+         document must never become visible while even the stylesheet or the
+         application bundle is still in flight. */
+      #root > .app-boot-shell-static {
+        position: fixed;
+        z-index: 2147483647;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        min-height: 100vh;
+        background: #f4f7fa;
+        color: #0b3558;
+        font-family:
+          'Segoe UI',
+          system-ui,
+          -apple-system,
+          sans-serif;
+      }
+      body:has(#root > .app-boot-shell-static) {
+        overflow: hidden;
+      }
+      #root > .app-boot-shell-static .app-boot-brand {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.8rem;
+        font-size: 1.45rem;
+        font-weight: 900;
+        letter-spacing: -0.04em;
+      }
+      #root > .app-boot-shell-static .app-boot-brand strong {
+        color: #087fa4;
+      }
+    </style>
+    <noscript
+      ><style>
+        #root > .app-boot-shell-static {
+          display: none;
+        }
+      </style></noscript
+    >
 
     <meta property="og:type" content="website" />
     <meta property="og:locale" content="ru_RU" />
@@ -106,6 +147,12 @@
   </head>
   <body>
     <div id="root">
+      <div class="app-boot-shell-static" aria-hidden="true">
+        <div class="app-boot-brand">
+          <img src="/asa-lab-mark.svg" width="52" height="52" alt="" />
+          <span>ASA <strong>Lab</strong></span>
+        </div>
+      </div>
       <div class="seo-fallback">
         <header class="seo-header">
           <a class="seo-brand" href="/" aria-label="ASA Lab — главная">ASA <span>Lab</span></a>

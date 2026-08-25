@@ -41,11 +41,13 @@ describe('independent subject routes', () => {
   it('routes direct 3D and Chess addresses into a full-page editor host', () => {
     expect(creatorViewFromHash('#/3d/three-d-project')).toEqual({
       kind: 'editor',
+      moduleKey: 'three-d',
       projectId: 'three-d-project',
       returnTo: { kind: 'my-projects' },
     });
     expect(creatorViewFromHash('#/chess/chess-project/review')).toEqual({
       kind: 'editor',
+      moduleKey: 'chess',
       projectId: 'chess-project',
       returnTo: { kind: 'my-projects' },
     });
