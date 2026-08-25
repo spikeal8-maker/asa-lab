@@ -581,9 +581,7 @@ export function WorkbenchStage({
                       data-hit-surface="potentiometer-knob-face"
                       cx={baseSize.width * (71.5 / 144)}
                       cy={baseSize.height * (71 / 164)}
-                      r={
-                        Math.min(baseSize.width / 144, baseSize.height / 164) * 71
-                      }
+                      r={Math.min(baseSize.width / 144, baseSize.height / 164) * 71}
                       onPointerDown={(event) => c.startPotentiometerControl(event, component)}
                       aria-label="Повернуть ручку потенциометра"
                     />
