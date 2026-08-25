@@ -10,7 +10,6 @@ import { createCadSolidMaterial } from './cad-appearance';
 
 const MODEL_EDGE_COLOR = '#263d47';
 const MODEL_EDGE_THRESHOLD_DEGREES = 24;
-const MODEL_EDGE_DEPTH_BIAS = 0.00035;
 export const MODEL_EDGE_NAME = 'ASA model hard edges';
 export { createCadSurfaceColor } from './cad-appearance';
 
@@ -27,17 +26,6 @@ export function addModelOutlineGeometry(
     depthWrite: false,
     toneMapped: false,
   });
-  // CSG edges lie exactly on their faces. Without a small clip-space bias,
-  // internal/concave junctions lose the depth test against the surface while
-  // silhouette edges remain visible. Biasing only Z keeps hidden back edges
-  // occluded, unlike depthTest=false, and avoids the old see-through wireframe.
-  material.onBeforeCompile = (shader) => {
-    shader.vertexShader = shader.vertexShader.replace(
-      '#include <project_vertex>',
-      `#include <project_vertex>\n gl_Position.z -= ${MODEL_EDGE_DEPTH_BIAS.toFixed(5)} * gl_Position.w;`,
-    );
-  };
-  material.customProgramCacheKey = () => 'asa-model-outline-depth-bias-v1';
 
   const edges = new THREE.LineSegments(edgeGeometry, material);
   edges.name = MODEL_EDGE_NAME;

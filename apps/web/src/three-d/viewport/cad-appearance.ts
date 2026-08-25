@@ -30,6 +30,12 @@ export function createCadSolidMaterial(color: string): THREE.MeshStandardMateria
     roughness: 0.9,
     metalness: 0,
     toneMapped: false,
+    // Push filled triangles a fraction behind their true feature edges. This
+    // is the standard CAD wire-overlay technique: coplanar junction lines win
+    // the depth test, while genuinely hidden back edges remain occluded.
+    polygonOffset: true,
+    polygonOffsetFactor: 1,
+    polygonOffsetUnits: 1,
   });
 }
 
