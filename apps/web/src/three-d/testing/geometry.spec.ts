@@ -115,6 +115,34 @@ describe('ASA 3D primitive geometry', () => {
     material.dispose();
   });
 
+  it('outlines only the hard boundary of a coplanar box union', () => {
+    const first = createThreeDNode('box', 'edge-box-first');
+    const secondSource = createThreeDNode('box', 'edge-box-second');
+    const second = {
+      ...secondSource,
+      transform: {
+        ...secondSource.transform,
+        position: { ...secondSource.transform.position, x: 8 },
+      },
+    };
+    const mesh = createBooleanMesh([first, second], 'union');
+    const outline = mesh?.getObjectByName(MODEL_EDGE_NAME) as THREE.LineSegments | undefined;
+    const position = outline?.geometry.getAttribute('position');
+
+    expect(outline).toBeInstanceOf(THREE.LineSegments);
+    expect(position?.count).toBe(24);
+    for (let offset = 0; position && offset + 1 < position.count; offset += 2) {
+      const start = new THREE.Vector3().fromBufferAttribute(position, offset);
+      const end = new THREE.Vector3().fromBufferAttribute(position, offset + 1);
+      const delta = end.sub(start);
+      const changedAxes = [delta.x, delta.y, delta.z].filter(
+        (component) => Math.abs(component) > 1e-4,
+      );
+      expect(changedAxes).toHaveLength(1);
+    }
+    if (mesh) disposeObject(mesh);
+  });
+
   it('builds editable Latin and Cyrillic text from real glyph contours', () => {
     const text = createThreeDNode('text', 'real-text');
     const latin = createPrimitiveGeometry({
@@ -462,6 +490,58 @@ describe('ASA 3D primitive geometry', () => {
         expect(b.sub(a).cross(c.sub(a)).lengthSq()).toBeGreaterThan(1e-10);
       }
       geometry?.dispose();
+    }
+  });
+
+  it('keeps feature outlines finite and compact for house, curved union and hole workflows', () => {
+    const wallSource = createThreeDNode('box', 'outlined-house-wall');
+    const wall = {
+      ...wallSource,
+      dimensions: { width: 30, depth: 24, height: 20 },
+      transform: { ...wallSource.transform, position: { x: -35, y: 10, z: 0 } },
+    };
+    const roofSource = createThreeDNode('roof', 'outlined-house-roof');
+    const roof = {
+      ...roofSource,
+      dimensions: { width: 34, depth: 24, height: 14 },
+      transform: { ...roofSource.transform, position: { x: -35, y: 26, z: 0 } },
+    };
+    const boxSource = createThreeDNode('box', 'outlined-curved-box');
+    const box = {
+      ...boxSource,
+      transform: { ...boxSource.transform, position: { x: 20, y: 10, z: 0 } },
+    };
+    const cylinderSource = createThreeDNode('cylinder', 'outlined-curved-cylinder');
+    const cylinder = {
+      ...cylinderSource,
+      transform: { ...cylinderSource.transform, position: { x: 28, y: 10, z: 0 } },
+    };
+    const hole = {
+      ...createThreeDNode('sphere', 'outlined-sphere-hole'),
+      operation: 'hole' as const,
+      dimensions: { width: 12, depth: 12, height: 12 },
+    };
+    const scenarios = [
+      createBooleanMesh([wall, roof], 'union'),
+      createBooleanMesh([box, cylinder], 'union'),
+      createBooleanMesh([boxSource, hole], 'difference'),
+    ];
+
+    for (const mesh of scenarios) {
+      const outline = mesh?.getObjectByName(MODEL_EDGE_NAME) as THREE.LineSegments | undefined;
+      const edges = outline?.geometry.getAttribute('position');
+      const faces = mesh?.geometry.getAttribute('position');
+      expect(outline).toBeInstanceOf(THREE.LineSegments);
+      expect(edges?.count).toBeGreaterThan(0);
+      expect(edges?.count).toBeLessThan(faces?.count ?? 0);
+      for (let offset = 0; edges && offset + 1 < edges.count; offset += 2) {
+        const start = new THREE.Vector3().fromBufferAttribute(edges, offset);
+        const end = new THREE.Vector3().fromBufferAttribute(edges, offset + 1);
+        expect(start.toArray().every(Number.isFinite)).toBe(true);
+        expect(end.toArray().every(Number.isFinite)).toBe(true);
+        expect(start.distanceToSquared(end)).toBeGreaterThan(1e-8);
+      }
+      if (mesh) disposeObject(mesh);
     }
   });
 

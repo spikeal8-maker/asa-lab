@@ -1,9 +1,13 @@
 import * as THREE from 'three';
 import type { BooleanOperation, ThreeDNode } from '@asa-lab/three-d';
-import { createPrimitiveGeometry } from './geometry';
+import { addModelOutlineGeometry, createPrimitiveGeometry } from './geometry';
 import { createCadSolidMaterial } from './cad-appearance';
 
 const EPSILON = 1e-5;
+const FEATURE_EDGE_EPSILON = 1e-4;
+const FEATURE_EDGE_ANGLE = THREE.MathUtils.degToRad(24);
+const FEATURE_EDGE_COSINE = Math.cos(FEATURE_EDGE_ANGLE);
+const FEATURE_EDGE_DATA = 'asaBooleanFeatureEdges';
 
 class Vertex {
   constructor(
@@ -332,10 +336,141 @@ function nodeMatrix(node: ThreeDNode): THREE.Matrix4 {
   return new THREE.Matrix4().compose(position, quaternion, scale);
 }
 
+interface SurfaceEdge {
+  readonly start: THREE.Vector3;
+  readonly end: THREE.Vector3;
+  readonly normal: THREE.Vector3;
+}
+
+interface CollinearEdgeGroup {
+  readonly direction: THREE.Vector3;
+  readonly records: SurfaceEdge[];
+}
+
+function quantize(value: number): number {
+  return Math.round(value / FEATURE_EDGE_EPSILON);
+}
+
+function canonicalDirection(start: THREE.Vector3, end: THREE.Vector3): THREE.Vector3 {
+  const direction = end.clone().sub(start).normalize();
+  const significant = [direction.x, direction.y, direction.z].find(
+    (component) => Math.abs(component) > FEATURE_EDGE_EPSILON,
+  );
+  if ((significant ?? 1) < 0) direction.multiplyScalar(-1);
+  return direction;
+}
+
+function collinearEdgeKey(start: THREE.Vector3, end: THREE.Vector3): string {
+  const direction = canonicalDirection(start, end);
+  const offset = start.clone().sub(direction.clone().multiplyScalar(start.dot(direction)));
+  return [
+    quantize(direction.x),
+    quantize(direction.y),
+    quantize(direction.z),
+    quantize(offset.x),
+    quantize(offset.y),
+    quantize(offset.z),
+  ].join(':');
+}
+
+function uniqueSorted(values: readonly number[]): number[] {
+  const sorted = [...values].sort((left, right) => left - right);
+  const result: number[] = [];
+  for (const value of sorted) {
+    if (result.length === 0 || Math.abs(value - result.at(-1)!) > FEATURE_EDGE_EPSILON) {
+      result.push(value);
+    }
+  }
+  return result;
+}
+
+/**
+ * Builds only authored/boolean feature edges. CSG frequently splits one edge
+ * into several collinear pieces (T-junctions), so exact triangle-pair matching
+ * exposes triangulation fans. Grouping by the infinite line and subdividing it
+ * into atomic intervals lets us compare the actual adjacent surface normals.
+ */
+function createFeatureEdgePositions(polygons: readonly Polygon[]): number[] {
+  const groups = new Map<string, CollinearEdgeGroup>();
+  for (const polygon of polygons) {
+    for (let index = 0; index < polygon.vertices.length; index += 1) {
+      const start = polygon.vertices[index]!.position;
+      const end = polygon.vertices[(index + 1) % polygon.vertices.length]!.position;
+      if (start.distanceToSquared(end) <= FEATURE_EDGE_EPSILON * FEATURE_EDGE_EPSILON) continue;
+      const key = collinearEdgeKey(start, end);
+      const group = groups.get(key) ?? {
+        direction: canonicalDirection(start, end),
+        records: [],
+      };
+      group.records.push({ start, end, normal: polygon.plane.normal });
+      groups.set(key, group);
+    }
+  }
+
+  const positions: number[] = [];
+  for (const group of groups.values()) {
+    const parameters = uniqueSorted(
+      group.records.flatMap((record) => [
+        record.start.dot(group.direction),
+        record.end.dot(group.direction),
+      ]),
+    );
+    const featureIntervals: Array<{ start: number; end: number; reference: THREE.Vector3 }> = [];
+    for (let index = 0; index + 1 < parameters.length; index += 1) {
+      const startParameter = parameters[index]!;
+      const endParameter = parameters[index + 1]!;
+      if (endParameter - startParameter <= FEATURE_EDGE_EPSILON) continue;
+      const midpoint = (startParameter + endParameter) / 2;
+      const covering = group.records.filter((record) => {
+        const first = record.start.dot(group.direction);
+        const second = record.end.dot(group.direction);
+        return (
+          midpoint >= Math.min(first, second) - FEATURE_EDGE_EPSILON &&
+          midpoint <= Math.max(first, second) + FEATURE_EDGE_EPSILON
+        );
+      });
+      const isFeature =
+        covering.length === 1 ||
+        covering.some((record, recordIndex) =>
+          covering
+            .slice(recordIndex + 1)
+            .some(
+              (other) =>
+                Math.abs(record.normal.dot(other.normal)) < FEATURE_EDGE_COSINE,
+            ),
+        );
+      if (!isFeature) continue;
+      const previous = featureIntervals.at(-1);
+      if (previous && Math.abs(previous.end - startParameter) <= FEATURE_EDGE_EPSILON) {
+        previous.end = endParameter;
+        continue;
+      }
+      featureIntervals.push({
+        start: startParameter,
+        end: endParameter,
+        reference: covering[0]!.start,
+      });
+    }
+    for (const interval of featureIntervals) {
+      const reference = interval.reference;
+      const referenceParameter = reference.dot(group.direction);
+      const start = reference
+        .clone()
+        .add(group.direction.clone().multiplyScalar(interval.start - referenceParameter));
+      const end = reference
+        .clone()
+        .add(group.direction.clone().multiplyScalar(interval.end - referenceParameter));
+      positions.push(start.x, start.y, start.z, end.x, end.y, end.z);
+    }
+  }
+  return positions;
+}
+
 function toGeometry(node: Node): THREE.BufferGeometry {
   const positions: number[] = [];
   const normals: number[] = [];
-  for (const polygon of node.allPolygons()) {
+  const polygons = node.allPolygons();
+  for (const polygon of polygons) {
     for (let index = 2; index < polygon.vertices.length; index += 1) {
       const triangle = [
         polygon.vertices[0]!,
@@ -357,6 +492,7 @@ function toGeometry(node: Node): THREE.BufferGeometry {
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
   geometry.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
+  geometry.userData[FEATURE_EDGE_DATA] = createFeatureEdgePositions(polygons);
   geometry.computeBoundingBox();
   geometry.computeBoundingSphere();
   return geometry;
@@ -401,6 +537,15 @@ export function createBooleanMesh(
   const color = nodes.find((node) => node.operation === 'solid')?.color ?? '#27a9e1';
   const material = createCadSolidMaterial(color);
   const mesh = new THREE.Mesh(geometry, material);
+  const featureEdgePositions = geometry.userData[FEATURE_EDGE_DATA];
+  if (Array.isArray(featureEdgePositions) && featureEdgePositions.length > 0) {
+    const outlineGeometry = new THREE.BufferGeometry();
+    outlineGeometry.setAttribute(
+      'position',
+      new THREE.Float32BufferAttribute(featureEdgePositions, 3),
+    );
+    addModelOutlineGeometry(mesh, outlineGeometry, 'solid');
+  }
   mesh.castShadow = false;
   mesh.receiveShadow = false;
   mesh.userData['booleanGroupId'] = nodes[0]?.groupId ?? '';

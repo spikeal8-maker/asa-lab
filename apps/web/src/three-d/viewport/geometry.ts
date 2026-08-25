@@ -13,17 +13,13 @@ const MODEL_EDGE_THRESHOLD_DEGREES = 24;
 export const MODEL_EDGE_NAME = 'ASA model hard edges';
 export { createCadSurfaceColor } from './cad-appearance';
 
-/**
- * Adds only real hard edges. A back-face silhouette mesh used to cover whole
- * faces at common camera angles, making bright solids appear almost black.
- * Edges remain children of the mesh and do not affect saved/printable geometry.
- */
-export function addModelOutlines(
+export function addModelOutlineGeometry(
   mesh: THREE.Mesh<THREE.BufferGeometry, THREE.Material | THREE.Material[]>,
+  edgeGeometry: THREE.BufferGeometry,
   operation: ThreeDNode['operation'] = 'solid',
 ): void {
   const edges = new THREE.LineSegments(
-    new THREE.EdgesGeometry(mesh.geometry, MODEL_EDGE_THRESHOLD_DEGREES),
+    edgeGeometry,
     new THREE.LineBasicMaterial({
       color: operation === 'hole' ? '#526169' : MODEL_EDGE_COLOR,
       transparent: true,
@@ -37,6 +33,22 @@ export function addModelOutlines(
   edges.raycast = () => {};
   edges.userData['modelOutline'] = true;
   mesh.add(edges);
+}
+
+/**
+ * Adds only real hard edges. A back-face silhouette mesh used to cover whole
+ * faces at common camera angles, making bright solids appear almost black.
+ * Edges remain children of the mesh and do not affect saved/printable geometry.
+ */
+export function addModelOutlines(
+  mesh: THREE.Mesh<THREE.BufferGeometry, THREE.Material | THREE.Material[]>,
+  operation: ThreeDNode['operation'] = 'solid',
+): void {
+  addModelOutlineGeometry(
+    mesh,
+    new THREE.EdgesGeometry(mesh.geometry, MODEL_EDGE_THRESHOLD_DEGREES),
+    operation,
+  );
 }
 
 function wedgeGeometry(): THREE.BufferGeometry {
