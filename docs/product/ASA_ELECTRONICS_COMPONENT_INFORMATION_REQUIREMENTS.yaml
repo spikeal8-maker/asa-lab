@@ -1,110 +1,297 @@
-schema_version: 1.0.0
+schema: docs/product/schemas/ASA_ELECTRONICS_COMPONENT_INFORMATION_REQUIREMENTS.schema.json
+schema_version: 1.1.0
 spec: docs/product/ASA_ELECTRONICS_COMPONENT_INFORMATION_SYSTEM.md
 status: proposed
-
-decision_statuses: [owner_direction, pending_owner, approved, rejected]
 
 decisions:
   - id: DEC-INFO-001
     decision: separate_properties_runtime_state_and_educational_help
     status: owner_direction
+    blocking_scopes: []
     evidence_required: [desktop_owner_review, mobile_owner_review]
   - id: DEC-INFO-002
     decision: help_replaces_component_catalog_and_restores_catalog_state
     status: pending_owner
+    blocking_scopes: [desktop_ux]
     evidence_required: [desktop_owner_review, mobile_owner_review]
   - id: DEC-INFO-003
     decision: neutral_info_control_for_runtime_state
     status: pending_owner
+    blocking_scopes: [desktop_ux, mobile_ux]
     evidence_required: [desktop_owner_review]
   - id: DEC-INFO-004
     decision: exclamation_is_diagnostic_badge_only
     status: pending_owner
+    blocking_scopes: [desktop_ux, mobile_ux]
     evidence_required: [diagnostic_states_owner_review]
   - id: DEC-INFO-005
     decision: mobile_help_is_full_screen_layer
     status: pending_owner
+    blocking_scopes: [mobile_ux]
     evidence_required: [mobile_owner_review]
+  - id: DEC-INFO-006
+    decision: missing_published_help_hides_control_or_shows_content_pending
+    status: pending_owner
+    blocking_scopes: [content, desktop_ux, mobile_ux]
+    evidence_required: [empty_help_state_owner_review]
 
 requirements:
   - id: ELEC-INFO-001
-    statement: enabled catalog families have a typed inspector profile
-    verification: automated
-    fixture: canonical_component_catalog
-    planned_test: component-information-coverage.spec.ts
-  - id: ELEC-INFO-002
-    statement: family and variant IDs resolve only through the canonical catalog
-    verification: automated
-    fixture: canonical_component_catalog
-    planned_test: component-information-identity.spec.ts
-  - id: ELEC-INFO-003
-    statement: compact inspector contains settings but no runtime measurements or help prose
-    verification: automated_and_visual
-    fixture: supported_resistor
-    planned_test: component-compact-inspector.spec.ts
-  - id: ELEC-INFO-004
-    statement: technical state renders only current finite solver values
-    verification: automated
-    fixture: supported_resistor_solved
-    planned_test: component-runtime-provenance.spec.ts
-  - id: ELEC-INFO-005
-    statement: a document edit invalidates values from an older simulation run
-    verification: automated
-    fixture: supported_resistor_stale_result
-    planned_test: component-runtime-provenance.spec.ts
-  - id: ELEC-INFO-006
-    statement: unsupported topology is fail-closed and exposes no numeric component values
-    verification: automated
-    fixture: unsupported_ultrasonic_sensor
-    planned_test: component-unsupported-state.spec.ts
-  - id: ELEC-INFO-007
-    statement: diagnostics are anchored to the actual component wire or net
-    verification: automated
-    fixture: unsupported_component_blocks_topology
-    planned_test: component-diagnostic-anchor.spec.ts
-  - id: ELEC-INFO-008
-    statement: free terminal and stopped simulation do not create a generic error
-    verification: automated
-    fixture: open_circuit_stopped
-    planned_test: component-neutral-states.spec.ts
-  - id: ELEC-INFO-009
-    statement: variant-specific pinout limits and connection rules override family help
-    verification: automated_and_content_review
-    fixture: family_with_distinct_variant_pinouts
-    planned_test: component-help-variant-override.spec.ts
-  - id: ELEC-INFO-010
-    statement: closing help restores catalog search category scroll and selected variant
-    verification: browser
-    fixture: populated_catalog_state
-    planned_test: component-help-navigation.spec.ts
-  - id: ELEC-INFO-011
-    statement: opening information layers does not trigger a solver run or change document coordinates
-    verification: browser
-    fixture: supported_resistor
-    planned_test: component-information-side-effects.spec.ts
-  - id: ELEC-INFO-012
-    statement: complex boards and instruments use grouped domain-specific presentation
-    verification: automated_and_visual
-    fixture: arduino_grouped_pins
-    planned_test: component-complex-profile.spec.ts
-  - id: ELEC-INFO-013
-    statement: component information layers are keyboard accessible and expose semantic names
-    verification: browser_accessibility
-    fixture: supported_resistor
-    planned_test: component-information-accessibility.spec.ts
-  - id: ELEC-INFO-014
-    statement: mobile information layers preserve canvas and draft navigation
-    verification: browser_and_visual
-    fixture: mobile_390x844
-    planned_test: component-information-mobile.spec.ts
-  - id: ELEC-INFO-015
-    statement: help content and media are lazy and excluded from the initial editor bundle
-    verification: build_and_browser
-    fixture: production_bundle
-    planned_test: component-information-performance.spec.ts
+    statement: enabled catalog families join to schema-valid inspector profiles without changing catalog status
+    normative_sections: ["5.1", "5.2", "9.1"]
+    status: planned
+    activation: mandatory
+    depends_on_decisions: []
+    verification: [unit, build]
+    planned_test_path: apps/web/src/electronics/testing/component-information-coverage.spec.ts
+    planned_fixture_path: apps/web/src/electronics/testing/fixtures/canonical-component-catalog.json
+    gate: pnpm gate:electronics-m1
+    assertions: [all_enabled_families_have_profiles, validation_does_not_mutate_catalog]
+    evidence: { result: not_run, verified_sha: null, artifacts: [] }
 
-evidence:
-  commit_sha: null
-  automated_results: []
-  screenshots: []
-  owner_acceptance: pending
+  - id: ELEC-INFO-002
+    statement: family variant component and instance IDs resolve only through their declared canonical boundaries
+    normative_sections: ["5.1"]
+    status: planned
+    activation: mandatory
+    depends_on_decisions: []
+    verification: [unit]
+    planned_test_path: apps/web/src/electronics/testing/component-information-identity.spec.ts
+    planned_fixture_path: apps/web/src/electronics/testing/fixtures/canonical-component-catalog.json
+    gate: pnpm gate:electronics-m1
+    assertions: [no_join_by_kind_display_name_or_asset_path, every_override_matches_family_variant]
+    evidence: { result: not_run, verified_sha: null, artifacts: [] }
+
+  - id: ELEC-INFO-003
+    statement: compact inspector contains editable settings but no runtime measurements or help prose
+    normative_sections: ["3.1"]
+    status: planned
+    activation: mandatory
+    depends_on_decisions: []
+    verification: [unit, visual]
+    planned_test_path: apps/web/src/electronics/testing/component-compact-inspector.spec.ts
+    planned_fixture_path: apps/web/src/electronics/testing/fixtures/supported-resistor.json
+    gate: pnpm gate:electronics-m1
+    assertions: [primary_fields_visible_without_scroll, runtime_values_absent, help_prose_absent]
+    evidence: { result: not_run, verified_sha: null, artifacts: [] }
+
+  - id: ELEC-INFO-004
+    statement: technical state renders only current finite values from a successful deterministic result
+    normative_sections: ["6", "7", "7.1", "7.2"]
+    status: planned
+    activation: mandatory
+    depends_on_decisions: []
+    verification: [unit, integration]
+    planned_test_path: apps/web/src/electronics/testing/component-runtime-provenance.spec.ts
+    planned_fixture_path: apps/web/src/electronics/testing/fixtures/supported-resistor-solved.json
+    gate: pnpm gate:electronics-m1
+    assertions: [finite_values_only, matching_simulation_input_digest, solved_status_required]
+    evidence: { result: not_run, verified_sha: null, artifacts: [] }
+
+  - id: ELEC-INFO-005
+    statement: only an electrically meaningful change invalidates a previous result
+    normative_sections: ["7.1"]
+    status: planned
+    activation: mandatory
+    depends_on_decisions: []
+    verification: [unit, integration]
+    planned_test_path: contexts/electronics/testing/simulation-input-digest.spec.ts
+    planned_fixture_path: contexts/electronics/testing/fixtures/digest-change-matrix.json
+    gate: pnpm gate:electronics-m1
+    assertions: [wire_or_model_change_changes_digest, viewport_name_and_wire_color_do_not_change_digest]
+    evidence: { result: not_run, verified_sha: null, artifacts: [] }
+
+  - id: ELEC-INFO-006
+    statement: deterministic solve result excludes timestamps and random run IDs
+    normative_sections: ["7.1"]
+    status: planned
+    activation: mandatory
+    depends_on_decisions: []
+    verification: [unit]
+    planned_test_path: contexts/electronics/testing/deterministic-result.spec.ts
+    planned_fixture_path: contexts/electronics/testing/fixtures/deterministic-resistor.json
+    gate: pnpm gate:electronics-m1
+    assertions: [same_input_is_byte_identical, run_metadata_is_outside_canonical_result]
+    evidence: { result: not_run, verified_sha: null, artifacts: [] }
+
+  - id: ELEC-INFO-007
+    statement: unsupported topology is fail-closed and exposes no numeric component values
+    normative_sections: ["6", "12"]
+    status: planned
+    activation: mandatory
+    depends_on_decisions: []
+    verification: [unit, integration]
+    planned_test_path: contexts/electronics/testing/component-unsupported-state.spec.ts
+    planned_fixture_path: contexts/electronics/testing/fixtures/unsupported-ultrasonic-sensor.json
+    gate: pnpm gate:electronics-m1
+    assertions: [solve_status_unsupported, no_component_measurements, blocking_component_anchored]
+    evidence: { result: not_run, verified_sha: null, artifacts: [] }
+
+  - id: ELEC-INFO-008
+    statement: diagnostics retain severity and anchor to the actual component wire or net
+    normative_sections: ["6", "9.3"]
+    status: planned
+    activation: mandatory
+    depends_on_decisions: []
+    verification: [unit]
+    planned_test_path: contexts/electronics/testing/component-diagnostic-anchor.spec.ts
+    planned_fixture_path: contexts/electronics/testing/fixtures/anchored-diagnostics.json
+    gate: pnpm gate:electronics-m1
+    assertions: [anchor_exists, ui_does_not_reassign_severity, message_key_and_params_are_consistent]
+    evidence: { result: not_run, verified_sha: null, artifacts: [] }
+
+  - id: ELEC-INFO-009
+    statement: free terminal open circuit and stopped simulation do not create a generic component error
+    normative_sections: ["6", "12"]
+    status: planned
+    activation: mandatory
+    depends_on_decisions: []
+    verification: [unit]
+    planned_test_path: apps/web/src/electronics/testing/component-neutral-states.spec.ts
+    planned_fixture_path: apps/web/src/electronics/testing/fixtures/open-circuit-stopped.json
+    gate: pnpm gate:electronics-m1
+    assertions: [no_generic_correct_circuit_message, no_warning_badge_without_diagnostic]
+    evidence: { result: not_run, verified_sha: null, artifacts: [] }
+
+  - id: ELEC-INFO-010
+    statement: variant pinout limits and connection rules override family help where variants differ
+    normative_sections: ["3.3", "5.1", "9.2"]
+    status: planned
+    activation: mandatory
+    depends_on_decisions: []
+    verification: [unit, content_review]
+    planned_test_path: apps/web/src/electronics/testing/component-help-variant-override.spec.ts
+    planned_fixture_path: apps/web/src/electronics/testing/fixtures/family-distinct-variant-pinouts.json
+    gate: pnpm gate:electronics-m1
+    assertions: [family_default_applies, variant_override_wins, foreign_variant_is_rejected]
+    evidence: { result: not_run, verified_sha: null, artifacts: [] }
+
+  - id: ELEC-INFO-011
+    statement: approved help navigation restores catalog search category scroll and selected variant
+    normative_sections: ["3.3", "10"]
+    status: blocked
+    activation: after_decisions
+    depends_on_decisions: [DEC-INFO-002]
+    verification: [browser, visual]
+    planned_test_path: e2e/electronics-component-help-navigation.spec.ts
+    planned_fixture_path: e2e/fixtures/electronics/populated-catalog-state.json
+    gate: pnpm gate:electronics-m1:browser
+    assertions: [help_opens_in_approved_surface, catalog_state_restored_exactly]
+    evidence: { result: not_run, verified_sha: null, artifacts: [] }
+
+  - id: ELEC-INFO-012
+    statement: technical state control and diagnostic badge follow owner-approved semantics
+    normative_sections: ["3.2"]
+    status: blocked
+    activation: after_decisions
+    depends_on_decisions: [DEC-INFO-003, DEC-INFO-004]
+    verification: [browser, visual, accessibility]
+    planned_test_path: e2e/electronics-component-state-control.spec.ts
+    planned_fixture_path: e2e/fixtures/electronics/diagnostic-state-matrix.json
+    gate: pnpm gate:electronics-m1:browser
+    assertions: [neutral_state_has_no_warning_badge, warning_and_error_badges_match_diagnostics, semantic_name_present]
+    evidence: { result: not_run, verified_sha: null, artifacts: [] }
+
+  - id: ELEC-INFO-013
+    statement: boards instruments and breadboards use grouped domain-specific presentation
+    normative_sections: ["8.7", "8.8", "8.9"]
+    status: planned
+    activation: mandatory
+    depends_on_decisions: []
+    verification: [unit, visual]
+    planned_test_path: apps/web/src/electronics/testing/component-complex-profile.spec.ts
+    planned_fixture_path: apps/web/src/electronics/testing/fixtures/complex-component-profiles.json
+    gate: pnpm gate:electronics-m1
+    assertions: [arduino_pins_grouped, breadboard_holes_not_flattened, instrument_metrics_are_domain_specific]
+    evidence: { result: not_run, verified_sha: null, artifacts: [] }
+
+  - id: ELEC-INFO-014
+    statement: information layers are keyboard accessible and do not steal higher-priority editor cancellation
+    normative_sections: ["10", "11"]
+    status: planned
+    activation: mandatory
+    depends_on_decisions: []
+    verification: [browser, accessibility]
+    planned_test_path: e2e/electronics-component-information-accessibility.spec.ts
+    planned_fixture_path: e2e/fixtures/electronics/active-interaction-priority.json
+    gate: pnpm gate:electronics-m1:browser
+    assertions: [semantic_controls, visible_focus, active_wire_cancelled_before_information_layer]
+    evidence: { result: not_run, verified_sha: null, artifacts: [] }
+
+  - id: ELEC-INFO-015
+    statement: mobile help uses approved navigation and preserves draft canvas and safe areas
+    normative_sections: ["3.3", "10", "11"]
+    status: blocked
+    activation: after_decisions
+    depends_on_decisions: [DEC-INFO-002, DEC-INFO-005]
+    verification: [browser, visual, accessibility]
+    planned_test_path: e2e/electronics-component-information-mobile.spec.ts
+    planned_fixture_path: e2e/fixtures/electronics/mobile-390x844.json
+    gate: pnpm gate:electronics-m1:browser
+    assertions: [canvas_coordinates_unchanged, safe_area_respected, browser_back_closes_only_owned_history_layer]
+    evidence: { result: not_run, verified_sha: null, artifacts: [] }
+
+  - id: ELEC-INFO-016
+    statement: help content is lazy and information controls do not run the solver or parse owner SVG again
+    normative_sections: ["10", "11"]
+    status: planned
+    activation: mandatory
+    depends_on_decisions: []
+    verification: [browser, build]
+    planned_test_path: e2e/electronics-component-information-performance.spec.ts
+    planned_fixture_path: e2e/fixtures/electronics/performance-profile.json
+    gate: pnpm gate:electronics-m1:browser
+    assertions: [help_excluded_from_initial_bundle, no_solver_call, no_svg_reparse, no_handler_long_task_over_50ms]
+    evidence: { result: not_run, verified_sha: null, artifacts: [] }
+
+  - id: ELEC-INFO-017
+    statement: help accepts only schema-valid structured blocks and rejects HTML external scripts and unapproved media
+    normative_sections: ["4", "9.2", "12"]
+    status: planned
+    activation: mandatory
+    depends_on_decisions: []
+    verification: [unit, content_review]
+    planned_test_path: apps/web/src/electronics/testing/component-help-content-schema.spec.ts
+    planned_fixture_path: apps/web/src/electronics/testing/fixtures/help-content-security-matrix.json
+    gate: pnpm gate:electronics-m1
+    assertions: [html_rejected, media_digest_required, external_script_rejected, https_source_allowlist_enforced]
+    evidence: { result: not_run, verified_sha: null, artifacts: [] }
+
+  - id: ELEC-INFO-018
+    statement: publishing safety-critical help requires content engineering and owner approvals bound to a content digest
+    normative_sections: ["4", "9.2"]
+    status: planned
+    activation: mandatory
+    depends_on_decisions: []
+    verification: [unit, content_review]
+    planned_test_path: apps/web/src/electronics/testing/component-help-approval.spec.ts
+    planned_fixture_path: apps/web/src/electronics/testing/fixtures/help-approval-lifecycle.json
+    gate: pnpm gate:electronics-m1
+    assertions: [published_requires_all_roles, safety_change_invalidates_approval, translation_number_change_requires_engineering_review]
+    evidence: { result: not_run, verified_sha: null, artifacts: [] }
+
+  - id: ELEC-INFO-019
+    statement: browser Back and Escape obey the global editor input and unsaved-draft contracts
+    normative_sections: ["10"]
+    status: planned
+    activation: mandatory
+    depends_on_decisions: []
+    verification: [browser]
+    planned_test_path: e2e/electronics-component-information-navigation-priority.spec.ts
+    planned_fixture_path: e2e/fixtures/electronics/navigation-priority-matrix.json
+    gate: pnpm gate:electronics-m1:browser
+    assertions: [no_browser_history_trap, unsaved_guard_preserved, focused_layer_closes_after_active_interaction]
+    evidence: { result: not_run, verified_sha: null, artifacts: [] }
+
+  - id: ELEC-INFO-020
+    statement: missing published help follows the owner-approved empty-content behavior without a blank page
+    normative_sections: ["5.2"]
+    status: blocked
+    activation: after_decisions
+    depends_on_decisions: [DEC-INFO-006]
+    verification: [browser, visual]
+    planned_test_path: e2e/electronics-component-help-empty-state.spec.ts
+    planned_fixture_path: e2e/fixtures/electronics/missing-published-help.json
+    gate: pnpm gate:electronics-m1:browser
+    assertions: [no_blank_help_page, behavior_matches_decision]
+    evidence: { result: not_run, verified_sha: null, artifacts: [] }

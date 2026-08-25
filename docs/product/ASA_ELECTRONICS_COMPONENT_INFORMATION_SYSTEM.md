@@ -1,7 +1,8 @@
 # ASA Lab — система карточек, состояния и справки электронных компонентов
 
-**Статус:** proposed; массовая реализация запрещена до owner approval решений,
-помеченных `pending_owner`.
+**Статус:** proposed. Инженерный фундамент можно реализовывать независимо;
+решение `pending_owner` блокирует только требования, которые явно на него
+ссылаются.
 
 **Область:** Electronics Workbench, библиотека компонентов, инспектор выбранного
 экземпляра, данные симуляции и учебная справка.
@@ -13,6 +14,11 @@
 
 **Машиночитаемые требования:**
 [`ASA_ELECTRONICS_COMPONENT_INFORMATION_REQUIREMENTS.yaml`](ASA_ELECTRONICS_COMPONENT_INFORMATION_REQUIREMENTS.yaml).
+
+**Схемы контрактов:**
+[`ASA_ELECTRONICS_INSPECTOR_PROFILE.schema.json`](schemas/ASA_ELECTRONICS_INSPECTOR_PROFILE.schema.json),
+[`ASA_ELECTRONICS_HELP_CONTENT.schema.json`](schemas/ASA_ELECTRONICS_HELP_CONTENT.schema.json),
+[`ASA_ELECTRONICS_COMPONENT_INFORMATION_REQUIREMENTS.schema.json`](schemas/ASA_ELECTRONICS_COMPONENT_INFORMATION_REQUIREMENTS.schema.json).
 
 ## 0. Сила требований, иерархия и решения
 
@@ -36,10 +42,23 @@ evidence ledger. ASA-улучшение относительно reference ма�
 | DEC-INFO-003 | Нейтральная кнопка состояния использует системную info-иконку | `pending_owner` | ASA usability recommendation |
 | DEC-INFO-004 | `!` появляется только как diagnostic badge | `pending_owner` | ASA safety improvement |
 | DEC-INFO-005 | На телефоне справка открывается полноэкранной панелью | `pending_owner` | responsive recommendation |
+| DEC-INFO-006 | При отсутствии опубликованной справки `?` скрыт либо показывает `content_pending` | `pending_owner` | требуется единое поведение каталога |
 
 До принятия решения код не должен зависеть от буквального Unicode-символа.
 Используется семантический control с `aria-label`, а конкретная иконка берётся из
 единой дизайн-системы.
+
+Статусы решений переходят только так:
+
+```text
+pending_owner → approved | rejected
+owner_direction → approved | rejected
+```
+
+Изменение статуса выполняет владелец продукта. `approved` обязательно содержит
+evidence: commit SHA, viewport и screenshot/video ID. `rejected` содержит
+принятую альтернативу. Решение не может молча менять смысл после approval;
+изменение создаёт новый DEC-ID.
 
 ## 1. Зачем нужен отдельный контракт
 
@@ -169,8 +188,10 @@ evidence, что он не конфликтует с canvas, клавиатур�
 
 Опубликованная справка обязана указывать применимые варианты и источник
 электротехнических пределов. Внешние ссылки проходят allowlist. HTML из контента
-не исполняется; разметка санитизируется. Для каждого медиа обязательны digest,
-alt-текст, происхождение и статус проверки.
+не принимается вообще. Справка хранится как ограниченные структурные блоки:
+`paragraph`, `list`, `warning`, `pinoutTable`, `approvedImage` и
+`approvedCircuitExample`. Для каждого медиа обязательны digest, alt-текст,
+происхождение и статус проверки.
 
 ## 5. Источники данных и границы ответственности
 
@@ -216,9 +237,29 @@ enabled catalog family
   = valid component information contract
 ```
 
-Отсутствие профиля блокирует enabled-состояние. Отсутствие опубликованной
-справки не должно создавать пустую страницу: `?` скрывается либо показывает
-честный локализованный статус `content_pending` согласно owner decision.
+Отсутствие профиля у enabled-компонента блокирует build/release gate, но
+валидатор не изменяет `status` канонического каталога. Только владелец каталога
+может включать или отключать компонент. Отсутствие опубликованной справки не
+создаёт пустую страницу: поведение `?` определяется `DEC-INFO-006`.
+
+### 5.3. Целевое расположение артефактов
+
+```text
+apps/web/public/assets/electronics/component-database/catalog.json
+  canonical identity, variants, terminals, assets, simulation support
+
+apps/web/src/electronics/component-information/inspector-profiles.json
+  один schema-valid profile registry
+
+apps/web/src/electronics/component-information/help/<locale>/<familyId>.json
+  лениво загружаемый schema-valid help content
+
+docs/evidence/electronics/component-information/
+  owner decisions, content approvals, screenshots and gate receipts
+```
+
+Это целевые пути реализации, а не заявление, что файлы уже существуют. Runtime
+не сканирует Downloads, owner-audit или произвольные directories.
 
 ## 6. Состояния электрической модели
 
@@ -270,26 +311,52 @@ enabled catalog family
 - температура — °C;
 - расстояние — мм, см, м.
 
-### 7.1. Provenance результата
+### 7.1. Детерминированный результат и metadata запуска
 
-Чтобы правила выше были выполнимы, результат расчёта обязан иметь конверт:
+Канонический результат не содержит часы, случайные ID или UI-состояние:
 
 ```text
-simulationRunId
-documentDigest
-topologySignature
-modelVersion
-simulationMode: dc | transient | microcontroller_runtime
-computedAt
-status
-components[]
-diagnostics[]
+DeterministicSolveResult
+  schemaVersion
+  simulationInputDigest
+  topologySignature
+  solverRevision
+  modelSetDigest
+  analysis:
+    electricalMode: dc | transient
+    controllerRuntime: none | arduino
+  status
+  components[]
+  diagnostics[]
+  quality
 ```
 
-`documentDigest` сравнивается с каноническим digest текущего ProjectDocument.
-Один только `componentId` не доказывает актуальность результата. До появления
-этого provenance UI обязан скрывать показания сразу после любого изменения
-схемы.
+Одинаковый `simulationInputDigest`, solver revision и model set обязаны давать
+байт-в-байт одинаковый `DeterministicSolveResult`.
+
+Операционные сведения хранятся отдельно и не входят в сравнение результатов:
+
+```text
+SimulationRunMetadata
+  simulationRunId
+  startedAt
+  completedAt
+  trigger: user | document_change | controller_reset
+```
+
+`simulationInputDigest` вычисляется только из канонических электрических входов:
+
+- component IDs, варианты и параметры моделей;
+- terminals, wires, breadboard groups и netlist;
+- положения переключателей и воздействия, влияющие на модель;
+- код и runtime-настройки контроллера;
+- параметры электрического анализа.
+
+В digest не входят viewport, zoom, положение панелей, search, пользовательское
+имя, цвет провода без электрического смысла и help state. Один только
+`componentId` не доказывает актуальность результата. До внедрения
+`simulationInputDigest` UI скрывает показания после любого потенциально
+электрического изменения, но не обязан инвалидировать их из-за чистого UI-edit.
 
 ### 7.2. Контракт отдельной метрики
 
@@ -301,7 +368,9 @@ unit
 precision
 signConvention
 terminalPair optional
-supportedModes[]
+supportedAnalyses:
+  electricalModes[]
+  controllerRuntimes[]
 visibilityWhen
 zeroIsMeaningful
 stalePolicy: hide | label
@@ -310,6 +379,11 @@ stalePolicy: hide | label
 Для тока указывается положительное направление. Для напряжения указывается
 упорядоченная пара выводов. Термин «падение» без направления запрещён. Порог
 перегрузки приходит из модели или variant limits, а не придумывается formatter.
+
+Variant override заменяет только записи с совпадающим `fieldId` или `metricId`;
+остальные семейные записи наследуются. Дублирующиеся ID внутри effective
+profile запрещены. Help override явно перечисляет `replaceSections`; блоки
+других разделов наследуются от семейства.
 
 ## 8. Профили семейств компонентов
 
@@ -397,7 +471,12 @@ stalePolicy: hide | label
 
 ### 9.1. Профиль инспектора
 
+Нормативная структура определена JSON Schema
+`schemas/ASA_ELECTRONICS_INSPECTOR_PROFILE.schema.json`. Псевдокод ниже только
+объясняет назначение полей и не заменяет schema validation.
+
 ```text
+schemaVersion
 componentFamilyId
 componentClasses[]
 compactFields[]
@@ -419,6 +498,9 @@ diagnosticPresentation
 дублируются в профиле UI.
 
 ### 9.2. Учебная справка
+
+Нормативная структура определена JSON Schema
+`schemas/ASA_ELECTRONICS_HELP_CONTENT.schema.json`.
 
 ```text
 componentFamilyId
@@ -454,6 +536,18 @@ pinout, connection rules, safety и starter example. Перевод наслед
 электротехническое одобрение исходной версии, только если структурные значения и
 числа не изменились; иначе требуется повторная проверка.
 
+Роли процесса:
+
+- `contentEditor` готовит текст и источники;
+- `engineeringReviewer` подтверждает pinout, пределы, безопасность и пример;
+- `ownerPublisher` переводит одобренную ревизию в `published`.
+
+Событие approval содержит actor ID, content digest и timestamp в отдельном audit
+ledger. Изменение pinout, connection rules, safety, starter example,
+source references или variant limits автоматически сбрасывает инженерное
+одобрение. Изменение только перевода повторно проверяется редактором; изменение
+числа или единицы требует engineering review.
+
 ### 9.3. Диагностика
 
 ```text
@@ -474,6 +568,32 @@ UI может локализовать код и действие, но не м�
 затем UI перестаёт зависеть от готовой строки. Одновременное существование двух
 несогласованных сообщений запрещено.
 
+### 9.4. Обязательный семантический валидатор
+
+JSON Schema проверяет форму, но не заменяет проверку связей. Build/release gate
+обязан дополнительно проверить:
+
+- уникальность family, field, metric, content и requirement IDs;
+- существование family/variant/terminal IDs в каноническом каталоге;
+- отсутствие variant override для чужого семейства;
+- корректность `sourcePath` относительно типизированного SolveResult;
+- существование source references и approved assets;
+- отсутствие HTML и внешних URL вне allowlist;
+- переходы decision/content/requirement statuses;
+- существование test и fixture для `implemented`/`verified`;
+- соответствие verified evidence тому же commit SHA и указанному gate.
+
+### 9.5. Версионирование контрактов
+
+- patch-изменение уточняет описание без изменения валидной структуры;
+- minor-изменение добавляет необязательные обратно совместимые поля;
+- major-изменение требует явной миграции profile/help registry;
+- неизвестный major schema version делает registry невалидным и блокирует
+  release, но не изменяет каталог и ProjectDocument;
+- миграция детерминирована, идемпотентна и имеет fixture до/после;
+- опубликованный help content хранит собственный `contentVersion` независимо от
+  schema version.
+
 ## 10. Автомат состояния интерфейса
 
 | Событие | Обязательный результат |
@@ -487,12 +607,16 @@ UI может локализовать код и действие, но не м�
 | Выбран wire | открывается wire inspector; component help закрывается |
 | Выбрано несколько объектов | показываются только безопасные общие действия |
 | Открывается Code panel | canvas не меняет document coordinates; конкурирующие панели закрываются по утверждённому layout contract |
-| Нажат Escape | закрывается верхний слой: help → technical state → selection |
-| Нажата мобильная системная кнопка Back | закрывается верхний слой без выхода с потерей draft |
+| Нажат Escape | компонентный слой получает событие только после отмены active wire, reconnect, drag, edit и modal согласно глобальному input-priority contract |
+| Нажата мобильная системная кнопка Back | закрывается только слой, который добавил запись browser history; выход из draft регулируется общим unsaved-changes guard |
 
 Help route не сбрасывает selection и не запускает solver. Интерактивный stimulus
 изменяет документ или runtime input согласно явному persistence contract; это
 действие участвует в undo/redo, если изменяет ProjectDocument.
+
+Приоритет `Escape` и Back не определяется локальным компонентом. До появления
+общего input-priority contract разрешено только закрытие явно сфокусированного
+help/state layer; перехват навигации браузера по умолчанию запрещён.
 
 ## 11. Визуальный, адаптивный и performance-контракт
 
@@ -513,11 +637,15 @@ Help route не сбрасывает selection и не запускает solver
 - help-контент и его медиа не входят в initial editor bundle и загружаются лениво;
 - открытие/закрытие help и technical state не запускает solver;
 - смена выделения не выполняет повторный parse owner SVG;
-- оболочка карточки реагирует на локальное действие не позднее следующего
-  animation frame; тяжёлый контент получает отдельный loading state;
+- локальное действие немедленно меняет семантическое состояние control;
+  синхронная работа обработчика не создаёт long task более 50 ms в browser
+  performance fixture; тяжёлый контент получает отдельный loading state;
 - изображения имеют заданные размеры до загрузки и не вызывают layout shift;
 - touch, mouse и keyboard используют одну state machine;
 - mobile layout учитывает safe-area, экранную клавиатуру и отсутствие hover.
+
+Performance evidence фиксирует браузер, viewport, CPU profile, cold/warm cache и
+commit SHA. Без этих параметров число latency не считается доказательством.
 
 ## 12. Что запрещено
 
@@ -535,50 +663,56 @@ Help route не сбрасывает selection и не запускает solver
 - создание второй несвязанной базы идентичности компонентов;
 - объединение записей по `kind`, display name или пути SVG;
 - повторный расчёт схемы из-за открытия информационной панели;
-- исполнение HTML или внешнего скрипта из справочного контента.
+- хранение или исполнение HTML и внешнего скрипта в справочном контенте.
 
 ## 13. Порядок реализации
 
-1. Получить owner decisions из таблицы DEC-INFO.
-2. Добавить provenance-конверт SolveResult и тест на stale result.
-3. Ввести типизированные классы компонентов и registry профилей инспектора.
-4. Реализовать три эталонных случая:
+Работа идёт независимыми потоками. `pending_owner` не блокирует фундамент, если
+требование не содержит `depends_on_decisions`.
+
+### 13.1. Data foundation
+
+1. Ввести `simulationInputDigest` и разделить deterministic result/run metadata.
+2. Ввести JSON Schema и валидируемые registry профилей и справки.
+3. Подключить строгий catalog join и fail release gate без изменения catalog status.
+4. Добавить тесты stale result, unsupported и variant override.
+
+### 13.2. Reference UX
+
+1. Получить owner decisions DEC-INFO-002—006.
+2. Реализовать три эталонных случая:
    - резистор — простой поддержанный компонент;
    - Arduino — сложный программируемый компонент;
    - ультразвуковой датчик — размещаемый компонент без готовой модели.
-5. Получить визуальное подтверждение владельца на компьютере и телефоне.
-6. Перевести общую оболочку инспектора и справки на registry.
-7. Заполнять профили и справку по семействам, не по случайному порядку карточек.
-8. Подключать измерения только одновременно с проверенной моделью.
-9. Включить автоматическую проверку покрытия каталога и content approval.
+3. Получить визуальное подтверждение владельца на компьютере и телефоне.
+4. Перевести общую оболочку inspector/help на registry.
+
+### 13.3. Content rollout
+
+1. Заполнять справку по семействам и variant overrides.
+2. Подключать измерения только одновременно с проверенной моделью.
+3. Включить coverage, content approval и evidence gates.
 
 Эталонные случаи выбраны так, чтобы проверить простую, сложную и честно
 неподдержанную ветви до массового копирования интерфейса.
 
 ## 14. Критерии приёмки
 
-Система считается готовой как фундамент, когда:
+Канонический перечень критериев находится только в
+`ASA_ELECTRONICS_COMPONENT_INFORMATION_REQUIREMENTS.yaml`:
 
-1. каждый enabled-компонент автоматически получает компактный инспектор и обе
-   информационные точки входа;
-2. каталог не позволяет enabled-компоненту существовать без профиля;
-3. компактный инспектор содержит только основные редактируемые свойства;
-4. `?` открывает справку в области библиотеки и надёжно возвращает каталог;
-5. `ⓘ` показывает только состояние выбранного экземпляра;
-6. предупреждение появляется только из реальной привязанной диагностики;
-7. свободный вывод и остановленная симуляция не выглядят ошибкой;
-8. unsupported-компонент не показывает численные результаты;
-9. показания конечны, актуальны и принадлежат текущей ревизии схемы;
-10. сложные компоненты используют группы, а не огромные плоские списки;
-11. desktop и mobile проходят визуальную и клавиатурную проверку;
-12. тест покрытия подтверждает профиль и статус справки для каждого
-    enabled-компонента.
+- `ELEC-INFO-001—010` — обязательный data/runtime foundation;
+- `ELEC-INFO-011—012` — desktop UX после соответствующих owner decisions;
+- `ELEC-INFO-013—014` — сложные профили и accessibility;
+- `ELEC-INFO-015` — mobile UX после owner decisions;
+- `ELEC-INFO-016—019` — performance, content security, approval и navigation;
+- `ELEC-INFO-020` — отсутствие справки после `DEC-INFO-006`.
 
-Каждый критерий имеет стабильный `requirement_id`, fixture, способ проверки и
-evidence status в
-`ASA_ELECTRONICS_COMPONENT_INFORMATION_REQUIREMENTS.yaml`. Текстовый список не
-является доказательством PASS. Автоматический тест, screenshot и owner approval
-фиксируются отдельно и ссылаются на один commit SHA.
+Текстовый список не является доказательством PASS. Требование считается
+проверенным только при `status: verified`, `result: pass`, точном commit SHA и
+непустых evidence artifacts. Требование `after_decisions` не активно, пока все
+его зависимости не имеют статус `approved`. Planned path может отсутствовать;
+для `implemented` и `verified` test и fixture обязаны существовать.
 
 Минимальные обязательные fixtures:
 
