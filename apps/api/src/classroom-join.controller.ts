@@ -27,6 +27,12 @@ import { checkBodyShape } from './validation.js';
 import { clientAddress } from './client-address.js';
 import { BotChallengeService } from './bot-challenge.js';
 import { FixedWindowRateLimiter } from './rate-limit.js';
+import {
+  LearningCanonicalProjectionService,
+  canonicalProjectionKey,
+  type CanonicalLearningProjection,
+  type CanonicalLearningSurfaceState,
+} from './learning-canonical-projection.service.js';
 
 const STUDENT_SESSION_COOKIE = 'asa_student_session';
 const STUDENT_SESSION_HOURS = 8;
@@ -63,6 +69,22 @@ interface AssignmentForSeatRow {
   /** Снимок работы: по нему ученик вспоминает, на чём остановился. */
   snapshot_revision: number | string | null;
   updated_at: Date | string | null;
+}
+
+type CanonicalProjectionMap = Map<string, CanonicalLearningProjection>;
+
+function canonicalFor(
+  projections: CanonicalProjectionMap,
+  assignmentId: string | null,
+  seatId?: string,
+): CanonicalLearningSurfaceState | null {
+  if (assignmentId === null) return null;
+  if (seatId) return projections.get(canonicalProjectionKey(seatId, assignmentId))?.surface ?? null;
+  for (const projection of projections.values()) {
+    if (projection.state.provenance.classroomAssignmentId === assignmentId)
+      return projection.surface;
+  }
+  return null;
 }
 
 interface SeatCourseRunRow {
@@ -132,7 +154,7 @@ function error(code: string, message: string): { error: { code: string; message:
   return { error: { code, message } };
 }
 
-function seatCourseRuns(rows: SeatCourseRunRow[]) {
+function seatCourseRuns(rows: SeatCourseRunRow[], projections: CanonicalProjectionMap = new Map()) {
   const runs: Array<{
     id: string;
     courseId: string;
@@ -169,6 +191,7 @@ function seatCourseRuns(rows: SeatCourseRunRow[]) {
         snapshotRevision: number | null;
         updatedAt: string | null;
         completedAt: string | null;
+        canonicalState: CanonicalLearningSurfaceState | null;
       }>;
     }>;
   }> = [];
@@ -222,13 +245,14 @@ function seatCourseRuns(rows: SeatCourseRunRow[]) {
       snapshotRevision: row.snapshot_revision === null ? null : Number(row.snapshot_revision),
       updatedAt: row.work_updated_at === null ? null : isoDate(row.work_updated_at),
       completedAt: row.completed_at === null ? null : isoDate(row.completed_at),
+      canonicalState: canonicalFor(projections, row.classroom_assignment_id),
     });
   }
   return runs;
 }
 
 /** Build a learner-safe DTO. Answer keys are not selected by either SQL function. */
-function seatQuizzes(rows: QuizForSeatRow[]) {
+function seatQuizzes(rows: QuizForSeatRow[], projections: CanonicalProjectionMap = new Map()) {
   const quizzes: Array<{
     assignmentId: string;
     classroomTitle: string;
@@ -243,6 +267,7 @@ function seatQuizzes(rows: QuizForSeatRow[]) {
     totalPoints: number;
     passThreshold: number;
     latestResult: { state: string; points: number | null; percentage: number | null } | null;
+    canonicalState: CanonicalLearningSurfaceState | null;
     questions: Array<{
       versionId: string;
       type: string;
@@ -278,6 +303,7 @@ function seatQuizzes(rows: QuizForSeatRow[]) {
                   : Number(row.latest_percentage_basis_points) / 100,
             }
           : null,
+        canonicalState: canonicalFor(projections, row.classroom_assignment_id),
         questions: [],
       };
       quizzes.push(quiz);
@@ -294,7 +320,10 @@ function seatQuizzes(rows: QuizForSeatRow[]) {
   return quizzes;
 }
 
-function learningResults(rows: Array<Record<string, unknown>>) {
+function learningResults(
+  rows: Array<Record<string, unknown>>,
+  projections: CanonicalProjectionMap = new Map(),
+) {
   return rows.map((row) => ({
     classroomTitle: String(row['classroom_title']),
     assignmentId: String(row['assignment_id']),
@@ -308,6 +337,7 @@ function learningResults(rows: Array<Record<string, unknown>>) {
     outcome: String(row['outcome']),
     feedback: row['feedback'] ? String(row['feedback']) : null,
     publishedAt: isoDate(row['published_at'] as Date | string),
+    canonicalState: canonicalFor(projections, String(row['assignment_id'])),
   }));
 }
 
@@ -357,6 +387,10 @@ export class ClassroomJoinController {
       throw new HttpException(error('database_unavailable', 'database is not configured'), 503);
     }
     return this.pool;
+  }
+
+  private canonical(): LearningCanonicalProjectionService {
+    return new LearningCanonicalProjectionService(this.requirePool());
   }
 
   private enforceRateLimit(limiter: FixedWindowRateLimiter, key: string): void {
@@ -659,31 +693,35 @@ export class ClassroomJoinController {
   async accountAssignments(@Req() request: FastifyRequest) {
     const context = await this.activeContext.resolve(request.cookies[SESSION_COOKIE]);
     if (!context) throw new HttpException(error('unauthorized', 'no active session'), 401);
-    const result = await this.requirePool().query(
-      `SELECT id, seat_id, classroom_title, title, brief, goal, module_key,
+    const [result, projections] = await Promise.all([
+      this.requirePool().query(
+        `SELECT id, seat_id, classroom_title, title, brief, goal, module_key,
               due_at, status, sample_image, project_id, submitted_at,
               snapshot_revision, updated_at
          FROM classroom_assignments_for_account($1)`,
-      [context.accountId],
-    );
-    return {
-      items: (result.rows as Array<AssignmentForSeatRow & { classroom_title: string }>).map(
-        (row) => ({
-          id: row.id,
-          title: row.title,
-          brief: row.brief,
-          goal: row.goal,
-          moduleKey: row.module_key,
-          dueAt: row.due_at ? isoDate(row.due_at) : null,
-          status: row.status,
-          sampleImage: row.sample_image,
-          projectId: row.project_id,
-          submittedAt: row.submitted_at ? isoDate(row.submitted_at) : null,
-          snapshotRevision: row.snapshot_revision === null ? null : Number(row.snapshot_revision),
-          updatedAt: row.updated_at ? isoDate(row.updated_at) : null,
-          classroomTitle: row.classroom_title,
-        }),
+        [context.accountId],
       ),
+      this.canonical().forAccount(context.accountId),
+    ]);
+    return {
+      items: (
+        result.rows as Array<AssignmentForSeatRow & { classroom_title: string; seat_id: string }>
+      ).map((row) => ({
+        id: row.id,
+        title: row.title,
+        brief: row.brief,
+        goal: row.goal,
+        moduleKey: row.module_key,
+        dueAt: row.due_at ? isoDate(row.due_at) : null,
+        status: row.status,
+        sampleImage: row.sample_image,
+        projectId: row.project_id,
+        submittedAt: row.submitted_at ? isoDate(row.submitted_at) : null,
+        snapshotRevision: row.snapshot_revision === null ? null : Number(row.snapshot_revision),
+        updatedAt: row.updated_at ? isoDate(row.updated_at) : null,
+        classroomTitle: row.classroom_title,
+        canonicalState: canonicalFor(projections, row.id, row.seat_id),
+      })),
     };
   }
 
@@ -692,22 +730,26 @@ export class ClassroomJoinController {
   async accountQuizzes(@Req() request: FastifyRequest) {
     const context = await this.activeContext.resolve(request.cookies[SESSION_COOKIE]);
     if (!context) throw new HttpException(error('unauthorized', 'no active session'), 401);
-    const result = await this.requirePool().query(
-      `SELECT * FROM quiz_assignments_for_account($1)`,
-      [context.accountId],
-    );
-    return { items: seatQuizzes(result.rows as QuizForSeatRow[]) };
+    const [result, projections] = await Promise.all([
+      this.requirePool().query(`SELECT * FROM quiz_assignments_for_account($1)`, [
+        context.accountId,
+      ]),
+      this.canonical().forAccount(context.accountId),
+    ]);
+    return { items: seatQuizzes(result.rows as QuizForSeatRow[], projections) };
   }
 
   @Get('account/results')
   async accountResults(@Req() request: FastifyRequest) {
     const context = await this.activeContext.resolve(request.cookies[SESSION_COOKIE]);
     if (!context) throw new HttpException(error('unauthorized', 'no active session'), 401);
-    const result = await this.requirePool().query(
-      `SELECT * FROM learning_results_for_account($1)`,
-      [context.accountId],
-    );
-    return { items: learningResults(result.rows as Array<Record<string, unknown>>) };
+    const [result, projections] = await Promise.all([
+      this.requirePool().query(`SELECT * FROM learning_results_for_account($1)`, [
+        context.accountId,
+      ]),
+      this.canonical().forAccount(context.accountId),
+    ]);
+    return { items: learningResults(result.rows as Array<Record<string, unknown>>, projections) };
   }
 
   /** Published course runs across every class this signed-in account attends. */
@@ -715,8 +757,9 @@ export class ClassroomJoinController {
   async accountCourseRuns(@Req() request: FastifyRequest) {
     const context = await this.activeContext.resolve(request.cookies[SESSION_COOKIE]);
     if (!context) throw new HttpException(error('unauthorized', 'no active session'), 401);
-    const result = await this.requirePool().query(
-      `SELECT run_id, course_id, course_version_id, version_number, classroom_title,
+    const [result, projections] = await Promise.all([
+      this.requirePool().query(
+        `SELECT run_id, course_id, course_version_id, version_number, classroom_title,
               run_title, run_summary, due_at, run_status, lesson_id, source_lesson_id,
               section_title, section_summary, section_position, lesson_title, lesson_summary,
               lesson_content, lesson_blocks, lesson_kind, estimated_minutes, lesson_position,
@@ -724,9 +767,11 @@ export class ClassroomJoinController {
               module_key, sample_image, project_id, submitted_at, snapshot_revision,
               work_updated_at, completed_at
          FROM classroom_course_runs_for_account_v2($1)`,
-      [context.accountId],
-    );
-    return { items: seatCourseRuns(result.rows as SeatCourseRunRow[]) };
+        [context.accountId],
+      ),
+      this.canonical().forAccount(context.accountId),
+    ]);
+    return { items: seatCourseRuns(result.rows as SeatCourseRunRow[], projections) };
   }
 
   @Post('account/course-runs/:runId/lessons/:lessonId/progress')
@@ -768,12 +813,15 @@ export class ClassroomJoinController {
   @Get('me/assignments')
   async assignments(@Req() request: FastifyRequest) {
     const seat = await this.currentSeat(request);
-    const result = await this.requirePool().query(
-      `SELECT id, title, brief, goal, module_key, due_at, status, sample_image, project_id,
+    const [result, projections] = await Promise.all([
+      this.requirePool().query(
+        `SELECT id, title, brief, goal, module_key, due_at, status, sample_image, project_id,
               submitted_at, snapshot_revision, updated_at
          FROM classroom_assignments_for_seat($1)`,
-      [seat.seat_id],
-    );
+        [seat.seat_id],
+      ),
+      this.canonical().forSeat(seat.seat_id),
+    ]);
     return {
       items: (result.rows as AssignmentForSeatRow[]).map((row) => ({
         id: row.id,
@@ -788,6 +836,7 @@ export class ClassroomJoinController {
         submittedAt: row.submitted_at ? isoDate(row.submitted_at) : null,
         snapshotRevision: row.snapshot_revision === null ? null : Number(row.snapshot_revision),
         updatedAt: row.updated_at ? isoDate(row.updated_at) : null,
+        canonicalState: canonicalFor(projections, row.id, seat.seat_id),
       })),
     };
   }
@@ -796,27 +845,30 @@ export class ClassroomJoinController {
   @Get('me/quizzes')
   async quizzes(@Req() request: FastifyRequest) {
     const seat = await this.currentSeat(request);
-    const result = await this.requirePool().query(`SELECT * FROM quiz_assignments_for_seat($1)`, [
-      seat.seat_id,
+    const [result, projections] = await Promise.all([
+      this.requirePool().query(`SELECT * FROM quiz_assignments_for_seat($1)`, [seat.seat_id]),
+      this.canonical().forSeat(seat.seat_id),
     ]);
-    return { items: seatQuizzes(result.rows as QuizForSeatRow[]) };
+    return { items: seatQuizzes(result.rows as QuizForSeatRow[], projections) };
   }
 
   @Get('me/results')
   async results(@Req() request: FastifyRequest) {
     const seat = await this.currentSeat(request);
-    const result = await this.requirePool().query(`SELECT * FROM learning_results_for_seat($1)`, [
-      seat.seat_id,
+    const [result, projections] = await Promise.all([
+      this.requirePool().query(`SELECT * FROM learning_results_for_seat($1)`, [seat.seat_id]),
+      this.canonical().forSeat(seat.seat_id),
     ]);
-    return { items: learningResults(result.rows as Array<Record<string, unknown>>) };
+    return { items: learningResults(result.rows as Array<Record<string, unknown>>, projections) };
   }
 
   /** Published courses assigned to the learner's current class. */
   @Get('me/course-runs')
   async courseRuns(@Req() request: FastifyRequest) {
     const seat = await this.currentSeat(request);
-    const result = await this.requirePool().query(
-      `SELECT run_id, course_id, course_version_id, version_number, classroom_title,
+    const [result, projections] = await Promise.all([
+      this.requirePool().query(
+        `SELECT run_id, course_id, course_version_id, version_number, classroom_title,
               run_title, run_summary, due_at, run_status, lesson_id, source_lesson_id,
               section_title, section_summary, section_position, lesson_title, lesson_summary,
               lesson_content, lesson_blocks, lesson_kind, estimated_minutes, lesson_position,
@@ -824,9 +876,11 @@ export class ClassroomJoinController {
               module_key, sample_image, project_id, submitted_at, snapshot_revision,
               work_updated_at, completed_at
          FROM classroom_course_runs_for_seat_v2($1)`,
-      [seat.seat_id],
-    );
-    return { items: seatCourseRuns(result.rows as SeatCourseRunRow[]) };
+        [seat.seat_id],
+      ),
+      this.canonical().forSeat(seat.seat_id),
+    ]);
+    return { items: seatCourseRuns(result.rows as SeatCourseRunRow[], projections) };
   }
 
   /** Material completion is explicit; assignment completion comes from submission. */

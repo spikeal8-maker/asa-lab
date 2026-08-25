@@ -58,10 +58,10 @@ nodes:
   - {id: CTX-CLASSROOM, label: Classroom, kind: bounded_context, layer: control, status: done, summary: "Teacher Portal baseline and classes.", path: contexts/classroom}
   - {id: CTX-PROJECTS, label: Projects, kind: bounded_context, layer: control, status: in_progress, summary: "Module-neutral project lifecycle is preserved for the independent Checkers module.", path: contexts/projects}
   - {id: CTX-MODULES, label: Module Registry, kind: bounded_context, layer: control, status: in_progress, summary: "R3A gateway is verified; remaining R3B work is deferred."}
-  - {id: CTX-CONTENT, label: Learning Content, kind: bounded_context, layer: control, status: in_progress, summary: "CURRENT contains course, assignment and quiz definitions; owner-activated M0 is auditing convergence before any runtime redesign."}
+  - {id: CTX-CONTENT, label: Learning Content, kind: bounded_context, layer: control, status: in_progress, summary: "CURRENT keeps course, assignment and quiz definitions; M0-007 routes their existing learner and teacher read surfaces through one canonical state resolver without redesigning authoring."}
   - {id: CTX-NOTIFICATIONS, label: Notifications, kind: bounded_context, layer: control, status: planned, summary: "Future notification backend; R2 may expose honest empty surface."}
-  - {id: CTX-ACTIVITIES, label: Assignments, kind: bounded_context, layer: control, status: in_progress, summary: "CURRENT contains direct, course-derived and quiz classroom handouts; M0 audits their parallel state paths."}
-  - {id: CTX-ASSESSMENT, label: Assessment, kind: bounded_context, layer: control, status: in_progress, summary: "CURRENT contains attempts, submissions, quiz grading, teacher review, learner results and a gradebook projection; M0 audits divergence from the target canonical chain."}
+  - {id: CTX-ACTIVITIES, label: Assignments, kind: bounded_context, layer: control, status: in_progress, summary: "Direct, course-derived and quiz handouts now share one server-side canonical read projection; legacy reads remain behind an explicit rollback flag until the M0 acceptance gate."}
+  - {id: CTX-ASSESSMENT, label: Assessment, kind: bounded_context, layer: control, status: in_progress, summary: "Existing attempts, submissions, quiz grading, teacher review, learner results and Gradebook read the same canonical workflow/result selection; Gradebook 2.0 remains future scope."}
   - {id: CTX-SAFETY, label: Safety and Audit, kind: bounded_context, layer: control, status: in_progress, summary: "Audit exists; safe capability-aware UI continues."}
 
   - {id: DATA-PG, label: PostgreSQL, kind: data_store, layer: data, status: in_progress, summary: "Transactional data and RLS."}

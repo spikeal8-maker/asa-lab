@@ -11,6 +11,7 @@
     "@asa-lab/database": "workspace:*",
     "@asa-lab/electronics": "workspace:*",
     "@asa-lab/identity": "workspace:*",
+    "@asa-lab/learning": "workspace:*",
     "@asa-lab/module-sdk": "workspace:*",
     "@asa-lab/observability": "workspace:*",
     "@asa-lab/organization": "workspace:*",

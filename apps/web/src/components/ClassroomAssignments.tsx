@@ -12,6 +12,10 @@ import { useSchoolTime } from './school-time';
 import { seatAvatar } from '../creator-portal/default-avatars';
 import { WorkPreview } from './WorkPreview';
 import './classroom-assignments.css';
+import {
+  canonicalLearningClass,
+  canonicalLearningLabel,
+} from '../learning/canonical-learning-presentation';
 
 /**
  * Work a teacher sets, and how the class is getting on with it.
@@ -207,14 +211,19 @@ export function ClassroomAssignments({
                 <span className="assignment-progress-name">{row.displayLabel}</span>
                 <span
                   className={`assignment-state ${
-                    row.submittedAt ? 'is-done' : row.startedAt ? 'is-started' : 'is-idle'
+                    canonicalLearningClass(row.canonicalState) ||
+                    (row.submittedAt ? 'is-done' : row.startedAt ? 'is-started' : 'is-idle')
                   }`}
                 >
-                  {row.submittedAt
-                    ? `Сдано ${time.dateTime(row.submittedAt)}`
-                    : row.startedAt
-                      ? `Работает с ${time.dateTime(row.startedAt)}`
-                      : 'Не открывал'}
+                  {canonicalLearningLabel(row.canonicalState) ??
+                    (row.submittedAt
+                      ? `Сдано ${time.dateTime(row.submittedAt)}`
+                      : row.startedAt
+                        ? `Работает с ${time.dateTime(row.startedAt)}`
+                        : 'Не открывал')}
+                  {row.canonicalState?.compatibilityDiagnostic ? (
+                    <small>{row.canonicalState.compatibilityDiagnostic}</small>
+                  ) : null}
                 </span>
                 {/* The picture first. Launching an editor to answer "is this
                     finished" thirty times is not marking, it is waiting. */}

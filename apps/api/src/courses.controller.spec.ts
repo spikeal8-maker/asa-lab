@@ -18,7 +18,9 @@ function request(): FastifyRequest {
 }
 
 function controller(rows: unknown[] = []) {
-  const query = vi.fn(async () => ({ rows }));
+  const query = vi.fn(async (sql: string) => ({
+    rows: sql.includes('learning_canonical_evidence') ? [] : rows,
+  }));
   const activeContext = {
     resolve: vi.fn(async () => ({
       principalId: 'principal-id',

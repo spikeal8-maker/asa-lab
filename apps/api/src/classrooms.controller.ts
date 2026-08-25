@@ -34,6 +34,10 @@ import {
 import { classroomCodeSecret } from './classroom-code-secret.js';
 import { SESSION_COOKIE, TOKENS } from './tokens.js';
 import { checkBodyShape, checkIdempotencyKey, isPlainObject } from './validation.js';
+import {
+  LearningCanonicalProjectionService,
+  canonicalProjectionKey,
+} from './learning-canonical-projection.service.js';
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const HANDLE_PATTERN = /^[a-z0-9._-]{3,32}$/;
@@ -269,6 +273,10 @@ export class ClassroomsController {
     return this.pool;
   }
 
+  private canonical(): LearningCanonicalProjectionService {
+    return new LearningCanonicalProjectionService(this.requirePool());
+  }
+
   private async requireContext(request: FastifyRequest): Promise<ActiveContext> {
     const context = await this.activeContext.resolve(request.cookies[SESSION_COOKIE]);
     if (!context) throw new HttpException(error('unauthorized', 'no active session'), 401);
@@ -422,6 +430,14 @@ export class ClassroomsController {
   @Get('awaiting-review')
   async awaitingReview(@Req() request: FastifyRequest) {
     const context = await this.requireEducator(request);
+    if (this.canonical().enabled()) {
+      const projections = await this.canonical().forTeacherAccount(context.accountId);
+      return {
+        total: [...projections.values()].filter(
+          (item) => item.surface.workflowState === 'waiting_review',
+        ).length,
+      };
+    }
     const result = await this.requirePool().query(
       `SELECT classroom_awaiting_review_total($1) AS total`,
       [context.accountId],
@@ -434,11 +450,14 @@ export class ClassroomsController {
   async progress(@Req() request: FastifyRequest, @Param('classroomId') classroomId: string) {
     const context = await this.requireEducator(request);
     this.requireUuid(classroomId, 'classroom');
-    const result = await this.requirePool().query(
-      `SELECT seat_count, assigned_count, submitted_count, awaiting_review, behind_count
+    const [result, projections] = await Promise.all([
+      this.requirePool().query(
+        `SELECT seat_count, assigned_count, submitted_count, awaiting_review, behind_count
          FROM classroom_progress_summary($1, $2)`,
-      [context.accountId, classroomId],
-    );
+        [context.accountId, classroomId],
+      ),
+      this.canonical().forTeacher(context.accountId, classroomId),
+    ]);
     const row = result.rows[0] as
       | {
           seat_count: number | string;
@@ -452,8 +471,18 @@ export class ClassroomsController {
     return {
       seatCount: Number(row.seat_count),
       assignedCount: Number(row.assigned_count),
-      submittedCount: Number(row.submitted_count),
-      awaitingReview: Number(row.awaiting_review),
+      submittedCount: projections.size
+        ? [...projections.values()].filter((item) =>
+            ['submitted', 'waiting_review', 'changes_requested', 'completed'].includes(
+              item.surface.workflowState,
+            ),
+          ).length
+        : Number(row.submitted_count),
+      awaitingReview: projections.size
+        ? [...projections.values()].filter(
+            (item) => item.surface.workflowState === 'waiting_review',
+          ).length
+        : Number(row.awaiting_review),
       behindCount: Number(row.behind_count),
     };
   }
@@ -462,13 +491,36 @@ export class ClassroomsController {
   async roster(@Req() request: FastifyRequest, @Param('classroomId') classroomId: string) {
     const context = await this.requireEducator(request);
     await this.summary(context, classroomId);
-    const result = await this.requirePool().query(
-      `SELECT id, display_label, login_handle, safe_mode, status, avatar_key,
+    const [result, projections] = await Promise.all([
+      this.requirePool().query(
+        `SELECT id, display_label, login_handle, safe_mode, status, avatar_key,
               last_active_at, created_at, assigned_count, submitted_count, awaiting_review
          FROM classroom_management_roster($1, $2)`,
-      [context.accountId, classroomId],
-    );
-    return { items: (result.rows as StudentSeatRow[]).map(seatView) };
+        [context.accountId, classroomId],
+      ),
+      this.canonical().forTeacher(context.accountId, classroomId),
+    ]);
+    return {
+      items: (result.rows as StudentSeatRow[]).map((row) => {
+        const item = seatView(row);
+        const states = [...projections.values()].filter(
+          (projection) => projection.state.provenance.seatId === row.id,
+        );
+        return states.length === 0
+          ? item
+          : {
+              ...item,
+              submittedCount: states.filter((projection) =>
+                ['submitted', 'waiting_review', 'changes_requested', 'completed'].includes(
+                  projection.surface.workflowState,
+                ),
+              ).length,
+              awaitingReview: states.filter(
+                (projection) => projection.surface.workflowState === 'waiting_review',
+              ).length,
+            };
+      }),
+    };
   }
 
   /**
@@ -519,7 +571,7 @@ export class ClassroomsController {
   ) {
     const context = await this.requireEducator(request);
     await this.summary(context, classroomId);
-    const [roster, projects, activity, counts] = await Promise.all([
+    const [roster, projects, activity, counts, projections] = await Promise.all([
       this.requirePool().query(
         `SELECT id, display_label, login_handle, safe_mode, status, avatar_key,
                 last_active_at, created_at, assigned_count, submitted_count, awaiting_review
@@ -546,6 +598,7 @@ export class ClassroomsController {
         `SELECT submitted, awaiting_review FROM classroom_seat_work_counts($1)`,
         [seatId],
       ),
+      this.canonical().forTeacher(context.accountId, classroomId),
     ]);
     const seat = (roster.rows as StudentSeatRow[]).find((row) => row.id === seatId);
     if (!seat) {
@@ -553,10 +606,23 @@ export class ClassroomsController {
     }
     const workCounts = counts.rows[0] as
       { submitted: number | string; awaiting_review: number | string } | undefined;
+    const learnerStates = [...projections.values()].filter(
+      (projection) => projection.state.provenance.seatId === seatId,
+    );
     return {
       student: seatView(seat),
-      submittedCount: Number(workCounts?.submitted ?? 0),
-      awaitingReview: Number(workCounts?.awaiting_review ?? 0),
+      submittedCount: learnerStates.length
+        ? learnerStates.filter((projection) =>
+            ['submitted', 'waiting_review', 'changes_requested', 'completed'].includes(
+              projection.surface.workflowState,
+            ),
+          ).length
+        : Number(workCounts?.submitted ?? 0),
+      awaitingReview: learnerStates.length
+        ? learnerStates.filter(
+            (projection) => projection.surface.workflowState === 'waiting_review',
+          ).length
+        : Number(workCounts?.awaiting_review ?? 0),
       projects: (projects.rows as SeatProjectRow[]).map((row) => ({
         id: row.id,
         moduleKey: row.module_key,
@@ -574,6 +640,8 @@ export class ClassroomsController {
         // открывает страницу, чтобы найти именно ту, до которой не дошёл.
         submittedAt: row.submitted_at ? iso(row.submitted_at) : null,
         awaitingReview: row.awaiting_review === true,
+        canonicalState:
+          learnerStates.find((projection) => projection.projectId === row.id)?.surface ?? null,
         // Что было задано. Проверять работу, не видя условия, преподаватель
         // может только по памяти — а через неделю после урока её уже нет.
         assignment: row.assignment_title
@@ -1001,12 +1069,15 @@ export class ClassroomsController {
     const context = await this.requireEducator(request);
     this.requireUuid(assignmentId, 'assignment');
     await this.summary(context, classroomId);
-    const result = await this.requirePool().query(
-      `SELECT seat_id, display_label, avatar_key, project_id, snapshot_revision,
+    const [result, projections] = await Promise.all([
+      this.requirePool().query(
+        `SELECT seat_id, display_label, avatar_key, project_id, snapshot_revision,
               started_at, submitted_at, badge
          FROM classroom_assignment_progress($1, $2, $3)`,
-      [context.accountId, classroomId, assignmentId],
-    );
+        [context.accountId, classroomId, assignmentId],
+      ),
+      this.canonical().forTeacher(context.accountId, classroomId),
+    ]);
     return {
       items: (result.rows as AssignmentProgressRow[]).map((row) => ({
         seatId: row.seat_id,
@@ -1017,6 +1088,8 @@ export class ClassroomsController {
         startedAt: row.started_at ? iso(row.started_at) : null,
         submittedAt: row.submitted_at ? iso(row.submitted_at) : null,
         badge: row.badge,
+        canonicalState:
+          projections.get(canonicalProjectionKey(row.seat_id, assignmentId))?.surface ?? null,
       })),
     };
   }

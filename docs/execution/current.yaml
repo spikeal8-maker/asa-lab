@@ -259,18 +259,36 @@ parallel_lanes:
 
   # Owner-activated ASA Learning M0 state-convergence lane. The repository
   # task id follows the control-plane schema; its only active Work Queue item is
-  # LRN-M0-006. M0-007 and M1-M7 remain outside this activation.
+  # LRN-M0-007. M0-008 and M1-M7 remain outside this activation.
   - id: learning
-    worktree_id: learning-m0-additive-backfill
+    worktree_id: learning-m0-surface-convergence
     owned_paths:
       - docs/product/ASA_LEARNING_TECHNICAL_SPEC.md
       - docs/product/ASA_LEARNING_REQUIREMENTS_LEDGER.yaml
       - docs/product/learning/**
       - docs/architecture/ADR-LEARNER-IDENTITY-001.md
       - contexts/learning/**
+      - apps/api/src/learning-canonical-projection.service.ts
+      - apps/api/src/learning-canonical-projection.service.spec.ts
+      - apps/api/src/classroom-join.controller.ts
+      - apps/api/src/classrooms.controller.ts
+      - apps/api/src/courses.controller.ts
+      - apps/api/src/learning-assessments.controller.ts
+      - apps/web/src/components/AssignmentBrief.tsx
+      - apps/web/src/components/ClassroomAssignments.tsx
+      - apps/web/src/components/ClassroomCourses.tsx
+      - apps/web/src/components/ClassroomGradebook.tsx
+      - apps/web/src/components/SeatAssignments.tsx
+      - apps/web/src/components/SeatCourses.tsx
+      - apps/web/src/components/SeatResults.tsx
+      - apps/web/src/pages/AttendedClassesPage.tsx
+      - apps/web/src/pages/ClassroomStudentPage.tsx
+      - e2e/learning-surface-convergence.spec.ts
+      - e2e/artifacts/learning/**
       - migrations/0086_learning_identity_foundation.sql
       - migrations/0087_learning_additive_backfill.sql
       - migrations/0088_learning_m0_006_acceptance_corrections.sql
+      - migrations/0089_learning_canonical_read_projection.sql
       - tools/migrate.mjs
       - tools/provision-test-db.mjs
       - tools/learning-migration-dry-run.mjs
@@ -278,21 +296,22 @@ parallel_lanes:
       - tools/learning-additive-backfill.mjs
       - tests/courses/**
     task:
-      id: TASK-LEARNING-M0-006
-      issue: 147
-      branch: agent/learning-m0-006-acceptance-fixes
+      id: TASK-LEARNING-M0-007
+      issue: 150
+      branch: agent/learning-m0-surface-convergence
       base_branch: main
-      pr: 149
+      pr: 151
       pr_draft: false
       status: done
-      checkpoint: lrn_m0_006_corrective_evidence_merged
+      checkpoint: merged_to_main
       owner_acceptance: pending
     revisions:
-      convergence_baseline_sha: 9290ab18490f376460a3b5f396f8b8a4fd905488
-      head_sha: 0fb8a6b743c93f9bcb35445069af520c514760e6
-      product_merge_sha: 65c058c733669345e8cf178712921b1d71ef16b2
+      convergence_baseline_sha: 7f185eadfdf03eb75d24acb4f1add0abefbae3f6
+      head_sha: 7f185eadfdf03eb75d24acb4f1add0abefbae3f6
+      owner_accepted_sha: c8fe06ccf54bb65ef18f6eb51cce32b189de7df8
+      product_merge_sha: 9e7398a8ef4bdb0963601a694a4a9d7eed34d996
     execution_lease:
-      executor_id: codex-learning-m0-additive-backfill
+      executor_id: codex-learning-m0-surface-convergence
       holder: unassigned
       acquired_at: null
       expires_at: null

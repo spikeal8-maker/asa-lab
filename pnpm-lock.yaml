@@ -161,6 +161,9 @@ importers:
       '@asa-lab/identity':
         specifier: workspace:*
         version: link:../../contexts/identity
+      '@asa-lab/learning':
+        specifier: workspace:*
+        version: link:../../contexts/learning
       '@asa-lab/module-sdk':
         specifier: workspace:*
         version: link:../../packages/module-sdk

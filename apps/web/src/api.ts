@@ -289,6 +289,7 @@ export interface ClassroomCourseRunLesson {
   startedCount: number;
   submittedCount: number;
   completedCount: number;
+  canonicalCounts: null | CanonicalLearningCounts;
 }
 
 export interface ClassroomCourseRun {
@@ -321,6 +322,7 @@ export interface SeatCourseRunLesson extends Omit<
   snapshotRevision: number | null;
   updatedAt: string | null;
   completedAt: string | null;
+  canonicalState: CanonicalLearningSurfaceState | null;
 }
 
 export interface SeatCourseRun {
@@ -511,6 +513,47 @@ export interface ClassroomAssignmentProgress {
   startedAt: string | null;
   submittedAt: string | null;
   badge: string | null;
+  canonicalState: CanonicalLearningSurfaceState | null;
+}
+
+export type CanonicalLearningWorkflowState =
+  | 'not_applicable'
+  | 'not_started'
+  | 'in_progress'
+  | 'submitted'
+  | 'waiting_review'
+  | 'changes_requested'
+  | 'completed'
+  | 'invalidated';
+
+export interface CanonicalLearningSelectedResult {
+  attemptId: string;
+  resultRevisionId: string | null;
+  compatibilityAssessmentResultId: string | null;
+  rawPoints: number | null;
+  maxPoints: number | null;
+  percentageBasisPoints: number | null;
+  displayGrade: string | null;
+  completionValue: boolean | null;
+  outcome: 'passed' | 'failed' | 'incomplete' | 'excused' | null;
+  publishedAt: string;
+}
+
+export interface CanonicalLearningSurfaceState {
+  workflowState: CanonicalLearningWorkflowState;
+  selectedResult: CanonicalLearningSelectedResult | null;
+  flags: string[];
+  learnerMessageCode: string | null;
+  compatibilityDiagnostic?: string;
+}
+
+export interface CanonicalLearningCounts {
+  notStarted: number;
+  inProgress: number;
+  submitted: number;
+  waitingReview: number;
+  changesRequested: number;
+  completed: number;
 }
 
 export type LearningAttemptState =
@@ -532,7 +575,7 @@ export interface GradebookEntry {
   assignmentTitle: string;
   attemptId: string | null;
   attemptNumber: number | null;
-  state: LearningAttemptState;
+  state: LearningAttemptState | CanonicalLearningWorkflowState;
   submittedAt: string | null;
   points: number | null;
   maxPoints: number | null;
@@ -541,6 +584,8 @@ export interface GradebookEntry {
   outcome: 'passed' | 'failed' | 'incomplete' | 'excused' | null;
   feedback: string | null;
   publishedAt: string | null;
+  canonicalState: CanonicalLearningSurfaceState | null;
+  compatibilityDiagnostic: string | null;
 }
 
 export interface LearnerResult {
@@ -556,6 +601,7 @@ export interface LearnerResult {
   outcome: 'passed' | 'failed' | 'incomplete' | 'excused';
   feedback: string | null;
   publishedAt: string;
+  canonicalState: CanonicalLearningSurfaceState | null;
 }
 
 /** The same assignment as the learner sees it: theirs, and where they are. */
@@ -574,6 +620,7 @@ export interface SeatAssignment {
   snapshotRevision: number | null;
   /** Когда работа менялась в последний раз. */
   updatedAt: string | null;
+  canonicalState: CanonicalLearningSurfaceState | null;
 }
 
 export type QuizQuestionType =
@@ -620,6 +667,7 @@ export interface LearnerQuiz {
   totalPoints: number;
   passThreshold: number;
   latestResult: { state: string; points: number | null; percentage: number | null } | null;
+  canonicalState: CanonicalLearningSurfaceState | null;
   questions: Array<{
     versionId: string;
     type: QuizQuestionType;
@@ -707,6 +755,7 @@ export interface ClassroomStudentWork {
   /** Когда работа сдана и ждёт ли она ещё ответа преподавателя. */
   submittedAt?: string | null;
   awaitingReview?: boolean;
+  canonicalState: CanonicalLearningSurfaceState | null;
   id: string;
   moduleKey: string;
   title: string;

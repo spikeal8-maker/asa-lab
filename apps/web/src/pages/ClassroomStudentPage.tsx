@@ -15,6 +15,7 @@ import { useSchoolTime } from '../components/school-time';
 import { seatAvatar } from '../creator-portal/default-avatars';
 import { SeatAwardPanel, SeatAwardRow } from '../components/SeatAwards';
 import './classroom-student.css';
+import { canonicalLearningLabel } from '../learning/canonical-learning-presentation';
 
 /**
  * One learner, as their teacher sees them.
@@ -250,41 +251,48 @@ export function ClassroomStudentPage({
             </p>
           ) : (
             <ul className="project-card-grid">
-              {(onlyAwaiting ? projects.filter((work) => work.awaitingReview) : projects).map(
-                (work) => (
-                  <ProjectCard
-                    key={work.id}
-                    project={asProject(work)}
-                    module={modules.find((entry) => entry.moduleKey === work.moduleKey)}
-                    timeLabel={`Изменён ${time.shortDate(work.updatedAt)}`}
-                    footerLabel={
-                      work.awaitingReview
-                        ? 'Ждёт ответа'
-                        : feedback[work.id]?.badge
-                          ? (BADGE_LABELS[feedback[work.id]!.badge!] ?? 'Отклик есть')
-                          : work.lastEditedByTeacher
-                            ? 'Правил педагог'
-                            : 'Работа ученика'
-                    }
-                    footerTone={
-                      work.awaitingReview
-                        ? 'redo'
-                        : markTone(feedback[work.id] ?? null, work.lastEditedByTeacher)
-                    }
-                    primaryLabel="Открыть"
-                    open={{
-                      href: `#/projects/${work.id}`,
-                      onNavigate: () => onOpenProject(work.id, work.moduleKey),
-                    }}
-                    menuItems={[
-                      {
-                        label: feedback[work.id] ? 'Изменить отклик' : 'Оценить работу',
-                        onSelect: () => setResponding(work),
-                      },
-                    ]}
-                  />
-                ),
-              )}
+              {(onlyAwaiting
+                ? projects.filter(
+                    (work) =>
+                      work.canonicalState?.workflowState === 'waiting_review' ||
+                      (!work.canonicalState && work.awaitingReview),
+                  )
+                : projects
+              ).map((work) => (
+                <ProjectCard
+                  key={work.id}
+                  project={asProject(work)}
+                  module={modules.find((entry) => entry.moduleKey === work.moduleKey)}
+                  timeLabel={`Изменён ${time.shortDate(work.updatedAt)}`}
+                  footerLabel={
+                    canonicalLearningLabel(work.canonicalState) ??
+                    (work.awaitingReview
+                      ? 'Ждёт ответа'
+                      : feedback[work.id]?.badge
+                        ? (BADGE_LABELS[feedback[work.id]!.badge!] ?? 'Отклик есть')
+                        : work.lastEditedByTeacher
+                          ? 'Правил педагог'
+                          : 'Работа ученика')
+                  }
+                  footerTone={
+                    work.canonicalState?.workflowState === 'waiting_review' ||
+                    (!work.canonicalState && work.awaitingReview)
+                      ? 'redo'
+                      : markTone(feedback[work.id] ?? null, work.lastEditedByTeacher)
+                  }
+                  primaryLabel="Открыть"
+                  open={{
+                    href: `#/projects/${work.id}`,
+                    onNavigate: () => onOpenProject(work.id, work.moduleKey),
+                  }}
+                  menuItems={[
+                    {
+                      label: feedback[work.id] ? 'Изменить отклик' : 'Оценить работу',
+                      onSelect: () => setResponding(work),
+                    },
+                  ]}
+                />
+              ))}
             </ul>
           )}
         </section>
