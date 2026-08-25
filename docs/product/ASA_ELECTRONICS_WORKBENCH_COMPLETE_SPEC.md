@@ -3,6 +3,8 @@
 **Статус:** нормативный кандидат R0 для R4 Electronics parity.  
 **Машиночитаемый каталог:** [`ASA_ELECTRONICS_TOOL_CATALOG.yaml`](ASA_ELECTRONICS_TOOL_CATALOG.yaml).  
 **Общий Project lifecycle:** [`TINKERCAD_PARITY_SPEC.md`](TINKERCAD_PARITY_SPEC.md).
+**Карточки, состояние и справка компонентов:**
+[`ASA_ELECTRONICS_COMPONENT_INFORMATION_SYSTEM.md`](ASA_ELECTRONICS_COMPONENT_INFORMATION_SYSTEM.md).
 
 ## 1. Цель
 
