@@ -578,9 +578,12 @@ export function WorkbenchStage({
                   {component.kind === 'potentiometer' && c.simulationRunning ? (
                     <circle
                       className="workbench-potentiometer-hit"
-                      cx={baseSize.width / 2}
-                      cy={baseSize.height * 0.45}
-                      r={Math.min(baseSize.width, baseSize.height) * 0.25}
+                      data-hit-surface="potentiometer-knob-face"
+                      cx={baseSize.width * (71.5 / 144)}
+                      cy={baseSize.height * (71 / 164)}
+                      r={
+                        Math.min(baseSize.width / 144, baseSize.height / 164) * 71
+                      }
                       onPointerDown={(event) => c.startPotentiometerControl(event, component)}
                       aria-label="Повернуть ручку потенциометра"
                     />

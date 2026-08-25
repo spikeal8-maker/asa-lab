@@ -311,6 +311,13 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(productionVisualSource).toContain('<OwnerPotentiometerVisual');
     expect(productionVisualSource).toContain('potentiometerRuntimeMarkup(ownerSvg, wiperPosition)');
     expect(productionVisualSource).toContain('data-testid="potentiometer-angle"');
+    expect(stageSource).toContain('data-hit-surface="potentiometer-knob-face"');
+    expect(stageSource).toContain('cx={baseSize.width * (71.5 / 144)}');
+    expect(stageSource).toContain('cy={baseSize.height * (71 / 164)}');
+    expect(stageSource).toContain('Math.min(baseSize.width / 144, baseSize.height / 164) * 71');
+    expect(stageSource).toContain(
+      'onPointerDown={(event) => c.startPotentiometerControl(event, component)}',
+    );
     expect(productionVisualSource).not.toContain('<foreignObject');
     expect(workbenchCss).toMatch(
       /\.workbench-inspector\.is-potentiometer \.workbench-inspector-body > label\s*\{[^}]*grid-template-columns:\s*104px minmax\(0, 1fr\);/s,
