@@ -1,3 +1,5 @@
+import { sha256Bytes } from '../components/sha256';
+
 /**
  * Returns the same UUID for the same logical draft write.
  *
@@ -13,9 +15,11 @@ export async function projectDraftMutationId(
   document: unknown,
 ): Promise<string> {
   const payload = JSON.stringify([projectId, baseRevision, document]);
-  const digest = new Uint8Array(
-    await globalThis.crypto.subtle.digest('SHA-256', new TextEncoder().encode(payload)),
-  );
+  const encoded = new TextEncoder().encode(payload);
+  const subtle = globalThis.crypto?.subtle;
+  const digest = subtle
+    ? new Uint8Array(await subtle.digest('SHA-256', encoded))
+    : sha256Bytes(encoded);
   const bytes = digest.slice(0, 16);
   // RFC 4122 UUID v4 shape. The remaining bits still come from SHA-256, so two
   // different logical writes have a cryptographically negligible collision
