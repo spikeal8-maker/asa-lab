@@ -8,15 +8,18 @@ type State =
   | { kind: 'ready'; items: GradebookEntry[]; scheme: { title: string } | null };
 
 const STATE_LABELS: Record<GradebookEntry['state'], string> = {
+  not_applicable: 'Не назначено',
   not_started: 'Не начинал',
   in_progress: 'В работе',
   submitted: 'Сдано',
   evaluating: 'Ждёт проверки',
+  waiting_review: 'Ждёт проверки',
   accepted: 'Проверено',
   changes_requested: 'На доработке',
   incomplete: 'Не завершено',
   excused: 'Освобождён',
   invalidated: 'Аннулировано',
+  completed: 'Проверено',
 };
 
 function ReviewForm({
@@ -101,7 +104,11 @@ export function ClassroomGradebook({ classroomId }: { classroomId: string }): JS
 
   const awaiting = useMemo(
     () =>
-      state.kind === 'ready' ? state.items.filter((item) => item.state === 'evaluating').length : 0,
+      state.kind === 'ready'
+        ? state.items.filter(
+            (item) => item.state === 'evaluating' || item.state === 'waiting_review',
+          ).length
+        : 0,
     [state],
   );
 
@@ -183,7 +190,8 @@ export function ClassroomGradebook({ classroomId }: { classroomId: string }): JS
                 <em data-state={item.state}>{STATE_LABELS[item.state]}</em>
               </span>
               <div role="cell" className="gradebook-result">
-                {item.state === 'evaluating' && item.attemptId ? (
+                {(item.state === 'evaluating' || item.state === 'waiting_review') &&
+                item.attemptId ? (
                   <ReviewForm
                     busy={busyAttempt === item.attemptId}
                     onReview={async (decision, points, feedback) => {
@@ -213,6 +221,9 @@ export function ClassroomGradebook({ classroomId }: { classroomId: string }): JS
                 )}
                 {item.feedback ? (
                   <small className="gradebook-feedback">{item.feedback}</small>
+                ) : null}
+                {item.compatibilityDiagnostic ? (
+                  <small className="gradebook-feedback">{item.compatibilityDiagnostic}</small>
                 ) : null}
               </div>
             </div>

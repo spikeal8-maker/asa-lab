@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { api, type LearnerQuiz } from '../api';
 import { useSchoolTime } from './school-time';
 import './seat-quizzes.css';
+import { canonicalLearningLabel } from '../learning/canonical-learning-presentation';
 
 type AnswerState = Record<string, string | string[] | boolean>;
 
@@ -107,11 +108,12 @@ export function SeatQuizzes(): JSX.Element | null {
                   </small>
                 </span>
                 <em>
-                  {result
-                    ? `${result.percentage}%`
-                    : quiz.latestResult?.percentage !== null && quiz.latestResult
-                      ? `${quiz.latestResult.percentage}%`
-                      : `${attemptsLeft} попыт.`}
+                  {canonicalLearningLabel(quiz.canonicalState) ??
+                    (result
+                      ? `${result.percentage}%`
+                      : quiz.latestResult?.percentage !== null && quiz.latestResult
+                        ? `${quiz.latestResult.percentage}%`
+                        : `${attemptsLeft} попыт.`)}
                 </em>
               </button>
 

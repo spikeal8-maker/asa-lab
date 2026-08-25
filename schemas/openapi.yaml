@@ -754,6 +754,194 @@ paths:
       summary: Revoke the current StudentSeat session
       responses:
         '200': { description: Session revoked }
+  /api/class-join/me/assignments:
+    get:
+      operationId: getLearnerAssignments
+      summary: List assignments for the active StudentSeat with canonical learning state
+      responses:
+        '200':
+          description: Active-seat assignment projection
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CanonicalLearningItemCollection' }
+  /api/class-join/account/assignments:
+    get:
+      operationId: getAccountLearnerAssignments
+      summary: List assignments across active account seats with canonical learning state
+      responses:
+        '200':
+          description: Active-account assignment projection
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CanonicalLearningItemCollection' }
+  /api/class-join/me/quizzes:
+    get:
+      operationId: getLearnerQuizzes
+      summary: List quizzes for the active StudentSeat with canonical learning state
+      responses:
+        '200':
+          description: Active-seat quiz projection without answer keys
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CanonicalLearningItemCollection' }
+  /api/class-join/account/quizzes:
+    get:
+      operationId: getAccountLearnerQuizzes
+      summary: List quizzes across active account seats with canonical learning state
+      responses:
+        '200':
+          description: Active-account quiz projection without answer keys
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CanonicalLearningItemCollection' }
+  /api/class-join/me/results:
+    get:
+      operationId: getLearnerResults
+      summary: List selected results and the current canonical workflow state
+      responses:
+        '200':
+          description: Active-seat result projection
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CanonicalLearningItemCollection' }
+  /api/class-join/account/results:
+    get:
+      operationId: getAccountLearnerResults
+      summary: List selected results across active account seats with canonical workflow state
+      responses:
+        '200':
+          description: Active-account result projection
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CanonicalLearningItemCollection' }
+  /api/class-join/me/course-runs:
+    get:
+      operationId: getLearnerCourseRuns
+      summary: List course runs with canonical state on assignment lessons
+      responses:
+        '200':
+          description: Active-seat course projection
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CanonicalLearningItemCollection' }
+  /api/class-join/account/course-runs:
+    get:
+      operationId: getAccountLearnerCourseRuns
+      summary: List course runs across active account seats with canonical assignment state
+      responses:
+        '200':
+          description: Active-account course projection
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CanonicalLearningItemCollection' }
+  /api/classrooms/awaiting-review:
+    get:
+      operationId: getClassroomAwaitingReview
+      summary: Count canonical waiting_review work across teacher-authorized classrooms
+      responses:
+        '200':
+          description: Canonical review queue counts
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CanonicalLearningReviewCount' }
+  /api/classrooms/{classroomId}/progress:
+    parameters:
+      - name: classroomId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      operationId: getClassroomCanonicalProgress
+      summary: Read class progress derived from canonical learning state
+      responses:
+        '200':
+          description: Canonical class progress projection
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CanonicalLearningProjectionEnvelope' }
+  /api/classrooms/{classroomId}/students/{seatId}:
+    parameters:
+      - name: classroomId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+      - name: seatId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      operationId: getClassroomStudentCanonicalDetail
+      summary: Read one learner with canonical assignment and course state
+      responses:
+        '200':
+          description: Teacher-authorized learner detail
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CanonicalLearningProjectionEnvelope' }
+  /api/classrooms/{classroomId}/assignments:
+    parameters:
+      - name: classroomId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      operationId: getClassroomCanonicalAssignments
+      summary: List classroom assignments with canonical aggregate counts
+      responses:
+        '200':
+          description: Canonical teacher assignment projection
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CanonicalLearningItemCollection' }
+  /api/classrooms/{classroomId}/assignments/{assignmentId}/progress:
+    parameters:
+      - name: classroomId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+      - name: assignmentId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      operationId: getClassroomAssignmentCanonicalProgress
+      summary: List per-seat progress for an assignment from canonical state
+      responses:
+        '200':
+          description: Canonical assignment progress projection
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CanonicalLearningProjectionEnvelope' }
+  /api/classrooms/{classroomId}/gradebook:
+    parameters:
+      - name: classroomId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      operationId: getClassroomCanonicalGradebook
+      summary: Read canonical workflow state and selected immutable results
+      responses:
+        '200':
+          description: Teacher gradebook projection with compatibility diagnostics
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CanonicalLearningProjectionEnvelope' }
+  /api/classrooms/{classroomId}/course-runs:
+    parameters:
+      - name: classroomId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      operationId: getClassroomCanonicalCourseRuns
+      summary: List assigned courses with canonical lesson-state aggregates
+      responses:
+        '200':
+          description: Teacher course-run projection
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CanonicalLearningItemCollection' }
   /api/projects:
     get:
       operationId: getProjects
@@ -1000,6 +1188,108 @@ components:
         maxLength: 128
         pattern: '^[A-Za-z0-9._:-]+$'
   schemas:
+    CanonicalLearningWorkflowState:
+      type: string
+      enum:
+        - not_applicable
+        - not_started
+        - in_progress
+        - submitted
+        - waiting_review
+        - changes_requested
+        - completed
+        - invalidated
+    CanonicalLearningSelectedResult:
+      type: object
+      additionalProperties: false
+      required:
+        - attemptId
+        - resultRevisionId
+        - compatibilityAssessmentResultId
+        - rawPoints
+        - maxPoints
+        - percentageBasisPoints
+        - displayGrade
+        - completionValue
+        - outcome
+        - publishedAt
+      properties:
+        attemptId: { type: string, format: uuid }
+        resultRevisionId: { type: [string, 'null'], format: uuid }
+        compatibilityAssessmentResultId: { type: [string, 'null'], format: uuid }
+        rawPoints: { type: [integer, 'null'] }
+        maxPoints: { type: [integer, 'null'] }
+        percentageBasisPoints: { type: [integer, 'null'] }
+        displayGrade: { type: [string, 'null'] }
+        completionValue: { type: [boolean, 'null'] }
+        outcome:
+          type: [string, 'null']
+          enum: [passed, failed, incomplete, excused, null]
+        publishedAt: { type: string, format: date-time }
+    CanonicalLearningSurfaceState:
+      description: >-
+        Server-resolved workflow and selected immutable result. Learner responses omit
+        internal compatibility flags and diagnostics; teacher responses may include them.
+      type: object
+      additionalProperties: false
+      required: [workflowState, selectedResult, flags, learnerMessageCode]
+      properties:
+        workflowState: { $ref: '#/components/schemas/CanonicalLearningWorkflowState' }
+        selectedResult:
+          oneOf:
+            - $ref: '#/components/schemas/CanonicalLearningSelectedResult'
+            - type: 'null'
+        flags:
+          type: array
+          items:
+            type: string
+            enum:
+              - late
+              - excused
+              - revision_in_progress
+              - withdrawn
+              - after_due
+              - legacy_unresolved
+              - legacy_compatibility
+              - unselected_result
+              - visibility_restricted
+        learnerMessageCode:
+          type: [string, 'null']
+          enum: [access_not_active, access_suspended, access_ended, null]
+        compatibilityDiagnostic:
+          type: string
+          description: Teacher-only diagnostic for unresolved historical evidence.
+    CanonicalLearningItem:
+      type: object
+      additionalProperties: true
+      properties:
+        canonicalState:
+          oneOf:
+            - $ref: '#/components/schemas/CanonicalLearningSurfaceState'
+            - type: 'null'
+    CanonicalLearningItemCollection:
+      type: object
+      additionalProperties: true
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/CanonicalLearningItem' }
+    CanonicalLearningReviewCount:
+      type: object
+      additionalProperties: false
+      required: [total]
+      properties:
+        total:
+          type: integer
+          minimum: 0
+          description: Number of canonical waiting_review states visible to the educator.
+    CanonicalLearningProjectionEnvelope:
+      type: object
+      additionalProperties: true
+      description: >-
+        Teacher-authorized projection whose learner or assignment rows carry
+        CanonicalLearningSurfaceState and whose aggregate counts derive from it.
     LiveResponse:
       type: object
       additionalProperties: false
@@ -1573,7 +1863,19 @@ components:
     ClassroomStudentSeat:
       type: object
       additionalProperties: false
-      required: [id, displayLabel, loginHandle, safeMode, status, lastActiveAt, createdAt]
+      required:
+        [
+          id,
+          displayLabel,
+          loginHandle,
+          safeMode,
+          status,
+          lastActiveAt,
+          createdAt,
+          assignedCount,
+          submittedCount,
+          awaitingReview,
+        ]
       properties:
         id: { type: string, format: uuid }
         displayLabel: { type: string }
@@ -1587,6 +1889,15 @@ components:
         createdAt:
           type: string
           format: date-time
+        assignedCount: { type: integer, minimum: 0 }
+        submittedCount:
+          type: integer
+          minimum: 0
+          description: Count derived from canonical workflow states when canonical reads are enabled.
+        awaitingReview:
+          type: integer
+          minimum: 0
+          description: Count of canonical waiting_review states only.
     ClassroomEnvelope:
       type: object
       additionalProperties: false

@@ -6,6 +6,11 @@ import { SeatCourses } from '../components/SeatCourses';
 import { useSchoolTime } from '../components/school-time';
 import '../components/classroom-assignments.css';
 import './attended-classes.css';
+import {
+  canonicalLearningClass,
+  canonicalLearningLabel,
+  canonicalSubmissionLocked,
+} from '../learning/canonical-learning-presentation';
 
 /**
  * Классы, в которых учится сам владелец аккаунта.
@@ -194,19 +199,14 @@ export function AttendedClassesPage({
                     {assignment.dueAt ? ` · сдать до ${time.date(assignment.dueAt)}` : ''}
                   </span>
                   <span
-                    className={`seat-assignment-state${
-                      assignment.submittedAt
-                        ? ' is-done'
-                        : assignment.projectId
-                          ? ' is-working'
-                          : ''
-                    }`}
+                    className={`seat-assignment-state${canonicalLearningClass(assignment.canonicalState) || (assignment.submittedAt ? ' is-done' : assignment.projectId ? ' is-working' : '')}`}
                   >
-                    {assignment.submittedAt
-                      ? `Сдано ${time.dateTime(assignment.submittedAt)}`
-                      : assignment.projectId
-                        ? 'В работе'
-                        : 'Не начато'}
+                    {canonicalLearningLabel(assignment.canonicalState) ??
+                      (assignment.submittedAt
+                        ? `Сдано ${time.dateTime(assignment.submittedAt)}`
+                        : assignment.projectId
+                          ? 'В работе'
+                          : 'Не начато')}
                   </span>
                   {openId === assignment.id ? (
                     <div className="seat-assignment-full">
@@ -257,7 +257,12 @@ export function AttendedClassesPage({
                       <button
                         type="button"
                         className="btn-secondary"
-                        disabled={busy || assignment.submittedAt !== null}
+                        disabled={
+                          busy ||
+                          (assignment.canonicalState
+                            ? canonicalSubmissionLocked(assignment.canonicalState)
+                            : assignment.submittedAt !== null)
+                        }
                         onClick={async () => {
                           setBusy(true);
                           const result = await api.submitSeatAssignment(assignment.id, true);
@@ -265,7 +270,15 @@ export function AttendedClassesPage({
                           if (result.ok) await load();
                         }}
                       >
-                        {assignment.submittedAt ? 'На проверке' : 'Сдать'}
+                        {assignment.canonicalState
+                          ? assignment.canonicalState.workflowState === 'changes_requested'
+                            ? 'Сдать доработку'
+                            : canonicalSubmissionLocked(assignment.canonicalState)
+                              ? 'Работа сдана'
+                              : 'Сдать'
+                          : assignment.submittedAt
+                            ? 'Работа сдана'
+                            : 'Сдать'}
                       </button>
                     </>
                   ) : (

@@ -2,6 +2,10 @@ import { useEffect, useState } from 'react';
 import { api, type SeatAssignment } from '../api';
 import { AssignmentView } from './AssignmentView';
 import './assignment-brief.css';
+import {
+  canonicalLearningLabel,
+  canonicalSubmissionLocked,
+} from '../learning/canonical-learning-presentation';
 
 /**
  * What to make, while you are making it.
@@ -54,7 +58,12 @@ export function AssignmentBrief({ projectId }: { readonly projectId: string }): 
     const result = await api.submitSeatAssignment(assignment.id, true);
     setBusy(false);
     if (result.ok) {
-      setAssignment({ ...assignment, submittedAt: result.data.submittedAt });
+      const refreshed = await api.seatAssignments();
+      setAssignment(
+        refreshed.ok
+          ? (refreshed.data.items.find((entry) => entry.projectId === projectId) ?? null)
+          : { ...assignment, submittedAt: result.data.submittedAt },
+      );
     }
   }
 
@@ -71,15 +80,29 @@ export function AssignmentBrief({ projectId }: { readonly projectId: string }): 
           Задание: {assignment.title}
         </button>
         <span className="assignment-brief-state">
-          {assignment.submittedAt ? 'Сдано' : 'В работе'}
+          {canonicalLearningLabel(assignment.canonicalState) ??
+            (assignment.submittedAt ? 'Сдано' : 'В работе')}
         </span>
         <button
           type="button"
           className="assignment-brief-submit"
-          disabled={busy || assignment.submittedAt !== null}
+          disabled={
+            busy ||
+            (assignment.canonicalState
+              ? canonicalSubmissionLocked(assignment.canonicalState)
+              : assignment.submittedAt !== null)
+          }
           onClick={() => void submit()}
         >
-          {assignment.submittedAt ? 'На проверке' : 'Сдать работу'}
+          {assignment.canonicalState
+            ? assignment.canonicalState.workflowState === 'changes_requested'
+              ? 'Сдать доработку'
+              : canonicalSubmissionLocked(assignment.canonicalState)
+                ? 'Работа сдана'
+                : 'Сдать работу'
+            : assignment.submittedAt
+              ? 'Работа сдана'
+              : 'Сдать работу'}
         </button>
       </div>
 

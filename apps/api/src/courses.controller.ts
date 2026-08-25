@@ -16,6 +16,10 @@ import type pg from 'pg';
 import type { AccountDirectoryPort, ActiveContext, ActiveContextUseCase } from '@asa-lab/identity';
 import { SESSION_COOKIE, TOKENS } from './tokens.js';
 import { checkBodyShape } from './validation.js';
+import {
+  LearningCanonicalProjectionService,
+  type CanonicalLearningProjection,
+} from './learning-canonical-projection.service.js';
 
 /**
  * Курсы и общий каталог.
@@ -192,7 +196,10 @@ interface ClassroomCourseRunRow {
   lesson_completed_count: number | string;
 }
 
-function classroomCourseRuns(rows: ClassroomCourseRunRow[]) {
+function classroomCourseRuns(
+  rows: ClassroomCourseRunRow[],
+  projections: Map<string, CanonicalLearningProjection> = new Map(),
+) {
   const runs: Array<{
     id: string;
     courseId: string;
@@ -230,6 +237,14 @@ function classroomCourseRuns(rows: ClassroomCourseRunRow[]) {
         startedCount: number;
         submittedCount: number;
         completedCount: number;
+        canonicalCounts: null | {
+          notStarted: number;
+          inProgress: number;
+          submitted: number;
+          waitingReview: number;
+          changesRequested: number;
+          completed: number;
+        };
       }>;
     }>;
   }> = [];
@@ -264,6 +279,30 @@ function classroomCourseRuns(rows: ClassroomCourseRunRow[]) {
       };
       run.sections.push(section);
     }
+    const lessonStates = row.classroom_assignment_id
+      ? [...projections.values()].filter(
+          (projection) =>
+            projection.state.provenance.classroomAssignmentId === row.classroom_assignment_id,
+        )
+      : [];
+    const canonicalCounts = lessonStates.length
+      ? {
+          notStarted: lessonStates.filter((item) => item.surface.workflowState === 'not_started')
+            .length,
+          inProgress: lessonStates.filter((item) => item.surface.workflowState === 'in_progress')
+            .length,
+          submitted: lessonStates.filter((item) => item.surface.workflowState === 'submitted')
+            .length,
+          waitingReview: lessonStates.filter(
+            (item) => item.surface.workflowState === 'waiting_review',
+          ).length,
+          changesRequested: lessonStates.filter(
+            (item) => item.surface.workflowState === 'changes_requested',
+          ).length,
+          completed: lessonStates.filter((item) => item.surface.workflowState === 'completed')
+            .length,
+        }
+      : null;
     section.lessons.push({
       id: row.lesson_id,
       sourceLessonId: row.source_lesson_id,
@@ -281,9 +320,17 @@ function classroomCourseRuns(rows: ClassroomCourseRunRow[]) {
       moduleKey: row.module_key,
       sampleImage: row.sample_image,
       seatCount: Number(row.seat_count),
-      startedCount: Number(row.lesson_started_count),
-      submittedCount: Number(row.lesson_submitted_count),
+      startedCount: canonicalCounts
+        ? lessonStates.filter((item) => item.surface.workflowState !== 'not_started').length
+        : Number(row.lesson_started_count),
+      submittedCount: canonicalCounts
+        ? canonicalCounts.submitted +
+          canonicalCounts.waitingReview +
+          canonicalCounts.changesRequested +
+          canonicalCounts.completed
+        : Number(row.lesson_submitted_count),
       completedCount: Number(row.lesson_completed_count),
+      canonicalCounts,
     });
   }
   return runs;
@@ -391,6 +438,10 @@ export class CoursesController {
     if (!this.pool)
       throw new HttpException(error('unavailable', 'database is not configured'), 503);
     return this.pool;
+  }
+
+  private canonical(): LearningCanonicalProjectionService {
+    return new LearningCanonicalProjectionService(this.requirePool());
   }
 
   private async requireEducator(request: FastifyRequest): Promise<ActiveContext> {
@@ -558,8 +609,9 @@ export class CoursesController {
   async classroomRuns(@Req() request: FastifyRequest, @Param('classroomId') classroomId: string) {
     const context = await this.requireEducator(request);
     this.requireUuid(classroomId, 'classroom');
-    const result = await this.requirePool().query(
-      `SELECT run_id, course_id, course_version_id, version_number, run_title, run_summary,
+    const [result, projections] = await Promise.all([
+      this.requirePool().query(
+        `SELECT run_id, course_id, course_version_id, version_number, run_title, run_summary,
               due_at, run_status, published_at, started_count, submitted_count,
               lesson_id, source_lesson_id, section_title, section_summary, section_position,
               lesson_title, lesson_summary, lesson_content, lesson_blocks, lesson_kind, estimated_minutes,
@@ -567,9 +619,11 @@ export class CoursesController {
               assignment_brief, module_key, sample_image, seat_count,
               lesson_started_count, lesson_submitted_count, lesson_completed_count
          FROM classroom_course_runs_for_teacher_v2($1, $2)`,
-      [context.accountId, classroomId],
-    );
-    return { items: classroomCourseRuns(result.rows as ClassroomCourseRunRow[]) };
+        [context.accountId, classroomId],
+      ),
+      this.canonical().forTeacher(context.accountId, classroomId),
+    ]);
+    return { items: classroomCourseRuns(result.rows as ClassroomCourseRunRow[], projections) };
   }
 
   @Post('classrooms/:classroomId/course-runs')

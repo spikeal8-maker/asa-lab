@@ -13,6 +13,10 @@ import { LessonBlocks } from './LessonBlocks';
 import { WorkPreview } from './WorkPreview';
 import { useSchoolTime } from './school-time';
 import './classroom-courses.css';
+import {
+  canonicalLearningClass,
+  canonicalLearningLabel,
+} from '../learning/canonical-learning-presentation';
 
 function assignmentShape(
   run: ClassroomCourseRun,
@@ -154,14 +158,16 @@ export function ClassroomCourses({
                 <span className="assignment-progress-name">{row.displayLabel}</span>
                 <span
                   className={`assignment-state ${
-                    row.submittedAt ? 'is-done' : row.startedAt ? 'is-started' : 'is-idle'
+                    canonicalLearningClass(row.canonicalState) ||
+                    (row.submittedAt ? 'is-done' : row.startedAt ? 'is-started' : 'is-idle')
                   }`}
                 >
-                  {row.submittedAt
-                    ? `Сдано ${time.dateTime(row.submittedAt)}`
-                    : row.startedAt
-                      ? `Работает с ${time.dateTime(row.startedAt)}`
-                      : 'Не открывал'}
+                  {canonicalLearningLabel(row.canonicalState) ??
+                    (row.submittedAt
+                      ? `Сдано ${time.dateTime(row.submittedAt)}`
+                      : row.startedAt
+                        ? `Работает с ${time.dateTime(row.startedAt)}`
+                        : 'Не открывал')}
                 </span>
                 {row.projectId ? (
                   <button

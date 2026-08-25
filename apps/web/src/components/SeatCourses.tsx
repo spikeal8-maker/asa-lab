@@ -5,6 +5,10 @@ import { AssignmentView } from './AssignmentView';
 import { LessonBlocks } from './LessonBlocks';
 import { useSchoolTime } from './school-time';
 import './seat-courses.css';
+import {
+  canonicalLearningLabel,
+  canonicalSubmissionLocked,
+} from '../learning/canonical-learning-presentation';
 
 function assignmentShape(run: SeatCourseRun, lesson: SeatCourseRunLesson): SeatAssignment {
   return {
@@ -20,11 +24,16 @@ function assignmentShape(run: SeatCourseRun, lesson: SeatCourseRunLesson): SeatA
     submittedAt: lesson.submittedAt,
     snapshotRevision: lesson.snapshotRevision,
     updatedAt: lesson.updatedAt,
+    canonicalState: lesson.canonicalState,
   };
 }
 
 function lessonComplete(lesson: SeatCourseRunLesson): boolean {
-  return lesson.kind === 'material' ? lesson.completedAt !== null : lesson.submittedAt !== null;
+  return lesson.kind === 'material'
+    ? lesson.completedAt !== null
+    : lesson.canonicalState
+      ? ['submitted', 'waiting_review', 'completed'].includes(lesson.canonicalState.workflowState)
+      : lesson.submittedAt !== null;
 }
 
 export function SeatCourses({
@@ -160,15 +169,16 @@ export function SeatCourses({
                         <span>
                           {lesson.title}
                           <small>
-                            {lesson.submittedAt
-                              ? 'Сдано'
-                              : lesson.completedAt
-                                ? 'Пройдено'
-                                : lesson.projectId
-                                  ? 'В работе'
-                                  : lesson.kind === 'assignment'
-                                    ? 'Практика'
-                                    : 'Материал'}
+                            {canonicalLearningLabel(lesson.canonicalState) ??
+                              (lesson.submittedAt
+                                ? 'Сдано'
+                                : lesson.completedAt
+                                  ? 'Пройдено'
+                                  : lesson.projectId
+                                    ? 'В работе'
+                                    : lesson.kind === 'assignment'
+                                      ? 'Практика'
+                                      : 'Материал')}
                           </small>
                         </span>
                       </button>
@@ -231,7 +241,12 @@ export function SeatCourses({
                       <button
                         type="button"
                         className="btn-secondary"
-                        disabled={busy === openLesson.id || assignment.submittedAt !== null}
+                        disabled={
+                          busy === openLesson.id ||
+                          (assignment.canonicalState
+                            ? canonicalSubmissionLocked(assignment.canonicalState)
+                            : assignment.submittedAt !== null)
+                        }
                         onClick={async () => {
                           setBusy(openLesson.id);
                           const result = await api.submitSeatAssignment(assignment.id, true);
@@ -239,7 +254,15 @@ export function SeatCourses({
                           if (result.ok) await reload();
                         }}
                       >
-                        {assignment.submittedAt ? 'На проверке' : 'Сдать'}
+                        {assignment.canonicalState
+                          ? assignment.canonicalState.workflowState === 'changes_requested'
+                            ? 'Сдать доработку'
+                            : canonicalSubmissionLocked(assignment.canonicalState)
+                              ? 'Работа сдана'
+                              : 'Сдать'
+                          : assignment.submittedAt
+                            ? 'Работа сдана'
+                            : 'Сдать'}
                       </button>
                     </>
                   ) : (
@@ -313,9 +336,7 @@ export function SeatCourses({
         {runs.map((run) => {
           const lessons = run.sections.flatMap((section) => section.lessons);
           const assignments = lessons.filter((lesson) => lesson.kind === 'assignment');
-          const completed = lessons.filter((lesson) =>
-            lesson.kind === 'material' ? lesson.completedAt !== null : lesson.submittedAt !== null,
-          ).length;
+          const completed = lessons.filter(lessonComplete).length;
           return (
             <li key={run.id}>
               <button

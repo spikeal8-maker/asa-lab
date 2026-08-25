@@ -4,6 +4,10 @@ import type pg from 'pg';
 import type { AccountDirectoryPort, ActiveContext, ActiveContextUseCase } from '@asa-lab/identity';
 import { SESSION_COOKIE, TOKENS } from './tokens.js';
 import { checkBodyShape } from './validation.js';
+import {
+  LearningCanonicalProjectionService,
+  canonicalProjectionKey,
+} from './learning-canonical-projection.service.js';
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const DECISIONS = ['accepted', 'changes_requested', 'incomplete', 'excused'] as const;
@@ -36,6 +40,10 @@ export class LearningAssessmentsController {
       throw new HttpException(error('database_unavailable', 'database is not configured'), 503);
     }
     return this.pool;
+  }
+
+  private canonical(): LearningCanonicalProjectionService {
+    return new LearningCanonicalProjectionService(this.requirePool());
   }
 
   private async requireEducator(request: FastifyRequest): Promise<ActiveContext> {
@@ -389,19 +397,22 @@ export class LearningAssessmentsController {
   async gradebook(@Req() request: FastifyRequest, @Param('classroomId') classroomId: string) {
     const context = await this.requireEducator(request);
     this.requireUuid(classroomId, 'classroom');
-    const result = await this.requirePool().query(
-      `SELECT seat_id, display_label, assignment_id, assignment_title,
+    const [result, scheme, projections] = await Promise.all([
+      this.requirePool().query(
+        `SELECT seat_id, display_label, assignment_id, assignment_title,
               attempt_id, attempt_number, attempt_state, submitted_at,
               raw_points, max_points, percentage_basis_points, outcome,
               feedback, published_at
          FROM classroom_gradebook_list($1, $2)`,
-      [context.accountId, classroomId],
-    );
-    const scheme = await this.requirePool().query(
-      `SELECT title, version_number, bands, published_at
-         FROM grading_scheme_for_classroom($1, $2)`,
-      [context.accountId, classroomId],
-    );
+        [context.accountId, classroomId],
+      ),
+      this.requirePool().query(
+        `SELECT title, version_number, bands, published_at
+           FROM grading_scheme_for_classroom($1, $2)`,
+        [context.accountId, classroomId],
+      ),
+      this.canonical().forTeacher(context.accountId, classroomId),
+    ]);
     const schemeRow = scheme.rows[0] as
       | {
           title: string;
@@ -414,32 +425,63 @@ export class LearningAssessmentsController {
       scheme: schemeRow
         ? { title: schemeRow.title, version: Number(schemeRow.version_number), bands }
         : null,
-      items: result.rows.map((row) => ({
-        seatId: String(row['seat_id']),
-        displayLabel: String(row['display_label']),
-        assignmentId: String(row['assignment_id']),
-        assignmentTitle: String(row['assignment_title']),
-        attemptId: row['attempt_id'] ? String(row['attempt_id']) : null,
-        attemptNumber: row['attempt_number'] === null ? null : Number(row['attempt_number']),
-        state: row['attempt_state'] ? String(row['attempt_state']) : 'not_started',
-        submittedAt: row['submitted_at'] ? iso(row['submitted_at'] as Date | string) : null,
-        points: row['raw_points'] === null ? null : Number(row['raw_points']),
-        maxPoints: row['max_points'] === null ? null : Number(row['max_points']),
-        percentage:
-          row['percentage_basis_points'] === null
-            ? null
-            : Number(row['percentage_basis_points']) / 100,
-        displayGrade:
-          row['percentage_basis_points'] === null
-            ? null
-            : ([...bands]
-                .sort((a, b) => b.minBasisPoints - a.minBasisPoints)
-                .find((band) => band.minBasisPoints <= Number(row['percentage_basis_points']))
-                ?.label ?? null),
-        outcome: row['outcome'] ? String(row['outcome']) : null,
-        feedback: row['feedback'] ? String(row['feedback']) : null,
-        publishedAt: row['published_at'] ? iso(row['published_at'] as Date | string) : null,
-      })),
+      items: result.rows.map((row) => {
+        const canonical = projections.get(
+          canonicalProjectionKey(String(row['seat_id']), String(row['assignment_id'])),
+        )?.surface;
+        const selected = canonical?.selectedResult ?? null;
+        return {
+          seatId: String(row['seat_id']),
+          displayLabel: String(row['display_label']),
+          assignmentId: String(row['assignment_id']),
+          assignmentTitle: String(row['assignment_title']),
+          attemptId: row['attempt_id'] ? String(row['attempt_id']) : null,
+          attemptNumber: row['attempt_number'] === null ? null : Number(row['attempt_number']),
+          state:
+            canonical?.workflowState ??
+            (row['attempt_state'] ? String(row['attempt_state']) : 'not_started'),
+          submittedAt: row['submitted_at'] ? iso(row['submitted_at'] as Date | string) : null,
+          points: canonical
+            ? (selected?.rawPoints ?? null)
+            : row['raw_points'] === null
+              ? null
+              : Number(row['raw_points']),
+          maxPoints: canonical
+            ? (selected?.maxPoints ?? null)
+            : row['max_points'] === null
+              ? null
+              : Number(row['max_points']),
+          percentage: canonical
+            ? selected?.percentageBasisPoints === null ||
+              selected?.percentageBasisPoints === undefined
+              ? null
+              : selected.percentageBasisPoints / 100
+            : row['percentage_basis_points'] === null
+              ? null
+              : Number(row['percentage_basis_points']) / 100,
+          displayGrade: canonical
+            ? (selected?.displayGrade ?? null)
+            : row['percentage_basis_points'] === null
+              ? null
+              : ([...bands]
+                  .sort((a, b) => b.minBasisPoints - a.minBasisPoints)
+                  .find((band) => band.minBasisPoints <= Number(row['percentage_basis_points']))
+                  ?.label ?? null),
+          outcome: canonical
+            ? (selected?.outcome ?? null)
+            : row['outcome']
+              ? String(row['outcome'])
+              : null,
+          feedback: row['feedback'] ? String(row['feedback']) : null,
+          publishedAt: canonical
+            ? (selected?.publishedAt ?? null)
+            : row['published_at']
+              ? iso(row['published_at'] as Date | string)
+              : null,
+          canonicalState: canonical ?? null,
+          compatibilityDiagnostic: canonical?.compatibilityDiagnostic ?? null,
+        };
+      }),
     };
   }
 
