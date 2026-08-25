@@ -114,6 +114,8 @@ const env = apiChildEnv(
     ASA_BUILD_REVISION: webArtifact.metadata.revision,
     ASA_BUILT_AT: webArtifact.metadata.builtAt,
     ASA_EXPECTED_SCHEMA_VERSION: String(expectedSchemaVersion),
+    ASA_ARTIFACT_INTEGRITY: 'verified',
+    ASA_ARTIFACT_VERIFIED_AT: new Date().toISOString(),
   },
   port,
 );

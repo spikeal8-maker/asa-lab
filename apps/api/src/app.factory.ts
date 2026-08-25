@@ -47,7 +47,10 @@ const SECURITY_HEADERS = {
     "img-src 'self' data: blob:",
     "media-src 'self'",
     "font-src 'self' data:",
-    "connect-src 'self'",
+    // Monaco and the browser-side electronics toolchain bootstrap their local
+    // module workers from object URLs. These URLs contain bytes created by this
+    // page; allowing blob: here does not add an external network destination.
+    "connect-src 'self' blob:",
     "worker-src 'self' blob:",
     "manifest-src 'self'",
     'upgrade-insecure-requests',

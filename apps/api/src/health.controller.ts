@@ -26,6 +26,8 @@ export interface ReadinessBody {
     readonly schemaVersion: number | null;
     readonly expectedSchemaVersion: number | null;
     readonly synchronized: boolean | null;
+    readonly artifactIntegrity: 'verified' | 'unknown';
+    readonly artifactVerifiedAt: string | null;
   };
 }
 
@@ -64,6 +66,8 @@ export class HealthController {
         schemaVersion: probe.schemaVersion,
         expectedSchemaVersion: build.expectedSchemaVersion,
         synchronized,
+        artifactIntegrity: build.artifactIntegrity,
+        artifactVerifiedAt: build.artifactVerifiedAt,
       },
     };
   }

@@ -67,6 +67,8 @@ describe('API application factory', () => {
     expect(live.json()).toEqual({ status: 'live' });
     expect(live.headers['x-request-id']).toBeTruthy();
     expect(live.headers['content-security-policy']).toContain("frame-ancestors 'none'");
+    expect(live.headers['content-security-policy']).toContain("connect-src 'self' blob:");
+    expect(live.headers['content-security-policy']).toContain("worker-src 'self' blob:");
     expect(live.headers['strict-transport-security']).toBe('max-age=31536000; includeSubDomains');
     expect(live.headers['x-content-type-options']).toBe('nosniff');
     expect(live.headers['x-frame-options']).toBe('DENY');
@@ -82,6 +84,8 @@ describe('API application factory', () => {
         schemaVersion: null,
         expectedSchemaVersion: null,
         synchronized: null,
+        artifactIntegrity: 'unknown',
+        artifactVerifiedAt: null,
       },
     });
   });
@@ -106,6 +110,8 @@ describe('API application factory', () => {
         schemaVersion: null,
         expectedSchemaVersion: null,
         synchronized: null,
+        artifactIntegrity: 'unknown',
+        artifactVerifiedAt: null,
       },
     });
   });

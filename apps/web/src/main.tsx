@@ -1,6 +1,7 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './App';
+import { AppErrorBoundary } from './AppErrorBoundary';
 import './styles.css';
 import './accessibility.css';
 
@@ -14,6 +15,8 @@ if (!container) {
 // that module's chunk rather than gating the first screen for everybody.
 createRoot(container).render(
   <React.StrictMode>
-    <App />
+    <AppErrorBoundary>
+      <App />
+    </AppErrorBoundary>
   </React.StrictMode>,
 );

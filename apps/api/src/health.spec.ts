@@ -10,6 +10,8 @@ const UNKNOWN_DEPLOYMENT = {
   schemaVersion: null,
   expectedSchemaVersion: null,
   synchronized: null,
+  artifactIntegrity: 'unknown',
+  artifactVerifiedAt: null,
 } as const;
 
 function replyRecorder(): { reply: FastifyReply; status: () => number } {
