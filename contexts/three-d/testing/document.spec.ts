@@ -40,6 +40,7 @@ describe('ASA 3D document', () => {
 
   it('uses the Tinkercad red for a new box by default', () => {
     expect(createThreeDNode('box', 'default-box').color).toBe('#e31c2b');
+    expect(createThreeDNode('box', 'default-box').opacity).toBe(1);
   });
 
   it('applies reversible commands without mutating the source document', () => {

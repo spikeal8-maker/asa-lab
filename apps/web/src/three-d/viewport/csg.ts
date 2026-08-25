@@ -531,8 +531,9 @@ export function createBooleanMesh(
     geometry?.dispose();
     return null;
   }
-  const color = nodes.find((node) => node.operation === 'solid')?.color ?? '#27a9e1';
-  const material = createCadSolidMaterial(color);
+  const firstSolid = nodes.find((node) => node.operation === 'solid');
+  const color = firstSolid?.color ?? '#27a9e1';
+  const material = createCadSolidMaterial(color, firstSolid?.opacity ?? 1);
   const mesh = new THREE.Mesh(geometry, material);
   const featureEdgePositions = geometry.userData[FEATURE_EDGE_DATA];
   if (Array.isArray(featureEdgePositions) && featureEdgePositions.length > 0) {

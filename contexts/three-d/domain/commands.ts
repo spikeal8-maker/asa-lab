@@ -20,6 +20,7 @@ export type ThreeDCommand =
     }
   | { readonly type: 'rename'; readonly nodeId: string; readonly name: string }
   | { readonly type: 'set-color'; readonly nodeId: string; readonly color: string }
+  | { readonly type: 'set-opacity'; readonly nodeId: string; readonly opacity: number }
   | { readonly type: 'set-operation'; readonly nodeId: string; readonly operation: ShapeOperation }
   | { readonly type: 'set-locked'; readonly nodeId: string; readonly locked: boolean }
   | { readonly type: 'set-visible'; readonly nodeId: string; readonly visible: boolean }
@@ -83,6 +84,11 @@ export function applyThreeDCommand(source: ThreeDDocument, command: ThreeDComman
       }));
     case 'set-color':
       return replaceNode(document, command.nodeId, (node) => ({ ...node, color: command.color }));
+    case 'set-opacity':
+      return replaceNode(document, command.nodeId, (node) => ({
+        ...node,
+        opacity: Math.min(1, Math.max(0.1, command.opacity)),
+      }));
     case 'set-operation':
       return replaceNode(document, command.nodeId, (node) => ({
         ...node,

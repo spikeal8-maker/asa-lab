@@ -1767,8 +1767,112 @@ button.asa3d-save-recovery {
   box-shadow: 0 0 0 2px #20a8df;
 }
 
+.asa3d-color-popover {
+  position: relative;
+  z-index: 4;
+  padding: 0 10px 9px !important;
+  background: rgb(255 255 255 / 98%);
+  border-top: 0 !important;
+  box-shadow: 0 5px 12px rgb(27 47 58 / 12%);
+}
+
+.asa3d-color-popover > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 30px;
+  color: #344f60;
+  font-size: 12px;
+}
+
+.asa3d-color-popover > header button {
+  width: 25px;
+  height: 25px;
+  padding: 0;
+  color: #617684;
+  font-size: 18px;
+  background: transparent;
+  border: 0;
+}
+
+.asa3d-color-presets {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 4px;
+}
+
+.asa3d-color-presets button {
+  aspect-ratio: 1;
+  min-width: 0;
+  padding: 0;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px #ccd5da;
+}
+
+.asa3d-color-presets button.selected {
+  box-shadow: 0 0 0 2px #168fca;
+}
+
+.asa3d-color-options {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-top: 8px;
+  padding-top: 7px;
+  border-top: 1px solid #e3e8eb;
+}
+
+.asa3d-color-options > button,
+.asa3d-custom-color-wide {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  box-sizing: border-box;
+  width: 100%;
+  height: 30px;
+  padding: 4px 7px;
+  color: #526978;
+  font-size: 10px;
+  font-style: normal;
+  background: #f7f9fa;
+  border: 1px solid #d5dfe3;
+  border-radius: 4px;
+  box-shadow: none;
+}
+
+.asa3d-color-options > button.active {
+  color: #087ca8;
+  border-color: #4db5cf;
+}
+
+.asa3d-color-options > button i,
+.asa3d-custom-color-wide span {
+  flex: 0 0 18px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+}
+
+.asa3d-custom-color-wide {
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.asa3d-custom-color-wide span {
+  font-size: 12px;
+}
+
+.asa3d-custom-color-wide em {
+  overflow: hidden;
+  font-style: normal;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .asa3d-compact-properties {
-  padding: 7px 10px 9px !important;
+  padding: 5px 10px 7px !important;
   background: #f8fafb;
 }
 
@@ -1820,7 +1924,7 @@ button.asa3d-save-recovery {
   grid-template-columns: 74px minmax(0, 1fr) 43px;
   align-items: center;
   gap: 4px;
-  min-height: 26px;
+  min-height: 22px;
   color: #526978;
   font-size: 11px;
 }
@@ -2501,10 +2605,10 @@ button.asa3d-save-recovery {
   }
 
   .asa3d-inspector {
-    top: auto;
+    top: 8px;
     right: 8px;
-    bottom: 8px;
-    width: min(280px, calc(100% - 70px));
+    bottom: auto;
+    width: min(230px, calc(100% - 78px));
     max-height: calc(100% - 16px);
     overscroll-behavior: contain;
   }
@@ -2514,13 +2618,21 @@ button.asa3d-save-recovery {
   }
 
   .asa3d-compact-range {
-    min-height: 34px;
+    min-height: 26px;
   }
 
   .asa3d-compact-range input[type='number'],
   .asa3d-compact-text-field input,
   .asa3d-compact-text-field select {
-    min-height: 30px;
+    min-height: 26px;
+  }
+
+  .asa3d-color-presets {
+    grid-template-columns: repeat(9, 1fr);
+  }
+
+  .asa3d-color-options {
+    grid-template-columns: 1fr;
   }
 
   .asa3d-grid-panel {

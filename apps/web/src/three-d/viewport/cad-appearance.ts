@@ -22,7 +22,8 @@ export function createCadShadedColor(color: string | THREE.Color, intensity: num
     .lerp(CAD_AMBIENT_TINT, CAD_THUMBNAIL_TINT_BLEND);
 }
 
-export function createCadSolidMaterial(color: string): THREE.MeshStandardMaterial {
+export function createCadSolidMaterial(color: string, opacity = 1): THREE.MeshStandardMaterial {
+  const clampedOpacity = Math.min(1, Math.max(0.1, opacity));
   return new THREE.MeshStandardMaterial({
     color: createCadSurfaceColor(color),
     emissive: '#000000',
@@ -36,6 +37,9 @@ export function createCadSolidMaterial(color: string): THREE.MeshStandardMateria
     polygonOffset: true,
     polygonOffsetFactor: 1,
     polygonOffsetUnits: 1,
+    transparent: clampedOpacity < 1,
+    opacity: clampedOpacity,
+    depthWrite: clampedOpacity >= 1,
   });
 }
 

@@ -23,7 +23,44 @@ interface ShapeInspectorProps {
   readonly execute: (command: ThreeDCommand) => void;
 }
 
-const COLORS = ['#e31c2b', '#f5831f', '#f2c313', '#4aa94b', '#00a5c8', '#304c97', '#6e2786'];
+const COLORS = [
+  '#ef8e83',
+  '#f8ba84',
+  '#f7dfa3',
+  '#beddb8',
+  '#9bdbe3',
+  '#66bdd3',
+  '#9db7e5',
+  '#c9b5df',
+  '#e7a8cf',
+  '#dfb980',
+  '#f3f4f4',
+  '#9fa9ad',
+  '#e31c2b',
+  '#f5831f',
+  '#f2c313',
+  '#4aa94b',
+  '#54c5d1',
+  '#009cc5',
+  '#304c97',
+  '#7c3f98',
+  '#d9007e',
+  '#a97c50',
+  '#d7dcde',
+  '#667075',
+  '#a71920',
+  '#dd521d',
+  '#e9a916',
+  '#08743d',
+  '#16545d',
+  '#006d91',
+  '#142d64',
+  '#422c70',
+  '#981b55',
+  '#603813',
+  '#b9c0c3',
+  '#272c2f',
+] as const;
 
 function numeric(value: string, fallback: number, minimum?: number): number {
   const parsed = Number(value);
@@ -63,12 +100,20 @@ function primitiveTitle(node: ThreeDNode): string {
 export function ShapeInspector({ node, group, execute }: ShapeInspectorProps): JSX.Element | null {
   const selectionKey = group ? `group:${group.id}` : node?.id;
   const [collapsedKey, setCollapsedKey] = useState<string | null>(null);
+  const [colorOpenKey, setColorOpenKey] = useState<string | null>(null);
   if (!selectionKey || (!node && !group)) return null;
   const expanded = collapsedKey !== selectionKey;
   const nodes = group?.nodes ?? (node ? [node] : []);
   const locked = nodes.length > 0 && nodes.every((item) => item.locked);
   const hidden = nodes.length > 0 && nodes.every((item) => !item.visible);
   const operation = nodes.every((item) => item.operation === 'hole') ? 'hole' : 'solid';
+  const selectedColor = nodes.every((item) => item.color === nodes[0]?.color)
+    ? (nodes[0]?.color ?? '#e31c2b')
+    : null;
+  const selectedOpacity = nodes.every((item) => item.opacity === nodes[0]?.opacity)
+    ? (nodes[0]?.opacity ?? 1)
+    : 1;
+  const colorOpen = colorOpenKey === selectionKey;
 
   const executeForNodes = (command: (item: ThreeDNode) => ThreeDCommand): void => {
     nodes.forEach((item) => execute(command(item)));
@@ -76,6 +121,14 @@ export function ShapeInspector({ node, group, execute }: ShapeInspectorProps): J
 
   const setOperation = (value: 'solid' | 'hole'): void => {
     executeForNodes((item) => ({ type: 'set-operation', nodeId: item.id, operation: value }));
+  };
+
+  const setColor = (color: string): void => {
+    executeForNodes((item) => ({ type: 'set-color', nodeId: item.id, color }));
+  };
+
+  const setOpacity = (opacity: number): void => {
+    executeForNodes((item) => ({ type: 'set-opacity', nodeId: item.id, opacity }));
   };
 
   const toggleLocked = (): void => {
@@ -154,13 +207,25 @@ export function ShapeInspector({ node, group, execute }: ShapeInspectorProps): J
             <button
               type="button"
               className={operation === 'solid' ? 'selected' : ''}
+              aria-label="Цвет тела"
               aria-pressed={operation === 'solid'}
+              aria-expanded={colorOpen}
               disabled={locked}
-              onClick={() => setOperation('solid')}
+              onClick={() => {
+                if (operation !== 'solid') {
+                  setOperation('solid');
+                  return;
+                }
+                setColorOpenKey(colorOpen ? null : selectionKey);
+              }}
             >
               <i
                 className="solid"
-                style={!group && node ? { backgroundColor: node.color } : undefined}
+                style={
+                  selectedColor
+                    ? { backgroundColor: selectedColor, opacity: selectedOpacity }
+                    : undefined
+                }
                 aria-hidden="true"
               />
               <span>Тело</span>
@@ -176,6 +241,60 @@ export function ShapeInspector({ node, group, execute }: ShapeInspectorProps): J
               <span>Отверстие</span>
             </button>
           </section>
+
+          {colorOpen && operation === 'solid' && (
+            <section className="asa3d-color-popover" aria-label="Палитра цвета тела">
+              <header>
+                <strong>Сплошные цвета</strong>
+                <button
+                  type="button"
+                  onClick={() => setColorOpenKey(null)}
+                  aria-label="Закрыть палитру"
+                >
+                  ×
+                </button>
+              </header>
+              <div className="asa3d-color-presets">
+                {COLORS.map((color) => (
+                  <button
+                    type="button"
+                    key={color}
+                    className={selectedColor === color ? 'selected' : ''}
+                    style={{ backgroundColor: color }}
+                    disabled={locked}
+                    onClick={() => setColor(color)}
+                    aria-label={`Цвет ${color}`}
+                  />
+                ))}
+              </div>
+              <div className="asa3d-color-options">
+                <label
+                  className="asa3d-custom-color asa3d-custom-color-wide"
+                  title="Пользовательский цвет"
+                >
+                  <span>+</span>
+                  <em>Пользовательский</em>
+                  <input
+                    type="color"
+                    value={selectedColor ?? '#e31c2b'}
+                    disabled={locked}
+                    onChange={(event) => setColor(event.currentTarget.value)}
+                    aria-label="Выбрать пользовательский цвет"
+                  />
+                </label>
+                <button
+                  type="button"
+                  className={selectedOpacity < 1 ? 'active' : ''}
+                  aria-pressed={selectedOpacity < 1}
+                  onClick={() => setOpacity(selectedOpacity < 1 ? 1 : 0.45)}
+                  disabled={locked}
+                >
+                  <i style={{ backgroundColor: selectedColor ?? '#e31c2b' }} />
+                  Прозрачный
+                </button>
+              </div>
+            </section>
+          )}
 
           {group ? (
             <section className="asa3d-compact-properties">
@@ -297,32 +416,6 @@ function ShapeProperties({ node, execute, replaceDimension }: ShapePropertiesPro
   return (
     <section className="asa3d-compact-properties">
       <h3>Свойства</h3>
-
-      <div className="asa3d-compact-colors" aria-label="Цвет тела">
-        {COLORS.map((color) => (
-          <button
-            type="button"
-            key={color}
-            className={node.color === color ? 'selected' : ''}
-            style={{ backgroundColor: color }}
-            disabled={node.locked}
-            onClick={() => execute({ type: 'set-color', nodeId: node.id, color })}
-            aria-label={`Цвет ${color}`}
-          />
-        ))}
-        <label className="asa3d-custom-color" title="Свой цвет">
-          <span>+</span>
-          <input
-            type="color"
-            value={node.color}
-            disabled={node.locked}
-            onChange={(event) =>
-              execute({ type: 'set-color', nodeId: node.id, color: event.currentTarget.value })
-            }
-            aria-label="Выбрать свой цвет"
-          />
-        </label>
-      </div>
 
       {node.primitive === 'box' && (
         <>

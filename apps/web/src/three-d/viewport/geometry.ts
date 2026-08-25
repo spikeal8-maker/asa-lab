@@ -613,7 +613,7 @@ export function createNodeObject(node: ThreeDNode): THREE.Group {
           opacity: 0.36,
           depthWrite: false,
         })
-      : createCadSolidMaterial(node.color);
+      : createCadSolidMaterial(node.color, node.opacity);
   const mesh = new THREE.Mesh(createPrimitiveGeometry(node), material);
   mesh.name = `${node.name}:mesh`;
   mesh.userData['nodeId'] = node.id;

@@ -47,6 +47,16 @@ describe('ASA 3D primitive geometry', () => {
     disposeObject(object);
   });
 
+  it('renders the persisted transparent-body mode without writing depth', () => {
+    const node = { ...createThreeDNode('box', 'transparent-box'), opacity: 0.45 };
+    const object = createNodeObject(node);
+    const mesh = object.children[0] as THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>;
+    expect(mesh.material.transparent).toBe(true);
+    expect(mesh.material.opacity).toBe(0.45);
+    expect(mesh.material.depthWrite).toBe(false);
+    disposeObject(object);
+  });
+
   it('uses calibrated CAD surface tint without cast shadows', () => {
     const object = createNodeObject(createThreeDNode('box', 'bright-box'));
     const mesh = object.children[0] as THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>;

@@ -8,6 +8,7 @@ import { downloadThreeDJson, downloadThreeDStl } from './exporters';
 import { ShapeInspector } from './ShapeInspector';
 import { ShapeLibrary } from './ShapeLibrary';
 import { SelectionTools } from './SelectionTools';
+import { logicalSelectionCount } from './selection-model';
 import { AlignIcon, CubeIcon, GroupIcon, HomeIcon } from './three-d-icons';
 import { ThreeDToolbar } from './ThreeDToolbar';
 import { useThreeDProject } from './use-three-d-project';
@@ -239,6 +240,7 @@ export function ThreeDEditor({ projectId, onBack, user }: ThreeDEditorProps): JS
     replaceGrid({ [dimension]: Math.min(500, Math.max(20, value)) });
   };
   const editableSelectedCount = controller.selectedNodes.filter((node) => !node.locked).length;
+  const selectedObjectCount = logicalSelectionCount(controller.selectedNodes);
   const canBundle =
     editableSelectedCount >= 2 &&
     !controller.selectedGroupId &&
@@ -414,15 +416,15 @@ export function ThreeDEditor({ projectId, onBack, user }: ThreeDEditorProps): JS
             />
           )}
 
-          {controller.selectedNodes.length > 1 && !controller.selectedGroupId && (
+          {selectedObjectCount > 1 && !controller.selectedGroupId && (
             <section
               className="asa3d-multi-selection-panel"
               aria-label="Выбрано несколько объектов"
               data-testid="asa3d-multi-selection-panel"
-              data-selection-count={controller.selectedNodes.length}
+              data-selection-count={selectedObjectCount}
             >
               <div>
-                <strong>Выбрано: {objectCountLabel(controller.selectedNodes.length)}</strong>
+                <strong>Выбрано: {objectCountLabel(selectedObjectCount)}</strong>
                 <span>Перетаскивание двигает весь набор</span>
               </div>
               <div className="asa3d-multi-selection-actions">

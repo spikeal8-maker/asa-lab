@@ -17,6 +17,7 @@ import {
 import { createBooleanMesh } from './csg';
 import { createNodeObject, disposeObject } from './geometry';
 import { addCadSceneLights } from './cad-appearance';
+import { runtimeSelectionKeys } from '../selection-model';
 
 export interface SceneRuntimeCallbacks {
   readonly onSelect: (nodeId: string | null, additive: boolean) => void;
@@ -305,16 +306,14 @@ export class SceneRuntime {
     const selectedNodes = selectedIds
       .map((id) => document.nodes.find((node) => node.id === id))
       .filter((node): node is ThreeDNode => Boolean(node));
-    const firstGroupId = selectedNodes[0]?.groupId;
-    const selectedGroupId =
-      selectedNodes.length > 1 &&
-      firstGroupId &&
-      selectedNodes.every((node) => node.groupId === firstGroupId)
-        ? firstGroupId
-        : null;
-    const runtimeSelectionIds = selectedGroupId
-      ? [`group:${selectedGroupId}`]
-      : selectedIds.filter((id) => this.entries.has(id));
+    // A boolean result is one scene object even though the editable document
+    // keeps every source primitive. Collapse every selected group's members to
+    // its runtime proxy independently. Without this, selecting two boolean
+    // results produced four hidden primitive ids, so the manipulator received
+    // an empty selection and showed no footprint or movement feedback.
+    const runtimeSelectionIds = runtimeSelectionKeys(selectedNodes).filter((id) =>
+      this.entries.has(id),
+    );
     this.setSelection(runtimeSelectionIds.at(-1) ?? null, runtimeSelectionIds);
   }
 

@@ -90,6 +90,8 @@ export interface ThreeDNode {
   readonly name: string;
   readonly operation: ShapeOperation;
   readonly color: string;
+  /** 1 is opaque; lower values provide the Tinkercad-style transparent body mode. */
+  readonly opacity: number;
   readonly transform: ThreeDTransform;
   readonly dimensions: ThreeDDimensions;
   readonly sides: number;
@@ -315,6 +317,7 @@ export function createThreeDNode(primitive: PrimitiveKind, id: string): ThreeDNo
     name: SHAPE_NAMES[primitive],
     operation: 'solid',
     color: THREE_D_SHAPE_COLORS[primitive],
+    opacity: 1,
     transform: {
       position: { x: 0, y: dimensions.height / 2, z: 0 },
       rotation: { x: 0, y: 0, z: 0 },
@@ -449,6 +452,8 @@ function isNode(value: unknown): value is ThreeDNode {
     (value['operation'] === 'solid' || value['operation'] === 'hole') &&
     typeof value['color'] === 'string' &&
     /^#[0-9a-f]{6}$/i.test(value['color']) &&
+    (value['opacity'] === undefined ||
+      (isFiniteNumber(value['opacity']) && value['opacity'] >= 0.1 && value['opacity'] <= 1)) &&
     isRecord(transform) &&
     isVector(transform['position']) &&
     isVector(transform['rotation']) &&
@@ -499,6 +504,7 @@ export function parseThreeDDocument(value: unknown): DocumentParseResult {
       ...defaultShapeParameters(node.primitive),
       ...(node.parameters ?? {}),
     },
+    opacity: node.opacity ?? 1,
     bundleId: node.bundleId ?? null,
     groupId: node.groupId ?? null,
     groupOperation: node.groupId ? (node.groupOperation ?? 'union') : null,

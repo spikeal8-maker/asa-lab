@@ -32,6 +32,7 @@ import {
 import { api, type ProjectVersion } from '../api';
 import { clearLocalThreeDDraft, readLocalThreeDDraft, writeLocalThreeDDraft } from './local-draft';
 import type { DirectManipulationCommit } from './viewport/DirectManipulator';
+import { directManipulationReplacements } from './selection-model';
 
 export type SaveState = 'saved' | 'dirty' | 'saving' | 'error';
 
@@ -814,22 +815,7 @@ export function useThreeDProject(projectId: string): ThreeDProjectController {
     (commits: readonly DirectManipulationCommit[]): void => {
       const document = historyRef.current?.present;
       if (!document || commits.length === 0) return;
-      const changes = new Map(commits.map((commit) => [commit.nodeId, commit]));
-      const nodes = document.nodes.flatMap((node) => {
-        const commit = changes.get(node.id);
-        if (!commit || node.locked) return [];
-        return [
-          {
-            ...node,
-            dimensions: commit.dimensions ? { ...commit.dimensions } : node.dimensions,
-            transform: {
-              position: { ...commit.transform.position },
-              rotation: { ...commit.transform.rotation },
-              scale: { ...commit.transform.scale },
-            },
-          },
-        ];
-      });
+      const nodes = directManipulationReplacements(document, commits);
       if (nodes.length > 0) execute({ type: 'replace-nodes', nodes });
     },
     [execute],
