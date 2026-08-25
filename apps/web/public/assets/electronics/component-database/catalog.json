@@ -28201,7 +28201,7 @@
       "sourceSha256": "4074817d886f6e6ec2fd9c412c28f656e26f32becd117096c4317affe2fd7d84",
       "runtimePath": "/assets/electronics/component-database/components/motors/dc-motor/component.svg",
       "runtimeSha256": "4074817d886f6e6ec2fd9c412c28f656e26f32becd117096c4317affe2fd7d84",
-      "status": "disabled_missing_model",
+      "status": "enabled",
       "previousInventoryClassification": "owner_supplied"
     },
     {

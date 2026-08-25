@@ -28,7 +28,7 @@ import {
 } from '../workbench-document';
 
 const EMPTY: SchematicDocument = {
-  schemaVersion: 3,
+  schemaVersion: 4,
   components: [],
   connections: [],
   viewport: { x: 0, y: 0, zoom: 1 },
@@ -41,6 +41,7 @@ const ACTIVE_PHYSICAL_SIZE_MM = {
   'resistor-axial': [2.54, 11.582],
   'led-5mm': [4.8381, 8.0635],
   'button-tactile-6mm': [10, 10],
+  'dc-motor': [25.333, 21.858],
   potentiometer: [12.192, 13.884],
   photoresistor: [10.2973, 12.1508],
   'switch-spdt': [7.112, 3.81],
@@ -322,6 +323,11 @@ describe('owner SVG integration in the real Electronics document', () => {
       simulationSupported: false,
       catalogStatus: 'enabled',
     });
+    expect(productionCatalogEntry('dc-motor')).toMatchObject({
+      enabled: true,
+      simulationSupported: false,
+      catalogStatus: 'enabled',
+    });
     expect(families.find((family) => family.familyId === 'ultrasonic-sensor')).toMatchObject({
       defaultVariantId: 'ultrasonic-sensor',
       enabled: true,
@@ -366,6 +372,7 @@ describe('owner SVG integration in the real Electronics document', () => {
     expect(productionCatalogEntry('diode-do35')?.physicalSizeMm).not.toEqual(
       productionCatalogEntry('diode-do41')?.physicalSizeMm,
     );
+    expect(productionCatalogEntry('diode-do41')?.defaultRotation).toBe(90);
     expect(
       ['battery-9v', 'battery-3v'].map((familyId) =>
         families.find((family) => family.familyId === familyId),
@@ -381,7 +388,6 @@ describe('owner SVG integration in the real Electronics document', () => {
     ]);
     expect(families.find((family) => family.familyId === 'battery-1.5v')).toBeUndefined();
     expect(families.find((family) => family.familyId === 'battery-6v')).toBeUndefined();
-    expect(families.filter((family) => family.catalogTier === 'preview')).not.toHaveLength(0);
     expect(
       families
         .filter((family) => family.catalogTier === 'preview')

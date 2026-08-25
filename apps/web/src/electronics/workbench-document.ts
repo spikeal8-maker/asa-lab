@@ -5,6 +5,7 @@ import type {
   SchematicDocument,
   Terminal,
 } from '../api';
+import { resolveElectricalModelIdentity } from '@asa-lab/electronics/simulation';
 import {
   catalogEntry,
   componentPointPosition,
@@ -43,13 +44,20 @@ export function addComponentToDocument(
 ): { document: SchematicDocument; component: SchematicComponent } {
   const entry = catalogEntry(componentTypeId);
   if (!entry) throw new Error(`Unknown production component: ${componentTypeId}`);
-  const size = renderedSize(entry);
+  const rotation = entry.defaultRotation;
+  const size = renderedSize(entry, rotation);
   const internalConnections = internalConnectionsForType(componentTypeId);
+  const modelIdentity = resolveElectricalModelIdentity({
+    componentTypeId,
+    kind: entry.kind,
+    stateProperties: entry.defaultStateProperties,
+  });
   const component: SchematicComponent = {
     id,
     kind: entry.kind,
     componentTypeId,
     variantId: componentTypeId,
+    ...modelIdentity,
     // Free placement, same as when an already placed component is dragged: the
     // part lands exactly where it was dropped. The only thing allowed to move it
     // afterwards is the breadboard pulling its pins into the holes below; a
@@ -59,7 +67,7 @@ export function addComponentToDocument(
       y: Math.round(center.y - size.height / 2),
     },
     value: entry.defaultValue,
-    rotation: 0,
+    rotation,
     name: entry.label,
     ...(entry.defaultState === undefined ? {} : { state: entry.defaultState }),
     ...(entry.defaultWiperPosition === undefined
@@ -85,6 +93,11 @@ export function updateSelectionVariant(
 
   const terminals = new Set(Object.keys(entry.terminals));
   const internalConnections = internalConnectionsForType(componentTypeId);
+  const modelIdentity = resolveElectricalModelIdentity({
+    componentTypeId,
+    kind: entry.kind,
+    stateProperties: entry.defaultStateProperties,
+  });
   const rotation = current.rotation ?? 0;
   const currentSize = currentEntry ? renderedSize(currentEntry, rotation) : null;
   const nextSize = renderedSize(entry, rotation);
@@ -93,6 +106,7 @@ export function updateSelectionVariant(
     kind: entry.kind,
     componentTypeId,
     variantId: componentTypeId,
+    ...modelIdentity,
     value: entry.defaultValue,
     ...(current.name === undefined
       ? {}

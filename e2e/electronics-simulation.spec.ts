@@ -40,7 +40,7 @@ function circuitDocument(options: {
   const ledInput = options.reversedLed ? 'cathode' : 'anode';
   const ledReturn = options.reversedLed ? 'anode' : 'cathode';
   return {
-    schemaVersion: 3,
+    schemaVersion: 4,
     components: [
       {
         id: 'source',
@@ -216,7 +216,7 @@ function shortCircuitDocument(): SchematicDocument {
   }).components.find((component) => component.id === 'source');
   if (!source) throw new Error('source fixture is missing');
   return {
-    schemaVersion: 3,
+    schemaVersion: 4,
     components: [source],
     connections: [
       {
@@ -337,7 +337,7 @@ function rgbLedDocument(commonMode: 'common-cathode' | 'common-anode'): Schemati
   const commonCathode = commonMode === 'common-cathode';
   const channels = ['red', 'green', 'blue'] as const;
   return {
-    schemaVersion: 3,
+    schemaVersion: 4,
     components: [
       {
         id: 'source',

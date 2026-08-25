@@ -889,6 +889,7 @@ export type ComponentKind =
   | 'visual'
   | 'wire';
 export type Terminal = string;
+export type Rotation = 0 | 45 | 90 | 135 | 180 | 225 | 270 | 315;
 export type ProductionStateValue = string | number | boolean | readonly string[];
 
 export interface BreadboardHoleBinding {
@@ -901,9 +902,13 @@ export interface SchematicComponent {
   kind: ComponentKind;
   componentTypeId?: string;
   variantId?: string;
+  electricalModelId?: string;
+  electricalModelVersion?: number;
+  modelProfileId?: string;
+  modelProfileVersion?: number;
   position: { x: number; y: number };
   value: number;
-  rotation?: 0 | 45 | 90 | 135 | 180 | 225 | 270 | 315;
+  rotation?: Rotation;
   name?: string;
   state?: boolean;
   wiperPosition?: number;
@@ -922,7 +927,7 @@ export interface SchematicConnection {
 }
 
 export interface SchematicDocument {
-  schemaVersion: 3;
+  schemaVersion: 4;
   components: SchematicComponent[];
   connections: SchematicConnection[];
   viewport: { x: number; y: number; zoom: number };

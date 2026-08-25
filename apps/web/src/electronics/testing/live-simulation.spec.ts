@@ -8,7 +8,7 @@ import {
 } from '../live-simulation';
 
 const circuit: SchematicDocument = {
-  schemaVersion: 3,
+  schemaVersion: 4,
   components: [
     { id: 'source', kind: 'source', position: { x: 0, y: 0 }, value: 5 },
     { id: 'resistor', kind: 'resistor', position: { x: 20, y: 0 }, value: 1000 },
@@ -92,7 +92,7 @@ describe('live Electronics simulation', () => {
 
   it('recalculates LED colour and resistor effects in a complete owner-pin circuit', () => {
     const seriesLed = (colour: string, resistance: number): SchematicDocument => ({
-      schemaVersion: 3,
+      schemaVersion: 4,
       components: [
         {
           id: 'battery',
@@ -203,7 +203,7 @@ describe('live Electronics simulation', () => {
 
   it('keeps a 3 V / 166 ohm LED branch working beside unrelated editor components', () => {
     const document: SchematicDocument = {
-      schemaVersion: 3,
+      schemaVersion: 4,
       components: [
         {
           id: 'board',

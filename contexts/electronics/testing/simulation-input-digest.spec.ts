@@ -8,7 +8,7 @@ import {
 import { analyseCircuit } from '../domain/simulation.js';
 
 const document: ElectronicsDocument = {
-  schemaVersion: 3,
+  schemaVersion: 4,
   components: [
     {
       id: 'r1',
@@ -93,6 +93,24 @@ describe('simulation input digest', () => {
     expect(simulationInputDigest(changedValue)).not.toBe(simulationInputDigest(document));
     expect(simulationInputDigest(changedConnection)).not.toBe(simulationInputDigest(document));
     expect(simulationInputDigest(document, 100)).not.toBe(simulationInputDigest(document, 200));
+  });
+
+  it('binds the digest to the resolved electrical model and profile versions', () => {
+    const changedProfile: ElectronicsDocument = {
+      ...document,
+      components: document.components.map((component) =>
+        component.id === 'r1'
+          ? {
+              ...component,
+              electricalModelId: 'resistor',
+              electricalModelVersion: 1,
+              modelProfileId: 'axial-resistor',
+              modelProfileVersion: 2,
+            }
+          : component,
+      ),
+    };
+    expect(simulationInputDigest(changedProfile)).not.toBe(simulationInputDigest(document));
   });
 
   it('serializes independently from component and connection array order', () => {

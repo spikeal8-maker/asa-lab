@@ -1,28 +1,20 @@
 import type { ComponentKind, SchematicComponent, Terminal } from './document.js';
 import { isArduinoUno } from './arduino-model.js';
+import {
+  componentModelIdentityIsInstalled,
+  electricalModelIdentityForComponent,
+  type ElectricalModelId,
+} from './model-identity.js';
 
-export type ElectricalModelId =
-  | 'ideal-dc-source'
-  | 'resistor'
-  | 'ordinary-led'
-  | 'rgb-led'
-  | 'seven-segment'
-  | 'momentary-button'
-  | 'spdt-switch'
-  | 'potentiometer'
-  | 'photoresistor'
-  | 'passive-piezo'
-  | 'diode'
-  | 'npn-transistor'
-  | 'incandescent-lamp'
-  | 'breadboard-connectivity'
-  | 'arduino-uno'
-  | 'ideal-wire';
+export type { ElectricalModelId } from './model-identity.js';
 
 export type ElectricalModelSupport = 'supported' | 'infrastructure' | 'unsupported';
 
 export interface ElectricalModelDescriptor {
   readonly id: ElectricalModelId | 'unsupported';
+  readonly version?: number;
+  readonly profileId?: string;
+  readonly profileVersion?: number;
   readonly kind: ComponentKind;
   readonly support: ElectricalModelSupport;
   readonly topology:
@@ -175,8 +167,21 @@ const ARDUINO_UNO_MODEL: ElectricalModelDescriptor = {
 };
 
 export function electricalModelFor(component: SchematicComponent): ElectricalModelDescriptor {
-  if (isArduinoUno(component)) return ARDUINO_UNO_MODEL;
-  return MODELS[component.kind];
+  const identity = electricalModelIdentityForComponent(component);
+  const installed = componentModelIdentityIsInstalled(component);
+  const base = !installed
+    ? MODELS.visual
+    : isArduinoUno(component)
+      ? ARDUINO_UNO_MODEL
+      : MODELS[component.kind];
+  return {
+    ...base,
+    id: installed ? (identity.electricalModelId as ElectricalModelId) : 'unsupported',
+    version: identity.electricalModelVersion,
+    profileId: identity.modelProfileId,
+    profileVersion: identity.modelProfileVersion,
+    ...(!installed ? { support: 'unsupported' as const, topology: 'unsupported' as const } : {}),
+  };
 }
 
 export function unsupportedElectricalComponents(

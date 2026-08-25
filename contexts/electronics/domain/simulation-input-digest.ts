@@ -1,6 +1,7 @@
 import type { ElectronicsDocument, ProductionStateValue, SchematicComponent } from './document.js';
+import { electricalModelIdentityForComponent } from './model-identity.js';
 
-export const SIMULATION_INPUT_DIGEST_VERSION = 'asa-electronics-simulation-input-v1';
+export const SIMULATION_INPUT_DIGEST_VERSION = 'asa-electronics-simulation-input-v2';
 
 type CanonicalValue = null | boolean | number | string | CanonicalValue[] | CanonicalObject;
 interface CanonicalObject {
@@ -33,6 +34,7 @@ function canonicalStateProperties(
 }
 
 function canonicalComponent(component: SchematicComponent): CanonicalObject {
+  const modelIdentity = electricalModelIdentityForComponent(component);
   const holeBindings = Object.entries(component.holeBindings ?? {})
     .sort(([left], [right]) => ordinalCompare(left, right))
     .map(([terminalId, binding]) => ({
@@ -49,6 +51,10 @@ function canonicalComponent(component: SchematicComponent): CanonicalObject {
     componentInstanceId: component.id,
     componentTypeId: component.componentTypeId ?? null,
     variantId: component.variantId ?? null,
+    electricalModelId: modelIdentity.electricalModelId,
+    electricalModelVersion: modelIdentity.electricalModelVersion,
+    modelProfileId: modelIdentity.modelProfileId,
+    modelProfileVersion: modelIdentity.modelProfileVersion,
     kind: component.kind,
     value: finiteNumber(component.value, `${component.id}.value`),
     state: component.state ?? null,

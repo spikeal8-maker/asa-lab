@@ -18,7 +18,7 @@ beforeAll(() => {
 describe('loaded Electronics project migration', () => {
   it('migrates legacy component pins and wire endpoints together before saving', () => {
     const legacy = {
-      schemaVersion: 3,
+      schemaVersion: 4,
       components: [
         {
           id: 'battery',

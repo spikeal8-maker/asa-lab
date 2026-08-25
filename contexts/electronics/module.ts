@@ -90,7 +90,7 @@ const ELECTRONICS_MANIFEST = {
   shortDescription: 'Создание электрических схем, соединение компонентов и моделирование.',
   defaultProjectTitlePrefix: 'Электрическая цепь',
   projectType: 'circuit',
-  schemaVersion: 3,
+  schemaVersion: 4,
   editorRoute: '/projects/:projectId/electronics',
   viewerRoute: '/view/projects/:versionId/electronics',
   safeModeSupported: true,

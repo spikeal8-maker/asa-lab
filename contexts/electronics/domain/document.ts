@@ -1,4 +1,6 @@
 /** Schema-versioned Electronics document stored inside a mutable ProjectDraft. */
+import { resolveElectricalModelIdentity } from './model-identity.js';
+
 export type ComponentKind =
   | 'source'
   | 'resistor'
@@ -30,6 +32,10 @@ export interface SchematicComponent {
   readonly kind: ComponentKind;
   readonly componentTypeId?: string;
   readonly variantId?: string;
+  readonly electricalModelId?: string;
+  readonly electricalModelVersion?: number;
+  readonly modelProfileId?: string;
+  readonly modelProfileVersion?: number;
   readonly position: ComponentPosition;
   /** Primary electrical value: V, Ohm or forward drop depending on kind. */
   readonly value: number;
@@ -72,7 +78,7 @@ export interface SimulationSettings {
 }
 
 export interface ElectronicsDocument {
-  readonly schemaVersion: 3;
+  readonly schemaVersion: 4;
   readonly components: readonly SchematicComponent[];
   readonly connections: readonly SchematicConnection[];
   readonly viewport: ElectronicsViewport;
@@ -82,7 +88,7 @@ export interface ElectronicsDocument {
 export const DEFAULT_VIEWPORT: ElectronicsViewport = { x: 0, y: 0, zoom: 1 };
 export const DEFAULT_SIMULATION: SimulationSettings = { running: false, maxIterations: 24 };
 export const EMPTY_DOCUMENT: ElectronicsDocument = {
-  schemaVersion: 3,
+  schemaVersion: 4,
   components: [],
   connections: [],
   viewport: DEFAULT_VIEWPORT,
@@ -160,11 +166,11 @@ export type DocumentParseResult =
   | { readonly ok: true; readonly document: ElectronicsDocument; readonly migrated: boolean }
   | { readonly ok: false; readonly message: string };
 
-/** Accepts historical schema v1/v2 and normalises additively to production schema v3. */
+/** Accepts historical schema v1-v3 and normalises additively to production schema v4. */
 export function parseElectronicsDocument(value: unknown): DocumentParseResult {
   if (!isPlainObject(value)) return { ok: false, message: 'document must be an object' };
   const schemaVersion = value['schemaVersion'];
-  if (schemaVersion !== 1 && schemaVersion !== 2 && schemaVersion !== 3) {
+  if (schemaVersion !== 1 && schemaVersion !== 2 && schemaVersion !== 3 && schemaVersion !== 4) {
     return { ok: false, message: 'unsupported document schemaVersion' };
   }
   const rawComponents = value['components'];
@@ -186,6 +192,10 @@ export function parseElectronicsDocument(value: unknown): DocumentParseResult {
       kind,
       componentTypeId,
       variantId,
+      electricalModelId,
+      electricalModelVersion,
+      modelProfileId,
+      modelProfileVersion,
       position,
       value: componentValue,
       rotation,
@@ -231,6 +241,29 @@ export function parseElectronicsDocument(value: unknown): DocumentParseResult {
     }
     if (variantId !== undefined && !isId(variantId)) {
       return { ok: false, message: 'variantId must be a bounded non-empty string' };
+    }
+    const explicitIdentity = [
+      electricalModelId,
+      electricalModelVersion,
+      modelProfileId,
+      modelProfileVersion,
+    ];
+    if (explicitIdentity.some((part) => part !== undefined)) {
+      if (
+        !isId(electricalModelId) ||
+        !Number.isInteger(electricalModelVersion) ||
+        (electricalModelVersion as number) < 1 ||
+        (electricalModelVersion as number) > 1_000_000 ||
+        !isId(modelProfileId) ||
+        !Number.isInteger(modelProfileVersion) ||
+        (modelProfileVersion as number) < 1 ||
+        (modelProfileVersion as number) > 1_000_000
+      ) {
+        return {
+          ok: false,
+          message: 'component electrical model identity is incomplete or invalid',
+        };
+      }
     }
     let parsedStateProperties: Record<string, ProductionStateValue> | undefined;
     if (stateProperties !== undefined) {
@@ -293,12 +326,27 @@ export function parseElectronicsDocument(value: unknown): DocumentParseResult {
       }
     }
     const parsedKind = kind as ComponentKind;
+    const modelIdentity = explicitIdentity.every((part) => part !== undefined)
+      ? {
+          electricalModelId: electricalModelId as string,
+          electricalModelVersion: electricalModelVersion as number,
+          modelProfileId: modelProfileId as string,
+          modelProfileVersion: modelProfileVersion as number,
+        }
+      : resolveElectricalModelIdentity({
+          ...(componentTypeId === undefined ? {} : { componentTypeId }),
+          kind: parsedKind,
+          ...(parsedStateProperties === undefined
+            ? {}
+            : { stateProperties: parsedStateProperties }),
+        });
     seenComponents.add(id);
     const component: SchematicComponent = {
       id,
       kind: parsedKind,
       ...(componentTypeId === undefined ? {} : { componentTypeId }),
       ...(variantId === undefined ? {} : { variantId }),
+      ...modelIdentity,
       position: parsedPosition,
       value: componentValue,
       ...(rotation === undefined ? {} : { rotation: rotation as Rotation }),
@@ -421,7 +469,7 @@ export function parseElectronicsDocument(value: unknown): DocumentParseResult {
 
   return {
     ok: true,
-    migrated: schemaVersion !== 3,
-    document: { schemaVersion: 3, components, connections, viewport, simulation },
+    migrated: schemaVersion !== 4,
+    document: { schemaVersion: 4, components, connections, viewport, simulation },
   };
 }

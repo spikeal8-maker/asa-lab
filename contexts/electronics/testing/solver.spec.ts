@@ -9,6 +9,10 @@ import {
 import { buildNetlist, terminalKey } from '../domain/netlist';
 import { electricalModelFor } from '../domain/model-registry';
 import {
+  canonicalElectricalModelRegistry,
+  electricalModelRegistryEntries,
+} from '../domain/model-identity';
+import {
   ledCurrentForSeriesResistance,
   ledBrightnessPercent,
   ordinaryLedProfile,
@@ -105,11 +109,94 @@ describe('schema-versioned Electronics document', () => {
     if (!parsed.ok) return;
     expect(parsed.migrated).toBe(true);
     expect(parsed.document).toMatchObject({
-      schemaVersion: 3,
+      schemaVersion: 4,
       components: [{ id: 'r1', kind: 'resistor', value: 100 }],
       viewport: { x: 0, y: 0, zoom: 1 },
       simulation: { running: false, maxIterations: 24 },
     });
+    expect(parsed.document.components[0]).toMatchObject({
+      electricalModelId: 'resistor',
+      electricalModelVersion: 1,
+      modelProfileId: 'legacy-resistor',
+      modelProfileVersion: 1,
+    });
+  });
+
+  it('normalises exact production types into a deterministic versioned model registry', () => {
+    const parsed = parseElectronicsDocument({
+      schemaVersion: 3,
+      components: [
+        component('d1', 'diode', 0.7, { componentTypeId: 'diode-do41' }),
+        component('motor', 'visual', 0, { componentTypeId: 'dc-motor' }),
+      ],
+      connections: [],
+      viewport: { x: 0, y: 0, zoom: 1 },
+      simulation: { running: false, maxIterations: 24 },
+    });
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(parsed.document.schemaVersion).toBe(4);
+    expect(parsed.document.components[0]).toMatchObject({
+      electricalModelId: 'diode',
+      modelProfileId: 'generic-rectifier-diode-do41',
+    });
+    expect(parsed.document.components[1]).toMatchObject({
+      electricalModelId: 'unsupported',
+      modelProfileId: 'unsupported-dc-motor',
+    });
+    expect(electricalModelFor(parsed.document.components[1]!)).toMatchObject({
+      support: 'unsupported',
+      topology: 'unsupported',
+    });
+
+    const entries = electricalModelRegistryEntries();
+    expect(entries.map((entry) => entry.componentTypeId)).toEqual(
+      [...entries.map((entry) => entry.componentTypeId)].sort(),
+    );
+    expect(canonicalElectricalModelRegistry()).toBe(canonicalElectricalModelRegistry());
+  });
+
+  it('preserves a complete future model identity and rejects partial identities', () => {
+    const future = parseElectronicsDocument({
+      schemaVersion: 4,
+      components: [
+        component('future', 'visual', 0, {
+          componentTypeId: 'future-device',
+          electricalModelId: 'future-model',
+          electricalModelVersion: 7,
+          modelProfileId: 'future-profile',
+          modelProfileVersion: 3,
+        }),
+      ],
+      connections: [],
+      viewport: { x: 0, y: 0, zoom: 1 },
+      simulation: { running: false, maxIterations: 24 },
+    });
+    expect(future.ok && future.document.components[0]).toMatchObject({
+      electricalModelId: 'future-model',
+      electricalModelVersion: 7,
+      modelProfileId: 'future-profile',
+      modelProfileVersion: 3,
+    });
+    if (future.ok) {
+      expect(electricalModelFor(future.document.components[0]!)).toMatchObject({
+        id: 'unsupported',
+        support: 'unsupported',
+      });
+    }
+    expect(
+      parseElectronicsDocument({
+        schemaVersion: 4,
+        components: [
+          component('broken', 'resistor', 100, {
+            electricalModelId: 'resistor',
+          }),
+        ],
+        connections: [],
+        viewport: { x: 0, y: 0, zoom: 1 },
+        simulation: { running: false, maxIterations: 24 },
+      }).ok,
+    ).toBe(false);
   });
 
   it('preserves stable ids, three-terminal potentiometers, bends, colors and settings', () => {
@@ -134,7 +221,7 @@ describe('schema-versioned Electronics document', () => {
 
   it('persists 45-degree rotations and rejects angles outside the editor step', () => {
     const accepted = parseElectronicsDocument({
-      schemaVersion: 3,
+      schemaVersion: 4,
       components: [component('r1', 'resistor', 100, { rotation: 45 })],
       connections: [],
       viewport: { x: 0, y: 0, zoom: 1 },
@@ -143,7 +230,7 @@ describe('schema-versioned Electronics document', () => {
     expect(accepted.ok && accepted.document.components[0]?.rotation).toBe(45);
     expect(
       parseElectronicsDocument({
-        schemaVersion: 3,
+        schemaVersion: 4,
         components: [{ ...component('r1', 'resistor', 100), rotation: 30 }],
         connections: [],
         viewport: { x: 0, y: 0, zoom: 1 },
@@ -213,7 +300,7 @@ describe('netlist', () => {
 
   it('persists production variants and joins snapped pins through breadboard groups', () => {
     const parsed = parseElectronicsDocument({
-      schemaVersion: 3,
+      schemaVersion: 4,
       components: [
         {
           id: 'board',

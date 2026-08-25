@@ -193,6 +193,7 @@ function referencePlaceholderItem(
     terminals: {},
     footprint: null,
     defaultValue: 0,
+    defaultRotation: 0,
     defaultStateProperties: {},
     unit: '',
     provenance: 'missing_owner_source',

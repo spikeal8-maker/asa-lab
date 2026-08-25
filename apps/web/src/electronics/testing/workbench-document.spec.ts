@@ -44,7 +44,7 @@ import {
 } from '../workbench-geometry';
 
 const EMPTY: SchematicDocument = {
-  schemaVersion: 3,
+  schemaVersion: 4,
   components: [],
   connections: [],
   viewport: { x: 0, y: 0, zoom: 1 },
@@ -277,6 +277,27 @@ describe('Electronics M1 editor document operations', () => {
     ).toMatchObject({
       value: 1000,
       wiperPosition: 0.5,
+    });
+  });
+
+  it('places the owner DC motor while keeping it unsupported and starts DO-41 upright', () => {
+    const motor = addComponentToDocument(EMPTY, 'dc-motor', { x: 300, y: 200 }, 'motor');
+    expect(motor.component).toMatchObject({
+      kind: 'visual',
+      componentTypeId: 'dc-motor',
+      pinIds: ['negative', 'positive'],
+      rotation: 0,
+    });
+    expect(catalogEntry(motor.component)).toMatchObject({
+      enabled: true,
+      simulationSupported: false,
+    });
+
+    const diode = addComponentToDocument(EMPTY, 'diode-do41', { x: 300, y: 200 }, 'diode');
+    expect(diode.component.rotation).toBe(90);
+    expect(renderedSize(catalogEntry(diode.component)!, diode.component.rotation)).toEqual({
+      width: 35,
+      height: 100,
     });
   });
 

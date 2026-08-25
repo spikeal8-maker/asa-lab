@@ -11,6 +11,17 @@ export type {
 } from './domain/document.js';
 export { buildNetlist, terminalKey, type Netlist } from './domain/netlist.js';
 export {
+  canonicalElectricalModelRegistry,
+  componentModelIdentityIsInstalled,
+  electricalModelIdentityForComponent,
+  electricalModelRegistryEntries,
+  isKnownElectricalModelId,
+  resolveElectricalModelIdentity,
+  ELECTRICAL_MODEL_REGISTRY_VERSION,
+  type ElectricalModelIdentity,
+  type ElectricalModelRegistryEntry,
+} from './domain/model-identity.js';
+export {
   canonicalSimulationInput,
   sha256Hex,
   simulationInputDigest,

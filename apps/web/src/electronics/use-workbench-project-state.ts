@@ -117,7 +117,7 @@ export function normalizeLoadedDocument(document: SchematicDocument): SchematicD
   }));
   let normalized: SchematicDocument = {
     ...document,
-    schemaVersion: 3,
+    schemaVersion: 4,
     components,
     connections,
     viewport: legacy.viewport ?? { x: 0, y: 0, zoom: 1 },

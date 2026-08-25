@@ -38,7 +38,7 @@ function document(
   connections: ElectronicsDocument['connections'],
 ): ElectronicsDocument {
   return {
-    schemaVersion: 3,
+    schemaVersion: 4,
     components,
     connections,
     viewport: { x: 0, y: 0, zoom: 1 },

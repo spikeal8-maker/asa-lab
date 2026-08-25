@@ -1,6 +1,7 @@
 import { type ElectronicsDocument, type SchematicComponent, type Terminal } from './document.js';
 import { arduinoOutputBranches, isArduinoUno } from './arduino-model.js';
 import { buildNetlist, terminalKey, type Netlist } from './netlist.js';
+import { canonicalElectricalModelRegistry } from './model-identity.js';
 import { electricalModelFor } from './model-registry.js';
 import {
   solveCircuit,
@@ -9,7 +10,7 @@ import {
   type Diagnostic,
   type SolveResult,
 } from './solver.js';
-import { simulationInputDigest } from './simulation-input-digest.js';
+import { sha256Hex, simulationInputDigest } from './simulation-input-digest.js';
 
 export type SimulationStatus = 'solved' | 'unsupported' | 'invalid' | 'nonconvergent';
 
@@ -42,7 +43,7 @@ export interface SimulationResult extends SolveResult {
   readonly topologySignature: string;
   readonly simulationInputDigest: string;
   readonly solverRevision: 'asa-electronics-solver-v1';
-  readonly modelSetDigest: 'asa-electronics-model-set-v1';
+  readonly modelSetDigest: string;
   readonly analysis: {
     readonly electricalMode: 'dc' | 'transient';
     readonly controllerRuntime: 'none' | 'arduino';
@@ -52,6 +53,7 @@ export interface SimulationResult extends SolveResult {
 const CLOSED_RESISTANCE = 1e-4;
 const KCL_TOLERANCE_A = 1e-6;
 const SOURCE_VOLTAGE_TOLERANCE_V = 1e-9;
+const MODEL_SET_DIGEST = `sha256:${sha256Hex(canonicalElectricalModelRegistry())}`;
 
 function ordinalCompare(left: string, right: string): number {
   return left < right ? -1 : left > right ? 1 : 0;
@@ -472,7 +474,7 @@ export function analyseCircuit(
       topologySignature: compiled.topologySignature,
       simulationInputDigest: inputDigest,
       solverRevision: 'asa-electronics-solver-v1',
-      modelSetDigest: 'asa-electronics-model-set-v1',
+      modelSetDigest: MODEL_SET_DIGEST,
       analysis,
     };
   }
@@ -497,7 +499,7 @@ export function analyseCircuit(
       topologySignature: compiled.topologySignature,
       simulationInputDigest: inputDigest,
       solverRevision: 'asa-electronics-solver-v1',
-      modelSetDigest: 'asa-electronics-model-set-v1',
+      modelSetDigest: MODEL_SET_DIGEST,
       analysis,
     };
   }
@@ -509,7 +511,7 @@ export function analyseCircuit(
     topologySignature: compiled.topologySignature,
     simulationInputDigest: inputDigest,
     solverRevision: 'asa-electronics-solver-v1',
-    modelSetDigest: 'asa-electronics-model-set-v1',
+    modelSetDigest: MODEL_SET_DIGEST,
     analysis,
   };
 }

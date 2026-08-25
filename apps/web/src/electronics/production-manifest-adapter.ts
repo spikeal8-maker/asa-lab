@@ -1,4 +1,4 @@
-import type { ComponentKind, ProductionStateValue } from '../api';
+import type { ComponentKind, ProductionStateValue, Rotation } from '../api';
 import type { PreviewKey } from './component-preview';
 import { BREADBOARD_PITCH_MM, WORLD_UNITS_PER_MM } from './production-asset-contracts';
 
@@ -140,6 +140,7 @@ export interface ProductionCatalogItem {
   readonly defaultValue: number;
   readonly defaultState?: boolean;
   readonly defaultWiperPosition?: number;
+  readonly defaultRotation: Rotation;
   readonly defaultStateProperties: Readonly<Record<string, ProductionStateValue>>;
   readonly unit: string;
   readonly provenance: string;
@@ -632,6 +633,7 @@ function toCatalogItem(item: OwnerCatalogComponent): ProductionCatalogItem {
     ...(configured.wiperPosition === undefined
       ? {}
       : { defaultWiperPosition: configured.wiperPosition }),
+    defaultRotation: item.componentId === 'diode-do41' ? 90 : 0,
     defaultStateProperties: configured.properties,
     unit: configured.unit,
     provenance: item.provenance,
