@@ -11,8 +11,10 @@ import {
   readdirSync,
   realpathSync,
   readlinkSync,
+  renameSync,
   rmSync,
   statSync,
+  unlinkSync,
   writeFileSync,
 } from 'node:fs';
 import { dirname, join, relative, resolve, sep } from 'node:path';
@@ -87,6 +89,32 @@ function removePnpmDeploySelfLink(root, source) {
     throw new Error(`Unexpected pnpm deploy workspace link target: ${rawTarget}`);
   }
   rmSync(link, { force: true });
+}
+
+export function detachHardlinkedFiles(root) {
+  const releaseRoot = resolve(root);
+  let detached = 0;
+  const visit = (directory) => {
+    for (const item of readdirSync(directory, { withFileTypes: true })) {
+      const absolute = resolve(directory, item.name);
+      assertInside(releaseRoot, absolute, 'Release entry');
+      const info = lstatSync(absolute);
+      if (info.isSymbolicLink()) continue;
+      if (info.isDirectory()) {
+        visit(absolute);
+        continue;
+      }
+      if (!info.isFile() || info.nlink <= 1) continue;
+
+      const privateCopy = `${absolute}.asa-release-copy`;
+      copyFileSync(absolute, privateCopy);
+      unlinkSync(absolute);
+      renameSync(privateCopy, absolute);
+      detached += 1;
+    }
+  };
+  visit(releaseRoot);
+  return detached;
 }
 
 function migrationVersion(source) {
@@ -242,6 +270,11 @@ export function packReleaseArtifact({ sourceRoot, outputRoot, releaseRole }) {
     // depend on the source checkout, so remove only that exact self-link. Any
     // other link escaping the release still fails in collectEntries().
     removePnpmDeploySelfLink(staging, source);
+    // pnpm deploy may hardlink workspace package files back to the editable
+    // checkout (and to older releases). A later source edit would then mutate
+    // an already published artifact. Replace every multiply-linked regular
+    // file with a private copy before the manifest is created.
+    detachHardlinkedFiles(resolve(staging, 'api'));
 
     mkdirSync(resolve(staging, 'web'), { recursive: true });
     cpSync(resolve(source, 'apps', 'web', 'dist'), resolve(staging, 'web', 'dist'), {

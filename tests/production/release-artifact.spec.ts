@@ -1,8 +1,12 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { linkSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { createReleaseManifest, verifyReleaseArtifact } from '../../tools/release-artifact.mjs';
+import {
+  createReleaseManifest,
+  detachHardlinkedFiles,
+  verifyReleaseArtifact,
+} from '../../tools/release-artifact.mjs';
 
 const roots: string[] = [];
 
@@ -53,6 +57,19 @@ describe('immutable production release artifact', () => {
     const root = releaseFixture();
     writeFileSync(join(root, 'api', 'dist', 'main.js'), 'console.log("tampered")\n');
     expect(() => verifyReleaseArtifact(root)).toThrow(/do not match/);
+  });
+
+  it('detaches deploy hardlinks so later source edits cannot mutate a release', () => {
+    const root = releaseFixture();
+    const source = join(root, 'workspace-source.js');
+    const deployed = join(root, 'api', 'dist', 'workspace-package.js');
+    writeFileSync(source, 'original\n');
+    linkSync(source, deployed);
+
+    expect(detachHardlinkedFiles(join(root, 'api'))).toBe(1);
+    writeFileSync(source, 'changed later\n');
+
+    expect(readFileSync(deployed, 'utf8')).toBe('original\n');
   });
 
   it('refuses environment files even if someone included them in a regenerated manifest', () => {
