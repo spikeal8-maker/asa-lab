@@ -267,18 +267,18 @@ authorization and one UNIQUE insert. There is no roster scan or backfill.
 
 ## 21. Acceptance checklist
 
-- [ ] existing CourseRun reused without reader rewrite
-- [ ] stable LearnerIdentity FK and school lineage physically enforced
-- [ ] assigned/active/withdrawn lifecycle only
-- [ ] idempotent activation and withdrawal with history
-- [ ] run+learner idempotency and concurrency
-- [ ] no fabricated backfill
-- [ ] narrow RLS/security commands and append-only audit
-- [ ] migration fresh/repeat evidence
-- [ ] at least twenty required scenarios
-- [ ] prior M0/M1-001 regression
-- [ ] ledger and final evidence report updated
-- [ ] governance/repository gates
+- [x] existing CourseRun reused without reader rewrite
+- [x] stable LearnerIdentity FK and school lineage physically enforced
+- [x] assigned/active/withdrawn lifecycle only
+- [x] idempotent activation and withdrawal with history
+- [x] run+learner idempotency and concurrency
+- [x] no fabricated backfill
+- [x] narrow RLS/security commands and append-only audit
+- [x] migration fresh/repeat evidence
+- [x] at least twenty required scenarios
+- [x] prior M0/M1-001 regression
+- [x] ledger and final evidence report updated
+- [x] governance/repository gates
 
 ## 22. Evidence
 
