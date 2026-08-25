@@ -1,0 +1,104 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="144" height="164" viewBox="0 0 144 164" fill="none">
+  <defs>
+    <style>
+      .outer{fill:#2C4656}
+      .inner{fill:#132B3A}
+      .inner2{fill:#1F313C}
+      .disc{fill:#6A9CCE}
+      .tick{fill:#22445C}
+      .dot{fill:#6594BF}
+      .pin{fill:#8C8C8C}
+    </style>
+    <g id="tooth53">
+      <rect x="-1.15" y="-52.1" width="2.3" height="7.1" rx="1" class="tick"/>
+    </g>
+  </defs>
+
+  <!-- main outer body -->
+  <circle cx="71.5" cy="71" r="71" class="outer"/>
+
+  <!-- full inner dark ring -->
+  <circle cx="71.5" cy="71" r="55.2" class="inner"/>
+
+  <!-- blue dial disc -->
+  <circle cx="71.5" cy="71" r="49" class="disc"/>
+
+  <!-- 53 fine radial ticks -->
+  <g transform="translate(71.5 71)">
+    <use href="#tooth53" transform="rotate(0)"/>
+    <use href="#tooth53" transform="rotate(6.792)"/>
+    <use href="#tooth53" transform="rotate(13.585)"/>
+    <use href="#tooth53" transform="rotate(20.377)"/>
+    <use href="#tooth53" transform="rotate(27.170)"/>
+    <use href="#tooth53" transform="rotate(33.962)"/>
+    <use href="#tooth53" transform="rotate(40.755)"/>
+    <use href="#tooth53" transform="rotate(47.547)"/>
+    <use href="#tooth53" transform="rotate(54.340)"/>
+    <use href="#tooth53" transform="rotate(61.132)"/>
+    <use href="#tooth53" transform="rotate(67.925)"/>
+    <use href="#tooth53" transform="rotate(74.717)"/>
+    <use href="#tooth53" transform="rotate(81.509)"/>
+    <use href="#tooth53" transform="rotate(88.302)"/>
+    <use href="#tooth53" transform="rotate(95.094)"/>
+    <use href="#tooth53" transform="rotate(101.887)"/>
+    <use href="#tooth53" transform="rotate(108.679)"/>
+    <use href="#tooth53" transform="rotate(115.472)"/>
+    <use href="#tooth53" transform="rotate(122.264)"/>
+    <use href="#tooth53" transform="rotate(129.057)"/>
+    <use href="#tooth53" transform="rotate(135.849)"/>
+    <use href="#tooth53" transform="rotate(142.642)"/>
+    <use href="#tooth53" transform="rotate(149.434)"/>
+    <use href="#tooth53" transform="rotate(156.226)"/>
+    <use href="#tooth53" transform="rotate(163.019)"/>
+    <use href="#tooth53" transform="rotate(169.811)"/>
+    <use href="#tooth53" transform="rotate(176.604)"/>
+    <use href="#tooth53" transform="rotate(183.396)"/>
+    <use href="#tooth53" transform="rotate(190.189)"/>
+    <use href="#tooth53" transform="rotate(196.981)"/>
+    <use href="#tooth53" transform="rotate(203.774)"/>
+    <use href="#tooth53" transform="rotate(210.566)"/>
+    <use href="#tooth53" transform="rotate(217.358)"/>
+    <use href="#tooth53" transform="rotate(224.151)"/>
+    <use href="#tooth53" transform="rotate(230.943)"/>
+    <use href="#tooth53" transform="rotate(237.736)"/>
+    <use href="#tooth53" transform="rotate(244.528)"/>
+    <use href="#tooth53" transform="rotate(251.321)"/>
+    <use href="#tooth53" transform="rotate(258.113)"/>
+    <use href="#tooth53" transform="rotate(264.906)"/>
+    <use href="#tooth53" transform="rotate(271.698)"/>
+    <use href="#tooth53" transform="rotate(278.491)"/>
+    <use href="#tooth53" transform="rotate(285.283)"/>
+    <use href="#tooth53" transform="rotate(292.075)"/>
+    <use href="#tooth53" transform="rotate(298.868)"/>
+    <use href="#tooth53" transform="rotate(305.660)"/>
+    <use href="#tooth53" transform="rotate(312.453)"/>
+    <use href="#tooth53" transform="rotate(319.245)"/>
+    <use href="#tooth53" transform="rotate(326.038)"/>
+    <use href="#tooth53" transform="rotate(332.830)"/>
+    <use href="#tooth53" transform="rotate(339.623)"/>
+    <use href="#tooth53" transform="rotate(346.415)"/>
+    <use href="#tooth53" transform="rotate(353.208)"/>
+  </g>
+
+  <!-- pointer -->
+  <line x1="61" y1="82" x2="42" y2="101" stroke="#132B3A" stroke-width="8.6" stroke-linecap="round"/>
+  <line x1="58.6" y1="84.3" x2="44.2" y2="98.7" stroke="#22435C" stroke-width="1.9" stroke-linecap="round" opacity="0.45"/>
+
+  <!-- subtle lower crescent shadow -->
+  <path d="M20 92C27 106 45 118 71.5 118C98 118 116 106 123 92C119 107 104 133 71.5 133C39 133 24 107 20 92Z" class="inner2"/>
+  <path d="M28 109C38 116 52 120 71.5 120C91 120 105 116 115 109C107 123 95 130 71.5 130C48 130 36 123 28 109Z" class="inner"/>
+
+  <!-- outer blue pips: 7 total -->
+  <circle cx="71.5" cy="8.5" r="2.9" class="dot"/>
+  <circle cx="27" cy="26.5" r="2.9" class="dot"/>
+  <circle cx="116" cy="26.5" r="2.9" class="dot"/>
+  <circle cx="8.5" cy="71" r="2.9" class="dot"/>
+  <circle cx="134.5" cy="71" r="2.9" class="dot"/>
+  <circle cx="27" cy="115.5" r="2.9" class="dot"/>
+  <circle cx="116" cy="115.5" r="2.9" class="dot"/>
+
+  <!-- pins in front so they visually connect to the body -->
+  <rect x="40" y="133" width="5" height="31" rx="2.5" class="pin"/>
+  <rect x="69" y="140" width="6" height="24" rx="3" class="pin"/>
+  <rect x="99" y="133" width="5" height="31" rx="2.5" class="pin"/>
+</svg>

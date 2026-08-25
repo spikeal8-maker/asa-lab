@@ -206,7 +206,6 @@ export function ProductionComponentVisual({
     'resistor-axial',
     'diode-do35',
     'button-tactile-6mm',
-    'potentiometer',
     'switch-spdt',
   ].includes(entry.key);
   return (
@@ -447,66 +446,6 @@ export function ProductionComponentVisual({
           <circle cx="0" cy="0" r="6.99" fill="#333333" />
           <path d={TINKERCAD_BUTTON_RIM} fill="#f4f4f4" opacity="0.2" />
         </g>
-      ) : entry.key === 'potentiometer' ? (
-        <g
-          className="workbench-tinkercad-potentiometer"
-          data-visual-contract="tinkercad-three-pin-rotary"
-          transform={`translate(${width / 2} ${24 * TINKERCAD_MODEL_TO_WORLD}) scale(${TINKERCAD_MODEL_TO_WORLD})`}
-        >
-          {[-10, 0, 10].map((x) => (
-            <line
-              key={`pin-${x}`}
-              x1={x}
-              y1="21.57"
-              x2={x}
-              y2="30"
-              stroke="#8c8c8c"
-              strokeWidth="2"
-              strokeLinecap="round"
-            />
-          ))}
-          {selected ? (
-            <g className="workbench-tinkercad-selection" pointerEvents="none">
-              {[-10, 0, 10].map((x) => (
-                <line
-                  key={`selected-${x}`}
-                  x1={x}
-                  y1="21.57"
-                  x2={x}
-                  y2="30"
-                  stroke="#3b8ed7"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                />
-              ))}
-              <circle cx="0" cy="0" r="24" fill="#3b8ed7" stroke="#3b8ed7" strokeWidth="3.5" />
-            </g>
-          ) : null}
-          <circle cx="0" cy="0" r="24" fill="#2c4656" />
-          <circle cx="0" cy="3" r="18.13" opacity="0.3" />
-          <circle cx="0" cy="0" r="18.13" fill="#6a9cce" />
-          {(
-            [
-              [14.91, 14.91, '#6a9cce'],
-              [21.08, 0, '#669bbf'],
-              [14.91, -14.91, '#6095b2'],
-              [0, -21.08, '#5886a5'],
-              [-14.91, -14.91, '#527c99'],
-              [-21.08, 0, '#4b728c'],
-              [-14.91, 14.91, '#44677f'],
-            ] as const
-          ).map(([cx, cy, fill]) => (
-            <circle key={`${cx}:${cy}`} cx={cx} cy={cy} r="1.03" fill={fill} />
-          ))}
-          <g
-            data-testid="potentiometer-angle"
-            transform={`rotate(${potentiometerKnobAngle(component.wiperPosition ?? 0.5)})`}
-            pointerEvents="none"
-          >
-            <path d={TINKERCAD_POTENTIOMETER_KNOB} fill="none" stroke="#132b3a" />
-            <path d={TINKERCAD_POTENTIOMETER_POINTER} fill="#132b3a" />
-          </g>
-        </g>
       ) : entry.key === 'switch-spdt' ? (
         <g
           className="workbench-tinkercad-switch"
@@ -703,6 +642,18 @@ export function ProductionComponentVisual({
               style={{ cursor: 'pointer' }}
             />
           ) : null}
+        </g>
+      ) : null}
+
+      {entry.key === 'potentiometer' ? (
+        <g
+          data-testid="potentiometer-angle"
+          data-owner-svg-state-angle={potentiometerKnobAngle(component.wiperPosition ?? 0.5)}
+          display="none"
+          aria-hidden="true"
+        >
+          <path d={TINKERCAD_POTENTIOMETER_KNOB} />
+          <path d={TINKERCAD_POTENTIOMETER_POINTER} />
         </g>
       ) : null}
 

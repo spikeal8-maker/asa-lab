@@ -61,6 +61,12 @@ describe('Electronics owner SVG foundation', () => {
         transformation: 'none_byte_exact_copy',
       },
       {
+        componentId: 'dc-motor',
+        originalFileName: 'dc_motor_top_view.svg',
+        sha256: '4074817d886f6e6ec2fd9c412c28f656e26f32becd117096c4317affe2fd7d84',
+        transformation: 'none_byte_exact_copy',
+      },
+      {
         componentId: 'electrolytic-capacitor',
         originalFileName: 'capacitor_electrolytic.svg',
         sha256: 'd7872267d260ccb6868502e89993068c24ef5008cffd80ac584461520f88bd09',
@@ -88,6 +94,18 @@ describe('Electronics owner SVG foundation', () => {
         componentId: 'pir-sensor',
         originalFileName: 'pir_sensor_555-28027_pure_vector.svg',
         sha256: '11b415352c2cf216d04e7f0caa6f290a6fa2da44a2c3879e82702e7a6e9223dc',
+        transformation: 'none_byte_exact_copy',
+      },
+      {
+        componentId: 'piezo-passive-buzzer',
+        originalFileName: 'piezo_element_component.svg',
+        sha256: 'fb5dde02f30a6f736fb205473f78e6f5cc3d4fe24e772bfb2d72b21854b9a110',
+        transformation: 'none_byte_exact_copy',
+      },
+      {
+        componentId: 'potentiometer',
+        originalFileName: 'potentiometer_v4.svg',
+        sha256: '2f1b10b7a2b0b5edccc39a56d892d1baab9718eea4a7b513edd6a50e9f12cee5',
         transformation: 'none_byte_exact_copy',
       },
       {
@@ -196,7 +214,7 @@ describe('Electronics owner SVG foundation', () => {
     ).toBeCloseTo(2.54, 4);
 
     const potentiometer = catalog.find((item) => item.key === 'potentiometer');
-    expect(potentiometer?.physicalSizeMm).toEqual({ width: 12.192, height: 13.716 });
+    expect(potentiometer?.physicalSizeMm).toEqual({ width: 12.192, height: 13.884 });
     expect(
       (potentiometer?.terminals.wiper?.xMm ?? 0) -
         (potentiometer?.terminals['terminal-1']?.xMm ?? 0),

@@ -88,10 +88,10 @@
     },
     {
       "componentId": "dc-motor",
-      "sourceArchive": "reference-lab-zip",
-      "sourceFile": "Electro-venik-reference-lab/visual-canon-lab/svg/dc-motor.svg",
-      "sha256": "3b7407704725654f62d6b0934ac6257bbaa4947dd64c498cc9784eec5e2e3130",
-      "ownerDecision": "approved_exact_owner_svg_for_runtime"
+      "sourceArchive": "owner-direct-upload-2026-08-25",
+      "sourceFile": "dc_motor_top_view.svg",
+      "sha256": "4074817d886f6e6ec2fd9c412c28f656e26f32becd117096c4317affe2fd7d84",
+      "ownerDecision": "approved_owner_supplied_svg_for_runtime"
     },
     {
       "componentId": "electrolytic-capacitor",
@@ -122,18 +122,18 @@
       "ownerDecision": "approved_owner_supplied_svg_for_runtime"
     },
     {
-      "componentId": "piezo",
-      "sourceArchive": "reference-lab-zip",
-      "sourceFile": "Electro-venik-reference-lab/visual-canon-lab/svg/piezo.svg",
-      "sha256": "e6ad834fd09e14bffaede832b7b7501dfe34e4b5849f3e5c09e854bec57e6d96",
-      "ownerDecision": "approved_exact_owner_svg_for_runtime"
+      "componentId": "piezo-passive-buzzer",
+      "sourceArchive": "owner-direct-upload-2026-08-25",
+      "sourceFile": "piezo_element_component.svg",
+      "sha256": "fb5dde02f30a6f736fb205473f78e6f5cc3d4fe24e772bfb2d72b21854b9a110",
+      "ownerDecision": "approved_owner_supplied_svg_for_runtime"
     },
     {
       "componentId": "potentiometer",
-      "sourceArchive": "reference-lab-zip",
-      "sourceFile": "Electro-venik-reference-lab/visual-canon-lab/svg/potentiometer-rotary.svg",
-      "sha256": "6479b558277685b98e22709ab1f17ba3564fcb1053abf8321d4a1e8d1ec9b35c",
-      "ownerDecision": "approved_exact_owner_svg_for_runtime"
+      "sourceArchive": "owner-direct-upload-2026-08-25",
+      "sourceFile": "potentiometer_v4.svg",
+      "sha256": "2f1b10b7a2b0b5edccc39a56d892d1baab9718eea4a7b513edd6a50e9f12cee5",
+      "ownerDecision": "approved_owner_supplied_svg_for_runtime"
     },
     {
       "componentId": "regulated-power-supply",
@@ -16936,29 +16936,29 @@
       "appearsInBasic": true,
       "searchAliases": ["potentiometer", "Потенциометр", "Поворотный"],
       "displayNameEn": "potentiometer",
-      "provenance": "exact_owner_svg",
+      "provenance": "owner_supplied",
       "physicalWidthMm": 12.192,
-      "physicalHeightMm": 13.716,
-      "viewBox": [0, 0, 12.192, 13.716],
+      "physicalHeightMm": 13.884,
+      "viewBox": [0, 0, 144, 164],
       "pins": [
         {
           "id": "terminal-1",
           "xMm": 3.556,
-          "yMm": 13.716,
+          "yMm": 13.884,
           "electricalRole": "terminal-1",
           "toleranceMm": 0
         },
         {
           "id": "terminal-2",
           "xMm": 8.636,
-          "yMm": 13.716,
+          "yMm": 13.884,
           "electricalRole": "terminal-2",
           "toleranceMm": 0
         },
         {
           "id": "wiper",
           "xMm": 6.096,
-          "yMm": 13.716,
+          "yMm": 13.884,
           "electricalRole": "wiper",
           "toleranceMm": 0
         }
@@ -16989,18 +16989,18 @@
       "blockReason": null,
       "catalogTier": "core",
       "metadataOnlyProof": {
-        "source": "rejected_runtime_manifest_non_art_metadata",
-        "artNotTrusted": true
+        "source": "owner_direct_upload",
+        "artNotTrusted": false
       },
       "isDefaultVariant": true,
       "displayName": "Потенциометр",
-      "sourceOwnerArchive": "reference-lab-zip",
-      "sourceOwnerPath": "Electro-venik-reference-lab/visual-canon-lab/svg/potentiometer-rotary.svg",
-      "sourceSha256": "6479b558277685b98e22709ab1f17ba3564fcb1053abf8321d4a1e8d1ec9b35c",
-      "runtimePath": "/assets/electronics/component-database/components/reference-candidates/potentiometer.svg",
-      "runtimeSha256": "6479b558277685b98e22709ab1f17ba3564fcb1053abf8321d4a1e8d1ec9b35c",
+      "sourceOwnerArchive": "owner-direct-upload-2026-08-25",
+      "sourceOwnerPath": "potentiometer_v4.svg",
+      "sourceSha256": "2f1b10b7a2b0b5edccc39a56d892d1baab9718eea4a7b513edd6a50e9f12cee5",
+      "runtimePath": "/assets/electronics/component-database/components/passives/potentiometer/component.svg",
+      "runtimeSha256": "2f1b10b7a2b0b5edccc39a56d892d1baab9718eea4a7b513edd6a50e9f12cee5",
       "status": "enabled",
-      "previousInventoryClassification": "exact_owner_svg"
+      "previousInventoryClassification": "owner_supplied"
     },
     {
       "appearsInBasic": true,
@@ -28152,22 +28152,22 @@
       "appearsInBasic": true,
       "searchAliases": ["dc-motor", "Двигатель постоянного тока", "DC motor"],
       "displayNameEn": "DC motor",
-      "provenance": "exact_owner_svg",
+      "provenance": "owner_supplied",
       "physicalWidthMm": 25.333,
-      "physicalHeightMm": 19.333,
-      "viewBox": [0, 0, 25.333, 19.333],
+      "physicalHeightMm": 21.858,
+      "viewBox": [0, 0, 284, 245],
       "pins": [
         {
           "id": "negative",
-          "xMm": 10.3809,
-          "yMm": 17.6581,
+          "xMm": 10.0384,
+          "yMm": 21.858,
           "electricalRole": "negative",
           "toleranceMm": 0
         },
         {
           "id": "positive",
-          "xMm": 14.3853,
-          "yMm": 17.6424,
+          "xMm": 15.3004,
+          "yMm": 21.858,
           "electricalRole": "positive",
           "toleranceMm": 0
         }
@@ -28191,18 +28191,18 @@
       "blockReason": "owner SVG подтверждён; модель компонента ещё не реализована",
       "catalogTier": "preview",
       "metadataOnlyProof": {
-        "source": "rejected_runtime_manifest_non_art_metadata",
-        "artNotTrusted": true
+        "source": "owner_direct_upload",
+        "artNotTrusted": false
       },
       "isDefaultVariant": true,
       "displayName": "Двигатель постоянного тока",
-      "sourceOwnerArchive": "reference-lab-zip",
-      "sourceOwnerPath": "Electro-venik-reference-lab/visual-canon-lab/svg/dc-motor.svg",
-      "sourceSha256": "3b7407704725654f62d6b0934ac6257bbaa4947dd64c498cc9784eec5e2e3130",
-      "runtimePath": "/assets/electronics/component-database/components/reference-candidates/dc-motor.svg",
-      "runtimeSha256": "3b7407704725654f62d6b0934ac6257bbaa4947dd64c498cc9784eec5e2e3130",
+      "sourceOwnerArchive": "owner-direct-upload-2026-08-25",
+      "sourceOwnerPath": "dc_motor_top_view.svg",
+      "sourceSha256": "4074817d886f6e6ec2fd9c412c28f656e26f32becd117096c4317affe2fd7d84",
+      "runtimePath": "/assets/electronics/component-database/components/motors/dc-motor/component.svg",
+      "runtimeSha256": "4074817d886f6e6ec2fd9c412c28f656e26f32becd117096c4317affe2fd7d84",
       "status": "disabled_missing_model",
-      "previousInventoryClassification": "exact_owner_svg"
+      "previousInventoryClassification": "owner_supplied"
     },
     {
       "componentId": "servo-motor",
@@ -29284,8 +29284,8 @@
       "variantLabelEn": "Seven-segment display",
       "category": "output",
       "subcategoryId": "displays",
-      "catalogOrder": 23,
-      "appearsInBasic": false,
+      "catalogOrder": 10.5,
+      "appearsInBasic": true,
       "searchAliases": [
         "seven-segment-display",
         "Семисегментный индикатор",
@@ -30328,27 +30328,33 @@
       "appearsInBasic": true,
       "searchAliases": ["piezo", "пьезо", "пассивный зуммер", "buzzer", "passive buzzer"],
       "displayNameEn": "Passive piezo buzzer",
-      "provenance": "exact_owner_svg",
-      "physicalWidthMm": 22.133,
-      "physicalHeightMm": 22,
-      "viewBox": [0, 0, 22.133, 22],
+      "provenance": "owner_supplied",
+      "physicalWidthMm": 23.0948,
+      "physicalHeightMm": 24.6167,
+      "viewBox": [0, 0, 516, 550],
       "pins": [
         {
           "id": "negative",
-          "xMm": 16.0898,
-          "yMm": 19.2649,
+          "xMm": 15.3523,
+          "yMm": 22.1103,
           "electricalRole": "negative",
           "toleranceMm": 0
         },
         {
           "id": "positive",
-          "xMm": 6.5205,
-          "yMm": 19.2649,
+          "xMm": 5.1923,
+          "yMm": 22.1103,
           "electricalRole": "positive",
           "toleranceMm": 0
         }
       ],
-      "footprint": null,
+      "footprint": {
+        "kind": "inline",
+        "pinOffsetsMm": [
+          [0, 0],
+          [-10.16, 0]
+        ]
+      },
       "states": [],
       "stateAssets": [],
       "animations": [
@@ -30367,18 +30373,18 @@
       "blockReason": null,
       "catalogTier": "core",
       "metadataOnlyProof": {
-        "source": "rejected_runtime_manifest_non_art_metadata",
-        "artNotTrusted": true
+        "source": "owner_direct_upload",
+        "artNotTrusted": false
       },
       "isDefaultVariant": true,
       "displayName": "Пьезоэлемент",
-      "sourceOwnerArchive": "reference-lab-zip",
-      "sourceOwnerPath": "Electro-venik-reference-lab/visual-canon-lab/svg/piezo.svg",
-      "sourceSha256": "e6ad834fd09e14bffaede832b7b7501dfe34e4b5849f3e5c09e854bec57e6d96",
-      "runtimePath": "/assets/electronics/component-database/components/reference-candidates/piezo.svg",
-      "runtimeSha256": "e6ad834fd09e14bffaede832b7b7501dfe34e4b5849f3e5c09e854bec57e6d96",
+      "sourceOwnerArchive": "owner-direct-upload-2026-08-25",
+      "sourceOwnerPath": "piezo_element_component.svg",
+      "sourceSha256": "fb5dde02f30a6f736fb205473f78e6f5cc3d4fe24e772bfb2d72b21854b9a110",
+      "runtimePath": "/assets/electronics/component-database/components/piezo/piezo-passive-buzzer/component.svg",
+      "runtimeSha256": "fb5dde02f30a6f736fb205473f78e6f5cc3d4fe24e772bfb2d72b21854b9a110",
       "status": "enabled",
-      "previousInventoryClassification": "exact_owner_svg"
+      "previousInventoryClassification": "owner_supplied"
     },
     {
       "componentId": "piezo-disc",

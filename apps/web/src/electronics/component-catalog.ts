@@ -112,6 +112,7 @@ export const TINKERCAD_BASIC_FAMILY_ORDER = [
   'battery-3v',
   'battery-holder-aa',
   'breadboard',
+  'seven-segment',
   'arduino-uno',
   'vibration-motor',
   'dc-motor',

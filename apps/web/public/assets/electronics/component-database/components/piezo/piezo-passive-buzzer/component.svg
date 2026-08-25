@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg"
+     width="516"
+     height="550"
+     viewBox="0 0 516 550"
+     role="img"
+     aria-labelledby="title desc">
+  <title id="title">Piezo element component</title>
+  <desc id="desc">Clean vector SVG illustration of a piezo buzzer style electronic component with plus and minus markings and two metal leads.</desc>
+
+  <defs>
+    <linearGradient id="bodyGrad" x1="37" y1="228" x2="423" y2="228" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#343434"/>
+      <stop offset="1" stop-color="#2F2F31"/>
+    </linearGradient>
+    <linearGradient id="leadGrad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#9D9D9D"/>
+      <stop offset="0.5" stop-color="#B1B1B1"/>
+      <stop offset="1" stop-color="#8D8D8D"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Leads -->
+  <g id="leads">
+    <rect x="112" y="383" width="8" height="111" rx="4" fill="url(#leadGrad)"/>
+    <rect x="339" y="383" width="8" height="111" rx="4" fill="url(#leadGrad)"/>
+  </g>
+
+  <!-- Main body -->
+  <g id="body">
+    <circle cx="230" cy="228" r="193" fill="url(#bodyGrad)"/>
+    <circle cx="230" cy="228" r="33" fill="#BEB487"/>
+  </g>
+
+  <!-- Polarity marks -->
+  <g id="polarity" stroke-linecap="round" stroke-linejoin="round">
+    <g id="plus-mark">
+      <circle cx="116" cy="328" r="23" fill="none" stroke="#565656" stroke-width="3"/>
+      <path d="M116 314 V342 M102 328 H130" fill="none" stroke="#EEEEEE" stroke-width="5"/>
+    </g>
+    <g id="minus-mark">
+      <circle cx="343" cy="328" r="23" fill="none" stroke="#565656" stroke-width="3"/>
+      <path d="M330 328 H356" fill="none" stroke="#EEEEEE" stroke-width="5"/>
+    </g>
+  </g>
+</svg>

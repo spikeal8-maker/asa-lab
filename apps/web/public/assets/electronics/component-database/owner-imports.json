@@ -15,6 +15,15 @@
       "transformation": "none_byte_exact_copy"
     },
     {
+      "componentId": "dc-motor",
+      "originalFileName": "dc_motor_top_view.svg",
+      "sha256": "4074817d886f6e6ec2fd9c412c28f656e26f32becd117096c4317affe2fd7d84",
+      "bytes": 4233,
+      "runtimePath": "/assets/electronics/component-database/components/motors/dc-motor/component.svg",
+      "importedAt": "2026-08-25",
+      "transformation": "none_byte_exact_copy"
+    },
+    {
       "componentId": "electrolytic-capacitor",
       "originalFileName": "capacitor_electrolytic.svg",
       "sha256": "d7872267d260ccb6868502e89993068c24ef5008cffd80ac584461520f88bd09",
@@ -57,6 +66,24 @@
       "bytes": 7987,
       "runtimePath": "/assets/electronics/component-database/components/sensors/pir-sensor/component.svg",
       "importedAt": "2026-08-24",
+      "transformation": "none_byte_exact_copy"
+    },
+    {
+      "componentId": "piezo-passive-buzzer",
+      "originalFileName": "piezo_element_component.svg",
+      "sha256": "fb5dde02f30a6f736fb205473f78e6f5cc3d4fe24e772bfb2d72b21854b9a110",
+      "bytes": 1734,
+      "runtimePath": "/assets/electronics/component-database/components/piezo/piezo-passive-buzzer/component.svg",
+      "importedAt": "2026-08-25",
+      "transformation": "none_byte_exact_copy"
+    },
+    {
+      "componentId": "potentiometer",
+      "originalFileName": "potentiometer_v4.svg",
+      "sha256": "2f1b10b7a2b0b5edccc39a56d892d1baab9718eea4a7b513edd6a50e9f12cee5",
+      "bytes": 4856,
+      "runtimePath": "/assets/electronics/component-database/components/passives/potentiometer/component.svg",
+      "importedAt": "2026-08-25",
       "transformation": "none_byte_exact_copy"
     },
     {
