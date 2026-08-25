@@ -1313,16 +1313,14 @@ export class DirectManipulator {
     const descriptor = handleId ? this.handles.get(handleId)?.descriptor : null;
     if (descriptor?.kind === 'rotate') {
       this.showRotationRing(descriptor.axis ?? 'y', descriptor.id);
-      this.canvas.style.cursor = 'default';
     } else {
       this.clearRotationRing();
-      if (descriptor?.kind === 'resize') {
-        this.canvas.style.cursor =
-          descriptor.xSign !== 0 && descriptor.zSign !== 0 ? 'nwse-resize' : 'col-resize';
-      } else if (descriptor?.kind === 'height' || descriptor?.kind === 'lift') {
-        this.canvas.style.cursor = 'ns-resize';
-      }
     }
+    // Tinkercad keeps the normal pointer over direct-manipulation handles and
+    // communicates affordance by highlighting the square/arrow itself. Resize
+    // cursors jump direction as the camera rotates and made the handle feel as
+    // if it changed function under the pointer.
+    this.canvas.style.cursor = 'default';
     this.showMeasurements(descriptor ?? this.pinnedMeasurement?.descriptor ?? null);
   }
 
