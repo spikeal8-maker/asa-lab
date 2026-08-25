@@ -300,8 +300,8 @@ parallel_lanes:
       issue: 152
       branch: agent/learning-m0-acceptance
       base_branch: main
-      pr: null
-      pr_draft: false
+      pr: 153
+      pr_draft: true
       status: in_progress
       checkpoint: m0_acceptance_gate
       owner_acceptance: pending
