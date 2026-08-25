@@ -64,6 +64,9 @@ docs/product/ASA_LEARNING_REQUIREMENTS_LEDGER.yaml (only evidence/milestone trut
 docs/product/learning/ASA_LEARNING_AGENT_WORK_QUEUE.md (M2-009 dependency correction only)
 docs/project-map/project-map.yaml (only factual M0 status drift)
 docs/project-map/PROJECT_MAP.md (only factual M0 status drift)
+apps/api/src/learning-canonical-projection.service.spec.ts (acceptance-only flag round-trip proof)
+docs/product/learning/execution/LRN-M0-005_EXECUTION_SPEC.md (owner-acceptance factual drift)
+docs/product/learning/execution/LRN-M0-006_EXECUTION_SPEC.md (owner-acceptance factual drift)
 ```
 
 ## 7. Files explicitly out of scope
@@ -76,7 +79,9 @@ production configuration and data
 M1-M7 implementation files
 ```
 
-Existing test/runtime files may be read and executed, not changed unless a P0/P1 gate defect is first reported as a separate corrective task.
+Existing runtime files may be read and executed, not changed. One test-only
+round-trip assertion may be added where the owner-required acceptance proof is
+stricter than the M0-007 test; it must not change product behavior.
 
 ## 8. Database / migration
 
