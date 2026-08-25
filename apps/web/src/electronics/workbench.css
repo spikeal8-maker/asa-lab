@@ -2164,8 +2164,8 @@
   box-shadow: rgba(196, 204, 215, 0.6) 0 2px 2px;
 }
 .workbench-inspector-heading {
-  min-height: 38px;
-  padding: 3px 7px;
+  min-height: 34px;
+  padding: 2px 6px 2px 8px;
   border-bottom: 1px solid #dfe5e9;
   background: #0696d7;
 }
@@ -2184,10 +2184,11 @@
   font-size: 13px;
   font-weight: 700;
 }
-.workbench-inspector-information-actions {
+.workbench-inspector-heading > .workbench-inspector-information-actions {
   display: flex;
+  align-items: center;
   flex: 0 0 auto;
-  gap: 6px;
+  gap: 4px;
 }
 .workbench-inspector-heading .workbench-inspector-help[data-active='true'] {
   background: #fff;
@@ -2233,25 +2234,13 @@
 .workbench-inspector-help-popover p {
   margin: 0;
 }
-.workbench-inspector-more {
-  width: calc(100% - 4px);
-  min-height: 28px;
-  margin: 3px 2px;
-  border: 1px solid #b9c8d1;
-  border-radius: 3px;
-  background: #f5f8fa;
-  color: #31566a;
-  font-size: 11px;
-}
 .workbench-component-model-status {
-  display: grid;
-  gap: 2px;
-  padding: 8px 10px;
+  padding: 5px 8px;
   border-bottom: 1px solid #c5cfd9;
   background: #f7fafc;
   color: #405666;
   font-size: 11px;
-  line-height: 1.35;
+  line-height: 1.2;
 }
 .workbench-component-model-status strong {
   color: #176a46;

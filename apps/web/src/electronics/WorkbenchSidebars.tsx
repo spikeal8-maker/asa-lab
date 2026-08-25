@@ -62,7 +62,6 @@ export function WorkbenchSidebars({
 }): JSX.Element {
   const [helpOpen, setHelpOpen] = useState(false);
   const [stateOpen, setStateOpen] = useState(false);
-  const [secondaryOpen, setSecondaryOpen] = useState(false);
   const [helpSections, setHelpSections] = useState<readonly HelpSection[] | null>(null);
   const measurement = c.selectedComponent
     ? c.resultByComponent.get(c.selectedComponent.id)
@@ -73,21 +72,9 @@ export function WorkbenchSidebars({
     ? (c.diagnosticsByComponent.get(c.selectedComponent.id) ?? [])
     : [];
   const selectedSimulationSupported = c.selectedEntry?.simulationSupported === true;
-  const hasSecondarySettings = Boolean(
-    c.selectedComponent &&
-    c.selectedEntry &&
-    ((c.selectedFamily?.variants.length ?? 0) > 1 ||
-      c.selectedEntry.key === 'resistor-axial' ||
-      c.selectedEntry.key === 'rgb-led' ||
-      c.selectedEntry.key === 'seven-segment-display' ||
-      ['diode', 'switch', 'button', 'potentiometer', 'transistor'].includes(
-        c.selectedComponent.kind,
-      )),
-  );
   useEffect(() => {
     setHelpOpen(false);
     setStateOpen(false);
-    setSecondaryOpen(false);
     setHelpSections(null);
   }, [c.selectedComponent?.id]);
   useEffect(() => {
@@ -380,39 +367,28 @@ export function WorkbenchSidebars({
           ) : null}
 
           {stateOpen && c.selectedComponent ? (
-            <>
-              <div
-                className={`workbench-component-model-status${
-                  selectedSimulationSupported ? ' supported' : ' pending'
-                }`}
-                data-testid="component-simulation-status"
-              >
-                <strong>
-                  {selectedSimulationSupported
-                    ? c.simulationRunning
-                      ? c.result?.status === 'solved'
-                        ? measurement
-                          ? 'Расчёт актуален'
-                          : 'Ток через компонент отсутствует'
-                        : c.result?.status === 'unsupported'
-                          ? 'Расчёт заблокирован неподдерживаемым компонентом'
-                          : 'Расчёт не завершён'
-                      : measurement
-                        ? 'Сохранённый результат актуален'
-                        : 'Моделирование остановлено'
-                    : 'Электрическая модель пока не реализована'}
-                </strong>
-                <span>
-                  {selectedSimulationSupported
-                    ? c.simulationRunning
+            <div
+              className={`workbench-component-model-status${
+                selectedSimulationSupported ? ' supported' : ' pending'
+              }`}
+              data-testid="component-simulation-status"
+            >
+              <strong>
+                {selectedSimulationSupported
+                  ? c.simulationRunning
+                    ? c.result?.status === 'solved'
                       ? measurement
-                        ? 'Ниже показаны фактические результаты текущего расчёта.'
-                        : 'Численные значения отсутствуют; это не считается ошибкой само по себе.'
-                      : 'Запустите моделирование, чтобы пересчитать электрическое состояние.'
-                    : 'Компонент можно размещать и соединять. Измерения появятся после внедрения его математической модели.'}
-                </span>
-              </div>
-            </>
+                        ? 'Расчёт актуален'
+                        : 'Нет тока'
+                      : c.result?.status === 'unsupported'
+                        ? 'Расчёт заблокирован'
+                        : 'Расчёт не завершён'
+                    : measurement
+                      ? 'Сохранённый результат'
+                      : 'Моделирование остановлено'
+                  : 'Модель не готова'}
+              </strong>
+            </div>
           ) : null}
 
           {c.selectedComponent &&
@@ -422,7 +398,7 @@ export function WorkbenchSidebars({
             <div className="workbench-inspector-body" data-testid="component-compact-properties">
               {c.selectedFamily &&
               c.selectedFamily.variants.length > 1 &&
-              (!selectedIsPotentiometer || secondaryOpen) ? (
+              (!selectedIsPotentiometer || stateOpen) ? (
                 <label>
                   <span>Вариант</span>
                   <select
@@ -455,16 +431,6 @@ export function WorkbenchSidebars({
                   onChange={(event) => c.updateSelectedName(event.target.value)}
                 />
               </label>
-              {hasSecondarySettings ? (
-                <button
-                  type="button"
-                  className="workbench-inspector-more"
-                  onClick={() => setSecondaryOpen((value) => !value)}
-                  aria-expanded={secondaryOpen}
-                >
-                  {secondaryOpen ? 'Скрыть дополнительные параметры' : 'Ещё параметры'}
-                </button>
-              ) : null}
               {selectedIsArduino && stateOpen ? (
                 <div className="workbench-arduino-summary" data-testid="arduino-compact-summary">
                   <div>
@@ -502,7 +468,7 @@ export function WorkbenchSidebars({
                 </div>
               ) : null}
               {['source', 'resistor', 'potentiometer', 'lamp'].includes(c.selectedComponent.kind) ||
-              (c.selectedComponent.kind === 'diode' && secondaryOpen) ? (
+              (c.selectedComponent.kind === 'diode' && stateOpen) ? (
                 <label>
                   <span>{valueLabel(c.selectedComponent.kind)}</span>
                   <div className="workbench-value-field">
@@ -549,7 +515,7 @@ export function WorkbenchSidebars({
                   </div>
                 </label>
               ) : null}
-              {c.selectedEntry.key === 'resistor-axial' && secondaryOpen ? (
+              {c.selectedEntry.key === 'resistor-axial' && stateOpen ? (
                 <>
                   <label>
                     <span>Допуск</span>
@@ -593,7 +559,7 @@ export function WorkbenchSidebars({
                   </label>
                 </>
               ) : null}
-              {secondaryOpen &&
+              {stateOpen &&
               (c.selectedComponent.kind === 'switch' || c.selectedComponent.kind === 'button') ? (
                 <label className="workbench-toggle-property">
                   <span>
@@ -609,7 +575,7 @@ export function WorkbenchSidebars({
                   />
                 </label>
               ) : null}
-              {c.selectedComponent.kind === 'button' && secondaryOpen ? (
+              {c.selectedComponent.kind === 'button' && stateOpen ? (
                 <button
                   type="button"
                   className="workbench-momentary-button"
@@ -621,7 +587,7 @@ export function WorkbenchSidebars({
                   Удерживать кнопку
                 </button>
               ) : null}
-              {c.selectedComponent.kind === 'potentiometer' && secondaryOpen ? (
+              {c.selectedComponent.kind === 'potentiometer' && stateOpen ? (
                 <label>
                   <span>Положение</span>
                   <input
@@ -637,7 +603,7 @@ export function WorkbenchSidebars({
                 </label>
               ) : null}
 
-              {c.selectedComponent.kind === 'transistor' && secondaryOpen ? (
+              {c.selectedComponent.kind === 'transistor' && stateOpen ? (
                 <fieldset className="workbench-state-controls">
                   <legend>
                     {transistorType === 'fet'
@@ -729,7 +695,7 @@ export function WorkbenchSidebars({
                 </label>
               ) : null}
 
-              {c.selectedEntry.key === 'rgb-led' && secondaryOpen ? (
+              {c.selectedEntry.key === 'rgb-led' && stateOpen ? (
                 <label>
                   <span>Разводка выводов</span>
                   <select
@@ -749,7 +715,7 @@ export function WorkbenchSidebars({
                 </label>
               ) : null}
 
-              {c.selectedEntry.key === 'seven-segment-display' && secondaryOpen ? (
+              {c.selectedEntry.key === 'seven-segment-display' && stateOpen ? (
                 <fieldset className="workbench-state-controls">
                   <legend>Семисегментный индикатор</legend>
                   <label>

@@ -304,12 +304,12 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(sidebarSource).toContain('workbench-terminal-status');
     expect(sidebarSource).toContain("if (kind === 'potentiometer') return 'Сопротивление'");
     expect(sidebarSource).toContain("selectedIsPotentiometer ? ' is-potentiometer' : ''");
-    expect(sidebarSource).toContain(
-      "c.selectedComponent.kind === 'potentiometer' && secondaryOpen",
-    );
+    expect(sidebarSource).toContain("c.selectedComponent.kind === 'potentiometer' && stateOpen");
     expect(sidebarSource).toContain('aria-label="Положение движка"');
     expect(sidebarSource).not.toContain('Положение движка: {Math.round');
-    expect(sidebarSource).toContain('(!selectedIsPotentiometer || secondaryOpen)');
+    expect(sidebarSource).toContain('(!selectedIsPotentiometer || stateOpen)');
+    expect(sidebarSource).not.toContain('Ещё параметры');
+    expect(sidebarSource).not.toContain('secondaryOpen');
     expect(sidebarSource).toContain('aria-label={`Техническое состояние');
     expect(sidebarSource).toContain('aria-label={`Справка о компоненте');
     expect(productionVisualSource).toContain('<OwnerPotentiometerVisual');
@@ -328,8 +328,10 @@ describe('owner-reference Electronics presentation contract', () => {
     );
     expect(sidebarSource).toContain('data-testid="component-compact-properties"');
     expect(sidebarSource).toContain('data-testid="component-simulation-status"');
-    expect(sidebarSource).toContain("'Электрическая модель пока не реализована'");
-    expect(sidebarSource).toContain("'Ниже показаны фактические результаты текущего расчёта.'");
+    expect(sidebarSource).toContain("'Модель не готова'");
+    expect(sidebarSource).not.toContain(
+      'Измерения появятся после внедрения его математической модели.',
+    );
     expect(sidebarSource).toContain('stateOpen && measurement && technicalMetrics.length > 0');
     expect(sidebarSource).toContain('stateOpen && selectedDiagnostics.length > 0');
     expect(sidebarSource).not.toContain('workbench-led-electrical-state');
