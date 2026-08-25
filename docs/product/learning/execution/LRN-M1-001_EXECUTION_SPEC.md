@@ -2,7 +2,6 @@
 
 **Task:** `LRN-M1-001`  
 **Milestone:** `M1 — Universal Delivery`  
-**Status:** DONE — evidence complete; owner review pending
 **Baseline SHA:** `24ff391386d3ea6acb99bcbb73a0542802a1f785`  
 **Issue:** `#154`  
 **Master Spec:** `docs/product/ASA_LEARNING_TECHNICAL_SPEC.md`  
@@ -177,7 +176,7 @@ POST /api/learning/activities/{activityId}/publish
 GET  /api/learning/activities/{activityId}/versions
 ```
 
-All routes require an educator session. Create/draft validate canonical kind, result mode, references, max points and policy object. Publish requires `expectedRevision` and `requestId`; conflicts return canonical error codes. The same change set updates `schemas/openapi.yaml`.
+All routes require an educator session. Create/draft validate canonical kind, result mode, references, max points and an exact six-field policy object. Create requires `requestId`; publish requires `expectedRevision` and `requestId`. Conflicting key reuse returns a canonical conflict instead of accepting different input. The same change set updates `schemas/openapi.yaml`.
 
 No learner execution endpoint is added. API/domain support is not a claim of UI or runtime support.
 
@@ -188,10 +187,12 @@ Draft replacement is one root UPDATE with optimistic revision. Publication locks
 ## 11. Idempotency / concurrency
 
 - same `(activity_id, publication_request_id)` returns the same version;
+- same `(tenant_id, owner_principal_id, creation_request_id)` and normalized input returns the same root, while different input is rejected;
 - same source draft revision returns the already published version;
 - activity advisory lock serializes version-number allocation;
 - DB unique constraints are the final duplicate guard;
 - stale `expectedRevision` returns `revision_conflict`;
+- a publish request key reused for another draft revision returns `idempotency_conflict`;
 - digest is SHA-256 of PostgreSQL canonical JSONB text with all snapshot fields and exact references.
 
 ## 12. Authorization / RLS
@@ -199,6 +200,7 @@ Draft replacement is one root UPDATE with optimistic revision. Publication locks
 - root/version RLS remains forced tenant isolation;
 - app role retains no direct table mutation grant;
 - only owner principal with valid tenant lineage can mutate a draft or publish;
+- detail, draft, publish and version reads also require the UUID row to match the active session tenant, including for one principal authorized in multiple schools;
 - published version direct UUID UPDATE/DELETE is rejected by trigger even for a table owner test connection;
 - list/detail functions exclude M0 compatibility versions and non-reusable roots;
 - learner HTTP session fails educator capability check;
@@ -226,6 +228,7 @@ Disable/unroute the additive API before any future ActivityRun adoption. Existin
 LRN-M1-001-U01 controller validation for five kinds and three result modes
 LRN-M1-001-U02 learner/non-educator rejected
 LRN-M1-001-U03 SQL error mapping and wire DTO
+LRN-M1-001-U04 reject policy scalars, arrays and additional keys outside OpenAPI
 ```
 
 ## 17. Integration tests
@@ -246,6 +249,9 @@ LRN-M1-001-I12 cross-owner/cross-school mutation denied
 LRN-M1-001-I13 essay/file/manual schema representation only
 LRN-M1-001-I14 old direct/course/quiz/Attempt/Submission references unchanged
 LRN-M1-001-I15 open_response/composite are not silently mapped
+LRN-M1-001-I16 create retry is idempotent and conflicting reuse is rejected
+LRN-M1-001-I17 publish key cannot be reused for another draft revision
+LRN-M1-001-I18 active-tenant mismatch denies UUID read/mutation for a multi-school principal
 ```
 
 ## 18. Browser E2E
@@ -256,6 +262,9 @@ N/A — this task adds no UI and switches no user journey. Existing M0 surface b
 
 - owner B cannot draft/publish owner A content;
 - principal outside tenant cannot create school content;
+- one principal authorized in two schools cannot use the active tenant from school B to access a UUID owned in school A;
+- create/publish idempotency keys reject conflicting payload or revision reuse;
+- policy snapshot scalars/arrays/additional keys fail at HTTP and database boundaries;
 - app/learner cannot mutate authoring through HTTP;
 - compatibility activity is absent from reusable list;
 - published UUID update/delete fails;

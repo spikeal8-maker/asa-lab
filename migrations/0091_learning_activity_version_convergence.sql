@@ -9,7 +9,9 @@ ALTER TABLE learning_activities
     ADD COLUMN draft_revision integer,
     ADD COLUMN draft_payload jsonb,
     ADD COLUMN current_published_version_id uuid,
-    ADD COLUMN source_teacher_assignment_id uuid;
+    ADD COLUMN source_teacher_assignment_id uuid,
+    ADD COLUMN creation_request_id varchar(128),
+    ADD COLUMN creation_request_digest varchar(64);
 
 ALTER TABLE learning_activities DROP CONSTRAINT learning_activities_type_check;
 ALTER TABLE learning_activities ADD CONSTRAINT learning_activities_type_check CHECK (
@@ -26,12 +28,16 @@ ALTER TABLE learning_activities ADD CONSTRAINT learning_activities_draft_check C
     (authoring_origin = 'legacy_runtime'
         AND reusable_authored_content = false
         AND draft_revision IS NULL
-        AND draft_payload IS NULL)
+        AND draft_payload IS NULL
+        AND creation_request_id IS NULL
+        AND creation_request_digest IS NULL)
     OR
     (authoring_origin <> 'legacy_runtime'
         AND reusable_authored_content = true
         AND draft_revision > 0
-        AND jsonb_typeof(draft_payload) = 'object')
+        AND jsonb_typeof(draft_payload) = 'object'
+        AND creation_request_id ~ '^[A-Za-z0-9._:-]{8,128}$'
+        AND creation_request_digest ~ '^[0-9a-f]{64}$')
 );
 ALTER TABLE learning_activities ADD CONSTRAINT learning_activities_teacher_source_fk
     FOREIGN KEY (tenant_id, source_teacher_assignment_id)
@@ -39,6 +45,9 @@ ALTER TABLE learning_activities ADD CONSTRAINT learning_activities_teacher_sourc
 CREATE UNIQUE INDEX learning_activities_teacher_source_idx
     ON learning_activities(source_teacher_assignment_id)
     WHERE source_teacher_assignment_id IS NOT NULL;
+CREATE UNIQUE INDEX learning_activities_creation_request_idx
+    ON learning_activities(tenant_id, owner_principal_id, creation_request_id)
+    WHERE creation_request_id IS NOT NULL;
 CREATE INDEX learning_activities_author_library_idx
     ON learning_activities(owner_principal_id, archived_at, created_at DESC)
     WHERE reusable_authored_content = true;
@@ -96,6 +105,16 @@ ALTER TABLE learning_activity_versions
                 'attemptPolicy', 'resultSelectionPolicy', 'completionPolicy',
                 'latePolicy', 'assessmentPolicy', 'feedbackReleasePolicy'
             ]
+            AND (policy_snapshot - ARRAY[
+                'attemptPolicy', 'resultSelectionPolicy', 'completionPolicy',
+                'latePolicy', 'assessmentPolicy', 'feedbackReleasePolicy'
+            ]) = '{}'::jsonb
+            AND jsonb_typeof(policy_snapshot -> 'attemptPolicy') IN ('object', 'null')
+            AND jsonb_typeof(policy_snapshot -> 'resultSelectionPolicy') IN ('object', 'null')
+            AND jsonb_typeof(policy_snapshot -> 'completionPolicy') IN ('object', 'null')
+            AND jsonb_typeof(policy_snapshot -> 'latePolicy') IN ('object', 'null')
+            AND jsonb_typeof(policy_snapshot -> 'assessmentPolicy') IN ('object', 'null')
+            AND jsonb_typeof(policy_snapshot -> 'feedbackReleasePolicy') IN ('object', 'null')
             AND jsonb_typeof(provenance) = 'object'
             AND (
                 (result_mode = 'graded' AND max_points > 0)
@@ -165,7 +184,17 @@ BEGIN
        OR NOT (v_policy ?& ARRAY[
            'attemptPolicy', 'resultSelectionPolicy', 'completionPolicy',
            'latePolicy', 'assessmentPolicy', 'feedbackReleasePolicy'
-       ]) THEN
+       ])
+       OR (v_policy - ARRAY[
+           'attemptPolicy', 'resultSelectionPolicy', 'completionPolicy',
+           'latePolicy', 'assessmentPolicy', 'feedbackReleasePolicy'
+       ]) <> '{}'::jsonb
+       OR jsonb_typeof(v_policy -> 'attemptPolicy') NOT IN ('object', 'null')
+       OR jsonb_typeof(v_policy -> 'resultSelectionPolicy') NOT IN ('object', 'null')
+       OR jsonb_typeof(v_policy -> 'completionPolicy') NOT IN ('object', 'null')
+       OR jsonb_typeof(v_policy -> 'latePolicy') NOT IN ('object', 'null')
+       OR jsonb_typeof(v_policy -> 'assessmentPolicy') NOT IN ('object', 'null')
+       OR jsonb_typeof(v_policy -> 'feedbackReleasePolicy') NOT IN ('object', 'null') THEN
         RETURN QUERY SELECT 'invalid_draft'::varchar, NULL::jsonb, NULL::varchar;
         RETURN;
     END IF;
@@ -266,12 +295,18 @@ CREATE OR REPLACE FUNCTION learning_activity_create(
     p_module_key varchar,
     p_quiz_version_id uuid,
     p_starter_project_version_id uuid,
-    p_source_teacher_assignment_id uuid
+    p_source_teacher_assignment_id uuid,
+    p_request_id varchar
 )
 RETURNS TABLE (result_code varchar, activity_id uuid, draft_revision integer)
 LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
-DECLARE v_normalized record; v_id uuid; v_existing uuid;
+DECLARE v_normalized record; v_id uuid; v_existing record;
+        v_request_snapshot jsonb; v_request_digest varchar;
 BEGIN
+    IF p_request_id IS NULL OR p_request_id !~ '^[A-Za-z0-9._:-]{8,128}$' THEN
+        RETURN QUERY SELECT 'invalid_request_id'::varchar, NULL::uuid, NULL::integer;
+        RETURN;
+    END IF;
     IF p_scope_kind NOT IN ('personal', 'school')
        OR p_visibility_policy NOT IN ('private', 'school')
        OR (p_scope_kind = 'personal' AND p_visibility_policy = 'school') THEN
@@ -288,23 +323,57 @@ BEGIN
         RETURN QUERY SELECT v_normalized.result_code::varchar, NULL::uuid, NULL::integer;
         RETURN;
     END IF;
+    v_request_snapshot := jsonb_build_object(
+        'tenantId', p_tenant_id,
+        'ownerPrincipalId', p_principal_id,
+        'scope', p_scope_kind,
+        'visibility', p_visibility_policy,
+        'draft', v_normalized.draft_payload
+    );
+    v_request_digest := public.learning_activity_snapshot_digest(v_request_snapshot);
+    PERFORM pg_advisory_xact_lock(hashtextextended(
+        COALESCE(p_source_teacher_assignment_id::text,
+                 p_tenant_id::text || ':' || p_principal_id::text || ':' || p_request_id),
+        9000
+    ));
+    SELECT activity.id, activity.creation_request_digest
+      INTO v_existing
+      FROM public.learning_activities activity
+     WHERE activity.tenant_id = p_tenant_id
+       AND activity.owner_principal_id = p_principal_id
+       AND activity.creation_request_id = p_request_id;
+    IF v_existing.id IS NOT NULL THEN
+        IF v_existing.creation_request_digest <> v_request_digest THEN
+            RETURN QUERY SELECT 'idempotency_conflict'::varchar, NULL::uuid, NULL::integer;
+        ELSE
+            RETURN QUERY SELECT 'ok'::varchar, v_existing.id, 1;
+        END IF;
+        RETURN;
+    END IF;
     IF p_source_teacher_assignment_id IS NOT NULL THEN
-        SELECT id INTO v_existing FROM public.learning_activities
+        SELECT activity.id, activity.creation_request_digest
+          INTO v_existing
+          FROM public.learning_activities activity
          WHERE source_teacher_assignment_id = p_source_teacher_assignment_id;
-        IF v_existing IS NOT NULL THEN
-            RETURN QUERY SELECT 'ok'::varchar, v_existing, 1;
+        IF v_existing.id IS NOT NULL THEN
+            IF v_existing.creation_request_digest <> v_request_digest THEN
+                RETURN QUERY SELECT 'source_conflict'::varchar, NULL::uuid, NULL::integer;
+            ELSE
+                RETURN QUERY SELECT 'ok'::varchar, v_existing.id, 1;
+            END IF;
             RETURN;
         END IF;
     END IF;
     INSERT INTO public.learning_activities (
         tenant_id, owner_principal_id, scope_kind, activity_type, title,
         visibility_policy, authoring_origin, reusable_authored_content,
-        draft_revision, draft_payload, source_teacher_assignment_id
+        draft_revision, draft_payload, source_teacher_assignment_id,
+        creation_request_id, creation_request_digest
     ) VALUES (
         p_tenant_id, p_principal_id, p_scope_kind, p_kind,
         v_normalized.draft_payload ->> 'title', p_visibility_policy,
         v_normalized.authoring_origin, true, 1, v_normalized.draft_payload,
-        p_source_teacher_assignment_id
+        p_source_teacher_assignment_id, p_request_id, v_request_digest
     ) RETURNING id INTO v_id;
     RETURN QUERY SELECT 'ok'::varchar, v_id, 1;
 END;
@@ -312,6 +381,7 @@ $$;
 
 CREATE OR REPLACE FUNCTION learning_activity_draft_put(
     p_principal_id uuid,
+    p_tenant_id uuid,
     p_activity_id uuid,
     p_expected_revision integer,
     p_title varchar,
@@ -329,7 +399,9 @@ DECLARE v_activity record; v_normalized record; v_revision integer;
 BEGIN
     SELECT * INTO v_activity FROM public.learning_activities activity
      WHERE activity.id = p_activity_id
+       AND activity.tenant_id = p_tenant_id
        AND activity.owner_principal_id = p_principal_id
+       AND public.learning_author_can_use_tenant(p_principal_id, p_tenant_id)
        AND activity.reusable_authored_content = true
        AND activity.archived_at IS NULL;
     IF v_activity.id IS NULL THEN
@@ -367,6 +439,7 @@ $$;
 
 CREATE OR REPLACE FUNCTION learning_activity_publish(
     p_principal_id uuid,
+    p_tenant_id uuid,
     p_activity_id uuid,
     p_expected_revision integer,
     p_request_id varchar
@@ -390,7 +463,9 @@ BEGIN
     PERFORM pg_advisory_xact_lock(hashtextextended(p_activity_id::text, 9001));
     SELECT * INTO v_activity FROM public.learning_activities activity
      WHERE activity.id = p_activity_id
+       AND activity.tenant_id = p_tenant_id
        AND activity.owner_principal_id = p_principal_id
+       AND public.learning_author_can_use_tenant(p_principal_id, p_tenant_id)
        AND activity.reusable_authored_content = true
        AND activity.authoring_origin <> 'legacy_runtime'
        AND activity.archived_at IS NULL
@@ -400,12 +475,26 @@ BEGIN
                             NULL::integer, NULL::varchar, false;
         RETURN;
     END IF;
-    SELECT version.id, version.version_number, version.content_digest
+    SELECT version.id, version.version_number, version.content_digest,
+           version.source_draft_revision
       INTO v_existing FROM public.learning_activity_versions version
      WHERE version.activity_id = p_activity_id
-       AND (version.publication_request_id = p_request_id
-            OR version.source_draft_revision = p_expected_revision)
-     ORDER BY (version.publication_request_id = p_request_id) DESC
+       AND version.publication_request_id = p_request_id;
+    IF v_existing.id IS NOT NULL THEN
+        IF v_existing.source_draft_revision <> p_expected_revision THEN
+            RETURN QUERY SELECT 'idempotency_conflict'::varchar, NULL::uuid,
+                                NULL::integer, NULL::varchar, false;
+        ELSE
+            RETURN QUERY SELECT 'ok'::varchar, v_existing.id, v_existing.version_number,
+                                v_existing.content_digest, true;
+        END IF;
+        RETURN;
+    END IF;
+    SELECT version.id, version.version_number, version.content_digest,
+           version.source_draft_revision
+      INTO v_existing FROM public.learning_activity_versions version
+     WHERE version.activity_id = p_activity_id
+       AND version.source_draft_revision = p_expected_revision
      LIMIT 1;
     IF v_existing.id IS NOT NULL THEN
         RETURN QUERY SELECT 'ok'::varchar, v_existing.id, v_existing.version_number,
@@ -510,6 +599,7 @@ $$;
 
 CREATE OR REPLACE FUNCTION learning_activity_get(
     p_principal_id uuid,
+    p_tenant_id uuid,
     p_activity_id uuid
 )
 RETURNS TABLE (
@@ -524,13 +614,16 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
            activity.archived_at
       FROM public.learning_activities activity
      WHERE activity.id = p_activity_id
+       AND activity.tenant_id = p_tenant_id
        AND activity.owner_principal_id = p_principal_id
+       AND public.learning_author_can_use_tenant(p_principal_id, p_tenant_id)
        AND activity.reusable_authored_content = true
        AND activity.authoring_origin <> 'legacy_runtime';
 $$;
 
 CREATE OR REPLACE FUNCTION learning_activity_version_list(
     p_principal_id uuid,
+    p_tenant_id uuid,
     p_activity_id uuid
 )
 RETURNS TABLE (
@@ -550,7 +643,9 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
        AND version.activity_id = activity.id
        AND version.canonical_contract_version = 1
      WHERE activity.id = p_activity_id
+       AND activity.tenant_id = p_tenant_id
        AND activity.owner_principal_id = p_principal_id
+       AND public.learning_author_can_use_tenant(p_principal_id, p_tenant_id)
        AND activity.reusable_authored_content = true
      ORDER BY version.version_number DESC;
 $$;
@@ -562,30 +657,30 @@ REVOKE ALL ON FUNCTION learning_activity_normalize_draft(
 ) FROM PUBLIC;
 REVOKE ALL ON FUNCTION learning_activity_create(
     uuid, uuid, varchar, varchar, varchar, varchar, varchar, varchar,
-    integer, jsonb, varchar, uuid, uuid, uuid
+    integer, jsonb, varchar, uuid, uuid, uuid, varchar
 ) FROM PUBLIC;
 REVOKE ALL ON FUNCTION learning_activity_draft_put(
-    uuid, uuid, integer, varchar, varchar, varchar, integer, jsonb,
+    uuid, uuid, uuid, integer, varchar, varchar, varchar, integer, jsonb,
     varchar, uuid, uuid
 ) FROM PUBLIC;
-REVOKE ALL ON FUNCTION learning_activity_publish(uuid, uuid, integer, varchar) FROM PUBLIC;
+REVOKE ALL ON FUNCTION learning_activity_publish(uuid, uuid, uuid, integer, varchar) FROM PUBLIC;
 REVOKE ALL ON FUNCTION learning_activity_list(uuid, uuid) FROM PUBLIC;
-REVOKE ALL ON FUNCTION learning_activity_get(uuid, uuid) FROM PUBLIC;
-REVOKE ALL ON FUNCTION learning_activity_version_list(uuid, uuid) FROM PUBLIC;
+REVOKE ALL ON FUNCTION learning_activity_get(uuid, uuid, uuid) FROM PUBLIC;
+REVOKE ALL ON FUNCTION learning_activity_version_list(uuid, uuid, uuid) FROM PUBLIC;
 
 GRANT EXECUTE ON FUNCTION learning_activity_create(
     uuid, uuid, varchar, varchar, varchar, varchar, varchar, varchar,
-    integer, jsonb, varchar, uuid, uuid, uuid
+    integer, jsonb, varchar, uuid, uuid, uuid, varchar
 ) TO asalab_app;
 GRANT EXECUTE ON FUNCTION learning_activity_draft_put(
-    uuid, uuid, integer, varchar, varchar, varchar, integer, jsonb,
+    uuid, uuid, uuid, integer, varchar, varchar, varchar, integer, jsonb,
     varchar, uuid, uuid
 ) TO asalab_app;
-GRANT EXECUTE ON FUNCTION learning_activity_publish(uuid, uuid, integer, varchar)
+GRANT EXECUTE ON FUNCTION learning_activity_publish(uuid, uuid, uuid, integer, varchar)
     TO asalab_app;
 GRANT EXECUTE ON FUNCTION learning_activity_list(uuid, uuid) TO asalab_app;
-GRANT EXECUTE ON FUNCTION learning_activity_get(uuid, uuid) TO asalab_app;
-GRANT EXECUTE ON FUNCTION learning_activity_version_list(uuid, uuid) TO asalab_app;
+GRANT EXECUTE ON FUNCTION learning_activity_get(uuid, uuid, uuid) TO asalab_app;
+GRANT EXECUTE ON FUNCTION learning_activity_version_list(uuid, uuid, uuid) TO asalab_app;
 
 COMMENT ON COLUMN learning_activities.visibility_policy IS
     'Live root visibility. Changing it does not create a content version.';

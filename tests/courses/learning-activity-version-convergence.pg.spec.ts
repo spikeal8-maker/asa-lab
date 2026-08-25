@@ -21,6 +21,7 @@ const basePolicies = {
   assessmentPolicy: { mode: 'manual' },
   feedbackReleasePolicy: { mode: 'after_review' },
 };
+let createRequestSequence = 0;
 
 async function createActivity(input: {
   kind: 'quiz' | 'project' | 'essay' | 'file' | 'manual';
@@ -31,10 +32,12 @@ async function createActivity(input: {
   quizVersionId?: string | null;
   sourceTeacherAssignmentId?: string | null;
   policies?: Record<string, unknown>;
+  requestId?: string;
 }) {
+  const requestId = input.requestId ?? `learning:m1:create:${++createRequestSequence}`;
   const result = await admin.query(
     `SELECT * FROM learning_activity_create(
-       $1,$2,'school','private',$3,$4,$5,$6,$7,$8::jsonb,$9,$10,NULL,$11
+       $1,$2,'school','private',$3,$4,$5,$6,$7,$8::jsonb,$9,$10,NULL,$11,$12
      )`,
     [
       ownerPrincipalId,
@@ -48,6 +51,7 @@ async function createActivity(input: {
       input.moduleKey ?? null,
       input.quizVersionId ?? null,
       input.sourceTeacherAssignmentId ?? null,
+      requestId,
     ],
   );
   return result.rows[0] as {
@@ -58,8 +62,9 @@ async function createActivity(input: {
 }
 
 async function publish(activityId: string, revision: number, requestId: string) {
-  const result = await admin.query(`SELECT * FROM learning_activity_publish($1,$2,$3,$4)`, [
+  const result = await admin.query(`SELECT * FROM learning_activity_publish($1,$2,$3,$4,$5)`, [
     ownerPrincipalId,
+    owner.tenantId,
     activityId,
     revision,
     requestId,
@@ -192,11 +197,13 @@ describe('LRN-M1-001 canonical activity/version convergence', () => {
     );
     const draft = await admin.query(
       `SELECT * FROM learning_activity_draft_put(
-         $1,$2,1,'ignored','ignored','graded',20,$3::jsonb,'electronics',NULL,NULL
+         $1,$2,$3,1,'ignored','ignored','graded',20,$4::jsonb,'electronics',NULL,NULL
        )`,
-      [ownerPrincipalId, created.activity_id, JSON.stringify(basePolicies)],
+      [ownerPrincipalId, owner.tenantId, created.activity_id, JSON.stringify(basePolicies)],
     );
     expect(draft.rows[0]).toMatchObject({ result_code: 'ok', draft_revision: 2 });
+    const reusedForDifferentRevision = await publish(created.activity_id!, 2, 'project:publish:v1');
+    expect(reusedForDifferentRevision.result_code).toBe('idempotency_conflict');
     const v2 = await publish(created.activity_id!, 2, 'project:publish:v2');
     expect(v2).toMatchObject({ result_code: 'ok', version_number: 2, reused: false });
     expect(v2.activity_version_id).not.toBe(v1.activity_version_id);
@@ -326,8 +333,8 @@ describe('LRN-M1-001 canonical activity/version convergence', () => {
       ],
     );
     const compatibilityRootPublish = await admin.query(
-      `SELECT * FROM learning_activity_publish($1,$2,1,'compatibility:publish:0001')`,
-      [ownerPrincipalId, quiz.rows[0].activity_id],
+      `SELECT * FROM learning_activity_publish($1,$2,$3,1,'compatibility:publish:0001')`,
+      [ownerPrincipalId, owner.tenantId, quiz.rows[0].activity_id],
     );
     expect(compatibilityRootPublish.rows[0].result_code).toBe('activity_not_found');
     const reusableList = await admin.query(`SELECT * FROM learning_activity_list($1,$2)`, [
@@ -376,7 +383,7 @@ describe('LRN-M1-001 canonical activity/version convergence', () => {
     const invalid = await admin.query(
       `SELECT * FROM learning_activity_create(
          $1,$2,'school','private','manual','Invalid',NULL,'graded',NULL,$3::jsonb,
-         NULL,NULL,NULL,NULL
+         NULL,NULL,NULL,NULL,'invalid:create:0001'
        )`,
       [ownerPrincipalId, owner.tenantId, JSON.stringify(basePolicies)],
     );
@@ -431,7 +438,22 @@ describe('LRN-M1-001 canonical activity/version convergence', () => {
       kind: 'manual',
       title: 'Concurrent publication',
       resultMode: 'completion',
+      requestId: 'concurrent:create:0001',
     });
+    const createRetry = await createActivity({
+      kind: 'manual',
+      title: 'Concurrent publication',
+      resultMode: 'completion',
+      requestId: 'concurrent:create:0001',
+    });
+    expect(createRetry.activity_id).toBe(created.activity_id);
+    const createConflict = await createActivity({
+      kind: 'manual',
+      title: 'Different payload',
+      resultMode: 'completion',
+      requestId: 'concurrent:create:0001',
+    });
+    expect(createConflict.result_code).toBe('idempotency_conflict');
     const [left, right] = await Promise.all([
       publish(created.activity_id!, 1, 'concurrent:publish:a'),
       publish(created.activity_id!, 1, 'concurrent:publish:b'),
@@ -449,9 +471,9 @@ describe('LRN-M1-001 canonical activity/version convergence', () => {
 
     const forbidden = await admin.query(
       `SELECT * FROM learning_activity_draft_put(
-         $1,$2,1,'Attack',NULL,'completion',NULL,$3::jsonb,NULL,NULL,NULL
+         $1,$2,$3,1,'Attack',NULL,'completion',NULL,$4::jsonb,NULL,NULL,NULL
        )`,
-      [peerPrincipalId, created.activity_id, JSON.stringify(basePolicies)],
+      [peerPrincipalId, owner.tenantId, created.activity_id, JSON.stringify(basePolicies)],
     );
     expect(forbidden.rows[0].result_code).toBe('activity_not_found');
     const unpublished = await createActivity({
@@ -459,20 +481,52 @@ describe('LRN-M1-001 canonical activity/version convergence', () => {
       title: 'Unpublished owner draft',
       resultMode: 'ungraded',
     });
-    const peerDraftRead = await admin.query(`SELECT * FROM learning_activity_get($1,$2)`, [
+    const peerDraftRead = await admin.query(`SELECT * FROM learning_activity_get($1,$2,$3)`, [
       peerPrincipalId,
+      owner.tenantId,
       unpublished.activity_id,
     ]);
     expect(peerDraftRead.rows).toEqual([]);
+    const outsiderWorkspace = await admin.query(
+      `SELECT id FROM workspaces WHERE tenant_id=$1 ORDER BY created_at LIMIT 1`,
+      [outsider.tenantId],
+    );
+    await admin.query(
+      `INSERT INTO workspace_memberships (account_id,workspace_id,role)
+       VALUES ($1,$2,'educator') ON CONFLICT DO NOTHING`,
+      [ownerAccountId, outsiderWorkspace.rows[0].id],
+    );
+    const wrongActiveTenantRead = await admin.query(
+      `SELECT * FROM learning_activity_get($1,$2,$3)`,
+      [ownerPrincipalId, outsider.tenantId, unpublished.activity_id],
+    );
+    expect(wrongActiveTenantRead.rows).toEqual([]);
+    const wrongActiveTenantVersions = await admin.query(
+      `SELECT * FROM learning_activity_version_list($1,$2,$3)`,
+      [ownerPrincipalId, outsider.tenantId, created.activity_id],
+    );
+    expect(wrongActiveTenantVersions.rows).toEqual([]);
+    const wrongActiveTenantDraft = await admin.query(
+      `SELECT * FROM learning_activity_draft_put(
+         $1,$2,$3,1,'Wrong tenant',NULL,'ungraded',NULL,$4::jsonb,NULL,NULL,NULL
+       )`,
+      [ownerPrincipalId, outsider.tenantId, unpublished.activity_id, JSON.stringify(basePolicies)],
+    );
+    expect(wrongActiveTenantDraft.rows[0].result_code).toBe('activity_not_found');
+    const wrongActiveTenantPublish = await admin.query(
+      `SELECT * FROM learning_activity_publish($1,$2,$3,1,'wrong-tenant:publish:0001')`,
+      [ownerPrincipalId, outsider.tenantId, unpublished.activity_id],
+    );
+    expect(wrongActiveTenantPublish.rows[0].result_code).toBe('activity_not_found');
     const unpublishedVersions = await admin.query(
-      `SELECT * FROM learning_activity_version_list($1,$2)`,
-      [ownerPrincipalId, unpublished.activity_id],
+      `SELECT * FROM learning_activity_version_list($1,$2,$3)`,
+      [ownerPrincipalId, owner.tenantId, unpublished.activity_id],
     );
     expect(unpublishedVersions.rows).toEqual([]);
     const crossSchool = await admin.query(
       `SELECT * FROM learning_activity_create(
          $1,$2,'school','private','manual','Cross school',NULL,'completion',NULL,
-         $3::jsonb,NULL,NULL,NULL,NULL
+         $3::jsonb,NULL,NULL,NULL,NULL,'cross:create:0001'
        )`,
       [outsiderPrincipalId, owner.tenantId, JSON.stringify(basePolicies)],
     );
@@ -480,7 +534,7 @@ describe('LRN-M1-001 canonical activity/version convergence', () => {
     const starter = await admin.query(
       `SELECT * FROM learning_activity_create(
          $1,$2,'school','private','project','Starter attack',NULL,'completion',NULL,
-         $3::jsonb,'electronics',NULL,$4,NULL
+         $3::jsonb,'electronics',NULL,$4,NULL,'starter:create:0001'
        )`,
       [
         ownerPrincipalId,
@@ -490,6 +544,15 @@ describe('LRN-M1-001 canonical activity/version convergence', () => {
       ],
     );
     expect(starter.rows[0].result_code).toBe('starter_project_unprovenanced');
+
+    const invalidPolicy = await admin.query(
+      `SELECT * FROM learning_activity_create(
+         $1,$2,'school','private','manual','Invalid policy',NULL,'completion',NULL,
+         $3::jsonb,NULL,NULL,NULL,NULL,'invalid-policy:create:0001'
+       )`,
+      [ownerPrincipalId, owner.tenantId, JSON.stringify({ ...basePolicies, attemptPolicy: 7 })],
+    );
+    expect(invalidPolicy.rows[0].result_code).toBe('invalid_draft');
 
     await expect(app.query(`SELECT * FROM learning_activities LIMIT 1`)).rejects.toThrow(
       /permission denied/,

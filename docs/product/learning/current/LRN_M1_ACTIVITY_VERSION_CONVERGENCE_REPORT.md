@@ -1,6 +1,5 @@
 # LRN-M1-001 — LearningActivityVersion Convergence Report
 
-**Task status:** EVIDENCE COMPLETE / owner review pending
 **Baseline SHA:** `24ff391386d3ea6acb99bcbb73a0542802a1f785`
 **Issue / PR:** `#154` / `#155`
 **Production status:** NOT DEPLOYED
@@ -89,9 +88,9 @@ Project v1 is referenced by a classroom mapping and Attempt/Submission, the draf
 
 Publication inserts a new LAV; the pre-existing `learning_immutable_row` trigger rejects direct UPDATE/DELETE, including an attempted UUID-targeted title change by the migration-owner test connection. The v1 digest/content remains unchanged after v2 publication.
 
-## PUBLISH IDEMPOTENCY
+## CREATE/PUBLISH IDEMPOTENCY
 
-Retrying the same `(activity_id, publication_request_id)` returns the same version with `reused=true`. A partial unique index guards request identity and another guards one canonical publication per source draft revision.
+Retrying create with the same `(tenant_id, owner_principal_id, creation_request_id)` and normalized payload returns the same root; changing the payload returns `idempotency_conflict`. Retrying the same `(activity_id, publication_request_id, source_draft_revision)` returns the same version with `reused=true`; reusing a publish key for a different revision returns `idempotency_conflict`. Partial unique indexes remain the final duplicate guards.
 
 ## CONCURRENCY PROOF
 
@@ -103,6 +102,10 @@ Two concurrent publications for the same activity/draft are serialized by an act
 - runtime access is only through explicitly granted security-definer functions;
 - same-school different owner cannot read or edit an unpublished draft;
 - cross-school principal cannot create content in another tenant;
+- a principal authorized in two schools cannot read, replace or publish a school-A UUID while school B is the active tenant;
+- standalone create retries are digest-bound and conflicting key reuse is rejected;
+- publish key reuse across revisions is rejected;
+- policy values and properties outside the exact OpenAPI snapshot shape fail at both HTTP and SQL boundaries;
 - compatibility roots are absent from reusable listings and cannot publish;
 - published UUID UPDATE is rejected by the immutable trigger;
 - non-provenanced starter ProjectVersion is rejected;
@@ -151,9 +154,9 @@ GET  /api/learning/activities/{activityId}/versions
 
 ## TEST EVIDENCE
 
-- `pnpm test:learning-m1-001`: 2 files, 14 tests passed.
+- `pnpm test:learning-m1-001`: 2 files, 15 tests passed.
 - five focused legacy regression files: 22 tests passed.
-- `NX_SKIP_NX_CACHE=true pnpm gate:data`: 169 files / 1146 tests plus 15/15 RLS tests passed after rebuilding and integrating current `main`.
+- `NX_SKIP_NX_CACHE=true pnpm gate:data`: 169 files / 1147 tests plus 15/15 RLS tests passed after rebuilding and integrating current `main`.
 - `NX_SKIP_NX_CACHE=true pnpm gate:code`: PASS; Nx lint/typecheck/build cache skipped; contracts/security/release/build passed; Compose rendering was explicitly `SKIPPED` because Docker CLI is unavailable.
 - browser: N/A because this task adds no UI and switches no learner/teacher surface.
 

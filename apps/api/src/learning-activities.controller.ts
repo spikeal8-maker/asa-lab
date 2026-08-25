@@ -91,6 +91,7 @@ export class LearningActivitiesController {
       'quizVersionId',
       'starterProjectVersionId',
       ...(includeKind ? ['scope', 'visibility', 'sourceTeacherAssignmentId'] : []),
+      ...(includeKind ? ['requestId'] : []),
       ...(!includeKind ? ['expectedRevision'] : []),
     ];
     const shape = checkBodyShape(rawBody, keys);
@@ -121,6 +122,13 @@ export class LearningActivitiesController {
       typeof policies !== 'object' ||
       Array.isArray(policies) ||
       POLICY_KEYS.some((key) => !(key in (policies as Record<string, unknown>))) ||
+      Object.keys(policies as Record<string, unknown>).some(
+        (key) => !POLICY_KEYS.includes(key as (typeof POLICY_KEYS)[number]),
+      ) ||
+      POLICY_KEYS.some((key) => {
+        const value = (policies as Record<string, unknown>)[key];
+        return value !== null && (typeof value !== 'object' || Array.isArray(value));
+      }) ||
       (moduleKey !== null &&
         (typeof moduleKey !== 'string' || !/^[a-z0-9-]{1,64}$/.test(moduleKey))) ||
       (quizVersionId !== null &&
@@ -185,19 +193,22 @@ export class LearningActivitiesController {
     const scope = body['scope'] ?? 'personal';
     const visibility = body['visibility'] ?? 'private';
     const sourceTeacherAssignmentId = body['sourceTeacherAssignmentId'] ?? null;
+    const requestId = body['requestId'];
     if (
       !['personal', 'school'].includes(String(scope)) ||
       !['private', 'school'].includes(String(visibility)) ||
       (sourceTeacherAssignmentId !== null &&
         (typeof sourceTeacherAssignmentId !== 'string' ||
-          !UUID_PATTERN.test(sourceTeacherAssignmentId)))
+          !UUID_PATTERN.test(sourceTeacherAssignmentId))) ||
+      typeof requestId !== 'string' ||
+      !/^[A-Za-z0-9._:-]{8,128}$/.test(requestId)
     ) {
       throw new HttpException(error('validation_error', 'Проверьте владельца активности.'), 400);
     }
     const result = await this.requirePool().query(
       `SELECT result_code, activity_id, draft_revision
          FROM learning_activity_create(
-           $1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb,$11,$12,$13,$14
+           $1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb,$11,$12,$13,$14,$15
          )`,
       [
         context.principalId,
@@ -214,6 +225,7 @@ export class LearningActivitiesController {
         draft.quizVersionId,
         draft.starterProjectVersionId,
         sourceTeacherAssignmentId,
+        requestId,
       ],
     );
     const row = result.rows[0];
@@ -230,8 +242,8 @@ export class LearningActivitiesController {
     const result = await this.requirePool().query(
       `SELECT activity_id, tenant_id, title, kind, owner_scope, visibility_policy,
               draft_revision, draft_payload, current_published_version_id, archived_at
-         FROM learning_activity_get($1, $2)`,
-      [context.principalId, activityId],
+         FROM learning_activity_get($1, $2, $3)`,
+      [context.principalId, context.tenantId, activityId],
     );
     const row = result.rows[0];
     if (!row) throw this.resultError('activity_not_found');
@@ -271,10 +283,11 @@ export class LearningActivitiesController {
     const result = await this.requirePool().query(
       `SELECT result_code, draft_revision
          FROM learning_activity_draft_put(
-           $1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9,$10,$11
+           $1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10,$11,$12
          )`,
       [
         context.principalId,
+        context.tenantId,
         activityId,
         expectedRevision,
         draft.title,
@@ -317,8 +330,8 @@ export class LearningActivitiesController {
     }
     const result = await this.requirePool().query(
       `SELECT result_code, activity_version_id, version_number, content_digest, reused
-         FROM learning_activity_publish($1,$2,$3,$4)`,
-      [context.principalId, activityId, expectedRevision, requestId],
+         FROM learning_activity_publish($1,$2,$3,$4,$5)`,
+      [context.principalId, context.tenantId, activityId, expectedRevision, requestId],
     );
     const row = result.rows[0];
     if (!row || row['result_code'] !== 'ok' || !row['activity_version_id']) {
@@ -341,8 +354,8 @@ export class LearningActivitiesController {
       `SELECT activity_version_id, version_number, kind, result_mode, max_points,
               policy_snapshot, quiz_version_id, starter_project_version_id,
               provenance, content_digest, published_at
-         FROM learning_activity_version_list($1,$2)`,
-      [context.principalId, activityId],
+         FROM learning_activity_version_list($1,$2,$3)`,
+      [context.principalId, context.tenantId, activityId],
     );
     return {
       items: result.rows.map((row) => ({

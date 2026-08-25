@@ -1449,8 +1449,13 @@ components:
     LearningActivityCreateRequest:
       type: object
       additionalProperties: false
-      required: [kind, title, resultMode, policies]
+      required: [requestId, kind, title, resultMode, policies]
       properties:
+        requestId:
+          type: string
+          minLength: 8
+          maxLength: 128
+          pattern: '^[A-Za-z0-9._:-]+$'
         kind: { $ref: '#/components/schemas/LearningActivityKind' }
         title: { type: string, minLength: 1, maxLength: 255 }
         instructions: { type: [string, 'null'], maxLength: 12000 }

@@ -56,6 +56,7 @@ describe('canonical learning activity API', () => {
       await expect(
         api.value.create(request(), {
           kind,
+          requestId: `create:${kind}:0001`,
           title: `${kind} activity`,
           resultMode: 'graded',
           maxPoints: 10,
@@ -77,6 +78,7 @@ describe('canonical learning activity API', () => {
     });
     await api.value.create(request(), {
       kind: 'manual',
+      requestId: `create:${resultMode}:0001`,
       title: 'Observation',
       resultMode,
       policies,
@@ -92,6 +94,7 @@ describe('canonical learning activity API', () => {
     await expect(
       api.value.create(request(), {
         kind: 'manual',
+        requestId: 'create:learner:0001',
         title: 'Observation',
         resultMode: 'completion',
         policies,
@@ -124,5 +127,35 @@ describe('canonical learning activity API', () => {
       contentDigest: 'a'.repeat(64),
       reused: true,
     });
+    expect(api.query).toHaveBeenCalledWith(expect.stringContaining('$1,$2,$3,$4,$5'), [
+      PRINCIPAL_ID,
+      TENANT_ID,
+      ACTIVITY_ID,
+      2,
+      'publish:test:0001',
+    ]);
+  });
+
+  it('rejects policy values and properties outside the OpenAPI shape', async () => {
+    const api = target();
+    await expect(
+      api.value.create(request(), {
+        kind: 'manual',
+        requestId: 'create:policy:0001',
+        title: 'Invalid policy',
+        resultMode: 'completion',
+        policies: { ...policies, attemptPolicy: 7 },
+      }),
+    ).rejects.toMatchObject({ status: 400 });
+    await expect(
+      api.value.create(request(), {
+        kind: 'manual',
+        requestId: 'create:policy:0002',
+        title: 'Invalid policy',
+        resultMode: 'completion',
+        policies: { ...policies, unknownPolicy: null },
+      }),
+    ).rejects.toMatchObject({ status: 400 });
+    expect(api.query).not.toHaveBeenCalled();
   });
 });
