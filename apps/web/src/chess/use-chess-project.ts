@@ -168,15 +168,19 @@ export function useChessProject(projectId: string) {
       const generation = saveGenerationRef.current + 1;
       saveGenerationRef.current = generation;
       setSaveStatus('saving');
-      const baseRevision = serverRevisionRef.current;
-      if (baseRevision === null) {
+      // Read the revision when this operation reaches the head of the queue,
+      // not when it is enqueued. The preceding save may advance it meanwhile.
+      const response = await saveQueueRef.current!.run(() => {
+        const baseRevision = serverRevisionRef.current;
+        return baseRevision === null
+          ? Promise.resolve(null)
+          : api.saveDraft<ChessDocument, ChessAnalysisSummary>(projectId, next, baseRevision);
+      });
+      if (response === null) {
         setSaveStatus('error');
         if (!quiet) setNotice('Не удалось определить сохранённую версию проекта.');
         return false;
       }
-      const response = await saveQueueRef.current!.run(() =>
-        api.saveDraft<ChessDocument, ChessAnalysisSummary>(projectId, next, baseRevision),
-      );
       if (!response.ok) {
         if (generation === saveGenerationRef.current) {
           setSaveStatus('error');

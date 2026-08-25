@@ -130,16 +130,18 @@ export async function sendProjectSnapshot(
   const captured = await captureProjectSnapshot(projectId);
   if (!captured || lastSent.get(projectId) === captured.image) return false;
   if (options.unloading === true && captured.image.length > KEEPALIVE_LIMIT_BYTES) return false;
-  // Recorded before the request completes: a failure is not worth retrying on
-  // the next tick with the same bytes, and the next real change will differ.
-  lastSent.set(projectId, captured.image);
   const result = await api.saveProjectSnapshot(
     projectId,
     captured.image,
     captured.sourceRevision,
     options,
   );
-  return result.ok;
+  // Only a server-confirmed image is deduplicated. A timeout, an offline
+  // browser or a revision conflict must leave the same bytes eligible for the
+  // next scheduled attempt.
+  if (!result.ok) return false;
+  lastSent.set(projectId, captured.image);
+  return true;
 }
 
 /**

@@ -294,19 +294,23 @@ export function useCheckersProject(projectId: string, user: PublicUser) {
         }
         savedDocument = response.data.document;
       } else {
-        const baseRevision = serverRevision.current;
-        if (baseRevision === null) {
+        const response = await saveQueue.current!.run(() => {
+          // A save ahead of this one may have advanced the revision while this
+          // operation waited. Resolve the base only when the request can run.
+          const baseRevision = serverRevision.current;
+          return baseRevision === null
+            ? Promise.resolve(null)
+            : api.saveDraft<CheckersProjectDocument, CheckersAnalysisSummary>(
+                projectId,
+                next,
+                baseRevision,
+              );
+        });
+        if (response === null) {
           setSaveStatus('error');
           if (!quiet) setNotice('Не удалось определить сохранённую версию проекта.');
           return false;
         }
-        const response = await saveQueue.current!.run(() =>
-          api.saveDraft<CheckersProjectDocument, CheckersAnalysisSummary>(
-            projectId,
-            next,
-            baseRevision,
-          ),
-        );
         if (!response.ok) {
           setSaveStatus('error');
           if (!quiet) setNotice(`Не удалось сохранить: ${response.error.message}`);

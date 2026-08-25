@@ -70,14 +70,16 @@ export function ThreeDEditor({ projectId, onBack, user }: ThreeDEditorProps): JS
     const release = registerProjectSnapshotSource(
       projectId,
       () => viewportRef.current?.captureFrame() ?? null,
-      () => controller.serverRevision,
+      // Never label a canvas containing unsaved edits with the previous
+      // server revision. The snapshot becomes eligible after its draft save.
+      () => (controller.saveState === 'saved' ? controller.serverRevision : null),
     );
     const stop = startProjectSnapshots(projectId);
     return () => {
       stop();
       release();
     };
-  }, [controller.serverRevision, projectId]);
+  }, [controller.saveState, controller.serverRevision, projectId]);
 
   const ungroupCurrentSelection = useCallback((): void => {
     if (controller.selectedGroupId) controller.ungroupSelected();

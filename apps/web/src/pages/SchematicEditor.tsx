@@ -447,14 +447,16 @@ export function SchematicEditor({
           contentSelector: '[data-testid="schematic-component"],[data-testid="wire-segment"]',
         });
       },
-      () => controller.serverRevision,
+      // A dirty SVG is newer than serverRevision, so wait until that document
+      // has been confirmed before publishing its card image.
+      () => (controller.saveStatus === 'saved' ? controller.serverRevision : null),
     );
     const stop = startProjectSnapshots(projectId);
     return () => {
       stop();
       release();
     };
-  }, [controller.serverRevision, controller.stageRef, projectId]);
+  }, [controller.saveStatus, controller.serverRevision, controller.stageRef, projectId]);
   function updateNotes(value: string): void {
     setNotes(value);
     localStorage.setItem(notesStorageKey, value);

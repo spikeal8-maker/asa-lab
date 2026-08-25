@@ -2,7 +2,7 @@
  * client never sends or stores tenant identifiers. */
 
 import type { ModulePreviewDescriptor } from '@asa-lab/module-sdk';
-import { newClientId } from './client-id';
+import { projectDraftMutationId } from './modules/project-draft-mutation';
 import { fetchWithSessionRefresh, notifySessionLoggedOut } from './session-fetch';
 
 export interface PublicUser {
@@ -1903,18 +1903,20 @@ export const api = {
       versions: ProjectVersion[];
       result: TResult | null;
     }>(`/api/projects/${encodeURIComponent(projectId)}`),
-  saveDraft: <TDocument = unknown, TResult = unknown>(
+  saveDraft: async <TDocument = unknown, TResult = unknown>(
     projectId: string,
     document: TDocument,
     baseRevision: number,
-  ) =>
-    call<{ draft: ProjectDraft<TDocument>; result: TResult | null }>(
+  ) => {
+    const mutationId = await projectDraftMutationId(projectId, baseRevision, document);
+    return call<{ draft: ProjectDraft<TDocument>; result: TResult | null }>(
       `/api/projects/${encodeURIComponent(projectId)}/draft`,
       {
         method: 'PUT',
-        body: JSON.stringify({ document, baseRevision, mutationId: newClientId() }),
+        body: JSON.stringify({ document, baseRevision, mutationId }),
       },
-    ),
+    );
+  },
   /**
    * Uploads the editor's picture of the project. `keepalive` lets a capture
    * taken while the page is closing still leave the browser; it caps the body

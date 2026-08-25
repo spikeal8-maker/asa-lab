@@ -205,15 +205,17 @@ export function ChessPuzzleTrainer({
   async function persist(next: ChessDocument): Promise<void> {
     setDocument(next);
     setSaveState('saving');
-    const baseRevision = serverRevision.current;
-    if (baseRevision === null) {
+    const response = await saveQueue.current.run(() => {
+      const baseRevision = serverRevision.current;
+      return baseRevision === null
+        ? Promise.resolve(null)
+        : api.saveDraft<ChessDocument>(projectId, next, baseRevision);
+    });
+    if (response === null) {
       setSaveState('error');
       setNotice('Не удалось определить сохранённую версию проекта.');
       return;
     }
-    const response = await saveQueue.current.run(() =>
-      api.saveDraft<ChessDocument>(projectId, next, baseRevision),
-    );
     if (!response.ok) {
       setSaveState('error');
       setNotice(`Прогресс не сохранён: ${response.error.message}`);
