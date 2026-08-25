@@ -46,7 +46,10 @@ export function addCadSceneLights(scene: THREE.Scene): void {
   overhead.position.set(0, 260, 0);
   scene.add(overhead);
 
-  const fill = new THREE.DirectionalLight('#ffffff', 0.08);
-  fill.position.set(-100, 80, 160);
+  // A camera-side fill separates vertical and concave faces without washing
+  // out the already-correct bright top faces. The previous 0.08 fill left the
+  // dominant front red near #8a1119; the reference is around #b51723.
+  const fill = new THREE.DirectionalLight('#ffffff', 0.46);
+  fill.position.set(-70, 70, 190);
   scene.add(fill);
 }

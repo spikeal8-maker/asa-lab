@@ -98,6 +98,12 @@ describe('ASA 3D primitive geometry', () => {
       const channels = light.color.toArray();
       expect(Math.max(...channels) - Math.min(...channels), light.type).toBeLessThan(0.08);
     }
+
+    const cameraFill = lights.find(
+      (light): light is THREE.DirectionalLight =>
+        light instanceof THREE.DirectionalLight && light.intensity === 0.46,
+    );
+    expect(cameraFill?.position.toArray()).toEqual([-70, 70, 190]);
   });
 
   it('uses the same calibrated material for boolean results', () => {
@@ -113,6 +119,23 @@ describe('ASA 3D primitive geometry', () => {
     expect(mesh?.receiveShadow).toBe(false);
     mesh?.geometry.dispose();
     material.dispose();
+  });
+
+  it('keeps hard-edge lines visible at surface junctions without revealing hidden edges', () => {
+    const box = createThreeDNode('box', 'biased-outline-box');
+    const mesh = createBooleanMesh([box], 'union');
+    const outline = mesh?.getObjectByName(MODEL_EDGE_NAME) as THREE.LineSegments | undefined;
+    const material = outline?.material as THREE.LineBasicMaterial | undefined;
+
+    expect(material?.depthTest).toBe(true);
+    expect(material?.depthWrite).toBe(false);
+    expect(material?.opacity).toBeGreaterThanOrEqual(0.8);
+    expect(material?.customProgramCacheKey()).toBe('asa-model-outline-depth-bias-v1');
+
+    const shader = { vertexShader: '#include <project_vertex>' };
+    material?.onBeforeCompile(shader as THREE.WebGLProgramParametersWithUniforms, {} as never);
+    expect(shader.vertexShader).toContain('gl_Position.z -= 0.00035 * gl_Position.w');
+    if (mesh) disposeObject(mesh);
   });
 
   it('outlines only the hard boundary of a coplanar box union', () => {
