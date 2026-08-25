@@ -434,10 +434,7 @@ function createFeatureEdgePositions(polygons: readonly Polygon[]): number[] {
         covering.some((record, recordIndex) =>
           covering
             .slice(recordIndex + 1)
-            .some(
-              (other) =>
-                Math.abs(record.normal.dot(other.normal)) < FEATURE_EDGE_COSINE,
-            ),
+            .some((other) => Math.abs(record.normal.dot(other.normal)) < FEATURE_EDGE_COSINE),
         );
       if (!isFeature) continue;
       const previous = featureIntervals.at(-1);
