@@ -601,7 +601,7 @@ docs/review/learning/M0_ACCEPTANCE_REPORT.md
 
 ## TASK LRN-M1-001 — LearningActivityVersion Convergence
 
-**status:** IN_PROGRESS
+**status:** DONE — evidence complete; owner acceptance pending
 **depends_on:** M0 accepted  
 **requirements:** ARCH-001, ARCH-006, VER-001, VER-002
 
@@ -635,6 +635,8 @@ graded
 ### Acceptance
 
 Опубликованная activity immutable; старые runtime references не меняются.
+
+**Evidence:** `docs/product/learning/current/LRN_M1_ACTIVITY_VERSION_CONVERGENCE_REPORT.md`
 
 ---
 

@@ -2,7 +2,7 @@
 
 **Task:** `LRN-M1-001`  
 **Milestone:** `M1 — Universal Delivery`  
-**Status:** IN_PROGRESS  
+**Status:** DONE — evidence complete; owner review pending
 **Baseline SHA:** `24ff391386d3ea6acb99bcbb73a0542802a1f785`  
 **Issue:** `#154`  
 **Master Spec:** `docs/product/ASA_LEARNING_TECHNICAL_SPEC.md`  
@@ -155,7 +155,9 @@ The existing immutable UPDATE/DELETE trigger remains the enforcement boundary.
 - create/replace draft function, owner + tenant checked;
 - publish function with activity-scoped transaction advisory lock;
 - list/detail/version read functions restricted to author-owned reusable roots;
-- no compatibility row can enter reusable results;
+- no compatibility LAV/root can enter reusable results; an independently
+  provenanced exact teacher-owned QuizVersion may be wrapped without reusing
+  the compatibility LAV;
 - non-null starter ProjectVersion fails closed until authoring/reference provenance can be proven.
 
 ### 8.4 Backfill and rollback
@@ -265,24 +267,26 @@ List queries use owner/reusable/archive index. Publication is one root-scoped lo
 
 ## 21. Acceptance checklist
 
-- [ ] M0 owner acceptance and only M1-001 activation recorded
-- [ ] normative root/version responsibility corrected
-- [ ] CURRENT definition and kind map proven
-- [ ] additive migration 0090
-- [ ] five canonical kinds represented
-- [ ] three result modes enforced without fabricated scale
-- [ ] immutable policy snapshot
-- [ ] quiz/project exact-reference rules
-- [ ] M0 compatibility isolation
-- [ ] old runtime references unchanged
-- [ ] publish idempotency and concurrency
-- [ ] RLS/security negative matrix
-- [ ] OpenAPI exact
-- [ ] unit/integration tests
-- [ ] migration repeatability
-- [ ] repository gates with cache disabled
-- [ ] ledger and final report updated
+- [x] M0 owner acceptance and only M1-001 activation recorded
+- [x] normative root/version responsibility corrected
+- [x] CURRENT definition and kind map proven
+- [x] additive migration 0090
+- [x] five canonical kinds represented
+- [x] three result modes enforced without fabricated scale
+- [x] immutable policy snapshot
+- [x] quiz/project exact-reference rules
+- [x] M0 compatibility isolation
+- [x] old runtime references unchanged
+- [x] publish idempotency and concurrency
+- [x] RLS/security negative matrix
+- [x] OpenAPI exact
+- [x] unit/integration tests
+- [x] migration repeatability
+- [x] repository gates with cache disabled
+- [x] ledger and final report updated
 
 ## 22. Evidence
 
-Pending implementation. No production action is permitted or planned.
+Evidence is consolidated in
+`docs/product/learning/current/LRN_M1_ACTIVITY_VERSION_CONVERGENCE_REPORT.md`.
+No production action was performed.
