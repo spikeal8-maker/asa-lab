@@ -79,11 +79,15 @@ async function createProject(
 
 function seriesDocument() {
   return {
-    schemaVersion: 3,
+    schemaVersion: 4,
     components: [
       {
         id: 'src',
         kind: 'source',
+        electricalModelId: 'ideal-dc-source',
+        electricalModelVersion: 1,
+        modelProfileId: 'legacy-source',
+        modelProfileVersion: 1,
         name: 'V1',
         position: { x: 120, y: 160 },
         value: 5,
@@ -92,6 +96,10 @@ function seriesDocument() {
       {
         id: 'sw1',
         kind: 'switch',
+        electricalModelId: 'spdt-switch',
+        electricalModelVersion: 1,
+        modelProfileId: 'legacy-switch',
+        modelProfileVersion: 1,
         name: 'SW1',
         position: { x: 280, y: 170 },
         value: 0,
@@ -101,6 +109,10 @@ function seriesDocument() {
       {
         id: 'r1',
         kind: 'resistor',
+        electricalModelId: 'resistor',
+        electricalModelVersion: 1,
+        modelProfileId: 'legacy-resistor',
+        modelProfileVersion: 1,
         name: 'R1',
         position: { x: 440, y: 180 },
         value: 300,
@@ -109,6 +121,10 @@ function seriesDocument() {
       {
         id: 'led1',
         kind: 'led',
+        electricalModelId: 'ordinary-led',
+        electricalModelVersion: 1,
+        modelProfileId: 'legacy-led',
+        modelProfileVersion: 1,
         name: 'LED1',
         position: { x: 680, y: 160 },
         value: 2,
@@ -117,6 +133,10 @@ function seriesDocument() {
       {
         id: 'pot1',
         kind: 'potentiometer',
+        electricalModelId: 'potentiometer',
+        electricalModelVersion: 1,
+        modelProfileId: 'legacy-potentiometer',
+        modelProfileVersion: 1,
         name: 'RV1',
         position: { x: 840, y: 180 },
         value: 1000,
@@ -457,7 +477,7 @@ describe('workbench draft and immutable versions', () => {
     // voltage, current and component state has to survive the round trip exactly.
     expect(reloaded.json().result).toEqual(saved.json().result);
     expect(reloaded.json().draft.document).toMatchObject({
-      schemaVersion: 3,
+      schemaVersion: 4,
       viewport: { x: 42, y: -18, zoom: 1.25 },
       simulation: { running: true, maxIterations: 24 },
       components: expect.arrayContaining([
@@ -553,8 +573,16 @@ describe('workbench draft and immutable versions', () => {
     });
     expect(saved.statusCode).toBe(200);
     expect(saved.json().draft.document).toMatchObject({
-      schemaVersion: 3,
-      components: legacy.components,
+      schemaVersion: 4,
+      components: [
+        expect.objectContaining({
+          ...legacy.components[0],
+          electricalModelId: 'resistor',
+          electricalModelVersion: 1,
+          modelProfileId: 'legacy-resistor',
+          modelProfileVersion: 1,
+        }),
+      ],
       viewport: { x: 0, y: 0, zoom: 1 },
       simulation: { running: false, maxIterations: 24 },
     });
