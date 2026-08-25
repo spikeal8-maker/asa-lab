@@ -6,10 +6,15 @@
 
 Baseline: `b8f21534ff48f4ec532df3866c4677e1b2d2a63d`.
 
+Final PR revision: `39fa8b922d8eeb0af06a87682b3cfe4fbd7571e3`.
+
+Main merge: `feda7bf4f3aabc86e2caac89a6f7cef4df807e5c`.
+
 ## STATUS
 
-Acceptance evidence is complete for the isolated CourseEnrollment primitive.
-Owner acceptance remains pending. No production action is included or claimed.
+`DONE` — acceptance evidence is complete and PR `#157` is merged to `main`.
+Owner acceptance of the completed result remains pending. No production action
+is included or claimed.
 
 ## COURSEENROLLMENT MODEL
 
@@ -196,7 +201,7 @@ pnpm test:learning-m1-002
 → 1 file, 15 tests passed
 ```
 
-Those tests prove at least the following 24 required scenarios:
+Those tests prove the following 26 required scenarios:
 
 1. create assigned enrollment;
 2. retry returns the same enrollment;
@@ -223,7 +228,8 @@ Those tests prove at least the following 24 required scenarios:
 23. runtime direct UUID read/mutation denied;
 24. no ActivityRun/ActivityParticipation runtime created;
 25. current CourseRun reader projection unchanged;
-26. audit events append once per real transition.
+26. audit events append once per real transition and teacher attribution remains
+    exact when one account/principal has multiple active legacy links.
 
 Regression command:
 
@@ -254,6 +260,14 @@ and build, so those tasks executed anew. `compose:check` performed static checks
 but reported `SKIPPED` for rendered Docker validation because Docker CLI is not
 installed on this host; the repository gate treats that condition as a truthful
 skip, not a Docker PASS.
+
+GitHub's `ASA Lab Governance and Code Gates` workflow also passed Governance,
+Format/lint/types/contracts/build and PostgreSQL tests/RLS for final PR revision
+`39fa8b922d8eeb0af06a87682b3cfe4fbd7571e3`. The unrelated Checkers browser
+workflow remained red on pre-existing assertions (`?module=checkers` in the
+actual URL and HTTP `409` where its test expects `404`); M1-002 changes no
+Checkers, web or E2E file. The owner-authorized merge therefore used the admin
+override only for that unrelated focused workflow.
 
 ## BROWSER EVIDENCE
 
