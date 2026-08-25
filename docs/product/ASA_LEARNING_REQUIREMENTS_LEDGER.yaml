@@ -149,6 +149,47 @@ requirements:
   - docs/product/learning/current/LRN_M0_ADDITIVE_BACKFILL_REPORT.md
   tests:
   - tests/courses/learning-additive-backfill.pg.spec.ts
+- id: ARCH-001
+  milestone: M1
+  status: in_progress
+  summary: Direct and course quiz/project definitions converge on one canonical activity version contract; persistent shared runtime remains later M1 scope
+  evidence:
+  - docs/product/learning/execution/LRN-M1-001_EXECUTION_SPEC.md
+  - docs/product/learning/current/LRN_M1_ACTIVITY_VERSION_CONVERGENCE_REPORT.md
+  - migrations/0091_learning_activity_version_convergence.sql
+  tests:
+  - tests/courses/learning-activity-version-convergence.pg.spec.ts
+- id: ARCH-006
+  milestone: M1
+  status: proven
+  summary: Published canonical LearningActivityVersion content and policy snapshots are immutable at the database boundary
+  evidence:
+  - migrations/0077_learning_assessment_foundation.sql
+  - migrations/0091_learning_activity_version_convergence.sql
+  - docs/product/learning/execution/LRN-M1-001_EXECUTION_SPEC.md
+  - docs/product/learning/current/LRN_M1_ACTIVITY_VERSION_CONVERGENCE_REPORT.md
+  tests:
+  - tests/courses/learning-activity-version-convergence.pg.spec.ts
+- id: VER-001
+  milestone: M1
+  status: in_progress
+  summary: Reusable versioned entities include canonical LearningActivityVersion; other listed entity families retain their own milestone status
+  evidence:
+  - docs/product/learning/execution/LRN-M1-001_EXECUTION_SPEC.md
+  - docs/product/learning/current/LRN_M1_ACTIVITY_VERSION_CONVERGENCE_REPORT.md
+  - migrations/0091_learning_activity_version_convergence.sql
+  tests:
+  - tests/courses/learning-activity-version-convergence.pg.spec.ts
+- id: VER-002
+  milestone: M1
+  status: in_progress
+  summary: LearningActivityVersion policy snapshot is immutable; unlock and future run-level policy portions remain later M1 scope
+  evidence:
+  - docs/product/learning/execution/LRN-M1-001_EXECUTION_SPEC.md
+  - docs/product/learning/current/LRN_M1_ACTIVITY_VERSION_CONVERGENCE_REPORT.md
+  - migrations/0091_learning_activity_version_convergence.sql
+  tests:
+  - tests/courses/learning-activity-version-convergence.pg.spec.ts
 - id: ARCH-002
   milestone: M1
   status: target

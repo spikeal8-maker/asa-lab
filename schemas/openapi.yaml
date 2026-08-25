@@ -727,6 +727,121 @@ paths:
         '200': { description: Co-teacher membership created }
         '403': { description: The signed-in account is not an educator }
         '410': { description: Invitation expired, was revoked or was already used }
+  /api/learning/activities:
+    get:
+      operationId: listLearningActivities
+      summary: List reusable canonical activities owned by the signed-in educator
+      responses:
+        '200':
+          description: Author-owned canonical activity roots
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LearningActivityCollection' }
+        '401': { description: No active account session }
+        '403': { description: Educator capability required }
+    post:
+      operationId: createLearningActivity
+      summary: Create one canonical activity root and revisioned draft
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LearningActivityCreateRequest' }
+      responses:
+        '201':
+          description: Canonical activity draft created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LearningActivityDraftReceipt' }
+        '400': { description: Invalid kind, result mode, scale, policy or reference }
+        '401': { description: No active account session }
+        '403': { description: Educator, owner or tenant authorization failed }
+        '409': { description: Definition conflict or unprovenanced source }
+  /api/learning/activities/{activityId}:
+    parameters:
+      - name: activityId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      operationId: getLearningActivity
+      summary: Read one author-owned canonical activity root and current draft
+      responses:
+        '200':
+          description: Canonical root and mutable draft
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LearningActivityDetail' }
+        '401': { description: No active account session }
+        '403': { description: Educator capability required }
+        '404': { description: Activity is absent or not owned by the educator }
+  /api/learning/activities/{activityId}/draft:
+    parameters:
+      - name: activityId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    put:
+      operationId: replaceLearningActivityDraft
+      summary: Replace the mutable draft using optimistic revision control
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LearningActivityDraftUpdateRequest' }
+      responses:
+        '200':
+          description: Draft revision advanced
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LearningActivityDraftReceipt' }
+        '400': { description: Invalid draft }
+        '401': { description: No active account session }
+        '403': { description: Educator, owner or tenant authorization failed }
+        '404': { description: Activity is absent or not owned by the educator }
+        '409': { description: Draft revision conflict }
+  /api/learning/activities/{activityId}/publish:
+    parameters:
+      - name: activityId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      operationId: publishLearningActivityVersion
+      summary: Publish one immutable version from an exact draft revision
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LearningActivityPublishRequest' }
+      responses:
+        '201':
+          description: Immutable version created or idempotently reused
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LearningActivityPublishReceipt' }
+        '400': { description: Invalid publication request }
+        '401': { description: No active account session }
+        '403': { description: Educator, owner or tenant authorization failed }
+        '404': { description: Activity is absent or not owned by the educator }
+        '409': { description: Revision or source compatibility conflict }
+  /api/learning/activities/{activityId}/versions:
+    parameters:
+      - name: activityId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      operationId: listLearningActivityVersions
+      summary: List immutable canonical versions for one author-owned activity
+      responses:
+        '200':
+          description: Canonical immutable version history
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LearningActivityVersionCollection' }
+        '401': { description: No active account session }
+        '403': { description: Educator capability required }
   /api/class-join/resolve:
     post:
       operationId: resolveClassroomJoinCode
@@ -1308,6 +1423,188 @@ components:
         maxLength: 128
         pattern: '^[A-Za-z0-9._:-]+$'
   schemas:
+    LearningActivityKind:
+      type: string
+      enum: [quiz, project, essay, file, manual]
+    LearningActivityResultMode:
+      type: string
+      enum: [ungraded, completion, graded]
+    LearningActivityPolicySnapshot:
+      type: object
+      additionalProperties: false
+      required:
+        - attemptPolicy
+        - resultSelectionPolicy
+        - completionPolicy
+        - latePolicy
+        - assessmentPolicy
+        - feedbackReleasePolicy
+      properties:
+        attemptPolicy: { type: [object, 'null'] }
+        resultSelectionPolicy: { type: [object, 'null'] }
+        completionPolicy: { type: [object, 'null'] }
+        latePolicy: { type: [object, 'null'] }
+        assessmentPolicy: { type: [object, 'null'] }
+        feedbackReleasePolicy: { type: [object, 'null'] }
+    LearningActivityCreateRequest:
+      type: object
+      additionalProperties: false
+      required: [requestId, kind, title, resultMode, policies]
+      properties:
+        requestId:
+          type: string
+          minLength: 8
+          maxLength: 128
+          pattern: '^[A-Za-z0-9._:-]+$'
+        kind: { $ref: '#/components/schemas/LearningActivityKind' }
+        title: { type: string, minLength: 1, maxLength: 255 }
+        instructions: { type: [string, 'null'], maxLength: 12000 }
+        resultMode: { $ref: '#/components/schemas/LearningActivityResultMode' }
+        maxPoints: { type: [integer, 'null'], minimum: 1 }
+        policies: { $ref: '#/components/schemas/LearningActivityPolicySnapshot' }
+        moduleKey: { type: [string, 'null'], pattern: '^[a-z0-9-]{1,64}$' }
+        quizVersionId: { type: [string, 'null'], format: uuid }
+        starterProjectVersionId: { type: [string, 'null'], format: uuid }
+        sourceTeacherAssignmentId: { type: [string, 'null'], format: uuid }
+        scope: { type: string, enum: [personal, school], default: personal }
+        visibility: { type: string, enum: [private, school], default: private }
+    LearningActivityDraftUpdateRequest:
+      type: object
+      additionalProperties: false
+      required: [expectedRevision, title, resultMode, policies]
+      properties:
+        expectedRevision: { type: integer, minimum: 1 }
+        title: { type: string, minLength: 1, maxLength: 255 }
+        instructions: { type: [string, 'null'], maxLength: 12000 }
+        resultMode: { $ref: '#/components/schemas/LearningActivityResultMode' }
+        maxPoints: { type: [integer, 'null'], minimum: 1 }
+        policies: { $ref: '#/components/schemas/LearningActivityPolicySnapshot' }
+        moduleKey: { type: [string, 'null'], pattern: '^[a-z0-9-]{1,64}$' }
+        quizVersionId: { type: [string, 'null'], format: uuid }
+        starterProjectVersionId: { type: [string, 'null'], format: uuid }
+    LearningActivityPublishRequest:
+      type: object
+      additionalProperties: false
+      required: [expectedRevision, requestId]
+      properties:
+        expectedRevision: { type: integer, minimum: 1 }
+        requestId:
+          type: string
+          minLength: 8
+          maxLength: 128
+          pattern: '^[A-Za-z0-9._:-]+$'
+    LearningActivityDraftReceipt:
+      type: object
+      additionalProperties: false
+      required: [id, draftRevision]
+      properties:
+        id: { type: string, format: uuid }
+        draftRevision: { type: integer, minimum: 1 }
+    LearningActivityPublishReceipt:
+      type: object
+      additionalProperties: false
+      required: [id, activityId, versionNumber, contentDigest, reused]
+      properties:
+        id: { type: string, format: uuid }
+        activityId: { type: string, format: uuid }
+        versionNumber: { type: integer, minimum: 1 }
+        contentDigest: { type: string, pattern: '^[0-9a-f]{64}$' }
+        reused: { type: boolean }
+    LearningActivitySummary:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          title,
+          kind,
+          resultMode,
+          visibility,
+          draftRevision,
+          currentPublishedVersionId,
+          archivedAt,
+        ]
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string }
+        kind: { $ref: '#/components/schemas/LearningActivityKind' }
+        resultMode: { $ref: '#/components/schemas/LearningActivityResultMode' }
+        visibility: { type: string, enum: [private, school] }
+        draftRevision: { type: integer, minimum: 1 }
+        currentPublishedVersionId: { type: [string, 'null'], format: uuid }
+        archivedAt: { type: [string, 'null'], format: date-time }
+    LearningActivityDetail:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          tenantId,
+          title,
+          kind,
+          ownerScope,
+          visibility,
+          draftRevision,
+          draft,
+          currentPublishedVersionId,
+          archivedAt,
+        ]
+      properties:
+        id: { type: string, format: uuid }
+        tenantId: { type: string, format: uuid }
+        title: { type: string }
+        kind: { $ref: '#/components/schemas/LearningActivityKind' }
+        ownerScope: { type: string, enum: [personal, school] }
+        visibility: { type: string, enum: [private, school] }
+        draftRevision: { type: integer, minimum: 1 }
+        draft: { type: object }
+        currentPublishedVersionId: { type: [string, 'null'], format: uuid }
+        archivedAt: { type: [string, 'null'], format: date-time }
+    LearningActivityVersion:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          versionNumber,
+          kind,
+          resultMode,
+          maxPoints,
+          policies,
+          quizVersionId,
+          starterProjectVersionId,
+          provenance,
+          contentDigest,
+          publishedAt,
+        ]
+      properties:
+        id: { type: string, format: uuid }
+        versionNumber: { type: integer, minimum: 1 }
+        kind: { $ref: '#/components/schemas/LearningActivityKind' }
+        resultMode: { $ref: '#/components/schemas/LearningActivityResultMode' }
+        maxPoints: { type: [integer, 'null'], minimum: 1 }
+        policies: { $ref: '#/components/schemas/LearningActivityPolicySnapshot' }
+        quizVersionId: { type: [string, 'null'], format: uuid }
+        starterProjectVersionId: { type: [string, 'null'], format: uuid }
+        provenance: { type: object }
+        contentDigest: { type: string, pattern: '^[0-9a-f]{64}$' }
+        publishedAt: { type: string, format: date-time }
+    LearningActivityCollection:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/LearningActivitySummary' }
+    LearningActivityVersionCollection:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/LearningActivityVersion' }
     CanonicalLearningWorkflowState:
       type: string
       enum:

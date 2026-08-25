@@ -30,6 +30,7 @@
     "db:migrate:check": "node tools/migrate.mjs --check",
     "db:migrate:test": "node tools/migrate.mjs --smoke",
     "learning:migration:dry-run": "node tools/learning-migration-dry-run.mjs",
+    "test:learning-m1-001": "vitest run apps/api/src/learning-activities.controller.spec.ts tests/courses/learning-activity-version-convergence.pg.spec.ts",
     "admin:verify-owner": "node tools/platform-admin.mjs",
     "admin:grant-owner": "node tools/platform-admin.mjs --grant",
     "test:migration:embedded": "vitest run tests/migration/migrate.integration.spec.ts",
