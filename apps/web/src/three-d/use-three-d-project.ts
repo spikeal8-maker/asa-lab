@@ -41,6 +41,7 @@ export interface ThreeDProjectController {
   readonly title: string;
   readonly history: HistoryState | null;
   readonly document: ThreeDDocument | null;
+  readonly serverRevision: number | null;
   readonly selectedId: string | null;
   readonly selectedIds: readonly string[];
   readonly selectedNode: ThreeDNode | null;
@@ -164,6 +165,8 @@ export function useThreeDProject(projectId: string): ThreeDProjectController {
   const [error, setError] = useState<string | null>(null);
   const [title, setTitle] = useState('Новый 3D-проект');
   const [saveState, setSaveState] = useState<SaveState>('saved');
+  const saveStateRef = useRef<SaveState>('saved');
+  saveStateRef.current = saveState;
   const [saveError, setSaveError] = useState<string | null>(null);
   const [requiresSignIn, setRequiresSignIn] = useState(false);
   const [saveRetry, setSaveRetry] = useState(0);
@@ -171,6 +174,7 @@ export function useThreeDProject(projectId: string): ThreeDProjectController {
   const [versions, setVersions] = useState<readonly ProjectVersion[]>([]);
   const [clipboard, setClipboard] = useState<readonly ThreeDNode[]>([]);
   const lastSavedRef = useRef('');
+  const serverRevisionRef = useRef<number | null>(null);
   const savedTitleRef = useRef('Новый 3D-проект');
   const autosaveQueueRef = useRef<Promise<void>>(Promise.resolve());
 
@@ -201,6 +205,7 @@ export function useThreeDProject(projectId: string): ThreeDProjectController {
         return;
       }
       const serverSignature = JSON.stringify(parsed.value);
+      serverRevisionRef.current = response.data.draft.revision;
       const localDraft = readLocalThreeDDraft(window.localStorage, projectId);
       const localParsed =
         localDraft?.serverSignature === serverSignature
@@ -244,7 +249,13 @@ export function useThreeDProject(projectId: string): ThreeDProjectController {
         const current = historyRef.current?.present;
         if (!current || JSON.stringify(current) !== signature) return;
         setSaveState('saving');
-        const response = await api.saveDraft<ThreeDDocument>(projectId, document);
+        const baseRevision = serverRevisionRef.current;
+        if (baseRevision === null) {
+          setSaveState('error');
+          setSaveError('Не удалось определить сохранённую версию проекта.');
+          return;
+        }
+        const response = await api.saveDraft<ThreeDDocument>(projectId, document, baseRevision);
         if (!response.ok) {
           const failure = friendlySaveFailure(response.status);
           setSaveState('error');
@@ -254,6 +265,7 @@ export function useThreeDProject(projectId: string): ThreeDProjectController {
           return;
         }
         lastSavedRef.current = signature;
+        serverRevisionRef.current = response.data.draft.revision;
         setSaveError(null);
         setRequiresSignIn(false);
         const currentDocument = historyRef.current?.present;
@@ -293,6 +305,24 @@ export function useThreeDProject(projectId: string): ThreeDProjectController {
     }, 650);
     return () => window.clearTimeout(timer);
   }, [enqueueAutosave, history?.present, loading, projectId, saveRetry]);
+
+  useEffect(() => {
+    const flush = (): void => {
+      const current = historyRef.current?.present;
+      if (current && saveStateRef.current === 'dirty') {
+        enqueueAutosave(current, JSON.stringify(current));
+      }
+    };
+    const onVisibility = (): void => {
+      if (document.visibilityState === 'hidden') flush();
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('pagehide', flush);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('pagehide', flush);
+    };
+  }, [enqueueAutosave]);
 
   const execute = useCallback(
     (command: ThreeDCommand): void => {
@@ -824,7 +854,13 @@ export function useThreeDProject(projectId: string): ThreeDProjectController {
     const document = historyRef.current?.present;
     if (!document) return;
     setSaveState('saving');
-    const save = await api.saveDraft<ThreeDDocument>(projectId, document);
+    const baseRevision = serverRevisionRef.current;
+    if (baseRevision === null) {
+      setSaveState('error');
+      setSaveError('Не удалось определить сохранённую версию проекта.');
+      return;
+    }
+    const save = await api.saveDraft<ThreeDDocument>(projectId, document, baseRevision);
     if (!save.ok) {
       const failure = friendlySaveFailure(save.status);
       setSaveState('error');
@@ -834,6 +870,7 @@ export function useThreeDProject(projectId: string): ThreeDProjectController {
       return;
     }
     lastSavedRef.current = JSON.stringify(document);
+    serverRevisionRef.current = save.data.draft.revision;
     clearLocalThreeDDraft(window.localStorage, projectId);
     setSaveError(null);
     setRequiresSignIn(false);
@@ -922,6 +959,7 @@ export function useThreeDProject(projectId: string): ThreeDProjectController {
     title,
     history,
     document: history?.present ?? null,
+    serverRevision: serverRevisionRef.current,
     selectedId,
     selectedIds,
     selectedNode,

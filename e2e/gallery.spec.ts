@@ -75,7 +75,7 @@ test('work is shared to the gallery, seen by another account and reacted to', as
         method: 'PUT',
         credentials: 'same-origin',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ imageDataUrl: image }),
+        body: JSON.stringify({ imageDataUrl: image, sourceRevision: 1 }),
       });
       return id;
     },

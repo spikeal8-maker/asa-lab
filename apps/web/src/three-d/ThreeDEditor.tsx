@@ -70,13 +70,14 @@ export function ThreeDEditor({ projectId, onBack, user }: ThreeDEditorProps): JS
     const release = registerProjectSnapshotSource(
       projectId,
       () => viewportRef.current?.captureFrame() ?? null,
+      () => controller.serverRevision,
     );
     const stop = startProjectSnapshots(projectId);
     return () => {
       stop();
       release();
     };
-  }, [projectId]);
+  }, [controller.serverRevision, projectId]);
 
   const ungroupCurrentSelection = useCallback((): void => {
     if (controller.selectedGroupId) controller.ungroupSelected();

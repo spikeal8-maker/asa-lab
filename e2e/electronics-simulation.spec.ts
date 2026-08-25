@@ -593,7 +593,7 @@ async function saveDocument(
 ): Promise<void> {
   const response = await page.context().request.put(`/api/projects/${projectId}/draft`, {
     headers: { origin: new URL(page.url()).origin },
-    data: { document },
+    data: { document, baseRevision: 1, mutationId: crypto.randomUUID() },
   });
   expect(response.status()).toBe(200);
 }

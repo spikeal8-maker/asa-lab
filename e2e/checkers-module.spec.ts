@@ -315,10 +315,19 @@ test('teacher assigns real class work and sees the learner evidence after comple
   expect(switched.status()).toBe(201);
   const sharedProject = await studentContext.request.get(`/api/projects/${projectId}`);
   expect(sharedProject.status()).toBe(200);
-  const sharedPayload = (await sharedProject.json()) as { draft: { document: unknown } };
+  const sharedPayload = (await sharedProject.json()) as {
+    draft: { document: unknown; revision: number };
+  };
   const forbiddenSharedWrite = await studentContext.request.put(
     `/api/projects/${projectId}/draft`,
-    { headers: { origin }, data: { document: sharedPayload.draft.document } },
+    {
+      headers: { origin },
+      data: {
+        document: sharedPayload.draft.document,
+        baseRevision: sharedPayload.draft.revision,
+        mutationId: crypto.randomUUID(),
+      },
+    },
   );
   expect(forbiddenSharedWrite.status()).toBe(404);
   await studentPage.goto(

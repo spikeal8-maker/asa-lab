@@ -47,10 +47,16 @@ async function editDraft(
 ): Promise<void> {
   const opened = await request.get(`/api/projects/${projectId}`, { headers: { origin } });
   expect(opened.status()).toBe(200);
-  const body = (await opened.json()) as { draft: { document: Record<string, unknown> } };
+  const body = (await opened.json()) as {
+    draft: { document: Record<string, unknown>; revision: number };
+  };
   const saved = await request.put(`/api/projects/${projectId}/draft`, {
     headers: { origin },
-    data: { document: edit(body.draft.document) },
+    data: {
+      document: edit(body.draft.document),
+      baseRevision: body.draft.revision,
+      mutationId: crypto.randomUUID(),
+    },
   });
   expect(saved.status(), 'save draft').toBe(200);
 }

@@ -350,7 +350,7 @@ describe('personal teacher projects', () => {
       method: 'PUT',
       url: `/api/projects/${created.body.project.id}/draft`,
       cookies: { asa_session: token },
-      payload: { document: seriesDocument() },
+      payload: { document: seriesDocument(), baseRevision: 1, mutationId: crypto.randomUUID() },
     });
     const key = `duplicate-${crypto.randomUUID()}`;
     const duplicate = async () =>
@@ -433,7 +433,7 @@ describe('workbench draft and immutable versions', () => {
       method: 'PUT',
       url: `/api/projects/${created.body.project.id}/draft`,
       cookies: { asa_session: token },
-      payload: { document },
+      payload: { document, baseRevision: 1, mutationId: crypto.randomUUID() },
     });
     expect(saved.statusCode).toBe(200);
     // Persistence, not physics. This test asserts that what was saved comes back
@@ -467,6 +467,75 @@ describe('workbench draft and immutable versions', () => {
     });
   });
 
+  it('keeps the first device save and rejects a stale second device', async () => {
+    const teacher = await seedTeacher(admin, 'workbench-revision-conflict');
+    const token = await login(teacher);
+    const created = await createProject(token, { scope: 'personal', title: 'Два устройства' });
+    const projectId = created.body.project.id;
+    const firstDocument = seriesDocument();
+    const secondDocument = {
+      ...seriesDocument(),
+      viewport: { x: 100, y: 50, zoom: 1.5 },
+    };
+
+    const first = await inject(app, {
+      method: 'PUT',
+      url: `/api/projects/${projectId}/draft`,
+      cookies: { asa_session: token },
+      payload: { document: firstDocument, baseRevision: 1, mutationId: crypto.randomUUID() },
+    });
+    expect(first.statusCode).toBe(200);
+    expect(first.json().draft.revision).toBe(2);
+
+    const stale = await inject(app, {
+      method: 'PUT',
+      url: `/api/projects/${projectId}/draft`,
+      cookies: { asa_session: token },
+      payload: { document: secondDocument, baseRevision: 1, mutationId: crypto.randomUUID() },
+    });
+    expect(stale.statusCode).toBe(409);
+    expect(stale.json().error.code).toBe('project_revision_conflict');
+
+    const reloaded = await inject(app, {
+      method: 'GET',
+      url: `/api/projects/${projectId}`,
+      cookies: { asa_session: token },
+    });
+    expect(reloaded.json().draft.document).toEqual(firstDocument);
+    expect(reloaded.json().draft.revision).toBe(2);
+  });
+
+  it('returns the same revision when an accepted mutation is retried', async () => {
+    const teacher = await seedTeacher(admin, 'workbench-idempotent-save');
+    const token = await login(teacher);
+    const created = await createProject(token, { scope: 'personal', title: 'Повтор отправки' });
+    const projectId = created.body.project.id;
+    const mutationId = crypto.randomUUID();
+    const payload = { document: seriesDocument(), baseRevision: 1, mutationId };
+
+    const first = await inject(app, {
+      method: 'PUT',
+      url: `/api/projects/${projectId}/draft`,
+      cookies: { asa_session: token },
+      payload,
+    });
+    const repeated = await inject(app, {
+      method: 'PUT',
+      url: `/api/projects/${projectId}/draft`,
+      cookies: { asa_session: token },
+      payload,
+    });
+
+    expect(first.statusCode).toBe(200);
+    expect(repeated.statusCode).toBe(200);
+    expect(repeated.json().draft.revision).toBe(2);
+    const stored = await admin.query(
+      'SELECT revision, last_mutation_id FROM project_drafts WHERE project_id=$1',
+      [projectId],
+    );
+    expect(stored.rows[0]).toMatchObject({ revision: 2, last_mutation_id: mutationId });
+  });
+
   it('normalises a historical schema v1 draft additively when it is next saved', async () => {
     const teacher = await seedTeacher(admin, 'workbench-v1-normalize');
     const token = await login(teacher);
@@ -480,7 +549,7 @@ describe('workbench draft and immutable versions', () => {
       method: 'PUT',
       url: `/api/projects/${created.body.project.id}/draft`,
       cookies: { asa_session: token },
-      payload: { document: legacy },
+      payload: { document: legacy, baseRevision: 1, mutationId: crypto.randomUUID() },
     });
     expect(saved.statusCode).toBe(200);
     expect(saved.json().draft.document).toMatchObject({
@@ -499,7 +568,7 @@ describe('workbench draft and immutable versions', () => {
       method: 'PUT',
       url: `/api/projects/${created.body.project.id}/draft`,
       cookies: { asa_session: token },
-      payload: { document: seriesDocument() },
+      payload: { document: seriesDocument(), baseRevision: 1, mutationId: crypto.randomUUID() },
     });
     const first = await inject(app, {
       method: 'POST',
@@ -547,7 +616,11 @@ describe('authorization and validation', () => {
       ['GET', `/api/projects/${created.body.project.id}`, undefined],
       ['PATCH', `/api/projects/${created.body.project.id}`, { title: 'Украдено' }],
       ['POST', `/api/projects/${created.body.project.id}/status`, { status: 'trashed' }],
-      ['PUT', `/api/projects/${created.body.project.id}/draft`, { document: seriesDocument() }],
+      [
+        'PUT',
+        `/api/projects/${created.body.project.id}/draft`,
+        { document: seriesDocument(), baseRevision: 1, mutationId: crypto.randomUUID() },
+      ],
       ['POST', `/api/projects/${created.body.project.id}/checkpoints`, {}],
     ] as const) {
       const response = await inject(app, {
@@ -616,12 +689,17 @@ describe('authorization and validation', () => {
       return `data:image/png;base64,${Buffer.from(bytes).toString('base64')}`;
     }
 
-    async function saveSnapshot(token: string, projectId: string, imageDataUrl: string) {
+    async function saveSnapshot(
+      token: string,
+      projectId: string,
+      imageDataUrl: string,
+      sourceRevision = 1,
+    ) {
       return inject(app, {
         method: 'PUT',
         url: `/api/projects/${projectId}/snapshot`,
         cookies: { asa_session: token },
-        payload: { imageDataUrl },
+        payload: { imageDataUrl, sourceRevision },
       });
     }
 
@@ -649,10 +727,31 @@ describe('authorization and validation', () => {
         method: 'PUT',
         url: `/api/projects/${projectId}/draft`,
         cookies: { asa_session: token },
-        payload: { document: seriesDocument() },
+        payload: { document: seriesDocument(), baseRevision: 1, mutationId: crypto.randomUUID() },
       });
-      const saved = await saveSnapshot(token, projectId, pngDataUrl());
+      const saved = await saveSnapshot(token, projectId, pngDataUrl(), 2);
       expect(saved.json().snapshot.sourceRevision).toBe(2);
+    });
+
+    it('does not label an older canvas as the current project revision', async () => {
+      const token = await registerPersonalAccount('snapshot-conflict');
+      const created = await createProject(token, { title: 'Схема', scope: 'personal' });
+      const projectId = created.body.project.id;
+      await inject(app, {
+        method: 'PUT',
+        url: `/api/projects/${projectId}/draft`,
+        cookies: { asa_session: token },
+        payload: { document: seriesDocument(), baseRevision: 1, mutationId: crypto.randomUUID() },
+      });
+
+      const stale = await saveSnapshot(token, projectId, pngDataUrl(), 1);
+      expect(stale.statusCode).toBe(409);
+      const missing = await inject(app, {
+        method: 'GET',
+        url: `/api/projects/${projectId}/snapshot`,
+        cookies: { asa_session: token },
+      });
+      expect(missing.statusCode).toBe(404);
     });
 
     it('lists the snapshot revision so a card can build a cacheable URL', async () => {

@@ -105,6 +105,7 @@ export function useElectronicsWorkbench(projectId: string) {
   const {
     project,
     document,
+    serverRevision,
     setDocument,
     result: persistedResult,
     versions,
@@ -1632,6 +1633,7 @@ export function useElectronicsWorkbench(projectId: string) {
   return {
     project,
     document,
+    serverRevision,
     result,
     versions,
     status,

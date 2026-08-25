@@ -438,19 +438,23 @@ export function SchematicEditor({
   // The card picture is the stage as the learner sees it, rasterised from the
   // live SVG. Project Core owns the size, the format and the schedule.
   useEffect(() => {
-    const release = registerProjectSnapshotSource(projectId, () => {
-      const stage = controller.stageRef.current;
-      if (!stage) return null;
-      return rasteriseSvgStage(stage, SNAPSHOT_WIDTH, {
-        contentSelector: '[data-testid="schematic-component"],[data-testid="wire-segment"]',
-      });
-    });
+    const release = registerProjectSnapshotSource(
+      projectId,
+      () => {
+        const stage = controller.stageRef.current;
+        if (!stage) return null;
+        return rasteriseSvgStage(stage, SNAPSHOT_WIDTH, {
+          contentSelector: '[data-testid="schematic-component"],[data-testid="wire-segment"]',
+        });
+      },
+      () => controller.serverRevision,
+    );
     const stop = startProjectSnapshots(projectId);
     return () => {
       stop();
       release();
     };
-  }, [controller.stageRef, projectId]);
+  }, [controller.serverRevision, controller.stageRef, projectId]);
   function updateNotes(value: string): void {
     setNotes(value);
     localStorage.setItem(notesStorageKey, value);

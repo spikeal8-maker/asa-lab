@@ -151,7 +151,9 @@ export function creatorViewToHash(view: CreatorPortalView): string {
   }
   if (view.kind !== 'editor') return '#/home';
   if (view.returnTo.kind === 'classroom-projects') {
-    return `#/classrooms/${view.returnTo.classroomId}/projects/${view.projectId}?title=${encodeURIComponent(view.returnTo.classroomTitle)}`;
+    const query = new URLSearchParams({ title: view.returnTo.classroomTitle });
+    if (view.moduleKey) query.set('module', view.moduleKey);
+    return `#/classrooms/${view.returnTo.classroomId}/projects/${view.projectId}?${query.toString()}`;
   }
   const returnPath =
     view.returnTo.kind === 'home'
@@ -159,7 +161,8 @@ export function creatorViewToHash(view: CreatorPortalView): string {
       : view.returnTo.kind === 'learning'
         ? 'learning'
         : 'projects';
-  return `#/${returnPath}/${view.projectId}`;
+  const moduleQuery = view.moduleKey ? `?module=${encodeURIComponent(view.moduleKey)}` : '';
+  return `#/${returnPath}/${view.projectId}${moduleQuery}`;
 }
 
 /**
@@ -222,6 +225,9 @@ export function creatorViewFromHash(hash: string): CreatorPortalView {
   const raw = hash.replace(/^#/, '');
   const [path, query] = raw.split('?');
   const title = new URLSearchParams(query ?? '').get('title') ?? 'Класс';
+  const requestedModule = new URLSearchParams(query ?? '').get('module');
+  const moduleKey =
+    requestedModule && /^[a-z0-9-]+$/.test(requestedModule) ? requestedModule : undefined;
   const teacherInvite = /^\/teacher-invite\/([^/]+)$/.exec(path ?? '');
   if (teacherInvite) {
     const token = decodeRouteParameter(teacherInvite[1] as string);
@@ -239,6 +245,7 @@ export function creatorViewFromHash(hash: string): CreatorPortalView {
     return {
       kind: 'editor',
       projectId: classEditor[2] as string,
+      ...(moduleKey ? { moduleKey } : {}),
       returnTo: {
         kind: 'classroom-projects',
         classroomId: classEditor[1] as string,
@@ -269,6 +276,7 @@ export function creatorViewFromHash(hash: string): CreatorPortalView {
     return {
       kind: 'editor',
       projectId,
+      moduleKey: 'three-d',
       returnTo: threeDReturnView(query),
     };
   }
@@ -282,6 +290,7 @@ export function creatorViewFromHash(hash: string): CreatorPortalView {
     return {
       kind: 'editor',
       projectId,
+      moduleKey: 'chess',
       returnTo: { kind: 'my-projects' },
     };
   }
@@ -290,6 +299,7 @@ export function creatorViewFromHash(hash: string): CreatorPortalView {
     return {
       kind: 'editor',
       projectId: personalEditor[2] as string,
+      ...(moduleKey ? { moduleKey } : {}),
       returnTo: personalEditor[1] === 'home' ? { kind: 'home' } : { kind: 'my-projects' },
     };
   }

@@ -22,6 +22,11 @@ import {
   type PublicUser,
 } from '../api';
 import { newClientId } from '../client-id';
+import {
+  clearLocalProjectDraft,
+  readLocalProjectDraft,
+  writeLocalProjectDraft,
+} from '../modules/project-local-draft';
 
 const {
   CHECKERS_BOTS,
@@ -156,6 +161,8 @@ export function useCheckersProject(projectId: string, user: PublicUser) {
   const [classPlay, setClassPlay] = useState<CheckersClassPlay<CheckersDocument> | null>(null);
   const [teacherFeedback, setTeacherFeedback] = useState<readonly CheckersTeacherFeedback[]>([]);
   const [saveStatus, setSaveStatus] = useState<CheckersSaveStatus>('saved');
+  const saveStatusRef = useRef<CheckersSaveStatus>('saved');
+  saveStatusRef.current = saveStatus;
   const [notice, setNotice] = useState<string | null>(null);
   const [botThinking, setBotThinking] = useState(false);
   const [botPlayerSide, setBotPlayerSide] = useState<'light' | 'dark'>('light');
@@ -164,6 +171,8 @@ export function useCheckersProject(projectId: string, user: PublicUser) {
   const documentVersion = useRef(0);
   const saveQueue = useRef<CheckersSaveQueue | null>(null);
   saveQueue.current ??= createCheckersSaveQueue();
+  const serverRevision = useRef<number | null>(null);
+  const documentRef = useRef<CheckersProjectDocument | null>(null);
 
   const load = useCallback(async () => {
     setLoadState('loading');
@@ -214,10 +223,21 @@ export function useCheckersProject(projectId: string, user: PublicUser) {
         })),
       },
     };
+    const usesProjectDraft = response.data.project.scope !== 'classroom' || canManage;
+    const local = usesProjectDraft
+      ? readLocalProjectDraft(window.localStorage, projectId, 'checkers')
+      : null;
+    const parsedLocal = local ? validateCheckersProjectDocument(local.document) : null;
+    const restoredDocument = parsedLocal?.ok ? parsedLocal.value : normalized;
+    const restored = parsedLocal?.ok === true;
+    const revisionConflict = restored && local?.baseRevision !== response.data.draft.revision;
     documentVersion.current += 1;
     setProject(response.data.project);
+    serverRevision.current =
+      revisionConflict && local ? local.baseRevision : response.data.draft.revision;
     setProjectTitle(response.data.project.title);
-    setDocument(normalized);
+    documentRef.current = restoredDocument;
+    setDocument(restoredDocument);
     setAnalysis(response.data.result);
     setTeacherFeedback(loadedTeacherFeedback);
     if (response.data.project.scope === 'classroom' && canManage) {
@@ -242,7 +262,13 @@ export function useCheckersProject(projectId: string, user: PublicUser) {
     } else {
       setClassPlay(null);
     }
-    setSaveStatus('saved');
+    setSaveStatus(revisionConflict ? 'error' : restored ? 'dirty' : 'saved');
+    if (usesProjectDraft && !restored) clearLocalProjectDraft(window.localStorage, projectId);
+    if (revisionConflict) {
+      setNotice('На сервере есть более новая версия. Локальная партия сохранена в браузере.');
+    } else if (restored) {
+      setNotice('Восстановлены несохранённые изменения из этого браузера.');
+    }
     setLoadState('ready');
   }, [projectId, user.id]);
 
@@ -268,8 +294,18 @@ export function useCheckersProject(projectId: string, user: PublicUser) {
         }
         savedDocument = response.data.document;
       } else {
+        const baseRevision = serverRevision.current;
+        if (baseRevision === null) {
+          setSaveStatus('error');
+          if (!quiet) setNotice('Не удалось определить сохранённую версию проекта.');
+          return false;
+        }
         const response = await saveQueue.current!.run(() =>
-          api.saveDraft<CheckersProjectDocument, CheckersAnalysisSummary>(projectId, next),
+          api.saveDraft<CheckersProjectDocument, CheckersAnalysisSummary>(
+            projectId,
+            next,
+            baseRevision,
+          ),
         );
         if (!response.ok) {
           setSaveStatus('error');
@@ -277,6 +313,7 @@ export function useCheckersProject(projectId: string, user: PublicUser) {
           return false;
         }
         savedDocument = response.data.draft.document;
+        serverRevision.current = response.data.draft.revision;
         savedAnalysis = response.data.result;
       }
       const parsed = validateCheckersProjectDocument(savedDocument);
@@ -285,8 +322,21 @@ export function useCheckersProject(projectId: string, user: PublicUser) {
         setNotice('Сервер вернул некорректный документ шашек.');
         return false;
       }
-      if (documentVersion.current !== versionAtStart) return true;
+      if (documentVersion.current !== versionAtStart) {
+        if (!studentState && documentRef.current && serverRevision.current !== null) {
+          writeLocalProjectDraft(window.localStorage, {
+            projectId,
+            moduleKey: 'checkers',
+            baseRevision: serverRevision.current,
+            document: documentRef.current,
+          });
+        }
+        setSaveStatus('dirty');
+        return true;
+      }
+      documentRef.current = parsed.value;
       setDocument(parsed.value);
+      if (!studentState) clearLocalProjectDraft(window.localStorage, projectId);
       setAnalysis(savedAnalysis);
       setSaveStatus('saved');
       if (!quiet) setNotice('Проект по шашкам сохранён.');
@@ -319,12 +369,26 @@ export function useCheckersProject(projectId: string, user: PublicUser) {
     return true;
   }, [projectId]);
 
-  const commit = useCallback((next: CheckersProjectDocument, message?: string) => {
-    documentVersion.current += 1;
-    setDocument(next);
-    setSaveStatus('dirty');
-    if (message) setNotice(message);
-  }, []);
+  const commit = useCallback(
+    (next: CheckersProjectDocument, message?: string) => {
+      documentVersion.current += 1;
+      documentRef.current = next;
+      const studentState = project?.scope === 'classroom' && !canManageClassroom;
+      const baseRevision = serverRevision.current;
+      if (!studentState && baseRevision !== null) {
+        writeLocalProjectDraft(window.localStorage, {
+          projectId,
+          moduleKey: 'checkers',
+          baseRevision,
+          document: next,
+        });
+      }
+      setDocument(next);
+      setSaveStatus('dirty');
+      if (message) setNotice(message);
+    },
+    [canManageClassroom, project?.scope, projectId],
+  );
 
   useEffect(() => {
     if (!document || saveStatus !== 'dirty') return;
@@ -334,6 +398,22 @@ export function useCheckersProject(projectId: string, user: PublicUser) {
       if (saveTimer.current !== null) window.clearTimeout(saveTimer.current);
     };
   }, [document, persist, saveStatus]);
+
+  useEffect(() => {
+    const flush = (): void => {
+      const current = documentRef.current;
+      if (current && saveStatusRef.current === 'dirty') void persist(current, true);
+    };
+    const onVisibility = (): void => {
+      if (globalThis.document.visibilityState === 'hidden') flush();
+    };
+    globalThis.document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('pagehide', flush);
+    return () => {
+      globalThis.document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('pagehide', flush);
+    };
+  }, [persist]);
 
   const legalMoves = useMemo(
     () => (document?.game.result === '*' ? generateLegalCheckersMoves(document.game) : []),

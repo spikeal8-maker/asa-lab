@@ -350,6 +350,8 @@ describe('list, rename, draft and checkpoint', () => {
         projectId: 'p1',
         actor: { principalId: 'principal:1', userId: 'u1' },
         document: {},
+        baseRevision: 1,
+        mutationId: '00000000-0000-4000-8000-000000000001',
       }),
     ).toMatchObject({ ok: false, code: 'validation_error' });
     const saved = await new SaveDraftUseCase(port, catalog()).execute({
@@ -357,8 +359,39 @@ describe('list, rename, draft and checkpoint', () => {
       projectId: 'p1',
       actor: { principalId: 'principal:1', userId: 'u1' },
       document: {},
+      baseRevision: 1,
+      mutationId: '00000000-0000-4000-8000-000000000002',
     });
     expect(saved.ok && saved.value.revision).toBe(2);
+  });
+
+  it('refuses to overwrite a draft whose server revision moved forward', async () => {
+    const { port } = repo({ saveDraft: async () => null });
+    const result = await new SaveDraftUseCase(port, catalog()).execute({
+      tenantId: 't1',
+      projectId: 'p1',
+      actor: { principalId: 'principal:1', userId: 'u1' },
+      document: {},
+      baseRevision: 1,
+      mutationId: '00000000-0000-4000-8000-000000000003',
+    });
+
+    expect(result).toMatchObject({ ok: false, code: 'project_revision_conflict' });
+  });
+
+  it('rejects an invalid base revision before writing', async () => {
+    const { port, saves } = repo();
+    const result = await new SaveDraftUseCase(port, catalog()).execute({
+      tenantId: 't1',
+      projectId: 'p1',
+      actor: { principalId: 'principal:1', userId: 'u1' },
+      document: {},
+      baseRevision: -1,
+      mutationId: '00000000-0000-4000-8000-000000000004',
+    });
+
+    expect(result).toMatchObject({ ok: false, code: 'validation_error' });
+    expect(saves).toHaveLength(0);
   });
 
   it('creates a numbered checkpoint', async () => {
@@ -457,6 +490,8 @@ describe('list, rename, draft and checkpoint', () => {
         projectId: 'ghost',
         actor: { principalId: 'principal:1', userId: 'u1' },
         document: {},
+        baseRevision: 1,
+        mutationId: '00000000-0000-4000-8000-000000000005',
       }),
     ).toMatchObject({ ok: false, code: 'project_not_found' });
     expect(
@@ -472,7 +507,7 @@ describe('list, rename, draft and checkpoint', () => {
 
 describe('project snapshots', () => {
   const actor = { principalId: 'principal:1', userId: 'u1' };
-  const input = { tenantId: 't1', projectId: 'p1', actor };
+  const input = { tenantId: 't1', projectId: 'p1', actor, sourceRevision: 4 };
 
   it('stores a picture the editor captured', async () => {
     const { port, snapshots } = repo();
@@ -489,17 +524,37 @@ describe('project snapshots', () => {
   });
 
   /**
-   * The revision decides whether a cached card is current, so it is read from
-   * the draft the server holds. A caller that could name it could pin a card to
-   * a picture of work that is no longer there.
+   * The source revision travels with the canvas and the repository compares it
+   * to the current draft atomically.
    */
-  it('reports the revision the server chose, not one the caller supplied', async () => {
+  it('reports the exact revision represented by the canvas', async () => {
     const { port } = repo();
     const result = await new SaveProjectSnapshotUseCase(port).execute({
       ...input,
       imageDataUrl: pngDataUrl(),
     });
     expect(result).toMatchObject({ ok: true, value: { sourceRevision: 4 } });
+  });
+
+  it('rejects an invalid source revision before storing bytes', async () => {
+    const { port, snapshots } = repo();
+    const result = await new SaveProjectSnapshotUseCase(port).execute({
+      ...input,
+      sourceRevision: 0,
+      imageDataUrl: pngDataUrl(),
+    });
+    expect(result).toMatchObject({ ok: false, code: 'validation_error' });
+    expect(snapshots).toHaveLength(0);
+  });
+
+  it('reports a revision conflict without replacing the snapshot', async () => {
+    const { port } = repo({ saveSnapshot: async () => null });
+    const result = await new SaveProjectSnapshotUseCase(port).execute({
+      ...input,
+      sourceRevision: 3,
+      imageDataUrl: pngDataUrl(),
+    });
+    expect(result).toMatchObject({ ok: false, code: 'project_revision_conflict' });
   });
 
   it('refuses an SVG dressed as a snapshot', async () => {
@@ -539,7 +594,7 @@ describe('project snapshots', () => {
   });
 
   it('reports a missing project rather than inventing one', async () => {
-    const { port } = repo({ saveSnapshot: async () => null });
+    const { port } = repo({ saveSnapshot: async () => null, load: async () => null });
     const result = await new SaveProjectSnapshotUseCase(port).execute({
       ...input,
       imageDataUrl: pngDataUrl(),
@@ -576,6 +631,8 @@ describe('project previews', () => {
       projectId: 'p1',
       actor,
       document: { schemaVersion: 1, components: [], connections: [] },
+      baseRevision: 1,
+      mutationId: '00000000-0000-4000-8000-000000000006',
     });
     expect(saves[0]?.preview?.descriptor).toEqual(CIRCUIT_PREVIEW);
   });
@@ -595,6 +652,8 @@ describe('project previews', () => {
       projectId: 'p1',
       actor,
       document: { schemaVersion: 1, components: [], connections: [] },
+      baseRevision: 1,
+      mutationId: '00000000-0000-4000-8000-000000000007',
     });
     expect(result.ok).toBe(true);
     expect(saves[0]?.preview).toBeNull();
@@ -608,6 +667,8 @@ describe('project previews', () => {
       projectId: 'p1',
       actor,
       document: { schemaVersion: 1, components: [], connections: [] },
+      baseRevision: 1,
+      mutationId: '00000000-0000-4000-8000-000000000008',
     });
     expect(saves[0]?.preview).toBeNull();
   });

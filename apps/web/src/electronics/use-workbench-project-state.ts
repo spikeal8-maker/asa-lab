@@ -13,9 +13,24 @@ import { snapComponentToBreadboard } from './workbench-document';
 import type { HistoryState, SaveStatus } from './workbench-model';
 import { autosaveIsDue, draftSaveStatus } from './workbench-autosave';
 import { prepareLiveSimulationStart } from './live-simulation';
+import {
+  clearLocalProjectDraft,
+  readLocalProjectDraft,
+  writeLocalProjectDraft,
+} from '../modules/project-local-draft';
 
 export type SimulationRuntimeStatus =
   'stopped' | 'validating' | 'starting' | 'running' | 'stopping';
+
+function isLocalSchematicDocument(value: unknown): value is SchematicDocument {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const candidate = value as Record<string, unknown>;
+  return (
+    typeof candidate['schemaVersion'] === 'number' &&
+    Array.isArray(candidate['components']) &&
+    Array.isArray(candidate['connections'])
+  );
+}
 
 function migratedTerminal(
   component: SchematicDocument['components'][number] | undefined,
@@ -153,6 +168,7 @@ export function useWorkbenchProjectState(projectId: string) {
   // written into the new one's state.
   const projectIdRef = useRef(projectId);
   projectIdRef.current = projectId;
+  const serverRevisionRef = useRef<number | null>(null);
 
   const saveStatus = draftSaveStatus({
     document,
@@ -160,14 +176,28 @@ export function useWorkbenchProjectState(projectId: string) {
     savingDocument,
     failed: saveFailed,
   });
+  const saveStatusRef = useRef(saveStatus);
+  saveStatusRef.current = saveStatus;
 
   // Every document write goes through here so the ref and the dirty state move
   // together: no call site can change the document and forget to mark it unsaved.
-  const setDocument = useCallback((next: SchematicDocument): void => {
-    documentRef.current = next;
-    setSaveFailed(false);
-    setDocumentState(next);
-  }, []);
+  const setDocument = useCallback(
+    (next: SchematicDocument): void => {
+      documentRef.current = next;
+      const baseRevision = serverRevisionRef.current;
+      if (baseRevision !== null) {
+        writeLocalProjectDraft(window.localStorage, {
+          projectId,
+          moduleKey: 'electronics',
+          baseRevision,
+          document: next,
+        });
+      }
+      setSaveFailed(false);
+      setDocumentState(next);
+    },
+    [projectId],
+  );
 
   const initialiseHistory = useCallback((next: SchematicDocument) => {
     historyRef.current = { entries: [cloneJson(next)], cursor: 0 };
@@ -183,18 +213,41 @@ export function useWorkbenchProjectState(projectId: string) {
     }
     setProject(response.data.project);
     setProjectTitle(response.data.project.title);
-    const nextDocument = normalizeLoadedDocument(response.data.draft.document);
-    const migrated = JSON.stringify(nextDocument) !== JSON.stringify(response.data.draft.document);
-    setDocument(nextDocument);
+    const serverDocument = normalizeLoadedDocument(response.data.draft.document);
+    const migrated =
+      JSON.stringify(serverDocument) !== JSON.stringify(response.data.draft.document);
+    const local = readLocalProjectDraft(window.localStorage, projectId, 'electronics');
+    const localDocument =
+      local && isLocalSchematicDocument(local.document)
+        ? normalizeLoadedDocument(local.document)
+        : null;
+    const restored = localDocument !== null;
+    const revisionConflict = restored && local?.baseRevision !== response.data.draft.revision;
+    const nextDocument = localDocument ?? serverDocument;
+    serverRevisionRef.current =
+      revisionConflict && local ? local.baseRevision : response.data.draft.revision;
+    documentRef.current = nextDocument;
+    setSaveFailed(false);
+    setDocumentState(nextDocument);
     setResult(response.data.result);
     setVersions(response.data.versions);
     // A migrated document is not what the server holds, so it stays unsaved
     // until autosave writes the migration back.
-    setSavedDocument(migrated ? null : nextDocument);
+    setSavedDocument(restored ? serverDocument : migrated ? null : nextDocument);
     setSavingDocument(null);
     setSimulationRunning(nextDocument.simulation.running);
     setSimulationStatus(nextDocument.simulation.running ? 'running' : 'stopped');
     initialiseHistory(nextDocument);
+    if (!restored) clearLocalProjectDraft(window.localStorage, projectId);
+    if (revisionConflict) {
+      setSaveFailed(true);
+      setSaveError(
+        'На сервере уже есть более новая версия. Эта локальная работа сохранена в браузере и не будет перезаписана автоматически.',
+      );
+      setNotice('Обнаружены изменения с другого устройства. Локальная работа сохранена.');
+    } else if (restored) {
+      setNotice('Восстановлены несохранённые изменения из этого браузера.');
+    }
     setStatus('ready');
   }, [initialiseHistory, projectId, setDocument]);
 
@@ -247,11 +300,18 @@ export function useWorkbenchProjectState(projectId: string) {
   const sendDraft = useCallback(
     async (nextDocument: SchematicDocument, quiet: boolean): Promise<SolveResult | null> => {
       const sentForProject = projectId;
+      const baseRevision = serverRevisionRef.current;
+      if (baseRevision === null) {
+        setSaveFailed(true);
+        setSaveError('Не удалось определить сохранённую версию проекта.');
+        return null;
+      }
       setSavingDocument(nextDocument);
       try {
         const response = await api.saveDraft<SchematicDocument, SolveResult>(
           sentForProject,
           nextDocument,
+          baseRevision,
         );
         // The editor moved to another project while this was in flight. The
         // response describes the previous one and says nothing about what is on
@@ -264,11 +324,22 @@ export function useWorkbenchProjectState(projectId: string) {
           return null;
         }
         setSaveError(null);
+        serverRevisionRef.current = response.data.draft.revision;
         setResult(response.data.result);
         // The server now holds exactly this document, and nothing more. If the
         // user edited while the request was in flight, that edit is still unsaved
         // and both the indicator and autosave have to keep treating it as such.
         setSavedDocument(nextDocument);
+        if (documentRef.current === nextDocument) {
+          clearLocalProjectDraft(window.localStorage, sentForProject);
+        } else if (documentRef.current) {
+          writeLocalProjectDraft(window.localStorage, {
+            projectId: sentForProject,
+            moduleKey: 'electronics',
+            baseRevision: response.data.draft.revision,
+            document: documentRef.current,
+          });
+        }
         if (!quiet && documentRef.current === nextDocument) setNotice('Все изменения сохранены.');
         return response.data.result;
       } finally {
@@ -305,6 +376,22 @@ export function useWorkbenchProjectState(projectId: string) {
     );
     return () => window.clearTimeout(timer);
   }, [document, persist, saveFailed, savedDocument, savingDocument, simulationRunning]);
+
+  useEffect(() => {
+    const flush = (): void => {
+      const current = documentRef.current;
+      if (current && saveStatusRef.current === 'dirty') void persist(current, true);
+    };
+    const onVisibility = (): void => {
+      if (globalThis.document.visibilityState === 'hidden') flush();
+    };
+    globalThis.document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('pagehide', flush);
+    return () => {
+      globalThis.document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('pagehide', flush);
+    };
+  }, [persist]);
 
   async function saveNow(): Promise<void> {
     if (!document || busy) return;
@@ -402,6 +489,7 @@ export function useWorkbenchProjectState(projectId: string) {
   return {
     project,
     document,
+    serverRevision: serverRevisionRef.current,
     setDocument,
     result,
     versions,

@@ -554,17 +554,35 @@ export class PgProjectRepository implements ProjectRepositoryPort {
     if (access === null) return null;
     return withTenantContext(this.pool, access.tenantId, async (client) => {
       const updated = await client.query(
-        `UPDATE project_drafts d
+        `WITH updated AS (
+          UPDATE project_drafts d
             SET document_json=$5, revision=revision+1, updated_at=now(),
                 updated_by=$4, updated_by_principal_id=$3,
-                preview_json=$6::jsonb, preview_digest=$7
+                preview_json=$6::jsonb, preview_digest=$7,
+                last_mutation_id=$9::uuid
            FROM projects p
           WHERE d.tenant_id=$1 AND d.project_id=$2
             AND p.tenant_id=d.tenant_id AND p.id=d.project_id
             AND p.status <> 'trashed'
+            AND d.revision=$8
             AND ${EDIT_ACCESS_SQL}
           RETURNING d.project_id,d.document_json,d.revision,d.updated_at,
-                    d.preview_json,d.preview_digest`,
+                    d.preview_json,d.preview_digest,false AS was_replayed
+        ), replayed AS (
+          SELECT d.project_id,d.document_json,d.revision,d.updated_at,
+                 d.preview_json,d.preview_digest,true AS was_replayed
+            FROM project_drafts d
+            JOIN projects p ON p.tenant_id=d.tenant_id AND p.id=d.project_id
+           WHERE d.tenant_id=$1 AND d.project_id=$2
+             AND p.status <> 'trashed' AND ${EDIT_ACCESS_SQL}
+             AND d.revision=$8+1 AND d.last_mutation_id=$9::uuid
+             AND d.document_json=$5::jsonb
+             AND NOT EXISTS (SELECT 1 FROM updated)
+        )
+        SELECT * FROM updated
+        UNION ALL
+        SELECT * FROM replayed
+        LIMIT 1`,
         [
           access.tenantId,
           input.projectId,
@@ -573,16 +591,20 @@ export class PgProjectRepository implements ProjectRepositoryPort {
           JSON.stringify(input.document),
           input.preview ? JSON.stringify(input.preview.descriptor) : null,
           input.preview?.digest ?? null,
+          input.baseRevision,
+          input.mutationId,
         ],
       );
       const row = updated.rows[0];
       if (!row) return null;
-      await recordClassroomActivity(
-        client,
-        input.actor.principalId,
-        input.projectId,
-        'project.saved',
-      );
+      if (row.was_replayed !== true) {
+        await recordClassroomActivity(
+          client,
+          input.actor.principalId,
+          input.projectId,
+          'project.saved',
+        );
+      }
       return {
         projectId: row.project_id,
         document: row.document_json,
@@ -855,18 +877,19 @@ export class PgProjectRepository implements ProjectRepositoryPort {
     const access = await this.projectContext(input.tenantId, input.projectId, input.actor);
     if (access === null) return null;
     return withTenantContext(this.pool, access.tenantId, async (client) => {
-      // The revision is read from the draft inside the same statement rather
-      // than accepted from the client: it is what tells a cached card whether
-      // it is still current, so naming it must not be the uploader's choice.
+      // The image is accepted only while the draft is still the exact revision
+      // from which the editor rendered it. Otherwise an older canvas could be
+      // stored under a newer immutable card URL.
       const saved = await client.query(
         `INSERT INTO project_snapshots
            (project_id, tenant_id, image, content_type, width, height,
             source_revision, captured_by, captured_by_principal_id)
          SELECT p.id, p.tenant_id, $5::bytea, $6::varchar, $7::integer, $8::integer,
-                d.revision, $4::uuid, $3::uuid
+                $9::integer, $4::uuid, $3::uuid
            FROM projects p
            JOIN project_drafts d ON d.tenant_id=p.tenant_id AND d.project_id=p.id
-          WHERE p.tenant_id=$1 AND p.id=$2 AND p.status <> 'trashed' AND ${EDIT_ACCESS_SQL}
+          WHERE p.tenant_id=$1 AND p.id=$2 AND p.status <> 'trashed'
+            AND d.revision=$9 AND ${EDIT_ACCESS_SQL}
          ON CONFLICT (project_id) DO UPDATE
             SET image=EXCLUDED.image, content_type=EXCLUDED.content_type,
                 width=EXCLUDED.width, height=EXCLUDED.height,
@@ -883,6 +906,7 @@ export class PgProjectRepository implements ProjectRepositoryPort {
           input.image.contentType,
           input.image.width,
           input.image.height,
+          input.sourceRevision,
         ],
       );
       const row = saved.rows[0] as SnapshotRow | undefined;

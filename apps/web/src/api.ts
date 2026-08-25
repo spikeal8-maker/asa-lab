@@ -2,6 +2,7 @@
  * client never sends or stores tenant identifiers. */
 
 import type { ModulePreviewDescriptor } from '@asa-lab/module-sdk';
+import { newClientId } from './client-id';
 import { fetchWithSessionRefresh, notifySessionLoggedOut } from './session-fetch';
 
 export interface PublicUser {
@@ -1853,10 +1854,17 @@ export const api = {
       versions: ProjectVersion[];
       result: TResult | null;
     }>(`/api/projects/${encodeURIComponent(projectId)}`),
-  saveDraft: <TDocument = unknown, TResult = unknown>(projectId: string, document: TDocument) =>
+  saveDraft: <TDocument = unknown, TResult = unknown>(
+    projectId: string,
+    document: TDocument,
+    baseRevision: number,
+  ) =>
     call<{ draft: ProjectDraft<TDocument>; result: TResult | null }>(
       `/api/projects/${encodeURIComponent(projectId)}/draft`,
-      { method: 'PUT', body: JSON.stringify({ document }) },
+      {
+        method: 'PUT',
+        body: JSON.stringify({ document, baseRevision, mutationId: newClientId() }),
+      },
     ),
   /**
    * Uploads the editor's picture of the project. `keepalive` lets a capture
@@ -1866,13 +1874,14 @@ export const api = {
   saveProjectSnapshot: (
     projectId: string,
     imageDataUrl: string,
+    sourceRevision: number,
     options: { unloading?: boolean } = {},
   ) =>
     call<{ snapshot: ProjectSnapshotInfo }>(
       `/api/projects/${encodeURIComponent(projectId)}/snapshot`,
       {
         method: 'PUT',
-        body: JSON.stringify({ imageDataUrl }),
+        body: JSON.stringify({ imageDataUrl, sourceRevision }),
         ...(options.unloading === true ? { keepalive: true } : {}),
       },
     ),

@@ -7,6 +7,7 @@ import { threeDEditorHash, type CreatorPortalReturnView } from '../creator-porta
 import { loadSchematicEditor } from '../electronics/load-schematic-editor';
 import { EditorErrorBoundary } from './EditorErrorBoundary';
 import { AssignmentBrief } from '../components/AssignmentBrief';
+import { AppBootShell } from '../components/AppBootShell';
 
 interface ModuleEditorProps {
   projectId: string;
@@ -18,6 +19,9 @@ interface ModuleEditorHostProps extends ModuleEditorProps {
   /** Work is only ever set for a class seat, so nobody else asks for it. */
   readonly seatLearner?: boolean;
   onModuleResolved?: (projectId: string, moduleKey: string) => void;
+  /** Known for every newly generated editor URL. Historical URLs omit it and
+   * are resolved once through Project Core for backwards compatibility. */
+  moduleKey?: string;
   returnTo: CreatorPortalReturnView;
 }
 
@@ -33,15 +37,41 @@ const EDITORS: Readonly<Record<string, ComponentType<ModuleEditorProps>>> = {
 type HostState =
   | { kind: 'loading' }
   | { kind: 'error'; message: string }
-  | { kind: 'ready'; moduleKey: string; projectTitle: string };
+  | { kind: 'ready'; moduleKey: string; projectTitle: string | null };
+
+function canonicalEditorHash(
+  moduleKey: string,
+  projectId: string,
+  returnTo: CreatorPortalReturnView,
+): string | null {
+  if (moduleKey === 'three-d') return threeDEditorHash(projectId, returnTo);
+  if (moduleKey === 'chess') {
+    return chessRouteToHash(projectId, chessRouteFromHash(window.location.hash, projectId));
+  }
+  return null;
+}
 
 /** Shared editor host. Project Core selects a module by manifest key; the host
  * mounts the registered subject editor without putting subject branches in App. */
 export function ModuleEditorHost(props: ModuleEditorHostProps): JSX.Element {
-  const [state, setState] = useState<HostState>({ kind: 'loading' });
+  const [state, setState] = useState<HostState>(() =>
+    props.moduleKey
+      ? { kind: 'ready', moduleKey: props.moduleKey, projectTitle: null }
+      : { kind: 'loading' },
+  );
 
   useEffect(() => {
     let active = true;
+    if (props.moduleKey) {
+      const canonicalHash = canonicalEditorHash(props.moduleKey, props.projectId, props.returnTo);
+      if (canonicalHash && window.location.hash !== canonicalHash) {
+        window.history.replaceState(null, '', canonicalHash);
+      }
+      setState({ kind: 'ready', moduleKey: props.moduleKey, projectTitle: null });
+      return () => {
+        active = false;
+      };
+    }
     setState({ kind: 'loading' });
     void api.openProject(props.projectId).then((result) => {
       if (!active) return;
@@ -51,15 +81,7 @@ export function ModuleEditorHost(props: ModuleEditorHostProps): JSX.Element {
       }
       const moduleKey = result.data.project.moduleKey;
       props.onModuleResolved?.(props.projectId, moduleKey);
-      const canonicalHash =
-        moduleKey === 'three-d'
-          ? threeDEditorHash(props.projectId, props.returnTo)
-          : moduleKey === 'chess'
-            ? chessRouteToHash(
-                props.projectId,
-                chessRouteFromHash(window.location.hash, props.projectId),
-              )
-            : null;
+      const canonicalHash = canonicalEditorHash(moduleKey, props.projectId, props.returnTo);
       if (canonicalHash && window.location.hash !== canonicalHash) {
         window.history.replaceState(null, '', canonicalHash);
       }
@@ -68,7 +90,7 @@ export function ModuleEditorHost(props: ModuleEditorHostProps): JSX.Element {
     return () => {
       active = false;
     };
-  }, [props.onModuleResolved, props.projectId, props.returnTo]);
+  }, [props.moduleKey, props.onModuleResolved, props.projectId, props.returnTo]);
 
   useEffect(() => {
     if (state.kind !== 'ready') return;
@@ -79,18 +101,14 @@ export function ModuleEditorHost(props: ModuleEditorHostProps): JSX.Element {
         : state.moduleKey === 'chess'
           ? 'ASA Chess'
           : 'ASA Lab';
-    document.title = `${state.projectTitle} · ${moduleTitle}`;
+    if (state.projectTitle) document.title = `${state.projectTitle} · ${moduleTitle}`;
     return () => {
       document.title = previousTitle;
     };
   }, [state]);
 
   if (state.kind === 'loading') {
-    return (
-      <main className="page-center" role="status" aria-live="polite">
-        Загружаем среду проекта…
-      </main>
-    );
+    return <AppBootShell label="Открываем проект" />;
   }
   if (state.kind === 'error') {
     return (
@@ -129,13 +147,7 @@ export function ModuleEditorHost(props: ModuleEditorHostProps): JSX.Element {
       {/* What to make, while you are making it. Renders nothing for anyone
           whose project is not work a teacher set. */}
       {props.seatLearner ? <AssignmentBrief projectId={props.projectId} /> : null}
-      <Suspense
-        fallback={
-          <main className="page-center" role="status" aria-live="polite">
-            Загружаем учебную среду…
-          </main>
-        }
-      >
+      <Suspense fallback={<AppBootShell label="Открываем рабочую среду" />}>
         <Editor projectId={props.projectId} onBack={props.onBack} user={props.user} />
       </Suspense>
     </EditorErrorBoundary>

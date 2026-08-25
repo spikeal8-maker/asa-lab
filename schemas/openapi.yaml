@@ -944,6 +944,126 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /api/projects/{projectId}/draft:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+    put:
+      operationId: putProjectDraft
+      summary: Save a draft only when its base revision is still current
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SaveProjectDraftRequest'
+      responses:
+        '200':
+          description: Draft saved and revision advanced
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SaveProjectDraftEnvelope'
+        '400':
+          description: Invalid document or base revision
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: No active session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Project is unavailable to the active actor
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Draft revision changed on another device
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/projects/{projectId}/snapshot:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+    put:
+      operationId: putProjectSnapshot
+      summary: Store a raster preview only for the draft revision it represents
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SaveProjectSnapshotRequest'
+      responses:
+        '200':
+          description: Snapshot stored for the exact source revision
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SaveProjectSnapshotEnvelope'
+        '400':
+          description: Invalid raster image or source revision
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: No active session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Project is unavailable to the active actor
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: The canvas belongs to a stale draft revision
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    get:
+      operationId: getProjectSnapshot
+      summary: Read the latest authorised project snapshot
+      parameters:
+        - name: rev
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '200':
+          description: PNG or WebP snapshot bytes
+          content:
+            image/png:
+              schema:
+                type: string
+                format: binary
+            image/webp:
+              schema:
+                type: string
+                format: binary
+        '401':
+          description: No active session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Snapshot or project is unavailable to the active actor
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/projects/{projectId}/status:
     parameters:
       - $ref: '#/components/parameters/ProjectId'
@@ -1703,6 +1823,56 @@ components:
       properties:
         status:
           $ref: '#/components/schemas/ProjectStatus'
+    SaveProjectDraftRequest:
+      type: object
+      additionalProperties: false
+      required: [document, baseRevision, mutationId]
+      properties:
+        document: {}
+        baseRevision:
+          type: integer
+          minimum: 0
+        mutationId:
+          type: string
+          format: uuid
+    SaveProjectSnapshotRequest:
+      type: object
+      additionalProperties: false
+      required: [imageDataUrl, sourceRevision]
+      properties:
+        imageDataUrl:
+          type: string
+        sourceRevision:
+          type: integer
+          minimum: 1
+    ProjectSnapshot:
+      type: object
+      additionalProperties: false
+      required: [projectId, contentType, width, height, sourceRevision, capturedAt]
+      properties:
+        projectId:
+          type: string
+          format: uuid
+        contentType:
+          type: string
+          enum: [image/png, image/webp]
+        width:
+          type: integer
+        height:
+          type: integer
+        sourceRevision:
+          type: integer
+          minimum: 1
+        capturedAt:
+          type: string
+          format: date-time
+    SaveProjectSnapshotEnvelope:
+      type: object
+      additionalProperties: false
+      required: [snapshot]
+      properties:
+        snapshot:
+          $ref: '#/components/schemas/ProjectSnapshot'
     ProjectDraft:
       type: object
       required: [projectId, document, revision, updatedAt]
@@ -1749,4 +1919,12 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/ProjectVersion'
+        result: {}
+    SaveProjectDraftEnvelope:
+      type: object
+      additionalProperties: false
+      required: [draft, result]
+      properties:
+        draft:
+          $ref: '#/components/schemas/ProjectDraft'
         result: {}

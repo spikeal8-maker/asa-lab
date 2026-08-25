@@ -27,7 +27,11 @@ import type {
 } from './ports.js';
 
 export type ProjectErrorCode =
-  'validation_error' | 'idempotency_conflict' | 'classroom_not_found' | 'project_not_found';
+  | 'validation_error'
+  | 'idempotency_conflict'
+  | 'project_revision_conflict'
+  | 'classroom_not_found'
+  | 'project_not_found';
 
 export type UseCaseResult<T> =
   | { readonly ok: true; readonly value: T }
@@ -382,7 +386,19 @@ export class SaveDraftUseCase {
     projectId: string;
     actor: ProjectActor;
     document: unknown;
+    baseRevision: number;
+    mutationId: string;
   }): Promise<UseCaseResult<ProjectDraft>> {
+    if (!Number.isSafeInteger(input.baseRevision) || input.baseRevision < 0) {
+      return fail('validation_error', 'baseRevision must be a non-negative integer');
+    }
+    if (
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+        input.mutationId,
+      )
+    ) {
+      return fail('validation_error', 'mutationId must be a UUID v4');
+    }
     const loaded = await this.repository.load(input.tenantId, input.projectId, input.actor);
     if (!loaded) {
       return fail('project_not_found', 'project not found');
@@ -401,10 +417,17 @@ export class SaveDraftUseCase {
       actor: input.actor,
       document: parsed.document,
       preview: previewOf(module, parsed.document),
+      baseRevision: input.baseRevision,
+      mutationId: input.mutationId,
     });
-    return draft === null
+    if (draft !== null) return { ok: true, value: draft };
+    const current = await this.repository.load(input.tenantId, input.projectId, input.actor);
+    return current === null
       ? fail('project_not_found', 'project not found')
-      : { ok: true, value: draft };
+      : fail(
+          'project_revision_conflict',
+          'Проект уже изменён на другом устройстве. Текущая работа не была перезаписана.',
+        );
   }
 }
 
@@ -424,7 +447,11 @@ export class SaveProjectSnapshotUseCase {
     projectId: string;
     actor: ProjectActor;
     imageDataUrl: unknown;
+    sourceRevision: unknown;
   }): Promise<UseCaseResult<ProjectSnapshot>> {
+    if (!Number.isSafeInteger(input.sourceRevision) || Number(input.sourceRevision) < 1) {
+      return fail('validation_error', 'sourceRevision must be a positive integer');
+    }
     const decoded = decodeSnapshotDataUrl(input.imageDataUrl);
     if (!decoded.ok) return fail('validation_error', decoded.message);
     const validation = validateSnapshotImage(decoded.bytes);
@@ -434,10 +461,16 @@ export class SaveProjectSnapshotUseCase {
       projectId: input.projectId,
       actor: input.actor,
       image: validation.image,
+      sourceRevision: Number(input.sourceRevision),
     });
-    return saved === null
+    if (saved !== null) return { ok: true, value: saved };
+    const current = await this.repository.load(input.tenantId, input.projectId, input.actor);
+    return current === null
       ? fail('project_not_found', 'project not found')
-      : { ok: true, value: saved };
+      : fail(
+          'project_revision_conflict',
+          'Превью относится к другой редакции проекта и не было сохранено.',
+        );
   }
 }
 

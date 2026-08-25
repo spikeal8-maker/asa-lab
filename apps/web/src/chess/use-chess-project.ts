@@ -28,6 +28,11 @@ import {
 } from '@asa-lab/chess';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, type Project, type ProjectVersion } from '../api';
+import {
+  clearLocalProjectDraft,
+  readLocalProjectDraft,
+  writeLocalProjectDraft,
+} from '../modules/project-local-draft';
 import { applyAsaBotProfile, resolveAsaBotProfile } from './chess-ui';
 
 export type ChessSaveStatus = 'saved' | 'dirty' | 'saving' | 'error';
@@ -72,6 +77,8 @@ export function useChessProject(projectId: string) {
   const [versions, setVersions] = useState<ProjectVersion[]>([]);
   const [loadState, setLoadState] = useState<'loading' | 'ready' | 'error'>('loading');
   const [saveStatus, setSaveStatus] = useState<ChessSaveStatus>('saved');
+  const saveStatusRef = useRef<ChessSaveStatus>('saved');
+  saveStatusRef.current = saveStatus;
   const [notice, setNotice] = useState<string | null>(null);
   const [selectedSquare, setSelectedSquare] = useState<Square | null>(null);
   const [promotion, setPromotion] = useState<PromotionRequest | null>(null);
@@ -87,6 +94,8 @@ export function useChessProject(projectId: string) {
   const saveGenerationRef = useRef(0);
   const saveQueueRef = useRef<ChessSaveQueue | null>(null);
   saveQueueRef.current ??= createChessSaveQueue();
+  const serverRevisionRef = useRef<number | null>(null);
+  const documentRef = useRef<ChessDocument | null>(null);
 
   const position = useMemo(
     () => (document ? parsePosition(document.currentFen) : null),
@@ -123,12 +132,26 @@ export function useChessProject(projectId: string) {
       setLoadState('error');
       return;
     }
+    const local = readLocalProjectDraft(window.localStorage, projectId, 'chess');
+    const parsedLocal = local ? validateChessDocument(local.document) : null;
+    const restoredDocument = parsedLocal?.ok ? parsedLocal.value : parsed.value;
+    const restored = parsedLocal?.ok === true;
+    const revisionConflict = restored && local?.baseRevision !== response.data.draft.revision;
     setProject(response.data.project);
+    serverRevisionRef.current =
+      revisionConflict && local ? local.baseRevision : response.data.draft.revision;
     setProjectTitle(response.data.project.title);
-    setDocument(parsed.value);
+    documentRef.current = restoredDocument;
+    setDocument(restoredDocument);
     setAnalysis(response.data.result);
     setVersions(response.data.versions);
-    setSaveStatus('saved');
+    setSaveStatus(revisionConflict ? 'error' : restored ? 'dirty' : 'saved');
+    if (!restored) clearLocalProjectDraft(window.localStorage, projectId);
+    if (revisionConflict) {
+      setNotice('На сервере есть более новая версия. Локальная партия сохранена в браузере.');
+    } else if (restored) {
+      setNotice('Восстановлены несохранённые изменения из этого браузера.');
+    }
     setSelectedSquare(null);
     setPromotion(null);
     setLoadState('ready');
@@ -145,8 +168,14 @@ export function useChessProject(projectId: string) {
       const generation = saveGenerationRef.current + 1;
       saveGenerationRef.current = generation;
       setSaveStatus('saving');
+      const baseRevision = serverRevisionRef.current;
+      if (baseRevision === null) {
+        setSaveStatus('error');
+        if (!quiet) setNotice('Не удалось определить сохранённую версию проекта.');
+        return false;
+      }
       const response = await saveQueueRef.current!.run(() =>
-        api.saveDraft<ChessDocument, ChessAnalysisSummary>(projectId, next),
+        api.saveDraft<ChessDocument, ChessAnalysisSummary>(projectId, next, baseRevision),
       );
       if (!response.ok) {
         if (generation === saveGenerationRef.current) {
@@ -155,26 +184,52 @@ export function useChessProject(projectId: string) {
         }
         return false;
       }
-      setDocument(response.data.draft.document);
+      serverRevisionRef.current = response.data.draft.revision;
       setAnalysis(response.data.result);
-      if (generation === saveGenerationRef.current) {
-        setSaveStatus('saved');
-        if (!quiet) setNotice('Шахматный проект сохранён.');
+      if (documentRef.current === next) {
+        documentRef.current = response.data.draft.document;
+        setDocument(response.data.draft.document);
+        clearLocalProjectDraft(window.localStorage, projectId);
+        if (generation === saveGenerationRef.current) {
+          setSaveStatus('saved');
+          if (!quiet) setNotice('Шахматный проект сохранён.');
+        }
+      } else if (documentRef.current) {
+        writeLocalProjectDraft(window.localStorage, {
+          projectId,
+          moduleKey: 'chess',
+          baseRevision: response.data.draft.revision,
+          document: documentRef.current,
+        });
+        if (generation === saveGenerationRef.current) setSaveStatus('dirty');
       }
       return true;
     },
     [projectId],
   );
 
-  const commit = useCallback((next: ChessDocument, message?: string) => {
-    setDocument(next);
-    setSaveStatus('dirty');
-    setSelectedSquare(null);
-    setPromotion(null);
-    if (message) setNotice(message);
-    turnStartedAtRef.current = Date.now();
-    timeoutCommittedRef.current = false;
-  }, []);
+  const commit = useCallback(
+    (next: ChessDocument, message?: string) => {
+      documentRef.current = next;
+      const baseRevision = serverRevisionRef.current;
+      if (baseRevision !== null) {
+        writeLocalProjectDraft(window.localStorage, {
+          projectId,
+          moduleKey: 'chess',
+          baseRevision,
+          document: next,
+        });
+      }
+      setDocument(next);
+      setSaveStatus('dirty');
+      setSelectedSquare(null);
+      setPromotion(null);
+      if (message) setNotice(message);
+      turnStartedAtRef.current = Date.now();
+      timeoutCommittedRef.current = false;
+    },
+    [projectId],
+  );
 
   useEffect(() => {
     if (!document || saveStatus !== 'dirty') return;
@@ -186,6 +241,22 @@ export function useChessProject(projectId: string) {
       if (autosaveTimerRef.current !== null) window.clearTimeout(autosaveTimerRef.current);
     };
   }, [document, persist, saveStatus]);
+
+  useEffect(() => {
+    const flush = (): void => {
+      const current = documentRef.current;
+      if (current && saveStatusRef.current === 'dirty') void persist(current, true);
+    };
+    const onVisibility = (): void => {
+      if (globalThis.document.visibilityState === 'hidden') flush();
+    };
+    globalThis.document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('pagehide', flush);
+    return () => {
+      globalThis.document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('pagehide', flush);
+    };
+  }, [persist]);
 
   useEffect(() => {
     if (!document?.clock || document.result !== '*' || !position) return;
