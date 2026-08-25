@@ -504,7 +504,35 @@ resultMode:
 - `maxPoints > 0`;
 - результат может преобразовываться в school grade.
 
-## 8.3. Canonical fields
+## 8.3. Root and version responsibilities
+
+`LearningActivity` owns live authoring identity and lifecycle:
+
+```text
+id
+ownerScope
+visibility/sharing/grants
+archive state
+current draft relationship
+current published version relationship
+```
+
+`LearningActivityVersion` owns only the immutable reproducibility snapshot:
+
+```text
+published content
+pedagogical/runtime defaults
+exact QuizVersion/ProjectVersion/RubricVersion references
+provenance
+publishedAt
+```
+
+Changing visibility, sharing, grants or archive state MUST NOT create a new
+content version. Those live responsibilities belong to the root entity. M1-001
+implements only the minimal physical root/version boundary; the complete M5
+capability, grants and catalog model remains M5 scope.
+
+## 8.3.1. Canonical LearningActivityVersion fields
 
 ```text
 id
@@ -524,9 +552,8 @@ rubricVersionId?
 moduleKey?
 quizVersionId?
 starterProjectVersionId?
+provenance
 publishedAt
-ownerScope
-visibilityPolicy
 ```
 
 ## 8.4. Quiz policy ownership
@@ -4837,5 +4864,4 @@ OPTIONAL OFFICIAL PERIOD GRADE
 ```
 
 После выполнения настоящего ТЗ ASA Learning должна обеспечивать единый, воспроизводимый и безопасный учебный цикл для курса и любой отдельной учебной активности, без параллельных систем сдачи/оценивания и без расхождения результатов между преподавателем, учеником и журналом.
-
 

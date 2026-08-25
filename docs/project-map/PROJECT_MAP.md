@@ -20,20 +20,19 @@ checkpoint production_restart_verified_max_secret_pending
 execution direct_main
 ```
 
-## Parallel ASA Learning M0 lane
+## Parallel ASA Learning lane
 
-The owner accepted `LRN-M0-001` through `LRN-M0-007`. `LRN-M0-008 — M0
-Acceptance Gate` published verdict `M0 ACCEPTED` through merged PR #153 after a
-fresh isolated database and exact-SHA governance/code/data workflow. Owner
-acceptance of the gate remains pending. The primary Admin/Auth task is unchanged.
-M1-M7 are not activated, and production deployment, migration apply and backfill
-are not authorized.
+The owner accepted the complete `M0 — State Convergence` milestone through
+`LRN-M0-008`. Only `LRN-M1-001 — LearningActivityVersion Convergence` is active
+in the Learning lane. The primary Admin/Auth task is unchanged. `LRN-M1-002`
+onward, M2-M7, production deployment, migration apply and backfill are not
+authorized.
 
 The CURRENT repository already contains course, direct-assignment, quiz,
 attempt/result and gradebook implementations. Therefore `CTX-CONTENT`,
 `CTX-ACTIVITIES` and `CTX-ASSESSMENT` now describe the M0 canonical compatibility
-foundation under acceptance review rather than an audit-only state. Authoring
-redesign, universal M1 runtime and the M3 Gradebook Matrix remain future scope.
+foundation. M1-001 converges authoring definitions without creating ActivityRun;
+universal delivery after M1-001 and the M3 Gradebook Matrix remain future scope.
 
 The owner activated an independent educational Russian-draughts system. 3D M0
 is preserved in `main` after PR #95 and remains outside the Checkers writable

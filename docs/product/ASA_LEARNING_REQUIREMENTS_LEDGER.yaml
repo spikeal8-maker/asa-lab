@@ -149,6 +149,35 @@ requirements:
   - docs/product/learning/current/LRN_M0_ADDITIVE_BACKFILL_REPORT.md
   tests:
   - tests/courses/learning-additive-backfill.pg.spec.ts
+- id: ARCH-001
+  milestone: M1
+  status: in_progress
+  summary: Direct and course quiz/project definitions converge on one canonical activity version contract; persistent shared runtime remains later M1 scope
+  evidence:
+  - docs/product/learning/execution/LRN-M1-001_EXECUTION_SPEC.md
+  tests: []
+- id: ARCH-006
+  milestone: M1
+  status: in_progress
+  summary: Published LearningActivityVersion content is immutable
+  evidence:
+  - migrations/0077_learning_assessment_foundation.sql
+  - docs/product/learning/execution/LRN-M1-001_EXECUTION_SPEC.md
+  tests: []
+- id: VER-001
+  milestone: M1
+  status: in_progress
+  summary: Reusable versioned entities include canonical LearningActivityVersion; other listed entity families retain their own milestone status
+  evidence:
+  - docs/product/learning/execution/LRN-M1-001_EXECUTION_SPEC.md
+  tests: []
+- id: VER-002
+  milestone: M1
+  status: in_progress
+  summary: LearningActivityVersion stores immutable policy snapshots without one table per policy
+  evidence:
+  - docs/product/learning/execution/LRN-M1-001_EXECUTION_SPEC.md
+  tests: []
 - id: ARCH-002
   milestone: M1
   status: target
