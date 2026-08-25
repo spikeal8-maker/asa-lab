@@ -112,7 +112,7 @@ M5 cross-owner grants/sharing are intentionally not implemented.
 
 ## MIGRATIONS
 
-`0090_learning_activity_version_convergence.sql` is additive. On a newly created isolated PostgreSQL database, all 89 migrations applied; a repeat run reported `Applied 0 migration(s)`. Checksums for `0001..0089` were not changed. There is no backfill and no production application.
+`0091_learning_activity_version_convergence.sql` is additive. Current `main` added the unrelated `0090_project_draft_idempotency.sql` during execution, so the Learning migration was renumbered before merge rather than colliding in CI. A clean isolated PostgreSQL run applied all 90 migrations and repeated with `Applied 0 migration(s)`. Checksums for `0001..0090` are unchanged. There is no backfill and no production application.
 
 Rollback before future runtime adoption is behavioral: unroute the additive API and leave nullable additive schema in place. Published versions are never deleted or rewritten as rollback.
 

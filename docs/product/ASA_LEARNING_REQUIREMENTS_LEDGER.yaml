@@ -156,7 +156,7 @@ requirements:
   evidence:
   - docs/product/learning/execution/LRN-M1-001_EXECUTION_SPEC.md
   - docs/product/learning/current/LRN_M1_ACTIVITY_VERSION_CONVERGENCE_REPORT.md
-  - migrations/0090_learning_activity_version_convergence.sql
+  - migrations/0091_learning_activity_version_convergence.sql
   tests:
   - tests/courses/learning-activity-version-convergence.pg.spec.ts
 - id: ARCH-006
@@ -165,7 +165,7 @@ requirements:
   summary: Published canonical LearningActivityVersion content and policy snapshots are immutable at the database boundary
   evidence:
   - migrations/0077_learning_assessment_foundation.sql
-  - migrations/0090_learning_activity_version_convergence.sql
+  - migrations/0091_learning_activity_version_convergence.sql
   - docs/product/learning/execution/LRN-M1-001_EXECUTION_SPEC.md
   - docs/product/learning/current/LRN_M1_ACTIVITY_VERSION_CONVERGENCE_REPORT.md
   tests:
@@ -177,7 +177,7 @@ requirements:
   evidence:
   - docs/product/learning/execution/LRN-M1-001_EXECUTION_SPEC.md
   - docs/product/learning/current/LRN_M1_ACTIVITY_VERSION_CONVERGENCE_REPORT.md
-  - migrations/0090_learning_activity_version_convergence.sql
+  - migrations/0091_learning_activity_version_convergence.sql
   tests:
   - tests/courses/learning-activity-version-convergence.pg.spec.ts
 - id: VER-002
@@ -187,7 +187,7 @@ requirements:
   evidence:
   - docs/product/learning/execution/LRN-M1-001_EXECUTION_SPEC.md
   - docs/product/learning/current/LRN_M1_ACTIVITY_VERSION_CONVERGENCE_REPORT.md
-  - migrations/0090_learning_activity_version_convergence.sql
+  - migrations/0091_learning_activity_version_convergence.sql
   tests:
   - tests/courses/learning-activity-version-convergence.pg.spec.ts
 - id: ARCH-002

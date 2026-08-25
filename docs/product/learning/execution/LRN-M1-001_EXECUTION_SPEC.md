@@ -92,7 +92,7 @@ docs/product/learning/execution/LRN-M1-001_EXECUTION_SPEC.md
 docs/product/learning/current/LRN_M1_ACTIVITY_VERSION_CONVERGENCE_REPORT.md
 docs/project-map/PROJECT_MAP.md
 docs/project-map/project-map.yaml
-migrations/0090_learning_activity_version_convergence.sql
+migrations/0091_learning_activity_version_convergence.sql
 apps/api/src/learning-activities.controller.ts
 apps/api/src/learning-activities.controller.spec.ts
 apps/api/src/app.module.ts
@@ -113,7 +113,7 @@ production configuration and data
 
 ## 8. Database / migration
 
-Migration: `0090_learning_activity_version_convergence.sql`, one transaction through the existing migration runner.
+Migration: `0091_learning_activity_version_convergence.sql`, one transaction through the existing migration runner. Number `0091` is required because current `origin/main` added `0090_project_draft_idempotency.sql` while this task was in flight.
 
 ### 8.1 Existing root extension
 
@@ -270,7 +270,7 @@ List queries use owner/reusable/archive index. Publication is one root-scoped lo
 - [x] M0 owner acceptance and only M1-001 activation recorded
 - [x] normative root/version responsibility corrected
 - [x] CURRENT definition and kind map proven
-- [x] additive migration 0090
+- [x] additive migration 0091
 - [x] five canonical kinds represented
 - [x] three result modes enforced without fabricated scale
 - [x] immutable policy snapshot
