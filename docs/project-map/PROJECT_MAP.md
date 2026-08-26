@@ -22,18 +22,20 @@ execution direct_main
 
 ## Parallel ASA Learning lane
 
-The owner accepted the complete `M0 — State Convergence` milestone and
-`LRN-M1-001 — LearningActivityVersion Convergence`. Only
-`LRN-M1-002 — CourseEnrollment` is active in the Learning lane. The primary
-Admin/Auth task is unchanged. `LRN-M1-003` onward, M2-M7, production deployment,
-migration apply and backfill are not authorized.
+The owner accepted the complete `M0 — State Convergence` milestone,
+`LRN-M1-001 — LearningActivityVersion Convergence` and
+`LRN-M1-002 — CourseEnrollment`. Only `LRN-M1-003 — Persistent ActivityRun` is
+active in the Learning lane. The primary Admin/Auth task is unchanged.
+`LRN-M1-004` onward, M2-M7, production deployment, migration apply and backfill
+are not authorized.
 
 The CURRENT repository already contains course, direct-assignment, quiz,
 attempt/result and gradebook implementations. Therefore `CTX-CONTENT`,
 `CTX-ACTIVITIES` and `CTX-ASSESSMENT` now describe the M0 canonical compatibility
-foundation. M1-001 converged authoring definitions; M1-002 adds only stable
-learner membership in the existing CourseRun model. ActivityRun and the rest of
-universal delivery, plus the M3 Gradebook Matrix, remain future scope.
+foundation. M1-001 converged authoring definitions; M1-002 added stable learner
+membership in the existing CourseRun model. M1-003 adds only the persistent
+direct/course-neutral ActivityRun primitive. ActivityParticipation, Attempt
+cutover and the M3 Gradebook Matrix remain future scope.
 
 The owner activated an independent educational Russian-draughts system. 3D M0
 is preserved in `main` after PR #95 and remains outside the Checkers writable
