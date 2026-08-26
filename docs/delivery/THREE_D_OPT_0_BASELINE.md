@@ -5,7 +5,7 @@ BSP; it does not approve a replacement engine or change runtime behaviour.
 
 ## Receipt
 
-- revision: `ec1c63118fda45553c438ef56db062b06da7f67a`
+- revision: `7e5ab3c96714fa6475cfe367d99224f3a5fda626`
 - dirty tree before report generation: `true`
 - engine: `legacy-bsp-v1`
 - corpus/schema: `1/1`
@@ -23,23 +23,23 @@ BSP; it does not approve a replacement engine or change runtime behaviour.
 
 | Case | Tier | Result | Diagnostics | Triangles | p95 ms | max ms | Checksum |
 | --- | --- | --- | --- | ---: | ---: | ---: | --- |
-| union-identical-boxes | correctness | valid-solid | none | 12 | 0.605 | 3.468 | 8039506d4f6bb295 |
-| union-coplanar-overlap | correctness | validation-rejection | boundary-edge, non-manifold-vertex | 40 | 0.443 | 0.606 | ba720de09d29c150 |
-| union-edge-touch | correctness | validation-rejection | non-manifold-edge | 24 | 0.296 | 0.531 | 5415725be161a106 |
-| union-point-touch | correctness | validation-rejection | non-manifold-vertex | 24 | 0.384 | 0.457 | 18a1c8356a0d3029 |
-| union-box-cylinder-junction | interaction | validation-rejection | boundary-edge, non-manifold-vertex | 416 | 2.823 | 3.703 | 6e57a999a62682ca |
-| difference-spherical-cavity | interaction | validation-rejection | boundary-edge, degenerate-triangle, non-manifold-vertex | 2338 | 35.772 | 37.776 | ebe8db38e3fcfab1 |
-| difference-nested-holes | correctness | validation-rejection | boundary-edge, non-manifold-edge, non-manifold-vertex | 2248 | 10.068 | 12.920 | 85f6a3699d33ff74 |
-| difference-thin-wall | correctness | validation-rejection | boundary-edge, non-manifold-vertex | 50 | 0.385 | 0.421 | c9705c61221d47f3 |
-| union-rotated-nonuniform | correctness | validation-rejection | boundary-edge, non-manifold-vertex | 757 | 3.643 | 4.305 | 42c8ae3800c5c26c |
-| union-mirrored-operands | correctness | validation-rejection | boundary-edge, non-manifold-vertex | 11 | 0.336 | 0.744 | c8f4d3fa7d8484c7 |
-| union-roof-wedge | interaction | validation-rejection | boundary-edge, non-manifold-vertex | 24 | 0.239 | 0.297 | bc184b60e0798c46 |
-| union-text-curved-text | interaction | validation-rejection | boundary-edge, degenerate-triangle, non-manifold-edge, non-manifold-vertex | 5478 | 109.151 | 112.912 | 3184463f6dfed401 |
-| union-10-overlapping-boxes | interaction | validation-rejection | boundary-edge, non-manifold-vertex | 264 | 3.577 | 6.996 | 09b9f2df5e5e87f8 |
-| union-100-grid-boxes | stress | valid-solid | none | 1200 | 30.644 | 32.251 | 37703703b457c19a |
-| union-500-grid-boxes | stress | valid-solid | none | 6000 | 759.066 | 759.835 | e296854b4b8f05ed |
-| union-chain-20 | stress | validation-rejection | boundary-edge, non-manifold-vertex | 544 | 4.227 | 4.315 | f49c111005b8f62e |
-| union-chain-50 | stress | validation-rejection | boundary-edge, non-manifold-vertex | 1384 | 19.547 | 26.736 | 785af63656956186 |
+| union-identical-boxes | correctness | valid-solid | none | 12 | 0.451 | 1.499 | 8039506d4f6bb295 |
+| union-coplanar-overlap | correctness | validation-rejection | boundary-edge, non-manifold-vertex | 40 | 0.391 | 0.637 | ba720de09d29c150 |
+| union-edge-touch | correctness | validation-rejection | non-manifold-edge | 24 | 0.234 | 0.342 | 5415725be161a106 |
+| union-point-touch | correctness | validation-rejection | non-manifold-vertex | 24 | 0.385 | 0.408 | 18a1c8356a0d3029 |
+| union-box-cylinder-junction | interaction | validation-rejection | boundary-edge, non-manifold-vertex | 416 | 2.708 | 3.701 | 6e57a999a62682ca |
+| difference-spherical-cavity | interaction | validation-rejection | boundary-edge, degenerate-triangle, non-manifold-vertex | 2338 | 33.962 | 36.591 | ebe8db38e3fcfab1 |
+| difference-nested-holes | correctness | validation-rejection | boundary-edge, non-manifold-edge, non-manifold-vertex | 2248 | 9.604 | 10.305 | 85f6a3699d33ff74 |
+| difference-thin-wall | correctness | validation-rejection | boundary-edge, non-manifold-vertex | 50 | 0.421 | 1.016 | c9705c61221d47f3 |
+| union-rotated-nonuniform | correctness | validation-rejection | boundary-edge, non-manifold-vertex | 757 | 3.349 | 3.642 | 42c8ae3800c5c26c |
+| union-mirrored-operands | correctness | validation-rejection | boundary-edge, non-manifold-vertex | 11 | 0.252 | 0.587 | c8f4d3fa7d8484c7 |
+| union-roof-wedge | interaction | validation-rejection | boundary-edge, non-manifold-vertex | 24 | 0.188 | 0.569 | bc184b60e0798c46 |
+| union-text-curved-text | interaction | validation-rejection | boundary-edge, degenerate-triangle, non-manifold-edge, non-manifold-vertex | 5478 | 102.548 | 105.273 | 3184463f6dfed401 |
+| union-10-overlapping-boxes | interaction | validation-rejection | boundary-edge, non-manifold-vertex | 264 | 2.090 | 2.131 | 09b9f2df5e5e87f8 |
+| union-100-grid-boxes | stress | valid-solid | none | 1200 | 29.769 | 33.761 | 37703703b457c19a |
+| union-500-grid-boxes | stress | valid-solid | none | 6000 | 665.684 | 689.967 | e296854b4b8f05ed |
+| union-chain-20 | stress | validation-rejection | boundary-edge, non-manifold-vertex | 544 | 3.722 | 3.842 | f49c111005b8f62e |
+| union-chain-50 | stress | validation-rejection | boundary-edge, non-manifold-vertex | 1384 | 20.059 | 23.242 | 785af63656956186 |
 
 ## Interpretation boundary
 
