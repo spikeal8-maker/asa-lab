@@ -1,9 +1,9 @@
 # LRN-VS-001 — Teacher Assigns Activity
 
-**Task:** `LRN-VS-001 — Teacher Assigns Activity`  
-**Milestone:** `Product-first visible slice`  
-**Status:** ACTIVE  
-**Baseline SHA:** `7bf948eef395fc8bc3ad6edb0fdd25a809217433`  
+**Task:** `LRN-VS-001 — Teacher Assigns Activity`
+**Milestone:** `Product-first visible slice`
+**Status:** ACTIVE
+**Baseline SHA:** `7bf948eef395fc8bc3ad6edb0fdd25a809217433`
 **Issue:** `#165`
 
 ## Goal
