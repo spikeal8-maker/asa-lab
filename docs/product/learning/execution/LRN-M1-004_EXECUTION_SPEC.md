@@ -209,23 +209,28 @@ fresh migration plus repeat zero.
 
 ## 15. Acceptance checklist
 
-- [ ] one canonical school-safe ActivityParticipation table
-- [ ] stable LearnerIdentity ownership and exact Run lineage
-- [ ] optional coherent CourseEnrollment provenance
-- [ ] exact lifecycle and hard-delete protection
-- [ ] learner-authorized server-side activation
-- [ ] completion absent/not_available
-- [ ] excused orthogonal and audited
-- [ ] nullable learner-specific overrides with partial-date semantics
-- [ ] idempotent/concurrent assignment and audit dedupe
-- [ ] no Attempt/backfill/legacy handout coupling
-- [ ] least privilege and negative matrix
-- [ ] fresh 0094 apply and repeat zero
-- [ ] M0/M1-001/M1-002/M1-003 regressions
+- [x] one canonical school-safe ActivityParticipation table
+- [x] stable LearnerIdentity ownership and exact Run lineage
+- [x] optional coherent CourseEnrollment provenance
+- [x] exact lifecycle and hard-delete protection
+- [x] learner-authorized server-side activation
+- [x] completion absent/not_available
+- [x] excused orthogonal and audited
+- [x] nullable learner-specific overrides with partial-date semantics
+- [x] idempotent/concurrent assignment and audit dedupe
+- [x] no Attempt/backfill/legacy handout coupling
+- [x] least privilege and negative matrix
+- [x] fresh 0094 apply and repeat zero
+- [x] M0/M1-001/M1-002/M1-003 regressions
 - [ ] uncached repository and GitHub core gates
-- [ ] ledger updated without premature AUD-102/AUD-105 closure
+- [x] ledger updated without premature AUD-102/AUD-105 closure
 
 ## 16. Evidence
 
-Pending implementation. This execution-spec was created after CURRENT audit and
-before product migration/test code.
+This execution-spec was created after CURRENT audit and before product
+migration/test code. Migration `0094`, the 33-scenario mapped focused suite and
+the task report now provide implementation evidence. Isolated fresh apply,
+repeat-zero, M0/M1 regressions and uncached `gate:data` are green (`173` files,
+`1198` tests plus `15` focused RLS tests). The repository/core gate remains open
+because current `origin/main` itself exceeds the unrelated Electronics bundle
+budget (`206540/205000` bytes); main CI run `32941911258` fails identically.

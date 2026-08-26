@@ -308,7 +308,7 @@ parallel_lanes:
       pr: 161
       pr_draft: true
       status: in_progress
-      checkpoint: current_audit_complete
+      checkpoint: learning_data_evidence_complete_repository_gate_blocked_by_main_electronics_bundle
       owner_acceptance: pending
     revisions:
       convergence_baseline_sha: 558ef8c853e6d016267b9d6ee16a2b63d8d23c3c

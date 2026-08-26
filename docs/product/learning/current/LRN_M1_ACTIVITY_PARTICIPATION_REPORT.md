@@ -3,7 +3,8 @@
 **Task:** `LRN-M1-004 — ActivityParticipation`  
 **Baseline:** `558ef8c853e6d016267b9d6ee16a2b63d8d23c3c`  
 **Issue / PR:** `#160` / `#161`  
-**Result:** evidence-complete implementation candidate; owner acceptance pending
+**Result:** Learning/data evidence complete; repository gate blocked by a proven
+unrelated `origin/main` Electronics bundle-budget regression; not DONE
 
 ## ACTIVITYPARTICIPATION MODEL
 
@@ -201,6 +202,24 @@ Not deployed and not migrated in production. Evidence uses only the isolated
 `asalab_test` database. Migration application requires a separately authorized
 production action and the repository's three-part environment guard.
 
+## REPOSITORY GATE STATUS
+
+- `pnpm gate:data` with `NX_SKIP_NX_CACHE=true`: PASS on retry — `173` test
+  files, `1198` tests, then `15` focused RLS tests;
+- format, lint, typecheck, boundaries, contracts, secrets, license, dependency
+  inventory, release tests and build: PASS uncached;
+- `pnpm gate:repository`: FAIL only at the unrelated Electronics bundle budget:
+  `SchematicEditor 206540/205000` bytes;
+- current `origin/main` SHA `bfc32338f167355c5a347d66c7e9aee75c0e836f`
+  fails GitHub core run `32941911258` at the same bundle check, before this PR;
+- no Learning or web runtime file in LRN-M1-004 contributes to that bundle.
+
+The task stays `in_progress` and PR `#161` stays draft until the main baseline is
+green and the uncached repository/GitHub gates can be rerun. The unrelated
+Electronics budget/payload is not changed under Learning authorization.
+
 ## NEXT READY TASK
 
-`LRN-M1-005 — AudienceDefinition`, but it is not activated. Stop after M1-004.
+None while the repository gate is red. After that gate passes and M1-004 is
+closed, the next queue item is `LRN-M1-005 — AudienceDefinition`, but it is not
+activated.
