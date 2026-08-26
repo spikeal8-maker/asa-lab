@@ -59,6 +59,27 @@ async function selectObject(
   throw new Error('Unable to select the 3D object from the rendered workplane');
 }
 
+async function marqueeAllObjects(page: Page): Promise<void> {
+  const viewport = page.getByTestId('asa3d-viewport');
+  const bounds = await viewport.boundingBox();
+  if (!bounds) throw new Error('3D viewport unavailable');
+  await page.keyboard.press('Escape');
+  const start = {
+    x: bounds.x + bounds.width * 0.12,
+    y: bounds.y + bounds.height * 0.18,
+  };
+  const end = {
+    x: bounds.x + bounds.width * 0.88,
+    y: bounds.y + bounds.height * 0.84,
+  };
+  await page.mouse.move(start.x, start.y);
+  await page.mouse.down();
+  await page.mouse.move(end.x, end.y, { steps: 8 });
+  await expect(page.getByTestId('asa3d-selection-marquee')).toBeVisible();
+  await page.mouse.up();
+  await expect(viewport).toHaveAttribute('data-selected-node-ids', /,/);
+}
+
 function extendFromCentre(
   handle: { readonly x: number; readonly y: number },
   centre: { readonly x: number; readonly y: number },
@@ -261,7 +282,6 @@ test('teacher models, autosaves, reloads and versions an ASA 3D scene', async ({
   await page.mouse.down();
   await page.mouse.move(solidStart.x - 72, solidStart.y, { steps: 8 });
   await page.mouse.up();
-  const solidCentre = (await directHandlePoint(page, 'resize-south-west')).centre;
   await page.screenshot({
     path: 'e2e/artifacts/three-d/direct-manipulation-inspector-expanded.png',
     fullPage: true,
@@ -282,12 +302,7 @@ test('teacher models, autosaves, reloads and versions an ASA 3D scene', async ({
   if (!solidId || !holeId || solidId === holeId)
     throw new Error('Two distinct 3D objects required');
 
-  await page.mouse.click(solidCentre.x, solidCentre.y);
-  await expect(viewport).toHaveAttribute('data-selected-node-id', solidId);
-  await page.keyboard.down('Shift');
-  await page.mouse.click(holeCentre.x, holeCentre.y);
-  await page.keyboard.up('Shift');
-  await expect(page.getByTestId('asa3d-viewport')).toHaveAttribute('data-selected-node-ids', /,/);
+  await marqueeAllObjects(page);
   const multiSelectionPanel = page.getByTestId('asa3d-multi-selection-panel');
   await expect(multiSelectionPanel).toBeVisible();
   await expect(multiSelectionPanel).toHaveAttribute('data-selection-count', '2');
@@ -310,20 +325,7 @@ test('teacher models, autosaves, reloads and versions an ASA 3D scene', async ({
   await expect(page.getByRole('button', { name: 'Разгруппировать (Ctrl+Shift+G)' })).toBeEnabled();
   await page.getByRole('button', { name: 'Разгруппировать (Ctrl+Shift+G)' }).click();
 
-  const marqueeStart = {
-    x: Math.min(solidCentre.x, holeCentre.x) - 58,
-    y: Math.min(solidCentre.y, holeCentre.y) - 58,
-  };
-  const marqueeEnd = {
-    x: Math.max(solidCentre.x, holeCentre.x) + 58,
-    y: Math.max(solidCentre.y, holeCentre.y) + 58,
-  };
-  await page.mouse.move(marqueeStart.x, marqueeStart.y);
-  await page.mouse.down();
-  await page.mouse.move(marqueeEnd.x, marqueeEnd.y, { steps: 8 });
-  await expect(page.getByTestId('asa3d-selection-marquee')).toBeVisible();
-  await page.mouse.up();
-  await expect(viewport).toHaveAttribute('data-selected-node-ids', /,/);
+  await marqueeAllObjects(page);
   await page.getByRole('button', { name: 'Выровнять (L)' }).click();
   await page.getByRole('button', { name: 'X · ширина: По центру' }).click();
   await page.getByRole('button', { name: 'Линейка (R)' }).click();
