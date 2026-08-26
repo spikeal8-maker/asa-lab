@@ -28,9 +28,9 @@ import {
   createLinearDcDevice,
   isResistorDevice,
   isSourceDevice,
+  type LinearDcObservation,
   resistorPowerRatingWatt,
   sourceContinuousCurrentAmp,
-  sourceInternalResistanceOhm,
 } from './models/linear-dc-models.js';
 
 export { sourceInternalResistanceOhm } from './models/linear-dc-models.js';
@@ -640,6 +640,9 @@ export function solveCircuit(
     return device ? [device] : [];
   });
   const sourceDevices = linearDcDevices.filter(isSourceDevice);
+  const linearDcDeviceById = new Map(
+    linearDcDevices.map((device) => [device.instance.componentId, device] as const),
+  );
   const sources = sourceDevices.map((device) => device.instance.component);
   const arduinoBranches = document.components.flatMap((component) =>
     arduinoOutputBranches(component, options.simulationTimeMs ?? 0).map((branch) => ({
@@ -1279,12 +1282,20 @@ export function solveCircuit(
         arduinoBranchResults.find((entry) => entry.branch.id === 'd13')?.voltageDrop ??
         arduinoBranchResults[0]?.voltageDrop ??
         (isSimulated(component) ? voltageAt(component, 'a') - voltageAt(component, 'b') : 0);
+      const linearDcDevice = linearDcDeviceById.get(component.id);
+      const reportedLinearCurrent =
+        component.kind === 'source' ? -(sourceCurrents.get(component.id) ?? 0) : 0;
+      const linearDcObservation: LinearDcObservation | undefined = linearDcDevice?.model.observe?.(
+        linearDcDevice.instance as never,
+        {
+          voltageDrop,
+          current: reportedLinearCurrent,
+        },
+      );
       let current = 0;
-      if (component.kind === 'source') current = -(sourceCurrents.get(component.id) ?? 0);
+      if (linearDcObservation) current = linearDcObservation.current;
       else if (isArduinoUno(component))
         current = Math.max(0, ...arduinoBranchResults.map((entry) => Math.abs(entry.current)));
-      else if (component.kind === 'resistor')
-        current = voltageDrop / Math.max(CLOSED_RESISTANCE, component.value);
       else if (component.kind === 'photoresistor')
         current = voltageDrop / photoresistorResistanceOhm(component);
       else if (component.kind === 'lamp') current = voltageDrop / component.value;
@@ -1306,24 +1317,26 @@ export function solveCircuit(
       } else if (transistorResult) current = transistorResult.collectorCurrent;
       else if (branches.length > 0)
         current = branchResults.reduce((sum, branch) => sum + branch.current, 0);
-      const power = Math.abs(
-        isArduinoUno(component)
-          ? arduinoBranchResults.reduce(
-              (sum, entry) => sum + Math.abs(entry.current * entry.voltageDrop),
-              0,
-            )
-          : transistorResult
-            ? transistorResult.collectorCurrent * transistorResult.collectorEmitterDrop +
-              transistorResult.baseCurrent * transistorResult.baseEmitterDrop
-            : component.kind === 'lamp'
-              ? current * voltageDrop
-              : branchResults.length > 0
-                ? branchResults.reduce(
-                    (sum, branch) => sum + branch.current * branch.voltageDrop,
-                    0,
-                  )
-                : current * voltageDrop,
-      );
+      const power =
+        linearDcObservation?.power ??
+        Math.abs(
+          isArduinoUno(component)
+            ? arduinoBranchResults.reduce(
+                (sum, entry) => sum + Math.abs(entry.current * entry.voltageDrop),
+                0,
+              )
+            : transistorResult
+              ? transistorResult.collectorCurrent * transistorResult.collectorEmitterDrop +
+                transistorResult.baseCurrent * transistorResult.baseEmitterDrop
+              : component.kind === 'lamp'
+                ? current * voltageDrop
+                : branchResults.length > 0
+                  ? branchResults.reduce(
+                      (sum, branch) => sum + branch.current * branch.voltageDrop,
+                      0,
+                    )
+                  : current * voltageDrop,
+        );
       const branchCurrents = transistorResult
         ? transistorTypeOf(component) === 'fet'
           ? {
@@ -1356,10 +1369,7 @@ export function solveCircuit(
         component.kind === 'lamp'
           ? Math.min(100, Math.pow(power / LAMP_NOMINAL_POWER_W, 0.55) * 100)
           : Math.max(0, ...Object.values(branchBrightness));
-      const resistorPowerRating =
-        component.kind === 'resistor' ? resistorPowerRatingWatt(component) : undefined;
-      const powerUtilizationPercent =
-        resistorPowerRating === undefined ? undefined : (power / resistorPowerRating) * 100;
+      const powerUtilizationPercent = linearDcObservation?.powerUtilizationPercent;
       const currentUtilizationPercent =
         branches.length > 0
           ? Math.max(
@@ -1369,46 +1379,27 @@ export function solveCircuit(
               ),
             )
           : undefined;
-      const sourceCurrentUtilizationPercent =
-        component.kind === 'source'
-          ? (Math.abs(current) / sourceContinuousCurrentAmp(component)) * 100
-          : undefined;
+      const sourceCurrentUtilizationPercent = linearDcObservation?.currentUtilizationPercent;
       const stressState =
-        sourceCurrentUtilizationPercent !== undefined
-          ? sourceCurrentUtilizationPercent > 200.000_001
+        linearDcObservation?.stressState ??
+        (branches.length === 0
+          ? undefined
+          : branchResults.some(
+                ({ branch, current: branchCurrent }) => Math.abs(branchCurrent) > branch.maxCurrent,
+              )
             ? 'burned'
-            : sourceCurrentUtilizationPercent > 100.000_001
+            : branchResults.some(
+                  ({ branch, current: branchCurrent }) =>
+                    Math.abs(branchCurrent) > branch.nominalCurrent,
+                )
               ? 'overcurrent'
-              : sourceCurrentUtilizationPercent >= 80
-                ? 'warning'
-                : 'normal'
-          : powerUtilizationPercent !== undefined
-            ? powerUtilizationPercent > 200
-              ? 'burned'
-              : powerUtilizationPercent > 100
-                ? 'overcurrent'
-                : powerUtilizationPercent >= RESISTOR_WARNING_RATIO * 100
-                  ? 'warning'
-                  : 'normal'
-            : branches.length === 0
-              ? undefined
               : branchResults.some(
                     ({ branch, current: branchCurrent }) =>
-                      Math.abs(branchCurrent) > branch.maxCurrent,
+                      branch.nearLimitWarning &&
+                      Math.abs(branchCurrent) >= branch.nominalCurrent * LED_WARNING_RATIO,
                   )
-                ? 'burned'
-                : branchResults.some(
-                      ({ branch, current: branchCurrent }) =>
-                        Math.abs(branchCurrent) > branch.nominalCurrent,
-                    )
-                  ? 'overcurrent'
-                  : branchResults.some(
-                        ({ branch, current: branchCurrent }) =>
-                          branch.nearLimitWarning &&
-                          Math.abs(branchCurrent) >= branch.nominalCurrent * LED_WARNING_RATIO,
-                      )
-                    ? 'warning'
-                    : 'normal';
+                ? 'warning'
+                : 'normal');
       const piezoTone =
         component.kind === 'piezo'
           ? (() => {
@@ -1464,11 +1455,11 @@ export function solveCircuit(
         ...(stressState === undefined
           ? {}
           : { stressState, ...damageObservationForStress(stressState) }),
-        ...(component.kind === 'source'
+        ...(linearDcObservation?.internalResistanceOhm !== undefined
           ? {
-              internalResistanceOhm: round(sourceInternalResistanceOhm(component), 6),
-              internalPower: round(current * current * sourceInternalResistanceOhm(component)),
-              voltageSag: round(Math.abs(current) * sourceInternalResistanceOhm(component)),
+              internalResistanceOhm: round(linearDcObservation.internalResistanceOhm, 6),
+              internalPower: round(linearDcObservation.internalPower ?? 0),
+              voltageSag: round(linearDcObservation.voltageSag ?? 0),
             }
           : {}),
         ...(component.kind === 'led' ||

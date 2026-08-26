@@ -24,11 +24,18 @@ export interface DcStampContext {
   ): void;
 }
 
-export interface DeviceModel<Parameters> {
+export interface DcOperatingPoint {
+  readonly voltageDrop: number;
+  /** Current reported to the user for this component at the solved operating point. */
+  readonly current: number;
+}
+
+export interface DeviceModel<Parameters, Observation = never> {
   readonly id: string;
   readonly version: number;
   readonly analyses: readonly ['dc'];
   validate(component: SchematicComponent): readonly ModelIssue[];
   normalize(component: SchematicComponent): NormalizedDevice<Parameters>;
   stampDc(context: DcStampContext, instance: NormalizedDevice<Parameters>): void;
+  observe?(instance: NormalizedDevice<Parameters>, operatingPoint: DcOperatingPoint): Observation;
 }

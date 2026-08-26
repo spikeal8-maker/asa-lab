@@ -14,10 +14,10 @@ const javascript = await Promise.all(
 
 const budgets = [
   { label: 'initial application', prefix: 'index-', maximum: 570_000 },
-  // MATH-1 moved source/resistor stamping behind the public DeviceModel
-  // contract. The measured uncached production chunk grew 0.77% (204980 →
-  // 206561 bytes); keep a hard ceiling immediately above that accepted slice.
-  { label: 'electronics editor', prefix: 'SchematicEditor-', maximum: 207_000 },
+  // MATH-1 moved source/resistor stamping and operating-point observations
+  // behind DeviceModel. The two measured slices total 207297 bytes (+1.13%
+  // from 204980); keep a narrow hard ceiling instead of disabling the gate.
+  { label: 'electronics editor', prefix: 'SchematicEditor-', maximum: 207_500 },
   { label: 'chess editor', prefix: 'ChessModuleExperience-', maximum: 255_000 },
   { label: 'checkers editor', prefix: 'CheckersModuleExperience-', maximum: 160_000 },
   { label: '3D editor', prefix: 'ThreeDEditor-', maximum: 2_900_000 },

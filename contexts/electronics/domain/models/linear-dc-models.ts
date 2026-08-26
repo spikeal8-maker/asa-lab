@@ -10,6 +10,30 @@ const LEGACY_SOURCE_RESISTANCE_OHM = 1e-12;
 const FRESH_AA_INTERNAL_RESISTANCE_OHM = 0.225;
 const FRESH_CR2032_INTERNAL_RESISTANCE_OHM = 13;
 const DEFAULT_RESISTOR_POWER_RATING_W = 0.25;
+const RESISTOR_WARNING_PERCENT = 80;
+
+export type LinearDcStressState = 'normal' | 'warning' | 'overcurrent' | 'burned';
+
+export interface LinearDcObservation {
+  readonly current: number;
+  readonly power: number;
+  readonly stressState: LinearDcStressState;
+  readonly currentUtilizationPercent?: number;
+  readonly powerUtilizationPercent?: number;
+  readonly internalResistanceOhm?: number;
+  readonly internalPower?: number;
+  readonly voltageSag?: number;
+}
+
+function stressFromPercent(
+  utilizationPercent: number,
+  warningPercent: number,
+): LinearDcStressState {
+  if (utilizationPercent > 200.000_001) return 'burned';
+  if (utilizationPercent > 100.000_001) return 'overcurrent';
+  if (utilizationPercent >= warningPercent) return 'warning';
+  return 'normal';
+}
 
 export interface ResistorParameters {
   readonly resistanceOhm: number;
@@ -49,7 +73,7 @@ export function resistorPowerRatingWatt(component: SchematicComponent): number {
     : DEFAULT_RESISTOR_POWER_RATING_W;
 }
 
-export const RESISTOR_DEVICE_MODEL: DeviceModel<ResistorParameters> = {
+export const RESISTOR_DEVICE_MODEL: DeviceModel<ResistorParameters, LinearDcObservation> = {
   id: 'resistor',
   version: 1,
   analyses: ['dc'],
@@ -73,9 +97,20 @@ export const RESISTOR_DEVICE_MODEL: DeviceModel<ResistorParameters> = {
     const right = context.node(instance.component, 'b');
     context.stampConductance(left, right, 1 / instance.parameters.resistanceOhm);
   },
+  observe(instance, operatingPoint) {
+    const currentAmp = operatingPoint.voltageDrop / instance.parameters.resistanceOhm;
+    const powerWatt = Math.abs(currentAmp * operatingPoint.voltageDrop);
+    const powerUtilizationPercent = (powerWatt / instance.parameters.powerRatingWatt) * 100;
+    return {
+      current: currentAmp,
+      power: powerWatt,
+      powerUtilizationPercent,
+      stressState: stressFromPercent(powerUtilizationPercent, RESISTOR_WARNING_PERCENT),
+    };
+  },
 };
 
-export const SOURCE_DEVICE_MODEL: DeviceModel<SourceParameters> = {
+export const SOURCE_DEVICE_MODEL: DeviceModel<SourceParameters, LinearDcObservation> = {
   id: 'ideal-dc-source',
   version: 1,
   analyses: ['dc'],
@@ -105,6 +140,20 @@ export const SOURCE_DEVICE_MODEL: DeviceModel<SourceParameters> = {
       instance.parameters.emfVolt,
       instance.parameters.internalResistanceOhm,
     );
+  },
+  observe(instance, operatingPoint) {
+    const currentAmp = operatingPoint.current;
+    const currentUtilizationPercent =
+      (Math.abs(currentAmp) / instance.parameters.continuousCurrentAmp) * 100;
+    return {
+      current: currentAmp,
+      power: Math.abs(currentAmp * operatingPoint.voltageDrop),
+      currentUtilizationPercent,
+      stressState: stressFromPercent(currentUtilizationPercent, 80),
+      internalResistanceOhm: instance.parameters.internalResistanceOhm,
+      internalPower: currentAmp * currentAmp * instance.parameters.internalResistanceOhm,
+      voltageSag: Math.abs(currentAmp) * instance.parameters.internalResistanceOhm,
+    };
   },
 };
 

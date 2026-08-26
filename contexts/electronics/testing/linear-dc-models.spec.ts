@@ -59,6 +59,43 @@ describe('MATH-1 linear DC device models', () => {
     expect(stampVoltageSource).toHaveBeenCalledWith('source', 1, 0, 5, 1e-12);
   });
 
+  it('classifies resistor heating from the solved operating point', () => {
+    const resistor = RESISTOR_DEVICE_MODEL.normalize(
+      component('r1', 'resistor', 100, { stateProperties: { powerRatingWatt: 0.25 } }),
+    );
+
+    expect(
+      RESISTOR_DEVICE_MODEL.observe?.(resistor, {
+        voltageDrop: 6,
+        current: 0,
+      }),
+    ).toMatchObject({
+      current: 0.06,
+      power: 0.36,
+      powerUtilizationPercent: 144,
+      stressState: 'overcurrent',
+    });
+  });
+
+  it('reports source sag, internal heating and calculated burnout independently of UI', () => {
+    const source = SOURCE_DEVICE_MODEL.normalize(
+      component('coin', 'source', 3, { componentTypeId: 'battery-3v' }),
+    );
+
+    const observation = SOURCE_DEVICE_MODEL.observe?.(source, {
+      voltageDrop: 0.4,
+      current: 0.01,
+    });
+    expect(observation).toMatchObject({
+      current: 0.01,
+      currentUtilizationPercent: 333.33333333333337,
+      stressState: 'burned',
+      internalResistanceOhm: 13,
+      voltageSag: 0.13,
+    });
+    expect(observation?.internalPower).toBeCloseTo(0.0013, 12);
+  });
+
   it('does not guess a model for an incompatible persisted identity', () => {
     const incompatible = component('r1', 'resistor', 100, {
       componentTypeId: 'resistor-axial',
