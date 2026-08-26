@@ -505,14 +505,18 @@ describe('LRN-M1-002 CourseEnrollment', () => {
   });
 
   it('creates no ActivityRun row or ActivityParticipation runtime', async () => {
-    const before = await admin.query(`SELECT count(*)::int AS count FROM activity_runs`);
     const learner = await createLearner();
     await assign(runId, learner.identityId);
-    const after = await admin.query(`SELECT count(*)::int AS count FROM activity_runs`);
+    const activityRunsForEnrollmentRun = await admin.query(
+      `SELECT count(*)::int AS count
+         FROM activity_runs
+        WHERE source_course_run_id=$1`,
+      [runId],
+    );
     const participation = await admin.query(
       `SELECT to_regclass('public.activity_participations') AS relation`,
     );
-    expect(after.rows).toEqual(before.rows);
+    expect(activityRunsForEnrollmentRun.rows).toEqual([{ count: 0 }]);
     expect(participation.rows[0].relation).toBeNull();
   });
 

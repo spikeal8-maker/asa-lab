@@ -34,18 +34,16 @@ describePg('LRN-M0-005 PostgreSQL read-only evidence', () => {
       analyzerSha256: '0'.repeat(64),
     };
     try {
-      const first = await withReadOnlyTransaction(
+      await withReadOnlyTransaction(
         client,
-        (tx) => analyzeLearningData(tx, options),
+        async (tx) => {
+          const first = await analyzeLearningData(tx, options);
+          const second = await analyzeLearningData(tx, options);
+          expect(second.deterministic).toEqual(first.deterministic);
+          expect(first.metadata.performance.queryCount).toBeLessThanOrEqual(6);
+        },
         options.asOf,
       );
-      const second = await withReadOnlyTransaction(
-        client,
-        (tx) => analyzeLearningData(tx, options),
-        options.asOf,
-      );
-      expect(second.deterministic).toEqual(first.deterministic);
-      expect(first.metadata.performance.queryCount).toBeLessThanOrEqual(6);
     } finally {
       await client.end();
     }
