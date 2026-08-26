@@ -1003,6 +1003,31 @@ export class ClassroomJoinController {
     return seatId;
   }
 
+  /** Exact learner actor for a project start/submit command. */
+  private async learnerForAssignment(
+    request: FastifyRequest,
+    assignmentId: string,
+  ): Promise<{ seatId: string; principalId: string }> {
+    if (request.cookies[STUDENT_SESSION_COOKIE]) {
+      const seatId = (await this.currentSeat(request)).seat_id;
+      const principal = await this.requirePool().query(
+        `SELECT principal_for_seat($1) AS principal_id`,
+        [seatId],
+      );
+      const principalId = (principal.rows[0] as { principal_id?: string } | undefined)
+        ?.principal_id;
+      if (!principalId) {
+        throw new HttpException(error('assignment_unavailable', 'Задание недоступно.'), 404);
+      }
+      return { seatId, principalId };
+    }
+
+    const context = await this.activeContext.resolve(request.cookies[SESSION_COOKIE]);
+    if (!context) throw new HttpException(error('unauthorized', 'no active session'), 401);
+    const seatId = await this.seatForAssignment(request, assignmentId);
+    return { seatId, principalId: context.principalId };
+  }
+
   private async requireAssignmentAudience(seatId: string, assignmentId: string): Promise<void> {
     const result = await this.requirePool().query(
       `SELECT learning_direct_assignment_seat_visible($1,$2) AS visible`,
@@ -1109,17 +1134,57 @@ export class ClassroomJoinController {
     if (!UUID_PATTERN.test(assignmentId)) {
       throw new HttpException(error('validation_error', 'assignment is invalid'), 400);
     }
-    const seatId = await this.seatForAssignment(request, assignmentId);
+    const learner = await this.learnerForAssignment(request, assignmentId);
+    const seatId = learner.seatId;
     await this.requireAssignmentAudience(seatId, assignmentId);
-    const result = await this.requirePool().query(
+    const canonical = await this.requirePool().query(
+      `SELECT result_code, participation_id, attempt_id, attempt_number,
+              attempt_state, project_id, reused
+         FROM learning_direct_project_attempt_start($1,$2,$3,$4)`,
+      [learner.principalId, seatId, assignmentId, projectId],
+    );
+    const canonicalRow = canonical.rows[0] as
+      | {
+          result_code: string;
+          participation_id: string | null;
+          attempt_id: string | null;
+          attempt_number: number | string | null;
+          attempt_state: string | null;
+          project_id: string | null;
+          reused: boolean;
+        }
+      | undefined;
+    if (canonicalRow && canonicalRow.result_code !== 'not_canonical') {
+      if (canonicalRow.result_code !== 'ok' || !canonicalRow.project_id) {
+        const status = canonicalRow.result_code === 'forbidden' ? 404 : 409;
+        throw new HttpException(error(canonicalRow.result_code, 'Задание недоступно.'), status);
+      }
+      return {
+        projectId: canonicalRow.project_id,
+        submittedAt: null,
+        participationId: canonicalRow.participation_id,
+        attemptId: canonicalRow.attempt_id,
+        attemptNumber: Number(canonicalRow.attempt_number),
+        state: canonicalRow.attempt_state,
+        reused: canonicalRow.reused,
+      };
+    }
+
+    // Explicit compatibility adapter for handouts without a canonical direct run.
+    const legacy = await this.requirePool().query(
       `SELECT project_id, submitted_at FROM classroom_assignment_work_start($1, $2, $3)`,
       [seatId, assignmentId, projectId],
     );
-    const row = result.rows[0] as { project_id: string; submitted_at: Date | null } | undefined;
+    const row = legacy.rows[0] as { project_id: string; submitted_at: Date | null } | undefined;
     if (!row) throw new HttpException(error('assignment_unavailable', 'Задание недоступно.'), 404);
     return {
       projectId: row.project_id,
       submittedAt: row.submitted_at ? isoDate(row.submitted_at) : null,
+      participationId: null,
+      attemptId: null,
+      attemptNumber: null,
+      state: null,
+      reused: false,
     };
   }
 
@@ -1188,17 +1253,21 @@ export class ClassroomJoinController {
     ) {
       throw new HttpException(error('validation_error', 'clientRequestId is invalid'), 400);
     }
-    const seatId = await this.seatForAssignment(request, assignmentId);
+    const learner = await this.learnerForAssignment(request, assignmentId);
+    const seatId = learner.seatId;
     await this.requireAssignmentAudience(seatId, assignmentId);
-    const result = await this.requirePool().query(
-      `SELECT result_code, attempt_id, submission_id, attempt_number, attempt_state,
-              project_id, project_version_id, submitted_at, late_state, reused
-         FROM learning_project_submission_create($1, $2, $3)`,
-      [seatId, assignmentId, clientRequestId ?? randomUUID()],
+    const requestId = clientRequestId ?? randomUUID();
+    const canonical = await this.requirePool().query(
+      `SELECT result_code, participation_id, attempt_id, submission_id,
+              attempt_number, attempt_state, project_id, project_version_id,
+              submitted_at, late_state, reused
+         FROM learning_direct_project_submission_create($1,$2,$3,$4)`,
+      [learner.principalId, seatId, assignmentId, requestId],
     );
-    const row = result.rows[0] as
+    type SubmissionRow =
       | {
           result_code: string;
+          participation_id?: string | null;
           attempt_id: string | null;
           submission_id: string | null;
           attempt_number: number | string | null;
@@ -1210,6 +1279,17 @@ export class ClassroomJoinController {
           reused: boolean;
         }
       | undefined;
+    let row = canonical.rows[0] as SubmissionRow;
+    if (!row || row.result_code === 'not_canonical') {
+      // Explicit compatibility adapter for historical/course assignments.
+      const legacy = await this.requirePool().query(
+        `SELECT result_code, attempt_id, submission_id, attempt_number, attempt_state,
+                project_id, project_version_id, submitted_at, late_state, reused
+           FROM learning_project_submission_create($1, $2, $3)`,
+        [seatId, assignmentId, requestId],
+      );
+      row = legacy.rows[0] as SubmissionRow;
+    }
     if (!row || row.result_code === 'assignment_unavailable') {
       throw new HttpException(error('assignment_unavailable', 'Задание недоступно.'), 404);
     }
@@ -1219,12 +1299,19 @@ export class ClassroomJoinController {
         409,
       );
     }
+    if (row.result_code === 'request_conflict') {
+      throw new HttpException(
+        error('idempotency_conflict', 'Этот идентификатор уже использован другой сдачей.'),
+        409,
+      );
+    }
     if (row.result_code !== 'ok' || !row.project_id || !row.submitted_at) {
       throw new HttpException(error('submission_failed', 'Не удалось зафиксировать сдачу.'), 409);
     }
     return {
       projectId: row.project_id,
       projectVersionId: row.project_version_id,
+      participationId: row.participation_id ?? null,
       attemptId: row.attempt_id,
       submissionId: row.submission_id,
       attemptNumber: Number(row.attempt_number),

@@ -209,14 +209,18 @@ describe('immutable classroom submissions', () => {
       if (sql.includes('learning_direct_assignment_seat_visible')) {
         return { rows: [{ visible: true }] };
       }
+      if (sql.includes('principal_for_seat')) {
+        return { rows: [{ principal_id: 'learner-principal-id' }] };
+      }
       return {
         rows: [
           {
             result_code: 'ok',
+            participation_id: 'participation-id',
             attempt_id: 'attempt-id',
             submission_id: 'submission-id',
             attempt_number: '1',
-            attempt_state: 'evaluating',
+            attempt_state: 'submitted',
             project_id: 'project-id',
             project_version_id: 'project-version-id',
             submitted_at: '2026-08-22T12:00:00.000Z',
@@ -240,17 +244,81 @@ describe('immutable classroom submissions', () => {
     ).resolves.toEqual({
       projectId: 'project-id',
       projectVersionId: 'project-version-id',
+      participationId: 'participation-id',
       attemptId: 'attempt-id',
       submissionId: 'submission-id',
       attemptNumber: 1,
-      state: 'evaluating',
+      state: 'submitted',
       submittedAt: '2026-08-22T12:00:00.000Z',
       lateState: 'on_time',
       reused: false,
     });
     expect(query).toHaveBeenLastCalledWith(
-      expect.stringContaining('learning_project_submission_create'),
-      ['seat-id', assignmentId, 'submit:test:0001'],
+      expect.stringContaining('learning_direct_project_submission_create'),
+      ['learner-principal-id', 'seat-id', assignmentId, 'submit:test:0001'],
+    );
+  });
+
+  it('starts the exact canonical participation attempt for the session seat', async () => {
+    const assignmentId = '123e4567-e89b-42d3-a456-426614174020';
+    const projectId = '123e4567-e89b-42d3-a456-426614174021';
+    const query = vi.fn(async (sql: string) => {
+      if (sql.includes('classroom_student_session_context')) {
+        return {
+          rows: [
+            {
+              seat_id: 'seat-id',
+              classroom_id: 'classroom-id',
+              classroom_title: '7А',
+              display_label: 'Алина',
+              teacher_display_name: 'Педагог',
+              safe_mode: true,
+              avatar_key: null,
+              expires_at: '2026-08-21T20:00:00.000Z',
+            },
+          ],
+        };
+      }
+      if (sql.includes('principal_for_seat')) {
+        return { rows: [{ principal_id: 'learner-principal-id' }] };
+      }
+      if (sql.includes('learning_direct_assignment_seat_visible')) {
+        return { rows: [{ visible: true }] };
+      }
+      return {
+        rows: [
+          {
+            result_code: 'ok',
+            participation_id: 'participation-id',
+            attempt_id: 'attempt-id',
+            attempt_number: '1',
+            attempt_state: 'in_progress',
+            project_id: projectId,
+            reused: false,
+          },
+        ],
+      };
+    });
+    const controller = new ClassroomJoinController(
+      { query } as unknown as pg.Pool,
+      {} as ActiveContextUseCase,
+      new BotChallengeService({ required: false }),
+    );
+
+    await expect(
+      controller.startAssignment(seatRequest(), assignmentId, { projectId }),
+    ).resolves.toEqual({
+      projectId,
+      submittedAt: null,
+      participationId: 'participation-id',
+      attemptId: 'attempt-id',
+      attemptNumber: 1,
+      state: 'in_progress',
+      reused: false,
+    });
+    expect(query).toHaveBeenLastCalledWith(
+      expect.stringContaining('learning_direct_project_attempt_start'),
+      ['learner-principal-id', 'seat-id', assignmentId, projectId],
     );
   });
 

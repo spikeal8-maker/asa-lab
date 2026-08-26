@@ -1819,14 +1819,23 @@ export const api = {
   seatAssignmentCounts: () =>
     call<{ open: number; unfinished: number }>('/api/class-join/me/assignment-counts'),
   startSeatAssignment: (assignmentId: string, projectId: string) =>
-    call<{ projectId: string; submittedAt: string | null }>(
-      `/api/class-join/me/assignments/${encodeURIComponent(assignmentId)}/work`,
-      { method: 'POST', body: JSON.stringify({ projectId }) },
-    ),
+    call<{
+      projectId: string;
+      submittedAt: string | null;
+      participationId: string | null;
+      attemptId: string | null;
+      attemptNumber: number | null;
+      state: LearningAttemptState | null;
+      reused: boolean;
+    }>(`/api/class-join/me/assignments/${encodeURIComponent(assignmentId)}/work`, {
+      method: 'POST',
+      body: JSON.stringify({ projectId }),
+    }),
   submitSeatAssignment: (assignmentId: string, submitted: boolean) =>
     call<{
       projectId: string;
       projectVersionId: string;
+      participationId: string | null;
       attemptId: string;
       submissionId: string;
       attemptNumber: number;

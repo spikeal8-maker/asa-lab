@@ -2,7 +2,7 @@
 
 **Task:** `LRN-VS-001 — Teacher Assigns Activity`
 **Milestone:** `Product-first visible slice`
-**Status:** DONE — merged in PR #166; owner acceptance pending
+**Status:** DONE — owner accepted 2026-08-26; merged in PR #166
 **Baseline SHA:** `7bf948eef395fc8bc3ad6edb0fdd25a809217433`
 **Issue:** `#165`
 **Merge SHA:** `ac465ecd0c73cab216bbd4a27e6f1527fc130646`

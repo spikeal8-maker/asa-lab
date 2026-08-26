@@ -879,6 +879,55 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/CanonicalLearningItemCollection' }
+  /api/class-join/me/assignments/{assignmentId}/work:
+    post:
+      operationId: startLearnerProjectAssignment
+      summary: Link the learner personal project and create or reuse the canonical participation Attempt
+      parameters:
+        - in: path
+          name: assignmentId
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LearningProjectAttemptStartRequest' }
+      responses:
+        '200':
+          description: Project linked and canonical Attempt started, or a legacy compatibility link
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LearningProjectAttemptStartReceipt' }
+        '400': { description: Invalid assignment or project identifier }
+        '401': { description: No active learner session }
+        '404': { description: Assignment excluded, cross-class or unavailable }
+        '409': { description: Participation lifecycle or effective availability blocks start }
+  /api/class-join/me/assignments/{assignmentId}/submit:
+    post:
+      operationId: submitLearnerProjectAssignment
+      summary: Freeze the exact ProjectVersion as one immutable Submission for the active participation Attempt
+      parameters:
+        - in: path
+          name: assignmentId
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LearningProjectSubmissionRequest' }
+      responses:
+        '200':
+          description: Immutable submission receipt; a retry with the same clientRequestId returns the same evidence
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LearningProjectSubmissionReceipt' }
+        '400': { description: Invalid request or clientRequestId }
+        '401': { description: No active learner session }
+        '404': { description: Assignment excluded, cross-class or unavailable }
+        '409':
+          { description: Not started, already submitted, lifecycle blocked or idempotency conflict }
   /api/class-join/account/assignments:
     get:
       operationId: getAccountLearnerAssignments
@@ -1718,6 +1767,83 @@ components:
         audienceId: { type: string, format: uuid }
         assignedCount: { type: integer, minimum: 0 }
         reused: { type: boolean }
+    LearningProjectAttemptStartRequest:
+      type: object
+      additionalProperties: false
+      required: [projectId]
+      properties:
+        projectId: { type: string, format: uuid }
+    LearningProjectAttemptStartReceipt:
+      type: object
+      additionalProperties: false
+      required:
+        - projectId
+        - submittedAt
+        - participationId
+        - attemptId
+        - attemptNumber
+        - state
+        - reused
+      properties:
+        projectId: { type: string, format: uuid }
+        submittedAt: { type: [string, 'null'], format: date-time }
+        participationId: { type: [string, 'null'], format: uuid }
+        attemptId: { type: [string, 'null'], format: uuid }
+        attemptNumber: { type: [integer, 'null'], minimum: 1 }
+        state:
+          anyOf:
+            - { $ref: '#/components/schemas/LearningAttemptState' }
+            - { type: 'null' }
+        reused: { type: boolean }
+    LearningProjectSubmissionRequest:
+      type: object
+      additionalProperties: false
+      required: [submitted, clientRequestId]
+      properties:
+        submitted: { type: boolean, const: true }
+        clientRequestId:
+          type: string
+          minLength: 8
+          maxLength: 128
+          pattern: '^[A-Za-z0-9._:-]+$'
+    LearningProjectSubmissionReceipt:
+      type: object
+      additionalProperties: false
+      required:
+        - projectId
+        - projectVersionId
+        - participationId
+        - attemptId
+        - submissionId
+        - attemptNumber
+        - state
+        - submittedAt
+        - lateState
+        - reused
+      properties:
+        projectId: { type: string, format: uuid }
+        projectVersionId: { type: string, format: uuid }
+        participationId: { type: [string, 'null'], format: uuid }
+        attemptId: { type: string, format: uuid }
+        submissionId: { type: string, format: uuid }
+        attemptNumber: { type: integer, minimum: 1 }
+        state: { $ref: '#/components/schemas/LearningAttemptState' }
+        submittedAt: { type: string, format: date-time }
+        lateState:
+          type: string
+          enum: [on_time, late, excused]
+        reused: { type: boolean }
+    LearningAttemptState:
+      type: string
+      enum:
+        - in_progress
+        - submitted
+        - evaluating
+        - accepted
+        - changes_requested
+        - incomplete
+        - excused
+        - invalidated
     CanonicalLearningWorkflowState:
       type: string
       enum:

@@ -349,7 +349,7 @@ export function ClassroomAssignments({
                 <span className="assignment-module">{moduleName(assignment.moduleKey)}</span>
                 <span className="assignment-counts">
                   {assignment.audienceType === 'whole_class'
-                    ? 'Весь класс'
+                    ? `Весь класс · Назначено: ${assignment.assignedCount ?? assignment.seatCount}`
                     : assignment.audienceType === 'named_learners'
                       ? `Выбрано: ${assignment.assignedCount ?? 0}`
                       : `Класс: ${assignment.seatCount}`}
