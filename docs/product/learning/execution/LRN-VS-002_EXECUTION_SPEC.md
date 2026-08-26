@@ -2,7 +2,7 @@
 
 **Task:** `LRN-VS-002 — Learner Starts and Submits Project Assignment`
 **Milestone:** `Visible Slice after M1 foundation`
-**Status:** IN_REVIEW — local acceptance passed; owner acceptance pending
+**Status:** DONE — merged to main; owner acceptance pending
 **Baseline SHA:** `b18cd9ba6092708c3961cdfd017c9c1e15191de3`
 **Master Spec:** `docs/product/ASA_LEARNING_TECHNICAL_SPEC.md`
 **Work Queue:** `docs/product/learning/ASA_LEARNING_AGENT_WORK_QUEUE.md`
@@ -193,7 +193,8 @@ Start/submit use indexed run→participation and assignment→seat lookups and l
 - [x] unit/integration/browser/security tests
 - [x] VS-001 and M0 regressions
 - [x] uncached repository gate
-- [ ] official required CI gates and merge
+- [x] merged to `main` through PR #169
+- [ ] official main CI conclusion
 - [x] ledger updated only for proven scope
 
 ## 22. Evidence

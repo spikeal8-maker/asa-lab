@@ -753,7 +753,7 @@ Attempt и Submission остаются вне задачи.
 
 ## PRODUCT SLICE LRN-VS-002 — Learner Starts and Submits Project Assignment
 
-**status:** IN_REVIEW — local acceptance passed; owner acceptance pending
+**status:** DONE — merged to main; owner acceptance pending
 **depends_on:** LRN-VS-001
 **issue:** #167
 
