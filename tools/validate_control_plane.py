@@ -503,6 +503,12 @@ def collect_lanes(
         ),
     ):
         populated = [value for value in values if value not in (None, "")]
+        # In direct_main mode every active lane intentionally names the same
+        # real branch. Feature-branch uniqueness remains useful in coordinated
+        # mode, but rejecting repeated `main` here contradicted the declared
+        # policy that product branches and PRs are optional/advisory.
+        if field == "branch" and development_mode(current) == DIRECT_MAIN_MODE:
+            populated = [value for value in populated if value != "main"]
         if len(populated) != len(set(populated)):
             errors.append(f"schema 1.1 lanes must have unique {field} values")
 

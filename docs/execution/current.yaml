@@ -157,31 +157,31 @@ parallel_lanes:
           - pnpm gate:repository
 
   - id: three-d
-    worktree_id: three-d-direct-manipulation
+    # Owner activated the measurement-only OPT-0 package on 2026-08-26. It runs
+    # directly in main and must not change CSG behaviour, persisted schema or UI.
+    worktree_id: three-d-opt-0-main
     owned_paths:
       - contexts/three-d/**
       - apps/web/src/three-d/**
       - e2e/three-d-m0.spec.ts
       - e2e/artifacts/three-d/**
+      - docs/product/ASA_3D_OPTIMIZATION_EXECUTION_PLAN.md
+      - tools/run-three-d-benchmark.mjs
     task:
-      id: TASK-3D-M1-001
-      issue: 107
-      branch: agent/three-d-direct-manipulation
+      id: TASK-3D-OPT-0-001
+      issue: 162
+      branch: main
       base_branch: main
-      pr: 108
+      pr: null
       pr_draft: false
-      status: done
-      checkpoint: merged_to_main
-      owner_acceptance: accepted
+      status: in_progress
+      checkpoint: opt_0_activated
+      owner_acceptance: pending
     revisions:
-      convergence_baseline_sha: 5c66766303750475885bb42a91fee78834401ad7
-      # Head at lane activation. Later PR heads must descend from it; product
-      # progress does not require a governance rewrite after every push.
-      head_sha: 5c66766303750475885bb42a91fee78834401ad7
-      owner_accepted_sha: 82c3155724ef651b51de2ee3ae317003f7592288
-      product_merge_sha: b2668d35702c6a0340d840747cd193af6f020e7a
+      convergence_baseline_sha: 2c0da5e260677d62898e1f63832262e272260ce4
+      head_sha: 2c0da5e260677d62898e1f63832262e272260ce4
     execution_lease:
-      executor_id: codex-three-d-direct-manipulation
+      executor_id: codex-three-d-opt-0
       holder: unassigned
       acquired_at: null
       expires_at: null
@@ -190,7 +190,9 @@ parallel_lanes:
       focused:
         workflow: 3D M0 Focused
         commands:
-          - pnpm gate:three-d-m0
+          # OPT-0 adds pnpm test:three-d:corpus in the implementation package;
+          # until then the existing focused baseline remains authoritative.
+          - pnpm test:three-d
       browser:
         workflow: 3D M0 Focused
         commands:

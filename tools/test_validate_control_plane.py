@@ -373,6 +373,22 @@ def lane_duplicate_branch(_):
     return collect_errors(document)
 
 
+@case("direct main accepts multiple lanes on main without PRs", expect="")
+def lane_direct_main_shared_branch(_):
+    document = multilane_document()
+    document["development_policy"] = {
+        "mode": "direct_main",
+        "branch": "main",
+        "feature_branches": "optional",
+        "pull_requests": "optional",
+        "execution_leases": "disabled",
+        "lane_path_ownership": "advisory",
+    }
+    document["task"].update({"branch": "main", "pr": None})
+    document["parallel_lanes"][0]["task"].update({"branch": "main", "pr": None})
+    return collect_errors(document)
+
+
 @case("a parallel lane reusing the primary executor", expect="unique executor_id")
 def lane_duplicate_executor(_):
     document = multilane_document()
