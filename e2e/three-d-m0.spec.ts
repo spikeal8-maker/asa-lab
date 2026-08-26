@@ -121,7 +121,11 @@ async function createThreeDProject(page: Page, title: string): Promise<void> {
 async function expandShapeInspector(page: Page): Promise<void> {
   const expand = page.getByRole('button', { name: 'Развернуть параметры формы' });
   if (await expand.isVisible()) await expand.click();
-  await expect(page.getByLabel('Ширина, мм')).toBeVisible();
+  const inspector = page.locator(
+    '[data-testid="asa3d-shape-inspector"], [data-testid="asa3d-group-inspector"]',
+  );
+  await expect(inspector).toBeVisible();
+  await expect(inspector.getByText('Свойства', { exact: true })).toBeVisible();
 }
 
 async function dismissNotice(page: Page): Promise<void> {
