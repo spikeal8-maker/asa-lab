@@ -141,6 +141,8 @@ interface AssignmentRow {
   seat_count?: number | string;
   started_count?: number | string;
   submitted_count?: number | string;
+  audience_type?: 'whole_class' | 'named_learners' | null;
+  canonical_assigned_count?: number | string;
 }
 
 interface AssignmentProgressRow {
@@ -235,6 +237,9 @@ function assignmentView(row: AssignmentRow) {
     seatCount: row.seat_count === undefined ? 0 : Number(row.seat_count),
     startedCount: row.started_count === undefined ? 0 : Number(row.started_count),
     submittedCount: row.submitted_count === undefined ? 0 : Number(row.submitted_count),
+    audienceType: row.audience_type ?? null,
+    assignedCount:
+      row.canonical_assigned_count === undefined ? null : Number(row.canonical_assigned_count),
   };
 }
 
@@ -1002,13 +1007,40 @@ export class ClassroomsController {
   async listAssignments(@Req() request: FastifyRequest, @Param('classroomId') classroomId: string) {
     const context = await this.requireEducator(request);
     await this.summary(context, classroomId);
-    const result = await this.requirePool().query(
-      `SELECT id, assignment_id, title, brief, goal, module_key, due_at, status, created_at,
-              demo_key, sample_image, seat_count, started_count, submitted_count
-         FROM classroom_assignment_list($1, $2)`,
-      [context.accountId, classroomId],
+    const [result, canonical] = await Promise.all([
+      this.requirePool().query(
+        `SELECT id, assignment_id, title, brief, goal, module_key, due_at, status, created_at,
+                demo_key, sample_image, seat_count, started_count, submitted_count
+           FROM classroom_assignment_list($1, $2)`,
+        [context.accountId, classroomId],
+      ),
+      this.requirePool().query(
+        `SELECT classroom_assignment_id,audience_type,assigned_count
+           FROM learning_direct_assignment_summary($1,$2,$3)`,
+        [context.principalId, context.tenantId, classroomId],
+      ),
+    ]);
+    const summaries = new Map(
+      canonical.rows.map((row) => [String(row['classroom_assignment_id']), row]),
     );
-    return { items: (result.rows as AssignmentRow[]).map(assignmentView) };
+    return {
+      items: (result.rows as AssignmentRow[]).map((row) => {
+        const summary = summaries.get(row.id);
+        return assignmentView(
+          summary
+            ? {
+                ...row,
+                audience_type:
+                  summary['audience_type'] === 'whole_class' ||
+                  summary['audience_type'] === 'named_learners'
+                    ? summary['audience_type']
+                    : null,
+                canonical_assigned_count: summary['assigned_count'] as number | string,
+              }
+            : row,
+        );
+      }),
+    };
   }
 
   @Post(':classroomId/assignments/:assignmentId/status')

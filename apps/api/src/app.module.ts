@@ -56,6 +56,7 @@ import { AssignmentsController } from './assignments.controller.js';
 import { CoursesController } from './courses.controller.js';
 import { LearningAssessmentsController } from './learning-assessments.controller.js';
 import { LearningActivitiesController } from './learning-activities.controller.js';
+import { LearningDirectAssignmentController } from './learning-direct-assignment.controller.js';
 import { GalleryController } from './gallery.controller.js';
 import { CollectionsController } from './collections.controller.js';
 import { ClassroomsController } from './classrooms.controller.js';
@@ -163,6 +164,7 @@ export class AppModule {
         CoursesController,
         LearningAssessmentsController,
         LearningActivitiesController,
+        LearningDirectAssignmentController,
         GalleryController,
         CollectionsController,
         ClassroomsController,

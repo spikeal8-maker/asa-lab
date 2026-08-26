@@ -693,7 +693,7 @@ export class ClassroomJoinController {
   async accountAssignments(@Req() request: FastifyRequest) {
     const context = await this.activeContext.resolve(request.cookies[SESSION_COOKIE]);
     if (!context) throw new HttpException(error('unauthorized', 'no active session'), 401);
-    const [result, projections] = await Promise.all([
+    const [result, projections, visibility] = await Promise.all([
       this.requirePool().query(
         `SELECT id, seat_id, classroom_title, title, brief, goal, module_key,
               due_at, status, sample_image, project_id, submitted_at,
@@ -702,26 +702,42 @@ export class ClassroomJoinController {
         [context.accountId],
       ),
       this.canonical().forAccount(context.accountId),
+      this.requirePool().query(
+        `SELECT seat_id,classroom_assignment_id,visible
+           FROM learning_direct_assignment_visibility_for_account($1)`,
+        [context.accountId],
+      ),
     ]);
+    const canonicalVisibility = new Map(
+      visibility.rows.map((row) => [
+        `${String(row['seat_id'])}:${String(row['classroom_assignment_id'])}`,
+        row['visible'] === true,
+      ]),
+    );
     return {
       items: (
         result.rows as Array<AssignmentForSeatRow & { classroom_title: string; seat_id: string }>
-      ).map((row) => ({
-        id: row.id,
-        title: row.title,
-        brief: row.brief,
-        goal: row.goal,
-        moduleKey: row.module_key,
-        dueAt: row.due_at ? isoDate(row.due_at) : null,
-        status: row.status,
-        sampleImage: row.sample_image,
-        projectId: row.project_id,
-        submittedAt: row.submitted_at ? isoDate(row.submitted_at) : null,
-        snapshotRevision: row.snapshot_revision === null ? null : Number(row.snapshot_revision),
-        updatedAt: row.updated_at ? isoDate(row.updated_at) : null,
-        classroomTitle: row.classroom_title,
-        canonicalState: canonicalFor(projections, row.id, row.seat_id),
-      })),
+      )
+        .filter((row) => {
+          const value = canonicalVisibility.get(`${row.seat_id}:${row.id}`);
+          return value === undefined || value;
+        })
+        .map((row) => ({
+          id: row.id,
+          title: row.title,
+          brief: row.brief,
+          goal: row.goal,
+          moduleKey: row.module_key,
+          dueAt: row.due_at ? isoDate(row.due_at) : null,
+          status: row.status,
+          sampleImage: row.sample_image,
+          projectId: row.project_id,
+          submittedAt: row.submitted_at ? isoDate(row.submitted_at) : null,
+          snapshotRevision: row.snapshot_revision === null ? null : Number(row.snapshot_revision),
+          updatedAt: row.updated_at ? isoDate(row.updated_at) : null,
+          classroomTitle: row.classroom_title,
+          canonicalState: canonicalFor(projections, row.id, row.seat_id),
+        })),
     };
   }
 
@@ -813,7 +829,7 @@ export class ClassroomJoinController {
   @Get('me/assignments')
   async assignments(@Req() request: FastifyRequest) {
     const seat = await this.currentSeat(request);
-    const [result, projections] = await Promise.all([
+    const [result, projections, visibility] = await Promise.all([
       this.requirePool().query(
         `SELECT id, title, brief, goal, module_key, due_at, status, sample_image, project_id,
               submitted_at, snapshot_revision, updated_at
@@ -821,23 +837,36 @@ export class ClassroomJoinController {
         [seat.seat_id],
       ),
       this.canonical().forSeat(seat.seat_id),
+      this.requirePool().query(
+        `SELECT classroom_assignment_id,visible
+           FROM learning_direct_assignment_visibility_for_seat($1)`,
+        [seat.seat_id],
+      ),
     ]);
+    const canonicalVisibility = new Map(
+      visibility.rows.map((row) => [
+        String(row['classroom_assignment_id']),
+        row['visible'] === true,
+      ]),
+    );
     return {
-      items: (result.rows as AssignmentForSeatRow[]).map((row) => ({
-        id: row.id,
-        title: row.title,
-        brief: row.brief,
-        goal: row.goal,
-        moduleKey: row.module_key,
-        dueAt: row.due_at ? isoDate(row.due_at) : null,
-        status: row.status,
-        sampleImage: row.sample_image,
-        projectId: row.project_id,
-        submittedAt: row.submitted_at ? isoDate(row.submitted_at) : null,
-        snapshotRevision: row.snapshot_revision === null ? null : Number(row.snapshot_revision),
-        updatedAt: row.updated_at ? isoDate(row.updated_at) : null,
-        canonicalState: canonicalFor(projections, row.id, seat.seat_id),
-      })),
+      items: (result.rows as AssignmentForSeatRow[])
+        .filter((row) => canonicalVisibility.get(row.id) !== false)
+        .map((row) => ({
+          id: row.id,
+          title: row.title,
+          brief: row.brief,
+          goal: row.goal,
+          moduleKey: row.module_key,
+          dueAt: row.due_at ? isoDate(row.due_at) : null,
+          status: row.status,
+          sampleImage: row.sample_image,
+          projectId: row.project_id,
+          submittedAt: row.submitted_at ? isoDate(row.submitted_at) : null,
+          snapshotRevision: row.snapshot_revision === null ? null : Number(row.snapshot_revision),
+          updatedAt: row.updated_at ? isoDate(row.updated_at) : null,
+          canonicalState: canonicalFor(projections, row.id, seat.seat_id),
+        })),
     };
   }
 

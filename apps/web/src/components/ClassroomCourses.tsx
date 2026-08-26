@@ -37,6 +37,8 @@ function assignmentShape(
     seatCount: lesson.seatCount,
     startedCount: lesson.startedCount,
     submittedCount: lesson.submittedCount,
+    audienceType: null,
+    assignedCount: null,
   };
 }
 

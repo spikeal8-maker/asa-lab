@@ -288,7 +288,7 @@ export function AttendedClassesPage({
                       disabled={busy || assignment.status === 'closed'}
                       onClick={() => void start(assignment)}
                     >
-                      Начать
+                      {busy ? 'Открываем…' : 'Открыть'}
                     </button>
                   )}
                 </div>

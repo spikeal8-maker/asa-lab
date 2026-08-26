@@ -707,7 +707,7 @@ excused
 
 ## TASK LRN-M1-005 — Audience: Whole Class + Named Learners
 
-**status:** IN_PROGRESS — owner activated
+**status:** DONE — merged in PR #164; owner acceptance pending
 **depends_on:** M1-004  
 **requirements:** AUD-201..206
 
@@ -725,6 +725,29 @@ Group пока не включать.
 ### Acceptance
 
 Новый learner dynamic class получает active run ровно один раз.
+
+---
+
+## PRODUCT SLICE LRN-VS-001 — Teacher Assigns Activity
+
+**status:** IN_PROGRESS — owner activated 2026-08-26
+**depends_on:** M1-005
+**issue:** #165
+
+### Product outcome
+
+Преподаватель назначает опубликованную canonical LearningActivity всему классу
+или выбранным ученикам в существующей вкладке класса. Только адресаты видят её
+в существующем learner interface. Реализация переиспользует ActivityRun,
+Audience, ActivityParticipation и LearnerIdentity.
+
+### Browser acceptance
+
+1. Whole class: teacher assigns; learner sees; teacher sees assigned.
+2. Named learners: two selected learners see; third learner does not.
+
+M1-006, ClassroomGroup, multi-class, Course materialization, новый Gradebook,
+Attempt и Submission остаются вне задачи.
 
 ---
 

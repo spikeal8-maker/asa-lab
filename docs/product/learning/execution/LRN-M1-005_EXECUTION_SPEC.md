@@ -2,7 +2,7 @@
 
 **Task:** `LRN-M1-005 — Audience: Whole Class + Named Learners`
 **Milestone:** `M1 — Universal Delivery`
-**Status:** ACTIVE
+**Status:** DONE — merged in PR #164; owner acceptance pending
 **Baseline SHA:** `4c729bcea80d077f23e98dc8bfd0833dd2127c16`
 **Issue:** `#163`
 

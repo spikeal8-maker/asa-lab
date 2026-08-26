@@ -1008,6 +1008,71 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/CanonicalLearningItemCollection' }
+  /api/classrooms/{classroomId}/learning/activities:
+    parameters:
+      - name: classroomId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      operationId: listClassroomAssignableLearningActivities
+      summary: List the teacher's published canonical project activities assignable to this class
+      responses:
+        '200':
+          description: Assignable canonical activities
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LearningAssignableActivityCollection' }
+        '401':
+          description: No active session
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '403':
+          description: Educator or classroom teacher access required
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+  /api/classrooms/{classroomId}/learning/activity-runs:
+    parameters:
+      - name: classroomId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      operationId: assignClassroomLearningActivity
+      summary: Atomically create a direct ActivityRun and whole-class or named audience
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LearningDirectAssignmentRequest' }
+      responses:
+        '201':
+          description: Canonical activity assigned
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LearningDirectAssignmentReceipt' }
+        '400':
+          description: Invalid activity, audience or due date
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '401':
+          description: No active session
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '403':
+          description: Activity ownership or classroom teacher access denied
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '409':
+          description: Idempotency, target membership or canonical runtime conflict
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
   /api/classrooms/{classroomId}/assignments/{assignmentId}/progress:
     parameters:
       - name: classroomId
@@ -1605,6 +1670,54 @@ components:
         items:
           type: array
           items: { $ref: '#/components/schemas/LearningActivityVersion' }
+    LearningAssignableActivity:
+      type: object
+      additionalProperties: false
+      required: [id, versionId, title, instructions, kind, moduleKey]
+      properties:
+        id: { type: string, format: uuid }
+        versionId: { type: string, format: uuid }
+        title: { type: string }
+        instructions: { type: [string, 'null'] }
+        kind: { type: string, const: project }
+        moduleKey: { type: string }
+    LearningAssignableActivityCollection:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/LearningAssignableActivity' }
+    LearningDirectAssignmentRequest:
+      type: object
+      additionalProperties: false
+      required: [activityVersionId, audienceType, seatIds, dueAt, requestId]
+      properties:
+        activityVersionId: { type: string, format: uuid }
+        audienceType:
+          type: string
+          enum: [whole_class, named_learners]
+        seatIds:
+          type: array
+          uniqueItems: true
+          items: { type: string, format: uuid }
+        dueAt: { type: [string, 'null'], format: date-time }
+        requestId:
+          type: string
+          minLength: 8
+          maxLength: 80
+          pattern: '^[A-Za-z0-9._:-]+$'
+    LearningDirectAssignmentReceipt:
+      type: object
+      additionalProperties: false
+      required: [assignmentId, activityRunId, audienceId, assignedCount, reused]
+      properties:
+        assignmentId: { type: string, format: uuid }
+        activityRunId: { type: string, format: uuid }
+        audienceId: { type: string, format: uuid }
+        assignedCount: { type: integer, minimum: 0 }
+        reused: { type: boolean }
     CanonicalLearningWorkflowState:
       type: string
       enum:

@@ -500,6 +500,19 @@ export interface ClassroomAssignment {
   seatCount: number;
   startedCount: number;
   submittedCount: number;
+  /** Canonical audience, null for legacy handouts. */
+  audienceType: 'whole_class' | 'named_learners' | null;
+  /** Active canonical recipients, null for legacy handouts. */
+  assignedCount: number | null;
+}
+
+export interface LearningAssignableActivity {
+  id: string;
+  versionId: string;
+  title: string;
+  instructions: string | null;
+  kind: 'project';
+  moduleKey: string;
 }
 
 export interface ClassroomAssignmentProgress {
@@ -1667,6 +1680,30 @@ export const api = {
     call<{ items: ClassroomAssignment[] }>(
       `/api/classrooms/${encodeURIComponent(classroomId)}/assignments`,
     ),
+  listAssignableLearningActivities: (classroomId: string) =>
+    call<{ items: LearningAssignableActivity[] }>(
+      `/api/classrooms/${encodeURIComponent(classroomId)}/learning/activities`,
+    ),
+  assignLearningActivity: (
+    classroomId: string,
+    input: {
+      activityVersionId: string;
+      audienceType: 'whole_class' | 'named_learners';
+      seatIds: string[];
+      dueAt: string | null;
+      requestId: string;
+    },
+  ) =>
+    call<{
+      assignmentId: string;
+      activityRunId: string;
+      audienceId: string;
+      assignedCount: number;
+      reused: boolean;
+    }>(`/api/classrooms/${encodeURIComponent(classroomId)}/learning/activity-runs`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
   listQuestionBank: () => call<{ items: QuestionBankItem[] }>('/api/classrooms/learning/questions'),
   createQuestion: (input: {
     type: QuizQuestionType;
