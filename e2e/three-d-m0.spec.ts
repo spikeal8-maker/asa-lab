@@ -298,7 +298,6 @@ test('teacher models, autosaves, reloads and versions an ASA 3D scene', async ({
   await page.mouse.down();
   await page.mouse.move(holeStart.x + 72, holeStart.y, { steps: 8 });
   await page.mouse.up();
-  const holeCentre = (await directHandlePoint(page, 'resize-south-east')).centre;
   if (!solidId || !holeId || solidId === holeId)
     throw new Error('Two distinct 3D objects required');
 
@@ -308,13 +307,16 @@ test('teacher models, autosaves, reloads and versions an ASA 3D scene', async ({
   await expect(multiSelectionPanel).toHaveAttribute('data-selection-count', '2');
   await expect(multiSelectionPanel).toContainText('Выбрано: 2 объекта');
 
-  await page.mouse.move(holeCentre.x, holeCentre.y);
+  const multiResize = await directHandlePoint(page, 'resize-south-east');
+  const multiResizeTarget = extendFromCentre(multiResize.handle, multiResize.centre, 18);
+  await page.mouse.move(multiResize.handle.x, multiResize.handle.y);
   await page.mouse.down();
-  await page.mouse.move(holeCentre.x + 16, holeCentre.y + 12, { steps: 4 });
-  await expect(viewport).toHaveAttribute('data-manipulating', 'move');
+  await page.mouse.move(multiResizeTarget.x, multiResizeTarget.y, { steps: 4 });
+  await expect(viewport).toHaveAttribute('data-manipulating', 'resize');
   await expect(viewport).toHaveAttribute('data-manipulation-count', '2');
   await page.mouse.up();
   await expect(multiSelectionPanel).toBeVisible();
+  await page.getByRole('button', { name: 'Отменить (Ctrl+Z)' }).click();
 
   const groupButton = page.getByRole('button', {
     name: 'Булево объединение (Ctrl+G); пересечение — Ctrl+I',
