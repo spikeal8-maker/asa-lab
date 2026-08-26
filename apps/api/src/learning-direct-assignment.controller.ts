@@ -144,6 +144,12 @@ export class LearningDirectAssignmentController {
           409,
         );
       }
+      const conflict = message.match(
+        /learning direct assignment (?:run|audience) failed: ([a-z_]+)/,
+      );
+      if (conflict?.[1]) {
+        throw new HttpException(error(conflict[1], 'Это задание уже назначено этому классу.'), 409);
+      }
       throw cause;
     }
   }

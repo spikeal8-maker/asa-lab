@@ -225,6 +225,7 @@ test('teacher selects two learners and the third learner cannot see the assignme
   }
   const excluded = await learnerAssignments(browser, joinCode, 'egor-vs-named');
   await expect(excluded.page.getByText(title, { exact: true })).toHaveCount(0);
+  await expect(excluded.page.locator('.portal-nav-count')).toHaveCount(0);
   await excluded.page.screenshot({
     path: `${evidenceDir}/learner-third-excluded.png`,
     fullPage: true,

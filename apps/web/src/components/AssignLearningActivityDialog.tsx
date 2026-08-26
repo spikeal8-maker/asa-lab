@@ -17,6 +17,7 @@ export function AssignLearningActivityDialog({
   const [audienceType, setAudienceType] = useState<'whole_class' | 'named_learners'>('whole_class');
   const [selectedSeats, setSelectedSeats] = useState<string[]>([]);
   const [dueAt, setDueAt] = useState('');
+  const [requestId] = useState(() => `assign:${newClientId()}`);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -57,7 +58,7 @@ export function AssignLearningActivityDialog({
       audienceType,
       seatIds: audienceType === 'named_learners' ? selectedSeats : [],
       dueAt: dueAt ? new Date(`${dueAt}T23:59:00`).toISOString() : null,
-      requestId: `assign:${newClientId()}`,
+      requestId,
     });
     setBusy(false);
     if (!result.ok) {

@@ -199,17 +199,78 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
      GROUP BY run.source_classroom_assignment_id,audience.audience_type;
 $$;
 
+CREATE OR REPLACE FUNCTION learning_direct_assignment_seat_visible(
+    p_seat_id uuid, p_classroom_assignment_id uuid
+)
+RETURNS boolean
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
+    SELECT CASE
+      WHEN NOT EXISTS (
+        SELECT 1 FROM public.activity_runs run
+         WHERE run.source_classroom_assignment_id=p_classroom_assignment_id
+           AND run.source_kind='direct'
+      ) THEN true
+      ELSE EXISTS (
+        SELECT 1
+          FROM public.activity_runs run
+          JOIN public.learner_identity_links link
+            ON link.seat_id=p_seat_id AND link.status='active'
+          JOIN public.activity_participations participation
+            ON participation.activity_run_id=run.id
+           AND participation.learner_identity_id=link.learner_identity_id
+           AND participation.status IN ('assigned','active')
+         WHERE run.source_classroom_assignment_id=p_classroom_assignment_id
+           AND run.source_kind='direct'
+      )
+    END;
+$$;
+
+CREATE OR REPLACE FUNCTION learning_direct_assignment_work_guard()
+RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
+BEGIN
+    IF (TG_OP='INSERT'
+        OR (NEW.submitted_at IS NOT NULL
+            AND NEW.submitted_at IS DISTINCT FROM OLD.submitted_at))
+       AND NOT public.learning_direct_assignment_seat_visible(
+           NEW.seat_id,NEW.assignment_id
+       ) THEN
+        RAISE EXCEPTION 'learning direct assignment unavailable';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS learning_direct_assignment_work_authorization
+    ON classroom_assignment_work;
+CREATE TRIGGER learning_direct_assignment_work_authorization
+    BEFORE INSERT OR UPDATE ON classroom_assignment_work
+    FOR EACH ROW EXECUTE FUNCTION learning_direct_assignment_work_guard();
+
+CREATE OR REPLACE FUNCTION classroom_seat_assignment_counts(p_seat_id uuid)
+RETURNS TABLE (open_count integer, unfinished_count integer)
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
+    SELECT count(*)::integer,
+           count(*) FILTER (WHERE work.submitted_at IS NULL)::integer
+      FROM public.classroom_student_seats seat
+      JOIN public.classroom_assignments assignment
+        ON assignment.tenant_id=seat.tenant_id
+       AND assignment.classroom_id=seat.classroom_id
+      LEFT JOIN public.classroom_assignment_work work
+        ON work.assignment_id=assignment.id AND work.seat_id=seat.id
+     WHERE seat.id=p_seat_id
+       AND seat.status='active'
+       AND assignment.status='open'
+       AND public.learning_direct_assignment_seat_visible(seat.id,assignment.id);
+$$;
+
 CREATE OR REPLACE FUNCTION learning_direct_assignment_visibility_for_seat(p_seat_id uuid)
 RETURNS TABLE (classroom_assignment_id uuid, visible boolean)
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
     SELECT run.source_classroom_assignment_id,
-           EXISTS (
-             SELECT 1 FROM public.learner_identity_links link
-             JOIN public.activity_participations participation
-               ON participation.learner_identity_id=link.learner_identity_id
-              AND participation.activity_run_id=run.id
-              AND participation.status IN ('assigned','active')
-              WHERE link.seat_id=seat.id AND link.status='active')
+           public.learning_direct_assignment_seat_visible(
+             seat.id,run.source_classroom_assignment_id
+           )
       FROM public.classroom_student_seats seat
       JOIN public.activity_runs run
         ON run.tenant_id=seat.tenant_id AND run.classroom_id=seat.classroom_id
@@ -230,10 +291,13 @@ $$;
 REVOKE ALL ON FUNCTION learning_direct_assignment_activity_list(uuid,uuid,uuid) FROM PUBLIC;
 REVOKE ALL ON FUNCTION learning_direct_assignment_create(uuid,uuid,uuid,uuid,timestamptz,varchar,uuid[],varchar) FROM PUBLIC;
 REVOKE ALL ON FUNCTION learning_direct_assignment_summary(uuid,uuid,uuid) FROM PUBLIC;
+REVOKE ALL ON FUNCTION learning_direct_assignment_seat_visible(uuid,uuid) FROM PUBLIC;
+REVOKE ALL ON FUNCTION learning_direct_assignment_work_guard() FROM PUBLIC;
 REVOKE ALL ON FUNCTION learning_direct_assignment_visibility_for_seat(uuid) FROM PUBLIC;
 REVOKE ALL ON FUNCTION learning_direct_assignment_visibility_for_account(uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION learning_direct_assignment_activity_list(uuid,uuid,uuid) TO asalab_app;
 GRANT EXECUTE ON FUNCTION learning_direct_assignment_create(uuid,uuid,uuid,uuid,timestamptz,varchar,uuid[],varchar) TO asalab_app;
 GRANT EXECUTE ON FUNCTION learning_direct_assignment_summary(uuid,uuid,uuid) TO asalab_app;
+GRANT EXECUTE ON FUNCTION learning_direct_assignment_seat_visible(uuid,uuid) TO asalab_app;
 GRANT EXECUTE ON FUNCTION learning_direct_assignment_visibility_for_seat(uuid) TO asalab_app;
 GRANT EXECUTE ON FUNCTION learning_direct_assignment_visibility_for_account(uuid) TO asalab_app;

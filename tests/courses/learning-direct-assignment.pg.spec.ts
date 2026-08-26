@@ -190,6 +190,47 @@ describe('LRN-VS-001 canonical direct assignment', () => {
     const second = await seat(classId, 'Дима');
     const third = await seat(classId, 'Егор');
     const version = await activity('Точная цепь');
+    await admin.query(`UPDATE classroom_student_seats SET status='active' WHERE id=$1`, [third]);
+    const source = await admin.query(
+      `SELECT activity.source_teacher_assignment_id
+         FROM learning_activity_versions version
+         JOIN learning_activities activity ON activity.id=version.activity_id
+        WHERE version.id=$1`,
+      [version],
+    );
+    await inTenant((client) =>
+      client.query(`SELECT teacher_assignment_hand_out($1,$2,$3,true,NULL)`, [
+        principal,
+        source.rows[0].source_teacher_assignment_id,
+        classId,
+      ]),
+    );
+    const handout = await admin.query(
+      `SELECT id FROM classroom_assignments WHERE classroom_id=$1 AND assignment_id=$2`,
+      [classId, source.rows[0].source_teacher_assignment_id],
+    );
+    const learner = await admin.query(`SELECT principal_id FROM student_seat_principal($1)`, [
+      third,
+    ]);
+    const project = await admin.query(
+      `INSERT INTO projects
+         (tenant_id,project_scope,classroom_id,module_key,title,owner_principal_id)
+       VALUES ($1,'classroom',$2,'electronics','Старая работа',$3) RETURNING id`,
+      [owner.tenantId, classId, learner.rows[0].principal_id],
+    );
+    await admin.query(
+      `INSERT INTO project_drafts
+         (tenant_id,project_id,document_json,revision,updated_by_principal_id)
+       VALUES ($1,$2,'{"schemaVersion":1,"components":[]}'::jsonb,1,$3)`,
+      [owner.tenantId, project.rows[0].id, learner.rows[0].principal_id],
+    );
+    await inTenant((client) =>
+      client.query(`SELECT * FROM classroom_assignment_work_start($1,$2,$3)`, [
+        third,
+        handout.rows[0].id,
+        project.rows[0].id,
+      ]),
+    );
     const result = await assign({
       classroomId: classId,
       versionId: version,
@@ -208,6 +249,36 @@ describe('LRN-VS-001 canonical direct assignment', () => {
     await expect(visible(first)).resolves.toBe(true);
     await expect(visible(second)).resolves.toBe(true);
     await expect(visible(third)).resolves.toBe(false);
+    await admin.query(
+      `UPDATE classroom_student_seats SET status='active' WHERE id=ANY($1::uuid[])`,
+      [[first]],
+    );
+    const counts = async (seatId: string) =>
+      (
+        await inTenant((client) =>
+          client.query(`SELECT * FROM classroom_seat_assignment_counts($1)`, [seatId]),
+        )
+      ).rows[0] as { open_count: number; unfinished_count: number };
+    await expect(counts(first)).resolves.toMatchObject({ open_count: 1, unfinished_count: 1 });
+    await expect(counts(third)).resolves.toMatchObject({ open_count: 0, unfinished_count: 0 });
+    await expect(
+      inTenant((client) =>
+        client.query(`SELECT * FROM learning_project_submission_create($1,$2,$3)`, [
+          third,
+          handout.rows[0].id,
+          `vs:excluded-submit:${++sequence}`,
+        ]),
+      ),
+    ).rejects.toThrow(/learning direct assignment unavailable/);
+    expect(
+      (
+        await admin.query(
+          `SELECT count(*)::int AS count FROM learning_attempts
+            WHERE classroom_assignment_id=$1 AND seat_id=$2`,
+          [handout.rows[0].id, third],
+        )
+      ).rows[0].count,
+    ).toBe(0);
   });
 
   it('rejects a seat from another class atomically and denies runtime table CRUD', async () => {

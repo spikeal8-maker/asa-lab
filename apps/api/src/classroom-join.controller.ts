@@ -1003,6 +1003,16 @@ export class ClassroomJoinController {
     return seatId;
   }
 
+  private async requireAssignmentAudience(seatId: string, assignmentId: string): Promise<void> {
+    const result = await this.requirePool().query(
+      `SELECT learning_direct_assignment_seat_visible($1,$2) AS visible`,
+      [seatId, assignmentId],
+    );
+    if ((result.rows[0] as { visible?: boolean } | undefined)?.visible !== true) {
+      throw new HttpException(error('assignment_unavailable', 'Задание недоступно.'), 404);
+    }
+  }
+
   /** Submit one immutable quiz attempt and return only the released feedback. */
   @Post('me/quizzes/:assignmentId/submit')
   @HttpCode(200)
@@ -1100,6 +1110,7 @@ export class ClassroomJoinController {
       throw new HttpException(error('validation_error', 'assignment is invalid'), 400);
     }
     const seatId = await this.seatForAssignment(request, assignmentId);
+    await this.requireAssignmentAudience(seatId, assignmentId);
     const result = await this.requirePool().query(
       `SELECT project_id, submitted_at FROM classroom_assignment_work_start($1, $2, $3)`,
       [seatId, assignmentId, projectId],
@@ -1178,6 +1189,7 @@ export class ClassroomJoinController {
       throw new HttpException(error('validation_error', 'clientRequestId is invalid'), 400);
     }
     const seatId = await this.seatForAssignment(request, assignmentId);
+    await this.requireAssignmentAudience(seatId, assignmentId);
     const result = await this.requirePool().query(
       `SELECT result_code, attempt_id, submission_id, attempt_number, attempt_state,
               project_id, project_version_id, submitted_at, late_state, reused

@@ -114,4 +114,32 @@ describe('LRN-VS-001 direct assignment API', () => {
       status: 403,
     });
   });
+
+  it('returns a usable conflict when the class already has an audience', async () => {
+    const query = vi.fn(async () => {
+      throw new Error('learning direct assignment audience failed: target_has_audience');
+    });
+    const active = {
+      resolve: vi.fn(async () => ({
+        principalId: PRINCIPAL,
+        accountId: ACCOUNT,
+        tenantId: TENANT,
+      })),
+    } as unknown as ActiveContextUseCase;
+    const accounts = {
+      capabilities: vi.fn(async () => [{ capability: 'educator', state: 'verified' }]),
+    } as unknown as AccountDirectoryPort;
+    const api = new LearningDirectAssignmentController(active, accounts, {
+      query,
+    } as unknown as pg.Pool);
+    await expect(
+      api.assign(request(), CLASSROOM, {
+        activityVersionId: VERSION,
+        audienceType: 'whole_class',
+        seatIds: [],
+        dueAt: null,
+        requestId: 'assign:visible:retry',
+      }),
+    ).rejects.toMatchObject({ status: 409 });
+  });
 });
