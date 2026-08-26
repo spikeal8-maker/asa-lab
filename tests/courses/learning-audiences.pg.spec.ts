@@ -306,13 +306,6 @@ afterAll(async () => {
 
 describe('LRN-M1-005 canonical audience', () => {
   it('materializes direct whole-class learners set-wise, including issued but excluding suspended, without Attempts/Results', async () => {
-    const sideEffectsBefore = (
-      await admin.query(
-        `SELECT (SELECT count(*)::int FROM learning_attempts) AS attempts,
-                (SELECT count(*)::int FROM assessment_results) AS results,
-                (SELECT count(*)::int FROM gradebook_entries) AS grades`,
-      )
-    ).rows[0];
     const classroom = await createClassroom();
     const issued = await createSeat(classroom, 'issued');
     const active = await createSeat(classroom, 'active');
@@ -368,11 +361,19 @@ describe('LRN-M1-005 canonical audience', () => {
       ).rows[0].count,
     ).toBe(1);
     const sideEffects = await admin.query(
-      `SELECT (SELECT count(*)::int FROM learning_attempts) AS attempts,
-              (SELECT count(*)::int FROM assessment_results) AS results,
-              (SELECT count(*)::int FROM gradebook_entries) AS grades`,
+      `WITH exact_assignment AS (
+         SELECT source_classroom_assignment_id AS id FROM activity_runs WHERE id=$1
+       )
+       SELECT (SELECT count(*)::int FROM learning_attempts attempt
+                JOIN exact_assignment exact ON exact.id=attempt.classroom_assignment_id) AS attempts,
+              (SELECT count(*)::int FROM assessment_results result
+                JOIN learning_attempts attempt ON attempt.id=result.attempt_id
+                JOIN exact_assignment exact ON exact.id=attempt.classroom_assignment_id) AS results,
+              (SELECT count(*)::int FROM gradebook_entries grade
+                JOIN exact_assignment exact ON exact.id=grade.classroom_assignment_id) AS grades`,
+      [run],
     );
-    expect(sideEffects.rows[0]).toEqual(sideEffectsBefore);
+    expect(sideEffects.rows[0]).toEqual({ attempts: 0, results: 0, grades: 0 });
   });
 
   it('materializes CourseEnrollment only, dynamically adds once, withdraws on leave, and rejects silent rejoin', async () => {

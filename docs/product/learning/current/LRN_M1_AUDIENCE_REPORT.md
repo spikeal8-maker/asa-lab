@@ -138,9 +138,9 @@ Idempotent retries do not duplicate events.
 
 Final focused evidence on local isolated PostgreSQL:
 
-- 30 learners -> one direct whole-class target: `17.2 ms`, 30 rows, one client
+- 30 learners -> one direct whole-class target: `15.4 ms`, 30 rows, one client
   statement for the measured audience operation;
-- one new learner -> 100 active direct targets: `48.5 ms`, 100 rows, one client
+- one new learner -> 100 active direct targets: `31.5 ms`, 100 rows, one client
   statement for the measured seat operation.
 
 Both paths are set-based and below the 5,000 ms acceptance ceiling. Timing is
@@ -205,7 +205,7 @@ hook only. It adds no HTTP endpoint, DTO, UI reader, or undocumented API.
 | 23-24 | named add/remove audited | named snapshot test |
 | 25-27 | manual not stolen; manual survives; owned withdraws | manual-overlap and named snapshot tests |
 | 28-30 | class leave withdraws/preserves; rejoin rejected | direct and CourseRun leave/rejoin assertions |
-| 31 | no Attempts/Results/Gradebook | before/after delta in direct whole-class test |
+| 31 | no Attempts/Results/Gradebook | exact ActivityRun assignment-lineage counts in direct whole-class test |
 | 32 | concurrent audience create | concurrent-create test |
 | 33 | concurrent/repeated dynamic sync | concurrent seat activation plus uniqueness/audit assertions |
 | 34 | partial failure retry | invalid named atomic rollback followed by valid same-key create |
