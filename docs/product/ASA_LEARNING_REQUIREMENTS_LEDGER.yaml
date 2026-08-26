@@ -185,13 +185,17 @@ requirements:
 - id: ARCH-001
   milestone: M1
   status: in_progress
-  summary: Direct and course quiz/project definitions converge on one canonical activity version contract; persistent shared runtime remains later M1 scope
+  summary: Direct and course definitions now share canonical LearningActivityVersion and persistent ActivityRun storage, while ActivityParticipation and common Attempt ownership remain later M1/M2 scope
   evidence:
   - docs/product/learning/execution/LRN-M1-001_EXECUTION_SPEC.md
   - docs/product/learning/current/LRN_M1_ACTIVITY_VERSION_CONVERGENCE_REPORT.md
   - migrations/0091_learning_activity_version_convergence.sql
+  - docs/product/learning/execution/LRN-M1-003_EXECUTION_SPEC.md
+  - migrations/0093_activity_runs.sql
+  - docs/product/learning/current/LRN_M1_ACTIVITY_RUN_REPORT.md
   tests:
   - tests/courses/learning-activity-version-convergence.pg.spec.ts
+  - tests/courses/activity-runs.pg.spec.ts
 - id: ARCH-006
   milestone: M1
   status: proven
@@ -223,13 +227,37 @@ requirements:
   - migrations/0091_learning_activity_version_convergence.sql
   tests:
   - tests/courses/learning-activity-version-convergence.pg.spec.ts
+- id: VER-003
+  milestone: M1
+  status: in_progress
+  summary: New canonical ActivityRuns pin an exact immutable LearningActivityVersion and existing CourseRuns pin CourseVersion; universal materialization remains future scope
+  evidence:
+  - migrations/0067_course_versions.sql
+  - migrations/0068_classroom_course_runs.sql
+  - migrations/0093_activity_runs.sql
+  - docs/product/learning/current/LRN_M1_ACTIVITY_RUN_REPORT.md
+  tests:
+  - tests/courses/activity-runs.pg.spec.ts
+- id: VER-004
+  milestone: M1
+  status: in_progress
+  summary: Publishing a later canonical activity draft does not retarget an existing ActivityRun; existing compatibility paths remain outside the new runtime cutover
+  evidence:
+  - migrations/0091_learning_activity_version_convergence.sql
+  - migrations/0093_activity_runs.sql
+  - docs/product/learning/current/LRN_M1_ACTIVITY_RUN_REPORT.md
+  tests:
+  - tests/courses/activity-runs.pg.spec.ts
 - id: ARCH-002
   milestone: M1
-  status: target
-  summary: Every executable activity has persistent ActivityRun
-  evidence: []
+  status: in_progress
+  summary: One persistent canonical ActivityRun model exists for direct and course provenance; existing executable paths are not yet universally materialized or cut over
+  evidence:
+  - docs/product/learning/execution/LRN-M1-003_EXECUTION_SPEC.md
+  - migrations/0093_activity_runs.sql
+  - docs/product/learning/current/LRN_M1_ACTIVITY_RUN_REPORT.md
   tests:
-  - TST-INT-002
+  - tests/courses/activity-runs.pg.spec.ts
 - id: ARCH-003
   milestone: M0
   status: proven
@@ -251,14 +279,70 @@ requirements:
   tests:
   - E2E-003
   - TST-INT-002
+- id: RUN-101
+  milestone: M1
+  status: proven
+  summary: Canonical ActivityRun persists exact classroom/school/LAV/source provenance, dates, policy pins, creator and lifecycle evidence
+  evidence:
+  - migrations/0093_activity_runs.sql
+  - docs/product/learning/current/LRN_M1_ACTIVITY_RUN_REPORT.md
+  tests:
+  - tests/courses/activity-runs.pg.spec.ts
+- id: RUN-102
+  milestone: M1
+  status: proven
+  summary: Stored ActivityRun lifecycle is exactly active, closed, cancelled or archived with guarded monotonic transitions
+  evidence:
+  - migrations/0093_activity_runs.sql
+  - docs/product/learning/current/LRN_M1_ACTIVITY_RUN_REPORT.md
+  tests:
+  - tests/courses/activity-runs.pg.spec.ts
+- id: RUN-103
+  milestone: M1
+  status: in_progress
+  summary: Run-level base availability is derived from explicit as-of time, stored lifecycle, dates and compatibility parent limits; learner overrides remain future
+  evidence:
+  - migrations/0093_activity_runs.sql
+  - docs/product/learning/current/LRN_M1_ACTIVITY_RUN_REPORT.md
+  tests:
+  - tests/courses/activity-runs.pg.spec.ts
+- id: RUN-104
+  milestone: M1
+  status: in_progress
+  summary: ActivityRun stores nullable explicit canonical late policy and derives late as a flag; fallback/effective override semantics remain M1-007
+  evidence:
+  - migrations/0093_activity_runs.sql
+  - docs/product/learning/current/LRN_M1_ACTIVITY_RUN_REPORT.md
+  tests:
+  - tests/courses/activity-runs.pg.spec.ts
+- id: RUN-105
+  milestone: M1
+  status: in_progress
+  summary: Direct and course delivery share one ActivityRun storage/domain primitive; common Attempt APIs remain future scope
+  evidence:
+  - migrations/0093_activity_runs.sql
+  - docs/product/learning/current/LRN_M1_ACTIVITY_RUN_REPORT.md
+  tests:
+  - tests/courses/activity-runs.pg.spec.ts
 - id: RUN-106
   milestone: M1
-  status: target
-  summary: Deterministic precedence of learner override > run > course block > activity
-    defaults
-  evidence: []
+  status: in_progress
+  summary: Run-explicit values retain source provenance without flattening LAV defaults; complete participation > run > course block > LAV resolution remains M1-007
+  evidence:
+  - migrations/0093_activity_runs.sql
+  - docs/product/learning/current/LRN_M1_ACTIVITY_RUN_REPORT.md
   tests:
+  - tests/courses/activity-runs.pg.spec.ts
   - TST-INT-RUN-PRECEDENCE
+- id: RUN-107
+  milestone: M1
+  status: in_progress
+  summary: ActivityRun stores inspectable policy source evidence, but teacher effective-settings inspector and learner-specific explanation remain future scope
+  evidence:
+  - migrations/0093_activity_runs.sql
+  - docs/product/learning/current/LRN_M1_ACTIVITY_RUN_REPORT.md
+  tests:
+  - tests/courses/activity-runs.pg.spec.ts
 - id: AUD-203
   milestone: M1
   status: target
