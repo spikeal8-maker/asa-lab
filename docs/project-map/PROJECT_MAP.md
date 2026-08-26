@@ -23,11 +23,12 @@ execution direct_main
 ## Parallel ASA Learning lane
 
 The owner accepted the complete `M0 — State Convergence` milestone,
-`LRN-M1-001 — LearningActivityVersion Convergence` and
+`LRN-M1-001 — LearningActivityVersion Convergence`,
 `LRN-M1-002 — CourseEnrollment` and `LRN-M1-003 — Persistent ActivityRun`.
-Only `LRN-M1-004 — ActivityParticipation` is active. The primary Admin/Auth task
-is unchanged. `LRN-M1-005` onward, M2-M7, production deployment, production
-migration apply and backfill are not authorized.
+`LRN-M1-004 — ActivityParticipation` is merged and awaits owner acceptance.
+The primary Admin/Auth task is unchanged, and no next Learning task is active.
+`LRN-M1-005` onward, M2-M7, production deployment, production migration apply
+and backfill are not authorized.
 
 The CURRENT repository already contains course, direct-assignment, quiz,
 attempt/result and gradebook implementations. Therefore `CTX-CONTENT`,

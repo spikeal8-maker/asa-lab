@@ -685,7 +685,7 @@ Attempt runtime не различает direct/course, кроме provenance.
 
 ## TASK LRN-M1-004 — ActivityParticipation
 
-**status:** IN_PROGRESS — owner activated
+**status:** DONE — merged, owner acceptance pending
 **depends_on:** M1-002, M1-003  
 **requirements:** AUD-101..105
 

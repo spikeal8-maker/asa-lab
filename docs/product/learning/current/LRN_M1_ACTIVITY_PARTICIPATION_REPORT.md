@@ -3,8 +3,8 @@
 **Task:** `LRN-M1-004 — ActivityParticipation`  
 **Baseline:** `558ef8c853e6d016267b9d6ee16a2b63d8d23c3c`  
 **Issue / PR:** `#160` / `#161`  
-**Result:** Learning/data evidence complete; repository gate blocked by a proven
-unrelated `origin/main` Electronics bundle-budget regression; not DONE
+**Result:** DONE — exact merge-result evidence passed and PR `#161` was normally
+merged to `main`; owner acceptance remains pending
 
 ## ACTIVITYPARTICIPATION MODEL
 
@@ -229,22 +229,16 @@ fresh migration plus repeat zero, `git diff --check`, `pnpm contracts:check`,
 `1198` tests plus `15` focused RLS tests and the corrected upstream Electronics
 bundle passed at `204920/205000` bytes.
 
-- `pnpm gate:data` with `NX_SKIP_NX_CACHE=true`: PASS on retry — `173` test
-  files, `1198` tests, then `15` focused RLS tests;
-- format, lint, typecheck, boundaries, contracts, secrets, license, dependency
-  inventory, release tests and build: PASS uncached;
-- `pnpm gate:repository`: FAIL only at the unrelated Electronics bundle budget:
-  `SchematicEditor 206540/205000` bytes;
-- current `origin/main` SHA `bfc32338f167355c5a347d66c7e9aee75c0e836f`
-  fails GitHub core run `32941911258` at the same bundle check, before this PR;
-- no Learning or web runtime file in LRN-M1-004 contributes to that bundle.
+**GITHUB REQUIRED JOBS:** exact PR head
+`f9f8fdd8842bd3322105525529fde509d95d418d`, run `32943950373`: Governance
+contracts `SUCCESS`; Format lint types contracts build `SUCCESS`; PostgreSQL
+tests and RLS `SUCCESS`.
 
-The task stays `in_progress` and PR `#161` stays draft until the main baseline is
-green and the uncached repository/GitHub gates can be rerun. The unrelated
-Electronics budget/payload is not changed under Learning authorization.
+**MERGE:** PR `#161` was moved from draft only after those required jobs passed
+and was normally merged without administrative bypass as
+`08221e9147c2bf87ce70f85b7b8babec1da28db8`.
 
 ## NEXT READY TASK
 
-None while the repository gate is red. After that gate passes and M1-004 is
-closed, the next queue item is `LRN-M1-005 — AudienceDefinition`, but it is not
-activated.
+None. `LRN-M1-005 — AudienceDefinition` is the next queue item but is not
+activated; owner acceptance of `LRN-M1-004` is still pending.

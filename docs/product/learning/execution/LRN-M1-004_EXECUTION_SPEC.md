@@ -2,7 +2,7 @@
 
 **Task:** `LRN-M1-004 — ActivityParticipation`
 **Milestone:** `M1 — Universal Delivery`
-**Status:** ACTIVE
+**Status:** DONE — merged, owner acceptance pending
 **Baseline SHA:** `558ef8c853e6d016267b9d6ee16a2b63d8d23c3c`
 **Issue:** `#160`
 **Master Spec:** `docs/product/ASA_LEARNING_TECHNICAL_SPEC.md`
@@ -222,7 +222,7 @@ fresh migration plus repeat zero.
 - [x] least privilege and negative matrix
 - [x] fresh 0094 apply and repeat zero
 - [x] M0/M1-001/M1-002/M1-003 regressions
-- [ ] uncached repository and GitHub core gates
+- [x] uncached repository and GitHub core gates
 - [x] ledger updated without premature AUD-102/AUD-105 closure
 
 ## 16. Evidence
@@ -231,6 +231,8 @@ This execution-spec was created after CURRENT audit and before product
 migration/test code. Migration `0094`, the 33-scenario mapped focused suite and
 the task report now provide implementation evidence. Isolated fresh apply,
 repeat-zero, M0/M1 regressions and uncached `gate:data` are green (`173` files,
-`1198` tests plus `15` focused RLS tests). The repository/core gate remains open
-because current `origin/main` itself exceeds the unrelated Electronics bundle
-budget (`206540/205000` bytes); main CI run `32941911258` fails identically.
+`1198` tests plus `15` focused RLS tests). After the independent upstream
+Electronics correction, the exact PR head
+`f9f8fdd8842bd3322105525529fde509d95d418d` passed all three required GitHub
+jobs in run `32943950373` and was normally merged as
+`08221e9147c2bf87ce70f85b7b8babec1da28db8`. Owner acceptance remains pending.
