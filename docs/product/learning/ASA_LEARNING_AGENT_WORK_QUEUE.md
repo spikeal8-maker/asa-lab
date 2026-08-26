@@ -685,7 +685,7 @@ Attempt runtime не различает direct/course, кроме provenance.
 
 ## TASK LRN-M1-004 — ActivityParticipation
 
-**status:** DONE — merged, owner acceptance pending
+**status:** DONE — owner accepted
 **depends_on:** M1-002, M1-003  
 **requirements:** AUD-101..105
 
@@ -707,6 +707,7 @@ excused
 
 ## TASK LRN-M1-005 — Audience: Whole Class + Named Learners
 
+**status:** IN_PROGRESS — owner activated
 **depends_on:** M1-004  
 **requirements:** AUD-201..206
 

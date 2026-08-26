@@ -128,10 +128,13 @@ requirements:
   - docs/product/learning/current/LRN_M1_COURSE_ENROLLMENT_REPORT.md
   - migrations/0094_activity_participations.sql
   - docs/product/learning/current/LRN_M1_ACTIVITY_PARTICIPATION_REPORT.md
+  - migrations/0095_learning_audiences.sql
+  - docs/product/learning/current/LRN_M1_AUDIENCE_REPORT.md
   tests:
   - tests/courses/learning-additive-backfill.pg.spec.ts
   - tests/courses/course-enrollments.pg.spec.ts
   - tests/courses/activity-participations.pg.spec.ts
+  - tests/courses/learning-audiences.pg.spec.ts
 - id: IDN-004
   milestone: M0
   status: proven
@@ -257,16 +260,19 @@ requirements:
 - id: ARCH-002
   milestone: M1
   status: in_progress
-  summary: Persistent ActivityRun and ActivityParticipation primitives exist for direct/course delivery; audience materialization and executable-path cutover remain incomplete
+  summary: Persistent ActivityRun and ActivityParticipation primitives plus whole-class/named audience materialization exist; ClassroomGroup, course-child materialization and executable-path cutover remain incomplete
   evidence:
   - docs/product/learning/execution/LRN-M1-003_EXECUTION_SPEC.md
   - migrations/0093_activity_runs.sql
   - docs/product/learning/current/LRN_M1_ACTIVITY_RUN_REPORT.md
   - migrations/0094_activity_participations.sql
   - docs/product/learning/current/LRN_M1_ACTIVITY_PARTICIPATION_REPORT.md
+  - migrations/0095_learning_audiences.sql
+  - docs/product/learning/current/LRN_M1_AUDIENCE_REPORT.md
   tests:
   - tests/courses/activity-runs.pg.spec.ts
   - tests/courses/activity-participations.pg.spec.ts
+  - tests/courses/learning-audiences.pg.spec.ts
 - id: ARCH-003
   milestone: M0
   status: proven
@@ -407,14 +413,73 @@ requirements:
   - docs/product/learning/current/LRN_M1_ACTIVITY_PARTICIPATION_REPORT.md
   tests:
   - tests/courses/activity-participations.pg.spec.ts
+- id: AUD-201
+  milestone: M1
+  status: in_progress
+  summary: Canonical whole-class and named-learner audience types are implemented; classroom_group remains LRN-M1-006 scope
+  evidence:
+  - docs/product/ASA_LEARNING_TECHNICAL_SPEC.md
+  - docs/product/learning/execution/LRN-M1-005_EXECUTION_SPEC.md
+  - migrations/0095_learning_audiences.sql
+  - docs/product/learning/current/LRN_M1_AUDIENCE_REPORT.md
+  tests:
+  - tests/courses/learning-audiences.pg.spec.ts
+- id: AUD-202
+  milestone: M1
+  status: in_progress
+  summary: Whole-class dynamic and named-learner snapshot mode constraints are physically enforced; group dynamic mode remains LRN-M1-006 scope
+  evidence:
+  - docs/product/ASA_LEARNING_TECHNICAL_SPEC.md
+  - docs/product/learning/execution/LRN-M1-005_EXECUTION_SPEC.md
+  - migrations/0095_learning_audiences.sql
+  - docs/product/learning/current/LRN_M1_AUDIENCE_REPORT.md
+  tests:
+  - tests/courses/learning-audiences.pg.spec.ts
 - id: AUD-203
   milestone: M1
-  status: target
-  summary: New learner joins active dynamic audience exactly once
-  evidence: []
+  status: proven
+  summary: Durable seat lifecycle integration materializes a newly eligible logical learner exactly once across active whole-class dynamic CourseRun and direct ActivityRun audiences
+  evidence:
+  - docs/product/learning/execution/LRN-M1-005_EXECUTION_SPEC.md
+  - migrations/0095_learning_audiences.sql
+  - docs/product/learning/current/LRN_M1_AUDIENCE_REPORT.md
   tests:
+  - tests/courses/learning-audiences.pg.spec.ts
   - TST-INT-003
   - E2E-006
+- id: AUD-204
+  milestone: M1
+  status: in_progress
+  summary: Classroom membership end withdraws audience-owned membership and preserves history; started Attempt continuation remains unimplemented M2 policy
+  evidence:
+  - docs/product/ASA_LEARNING_TECHNICAL_SPEC.md
+  - docs/product/learning/execution/LRN-M1-005_EXECUTION_SPEC.md
+  - migrations/0095_learning_audiences.sql
+  - docs/product/learning/current/LRN_M1_AUDIENCE_REPORT.md
+  tests:
+  - tests/courses/learning-audiences.pg.spec.ts
+- id: AUD-205
+  milestone: M1
+  status: in_progress
+  summary: Audience claim withdrawal preserves independent assignment and history; group removal and active Attempt semantics remain future scope
+  evidence:
+  - docs/product/ASA_LEARNING_TECHNICAL_SPEC.md
+  - docs/product/learning/execution/LRN-M1-005_EXECUTION_SPEC.md
+  - migrations/0095_learning_audiences.sql
+  - docs/product/learning/current/LRN_M1_AUDIENCE_REPORT.md
+  tests:
+  - tests/courses/learning-audiences.pg.spec.ts
+- id: AUD-206
+  milestone: M1
+  status: proven
+  summary: Named snapshot membership changes are explicit, end-dated, audited, idempotent and deterministically reject silent re-add after withdrawal
+  evidence:
+  - docs/product/ASA_LEARNING_TECHNICAL_SPEC.md
+  - docs/product/learning/execution/LRN-M1-005_EXECUTION_SPEC.md
+  - migrations/0095_learning_audiences.sql
+  - docs/product/learning/current/LRN_M1_AUDIENCE_REPORT.md
+  tests:
+  - tests/courses/learning-audiences.pg.spec.ts
 - id: RUN-203
   milestone: M1
   status: target
