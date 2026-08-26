@@ -255,11 +255,11 @@ parallel_lanes:
         commands:
           - pnpm gate:repository
 
-  # Owner-accepted ASA Learning M0, LRN-M1-001 and LRN-M1-002 lane. LRN-M1-003
-  # is merged with owner acceptance pending. No later Learning task is active;
-  # M1-004 onward and M2-M7 remain outside this activation.
+  # Owner-accepted ASA Learning M0 and LRN-M1-001 through LRN-M1-003 lane, now
+  # executing only LRN-M1-004. M1-005 onward and M2-M7 remain outside this
+  # activation.
   - id: learning
-    worktree_id: learning-m1-003
+    worktree_id: learning-m1-004
     owned_paths:
       - docs/product/ASA_LEARNING_TECHNICAL_SPEC.md
       - docs/product/ASA_LEARNING_REQUIREMENTS_LEDGER.yaml
@@ -301,22 +301,22 @@ parallel_lanes:
       - tools/learning-additive-backfill.mjs
       - tests/courses/**
     task:
-      id: TASK-LEARNING-M1-003
-      issue: 158
-      branch: agent/learning-m1-003
+      id: TASK-LEARNING-M1-004
+      issue: 160
+      branch: agent/learning-m1-004
       base_branch: main
-      pr: 159
-      pr_draft: false
-      status: done
-      checkpoint: merged_to_main
+      pr: 161
+      pr_draft: true
+      status: in_progress
+      checkpoint: exact_merge_result_validated
       owner_acceptance: pending
     revisions:
-      convergence_baseline_sha: 5d5c53652af35a99f1b149775b712ac68d4baed0
-      head_sha: 86e28a6edbc97a8245b96c2ed4d033209830bfd4
-      owner_accepted_sha: 1c5be669f787a536c3dba6839c01c330d6f259f2
+      convergence_baseline_sha: 558ef8c853e6d016267b9d6ee16a2b63d8d23c3c
+      head_sha: 558ef8c853e6d016267b9d6ee16a2b63d8d23c3c
+      owner_accepted_sha: 558ef8c853e6d016267b9d6ee16a2b63d8d23c3c
       product_merge_sha: 83eb972e08712198c7a9856b09f1c90780d17f7b
     execution_lease:
-      executor_id: codex-learning-m1-003
+      executor_id: codex-learning-m1-004
       holder: unassigned
       acquired_at: null
       expires_at: null
@@ -325,7 +325,7 @@ parallel_lanes:
       focused:
         workflow: ASA Lab Governance and Code Gates
         commands:
-          - pnpm test:learning-m1-003
+          - pnpm test:learning-m1-004
       general:
         workflow: ASA Lab Governance and Code Gates
         commands:

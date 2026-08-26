@@ -641,7 +641,7 @@ describe('LRN-M1-003 persistent ActivityRun', () => {
     const enrollmentsBefore = await admin.query(
       `SELECT count(*)::int AS count FROM course_enrollments`,
     );
-    await createRun({ handoutId: await createDirectHandout() });
+    const run = await createRun({ handoutId: await createDirectHandout() });
     expect(
       (await admin.query(`SELECT count(*)::int AS count FROM learning_attempts`)).rows,
     ).toEqual(attemptsBefore.rows);
@@ -652,9 +652,11 @@ describe('LRN-M1-003 persistent ActivityRun', () => {
       (await admin.query(`SELECT count(*)::int AS count FROM course_enrollments`)).rows,
     ).toEqual(enrollmentsBefore.rows);
     const participation = await admin.query(
-      `SELECT to_regclass('public.activity_participations') AS relation`,
+      `SELECT count(*)::int AS count FROM activity_participations
+        WHERE activity_run_id=$1`,
+      [run.activity_run_id],
     );
-    expect(participation.rows[0].relation).toBeNull();
+    expect(participation.rows).toEqual([{ count: 0 }]);
   });
 
   it('denies runtime direct table access and immutable UUID mutation', async () => {
