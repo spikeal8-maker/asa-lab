@@ -232,6 +232,39 @@ function shortCircuitDocument(): SchematicDocument {
   };
 }
 
+function resistorOverloadDocument(): SchematicDocument {
+  const seeded = circuitDocument({
+    switchClosed: true,
+    resistorOhms: 1,
+    reversedLed: false,
+  });
+  const source = seeded.components.find((component) => component.id === 'source');
+  const resistor = seeded.components.find((component) => component.id === 'resistor');
+  if (!source || !resistor) throw new Error('resistor overload fixture is incomplete');
+  return {
+    schemaVersion: 4,
+    components: [source, resistor],
+    connections: [
+      {
+        id: 'wire-overload-positive',
+        from: { componentId: 'source', terminal: 'BAT+' },
+        to: { componentId: 'resistor', terminal: 'lead-1' },
+        color: '#e3212b',
+        vertices: [],
+      },
+      {
+        id: 'wire-overload-return',
+        from: { componentId: 'resistor', terminal: 'lead-2' },
+        to: { componentId: 'source', terminal: 'BAT-' },
+        color: '#2a3035',
+        vertices: [],
+      },
+    ],
+    viewport: { x: 0, y: 0, zoom: 1 },
+    simulation: { running: false, maxIterations: 24 },
+  };
+}
+
 function directLedWithLoosePartsDocument(): SchematicDocument {
   const seeded = circuitDocument({
     switchClosed: true,
@@ -1067,6 +1100,18 @@ test('real editor recalculates SPDT, resistor and LED without waiting for persis
   ).toBeVisible();
   await expect(page.locator('.workbench-results')).toHaveCount(0);
   await expect(page.locator('.workbench-toast')).toHaveCount(0);
+
+  await page.getByRole('button', { name: 'Остановить моделирование' }).click();
+  await page.goto('/#/projects');
+  await page.evaluate((id) => localStorage.removeItem(`asa-project-local-draft:${id}`), projectId);
+  await saveDocument(page, projectId, resistorOverloadDocument());
+  await page.goto(`/#/home/${projectId}`);
+  await page.getByRole('button', { name: 'Начать моделирование' }).click();
+  const overloadedSource = component(page, 'battery-holder-aa-2');
+  const overloadedResistor = component(page, 'resistor-axial');
+  await expect(overloadedSource).toHaveAttribute('data-presentation-state', 'destructive');
+  await expect(overloadedResistor).toHaveAttribute('data-presentation-state', 'destructive');
+  await expect(overloadedResistor).toHaveAttribute('data-diagnostics', /resistor_overload/);
   expect(failures.counts).toMatchObject({
     consoleErrors: 0,
     pageErrors: 0,
