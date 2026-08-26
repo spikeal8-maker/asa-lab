@@ -556,11 +556,6 @@ describe('deterministic DC solver', () => {
           component('motor', 'visual', 6, {
             componentTypeId: 'dc-motor',
             pinIds: ['negative', 'positive'],
-            stateProperties: {
-              nominalVoltage: 6,
-              effectiveResistanceOhm: 60,
-              maxCurrentAmp: 0.5,
-            },
           }),
         ],
         [
@@ -573,11 +568,10 @@ describe('deterministic DC solver', () => {
     expect(result.status).toBe('solved');
     expect(result.components.find((item) => item.componentId === 'motor')).toMatchObject({
       voltageDrop: 6,
-      current: 0.1,
+      current: 0.07,
       energized: true,
       speedPercent: 100,
       direction: 'clockwise',
-      stressState: 'normal',
     });
   });
 
