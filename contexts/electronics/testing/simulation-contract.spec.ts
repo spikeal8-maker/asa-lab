@@ -75,6 +75,16 @@ describe('R4-M1 simulation implementation contract', () => {
     expect(result.status).toBe('solved');
     expect(result.solved).toBe(true);
     expect(result.current).toBeCloseTo(0.005, 6);
+    const sourceCurrents = result.components.find(
+      (entry) => entry.componentId === 'source',
+    )?.terminalCurrents;
+    const resistorCurrents = result.components.find(
+      (entry) => entry.componentId === 'resistor',
+    )?.terminalCurrents;
+    expect(sourceCurrents?.['a']).toBeCloseTo(-0.005, 9);
+    expect(sourceCurrents?.['b']).toBeCloseTo(0.005, 9);
+    expect(resistorCurrents?.['a']).toBeCloseTo(0.005, 9);
+    expect(resistorCurrents?.['b']).toBeCloseTo(-0.005, 9);
     expect(result.quality).toMatchObject({ finite: true, passed: true });
     expect(result.quality.maxKclResidualAmp).toBeLessThanOrEqual(result.quality.kclToleranceAmp);
     expect(result.quality.maxSourceVoltageResidualVolt).toBeLessThanOrEqual(
@@ -242,7 +252,7 @@ describe('R4-M1 simulation implementation contract', () => {
     ).toMatchObject({ energized: false, frequencyHz: 0, soundLevel: 0 });
   });
 
-  it('rejects an ill-conditioned legacy source conflict without NaN', () => {
+  it('calculates a finite destructive preview for conflicting legacy sources', () => {
     const circuit = document(
       [component('source-5v', 'source', 5), component('source-9v', 'source', 9)],
       [
@@ -251,8 +261,23 @@ describe('R4-M1 simulation implementation contract', () => {
       ],
     );
     const result = analyseCircuit(circuit);
-    expect(result.solved).toBe(false);
-    expect(result.status).toBe('nonconvergent');
+    expect(result.solved).toBe(true);
+    expect(result.status).toBe('solved');
+    expect(result.quality.passed).toBe(true);
+    expect(result.components).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          componentId: 'source-5v',
+          stressState: 'burned',
+          damageState: 'destructive_preview',
+        }),
+        expect.objectContaining({
+          componentId: 'source-9v',
+          stressState: 'burned',
+          damageState: 'destructive_preview',
+        }),
+      ]),
+    );
     expect(JSON.stringify(result)).not.toMatch(/NaN|Infinity/);
   });
 

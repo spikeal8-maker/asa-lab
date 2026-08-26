@@ -90,6 +90,9 @@ export interface ComponentResult {
   readonly voltageDrop: number;
   readonly current: number;
   readonly terminalVoltages: Readonly<Partial<Record<Terminal, number>>>;
+  /** Positive values enter the component through the named physical terminal. */
+  readonly terminalCurrents?: Readonly<Partial<Record<Terminal, number>>>;
+  readonly voltageConstraintResidual?: number;
   readonly power?: number;
   readonly brightness?: number;
   readonly branchCurrents?: Readonly<Record<string, number>>;
@@ -1432,6 +1435,21 @@ export function solveCircuit(
         voltageDrop: round(voltageDrop),
         current: roundCurrent(current),
         terminalVoltages,
+        ...(linearDcObservation
+          ? {
+              terminalCurrents: Object.fromEntries(
+                Object.entries(linearDcObservation.terminalCurrents).map(([terminal, value]) => [
+                  terminal,
+                  roundCurrent(value),
+                ]),
+              ),
+              ...(linearDcObservation.voltageConstraintResidual === undefined
+                ? {}
+                : {
+                    voltageConstraintResidual: round(linearDcObservation.voltageConstraintResidual),
+                  }),
+            }
+          : {}),
         power: round(power),
         brightness: round(brightness, 2),
         ...(branches.length > 0 || transistorResult || isArduinoUno(component)

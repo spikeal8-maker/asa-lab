@@ -1,4 +1,4 @@
-import type { SchematicComponent } from '../document.js';
+import type { SchematicComponent, Terminal } from '../document.js';
 import {
   componentModelIdentityIsInstalled,
   electricalModelIdentityForComponent,
@@ -23,6 +23,17 @@ export interface LinearDcObservation {
   readonly internalResistanceOhm?: number;
   readonly internalPower?: number;
   readonly voltageSag?: number;
+  /** Positive values enter the component through the named physical terminal. */
+  readonly terminalCurrents: Readonly<Record<Terminal, number>>;
+  readonly voltageConstraintResidual?: number;
+}
+
+function physicalTerminalPair(component: SchematicComponent): readonly [Terminal, Terminal] {
+  if (!component.componentTypeId) return ['a', 'b'];
+  if (component.kind === 'source') {
+    return component.pinIds?.includes('BAT+') ? ['BAT+', 'BAT-'] : ['positive', 'negative'];
+  }
+  return component.componentTypeId ? ['lead-1', 'lead-2'] : ['a', 'b'];
 }
 
 function stressFromPercent(
@@ -101,11 +112,13 @@ export const RESISTOR_DEVICE_MODEL: DeviceModel<ResistorParameters, LinearDcObse
     const currentAmp = operatingPoint.voltageDrop / instance.parameters.resistanceOhm;
     const powerWatt = Math.abs(currentAmp * operatingPoint.voltageDrop);
     const powerUtilizationPercent = (powerWatt / instance.parameters.powerRatingWatt) * 100;
+    const [left, right] = physicalTerminalPair(instance.component);
     return {
       current: currentAmp,
       power: powerWatt,
       powerUtilizationPercent,
       stressState: stressFromPercent(powerUtilizationPercent, RESISTOR_WARNING_PERCENT),
+      terminalCurrents: { [left]: currentAmp, [right]: -currentAmp },
     };
   },
 };
@@ -145,6 +158,7 @@ export const SOURCE_DEVICE_MODEL: DeviceModel<SourceParameters, LinearDcObservat
     const currentAmp = operatingPoint.current;
     const currentUtilizationPercent =
       (Math.abs(currentAmp) / instance.parameters.continuousCurrentAmp) * 100;
+    const [positive, negative] = physicalTerminalPair(instance.component);
     return {
       current: currentAmp,
       power: Math.abs(currentAmp * operatingPoint.voltageDrop),
@@ -153,6 +167,11 @@ export const SOURCE_DEVICE_MODEL: DeviceModel<SourceParameters, LinearDcObservat
       internalResistanceOhm: instance.parameters.internalResistanceOhm,
       internalPower: currentAmp * currentAmp * instance.parameters.internalResistanceOhm,
       voltageSag: Math.abs(currentAmp) * instance.parameters.internalResistanceOhm,
+      terminalCurrents: { [positive]: -currentAmp, [negative]: currentAmp },
+      voltageConstraintResidual: Math.abs(
+        operatingPoint.voltageDrop -
+          (instance.parameters.emfVolt - currentAmp * instance.parameters.internalResistanceOhm),
+      ),
     };
   },
 };

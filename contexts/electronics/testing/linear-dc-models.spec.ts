@@ -74,6 +74,7 @@ describe('MATH-1 linear DC device models', () => {
       power: 0.36,
       powerUtilizationPercent: 144,
       stressState: 'overcurrent',
+      terminalCurrents: { a: 0.06, b: -0.06 },
     });
   });
 
@@ -92,6 +93,8 @@ describe('MATH-1 linear DC device models', () => {
       stressState: 'burned',
       internalResistanceOhm: 13,
       voltageSag: 0.13,
+      terminalCurrents: { positive: -0.01, negative: 0.01 },
+      voltageConstraintResidual: 2.47,
     });
     expect(observation?.internalPower).toBeCloseTo(0.0013, 12);
   });

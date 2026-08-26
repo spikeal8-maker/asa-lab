@@ -5,7 +5,6 @@ import { canonicalElectricalModelRegistry } from './model-identity.js';
 import { electricalModelFor } from './model-registry.js';
 import {
   solveCircuit,
-  sourceInternalResistanceOhm,
   transistorTypeOf,
   type ComponentResult,
   type Diagnostic,
@@ -76,6 +75,9 @@ function deterministicComponentResult(component: ComponentResult): ComponentResu
     terminalVoltages: orderedRecord(component.terminalVoltages) ?? {},
     ...(component.branchCurrents !== undefined
       ? { branchCurrents: orderedRecord(component.branchCurrents) as Record<string, number> }
+      : {}),
+    ...(component.terminalCurrents !== undefined
+      ? { terminalCurrents: orderedRecord(component.terminalCurrents) as Record<Terminal, number> }
       : {}),
     ...(component.branchBrightness !== undefined
       ? { branchBrightness: orderedRecord(component.branchBrightness) as Record<string, number> }
@@ -211,10 +213,14 @@ function allNumbers(result: SolveResult): readonly number[] {
       component.currentGain ?? 0,
       component.frequencyHz ?? 0,
       component.soundLevel ?? 0,
+      component.voltageConstraintResidual ?? 0,
       ...Object.values(component.terminalVoltages).filter(
         (value): value is number => value !== undefined,
       ),
       ...Object.values(component.branchCurrents ?? {}),
+      ...Object.values(component.terminalCurrents ?? {}).filter(
+        (value): value is number => value !== undefined,
+      ),
       ...Object.values(component.branchBrightness ?? {}),
     ]),
   ];
@@ -259,21 +265,18 @@ function verifyQuality(
   for (const component of document.components) {
     const resultForComponent = componentResult.get(component.id);
     if (!resultForComponent) continue;
-    if (component.kind === 'source') {
-      const positive = logicalTerminal(component, 'a');
-      const negative = logicalTerminal(component, 'b');
-      addBranch(component, positive, negative, -resultForComponent.current);
-      const measured =
-        (resultForComponent.terminalVoltages[positive] ?? 0) -
-        (resultForComponent.terminalVoltages[negative] ?? 0);
-      const expectedLoadedVoltage =
-        component.value -
-        resultForComponent.current *
-          (resultForComponent.internalResistanceOhm ?? sourceInternalResistanceOhm(component));
+    if (resultForComponent.voltageConstraintResidual !== undefined) {
       maxSourceVoltageResidualVolt = Math.max(
         maxSourceVoltageResidualVolt,
-        Math.abs(measured - expectedLoadedVoltage),
+        Math.abs(resultForComponent.voltageConstraintResidual),
       );
+    }
+    if (resultForComponent.terminalCurrents !== undefined) {
+      for (const [terminal, currentEntering] of Object.entries(
+        resultForComponent.terminalCurrents,
+      )) {
+        if (currentEntering !== undefined) addAtNode(component.id, terminal, currentEntering);
+      }
       continue;
     }
     if (isArduinoUno(component)) {
@@ -286,7 +289,6 @@ function verifyQuality(
       continue;
     }
     if (
-      component.kind === 'resistor' ||
       component.kind === 'photoresistor' ||
       component.kind === 'piezo' ||
       component.kind === 'lamp' ||
