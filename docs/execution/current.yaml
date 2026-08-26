@@ -173,7 +173,7 @@ parallel_lanes:
       issue: 162
       branch: main
       base_branch: main
-      pr: null
+      pr: 169
       pr_draft: false
       status: in_progress
       checkpoint: opt_0_baseline_measured_owner_evidence_pending
@@ -315,7 +315,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: local_acceptance_passed
+      checkpoint: pr_ci_pending
       owner_acceptance: pending
     revisions:
       convergence_baseline_sha: b18cd9ba6092708c3961cdfd017c9c1e15191de3
