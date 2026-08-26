@@ -40,8 +40,6 @@ export type DiagnosticCode =
   | 'led_burnout'
   | 'transistor_reverse_bias'
   | 'transistor_overcurrent'
-  | 'motor_overcurrent'
-  | 'motor_overvoltage'
   | 'unsupported_component'
   | 'unsupported_topology'
   | 'numerical_instability'
@@ -137,47 +135,10 @@ const FET_MIN_OHMIC_CONDUCTANCE = 1e-4;
 // only their finite leakage; audible drive is derived separately from a
 // confirmed time-varying Arduino output.
 const PIEZO_DC_RESISTANCE_OHM = 100_000_000;
-const DC_MOTOR_NOMINAL_VOLTAGE = 6;
 const DC_MOTOR_EFFECTIVE_RESISTANCE_OHM = 6 / 0.07;
-const DC_MOTOR_MAX_CURRENT_A = 0.5;
 
 function isDcMotor(component: SchematicComponent): boolean {
   return component.componentTypeId === 'dc-motor';
-}
-
-function dcMotorProperty(
-  component: SchematicComponent,
-  key: string,
-  fallback: number,
-  min: number,
-  max: number,
-): number {
-  const raw = Number(component.stateProperties?.[key] ?? fallback);
-  return Number.isFinite(raw) ? Math.min(max, Math.max(min, raw)) : fallback;
-}
-
-function dcMotorEffectiveResistanceOhm(component: SchematicComponent): number {
-  return dcMotorProperty(
-    component,
-    'effectiveResistanceOhm',
-    DC_MOTOR_EFFECTIVE_RESISTANCE_OHM,
-    0.1,
-    100_000,
-  );
-}
-
-function dcMotorNominalVoltage(component: SchematicComponent): number {
-  return dcMotorProperty(
-    component,
-    'nominalVoltage',
-    component.value > 0 ? component.value : DC_MOTOR_NOMINAL_VOLTAGE,
-    0.1,
-    100,
-  );
-}
-
-function dcMotorMaxCurrentAmp(component: SchematicComponent): number {
-  return dcMotorProperty(component, 'maxCurrentAmp', DC_MOTOR_MAX_CURRENT_A, 0.001, 100);
 }
 
 function formatReferenceMilliamp(currentAmp: number): string {
@@ -904,7 +865,7 @@ export function solveCircuit(
       } else if (component.kind === 'lamp') {
         stampConductance(a, b, 1 / component.value);
       } else if (isDcMotor(component)) {
-        stampConductance(a, b, 1 / dcMotorEffectiveResistanceOhm(component));
+        stampConductance(a, b, 1 / DC_MOTOR_EFFECTIVE_RESISTANCE_OHM);
       } else if (component.kind === 'switch') {
         if (component.componentTypeId || component.state === true) {
           stampConductance(a, b, 1 / CLOSED_RESISTANCE);
@@ -1300,8 +1261,7 @@ export function solveCircuit(
         current = voltageDrop / photoresistorResistanceOhm(component);
       else if (component.kind === 'lamp') current = voltageDrop / component.value;
       else if (component.kind === 'piezo') current = voltageDrop / PIEZO_DC_RESISTANCE_OHM;
-      else if (isDcMotor(component))
-        current = voltageDrop / dcMotorEffectiveResistanceOhm(component);
+      else if (isDcMotor(component)) current = voltageDrop / DC_MOTOR_EFFECTIVE_RESISTANCE_OHM;
       else if (component.kind === 'switch')
         current = component.componentTypeId
           ? voltageDrop / CLOSED_RESISTANCE
@@ -1370,54 +1330,45 @@ export function solveCircuit(
           : Math.max(0, ...Object.values(branchBrightness));
       const resistorPowerRating =
         component.kind === 'resistor' ? resistorPowerRatingWatt(component) : undefined;
-      const motorMaxCurrent = isDcMotor(component) ? dcMotorMaxCurrentAmp(component) : undefined;
       const powerUtilizationPercent =
         resistorPowerRating === undefined ? undefined : (power / resistorPowerRating) * 100;
       const currentUtilizationPercent =
-        motorMaxCurrent !== undefined
-          ? (Math.abs(current) / motorMaxCurrent) * 100
-          : branches.length > 0
-            ? Math.max(
-                0,
-                ...branchResults.map(({ branch, current: branchCurrent }) =>
-                  Math.abs((branchCurrent / branch.nominalCurrent) * 100),
-                ),
-              )
-            : undefined;
+        branches.length > 0
+          ? Math.max(
+              0,
+              ...branchResults.map(({ branch, current: branchCurrent }) =>
+                Math.abs((branchCurrent / branch.nominalCurrent) * 100),
+              ),
+            )
+          : undefined;
       const stressState =
-        motorMaxCurrent !== undefined
-          ? currentUtilizationPercent! > 100
-            ? 'overcurrent'
-            : currentUtilizationPercent! >= 80
-              ? 'warning'
-              : 'normal'
-          : powerUtilizationPercent !== undefined
-            ? powerUtilizationPercent > 200
+        powerUtilizationPercent !== undefined
+          ? powerUtilizationPercent > 200
+            ? 'burned'
+            : powerUtilizationPercent > 100
+              ? 'overcurrent'
+              : powerUtilizationPercent >= RESISTOR_WARNING_RATIO * 100
+                ? 'warning'
+                : 'normal'
+          : branches.length === 0
+            ? undefined
+            : branchResults.some(
+                  ({ branch, current: branchCurrent }) =>
+                    Math.abs(branchCurrent) > branch.maxCurrent,
+                )
               ? 'burned'
-              : powerUtilizationPercent > 100
-                ? 'overcurrent'
-                : powerUtilizationPercent >= RESISTOR_WARNING_RATIO * 100
-                  ? 'warning'
-                  : 'normal'
-            : branches.length === 0
-              ? undefined
               : branchResults.some(
                     ({ branch, current: branchCurrent }) =>
-                      Math.abs(branchCurrent) > branch.maxCurrent,
+                      Math.abs(branchCurrent) > branch.nominalCurrent,
                   )
-                ? 'burned'
+                ? 'overcurrent'
                 : branchResults.some(
                       ({ branch, current: branchCurrent }) =>
-                        Math.abs(branchCurrent) > branch.nominalCurrent,
+                        branch.nearLimitWarning &&
+                        Math.abs(branchCurrent) >= branch.nominalCurrent * LED_WARNING_RATIO,
                     )
-                  ? 'overcurrent'
-                  : branchResults.some(
-                        ({ branch, current: branchCurrent }) =>
-                          branch.nearLimitWarning &&
-                          Math.abs(branchCurrent) >= branch.nominalCurrent * LED_WARNING_RATIO,
-                      )
-                    ? 'warning'
-                    : 'normal';
+                  ? 'warning'
+                  : 'normal';
       const piezoTone =
         component.kind === 'piezo'
           ? (() => {
@@ -1490,7 +1441,7 @@ export function solveCircuit(
           ? {
               energized: Math.abs(voltageDrop) >= 0.2,
               speedPercent: round(
-                Math.min(100, (Math.abs(voltageDrop) / dcMotorNominalVoltage(component)) * 100),
+                Math.min(100, (Math.abs(voltageDrop) / Math.max(0.1, component.value || 6)) * 100),
                 2,
               ),
               direction:
@@ -1535,31 +1486,6 @@ export function solveCircuit(
         message: `${component.name ?? component.id}: мощность ${result.power?.toFixed(3) ?? '0.000'} Вт близка к номиналу ${rating.toFixed(3)} Вт.`,
         componentIds: [component.id],
         suggestedAction: 'Оставьте запас по мощности или выберите более мощный резистор.',
-      });
-    }
-  }
-
-  for (const component of document.components.filter(isDcMotor)) {
-    const result = components.find((entry) => entry.componentId === component.id);
-    if (!result) continue;
-    const nominalVoltage = dcMotorNominalVoltage(component);
-    const maxCurrent = dcMotorMaxCurrentAmp(component);
-    if (Math.abs(result.voltageDrop) > nominalVoltage * 1.2) {
-      diagnostics.push({
-        code: 'motor_overvoltage',
-        severity: 'warning',
-        message: `${component.name ?? component.id}: напряжение ${Math.abs(result.voltageDrop).toFixed(2)} В выше номинальных ${nominalVoltage.toFixed(2)} В. Двигатель перегревается и изнашивается быстрее.`,
-        componentIds: [component.id],
-        suggestedAction: 'Уменьшите напряжение питания до номинального диапазона двигателя.',
-      });
-    }
-    if (Math.abs(result.current) > maxCurrent) {
-      diagnostics.push({
-        code: 'motor_overcurrent',
-        severity: 'error',
-        message: `${component.name ?? component.id}: ток ${(Math.abs(result.current) * 1000).toFixed(1)} мА превышает допустимые ${(maxCurrent * 1000).toFixed(1)} мА. Обмотка перегревается.`,
-        componentIds: [component.id],
-        suggestedAction: 'Снизьте нагрузку или напряжение и проверьте, не заблокирован ли вал.',
       });
     }
   }

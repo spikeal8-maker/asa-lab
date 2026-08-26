@@ -15,7 +15,6 @@ export type MetricBindingId =
   | 'brightness'
   | 'frequency'
   | 'sound-level'
-  | 'motor-speed'
   | 'operating-region';
 
 export interface InspectorFieldProfile {
@@ -180,13 +179,6 @@ const METRICS = {
     unit: '%',
     precision: 0,
   },
-  speed: {
-    metricId: 'motor-speed',
-    label: 'Скорость',
-    metricBindingId: 'motor-speed',
-    unit: '%',
-    precision: 0,
-  },
   region: {
     metricId: 'operating-region',
     label: 'Рабочая область',
@@ -284,7 +276,7 @@ export function componentInformationProfile(
     return {
       componentFamilyId,
       compactFields: [NAME_FIELD],
-      technicalMetrics: [METRICS.voltage, METRICS.current, METRICS.power, METRICS.speed],
+      technicalMetrics: [METRICS.voltage, METRICS.current, METRICS.power],
       terminalPresentation: 'full',
     };
   }
@@ -332,9 +324,7 @@ export function readMetricBinding(
                 ? result.soundLevel === undefined
                   ? undefined
                   : result.soundLevel * 100
-                : bindingId === 'motor-speed'
-                  ? result.speedPercent
-                  : result.operatingRegion;
+                : result.operatingRegion;
   return typeof raw === 'number' ? (Number.isFinite(raw) ? raw : null) : (raw ?? null);
 }
 

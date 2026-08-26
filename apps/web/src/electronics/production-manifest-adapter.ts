@@ -409,11 +409,7 @@ function defaults(componentId: string): {
     return {
       value: 6,
       unit: 'В',
-      properties: {
-        nominalVoltage: 6,
-        effectiveResistanceOhm: 85.71428571428571,
-        maxCurrentAmp: 0.5,
-      },
+      properties: {},
     };
   return { value: 0, unit: '', properties: { simulationStatus: 'not_yet_supported' } };
 }
