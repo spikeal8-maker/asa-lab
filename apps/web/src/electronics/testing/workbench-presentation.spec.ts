@@ -312,6 +312,9 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(sidebarSource).not.toContain('Ещё параметры');
     expect(sidebarSource).not.toContain('secondaryOpen');
     expect(sidebarSource).toContain('aria-label={`Техническое состояние');
+    expect(sidebarSource).toContain('Внутреннее сопротивление');
+    expect(sidebarSource).toContain('Просадка напряжения');
+    expect(sidebarSource).toContain('Нагрев источника');
     expect(sidebarSource).toContain('aria-label={`Справка о компоненте');
     expect(productionVisualSource).toContain('<OwnerPotentiometerVisual');
     expect(productionVisualSource).toContain('potentiometerRuntimeMarkup(ownerSvg, wiperPosition)');
@@ -333,7 +336,9 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(sidebarSource).not.toContain(
       'Измерения появятся после внедрения его математической модели.',
     );
-    expect(sidebarSource).toContain('stateOpen && measurement && technicalMetrics.length > 0');
+    expect(sidebarSource).toContain(
+      'stateOpen && measurement && (technicalMetrics.length > 0 || hasSourceMetrics)',
+    );
     expect(sidebarSource).toContain('stateOpen && selectedDiagnostics.length > 0');
     expect(sidebarSource).not.toContain('workbench-led-electrical-state');
     expect(editorSource).toContain('window.print()');

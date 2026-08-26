@@ -5,6 +5,7 @@ import { canonicalElectricalModelRegistry } from './model-identity.js';
 import { electricalModelFor } from './model-registry.js';
 import {
   solveCircuit,
+  sourceInternalResistanceOhm,
   transistorTypeOf,
   type ComponentResult,
   type Diagnostic,
@@ -200,6 +201,9 @@ function allNumbers(result: SolveResult): readonly number[] {
       component.voltageDrop,
       component.current,
       component.power ?? 0,
+      component.internalResistanceOhm ?? 0,
+      component.internalPower ?? 0,
+      component.voltageSag ?? 0,
       component.brightness ?? 0,
       component.baseCurrent ?? 0,
       component.collectorCurrent ?? 0,
@@ -262,9 +266,13 @@ function verifyQuality(
       const measured =
         (resultForComponent.terminalVoltages[positive] ?? 0) -
         (resultForComponent.terminalVoltages[negative] ?? 0);
+      const expectedLoadedVoltage =
+        component.value -
+        resultForComponent.current *
+          (resultForComponent.internalResistanceOhm ?? sourceInternalResistanceOhm(component));
       maxSourceVoltageResidualVolt = Math.max(
         maxSourceVoltageResidualVolt,
-        Math.abs(measured - component.value),
+        Math.abs(measured - expectedLoadedVoltage),
       );
       continue;
     }

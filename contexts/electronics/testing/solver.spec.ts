@@ -597,12 +597,16 @@ describe('deterministic DC solver', () => {
     );
   });
 
-  it('rejects conflicting ideal voltage sources on the same two nets', () => {
+  it('solves parallel sources through their finite internal resistance', () => {
     const result = solveCircuit(
       doc(
         [
-          component('source-5v', 'source', 5),
-          component('source-9v', 'source', 9),
+          component('source-5v', 'source', 5, {
+            stateProperties: { internalResistanceOhm: 0.2 },
+          }),
+          component('source-9v', 'source', 9, {
+            stateProperties: { internalResistanceOhm: 0.2 },
+          }),
           component('load', 'resistor', 1000),
         ],
         [
@@ -614,9 +618,71 @@ describe('deterministic DC solver', () => {
       ),
     );
 
-    expect(result.solved).toBe(false);
-    expect(result.status).toBe('invalid');
-    expect(result.diagnostics.map((item) => item.code)).toContain('conflicting_sources');
+    expect(result.solved).toBe(true);
+    expect(result.status).toBe('solved');
+    expect(result.components.find((item) => item.componentId === 'source-5v')).toMatchObject({
+      deviceHealth: 'overheated',
+      damageState: 'destructive_preview',
+      presentationState: 'destructive',
+    });
+    expect(result.diagnostics.map((item) => item.code)).toContain('source_overload');
+    expect(result.components.every((item) => Number.isFinite(item.current))).toBe(true);
+  });
+
+  it('calculates loaded AA-holder voltage from cell internal resistance', () => {
+    const battery = component('battery', 'source', 3, {
+      componentTypeId: 'battery-holder-aa-2',
+      pinIds: ['BAT-', 'BAT+'],
+    });
+    const load = component('load', 'resistor', 29.55);
+    const result = solveCircuit(
+      doc(
+        [battery, load],
+        [
+          connect('positive', 'battery', 'BAT+', 'load', 'a'),
+          connect('negative', 'load', 'b', 'battery', 'BAT-'),
+        ],
+      ),
+    );
+    const sourceResult = result.components.find((item) => item.componentId === 'battery');
+
+    expect(result.status).toBe('solved');
+    expect(sourceResult).toMatchObject({
+      internalResistanceOhm: 0.45,
+      internalPower: 0.0045,
+      stressState: 'normal',
+    });
+    expect(sourceResult?.current).toBeCloseTo(0.1, 9);
+    expect(sourceResult?.voltageDrop).toBeCloseTo(2.955, 9);
+    expect(sourceResult?.voltageSag).toBeCloseTo(0.045, 9);
+  });
+
+  it('uses the CR2032 source profile under load', () => {
+    const battery = component('battery', 'source', 3, {
+      componentTypeId: 'battery-3v',
+      pinIds: ['negative', 'positive'],
+    });
+    const load = component('load', 'resistor', 987);
+    const result = solveCircuit(
+      doc(
+        [battery, load],
+        [
+          connect('positive', 'battery', 'positive', 'load', 'a'),
+          connect('negative', 'load', 'b', 'battery', 'negative'),
+        ],
+      ),
+    );
+    const sourceResult = result.components.find((item) => item.componentId === 'battery');
+
+    expect(result.status).toBe('solved');
+    expect(sourceResult).toMatchObject({
+      internalResistanceOhm: 13,
+      internalPower: 0.000117,
+      stressState: 'warning',
+    });
+    expect(sourceResult?.current).toBeCloseTo(0.003, 9);
+    expect(sourceResult?.voltageDrop).toBeCloseTo(2.961, 9);
+    expect(sourceResult?.voltageSag).toBeCloseTo(0.039, 9);
   });
 
   it('reports a bounded numerical residual for a solved circuit', () => {
@@ -1348,11 +1414,15 @@ describe('deterministic DC solver', () => {
     const ledResult = result.components.find((item) => item.componentId === 'led');
 
     expect(result).toMatchObject({ solved: true, status: 'solved' });
-    expect(sourceResult?.voltageDrop).toBeCloseTo(voltage, 9);
+    expect(sourceResult?.internalResistanceOhm).toBeCloseTo(cells * 0.225, 9);
+    expect((sourceResult?.voltageDrop ?? 0) + (sourceResult?.voltageSag ?? 0)).toBeCloseTo(
+      voltage,
+      9,
+    );
     expect(resistorResult?.current).toBeCloseTo(ledResult?.current ?? 0, 6);
     expect(sourceResult?.current).toBeCloseTo(resistorResult?.current ?? 0, 6);
     expect((resistorResult?.voltageDrop ?? 0) + (ledResult?.voltageDrop ?? 0)).toBeCloseTo(
-      voltage,
+      sourceResult?.voltageDrop ?? 0,
       6,
     );
   });
@@ -1800,10 +1870,37 @@ describe('deterministic DC solver', () => {
     );
   });
 
-  it('diagnoses a direct short, open circuit, no source and invalid property', () => {
+  it('calculates a finite destructive preview for a direct source short', () => {
     const short = solveCircuit(
-      doc([component('source', 'source', 5)], [connect('w1', 'source', 'a', 'source', 'b')]),
+      doc(
+        [
+          component('source', 'source', 3, {
+            componentTypeId: 'battery-holder-aa-2',
+            pinIds: ['BAT-', 'BAT+'],
+          }),
+        ],
+        [connect('w1', 'source', 'BAT+', 'source', 'BAT-')],
+      ),
     );
+
+    expect(short.status).toBe('solved');
+    const sourceResult = short.components.find((item) => item.componentId === 'source');
+    expect(sourceResult).toMatchObject({
+      voltageDrop: 0,
+      internalResistanceOhm: 0.45,
+      internalPower: 20,
+      voltageSag: 3,
+      deviceHealth: 'overheated',
+      damageState: 'destructive_preview',
+      presentationState: 'destructive',
+    });
+    expect(sourceResult?.current).toBeCloseTo(6.666667, 6);
+    expect(short.diagnostics.map((item) => item.code)).toEqual(
+      expect.arrayContaining(['short_circuit', 'source_overload']),
+    );
+  });
+
+  it('diagnoses an open circuit, no source and invalid property', () => {
     const open = solveCircuit(
       doc(
         [component('source', 'source', 5), component('r1', 'resistor', 100)],
@@ -1812,7 +1909,6 @@ describe('deterministic DC solver', () => {
     );
     const noSource = solveCircuit(doc([component('r1', 'resistor', 100)], []));
     const invalid = solveCircuit(series([component('lamp1', 'lamp', 0)], 5));
-    expect(short.diagnostics.map((item) => item.code)).toContain('short_circuit');
     expect(open.diagnostics.map((item) => item.code)).toContain('open_circuit');
     expect(noSource.diagnostics.map((item) => item.code)).toContain('no_source');
     expect(invalid.diagnostics.map((item) => item.code)).toContain('invalid_property');

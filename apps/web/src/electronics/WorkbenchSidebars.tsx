@@ -103,6 +103,10 @@ export function WorkbenchSidebars({
           return value === null ? [] : [{ ...metric, value }];
         })
       : [];
+  const hasSourceMetrics =
+    measurement?.internalResistanceOhm !== undefined ||
+    measurement?.voltageSag !== undefined ||
+    measurement?.internalPower !== undefined;
   const resistanceComponent =
     c.selectedComponent && ['resistor', 'potentiometer', 'lamp'].includes(c.selectedComponent.kind)
       ? c.selectedComponent
@@ -804,7 +808,7 @@ export function WorkbenchSidebars({
                 </div>
               ) : null}
 
-              {stateOpen && measurement && technicalMetrics.length > 0 ? (
+              {stateOpen && measurement && (technicalMetrics.length > 0 || hasSourceMetrics) ? (
                 <dl
                   className="workbench-measurements"
                   data-profile-family={informationProfile?.componentFamilyId}
@@ -824,6 +828,24 @@ export function WorkbenchSidebars({
                     <div>
                       <dt>Нагрузка по мощности</dt>
                       <dd>{measurement.powerUtilizationPercent.toFixed(0)}%</dd>
+                    </div>
+                  ) : null}
+                  {measurement.internalResistanceOhm !== undefined ? (
+                    <div>
+                      <dt>Внутреннее сопротивление</dt>
+                      <dd>{measurement.internalResistanceOhm.toFixed(3)} Ом</dd>
+                    </div>
+                  ) : null}
+                  {measurement.voltageSag !== undefined ? (
+                    <div>
+                      <dt>Просадка напряжения</dt>
+                      <dd>{measurement.voltageSag.toFixed(3)} В</dd>
+                    </div>
+                  ) : null}
+                  {measurement.internalPower !== undefined ? (
+                    <div>
+                      <dt>Нагрев источника</dt>
+                      <dd>{measurement.internalPower.toFixed(3)} Вт</dd>
                     </div>
                   ) : null}
                   {measurement.lit !== undefined ? (
