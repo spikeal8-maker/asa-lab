@@ -336,15 +336,21 @@ OPT-0
 - `pnpm gate:three-d-m0`;
 - `pnpm gate:three-d-m0:browser` при поднятом стеке.
 
-Для этапов оптимизации необходимо добавить отдельные, одинаковые локально и в CI
-ворота (имена уточняются при активации задачи):
+Для этапов оптимизации вводятся отдельные, одинаковые локально и в CI ворота:
 
-- geometry corpus + topology/property checks;
-- Worker cancellation/determinism;
-- offline reload/reconnect/conflict journey;
-- performance budgets без Nx cache в owner evidence run;
-- desktop mouse и mobile touch browser journeys;
-- export/reimport validation.
+- `pnpm test:three-d:corpus` — geometry corpus и topology/property checks;
+- `pnpm test:three-d:worker` — cancellation, generation ordering и determinism;
+- `pnpm test:three-d:offline` — reload, reconnect, queue и conflict journey;
+- `pnpm test:three-d:performance` — утверждённые бюджеты без Nx cache в owner
+  evidence run;
+- `pnpm test:three-d:touch` — desktop pointer и mobile touch journeys;
+- `pnpm test:three-d:interchange` — export/reimport и mesh validation;
+- `pnpm gate:three-d-core` — агрегирующие code, corpus, worker, offline,
+  performance и browser gates.
+
+Это планируемые контракты команд. Они становятся фактическими воротами только
+после добавления скриптов в `package.json`, workflow и test catalog в одном
+пакете. До этого запрещено отмечать их как PASS.
 
 Тест считается доказательством только того слоя, который он реально проверяет.
 Screenshot не доказывает manifold, unit-тест не доказывает touch UX, а успешная
@@ -387,9 +393,248 @@ Screenshot не доказывает manifold, unit-тест не доказыв
 10. публикация подтверждена отдельно от локальных тестов и отдельно от runtime
     deployment.
 
-## 11. Следующий разрешённый пакет
+## 11. Первый кандидат на активацию
 
 Первой реализацией должен быть только `OPT-0`: корпус, измерения и отчёт базовой
-ревизии без смены CSG, persisted schema и пользовательского поведения. После его
-проверки владелец получает сравнимые цифры и может осознанно утвердить Worker/
-engine spike из `OPT-1`.
+ревизии без смены CSG, persisted schema и пользовательского поведения. Этот
+документ сам по себе не активирует задачу: переход фиксируется владельцем в
+`docs/execution/current.yaml`. После проверки OPT-0 владелец получает сравнимые
+цифры и может осознанно утвердить Worker/engine spike из `OPT-1`.
+
+## 12. Реестр проблем и трассировка
+
+Каждая реализация обязана ссылаться на один или несколько идентификаторов ниже.
+Пакет без решаемой проблемы или измеримого доказательства не входит в программу.
+
+| ID | Проблема | Наблюдаемое доказательство | Пакет | Критерий закрытия |
+| --- | --- | --- | --- | --- |
+| 3D-CORE-001 | CSG выполняется в UI-потоке | `createBooleanGeometry` вызывается из `SceneRuntime` без Worker | OPT-0, OPT-1 | вычисление выполняется Worker-ом; UI long tasks контролируются воротами |
+| 3D-CORE-002 | Полный пересчёт групп | `syncBooleanGroups` пересоздаёт все runtime-группы при изменении документа | OPT-0, OPT-2, OPT-4 | пересчитываются только invalidated operation keys |
+| 3D-CORE-003 | Скрытая подмена при ошибке | безымянный `catch` показывает исходные пересекающиеся тела | OPT-2 | типизированная ошибка; исходные тела не выглядят успешным result mesh |
+| 3D-CORE-004 | Недостаточная topology validation | успешный mesh не доказывает manifold/watertight/self-intersection | OPT-0, OPT-2 | успешный printable result проходит утверждённый валидатор |
+| 3D-CORE-005 | Preview/export могут расходиться | STL повторно зависит от вычисления геометрии, нет общего result identity | OPT-2 | viewport, bounds, selection и export используют один result key/checksum |
+| 3D-DATA-001 | Дорогая история | undo/redo хранит до 100 полных документов | OPT-0, OPT-4 | память укладывается в утверждённый бюджет на 100/500 объектах |
+| 3D-DATA-002 | Полная сериализация на изменениях | `JSON.stringify` и local draft выполняются на изменениях документа | OPT-0, OPT-4 | transient движения не сериализуют полный документ на каждый frame |
+| 3D-OFFLINE-001 | Нет offline open | проект сначала должен успешно открыться через API | OPT-3A, OPT-3B | ранее открытый проект загружается без сети |
+| 3D-OFFLINE-002 | Нет durable mutation queue | `localStorage` хранит снимок, но не подтверждаемую очередь | OPT-3A, OPT-3B | 100 offline mutations синхронизируются без потери/дублирования |
+| 3D-OFFLINE-003 | Нет app shell | immutable HTTP cache не гарантирует загрузку SPA без сети | OPT-3C | versioned app shell открывается в утверждённом offline journey |
+| 3D-MATH-001 | Рабочая плоскость только Y | `workplaneY` и plane normal `(0,1,0)` | OPT-6 | origin/normal/basis поддерживают наклонную и вертикальную грань |
+| 3D-MATH-002 | Размещение по AABB | cruise использует bounds center/max, а не ray hit/face normal | OPT-6 | placement использует реальную поверхность с воспроизводимым snap |
+| 3D-MOBILE-001 | Touch поведение не доказано | mobile E2E проверяет видимость и screenshot, но не journey | OPT-5 | обязательные жесты проходят `test:three-d:touch` |
+| 3D-IO-001 | Неполный interchange | импорт JSON; экспорт JSON/STL | OPT-6 | утверждённые STL/OBJ/SVG сценарии проходят validation/round-trip |
+| 3D-PARITY-001 | Формы проверяются неодинаково | нет полной матрицы параметров, thumbnail и export | OPT-7 | каждая заявленная форма имеет parameter extremes и evidence |
+
+## 13. Исполнимый контракт OPT-0
+
+### 13.1. Область изменений
+
+OPT-0 имеет право добавлять только тестовый корпус, измерительный runner,
+планируемые команды и baseline report. Он не меняет:
+
+- пользовательскую геометрию или UI;
+- persisted schema проекта;
+- CSG-движок и fallback;
+- Project Core, tenant/RLS, сеть и production data;
+- существующие значения по умолчанию форм.
+
+Предпочтительная раскладка:
+
+```text
+contexts/three-d/testing/corpus/cases.ts
+contexts/three-d/testing/corpus/expectations.ts
+apps/web/src/three-d/testing/geometry-corpus.spec.ts
+tools/run-three-d-benchmark.mjs
+reports/three-d-baseline.json              # generated, не коммитится
+docs/delivery/THREE_D_OPT_0_BASELINE.md    # проверяемая сводка
+```
+
+Если исполнителю нужен другой путь, он должен сохранить те же границы: pure
+corpus не импортирует React/DOM, runner не изменяет fixtures, generated report
+не становится ручным источником истины.
+
+### 13.2. Минимальная схема corpus case
+
+```ts
+interface ThreeDGeometryCase {
+  id: string;
+  problemIds: readonly string[];
+  tags: readonly string[];
+  tier: 'correctness' | 'interaction' | 'stress';
+  document: ThreeDDocument;
+  operation: 'render' | 'union' | 'difference' | 'intersection' | 'export';
+  expectation:
+    | { kind: 'valid-solid'; toleranceProfile: string }
+    | { kind: 'valid-empty' }
+    | { kind: 'typed-rejection'; codes: readonly string[] }
+    | { kind: 'known-legacy-failure'; issue: string };
+}
+```
+
+`known-legacy-failure` фиксирует исходную проблему и не считается PASS нового
+движка. После исправления кейс переводится в конечное ожидание отдельным
+проверяемым изменением.
+
+### 13.3. Обязательный стартовый corpus
+
+Корпус включает минимум:
+
+- совпадающие кубы и coplanar faces;
+- касание ребром и одной точкой;
+- cube + cylinder union с внутренним углом;
+- cube/cylinder со сферическим отверстием;
+- вложенные и пересекающиеся holes;
+- тонкую стенку около допуска;
+- повёрнутые, неравномерно масштабированные и зеркальные operands;
+- roof, wedge, cone, sphere, text и curved text;
+- duplicate → edit → regroup без связи с оригиналом;
+- повторную group/ungroup/merge цепочку;
+- 10, 100 и 500 объектов;
+- цепочки из 5, 20 и 50 булевых операций;
+- экспорт каждого успешного boolean result.
+
+Каждый P0-дефект из реестра должен иметь минимум один regression case.
+
+## 14. Методика измерений OPT-0
+
+### 14.1. Геометрическое время
+
+- старт: отправка нормализованного запроса вычисления;
+- конец: получен result mesh или typed error;
+- отдельно фиксируются queue, compute, validation и transfer durations;
+- 5 прогревочных запусков не учитываются;
+- минимум 30 измеряемых запусков в серии и 3 независимые серии;
+- отчёт содержит median, p95, max и коэффициент вариации;
+- browser/device/CPU/OS/engine version записываются в receipt.
+
+### 14.2. Отзывчивость UI
+
+- `PerformanceObserver` фиксирует main-thread tasks более 50 мс;
+- отдельно считаются long tasks во время orbit, drag, scale и boolean commit;
+- Worker compute time не выдаётся за UI blocking time;
+- headless Node benchmark не является доказательством browser responsiveness.
+
+### 14.3. Нормализация и checksum
+
+- finite coordinates проверяются до checksum;
+- координаты квантуются утверждённым профилем точности в миллиметрах;
+- вершины каждого треугольника и треугольники сортируются канонически;
+- checksum включает engine version, operation и нормализованный topology payload;
+- разные порядки одинаковых треугольников не должны давать разные checksums;
+- смена профиля точности требует новой версии baseline.
+
+### 14.4. Bounds, площадь и объём
+
+- сравнение использует абсолютный и относительный допуск из именованного
+  tolerance profile;
+- допуск нельзя увеличивать для одного неудобного кейса без отдельного rationale;
+- объём проверяется только для замкнутого ориентированного mesh;
+- unsupported memory metric записывается как `unsupported`, а не как ноль;
+- память измеряется одинаковым способом до/после серии и не сравнивается между
+  несовместимыми browser APIs.
+
+### 14.5. Baseline receipt
+
+Baseline report обязан содержать:
+
+```text
+revision, dirtyTree, engineVersion, schemaVersion,
+runtime, browser, os, cpu, memoryMethod,
+caseId, expectation, resultKind, diagnosticCodes,
+triangleCount, bounds, area, volume, checksum,
+medianMs, p95Ms, maxMs, longTaskCount
+```
+
+Dirty tree допускается для локальной разработки, но не является owner evidence.
+Числа из разных окружений не смешиваются в одну p95.
+
+## 15. Критерии приёмки OPT-0
+
+OPT-0 принимается, когда одновременно:
+
+1. `pnpm test:three-d:corpus` существует и одинаково запускается локально/в CI;
+2. каждый corpus case имеет стабильный ID, problem IDs и конечное ожидание либо
+   явно зарегистрированный legacy failure;
+3. benchmark создаёт machine-readable report и человекочитаемую сводку;
+4. повтор одного входа фиксирует детерминизм или отдельный дефект;
+5. baseline включает correctness, interaction и stress tiers;
+6. текущие `pnpm test:three-d` и `pnpm gate:three-d-m0` не ухудшены;
+7. ни CSG, ни persisted schema, ни runtime UI не изменены;
+8. владелец получает список P0 failures и численные данные для решения об OPT-1.
+
+Процент прохождения нового движка, окончательные performance budgets и допустимый
+WASM-размер не являются воротами OPT-0: это решения следующего этапа на основе
+полученной базы.
+
+## 16. Матрица выбора движка для OPT-1
+
+Кандидат сначала проходит hard gates:
+
+- совместимая лицензия и воспроизводимая поставка;
+- browser и mobile support без обязательного WebGPU;
+- отсутствие `NaN`/`Infinity` в успешном результате;
+- typed failure вместо crash/зависания;
+- возможность работать через Worker и serializable boundary.
+
+После hard gates применяется взвешенное сравнение:
+
+| Критерий | Вес |
+| --- | ---: |
+| Correctness на corpus и topology validation | 40% |
+| Детерминизм | 15% |
+| Compute performance | 15% |
+| Browser/mobile совместимость | 10% |
+| WASM/JS размер и cold initialization | 10% |
+| Лицензия, сопровождение и риск зависимости | 10% |
+
+Победитель не выбирается только по скорости. Результат spike документирует
+контрольный BSP, каждого кандидата, failures, размер, лицензию и решение владельца.
+
+## 17. Feature flag и rollback-контракт
+
+- новый движок сначала работает только в shadow mode;
+- feature flag выбирает evaluator, но не меняет persisted document;
+- result cache key всегда включает engine/version;
+- stale Worker response отбрасывается по generation id;
+- автоматический fallback может показать только последний подтверждённый result с
+  маркировкой `stale`; он не объявляет исходные operands успешным объединением;
+- пользовательская операция и исходные operands сохраняются при любой ошибке;
+- legacy evaluator удаляется только после утверждённого периода evidence и
+  подтверждения, что сохранённые проекты не зависят от него;
+- rollback выполняется переключением evaluator без миграции или потери проекта.
+
+## 18. Декомпозиция offline-этапа
+
+`OPT-3` исполняется тремя отдельными пакетами:
+
+### OPT-3A — durable local storage
+
+IndexedDB schema, snapshot, operation queue, миграция из `localStorage`, quota и
+recovery. Без Service Worker и без изменения серверной конфликтной семантики.
+
+### OPT-3B — synchronization and conflicts
+
+Mutation identity, base/server revision, retry/backoff, acknowledgement,
+идемпотентность, конфликтная копия и reconnect journey.
+
+### OPT-3C — offline app shell
+
+Versioned Service Worker, precache минимального shell, update/rollback, запрет
+общего кэширования приватных API-ответов и проверка logout policy.
+
+Каждый подпакет имеет отдельный rollback. Успех `OPT-3A` не разрешает заявлять,
+что приложение работает offline, пока не пройдены `OPT-3B` и `OPT-3C`.
+
+## 19. Execution readiness checklist
+
+Перед первым изменением runtime-кода должны быть выполнены пункты:
+
+- [ ] владелец активировал отдельную задачу в `docs/execution/current.yaml`;
+- [ ] в задаче указан первый пакет `OPT-0`, а не вся программа одновременно;
+- [ ] `blocking` пуст и `pnpm control-plane:check` проходит;
+- [ ] baseline revision совпадает с фактическим `origin/main`;
+- [ ] paths корпуса и отчётов не пересекаются с незавершённой чужой работой;
+- [ ] planned test scripts добавляются одновременно с реализацией и CI routing;
+- [ ] первый PR/commit не меняет пользовательское CSG-поведение;
+- [ ] owner evidence выполняется с `NX_SKIP_NX_CACHE=true`;
+- [ ] публикация `main`, runtime deployment и browser verification отчётливо
+      разделены в отчёте.
