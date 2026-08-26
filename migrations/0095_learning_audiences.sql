@@ -408,6 +408,24 @@ BEGIN
      WHERE audience.id = p_audience_id AND audience.status = 'active' FOR UPDATE;
     IF v_audience.id IS NULL THEN RAISE EXCEPTION 'audience unavailable'; END IF;
 
+    IF v_audience.target_kind = 'course_run' AND EXISTS (
+        SELECT 1 FROM unnest(COALESCE(p_learner_ids, ARRAY[]::uuid[])) learner_id
+        JOIN public.course_enrollments enrollment
+          ON enrollment.course_run_id = v_audience.target_course_run_id
+         AND enrollment.learner_identity_id = learner_id
+         AND enrollment.status = 'withdrawn'
+    ) THEN
+        RAISE EXCEPTION 'audience target membership withdrawn';
+    ELSIF v_audience.target_kind = 'activity_run' AND EXISTS (
+        SELECT 1 FROM unnest(COALESCE(p_learner_ids, ARRAY[]::uuid[])) learner_id
+        JOIN public.activity_participations participation
+          ON participation.activity_run_id = v_audience.target_activity_run_id
+         AND participation.learner_identity_id = learner_id
+         AND participation.status = 'withdrawn'
+    ) THEN
+        RAISE EXCEPTION 'audience target membership withdrawn';
+    END IF;
+
     IF v_audience.target_kind = 'course_run' THEN
         WITH wanted AS (
             SELECT DISTINCT learner_id
@@ -593,72 +611,43 @@ BEGIN
     IF v_context.tenant_id IS NULL THEN
         RETURN QUERY SELECT 'forbidden'::varchar, NULL::uuid, 0, 0, false; RETURN;
     END IF;
-    IF v_context.status <> 'open' THEN
-        RETURN QUERY SELECT 'target_closed'::varchar, NULL::uuid, 0, 0, false; RETURN;
-    END IF;
-
     -- Serialize the complete target operation before resolving roster identity.
     -- Two identical creates can otherwise lock duplicate logical seats in a
     -- different order before reaching the later audience uniqueness boundary.
     PERFORM pg_advisory_xact_lock(
         hashtextextended(p_target_kind || ':' || p_target_id::text, 0));
 
-    -- M0 owns historical identity convergence. M1-005 creates identity only as
-    -- part of this current, explicit audience operation; it does not scan or
-    -- mutate unrelated classrooms.
-    PERFORM public.learning_audience_ensure_seat_identity(seat.id)
-      FROM public.classroom_student_seats seat
-     WHERE seat.tenant_id = v_context.tenant_id
-       AND seat.classroom_id = v_context.classroom_id
-       AND seat.status IN ('issued', 'active');
-
     IF p_audience_type = 'whole_class' THEN
         IF COALESCE(cardinality(p_named_learner_ids), 0) <> 0 THEN
             RETURN QUERY SELECT 'invalid_request'::varchar, NULL::uuid, 0, 0, false; RETURN;
         END IF;
-        SELECT COALESCE(array_agg(DISTINCT link.learner_identity_id), ARRAY[]::uuid[])
-          INTO v_learner_ids
-          FROM public.classroom_student_seats seat
-          JOIN public.learner_identity_links link
-            ON link.seat_id = seat.id AND link.status = 'active'
-          JOIN public.learner_identities learner
-            ON learner.id = link.learner_identity_id AND learner.state = 'active'
-         WHERE seat.tenant_id = v_context.tenant_id
-           AND seat.classroom_id = v_context.classroom_id
-           AND seat.status IN ('issued', 'active');
     ELSE
         IF p_named_learner_ids IS NULL OR cardinality(p_named_learner_ids) = 0
            OR cardinality(p_named_learner_ids) <>
-              (SELECT count(DISTINCT learner_id) FROM unnest(p_named_learner_ids) learner_id)
-           OR EXISTS (
-                SELECT 1 FROM unnest(p_named_learner_ids) learner_id
-                 WHERE NOT EXISTS (
-                    SELECT 1 FROM public.classroom_student_seats seat
-                    JOIN public.learner_identity_links link
-                      ON link.seat_id = seat.id AND link.status = 'active'
-                   WHERE seat.tenant_id = v_context.tenant_id
-                     AND seat.classroom_id = v_context.classroom_id
-                     AND seat.status IN ('issued', 'active')
-                     AND link.learner_identity_id = learner_id)) THEN
-            RETURN QUERY SELECT 'named_learner_ineligible'::varchar,
-                                NULL::uuid, 0, 0, false; RETURN;
+              (SELECT count(DISTINCT learner_id) FROM unnest(p_named_learner_ids) learner_id) THEN
+            RETURN QUERY SELECT 'invalid_request'::varchar, NULL::uuid, 0, 0, false; RETURN;
         END IF;
         SELECT array_agg(DISTINCT learner_id ORDER BY learner_id)
           INTO v_learner_ids FROM unnest(p_named_learner_ids) learner_id;
     END IF;
 
-    v_digest := encode(public.digest(convert_to(concat_ws('|', p_target_kind, p_target_id::text,
-        p_audience_type, p_mode,
-        COALESCE((SELECT string_agg(x::text, ',' ORDER BY x::text)
-                    FROM unnest(v_learner_ids) x), '')), 'UTF8'), 'sha256'), 'hex');
-    PERFORM pg_advisory_xact_lock(hashtextextended(
-        v_context.tenant_id::text || ':' || p_actor_principal_id::text || ':' || p_request_id, 0));
+    -- A persisted successful command is replayable even after the target closes
+    -- or the dynamic roster changes. Compare its semantic inputs, not mutable
+    -- current target state.
     SELECT * INTO v_audience FROM public.learning_audience_definitions audience
      WHERE audience.tenant_id = v_context.tenant_id
        AND audience.created_by_principal_id = p_actor_principal_id
        AND audience.creation_request_id = p_request_id;
     IF v_audience.id IS NOT NULL THEN
-        IF v_audience.creation_request_digest <> v_digest THEN
+        IF v_audience.target_kind <> p_target_kind
+           OR COALESCE(v_audience.target_course_run_id, v_audience.target_activity_run_id) <> p_target_id
+           OR v_audience.audience_type <> p_audience_type
+           OR v_audience.mode <> p_mode
+           OR (p_audience_type = 'named_learners' AND v_learner_ids IS DISTINCT FROM (
+                SELECT COALESCE(array_agg(member.learner_identity_id ORDER BY member.learner_identity_id), ARRAY[]::uuid[])
+                  FROM public.learning_audience_named_members member
+                 WHERE member.audience_id = v_audience.id AND member.removed_at IS NULL
+              )) THEN
             RETURN QUERY SELECT 'idempotency_conflict'::varchar,
                                 v_audience.id, 0, 0, true; RETURN;
         END IF;
@@ -671,6 +660,48 @@ BEGIN
             COALESCE(v_counts.independent_count, 0), true; RETURN;
     END IF;
 
+    IF v_context.status <> 'open' THEN
+        RETURN QUERY SELECT 'target_closed'::varchar, NULL::uuid, 0, 0, false; RETURN;
+    END IF;
+
+    IF p_audience_type = 'whole_class' THEN
+        -- Identity materialization is a side effect, so it follows validation
+        -- and replay resolution and occurs only for an accepted command.
+        PERFORM public.learning_audience_ensure_seat_identity(seat.id)
+          FROM public.classroom_student_seats seat
+         WHERE seat.tenant_id = v_context.tenant_id
+           AND seat.classroom_id = v_context.classroom_id
+           AND seat.status IN ('issued', 'active');
+        SELECT COALESCE(array_agg(DISTINCT link.learner_identity_id), ARRAY[]::uuid[])
+          INTO v_learner_ids
+          FROM public.classroom_student_seats seat
+          JOIN public.learner_identity_links link
+            ON link.seat_id = seat.id AND link.status = 'active'
+          JOIN public.learner_identities learner
+            ON learner.id = link.learner_identity_id AND learner.state = 'active'
+         WHERE seat.tenant_id = v_context.tenant_id
+           AND seat.classroom_id = v_context.classroom_id
+           AND seat.status IN ('issued', 'active');
+    ELSIF EXISTS (
+        SELECT 1 FROM unnest(v_learner_ids) learner_id
+         WHERE NOT EXISTS (
+            SELECT 1 FROM public.classroom_student_seats seat
+            JOIN public.learner_identity_links link
+              ON link.seat_id = seat.id AND link.status = 'active'
+           WHERE seat.tenant_id = v_context.tenant_id
+             AND seat.classroom_id = v_context.classroom_id
+             AND seat.status IN ('issued', 'active')
+             AND link.learner_identity_id = learner_id)) THEN
+        RETURN QUERY SELECT 'named_learner_ineligible'::varchar,
+                            NULL::uuid, 0, 0, false; RETURN;
+    END IF;
+
+    v_digest := encode(public.digest(convert_to(concat_ws('|', p_target_kind, p_target_id::text,
+        p_audience_type, p_mode,
+        COALESCE((SELECT string_agg(x::text, ',' ORDER BY x::text)
+                    FROM unnest(v_learner_ids) x), '')), 'UTF8'), 'sha256'), 'hex');
+    PERFORM pg_advisory_xact_lock(hashtextextended(
+        v_context.tenant_id::text || ':' || p_actor_principal_id::text || ':' || p_request_id, 0));
     IF EXISTS (SELECT 1 FROM public.learning_audience_definitions audience
                 WHERE (p_target_kind='course_run' AND audience.target_course_run_id=p_target_id)
                    OR (p_target_kind='activity_run' AND audience.target_activity_run_id=p_target_id)) THEN
@@ -761,7 +792,15 @@ BEGIN
      WHERE member.audience_id=p_audience_id AND member.learner_identity_id=p_learner_identity_id FOR UPDATE;
     IF v_member.removed_at IS NOT NULL THEN
       RETURN QUERY SELECT 'rejoin_requires_explicit_policy'::varchar,v_member.id,false; RETURN;
-    ELSIF v_member.id IS NOT NULL THEN RETURN QUERY SELECT 'ok'::varchar,v_member.id,true; RETURN; END IF;
+    ELSIF v_member.id IS NOT NULL THEN
+      v_op_id:=gen_random_uuid();
+      INSERT INTO public.learning_audience_operations
+        (id,tenant_id,school_id,audience_id,learner_identity_id,operation_kind,
+         request_id,request_digest,result_code,actor_principal_id)
+      VALUES(v_op_id,v_audience.tenant_id,v_audience.school_id,p_audience_id,p_learner_identity_id,
+        'named_member_added',p_request_id,v_digest,'already_satisfied',p_actor_principal_id);
+      RETURN QUERY SELECT 'ok'::varchar,v_member.id,true; RETURN;
+    END IF;
     v_op_id:=gen_random_uuid();
     INSERT INTO public.learning_audience_operations
       (id,tenant_id,school_id,audience_id,learner_identity_id,operation_kind,

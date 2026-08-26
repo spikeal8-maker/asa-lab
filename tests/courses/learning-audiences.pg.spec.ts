@@ -471,6 +471,25 @@ describe('LRN-M1-005 canonical audience', () => {
       mode: 'snapshot',
       learners: [first],
     });
+    const satisfiedKey = `named:satisfied:${++sequence}`;
+    const alreadySatisfied = await inTenant(owner.tenantId, (client) =>
+      client.query(`SELECT * FROM learning_audience_named_add($1,$2,$3,$4)`, [
+        ownerPrincipal,
+        audience.audience_id,
+        first,
+        satisfiedKey,
+      ]),
+    );
+    expect(alreadySatisfied.rows[0]).toMatchObject({ result_code: 'ok', reused: true });
+    const satisfiedConflict = await inTenant(owner.tenantId, (client) =>
+      client.query(`SELECT * FROM learning_audience_named_add($1,$2,$3,$4)`, [
+        ownerPrincipal,
+        audience.audience_id,
+        second,
+        satisfiedKey,
+      ]),
+    );
+    expect(satisfiedConflict.rows[0].result_code).toBe('idempotency_conflict');
     await createSeat(classroom, 'issued');
     expect(
       (
@@ -635,6 +654,7 @@ describe('LRN-M1-005 canonical audience', () => {
     const secondLearner = await createIdentity();
     await createSeat(classroom, 'issued', learner);
     await createSeat(classroom, 'issued', secondLearner);
+    const unlinkedSeat = await createSeat(classroom, 'issued');
     const run = await directRun(classroom);
     expect(
       (
@@ -667,6 +687,7 @@ describe('LRN-M1-005 canonical audience', () => {
       request,
     });
     expect(invalid.result_code).toBe('named_learner_ineligible');
+    expect(await learnerForSeat(unlinkedSeat)).toBeUndefined();
     expect(
       (
         await admin.query(
@@ -701,11 +722,91 @@ describe('LRN-M1-005 canonical audience', () => {
       learners: [learner],
     });
     expect(second.result_code).toBe('target_has_audience');
+    await admin.query(
+      `UPDATE activity_runs SET lifecycle_status='closed',closed_at=now() WHERE id=$1`,
+      [run],
+    );
+    const replayAfterClose = await createAudience({
+      targetKind: 'activity_run',
+      targetId: run,
+      type: 'named_learners',
+      mode: 'snapshot',
+      learners: [learner],
+      request,
+    });
+    expect(replayAfterClose).toMatchObject({
+      result_code: 'ok',
+      audience_id: valid.audience_id,
+      reused: true,
+    });
     await expect(
       admin.query(`UPDATE learning_audience_definitions SET mode='dynamic' WHERE id=$1`, [
         valid.audience_id,
       ]),
     ).rejects.toThrow(/immutable|check constraint/);
+  });
+
+  it('rejects withdrawn target memberships instead of recording active claims', async () => {
+    const classroom = await createClassroom();
+    const learner = await createIdentity();
+    await createSeat(classroom, 'active', learner);
+
+    const course = await courseRun(classroom);
+    const enrollment = await inTenant(owner.tenantId, (client) =>
+      client.query(`SELECT * FROM course_enrollment_assign($1,$2,$3)`, [
+        ownerPrincipal,
+        course,
+        learner,
+      ]),
+    );
+    await inTenant(owner.tenantId, (client) =>
+      client.query(`SELECT * FROM course_enrollment_withdraw($1,$2)`, [
+        ownerPrincipal,
+        enrollment.rows[0].enrollment_id,
+      ]),
+    );
+    await expect(
+      createAudience({
+        targetKind: 'course_run',
+        targetId: course,
+        type: 'named_learners',
+        mode: 'snapshot',
+        learners: [learner],
+      }),
+    ).rejects.toThrow(/membership withdrawn/);
+
+    const run = await directRun(classroom);
+    const participation = await inTenant(owner.tenantId, (client) =>
+      client.query(`SELECT * FROM activity_participation_assign($1,$2,$3,NULL)`, [
+        ownerPrincipal,
+        run,
+        learner,
+      ]),
+    );
+    await inTenant(owner.tenantId, (client) =>
+      client.query(`SELECT * FROM activity_participation_withdraw($1,$2)`, [
+        ownerPrincipal,
+        participation.rows[0].participation_id,
+      ]),
+    );
+    await expect(
+      createAudience({
+        targetKind: 'activity_run',
+        targetId: run,
+        type: 'named_learners',
+        mode: 'snapshot',
+        learners: [learner],
+      }),
+    ).rejects.toThrow(/membership withdrawn/);
+    expect(
+      (
+        await admin.query(
+          `SELECT count(*)::int AS count FROM learning_audience_membership_claims
+            WHERE learner_identity_id=$1`,
+          [learner],
+        )
+      ).rows[0].count,
+    ).toBe(0);
   });
 
   it('rejects closed and course-child targets, outside teachers, learners, cross-school IDs and direct runtime CRUD', async () => {
