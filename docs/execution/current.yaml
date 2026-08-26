@@ -255,9 +255,9 @@ parallel_lanes:
         commands:
           - pnpm gate:repository
 
-  # Owner-accepted ASA Learning M0, LRN-M1-001 and LRN-M1-002 lane, now
-  # executing only LRN-M1-003. M1-004 onward and M2-M7 remain outside this
-  # activation.
+  # Owner-accepted ASA Learning M0, LRN-M1-001 and LRN-M1-002 lane. LRN-M1-003
+  # is merged with owner acceptance pending. No later Learning task is active;
+  # M1-004 onward and M2-M7 remain outside this activation.
   - id: learning
     worktree_id: learning-m1-003
     owned_paths:
@@ -305,16 +305,16 @@ parallel_lanes:
       issue: 158
       branch: agent/learning-m1-003
       base_branch: main
-      pr: 157
+      pr: 159
       pr_draft: false
-      status: in_progress
-      checkpoint: current_audit_complete
+      status: done
+      checkpoint: merged_to_main
       owner_acceptance: pending
     revisions:
       convergence_baseline_sha: 5d5c53652af35a99f1b149775b712ac68d4baed0
-      head_sha: 5d5c53652af35a99f1b149775b712ac68d4baed0
+      head_sha: 86e28a6edbc97a8245b96c2ed4d033209830bfd4
       owner_accepted_sha: 1c5be669f787a536c3dba6839c01c330d6f259f2
-      product_merge_sha: 5d5c53652af35a99f1b149775b712ac68d4baed0
+      product_merge_sha: 83eb972e08712198c7a9856b09f1c90780d17f7b
     execution_lease:
       executor_id: codex-learning-m1-003
       holder: unassigned

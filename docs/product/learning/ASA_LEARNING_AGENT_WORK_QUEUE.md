@@ -664,7 +664,7 @@ Completion не хранить как mutable enrollment status.
 
 ## TASK LRN-M1-003 — Persistent ActivityRun
 
-**status:** IN_PROGRESS — owner activated
+**status:** DONE — merged, owner acceptance pending
 **depends_on:** M1-001  
 **requirements:** ARCH-002, RUN-101..107
 

@@ -24,8 +24,9 @@ execution direct_main
 
 The owner accepted the complete `M0 — State Convergence` milestone,
 `LRN-M1-001 — LearningActivityVersion Convergence` and
-`LRN-M1-002 — CourseEnrollment`. Only `LRN-M1-003 — Persistent ActivityRun` is
-active in the Learning lane. The primary Admin/Auth task is unchanged.
+`LRN-M1-002 — CourseEnrollment`. `LRN-M1-003 — Persistent ActivityRun` is merged
+with owner acceptance pending; no later Learning task is active. The primary
+Admin/Auth task is unchanged.
 `LRN-M1-004` onward, M2-M7, production deployment, migration apply and backfill
 are not authorized.
 

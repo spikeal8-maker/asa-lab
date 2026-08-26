@@ -2,7 +2,7 @@
 
 **Task:** `LRN-M1-003 — Persistent ActivityRun`  
 **Milestone:** `M1 — Universal Delivery`  
-**Status:** ACCEPTANCE EVIDENCE COMPLETE; PUBLICATION PENDING
+**Status:** DONE — MERGED; OWNER ACCEPTANCE PENDING
 **Baseline SHA:** `5d5c53652af35a99f1b149775b712ac68d4baed0`  
 **Issue:** `#158`  
 **Master Spec:** `docs/product/ASA_LEARNING_TECHNICAL_SPEC.md`  

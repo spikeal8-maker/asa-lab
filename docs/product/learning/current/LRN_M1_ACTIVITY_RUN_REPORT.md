@@ -6,10 +6,15 @@
 
 Baseline: `5d5c53652af35a99f1b149775b712ac68d4baed0`.
 
+PR head: `86e28a6edbc97a8245b96c2ed4d033209830bfd4`.
+
+Merged to `main`: `83eb972e08712198c7a9856b09f1c90780d17f7b`.
+
 ## STATUS
 
-Acceptance evidence is complete locally and publication/CI is pending. No
-production action is included or claimed.
+`DONE — merged to main`; owner acceptance is pending. Local and GitHub core
+governance/code/PostgreSQL/RLS evidence passed. No production action is included
+or claimed.
 
 ## ACTIVITYRUN MODEL
 
