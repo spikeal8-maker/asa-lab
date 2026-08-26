@@ -204,6 +204,31 @@ production action and the repository's three-part environment guard.
 
 ## REPOSITORY GATE STATUS
 
+**PREVIOUS BLOCKER:** `origin/main` Electronics bundle budget regression at
+`bfc32338f167355c5a347d66c7e9aee75c0e836f` (`SchematicEditor 206540/205000`).
+
+**UPSTREAM RESOLUTION:** the independent Electronics commit
+`e56ae6ebd5021db87ddad5a4ca8e5c8be5b0eff1` restored the editor bundle within
+budget. The exact integration base is
+`ba45588410c62dd3f18142521617df58986e063a`, whose required GitHub workflow run
+`32942655779` has successful Governance, Code/build and PostgreSQL/RLS jobs.
+
+**LEARNING CHANGES FOR RESOLUTION:** none. The Learning diff against the current
+integration base contains no Electronics, SchematicEditor, bundle-budget, 3D,
+Checkers or Chess file. The upstream commits are only ancestry of the merge
+result and are not changes attributed to PR `#161`.
+
+**CURRENT INTEGRATION BASE:**
+`ba45588410c62dd3f18142521617df58986e063a`.
+
+**FINAL REQUIRED GATES:** on the exact integrated result,
+`pnpm test:learning-m1-004`, M1-001/002/003, M0 canonical regressions,
+fresh migration plus repeat zero, `git diff --check`, `pnpm contracts:check`,
+`pnpm control-plane:check`, `pnpm gate:governance` and uncached
+`pnpm gate:repository` all pass. The repository run executed `173` test files /
+`1198` tests plus `15` focused RLS tests and the corrected upstream Electronics
+bundle passed at `204920/205000` bytes.
+
 - `pnpm gate:data` with `NX_SKIP_NX_CACHE=true`: PASS on retry — `173` test
   files, `1198` tests, then `15` focused RLS tests;
 - format, lint, typecheck, boundaries, contracts, secrets, license, dependency
