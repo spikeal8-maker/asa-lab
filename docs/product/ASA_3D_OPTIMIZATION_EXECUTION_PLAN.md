@@ -421,6 +421,7 @@ Screenshot не доказывает manifold, unit-тест не доказыв
 | 3D-MATH-001 | Рабочая плоскость только Y | `workplaneY` и plane normal `(0,1,0)` | OPT-6 | origin/normal/basis поддерживают наклонную и вертикальную грань |
 | 3D-MATH-002 | Размещение по AABB | cruise использует bounds center/max, а не ray hit/face normal | OPT-6 | placement использует реальную поверхность с воспроизводимым snap |
 | 3D-MOBILE-001 | Touch поведение не доказано | mobile E2E проверяет видимость и screenshot, но не journey | OPT-5 | обязательные жесты проходят `test:three-d:touch` |
+| 3D-UX-001 | Точное число прямого манипулятора не закрепляется после жеста | browser journey на `a438d08` подтверждает изменение размеров, но после `pointerup` редактируемый measurement input отсутствует | OPT-5 | после resize/lift/rotate число остаётся видимым, редактируемым и проходит undo/save/reload |
 | 3D-IO-001 | Неполный interchange | импорт JSON; экспорт JSON/STL | OPT-6 | утверждённые STL/OBJ/SVG сценарии проходят validation/round-trip |
 | 3D-PARITY-001 | Формы проверяются неодинаково | нет полной матрицы параметров, thumbnail и export | OPT-7 | каждая заявленная форма имеет parameter extremes и evidence |
 
