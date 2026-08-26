@@ -98,6 +98,49 @@ function summarizeUserAgent(value: string | undefined): string | undefined {
   return `${browser} · ${platform}`;
 }
 
+interface LocalPreviewCredentials {
+  email: string;
+  password: string;
+}
+
+function localPreviewCredentials(request: FastifyRequest): LocalPreviewCredentials | null {
+  if (process.env['NODE_ENV'] === 'production' || process.env['ASA_LOCAL_PREVIEW_LOGIN'] !== '1') {
+    return null;
+  }
+
+  const configuredOrigin = process.env['ASA_LOCAL_PREVIEW_ORIGIN'];
+  const email = process.env['ASA_LOCAL_PREVIEW_EMAIL'];
+  const password = process.env['ASA_LOCAL_PREVIEW_PASSWORD'];
+  if (!configuredOrigin || !email || !password) return null;
+
+  let expectedOrigin: URL;
+  try {
+    expectedOrigin = new URL(configuredOrigin);
+  } catch {
+    return null;
+  }
+  if (
+    expectedOrigin.protocol !== 'http:' ||
+    (expectedOrigin.hostname !== '127.0.0.1' && expectedOrigin.hostname !== 'localhost')
+  ) {
+    return null;
+  }
+
+  const socketAddress = request.raw.socket.remoteAddress?.toLowerCase();
+  if (
+    socketAddress !== '127.0.0.1' &&
+    socketAddress !== '::1' &&
+    socketAddress !== '::ffff:127.0.0.1'
+  ) {
+    return null;
+  }
+
+  if (request.headers.host !== expectedOrigin.host) return null;
+  const origin = request.headers.origin;
+  if (typeof origin === 'string' && origin !== expectedOrigin.origin) return null;
+  return { email, password };
+}
+
 @Controller('api/auth')
 export class AuthController {
   private readonly loginByAddress = new FixedWindowRateLimiter({
@@ -401,6 +444,57 @@ export class AuthController {
       required: this.botChallenges.isRequired(),
       challenge: this.botChallenges.issue(action as BotAction, request.headers['user-agent']),
     };
+  }
+
+  @Get('local-preview/config')
+  localPreviewConfig(@Req() request: FastifyRequest): { enabled: boolean } {
+    return { enabled: localPreviewCredentials(request) !== null };
+  }
+
+  @Post('local-preview/session')
+  @HttpCode(200)
+  async localPreviewSession(
+    @Req() request: FastifyRequest,
+    @Res({ passthrough: true }) reply: FastifyReply,
+  ): Promise<SessionPayload> {
+    const credentials = localPreviewCredentials(request);
+    if (!credentials) {
+      throw new HttpException(error('not_found', 'not found'), 404);
+    }
+
+    const summary = summarizeUserAgent(request.headers['user-agent']);
+    const login = await this.accountLoginUseCase.execute({
+      identifier: credentials.email,
+      password: credentials.password,
+      ...(summary === undefined ? {} : { userAgentSummary: summary }),
+    });
+    let token: string;
+    if (login.ok) {
+      token = login.token;
+    } else {
+      const registered = await this.registerUseCase.execute({
+        email: credentials.email,
+        password: credentials.password,
+        username: 'preview-owner',
+        displayName: 'Локальный preview',
+        birthDate: '1990-01-01',
+        country: 'RU',
+      });
+      if (!registered.ok) {
+        throw new HttpException(
+          error('preview_login_unavailable', 'Локальный preview-вход недоступен.'),
+          503,
+        );
+      }
+      token = registered.token;
+    }
+
+    await this.establishSession(reply, token, 'password');
+    const context = await this.activeContext.resolve(token);
+    if (!context) {
+      throw new HttpException(error('server_error', 'session was not created'), 500);
+    }
+    return this.payload(context);
   }
 
   @Post('register')

@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { api, type BotProof, type SessionPayload } from '../api';
 import { AsaLabWordmark } from '../brand/AsaLabBrand';
 import { BotCheck } from '../components/BotCheck';
@@ -20,6 +20,29 @@ export function RegisterPage({
   const [message, setMessage] = useState<string | null>(null);
   const [botProof, setBotProof] = useState<BotProof | null>(null);
   const [botReset, setBotReset] = useState(0);
+  const [localPreviewEnabled, setLocalPreviewEnabled] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    void api.localPreviewConfig().then((result) => {
+      if (active && result.ok) setLocalPreviewEnabled(result.data.enabled);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  async function enterLocalPreview(): Promise<void> {
+    setBusy(true);
+    setMessage(null);
+    const result = await api.localPreviewSession();
+    setBusy(false);
+    if (result.ok) {
+      onRegistered(result.data);
+      return;
+    }
+    setMessage('Не удалось войти в локальный preview. Обновите страницу и попробуйте ещё раз.');
+  }
 
   async function submit(event: FormEvent): Promise<void> {
     event.preventDefault();
@@ -130,6 +153,16 @@ export function RegisterPage({
             {busy ? 'Создаём…' : 'Создать аккаунт'}
           </button>
         </form>
+        {localPreviewEnabled ? (
+          <button
+            type="button"
+            className="btn-secondary max-login-button"
+            disabled={busy}
+            onClick={() => void enterLocalPreview()}
+          >
+            Войти в тестовый стенд
+          </button>
+        ) : null}
       </main>
     </div>
   );

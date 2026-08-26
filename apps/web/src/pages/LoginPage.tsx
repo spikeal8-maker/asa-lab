@@ -23,6 +23,7 @@ export function LoginPage({
   const [botProof, setBotProof] = useState<BotProof | null>(null);
   const [botReset, setBotReset] = useState(0);
   const [maxLaunchUrl, setMaxLaunchUrl] = useState<string | null>(null);
+  const [localPreviewEnabled, setLocalPreviewEnabled] = useState(false);
   const messageId = useId();
   const identifierRef = useRef<HTMLInputElement>(null);
 
@@ -30,6 +31,9 @@ export function LoginPage({
     let active = true;
     void api.maxConfig().then((result) => {
       if (active && result.ok && result.data.enabled) setMaxLaunchUrl(result.data.launchUrl);
+    });
+    void api.localPreviewConfig().then((result) => {
+      if (active && result.ok) setLocalPreviewEnabled(result.data.enabled);
     });
     return () => {
       active = false;
@@ -65,6 +69,18 @@ export function LoginPage({
       setMessage('Ошибка сервера. Попробуйте ещё раз.');
     }
     identifierRef.current?.focus();
+  }
+
+  async function enterLocalPreview(): Promise<void> {
+    setBusy(true);
+    setMessage(null);
+    const result = await api.localPreviewSession();
+    setBusy(false);
+    if (result.ok) {
+      onSignedIn(result.data);
+      return;
+    }
+    setMessage('Не удалось войти в локальный preview. Обновите страницу и попробуйте ещё раз.');
   }
 
   return (
@@ -121,6 +137,17 @@ export function LoginPage({
           <a className="btn-secondary max-login-button" href={maxLaunchUrl}>
             Войти через MAX
           </a>
+        ) : null}
+
+        {localPreviewEnabled ? (
+          <button
+            type="button"
+            className="btn-secondary max-login-button"
+            disabled={busy}
+            onClick={() => void enterLocalPreview()}
+          >
+            Войти в тестовый стенд
+          </button>
         ) : null}
 
         <nav className="login-links" aria-label="Другие способы">

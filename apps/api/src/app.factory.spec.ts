@@ -229,4 +229,60 @@ describe('API application factory', () => {
       else process.env['NODE_ENV'] = previousNodeEnv;
     }
   });
+
+  it('exposes preview login only for the explicitly enabled loopback origin', async () => {
+    const previous = {
+      nodeEnv: process.env['NODE_ENV'],
+      enabled: process.env['ASA_LOCAL_PREVIEW_LOGIN'],
+      origin: process.env['ASA_LOCAL_PREVIEW_ORIGIN'],
+      email: process.env['ASA_LOCAL_PREVIEW_EMAIL'],
+      password: process.env['ASA_LOCAL_PREVIEW_PASSWORD'],
+    };
+    process.env['NODE_ENV'] = 'test';
+    process.env['ASA_LOCAL_PREVIEW_LOGIN'] = '1';
+    process.env['ASA_LOCAL_PREVIEW_ORIGIN'] = 'http://127.0.0.1:4613';
+    process.env['ASA_LOCAL_PREVIEW_EMAIL'] = 'preview-owner@local.test';
+    process.env['ASA_LOCAL_PREVIEW_PASSWORD'] = 'test-preview-password';
+    try {
+      const app = await createApiApp({ pool: null, webDist: null });
+      apps.push(app);
+      const fastify = app.getHttpAdapter().getInstance();
+
+      const local = await fastify.inject({
+        method: 'GET',
+        url: '/api/auth/local-preview/config',
+        headers: { host: '127.0.0.1:4613' },
+      });
+      expect(local.statusCode).toBe(200);
+      expect(local.json()).toEqual({ enabled: true });
+
+      const wrongHost = await fastify.inject({
+        method: 'GET',
+        url: '/api/auth/local-preview/config',
+        headers: { host: 'asa-lab.ru' },
+      });
+      expect(wrongHost.statusCode).toBe(200);
+      expect(wrongHost.json()).toEqual({ enabled: false });
+
+      process.env['NODE_ENV'] = 'production';
+      const production = await fastify.inject({
+        method: 'GET',
+        url: '/api/auth/local-preview/config',
+        headers: { host: '127.0.0.1:4613' },
+      });
+      expect(production.statusCode).toBe(200);
+      expect(production.json()).toEqual({ enabled: false });
+    } finally {
+      for (const [name, value] of [
+        ['NODE_ENV', previous.nodeEnv],
+        ['ASA_LOCAL_PREVIEW_LOGIN', previous.enabled],
+        ['ASA_LOCAL_PREVIEW_ORIGIN', previous.origin],
+        ['ASA_LOCAL_PREVIEW_EMAIL', previous.email],
+        ['ASA_LOCAL_PREVIEW_PASSWORD', previous.password],
+      ] as const) {
+        if (value === undefined) delete process.env[name];
+        else process.env[name] = value;
+      }
+    }
+  });
 });

@@ -49,6 +49,10 @@ export interface MaxAuthConfig {
   launchUrl: string | null;
 }
 
+export interface LocalPreviewAuthConfig {
+  enabled: boolean;
+}
+
 export interface MaxAccountStatus {
   linked: boolean;
   verifiedAt: string | null;
@@ -1143,6 +1147,9 @@ export interface CheckersTeacherFeedback {
 
 export const api = {
   me: () => call<SessionPayload | { authenticated: false }>('/api/auth/me'),
+  localPreviewConfig: () => call<LocalPreviewAuthConfig>('/api/auth/local-preview/config'),
+  localPreviewSession: () =>
+    call<SessionPayload>('/api/auth/local-preview/session', { method: 'POST' }),
   maxConfig: () => call<MaxAuthConfig>('/api/auth/max/config'),
   maxStatus: () => call<MaxAccountStatus>('/api/auth/max/status'),
   dismissMaxPrompt: () =>
