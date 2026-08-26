@@ -1188,7 +1188,7 @@ describe('deterministic DC solver', () => {
       expect.arrayContaining(['led_overcurrent', 'led_burnout']),
     );
     expect(burned.diagnostics.find((item) => item.code === 'led_burnout')?.message).toContain(
-      'абсолютное максимальное значение',
+      'разрушительный предел',
     );
   });
 

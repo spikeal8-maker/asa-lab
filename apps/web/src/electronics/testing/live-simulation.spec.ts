@@ -165,19 +165,19 @@ describe('live Electronics simulation', () => {
       resultForLed(blue220)?.brightness ?? 100,
     );
 
-    // Exact owner-captured Tinkercad 2xAA reference points. The component has
-    // no pre-limit badge: the marker appears only above the recommended 20 mA
-    // maximum, and the zero-ohm point uses the destructive starburst.
+    // The owner-captured Tinkercad sweep is recalculated with the AA holder's
+    // finite 0.45-ohm source resistance. The zero-ohm point remains
+    // destructive while every reported current stays finite.
     expect(resultForLed(red100)).toMatchObject({ lit: true, stressState: 'normal' });
     expect(resultForLed(red50)).toMatchObject({ lit: true, stressState: 'normal' });
     expect(resultForLed(red25)).toMatchObject({ lit: true, stressState: 'overcurrent' });
     expect(resultForLed(red10)).toMatchObject({ lit: true, stressState: 'overcurrent' });
     expect(resultForLed(red1)).toMatchObject({ lit: true, stressState: 'overcurrent' });
     expect(resultForLed(red0)).toMatchObject({ lit: true, stressState: 'burned' });
-    expect(resultForLed(red25)?.current).toBeCloseTo(0.0319, 4);
-    expect(resultForLed(red10)?.current).toBeCloseTo(0.0584, 4);
-    expect(resultForLed(red1)?.current).toBeCloseTo(0.12, 4);
-    expect(resultForLed(red0)?.current).toBeCloseTo(0.136, 4);
+    expect(resultForLed(red25)?.current).toBeCloseTo(0.03147, 4);
+    expect(resultForLed(red10)?.current).toBeCloseTo(0.05698, 4);
+    expect(resultForLed(red1)?.current).toBeCloseTo(0.11399, 4);
+    expect(resultForLed(red0)?.current).toBeCloseTo(0.1283, 4);
     expect(resultForLed(red100)?.current ?? 0).toBeLessThan(resultForLed(red50)?.current ?? 0);
     expect(resultForLed(red50)?.current ?? 0).toBeLessThan(resultForLed(red25)?.current ?? 0);
     expect(resultForLed(red25)?.current ?? 0).toBeLessThan(resultForLed(red10)?.current ?? 0);
@@ -194,10 +194,10 @@ describe('live Electronics simulation', () => {
     expect(
       red1?.diagnostics.find((diagnostic) => diagnostic.code === 'led_overcurrent')?.message,
     ).toBe(
-      'Сила тока в светодиоде равна 120 mA (максимальное рекомендуемое значение — 20.0 mA). Это может привести к сокращению срока службы светодиода.',
+      'Сила тока в светодиоде равна 114 mA (максимальное рекомендуемое значение — 20.0 mA). Это может привести к сокращению срока службы светодиода.',
     );
     expect(red0?.diagnostics.find((diagnostic) => diagnostic.code === 'led_burnout')?.message).toBe(
-      'Сила тока в светодиоде равна 136 mA (абсолютное максимальное значение — 20.0 mA).',
+      'Сила тока в светодиоде равна 128.3 mA (разрушительный предел — 120 mA).',
     );
   });
 

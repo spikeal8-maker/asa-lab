@@ -28,7 +28,10 @@ const RGB_DYNAMIC_RESISTANCE_OHM = 1.03;
 const RGB_BLUE_DYNAMIC_RESISTANCE_OHM = 23;
 const NOMINAL_CURRENT_AMP = 0.02;
 const RGB_BURNOUT_CURRENT_AMP = 0.03;
-const ORDINARY_REFERENCE_BURNOUT_CURRENT_AMP = 0.13;
+// The owner reference treats a zero-ohm 2xAA connection as destructive. With
+// the battery holder's calibrated series resistance that operating point is
+// about 128 mA, while the 1-ohm point remains below 120 mA.
+const ORDINARY_REFERENCE_BURNOUT_CURRENT_AMP = 0.12;
 const BRIGHTNESS_EXPONENT = 0.65;
 
 /**

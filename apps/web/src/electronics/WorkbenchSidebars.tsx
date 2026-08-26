@@ -103,10 +103,6 @@ export function WorkbenchSidebars({
           return value === null ? [] : [{ ...metric, value }];
         })
       : [];
-  const hasSourceMetrics =
-    measurement?.internalResistanceOhm !== undefined ||
-    measurement?.voltageSag !== undefined ||
-    measurement?.internalPower !== undefined;
   const resistanceComponent =
     c.selectedComponent && ['resistor', 'potentiometer', 'lamp'].includes(c.selectedComponent.kind)
       ? c.selectedComponent
@@ -808,7 +804,7 @@ export function WorkbenchSidebars({
                 </div>
               ) : null}
 
-              {stateOpen && measurement && (technicalMetrics.length > 0 || hasSourceMetrics) ? (
+              {stateOpen && measurement && technicalMetrics.length > 0 ? (
                 <dl
                   className="workbench-measurements"
                   data-profile-family={informationProfile?.componentFamilyId}

@@ -336,9 +336,7 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(sidebarSource).not.toContain(
       'Измерения появятся после внедрения его математической модели.',
     );
-    expect(sidebarSource).toContain(
-      'stateOpen && measurement && (technicalMetrics.length > 0 || hasSourceMetrics)',
-    );
+    expect(sidebarSource).toContain('stateOpen && measurement && technicalMetrics.length > 0');
     expect(sidebarSource).toContain('stateOpen && selectedDiagnostics.length > 0');
     expect(sidebarSource).not.toContain('workbench-led-electrical-state');
     expect(editorSource).toContain('window.print()');

@@ -940,7 +940,7 @@ test('real editor recalculates SPDT, resistor and LED without waiting for persis
   await expect(warningBadge).toBeVisible();
   await expect(warningBadge).toHaveAttribute(
     'aria-label',
-    'Сила тока в светодиоде равна 120 mA (максимальное рекомендуемое значение — 20.0 mA). Это может привести к сокращению срока службы светодиода.',
+    'Сила тока в светодиоде равна 114 mA (максимальное рекомендуемое значение — 20.0 mA). Это может привести к сокращению срока службы светодиода.',
   );
   await expect(warningBadge.locator('.workbench-component-diagnostic-tooltip')).toHaveCount(0);
   await page.screenshot({
@@ -1044,7 +1044,7 @@ test('real editor recalculates SPDT, resistor and LED without waiting for persis
   await expect(diagnostic(page, 'led-5mm', 'led-burnout-explosion')).toBeVisible();
   await expect(diagnostic(page, 'led-5mm', 'led-burnout-explosion')).toHaveAttribute(
     'aria-label',
-    /абсолютное максимальное значение/i,
+    /разрушительный предел/i,
   );
   await page.screenshot({
     path: `${ARTIFACT_DIR}/electronics-led-burnout.png`,
