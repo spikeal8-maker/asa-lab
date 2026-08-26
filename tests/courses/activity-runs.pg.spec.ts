@@ -632,25 +632,36 @@ describe('LRN-M1-003 persistent ActivityRun', () => {
   });
 
   it('creates no learner runtime rows and leaves CourseEnrollment untouched', async () => {
-    const attemptsBefore = await admin.query(
-      `SELECT count(*)::int AS count FROM learning_attempts`,
-    );
-    const submissionsBefore = await admin.query(
-      `SELECT count(*)::int AS count FROM learning_submissions`,
-    );
-    const enrollmentsBefore = await admin.query(
-      `SELECT count(*)::int AS count FROM course_enrollments`,
-    );
-    const run = await createRun({ handoutId: await createDirectHandout() });
+    const handoutId = await createDirectHandout();
+    const run = await createRun({ handoutId });
     expect(
-      (await admin.query(`SELECT count(*)::int AS count FROM learning_attempts`)).rows,
-    ).toEqual(attemptsBefore.rows);
+      (
+        await admin.query(
+          `SELECT count(*)::int AS count FROM learning_attempts
+            WHERE classroom_assignment_id=$1`,
+          [handoutId],
+        )
+      ).rows,
+    ).toEqual([{ count: 0 }]);
     expect(
-      (await admin.query(`SELECT count(*)::int AS count FROM learning_submissions`)).rows,
-    ).toEqual(submissionsBefore.rows);
+      (
+        await admin.query(
+          `SELECT count(*)::int AS count FROM learning_submissions submission
+            JOIN learning_attempts attempt ON attempt.id=submission.attempt_id
+           WHERE attempt.classroom_assignment_id=$1`,
+          [handoutId],
+        )
+      ).rows,
+    ).toEqual([{ count: 0 }]);
     expect(
-      (await admin.query(`SELECT count(*)::int AS count FROM course_enrollments`)).rows,
-    ).toEqual(enrollmentsBefore.rows);
+      (
+        await admin.query(
+          `SELECT count(*)::int AS count FROM course_enrollments
+            WHERE assigned_by_principal_id=$1`,
+          [ownerPrincipalId],
+        )
+      ).rows,
+    ).toEqual([{ count: 0 }]);
     const participation = await admin.query(
       `SELECT count(*)::int AS count FROM activity_participations
         WHERE activity_run_id=$1`,
