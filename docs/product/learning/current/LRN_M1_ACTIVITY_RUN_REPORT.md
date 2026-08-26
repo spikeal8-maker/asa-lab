@@ -8,8 +8,8 @@ Baseline: `5d5c53652af35a99f1b149775b712ac68d4baed0`.
 
 ## STATUS
 
-Implementation evidence is in progress. No production action is included or
-claimed.
+Acceptance evidence is complete locally and publication/CI is pending. No
+production action is included or claimed.
 
 ## ACTIVITYRUN MODEL
 
@@ -219,7 +219,8 @@ availability before calling activation; an active seat alone is insufficient.
 ## MIGRATION
 
 `0093_activity_runs.sql` is additive and performs no backfill or existing-row
-UPDATE. Fresh/repeat evidence is recorded after final verification.
+UPDATE. An isolated fresh `asalab_test` apply installed all 92 migrations
+through `0093`; the guarded repeat applied 0 migrations.
 
 ## OPENAPI
 
@@ -288,9 +289,25 @@ resolver.
 
 ## TESTS
 
-Focused suite currently passes `15/15` test cases covering the owner-required
-27 scenario matrix. Final migration/regression/repository evidence will be added
-after the evidence run.
+Implementation SHA before evidence-only documentation:
+`e8bac4574508161dc121840de948a552cfb51872`.
+
+- `pnpm test:learning-m1-003`: 15/15 PASS over the owner-required 27-scenario
+  matrix;
+- `pnpm test:learning-m1-001`: 15/15 PASS;
+- `pnpm test:learning-m1-002`: 15/15 PASS;
+- M0 canonical surface/projection/adapter regressions: 12/12 PASS;
+- migration fresh apply: 92 migrations through `0093`, PASS;
+- guarded migration repeat: 0 applied, PASS;
+- `NX_SKIP_NX_CACHE=true pnpm gate:repository`: PASS — 172/172 test files,
+  1186/1186 tests and 15/15 RLS tests; Nx lint/typecheck/build cache skipped;
+- `pnpm control-plane:check`, `pnpm gate:governance`, `git diff --check`: PASS.
+
+The first full repository run exposed two test-evidence races caused by global
+row counts changing under parallel PostgreSQL suites. The evidence was narrowed
+to the test-owned CourseRun and a single `REPEATABLE READ` snapshot; both focused
+tests and the full uncached repository gate then passed. No product behavior was
+relaxed to make the gate green.
 
 ## BROWSER EVIDENCE
 

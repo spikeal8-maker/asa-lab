@@ -2,7 +2,7 @@
 
 **Task:** `LRN-M1-003 — Persistent ActivityRun`  
 **Milestone:** `M1 — Universal Delivery`  
-**Status:** ACTIVE  
+**Status:** ACCEPTANCE EVIDENCE COMPLETE; PUBLICATION PENDING
 **Baseline SHA:** `5d5c53652af35a99f1b149775b712ac68d4baed0`  
 **Issue:** `#158`  
 **Master Spec:** `docs/product/ASA_LEARNING_TECHNICAL_SPEC.md`  
@@ -221,23 +221,35 @@ participation or Attempt scan.
 
 ## 21. Acceptance checklist
 
-- [ ] one physical direct/course ActivityRun model
-- [ ] exact canonical LAV pin and compatibility exclusion
-- [ ] exact classroom/school/course provenance
-- [ ] stored lifecycle and guarded transitions
-- [ ] UTC chronology and run-level base availability
-- [ ] nullable explicit late policy without flattened LAV default
-- [ ] provenance-preserving runtime policy snapshot
-- [ ] nullable explicit same-school grading pin and no fake default
-- [ ] retry/concurrency proof
-- [ ] zero ActivityParticipation/Attempt/CourseEnrollment side effects
-- [ ] migration fresh apply and repeat zero
-- [ ] M0/M1-001/M1-002 regressions
-- [ ] security/RLS evidence
-- [ ] repository gates
-- [ ] ledger updated without premature overall closure
+- [x] one physical direct/course ActivityRun model
+- [x] exact canonical LAV pin and compatibility exclusion
+- [x] exact classroom/school/course provenance
+- [x] stored lifecycle and guarded transitions
+- [x] UTC chronology and run-level base availability
+- [x] nullable explicit late policy without flattened LAV default
+- [x] provenance-preserving runtime policy snapshot
+- [x] nullable explicit same-school grading pin and no fake default
+- [x] retry/concurrency proof
+- [x] zero ActivityParticipation/Attempt/CourseEnrollment side effects
+- [x] migration fresh apply and repeat zero
+- [x] M0/M1-001/M1-002 regressions
+- [x] security/RLS evidence
+- [x] repository gates
+- [x] ledger updated without premature overall closure
 
 ## 22. Evidence
 
-To be completed after implementation with exact SHA, commands, migration/test
-outputs, security evidence and known gaps.
+Implementation SHA before evidence-only documentation:
+`e8bac4574508161dc121840de948a552cfb51872`.
+
+- isolated fresh `asalab_test`: 92 migrations applied through `0093`, PASS;
+- guarded repeat apply: 0 migrations applied, PASS;
+- `pnpm test:learning-m1-003`: 15/15 PASS, covering the required 27 scenarios;
+- `pnpm test:learning-m1-001`: 15/15 PASS;
+- `pnpm test:learning-m1-002`: 15/15 PASS;
+- M0 projection/surface/adapter regressions: 12/12 PASS;
+- `NX_SKIP_NX_CACHE=true pnpm gate:repository`: PASS; 172/172 test files,
+  1186/1186 tests and 15/15 RLS tests; Nx lint/typecheck/build cache skipped;
+- `pnpm control-plane:check`, `pnpm gate:governance`, `git diff --check`: PASS;
+- browser evidence: N/A because no UI or current reader changed;
+- production evidence: N/A; production was not touched or claimed.
