@@ -325,7 +325,7 @@ describe('owner SVG integration in the real Electronics document', () => {
     });
     expect(productionCatalogEntry('dc-motor')).toMatchObject({
       enabled: true,
-      simulationSupported: false,
+      simulationSupported: true,
       catalogStatus: 'enabled',
     });
     expect(families.find((family) => family.familyId === 'ultrasonic-sensor')).toMatchObject({

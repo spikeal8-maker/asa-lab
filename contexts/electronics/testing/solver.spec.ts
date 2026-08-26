@@ -141,12 +141,12 @@ describe('schema-versioned Electronics document', () => {
       modelProfileId: 'generic-rectifier-diode-do41',
     });
     expect(parsed.document.components[1]).toMatchObject({
-      electricalModelId: 'unsupported',
-      modelProfileId: 'unsupported-dc-motor',
+      electricalModelId: 'dc-motor',
+      modelProfileId: 'generic-dc-motor-static',
     });
     expect(electricalModelFor(parsed.document.components[1]!)).toMatchObject({
-      support: 'unsupported',
-      topology: 'unsupported',
+      support: 'supported',
+      topology: 'two-terminal',
     });
 
     const entries = electricalModelRegistryEntries();
@@ -508,6 +508,77 @@ describe('deterministic DC solver', () => {
         anchors: [{ kind: 'component', id: 'sensor' }],
       }),
     );
+  });
+
+  it('keeps a supported LED circuit running when an existing unconnected DC motor is present', () => {
+    const result = solveCircuit(
+      doc(
+        [
+          component('source', 'source', 3),
+          component('led', 'led', 2, {
+            componentTypeId: 'led-5mm',
+            pinIds: ['anode', 'cathode'],
+          }),
+          component('motor', 'visual', 0, {
+            componentTypeId: 'dc-motor',
+            pinIds: ['negative', 'positive'],
+            electricalModelId: 'unsupported',
+            electricalModelVersion: 1,
+            modelProfileId: 'unsupported-dc-motor',
+            modelProfileVersion: 1,
+          }),
+        ],
+        [
+          connect('positive', 'source', 'a', 'led', 'anode'),
+          connect('negative', 'led', 'cathode', 'source', 'b'),
+        ],
+      ),
+    );
+
+    expect(result.status).toBe('solved');
+    expect(result.diagnostics.map((item) => item.code)).not.toContain('unsupported_component');
+    expect(result.components.find((item) => item.componentId === 'led')).toMatchObject({
+      lit: true,
+      stressState: 'burned',
+    });
+    expect(result.components.find((item) => item.componentId === 'motor')).toMatchObject({
+      energized: false,
+      speedPercent: 0,
+      direction: 'stopped',
+    });
+  });
+
+  it('solves the deterministic DC operating point of the owner motor', () => {
+    const result = solveCircuit(
+      doc(
+        [
+          component('source', 'source', 6),
+          component('motor', 'visual', 6, {
+            componentTypeId: 'dc-motor',
+            pinIds: ['negative', 'positive'],
+            stateProperties: {
+              nominalVoltage: 6,
+              effectiveResistanceOhm: 60,
+              maxCurrentAmp: 0.5,
+            },
+          }),
+        ],
+        [
+          connect('positive', 'source', 'a', 'motor', 'positive'),
+          connect('negative', 'motor', 'negative', 'source', 'b'),
+        ],
+      ),
+    );
+
+    expect(result.status).toBe('solved');
+    expect(result.components.find((item) => item.componentId === 'motor')).toMatchObject({
+      voltageDrop: 6,
+      current: 0.1,
+      energized: true,
+      speedPercent: 100,
+      direction: 'clockwise',
+      stressState: 'normal',
+    });
   });
 
   it('fails before matrix assembly when a production component has an incomplete pin map', () => {

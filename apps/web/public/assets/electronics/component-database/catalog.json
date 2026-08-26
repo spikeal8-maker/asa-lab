@@ -28187,9 +28187,9 @@
         "speed": [0, 1],
         "direction": ["clockwise", "counterclockwise", "stopped"]
       },
-      "simulationSupport": "not_available",
-      "blockReason": "owner SVG подтверждён; модель компонента ещё не реализована",
-      "catalogTier": "preview",
+      "simulationSupport": "existing_model",
+      "blockReason": null,
+      "catalogTier": "core",
       "metadataOnlyProof": {
         "source": "owner_direct_upload",
         "artNotTrusted": false

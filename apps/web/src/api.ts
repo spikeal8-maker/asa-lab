@@ -965,6 +965,8 @@ export interface ComponentResult {
   emitterCurrent?: number;
   frequencyHz?: number;
   soundLevel?: number;
+  speedPercent?: number;
+  direction?: 'clockwise' | 'counterclockwise' | 'stopped';
 }
 
 export interface SolveResult {

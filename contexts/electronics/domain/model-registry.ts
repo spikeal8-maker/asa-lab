@@ -166,6 +166,14 @@ const ARDUINO_UNO_MODEL: ElectricalModelDescriptor = {
   requiredTerminals: ['d13', 'power-5v', 'power-3v3', 'power-gnd-1'],
 };
 
+const DC_MOTOR_MODEL: ElectricalModelDescriptor = {
+  id: 'dc-motor',
+  kind: 'visual',
+  support: 'supported',
+  topology: 'two-terminal',
+  requiredTerminals: ['negative', 'positive'],
+};
+
 export function electricalModelFor(component: SchematicComponent): ElectricalModelDescriptor {
   const identity = electricalModelIdentityForComponent(component);
   const installed = componentModelIdentityIsInstalled(component);
@@ -173,7 +181,9 @@ export function electricalModelFor(component: SchematicComponent): ElectricalMod
     ? MODELS.visual
     : isArduinoUno(component)
       ? ARDUINO_UNO_MODEL
-      : MODELS[component.kind];
+      : component.componentTypeId === 'dc-motor'
+        ? DC_MOTOR_MODEL
+        : MODELS[component.kind];
   return {
     ...base,
     id: installed ? (identity.electricalModelId as ElectricalModelId) : 'unsupported',
@@ -193,6 +203,7 @@ export function unsupportedElectricalComponents(
 function productionRequiredTerminals(component: SchematicComponent): readonly Terminal[] {
   if (!component.componentTypeId) return [];
   if (isArduinoUno(component)) return ARDUINO_UNO_MODEL.requiredTerminals;
+  if (component.componentTypeId === 'dc-motor') return DC_MOTOR_MODEL.requiredTerminals;
   // Holders expose BAT+/BAT-; single-cell batteries and the bench supply use
   // positive/negative. The simulation maps both already — the contract must
   // accept whichever pair the component actually carries, or a catalog battery

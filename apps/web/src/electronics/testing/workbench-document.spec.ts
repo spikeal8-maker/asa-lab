@@ -280,7 +280,7 @@ describe('Electronics M1 editor document operations', () => {
     });
   });
 
-  it('places the owner DC motor while keeping it unsupported and starts DO-41 upright', () => {
+  it('places the owner DC motor with its installed model and starts DO-41 upright', () => {
     const motor = addComponentToDocument(EMPTY, 'dc-motor', { x: 300, y: 200 }, 'motor');
     expect(motor.component).toMatchObject({
       kind: 'visual',
@@ -290,7 +290,7 @@ describe('Electronics M1 editor document operations', () => {
     });
     expect(catalogEntry(motor.component)).toMatchObject({
       enabled: true,
-      simulationSupported: false,
+      simulationSupported: true,
     });
 
     const diode = addComponentToDocument(EMPTY, 'diode-do41', { x: 300, y: 200 }, 'diode');
