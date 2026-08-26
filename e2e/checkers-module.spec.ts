@@ -122,7 +122,7 @@ test('learner solves an original Russian-64 task, reloads progress and receives 
     .filter({ hasText: 'Мой путь в шашках' })
     .getByRole('link', { name: 'Мой путь в шашках' })
     .click();
-  await expect(page).toHaveURL(new RegExp(`/#/projects/${projectId}$`));
+  await expect(page).toHaveURL(new RegExp(`/#/projects/${projectId}\\?module=checkers$`));
 
   await expect(page.getByRole('heading', { name: /твой следующий ход/ })).toBeVisible();
   await expect(page.getByText('Здесь собраны задания, обучение, игры и повторение')).toBeVisible();
@@ -329,7 +329,7 @@ test('teacher assigns real class work and sees the learner evidence after comple
       },
     },
   );
-  expect(forbiddenSharedWrite.status()).toBe(404);
+  expect(forbiddenSharedWrite.status()).toBe(409);
   await studentPage.goto(
     `/#/classrooms/${classroom.classroom.id}/projects/${projectId}?title=${encodeURIComponent(classroom.classroom.title)}`,
   );
