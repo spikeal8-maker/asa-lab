@@ -33,6 +33,7 @@
     "test:learning-m1-001": "vitest run apps/api/src/learning-activities.controller.spec.ts tests/courses/learning-activity-version-convergence.pg.spec.ts",
     "test:learning-m1-002": "vitest run tests/courses/course-enrollments.pg.spec.ts",
     "test:learning-m1-003": "vitest run tests/courses/activity-runs.pg.spec.ts",
+    "test:learning-m1-004": "vitest run tests/courses/activity-participations.pg.spec.ts",
     "admin:verify-owner": "node tools/platform-admin.mjs",
     "admin:grant-owner": "node tools/platform-admin.mjs --grant",
     "test:migration:embedded": "vitest run tests/migration/migrate.integration.spec.ts",
