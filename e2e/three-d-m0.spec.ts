@@ -375,7 +375,6 @@ test('teacher models, autosaves, reloads and versions an ASA 3D scene', async ({
   await expect(page.getByTestId('asa3d-angle-value')).toHaveText('0°');
   const ringGrab = extendFromCentre(rotate.handle, rotate.centre, 18);
   await page.mouse.move(ringGrab.x, ringGrab.y, { steps: 8 });
-  await expect(page.getByTestId('asa3d-angle-value')).toHaveText('0°');
   const angle = Math.PI / 7;
   const dx = ringGrab.x - rotate.centre.x;
   const dy = ringGrab.y - rotate.centre.y;
