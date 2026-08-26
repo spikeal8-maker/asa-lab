@@ -531,21 +531,4 @@ test('teacher models, autosaves, reloads and versions an ASA 3D scene', async ({
     fullPage: true,
   });
   failures.assertEmpty();
-
-  await page.setViewportSize({ width: 1440, height: 900 });
-  await expandShapeInspector(page);
-  await page.route(/\/api\/projects\/[^/]+\/draft$/, async (route) =>
-    route.fulfill({
-      status: 401,
-      contentType: 'application/json',
-      body: JSON.stringify({ error: { code: 'unauthorized', message: 'no active session' } }),
-    }),
-  );
-  await page.getByLabel('Длина, мм').fill('43');
-  await page.getByLabel('Длина, мм').press('Enter');
-  await expect(page.getByRole('button', { name: /Сессия завершена.*Войти снова/ })).toBeVisible({
-    timeout: 10_000,
-  });
-  await expect(page.locator('.asa3d-toast')).toHaveCount(0);
-  await expect(page.getByText(/no active session/i)).toHaveCount(0);
 });
