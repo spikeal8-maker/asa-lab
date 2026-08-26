@@ -111,6 +111,7 @@ nodes:
   - {id: TASK-R3A-ELECTRONICS-GATEWAY-001, label: R3A Electronics Gateway, kind: task, layer: delivery, status: done, summary: "Existing Module Registry, shared Editor Host and module-neutral Project lifecycle verified.", phase: PHASE-R3, issue: https://github.com/spikeal8-maker/asa-lab/issues/63}
   - {id: TASK-ELECTRONICS-M1-001, label: R4 Electronics M1, kind: task, layer: delivery, status: blocked, summary: "Owner paused the open corrective PR #92 while Checkers M1 runs; no completion is claimed.", phase: PHASE-R4, issue: https://github.com/spikeal8-maker/asa-lab/issues/63}
   - {id: TASK-3D-M0-001, label: R10-M1 3D Foundation, kind: task, layer: delivery, status: done, summary: "PR #95 merged into main; the Portal creates ASA 3D projects and the saved WebGL scene reloads through Project Core.", phase: PHASE-R10, issue: https://github.com/spikeal8-maker/asa-lab/issues/94}
+  - {id: TASK-3D-OPT-0-001, label: 3D OPT-0 Geometry Baseline, kind: task, layer: delivery, status: planned, summary: "Issue #162 records a deterministic geometry corpus and benchmark receipt before any CSG runtime replacement; live execution state remains in current.yaml.", phase: PHASE-R10, issue: https://github.com/spikeal8-maker/asa-lab/issues/162}
   - {id: TASK-CHECKERS-M1-001, label: R11-M1 Educational Russian Draughts, kind: task, layer: delivery, status: done, summary: "Independent Checkers system from Issue #98: rules, learning, teacher work, bots, review and safe class play.", phase: PHASE-R11, issue: https://github.com/spikeal8-maker/asa-lab/issues/98}
   - {id: TASK-ADMIN-AUTH-STABILITY-001, label: Admin Auth and MAX Stability, kind: task, layer: delivery, status: in_progress, summary: "Integrated Admin access, durable sessions, production MAX verification and reproducible runtime recovery.", phase: PHASE-PILOT, issue: https://github.com/spikeal8-maker/asa-lab/issues/135}
   - {id: TASK-R3, label: R3 Project Lifecycle, kind: task, layer: delivery, status: blocked, summary: "Roadmap alias; not executable.", phase: PHASE-R3, issue: https://github.com/spikeal8-maker/asa-lab/issues/37}
@@ -201,6 +202,7 @@ edges:
   - {from: TRACK-ROADMAP, to: TASK-R3A-ELECTRONICS-GATEWAY-001, type: contains}
   - {from: TRACK-ROADMAP, to: TASK-ELECTRONICS-M1-001, type: contains}
   - {from: TRACK-ROADMAP, to: TASK-3D-M0-001, type: contains}
+  - {from: TRACK-ROADMAP, to: TASK-3D-OPT-0-001, type: contains}
   - {from: TRACK-ROADMAP, to: TASK-CHECKERS-M1-001, type: contains}
   - {from: TRACK-ROADMAP, to: TASK-ADMIN-AUTH-STABILITY-001, type: contains}
   - {from: TRACK-ROADMAP, to: TASK-R3, type: contains}
@@ -213,6 +215,7 @@ edges:
   - {from: TASK-R3A-ELECTRONICS-GATEWAY-001, to: TASK-CREATOR-PORTAL-001, type: depends_on}
   - {from: TASK-ELECTRONICS-M1-001, to: TASK-R3A-ELECTRONICS-GATEWAY-001, type: depends_on}
   - {from: TASK-3D-M0-001, to: TASK-R3A-ELECTRONICS-GATEWAY-001, type: depends_on}
+  - {from: TASK-3D-OPT-0-001, to: TASK-3D-M0-001, type: depends_on}
   - {from: TASK-CHECKERS-M1-001, to: TASK-CREATOR-PORTAL-001, type: depends_on}
   - {from: TASK-CHECKERS-M1-001, to: TASK-R3A-ELECTRONICS-GATEWAY-001, type: depends_on}
   - {from: TASK-ADMIN-AUTH-STABILITY-001, to: TASK-ACCOUNT-C1-001, type: depends_on}
@@ -227,6 +230,7 @@ edges:
   - {from: TASK-R3A-ELECTRONICS-GATEWAY-001, to: PHASE-R3, type: implements}
   - {from: TASK-ELECTRONICS-M1-001, to: PHASE-R4, type: implements}
   - {from: TASK-3D-M0-001, to: PHASE-R10, type: implements}
+  - {from: TASK-3D-OPT-0-001, to: PHASE-R10, type: implements}
   - {from: TASK-CHECKERS-M1-001, to: PHASE-R11, type: implements}
   - {from: TASK-ADMIN-AUTH-STABILITY-001, to: PHASE-PILOT, type: implements}
   - {from: TASK-R3, to: PHASE-R3, type: implements}

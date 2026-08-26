@@ -1,5 +1,9 @@
 import * as THREE from 'three';
+// Test-only fixtures intentionally live beside the bounded context; production
+// web code never imports this corpus.
+// eslint-disable-next-line @nx/enforce-module-boundaries
 import type { ThreeDGeometryCase } from '../../../../../contexts/three-d/testing/corpus/expectations';
+// eslint-disable-next-line @nx/enforce-module-boundaries
 import { PRINTABLE_TOLERANCE_V1 } from '../../../../../contexts/three-d/testing/corpus/expectations';
 import { createBooleanGeometry } from '../viewport/csg';
 

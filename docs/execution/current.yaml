@@ -176,7 +176,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: opt_0_activated
+      checkpoint: opt_0_baseline_measured_owner_evidence_pending
       owner_acceptance: pending
     revisions:
       convergence_baseline_sha: 2c0da5e260677d62898e1f63832262e272260ce4
