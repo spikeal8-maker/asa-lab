@@ -1,6 +1,24 @@
 name: 3D M0 Focused
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'contexts/three-d/**'
+      - 'apps/api/src/module-registry.ts'
+      - 'apps/api/src/three-d.controller.spec.ts'
+      - 'apps/web/src/modules/**'
+      - 'apps/web/src/three-d/**'
+      - 'apps/web/vite.config.ts'
+      - 'apps/web/tsconfig.json'
+      - 'e2e/three-d-m0.spec.ts'
+      - 'tests/three-d/**'
+      - 'tools/run-three-d-benchmark.mjs'
+      - 'docs/product/ASA_3D_OPTIMIZATION_EXECUTION_PLAN.md'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/three-d-m0-focused.yml'
   pull_request:
     paths:
       - 'contexts/three-d/**'
@@ -11,6 +29,9 @@ on:
       - 'apps/web/vite.config.ts'
       - 'apps/web/tsconfig.json'
       - 'e2e/three-d-m0.spec.ts'
+      - 'tests/three-d/**'
+      - 'tools/run-three-d-benchmark.mjs'
+      - 'docs/product/ASA_3D_OPTIMIZATION_EXECUTION_PLAN.md'
       - 'package.json'
       - 'pnpm-lock.yaml'
       - '.github/workflows/three-d-m0-focused.yml'

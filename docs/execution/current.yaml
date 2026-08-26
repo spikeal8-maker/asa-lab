@@ -165,6 +165,7 @@ parallel_lanes:
       - apps/web/src/three-d/**
       - e2e/three-d-m0.spec.ts
       - e2e/artifacts/three-d/**
+      - tests/three-d/**
       - docs/product/ASA_3D_OPTIMIZATION_EXECUTION_PLAN.md
       - tools/run-three-d-benchmark.mjs
     task:
@@ -190,9 +191,7 @@ parallel_lanes:
       focused:
         workflow: 3D M0 Focused
         commands:
-          # OPT-0 adds pnpm test:three-d:corpus in the implementation package;
-          # until then the existing focused baseline remains authoritative.
-          - pnpm test:three-d
+          - pnpm test:three-d:corpus
       browser:
         workflow: 3D M0 Focused
         commands:
