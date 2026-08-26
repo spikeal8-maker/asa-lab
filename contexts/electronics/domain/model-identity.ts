@@ -16,6 +16,7 @@ export type ElectricalModelId =
   | 'pnp-transistor'
   | 'n-channel-fet'
   | 'incandescent-lamp'
+  | 'dc-motor'
   | 'breadboard-connectivity'
   | 'arduino-uno'
   | 'ideal-wire'
@@ -50,6 +51,7 @@ const KNOWN_MODEL_IDS: ReadonlySet<string> = new Set<ElectricalModelId>([
   'pnp-transistor',
   'n-channel-fet',
   'incandescent-lamp',
+  'dc-motor',
   'breadboard-connectivity',
   'arduino-uno',
   'ideal-wire',
@@ -74,6 +76,7 @@ const EXACT_IDENTITIES: Readonly<Record<string, ElectricalModelIdentity>> = {
   'transistor-pnp': identity('pnp-transistor', 'generic-pnp-to92'),
   'transistor-fet': identity('n-channel-fet', 'generic-n-channel-fet-to92'),
   'incandescent-lamp': identity('incandescent-lamp', 'generic-incandescent-lamp'),
+  'dc-motor': identity('dc-motor', 'generic-dc-motor-static'),
   'breadboard-small': identity('breadboard-connectivity', 'breadboard-small'),
   'breadboard-medium': identity('breadboard-connectivity', 'breadboard-medium'),
   'breadboard-large': identity('breadboard-connectivity', 'breadboard-large'),
@@ -153,6 +156,18 @@ export function electricalModelIdentityForComponent(
     component.modelProfileId &&
     component.modelProfileVersion
   ) {
+    // Schema v4 documents saved before the motor model existed contain the
+    // exact placeholder identity below. Upgrade only that known placeholder;
+    // unknown/future identities must remain fail-closed.
+    if (
+      component.componentTypeId === 'dc-motor' &&
+      component.electricalModelId === 'unsupported' &&
+      component.electricalModelVersion === 1 &&
+      component.modelProfileId === 'unsupported-dc-motor' &&
+      component.modelProfileVersion === 1
+    ) {
+      return resolveElectricalModelIdentity(component);
+    }
     return {
       electricalModelId: component.electricalModelId,
       electricalModelVersion: component.electricalModelVersion,

@@ -1,6 +1,6 @@
 # Графические, учебные и эталонные материалы
 
-Copyright (C) 2026 Alex Al and respective rights holders. All rights reserved.
+Copyright (C) 2026 Аликин Александр Сергеевич (Alexander Alikin) and respective rights holders. All rights reserved.
 
 Если отдельный файл или сопроводительное уведомление не устанавливает иное,
 материалы, перечисленные ниже, **не** распространяются по GNU AGPL v3 и не

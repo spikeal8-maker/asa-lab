@@ -198,6 +198,7 @@ const SIMULATED_TYPES = new Set([
   'seven-segment-display',
   'piezo-passive-buzzer',
   'piezo-disc',
+  'dc-motor',
 ]);
 
 const COMPONENT_DESCRIPTIONS: Readonly<Record<string, string>> = {
@@ -403,6 +404,16 @@ function defaults(componentId: string): {
       value: 24,
       unit: 'Ом',
       properties: { lampLevel: 'off', resistanceUnit: 'Ω' },
+    };
+  if (componentId === 'dc-motor')
+    return {
+      value: 6,
+      unit: 'В',
+      properties: {
+        nominalVoltage: 6,
+        effectiveResistanceOhm: 85.71428571428571,
+        maxCurrentAmp: 0.5,
+      },
     };
   return { value: 0, unit: '', properties: { simulationStatus: 'not_yet_supported' } };
 }
