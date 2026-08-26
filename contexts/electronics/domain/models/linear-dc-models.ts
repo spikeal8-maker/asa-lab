@@ -1,0 +1,141 @@
+import type { SchematicComponent } from '../document.js';
+import {
+  componentModelIdentityIsInstalled,
+  electricalModelIdentityForComponent,
+} from '../model-identity.js';
+import type { DeviceModel, NormalizedDevice } from './device-model.js';
+
+const CLOSED_RESISTANCE_OHM = 1e-4;
+const LEGACY_SOURCE_RESISTANCE_OHM = 1e-12;
+const FRESH_AA_INTERNAL_RESISTANCE_OHM = 0.225;
+const FRESH_CR2032_INTERNAL_RESISTANCE_OHM = 13;
+const DEFAULT_RESISTOR_POWER_RATING_W = 0.25;
+
+export interface ResistorParameters {
+  readonly resistanceOhm: number;
+  readonly powerRatingWatt: number;
+}
+
+export interface SourceParameters {
+  readonly emfVolt: number;
+  readonly internalResistanceOhm: number;
+  readonly continuousCurrentAmp: number;
+}
+
+export function sourceInternalResistanceOhm(component: SchematicComponent): number {
+  const configured = Number(component.stateProperties?.['internalResistanceOhm']);
+  if (Number.isFinite(configured) && configured > 0) return configured;
+  const typeId = component.componentTypeId ?? '';
+  const holder = /^battery-holder-aa-(\d+)$/.exec(typeId);
+  if (holder) return Math.max(1, Number(holder[1])) * FRESH_AA_INTERNAL_RESISTANCE_OHM;
+  if (typeId === 'battery-3v') return FRESH_CR2032_INTERNAL_RESISTANCE_OHM;
+  if (!typeId) return LEGACY_SOURCE_RESISTANCE_OHM;
+  return 0.1;
+}
+
+export function sourceContinuousCurrentAmp(component: SchematicComponent): number {
+  const configured = Number(component.stateProperties?.['maxContinuousCurrentAmp']);
+  if (Number.isFinite(configured) && configured > 0) return configured;
+  const typeId = component.componentTypeId ?? '';
+  if (typeId === 'battery-3v') return 0.003;
+  if (/^battery-holder-aa-\d+$/.test(typeId)) return 1;
+  return 1;
+}
+
+export function resistorPowerRatingWatt(component: SchematicComponent): number {
+  const configured = Number(component.stateProperties?.['powerRatingWatt']);
+  return Number.isFinite(configured) && configured > 0
+    ? configured
+    : DEFAULT_RESISTOR_POWER_RATING_W;
+}
+
+export const RESISTOR_DEVICE_MODEL: DeviceModel<ResistorParameters> = {
+  id: 'resistor',
+  version: 1,
+  analyses: ['dc'],
+  validate(component) {
+    return Number.isFinite(component.value) && component.value >= 0
+      ? []
+      : [{ code: 'invalid_resistance', message: 'Сопротивление должно быть конечным.' }];
+  },
+  normalize(component) {
+    return {
+      componentId: component.id,
+      component,
+      parameters: {
+        resistanceOhm: Math.max(CLOSED_RESISTANCE_OHM, component.value),
+        powerRatingWatt: resistorPowerRatingWatt(component),
+      },
+    };
+  },
+  stampDc(context, instance) {
+    const left = context.node(instance.component, 'a');
+    const right = context.node(instance.component, 'b');
+    context.stampConductance(left, right, 1 / instance.parameters.resistanceOhm);
+  },
+};
+
+export const SOURCE_DEVICE_MODEL: DeviceModel<SourceParameters> = {
+  id: 'ideal-dc-source',
+  version: 1,
+  analyses: ['dc'],
+  validate(component) {
+    return Number.isFinite(component.value) && component.value > 0
+      ? []
+      : [{ code: 'invalid_voltage', message: 'Напряжение должно быть больше нуля.' }];
+  },
+  normalize(component) {
+    return {
+      componentId: component.id,
+      component,
+      parameters: {
+        emfVolt: component.value,
+        internalResistanceOhm: sourceInternalResistanceOhm(component),
+        continuousCurrentAmp: sourceContinuousCurrentAmp(component),
+      },
+    };
+  },
+  stampDc(context, instance) {
+    const positive = context.node(instance.component, 'a');
+    const negative = context.node(instance.component, 'b');
+    context.stampVoltageSource(
+      instance.componentId,
+      positive,
+      negative,
+      instance.parameters.emfVolt,
+      instance.parameters.internalResistanceOhm,
+    );
+  },
+};
+
+export interface ResistorDevice {
+  readonly model: typeof RESISTOR_DEVICE_MODEL;
+  readonly instance: NormalizedDevice<ResistorParameters>;
+}
+
+export interface SourceDevice {
+  readonly model: typeof SOURCE_DEVICE_MODEL;
+  readonly instance: NormalizedDevice<SourceParameters>;
+}
+
+export type LinearDcDevice = ResistorDevice | SourceDevice;
+
+export function isResistorDevice(device: LinearDcDevice): device is ResistorDevice {
+  return device.model === RESISTOR_DEVICE_MODEL;
+}
+
+export function isSourceDevice(device: LinearDcDevice): device is SourceDevice {
+  return device.model === SOURCE_DEVICE_MODEL;
+}
+
+export function createLinearDcDevice(component: SchematicComponent): LinearDcDevice | null {
+  if (!componentModelIdentityIsInstalled(component)) return null;
+  const identity = electricalModelIdentityForComponent(component);
+  if (identity.electricalModelId === RESISTOR_DEVICE_MODEL.id) {
+    return { model: RESISTOR_DEVICE_MODEL, instance: RESISTOR_DEVICE_MODEL.normalize(component) };
+  }
+  if (identity.electricalModelId === SOURCE_DEVICE_MODEL.id) {
+    return { model: SOURCE_DEVICE_MODEL, instance: SOURCE_DEVICE_MODEL.normalize(component) };
+  }
+  return null;
+}

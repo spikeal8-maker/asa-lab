@@ -23,6 +23,17 @@ import {
   type LedJunctionProfile,
   type LedLinearSegment,
 } from './led-model.js';
+import type { DcStampContext } from './models/device-model.js';
+import {
+  createLinearDcDevice,
+  isResistorDevice,
+  isSourceDevice,
+  resistorPowerRatingWatt,
+  sourceContinuousCurrentAmp,
+  sourceInternalResistanceOhm,
+} from './models/linear-dc-models.js';
+
+export { sourceInternalResistanceOhm } from './models/linear-dc-models.js';
 
 export type DiagnosticCode =
   | 'circuit_ok'
@@ -140,7 +151,6 @@ const SEVEN_SEGMENT_ON_RESISTANCE = 8;
 const LED_NOMINAL_CURRENT_A = 0.02;
 const LED_WARNING_RATIO = 0.8;
 const RESISTOR_WARNING_RATIO = 0.8;
-const DEFAULT_RESISTOR_POWER_RATING_W = 0.25;
 const LAMP_MIN_POWER_W = 0.001;
 const LAMP_NOMINAL_POWER_W = 1.5;
 const SHORT_CIRCUIT_CURRENT_A = 5;
@@ -159,36 +169,6 @@ const FET_MIN_OHMIC_CONDUCTANCE = 1e-4;
 // confirmed time-varying Arduino output.
 const PIEZO_DC_RESISTANCE_OHM = 100_000_000;
 const DC_MOTOR_EFFECTIVE_RESISTANCE_OHM = 6 / 0.07;
-const LEGACY_SOURCE_RESISTANCE_OHM = 1e-12;
-// Energizer E91 specifies 150–300 mOhm nominal IR for a fresh AA cell. The
-// generic holder profile uses the midpoint and adds cells in series.
-const FRESH_AA_INTERNAL_RESISTANCE_OHM = 0.225;
-// Energizer's CR2032 comparison sheet shows about 13 ohm for a fresh cell.
-const FRESH_CR2032_INTERNAL_RESISTANCE_OHM = 13;
-
-export function sourceInternalResistanceOhm(component: SchematicComponent): number {
-  const configured = Number(component.stateProperties?.['internalResistanceOhm']);
-  if (Number.isFinite(configured) && configured > 0) return configured;
-  const typeId = component.componentTypeId ?? '';
-  const holder = /^battery-holder-aa-(\d+)$/.exec(typeId);
-  if (holder) return Math.max(1, Number(holder[1])) * FRESH_AA_INTERNAL_RESISTANCE_OHM;
-  if (typeId === 'battery-3v') return FRESH_CR2032_INTERNAL_RESISTANCE_OHM;
-  // Legacy fixtures remain numerically indistinguishable from ideal sources,
-  // but their current is still finite for every topology.
-  if (!typeId) return LEGACY_SOURCE_RESISTANCE_OHM;
-  // Until a type-specific profile is calibrated, use an explicit educational
-  // finite value rather than an infinite short-circuit current.
-  return 0.1;
-}
-
-function sourceContinuousCurrentAmp(component: SchematicComponent): number {
-  const configured = Number(component.stateProperties?.['maxContinuousCurrentAmp']);
-  if (Number.isFinite(configured) && configured > 0) return configured;
-  const typeId = component.componentTypeId ?? '';
-  if (typeId === 'battery-3v') return 0.003;
-  if (/^battery-holder-aa-\d+$/.test(typeId)) return 1;
-  return 1;
-}
 
 function damageObservationForStress(
   stressState: ComponentResult['stressState'],
@@ -639,13 +619,6 @@ function propertyError(component: SchematicComponent): string | null {
   return null;
 }
 
-function resistorPowerRatingWatt(component: SchematicComponent): number {
-  const configured = Number(component.stateProperties?.['powerRatingWatt']);
-  return Number.isFinite(configured) && configured > 0
-    ? configured
-    : DEFAULT_RESISTOR_POWER_RATING_W;
-}
-
 function withDiagnosticAnchors(diagnostic: Diagnostic): Diagnostic {
   if (diagnostic.anchors) return diagnostic;
   const anchors: DiagnosticAnchor[] = [
@@ -662,7 +635,12 @@ export function solveCircuit(
 ): SolveResult {
   const diagnostics: Diagnostic[] = [];
   const netlist = buildNetlist(document);
-  const sources = document.components.filter((component) => component.kind === 'source');
+  const linearDcDevices = document.components.flatMap((component) => {
+    const device = createLinearDcDevice(component);
+    return device ? [device] : [];
+  });
+  const sourceDevices = linearDcDevices.filter(isSourceDevice);
+  const sources = sourceDevices.map((device) => device.instance.component);
   const arduinoBranches = document.components.flatMap((component) =>
     arduinoOutputBranches(component, options.simulationTimeMs ?? 0).map((branch) => ({
       component,
@@ -878,6 +856,30 @@ export function solveCircuit(
       if (on !== undefined && cp !== undefined) matrix[on]![cp] -= transconductance;
       if (on !== undefined && cn !== undefined) matrix[on]![cn] += transconductance;
     };
+    const sourcePositionById = new Map(sources.map((source, index) => [source.id, index]));
+    const modelStampContext: DcStampContext = {
+      node(component, terminal) {
+        return nodeIndex(component, terminal as LogicalTerminal);
+      },
+      stampConductance,
+      stampVoltageSource(componentId, positive, negative, voltage, seriesResistance) {
+        const sourcePosition = sourcePositionById.get(componentId);
+        if (sourcePosition === undefined) return;
+        const row = nodeVariableCount + sourcePosition;
+        const positiveIndex = nodeVariables.get(positive);
+        const negativeIndex = nodeVariables.get(negative);
+        if (positiveIndex !== undefined) {
+          matrix[positiveIndex]![row] += 1;
+          matrix[row]![positiveIndex] += 1;
+        }
+        if (negativeIndex !== undefined) {
+          matrix[negativeIndex]![row] -= 1;
+          matrix[row]![negativeIndex] -= 1;
+        }
+        matrix[row]![row] -= seriesResistance;
+        rhs[row] = voltage;
+      },
+    };
 
     for (const variable of nodeVariables.values()) matrix[variable]![variable] += GMIN;
     for (const branch of arduinoBranches) {
@@ -894,9 +896,8 @@ export function solveCircuit(
         continue;
       const a = nodeIndex(component, 'a');
       const b = nodeIndex(component, 'b');
-      if (component.kind === 'resistor') {
-        stampConductance(a, b, 1 / Math.max(CLOSED_RESISTANCE, component.value));
-      } else if (component.kind === 'photoresistor') {
+      if (component.kind === 'resistor') continue;
+      if (component.kind === 'photoresistor') {
         stampConductance(a, b, 1 / photoresistorResistanceOhm(component));
       } else if (component.kind === 'piezo') {
         stampConductance(a, b, 1 / PIEZO_DC_RESISTANCE_OHM);
@@ -920,6 +921,10 @@ export function solveCircuit(
           1 / Math.max(CLOSED_RESISTANCE, component.value * (1 - position)),
         );
       }
+    }
+
+    for (const device of linearDcDevices.filter(isResistorDevice)) {
+      device.model.stampDc(modelStampContext, device.instance);
     }
 
     for (const branch of diodeBranches) {
@@ -1003,23 +1008,7 @@ export function solveCircuit(
       }
     }
 
-    for (const [sourcePosition, source] of sources.entries()) {
-      const a = nodeIndex(source, 'a');
-      const b = nodeIndex(source, 'b');
-      const row = nodeVariableCount + sourcePosition;
-      const ai = nodeVariables.get(a);
-      const bi = nodeVariables.get(b);
-      if (ai !== undefined) {
-        matrix[ai]![row] += 1;
-        matrix[row]![ai] += 1;
-      }
-      if (bi !== undefined) {
-        matrix[bi]![row] -= 1;
-        matrix[row]![bi] -= 1;
-      }
-      matrix[row]![row] -= sourceInternalResistanceOhm(source);
-      rhs[row] = source.value;
-    }
+    for (const device of sourceDevices) device.model.stampDc(modelStampContext, device.instance);
 
     finalMatrix = matrix;
     finalRhs = rhs;

@@ -54,6 +54,24 @@ export {
   type ElectricalModelSupport,
   type ElectricalTerminalContractResult,
 } from './domain/model-registry.js';
+export type {
+  DcStampContext,
+  DeviceModel,
+  ModelIssue,
+  NormalizedDevice,
+} from './domain/models/device-model.js';
+export {
+  createLinearDcDevice,
+  isResistorDevice,
+  isSourceDevice,
+  resistorPowerRatingWatt,
+  sourceContinuousCurrentAmp,
+  RESISTOR_DEVICE_MODEL,
+  SOURCE_DEVICE_MODEL,
+  type LinearDcDevice,
+  type ResistorParameters,
+  type SourceParameters,
+} from './domain/models/linear-dc-models.js';
 export {
   photoresistorIllumination,
   photoresistorResistanceOhm,
