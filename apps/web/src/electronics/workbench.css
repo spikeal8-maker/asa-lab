@@ -2194,24 +2194,6 @@
   background: #fff;
   color: #067eae;
 }
-.workbench-inspector-diagnostic-badge {
-  position: absolute;
-  top: -6px;
-  right: -6px;
-  display: grid;
-  width: 14px;
-  height: 14px;
-  place-items: center;
-  border: 1px solid #fff;
-  border-radius: 50%;
-  background: #d98b00;
-  color: #fff !important;
-  font-size: 9px !important;
-  line-height: 1;
-}
-.workbench-inspector-diagnostic-badge[data-severity='error'] {
-  background: #c83c32;
-}
 .workbench-inspector-help-popover {
   padding: 8px 10px;
   border-bottom: 1px solid #c5cfd9;
@@ -2610,37 +2592,6 @@
   fill: #f22f24;
   stroke: #ff7a00;
   stroke-width: 1.5;
-}
-.workbench-component-diagnostic-tooltip {
-  visibility: hidden;
-  opacity: 0;
-  overflow: visible;
-  transition: opacity 100ms ease-out;
-}
-.workbench-component-diagnostic-tooltip > div {
-  box-sizing: border-box;
-  display: grid;
-  gap: 5px;
-  width: 100%;
-  max-height: 100%;
-  padding: 10px 12px;
-  border-radius: 4px;
-  background: #40576d;
-  color: #fff;
-  box-shadow: 0 4px 12px rgba(25, 40, 52, 0.32);
-  line-height: 1.25;
-  text-align: center;
-}
-.workbench-component-diagnostic-tooltip strong,
-.workbench-component-diagnostic-tooltip small {
-  display: block;
-  color: inherit;
-  font-size: inherit;
-}
-.workbench-component-diagnostic-indicator:hover .workbench-component-diagnostic-tooltip,
-.workbench-component-diagnostic-indicator:focus .workbench-component-diagnostic-tooltip {
-  visibility: visible;
-  opacity: 1;
 }
 .workbench-potentiometer-hit {
   fill: rgba(255, 255, 255, 0.001);

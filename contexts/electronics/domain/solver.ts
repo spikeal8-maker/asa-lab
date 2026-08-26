@@ -35,6 +35,7 @@ export type DiagnosticCode =
   | 'reverse_polarity'
   | 'resistor_near_limit'
   | 'resistor_overload'
+  | 'source_overload'
   | 'led_near_limit'
   | 'led_overcurrent'
   | 'led_burnout'
@@ -46,6 +47,16 @@ export type DiagnosticCode =
   | 'nonconvergent_topology';
 export type DiagnosticSeverity = 'info' | 'warning' | 'error';
 export type SimulationSolveStatus = 'solved' | 'invalid' | 'unsupported' | 'nonconvergent';
+export type DeviceHealth =
+  | 'normal'
+  | 'warning'
+  | 'overheated'
+  | 'failed_open'
+  | 'failed_short'
+  | 'stalled'
+  | 'reverse_damaged';
+export type DamageState = 'none' | 'destructive_preview' | 'failed';
+export type PresentationState = 'normal' | 'warning' | 'destructive' | 'failed' | 'stalled';
 
 export interface Diagnostic {
   readonly code: DiagnosticCode;
@@ -77,6 +88,18 @@ export interface ComponentResult {
   readonly currentUtilizationPercent?: number;
   readonly powerUtilizationPercent?: number;
   readonly stressState?: 'normal' | 'warning' | 'overcurrent' | 'burned';
+  /** Physical state returned by the model; it is not a solver failure status. */
+  readonly deviceHealth?: DeviceHealth;
+  /** Static DC currently reports a preview; accumulated failure starts with transient analysis. */
+  readonly damageState?: DamageState;
+  /** Minimal on-component visual selected from calculated observations. */
+  readonly presentationState?: PresentationState;
+  /** Effective series resistance used to calculate source voltage sag. */
+  readonly internalResistanceOhm?: number;
+  /** Heat dissipated inside the source at the current operating point. */
+  readonly internalPower?: number;
+  /** Difference between open-circuit EMF and loaded terminal voltage. */
+  readonly voltageSag?: number;
   readonly operatingRegion?: 'cutoff' | 'active' | 'saturation' | 'ohmic';
   readonly baseCurrent?: number;
   readonly collectorCurrent?: number;
@@ -136,6 +159,63 @@ const FET_MIN_OHMIC_CONDUCTANCE = 1e-4;
 // confirmed time-varying Arduino output.
 const PIEZO_DC_RESISTANCE_OHM = 100_000_000;
 const DC_MOTOR_EFFECTIVE_RESISTANCE_OHM = 6 / 0.07;
+const LEGACY_SOURCE_RESISTANCE_OHM = 1e-12;
+// Energizer E91 specifies 150–300 mOhm nominal IR for a fresh AA cell. The
+// generic holder profile uses the midpoint and adds cells in series.
+const FRESH_AA_INTERNAL_RESISTANCE_OHM = 0.225;
+// Energizer's CR2032 comparison sheet shows about 13 ohm for a fresh cell.
+const FRESH_CR2032_INTERNAL_RESISTANCE_OHM = 13;
+
+export function sourceInternalResistanceOhm(component: SchematicComponent): number {
+  const configured = Number(component.stateProperties?.['internalResistanceOhm']);
+  if (Number.isFinite(configured) && configured > 0) return configured;
+  const typeId = component.componentTypeId ?? '';
+  const holder = /^battery-holder-aa-(\d+)$/.exec(typeId);
+  if (holder) return Math.max(1, Number(holder[1])) * FRESH_AA_INTERNAL_RESISTANCE_OHM;
+  if (typeId === 'battery-3v') return FRESH_CR2032_INTERNAL_RESISTANCE_OHM;
+  // Legacy fixtures remain numerically indistinguishable from ideal sources,
+  // but their current is still finite for every topology.
+  if (!typeId) return LEGACY_SOURCE_RESISTANCE_OHM;
+  // Until a type-specific profile is calibrated, use an explicit educational
+  // finite value rather than an infinite short-circuit current.
+  return 0.1;
+}
+
+function sourceContinuousCurrentAmp(component: SchematicComponent): number {
+  const configured = Number(component.stateProperties?.['maxContinuousCurrentAmp']);
+  if (Number.isFinite(configured) && configured > 0) return configured;
+  const typeId = component.componentTypeId ?? '';
+  if (typeId === 'battery-3v') return 0.003;
+  if (/^battery-holder-aa-\d+$/.test(typeId)) return 1;
+  return 1;
+}
+
+function damageObservationForStress(
+  stressState: ComponentResult['stressState'],
+): Pick<ComponentResult, 'deviceHealth' | 'damageState' | 'presentationState'> {
+  switch (stressState) {
+    case 'warning':
+      return { deviceHealth: 'warning', damageState: 'none', presentationState: 'warning' };
+    case 'overcurrent':
+      return {
+        deviceHealth: 'warning',
+        damageState: 'destructive_preview',
+        presentationState: 'destructive',
+      };
+    case 'burned':
+      // The current DC solver has no thermal clock. Preserve the visible danger
+      // without falsely claiming that an accumulated, persistent failure has
+      // already happened; MATH-4 promotes this preview to a real failed state.
+      return {
+        deviceHealth: 'overheated',
+        damageState: 'destructive_preview',
+        presentationState: 'destructive',
+      };
+    case 'normal':
+    default:
+      return { deviceHealth: 'normal', damageState: 'none', presentationState: 'normal' };
+  }
+}
 
 function isDcMotor(component: SchematicComponent): boolean {
   return component.componentTypeId === 'dc-motor';
@@ -660,26 +740,7 @@ export function solveCircuit(
     return empty('invalid');
   }
 
-  for (const source of sources) {
-    const a = netlist.nodeOf.get(terminalKey(source.id, logicalTerminal(source, 'a')));
-    const b = netlist.nodeOf.get(terminalKey(source.id, logicalTerminal(source, 'b')));
-    if (a === undefined || b === undefined || a === b) {
-      diagnostics.push({
-        code: 'short_circuit',
-        severity: 'error',
-        message: 'Выводы источника соединены одной идеальной сетью — короткое замыкание.',
-        componentIds: [source.id],
-        netIds: a === undefined ? [] : [`net-${a}`],
-        suggestedAction: 'Разорвите прямое соединение и добавьте нагрузку.',
-      });
-      return empty('invalid');
-    }
-  }
-
-  const sourceByNodePair = new Map<
-    string,
-    { readonly sourceId: string; readonly orientedVoltage: number }
-  >();
+  const directlyShortedSourceIds = new Set<string>();
   for (const source of sources) {
     const positive = netlist.nodeOf.get(
       terminalKey(source.id, logicalTerminal(source, 'a')),
@@ -687,31 +748,8 @@ export function solveCircuit(
     const negative = netlist.nodeOf.get(
       terminalKey(source.id, logicalTerminal(source, 'b')),
     ) as number;
-    const low = Math.min(positive, negative);
-    const high = Math.max(positive, negative);
-    const key = `${low}:${high}`;
-    const orientedVoltage = positive === low ? source.value : -source.value;
-    const existing = sourceByNodePair.get(key);
-    if (!existing) {
-      sourceByNodePair.set(key, { sourceId: source.id, orientedVoltage });
-      continue;
-    }
-    const sameVoltage = Math.abs(existing.orientedVoltage - orientedVoltage) <= 1e-9;
-    diagnostics.push({
-      code: sameVoltage ? 'unsupported_topology' : 'conflicting_sources',
-      severity: 'error',
-      message: sameVoltage
-        ? 'Параллельные идеальные источники не имеют однозначного распределения токов.'
-        : 'Источники задают разные напряжения между одной парой электрических сетей.',
-      componentIds: [existing.sourceId, source.id],
-      netIds: [`net-${low}`, `net-${high}`],
-      suggestedAction: sameVoltage
-        ? 'Оставьте один источник или добавьте подтверждённые внутренние сопротивления.'
-        : 'Разъедините конфликтующие источники и проверьте их полярность.',
-    });
-    return empty(sameVoltage ? 'unsupported' : 'invalid');
+    if (positive === negative) directlyShortedSourceIds.add(source.id);
   }
-
   // Every disconnected electrical island needs its own voltage reference.
   // Using one global reference forces unrelated loose parts and open sources
   // through tiny GMIN paths. That makes an otherwise ordinary circuit badly
@@ -979,6 +1017,7 @@ export function solveCircuit(
         matrix[bi]![row] -= 1;
         matrix[row]![bi] -= 1;
       }
+      matrix[row]![row] -= sourceInternalResistanceOhm(source);
       rhs[row] = source.value;
     }
 
@@ -1341,34 +1380,46 @@ export function solveCircuit(
               ),
             )
           : undefined;
+      const sourceCurrentUtilizationPercent =
+        component.kind === 'source'
+          ? (Math.abs(current) / sourceContinuousCurrentAmp(component)) * 100
+          : undefined;
       const stressState =
-        powerUtilizationPercent !== undefined
-          ? powerUtilizationPercent > 200
+        sourceCurrentUtilizationPercent !== undefined
+          ? sourceCurrentUtilizationPercent > 200.000_001
             ? 'burned'
-            : powerUtilizationPercent > 100
+            : sourceCurrentUtilizationPercent > 100.000_001
               ? 'overcurrent'
-              : powerUtilizationPercent >= RESISTOR_WARNING_RATIO * 100
+              : sourceCurrentUtilizationPercent >= 80
                 ? 'warning'
                 : 'normal'
-          : branches.length === 0
-            ? undefined
-            : branchResults.some(
-                  ({ branch, current: branchCurrent }) =>
-                    Math.abs(branchCurrent) > branch.maxCurrent,
-                )
+          : powerUtilizationPercent !== undefined
+            ? powerUtilizationPercent > 200
               ? 'burned'
+              : powerUtilizationPercent > 100
+                ? 'overcurrent'
+                : powerUtilizationPercent >= RESISTOR_WARNING_RATIO * 100
+                  ? 'warning'
+                  : 'normal'
+            : branches.length === 0
+              ? undefined
               : branchResults.some(
                     ({ branch, current: branchCurrent }) =>
-                      Math.abs(branchCurrent) > branch.nominalCurrent,
+                      Math.abs(branchCurrent) > branch.maxCurrent,
                   )
-                ? 'overcurrent'
+                ? 'burned'
                 : branchResults.some(
                       ({ branch, current: branchCurrent }) =>
-                        branch.nearLimitWarning &&
-                        Math.abs(branchCurrent) >= branch.nominalCurrent * LED_WARNING_RATIO,
+                        Math.abs(branchCurrent) > branch.nominalCurrent,
                     )
-                  ? 'warning'
-                  : 'normal';
+                  ? 'overcurrent'
+                  : branchResults.some(
+                        ({ branch, current: branchCurrent }) =>
+                          branch.nearLimitWarning &&
+                          Math.abs(branchCurrent) >= branch.nominalCurrent * LED_WARNING_RATIO,
+                      )
+                    ? 'warning'
+                    : 'normal';
       const piezoTone =
         component.kind === 'piezo'
           ? (() => {
@@ -1409,15 +1460,28 @@ export function solveCircuit(
               ...(branches.length > 0 ? { branchBrightness } : {}),
             }
           : {}),
-        ...(currentUtilizationPercent === undefined || stressState === undefined
+        ...((currentUtilizationPercent ?? sourceCurrentUtilizationPercent) === undefined ||
+        stressState === undefined
           ? {}
           : {
-              currentUtilizationPercent: round(currentUtilizationPercent, 2),
+              currentUtilizationPercent: round(
+                currentUtilizationPercent ?? (sourceCurrentUtilizationPercent as number),
+                2,
+              ),
             }),
         ...(powerUtilizationPercent === undefined
           ? {}
           : { powerUtilizationPercent: round(powerUtilizationPercent, 2) }),
-        ...(stressState === undefined ? {} : { stressState }),
+        ...(stressState === undefined
+          ? {}
+          : { stressState, ...damageObservationForStress(stressState) }),
+        ...(component.kind === 'source'
+          ? {
+              internalResistanceOhm: round(sourceInternalResistanceOhm(component), 6),
+              internalPower: round(current * current * sourceInternalResistanceOhm(component)),
+              voltageSag: round(Math.abs(current) * sourceInternalResistanceOhm(component)),
+            }
+          : {}),
         ...(component.kind === 'led' ||
         component.kind === 'rgb-led' ||
         component.kind === 'seven-segment'
@@ -1563,7 +1627,7 @@ export function solveCircuit(
         severity: 'error',
         message:
           component.kind === 'led'
-            ? `Сила тока в светодиоде равна ${formatReferenceMilliamp(current)} (абсолютное максимальное значение — 20.0 mA).`
+            ? `Сила тока в светодиоде равна ${formatReferenceMilliamp(current)} (разрушительный предел — ${(burnedOut[0]!.maxCurrent * 1000).toFixed(0)} mA).`
             : `${component.name ?? component.id}: ток превысил разрушительный предел ${(burnedOut[0]!.maxCurrent * 1000).toFixed(0)} мА в ${burnedOut.map((branch) => branch.id).join(', ')}. Светодиод перегорел в этой рабочей точке.`,
         componentIds: [component.id],
         ...(component.kind === 'led'
@@ -1625,6 +1689,27 @@ export function solveCircuit(
     ...sources.map((source) => Math.abs(sourceCurrents.get(source.id) ?? 0)),
     ...arduinoBranches.map((branch) => Math.abs(currentDeliveredByArduinoBranch(branch))),
   );
+  for (const source of sources) {
+    const deliveredCurrent = Math.abs(sourceCurrents.get(source.id) ?? 0);
+    const currentLimit = sourceContinuousCurrentAmp(source);
+    const utilization = (deliveredCurrent / currentLimit) * 100;
+    if (utilization > 100.000_001) {
+      diagnostics.push({
+        code: 'source_overload',
+        severity: 'error',
+        message: `${source.name ?? source.id}: перегрузка ${formatReferenceMilliamp(deliveredCurrent)}.`,
+        componentIds: [source.id],
+      });
+    }
+    if (directlyShortedSourceIds.has(source.id)) {
+      diagnostics.push({
+        code: 'short_circuit',
+        severity: 'error',
+        message: `${source.name ?? source.id}: КЗ, ${formatReferenceMilliamp(deliveredCurrent)}.`,
+        componentIds: [source.id],
+      });
+    }
+  }
   if (totalSourceCurrent > SHORT_CIRCUIT_CURRENT_A) {
     diagnostics.push({
       code: 'short_circuit',

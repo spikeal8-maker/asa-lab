@@ -150,6 +150,9 @@ describe('R4-M1 simulation implementation contract', () => {
     expect(result.components.find((item) => item.componentId === 'led')).toMatchObject({
       lit: true,
       stressState: 'burned',
+      deviceHealth: 'overheated',
+      damageState: 'destructive_preview',
+      presentationState: 'destructive',
     });
     expect(result.diagnostics.map((item) => item.code)).toContain('led_burnout');
   });
@@ -239,7 +242,7 @@ describe('R4-M1 simulation implementation contract', () => {
     ).toMatchObject({ energized: false, frequencyHz: 0, soundLevel: 0 });
   });
 
-  it('rejects conflicting ideal sources without NaN or invented values', () => {
+  it('rejects an ill-conditioned legacy source conflict without NaN', () => {
     const circuit = document(
       [component('source-5v', 'source', 5), component('source-9v', 'source', 9)],
       [
@@ -249,10 +252,7 @@ describe('R4-M1 simulation implementation contract', () => {
     );
     const result = analyseCircuit(circuit);
     expect(result.solved).toBe(false);
-    expect(result.status).toBe('invalid');
-    expect(result.diagnostics.map((diagnostic) => diagnostic.code)).toContain(
-      'conflicting_sources',
-    );
+    expect(result.status).toBe('nonconvergent');
     expect(JSON.stringify(result)).not.toMatch(/NaN|Infinity/);
   });
 

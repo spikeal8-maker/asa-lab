@@ -959,6 +959,19 @@ export interface ComponentResult {
   currentUtilizationPercent?: number;
   powerUtilizationPercent?: number;
   stressState?: 'normal' | 'warning' | 'overcurrent' | 'burned';
+  deviceHealth?:
+    | 'normal'
+    | 'warning'
+    | 'overheated'
+    | 'failed_open'
+    | 'failed_short'
+    | 'stalled'
+    | 'reverse_damaged';
+  damageState?: 'none' | 'destructive_preview' | 'failed';
+  presentationState?: 'normal' | 'warning' | 'destructive' | 'failed' | 'stalled';
+  internalResistanceOhm?: number;
+  internalPower?: number;
+  voltageSag?: number;
   operatingRegion?: 'cutoff' | 'active' | 'saturation' | 'ohmic';
   baseCurrent?: number;
   collectorCurrent?: number;

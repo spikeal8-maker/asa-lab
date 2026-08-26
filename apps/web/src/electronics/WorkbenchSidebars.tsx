@@ -318,19 +318,6 @@ export function WorkbenchSidebars({
                   data-active={stateOpen}
                 >
                   i
-                  {selectedDiagnostics.length > 0 ? (
-                    <span
-                      className="workbench-inspector-diagnostic-badge"
-                      data-severity={
-                        selectedDiagnostics.some((diagnostic) => diagnostic.severity === 'error')
-                          ? 'error'
-                          : 'warning'
-                      }
-                      aria-hidden="true"
-                    >
-                      !
-                    </span>
-                  ) : null}
                 </button>
                 <button
                   type="button"
@@ -837,6 +824,24 @@ export function WorkbenchSidebars({
                     <div>
                       <dt>Нагрузка по мощности</dt>
                       <dd>{measurement.powerUtilizationPercent.toFixed(0)}%</dd>
+                    </div>
+                  ) : null}
+                  {measurement.internalResistanceOhm !== undefined ? (
+                    <div>
+                      <dt>Внутреннее сопротивление</dt>
+                      <dd>{measurement.internalResistanceOhm.toFixed(3)} Ом</dd>
+                    </div>
+                  ) : null}
+                  {measurement.voltageSag !== undefined ? (
+                    <div>
+                      <dt>Просадка напряжения</dt>
+                      <dd>{measurement.voltageSag.toFixed(3)} В</dd>
+                    </div>
+                  ) : null}
+                  {measurement.internalPower !== undefined ? (
+                    <div>
+                      <dt>Нагрев источника</dt>
+                      <dd>{measurement.internalPower.toFixed(3)} Вт</dd>
                     </div>
                   ) : null}
                   {measurement.lit !== undefined ? (
