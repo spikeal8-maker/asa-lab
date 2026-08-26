@@ -343,6 +343,46 @@ requirements:
   - docs/product/learning/current/LRN_M1_ACTIVITY_RUN_REPORT.md
   tests:
   - tests/courses/activity-runs.pg.spec.ts
+- id: AUD-101
+  milestone: M1
+  status: in_progress
+  summary: ActivityParticipation lifecycle target is assigned, active or withdrawn; M1-004 evidence is pending
+  evidence:
+  - docs/product/ASA_LEARNING_TECHNICAL_SPEC.md
+  - docs/product/learning/execution/LRN-M1-004_EXECUTION_SPEC.md
+  tests: []
+- id: AUD-102
+  milestone: M1
+  status: in_progress
+  summary: Completion must be projected from immutable policy plus Attempt/Result history; canonical Attempt/Result integration is not implemented
+  evidence:
+  - docs/product/ASA_LEARNING_TECHNICAL_SPEC.md
+  - docs/product/learning/execution/LRN-M1-004_EXECUTION_SPEC.md
+  tests: []
+- id: AUD-103
+  milestone: M1
+  status: in_progress
+  summary: Excused is an orthogonal Participation override with actor/time/reason evidence; M1-004 evidence is pending
+  evidence:
+  - docs/product/ASA_LEARNING_TECHNICAL_SPEC.md
+  - docs/product/learning/execution/LRN-M1-004_EXECUTION_SPEC.md
+  tests: []
+- id: AUD-104
+  milestone: M1
+  status: in_progress
+  summary: Canonical learner-specific Participation fields and nullable override storage target; M1-004 evidence is pending
+  evidence:
+  - docs/product/ASA_LEARNING_TECHNICAL_SPEC.md
+  - docs/product/learning/execution/LRN-M1-004_EXECUTION_SPEC.md
+  tests: []
+- id: AUD-105
+  milestone: M1
+  status: in_progress
+  summary: Participation time-limit override storage is M1-004 scope; audited active-Attempt expiry extension remains M2 because Attempt ownership is not cut over
+  evidence:
+  - docs/product/ASA_LEARNING_TECHNICAL_SPEC.md
+  - docs/product/learning/execution/LRN-M1-004_EXECUTION_SPEC.md
+  tests: []
 - id: AUD-203
   milestone: M1
   status: target
