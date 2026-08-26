@@ -185,13 +185,15 @@ requirements:
   - tools/learning-migration-dry-run.mjs
   - migrations/0087_learning_additive_backfill.sql
   - migrations/0088_learning_m0_006_acceptance_corrections.sql
+  - migrations/0097_learning_direct_project_attempts.sql
+  - docs/product/learning/execution/LRN-VS-002_EXECUTION_SPEC.md
   - docs/product/learning/current/LRN_M0_ADDITIVE_BACKFILL_REPORT.md
   tests:
   - tests/courses/learning-additive-backfill.pg.spec.ts
 - id: ARCH-001
   milestone: M1
   status: in_progress
-  summary: Direct and course definitions share LearningActivityVersion, ActivityRun and stable-learner ActivityParticipation storage; common Attempt ownership remains later M2 scope
+  summary: Direct and course definitions share LearningActivityVersion, ActivityRun and stable-learner ActivityParticipation storage; direct project Attempts now belong to ActivityParticipation, while course/quiz Attempt convergence remains later scope
   evidence:
   - docs/product/learning/execution/LRN-M1-001_EXECUTION_SPEC.md
   - docs/product/learning/current/LRN_M1_ACTIVITY_VERSION_CONVERGENCE_REPORT.md
@@ -201,6 +203,8 @@ requirements:
   - docs/product/learning/current/LRN_M1_ACTIVITY_RUN_REPORT.md
   - migrations/0094_activity_participations.sql
   - docs/product/learning/current/LRN_M1_ACTIVITY_PARTICIPATION_REPORT.md
+  - migrations/0097_learning_direct_project_attempts.sql
+  - docs/product/learning/execution/LRN-VS-002_EXECUTION_SPEC.md
   tests:
   - tests/courses/learning-activity-version-convergence.pg.spec.ts
   - tests/courses/activity-runs.pg.spec.ts
@@ -273,6 +277,7 @@ requirements:
   - tests/courses/activity-runs.pg.spec.ts
   - tests/courses/activity-participations.pg.spec.ts
   - tests/courses/learning-audiences.pg.spec.ts
+  - tests/courses/learning-direct-project-attempts.pg.spec.ts
 - id: ARCH-003
   milestone: M0
   status: proven
@@ -450,14 +455,17 @@ requirements:
 - id: AUD-204
   milestone: M1
   status: in_progress
-  summary: Classroom membership end withdraws audience-owned membership and preserves history; started Attempt continuation remains unimplemented M2 policy
+  summary: Classroom membership end withdraws audience-owned membership and preserves history; direct project starts now have participation-owned Attempts, while general post-membership Attempt continuation policy remains unresolved
   evidence:
   - docs/product/ASA_LEARNING_TECHNICAL_SPEC.md
   - docs/product/learning/execution/LRN-M1-005_EXECUTION_SPEC.md
   - migrations/0095_learning_audiences.sql
   - docs/product/learning/current/LRN_M1_AUDIENCE_REPORT.md
+  - migrations/0097_learning_direct_project_attempts.sql
+  - docs/product/learning/execution/LRN-VS-002_EXECUTION_SPEC.md
   tests:
   - tests/courses/learning-audiences.pg.spec.ts
+  - tests/courses/learning-direct-project-attempts.pg.spec.ts
 - id: AUD-205
   milestone: M1
   status: in_progress
@@ -489,11 +497,14 @@ requirements:
   - E2E-009
 - id: ATT-004
   milestone: M2
-  status: target
-  summary: At most one non-terminal Attempt per participation
-  evidence: []
+  status: proven
+  summary: A database partial unique index enforces at most one non-terminal Attempt per canonical ActivityParticipation; historical compatibility Attempts remain explicitly unlinked
+  evidence:
+  - migrations/0097_learning_direct_project_attempts.sql
+  - docs/product/learning/execution/LRN-VS-002_EXECUTION_SPEC.md
   tests:
   - TST-INT-005
+  - tests/courses/learning-direct-project-attempts.pg.spec.ts
 - id: QUIZ-102
   milestone: M2
   status: target

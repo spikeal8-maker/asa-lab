@@ -707,7 +707,7 @@ excused
 
 ## TASK LRN-M1-005 — Audience: Whole Class + Named Learners
 
-**status:** DONE — merged in PR #164; owner acceptance pending
+**status:** DONE — owner accepted 2026-08-26; merged in PR #164
 **depends_on:** M1-004  
 **requirements:** AUD-201..206
 
@@ -730,7 +730,7 @@ Group пока не включать.
 
 ## PRODUCT SLICE LRN-VS-001 — Teacher Assigns Activity
 
-**status:** DONE — merged in PR #166; owner acceptance pending
+**status:** DONE — owner accepted 2026-08-26; merged in PR #166
 **depends_on:** M1-005
 **issue:** #165
 
@@ -748,6 +748,32 @@ Audience, ActivityParticipation и LearnerIdentity.
 
 M1-006, ClassroomGroup, multi-class, Course materialization, новый Gradebook,
 Attempt и Submission остаются вне задачи.
+
+---
+
+## PRODUCT SLICE LRN-VS-002 — Learner Starts and Submits Project Assignment
+
+**status:** IN_REVIEW — local acceptance passed; owner acceptance pending
+**depends_on:** LRN-VS-001
+**issue:** #167
+
+### Product outcome
+
+Ученик открывает назначенную через VS-001 project activity в существующем
+SeatAssignments, работает в реальном module editor и сдаёт одну immutable
+Submission через Attempt, принадлежащий ровно одной ActivityParticipation.
+После refresh ученик видит «Сдано», а преподаватель — assigned/started/submitted
+counts. Legacy path сохраняется отдельным compatibility adapter.
+
+### Browser acceptance
+
+1. Canonical assignment: not started → real editor → in progress → submitted →
+   refresh remains submitted → teacher sees submitted.
+2. Named audience: исключённый learner не может read/start/submit даже через
+   прямой UUID/API.
+
+M1-006, ClassroomGroup, multi-class, Course Builder/materialization, quiz,
+grading, Gradebook, rubrics и production deployment остаются вне задачи.
 
 ---
 
