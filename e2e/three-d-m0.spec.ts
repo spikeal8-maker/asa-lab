@@ -542,6 +542,7 @@ test('teacher models, autosaves, reloads and versions an ASA 3D scene', async ({
     }),
   );
   await page.getByLabel('Длина, мм').fill('43');
+  await page.getByLabel('Длина, мм').press('Enter');
   await expect(page.getByRole('button', { name: /Сессия завершена.*Войти снова/ })).toBeVisible({
     timeout: 10_000,
   });
