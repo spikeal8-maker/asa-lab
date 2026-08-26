@@ -601,7 +601,7 @@ docs/review/learning/M0_ACCEPTANCE_REPORT.md
 
 ## TASK LRN-M1-001 — LearningActivityVersion Convergence
 
-**status:** DONE — evidence complete; owner acceptance pending
+**status:** DONE — owner accepted
 **depends_on:** M0 accepted  
 **requirements:** ARCH-001, ARCH-006, VER-001, VER-002
 
@@ -642,6 +642,7 @@ graded
 
 ## TASK LRN-M1-002 — CourseEnrollment
 
+**status:** DONE — owner accepted
 **depends_on:** M1-001  
 **requirements:** AUD-001..003
 
@@ -663,6 +664,7 @@ Completion не хранить как mutable enrollment status.
 
 ## TASK LRN-M1-003 — Persistent ActivityRun
 
+**status:** IN_PROGRESS — owner activated
 **depends_on:** M1-001  
 **requirements:** ARCH-002, RUN-101..107
 

@@ -504,12 +504,20 @@ describe('LRN-M1-002 CourseEnrollment', () => {
     expect(statusConstraint.rows[0].definition).not.toMatch(/completed|passed|failed|excused/);
   });
 
-  it('creates no ActivityRun or ActivityParticipation runtime', async () => {
-    const tables = await admin.query(
-      `SELECT to_regclass('public.activity_runs') AS activity_runs,
-              to_regclass('public.activity_participations') AS activity_participations`,
+  it('creates no ActivityRun row or ActivityParticipation runtime', async () => {
+    const learner = await createLearner();
+    await assign(runId, learner.identityId);
+    const activityRunsForEnrollmentRun = await admin.query(
+      `SELECT count(*)::int AS count
+         FROM activity_runs
+        WHERE source_course_run_id=$1`,
+      [runId],
     );
-    expect(tables.rows[0]).toEqual({ activity_runs: null, activity_participations: null });
+    const participation = await admin.query(
+      `SELECT to_regclass('public.activity_participations') AS relation`,
+    );
+    expect(activityRunsForEnrollmentRun.rows).toEqual([{ count: 0 }]);
+    expect(participation.rows[0].relation).toBeNull();
   });
 
   it('leaves the existing CourseRun and learner reader contract unchanged', async () => {

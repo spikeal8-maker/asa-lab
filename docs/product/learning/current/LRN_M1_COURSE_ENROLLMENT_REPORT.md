@@ -13,8 +13,8 @@ Main merge: `feda7bf4f3aabc86e2caac89a6f7cef4df807e5c`.
 ## STATUS
 
 `DONE` — acceptance evidence is complete and PR `#157` is merged to `main`.
-Owner acceptance of the completed result remains pending. No production action
-is included or claimed.
+Owner accepted the completed result before activating LRN-M1-003. No production
+action is included or claimed.
 
 ## COURSEENROLLMENT MODEL
 
