@@ -730,7 +730,7 @@ Group пока не включать.
 
 ## PRODUCT SLICE LRN-VS-001 — Teacher Assigns Activity
 
-**status:** IN_PROGRESS — owner activated 2026-08-26
+**status:** DONE — merged in PR #166; owner acceptance pending
 **depends_on:** M1-005
 **issue:** #165
 

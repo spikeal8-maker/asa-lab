@@ -2,9 +2,10 @@
 
 **Task:** `LRN-VS-001 — Teacher Assigns Activity`
 **Milestone:** `Product-first visible slice`
-**Status:** ACTIVE
+**Status:** DONE — merged in PR #166; owner acceptance pending
 **Baseline SHA:** `7bf948eef395fc8bc3ad6edb0fdd25a809217433`
 **Issue:** `#165`
+**Merge SHA:** `ac465ecd0c73cab216bbd4a27e6f1527fc130646`
 
 ## Goal
 
@@ -50,3 +51,17 @@ and legacy rows without an ActivityRun keep their current visibility.
 - fresh migrations + repeat 0, security negatives, focused tests;
 - Playwright screenshots for teacher and learner surfaces;
 - one uncached `pnpm gate:repository` immediately before merge.
+
+## Acceptance evidence
+
+- Playwright: 2/2 required journeys passed, including whole-class delivery and
+  exact two-of-three named delivery;
+- focused API/PostgreSQL: 7/7 tests passed; M1-001..005 regression coverage is
+  included in the full repository run;
+- migrations: all 95 migrations applied to fresh `asalab_test`, immediate
+  repeat applied 0;
+- uncached repository gate: 177/177 test files and 1235/1235 tests passed, plus
+  15/15 RLS checks; Nx lint, typecheck and build reported cache skipped;
+- GitHub main workflow on the PR head: Governance, Code and PostgreSQL/RLS
+  passed. The unrelated 3D browser job was not changed or used as Learning
+  evidence.

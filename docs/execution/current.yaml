@@ -257,8 +257,8 @@ parallel_lanes:
           - pnpm gate:repository
 
   # Owner-accepted ASA Learning M0 and LRN-M1-001 through LRN-M1-004 lane.
-  # LRN-M1-005 is merged with owner acceptance pending. The active product-first
-  # slice is LRN-VS-001; M1-006 onward and M2-M7 remain outside activation.
+  # LRN-M1-005 and LRN-VS-001 are merged with owner acceptance pending.
+  # M1-006 onward and M2-M7 remain outside activation.
   - id: learning
     worktree_id: learning-vs-001
     owned_paths:
@@ -309,16 +309,16 @@ parallel_lanes:
       issue: 165
       branch: main
       base_branch: main
-      pr: null
+      pr: 166
       pr_draft: false
-      status: in_progress
-      checkpoint: product_slice_implementation
+      status: done
+      checkpoint: merged_to_main
       owner_acceptance: pending
     revisions:
       convergence_baseline_sha: 7bf948eef395fc8bc3ad6edb0fdd25a809217433
-      head_sha: 7bf948eef395fc8bc3ad6edb0fdd25a809217433
+      head_sha: ac465ecd0c73cab216bbd4a27e6f1527fc130646
       owner_accepted_sha: 9643961cc0dd229ebe5e8c8ec734b20d272ece41
-      product_merge_sha: 7bf948eef395fc8bc3ad6edb0fdd25a809217433
+      product_merge_sha: ac465ecd0c73cab216bbd4a27e6f1527fc130646
     execution_lease:
       executor_id: codex-learning-vs-001
       holder: unassigned
