@@ -206,6 +206,9 @@ describe('immutable classroom submissions', () => {
           ],
         };
       }
+      if (sql.includes('learning_direct_assignment_seat_visible')) {
+        return { rows: [{ visible: true }] };
+      }
       return {
         rows: [
           {

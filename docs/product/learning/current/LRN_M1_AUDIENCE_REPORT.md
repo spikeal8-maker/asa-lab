@@ -220,7 +220,10 @@ hook only. It adds no HTTP endpoint, DTO, UI reader, or undocumented API.
 | 47 | migration repeat | immediate guarded repeat: 0 migrations applied |
 
 Relevant classroom join controller tests also pass 6/6. Focused M1-005 passes
-8/8 after all suites share the same isolated database.
+9/9 after all suites share the same isolated database. The final review also
+proves invalid named commands leave no identity side effects, withdrawn target
+memberships cannot receive active claims, no-op named adds persist their
+idempotency key, and a successful create replays after target closure.
 
 ## KNOWN GAPS
 
@@ -234,7 +237,8 @@ backfill are intentionally absent. No evidence in this report claims them.
 Not deployed. No production migration, backfill, restart, feature flag, or
 runtime mutation was performed or authorized.
 
-## NEXT READY TASK
+## COMPLETION
 
-`LRN-M1-006 — ClassroomGroup` is the next queue item, but it is **not active**
-and must not begin without a separate owner authorization.
+Merged in PR #164 at `7bf948eef395fc8bc3ad6edb0fdd25a809217433`.
+Owner acceptance remains pending. M1-006 is not active; the separately
+authorized product slice is LRN-VS-001.

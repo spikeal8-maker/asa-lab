@@ -8,6 +8,7 @@ import {
 } from '../api';
 import { AssignmentEditorDialog } from './AssignmentEditor';
 import { AssignmentView } from './AssignmentView';
+import { AssignLearningActivityDialog } from './AssignLearningActivityDialog';
 import { useSchoolTime } from './school-time';
 import { seatAvatar } from '../creator-portal/default-avatars';
 import { WorkPreview } from './WorkPreview';
@@ -78,6 +79,7 @@ export function ClassroomAssignments({
   const [items, setItems] = useState<ClassroomAssignment[] | null>(null);
   const [modules, setModules] = useState<readonly ModuleSummary[]>([]);
   const [creating, setCreating] = useState(false);
+  const [assigning, setAssigning] = useState(false);
   /** Какое задание правим той же формой. null — пишем новое. */
   const [editing, setEditing] = useState<LibraryAssignment | null>(null);
   const [open, setOpen] = useState<ClassroomAssignment | null>(null);
@@ -277,14 +279,24 @@ export function ClassroomAssignments({
           <h2>Задания класса</h2>
           <p>Каждый ученик получает свою копию работы. Прогресс виден сразу.</p>
         </div>
-        <button
-          type="button"
-          className="portal-create-button"
-          disabled={archived || modules.length === 0}
-          onClick={() => setCreating(true)}
-        >
-          Новое задание
-        </button>
+        <div className="assignment-heading-actions">
+          <button
+            type="button"
+            className="portal-create-button"
+            disabled={archived}
+            onClick={() => setAssigning(true)}
+          >
+            Назначить задание
+          </button>
+          <button
+            type="button"
+            className="btn-secondary"
+            disabled={archived || modules.length === 0}
+            onClick={() => setCreating(true)}
+          >
+            Создать новое
+          </button>
+        </div>
       </div>
 
       {notice ? (
@@ -336,8 +348,12 @@ export function ClassroomAssignments({
                 </button>
                 <span className="assignment-module">{moduleName(assignment.moduleKey)}</span>
                 <span className="assignment-counts">
-                  Работают: {assignment.startedCount} из {assignment.seatCount} · Сдали:{' '}
-                  {assignment.submittedCount}
+                  {assignment.audienceType === 'whole_class'
+                    ? 'Весь класс'
+                    : assignment.audienceType === 'named_learners'
+                      ? `Выбрано: ${assignment.assignedCount ?? 0}`
+                      : `Класс: ${assignment.seatCount}`}
+                  {' · '}Работают: {assignment.startedCount} · Сдали: {assignment.submittedCount}
                 </span>
                 <span className="assignment-due">
                   {assignment.dueAt ? `Срок ${time.date(assignment.dueAt)}` : 'Без срока'}
@@ -404,6 +420,17 @@ export function ClassroomAssignments({
       )}
 
       {editorDialog}
+      {assigning ? (
+        <AssignLearningActivityDialog
+          classroomId={classroomId}
+          onClose={() => setAssigning(false)}
+          onAssigned={(title, count) => {
+            setAssigning(false);
+            setNotice(`Задание «${title}» назначено: ${count}.`);
+            void reload();
+          }}
+        />
+      ) : null}
     </section>
   );
 }

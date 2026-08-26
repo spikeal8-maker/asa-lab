@@ -213,7 +213,7 @@ export function SeatAssignments({
                   disabled={busy === assignment.id || assignment.status === 'closed'}
                   onClick={() => void start(assignment)}
                 >
-                  {busy === assignment.id ? 'Готовим…' : 'Начать'}
+                  {busy === assignment.id ? 'Открываем…' : 'Открыть'}
                 </button>
               )}
             </div>
