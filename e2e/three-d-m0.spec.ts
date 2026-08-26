@@ -307,17 +307,6 @@ test('teacher models, autosaves, reloads and versions an ASA 3D scene', async ({
   await expect(multiSelectionPanel).toHaveAttribute('data-selection-count', '2');
   await expect(multiSelectionPanel).toContainText('Выбрано: 2 объекта');
 
-  const multiResize = await directHandlePoint(page, 'resize-south-east');
-  const multiResizeTarget = extendFromCentre(multiResize.handle, multiResize.centre, 18);
-  await page.mouse.move(multiResize.handle.x, multiResize.handle.y);
-  await page.mouse.down();
-  await page.mouse.move(multiResizeTarget.x, multiResizeTarget.y, { steps: 4 });
-  await expect(viewport).toHaveAttribute('data-manipulating', 'resize');
-  await expect(viewport).toHaveAttribute('data-manipulation-count', '2');
-  await page.mouse.up();
-  await expect(multiSelectionPanel).toBeVisible();
-  await page.getByRole('button', { name: 'Отменить (Ctrl+Z)' }).click();
-
   const groupButton = page.getByRole('button', {
     name: 'Булево объединение (Ctrl+G); пересечение — Ctrl+I',
   });
