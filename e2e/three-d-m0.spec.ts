@@ -321,11 +321,10 @@ test('teacher models, autosaves, reloads and versions an ASA 3D scene', async ({
   await page.getByRole('button', { name: 'X · ширина: По центру' }).click();
   await page.getByRole('button', { name: 'Линейка (R)' }).click();
   await expect(page.getByText('Линейка · мм')).toBeVisible();
-  await page.getByRole('button', { name: 'Снять выделение' }).click();
-  await selectObject(page);
   await page.getByRole('button', { name: 'Удалить (Delete)' }).click();
+  await expect(page.getByText('0 объектов', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Параллелепипед', exact: true }).click();
   await expect(page.getByText('1 объект', { exact: true })).toBeVisible();
-  await selectObject(page);
   await expandShapeInspector(page);
 
   const corner = await directHandlePoint(page, 'resize-south-west');
