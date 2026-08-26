@@ -415,6 +415,7 @@ Screenshot не доказывает manifold, unit-тест не доказыв
 | 3D-CORE-005 | Preview/export могут расходиться | STL повторно зависит от вычисления геометрии, нет общего result identity | OPT-2 | viewport, bounds, selection и export используют один result key/checksum |
 | 3D-DATA-001 | Дорогая история | undo/redo хранит до 100 полных документов | OPT-0, OPT-4 | память укладывается в утверждённый бюджет на 100/500 объектах |
 | 3D-DATA-002 | Полная сериализация на изменениях | `JSON.stringify` и local draft выполняются на изменениях документа | OPT-0, OPT-4 | transient движения не сериализуют полный документ на каждый frame |
+| 3D-DATA-003 | Восстановление версии оставляло устаревшую revision | browser journey на `4ed3009` завершался лишним autosave и `409 Conflict` после успешного restore | OPT-0 | восстановленный document и его server revision принимаются атомарно; save/reload/version journey проходит без 409 |
 | 3D-OFFLINE-001 | Нет offline open | проект сначала должен успешно открыться через API | OPT-3A, OPT-3B | ранее открытый проект загружается без сети |
 | 3D-OFFLINE-002 | Нет durable mutation queue | `localStorage` хранит снимок, но не подтверждаемую очередь | OPT-3A, OPT-3B | 100 offline mutations синхронизируются без потери/дублирования |
 | 3D-OFFLINE-003 | Нет app shell | immutable HTTP cache не гарантирует загрузку SPA без сети | OPT-3C | versioned app shell открывается в утверждённом offline journey |

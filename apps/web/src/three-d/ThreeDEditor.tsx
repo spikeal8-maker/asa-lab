@@ -345,8 +345,8 @@ export function ThreeDEditor({ projectId, onBack, user }: ThreeDEditorProps): JS
             triggerLabel="Отправить"
             onShare={shareProject}
             onSaveVersion={() => controller.createCheckpoint()}
-            onRestored={(restoredDocument) => {
-              controller.importDocument(restoredDocument);
+            onRestored={(restoredDocument, serverRevision) => {
+              controller.acceptRestoredDocument(restoredDocument, serverRevision);
             }}
           />
         }

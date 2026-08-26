@@ -28,7 +28,7 @@ export function VersionHistory({
   readonly triggerLabel?: string;
   readonly onShare?: () => Promise<void>;
   readonly onSaveVersion: () => Promise<void>;
-  readonly onRestored: (document: unknown) => void;
+  readonly onRestored: (document: unknown, serverRevision: number) => void;
 }): JSX.Element {
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<readonly ProjectVersion[]>(versions);
@@ -69,7 +69,7 @@ export function VersionHistory({
       return;
     }
     setItems(result.data.versions);
-    onRestored(result.data.draft.document);
+    onRestored(result.data.draft.document, result.data.draft.revision);
     setOpen(false);
   }
 

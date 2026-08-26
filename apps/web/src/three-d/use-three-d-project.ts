@@ -99,6 +99,7 @@ export interface ThreeDProjectController {
   readonly retrySave: () => void;
   readonly signInAgain: () => void;
   readonly importDocument: (value: unknown) => boolean;
+  readonly acceptRestoredDocument: (value: unknown, serverRevision: number) => boolean;
   readonly clearNotice: () => void;
 }
 
@@ -939,6 +940,32 @@ export function useThreeDProject(projectId: string): ThreeDProjectController {
     [replaceHistory],
   );
 
+  const acceptRestoredDocument = useCallback(
+    (value: unknown, serverRevision: number): boolean => {
+      const parsed = parseThreeDDocument(value);
+      const current = historyRef.current;
+      if (!parsed.ok || !current || !Number.isInteger(serverRevision) || serverRevision < 0) {
+        setNotice(parsed.ok ? 'Версия восстановлена, но её номер некорректен.' : parsed.message);
+        return false;
+      }
+      const signature = JSON.stringify(parsed.value);
+      serverRevisionRef.current = serverRevision;
+      lastSavedRef.current = signature;
+      replaceHistory({
+        past: [...current.past.slice(-99), current.present],
+        present: parsed.value,
+        future: [],
+      });
+      setSelectedIds([]);
+      clearLocalThreeDDraft(window.localStorage, projectId);
+      setSaveState('saved');
+      setSaveError(null);
+      setRequiresSignIn(false);
+      return true;
+    },
+    [projectId, replaceHistory],
+  );
+
   return {
     loading,
     error,
@@ -993,6 +1020,7 @@ export function useThreeDProject(projectId: string): ThreeDProjectController {
     retrySave,
     signInAgain,
     importDocument,
+    acceptRestoredDocument,
     clearNotice: () => setNotice(null),
   };
 }
