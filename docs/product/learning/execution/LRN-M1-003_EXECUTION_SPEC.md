@@ -239,8 +239,8 @@ participation or Attempt scan.
 
 ## 22. Evidence
 
-Implementation SHA before evidence-only documentation:
-`e8bac4574508161dc121840de948a552cfb51872`.
+Implementation SHA before final evidence-only documentation:
+`658f1e7888631508c888035bddd8193b33a77278`.
 
 - isolated fresh `asalab_test`: 92 migrations applied through `0093`, PASS;
 - guarded repeat apply: 0 migrations applied, PASS;
@@ -253,3 +253,7 @@ Implementation SHA before evidence-only documentation:
 - `pnpm control-plane:check`, `pnpm gate:governance`, `git diff --check`: PASS;
 - browser evidence: N/A because no UI or current reader changed;
 - production evidence: N/A; production was not touched or claimed.
+
+PR review regressions additionally prove that an authorized identical retry
+still resolves after its handout/CourseRun closes and that a NULL lifecycle
+target returns structured `invalid_transition` instead of a constraint error.

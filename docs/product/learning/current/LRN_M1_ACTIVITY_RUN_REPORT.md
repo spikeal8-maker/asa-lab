@@ -175,7 +175,9 @@ no `100`, five-point or other hidden fallback.
 
 Same actor/request plus identical semantic digest returns the same Run. Same key
 with changed semantics returns `idempotency_conflict`. The exact compatibility
-handout has a unique Run identity and identical source retries reuse it.
+handout has a unique Run identity and identical source retries reuse it. An
+authorized delayed identical retry remains resolvable after the handout or its
+CourseRun closes; closed-source checks apply only to a new insertion.
 
 ## CONCURRENCY
 
@@ -289,8 +291,8 @@ resolver.
 
 ## TESTS
 
-Implementation SHA before evidence-only documentation:
-`e8bac4574508161dc121840de948a552cfb51872`.
+Implementation SHA before final evidence-only documentation:
+`658f1e7888631508c888035bddd8193b33a77278`.
 
 - `pnpm test:learning-m1-003`: 15/15 PASS over the owner-required 27-scenario
   matrix;
