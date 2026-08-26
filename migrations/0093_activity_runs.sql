@@ -323,6 +323,7 @@ DECLARE
     v_version record;
     v_existing public.activity_runs%ROWTYPE;
     v_run public.activity_runs%ROWTYPE;
+    v_course_status varchar;
     v_explicit jsonb := COALESCE(p_runtime_policy_explicit, '{}'::jsonb);
     v_sources jsonb := '{}'::jsonb;
     v_snapshot jsonb;
@@ -374,7 +375,9 @@ BEGIN
     END IF;
 
     SELECT assignment.tenant_id, assignment.classroom_id, assignment.course_run_id,
-           classroom.school_id, membership.user_id
+           assignment.status AS assignment_status,
+           classroom.school_id, classroom.status AS classroom_status,
+           membership.user_id
       INTO v_source
       FROM public.classroom_assignments assignment
       JOIN public.classrooms classroom
@@ -390,8 +393,7 @@ BEGIN
        AND membership.account_id = principal.account_id
        AND membership.member_role IN ('owner', 'co_teacher')
      WHERE assignment.id = p_classroom_assignment_id
-       AND assignment.tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid
-       AND assignment.status = 'open';
+       AND assignment.tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid;
     IF v_source.tenant_id IS NULL THEN
         RETURN QUERY SELECT 'forbidden'::varchar, NULL::uuid, NULL::varchar, false;
         RETURN;
@@ -428,8 +430,9 @@ BEGIN
         RETURN QUERY SELECT 'source_conflict'::varchar, NULL::uuid, NULL::varchar, false;
         RETURN;
     END IF;
-    IF p_source_kind = 'course' AND NOT EXISTS (
-        SELECT 1
+    IF p_source_kind = 'course' THEN
+        SELECT run.status
+          INTO v_course_status
           FROM public.classroom_course_runs run
           JOIN public.classroom_course_run_lessons lesson
             ON lesson.tenant_id = run.tenant_id
@@ -440,12 +443,12 @@ BEGIN
          WHERE run.id = p_source_course_run_id
            AND run.tenant_id = v_source.tenant_id
            AND run.classroom_id = v_source.classroom_id
-           AND run.status = 'open'
-           AND v_source.course_run_id = run.id
-    ) THEN
-        RETURN QUERY SELECT 'course_source_forbidden'::varchar,
-                            NULL::uuid, NULL::varchar, false;
-        RETURN;
+           AND v_source.course_run_id = run.id;
+        IF v_course_status IS NULL THEN
+            RETURN QUERY SELECT 'course_source_forbidden'::varchar,
+                                NULL::uuid, NULL::varchar, false;
+            RETURN;
+        END IF;
     END IF;
 
     IF p_grading_scheme_version_id IS NOT NULL AND NOT EXISTS (
@@ -500,6 +503,17 @@ BEGIN
             RETURN QUERY SELECT 'ok'::varchar, v_existing.id,
                                 v_existing.lifecycle_status, true;
         END IF;
+        RETURN;
+    END IF;
+
+    IF v_source.classroom_status <> 'active'
+       OR v_source.assignment_status <> 'open' THEN
+        RETURN QUERY SELECT 'forbidden'::varchar, NULL::uuid, NULL::varchar, false;
+        RETURN;
+    END IF;
+    IF p_source_kind = 'course' AND v_course_status <> 'open' THEN
+        RETURN QUERY SELECT 'course_source_forbidden'::varchar,
+                            NULL::uuid, NULL::varchar, false;
         RETURN;
     END IF;
 
@@ -578,7 +592,8 @@ BEGIN
         RETURN QUERY SELECT 'ok'::varchar, v_run.id, v_run.lifecycle_status, true;
         RETURN;
     END IF;
-    IF NOT ((v_run.lifecycle_status = 'active' AND p_target_status IN ('closed', 'cancelled'))
+    IF p_target_status IS NULL
+       OR NOT ((v_run.lifecycle_status = 'active' AND p_target_status IN ('closed', 'cancelled'))
             OR (v_run.lifecycle_status = 'closed' AND p_target_status = 'archived')) THEN
         RETURN QUERY SELECT 'invalid_transition'::varchar,
                             v_run.id, v_run.lifecycle_status, false;

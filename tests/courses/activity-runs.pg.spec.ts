@@ -194,7 +194,7 @@ async function createRun(input: {
   });
 }
 
-async function transition(runId: string, target: string) {
+async function transition(runId: string, target: string | null) {
   return inTenant(owner.tenantId, async (client) => {
     const result = await client.query(`SELECT * FROM activity_run_transition($1,$2,$3)`, [
       ownerPrincipalId,
@@ -358,6 +358,9 @@ describe('LRN-M1-003 persistent ActivityRun', () => {
     expect(count.rows[0].count).toBe(1);
     const retry = await createRun({ handoutId: handout, requestId });
     expect(retry).toMatchObject({ activity_run_id: a.activity_run_id, reused: true });
+    await admin.query(`UPDATE classroom_assignments SET status='closed' WHERE id=$1`, [handout]);
+    const delayedRetry = await createRun({ handoutId: handout, requestId });
+    expect(delayedRetry).toMatchObject({ activity_run_id: a.activity_run_id, reused: true });
     const conflict = await createRun({
       handoutId: handout,
       requestId,
@@ -384,6 +387,17 @@ describe('LRN-M1-003 persistent ActivityRun', () => {
       requestId,
     });
     expect(retry).toMatchObject({ activity_run_id: first.activity_run_id, reused: true });
+    await admin.query(`UPDATE classroom_course_runs SET status='closed' WHERE id=$1`, [
+      source.courseRunId,
+    ]);
+    const delayedRetry = await createRun({
+      handoutId: source.handoutId,
+      sourceKind: 'course',
+      courseRunId: source.courseRunId,
+      lessonId: source.lessonId,
+      requestId,
+    });
+    expect(delayedRetry).toMatchObject({ activity_run_id: first.activity_run_id, reused: true });
     const columns = await admin.query(
       `SELECT column_name FROM information_schema.columns
         WHERE table_schema='public' AND table_name='activity_runs'
@@ -407,6 +421,10 @@ describe('LRN-M1-003 persistent ActivityRun', () => {
       lifecycle_status: 'cancelled',
     });
     expect(await transition(cancelledRun.activity_run_id!, 'active')).toMatchObject({
+      result_code: 'invalid_transition',
+      lifecycle_status: 'cancelled',
+    });
+    expect(await transition(cancelledRun.activity_run_id!, null)).toMatchObject({
       result_code: 'invalid_transition',
       lifecycle_status: 'cancelled',
     });
