@@ -140,7 +140,7 @@ async function createThreeDProject(page: Page, title: string): Promise<void> {
 }
 
 async function expandShapeInspector(page: Page): Promise<void> {
-  const expand = page.getByRole('button', { name: 'Развернуть параметры формы' });
+  const expand = page.getByRole('button', { name: 'Развернуть параметры', exact: true });
   if (await expand.isVisible()) await expand.click();
   const inspector = page.locator(
     '[data-testid="asa3d-shape-inspector"], [data-testid="asa3d-group-inspector"]',
@@ -513,7 +513,7 @@ test('teacher models, autosaves, reloads and versions an ASA 3D scene', async ({
   await expect(page.getByLabel('Длина, мм')).toHaveValue('42');
   await page.screenshot({ path: 'e2e/artifacts/three-d/version-restored.png', fullPage: true });
 
-  await page.getByRole('button', { name: 'Свернуть параметры формы' }).click();
+  await page.getByRole('button', { name: 'Свернуть параметры', exact: true }).click();
 
   await page.setViewportSize({ width: 768, height: 1024 });
   await expect(page.getByLabel('Библиотека форм')).toBeVisible();
