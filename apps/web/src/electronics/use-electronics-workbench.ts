@@ -1603,14 +1603,23 @@ export function useElectronicsWorkbench(projectId: string) {
     if ((component.kind !== 'led' && component.kind !== 'rgb-led') || !simulationRunning)
       return 'default';
     const codes = diagnosticCodesByComponent.get(component.id);
+    const calculatedState = resultByComponent.get(component.id)?.presentationState;
     if (component.kind === 'rgb-led') {
-      if (codes?.has('led_burnout') || codes?.has('short_circuit')) return 'burned';
-      if (codes?.has('led_overcurrent')) return 'overcurrent';
+      if (calculatedState === 'failed') return 'burned';
+      if (calculatedState === 'destructive') {
+        return resultByComponent.get(component.id)?.stressState === 'burned'
+          ? 'burned'
+          : 'overcurrent';
+      }
       return resultByComponent.get(component.id)?.lit ? 'lit' : 'off';
     }
     if (codes?.has('reverse_polarity')) return 'reverse';
-    if (codes?.has('led_burnout') || codes?.has('short_circuit')) return 'burned';
-    if (codes?.has('led_overcurrent')) return 'overcurrent';
+    if (calculatedState === 'failed') return 'burned';
+    if (calculatedState === 'destructive') {
+      return resultByComponent.get(component.id)?.stressState === 'burned'
+        ? 'burned'
+        : 'overcurrent';
+    }
     return resultByComponent.get(component.id)?.lit ? 'lit' : 'off';
   }
 

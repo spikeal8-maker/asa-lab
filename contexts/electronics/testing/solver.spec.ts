@@ -1097,12 +1097,27 @@ describe('deterministic DC solver', () => {
     const ledResult = (result: ReturnType<typeof solveCircuit>) =>
       result.components.find((item) => item.componentId === 'led');
 
-    expect(ledResult(safe)).toMatchObject({ stressState: 'normal' });
+    expect(ledResult(safe)).toMatchObject({
+      stressState: 'normal',
+      deviceHealth: 'normal',
+      damageState: 'none',
+      presentationState: 'normal',
+    });
     expect(safe.diagnostics.map((item) => item.code)).not.toContain('led_near_limit');
-    expect(ledResult(overcurrent)).toMatchObject({ stressState: 'overcurrent' });
+    expect(ledResult(overcurrent)).toMatchObject({
+      stressState: 'overcurrent',
+      deviceHealth: 'warning',
+      damageState: 'destructive_preview',
+      presentationState: 'destructive',
+    });
     expect(overcurrent.diagnostics.map((item) => item.code)).toContain('led_overcurrent');
     expect(overcurrent.diagnostics.map((item) => item.code)).not.toContain('led_burnout');
-    expect(ledResult(burned)).toMatchObject({ stressState: 'burned' });
+    expect(ledResult(burned)).toMatchObject({
+      stressState: 'burned',
+      deviceHealth: 'overheated',
+      damageState: 'destructive_preview',
+      presentationState: 'destructive',
+    });
     expect(burned.diagnostics.map((item) => item.code)).toEqual(
       expect.arrayContaining(['led_overcurrent', 'led_burnout']),
     );
@@ -1379,11 +1394,20 @@ describe('deterministic DC solver', () => {
     const nearLimitResistor = nearLimit.components.find((item) => item.componentId === 'resistor');
     const upratedResistor = uprated.components.find((item) => item.componentId === 'resistor');
 
-    expect(nearLimitResistor?.stressState).toBe('warning');
+    expect(nearLimitResistor).toMatchObject({
+      stressState: 'warning',
+      deviceHealth: 'warning',
+      presentationState: 'warning',
+    });
     expect(nearLimit.diagnostics.map((item) => item.code)).toContain('resistor_near_limit');
     expect(overloadedResistor?.power).toBeCloseTo(144 / 220, 9);
     expect(overloadedResistor?.powerUtilizationPercent).toBeCloseTo((144 / 220 / 0.25) * 100, 2);
-    expect(overloadedResistor?.stressState).toBe('burned');
+    expect(overloadedResistor).toMatchObject({
+      stressState: 'burned',
+      deviceHealth: 'overheated',
+      damageState: 'destructive_preview',
+      presentationState: 'destructive',
+    });
     expect(overloaded.diagnostics.map((item) => item.code)).toContain('resistor_overload');
     expect(upratedResistor).toMatchObject({ stressState: 'normal' });
     expect(uprated.diagnostics.map((item) => item.code)).not.toContain('resistor_overload');

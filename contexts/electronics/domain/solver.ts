@@ -46,6 +46,16 @@ export type DiagnosticCode =
   | 'nonconvergent_topology';
 export type DiagnosticSeverity = 'info' | 'warning' | 'error';
 export type SimulationSolveStatus = 'solved' | 'invalid' | 'unsupported' | 'nonconvergent';
+export type DeviceHealth =
+  | 'normal'
+  | 'warning'
+  | 'overheated'
+  | 'failed_open'
+  | 'failed_short'
+  | 'stalled'
+  | 'reverse_damaged';
+export type DamageState = 'none' | 'destructive_preview' | 'failed';
+export type PresentationState = 'normal' | 'warning' | 'destructive' | 'failed' | 'stalled';
 
 export interface Diagnostic {
   readonly code: DiagnosticCode;
@@ -77,6 +87,12 @@ export interface ComponentResult {
   readonly currentUtilizationPercent?: number;
   readonly powerUtilizationPercent?: number;
   readonly stressState?: 'normal' | 'warning' | 'overcurrent' | 'burned';
+  /** Physical state returned by the model; it is not a solver failure status. */
+  readonly deviceHealth?: DeviceHealth;
+  /** Static DC currently reports a preview; accumulated failure starts with transient analysis. */
+  readonly damageState?: DamageState;
+  /** Minimal on-component visual selected from calculated observations. */
+  readonly presentationState?: PresentationState;
   readonly operatingRegion?: 'cutoff' | 'active' | 'saturation' | 'ohmic';
   readonly baseCurrent?: number;
   readonly collectorCurrent?: number;
@@ -136,6 +152,33 @@ const FET_MIN_OHMIC_CONDUCTANCE = 1e-4;
 // confirmed time-varying Arduino output.
 const PIEZO_DC_RESISTANCE_OHM = 100_000_000;
 const DC_MOTOR_EFFECTIVE_RESISTANCE_OHM = 6 / 0.07;
+
+function damageObservationForStress(
+  stressState: ComponentResult['stressState'],
+): Pick<ComponentResult, 'deviceHealth' | 'damageState' | 'presentationState'> {
+  switch (stressState) {
+    case 'warning':
+      return { deviceHealth: 'warning', damageState: 'none', presentationState: 'warning' };
+    case 'overcurrent':
+      return {
+        deviceHealth: 'warning',
+        damageState: 'destructive_preview',
+        presentationState: 'destructive',
+      };
+    case 'burned':
+      // The current DC solver has no thermal clock. Preserve the visible danger
+      // without falsely claiming that an accumulated, persistent failure has
+      // already happened; MATH-4 promotes this preview to a real failed state.
+      return {
+        deviceHealth: 'overheated',
+        damageState: 'destructive_preview',
+        presentationState: 'destructive',
+      };
+    case 'normal':
+    default:
+      return { deviceHealth: 'normal', damageState: 'none', presentationState: 'normal' };
+  }
+}
 
 function isDcMotor(component: SchematicComponent): boolean {
   return component.componentTypeId === 'dc-motor';
@@ -1417,7 +1460,9 @@ export function solveCircuit(
         ...(powerUtilizationPercent === undefined
           ? {}
           : { powerUtilizationPercent: round(powerUtilizationPercent, 2) }),
-        ...(stressState === undefined ? {} : { stressState }),
+        ...(stressState === undefined
+          ? {}
+          : { stressState, ...damageObservationForStress(stressState) }),
         ...(component.kind === 'led' ||
         component.kind === 'rgb-led' ||
         component.kind === 'seven-segment'

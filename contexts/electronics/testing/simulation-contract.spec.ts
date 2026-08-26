@@ -150,6 +150,9 @@ describe('R4-M1 simulation implementation contract', () => {
     expect(result.components.find((item) => item.componentId === 'led')).toMatchObject({
       lit: true,
       stressState: 'burned',
+      deviceHealth: 'overheated',
+      damageState: 'destructive_preview',
+      presentationState: 'destructive',
     });
     expect(result.diagnostics.map((item) => item.code)).toContain('led_burnout');
   });

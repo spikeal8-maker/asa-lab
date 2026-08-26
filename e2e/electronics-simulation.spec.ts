@@ -757,7 +757,7 @@ test('component inspector separates compact settings, live state and educational
   await expect(help).toContainText('Подключение');
   await expect(inspector.getByTestId('component-simulation-status')).toHaveCount(0);
 
-  await inspector.getByRole('button', { name: 'Ещё параметры' }).click();
+  await inspector.getByRole('button', { name: 'Техническое состояние Резистор' }).click();
   await expect(inspector.getByRole('combobox', { name: 'Допуск резистора' })).toBeVisible();
 
   await page.setViewportSize({ width: 390, height: 844 });
@@ -942,10 +942,7 @@ test('real editor recalculates SPDT, resistor and LED without waiting for persis
     'aria-label',
     'Сила тока в светодиоде равна 120 mA (максимальное рекомендуемое значение — 20.0 mA). Это может привести к сокращению срока службы светодиода.',
   );
-  await warningBadge.locator('circle').hover();
-  await expect(warningBadge.locator('.workbench-component-diagnostic-tooltip')).toContainText(
-    'Сила тока в светодиоде равна 120 mA',
-  );
+  await expect(warningBadge.locator('.workbench-component-diagnostic-tooltip')).toHaveCount(0);
   await page.screenshot({
     path: `${ARTIFACT_DIR}/electronics-led-warning.png`,
     fullPage: true,
@@ -1172,10 +1169,10 @@ test('RGB LED mixes three calculated channels for both common modes', async ({ p
     await expect(rgb.getByTestId('rgb-led-mixture')).toHaveCSS('opacity', /^(?!0(?:\.0+)?$)/);
     await rgb.locator('.workbench-part').click();
     const inspector = page.getByRole('complementary', { name: 'Параметры выделения' });
-    await inspector.getByRole('button', { name: 'Ещё параметры' }).click();
+    await inspector.getByRole('button', { name: 'Техническое состояние RGB-светодиод' }).click();
     await expect(inspector.getByLabel('Разводка выводов RGB-светодиода')).toHaveValue('RCBG');
     await expect(inspector.locator('.workbench-calculated-property')).toHaveCount(0);
-    await expect(inspector.locator('.workbench-terminal-list')).toHaveCount(0);
+    await expect(inspector.locator('.workbench-terminal-list')).toHaveCount(1);
 
     if (commonMode === 'common-cathode') {
       await page.screenshot({

@@ -64,11 +64,14 @@ export {
 export {
   solveCircuit,
   type ComponentResult,
+  type DamageState,
   type Diagnostic,
   type DiagnosticAnchor,
   type DiagnosticCode,
   type DiagnosticSeverity,
+  type DeviceHealth,
   type NodeResult,
+  type PresentationState,
   type SimulationSolveStatus,
   type SolveResult,
 } from './domain/solver.js';

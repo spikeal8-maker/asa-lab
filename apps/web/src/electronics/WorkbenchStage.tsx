@@ -234,10 +234,8 @@ export function WorkbenchStage({
       },
     ];
   });
-  // Diagnostic markers and their tooltips render in their own layer, painted
-  // after the wires. Drawn inside each component's group, a tooltip sank under
-  // every wire and part painted later — the burn explanation ended up hidden
-  // behind the scene exactly when it mattered.
+  // One compact marker per component renders above wires. Detailed values stay
+  // in the existing I inspector; the canvas deliberately has no tooltip card.
   const diagnosticIndicators = orderedComponents
     .filter((component) => component.kind !== 'wire')
     .map((component) => {
@@ -338,23 +336,6 @@ export function WorkbenchStage({
                 </text>
               </>
             )}
-            {primaryDiagnostic ? (
-              <foreignObject
-                className="workbench-component-diagnostic-tooltip"
-                x={-100 / c.viewport.zoom}
-                y={18 / c.viewport.zoom}
-                width={200 / c.viewport.zoom}
-                height={142 / c.viewport.zoom}
-                pointerEvents="none"
-              >
-                <div style={{ fontSize: `${12 / c.viewport.zoom}px` }}>
-                  <strong>{primaryDiagnostic.message}</strong>
-                  {primaryDiagnostic.suggestedAction ? (
-                    <small>{primaryDiagnostic.suggestedAction}</small>
-                  ) : null}
-                </div>
-              </foreignObject>
-            ) : null}
           </g>
         </g>
       );
@@ -392,19 +373,6 @@ export function WorkbenchStage({
             <text y={4 / c.viewport.zoom} fontSize={12 / c.viewport.zoom}>
               !
             </text>
-            <foreignObject
-              className="workbench-component-diagnostic-tooltip"
-              x={-100 / c.viewport.zoom}
-              y={18 / c.viewport.zoom}
-              width={200 / c.viewport.zoom}
-              height={112 / c.viewport.zoom}
-              pointerEvents="none"
-            >
-              <div style={{ fontSize: `${12 / c.viewport.zoom}px` }}>
-                <strong>Модель ещё не готова</strong>
-                <small>{warningText}</small>
-              </div>
-            </foreignObject>
           </g>
         </g>
       );

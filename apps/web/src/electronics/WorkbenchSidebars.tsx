@@ -318,19 +318,6 @@ export function WorkbenchSidebars({
                   data-active={stateOpen}
                 >
                   i
-                  {selectedDiagnostics.length > 0 ? (
-                    <span
-                      className="workbench-inspector-diagnostic-badge"
-                      data-severity={
-                        selectedDiagnostics.some((diagnostic) => diagnostic.severity === 'error')
-                          ? 'error'
-                          : 'warning'
-                      }
-                      aria-hidden="true"
-                    >
-                      !
-                    </span>
-                  ) : null}
                 </button>
                 <button
                   type="button"

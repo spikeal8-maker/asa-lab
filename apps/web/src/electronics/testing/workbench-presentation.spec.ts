@@ -177,11 +177,11 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(stageSource).toContain('workbench-diagnostic-layer');
     expect(stageSource).toContain('r={9 / c.viewport.zoom}');
     expect(stageSource).toContain('fontSize={12 / c.viewport.zoom}');
-    expect(stageSource).toContain('primaryDiagnostic.message');
+    expect(stageSource).toContain('aria-label={diagnosticText}');
     expect(stageSource).toContain('pointerEvents="all"');
     expect(stageSource).toContain("'led-burnout-explosion'");
     expect(stageSource).toContain('workbench-led-burnout-explosion');
-    expect(stageSource).toContain('workbench-component-diagnostic-tooltip');
+    expect(stageSource).not.toContain('workbench-component-diagnostic-tooltip');
     expect(stageSource).toContain('data-testid="component-model-warning"');
     expect(stageSource).toContain('unsupportedModelIndicators');
     expect(editorSource).toContain('workbench-schematic-model-warning');
@@ -192,10 +192,11 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(workbenchCss).toContain('.workbench-component-diagnostic-indicator circle');
     expect(workbenchCss).toContain('.workbench-led-explosion-outer');
     expect(workbenchCss).toContain('.workbench-led-explosion-inner');
-    expect(workbenchCss).toContain('.workbench-component-diagnostic-tooltip');
+    expect(workbenchCss).not.toContain('.workbench-component-diagnostic-tooltip');
     expect(productionVisualSource).not.toContain('--workbench-led-glow');
     expect(stageSource).not.toContain('workbench-results-card');
     expect(stageSource).not.toContain('workbench-toast');
+    expect(sidebarSource).not.toContain('workbench-inspector-diagnostic-badge');
   });
 
   it('keeps the measured Circuits toolbar order and functional viewport controls', () => {
