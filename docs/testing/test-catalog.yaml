@@ -689,6 +689,17 @@ tests:
     owner: three-d
     artifacts: [playwright-report, three-d-desktop.png, three-d-tablet.png, three-d-mobile.png, browser-failure-report]
 
+  - id: TST-3D-OPT0-CORPUS-001
+    title: Versioned geometry corpus exposes deterministic CSG and topology diagnostics
+    suite: simulation
+    level: application
+    phase_available: PHASE-10
+    required_for: [TASK-3D-OPT-0-001]
+    command: pnpm test:three-d:corpus
+    timeout_seconds: 900
+    owner: three-d
+    artifacts: [three-d-baseline-report]
+
   - id: TST-SEC-RATELIMIT-001
     title: Sign-in and registration answer 429 once a client exceeds the attempt ceiling
     suite: security
