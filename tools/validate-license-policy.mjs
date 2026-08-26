@@ -87,7 +87,11 @@ requireText('LICENSING.md', licensing, '[`CLA.md`](CLA.md)');
 requireText('TRADEMARKS.md', trademarks, 'предоставляются по лицензии AGPL-3.0-only');
 requireText('ASSETS-LICENSE.md', assets, 'All rights reserved');
 requireText('ASSETS-LICENSE.md', assets, 'предоставленных пользователям GitHub');
-requireText('COPYRIGHT', copyright, 'Copyright (C) 2026 Alex Al');
+requireText(
+  'COPYRIGHT',
+  copyright,
+  'Copyright (C) 2026 Аликин Александр Сергеевич (Alexander Alikin)',
+);
 requireText('COPYRIGHT', copyright, 'GitHub Terms of Service');
 requireText('CONTRIBUTING.md', contributing, 'AGPL-3.0-only');
 requireText('CONTRIBUTING.md', contributing, '[`CLA.md`](CLA.md)');
