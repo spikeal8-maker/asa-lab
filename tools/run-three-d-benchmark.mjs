@@ -1,13 +1,11 @@
-import { spawnSync } from 'node:child_process';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { createServer } from 'vite';
 
 const repositoryRoot = resolve(import.meta.dirname, '..');
 const reportPath = resolve(repositoryRoot, 'reports/three-d-baseline.json');
 const summaryPath = resolve(repositoryRoot, 'docs/delivery/THREE_D_OPT_0_BASELINE.md');
 const quick = process.argv.includes('--quick');
-const pnpmCli = process.env.npm_execpath;
-if (!pnpmCli) throw new Error('benchmark:three-d must be started through pnpm');
 const environment = {
   ...process.env,
   ASA_3D_BENCHMARK_REPORT: reportPath,
@@ -19,16 +17,21 @@ const environment = {
       }
     : {}),
 };
-
-const run = spawnSync(
-  process.execPath,
-  [pnpmCli, 'exec', 'vitest', 'run', 'tests/three-d/geometry-benchmark.spec.ts', '--maxWorkers=1'],
-  { cwd: repositoryRoot, env: environment, encoding: 'utf8', windowsHide: true },
-);
-process.stdout.write(run.stdout ?? '');
-process.stderr.write(run.stderr ?? '');
-if (run.error) throw run.error;
-if (run.status !== 0) process.exit(run.status ?? 1);
+Object.assign(process.env, environment);
+const vite = await createServer({
+  configFile: resolve(repositoryRoot, 'apps/web/vite.config.ts'),
+  server: { middlewareMode: true },
+  appType: 'custom',
+});
+try {
+  const runnerPath = resolve(repositoryRoot, 'tests/three-d/run-geometry-benchmark.ts').replaceAll(
+    '\\',
+    '/',
+  );
+  await vite.ssrLoadModule(`/@fs/${runnerPath}`);
+} finally {
+  await vite.close();
+}
 
 const report = JSON.parse(readFileSync(reportPath, 'utf8'));
 const rows = report.cases
