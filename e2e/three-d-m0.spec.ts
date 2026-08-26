@@ -373,8 +373,7 @@ test('teacher models, autosaves, reloads and versions an ASA 3D scene', async ({
   const rotate = await directHandlePoint(page, 'rotate-y');
   await page.mouse.move(rotate.handle.x, rotate.handle.y);
   await expect(page.getByTestId('asa3d-angle-value')).toHaveText('0°');
-  const ringGrab = extendFromCentre(rotate.handle, rotate.centre, 18);
-  await page.mouse.move(ringGrab.x, ringGrab.y, { steps: 8 });
+  const ringGrab = rotate.handle;
   const angle = Math.PI / 7;
   const dx = ringGrab.x - rotate.centre.x;
   const dy = ringGrab.y - rotate.centre.y;
@@ -415,7 +414,7 @@ test('teacher models, autosaves, reloads and versions an ASA 3D scene', async ({
   await page.mouse.move(finalMoveStart.x + 34, finalMoveStart.y - 12, { steps: 8 });
   await page.mouse.up();
   const finalRotation = await directHandlePoint(page, 'rotate-z');
-  const finalRingGrab = extendFromCentre(finalRotation.handle, finalRotation.centre, 18);
+  const finalRingGrab = finalRotation.handle;
   const finalAngle = Math.PI / 12;
   const finalDx = finalRingGrab.x - finalRotation.centre.x;
   const finalDy = finalRingGrab.y - finalRotation.centre.y;
