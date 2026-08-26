@@ -597,6 +597,12 @@ BEGIN
         RETURN QUERY SELECT 'target_closed'::varchar, NULL::uuid, 0, 0, false; RETURN;
     END IF;
 
+    -- Serialize the complete target operation before resolving roster identity.
+    -- Two identical creates can otherwise lock duplicate logical seats in a
+    -- different order before reaching the later audience uniqueness boundary.
+    PERFORM pg_advisory_xact_lock(
+        hashtextextended(p_target_kind || ':' || p_target_id::text, 0));
+
     -- M0 owns historical identity convergence. M1-005 creates identity only as
     -- part of this current, explicit audience operation; it does not scan or
     -- mutate unrelated classrooms.
@@ -665,7 +671,6 @@ BEGIN
             COALESCE(v_counts.independent_count, 0), true; RETURN;
     END IF;
 
-    PERFORM pg_advisory_xact_lock(hashtextextended(p_target_kind || ':' || p_target_id::text, 0));
     IF EXISTS (SELECT 1 FROM public.learning_audience_definitions audience
                 WHERE (p_target_kind='course_run' AND audience.target_course_run_id=p_target_id)
                    OR (p_target_kind='activity_run' AND audience.target_activity_run_id=p_target_id)) THEN
