@@ -506,7 +506,7 @@ describe('LRN-M1-002 CourseEnrollment', () => {
 
   it('creates no ActivityRun row or ActivityParticipation runtime', async () => {
     const learner = await createLearner();
-    await assign(runId, learner.identityId);
+    const enrollment = await assign(runId, learner.identityId);
     const activityRunsForEnrollmentRun = await admin.query(
       `SELECT count(*)::int AS count
          FROM activity_runs
@@ -514,10 +514,12 @@ describe('LRN-M1-002 CourseEnrollment', () => {
       [runId],
     );
     const participation = await admin.query(
-      `SELECT to_regclass('public.activity_participations') AS relation`,
+      `SELECT count(*)::int AS count FROM activity_participations
+        WHERE source_course_enrollment_id=$1`,
+      [enrollment.enrollment_id],
     );
     expect(activityRunsForEnrollmentRun.rows).toEqual([{ count: 0 }]);
-    expect(participation.rows[0].relation).toBeNull();
+    expect(participation.rows).toEqual([{ count: 0 }]);
   });
 
   it('leaves the existing CourseRun and learner reader contract unchanged', async () => {

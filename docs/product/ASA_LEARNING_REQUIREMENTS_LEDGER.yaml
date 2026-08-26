@@ -118,7 +118,7 @@ requirements:
 - id: IDN-003
   milestone: M1
   status: in_progress
-  summary: Universal Learning runtime ownership references the ADR-selected stable learner key; CourseEnrollment now uses learner_identities.id while ActivityParticipation, Attempt and Result lineage remain incomplete
+  summary: CourseEnrollment and ActivityParticipation now use learner_identities.id with physical school lineage; overall remains incomplete until Attempt and Result ownership converge
   evidence:
   - docs/architecture/ADR-LEARNER-IDENTITY-001.md
   - docs/product/learning/current/LRN_M0_CANONICAL_STATE_RESULT_RESOLVER.md
@@ -126,9 +126,12 @@ requirements:
   - docs/review/learning/M0_ACCEPTANCE_REPORT.md
   - migrations/0092_course_enrollments.sql
   - docs/product/learning/current/LRN_M1_COURSE_ENROLLMENT_REPORT.md
+  - migrations/0094_activity_participations.sql
+  - docs/product/learning/current/LRN_M1_ACTIVITY_PARTICIPATION_REPORT.md
   tests:
   - tests/courses/learning-additive-backfill.pg.spec.ts
   - tests/courses/course-enrollments.pg.spec.ts
+  - tests/courses/activity-participations.pg.spec.ts
 - id: IDN-004
   milestone: M0
   status: proven
@@ -185,7 +188,7 @@ requirements:
 - id: ARCH-001
   milestone: M1
   status: in_progress
-  summary: Direct and course definitions now share canonical LearningActivityVersion and persistent ActivityRun storage, while ActivityParticipation and common Attempt ownership remain later M1/M2 scope
+  summary: Direct and course definitions share LearningActivityVersion, ActivityRun and stable-learner ActivityParticipation storage; common Attempt ownership remains later M2 scope
   evidence:
   - docs/product/learning/execution/LRN-M1-001_EXECUTION_SPEC.md
   - docs/product/learning/current/LRN_M1_ACTIVITY_VERSION_CONVERGENCE_REPORT.md
@@ -193,9 +196,12 @@ requirements:
   - docs/product/learning/execution/LRN-M1-003_EXECUTION_SPEC.md
   - migrations/0093_activity_runs.sql
   - docs/product/learning/current/LRN_M1_ACTIVITY_RUN_REPORT.md
+  - migrations/0094_activity_participations.sql
+  - docs/product/learning/current/LRN_M1_ACTIVITY_PARTICIPATION_REPORT.md
   tests:
   - tests/courses/learning-activity-version-convergence.pg.spec.ts
   - tests/courses/activity-runs.pg.spec.ts
+  - tests/courses/activity-participations.pg.spec.ts
 - id: ARCH-006
   milestone: M1
   status: proven
@@ -251,13 +257,16 @@ requirements:
 - id: ARCH-002
   milestone: M1
   status: in_progress
-  summary: One persistent canonical ActivityRun model exists for direct and course provenance; existing executable paths are not yet universally materialized or cut over
+  summary: Persistent ActivityRun and ActivityParticipation primitives exist for direct/course delivery; audience materialization and executable-path cutover remain incomplete
   evidence:
   - docs/product/learning/execution/LRN-M1-003_EXECUTION_SPEC.md
   - migrations/0093_activity_runs.sql
   - docs/product/learning/current/LRN_M1_ACTIVITY_RUN_REPORT.md
+  - migrations/0094_activity_participations.sql
+  - docs/product/learning/current/LRN_M1_ACTIVITY_PARTICIPATION_REPORT.md
   tests:
   - tests/courses/activity-runs.pg.spec.ts
+  - tests/courses/activity-participations.pg.spec.ts
 - id: ARCH-003
   milestone: M0
   status: proven
@@ -345,12 +354,15 @@ requirements:
   - tests/courses/activity-runs.pg.spec.ts
 - id: AUD-101
   milestone: M1
-  status: in_progress
-  summary: ActivityParticipation lifecycle target is assigned, active or withdrawn; M1-004 evidence is pending
+  status: proven
+  summary: ActivityParticipation lifecycle is physically constrained to assigned, active or withdrawn with guarded transitions and append-preserved withdrawal
   evidence:
   - docs/product/ASA_LEARNING_TECHNICAL_SPEC.md
   - docs/product/learning/execution/LRN-M1-004_EXECUTION_SPEC.md
-  tests: []
+  - migrations/0094_activity_participations.sql
+  - docs/product/learning/current/LRN_M1_ACTIVITY_PARTICIPATION_REPORT.md
+  tests:
+  - tests/courses/activity-participations.pg.spec.ts
 - id: AUD-102
   milestone: M1
   status: in_progress
@@ -358,23 +370,32 @@ requirements:
   evidence:
   - docs/product/ASA_LEARNING_TECHNICAL_SPEC.md
   - docs/product/learning/execution/LRN-M1-004_EXECUTION_SPEC.md
-  tests: []
+  - migrations/0094_activity_participations.sql
+  - docs/product/learning/current/LRN_M1_ACTIVITY_PARTICIPATION_REPORT.md
+  tests:
+  - tests/courses/activity-participations.pg.spec.ts
 - id: AUD-103
   milestone: M1
-  status: in_progress
-  summary: Excused is an orthogonal Participation override with actor/time/reason evidence; M1-004 evidence is pending
+  status: proven
+  summary: Excused is an orthogonal one-way Participation override with actor/time/reason evidence, authorization and append-only audit
   evidence:
   - docs/product/ASA_LEARNING_TECHNICAL_SPEC.md
   - docs/product/learning/execution/LRN-M1-004_EXECUTION_SPEC.md
-  tests: []
+  - migrations/0094_activity_participations.sql
+  - docs/product/learning/current/LRN_M1_ACTIVITY_PARTICIPATION_REPORT.md
+  tests:
+  - tests/courses/activity-participations.pg.spec.ts
 - id: AUD-104
   milestone: M1
-  status: in_progress
-  summary: Canonical learner-specific Participation fields and nullable override storage target; M1-004 evidence is pending
+  status: proven
+  summary: Canonical school-safe learner-specific Participation fields and nullable override storage are implemented with guarded commands and RLS
   evidence:
   - docs/product/ASA_LEARNING_TECHNICAL_SPEC.md
   - docs/product/learning/execution/LRN-M1-004_EXECUTION_SPEC.md
-  tests: []
+  - migrations/0094_activity_participations.sql
+  - docs/product/learning/current/LRN_M1_ACTIVITY_PARTICIPATION_REPORT.md
+  tests:
+  - tests/courses/activity-participations.pg.spec.ts
 - id: AUD-105
   milestone: M1
   status: in_progress
@@ -382,7 +403,10 @@ requirements:
   evidence:
   - docs/product/ASA_LEARNING_TECHNICAL_SPEC.md
   - docs/product/learning/execution/LRN-M1-004_EXECUTION_SPEC.md
-  tests: []
+  - migrations/0094_activity_participations.sql
+  - docs/product/learning/current/LRN_M1_ACTIVITY_PARTICIPATION_REPORT.md
+  tests:
+  - tests/courses/activity-participations.pg.spec.ts
 - id: AUD-203
   milestone: M1
   status: target
