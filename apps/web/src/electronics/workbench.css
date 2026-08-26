@@ -2575,6 +2575,31 @@
   cursor: help;
   outline: none;
 }
+
+/* A calculated destructive state changes the physical source/resistor itself.
+   No extra card or toast is added; the I inspector owns the numeric cause. */
+[data-presentation-state='destructive'][data-kind='source'] .workbench-production-visual,
+[data-presentation-state='destructive'][data-kind='resistor'] .workbench-production-visual {
+  animation: workbench-component-overheat 0.82s ease-in-out infinite alternate;
+}
+
+@keyframes workbench-component-overheat {
+  from {
+    filter: saturate(0.72) brightness(0.88) drop-shadow(0 0 2px rgb(222 126 23 / 58%));
+  }
+  to {
+    filter: saturate(0.46) brightness(0.67) drop-shadow(0 0 5px rgb(183 49 31 / 82%));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-presentation-state='destructive'][data-kind='source'] .workbench-production-visual,
+  [data-presentation-state='destructive'][data-kind='resistor'] .workbench-production-visual {
+    animation: none;
+    filter: saturate(0.46) brightness(0.67) drop-shadow(0 0 4px rgb(183 49 31 / 78%));
+  }
+}
+
 .workbench-component-diagnostic-indicator:focus circle {
   stroke: #17232b;
   stroke-width: 2.2;

@@ -1061,6 +1061,7 @@ test('real editor recalculates SPDT, resistor and LED without waiting for persis
   await expect(page.getByText(/Время моделирования:/)).toBeVisible();
   const source = page.locator('[data-testid="schematic-component"][data-kind="source"]');
   await expect(source).toHaveAttribute('data-diagnostics', /short_circuit/);
+  await expect(source).toHaveAttribute('data-presentation-state', 'destructive');
   await expect(
     diagnostic(page, 'battery-holder-aa-2', 'component-diagnostic-indicator'),
   ).toBeVisible();

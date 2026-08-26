@@ -192,6 +192,10 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(workbenchCss).toContain('.workbench-component-diagnostic-indicator circle');
     expect(workbenchCss).toContain('.workbench-led-explosion-outer');
     expect(workbenchCss).toContain('.workbench-led-explosion-inner');
+    expect(stageSource).toContain('data-presentation-state={c.resultByComponent.get(component.id)');
+    expect(workbenchCss).toContain("[data-presentation-state='destructive'][data-kind='source']");
+    expect(workbenchCss).toContain("[data-presentation-state='destructive'][data-kind='resistor']");
+    expect(workbenchCss).toContain('@keyframes workbench-component-overheat');
     expect(workbenchCss).not.toContain('.workbench-component-diagnostic-tooltip');
     expect(productionVisualSource).not.toContain('--workbench-led-glow');
     expect(stageSource).not.toContain('workbench-results-card');

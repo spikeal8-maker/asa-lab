@@ -444,6 +444,7 @@ export function WorkbenchStage({
                 }`}
                 data-testid="schematic-component"
                 data-kind={component.kind}
+                data-presentation-state={c.resultByComponent.get(component.id)?.presentationState}
                 data-component-type={component.componentTypeId}
                 data-hole-bindings={Object.keys(component.holeBindings ?? {}).length}
                 data-hole-ids={Object.entries(component.holeBindings ?? {})
