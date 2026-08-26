@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
+// eslint-disable-next-line @nx/enforce-module-boundaries
 import { THREE_D_GEOMETRY_CORPUS } from '../../../../../contexts/three-d/testing/corpus/cases';
+// eslint-disable-next-line @nx/enforce-module-boundaries
 import { THREE_D_CORPUS_VERSION } from '../../../../../contexts/three-d/testing/corpus/expectations';
 import { evaluateGeometryCase } from './geometry-corpus';
 
