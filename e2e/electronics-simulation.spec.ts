@@ -1328,7 +1328,7 @@ test('four-pin button is a momentary bridge for an arbitrary decimal LED load', 
   failures.assertEmpty();
 });
 
-test('independent sources keep diagnostics local and the selected burned LED marks I', async ({
+test('independent and parallel sources keep diagnostics local and expose current direction', async ({
   page,
 }) => {
   test.setTimeout(120_000);
@@ -1363,17 +1363,7 @@ test('independent sources keep diagnostics local and the selected burned LED mar
     path: `${ARTIFACT_DIR}/electronics-isolated-source-diagnostics.png`,
     fullPage: true,
   });
-  failures.assertEmpty();
-});
-
-test('parallel sources expose delivering and reverse-current modes without stopping simulation', async ({
-  page,
-}) => {
-  test.setTimeout(120_000);
-  const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
-  await page.setViewportSize({ width: 1440, height: 900 });
-  await loginWithOrganization(page, teacher);
-  const projectId = await createProject(page, 'R4-M1 parallel source modes');
+  await page.getByRole('button', { name: 'Остановить моделирование' }).click();
   await saveDocument(page, projectId, conflictingParallelSourcesDocument());
   await page.goto(`/#/home/${projectId}`);
   await page.getByRole('button', { name: 'Начать моделирование' }).click();
