@@ -693,6 +693,32 @@ describe('deterministic DC solver', () => {
     expect(
       shortDiagnostics.every((diagnostic) => diagnostic.componentIds?.[0] === 'shorted-source'),
     ).toBe(true);
+    expect(result.components.find((item) => item.componentId === 'shorted-source')).toMatchObject({
+      deviceHealth: 'overheated',
+      damageState: 'destructive_preview',
+      presentationState: 'destructive',
+    });
+    expect(result.components.find((item) => item.componentId === 'loaded-source')).toMatchObject({
+      deviceHealth: 'normal',
+      damageState: 'none',
+      presentationState: 'normal',
+    });
+    expect(result.components.find((item) => item.componentId === 'open-source')).toMatchObject({
+      current: 0,
+      deviceHealth: 'normal',
+      damageState: 'none',
+      presentationState: 'normal',
+    });
+    const damagingDiagnostics = result.diagnostics.filter(
+      (diagnostic) => diagnostic.severity === 'error' || diagnostic.severity === 'warning',
+    );
+    expect(
+      damagingDiagnostics.every(
+        (diagnostic) =>
+          !diagnostic.componentIds?.includes('loaded-source') &&
+          !diagnostic.componentIds?.includes('open-source'),
+      ),
+    ).toBe(true);
   });
 
   it('uses the CR2032 source profile under load', () => {

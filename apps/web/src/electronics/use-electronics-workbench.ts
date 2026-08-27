@@ -7,13 +7,7 @@ import {
   type PointerEvent,
   type WheelEvent,
 } from 'react';
-import type {
-  ComponentResult,
-  Diagnostic,
-  ProductionStateValue,
-  SchematicComponent,
-  Terminal,
-} from '../api';
+import type { ComponentResult, ProductionStateValue, SchematicComponent, Terminal } from '../api';
 import {
   catalogEntry,
   componentPointPosition,
@@ -69,6 +63,7 @@ import {
   updateSelectionVariant,
   updateWiperPosition,
 } from './workbench-document';
+import { diagnosticsGroupedByComponent } from './diagnostic-presentation';
 import {
   DEFAULT_VIEWPORT,
   MAX_ZOOM,
@@ -1552,28 +1547,8 @@ export function useElectronicsWorkbench(projectId: string) {
   }
 
   const diagnosticsByComponent = useMemo(() => {
-    const map = new Map<string, Diagnostic[]>();
-    for (const diagnostic of result?.diagnostics ?? []) {
-      const explicitComponentIds = diagnostic.componentIds ?? [];
-      // A numerical/topology diagnostic can describe the whole powered circuit
-      // and therefore arrive without a component id. Circuits does not open a
-      // global result window for that case: it anchors the visible warning to
-      // the power source. Keep the calculation fail-closed, but put its message
-      // where the learner can act on it.
-      const componentIds =
-        explicitComponentIds.length > 0
-          ? explicitComponentIds
-          : diagnostic.severity === 'info'
-            ? []
-            : (document?.components
-                .filter((component) => component.kind === 'source')
-                .map((component) => component.id) ?? []);
-      for (const componentId of componentIds) {
-        map.set(componentId, [...(map.get(componentId) ?? []), diagnostic]);
-      }
-    }
-    return map;
-  }, [document, result]);
+    return diagnosticsGroupedByComponent(result?.diagnostics ?? []);
+  }, [result]);
   const diagnosticCodesByComponent = useMemo(
     () =>
       new Map(
