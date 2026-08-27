@@ -122,11 +122,11 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: unified_documentation_implementation
+      checkpoint: strengthened_documentation_ready_for_owner_review
       owner_acceptance: pending
     revisions:
-      convergence_baseline_sha: b7a41dbfa5b51fc8ee06e2a38f07c6d83ec919da
-      head_sha: b7a41dbfa5b51fc8ee06e2a38f07c6d83ec919da
+      convergence_baseline_sha: b38851e0684ee624fc0ce9767ef3adbfbef66ca2
+      head_sha: b38851e0684ee624fc0ce9767ef3adbfbef66ca2
     execution_lease:
       executor_id: codex-electronics-docs
       holder: unassigned
