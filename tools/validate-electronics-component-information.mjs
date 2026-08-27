@@ -6,6 +6,7 @@ import { parse as parseYaml } from 'yaml';
 
 const SPEC_PATH = 'docs/product/electronics/README.md';
 const LEDGER_PATH = 'docs/product/electronics/contracts/information-requirements.yaml';
+const CAPABILITIES_PATH = 'docs/product/electronics/contracts/capabilities.yaml';
 const PLANNED_TESTS_PATH = 'docs/testing/planned-test-catalog.yaml';
 const SCHEMA_PATHS = [
   'docs/product/electronics/contracts/schemas/inspector-profile.schema.json',
@@ -53,6 +54,7 @@ for (const path of SCHEMA_PATHS) {
 }
 
 const ledger = loadYaml(LEDGER_PATH);
+const capabilities = loadYaml(CAPABILITIES_PATH);
 const ledgerSchema = schemas.get(
   'docs/product/electronics/contracts/schemas/information-requirements.schema.json',
 );
@@ -126,6 +128,53 @@ if (ledger) {
   }
 }
 
+if (capabilities) {
+  const spec = readFileSync(SPEC_PATH, 'utf8');
+  const declaredMathDecisions = new Set(capabilities.engineering_decisions ?? []);
+  const documentedMathDecisions = new Set(spec.match(/DEC-MATH-\d{3}/g) ?? []);
+  for (const decisionId of declaredMathDecisions) {
+    if (!documentedMathDecisions.has(decisionId)) {
+      fail(`${decisionId}: absent from ${SPEC_PATH}`);
+    }
+  }
+  for (const decisionId of documentedMathDecisions) {
+    if (!declaredMathDecisions.has(decisionId)) {
+      fail(`${decisionId}: absent from ${CAPABILITIES_PATH}`);
+    }
+  }
+
+  const resultContract = capabilities.simulation_result_contract;
+  const solverSourcePath = resultContract?.source;
+  if (!solverSourcePath || !existsSync(solverSourcePath)) {
+    fail(`${CAPABILITIES_PATH}: simulation result source is missing`);
+  } else {
+    const solverSource = readFileSync(solverSourcePath, 'utf8');
+    for (const [typeName, expectedValues] of Object.entries(resultContract.unions ?? {})) {
+      const match = solverSource.match(new RegExp(`export type ${typeName}\\s*=([\\s\\S]*?);`));
+      if (!match) {
+        fail(`${solverSourcePath}: cannot find exported union ${typeName}`);
+        continue;
+      }
+      const actualValues = [...match[1].matchAll(/'([^']+)'/g)].map((entry) => entry[1]);
+      if (JSON.stringify(actualValues) !== JSON.stringify(expectedValues)) {
+        fail(
+          `${typeName}: contract ${JSON.stringify(expectedValues)} differs from source ${JSON.stringify(actualValues)}`,
+        );
+      }
+    }
+    for (const field of [resultContract.status_field, resultContract.compatibility_boolean]) {
+      if (!field || !new RegExp(`readonly ${field}\\s*:`).test(solverSource)) {
+        fail(`${solverSourcePath}: SolveResult field ${String(field)} is absent`);
+      }
+    }
+  }
+
+  const coverage = capabilities.generated_component_coverage;
+  if (!coverage?.source_layers?.length || !coverage?.required_dimensions?.length) {
+    fail(`${CAPABILITIES_PATH}: generated component coverage contract is incomplete`);
+  }
+}
+
 const inspectorSchemaText = readFileSync(SCHEMA_PATHS[0], 'utf8');
 for (const forbidden of ['propertyPath', 'sourcePath', 'optionsSource\"']) {
   if (inspectorSchemaText.includes(forbidden)) {
@@ -140,5 +189,5 @@ if (failures.length) {
 }
 
 console.log(
-  `component-information PASS (${schemas.size} schemas, ${ledger?.decisions?.length ?? 0} decisions, ${ledger?.requirements?.length ?? 0} requirements)`,
+  `component-information PASS (${schemas.size} schemas, ${ledger?.decisions?.length ?? 0} information decisions, ${capabilities?.engineering_decisions?.length ?? 0} math decisions, ${ledger?.requirements?.length ?? 0} requirements)`,
 );

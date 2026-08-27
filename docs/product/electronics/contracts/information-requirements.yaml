@@ -11,18 +11,18 @@ decisions:
     evidence_required: [desktop_owner_review, mobile_owner_review]
   - id: DEC-INFO-002
     decision: help_replaces_component_catalog_and_restores_catalog_state
-    status: pending_owner
-    blocking_scopes: [desktop_ux]
+    status: owner_direction
+    blocking_scopes: []
     evidence_required: [desktop_owner_review, mobile_owner_review]
   - id: DEC-INFO-003
     decision: neutral_info_control_for_runtime_state
-    status: pending_owner
-    blocking_scopes: [desktop_ux, mobile_ux]
+    status: owner_direction
+    blocking_scopes: []
     evidence_required: [desktop_owner_review]
   - id: DEC-INFO-004
     decision: exclamation_is_diagnostic_badge_only
-    status: pending_owner
-    blocking_scopes: [desktop_ux, mobile_ux]
+    status: owner_direction
+    blocking_scopes: []
     evidence_required: [diagnostic_states_owner_review]
   - id: DEC-INFO-005
     decision: mobile_help_is_full_screen_layer

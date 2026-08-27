@@ -1,6 +1,61 @@
 schema_version: 1.0.0
 catalog_id: asa-electronics-complete-tool-catalog
 status: normative
+
+simulation_result_contract:
+  source: contexts/electronics/domain/solver.ts
+  status_field: status
+  compatibility_boolean: solved
+  unions:
+    SimulationSolveStatus: [solved, invalid, unsupported, nonconvergent]
+    DeviceHealth: [normal, warning, overheated, failed_open, failed_short, stalled, reverse_damaged]
+    DamageState: [none, destructive_preview, failed]
+    PresentationState: [normal, warning, destructive, failed, stalled]
+
+engineering_decisions:
+  - DEC-MATH-001
+  - DEC-MATH-002
+  - DEC-MATH-003
+  - DEC-MATH-004
+  - DEC-MATH-005
+  - DEC-MATH-006
+  - DEC-MATH-007
+  - DEC-MATH-008
+  - DEC-MATH-009
+  - DEC-MATH-010
+  - DEC-MATH-011
+  - DEC-MATH-012
+  - DEC-MATH-013
+  - DEC-MATH-014
+  - DEC-MATH-015
+  - DEC-MATH-016
+
+generated_component_coverage:
+  source_layers:
+    - production_catalog
+    - owner_manifest
+    - terminal_registry
+    - model_identity
+    - model_registry
+    - inspector_and_help_profiles
+    - tests_and_browser_evidence
+  required_dimensions:
+    - owner_artwork
+    - placement
+    - physical_scale
+    - terminals
+    - breadboard_fixture
+    - model_identity
+    - dc_model
+    - transient_model
+    - damage_profile
+    - inspector_help
+    - browser_evidence
+  rules:
+    - generated_on_exact_sha_not_maintained_by_hand
+    - enabled_does_not_mean_modeled
+    - catalog_and_model_registry_contradiction_is_failure
+    - unsupported_component_makes_document_unsupported
 module_key: electronics
 release: R4
 source_scope: docs/product/ASA_TINKERCAD_100_PERCENT_SCOPE.yaml
@@ -12,6 +67,7 @@ reference_statuses:
   owner_video: Owner evidence confirms the visible behavior.
   evidence_required: Exact reference behavior or inventory must be captured before parity claim.
   asa_safety_improvement: Deliberate safer behavior requiring deviation record if reference differs.
+  owner_excluded_from_current_product: Owner explicitly excluded this family from the current product scope.
 
 
 workbench_regions:
@@ -272,8 +328,8 @@ component_families:
     required_for_full_parity: true
     parts: [arduino_uno, compatible_pin_and_power_model]
   - id: MICROCONTROLLER-MICROBIT
-    reference_status: confirmed_official
-    required_for_full_parity: true
+    reference_status: owner_excluded_from_current_product
+    required_for_full_parity: false
     parts: [microbit_board, led_matrix, buttons, accelerometer, radio_or_equivalent_if_reference_confirmed]
   - id: INSTRUMENT-COMPONENTS
     reference_status: evidence_required

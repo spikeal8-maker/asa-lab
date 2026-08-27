@@ -43,6 +43,29 @@ owner SVG и собственный код.
 Машинные контракты находятся в [`contracts/`](contracts/). Они не являются
 второй человеческой документацией: это входы автоматических валидаторов.
 
+Статус машинного ledger (`proposed`, `approved`, `superseded`) описывает
+готовность набора требований и evidence, а не отменяет нормативность этого
+документа. `pending_owner` запрещает заявлять принятым только конкретное решение,
+но не разрешает runtime выбрать поведение самостоятельно. Принятое
+owner-направление фиксируется как `owner_direction`; `approved` требует
+датированного resolution и SHA, на котором оно было проверено.
+
+### 2.1. Текущее состояние и целевой контракт
+
+В этом документе слова имеют точное значение:
+
+- **инвариант** — обязан выполняться каждым принимаемым изменением уже сейчас;
+- **текущий контракт** — имя и форма, которые существуют в production types;
+- **целевой контракт** — требование будущего вертикального среза;
+- **этап** — порядок реализации, а не заявление о готовности;
+- **проверено** — есть тест и evidence на том же SHA;
+- **принято владельцем** — есть owner acceptance, не заменяемый CI.
+
+Целевая архитектура не выдаётся за существующую. Пока общий solver содержит
+legacy-ветки конкретных компонентов, DeviceModel migration считается частичной.
+Наличие компонента в каталоге, SVG, инспектора или identity также не означает
+наличие электрической модели.
+
 ## 3. Неизменяемые правила
 
 1. Netlist определяется соединёнными терминалами, а не формой провода.
@@ -103,7 +126,16 @@ Component Library
 
 Документ не хранит вычисленные токи, напряжения, яркость, температуру или
 диагностику как постоянную истину. Additive migration обязана читать прежние
-схемы, сохранять неизвестные поля и давать `unsupported` неизвестной модели.
+схемы и давать `unsupported` неизвестной модели.
+
+Forward compatibility считается выполненной только после проверки полного
+`parse → edit → serialize` round-trip. Неизвестные поля сохраняются в
+типизированном additive-контейнере `extensions` либо другим явно
+версионированным механизмом. Парсер, который собирает новый объект только из
+известных ключей, **не** удовлетворяет этому требованию. До появления такого
+механизма runtime обязан отклонить более новую schema version, а не открыть её с
+потерей данных. Миграция никогда не изменяет owner assets, а вычисленные
+результаты не становятся частью сохранённой электрической истины.
 
 ## 6. Component Library
 
@@ -251,6 +283,23 @@ modelProfileVersion
 Model profile — данные без исполняемого кода. Он хранит параметры, единицы,
 диапазон, provenance и educational assumptions. Формулы находятся в DeviceModel.
 
+### 10.1. Единицы, знаки и опорный потенциал
+
+- Внутренние расчёты используют SI: V, A, Ohm, F, H, W, J, s, K, rad/s.
+- UI может показывать mV, mA, kOhm и °C, но конвертация и округление происходят
+  только в presentation layer и не входят в canonical result digest.
+- Ток терминала положителен, когда входит в физический терминал компонента.
+- Напряжение компонента всегда указывает объявленную пару `positiveTerminal →
+  negativeTerminal`; скрытая зависимость от порядка массива запрещена.
+- Положительная мощность означает поглощение, отрицательная — отдачу в сеть.
+- Ground/reference node выбирается детерминированно из topology. Отсутствие
+  явного GND в плавающей, но разрешимой цепи не меняет разности потенциалов;
+  абсолютный reference описывается в diagnostics.
+- Несовместимые идеальные источники дают `invalid` либо поддерживаемую модель с
+  конечным внутренним сопротивлением — бесконечный ток запрещён.
+- Все profile constants имеют единицу, диапазон, provenance и версию. Значение
+  без единицы не допускается в model registry.
+
 Минимальная ответственность DeviceModel:
 
 - validate parameters and terminals;
@@ -265,14 +314,22 @@ Model profile — данные без исполняемого кода. Он х
 
 ## 11. Результат симуляции
 
-Общий результат разделяет:
+Текущий канонический TypeScript-контракт разделяет:
 
-- `analysisStatus`: `solved | invalid | unsupported | nonconvergent`;
-- `deviceHealth`: `normal | warning | overheated | failed`;
-- `damageState`: `none | destructive_preview | failed_open | failed_short`;
-- `presentationState`: минимальное визуальное состояние;
+- `SolveResult.status`: `solved | invalid | unsupported | nonconvergent`;
+- `SolveResult.solved`: совместимый boolean, который не заменяет `status`;
+- `deviceHealth`: `normal | warning | overheated | failed_open | failed_short |
+  stalled | reverse_damaged`;
+- `damageState`: `none | destructive_preview | failed`;
+- `presentationState`: `normal | warning | destructive | failed | stalled`;
 - terminal currents, voltage, power и model-specific observations;
 - diagnostics с anchors.
+
+Новые имена (`analysisStatus`) или другое множество состояний нельзя вводить
+только в документации. Изменение контракта выполняется одним срезом: types,
+serializer, browser, server, fixtures и migration. Конкретный post-failure
+режим (`open`, `short`, finite resistance, stalled) хранится как типизированная
+observation/profile state, а не подменяет общий `damageState`.
 
 Сходящийся расчёт может быть `solved`, пока один компонент находится в warning
 или failed. После появления transient отказ компонента переключает его на
@@ -293,6 +350,21 @@ Model profile — данные без исполняемого кода. Он х
 Expected values не могут быть получены только тем solver, который проверяется.
 Нужен analytical, measurement или независимый reference с provenance.
 
+### 12.1. Сходимость и ресурсные пределы
+
+- nonlinear loop имеет объявленный предел итераций, норму residual и damping;
+- GMIN/source stepping разрешены только как детерминированные именованные фазы;
+- исчерпание пределов возвращает `nonconvergent`, а не последние числа как
+  `solved`;
+- transient отклоняет неудачный шаг, откатывает runtime state и уменьшает шаг;
+- solver timestep не зависит от FPS и частоты отрисовки;
+- число retry, минимальный/максимальный timestep и sample cadence ограничены;
+- устаревший browser job отменяется или игнорируется по input digest;
+- server verification имеет timeout и те же численные пределы;
+- обязательный performance fixture фиксирует число компонентов, сетей, шагов,
+  p50/p95 времени и peak memory. Конкретные бюджеты утверждаются evidence до
+  активации transient в production и затем становятся regression gate.
+
 ## 13. Опасные режимы и повреждение
 
 Обязательный путь:
@@ -310,6 +382,37 @@ electrical stress
 До transient-ядра разрешён только честный `destructive_preview`: численные
 значения остаются видимыми, но накопленное время повреждения не выдумывается.
 После transient нагрев, энергия и время отказа не зависят от FPS.
+
+Runtime damage живёт только внутри одного simulation run. `Stop`, `Reset` и
+новый `Start` создают чистое runtime state из сохранённого CircuitDocument.
+Повреждение не autosave-ится как физически испорченный экземпляр, пока владелец
+отдельно не активирует persistent damage. Переход в failure выполняется только
+после принятого transient step; отклонённый шаг не оставляет частичного нагрева
+или отказа. После failure solver применяет объявленную profile-модель (`open`,
+`short`, finite resistance или stalled), пересчитывает оставшуюся цепь и
+сохраняет локальную привязку причины.
+
+### 13.1. Нормативные решения математического ядра
+
+- `DEC-MATH-001` — математика развивается вертикальными срезами, не после
+  завершения всего визуала;
+- `DEC-MATH-002` — доступность в каталоге не равна model readiness;
+- `DEC-MATH-003` — модель выбирается только versioned model/profile identity;
+- `DEC-MATH-004` — один production solver авторитетен; comparator не выдаёт
+  второй результат пользователю;
+- `DEC-MATH-005` — TypeScript baseline сохраняется до доказанного parity любой
+  Rust/WASM замены;
+- `DEC-MATH-006` — model не изменяет document, SVG или UI;
+- `DEC-MATH-007` — model time не зависит от FPS;
+- `DEC-MATH-008` — unsupported topology всегда fail-closed;
+- `DEC-MATH-009` — опасная поддерживаемая цепь рассчитывается, а не блокируется;
+- `DEC-MATH-010` — solve status отделён от health, damage и presentation;
+- `DEC-MATH-011` — damage видим локально на компоненте;
+- `DEC-MATH-012` — UI только отображает observations;
+- `DEC-MATH-013` — Stop/Reset/new Start очищают runtime damage;
+- `DEC-MATH-014` — runtime damage не сохраняется без отдельного owner-решения;
+- `DEC-MATH-015` — post-failure модель продолжает расчёт оставшейся цепи;
+- `DEC-MATH-016` — diagnostics минимальны, локальны и не засоряют Stage.
 
 ## 14. Порядок развития математического ядра
 
@@ -377,6 +480,46 @@ Pcu = i²·R
 Обязательны startup, back-EMF, direction, load, stall, temperature, winding
 failure, NPN drive и flyback diode. SVG вращается только от рассчитанной speed.
 
+### MATH-6 — управляемые пассивные и переключатели
+
+- potentiometer как два связанных сопротивления с сохранением полного R;
+- photoresistor с versioned illumination-to-resistance profile;
+- кнопки и переключатели как детерминированное изменение topology;
+- лампа с электротепловой зависимостью и видимым failure;
+- RGB и seven-segment как независимые junctions без общей фиктивной яркости.
+
+### MATH-7 — полупроводниковые расширения
+
+- PNP, NMOS/PMOS и дополнительные diode profiles;
+- единые sign conventions, regions и bounded nonlinear evaluation;
+- independent reference sweeps и температурные assumptions;
+- удаление component-specific legacy branches только после parity.
+
+### MATH-8 — actuators и звук
+
+- servo, gearmotor и vibration motor с нагрузкой и механическими пределами;
+- piezo/buzzer с frequency, amplitude, source impedance и browser audio consent;
+- визуальная анимация только от рассчитанного состояния;
+- DC/transient поддержка объявляется отдельно для каждого profile.
+
+### MATH-9 — environment sensors
+
+- environment inputs являются явным versioned runtime input, а не CSS-control;
+- temperature, PIR, ultrasonic, soil moisture и другие sensors имеют диапазон,
+  transfer function, питание и terminal behavior;
+- sensor без утверждённой transfer function остаётся `unsupported`.
+
+### MATH-10 — instruments и регулируемые источники
+
+- multimeter: mode, polarity, input impedance, burden voltage и fuse state;
+- oscilloscope: channel reference, input impedance, sample rate, timebase,
+  trigger и bandwidth assumptions;
+- signal generator: waveform, amplitude, offset, frequency и output impedance;
+- regulated supply: setpoint, current limit, CV/CC transition и finite output
+  impedance;
+- probe geometry не меняет topology, а подключение probe меняет измерительный
+  netlist предсказуемо.
+
 Следующий этап нельзя начинать, пока предыдущий не прошёл acceptance и owner
 review. Временная статическая модель компонента не закрывает будущий этап.
 
@@ -396,6 +539,23 @@ Arduino UI может развиваться визуально, но полно
 - код в versioned project digest;
 - browser/server validation.
 
+Code panel открывается сбоку и не закрывает выбранную Arduino. Ширина меняется
+в пределах адаптивных min/max без изменения координат Stage. Открытие не должно
+ждать загрузки необязательных блоков: тяжёлый редактор загружается лениво с
+видимым bounded loading state.
+
+Blocks contract включает отдельный масштаб toolbox и workspace, корректный
+pointer/touch drag, fit-to-workspace, значения полей по умолчанию, создание
+переменных и контекстное меню. Copy/delete применяется к выбранному блоку вместе
+с присоединённым нижним стеком и поддерживает undo. Blocks+Text не обещает
+обратимое преобразование произвольного C++ в блоки: граница round-trip должна
+быть объявлена и протестирована.
+
+Serial Monitor определяет input, output, clear, autoscroll, line endings и baud.
+Clear очищает только видимый runtime log. Reset перезапускает код и runtime
+board state, а LED `ON`, `L`, `TX`, `RX` получают состояние только от power,
+GPIO и serial observations.
+
 Наличие редактора или блока не означает наличие compiler/runtime.
 
 ## 16. Mobile contract
@@ -408,6 +568,15 @@ Arduino UI может развиваться визуально, но полно
 - Help открывается полноэкранно.
 - Code panel не перекрывает всю схему без возможности resize/collapse.
 - Desktop document остаётся редактируемым на mobile и наоборот.
+- Провод создаётся и переподключается точными endpoint handles; перемещение
+  Stage двумя пальцами не перемещает компонент.
+- Bottom sheet имеет collapsed, half и full состояния, не скрывает выбранный
+  terminal без возможности свернуть его и восстанавливает поиск/категорию.
+- Inspector `I` и help `?` доступны без hover; системная клавиатура не скрывает
+  редактируемое поле или Start/Stop.
+- Критические touch targets имеют минимум `44 × 44 CSS px`.
+- Reduced motion отключает декоративное вращение и вспышки, сохраняя численное
+  и статическое состояние.
 
 ## 17. Persistence и безопасность
 
@@ -417,6 +586,35 @@ Arduino UI может развиваться визуально, но полно
 - Учитель и public viewer не изменяют оригинал.
 - Импорт проверяет schema, finite values, IDs и model versions.
 - Никакие профили не содержат `eval` или клиентский исполняемый код.
+
+### 17.1. Матрица покрытия каталога
+
+Текущая готовность не переписывается вручную в этот документ. Обязательный
+coverage validator должен строить матрицу из production catalog, owner manifest,
+terminal registry, model identity, model registry, inspector/help profiles и
+tests. Пока generated artifact отсутствует, полнота каталога считается
+непроверенной. Для каждого доступного `componentTypeId + variantId` обязательны
+колонки:
+
+| Колонка | Допустимые значения |
+| --- | --- |
+| owner artwork | `verified | missing` |
+| placement | `verified | unavailable` |
+| physical scale | `verified | missing` |
+| terminals | `verified | missing` |
+| breadboard fixture | `verified | missing` |
+| model identity | `verified | missing` |
+| DC model | `verified | unsupported` |
+| transient model | `verified | unsupported | not_applicable` |
+| damage profile | `verified | unsupported | not_applicable` |
+| inspector/help | `verified | missing` |
+| browser evidence | `verified | missing` |
+
+`enabled` разрешает размещение, но не подменяет model readiness. Любая строка с
+`DC model: unsupported` делает содержащую её схему `unsupported`. Противоречие
+между catalog simulation support и model registry является validation failure.
+Итоговая матрица — generated evidence на конкретном SHA, а не ещё один источник
+истины.
 
 ## 18. Gates и доказательства
 
@@ -460,14 +658,31 @@ NX_SKIP_NX_CACHE=true pnpm gate:repository
 
 ## 20. Definition of Done
 
-Основной путь завершён, когда пользователь может разместить батарею, резистор,
+### 20.1. Kernel Short Path Done
+
+Короткий путь завершён, когда пользователь может разместить батарею, резистор,
 LED, NPN, конденсатор и DC motor на breadboard, собрать нормальную или опасную
 поддерживаемую цепь, получить детерминированные значения, увидеть RC transient,
 запуск двигателя, перегрев и профильный отказ, сохранить и открыть проект, а
 браузер и сервер подтвердят один model set без ложных результатов.
 
-Расширения PNP/MOSFET, RLC, приборы, environment sensors и Arduino runtime
-активируются отдельными решениями после выполнения соответствующей основы.
+Этот результат означает готовность электрического ядра, но не всей Electronics.
+
+### 20.2. Current Catalog Fully Modeled
+
+Полный текущий каталог завершён только когда generated coverage matrix не имеет
+`missing` для доступных компонентов, каждый заявленный режим модели имеет
+reference fixture, unsupported остаётся только у явно отложенных компонентов,
+все семейства проходят browser evidence на breadboard, а inspector, help,
+damage и save/reload согласованы с тем же model identity.
+
+### 20.3. Full Electronics Product Done
+
+Кроме полного каталога работают instruments, environment inputs, responsive
+wire editing, accessibility, Arduino runtime, Blocks/Text, Serial Monitor,
+server verification, project versioning и owner journeys. PNP/MOSFET, RLC,
+приборы, sensors и Arduino активируются отдельными вертикальными срезами, но не
+могут быть объявлены готовыми только по наличию UI.
 
 ## 21. Правило изменения системы
 
