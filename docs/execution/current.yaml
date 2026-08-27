@@ -125,8 +125,8 @@ parallel_lanes:
       checkpoint: math_1_multi_source_modes_ready_for_owner_review
       owner_acceptance: pending
     revisions:
-      convergence_baseline_sha: 126681684e5485c976bca74d041a385742ce8444
-      head_sha: 126681684e5485c976bca74d041a385742ce8444
+      convergence_baseline_sha: abdb9b5c4431b10f24471dcf650a6af6d115ef8b
+      head_sha: abdb9b5c4431b10f24471dcf650a6af6d115ef8b
     execution_lease:
       executor_id: codex-electronics-docs
       holder: unassigned
