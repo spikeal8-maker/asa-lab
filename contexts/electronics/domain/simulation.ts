@@ -19,6 +19,8 @@ export interface SimulationQuality {
   readonly passed: boolean;
   readonly maxKclResidualAmp: number;
   readonly maxSourceVoltageResidualVolt: number;
+  readonly powerBalanceResidualWatt: number;
+  readonly powerBalanceToleranceWatt: number;
   readonly kclToleranceAmp: number;
   readonly sourceVoltageToleranceVolt: number;
 }
@@ -53,6 +55,7 @@ export interface SimulationResult extends SolveResult {
 const CLOSED_RESISTANCE = 1e-4;
 const KCL_TOLERANCE_A = 1e-6;
 const SOURCE_VOLTAGE_TOLERANCE_V = 1e-9;
+const MIN_POWER_BALANCE_TOLERANCE_W = 1e-9;
 const MODEL_SET_DIGEST = `sha256:${sha256Hex(canonicalElectricalModelRegistry())}`;
 
 function ordinalCompare(left: string, right: string): number {
@@ -239,6 +242,8 @@ function verifyQuality(
       passed: false,
       maxKclResidualAmp: 0,
       maxSourceVoltageResidualVolt: 0,
+      powerBalanceResidualWatt: 0,
+      powerBalanceToleranceWatt: MIN_POWER_BALANCE_TOLERANCE_W,
       kclToleranceAmp: KCL_TOLERANCE_A,
       sourceVoltageToleranceVolt: SOURCE_VOLTAGE_TOLERANCE_V,
     };
@@ -409,15 +414,47 @@ function verifyQuality(
       Math.abs(residualByNode.get(node) ?? 0),
     ),
   );
+  const powerBalanceComponents = document.components.filter(
+    (component) => !['wire', 'breadboard', 'visual'].includes(component.kind),
+  );
+  const powerBalanceApplicable =
+    powerBalanceComponents.length > 0 &&
+    powerBalanceComponents.every(
+      (component) => componentResult.get(component.id)?.terminalCurrents !== undefined,
+    );
+  const terminalPowerByComponent = powerBalanceApplicable
+    ? powerBalanceComponents.map((component) => {
+        const solved = componentResult.get(component.id);
+        return Object.entries(solved?.terminalCurrents ?? {}).reduce(
+          (power, [terminal, currentEntering]) =>
+            power + (solved?.terminalVoltages[terminal] ?? 0) * (currentEntering ?? 0),
+          0,
+        );
+      })
+    : [];
+  const suppliedPowerWatt = terminalPowerByComponent.reduce(
+    (total, power) => total + Math.max(0, -power),
+    0,
+  );
+  const powerBalanceResidualWatt = Math.abs(
+    terminalPowerByComponent.reduce((total, power) => total + power, 0),
+  );
+  const powerBalanceToleranceWatt = Math.max(
+    MIN_POWER_BALANCE_TOLERANCE_W,
+    suppliedPowerWatt * 1e-6,
+  );
   const passed =
     finite &&
     maxKclResidualAmp <= KCL_TOLERANCE_A &&
-    maxSourceVoltageResidualVolt <= SOURCE_VOLTAGE_TOLERANCE_V;
+    maxSourceVoltageResidualVolt <= SOURCE_VOLTAGE_TOLERANCE_V &&
+    (!powerBalanceApplicable || powerBalanceResidualWatt <= powerBalanceToleranceWatt);
   return {
     finite,
     passed,
     maxKclResidualAmp: rounded(maxKclResidualAmp),
     maxSourceVoltageResidualVolt: rounded(maxSourceVoltageResidualVolt),
+    powerBalanceResidualWatt: rounded(powerBalanceResidualWatt),
+    powerBalanceToleranceWatt: rounded(powerBalanceToleranceWatt),
     kclToleranceAmp: KCL_TOLERANCE_A,
     sourceVoltageToleranceVolt: SOURCE_VOLTAGE_TOLERANCE_V,
   };
@@ -429,6 +466,8 @@ function failedQuality(): SimulationQuality {
     passed: false,
     maxKclResidualAmp: 0,
     maxSourceVoltageResidualVolt: 0,
+    powerBalanceResidualWatt: 0,
+    powerBalanceToleranceWatt: MIN_POWER_BALANCE_TOLERANCE_W,
     kclToleranceAmp: KCL_TOLERANCE_A,
     sourceVoltageToleranceVolt: SOURCE_VOLTAGE_TOLERANCE_V,
   };

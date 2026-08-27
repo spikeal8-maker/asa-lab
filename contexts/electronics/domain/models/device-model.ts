@@ -5,6 +5,13 @@ export interface ModelIssue {
   readonly message: string;
 }
 
+export interface DeviceDiagnostic {
+  readonly code: string;
+  readonly severity: 'warning' | 'error';
+  readonly message: string;
+  readonly suggestedAction?: string;
+}
+
 export interface NormalizedDevice<Parameters> {
   readonly componentId: string;
   readonly component: SchematicComponent;

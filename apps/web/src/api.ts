@@ -967,6 +967,8 @@ export interface ComponentResult {
   voltageDrop: number;
   current: number;
   terminalVoltages: Partial<Record<Terminal, number>>;
+  terminalCurrents?: Partial<Record<Terminal, number>>;
+  voltageConstraintResidual?: number;
   power?: number;
   brightness?: number;
   branchCurrents?: Record<string, number>;
@@ -1014,6 +1016,8 @@ export interface SolveResult {
     passed: boolean;
     maxKclResidualAmp: number;
     maxSourceVoltageResidualVolt: number;
+    powerBalanceResidualWatt: number;
+    powerBalanceToleranceWatt: number;
     kclToleranceAmp: number;
     sourceVoltageToleranceVolt: number;
   };

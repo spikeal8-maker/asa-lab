@@ -14,10 +14,10 @@ const javascript = await Promise.all(
 
 const budgets = [
   { label: 'initial application', prefix: 'index-', maximum: 570_000 },
-  // MATH-1 moved stamping, operating-point observations and authoritative
-  // terminal currents behind DeviceModel. The measured slices total 208061
-  // bytes (+1.50% from 204980); keep a narrow hard ceiling instead of disabling it.
-  { label: 'electronics editor', prefix: 'SchematicEditor-', maximum: 208_500 },
+  // MATH-1 moved stamping, observations, diagnostics and terminal currents
+  // behind DeviceModel, then added DC power-balance verification. The measured
+  // slices total 208672 bytes (+1.80% from 204980); retain a narrow hard ceiling.
+  { label: 'electronics editor', prefix: 'SchematicEditor-', maximum: 209_000 },
   { label: 'chess editor', prefix: 'ChessModuleExperience-', maximum: 255_000 },
   { label: 'checkers editor', prefix: 'CheckersModuleExperience-', maximum: 160_000 },
   { label: '3D editor', prefix: 'ThreeDEditor-', maximum: 2_900_000 },

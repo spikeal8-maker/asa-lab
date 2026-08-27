@@ -75,6 +75,7 @@ describe('MATH-1 linear DC device models', () => {
       powerUtilizationPercent: 144,
       stressState: 'overcurrent',
       terminalCurrents: { a: 0.06, b: -0.06 },
+      diagnostics: [expect.objectContaining({ code: 'resistor_overload', severity: 'error' })],
     });
   });
 
@@ -95,6 +96,7 @@ describe('MATH-1 linear DC device models', () => {
       voltageSag: 0.13,
       terminalCurrents: { positive: -0.01, negative: 0.01 },
       voltageConstraintResidual: 2.47,
+      diagnostics: [expect.objectContaining({ code: 'source_overload', severity: 'error' })],
     });
     expect(observation?.internalPower).toBeCloseTo(0.0013, 12);
   });

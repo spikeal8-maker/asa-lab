@@ -90,6 +90,9 @@ describe('R4-M1 simulation implementation contract', () => {
     expect(result.quality.maxSourceVoltageResidualVolt).toBeLessThanOrEqual(
       result.quality.sourceVoltageToleranceVolt,
     );
+    expect(result.quality.powerBalanceResidualWatt).toBeLessThanOrEqual(
+      result.quality.powerBalanceToleranceWatt,
+    );
   });
 
   it('checks Kirchhoff residuals across parallel branches', () => {

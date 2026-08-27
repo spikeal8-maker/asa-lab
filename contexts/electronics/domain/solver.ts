@@ -29,8 +29,6 @@ import {
   isResistorDevice,
   isSourceDevice,
   type LinearDcObservation,
-  resistorPowerRatingWatt,
-  sourceContinuousCurrentAmp,
 } from './models/linear-dc-models.js';
 
 export { sourceInternalResistanceOhm } from './models/linear-dc-models.js';
@@ -153,7 +151,6 @@ const DIODE_ON_RESISTANCE = 2;
 const SEVEN_SEGMENT_ON_RESISTANCE = 8;
 const LED_NOMINAL_CURRENT_A = 0.02;
 const LED_WARNING_RATIO = 0.8;
-const RESISTOR_WARNING_RATIO = 0.8;
 const LAMP_MIN_POWER_W = 0.001;
 const LAMP_NOMINAL_POWER_W = 1.5;
 const SHORT_CIRCUIT_CURRENT_A = 5;
@@ -1259,6 +1256,7 @@ export function solveCircuit(
     }),
   );
 
+  const linearDcObservationById = new Map<string, LinearDcObservation>();
   const components: ComponentResult[] = document.components
     .filter((component) => component.kind !== 'wire')
     .map((component) => {
@@ -1295,6 +1293,7 @@ export function solveCircuit(
           current: reportedLinearCurrent,
         },
       );
+      if (linearDcObservation) linearDcObservationById.set(component.id, linearDcObservation);
       let current = 0;
       if (linearDcObservation) current = linearDcObservation.current;
       else if (isArduinoUno(component))
@@ -1527,29 +1526,14 @@ export function solveCircuit(
       };
     });
 
-  for (const component of document.components.filter((item) => item.kind === 'resistor')) {
-    const result = components.find((entry) => entry.componentId === component.id);
-    if (!result) continue;
-    const rating = resistorPowerRatingWatt(component);
-    const utilization = result.powerUtilizationPercent ?? 0;
-    if (utilization > 100) {
-      diagnostics.push({
-        code: 'resistor_overload',
-        severity: 'error',
-        message: `${component.name ?? component.id}: мощность ${result.power?.toFixed(3) ?? '0.000'} Вт превышает номинал ${rating.toFixed(3)} Вт. Резистор перегревается и может выйти из строя.`,
-        componentIds: [component.id],
-        suggestedAction:
-          'Увеличьте сопротивление или допустимую мощность резистора либо уменьшите напряжение питания.',
-      });
-    } else if (utilization >= RESISTOR_WARNING_RATIO * 100) {
-      diagnostics.push({
-        code: 'resistor_near_limit',
-        severity: 'warning',
-        message: `${component.name ?? component.id}: мощность ${result.power?.toFixed(3) ?? '0.000'} Вт близка к номиналу ${rating.toFixed(3)} Вт.`,
-        componentIds: [component.id],
-        suggestedAction: 'Оставьте запас по мощности или выберите более мощный резистор.',
-      });
-    }
+  for (const [componentId, observation] of linearDcObservationById) {
+    diagnostics.push(
+      ...observation.diagnostics.map((diagnostic) => ({
+        ...diagnostic,
+        code: diagnostic.code as DiagnosticCode,
+        componentIds: [componentId],
+      })),
+    );
   }
 
   for (const component of document.components.filter(
@@ -1689,16 +1673,6 @@ export function solveCircuit(
   );
   for (const source of sources) {
     const deliveredCurrent = Math.abs(sourceCurrents.get(source.id) ?? 0);
-    const currentLimit = sourceContinuousCurrentAmp(source);
-    const utilization = (deliveredCurrent / currentLimit) * 100;
-    if (utilization > 100.000_001) {
-      diagnostics.push({
-        code: 'source_overload',
-        severity: 'error',
-        message: `${source.name ?? source.id}: перегрузка ${formatReferenceMilliamp(deliveredCurrent)}.`,
-        componentIds: [source.id],
-      });
-    }
     if (directlyShortedSourceIds.has(source.id)) {
       diagnostics.push({
         code: 'short_circuit',

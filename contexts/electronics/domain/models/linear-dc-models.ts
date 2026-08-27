@@ -3,7 +3,7 @@ import {
   componentModelIdentityIsInstalled,
   electricalModelIdentityForComponent,
 } from '../model-identity.js';
-import type { DeviceModel, NormalizedDevice } from './device-model.js';
+import type { DeviceDiagnostic, DeviceModel, NormalizedDevice } from './device-model.js';
 
 const CLOSED_RESISTANCE_OHM = 1e-4;
 const LEGACY_SOURCE_RESISTANCE_OHM = 1e-12;
@@ -26,6 +26,7 @@ export interface LinearDcObservation {
   /** Positive values enter the component through the named physical terminal. */
   readonly terminalCurrents: Readonly<Record<Terminal, number>>;
   readonly voltageConstraintResidual?: number;
+  readonly diagnostics: readonly DeviceDiagnostic[];
 }
 
 function physicalTerminalPair(component: SchematicComponent): readonly [Terminal, Terminal] {
@@ -113,12 +114,35 @@ export const RESISTOR_DEVICE_MODEL: DeviceModel<ResistorParameters, LinearDcObse
     const powerWatt = Math.abs(currentAmp * operatingPoint.voltageDrop);
     const powerUtilizationPercent = (powerWatt / instance.parameters.powerRatingWatt) * 100;
     const [left, right] = physicalTerminalPair(instance.component);
+    const label = instance.component.name ?? instance.component.id;
+    const diagnostics: DeviceDiagnostic[] =
+      powerUtilizationPercent > 100
+        ? [
+            {
+              code: 'resistor_overload',
+              severity: 'error',
+              message: `${label}: мощность ${powerWatt.toFixed(3)} Вт превышает номинал ${instance.parameters.powerRatingWatt.toFixed(3)} Вт. Резистор перегревается и может выйти из строя.`,
+              suggestedAction:
+                'Увеличьте сопротивление или допустимую мощность резистора либо уменьшите напряжение питания.',
+            },
+          ]
+        : powerUtilizationPercent >= RESISTOR_WARNING_PERCENT
+          ? [
+              {
+                code: 'resistor_near_limit',
+                severity: 'warning',
+                message: `${label}: мощность ${powerWatt.toFixed(3)} Вт близка к номиналу ${instance.parameters.powerRatingWatt.toFixed(3)} Вт.`,
+                suggestedAction: 'Оставьте запас по мощности или выберите более мощный резистор.',
+              },
+            ]
+          : [];
     return {
       current: currentAmp,
       power: powerWatt,
       powerUtilizationPercent,
       stressState: stressFromPercent(powerUtilizationPercent, RESISTOR_WARNING_PERCENT),
       terminalCurrents: { [left]: currentAmp, [right]: -currentAmp },
+      diagnostics,
     };
   },
 };
@@ -159,6 +183,16 @@ export const SOURCE_DEVICE_MODEL: DeviceModel<SourceParameters, LinearDcObservat
     const currentUtilizationPercent =
       (Math.abs(currentAmp) / instance.parameters.continuousCurrentAmp) * 100;
     const [positive, negative] = physicalTerminalPair(instance.component);
+    const diagnostics: DeviceDiagnostic[] =
+      currentUtilizationPercent > 100.000_001
+        ? [
+            {
+              code: 'source_overload',
+              severity: 'error',
+              message: `${instance.component.name ?? instance.component.id}: перегрузка ${(Math.abs(currentAmp) * 1000).toFixed(1)} mA.`,
+            },
+          ]
+        : [];
     return {
       current: currentAmp,
       power: Math.abs(currentAmp * operatingPoint.voltageDrop),
@@ -172,6 +206,7 @@ export const SOURCE_DEVICE_MODEL: DeviceModel<SourceParameters, LinearDcObservat
         operatingPoint.voltageDrop -
           (instance.parameters.emfVolt - currentAmp * instance.parameters.internalResistanceOhm),
       ),
+      diagnostics,
     };
   },
 };
