@@ -71,6 +71,13 @@ export function WorkbenchSidebars({
   const selectedDiagnostics = c.selectedComponent
     ? (c.diagnosticsByComponent.get(c.selectedComponent.id) ?? [])
     : [];
+  const selectedDiagnosticSeverity = selectedDiagnostics.some(
+    (diagnostic) => diagnostic.severity === 'error',
+  )
+    ? 'error'
+    : selectedDiagnostics.some((diagnostic) => diagnostic.severity === 'warning')
+      ? 'warning'
+      : undefined;
   const selectedSimulationSupported = c.selectedEntry?.simulationSupported === true;
   useEffect(() => {
     setHelpOpen(false);
@@ -315,7 +322,7 @@ export function WorkbenchSidebars({
                     c.selectedFamily?.familyLabel ?? c.selectedEntry?.label ?? 'компонента'
                   }`}
                   aria-expanded={stateOpen}
-                  data-active={stateOpen}
+                  data-diagnostic-severity={selectedDiagnosticSeverity}
                 >
                   i
                 </button>

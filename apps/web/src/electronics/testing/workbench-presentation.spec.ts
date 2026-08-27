@@ -316,6 +316,9 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(sidebarSource).not.toContain('Ещё параметры');
     expect(sidebarSource).not.toContain('secondaryOpen');
     expect(sidebarSource).toContain('aria-label={`Техническое состояние');
+    expect(sidebarSource).toContain('data-diagnostic-severity={selectedDiagnosticSeverity}');
+    expect(workbenchCss).toContain("data-diagnostic-severity='error'");
+    expect(workbenchCss).toContain("data-diagnostic-severity='warning'");
     expect(sidebarSource).toContain('Внутреннее сопротивление');
     expect(sidebarSource).toContain('Просадка напряжения');
     expect(sidebarSource).toContain('Нагрев источника');

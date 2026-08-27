@@ -657,6 +657,44 @@ describe('deterministic DC solver', () => {
     expect(sourceResult?.voltageSag).toBeCloseTo(0.045, 9);
   });
 
+  it('anchors a short circuit only to the overloaded source among independent circuits', () => {
+    const source = (id: string): SchematicComponent =>
+      component(id, 'source', 3, {
+        componentTypeId: 'battery-holder-aa-2',
+        pinIds: ['BAT-', 'BAT+'],
+      });
+    const result = solveCircuit(
+      doc(
+        [
+          source('shorted-source'),
+          source('loaded-source'),
+          source('open-source'),
+          component('load', 'resistor', 220, {
+            componentTypeId: 'resistor-axial',
+            pinIds: ['lead-1', 'lead-2'],
+          }),
+        ],
+        [
+          connect('short', 'shorted-source', 'BAT+', 'shorted-source', 'BAT-'),
+          connect('loaded-positive', 'loaded-source', 'BAT+', 'load', 'lead-1'),
+          connect('loaded-negative', 'load', 'lead-2', 'loaded-source', 'BAT-'),
+        ],
+      ),
+    );
+
+    expect(result.status).toBe('solved');
+    const shortDiagnostics = result.diagnostics.filter(
+      (diagnostic) => diagnostic.code === 'short_circuit',
+    );
+    expect(shortDiagnostics.length).toBeGreaterThan(0);
+    expect(shortDiagnostics.every((diagnostic) => diagnostic.componentIds?.length === 1)).toBe(
+      true,
+    );
+    expect(
+      shortDiagnostics.every((diagnostic) => diagnostic.componentIds?.[0] === 'shorted-source'),
+    ).toBe(true);
+  });
+
   it('uses the CR2032 source profile under load', () => {
     const battery = component('battery', 'source', 3, {
       componentTypeId: 'battery-3v',

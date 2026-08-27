@@ -232,6 +232,107 @@ function shortCircuitDocument(): SchematicDocument {
   };
 }
 
+function isolatedSourceDiagnosticsDocument(): SchematicDocument {
+  const seeded = circuitDocument({
+    switchClosed: true,
+    resistorOhms: 220,
+    reversedLed: false,
+  });
+  const originalSource = seeded.components.find((component) => component.id === 'source');
+  const originalResistor = seeded.components.find((component) => component.id === 'resistor');
+  const originalLed = seeded.components.find((component) => component.id === 'led');
+  if (!originalSource || !originalResistor || !originalLed) {
+    throw new Error('isolated source diagnostics fixture is incomplete');
+  }
+  return {
+    schemaVersion: 4,
+    components: [
+      {
+        ...originalSource,
+        id: 'shorted-source',
+        name: 'Источник с КЗ',
+        position: { x: 120, y: 360 },
+      },
+      {
+        ...originalSource,
+        id: 'safe-source',
+        name: 'Исправный источник',
+        position: { x: 540, y: 360 },
+      },
+      {
+        ...originalSource,
+        id: 'burnout-source',
+        name: 'Источник LED без резистора',
+        position: { x: 960, y: 360 },
+      },
+      {
+        ...originalResistor,
+        id: 'safe-resistor',
+        name: 'R безопасной цепи',
+        position: { x: 660, y: 200 },
+      },
+      {
+        ...originalLed,
+        id: 'safe-led',
+        name: 'Исправный LED',
+        position: { x: 570, y: 120 },
+      },
+      {
+        ...originalLed,
+        id: 'burned-led',
+        name: 'LED без резистора',
+        position: { x: 1_060, y: 120 },
+      },
+    ],
+    connections: [
+      {
+        id: 'shorted-wire',
+        from: { componentId: 'shorted-source', terminal: 'BAT+' },
+        to: { componentId: 'shorted-source', terminal: 'BAT-' },
+        color: '#149447',
+        vertices: [{ x: 120, y: 300 }],
+      },
+      {
+        id: 'safe-positive',
+        from: { componentId: 'safe-source', terminal: 'BAT+' },
+        to: { componentId: 'safe-resistor', terminal: 'lead-1' },
+        color: '#149447',
+        vertices: [],
+      },
+      {
+        id: 'safe-limited',
+        from: { componentId: 'safe-resistor', terminal: 'lead-2' },
+        to: { componentId: 'safe-led', terminal: 'anode' },
+        color: '#149447',
+        vertices: [],
+      },
+      {
+        id: 'safe-return',
+        from: { componentId: 'safe-led', terminal: 'cathode' },
+        to: { componentId: 'safe-source', terminal: 'BAT-' },
+        color: '#149447',
+        vertices: [],
+      },
+      {
+        id: 'burnout-positive',
+        from: { componentId: 'burnout-source', terminal: 'BAT+' },
+        to: { componentId: 'burned-led', terminal: 'anode' },
+        color: '#149447',
+        vertices: [],
+      },
+      {
+        id: 'burnout-return',
+        from: { componentId: 'burned-led', terminal: 'cathode' },
+        to: { componentId: 'burnout-source', terminal: 'BAT-' },
+        color: '#149447',
+        vertices: [],
+      },
+    ],
+    viewport: { x: 0, y: 0, zoom: 1 },
+    simulation: { running: false, maxIterations: 24 },
+  };
+}
+
 function resistorOverloadDocument(): SchematicDocument {
   const seeded = circuitDocument({
     switchClosed: true,
@@ -1151,6 +1252,44 @@ test('four-pin button is a momentary bridge for an arbitrary decimal LED load', 
   await expect(button).not.toHaveClass(/workbench-component-actuator-active/);
   await selectLed(page);
   await expect.poll(() => brightnessValue(page)).toBe(0);
+  failures.assertEmpty();
+});
+
+test('independent sources keep diagnostics local and the selected burned LED marks I', async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await loginWithOrganization(page, teacher);
+  const projectId = await createProject(page, 'R4-M1 isolated source diagnostics');
+  await saveDocument(page, projectId, isolatedSourceDiagnosticsDocument());
+  await page.goto(`/#/home/${projectId}`);
+  await page.getByRole('button', { name: 'Начать моделирование' }).click();
+
+  const renderedComponents = page.locator('[data-testid="schematic-component"]');
+  const shortedSource = renderedComponents.nth(0);
+  const safeSource = renderedComponents.nth(1);
+  const burnoutSource = renderedComponents.nth(2);
+  await expect(shortedSource).toHaveAttribute('data-diagnostics', /short_circuit/);
+  await expect(safeSource).not.toHaveAttribute('data-diagnostics', /short_circuit/);
+  await expect(burnoutSource).not.toHaveAttribute('data-diagnostics', /short_circuit/);
+  await expect(
+    page.locator('[data-testid="component-diagnostic"][data-component-id="safe-source"]'),
+  ).toHaveCount(0);
+
+  const burnedLedDiagnostic = page.locator(
+    '[data-testid="component-diagnostic"][data-component-id="burned-led"]',
+  );
+  await burnedLedDiagnostic.locator('[data-testid="led-burnout-explosion"]').click();
+  const technicalState = page.getByRole('button', {
+    name: 'Техническое состояние Светодиод',
+  });
+  await expect(technicalState).toHaveAttribute('data-diagnostic-severity', 'error');
+  await page.screenshot({
+    path: `${ARTIFACT_DIR}/electronics-isolated-source-diagnostics.png`,
+    fullPage: true,
+  });
   failures.assertEmpty();
 });
 

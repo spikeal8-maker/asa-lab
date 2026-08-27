@@ -2190,9 +2190,28 @@
   flex: 0 0 auto;
   gap: 4px;
 }
-.workbench-inspector-heading .workbench-inspector-help[data-active='true'] {
+.workbench-inspector-heading .workbench-inspector-help[data-active='true'],
+.workbench-inspector-heading .workbench-inspector-help.is-active {
   background: #fff;
   color: #067eae;
+}
+.workbench-inspector-heading
+  .workbench-inspector-help--state[data-diagnostic-severity='warning']:not(.is-active) {
+  background: #e79800;
+  box-shadow: 0 0 0 2px rgba(255, 190, 48, 0.32);
+}
+.workbench-inspector-heading
+  .workbench-inspector-help--state[data-diagnostic-severity='error']:not(.is-active) {
+  background: #d83a32;
+  box-shadow: 0 0 0 2px rgba(216, 58, 50, 0.3);
+}
+.workbench-inspector-heading
+  .workbench-inspector-help--state[data-diagnostic-severity='warning'].is-active {
+  color: #a56700;
+}
+.workbench-inspector-heading
+  .workbench-inspector-help--state[data-diagnostic-severity='error'].is-active {
+  color: #bd2822;
 }
 .workbench-inspector-help-popover {
   padding: 8px 10px;

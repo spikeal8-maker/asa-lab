@@ -1682,12 +1682,27 @@ export function solveCircuit(
       });
     }
   }
-  if (totalSourceCurrent > SHORT_CIRCUIT_CURRENT_A) {
+  const highCurrentSourceIds = sources
+    .filter((source) => Math.abs(sourceCurrents.get(source.id) ?? 0) > SHORT_CIRCUIT_CURRENT_A)
+    .map((source) => source.id);
+  const highCurrentArduinoIds = document.components
+    .filter(
+      (component) =>
+        isArduinoUno(component) &&
+        arduinoBranches.some(
+          (branch) =>
+            branch.component.id === component.id &&
+            Math.abs(currentDeliveredByArduinoBranch(branch)) > SHORT_CIRCUIT_CURRENT_A,
+        ),
+    )
+    .map((component) => component.id);
+  const highCurrentProviderIds = [...new Set([...highCurrentSourceIds, ...highCurrentArduinoIds])];
+  if (highCurrentProviderIds.length > 0) {
     diagnostics.push({
       code: 'short_circuit',
       severity: 'error',
       message: `Ток источника ${totalSourceCurrent.toFixed(2)} А указывает на короткое замыкание.`,
-      componentIds: sourceProviderIds,
+      componentIds: highCurrentProviderIds,
       suggestedAction: 'Остановите моделирование и добавьте сопротивление в путь тока.',
     });
   } else if (sources.length > 0 && totalSourceCurrent < 1e-8) {
