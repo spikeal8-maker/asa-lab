@@ -991,6 +991,7 @@ export interface ComponentResult {
   internalResistanceOhm?: number;
   internalPower?: number;
   voltageSag?: number;
+  sourceOperatingMode?: 'delivering' | 'idle' | 'absorbing';
   operatingRegion?: 'cutoff' | 'active' | 'saturation' | 'ohmic';
   baseCurrent?: number;
   collectorCurrent?: number;

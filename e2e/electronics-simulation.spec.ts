@@ -333,6 +333,79 @@ function isolatedSourceDiagnosticsDocument(): SchematicDocument {
   };
 }
 
+function conflictingParallelSourcesDocument(): SchematicDocument {
+  const seeded = circuitDocument({
+    switchClosed: true,
+    resistorOhms: 100,
+    reversedLed: false,
+  });
+  const originalSource = seeded.components.find((component) => component.id === 'source');
+  const originalResistor = seeded.components.find((component) => component.id === 'resistor');
+  if (!originalSource || !originalResistor) {
+    throw new Error('parallel source conflict fixture is incomplete');
+  }
+  return {
+    schemaVersion: 4,
+    components: [
+      {
+        ...originalSource,
+        id: 'source-high',
+        name: 'Источник 3 В',
+        position: { x: 240, y: 360 },
+      },
+      {
+        ...originalSource,
+        id: 'source-low',
+        componentTypeId: 'battery-holder-aa-1',
+        variantId: 'battery-holder-aa-1',
+        name: 'Источник 1,5 В',
+        value: 1.5,
+        position: { x: 600, y: 360 },
+        stateProperties: { cells: 1 },
+      },
+      {
+        ...originalResistor,
+        id: 'parallel-load',
+        name: 'Нагрузка 100 Ом',
+        value: 100,
+        position: { x: 940, y: 180 },
+      },
+    ],
+    connections: [
+      {
+        id: 'high-positive',
+        from: { componentId: 'source-high', terminal: 'BAT+' },
+        to: { componentId: 'parallel-load', terminal: 'lead-1' },
+        color: '#e3212b',
+        vertices: [],
+      },
+      {
+        id: 'high-negative',
+        from: { componentId: 'source-high', terminal: 'BAT-' },
+        to: { componentId: 'parallel-load', terminal: 'lead-2' },
+        color: '#2a3035',
+        vertices: [],
+      },
+      {
+        id: 'low-positive',
+        from: { componentId: 'source-low', terminal: 'BAT+' },
+        to: { componentId: 'parallel-load', terminal: 'lead-1' },
+        color: '#e3212b',
+        vertices: [],
+      },
+      {
+        id: 'low-negative',
+        from: { componentId: 'source-low', terminal: 'BAT-' },
+        to: { componentId: 'parallel-load', terminal: 'lead-2' },
+        color: '#2a3035',
+        vertices: [],
+      },
+    ],
+    viewport: { x: 0, y: 0, zoom: 1 },
+    simulation: { running: false, maxIterations: 24 },
+  };
+}
+
 function resistorOverloadDocument(): SchematicDocument {
   const seeded = circuitDocument({
     switchClosed: true,
@@ -1288,6 +1361,32 @@ test('independent sources keep diagnostics local and the selected burned LED mar
   await expect(technicalState).toHaveAttribute('data-diagnostic-severity', 'error');
   await page.screenshot({
     path: `${ARTIFACT_DIR}/electronics-isolated-source-diagnostics.png`,
+    fullPage: true,
+  });
+  failures.assertEmpty();
+});
+
+test('parallel sources expose delivering and reverse-current modes without stopping simulation', async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await loginWithOrganization(page, teacher);
+  const projectId = await createProject(page, 'R4-M1 parallel source modes');
+  await saveDocument(page, projectId, conflictingParallelSourcesDocument());
+  await page.goto(`/#/home/${projectId}`);
+  await page.getByRole('button', { name: 'Начать моделирование' }).click();
+
+  const highSource = component(page, 'battery-holder-aa-2');
+  const lowSource = component(page, 'battery-holder-aa-1');
+  await expect(highSource).toHaveAttribute('data-source-operating-mode', 'delivering');
+  await expect(lowSource).toHaveAttribute('data-source-operating-mode', 'absorbing');
+  await expect(highSource).toHaveAttribute('data-diagnostics', /conflicting_sources/);
+  await expect(lowSource).toHaveAttribute('data-diagnostics', /conflicting_sources/);
+  await expect(page.getByRole('button', { name: 'Остановить моделирование' })).toBeVisible();
+  await page.screenshot({
+    path: `${ARTIFACT_DIR}/electronics-parallel-source-conflict.png`,
     fullPage: true,
   });
   failures.assertEmpty();

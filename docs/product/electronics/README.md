@@ -300,8 +300,11 @@ Model profile — данные без исполняемого кода. Он х
 - Ground/reference node выбирается детерминированно из topology. Отсутствие
   явного GND в плавающей, но разрешимой цепи не меняет разности потенциалов;
   абсолютный reference описывается в diagnostics.
-- Несовместимые идеальные источники дают `invalid` либо поддерживаемую модель с
-  конечным внутренним сопротивлением — бесконечный ток запрещён.
+- Несовместимые источники не блокируют поддерживаемую симуляцию: каждый
+  размещаемый source profile обязан иметь конечное защитное внутреннее
+  сопротивление, а solver возвращает circulating current и destructive
+  observations. `invalid` допустим только для некорректного model contract;
+  бесконечный ток запрещён.
 - Все profile constants имеют единицу, диапазон, provenance и версию. Значение
   без единицы не допускается в model registry.
 
@@ -320,9 +323,9 @@ Normalized netlist разделяется на connected electrical islands. Д�
 | direct short одного finite-R источника | `solved` с destructive observation только этого источника |
 | последовательные источники | алгебраическая сумма с declared polarity |
 | параллельные одинаковые finite-R источники | конечное распределение токов |
-| параллельные разные finite-R источники | конечный circulating current и локальный stress |
-| несовместимые идеальные источники | `invalid`, без `NaN`/`Infinity` и с anchors |
-| встречная полярность | конечный расчёт либо `invalid` по declared source model |
+| параллельные разные finite-R источники | конечный circulating current, `delivering`/`absorbing` и локальный stress |
+| несовместимые источники | защитная finite-R модель, destructive preview без `NaN`/`Infinity` |
+| встречная полярность | конечный расчёт, backfeed diagnostic и локальный stress |
 | общий GND и независимые нагрузки | диагностика остаётся привязанной к своему branch/net |
 
 Наличие unsupported-компонента по-прежнему делает весь document `unsupported`:
@@ -468,6 +471,12 @@ Runtime damage живёт только внутри одного simulation run.
 - open, divider, series, parallel, independent sources и conflicting sources;
 - short/overload observations и локальный visual state;
 - browser/server parity.
+
+Source observation различает `delivering`, `idle` и `absorbing`. Обратный ток
+не превращается в общий запрет запуска: связанный остров продолжает считаться,
+а `conflicting_sources` получает anchors только участвующих источников. Равные
+параллельные источники без circulating current не получают ложную диагностику;
+свободный источник в другом острове остаётся `idle`.
 
 ### MATH-2 — диод и LED
 

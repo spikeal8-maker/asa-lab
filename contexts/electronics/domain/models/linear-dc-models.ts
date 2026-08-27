@@ -23,6 +23,7 @@ export interface LinearDcObservation {
   readonly internalResistanceOhm?: number;
   readonly internalPower?: number;
   readonly voltageSag?: number;
+  readonly sourceOperatingMode?: 'delivering' | 'idle' | 'absorbing';
   /** Positive values enter the component through the named physical terminal. */
   readonly terminalCurrents: Readonly<Record<Terminal, number>>;
   readonly voltageConstraintResidual?: number;
@@ -180,6 +181,8 @@ export const SOURCE_DEVICE_MODEL: DeviceModel<SourceParameters, LinearDcObservat
   },
   observe(instance, operatingPoint) {
     const currentAmp = operatingPoint.current;
+    const sourceOperatingMode =
+      currentAmp > 1e-9 ? 'delivering' : currentAmp < -1e-9 ? 'absorbing' : 'idle';
     const currentUtilizationPercent =
       (Math.abs(currentAmp) / instance.parameters.continuousCurrentAmp) * 100;
     const [positive, negative] = physicalTerminalPair(instance.component);
@@ -201,6 +204,7 @@ export const SOURCE_DEVICE_MODEL: DeviceModel<SourceParameters, LinearDcObservat
       internalResistanceOhm: instance.parameters.internalResistanceOhm,
       internalPower: currentAmp * currentAmp * instance.parameters.internalResistanceOhm,
       voltageSag: Math.abs(currentAmp) * instance.parameters.internalResistanceOhm,
+      sourceOperatingMode,
       terminalCurrents: { [positive]: -currentAmp, [negative]: currentAmp },
       voltageConstraintResidual: Math.abs(
         operatingPoint.voltageDrop -

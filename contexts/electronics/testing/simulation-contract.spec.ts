@@ -271,15 +271,24 @@ describe('R4-M1 simulation implementation contract', () => {
       expect.arrayContaining([
         expect.objectContaining({
           componentId: 'source-5v',
+          sourceOperatingMode: 'absorbing',
           stressState: 'burned',
           damageState: 'destructive_preview',
         }),
         expect.objectContaining({
           componentId: 'source-9v',
+          sourceOperatingMode: 'delivering',
           stressState: 'burned',
           damageState: 'destructive_preview',
         }),
       ]),
+    );
+    expect(result.diagnostics).toContainEqual(
+      expect.objectContaining({
+        code: 'conflicting_sources',
+        severity: 'error',
+        componentIds: ['source-5v', 'source-9v'],
+      }),
     );
     expect(JSON.stringify(result)).not.toMatch(/NaN|Infinity/);
   });

@@ -112,6 +112,8 @@ export interface ComponentResult {
   readonly internalPower?: number;
   /** Difference between open-circuit EMF and loaded terminal voltage. */
   readonly voltageSag?: number;
+  /** Whether a source delivers current, is idle, or is back-driven by another source. */
+  readonly sourceOperatingMode?: 'delivering' | 'idle' | 'absorbing';
   readonly operatingRegion?: 'cutoff' | 'active' | 'saturation' | 'ohmic';
   readonly baseCurrent?: number;
   readonly collectorCurrent?: number;
@@ -1477,6 +1479,7 @@ export function solveCircuit(
               internalResistanceOhm: round(linearDcObservation.internalResistanceOhm, 6),
               internalPower: round(linearDcObservation.internalPower ?? 0),
               voltageSag: round(linearDcObservation.voltageSag ?? 0),
+              sourceOperatingMode: linearDcObservation.sourceOperatingMode ?? 'idle',
             }
           : {}),
         ...(component.kind === 'led' ||
@@ -1671,6 +1674,42 @@ export function solveCircuit(
     ...sources.map((source) => Math.abs(sourceCurrents.get(source.id) ?? 0)),
     ...arduinoBranches.map((branch) => Math.abs(currentDeliveredByArduinoBranch(branch))),
   );
+  const sourcesByIsland = new Map<number, SchematicComponent[]>();
+  for (const source of sources) {
+    const positiveNode = netlist.nodeOf.get(terminalKey(source.id, logicalTerminal(source, 'a')));
+    if (positiveNode === undefined) continue;
+    const island = findIsland(positiveNode);
+    sourcesByIsland.set(island, [...(sourcesByIsland.get(island) ?? []), source]);
+  }
+  for (const islandSources of sourcesByIsland.values()) {
+    const activeSources = islandSources.filter(
+      (source) => Math.abs(sourceCurrents.get(source.id) ?? 0) >= CURRENT_DEADBAND_AMP,
+    );
+    const absorbingSources = activeSources.filter(
+      (source) => (sourceCurrents.get(source.id) ?? 0) < -CURRENT_DEADBAND_AMP,
+    );
+    const deliveringSources = activeSources.filter(
+      (source) => (sourceCurrents.get(source.id) ?? 0) > CURRENT_DEADBAND_AMP,
+    );
+    if (absorbingSources.length === 0 || deliveringSources.length === 0) continue;
+    const affectedSources = [...activeSources].sort((left, right) =>
+      left.id < right.id ? -1 : left.id > right.id ? 1 : 0,
+    );
+    const reverseCurrentMilliamp = Math.max(
+      ...absorbingSources.map((source) => Math.abs(sourceCurrents.get(source.id) ?? 0) * 1000),
+    );
+    const destructive = affectedSources.some((source) => {
+      const stress = linearDcObservationById.get(source.id)?.stressState;
+      return stress === 'overcurrent' || stress === 'burned';
+    });
+    diagnostics.push({
+      code: 'conflicting_sources',
+      severity: destructive ? 'error' : 'warning',
+      message: `Источники включены несогласованно: обратный ток ${reverseCurrentMilliamp.toFixed(1)} мА.`,
+      componentIds: affectedSources.map((source) => source.id),
+      suggestedAction: 'Проверьте напряжения и полярность соединённых источников.',
+    });
+  }
   for (const source of sources) {
     const deliveredCurrent = Math.abs(sourceCurrents.get(source.id) ?? 0);
     if (directlyShortedSourceIds.has(source.id)) {

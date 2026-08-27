@@ -60,6 +60,17 @@ describe('component information registry', () => {
     expect(readMetricBinding('power', measurement)).toBe(0.025);
     expect(readMetricBinding('brightness', measurement)).toBeNull();
     expect(readMetricBinding('current', { ...measurement, current: Number.NaN })).toBeNull();
+    expect(
+      readMetricBinding('source-operating-mode', {
+        ...measurement,
+        sourceOperatingMode: 'absorbing',
+      }),
+    ).toBe('Принимает обратный ток');
+    expect(
+      componentInformationProfile('battery-holder', 'source').technicalMetrics.map(
+        (metric) => metric.metricId,
+      ),
+    ).toContain('source-operating-mode');
   });
 
   it('provides structured help for every component kind without HTML', () => {

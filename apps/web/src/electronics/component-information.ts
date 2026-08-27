@@ -15,6 +15,7 @@ export type MetricBindingId =
   | 'brightness'
   | 'frequency'
   | 'sound-level'
+  | 'source-operating-mode'
   | 'operating-region';
 
 export interface InspectorFieldProfile {
@@ -179,6 +180,13 @@ const METRICS = {
     unit: '%',
     precision: 0,
   },
+  sourceMode: {
+    metricId: 'source-operating-mode',
+    label: 'Режим источника',
+    metricBindingId: 'source-operating-mode',
+    unit: '',
+    precision: 0,
+  },
   region: {
     metricId: 'operating-region',
     label: 'Рабочая область',
@@ -196,7 +204,7 @@ const PROFILE_BY_KIND: Readonly<
 > = {
   source: {
     compactFields: [NAME_FIELD, VALUE_FIELD],
-    technicalMetrics: [METRICS.voltage, METRICS.current, METRICS.power],
+    technicalMetrics: [METRICS.voltage, METRICS.current, METRICS.power, METRICS.sourceMode],
     terminalPresentation: 'full',
   },
   resistor: {
@@ -324,7 +332,13 @@ export function readMetricBinding(
                 ? result.soundLevel === undefined
                   ? undefined
                   : result.soundLevel * 100
-                : result.operatingRegion;
+                : bindingId === 'source-operating-mode'
+                  ? result.sourceOperatingMode === 'delivering'
+                    ? 'Отдаёт ток'
+                    : result.sourceOperatingMode === 'absorbing'
+                      ? 'Принимает обратный ток'
+                      : 'Без нагрузки'
+                  : result.operatingRegion;
   return typeof raw === 'number' ? (Number.isFinite(raw) ? raw : null) : (raw ?? null);
 }
 

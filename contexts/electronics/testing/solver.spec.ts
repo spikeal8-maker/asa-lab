@@ -629,6 +629,116 @@ describe('deterministic DC solver', () => {
     expect(result.components.every((item) => Number.isFinite(item.current))).toBe(true);
   });
 
+  it('adds finite source voltages in series with declared polarity', () => {
+    const source = (id: string): SchematicComponent =>
+      component(id, 'source', 3, {
+        componentTypeId: 'battery-holder-aa-2',
+        pinIds: ['BAT-', 'BAT+'],
+      });
+    const result = solveCircuit(
+      doc(
+        [source('source-a'), source('source-b'), component('load', 'resistor', 100)],
+        [
+          connect('load-in', 'source-a', 'BAT+', 'load', 'a'),
+          connect('load-out', 'load', 'b', 'source-b', 'BAT-'),
+          connect('series-link', 'source-b', 'BAT+', 'source-a', 'BAT-'),
+        ],
+      ),
+    );
+
+    expect(result.status).toBe('solved');
+    expect(result.components.find((item) => item.componentId === 'load')?.current).toBeCloseTo(
+      6 / 100.9,
+      9,
+    );
+    for (const sourceId of ['source-a', 'source-b']) {
+      expect(result.components.find((item) => item.componentId === sourceId)).toMatchObject({
+        sourceOperatingMode: 'delivering',
+        deviceHealth: 'normal',
+      });
+    }
+    expect(result.diagnostics.map((item) => item.code)).not.toContain('conflicting_sources');
+  });
+
+  it('models an opposing source as absorbing current and anchors the conflict to its island', () => {
+    const sourceA = component('source-a', 'source', 3, {
+      componentTypeId: 'battery-holder-aa-2',
+      pinIds: ['BAT-', 'BAT+'],
+    });
+    const sourceB = component('source-b', 'source', 1.5, {
+      componentTypeId: 'battery-holder-aa-1',
+      pinIds: ['BAT-', 'BAT+'],
+    });
+    const unrelated = component('unrelated', 'source', 3, {
+      componentTypeId: 'battery-holder-aa-2',
+      pinIds: ['BAT-', 'BAT+'],
+    });
+    const result = solveCircuit(
+      doc(
+        [sourceB, unrelated, component('load', 'resistor', 100), sourceA],
+        [
+          connect('load-in', 'source-a', 'BAT+', 'load', 'a'),
+          connect('load-out', 'load', 'b', 'source-b', 'BAT+'),
+          connect('opposing-link', 'source-b', 'BAT-', 'source-a', 'BAT-'),
+        ],
+      ),
+    );
+
+    expect(result.status).toBe('solved');
+    expect(result.components.find((item) => item.componentId === 'load')?.current).toBeCloseTo(
+      1.5 / 100.675,
+      9,
+    );
+    expect(result.components.find((item) => item.componentId === 'source-a')).toMatchObject({
+      sourceOperatingMode: 'delivering',
+    });
+    expect(result.components.find((item) => item.componentId === 'source-b')).toMatchObject({
+      sourceOperatingMode: 'absorbing',
+    });
+    expect(result.components.find((item) => item.componentId === 'unrelated')).toMatchObject({
+      current: 0,
+      sourceOperatingMode: 'idle',
+    });
+    expect(result.diagnostics.find((item) => item.code === 'conflicting_sources')).toMatchObject({
+      severity: 'warning',
+      componentIds: ['source-a', 'source-b'],
+    });
+  });
+
+  it('shares a load between equal parallel sources without a false conflict', () => {
+    const source = (id: string): SchematicComponent =>
+      component(id, 'source', 3, {
+        componentTypeId: 'battery-holder-aa-2',
+        pinIds: ['BAT-', 'BAT+'],
+      });
+    const result = solveCircuit(
+      doc(
+        [source('source-a'), source('source-b'), component('load', 'resistor', 29.775)],
+        [
+          connect('a-positive', 'source-a', 'BAT+', 'load', 'a'),
+          connect('a-negative', 'source-a', 'BAT-', 'load', 'b'),
+          connect('b-positive', 'source-b', 'BAT+', 'load', 'a'),
+          connect('b-negative', 'source-b', 'BAT-', 'load', 'b'),
+        ],
+      ),
+    );
+
+    expect(result.status).toBe('solved');
+    expect(result.components.find((item) => item.componentId === 'load')?.current).toBeCloseTo(
+      0.1,
+      9,
+    );
+    for (const sourceId of ['source-a', 'source-b']) {
+      const sourceResult = result.components.find((item) => item.componentId === sourceId);
+      expect(sourceResult).toMatchObject({
+        sourceOperatingMode: 'delivering',
+        stressState: 'normal',
+      });
+      expect(sourceResult?.current).toBeCloseTo(0.05, 9);
+    }
+    expect(result.diagnostics.map((item) => item.code)).not.toContain('conflicting_sources');
+  });
+
   it('calculates loaded AA-holder voltage from cell internal resistance', () => {
     const battery = component('battery', 'source', 3, {
       componentTypeId: 'battery-holder-aa-2',
