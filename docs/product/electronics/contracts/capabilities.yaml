@@ -67,7 +67,6 @@ reference_statuses:
   owner_video: Owner evidence confirms the visible behavior.
   evidence_required: Exact reference behavior or inventory must be captured before parity claim.
   asa_safety_improvement: Deliberate safer behavior requiring deviation record if reference differs.
-  owner_excluded_from_current_product: Owner explicitly excluded this family from the current product scope.
 
 
 workbench_regions:
@@ -114,9 +113,6 @@ milestones:
     name: Arduino and code
     required_groups: [MICROCONTROLLER-ARDUINO, CODE, SERIAL]
   - id: R4-M5
-    name: micro:bit
-    required_groups: [MICROCONTROLLER-MICROBIT, CODE]
-  - id: R4-M6
     name: Electronics parity evidence
     required_groups: [ACCESSIBILITY, CLASSROOM-CONTEXT, PUBLIC-VIEWER, EXPORT]
 
@@ -327,10 +323,6 @@ component_families:
     reference_status: confirmed_official
     required_for_full_parity: true
     parts: [arduino_uno, compatible_pin_and_power_model]
-  - id: MICROCONTROLLER-MICROBIT
-    reference_status: owner_excluded_from_current_product
-    required_for_full_parity: false
-    parts: [microbit_board, led_matrix, buttons, accelerometer, radio_or_equivalent_if_reference_confirmed]
   - id: INSTRUMENT-COMPONENTS
     reference_status: evidence_required
     required_for_full_parity: true
@@ -372,7 +364,6 @@ required_reference_capture:
   - exact_instrument_inventory_and_controls
   - exact_wire_route_styles_and_shortcuts
   - exact_Arduino_code_modes_and_supported_libraries
-  - exact_microbit_board_features
   - exact_serial_monitor_controls
   - exact_schematic_view_behavior
   - exact_import_export_and_parts_list_behavior
@@ -390,7 +381,6 @@ required_screenshots:
   - electronics-oscilloscope
   - electronics-arduino-code
   - electronics-serial-monitor
-  - electronics-microbit
   - electronics-assignment-context
   - electronics-teacher-viewer
   - electronics-mobile-or-approved-responsive-state

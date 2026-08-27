@@ -97,6 +97,7 @@
     "gate:code": "corepack pnpm format:check && corepack pnpm seo:check && corepack pnpm lint && corepack pnpm typecheck && corepack pnpm boundaries:check && corepack pnpm contracts:check && corepack pnpm compose:check && corepack pnpm security:secrets && corepack pnpm license:check && corepack pnpm security:dependencies && corepack pnpm test:release && corepack pnpm build && corepack pnpm bundle:check",
     "gate:data": "corepack pnpm db:migrate:check && corepack pnpm test && corepack pnpm test:rls",
     "gate:repository": "corepack pnpm gate:governance && corepack pnpm gate:code && corepack pnpm gate:data",
+    "generate:electronics-component-coverage": "node tools/generate-electronics-component-coverage.mjs --write",
     "validate:electronics-component-information": "node tools/validate-electronics-component-information.mjs",
     "gate:electronics-m1": "corepack pnpm validate:electronics-component-information && corepack pnpm test:electronics && corepack pnpm vitest run apps/web/src/electronics/testing && corepack pnpm typecheck && corepack pnpm build",
     "gate:electronics-m1:browser": "corepack pnpm e2e:electronics-simulation",

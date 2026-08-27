@@ -291,7 +291,12 @@ Model profile — данные без исполняемого кода. Он х
 - Ток терминала положителен, когда входит в физический терминал компонента.
 - Напряжение компонента всегда указывает объявленную пару `positiveTerminal →
   negativeTerminal`; скрытая зависимость от порядка массива запрещена.
-- Положительная мощность означает поглощение, отрицательная — отдачу в сеть.
+- Целевой signed-power contract использует положительную мощность для
+  поглощения и отрицательную для отдачи в сеть. Текущее legacy-поле
+  `ComponentResult.power` во многих моделях содержит неотрицательную
+  рассеиваемую мощность и не используется для определения направления передачи
+  энергии. Переход на signed power принимается только вместе с types, solver,
+  UI, energy-balance fixtures и server parity.
 - Ground/reference node выбирается детерминированно из topology. Отсутствие
   явного GND в плавающей, но разрешимой цепи не меняет разности потенциалов;
   абсолютный reference описывается в diagnostics.
@@ -299,6 +304,30 @@ Model profile — данные без исполняемого кода. Он х
   конечным внутренним сопротивлением — бесконечный ток запрещён.
 - Все profile constants имеют единицу, диапазон, provenance и версию. Значение
   без единицы не допускается в model registry.
+
+### 10.2. Электрические острова и несколько источников
+
+Normalized netlist разделяется на connected electrical islands. Для каждого
+острова независимо выбирается reference node: сначала явный GND, иначе
+лексикографически минимальный terminal key по ordinal comparison. Reference
+одного острова не влияет на напряжения, токи или diagnostics другого.
+
+Обязательная MATH-1 source matrix:
+
+| Схема | Ожидаемый результат |
+| --- | --- |
+| три независимых исправных острова | три локальных результата без общей аварии |
+| direct short одного finite-R источника | `solved` с destructive observation только этого источника |
+| последовательные источники | алгебраическая сумма с declared polarity |
+| параллельные одинаковые finite-R источники | конечное распределение токов |
+| параллельные разные finite-R источники | конечный circulating current и локальный stress |
+| несовместимые идеальные источники | `invalid`, без `NaN`/`Infinity` и с anchors |
+| встречная полярность | конечный расчёт либо `invalid` по declared source model |
+| общий GND и независимые нагрузки | диагностика остаётся привязанной к своему branch/net |
+
+Наличие unsupported-компонента по-прежнему делает весь document `unsupported`:
+локальный расчёт других островов не выдаётся как частичный `solved`. Опасная, но
+поддерживаемая цепь с конечными параметрами рассчитывается полностью.
 
 Минимальная ответственность DeviceModel:
 
@@ -482,46 +511,61 @@ failure, NPN drive и flyback diode. SVG вращается только от р
 
 ### MATH-6 — управляемые пассивные и переключатели
 
-- potentiometer как два связанных сопротивления с сохранением полного R;
-- photoresistor с versioned illumination-to-resistance profile;
-- кнопки и переключатели как детерминированное изменение topology;
-- лампа с электротепловой зависимостью и видимым failure;
-- RGB и seven-segment как независимые junctions без общей фиктивной яркости.
+- **MATH-6A:** potentiometer как два связанных сопротивления с сохранением
+  полного R;
+- **MATH-6B:** photoresistor с versioned illumination-to-resistance profile;
+- **MATH-6C:** кнопки и переключатели как детерминированное изменение topology;
+- **MATH-6D:** лампа с электротепловой зависимостью и видимым failure;
+- **MATH-6E:** RGB и seven-segment как независимые junctions без общей
+  фиктивной яркости.
+
+Каждый подпункт является самостоятельным вертикальным срезом и принимается
+отдельно.
 
 ### MATH-7 — полупроводниковые расширения
 
-- PNP, NMOS/PMOS и дополнительные diode profiles;
-- единые sign conventions, regions и bounded nonlinear evaluation;
-- independent reference sweeps и температурные assumptions;
-- удаление component-specific legacy branches только после parity.
+- **MATH-7A:** PNP с independent reference sweep;
+- **MATH-7B:** NMOS/PMOS с regions и bounded nonlinear evaluation;
+- **MATH-7C:** дополнительные diode profiles и температурные assumptions;
+- для каждого среза действуют единые sign conventions, а соответствующая
+  component-specific legacy branch удаляется только после parity.
 
 ### MATH-8 — actuators и звук
 
-- servo, gearmotor и vibration motor с нагрузкой и механическими пределами;
-- piezo/buzzer с frequency, amplitude, source impedance и browser audio consent;
-- визуальная анимация только от рассчитанного состояния;
-- DC/transient поддержка объявляется отдельно для каждого profile.
+- **MATH-8A:** piezo/buzzer с frequency, amplitude, source impedance и browser
+  audio consent;
+- **MATH-8B:** vibration motor с механическими пределами;
+- **MATH-8C:** gearmotor с нагрузкой, редуктором и stall;
+- **MATH-8D:** servo с управляющим сигналом, углом и ограничениями;
+- визуальная анимация всегда следует рассчитанному состоянию, а DC/transient
+  поддержка объявляется отдельно для каждого profile.
 
 ### MATH-9 — environment sensors
 
-- environment inputs являются явным versioned runtime input, а не CSS-control;
-- temperature, PIR, ultrasonic, soil moisture и другие sensors имеют диапазон,
-  transfer function, питание и terminal behavior;
+- **MATH-9A:** versioned environment input contract, не CSS-control;
+- **MATH-9B:** temperature и soil moisture с диапазоном, transfer function,
+  питанием и terminal behavior;
+- **MATH-9C:** PIR и ultrasonic с детерминированным временем/событиями;
 - sensor без утверждённой transfer function остаётся `unsupported`.
 
 ### MATH-10 — instruments и регулируемые источники
 
-- multimeter: mode, polarity, input impedance, burden voltage и fuse state;
-- oscilloscope: channel reference, input impedance, sample rate, timebase,
-  trigger и bandwidth assumptions;
-- signal generator: waveform, amplitude, offset, frequency и output impedance;
-- regulated supply: setpoint, current limit, CV/CC transition и finite output
-  impedance;
+- **MATH-10A:** regulated supply — setpoint, current limit, CV/CC transition и
+  finite output impedance;
+- **MATH-10B:** multimeter — mode, polarity, input impedance, burden voltage и
+  fuse state;
+- **MATH-10C:** signal generator — waveform, amplitude, offset, frequency и
+  output impedance;
+- **MATH-10D:** oscilloscope — channel reference, input impedance, sample rate,
+  timebase, trigger и bandwidth assumptions;
 - probe geometry не меняет topology, а подключение probe меняет измерительный
   netlist предсказуемо.
 
-Следующий этап нельзя начинать, пока предыдущий не прошёл acceptance и owner
-review. Временная статическая модель компонента не закрывает будущий этап.
+Production activation этапа запрещена, пока его prerequisites не прошли
+acceptance и owner review. Параллельная подготовка reference data, fixtures,
+profiles и browser harness разрешена, если она не включает неподтверждённую
+модель в production. Временная статическая модель компонента не закрывает
+будущий этап.
 
 ## 15. Arduino и программирование
 
@@ -592,9 +636,13 @@ GPIO и serial observations.
 Текущая готовность не переписывается вручную в этот документ. Обязательный
 coverage validator должен строить матрицу из production catalog, owner manifest,
 terminal registry, model identity, model registry, inspector/help profiles и
-tests. Пока generated artifact отсутствует, полнота каталога считается
-непроверенной. Для каждого доступного `componentTypeId + variantId` обязательны
-колонки:
+tests. Отсутствующий или устаревший generated artifact означает, что полнота
+каталога не проверена. Для каждого доступного `componentTypeId + variantId`
+обязательны колонки:
+
+Канонический generated artifact: [`generated/component-coverage.json`](generated/component-coverage.json).
+Focused gate пересчитывает его и останавливается, если файл устарел либо каталог
+заявляет модель без установленной identity.
 
 | Колонка | Допустимые значения |
 | --- | --- |
@@ -605,10 +653,10 @@ tests. Пока generated artifact отсутствует, полнота кат
 | breadboard fixture | `verified | missing` |
 | model identity | `verified | missing` |
 | DC model | `verified | unsupported` |
-| transient model | `verified | unsupported | not_applicable` |
-| damage profile | `verified | unsupported | not_applicable` |
-| inspector/help | `verified | missing` |
-| browser evidence | `verified | missing` |
+| transient model | `verified | unsupported | not_applicable | unverified` |
+| damage profile | `verified | unsupported | not_applicable | unverified` |
+| inspector/help | `verified | missing | unverified` |
+| browser evidence | `verified | missing | unverified` |
 
 `enabled` разрешает размещение, но не подменяет model readiness. Любая строка с
 `DC model: unsupported` делает содержащую её схему `unsupported`. Противоречие
@@ -668,15 +716,22 @@ LED, NPN, конденсатор и DC motor на breadboard, собрать н�
 
 Этот результат означает готовность электрического ядра, но не всей Electronics.
 
-### 20.2. Current Catalog Fully Modeled
+### 20.2. Current Placeable Catalog Verified
 
-Полный текущий каталог завершён только когда generated coverage matrix не имеет
-`missing` для доступных компонентов, каждый заявленный режим модели имеет
-reference fixture, unsupported остаётся только у явно отложенных компонентов,
-все семейства проходят browser evidence на breadboard, а inspector, help,
-damage и save/reload согласованы с тем же model identity.
+Placeable-каталог подтверждён, когда каждый enabled-компонент имеет owner
+artwork, scale, terminals, placement, rotation, wiring/breadboard fixture,
+inspector и save/reload evidence. Это ещё не означает готовность симуляции.
 
-### 20.3. Full Electronics Product Done
+### 20.3. Current Simulatable Catalog Fully Modeled
+
+Simulatable-каталог завершён только когда generated coverage matrix не имеет
+`missing`, `unsupported` или `unverified` для объявленных режимов его enabled
+компонентов, каждый режим имеет независимый reference fixture, а browser и
+server подтверждают тот же model identity. Отложенный компонент либо явно
+disabled/coming soon, либо остаётся placeable с честным `unsupported`, но не
+входит в `Fully Modeled`.
+
+### 20.4. Full Electronics Product Done
 
 Кроме полного каталога работают instruments, environment inputs, responsive
 wire editing, accessibility, Arduino runtime, Blocks/Text, Serial Monitor,

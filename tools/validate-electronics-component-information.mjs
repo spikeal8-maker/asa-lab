@@ -3,6 +3,11 @@ import { existsSync, readFileSync } from 'node:fs';
 import Ajv2020 from 'ajv/dist/2020.js';
 import addFormats from 'ajv-formats';
 import { parse as parseYaml } from 'yaml';
+import {
+  buildElectronicsComponentCoverage,
+  COVERAGE_OUTPUT_PATH,
+  serializeElectronicsComponentCoverage,
+} from './generate-electronics-component-coverage.mjs';
 
 const SPEC_PATH = 'docs/product/electronics/README.md';
 const LEDGER_PATH = 'docs/product/electronics/contracts/information-requirements.yaml';
@@ -70,14 +75,25 @@ if (ledger && ledgerSchema) {
 }
 
 if (ledger) {
+  const spec = readFileSync(SPEC_PATH, 'utf8');
+  const declaredSections = new Set(
+    [...spec.matchAll(/^#{2,4}\s+(\d+(?:\.\d+)*)\./gm)].map((match) => match[1]),
+  );
   const decisionIds = new Set();
+  const decisionsById = new Map();
   for (const decision of ledger.decisions ?? []) {
     if (decisionIds.has(decision.id)) fail(`duplicate decision id ${decision.id}`);
     decisionIds.add(decision.id);
+    decisionsById.set(decision.id, decision);
   }
 
   const requirementIds = new Set();
   for (const requirement of ledger.requirements ?? []) {
+    for (const sectionId of requirement.normative_sections ?? []) {
+      if (!declaredSections.has(sectionId)) {
+        fail(`${requirement.id}: normative section ${sectionId} is absent from ${SPEC_PATH}`);
+      }
+    }
     if (requirementIds.has(requirement.id)) fail(`duplicate requirement id ${requirement.id}`);
     requirementIds.add(requirement.id);
   }
@@ -103,6 +119,16 @@ if (ledger) {
     if (requirement.status === 'blocked' && !String(requirement.blocked_reason ?? '').trim()) {
       fail(`${requirement.id}: blocked requirement needs blocked_reason`);
     }
+    if (
+      requirement.status === 'blocked' &&
+      requirement.activation === 'after_decisions' &&
+      (requirement.depends_on_decisions ?? []).every((decisionId) => {
+        const status = decisionsById.get(decisionId)?.status;
+        return status === 'owner_direction' || status === 'approved';
+      })
+    ) {
+      fail(`${requirement.id}: remains blocked although all dependent decisions are resolved`);
+    }
     if (requirement.status === 'implemented' || requirement.status === 'verified') {
       if (!existsSync(requirement.planned_fixture_path)) {
         fail(
@@ -118,7 +144,6 @@ if (ledger) {
     }
   }
 
-  const spec = readFileSync(SPEC_PATH, 'utf8');
   const specDecisionIds = new Set(spec.match(/DEC-INFO-\d{3}/g) ?? []);
   for (const decisionId of decisionIds) {
     if (!specDecisionIds.has(decisionId)) fail(`${decisionId}: absent from ${SPEC_PATH}`);
@@ -175,6 +200,22 @@ if (capabilities) {
   }
 }
 
+const generatedCoverage = buildElectronicsComponentCoverage();
+if (!existsSync(COVERAGE_OUTPUT_PATH)) {
+  fail(`${COVERAGE_OUTPUT_PATH}: generated component coverage is missing`);
+} else {
+  const expectedCoverage = serializeElectronicsComponentCoverage(generatedCoverage);
+  const committedCoverage = readFileSync(COVERAGE_OUTPUT_PATH, 'utf8');
+  if (committedCoverage !== expectedCoverage) {
+    fail(
+      `${COVERAGE_OUTPUT_PATH}: stale; run node tools/generate-electronics-component-coverage.mjs --write`,
+    );
+  }
+}
+for (const contradiction of generatedCoverage.fatalContradictions) {
+  fail(`component coverage ${contradiction.componentId}: ${contradiction.code}`);
+}
+
 const inspectorSchemaText = readFileSync(SCHEMA_PATHS[0], 'utf8');
 for (const forbidden of ['propertyPath', 'sourcePath', 'optionsSource\"']) {
   if (inspectorSchemaText.includes(forbidden)) {
@@ -189,5 +230,5 @@ if (failures.length) {
 }
 
 console.log(
-  `component-information PASS (${schemas.size} schemas, ${ledger?.decisions?.length ?? 0} information decisions, ${capabilities?.engineering_decisions?.length ?? 0} math decisions, ${ledger?.requirements?.length ?? 0} requirements)`,
+  `component-information PASS (${schemas.size} schemas, ${ledger?.decisions?.length ?? 0} information decisions, ${capabilities?.engineering_decisions?.length ?? 0} math decisions, ${ledger?.requirements?.length ?? 0} requirements, ${generatedCoverage.components.length} component rows)`,
 );

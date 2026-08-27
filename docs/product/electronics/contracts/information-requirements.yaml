@@ -38,7 +38,7 @@ decisions:
 requirements:
   - id: ELEC-INFO-001
     statement: enabled catalog families join to schema-valid inspector profiles without changing catalog status
-    normative_sections: ["5.1", "5.2", "9.1"]
+    normative_sections: ["6.3", "9.1", "17.1"]
     status: planned
     activation: mandatory
     depends_on_decisions: []
@@ -51,7 +51,7 @@ requirements:
 
   - id: ELEC-INFO-002
     statement: family variant component and instance IDs resolve only through their declared canonical boundaries
-    normative_sections: ["5.1"]
+    normative_sections: ["5", "6.3", "10"]
     status: planned
     activation: mandatory
     depends_on_decisions: []
@@ -64,7 +64,7 @@ requirements:
 
   - id: ELEC-INFO-003
     statement: compact inspector contains editable settings but no runtime measurements or help prose
-    normative_sections: ["3.1"]
+    normative_sections: ["9.1"]
     status: planned
     activation: mandatory
     depends_on_decisions: []
@@ -77,7 +77,7 @@ requirements:
 
   - id: ELEC-INFO-004
     statement: technical state renders only current finite values from a successful deterministic result
-    normative_sections: ["6", "7", "7.1", "7.2"]
+    normative_sections: ["9.2", "11", "12"]
     status: planned
     activation: mandatory
     depends_on_decisions: []
@@ -90,7 +90,7 @@ requirements:
 
   - id: ELEC-INFO-005
     statement: only an electrically meaningful change invalidates a previous result
-    normative_sections: ["7.1"]
+    normative_sections: ["5", "11", "17"]
     status: planned
     activation: mandatory
     depends_on_decisions: []
@@ -103,7 +103,7 @@ requirements:
 
   - id: ELEC-INFO-006
     statement: deterministic solve result excludes timestamps and random run IDs
-    normative_sections: ["7.1"]
+    normative_sections: ["3", "11", "12"]
     status: planned
     activation: mandatory
     depends_on_decisions: []
@@ -116,7 +116,7 @@ requirements:
 
   - id: ELEC-INFO-007
     statement: unsupported topology is fail-closed and exposes no numeric component values
-    normative_sections: ["6", "12"]
+    normative_sections: ["3", "11", "12"]
     status: planned
     activation: mandatory
     depends_on_decisions: []
@@ -129,7 +129,7 @@ requirements:
 
   - id: ELEC-INFO-008
     statement: diagnostics retain severity and anchor to the actual component wire or net
-    normative_sections: ["6", "9.3"]
+    normative_sections: ["3", "9.2", "11"]
     status: planned
     activation: mandatory
     depends_on_decisions: []
@@ -142,7 +142,7 @@ requirements:
 
   - id: ELEC-INFO-009
     statement: free terminal open circuit and stopped simulation do not create a generic component error
-    normative_sections: ["6", "12"]
+    normative_sections: ["3", "9.2", "13"]
     status: planned
     activation: mandatory
     depends_on_decisions: []
@@ -155,7 +155,7 @@ requirements:
 
   - id: ELEC-INFO-010
     statement: variant pinout limits and connection rules override family help where variants differ
-    normative_sections: ["3.3", "5.1", "9.2"]
+    normative_sections: ["6.2", "6.3", "9.3", "10"]
     status: planned
     activation: mandatory
     depends_on_decisions: []
@@ -168,11 +168,10 @@ requirements:
 
   - id: ELEC-INFO-011
     statement: approved help navigation restores catalog search category scroll and selected variant
-    normative_sections: ["3.3", "10"]
-    status: blocked
+    normative_sections: ["9.3", "16"]
+    status: planned
     activation: after_decisions
     depends_on_decisions: [DEC-INFO-002]
-    blocked_reason: awaiting DEC-INFO-002 owner decision
     verification: [browser, visual]
     planned_test_ids: [TST-E2E-ELECTRONICS-COMPONENT-INFO-001]
     planned_fixture_path: e2e/fixtures/electronics/populated-catalog-state.json
@@ -182,11 +181,10 @@ requirements:
 
   - id: ELEC-INFO-012
     statement: technical state control and diagnostic badge follow owner-approved semantics
-    normative_sections: ["3.2"]
-    status: blocked
+    normative_sections: ["9.1", "9.2", "9.4"]
+    status: planned
     activation: after_decisions
     depends_on_decisions: [DEC-INFO-003, DEC-INFO-004]
-    blocked_reason: awaiting DEC-INFO-003 and DEC-INFO-004 owner decisions
     verification: [browser, visual, accessibility]
     planned_test_ids: [TST-E2E-ELECTRONICS-COMPONENT-INFO-001]
     planned_fixture_path: e2e/fixtures/electronics/diagnostic-state-matrix.json
@@ -196,7 +194,7 @@ requirements:
 
   - id: ELEC-INFO-013
     statement: boards instruments and breadboards use grouped domain-specific presentation
-    normative_sections: ["8.7", "8.8", "8.9"]
+    normative_sections: ["9.2", "14", "15", "17.1"]
     status: planned
     activation: mandatory
     depends_on_decisions: []
@@ -209,7 +207,7 @@ requirements:
 
   - id: ELEC-INFO-014
     statement: information layers are keyboard accessible and do not steal higher-priority editor cancellation
-    normative_sections: ["10", "11"]
+    normative_sections: ["9", "16"]
     status: planned
     activation: mandatory
     depends_on_decisions: []
@@ -222,11 +220,11 @@ requirements:
 
   - id: ELEC-INFO-015
     statement: mobile help uses approved navigation and preserves draft canvas and safe areas
-    normative_sections: ["3.3", "10", "11"]
+    normative_sections: ["9.3", "16"]
     status: blocked
     activation: after_decisions
     depends_on_decisions: [DEC-INFO-002, DEC-INFO-005]
-    blocked_reason: awaiting DEC-INFO-002 and DEC-INFO-005 owner decisions
+    blocked_reason: awaiting DEC-INFO-005 owner decision
     verification: [browser, visual, accessibility]
     planned_test_ids: [TST-E2E-ELECTRONICS-COMPONENT-INFO-001]
     planned_fixture_path: e2e/fixtures/electronics/mobile-390x844.json
@@ -236,7 +234,7 @@ requirements:
 
   - id: ELEC-INFO-016
     statement: help content is lazy and information controls do not run the solver or parse owner SVG again
-    normative_sections: ["10", "11"]
+    normative_sections: ["2.1", "9.3", "12.1", "15"]
     status: planned
     activation: mandatory
     depends_on_decisions: []
@@ -249,7 +247,7 @@ requirements:
 
   - id: ELEC-INFO-017
     statement: help accepts only schema-valid structured blocks and rejects HTML external scripts and unapproved media
-    normative_sections: ["4", "9.2", "12"]
+    normative_sections: ["9.3", "17"]
     status: planned
     activation: mandatory
     depends_on_decisions: []
@@ -262,7 +260,7 @@ requirements:
 
   - id: ELEC-INFO-018
     statement: publishing safety-critical help requires content engineering and owner approvals bound to a content digest
-    normative_sections: ["4", "9.2"]
+    normative_sections: ["9.3", "18"]
     status: planned
     activation: mandatory
     depends_on_decisions: []
@@ -275,7 +273,7 @@ requirements:
 
   - id: ELEC-INFO-019
     statement: browser Back and Escape obey the global editor input and unsaved-draft contracts
-    normative_sections: ["10"]
+    normative_sections: ["9.3", "16", "17"]
     status: planned
     activation: mandatory
     depends_on_decisions: []
@@ -288,7 +286,7 @@ requirements:
 
   - id: ELEC-INFO-020
     statement: missing published help follows the owner-approved empty-content behavior without a blank page
-    normative_sections: ["5.2"]
+    normative_sections: ["9.3", "9.4"]
     status: blocked
     activation: after_decisions
     depends_on_decisions: [DEC-INFO-006]
