@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { api, type BotProof } from '../api';
-import { AsaLabWordmark } from '../brand/AsaLabBrand';
+import { AuthHomeBrand } from '../components/AuthHomeBrand';
 import { BotCheck } from '../components/BotCheck';
 
 type JoinState =
@@ -22,9 +22,11 @@ function initialCode(): string {
  */
 export function JoinClassPage({
   onBack,
+  onHome,
   onSignedIn,
 }: {
   onBack: () => void;
+  onHome: () => void;
   onSignedIn: () => void;
 }): JSX.Element {
   const [state, setState] = useState<JoinState>({ kind: 'code' });
@@ -86,9 +88,7 @@ export function JoinClassPage({
         >
           ← Назад
         </button>
-        <h1 className="brand-heading">
-          <AsaLabWordmark />
-        </h1>
+        <AuthHomeBrand onHome={onHome} />
         {state.kind === 'code' ? (
           <form onSubmit={(event) => void resolve(event)}>
             <h2>Введите код класса</h2>

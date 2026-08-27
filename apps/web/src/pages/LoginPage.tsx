@@ -1,19 +1,23 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { api, type BotProof, type SessionPayload } from '../api';
-import { AsaLabWordmark } from '../brand/AsaLabBrand';
+import { AuthHomeBrand } from '../components/AuthHomeBrand';
 import { BotCheck } from '../components/BotCheck';
 
 export function LoginPage({
   onSignedIn,
   onCreateAccount,
+  onClassCodeLogin,
   onOrganizationLogin,
   onBack,
+  onHome = onBack,
   contextMessage,
 }: {
   onSignedIn: (session: SessionPayload) => void;
   onCreateAccount: () => void;
+  onClassCodeLogin?: () => void;
   onOrganizationLogin: () => void;
   onBack: () => void;
+  onHome?: () => void;
   contextMessage?: string;
 }): JSX.Element {
   const [identifier, setIdentifier] = useState('');
@@ -89,10 +93,28 @@ export function LoginPage({
         <button type="button" className="btn-ghost entry-back" onClick={onBack}>
           ← Назад
         </button>
-        <h1 className="brand-heading">
-          <AsaLabWordmark />
-        </h1>
+        <AuthHomeBrand onHome={onHome} />
         <p className="subtitle">Вход в ASA Lab</p>
+        {onClassCodeLogin ? (
+          <section className="login-methods" aria-labelledby="login-methods-title">
+            <h2 id="login-methods-title">Выберите способ входа</h2>
+            <div className="login-method-list">
+              <div className="login-method login-method-current">
+                <strong>Личная учётная запись</strong>
+                <span>Email или имя пользователя и пароль</span>
+              </div>
+              <button
+                type="button"
+                className="login-method login-method-button"
+                data-testid="login-class-code"
+                onClick={onClassCodeLogin}
+              >
+                <strong>Войти по коду класса</strong>
+                <span>Для ученика с кодом от преподавателя</span>
+              </button>
+            </div>
+          </section>
+        ) : null}
         {contextMessage ? <p className="max-link-copy">{contextMessage}</p> : null}
         <form onSubmit={(event) => void submit(event)} noValidate>
           <label htmlFor="identifier">Email или имя пользователя</label>

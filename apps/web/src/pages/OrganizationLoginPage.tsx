@@ -1,14 +1,16 @@
 import { useId, useRef, useState, type FormEvent } from 'react';
 import { api, type BotProof, type SessionPayload } from '../api';
-import { AsaLabWordmark } from '../brand/AsaLabBrand';
+import { AuthHomeBrand } from '../components/AuthHomeBrand';
 import { BotCheck } from '../components/BotCheck';
 
 export function OrganizationLoginPage({
   onSignedIn,
   onBack,
+  onHome,
 }: {
   onSignedIn: (session: SessionPayload) => void;
   onBack: () => void;
+  onHome: () => void;
 }): JSX.Element {
   const [workspace, setWorkspace] = useState('');
   const [email, setEmail] = useState('');
@@ -55,9 +57,7 @@ export function OrganizationLoginPage({
         <button type="button" className="btn-ghost entry-back" onClick={onBack}>
           ← Назад
         </button>
-        <h1 className="brand-heading">
-          <AsaLabWordmark />
-        </h1>
+        <AuthHomeBrand onHome={onHome} />
         <p className="subtitle">Вход через организацию</p>
         <p className="legacy-hint legacy-banner">
           Совместимый путь для школ, подключённых по коду организации.

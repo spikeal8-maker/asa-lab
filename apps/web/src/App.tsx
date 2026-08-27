@@ -144,6 +144,12 @@ export function App(): JSX.Element {
     if (window.location.hash !== hash) window.history.pushState(null, '', hash);
   }, []);
 
+  const goToPublicHome = useCallback(() => {
+    setPendingTeacherInvite(null);
+    setView({ kind: 'home' });
+    setPublicView({ kind: 'entry' });
+  }, [setPublicView, setView]);
+
   useEffect(() => {
     const sync = (): void => {
       const nextView = creatorViewFromLocation(window.location);
@@ -461,13 +467,15 @@ export function App(): JSX.Element {
         <RegisterPage
           onRegistered={signedIn}
           onBackToLogin={() => setPublicView({ kind: 'sign-in' })}
+          onHome={goToPublicHome}
         />
       );
     }
     if (publicView.kind === 'join-class') {
       return (
         <JoinClassPage
-          onBack={() => setPublicView({ kind: 'entry' })}
+          onBack={() => setPublicView({ kind: 'sign-in' })}
+          onHome={goToPublicHome}
           onSignedIn={() => void checkSession()}
         />
       );
@@ -477,6 +485,7 @@ export function App(): JSX.Element {
         <OrganizationLoginPage
           onSignedIn={signedIn}
           onBack={() => setPublicView({ kind: 'sign-in' })}
+          onHome={goToPublicHome}
         />
       );
     }
@@ -485,8 +494,10 @@ export function App(): JSX.Element {
         <LoginPage
           onSignedIn={signedIn}
           onCreateAccount={() => setPublicView({ kind: 'sign-up' })}
+          onClassCodeLogin={() => setPublicView({ kind: 'join-class' })}
           onOrganizationLogin={() => setPublicView({ kind: 'organization-sign-in' })}
           onBack={() => setPublicView({ kind: 'entry' })}
+          onHome={goToPublicHome}
         />
       );
     }

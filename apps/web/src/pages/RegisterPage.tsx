@@ -1,14 +1,16 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { api, type BotProof, type SessionPayload } from '../api';
-import { AsaLabWordmark } from '../brand/AsaLabBrand';
+import { AuthHomeBrand } from '../components/AuthHomeBrand';
 import { BotCheck } from '../components/BotCheck';
 
 export function RegisterPage({
   onRegistered,
   onBackToLogin,
+  onHome,
 }: {
   onRegistered: (session: SessionPayload) => void;
   onBackToLogin: () => void;
+  onHome: () => void;
 }): JSX.Element {
   const [email, setEmail] = useState('');
   const [username, setUsername] = useState('');
@@ -85,9 +87,7 @@ export function RegisterPage({
         <button type="button" className="btn-ghost entry-back" onClick={onBackToLogin}>
           ← К входу
         </button>
-        <h1 className="brand-heading">
-          <AsaLabWordmark />
-        </h1>
+        <AuthHomeBrand onHome={onHome} />
         <p className="subtitle">Создание аккаунта</p>
         <form onSubmit={(event) => void submit(event)} noValidate>
           <label htmlFor="register-email">Email</label>

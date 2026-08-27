@@ -92,6 +92,23 @@ label {
   margin: 0 0 1.1rem;
 }
 
+.auth-home-brand {
+  display: inline-flex;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+}
+
+.auth-home-brand .asa-brand-mark {
+  transition: transform 150ms ease;
+}
+
+.auth-home-brand:hover .asa-brand-mark {
+  transform: translateY(-1px);
+}
+
 .entry-kicker {
   margin: 0 0 0.85rem;
   color: var(--asa-cyan-600);
@@ -455,6 +472,57 @@ label {
 
 .entry-back {
   margin: -0.65rem 0 0.85rem -0.75rem;
+}
+
+.login-methods {
+  margin: 1.15rem 0 1.35rem;
+}
+
+.login-methods h2 {
+  margin: 0 0 0.7rem;
+  font-size: 1rem;
+}
+
+.login-method-list {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.login-method {
+  display: grid;
+  gap: 0.2rem;
+  width: 100%;
+  min-height: 66px;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  text-align: left;
+}
+
+.login-method strong {
+  color: var(--text);
+  font-size: 0.94rem;
+}
+
+.login-method span {
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
+.login-method-current {
+  border-color: rgba(36, 86, 214, 0.34);
+  background: rgba(36, 86, 214, 0.06);
+}
+
+.login-method-button {
+  margin: 0;
+  background: var(--surface);
+}
+
+.login-method-button:hover {
+  border-color: var(--asa-cyan-600);
+  background: rgba(10, 164, 200, 0.06);
 }
 
 .login-links {
