@@ -1364,12 +1364,17 @@ test('independent and parallel sources keep diagnostics local and expose current
     fullPage: true,
   });
   await page.getByRole('button', { name: 'Остановить моделирование' }).click();
-  await saveDocument(page, projectId, conflictingParallelSourcesDocument());
-  await page.goto(`/#/home/${projectId}`);
+  const conflictProjectId = await createProject(page, 'R4-M1 parallel source modes');
+  await saveDocument(page, conflictProjectId, conflictingParallelSourcesDocument());
+  await page.goto(`/#/home/${conflictProjectId}`);
   await page.getByRole('button', { name: 'Начать моделирование' }).click();
 
-  const highSource = component(page, 'battery-holder-aa-2');
-  const lowSource = component(page, 'battery-holder-aa-1');
+  const highSource = page.locator(
+    '[data-testid="schematic-component"][data-component-id="source-high"]',
+  );
+  const lowSource = page.locator(
+    '[data-testid="schematic-component"][data-component-id="source-low"]',
+  );
   await expect(highSource).toHaveAttribute('data-source-operating-mode', 'delivering');
   await expect(lowSource).toHaveAttribute('data-source-operating-mode', 'absorbing');
   await expect(highSource).toHaveAttribute('data-diagnostics', /conflicting_sources/);

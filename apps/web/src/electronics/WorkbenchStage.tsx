@@ -443,6 +443,7 @@ export function WorkbenchStage({
                     : ''
                 }`}
                 data-testid="schematic-component"
+                data-component-id={component.id}
                 data-kind={component.kind}
                 data-presentation-state={c.resultByComponent.get(component.id)?.presentationState}
                 data-source-operating-mode={
