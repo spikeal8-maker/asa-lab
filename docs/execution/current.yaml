@@ -122,11 +122,11 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: coverage_baseline_and_island_diagnostics_ready_for_owner_review
+      checkpoint: math_1_multi_source_modes_ready_for_owner_review
       owner_acceptance: pending
     revisions:
-      convergence_baseline_sha: 06b3c25250468fb3d92c6e307abf024f1721d67f
-      head_sha: 06b3c25250468fb3d92c6e307abf024f1721d67f
+      convergence_baseline_sha: 126681684e5485c976bca74d041a385742ce8444
+      head_sha: 126681684e5485c976bca74d041a385742ce8444
     execution_lease:
       executor_id: codex-electronics-docs
       holder: unassigned
