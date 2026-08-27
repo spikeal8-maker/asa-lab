@@ -7,6 +7,10 @@ const stageSource = readFileSync(resolve(electronicsRoot, 'WorkbenchStage.tsx'),
 const sidebarSource = readFileSync(resolve(electronicsRoot, 'WorkbenchSidebars.tsx'), 'utf8');
 const headerSource = readFileSync(resolve(electronicsRoot, 'WorkbenchHeader.tsx'), 'utf8');
 const editorSource = readFileSync(resolve(electronicsRoot, '../pages/SchematicEditor.tsx'), 'utf8');
+const alternateViewsSource = readFileSync(
+  resolve(electronicsRoot, 'AlternateWorkbenchViews.tsx'),
+  'utf8',
+);
 const productionVisualSource = readFileSync(
   resolve(electronicsRoot, 'ProductionComponentVisual.tsx'),
   'utf8',
@@ -184,7 +188,7 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(stageSource).not.toContain('workbench-component-diagnostic-tooltip');
     expect(stageSource).toContain('data-testid="component-model-warning"');
     expect(stageSource).toContain('unsupportedModelIndicators');
-    expect(editorSource).toContain('workbench-schematic-model-warning');
+    expect(alternateViewsSource).toContain('workbench-schematic-model-warning');
     expect(workbenchCss).toContain('.workbench-catalog-model-warning');
     expect(workbenchCss).toContain('.workbench-component-model-warning');
     expect(productionVisualSource).toContain("entry.key === 'temperature-sensor'");
@@ -348,9 +352,9 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(sidebarSource).not.toContain('workbench-led-electrical-state');
     expect(editorSource).toContain('window.print()');
     expect(editorSource).toContain('text/csv;charset=utf-8');
-    expect(editorSource).toContain('<th>Имя</th>');
-    expect(editorSource).toContain('<th>Количество</th>');
-    expect(editorSource).toContain('<th>Компонент</th>');
+    expect(alternateViewsSource).toContain('<th>Имя</th>');
+    expect(alternateViewsSource).toContain('<th>Количество</th>');
+    expect(alternateViewsSource).toContain('<th>Компонент</th>');
   });
 
   it('provides a real phone workbench with a bottom component sheet and touch targets', () => {
