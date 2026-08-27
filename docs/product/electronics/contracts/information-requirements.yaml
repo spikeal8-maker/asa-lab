@@ -1,6 +1,6 @@
-schema: docs/product/schemas/ASA_ELECTRONICS_COMPONENT_INFORMATION_REQUIREMENTS.schema.json
+schema: docs/product/electronics/contracts/schemas/information-requirements.schema.json
 schema_version: 1.2.0
-spec: docs/product/ASA_ELECTRONICS_COMPONENT_INFORMATION_SYSTEM.md
+spec: docs/product/electronics/README.md
 status: proposed
 
 decisions:

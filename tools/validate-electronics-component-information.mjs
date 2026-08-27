@@ -4,14 +4,14 @@ import Ajv2020 from 'ajv/dist/2020.js';
 import addFormats from 'ajv-formats';
 import { parse as parseYaml } from 'yaml';
 
-const SPEC_PATH = 'docs/product/ASA_ELECTRONICS_COMPONENT_INFORMATION_SYSTEM.md';
-const LEDGER_PATH = 'docs/product/ASA_ELECTRONICS_COMPONENT_INFORMATION_REQUIREMENTS.yaml';
+const SPEC_PATH = 'docs/product/electronics/README.md';
+const LEDGER_PATH = 'docs/product/electronics/contracts/information-requirements.yaml';
 const PLANNED_TESTS_PATH = 'docs/testing/planned-test-catalog.yaml';
 const SCHEMA_PATHS = [
-  'docs/product/schemas/ASA_ELECTRONICS_INSPECTOR_PROFILE.schema.json',
-  'docs/product/schemas/ASA_ELECTRONICS_HELP_CONTENT.schema.json',
-  'docs/product/schemas/ASA_ELECTRONICS_HELP_APPROVAL.schema.json',
-  'docs/product/schemas/ASA_ELECTRONICS_COMPONENT_INFORMATION_REQUIREMENTS.schema.json',
+  'docs/product/electronics/contracts/schemas/inspector-profile.schema.json',
+  'docs/product/electronics/contracts/schemas/help-content.schema.json',
+  'docs/product/electronics/contracts/schemas/help-approval.schema.json',
+  'docs/product/electronics/contracts/schemas/information-requirements.schema.json',
 ];
 
 const failures = [];
@@ -54,7 +54,7 @@ for (const path of SCHEMA_PATHS) {
 
 const ledger = loadYaml(LEDGER_PATH);
 const ledgerSchema = schemas.get(
-  'docs/product/schemas/ASA_ELECTRONICS_COMPONENT_INFORMATION_REQUIREMENTS.schema.json',
+  'docs/product/electronics/contracts/schemas/information-requirements.schema.json',
 );
 if (ledger && ledgerSchema) {
   const ajv = new Ajv2020({ allErrors: true, strict: true });

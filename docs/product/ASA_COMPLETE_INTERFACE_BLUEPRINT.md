@@ -303,8 +303,8 @@ success_feedback
 Полный Electronics contract вынесен в:
 
 ```text
-docs/product/ASA_ELECTRONICS_WORKBENCH_COMPLETE_SPEC.md
-docs/product/ASA_ELECTRONICS_TOOL_CATALOG.yaml
+docs/product/electronics/README.md
+docs/product/electronics/contracts/capabilities.yaml
 ```
 
 Кратко он охватывает:

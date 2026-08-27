@@ -241,7 +241,7 @@ tasks:
       - additive_schema_and_save_reload_checkpoint
       - actual_editor_e2e_and_screenshots
     non_goals: [full repository matrix before owner review, merge, R4-M2, R5, new branch, additional permanent Compose projects, fake simulation for unsupported catalog candidates]
-    read: [AGENTS.md, docs/product/ASA_ELECTRONICS_WORKBENCH_COMPLETE_SPEC.md, https://github.com/spikeal8-maker/asa-lab/issues/63, https://github.com/spikeal8-maker/asa-lab/pull/72#issuecomment-5147079314]
+    read: [AGENTS.md, docs/product/electronics/README.md, https://github.com/spikeal8-maker/asa-lab/issues/63]
     test_profiles: []
     task_tests: [TST-ELECTRONICS-ASSET-MANIFEST-001, TST-ELECTRONICS-TRANSPARENCY-001, TST-ELECTRONICS-PHYSICAL-SCALE-001, TST-ELECTRONICS-PIN-ANCHOR-001, TST-ELECTRONICS-STATE-FAMILIES-001, TST-ELECTRONICS-BREADBOARD-001, TST-ELECTRONICS-RESISTOR-VISUAL-001, TST-ELECTRONICS-COMPONENT-LIBRARY-001, TST-ELECTRONICS-M1-E2E-001]
     map_nodes: [PROGRAM-ALPHA-001, TRACK-ROADMAP, PHASE-R4, APP-WEB, CTX-PROJECTS, MOD-ELECTRONICS]

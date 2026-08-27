@@ -103,6 +103,50 @@ primary_lane:
     - docs/execution/ADMIN_AUTH_MAX_EXECUTION_PLAN.md
 
 parallel_lanes:
+  - id: electronics
+    # One normative human document, colocated machine contracts and a
+    # reconciled execution checkpoint replace the historical R4-M1 document set.
+    worktree_id: electronics-main
+    owned_paths:
+      - contexts/electronics/**
+      - apps/web/src/electronics/**
+      - e2e/electronics-simulation.spec.ts
+      - e2e/artifacts/electronics-simulation/**
+      - docs/product/electronics/**
+      - tools/validate-electronics-component-information.mjs
+    task:
+      id: TASK-ELECTRONICS-DOCS-001
+      issue: 63
+      branch: main
+      base_branch: main
+      pr: null
+      pr_draft: false
+      status: in_progress
+      checkpoint: unified_documentation_implementation
+      owner_acceptance: pending
+    revisions:
+      convergence_baseline_sha: b7a41dbfa5b51fc8ee06e2a38f07c6d83ec919da
+      head_sha: b7a41dbfa5b51fc8ee06e2a38f07c6d83ec919da
+    execution_lease:
+      executor_id: codex-electronics-docs
+      holder: unassigned
+      acquired_at: null
+      expires_at: null
+      reviewer_role_requires_lease: false
+    gates:
+      focused:
+        workflow: Electronics R4-M1 Focused
+        commands:
+          - pnpm gate:electronics-m1
+      browser:
+        workflow: Electronics R4-M1 Focused
+        commands:
+          - pnpm gate:electronics-m1:browser
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
+
   - id: chess
     worktree_id: chess-r2-puzzles-learning
     owned_paths:

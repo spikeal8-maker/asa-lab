@@ -378,7 +378,7 @@ Exact screenshot IDs are defined in:
 
 ```text
 docs/product/ASA_PRODUCT_SURFACE_CATALOG.yaml
-docs/product/ASA_ELECTRONICS_TOOL_CATALOG.yaml
+docs/product/electronics/contracts/capabilities.yaml
 ```
 
 Screenshots containing real credentials, student data or private work are prohibited.

@@ -33,7 +33,7 @@ Cherry-pick контрольных коммитов на `main` даёт кон�
 ```text
 на ветке есть, на main нет:
   .github/workflows/electronics-r4-m1-focused.yml
-  docs/delivery/TASK_ELECTRONICS_M1_001_WORK_STATUS.md
+  docs/product/electronics/README.md
   e2e/electronics-simulation.spec.ts
 
 manifest на main знает только 4 задачи, до R2 включительно;

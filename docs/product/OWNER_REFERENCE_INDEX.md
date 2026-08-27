@@ -33,7 +33,7 @@ Each evidence set also includes machine-readable YAML and a CSV timeline. The fi
 - [`ASA_AUTH_ENTRY_UX_SPEC.md`](ASA_AUTH_ENTRY_UX_SPEC.md) — entry, registration and class access.
 - [`ASA_STUDENT_EXPERIENCE_SPEC.md`](ASA_STUDENT_EXPERIENCE_SPEC.md) — registered learner and StudentSeat experience.
 - [`TINKERCAD_EDUCATOR_CLASSROOM_PARITY_SPEC.md`](TINKERCAD_EDUCATOR_CLASSROOM_PARITY_SPEC.md) — educator and classroom flow.
-- [`ASA_ELECTRONICS_WORKBENCH_COMPLETE_SPEC.md`](ASA_ELECTRONICS_WORKBENCH_COMPLETE_SPEC.md) and [`ASA_ELECTRONICS_TOOL_CATALOG.yaml`](ASA_ELECTRONICS_TOOL_CATALOG.yaml) — complete Electronics workbench/tool scope.
+- [`electronics/README.md`](electronics/README.md) — единая нормативная спецификация Electronics; машинные capability-контракты находятся рядом в `electronics/contracts/`.
 - [`ASA_ADMIN_CONSOLE_SPEC.md`](ASA_ADMIN_CONSOLE_SPEC.md) — school and platform administration.
 - [`ASA_TINKERCAD_100_PERCENT_SCOPE.yaml`](ASA_TINKERCAD_100_PERCENT_SCOPE.yaml) — functional-parity claim rules.
 
