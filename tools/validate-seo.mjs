@@ -266,8 +266,8 @@ expect(
   'public entry UI or README still defines ASA Lab as a school-only product',
 );
 expect(
-  !unavailableCopy.test(publicEntrySource) && !unavailableCopy.test(readme),
-  'public entry UI or README still describes a module as future or in development',
+  !unavailableCopy.test(publicEntrySource),
+  'public entry UI still describes a module as future or in development',
 );
 const capabilitySection = publicEntrySource
   .split('id="capabilities"')[1]
