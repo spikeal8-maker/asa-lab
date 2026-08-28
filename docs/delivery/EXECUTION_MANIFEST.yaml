@@ -221,7 +221,7 @@ tasks:
       - idle_terminals_hidden_contextual_wiring_markers
       - snap_links_hidden_outside_drag_preview
       - neutral_idle_components_without_diagnostic_glow
-      - calm_selection_outline_and_clean_100_percent_stage
+      - calm_shape_following_selection_outline_without_per_component_bounds_exceptions_and_clean_100_percent_stage
       - owner_reference_toolbar_header_geometry
       - remove_old_hard_coded_catalog_from_new_projects
       - legacy_document_asset_migration

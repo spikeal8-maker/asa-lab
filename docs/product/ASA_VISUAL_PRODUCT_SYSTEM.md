@@ -291,7 +291,15 @@ Every icon requires:
 - components have consistent physical scale;
 - terminal hit areas are larger than visible dots;
 - wires expose selection, routing and reconnect handles;
-- selection box does not resemble a broken artifact;
+- component selection follows the visible rendered silhouette, including the
+  same scale, fit, reflection and rotation transforms as the component;
+- per-component rectangle, oval, capsule and hand-tuned bounding-box selection
+  exceptions are forbidden;
+- selection stroke is calm, non-scaling under zoom and does not change layout,
+  hit areas, terminal anchors or component dimensions;
+- procedural vector components outline their actual body/leads; invisible hit
+  surfaces never define the visible selection shape;
+- selection, hover, diagnostics and simulation state remain separate layers;
 - zoom/pan state is recoverable through `Fit`;
 - simulation state is not communicated by colour alone.
 

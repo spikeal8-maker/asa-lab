@@ -277,12 +277,9 @@ export function ProductionComponentVisual({
   const ownerAssetTransform = rotatesHorizontalOwnerAsset
     ? `translate(${width} 0) rotate(90)`
     : undefined;
-  const diodeSelectionBounds =
-    entry.key === 'diode-do35'
-      ? { x: 0, y: height * 0.09, width, height: height * 0.66 }
-      : entry.key === 'diode-do41'
-        ? { x: width * 0.14, y: ownerAssetY, width: width * 0.59, height: ownerAssetHeight }
-        : null;
+  // Canonical selection contract: docs/product/electronics/README.md, section 7.
+  // The rendered asset and its alpha-silhouette outline MUST share one transform;
+  // per-component rectangle/capsule bounds are intentionally forbidden.
   const usesMeasuredTinkercadGeometry = [
     'resistor-axial',
     'button-tactile-6mm',
@@ -320,26 +317,20 @@ export function ProductionComponentVisual({
       }
       aria-hidden="true"
     >
-      {selected && diodeSelectionBounds ? (
-        <rect
-          className="workbench-diode-selection"
+      {selected && !usesMeasuredTinkercadGeometry ? (
+        <g
+          className="workbench-selection-silhouette"
           pointerEvents="none"
           aria-hidden="true"
-          x={diodeSelectionBounds.x}
-          y={diodeSelectionBounds.y}
-          width={diodeSelectionBounds.width}
-          height={diodeSelectionBounds.height}
-          rx={Math.min(diodeSelectionBounds.width, diodeSelectionBounds.height) * 0.35}
-        />
-      ) : selected && !usesMeasuredTinkercadGeometry ? (
-        <g className="workbench-selection-silhouette" pointerEvents="none" aria-hidden="true">
+          transform={ownerAssetTransform}
+        >
           <defs>
             <filter
               id={selectionFilterId}
               x={-selectionOffset * 2}
-              y={-selectionOffset * 2}
-              width={width + selectionOffset * 4}
-              height={height + selectionOffset * 4}
+              y={ownerAssetY - selectionOffset * 2}
+              width={ownerAssetWidth + selectionOffset * 4}
+              height={ownerAssetHeight + selectionOffset * 4}
               filterUnits="userSpaceOnUse"
               primitiveUnits="userSpaceOnUse"
               colorInterpolationFilters="sRGB"
@@ -360,7 +351,6 @@ export function ProductionComponentVisual({
             y={ownerAssetY}
             width={ownerAssetWidth}
             height={ownerAssetHeight}
-            transform={ownerAssetTransform}
             preserveAspectRatio={narrowsDo41Body ? 'none' : imageFit}
             filter={`url(#${selectionFilterId})`}
           />

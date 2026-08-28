@@ -106,8 +106,11 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(stageSource).not.toContain('workbench-selection-box');
     expect(stageSource).toContain("workbench-part${selected ? ' selected' : ''}");
     expect(productionVisualSource).toContain('workbench-selection-silhouette');
-    expect(productionVisualSource).toContain('diodeSelectionBounds');
-    expect(workbenchCss).toContain('.workbench-diode-selection');
+    expect(productionVisualSource).not.toContain('diodeSelectionBounds');
+    expect(workbenchCss).not.toContain('.workbench-diode-selection');
+    expect(productionVisualSource).toContain('transform={ownerAssetTransform}');
+    expect(productionVisualSource).toContain('width={ownerAssetWidth + selectionOffset * 4}');
+    expect(productionVisualSource).toContain('height={ownerAssetHeight + selectionOffset * 4}');
     expect(productionVisualSource).toContain("entry.key === 'diode-do41'");
     expect(productionVisualSource).toContain('height * 0.88');
     expect(productionVisualSource).toContain('tinkercad-four-pin-6x6');
