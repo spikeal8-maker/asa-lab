@@ -219,7 +219,7 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(sidebarSource).toContain('!c.selectedComponent.componentTypeId');
     expect(sidebarSource).toContain('measurement.reverseVoltageLimitVolt');
     expect(sidebarSource).toContain('Длительный ток');
-    expect(sidebarSource).toContain('Допустимое обратное напряжение');
+    expect(sidebarSource).toContain('Обратный предел');
     expect(sidebarSource).toContain('c.selectedEntry!.key');
     expect(sidebarSource).toContain('technicalMetrics.map');
   });

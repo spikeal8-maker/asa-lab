@@ -878,7 +878,7 @@ export function WorkbenchSidebars({
                         </div>
                       ) : null}
                       <div>
-                        <dt>Допустимое обратное напряжение</dt>
+                        <dt>Обратный предел</dt>
                         <dd>{(measurement.reverseVoltageLimitVolt ?? 0).toFixed(0)} В</dd>
                       </div>
                     </>

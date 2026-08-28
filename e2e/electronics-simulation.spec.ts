@@ -1031,7 +1031,7 @@ test('DO-35 exposes calculated current and fixed profile limits through I', asyn
   await expect(inspector.getByText('Длительный ток', { exact: true })).toBeVisible();
   await expect(inspector.getByText('200 мА', { exact: true })).toBeVisible();
   await expect(
-    inspector.getByText('Допустимое обратное напряжение', { exact: true }),
+    inspector.getByText('Обратный предел', { exact: true }),
   ).toBeVisible();
   await expect(inspector.getByText('100 В', { exact: true })).toBeVisible();
   await expect(inspector.getByText('Ток', { exact: true })).toBeVisible();
@@ -1293,7 +1293,7 @@ test('real editor recalculates SPDT, resistor and LED without waiting for persis
   await expect(ledInspector.getByText('20 мА', { exact: true })).toBeVisible();
   await expect(ledInspector.getByText('Разрушительный ток')).toBeVisible();
   await expect(ledInspector.getByText('120 мА', { exact: true })).toBeVisible();
-  await expect(ledInspector.getByText('Допустимое обратное напряжение')).toBeVisible();
+  await expect(ledInspector.getByText('Обратный предел')).toBeVisible();
   await expect(ledInspector.getByText('5 В', { exact: true })).toBeVisible();
   await page.screenshot({
     path: `${ARTIFACT_DIR}/electronics-reverse-polarity.png`,
