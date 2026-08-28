@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import type { PublicUser } from '../api';
 import { EditorAvatar, useEditorAvatar } from '../components/editor-chrome/EditorAvatar';
+import { EditorPersistenceIndicator } from '../components/editor-chrome/EditorPersistenceIndicator';
 import {
-  CheckIcon,
   ChevronIcon,
   CircuitIcon,
   CodeIcon,
@@ -32,8 +32,6 @@ const WIRE_COLOR_NAMES: Readonly<Record<string, string>> = {
   '#e7a400': 'Жёлтый',
   '#8d45c7': 'Фиолетовый',
 };
-
-const SAVE_ERROR_VISIBILITY_MS = 4_500;
 
 function ToolButton({
   label,
@@ -92,7 +90,6 @@ export function WorkbenchHeader({
   const hasComponentSelection = c.selection?.kind === 'component';
   const wireColorMenuRef = useRef<HTMLDetailsElement>(null);
   const [simulationElapsedSeconds, setSimulationElapsedSeconds] = useState(0);
-  const [saveErrorVisible, setSaveErrorVisible] = useState(false);
   const avatar = useEditorAvatar(user);
 
   useEffect(() => {
@@ -106,16 +103,6 @@ export function WorkbenchHeader({
     const timer = window.setInterval(update, 250);
     return () => window.clearInterval(timer);
   }, [c.simulationRunning]);
-
-  useEffect(() => {
-    if (c.saveStatus !== 'error') {
-      setSaveErrorVisible(false);
-      return;
-    }
-    setSaveErrorVisible(true);
-    const timer = window.setTimeout(() => setSaveErrorVisible(false), SAVE_ERROR_VISIBILITY_MS);
-    return () => window.clearTimeout(timer);
-  }, [c.saveError, c.saveStatus]);
 
   return (
     <>
@@ -150,20 +137,11 @@ export function WorkbenchHeader({
             }}
           />
         </div>
-        {/* Save failures remain recoverable in the local draft, so the header
-            reports that user fact briefly instead of exposing a protocol/CAS
-            explanation across the whole toolbar. */}
-        <span
-          className={`workbench-save-state ${c.saveStatus}${
-            c.saveStatus === 'error' && !saveErrorVisible ? ' quiet' : ''
-          }`}
-          title={c.saveStatus === 'error' ? 'Последние изменения сохранены в браузере.' : undefined}
-          role="status"
-          aria-live="polite"
-        >
-          {c.saveStatus === 'saved' ? <CheckIcon /> : null}
-          {c.saveCopy[c.saveStatus]}
-        </span>
+        <EditorPersistenceIndicator
+          className="workbench-save-state"
+          status={c.saveStatus}
+          issue={c.saveIssue}
+        />
         {/* Named tabs rather than bare icons. Three unlabelled squares gave no way
             to tell the breadboard from the schematic without clicking one. */}
         <nav className="workbench-mode-buttons" aria-label="Представления проекта">

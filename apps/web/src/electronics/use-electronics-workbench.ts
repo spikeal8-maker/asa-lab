@@ -59,11 +59,9 @@ import {
   toggleSelectedWireRoute,
   updateSelectedWireColor,
   updateSelectionName,
-  updateSelectionState,
   updateSelectionProperties,
   updateSelectionValue,
   updateSelectionVariant,
-  updateWiperPosition,
 } from './workbench-document';
 import { diagnosticsGroupedByComponent } from './diagnostic-presentation';
 import {
@@ -88,6 +86,11 @@ import {
 import { calculateLiveSimulation, calculateSimulationPreflight } from './live-simulation';
 import { warmProductionAsset } from './production-asset-contracts';
 import { unlockPiezoAudio, usePiezoAudio } from './use-piezo-audio';
+import {
+  applyRuntimeComponentOverrides,
+  type RuntimeComponentOverride,
+  type RuntimeComponentOverrides,
+} from './workbench-runtime-controls';
 
 function terminalRefKey(componentId: string, terminal: Terminal): string {
   return `${componentId}:${terminal}`;
@@ -153,8 +156,8 @@ export function useElectronicsWorkbench(projectId: string) {
     versions,
     status,
     saveStatus,
-    saveCopy,
     saveError,
+    saveIssue,
     notice,
     setNotice,
     simulationRunning,
@@ -174,6 +177,37 @@ export function useElectronicsWorkbench(projectId: string) {
     checkpoint,
     renameProject,
   } = projectState;
+
+  const [runtimeOverrides, setRuntimeOverrides] = useState<RuntimeComponentOverrides>({});
+  const runtimeDocument = useMemo(
+    () => applyRuntimeComponentOverrides(document, simulationRunning, runtimeOverrides),
+    [document, runtimeOverrides, simulationRunning],
+  );
+
+  useEffect(() => {
+    if (!simulationRunning) setRuntimeOverrides({});
+  }, [simulationRunning]);
+
+  function setRuntimeComponentOverride(componentId: string, patch: RuntimeComponentOverride): void {
+    setRuntimeOverrides((current) => {
+      const previous = current[componentId];
+      return {
+        ...current,
+        [componentId]: {
+          ...previous,
+          ...patch,
+          ...(patch.stateProperties
+            ? {
+                stateProperties: {
+                  ...previous?.stateProperties,
+                  ...patch.stateProperties,
+                },
+              }
+            : {}),
+        },
+      };
+    });
+  }
 
   const simulationStartedAtRef = useRef<number | null>(null);
   const [simulationTimeMs, setSimulationTimeMs] = useState(0);
@@ -197,10 +231,16 @@ export function useElectronicsWorkbench(projectId: string) {
   }, [simulationRunning]);
 
   const result = useMemo(
-    () => calculateLiveSimulation(document, persistedResult, simulationRunning, simulationTimeMs),
-    [document, persistedResult, simulationRunning, simulationTimeMs],
+    () =>
+      calculateLiveSimulation(
+        runtimeDocument,
+        persistedResult,
+        simulationRunning,
+        simulationTimeMs,
+      ),
+    [persistedResult, runtimeDocument, simulationRunning, simulationTimeMs],
   );
-  usePiezoAudio(document, result, simulationRunning);
+  usePiezoAudio(runtimeDocument, result, simulationRunning);
 
   useEffect(() => {
     if (!document || simulationRunning || status !== 'ready') return;
@@ -234,6 +274,7 @@ export function useElectronicsWorkbench(projectId: string) {
 
   async function toggleSimulationWithAudio(): Promise<void> {
     if (!simulationRunning) {
+      setRuntimeOverrides({});
       try {
         await unlockPiezoAudio();
       } catch {
@@ -607,25 +648,25 @@ export function useElectronicsWorkbench(projectId: string) {
   }
 
   function setSelectedState(state: boolean): void {
-    if (!document) return;
+    if (!runtimeDocument) return;
     if (!simulationRunning) {
       setNotice('Запустите моделирование, чтобы управлять кнопкой или переключателем.');
       return;
     }
-    const next = updateSelectionState(document, selection, state);
-    if (next) commitDocument(next, state ? 'Контакт замкнут.' : 'Контакт разомкнут.');
+    if (selection?.kind !== 'component') return;
+    const component = runtimeDocument.components.find((item) => item.id === selection.id);
+    if (!component || (component.kind !== 'switch' && component.kind !== 'button')) return;
+    setRuntimeComponentOverride(component.id, { state });
   }
 
   function setComponentState(componentId: string, state: boolean, message?: string): void {
-    if (!document || !simulationRunning) return;
-    const component = document.components.find((item) => item.id === componentId);
+    if (!runtimeDocument || !simulationRunning) return;
+    const component = runtimeDocument.components.find((item) => item.id === componentId);
     if (!component || (component.kind !== 'switch' && component.kind !== 'button')) return;
     const target = { kind: 'component' as const, id: componentId, ids: [componentId] };
-    const next = updateSelectionState(document, target, state);
-    if (next) {
-      setSelection(target);
-      commitDocument(next, message);
-    }
+    setSelection(target);
+    setRuntimeComponentOverride(componentId, { state });
+    void message;
   }
 
   function toggleComponentState(componentId: string): void {
@@ -633,7 +674,7 @@ export function useElectronicsWorkbench(projectId: string) {
       setNotice('Запустите моделирование, чтобы управлять компонентом.');
       return;
     }
-    const component = document.components.find((item) => item.id === componentId);
+    const component = runtimeDocument?.components.find((item) => item.id === componentId);
     if (!component || (component.kind !== 'switch' && component.kind !== 'button')) return;
     setComponentState(
       componentId,
@@ -643,13 +684,15 @@ export function useElectronicsWorkbench(projectId: string) {
   }
 
   function setSelectedWiper(position: number): void {
-    if (!document) return;
+    if (!runtimeDocument) return;
     if (!simulationRunning) {
       setNotice('Положение ручки изменяется во время моделирования.');
       return;
     }
-    const next = updateWiperPosition(document, selection, position);
-    if (next) commitDocument(next, `Положение движка: ${Math.round(position * 100)}%.`);
+    if (selection?.kind !== 'component' || !Number.isFinite(position)) return;
+    const component = runtimeDocument.components.find((item) => item.id === selection.id);
+    if (!component || component.kind !== 'potentiometer') return;
+    setRuntimeComponentOverride(component.id, { wiperPosition: clamp(position, 0, 1) });
   }
 
   function setSelectedProperties(
@@ -657,6 +700,16 @@ export function useElectronicsWorkbench(projectId: string) {
     message?: string,
   ): void {
     if (!document) return;
+    if (
+      simulationRunning &&
+      selection?.kind === 'component' &&
+      runtimeDocument?.components.find((item) => item.id === selection.id)?.kind ===
+        'photoresistor' &&
+      Object.keys(properties).every((key) => key === 'illumination')
+    ) {
+      setRuntimeComponentOverride(selection.id, { stateProperties: properties });
+      return;
+    }
     const next = updateSelectionProperties(document, selection, properties);
     if (next) commitDocument(next, message);
   }
@@ -988,15 +1041,12 @@ export function useElectronicsWorkbench(projectId: string) {
   }
 
   function updatePotentiometerFromPointer(componentId: string, point: Point): void {
-    if (!document || !simulationRunning) return;
-    const component = document.components.find((item) => item.id === componentId);
+    if (!runtimeDocument || !simulationRunning) return;
+    const component = runtimeDocument.components.find((item) => item.id === componentId);
     if (!component || component.kind !== 'potentiometer') return;
     const position = wiperPositionFromPointer(component, point);
     if (position === null) return;
-    const target = { kind: 'component' as const, id: componentId, ids: [componentId] };
-    const next = updateWiperPosition(document, target, position);
-    if (!next) return;
-    setDocument(next);
+    setRuntimeComponentOverride(componentId, { wiperPosition: position });
   }
 
   function startPotentiometerControl(
@@ -1222,13 +1272,6 @@ export function useElectronicsWorkbench(projectId: string) {
     const potentiometerDrag = potentiometerDragRef.current;
     if (potentiometerDrag?.pointerId === event.pointerId) {
       potentiometerDragRef.current = null;
-      if (document) {
-        pushHistory(document);
-        const component = document.components.find(
-          (item) => item.id === potentiometerDrag.componentId,
-        );
-        setNotice(`Положение ручки: ${Math.round((component?.wiperPosition ?? 0.5) * 100)}%.`);
-      }
     }
     const actuatorPress = actuatorPressRef.current;
     if (actuatorPress?.pointerId === event.pointerId) {
@@ -1537,7 +1580,7 @@ export function useElectronicsWorkbench(projectId: string) {
 
   const selectedComponent =
     selection?.kind === 'component'
-      ? (document?.components.find((item) => item.id === selection.id) ?? null)
+      ? (runtimeDocument?.components.find((item) => item.id === selection.id) ?? null)
       : null;
   const selectedWire =
     selection?.kind === 'wire'
@@ -1667,14 +1710,14 @@ export function useElectronicsWorkbench(projectId: string) {
 
   return {
     project,
-    document,
+    document: runtimeDocument,
     serverRevision,
     result,
     versions,
     status,
     saveStatus,
-    saveCopy,
     saveError,
+    saveIssue,
     notice,
     setNotice,
     selection,

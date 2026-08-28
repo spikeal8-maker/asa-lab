@@ -24,6 +24,10 @@ const projectStateSource = readFileSync(
   resolve(electronicsRoot, 'use-workbench-project-state.ts'),
   'utf8',
 );
+const persistenceIndicatorSource = readFileSync(
+  resolve(electronicsRoot, '../components/editor-chrome/EditorPersistenceIndicator.tsx'),
+  'utf8',
+);
 const workbenchCss = readFileSync(resolve(electronicsRoot, 'workbench.css'), 'utf8');
 
 describe('owner-reference Electronics presentation contract', () => {
@@ -145,10 +149,11 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(headerSource).not.toContain('workbench-brand-grid');
     expect(headerSource).toContain('Время моделирования:');
     expect(headerSource).toContain('formatSimulationTime(simulationElapsedSeconds)');
-    expect(headerSource).toContain('SAVE_ERROR_VISIBILITY_MS = 4_500');
-    expect(headerSource).toContain('c.saveCopy[c.saveStatus]');
+    expect(headerSource).toContain('<EditorPersistenceIndicator');
+    expect(persistenceIndicatorSource).toContain("label: 'Сохранено'");
+    expect(persistenceIndicatorSource).toContain("label: 'Только на устройстве'");
+    expect(persistenceIndicatorSource).toContain('pendingDelayMs: 900');
     expect(headerSource).not.toContain('Серверная версия изменилась');
-    expect(projectStateSource).toContain("error: 'Изменения сохранены в браузере'");
     expect(projectStateSource).not.toContain('Серверная версия изменилась');
     expect(workbenchCss).toContain('.workbench-save-state.quiet');
     expect(headerSource).toContain(
@@ -158,6 +163,9 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(headerSource).toContain('data-simulation-status={c.simulationStatus}');
     expect(controllerModuleSource).toContain('warmProductionAsset(');
     expect(controllerModuleSource).toContain('calculateSimulationPreflight(runningDocument)');
+    expect(controllerModuleSource).toContain('applyRuntimeComponentOverrides(');
+    expect(controllerModuleSource).toContain('setRuntimeComponentOverride(');
+    expect(projectStateSource).not.toContain('persist(start.document');
     expect(headerSource).toContain('workbench-wire-color-menu');
     expect(headerSource).toContain('role="menuitemradio"');
     expect(headerSource).not.toContain('<option key={color} value={color}>');

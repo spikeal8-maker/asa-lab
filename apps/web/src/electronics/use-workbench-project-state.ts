@@ -10,10 +10,11 @@ import { cloneJson } from './workbench-geometry';
 import { catalogEntry } from './component-catalog';
 import { defaultProductionType, productionBreadboard } from './production-manifest-adapter';
 import { snapComponentToBreadboard } from './workbench-document';
-import type { HistoryState, SaveStatus } from './workbench-model';
+import type { HistoryState } from './workbench-model';
 import { autosaveIsDue, draftSaveStatus } from './workbench-autosave';
 import { prepareLiveSimulationStart } from './live-simulation';
 import { electronicsDocumentsEqual, mergeElectronicsDocuments } from './electronics-document-merge';
+import type { EditorPersistenceIssue } from '../components/editor-chrome/EditorPersistenceIndicator';
 import {
   clearLocalProjectDraft,
   readLocalProjectDraft,
@@ -146,6 +147,7 @@ export function useWorkbenchProjectState(projectId: string) {
   // Internal save state. The header deliberately renders only a short,
   // user-facing fact and never exposes revision/CAS protocol language.
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [saveIssue, setSaveIssue] = useState<EditorPersistenceIssue | null>(null);
   const [result, setResult] = useState<SolveResult | null>(null);
   const [versions, setVersions] = useState<ProjectVersion[]>([]);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
@@ -205,6 +207,7 @@ export function useWorkbenchProjectState(projectId: string) {
       saveFailedRef.current = false;
       setSaveFailed(false);
       setSaveError(null);
+      setSaveIssue(null);
       setDocumentState(next);
     },
     [projectId],
@@ -270,6 +273,7 @@ export function useWorkbenchProjectState(projectId: string) {
     documentRef.current = nextDocument;
     setSaveFailed(false);
     setSaveError(null);
+    setSaveIssue(null);
     setDocumentState(nextDocument);
     setResult(response.data.result);
     setVersions(response.data.versions);
@@ -287,6 +291,7 @@ export function useWorkbenchProjectState(projectId: string) {
     if (revisionConflict) {
       setSaveFailed(true);
       setSaveError('Последние изменения сохранены в браузере.');
+      setSaveIssue('conflict');
       setNotice(null);
     } else if (mergedLocalDraft) {
       setNotice('Независимые изменения схемы автоматически совмещены.');
@@ -402,6 +407,7 @@ export function useWorkbenchProjectState(projectId: string) {
       if (baseRevision === null) {
         setSaveFailed(true);
         setSaveError('Не удалось определить сохранённую версию проекта.');
+        setSaveIssue('server');
         return null;
       }
       savingDocumentRef.current = nextDocument;
@@ -448,6 +454,7 @@ export function useWorkbenchProjectState(projectId: string) {
                 saveFailedRef.current = false;
                 setSaveFailed(false);
                 setSaveError(null);
+                setSaveIssue(null);
                 initialiseHistory(mergedDocument);
                 if (electronicsDocumentsEqual(mergedDocument, remoteDocument)) {
                   clearLocalProjectDraft(window.localStorage, sentForProject);
@@ -467,16 +474,21 @@ export function useWorkbenchProjectState(projectId: string) {
             saveFailedRef.current = true;
             setSaveFailed(true);
             setSaveError('Последние изменения сохранены в браузере.');
+            setSaveIssue('conflict');
             setNotice(null);
             return null;
           }
           saveFailedRef.current = true;
           setSaveFailed(true);
           setSaveError('Последние изменения сохранены в браузере.');
+          setSaveIssue(
+            response.status === 0 ? 'offline' : response.status === 401 ? 'auth' : 'server',
+          );
           setNotice(null);
           return null;
         }
         setSaveError(null);
+        setSaveIssue(null);
         serverRevisionRef.current = response.data.draft.revision;
         serverDocumentRef.current = nextDocument;
         setResult(response.data.result);
@@ -566,12 +578,6 @@ export function useWorkbenchProjectState(projectId: string) {
     if (!document || busy) return;
     if (simulationRunning) {
       setSimulationStatus('stopping');
-      const nextDocument = {
-        ...document,
-        simulation: { ...document.simulation, running: false },
-      };
-      setDocument(nextDocument);
-      pushHistory(nextDocument);
       setSimulationRunning(false);
       setSimulationStatus('stopped');
       setResult(null);
@@ -582,28 +588,18 @@ export function useWorkbenchProjectState(projectId: string) {
     const start = prepareLiveSimulationStart(document);
     setResult(start.result);
     setSimulationStatus('starting');
-    setDocument(start.document);
-    pushHistory(start.document);
     setSimulationRunning(true);
     setSimulationStatus('running');
     // Circuits starts immediately and keeps the stage quiet. Electrical
     // problems belong to the affected part, not to a global toast.
     setNotice(null);
-    // Persistence validates the same document independently, but an honest
-    // invalid/unsupported/nonconvergent result is diagnostic evidence, not a
-    // reason to switch the visible simulation mode back off. The browser keeps
-    // recalculating the fail-closed result while the learner investigates it.
-    void persist(start.document, true);
+    // Starting a simulation is runtime activity, not a project edit. The same
+    // pure solver runs locally, but no draft revision, undo entry or autosave is
+    // created merely because the learner pressed Start.
   }
 
   function resetSimulation(): void {
     if (!document) return;
-    const nextDocument = {
-      ...document,
-      simulation: { ...document.simulation, running: false },
-    };
-    setDocument(nextDocument);
-    pushHistory(nextDocument);
     setSimulationRunning(false);
     setSimulationStatus('stopped');
     setResult(null);
@@ -641,13 +637,6 @@ export function useWorkbenchProjectState(projectId: string) {
     }
   }
 
-  const saveCopy: Record<SaveStatus, string> = {
-    saved: 'Все изменения сохранены',
-    dirty: 'Сохраняем изменения…',
-    saving: 'Сохранение…',
-    error: 'Изменения сохранены в браузере',
-  };
-
   return {
     project,
     document,
@@ -657,8 +646,8 @@ export function useWorkbenchProjectState(projectId: string) {
     versions,
     status,
     saveStatus,
-    saveCopy,
     saveError,
+    saveIssue,
     notice,
     setNotice,
     simulationRunning,

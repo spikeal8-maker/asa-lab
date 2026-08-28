@@ -122,7 +122,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: math_2_corrective_matrix_save_notice_led_start_latency_owner_acceptance_pending
+      checkpoint: math_2_runtime_persistence_boundary_shared_status_contract_owner_acceptance_pending
       owner_acceptance: pending
     revisions:
       convergence_baseline_sha: 5b052dc631c7036de9d60f4206c9879fe364e732
