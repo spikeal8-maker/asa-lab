@@ -1392,6 +1392,10 @@ test('real editor recalculates SPDT, resistor and LED without waiting for persis
   await expect(page.getByRole('button', { name: 'Начать моделирование' })).toBeVisible();
   await page.getByRole('button', { name: 'Начать моделирование' }).click();
   await expect(page.getByRole('button', { name: 'Остановить моделирование' })).toBeVisible();
+  await expect(switchComponent).not.toHaveClass(/workbench-component-actuator-active/);
+  await selectLed(page);
+  await expect.poll(() => brightnessValue(page)).toBe(0);
+  await switchComponent.getByTestId('spdt-actuator').click();
   await expect(switchComponent).toHaveClass(/workbench-component-actuator-active/);
   await selectLed(page);
   await expect.poll(() => brightnessValue(page)).toBe(persistedArbitraryBrightness);
