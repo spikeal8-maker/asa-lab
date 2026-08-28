@@ -16,13 +16,7 @@ import {
   unsupportedElectricalComponents,
   validateElectricalTerminalContract,
 } from './model-registry.js';
-import {
-  ledBrightnessPercent,
-  ordinaryLedProfile,
-  rgbLedProfile,
-  type LedJunctionProfile,
-  type LedLinearSegment,
-} from './led-model.js';
+import { ledBrightnessPercent, type LedJunctionProfile } from './led-model.js';
 import type { DcStampContext } from './models/device-model.js';
 import {
   createLinearDcDevice,
@@ -30,6 +24,13 @@ import {
   isSourceDevice,
   type LinearDcObservation,
 } from './models/linear-dc-models.js';
+import {
+  nonlinearBranchKey,
+  nonlinearDcBranchesForComponent,
+  nonlinearSegmentAt,
+  nonlinearSegmentIndex,
+  type NonlinearDcBranch,
+} from './models/nonlinear-dc-models.js';
 
 export { sourceInternalResistanceOhm } from './models/linear-dc-models.js';
 
@@ -45,6 +46,9 @@ export type DiagnosticCode =
   | 'resistor_near_limit'
   | 'resistor_overload'
   | 'source_overload'
+  | 'diode_near_limit'
+  | 'diode_overcurrent'
+  | 'diode_reverse_breakdown'
   | 'led_near_limit'
   | 'led_overcurrent'
   | 'led_burnout'
@@ -95,6 +99,8 @@ export interface ComponentResult {
   readonly brightness?: number;
   readonly branchCurrents?: Readonly<Record<string, number>>;
   readonly branchBrightness?: Readonly<Record<string, number>>;
+  readonly continuousCurrentLimitAmp?: number;
+  readonly reverseVoltageLimitVolt?: number;
   readonly lit?: boolean;
   readonly energized?: boolean;
   readonly currentUtilizationPercent?: number;
@@ -149,9 +155,6 @@ export interface SolveOptions {
 
 const GMIN = 1e-12;
 const CLOSED_RESISTANCE = 1e-4;
-const DIODE_ON_RESISTANCE = 2;
-const SEVEN_SEGMENT_ON_RESISTANCE = 8;
-const LED_NOMINAL_CURRENT_A = 0.02;
 const LED_WARNING_RATIO = 0.8;
 const LAMP_MIN_POWER_W = 0.001;
 const LAMP_NOMINAL_POWER_W = 1.5;
@@ -206,31 +209,6 @@ function isDcMotor(component: SchematicComponent): boolean {
 function formatReferenceMilliamp(currentAmp: number): string {
   const rounded = Math.round(Math.abs(currentAmp) * 10_000) / 10;
   return `${Number.isInteger(rounded) ? rounded.toFixed(0) : rounded.toFixed(1)} mA`;
-}
-
-const SEVEN_SEGMENT_TERMINALS: Readonly<Record<string, Terminal>> = {
-  a: 'top-4',
-  b: 'top-5',
-  c: 'bottom-4',
-  d: 'bottom-2',
-  e: 'bottom-1',
-  f: 'top-2',
-  g: 'top-1',
-  dp: 'bottom-5',
-};
-
-interface DiodeBranch {
-  readonly component: SchematicComponent;
-  readonly id: string;
-  readonly anode: Terminal;
-  readonly cathode: Terminal;
-  readonly forwardVoltage: number;
-  readonly resistance: number;
-  readonly nominalCurrent: number;
-  readonly maxCurrent: number;
-  readonly brightnessExponent: number;
-  readonly linearSegments?: readonly LedLinearSegment[];
-  readonly nearLimitWarning: boolean;
 }
 
 type TransistorOperatingRegion = 'cutoff' | 'active' | 'saturation' | 'ohmic';
@@ -346,117 +324,11 @@ function transistorModel(component: SchematicComponent): TransistorModel | null 
   };
 }
 
-function diodeBranchKey(branch: DiodeBranch): string {
-  return `${branch.component.id}:${branch.id}`;
-}
-
-function diodeLinearSegments(branch: DiodeBranch): readonly LedLinearSegment[] {
-  return (
-    branch.linearSegments ?? [
-      {
-        minimumCurrentAmp: 0,
-        kneeVoltage: branch.forwardVoltage,
-        dynamicResistanceOhm: branch.resistance,
-      },
-    ]
-  );
-}
-
-function diodeLinearSegment(branch: DiodeBranch, index: number): LedLinearSegment {
-  const segments = diodeLinearSegments(branch);
-  return segments[Math.min(Math.max(0, index), segments.length - 1)]!;
-}
-
-function diodeLinearSegmentIndex(branch: DiodeBranch, currentAmp: number): number {
-  const segments = diodeLinearSegments(branch);
-  let selected = 0;
-  for (const [index, segment] of segments.entries()) {
-    if (currentAmp + 1e-10 < segment.minimumCurrentAmp) break;
-    selected = index;
-  }
-  return selected;
-}
-
 function ledBrightness(
   current: number,
   profile: Pick<LedJunctionProfile, 'nominalCurrentAmp' | 'brightnessExponent'>,
 ): number {
   return ledBrightnessPercent(current, profile);
-}
-
-function componentDiodeBranches(component: SchematicComponent): readonly DiodeBranch[] {
-  if (component.kind === 'led') {
-    const colour = String(component.stateProperties?.['ledColour'] ?? 'red');
-    const profile = ordinaryLedProfile(colour);
-    return [
-      {
-        component,
-        id: 'led',
-        anode: logicalTerminal(component, 'a'),
-        cathode: logicalTerminal(component, 'b'),
-        forwardVoltage: profile.kneeVoltage,
-        resistance: profile.dynamicResistanceOhm,
-        nominalCurrent: profile.nominalCurrentAmp,
-        maxCurrent: profile.burnoutCurrentAmp,
-        brightnessExponent: profile.brightnessExponent,
-        ...(profile.linearSegments ? { linearSegments: profile.linearSegments } : {}),
-        nearLimitWarning: profile.nearLimitWarning ?? true,
-      },
-    ];
-  }
-  if (component.kind === 'diode') {
-    return [
-      {
-        component,
-        id: 'diode',
-        anode: logicalTerminal(component, 'a'),
-        cathode: logicalTerminal(component, 'b'),
-        forwardVoltage: component.value,
-        resistance: DIODE_ON_RESISTANCE,
-        nominalCurrent: LED_NOMINAL_CURRENT_A,
-        maxCurrent: Number.POSITIVE_INFINITY,
-        brightnessExponent: 0.65,
-        nearLimitWarning: false,
-      },
-    ];
-  }
-  if (component.kind === 'rgb-led') {
-    const common = 'common';
-    const commonAnode = component.stateProperties?.['commonMode'] === 'common-anode';
-    return ['red', 'green', 'blue'].map((channel) => {
-      const profile = rgbLedProfile(channel);
-      return {
-        component,
-        id: channel,
-        anode: commonAnode ? common : channel,
-        cathode: commonAnode ? channel : common,
-        forwardVoltage: profile.kneeVoltage,
-        resistance: profile.dynamicResistanceOhm,
-        nominalCurrent: profile.nominalCurrentAmp,
-        maxCurrent: profile.burnoutCurrentAmp,
-        brightnessExponent: profile.brightnessExponent,
-        ...(profile.linearSegments ? { linearSegments: profile.linearSegments } : {}),
-        nearLimitWarning: profile.nearLimitWarning ?? true,
-      };
-    });
-  }
-  if (component.kind === 'seven-segment') {
-    const common = 'bottom-3';
-    const commonAnode = component.stateProperties?.['commonMode'] === 'common-anode';
-    return Object.entries(SEVEN_SEGMENT_TERMINALS).map(([segment, terminal]) => ({
-      component,
-      id: segment,
-      anode: commonAnode ? common : terminal,
-      cathode: commonAnode ? terminal : common,
-      forwardVoltage: 1.9,
-      resistance: SEVEN_SEGMENT_ON_RESISTANCE,
-      nominalCurrent: 0.01,
-      maxCurrent: 0.02,
-      brightnessExponent: 0.65,
-      nearLimitWarning: true,
-    }));
-  }
-  return [];
 }
 
 type LogicalTerminal = 'a' | 'b' | 'wiper';
@@ -791,7 +663,7 @@ export function solveCircuit(
   }
   const nodeVariableCount = nodeVariables.size;
   const size = nodeVariableCount + sources.length;
-  const diodeBranches = document.components.flatMap(componentDiodeBranches);
+  const diodeBranches = document.components.flatMap(nonlinearDcBranchesForComponent);
   const diodeStates = new Map<string, boolean>();
   const diodeSegmentIndices = new Map<string, number>();
   const transistorModels = document.components.flatMap((component) => {
@@ -804,7 +676,7 @@ export function solveCircuit(
   // first linear solve turns them on; an isolated LED must not create its own
   // artificial voltage across otherwise floating terminals.
   for (const branch of diodeBranches) {
-    const key = diodeBranchKey(branch);
+    const key = nonlinearBranchKey(branch);
     diodeStates.set(key, false);
     diodeSegmentIndices.set(key, 0);
   }
@@ -935,10 +807,10 @@ export function solveCircuit(
     for (const branch of diodeBranches) {
       const anode = physicalNodeIndex(branch.component, branch.anode);
       const cathode = physicalNodeIndex(branch.component, branch.cathode);
-      const key = diodeBranchKey(branch);
+      const key = nonlinearBranchKey(branch);
       const active = diodeStates.get(key) === true;
       if (active) {
-        const segment = diodeLinearSegment(branch, diodeSegmentIndices.get(key) ?? 0);
+        const segment = nonlinearSegmentAt(branch, diodeSegmentIndices.get(key) ?? 0);
         const conductance = 1 / segment.dynamicResistanceOhm;
         stampConductance(anode, cathode, conductance);
         stampOffset(anode, cathode, conductance * segment.kneeVoltage);
@@ -1021,9 +893,9 @@ export function solveCircuit(
     if (!solution) break;
     let changed = false;
     for (const branch of diodeBranches) {
-      const key = diodeBranchKey(branch);
+      const key = nonlinearBranchKey(branch);
       const segmentIndex = diodeSegmentIndices.get(key) ?? 0;
-      const segment = diodeLinearSegment(branch, segmentIndex);
+      const segment = nonlinearSegmentAt(branch, segmentIndex);
       const drop =
         voltageFrom(solution, physicalNodeIndex(branch.component, branch.anode)) -
         voltageFrom(solution, physicalNodeIndex(branch.component, branch.cathode));
@@ -1036,7 +908,7 @@ export function solveCircuit(
         diodeStates.get(key) === true
           ? Math.max(0, (drop - segment.kneeVoltage) / segment.dynamicResistanceOhm)
           : 0;
-      const nextSegmentIndex = diodeLinearSegmentIndex(branch, current);
+      const nextSegmentIndex = nonlinearSegmentIndex(branch, current);
       if (nextSegmentIndex !== segmentIndex) {
         diodeSegmentIndices.set(key, nextSegmentIndex);
         changed = true;
@@ -1165,9 +1037,9 @@ export function solveCircuit(
       physicalVoltageAt(branch.component, branch.ground);
     return (branch.targetVoltage - measured) / branch.resistanceOhm;
   };
-  const resultForBranch = (branch: DiodeBranch) => {
-    const key = diodeBranchKey(branch);
-    const segment = diodeLinearSegment(branch, diodeSegmentIndices.get(key) ?? 0);
+  const resultForBranch = (branch: NonlinearDcBranch) => {
+    const key = nonlinearBranchKey(branch);
+    const segment = nonlinearSegmentAt(branch, diodeSegmentIndices.get(key) ?? 0);
     const voltageDrop =
       physicalVoltageAt(branch.component, branch.anode) -
       physicalVoltageAt(branch.component, branch.cathode);
@@ -1177,10 +1049,12 @@ export function solveCircuit(
     return {
       voltageDrop,
       current,
-      brightness: ledBrightness(current, {
-        nominalCurrentAmp: branch.nominalCurrent,
-        brightnessExponent: branch.brightnessExponent,
-      }),
+      brightness: branch.emitsLight
+        ? ledBrightness(current, {
+            nominalCurrentAmp: branch.nominalCurrentAmp,
+            brightnessExponent: branch.brightnessExponent,
+          })
+        : 0,
     };
   };
   const transistorResultById = new Map(
@@ -1379,28 +1253,34 @@ export function solveCircuit(
           ? Math.max(
               0,
               ...branchResults.map(({ branch, current: branchCurrent }) =>
-                Math.abs((branchCurrent / branch.nominalCurrent) * 100),
+                Math.abs((branchCurrent / branch.nominalCurrentAmp) * 100),
               ),
             )
           : undefined;
       const sourceCurrentUtilizationPercent = linearDcObservation?.currentUtilizationPercent;
+      const reverseBreakdown = branchResults.some(
+        ({ branch, voltageDrop: branchVoltageDrop }) =>
+          branchVoltageDrop < -branch.repetitivePeakReverseVoltage,
+      );
       const stressState =
         linearDcObservation?.stressState ??
         (branches.length === 0
           ? undefined
-          : branchResults.some(
-                ({ branch, current: branchCurrent }) => Math.abs(branchCurrent) > branch.maxCurrent,
+          : reverseBreakdown ||
+              branchResults.some(
+                ({ branch, current: branchCurrent }) =>
+                  Math.abs(branchCurrent) > branch.destructiveCurrentAmp,
               )
             ? 'burned'
             : branchResults.some(
                   ({ branch, current: branchCurrent }) =>
-                    Math.abs(branchCurrent) > branch.nominalCurrent,
+                    Math.abs(branchCurrent) > branch.nominalCurrentAmp,
                 )
               ? 'overcurrent'
               : branchResults.some(
                     ({ branch, current: branchCurrent }) =>
                       branch.nearLimitWarning &&
-                      Math.abs(branchCurrent) >= branch.nominalCurrent * LED_WARNING_RATIO,
+                      Math.abs(branchCurrent) >= branch.nominalCurrentAmp * LED_WARNING_RATIO,
                   )
                 ? 'warning'
                 : 'normal');
@@ -1459,6 +1339,12 @@ export function solveCircuit(
               ...(branches.length > 0 ? { branchBrightness } : {}),
             }
           : {}),
+        ...(branches.length === 1
+          ? {
+              continuousCurrentLimitAmp: branches[0]!.nominalCurrentAmp,
+              reverseVoltageLimitVolt: branches[0]!.repetitivePeakReverseVoltage,
+            }
+          : {}),
         ...((currentUtilizationPercent ?? sourceCurrentUtilizationPercent) === undefined ||
         stressState === undefined
           ? {}
@@ -1473,7 +1359,16 @@ export function solveCircuit(
           : { powerUtilizationPercent: round(powerUtilizationPercent, 2) }),
         ...(stressState === undefined
           ? {}
-          : { stressState, ...damageObservationForStress(stressState) }),
+          : {
+              stressState,
+              ...(reverseBreakdown
+                ? {
+                    deviceHealth: 'reverse_damaged' as const,
+                    damageState: 'destructive_preview' as const,
+                    presentationState: 'destructive' as const,
+                  }
+                : damageObservationForStress(stressState)),
+            }),
         ...(linearDcObservation?.internalResistanceOhm !== undefined
           ? {
               internalResistanceOhm: round(linearDcObservation.internalResistanceOhm, 6),
@@ -1540,7 +1435,7 @@ export function solveCircuit(
   }
 
   for (const component of document.components.filter(
-    (item) => componentDiodeBranches(item).length > 0,
+    (item) => nonlinearDcBranchesForComponent(item).length > 0,
   )) {
     const componentBranches = diodeBranches.filter(
       (branch) => branch.component.id === component.id,
@@ -1551,8 +1446,8 @@ export function solveCircuit(
       const cathodeVoltage = result?.terminalVoltages[branch.cathode] ?? 0;
       return anodeVoltage - cathodeVoltage < -0.05;
     });
-    if (reverseBranches.length > 0) {
-      const isTwoTerminalDiode = component.kind === 'led' || component.kind === 'diode';
+    if (reverseBranches.length > 0 && component.kind !== 'diode') {
+      const isTwoTerminalDiode = component.kind === 'led';
       diagnostics.push({
         code: 'reverse_polarity',
         severity: 'warning',
@@ -1567,35 +1462,60 @@ export function solveCircuit(
           : 'Проверьте анод, катод и общий вывод.',
       });
     }
+    if (component.kind === 'diode') {
+      const reverseBreakdown = componentBranches.filter((branch) => {
+        const anodeVoltage = result?.terminalVoltages[branch.anode] ?? 0;
+        const cathodeVoltage = result?.terminalVoltages[branch.cathode] ?? 0;
+        return cathodeVoltage - anodeVoltage > branch.repetitivePeakReverseVoltage;
+      });
+      if (reverseBreakdown.length > 0) {
+        const branch = reverseBreakdown[0]!;
+        diagnostics.push({
+          code: 'diode_reverse_breakdown',
+          severity: 'error',
+          message: `${component.name ?? component.id}: обратное напряжение превысило ${branch.repetitivePeakReverseVoltage.toFixed(0)} В. Диод находится в разрушительном режиме.`,
+          componentIds: [component.id],
+          suggestedAction: 'Уменьшите обратное напряжение или выберите диод с большим VRRM.',
+        });
+      }
+    }
     const nearLimit = componentBranches.filter((branch) => {
       const current = Math.abs(result?.branchCurrents?.[branch.id] ?? 0);
       return (
         branch.nearLimitWarning &&
-        current >= branch.nominalCurrent * LED_WARNING_RATIO &&
-        current <= branch.nominalCurrent
+        current >= branch.nominalCurrentAmp * LED_WARNING_RATIO &&
+        current <= branch.nominalCurrentAmp
       );
     });
     if (nearLimit.length > 0) {
       diagnostics.push({
-        code: 'led_near_limit',
+        code: component.kind === 'diode' ? 'diode_near_limit' : 'led_near_limit',
         severity: 'warning',
-        message: `${component.name ?? component.id}: ток близок к номинальному пределу в ${nearLimit.map((branch) => branch.id).join(', ')}. Светодиод пока работает, но запас по току мал.`,
+        message:
+          component.kind === 'diode'
+            ? `${component.name ?? component.id}: ток близок к длительному пределу ${nearLimit[0]!.nominalCurrentAmp.toFixed(3)} А.`
+            : `${component.name ?? component.id}: ток близок к номинальному пределу в ${nearLimit.map((branch) => branch.id).join(', ')}. Светодиод пока работает, но запас по току мал.`,
         componentIds: [component.id],
-        suggestedAction: 'Увеличьте сопротивление, чтобы оставить безопасный запас по току.',
+        suggestedAction:
+          component.kind === 'diode'
+            ? 'Уменьшите ток или выберите диод с большим допустимым током.'
+            : 'Увеличьте сопротивление, чтобы оставить безопасный запас по току.',
       });
     }
     const overloaded = componentBranches.filter(
-      (branch) => Math.abs(result?.branchCurrents?.[branch.id] ?? 0) > branch.nominalCurrent,
+      (branch) => Math.abs(result?.branchCurrents?.[branch.id] ?? 0) > branch.nominalCurrentAmp,
     );
     if (overloaded.length > 0) {
       const current = Math.abs(result?.branchCurrents?.[overloaded[0]!.id] ?? 0);
       diagnostics.push({
-        code: 'led_overcurrent',
-        severity: 'warning',
+        code: component.kind === 'diode' ? 'diode_overcurrent' : 'led_overcurrent',
+        severity: component.kind === 'diode' ? 'error' : 'warning',
         message:
-          component.kind === 'led'
-            ? `Сила тока в светодиоде равна ${formatReferenceMilliamp(current)} (максимальное рекомендуемое значение — 20.0 mA). Это может привести к сокращению срока службы светодиода.`
-            : `${component.name ?? component.id}: ток выше номинальных ${(overloaded[0]!.nominalCurrent * 1000).toFixed(0)} мА в ${overloaded.map((branch) => branch.id).join(', ')}. Возможна деградация светодиода.`,
+          component.kind === 'diode'
+            ? `${component.name ?? component.id}: ток ${formatReferenceMilliamp(current)} превышает длительный предел ${(overloaded[0]!.nominalCurrentAmp * 1000).toFixed(0)} mA.`
+            : component.kind === 'led'
+              ? `Сила тока в светодиоде равна ${formatReferenceMilliamp(current)} (максимальное рекомендуемое значение — 20.0 mA). Это может привести к сокращению срока службы светодиода.`
+              : `${component.name ?? component.id}: ток выше номинальных ${(overloaded[0]!.nominalCurrentAmp * 1000).toFixed(0)} мА в ${overloaded.map((branch) => branch.id).join(', ')}. Возможна деградация светодиода.`,
         componentIds: [component.id],
         ...(component.kind === 'led'
           ? {}
@@ -1603,17 +1523,17 @@ export function solveCircuit(
       });
     }
     const burnedOut = componentBranches.filter(
-      (branch) => Math.abs(result?.branchCurrents?.[branch.id] ?? 0) > branch.maxCurrent,
+      (branch) => Math.abs(result?.branchCurrents?.[branch.id] ?? 0) > branch.destructiveCurrentAmp,
     );
-    if (burnedOut.length > 0) {
+    if (burnedOut.length > 0 && component.kind !== 'diode') {
       const current = Math.abs(result?.branchCurrents?.[burnedOut[0]!.id] ?? 0);
       diagnostics.push({
         code: 'led_burnout',
         severity: 'error',
         message:
           component.kind === 'led'
-            ? `Сила тока в светодиоде равна ${formatReferenceMilliamp(current)} (разрушительный предел — ${(burnedOut[0]!.maxCurrent * 1000).toFixed(0)} mA).`
-            : `${component.name ?? component.id}: ток превысил разрушительный предел ${(burnedOut[0]!.maxCurrent * 1000).toFixed(0)} мА в ${burnedOut.map((branch) => branch.id).join(', ')}. Светодиод перегорел в этой рабочей точке.`,
+            ? `Сила тока в светодиоде равна ${formatReferenceMilliamp(current)} (разрушительный предел — ${(burnedOut[0]!.destructiveCurrentAmp * 1000).toFixed(0)} mA).`
+            : `${component.name ?? component.id}: ток превысил разрушительный предел ${(burnedOut[0]!.destructiveCurrentAmp * 1000).toFixed(0)} мА в ${burnedOut.map((branch) => branch.id).join(', ')}. Светодиод перегорел в этой рабочей точке.`,
         componentIds: [component.id],
         ...(component.kind === 'led'
           ? {}

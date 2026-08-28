@@ -462,7 +462,9 @@ export function WorkbenchSidebars({
                 </div>
               ) : null}
               {['source', 'resistor', 'potentiometer', 'lamp'].includes(c.selectedComponent.kind) ||
-              (c.selectedComponent.kind === 'diode' && stateOpen) ? (
+              (c.selectedComponent.kind === 'diode' &&
+                !c.selectedComponent.componentTypeId &&
+                stateOpen) ? (
                 <label>
                   <span>{valueLabel(c.selectedComponent.kind)}</span>
                   <div className="workbench-value-field">
@@ -850,6 +852,21 @@ export function WorkbenchSidebars({
                       <dt>Нагрев источника</dt>
                       <dd>{measurement.internalPower.toFixed(3)} Вт</dd>
                     </div>
+                  ) : null}
+                  {c.selectedComponent.kind === 'diode' &&
+                  measurement.reverseVoltageLimitVolt !== undefined ? (
+                    <>
+                      <div>
+                        <dt>Длительный ток</dt>
+                        <dd>
+                          {((measurement.continuousCurrentLimitAmp ?? 0) * 1000).toFixed(0)} мА
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Допустимое обратное напряжение</dt>
+                        <dd>{(measurement.reverseVoltageLimitVolt ?? 0).toFixed(0)} В</dd>
+                      </div>
+                    </>
                   ) : null}
                   {measurement.lit !== undefined ? (
                     <div>

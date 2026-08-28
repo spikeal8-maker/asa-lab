@@ -207,6 +207,14 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(sidebarSource).not.toContain('workbench-inspector-diagnostic-badge');
   });
 
+  it('shows fixed diode profile limits inside I without exposing a fake editable Vf', () => {
+    expect(sidebarSource).toContain("c.selectedComponent.kind === 'diode'");
+    expect(sidebarSource).toContain('!c.selectedComponent.componentTypeId');
+    expect(sidebarSource).toContain('measurement.reverseVoltageLimitVolt');
+    expect(sidebarSource).toContain('Длительный ток');
+    expect(sidebarSource).toContain('Допустимое обратное напряжение');
+  });
+
   it('keeps the measured Circuits toolbar order and functional viewport controls', () => {
     expect(headerSource).toContain('workbench-breadboard-tools');
     expect(headerSource).toContain('workbench-wire-style');

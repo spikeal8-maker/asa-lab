@@ -27,6 +27,11 @@ import {
   PHOTORESISTOR_BRIGHT_RESISTANCE_OHM,
   PHOTORESISTOR_DARK_RESISTANCE_OHM,
 } from '../domain/photoresistor-model';
+import {
+  canonicalNonlinearDcProfileRegistry,
+  DIODE_JUNCTION_PROFILES,
+  nonlinearDcBranchesForComponent,
+} from '../domain/models/nonlinear-dc-models';
 
 function component(
   id: string,
@@ -1184,7 +1189,7 @@ describe('deterministic DC solver', () => {
     expect(resultFor(document, 'pot')?.terminalVoltages.wiper).toBeCloseTo(expectedVoltage, 3);
   });
 
-  it('conducts a forward diode and blocks a reverse diode', () => {
+  it('conducts a forward diode and treats safe reverse bias as a normal blocking state', () => {
     const forward = solveCircuit(
       series([component('r1', 'resistor', 430), component('d1', 'diode', 0.7)], 5),
     );
@@ -1203,10 +1208,77 @@ describe('deterministic DC solver', () => {
     const reverse = solveCircuit(reverseDocument);
     expect(forward.current).toBeGreaterThan(0.009);
     expect(reverse.current).toBe(0);
-    expect(reverse.diagnostics.map((item) => item.code)).toContain('reverse_polarity');
-    expect(reverse.diagnostics.find((item) => item.code === 'reverse_polarity')).toMatchObject({
-      suggestedAction: 'Подключите BAT+ к аноду, BAT− к катоду.',
+    expect(reverse.diagnostics.map((item) => item.code)).not.toContain('reverse_polarity');
+    expect(reverse.diagnostics.map((item) => item.code)).not.toContain('diode_reverse_breakdown');
+    expect(reverse.diagnostics.map((item) => item.code)).toContain('open_circuit');
+  });
+
+  it('uses distinct versioned DO-35 and DO-41 electrical profiles', () => {
+    const do35 = nonlinearDcBranchesForComponent(
+      component('do35', 'diode', 0.7, { componentTypeId: 'diode-do35' }),
+    )[0];
+    const do41 = nonlinearDcBranchesForComponent(
+      component('do41', 'diode', 0.7, { componentTypeId: 'diode-do41' }),
+    )[0];
+
+    expect(do35).toMatchObject({
+      nominalCurrentAmp: 0.2,
+      repetitivePeakReverseVoltage: 100,
+      emitsLight: false,
     });
+    expect(do41).toMatchObject({
+      nominalCurrentAmp: 1,
+      repetitivePeakReverseVoltage: 1000,
+      emitsLight: false,
+    });
+    expect(DIODE_JUNCTION_PROFILES['generic-signal-diode-do35']).not.toEqual(
+      DIODE_JUNCTION_PROFILES['generic-rectifier-diode-do41'],
+    );
+    expect(canonicalNonlinearDcProfileRegistry()).toBe(canonicalNonlinearDcProfileRegistry());
+    for (const profile of Object.values(DIODE_JUNCTION_PROFILES)) {
+      for (let index = 1; index < profile.forwardSegments.length; index += 1) {
+        const previous = profile.forwardSegments[index - 1]!;
+        const current = profile.forwardSegments[index]!;
+        const boundaryCurrent = current.minimumCurrentAmp;
+        expect(previous.kneeVoltage + previous.dynamicResistanceOhm * boundaryCurrent).toBeCloseTo(
+          current.kneeVoltage + current.dynamicResistanceOhm * boundaryCurrent,
+          10,
+        );
+      }
+    }
+  });
+
+  it('reports destructive reverse voltage only for the profile whose limit is exceeded', () => {
+    const reverseCircuit = (componentTypeId: 'diode-do35' | 'diode-do41') =>
+      doc(
+        [
+          component('source', 'source', 120),
+          component('r1', 'resistor', 100_000),
+          component('diode', 'diode', 0.7, {
+            componentTypeId,
+            pinIds: ['anode', 'cathode'],
+          }),
+        ],
+        [
+          connect('positive', 'source', 'a', 'r1', 'a'),
+          connect('reverse', 'r1', 'b', 'diode', 'cathode'),
+          connect('return', 'diode', 'anode', 'source', 'b'),
+        ],
+      );
+
+    const do35 = solveCircuit(reverseCircuit('diode-do35'));
+    const do41 = solveCircuit(reverseCircuit('diode-do41'));
+    expect(do35).toMatchObject({ solved: true, status: 'solved' });
+    expect(resultFor(reverseCircuit('diode-do35'), 'diode')).toMatchObject({
+      stressState: 'burned',
+      deviceHealth: 'reverse_damaged',
+      damageState: 'destructive_preview',
+      presentationState: 'destructive',
+      continuousCurrentLimitAmp: 0.2,
+      reverseVoltageLimitVolt: 100,
+    });
+    expect(do35.diagnostics.map((item) => item.code)).toContain('diode_reverse_breakdown');
+    expect(do41.diagnostics.map((item) => item.code)).not.toContain('diode_reverse_breakdown');
   });
 
   it('solves NPN cutoff, active and saturation regions with real B/C/E currents', () => {

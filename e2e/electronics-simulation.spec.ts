@@ -150,6 +150,27 @@ function circuitDocument(options: {
   };
 }
 
+function diodeProfileDocument(componentTypeId: 'diode-do35' | 'diode-do41'): SchematicDocument {
+  const seeded = circuitDocument({ switchClosed: true, resistorOhms: 220, reversedLed: false });
+  return {
+    ...seeded,
+    components: seeded.components.map((item) =>
+      item.id === 'led'
+        ? {
+            ...item,
+            kind: 'diode' as const,
+            componentTypeId,
+            variantId: componentTypeId,
+            name: componentTypeId === 'diode-do41' ? 'Диод DO-41' : 'Диод DO-35',
+            value: 0.7,
+            pinIds: ['anode', 'cathode'],
+            stateProperties: {},
+          }
+        : item,
+    ),
+  };
+}
+
 function buttonCircuitDocument(resistorOhms: number): SchematicDocument {
   const seeded = circuitDocument({
     switchClosed: false,
@@ -975,6 +996,30 @@ test('component inspector separates compact settings, live state and educational
     expect(box?.width).toBeGreaterThanOrEqual(44);
     expect(box?.height).toBeGreaterThanOrEqual(44);
   }
+  failures.assertEmpty();
+});
+
+test('DO-35 exposes calculated current and fixed profile limits through I', async ({ page }) => {
+  test.setTimeout(120_000);
+  const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await loginWithOrganization(page, teacher);
+  const projectId = await createProject(page, 'MATH-2 DO-35 inspector');
+  await saveDocument(page, projectId, diodeProfileDocument('diode-do35'));
+  await page.goto(`/#/home/${projectId}`);
+
+  await page.getByRole('button', { name: 'Начать моделирование' }).click();
+  await component(page, 'diode-do35').locator('.workbench-part').click();
+  const inspector = page.getByRole('complementary', { name: 'Параметры выделения' });
+  await inspector.getByRole('button', { name: 'Техническое состояние Диод' }).click();
+  await expect(inspector.getByText('Длительный ток', { exact: true })).toBeVisible();
+  await expect(inspector.getByText('200 мА', { exact: true })).toBeVisible();
+  await expect(
+    inspector.getByText('Допустимое обратное напряжение', { exact: true }),
+  ).toBeVisible();
+  await expect(inspector.getByText('100 В', { exact: true })).toBeVisible();
+  await expect(inspector.getByText('Ток', { exact: true })).toBeVisible();
+  await expect(inspector.getByText('Прямое падение', { exact: true })).toHaveCount(0);
   failures.assertEmpty();
 });
 

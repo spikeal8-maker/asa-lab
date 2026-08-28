@@ -973,6 +973,8 @@ export interface ComponentResult {
   brightness?: number;
   branchCurrents?: Record<string, number>;
   branchBrightness?: Record<string, number>;
+  continuousCurrentLimitAmp?: number;
+  reverseVoltageLimitVolt?: number;
   lit?: boolean;
   energized?: boolean;
   currentUtilizationPercent?: number;
@@ -1024,8 +1026,8 @@ export interface SolveResult {
   };
   topologySignature?: string;
   simulationInputDigest?: string;
-  solverRevision?: 'asa-electronics-solver-v1';
-  modelSetDigest?: 'asa-electronics-model-set-v1';
+  solverRevision?: 'asa-electronics-solver-v2';
+  modelSetDigest?: string;
   analysis?: {
     electricalMode: 'dc' | 'transient';
     controllerRuntime: 'none' | 'arduino';
