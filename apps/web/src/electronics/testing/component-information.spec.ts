@@ -71,15 +71,40 @@ describe('component information registry', () => {
         (metric) => metric.metricId,
       ),
     ).toContain('source-operating-mode');
+    expect(
+      readMetricBinding('junction-state', { ...measurement, junctionState: 'conducting' }),
+    ).toBe('Открыт — проводит ток');
+    expect(
+      readMetricBinding('junction-state', { ...measurement, junctionState: 'reverse_blocking' }),
+    ).toBe('Закрыт — обратное включение');
   });
 
   it('provides structured help for every component kind without HTML', () => {
     for (const family of workbenchCatalog().filter((candidate) => candidate.enabled)) {
       const variant = family.variants.find((candidate) => candidate.enabled)!;
-      const sections = componentHelpSections(variant.entry.kind, variant.entry.description);
+      const sections = componentHelpSections(
+        variant.entry.kind,
+        variant.entry.description,
+        variant.entry.key,
+      );
       expect(sections[0]).toMatchObject({ id: 'description', title: 'Описание' });
       expect(sections.every((section) => !/<\/?[a-z][^>]*>/i.test(section.text))).toBe(true);
     }
+  });
+
+  it('explains why the two diode packages are not interchangeable', () => {
+    const do35 = componentHelpSections('diode', 'Диод.', 'diode-do35');
+    const do41 = componentHelpSections('diode', 'Диод.', 'diode-do41');
+    expect(do35.map((section) => section.title)).toEqual([
+      'Описание',
+      'Принцип работы',
+      'Чем отличаются варианты',
+    ]);
+    expect(do35[0]?.text).toContain('малосигнальный');
+    expect(do41[0]?.text).toContain('выпрямительный');
+    expect(do35.some((section) => section.title === 'Подключение')).toBe(false);
+    expect(do35.at(-1)?.text).toContain('200 мА');
+    expect(do41.at(-1)?.text).toContain('1 А');
   });
 
   it('publishes help only through a matching external approval digest', () => {

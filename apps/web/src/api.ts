@@ -975,6 +975,7 @@ export interface ComponentResult {
   branchBrightness?: Record<string, number>;
   continuousCurrentLimitAmp?: number;
   reverseVoltageLimitVolt?: number;
+  junctionState?: 'conducting' | 'forward_blocking' | 'reverse_blocking' | 'reverse_breakdown';
   lit?: boolean;
   energized?: boolean;
   currentUtilizationPercent?: number;

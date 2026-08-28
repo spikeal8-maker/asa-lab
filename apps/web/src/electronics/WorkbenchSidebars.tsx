@@ -91,7 +91,11 @@ export function WorkbenchSidebars({
     void import('./component-help-content').then(({ componentHelpSections }) => {
       if (active) {
         setHelpSections(
-          componentHelpSections(c.selectedComponent!.kind, c.selectedEntry!.description),
+          componentHelpSections(
+            c.selectedComponent!.kind,
+            c.selectedEntry!.description,
+            c.selectedEntry!.key,
+          ),
         );
       }
     });

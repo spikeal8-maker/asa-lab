@@ -1209,6 +1209,12 @@ describe('deterministic DC solver', () => {
     const reverse = solveCircuit(reverseDocument);
     expect(forward.current).toBeGreaterThan(0.009);
     expect(reverse.current).toBe(0);
+    expect(forward.components.find((item) => item.componentId === 'd1')?.junctionState).toBe(
+      'conducting',
+    );
+    expect(reverse.components.find((item) => item.componentId === 'd1')?.junctionState).toBe(
+      'reverse_blocking',
+    );
     expect(reverse.diagnostics.map((item) => item.code)).not.toContain('reverse_polarity');
     expect(reverse.diagnostics.map((item) => item.code)).not.toContain('diode_reverse_breakdown');
     expect(reverse.diagnostics.map((item) => item.code)).not.toContain('open_circuit');
@@ -1278,6 +1284,7 @@ describe('deterministic DC solver', () => {
       presentationState: 'destructive',
       continuousCurrentLimitAmp: 0.2,
       reverseVoltageLimitVolt: 100,
+      junctionState: 'reverse_breakdown',
     });
     expect(do35.diagnostics.map((item) => item.code)).toContain('diode_reverse_breakdown');
     expect(do41.diagnostics.map((item) => item.code)).not.toContain('diode_reverse_breakdown');

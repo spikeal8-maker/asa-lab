@@ -4,6 +4,7 @@ import type { HelpSection } from './component-information';
 export function componentHelpSections(
   kind: ComponentKind,
   catalogDescription: string,
+  variantId?: string,
 ): readonly HelpSection[] {
   const principle: Partial<Record<ComponentKind, string>> = {
     source: 'Источник поддерживает заданную разность потенциалов между своими выводами.',
@@ -19,6 +20,28 @@ export function componentHelpSections(
     lamp: 'Нить лампы нагревается электрической мощностью и излучает свет.',
     breadboard: 'Группы отверстий внутри макетной платы электрически соединены.',
   };
+  if (kind === 'diode') {
+    const isDo41 = variantId === 'diode-do41';
+    return [
+      {
+        id: 'description',
+        title: 'Описание',
+        text: isDo41
+          ? 'DO-41 — выпрямительный диод для более высокого тока и обратного напряжения.'
+          : 'DO-35 — малосигнальный диод для быстрых переключений и небольшого тока.',
+      },
+      {
+        id: 'principle',
+        title: 'Принцип работы',
+        text: 'При достаточном прямом напряжении диод открыт и проводит ток. При обратном включении он закрыт, пока напряжение не превысит допустимый предел.',
+      },
+      {
+        id: 'usage',
+        title: 'Чем отличаются варианты',
+        text: 'DO-35: до 200 мА и 100 В — сигнальные и переключательные цепи. DO-41: до 1 А и 1000 В — выпрямление и силовые цепи. Эти пределы и разные прямые характеристики используются в расчёте.',
+      },
+    ];
+  }
   const sections: HelpSection[] = [
     { id: 'description', title: 'Описание', text: catalogDescription },
   ];

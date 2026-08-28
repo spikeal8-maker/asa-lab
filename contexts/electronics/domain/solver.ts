@@ -101,6 +101,9 @@ export interface ComponentResult {
   readonly branchBrightness?: Readonly<Record<string, number>>;
   readonly continuousCurrentLimitAmp?: number;
   readonly reverseVoltageLimitVolt?: number;
+  /** Calculated DC junction state for an ordinary diode. */
+  readonly junctionState?:
+    'conducting' | 'forward_blocking' | 'reverse_blocking' | 'reverse_breakdown';
   readonly lit?: boolean;
   readonly energized?: boolean;
   readonly currentUtilizationPercent?: number;
@@ -1045,6 +1048,7 @@ export function solveCircuit(
     return {
       voltageDrop,
       current,
+      conducting: diodeStates.get(key) === true,
       brightness: branch.emitsLight
         ? ledBrightness(current, {
             nominalCurrentAmp: branch.nominalCurrentAmp,
@@ -1339,6 +1343,17 @@ export function solveCircuit(
           ? {
               continuousCurrentLimitAmp: branches[0]!.nominalCurrentAmp,
               reverseVoltageLimitVolt: branches[0]!.repetitivePeakReverseVoltage,
+              ...(component.kind === 'diode'
+                ? {
+                    junctionState: reverseBreakdown
+                      ? ('reverse_breakdown' as const)
+                      : branchResults[0]!.conducting
+                        ? ('conducting' as const)
+                        : branchResults[0]!.voltageDrop < 0
+                          ? ('reverse_blocking' as const)
+                          : ('forward_blocking' as const),
+                  }
+                : {}),
             }
           : {}),
         ...((currentUtilizationPercent ?? sourceCurrentUtilizationPercent) === undefined ||

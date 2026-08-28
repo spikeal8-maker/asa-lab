@@ -266,11 +266,44 @@ export function ProductionComponentVisual({
     piezoFrequencyHz >= 20 &&
     piezoSoundLevel > 0;
   const rotatesHorizontalOwnerAsset = entry.key === 'diode-do35';
+  const narrowsDo41Body = entry.key === 'diode-do41';
   const ownerAssetWidth = rotatesHorizontalOwnerAsset ? height : width;
-  const ownerAssetHeight = rotatesHorizontalOwnerAsset ? width : height;
+  const ownerAssetHeight = rotatesHorizontalOwnerAsset
+    ? width
+    : narrowsDo41Body
+      ? height * 0.88
+      : height;
+  const ownerAssetY = narrowsDo41Body ? height * 0.06 : 0;
   const ownerAssetTransform = rotatesHorizontalOwnerAsset
     ? `translate(${width} 0) rotate(90)`
     : undefined;
+  const diodeSelectionBounds = (() => {
+    if (entry.familyId !== 'diode') return null;
+    const anode = entry.terminals.anode;
+    const cathode = entry.terminals.cathode;
+    if (!anode || !cathode) return null;
+    const scaleX = width / entry.physicalSizeMm.width;
+    const scaleY = height / entry.physicalSizeMm.height;
+    const vertical = Math.abs(anode.yMm - cathode.yMm) > Math.abs(anode.xMm - cathode.xMm);
+    if (vertical) {
+      const start = Math.min(anode.yMm, cathode.yMm) * scaleY;
+      const end = Math.max(anode.yMm, cathode.yMm) * scaleY;
+      return {
+        x: selectionOffset * 0.35,
+        y: start - selectionOffset,
+        width: width - selectionOffset * 0.7,
+        height: end - start + selectionOffset * 2,
+      };
+    }
+    const start = Math.min(anode.xMm, cathode.xMm) * scaleX;
+    const end = Math.max(anode.xMm, cathode.xMm) * scaleX;
+    return {
+      x: start - selectionOffset,
+      y: ownerAssetY + selectionOffset * 0.35,
+      width: end - start + selectionOffset * 2,
+      height: ownerAssetHeight - selectionOffset * 0.7,
+    };
+  })();
   const usesMeasuredTinkercadGeometry = [
     'resistor-axial',
     'button-tactile-6mm',
@@ -308,7 +341,22 @@ export function ProductionComponentVisual({
       }
       aria-hidden="true"
     >
-      {selected && !usesMeasuredTinkercadGeometry ? (
+      {selected && diodeSelectionBounds ? (
+        <rect
+          className="workbench-diode-selection"
+          pointerEvents="none"
+          aria-hidden="true"
+          x={diodeSelectionBounds.x}
+          y={diodeSelectionBounds.y}
+          width={diodeSelectionBounds.width}
+          height={diodeSelectionBounds.height}
+          rx={Math.min(diodeSelectionBounds.width, diodeSelectionBounds.height) * 0.35}
+          fill="none"
+          stroke="#3b8ed7"
+          strokeWidth={selectionOffset}
+          vectorEffect="non-scaling-stroke"
+        />
+      ) : selected && !usesMeasuredTinkercadGeometry ? (
         <g className="workbench-selection-silhouette" pointerEvents="none" aria-hidden="true">
           <defs>
             <filter
@@ -334,10 +382,11 @@ export function ProductionComponentVisual({
           </defs>
           <image
             href={asset}
+            y={ownerAssetY}
             width={ownerAssetWidth}
             height={ownerAssetHeight}
             transform={ownerAssetTransform}
-            preserveAspectRatio={imageFit}
+            preserveAspectRatio={narrowsDo41Body ? 'none' : imageFit}
             filter={`url(#${selectionFilterId})`}
           />
         </g>
@@ -549,10 +598,11 @@ export function ProductionComponentVisual({
             <image
               className={entry.key === 'led-5mm' ? 'workbench-led-asset' : undefined}
               href={asset}
+              y={ownerAssetY}
               width={ownerAssetWidth}
               height={ownerAssetHeight}
               transform={ownerAssetTransform}
-              preserveAspectRatio={imageFit}
+              preserveAspectRatio={narrowsDo41Body ? 'none' : imageFit}
               pointerEvents="none"
             />
           )}

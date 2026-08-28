@@ -16,6 +16,7 @@ export type MetricBindingId =
   | 'frequency'
   | 'sound-level'
   | 'source-operating-mode'
+  | 'junction-state'
   | 'operating-region';
 
 export interface InspectorFieldProfile {
@@ -187,6 +188,13 @@ const METRICS = {
     unit: '',
     precision: 0,
   },
+  junctionState: {
+    metricId: 'junction-state',
+    label: 'Состояние',
+    metricBindingId: 'junction-state',
+    unit: '',
+    precision: 0,
+  },
   region: {
     metricId: 'operating-region',
     label: 'Рабочая область',
@@ -254,7 +262,7 @@ const PROFILE_BY_KIND: Readonly<
   },
   diode: {
     compactFields: [NAME_FIELD],
-    technicalMetrics: [METRICS.voltage, METRICS.current, METRICS.power],
+    technicalMetrics: [METRICS.junctionState, METRICS.voltage, METRICS.current, METRICS.power],
     terminalPresentation: 'full',
   },
   transistor: {
@@ -338,7 +346,17 @@ export function readMetricBinding(
                     : result.sourceOperatingMode === 'absorbing'
                       ? 'Принимает обратный ток'
                       : 'Без нагрузки'
-                  : result.operatingRegion;
+                  : bindingId === 'junction-state'
+                    ? result.junctionState === 'conducting'
+                      ? 'Открыт — проводит ток'
+                      : result.junctionState === 'reverse_blocking'
+                        ? 'Закрыт — обратное включение'
+                        : result.junctionState === 'reverse_breakdown'
+                          ? 'Пробой — превышен обратный предел'
+                          : result.junctionState === 'forward_blocking'
+                            ? 'Закрыт — прямого напряжения недостаточно'
+                            : undefined
+                    : result.operatingRegion;
   return typeof raw === 'number' ? (Number.isFinite(raw) ? raw : null) : (raw ?? null);
 }
 
