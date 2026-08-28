@@ -14,7 +14,7 @@ import {
 } from './component-catalog';
 import { ProductionComponentVisual } from './ProductionComponentVisual';
 import { productionBreadboard } from './production-manifest-adapter';
-import { roundedWirePath, wirePoints } from './workbench-geometry';
+import { diagnosticBadgeGeometry, roundedWirePath, wirePoints } from './workbench-geometry';
 import { CircuitIcon, FitIcon, ZoomInIcon, ZoomOutIcon } from './workbench-icons';
 import { componentTransform } from './workbench-model';
 import { terminalPositionInDocument } from './workbench-document';
@@ -234,6 +234,7 @@ export function WorkbenchStage({
       },
     ];
   });
+  const badgeGeometry = diagnosticBadgeGeometry(c.viewport.zoom);
   // One compact marker per component renders above wires. Detailed values stay
   // in the existing I inspector; the canvas deliberately has no tooltip card.
   const diagnosticIndicators = orderedComponents
@@ -329,8 +330,8 @@ export function WorkbenchStage({
               </g>
             ) : (
               <>
-                <circle r={9 / c.viewport.zoom} vectorEffect="non-scaling-stroke" />
-                <text y={4 / c.viewport.zoom} fontSize={12 / c.viewport.zoom}>
+                <circle r={badgeGeometry.radius} vectorEffect="non-scaling-stroke" />
+                <text y={badgeGeometry.textBaseline} fontSize={badgeGeometry.fontSize}>
                   !
                 </text>
               </>
@@ -370,8 +371,8 @@ export function WorkbenchStage({
               c.selectComponent(component.id, event.shiftKey);
             }}
           >
-            <circle r={9 / c.viewport.zoom} vectorEffect="non-scaling-stroke" />
-            <text y={4 / c.viewport.zoom} fontSize={12 / c.viewport.zoom}>
+            <circle r={badgeGeometry.radius} vectorEffect="non-scaling-stroke" />
+            <text y={badgeGeometry.textBaseline} fontSize={badgeGeometry.fontSize}>
               !
             </text>
           </g>

@@ -426,7 +426,7 @@ export class SaveDraftUseCase {
       ? fail('project_not_found', 'project not found')
       : fail(
           'project_revision_conflict',
-          'Проект уже изменён на другом устройстве. Текущая работа не была перезаписана.',
+          'Версия проекта на сервере изменилась после открытия. Текущая работа не была перезаписана.',
         );
   }
 }

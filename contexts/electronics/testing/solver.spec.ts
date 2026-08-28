@@ -1190,6 +1190,47 @@ describe('deterministic DC solver', () => {
     expect(resultFor(document, 'pot')?.terminalVoltages.wiper).toBeCloseTo(expectedVoltage, 3);
   });
 
+  it('dims a red LED continuously across the usable travel of a 1 kOhm potentiometer', () => {
+    const samples = Array.from({ length: 19 }, (_, index) => 0.1 + index * 0.05).map((position) => {
+      const document = doc(
+        [
+          component('battery', 'source', 3, {
+            componentTypeId: 'battery-holder-aa-2',
+            pinIds: ['BAT-', 'BAT+'],
+          }),
+          component('led', 'led', 2, {
+            componentTypeId: 'led-5mm',
+            pinIds: ['anode', 'cathode'],
+            stateProperties: { ledColour: 'red' },
+          }),
+          component('pot', 'potentiometer', 1000, {
+            componentTypeId: 'potentiometer',
+            pinIds: ['terminal-1', 'wiper', 'terminal-2'],
+            wiperPosition: position,
+          }),
+        ],
+        [
+          connect('positive', 'battery', 'BAT+', 'led', 'anode'),
+          connect('limited', 'led', 'cathode', 'pot', 'terminal-1'),
+          connect('return', 'pot', 'wiper', 'battery', 'BAT-'),
+        ],
+      );
+      const result = solveCircuit(document);
+      const led = result.components.find((item) => item.componentId === 'led');
+      expect(result).toMatchObject({ solved: true, status: 'solved' });
+      expect(led?.lit).toBe(true);
+      expect(Number.isFinite(led?.current)).toBe(true);
+      expect(Number.isFinite(led?.brightness)).toBe(true);
+      return led?.brightness ?? 0;
+    });
+
+    for (let index = 1; index < samples.length; index += 1) {
+      expect(samples[index]).toBeLessThan(samples[index - 1] ?? 0);
+      expect((samples[index - 1] ?? 0) - (samples[index] ?? 0)).toBeLessThan(15);
+    }
+    expect(samples.at(-1)).toBeGreaterThan(20);
+  });
+
   it('conducts a forward diode and treats safe reverse bias as a normal blocking state', () => {
     const forward = solveCircuit(
       series([component('r1', 'resistor', 430), component('d1', 'diode', 0.7)], 5),

@@ -1,13 +1,16 @@
-const LOCAL_PROJECT_DRAFT_SCHEMA = 1;
+const LOCAL_PROJECT_DRAFT_SCHEMA = 2;
+const SUPPORTED_LOCAL_PROJECT_DRAFT_SCHEMAS = new Set([1, LOCAL_PROJECT_DRAFT_SCHEMA]);
 const LOCAL_PROJECT_DRAFT_PREFIX = 'asa-project-local-draft:';
 
 type DraftStorage = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
 
 export interface LocalProjectDraft<TDocument = unknown> {
-  readonly schemaVersion: typeof LOCAL_PROJECT_DRAFT_SCHEMA;
+  readonly schemaVersion: 1 | typeof LOCAL_PROJECT_DRAFT_SCHEMA;
   readonly projectId: string;
   readonly moduleKey: string;
   readonly baseRevision: number;
+  /** Server document at baseRevision, required for a safe three-way merge. */
+  readonly baseDocument?: TDocument;
   readonly document: TDocument;
   readonly updatedAt: string;
 }
@@ -31,12 +34,13 @@ export function readLocalProjectDraft<TDocument = unknown>(
     const parsed: unknown = JSON.parse(raw);
     if (
       !isRecord(parsed) ||
-      parsed['schemaVersion'] !== LOCAL_PROJECT_DRAFT_SCHEMA ||
+      !SUPPORTED_LOCAL_PROJECT_DRAFT_SCHEMAS.has(Number(parsed['schemaVersion'])) ||
       parsed['projectId'] !== projectId ||
       parsed['moduleKey'] !== moduleKey ||
       !Number.isSafeInteger(parsed['baseRevision']) ||
       typeof parsed['updatedAt'] !== 'string' ||
-      !isRecord(parsed['document'])
+      !isRecord(parsed['document']) ||
+      (parsed['baseDocument'] !== undefined && !isRecord(parsed['baseDocument']))
     ) {
       return null;
     }
@@ -52,6 +56,7 @@ export function writeLocalProjectDraft<TDocument>(
     readonly projectId: string;
     readonly moduleKey: string;
     readonly baseRevision: number;
+    readonly baseDocument?: TDocument;
     readonly document: TDocument;
   },
 ): void {

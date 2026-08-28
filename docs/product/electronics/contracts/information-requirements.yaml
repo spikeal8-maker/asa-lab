@@ -35,7 +35,7 @@ decisions:
     blocking_scopes: [content, desktop_ux, mobile_ux]
     evidence_required: [empty_help_state_owner_review]
   - id: DEC-INFO-007
-    decision: diagnostic_badge_is_screen_upright_and_constant_size
+    decision: diagnostic_badge_is_screen_upright_and_adaptive_with_readable_floor
     status: owner_direction
     blocking_scopes: []
     evidence_required: [rotation_zoom_severity_owner_review]
@@ -43,7 +43,7 @@ decisions:
 requirements:
   - id: ELEC-INFO-001
     statement: enabled catalog families join to schema-valid inspector profiles without changing catalog status
-    normative_sections: ["6.3", "9.1", "17.1"]
+    normative_sections: ["6.3", "9.1", "17.2"]
     status: planned
     activation: mandatory
     depends_on_decisions: []
@@ -194,12 +194,12 @@ requirements:
     planned_test_ids: [TST-E2E-ELECTRONICS-COMPONENT-INFO-001]
     planned_fixture_path: e2e/fixtures/electronics/diagnostic-state-matrix.json
     gate: pnpm gate:electronics-m1:browser
-    assertions: [neutral_state_has_no_warning_badge, warning_and_error_badges_match_diagnostics, badge_remains_screen_upright_at_every_rotation, badge_is_constant_screen_size_at_every_zoom, semantic_name_present]
+    assertions: [neutral_state_has_no_warning_badge, warning_and_error_badges_match_diagnostics, badge_remains_screen_upright_at_every_rotation, badge_scales_with_scene_until_common_readable_floor, semantic_name_present]
     evidence: { result: not_run, verified_sha: null, artifacts: [] }
 
   - id: ELEC-INFO-013
     statement: boards instruments and breadboards use grouped domain-specific presentation
-    normative_sections: ["9.2", "14", "15", "17.1"]
+    normative_sections: ["9.2", "14", "15", "17.2"]
     status: planned
     activation: mandatory
     depends_on_decisions: []

@@ -1,10 +1,21 @@
 import type { ComponentKind } from '../api';
+import { ordinaryLedProfile } from '@asa-lab/electronics';
 import type { HelpSection } from './component-information';
+
+const LED_COLOUR_LABELS: Readonly<Record<string, string>> = {
+  red: 'красный',
+  orange: 'оранжевый',
+  yellow: 'жёлтый',
+  green: 'зелёный',
+  blue: 'синий',
+  white: 'белый',
+};
 
 export function componentHelpSections(
   kind: ComponentKind,
   catalogDescription: string,
   variantId?: string,
+  options?: { readonly ledColour?: string },
 ): readonly HelpSection[] {
   const principle: Partial<Record<ComponentKind, string>> = {
     source: 'Источник поддерживает заданную разность потенциалов между своими выводами.',
@@ -43,21 +54,30 @@ export function componentHelpSections(
     ];
   }
   if (kind === 'led') {
+    const colour = options?.ledColour ?? 'red';
+    const profile = ordinaryLedProfile(colour);
+    const forwardAtNominal =
+      profile.kneeVoltage + profile.dynamicResistanceOhm * profile.nominalCurrentAmp;
     return [
       {
         id: 'description',
-        title: 'Описание',
-        text: 'Светодиод преобразует прямой ток в свет. Выбранный цвет меняет не только внешний вид, но и расчётную прямую характеристику перехода.',
+        title: 'Что имитируется',
+        text: `Типовой ${LED_COLOUR_LABELS[colour] ?? colour} индикаторный светодиод диаметром 5 мм. Это расчётный профиль класса компонентов, а не скрытый артикул конкретного производителя.`,
       },
       {
         id: 'principle',
-        title: 'Принцип работы',
-        text: 'При прямом включении яркость определяется рассчитанным током. При обратном включении в пределах допустимого напряжения светодиод штатно закрыт и не светится.',
+        title: 'Рабочая точка',
+        text: `При номинальном токе 20 мА модель имеет прямое напряжение около ${forwardAtNominal.toFixed(2)} В. Это напряжение на самом светодиоде, а не требуемое напряжение батареи: лишнее напряжение должен принять последовательный резистор.`,
+      },
+      {
+        id: 'usage',
+        title: 'Как подобрать резистор',
+        text: 'Анод подключают к плюсу через резистор, катод — к минусу. Оценка: R = (напряжение источника − прямое напряжение светодиода) / выбранный ток. Для учебной схемы обычно выбирайте 5–15 мА, затем проверяйте фактический ток во вкладке i.',
       },
       {
         id: 'safety',
         title: 'Пределы модели',
-        text: 'Номинальный ток — 20 мА, разрушительный режим начинается при 120 мА, допустимое обратное напряжение — 5 В. Для ограничения тока обычно нужен последовательный резистор.',
+        text: 'Номинальный ток — 20 мА, разрушительный режим типового 5-мм профиля начинается при 120 мА, допустимое обратное напряжение — 5 В. Цвет изменяет прямое напряжение, поэтому один резистор не даёт одинаковый ток со всеми цветами.',
       },
     ];
   }

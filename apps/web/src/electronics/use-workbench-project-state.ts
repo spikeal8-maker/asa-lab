@@ -13,6 +13,7 @@ import { snapComponentToBreadboard } from './workbench-document';
 import type { HistoryState, SaveStatus } from './workbench-model';
 import { autosaveIsDue, draftSaveStatus } from './workbench-autosave';
 import { prepareLiveSimulationStart } from './live-simulation';
+import { electronicsDocumentsEqual, mergeElectronicsDocuments } from './electronics-document-merge';
 import {
   clearLocalProjectDraft,
   readLocalProjectDraft,
@@ -160,6 +161,12 @@ export function useWorkbenchProjectState(projectId: string) {
   // Read when a save resolves: React state still holds the document as it was
   // when the request started.
   const documentRef = useRef<SchematicDocument | null>(null);
+  const savedDocumentRef = useRef<SchematicDocument | null>(null);
+  const savingDocumentRef = useRef<SchematicDocument | null>(null);
+  // Exact server document at serverRevisionRef. Unlike savedDocument, this is
+  // never a locally merged view and can therefore serve as the base of a safe
+  // three-way merge after a 409 response.
+  const serverDocumentRef = useRef<SchematicDocument | null>(null);
   // Saves run one at a time and in call order, so the stored draft cannot end up
   // holding an older document than the one the editor last sent.
   const saveQueueRef = useRef<Promise<unknown>>(Promise.resolve());
@@ -178,6 +185,8 @@ export function useWorkbenchProjectState(projectId: string) {
   });
   const saveStatusRef = useRef(saveStatus);
   saveStatusRef.current = saveStatus;
+  const saveFailedRef = useRef(saveFailed);
+  saveFailedRef.current = saveFailed;
 
   // Every document write goes through here so the ref and the dirty state move
   // together: no call site can change the document and forget to mark it unsaved.
@@ -190,10 +199,13 @@ export function useWorkbenchProjectState(projectId: string) {
           projectId,
           moduleKey: 'electronics',
           baseRevision,
+          ...(serverDocumentRef.current ? { baseDocument: serverDocumentRef.current } : {}),
           document: next,
         });
       }
+      saveFailedRef.current = false;
       setSaveFailed(false);
+      setSaveError(null);
       setDocumentState(next);
     },
     [projectId],
@@ -221,30 +233,66 @@ export function useWorkbenchProjectState(projectId: string) {
       local && isLocalSchematicDocument(local.document)
         ? normalizeLoadedDocument(local.document)
         : null;
-    const restored = localDocument !== null;
-    const revisionConflict = restored && local?.baseRevision !== response.data.draft.revision;
-    const nextDocument = localDocument ?? serverDocument;
-    serverRevisionRef.current =
-      revisionConflict && local ? local.baseRevision : response.data.draft.revision;
+    const localBaseDocument =
+      local?.baseDocument && isLocalSchematicDocument(local.baseDocument)
+        ? normalizeLoadedDocument(local.baseDocument)
+        : null;
+    const localMatchesServer =
+      localDocument !== null && electronicsDocumentsEqual(localDocument, serverDocument);
+    let restored = localDocument !== null && !localMatchesServer;
+    let revisionConflict = false;
+    let mergedLocalDraft = false;
+    let nextDocument = restored ? (localDocument as SchematicDocument) : serverDocument;
+    serverDocumentRef.current = serverDocument;
+    serverRevisionRef.current = response.data.draft.revision;
+    if (restored && local && local.baseRevision !== response.data.draft.revision) {
+      const merged = localBaseDocument
+        ? mergeElectronicsDocuments(localBaseDocument, nextDocument, serverDocument)
+        : null;
+      if (merged?.ok) {
+        nextDocument = merged.document;
+        mergedLocalDraft = true;
+        writeLocalProjectDraft(window.localStorage, {
+          projectId,
+          moduleKey: 'electronics',
+          baseRevision: response.data.draft.revision,
+          baseDocument: serverDocument,
+          document: nextDocument,
+        });
+      } else {
+        revisionConflict = true;
+        // Keep the original base revision so the next edit cannot silently
+        // overwrite the newer server document. A later save will retry the
+        // same safe merge or return the actionable conflict again.
+        serverRevisionRef.current = local.baseRevision;
+        serverDocumentRef.current = localBaseDocument;
+      }
+    }
     documentRef.current = nextDocument;
     setSaveFailed(false);
+    setSaveError(null);
     setDocumentState(nextDocument);
     setResult(response.data.result);
     setVersions(response.data.versions);
     // A migrated document is not what the server holds, so it stays unsaved
     // until autosave writes the migration back.
-    setSavedDocument(restored ? serverDocument : migrated ? null : nextDocument);
+    const knownSavedDocument = restored ? serverDocument : migrated ? null : nextDocument;
+    savedDocumentRef.current = knownSavedDocument;
+    setSavedDocument(knownSavedDocument);
+    savingDocumentRef.current = null;
     setSavingDocument(null);
     setSimulationRunning(nextDocument.simulation.running);
     setSimulationStatus(nextDocument.simulation.running ? 'running' : 'stopped');
     initialiseHistory(nextDocument);
-    if (!restored) clearLocalProjectDraft(window.localStorage, projectId);
+    if (!restored || localMatchesServer) clearLocalProjectDraft(window.localStorage, projectId);
     if (revisionConflict) {
       setSaveFailed(true);
       setSaveError(
-        'На сервере уже есть более новая версия. Эта локальная работа сохранена в браузере и не будет перезаписана автоматически.',
+        'Серверная версия изменилась, а тот же элемент схемы имеет несовместимые локальные правки. Локальный черновик сохранён и ничего не перезаписано.',
       );
-      setNotice('Обнаружены изменения с другого устройства. Локальная работа сохранена.');
+      setNotice('Нужен выбор версии для одного одновременно изменённого элемента.');
+    } else if (mergedLocalDraft) {
+      setNotice('Независимые изменения схемы автоматически совмещены.');
     } else if (restored) {
       setNotice('Восстановлены несохранённые изменения из этого браузера.');
     }
@@ -254,6 +302,59 @@ export function useWorkbenchProjectState(projectId: string) {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    if (status !== 'ready' || simulationRunning) return;
+    let active = true;
+    let requestInFlight = false;
+    const synchronize = async (): Promise<void> => {
+      if (
+        requestInFlight ||
+        saveFailedRef.current ||
+        savingDocumentRef.current !== null ||
+        documentRef.current === null ||
+        documentRef.current !== savedDocumentRef.current
+      ) {
+        return;
+      }
+      requestInFlight = true;
+      try {
+        const response = await api.openProject<SchematicDocument, SolveResult>(projectId);
+        if (
+          !active ||
+          !response.ok ||
+          response.data.draft.revision <= (serverRevisionRef.current ?? -1) ||
+          documentRef.current !== savedDocumentRef.current
+        ) {
+          return;
+        }
+        const remoteDocument = normalizeLoadedDocument(response.data.draft.document);
+        serverRevisionRef.current = response.data.draft.revision;
+        serverDocumentRef.current = remoteDocument;
+        documentRef.current = remoteDocument;
+        savedDocumentRef.current = remoteDocument;
+        setProject(response.data.project);
+        setProjectTitle(response.data.project.title);
+        setDocumentState(remoteDocument);
+        setSavedDocument(remoteDocument);
+        setResult(response.data.result);
+        setVersions(response.data.versions);
+        clearLocalProjectDraft(window.localStorage, projectId);
+        initialiseHistory(remoteDocument);
+        setNotice('Получены изменения общей схемы.');
+      } finally {
+        requestInFlight = false;
+      }
+    };
+    const interval = window.setInterval(() => void synchronize(), 3_000);
+    const onFocus = (): void => void synchronize();
+    window.addEventListener('focus', onFocus);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+      window.removeEventListener('focus', onFocus);
+    };
+  }, [initialiseHistory, projectId, simulationRunning, status]);
 
   const pushHistory = useCallback((next: SchematicDocument): void => {
     const state = historyRef.current;
@@ -306,6 +407,7 @@ export function useWorkbenchProjectState(projectId: string) {
         setSaveError('Не удалось определить сохранённую версию проекта.');
         return null;
       }
+      savingDocumentRef.current = nextDocument;
       setSavingDocument(nextDocument);
       try {
         const response = await api.saveDraft<SchematicDocument, SolveResult>(
@@ -318,6 +420,62 @@ export function useWorkbenchProjectState(projectId: string) {
         // screen now.
         if (projectIdRef.current !== sentForProject) return null;
         if (!response.ok) {
+          if (response.error.code === 'project_revision_conflict') {
+            const latest = await api.openProject<SchematicDocument, SolveResult>(sentForProject);
+            const baseDocument = serverDocumentRef.current;
+            if (latest.ok && baseDocument && projectIdRef.current === sentForProject) {
+              const remoteDocument = normalizeLoadedDocument(latest.data.draft.document);
+              const sentMerge = mergeElectronicsDocuments(
+                baseDocument,
+                nextDocument,
+                remoteDocument,
+              );
+              const currentDocument = documentRef.current ?? nextDocument;
+              const liveMerge = sentMerge.ok
+                ? mergeElectronicsDocuments(nextDocument, currentDocument, sentMerge.document)
+                : sentMerge;
+              if (liveMerge.ok) {
+                const mergedDocument = liveMerge.document;
+                serverRevisionRef.current = latest.data.draft.revision;
+                serverDocumentRef.current = remoteDocument;
+                savedDocumentRef.current = remoteDocument;
+                setSavedDocument(remoteDocument);
+                documentRef.current = mergedDocument;
+                setDocumentState(mergedDocument);
+                setResult(
+                  electronicsDocumentsEqual(mergedDocument, remoteDocument)
+                    ? latest.data.result
+                    : null,
+                );
+                setVersions(latest.data.versions);
+                saveFailedRef.current = false;
+                setSaveFailed(false);
+                setSaveError(null);
+                initialiseHistory(mergedDocument);
+                if (electronicsDocumentsEqual(mergedDocument, remoteDocument)) {
+                  clearLocalProjectDraft(window.localStorage, sentForProject);
+                } else {
+                  writeLocalProjectDraft(window.localStorage, {
+                    projectId: sentForProject,
+                    moduleKey: 'electronics',
+                    baseRevision: latest.data.draft.revision,
+                    baseDocument: remoteDocument,
+                    document: mergedDocument,
+                  });
+                }
+                setNotice('Параллельные независимые изменения автоматически совмещены.');
+                return null;
+              }
+            }
+            saveFailedRef.current = true;
+            setSaveFailed(true);
+            setSaveError(
+              'Один и тот же элемент схемы изменён параллельно по-разному. Локальный черновик сохранён; серверная версия не перезаписана.',
+            );
+            setNotice('Конфликт одного элемента сохранён без потери данных.');
+            return null;
+          }
+          saveFailedRef.current = true;
           setSaveFailed(true);
           setSaveError(response.error.message);
           setNotice(`Ошибка сохранения: ${response.error.message}`);
@@ -325,10 +483,12 @@ export function useWorkbenchProjectState(projectId: string) {
         }
         setSaveError(null);
         serverRevisionRef.current = response.data.draft.revision;
+        serverDocumentRef.current = nextDocument;
         setResult(response.data.result);
         // The server now holds exactly this document, and nothing more. If the
         // user edited while the request was in flight, that edit is still unsaved
         // and both the indicator and autosave have to keep treating it as such.
+        savedDocumentRef.current = nextDocument;
         setSavedDocument(nextDocument);
         if (documentRef.current === nextDocument) {
           clearLocalProjectDraft(window.localStorage, sentForProject);
@@ -337,6 +497,7 @@ export function useWorkbenchProjectState(projectId: string) {
             projectId: sentForProject,
             moduleKey: 'electronics',
             baseRevision: response.data.draft.revision,
+            baseDocument: nextDocument,
             document: documentRef.current,
           });
         }
@@ -347,10 +508,16 @@ export function useWorkbenchProjectState(projectId: string) {
         // Leaving savingDocument set would pin the indicator on 'saving' and stop
         // autosave from ever firing again. Cleared only if this save is still the
         // one in flight, so a newer request is not disturbed.
-        setSavingDocument((current) => (current === nextDocument ? null : current));
+        setSavingDocument((current) => {
+          if (current === nextDocument) {
+            savingDocumentRef.current = null;
+            return null;
+          }
+          return current;
+        });
       }
     },
-    [projectId],
+    [initialiseHistory, projectId],
   );
 
   const persist = useCallback(

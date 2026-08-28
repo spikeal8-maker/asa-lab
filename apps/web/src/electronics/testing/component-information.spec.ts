@@ -119,7 +119,8 @@ describe('component information registry', () => {
         variant.entry.description,
         variant.entry.key,
       );
-      expect(sections[0]).toMatchObject({ id: 'description', title: 'Описание' });
+      expect(sections[0]).toMatchObject({ id: 'description' });
+      expect(sections[0]?.title.length).toBeGreaterThan(0);
       expect(sections.every((section) => !/<\/?[a-z][^>]*>/i.test(section.text))).toBe(true);
     }
   });
@@ -140,13 +141,18 @@ describe('component information registry', () => {
   });
 
   it('explains the ordinary LED colour model and electrical limits without generic filler', () => {
-    const sections = componentHelpSections('led', 'Светодиод.', 'led-5mm');
+    const sections = componentHelpSections('led', 'Светодиод.', 'led-5mm', {
+      ledColour: 'blue',
+    });
     expect(sections.map((section) => section.title)).toEqual([
-      'Описание',
-      'Принцип работы',
+      'Что имитируется',
+      'Рабочая точка',
+      'Как подобрать резистор',
       'Пределы модели',
     ]);
-    expect(sections[0]?.text).toContain('цвет');
+    expect(sections[0]?.text).toContain('синий');
+    expect(sections[1]?.text).toContain('3.01 В');
+    expect(sections[2]?.text).toContain('R =');
     expect(sections.at(-1)?.text).toContain('20 мА');
     expect(sections.at(-1)?.text).toContain('120 мА');
     expect(sections.some((section) => section.title === 'Подключение')).toBe(false);

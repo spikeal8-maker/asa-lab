@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   clientToWorld,
+  diagnosticBadgeGeometry,
   freeWirePoint,
   lockOrthogonalPoint,
   magneticWirePoint,
@@ -80,6 +81,17 @@ describe('potentiometer pointer coordinates', () => {
       expect(potentiometerWiperPosition(center, point, rotation)).toBeCloseTo(0.7, 8);
     },
   );
+});
+
+describe('diagnostic badge zoom geometry', () => {
+  it.each([
+    [0.15, 7],
+    [0.5, 9],
+    [1, 18],
+    [2, 18],
+  ])('keeps a readable but non-covering diameter at zoom %s', (zoom, expectedDiameter) => {
+    expect(diagnosticBadgeGeometry(zoom).screenDiameter).toBeCloseTo(expectedDiameter, 8);
+  });
 });
 
 describe('what the canvas is allowed to move', () => {

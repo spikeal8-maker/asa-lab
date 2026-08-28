@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { ordinaryLedProfile } from '@asa-lab/electronics';
 import {
   CATEGORY_OPTIONS,
   selectedFamilyVariant,
@@ -79,7 +80,14 @@ export function WorkbenchSidebars({
     : selectedDiagnostics.some((diagnostic) => diagnostic.severity === 'warning')
       ? 'warning'
       : undefined;
-  const selectedSimulationSupported = c.selectedEntry?.simulationSupported === true;
+  const selectedLedColour =
+    c.selectedComponent?.kind === 'led'
+      ? String(c.selectedComponent.stateProperties?.['ledColour'] ?? 'red')
+      : null;
+  const selectedLedProfile = selectedLedColour ? ordinaryLedProfile(selectedLedColour) : null;
+  const selectedLedColourLabel =
+    LED_COLOUR_OPTIONS.find((option) => option.value === selectedLedColour)?.label ??
+    selectedLedColour;
   useEffect(() => {
     setHelpOpen(false);
     setStateOpen(false);
@@ -96,6 +104,7 @@ export function WorkbenchSidebars({
             c.selectedComponent!.kind,
             c.selectedEntry!.description,
             c.selectedEntry!.key,
+            selectedLedColour ? { ledColour: selectedLedColour } : undefined,
           ),
         );
       }
@@ -103,7 +112,7 @@ export function WorkbenchSidebars({
     return () => {
       active = false;
     };
-  }, [c.selectedComponent, c.selectedEntry, helpOpen]);
+  }, [c.selectedComponent, c.selectedEntry, helpOpen, selectedLedColour]);
   const informationProfile =
     c.selectedComponent && c.selectedFamily
       ? componentInformationProfile(c.selectedFamily.familyId, c.selectedComponent.kind)
@@ -362,31 +371,6 @@ export function WorkbenchSidebars({
               ) : (
                 <p>Загрузка справки…</p>
               )}
-            </div>
-          ) : null}
-
-          {stateOpen && c.selectedComponent ? (
-            <div
-              className={`workbench-component-model-status${
-                selectedSimulationSupported ? ' supported' : ' pending'
-              }`}
-              data-testid="component-simulation-status"
-            >
-              <strong>
-                {selectedSimulationSupported
-                  ? c.simulationRunning
-                    ? c.result?.status === 'solved'
-                      ? measurement
-                        ? 'Расчёт актуален'
-                        : 'Нет тока'
-                      : c.result?.status === 'unsupported'
-                        ? 'Расчёт заблокирован'
-                        : 'Расчёт не завершён'
-                    : measurement
-                      ? 'Сохранённый результат'
-                      : 'Моделирование остановлено'
-                  : 'Модель не готова'}
-              </strong>
             </div>
           ) : null}
 
@@ -897,6 +881,25 @@ export function WorkbenchSidebars({
                       <dd>{measurement.lit ? 'Активен' : 'Не активен'}</dd>
                     </div>
                   ) : null}
+                </dl>
+              ) : null}
+              {stateOpen && selectedLedProfile && selectedLedColourLabel ? (
+                <dl className="workbench-measurements" data-testid="led-reference-profile">
+                  <div>
+                    <dt>Опорный компонент</dt>
+                    <dd>Светодиод 5 мм · {selectedLedColourLabel}</dd>
+                  </div>
+                  <div>
+                    <dt>Прямое напряжение при 20 мА</dt>
+                    <dd>
+                      {(
+                        selectedLedProfile.kneeVoltage +
+                        selectedLedProfile.dynamicResistanceOhm *
+                          selectedLedProfile.nominalCurrentAmp
+                      ).toFixed(2)}{' '}
+                      В
+                    </dd>
+                  </div>
                 </dl>
               ) : null}
               {stateOpen && selectedDiagnostics.length > 0 ? (

@@ -25,6 +25,29 @@ export function potentiometerWiperPosition(
   return clamp((clamp(angle, -135, 135) + 135) / 270, 0, 1);
 }
 
+export interface DiagnosticBadgeGeometry {
+  readonly radius: number;
+  readonly fontSize: number;
+  readonly textBaseline: number;
+  readonly screenDiameter: number;
+}
+
+/**
+ * Diagnostic badges follow the circuit while zooming out, then stop shrinking
+ * at a 7 px readable floor. Above 100% they stop growing at 18 px. Returned
+ * values are SVG world units, so every component uses exactly the same rule.
+ */
+export function diagnosticBadgeGeometry(zoom: number): DiagnosticBadgeGeometry {
+  const safeZoom = Math.max(0.01, zoom);
+  const screenRadius = clamp(9 * safeZoom, 3.5, 9);
+  return {
+    radius: screenRadius / safeZoom,
+    fontSize: (screenRadius * 4) / 3 / safeZoom,
+    textBaseline: (screenRadius * 4) / 9 / safeZoom,
+    screenDiameter: screenRadius * 2,
+  };
+}
+
 export function snap(value: number, grid = 10): number {
   return Math.round(value / grid) * grid;
 }

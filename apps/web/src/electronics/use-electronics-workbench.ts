@@ -96,6 +96,41 @@ function compactWorkbench(): boolean {
   return window.matchMedia?.('(max-width: 760px)').matches ?? window.innerWidth <= 760;
 }
 
+const ELECTRONICS_VIEWPORT_PREFIX = 'asa-electronics-viewport:';
+
+export function readLocalElectronicsViewport(projectId: string): Viewport | null {
+  try {
+    const raw = window.localStorage.getItem(`${ELECTRONICS_VIEWPORT_PREFIX}${projectId}`);
+    if (!raw) return null;
+    const candidate = JSON.parse(raw) as Partial<Viewport>;
+    if (
+      !Number.isFinite(candidate.x) ||
+      !Number.isFinite(candidate.y) ||
+      !Number.isFinite(candidate.zoom)
+    ) {
+      return null;
+    }
+    return {
+      x: Number(candidate.x),
+      y: Number(candidate.y),
+      zoom: clamp(Number(candidate.zoom), MIN_ZOOM, MAX_ZOOM),
+    };
+  } catch {
+    return null;
+  }
+}
+
+function writeLocalElectronicsViewport(projectId: string, viewport: Viewport): void {
+  try {
+    window.localStorage.setItem(
+      `${ELECTRONICS_VIEWPORT_PREFIX}${projectId}`,
+      JSON.stringify(viewport),
+    );
+  } catch {
+    // A blocked/full localStorage must not disable canvas navigation.
+  }
+}
+
 export function useElectronicsWorkbench(projectId: string) {
   const projectState = useWorkbenchProjectState(projectId);
   const {
@@ -265,9 +300,7 @@ export function useElectronicsWorkbench(projectId: string) {
 
   function applyViewport(next: Viewport): void {
     setViewport(next);
-    if (document) {
-      setDocument({ ...document, viewport: next });
-    }
+    writeLocalElectronicsViewport(projectId, next);
   }
 
   /** Move the view during a drag without re-rendering the scene.
@@ -295,18 +328,14 @@ export function useElectronicsWorkbench(projectId: string) {
   }
 
   function commitViewport(next: Viewport): void {
-    if (!document) return;
-    const current = document.viewport;
-    if (current && current.x === next.x && current.y === next.y && current.zoom === next.zoom) {
-      return;
-    }
-    setDocument({ ...document, viewport: next });
+    writeLocalElectronicsViewport(projectId, next);
   }
 
   useEffect(() => {
     if (project && document && viewportProjectRef.current !== project.id) {
       viewportProjectRef.current = project.id;
-      const stored = document.viewport ?? DEFAULT_VIEWPORT;
+      const stored =
+        readLocalElectronicsViewport(project.id) ?? document.viewport ?? DEFAULT_VIEWPORT;
       // A document saved while the editor allowed a wider range would otherwise
       // reopen at a zoom the server will not accept back, and every save from
       // then on would fail for a reason the drawing does not explain.

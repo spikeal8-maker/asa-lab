@@ -186,8 +186,9 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(stageSource).toContain("'component-diagnostic-indicator'");
     expect(stageSource).toContain('!c.simulationRunning || !primaryDiagnostic');
     expect(stageSource).toContain('workbench-diagnostic-layer');
-    expect(stageSource).toContain('r={9 / c.viewport.zoom}');
-    expect(stageSource).toContain('fontSize={12 / c.viewport.zoom}');
+    expect(stageSource).toContain('diagnosticBadgeGeometry(c.viewport.zoom)');
+    expect(stageSource).toContain('r={badgeGeometry.radius}');
+    expect(stageSource).toContain('fontSize={badgeGeometry.fontSize}');
     expect(stageSource).toContain('aria-label={diagnosticText}');
     expect(stageSource).toContain('pointerEvents="all"');
     expect(stageSource).toContain("'led-burnout-explosion'");
@@ -372,8 +373,8 @@ describe('owner-reference Electronics presentation contract', () => {
       /\.workbench-inspector \.workbench-inspector-body > label\s*\{[^}]*grid-template-columns:\s*104px minmax\(0, 1fr\);/s,
     );
     expect(sidebarSource).toContain('data-testid="component-compact-properties"');
-    expect(sidebarSource).toContain('data-testid="component-simulation-status"');
-    expect(sidebarSource).toContain("'Модель не готова'");
+    expect(sidebarSource).not.toContain('data-testid="component-simulation-status"');
+    expect(sidebarSource).not.toContain("'Расчёт не завершён'");
     expect(sidebarSource).not.toContain(
       'Измерения появятся после внедрения его математической модели.',
     );

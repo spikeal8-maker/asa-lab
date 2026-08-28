@@ -26,14 +26,16 @@ describe('shared project local draft', () => {
       projectId: 'project-1',
       moduleKey: 'electronics',
       baseRevision: 7,
+      baseDocument: { schemaVersion: 3, components: [], connections: [] },
       document: { schemaVersion: 3, components: [], connections: [] },
     });
 
     expect(readLocalProjectDraft(storage, 'project-1', 'electronics')).toMatchObject({
-      schemaVersion: 1,
+      schemaVersion: 2,
       projectId: 'project-1',
       moduleKey: 'electronics',
       baseRevision: 7,
+      baseDocument: { schemaVersion: 3, components: [], connections: [] },
     });
     expect(readLocalProjectDraft(storage, 'project-1', 'chess')).toBeNull();
   });
@@ -54,5 +56,24 @@ describe('shared project local draft', () => {
     const storage = memoryStorage();
     storage.setItem('asa-project-local-draft:project-3', '{broken');
     expect(readLocalProjectDraft(storage, 'project-3', 'checkers')).toBeNull();
+  });
+
+  it('still reads schema-1 drafts created before safe three-way merge metadata existed', () => {
+    const storage = memoryStorage();
+    storage.setItem(
+      'asa-project-local-draft:project-legacy',
+      JSON.stringify({
+        schemaVersion: 1,
+        projectId: 'project-legacy',
+        moduleKey: 'electronics',
+        baseRevision: 3,
+        document: { schemaVersion: 3, components: [], connections: [] },
+        updatedAt: '2026-08-28T00:00:00.000Z',
+      }),
+    );
+    expect(readLocalProjectDraft(storage, 'project-legacy', 'electronics')).toMatchObject({
+      schemaVersion: 1,
+      baseRevision: 3,
+    });
   });
 });
