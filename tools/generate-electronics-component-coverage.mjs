@@ -14,8 +14,12 @@ export const COMPONENT_INFORMATION_TEST_PATH =
 export const BROWSER_EVIDENCE_PATH = 'e2e/electronics-simulation.spec.ts';
 export const COVERAGE_OUTPUT_PATH = 'docs/product/electronics/generated/component-coverage.json';
 
-function sha256(value) {
-  return createHash('sha256').update(value).digest('hex');
+export function canonicalTextSha256(value) {
+  // Git stores these sources with LF, while a Windows checkout may expose
+  // CRLF. Coverage is a source-identity contract, so its digest must describe
+  // the text rather than the host-specific checkout representation.
+  const canonicalText = value.replace(/\r\n?/g, '\n');
+  return createHash('sha256').update(canonicalText).digest('hex');
 }
 
 function ordinalCompare(left, right) {
@@ -134,19 +138,19 @@ export function buildElectronicsComponentCoverage() {
     schema: 'asa-lab.electronics-component-coverage.v1',
     generatedFrom: {
       catalogPath: ELECTRONICS_CATALOG_PATH,
-      catalogSha256: sha256(catalogSource),
+      catalogSha256: canonicalTextSha256(catalogSource),
       modelIdentityPath: MODEL_IDENTITY_PATH,
-      modelIdentitySha256: sha256(identitySource),
+      modelIdentitySha256: canonicalTextSha256(identitySource),
       modelRegistryPath: MODEL_REGISTRY_PATH,
-      modelRegistrySha256: sha256(modelRegistrySource),
+      modelRegistrySha256: canonicalTextSha256(modelRegistrySource),
       inspectorProfilePath: INSPECTOR_PROFILE_PATH,
-      inspectorProfileSha256: sha256(inspectorProfileSource),
+      inspectorProfileSha256: canonicalTextSha256(inspectorProfileSource),
       helpContentPath: HELP_CONTENT_PATH,
-      helpContentSha256: sha256(helpContentSource),
+      helpContentSha256: canonicalTextSha256(helpContentSource),
       componentInformationTestPath: COMPONENT_INFORMATION_TEST_PATH,
-      componentInformationTestSha256: sha256(componentInformationTestSource),
+      componentInformationTestSha256: canonicalTextSha256(componentInformationTestSource),
       browserEvidencePath: BROWSER_EVIDENCE_PATH,
-      browserEvidenceSha256: sha256(browserEvidenceSource),
+      browserEvidenceSha256: canonicalTextSha256(browserEvidenceSource),
     },
     summary: {
       total: components.length,
