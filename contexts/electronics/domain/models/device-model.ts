@@ -31,6 +31,48 @@ export interface DcStampContext {
   ): void;
 }
 
+/** Restricted matrix surface for a bounded, iterative DC device model. */
+export interface IterativeDcStampContext {
+  node(component: SchematicComponent, terminal: Terminal): number;
+  stampConductance(leftNode: number, rightNode: number, conductanceSiemens: number): void;
+  stampOffset(leftNode: number, rightNode: number, currentAmp: number): void;
+  stampVccs(
+    outputPositiveNode: number,
+    outputNegativeNode: number,
+    controlPositiveNode: number,
+    controlNegativeNode: number,
+    transconductanceSiemens: number,
+  ): void;
+}
+
+/**
+ * Nonlinear devices own their parameters, iteration state and observations.
+ * The general solver only provides matrix operations and convergence bounds.
+ */
+export interface IterativeDcDeviceModel<Parameters, IterationState, OperatingPoint, Observation> {
+  readonly id: string;
+  readonly version: number;
+  readonly analyses: readonly ['dc'];
+  validate(component: SchematicComponent): readonly ModelIssue[];
+  normalize(component: SchematicComponent): NormalizedDevice<Parameters>;
+  initialIterationState(instance: NormalizedDevice<Parameters>): IterationState;
+  stampDc(
+    context: IterativeDcStampContext,
+    instance: NormalizedDevice<Parameters>,
+    state: IterationState,
+  ): void;
+  evaluateIteration(
+    instance: NormalizedDevice<Parameters>,
+    state: IterationState,
+    operatingPoint: OperatingPoint,
+  ): { readonly state: IterationState; readonly changed: boolean };
+  observe(
+    instance: NormalizedDevice<Parameters>,
+    state: IterationState,
+    operatingPoint: OperatingPoint,
+  ): Observation;
+}
+
 export interface DcOperatingPoint {
   readonly voltageDrop: number;
   /** Current reported to the user for this component at the solved operating point. */

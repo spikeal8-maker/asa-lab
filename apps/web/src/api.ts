@@ -1000,6 +1000,11 @@ export interface ComponentResult {
   baseCurrent?: number;
   collectorCurrent?: number;
   emitterCurrent?: number;
+  currentGain?: number;
+  effectiveCurrentGain?: number;
+  earlyVoltage?: number;
+  maxCollectorCurrent?: number;
+  maxPower?: number;
   frequencyHz?: number;
   soundLevel?: number;
   speedPercent?: number;

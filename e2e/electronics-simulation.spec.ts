@@ -171,6 +171,108 @@ function diodeProfileDocument(componentTypeId: 'diode-do35' | 'diode-do41'): Sch
   };
 }
 
+function npnKeyDocument(): SchematicDocument {
+  return {
+    schemaVersion: 4,
+    components: [
+      {
+        id: 'source',
+        kind: 'source',
+        componentTypeId: 'battery-holder-aa-3',
+        variantId: 'battery-holder-aa-3',
+        name: 'Источник 4,5 В',
+        position: { x: 120, y: 300 },
+        rotation: 0,
+        value: 4.5,
+        pinIds: ['BAT-', 'BAT+'],
+        stateProperties: { cells: 3 },
+      },
+      {
+        id: 'rb',
+        kind: 'resistor',
+        componentTypeId: 'resistor-axial',
+        variantId: 'resistor-axial',
+        name: 'Rbase 100 кОм',
+        position: { x: 360, y: 180 },
+        rotation: 90,
+        value: 100_000,
+        pinIds: ['lead-1', 'lead-2'],
+        stateProperties: { tolerancePercent: 5, resistanceUnit: 'кОм' },
+      },
+      {
+        id: 'rc',
+        kind: 'resistor',
+        componentTypeId: 'resistor-axial',
+        variantId: 'resistor-axial',
+        name: 'Rcollector 470 Ом',
+        position: { x: 570, y: 180 },
+        rotation: 90,
+        value: 470,
+        pinIds: ['lead-1', 'lead-2'],
+        stateProperties: { tolerancePercent: 5, resistanceUnit: 'Ом' },
+      },
+      {
+        id: 'q1',
+        kind: 'transistor',
+        componentTypeId: 'transistor-npn',
+        variantId: 'transistor-npn',
+        name: 'NPN-транзистор',
+        position: { x: 610, y: 350 },
+        rotation: 0,
+        value: 100,
+        pinIds: ['collector', 'base', 'emitter'],
+        stateProperties: {
+          transistorType: 'npn',
+          currentGain: 100,
+          baseEmitterVoltage: 0.7,
+          saturationVoltage: 0.2,
+          earlyVoltage: 100,
+          maxCollectorCurrent: 0.2,
+        },
+      },
+    ],
+    connections: [
+      {
+        id: 'positive-base',
+        from: { componentId: 'source', terminal: 'BAT+' },
+        to: { componentId: 'rb', terminal: 'lead-1' },
+        color: '#e3212b',
+        vertices: [],
+      },
+      {
+        id: 'base-drive',
+        from: { componentId: 'rb', terminal: 'lead-2' },
+        to: { componentId: 'q1', terminal: 'base' },
+        color: '#149447',
+        vertices: [],
+      },
+      {
+        id: 'positive-collector',
+        from: { componentId: 'source', terminal: 'BAT+' },
+        to: { componentId: 'rc', terminal: 'lead-1' },
+        color: '#e3212b',
+        vertices: [],
+      },
+      {
+        id: 'collector-load',
+        from: { componentId: 'rc', terminal: 'lead-2' },
+        to: { componentId: 'q1', terminal: 'collector' },
+        color: '#149447',
+        vertices: [],
+      },
+      {
+        id: 'emitter-return',
+        from: { componentId: 'q1', terminal: 'emitter' },
+        to: { componentId: 'source', terminal: 'BAT-' },
+        color: '#2a3035',
+        vertices: [],
+      },
+    ],
+    viewport: { x: 0, y: 0, zoom: 1 },
+    simulation: { running: false, maxIterations: 24 },
+  };
+}
+
 function buttonCircuitDocument(resistorOhms: number): SchematicDocument {
   const seeded = circuitDocument({
     switchClosed: false,
@@ -942,7 +1044,7 @@ test.beforeAll(async () => {
   admin = e2eAdminPool();
 });
 
-test.beforeEach(async ({}, testInfo) => {
+test.beforeEach(async (_fixtures, testInfo) => {
   // Authentication intentionally allows ten attempts per identifier in five
   // minutes. Give each isolated journey its own isolated teacher instead of
   // weakening that production guard or making the eleventh test fail by
@@ -1034,6 +1136,26 @@ test('DO-35 exposes calculated current and fixed profile limits through I', asyn
   await expect(inspector.getByText('100 В', { exact: true })).toBeVisible();
   await expect(inspector.getByText('Ток', { exact: true })).toBeVisible();
   await expect(inspector.getByText('Прямое падение', { exact: true })).toHaveCount(0);
+  failures.assertEmpty();
+});
+
+test('NPN key exposes its calculated operating point through I', async ({ page }) => {
+  test.setTimeout(120_000);
+  const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await loginWithOrganization(page, teacher);
+  const projectId = await createProject(page, 'MATH-3 NPN key inspector');
+  await saveDocument(page, projectId, npnKeyDocument());
+  await page.goto(`/#/home/${projectId}`);
+
+  await page.getByRole('button', { name: 'Начать моделирование' }).click();
+  await component(page, 'transistor-npn').locator('.workbench-part').click();
+  const inspector = page.getByRole('complementary', { name: 'Параметры выделения' });
+  await inspector.getByRole('button', { name: /Техническое состояние/ }).click();
+  await expect(inspector.getByText('Активный режим', { exact: true })).toBeVisible();
+  await expect(inspector.getByText('Токи B / C / E', { exact: true })).toBeVisible();
+  await expect(inspector.getByText('Усиление в рабочей точке', { exact: true })).toBeVisible();
+  await expect(inspector.getByText(/Early 100 В/)).toBeVisible();
   failures.assertEmpty();
 });
 

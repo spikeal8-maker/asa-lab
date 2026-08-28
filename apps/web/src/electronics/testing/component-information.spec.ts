@@ -96,6 +96,15 @@ describe('component information registry', () => {
         (metric) => metric.metricId,
       ),
     ).toEqual(['junction-state', 'voltage-drop', 'current', 'power', 'brightness']);
+    expect(
+      readMetricBinding('operating-region', { ...measurement, operatingRegion: 'cutoff' }),
+    ).toBe('Отсечка');
+    expect(
+      readMetricBinding('operating-region', { ...measurement, operatingRegion: 'active' }),
+    ).toBe('Активный режим');
+    expect(
+      readMetricBinding('operating-region', { ...measurement, operatingRegion: 'saturation' }),
+    ).toBe('Насыщение');
   });
 
   it('keeps fixed battery voltage read-only while the regulated supply remains adjustable', () => {
@@ -165,6 +174,19 @@ describe('component information registry', () => {
     expect(battery[0]?.text).toContain('12 В');
     expect(battery.some((section) => section.text.includes('не регулируется'))).toBe(true);
     expect(battery.some((section) => section.text.includes('нагрузку по току'))).toBe(true);
+  });
+
+  it('explains the NPN key and points beginners to the calculated operating point', () => {
+    const sections = componentHelpSections('transistor', 'Транзистор.', 'transistor-npn');
+    expect(sections.map((section) => section.title)).toEqual([
+      'Что имитируется',
+      'Рабочие области',
+      'NPN как ключ',
+      'Пределы модели',
+    ]);
+    expect(sections[1]?.text).toContain('отсечке');
+    expect(sections[2]?.text).toContain('токи B/C/E');
+    expect(sections.at(-1)?.text).toContain('не блокирует расчёт');
   });
 
   it('publishes help only through a matching external approval digest', () => {

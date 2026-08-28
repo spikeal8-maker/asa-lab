@@ -378,7 +378,15 @@ export function readMetricBinding(
                               : result.junctionState === 'forward_blocking'
                                 ? 'Закрыт — прямого напряжения недостаточно'
                                 : undefined
-                    : result.operatingRegion;
+                    : result.operatingRegion === 'cutoff'
+                      ? 'Отсечка'
+                      : result.operatingRegion === 'active'
+                        ? 'Активный режим'
+                        : result.operatingRegion === 'saturation'
+                          ? 'Насыщение'
+                          : result.operatingRegion === 'ohmic'
+                            ? 'Омическая область'
+                            : undefined;
   return typeof raw === 'number' ? (Number.isFinite(raw) ? raw : null) : (raw ?? null);
 }
 

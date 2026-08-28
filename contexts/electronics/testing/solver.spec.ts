@@ -1386,12 +1386,23 @@ describe('deterministic DC solver', () => {
     });
     expect(active?.operatingRegion).toBe('active');
     expect(active?.baseCurrent ?? 0).toBeGreaterThan(0.00004);
-    expect(active?.collectorCurrent).toBeCloseTo((active?.baseCurrent ?? 0) * 100, 5);
+    expect(active?.collectorCurrent ?? 0).toBeGreaterThan((active?.baseCurrent ?? 0) * 100);
+    expect(active?.collectorCurrent).toBeCloseTo(
+      (active?.baseCurrent ?? 0) * (active?.effectiveCurrentGain ?? 0),
+      6,
+    );
+    expect(active?.effectiveCurrentGain ?? 0).toBeGreaterThan(100);
+    expect(active?.earlyVoltage).toBe(100);
     expect(active?.emitterCurrent).toBeCloseTo(
       (active?.baseCurrent ?? 0) + (active?.collectorCurrent ?? 0),
       6,
     );
     expect(active?.terminalVoltages).toMatchObject({ emitter: 0 });
+    expect(
+      (active?.terminalCurrents?.base ?? 0) +
+        (active?.terminalCurrents?.collector ?? 0) +
+        (active?.terminalCurrents?.emitter ?? 0),
+    ).toBeCloseTo(0, 8);
     expect(saturation?.operatingRegion).toBe('saturation');
     expect(saturation?.voltageDrop ?? 1).toBeGreaterThanOrEqual(0.2);
     expect(saturation?.voltageDrop ?? 1).toBeLessThan(0.25);
@@ -1434,6 +1445,10 @@ describe('deterministic DC solver', () => {
     );
     expect(reverse.diagnostics.map((item) => item.code)).toContain('transistor_reverse_bias');
     expect(overloaded.diagnostics.map((item) => item.code)).toContain('transistor_overcurrent');
+    expect(overloaded.components.find((item) => item.componentId === 'q1')).toMatchObject({
+      presentationState: 'destructive',
+      damageState: 'destructive_preview',
+    });
   });
 
   it('lights an LED at normal current and diagnoses overcurrent', () => {

@@ -8,6 +8,7 @@ import {
   type LedJunctionProfile,
   type LedLinearSegment,
 } from '../led-model.js';
+import { canonicalNpnDcProfileRegistry } from './npn-dc-model.js';
 
 export interface DiodeJunctionProfile {
   readonly forwardSegments: readonly LedLinearSegment[];
@@ -56,10 +57,11 @@ export const DIODE_JUNCTION_PROFILES: Readonly<Record<string, DiodeJunctionProfi
 /** Included in modelSetDigest so numerical profile changes cannot masquerade as the same model. */
 export function canonicalNonlinearDcProfileRegistry(): string {
   return JSON.stringify({
-    registryVersion: 1,
+    registryVersion: 2,
     diodes: DIODE_JUNCTION_PROFILES,
     ordinaryLeds: ORDINARY_LED_PROFILES,
     rgbLeds: RGB_LED_PROFILES,
+    npn: canonicalNpnDcProfileRegistry(),
   });
 }
 

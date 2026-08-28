@@ -656,6 +656,26 @@ export function WorkbenchSidebars({
                         : 'VBE 0,7 В · VCE(sat) 0,2 В'}
                     </small>
                   </div>
+                  {transistorType === 'npn' && measurement ? (
+                    <>
+                      <div className="workbench-calculated-property">
+                        <span>Токи B / C / E</span>
+                        <output>
+                          {((measurement.baseCurrent ?? 0) * 1_000).toFixed(2)} /{' '}
+                          {((measurement.collectorCurrent ?? 0) * 1_000).toFixed(2)} /{' '}
+                          {((measurement.emitterCurrent ?? 0) * 1_000).toFixed(2)} мА
+                        </output>
+                      </div>
+                      <div className="workbench-calculated-property">
+                        <span>Усиление в рабочей точке</span>
+                        <output>hFE {(measurement.effectiveCurrentGain ?? 0).toFixed(1)}</output>
+                        <small>
+                          Номинал {measurement.currentGain ?? 0} · Early{' '}
+                          {measurement.earlyVoltage ?? 0} В
+                        </small>
+                      </div>
+                    </>
+                  ) : null}
                 </fieldset>
               ) : null}
 

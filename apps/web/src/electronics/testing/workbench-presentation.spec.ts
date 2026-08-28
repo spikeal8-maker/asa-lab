@@ -256,6 +256,16 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(sidebarSource).toContain("c.selectedComponent.kind !== 'led'");
   });
 
+  it('shows the MATH-3 NPN operating point inside I without adding a stage card', () => {
+    expect(sidebarSource).toContain('Токи B / C / E');
+    expect(sidebarSource).toContain('measurement.baseCurrent');
+    expect(sidebarSource).toContain('measurement.collectorCurrent');
+    expect(sidebarSource).toContain('measurement.emitterCurrent');
+    expect(sidebarSource).toContain('measurement.effectiveCurrentGain');
+    expect(sidebarSource).toContain('measurement.earlyVoltage');
+    expect(sidebarSource).not.toContain('workbench-npn-stage-card');
+  });
+
   it('keeps the measured Circuits toolbar order and functional viewport controls', () => {
     expect(headerSource).toContain('workbench-breadboard-tools');
     expect(headerSource).toContain('workbench-wire-style');

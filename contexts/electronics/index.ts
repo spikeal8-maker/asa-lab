@@ -57,6 +57,8 @@ export {
 export type {
   DcStampContext,
   DeviceModel,
+  IterativeDcDeviceModel,
+  IterativeDcStampContext,
   ModelIssue,
   NormalizedDevice,
 } from './domain/models/device-model.js';
@@ -72,6 +74,21 @@ export {
   type ResistorParameters,
   type SourceParameters,
 } from './domain/models/linear-dc-models.js';
+export {
+  canonicalNpnDcProfileRegistry,
+  classifyNpnOperatingRegion,
+  createNpnDcDevice,
+  NPN_DC_PROFILES,
+  NPN_DEVICE_MODEL,
+  type NpnDcDevice,
+  type NpnIterationState,
+  type NpnObservation,
+  type NpnOperatingPoint,
+  type NpnOperatingRegion,
+  type NpnParameters,
+  type NpnProfile,
+  type NpnStressState,
+} from './domain/models/npn-dc-model.js';
 export {
   photoresistorIllumination,
   photoresistorResistanceOhm,

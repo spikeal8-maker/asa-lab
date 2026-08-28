@@ -17,7 +17,7 @@ import {
   validateElectricalTerminalContract,
 } from './model-registry.js';
 import { ledBrightnessPercent, type LedJunctionProfile } from './led-model.js';
-import type { DcStampContext } from './models/device-model.js';
+import type { DcStampContext, IterativeDcStampContext } from './models/device-model.js';
 import {
   createLinearDcDevice,
   isResistorDevice,
@@ -31,6 +31,13 @@ import {
   nonlinearSegmentIndex,
   type NonlinearDcBranch,
 } from './models/nonlinear-dc-models.js';
+import {
+  createNpnDcDevice,
+  NPN_DEVICE_MODEL,
+  type NpnIterationState,
+  type NpnObservation,
+  type NpnOperatingPoint,
+} from './models/npn-dc-model.js';
 
 export { sourceInternalResistanceOhm } from './models/linear-dc-models.js';
 
@@ -129,6 +136,10 @@ export interface ComponentResult {
   readonly collectorCurrent?: number;
   readonly emitterCurrent?: number;
   readonly currentGain?: number;
+  readonly effectiveCurrentGain?: number;
+  readonly earlyVoltage?: number;
+  readonly maxCollectorCurrent?: number;
+  readonly maxPower?: number;
   readonly frequencyHz?: number;
   readonly soundLevel?: number;
   readonly speedPercent?: number;
@@ -244,6 +255,26 @@ interface FetTransistorModel {
 
 type TransistorModel = BjtTransistorModel | FetTransistorModel;
 
+interface TransistorOperatingResult {
+  readonly operatingRegion: TransistorOperatingRegion;
+  readonly baseEmitterDrop: number;
+  readonly collectorEmitterDrop: number;
+  readonly baseCurrent: number;
+  readonly collectorCurrent: number;
+  readonly emitterCurrent: number;
+  readonly currentGain: number;
+  readonly maxCollectorCurrent: number;
+  readonly power?: number;
+  readonly effectiveCurrentGain?: number;
+  readonly earlyVoltage?: number;
+  readonly maxPower?: number;
+  readonly currentUtilizationPercent?: number;
+  readonly powerUtilizationPercent?: number;
+  readonly stressState?: NpnObservation['stressState'];
+  readonly terminalCurrents?: NpnObservation['terminalCurrents'];
+  readonly diagnostics?: NpnObservation['diagnostics'];
+}
+
 function boundedProperty(
   component: SchematicComponent,
   key: string,
@@ -267,6 +298,9 @@ export function transistorTypeOf(component: SchematicComponent): TransistorType 
 function transistorModel(component: SchematicComponent): TransistorModel | null {
   if (component.kind !== 'transistor') return null;
   const transistorType = transistorTypeOf(component);
+  // MATH-3 NPN devices use NPN_DEVICE_MODEL below. PNP and FET stay on their
+  // legacy paths until their separately accepted MATH-7 slices reach parity.
+  if (transistorType === 'npn') return null;
   if (transistorType === 'fet') {
     return {
       transistorType,
@@ -440,7 +474,11 @@ function propertyError(component: SchematicComponent): string | null {
   if ((component.kind === 'led' || component.kind === 'diode') && component.value <= 0)
     return 'Прямое падение напряжения должно быть больше нуля.';
   if (component.kind === 'transistor') {
-    if (transistorTypeOf(component) === 'fet') {
+    const transistorType = transistorTypeOf(component);
+    if (transistorType === 'npn') {
+      return NPN_DEVICE_MODEL.validate(component)[0]?.message ?? null;
+    }
+    if (transistorType === 'fet') {
       const thresholdVoltage = Number(
         component.stateProperties?.['thresholdVoltage'] ?? FET_DEFAULT_THRESHOLD_VOLTAGE,
       );
@@ -515,6 +553,10 @@ export function solveCircuit(
   const netlist = buildNetlist(document);
   const linearDcDevices = document.components.flatMap((component) => {
     const device = createLinearDcDevice(component);
+    return device ? [device] : [];
+  });
+  const npnDcDevices = document.components.flatMap((component) => {
+    const device = createNpnDcDevice(component);
     return device ? [device] : [];
   });
   const sourceDevices = linearDcDevices.filter(isSourceDevice);
@@ -672,6 +714,12 @@ export function solveCircuit(
   });
   const transistorRegions = new Map<string, TransistorOperatingRegion>();
   const fetOverdrives = new Map<string, number>();
+  const npnIterationStates = new Map<string, NpnIterationState>(
+    npnDcDevices.map((device) => [
+      device.instance.componentId,
+      device.model.initialIterationState(device.instance),
+    ]),
+  );
   // Start nonlinear junctions open. A real forward voltage discovered by the
   // first linear solve turns them on; an isolated LED must not create its own
   // artificial voltage across otherwise floating terminals.
@@ -757,6 +805,14 @@ export function solveCircuit(
         rhs[row] = voltage;
       },
     };
+    const iterativeStampContext: IterativeDcStampContext = {
+      node(component, terminal) {
+        return physicalNodeIndex(component, terminal);
+      },
+      stampConductance,
+      stampOffset,
+      stampVccs,
+    };
 
     for (const variable of nodeVariables.values()) matrix[variable]![variable] += GMIN;
     for (const branch of arduinoBranches) {
@@ -817,6 +873,15 @@ export function solveCircuit(
       } else {
         stampConductance(anode, cathode, GMIN);
       }
+    }
+
+    for (const device of npnDcDevices) {
+      device.model.stampDc(
+        iterativeStampContext,
+        device.instance,
+        npnIterationStates.get(device.instance.componentId) ??
+          device.model.initialIterationState(device.instance),
+      );
     }
 
     for (const transistor of transistorModels) {
@@ -913,6 +978,26 @@ export function solveCircuit(
         diodeSegmentIndices.set(key, nextSegmentIndex);
         changed = true;
       }
+    }
+    for (const device of npnDcDevices) {
+      const component = device.instance.component;
+      const previous =
+        npnIterationStates.get(device.instance.componentId) ??
+        device.model.initialIterationState(device.instance);
+      const operatingPoint: NpnOperatingPoint = {
+        baseEmitterDropVolt:
+          voltageFrom(solution, physicalNodeIndex(component, device.instance.parameters.base)) -
+          voltageFrom(solution, physicalNodeIndex(component, device.instance.parameters.emitter)),
+        collectorEmitterDropVolt:
+          voltageFrom(
+            solution,
+            physicalNodeIndex(component, device.instance.parameters.collector),
+          ) -
+          voltageFrom(solution, physicalNodeIndex(component, device.instance.parameters.emitter)),
+      };
+      const evaluated = device.model.evaluateIteration(device.instance, previous, operatingPoint);
+      npnIterationStates.set(device.instance.componentId, evaluated.state);
+      if (evaluated.changed) changed = true;
     }
     for (const transistor of transistorModels) {
       const currentRegion = transistorRegions.get(transistor.component.id) ?? 'cutoff';
@@ -1058,7 +1143,45 @@ export function solveCircuit(
         : 0,
     };
   };
-  const transistorResultById = new Map(
+  const npnResultById = new Map<string, TransistorOperatingResult>(
+    npnDcDevices.map((device) => {
+      const component = device.instance.component;
+      const state =
+        npnIterationStates.get(device.instance.componentId) ??
+        device.model.initialIterationState(device.instance);
+      const observation = device.model.observe(device.instance, state, {
+        baseEmitterDropVolt:
+          physicalVoltageAt(component, device.instance.parameters.base) -
+          physicalVoltageAt(component, device.instance.parameters.emitter),
+        collectorEmitterDropVolt:
+          physicalVoltageAt(component, device.instance.parameters.collector) -
+          physicalVoltageAt(component, device.instance.parameters.emitter),
+      });
+      return [
+        device.instance.componentId,
+        {
+          operatingRegion: observation.operatingRegion,
+          baseEmitterDrop: observation.baseEmitterDropVolt,
+          collectorEmitterDrop: observation.collectorEmitterDropVolt,
+          baseCurrent: observation.baseCurrentAmp,
+          collectorCurrent: observation.collectorCurrentAmp,
+          emitterCurrent: observation.emitterCurrentAmp,
+          currentGain: observation.nominalCurrentGain,
+          maxCollectorCurrent: observation.maxCollectorCurrentAmp,
+          power: observation.powerWatt,
+          effectiveCurrentGain: observation.effectiveCurrentGain,
+          earlyVoltage: observation.earlyVoltageVolt,
+          maxPower: observation.maxPowerWatt,
+          currentUtilizationPercent: observation.currentUtilizationPercent,
+          powerUtilizationPercent: observation.powerUtilizationPercent,
+          stressState: observation.stressState,
+          terminalCurrents: observation.terminalCurrents,
+          diagnostics: observation.diagnostics,
+        },
+      ] as const;
+    }),
+  );
+  const transistorResultById = new Map<string, TransistorOperatingResult>(
     transistorModels.map((transistor) => {
       const operatingRegion = transistorRegions.get(transistor.component.id) ?? 'cutoff';
       if (transistor.transistorType === 'fet') {
@@ -1153,7 +1276,8 @@ export function solveCircuit(
           physicalVoltageAt(component, branch.ground),
         current: currentDeliveredByArduinoBranch(branch),
       }));
-      const transistorResult = transistorResultById.get(component.id);
+      const transistorResult =
+        npnResultById.get(component.id) ?? transistorResultById.get(component.id);
       const voltageDrop =
         transistorResult?.collectorEmitterDrop ??
         branchResults[0]?.voltageDrop ??
@@ -1198,6 +1322,7 @@ export function solveCircuit(
         current = branchResults.reduce((sum, branch) => sum + branch.current, 0);
       const power =
         linearDcObservation?.power ??
+        transistorResult?.power ??
         Math.abs(
           isArduinoUno(component)
             ? arduinoBranchResults.reduce(
@@ -1248,16 +1373,18 @@ export function solveCircuit(
         component.kind === 'lamp'
           ? Math.min(100, Math.pow(power / LAMP_NOMINAL_POWER_W, 0.55) * 100)
           : Math.max(0, ...Object.values(branchBrightness));
-      const powerUtilizationPercent = linearDcObservation?.powerUtilizationPercent;
+      const powerUtilizationPercent =
+        linearDcObservation?.powerUtilizationPercent ?? transistorResult?.powerUtilizationPercent;
       const currentUtilizationPercent =
-        branches.length > 0
+        transistorResult?.currentUtilizationPercent ??
+        (branches.length > 0
           ? Math.max(
               0,
               ...branchResults.map(({ branch, current: branchCurrent }) =>
                 Math.abs((branchCurrent / branch.nominalCurrentAmp) * 100),
               ),
             )
-          : undefined;
+          : undefined);
       const sourceCurrentUtilizationPercent = linearDcObservation?.currentUtilizationPercent;
       const reverseBreakdown = branchResults.some(
         ({ branch, voltageDrop: branchVoltageDrop }) =>
@@ -1265,6 +1392,7 @@ export function solveCircuit(
       );
       const stressState =
         linearDcObservation?.stressState ??
+        transistorResult?.stressState ??
         (branches.length === 0
           ? undefined
           : reverseBreakdown ||
@@ -1331,7 +1459,16 @@ export function solveCircuit(
                     voltageConstraintResidual: round(linearDcObservation.voltageConstraintResidual),
                   }),
             }
-          : {}),
+          : transistorResult?.terminalCurrents
+            ? {
+                terminalCurrents: Object.fromEntries(
+                  Object.entries(transistorResult.terminalCurrents).map(([terminal, value]) => [
+                    terminal,
+                    roundCurrent(value),
+                  ]),
+                ),
+              }
+            : {}),
         power: round(power),
         brightness: round(brightness, 2),
         ...(branches.length > 0 || transistorResult || isArduinoUno(component)
@@ -1432,6 +1569,16 @@ export function solveCircuit(
               collectorCurrent: roundCurrent(transistorResult.collectorCurrent),
               emitterCurrent: roundCurrent(transistorResult.emitterCurrent),
               currentGain: round(transistorResult.currentGain, 2),
+              ...(transistorResult.effectiveCurrentGain === undefined
+                ? {}
+                : { effectiveCurrentGain: round(transistorResult.effectiveCurrentGain, 2) }),
+              ...(transistorResult.earlyVoltage === undefined
+                ? {}
+                : { earlyVoltage: round(transistorResult.earlyVoltage, 2) }),
+              maxCollectorCurrent: roundCurrent(transistorResult.maxCollectorCurrent),
+              ...(transistorResult.maxPower === undefined
+                ? {}
+                : { maxPower: round(transistorResult.maxPower) }),
             }
           : {}),
       };
@@ -1440,6 +1587,15 @@ export function solveCircuit(
   for (const [componentId, observation] of linearDcObservationById) {
     diagnostics.push(
       ...observation.diagnostics.map((diagnostic) => ({
+        ...diagnostic,
+        code: diagnostic.code as DiagnosticCode,
+        componentIds: [componentId],
+      })),
+    );
+  }
+  for (const [componentId, observation] of npnResultById) {
+    diagnostics.push(
+      ...(observation.diagnostics ?? []).map((diagnostic) => ({
         ...diagnostic,
         code: diagnostic.code as DiagnosticCode,
         componentIds: [componentId],
