@@ -26,8 +26,8 @@ describe('shared editor persistence presentation', () => {
       detail: 'Изменения проекта сохранены.',
     });
     expect(editorPersistencePresentation('error', 'conflict')).toEqual({
-      label: 'Только на устройстве',
-      detail: 'Работа не потеряна, но пока не синхронизирована с общей версией.',
+      label: 'Не удалось сохранить',
+      detail: 'Изменения не потеряны. Попробуем сохранить их снова.',
     });
     expect(editorPersistencePresentation('error', 'offline').label).toBe('Нет связи');
     expect(editorPersistencePresentation('error', 'auth').label).toBe('Нужно войти');

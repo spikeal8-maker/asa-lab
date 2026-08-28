@@ -151,7 +151,7 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(headerSource).toContain('formatSimulationTime(simulationElapsedSeconds)');
     expect(headerSource).toContain('<EditorPersistenceIndicator');
     expect(persistenceIndicatorSource).toContain("label: 'Сохранено'");
-    expect(persistenceIndicatorSource).toContain("label: 'Только на устройстве'");
+    expect(persistenceIndicatorSource).toContain("label: 'Не удалось сохранить'");
     expect(persistenceIndicatorSource).toContain('pendingDelayMs: 900');
     expect(headerSource).not.toContain('Серверная версия изменилась');
     expect(projectStateSource).not.toContain('Серверная версия изменилась');
