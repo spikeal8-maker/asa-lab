@@ -239,7 +239,7 @@ export function useWorkbenchProjectState(projectId: string) {
         : null;
     const localMatchesServer =
       localDocument !== null && electronicsDocumentsEqual(localDocument, serverDocument);
-    let restored = localDocument !== null && !localMatchesServer;
+    const restored = localDocument !== null && !localMatchesServer;
     let revisionConflict = false;
     let mergedLocalDraft = false;
     let nextDocument = restored ? (localDocument as SchematicDocument) : serverDocument;
