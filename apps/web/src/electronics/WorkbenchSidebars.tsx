@@ -857,22 +857,33 @@ export function WorkbenchSidebars({
                       <dd>{measurement.internalPower.toFixed(3)} Вт</dd>
                     </div>
                   ) : null}
-                  {c.selectedComponent.kind === 'diode' &&
+                  {(c.selectedComponent.kind === 'diode' || c.selectedComponent.kind === 'led') &&
                   measurement.reverseVoltageLimitVolt !== undefined ? (
                     <>
                       <div>
-                        <dt>Длительный ток</dt>
+                        <dt>
+                          {c.selectedComponent.kind === 'led'
+                            ? 'Номинальный ток'
+                            : 'Длительный ток'}
+                        </dt>
                         <dd>
                           {((measurement.continuousCurrentLimitAmp ?? 0) * 1000).toFixed(0)} мА
                         </dd>
                       </div>
+                      {c.selectedComponent.kind === 'led' &&
+                      measurement.destructiveCurrentLimitAmp !== undefined ? (
+                        <div>
+                          <dt>Разрушительный ток</dt>
+                          <dd>{(measurement.destructiveCurrentLimitAmp * 1000).toFixed(0)} мА</dd>
+                        </div>
+                      ) : null}
                       <div>
                         <dt>Допустимое обратное напряжение</dt>
                         <dd>{(measurement.reverseVoltageLimitVolt ?? 0).toFixed(0)} В</dd>
                       </div>
                     </>
                   ) : null}
-                  {measurement.lit !== undefined ? (
+                  {measurement.lit !== undefined && c.selectedComponent.kind !== 'led' ? (
                     <div>
                       <dt>Состояние</dt>
                       <dd>{measurement.lit ? 'Активен' : 'Не активен'}</dd>

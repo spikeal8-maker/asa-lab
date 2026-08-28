@@ -224,6 +224,14 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(sidebarSource).toContain('technicalMetrics.map');
   });
 
+  it('shows the calculated ordinary LED state and fixed limits inside I', () => {
+    expect(sidebarSource).toContain("c.selectedComponent.kind === 'led'");
+    expect(sidebarSource).toContain('Номинальный ток');
+    expect(sidebarSource).toContain('Разрушительный ток');
+    expect(sidebarSource).toContain('measurement.destructiveCurrentLimitAmp');
+    expect(sidebarSource).toContain("c.selectedComponent.kind !== 'led'");
+  });
+
   it('keeps the measured Circuits toolbar order and functional viewport controls', () => {
     expect(headerSource).toContain('workbench-breadboard-tools');
     expect(headerSource).toContain('workbench-wire-style');

@@ -974,6 +974,7 @@ export interface ComponentResult {
   branchCurrents?: Record<string, number>;
   branchBrightness?: Record<string, number>;
   continuousCurrentLimitAmp?: number;
+  destructiveCurrentLimitAmp?: number;
   reverseVoltageLimitVolt?: number;
   junctionState?: 'conducting' | 'forward_blocking' | 'reverse_blocking' | 'reverse_breakdown';
   lit?: boolean;

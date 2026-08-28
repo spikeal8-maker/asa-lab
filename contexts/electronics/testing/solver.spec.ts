@@ -1419,6 +1419,10 @@ describe('deterministic DC solver', () => {
       result.components.find((item) => item.componentId === 'led');
 
     expect(ledResult(safe)).toMatchObject({
+      junctionState: 'conducting',
+      continuousCurrentLimitAmp: 0.02,
+      destructiveCurrentLimitAmp: 0.12,
+      reverseVoltageLimitVolt: 5,
       stressState: 'normal',
       deviceHealth: 'normal',
       damageState: 'none',
@@ -1627,8 +1631,9 @@ describe('deterministic DC solver', () => {
     expect(reverse.components.find((item) => item.componentId === 'led')).toMatchObject({
       lit: false,
       brightness: 0,
+      junctionState: 'reverse_blocking',
     });
-    expect(reverse.diagnostics.map((item) => item.code)).toContain('reverse_polarity');
+    expect(reverse.diagnostics.map((item) => item.code)).not.toContain('reverse_polarity');
   });
 
   it.each([

@@ -100,8 +100,9 @@ export interface ComponentResult {
   readonly branchCurrents?: Readonly<Record<string, number>>;
   readonly branchBrightness?: Readonly<Record<string, number>>;
   readonly continuousCurrentLimitAmp?: number;
+  readonly destructiveCurrentLimitAmp?: number;
   readonly reverseVoltageLimitVolt?: number;
-  /** Calculated DC junction state for an ordinary diode. */
+  /** Calculated DC junction state for an ordinary diode or two-terminal LED. */
   readonly junctionState?:
     'conducting' | 'forward_blocking' | 'reverse_blocking' | 'reverse_breakdown';
   readonly lit?: boolean;
@@ -1342,8 +1343,9 @@ export function solveCircuit(
         ...(branches.length === 1
           ? {
               continuousCurrentLimitAmp: branches[0]!.nominalCurrentAmp,
+              destructiveCurrentLimitAmp: branches[0]!.destructiveCurrentAmp,
               reverseVoltageLimitVolt: branches[0]!.repetitivePeakReverseVoltage,
-              ...(component.kind === 'diode'
+              ...(component.kind === 'diode' || component.kind === 'led'
                 ? {
                     junctionState: reverseBreakdown
                       ? ('reverse_breakdown' as const)
@@ -1457,20 +1459,13 @@ export function solveCircuit(
       const cathodeVoltage = result?.terminalVoltages[branch.cathode] ?? 0;
       return anodeVoltage - cathodeVoltage < -0.05;
     });
-    if (reverseBranches.length > 0 && component.kind !== 'diode') {
-      const isTwoTerminalDiode = component.kind === 'led';
+    if (reverseBranches.length > 0 && component.kind !== 'diode' && component.kind !== 'led') {
       diagnostics.push({
         code: 'reverse_polarity',
         severity: 'warning',
-        message: `${component.name ?? component.id}: обратная полярность${
-          isTwoTerminalDiode
-            ? ' — анод подключён к минусу, катод к плюсу.'
-            : ` ${reverseBranches.map((branch) => branch.id).join(', ')}.`
-        }`,
+        message: `${component.name ?? component.id}: обратная полярность ${reverseBranches.map((branch) => branch.id).join(', ')}.`,
         componentIds: [component.id],
-        suggestedAction: isTwoTerminalDiode
-          ? 'Подключите BAT+ к аноду, BAT− к катоду.'
-          : 'Проверьте анод, катод и общий вывод.',
+        suggestedAction: 'Проверьте анод, катод и общий вывод.',
       });
     }
     if (component.kind === 'diode') {

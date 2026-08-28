@@ -1549,16 +1549,6 @@ export function useElectronicsWorkbench(projectId: string) {
   const diagnosticsByComponent = useMemo(() => {
     return diagnosticsGroupedByComponent(result?.diagnostics ?? []);
   }, [result]);
-  const diagnosticCodesByComponent = useMemo(
-    () =>
-      new Map(
-        [...diagnosticsByComponent.entries()].map(([componentId, diagnostics]) => [
-          componentId,
-          new Set(diagnostics.map((diagnostic) => diagnostic.code)),
-        ]),
-      ),
-    [diagnosticsByComponent],
-  );
   const errorDiagnosticComponentIds = useMemo(() => {
     const ids = new Set<string>();
     for (const [componentId, diagnostics] of diagnosticsByComponent) {
@@ -1577,8 +1567,8 @@ export function useElectronicsWorkbench(projectId: string) {
     }
     if ((component.kind !== 'led' && component.kind !== 'rgb-led') || !simulationRunning)
       return 'default';
-    const codes = diagnosticCodesByComponent.get(component.id);
-    const calculatedState = resultByComponent.get(component.id)?.presentationState;
+    const componentResult = resultByComponent.get(component.id);
+    const calculatedState = componentResult?.presentationState;
     if (component.kind === 'rgb-led') {
       if (calculatedState === 'failed') return 'burned';
       if (calculatedState === 'destructive') {
@@ -1588,7 +1578,7 @@ export function useElectronicsWorkbench(projectId: string) {
       }
       return resultByComponent.get(component.id)?.lit ? 'lit' : 'off';
     }
-    if (codes?.has('reverse_polarity')) return 'reverse';
+    if (componentResult?.junctionState === 'reverse_blocking') return 'reverse';
     if (calculatedState === 'failed') return 'burned';
     if (calculatedState === 'destructive') {
       return resultByComponent.get(component.id)?.stressState === 'burned'
@@ -1705,7 +1695,6 @@ export function useElectronicsWorkbench(projectId: string) {
     terminalConnectionCount,
     terminalConnectionLabel,
     diagnosticsByComponent,
-    diagnosticCodesByComponent,
     errorDiagnosticComponentIds,
     componentVisualState,
     componentLedBrightness,

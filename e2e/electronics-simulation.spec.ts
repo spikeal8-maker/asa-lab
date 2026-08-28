@@ -940,11 +940,27 @@ async function unobstructedComponentPoint(
 test.beforeAll(async () => {
   mkdirSync(ARTIFACT_DIR, { recursive: true });
   admin = e2eAdminPool();
-  teacher = await seedTeacher(admin, 'e2e-electronics-r4-m1-live');
+});
+
+test.beforeEach(async ({}, testInfo) => {
+  // Authentication intentionally allows ten attempts per identifier in five
+  // minutes. Give each isolated journey its own isolated teacher instead of
+  // weakening that production guard or making the eleventh test fail by
+  // construction.
+  teacher = await seedTeacher(admin, `e2e-electronics-${testInfo.workerIndex}-${testInfo.retry}`);
 });
 
 test.afterAll(async () => {
   await admin.end();
+});
+
+test.afterEach(async ({ page }) => {
+  // Every Playwright test gets an isolated browser context. End its server
+  // session as well, otherwise the eleventh journey reaches the account's
+  // active-session limit even though the ten earlier browser contexts are
+  // already gone.
+  const origin = new URL(page.url()).origin;
+  await page.context().request.post('/api/auth/logout', { headers: { origin } });
 });
 
 test('component inspector separates compact settings, live state and educational help', async ({
@@ -1263,7 +1279,7 @@ test('real editor recalculates SPDT, resistor and LED without waiting for persis
   await expect(page.getByRole('button', { name: 'Остановить моделирование' })).toBeVisible();
   await selectLed(page);
   await expect.poll(() => brightnessValue(page)).toBe(0);
-  await expect(led).toHaveAttribute('data-diagnostics', /reverse_polarity/);
+  await expect(led).not.toHaveAttribute('data-diagnostics', /reverse_polarity/);
   await expect(led.locator('image:not([filter])')).toHaveAttribute(
     'href',
     /special\/led_red_reverse_polarity\.svg$/,
@@ -1271,12 +1287,29 @@ test('real editor recalculates SPDT, resistor and LED without waiting for persis
   await expect(led.locator('.workbench-production-visual')).toHaveClass(/is-reverse/);
   await expect(diagnostic(page, 'led-5mm', 'led-diagnostic-badge')).toHaveCount(0);
   await expect(diagnostic(page, 'led-5mm', 'led-burnout-explosion')).toHaveCount(0);
+  await page.getByRole('button', { name: /Техническое состояние.*Светодиод/i }).click();
+  await expect(ledInspector.getByText('Закрыт — обратное включение')).toBeVisible();
+  await expect(ledInspector.getByText('Номинальный ток')).toBeVisible();
+  await expect(ledInspector.getByText('20 мА', { exact: true })).toBeVisible();
+  await expect(ledInspector.getByText('Разрушительный ток')).toBeVisible();
+  await expect(ledInspector.getByText('120 мА', { exact: true })).toBeVisible();
+  await expect(ledInspector.getByText('Допустимое обратное напряжение')).toBeVisible();
+  await expect(ledInspector.getByText('5 В', { exact: true })).toBeVisible();
   await page.screenshot({
     path: `${ARTIFACT_DIR}/electronics-reverse-polarity.png`,
     fullPage: true,
   });
 
   await page.getByRole('button', { name: 'Остановить моделирование' }).click();
+  await expect(led.locator('.workbench-production-visual')).toHaveAttribute(
+    'data-led-runtime-state',
+    'stopped',
+  );
+  await expect(led.locator('image:not([filter])')).not.toHaveAttribute(
+    'href',
+    /special\/led_red_burned\.svg$/,
+  );
+  await expect(diagnostic(page, 'led-5mm', 'led-burnout-explosion')).toHaveCount(0);
   await page.goto('/#/projects');
   await page.evaluate((id) => localStorage.removeItem(`asa-project-local-draft:${id}`), projectId);
   await saveDocument(

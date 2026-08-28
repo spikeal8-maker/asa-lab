@@ -77,6 +77,25 @@ describe('component information registry', () => {
     expect(
       readMetricBinding('junction-state', { ...measurement, junctionState: 'reverse_blocking' }),
     ).toBe('Закрыт — обратное включение');
+    expect(
+      readMetricBinding('junction-state', {
+        ...measurement,
+        junctionState: 'conducting',
+        lit: true,
+      }),
+    ).toBe('Открыт — светится');
+    expect(
+      readMetricBinding('junction-state', {
+        ...measurement,
+        junctionState: 'conducting',
+        stressState: 'burned',
+      }),
+    ).toBe('Разрушительный режим');
+    expect(
+      componentInformationProfile('ordinary-led', 'led').technicalMetrics.map(
+        (metric) => metric.metricId,
+      ),
+    ).toEqual(['junction-state', 'voltage-drop', 'current', 'power', 'brightness']);
   });
 
   it('provides structured help for every component kind without HTML', () => {
@@ -105,6 +124,19 @@ describe('component information registry', () => {
     expect(do35.some((section) => section.title === 'Подключение')).toBe(false);
     expect(do35.at(-1)?.text).toContain('200 мА');
     expect(do41.at(-1)?.text).toContain('1 А');
+  });
+
+  it('explains the ordinary LED colour model and electrical limits without generic filler', () => {
+    const sections = componentHelpSections('led', 'Светодиод.', 'led-5mm');
+    expect(sections.map((section) => section.title)).toEqual([
+      'Описание',
+      'Принцип работы',
+      'Пределы модели',
+    ]);
+    expect(sections[0]?.text).toContain('цвет');
+    expect(sections.at(-1)?.text).toContain('20 мА');
+    expect(sections.at(-1)?.text).toContain('120 мА');
+    expect(sections.some((section) => section.title === 'Подключение')).toBe(false);
   });
 
   it('publishes help only through a matching external approval digest', () => {

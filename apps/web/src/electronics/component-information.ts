@@ -232,7 +232,13 @@ const PROFILE_BY_KIND: Readonly<
   },
   led: {
     compactFields: [NAME_FIELD, LED_COLOUR_FIELD],
-    technicalMetrics: [METRICS.voltage, METRICS.current, METRICS.power, METRICS.brightness],
+    technicalMetrics: [
+      METRICS.junctionState,
+      METRICS.voltage,
+      METRICS.current,
+      METRICS.power,
+      METRICS.brightness,
+    ],
     terminalPresentation: 'full',
   },
   'rgb-led': {
@@ -347,15 +353,21 @@ export function readMetricBinding(
                       ? 'Принимает обратный ток'
                       : 'Без нагрузки'
                   : bindingId === 'junction-state'
-                    ? result.junctionState === 'conducting'
-                      ? 'Открыт — проводит ток'
-                      : result.junctionState === 'reverse_blocking'
-                        ? 'Закрыт — обратное включение'
-                        : result.junctionState === 'reverse_breakdown'
-                          ? 'Пробой — превышен обратный предел'
-                          : result.junctionState === 'forward_blocking'
-                            ? 'Закрыт — прямого напряжения недостаточно'
-                            : undefined
+                    ? result.stressState === 'burned'
+                      ? 'Разрушительный режим'
+                      : result.stressState === 'overcurrent'
+                        ? 'Перегрузка по току'
+                        : result.junctionState === 'conducting'
+                          ? result.lit === true
+                            ? 'Открыт — светится'
+                            : 'Открыт — проводит ток'
+                          : result.junctionState === 'reverse_blocking'
+                            ? 'Закрыт — обратное включение'
+                            : result.junctionState === 'reverse_breakdown'
+                              ? 'Пробой — превышен обратный предел'
+                              : result.junctionState === 'forward_blocking'
+                                ? 'Закрыт — прямого напряжения недостаточно'
+                                : undefined
                     : result.operatingRegion;
   return typeof raw === 'number' ? (Number.isFinite(raw) ? raw : null) : (raw ?? null);
 }

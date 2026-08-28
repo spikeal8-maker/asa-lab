@@ -8,13 +8,13 @@
     "modelRegistryPath": "contexts/electronics/domain/model-registry.ts",
     "modelRegistrySha256": "29f71207a3006e70550aaf59d5c5b2e1fdb66cc2a04b3c863a710cc6640de27e",
     "inspectorProfilePath": "apps/web/src/electronics/component-information.ts",
-    "inspectorProfileSha256": "e8bfd8e5d2b95339381602bedb4d50139be5af957940688fb771c18ad3deba4c",
+    "inspectorProfileSha256": "3abd938e28389ce5cf83fa2230780500b428c9ab78f165e01ae7acf8b1cdc395",
     "helpContentPath": "apps/web/src/electronics/component-help-content.ts",
-    "helpContentSha256": "997176a1696c0c9786b29905d2cff9d79812ce8c360cd1ab4530610a90c5fd03",
+    "helpContentSha256": "f47b07aa0e65ae7749927a05f722a55e0a63e4eea2aed957b5ae1798890d9e57",
     "componentInformationTestPath": "apps/web/src/electronics/testing/component-information.spec.ts",
-    "componentInformationTestSha256": "512417afc1a549baa13069f40d06adff77381d867477fa795705463baa1f8cf8",
+    "componentInformationTestSha256": "b1b276b5d595efe3dca9e57196dffc9a6219b9a20544920f103f7fdbbee67824",
     "browserEvidencePath": "e2e/electronics-simulation.spec.ts",
-    "browserEvidenceSha256": "86dfa9256a00e59425fadf27604b42ea7cd0f9f63e13614e11af30f40423e0ac"
+    "browserEvidenceSha256": "3627fc6d2f062bd49d83b83471d1c510bf365671bafdbe664f2881d4dc85245b"
   },
   "summary": {
     "total": 43,
