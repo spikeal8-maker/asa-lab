@@ -163,6 +163,22 @@ export function ordinaryLedAsset(state: OrdinaryLedState): string {
   ).padStart(3, '0')}.svg`;
 }
 
+const warmedProductionAssets = new Set<string>();
+
+/**
+ * Warms one exact owner asset in the browser cache. LED state changes use
+ * separate owner SVGs, so decoding the already calculated next state before
+ * Start prevents network latency from looking like solver latency.
+ */
+export function warmProductionAsset(asset: string): void {
+  if (typeof window === 'undefined' || warmedProductionAssets.has(asset)) return;
+  warmedProductionAssets.add(asset);
+  const image = new window.Image();
+  image.decoding = 'async';
+  image.onerror = () => warmedProductionAssets.delete(asset);
+  image.src = asset;
+}
+
 export function rgbLedState(
   red: number,
   green: number,

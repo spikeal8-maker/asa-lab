@@ -17,6 +17,7 @@ import {
   familySearchText,
   renderedSize,
   selectedFamilyVariant,
+  visualAsset,
   workbenchCatalog,
   type ComponentCategory,
   type ComponentVisualState,
@@ -84,7 +85,8 @@ import {
   type TerminalRef,
   type VertexDrag,
 } from './workbench-model';
-import { calculateLiveSimulation } from './live-simulation';
+import { calculateLiveSimulation, calculateSimulationPreflight } from './live-simulation';
+import { warmProductionAsset } from './production-asset-contracts';
 import { unlockPiezoAudio, usePiezoAudio } from './use-piezo-audio';
 
 function terminalRefKey(componentId: string, terminal: Terminal): string {
@@ -97,6 +99,15 @@ function compactWorkbench(): boolean {
 }
 
 const ELECTRONICS_VIEWPORT_PREFIX = 'asa-electronics-viewport:';
+
+function ordinaryLedVisualState(result: ComponentResult | undefined): ComponentVisualState {
+  if (result?.junctionState === 'reverse_blocking') return 'reverse';
+  if (result?.presentationState === 'failed') return 'burned';
+  if (result?.presentationState === 'destructive') {
+    return result.stressState === 'burned' ? 'burned' : 'overcurrent';
+  }
+  return result?.lit ? 'lit' : 'off';
+}
 
 export function readLocalElectronicsViewport(projectId: string): Viewport | null {
   try {
@@ -190,6 +201,36 @@ export function useElectronicsWorkbench(projectId: string) {
     [document, persistedResult, simulationRunning, simulationTimeMs],
   );
   usePiezoAudio(document, result, simulationRunning);
+
+  useEffect(() => {
+    if (!document || simulationRunning || status !== 'ready') return;
+    const timer = window.setTimeout(() => {
+      const runningDocument = {
+        ...document,
+        simulation: { ...document.simulation, running: true },
+      };
+      const preview = calculateSimulationPreflight(runningDocument);
+      const previewByComponent = new Map(
+        preview.components.map((componentResult) => [componentResult.componentId, componentResult]),
+      );
+      for (const component of document.components) {
+        if (component.kind !== 'led') continue;
+        const entry = catalogEntry(component);
+        const componentResult = previewByComponent.get(component.id);
+        if (!entry || !componentResult) continue;
+        const state = ordinaryLedVisualState(componentResult);
+        const visualComponent = {
+          ...component,
+          stateProperties: {
+            ...component.stateProperties,
+            ledBrightness: Math.round(clamp(componentResult.brightness ?? 0, 0, 100)),
+          },
+        };
+        warmProductionAsset(visualAsset(entry, visualComponent, state));
+      }
+    }, 120);
+    return () => window.clearTimeout(timer);
+  }, [document, simulationRunning, status]);
 
   async function toggleSimulationWithAudio(): Promise<void> {
     if (!simulationRunning) {
@@ -1605,14 +1646,7 @@ export function useElectronicsWorkbench(projectId: string) {
       }
       return resultByComponent.get(component.id)?.lit ? 'lit' : 'off';
     }
-    if (componentResult?.junctionState === 'reverse_blocking') return 'reverse';
-    if (calculatedState === 'failed') return 'burned';
-    if (calculatedState === 'destructive') {
-      return resultByComponent.get(component.id)?.stressState === 'burned'
-        ? 'burned'
-        : 'overcurrent';
-    }
-    return resultByComponent.get(component.id)?.lit ? 'lit' : 'off';
+    return ordinaryLedVisualState(componentResult);
   }
 
   // While a pan is in flight the element carries a viewBox React did not write.

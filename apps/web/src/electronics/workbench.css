@@ -99,10 +99,7 @@
   box-shadow: none;
   outline: none;
 }
-/* The middle column, and it must stay inside it. A save failure now carries the
-   server's reason, which is long — as plain text it pushed the tabs off the right
-   edge and under the avatar. It truncates instead; the full sentence is in the
-   title, and it is repeated in the notice when it happens. */
+/* The middle column stays stable while short save feedback appears and fades. */
 .workbench-save-state {
   display: flex;
   align-items: center;
@@ -123,7 +120,10 @@
   color: #29965c;
 }
 .workbench-save-state.error {
-  color: #b93830;
+  color: #9a5a00;
+}
+.workbench-save-state.quiet {
+  visibility: hidden;
 }
 .workbench-mode-buttons {
   display: flex;

@@ -20,6 +20,10 @@ const controllerModuleSource = readFileSync(
   resolve(electronicsRoot, 'use-electronics-workbench.ts'),
   'utf8',
 );
+const projectStateSource = readFileSync(
+  resolve(electronicsRoot, 'use-workbench-project-state.ts'),
+  'utf8',
+);
 const workbenchCss = readFileSync(resolve(electronicsRoot, 'workbench.css'), 'utf8');
 
 describe('owner-reference Electronics presentation contract', () => {
@@ -141,11 +145,19 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(headerSource).not.toContain('workbench-brand-grid');
     expect(headerSource).toContain('Время моделирования:');
     expect(headerSource).toContain('formatSimulationTime(simulationElapsedSeconds)');
+    expect(headerSource).toContain('SAVE_ERROR_VISIBILITY_MS = 4_500');
+    expect(headerSource).toContain('c.saveCopy[c.saveStatus]');
+    expect(headerSource).not.toContain('Серверная версия изменилась');
+    expect(projectStateSource).toContain("error: 'Изменения сохранены в браузере'");
+    expect(projectStateSource).not.toContain('Серверная версия изменилась');
+    expect(workbenchCss).toContain('.workbench-save-state.quiet');
     expect(headerSource).toContain(
       "c.simulationRunning ? 'Остановить моделирование' : 'Начать моделирование'",
     );
     expect(headerSource).toContain("aria-label={c.simulationRunning ? 'Остановить моделирование'");
     expect(headerSource).toContain('data-simulation-status={c.simulationStatus}');
+    expect(controllerModuleSource).toContain('warmProductionAsset(');
+    expect(controllerModuleSource).toContain('calculateSimulationPreflight(runningDocument)');
     expect(headerSource).toContain('workbench-wire-color-menu');
     expect(headerSource).toContain('role="menuitemradio"');
     expect(headerSource).not.toContain('<option key={color} value={color}>');

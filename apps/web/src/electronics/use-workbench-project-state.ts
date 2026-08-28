@@ -143,9 +143,8 @@ export function useWorkbenchProjectState(projectId: string) {
   const [savedDocument, setSavedDocument] = useState<SchematicDocument | null>(null);
   const [savingDocument, setSavingDocument] = useState<SchematicDocument | null>(null);
   const [saveFailed, setSaveFailed] = useState(false);
-  // Why the last save failed. The reason used to travel in a notice that cleared
-  // itself after two seconds, leaving the word "Ошибка сохранения" and nothing
-  // to act on — the one piece of information that mattered was the first to go.
+  // Internal save state. The header deliberately renders only a short,
+  // user-facing fact and never exposes revision/CAS protocol language.
   const [saveError, setSaveError] = useState<string | null>(null);
   const [result, setResult] = useState<SolveResult | null>(null);
   const [versions, setVersions] = useState<ProjectVersion[]>([]);
@@ -287,10 +286,8 @@ export function useWorkbenchProjectState(projectId: string) {
     if (!restored || localMatchesServer) clearLocalProjectDraft(window.localStorage, projectId);
     if (revisionConflict) {
       setSaveFailed(true);
-      setSaveError(
-        'Серверная версия изменилась, а тот же элемент схемы имеет несовместимые локальные правки. Локальный черновик сохранён и ничего не перезаписано.',
-      );
-      setNotice('Нужен выбор версии для одного одновременно изменённого элемента.');
+      setSaveError('Последние изменения сохранены в браузере.');
+      setNotice(null);
     } else if (mergedLocalDraft) {
       setNotice('Независимые изменения схемы автоматически совмещены.');
     } else if (restored) {
@@ -469,16 +466,14 @@ export function useWorkbenchProjectState(projectId: string) {
             }
             saveFailedRef.current = true;
             setSaveFailed(true);
-            setSaveError(
-              'Один и тот же элемент схемы изменён параллельно по-разному. Локальный черновик сохранён; серверная версия не перезаписана.',
-            );
-            setNotice('Конфликт одного элемента сохранён без потери данных.');
+            setSaveError('Последние изменения сохранены в браузере.');
+            setNotice(null);
             return null;
           }
           saveFailedRef.current = true;
           setSaveFailed(true);
-          setSaveError(response.error.message);
-          setNotice(`Ошибка сохранения: ${response.error.message}`);
+          setSaveError('Последние изменения сохранены в браузере.');
+          setNotice(null);
           return null;
         }
         setSaveError(null);
@@ -650,7 +645,7 @@ export function useWorkbenchProjectState(projectId: string) {
     saved: 'Все изменения сохранены',
     dirty: 'Сохраняем изменения…',
     saving: 'Сохранение…',
-    error: 'Ошибка сохранения',
+    error: 'Изменения сохранены в браузере',
   };
 
   return {
