@@ -1091,9 +1091,8 @@ test('component inspector separates compact settings, live state and educational
   await expect(inspector).not.toContainText('Модель ожидает корректную цепь');
 
   await inspector.getByRole('button', { name: 'Техническое состояние Резистор' }).click();
-  await expect(inspector.getByTestId('component-simulation-status')).toContainText(
-    'Моделирование остановлено',
-  );
+  await expect(inspector.getByTestId('component-simulation-status')).toHaveCount(0);
+  await expect(inspector.getByRole('combobox', { name: 'Допуск резистора' })).toBeVisible();
   await expect(inspector.getByRole('region', { name: 'Справка' })).toHaveCount(0);
 
   await inspector.getByRole('button', { name: 'Справка о компоненте Резистор' }).click();
@@ -1153,7 +1152,7 @@ test('NPN key exposes its calculated operating point through I', async ({ page }
   await component(page, 'transistor-npn').locator('.workbench-part').click();
   const inspector = page.getByRole('complementary', { name: 'Параметры выделения' });
   await inspector.getByRole('button', { name: /Техническое состояние/ }).click();
-  await expect(inspector.getByText('Активный режим', { exact: true })).toBeVisible();
+  await expect(inspector.locator('output').filter({ hasText: /^Активный режим$/ })).toBeVisible();
   await expect(inspector.getByText('Токи B / C / E', { exact: true })).toBeVisible();
   await expect(inspector.getByText('Усиление в рабочей точке', { exact: true })).toBeVisible();
   await expect(inspector.getByText(/Early 100 В/)).toBeVisible();
@@ -1366,9 +1365,21 @@ test('real editor recalculates SPDT, resistor and LED without waiting for persis
     fullPage: true,
   });
 
-  await expect(page.locator('.workbench-save-state')).toContainText('Все изменения сохранены', {
-    timeout: 15_000,
-  });
+  await expect
+    .poll(
+      async () => {
+        const saved = await page.context().request.get(`/api/projects/${projectId}`, {
+          headers: { origin: new URL(page.url()).origin },
+        });
+        if (saved.status() !== 200) return null;
+        const payload = (await saved.json()) as {
+          draft: { document: SchematicDocument };
+        };
+        return payload.draft.document.components.find((item) => item.id === 'resistor')?.value;
+      },
+      { timeout: 15_000 },
+    )
+    .toBe(166.7);
   const checkpoint = await page.context().request.post(`/api/projects/${projectId}/checkpoints`, {
     headers: { origin: new URL(page.url()).origin },
     data: { label: 'Electronics M1 release candidate' },
