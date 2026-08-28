@@ -149,4 +149,25 @@ describe('MATH-3 generic NPN DC device model', () => {
     expect(observation.stressState).toBe('burned');
     expect(observation.diagnostics.map((item) => item.code)).toContain('transistor_overcurrent');
   });
+
+  it('reports a directly powered base as current overload even with no collector current', () => {
+    const instance = NPN_DEVICE_MODEL.normalize(npn());
+    const observation = NPN_DEVICE_MODEL.observe(
+      instance,
+      { region: 'saturation', earlyConductanceSiemens: 0 },
+      { baseEmitterDropVolt: 2.88, collectorEmitterDropVolt: 0.031 },
+    );
+
+    expect(observation.baseCurrentAmp).toBeCloseTo(0.218, 6);
+    expect(observation.collectorCurrentAmp).toBe(0);
+    expect(observation.currentUtilizationPercent).toBeCloseTo(109, 6);
+    expect(observation.stressState).toBe('overcurrent');
+    expect(observation.diagnostics).toEqual([
+      expect.objectContaining({
+        code: 'transistor_overcurrent',
+        message: expect.stringContaining('ток базы 218.0 мА'),
+        suggestedAction: expect.stringContaining('ограничивающий резистор'),
+      }),
+    ]);
+  });
 });

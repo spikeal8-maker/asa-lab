@@ -257,12 +257,15 @@ describe('owner-reference Electronics presentation contract', () => {
   });
 
   it('shows the MATH-3 NPN operating point inside I without adding a stage card', () => {
-    expect(sidebarSource).toContain('Токи B / C / E');
+    expect(sidebarSource).toContain('Полностью открыт как ключ');
+    expect(sidebarSource).toContain('Ток управления (база)');
+    expect(sidebarSource).toContain('Ток нагрузки (коллектор)');
+    expect(sidebarSource).toContain('Общий ток (эмиттер)');
     expect(sidebarSource).toContain('measurement.baseCurrent');
     expect(sidebarSource).toContain('measurement.collectorCurrent');
     expect(sidebarSource).toContain('measurement.emitterCurrent');
-    expect(sidebarSource).toContain('measurement.effectiveCurrentGain');
-    expect(sidebarSource).toContain('measurement.earlyVoltage');
+    expect(sidebarSource).not.toContain('Токи B / C / E');
+    expect(sidebarSource).not.toContain('Early 100 В');
     expect(sidebarSource).not.toContain('workbench-npn-stage-card');
   });
 

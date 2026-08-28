@@ -342,8 +342,14 @@ export const NPN_DEVICE_MODEL: IterativeDcDeviceModel<
       collectorCurrentAmp * operatingPoint.collectorEmitterDropVolt +
         baseCurrentAmp * operatingPoint.baseEmitterDropVolt,
     );
+    // A transistor can be destroyed by a large base current even when the
+    // collector branch is open. Reporting collector current alone produced the
+    // contradictory UI "power 100%, current 0%" for a directly powered base.
+    // Use the largest current entering either active junction for the compact
+    // component load indicator.
+    const limitingCurrentAmp = Math.max(baseCurrentAmp, collectorCurrentAmp);
     const currentUtilizationPercent =
-      (collectorCurrentAmp / parameters.maxCollectorCurrentAmp) * 100;
+      (limitingCurrentAmp / parameters.maxCollectorCurrentAmp) * 100;
     const powerUtilizationPercent = (powerWatt / parameters.maxPowerWatt) * 100;
     const utilizationPercent = Math.max(currentUtilizationPercent, powerUtilizationPercent);
     const stress = stressState(utilizationPercent);
@@ -358,11 +364,14 @@ export const NPN_DEVICE_MODEL: IterativeDcDeviceModel<
       });
     }
     if (stress === 'overcurrent' || stress === 'burned') {
+      const baseDominates = baseCurrentAmp > collectorCurrentAmp;
       diagnostics.push({
         code: 'transistor_overcurrent',
         severity: 'error',
-        message: `${label}: рабочая точка превышает предел NPN-модели (${(collectorCurrentAmp * 1_000).toFixed(1)} мА, ${powerWatt.toFixed(3)} Вт).`,
-        suggestedAction: 'Ограничьте ток базы или коллектора и проверьте нагрузку.',
+        message: `${label}: перегрузка — ток базы ${(baseCurrentAmp * 1_000).toFixed(1)} мА, ток нагрузки ${(collectorCurrentAmp * 1_000).toFixed(1)} мА, мощность ${powerWatt.toFixed(3)} Вт.`,
+        suggestedAction: baseDominates
+          ? 'Ток базы слишком велик. Добавьте ограничивающий резистор в цепь базы.'
+          : 'Ограничьте ток нагрузки и проверьте сопротивление в цепи коллектора.',
       });
     }
     return {

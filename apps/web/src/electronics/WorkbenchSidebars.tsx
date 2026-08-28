@@ -145,6 +145,30 @@ export function WorkbenchSidebars({
     if (typeId.includes('fet')) return 'fet';
     return 'npn';
   })();
+  const transistorOverloaded =
+    measurement?.stressState === 'overcurrent' || measurement?.stressState === 'burned';
+  const transistorStateLabel = transistorOverloaded
+    ? 'Перегрузка — возможен перегрев'
+    : measurement?.stressState === 'warning'
+      ? 'Повышенная нагрузка'
+      : measurement?.operatingRegion === 'saturation'
+        ? 'Полностью открыт как ключ'
+        : measurement?.operatingRegion === 'active'
+          ? 'Регулирует ток'
+          : measurement?.operatingRegion === 'ohmic'
+            ? 'Открыт — проводит ток'
+            : 'Закрыт — ток нагрузки не проходит';
+  const transistorStateExplanation = transistorOverloaded
+    ? (measurement?.baseCurrent ?? 0) > (measurement?.collectorCurrent ?? 0)
+      ? 'Ток базы слишком большой. Добавьте ограничивающий резистор в цепь базы.'
+      : 'Ток нагрузки или нагрев выше безопасного предела.'
+    : measurement?.operatingRegion === 'saturation'
+      ? 'Транзистор работает как замкнутый электронный выключатель.'
+      : measurement?.operatingRegion === 'active'
+        ? 'Небольшой ток базы управляет током нагрузки.'
+        : measurement?.operatingRegion === 'ohmic'
+          ? 'Канал открыт и проводит ток между стоком и истоком.'
+          : 'Управляющего напряжения недостаточно для открытия.';
   return (
     <>
       <aside
@@ -590,7 +614,7 @@ export function WorkbenchSidebars({
               ) : null}
 
               {c.selectedComponent.kind === 'transistor' && stateOpen ? (
-                <fieldset className="workbench-state-controls">
+                <fieldset className="workbench-state-controls workbench-transistor-controls">
                   <legend>
                     {transistorType === 'fet'
                       ? 'Полевой транзистор (N-канал)'
@@ -620,8 +644,9 @@ export function WorkbenchSidebars({
                     </label>
                   ) : (
                     <label>
-                      <span>Коэффициент усиления hFE</span>
+                      <span>Усиление hFE</span>
                       <input
+                        aria-label="Номинальный коэффициент усиления транзистора hFE"
                         type="number"
                         min="1"
                         max="1000"
@@ -639,42 +664,28 @@ export function WorkbenchSidebars({
                       />
                     </label>
                   )}
-                  <div className="workbench-calculated-property">
-                    <span>Рабочая область</span>
-                    <output>
-                      {measurement?.operatingRegion === 'saturation'
-                        ? 'Насыщение'
-                        : measurement?.operatingRegion === 'active'
-                          ? 'Активный режим'
-                          : measurement?.operatingRegion === 'ohmic'
-                            ? 'Омическая область'
-                            : 'Отсечка'}
-                    </output>
-                    <small>
-                      {transistorType === 'fet'
-                        ? `VGS(th) ${Number(c.selectedComponent.stateProperties?.['thresholdVoltage'] ?? 2).toFixed(1)} В · ток затвора 0`
-                        : 'VBE 0,7 В · VCE(sat) 0,2 В'}
-                    </small>
+                  <div
+                    className={`workbench-transistor-state${transistorOverloaded ? ' overload' : ''}`}
+                    data-testid="transistor-state-summary"
+                  >
+                    <strong>{transistorStateLabel}</strong>
+                    <small>{transistorStateExplanation}</small>
                   </div>
                   {transistorType === 'npn' && measurement ? (
-                    <>
-                      <div className="workbench-calculated-property">
-                        <span>Токи B / C / E</span>
-                        <output>
-                          {((measurement.baseCurrent ?? 0) * 1_000).toFixed(2)} /{' '}
-                          {((measurement.collectorCurrent ?? 0) * 1_000).toFixed(2)} /{' '}
-                          {((measurement.emitterCurrent ?? 0) * 1_000).toFixed(2)} мА
-                        </output>
+                    <dl className="workbench-transistor-currents" aria-label="Токи транзистора">
+                      <div>
+                        <dt>Ток управления (база)</dt>
+                        <dd>{((measurement.baseCurrent ?? 0) * 1_000).toFixed(2)} мА</dd>
                       </div>
-                      <div className="workbench-calculated-property">
-                        <span>Усиление в рабочей точке</span>
-                        <output>hFE {(measurement.effectiveCurrentGain ?? 0).toFixed(1)}</output>
-                        <small>
-                          Номинал {measurement.currentGain ?? 0} · Early{' '}
-                          {measurement.earlyVoltage ?? 0} В
-                        </small>
+                      <div>
+                        <dt>Ток нагрузки (коллектор)</dt>
+                        <dd>{((measurement.collectorCurrent ?? 0) * 1_000).toFixed(2)} мА</dd>
                       </div>
-                    </>
+                      <div>
+                        <dt>Общий ток (эмиттер)</dt>
+                        <dd>{((measurement.emitterCurrent ?? 0) * 1_000).toFixed(2)} мА</dd>
+                      </div>
+                    </dl>
                   ) : null}
                 </fieldset>
               ) : null}

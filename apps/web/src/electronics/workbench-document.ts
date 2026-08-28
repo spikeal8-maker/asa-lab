@@ -36,6 +36,57 @@ function internalConnectionsForType(componentTypeId: string): [string, string][]
       : [];
 }
 
+function variantTerminalReplacementMap(
+  currentEntry: NonNullable<ReturnType<typeof catalogEntry>>,
+  nextEntry: NonNullable<ReturnType<typeof catalogEntry>>,
+): ReadonlyMap<Terminal, Terminal> {
+  const replacements = new Map<Terminal, Terminal>();
+  const availableNextTerminals = new Set(Object.keys(nextEntry.terminals));
+  const currentTerminals = Object.keys(currentEntry.terminals);
+
+  // Preserve semantic terminal names whenever the two variants share them.
+  for (const terminal of currentTerminals) {
+    if (!availableNextTerminals.has(terminal)) continue;
+    replacements.set(terminal, terminal);
+    availableNextTerminals.delete(terminal);
+  }
+
+  // A family variant is a physical replacement in the same place. When the
+  // electrical names differ (B/C/E versus G/S/D), keep each wire and
+  // breadboard binding on the nearest physical lead instead of deleting it.
+  // Coordinates are normalized so differently sized packages still map by
+  // lead position. Default string sorting is deterministic and locale-free.
+  const remainingCurrent = currentTerminals
+    .filter((terminal) => !replacements.has(terminal))
+    .sort();
+  for (const currentTerminal of remainingCurrent) {
+    const currentPin = currentEntry.terminals[currentTerminal];
+    if (!currentPin || availableNextTerminals.size === 0) continue;
+    const currentX = currentPin.xMm / Math.max(currentEntry.physicalSizeMm.width, 1e-9);
+    const currentY = currentPin.yMm / Math.max(currentEntry.physicalSizeMm.height, 1e-9);
+    const nearest = [...availableNextTerminals]
+      .sort()
+      .map((nextTerminal) => {
+        const nextPin = nextEntry.terminals[nextTerminal];
+        if (!nextPin) return { nextTerminal, distance: Number.POSITIVE_INFINITY };
+        const nextX = nextPin.xMm / Math.max(nextEntry.physicalSizeMm.width, 1e-9);
+        const nextY = nextPin.yMm / Math.max(nextEntry.physicalSizeMm.height, 1e-9);
+        return {
+          nextTerminal,
+          distance: (nextX - currentX) ** 2 + (nextY - currentY) ** 2,
+        };
+      })
+      .sort(
+        (left, right) =>
+          left.distance - right.distance || (left.nextTerminal < right.nextTerminal ? -1 : 1),
+      )[0];
+    if (!nearest || !Number.isFinite(nearest.distance)) continue;
+    replacements.set(currentTerminal, nearest.nextTerminal);
+    availableNextTerminals.delete(nearest.nextTerminal);
+  }
+  return replacements;
+}
+
 export function addComponentToDocument(
   document: SchematicDocument,
   componentTypeId: string,
@@ -89,9 +140,20 @@ export function updateSelectionVariant(
   const entry = catalogEntry(componentTypeId);
   const current = document.components.find((component) => component.id === selection.id);
   const currentEntry = current ? catalogEntry(current) : null;
-  if (!entry || !current) return null;
+  if (!entry || !current || !currentEntry) return null;
 
   const terminals = new Set(Object.keys(entry.terminals));
+  const replacementMap = variantTerminalReplacementMap(currentEntry, entry);
+  const connectedTerminals = new Set<Terminal>();
+  for (const wire of document.connections) {
+    if (wire.from.componentId === selection.id) connectedTerminals.add(wire.from.terminal);
+    if (wire.to.componentId === selection.id) connectedTerminals.add(wire.to.terminal);
+  }
+  for (const terminal of Object.keys(current.holeBindings ?? {})) connectedTerminals.add(terminal);
+  // Never make a destructive partial replacement. A future family with an
+  // incompatible pin count must provide an explicit mapping before it can be
+  // switched while connected.
+  if ([...connectedTerminals].some((terminal) => !replacementMap.has(terminal))) return null;
   const internalConnections = internalConnectionsForType(componentTypeId);
   const modelIdentity = resolveElectricalModelIdentity({
     componentTypeId,
@@ -132,18 +194,29 @@ export function updateSelectionVariant(
         }
       : current.position,
     pinIds: [...terminals],
-    holeBindings: {},
+    holeBindings: Object.fromEntries(
+      Object.entries(current.holeBindings ?? {}).flatMap(([terminal, binding]) => {
+        const replacement = replacementMap.get(terminal);
+        return replacement ? [[replacement, binding]] : [];
+      }),
+    ),
     internalConnections,
   };
+  const remapTerminal = (terminal: Terminal): Terminal => replacementMap.get(terminal) ?? terminal;
   return {
     ...document,
     components: document.components.map((item) => (item.id === selection.id ? component : item)),
-    connections: document.connections.filter((wire) => {
-      if (wire.from.componentId === selection.id && !terminals.has(wire.from.terminal))
-        return false;
-      if (wire.to.componentId === selection.id && !terminals.has(wire.to.terminal)) return false;
-      return true;
-    }),
+    connections: document.connections.map((wire) => ({
+      ...wire,
+      from:
+        wire.from.componentId === selection.id
+          ? { ...wire.from, terminal: remapTerminal(wire.from.terminal) }
+          : wire.from,
+      to:
+        wire.to.componentId === selection.id
+          ? { ...wire.to, terminal: remapTerminal(wire.to.terminal) }
+          : wire.to,
+    })),
   };
 }
 

@@ -594,6 +594,119 @@ describe('owner SVG integration in the real Electronics document', () => {
     });
   });
 
+  it('keeps wires and breadboard bindings on the same physical transistor leads across variants', () => {
+    let document = addComponentToDocument(
+      EMPTY,
+      'transistor-npn',
+      { x: 300, y: 240 },
+      'q1',
+    ).document;
+    const npn = document.components[0];
+    if (!npn) throw new Error('NPN placement failed');
+    const leadPositionsBefore = Object.fromEntries(
+      ['base', 'collector', 'emitter'].map((terminal) => [
+        terminal,
+        terminalPositionInDocument(document, npn, terminal),
+      ]),
+    );
+    document = {
+      ...document,
+      components: document.components.map((component) =>
+        component.id === 'q1'
+          ? {
+              ...component,
+              holeBindings: {
+                base: { breadboardComponentId: 'board', holeId: 'J2' },
+                collector: { breadboardComponentId: 'board', holeId: 'J1' },
+                emitter: { breadboardComponentId: 'board', holeId: 'J3' },
+              },
+            }
+          : component,
+      ),
+      connections: [
+        {
+          id: 'wire-base',
+          from: { componentId: 'q1', terminal: 'base' },
+          to: { componentId: 'control', terminal: 'positive' },
+          color: '#149447',
+          vertices: [],
+        },
+        {
+          id: 'wire-collector',
+          from: { componentId: 'load', terminal: 'negative' },
+          to: { componentId: 'q1', terminal: 'collector' },
+          color: '#149447',
+          vertices: [],
+        },
+        {
+          id: 'wire-emitter',
+          from: { componentId: 'q1', terminal: 'emitter' },
+          to: { componentId: 'supply', terminal: 'negative' },
+          color: '#149447',
+          vertices: [],
+        },
+      ],
+    };
+
+    const fetDocument = updateSelectionVariant(
+      document,
+      { kind: 'component', id: 'q1', ids: ['q1'] },
+      'transistor-fet',
+    );
+    expect(fetDocument).not.toBeNull();
+    const fet = fetDocument?.components.find((component) => component.id === 'q1');
+    expect(fetDocument?.connections).toHaveLength(3);
+    expect(fetDocument?.connections.map((wire) => [wire.id, wire.from, wire.to])).toEqual([
+      [
+        'wire-base',
+        { componentId: 'q1', terminal: 'gate' },
+        { componentId: 'control', terminal: 'positive' },
+      ],
+      [
+        'wire-collector',
+        { componentId: 'load', terminal: 'negative' },
+        { componentId: 'q1', terminal: 'source' },
+      ],
+      [
+        'wire-emitter',
+        { componentId: 'q1', terminal: 'drain' },
+        { componentId: 'supply', terminal: 'negative' },
+      ],
+    ]);
+    expect(fet?.holeBindings).toEqual({
+      gate: { breadboardComponentId: 'board', holeId: 'J2' },
+      source: { breadboardComponentId: 'board', holeId: 'J1' },
+      drain: { breadboardComponentId: 'board', holeId: 'J3' },
+    });
+    if (!fetDocument || !fet) throw new Error('FET variant switch failed');
+    expect(terminalPositionInDocument(fetDocument, fet, 'gate')).toEqual(
+      leadPositionsBefore['base'],
+    );
+    expect(terminalPositionInDocument(fetDocument, fet, 'source')).toEqual(
+      leadPositionsBefore['collector'],
+    );
+    expect(terminalPositionInDocument(fetDocument, fet, 'drain')).toEqual(
+      leadPositionsBefore['emitter'],
+    );
+
+    const pnpDocument = updateSelectionVariant(
+      fetDocument,
+      { kind: 'component', id: 'q1', ids: ['q1'] },
+      'transistor-pnp',
+    );
+    expect(pnpDocument?.connections).toHaveLength(3);
+    expect(pnpDocument?.connections[0]?.from.terminal).toBe('base');
+    expect(pnpDocument?.connections[1]?.to.terminal).toBe('collector');
+    expect(pnpDocument?.connections[2]?.from.terminal).toBe('emitter');
+    expect(
+      pnpDocument?.components.find((component) => component.id === 'q1')?.holeBindings,
+    ).toEqual({
+      base: { breadboardComponentId: 'board', holeId: 'J2' },
+      collector: { breadboardComponentId: 'board', holeId: 'J1' },
+      emitter: { breadboardComponentId: 'board', holeId: 'J3' },
+    });
+  });
+
   it('snaps a real four-pin footprint to stable 2.54mm holes and joins board nets', () => {
     let document = addComponentToDocument(
       EMPTY,

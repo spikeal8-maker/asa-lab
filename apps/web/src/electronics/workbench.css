@@ -2815,6 +2815,53 @@
   font-size: 10px;
   line-height: 1.25;
 }
+.workbench-transistor-state {
+  display: grid;
+  gap: 3px;
+  padding: 8px;
+  border-top: 1px solid #d7e3e9;
+  border-bottom: 1px solid #d7e3e9;
+  background: #f1f8f5;
+  color: #1f5f47;
+}
+.workbench-transistor-state.overload {
+  background: #fff2ef;
+  color: #9f2f25;
+}
+.workbench-transistor-state strong {
+  font-size: 12px;
+  line-height: 1.25;
+}
+.workbench-transistor-state small {
+  color: #526a76;
+  font-size: 10px;
+  line-height: 1.35;
+}
+.workbench-transistor-currents {
+  margin: 2px 0 0;
+}
+.workbench-transistor-currents > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  min-height: 27px;
+  padding: 5px 7px;
+  border-bottom: 1px solid #e1e7ea;
+  color: #34495e;
+  font-size: 11px;
+}
+.workbench-transistor-currents dt,
+.workbench-transistor-currents dd {
+  margin: 0;
+}
+.workbench-transistor-currents dd {
+  color: #17694f;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.workbench-transistor-controls label {
+  grid-template-columns: 128px minmax(0, 1fr);
+}
 
 /* Owner toolbar/wire parity: full-size controls and the native arrow cursor. */
 .workbench-tool svg {

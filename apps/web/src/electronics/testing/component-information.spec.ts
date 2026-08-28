@@ -98,13 +98,18 @@ describe('component information registry', () => {
     ).toEqual(['junction-state', 'voltage-drop', 'current', 'power', 'brightness']);
     expect(
       readMetricBinding('operating-region', { ...measurement, operatingRegion: 'cutoff' }),
-    ).toBe('Отсечка');
+    ).toBe('Закрыт — ток нагрузки не проходит');
     expect(
       readMetricBinding('operating-region', { ...measurement, operatingRegion: 'active' }),
-    ).toBe('Активный режим');
+    ).toBe('Регулирует ток');
     expect(
       readMetricBinding('operating-region', { ...measurement, operatingRegion: 'saturation' }),
-    ).toBe('Насыщение');
+    ).toBe('Полностью открыт как ключ');
+    expect(
+      componentInformationProfile('transistor', 'transistor').technicalMetrics.map(
+        (metric) => metric.metricId,
+      ),
+    ).toEqual(['voltage-drop', 'current', 'power']);
   });
 
   it('keeps fixed battery voltage read-only while the regulated supply remains adjustable', () => {
@@ -180,13 +185,13 @@ describe('component information registry', () => {
     const sections = componentHelpSections('transistor', 'Транзистор.', 'transistor-npn');
     expect(sections.map((section) => section.title)).toEqual([
       'Что имитируется',
-      'Рабочие области',
+      'Как он работает',
       'NPN как ключ',
-      'Пределы модели',
+      'Если появился красный знак',
     ]);
-    expect(sections[1]?.text).toContain('отсечке');
-    expect(sections[2]?.text).toContain('токи B/C/E');
-    expect(sections.at(-1)?.text).toContain('не блокирует расчёт');
+    expect(sections[1]?.text).toContain('электронный выключатель');
+    expect(sections[2]?.text).toContain('ограничивающий резистор');
+    expect(sections.at(-1)?.text).toContain('не ошибку сервера');
   });
 
   it('publishes help only through a matching external approval digest', () => {

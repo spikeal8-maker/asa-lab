@@ -1152,10 +1152,19 @@ test('NPN key exposes its calculated operating point through I', async ({ page }
   await component(page, 'transistor-npn').locator('.workbench-part').click();
   const inspector = page.getByRole('complementary', { name: 'Параметры выделения' });
   await inspector.getByRole('button', { name: /Техническое состояние/ }).click();
-  await expect(inspector.locator('output').filter({ hasText: /^Активный режим$/ })).toBeVisible();
-  await expect(inspector.getByText('Токи B / C / E', { exact: true })).toBeVisible();
-  await expect(inspector.getByText('Усиление в рабочей точке', { exact: true })).toBeVisible();
-  await expect(inspector.getByText(/Early 100 В/)).toBeVisible();
+  await expect(inspector.getByText('Регулирует ток', { exact: true })).toBeVisible();
+  await expect(inspector.getByText('Ток управления (база)', { exact: true })).toBeVisible();
+  await expect(inspector.getByText('Ток нагрузки (коллектор)', { exact: true })).toBeVisible();
+  await expect(inspector.getByText('Общий ток (эмиттер)', { exact: true })).toBeVisible();
+
+  const variant = inspector.getByLabel('Вариант Транзистор в проекте');
+  await expect(page.locator('[data-testid="schematic-wire"]')).toHaveCount(5);
+  await variant.selectOption('transistor-fet');
+  await expect(component(page, 'transistor-fet')).toBeVisible();
+  await expect(page.locator('[data-testid="schematic-wire"]')).toHaveCount(5);
+  await variant.selectOption('transistor-pnp');
+  await expect(component(page, 'transistor-pnp')).toBeVisible();
+  await expect(page.locator('[data-testid="schematic-wire"]')).toHaveCount(5);
   failures.assertEmpty();
 });
 

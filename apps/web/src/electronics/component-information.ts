@@ -280,7 +280,10 @@ const PROFILE_BY_KIND: Readonly<
   },
   transistor: {
     compactFields: [NAME_FIELD],
-    technicalMetrics: [METRICS.voltage, METRICS.current, METRICS.power, METRICS.region],
+    // The transistor state is rendered once as a beginner-facing sentence in
+    // the dedicated inspector block. Repeating the raw region name here made
+    // the same fact appear twice with different wording.
+    technicalMetrics: [METRICS.voltage, METRICS.current, METRICS.power],
     terminalPresentation: 'grouped',
   },
   lamp: {
@@ -379,13 +382,13 @@ export function readMetricBinding(
                                 ? 'Закрыт — прямого напряжения недостаточно'
                                 : undefined
                     : result.operatingRegion === 'cutoff'
-                      ? 'Отсечка'
+                      ? 'Закрыт — ток нагрузки не проходит'
                       : result.operatingRegion === 'active'
-                        ? 'Активный режим'
+                        ? 'Регулирует ток'
                         : result.operatingRegion === 'saturation'
-                          ? 'Насыщение'
+                          ? 'Полностью открыт как ключ'
                           : result.operatingRegion === 'ohmic'
-                            ? 'Омическая область'
+                            ? 'Открыт — проводит ток'
                             : undefined;
   return typeof raw === 'number' ? (Number.isFinite(raw) ? raw : null) : (raw ?? null);
 }
