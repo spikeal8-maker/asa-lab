@@ -1456,6 +1456,12 @@
 .workbench-selection-box {
   display: none;
 }
+.workbench-diode-selection {
+  fill: none;
+  stroke: #3b8ed7;
+  stroke-width: 1.6;
+  vector-effect: non-scaling-stroke;
+}
 .workbench-component-selected .workbench-terminal-dot {
   opacity: 1;
   fill: #3b8ed7;

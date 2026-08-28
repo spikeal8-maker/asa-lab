@@ -277,33 +277,12 @@ export function ProductionComponentVisual({
   const ownerAssetTransform = rotatesHorizontalOwnerAsset
     ? `translate(${width} 0) rotate(90)`
     : undefined;
-  const diodeSelectionBounds = (() => {
-    if (entry.familyId !== 'diode') return null;
-    const anode = entry.terminals.anode;
-    const cathode = entry.terminals.cathode;
-    if (!anode || !cathode) return null;
-    const scaleX = width / entry.physicalSizeMm.width;
-    const scaleY = height / entry.physicalSizeMm.height;
-    const vertical = Math.abs(anode.yMm - cathode.yMm) > Math.abs(anode.xMm - cathode.xMm);
-    if (vertical) {
-      const start = Math.min(anode.yMm, cathode.yMm) * scaleY;
-      const end = Math.max(anode.yMm, cathode.yMm) * scaleY;
-      return {
-        x: selectionOffset * 0.35,
-        y: start - selectionOffset,
-        width: width - selectionOffset * 0.7,
-        height: end - start + selectionOffset * 2,
-      };
-    }
-    const start = Math.min(anode.xMm, cathode.xMm) * scaleX;
-    const end = Math.max(anode.xMm, cathode.xMm) * scaleX;
-    return {
-      x: start - selectionOffset,
-      y: ownerAssetY + selectionOffset * 0.35,
-      width: end - start + selectionOffset * 2,
-      height: ownerAssetHeight - selectionOffset * 0.7,
-    };
-  })();
+  const diodeSelectionBounds =
+    entry.key === 'diode-do35'
+      ? { x: 0, y: height * 0.09, width, height: height * 0.66 }
+      : entry.key === 'diode-do41'
+        ? { x: width * 0.14, y: ownerAssetY, width: width * 0.59, height: ownerAssetHeight }
+        : null;
   const usesMeasuredTinkercadGeometry = [
     'resistor-axial',
     'button-tactile-6mm',
@@ -351,10 +330,6 @@ export function ProductionComponentVisual({
           width={diodeSelectionBounds.width}
           height={diodeSelectionBounds.height}
           rx={Math.min(diodeSelectionBounds.width, diodeSelectionBounds.height) * 0.35}
-          fill="none"
-          stroke="#3b8ed7"
-          strokeWidth={selectionOffset}
-          vectorEffect="non-scaling-stroke"
         />
       ) : selected && !usesMeasuredTinkercadGeometry ? (
         <g className="workbench-selection-silhouette" pointerEvents="none" aria-hidden="true">
