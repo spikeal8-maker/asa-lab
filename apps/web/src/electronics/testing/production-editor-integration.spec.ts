@@ -54,7 +54,7 @@ const ACTIVE_PHYSICAL_SIZE_MM = {
   'battery-holder-aa-4': [62.8269, 60.2],
   'battery-holder-aa-6': [91.3781, 60.2],
   'battery-holder-aa-8': [119.9293, 60.2],
-  'diode-do35': [18, 6],
+  'diode-do35': [6, 18],
   'diode-do41': [20, 7],
   'rgb-led': [8.75, 10.125],
   'seven-segment-display': [12.7, 19.05],
@@ -372,7 +372,7 @@ describe('owner SVG integration in the real Electronics document', () => {
     expect(productionCatalogEntry('diode-do35')?.physicalSizeMm).not.toEqual(
       productionCatalogEntry('diode-do41')?.physicalSizeMm,
     );
-    expect(productionCatalogEntry('diode-do35')?.defaultRotation).toBe(90);
+    expect(productionCatalogEntry('diode-do35')?.defaultRotation).toBe(0);
     expect(productionCatalogEntry('diode-do41')?.defaultRotation).toBe(90);
     expect(
       ['battery-9v', 'battery-3v'].map((familyId) =>
@@ -422,7 +422,7 @@ describe('owner SVG integration in the real Electronics document', () => {
     const do35Anode = terminalPositionInDocument(added.document, do35, 'anode');
     const do35Cathode = terminalPositionInDocument(added.document, do35, 'cathode');
 
-    expect(do35.rotation).toBe(90);
+    expect(do35.rotation).toBe(0);
     expect(do35Anode?.x).toBeCloseTo(do35Cathode?.x ?? 0, 6);
     expect(Math.abs((do35Cathode?.y ?? 0) - (do35Anode?.y ?? 0))).toBeCloseTo(
       10.16 * WORLD_UNITS_PER_MM,

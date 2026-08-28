@@ -265,6 +265,12 @@ export function ProductionComponentVisual({
     result?.energized === true &&
     piezoFrequencyHz >= 20 &&
     piezoSoundLevel > 0;
+  const rotatesHorizontalOwnerAsset = entry.key === 'diode-do35';
+  const ownerAssetWidth = rotatesHorizontalOwnerAsset ? height : width;
+  const ownerAssetHeight = rotatesHorizontalOwnerAsset ? width : height;
+  const ownerAssetTransform = rotatesHorizontalOwnerAsset
+    ? `translate(${width} 0) rotate(90)`
+    : undefined;
   const usesMeasuredTinkercadGeometry = [
     'resistor-axial',
     'button-tactile-6mm',
@@ -328,8 +334,9 @@ export function ProductionComponentVisual({
           </defs>
           <image
             href={asset}
-            width={width}
-            height={height}
+            width={ownerAssetWidth}
+            height={ownerAssetHeight}
+            transform={ownerAssetTransform}
             preserveAspectRatio={imageFit}
             filter={`url(#${selectionFilterId})`}
           />
@@ -542,8 +549,9 @@ export function ProductionComponentVisual({
             <image
               className={entry.key === 'led-5mm' ? 'workbench-led-asset' : undefined}
               href={asset}
-              width={width}
-              height={height}
+              width={ownerAssetWidth}
+              height={ownerAssetHeight}
+              transform={ownerAssetTransform}
               preserveAspectRatio={imageFit}
               pointerEvents="none"
             />

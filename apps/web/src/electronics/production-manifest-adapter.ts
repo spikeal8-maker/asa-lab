@@ -640,10 +640,10 @@ function toCatalogItem(item: OwnerCatalogComponent): ProductionCatalogItem {
     ...(configured.wiperPosition === undefined
       ? {}
       : { defaultWiperPosition: configured.wiperPosition }),
-    // Both axial diode packages share the same owner-authored horizontal base
-    // orientation. They therefore receive the same upright catalogue rotation;
-    // switching DO-35/DO-41 must never make the part jump by a quarter turn.
-    defaultRotation: item.familyId === 'diode' ? 90 : 0,
+    // DO-35 keeps its legacy upright document frame while the horizontal
+    // owner SVG is rotated inside that frame. DO-41 uses its horizontal frame
+    // and starts at 90°. Variant switching preserves the relative orientation.
+    defaultRotation: item.componentId === 'diode-do41' ? 90 : 0,
     defaultStateProperties: configured.properties,
     unit: configured.unit,
     provenance: item.provenance,

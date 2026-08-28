@@ -28862,21 +28862,21 @@
       "searchAliases": ["diode-do35", "Диод", "DO-35"],
       "displayNameEn": "diode-do35",
       "provenance": "owner_supplied",
-      "physicalWidthMm": 18,
-      "physicalHeightMm": 6,
-      "viewBox": [0, 0, 18, 6],
+      "physicalWidthMm": 6,
+      "physicalHeightMm": 18,
+      "viewBox": [0, 0, 6, 18],
       "pins": [
         {
           "id": "anode",
-          "xMm": 2.54,
-          "yMm": 3,
+          "xMm": 3,
+          "yMm": 2.54,
           "electricalRole": "anode",
           "toleranceMm": 0
         },
         {
           "id": "cathode",
-          "xMm": 12.7,
-          "yMm": 3,
+          "xMm": 3,
+          "yMm": 12.7,
           "electricalRole": "cathode",
           "toleranceMm": 0
         }
@@ -28885,7 +28885,7 @@
         "kind": "axial",
         "pinOffsetsMm": [
           [0, 0],
-          [10.16, 0]
+          [0, 10.16]
         ]
       },
       "states": ["default"],
