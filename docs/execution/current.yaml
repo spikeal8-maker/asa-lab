@@ -122,11 +122,11 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: math_2_runtime_persistence_boundary_shared_status_contract_owner_acceptance_pending
+      checkpoint: math_3_npn_key_core_focused_green_browser_ci_pending_owner_acceptance_pending
       owner_acceptance: pending
     revisions:
       convergence_baseline_sha: 5b052dc631c7036de9d60f4206c9879fe364e732
-      head_sha: abd3c91fe89f289ffae88ba8bf0699dd94e9878b
+      head_sha: c3c081fe8119d937f7338808dcf8cc68efcd25f5
     execution_lease:
       executor_id: codex-electronics-docs
       holder: unassigned
