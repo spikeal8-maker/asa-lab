@@ -1030,9 +1030,7 @@ test('DO-35 exposes calculated current and fixed profile limits through I', asyn
   await inspector.getByRole('button', { name: 'Техническое состояние Диод' }).click();
   await expect(inspector.getByText('Длительный ток', { exact: true })).toBeVisible();
   await expect(inspector.getByText('200 мА', { exact: true })).toBeVisible();
-  await expect(
-    inspector.getByText('Обратный предел', { exact: true }),
-  ).toBeVisible();
+  await expect(inspector.getByText('Обратный предел', { exact: true })).toBeVisible();
   await expect(inspector.getByText('100 В', { exact: true })).toBeVisible();
   await expect(inspector.getByText('Ток', { exact: true })).toBeVisible();
   await expect(inspector.getByText('Прямое падение', { exact: true })).toHaveCount(0);
