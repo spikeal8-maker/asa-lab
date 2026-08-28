@@ -99,7 +99,7 @@
     "gate:repository": "corepack pnpm gate:governance && corepack pnpm gate:code && corepack pnpm gate:data",
     "generate:electronics-component-coverage": "node tools/generate-electronics-component-coverage.mjs --write",
     "validate:electronics-component-information": "node tools/validate-electronics-component-information.mjs",
-    "gate:electronics-m1": "corepack pnpm validate:electronics-component-information && corepack pnpm test:electronics && corepack pnpm vitest run apps/web/src/electronics/testing && corepack pnpm typecheck && corepack pnpm build",
+    "gate:electronics-m1": "corepack pnpm nx build module-sdk && corepack pnpm validate:electronics-component-information && corepack pnpm test:electronics && corepack pnpm vitest run apps/web/src/electronics/testing && corepack pnpm typecheck && corepack pnpm build",
     "gate:electronics-m1:browser": "corepack pnpm e2e:electronics-simulation",
     "gate:three-d-m0": "corepack pnpm nx build module-sdk && corepack pnpm nx build chess && corepack pnpm nx build checkers && corepack pnpm test:three-d && corepack pnpm typecheck && corepack pnpm build",
     "gate:three-d-m0:browser": "corepack pnpm e2e:three-d",
