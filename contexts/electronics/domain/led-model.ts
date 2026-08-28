@@ -32,7 +32,10 @@ const RGB_BURNOUT_CURRENT_AMP = 0.03;
 // the battery holder's calibrated series resistance that operating point is
 // about 128 mA, while the 1-ohm point remains below 120 mA.
 const ORDINARY_REFERENCE_BURNOUT_CURRENT_AMP = 0.12;
-const BRIGHTNESS_EXPONENT = 0.65;
+// Human vision and the owner-supplied 101-state artwork are perceptual rather
+// than linear. A square-root response keeps a 1 kOhm teaching circuit visibly
+// dim without changing any electrical current or voltage calculation.
+const BRIGHTNESS_EXPONENT = 0.5;
 
 /**
  * The red 5 mm reference sweep at 3 V exposes four operating points:

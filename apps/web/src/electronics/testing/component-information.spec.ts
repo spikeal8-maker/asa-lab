@@ -98,6 +98,19 @@ describe('component information registry', () => {
     ).toEqual(['junction-state', 'voltage-drop', 'current', 'power', 'brightness']);
   });
 
+  it('keeps fixed battery voltage read-only while the regulated supply remains adjustable', () => {
+    expect(
+      componentInformationProfile('battery-holder-aa', 'source').compactFields.map(
+        (field) => field.fieldId,
+      ),
+    ).toEqual(['name']);
+    expect(
+      componentInformationProfile('regulated-power-supply', 'source').compactFields.map(
+        (field) => field.fieldId,
+      ),
+    ).toEqual(['name', 'value']);
+  });
+
   it('provides structured help for every component kind without HTML', () => {
     for (const family of workbenchCatalog().filter((candidate) => candidate.enabled)) {
       const variant = family.variants.find((candidate) => candidate.enabled)!;
@@ -137,6 +150,15 @@ describe('component information registry', () => {
     expect(sections.at(-1)?.text).toContain('20 мА');
     expect(sections.at(-1)?.text).toContain('120 мА');
     expect(sections.some((section) => section.title === 'Подключение')).toBe(false);
+  });
+
+  it('explains potentiometer terminals and fixed battery behaviour in beginner language', () => {
+    const potentiometer = componentHelpSections('potentiometer', 'Потенциометр.', 'potentiometer');
+    const battery = componentHelpSections('source', 'Батарейный отсек.', 'battery-holder-aa-8');
+    expect(potentiometer.at(-1)?.text).toContain('второй край тогда может оставаться свободным');
+    expect(battery[0]?.text).toContain('12 В');
+    expect(battery.some((section) => section.text.includes('не регулируется'))).toBe(true);
+    expect(battery.some((section) => section.text.includes('нагрузку по току'))).toBe(true);
   });
 
   it('publishes help only through a matching external approval digest', () => {

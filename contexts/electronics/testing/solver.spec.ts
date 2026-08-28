@@ -1594,6 +1594,25 @@ describe('deterministic DC solver', () => {
     expect(led?.brightness).toBeLessThan(20);
   });
 
+  it('keeps a 3 V red LED faintly visible through a 1 kOhm resistor', () => {
+    const result = solveCircuit(
+      series(
+        [
+          component('r1', 'resistor', 1000),
+          component('led1', 'led', 2, {
+            stateProperties: { ledColour: 'red' },
+          }),
+        ],
+        3,
+      ),
+    );
+    const led = result.components.find((item) => item.componentId === 'led1');
+
+    expect(led?.lit).toBe(true);
+    expect(led?.brightness).toBeGreaterThan(15);
+    expect(led?.brightness).toBeLessThan(35);
+  });
+
   it('drives the owner AA holder and LED pins with real polarity', () => {
     const source = component('battery', 'source', 3, {
       componentTypeId: 'battery-holder-aa-2',

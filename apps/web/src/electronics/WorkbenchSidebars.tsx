@@ -68,6 +68,7 @@ export function WorkbenchSidebars({
     : undefined;
   const selectedIsArduino = c.selectedEntry?.key === 'arduino-uno';
   const selectedIsPotentiometer = c.selectedComponent?.kind === 'potentiometer';
+  const selectedIsAdjustableSource = c.selectedEntry?.key === 'regulated-power-supply';
   const selectedDiagnostics = c.selectedComponent
     ? (c.diagnosticsByComponent.get(c.selectedComponent.id) ?? [])
     : [];
@@ -465,7 +466,8 @@ export function WorkbenchSidebars({
                   </small>
                 </div>
               ) : null}
-              {['source', 'resistor', 'potentiometer', 'lamp'].includes(c.selectedComponent.kind) ||
+              {selectedIsAdjustableSource ||
+              ['resistor', 'potentiometer', 'lamp'].includes(c.selectedComponent.kind) ||
               (c.selectedComponent.kind === 'diode' &&
                 !c.selectedComponent.componentTypeId &&
                 stateOpen) ? (
@@ -837,6 +839,12 @@ export function WorkbenchSidebars({
                     <div>
                       <dt>Нагрузка по мощности</dt>
                       <dd>{measurement.powerUtilizationPercent.toFixed(0)}%</dd>
+                    </div>
+                  ) : null}
+                  {measurement.currentUtilizationPercent !== undefined ? (
+                    <div>
+                      <dt>Нагрузка по току</dt>
+                      <dd>{measurement.currentUtilizationPercent.toFixed(0)}%</dd>
                     </div>
                   ) : null}
                   {measurement.internalResistanceOhm !== undefined ? (

@@ -2,7 +2,6 @@ import { lazy, Suspense, useEffect, useState, type CSSProperties } from 'react';
 import type { PublicUser } from '../api';
 import { catalogEntry } from '../electronics/component-catalog';
 import { WorkbenchHeader } from '../electronics/WorkbenchHeader';
-import { WorkbenchSidebars } from '../electronics/WorkbenchSidebars';
 import { WorkbenchStage } from '../electronics/WorkbenchStage';
 import type { WorkbenchView } from '../electronics/workbench-model';
 import {
@@ -28,6 +27,11 @@ const loadArduinoCodePanel = () =>
   import('../electronics/ArduinoCodePanel').then((module) => ({
     default: module.ArduinoCodePanel,
   }));
+const WorkbenchSidebars = lazy(() =>
+  import('../electronics/WorkbenchSidebars').then((module) => ({
+    default: module.WorkbenchSidebars,
+  })),
+);
 const ArduinoCodePanel = lazy(loadArduinoCodePanel);
 const SchematicView = lazy(() =>
   import('../electronics/AlternateWorkbenchViews').then((module) => ({
@@ -305,7 +309,9 @@ export function SchematicEditor({
             )}
           </Suspense>
         )}
-        <WorkbenchSidebars controller={controller} />
+        <Suspense fallback={<aside className="workbench-library" aria-hidden="true" />}>
+          <WorkbenchSidebars controller={controller} />
+        </Suspense>
         {notesOpen ? (
           <SidePanel
             kind="notes"

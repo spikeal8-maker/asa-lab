@@ -30,6 +30,7 @@ import {
   lockOrthogonalBend,
   lockOrthogonalPoint,
   magneticWirePoint,
+  potentiometerWiperPosition,
   viewportViewBox,
   type Point,
   type Viewport,
@@ -913,10 +914,7 @@ export function useElectronicsWorkbench(projectId: string) {
       component.rotation ?? 0,
     );
     if (!center) return null;
-    let knobAngle = (Math.atan2(point.y - center.y, point.x - center.x) * 180) / Math.PI + 90;
-    while (knobAngle > 180) knobAngle -= 360;
-    while (knobAngle < -180) knobAngle += 360;
-    return clamp((clamp(knobAngle, -135, 135) + 135) / 270, 0, 1);
+    return potentiometerWiperPosition(center, point, component.rotation ?? 0);
   }
 
   function updatePotentiometerFromPointer(componentId: string, point: Point): void {

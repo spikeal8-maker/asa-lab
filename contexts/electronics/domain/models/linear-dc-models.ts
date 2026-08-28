@@ -192,7 +192,8 @@ export const SOURCE_DEVICE_MODEL: DeviceModel<SourceParameters, LinearDcObservat
             {
               code: 'source_overload',
               severity: 'error',
-              message: `${instance.component.name ?? instance.component.id}: перегрузка ${(Math.abs(currentAmp) * 1000).toFixed(1)} mA.`,
+              message: `${instance.component.name ?? instance.component.id}: ток ${Math.abs(currentAmp).toFixed(3)} А превышает длительный предел ${instance.parameters.continuousCurrentAmp.toFixed(3)} А. Источник нагревается, а напряжение на клеммах проседает.`,
+              suggestedAction: 'Уберите короткое замыкание или уменьшите нагрузку.',
             },
           ]
         : [];

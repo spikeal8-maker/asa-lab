@@ -5,6 +5,7 @@ import {
   lockOrthogonalPoint,
   magneticWirePoint,
   moveWireSegmentVertices,
+  potentiometerWiperPosition,
   viewportViewBox,
   wireSegmentParallelDelta,
   type Point,
@@ -63,6 +64,22 @@ describe('workbench pointer coordinates', () => {
       expect(roundTrip.y).toBeCloseTo(point.y, 8);
     }
   });
+});
+
+describe('potentiometer pointer coordinates', () => {
+  it.each([0, 45, 90, 180, 270])(
+    'keeps the same local wiper position at %s degrees',
+    (rotation) => {
+      const center = { x: 300, y: 200 };
+      const localAngle = 54;
+      const radians = ((localAngle - 90 + rotation) * Math.PI) / 180;
+      const point = {
+        x: center.x + Math.cos(radians) * 80,
+        y: center.y + Math.sin(radians) * 80,
+      };
+      expect(potentiometerWiperPosition(center, point, rotation)).toBeCloseTo(0.7, 8);
+    },
+  );
 });
 
 describe('what the canvas is allowed to move', () => {

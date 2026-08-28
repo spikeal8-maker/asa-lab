@@ -34,6 +34,11 @@ decisions:
     status: pending_owner
     blocking_scopes: [content, desktop_ux, mobile_ux]
     evidence_required: [empty_help_state_owner_review]
+  - id: DEC-INFO-007
+    decision: diagnostic_badge_is_screen_upright_and_constant_size
+    status: owner_direction
+    blocking_scopes: []
+    evidence_required: [rotation_zoom_severity_owner_review]
 
 requirements:
   - id: ELEC-INFO-001
@@ -184,12 +189,12 @@ requirements:
     normative_sections: ["9.1", "9.2", "9.4"]
     status: planned
     activation: after_decisions
-    depends_on_decisions: [DEC-INFO-003, DEC-INFO-004]
+    depends_on_decisions: [DEC-INFO-003, DEC-INFO-004, DEC-INFO-007]
     verification: [browser, visual, accessibility]
     planned_test_ids: [TST-E2E-ELECTRONICS-COMPONENT-INFO-001]
     planned_fixture_path: e2e/fixtures/electronics/diagnostic-state-matrix.json
     gate: pnpm gate:electronics-m1:browser
-    assertions: [neutral_state_has_no_warning_badge, warning_and_error_badges_match_diagnostics, semantic_name_present]
+    assertions: [neutral_state_has_no_warning_badge, warning_and_error_badges_match_diagnostics, badge_remains_screen_upright_at_every_rotation, badge_is_constant_screen_size_at_every_zoom, semantic_name_present]
     evidence: { result: not_run, verified_sha: null, artifacts: [] }
 
   - id: ELEC-INFO-013

@@ -2574,16 +2574,6 @@
   text-anchor: middle;
   dominant-baseline: middle;
 }
-.workbench-component-diagnostic-indicator.workbench-led-warning-indicator circle,
-.workbench-component-diagnostic-indicator.workbench-led-warning-indicator.error circle {
-  fill: #fff;
-  stroke: #242424;
-  stroke-width: 1.5;
-  filter: drop-shadow(0 1px 2px rgba(34, 43, 49, 0.35));
-}
-.workbench-component-diagnostic-indicator.workbench-led-warning-indicator > text {
-  fill: #242424;
-}
 .workbench-component-diagnostic-indicator > text {
   fill: #fff;
   font-weight: 900;

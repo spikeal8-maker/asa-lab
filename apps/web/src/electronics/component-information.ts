@@ -146,6 +146,13 @@ const METRICS = {
     unit: 'В',
     precision: 3,
   },
+  sourceVoltage: {
+    metricId: 'source-terminal-voltage',
+    label: 'Напряжение на клеммах',
+    metricBindingId: 'voltage-drop',
+    unit: 'В',
+    precision: 3,
+  },
   current: {
     metricId: 'current',
     label: 'Ток',
@@ -212,7 +219,7 @@ const PROFILE_BY_KIND: Readonly<
 > = {
   source: {
     compactFields: [NAME_FIELD, VALUE_FIELD],
-    technicalMetrics: [METRICS.voltage, METRICS.current, METRICS.power, METRICS.sourceMode],
+    technicalMetrics: [METRICS.sourceVoltage, METRICS.current, METRICS.power, METRICS.sourceMode],
     terminalPresentation: 'full',
   },
   resistor: {
@@ -301,6 +308,9 @@ export function componentInformationProfile(
       technicalMetrics: [METRICS.voltage, METRICS.current, METRICS.power],
       terminalPresentation: 'full',
     };
+  }
+  if (kind === 'source' && componentFamilyId !== 'regulated-power-supply') {
+    return { componentFamilyId, ...PROFILE_BY_KIND.source, compactFields: [NAME_FIELD] };
   }
   return { componentFamilyId, ...PROFILE_BY_KIND[kind] };
 }

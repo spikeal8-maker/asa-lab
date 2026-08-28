@@ -242,6 +242,7 @@ export function WorkbenchStage({
       const entry = catalogEntry(component);
       if (!entry?.asset || !entry.terminals || !entry.simulationSupported) return null;
       const baseSize = renderedSize(entry, 0);
+      const bounds = renderedSize(entry, component.rotation ?? 0);
       const componentDiagnostics = c.diagnosticsByComponent.get(component.id) ?? [];
       const diagnostics = componentDiagnostics.map((diagnostic) => diagnostic.code);
       const actionableDiagnostics = componentDiagnostics.filter(
@@ -275,8 +276,11 @@ export function WorkbenchStage({
         // тесту, ни человеку, который читает страницу.
         <g
           key={component.id}
-          transform={componentTransform(component)}
+          transform={`translate(${component.position.x + bounds.width * (ledBurned ? 0.5 : 0.83)} ${
+            component.position.y + bounds.height * (ledBurned ? 0.35 : 0.16)
+          })`}
           data-testid="component-diagnostic"
+          data-screen-upright="true"
           data-component-id={component.id}
           data-component-type={component.componentTypeId}
           data-kind={component.kind}
@@ -284,8 +288,6 @@ export function WorkbenchStage({
           <g
             className={`workbench-component-diagnostic-indicator${
               ledBurned ? ' workbench-led-burnout-explosion' : ''
-            }${
-              isLedIndicator && ledOvercurrent ? ' workbench-led-warning-indicator' : ''
             }${c.errorDiagnosticComponentIds.has(component.id) ? ' error' : ''}`}
             data-testid={
               ledBurned
@@ -297,9 +299,6 @@ export function WorkbenchStage({
                   : 'component-diagnostic-indicator'
             }
             data-diagnostic-count={actionableDiagnostics.length}
-            transform={`translate(${
-              ledBurned ? baseSize.width * 0.5 : baseSize.width * 0.83
-            } ${ledBurned ? baseSize.height * 0.35 : baseSize.height * 0.16})`}
             pointerEvents="all"
             role="img"
             tabIndex={0}
@@ -346,19 +345,21 @@ export function WorkbenchStage({
       const entry = catalogEntry(component);
       if (!entry?.asset || !entry.terminals || entry.simulationSupported || !entry.blockReason)
         return null;
-      const baseSize = renderedSize(entry, 0);
+      const bounds = renderedSize(entry, component.rotation ?? 0);
       const warningText = entry.blockReason;
       return (
         <g
           key={`unsupported:${component.id}`}
-          transform={componentTransform(component)}
+          transform={`translate(${component.position.x + bounds.width * 0.83} ${
+            component.position.y + bounds.height * 0.16
+          })`}
           data-testid="component-model-warning"
+          data-screen-upright="true"
           data-component-id={component.id}
           data-component-type={component.componentTypeId}
         >
           <g
             className="workbench-component-diagnostic-indicator workbench-component-model-warning"
-            transform={`translate(${baseSize.width * 0.83} ${baseSize.height * 0.16})`}
             pointerEvents="all"
             role="img"
             tabIndex={0}

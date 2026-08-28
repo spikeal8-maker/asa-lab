@@ -13,6 +13,18 @@ export function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
 
+export function potentiometerWiperPosition(
+  center: Point,
+  point: Point,
+  componentRotation = 0,
+): number {
+  let angle =
+    (Math.atan2(point.y - center.y, point.x - center.x) * 180) / Math.PI + 90 - componentRotation;
+  while (angle > 180) angle -= 360;
+  while (angle < -180) angle += 360;
+  return clamp((clamp(angle, -135, 135) + 135) / 270, 0, 1);
+}
+
 export function snap(value: number, grid = 10): number {
   return Math.round(value / grid) * grid;
 }

@@ -98,6 +98,8 @@ describe('MATH-1 linear DC device models', () => {
       voltageConstraintResidual: 2.47,
       diagnostics: [expect.objectContaining({ code: 'source_overload', severity: 'error' })],
     });
+    expect(observation?.diagnostics[0]?.message).toContain('напряжение на клеммах проседает');
+    expect(observation?.diagnostics[0]?.suggestedAction).toContain('уменьшите нагрузку');
     expect(observation?.internalPower).toBeCloseTo(0.0013, 12);
   });
 

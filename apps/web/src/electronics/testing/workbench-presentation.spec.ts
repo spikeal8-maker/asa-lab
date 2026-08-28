@@ -194,6 +194,9 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(stageSource).toContain('workbench-led-burnout-explosion');
     expect(stageSource).not.toContain('workbench-component-diagnostic-tooltip');
     expect(stageSource).toContain('data-testid="component-model-warning"');
+    expect(stageSource).toContain('data-screen-upright="true"');
+    expect(stageSource).toContain('component.position.x + bounds.width * 0.83');
+    expect(stageSource).not.toContain('workbench-led-warning-indicator');
     expect(stageSource).toContain('unsupportedModelIndicators');
     expect(alternateViewsSource).toContain('workbench-schematic-model-warning');
     expect(workbenchCss).toContain('.workbench-catalog-model-warning');
@@ -351,6 +354,8 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(sidebarSource).toContain('Внутреннее сопротивление');
     expect(sidebarSource).toContain('Просадка напряжения');
     expect(sidebarSource).toContain('Нагрев источника');
+    expect(sidebarSource).toContain('Нагрузка по току');
+    expect(sidebarSource).toContain("c.selectedEntry?.key === 'regulated-power-supply'");
     expect(sidebarSource).toContain('aria-label={`Справка о компоненте');
     expect(productionVisualSource).toContain('<OwnerPotentiometerVisual');
     expect(productionVisualSource).toContain('potentiometerRuntimeMarkup(ownerSvg, wiperPosition)');
