@@ -640,7 +640,10 @@ function toCatalogItem(item: OwnerCatalogComponent): ProductionCatalogItem {
     ...(configured.wiperPosition === undefined
       ? {}
       : { defaultWiperPosition: configured.wiperPosition }),
-    defaultRotation: item.componentId === 'diode-do41' ? 90 : 0,
+    // Both axial diode packages share the same owner-authored horizontal base
+    // orientation. They therefore receive the same upright catalogue rotation;
+    // switching DO-35/DO-41 must never make the part jump by a quarter turn.
+    defaultRotation: item.familyId === 'diode' ? 90 : 0,
     defaultStateProperties: configured.properties,
     unit: configured.unit,
     provenance: item.provenance,

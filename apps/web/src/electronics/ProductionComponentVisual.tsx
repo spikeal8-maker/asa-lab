@@ -267,7 +267,6 @@ export function ProductionComponentVisual({
     piezoSoundLevel > 0;
   const usesMeasuredTinkercadGeometry = [
     'resistor-axial',
-    'diode-do35',
     'button-tactile-6mm',
     'switch-spdt',
   ].includes(entry.key);
@@ -393,51 +392,6 @@ export function ProductionComponentVisual({
               <rect x="-4.65" y="-9.57" width="2.38" height="0.97" fill="#ffff33" opacity="0.5" />
             </g>
           ) : null}
-        </g>
-      ) : entry.key === 'diode-do35' ? (
-        <g
-          className="workbench-tinkercad-diode"
-          data-visual-contract="tinkercad-four-pitch"
-          transform={`translate(${width / 2} ${height / 2}) scale(${TINKERCAD_MODEL_TO_WORLD})`}
-        >
-          <line
-            x1="0"
-            y1="-20"
-            x2="0"
-            y2="20"
-            stroke="#8c8c8c"
-            strokeWidth="2"
-            strokeLinecap="round"
-          />
-          {selected ? (
-            <g className="workbench-tinkercad-selection" pointerEvents="none">
-              <line
-                x1="0"
-                y1="-20"
-                x2="0"
-                y2="20"
-                fill="none"
-                stroke="#3b8ed7"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-              <rect
-                x="-4.75"
-                y="-12.5"
-                width="9.5"
-                height="25"
-                rx="1"
-                fill="#3b8ed7"
-                stroke="#3b8ed7"
-                strokeWidth="3.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </g>
-          ) : null}
-          <rect x="-4.75" y="-12.5" width="9.5" height="25" rx="1" fill="#333333" />
-          <rect x="-4.75" y="5.5" width="9.5" height="2.3" fill="#67757f" />
         </g>
       ) : entry.key === 'button-tactile-6mm' ? (
         <g

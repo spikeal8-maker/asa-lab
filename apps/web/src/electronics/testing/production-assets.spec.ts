@@ -300,7 +300,7 @@ describe('Electronics owner SVG foundation', () => {
     }
 
     for (const [componentId, width, height, pinSpan, axis] of [
-      ['diode-do35', 6, 18, 10.16, 'y'],
+      ['diode-do35', 18, 6, 10.16, 'x'],
       ['diode-do41', 20, 7, 10.16, 'x'],
     ] as const) {
       const diode = catalog.find((item) => item.key === componentId);

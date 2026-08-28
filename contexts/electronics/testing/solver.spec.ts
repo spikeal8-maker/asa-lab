@@ -940,7 +940,8 @@ describe('deterministic DC solver', () => {
       series([component('s1', 'switch', 0, { state: true }), component('r1', 'resistor', 100)], 5),
     );
     expect(open.current).toBe(0);
-    expect(open.diagnostics.map((item) => item.code)).toContain('open_circuit');
+    expect(open.diagnostics.map((item) => item.code)).not.toContain('open_circuit');
+    expect(open.diagnostics.map((item) => item.code)).toContain('circuit_ok');
     expect(closed.current).toBeCloseTo(0.05, 4);
   });
 
@@ -1210,7 +1211,8 @@ describe('deterministic DC solver', () => {
     expect(reverse.current).toBe(0);
     expect(reverse.diagnostics.map((item) => item.code)).not.toContain('reverse_polarity');
     expect(reverse.diagnostics.map((item) => item.code)).not.toContain('diode_reverse_breakdown');
-    expect(reverse.diagnostics.map((item) => item.code)).toContain('open_circuit');
+    expect(reverse.diagnostics.map((item) => item.code)).not.toContain('open_circuit');
+    expect(reverse.diagnostics.map((item) => item.code)).toContain('circuit_ok');
   });
 
   it('uses distinct versioned DO-35 and DO-41 electrical profiles', () => {
@@ -2146,7 +2148,7 @@ describe('deterministic DC solver', () => {
     );
   });
 
-  it('diagnoses an open circuit, no source and invalid property', () => {
+  it('keeps an open circuit neutral while diagnosing no source and invalid property', () => {
     const open = solveCircuit(
       doc(
         [component('source', 'source', 5), component('r1', 'resistor', 100)],
@@ -2155,7 +2157,8 @@ describe('deterministic DC solver', () => {
     );
     const noSource = solveCircuit(doc([component('r1', 'resistor', 100)], []));
     const invalid = solveCircuit(series([component('lamp1', 'lamp', 0)], 5));
-    expect(open.diagnostics.map((item) => item.code)).toContain('open_circuit');
+    expect(open.diagnostics.map((item) => item.code)).not.toContain('open_circuit');
+    expect(open.diagnostics.map((item) => item.code)).toContain('circuit_ok');
     expect(noSource.diagnostics.map((item) => item.code)).toContain('no_source');
     expect(invalid.diagnostics.map((item) => item.code)).toContain('invalid_property');
   });

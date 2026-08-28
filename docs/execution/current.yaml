@@ -122,7 +122,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: math_2_nonlinear_profiles_focused_passed_browser_pending
+      checkpoint: math_2_diode_visual_terminal_and_idle_diagnostics_focused_passed_browser_pending
       owner_acceptance: pending
     revisions:
       convergence_baseline_sha: 5b052dc631c7036de9d60f4206c9879fe364e732

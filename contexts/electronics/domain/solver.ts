@@ -524,10 +524,6 @@ export function solveCircuit(
       ...branch,
     })),
   );
-  const sourceProviderIds = [
-    ...sources.map((source) => source.id),
-    ...document.components.filter(isArduinoUno).map((component) => component.id),
-  ];
   const empty = (
     status: Exclude<SimulationSolveStatus, 'solved'>,
     iterations = 0,
@@ -1664,16 +1660,12 @@ export function solveCircuit(
       componentIds: highCurrentProviderIds,
       suggestedAction: 'Остановите моделирование и добавьте сопротивление в путь тока.',
     });
-  } else if (sources.length > 0 && totalSourceCurrent < 1e-8) {
-    diagnostics.push({
-      code: 'open_circuit',
-      severity: 'warning',
-      message: 'Источник не отдаёт ток: цепь разомкнута или блокируется полярным элементом.',
-      componentIds: sourceProviderIds,
-      suggestedAction: 'Замкните переключатель и проверьте все соединения и полярность.',
-    });
   }
 
+  // Zero current is a legitimate operating point: an open switch or a
+  // reverse-biased diode is often exactly what the circuit is meant to do.
+  // It therefore falls through to the neutral circuit_ok observation instead
+  // of creating a warning or attaching a fault marker to the source.
   if (!diagnostics.some((diagnostic) => diagnostic.severity !== 'info')) {
     diagnostics.push({
       code: 'circuit_ok',
