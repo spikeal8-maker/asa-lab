@@ -102,9 +102,8 @@ export function updateSelectionVariant(
   const relativeRotation = currentEntry
     ? currentRotation - currentEntry.defaultRotation
     : currentRotation;
-  const rotation = (((entry.defaultRotation + relativeRotation) % 360 + 360) % 360) as NonNullable<
-    SchematicComponent['rotation']
-  >;
+  const rotation = ((((entry.defaultRotation + relativeRotation) % 360) + 360) %
+    360) as NonNullable<SchematicComponent['rotation']>;
   const currentSize = currentEntry ? renderedSize(currentEntry, currentRotation) : null;
   const nextSize = renderedSize(entry, rotation);
   const component: SchematicComponent = {
