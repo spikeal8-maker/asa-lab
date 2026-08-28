@@ -1044,7 +1044,8 @@ test.beforeAll(async () => {
   admin = e2eAdminPool();
 });
 
-test.beforeEach(async (_fixtures, testInfo) => {
+test.beforeEach(async ({ browserName: _browserName }, testInfo) => {
+  void _browserName;
   // Authentication intentionally allows ten attempts per identifier in five
   // minutes. Give each isolated journey its own isolated teacher instead of
   // weakening that production guard or making the eleventh test fail by
