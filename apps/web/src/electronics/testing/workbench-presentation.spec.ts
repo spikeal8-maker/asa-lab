@@ -191,8 +191,9 @@ describe('owner-reference Electronics presentation contract', () => {
 
   it('keeps diagnostics on components and reproduces the LED burnout effect', () => {
     expect(stageSource).toContain('className="workbench-component-body-hit"');
-    expect(stageSource).toContain("? 'arduino-board-body' : 'component-bounds'");
-    expect(stageSource).toContain("entry.key === 'arduino-uno'");
+    expect(stageSource).toContain('data-hit-surface="owner-alpha-mask"');
+    expect(stageSource).toContain('componentAssetContainsPoint');
+    expect(stageSource).toContain('preloadComponentHitMask');
     expect(productionVisualSource).toContain('pointerEvents="none"');
     expect(stageSource).toContain('fillOpacity={0.001}');
     expect(productionVisualSource).toContain('data-testid="spdt-actuator"');

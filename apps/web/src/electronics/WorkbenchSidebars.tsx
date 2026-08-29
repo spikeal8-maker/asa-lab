@@ -89,8 +89,6 @@ export function WorkbenchSidebars({
     LED_COLOUR_OPTIONS.find((option) => option.value === selectedLedColour)?.label ??
     selectedLedColour;
   useEffect(() => {
-    setHelpOpen(false);
-    setStateOpen(false);
     setHelpSections(null);
   }, [c.selectedComponent?.id]);
   useEffect(() => {

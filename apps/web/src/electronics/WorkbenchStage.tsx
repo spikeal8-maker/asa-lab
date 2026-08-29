@@ -4,6 +4,7 @@ import {
   useState,
   type CSSProperties,
   type KeyboardEvent as ReactKeyboardEvent,
+  type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
 } from 'react';
 import {
@@ -18,6 +19,7 @@ import { diagnosticBadgeGeometry, roundedWirePath, wirePoints } from './workbenc
 import { CircuitIcon, FitIcon, ZoomInIcon, ZoomOutIcon } from './workbench-icons';
 import { componentTransform } from './workbench-model';
 import { terminalPositionInDocument } from './workbench-document';
+import { componentAssetContainsPoint, preloadComponentHitMask } from './component-hit-testing';
 import type { ElectronicsWorkbenchController } from './use-electronics-workbench';
 
 /** The part currently in hand, drawn on the cursor wherever the cursor is.
@@ -195,6 +197,30 @@ export function WorkbenchStage({
     ...document.components.filter((component) => component.kind === 'breadboard'),
     ...document.components.filter((component) => component.kind !== 'breadboard'),
   ];
+  useEffect(() => {
+    for (const component of document.components) {
+      if (component.kind === 'wire') continue;
+      const entry = catalogEntry(component);
+      if (!entry?.asset) continue;
+      const size = renderedSize(entry, 0);
+      preloadComponentHitMask(entry, size.width, size.height);
+    }
+  }, [document.components]);
+
+  function isVisibleComponentBody(
+    event: ReactPointerEvent<SVGGElement> | ReactMouseEvent<SVGGElement>,
+    entry: NonNullable<ReturnType<typeof catalogEntry>>,
+    size: { readonly width: number; readonly height: number },
+  ): boolean {
+    const matrix = event.currentTarget.getScreenCTM();
+    const canvas = event.currentTarget.ownerSVGElement;
+    if (!matrix || !canvas) return false;
+    const point = canvas.createSVGPoint();
+    point.x = event.clientX;
+    point.y = event.clientY;
+    const local = point.matrixTransform(matrix.inverse());
+    return componentAssetContainsPoint(entry, size.width, size.height, local);
+  }
   const selectedWire =
     c.selection?.kind === 'wire'
       ? document.connections.find((wire) => wire.id === c.selection?.id)
@@ -419,10 +445,6 @@ export function WorkbenchStage({
             const entry = catalogEntry(component);
             if (!entry?.asset || !entry.terminals) return null;
             const baseSize = renderedSize(entry, 0);
-            const bodyHitInset =
-              entry.key === 'arduino-uno'
-                ? { left: 0.035, top: 0.04, right: 0.03, bottom: 0.05 }
-                : { left: 0, top: 0, right: 0, bottom: 0 };
             const selected =
               c.selection?.kind === 'component' && c.selection.ids.includes(component.id);
             const visualState = c.componentVisualState(component);
@@ -499,8 +521,13 @@ export function WorkbenchStage({
                 <g
                   className={`workbench-part${selected ? ' selected' : ''}`}
                   transform={componentTransform(component)}
-                  onPointerDown={(e) => c.startComponentDrag(e, component)}
+                  onPointerDown={(e) => {
+                    if (isVisibleComponentBody(e, entry, baseSize)) {
+                      c.startComponentDrag(e, component);
+                    }
+                  }}
                   onClick={(e) => {
+                    if (!isVisibleComponentBody(e, entry, baseSize)) return;
                     e.stopPropagation();
                     c.selectComponent(component.id, e.shiftKey);
                   }}
@@ -516,13 +543,11 @@ export function WorkbenchStage({
                 >
                   <rect
                     className="workbench-component-body-hit"
-                    data-hit-surface={
-                      entry.key === 'arduino-uno' ? 'arduino-board-body' : 'component-bounds'
-                    }
-                    x={baseSize.width * bodyHitInset.left}
-                    y={baseSize.height * bodyHitInset.top}
-                    width={baseSize.width * (1 - bodyHitInset.left - bodyHitInset.right)}
-                    height={baseSize.height * (1 - bodyHitInset.top - bodyHitInset.bottom)}
+                    data-hit-surface="owner-alpha-mask"
+                    x={0}
+                    y={0}
+                    width={baseSize.width}
+                    height={baseSize.height}
                     fill="#ffffff"
                     fillOpacity={0.001}
                     pointerEvents="all"

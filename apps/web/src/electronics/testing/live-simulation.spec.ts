@@ -150,11 +150,60 @@ describe('live Electronics simulation', () => {
     const voltage = (result: SolveResult) =>
       result.components.find((entry) => entry.componentId === 'capacitor')?.voltageDrop ?? 0;
 
-    expect(heldAtSwitch).toBe(charged);
+    expect(heldAtSwitch).not.toBe(charged);
+    expect(heldAtSwitch.transientState?.simulationTimeMs).toBe(101);
     expect(voltage(charged)).toBeGreaterThan(0);
+    expect(voltage(heldAtSwitch)).toBeGreaterThan(0);
+    expect(voltage(heldAtSwitch)).toBeLessThan(voltage(charged));
     expect(voltage(discharged)).toBeGreaterThan(0);
     expect(voltage(discharged)).toBeLessThan(voltage(charged));
     expect(discharged.transientState?.simulationTimeMs).toBe(200);
+  });
+
+  it('keeps a 10000 uF / 1 kOhm capacitor on a real ten-second RC time scale', () => {
+    const charging: SchematicDocument = {
+      ...circuit,
+      components: [
+        circuit.components[0]!,
+        { id: 'resistor', kind: 'resistor', position: { x: 20, y: 0 }, value: 1_000 },
+        {
+          id: 'capacitor',
+          kind: 'visual',
+          componentTypeId: 'electrolytic-capacitor',
+          pinIds: ['negative', 'positive'],
+          position: { x: 40, y: 0 },
+          value: 10_000,
+          stateProperties: { initialVoltageVolt: 0, voltageRatingVolt: 25 },
+        },
+      ],
+      connections: [
+        {
+          id: 'positive',
+          from: { componentId: 'source', terminal: 'a' },
+          to: { componentId: 'resistor', terminal: 'a' },
+        },
+        {
+          id: 'limited',
+          from: { componentId: 'resistor', terminal: 'b' },
+          to: { componentId: 'capacitor', terminal: 'positive' },
+        },
+        {
+          id: 'negative',
+          from: { componentId: 'capacitor', terminal: 'negative' },
+          to: { componentId: 'source', terminal: 'b' },
+        },
+      ],
+    };
+    const atOneSecond = advanceLiveSimulation(charging, null, 1_000);
+    const atTenSeconds = advanceLiveSimulation(charging, atOneSecond, 10_000);
+    const voltage = (result: SolveResult) =>
+      result.components.find((entry) => entry.componentId === 'capacitor')?.voltageDrop ?? 0;
+
+    expect(voltage(atOneSecond)).toBeGreaterThan(0.4);
+    expect(voltage(atOneSecond)).toBeLessThan(0.6);
+    expect(voltage(atTenSeconds)).toBeGreaterThan(3.0);
+    expect(voltage(atTenSeconds)).toBeLessThan(3.3);
+    expect(voltage(atTenSeconds)).toBeLessThan(5);
   });
 
   it('recalculates LED colour and resistor effects in a complete owner-pin circuit', () => {

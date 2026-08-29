@@ -316,6 +316,41 @@ function buttonCircuitDocument(resistorOhms: number): SchematicDocument {
   };
 }
 
+function capacitorInteractionDocument(): SchematicDocument {
+  return {
+    schemaVersion: 4,
+    components: [
+      {
+        id: 'capacitor',
+        kind: 'visual',
+        componentTypeId: 'electrolytic-capacitor',
+        variantId: 'electrolytic-capacitor',
+        name: 'Электролитический конденсатор',
+        position: { x: 360, y: 250 },
+        rotation: 0,
+        value: 10_000,
+        pinIds: ['negative', 'positive'],
+        stateProperties: { initialVoltageVolt: 0, voltageRatingVolt: 25 },
+      },
+      {
+        id: 'resistor',
+        kind: 'resistor',
+        componentTypeId: 'resistor-axial',
+        variantId: 'resistor-axial',
+        name: 'Резистор',
+        position: { x: 620, y: 250 },
+        rotation: 0,
+        value: 1_000,
+        pinIds: ['lead-1', 'lead-2'],
+        stateProperties: { tolerancePercent: 5, resistanceUnit: 'кОм' },
+      },
+    ],
+    connections: [],
+    viewport: { x: 0, y: 0, zoom: 1 },
+    simulation: { running: false, maxIterations: 24 },
+  };
+}
+
 function breadboardDocument(): SchematicDocument {
   const seeded = circuitDocument({
     switchClosed: false,
@@ -1114,6 +1149,73 @@ test('component inspector separates compact settings, live state and educational
     expect(box?.width).toBeGreaterThanOrEqual(44);
     expect(box?.height).toBeGreaterThanOrEqual(44);
   }
+  failures.assertEmpty();
+});
+
+test('capacitor uses its visible alpha body for dragging and I stays open between parts', async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await loginWithOrganization(page, teacher);
+  const projectId = await createProject(page, 'MATH-4B1 capacitor body hit area');
+  await saveDocument(page, projectId, capacitorInteractionDocument());
+  await page.goto(`/#/home/${projectId}`);
+  await expect(page.locator('.workbench-stage')).toBeVisible();
+
+  const capacitor = component(page, 'electrolytic-capacitor');
+  const capacitorBody = capacitor.locator('.workbench-part');
+  await expect(capacitorBody.locator('.workbench-component-body-hit')).toHaveAttribute(
+    'data-hit-surface',
+    'owner-alpha-mask',
+  );
+  await page.waitForTimeout(300);
+  const beforeX = await capacitor.getAttribute('data-x');
+  const transparentBounds = await capacitorBody.boundingBox();
+  if (!transparentBounds) throw new Error('capacitor body has no rendered bounds');
+  await page.mouse.move(
+    transparentBounds.x + 3,
+    transparentBounds.y + transparentBounds.height / 2,
+  );
+  await page.mouse.down();
+  await page.mouse.move(
+    transparentBounds.x + 63,
+    transparentBounds.y + transparentBounds.height / 2,
+    { steps: 5 },
+  );
+  await page.mouse.up();
+  await expect(capacitor).toHaveAttribute('data-x', beforeX ?? '');
+
+  const visibleBounds = await capacitorBody.boundingBox();
+  if (!visibleBounds) throw new Error('capacitor visible body has no rendered bounds');
+  await page.mouse.move(
+    visibleBounds.x + visibleBounds.width / 2,
+    visibleBounds.y + visibleBounds.height / 2,
+  );
+  await page.mouse.down();
+  await page.mouse.move(
+    visibleBounds.x + visibleBounds.width / 2 + 50,
+    visibleBounds.y + visibleBounds.height / 2,
+    { steps: 5 },
+  );
+  await page.mouse.up();
+  await expect(capacitor).not.toHaveAttribute('data-x', beforeX ?? '');
+
+  await capacitorBody.click();
+  const inspector = page.getByRole('complementary', { name: 'Параметры выделения' });
+  const capacitorInformation = inspector.getByRole('button', {
+    name: 'Техническое состояние Конденсатор',
+  });
+  await capacitorInformation.click();
+  await expect(capacitorInformation).toHaveAttribute('aria-expanded', 'true');
+
+  await component(page, 'resistor-axial').locator('.workbench-part').click();
+  const resistorInformation = inspector.getByRole('button', {
+    name: 'Техническое состояние Резистор',
+  });
+  await expect(resistorInformation).toHaveAttribute('aria-expanded', 'true');
+  await expect(inspector.getByRole('combobox', { name: 'Допуск резистора' })).toBeVisible();
   failures.assertEmpty();
 });
 

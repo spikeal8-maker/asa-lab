@@ -31,21 +31,27 @@ export function calculateSimulationPreflight(
 /**
  * Advances an already running transient without resetting stored capacitor
  * voltage when a button, switch or other runtime control changes the topology.
- * Equal/backward model time reuses the committed sample; the next clock tick
- * performs the physical step against the new in-memory document.
+ * A runtime topology change at the same clock sample is resolved immediately
+ * through one deterministic 1 ms event step. This keeps capacitor voltage and
+ * removes the visible 100 ms button/switch latency without tying physics to FPS.
  */
 export function advanceLiveSimulation(
   document: SchematicDocument,
   previous: SolveResult | null,
   simulationTimeMs: number,
 ): SolveResult {
-  const previousTimeMs = previous?.transientState?.simulationTimeMs;
-  if (
-    previous &&
-    previousTimeMs !== undefined &&
-    (!Number.isFinite(simulationTimeMs) || simulationTimeMs <= previousTimeMs)
-  ) {
-    return previous;
+  const previousState = previous?.transientState;
+  const previousTimeMs = previousState?.simulationTimeMs;
+  if (previous && previousState && previousTimeMs !== undefined) {
+    if (!Number.isFinite(simulationTimeMs)) return previous;
+    if (simulationTimeMs <= previousTimeMs) {
+      const currentInputAtPreviousTime = simulationInputDigest(document, previousTimeMs);
+      if (currentInputAtPreviousTime === previous.simulationInputDigest) return previous;
+      return analyseCircuit(document, {
+        simulationTimeMs: previousTimeMs + 1,
+        transientState: previousState,
+      }) as SolveResult;
+    }
   }
   return analyseCircuit(document, {
     simulationTimeMs,
