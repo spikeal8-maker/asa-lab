@@ -49,7 +49,7 @@ export interface SimulationResult extends SolveResult {
   readonly quality: SimulationQuality;
   readonly topologySignature: string;
   readonly simulationInputDigest: string;
-  readonly solverRevision: 'asa-electronics-solver-v5';
+  readonly solverRevision: 'asa-electronics-solver-v6';
   readonly modelSetDigest: string;
   readonly analysis: {
     readonly electricalMode: 'dc' | 'transient';
@@ -137,6 +137,13 @@ function deterministicSolveResult(result: SolveResult): SolveResult {
             thermal: [...result.transientState.thermal].sort((left, right) =>
               ordinalCompare(left.componentId, right.componentId),
             ),
+            ...(result.transientState.bjtRegions
+              ? {
+                  bjtRegions: [...result.transientState.bjtRegions].sort((left, right) =>
+                    ordinalCompare(left.componentId, right.componentId),
+                  ),
+                }
+              : {}),
           },
         }
       : {}),
@@ -592,7 +599,7 @@ export function analyseCircuit(
       quality: failedQuality(),
       topologySignature: compiled.topologySignature,
       simulationInputDigest: inputDigest,
-      solverRevision: 'asa-electronics-solver-v5',
+      solverRevision: 'asa-electronics-solver-v6',
       modelSetDigest: MODEL_SET_DIGEST,
       analysis,
     };
@@ -617,7 +624,7 @@ export function analyseCircuit(
       quality,
       topologySignature: compiled.topologySignature,
       simulationInputDigest: inputDigest,
-      solverRevision: 'asa-electronics-solver-v5',
+      solverRevision: 'asa-electronics-solver-v6',
       modelSetDigest: MODEL_SET_DIGEST,
       analysis,
     };
@@ -629,7 +636,7 @@ export function analyseCircuit(
     quality,
     topologySignature: compiled.topologySignature,
     simulationInputDigest: inputDigest,
-    solverRevision: 'asa-electronics-solver-v5',
+    solverRevision: 'asa-electronics-solver-v6',
     modelSetDigest: MODEL_SET_DIGEST,
     analysis,
   };

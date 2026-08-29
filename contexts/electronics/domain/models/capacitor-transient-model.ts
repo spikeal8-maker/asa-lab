@@ -54,6 +54,15 @@ export interface CapacitorTransientState {
   readonly simulationTimeMs: number;
   readonly capacitors: readonly CapacitorTransientStateEntry[];
   readonly thermal: readonly ThermalTransientStateEntry[];
+  /**
+   * Previous algebraic BJT regions are only an initial guess for the next
+   * transient step. Carrying them prevents a symmetric oscillator from being
+   * re-seeded into the same cutoff solution at every browser clock sample.
+   */
+  readonly bjtRegions?: readonly {
+    readonly componentId: string;
+    readonly region: 'cutoff' | 'active' | 'saturation';
+  }[];
 }
 
 const MICROFARAD_TO_FARAD = 1e-6;

@@ -961,7 +961,7 @@ export function useElectronicsWorkbench(projectId: string) {
   }
 
   function startComponentDrag(
-    event: PointerEvent<SVGGElement>,
+    event: PointerEvent<SVGElement>,
     component: SchematicComponent,
   ): void {
     if (event.button !== 0 || pendingTerminal) return;

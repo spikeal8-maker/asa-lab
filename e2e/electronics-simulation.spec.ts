@@ -321,18 +321,6 @@ function capacitorInteractionDocument(): SchematicDocument {
     schemaVersion: 4,
     components: [
       {
-        id: 'capacitor',
-        kind: 'visual',
-        componentTypeId: 'electrolytic-capacitor',
-        variantId: 'electrolytic-capacitor',
-        name: 'Электролитический конденсатор',
-        position: { x: 360, y: 250 },
-        rotation: 0,
-        value: 10_000,
-        pinIds: ['negative', 'positive'],
-        stateProperties: { initialVoltageVolt: 0, voltageRatingVolt: 25 },
-      },
-      {
         id: 'resistor',
         kind: 'resistor',
         componentTypeId: 'resistor-axial',
@@ -344,10 +332,134 @@ function capacitorInteractionDocument(): SchematicDocument {
         pinIds: ['lead-1', 'lead-2'],
         stateProperties: { tolerancePercent: 5, resistanceUnit: 'кОм' },
       },
+      {
+        id: 'capacitor',
+        kind: 'visual',
+        componentTypeId: 'electrolytic-capacitor',
+        variantId: 'electrolytic-capacitor',
+        name: 'Электролитический конденсатор',
+        position: { x: 360, y: 250 },
+        rotation: 0,
+        value: 10_000,
+        pinIds: ['negative', 'positive'],
+        stateProperties: { initialVoltageVolt: 0, voltageRatingVolt: 25 },
+      },
     ],
     connections: [],
     viewport: { x: 0, y: 0, zoom: 1 },
     simulation: { running: false, maxIterations: 24 },
+  };
+}
+
+function pnpAstableDocument(capacitanceMicrofarad = 10): SchematicDocument {
+  const resistor = (id: string, name: string, x: number, y: number, value: number) => ({
+    id,
+    kind: 'resistor' as const,
+    componentTypeId: 'resistor-axial',
+    variantId: 'resistor-axial',
+    name,
+    position: { x, y },
+    rotation: 90 as const,
+    value,
+    pinIds: ['lead-1', 'lead-2'],
+    stateProperties: { tolerancePercent: 5, resistanceUnit: value >= 1_000 ? 'кОм' : 'Ом' },
+  });
+  const transistor = (id: string, name: string, x: number) => ({
+    id,
+    kind: 'transistor' as const,
+    componentTypeId: 'transistor-pnp',
+    variantId: 'transistor-pnp',
+    name,
+    position: { x, y: 350 },
+    rotation: 0 as const,
+    value: 100,
+    pinIds: ['collector', 'base', 'emitter'],
+    stateProperties: { transistorType: 'pnp', currentGain: 100 },
+  });
+  const led = (id: string, name: string, x: number) => ({
+    id,
+    kind: 'led' as const,
+    componentTypeId: 'led-5mm',
+    variantId: 'led-5mm',
+    name,
+    position: { x, y: 650 },
+    rotation: 0 as const,
+    value: 2,
+    pinIds: ['anode', 'cathode'],
+    stateProperties: { ledColour: 'red', ledBrightness: 0, ledFault: 'none' },
+  });
+  const capacitor = (id: string, name: string, x: number) => ({
+    id,
+    kind: 'visual' as const,
+    componentTypeId: 'electrolytic-capacitor',
+    variantId: 'electrolytic-capacitor',
+    name,
+    position: { x, y: 470 },
+    rotation: 0 as const,
+    value: capacitanceMicrofarad,
+    pinIds: ['negative', 'positive'],
+    stateProperties: { voltageRatingVolt: 25, initialVoltageVolt: 0 },
+  });
+  const wire = (
+    id: string,
+    fromComponentId: string,
+    fromTerminal: string,
+    toComponentId: string,
+    toTerminal: string,
+  ) => ({
+    id,
+    from: { componentId: fromComponentId, terminal: fromTerminal },
+    to: { componentId: toComponentId, terminal: toTerminal },
+    color: '#149447',
+    vertices: [],
+  });
+
+  return {
+    schemaVersion: 4,
+    components: [
+      {
+        id: 'source',
+        kind: 'source',
+        componentTypeId: 'battery-holder-aa-3',
+        variantId: 'battery-holder-aa-3',
+        name: 'Источник 4,5 В',
+        position: { x: 120, y: 430 },
+        rotation: 0,
+        value: 4.5,
+        pinIds: ['BAT-', 'BAT+'],
+        stateProperties: { cells: 3, internalResistanceOhm: 0.1, maxContinuousCurrentAmp: 5 },
+      },
+      resistor('rc1', 'R светодиода 1', 480, 560, 1_000),
+      resistor('rc2', 'R светодиода 2', 900, 560, 1_000),
+      resistor('rb1', 'R базы 1', 590, 250, 10_000),
+      resistor('rb2', 'R базы 2', 790, 250, 10_000),
+      transistor('q1', 'PNP-транзистор 1', 530),
+      transistor('q2', 'PNP-транзистор 2', 850),
+      led('led1', 'Светодиод 1', 480),
+      led('led2', 'Светодиод 2', 900),
+      capacitor('c1', 'Конденсатор 1', 630),
+      capacitor('c2', 'Конденсатор 2', 750),
+    ],
+    connections: [
+      wire('w1', 'q1', 'collector', 'rc1', 'lead-1'),
+      wire('w2', 'rc1', 'lead-2', 'led1', 'anode'),
+      wire('w3', 'led1', 'cathode', 'source', 'BAT-'),
+      wire('w4', 'q2', 'collector', 'rc2', 'lead-1'),
+      wire('w5', 'rc2', 'lead-2', 'led2', 'anode'),
+      wire('w6', 'led2', 'cathode', 'source', 'BAT-'),
+      wire('w7', 'q1', 'base', 'rb1', 'lead-1'),
+      wire('w8', 'rb1', 'lead-2', 'source', 'BAT-'),
+      wire('w9', 'q2', 'base', 'rb2', 'lead-1'),
+      wire('w10', 'rb2', 'lead-2', 'source', 'BAT-'),
+      wire('w11', 'q1', 'emitter', 'source', 'BAT+'),
+      wire('w12', 'q2', 'emitter', 'source', 'BAT+'),
+      wire('w13', 'c1', 'negative', 'q1', 'collector'),
+      wire('w14', 'c1', 'positive', 'q2', 'base'),
+      wire('w15', 'c2', 'negative', 'q2', 'collector'),
+      wire('w16', 'c2', 'positive', 'q1', 'base'),
+    ],
+    viewport: { x: 0, y: 0, zoom: 1 },
+    simulation: { running: false, maxIterations: 32 },
   };
 }
 
@@ -1012,7 +1124,9 @@ async function selectLed(page: Page): Promise<void> {
     await burnout.locator('.workbench-led-explosion-inner').click();
   } else {
     try {
-      await led.locator('.workbench-part').click({ timeout: 2_000 });
+      // The owner asset itself is pointer-transparent: the stage resolves the
+      // exact alpha silhouette so transparent viewBox pixels pass through.
+      await led.locator('.workbench-part').click({ timeout: 2_000, force: true });
     } catch (error) {
       if ((await burnout.count()) === 0 || !(await burnout.isVisible())) throw error;
       await burnout.locator('.workbench-led-explosion-inner').click();
@@ -1068,7 +1182,7 @@ async function unobstructedComponentPoint(
           const hit = document.elementFromPoint(x, y);
           if (
             hit &&
-            element.contains(hit) &&
+            (element.contains(hit) || hit.classList.contains('workbench-grid-hit')) &&
             !hit.closest('.workbench-terminal-hit, .workbench-breadboard-hole-hit')
           ) {
             return { x, y };
@@ -1179,18 +1293,29 @@ test('capacitor uses its visible alpha body for dragging and I stays open betwee
   const beforeX = await capacitor.getAttribute('data-x');
   const transparentBounds = await capacitorBody.boundingBox();
   if (!transparentBounds) throw new Error('capacitor body has no rendered bounds');
+  const transparentPoint = {
+    x: transparentBounds.x + 3,
+    y: transparentBounds.y + transparentBounds.height / 2,
+  };
+  const resistor = component(page, 'resistor-axial');
+  const resistorBody = resistor.locator('.workbench-part');
+  const resistorBounds = await resistorBody.boundingBox();
+  if (!resistorBounds) throw new Error('resistor body has no rendered bounds');
   await page.mouse.move(
-    transparentBounds.x + 3,
-    transparentBounds.y + transparentBounds.height / 2,
+    resistorBounds.x + resistorBounds.width / 2,
+    resistorBounds.y + resistorBounds.height / 2,
   );
   await page.mouse.down();
-  await page.mouse.move(
-    transparentBounds.x + 63,
-    transparentBounds.y + transparentBounds.height / 2,
-    { steps: 5 },
-  );
+  await page.mouse.move(transparentPoint.x, transparentPoint.y, { steps: 5 });
+  await page.mouse.up();
+  const resistorUnderlayX = await resistor.getAttribute('data-x');
+
+  await page.mouse.move(transparentPoint.x, transparentPoint.y);
+  await page.mouse.down();
+  await page.mouse.move(transparentPoint.x + 60, transparentPoint.y, { steps: 5 });
   await page.mouse.up();
   await expect(capacitor).toHaveAttribute('data-x', beforeX ?? '');
+  await expect(resistor).not.toHaveAttribute('data-x', resistorUnderlayX ?? '');
 
   const visibleBounds = await capacitorBody.boundingBox();
   if (!visibleBounds) throw new Error('capacitor visible body has no rendered bounds');
@@ -1207,7 +1332,12 @@ test('capacitor uses its visible alpha body for dragging and I stays open betwee
   await page.mouse.up();
   await expect(capacitor).not.toHaveAttribute('data-x', beforeX ?? '');
 
-  await capacitorBody.click();
+  const movedBounds = await capacitorBody.boundingBox();
+  if (!movedBounds) throw new Error('moved capacitor has no rendered bounds');
+  await page.mouse.click(
+    movedBounds.x + movedBounds.width / 2,
+    movedBounds.y + movedBounds.height / 2,
+  );
   const inspector = page.getByRole('complementary', { name: 'Параметры выделения' });
   const capacitorInformation = inspector.getByRole('button', {
     name: 'Техническое состояние Конденсатор',
@@ -1224,6 +1354,50 @@ test('capacitor uses its visible alpha body for dragging and I stays open betwee
   failures.assertEmpty();
 });
 
+test('a safe PNP astable visibly alternates both LEDs', async ({ page }) => {
+  test.setTimeout(120_000);
+  const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await loginWithOrganization(page, teacher);
+  const projectId = await createProject(page, 'MATH-4B2 PNP multivibrator');
+  await saveDocument(page, projectId, pnpAstableDocument(100));
+  await page.goto(`/#/home/${projectId}`);
+  await expect(page.locator('.workbench-stage')).toBeVisible();
+
+  const leftLed = page.locator(
+    '[data-testid="schematic-component"][data-component-id="led1"] .workbench-production-visual',
+  );
+  const rightLed = page.locator(
+    '[data-testid="schematic-component"][data-component-id="led2"] .workbench-production-visual',
+  );
+  await page.getByRole('button', { name: 'Начать моделирование' }).click();
+
+  const samples: Array<readonly [number, number]> = [];
+  for (let index = 0; index < 80; index += 1) {
+    await page.waitForTimeout(100);
+    samples.push([
+      Number((await leftLed.getAttribute('data-led-brightness')) ?? '0'),
+      Number((await rightLed.getAttribute('data-led-brightness')) ?? '0'),
+    ]);
+  }
+
+  expect(
+    samples.some(([left, right]) => left > right + 1),
+    JSON.stringify(samples),
+  ).toBe(true);
+  expect(
+    samples.some(([left, right]) => right > left + 1),
+    JSON.stringify(samples),
+  ).toBe(true);
+  await expect(
+    page.locator('[data-testid="component-diagnostic"][data-component-id="led1"]'),
+  ).toHaveCount(0);
+  await expect(
+    page.locator('[data-testid="component-diagnostic"][data-component-id="led2"]'),
+  ).toHaveCount(0);
+  failures.assertEmpty();
+});
+
 test('DO-35 exposes calculated current and fixed profile limits through I', async ({ page }) => {
   test.setTimeout(120_000);
   const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
@@ -1234,7 +1408,7 @@ test('DO-35 exposes calculated current and fixed profile limits through I', asyn
   await page.goto(`/#/home/${projectId}`);
 
   await page.getByRole('button', { name: 'Начать моделирование' }).click();
-  await component(page, 'diode-do35').locator('.workbench-part').click();
+  await component(page, 'diode-do35').locator('.workbench-part').click({ force: true });
   const inspector = page.getByRole('complementary', { name: 'Параметры выделения' });
   await inspector.getByRole('button', { name: 'Техническое состояние Диод' }).click();
   await expect(inspector.getByText('Длительный ток', { exact: true })).toBeVisible();
@@ -1256,7 +1430,7 @@ test('NPN key exposes its calculated operating point through I', async ({ page }
   await page.goto(`/#/home/${projectId}`);
 
   await page.getByRole('button', { name: 'Начать моделирование' }).click();
-  await component(page, 'transistor-npn').locator('.workbench-part').click();
+  await component(page, 'transistor-npn').locator('.workbench-part').click({ force: true });
   const inspector = page.getByRole('complementary', { name: 'Параметры выделения' });
   await inspector.getByRole('button', { name: /Техническое состояние/ }).click();
   await expect(inspector.getByText('Регулирует ток', { exact: true })).toBeVisible();

@@ -160,7 +160,7 @@ describe('MATH-4B2 adaptive thermal transient', () => {
     });
   });
 
-  it('keeps an asymmetric two-NPN astable changing state on deterministic model time', () => {
+  it('starts a symmetric two-NPN astable deterministically and keeps changing state', () => {
     const npn = (id: string): SchematicComponent =>
       component(id, 'transistor', 100, {
         componentTypeId: 'transistor-npn',
@@ -185,7 +185,7 @@ describe('MATH-4B2 adaptive thermal transient', () => {
         npn('q1'),
         npn('q2'),
         cap('c1', 0),
-        cap('c2', 4),
+        cap('c2', 0),
       ],
       [
         connect('w1', 'source', 'a', 'rc1', 'a'),
@@ -206,7 +206,7 @@ describe('MATH-4B2 adaptive thermal transient', () => {
     );
     let previous = analyseCircuit(circuit, { simulationTimeMs: 1 });
     const states: string[] = [];
-    for (let timeMs = 21; timeMs <= 2_001; timeMs += 20) {
+    for (let timeMs = 101; timeMs <= 1_501; timeMs += 100) {
       previous = analyseCircuit(circuit, {
         simulationTimeMs: timeMs,
         ...(previous.transientState ? { transientState: previous.transientState } : {}),
@@ -226,5 +226,161 @@ describe('MATH-4B2 adaptive thermal transient', () => {
     expect(
       states.some((state) => !state.startsWith('saturation:') && state.includes('/saturation:')),
     ).toBe(true);
+  }, 15_000);
+
+  it('starts a symmetric mirrored two-PNP astable deterministically and keeps changing state', () => {
+    const pnp = (id: string): SchematicComponent =>
+      component(id, 'transistor', 100, {
+        componentTypeId: 'transistor-pnp',
+        pinIds: ['collector', 'base', 'emitter'],
+        stateProperties: { transistorType: 'pnp', currentGain: 100 },
+      });
+    const resistor = (id: string, resistanceOhm: number): SchematicComponent =>
+      component(id, 'resistor', resistanceOhm, {
+        componentTypeId: 'resistor-axial',
+        pinIds: ['lead-1', 'lead-2'],
+        stateProperties: { powerRatingWatt: 0.25 },
+      });
+    const cap = (id: string, initialVoltageVolt: number): SchematicComponent =>
+      component(id, 'visual', 10, {
+        componentTypeId: 'electrolytic-capacitor',
+        pinIds: ['negative', 'positive'],
+        stateProperties: { voltageRatingVolt: 25, initialVoltageVolt },
+      });
+    const circuit = document(
+      [
+        component('source', 'source', 4.5, {
+          componentTypeId: 'battery-holder-aa-3',
+          pinIds: ['BAT-', 'BAT+'],
+          stateProperties: { internalResistanceOhm: 0.1, maxContinuousCurrentAmp: 5 },
+        }),
+        resistor('rc1', 1_000),
+        resistor('rc2', 1_000),
+        resistor('rb1', 10_000),
+        resistor('rb2', 10_000),
+        pnp('q1'),
+        pnp('q2'),
+        component('led1', 'led', 2, {
+          componentTypeId: 'led-5mm',
+          pinIds: ['anode', 'cathode'],
+          stateProperties: { color: 'red' },
+        }),
+        component('led2', 'led', 2, {
+          componentTypeId: 'led-5mm',
+          pinIds: ['anode', 'cathode'],
+          stateProperties: { color: 'red' },
+        }),
+        cap('c1', 0),
+        cap('c2', 0),
+      ],
+      [
+        connect('w1', 'q1', 'collector', 'rc1', 'lead-1'),
+        connect('w2', 'rc1', 'lead-2', 'led1', 'anode'),
+        connect('w2-led', 'led1', 'cathode', 'source', 'BAT-'),
+        connect('w3', 'q2', 'collector', 'rc2', 'lead-1'),
+        connect('w4', 'rc2', 'lead-2', 'led2', 'anode'),
+        connect('w4-led', 'led2', 'cathode', 'source', 'BAT-'),
+        connect('w5', 'q1', 'base', 'rb1', 'lead-1'),
+        connect('w6', 'rb1', 'lead-2', 'source', 'BAT-'),
+        connect('w7', 'q2', 'base', 'rb2', 'lead-1'),
+        connect('w8', 'rb2', 'lead-2', 'source', 'BAT-'),
+        connect('w9', 'q1', 'emitter', 'source', 'BAT+'),
+        connect('w10', 'q2', 'emitter', 'source', 'BAT+'),
+        connect('w11', 'c1', 'negative', 'q1', 'collector'),
+        connect('w12', 'c1', 'positive', 'q2', 'base'),
+        connect('w13', 'c2', 'negative', 'q2', 'collector'),
+        connect('w14', 'c2', 'positive', 'q1', 'base'),
+      ],
+    );
+    let previous = analyseCircuit(circuit, { simulationTimeMs: 1 });
+    const states: string[] = [];
+    const brightnessPairs: Array<readonly [number, number]> = [];
+    for (let timeMs = 101; timeMs <= 1_501; timeMs += 100) {
+      previous = analyseCircuit(circuit, {
+        simulationTimeMs: timeMs,
+        ...(previous.transientState ? { transientState: previous.transientState } : {}),
+      });
+      expect(previous.solved, `PNP astable failed at ${timeMs} ms`).toBe(true);
+      const q1 = previous.components.find((entry) => entry.componentId === 'q1');
+      const q2 = previous.components.find((entry) => entry.componentId === 'q2');
+      const led1 = previous.components.find((entry) => entry.componentId === 'led1');
+      const led2 = previous.components.find((entry) => entry.componentId === 'led2');
+      states.push(
+        `${q1?.operatingRegion}:${q1?.voltageDrop.toFixed(2)}/${q2?.operatingRegion}:${q2?.voltageDrop.toFixed(2)}`,
+      );
+      brightnessPairs.push([led1?.brightness ?? 0, led2?.brightness ?? 0]);
+    }
+
+    expect(previous).toMatchObject({ solved: true, quality: { finite: true, passed: true } });
+    expect(new Set(states).size).toBeGreaterThan(1);
+    expect(
+      states.some((state) => state.startsWith('saturation:') && !state.includes('/saturation:')),
+    ).toBe(true);
+    expect(
+      states.some((state) => !state.startsWith('saturation:') && state.includes('/saturation:')),
+    ).toBe(true);
+    expect(brightnessPairs.some(([left, right]) => left > right + 1)).toBe(true);
+    expect(brightnessPairs.some(([left, right]) => right > left + 1)).toBe(true);
+
+    const polarityChangeTimesMs = (
+      capacitanceMicrofarad: number,
+      sampleStepMs: number,
+      endTimeMs: number,
+    ): readonly number[] => {
+      const variant: ElectronicsDocument = {
+        ...circuit,
+        components: circuit.components.map((entry) =>
+          entry.id === 'c1' || entry.id === 'c2'
+            ? { ...entry, value: capacitanceMicrofarad }
+            : entry,
+        ),
+      };
+      let sample = analyseCircuit(variant, { simulationTimeMs: 1 });
+      const initialLeft = sample.components.find((entry) => entry.componentId === 'led1');
+      const initialRight = sample.components.find((entry) => entry.componentId === 'led2');
+      const initialDifference = (initialLeft?.brightness ?? 0) - (initialRight?.brightness ?? 0);
+      const initialPolarity = Math.abs(initialDifference) > 1 ? Math.sign(initialDifference) : 0;
+      let previousPolarity = initialPolarity;
+      let candidatePolarity = initialPolarity;
+      let candidateSamples = 0;
+      const changes: number[] = [];
+      for (let timeMs = 1 + sampleStepMs; timeMs <= endTimeMs; timeMs += sampleStepMs) {
+        sample = analyseCircuit(variant, {
+          simulationTimeMs: timeMs,
+          ...(sample.transientState ? { transientState: sample.transientState } : {}),
+        });
+        const left = sample.components.find((entry) => entry.componentId === 'led1');
+        const right = sample.components.find((entry) => entry.componentId === 'led2');
+        const difference = (left?.brightness ?? 0) - (right?.brightness ?? 0);
+        const polarity = Math.abs(difference) > 1 ? Math.sign(difference) : previousPolarity;
+        if (polarity === previousPolarity) {
+          candidatePolarity = previousPolarity;
+          candidateSamples = 0;
+        } else if (polarity !== 0) {
+          if (polarity !== candidatePolarity) {
+            candidatePolarity = polarity;
+            candidateSamples = 1;
+          } else {
+            candidateSamples += 1;
+          }
+          if (candidateSamples >= 3) {
+            changes.push(timeMs - sampleStepMs * 2);
+            previousPolarity = candidatePolarity;
+            candidateSamples = 0;
+          }
+        }
+      }
+      return changes;
+    };
+
+    const tenMicrofaradChanges = polarityChangeTimesMs(10, 5, 1_001);
+    const hundredMicrofaradChanges = polarityChangeTimesMs(100, 50, 10_001);
+    expect(tenMicrofaradChanges.length).toBeGreaterThan(2);
+    expect(hundredMicrofaradChanges.length).toBeGreaterThan(1);
+    const tenMicrofaradHalfPeriod =
+      (tenMicrofaradChanges.at(-1) ?? 0) - (tenMicrofaradChanges.at(-2) ?? 0);
+    const hundredMicrofaradHalfPeriod =
+      (hundredMicrofaradChanges.at(-1) ?? 0) - (hundredMicrofaradChanges.at(-2) ?? 0);
+    expect(hundredMicrofaradHalfPeriod).toBeGreaterThan(tenMicrofaradHalfPeriod * 4);
   }, 15_000);
 });

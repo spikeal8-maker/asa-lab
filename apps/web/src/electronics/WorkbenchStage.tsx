@@ -4,7 +4,6 @@ import {
   useState,
   type CSSProperties,
   type KeyboardEvent as ReactKeyboardEvent,
-  type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
 } from 'react';
 import {
@@ -207,19 +206,78 @@ export function WorkbenchStage({
     }
   }, [document.components]);
 
-  function isVisibleComponentBody(
-    event: ReactPointerEvent<SVGGElement> | ReactMouseEvent<SVGGElement>,
+  function componentBodyContainsClientPoint(
+    part: SVGGElement,
+    clientX: number,
+    clientY: number,
     entry: NonNullable<ReturnType<typeof catalogEntry>>,
     size: { readonly width: number; readonly height: number },
   ): boolean {
-    const matrix = event.currentTarget.getScreenCTM();
-    const canvas = event.currentTarget.ownerSVGElement;
+    const matrix = part.getScreenCTM();
+    const canvas = part.ownerSVGElement;
     if (!matrix || !canvas) return false;
     const point = canvas.createSVGPoint();
-    point.x = event.clientX;
-    point.y = event.clientY;
+    point.x = clientX;
+    point.y = clientY;
     const local = point.matrixTransform(matrix.inverse());
     return componentAssetContainsPoint(entry, size.width, size.height, local);
+  }
+
+  function isVisibleComponentBody(
+    event: {
+      readonly currentTarget: SVGGElement;
+      readonly clientX: number;
+      readonly clientY: number;
+    },
+    entry: NonNullable<ReturnType<typeof catalogEntry>>,
+    size: { readonly width: number; readonly height: number },
+  ): boolean {
+    return componentBodyContainsClientPoint(
+      event.currentTarget,
+      event.clientX,
+      event.clientY,
+      entry,
+      size,
+    );
+  }
+
+  function componentAtClientPoint(clientX: number, clientY: number) {
+    const stage = c.stageRef.current;
+    if (!stage) return null;
+    for (const component of [...orderedComponents].reverse()) {
+      if (component.kind === 'wire') continue;
+      const entry = catalogEntry(component);
+      if (!entry?.asset) continue;
+      const part = stage.querySelector<SVGGElement>(
+        `[data-component-id="${CSS.escape(component.id)}"] > .workbench-part`,
+      );
+      if (!part) continue;
+      const size = renderedSize(entry, 0);
+      if (componentBodyContainsClientPoint(part, clientX, clientY, entry, size)) return component;
+    }
+    return null;
+  }
+
+  function handleStagePointerDown(event: ReactPointerEvent<SVGSVGElement>): void {
+    const target = event.target as Element;
+    if (
+      event.button === 0 &&
+      !c.pendingTerminal &&
+      target.classList.contains('workbench-grid-hit')
+    ) {
+      const component = componentAtClientPoint(event.clientX, event.clientY);
+      if (component) {
+        if (event.shiftKey) {
+          c.selectComponent(component.id, true);
+          event.preventDefault();
+          event.stopPropagation();
+          return;
+        }
+        c.startComponentDrag(event, component);
+        return;
+      }
+    }
+    c.startPan(event);
   }
   const selectedWire =
     c.selection?.kind === 'wire'
@@ -419,7 +477,7 @@ export function WorkbenchStage({
         viewBox={`${c.viewBox.x} ${c.viewBox.y} ${c.viewBox.width} ${c.viewBox.height}`}
         preserveAspectRatio="xMidYMid slice"
         onPointerDownCapture={c.placeCatalogComponent}
-        onPointerDown={c.startPan}
+        onPointerDown={handleStagePointerDown}
         onPointerMove={c.handlePointerMove}
         onPointerUp={c.finishPointer}
         onPointerCancel={c.finishPointer}
@@ -553,7 +611,7 @@ export function WorkbenchStage({
                     height={baseSize.height}
                     fill="#ffffff"
                     fillOpacity={0.001}
-                    pointerEvents="all"
+                    pointerEvents="none"
                   />
                   <ProductionComponentVisual
                     entry={entry}

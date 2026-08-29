@@ -1046,6 +1046,10 @@ export interface SolveResult {
       accumulatedDamage: number;
       failureMode: 'none' | 'open';
     }[];
+    bjtRegions?: {
+      componentId: string;
+      region: 'cutoff' | 'active' | 'saturation';
+    }[];
   };
   transientAnalysis?: {
     acceptedSteps: number;
@@ -1065,7 +1069,7 @@ export interface SolveResult {
   };
   topologySignature?: string;
   simulationInputDigest?: string;
-  solverRevision?: 'asa-electronics-solver-v5';
+  solverRevision?: 'asa-electronics-solver-v6';
   modelSetDigest?: string;
   analysis?: {
     electricalMode: 'dc' | 'transient';
