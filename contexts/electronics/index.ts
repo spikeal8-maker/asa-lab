@@ -111,6 +111,10 @@ export {
   type SimulationSolveStatus,
   type SolveResult,
 } from './domain/solver.js';
+export type {
+  CapacitorTransientState,
+  CapacitorTransientStateEntry,
+} from './domain/models/capacitor-transient-model.js';
 export {
   analyseCircuit,
   compileCircuit,
@@ -118,6 +122,7 @@ export {
   type CompiledNet,
   type SimulationQuality,
   type SimulationResult,
+  type SimulationOptions,
   type SimulationStatus,
 } from './domain/simulation.js';
 export { ELECTRONICS_MODULE } from './module.js';

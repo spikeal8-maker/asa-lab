@@ -83,7 +83,11 @@ import {
   type TerminalRef,
   type VertexDrag,
 } from './workbench-model';
-import { calculateLiveSimulation, calculateSimulationPreflight } from './live-simulation';
+import {
+  advanceLiveSimulation,
+  calculateLiveSimulation,
+  calculateSimulationPreflight,
+} from './live-simulation';
 import { warmProductionAsset } from './production-asset-contracts';
 import { unlockPiezoAudio, usePiezoAudio } from './use-piezo-audio';
 import {
@@ -211,11 +215,13 @@ export function useElectronicsWorkbench(projectId: string) {
 
   const simulationStartedAtRef = useRef<number | null>(null);
   const [simulationTimeMs, setSimulationTimeMs] = useState(0);
+  const [liveResult, setLiveResult] = useState<typeof persistedResult>(null);
 
   useEffect(() => {
     if (!simulationRunning) {
       simulationStartedAtRef.current = null;
       setSimulationTimeMs(0);
+      setLiveResult(null);
       return;
     }
 
@@ -230,15 +236,20 @@ export function useElectronicsWorkbench(projectId: string) {
     return () => window.clearInterval(interval);
   }, [simulationRunning]);
 
+  useEffect(() => {
+    if (!runtimeDocument || !simulationRunning) return;
+    setLiveResult((previous) =>
+      advanceLiveSimulation(runtimeDocument, previous ?? persistedResult, simulationTimeMs),
+    );
+  }, [persistedResult, runtimeDocument, simulationRunning, simulationTimeMs]);
+
   const result = useMemo(
     () =>
-      calculateLiveSimulation(
-        runtimeDocument,
-        persistedResult,
-        simulationRunning,
-        simulationTimeMs,
-      ),
-    [persistedResult, runtimeDocument, simulationRunning, simulationTimeMs],
+      simulationRunning
+        ? (liveResult ??
+          calculateLiveSimulation(runtimeDocument, persistedResult, true, simulationTimeMs))
+        : calculateLiveSimulation(runtimeDocument, persistedResult, false, simulationTimeMs),
+    [liveResult, persistedResult, runtimeDocument, simulationRunning, simulationTimeMs],
   );
   usePiezoAudio(runtimeDocument, result, simulationRunning);
 

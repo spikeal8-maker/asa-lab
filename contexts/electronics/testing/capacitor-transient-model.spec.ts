@@ -123,4 +123,82 @@ describe('electrolytic capacitor transient model', () => {
     expect(solvedCapacitor?.current).toBeLessThan(0);
     expect(solvedCapacitor?.storedEnergyJoule).toBeGreaterThan(0);
   });
+
+  it('carries accumulated voltage across a topology switch and remains deterministic', () => {
+    const charging = document(
+      [component('source', 'source', 5), component('r1', 'resistor', 1_000), capacitor()],
+      [
+        connect('w1', 'source', 'a', 'r1', 'a'),
+        connect('w2', 'r1', 'b', 'c1', 'positive'),
+        connect('w3', 'c1', 'negative', 'source', 'b'),
+      ],
+    );
+    const discharging = document(
+      [component('r1', 'resistor', 1_000), capacitor()],
+      [connect('w1', 'c1', 'positive', 'r1', 'a'), connect('w2', 'r1', 'b', 'c1', 'negative')],
+    );
+    const charged = analyseCircuit(charging, { simulationTimeMs: 100 });
+    if (!charged.transientState) throw new Error('charged capacitor state missing');
+    const switched = analyseCircuit(discharging, {
+      simulationTimeMs: 200,
+      transientState: charged.transientState,
+    });
+    const repeated = analyseCircuit(discharging, {
+      simulationTimeMs: 200,
+      transientState: charged.transientState,
+    });
+    const chargedVoltage =
+      charged.components.find((entry) => entry.componentId === 'c1')?.voltageDrop ?? 0;
+    const switchedVoltage =
+      switched.components.find((entry) => entry.componentId === 'c1')?.voltageDrop ?? 0;
+
+    expect(charged.transientState).toMatchObject({ version: 1, simulationTimeMs: 100 });
+    expect(switched).toMatchObject({
+      solved: true,
+      status: 'solved',
+      solverRevision: 'asa-electronics-solver-v4',
+      quality: { finite: true, passed: true },
+      transientState: { version: 1, simulationTimeMs: 200 },
+    });
+    expect(switchedVoltage).toBeGreaterThan(0);
+    expect(switchedVoltage).toBeLessThan(chargedVoltage);
+    expect(switchedVoltage).toBeCloseTo(chargedVoltage * Math.exp(-1), 1);
+    expect(JSON.stringify(switched)).toBe(JSON.stringify(repeated));
+  });
+
+  it('resets incompatible carried state when capacitor parameters change', () => {
+    const charging = document(
+      [component('source', 'source', 5), component('r1', 'resistor', 1_000), capacitor()],
+      [
+        connect('w1', 'source', 'a', 'r1', 'a'),
+        connect('w2', 'r1', 'b', 'c1', 'positive'),
+        connect('w3', 'c1', 'negative', 'source', 'b'),
+      ],
+    );
+    const changedCapacitor = component('c1', 'visual', 220, {
+      componentTypeId: 'electrolytic-capacitor',
+      pinIds: ['negative', 'positive'],
+      stateProperties: { initialVoltageVolt: 0, voltageRatingVolt: 25 },
+    });
+    const discharging = document(
+      [component('r1', 'resistor', 1_000), changedCapacitor],
+      [connect('w1', 'c1', 'positive', 'r1', 'a'), connect('w2', 'r1', 'b', 'c1', 'negative')],
+    );
+    const charged = analyseCircuit(charging, { simulationTimeMs: 100 });
+    if (!charged.transientState) throw new Error('charged capacitor state missing');
+    const result = analyseCircuit(discharging, {
+      simulationTimeMs: 200,
+      transientState: charged.transientState,
+    });
+
+    expect(result.components.find((entry) => entry.componentId === 'c1')?.voltageDrop).toBeCloseTo(
+      0,
+      9,
+    );
+    expect(result.transientState?.capacitors[0]).toMatchObject({
+      componentId: 'c1',
+      voltageVolt: 0,
+    });
+    expect(result.transientState?.capacitors[0]?.capacitanceFarad).toBeCloseTo(220e-6, 12);
+  });
 });

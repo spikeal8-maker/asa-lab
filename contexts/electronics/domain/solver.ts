@@ -44,6 +44,7 @@ import {
   capacitorPropertyError,
   isElectrolyticCapacitor,
   observeCapacitor,
+  type CapacitorTransientState,
 } from './models/capacitor-transient-model.js';
 
 export { sourceInternalResistanceOhm } from './models/linear-dc-models.js';
@@ -175,10 +176,12 @@ export interface SolveResult {
   readonly iterations: number;
   readonly numericalResidual: number;
   readonly numericalTolerance: number;
+  readonly transientState?: CapacitorTransientState;
 }
 
 export interface SolveOptions {
   readonly simulationTimeMs?: number;
+  readonly transientState?: CapacitorTransientState;
 }
 
 interface InternalSolveOptions extends SolveOptions {
@@ -581,29 +584,52 @@ export function solveCircuit(
     ? Math.max(0, options.simulationTimeMs ?? 0)
     : 0;
   const targetTimeMs = Math.max(TRANSIENT_INITIAL_SAMPLE_MS, requestedTimeMs);
+  const orderedCapacitors = [...capacitors].sort((left, right) =>
+    left.id < right.id ? -1 : left.id > right.id ? 1 : 0,
+  );
+  const compatibleState = capacitorTransientStateIsCompatible(
+    options.transientState,
+    orderedCapacitors,
+    targetTimeMs,
+  )
+    ? options.transientState
+    : undefined;
+  const startTimeMs = compatibleState?.simulationTimeMs ?? 0;
+  const elapsedTimeMs = Math.max(TRANSIENT_INITIAL_SAMPLE_MS, targetTimeMs - startTimeMs);
   const stepCount = Math.min(
     TRANSIENT_MAX_STEPS,
-    Math.max(1, Math.ceil(targetTimeMs / TRANSIENT_TARGET_STEP_MS)),
+    Math.max(1, Math.ceil(elapsedTimeMs / TRANSIENT_TARGET_STEP_MS)),
   );
-  const stepMs = targetTimeMs / stepCount;
+  const stepMs = elapsedTimeMs / stepCount;
   const previousVoltageById: Record<string, number> = Object.fromEntries(
-    capacitors.map((component) => [
-      component.id,
-      capacitorParameters(component).initialVoltageVolt,
-    ]),
+    orderedCapacitors.map((component) => {
+      const carried = compatibleState?.capacitors.find(
+        (entry) => entry.componentId === component.id,
+      );
+      return [
+        component.id,
+        carried?.voltageVolt ?? capacitorParameters(component).initialVoltageVolt,
+      ];
+    }),
   );
   let accumulatedIterations = 0;
   let finalResult: SolveResult | null = null;
   for (let step = 1; step <= stepCount; step += 1) {
     const result = solveCircuitStep(document, {
-      simulationTimeMs: step * stepMs,
+      simulationTimeMs: startTimeMs + step * stepMs,
       transientStepSeconds: stepMs / 1_000,
       capacitorPreviousVoltageById: previousVoltageById,
     });
     accumulatedIterations += result.iterations;
     finalResult = result;
-    if (!result.solved) return { ...result, iterations: accumulatedIterations };
-    for (const capacitor of capacitors) {
+    if (!result.solved) {
+      return {
+        ...result,
+        iterations: accumulatedIterations,
+        ...(compatibleState ? { transientState: compatibleState } : {}),
+      };
+    }
+    for (const capacitor of orderedCapacitors) {
       const voltage = result.components.find(
         (component) => component.componentId === capacitor.id,
       )?.voltageDrop;
@@ -613,7 +639,49 @@ export function solveCircuit(
   return {
     ...(finalResult as SolveResult),
     iterations: accumulatedIterations,
+    transientState: {
+      version: 1,
+      simulationTimeMs: targetTimeMs,
+      capacitors: orderedCapacitors.map((component) => {
+        const parameters = capacitorParameters(component);
+        return {
+          componentId: component.id,
+          capacitanceFarad: parameters.capacitanceFarad,
+          initialVoltageVolt: parameters.initialVoltageVolt,
+          voltageRatingVolt: parameters.voltageRatingVolt,
+          voltageVolt: previousVoltageById[component.id] as number,
+        };
+      }),
+    },
   };
+}
+
+function capacitorTransientStateIsCompatible(
+  state: CapacitorTransientState | undefined,
+  capacitors: readonly SchematicComponent[],
+  targetTimeMs: number,
+): state is CapacitorTransientState {
+  if (
+    state?.version !== 1 ||
+    !Number.isFinite(state.simulationTimeMs) ||
+    state.simulationTimeMs < 0 ||
+    state.simulationTimeMs >= targetTimeMs ||
+    !Array.isArray(state.capacitors) ||
+    state.capacitors.length !== capacitors.length
+  ) {
+    return false;
+  }
+  return capacitors.every((component, index) => {
+    const entry = state.capacitors[index];
+    const parameters = capacitorParameters(component);
+    return (
+      entry?.componentId === component.id &&
+      entry.capacitanceFarad === parameters.capacitanceFarad &&
+      entry.initialVoltageVolt === parameters.initialVoltageVolt &&
+      entry.voltageRatingVolt === parameters.voltageRatingVolt &&
+      Number.isFinite(entry.voltageVolt)
+    );
+  });
 }
 
 function solveCircuitStep(

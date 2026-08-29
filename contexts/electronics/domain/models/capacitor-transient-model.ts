@@ -23,6 +23,25 @@ export interface CapacitorObservation {
   readonly overVoltage: boolean;
 }
 
+export interface CapacitorTransientStateEntry {
+  readonly componentId: string;
+  readonly capacitanceFarad: number;
+  readonly initialVoltageVolt: number;
+  readonly voltageRatingVolt: number;
+  readonly voltageVolt: number;
+}
+
+/**
+ * Explicit transient state passed between pure solver calls. The state is part
+ * of the simulation input, not mutable module memory, so a browser and server
+ * given the same document, model time and state reproduce the same result.
+ */
+export interface CapacitorTransientState {
+  readonly version: 1;
+  readonly simulationTimeMs: number;
+  readonly capacitors: readonly CapacitorTransientStateEntry[];
+}
+
 const MICROFARAD_TO_FARAD = 1e-6;
 const MIN_CAPACITANCE_MICROFARAD = 0.001;
 const MAX_CAPACITANCE_MICROFARAD = 1_000_000;

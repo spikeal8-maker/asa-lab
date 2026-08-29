@@ -1025,6 +1025,17 @@ export interface SolveResult {
   iterations: number;
   numericalResidual: number;
   numericalTolerance: number;
+  transientState?: {
+    version: 1;
+    simulationTimeMs: number;
+    capacitors: {
+      componentId: string;
+      capacitanceFarad: number;
+      initialVoltageVolt: number;
+      voltageRatingVolt: number;
+      voltageVolt: number;
+    }[];
+  };
   quality?: {
     finite: boolean;
     passed: boolean;
@@ -1037,7 +1048,7 @@ export interface SolveResult {
   };
   topologySignature?: string;
   simulationInputDigest?: string;
-  solverRevision?: 'asa-electronics-solver-v3';
+  solverRevision?: 'asa-electronics-solver-v4';
   modelSetDigest?: string;
   analysis?: {
     electricalMode: 'dc' | 'transient';

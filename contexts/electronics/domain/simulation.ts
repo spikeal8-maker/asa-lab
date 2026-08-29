@@ -12,7 +12,10 @@ import {
   type SolveResult,
 } from './solver.js';
 import { sha256Hex, simulationInputDigest } from './simulation-input-digest.js';
-import { isElectrolyticCapacitor } from './models/capacitor-transient-model.js';
+import {
+  isElectrolyticCapacitor,
+  type CapacitorTransientState,
+} from './models/capacitor-transient-model.js';
 
 export type SimulationStatus = 'solved' | 'unsupported' | 'invalid' | 'nonconvergent';
 
@@ -46,7 +49,7 @@ export interface SimulationResult extends SolveResult {
   readonly quality: SimulationQuality;
   readonly topologySignature: string;
   readonly simulationInputDigest: string;
-  readonly solverRevision: 'asa-electronics-solver-v3';
+  readonly solverRevision: 'asa-electronics-solver-v4';
   readonly modelSetDigest: string;
   readonly analysis: {
     readonly electricalMode: 'dc' | 'transient';
@@ -123,6 +126,16 @@ function deterministicSolveResult(result: SolveResult): SolveResult {
       .sort((left, right) =>
         ordinalCompare(`${left.code}\u0000${left.message}`, `${right.code}\u0000${right.message}`),
       ),
+    ...(result.transientState
+      ? {
+          transientState: {
+            ...result.transientState,
+            capacitors: [...result.transientState.capacitors].sort((left, right) =>
+              ordinalCompare(left.componentId, right.componentId),
+            ),
+          },
+        }
+      : {}),
   };
 }
 
@@ -208,6 +221,17 @@ function allNumbers(result: SolveResult): readonly number[] {
     result.iterations,
     result.numericalResidual,
     result.numericalTolerance,
+    ...(result.transientState
+      ? [
+          result.transientState.simulationTimeMs,
+          ...result.transientState.capacitors.flatMap((entry) => [
+            entry.capacitanceFarad,
+            entry.initialVoltageVolt,
+            entry.voltageRatingVolt,
+            entry.voltageVolt,
+          ]),
+        ]
+      : []),
     ...result.nodes.flatMap((node) => [node.voltage]),
     ...result.components.flatMap((component) => [
       component.voltageDrop,
@@ -498,6 +522,7 @@ function statusFor(result: SolveResult): SimulationStatus {
 
 export interface SimulationOptions {
   readonly simulationTimeMs?: number;
+  readonly transientState?: CapacitorTransientState;
 }
 
 export function analyseCircuit(
@@ -539,7 +564,7 @@ export function analyseCircuit(
       quality: failedQuality(),
       topologySignature: compiled.topologySignature,
       simulationInputDigest: inputDigest,
-      solverRevision: 'asa-electronics-solver-v3',
+      solverRevision: 'asa-electronics-solver-v4',
       modelSetDigest: MODEL_SET_DIGEST,
       analysis,
     };
@@ -564,7 +589,7 @@ export function analyseCircuit(
       quality,
       topologySignature: compiled.topologySignature,
       simulationInputDigest: inputDigest,
-      solverRevision: 'asa-electronics-solver-v3',
+      solverRevision: 'asa-electronics-solver-v4',
       modelSetDigest: MODEL_SET_DIGEST,
       analysis,
     };
@@ -576,7 +601,7 @@ export function analyseCircuit(
     quality,
     topologySignature: compiled.topologySignature,
     simulationInputDigest: inputDigest,
-    solverRevision: 'asa-electronics-solver-v3',
+    solverRevision: 'asa-electronics-solver-v4',
     modelSetDigest: MODEL_SET_DIGEST,
     analysis,
   };

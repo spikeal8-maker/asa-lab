@@ -34,8 +34,13 @@ export {
   type CompiledNet,
   type SimulationQuality,
   type SimulationResult,
+  type SimulationOptions,
   type SimulationStatus,
 } from './domain/simulation.js';
+export type {
+  CapacitorTransientState,
+  CapacitorTransientStateEntry,
+} from './domain/models/capacitor-transient-model.js';
 export type {
   ComponentResult,
   Diagnostic,

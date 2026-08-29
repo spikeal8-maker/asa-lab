@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { SchematicDocument, SolveResult } from '../../api';
 import { simulationInputDigest } from '@asa-lab/electronics/simulation';
 import {
+  advanceLiveSimulation,
   calculateLiveSimulation,
   calculateSimulationPreflight,
   prepareLiveSimulationStart,
@@ -88,6 +89,72 @@ describe('live Electronics simulation', () => {
 
   it('does not manufacture a global simulation-start notice', () => {
     expect(prepareLiveSimulationStart(circuit)).not.toHaveProperty('notice');
+  });
+
+  it('keeps capacitor charge when a runtime topology changes between clock ticks', () => {
+    const capacitor = {
+      id: 'capacitor',
+      kind: 'visual' as const,
+      componentTypeId: 'electrolytic-capacitor',
+      pinIds: ['negative', 'positive'],
+      position: { x: 40, y: 0 },
+      value: 100,
+      stateProperties: { initialVoltageVolt: 0, voltageRatingVolt: 25 },
+    };
+    const resistor = {
+      id: 'resistor',
+      kind: 'resistor' as const,
+      position: { x: 20, y: 0 },
+      value: 1_000,
+    };
+    const charging: SchematicDocument = {
+      ...circuit,
+      components: [circuit.components[0]!, resistor, capacitor],
+      connections: [
+        {
+          id: 'charge-positive',
+          from: { componentId: 'source', terminal: 'a' },
+          to: { componentId: 'resistor', terminal: 'a' },
+        },
+        {
+          id: 'charge-capacitor',
+          from: { componentId: 'resistor', terminal: 'b' },
+          to: { componentId: 'capacitor', terminal: 'positive' },
+        },
+        {
+          id: 'charge-negative',
+          from: { componentId: 'capacitor', terminal: 'negative' },
+          to: { componentId: 'source', terminal: 'b' },
+        },
+      ],
+    };
+    const discharging: SchematicDocument = {
+      ...charging,
+      components: [resistor, capacitor],
+      connections: [
+        {
+          id: 'discharge-positive',
+          from: { componentId: 'capacitor', terminal: 'positive' },
+          to: { componentId: 'resistor', terminal: 'a' },
+        },
+        {
+          id: 'discharge-negative',
+          from: { componentId: 'resistor', terminal: 'b' },
+          to: { componentId: 'capacitor', terminal: 'negative' },
+        },
+      ],
+    };
+    const charged = advanceLiveSimulation(charging, null, 100);
+    const heldAtSwitch = advanceLiveSimulation(discharging, charged, 100);
+    const discharged = advanceLiveSimulation(discharging, heldAtSwitch, 200);
+    const voltage = (result: SolveResult) =>
+      result.components.find((entry) => entry.componentId === 'capacitor')?.voltageDrop ?? 0;
+
+    expect(heldAtSwitch).toBe(charged);
+    expect(voltage(charged)).toBeGreaterThan(0);
+    expect(voltage(discharged)).toBeGreaterThan(0);
+    expect(voltage(discharged)).toBeLessThan(voltage(charged));
+    expect(discharged.transientState?.simulationTimeMs).toBe(200);
   });
 
   it('recalculates LED colour and resistor effects in a complete owner-pin circuit', () => {
