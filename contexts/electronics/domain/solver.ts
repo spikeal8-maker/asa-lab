@@ -38,6 +38,13 @@ import {
   type NpnObservation,
   type NpnOperatingPoint,
 } from './models/npn-dc-model.js';
+import {
+  capacitorCompanion,
+  capacitorParameters,
+  capacitorPropertyError,
+  isElectrolyticCapacitor,
+  observeCapacitor,
+} from './models/capacitor-transient-model.js';
 
 export { sourceInternalResistanceOhm } from './models/linear-dc-models.js';
 
@@ -61,6 +68,8 @@ export type DiagnosticCode =
   | 'led_burnout'
   | 'transistor_reverse_bias'
   | 'transistor_overcurrent'
+  | 'capacitor_reverse_polarity'
+  | 'capacitor_overvoltage'
   | 'unsupported_component'
   | 'unsupported_topology'
   | 'numerical_instability'
@@ -144,6 +153,10 @@ export interface ComponentResult {
   readonly soundLevel?: number;
   readonly speedPercent?: number;
   readonly direction?: 'clockwise' | 'counterclockwise' | 'stopped';
+  readonly capacitanceFarad?: number;
+  readonly chargeCoulomb?: number;
+  readonly storedEnergyJoule?: number;
+  readonly voltageRatingVolt?: number;
 }
 
 export interface NodeResult {
@@ -168,6 +181,11 @@ export interface SolveOptions {
   readonly simulationTimeMs?: number;
 }
 
+interface InternalSolveOptions extends SolveOptions {
+  readonly transientStepSeconds?: number;
+  readonly capacitorPreviousVoltageById?: Readonly<Record<string, number>>;
+}
+
 const GMIN = 1e-12;
 const CLOSED_RESISTANCE = 1e-4;
 const LED_WARNING_RATIO = 0.8;
@@ -189,6 +207,9 @@ const FET_MIN_OHMIC_CONDUCTANCE = 1e-4;
 // confirmed time-varying Arduino output.
 const PIEZO_DC_RESISTANCE_OHM = 100_000_000;
 const DC_MOTOR_EFFECTIVE_RESISTANCE_OHM = 6 / 0.07;
+const TRANSIENT_TARGET_STEP_MS = 5;
+const TRANSIENT_MAX_STEPS = 64;
+const TRANSIENT_INITIAL_SAMPLE_MS = 1;
 
 function damageObservationForStress(
   stressState: ComponentResult['stressState'],
@@ -396,6 +417,7 @@ function logicalTerminal(component: SchematicComponent, terminal: LogicalTermina
   }
   if (component.kind === 'lamp') return terminal === 'a' ? 'L1' : 'L2';
   if (isDcMotor(component)) return terminal === 'a' ? 'positive' : 'negative';
+  if (isElectrolyticCapacitor(component)) return terminal === 'a' ? 'positive' : 'negative';
   return terminal;
 }
 
@@ -403,6 +425,7 @@ function isSimulated(component: SchematicComponent): boolean {
   return (
     isArduinoUno(component) ||
     isDcMotor(component) ||
+    isElectrolyticCapacitor(component) ||
     !['breadboard', 'visual', 'wire'].includes(component.kind)
   );
 }
@@ -464,6 +487,8 @@ function solveLinear(matrix: number[][], rhs: number[]): number[] | null {
 }
 
 function propertyError(component: SchematicComponent): string | null {
+  const capacitorError = capacitorPropertyError(component);
+  if (capacitorError) return capacitorError;
   if (!Number.isFinite(component.value) || component.value < 0)
     return 'Значение должно быть неотрицательным числом.';
   if (component.kind === 'source' && component.value <= 0)
@@ -549,6 +574,52 @@ export function solveCircuit(
   document: ElectronicsDocument,
   options: SolveOptions = {},
 ): SolveResult {
+  const capacitors = document.components.filter(isElectrolyticCapacitor);
+  if (capacitors.length === 0) return solveCircuitStep(document, options);
+
+  const requestedTimeMs = Number.isFinite(options.simulationTimeMs)
+    ? Math.max(0, options.simulationTimeMs ?? 0)
+    : 0;
+  const targetTimeMs = Math.max(TRANSIENT_INITIAL_SAMPLE_MS, requestedTimeMs);
+  const stepCount = Math.min(
+    TRANSIENT_MAX_STEPS,
+    Math.max(1, Math.ceil(targetTimeMs / TRANSIENT_TARGET_STEP_MS)),
+  );
+  const stepMs = targetTimeMs / stepCount;
+  const previousVoltageById: Record<string, number> = Object.fromEntries(
+    capacitors.map((component) => [
+      component.id,
+      capacitorParameters(component).initialVoltageVolt,
+    ]),
+  );
+  let accumulatedIterations = 0;
+  let finalResult: SolveResult | null = null;
+  for (let step = 1; step <= stepCount; step += 1) {
+    const result = solveCircuitStep(document, {
+      simulationTimeMs: step * stepMs,
+      transientStepSeconds: stepMs / 1_000,
+      capacitorPreviousVoltageById: previousVoltageById,
+    });
+    accumulatedIterations += result.iterations;
+    finalResult = result;
+    if (!result.solved) return { ...result, iterations: accumulatedIterations };
+    for (const capacitor of capacitors) {
+      const voltage = result.components.find(
+        (component) => component.componentId === capacitor.id,
+      )?.voltageDrop;
+      if (voltage !== undefined) previousVoltageById[capacitor.id] = voltage;
+    }
+  }
+  return {
+    ...(finalResult as SolveResult),
+    iterations: accumulatedIterations,
+  };
+}
+
+function solveCircuitStep(
+  document: ElectronicsDocument,
+  options: InternalSolveOptions = {},
+): SolveResult {
   const diagnostics: Diagnostic[] = [];
   const netlist = buildNetlist(document);
   const linearDcDevices = document.components.flatMap((component) => {
@@ -559,6 +630,7 @@ export function solveCircuit(
     const device = createNpnDcDevice(component);
     return device ? [device] : [];
   });
+  const capacitors = document.components.filter(isElectrolyticCapacitor);
   const sourceDevices = linearDcDevices.filter(isSourceDevice);
   const linearDcDeviceById = new Map(
     linearDcDevices.map((device) => [device.instance.componentId, device] as const),
@@ -627,7 +699,7 @@ export function solveCircuit(
     });
     return empty('unsupported');
   }
-  if (sources.length === 0 && arduinoBranches.length === 0) {
+  if (sources.length === 0 && arduinoBranches.length === 0 && capacitors.length === 0) {
     diagnostics.push({
       code: 'no_source',
       severity: 'error',
@@ -838,6 +910,17 @@ export function solveCircuit(
         stampConductance(a, b, 1 / component.value);
       } else if (isDcMotor(component)) {
         stampConductance(a, b, 1 / DC_MOTOR_EFFECTIVE_RESISTANCE_OHM);
+      } else if (isElectrolyticCapacitor(component)) {
+        const parameters = capacitorParameters(component);
+        const previousVoltage =
+          options.capacitorPreviousVoltageById?.[component.id] ?? parameters.initialVoltageVolt;
+        const companion = capacitorCompanion(
+          parameters,
+          previousVoltage,
+          options.transientStepSeconds ?? TRANSIENT_INITIAL_SAMPLE_MS / 1_000,
+        );
+        stampConductance(a, b, companion.conductanceSiemens);
+        stampOffset(a, b, companion.historyCurrentAmp);
       } else if (component.kind === 'switch') {
         if (component.componentTypeId || component.state === true) {
           stampConductance(a, b, 1 / CLOSED_RESISTANCE);
@@ -1284,6 +1367,15 @@ export function solveCircuit(
         arduinoBranchResults.find((entry) => entry.branch.id === 'd13')?.voltageDrop ??
         arduinoBranchResults[0]?.voltageDrop ??
         (isSimulated(component) ? voltageAt(component, 'a') - voltageAt(component, 'b') : 0);
+      const capacitorObservation = isElectrolyticCapacitor(component)
+        ? observeCapacitor(
+            capacitorParameters(component),
+            options.capacitorPreviousVoltageById?.[component.id] ??
+              capacitorParameters(component).initialVoltageVolt,
+            voltageDrop,
+            options.transientStepSeconds ?? TRANSIENT_INITIAL_SAMPLE_MS / 1_000,
+          )
+        : undefined;
       const linearDcDevice = linearDcDeviceById.get(component.id);
       const reportedLinearCurrent =
         component.kind === 'source' ? -(sourceCurrents.get(component.id) ?? 0) : 0;
@@ -1304,6 +1396,7 @@ export function solveCircuit(
       else if (component.kind === 'lamp') current = voltageDrop / component.value;
       else if (component.kind === 'piezo') current = voltageDrop / PIEZO_DC_RESISTANCE_OHM;
       else if (isDcMotor(component)) current = voltageDrop / DC_MOTOR_EFFECTIVE_RESISTANCE_OHM;
+      else if (capacitorObservation) current = capacitorObservation.currentAmp;
       else if (component.kind === 'switch')
         current = component.componentTypeId
           ? voltageDrop / CLOSED_RESISTANCE
@@ -1445,30 +1538,39 @@ export function solveCircuit(
         voltageDrop: round(voltageDrop),
         current: roundCurrent(current),
         terminalVoltages,
-        ...(linearDcObservation
+        ...(capacitorObservation
           ? {
-              terminalCurrents: Object.fromEntries(
-                Object.entries(linearDcObservation.terminalCurrents).map(([terminal, value]) => [
-                  terminal,
-                  roundCurrent(value),
-                ]),
-              ),
-              ...(linearDcObservation.voltageConstraintResidual === undefined
-                ? {}
-                : {
-                    voltageConstraintResidual: round(linearDcObservation.voltageConstraintResidual),
-                  }),
+              terminalCurrents: {
+                positive: roundCurrent(capacitorObservation.currentAmp),
+                negative: roundCurrent(-capacitorObservation.currentAmp),
+              },
             }
-          : transistorResult?.terminalCurrents
+          : linearDcObservation
             ? {
                 terminalCurrents: Object.fromEntries(
-                  Object.entries(transistorResult.terminalCurrents).map(([terminal, value]) => [
+                  Object.entries(linearDcObservation.terminalCurrents).map(([terminal, value]) => [
                     terminal,
                     roundCurrent(value),
                   ]),
                 ),
+                ...(linearDcObservation.voltageConstraintResidual === undefined
+                  ? {}
+                  : {
+                      voltageConstraintResidual: round(
+                        linearDcObservation.voltageConstraintResidual,
+                      ),
+                    }),
               }
-            : {}),
+            : transistorResult?.terminalCurrents
+              ? {
+                  terminalCurrents: Object.fromEntries(
+                    Object.entries(transistorResult.terminalCurrents).map(([terminal, value]) => [
+                      terminal,
+                      roundCurrent(value),
+                    ]),
+                  ),
+                }
+              : {}),
         power: round(power),
         brightness: round(brightness, 2),
         ...(branches.length > 0 || transistorResult || isArduinoUno(component)
@@ -1561,6 +1663,32 @@ export function solveCircuit(
                     : ('counterclockwise' as const),
             }
           : {}),
+        ...(capacitorObservation
+          ? {
+              capacitanceFarad: round(capacitorParameters(component).capacitanceFarad, 12),
+              chargeCoulomb: round(capacitorObservation.chargeCoulomb, 12),
+              storedEnergyJoule: round(capacitorObservation.storedEnergyJoule, 12),
+              voltageRatingVolt: round(capacitorParameters(component).voltageRatingVolt, 3),
+              stressState: capacitorObservation.overVoltage
+                ? ('burned' as const)
+                : capacitorObservation.reversePolarized
+                  ? ('warning' as const)
+                  : ('normal' as const),
+              deviceHealth: capacitorObservation.overVoltage
+                ? ('overheated' as const)
+                : capacitorObservation.reversePolarized
+                  ? ('warning' as const)
+                  : ('normal' as const),
+              damageState: capacitorObservation.overVoltage
+                ? ('destructive_preview' as const)
+                : ('none' as const),
+              presentationState: capacitorObservation.overVoltage
+                ? ('destructive' as const)
+                : capacitorObservation.reversePolarized
+                  ? ('warning' as const)
+                  : ('normal' as const),
+            }
+          : {}),
         ...(isArduinoUno(component) ? { energized: true } : {}),
         ...(transistorResult
           ? {
@@ -1601,6 +1729,31 @@ export function solveCircuit(
         componentIds: [componentId],
       })),
     );
+  }
+
+  for (const capacitor of capacitors) {
+    const result = components.find((component) => component.componentId === capacitor.id);
+    if (!result) continue;
+    const parameters = capacitorParameters(capacitor);
+    if (result.voltageDrop < -0.1) {
+      diagnostics.push({
+        code: 'capacitor_reverse_polarity',
+        severity: 'warning',
+        message: `${capacitor.name ?? capacitor.id}: электролитический конденсатор подключён в обратной полярности.`,
+        componentIds: [capacitor.id],
+        suggestedAction: 'Подключите положительный вывод к более высокому потенциалу.',
+      });
+    }
+    if (Math.abs(result.voltageDrop) > parameters.voltageRatingVolt) {
+      diagnostics.push({
+        code: 'capacitor_overvoltage',
+        severity: 'error',
+        message: `${capacitor.name ?? capacitor.id}: напряжение ${Math.abs(result.voltageDrop).toFixed(2)} В превышает допустимые ${parameters.voltageRatingVolt.toFixed(0)} В.`,
+        componentIds: [capacitor.id],
+        suggestedAction:
+          'Уменьшите напряжение или выберите конденсатор с большим рабочим напряжением.',
+      });
+    }
   }
 
   for (const component of document.components.filter(

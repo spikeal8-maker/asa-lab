@@ -475,12 +475,17 @@ export function WorkbenchSidebars({
                 </div>
               ) : null}
               {selectedIsAdjustableSource ||
+              c.selectedEntry.key === 'electrolytic-capacitor' ||
               ['resistor', 'potentiometer', 'lamp'].includes(c.selectedComponent.kind) ||
               (c.selectedComponent.kind === 'diode' &&
                 !c.selectedComponent.componentTypeId &&
                 stateOpen) ? (
                 <label>
-                  <span>{valueLabel(c.selectedComponent.kind)}</span>
+                  <span>
+                    {c.selectedEntry.key === 'electrolytic-capacitor'
+                      ? 'Ёмкость'
+                      : valueLabel(c.selectedComponent.kind)}
+                  </span>
                   <div className="workbench-value-field">
                     <input
                       type="number"
@@ -522,6 +527,30 @@ export function WorkbenchSidebars({
                     ) : (
                       <span>{c.selectedEntry.unit}</span>
                     )}
+                  </div>
+                </label>
+              ) : null}
+              {c.selectedEntry.key === 'electrolytic-capacitor' && stateOpen ? (
+                <label>
+                  <span>Допустимое напряжение</span>
+                  <div className="workbench-value-field">
+                    <input
+                      aria-label="Допустимое напряжение конденсатора"
+                      type="number"
+                      min="1"
+                      max="1000"
+                      step="1"
+                      value={Number(
+                        c.selectedComponent.stateProperties?.['voltageRatingVolt'] ?? 25,
+                      )}
+                      onChange={(event) =>
+                        c.setSelectedProperties(
+                          { voltageRatingVolt: Number(event.target.value) },
+                          'Допустимое напряжение конденсатора изменено.',
+                        )
+                      }
+                    />
+                    <span>В</span>
                   </div>
                 </label>
               ) : null}
@@ -878,6 +907,13 @@ export function WorkbenchSidebars({
                     <div>
                       <dt>Нагрев источника</dt>
                       <dd>{measurement.internalPower.toFixed(3)} Вт</dd>
+                    </div>
+                  ) : null}
+                  {c.selectedEntry.key === 'electrolytic-capacitor' &&
+                  measurement.voltageRatingVolt !== undefined ? (
+                    <div>
+                      <dt>Допустимое напряжение</dt>
+                      <dd>{measurement.voltageRatingVolt.toFixed(0)} В</dd>
                     </div>
                   ) : null}
                   {(c.selectedComponent.kind === 'diode' || c.selectedComponent.kind === 'led') &&

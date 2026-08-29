@@ -17014,8 +17014,8 @@
           "channels": []
         }
       ],
-      "simulationSupport": "unsupported_fail_closed",
-      "blockReason": "Размещение, соединение и схема доступны; математическая модель пока не реализована.",
+      "simulationSupport": "transient_model",
+      "blockReason": null,
       "catalogTier": "core",
       "metadataOnlyProof": {
         "source": "owner_direct_upload",

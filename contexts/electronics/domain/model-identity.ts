@@ -9,6 +9,7 @@ export type ElectricalModelId =
   | 'momentary-button'
   | 'spdt-switch'
   | 'potentiometer'
+  | 'capacitor'
   | 'photoresistor'
   | 'passive-piezo'
   | 'diode'
@@ -44,6 +45,7 @@ const KNOWN_MODEL_IDS: ReadonlySet<string> = new Set<ElectricalModelId>([
   'momentary-button',
   'spdt-switch',
   'potentiometer',
+  'capacitor',
   'photoresistor',
   'passive-piezo',
   'diode',
@@ -67,6 +69,7 @@ const EXACT_IDENTITIES: Readonly<Record<string, ElectricalModelIdentity>> = {
   'button-tactile-6mm': identity('momentary-button', 'tactile-button-6mm'),
   'switch-spdt': identity('spdt-switch', 'slide-switch-spdt'),
   potentiometer: identity('potentiometer', 'generic-potentiometer'),
+  'electrolytic-capacitor': identity('capacitor', 'generic-electrolytic-capacitor'),
   photoresistor: identity('photoresistor', 'generic-photoresistor'),
   'piezo-passive-buzzer': identity('passive-piezo', 'passive-piezo-enclosed'),
   'piezo-disc': identity('passive-piezo', 'passive-piezo-disc'),
@@ -156,14 +159,23 @@ export function electricalModelIdentityForComponent(
     component.modelProfileId &&
     component.modelProfileVersion
   ) {
-    // Schema v4 documents saved before the motor model existed contain the
-    // exact placeholder identity below. Upgrade only that known placeholder;
+    // Schema v4 documents saved before these models existed contain exact
+    // placeholder identities. Upgrade only those known placeholders;
     // unknown/future identities must remain fail-closed.
     if (
       component.componentTypeId === 'dc-motor' &&
       component.electricalModelId === 'unsupported' &&
       component.electricalModelVersion === 1 &&
       component.modelProfileId === 'unsupported-dc-motor' &&
+      component.modelProfileVersion === 1
+    ) {
+      return resolveElectricalModelIdentity(component);
+    }
+    if (
+      component.componentTypeId === 'electrolytic-capacitor' &&
+      component.electricalModelId === 'unsupported' &&
+      component.electricalModelVersion === 1 &&
+      component.modelProfileId === 'unsupported-electrolytic-capacitor' &&
       component.modelProfileVersion === 1
     ) {
       return resolveElectricalModelIdentity(component);

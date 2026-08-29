@@ -101,7 +101,13 @@ export function canonicalSimulationInput(
     digestVersion: SIMULATION_INPUT_DIGEST_VERSION,
     documentSchemaVersion: document.schemaVersion,
     analysis: {
-      electricalMode: simulationTimeMs > 0 ? 'transient' : 'dc',
+      electricalMode:
+        simulationTimeMs > 0 ||
+        document.components.some(
+          (component) => component.componentTypeId === 'electrolytic-capacitor',
+        )
+          ? 'transient'
+          : 'dc',
       controllerRuntime: document.components.some((component) =>
         String(component.componentTypeId ?? component.variantId ?? '').includes('arduino'),
       )

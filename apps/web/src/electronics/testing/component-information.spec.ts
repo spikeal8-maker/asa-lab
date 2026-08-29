@@ -194,6 +194,34 @@ describe('component information registry', () => {
     expect(sections.at(-1)?.text).toContain('не ошибку сервера');
   });
 
+  it('shows capacitor charge data in I and explains polarity in help', () => {
+    const profile = componentInformationProfile('capacitor', 'visual');
+    expect(profile.compactFields.map((field) => field.fieldId)).toEqual(['name', 'capacitance']);
+    expect(profile.technicalMetrics.map((metric) => metric.metricId)).toEqual([
+      'capacitance',
+      'voltage-drop',
+      'current',
+      'power',
+      'charge',
+      'stored-energy',
+    ]);
+    expect(readMetricBinding('charge', { ...measurement, chargeCoulomb: 250e-6 })).toBeCloseTo(
+      250,
+      12,
+    );
+    expect(
+      readMetricBinding('stored-energy', { ...measurement, storedEnergyJoule: 0.0005 }),
+    ).toBeCloseTo(0.5, 12);
+    const sections = componentHelpSections('visual', 'Конденсатор.', 'electrolytic-capacitor');
+    expect(sections.map((section) => section.title)).toEqual([
+      'Что имитируется',
+      'Заряд и разряд',
+      'Полярность',
+      'Допустимое напряжение',
+    ]);
+    expect(sections[2]?.text).toContain('Обратная полярность опасна');
+  });
+
   it('publishes help only through a matching external approval digest', () => {
     const content = {
       componentFamilyId: 'resistor',

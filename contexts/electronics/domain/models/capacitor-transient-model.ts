@@ -1,0 +1,115 @@
+import type { SchematicComponent } from '../document.js';
+
+export interface CapacitorParameters {
+  readonly capacitanceFarad: number;
+  readonly capacitanceMicrofarad: number;
+  readonly initialVoltageVolt: number;
+  readonly voltageRatingVolt: number;
+  readonly positive: 'positive';
+  readonly negative: 'negative';
+}
+
+export interface CapacitorCompanion {
+  readonly conductanceSiemens: number;
+  readonly historyCurrentAmp: number;
+}
+
+export interface CapacitorObservation {
+  readonly voltageVolt: number;
+  readonly currentAmp: number;
+  readonly chargeCoulomb: number;
+  readonly storedEnergyJoule: number;
+  readonly reversePolarized: boolean;
+  readonly overVoltage: boolean;
+}
+
+const MICROFARAD_TO_FARAD = 1e-6;
+const MIN_CAPACITANCE_MICROFARAD = 0.001;
+const MAX_CAPACITANCE_MICROFARAD = 1_000_000;
+const DEFAULT_VOLTAGE_RATING_VOLT = 25;
+
+export function isElectrolyticCapacitor(component: SchematicComponent): boolean {
+  return component.componentTypeId === 'electrolytic-capacitor';
+}
+
+export function capacitorParameters(component: SchematicComponent): CapacitorParameters {
+  const capacitanceMicrofarad = component.value;
+  const initialVoltageVolt = Number(component.stateProperties?.['initialVoltageVolt'] ?? 0);
+  const voltageRatingVolt = Number(
+    component.stateProperties?.['voltageRatingVolt'] ?? DEFAULT_VOLTAGE_RATING_VOLT,
+  );
+  return {
+    capacitanceFarad: capacitanceMicrofarad * MICROFARAD_TO_FARAD,
+    capacitanceMicrofarad,
+    initialVoltageVolt,
+    voltageRatingVolt,
+    positive: 'positive',
+    negative: 'negative',
+  };
+}
+
+export function capacitorPropertyError(component: SchematicComponent): string | null {
+  if (!isElectrolyticCapacitor(component)) return null;
+  const parameters = capacitorParameters(component);
+  if (
+    !Number.isFinite(parameters.capacitanceMicrofarad) ||
+    parameters.capacitanceMicrofarad < MIN_CAPACITANCE_MICROFARAD ||
+    parameters.capacitanceMicrofarad > MAX_CAPACITANCE_MICROFARAD
+  ) {
+    return `Ёмкость должна быть от ${MIN_CAPACITANCE_MICROFARAD} до ${MAX_CAPACITANCE_MICROFARAD} мкФ.`;
+  }
+  if (
+    !Number.isFinite(parameters.voltageRatingVolt) ||
+    parameters.voltageRatingVolt < 1 ||
+    parameters.voltageRatingVolt > 1_000
+  ) {
+    return 'Допустимое напряжение конденсатора должно быть от 1 до 1000 В.';
+  }
+  if (
+    !Number.isFinite(parameters.initialVoltageVolt) ||
+    Math.abs(parameters.initialVoltageVolt) > parameters.voltageRatingVolt
+  ) {
+    return 'Начальное напряжение должно быть конечным и не превышать допустимое напряжение.';
+  }
+  return null;
+}
+
+/**
+ * Backward Euler companion for i = C · dV/dt:
+ * i(n) = G · V(n) - G · V(n-1), where G = C / dt.
+ */
+export function capacitorCompanion(
+  parameters: CapacitorParameters,
+  previousVoltageVolt: number,
+  stepSeconds: number,
+): CapacitorCompanion {
+  if (!Number.isFinite(previousVoltageVolt)) {
+    throw new TypeError('capacitor previous voltage must be finite');
+  }
+  if (!Number.isFinite(stepSeconds) || stepSeconds <= 0) {
+    throw new TypeError('capacitor step must be a positive finite number');
+  }
+  const conductanceSiemens = parameters.capacitanceFarad / stepSeconds;
+  return {
+    conductanceSiemens,
+    historyCurrentAmp: conductanceSiemens * previousVoltageVolt,
+  };
+}
+
+export function observeCapacitor(
+  parameters: CapacitorParameters,
+  previousVoltageVolt: number,
+  voltageVolt: number,
+  stepSeconds: number,
+): CapacitorObservation {
+  const companion = capacitorCompanion(parameters, previousVoltageVolt, stepSeconds);
+  const currentAmp = companion.conductanceSiemens * (voltageVolt - previousVoltageVolt);
+  return {
+    voltageVolt,
+    currentAmp,
+    chargeCoulomb: parameters.capacitanceFarad * voltageVolt,
+    storedEnergyJoule: 0.5 * parameters.capacitanceFarad * voltageVolt * voltageVolt,
+    reversePolarized: voltageVolt < -0.1,
+    overVoltage: Math.abs(voltageVolt) > parameters.voltageRatingVolt,
+  };
+}

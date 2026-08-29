@@ -12,6 +12,7 @@ import {
   type SolveResult,
 } from './solver.js';
 import { sha256Hex, simulationInputDigest } from './simulation-input-digest.js';
+import { isElectrolyticCapacitor } from './models/capacitor-transient-model.js';
 
 export type SimulationStatus = 'solved' | 'unsupported' | 'invalid' | 'nonconvergent';
 
@@ -45,7 +46,7 @@ export interface SimulationResult extends SolveResult {
   readonly quality: SimulationQuality;
   readonly topologySignature: string;
   readonly simulationInputDigest: string;
-  readonly solverRevision: 'asa-electronics-solver-v2';
+  readonly solverRevision: 'asa-electronics-solver-v3';
   readonly modelSetDigest: string;
   readonly analysis: {
     readonly electricalMode: 'dc' | 'transient';
@@ -222,6 +223,10 @@ function allNumbers(result: SolveResult): readonly number[] {
       component.currentGain ?? 0,
       component.frequencyHz ?? 0,
       component.soundLevel ?? 0,
+      component.capacitanceFarad ?? 0,
+      component.chargeCoulomb ?? 0,
+      component.storedEnergyJoule ?? 0,
+      component.voltageRatingVolt ?? 0,
       component.voltageConstraintResidual ?? 0,
       ...Object.values(component.terminalVoltages).filter(
         (value): value is number => value !== undefined,
@@ -421,7 +426,9 @@ function verifyQuality(
     ),
   );
   const powerBalanceComponents = document.components.filter(
-    (component) => !['wire', 'breadboard', 'visual'].includes(component.kind),
+    (component) =>
+      !['wire', 'breadboard'].includes(component.kind) &&
+      (component.kind !== 'visual' || isElectrolyticCapacitor(component)),
   );
   const powerBalanceApplicable =
     powerBalanceComponents.length > 0 &&
@@ -500,7 +507,11 @@ export function analyseCircuit(
   const compiled = compileCircuit(document);
   const inputDigest = simulationInputDigest(document, options.simulationTimeMs ?? 0);
   const analysis = {
-    electricalMode: options.simulationTimeMs && options.simulationTimeMs > 0 ? 'transient' : 'dc',
+    electricalMode:
+      document.components.some(isElectrolyticCapacitor) ||
+      (options.simulationTimeMs !== undefined && options.simulationTimeMs > 0)
+        ? 'transient'
+        : 'dc',
     controllerRuntime: document.components.some((component) => isArduinoUno(component))
       ? 'arduino'
       : 'none',
@@ -528,7 +539,7 @@ export function analyseCircuit(
       quality: failedQuality(),
       topologySignature: compiled.topologySignature,
       simulationInputDigest: inputDigest,
-      solverRevision: 'asa-electronics-solver-v2',
+      solverRevision: 'asa-electronics-solver-v3',
       modelSetDigest: MODEL_SET_DIGEST,
       analysis,
     };
@@ -553,7 +564,7 @@ export function analyseCircuit(
       quality,
       topologySignature: compiled.topologySignature,
       simulationInputDigest: inputDigest,
-      solverRevision: 'asa-electronics-solver-v2',
+      solverRevision: 'asa-electronics-solver-v3',
       modelSetDigest: MODEL_SET_DIGEST,
       analysis,
     };
@@ -565,7 +576,7 @@ export function analyseCircuit(
     quality,
     topologySignature: compiled.topologySignature,
     simulationInputDigest: inputDigest,
-    solverRevision: 'asa-electronics-solver-v2',
+    solverRevision: 'asa-electronics-solver-v3',
     modelSetDigest: MODEL_SET_DIGEST,
     analysis,
   };

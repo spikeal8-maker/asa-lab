@@ -7,7 +7,12 @@ import type {
 import { sha256Hex } from '@asa-lab/electronics/simulation';
 
 export type PropertyBindingId =
-  'component-name' | 'electrical-value' | 'resistance-ohm' | 'wiper-position' | 'led-colour';
+  | 'component-name'
+  | 'electrical-value'
+  | 'resistance-ohm'
+  | 'capacitance-microfarad'
+  | 'wiper-position'
+  | 'led-colour';
 export type MetricBindingId =
   | 'voltage-drop'
   | 'current'
@@ -17,7 +22,10 @@ export type MetricBindingId =
   | 'sound-level'
   | 'source-operating-mode'
   | 'junction-state'
-  | 'operating-region';
+  | 'operating-region'
+  | 'capacitance'
+  | 'charge'
+  | 'stored-energy';
 
 export interface InspectorFieldProfile {
   readonly fieldId: string;
@@ -137,6 +145,12 @@ const LED_COLOUR_FIELD: InspectorFieldProfile = {
   propertyBindingId: 'led-colour',
   priority: 'primary',
 };
+const CAPACITANCE_FIELD: InspectorFieldProfile = {
+  fieldId: 'capacitance',
+  label: 'Ёмкость',
+  propertyBindingId: 'capacitance-microfarad',
+  priority: 'primary',
+};
 
 const METRICS = {
   voltage: {
@@ -208,6 +222,27 @@ const METRICS = {
     metricBindingId: 'operating-region',
     unit: '',
     precision: 0,
+  },
+  capacitance: {
+    metricId: 'capacitance',
+    label: 'Ёмкость',
+    metricBindingId: 'capacitance',
+    unit: 'мкФ',
+    precision: 3,
+  },
+  charge: {
+    metricId: 'charge',
+    label: 'Накопленный заряд',
+    metricBindingId: 'charge',
+    unit: 'мкКл',
+    precision: 3,
+  },
+  storedEnergy: {
+    metricId: 'stored-energy',
+    label: 'Запасённая энергия',
+    metricBindingId: 'stored-energy',
+    unit: 'мДж',
+    precision: 3,
   },
 } as const satisfies Readonly<Record<string, TechnicalMetricProfile>>;
 
@@ -312,6 +347,21 @@ export function componentInformationProfile(
       terminalPresentation: 'full',
     };
   }
+  if (componentFamilyId === 'capacitor') {
+    return {
+      componentFamilyId,
+      compactFields: [NAME_FIELD, CAPACITANCE_FIELD],
+      technicalMetrics: [
+        METRICS.capacitance,
+        METRICS.voltage,
+        METRICS.current,
+        METRICS.power,
+        METRICS.charge,
+        METRICS.storedEnergy,
+      ],
+      terminalPresentation: 'full',
+    };
+  }
   if (kind === 'source' && componentFamilyId !== 'regulated-power-supply') {
     return { componentFamilyId, ...PROFILE_BY_KIND.source, compactFields: [NAME_FIELD] };
   }
@@ -325,6 +375,7 @@ export function readPropertyBinding(
   if (bindingId === 'component-name') return component.name ?? '';
   if (bindingId === 'wiper-position') return component.wiperPosition ?? 0.5;
   if (bindingId === 'led-colour') return component.stateProperties?.['ledColour'] ?? 'red';
+  if (bindingId === 'capacitance-microfarad') return component.value;
   return component.value;
 }
 
@@ -359,37 +410,49 @@ export function readMetricBinding(
                 ? result.soundLevel === undefined
                   ? undefined
                   : result.soundLevel * 100
-                : bindingId === 'source-operating-mode'
-                  ? result.sourceOperatingMode === 'delivering'
-                    ? 'Отдаёт ток'
-                    : result.sourceOperatingMode === 'absorbing'
-                      ? 'Принимает обратный ток'
-                      : 'Без нагрузки'
-                  : bindingId === 'junction-state'
-                    ? result.stressState === 'burned'
-                      ? 'Разрушительный режим'
-                      : result.stressState === 'overcurrent'
-                        ? 'Перегрузка по току'
-                        : result.junctionState === 'conducting'
-                          ? result.lit === true
-                            ? 'Открыт — светится'
-                            : 'Открыт — проводит ток'
-                          : result.junctionState === 'reverse_blocking'
-                            ? 'Закрыт — обратное включение'
-                            : result.junctionState === 'reverse_breakdown'
-                              ? 'Пробой — превышен обратный предел'
-                              : result.junctionState === 'forward_blocking'
-                                ? 'Закрыт — прямого напряжения недостаточно'
-                                : undefined
-                    : result.operatingRegion === 'cutoff'
-                      ? 'Закрыт — ток нагрузки не проходит'
-                      : result.operatingRegion === 'active'
-                        ? 'Регулирует ток'
-                        : result.operatingRegion === 'saturation'
-                          ? 'Полностью открыт как ключ'
-                          : result.operatingRegion === 'ohmic'
-                            ? 'Открыт — проводит ток'
-                            : undefined;
+                : bindingId === 'capacitance'
+                  ? result.capacitanceFarad === undefined
+                    ? undefined
+                    : result.capacitanceFarad * 1_000_000
+                  : bindingId === 'charge'
+                    ? result.chargeCoulomb === undefined
+                      ? undefined
+                      : result.chargeCoulomb * 1_000_000
+                    : bindingId === 'stored-energy'
+                      ? result.storedEnergyJoule === undefined
+                        ? undefined
+                        : result.storedEnergyJoule * 1_000
+                      : bindingId === 'source-operating-mode'
+                        ? result.sourceOperatingMode === 'delivering'
+                          ? 'Отдаёт ток'
+                          : result.sourceOperatingMode === 'absorbing'
+                            ? 'Принимает обратный ток'
+                            : 'Без нагрузки'
+                        : bindingId === 'junction-state'
+                          ? result.stressState === 'burned'
+                            ? 'Разрушительный режим'
+                            : result.stressState === 'overcurrent'
+                              ? 'Перегрузка по току'
+                              : result.junctionState === 'conducting'
+                                ? result.lit === true
+                                  ? 'Открыт — светится'
+                                  : 'Открыт — проводит ток'
+                                : result.junctionState === 'reverse_blocking'
+                                  ? 'Закрыт — обратное включение'
+                                  : result.junctionState === 'reverse_breakdown'
+                                    ? 'Пробой — превышен обратный предел'
+                                    : result.junctionState === 'forward_blocking'
+                                      ? 'Закрыт — прямого напряжения недостаточно'
+                                      : undefined
+                          : result.operatingRegion === 'cutoff'
+                            ? 'Закрыт — ток нагрузки не проходит'
+                            : result.operatingRegion === 'active'
+                              ? 'Регулирует ток'
+                              : result.operatingRegion === 'saturation'
+                                ? 'Полностью открыт как ключ'
+                                : result.operatingRegion === 'ohmic'
+                                  ? 'Открыт — проводит ток'
+                                  : undefined;
   return typeof raw === 'number' ? (Number.isFinite(raw) ? raw : null) : (raw ?? null);
 }
 

@@ -1009,6 +1009,10 @@ export interface ComponentResult {
   soundLevel?: number;
   speedPercent?: number;
   direction?: 'clockwise' | 'counterclockwise' | 'stopped';
+  capacitanceFarad?: number;
+  chargeCoulomb?: number;
+  storedEnergyJoule?: number;
+  voltageRatingVolt?: number;
 }
 
 export interface SolveResult {
@@ -1033,7 +1037,7 @@ export interface SolveResult {
   };
   topologySignature?: string;
   simulationInputDigest?: string;
-  solverRevision?: 'asa-electronics-solver-v2';
+  solverRevision?: 'asa-electronics-solver-v3';
   modelSetDigest?: string;
   analysis?: {
     electricalMode: 'dc' | 'transient';

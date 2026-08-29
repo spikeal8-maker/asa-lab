@@ -187,6 +187,7 @@ const SIMULATED_TYPES = new Set([
   'button-tactile-6mm',
   'switch-spdt',
   'potentiometer',
+  'electrolytic-capacitor',
   'photoresistor',
   'diode-do35',
   'diode-do41',
@@ -359,6 +360,12 @@ function defaults(componentId: string): {
       unit: 'Ом',
       wiperPosition: 0.5,
       properties: { resistanceUnit: 'kΩ' },
+    };
+  if (componentId === 'electrolytic-capacitor')
+    return {
+      value: 100,
+      unit: 'мкФ',
+      properties: { voltageRatingVolt: 25, initialVoltageVolt: 0 },
     };
   if (componentId === 'photoresistor')
     return {

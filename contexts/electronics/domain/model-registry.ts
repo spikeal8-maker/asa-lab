@@ -174,6 +174,14 @@ const DC_MOTOR_MODEL: ElectricalModelDescriptor = {
   requiredTerminals: ['negative', 'positive'],
 };
 
+const ELECTROLYTIC_CAPACITOR_MODEL: ElectricalModelDescriptor = {
+  id: 'capacitor',
+  kind: 'visual',
+  support: 'supported',
+  topology: 'two-terminal',
+  requiredTerminals: ['negative', 'positive'],
+};
+
 export function electricalModelFor(component: SchematicComponent): ElectricalModelDescriptor {
   const identity = electricalModelIdentityForComponent(component);
   const installed = componentModelIdentityIsInstalled(component);
@@ -183,7 +191,9 @@ export function electricalModelFor(component: SchematicComponent): ElectricalMod
       ? ARDUINO_UNO_MODEL
       : component.componentTypeId === 'dc-motor'
         ? DC_MOTOR_MODEL
-        : MODELS[component.kind];
+        : component.componentTypeId === 'electrolytic-capacitor'
+          ? ELECTROLYTIC_CAPACITOR_MODEL
+          : MODELS[component.kind];
   return {
     ...base,
     id: installed ? (identity.electricalModelId as ElectricalModelId) : 'unsupported',
@@ -204,6 +214,8 @@ function productionRequiredTerminals(component: SchematicComponent): readonly Te
   if (!component.componentTypeId) return [];
   if (isArduinoUno(component)) return ARDUINO_UNO_MODEL.requiredTerminals;
   if (component.componentTypeId === 'dc-motor') return DC_MOTOR_MODEL.requiredTerminals;
+  if (component.componentTypeId === 'electrolytic-capacitor')
+    return ELECTROLYTIC_CAPACITOR_MODEL.requiredTerminals;
   // Holders expose BAT+/BAT-; single-cell batteries and the bench supply use
   // positive/negative. The simulation maps both already — the contract must
   // accept whichever pair the component actually carries, or a catalog battery

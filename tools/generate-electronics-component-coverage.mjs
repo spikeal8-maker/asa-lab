@@ -125,7 +125,12 @@ export function buildElectronicsComponentCoverage() {
         breadboardFixture: component.footprint ? 'verified' : 'unverified',
         modelIdentity: identity ? 'verified' : 'missing',
         dcModel: !identity ? 'unsupported' : catalogClaimsModel ? 'verified' : 'unverified',
-        transientModel: enabled ? 'unverified' : 'not_applicable',
+        transientModel:
+          identity?.electricalModelId === 'capacitor'
+            ? 'verified'
+            : enabled
+              ? 'unverified'
+              : 'not_applicable',
         damageProfile: enabled ? 'unverified' : 'not_applicable',
         inspectorHelp: enabled ? 'unverified' : 'missing',
         browserEvidence: enabled ? 'unverified' : 'missing',
