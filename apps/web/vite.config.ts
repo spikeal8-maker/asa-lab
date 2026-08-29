@@ -109,6 +109,12 @@ export default defineConfig(({ command }) => {
             if (id.includes('/node_modules/.pnpm/three@') || id.includes('/node_modules/three/')) {
               return 'three-vendor';
             }
+            if (id.includes('/contexts/electronics/domain/models/capacitor-transient-model.')) {
+              return 'electronics-transient-models';
+            }
+            if (id.includes('/contexts/electronics/domain/solver.')) {
+              return 'electronics-simulation-core';
+            }
             return undefined;
           },
         },
