@@ -122,11 +122,12 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: math_3_npn_key_focused_browser_repository_green_owner_acceptance_pending
+      checkpoint: math_4a_capacitor_transient_focused_green_browser_evidence_pending_owner_acceptance_pending
       owner_acceptance: pending
     revisions:
       convergence_baseline_sha: 5b052dc631c7036de9d60f4206c9879fe364e732
-      head_sha: e5163083378038838b85de15980aa01de57a163e
+      head_sha: 89e6c9c4db55fe8b8971d9c840d3384c50938b52
+      owner_accepted_sha: 2f04767ae1282d5f05a6f0367e61dfc777ed339e
     execution_lease:
       executor_id: codex-electronics-docs
       holder: unassigned
