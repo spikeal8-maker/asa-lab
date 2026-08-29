@@ -152,13 +152,13 @@ describe('electrolytic capacitor transient model', () => {
     const switchedVoltage =
       switched.components.find((entry) => entry.componentId === 'c1')?.voltageDrop ?? 0;
 
-    expect(charged.transientState).toMatchObject({ version: 1, simulationTimeMs: 100 });
+    expect(charged.transientState).toMatchObject({ version: 2, simulationTimeMs: 100 });
     expect(switched).toMatchObject({
       solved: true,
       status: 'solved',
-      solverRevision: 'asa-electronics-solver-v4',
+      solverRevision: 'asa-electronics-solver-v5',
       quality: { finite: true, passed: true },
-      transientState: { version: 1, simulationTimeMs: 200 },
+      transientState: { version: 2, simulationTimeMs: 200 },
     });
     expect(switchedVoltage).toBeGreaterThan(0);
     expect(switchedVoltage).toBeLessThan(chargedVoltage);

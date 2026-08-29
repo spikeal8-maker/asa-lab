@@ -1011,7 +1011,12 @@ async function selectLed(page: Page): Promise<void> {
   if ((await burnout.count()) > 0 && (await burnout.isVisible())) {
     await burnout.locator('.workbench-led-explosion-inner').click();
   } else {
-    await led.locator('.workbench-part').click();
+    try {
+      await led.locator('.workbench-part').click({ timeout: 2_000 });
+    } catch (error) {
+      if ((await burnout.count()) === 0 || !(await burnout.isVisible())) throw error;
+      await burnout.locator('.workbench-led-explosion-inner').click();
+    }
   }
   await expect(page.getByRole('complementary', { name: 'Параметры выделения' })).toBeVisible();
   await expect(page.getByRole('combobox', { name: /^Цвет(?: светодиода)?$/ })).toBeVisible();
@@ -1447,9 +1452,27 @@ test('real editor recalculates SPDT, resistor and LED without waiting for persis
     fullPage: true,
   });
 
-  let previousBrightness = brightAt50Ohms;
-  let persistedArbitraryBrightness = brightAt50Ohms;
-  for (const resistance of [100, 166.7]) {
+  // Runtime damage is intentionally persistent until Stop/new Start. Move the
+  // resistor back into a safe range, restart the simulation and prove that the
+  // fresh run uses the edited circuit rather than carrying the failed LED.
+  await resistor.locator('.workbench-part').press('Enter');
+  await page
+    .locator('.workbench-inspector label')
+    .filter({ hasText: 'Сопротивление' })
+    .locator('input[type="number"]')
+    .fill('100');
+  await page.getByRole('button', { name: 'Остановить моделирование' }).click();
+  await page.getByRole('button', { name: 'Начать моделирование' }).click();
+  // Runtime actuator overrides reset with a new run as well as thermal
+  // damage, so close the SPDT again before checking the safe resistor value.
+  await switchComponent.getByTestId('spdt-actuator').click();
+  await selectLed(page);
+  await expect.poll(() => brightnessValue(page)).toBeLessThan(brightAt50Ohms);
+  await expect.poll(() => brightnessValue(page)).toBeGreaterThan(0);
+
+  let previousBrightness = await brightnessValue(page);
+  let persistedArbitraryBrightness = previousBrightness;
+  for (const resistance of [166.7]) {
     await resistor.locator('.workbench-part').press('Enter');
     const arbitraryResistanceInput = page
       .locator('.workbench-inspector label')
@@ -1576,7 +1599,7 @@ test('real editor recalculates SPDT, resistor and LED without waiting for persis
   await expect(diagnostic(page, 'led-5mm', 'led-burnout-explosion')).toBeVisible();
   await expect(diagnostic(page, 'led-5mm', 'led-burnout-explosion')).toHaveAttribute(
     'aria-label',
-    /разрушительный предел/i,
+    /компонент вышел из строя/i,
   );
   await page.screenshot({
     path: `${ARTIFACT_DIR}/electronics-led-burnout.png`,
@@ -1593,10 +1616,11 @@ test('real editor recalculates SPDT, resistor and LED without waiting for persis
   await expect(page.getByText(/Время моделирования:/)).toBeVisible();
   const source = page.locator('[data-testid="schematic-component"][data-kind="source"]');
   await expect(source).toHaveAttribute('data-diagnostics', /short_circuit/);
-  await expect(source).toHaveAttribute('data-presentation-state', 'destructive');
   await expect(
     diagnostic(page, 'battery-holder-aa-2', 'component-diagnostic-indicator'),
   ).toBeVisible();
+  await expect(source).toHaveAttribute('data-presentation-state', 'failed');
+  await expect(source).toHaveAttribute('data-diagnostics', /component_failed/);
   await expect(page.locator('.workbench-results')).toHaveCount(0);
   await expect(page.locator('.workbench-toast')).toHaveCount(0);
 
@@ -1609,8 +1633,8 @@ test('real editor recalculates SPDT, resistor and LED without waiting for persis
   const overloadedSource = component(page, 'battery-holder-aa-2');
   const overloadedResistor = component(page, 'resistor-axial');
   await expect(overloadedSource).toHaveAttribute('data-presentation-state', 'destructive');
-  await expect(overloadedResistor).toHaveAttribute('data-presentation-state', 'destructive');
-  await expect(overloadedResistor).toHaveAttribute('data-diagnostics', /resistor_overload/);
+  await expect(overloadedResistor).toHaveAttribute('data-presentation-state', 'failed');
+  await expect(overloadedResistor).toHaveAttribute('data-diagnostics', /component_failed/);
   expect(failures.counts).toMatchObject({
     consoleErrors: 0,
     pageErrors: 0,

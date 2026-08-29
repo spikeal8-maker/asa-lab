@@ -375,6 +375,7 @@ describe('live Electronics simulation', () => {
     const red10 = calculateLiveSimulation(seriesLed('red', 10), null, true);
     const red1 = calculateLiveSimulation(seriesLed('red', 1), null, true);
     const red0 = calculateLiveSimulation(seriesLed('red', 0), null, true);
+    const red0Failed = advanceLiveSimulation(seriesLed('red', 0), red0, 4_500);
     const blue220 = calculateLiveSimulation(seriesLed('blue', 220), null, true);
     const blue1000 = calculateLiveSimulation(seriesLed('blue', 1000), null, true);
     const resultForLed = (result: SolveResult | null) =>
@@ -392,8 +393,9 @@ describe('live Electronics simulation', () => {
     );
 
     // The owner-captured Tinkercad sweep is recalculated with the AA holder's
-    // finite 0.45-ohm source resistance. The zero-ohm point remains
-    // destructive while every reported current stays finite.
+    // finite 0.45-ohm source resistance. The zero-ohm point starts in a
+    // destructive electrical operating point, but permanent burnout appears
+    // only after model-time thermal accumulation.
     expect(resultForLed(red100)).toMatchObject({ lit: true, stressState: 'normal' });
     expect(resultForLed(red50)).toMatchObject({ lit: true, stressState: 'normal' });
     expect(resultForLed(red25)).toMatchObject({ lit: true, stressState: 'overcurrent' });
@@ -416,15 +418,22 @@ describe('live Electronics simulation', () => {
     expect(red25?.diagnostics.map((diagnostic) => diagnostic.code)).toContain('led_overcurrent');
     expect(red1?.diagnostics.map((diagnostic) => diagnostic.code)).toContain('led_overcurrent');
     expect(red1?.diagnostics.map((diagnostic) => diagnostic.code)).not.toContain('led_burnout');
-    expect(red0?.diagnostics.map((diagnostic) => diagnostic.code)).toContain('led_burnout');
+    expect(red0?.diagnostics.map((diagnostic) => diagnostic.code)).not.toContain('led_burnout');
+    expect(red0Failed.diagnostics.map((diagnostic) => diagnostic.code)).toContain('led_burnout');
+    expect(resultForLed(red0Failed)).toMatchObject({
+      current: 0,
+      brightness: 0,
+      damageState: 'failed',
+      presentationState: 'failed',
+    });
     expect(
       red1?.diagnostics.find((diagnostic) => diagnostic.code === 'led_overcurrent')?.message,
     ).toBe(
       'Сила тока в светодиоде равна 114 mA (максимальное рекомендуемое значение — 20.0 mA). Это может привести к сокращению срока службы светодиода.',
     );
-    expect(red0?.diagnostics.find((diagnostic) => diagnostic.code === 'led_burnout')?.message).toBe(
-      'Сила тока в светодиоде равна 128.3 mA (разрушительный предел — 120 mA).',
-    );
+    expect(
+      red0Failed.diagnostics.find((diagnostic) => diagnostic.code === 'led_burnout')?.message,
+    ).toBe('Светодиод: компонент вышел из строя.');
   });
 
   it('keeps a 3 V / 166 ohm LED branch working beside unrelated editor components', () => {

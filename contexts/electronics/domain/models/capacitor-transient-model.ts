@@ -31,15 +31,29 @@ export interface CapacitorTransientStateEntry {
   readonly voltageVolt: number;
 }
 
+export type TransientFailureMode = 'none' | 'open';
+
+export interface ThermalTransientStateEntry {
+  readonly componentId: string;
+  /** Identifies the exact physical/limit profile that produced this state. */
+  readonly profileKey: string;
+  readonly temperatureCelsius: number;
+  readonly loadRatio: number;
+  /** Normalised accumulated damage. A value of 1 means permanent failure. */
+  readonly accumulatedDamage: number;
+  readonly failureMode: TransientFailureMode;
+}
+
 /**
  * Explicit transient state passed between pure solver calls. The state is part
  * of the simulation input, not mutable module memory, so a browser and server
  * given the same document, model time and state reproduce the same result.
  */
 export interface CapacitorTransientState {
-  readonly version: 1;
+  readonly version: 2;
   readonly simulationTimeMs: number;
   readonly capacitors: readonly CapacitorTransientStateEntry[];
+  readonly thermal: readonly ThermalTransientStateEntry[];
 }
 
 const MICROFARAD_TO_FARAD = 1e-6;

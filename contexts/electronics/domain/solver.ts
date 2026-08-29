@@ -45,7 +45,13 @@ import {
   isElectrolyticCapacitor,
   observeCapacitor,
   type CapacitorTransientState,
+  type ThermalTransientStateEntry,
 } from './models/capacitor-transient-model.js';
+import {
+  advanceThermalState,
+  thermalProfileFor,
+  thermalProfileKey,
+} from './models/thermal-transient-model.js';
 
 export { sourceInternalResistanceOhm } from './models/linear-dc-models.js';
 
@@ -71,6 +77,7 @@ export type DiagnosticCode =
   | 'transistor_overcurrent'
   | 'capacitor_reverse_polarity'
   | 'capacitor_overvoltage'
+  | 'component_failed'
   | 'unsupported_component'
   | 'unsupported_topology'
   | 'numerical_instability'
@@ -158,6 +165,9 @@ export interface ComponentResult {
   readonly chargeCoulomb?: number;
   readonly storedEnergyJoule?: number;
   readonly voltageRatingVolt?: number;
+  readonly temperatureCelsius?: number;
+  readonly thermalLoadPercent?: number;
+  readonly accumulatedDamagePercent?: number;
 }
 
 export interface NodeResult {
@@ -177,6 +187,12 @@ export interface SolveResult {
   readonly numericalResidual: number;
   readonly numericalTolerance: number;
   readonly transientState?: CapacitorTransientState;
+  readonly transientAnalysis?: {
+    readonly acceptedSteps: number;
+    readonly rejectedSteps: number;
+    readonly minStepMs: number;
+    readonly maxStepMs: number;
+  };
 }
 
 export interface SolveOptions {
@@ -187,6 +203,7 @@ export interface SolveOptions {
 interface InternalSolveOptions extends SolveOptions {
   readonly transientStepSeconds?: number;
   readonly capacitorPreviousVoltageById?: Readonly<Record<string, number>>;
+  readonly failedComponentIds?: ReadonlySet<string>;
 }
 
 const GMIN = 1e-12;
@@ -211,8 +228,13 @@ const FET_MIN_OHMIC_CONDUCTANCE = 1e-4;
 const PIEZO_DC_RESISTANCE_OHM = 100_000_000;
 const DC_MOTOR_EFFECTIVE_RESISTANCE_OHM = 6 / 0.07;
 const TRANSIENT_TARGET_STEP_MS = 5;
-const TRANSIENT_MAX_STEPS = 64;
+const TRANSIENT_MAX_STEP_MS = 100;
+const TRANSIENT_MIN_STEP_MS = 0.01;
+const TRANSIENT_MAX_ACCEPTED_STEPS = 4_096;
 const TRANSIENT_INITIAL_SAMPLE_MS = 1;
+const TRANSIENT_ABSOLUTE_TOLERANCE_VOLT = 1e-5;
+const TRANSIENT_RELATIVE_TOLERANCE = 5e-4;
+const TRANSIENT_FAILURE_EVENT_STEP_MS = 0.001;
 
 function damageObservationForStress(
   stressState: ComponentResult['stressState'],
@@ -573,20 +595,133 @@ function withDiagnosticAnchors(diagnostic: Diagnostic): Diagnostic {
   return anchors.length === 0 ? diagnostic : { ...diagnostic, anchors };
 }
 
+function applyThermalObservations(
+  document: ElectronicsDocument,
+  result: SolveResult,
+  thermalById: ReadonlyMap<string, ThermalTransientStateEntry>,
+  failedComponentIds: ReadonlySet<string>,
+): SolveResult {
+  const componentById = new Map(document.components.map((component) => [component.id, component]));
+  const diagnostics = result.diagnostics.filter((diagnostic) => {
+    if (diagnostic.code !== 'led_burnout') return true;
+    return (diagnostic.componentIds ?? []).some(
+      (id) => !thermalById.has(id) || failedComponentIds.has(id),
+    );
+  });
+  for (const componentId of failedComponentIds) {
+    const component = componentById.get(componentId);
+    if (!component) continue;
+    const code: DiagnosticCode = component.kind === 'led' ? 'led_burnout' : 'component_failed';
+    if (
+      diagnostics.some(
+        (diagnostic) => diagnostic.code === code && diagnostic.componentIds?.includes(componentId),
+      )
+    ) {
+      continue;
+    }
+    const fallbackLabel = isElectrolyticCapacitor(component)
+      ? 'Конденсатор'
+      : ((
+          {
+            source: 'Источник питания',
+            resistor: 'Резистор',
+            led: 'Светодиод',
+            diode: 'Диод',
+            transistor: 'Транзистор',
+          } as Partial<Record<SchematicComponent['kind'], string>>
+        )[component.kind] ?? component.id);
+    diagnostics.push({
+      code,
+      severity: 'error',
+      message: `${component.name ?? fallbackLabel}: компонент вышел из строя.`,
+      componentIds: [componentId],
+      suggestedAction: 'Остановите моделирование и исправьте причину перегрузки.',
+    });
+  }
+  return {
+    ...result,
+    diagnostics: diagnostics.map(withDiagnosticAnchors),
+    components: result.components.map((componentResult) => {
+      const state = thermalById.get(componentResult.componentId);
+      if (!state) return componentResult;
+      const component = componentById.get(componentResult.componentId);
+      const profile = component ? thermalProfileFor(component) : null;
+      const temperatureCelsius = Math.round(state.temperatureCelsius * 10) / 10;
+      const common = {
+        temperatureCelsius,
+        thermalLoadPercent: Math.round(state.loadRatio * 10_000) / 100,
+        accumulatedDamagePercent: Math.min(100, Math.round(state.accumulatedDamage * 10_000) / 100),
+      };
+      if (state.failureMode === 'open') {
+        return {
+          ...componentResult,
+          ...common,
+          current: 0,
+          power: 0,
+          brightness: 0,
+          lit: false,
+          energized: false,
+          terminalCurrents: Object.fromEntries(
+            Object.keys(componentResult.terminalVoltages).map((terminal) => [terminal, 0]),
+          ),
+          ...(componentResult.branchCurrents
+            ? {
+                branchCurrents: Object.fromEntries(
+                  Object.keys(componentResult.branchCurrents).map((branch) => [branch, 0]),
+                ),
+              }
+            : {}),
+          ...(componentResult.branchBrightness
+            ? {
+                branchBrightness: Object.fromEntries(
+                  Object.keys(componentResult.branchBrightness).map((branch) => [branch, 0]),
+                ),
+              }
+            : {}),
+          stressState: 'burned',
+          deviceHealth: 'failed_open',
+          damageState: 'failed',
+          presentationState: 'failed',
+        };
+      }
+      const warning =
+        state.temperatureCelsius >= (profile?.warningTemperatureCelsius ?? 80) ||
+        componentResult.stressState === 'overcurrent' ||
+        componentResult.stressState === 'burned';
+      const overheated =
+        state.temperatureCelsius >= (profile?.overheatTemperatureCelsius ?? 120) ||
+        state.accumulatedDamage >= 0.35;
+      return {
+        ...componentResult,
+        ...common,
+        deviceHealth: overheated ? 'overheated' : warning ? 'warning' : 'normal',
+        damageState: 'none',
+        presentationState: overheated ? 'destructive' : warning ? 'warning' : 'normal',
+      };
+    }),
+  };
+}
+
 export function solveCircuit(
   document: ElectronicsDocument,
   options: SolveOptions = {},
 ): SolveResult {
-  const capacitors = document.components.filter(isElectrolyticCapacitor);
-  if (capacitors.length === 0) return solveCircuitStep(document, options);
+  const orderedCapacitors = document.components
+    .filter(isElectrolyticCapacitor)
+    .sort((left, right) => (left.id < right.id ? -1 : left.id > right.id ? 1 : 0));
+  const orderedThermalComponents = document.components
+    .filter((component) => thermalProfileFor(component) !== null)
+    .sort((left, right) => (left.id < right.id ? -1 : left.id > right.id ? 1 : 0));
+  const transientRequested =
+    orderedCapacitors.length > 0 ||
+    options.simulationTimeMs !== undefined ||
+    options.transientState !== undefined;
+  if (!transientRequested) return solveCircuitStep(document, options);
 
   const requestedTimeMs = Number.isFinite(options.simulationTimeMs)
     ? Math.max(0, options.simulationTimeMs ?? 0)
     : 0;
   const targetTimeMs = Math.max(TRANSIENT_INITIAL_SAMPLE_MS, requestedTimeMs);
-  const orderedCapacitors = [...capacitors].sort((left, right) =>
-    left.id < right.id ? -1 : left.id > right.id ? 1 : 0,
-  );
   const compatibleState = capacitorTransientStateIsCompatible(
     options.transientState,
     orderedCapacitors,
@@ -596,11 +731,6 @@ export function solveCircuit(
     : undefined;
   const startTimeMs = compatibleState?.simulationTimeMs ?? 0;
   const elapsedTimeMs = Math.max(TRANSIENT_INITIAL_SAMPLE_MS, targetTimeMs - startTimeMs);
-  const stepCount = Math.min(
-    TRANSIENT_MAX_STEPS,
-    Math.max(1, Math.ceil(elapsedTimeMs / TRANSIENT_TARGET_STEP_MS)),
-  );
-  const stepMs = elapsedTimeMs / stepCount;
   const previousVoltageById: Record<string, number> = Object.fromEntries(
     orderedCapacitors.map((component) => {
       const carried = compatibleState?.capacitors.find(
@@ -612,35 +742,248 @@ export function solveCircuit(
       ];
     }),
   );
+  const thermalById = new Map<string, ThermalTransientStateEntry>(
+    orderedThermalComponents.map((component) => {
+      const profile = thermalProfileFor(component)!;
+      const profileKey = thermalProfileKey(component, profile);
+      const carried = compatibleState?.thermal.find(
+        (entry) => entry.componentId === component.id && entry.profileKey === profileKey,
+      );
+      return [
+        component.id,
+        carried ?? {
+          componentId: component.id,
+          profileKey,
+          temperatureCelsius: profile.ambientCelsius,
+          loadRatio: 0,
+          accumulatedDamage: 0,
+          failureMode: 'none',
+        },
+      ];
+    }),
+  );
+  const failedComponentIds = new Set(
+    [...thermalById.values()]
+      .filter((entry) => entry.failureMode === 'open')
+      .map((entry) => entry.componentId),
+  );
   let accumulatedIterations = 0;
   let finalResult: SolveResult | null = null;
-  for (let step = 1; step <= stepCount; step += 1) {
-    const result = solveCircuitStep(document, {
-      simulationTimeMs: startTimeMs + step * stepMs,
-      transientStepSeconds: stepMs / 1_000,
+  let currentTimeMs = startTimeMs;
+  let candidateStepMs = Math.min(TRANSIENT_TARGET_STEP_MS, elapsedTimeMs);
+  let acceptedSteps = 0;
+  let rejectedSteps = 0;
+  let minStepMs = Number.POSITIVE_INFINITY;
+  let maxStepMs = 0;
+
+  const voltageFromResult = (result: SolveResult, componentId: string, fallback: number): number =>
+    result.components.find((component) => component.componentId === componentId)?.voltageDrop ??
+    fallback;
+
+  while (currentTimeMs < targetTimeMs && acceptedSteps < TRANSIENT_MAX_ACCEPTED_STEPS) {
+    const remainingMs = targetTimeMs - currentTimeMs;
+    const stepMs = Math.min(candidateStepMs, remainingMs);
+    const common = {
       capacitorPreviousVoltageById: previousVoltageById,
-    });
-    accumulatedIterations += result.iterations;
-    finalResult = result;
-    if (!result.solved) {
+      failedComponentIds,
+    } as const;
+    let acceptedResult: SolveResult;
+    let estimatedErrorVolt = 0;
+
+    if (orderedCapacitors.length === 0) {
+      acceptedResult = solveCircuitStep(document, {
+        ...common,
+        simulationTimeMs: currentTimeMs + stepMs,
+        transientStepSeconds: stepMs / 1_000,
+      });
+      accumulatedIterations += acceptedResult.iterations;
+    } else {
+      const full = solveCircuitStep(document, {
+        ...common,
+        simulationTimeMs: currentTimeMs + stepMs,
+        transientStepSeconds: stepMs / 1_000,
+      });
+      const halfStepMs = stepMs / 2;
+      const firstHalf = solveCircuitStep(document, {
+        ...common,
+        simulationTimeMs: currentTimeMs + halfStepMs,
+        transientStepSeconds: halfStepMs / 1_000,
+      });
+      const halfVoltageById: Record<string, number> = Object.fromEntries(
+        orderedCapacitors.map((capacitor) => [
+          capacitor.id,
+          voltageFromResult(firstHalf, capacitor.id, previousVoltageById[capacitor.id] as number),
+        ]),
+      );
+      const secondHalf = solveCircuitStep(document, {
+        simulationTimeMs: currentTimeMs + stepMs,
+        transientStepSeconds: halfStepMs / 1_000,
+        capacitorPreviousVoltageById: halfVoltageById,
+        failedComponentIds,
+      });
+      accumulatedIterations += full.iterations + firstHalf.iterations + secondHalf.iterations;
+      const failedSolve = [full, firstHalf, secondHalf].find((result) => !result.solved);
+      if (failedSolve) {
+        if (failedSolve.status === 'nonconvergent' && stepMs > TRANSIENT_MIN_STEP_MS) {
+          rejectedSteps += 1;
+          candidateStepMs = Math.max(TRANSIENT_MIN_STEP_MS, stepMs / 2);
+          continue;
+        }
+        return {
+          ...failedSolve,
+          iterations: accumulatedIterations,
+          ...(compatibleState ? { transientState: compatibleState } : {}),
+        };
+      }
+      estimatedErrorVolt = Math.max(
+        0,
+        ...orderedCapacitors.map((capacitor) =>
+          Math.abs(
+            voltageFromResult(full, capacitor.id, previousVoltageById[capacitor.id] as number) -
+              voltageFromResult(
+                secondHalf,
+                capacitor.id,
+                previousVoltageById[capacitor.id] as number,
+              ),
+          ),
+        ),
+      );
+      const scaleVolt = Math.max(
+        1,
+        ...orderedCapacitors.map((capacitor) =>
+          Math.abs(
+            voltageFromResult(
+              secondHalf,
+              capacitor.id,
+              previousVoltageById[capacitor.id] as number,
+            ),
+          ),
+        ),
+      );
+      const toleranceVolt =
+        TRANSIENT_ABSOLUTE_TOLERANCE_VOLT + TRANSIENT_RELATIVE_TOLERANCE * scaleVolt;
+      if (estimatedErrorVolt > toleranceVolt && stepMs > TRANSIENT_MIN_STEP_MS) {
+        rejectedSteps += 1;
+        candidateStepMs = Math.max(TRANSIENT_MIN_STEP_MS, stepMs / 2);
+        continue;
+      }
+      acceptedResult = secondHalf;
+    }
+
+    if (!acceptedResult.solved) {
       return {
-        ...result,
+        ...acceptedResult,
         iterations: accumulatedIterations,
         ...(compatibleState ? { transientState: compatibleState } : {}),
       };
     }
+
     for (const capacitor of orderedCapacitors) {
-      const voltage = result.components.find(
-        (component) => component.componentId === capacitor.id,
-      )?.voltageDrop;
-      if (voltage !== undefined) previousVoltageById[capacitor.id] = voltage;
+      previousVoltageById[capacitor.id] = voltageFromResult(
+        acceptedResult,
+        capacitor.id,
+        previousVoltageById[capacitor.id] as number,
+      );
     }
+
+    let failureOccurred = false;
+    for (const component of orderedThermalComponents) {
+      const previous = thermalById.get(component.id)!;
+      if (previous.failureMode === 'open') continue;
+      const componentResult = acceptedResult.components.find(
+        (entry) => entry.componentId === component.id,
+      );
+      if (!componentResult) continue;
+      const profile = thermalProfileFor(component)!;
+      const observation = advanceThermalState(
+        profile,
+        componentResult,
+        previous.temperatureCelsius,
+        previous.accumulatedDamage,
+        stepMs / 1_000,
+      );
+      const failureMode = observation.failed ? ('open' as const) : ('none' as const);
+      thermalById.set(component.id, {
+        ...previous,
+        temperatureCelsius: observation.temperatureCelsius,
+        loadRatio: observation.loadRatio,
+        accumulatedDamage: observation.failed
+          ? Math.max(1, observation.accumulatedDamage)
+          : observation.accumulatedDamage,
+        failureMode,
+      });
+      if (failureMode === 'open') {
+        failedComponentIds.add(component.id);
+        failureOccurred = true;
+      }
+    }
+
+    if (failureOccurred) {
+      const postFailure = solveCircuitStep(document, {
+        simulationTimeMs: currentTimeMs + stepMs,
+        transientStepSeconds: TRANSIENT_FAILURE_EVENT_STEP_MS / 1_000,
+        capacitorPreviousVoltageById: previousVoltageById,
+        failedComponentIds,
+      });
+      accumulatedIterations += postFailure.iterations;
+      if (postFailure.solved) {
+        acceptedResult = postFailure;
+        for (const capacitor of orderedCapacitors) {
+          previousVoltageById[capacitor.id] = voltageFromResult(
+            postFailure,
+            capacitor.id,
+            previousVoltageById[capacitor.id] as number,
+          );
+        }
+      }
+    }
+
+    finalResult = applyThermalObservations(
+      document,
+      acceptedResult,
+      thermalById,
+      failedComponentIds,
+    );
+    currentTimeMs += stepMs;
+    acceptedSteps += 1;
+    minStepMs = Math.min(minStepMs, stepMs);
+    maxStepMs = Math.max(maxStepMs, stepMs);
+    const scaleVolt = Math.max(
+      1,
+      ...orderedCapacitors.map((component) => Math.abs(previousVoltageById[component.id] ?? 0)),
+    );
+    const toleranceVolt =
+      TRANSIENT_ABSOLUTE_TOLERANCE_VOLT + TRANSIENT_RELATIVE_TOLERANCE * scaleVolt;
+    candidateStepMs = Math.min(
+      TRANSIENT_MAX_STEP_MS,
+      estimatedErrorVolt < toleranceVolt / 8 ? stepMs * 2 : stepMs,
+    );
   }
+
+  if (!finalResult || currentTimeMs < targetTimeMs) {
+    const result = finalResult ?? solveCircuitStep(document, { failedComponentIds });
+    return {
+      ...result,
+      solved: false,
+      status: 'nonconvergent',
+      diagnostics: [
+        ...result.diagnostics,
+        {
+          code: 'numerical_instability',
+          severity: 'error',
+          message: 'Переходный расчёт не достиг заданного времени с допустимой погрешностью.',
+          suggestedAction: 'Проверьте параметры быстрого переходного процесса.',
+        },
+      ],
+      iterations: accumulatedIterations,
+    };
+  }
+
   return {
-    ...(finalResult as SolveResult),
+    ...finalResult,
     iterations: accumulatedIterations,
     transientState: {
-      version: 1,
+      version: 2,
       simulationTimeMs: targetTimeMs,
       capacitors: orderedCapacitors.map((component) => {
         const parameters = capacitorParameters(component);
@@ -652,6 +995,13 @@ export function solveCircuit(
           voltageVolt: previousVoltageById[component.id] as number,
         };
       }),
+      thermal: [...thermalById.values()],
+    },
+    transientAnalysis: {
+      acceptedSteps,
+      rejectedSteps,
+      minStepMs: Number.isFinite(minStepMs) ? minStepMs : 0,
+      maxStepMs,
     },
   };
 }
@@ -662,11 +1012,12 @@ function capacitorTransientStateIsCompatible(
   targetTimeMs: number,
 ): state is CapacitorTransientState {
   if (
-    state?.version !== 1 ||
+    state?.version !== 2 ||
     !Number.isFinite(state.simulationTimeMs) ||
     state.simulationTimeMs < 0 ||
     state.simulationTimeMs >= targetTimeMs ||
     !Array.isArray(state.capacitors) ||
+    !Array.isArray(state.thermal) ||
     state.capacitors.length !== capacitors.length
   ) {
     return false;
@@ -690,25 +1041,32 @@ function solveCircuitStep(
 ): SolveResult {
   const diagnostics: Diagnostic[] = [];
   const netlist = buildNetlist(document);
+  const failedComponentIds = options.failedComponentIds ?? new Set<string>();
   const linearDcDevices = document.components.flatMap((component) => {
+    if (failedComponentIds.has(component.id)) return [];
     const device = createLinearDcDevice(component);
     return device ? [device] : [];
   });
   const npnDcDevices = document.components.flatMap((component) => {
+    if (failedComponentIds.has(component.id)) return [];
     const device = createNpnDcDevice(component);
     return device ? [device] : [];
   });
-  const capacitors = document.components.filter(isElectrolyticCapacitor);
+  const capacitors = document.components.filter(
+    (component) => isElectrolyticCapacitor(component) && !failedComponentIds.has(component.id),
+  );
   const sourceDevices = linearDcDevices.filter(isSourceDevice);
   const linearDcDeviceById = new Map(
     linearDcDevices.map((device) => [device.instance.componentId, device] as const),
   );
   const sources = sourceDevices.map((device) => device.instance.component);
   const arduinoBranches = document.components.flatMap((component) =>
-    arduinoOutputBranches(component, options.simulationTimeMs ?? 0).map((branch) => ({
-      component,
-      ...branch,
-    })),
+    failedComponentIds.has(component.id)
+      ? []
+      : arduinoOutputBranches(component, options.simulationTimeMs ?? 0).map((branch) => ({
+          component,
+          ...branch,
+        })),
   );
   const empty = (
     status: Exclude<SimulationSolveStatus, 'solved'>,
@@ -767,7 +1125,12 @@ function solveCircuitStep(
     });
     return empty('unsupported');
   }
-  if (sources.length === 0 && arduinoBranches.length === 0 && capacitors.length === 0) {
+  if (
+    sources.length === 0 &&
+    arduinoBranches.length === 0 &&
+    capacitors.length === 0 &&
+    failedComponentIds.size === 0
+  ) {
     diagnostics.push({
       code: 'no_source',
       severity: 'error',
@@ -811,7 +1174,9 @@ function solveCircuitStep(
     const rightRoot = findIsland(right);
     if (leftRoot !== rightRoot) islandParent[rightRoot] = leftRoot;
   };
-  for (const component of document.components.filter(isSimulated)) {
+  for (const component of document.components.filter(
+    (candidate) => isSimulated(candidate) && !failedComponentIds.has(candidate.id),
+  )) {
     const nodes = terminalsForComponent(component)
       .map((terminal) => netlist.nodeOf.get(terminalKey(component.id, terminal)))
       .filter((node): node is number => node !== undefined);
@@ -845,10 +1210,13 @@ function solveCircuitStep(
   }
   const nodeVariableCount = nodeVariables.size;
   const size = nodeVariableCount + sources.length;
-  const diodeBranches = document.components.flatMap(nonlinearDcBranchesForComponent);
+  const diodeBranches = document.components.flatMap((component) =>
+    failedComponentIds.has(component.id) ? [] : nonlinearDcBranchesForComponent(component),
+  );
   const diodeStates = new Map<string, boolean>();
   const diodeSegmentIndices = new Map<string, number>();
   const transistorModels = document.components.flatMap((component) => {
+    if (failedComponentIds.has(component.id)) return [];
     const model = transistorModel(component);
     return model ? [model] : [];
   });
@@ -963,6 +1331,7 @@ function solveCircuitStep(
       stampOffset(positive, ground, conductance * branch.targetVoltage);
     }
     for (const component of document.components) {
+      if (failedComponentIds.has(component.id)) continue;
       if (isArduinoUno(component)) continue;
       if (!isSimulated(component) || component.kind === 'source') continue;
       if (['led', 'diode', 'rgb-led', 'seven-segment', 'transistor'].includes(component.kind))
@@ -1414,6 +1783,26 @@ function solveCircuitStep(
       const terminalVoltages: Partial<Record<Terminal, number>> = {};
       for (const terminal of terminalsForComponent(component)) {
         terminalVoltages[terminal] = round(physicalVoltageAt(component, terminal));
+      }
+      if (failedComponentIds.has(component.id)) {
+        const voltages = Object.values(terminalVoltages);
+        return {
+          componentId: component.id,
+          voltageDrop: round((voltages[0] ?? 0) - (voltages[1] ?? 0)),
+          current: 0,
+          terminalVoltages,
+          terminalCurrents: Object.fromEntries(
+            Object.keys(terminalVoltages).map((terminal) => [terminal, 0]),
+          ),
+          power: 0,
+          brightness: 0,
+          lit: false,
+          energized: false,
+          stressState: 'burned',
+          deviceHealth: 'failed_open',
+          damageState: 'failed',
+          presentationState: 'failed',
+        };
       }
       const branches = diodeBranches.filter((branch) => branch.component.id === component.id);
       const branchResults = branches.map((branch) => ({ branch, ...resultForBranch(branch) }));

@@ -2592,6 +2592,10 @@
   animation: workbench-component-overheat 0.82s ease-in-out infinite alternate;
 }
 
+[data-presentation-state='failed'] .workbench-production-visual {
+  filter: grayscale(0.82) brightness(0.48) contrast(1.18);
+}
+
 @keyframes workbench-component-overheat {
   from {
     filter: saturate(0.72) brightness(0.88) drop-shadow(0 0 2px rgb(222 126 23 / 58%));

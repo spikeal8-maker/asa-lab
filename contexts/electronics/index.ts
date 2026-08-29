@@ -115,6 +115,8 @@ export {
 export type {
   CapacitorTransientState,
   CapacitorTransientStateEntry,
+  ThermalTransientStateEntry,
+  TransientFailureMode,
 } from './domain/models/capacitor-transient-model.js';
 export {
   analyseCircuit,

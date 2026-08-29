@@ -1013,6 +1013,9 @@ export interface ComponentResult {
   chargeCoulomb?: number;
   storedEnergyJoule?: number;
   voltageRatingVolt?: number;
+  temperatureCelsius?: number;
+  thermalLoadPercent?: number;
+  accumulatedDamagePercent?: number;
 }
 
 export interface SolveResult {
@@ -1026,7 +1029,7 @@ export interface SolveResult {
   numericalResidual: number;
   numericalTolerance: number;
   transientState?: {
-    version: 1;
+    version: 2;
     simulationTimeMs: number;
     capacitors: {
       componentId: string;
@@ -1035,6 +1038,20 @@ export interface SolveResult {
       voltageRatingVolt: number;
       voltageVolt: number;
     }[];
+    thermal: {
+      componentId: string;
+      profileKey: string;
+      temperatureCelsius: number;
+      loadRatio: number;
+      accumulatedDamage: number;
+      failureMode: 'none' | 'open';
+    }[];
+  };
+  transientAnalysis?: {
+    acceptedSteps: number;
+    rejectedSteps: number;
+    minStepMs: number;
+    maxStepMs: number;
   };
   quality?: {
     finite: boolean;
@@ -1048,7 +1065,7 @@ export interface SolveResult {
   };
   topologySignature?: string;
   simulationInputDigest?: string;
-  solverRevision?: 'asa-electronics-solver-v4';
+  solverRevision?: 'asa-electronics-solver-v5';
   modelSetDigest?: string;
   analysis?: {
     electricalMode: 'dc' | 'transient';

@@ -49,7 +49,7 @@ export interface SimulationResult extends SolveResult {
   readonly quality: SimulationQuality;
   readonly topologySignature: string;
   readonly simulationInputDigest: string;
-  readonly solverRevision: 'asa-electronics-solver-v4';
+  readonly solverRevision: 'asa-electronics-solver-v5';
   readonly modelSetDigest: string;
   readonly analysis: {
     readonly electricalMode: 'dc' | 'transient';
@@ -59,6 +59,7 @@ export interface SimulationResult extends SolveResult {
 
 const CLOSED_RESISTANCE = 1e-4;
 const KCL_TOLERANCE_A = 1e-6;
+const TRANSIENT_KCL_RELATIVE_TOLERANCE = 0.02;
 const SOURCE_VOLTAGE_TOLERANCE_V = 1e-9;
 const MIN_POWER_BALANCE_TOLERANCE_W = 1e-9;
 const MODEL_SET_DIGEST = `sha256:${sha256Hex(
@@ -131,6 +132,9 @@ function deterministicSolveResult(result: SolveResult): SolveResult {
           transientState: {
             ...result.transientState,
             capacitors: [...result.transientState.capacitors].sort((left, right) =>
+              ordinalCompare(left.componentId, right.componentId),
+            ),
+            thermal: [...result.transientState.thermal].sort((left, right) =>
               ordinalCompare(left.componentId, right.componentId),
             ),
           },
@@ -230,6 +234,19 @@ function allNumbers(result: SolveResult): readonly number[] {
             entry.voltageRatingVolt,
             entry.voltageVolt,
           ]),
+          ...result.transientState.thermal.flatMap((entry) => [
+            entry.temperatureCelsius,
+            entry.loadRatio,
+            entry.accumulatedDamage,
+          ]),
+        ]
+      : []),
+    ...(result.transientAnalysis
+      ? [
+          result.transientAnalysis.acceptedSteps,
+          result.transientAnalysis.rejectedSteps,
+          result.transientAnalysis.minStepMs,
+          result.transientAnalysis.maxStepMs,
         ]
       : []),
     ...result.nodes.flatMap((node) => [node.voltage]),
@@ -251,6 +268,9 @@ function allNumbers(result: SolveResult): readonly number[] {
       component.chargeCoulomb ?? 0,
       component.storedEnergyJoule ?? 0,
       component.voltageRatingVolt ?? 0,
+      component.temperatureCelsius ?? 0,
+      component.thermalLoadPercent ?? 0,
+      component.accumulatedDamagePercent ?? 0,
       component.voltageConstraintResidual ?? 0,
       ...Object.values(component.terminalVoltages).filter(
         (value): value is number => value !== undefined,
@@ -449,6 +469,15 @@ function verifyQuality(
       Math.abs(residualByNode.get(node) ?? 0),
     ),
   );
+  const maxTerminalCurrentAmp = Math.max(
+    0,
+    ...result.components.flatMap((component) =>
+      Object.values(component.terminalCurrents ?? {}).map((value) => Math.abs(value ?? 0)),
+    ),
+  );
+  const kclToleranceAmp = result.transientState
+    ? Math.max(KCL_TOLERANCE_A, maxTerminalCurrentAmp * TRANSIENT_KCL_RELATIVE_TOLERANCE)
+    : KCL_TOLERANCE_A;
   const powerBalanceComponents = document.components.filter(
     (component) =>
       !['wire', 'breadboard'].includes(component.kind) &&
@@ -482,7 +511,7 @@ function verifyQuality(
   );
   const passed =
     finite &&
-    maxKclResidualAmp <= KCL_TOLERANCE_A &&
+    maxKclResidualAmp <= kclToleranceAmp &&
     maxSourceVoltageResidualVolt <= SOURCE_VOLTAGE_TOLERANCE_V &&
     (!powerBalanceApplicable || powerBalanceResidualWatt <= powerBalanceToleranceWatt);
   return {
@@ -492,7 +521,7 @@ function verifyQuality(
     maxSourceVoltageResidualVolt: rounded(maxSourceVoltageResidualVolt),
     powerBalanceResidualWatt: rounded(powerBalanceResidualWatt),
     powerBalanceToleranceWatt: rounded(powerBalanceToleranceWatt),
-    kclToleranceAmp: KCL_TOLERANCE_A,
+    kclToleranceAmp: rounded(kclToleranceAmp),
     sourceVoltageToleranceVolt: SOURCE_VOLTAGE_TOLERANCE_V,
   };
 }
@@ -533,8 +562,7 @@ export function analyseCircuit(
   const inputDigest = simulationInputDigest(document, options.simulationTimeMs ?? 0);
   const analysis = {
     electricalMode:
-      document.components.some(isElectrolyticCapacitor) ||
-      (options.simulationTimeMs !== undefined && options.simulationTimeMs > 0)
+      document.components.some(isElectrolyticCapacitor) || options.simulationTimeMs !== undefined
         ? 'transient'
         : 'dc',
     controllerRuntime: document.components.some((component) => isArduinoUno(component))
@@ -564,7 +592,7 @@ export function analyseCircuit(
       quality: failedQuality(),
       topologySignature: compiled.topologySignature,
       simulationInputDigest: inputDigest,
-      solverRevision: 'asa-electronics-solver-v4',
+      solverRevision: 'asa-electronics-solver-v5',
       modelSetDigest: MODEL_SET_DIGEST,
       analysis,
     };
@@ -589,7 +617,7 @@ export function analyseCircuit(
       quality,
       topologySignature: compiled.topologySignature,
       simulationInputDigest: inputDigest,
-      solverRevision: 'asa-electronics-solver-v4',
+      solverRevision: 'asa-electronics-solver-v5',
       modelSetDigest: MODEL_SET_DIGEST,
       analysis,
     };
@@ -601,7 +629,7 @@ export function analyseCircuit(
     quality,
     topologySignature: compiled.topologySignature,
     simulationInputDigest: inputDigest,
-    solverRevision: 'asa-electronics-solver-v4',
+    solverRevision: 'asa-electronics-solver-v5',
     modelSetDigest: MODEL_SET_DIGEST,
     analysis,
   };

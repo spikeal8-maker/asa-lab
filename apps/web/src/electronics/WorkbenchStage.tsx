@@ -277,7 +277,10 @@ export function WorkbenchStage({
       );
       const isLedIndicator = entry.key === 'led-5mm';
       const isRgbLed = entry.key === 'rgb-led';
-      const ledBurned = (isLedIndicator || isRgbLed) && diagnostics.includes('led_burnout');
+      const ledBurned =
+        (isLedIndicator || isRgbLed) &&
+        (c.resultByComponent.get(component.id)?.presentationState === 'failed' ||
+          (isRgbLed && diagnostics.includes('led_burnout')));
       const ledOvercurrent = isLedIndicator && diagnostics.includes('led_overcurrent');
       const primaryDiagnostic = ledBurned
         ? actionableDiagnostics.find((diagnostic) => diagnostic.code === 'led_burnout')

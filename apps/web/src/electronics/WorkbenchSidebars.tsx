@@ -889,6 +889,19 @@ export function WorkbenchSidebars({
                       <dd>{measurement.currentUtilizationPercent.toFixed(0)}%</dd>
                     </div>
                   ) : null}
+                  {measurement.temperatureCelsius !== undefined ? (
+                    <div>
+                      <dt>Температура</dt>
+                      <dd>{measurement.temperatureCelsius.toFixed(1)} °C</dd>
+                    </div>
+                  ) : null}
+                  {measurement.accumulatedDamagePercent !== undefined &&
+                  measurement.accumulatedDamagePercent > 0 ? (
+                    <div>
+                      <dt>Накопленный износ</dt>
+                      <dd>{measurement.accumulatedDamagePercent.toFixed(0)}%</dd>
+                    </div>
+                  ) : null}
                   {measurement.internalResistanceOhm !== undefined ? (
                     <div>
                       <dt>Внутреннее сопротивление</dt>
