@@ -206,6 +206,116 @@ describe('live Electronics simulation', () => {
     expect(voltage(atTenSeconds)).toBeLessThan(5);
   });
 
+  it('fades a directly parallel red LED through the low-current tail of a 10000 uF capacitor', () => {
+    const circuitWithButton = (pressed: boolean): SchematicDocument => ({
+      schemaVersion: 4,
+      components: [
+        {
+          id: 'battery',
+          kind: 'source',
+          componentTypeId: 'battery-holder-aa-2',
+          pinIds: ['BAT-', 'BAT+'],
+          position: { x: 0, y: 0 },
+          value: 3,
+        },
+        {
+          id: 'resistor',
+          kind: 'resistor',
+          componentTypeId: 'resistor-axial',
+          pinIds: ['lead-1', 'lead-2'],
+          position: { x: 20, y: 0 },
+          value: 1_000,
+        },
+        {
+          id: 'button',
+          kind: 'button',
+          componentTypeId: 'button-tactile-6mm',
+          pinIds: ['SW-A1', 'SW-A2', 'SW-B1', 'SW-B2'],
+          internalConnections: [
+            ['SW-A1', 'SW-A2'],
+            ['SW-B1', 'SW-B2'],
+          ],
+          position: { x: 40, y: 0 },
+          value: 0,
+          state: pressed,
+        },
+        {
+          id: 'led',
+          kind: 'led',
+          componentTypeId: 'led-5mm',
+          pinIds: ['cathode', 'anode'],
+          position: { x: 60, y: 0 },
+          value: 2,
+          stateProperties: { ledColour: 'red' },
+        },
+        {
+          id: 'capacitor',
+          kind: 'visual',
+          componentTypeId: 'electrolytic-capacitor',
+          pinIds: ['negative', 'positive'],
+          position: { x: 80, y: 0 },
+          value: 10_000,
+          stateProperties: { initialVoltageVolt: 0, voltageRatingVolt: 25 },
+        },
+      ],
+      connections: [
+        {
+          id: 'source-resistor',
+          from: { componentId: 'battery', terminal: 'BAT+' },
+          to: { componentId: 'resistor', terminal: 'lead-1' },
+        },
+        {
+          id: 'resistor-button',
+          from: { componentId: 'resistor', terminal: 'lead-2' },
+          to: { componentId: 'button', terminal: 'SW-A1' },
+        },
+        {
+          id: 'button-high',
+          from: { componentId: 'button', terminal: 'SW-B1' },
+          to: { componentId: 'led', terminal: 'anode' },
+        },
+        {
+          id: 'high-capacitor',
+          from: { componentId: 'led', terminal: 'anode' },
+          to: { componentId: 'capacitor', terminal: 'positive' },
+        },
+        {
+          id: 'led-return',
+          from: { componentId: 'led', terminal: 'cathode' },
+          to: { componentId: 'battery', terminal: 'BAT-' },
+        },
+        {
+          id: 'capacitor-return',
+          from: { componentId: 'capacitor', terminal: 'negative' },
+          to: { componentId: 'battery', terminal: 'BAT-' },
+        },
+      ],
+      viewport: { x: 0, y: 0, zoom: 1 },
+      simulation: { running: true, maxIterations: 24 },
+    });
+    const led = (result: SolveResult) =>
+      result.components.find((component) => component.componentId === 'led');
+
+    const chargingAtOneSecond = advanceLiveSimulation(circuitWithButton(true), null, 1_000);
+    const charged = advanceLiveSimulation(circuitWithButton(true), chargingAtOneSecond, 30_000);
+    const released = advanceLiveSimulation(circuitWithButton(false), charged, 30_000);
+    const fadingAtTwoSeconds = advanceLiveSimulation(circuitWithButton(false), released, 32_000);
+    const fadingAtTenSeconds = advanceLiveSimulation(
+      circuitWithButton(false),
+      fadingAtTwoSeconds,
+      40_000,
+    );
+
+    expect(led(chargingAtOneSecond)).toMatchObject({ lit: false, brightness: 0 });
+    expect(led(charged)?.brightness ?? 0).toBeGreaterThan(20);
+    expect(led(fadingAtTwoSeconds)?.brightness ?? 0).toBeGreaterThan(8);
+    expect(led(fadingAtTwoSeconds)?.brightness ?? 0).toBeLessThan(led(charged)?.brightness ?? 0);
+    expect(led(fadingAtTenSeconds)?.brightness ?? 0).toBeGreaterThan(5);
+    expect(led(fadingAtTenSeconds)?.brightness ?? 0).toBeLessThan(
+      led(fadingAtTwoSeconds)?.brightness ?? 0,
+    );
+  });
+
   it('recalculates LED colour and resistor effects in a complete owner-pin circuit', () => {
     const seriesLed = (colour: string, resistance: number): SchematicDocument => ({
       schemaVersion: 4,

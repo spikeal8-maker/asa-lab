@@ -1583,6 +1583,18 @@ describe('deterministic DC solver', () => {
       expect(brightness[index]).toBeGreaterThan(brightness[index - 1] ?? -1);
     }
     expect(brightness.at(-1)).toBe(100);
+    for (const ledProfile of Object.values(ORDINARY_LED_PROFILES)) {
+      const segments = ledProfile.linearSegments ?? [];
+      for (let index = 1; index < segments.length; index += 1) {
+        const previous = segments[index - 1]!;
+        const current = segments[index]!;
+        const boundaryCurrent = current.minimumCurrentAmp;
+        expect(previous.kneeVoltage + previous.dynamicResistanceOhm * boundaryCurrent).toBeCloseTo(
+          current.kneeVoltage + current.dynamicResistanceOhm * boundaryCurrent,
+          10,
+        );
+      }
+    }
   });
 
   it.each(Object.keys(ORDINARY_LED_PROFILES) as OrdinaryLedColour[])(

@@ -1,5 +1,5 @@
 import type { ComponentKind } from '../api';
-import { ordinaryLedProfile } from '@asa-lab/electronics';
+import { ledForwardVoltageAtCurrent, ordinaryLedProfile } from '@asa-lab/electronics';
 import type { HelpSection } from './component-information';
 
 const LED_COLOUR_LABELS: Readonly<Record<string, string>> = {
@@ -56,8 +56,7 @@ export function componentHelpSections(
   if (kind === 'led') {
     const colour = options?.ledColour ?? 'red';
     const profile = ordinaryLedProfile(colour);
-    const forwardAtNominal =
-      profile.kneeVoltage + profile.dynamicResistanceOhm * profile.nominalCurrentAmp;
+    const forwardAtNominal = ledForwardVoltageAtCurrent(profile.nominalCurrentAmp, profile);
     return [
       {
         id: 'description',

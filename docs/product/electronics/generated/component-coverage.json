@@ -10,7 +10,7 @@
     "inspectorProfilePath": "apps/web/src/electronics/component-information.ts",
     "inspectorProfileSha256": "85f2b4cb808bb24a9b75eb71eae9cb2e3e88acf9b58b0aaf83d2026b973bc491",
     "helpContentPath": "apps/web/src/electronics/component-help-content.ts",
-    "helpContentSha256": "d06a3c691ff345a9cc35b155e4fcdaaae0709ec04c8e2984fe1ef25914af8227",
+    "helpContentSha256": "4970ded2f05d5b171b7399bddf6b30bc1e7f95bd9e98b7b1fd500ada66ccb33d",
     "componentInformationTestPath": "apps/web/src/electronics/testing/component-information.spec.ts",
     "componentInformationTestSha256": "9311a8834a090ba1d65d20a5c18d2dc32e39a03420e80b45755ef46565a5cc5c",
     "browserEvidencePath": "e2e/electronics-simulation.spec.ts",

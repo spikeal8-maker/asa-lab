@@ -26,6 +26,7 @@ export {
 } from './domain/simulation-input-digest.js';
 export {
   ledBrightnessPercent,
+  ledForwardVoltageAtCurrent,
   ordinaryLedProfile,
   rgbLedProfile,
   ORDINARY_LED_PROFILES,

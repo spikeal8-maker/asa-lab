@@ -39,15 +39,32 @@ const ORDINARY_REFERENCE_BURNOUT_CURRENT_AMP = 0.12;
 const BRIGHTNESS_EXPONENT = 0.45;
 
 /**
- * The red 5 mm reference sweep at 3 V exposes four operating points:
- * 31.9 mA at 25 ohm, 58.4 mA at 10 ohm, 120 mA at 1 ohm and 136 mA at
- * 0 ohm. The three lines below join those points continuously. This avoids a
- * made-up preset table: arbitrary resistance still produces a continuous
- * electrical result while the captured reference points remain reproducible.
+ * The low-current points keep the red 5 mm junction conductive below the
+ * milliamp range instead of turning it into an abrupt 1.95 V switch. The
+ * 2 mA / 1.8 V point follows the reference-class 5 mm low-current red LED,
+ * while the 0.1 mA point provides a bounded deterministic approximation of the
+ * exponential tail that remains visible while a large capacitor discharges.
+ *
+ * From the nominal 20 mA point onward the previous profile remains unchanged,
+ * including the owner-captured 3 V sweep: 31.9 mA at 25 ohm, 58.4 mA at
+ * 10 ohm, 120 mA at 1 ohm and 136 mA at 0 ohm. Every adjacent line meets at
+ * its declared current, so arbitrary resistance and transient voltage stay
+ * continuous without a preset lookup table.
  */
 const RED_REFERENCE_LINEAR_SEGMENTS: readonly LedLinearSegment[] = [
+  { minimumCurrentAmp: 0, kneeVoltage: 1.45, dynamicResistanceOhm: 2_000 },
   {
-    minimumCurrentAmp: 0,
+    minimumCurrentAmp: 0.0001,
+    kneeVoltage: 1.6421052631578947,
+    dynamicResistanceOhm: 78.9473684210527,
+  },
+  {
+    minimumCurrentAmp: 0.002,
+    kneeVoltage: 1.7659303983228511,
+    dynamicResistanceOhm: 17.034800838574448,
+  },
+  {
+    minimumCurrentAmp: 0.02,
     kneeVoltage: 1.945494339622642,
     dynamicResistanceOhm: 8.056603773584897,
   },
@@ -152,6 +169,15 @@ export function ledLinearSegment(
     selected = segment;
   }
   return selected;
+}
+
+export function ledForwardVoltageAtCurrent(
+  currentAmp: number,
+  profile: LedJunctionProfile,
+): number {
+  const current = Math.max(0, currentAmp);
+  const segment = ledLinearSegment(profile, current);
+  return segment.kneeVoltage + segment.dynamicResistanceOhm * current;
 }
 
 /** Exact series helper used by focused calibration tests and reference tools. */

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ordinaryLedProfile } from '@asa-lab/electronics';
+import { ledForwardVoltageAtCurrent, ordinaryLedProfile } from '@asa-lab/electronics';
 import {
   CATEGORY_OPTIONS,
   selectedFamilyVariant,
@@ -957,10 +957,9 @@ export function WorkbenchSidebars({
                   <div>
                     <dt>Прямое напряжение при 20 мА</dt>
                     <dd>
-                      {(
-                        selectedLedProfile.kneeVoltage +
-                        selectedLedProfile.dynamicResistanceOhm *
-                          selectedLedProfile.nominalCurrentAmp
+                      {ledForwardVoltageAtCurrent(
+                        selectedLedProfile.nominalCurrentAmp,
+                        selectedLedProfile,
                       ).toFixed(2)}{' '}
                       В
                     </dd>
