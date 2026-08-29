@@ -122,11 +122,11 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: math_4b1_transient_state_switching_gates_green_production_published_owner_acceptance_pending
+      checkpoint: math_4b1_capacitor_interaction_followup_gates_green_production_published_owner_acceptance_pending
       owner_acceptance: pending
     revisions:
       convergence_baseline_sha: 5b052dc631c7036de9d60f4206c9879fe364e732
-      head_sha: 03ebe6a5aff039cfc873ad25314a50faef406eab
+      head_sha: 3923cf4010ceb2cc2401893580ae9eab7dbf2c43
       owner_accepted_sha: 2f04767ae1282d5f05a6f0367e61dfc777ed339e
     execution_lease:
       executor_id: codex-electronics-docs
