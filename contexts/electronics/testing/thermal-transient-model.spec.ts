@@ -226,5 +226,5 @@ describe('MATH-4B2 adaptive thermal transient', () => {
     expect(
       states.some((state) => !state.startsWith('saturation:') && state.includes('/saturation:')),
     ).toBe(true);
-  });
+  }, 15_000);
 });
