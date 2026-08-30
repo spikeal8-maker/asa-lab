@@ -525,6 +525,20 @@ describe('owner-reference Electronics presentation contract', () => {
     );
   });
 
+  it('shows the multimeter mode and calculated DC reading on the instrument and panel', () => {
+    expect(sidebarSource).toContain(
+      "const selectedIsMultimeter = c.selectedEntry?.key === 'multimeter'",
+    );
+    expect(sidebarSource).toContain('data-testid="multimeter-primary-controls"');
+    expect(sidebarSource).toContain('data-testid="multimeter-panel-reading"');
+    expect(sidebarSource).toContain('Напряжение DC');
+    expect(sidebarSource).toContain('Сейчас доступно измерение постоянного напряжения');
+    expect(productionVisualSource).toContain('data-testid="multimeter-runtime-display"');
+    expect(productionVisualSource).toContain("result?.measurementMode !== 'dc-voltage'");
+    expect(productionVisualSource).toContain('data-measured-value');
+    expect(workbenchCss).toContain('.workbench-multimeter-reading');
+  });
+
   it('provides a real phone workbench with a bottom component sheet and touch targets', () => {
     expect(workbenchCss).toContain('@media (max-width: 760px)');
     expect(workbenchCss).toContain('--wb-library-open-height: min(44dvh, 360px)');

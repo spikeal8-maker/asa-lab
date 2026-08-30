@@ -11,6 +11,8 @@ const FRESH_AA_INTERNAL_RESISTANCE_OHM = 0.225;
 const FRESH_CR2032_INTERNAL_RESISTANCE_OHM = 13;
 const DEFAULT_RESISTOR_POWER_RATING_W = 0.25;
 const RESISTOR_WARNING_PERCENT = 80;
+export const MULTIMETER_DC_INPUT_RESISTANCE_OHM = 10_000_000;
+export const MULTIMETER_DC_MAX_INPUT_VOLTAGE = 1_000;
 
 export type LinearDcStressState = 'normal' | 'warning' | 'overcurrent' | 'burned';
 
@@ -24,6 +26,11 @@ export interface LinearDcObservation {
   readonly internalPower?: number;
   readonly voltageSag?: number;
   readonly sourceOperatingMode?: 'delivering' | 'idle' | 'absorbing';
+  readonly measurementMode?: 'dc-voltage';
+  readonly measuredValue?: number;
+  readonly measurementUnit?: 'V';
+  readonly meterInputResistanceOhm?: number;
+  readonly meterOverload?: boolean;
   /** Positive values enter the component through the named physical terminal. */
   readonly terminalCurrents: Readonly<Record<Terminal, number>>;
   readonly voltageConstraintResidual?: number;
@@ -35,6 +42,7 @@ function physicalTerminalPair(component: SchematicComponent): readonly [Terminal
   if (component.kind === 'source') {
     return component.pinIds?.includes('BAT+') ? ['BAT+', 'BAT-'] : ['positive', 'negative'];
   }
+  if (component.componentTypeId === 'multimeter') return ['v-ohm-ma', 'com'];
   return component.componentTypeId ? ['lead-1', 'lead-2'] : ['a', 'b'];
 }
 
@@ -57,6 +65,11 @@ export interface SourceParameters {
   readonly emfVolt: number;
   readonly internalResistanceOhm: number;
   readonly continuousCurrentAmp: number;
+}
+
+export interface MultimeterDcVoltageParameters {
+  readonly inputResistanceOhm: number;
+  readonly maxInputVoltageVolt: number;
 }
 
 export function sourceInternalResistanceOhm(component: SchematicComponent): number {
@@ -216,6 +229,64 @@ export const SOURCE_DEVICE_MODEL: DeviceModel<SourceParameters, LinearDcObservat
   },
 };
 
+export const MULTIMETER_DC_VOLTAGE_DEVICE_MODEL: DeviceModel<
+  MultimeterDcVoltageParameters,
+  LinearDcObservation
+> = {
+  id: 'dc-voltmeter',
+  version: 1,
+  analyses: ['dc'],
+  validate(component) {
+    return component.componentTypeId === 'multimeter'
+      ? []
+      : [{ code: 'invalid_multimeter', message: 'Профиль предназначен для мультиметра.' }];
+  },
+  normalize(component) {
+    return {
+      componentId: component.id,
+      component,
+      parameters: {
+        inputResistanceOhm: MULTIMETER_DC_INPUT_RESISTANCE_OHM,
+        maxInputVoltageVolt: MULTIMETER_DC_MAX_INPUT_VOLTAGE,
+      },
+    };
+  },
+  stampDc(context, instance) {
+    const positive = context.node(instance.component, 'a');
+    const common = context.node(instance.component, 'b');
+    context.stampConductance(positive, common, 1 / instance.parameters.inputResistanceOhm);
+  },
+  observe(instance, operatingPoint) {
+    const currentAmp = operatingPoint.voltageDrop / instance.parameters.inputResistanceOhm;
+    const overload = Math.abs(operatingPoint.voltageDrop) > instance.parameters.maxInputVoltageVolt;
+    const [positive, common] = physicalTerminalPair(instance.component);
+    const label = instance.component.name ?? 'Мультиметр';
+    return {
+      current: currentAmp,
+      power: Math.abs(currentAmp * operatingPoint.voltageDrop),
+      // Input protection is reported explicitly as OL; do not reuse the
+      // thermal damage states of loads for an instrument input.
+      stressState: 'normal' as const,
+      measurementMode: 'dc-voltage' as const,
+      measuredValue: operatingPoint.voltageDrop,
+      measurementUnit: 'V' as const,
+      meterInputResistanceOhm: instance.parameters.inputResistanceOhm,
+      meterOverload: overload,
+      terminalCurrents: { [positive]: currentAmp, [common]: -currentAmp },
+      diagnostics: overload
+        ? [
+            {
+              code: 'multimeter_overload',
+              severity: 'error' as const,
+              message: `${label}: входное напряжение ${Math.abs(operatingPoint.voltageDrop).toFixed(1)} В превышает предел ${instance.parameters.maxInputVoltageVolt.toFixed(0)} В.`,
+              suggestedAction: 'Отключите щупы или уменьшите измеряемое напряжение.',
+            },
+          ]
+        : [],
+    };
+  },
+};
+
 export interface ResistorDevice {
   readonly model: typeof RESISTOR_DEVICE_MODEL;
   readonly instance: NormalizedDevice<ResistorParameters>;
@@ -226,7 +297,12 @@ export interface SourceDevice {
   readonly instance: NormalizedDevice<SourceParameters>;
 }
 
-export type LinearDcDevice = ResistorDevice | SourceDevice;
+export interface MultimeterDcVoltageDevice {
+  readonly model: typeof MULTIMETER_DC_VOLTAGE_DEVICE_MODEL;
+  readonly instance: NormalizedDevice<MultimeterDcVoltageParameters>;
+}
+
+export type LinearDcDevice = ResistorDevice | SourceDevice | MultimeterDcVoltageDevice;
 
 export function isResistorDevice(device: LinearDcDevice): device is ResistorDevice {
   return device.model === RESISTOR_DEVICE_MODEL;
@@ -234,6 +310,12 @@ export function isResistorDevice(device: LinearDcDevice): device is ResistorDevi
 
 export function isSourceDevice(device: LinearDcDevice): device is SourceDevice {
   return device.model === SOURCE_DEVICE_MODEL;
+}
+
+export function isMultimeterDcVoltageDevice(
+  device: LinearDcDevice,
+): device is MultimeterDcVoltageDevice {
+  return device.model === MULTIMETER_DC_VOLTAGE_DEVICE_MODEL;
 }
 
 export function createLinearDcDevice(component: SchematicComponent): LinearDcDevice | null {
@@ -244,6 +326,12 @@ export function createLinearDcDevice(component: SchematicComponent): LinearDcDev
   }
   if (identity.electricalModelId === SOURCE_DEVICE_MODEL.id) {
     return { model: SOURCE_DEVICE_MODEL, instance: SOURCE_DEVICE_MODEL.normalize(component) };
+  }
+  if (identity.electricalModelId === MULTIMETER_DC_VOLTAGE_DEVICE_MODEL.id) {
+    return {
+      model: MULTIMETER_DC_VOLTAGE_DEVICE_MODEL,
+      instance: MULTIMETER_DC_VOLTAGE_DEVICE_MODEL.normalize(component),
+    };
   }
   return null;
 }

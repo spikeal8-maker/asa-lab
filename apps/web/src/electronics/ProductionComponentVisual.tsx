@@ -258,6 +258,19 @@ const SEGMENT_IDS = [
   'dp',
 ] as const satisfies readonly SevenSegmentId[];
 
+function multimeterDisplayValue(
+  simulationRunning: boolean,
+  result: ComponentResult | undefined,
+): string {
+  if (!simulationRunning || result?.measurementMode !== 'dc-voltage') return '—';
+  if (result.meterOverload) return 'OL';
+  const value = Number(result.measuredValue ?? result.voltageDrop);
+  if (!Number.isFinite(value)) return '—';
+  const absolute = Math.abs(value);
+  const precision = absolute < 10 ? 3 : absolute < 100 ? 2 : 1;
+  return `${value.toFixed(precision)} V`;
+}
+
 export function ProductionComponentVisual({
   entry,
   component,
@@ -397,6 +410,8 @@ export function ProductionComponentVisual({
   const ownerAssetTransform = rotatesHorizontalOwnerAsset
     ? `translate(${width} 0) rotate(90)`
     : undefined;
+  const meterDisplay =
+    entry.key === 'multimeter' ? multimeterDisplayValue(simulationRunning, result) : '';
   // Canonical selection contract: docs/product/electronics/README.md, section 7.
   // The rendered asset and its alpha-silhouette outline MUST share one transform;
   // per-component rectangle/capsule bounds are intentionally forbidden.
@@ -719,6 +734,44 @@ export function ProductionComponentVisual({
               <text x={width * 0.5} y={height * 0.49} fontSize={width * 0.25}>
                 TMP
               </text>
+            </g>
+          ) : null}
+          {entry.key === 'multimeter' ? (
+            <g
+              className="workbench-multimeter-runtime"
+              data-testid="multimeter-runtime-display"
+              data-measurement-mode="dc-voltage"
+              data-measured-value={
+                simulationRunning && result?.measuredValue !== undefined
+                  ? result.measuredValue
+                  : undefined
+              }
+              pointerEvents="none"
+            >
+              <text
+                className="workbench-multimeter-reading"
+                x={width * 0.43}
+                y={height * 0.51}
+                fontSize={height * 0.25}
+                textAnchor="middle"
+                dominantBaseline="middle"
+              >
+                {meterDisplay}
+              </text>
+              <text
+                className="workbench-multimeter-mode"
+                x={width * 0.12}
+                y={height * 0.29}
+                fontSize={height * 0.09}
+              >
+                DC
+              </text>
+              <circle
+                className="workbench-multimeter-active-mode"
+                cx={width * 0.866}
+                cy={height * 0.433}
+                r={height * 0.078}
+              />
             </g>
           ) : null}
         </>

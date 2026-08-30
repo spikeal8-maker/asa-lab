@@ -1433,6 +1433,73 @@ function singleChannelRgbLedDocument(options: {
   return { ...seeded, components, connections };
 }
 
+function multimeterDcVoltageDocument(reverseProbes = false): SchematicDocument {
+  return {
+    schemaVersion: 4,
+    components: [
+      {
+        id: 'source',
+        kind: 'source',
+        componentTypeId: 'battery-holder-aa-2',
+        variantId: 'battery-holder-aa-2',
+        name: 'Источник 3 В',
+        position: { x: 170, y: 390 },
+        rotation: 0,
+        value: 3,
+        pinIds: ['BAT-', 'BAT+'],
+        stateProperties: { cells: 2 },
+      },
+      {
+        id: 'meter',
+        kind: 'visual',
+        componentTypeId: 'multimeter',
+        variantId: 'multimeter',
+        name: 'Мультиметр',
+        position: { x: 660, y: 230 },
+        rotation: 0,
+        value: 0,
+        pinIds: ['com', 'v-ohm-ma'],
+        stateProperties: { measurementMode: 'dc-voltage', meterRange: 'auto' },
+      },
+    ],
+    connections: reverseProbes
+      ? [
+          {
+            id: 'negative-red-probe',
+            from: { componentId: 'source', terminal: 'BAT-' },
+            to: { componentId: 'meter', terminal: 'v-ohm-ma' },
+            color: '#e3212b',
+            vertices: [],
+          },
+          {
+            id: 'positive-black-probe',
+            from: { componentId: 'source', terminal: 'BAT+' },
+            to: { componentId: 'meter', terminal: 'com' },
+            color: '#2a3035',
+            vertices: [],
+          },
+        ]
+      : [
+          {
+            id: 'positive-red-probe',
+            from: { componentId: 'source', terminal: 'BAT+' },
+            to: { componentId: 'meter', terminal: 'v-ohm-ma' },
+            color: '#e3212b',
+            vertices: [],
+          },
+          {
+            id: 'negative-black-probe',
+            from: { componentId: 'source', terminal: 'BAT-' },
+            to: { componentId: 'meter', terminal: 'com' },
+            color: '#2a3035',
+            vertices: [],
+          },
+        ],
+    viewport: { x: 0, y: 0, zoom: 1 },
+    simulation: { running: false, maxIterations: 24 },
+  };
+}
+
 async function createProject(page: Page, title: string): Promise<string> {
   const response = await page.context().request.post('/api/projects', {
     headers: {
@@ -2979,6 +3046,64 @@ test('MATH-6E seven-segment display uses physical pins and an arbitrary segment 
         fullPage: true,
       });
     }
+  }
+  failures.assertEmpty();
+});
+
+test('MATH-10A1 multimeter measures signed DC voltage with a finite input', async ({ page }) => {
+  test.setTimeout(120_000);
+  const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
+  await page.setViewportSize({ width: 1920, height: 1080 });
+  await loginWithOrganization(page, teacher);
+
+  for (const reverseProbes of [false, true]) {
+    const projectId = await createProject(
+      page,
+      reverseProbes ? 'Мультиметр: обратная полярность' : 'Мультиметр: 3 В',
+    );
+    await saveDocument(page, projectId, multimeterDcVoltageDocument(reverseProbes));
+    await page.goto(`/#/home/${projectId}`);
+    await expect(page.locator('.workbench-stage')).toBeVisible({ timeout: 15_000 });
+
+    const meter = component(page, 'multimeter');
+    await meter.locator('.workbench-part').press('Enter');
+    const inspector = page.getByRole('complementary', { name: 'Параметры выделения' });
+    await expect(inspector.getByTestId('multimeter-primary-controls')).toBeVisible();
+    await expect(inspector.getByLabel('Режим мультиметра')).toHaveValue('dc-voltage');
+    await expect(inspector.getByTestId('multimeter-panel-reading')).toContainText(
+      'Запустите моделирование',
+    );
+
+    await page.getByRole('button', { name: 'Начать моделирование' }).click();
+    const display = meter.getByTestId('multimeter-runtime-display');
+    await expect(display).toHaveAttribute('data-measurement-mode', 'dc-voltage');
+    await expect
+      .poll(async () => Number((await display.getAttribute('data-measured-value')) ?? 'NaN'))
+      .toBeCloseTo(reverseProbes ? -2.999999865 : 2.999999865, 6);
+    await expect(display).toContainText(reverseProbes ? '-3.000 V' : '3.000 V');
+    await expect(inspector.getByTestId('multimeter-panel-reading')).toContainText(
+      reverseProbes ? '-3.000 В' : '3.000 В',
+    );
+
+    const technicalState = inspector.getByRole('button', {
+      name: 'Техническое состояние Мультиметр',
+    });
+    if ((await technicalState.getAttribute('aria-expanded')) !== 'true') {
+      await technicalState.click();
+    }
+    await expect(inspector.getByTestId('multimeter-reference-profile')).toContainText('10 МОм');
+    await expect(inspector.getByTestId('multimeter-reference-profile')).toContainText(
+      'Параллельно измеряемому участку',
+    );
+    await expect(inspector).not.toContainText('математическая модель пока не реализована');
+    await page.screenshot({
+      path: `${ARTIFACT_DIR}/${
+        reverseProbes
+          ? 'electronics-multimeter-reversed-probes.png'
+          : 'electronics-multimeter-dc-voltage.png'
+      }`,
+      fullPage: true,
+    });
   }
   failures.assertEmpty();
 });

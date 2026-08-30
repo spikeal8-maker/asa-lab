@@ -21,6 +21,7 @@ import { ledBrightnessPercent, type LedJunctionProfile } from './led-model.js';
 import type { DcStampContext, IterativeDcStampContext } from './models/device-model.js';
 import {
   createLinearDcDevice,
+  isMultimeterDcVoltageDevice,
   isResistorDevice,
   isSourceDevice,
   type LinearDcObservation,
@@ -96,6 +97,7 @@ export type DiagnosticCode =
   | 'resistor_near_limit'
   | 'resistor_overload'
   | 'source_overload'
+  | 'multimeter_overload'
   | 'diode_near_limit'
   | 'diode_overcurrent'
   | 'diode_reverse_breakdown'
@@ -182,6 +184,11 @@ export interface ComponentResult {
   readonly voltageSag?: number;
   /** Whether a source delivers current, is idle, or is back-driven by another source. */
   readonly sourceOperatingMode?: 'delivering' | 'idle' | 'absorbing';
+  readonly measurementMode?: 'dc-voltage';
+  readonly measuredValue?: number;
+  readonly measurementUnit?: 'V';
+  readonly meterInputResistanceOhm?: number;
+  readonly meterOverload?: boolean;
   readonly operatingRegion?: 'cutoff' | 'active' | 'saturation' | 'ohmic';
   readonly baseCurrent?: number;
   readonly collectorCurrent?: number;
@@ -588,6 +595,7 @@ function logicalTerminal(component: SchematicComponent, terminal: LogicalTermina
   if (component.kind === 'lamp') return terminal === 'a' ? 'L1' : 'L2';
   if (isBrushedMotor(component)) return terminal === 'a' ? 'positive' : 'negative';
   if (isElectrolyticCapacitor(component)) return terminal === 'a' ? 'positive' : 'negative';
+  if (component.componentTypeId === 'multimeter') return terminal === 'a' ? 'v-ohm-ma' : 'com';
   return terminal;
 }
 
@@ -596,6 +604,7 @@ function isSimulated(component: SchematicComponent): boolean {
     isArduinoUno(component) ||
     isBrushedMotor(component) ||
     isElectrolyticCapacitor(component) ||
+    component.componentTypeId === 'multimeter' ||
     !['breadboard', 'visual', 'wire'].includes(component.kind)
   );
 }
@@ -1781,6 +1790,9 @@ function solveCircuitStep(
     for (const device of linearDcDevices.filter(isResistorDevice)) {
       device.model.stampDc(modelStampContext, device.instance);
     }
+    for (const device of linearDcDevices.filter(isMultimeterDcVoltageDevice)) {
+      device.model.stampDc(modelStampContext, device.instance);
+    }
 
     for (const branch of diodeBranches) {
       const anode = physicalNodeIndex(branch.component, branch.anode);
@@ -2501,6 +2513,15 @@ function solveCircuitStep(
               internalPower: round(linearDcObservation.internalPower ?? 0),
               voltageSag: round(linearDcObservation.voltageSag ?? 0),
               sourceOperatingMode: linearDcObservation.sourceOperatingMode ?? 'idle',
+            }
+          : {}),
+        ...(linearDcObservation?.measurementMode === 'dc-voltage'
+          ? {
+              measurementMode: linearDcObservation.measurementMode,
+              measuredValue: round(linearDcObservation.measuredValue ?? voltageDrop),
+              measurementUnit: linearDcObservation.measurementUnit ?? ('V' as const),
+              meterInputResistanceOhm: round(linearDcObservation.meterInputResistanceOhm ?? 0, 3),
+              meterOverload: linearDcObservation.meterOverload ?? false,
             }
           : {}),
         ...(component.kind === 'led' ||

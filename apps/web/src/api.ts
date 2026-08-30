@@ -997,6 +997,11 @@ export interface ComponentResult {
   internalPower?: number;
   voltageSag?: number;
   sourceOperatingMode?: 'delivering' | 'idle' | 'absorbing';
+  measurementMode?: 'dc-voltage';
+  measuredValue?: number;
+  measurementUnit?: 'V';
+  meterInputResistanceOhm?: number;
+  meterOverload?: boolean;
   operatingRegion?: 'cutoff' | 'active' | 'saturation' | 'ohmic';
   baseCurrent?: number;
   collectorCurrent?: number;

@@ -3,8 +3,11 @@ import type { SchematicComponent } from '../domain/document';
 import type { DcStampContext } from '../domain/models/device-model';
 import {
   createLinearDcDevice,
+  isMultimeterDcVoltageDevice,
   isResistorDevice,
   isSourceDevice,
+  MULTIMETER_DC_INPUT_RESISTANCE_OHM,
+  MULTIMETER_DC_VOLTAGE_DEVICE_MODEL,
   RESISTOR_DEVICE_MODEL,
   SOURCE_DEVICE_MODEL,
 } from '../domain/models/linear-dc-models';
@@ -76,6 +79,45 @@ describe('MATH-1 linear DC device models', () => {
       stressState: 'overcurrent',
       terminalCurrents: { a: 0.06, b: -0.06 },
       diagnostics: [expect.objectContaining({ code: 'resistor_overload', severity: 'error' })],
+    });
+  });
+
+  it('models DC voltage mode as a finite 10 MΩ two-terminal input', () => {
+    const meterComponent = component('meter', 'visual', 0, {
+      componentTypeId: 'multimeter',
+      pinIds: ['com', 'v-ohm-ma'],
+      stateProperties: { measurementMode: 'dc-voltage', meterRange: 'auto' },
+    });
+    const meter = createLinearDcDevice(meterComponent);
+    expect(meter && isMultimeterDcVoltageDevice(meter)).toBe(true);
+    if (!meter || !isMultimeterDcVoltageDevice(meter)) return;
+    expect(meter.instance.parameters.inputResistanceOhm).toBe(MULTIMETER_DC_INPUT_RESISTANCE_OHM);
+
+    const stampConductance = vi.fn();
+    MULTIMETER_DC_VOLTAGE_DEVICE_MODEL.stampDc(
+      {
+        node: (_component, terminal) => (terminal === 'a' ? 2 : 1),
+        stampConductance,
+        stampVoltageSource: vi.fn(),
+      },
+      meter.instance,
+    );
+    expect(stampConductance).toHaveBeenCalledWith(2, 1, 1e-7);
+
+    expect(
+      MULTIMETER_DC_VOLTAGE_DEVICE_MODEL.observe?.(meter.instance, {
+        voltageDrop: -3,
+        current: 0,
+      }),
+    ).toMatchObject({
+      current: -3e-7,
+      measurementMode: 'dc-voltage',
+      measuredValue: -3,
+      measurementUnit: 'V',
+      meterInputResistanceOhm: 10_000_000,
+      meterOverload: false,
+      terminalCurrents: { 'v-ohm-ma': -3e-7, com: 3e-7 },
+      diagnostics: [],
     });
   });
 

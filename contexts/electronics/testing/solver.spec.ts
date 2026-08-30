@@ -319,6 +319,74 @@ describe('schema-versioned Electronics document', () => {
   });
 });
 
+describe('MATH-10A1 multimeter DC voltage', () => {
+  function meterCircuit(reverseProbes = false): ElectronicsDocument {
+    const source = component('battery', 'source', 3, {
+      componentTypeId: 'battery-holder-aa-2',
+      pinIds: ['BAT-', 'BAT+'],
+    });
+    const meter = component('meter', 'visual', 0, {
+      componentTypeId: 'multimeter',
+      pinIds: ['com', 'v-ohm-ma'],
+      stateProperties: { measurementMode: 'dc-voltage', meterRange: 'auto' },
+    });
+    return doc(
+      [source, meter],
+      reverseProbes
+        ? [
+            connect('red', 'battery', 'BAT-', 'meter', 'v-ohm-ma'),
+            connect('black', 'battery', 'BAT+', 'meter', 'com'),
+          ]
+        : [
+            connect('red', 'battery', 'BAT+', 'meter', 'v-ohm-ma'),
+            connect('black', 'battery', 'BAT-', 'meter', 'com'),
+          ],
+    );
+  }
+
+  it('measures the source in parallel and includes finite input loading in KCL', () => {
+    const result = solveCircuit(meterCircuit());
+    const meter = result.components.find((entry) => entry.componentId === 'meter');
+    expect(result.status).toBe('solved');
+    expect(meter).toMatchObject({
+      measurementMode: 'dc-voltage',
+      measurementUnit: 'V',
+      meterInputResistanceOhm: 10_000_000,
+      meterOverload: false,
+    });
+    expect(meter?.measuredValue).toBeCloseTo(2.999999865, 8);
+    expect(meter?.current).toBeCloseTo(0.0000003, 10);
+    expect(meter?.terminalCurrents?.['v-ohm-ma']).toBeCloseTo(0.0000003, 10);
+    expect(result.numericalResidual).toBeLessThanOrEqual(result.numericalTolerance);
+  });
+
+  it('shows a negative reading when the probes are reversed', () => {
+    const result = solveCircuit(meterCircuit(true));
+    const meter = result.components.find((entry) => entry.componentId === 'meter');
+    expect(result.status).toBe('solved');
+    expect(meter?.measuredValue).toBeCloseTo(-2.999999865, 8);
+    expect(meter?.current).toBeLessThan(0);
+  });
+
+  it('upgrades only the known saved unsupported multimeter placeholder', () => {
+    const upgraded = electricalModelIdentityForComponent(
+      component('meter', 'visual', 0, {
+        componentTypeId: 'multimeter',
+        electricalModelId: 'unsupported',
+        electricalModelVersion: 1,
+        modelProfileId: 'unsupported-multimeter',
+        modelProfileVersion: 1,
+      }),
+    );
+    expect(upgraded).toEqual({
+      electricalModelId: 'dc-voltmeter',
+      electricalModelVersion: 1,
+      modelProfileId: 'asa-two-terminal-dmm-dc-voltage',
+      modelProfileVersion: 1,
+    });
+  });
+});
+
 describe('photoresistor electrical model', () => {
   it('uses a deterministic versioned GL5528-class illumination profile', () => {
     expect(JSON.parse(canonicalPhotoresistorProfileRegistry())).toEqual({

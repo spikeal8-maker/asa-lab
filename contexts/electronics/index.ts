@@ -113,7 +113,11 @@ export {
 export {
   createLinearDcDevice,
   isResistorDevice,
+  isMultimeterDcVoltageDevice,
   isSourceDevice,
+  MULTIMETER_DC_INPUT_RESISTANCE_OHM,
+  MULTIMETER_DC_MAX_INPUT_VOLTAGE,
+  MULTIMETER_DC_VOLTAGE_DEVICE_MODEL,
   resistorPowerRatingWatt,
   sourceContinuousCurrentAmp,
   RESISTOR_DEVICE_MODEL,
@@ -121,6 +125,8 @@ export {
   type LinearDcDevice,
   type ResistorParameters,
   type SourceParameters,
+  type MultimeterDcVoltageParameters,
+  type MultimeterDcVoltageDevice,
 } from './domain/models/linear-dc-models.js';
 export {
   advanceIncandescentLampThermalState,

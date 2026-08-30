@@ -324,6 +324,22 @@ describe('component information registry', () => {
     expect(sections[3]?.text).toContain('3–6 В');
   });
 
+  it('explains truthful DC voltage measurement without claiming unfinished modes', () => {
+    const sections = componentHelpSections('visual', 'Мультиметр.', 'multimeter');
+    expect(sections.map((section) => section.title)).toEqual([
+      'Что сейчас работает',
+      'Что показывает экран',
+      'Как подключать',
+      'Влияние на схему',
+      'Предел режима',
+    ]);
+    expect(sections[0]?.text).toContain('постоянного напряжения');
+    expect(sections[0]?.text).toContain('не имитируются');
+    expect(sections[1]?.text).toContain('V/Ω/mA');
+    expect(sections[2]?.text).toContain('параллельно');
+    expect(sections[3]?.text).toContain('10 МОм');
+  });
+
   it('publishes help only through a matching external approval digest', () => {
     const content = {
       componentFamilyId: 'resistor',

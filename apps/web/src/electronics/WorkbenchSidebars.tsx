@@ -324,6 +324,7 @@ export function WorkbenchSidebars({
   const selectedIsLamp = c.selectedEntry?.key === 'incandescent-lamp';
   const selectedIsRgbLed = c.selectedEntry?.key === 'rgb-led';
   const selectedIsSevenSegment = c.selectedEntry?.key === 'seven-segment-display';
+  const selectedIsMultimeter = c.selectedEntry?.key === 'multimeter';
   const selectedMotorProfile =
     c.selectedComponent && (selectedIsDcMotor || selectedIsGearmotor)
       ? resolveBrushedMotorProfileSelection(c.selectedComponent)
@@ -701,6 +702,41 @@ export function WorkbenchSidebars({
                   onChange={(event) => c.updateSelectedName(event.target.value)}
                 />
               </label>
+              {selectedIsMultimeter ? (
+                <fieldset
+                  className="workbench-state-controls workbench-primary-controls workbench-multimeter-controls"
+                  data-testid="multimeter-primary-controls"
+                >
+                  <legend>Мультиметр</legend>
+                  <label>
+                    <span>Режим</span>
+                    <select
+                      aria-label="Режим мультиметра"
+                      value={String(
+                        c.selectedComponent.stateProperties?.['measurementMode'] ?? 'dc-voltage',
+                      )}
+                      onChange={(event) =>
+                        c.setSelectedProperties({ measurementMode: event.target.value })
+                      }
+                    >
+                      <option value="dc-voltage">Напряжение DC</option>
+                    </select>
+                  </label>
+                  <div className="workbench-multimeter-compact-reading">
+                    <span>Показание</span>
+                    <strong data-testid="multimeter-panel-reading">
+                      {c.simulationRunning && measurement?.measurementMode === 'dc-voltage'
+                        ? measurement.meterOverload
+                          ? 'Перегрузка'
+                          : `${(measurement.measuredValue ?? measurement.voltageDrop).toFixed(3)} В`
+                        : 'Запустите моделирование'}
+                    </strong>
+                  </div>
+                  <p className="workbench-component-note">
+                    Сейчас доступно измерение постоянного напряжения.
+                  </p>
+                </fieldset>
+              ) : null}
               {selectedIsArduino && stateOpen ? (
                 <div className="workbench-arduino-summary" data-testid="arduino-compact-summary">
                   <div>
@@ -1276,6 +1312,40 @@ export function WorkbenchSidebars({
                     c.terminalConnectionCount(c.selectedComponent!.id, terminal) > 0
                   }
                 />
+              ) : null}
+
+              {stateOpen && selectedIsMultimeter ? (
+                <dl className="workbench-measurements" data-testid="multimeter-reference-profile">
+                  <div>
+                    <dt>Измерение</dt>
+                    <dd>
+                      {c.simulationRunning && measurement?.measurementMode === 'dc-voltage'
+                        ? `${(measurement.measuredValue ?? measurement.voltageDrop).toFixed(6)} В`
+                        : 'Моделирование остановлено'}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Полярность</dt>
+                    <dd>V/Ω/mA минус COM</dd>
+                  </div>
+                  <div>
+                    <dt>Входное сопротивление</dt>
+                    <dd>
+                      {((measurement?.meterInputResistanceOhm ?? 10_000_000) / 1_000_000).toFixed(
+                        0,
+                      )}{' '}
+                      МОм
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Ток через вход</dt>
+                    <dd>{(Math.abs(measurement?.current ?? 0) * 1_000_000).toFixed(3)} мкА</dd>
+                  </div>
+                  <div>
+                    <dt>Подключение</dt>
+                    <dd>Параллельно измеряемому участку</dd>
+                  </div>
+                </dl>
               ) : null}
 
               {stateOpen && measurement && !selectedIsGearmotor && technicalMetrics.length > 0 ? (

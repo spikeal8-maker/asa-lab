@@ -730,9 +730,17 @@ export function useElectronicsWorkbench(projectId: string) {
     if (
       simulationRunning &&
       selection?.kind === 'component' &&
-      runtimeDocument?.components.find((item) => item.id === selection.id)?.kind ===
-        'photoresistor' &&
-      Object.keys(properties).every((key) => key === 'illumination')
+      (() => {
+        const component = runtimeDocument?.components.find((item) => item.id === selection.id);
+        return (
+          (component?.kind === 'photoresistor' &&
+            Object.keys(properties).every((key) => key === 'illumination')) ||
+          (component?.componentTypeId === 'multimeter' &&
+            Object.keys(properties).every(
+              (key) => key === 'measurementMode' || key === 'meterRange',
+            ))
+        );
+      })()
     ) {
       setRuntimeComponentOverride(selection.id, { stateProperties: properties });
       return;

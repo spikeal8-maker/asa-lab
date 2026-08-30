@@ -2574,6 +2574,45 @@
   overflow-wrap: normal;
   word-break: normal;
 }
+.workbench-multimeter-runtime .workbench-multimeter-reading {
+  fill: #27353a;
+  font-family: 'Consolas', 'Roboto Mono', monospace;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+.workbench-multimeter-runtime .workbench-multimeter-mode {
+  fill: #415158;
+  font-family: 'Roboto', sans-serif;
+  font-weight: 700;
+}
+.workbench-multimeter-runtime .workbench-multimeter-active-mode {
+  fill: none;
+  stroke: #44c8ff;
+  stroke-width: 2px;
+}
+.workbench-multimeter-compact-reading {
+  display: grid;
+  grid-template-columns: 104px minmax(0, 1fr);
+  min-height: 32px;
+}
+.workbench-multimeter-compact-reading > span,
+.workbench-multimeter-compact-reading > strong {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  padding: 4px 7px;
+}
+.workbench-multimeter-compact-reading > span {
+  background: #0696d7;
+  color: #fff;
+}
+.workbench-multimeter-compact-reading > strong {
+  border: 1px solid #c5cfd9;
+  background: #eef7f2;
+  color: #12633f;
+  font-size: 12px;
+}
 .workbench-toggle-property {
   display: grid !important;
   grid-template-columns: minmax(0, 1fr) 40px !important;

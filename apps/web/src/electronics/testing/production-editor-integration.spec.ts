@@ -335,6 +335,17 @@ describe('owner SVG integration in the real Electronics document', () => {
       unit: 'В',
       catalogStatus: 'enabled',
     });
+    expect(productionCatalogEntry('multimeter')).toMatchObject({
+      enabled: true,
+      simulationSupported: true,
+      defaultValue: 0,
+      unit: 'В',
+      defaultStateProperties: {
+        measurementMode: 'dc-voltage',
+        meterRange: 'auto',
+      },
+      catalogStatus: 'enabled',
+    });
     expect(productionCatalogEntry('electrolytic-capacitor')).toMatchObject({
       enabled: true,
       simulationSupported: true,
@@ -357,7 +368,6 @@ describe('owner SVG integration in the real Electronics document', () => {
       'soil-moisture-sensor',
       'ultrasonic-hc-sr04',
       'pir-sensor',
-      'multimeter',
       'regulated-power-supply',
       'signal-generator',
       'oscilloscope',

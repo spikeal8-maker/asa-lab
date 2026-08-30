@@ -201,6 +201,7 @@ const SIMULATED_TYPES = new Set([
   'piezo-disc',
   'dc-motor',
   'gearmotor',
+  'multimeter',
 ]);
 
 const COMPONENT_DESCRIPTIONS: Readonly<Record<string, string>> = {
@@ -421,6 +422,12 @@ function defaults(componentId: string): {
         componentId === 'gearmotor'
           ? { motorAssemblyProfileId: 'adafruit-3777-tt-48to1' }
           : {},
+    };
+  if (componentId === 'multimeter')
+    return {
+      value: 0,
+      unit: 'В',
+      properties: { measurementMode: 'dc-voltage', meterRange: 'auto' },
     };
   return { value: 0, unit: '', properties: { simulationStatus: 'not_yet_supported' } };
 }
