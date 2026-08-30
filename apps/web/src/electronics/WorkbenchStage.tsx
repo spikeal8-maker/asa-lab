@@ -6,6 +6,7 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent,
 } from 'react';
+import type { SchematicComponent } from '../api';
 import {
   catalogEntry,
   componentPointPosition,
@@ -18,7 +19,12 @@ import { diagnosticBadgeGeometry, roundedWirePath, wirePoints } from './workbenc
 import { CircuitIcon, FitIcon, ZoomInIcon, ZoomOutIcon } from './workbench-icons';
 import { componentTransform } from './workbench-model';
 import { terminalPositionInDocument } from './workbench-document';
-import { componentAssetContainsPoint, preloadComponentHitMask } from './component-hit-testing';
+import {
+  componentAssetContainsPoint,
+  componentAssetVisibleBounds,
+  preloadComponentHitMask,
+  type ComponentVisibleBounds,
+} from './component-hit-testing';
 import type { ElectronicsWorkbenchController } from './use-electronics-workbench';
 
 /** The part currently in hand, drawn on the cursor wherever the cursor is.
@@ -121,6 +127,58 @@ function tooltipPlacement(
   return { x: centre - point.x - half, y, width, textY: y + 15 / zoom };
 }
 
+function paintedComponentBounds(
+  component: SchematicComponent,
+  baseSize: { readonly width: number; readonly height: number },
+  renderedBounds: { readonly width: number; readonly height: number },
+  visibleBounds: ComponentVisibleBounds | null,
+): ComponentVisibleBounds {
+  const localBounds = visibleBounds ?? {
+    minX: 0,
+    minY: 0,
+    maxX: baseSize.width,
+    maxY: baseSize.height,
+  };
+  const radians = ((((component.rotation ?? 0) % 360) + 360) % 360) * (Math.PI / 180);
+  const cos = Math.cos(radians);
+  const sin = Math.sin(radians);
+  const mirrorX = component.stateProperties?.['mirrorX'] === true;
+  const mirrorY = component.stateProperties?.['mirrorY'] === true;
+  const points = [
+    { x: localBounds.minX, y: localBounds.minY },
+    { x: localBounds.maxX, y: localBounds.minY },
+    { x: localBounds.maxX, y: localBounds.maxY },
+    { x: localBounds.minX, y: localBounds.maxY },
+  ].map((point) => {
+    const localX = (mirrorX ? baseSize.width - point.x : point.x) - baseSize.width / 2;
+    const localY = (mirrorY ? baseSize.height - point.y : point.y) - baseSize.height / 2;
+    return {
+      x: component.position.x + renderedBounds.width / 2 + localX * cos - localY * sin,
+      y: component.position.y + renderedBounds.height / 2 + localX * sin + localY * cos,
+    };
+  });
+  return {
+    minX: Math.min(...points.map((point) => point.x)),
+    minY: Math.min(...points.map((point) => point.y)),
+    maxX: Math.max(...points.map((point) => point.x)),
+    maxY: Math.max(...points.map((point) => point.y)),
+  };
+}
+
+function topRightBadgeAnchor(
+  bounds: ComponentVisibleBounds,
+  radius: number,
+): {
+  readonly x: number;
+  readonly y: number;
+} {
+  const inset = radius * 0.55;
+  return {
+    x: Math.max(bounds.minX + inset, bounds.maxX - inset),
+    y: Math.min(bounds.maxY - inset, bounds.minY + inset),
+  };
+}
+
 export function WorkbenchStage({
   controller: c,
   showGrid,
@@ -136,6 +194,7 @@ export function WorkbenchStage({
     boardId: string;
     groupId: string;
   } | null>(null);
+  const [, setHitMaskRevision] = useState(0);
   const lastWireClick = useRef<{
     wireId: string;
     x: number;
@@ -197,13 +256,21 @@ export function WorkbenchStage({
     ...document.components.filter((component) => component.kind !== 'breadboard'),
   ];
   useEffect(() => {
+    let active = true;
+    const pending: Promise<void>[] = [];
     for (const component of document.components) {
       if (component.kind === 'wire') continue;
       const entry = catalogEntry(component);
       if (!entry?.asset) continue;
       const size = renderedSize(entry, 0);
-      preloadComponentHitMask(entry, size.width, size.height);
+      pending.push(preloadComponentHitMask(entry, size.width, size.height));
     }
+    void Promise.all(pending).then(() => {
+      if (active) setHitMaskRevision((revision) => revision + 1);
+    });
+    return () => {
+      active = false;
+    };
   }, [document.components]);
 
   function componentBodyContainsClientPoint(
@@ -328,6 +395,13 @@ export function WorkbenchStage({
       if (!entry?.asset || !entry.terminals || !entry.simulationSupported) return null;
       const baseSize = renderedSize(entry, 0);
       const bounds = renderedSize(entry, component.rotation ?? 0);
+      const paintedBounds = paintedComponentBounds(
+        component,
+        baseSize,
+        bounds,
+        componentAssetVisibleBounds(entry, baseSize.width, baseSize.height),
+      );
+      const badgeAnchor = topRightBadgeAnchor(paintedBounds, badgeGeometry.radius);
       const componentDiagnostics = c.diagnosticsByComponent.get(component.id) ?? [];
       const diagnostics = componentDiagnostics.map((diagnostic) => diagnostic.code);
       const actionableDiagnostics = componentDiagnostics.filter(
@@ -364,11 +438,10 @@ export function WorkbenchStage({
         // тесту, ни человеку, который читает страницу.
         <g
           key={component.id}
-          transform={`translate(${component.position.x + bounds.width * (ledBurned ? 0.5 : 0.83)} ${
-            component.position.y + bounds.height * (ledBurned ? 0.35 : 0.16)
-          })`}
+          transform={`translate(${badgeAnchor.x} ${badgeAnchor.y})`}
           data-testid="component-diagnostic"
           data-screen-upright="true"
+          data-anchor="owner-alpha-top-right"
           data-component-id={component.id}
           data-component-type={component.componentTypeId}
           data-kind={component.kind}
@@ -433,16 +506,23 @@ export function WorkbenchStage({
       const entry = catalogEntry(component);
       if (!entry?.asset || !entry.terminals || entry.simulationSupported || !entry.blockReason)
         return null;
+      const baseSize = renderedSize(entry, 0);
       const bounds = renderedSize(entry, component.rotation ?? 0);
+      const paintedBounds = paintedComponentBounds(
+        component,
+        baseSize,
+        bounds,
+        componentAssetVisibleBounds(entry, baseSize.width, baseSize.height),
+      );
+      const badgeAnchor = topRightBadgeAnchor(paintedBounds, badgeGeometry.radius);
       const warningText = entry.blockReason;
       return (
         <g
           key={`unsupported:${component.id}`}
-          transform={`translate(${component.position.x + bounds.width * 0.83} ${
-            component.position.y + bounds.height * 0.16
-          })`}
+          transform={`translate(${badgeAnchor.x} ${badgeAnchor.y})`}
           data-testid="component-model-warning"
           data-screen-upright="true"
+          data-anchor="owner-alpha-top-right"
           data-component-id={component.id}
           data-component-type={component.componentTypeId}
         >

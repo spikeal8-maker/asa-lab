@@ -217,7 +217,9 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(stageSource).not.toContain('workbench-component-diagnostic-tooltip');
     expect(stageSource).toContain('data-testid="component-model-warning"');
     expect(stageSource).toContain('data-screen-upright="true"');
-    expect(stageSource).toContain('component.position.x + bounds.width * 0.83');
+    expect(stageSource).toContain('componentAssetVisibleBounds');
+    expect(stageSource).toContain('topRightBadgeAnchor');
+    expect(stageSource).toContain('data-anchor="owner-alpha-top-right"');
     expect(stageSource).not.toContain('workbench-led-warning-indicator');
     expect(stageSource).toContain('unsupportedModelIndicators');
     expect(alternateViewsSource).toContain('workbench-schematic-model-warning');
@@ -237,6 +239,7 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(stageSource).not.toContain('workbench-results-card');
     expect(stageSource).not.toContain('workbench-toast');
     expect(sidebarSource).not.toContain('workbench-inspector-diagnostic-badge');
+    expect(sidebarSource).toContain('data-testid="capacitor-polarity-state"');
   });
 
   it('shows fixed diode profile limits inside I without exposing a fake editable Vf', () => {

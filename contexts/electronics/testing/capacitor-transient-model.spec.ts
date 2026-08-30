@@ -124,6 +124,37 @@ describe('electrolytic capacitor transient model', () => {
     expect(solvedCapacitor?.storedEnergyJoule).toBeGreaterThan(0);
   });
 
+  it('keeps reverse-sign capacitor voltage informational instead of placing a warning on stage', () => {
+    const circuit = document(
+      [component('source', 'source', 5), component('r1', 'resistor', 1_000), capacitor()],
+      [
+        connect('w1', 'source', 'a', 'r1', 'a'),
+        connect('w2', 'r1', 'b', 'c1', 'negative'),
+        connect('w3', 'c1', 'positive', 'source', 'b'),
+      ],
+    );
+    const result = analyseCircuit(circuit, { simulationTimeMs: 100 });
+    const solvedCapacitor = result.components.find((entry) => entry.componentId === 'c1');
+    const polarityDiagnostic = result.diagnostics.find(
+      (entry) => entry.code === 'capacitor_reverse_polarity',
+    );
+
+    expect(solvedCapacitor?.voltageDrop).toBeLessThan(-0.1);
+    expect(solvedCapacitor).toMatchObject({
+      stressState: 'normal',
+      deviceHealth: 'normal',
+      presentationState: 'normal',
+    });
+    expect(polarityDiagnostic).toMatchObject({ severity: 'info', componentIds: ['c1'] });
+    expect(
+      result.diagnostics.filter(
+        (entry) =>
+          entry.componentIds?.includes('c1') &&
+          (entry.severity === 'warning' || entry.severity === 'error'),
+      ),
+    ).toEqual([]);
+  });
+
   it('carries accumulated voltage across a topology switch and remains deterministic', () => {
     const charging = document(
       [component('source', 'source', 5), component('r1', 'resistor', 1_000), capacitor()],

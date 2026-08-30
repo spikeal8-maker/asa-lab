@@ -344,10 +344,55 @@ function capacitorInteractionDocument(): SchematicDocument {
         pinIds: ['negative', 'positive'],
         stateProperties: { initialVoltageVolt: 0, voltageRatingVolt: 25 },
       },
+      {
+        id: 'battery-holder',
+        kind: 'source',
+        componentTypeId: 'battery-holder-aa-2',
+        variantId: 'battery-holder-aa-2',
+        name: 'Батарейный отсек 2×AA',
+        position: { x: 850, y: 210 },
+        rotation: 0,
+        value: 3,
+        pinIds: ['BAT-', 'BAT+'],
+        stateProperties: { cells: 2, internalResistanceOhm: 0.3, maxContinuousCurrentAmp: 2 },
+      },
     ],
     connections: [],
     viewport: { x: 0, y: 0, zoom: 1 },
     simulation: { running: false, maxIterations: 24 },
+  };
+}
+
+function reverseCapacitorDocument(): SchematicDocument {
+  const interaction = capacitorInteractionDocument();
+  return {
+    ...interaction,
+    components: interaction.components.filter((component) =>
+      ['resistor', 'capacitor', 'battery-holder'].includes(component.id),
+    ),
+    connections: [
+      {
+        id: 'reverse-source-resistor',
+        from: { componentId: 'battery-holder', terminal: 'BAT+' },
+        to: { componentId: 'resistor', terminal: 'lead-1' },
+        color: '#e3212b',
+        vertices: [],
+      },
+      {
+        id: 'reverse-resistor-capacitor',
+        from: { componentId: 'resistor', terminal: 'lead-2' },
+        to: { componentId: 'capacitor', terminal: 'negative' },
+        color: '#149447',
+        vertices: [],
+      },
+      {
+        id: 'reverse-capacitor-return',
+        from: { componentId: 'capacitor', terminal: 'positive' },
+        to: { componentId: 'battery-holder', terminal: 'BAT-' },
+        color: '#2a3035',
+        vertices: [],
+      },
+    ],
   };
 }
 
@@ -1271,7 +1316,7 @@ test('component inspector separates compact settings, live state and educational
   failures.assertEmpty();
 });
 
-test('capacitor uses its visible alpha body for dragging and I stays open between parts', async ({
+test('capacitor and battery holder pass interaction through transparent owner pixels', async ({
   page,
 }) => {
   test.setTimeout(120_000);
@@ -1332,6 +1377,33 @@ test('capacitor uses its visible alpha body for dragging and I stays open betwee
   await page.mouse.up();
   await expect(capacitor).not.toHaveAttribute('data-x', beforeX ?? '');
 
+  const battery = component(page, 'battery-holder-aa-2');
+  const batteryBody = battery.locator('.workbench-part');
+  const batteryBeforeX = await battery.getAttribute('data-x');
+  const batteryBounds = await batteryBody.boundingBox();
+  if (!batteryBounds) throw new Error('battery holder has no rendered bounds');
+  const batteryTransparentCorner = {
+    x: batteryBounds.x + 1,
+    y: batteryBounds.y + 1,
+  };
+  const currentResistorBounds = await resistorBody.boundingBox();
+  if (!currentResistorBounds)
+    throw new Error('resistor has no rendered bounds after capacitor test');
+  await page.mouse.move(
+    currentResistorBounds.x + currentResistorBounds.width / 2,
+    currentResistorBounds.y + currentResistorBounds.height / 2,
+  );
+  await page.mouse.down();
+  await page.mouse.move(batteryTransparentCorner.x, batteryTransparentCorner.y, { steps: 5 });
+  await page.mouse.up();
+  const resistorAtBatteryX = await resistor.getAttribute('data-x');
+  await page.mouse.move(batteryTransparentCorner.x, batteryTransparentCorner.y);
+  await page.mouse.down();
+  await page.mouse.move(batteryTransparentCorner.x - 60, batteryTransparentCorner.y, { steps: 5 });
+  await page.mouse.up();
+  await expect(battery).toHaveAttribute('data-x', batteryBeforeX ?? '');
+  await expect(resistor).not.toHaveAttribute('data-x', resistorAtBatteryX ?? '');
+
   const movedBounds = await capacitorBody.boundingBox();
   if (!movedBounds) throw new Error('moved capacitor has no rendered bounds');
   await page.mouse.click(
@@ -1351,6 +1423,37 @@ test('capacitor uses its visible alpha body for dragging and I stays open betwee
   });
   await expect(resistorInformation).toHaveAttribute('aria-expanded', 'true');
   await expect(inspector.getByRole('combobox', { name: 'Допуск резистора' })).toBeVisible();
+  failures.assertEmpty();
+});
+
+test('reverse-sign capacitor voltage stays inside I without a stage warning', async ({ page }) => {
+  test.setTimeout(120_000);
+  const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await loginWithOrganization(page, teacher);
+  const projectId = await createProject(page, 'MATH-4B2 capacitor polarity information');
+  await saveDocument(page, projectId, reverseCapacitorDocument());
+  await page.goto(`/#/home/${projectId}`);
+  await page.getByRole('button', { name: 'Начать моделирование' }).click();
+
+  const capacitor = component(page, 'electrolytic-capacitor');
+  await expect(capacitor).toHaveAttribute('data-diagnostics', /capacitor_reverse_polarity/, {
+    timeout: 10_000,
+  });
+  await expect(
+    page.locator(
+      '[data-testid="component-diagnostic"][data-component-type="electrolytic-capacitor"]',
+    ),
+  ).toHaveCount(0);
+  await capacitor.locator('.workbench-part').click({ force: true });
+  const inspector = page.getByRole('complementary', { name: 'Параметры выделения' });
+  await inspector.getByRole('button', { name: 'Техническое состояние Конденсатор' }).click();
+  await expect(inspector.getByTestId('capacitor-polarity-state')).toContainText(
+    'Напряжение обратного знака',
+  );
+  await expect(
+    inspector.getByText(/напряжение на выводах сейчас имеет обратный знак/i),
+  ).toBeVisible();
   failures.assertEmpty();
 });
 
@@ -1790,9 +1893,24 @@ test('real editor recalculates SPDT, resistor and LED without waiting for persis
   await expect(page.getByText(/Время моделирования:/)).toBeVisible();
   const source = page.locator('[data-testid="schematic-component"][data-kind="source"]');
   await expect(source).toHaveAttribute('data-diagnostics', /short_circuit/);
-  await expect(
-    diagnostic(page, 'battery-holder-aa-2', 'component-diagnostic-indicator'),
-  ).toBeVisible();
+  const sourceDiagnostic = page.locator(
+    '[data-testid="component-diagnostic"][data-component-type="battery-holder-aa-2"]',
+  );
+  await expect(sourceDiagnostic).toHaveAttribute('data-anchor', 'owner-alpha-top-right');
+  await expect(sourceDiagnostic.getByTestId('component-diagnostic-indicator')).toBeVisible();
+  const sourceBounds = await source.locator('.workbench-part').boundingBox();
+  const sourceDiagnosticBounds = await sourceDiagnostic.boundingBox();
+  if (!sourceBounds || !sourceDiagnosticBounds) {
+    throw new Error('source diagnostic anchor has no rendered bounds');
+  }
+  const diagnosticCenter = {
+    x: sourceDiagnosticBounds.x + sourceDiagnosticBounds.width / 2,
+    y: sourceDiagnosticBounds.y + sourceDiagnosticBounds.height / 2,
+  };
+  expect(diagnosticCenter.x).toBeGreaterThan(sourceBounds.x + sourceBounds.width / 2);
+  expect(diagnosticCenter.x).toBeLessThanOrEqual(sourceBounds.x + sourceBounds.width);
+  expect(diagnosticCenter.y).toBeGreaterThanOrEqual(sourceBounds.y);
+  expect(diagnosticCenter.y).toBeLessThan(sourceBounds.y + sourceBounds.height / 2);
   await expect(source).toHaveAttribute('data-presentation-state', 'failed');
   await expect(source).toHaveAttribute('data-diagnostics', /component_failed/);
   await expect(page.locator('.workbench-results')).toHaveCount(0);

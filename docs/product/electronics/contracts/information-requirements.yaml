@@ -35,7 +35,7 @@ decisions:
     blocking_scopes: [content, desktop_ux, mobile_ux]
     evidence_required: [empty_help_state_owner_review]
   - id: DEC-INFO-007
-    decision: diagnostic_badge_is_screen_upright_and_adaptive_with_readable_floor
+    decision: diagnostic_badge_is_screen_upright_adaptive_and_overlays_owner_alpha_top_right
     status: owner_direction
     blocking_scopes: []
     evidence_required: [rotation_zoom_severity_owner_review]

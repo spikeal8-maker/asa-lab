@@ -922,10 +922,20 @@ export function WorkbenchSidebars({
                   ) : null}
                   {c.selectedEntry.key === 'electrolytic-capacitor' &&
                   measurement.voltageRatingVolt !== undefined ? (
-                    <div>
-                      <dt>Допустимое напряжение</dt>
-                      <dd>{measurement.voltageRatingVolt.toFixed(0)} В</dd>
-                    </div>
+                    <>
+                      <div data-testid="capacitor-polarity-state">
+                        <dt>Полярность сейчас</dt>
+                        <dd>
+                          {measurement.voltageDrop < -0.1
+                            ? 'Напряжение обратного знака'
+                            : 'По маркировке +/−'}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Допустимое напряжение</dt>
+                        <dd>{measurement.voltageRatingVolt.toFixed(0)} В</dd>
+                      </div>
+                    </>
                   ) : null}
                   {(c.selectedComponent.kind === 'diode' || c.selectedComponent.kind === 'led') &&
                   measurement.reverseVoltageLimitVolt !== undefined ? (

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { hitMaskContainsPoint, type HitMask } from '../component-hit-testing';
+import { hitMaskContainsPoint, hitMaskVisibleBounds, type HitMask } from '../component-hit-testing';
 
 describe('component alpha hit testing', () => {
   const mask: HitMask = {
@@ -23,5 +23,21 @@ describe('component alpha hit testing', () => {
     expect(hitMaskContainsPoint(mask, { x: 0.5, y: 0.5 }, 10, 10)).toBe(false);
     expect(hitMaskContainsPoint(mask, { x: 9.5, y: 9.5 }, 10, 10)).toBe(false);
     expect(hitMaskContainsPoint(mask, { x: -1, y: 5 }, 10, 10)).toBe(false);
+  });
+
+  it('derives the painted bounds used by the shared diagnostic anchor', () => {
+    expect(hitMaskVisibleBounds(mask, 100, 200)).toEqual({
+      minX: 40,
+      minY: 40,
+      maxX: 60,
+      maxY: 160,
+    });
+    expect(
+      hitMaskVisibleBounds(
+        { width: 2, height: 2, alpha: Uint8ClampedArray.from([0, 0, 0, 0]) },
+        100,
+        100,
+      ),
+    ).toBeNull();
   });
 });

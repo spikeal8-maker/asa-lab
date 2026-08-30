@@ -2103,22 +2103,16 @@ function solveCircuitStep(
               voltageRatingVolt: round(capacitorParameters(component).voltageRatingVolt, 3),
               stressState: capacitorObservation.overVoltage
                 ? ('burned' as const)
-                : capacitorObservation.reversePolarized
-                  ? ('warning' as const)
-                  : ('normal' as const),
+                : ('normal' as const),
               deviceHealth: capacitorObservation.overVoltage
                 ? ('overheated' as const)
-                : capacitorObservation.reversePolarized
-                  ? ('warning' as const)
-                  : ('normal' as const),
+                : ('normal' as const),
               damageState: capacitorObservation.overVoltage
                 ? ('destructive_preview' as const)
                 : ('none' as const),
               presentationState: capacitorObservation.overVoltage
                 ? ('destructive' as const)
-                : capacitorObservation.reversePolarized
-                  ? ('warning' as const)
-                  : ('normal' as const),
+                : ('normal' as const),
             }
           : {}),
         ...(isArduinoUno(component) ? { energized: true } : {}),
@@ -2179,10 +2173,11 @@ function solveCircuitStep(
     if (result.voltageDrop < -0.1) {
       diagnostics.push({
         code: 'capacitor_reverse_polarity',
-        severity: 'warning',
-        message: `${capacitor.name ?? capacitor.id}: электролитический конденсатор подключён в обратной полярности.`,
+        severity: 'info',
+        message: `${capacitor.name ?? capacitor.id}: напряжение на выводах сейчас имеет обратный знак относительно маркировки +/−.`,
         componentIds: [capacitor.id],
-        suggestedAction: 'Подключите положительный вывод к более высокому потенциалу.',
+        suggestedAction:
+          'В переменной схеме это часть рассчитанного цикла; при постоянном обратном напряжении проверьте подключение или используйте неполярный конденсатор.',
       });
     }
     if (Math.abs(result.voltageDrop) > parameters.voltageRatingVolt) {
