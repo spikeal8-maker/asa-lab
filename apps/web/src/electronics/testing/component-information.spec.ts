@@ -172,6 +172,41 @@ describe('component information registry', () => {
     expect(sections.some((section) => section.title === 'Подключение')).toBe(false);
   });
 
+  it('presents RGB as three independent junctions with one resistor per channel', () => {
+    const profile = componentInformationProfile('rgb-led', 'rgb-led');
+    expect(profile.technicalMetrics).toEqual([]);
+    const sections = componentHelpSections('rgb-led', 'RGB-светодиод.', 'rgb-led');
+    expect(sections.map((section) => section.title)).toEqual([
+      'Что имитируется',
+      'Как получается цвет',
+      'Общий катод и общий анод',
+      'Три отдельных резистора',
+    ]);
+    expect(sections[1]?.text).toContain('собственные ток и яркость');
+    expect(sections[2]?.text).toContain('COM');
+    expect(sections[3]?.text).toContain('30 мА на канал');
+  });
+
+  it('documents the physical seven-segment pins and never promises a guessed glyph', () => {
+    const profile = componentInformationProfile('seven-segment', 'seven-segment');
+    expect(profile.technicalMetrics).toEqual([]);
+    const sections = componentHelpSections(
+      'seven-segment',
+      'Семисегментный индикатор.',
+      'seven-segment-display',
+    );
+    expect(sections.map((section) => section.title)).toEqual([
+      'Что имитируется',
+      'Как формируется знак',
+      'Выводы COM1 и COM2',
+      'Резистор для каждого сегмента',
+    ]);
+    expect(sections[0]?.text).toContain('A–G');
+    expect(sections[1]?.text).toContain('ровно ту маску');
+    expect(sections[2]?.text).toContain('соединены внутри корпуса');
+    expect(sections[3]?.text).toContain('20 мА на сегмент');
+  });
+
   it('explains potentiometer terminals and fixed battery behaviour in beginner language', () => {
     const potentiometer = componentHelpSections('potentiometer', 'Потенциометр.', 'potentiometer');
     const battery = componentHelpSections('source', 'Батарейный отсек.', 'battery-holder-aa-8');

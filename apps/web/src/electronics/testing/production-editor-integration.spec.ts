@@ -150,7 +150,7 @@ describe('owner SVG integration in the real Electronics document', () => {
       red: { label: 'Красный' },
       green: { label: 'Зеленый' },
       blue: { label: 'Синий' },
-      common: { label: 'Катод' },
+      common: { label: 'Общий (COM)' },
     });
     expect(entries.get('transistor-npn')?.terminals).toMatchObject({
       collector: { label: 'Коллектор' },

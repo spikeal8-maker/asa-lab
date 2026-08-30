@@ -184,6 +184,81 @@ function GearmotorMeasurements({
   );
 }
 
+const RGB_CHANNELS = [
+  ['red', 'Красный R'],
+  ['green', 'Зелёный G'],
+  ['blue', 'Синий B'],
+] as const;
+
+const SEVEN_SEGMENT_IDS = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'dp'] as const;
+
+function RgbLedMeasurements({
+  measurement,
+}: {
+  readonly measurement: ComponentResult;
+}): JSX.Element {
+  return (
+    <dl
+      className="workbench-measurements workbench-junction-measurements"
+      data-profile-family="rgb-led"
+      data-testid="rgb-led-channel-measurements"
+      aria-label="Токи и яркость каналов RGB-светодиода"
+    >
+      {RGB_CHANNELS.map(([channel, label]) => (
+        <div key={channel}>
+          <dt>{label}</dt>
+          <dd>
+            {(Math.abs(measurement.branchCurrents?.[channel] ?? 0) * 1_000).toFixed(2)} мА ·{' '}
+            {(measurement.branchBrightness?.[channel] ?? 0).toFixed(0)}%
+          </dd>
+        </div>
+      ))}
+      <div>
+        <dt>Общая мощность</dt>
+        <dd>{(measurement.power ?? 0).toFixed(3)} Вт</dd>
+      </div>
+    </dl>
+  );
+}
+
+function SevenSegmentMeasurements({
+  measurement,
+}: {
+  readonly measurement: ComponentResult;
+}): JSX.Element {
+  const active = SEVEN_SEGMENT_IDS.filter(
+    (segment) => (measurement.branchBrightness?.[segment] ?? 0) > 0,
+  );
+  return (
+    <>
+      <p className="workbench-junction-summary" data-testid="seven-segment-active-mask">
+        <strong>Светятся:</strong>{' '}
+        {active.length > 0 ? active.map((id) => id.toUpperCase()).join(', ') : 'нет'}
+      </p>
+      <dl
+        className="workbench-measurements workbench-junction-measurements"
+        data-profile-family="seven-segment"
+        data-testid="seven-segment-junction-measurements"
+        aria-label="Токи и яркость сегментов индикатора"
+      >
+        {SEVEN_SEGMENT_IDS.map((segment) => (
+          <div key={segment}>
+            <dt>{segment.toUpperCase()}</dt>
+            <dd>
+              {(Math.abs(measurement.branchCurrents?.[segment] ?? 0) * 1_000).toFixed(2)} мА ·{' '}
+              {(measurement.branchBrightness?.[segment] ?? 0).toFixed(0)}%
+            </dd>
+          </div>
+        ))}
+        <div>
+          <dt>Общий ток сегментов</dt>
+          <dd>{(Math.abs(measurement.current) * 1_000).toFixed(2)} мА</dd>
+        </div>
+      </dl>
+    </>
+  );
+}
+
 function projectVariantLabel(familyId: string, variantId: string, fallback: string): string {
   if (familyId === 'breadboard') {
     if (variantId === 'breadboard-small') return 'Малая — 170 точек';
@@ -216,6 +291,8 @@ export function WorkbenchSidebars({
   const selectedIsDcMotor = c.selectedEntry?.key === 'dc-motor';
   const selectedIsGearmotor = c.selectedEntry?.key === 'gearmotor';
   const selectedIsLamp = c.selectedEntry?.key === 'incandescent-lamp';
+  const selectedIsRgbLed = c.selectedEntry?.key === 'rgb-led';
+  const selectedIsSevenSegment = c.selectedEntry?.key === 'seven-segment-display';
   const selectedMotorProfile =
     c.selectedComponent && (selectedIsDcMotor || selectedIsGearmotor)
       ? resolveBrushedMotorProfileSelection(c.selectedComponent)
@@ -1003,24 +1080,39 @@ export function WorkbenchSidebars({
                 </label>
               ) : null}
 
-              {c.selectedEntry.key === 'rgb-led' && stateOpen ? (
-                <label>
-                  <span>Разводка выводов</span>
-                  <select
-                    aria-label="Разводка выводов RGB-светодиода"
-                    value={String(c.selectedComponent.stateProperties?.['pinLayout'] ?? 'RCBG')}
-                    onChange={(event) =>
-                      c.setSelectedProperties({
-                        pinLayout: event.target.value,
-                        commonMode: 'common-cathode',
-                      })
-                    }
-                  >
-                    <option value="RCBG">RCBG</option>
-                    <option value="RCGB">RCGB</option>
-                    <option value="BRCG">BRCG</option>
-                  </select>
-                </label>
+              {selectedIsRgbLed && stateOpen ? (
+                <fieldset className="workbench-state-controls">
+                  <legend>RGB-светодиод</legend>
+                  <label>
+                    <span>Общий вывод</span>
+                    <select
+                      aria-label="Тип общего вывода RGB-светодиода"
+                      value={String(
+                        c.selectedComponent.stateProperties?.['commonMode'] ?? 'common-cathode',
+                      )}
+                      onChange={(event) =>
+                        c.setSelectedProperties({ commonMode: event.target.value })
+                      }
+                    >
+                      <option value="common-cathode">Общий катод</option>
+                      <option value="common-anode">Общий анод</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>Порядок ножек</span>
+                    <select
+                      aria-label="Разводка выводов RGB-светодиода"
+                      value={String(c.selectedComponent.stateProperties?.['pinLayout'] ?? 'RCBG')}
+                      onChange={(event) =>
+                        c.setSelectedProperties({ pinLayout: event.target.value })
+                      }
+                    >
+                      <option value="RCBG">R · COM · B · G</option>
+                      <option value="RCGB">R · COM · G · B</option>
+                      <option value="BRCG">B · R · COM · G</option>
+                    </select>
+                  </label>
+                </fieldset>
               ) : null}
 
               {c.selectedEntry.key === 'seven-segment-display' && stateOpen ? (
@@ -1060,16 +1152,9 @@ export function WorkbenchSidebars({
                       ))}
                     </select>
                   </label>
-                  {stateOpen ? (
-                    <div className="workbench-segment-measurements">
-                      {['a', 'b', 'c', 'd', 'e', 'f', 'g', 'dp'].map((segment) => (
-                        <span key={segment}>
-                          {segment.toUpperCase()}{' '}
-                          {measurement?.branchBrightness?.[segment]?.toFixed(0) ?? '0'}%
-                        </span>
-                      ))}
-                    </div>
-                  ) : null}
+                  <p className="workbench-component-note">
+                    COM1 и COM2 электрически соединены внутри корпуса.
+                  </p>
                 </fieldset>
               ) : null}
 
@@ -1134,6 +1219,14 @@ export function WorkbenchSidebars({
                   measurement={measurement}
                   gearRatio={selectedMotorProfile.profile.transmission.gearRatio.value}
                 />
+              ) : null}
+
+              {stateOpen && measurement && selectedIsRgbLed ? (
+                <RgbLedMeasurements measurement={measurement} />
+              ) : null}
+
+              {stateOpen && measurement && selectedIsSevenSegment ? (
+                <SevenSegmentMeasurements measurement={measurement} />
               ) : null}
 
               {stateOpen && measurement && !selectedIsGearmotor && technicalMetrics.length > 0 ? (

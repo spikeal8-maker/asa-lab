@@ -285,12 +285,15 @@ const PROFILE_BY_KIND: Readonly<
   },
   'rgb-led': {
     compactFields: [NAME_FIELD],
-    technicalMetrics: [METRICS.voltage, METRICS.current, METRICS.power, METRICS.brightness],
+    // A four-die package has no truthful single voltage or brightness value.
+    // The inspector renders one current and brightness row per RGB junction.
+    technicalMetrics: [],
     terminalPresentation: 'grouped',
   },
   'seven-segment': {
     compactFields: [NAME_FIELD],
-    technicalMetrics: [METRICS.voltage, METRICS.current, METRICS.power, METRICS.brightness],
+    // Eight junctions are rendered independently by the dedicated display block.
+    technicalMetrics: [],
     terminalPresentation: 'grouped',
   },
   button: {

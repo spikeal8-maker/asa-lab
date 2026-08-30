@@ -1180,6 +1180,123 @@ function rgbLedDocument(commonMode: 'common-cathode' | 'common-anode'): Schemati
   };
 }
 
+function sevenSegmentDocument(commonMode: 'common-cathode' | 'common-anode'): SchematicDocument {
+  const commonCathode = commonMode === 'common-cathode';
+  const segmentPins = {
+    a: 'top-4',
+    b: 'top-5',
+    d: 'bottom-2',
+    e: 'bottom-1',
+    g: 'top-1',
+  } as const;
+  const segments = Object.keys(segmentPins) as Array<keyof typeof segmentPins>;
+  return {
+    schemaVersion: 4,
+    components: [
+      {
+        id: 'source',
+        kind: 'source',
+        componentTypeId: 'battery-holder-aa-2',
+        variantId: 'battery-holder-aa-2',
+        name: 'Источник 3 В',
+        position: { x: 100, y: 300 },
+        rotation: 0,
+        value: 3,
+        pinIds: ['BAT-', 'BAT+'],
+        stateProperties: { cells: 2 },
+      },
+      ...segments.map((segment, index) => ({
+        id: `resistor-${segment}`,
+        kind: 'resistor' as const,
+        componentTypeId: 'resistor-axial',
+        variantId: 'resistor-axial',
+        name: `R ${segment.toUpperCase()}`,
+        position: { x: 380 + index * 100, y: 430 },
+        rotation: 0 as const,
+        value: 220,
+        pinIds: ['lead-1', 'lead-2'],
+        stateProperties: { tolerancePercent: 5, resistanceUnit: 'Ом' },
+      })),
+      {
+        id: 'display',
+        kind: 'seven-segment',
+        componentTypeId: 'seven-segment-display',
+        variantId: 'seven-segment-display',
+        name: 'Семисегментный индикатор',
+        position: { x: 600, y: 170 },
+        rotation: 0,
+        value: 0,
+        pinIds: [
+          'top-1',
+          'top-2',
+          'top-3',
+          'top-4',
+          'top-5',
+          'bottom-1',
+          'bottom-2',
+          'bottom-3',
+          'bottom-4',
+          'bottom-5',
+        ],
+        stateProperties: { commonMode, segmentColor: 'red' },
+      },
+    ],
+    connections: commonCathode
+      ? [
+          ...segments.flatMap((segment) => [
+            {
+              id: `positive-${segment}`,
+              from: { componentId: 'source', terminal: 'BAT+' },
+              to: { componentId: `resistor-${segment}`, terminal: 'lead-1' },
+              color: '#e3212b',
+              vertices: [],
+            },
+            {
+              id: `segment-${segment}`,
+              from: { componentId: `resistor-${segment}`, terminal: 'lead-2' },
+              to: { componentId: 'display', terminal: segmentPins[segment] },
+              color: '#149447',
+              vertices: [],
+            },
+          ]),
+          {
+            id: 'common-return',
+            from: { componentId: 'display', terminal: 'top-3' },
+            to: { componentId: 'source', terminal: 'BAT-' },
+            color: '#2a3035',
+            vertices: [],
+          },
+        ]
+      : [
+          {
+            id: 'common-positive',
+            from: { componentId: 'source', terminal: 'BAT+' },
+            to: { componentId: 'display', terminal: 'bottom-3' },
+            color: '#e3212b',
+            vertices: [],
+          },
+          ...segments.flatMap((segment) => [
+            {
+              id: `segment-${segment}`,
+              from: { componentId: 'display', terminal: segmentPins[segment] },
+              to: { componentId: `resistor-${segment}`, terminal: 'lead-1' },
+              color: '#149447',
+              vertices: [],
+            },
+            {
+              id: `return-${segment}`,
+              from: { componentId: `resistor-${segment}`, terminal: 'lead-2' },
+              to: { componentId: 'source', terminal: 'BAT-' },
+              color: '#2a3035',
+              vertices: [],
+            },
+          ]),
+        ],
+    viewport: { x: 0, y: 0, zoom: 1 },
+    simulation: { running: false, maxIterations: 24 },
+  };
+}
+
 function ownerRedBlueRgbDocument(): SchematicDocument {
   const seeded = rgbLedDocument('common-cathode');
   return {
@@ -2745,6 +2862,90 @@ test('RGB LED mixes three calculated channels for both common modes', async ({ p
     if (commonMode === 'common-cathode') {
       await page.screenshot({
         path: `${ARTIFACT_DIR}/electronics-rgb-mixed-common-cathode.png`,
+        fullPage: true,
+      });
+    }
+  }
+  failures.assertEmpty();
+});
+
+test('MATH-6E RGB inspector reports every physical channel independently', async ({ page }) => {
+  test.setTimeout(120_000);
+  const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
+  await page.setViewportSize({ width: 1920, height: 1080 });
+  await loginWithOrganization(page, teacher);
+
+  const projectId = await createProject(page, 'MATH-6E RGB independent channels');
+  await saveDocument(page, projectId, rgbLedDocument('common-cathode'));
+  await page.goto(`/#/home/${projectId}`);
+  await expect(page.locator('.workbench-stage')).toBeVisible({ timeout: 15_000 });
+  await page.getByRole('button', { name: 'Начать моделирование' }).click();
+
+  const rgb = component(page, 'rgb-led');
+  await rgb.locator('.workbench-part').click();
+  const inspector = page.getByRole('complementary', { name: 'Параметры выделения' });
+  await inspector.getByRole('button', { name: 'Техническое состояние RGB-светодиод' }).click();
+  await expect(inspector.getByLabel('Тип общего вывода RGB-светодиода')).toHaveValue(
+    'common-cathode',
+  );
+  await expect(inspector.getByLabel('Разводка выводов RGB-светодиода')).toHaveValue('RCBG');
+  const channels = inspector.getByTestId('rgb-led-channel-measurements');
+  await expect(channels).toContainText('Красный R');
+  await expect(channels).toContainText('Зелёный G');
+  await expect(channels).toContainText('Синий B');
+  await expect(channels).toContainText('Общая мощность');
+  await page.screenshot({
+    path: `${ARTIFACT_DIR}/electronics-rgb-led-math-6e-runtime.png`,
+    fullPage: true,
+  });
+  failures.assertEmpty();
+});
+
+test('MATH-6E seven-segment display uses physical pins and an arbitrary segment mask', async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
+  await page.setViewportSize({ width: 1920, height: 1080 });
+  await loginWithOrganization(page, teacher);
+
+  for (const commonMode of ['common-cathode', 'common-anode'] as const) {
+    const projectId = await createProject(page, `MATH-6E seven segment ${commonMode}`);
+    await saveDocument(page, projectId, sevenSegmentDocument(commonMode));
+    await page.goto(`/#/home/${projectId}`);
+    await expect(page.locator('.workbench-stage')).toBeVisible({ timeout: 15_000 });
+    await page.getByRole('button', { name: 'Начать моделирование' }).click();
+
+    const display = component(page, 'seven-segment-display');
+    const visual = display.getByTestId('seven-segment-state');
+    for (const segment of ['a', 'b', 'd', 'e', 'g']) {
+      await expect
+        .poll(async () =>
+          Number(
+            (await visual.locator(`[data-segment="${segment}"]`).getAttribute('opacity')) ?? '0',
+          ),
+        )
+        .toBeGreaterThan(0);
+    }
+    for (const segment of ['c', 'f', 'dp']) {
+      await expect(visual.locator(`[data-segment="${segment}"]`)).toHaveAttribute('opacity', '0');
+    }
+
+    await display.locator('.workbench-part').press('Enter');
+    const inspector = page.getByRole('complementary', { name: 'Параметры выделения' });
+    await inspector
+      .getByRole('button', { name: 'Техническое состояние Семисегментный индикатор' })
+      .click();
+    await expect(inspector.getByLabel('Тип общего вывода семисегментного индикатора')).toHaveValue(
+      commonMode,
+    );
+    await expect(inspector.getByTestId('seven-segment-active-mask')).toContainText('A, B, D, E, G');
+    await expect(inspector.getByTestId('seven-segment-junction-measurements')).toContainText('DP');
+    await expect(inspector).toContainText('COM1 и COM2 электрически соединены внутри корпуса');
+
+    if (commonMode === 'common-cathode') {
+      await page.screenshot({
+        path: `${ARTIFACT_DIR}/electronics-seven-segment-math-6e-runtime.png`,
         fullPage: true,
       });
     }

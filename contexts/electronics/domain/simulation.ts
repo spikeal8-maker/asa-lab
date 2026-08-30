@@ -3,6 +3,7 @@ import { arduinoOutputBranches, isArduinoUno } from './arduino-model.js';
 import { buildNetlist, terminalKey, type Netlist } from './netlist.js';
 import { canonicalElectricalModelRegistry } from './model-identity.js';
 import { canonicalPhotoresistorProfileRegistry } from './photoresistor-model.js';
+import { SEVEN_SEGMENT_TERMINALS } from './led-model.js';
 import { electricalModelFor } from './model-registry.js';
 import { canonicalNonlinearDcProfileRegistry } from './models/nonlinear-dc-models.js';
 import {
@@ -162,17 +163,6 @@ function deterministicSolveResult(result: SolveResult): SolveResult {
       : {}),
   };
 }
-
-const SEVEN_SEGMENT_TERMINALS: Readonly<Record<string, Terminal>> = {
-  a: 'top-4',
-  b: 'top-5',
-  c: 'bottom-4',
-  d: 'bottom-2',
-  e: 'bottom-1',
-  f: 'top-2',
-  g: 'top-1',
-  dp: 'bottom-5',
-};
 
 type LogicalTerminal = 'a' | 'b' | 'wiper';
 

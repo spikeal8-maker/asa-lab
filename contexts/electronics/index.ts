@@ -31,9 +31,13 @@ export {
   rgbLedProfile,
   ORDINARY_LED_PROFILES,
   RGB_LED_PROFILES,
+  SEVEN_SEGMENT_COMMON_TERMINALS,
+  SEVEN_SEGMENT_LED_PROFILE,
+  SEVEN_SEGMENT_TERMINALS,
   type LedJunctionProfile,
   type OrdinaryLedColour,
   type RgbLedChannel,
+  type SevenSegmentId,
 } from './domain/led-model.js';
 export {
   canonicalElectricalModelRegistry,

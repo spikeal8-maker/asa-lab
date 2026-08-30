@@ -1,5 +1,6 @@
 import { terminalsForComponent, type ElectronicsDocument, type Terminal } from './document.js';
 import { ARDUINO_GROUND_TERMINALS, isArduinoUno } from './arduino-model.js';
+import { SEVEN_SEGMENT_COMMON_TERMINALS } from './led-model.js';
 
 export interface TerminalRef {
   readonly componentId: string;
@@ -62,6 +63,15 @@ export function buildNetlist(document: ElectronicsDocument): Netlist {
     for (const terminal of terminals) union.find(terminalKey(component.id, terminal));
     for (const [left, right] of component.internalConnections ?? []) {
       union.union(terminalKey(component.id, left), terminalKey(component.id, right));
+    }
+    // The two COM legs are the same conductor inside a single-digit display.
+    // Apply the physical model even to older/imported documents that predate
+    // the persisted internalConnections field.
+    if (component.kind === 'seven-segment') {
+      union.union(
+        terminalKey(component.id, SEVEN_SEGMENT_COMMON_TERMINALS[0]),
+        terminalKey(component.id, SEVEN_SEGMENT_COMMON_TERMINALS[1]),
+      );
     }
     for (const [pinId, binding] of Object.entries(component.holeBindings ?? {})) {
       union.union(

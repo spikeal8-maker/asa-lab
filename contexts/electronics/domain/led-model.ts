@@ -1,5 +1,6 @@
 export type OrdinaryLedColour = 'red' | 'orange' | 'yellow' | 'green' | 'blue' | 'white';
 export type RgbLedChannel = 'red' | 'green' | 'blue';
+export type SevenSegmentId = 'a' | 'b' | 'c' | 'd' | 'e' | 'f' | 'g' | 'dp';
 
 export interface LedLinearSegment {
   /** The segment becomes active at this forward-current operating point. */
@@ -143,6 +144,35 @@ export const RGB_LED_PROFILES: Readonly<Record<RgbLedChannel, LedJunctionProfile
     burnoutCurrentAmp: RGB_BURNOUT_CURRENT_AMP,
     brightnessExponent: BRIGHTNESS_EXPONENT,
   },
+};
+
+/**
+ * Owner-declared 10-pin, single-digit display viewed from the front.
+ * COM1 and COM2 are two physical legs of the same internal common node; the
+ * eight remaining legs drive independent LED dice. Keeping this map beside
+ * the junction profile prevents the solver, KCL verifier and inspector from
+ * silently disagreeing about which physical pin lights which segment.
+ */
+export const SEVEN_SEGMENT_TERMINALS: Readonly<Record<SevenSegmentId, string>> = {
+  a: 'top-4',
+  b: 'top-5',
+  c: 'bottom-4',
+  d: 'bottom-2',
+  e: 'bottom-1',
+  f: 'top-2',
+  g: 'top-1',
+  dp: 'bottom-5',
+};
+
+export const SEVEN_SEGMENT_COMMON_TERMINALS = ['top-3', 'bottom-3'] as const;
+
+/** One independent red indicator junction per segment; never one fake shared lamp. */
+export const SEVEN_SEGMENT_LED_PROFILE: LedJunctionProfile = {
+  kneeVoltage: 1.9,
+  dynamicResistanceOhm: 8,
+  nominalCurrentAmp: 0.01,
+  burnoutCurrentAmp: 0.02,
+  brightnessExponent: 0.65,
 };
 
 export function ordinaryLedProfile(colour: string): LedJunctionProfile {

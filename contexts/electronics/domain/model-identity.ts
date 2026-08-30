@@ -64,8 +64,8 @@ const EXACT_IDENTITIES: Readonly<Record<string, ElectricalModelIdentity>> = {
   'arduino-uno': identity('arduino-uno', 'arduino-uno-r3'),
   'resistor-axial': identity('resistor', 'axial-resistor'),
   'led-5mm': identity('ordinary-led', 'generic-red-led'),
-  'rgb-led': identity('rgb-led', 'generic-rgb-led'),
-  'seven-segment-display': identity('seven-segment', 'generic-seven-segment'),
+  'rgb-led': identity('rgb-led', 'four-pin-rgb-led-independent-junctions', 2),
+  'seven-segment-display': identity('seven-segment', 'single-digit-seven-segment-10pin', 2),
   'button-tactile-6mm': identity('momentary-button', 'tactile-button-6mm'),
   'switch-spdt': identity('spdt-switch', 'slide-switch-spdt'),
   potentiometer: identity('potentiometer', 'generic-potentiometer'),
@@ -209,6 +209,28 @@ export function electricalModelIdentityForComponent(
       component.electricalModelVersion === 1 &&
       component.modelProfileId === 'generic-incandescent-lamp' &&
       component.modelProfileVersion === 1
+    ) {
+      return resolveElectricalModelIdentity(component);
+    }
+    if (
+      component.componentTypeId === 'rgb-led' &&
+      component.electricalModelVersion === 1 &&
+      component.modelProfileVersion === 1 &&
+      ((component.electricalModelId === 'rgb-led' &&
+        component.modelProfileId === 'generic-rgb-led') ||
+        (component.electricalModelId === 'unsupported' &&
+          component.modelProfileId === 'unsupported-rgb-led'))
+    ) {
+      return resolveElectricalModelIdentity(component);
+    }
+    if (
+      component.componentTypeId === 'seven-segment-display' &&
+      component.electricalModelVersion === 1 &&
+      component.modelProfileVersion === 1 &&
+      ((component.electricalModelId === 'seven-segment' &&
+        component.modelProfileId === 'generic-seven-segment') ||
+        (component.electricalModelId === 'unsupported' &&
+          component.modelProfileId === 'unsupported-seven-segment-display'))
     ) {
       return resolveElectricalModelIdentity(component);
     }

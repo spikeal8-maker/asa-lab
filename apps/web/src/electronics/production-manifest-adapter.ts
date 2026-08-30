@@ -435,7 +435,7 @@ function pinLabel(componentId: string, pinId: string): string {
   if (componentId === 'rgb-led') {
     const rgbLabels: Readonly<Record<string, string>> = {
       red: 'Красный',
-      common: 'Катод',
+      common: 'Общий (COM)',
       blue: 'Синий',
       green: 'Зеленый',
     };

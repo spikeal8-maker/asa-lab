@@ -189,6 +189,39 @@ describe('schema-versioned Electronics document', () => {
     });
   });
 
+  it('upgrades the exact RGB and seven-segment placeholders to independent-junction profiles', () => {
+    expect(
+      electricalModelIdentityForComponent(
+        component('rgb', 'rgb-led', 0, {
+          componentTypeId: 'rgb-led',
+          electricalModelId: 'rgb-led',
+          electricalModelVersion: 1,
+          modelProfileId: 'generic-rgb-led',
+          modelProfileVersion: 1,
+        }),
+      ),
+    ).toMatchObject({
+      electricalModelId: 'rgb-led',
+      modelProfileId: 'four-pin-rgb-led-independent-junctions',
+      modelProfileVersion: 2,
+    });
+    expect(
+      electricalModelIdentityForComponent(
+        component('display', 'seven-segment', 0, {
+          componentTypeId: 'seven-segment-display',
+          electricalModelId: 'seven-segment',
+          electricalModelVersion: 1,
+          modelProfileId: 'generic-seven-segment',
+          modelProfileVersion: 1,
+        }),
+      ),
+    ).toMatchObject({
+      electricalModelId: 'seven-segment',
+      modelProfileId: 'single-digit-seven-segment-10pin',
+      modelProfileVersion: 2,
+    });
+  });
+
   it('preserves a complete future model identity and rejects partial identities', () => {
     const future = parseElectronicsDocument({
       schemaVersion: 4,
@@ -2478,7 +2511,6 @@ describe('deterministic DC solver', () => {
         'bottom-4',
         'bottom-5',
       ],
-      internalConnections: [['top-3', 'bottom-3']],
       stateProperties: { commonMode: 'common-cathode' },
     });
     const powered = doc(
@@ -2494,10 +2526,51 @@ describe('deterministic DC solver', () => {
     const unpoweredResult = resultFor(unpowered, 'display');
     expect(poweredResult?.branchBrightness?.a).toBeGreaterThan(0);
     expect(poweredResult?.branchBrightness?.b).toBe(0);
+    expect(poweredResult?.terminalVoltages['top-3']).toBeCloseTo(
+      poweredResult?.terminalVoltages['bottom-3'] ?? Number.NaN,
+      12,
+    );
     expect(Object.values(unpoweredResult?.branchBrightness ?? {})).toEqual(
       expect.arrayContaining([0, 0, 0, 0, 0, 0, 0, 0]),
     );
     expect(unpoweredResult?.lit).toBe(false);
+  });
+
+  it('drives a common-anode seven-segment branch with the opposite polarity', () => {
+    const display = component('display', 'seven-segment', 0, {
+      componentTypeId: 'seven-segment-display',
+      pinIds: [
+        'top-1',
+        'top-2',
+        'top-3',
+        'top-4',
+        'top-5',
+        'bottom-1',
+        'bottom-2',
+        'bottom-3',
+        'bottom-4',
+        'bottom-5',
+      ],
+      stateProperties: { commonMode: 'common-anode' },
+    });
+    const circuit = doc(
+      [component('source', 'source', 5), component('r-dp', 'resistor', 330), display],
+      [
+        connect('common-positive', 'source', 'a', 'display', 'top-3'),
+        connect('dp-resistor', 'display', 'bottom-5', 'r-dp', 'a'),
+        connect('return', 'r-dp', 'b', 'source', 'b'),
+      ],
+    );
+    const result = resultFor(circuit, 'display');
+
+    expect(result?.branchBrightness?.dp).toBeGreaterThan(0);
+    for (const segment of ['a', 'b', 'c', 'd', 'e', 'f', 'g']) {
+      expect(result?.branchBrightness?.[segment]).toBe(0);
+    }
+    expect(result?.terminalVoltages['top-3']).toBeCloseTo(
+      result?.terminalVoltages['bottom-3'] ?? Number.NaN,
+      12,
+    );
   });
 
   it('uses one deterministic T-1 6 V electrothermal lamp profile', () => {

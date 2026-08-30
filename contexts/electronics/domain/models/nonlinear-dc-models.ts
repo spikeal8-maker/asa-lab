@@ -3,6 +3,8 @@ import { electricalModelIdentityForComponent } from '../model-identity.js';
 import {
   ORDINARY_LED_PROFILES,
   RGB_LED_PROFILES,
+  SEVEN_SEGMENT_LED_PROFILE,
+  SEVEN_SEGMENT_TERMINALS,
   ordinaryLedProfile,
   rgbLedProfile,
   type LedJunctionProfile,
@@ -58,10 +60,11 @@ export const DIODE_JUNCTION_PROFILES: Readonly<Record<string, DiodeJunctionProfi
 /** Included in modelSetDigest so numerical profile changes cannot masquerade as the same model. */
 export function canonicalNonlinearDcProfileRegistry(): string {
   return JSON.stringify({
-    registryVersion: 3,
+    registryVersion: 4,
     diodes: DIODE_JUNCTION_PROFILES,
     ordinaryLeds: ORDINARY_LED_PROFILES,
     rgbLeds: RGB_LED_PROFILES,
+    sevenSegment: SEVEN_SEGMENT_LED_PROFILE,
     npn: canonicalNpnDcProfileRegistry(),
     pnp: canonicalPnpDcProfileRegistry(),
   });
@@ -89,17 +92,6 @@ export interface NonlinearDcBranch {
   readonly nearLimitWarning: boolean;
   readonly emitsLight: boolean;
 }
-
-const SEVEN_SEGMENT_TERMINALS: Readonly<Record<string, Terminal>> = {
-  a: 'top-4',
-  b: 'top-5',
-  c: 'bottom-4',
-  d: 'bottom-2',
-  e: 'bottom-1',
-  f: 'top-2',
-  g: 'top-1',
-  dp: 'bottom-5',
-};
 
 function branchFromLedProfile(input: {
   readonly component: SchematicComponent;
@@ -183,20 +175,13 @@ export function nonlinearDcBranchesForComponent(
   if (component.kind === 'seven-segment') {
     const common = 'bottom-3';
     const commonAnode = component.stateProperties?.['commonMode'] === 'common-anode';
-    const profile: LedJunctionProfile = {
-      kneeVoltage: 1.9,
-      dynamicResistanceOhm: 8,
-      nominalCurrentAmp: 0.01,
-      burnoutCurrentAmp: 0.02,
-      brightnessExponent: 0.65,
-    };
     return Object.entries(SEVEN_SEGMENT_TERMINALS).map(([segment, terminal]) =>
       branchFromLedProfile({
         component,
         id: segment,
         anode: commonAnode ? common : terminal,
         cathode: commonAnode ? terminal : common,
-        profile,
+        profile: SEVEN_SEGMENT_LED_PROFILE,
       }),
     );
   }
