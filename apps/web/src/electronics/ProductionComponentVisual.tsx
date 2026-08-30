@@ -4,6 +4,7 @@ import type { CatalogEntry, ComponentVisualState } from './component-catalog';
 import { visualAsset } from './component-catalog';
 import {
   dcMotorRuntimeMarkup,
+  dcMotorVisualMotion,
   potentiometerKnobAngle,
   potentiometerRuntimeMarkup,
   RESISTOR_BAND_CSS,
@@ -121,12 +122,12 @@ function OwnerDcMotorVisual({
   asset,
   width,
   height,
-  phaseRadian,
+  motorRpm,
 }: {
   readonly asset: string;
   readonly width: number;
   readonly height: number;
-  readonly phaseRadian: number;
+  readonly motorRpm: number;
 }): JSX.Element {
   const [ownerSvg, setOwnerSvg] = useState<string | null>(null);
   useEffect(() => {
@@ -142,17 +143,22 @@ function OwnerDcMotorVisual({
       mounted = false;
     };
   }, [asset]);
-  const markup = useMemo(
-    () => (ownerSvg ? dcMotorRuntimeMarkup(ownerSvg, phaseRadian) : ''),
-    [ownerSvg, phaseRadian],
-  );
+  const markup = useMemo(() => (ownerSvg ? dcMotorRuntimeMarkup(ownerSvg) : ''), [ownerSvg]);
   if (!markup) {
     return <image href={asset} width={width} height={height} pointerEvents="none" />;
   }
+  const motion = dcMotorVisualMotion(motorRpm);
+  const motionStyle = {
+    '--workbench-dc-motor-period': `${motion.periodSeconds ?? 2.6}s`,
+  } as CSSProperties;
   return (
     <svg
       data-testid="dc-motor-phase"
-      data-motor-phase-radian={phaseRadian}
+      data-motor-rpm={Number.isFinite(motorRpm) ? motorRpm : 0}
+      data-motor-visual-direction={motion.direction}
+      data-motor-visual-period-seconds={motion.periodSeconds ?? ''}
+      className="workbench-dc-motor-visual"
+      style={motionStyle}
       x="0"
       y="0"
       width={width}
@@ -613,7 +619,7 @@ export function ProductionComponentVisual({
               asset={asset}
               width={width}
               height={height}
-              phaseRadian={simulationRunning ? Number(result?.motorAngularPhaseRadian ?? 0) : 0}
+              motorRpm={simulationRunning ? Number(result?.motorRpm ?? 0) : 0}
             />
           ) : (
             <image

@@ -399,8 +399,12 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(productionVisualSource).toContain('potentiometerRuntimeMarkup(ownerSvg, wiperPosition)');
     expect(productionVisualSource).toContain('data-testid="potentiometer-angle"');
     expect(productionVisualSource).toContain('<OwnerDcMotorVisual');
-    expect(productionVisualSource).toContain('dcMotorRuntimeMarkup(ownerSvg, phaseRadian)');
+    expect(productionVisualSource).toContain('dcMotorRuntimeMarkup(ownerSvg)');
+    expect(productionVisualSource).toContain('dcMotorVisualMotion(motorRpm)');
     expect(productionVisualSource).toContain('data-testid="dc-motor-phase"');
+    expect(productionVisualSource).toContain('data-motor-visual-direction={motion.direction}');
+    expect(workbenchCss).toContain('@keyframes workbench-dc-motor-gear-spin');
+    expect(workbenchCss).toContain("data-motor-visual-direction='counterclockwise'");
     expect(stageSource).toContain('data-testid="dc-motor-rpm"');
     expect(stageSource).toContain('formatMotorRpm(rpm)');
     expect(stageSource).toContain('pointerEvents="none"');

@@ -483,6 +483,32 @@
   display: block;
   overflow: visible;
 }
+.workbench-dc-motor-visual .workbench-dc-motor-gear {
+  transform-box: view-box;
+  transform-origin: 141.5px 107.3px;
+}
+.workbench-dc-motor-visual[data-motor-visual-direction='clockwise'] .workbench-dc-motor-gear,
+.workbench-dc-motor-visual[data-motor-visual-direction='counterclockwise']
+  .workbench-dc-motor-gear {
+  animation: workbench-dc-motor-gear-spin var(--workbench-dc-motor-period) linear infinite;
+}
+.workbench-dc-motor-visual[data-motor-visual-direction='counterclockwise']
+  .workbench-dc-motor-gear {
+  animation-direction: reverse;
+}
+@keyframes workbench-dc-motor-gear-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .workbench-dc-motor-visual .workbench-dc-motor-gear {
+    animation: none;
+  }
+}
 .workbench-piezo-summary {
   display: grid;
   gap: 4px;

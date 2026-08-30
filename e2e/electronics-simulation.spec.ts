@@ -1602,9 +1602,7 @@ test('NPN key exposes its calculated operating point through I', async ({ page }
   failures.assertEmpty();
 });
 
-test('direct DC motor shows calculated signed RPM and rotates only from solver phase', async ({
-  page,
-}) => {
+test('direct DC motor shows calculated signed RPM and calm visual direction', async ({ page }) => {
   test.setTimeout(120_000);
   const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
   await page.setViewportSize({ width: 1440, height: 900 });
@@ -1623,11 +1621,12 @@ test('direct DC motor shows calculated signed RPM and rotates only from solver p
 
   const phaseVisual = motor.getByTestId('dc-motor-phase');
   await expect(phaseVisual).toBeVisible();
-  const firstPhase = Number(await phaseVisual.getAttribute('data-motor-phase-radian'));
+  await expect(phaseVisual).toHaveAttribute('data-motor-visual-direction', 'clockwise');
+  await expect(phaseVisual).toHaveAttribute('data-motor-visual-period-seconds', '1.95');
+  const gear = phaseVisual.locator('.workbench-dc-motor-gear');
+  const firstPhase = await gear.evaluate((element) => getComputedStyle(element).transform);
   await page.waitForTimeout(250);
-  const secondPhase = Number(await phaseVisual.getAttribute('data-motor-phase-radian'));
-  expect(Number.isFinite(firstPhase)).toBe(true);
-  expect(Number.isFinite(secondPhase)).toBe(true);
+  const secondPhase = await gear.evaluate((element) => getComputedStyle(element).transform);
   expect(secondPhase).not.toBe(firstPhase);
 
   await motor.locator('.workbench-part').click({ force: true });

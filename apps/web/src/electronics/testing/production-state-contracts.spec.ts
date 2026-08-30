@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buttonContactPairs,
   dcMotorRuntimeMarkup,
+  dcMotorVisualMotion,
   formatMotorRpm,
   lampState,
   motorMotion,
@@ -101,14 +102,25 @@ describe('typed Electronics state and animation contracts', () => {
     expect(ownerSvg).not.toContain('transform=');
   });
 
-  it('rotates only the owner motor gear from solver phase and formats signed RPM', () => {
+  it('marks only the owner motor gear and maps signed RPM to calm visual motion', () => {
     const ownerSvg =
       '<svg viewBox="0 0 284 245"><g id="body"><path d="M0 0"/></g><g id="gear"><path d="M1 1"/></g></svg>';
-    const markup = dcMotorRuntimeMarkup(ownerSvg, Math.PI / 2);
+    const markup = dcMotorRuntimeMarkup(ownerSvg);
     expect(markup).toContain('<g id="body"><path d="M0 0"/></g>');
-    expect(markup).toContain('<g id="gear" transform="rotate(90 141.5 107.3)">');
-    expect(ownerSvg).not.toContain('transform=');
-    expect(dcMotorRuntimeMarkup(ownerSvg, Number.NaN)).toBe('');
+    expect(markup).toContain('<g id="gear" class="workbench-dc-motor-gear">');
+    expect(ownerSvg).not.toContain('class=');
+    expect(dcMotorRuntimeMarkup('<svg><g id="body"/></svg>')).toBe('');
+    expect(dcMotorVisualMotion(0)).toEqual({ direction: 'stopped', periodSeconds: null });
+    expect(dcMotorVisualMotion(3_000)).toEqual({ direction: 'clockwise', periodSeconds: 2.6 });
+    expect(dcMotorVisualMotion(5_750)).toEqual({ direction: 'clockwise', periodSeconds: 2.25 });
+    expect(dcMotorVisualMotion(-11_500)).toEqual({
+      direction: 'counterclockwise',
+      periodSeconds: 1.95,
+    });
+    expect(dcMotorVisualMotion(23_000)).toEqual({
+      direction: 'clockwise',
+      periodSeconds: 1.75,
+    });
     expect(formatMotorRpm(8420.4)).toBe('8420 об/мин');
     expect(formatMotorRpm(-8420.4)).toBe('−8420 об/мин');
     expect(formatMotorRpm(-0.2)).toBe('0 об/мин');

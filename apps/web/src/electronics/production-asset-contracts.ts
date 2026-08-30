@@ -310,23 +310,52 @@ export function potentiometerRuntimeMarkup(ownerSvg: string, wiperPosition: numb
 }
 
 /**
- * Applies the accepted solver phase only to the owner SVG group named `gear`.
- * The owner asset itself stays byte-exact; voltage and a CSS duration are not
- * allowed to become a second source of motor motion.
+ * Marks only the existing owner SVG gear as the runtime moving part.
+ * The source asset stays byte-exact. CSS owns the deliberately slow display
+ * rotation, while signed RPM remains the authoritative physical observation.
  */
-export function dcMotorRuntimeMarkup(ownerSvg: string, phaseRadian: number): string {
-  if (!Number.isFinite(phaseRadian)) return '';
-  const normalizedPhase = ((phaseRadian % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
-  const degrees = Number(((normalizedPhase * 180) / Math.PI).toFixed(6));
+export function dcMotorRuntimeMarkup(ownerSvg: string): string {
   const withRotatingGear = ownerSvg.replace(
     '<g id="gear">',
-    `<g id="gear" transform="rotate(${degrees} 141.5 107.3)">`,
+    '<g id="gear" class="workbench-dc-motor-gear">',
   );
   if (withRotatingGear === ownerSvg) return '';
   const bodyStart = withRotatingGear.indexOf('>');
   const bodyEnd = withRotatingGear.lastIndexOf('</svg>');
   if (bodyStart < 0 || bodyEnd <= bodyStart) return '';
   return withRotatingGear.slice(bodyStart + 1, bodyEnd);
+}
+
+export interface DcMotorVisualMotion {
+  readonly direction: MotorDirection;
+  readonly periodSeconds: number | null;
+}
+
+/**
+ * Converts calculated signed RPM into a calm presentation-only rotation.
+ * Physical RPM is intentionally not converted one-to-one: a 10k+ RPM gear
+ * aliases against the screen refresh rate and looks as if it is wobbling or
+ * moving backwards. Four broad bands make voltage changes visible without
+ * turning the artwork into a stroboscope.
+ */
+export function dcMotorVisualMotion(motorRpm: number): DcMotorVisualMotion {
+  const rpm = Number.isFinite(motorRpm) ? motorRpm : 0;
+  const absoluteRpm = Math.abs(rpm);
+  if (absoluteRpm < 25) return { direction: 'stopped', periodSeconds: null };
+
+  const relativeToSixVoltReference = absoluteRpm / 11_500;
+  const periodSeconds =
+    relativeToSixVoltReference < 0.35
+      ? 2.6
+      : relativeToSixVoltReference < 0.85
+        ? 2.25
+        : relativeToSixVoltReference < 1.4
+          ? 1.95
+          : 1.75;
+  return {
+    direction: rpm > 0 ? 'clockwise' : 'counterclockwise',
+    periodSeconds,
+  };
 }
 
 export function formatMotorRpm(value: number): string {
