@@ -122,11 +122,11 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: math_6e_rgb_seven_segment_runtime_ready_owner_review_math_5e_control_protection_deferred
+      checkpoint: math_10a_multimeter_plan_ready_math_10b_regulated_supply_queued_math_5e_control_protection_deferred
       owner_acceptance: pending
     revisions:
       convergence_baseline_sha: 5b052dc631c7036de9d60f4206c9879fe364e732
-      head_sha: cf05ee2df651a80a50e309bfeb45dbf0a59d5cdb
+      head_sha: c212aaafb5f16cc895727f7493f91a01d6063018
       owner_accepted_sha: d4c06f33babcbe1f81b2dc33d06a9a6146eb5465
     execution_lease:
       executor_id: codex-electronics-docs
