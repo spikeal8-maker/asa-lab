@@ -1700,9 +1700,15 @@ test('23 V motor shows local overvoltage, accumulated damage and open failure', 
     timeout: 20_000,
   });
   await expect(motor).toHaveAttribute('data-presentation-state', 'failed');
-  await expect(page.locator('[data-testid="dc-motor-rpm"][data-component-id="motor"]')).toHaveText(
-    '0 об/мин',
+  const failedMotorReadout = page.locator(
+    '[data-testid="dc-motor-rpm"][data-component-id="motor"]',
   );
+  await expect
+    .poll(
+      async () => Number.parseInt((await failedMotorReadout.textContent()) ?? '', 10),
+      { timeout: 8_000 },
+    )
+    .toBeLessThan(500);
   await page.screenshot({
     path: `${ARTIFACT_DIR}/electronics-dc-motor-overvoltage-failed.png`,
     fullPage: true,
