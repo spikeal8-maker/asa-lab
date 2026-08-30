@@ -2515,6 +2515,21 @@
 .workbench-junction-measurements dd {
   white-space: nowrap;
 }
+
+.workbench-junction-measurements dd.workbench-terminal-status {
+  color: #a43b2f;
+}
+
+.workbench-junction-measurements dd.workbench-terminal-status.connected {
+  color: #16734a;
+}
+
+.workbench-junction-measurements .workbench-common-terminal-status {
+  display: grid;
+  justify-items: end;
+  gap: 1px;
+  white-space: normal;
+}
 .workbench-component-diagnostics {
   display: grid;
   gap: 5px;
@@ -2549,6 +2564,15 @@
   height: 1px;
   overflow: hidden;
   clip: rect(0 0 0 0);
+}
+
+.workbench-primary-controls label {
+  grid-template-columns: 104px minmax(0, 1fr);
+}
+
+.workbench-primary-controls label > span {
+  overflow-wrap: normal;
+  word-break: normal;
 }
 .workbench-toggle-property {
   display: grid !important;

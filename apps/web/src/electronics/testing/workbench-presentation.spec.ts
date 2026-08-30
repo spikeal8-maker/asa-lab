@@ -509,6 +509,22 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(alternateViewsSource).toContain('<th>Компонент</th>');
   });
 
+  it('keeps RGB and seven-segment primary controls visible without duplicate detail tables', () => {
+    expect(sidebarSource).toContain('{selectedIsRgbLed ? (');
+    expect(sidebarSource).toContain("{c.selectedEntry.key === 'seven-segment-display' ? (");
+    expect(sidebarSource).not.toContain('{selectedIsRgbLed && stateOpen ? (');
+    expect(sidebarSource).not.toContain(
+      "{c.selectedEntry.key === 'seven-segment-display' && stateOpen ? (",
+    );
+    expect(sidebarSource).toContain('workbench-primary-controls');
+    expect(sidebarSource).toContain(
+      '{stateOpen && !selectedIsRgbLed && !selectedIsSevenSegment ? (',
+    );
+    expect(workbenchCss).toMatch(
+      /\.workbench-primary-controls label\s*\{[^}]*grid-template-columns:\s*104px minmax\(0, 1fr\);/s,
+    );
+  });
+
   it('provides a real phone workbench with a bottom component sheet and touch targets', () => {
     expect(workbenchCss).toContain('@media (max-width: 760px)');
     expect(workbenchCss).toContain('--wb-library-open-height: min(44dvh, 360px)');

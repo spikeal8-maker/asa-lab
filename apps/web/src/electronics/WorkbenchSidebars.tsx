@@ -7,6 +7,8 @@ import {
   photoresistorResistanceOhm,
   PHOTORESISTOR_PROFILE,
   resolveBrushedMotorProfileSelection,
+  SEVEN_SEGMENT_COMMON_TERMINALS,
+  SEVEN_SEGMENT_TERMINALS,
   spdtThrowFromState,
   type ComponentResult,
 } from '@asa-lab/electronics';
@@ -194,8 +196,10 @@ const SEVEN_SEGMENT_IDS = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'dp'] as const;
 
 function RgbLedMeasurements({
   measurement,
+  isConnected,
 }: {
-  readonly measurement: ComponentResult;
+  readonly measurement: ComponentResult | undefined;
+  readonly isConnected: (terminal: string) => boolean;
 }): JSX.Element {
   return (
     <dl
@@ -207,15 +211,22 @@ function RgbLedMeasurements({
       {RGB_CHANNELS.map(([channel, label]) => (
         <div key={channel}>
           <dt>{label}</dt>
-          <dd>
-            {(Math.abs(measurement.branchCurrents?.[channel] ?? 0) * 1_000).toFixed(2)} мА ·{' '}
-            {(measurement.branchBrightness?.[channel] ?? 0).toFixed(0)}%
+          <dd className={`workbench-terminal-status${isConnected(channel) ? ' connected' : ''}`}>
+            {isConnected(channel) ? 'Подключён' : 'Свободен'} ·{' '}
+            {(Math.abs(measurement?.branchCurrents?.[channel] ?? 0) * 1_000).toFixed(2)} мА ·{' '}
+            {(measurement?.branchBrightness?.[channel] ?? 0).toFixed(0)}%
           </dd>
         </div>
       ))}
       <div>
+        <dt>Общий (COM)</dt>
+        <dd className={`workbench-terminal-status${isConnected('common') ? ' connected' : ''}`}>
+          {isConnected('common') ? 'Подключён' : 'Свободен'}
+        </dd>
+      </div>
+      <div>
         <dt>Общая мощность</dt>
-        <dd>{(measurement.power ?? 0).toFixed(3)} Вт</dd>
+        <dd>{(measurement?.power ?? 0).toFixed(3)} Вт</dd>
       </div>
     </dl>
   );
@@ -223,11 +234,13 @@ function RgbLedMeasurements({
 
 function SevenSegmentMeasurements({
   measurement,
+  isConnected,
 }: {
-  readonly measurement: ComponentResult;
+  readonly measurement: ComponentResult | undefined;
+  readonly isConnected: (terminal: string) => boolean;
 }): JSX.Element {
   const active = SEVEN_SEGMENT_IDS.filter(
-    (segment) => (measurement.branchBrightness?.[segment] ?? 0) > 0,
+    (segment) => (measurement?.branchBrightness?.[segment] ?? 0) > 0,
   );
   return (
     <>
@@ -241,18 +254,36 @@ function SevenSegmentMeasurements({
         data-testid="seven-segment-junction-measurements"
         aria-label="Токи и яркость сегментов индикатора"
       >
-        {SEVEN_SEGMENT_IDS.map((segment) => (
-          <div key={segment}>
-            <dt>{segment.toUpperCase()}</dt>
-            <dd>
-              {(Math.abs(measurement.branchCurrents?.[segment] ?? 0) * 1_000).toFixed(2)} мА ·{' '}
-              {(measurement.branchBrightness?.[segment] ?? 0).toFixed(0)}%
-            </dd>
-          </div>
-        ))}
+        {SEVEN_SEGMENT_IDS.map((segment) => {
+          const terminal = SEVEN_SEGMENT_TERMINALS[segment];
+          const connected = isConnected(terminal);
+          return (
+            <div key={segment}>
+              <dt>{segment.toUpperCase()}</dt>
+              <dd className={`workbench-terminal-status${connected ? ' connected' : ''}`}>
+                {connected ? 'Подключён' : 'Свободен'} ·{' '}
+                {(Math.abs(measurement?.branchCurrents?.[segment] ?? 0) * 1_000).toFixed(2)} мА ·{' '}
+                {(measurement?.branchBrightness?.[segment] ?? 0).toFixed(0)}%
+              </dd>
+            </div>
+          );
+        })}
+        <div>
+          <dt>Общий вывод</dt>
+          <dd className="workbench-common-terminal-status">
+            {SEVEN_SEGMENT_COMMON_TERMINALS.map((terminal, index) => (
+              <span
+                key={terminal}
+                className={`workbench-terminal-status${isConnected(terminal) ? ' connected' : ''}`}
+              >
+                {index === 0 ? 'COM2' : 'COM1'} {isConnected(terminal) ? 'подключён' : 'свободен'}
+              </span>
+            ))}
+          </dd>
+        </div>
         <div>
           <dt>Общий ток сегментов</dt>
-          <dd>{(Math.abs(measurement.current) * 1_000).toFixed(2)} мА</dd>
+          <dd>{(Math.abs(measurement?.current ?? 0) * 1_000).toFixed(2)} мА</dd>
         </div>
       </dl>
     </>
@@ -1080,8 +1111,11 @@ export function WorkbenchSidebars({
                 </label>
               ) : null}
 
-              {selectedIsRgbLed && stateOpen ? (
-                <fieldset className="workbench-state-controls">
+              {selectedIsRgbLed ? (
+                <fieldset
+                  className="workbench-state-controls workbench-primary-controls"
+                  data-testid="rgb-led-primary-controls"
+                >
                   <legend>RGB-светодиод</legend>
                   <label>
                     <span>Общий вывод</span>
@@ -1099,7 +1133,7 @@ export function WorkbenchSidebars({
                     </select>
                   </label>
                   <label>
-                    <span>Порядок ножек</span>
+                    <span>Распиновка</span>
                     <select
                       aria-label="Разводка выводов RGB-светодиода"
                       value={String(c.selectedComponent.stateProperties?.['pinLayout'] ?? 'RCBG')}
@@ -1115,8 +1149,11 @@ export function WorkbenchSidebars({
                 </fieldset>
               ) : null}
 
-              {c.selectedEntry.key === 'seven-segment-display' && stateOpen ? (
-                <fieldset className="workbench-state-controls">
+              {c.selectedEntry.key === 'seven-segment-display' ? (
+                <fieldset
+                  className="workbench-state-controls workbench-primary-controls"
+                  data-testid="seven-segment-primary-controls"
+                >
                   <legend>Семисегментный индикатор</legend>
                   <label>
                     <span>Общий вывод</span>
@@ -1134,7 +1171,7 @@ export function WorkbenchSidebars({
                     </select>
                   </label>
                   <label>
-                    <span>Цвет сегментов</span>
+                    <span>Цвет</span>
                     <select
                       aria-label="Цвет сегментов индикатора"
                       value={String(c.selectedComponent.stateProperties?.['segmentColor'] ?? 'red')}
@@ -1152,9 +1189,11 @@ export function WorkbenchSidebars({
                       ))}
                     </select>
                   </label>
-                  <p className="workbench-component-note">
-                    COM1 и COM2 электрически соединены внутри корпуса.
-                  </p>
+                  {stateOpen ? (
+                    <p className="workbench-component-note">
+                      COM1 и COM2 электрически соединены внутри корпуса.
+                    </p>
+                  ) : null}
                 </fieldset>
               ) : null}
 
@@ -1165,7 +1204,7 @@ export function WorkbenchSidebars({
                 </div>
               ) : null}
 
-              {stateOpen ? (
+              {stateOpen && !selectedIsRgbLed && !selectedIsSevenSegment ? (
                 <dl
                   className="workbench-terminal-list"
                   aria-label="Подключение выводов"
@@ -1221,12 +1260,22 @@ export function WorkbenchSidebars({
                 />
               ) : null}
 
-              {stateOpen && measurement && selectedIsRgbLed ? (
-                <RgbLedMeasurements measurement={measurement} />
+              {stateOpen && selectedIsRgbLed ? (
+                <RgbLedMeasurements
+                  measurement={measurement}
+                  isConnected={(terminal) =>
+                    c.terminalConnectionCount(c.selectedComponent!.id, terminal) > 0
+                  }
+                />
               ) : null}
 
-              {stateOpen && measurement && selectedIsSevenSegment ? (
-                <SevenSegmentMeasurements measurement={measurement} />
+              {stateOpen && selectedIsSevenSegment ? (
+                <SevenSegmentMeasurements
+                  measurement={measurement}
+                  isConnected={(terminal) =>
+                    c.terminalConnectionCount(c.selectedComponent!.id, terminal) > 0
+                  }
+                />
               ) : null}
 
               {stateOpen && measurement && !selectedIsGearmotor && technicalMetrics.length > 0 ? (

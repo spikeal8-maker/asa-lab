@@ -2879,20 +2879,33 @@ test('MATH-6E RGB inspector reports every physical channel independently', async
   await saveDocument(page, projectId, rgbLedDocument('common-cathode'));
   await page.goto(`/#/home/${projectId}`);
   await expect(page.locator('.workbench-stage')).toBeVisible({ timeout: 15_000 });
-  await page.getByRole('button', { name: 'Начать моделирование' }).click();
 
   const rgb = component(page, 'rgb-led');
   await rgb.locator('.workbench-part').click();
   const inspector = page.getByRole('complementary', { name: 'Параметры выделения' });
-  await inspector.getByRole('button', { name: 'Техническое состояние RGB-светодиод' }).click();
+  const technicalState = inspector.getByRole('button', {
+    name: 'Техническое состояние RGB-светодиод',
+  });
+  await expect(technicalState).toHaveAttribute('aria-expanded', 'false');
+  await expect(inspector.getByTestId('rgb-led-primary-controls')).toBeVisible();
   await expect(inspector.getByLabel('Тип общего вывода RGB-светодиода')).toHaveValue(
     'common-cathode',
   );
   await expect(inspector.getByLabel('Разводка выводов RGB-светодиода')).toHaveValue('RCBG');
+  await expect(inspector.getByTestId('rgb-led-channel-measurements')).toHaveCount(0);
+  await page.screenshot({
+    path: `${ARTIFACT_DIR}/electronics-rgb-led-compact-controls.png`,
+    fullPage: true,
+  });
+
+  await page.getByRole('button', { name: 'Начать моделирование' }).click();
+  await technicalState.click();
+  await expect(inspector.locator('.workbench-terminal-list')).toHaveCount(0);
   const channels = inspector.getByTestId('rgb-led-channel-measurements');
   await expect(channels).toContainText('Красный R');
   await expect(channels).toContainText('Зелёный G');
   await expect(channels).toContainText('Синий B');
+  await expect(channels).toContainText('Подключён');
   await expect(channels).toContainText('Общая мощность');
   await page.screenshot({
     path: `${ARTIFACT_DIR}/electronics-rgb-led-math-6e-runtime.png`,
@@ -2914,9 +2927,30 @@ test('MATH-6E seven-segment display uses physical pins and an arbitrary segment 
     await saveDocument(page, projectId, sevenSegmentDocument(commonMode));
     await page.goto(`/#/home/${projectId}`);
     await expect(page.locator('.workbench-stage')).toBeVisible({ timeout: 15_000 });
-    await page.getByRole('button', { name: 'Начать моделирование' }).click();
 
     const display = component(page, 'seven-segment-display');
+    await display.locator('.workbench-part').press('Enter');
+    const inspector = page.getByRole('complementary', { name: 'Параметры выделения' });
+    const technicalState = inspector.getByRole('button', {
+      name: 'Техническое состояние Семисегментный индикатор',
+    });
+    if ((await technicalState.getAttribute('aria-expanded')) === 'true') {
+      await technicalState.click();
+    }
+    await expect(technicalState).toHaveAttribute('aria-expanded', 'false');
+    await expect(inspector.getByTestId('seven-segment-primary-controls')).toBeVisible();
+    await expect(inspector.getByLabel('Тип общего вывода семисегментного индикатора')).toHaveValue(
+      commonMode,
+    );
+    await expect(inspector.getByTestId('seven-segment-junction-measurements')).toHaveCount(0);
+    if (commonMode === 'common-cathode') {
+      await page.screenshot({
+        path: `${ARTIFACT_DIR}/electronics-seven-segment-compact-controls.png`,
+        fullPage: true,
+      });
+    }
+
+    await page.getByRole('button', { name: 'Начать моделирование' }).click();
     const visual = display.getByTestId('seven-segment-state');
     for (const segment of ['a', 'b', 'd', 'e', 'g']) {
       await expect
@@ -2931,16 +2965,12 @@ test('MATH-6E seven-segment display uses physical pins and an arbitrary segment 
       await expect(visual.locator(`[data-segment="${segment}"]`)).toHaveAttribute('opacity', '0');
     }
 
-    await display.locator('.workbench-part').press('Enter');
-    const inspector = page.getByRole('complementary', { name: 'Параметры выделения' });
-    await inspector
-      .getByRole('button', { name: 'Техническое состояние Семисегментный индикатор' })
-      .click();
-    await expect(inspector.getByLabel('Тип общего вывода семисегментного индикатора')).toHaveValue(
-      commonMode,
-    );
+    await technicalState.click();
+    await expect(inspector.locator('.workbench-terminal-list')).toHaveCount(0);
     await expect(inspector.getByTestId('seven-segment-active-mask')).toContainText('A, B, D, E, G');
-    await expect(inspector.getByTestId('seven-segment-junction-measurements')).toContainText('DP');
+    const segments = inspector.getByTestId('seven-segment-junction-measurements');
+    await expect(segments).toContainText('DP');
+    await expect(segments).toContainText('Подключён');
     await expect(inspector).toContainText('COM1 и COM2 электрически соединены внутри корпуса');
 
     if (commonMode === 'common-cathode') {
