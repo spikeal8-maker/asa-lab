@@ -86,6 +86,27 @@ export {
   type MotorTransmissionProfile,
 } from './domain/models/brushed-motor-profiles.js';
 export {
+  BRUSHED_MOTOR_AMBIENT_TEMPERATURE_CELSIUS,
+  BRUSHED_MOTOR_DAMAGE_EXPOSURE_SECONDS,
+  BRUSHED_MOTOR_TRANSIENT_MODEL_VERSION,
+  advanceBrushedMotorTransientState,
+  brushedMotorCompanion,
+  brushedMotorTransientStateIsCompatible,
+  createBrushedMotorTransientState,
+  createBrushedMotorTransientStateForComponent,
+  observeBrushedMotorTransientState,
+  type BrushedMotorCompanion,
+  type BrushedMotorDirection,
+  type BrushedMotorFailureMode,
+  type BrushedMotorInitialStateResult,
+  type BrushedMotorObservation,
+  type BrushedMotorOperatingMode,
+  type BrushedMotorStepInput,
+  type BrushedMotorStepResult,
+  type BrushedMotorThermalState,
+  type BrushedMotorTransientStateEntry,
+} from './domain/models/brushed-motor-transient-model.js';
+export {
   createLinearDcDevice,
   isResistorDevice,
   isSourceDevice,

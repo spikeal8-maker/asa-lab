@@ -1,0 +1,103 @@
+{
+  "schema": "asa-lab.electronics-brushed-motor-transient-fixtures.v1",
+  "directStartup": {
+    "at1ms": {
+      "timeSeconds": 0.001,
+      "currentAmp": 0.746957277508,
+      "motorRpm": 129.576420798886,
+      "outputRpm": 129.576420798886,
+      "phaseRadian": 0.006784605528,
+      "temperatureCelsius": 25.000836910787,
+      "accumulatedDamage": 0,
+      "direction": "clockwise",
+      "operatingMode": "starting",
+      "failureMode": "none"
+    },
+    "at100ms": {
+      "timeSeconds": 0.1,
+      "currentAmp": 0.289840990413,
+      "motorRpm": 8039.263428348185,
+      "outputRpm": 8039.263428348185,
+      "phaseRadian": 0.026209087216,
+      "temperatureCelsius": 25.039440463872,
+      "accumulatedDamage": 0,
+      "direction": "clockwise",
+      "operatingMode": "running",
+      "failureMode": "none"
+    },
+    "at1500ms": {
+      "timeSeconds": 1.5,
+      "currentAmp": 0.070000010871,
+      "motorRpm": 11499.999828862887,
+      "outputRpm": 11499.999828862887,
+      "phaseRadian": 3.3755493781,
+      "temperatureCelsius": 25.05535170993,
+      "accumulatedDamage": 0,
+      "direction": "clockwise",
+      "operatingMode": "running",
+      "failureMode": "none"
+    }
+  },
+  "directCoast50ms": {
+    "timeSeconds": 1.55,
+    "currentAmp": -0.400895308301,
+    "motorRpm": 6310.893397251956,
+    "outputRpm": 6310.893397251956,
+    "phaseRadian": 4.689614309581,
+    "temperatureCelsius": 25.078241311227,
+    "accumulatedDamage": 0,
+    "direction": "clockwise",
+    "operatingMode": "coasting",
+    "failureMode": "none"
+  },
+  "directReverse": {
+    "after1ms": {
+      "timeSeconds": 1.501,
+      "currentAmp": -1.423914544274,
+      "motorRpm": 11240.846989309206,
+      "outputRpm": 11240.846989309206,
+      "phaseRadian": 4.566257333106,
+      "temperatureCelsius": 25.058392061009,
+      "accumulatedDamage": 0,
+      "direction": "clockwise",
+      "operatingMode": "running",
+      "failureMode": "none"
+    },
+    "after1500ms": {
+      "timeSeconds": 3.001,
+      "currentAmp": -0.070000021483,
+      "motorRpm": -11499.999661814018,
+      "outputRpm": -11499.999661814018,
+      "phaseRadian": 4.844949942911,
+      "temperatureCelsius": 25.217943053608,
+      "accumulatedDamage": 0,
+      "direction": "counterclockwise",
+      "operatingMode": "running",
+      "failureMode": "none"
+    }
+  },
+  "gear48At2s": {
+    "timeSeconds": 2,
+    "currentAmp": 0.16,
+    "motorRpm": 11999.999999999933,
+    "outputRpm": 249.999999999999,
+    "phaseRadian": 0.262208758442,
+    "temperatureCelsius": 25.057497369245,
+    "accumulatedDamage": 0,
+    "direction": "clockwise",
+    "operatingMode": "running",
+    "failureMode": "none"
+  },
+  "locked12vFailure": {
+    "timeSeconds": 46.85,
+    "currentAmp": 0,
+    "motorRpm": 0,
+    "outputRpm": 0,
+    "phaseRadian": 0,
+    "temperatureCelsius": 149.871021267828,
+    "accumulatedDamage": 1,
+    "direction": "stopped",
+    "operatingMode": "failed",
+    "failureMode": "winding_open"
+  }
+}
