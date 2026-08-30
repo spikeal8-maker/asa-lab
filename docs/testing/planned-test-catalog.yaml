@@ -55,6 +55,28 @@ tests:
     owner: electronics-team
     artifacts: [schema-report, content-review-fixtures, approval-ledger-fixtures]
 
+  - id: TST-E2E-ELECTRONICS-MOTOR-RPM-001
+    title: Electronics signed motor RPM readout and owner SVG motion journey
+    suite: e2e
+    level: system
+    phase_available: PHASE-5
+    required_for: [TASK-ELECTRONICS-DOCS-001, TASK-ELEC-001]
+    command: pnpm e2e:electronics-motor-rpm
+    timeout_seconds: 1500
+    owner: electronics-team
+    artifacts: [playwright-report, screenshots, motor-transient-observations]
+
+  - id: TST-E2E-ELECTRONICS-GEARMOTOR-INFO-001
+    title: Electronics gearmotor ratio internal and output shaft information journey
+    suite: e2e
+    level: system
+    phase_available: PHASE-5
+    required_for: [TASK-ELECTRONICS-DOCS-001, TASK-ELEC-001]
+    command: pnpm e2e:electronics-gearmotor-information
+    timeout_seconds: 1500
+    owner: electronics-team
+    artifacts: [playwright-report, screenshots, gearmotor-profile-observations]
+
   - id: TST-MODULE-CONTRACT-001
     title: Module SDK and subject module contract validation
     suite: contracts

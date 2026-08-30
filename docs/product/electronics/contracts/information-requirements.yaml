@@ -39,6 +39,16 @@ decisions:
     status: owner_direction
     blocking_scopes: []
     evidence_required: [rotation_zoom_severity_owner_review]
+  - id: DEC-INFO-008
+    decision: signed_motor_rpm_is_a_neutral_screen_upright_pointer_transparent_stage_readout
+    status: owner_direction
+    blocking_scopes: []
+    evidence_required: [dc_motor_rpm_rotation_zoom_owner_review]
+  - id: DEC-INFO-009
+    decision: gearmotor_inspector_separates_internal_motor_and_output_shaft_observations
+    status: owner_direction
+    blocking_scopes: []
+    evidence_required: [gearmotor_ratio_rpm_torque_owner_review]
 
 requirements:
   - id: ELEC-INFO-001
@@ -301,4 +311,30 @@ requirements:
     planned_fixture_path: e2e/fixtures/electronics/missing-published-help.json
     gate: pnpm gate:electronics-m1:browser
     assertions: [no_blank_help_page, behavior_matches_decision]
+    evidence: { result: not_run, verified_sha: null, artifacts: [] }
+
+  - id: ELEC-INFO-021
+    statement: motor stage readout shows finite signed RPM from the accepted transient observation without becoming a diagnostic badge
+    normative_sections: ["9.2", "14"]
+    status: planned
+    activation: after_decisions
+    depends_on_decisions: [DEC-INFO-003, DEC-INFO-008]
+    verification: [unit, browser, visual, accessibility]
+    planned_test_ids: [TST-E2E-ELECTRONICS-MOTOR-RPM-001]
+    planned_fixture_path: e2e/fixtures/electronics/motor-signed-rpm-readout.json
+    gate: pnpm gate:electronics-m1:browser
+    assertions: [finite_signed_rpm_only, readout_screen_upright, readout_scales_with_stage, pointer_events_pass_through, no_warning_semantics]
+    evidence: { result: not_run, verified_sha: null, artifacts: [] }
+
+  - id: ELEC-INFO-022
+    statement: gearmotor inspector exposes ratio efficiency internal RPM output RPM and torque as separate profile-bound values
+    normative_sections: ["9.2", "14"]
+    status: planned
+    activation: after_decisions
+    depends_on_decisions: [DEC-INFO-003, DEC-INFO-009]
+    verification: [unit, browser, content_review]
+    planned_test_ids: [TST-E2E-ELECTRONICS-GEARMOTOR-INFO-001]
+    planned_fixture_path: apps/web/src/electronics/testing/fixtures/gearmotor-information-profile.json
+    gate: pnpm gate:electronics-m1:browser
+    assertions: [ratio_is_profile_bound, motor_and_output_rpm_are_distinct, output_torque_accounts_for_efficiency, power_is_not_claimed_to_increase]
     evidence: { result: not_run, verified_sha: null, artifacts: [] }

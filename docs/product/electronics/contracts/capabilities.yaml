@@ -29,6 +29,11 @@ engineering_decisions:
   - DEC-MATH-014
   - DEC-MATH-015
   - DEC-MATH-016
+  - DEC-MATH-017
+  - DEC-MATH-018
+  - DEC-MATH-019
+  - DEC-MATH-020
+  - DEC-MATH-021
 
 generated_component_coverage:
   source_layers:
@@ -310,7 +315,7 @@ component_families:
   - id: COMPONENT-ACTUATORS
     reference_status: evidence_required
     required_for_full_parity: true
-    parts: [dc_motor, servo, stepper_motor, relay, piezo_buzzer, speaker, vibration_motor]
+    parts: [dc_motor, gearmotor, servo, stepper_motor, relay, piezo_buzzer, speaker, vibration_motor]
   - id: COMPONENT-DISPLAYS
     reference_status: evidence_required
     required_for_full_parity: true
