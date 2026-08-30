@@ -122,11 +122,11 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: math_5a_dual_motor_contract_published_gates_green_implementation_pending
+      checkpoint: math_5a_reference_profiles_published_gates_green_math_5b_pending
       owner_acceptance: pending
     revisions:
       convergence_baseline_sha: 5b052dc631c7036de9d60f4206c9879fe364e732
-      head_sha: aef7030375cc9533c7f1245352244807362d195a
+      head_sha: 0dd27184ad63bd3037cbd1a4c11f72d3350ace76
       owner_accepted_sha: 02902f9c7ce5d3604d4d15dd002ee173d8f4e5f7
     execution_lease:
       executor_id: codex-electronics-docs
