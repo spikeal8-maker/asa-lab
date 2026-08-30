@@ -146,6 +146,16 @@ export {
   PHOTORESISTOR_PROFILE_REGISTRY_VERSION,
 } from './domain/photoresistor-model.js';
 export {
+  buttonContactPairs,
+  spdtConnections,
+  spdtSelectedTerminal,
+  spdtStateForThrow,
+  spdtThrowFromState,
+  SPDT_TERMINALS,
+  TACTILE_BUTTON_TERMINALS,
+  type SpdtThrow,
+} from './domain/switch-topology.js';
+export {
   solveCircuit,
   sourceInternalResistanceOhm,
   type ComponentResult,

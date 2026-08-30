@@ -2442,6 +2442,82 @@ test('four-pin button is a momentary bridge for an arbitrary decimal LED load', 
   await expect(button).not.toHaveClass(/workbench-component-actuator-active/);
   await selectLed(page);
   await expect.poll(() => brightnessValue(page)).toBe(0);
+
+  await buttonBody.click();
+  const buttonInspector = page.locator('.workbench-inspector');
+  await buttonInspector.getByRole('button', { name: 'Техническое состояние Кнопка' }).click();
+  await expect(buttonInspector.getByTestId('button-contact-summary')).toContainText('Отпущена');
+  await expect(buttonInspector.getByRole('checkbox')).toHaveCount(0);
+
+  const holdButton = buttonInspector.getByRole('button', { name: 'Удерживать кнопку' });
+  const holdBox = await holdButton.boundingBox();
+  if (!holdBox) throw new Error('button inspector control has no visual bounding box');
+  await page.mouse.move(holdBox.x + holdBox.width / 2, holdBox.y + holdBox.height / 2);
+  await page.mouse.down();
+  await expect(buttonInspector.getByTestId('button-contact-summary')).toContainText('Нажата');
+  await expect.poll(() => brightnessValue(page)).toBeGreaterThan(0);
+  await page.mouse.up();
+  await expect(buttonInspector.getByTestId('button-contact-summary')).toContainText('Отпущена');
+  await expect.poll(() => brightnessValue(page)).toBe(0);
+
+  await buttonInspector.getByRole('button', { name: 'Справка о компоненте Кнопка' }).click();
+  await expect(
+    page.getByText('После отпускания цепь снова размыкается.', { exact: false }),
+  ).toBeVisible();
+  failures.assertEmpty();
+});
+
+test('SPDT selects exactly one throw and keeps the runtime position out of autosave', async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
+  await page.setViewportSize({ width: 1920, height: 1080 });
+  await loginWithOrganization(page, teacher);
+
+  const projectId = await createProject(page, 'MATH-6C deterministic SPDT');
+  await saveDocument(
+    page,
+    projectId,
+    circuitDocument({ switchClosed: false, resistorOhms: 330, reversedLed: false }),
+  );
+  await page.goto(`/#/home/${projectId}`);
+  await page.getByRole('button', { name: 'Начать моделирование' }).click();
+
+  const switchComponent = component(page, 'switch-spdt');
+  await selectLed(page);
+  await expect.poll(() => brightnessValue(page)).toBe(0);
+  await switchComponent.getByTestId('spdt-actuator').click();
+  await expect.poll(() => brightnessValue(page)).toBeGreaterThan(0);
+
+  const inspector = page.locator('.workbench-inspector');
+  await inspector
+    .getByRole('button', { name: 'Техническое состояние Ползунковый переключатель' })
+    .click();
+  await expect(inspector.getByTestId('spdt-contact-summary')).toContainText('правым выводом');
+  await expect(inspector.getByRole('button', { name: 'Правый вывод' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+
+  await inspector.getByRole('button', { name: 'Левый вывод' }).click();
+  await expect(inspector.getByTestId('spdt-contact-summary')).toContainText('левым выводом');
+  await expect.poll(() => brightnessValue(page)).toBe(0);
+  await inspector.getByRole('button', { name: 'Правый вывод' }).click();
+  await expect.poll(() => brightnessValue(page)).toBeGreaterThan(0);
+
+  await inspector
+    .getByRole('button', { name: 'Справка о компоненте Ползунковый переключатель' })
+    .click();
+  await expect(
+    page.getByText('Общий контакт всегда соединён ровно с одним выводом', { exact: false }),
+  ).toBeVisible();
+
+  await page.reload();
+  await page.getByRole('button', { name: 'Начать моделирование' }).click();
+  await selectLed(page);
+  await expect.poll(() => brightnessValue(page)).toBe(0);
+  await expect(page.locator('[data-testid="schematic-wire"]')).toHaveCount(5);
   failures.assertEmpty();
 });
 

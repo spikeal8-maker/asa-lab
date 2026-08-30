@@ -122,7 +122,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: math_6b_photoresistor_profile_runtime_ready_owner_review_math_5e_control_protection_deferred
+      checkpoint: math_6c_button_spdt_runtime_ready_owner_review_math_5e_control_protection_deferred
       owner_acceptance: pending
     revisions:
       convergence_baseline_sha: 5b052dc631c7036de9d60f4206c9879fe364e732

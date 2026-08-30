@@ -13,6 +13,7 @@ const document: SchematicDocument = {
       wiperPosition: 0.5,
     },
     { id: 'switch', kind: 'switch', position: { x: 20, y: 0 }, value: 0, state: false },
+    { id: 'button', kind: 'button', position: { x: 30, y: 0 }, value: 0, state: false },
     {
       id: 'ldr',
       kind: 'photoresistor',
@@ -39,6 +40,7 @@ describe('Electronics runtime controls', () => {
     const runtime = applyRuntimeComponentOverrides(document, true, {
       pot: { wiperPosition: 0.8 },
       switch: { state: true },
+      button: { state: true },
       ldr: { stateProperties: { illumination: 0.9 } },
       motor: { stateProperties: { shaftLocked: true } },
     });
@@ -47,6 +49,7 @@ describe('Electronics runtime controls', () => {
     expect(runtime?.simulation.running).toBe(true);
     expect(runtime?.components.find((item) => item.id === 'pot')?.wiperPosition).toBe(0.8);
     expect(runtime?.components.find((item) => item.id === 'switch')?.state).toBe(true);
+    expect(runtime?.components.find((item) => item.id === 'button')?.state).toBe(true);
     expect(
       runtime?.components.find((item) => item.id === 'ldr')?.stateProperties?.['illumination'],
     ).toBe(0.9);
@@ -57,6 +60,7 @@ describe('Electronics runtime controls', () => {
     expect(document.simulation.running).toBe(false);
     expect(document.components.find((item) => item.id === 'pot')?.wiperPosition).toBe(0.5);
     expect(document.components.find((item) => item.id === 'switch')?.state).toBe(false);
+    expect(document.components.find((item) => item.id === 'button')?.state).toBe(false);
     expect(
       document.components.find((item) => item.id === 'ldr')?.stateProperties?.['illumination'],
     ).toBe(0.5);

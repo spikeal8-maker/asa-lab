@@ -11,6 +11,7 @@ import {
   isArduinoUno,
 } from './arduino-model.js';
 import { photoresistorResistanceOhm } from './photoresistor-model.js';
+import { spdtSelectedTerminal } from './switch-topology.js';
 import { buildNetlist, terminalKey } from './netlist.js';
 import {
   unsupportedElectricalComponents,
@@ -563,7 +564,7 @@ function logicalTerminal(component: SchematicComponent, terminal: LogicalTermina
   if (component.kind === 'button') return terminal === 'a' ? 'SW-A1' : 'SW-B1';
   if (component.kind === 'switch') {
     if (terminal === 'a') return 'common';
-    return component.state === true ? 'throw-right' : 'throw-left';
+    return spdtSelectedTerminal(component.state);
   }
   if (component.kind === 'potentiometer') {
     if (terminal === 'wiper') return 'wiper';

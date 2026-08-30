@@ -2,6 +2,10 @@ export const WORLD_UNITS_PER_MM = 5 as const;
 export const BREADBOARD_PITCH_MM = 2.54 as const;
 export const PIN_ANCHOR_TOLERANCE_MM = 0.25 as const;
 
+// Contact topology belongs to the shared browser/server domain. Re-export it
+// here for the visual contract tests instead of maintaining a second mapping.
+export { buttonContactPairs, spdtConnections, type SpdtThrow } from '@asa-lab/electronics';
+
 export type OrdinaryLedColour = 'blue' | 'green' | 'orange' | 'red' | 'white' | 'yellow';
 export type OrdinaryLedFault = 'none' | 'reverse' | 'overcurrent' | 'burned';
 export type RgbCommonMode = 'common-anode' | 'common-cathode';
@@ -24,7 +28,6 @@ export const SEVEN_SEGMENT_COLOUR_OPTIONS: readonly {
   { value: 'yellow', label: 'Жёлтый' },
   { value: 'white', label: 'Белый' },
 ];
-export type SpdtThrow = 'left' | 'right';
 export type MotorDirection = 'clockwise' | 'counterclockwise' | 'stopped';
 export type LampState = 'off' | 'dim' | 'on' | 'max';
 export type ResistorBandColour =
@@ -263,23 +266,6 @@ export function resistorBandState(
       RESISTOR_TOLERANCE_COLOURS[tolerancePercent],
     ],
   };
-}
-
-export function buttonContactPairs(pressed: boolean): readonly (readonly [string, string])[] {
-  return pressed
-    ? [
-        ['SW-A1', 'SW-A2'],
-        ['SW-B1', 'SW-B2'],
-        ['SW-A1', 'SW-B1'],
-      ]
-    : [
-        ['SW-A1', 'SW-A2'],
-        ['SW-B1', 'SW-B2'],
-      ];
-}
-
-export function spdtConnections(selected: SpdtThrow): readonly (readonly [string, string])[] {
-  return [['common', selected === 'left' ? 'throw-left' : 'throw-right']];
 }
 
 export function potentiometerKnobAngle(wiperPosition: number): number {

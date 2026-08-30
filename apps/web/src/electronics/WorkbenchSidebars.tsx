@@ -6,6 +6,7 @@ import {
   photoresistorResistanceOhm,
   PHOTORESISTOR_PROFILE,
   resolveBrushedMotorProfileSelection,
+  spdtThrowFromState,
   type ComponentResult,
 } from '@asa-lab/electronics';
 import {
@@ -743,33 +744,79 @@ export function WorkbenchSidebars({
                   </label>
                 </>
               ) : null}
-              {stateOpen &&
-              (c.selectedComponent.kind === 'switch' || c.selectedComponent.kind === 'button') ? (
-                <label className="workbench-toggle-property">
-                  <span>
-                    {c.selectedComponent.kind === 'button'
-                      ? 'Кнопка нажата'
-                      : 'SPDT: common → right'}
-                  </span>
-                  <input
-                    type="checkbox"
-                    disabled={!c.simulationRunning}
-                    checked={c.selectedComponent.state === true}
-                    onChange={(event) => c.setSelectedState(event.target.checked)}
-                  />
-                </label>
+              {c.selectedComponent.kind === 'switch' && stateOpen ? (
+                <fieldset className="workbench-state-controls workbench-contact-controls">
+                  <legend>Положение ползункового переключателя</legend>
+                  <div
+                    className="workbench-spdt-position-control"
+                    role="group"
+                    aria-label="Положение ползункового переключателя"
+                  >
+                    <button
+                      type="button"
+                      disabled={!c.simulationRunning}
+                      aria-pressed={spdtThrowFromState(c.selectedComponent.state) === 'left'}
+                      onClick={() => c.setSelectedState(false)}
+                    >
+                      Левый вывод
+                    </button>
+                    <button
+                      type="button"
+                      disabled={!c.simulationRunning}
+                      aria-pressed={spdtThrowFromState(c.selectedComponent.state) === 'right'}
+                      onClick={() => c.setSelectedState(true)}
+                    >
+                      Правый вывод
+                    </button>
+                  </div>
+                  <p className="workbench-contact-summary" data-testid="spdt-contact-summary">
+                    Общий контакт соединён с{' '}
+                    {spdtThrowFromState(c.selectedComponent.state) === 'right'
+                      ? 'правым выводом'
+                      : 'левым выводом'}
+                    .
+                  </p>
+                </fieldset>
               ) : null}
               {c.selectedComponent.kind === 'button' && stateOpen ? (
-                <button
-                  type="button"
-                  className="workbench-momentary-button"
-                  disabled={!c.simulationRunning}
-                  onPointerDown={() => c.setSelectedState(true)}
-                  onPointerUp={() => c.setSelectedState(false)}
-                  onPointerLeave={() => c.setSelectedState(false)}
-                >
-                  Удерживать кнопку
-                </button>
+                <fieldset className="workbench-state-controls workbench-contact-controls">
+                  <legend>Состояние тактовой кнопки</legend>
+                  <p className="workbench-contact-summary" data-testid="button-contact-summary">
+                    <strong>{c.selectedComponent.state === true ? 'Нажата' : 'Отпущена'}</strong>
+                    <span>
+                      {c.selectedComponent.state === true
+                        ? ' Две стороны сейчас соединены.'
+                        : ' Две стороны разомкнуты.'}
+                    </span>
+                  </p>
+                  <button
+                    type="button"
+                    className="workbench-momentary-button"
+                    disabled={!c.simulationRunning}
+                    aria-pressed={c.selectedComponent.state === true}
+                    onPointerDown={(event) => {
+                      event.currentTarget.setPointerCapture(event.pointerId);
+                      c.setSelectedState(true);
+                    }}
+                    onPointerUp={(event) => {
+                      if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+                        event.currentTarget.releasePointerCapture(event.pointerId);
+                      }
+                      c.setSelectedState(false);
+                    }}
+                    onPointerCancel={() => c.setSelectedState(false)}
+                    onLostPointerCapture={() => c.setSelectedState(false)}
+                    onKeyDown={(event) => {
+                      if (event.key === ' ' || event.key === 'Enter') c.setSelectedState(true);
+                    }}
+                    onKeyUp={(event) => {
+                      if (event.key === ' ' || event.key === 'Enter') c.setSelectedState(false);
+                    }}
+                    onBlur={() => c.setSelectedState(false)}
+                  >
+                    Удерживать кнопку
+                  </button>
+                </fieldset>
               ) : null}
               {c.selectedComponent.kind === 'potentiometer' && stateOpen ? (
                 <label>
