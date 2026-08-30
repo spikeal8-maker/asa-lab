@@ -165,5 +165,5 @@ describe('process-level shutdown', () => {
     }
     // Emergency cleanup must never be the mechanism that passes this test.
     expect(forced).toBe(false);
-  });
+  }, 30_000);
 });

@@ -419,8 +419,8 @@ export function gearmotorVisualPresentation(
   return {
     motorDirection: motorMotion.direction,
     outputDirection: outputMotion.direction,
-    motorHighlightShift: Math.sin(motorPhase * Math.PI * 2) * 3,
-    outputHighlightShift: Math.sin(outputPhase * Math.PI * 2) * 2.5,
+    motorHighlightShift: Math.sin(motorPhase * Math.PI * 2) * 4,
+    outputHighlightShift: Math.sin(outputPhase * Math.PI * 2) * 7,
   };
 }
 

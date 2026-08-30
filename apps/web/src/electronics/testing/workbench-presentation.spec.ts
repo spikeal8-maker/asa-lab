@@ -417,22 +417,24 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(stageSource).toContain('result?.outputRpm ?? 0');
     expect(stageSource).toContain('formatMotorRpm(rpm)');
     expect(stageSource).toContain('pointerEvents="none"');
-    expect(sidebarSource).toContain("'dc-motor-rpm-measurement'");
+    expect(sidebarSource).toContain('data-testid="dc-motor-rpm-measurement"');
     expect(sidebarSource).toContain('data-testid="gearmotor-profile-summary"');
     expect(sidebarSource).toContain('Настройки мотор-редуктора');
-    expect(sidebarSource).toContain('aria-label="Профиль мотор-редуктора"');
-    expect(sidebarSource).toContain('Нагрузка на выходном валу, мН·м');
+    expect(sidebarSource).toContain('1:48 · TT · 3–6 В');
+    expect(sidebarSource).toContain('Сейчас доступна одна подтверждённая версия.');
+    expect(sidebarSource).toContain('Нагрузка на вал, мН·м');
     expect(sidebarSource).toContain('Заблокировать выходной вал мотор-редуктора');
-    expect(sidebarSource).toContain("'gearmotor-motor-rpm-measurement'");
+    expect(sidebarSource).toContain('data-testid="gearmotor-motor-rpm-measurement"');
     expect(sidebarSource).toContain('data-testid="gearmotor-output-rpm-measurement"');
     expect(sidebarSource).toContain('data-testid="gearmotor-output-torque-measurement"');
+    expect(sidebarSource).toContain('Подробные параметры');
     expect(sidebarSource).toContain('Передаточное отношение');
     expect(sidebarSource).toContain('КПД редуктора');
-    expect(sidebarSource).toContain('Механическая мощность на выходе');
+    expect(sidebarSource).toContain('Мощность на выходе');
     expect(sidebarSource).toContain('Электромагнитный момент');
     expect(sidebarSource).toContain('Нагрузка на валу');
     expect(sidebarSource).toContain('Рабочий диапазон');
-    expect(sidebarSource).toContain('Состояние напряжения');
+    expect(sidebarSource).toContain('Режим питания');
     expect(sidebarSource).toContain('Нагрев обмотки I²R');
     expect(sidebarSource).toContain("'Заблокировать вал двигателя'");
     expect(sidebarSource).toContain("'Заблокировать выходной вал мотор-редуктора'");
@@ -440,6 +442,8 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(controllerModuleSource).toContain('{ stateProperties: { shaftLocked } }');
     expect(workbenchCss).toContain("data-component-type='dc-motor'");
     expect(workbenchCss).toContain('.workbench-gearmotor-output-bar-highlight');
+    expect(workbenchCss).toContain('fill: #66727b');
+    expect(workbenchCss).toContain('transition: transform 220ms linear');
     expect(workbenchCss).toContain('--workbench-gearmotor-motor-highlight-shift');
     expect(sidebarSource).toContain('Обмотка');
     expect(stageSource).toContain('data-hit-surface="potentiometer-knob-face"');
@@ -459,7 +463,9 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(sidebarSource).not.toContain(
       'Измерения появятся после внедрения его математической модели.',
     );
-    expect(sidebarSource).toContain('stateOpen && measurement && technicalMetrics.length > 0');
+    expect(sidebarSource).toContain(
+      'stateOpen && measurement && !selectedIsGearmotor && technicalMetrics.length > 0',
+    );
     expect(sidebarSource).toContain('stateOpen && selectedDiagnostics.length > 0');
     expect(sidebarSource).not.toContain('workbench-led-electrical-state');
     expect(editorSource).toContain('window.print()');

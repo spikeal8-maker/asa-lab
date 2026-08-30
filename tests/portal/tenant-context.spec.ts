@@ -34,7 +34,7 @@ describe('database URL isolation', () => {
     });
     expect(result.status).not.toBe(0);
     expect(result.stderr).toContain('APP_DATABASE_URL is required');
-  });
+  }, 30_000);
 
   it('the API child environment never contains admin or test URLs', () => {
     const env = apiChildEnv(

@@ -628,6 +628,65 @@ describe('deterministic DC solver', () => {
     expect(result.transientState?.motors).toHaveLength(1);
   });
 
+  it('treats 12 V as destructive for the confirmed 3-6 V gearmotor profile', () => {
+    const gearmotorDocument = doc(
+      [
+        component('source', 'source', 12),
+        component('gearmotor', 'visual', 6, {
+          componentTypeId: 'gearmotor',
+          pinIds: ['negative', 'positive'],
+          stateProperties: { motorAssemblyProfileId: 'adafruit-3777-tt-48to1' },
+        }),
+      ],
+      [
+        connect('positive', 'source', 'a', 'gearmotor', 'positive'),
+        connect('negative', 'gearmotor', 'negative', 'source', 'b'),
+      ],
+    );
+    const firstSecond = solveCircuit(gearmotorDocument, { simulationTimeMs: 1_000 });
+    const running = firstSecond.components.find((item) => item.componentId === 'gearmotor');
+
+    expect(running).toMatchObject({
+      operatingVoltageMinVolt: 3,
+      operatingVoltageMaxVolt: 6,
+      motorVoltageState: 'overvoltage',
+      windingFailureMode: 'none',
+    });
+    expect(running?.accumulatedDamagePercent).toBeGreaterThan(0);
+    expect(running?.temperatureCelsius).toBeLessThan(90);
+    expect(firstSecond.diagnostics).toContainEqual(
+      expect.objectContaining({
+        code: 'motor_overvoltage',
+        componentIds: ['gearmotor'],
+        suggestedAction: expect.stringContaining('рассчитан на 3–6 В'),
+      }),
+    );
+
+    let failed = firstSecond;
+    for (let simulationTimeMs = 2_000; simulationTimeMs <= 20_000; simulationTimeMs += 1_000) {
+      if (!failed.transientState) throw new Error('gearmotor transient state missing');
+      failed = solveCircuit(gearmotorDocument, {
+        simulationTimeMs,
+        transientState: failed.transientState,
+      });
+      if (
+        failed.components.find((item) => item.componentId === 'gearmotor')?.windingFailureMode ===
+        'winding_open'
+      ) {
+        break;
+      }
+    }
+    expect(failed.components.find((item) => item.componentId === 'gearmotor')).toMatchObject({
+      current: 0,
+      motorVoltageState: 'overvoltage',
+      windingFailureMode: 'winding_open',
+      stressState: 'burned',
+      deviceHealth: 'failed_open',
+      damageState: 'failed',
+      presentationState: 'failed',
+    });
+  });
+
   it('marks a 23 V unloaded motor as destructive overvoltage instead of healthy', () => {
     const motorDocument = doc(
       [

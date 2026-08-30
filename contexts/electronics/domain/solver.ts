@@ -2494,7 +2494,9 @@ function solveCircuitStep(
         message: `${motor.name ?? motor.id}: напряжение ${Math.abs(result.voltageDrop).toFixed(2)} В выше рабочего диапазона до ${maximumVoltage.toFixed(0)} В.`,
         componentIds: [motor.id],
         suggestedAction:
-          'Уменьшите напряжение. Для контролируемого опыта с нагревом используйте блокировку вала.',
+          motor.componentTypeId === 'gearmotor'
+            ? `Этот TT-мотор рассчитан на 3–${maximumVoltage.toFixed(0)} В. При длительном питании ${Math.abs(result.voltageDrop).toFixed(1)} В накапливается повреждение и обмотка перегорит; для штатной работы уменьшите напряжение.`
+            : 'Уменьшите напряжение. Для контролируемого опыта с нагревом используйте блокировку вала.',
       });
     }
     if (result.motorOperatingMode === 'stalled') {

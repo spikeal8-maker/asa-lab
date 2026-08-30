@@ -1708,11 +1708,11 @@ test('1:48 gearmotor exposes real settings, output RPM and runtime shaft control
   const inspector = page.getByRole('complementary', { name: 'Параметры выделения' });
   await inspector.getByRole('button', { name: /Техническое состояние/ }).click();
   await expect(inspector.getByText('Настройки мотор-редуктора', { exact: true })).toBeVisible();
-  await expect(inspector.getByLabel('Профиль мотор-редуктора')).toHaveValue(
-    'adafruit-3777-tt-48to1',
-  );
+  await expect(inspector.getByText('1:48 · TT · 3–6 В', { exact: true })).toBeVisible();
+  await expect(
+    inspector.getByText('Сейчас доступна одна подтверждённая версия.', { exact: true }),
+  ).toBeVisible();
   await expect(inspector.getByLabel('Нагрузка на выходном валу мотор-редуктора')).toHaveValue('0');
-  await expect(inspector.getByText('TT-мотор 1:48 · 3–6 В', { exact: true })).toBeVisible();
 
   await page.getByRole('button', { name: 'Начать моделирование' }).click();
   await expect
@@ -1722,11 +1722,27 @@ test('1:48 gearmotor exposes real settings, output RPM and runtime shaft control
     .toBeGreaterThan(0);
   const phaseVisual = motor.getByTestId('gearmotor-phase');
   await expect(phaseVisual).toHaveAttribute('data-output-visual-direction', 'clockwise');
-  await expect(inspector.getByText('Скорость двигателя внутри', { exact: true })).toBeVisible();
-  await expect(inspector.getByText('Скорость выходного вала', { exact: true })).toBeVisible();
+  const outputShaftMarker = phaseVisual.locator('.workbench-gearmotor-output-bar-highlight');
+  await expect(outputShaftMarker).toHaveCSS('fill', 'rgb(102, 114, 123)');
+  await expect(outputShaftMarker).toHaveCSS('opacity', '0.88');
+  const initialMarkerTransform = await outputShaftMarker.evaluate(
+    (element) => getComputedStyle(element).transform,
+  );
+  await expect
+    .poll(
+      async () => outputShaftMarker.evaluate((element) => getComputedStyle(element).transform),
+      { timeout: 5_000 },
+    )
+    .not.toBe(initialMarkerTransform);
+  await expect(inspector.getByText('Выходной вал', { exact: true })).toBeVisible();
+  const advancedParameters = inspector.getByText('Подробные параметры', { exact: true });
+  await advancedParameters.click();
+  await expect(inspector.getByText('Двигатель внутри', { exact: true })).toBeVisible();
   await expect(inspector.getByText('Передаточное отношение', { exact: true })).toBeVisible();
   await expect(inspector.getByText('КПД редуктора', { exact: true })).toBeVisible();
   await expect(inspector.getByText('Момент выходного вала', { exact: true })).toBeVisible();
+  await advancedParameters.click();
+  await expect(inspector.getByText('Двигатель внутри', { exact: true })).toBeHidden();
 
   const shaftLock = inspector.getByLabel('Заблокировать выходной вал мотор-редуктора');
   await shaftLock.check();

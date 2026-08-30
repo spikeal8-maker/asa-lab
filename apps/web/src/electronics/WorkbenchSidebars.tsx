@@ -3,6 +3,7 @@ import {
   ledForwardVoltageAtCurrent,
   ordinaryLedProfile,
   resolveBrushedMotorProfileSelection,
+  type ComponentResult,
 } from '@asa-lab/electronics';
 import {
   CATEGORY_OPTIONS,
@@ -44,6 +45,127 @@ const LED_COLOUR_OPTIONS = [
   { value: 'red', label: 'Красный' },
   { value: 'white', label: 'Белый' },
 ] as const;
+
+function motorDirectionLabel(direction: ComponentResult['direction']): string {
+  if (direction === 'clockwise') return 'По часовой стрелке';
+  if (direction === 'counterclockwise') return 'Против часовой стрелки';
+  return 'Остановлен';
+}
+
+function motorVoltageStateLabel(state: ComponentResult['motorVoltageState']): string {
+  if (state === 'overvoltage') return 'Напряжение слишком высокое';
+  if (state === 'below_range') return 'Напряжение ниже рабочего';
+  return 'Рабочее напряжение';
+}
+
+function GearmotorMeasurements({
+  measurement,
+  gearRatio,
+}: {
+  readonly measurement: ComponentResult;
+  readonly gearRatio: number;
+}): JSX.Element {
+  const windingLabel =
+    measurement.windingFailureMode === 'winding_open'
+      ? 'Перегорела — цепь разомкнута'
+      : measurement.motorOperatingMode === 'stalled'
+        ? 'Вал заблокирован'
+        : 'Исправна';
+  return (
+    <>
+      <dl
+        className="workbench-measurements workbench-gearmotor-essential"
+        data-profile-family="gearmotor"
+      >
+        <div>
+          <dt>Напряжение</dt>
+          <dd>{measurement.voltageDrop.toFixed(3)} В</dd>
+        </div>
+        <div>
+          <dt>Ток</dt>
+          <dd>{(measurement.current * 1_000).toFixed(2)} мА</dd>
+        </div>
+        <div data-testid="gearmotor-output-rpm-measurement">
+          <dt>Выходной вал</dt>
+          <dd>{Math.round(measurement.outputRpm ?? 0)} об/мин</dd>
+        </div>
+        <div>
+          <dt>Направление</dt>
+          <dd>{motorDirectionLabel(measurement.direction)}</dd>
+        </div>
+        <div>
+          <dt>Режим питания</dt>
+          <dd>{motorVoltageStateLabel(measurement.motorVoltageState)}</dd>
+        </div>
+        <div>
+          <dt>Нагрузка на валу</dt>
+          <dd>{((measurement.outputLoadTorqueNewtonMeter ?? 0) * 1_000).toFixed(2)} мН·м</dd>
+        </div>
+        <div>
+          <dt>Обмотка</dt>
+          <dd>{windingLabel}</dd>
+        </div>
+        <div>
+          <dt>Температура</dt>
+          <dd>{(measurement.temperatureCelsius ?? 25).toFixed(1)} °C</dd>
+        </div>
+      </dl>
+      <details className="workbench-gearmotor-details">
+        <summary>Подробные параметры</summary>
+        <dl className="workbench-measurements">
+          <div>
+            <dt>Рабочий диапазон</dt>
+            <dd>
+              {(measurement.operatingVoltageMinVolt ?? 0).toFixed(0)}–
+              {(measurement.operatingVoltageMaxVolt ?? 0).toFixed(0)} В
+            </dd>
+          </div>
+          <div>
+            <dt>Передаточное отношение</dt>
+            <dd>1:{gearRatio.toFixed(0)}</dd>
+          </div>
+          <div>
+            <dt>КПД редуктора</dt>
+            <dd>{((measurement.transmissionEfficiency ?? 0) * 100).toFixed(0)}%</dd>
+          </div>
+          <div data-testid="gearmotor-motor-rpm-measurement">
+            <dt>Двигатель внутри</dt>
+            <dd>{Math.round(measurement.motorRpm ?? 0)} об/мин</dd>
+          </div>
+          <div>
+            <dt>Момент двигателя</dt>
+            <dd>{((measurement.electromagneticTorqueNewtonMeter ?? 0) * 1_000).toFixed(2)} мН·м</dd>
+          </div>
+          <div data-testid="gearmotor-output-torque-measurement">
+            <dt>Момент выходного вала</dt>
+            <dd>{((measurement.outputTorqueNewtonMeter ?? 0) * 1_000).toFixed(2)} мН·м</dd>
+          </div>
+          <div>
+            <dt>Мощность на выходе</dt>
+            <dd>{(measurement.outputMechanicalPowerWatt ?? 0).toFixed(3)} Вт</dd>
+          </div>
+          <div>
+            <dt>Нагрев обмотки I²R</dt>
+            <dd>{(measurement.copperLossWatt ?? 0).toFixed(3)} Вт</dd>
+          </div>
+          {measurement.currentUtilizationPercent !== undefined ? (
+            <div>
+              <dt>Нагрузка по току</dt>
+              <dd>{measurement.currentUtilizationPercent.toFixed(0)}%</dd>
+            </div>
+          ) : null}
+          {measurement.accumulatedDamagePercent !== undefined &&
+          measurement.accumulatedDamagePercent > 0 ? (
+            <div>
+              <dt>Накопленный износ</dt>
+              <dd>{measurement.accumulatedDamagePercent.toFixed(0)}%</dd>
+            </div>
+          ) : null}
+        </dl>
+      </details>
+    </>
+  );
+}
 
 function projectVariantLabel(familyId: string, variantId: string, fallback: string): string {
   if (familyId === 'breadboard') {
@@ -671,26 +793,12 @@ export function WorkbenchSidebars({
               {selectedIsGearmotor && stateOpen && selectedMotorProfile?.ok ? (
                 <fieldset className="workbench-state-controls workbench-gearmotor-controls">
                   <legend>Настройки мотор-редуктора</legend>
+                  <div className="workbench-gearmotor-fixed-profile">
+                    <span>Редуктор</span>
+                    <strong>1:48 · TT · 3–6 В</strong>
+                  </div>
                   <label>
-                    <span>Профиль редуктора</span>
-                    <select
-                      aria-label="Профиль мотор-редуктора"
-                      value={String(
-                        c.selectedComponent.stateProperties?.['motorAssemblyProfileId'] ??
-                          selectedMotorProfile.profile.profileId,
-                      )}
-                      onChange={(event) =>
-                        c.setSelectedProperties(
-                          { motorAssemblyProfileId: event.target.value },
-                          'Профиль мотор-редуктора изменён.',
-                        )
-                      }
-                    >
-                      <option value="adafruit-3777-tt-48to1">1:48 — пластиковый TT, 3–6 В</option>
-                    </select>
-                  </label>
-                  <label>
-                    <span>Нагрузка на выходном валу, мН·м</span>
+                    <span>Нагрузка на вал, мН·м</span>
                     <input
                       aria-label="Нагрузка на выходном валу мотор-редуктора"
                       type="number"
@@ -719,14 +827,8 @@ export function WorkbenchSidebars({
                     className="workbench-motor-profile-summary"
                     data-testid="gearmotor-profile-summary"
                   >
-                    <strong>TT-мотор 1:48 · 3–6 В</strong>
-                    <span>
-                      Передаточное отношение 1:
-                      {selectedMotorProfile.profile.transmission.gearRatio.value.toFixed(0)}
-                    </span>
-                    <small>
-                      Вариант 1:90 не выбирается: для него нужен другой подтверждённый корпус.
-                    </small>
+                    <span>Сейчас доступна одна подтверждённая версия.</span>
+                    <small>Другие редукторы появятся только со своим проверенным корпусом.</small>
                   </div>
                 </fieldset>
               ) : null}
@@ -952,7 +1054,18 @@ export function WorkbenchSidebars({
                 </div>
               ) : null}
 
-              {stateOpen && measurement && technicalMetrics.length > 0 ? (
+              {stateOpen &&
+              measurement &&
+              selectedIsGearmotor &&
+              measurement.motorRpm !== undefined &&
+              selectedMotorProfile?.ok ? (
+                <GearmotorMeasurements
+                  measurement={measurement}
+                  gearRatio={selectedMotorProfile.profile.transmission.gearRatio.value}
+                />
+              ) : null}
+
+              {stateOpen && measurement && !selectedIsGearmotor && technicalMetrics.length > 0 ? (
                 <dl
                   className="workbench-measurements"
                   data-profile-family={informationProfile?.componentFamilyId}
@@ -980,8 +1093,7 @@ export function WorkbenchSidebars({
                       <dd>{measurement.currentUtilizationPercent.toFixed(0)}%</dd>
                     </div>
                   ) : null}
-                  {(c.selectedEntry.key === 'dc-motor' || c.selectedEntry.key === 'gearmotor') &&
-                  measurement.motorRpm !== undefined ? (
+                  {c.selectedEntry.key === 'dc-motor' && measurement.motorRpm !== undefined ? (
                     <>
                       <div>
                         <dt>Рабочий диапазон</dt>
@@ -1000,78 +1112,21 @@ export function WorkbenchSidebars({
                               : 'В рабочем диапазоне'}
                         </dd>
                       </div>
-                      {c.selectedEntry.key === 'gearmotor' && selectedMotorProfile?.ok ? (
-                        <div>
-                          <dt>Передаточное отношение</dt>
-                          <dd>
-                            1:
-                            {selectedMotorProfile.profile.transmission.gearRatio.value.toFixed(0)}
-                          </dd>
-                        </div>
-                      ) : null}
-                      {c.selectedEntry.key === 'gearmotor' &&
-                      measurement.transmissionEfficiency !== undefined ? (
-                        <div>
-                          <dt>КПД редуктора</dt>
-                          <dd>{(measurement.transmissionEfficiency * 100).toFixed(0)}%</dd>
-                        </div>
-                      ) : null}
-                      <div
-                        data-testid={
-                          c.selectedEntry.key === 'gearmotor'
-                            ? 'gearmotor-motor-rpm-measurement'
-                            : 'dc-motor-rpm-measurement'
-                        }
-                      >
-                        <dt>
-                          {c.selectedEntry.key === 'gearmotor'
-                            ? 'Скорость двигателя внутри'
-                            : 'Скорость'}
-                        </dt>
+                      <div data-testid="dc-motor-rpm-measurement">
+                        <dt>Скорость</dt>
                         <dd>{Math.round(measurement.motorRpm)} об/мин</dd>
                       </div>
-                      {c.selectedEntry.key === 'gearmotor' &&
-                      measurement.outputRpm !== undefined ? (
-                        <div data-testid="gearmotor-output-rpm-measurement">
-                          <dt>Скорость выходного вала</dt>
-                          <dd>{Math.round(measurement.outputRpm)} об/мин</dd>
-                        </div>
-                      ) : null}
                       <div>
                         <dt>Направление</dt>
-                        <dd>
-                          {measurement.direction === 'clockwise'
-                            ? 'По часовой стрелке'
-                            : measurement.direction === 'counterclockwise'
-                              ? 'Против часовой стрелки'
-                              : 'Остановлен'}
-                        </dd>
+                        <dd>{motorDirectionLabel(measurement.direction)}</dd>
                       </div>
                       <div>
-                        <dt>
-                          {c.selectedEntry.key === 'gearmotor'
-                            ? 'Момент двигателя внутри'
-                            : 'Электромагнитный момент'}
-                        </dt>
+                        <dt>Электромагнитный момент</dt>
                         <dd>
                           {((measurement.electromagneticTorqueNewtonMeter ?? 0) * 1_000).toFixed(2)}{' '}
                           мН·м
                         </dd>
                       </div>
-                      {c.selectedEntry.key === 'gearmotor' &&
-                      measurement.outputTorqueNewtonMeter !== undefined ? (
-                        <div data-testid="gearmotor-output-torque-measurement">
-                          <dt>Момент выходного вала</dt>
-                          <dd>{(measurement.outputTorqueNewtonMeter * 1_000).toFixed(2)} мН·м</dd>
-                        </div>
-                      ) : null}
-                      {c.selectedEntry.key === 'gearmotor' &&
-                      measurement.outputMechanicalPowerWatt !== undefined ? (
-                        <div>
-                          <dt>Механическая мощность на выходе</dt>
-                          <dd>{measurement.outputMechanicalPowerWatt.toFixed(3)} Вт</dd>
-                        </div>
-                      ) : null}
                       <div>
                         <dt>Нагрузка на валу</dt>
                         <dd>

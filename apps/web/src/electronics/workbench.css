@@ -511,17 +511,24 @@
 }
 .workbench-gearmotor-visual .workbench-gearmotor-output-bar-highlight {
   transform: translateY(var(--workbench-gearmotor-output-highlight-shift, 0));
+  fill: #66727b;
+  opacity: 0.88;
 }
 .workbench-gearmotor-visual .workbench-gearmotor-output-axle-highlight {
   transform: translateX(var(--workbench-gearmotor-output-highlight-shift, 0));
+  fill: #806f00;
+  opacity: 0.88;
 }
 .workbench-gearmotor-visual .workbench-gearmotor-motor-shaft-highlight {
   transform: translateX(var(--workbench-gearmotor-motor-highlight-shift, 0));
+  fill: #46515a;
+  opacity: 0.9;
 }
 .workbench-gearmotor-visual .workbench-gearmotor-output-bar-highlight,
 .workbench-gearmotor-visual .workbench-gearmotor-output-axle-highlight,
 .workbench-gearmotor-visual .workbench-gearmotor-motor-shaft-highlight {
-  transition: transform 80ms linear;
+  will-change: transform;
+  transition: transform 220ms linear;
 }
 @media (prefers-reduced-motion: reduce) {
   .workbench-gearmotor-visual .workbench-gearmotor-output-bar-highlight,
@@ -556,6 +563,60 @@
 .workbench-motor-profile-summary small {
   color: #687b87;
   line-height: 1.35;
+}
+.workbench-gearmotor-fixed-profile {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  min-height: 32px;
+}
+.workbench-gearmotor-fixed-profile > span,
+.workbench-gearmotor-fixed-profile > strong {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  min-height: 30px;
+  padding: 5px 7px;
+}
+.workbench-gearmotor-fixed-profile > span {
+  background: #0696d7;
+  color: #fff;
+}
+.workbench-gearmotor-fixed-profile > strong {
+  border: 1px solid #c5cfd9;
+  background: #fff;
+  color: #243746;
+  font-size: 12px;
+}
+.workbench-gearmotor-controls > label {
+  grid-template-columns: 1fr !important;
+}
+.workbench-gearmotor-controls > label > span {
+  min-height: 26px;
+  padding: 5px 7px;
+}
+.workbench-gearmotor-controls > label > input {
+  height: 32px;
+}
+.workbench-gearmotor-controls .workbench-motor-profile-summary {
+  gap: 2px;
+  padding: 7px 9px;
+  font-size: 11px;
+}
+.workbench-gearmotor-details {
+  margin: 2px 0 0;
+  border-top: 1px solid #d8e0e5;
+}
+.workbench-gearmotor-details > summary {
+  padding: 8px 9px;
+  color: #31556a;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.workbench-gearmotor-details[open] > summary {
+  border-bottom: 1px solid #d8e0e5;
+  background: #f4f9fc;
 }
 .workbench-piezo-visual.is-sounding > image {
   transform-box: fill-box;

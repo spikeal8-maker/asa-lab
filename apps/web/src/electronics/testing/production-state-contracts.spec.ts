@@ -145,6 +145,7 @@ describe('typed Electronics state and animation contracts', () => {
     const reverse = gearmotorVisualPresentation(1_000, -12_000, -250);
     expect(Number.isFinite(forward.motorHighlightShift)).toBe(true);
     expect(Number.isFinite(forward.outputHighlightShift)).toBe(true);
+    expect(Math.abs(forward.outputHighlightShift)).toBeGreaterThan(5);
     expect(forward.motorHighlightShift).not.toBeCloseTo(forward.outputHighlightShift, 4);
     expect(reverse).toMatchObject({
       motorDirection: 'counterclockwise',
