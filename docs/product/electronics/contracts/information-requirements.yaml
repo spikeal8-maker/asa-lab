@@ -319,7 +319,7 @@ requirements:
     evidence: { result: not_run, verified_sha: null, artifacts: [] }
 
   - id: ELEC-INFO-021
-    statement: motor stage readout shows finite signed RPM from the accepted transient observation without becoming a diagnostic badge
+    statement: motor stage readout shows finite signed RPM from the accepted transient observation without becoming a diagnostic badge while gearmotor RPM stays on its primary yellow housing
     normative_sections: ["9.2", "14"]
     status: planned
     activation: after_decisions
@@ -328,7 +328,7 @@ requirements:
     planned_test_ids: [TST-E2E-ELECTRONICS-MOTOR-RPM-001]
     planned_fixture_path: e2e/fixtures/electronics/motor-signed-rpm-readout.json
     gate: pnpm gate:electronics-m1:browser
-    assertions: [finite_signed_rpm_only, readout_screen_upright, readout_scales_with_stage, pointer_events_pass_through, no_warning_semantics]
+    assertions: [finite_signed_rpm_only, gearmotor_readout_on_primary_body, readout_screen_upright, readout_scales_with_stage, pointer_events_pass_through, no_warning_semantics]
     evidence: { result: not_run, verified_sha: null, artifacts: [] }
 
   - id: ELEC-INFO-022

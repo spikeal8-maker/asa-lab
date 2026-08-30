@@ -1742,15 +1742,33 @@ test('1:48 gearmotor exposes real settings, output RPM and runtime shaft control
       timeout: 10_000,
     })
     .toBeGreaterThan(0);
+  await expect(readout).toHaveAttribute('data-placement', 'primary-body');
   const phaseVisual = motor.getByTestId('gearmotor-phase');
   await expect(phaseVisual).toHaveAttribute('data-output-visual-direction', 'clockwise');
+  const visualBox = await phaseVisual.boundingBox();
+  const readoutBox = await readout.boundingBox();
+  expect(visualBox).not.toBeNull();
+  expect(readoutBox).not.toBeNull();
+  if (!visualBox || !readoutBox) throw new Error('gearmotor RPM placement is unavailable');
+  const readoutCenterX = readoutBox.x + readoutBox.width / 2;
+  const readoutCenterY = readoutBox.y + readoutBox.height / 2;
+  expect((readoutCenterX - visualBox.x) / visualBox.width).toBeGreaterThan(0.4);
+  expect((readoutCenterX - visualBox.x) / visualBox.width).toBeLessThan(0.52);
+  expect((readoutCenterY - visualBox.y) / visualBox.height).toBeGreaterThan(0.18);
+  expect((readoutCenterY - visualBox.y) / visualBox.height).toBeLessThan(0.32);
+  const outputShaft = phaseVisual.locator('.workbench-gearmotor-output-bar');
   const outputShaftMarker = phaseVisual.locator('.workbench-gearmotor-output-bar-highlight');
   await expect(outputShaftMarker).toHaveCSS('fill', 'rgb(102, 114, 123)');
-  await expect(outputShaftMarker).toHaveCSS('opacity', '0.88');
   await expect(phaseVisual.locator('.workbench-gearmotor-output-axle-highlight')).toHaveCount(0);
   const motorShaftMarker = phaseVisual.locator('.workbench-gearmotor-motor-shaft-highlight');
   await expect(motorShaftMarker).toHaveCSS('fill', 'rgb(70, 81, 90)');
   const initialMarkerTransform = await outputShaftMarker.evaluate(
+    (element) => getComputedStyle(element).transform,
+  );
+  const initialMarkerOpacity = await outputShaftMarker.evaluate(
+    (element) => getComputedStyle(element).opacity,
+  );
+  const initialShaftTransform = await outputShaft.evaluate(
     (element) => getComputedStyle(element).transform,
   );
   const initialMotorMarkerTransform = await motorShaftMarker.evaluate(
@@ -1762,6 +1780,16 @@ test('1:48 gearmotor exposes real settings, output RPM and runtime shaft control
       { timeout: 5_000 },
     )
     .not.toBe(initialMarkerTransform);
+  await expect
+    .poll(async () => outputShaftMarker.evaluate((element) => getComputedStyle(element).opacity), {
+      timeout: 5_000,
+    })
+    .not.toBe(initialMarkerOpacity);
+  await expect
+    .poll(async () => outputShaft.evaluate((element) => getComputedStyle(element).transform), {
+      timeout: 5_000,
+    })
+    .not.toBe(initialShaftTransform);
   await expect
     .poll(async () => motorShaftMarker.evaluate((element) => getComputedStyle(element).transform), {
       timeout: 5_000,

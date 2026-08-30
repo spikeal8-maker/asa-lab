@@ -509,28 +509,42 @@
     animation: none;
   }
 }
+.workbench-gearmotor-visual .workbench-gearmotor-output-bar {
+  transform-box: view-box;
+  transform-origin: 232px 207px;
+  transform: scaleY(var(--workbench-gearmotor-output-shaft-scale-y, 1));
+}
 .workbench-gearmotor-visual .workbench-gearmotor-output-bar-highlight {
   transform: translateY(calc(12px + var(--workbench-gearmotor-output-highlight-shift, 0px)));
   fill: #66727b;
-  opacity: 0.88;
+  opacity: var(--workbench-gearmotor-output-highlight-opacity, 0.55);
 }
 .workbench-gearmotor-visual .workbench-gearmotor-motor-shaft-highlight {
   transform: translateX(calc(-5.5px + var(--workbench-gearmotor-motor-highlight-shift, 0px)));
   fill: #46515a;
-  opacity: 0.9;
+  opacity: var(--workbench-gearmotor-motor-highlight-opacity, 0.9);
 }
+.workbench-gearmotor-visual .workbench-gearmotor-output-bar,
 .workbench-gearmotor-visual .workbench-gearmotor-output-bar-highlight,
 .workbench-gearmotor-visual .workbench-gearmotor-motor-shaft-highlight {
   will-change: transform;
-  transition: transform 220ms linear;
+  transition:
+    transform 120ms linear,
+    opacity 120ms linear;
 }
 @media (prefers-reduced-motion: reduce) {
+  .workbench-gearmotor-visual .workbench-gearmotor-output-bar {
+    transform: scaleY(1);
+    transition: none;
+  }
   .workbench-gearmotor-visual .workbench-gearmotor-output-bar-highlight {
     transform: translateY(12px);
+    opacity: 0.55;
     transition: none;
   }
   .workbench-gearmotor-visual .workbench-gearmotor-motor-shaft-highlight {
     transform: translateX(-5.5px);
+    opacity: 0.9;
     transition: none;
   }
 }
@@ -2712,6 +2726,12 @@
   font-weight: 700;
   letter-spacing: -0.02em;
   user-select: none;
+}
+.workbench-stage-readout.workbench-gearmotor-rpm {
+  fill: #29406f;
+  stroke: none;
+  font-weight: 500;
+  letter-spacing: 0;
 }
 
 /* A calculated destructive state changes the physical source/resistor itself.

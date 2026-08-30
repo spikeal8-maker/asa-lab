@@ -209,7 +209,11 @@ function OwnerGearmotorVisual({
   const presentation = gearmotorVisualPresentation(simulationTimeMs, motorRpm, outputRpm);
   const presentationStyle = {
     '--workbench-gearmotor-motor-highlight-shift': `${presentation.motorHighlightShift.toFixed(3)}px`,
+    '--workbench-gearmotor-motor-highlight-opacity': presentation.motorHighlightOpacity.toFixed(3),
     '--workbench-gearmotor-output-highlight-shift': `${presentation.outputHighlightShift.toFixed(3)}px`,
+    '--workbench-gearmotor-output-highlight-opacity':
+      presentation.outputHighlightOpacity.toFixed(3),
+    '--workbench-gearmotor-output-shaft-scale-y': presentation.outputShaftScaleY.toFixed(3),
   } as CSSProperties;
   return (
     <svg

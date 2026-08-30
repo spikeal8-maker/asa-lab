@@ -5,6 +5,7 @@ import {
   dcMotorVisualMotion,
   formatMotorRpm,
   gearmotorDiagnosticBodyBounds,
+  gearmotorRpmBodyPoint,
   gearmotorRuntimeMarkup,
   gearmotorVisualPresentation,
   lampState,
@@ -130,8 +131,9 @@ describe('typed Electronics state and animation contracts', () => {
   });
 
   it('drives only existing TT shaft highlights from deterministic model time', () => {
-    const ownerSvg = `<svg viewBox="0 0 514 810"><rect id="rear-bar-highlight" x="59" y="190"/><rect id="top-shaft-inner" x="225" y="61"/><g id="bottom-shaft"><rect class="body" x="226" y="656" width="4" height="67"/><rect x="238" y="656" width="1" height="67"/></g></svg>`;
+    const ownerSvg = `<svg viewBox="0 0 514 810"><rect id="rear-bar" x="52" y="186"/><rect id="rear-bar-highlight" x="59" y="190"/><rect id="top-shaft-inner" x="225" y="61"/><g id="bottom-shaft"><rect class="body" x="226" y="656" width="4" height="67"/><rect x="238" y="656" width="1" height="67"/></g></svg>`;
     const markup = gearmotorRuntimeMarkup(ownerSvg);
+    expect(markup).toContain('class="workbench-gearmotor-output-bar"');
     expect(markup).toContain('class="workbench-gearmotor-output-bar-highlight"');
     expect(markup).toContain('class="workbench-gearmotor-motor-shaft-highlight"');
     expect(markup).toContain('<rect id="top-shaft-inner" x="225" y="61"');
@@ -151,6 +153,8 @@ describe('typed Electronics state and animation contracts', () => {
       maxX: 0,
       maxY: 0,
     });
+    expect(gearmotorRpmBodyPoint(514, 810)).toEqual({ x: 232, y: 200 });
+    expect(gearmotorRpmBodyPoint(Number.NaN, Number.POSITIVE_INFINITY)).toEqual({ x: 0, y: 0 });
 
     expect(gearmotorVisualPresentation(1_000, 12_000, 250)).toMatchObject({
       motorDirection: 'clockwise',
@@ -160,6 +164,10 @@ describe('typed Electronics state and animation contracts', () => {
     const reverse = gearmotorVisualPresentation(1_000, -12_000, -250);
     expect(Number.isFinite(forward.motorHighlightShift)).toBe(true);
     expect(Number.isFinite(forward.outputHighlightShift)).toBe(true);
+    expect(forward.motorHighlightOpacity).toBeGreaterThanOrEqual(0);
+    expect(forward.outputHighlightOpacity).toBeGreaterThanOrEqual(0);
+    expect(forward.outputShaftScaleY).toBeGreaterThanOrEqual(0.72);
+    expect(forward.outputShaftScaleY).toBeLessThanOrEqual(1);
     expect(Math.abs(forward.outputHighlightShift)).toBeGreaterThan(10);
     expect(forward.motorHighlightShift).not.toBeCloseTo(forward.outputHighlightShift, 4);
     expect(reverse).toMatchObject({
@@ -168,11 +176,25 @@ describe('typed Electronics state and animation contracts', () => {
     });
     expect(reverse.motorHighlightShift).toBeCloseTo(-forward.motorHighlightShift, 10);
     expect(reverse.outputHighlightShift).toBeCloseTo(-forward.outputHighlightShift, 10);
+    expect(reverse.motorHighlightOpacity).toBeCloseTo(forward.motorHighlightOpacity, 10);
+    expect(reverse.outputHighlightOpacity).toBeCloseTo(forward.outputHighlightOpacity, 10);
+    expect(reverse.outputShaftScaleY).toBeCloseTo(forward.outputShaftScaleY, 10);
+    const outputEdgeOn = gearmotorVisualPresentation(850, 12_000, 250);
+    expect(outputEdgeOn.outputHighlightShift).toBeCloseTo(12, 8);
+    expect(outputEdgeOn.outputHighlightOpacity).toBeCloseTo(0, 8);
+    expect(outputEdgeOn.outputShaftScaleY).toBeCloseTo(0.72, 8);
+    const outputRear = gearmotorVisualPresentation(1_700, 12_000, 250);
+    expect(outputRear.outputHighlightShift).toBeCloseTo(0, 8);
+    expect(outputRear.outputHighlightOpacity).toBe(0);
+    expect(outputRear.outputShaftScaleY).toBeCloseTo(1, 8);
     expect(gearmotorVisualPresentation(5_000, 0, 0)).toEqual({
       motorDirection: 'stopped',
       outputDirection: 'stopped',
       motorHighlightShift: 0,
+      motorHighlightOpacity: 0.9,
       outputHighlightShift: 0,
+      outputHighlightOpacity: 0.55,
+      outputShaftScaleY: 1,
     });
   });
 });

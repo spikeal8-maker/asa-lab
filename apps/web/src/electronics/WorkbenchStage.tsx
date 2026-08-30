@@ -21,7 +21,11 @@ import {
   stageReadoutGeometry,
   wirePoints,
 } from './workbench-geometry';
-import { formatMotorRpm, gearmotorDiagnosticBodyBounds } from './production-asset-contracts';
+import {
+  formatMotorRpm,
+  gearmotorDiagnosticBodyBounds,
+  gearmotorRpmBodyPoint,
+} from './production-asset-contracts';
 import { CircuitIcon, FitIcon, ZoomInIcon, ZoomOutIcon } from './workbench-icons';
 import { componentTransform } from './workbench-model';
 import { terminalPositionInDocument } from './workbench-document';
@@ -168,6 +172,25 @@ function paintedComponentBounds(
     minY: Math.min(...points.map((point) => point.y)),
     maxX: Math.max(...points.map((point) => point.x)),
     maxY: Math.max(...points.map((point) => point.y)),
+  };
+}
+
+function paintedComponentPoint(
+  component: SchematicComponent,
+  baseSize: { readonly width: number; readonly height: number },
+  renderedBounds: { readonly width: number; readonly height: number },
+  localPoint: { readonly x: number; readonly y: number },
+): { readonly x: number; readonly y: number } {
+  const radians = ((((component.rotation ?? 0) % 360) + 360) % 360) * (Math.PI / 180);
+  const cos = Math.cos(radians);
+  const sin = Math.sin(radians);
+  const mirrorX = component.stateProperties?.['mirrorX'] === true;
+  const mirrorY = component.stateProperties?.['mirrorY'] === true;
+  const localX = (mirrorX ? baseSize.width - localPoint.x : localPoint.x) - baseSize.width / 2;
+  const localY = (mirrorY ? baseSize.height - localPoint.y : localPoint.y) - baseSize.height / 2;
+  return {
+    x: component.position.x + renderedBounds.width / 2 + localX * cos - localY * sin,
+    y: component.position.y + renderedBounds.height / 2 + localX * sin + localY * cos,
   };
 }
 
@@ -412,18 +435,29 @@ export function WorkbenchStage({
       ? Number(isGearmotor ? (result?.outputRpm ?? 0) : (result?.motorRpm ?? 0))
       : 0;
     const label = formatMotorRpm(rpm);
+    const gearmotorReadoutPoint = isGearmotor
+      ? paintedComponentPoint(
+          component,
+          baseSize,
+          bounds,
+          gearmotorRpmBodyPoint(baseSize.width, baseSize.height),
+        )
+      : null;
     return [
       <text
         key={`motor-rpm:${component.id}`}
-        className="workbench-stage-readout workbench-motor-rpm"
+        className={`workbench-stage-readout workbench-motor-rpm${
+          isGearmotor ? ' workbench-gearmotor-rpm' : ''
+        }`}
         data-testid={isGearmotor ? 'gearmotor-output-rpm' : 'dc-motor-rpm'}
         data-screen-upright="true"
+        data-placement={isGearmotor ? 'primary-body' : 'above-component'}
         data-component-id={component.id}
-        x={(paintedBounds.minX + paintedBounds.maxX) / 2}
-        y={paintedBounds.minY - readoutGeometry.gap}
-        fontSize={readoutGeometry.fontSize}
+        x={gearmotorReadoutPoint?.x ?? (paintedBounds.minX + paintedBounds.maxX) / 2}
+        y={gearmotorReadoutPoint?.y ?? paintedBounds.minY - readoutGeometry.gap}
+        fontSize={readoutGeometry.fontSize * (isGearmotor ? 1.4 : 1)}
         textAnchor="middle"
-        dominantBaseline="auto"
+        dominantBaseline={isGearmotor ? 'middle' : 'auto'}
         pointerEvents="none"
         aria-label={`${isGearmotor ? 'Скорость выходного вала' : 'Скорость двигателя'}: ${label}`}
       >

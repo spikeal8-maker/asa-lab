@@ -362,11 +362,15 @@ export interface GearmotorVisualPresentation {
   readonly motorDirection: MotorDirection;
   readonly outputDirection: MotorDirection;
   readonly motorHighlightShift: number;
+  readonly motorHighlightOpacity: number;
   readonly outputHighlightShift: number;
+  readonly outputHighlightOpacity: number;
+  readonly outputShaftScaleY: number;
 }
 
 const GEARMOTOR_OWNER_VIEWBOX = { width: 514, height: 810 } as const;
 const GEARMOTOR_PRIMARY_BODY = { minX: 135, minY: 99, maxX: 329, maxY: 529 } as const;
+const GEARMOTOR_RPM_BODY_POINT = { x: 232, y: 200 } as const;
 
 /**
  * The diagnostic belongs to the yellow housing, not to the furthest shaft tip.
@@ -388,6 +392,19 @@ export function gearmotorDiagnosticBodyBounds(
     minY: (GEARMOTOR_PRIMARY_BODY.minY / GEARMOTOR_OWNER_VIEWBOX.height) * safeHeight,
     maxX: (GEARMOTOR_PRIMARY_BODY.maxX / GEARMOTOR_OWNER_VIEWBOX.width) * safeWidth,
     maxY: (GEARMOTOR_PRIMARY_BODY.maxY / GEARMOTOR_OWNER_VIEWBOX.height) * safeHeight,
+  };
+}
+
+/** Places output RPM on the main yellow housing, between the transverse shafts. */
+export function gearmotorRpmBodyPoint(
+  width: number,
+  height: number,
+): { readonly x: number; readonly y: number } {
+  const safeWidth = Number.isFinite(width) ? Math.max(0, width) : 0;
+  const safeHeight = Number.isFinite(height) ? Math.max(0, height) : 0;
+  return {
+    x: (GEARMOTOR_RPM_BODY_POINT.x / GEARMOTOR_OWNER_VIEWBOX.width) * safeWidth,
+    y: (GEARMOTOR_RPM_BODY_POINT.y / GEARMOTOR_OWNER_VIEWBOX.height) * safeHeight,
   };
 }
 
@@ -427,11 +444,14 @@ function presentationPhase(simulationTimeMs: number, motion: DcMotorVisualMotion
 }
 
 /**
- * Presentation-only shaft highlights for the owner TT gearmotor SVG.
+ * Presentation-only shaft projection for the owner TT gearmotor SVG.
  *
  * The exact motor and output RPM remain authoritative. The internal shaft uses
  * a deliberately quicker calm band than the 1:48 output shaft, while both
  * phases are derived from accepted model time rather than browser frame count.
+ * A visible surface travels only across the front half of a turn and disappears
+ * behind the shaft. The double-D output shaft also changes projected thickness;
+ * neither marker visibly reverses and shuttles back across the same face.
  */
 export function gearmotorVisualPresentation(
   simulationTimeMs: number,
@@ -442,13 +462,22 @@ export function gearmotorVisualPresentation(
   const outputMotion = calmGearmotorMotion(outputRpm, 250, 1, [4.4, 3.9, 3.4, 2.8]);
   const motorPhase = presentationPhase(simulationTimeMs, motorMotion);
   const outputPhase = presentationPhase(simulationTimeMs, outputMotion);
+  const motorIsMoving = motorMotion.direction !== 'stopped';
+  const outputIsMoving = outputMotion.direction !== 'stopped';
+  const motorFront = Math.max(0, Math.cos(motorPhase * Math.PI * 2));
+  const outputFront = Math.max(0, Math.cos(outputPhase * Math.PI * 2));
   return {
     motorDirection: motorMotion.direction,
     outputDirection: outputMotion.direction,
-    // CSS adds the centre offset. These amplitudes then cover the whole visible
-    // width/height of the confirmed bottom and transverse shaft surfaces.
-    motorHighlightShift: Math.sin(motorPhase * Math.PI * 2) * 5.5,
-    outputHighlightShift: Math.sin(outputPhase * Math.PI * 2) * 12,
+    // CSS adds the centre offsets. During the hidden rear half of a turn the
+    // marker can cross back without being perceived as reciprocating motion.
+    motorHighlightShift: motorIsMoving ? Math.sin(motorPhase * Math.PI * 2) * 5.5 : 0,
+    motorHighlightOpacity: motorIsMoving ? motorFront * 0.9 : 0.9,
+    outputHighlightShift: outputIsMoving ? Math.sin(outputPhase * Math.PI * 2) * 12 : 0,
+    outputHighlightOpacity: outputIsMoving ? outputFront * 0.55 : 0.55,
+    outputShaftScaleY: outputIsMoving
+      ? 0.72 + Math.abs(Math.cos(outputPhase * Math.PI * 2)) * 0.28
+      : 1,
   };
 }
 
@@ -459,6 +488,7 @@ export function gearmotorVisualPresentation(
  */
 export function gearmotorRuntimeMarkup(ownerSvg: string): string {
   const withRuntimeSurfaces = ownerSvg
+    .replace('<rect id="rear-bar" ', '<rect id="rear-bar" class="workbench-gearmotor-output-bar" ')
     .replace(
       '<rect id="rear-bar-highlight"',
       '<rect id="rear-bar-highlight" class="workbench-gearmotor-output-bar-highlight"',
@@ -469,6 +499,7 @@ export function gearmotorRuntimeMarkup(ownerSvg: string): string {
     );
   if (
     withRuntimeSurfaces === ownerSvg ||
+    !withRuntimeSurfaces.includes('workbench-gearmotor-output-bar"') ||
     !withRuntimeSurfaces.includes('workbench-gearmotor-output-bar-highlight') ||
     !withRuntimeSurfaces.includes('workbench-gearmotor-motor-shaft-highlight')
   ) {
