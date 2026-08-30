@@ -70,6 +70,7 @@ export function WorkbenchSidebars({
   const selectedIsArduino = c.selectedEntry?.key === 'arduino-uno';
   const selectedIsPotentiometer = c.selectedComponent?.kind === 'potentiometer';
   const selectedIsAdjustableSource = c.selectedEntry?.key === 'regulated-power-supply';
+  const selectedIsDcMotor = c.selectedEntry?.key === 'dc-motor';
   const selectedDiagnostics = c.selectedComponent
     ? (c.diagnosticsByComponent.get(c.selectedComponent.id) ?? [])
     : [];
@@ -639,6 +640,18 @@ export function WorkbenchSidebars({
                   />
                 </label>
               ) : null}
+              {selectedIsDcMotor && stateOpen ? (
+                <label className="workbench-toggle-property">
+                  <span>Заблокировать вал</span>
+                  <input
+                    aria-label="Заблокировать вал двигателя"
+                    type="checkbox"
+                    disabled={!c.simulationRunning}
+                    checked={c.selectedComponent.stateProperties?.['shaftLocked'] === true}
+                    onChange={(event) => c.setSelectedMotorShaftLocked(event.target.checked)}
+                  />
+                </label>
+              ) : null}
 
               {c.selectedComponent.kind === 'transistor' && stateOpen ? (
                 <fieldset className="workbench-state-controls workbench-transistor-controls">
@@ -891,6 +904,23 @@ export function WorkbenchSidebars({
                   ) : null}
                   {c.selectedEntry.key === 'dc-motor' && measurement.motorRpm !== undefined ? (
                     <>
+                      <div>
+                        <dt>Рабочий диапазон</dt>
+                        <dd>
+                          {(measurement.operatingVoltageMinVolt ?? 0).toFixed(0)}–
+                          {(measurement.operatingVoltageMaxVolt ?? 0).toFixed(0)} В
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Состояние напряжения</dt>
+                        <dd>
+                          {measurement.motorVoltageState === 'overvoltage'
+                            ? 'Выше рабочего диапазона'
+                            : measurement.motorVoltageState === 'below_range'
+                              ? 'Ниже рабочего диапазона'
+                              : 'В рабочем диапазоне'}
+                        </dd>
+                      </div>
                       <div data-testid="dc-motor-rpm-measurement">
                         <dt>Скорость</dt>
                         <dd>{Math.round(measurement.motorRpm)} об/мин</dd>
@@ -917,6 +947,10 @@ export function WorkbenchSidebars({
                         <dd>
                           {((measurement.outputLoadTorqueNewtonMeter ?? 0) * 1_000).toFixed(2)} мН·м
                         </dd>
+                      </div>
+                      <div>
+                        <dt>Нагрев обмотки I²R</dt>
+                        <dd>{(measurement.copperLossWatt ?? 0).toFixed(3)} Вт</dd>
                       </div>
                       <div>
                         <dt>Обмотка</dt>

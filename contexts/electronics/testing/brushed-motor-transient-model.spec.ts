@@ -250,6 +250,26 @@ describe('MATH-5B brushed motor transient model', () => {
     expect(afterFailure.state.failureMode).toBe('winding_open');
   });
 
+  it('accumulates declared overvoltage damage even while the unloaded winding stays cool', () => {
+    const initial = createBrushedMotorTransientState('overvoltage-motor', direct);
+    const destructive = evolve(direct, initial, 4.5, { voltageVolt: 23 }, 0.01);
+
+    expect(destructive.observation.temperatureCelsius).toBeLessThan(
+      direct.warningTemperatureCelsius.value,
+    );
+    expect(destructive.state.accumulatedDamage).toBeGreaterThan(0.35);
+    expect(destructive.observation.thermalState).toBe('destructive');
+    expect(destructive.state.failureMode).toBe('none');
+
+    const failed = evolve(direct, destructive.state, 8, { voltageVolt: 23 }, 0.01);
+    expect(failed.state.failureMode).toBe('winding_open');
+    expect(failed.state.currentAmp).toBe(0);
+    expect(failed.observation.operatingMode).toBe('failed');
+    expect(failed.observation.temperatureCelsius).toBeLessThan(
+      direct.warningTemperatureCelsius.value,
+    );
+  });
+
   it('is byte-for-byte deterministic for the same profile, inputs, time and state', () => {
     const initial = createBrushedMotorTransientState('motor', direct);
     const first = evolve(

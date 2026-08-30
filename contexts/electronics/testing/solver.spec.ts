@@ -591,6 +591,44 @@ describe('deterministic DC solver', () => {
     });
   });
 
+  it('marks a 23 V unloaded motor as destructive overvoltage instead of healthy', () => {
+    const motorDocument = doc(
+      [
+        component('source', 'source', 23),
+        component('motor', 'visual', 6, {
+          componentTypeId: 'dc-motor',
+          pinIds: ['negative', 'positive'],
+        }),
+      ],
+      [
+        connect('positive', 'source', 'a', 'motor', 'positive'),
+        connect('negative', 'motor', 'negative', 'source', 'b'),
+      ],
+    );
+    const result = solveCircuit(motorDocument, { simulationTimeMs: 500 });
+    const motor = result.components.find((item) => item.componentId === 'motor');
+
+    expect(result.status).toBe('solved');
+    expect(motor).toMatchObject({
+      operatingVoltageMinVolt: 3,
+      operatingVoltageMaxVolt: 12,
+      motorVoltageState: 'overvoltage',
+      stressState: 'overvoltage',
+      deviceHealth: 'overvoltage',
+      damageState: 'destructive_preview',
+      presentationState: 'destructive',
+      windingFailureMode: 'none',
+    });
+    expect(motor?.temperatureCelsius).toBeLessThan(90);
+    expect(result.diagnostics).toContainEqual(
+      expect.objectContaining({
+        code: 'motor_overvoltage',
+        severity: 'error',
+        componentIds: ['motor'],
+      }),
+    );
+  });
+
   it('reports signed reverse RPM and carries rotor coast after power is removed', () => {
     const direct = doc(
       [

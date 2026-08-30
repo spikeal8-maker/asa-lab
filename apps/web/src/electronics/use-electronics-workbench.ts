@@ -706,6 +706,18 @@ export function useElectronicsWorkbench(projectId: string) {
     setRuntimeComponentOverride(component.id, { wiperPosition: clamp(position, 0, 1) });
   }
 
+  function setSelectedMotorShaftLocked(shaftLocked: boolean): void {
+    if (!runtimeDocument) return;
+    if (!simulationRunning) {
+      setNotice('Блокировка вала доступна во время моделирования.');
+      return;
+    }
+    if (selection?.kind !== 'component') return;
+    const component = runtimeDocument.components.find((item) => item.id === selection.id);
+    if (!component || component.componentTypeId !== 'dc-motor') return;
+    setRuntimeComponentOverride(component.id, { stateProperties: { shaftLocked } });
+  }
+
   function setSelectedProperties(
     properties: Readonly<Record<string, string | number | boolean | readonly string[]>>,
     message?: string,
@@ -1771,6 +1783,7 @@ export function useElectronicsWorkbench(projectId: string) {
     setSelectedState,
     toggleComponentState,
     setSelectedWiper,
+    setSelectedMotorShaftLocked,
     setSelectedProperties,
     updateArduinoProgram,
     resetArduinoRuntime,

@@ -2624,7 +2624,9 @@
 /* A calculated destructive state changes the physical source/resistor itself.
    No extra card or toast is added; the I inspector owns the numeric cause. */
 [data-presentation-state='destructive'][data-kind='source'] .workbench-production-visual,
-[data-presentation-state='destructive'][data-kind='resistor'] .workbench-production-visual {
+[data-presentation-state='destructive'][data-kind='resistor'] .workbench-production-visual,
+[data-presentation-state='destructive'][data-component-type='dc-motor']
+  .workbench-production-visual {
   animation: workbench-component-overheat 0.82s ease-in-out infinite alternate;
 }
 
@@ -2643,7 +2645,9 @@
 
 @media (prefers-reduced-motion: reduce) {
   [data-presentation-state='destructive'][data-kind='source'] .workbench-production-visual,
-  [data-presentation-state='destructive'][data-kind='resistor'] .workbench-production-visual {
+  [data-presentation-state='destructive'][data-kind='resistor'] .workbench-production-visual,
+  [data-presentation-state='destructive'][data-component-type='dc-motor']
+    .workbench-production-visual {
     animation: none;
     filter: saturate(0.46) brightness(0.67) drop-shadow(0 0 4px rgb(183 49 31 / 78%));
   }

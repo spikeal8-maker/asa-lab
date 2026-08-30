@@ -30,7 +30,7 @@ export interface BrushedMotorTransientStateEntry {
   readonly motorAngularVelocityRadPerSecond: number;
   readonly motorAngularPhaseRadian: number;
   readonly temperatureCelsius: number;
-  /** Normalised irreversible winding damage. One means permanent open failure. */
+  /** Normalised irreversible motor damage. One means permanent open failure. */
   readonly accumulatedDamage: number;
   readonly failureMode: BrushedMotorFailureMode;
 }
@@ -344,18 +344,30 @@ function windingTemperature(
   return equilibriumTemperature + (previousTemperatureCelsius - equilibriumTemperature) * decay;
 }
 
-function accumulatedWindingDamage(
+function accumulatedMotorDamage(
   profile: BrushedMotorAssemblyProfile,
   previousDamage: number,
   temperatureCelsius: number,
+  voltageVolt: number,
   stepSeconds: number,
 ): number {
   const warning = profile.warningTemperatureCelsius.value;
   const failure = profile.failureTemperatureCelsius.value;
-  const exposure = Math.max(0, (temperatureCelsius - warning) / (failure - warning));
+  const thermalExposure = Math.max(0, (temperatureCelsius - warning) / (failure - warning));
+  // The vendor operating range is authoritative even while the motor is
+  // unloaded and back-EMF keeps copper loss low. Beyond it, brush, commutator,
+  // insulation and overspeed damage must not be presented as a healthy motor.
+  // The exposure curve is an explicit educational assumption: a small excess
+  // accumulates slowly, while roughly twice the maximum voltage becomes a
+  // visible destructive experiment within seconds of model time.
+  const maximumVoltage = profile.operatingVoltageMax.value;
+  const overvoltageExposure = Math.max(0, Math.abs(voltageVolt) / maximumVoltage - 1);
   return Math.min(
     1,
-    previousDamage + (exposure * exposure * stepSeconds) / BRUSHED_MOTOR_DAMAGE_EXPOSURE_SECONDS,
+    previousDamage +
+      ((thermalExposure * thermalExposure + overvoltageExposure * overvoltageExposure) *
+        stepSeconds) /
+        BRUSHED_MOTOR_DAMAGE_EXPOSURE_SECONDS,
   );
 }
 
@@ -512,10 +524,11 @@ export function advanceBrushedMotorTransientState(
   );
   const accumulatedDamage = failed
     ? previousState.accumulatedDamage
-    : accumulatedWindingDamage(
+    : accumulatedMotorDamage(
         profile,
         previousState.accumulatedDamage,
         temperatureCelsius,
+        voltageVolt,
         stepSeconds,
       );
   const failureMode: BrushedMotorFailureMode =

@@ -411,6 +411,13 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(sidebarSource).toContain('data-testid="dc-motor-rpm-measurement"');
     expect(sidebarSource).toContain('Электромагнитный момент');
     expect(sidebarSource).toContain('Нагрузка на валу');
+    expect(sidebarSource).toContain('Рабочий диапазон');
+    expect(sidebarSource).toContain('Состояние напряжения');
+    expect(sidebarSource).toContain('Нагрев обмотки I²R');
+    expect(sidebarSource).toContain('aria-label="Заблокировать вал двигателя"');
+    expect(controllerModuleSource).toContain('setSelectedMotorShaftLocked');
+    expect(controllerModuleSource).toContain('{ stateProperties: { shaftLocked } }');
+    expect(workbenchCss).toContain("data-component-type='dc-motor'");
     expect(sidebarSource).toContain('Обмотка');
     expect(stageSource).toContain('data-hit-surface="potentiometer-knob-face"');
     expect(stageSource).toContain('cx={baseSize.width * (71.5 / 144)}');

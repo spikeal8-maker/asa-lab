@@ -66,6 +66,17 @@ tests:
     owner: electronics-team
     artifacts: [playwright-report, screenshots, motor-transient-observations]
 
+  - id: TST-E2E-ELECTRONICS-MOTOR-DAMAGE-001
+    title: Electronics motor overvoltage shaft stall damage and open failure journey
+    suite: e2e
+    level: system
+    phase_available: PHASE-5
+    required_for: [TASK-ELECTRONICS-DOCS-001, TASK-ELEC-001]
+    command: pnpm gate:electronics-m1:browser
+    timeout_seconds: 1500
+    owner: electronics-team
+    artifacts: [playwright-report, screenshots, motor-damage-observations]
+
   - id: TST-E2E-ELECTRONICS-GEARMOTOR-INFO-001
     title: Electronics gearmotor ratio internal and output shaft information journey
     suite: e2e

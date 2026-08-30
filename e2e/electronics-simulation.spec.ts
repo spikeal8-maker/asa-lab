@@ -413,6 +413,23 @@ function dcMotorDocument(): SchematicDocument {
   };
 }
 
+function dcMotorOvervoltageDocument(): SchematicDocument {
+  const document = dcMotorDocument();
+  return {
+    ...document,
+    components: document.components.map((component) =>
+      component.id === 'source'
+        ? {
+            ...component,
+            name: 'Источник 23 В',
+            value: 23,
+            stateProperties: { ...component.stateProperties, internalResistanceOhm: 0 },
+          }
+        : component,
+    ),
+  };
+}
+
 function reverseCapacitorDocument(): SchematicDocument {
   const interaction = capacitorInteractionDocument();
   return {
@@ -1636,10 +1653,58 @@ test('direct DC motor shows calculated signed RPM and calm visual direction', as
   await expect(inspector.getByText('Направление', { exact: true })).toBeVisible();
   await expect(inspector.getByText('Электромагнитный момент', { exact: true })).toBeVisible();
   await expect(inspector.getByText('Нагрузка на валу', { exact: true })).toBeVisible();
+  await expect(inspector.getByText('Рабочий диапазон', { exact: true })).toBeVisible();
+  await expect(inspector.getByText('В рабочем диапазоне', { exact: true })).toBeVisible();
+  await expect(inspector.getByText('Нагрев обмотки I²R', { exact: true })).toBeVisible();
   await expect(inspector.getByText('Температура', { exact: true })).toBeVisible();
   await expect(inspector.getByText('Обмотка', { exact: true })).toBeVisible();
+  const shaftLock = inspector.getByLabel('Заблокировать вал двигателя');
+  await shaftLock.check();
+  await expect(inspector.getByText('Вал заблокирован', { exact: true })).toBeVisible();
+  await expect
+    .poll(async () => (await readout.textContent())?.trim(), { timeout: 5_000 })
+    .toBe('0 об/мин');
+  await shaftLock.uncheck();
   await page.screenshot({
     path: `${ARTIFACT_DIR}/electronics-dc-motor-runtime.png`,
+    fullPage: true,
+  });
+  failures.assertEmpty();
+});
+
+test('23 V motor shows local overvoltage, accumulated damage and open failure', async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await loginWithOrganization(page, teacher);
+  const projectId = await createProject(page, 'MATH-5C DC motor overvoltage damage');
+  await saveDocument(page, projectId, dcMotorOvervoltageDocument());
+  await page.goto(`/#/home/${projectId}`);
+
+  await page.getByRole('button', { name: 'Начать моделирование' }).click();
+  const motor = component(page, 'dc-motor');
+  await motor.locator('.workbench-part').click({ force: true });
+  const inspector = page.getByRole('complementary', { name: 'Параметры выделения' });
+  await inspector.getByRole('button', { name: /Техническое состояние/ }).click();
+
+  await expect(inspector.getByText('Выше рабочего диапазона', { exact: true })).toBeVisible();
+  const overvoltageBadge = diagnostic(page, 'dc-motor', 'component-diagnostic-indicator');
+  await expect(overvoltageBadge).toBeVisible();
+  await expect(motor).toHaveAttribute('data-presentation-state', 'destructive');
+  await expect(inspector.getByText('Накопленный износ', { exact: true })).toBeVisible({
+    timeout: 8_000,
+  });
+  await expect(inspector.getByText('Перегорела — цепь разомкнута', { exact: true })).toBeVisible({
+    timeout: 20_000,
+  });
+  await expect(motor).toHaveAttribute('data-presentation-state', 'failed');
+  await expect(page.locator('[data-testid="dc-motor-rpm"][data-component-id="motor"]')).toHaveText(
+    '0 об/мин',
+  );
+  await page.screenshot({
+    path: `${ARTIFACT_DIR}/electronics-dc-motor-overvoltage-failed.png`,
     fullPage: true,
   });
   failures.assertEmpty();

@@ -49,6 +49,11 @@ decisions:
     status: owner_direction
     blocking_scopes: []
     evidence_required: [gearmotor_ratio_rpm_torque_owner_review]
+  - id: DEC-INFO-010
+    decision: motor_overvoltage_and_stall_use_one_local_badge_and_inspector_detail
+    status: owner_direction
+    blocking_scopes: []
+    evidence_required: [dc_motor_overvoltage_stall_burnout_owner_review]
 
 requirements:
   - id: ELEC-INFO-001
@@ -337,4 +342,17 @@ requirements:
     planned_fixture_path: apps/web/src/electronics/testing/fixtures/gearmotor-information-profile.json
     gate: pnpm gate:electronics-m1:browser
     assertions: [ratio_is_profile_bound, motor_and_output_rpm_are_distinct, output_torque_accounts_for_efficiency, power_is_not_claimed_to_increase]
+    evidence: { result: not_run, verified_sha: null, artifacts: [] }
+
+  - id: ELEC-INFO-023
+    statement: motor inspector separates operating voltage range copper heating and runtime shaft lock while one local badge identifies overvoltage stall or failure
+    normative_sections: ["9.2", "13.1", "14"]
+    status: planned
+    activation: after_decisions
+    depends_on_decisions: [DEC-INFO-003, DEC-INFO-004, DEC-INFO-007, DEC-INFO-010]
+    verification: [unit, browser, visual, accessibility]
+    planned_test_ids: [TST-E2E-ELECTRONICS-MOTOR-DAMAGE-001]
+    planned_fixture_path: e2e/fixtures/electronics/motor-overvoltage-stall-burnout.json
+    gate: pnpm gate:electronics-m1:browser
+    assertions: [range_is_visible, input_power_and_copper_loss_are_distinct, shaft_lock_is_runtime_only, overvoltage_badge_is_local, damage_becomes_visible, failed_motor_opens]
     evidence: { result: not_run, verified_sha: null, artifacts: [] }

@@ -981,7 +981,7 @@ export interface ComponentResult {
   energized?: boolean;
   currentUtilizationPercent?: number;
   powerUtilizationPercent?: number;
-  stressState?: 'normal' | 'warning' | 'overcurrent' | 'burned';
+  stressState?: 'normal' | 'warning' | 'overcurrent' | 'overvoltage' | 'burned';
   deviceHealth?:
     | 'normal'
     | 'warning'
@@ -989,6 +989,7 @@ export interface ComponentResult {
     | 'failed_open'
     | 'failed_short'
     | 'stalled'
+    | 'overvoltage'
     | 'reverse_damaged';
   damageState?: 'none' | 'destructive_preview' | 'failed';
   presentationState?: 'normal' | 'warning' | 'destructive' | 'failed' | 'stalled';
@@ -1021,6 +1022,9 @@ export interface ComponentResult {
   copperLossWatt?: number;
   motorMechanicalPowerWatt?: number;
   outputMechanicalPowerWatt?: number;
+  operatingVoltageMinVolt?: number;
+  operatingVoltageMaxVolt?: number;
+  motorVoltageState?: 'below_range' | 'normal' | 'overvoltage';
   windingFailureMode?: 'none' | 'winding_open';
   capacitanceFarad?: number;
   chargeCoulomb?: number;

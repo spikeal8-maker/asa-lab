@@ -97,6 +97,8 @@ export type DiagnosticCode =
   | 'transistor_overcurrent'
   | 'capacitor_reverse_polarity'
   | 'capacitor_overvoltage'
+  | 'motor_overvoltage'
+  | 'motor_stalled'
   | 'component_failed'
   | 'unsupported_component'
   | 'unsupported_topology'
@@ -111,6 +113,7 @@ export type DeviceHealth =
   | 'failed_open'
   | 'failed_short'
   | 'stalled'
+  | 'overvoltage'
   | 'reverse_damaged';
 export type DamageState = 'none' | 'destructive_preview' | 'failed';
 export type PresentationState = 'normal' | 'warning' | 'destructive' | 'failed' | 'stalled';
@@ -153,7 +156,7 @@ export interface ComponentResult {
   readonly energized?: boolean;
   readonly currentUtilizationPercent?: number;
   readonly powerUtilizationPercent?: number;
-  readonly stressState?: 'normal' | 'warning' | 'overcurrent' | 'burned';
+  readonly stressState?: 'normal' | 'warning' | 'overcurrent' | 'overvoltage' | 'burned';
   /** Physical state returned by the model; it is not a solver failure status. */
   readonly deviceHealth?: DeviceHealth;
   /** Static DC currently reports a preview; accumulated failure starts with transient analysis. */
@@ -193,6 +196,9 @@ export interface ComponentResult {
   readonly copperLossWatt?: number;
   readonly motorMechanicalPowerWatt?: number;
   readonly outputMechanicalPowerWatt?: number;
+  readonly operatingVoltageMinVolt?: number;
+  readonly operatingVoltageMaxVolt?: number;
+  readonly motorVoltageState?: 'below_range' | 'normal' | 'overvoltage';
   readonly windingFailureMode?: 'none' | 'winding_open';
   readonly capacitanceFarad?: number;
   readonly chargeCoulomb?: number;
@@ -274,6 +280,7 @@ function damageObservationForStress(
     case 'warning':
       return { deviceHealth: 'warning', damageState: 'none', presentationState: 'warning' };
     case 'overcurrent':
+    case 'overvoltage':
       return {
         deviceHealth: 'warning',
         damageState: 'destructive_preview',
@@ -364,8 +371,14 @@ function motorComponentObservation(
       ?.noLoadSpeedRpm ?? 1;
   const failed = observation.failureMode === 'winding_open';
   const stalled = observation.operatingMode === 'stalled';
-  const destructive = observation.thermalState === 'destructive';
-  const warning = observation.thermalState === 'warning';
+  const absoluteVoltage = Math.abs(observation.voltageVolt);
+  const minimumVoltage = profile?.operatingVoltageMin.value ?? 0;
+  const maximumVoltage = profile?.operatingVoltageMax.value ?? Number.POSITIVE_INFINITY;
+  const overvoltage = absoluteVoltage > maximumVoltage;
+  const severeOvervoltage = absoluteVoltage >= maximumVoltage * 1.5;
+  const belowRange = absoluteVoltage > 1e-6 && absoluteVoltage < minimumVoltage;
+  const destructive = observation.thermalState === 'destructive' || severeOvervoltage;
+  const warning = observation.thermalState === 'warning' || overvoltage;
   return {
     energized:
       !failed &&
@@ -384,26 +397,35 @@ function motorComponentObservation(
     copperLossWatt: round(observation.copperLossWatt, 12),
     motorMechanicalPowerWatt: round(observation.motorMechanicalPowerWatt, 12),
     outputMechanicalPowerWatt: round(observation.outputMechanicalPowerWatt, 12),
+    operatingVoltageMinVolt: round(minimumVoltage, 3),
+    operatingVoltageMaxVolt: round(maximumVoltage, 3),
+    motorVoltageState: overvoltage ? 'overvoltage' : belowRange ? 'below_range' : 'normal',
     temperatureCelsius: round(observation.temperatureCelsius, 1),
     currentUtilizationPercent: round(observation.currentUtilization * 100, 2),
     accumulatedDamagePercent: round(observation.accumulatedDamage * 100, 2),
     windingFailureMode: observation.failureMode,
     stressState: failed
       ? 'burned'
-      : destructive || stalled
-        ? 'overcurrent'
-        : warning
-          ? 'warning'
-          : 'normal',
-    deviceHealth: failed
-      ? 'failed_open'
-      : stalled
-        ? 'stalled'
-        : destructive
-          ? 'overheated'
+      : overvoltage
+        ? destructive
+          ? 'overvoltage'
+          : 'warning'
+        : destructive || stalled
+          ? 'overcurrent'
           : warning
             ? 'warning'
             : 'normal',
+    deviceHealth: failed
+      ? 'failed_open'
+      : overvoltage
+        ? 'overvoltage'
+        : stalled
+          ? 'stalled'
+          : destructive
+            ? 'overheated'
+            : warning
+              ? 'warning'
+              : 'normal',
     damageState: failed ? 'failed' : destructive ? 'destructive_preview' : 'none',
     presentationState: failed
       ? 'failed'
@@ -2457,6 +2479,34 @@ function solveCircuitStep(
         componentIds: [componentId],
       })),
     );
+  }
+
+  for (const motor of document.components.filter(isDcMotor)) {
+    const result = components.find((component) => component.componentId === motor.id);
+    if (!result) continue;
+    if (result.motorVoltageState === 'overvoltage') {
+      const maximumVoltage = result.operatingVoltageMaxVolt ?? 0;
+      const destructive =
+        result.presentationState === 'destructive' || result.presentationState === 'failed';
+      diagnostics.push({
+        code: 'motor_overvoltage',
+        severity: destructive ? 'error' : 'warning',
+        message: `${motor.name ?? motor.id}: напряжение ${Math.abs(result.voltageDrop).toFixed(2)} В выше рабочего диапазона до ${maximumVoltage.toFixed(0)} В.`,
+        componentIds: [motor.id],
+        suggestedAction:
+          'Уменьшите напряжение. Для контролируемого опыта с нагревом используйте блокировку вала.',
+      });
+    }
+    if (result.motorOperatingMode === 'stalled') {
+      diagnostics.push({
+        code: 'motor_stalled',
+        severity: 'warning',
+        message: `${motor.name ?? motor.id}: вал заблокирован, ток ${(Math.abs(result.current) * 1_000).toFixed(0)} мА нагревает обмотку.`,
+        componentIds: [motor.id],
+        suggestedAction:
+          'Освободите вал или наблюдайте рассчитанный нагрев в техническом состоянии.',
+      });
+    }
   }
 
   for (const capacitor of capacitors) {

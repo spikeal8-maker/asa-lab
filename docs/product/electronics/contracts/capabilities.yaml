@@ -8,7 +8,7 @@ simulation_result_contract:
   compatibility_boolean: solved
   unions:
     SimulationSolveStatus: [solved, invalid, unsupported, nonconvergent]
-    DeviceHealth: [normal, warning, overheated, failed_open, failed_short, stalled, reverse_damaged]
+    DeviceHealth: [normal, warning, overheated, failed_open, failed_short, stalled, overvoltage, reverse_damaged]
     DamageState: [none, destructive_preview, failed]
     PresentationState: [normal, warning, destructive, failed, stalled]
 
@@ -34,6 +34,7 @@ engineering_decisions:
   - DEC-MATH-019
   - DEC-MATH-020
   - DEC-MATH-021
+  - DEC-MATH-022
 
 generated_component_coverage:
   source_layers:

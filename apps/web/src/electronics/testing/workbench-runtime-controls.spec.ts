@@ -20,6 +20,14 @@ const document: SchematicDocument = {
       value: 10_000,
       stateProperties: { illumination: 0.5 },
     },
+    {
+      id: 'motor',
+      kind: 'visual',
+      componentTypeId: 'dc-motor',
+      position: { x: 60, y: 0 },
+      value: 6,
+      stateProperties: {},
+    },
   ],
   connections: [],
   viewport: { x: 0, y: 0, zoom: 1 },
@@ -32,6 +40,7 @@ describe('Electronics runtime controls', () => {
       pot: { wiperPosition: 0.8 },
       switch: { state: true },
       ldr: { stateProperties: { illumination: 0.9 } },
+      motor: { stateProperties: { shaftLocked: true } },
     });
 
     expect(runtime).not.toBe(document);
@@ -41,6 +50,9 @@ describe('Electronics runtime controls', () => {
     expect(
       runtime?.components.find((item) => item.id === 'ldr')?.stateProperties?.['illumination'],
     ).toBe(0.9);
+    expect(
+      runtime?.components.find((item) => item.id === 'motor')?.stateProperties?.['shaftLocked'],
+    ).toBe(true);
 
     expect(document.simulation.running).toBe(false);
     expect(document.components.find((item) => item.id === 'pot')?.wiperPosition).toBe(0.5);
@@ -48,6 +60,9 @@ describe('Electronics runtime controls', () => {
     expect(
       document.components.find((item) => item.id === 'ldr')?.stateProperties?.['illumination'],
     ).toBe(0.5);
+    expect(
+      document.components.find((item) => item.id === 'motor')?.stateProperties?.['shaftLocked'],
+    ).toBeUndefined();
   });
 
   it('returns the persistent document unchanged while simulation is stopped', () => {
