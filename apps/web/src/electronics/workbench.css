@@ -509,6 +509,28 @@
     animation: none;
   }
 }
+.workbench-gearmotor-visual .workbench-gearmotor-output-bar-highlight {
+  transform: translateY(var(--workbench-gearmotor-output-highlight-shift, 0));
+}
+.workbench-gearmotor-visual .workbench-gearmotor-output-axle-highlight {
+  transform: translateX(var(--workbench-gearmotor-output-highlight-shift, 0));
+}
+.workbench-gearmotor-visual .workbench-gearmotor-motor-shaft-highlight {
+  transform: translateX(var(--workbench-gearmotor-motor-highlight-shift, 0));
+}
+.workbench-gearmotor-visual .workbench-gearmotor-output-bar-highlight,
+.workbench-gearmotor-visual .workbench-gearmotor-output-axle-highlight,
+.workbench-gearmotor-visual .workbench-gearmotor-motor-shaft-highlight {
+  transition: transform 80ms linear;
+}
+@media (prefers-reduced-motion: reduce) {
+  .workbench-gearmotor-visual .workbench-gearmotor-output-bar-highlight,
+  .workbench-gearmotor-visual .workbench-gearmotor-output-axle-highlight,
+  .workbench-gearmotor-visual .workbench-gearmotor-motor-shaft-highlight {
+    transform: none;
+    transition: none;
+  }
+}
 .workbench-piezo-summary {
   display: grid;
   gap: 4px;
@@ -519,6 +541,19 @@
   color: #344f5f;
 }
 .workbench-piezo-summary small {
+  color: #687b87;
+  line-height: 1.35;
+}
+.workbench-motor-profile-summary {
+  display: grid;
+  gap: 4px;
+  padding: 9px 10px;
+  border: 1px solid #d4e3eb;
+  border-radius: 4px;
+  background: #f5fbfe;
+  color: #344f5f;
+}
+.workbench-motor-profile-summary small {
   color: #687b87;
   line-height: 1.35;
 }

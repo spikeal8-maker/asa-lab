@@ -5,6 +5,8 @@ import { visualAsset } from './component-catalog';
 import {
   dcMotorRuntimeMarkup,
   dcMotorVisualMotion,
+  gearmotorRuntimeMarkup,
+  gearmotorVisualPresentation,
   potentiometerKnobAngle,
   potentiometerRuntimeMarkup,
   RESISTOR_BAND_CSS,
@@ -164,6 +166,65 @@ function OwnerDcMotorVisual({
       width={width}
       height={height}
       viewBox="0 0 284 245"
+      preserveAspectRatio="xMidYMid meet"
+      pointerEvents="none"
+      dangerouslySetInnerHTML={{ __html: markup }}
+    />
+  );
+}
+
+function OwnerGearmotorVisual({
+  asset,
+  width,
+  height,
+  motorRpm,
+  outputRpm,
+  simulationTimeMs,
+}: {
+  readonly asset: string;
+  readonly width: number;
+  readonly height: number;
+  readonly motorRpm: number;
+  readonly outputRpm: number;
+  readonly simulationTimeMs: number;
+}): JSX.Element {
+  const [ownerSvg, setOwnerSvg] = useState<string | null>(null);
+  useEffect(() => {
+    let mounted = true;
+    void ownerSvgSource(asset)
+      .then((source) => {
+        if (mounted) setOwnerSvg(source);
+      })
+      .catch(() => {
+        if (mounted) setOwnerSvg(null);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [asset]);
+  const markup = useMemo(() => (ownerSvg ? gearmotorRuntimeMarkup(ownerSvg) : ''), [ownerSvg]);
+  if (!markup) {
+    return <image href={asset} width={width} height={height} pointerEvents="none" />;
+  }
+  const presentation = gearmotorVisualPresentation(simulationTimeMs, motorRpm, outputRpm);
+  const presentationStyle = {
+    '--workbench-gearmotor-motor-highlight-shift': `${presentation.motorHighlightShift.toFixed(3)}px`,
+    '--workbench-gearmotor-output-highlight-shift': `${presentation.outputHighlightShift.toFixed(3)}px`,
+  } as CSSProperties;
+  return (
+    <svg
+      data-testid="gearmotor-phase"
+      data-motor-rpm={Number.isFinite(motorRpm) ? motorRpm : 0}
+      data-output-rpm={Number.isFinite(outputRpm) ? outputRpm : 0}
+      data-motor-visual-direction={presentation.motorDirection}
+      data-output-visual-direction={presentation.outputDirection}
+      className="workbench-gearmotor-visual"
+      style={presentationStyle}
+      x="0"
+      y="0"
+      width={width}
+      height={height}
+      viewBox="0 0 514 810"
       preserveAspectRatio="xMidYMid meet"
       pointerEvents="none"
       dangerouslySetInnerHTML={{ __html: markup }}
@@ -620,6 +681,15 @@ export function ProductionComponentVisual({
               width={width}
               height={height}
               motorRpm={simulationRunning ? Number(result?.motorRpm ?? 0) : 0}
+            />
+          ) : entry.key === 'gearmotor' ? (
+            <OwnerGearmotorVisual
+              asset={asset}
+              width={width}
+              height={height}
+              motorRpm={simulationRunning ? Number(result?.motorRpm ?? 0) : 0}
+              outputRpm={simulationRunning ? Number(result?.outputRpm ?? 0) : 0}
+              simulationTimeMs={simulationRunning ? simulationTimeMs : 0}
             />
           ) : (
             <image

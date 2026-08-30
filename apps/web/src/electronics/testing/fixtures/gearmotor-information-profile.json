@@ -1,0 +1,32 @@
+{
+  "schema": "asa-lab.electronics-gearmotor-information-profile.v1",
+  "componentTypeId": "gearmotor",
+  "profileId": "adafruit-3777-tt-48to1",
+  "vendorSource": "https://www.adafruit.com/product/3777",
+  "operatingVoltageVolt": [3, 6],
+  "gearRatio": 48,
+  "transmissionEfficiencyAtSixVoltReference": 0.25546019565776407,
+  "sixVoltNoLoadReference": {
+    "motorRpm": 12000,
+    "outputRpm": 250,
+    "currentAmp": 0.16,
+    "motorTorqueNewtonMeter": 0.0006824563959780472,
+    "outputTorqueNewtonMeter": 0.008368341333333333,
+    "motorMechanicalPowerWatt": 0.8576,
+    "outputMechanicalPowerWatt": 0.21908266379609845
+  },
+  "inspectorFields": [
+    "gearRatio",
+    "transmissionEfficiency",
+    "motorRpm",
+    "outputRpm",
+    "motorTorqueNewtonMeter",
+    "outputTorqueNewtonMeter",
+    "currentAmp",
+    "temperatureCelsius",
+    "failureMode"
+  ],
+  "stageReadout": "signedOutputRpm",
+  "visualPhaseSource": "acceptedSimulationTime",
+  "productionActivation": "blocked_until_math_5e_and_math_5f"
+}

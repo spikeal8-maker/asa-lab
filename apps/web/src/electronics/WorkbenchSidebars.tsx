@@ -1,5 +1,9 @@
 import { useEffect, useState } from 'react';
-import { ledForwardVoltageAtCurrent, ordinaryLedProfile } from '@asa-lab/electronics';
+import {
+  ledForwardVoltageAtCurrent,
+  ordinaryLedProfile,
+  resolveBrushedMotorProfileSelection,
+} from '@asa-lab/electronics';
 import {
   CATEGORY_OPTIONS,
   selectedFamilyVariant,
@@ -71,6 +75,11 @@ export function WorkbenchSidebars({
   const selectedIsPotentiometer = c.selectedComponent?.kind === 'potentiometer';
   const selectedIsAdjustableSource = c.selectedEntry?.key === 'regulated-power-supply';
   const selectedIsDcMotor = c.selectedEntry?.key === 'dc-motor';
+  const selectedIsGearmotor = c.selectedEntry?.key === 'gearmotor';
+  const selectedMotorProfile =
+    c.selectedComponent && (selectedIsDcMotor || selectedIsGearmotor)
+      ? resolveBrushedMotorProfileSelection(c.selectedComponent)
+      : null;
   const selectedDiagnostics = c.selectedComponent
     ? (c.diagnosticsByComponent.get(c.selectedComponent.id) ?? [])
     : [];
@@ -653,6 +662,22 @@ export function WorkbenchSidebars({
                 </label>
               ) : null}
 
+              {selectedIsGearmotor && stateOpen && selectedMotorProfile?.ok ? (
+                <div
+                  className="workbench-motor-profile-summary"
+                  data-testid="gearmotor-profile-summary"
+                >
+                  <strong>TT-мотор 1:48 · 3–6 В</strong>
+                  <span>
+                    Передаточное отношение 1:
+                    {selectedMotorProfile.profile.transmission.gearRatio.value.toFixed(0)}
+                  </span>
+                  <small>
+                    Вариант 1:90 не выбирается: для него нужен другой подтверждённый корпус.
+                  </small>
+                </div>
+              ) : null}
+
               {c.selectedComponent.kind === 'transistor' && stateOpen ? (
                 <fieldset className="workbench-state-controls workbench-transistor-controls">
                   <legend>
@@ -902,7 +927,8 @@ export function WorkbenchSidebars({
                       <dd>{measurement.currentUtilizationPercent.toFixed(0)}%</dd>
                     </div>
                   ) : null}
-                  {c.selectedEntry.key === 'dc-motor' && measurement.motorRpm !== undefined ? (
+                  {(c.selectedEntry.key === 'dc-motor' || c.selectedEntry.key === 'gearmotor') &&
+                  measurement.motorRpm !== undefined ? (
                     <>
                       <div>
                         <dt>Рабочий диапазон</dt>
@@ -921,10 +947,43 @@ export function WorkbenchSidebars({
                               : 'В рабочем диапазоне'}
                         </dd>
                       </div>
-                      <div data-testid="dc-motor-rpm-measurement">
-                        <dt>Скорость</dt>
+                      {c.selectedEntry.key === 'gearmotor' && selectedMotorProfile?.ok ? (
+                        <div>
+                          <dt>Передаточное отношение</dt>
+                          <dd>
+                            1:
+                            {selectedMotorProfile.profile.transmission.gearRatio.value.toFixed(0)}
+                          </dd>
+                        </div>
+                      ) : null}
+                      {c.selectedEntry.key === 'gearmotor' &&
+                      measurement.transmissionEfficiency !== undefined ? (
+                        <div>
+                          <dt>КПД редуктора</dt>
+                          <dd>{(measurement.transmissionEfficiency * 100).toFixed(0)}%</dd>
+                        </div>
+                      ) : null}
+                      <div
+                        data-testid={
+                          c.selectedEntry.key === 'gearmotor'
+                            ? 'gearmotor-motor-rpm-measurement'
+                            : 'dc-motor-rpm-measurement'
+                        }
+                      >
+                        <dt>
+                          {c.selectedEntry.key === 'gearmotor'
+                            ? 'Скорость двигателя внутри'
+                            : 'Скорость'}
+                        </dt>
                         <dd>{Math.round(measurement.motorRpm)} об/мин</dd>
                       </div>
+                      {c.selectedEntry.key === 'gearmotor' &&
+                      measurement.outputRpm !== undefined ? (
+                        <div data-testid="gearmotor-output-rpm-measurement">
+                          <dt>Скорость выходного вала</dt>
+                          <dd>{Math.round(measurement.outputRpm)} об/мин</dd>
+                        </div>
+                      ) : null}
                       <div>
                         <dt>Направление</dt>
                         <dd>
@@ -936,12 +995,30 @@ export function WorkbenchSidebars({
                         </dd>
                       </div>
                       <div>
-                        <dt>Электромагнитный момент</dt>
+                        <dt>
+                          {c.selectedEntry.key === 'gearmotor'
+                            ? 'Момент двигателя внутри'
+                            : 'Электромагнитный момент'}
+                        </dt>
                         <dd>
                           {((measurement.electromagneticTorqueNewtonMeter ?? 0) * 1_000).toFixed(2)}{' '}
                           мН·м
                         </dd>
                       </div>
+                      {c.selectedEntry.key === 'gearmotor' &&
+                      measurement.outputTorqueNewtonMeter !== undefined ? (
+                        <div data-testid="gearmotor-output-torque-measurement">
+                          <dt>Момент выходного вала</dt>
+                          <dd>{(measurement.outputTorqueNewtonMeter * 1_000).toFixed(2)} мН·м</dd>
+                        </div>
+                      ) : null}
+                      {c.selectedEntry.key === 'gearmotor' &&
+                      measurement.outputMechanicalPowerWatt !== undefined ? (
+                        <div>
+                          <dt>Механическая мощность на выходе</dt>
+                          <dd>{measurement.outputMechanicalPowerWatt.toFixed(3)} Вт</dd>
+                        </div>
+                      ) : null}
                       <div>
                         <dt>Нагрузка на валу</dt>
                         <dd>

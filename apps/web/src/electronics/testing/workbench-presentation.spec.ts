@@ -403,12 +403,28 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(productionVisualSource).toContain('dcMotorVisualMotion(motorRpm)');
     expect(productionVisualSource).toContain('data-testid="dc-motor-phase"');
     expect(productionVisualSource).toContain('data-motor-visual-direction={motion.direction}');
+    expect(productionVisualSource).toContain('<OwnerGearmotorVisual');
+    expect(productionVisualSource).toContain('gearmotorRuntimeMarkup(ownerSvg)');
+    expect(productionVisualSource).toContain(
+      'gearmotorVisualPresentation(simulationTimeMs, motorRpm, outputRpm)',
+    );
+    expect(productionVisualSource).toContain('data-testid="gearmotor-phase"');
+    expect(productionVisualSource).toContain('data-output-rpm=');
     expect(workbenchCss).toContain('@keyframes workbench-dc-motor-gear-spin');
     expect(workbenchCss).toContain("data-motor-visual-direction='counterclockwise'");
-    expect(stageSource).toContain('data-testid="dc-motor-rpm"');
+    expect(stageSource).toContain("'dc-motor-rpm'");
+    expect(stageSource).toContain("'gearmotor-output-rpm'");
+    expect(stageSource).toContain('result?.outputRpm ?? 0');
     expect(stageSource).toContain('formatMotorRpm(rpm)');
     expect(stageSource).toContain('pointerEvents="none"');
-    expect(sidebarSource).toContain('data-testid="dc-motor-rpm-measurement"');
+    expect(sidebarSource).toContain("'dc-motor-rpm-measurement'");
+    expect(sidebarSource).toContain('data-testid="gearmotor-profile-summary"');
+    expect(sidebarSource).toContain("'gearmotor-motor-rpm-measurement'");
+    expect(sidebarSource).toContain('data-testid="gearmotor-output-rpm-measurement"');
+    expect(sidebarSource).toContain('data-testid="gearmotor-output-torque-measurement"');
+    expect(sidebarSource).toContain('Передаточное отношение');
+    expect(sidebarSource).toContain('КПД редуктора');
+    expect(sidebarSource).toContain('Механическая мощность на выходе');
     expect(sidebarSource).toContain('Электромагнитный момент');
     expect(sidebarSource).toContain('Нагрузка на валу');
     expect(sidebarSource).toContain('Рабочий диапазон');
@@ -418,6 +434,8 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(controllerModuleSource).toContain('setSelectedMotorShaftLocked');
     expect(controllerModuleSource).toContain('{ stateProperties: { shaftLocked } }');
     expect(workbenchCss).toContain("data-component-type='dc-motor'");
+    expect(workbenchCss).toContain('.workbench-gearmotor-output-bar-highlight');
+    expect(workbenchCss).toContain('--workbench-gearmotor-motor-highlight-shift');
     expect(sidebarSource).toContain('Обмотка');
     expect(stageSource).toContain('data-hit-surface="potentiometer-knob-face"');
     expect(stageSource).toContain('cx={baseSize.width * (71.5 / 144)}');

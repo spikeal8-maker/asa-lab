@@ -222,6 +222,27 @@ describe('component information registry', () => {
     expect(sections[2]?.text).toContain('Обратная полярность опасна');
   });
 
+  it('explains the confirmed 1:48 gearmotor without pretending that gearing creates power', () => {
+    const profile = componentInformationProfile('gearmotor', 'visual');
+    expect(profile.technicalMetrics.map((metric) => metric.metricId)).toEqual([
+      'voltage-drop',
+      'current',
+      'power',
+    ]);
+    expect(profile.terminalPresentation).toBe('full');
+    const sections = componentHelpSections('visual', 'Мотор-редуктор.', 'gearmotor');
+    expect(sections.map((section) => section.title)).toEqual([
+      'Что имитируется',
+      'Что делает редуктор',
+      'Что смотреть во вкладке I',
+      'Питание и нагрузка',
+    ]);
+    expect(sections[0]?.text).toContain('1:48');
+    expect(sections[1]?.text).toContain('не создаёт дополнительную мощность');
+    expect(sections[2]?.text).toContain('скорость выходного вала');
+    expect(sections[3]?.text).toContain('3–6 В');
+  });
+
   it('publishes help only through a matching external approval digest', () => {
     const content = {
       componentFamilyId: 'resistor',

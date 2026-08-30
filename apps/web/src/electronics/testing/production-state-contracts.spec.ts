@@ -4,6 +4,8 @@ import {
   dcMotorRuntimeMarkup,
   dcMotorVisualMotion,
   formatMotorRpm,
+  gearmotorRuntimeMarkup,
+  gearmotorVisualPresentation,
   lampState,
   motorMotion,
   ordinaryLedState,
@@ -124,5 +126,37 @@ describe('typed Electronics state and animation contracts', () => {
     expect(formatMotorRpm(8420.4)).toBe('8420 об/мин');
     expect(formatMotorRpm(-8420.4)).toBe('−8420 об/мин');
     expect(formatMotorRpm(-0.2)).toBe('0 об/мин');
+  });
+
+  it('drives only existing TT shaft highlights from deterministic model time', () => {
+    const ownerSvg = `<svg viewBox="0 0 514 810"><rect id="rear-bar-highlight" x="59" y="190"/><rect id="top-shaft-inner" x="225" y="61"/><g id="bottom-shaft"><rect class="body" x="226" y="656" width="4" height="67"/><rect x="238" y="656" width="1" height="67"/></g></svg>`;
+    const markup = gearmotorRuntimeMarkup(ownerSvg);
+    expect(markup).toContain('class="workbench-gearmotor-output-bar-highlight"');
+    expect(markup).toContain('class="workbench-gearmotor-output-axle-highlight"');
+    expect(markup).toContain('class="workbench-gearmotor-motor-shaft-highlight"');
+    expect(ownerSvg).not.toContain('workbench-gearmotor');
+    expect(gearmotorRuntimeMarkup('<svg><rect id="top-shaft-inner"/></svg>')).toBe('');
+
+    expect(gearmotorVisualPresentation(1_000, 12_000, 250)).toMatchObject({
+      motorDirection: 'clockwise',
+      outputDirection: 'clockwise',
+    });
+    const forward = gearmotorVisualPresentation(1_000, 12_000, 250);
+    const reverse = gearmotorVisualPresentation(1_000, -12_000, -250);
+    expect(Number.isFinite(forward.motorHighlightShift)).toBe(true);
+    expect(Number.isFinite(forward.outputHighlightShift)).toBe(true);
+    expect(forward.motorHighlightShift).not.toBeCloseTo(forward.outputHighlightShift, 4);
+    expect(reverse).toMatchObject({
+      motorDirection: 'counterclockwise',
+      outputDirection: 'counterclockwise',
+    });
+    expect(reverse.motorHighlightShift).toBeCloseTo(-forward.motorHighlightShift, 10);
+    expect(reverse.outputHighlightShift).toBeCloseTo(-forward.outputHighlightShift, 10);
+    expect(gearmotorVisualPresentation(5_000, 0, 0)).toEqual({
+      motorDirection: 'stopped',
+      outputDirection: 'stopped',
+      motorHighlightShift: 0,
+      outputHighlightShift: 0,
+    });
   });
 });

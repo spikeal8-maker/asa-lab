@@ -334,7 +334,7 @@ requirements:
   - id: ELEC-INFO-022
     statement: gearmotor inspector exposes ratio efficiency internal RPM output RPM and torque as separate profile-bound values
     normative_sections: ["9.2", "14"]
-    status: planned
+    status: implemented
     activation: after_decisions
     depends_on_decisions: [DEC-INFO-003, DEC-INFO-009]
     verification: [unit, browser, content_review]

@@ -394,9 +394,11 @@ export function WorkbenchStage({
   const badgeGeometry = diagnosticBadgeGeometry(c.viewport.zoom);
   const readoutGeometry = stageReadoutGeometry(c.viewport.zoom);
   const motorReadouts = orderedComponents.flatMap((component) => {
-    if (component.componentTypeId !== 'dc-motor') return [];
+    const isDirectMotor = component.componentTypeId === 'dc-motor';
+    const isGearmotor = component.componentTypeId === 'gearmotor';
+    if (!isDirectMotor && !isGearmotor) return [];
     const entry = catalogEntry(component);
-    if (!entry?.asset || !entry.terminals) return [];
+    if (!entry?.asset || !entry.terminals || !entry.simulationSupported) return [];
     const baseSize = renderedSize(entry, 0);
     const bounds = renderedSize(entry, component.rotation ?? 0);
     const paintedBounds = paintedComponentBounds(
@@ -405,15 +407,16 @@ export function WorkbenchStage({
       bounds,
       componentAssetVisibleBounds(entry, baseSize.width, baseSize.height),
     );
+    const result = c.resultByComponent.get(component.id);
     const rpm = c.simulationRunning
-      ? Number(c.resultByComponent.get(component.id)?.motorRpm ?? 0)
+      ? Number(isGearmotor ? (result?.outputRpm ?? 0) : (result?.motorRpm ?? 0))
       : 0;
     const label = formatMotorRpm(rpm);
     return [
       <text
         key={`motor-rpm:${component.id}`}
         className="workbench-stage-readout workbench-motor-rpm"
-        data-testid="dc-motor-rpm"
+        data-testid={isGearmotor ? 'gearmotor-output-rpm' : 'dc-motor-rpm'}
         data-screen-upright="true"
         data-component-id={component.id}
         x={(paintedBounds.minX + paintedBounds.maxX) / 2}
@@ -422,7 +425,7 @@ export function WorkbenchStage({
         textAnchor="middle"
         dominantBaseline="auto"
         pointerEvents="none"
-        aria-label={`Скорость двигателя: ${label}`}
+        aria-label={`${isGearmotor ? 'Скорость выходного вала' : 'Скорость двигателя'}: ${label}`}
       >
         {label}
       </text>,

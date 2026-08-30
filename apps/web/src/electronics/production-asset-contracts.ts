@@ -358,6 +358,105 @@ export function dcMotorVisualMotion(motorRpm: number): DcMotorVisualMotion {
   };
 }
 
+export interface GearmotorVisualPresentation {
+  readonly motorDirection: MotorDirection;
+  readonly outputDirection: MotorDirection;
+  readonly motorHighlightShift: number;
+  readonly outputHighlightShift: number;
+}
+
+function calmGearmotorMotion(
+  rpmValue: number,
+  referenceRpm: number,
+  stoppedThresholdRpm: number,
+  periods: readonly [number, number, number, number],
+): DcMotorVisualMotion {
+  const rpm = Number.isFinite(rpmValue) ? rpmValue : 0;
+  const absoluteRpm = Math.abs(rpm);
+  if (absoluteRpm < stoppedThresholdRpm) {
+    return { direction: 'stopped', periodSeconds: null };
+  }
+  const relative = absoluteRpm / referenceRpm;
+  const periodSeconds =
+    relative < 0.35
+      ? periods[0]
+      : relative < 0.85
+        ? periods[1]
+        : relative < 1.4
+          ? periods[2]
+          : periods[3];
+  return {
+    direction: rpm > 0 ? 'clockwise' : 'counterclockwise',
+    periodSeconds,
+  };
+}
+
+function presentationPhase(simulationTimeMs: number, motion: DcMotorVisualMotion): number {
+  if (motion.direction === 'stopped' || motion.periodSeconds === null) return 0;
+  const finiteTimeMs = Number.isFinite(simulationTimeMs) ? Math.max(0, simulationTimeMs) : 0;
+  const signedTurns =
+    (finiteTimeMs / 1_000 / motion.periodSeconds) * (motion.direction === 'clockwise' ? 1 : -1);
+  const phase = signedTurns % 1;
+  return phase < 0 ? phase + 1 : phase;
+}
+
+/**
+ * Presentation-only shaft highlights for the owner TT gearmotor SVG.
+ *
+ * The exact motor and output RPM remain authoritative. The internal shaft uses
+ * a deliberately quicker calm band than the 1:48 output shaft, while both
+ * phases are derived from accepted model time rather than browser frame count.
+ */
+export function gearmotorVisualPresentation(
+  simulationTimeMs: number,
+  motorRpm: number,
+  outputRpm: number,
+): GearmotorVisualPresentation {
+  const motorMotion = calmGearmotorMotion(motorRpm, 12_000, 25, [2.4, 2.05, 1.75, 1.55]);
+  const outputMotion = calmGearmotorMotion(outputRpm, 250, 1, [4.4, 3.9, 3.4, 2.8]);
+  const motorPhase = presentationPhase(simulationTimeMs, motorMotion);
+  const outputPhase = presentationPhase(simulationTimeMs, outputMotion);
+  return {
+    motorDirection: motorMotion.direction,
+    outputDirection: outputMotion.direction,
+    motorHighlightShift: Math.sin(motorPhase * Math.PI * 2) * 3,
+    outputHighlightShift: Math.sin(outputPhase * Math.PI * 2) * 2.5,
+  };
+}
+
+/**
+ * Adds runtime classes only to existing surface/highlight shapes. The owner SVG
+ * file stays byte-exact and no complete longitudinal shaft is rotated as a
+ * propeller or moved off its physical centreline.
+ */
+export function gearmotorRuntimeMarkup(ownerSvg: string): string {
+  const withRuntimeSurfaces = ownerSvg
+    .replace(
+      '<rect id="rear-bar-highlight"',
+      '<rect id="rear-bar-highlight" class="workbench-gearmotor-output-bar-highlight"',
+    )
+    .replace(
+      '<rect id="top-shaft-inner"',
+      '<rect id="top-shaft-inner" class="workbench-gearmotor-output-axle-highlight"',
+    )
+    .replace(
+      '<rect x="238" y="656" width="1" height="67"',
+      '<rect class="workbench-gearmotor-motor-shaft-highlight" x="238" y="656" width="1" height="67"',
+    );
+  if (
+    withRuntimeSurfaces === ownerSvg ||
+    !withRuntimeSurfaces.includes('workbench-gearmotor-output-bar-highlight') ||
+    !withRuntimeSurfaces.includes('workbench-gearmotor-output-axle-highlight') ||
+    !withRuntimeSurfaces.includes('workbench-gearmotor-motor-shaft-highlight')
+  ) {
+    return '';
+  }
+  const bodyStart = withRuntimeSurfaces.indexOf('>');
+  const bodyEnd = withRuntimeSurfaces.lastIndexOf('</svg>');
+  if (bodyStart < 0 || bodyEnd <= bodyStart) return '';
+  return withRuntimeSurfaces.slice(bodyStart + 1, bodyEnd);
+}
+
 export function formatMotorRpm(value: number): string {
   const rounded = Number.isFinite(value) ? Math.round(value) : 0;
   const normalized = Object.is(rounded, -0) ? 0 : rounded;
