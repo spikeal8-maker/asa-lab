@@ -431,6 +431,28 @@ function gearmotorDocument(): SchematicDocument {
   };
 }
 
+function gearmotorOvervoltageDocument(): SchematicDocument {
+  const document = gearmotorDocument();
+  return {
+    ...document,
+    components: document.components.map((component) =>
+      component.id === 'source'
+        ? {
+            ...component,
+            componentTypeId: 'battery-holder-aa-8',
+            variantId: 'battery-holder-aa-8',
+            name: 'Источник 12 В',
+            position: { x: 100, y: 430 },
+            value: 12,
+            stateProperties: { cells: 8 },
+          }
+        : component.id === 'motor'
+          ? { ...component, position: { x: 720, y: 150 } }
+          : component,
+    ),
+  };
+}
+
 function dcMotorOvervoltageDocument(): SchematicDocument {
   const document = dcMotorDocument();
   return {
@@ -1725,7 +1747,13 @@ test('1:48 gearmotor exposes real settings, output RPM and runtime shaft control
   const outputShaftMarker = phaseVisual.locator('.workbench-gearmotor-output-bar-highlight');
   await expect(outputShaftMarker).toHaveCSS('fill', 'rgb(102, 114, 123)');
   await expect(outputShaftMarker).toHaveCSS('opacity', '0.88');
+  await expect(phaseVisual.locator('.workbench-gearmotor-output-axle-highlight')).toHaveCount(0);
+  const motorShaftMarker = phaseVisual.locator('.workbench-gearmotor-motor-shaft-highlight');
+  await expect(motorShaftMarker).toHaveCSS('fill', 'rgb(70, 81, 90)');
   const initialMarkerTransform = await outputShaftMarker.evaluate(
+    (element) => getComputedStyle(element).transform,
+  );
+  const initialMotorMarkerTransform = await motorShaftMarker.evaluate(
     (element) => getComputedStyle(element).transform,
   );
   await expect
@@ -1734,6 +1762,11 @@ test('1:48 gearmotor exposes real settings, output RPM and runtime shaft control
       { timeout: 5_000 },
     )
     .not.toBe(initialMarkerTransform);
+  await expect
+    .poll(async () => motorShaftMarker.evaluate((element) => getComputedStyle(element).transform), {
+      timeout: 5_000,
+    })
+    .not.toBe(initialMotorMarkerTransform);
   await expect(inspector.getByText('Выходной вал', { exact: true })).toBeVisible();
   const advancedParameters = inspector.getByText('Подробные параметры', { exact: true });
   await advancedParameters.click();
@@ -1753,6 +1786,45 @@ test('1:48 gearmotor exposes real settings, output RPM and runtime shaft control
   await shaftLock.uncheck();
   await page.screenshot({
     path: `${ARTIFACT_DIR}/electronics-gearmotor-runtime.png`,
+    fullPage: true,
+  });
+  failures.assertEmpty();
+});
+
+test('gearmotor warning stays on the primary yellow housing instead of a shaft tip', async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await loginWithOrganization(page, teacher);
+  const projectId = await createProject(page, 'MATH-5F gearmotor diagnostic anchor');
+  await saveDocument(page, projectId, gearmotorOvervoltageDocument());
+  await page.goto(`/#/home/${projectId}`);
+  await page.getByRole('button', { name: 'Начать моделирование' }).click();
+
+  const motor = component(page, 'gearmotor');
+  const visual = motor.getByTestId('gearmotor-phase');
+  const diagnosticGroup = page.locator(
+    '[data-testid="component-diagnostic"][data-component-type="gearmotor"]',
+  );
+  await expect(diagnosticGroup).toHaveAttribute('data-anchor', 'primary-body-top-right');
+  const visualBox = await visual.boundingBox();
+  const diagnosticBox = await diagnosticGroup.boundingBox();
+  expect(visualBox).not.toBeNull();
+  expect(diagnosticBox).not.toBeNull();
+  if (!visualBox || !diagnosticBox) throw new Error('gearmotor visual geometry is unavailable');
+  const relativeCenterX =
+    (diagnosticBox.x + diagnosticBox.width / 2 - visualBox.x) / visualBox.width;
+  const relativeCenterY =
+    (diagnosticBox.y + diagnosticBox.height / 2 - visualBox.y) / visualBox.height;
+  expect(relativeCenterX).toBeGreaterThan(0.55);
+  expect(relativeCenterX).toBeLessThan(0.8);
+  expect(relativeCenterY).toBeGreaterThan(0.05);
+  expect(relativeCenterY).toBeLessThan(0.25);
+
+  await page.screenshot({
+    path: `${ARTIFACT_DIR}/electronics-gearmotor-warning-anchor.png`,
     fullPage: true,
   });
   failures.assertEmpty();

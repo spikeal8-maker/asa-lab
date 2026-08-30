@@ -4,6 +4,7 @@ import {
   dcMotorRuntimeMarkup,
   dcMotorVisualMotion,
   formatMotorRpm,
+  gearmotorDiagnosticBodyBounds,
   gearmotorRuntimeMarkup,
   gearmotorVisualPresentation,
   lampState,
@@ -132,10 +133,24 @@ describe('typed Electronics state and animation contracts', () => {
     const ownerSvg = `<svg viewBox="0 0 514 810"><rect id="rear-bar-highlight" x="59" y="190"/><rect id="top-shaft-inner" x="225" y="61"/><g id="bottom-shaft"><rect class="body" x="226" y="656" width="4" height="67"/><rect x="238" y="656" width="1" height="67"/></g></svg>`;
     const markup = gearmotorRuntimeMarkup(ownerSvg);
     expect(markup).toContain('class="workbench-gearmotor-output-bar-highlight"');
-    expect(markup).toContain('class="workbench-gearmotor-output-axle-highlight"');
     expect(markup).toContain('class="workbench-gearmotor-motor-shaft-highlight"');
+    expect(markup).toContain('<rect id="top-shaft-inner" x="225" y="61"');
+    expect(markup).not.toContain('workbench-gearmotor-output-axle-highlight');
     expect(ownerSvg).not.toContain('workbench-gearmotor');
     expect(gearmotorRuntimeMarkup('<svg><rect id="top-shaft-inner"/></svg>')).toBe('');
+
+    expect(gearmotorDiagnosticBodyBounds(514, 810)).toEqual({
+      minX: 135,
+      minY: 99,
+      maxX: 329,
+      maxY: 529,
+    });
+    expect(gearmotorDiagnosticBodyBounds(Number.NaN, Number.POSITIVE_INFINITY)).toEqual({
+      minX: 0,
+      minY: 0,
+      maxX: 0,
+      maxY: 0,
+    });
 
     expect(gearmotorVisualPresentation(1_000, 12_000, 250)).toMatchObject({
       motorDirection: 'clockwise',
@@ -145,7 +160,7 @@ describe('typed Electronics state and animation contracts', () => {
     const reverse = gearmotorVisualPresentation(1_000, -12_000, -250);
     expect(Number.isFinite(forward.motorHighlightShift)).toBe(true);
     expect(Number.isFinite(forward.outputHighlightShift)).toBe(true);
-    expect(Math.abs(forward.outputHighlightShift)).toBeGreaterThan(5);
+    expect(Math.abs(forward.outputHighlightShift)).toBeGreaterThan(10);
     expect(forward.motorHighlightShift).not.toBeCloseTo(forward.outputHighlightShift, 4);
     expect(reverse).toMatchObject({
       motorDirection: 'counterclockwise',

@@ -510,31 +510,27 @@
   }
 }
 .workbench-gearmotor-visual .workbench-gearmotor-output-bar-highlight {
-  transform: translateY(var(--workbench-gearmotor-output-highlight-shift, 0));
+  transform: translateY(calc(12px + var(--workbench-gearmotor-output-highlight-shift, 0px)));
   fill: #66727b;
   opacity: 0.88;
 }
-.workbench-gearmotor-visual .workbench-gearmotor-output-axle-highlight {
-  transform: translateX(var(--workbench-gearmotor-output-highlight-shift, 0));
-  fill: #806f00;
-  opacity: 0.88;
-}
 .workbench-gearmotor-visual .workbench-gearmotor-motor-shaft-highlight {
-  transform: translateX(var(--workbench-gearmotor-motor-highlight-shift, 0));
+  transform: translateX(calc(-5.5px + var(--workbench-gearmotor-motor-highlight-shift, 0px)));
   fill: #46515a;
   opacity: 0.9;
 }
 .workbench-gearmotor-visual .workbench-gearmotor-output-bar-highlight,
-.workbench-gearmotor-visual .workbench-gearmotor-output-axle-highlight,
 .workbench-gearmotor-visual .workbench-gearmotor-motor-shaft-highlight {
   will-change: transform;
   transition: transform 220ms linear;
 }
 @media (prefers-reduced-motion: reduce) {
-  .workbench-gearmotor-visual .workbench-gearmotor-output-bar-highlight,
-  .workbench-gearmotor-visual .workbench-gearmotor-output-axle-highlight,
+  .workbench-gearmotor-visual .workbench-gearmotor-output-bar-highlight {
+    transform: translateY(12px);
+    transition: none;
+  }
   .workbench-gearmotor-visual .workbench-gearmotor-motor-shaft-highlight {
-    transform: none;
+    transform: translateX(-5.5px);
     transition: none;
   }
 }
@@ -566,7 +562,7 @@
 }
 .workbench-gearmotor-fixed-profile {
   display: grid;
-  grid-template-columns: 72px minmax(0, 1fr);
+  grid-template-columns: 90px minmax(0, 1fr);
   min-height: 32px;
 }
 .workbench-gearmotor-fixed-profile > span,
@@ -581,6 +577,7 @@
 .workbench-gearmotor-fixed-profile > span {
   background: #0696d7;
   color: #fff;
+  white-space: nowrap;
 }
 .workbench-gearmotor-fixed-profile > strong {
   border: 1px solid #c5cfd9;

@@ -365,6 +365,32 @@ export interface GearmotorVisualPresentation {
   readonly outputHighlightShift: number;
 }
 
+const GEARMOTOR_OWNER_VIEWBOX = { width: 514, height: 810 } as const;
+const GEARMOTOR_PRIMARY_BODY = { minX: 135, minY: 99, maxX: 329, maxY: 529 } as const;
+
+/**
+ * The diagnostic belongs to the yellow housing, not to the furthest shaft tip.
+ * Coordinates are projected from the confirmed owner SVG without changing it.
+ */
+export function gearmotorDiagnosticBodyBounds(
+  width: number,
+  height: number,
+): {
+  readonly minX: number;
+  readonly minY: number;
+  readonly maxX: number;
+  readonly maxY: number;
+} {
+  const safeWidth = Number.isFinite(width) ? Math.max(0, width) : 0;
+  const safeHeight = Number.isFinite(height) ? Math.max(0, height) : 0;
+  return {
+    minX: (GEARMOTOR_PRIMARY_BODY.minX / GEARMOTOR_OWNER_VIEWBOX.width) * safeWidth,
+    minY: (GEARMOTOR_PRIMARY_BODY.minY / GEARMOTOR_OWNER_VIEWBOX.height) * safeHeight,
+    maxX: (GEARMOTOR_PRIMARY_BODY.maxX / GEARMOTOR_OWNER_VIEWBOX.width) * safeWidth,
+    maxY: (GEARMOTOR_PRIMARY_BODY.maxY / GEARMOTOR_OWNER_VIEWBOX.height) * safeHeight,
+  };
+}
+
 function calmGearmotorMotion(
   rpmValue: number,
   referenceRpm: number,
@@ -419,8 +445,10 @@ export function gearmotorVisualPresentation(
   return {
     motorDirection: motorMotion.direction,
     outputDirection: outputMotion.direction,
-    motorHighlightShift: Math.sin(motorPhase * Math.PI * 2) * 4,
-    outputHighlightShift: Math.sin(outputPhase * Math.PI * 2) * 7,
+    // CSS adds the centre offset. These amplitudes then cover the whole visible
+    // width/height of the confirmed bottom and transverse shaft surfaces.
+    motorHighlightShift: Math.sin(motorPhase * Math.PI * 2) * 5.5,
+    outputHighlightShift: Math.sin(outputPhase * Math.PI * 2) * 12,
   };
 }
 
@@ -436,17 +464,12 @@ export function gearmotorRuntimeMarkup(ownerSvg: string): string {
       '<rect id="rear-bar-highlight" class="workbench-gearmotor-output-bar-highlight"',
     )
     .replace(
-      '<rect id="top-shaft-inner"',
-      '<rect id="top-shaft-inner" class="workbench-gearmotor-output-axle-highlight"',
-    )
-    .replace(
       '<rect x="238" y="656" width="1" height="67"',
       '<rect class="workbench-gearmotor-motor-shaft-highlight" x="238" y="656" width="1" height="67"',
     );
   if (
     withRuntimeSurfaces === ownerSvg ||
     !withRuntimeSurfaces.includes('workbench-gearmotor-output-bar-highlight') ||
-    !withRuntimeSurfaces.includes('workbench-gearmotor-output-axle-highlight') ||
     !withRuntimeSurfaces.includes('workbench-gearmotor-motor-shaft-highlight')
   ) {
     return '';

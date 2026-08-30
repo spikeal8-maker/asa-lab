@@ -21,7 +21,7 @@ import {
   stageReadoutGeometry,
   wirePoints,
 } from './workbench-geometry';
-import { formatMotorRpm } from './production-asset-contracts';
+import { formatMotorRpm, gearmotorDiagnosticBodyBounds } from './production-asset-contracts';
 import { CircuitIcon, FitIcon, ZoomInIcon, ZoomOutIcon } from './workbench-icons';
 import { componentTransform } from './workbench-model';
 import { terminalPositionInDocument } from './workbench-document';
@@ -440,13 +440,15 @@ export function WorkbenchStage({
       if (!entry?.asset || !entry.terminals || !entry.simulationSupported) return null;
       const baseSize = renderedSize(entry, 0);
       const bounds = renderedSize(entry, component.rotation ?? 0);
-      const paintedBounds = paintedComponentBounds(
-        component,
-        baseSize,
-        bounds,
-        componentAssetVisibleBounds(entry, baseSize.width, baseSize.height),
-      );
+      const alphaBounds = componentAssetVisibleBounds(entry, baseSize.width, baseSize.height);
+      const anchorBounds =
+        entry.key === 'gearmotor'
+          ? gearmotorDiagnosticBodyBounds(baseSize.width, baseSize.height)
+          : alphaBounds;
+      const paintedBounds = paintedComponentBounds(component, baseSize, bounds, anchorBounds);
       const badgeAnchor = topRightBadgeAnchor(paintedBounds, badgeGeometry.radius);
+      const badgeAnchorKind =
+        entry.key === 'gearmotor' ? 'primary-body-top-right' : 'owner-alpha-top-right';
       const componentDiagnostics = c.diagnosticsByComponent.get(component.id) ?? [];
       const diagnostics = componentDiagnostics.map((diagnostic) => diagnostic.code);
       const actionableDiagnostics = componentDiagnostics.filter(
@@ -486,7 +488,7 @@ export function WorkbenchStage({
           transform={`translate(${badgeAnchor.x} ${badgeAnchor.y})`}
           data-testid="component-diagnostic"
           data-screen-upright="true"
-          data-anchor="owner-alpha-top-right"
+          data-anchor={badgeAnchorKind}
           data-component-id={component.id}
           data-component-type={component.componentTypeId}
           data-kind={component.kind}

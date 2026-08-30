@@ -219,6 +219,8 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(stageSource).toContain('data-screen-upright="true"');
     expect(stageSource).toContain('componentAssetVisibleBounds');
     expect(stageSource).toContain('topRightBadgeAnchor');
+    expect(stageSource).toContain('gearmotorDiagnosticBodyBounds');
+    expect(stageSource).toContain("'primary-body-top-right'");
     expect(stageSource).toContain('data-anchor="owner-alpha-top-right"');
     expect(stageSource).not.toContain('workbench-led-warning-indicator');
     expect(stageSource).toContain('unsupportedModelIndicators');
@@ -442,9 +444,13 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(controllerModuleSource).toContain('{ stateProperties: { shaftLocked } }');
     expect(workbenchCss).toContain("data-component-type='dc-motor'");
     expect(workbenchCss).toContain('.workbench-gearmotor-output-bar-highlight');
+    expect(workbenchCss).not.toContain('.workbench-gearmotor-output-axle-highlight');
     expect(workbenchCss).toContain('fill: #66727b');
+    expect(workbenchCss).toContain('translateY(calc(12px +');
+    expect(workbenchCss).toContain('translateX(calc(-5.5px +');
     expect(workbenchCss).toContain('transition: transform 220ms linear');
     expect(workbenchCss).toContain('--workbench-gearmotor-motor-highlight-shift');
+    expect(workbenchCss).toContain('grid-template-columns: 90px minmax(0, 1fr)');
     expect(sidebarSource).toContain('Обмотка');
     expect(stageSource).toContain('data-hit-surface="potentiometer-knob-face"');
     expect(stageSource).toContain('cx={baseSize.width * (71.5 / 144)}');
