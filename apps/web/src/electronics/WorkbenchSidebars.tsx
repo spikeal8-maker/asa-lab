@@ -649,11 +649,17 @@ export function WorkbenchSidebars({
                   />
                 </label>
               ) : null}
-              {selectedIsDcMotor && stateOpen ? (
+              {(selectedIsDcMotor || selectedIsGearmotor) && stateOpen ? (
                 <label className="workbench-toggle-property">
-                  <span>Заблокировать вал</span>
+                  <span>
+                    {selectedIsGearmotor ? 'Заблокировать выходной вал' : 'Заблокировать вал'}
+                  </span>
                   <input
-                    aria-label="Заблокировать вал двигателя"
+                    aria-label={
+                      selectedIsGearmotor
+                        ? 'Заблокировать выходной вал мотор-редуктора'
+                        : 'Заблокировать вал двигателя'
+                    }
                     type="checkbox"
                     disabled={!c.simulationRunning}
                     checked={c.selectedComponent.stateProperties?.['shaftLocked'] === true}
@@ -663,19 +669,66 @@ export function WorkbenchSidebars({
               ) : null}
 
               {selectedIsGearmotor && stateOpen && selectedMotorProfile?.ok ? (
-                <div
-                  className="workbench-motor-profile-summary"
-                  data-testid="gearmotor-profile-summary"
-                >
-                  <strong>TT-мотор 1:48 · 3–6 В</strong>
-                  <span>
-                    Передаточное отношение 1:
-                    {selectedMotorProfile.profile.transmission.gearRatio.value.toFixed(0)}
-                  </span>
-                  <small>
-                    Вариант 1:90 не выбирается: для него нужен другой подтверждённый корпус.
-                  </small>
-                </div>
+                <fieldset className="workbench-state-controls workbench-gearmotor-controls">
+                  <legend>Настройки мотор-редуктора</legend>
+                  <label>
+                    <span>Профиль редуктора</span>
+                    <select
+                      aria-label="Профиль мотор-редуктора"
+                      value={String(
+                        c.selectedComponent.stateProperties?.['motorAssemblyProfileId'] ??
+                          selectedMotorProfile.profile.profileId,
+                      )}
+                      onChange={(event) =>
+                        c.setSelectedProperties(
+                          { motorAssemblyProfileId: event.target.value },
+                          'Профиль мотор-редуктора изменён.',
+                        )
+                      }
+                    >
+                      <option value="adafruit-3777-tt-48to1">1:48 — пластиковый TT, 3–6 В</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>Нагрузка на выходном валу, мН·м</span>
+                    <input
+                      aria-label="Нагрузка на выходном валу мотор-редуктора"
+                      type="number"
+                      min="0"
+                      step="1"
+                      disabled={c.simulationRunning}
+                      value={
+                        Number(
+                          c.selectedComponent.stateProperties?.['outputLoadTorqueNewtonMeter'] ?? 0,
+                        ) * 1_000
+                      }
+                      onChange={(event) =>
+                        c.setSelectedProperties(
+                          {
+                            outputLoadTorqueNewtonMeter: Math.max(
+                              0,
+                              Number(event.target.value) / 1_000,
+                            ),
+                          },
+                          'Нагрузка на выходном валу изменена.',
+                        )
+                      }
+                    />
+                  </label>
+                  <div
+                    className="workbench-motor-profile-summary"
+                    data-testid="gearmotor-profile-summary"
+                  >
+                    <strong>TT-мотор 1:48 · 3–6 В</strong>
+                    <span>
+                      Передаточное отношение 1:
+                      {selectedMotorProfile.profile.transmission.gearRatio.value.toFixed(0)}
+                    </span>
+                    <small>
+                      Вариант 1:90 не выбирается: для него нужен другой подтверждённый корпус.
+                    </small>
+                  </div>
+                </fieldset>
               ) : null}
 
               {c.selectedComponent.kind === 'transistor' && stateOpen ? (

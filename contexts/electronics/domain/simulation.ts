@@ -519,7 +519,8 @@ function verifyQuality(
       !['wire', 'breadboard'].includes(component.kind) &&
       (component.kind !== 'visual' ||
         isElectrolyticCapacitor(component) ||
-        component.componentTypeId === 'dc-motor'),
+        component.componentTypeId === 'dc-motor' ||
+        component.componentTypeId === 'gearmotor'),
   );
   const powerBalanceApplicable =
     powerBalanceComponents.length > 0 &&
@@ -602,7 +603,9 @@ export function analyseCircuit(
     electricalMode:
       document.components.some(
         (component) =>
-          isElectrolyticCapacitor(component) || component.componentTypeId === 'dc-motor',
+          isElectrolyticCapacitor(component) ||
+          component.componentTypeId === 'dc-motor' ||
+          component.componentTypeId === 'gearmotor',
       ) || options.simulationTimeMs !== undefined
         ? 'transient'
         : 'dc',

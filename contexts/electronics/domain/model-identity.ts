@@ -80,6 +80,7 @@ const EXACT_IDENTITIES: Readonly<Record<string, ElectricalModelIdentity>> = {
   'transistor-fet': identity('n-channel-fet', 'generic-n-channel-fet-to92'),
   'incandescent-lamp': identity('incandescent-lamp', 'generic-incandescent-lamp'),
   'dc-motor': identity('dc-motor', 'pololu-1117-130-6v'),
+  gearmotor: identity('dc-motor', 'adafruit-3777-tt-48to1'),
   'breadboard-small': identity('breadboard-connectivity', 'breadboard-small'),
   'breadboard-medium': identity('breadboard-connectivity', 'breadboard-medium'),
   'breadboard-large': identity('breadboard-connectivity', 'breadboard-large'),
@@ -170,6 +171,15 @@ export function electricalModelIdentityForComponent(
       component.electricalModelVersion === 1 &&
       (component.modelProfileId === 'unsupported-dc-motor' ||
         component.modelProfileId === 'generic-dc-motor-static') &&
+      component.modelProfileVersion === 1
+    ) {
+      return resolveElectricalModelIdentity(component);
+    }
+    if (
+      component.componentTypeId === 'gearmotor' &&
+      component.electricalModelId === 'unsupported' &&
+      component.electricalModelVersion === 1 &&
+      component.modelProfileId === 'unsupported-gearmotor' &&
       component.modelProfileVersion === 1
     ) {
       return resolveElectricalModelIdentity(component);

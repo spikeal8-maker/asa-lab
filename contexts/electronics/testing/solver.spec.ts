@@ -591,6 +591,43 @@ describe('deterministic DC solver', () => {
     });
   });
 
+  it('advances the confirmed 1:48 gearmotor and reports its output shaft separately', () => {
+    const gearmotorDocument = doc(
+      [
+        component('source', 'source', 6),
+        component('gearmotor', 'visual', 6, {
+          componentTypeId: 'gearmotor',
+          pinIds: ['negative', 'positive'],
+          stateProperties: { motorAssemblyProfileId: 'adafruit-3777-tt-48to1' },
+        }),
+      ],
+      [
+        connect('positive', 'source', 'a', 'gearmotor', 'positive'),
+        connect('negative', 'gearmotor', 'negative', 'source', 'b'),
+      ],
+    );
+    const result = solveCircuit(gearmotorDocument, { simulationTimeMs: 500 });
+    const gearmotor = result.components.find((item) => item.componentId === 'gearmotor');
+
+    expect(result.status).toBe('solved');
+    expect(gearmotor).toMatchObject({
+      energized: true,
+      direction: 'clockwise',
+      motorOperatingMode: 'running',
+      windingFailureMode: 'none',
+      operatingVoltageMinVolt: 3,
+      operatingVoltageMaxVolt: 6,
+    });
+    expect(gearmotor?.motorRpm).toBeGreaterThan(0);
+    expect(gearmotor?.outputRpm).toBeGreaterThan(0);
+    expect((gearmotor?.motorRpm ?? 0) / (gearmotor?.outputRpm ?? 1)).toBeCloseTo(48, 3);
+    expect(gearmotor?.outputMechanicalPowerWatt).toBeLessThanOrEqual(
+      gearmotor?.motorMechanicalPowerWatt ?? 0,
+    );
+    expect(gearmotor?.transmissionEfficiency).toBeGreaterThan(0);
+    expect(result.transientState?.motors).toHaveLength(1);
+  });
+
   it('marks a 23 V unloaded motor as destructive overvoltage instead of healthy', () => {
     const motorDocument = doc(
       [

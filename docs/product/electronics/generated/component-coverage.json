@@ -4,9 +4,9 @@
     "catalogPath": "apps/web/public/assets/electronics/component-database/catalog.json",
     "catalogSha256": "6dffb396ead7723c968f1964c21e9f2be2823c5c21095ba0a5ef2c11a5a4b3c3",
     "modelIdentityPath": "contexts/electronics/domain/model-identity.ts",
-    "modelIdentitySha256": "3b4966c3799b1456039d91188f3d87941be520e83bbbad7cb827cc8d36d0ccb9",
+    "modelIdentitySha256": "54d1a308bf49d6e27ada6d448e3f3d197fc335b9c2029f23bc78ee6ed26707d4",
     "modelRegistryPath": "contexts/electronics/domain/model-registry.ts",
-    "modelRegistrySha256": "f914993d54da74a740e4c575d9660e83200b8dcf7c19ebe8ecc700dac40298e1",
+    "modelRegistrySha256": "6f17c602d2baab5e089052fcd936fde553035754a12e7526923521f9e2010841",
     "inspectorProfilePath": "apps/web/src/electronics/component-information.ts",
     "inspectorProfileSha256": "c594491cab282e66668507949956a4fd359da46c64995d284d54a500c722fb76",
     "helpContentPath": "apps/web/src/electronics/component-help-content.ts",
@@ -14,15 +14,15 @@
     "componentInformationTestPath": "apps/web/src/electronics/testing/component-information.spec.ts",
     "componentInformationTestSha256": "ab053eb44e8e10e4d804d2c3b48b885a4910f5dc2245e87f67593ac3911b70e9",
     "browserEvidencePath": "e2e/electronics-simulation.spec.ts",
-    "browserEvidenceSha256": "e37d264083522b12dd57d33d64cab83a95e37026cd5c8f8418b8481fd00f9a87"
+    "browserEvidenceSha256": "361af77cd7e7b466594c5acaf7ffeb145a79dbf3a8e9b0808781613bf65a3b17"
   },
   "summary": {
     "total": 43,
     "enabled": 42,
     "disabled": 1,
     "dcVerified": 29,
-    "dcUnsupported": 12,
-    "dcUnverified": 2,
+    "dcUnsupported": 11,
+    "dcUnverified": 3,
     "breadboardUnverified": 16,
     "transientUnverified": 41,
     "inspectorHelpUnverified": 42,
@@ -358,12 +358,14 @@
       "physicalScale": "verified",
       "terminals": "verified",
       "breadboardFixture": "verified",
-      "modelIdentity": "missing",
-      "dcModel": "unsupported",
+      "modelIdentity": "verified",
+      "dcModel": "unverified",
       "transientModel": "unverified",
       "damageProfile": "unverified",
       "inspectorHelp": "unverified",
-      "browserEvidence": "unverified"
+      "browserEvidence": "unverified",
+      "electricalModelId": "dc-motor",
+      "modelProfileId": "adafruit-3777-tt-48to1"
     },
     {
       "componentId": "battery-holder-aa-1",

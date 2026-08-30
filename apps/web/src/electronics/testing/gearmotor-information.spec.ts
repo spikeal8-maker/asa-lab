@@ -42,7 +42,7 @@ describe('MATH-5D gearmotor information contract', () => {
     );
   });
 
-  it('keeps internal and output observations explicit without claiming activation', () => {
+  it('keeps internal and output observations explicit for the active confirmed profile', () => {
     expect(fixture.inspectorFields).toEqual([
       'gearRatio',
       'transmissionEfficiency',
@@ -56,6 +56,6 @@ describe('MATH-5D gearmotor information contract', () => {
     ]);
     expect(fixture.stageReadout).toBe('signedOutputRpm');
     expect(fixture.visualPhaseSource).toBe('acceptedSimulationTime');
-    expect(fixture.productionActivation).toBe('blocked_until_math_5e_and_math_5f');
+    expect(fixture.productionActivation).toBe('active_confirmed_1_to_48_profile');
   });
 });

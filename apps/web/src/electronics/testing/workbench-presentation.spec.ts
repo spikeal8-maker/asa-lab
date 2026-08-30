@@ -419,6 +419,10 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(stageSource).toContain('pointerEvents="none"');
     expect(sidebarSource).toContain("'dc-motor-rpm-measurement'");
     expect(sidebarSource).toContain('data-testid="gearmotor-profile-summary"');
+    expect(sidebarSource).toContain('Настройки мотор-редуктора');
+    expect(sidebarSource).toContain('aria-label="Профиль мотор-редуктора"');
+    expect(sidebarSource).toContain('Нагрузка на выходном валу, мН·м');
+    expect(sidebarSource).toContain('Заблокировать выходной вал мотор-редуктора');
     expect(sidebarSource).toContain("'gearmotor-motor-rpm-measurement'");
     expect(sidebarSource).toContain('data-testid="gearmotor-output-rpm-measurement"');
     expect(sidebarSource).toContain('data-testid="gearmotor-output-torque-measurement"');
@@ -430,7 +434,8 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(sidebarSource).toContain('Рабочий диапазон');
     expect(sidebarSource).toContain('Состояние напряжения');
     expect(sidebarSource).toContain('Нагрев обмотки I²R');
-    expect(sidebarSource).toContain('aria-label="Заблокировать вал двигателя"');
+    expect(sidebarSource).toContain("'Заблокировать вал двигателя'");
+    expect(sidebarSource).toContain("'Заблокировать выходной вал мотор-редуктора'");
     expect(controllerModuleSource).toContain('setSelectedMotorShaftLocked');
     expect(controllerModuleSource).toContain('{ stateProperties: { shaftLocked } }');
     expect(workbenchCss).toContain("data-component-type='dc-motor'");

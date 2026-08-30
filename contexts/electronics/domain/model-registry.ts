@@ -189,7 +189,7 @@ export function electricalModelFor(component: SchematicComponent): ElectricalMod
     ? MODELS.visual
     : isArduinoUno(component)
       ? ARDUINO_UNO_MODEL
-      : component.componentTypeId === 'dc-motor'
+      : component.componentTypeId === 'dc-motor' || component.componentTypeId === 'gearmotor'
         ? DC_MOTOR_MODEL
         : component.componentTypeId === 'electrolytic-capacitor'
           ? ELECTROLYTIC_CAPACITOR_MODEL
@@ -213,7 +213,8 @@ export function unsupportedElectricalComponents(
 function productionRequiredTerminals(component: SchematicComponent): readonly Terminal[] {
   if (!component.componentTypeId) return [];
   if (isArduinoUno(component)) return ARDUINO_UNO_MODEL.requiredTerminals;
-  if (component.componentTypeId === 'dc-motor') return DC_MOTOR_MODEL.requiredTerminals;
+  if (component.componentTypeId === 'dc-motor' || component.componentTypeId === 'gearmotor')
+    return DC_MOTOR_MODEL.requiredTerminals;
   if (component.componentTypeId === 'electrolytic-capacitor')
     return ELECTROLYTIC_CAPACITOR_MODEL.requiredTerminals;
   // Holders expose BAT+/BAT-; single-cell batteries and the bench supply use

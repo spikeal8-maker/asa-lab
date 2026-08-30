@@ -301,8 +301,8 @@ function damageObservationForStress(
   }
 }
 
-function isDcMotor(component: SchematicComponent): boolean {
-  return component.componentTypeId === 'dc-motor';
+function isBrushedMotor(component: SchematicComponent): boolean {
+  return component.componentTypeId === 'dc-motor' || component.componentTypeId === 'gearmotor';
 }
 
 function brushedMotorProfile(component: SchematicComponent): BrushedMotorAssemblyProfile | null {
@@ -570,7 +570,7 @@ function logicalTerminal(component: SchematicComponent, terminal: LogicalTermina
     return terminal === 'a' ? 'terminal-1' : 'terminal-2';
   }
   if (component.kind === 'lamp') return terminal === 'a' ? 'L1' : 'L2';
-  if (isDcMotor(component)) return terminal === 'a' ? 'positive' : 'negative';
+  if (isBrushedMotor(component)) return terminal === 'a' ? 'positive' : 'negative';
   if (isElectrolyticCapacitor(component)) return terminal === 'a' ? 'positive' : 'negative';
   return terminal;
 }
@@ -578,7 +578,7 @@ function logicalTerminal(component: SchematicComponent, terminal: LogicalTermina
 function isSimulated(component: SchematicComponent): boolean {
   return (
     isArduinoUno(component) ||
-    isDcMotor(component) ||
+    isBrushedMotor(component) ||
     isElectrolyticCapacitor(component) ||
     !['breadboard', 'visual', 'wire'].includes(component.kind)
   );
@@ -643,7 +643,7 @@ function solveLinear(matrix: number[][], rhs: number[]): number[] | null {
 function propertyError(component: SchematicComponent): string | null {
   const capacitorError = capacitorPropertyError(component);
   if (capacitorError) return capacitorError;
-  if (isDcMotor(component)) {
+  if (isBrushedMotor(component)) {
     const selection = resolveBrushedMotorProfileSelection(component);
     if (!selection.ok) return selection.error.message;
     const outputLoadTorque = Number(
@@ -840,7 +840,7 @@ export function solveCircuit(
     .filter(isElectrolyticCapacitor)
     .sort((left, right) => (left.id < right.id ? -1 : left.id > right.id ? 1 : 0));
   const orderedMotors = document.components
-    .filter(isDcMotor)
+    .filter(isBrushedMotor)
     .sort((left, right) => (left.id < right.id ? -1 : left.id > right.id ? 1 : 0));
   const orderedThermalComponents = document.components
     .filter((component) => thermalProfileFor(component) !== null)
@@ -1639,7 +1639,7 @@ function solveCircuitStep(
         stampConductance(a, b, 1 / PIEZO_DC_RESISTANCE_OHM);
       } else if (component.kind === 'lamp') {
         stampConductance(a, b, 1 / component.value);
-      } else if (isDcMotor(component)) {
+      } else if (isBrushedMotor(component)) {
         const profile = brushedMotorProfile(component);
         const previousState = options.motorPreviousStateById?.[component.id];
         if (!profile || !previousState) continue;
@@ -2039,7 +2039,7 @@ function solveCircuitStep(
       if (failedComponentIds.has(component.id)) {
         const voltages = Object.values(terminalVoltages);
         const voltageDrop = round((voltages[0] ?? 0) - (voltages[1] ?? 0));
-        const failedMotorState = isDcMotor(component)
+        const failedMotorState = isBrushedMotor(component)
           ? options.motorPreviousStateById?.[component.id]
           : undefined;
         const failedMotorProfile = failedMotorState ? brushedMotorProfile(component) : null;
@@ -2107,7 +2107,7 @@ function solveCircuitStep(
             options.transientStepSeconds ?? TRANSIENT_INITIAL_SAMPLE_MS / 1_000,
           )
         : undefined;
-      const motorStep = isDcMotor(component)
+      const motorStep = isBrushedMotor(component)
         ? (() => {
             const profile = brushedMotorProfile(component);
             const previousState = options.motorPreviousStateById?.[component.id];
@@ -2401,7 +2401,7 @@ function solveCircuitStep(
                 piezoTone === null ? 0 : component.componentTypeId === 'piezo-disc' ? 0.55 : 0.8,
             }
           : {}),
-        ...(isDcMotor(component)
+        ...(isBrushedMotor(component)
           ? motorStep
             ? motorComponentObservation(component, motorStep)
             : {
@@ -2481,7 +2481,7 @@ function solveCircuitStep(
     );
   }
 
-  for (const motor of document.components.filter(isDcMotor)) {
+  for (const motor of document.components.filter(isBrushedMotor)) {
     const result = components.find((component) => component.componentId === motor.id);
     if (!result) continue;
     if (result.motorVoltageState === 'overvoltage') {

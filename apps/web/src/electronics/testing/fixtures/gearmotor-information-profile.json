@@ -28,5 +28,5 @@
   ],
   "stageReadout": "signedOutputRpm",
   "visualPhaseSource": "acceptedSimulationTime",
-  "productionActivation": "blocked_until_math_5e_and_math_5f"
+  "productionActivation": "active_confirmed_1_to_48_profile"
 }

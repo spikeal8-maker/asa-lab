@@ -122,7 +122,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: math_5c_motor_owner_accepted_math_5d_gearmotor_information_ready_review_math_5e_pending
+      checkpoint: math_5d_gearmotor_1to48_direct_runtime_ready_owner_review_math_5e_control_protection_pending
       owner_acceptance: pending
     revisions:
       convergence_baseline_sha: 5b052dc631c7036de9d60f4206c9879fe364e732

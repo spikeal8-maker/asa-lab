@@ -328,6 +328,13 @@ describe('owner SVG integration in the real Electronics document', () => {
       simulationSupported: true,
       catalogStatus: 'enabled',
     });
+    expect(productionCatalogEntry('gearmotor')).toMatchObject({
+      enabled: true,
+      simulationSupported: true,
+      defaultValue: 6,
+      unit: 'В',
+      catalogStatus: 'enabled',
+    });
     expect(productionCatalogEntry('electrolytic-capacitor')).toMatchObject({
       enabled: true,
       simulationSupported: true,
@@ -347,7 +354,6 @@ describe('owner SVG integration in the real Electronics document', () => {
     ).toEqual(['ultrasonic-sensor', 'ultrasonic-hc-sr04']);
     for (const componentId of [
       'vibration-motor',
-      'gearmotor',
       'soil-moisture-sensor',
       'ultrasonic-hc-sr04',
       'pir-sensor',

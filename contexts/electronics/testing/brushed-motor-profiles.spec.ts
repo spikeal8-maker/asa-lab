@@ -138,19 +138,19 @@ describe('MATH-5A brushed motor reference profiles', () => {
     expect(simulationInputDigest(ratio48)).not.toBe(simulationInputDigest(ratio90));
   });
 
-  it('activates only the direct motor profile while the gearmotor remains unsupported', () => {
+  it('activates the confirmed direct-motor and 1:48 gearmotor profiles', () => {
     expect(resolveElectricalModelIdentity(motor('dc-motor'))).toMatchObject({
       electricalModelId: 'dc-motor',
       modelProfileId: 'pololu-1117-130-6v',
     });
     expect(resolveElectricalModelIdentity(motor('gearmotor'))).toMatchObject({
-      electricalModelId: 'unsupported',
-      modelProfileId: 'unsupported-gearmotor',
+      electricalModelId: 'dc-motor',
+      modelProfileId: 'adafruit-3777-tt-48to1',
     });
     expect(electricalModelFor(motor('gearmotor'))).toMatchObject({
-      id: 'unsupported',
-      support: 'unsupported',
-      topology: 'unsupported',
+      id: 'dc-motor',
+      support: 'supported',
+      topology: 'two-terminal',
     });
   });
 });

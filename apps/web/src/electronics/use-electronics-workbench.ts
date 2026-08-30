@@ -714,7 +714,11 @@ export function useElectronicsWorkbench(projectId: string) {
     }
     if (selection?.kind !== 'component') return;
     const component = runtimeDocument.components.find((item) => item.id === selection.id);
-    if (!component || component.componentTypeId !== 'dc-motor') return;
+    if (
+      !component ||
+      (component.componentTypeId !== 'dc-motor' && component.componentTypeId !== 'gearmotor')
+    )
+      return;
     setRuntimeComponentOverride(component.id, { stateProperties: { shaftLocked } });
   }
 

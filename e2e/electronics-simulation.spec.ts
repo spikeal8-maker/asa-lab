@@ -413,6 +413,24 @@ function dcMotorDocument(): SchematicDocument {
   };
 }
 
+function gearmotorDocument(): SchematicDocument {
+  const document = dcMotorDocument();
+  return {
+    ...document,
+    components: document.components.map((component) =>
+      component.id === 'motor'
+        ? {
+            ...component,
+            componentTypeId: 'gearmotor',
+            variantId: 'gearmotor',
+            name: 'Мотор-редуктор TT 1:48',
+            stateProperties: { motorAssemblyProfileId: 'adafruit-3777-tt-48to1' },
+          }
+        : component,
+    ),
+  };
+}
+
 function dcMotorOvervoltageDocument(): SchematicDocument {
   const document = dcMotorDocument();
   return {
@@ -1667,6 +1685,58 @@ test('direct DC motor shows calculated signed RPM and calm visual direction', as
   await shaftLock.uncheck();
   await page.screenshot({
     path: `${ARTIFACT_DIR}/electronics-dc-motor-runtime.png`,
+    fullPage: true,
+  });
+  failures.assertEmpty();
+});
+
+test('1:48 gearmotor exposes real settings, output RPM and runtime shaft control', async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await loginWithOrganization(page, teacher);
+  const projectId = await createProject(page, 'MATH-5F gearmotor runtime');
+  await saveDocument(page, projectId, gearmotorDocument());
+  await page.goto(`/#/home/${projectId}`);
+
+  const motor = component(page, 'gearmotor');
+  const readout = page.locator('[data-testid="gearmotor-output-rpm"][data-component-id="motor"]');
+  await expect(readout).toHaveText('0 об/мин');
+  await motor.locator('.workbench-part').click({ force: true });
+  const inspector = page.getByRole('complementary', { name: 'Параметры выделения' });
+  await inspector.getByRole('button', { name: /Техническое состояние/ }).click();
+  await expect(inspector.getByText('Настройки мотор-редуктора', { exact: true })).toBeVisible();
+  await expect(inspector.getByLabel('Профиль мотор-редуктора')).toHaveValue(
+    'adafruit-3777-tt-48to1',
+  );
+  await expect(inspector.getByLabel('Нагрузка на выходном валу мотор-редуктора')).toHaveValue('0');
+  await expect(inspector.getByText('TT-мотор 1:48 · 3–6 В', { exact: true })).toBeVisible();
+
+  await page.getByRole('button', { name: 'Начать моделирование' }).click();
+  await expect
+    .poll(async () => Number.parseInt((await readout.textContent()) ?? '0', 10), {
+      timeout: 10_000,
+    })
+    .toBeGreaterThan(0);
+  const phaseVisual = motor.getByTestId('gearmotor-phase');
+  await expect(phaseVisual).toHaveAttribute('data-output-visual-direction', 'clockwise');
+  await expect(inspector.getByText('Скорость двигателя внутри', { exact: true })).toBeVisible();
+  await expect(inspector.getByText('Скорость выходного вала', { exact: true })).toBeVisible();
+  await expect(inspector.getByText('Передаточное отношение', { exact: true })).toBeVisible();
+  await expect(inspector.getByText('КПД редуктора', { exact: true })).toBeVisible();
+  await expect(inspector.getByText('Момент выходного вала', { exact: true })).toBeVisible();
+
+  const shaftLock = inspector.getByLabel('Заблокировать выходной вал мотор-редуктора');
+  await shaftLock.check();
+  await expect(inspector.getByText('Вал заблокирован', { exact: true })).toBeVisible();
+  await expect
+    .poll(async () => (await readout.textContent())?.trim(), { timeout: 5_000 })
+    .toBe('0 об/мин');
+  await shaftLock.uncheck();
+  await page.screenshot({
+    path: `${ARTIFACT_DIR}/electronics-gearmotor-runtime.png`,
     fullPage: true,
   });
   failures.assertEmpty();

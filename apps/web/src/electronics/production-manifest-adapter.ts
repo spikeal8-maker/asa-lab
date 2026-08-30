@@ -200,6 +200,7 @@ const SIMULATED_TYPES = new Set([
   'piezo-passive-buzzer',
   'piezo-disc',
   'dc-motor',
+  'gearmotor',
 ]);
 
 const COMPONENT_DESCRIPTIONS: Readonly<Record<string, string>> = {
@@ -412,11 +413,14 @@ function defaults(componentId: string): {
       unit: 'Ом',
       properties: { lampLevel: 'off', resistanceUnit: 'Ω' },
     };
-  if (componentId === 'dc-motor')
+  if (componentId === 'dc-motor' || componentId === 'gearmotor')
     return {
       value: 6,
       unit: 'В',
-      properties: {},
+      properties:
+        componentId === 'gearmotor'
+          ? { motorAssemblyProfileId: 'adafruit-3777-tt-48to1' }
+          : {},
     };
   return { value: 0, unit: '', properties: { simulationStatus: 'not_yet_supported' } };
 }
