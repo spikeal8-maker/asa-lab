@@ -122,12 +122,12 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: math_6c_button_spdt_runtime_ready_owner_review_math_5e_control_protection_deferred
+      checkpoint: math_6d_incandescent_lamp_runtime_ready_owner_review_math_5e_control_protection_deferred
       owner_acceptance: pending
     revisions:
       convergence_baseline_sha: 5b052dc631c7036de9d60f4206c9879fe364e732
-      head_sha: 092bfe28d21c997ec285c185aca0bf6c0e8dfb77
-      owner_accepted_sha: 02902f9c7ce5d3604d4d15dd002ee173d8f4e5f7
+      head_sha: 2b3cfea1f0fbb9cad08a0ca27c0cc1a65fa370ab
+      owner_accepted_sha: 90ab13fae05934de9207a9216b191dd4df172d27
     execution_lease:
       executor_id: codex-electronics-docs
       holder: unassigned
