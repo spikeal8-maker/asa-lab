@@ -627,6 +627,42 @@ describe('deterministic DC solver', () => {
         componentIds: ['motor'],
       }),
     );
+
+    const afterFourSeconds = solveCircuit(motorDocument, { simulationTimeMs: 4_000 });
+    if (!afterFourSeconds.transientState) throw new Error('motor transient state missing at 4 s');
+    const afterEightSeconds = solveCircuit(motorDocument, {
+      simulationTimeMs: 8_000,
+      transientState: afterFourSeconds.transientState,
+    });
+    if (!afterEightSeconds.transientState) throw new Error('motor transient state missing at 8 s');
+    const afterTwelveSeconds = solveCircuit(motorDocument, {
+      simulationTimeMs: 12_000,
+      transientState: afterEightSeconds.transientState,
+    });
+    if (!afterTwelveSeconds.transientState)
+      throw new Error('motor transient state missing at 12 s');
+    const failed = solveCircuit(motorDocument, {
+      simulationTimeMs: 13_000,
+      transientState: afterTwelveSeconds.transientState,
+    });
+    const failedMotor = failed.components.find((item) => item.componentId === 'motor');
+    expect(failedMotor).toMatchObject({
+      voltageDrop: -23,
+      current: 0,
+      motorVoltageState: 'overvoltage',
+      windingFailureMode: 'winding_open',
+      stressState: 'burned',
+      deviceHealth: 'failed_open',
+      damageState: 'failed',
+      presentationState: 'failed',
+    });
+    expect(failed.diagnostics).toContainEqual(
+      expect.objectContaining({
+        code: 'motor_overvoltage',
+        severity: 'error',
+        componentIds: ['motor'],
+      }),
+    );
   });
 
   it('reports signed reverse RPM and carries rotor coast after power is removed', () => {

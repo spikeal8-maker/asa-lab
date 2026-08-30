@@ -2050,7 +2050,7 @@ function solveCircuitStep(
                 failedMotorState,
                 brushedMotorStepInput(
                   component,
-                  0,
+                  voltageDrop,
                   options.transientStepSeconds ?? TRANSIENT_INITIAL_SAMPLE_MS / 1_000,
                 ),
               )
