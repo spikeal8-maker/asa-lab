@@ -64,6 +64,28 @@ export type {
   NormalizedDevice,
 } from './domain/models/device-model.js';
 export {
+  BRUSHED_MOTOR_ASSEMBLY_PROFILES,
+  BRUSHED_MOTOR_PROFILE_REGISTRY_VERSION,
+  BRUSHED_MOTOR_PROFILE_SOURCES,
+  DEFAULT_BRUSHED_MOTOR_PROFILE_IDS,
+  MOTOR_ASSEMBLY_PROFILE_PROPERTY,
+  brushedMotorProfile,
+  brushedMotorProfilesForComponent,
+  canonicalBrushedMotorProfileRegistry,
+  canonicalBrushedMotorReferenceFixtures,
+  resolveBrushedMotorProfileSelection,
+  validateBrushedMotorProfileRegistry,
+  type BrushedMotorAssemblyProfile,
+  type MotorComponentTypeId,
+  type MotorNumericParameter,
+  type MotorParameterBasis,
+  type MotorProfileSelection,
+  type MotorProfileSelectionError,
+  type MotorProfileSource,
+  type MotorReferencePoint,
+  type MotorTransmissionProfile,
+} from './domain/models/brushed-motor-profiles.js';
+export {
   createLinearDcDevice,
   isResistorDevice,
   isSourceDevice,

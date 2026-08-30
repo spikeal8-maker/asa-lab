@@ -848,6 +848,33 @@ brushed-motor solver, но через отдельный versioned transmission 
   управляет уже имеющимися `gear`, `top-shaft-*` и `bottom-shaft`, не рисует
   замену и не добавляет декоративный loop.
 
+Числовой реестр MATH-5A реализован в
+`contexts/electronics/domain/models/brushed-motor-profiles.ts`, а vendor-точки
+зафиксированы отдельным проверяемым fixture без копирования runtime-логики. В
+реестре разрешены только три именованных профиля:
+
+- `pololu-1117-130-6v` — 130-size DC motor: 3–12 В, а при 6 В — около
+  11 500 об/мин без нагрузки, 70 мА без нагрузки и 800 мА при stall по
+  [Pololu item 1117](https://www.pololu.com/product/1117);
+- `adafruit-3777-tt-48to1` — жёлтый пластиковый TT 1:48: измеренные точки
+  3/4,5/6 В, 120/185/250 об/мин и stall 1,1/1,2/1,5 А по
+  [Adafruit 3777](https://www.adafruit.com/product/3777); это default reference
+  для текущего owner SVG мотор-редуктора;
+- `adafruit-3801-tt-bimetal-90to1` — отдельный bi-metal TT 1:90 с точками
+  3/4,5/6 В, 60/90/120 об/мин и stall 0,5/0,8/1,0 А по
+  [Adafruit 3801](https://www.adafruit.com/product/3801). Его нельзя выдавать за
+  тот же жёлтый пластиковый корпус без подтверждённого visual variant, поэтому
+  он имеет `reference_only_visual_variant_required` и отвергается runtime
+  resolver как выбираемый вариант.
+
+`R`, `Ke`, `Kt` и вязкое трение выводятся детерминированно из vendor-точки и
+формулы, записанной рядом со значением. Не опубликованные поставщиками `L`, `J`,
+тепловая ёмкость, теплоотвод, warning/failure thresholds и границы КПД имеют
+явный basis `educational_assumption` и отдельный internal source. Наличие этих
+конечных чисел нужно для воспроизводимого следующего шага, но все профили имеют
+`activation: math_5b_required`: MATH-5A не активирует transient solve, нагрев,
+поломку или новую анимацию.
+
 Свободный ввод произвольного передаточного отношения запрещён. Список вариантов
 появляется только после reference evidence; смена варианта разрешена при
 остановленном моделировании, входит в document/simulation digest и сохраняет

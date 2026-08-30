@@ -1,0 +1,81 @@
+{
+  "schema": "asa-lab.electronics-brushed-motor-reference-fixtures.v1",
+  "registryVersion": 1,
+  "profiles": [
+    {
+      "profileId": "adafruit-3777-tt-48to1",
+      "profileVersion": 1,
+      "componentTypeId": "gearmotor",
+      "fitReferenceVoltageVolt": 6,
+      "referencePoints": [
+        {
+          "sourceId": "adafruit-3777-product-page",
+          "voltageVolt": 3,
+          "noLoadSpeedRpm": 120,
+          "noLoadCurrentAmp": 0.15,
+          "stallCurrentAmp": 1.1,
+          "outputStallTorqueNewtonMeter": 0.0392266
+        },
+        {
+          "sourceId": "adafruit-3777-product-page",
+          "voltageVolt": 4.5,
+          "noLoadSpeedRpm": 185,
+          "noLoadCurrentAmp": 0.155,
+          "stallCurrentAmp": 1.2
+        },
+        {
+          "sourceId": "adafruit-3777-product-page",
+          "voltageVolt": 6,
+          "noLoadSpeedRpm": 250,
+          "noLoadCurrentAmp": 0.16,
+          "stallCurrentAmp": 1.5,
+          "outputStallTorqueNewtonMeter": 0.0784532
+        }
+      ]
+    },
+    {
+      "profileId": "adafruit-3801-tt-bimetal-90to1",
+      "profileVersion": 1,
+      "componentTypeId": "gearmotor",
+      "fitReferenceVoltageVolt": 6,
+      "referencePoints": [
+        {
+          "sourceId": "adafruit-3801-product-page",
+          "voltageVolt": 3,
+          "noLoadSpeedRpm": 60,
+          "noLoadCurrentAmp": 0.08,
+          "stallCurrentAmp": 0.5
+        },
+        {
+          "sourceId": "adafruit-3801-product-page",
+          "voltageVolt": 4.5,
+          "noLoadSpeedRpm": 90,
+          "noLoadCurrentAmp": 0.09,
+          "stallCurrentAmp": 0.8
+        },
+        {
+          "sourceId": "adafruit-3801-product-page",
+          "voltageVolt": 6,
+          "noLoadSpeedRpm": 120,
+          "noLoadCurrentAmp": 0.1,
+          "stallCurrentAmp": 1
+        }
+      ]
+    },
+    {
+      "profileId": "pololu-1117-130-6v",
+      "profileVersion": 1,
+      "componentTypeId": "dc-motor",
+      "fitReferenceVoltageVolt": 6,
+      "referencePoints": [
+        {
+          "sourceId": "pololu-1117-product-page",
+          "voltageVolt": 6,
+          "noLoadSpeedRpm": 11500,
+          "noLoadCurrentAmp": 0.07,
+          "stallCurrentAmp": 0.8
+        }
+      ]
+    }
+  ]
+}
