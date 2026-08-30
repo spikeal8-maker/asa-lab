@@ -37,6 +37,11 @@ import {
   DIODE_JUNCTION_PROFILES,
   nonlinearDcBranchesForComponent,
 } from '../domain/models/nonlinear-dc-models';
+import {
+  canonicalIncandescentLampProfileRegistry,
+  incandescentLampResistanceOhm,
+  INCANDESCENT_LAMP_PROFILE,
+} from '../domain/models/incandescent-lamp-model';
 
 function component(
   id: string,
@@ -164,6 +169,24 @@ describe('schema-versioned Electronics document', () => {
       [...entries.map((entry) => entry.componentTypeId)].sort(),
     );
     expect(canonicalElectricalModelRegistry()).toBe(canonicalElectricalModelRegistry());
+  });
+
+  it('upgrades the exact lamp placeholder identity to the versioned 6 V profile', () => {
+    expect(
+      electricalModelIdentityForComponent(
+        component('lamp', 'lamp', 24, {
+          componentTypeId: 'incandescent-lamp',
+          electricalModelId: 'incandescent-lamp',
+          electricalModelVersion: 1,
+          modelProfileId: 'generic-incandescent-lamp',
+          modelProfileVersion: 1,
+        }),
+      ),
+    ).toMatchObject({
+      electricalModelId: 'incandescent-lamp',
+      modelProfileId: 't1-bipin-6v-incandescent',
+      modelProfileVersion: 2,
+    });
   });
 
   it('preserves a complete future model identity and rejects partial identities', () => {
@@ -2477,19 +2500,98 @@ describe('deterministic DC solver', () => {
     expect(unpoweredResult?.lit).toBe(false);
   });
 
-  it('energizes a resistive lamp', () => {
-    const result = solveCircuit(series([component('lamp1', 'lamp', 20)], 5));
-    const limited = solveCircuit(
-      series([component('r1', 'resistor', 300), component('lamp1', 'lamp', 24)], 5),
+  it('uses one deterministic T-1 6 V electrothermal lamp profile', () => {
+    expect(JSON.parse(canonicalIncandescentLampProfileRegistry())).toEqual({
+      registryVersion: 1,
+      profiles: [INCANDESCENT_LAMP_PROFILE],
+    });
+    expect(INCANDESCENT_LAMP_PROFILE.ratedPowerWatt).toBeCloseTo(
+      INCANDESCENT_LAMP_PROFILE.ratedVoltageVolt * INCANDESCENT_LAMP_PROFILE.ratedCurrentAmp,
+      12,
     );
-    expect(result.current).toBeCloseTo(0.25, 6);
-    expect(result.components.find((item) => item.componentId === 'lamp1')?.lit).toBe(true);
-    expect(limited.components.find((item) => item.componentId === 'lamp1')?.lit).toBe(true);
+    expect(incandescentLampResistanceOhm(INCANDESCENT_LAMP_PROFILE.ambientCelsius)).toBeCloseTo(
+      INCANDESCENT_LAMP_PROFILE.coldResistanceOhm,
+      12,
+    );
     expect(
-      result.components.find((item) => item.componentId === 'lamp1')?.brightness,
-    ).toBeGreaterThan(
-      limited.components.find((item) => item.componentId === 'lamp1')?.brightness ?? 0,
+      incandescentLampResistanceOhm(INCANDESCENT_LAMP_PROFILE.ratedFilamentTemperatureCelsius),
+    ).toBeCloseTo(INCANDESCENT_LAMP_PROFILE.hotResistanceOhm, 12);
+  });
+
+  it('warms smoothly, raises filament resistance and cools after disconnection', () => {
+    const lamp = component('lamp1', 'lamp', 6, {
+      componentTypeId: 'incandescent-lamp',
+      pinIds: ['L1', 'L2'],
+    });
+    const button = component('button', 'button', 0, { state: true });
+    const source = component('source', 'source', 6);
+    const circuit = (buttonState: boolean) =>
+      doc(
+        [source, { ...button, state: buttonState }, lamp],
+        [
+          connect('w1', 'source', 'a', 'button', 'a'),
+          connect('w2', 'button', 'b', 'lamp1', 'L1'),
+          connect('w3', 'lamp1', 'L2', 'source', 'b'),
+        ],
+      );
+    const powered = circuit(true);
+    const cold = solveCircuit(powered, { simulationTimeMs: 1 });
+    const warm = solveCircuit(powered, { simulationTimeMs: 500 });
+    const coldLamp = cold.components.find((item) => item.componentId === 'lamp1');
+    const warmLamp = warm.components.find((item) => item.componentId === 'lamp1');
+    expect(coldLamp?.brightness).toBeLessThan(1);
+    expect(warmLamp).toMatchObject({
+      lit: true,
+      filamentState: 'lit',
+      ratedVoltageVolt: 6,
+      ratedCurrentAmp: 0.25,
+      ratedPowerWatt: 1.5,
+    });
+    expect(warmLamp?.brightness).toBeGreaterThan(90);
+    expect(warmLamp?.effectiveResistanceOhm).toBeGreaterThan(
+      coldLamp?.effectiveResistanceOhm ?? Number.POSITIVE_INFINITY,
     );
+    expect(warmLamp?.current).toBeGreaterThan(0.24);
+    expect(warmLamp?.current).toBeLessThan(0.27);
+
+    const disconnected = circuit(false);
+    const cooling = solveCircuit(disconnected, {
+      simulationTimeMs: 650,
+      transientState: warm.transientState,
+    });
+    const cool = solveCircuit(disconnected, {
+      simulationTimeMs: 2_500,
+      transientState: cooling.transientState,
+    });
+    const coolingLamp = cooling.components.find((item) => item.componentId === 'lamp1');
+    const coolLamp = cool.components.find((item) => item.componentId === 'lamp1');
+    expect(coolingLamp?.brightness).toBeGreaterThan(coolLamp?.brightness ?? 100);
+    expect(coolLamp).toMatchObject({ lit: false, filamentState: 'cold', current: 0 });
+  });
+
+  it('warns on overvoltage and opens the circuit after visible filament burnout', () => {
+    const overloadedLamp = component('lamp1', 'lamp', 6, {
+      componentTypeId: 'incandescent-lamp',
+      pinIds: ['L1', 'L2'],
+    });
+    const overloaded = doc(
+      [component('source', 'source', 12), overloadedLamp],
+      [connect('w1', 'source', 'a', 'lamp1', 'L1'), connect('w2', 'lamp1', 'L2', 'source', 'b')],
+    );
+    const warning = solveCircuit(overloaded, { simulationTimeMs: 100 });
+    expect(warning.diagnostics.map((item) => item.code)).toContain('lamp_overvoltage');
+    expect(warning.components.find((item) => item.componentId === 'lamp1')?.filamentState).not.toBe(
+      'burned',
+    );
+    const failed = solveCircuit(overloaded, { simulationTimeMs: 2_000 });
+    expect(failed.diagnostics.map((item) => item.code)).toContain('lamp_burnout');
+    expect(failed.components.find((item) => item.componentId === 'lamp1')).toMatchObject({
+      current: 0,
+      brightness: 0,
+      lit: false,
+      deviceHealth: 'failed_open',
+      filamentState: 'burned',
+    });
   });
 
   it('calculates a finite destructive preview for a direct source short', () => {
@@ -2530,7 +2632,7 @@ describe('deterministic DC solver', () => {
       ),
     );
     const noSource = solveCircuit(doc([component('r1', 'resistor', 100)], []));
-    const invalid = solveCircuit(series([component('lamp1', 'lamp', 0)], 5));
+    const invalid = solveCircuit(series([component('pot1', 'potentiometer', 0)], 5));
     expect(open.diagnostics.map((item) => item.code)).not.toContain('open_circuit');
     expect(open.diagnostics.map((item) => item.code)).toContain('circuit_ok');
     expect(noSource.diagnostics.map((item) => item.code)).toContain('no_source');

@@ -4,17 +4,17 @@
     "catalogPath": "apps/web/public/assets/electronics/component-database/catalog.json",
     "catalogSha256": "6dffb396ead7723c968f1964c21e9f2be2823c5c21095ba0a5ef2c11a5a4b3c3",
     "modelIdentityPath": "contexts/electronics/domain/model-identity.ts",
-    "modelIdentitySha256": "38a7c895c2f2656ef3d87c20574fe3011e576581800dfd3f225bd7362602be1d",
+    "modelIdentitySha256": "e38a114442c271bb48bf5f1050d77f1211de4e15262c3246b34bf0ab2d090361",
     "modelRegistryPath": "contexts/electronics/domain/model-registry.ts",
     "modelRegistrySha256": "6f17c602d2baab5e089052fcd936fde553035754a12e7526923521f9e2010841",
     "inspectorProfilePath": "apps/web/src/electronics/component-information.ts",
-    "inspectorProfileSha256": "c594491cab282e66668507949956a4fd359da46c64995d284d54a500c722fb76",
+    "inspectorProfileSha256": "2d77cd28c6af6ac12eb39d5711daeb2f2dcd05915a4fe07ff0184f80597a13e4",
     "helpContentPath": "apps/web/src/electronics/component-help-content.ts",
-    "helpContentSha256": "05c9e55691246bf9411a8a9774c4310dc38b008904ebdcfdad2782249543d26d",
+    "helpContentSha256": "6cbbf0459258dde5dc06607b7e42a6b7df055522130051fc4eb4d4df640af990",
     "componentInformationTestPath": "apps/web/src/electronics/testing/component-information.spec.ts",
-    "componentInformationTestSha256": "e2f491b4c98c34f605c2568a4c259304caadfa6619e5d5947ac6d9a2a6850b13",
+    "componentInformationTestSha256": "d87138b466c8b24043c67912754cb93a4f07fa5a8cd54d96bbd123231f7ced48",
     "browserEvidencePath": "e2e/electronics-simulation.spec.ts",
-    "browserEvidenceSha256": "b1ce620785e2760a426f87135bdf8eec23c395b01049329b6729b9fa028f4e02"
+    "browserEvidenceSha256": "388be058b50948ef312a87effc9ab8923bab52305ef18602cabea40d5295a71a"
   },
   "summary": {
     "total": 43,
@@ -583,7 +583,7 @@
       "inspectorHelp": "unverified",
       "browserEvidence": "unverified",
       "electricalModelId": "incandescent-lamp",
-      "modelProfileId": "generic-incandescent-lamp"
+      "modelProfileId": "t1-bipin-6v-incandescent"
     },
     {
       "componentId": "regulated-power-supply",

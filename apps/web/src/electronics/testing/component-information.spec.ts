@@ -205,6 +205,28 @@ describe('component information registry', () => {
     expect(sections[3]?.text).toContain('не меняет схему');
   });
 
+  it('presents the lamp as a fixed 6 V electrothermal profile instead of an editable resistor', () => {
+    const profile = componentInformationProfile('lamp', 'lamp');
+    expect(profile.compactFields.map((field) => field.fieldId)).toEqual(['name']);
+    expect(profile.technicalMetrics.map((metric) => metric.metricId)).toEqual([
+      'voltage-drop',
+      'current',
+      'power',
+      'brightness',
+    ]);
+    const sections = componentHelpSections('lamp', 'Лампа накаливания.', 'incandescent-lamp');
+    expect(sections.map((section) => section.title)).toEqual([
+      'Что имитируется',
+      'Почему яркость меняется не мгновенно',
+      'Как подключать',
+      'Перенапряжение и перегорание',
+    ]);
+    expect(sections[0]?.text).toContain('6 В и 250 мА');
+    expect(sections[1]?.text).toContain('пусковой ток');
+    expect(sections[2]?.text).toContain('Полярности нет');
+    expect(sections[3]?.text).toContain('разомкнутой цепью');
+  });
+
   it('explains the NPN key and points beginners to the calculated operating point', () => {
     const sections = componentHelpSections('transistor', 'Транзистор.', 'transistor-npn');
     expect(sections.map((section) => section.title)).toEqual([

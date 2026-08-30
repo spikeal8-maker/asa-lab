@@ -119,6 +119,16 @@ export {
   type SourceParameters,
 } from './domain/models/linear-dc-models.js';
 export {
+  advanceIncandescentLampThermalState,
+  canonicalIncandescentLampProfileRegistry,
+  incandescentLampBrightnessPercent,
+  incandescentLampFilamentState,
+  incandescentLampResistanceOhm,
+  INCANDESCENT_LAMP_PROFILE,
+  type IncandescentLampFilamentState,
+  type IncandescentLampThermalObservation,
+} from './domain/models/incandescent-lamp-model.js';
+export {
   canonicalNpnDcProfileRegistry,
   classifyNpnOperatingRegion,
   createNpnDcDevice,

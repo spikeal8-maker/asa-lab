@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
+  INCANDESCENT_LAMP_PROFILE,
   ledForwardVoltageAtCurrent,
   ordinaryLedProfile,
   photoresistorIlluminanceLux,
@@ -42,8 +43,15 @@ function valueLabel(kind: string): string {
   if (kind === 'source') return 'Напряжение';
   if (kind === 'diode') return 'Прямое падение';
   if (kind === 'potentiometer') return 'Сопротивление';
-  if (kind === 'lamp') return 'Сопротивление нити';
   return 'Сопротивление';
+}
+
+function filamentStateLabel(state: ComponentResult['filamentState']): string {
+  if (state === 'warming') return 'Нагревается';
+  if (state === 'lit') return 'Светит';
+  if (state === 'overheated') return 'Перегревается';
+  if (state === 'burned') return 'Перегорела — цепь разомкнута';
+  return 'Холодная';
 }
 
 const LED_COLOUR_OPTIONS = [
@@ -207,6 +215,7 @@ export function WorkbenchSidebars({
   const selectedIsAdjustableSource = c.selectedEntry?.key === 'regulated-power-supply';
   const selectedIsDcMotor = c.selectedEntry?.key === 'dc-motor';
   const selectedIsGearmotor = c.selectedEntry?.key === 'gearmotor';
+  const selectedIsLamp = c.selectedEntry?.key === 'incandescent-lamp';
   const selectedMotorProfile =
     c.selectedComponent && (selectedIsDcMotor || selectedIsGearmotor)
       ? resolveBrushedMotorProfileSelection(c.selectedComponent)
@@ -271,7 +280,7 @@ export function WorkbenchSidebars({
         })
       : [];
   const resistanceComponent =
-    c.selectedComponent && ['resistor', 'potentiometer', 'lamp'].includes(c.selectedComponent.kind)
+    c.selectedComponent && ['resistor', 'potentiometer'].includes(c.selectedComponent.kind)
       ? c.selectedComponent
       : null;
   const storedResistanceUnit = resistanceComponent?.stateProperties?.['resistanceUnit'];
@@ -622,7 +631,7 @@ export function WorkbenchSidebars({
               ) : null}
               {selectedIsAdjustableSource ||
               c.selectedEntry.key === 'electrolytic-capacitor' ||
-              ['resistor', 'potentiometer', 'lamp'].includes(c.selectedComponent.kind) ||
+              ['resistor', 'potentiometer'].includes(c.selectedComponent.kind) ||
               (c.selectedComponent.kind === 'diode' &&
                 !c.selectedComponent.componentTypeId &&
                 stateOpen) ? (
@@ -1288,9 +1297,39 @@ export function WorkbenchSidebars({
                   {measurement.lit !== undefined && c.selectedComponent.kind !== 'led' ? (
                     <div>
                       <dt>Состояние</dt>
-                      <dd>{measurement.lit ? 'Активен' : 'Не активен'}</dd>
+                      <dd>
+                        {c.selectedComponent.kind === 'lamp'
+                          ? filamentStateLabel(measurement.filamentState)
+                          : measurement.lit
+                            ? 'Активен'
+                            : 'Не активен'}
+                      </dd>
                     </div>
                   ) : null}
+                </dl>
+              ) : null}
+              {stateOpen && selectedIsLamp ? (
+                <dl className="workbench-measurements" data-testid="lamp-reference-profile">
+                  <div>
+                    <dt>Опорная лампа</dt>
+                    <dd>T-1, два штырька</dd>
+                  </div>
+                  <div>
+                    <dt>Номинал</dt>
+                    <dd>
+                      {INCANDESCENT_LAMP_PROFILE.ratedVoltageVolt} В ·{' '}
+                      {(INCANDESCENT_LAMP_PROFILE.ratedCurrentAmp * 1_000).toFixed(0)} мА ·{' '}
+                      {INCANDESCENT_LAMP_PROFILE.ratedPowerWatt.toFixed(1)} Вт
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Сопротивление нити сейчас</dt>
+                    <dd>{(measurement?.effectiveResistanceOhm ?? 2.4).toFixed(2)} Ом</dd>
+                  </div>
+                  <div>
+                    <dt>Нагрузка по напряжению</dt>
+                    <dd>{(measurement?.voltageUtilizationPercent ?? 0).toFixed(0)}%</dd>
+                  </div>
                 </dl>
               ) : null}
               {stateOpen && selectedPhotoresistor ? (

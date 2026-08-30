@@ -322,7 +322,7 @@ const PROFILE_BY_KIND: Readonly<
     terminalPresentation: 'grouped',
   },
   lamp: {
-    compactFields: [NAME_FIELD, RESISTANCE_FIELD],
+    compactFields: [NAME_FIELD],
     technicalMetrics: [METRICS.voltage, METRICS.current, METRICS.power, METRICS.brightness],
     terminalPresentation: 'full',
   },

@@ -240,6 +240,56 @@ function photoresistorDocument(): SchematicDocument {
   };
 }
 
+function incandescentLampDocument(): SchematicDocument {
+  return {
+    schemaVersion: 4,
+    components: [
+      {
+        id: 'source',
+        kind: 'source',
+        componentTypeId: 'battery-holder-aa-4',
+        variantId: 'battery-holder-aa-4',
+        name: 'Источник 6 В',
+        position: { x: 190, y: 340 },
+        rotation: 0,
+        value: 6,
+        pinIds: ['BAT-', 'BAT+'],
+        stateProperties: { cells: 4 },
+      },
+      {
+        id: 'lamp',
+        kind: 'lamp',
+        componentTypeId: 'incandescent-lamp',
+        variantId: 'incandescent-lamp',
+        name: 'Лампа накаливания',
+        position: { x: 650, y: 220 },
+        rotation: 0,
+        value: 6,
+        pinIds: ['L1', 'L2'],
+        stateProperties: { lampLevel: 'off' },
+      },
+    ],
+    connections: [
+      {
+        id: 'positive-lamp',
+        from: { componentId: 'source', terminal: 'BAT+' },
+        to: { componentId: 'lamp', terminal: 'L1' },
+        color: '#e3212b',
+        vertices: [],
+      },
+      {
+        id: 'lamp-negative',
+        from: { componentId: 'lamp', terminal: 'L2' },
+        to: { componentId: 'source', terminal: 'BAT-' },
+        color: '#2a3035',
+        vertices: [],
+      },
+    ],
+    viewport: { x: 0, y: 0, zoom: 1 },
+    simulation: { running: false, maxIterations: 24 },
+  };
+}
+
 function npnKeyDocument(): SchematicDocument {
   return {
     schemaVersion: 4,
@@ -1781,6 +1831,52 @@ test('photoresistor converts runtime light to resistance without saving the proj
 
   await page.screenshot({
     path: `${ARTIFACT_DIR}/electronics-photoresistor-runtime.png`,
+    fullPage: true,
+  });
+  failures.assertEmpty();
+});
+
+test('6 V incandescent lamp warms into the owner glow and explains its fixed profile', async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await loginWithOrganization(page, teacher);
+  const projectId = await createProject(page, 'MATH-6D incandescent lamp electrothermal runtime');
+  await saveDocument(page, projectId, incandescentLampDocument());
+  await page.goto(`/#/home/${projectId}`);
+
+  const lamp = component(page, 'incandescent-lamp');
+  const lampAsset = lamp.locator('image').last();
+  await expect(lampAsset).toHaveAttribute('href', /lamp\/off\.svg$/);
+
+  await page.getByRole('button', { name: 'Начать моделирование' }).click();
+  await expect
+    .poll(async () => lampAsset.getAttribute('href'), { timeout: 10_000 })
+    .toMatch(/lamp\/(on|max)\.svg$/);
+
+  await lamp.locator('.workbench-part').click({ force: true });
+  const inspector = page.getByRole('complementary', { name: 'Параметры выделения' });
+  await inspector.getByRole('button', { name: /Техническое состояние/ }).click();
+  const profile = inspector.getByTestId('lamp-reference-profile');
+  await expect(profile).toContainText('T-1, два штырька');
+  await expect(profile).toContainText('6 В');
+  await expect(profile).toContainText('250 мА');
+  await expect(profile).toContainText('1.5 Вт');
+  await expect(profile).toContainText(/Сопротивление нити сейчас2[0-4]\.\d{2} Ом/);
+  await expect(inspector.getByText('Светит', { exact: true })).toBeVisible();
+  await expect(lamp).not.toHaveAttribute('data-presentation-state', 'destructive');
+
+  await inspector.getByRole('button', { name: /Справка/ }).click();
+  await expect(page.getByText('Что имитируется', { exact: true })).toBeVisible();
+  await expect(
+    page.getByText('Почему яркость меняется не мгновенно', { exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText('Перенапряжение и перегорание', { exact: true })).toBeVisible();
+
+  await page.screenshot({
+    path: `${ARTIFACT_DIR}/electronics-incandescent-lamp-runtime.png`,
     fullPage: true,
   });
   failures.assertEmpty();

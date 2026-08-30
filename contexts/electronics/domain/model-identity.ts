@@ -78,7 +78,7 @@ const EXACT_IDENTITIES: Readonly<Record<string, ElectricalModelIdentity>> = {
   'transistor-npn': identity('npn-transistor', 'generic-npn-to92'),
   'transistor-pnp': identity('pnp-transistor', 'generic-pnp-to92'),
   'transistor-fet': identity('n-channel-fet', 'generic-n-channel-fet-to92'),
-  'incandescent-lamp': identity('incandescent-lamp', 'generic-incandescent-lamp'),
+  'incandescent-lamp': identity('incandescent-lamp', 't1-bipin-6v-incandescent', 2),
   'dc-motor': identity('dc-motor', 'pololu-1117-130-6v'),
   gearmotor: identity('dc-motor', 'adafruit-3777-tt-48to1'),
   'breadboard-small': identity('breadboard-connectivity', 'breadboard-small'),
@@ -199,6 +199,15 @@ export function electricalModelIdentityForComponent(
       component.electricalModelId === 'photoresistor' &&
       component.electricalModelVersion === 1 &&
       component.modelProfileId === 'generic-photoresistor' &&
+      component.modelProfileVersion === 1
+    ) {
+      return resolveElectricalModelIdentity(component);
+    }
+    if (
+      component.componentTypeId === 'incandescent-lamp' &&
+      component.electricalModelId === 'incandescent-lamp' &&
+      component.electricalModelVersion === 1 &&
+      component.modelProfileId === 'generic-incandescent-lamp' &&
       component.modelProfileVersion === 1
     ) {
       return resolveElectricalModelIdentity(component);

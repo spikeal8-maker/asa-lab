@@ -56,6 +56,16 @@ export {
   PHOTORESISTOR_PROFILE_REGISTRY_VERSION,
 } from './domain/photoresistor-model.js';
 export {
+  advanceIncandescentLampThermalState,
+  canonicalIncandescentLampProfileRegistry,
+  incandescentLampBrightnessPercent,
+  incandescentLampFilamentState,
+  incandescentLampResistanceOhm,
+  INCANDESCENT_LAMP_PROFILE,
+  type IncandescentLampFilamentState,
+  type IncandescentLampThermalObservation,
+} from './domain/models/incandescent-lamp-model.js';
+export {
   buttonContactPairs,
   spdtConnections,
   spdtSelectedTerminal,

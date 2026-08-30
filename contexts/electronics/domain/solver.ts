@@ -60,6 +60,14 @@ import {
   thermalProfileKey,
 } from './models/thermal-transient-model.js';
 import {
+  advanceIncandescentLampThermalState,
+  incandescentLampBrightnessPercent,
+  incandescentLampFilamentState,
+  incandescentLampResistanceOhm,
+  INCANDESCENT_LAMP_PROFILE,
+  type IncandescentLampFilamentState,
+} from './models/incandescent-lamp-model.js';
+import {
   resolveBrushedMotorProfileSelection,
   type BrushedMotorAssemblyProfile,
 } from './models/brushed-motor-profiles.js';
@@ -94,6 +102,8 @@ export type DiagnosticCode =
   | 'led_near_limit'
   | 'led_overcurrent'
   | 'led_burnout'
+  | 'lamp_overvoltage'
+  | 'lamp_burnout'
   | 'transistor_reverse_bias'
   | 'transistor_overcurrent'
   | 'capacitor_reverse_polarity'
@@ -208,6 +218,12 @@ export interface ComponentResult {
   readonly temperatureCelsius?: number;
   readonly thermalLoadPercent?: number;
   readonly accumulatedDamagePercent?: number;
+  readonly effectiveResistanceOhm?: number;
+  readonly ratedVoltageVolt?: number;
+  readonly ratedCurrentAmp?: number;
+  readonly ratedPowerWatt?: number;
+  readonly voltageUtilizationPercent?: number;
+  readonly filamentState?: IncandescentLampFilamentState;
 }
 
 export interface NodeResult {
@@ -245,14 +261,13 @@ interface InternalSolveOptions extends SolveOptions {
   readonly capacitorPreviousVoltageById?: Readonly<Record<string, number>>;
   readonly bjtPreviousRegionById?: Readonly<Record<string, 'cutoff' | 'active' | 'saturation'>>;
   readonly motorPreviousStateById?: Readonly<Record<string, BrushedMotorTransientStateEntry>>;
+  readonly lampTemperatureById?: Readonly<Record<string, number>>;
   readonly failedComponentIds?: ReadonlySet<string>;
 }
 
 const GMIN = 1e-12;
 const CLOSED_RESISTANCE = 1e-4;
 const LED_WARNING_RATIO = 0.8;
-const LAMP_MIN_POWER_W = 0.001;
-const LAMP_NOMINAL_POWER_W = 1.5;
 const SHORT_CIRCUIT_CURRENT_A = 5;
 const FET_DEFAULT_THRESHOLD_VOLTAGE = 2;
 const FET_DEFAULT_TRANSCONDUCTANCE_FACTOR = 0.05;
@@ -742,7 +757,12 @@ function applyThermalObservations(
   for (const componentId of failedComponentIds) {
     const component = componentById.get(componentId);
     if (!component) continue;
-    const code: DiagnosticCode = component.kind === 'led' ? 'led_burnout' : 'component_failed';
+    const code: DiagnosticCode =
+      component.kind === 'led'
+        ? 'led_burnout'
+        : component.kind === 'lamp'
+          ? 'lamp_burnout'
+          : 'component_failed';
     if (
       diagnostics.some(
         (diagnostic) => diagnostic.code === code && diagnostic.componentIds?.includes(componentId),
@@ -757,6 +777,7 @@ function applyThermalObservations(
             source: 'Источник питания',
             resistor: 'Резистор',
             led: 'Светодиод',
+            lamp: 'Лампа накаливания',
             diode: 'Диод',
             transistor: 'Транзистор',
           } as Partial<Record<SchematicComponent['kind'], string>>
@@ -764,9 +785,15 @@ function applyThermalObservations(
     diagnostics.push({
       code,
       severity: 'error',
-      message: `${component.name ?? fallbackLabel}: компонент вышел из строя.`,
+      message:
+        component.kind === 'lamp'
+          ? `${component.name ?? fallbackLabel}: нить перегорела, лампа разомкнула цепь.`
+          : `${component.name ?? fallbackLabel}: компонент вышел из строя.`,
       componentIds: [componentId],
-      suggestedAction: 'Остановите моделирование и исправьте причину перегрузки.',
+      suggestedAction:
+        component.kind === 'lamp'
+          ? 'Остановите моделирование, уменьшите напряжение и запустите опыт заново.'
+          : 'Остановите моделирование и исправьте причину перегрузки.',
     });
   }
   return {
@@ -813,6 +840,34 @@ function applyThermalObservations(
           deviceHealth: 'failed_open',
           damageState: 'failed',
           presentationState: 'failed',
+          ...(component?.kind === 'lamp'
+            ? {
+                effectiveResistanceOhm: incandescentLampResistanceOhm(temperatureCelsius),
+                filamentState: 'burned' as const,
+              }
+            : {}),
+        };
+      }
+      if (component?.kind === 'lamp') {
+        const brightness = incandescentLampBrightnessPercent(temperatureCelsius);
+        const filamentState = incandescentLampFilamentState(temperatureCelsius);
+        const warning =
+          state.loadRatio > INCANDESCENT_LAMP_PROFILE.warningVoltageRatio ||
+          filamentState === 'overheated';
+        const overheated = filamentState === 'overheated' || state.accumulatedDamage >= 0.35;
+        return {
+          ...componentResult,
+          ...common,
+          brightness: Math.round(brightness * 100) / 100,
+          lit: brightness > 0.5,
+          energized: Math.abs(componentResult.current) > 1e-6,
+          effectiveResistanceOhm:
+            Math.round(incandescentLampResistanceOhm(temperatureCelsius) * 1_000) / 1_000,
+          filamentState,
+          stressState: overheated ? 'overvoltage' : warning ? 'warning' : 'normal',
+          deviceHealth: overheated ? 'overheated' : warning ? 'warning' : 'normal',
+          damageState: overheated ? 'destructive_preview' : 'none',
+          presentationState: overheated ? 'destructive' : warning ? 'warning' : 'normal',
         };
       }
       const warning =
@@ -843,12 +898,16 @@ export function solveCircuit(
   const orderedMotors = document.components
     .filter(isBrushedMotor)
     .sort((left, right) => (left.id < right.id ? -1 : left.id > right.id ? 1 : 0));
+  const orderedLamps = document.components
+    .filter((component) => component.kind === 'lamp')
+    .sort((left, right) => (left.id < right.id ? -1 : left.id > right.id ? 1 : 0));
   const orderedThermalComponents = document.components
     .filter((component) => thermalProfileFor(component) !== null)
     .sort((left, right) => (left.id < right.id ? -1 : left.id > right.id ? 1 : 0));
   const transientRequested =
     orderedCapacitors.length > 0 ||
     orderedMotors.length > 0 ||
+    orderedLamps.length > 0 ||
     options.simulationTimeMs !== undefined ||
     options.transientState !== undefined;
   if (!transientRequested) return solveCircuitStep(document, options);
@@ -966,6 +1025,13 @@ export function solveCircuit(
       capacitorPreviousVoltageById: previousVoltageById,
       bjtPreviousRegionById: bjtRegionById,
       motorPreviousStateById: motorStateById,
+      lampTemperatureById: Object.fromEntries(
+        orderedLamps.map((component) => [
+          component.id,
+          thermalById.get(component.id)?.temperatureCelsius ??
+            INCANDESCENT_LAMP_PROFILE.ambientCelsius,
+        ]),
+      ),
       failedComponentIds,
     } as const;
     let acceptedResult: SolveResult;
@@ -1045,6 +1111,7 @@ export function solveCircuit(
         capacitorPreviousVoltageById: halfVoltageById,
         bjtPreviousRegionById: bjtRegionById,
         motorPreviousStateById: halfMotorStateById,
+        lampTemperatureById: common.lampTemperatureById,
         failedComponentIds,
       });
       accumulatedIterations += full.iterations + firstHalf.iterations + secondHalf.iterations;
@@ -1147,13 +1214,21 @@ export function solveCircuit(
       );
       if (!componentResult) continue;
       const profile = thermalProfileFor(component)!;
-      const observation = advanceThermalState(
-        profile,
-        componentResult,
-        previous.temperatureCelsius,
-        previous.accumulatedDamage,
-        stepMs / 1_000,
-      );
+      const observation =
+        component.kind === 'lamp'
+          ? advanceIncandescentLampThermalState(
+              componentResult,
+              previous.temperatureCelsius,
+              previous.accumulatedDamage,
+              stepMs / 1_000,
+            )
+          : advanceThermalState(
+              profile,
+              componentResult,
+              previous.temperatureCelsius,
+              previous.accumulatedDamage,
+              stepMs / 1_000,
+            );
       const failureMode = observation.failed ? ('open' as const) : ('none' as const);
       thermalById.set(component.id, {
         ...previous,
@@ -1177,6 +1252,13 @@ export function solveCircuit(
         capacitorPreviousVoltageById: previousVoltageById,
         bjtPreviousRegionById: bjtRegionById,
         motorPreviousStateById: motorStateById,
+        lampTemperatureById: Object.fromEntries(
+          orderedLamps.map((component) => [
+            component.id,
+            thermalById.get(component.id)?.temperatureCelsius ??
+              INCANDESCENT_LAMP_PROFILE.ambientCelsius,
+          ]),
+        ),
         failedComponentIds,
       });
       accumulatedIterations += postFailure.iterations;
@@ -1220,7 +1302,17 @@ export function solveCircuit(
   if (!finalResult || currentTimeMs < targetTimeMs) {
     const result =
       finalResult ??
-      solveCircuitStep(document, { failedComponentIds, motorPreviousStateById: motorStateById });
+      solveCircuitStep(document, {
+        failedComponentIds,
+        motorPreviousStateById: motorStateById,
+        lampTemperatureById: Object.fromEntries(
+          orderedLamps.map((component) => [
+            component.id,
+            thermalById.get(component.id)?.temperatureCelsius ??
+              INCANDESCENT_LAMP_PROFILE.ambientCelsius,
+          ]),
+        ),
+      });
     return {
       ...result,
       solved: false,
@@ -1639,7 +1731,9 @@ function solveCircuitStep(
       } else if (component.kind === 'piezo') {
         stampConductance(a, b, 1 / PIEZO_DC_RESISTANCE_OHM);
       } else if (component.kind === 'lamp') {
-        stampConductance(a, b, 1 / component.value);
+        const temperatureCelsius =
+          options.lampTemperatureById?.[component.id] ?? INCANDESCENT_LAMP_PROFILE.ambientCelsius;
+        stampConductance(a, b, 1 / incandescentLampResistanceOhm(temperatureCelsius));
       } else if (isBrushedMotor(component)) {
         const profile = brushedMotorProfile(component);
         const previousState = options.motorPreviousStateById?.[component.id];
@@ -2124,6 +2218,15 @@ function solveCircuitStep(
             );
           })()
         : undefined;
+      const lampTemperatureCelsius =
+        component.kind === 'lamp'
+          ? (options.lampTemperatureById?.[component.id] ??
+            INCANDESCENT_LAMP_PROFILE.ambientCelsius)
+          : undefined;
+      const lampResistanceOhm =
+        lampTemperatureCelsius === undefined
+          ? undefined
+          : incandescentLampResistanceOhm(lampTemperatureCelsius);
       const linearDcDevice = linearDcDeviceById.get(component.id);
       const reportedLinearCurrent =
         component.kind === 'source' ? -(sourceCurrents.get(component.id) ?? 0) : 0;
@@ -2141,7 +2244,7 @@ function solveCircuitStep(
         current = Math.max(0, ...arduinoBranchResults.map((entry) => Math.abs(entry.current)));
       else if (component.kind === 'photoresistor')
         current = voltageDrop / photoresistorResistanceOhm(component);
-      else if (component.kind === 'lamp') current = voltageDrop / component.value;
+      else if (component.kind === 'lamp') current = voltageDrop / (lampResistanceOhm as number);
       else if (component.kind === 'piezo') current = voltageDrop / PIEZO_DC_RESISTANCE_OHM;
       else if (motorStep) current = motorStep.observation.currentAmp;
       else if (capacitorObservation) current = capacitorObservation.currentAmp;
@@ -2212,7 +2315,7 @@ function solveCircuitStep(
       );
       const brightness =
         component.kind === 'lamp'
-          ? Math.min(100, Math.pow(power / LAMP_NOMINAL_POWER_W, 0.55) * 100)
+          ? incandescentLampBrightnessPercent(lampTemperatureCelsius as number)
           : Math.max(0, ...Object.values(branchBrightness));
       const powerUtilizationPercent =
         linearDcObservation?.powerUtilizationPercent ?? transistorResult?.powerUtilizationPercent;
@@ -2231,29 +2334,39 @@ function solveCircuitStep(
         ({ branch, voltageDrop: branchVoltageDrop }) =>
           branchVoltageDrop < -branch.repetitivePeakReverseVoltage,
       );
+      const lampVoltageRatio =
+        component.kind === 'lamp'
+          ? Math.abs(voltageDrop) / INCANDESCENT_LAMP_PROFILE.ratedVoltageVolt
+          : undefined;
       const stressState =
         linearDcObservation?.stressState ??
         transistorResult?.stressState ??
-        (branches.length === 0
-          ? undefined
-          : reverseBreakdown ||
-              branchResults.some(
-                ({ branch, current: branchCurrent }) =>
-                  Math.abs(branchCurrent) > branch.destructiveCurrentAmp,
-              )
-            ? 'burned'
-            : branchResults.some(
+        (lampVoltageRatio !== undefined
+          ? lampVoltageRatio >= INCANDESCENT_LAMP_PROFILE.overheatVoltageRatio
+            ? 'overvoltage'
+            : lampVoltageRatio > INCANDESCENT_LAMP_PROFILE.warningVoltageRatio
+              ? 'warning'
+              : 'normal'
+          : branches.length === 0
+            ? undefined
+            : reverseBreakdown ||
+                branchResults.some(
                   ({ branch, current: branchCurrent }) =>
-                    Math.abs(branchCurrent) > branch.nominalCurrentAmp,
+                    Math.abs(branchCurrent) > branch.destructiveCurrentAmp,
                 )
-              ? 'overcurrent'
+              ? 'burned'
               : branchResults.some(
                     ({ branch, current: branchCurrent }) =>
-                      branch.nearLimitWarning &&
-                      Math.abs(branchCurrent) >= branch.nominalCurrentAmp * LED_WARNING_RATIO,
+                      Math.abs(branchCurrent) > branch.nominalCurrentAmp,
                   )
-                ? 'warning'
-                : 'normal');
+                ? 'overcurrent'
+                : branchResults.some(
+                      ({ branch, current: branchCurrent }) =>
+                        branch.nearLimitWarning &&
+                        Math.abs(branchCurrent) >= branch.nominalCurrentAmp * LED_WARNING_RATIO,
+                    )
+                  ? 'warning'
+                  : 'normal');
       const piezoTone =
         component.kind === 'piezo'
           ? (() => {
@@ -2324,7 +2437,14 @@ function solveCircuitStep(
                       ]),
                     ),
                   }
-                : {}),
+                : component.kind === 'lamp'
+                  ? {
+                      terminalCurrents: {
+                        L1: roundCurrent(current),
+                        L2: roundCurrent(-current),
+                      },
+                    }
+                  : {}),
         power: round(power),
         brightness: round(brightness, 2),
         ...(branches.length > 0 || transistorResult || isArduinoUno(component)
@@ -2390,8 +2510,14 @@ function solveCircuitStep(
           : {}),
         ...(component.kind === 'lamp'
           ? {
-              lit: Math.abs(current * voltageDrop) >= LAMP_MIN_POWER_W,
+              lit: brightness > 0.5,
               energized: Math.abs(current) > 1e-6,
+              effectiveResistanceOhm: round(lampResistanceOhm as number, 3),
+              ratedVoltageVolt: INCANDESCENT_LAMP_PROFILE.ratedVoltageVolt,
+              ratedCurrentAmp: INCANDESCENT_LAMP_PROFILE.ratedCurrentAmp,
+              ratedPowerWatt: INCANDESCENT_LAMP_PROFILE.ratedPowerWatt,
+              voltageUtilizationPercent: round((lampVoltageRatio as number) * 100, 2),
+              filamentState: incandescentLampFilamentState(lampTemperatureCelsius as number),
             }
           : {}),
         ...(component.kind === 'piezo'
@@ -2480,6 +2606,23 @@ function solveCircuitStep(
         componentIds: [componentId],
       })),
     );
+  }
+
+  for (const lamp of document.components.filter((component) => component.kind === 'lamp')) {
+    const result = components.find((component) => component.componentId === lamp.id);
+    if (!result || failedComponentIds.has(lamp.id)) continue;
+    const voltageRatio = Math.abs(result.voltageDrop) / INCANDESCENT_LAMP_PROFILE.ratedVoltageVolt;
+    if (voltageRatio <= INCANDESCENT_LAMP_PROFILE.warningVoltageRatio) continue;
+    const destructive = voltageRatio >= INCANDESCENT_LAMP_PROFILE.overheatVoltageRatio;
+    diagnostics.push({
+      code: 'lamp_overvoltage',
+      severity: destructive ? 'error' : 'warning',
+      message: `${lamp.name ?? 'Лампа накаливания'}: напряжение ${Math.abs(result.voltageDrop).toFixed(2)} В выше номинальных ${INCANDESCENT_LAMP_PROFILE.ratedVoltageVolt.toFixed(0)} В. Нить перегревается.`,
+      componentIds: [lamp.id],
+      suggestedAction: destructive
+        ? 'Уменьшите напряжение: при длительной перегрузке нить перегорит и разомкнёт цепь.'
+        : 'Для штатной работы уменьшите напряжение до 6 В или ниже.',
+    });
   }
 
   for (const motor of document.components.filter(isBrushedMotor)) {

@@ -409,9 +409,9 @@ function defaults(componentId: string): {
     };
   if (componentId === 'incandescent-lamp')
     return {
-      value: 24,
-      unit: 'Ом',
-      properties: { lampLevel: 'off', resistanceUnit: 'Ω' },
+      value: 6,
+      unit: 'В',
+      properties: { lampLevel: 'off' },
     };
   if (componentId === 'dc-motor' || componentId === 'gearmotor')
     return {

@@ -1,6 +1,7 @@
 import type { SchematicComponent } from '../document.js';
 import type { ComponentResult } from '../solver.js';
 import { isElectrolyticCapacitor } from './capacitor-transient-model.js';
+import { INCANDESCENT_LAMP_THERMAL_PROFILE } from './incandescent-lamp-model.js';
 
 export interface ThermalProfile {
   readonly id: string;
@@ -102,6 +103,8 @@ export function thermalProfileFor(component: SchematicComponent): ThermalProfile
       return PROFILES.junction;
     case 'transistor':
       return PROFILES.transistor;
+    case 'lamp':
+      return INCANDESCENT_LAMP_THERMAL_PROFILE;
     default:
       return null;
   }
@@ -117,6 +120,8 @@ export function thermalProfileKey(component: SchematicComponent, profile: Therma
     component.stateProperties?.['maxCollectorCurrent'] ?? '',
     component.stateProperties?.['maxPower'] ?? '',
     component.stateProperties?.['voltageRatingVolt'] ?? '',
+    component.modelProfileId ?? '',
+    component.modelProfileVersion ?? '',
   ].join('|');
 }
 

@@ -1033,6 +1033,12 @@ export interface ComponentResult {
   temperatureCelsius?: number;
   thermalLoadPercent?: number;
   accumulatedDamagePercent?: number;
+  effectiveResistanceOhm?: number;
+  ratedVoltageVolt?: number;
+  ratedCurrentAmp?: number;
+  ratedPowerWatt?: number;
+  voltageUtilizationPercent?: number;
+  filamentState?: 'cold' | 'warming' | 'lit' | 'overheated' | 'burned';
 }
 
 export interface SolveResult {

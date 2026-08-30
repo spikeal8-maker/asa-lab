@@ -267,6 +267,14 @@ describe('owner-reference Electronics presentation contract', () => {
     );
   });
 
+  it('shows the fixed electrothermal lamp profile and no resistance editor', () => {
+    expect(sidebarSource).toContain('data-testid="lamp-reference-profile"');
+    expect(sidebarSource).toContain('Сопротивление нити сейчас');
+    expect(sidebarSource).toContain('Нагрузка по напряжению');
+    expect(sidebarSource).toContain('filamentStateLabel(measurement.filamentState)');
+    expect(sidebarSource).not.toContain("['resistor', 'potentiometer', 'lamp']");
+  });
+
   it('shows the calculated ordinary LED state and fixed limits inside I', () => {
     expect(sidebarSource).toContain("c.selectedComponent.kind === 'led'");
     expect(sidebarSource).toContain('Номинальный ток');

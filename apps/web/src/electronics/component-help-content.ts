@@ -1,5 +1,9 @@
 import type { ComponentKind } from '../api';
-import { ledForwardVoltageAtCurrent, ordinaryLedProfile } from '@asa-lab/electronics';
+import {
+  INCANDESCENT_LAMP_PROFILE,
+  ledForwardVoltageAtCurrent,
+  ordinaryLedProfile,
+} from '@asa-lab/electronics';
 import type { HelpSection } from './component-information';
 
 const LED_COLOUR_LABELS: Readonly<Record<string, string>> = {
@@ -144,6 +148,30 @@ export function componentHelpSections(
         id: 'safety',
         title: 'Что означает ползунок',
         text: 'Во время моделирования ползунок задаёт освещённость среды от темноты до яркого света. Шкала логарифмическая, чтобы на ней были различимы и сумерки, и помещение, и дневной свет. Это условие текущего запуска: оно не меняет схему и не создаёт отдельное сохранение проекта.',
+      },
+    ];
+  }
+  if (kind === 'lamp') {
+    return [
+      {
+        id: 'description',
+        title: 'Что имитируется',
+        text: 'Миниатюрная лампа накаливания T-1 с двумя штырьками. Учебный профиль рассчитан на 6 В и 250 мА; это класс компонента, а не скрытый артикул производителя.',
+      },
+      {
+        id: 'principle',
+        title: 'Почему яркость меняется не мгновенно',
+        text: 'Холодная нить имеет малое сопротивление и при включении принимает краткий пусковой ток. Затем нить нагревается, её сопротивление растёт, а видимое свечение плавно достигает установившейся яркости. После отключения нить некоторое время остывает.',
+      },
+      {
+        id: 'usage',
+        title: 'Как подключать',
+        text: `Полярности нет: любой вывод можно подключить к плюсу или минусу. При номинальных ${INCANDESCENT_LAMP_PROFILE.ratedVoltageVolt} В лампа выходит примерно на ${(INCANDESCENT_LAMP_PROFILE.ratedCurrentAmp * 1_000).toFixed(0)} мА и ${INCANDESCENT_LAMP_PROFILE.ratedPowerWatt.toFixed(1)} Вт. Вкладка I показывает температуру, яркость и текущее сопротивление нити.`,
+      },
+      {
+        id: 'safety',
+        title: 'Перенапряжение и перегорание',
+        text: 'Напряжение выше 6 В ускоряет нагрев и износ. При длительной сильной перегрузке нить перегорает, после чего лампа становится разомкнутой цепью до остановки и нового запуска моделирования.',
       },
     ];
   }
