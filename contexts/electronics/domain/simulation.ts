@@ -2,6 +2,7 @@ import { type ElectronicsDocument, type SchematicComponent, type Terminal } from
 import { arduinoOutputBranches, isArduinoUno } from './arduino-model.js';
 import { buildNetlist, terminalKey, type Netlist } from './netlist.js';
 import { canonicalElectricalModelRegistry } from './model-identity.js';
+import { canonicalPhotoresistorProfileRegistry } from './photoresistor-model.js';
 import { electricalModelFor } from './model-registry.js';
 import { canonicalNonlinearDcProfileRegistry } from './models/nonlinear-dc-models.js';
 import {
@@ -67,6 +68,7 @@ const MIN_POWER_BALANCE_TOLERANCE_W = 1e-9;
 const MODEL_SET_DIGEST = `sha256:${sha256Hex(
   JSON.stringify({
     identities: canonicalElectricalModelRegistry(),
+    photoresistorProfiles: canonicalPhotoresistorProfileRegistry(),
     nonlinearDcProfiles: canonicalNonlinearDcProfileRegistry(),
     brushedMotorProfiles: canonicalBrushedMotorProfileRegistry(),
     brushedMotorTransientModelVersion: BRUSHED_MOTOR_TRANSIENT_MODEL_VERSION,

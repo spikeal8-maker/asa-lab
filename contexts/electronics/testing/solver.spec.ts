@@ -10,6 +10,7 @@ import { buildNetlist, terminalKey } from '../domain/netlist';
 import { electricalModelFor } from '../domain/model-registry';
 import {
   canonicalElectricalModelRegistry,
+  electricalModelIdentityForComponent,
   electricalModelRegistryEntries,
 } from '../domain/model-identity';
 import {
@@ -23,9 +24,13 @@ import {
 } from '../domain/led-model';
 import { solveCircuit } from '../domain/solver';
 import {
+  canonicalPhotoresistorProfileRegistry,
+  photoresistorIlluminanceLux,
+  photoresistorResistanceAtIlluminanceOhm,
   photoresistorResistanceOhm,
   PHOTORESISTOR_BRIGHT_RESISTANCE_OHM,
   PHOTORESISTOR_DARK_RESISTANCE_OHM,
+  PHOTORESISTOR_PROFILE,
 } from '../domain/photoresistor-model';
 import {
   canonicalNonlinearDcProfileRegistry,
@@ -259,10 +264,39 @@ describe('schema-versioned Electronics document', () => {
 });
 
 describe('photoresistor electrical model', () => {
-  it('maps the light control monotonically to a finite resistance', () => {
+  it('uses a deterministic versioned GL5528-class illumination profile', () => {
+    expect(JSON.parse(canonicalPhotoresistorProfileRegistry())).toEqual({
+      registryVersion: 1,
+      profiles: [PHOTORESISTOR_PROFILE],
+    });
+    expect(PHOTORESISTOR_PROFILE.resistanceAt10LuxOhm).toBe(15_000);
+    expect(PHOTORESISTOR_PROFILE.gamma).toBe(0.7);
+    expect(PHOTORESISTOR_PROFILE.profileVersion).toBe(2);
+    expect(
+      electricalModelIdentityForComponent(
+        component('legacy-ldr', 'photoresistor', 15_000, {
+          componentTypeId: 'photoresistor',
+          electricalModelId: 'photoresistor',
+          electricalModelVersion: 1,
+          modelProfileId: 'generic-photoresistor',
+          modelProfileVersion: 1,
+        }),
+      ),
+    ).toMatchObject({
+      electricalModelId: 'photoresistor',
+      modelProfileId: 'generic-photoresistor',
+      modelProfileVersion: 2,
+    });
+  });
+
+  it('maps the logarithmic light control monotonically to finite lux and resistance', () => {
     const ldr = component('ldr', 'photoresistor', 0);
     expect(photoresistorResistanceOhm({ ...ldr, stateProperties: { illumination: 0 } })).toBe(
       PHOTORESISTOR_DARK_RESISTANCE_OHM,
+    );
+    expect(photoresistorIlluminanceLux({ ...ldr, stateProperties: { illumination: 0 } })).toBe(0);
+    expect(photoresistorIlluminanceLux({ ...ldr, stateProperties: { illumination: 1 } })).toBe(
+      PHOTORESISTOR_PROFILE.maximumIlluminanceLux,
     );
     expect(
       photoresistorResistanceOhm({ ...ldr, stateProperties: { illumination: 1 } }),
@@ -274,6 +308,24 @@ describe('photoresistor electrical model', () => {
     expect(Number.isFinite(midpoint)).toBe(true);
     expect(midpoint).toBeLessThan(PHOTORESISTOR_DARK_RESISTANCE_OHM);
     expect(midpoint).toBeGreaterThan(PHOTORESISTOR_BRIGHT_RESISTANCE_OHM);
+    const midpointLux = photoresistorIlluminanceLux({
+      ...ldr,
+      stateProperties: { illumination: 0.5 },
+    });
+    expect(midpointLux).toBeGreaterThan(30);
+    expect(midpointLux).toBeLessThan(32);
+  });
+
+  it('matches the profile reference curve at 10, 100 and 1000 lux', () => {
+    expect(photoresistorResistanceAtIlluminanceOhm(10)).toBe(15_000);
+    expect(photoresistorResistanceAtIlluminanceOhm(100)).toBeCloseTo(2_992.893, 3);
+    expect(photoresistorResistanceAtIlluminanceOhm(1_000)).toBeCloseTo(597.161, 3);
+    expect(photoresistorResistanceAtIlluminanceOhm(Number.NaN)).toBe(
+      PHOTORESISTOR_DARK_RESISTANCE_OHM,
+    );
+    expect(photoresistorResistanceAtIlluminanceOhm(Number.POSITIVE_INFINITY)).toBe(
+      PHOTORESISTOR_DARK_RESISTANCE_OHM,
+    );
   });
 
   it('increases circuit current when illumination increases', () => {

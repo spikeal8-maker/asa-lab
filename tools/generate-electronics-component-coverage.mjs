@@ -31,7 +31,7 @@ function exactModelIdentities(source) {
   if (!block) throw new Error(`${MODEL_IDENTITY_PATH}: EXACT_IDENTITIES block is missing`);
   const identities = new Map();
   const entryPattern =
-    /^\s*(?:'([^']+)'|([A-Za-z0-9_-]+)):\s*identity\('([^']+)',\s*'([^']+)'\),/gm;
+    /^\s*(?:'([^']+)'|([A-Za-z0-9_-]+)):\s*identity\('([^']+)',\s*'([^']+)'(?:,\s*\d+)?\),/gm;
   for (const match of block.matchAll(entryPattern)) {
     identities.set(match[1] ?? match[2], {
       electricalModelId: match[3],

@@ -254,6 +254,19 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(sidebarSource).toContain('technicalMetrics.map');
   });
 
+  it('presents photoresistor runtime light in lux and keeps it out of project saves', () => {
+    expect(stageSource).toContain('formatIlluminanceLux(photoresistorLux)');
+    expect(stageSource).toContain('photoresistorResistanceOhm(component)');
+    expect(stageSource).toContain('aria-valuetext={`${photoresistorLightText}; сопротивление');
+    expect(stageSource).not.toContain('<output>{photoresistorPercent}%</output>');
+    expect(sidebarSource).toContain('data-testid="photoresistor-reference-profile"');
+    expect(sidebarSource).toContain('Сопротивление сейчас');
+    expect(sidebarSource).toContain('Больше света → меньше сопротивление');
+    expect(controllerModuleSource).toContain(
+      "Object.keys(properties).every((key) => key === 'illumination')",
+    );
+  });
+
   it('shows the calculated ordinary LED state and fixed limits inside I', () => {
     expect(sidebarSource).toContain("c.selectedComponent.kind === 'led'");
     expect(sidebarSource).toContain('Номинальный ток');

@@ -44,6 +44,18 @@ export type {
   TransientFailureMode,
 } from './domain/models/capacitor-transient-model.js';
 export {
+  canonicalPhotoresistorProfileRegistry,
+  photoresistorIllumination,
+  photoresistorIlluminanceLux,
+  photoresistorResistanceAtIlluminanceOhm,
+  photoresistorResistanceOhm,
+  PHOTORESISTOR_BRIGHT_RESISTANCE_OHM,
+  PHOTORESISTOR_DARK_RESISTANCE_OHM,
+  PHOTORESISTOR_DEFAULT_ILLUMINATION,
+  PHOTORESISTOR_PROFILE,
+  PHOTORESISTOR_PROFILE_REGISTRY_VERSION,
+} from './domain/photoresistor-model.js';
+export {
   BRUSHED_MOTOR_ASSEMBLY_PROFILES,
   BRUSHED_MOTOR_PROFILE_REGISTRY_VERSION,
   BRUSHED_MOTOR_PROFILE_SOURCES,

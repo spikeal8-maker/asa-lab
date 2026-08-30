@@ -171,6 +171,75 @@ function diodeProfileDocument(componentTypeId: 'diode-do35' | 'diode-do41'): Sch
   };
 }
 
+function photoresistorDocument(): SchematicDocument {
+  return {
+    schemaVersion: 4,
+    components: [
+      {
+        id: 'source',
+        kind: 'source',
+        componentTypeId: 'battery-holder-aa-2',
+        variantId: 'battery-holder-aa-2',
+        name: 'Источник 3 В',
+        position: { x: 150, y: 360 },
+        rotation: 0,
+        value: 3,
+        pinIds: ['BAT-', 'BAT+'],
+        stateProperties: { cells: 2 },
+      },
+      {
+        id: 'resistor',
+        kind: 'resistor',
+        componentTypeId: 'resistor-axial',
+        variantId: 'resistor-axial',
+        name: 'R1 10 кОм',
+        position: { x: 520, y: 170 },
+        rotation: 90,
+        value: 10_000,
+        pinIds: ['lead-1', 'lead-2'],
+        stateProperties: { tolerancePercent: 5, resistanceUnit: 'кОм' },
+      },
+      {
+        id: 'ldr',
+        kind: 'photoresistor',
+        componentTypeId: 'photoresistor',
+        variantId: 'photoresistor',
+        name: 'Фоторезистор',
+        position: { x: 740, y: 190 },
+        rotation: 0,
+        value: 15_000,
+        pinIds: ['lead-1', 'lead-2'],
+        stateProperties: { illumination: 0.5 },
+      },
+    ],
+    connections: [
+      {
+        id: 'positive-resistor',
+        from: { componentId: 'source', terminal: 'BAT+' },
+        to: { componentId: 'resistor', terminal: 'lead-1' },
+        color: '#e3212b',
+        vertices: [],
+      },
+      {
+        id: 'resistor-ldr',
+        from: { componentId: 'resistor', terminal: 'lead-2' },
+        to: { componentId: 'ldr', terminal: 'lead-1' },
+        color: '#149447',
+        vertices: [],
+      },
+      {
+        id: 'ldr-negative',
+        from: { componentId: 'ldr', terminal: 'lead-2' },
+        to: { componentId: 'source', terminal: 'BAT-' },
+        color: '#2a3035',
+        vertices: [],
+      },
+    ],
+    viewport: { x: 0, y: 0, zoom: 1 },
+    simulation: { running: false, maxIterations: 24 },
+  };
+}
+
 function npnKeyDocument(): SchematicDocument {
   return {
     schemaVersion: 4,
@@ -1656,6 +1725,64 @@ test('NPN key exposes its calculated operating point through I', async ({ page }
   await variant.selectOption('transistor-pnp');
   await expect(component(page, 'transistor-pnp')).toBeVisible();
   await expect(page.locator('[data-testid="schematic-wire"]')).toHaveCount(5);
+  failures.assertEmpty();
+});
+
+test('photoresistor converts runtime light to resistance without saving the project', async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await loginWithOrganization(page, teacher);
+  const projectId = await createProject(page, 'MATH-6B photoresistor runtime');
+  await saveDocument(page, projectId, photoresistorDocument());
+  await page.goto(`/#/home/${projectId}`);
+
+  await page.getByRole('button', { name: 'Начать моделирование' }).click();
+  const ldr = component(page, 'photoresistor');
+  await ldr.locator('.workbench-part').click({ force: true });
+  const lightControl = page.getByTestId('photoresistor-light-control');
+  await expect(lightControl.locator('output')).toHaveText('32 лк');
+
+  const inspector = page.getByRole('complementary', { name: 'Параметры выделения' });
+  await inspector.getByRole('button', { name: /Техническое состояние/ }).click();
+  const profile = inspector.getByTestId('photoresistor-reference-profile');
+  await expect(profile).toContainText('GL5528-class 5 mm CdS LDR');
+  await expect(profile).toContainText('6.72 кОм');
+
+  const origin = new URL(page.url()).origin;
+  await page.waitForTimeout(1_200);
+  const revisionBeforeResponse = await page.context().request.get(`/api/projects/${projectId}`, {
+    headers: { origin },
+  });
+  const revisionBefore = ((await revisionBeforeResponse.json()) as { draft: { revision: number } })
+    .draft.revision;
+
+  const slider = lightControl.getByRole('slider', { name: 'Освещённость фоторезистора' });
+  await slider.fill('100');
+  await expect(lightControl.locator('output')).toHaveText('10 тыс. лк');
+  await expect(profile).toContainText('119 Ом');
+  await slider.fill('0');
+  await expect(lightControl.locator('output')).toHaveText('0 лк');
+  await expect(profile).toContainText('1.00 МОм');
+
+  await inspector.getByRole('button', { name: /Справка/ }).click();
+  await expect(page.getByText('Как свет меняет сопротивление', { exact: true })).toBeVisible();
+  await expect(page.getByText(/делитель напряжения/)).toBeVisible();
+
+  await page.waitForTimeout(1_200);
+  const revisionAfterResponse = await page.context().request.get(`/api/projects/${projectId}`, {
+    headers: { origin },
+  });
+  const revisionAfter = ((await revisionAfterResponse.json()) as { draft: { revision: number } })
+    .draft.revision;
+  expect(revisionAfter).toBe(revisionBefore);
+
+  await page.screenshot({
+    path: `${ARTIFACT_DIR}/electronics-photoresistor-runtime.png`,
+    fullPage: true,
+  });
   failures.assertEmpty();
 });
 

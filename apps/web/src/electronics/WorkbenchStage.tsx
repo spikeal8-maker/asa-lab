@@ -7,6 +7,7 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from 'react';
 import type { SchematicComponent } from '../api';
+import { photoresistorIlluminanceLux, photoresistorResistanceOhm } from '@asa-lab/electronics';
 import {
   catalogEntry,
   componentPointPosition,
@@ -36,6 +37,7 @@ import {
   type ComponentVisibleBounds,
 } from './component-hit-testing';
 import type { ElectronicsWorkbenchController } from './use-electronics-workbench';
+import { formatIlluminanceLux, photoresistorLightCondition } from './photoresistor-presentation';
 
 /** The part currently in hand, drawn on the cursor wherever the cursor is.
  *
@@ -676,6 +678,11 @@ export function WorkbenchStage({
               Math.min(1, Math.max(0, Number(component.stateProperties?.['illumination'] ?? 0.5))) *
                 100,
             );
+            const photoresistorLux = photoresistorIlluminanceLux(component);
+            const photoresistorResistance = photoresistorResistanceOhm(component);
+            const photoresistorLightText = `${photoresistorLightCondition(
+              photoresistorLux,
+            )}: ${formatIlluminanceLux(photoresistorLux)}`;
             return (
               <g
                 key={component.id}
@@ -821,7 +828,9 @@ export function WorkbenchStage({
                     >
                       <label className="workbench-photoresistor-control">
                         <span className="workbench-photoresistor-level" aria-hidden="true" />
-                        <output>{photoresistorPercent}%</output>
+                        <output title={photoresistorLightText}>
+                          {formatIlluminanceLux(photoresistorLux)}
+                        </output>
                         <span
                           className="workbench-photoresistor-range"
                           style={
@@ -842,12 +851,25 @@ export function WorkbenchStage({
                             max="100"
                             step="1"
                             value={photoresistorPercent}
-                            onChange={(event) =>
+                            aria-valuetext={`${photoresistorLightText}; сопротивление ${Math.round(
+                              photoresistorResistance,
+                            )} Ом`}
+                            onChange={(event) => {
+                              const illumination = Number(event.currentTarget.value) / 100;
+                              const preview = {
+                                ...component,
+                                stateProperties: {
+                                  ...component.stateProperties,
+                                  illumination,
+                                },
+                              };
                               c.setSelectedProperties(
-                                { illumination: Number(event.currentTarget.value) / 100 },
-                                `Освещённость: ${event.currentTarget.value}%.`,
-                              )
-                            }
+                                { illumination },
+                                `Освещённость: ${formatIlluminanceLux(
+                                  photoresistorIlluminanceLux(preview),
+                                )}.`,
+                              );
+                            }}
                           />
                         </span>
                         <svg viewBox="0 0 24 24" aria-hidden="true">

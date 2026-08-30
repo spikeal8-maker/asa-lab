@@ -70,7 +70,7 @@ const EXACT_IDENTITIES: Readonly<Record<string, ElectricalModelIdentity>> = {
   'switch-spdt': identity('spdt-switch', 'slide-switch-spdt'),
   potentiometer: identity('potentiometer', 'generic-potentiometer'),
   'electrolytic-capacitor': identity('capacitor', 'generic-electrolytic-capacitor'),
-  photoresistor: identity('photoresistor', 'generic-photoresistor'),
+  photoresistor: identity('photoresistor', 'generic-photoresistor', 2),
   'piezo-passive-buzzer': identity('passive-piezo', 'passive-piezo-enclosed'),
   'piezo-disc': identity('passive-piezo', 'passive-piezo-disc'),
   'diode-do35': identity('diode', 'generic-signal-diode-do35'),
@@ -98,12 +98,13 @@ const EXACT_IDENTITIES: Readonly<Record<string, ElectricalModelIdentity>> = {
 function identity(
   electricalModelId: ElectricalModelId,
   modelProfileId: string,
+  modelProfileVersion = 1,
 ): ElectricalModelIdentity {
   return {
     electricalModelId,
     electricalModelVersion: 1,
     modelProfileId,
-    modelProfileVersion: 1,
+    modelProfileVersion,
   };
 }
 
@@ -189,6 +190,15 @@ export function electricalModelIdentityForComponent(
       component.electricalModelId === 'unsupported' &&
       component.electricalModelVersion === 1 &&
       component.modelProfileId === 'unsupported-electrolytic-capacitor' &&
+      component.modelProfileVersion === 1
+    ) {
+      return resolveElectricalModelIdentity(component);
+    }
+    if (
+      component.componentTypeId === 'photoresistor' &&
+      component.electricalModelId === 'photoresistor' &&
+      component.electricalModelVersion === 1 &&
+      component.modelProfileId === 'generic-photoresistor' &&
       component.modelProfileVersion === 1
     ) {
       return resolveElectricalModelIdentity(component);

@@ -2,6 +2,9 @@ import { useEffect, useState } from 'react';
 import {
   ledForwardVoltageAtCurrent,
   ordinaryLedProfile,
+  photoresistorIlluminanceLux,
+  photoresistorResistanceOhm,
+  PHOTORESISTOR_PROFILE,
   resolveBrushedMotorProfileSelection,
   type ComponentResult,
 } from '@asa-lab/electronics';
@@ -28,6 +31,11 @@ import {
   readMetricBinding,
   type HelpSection,
 } from './component-information';
+import {
+  formatIlluminanceLux,
+  formatPhotoresistorResistance,
+  photoresistorLightCondition,
+} from './photoresistor-presentation';
 
 function valueLabel(kind: string): string {
   if (kind === 'source') return 'Напряжение';
@@ -220,6 +228,13 @@ export function WorkbenchSidebars({
   const selectedLedColourLabel =
     LED_COLOUR_OPTIONS.find((option) => option.value === selectedLedColour)?.label ??
     selectedLedColour;
+  const selectedPhotoresistor =
+    c.selectedComponent?.kind === 'photoresistor'
+      ? {
+          lux: photoresistorIlluminanceLux(c.selectedComponent),
+          resistanceOhm: photoresistorResistanceOhm(c.selectedComponent),
+        }
+      : null;
   useEffect(() => {
     setHelpSections(null);
   }, [c.selectedComponent?.id]);
@@ -1229,6 +1244,33 @@ export function WorkbenchSidebars({
                       <dd>{measurement.lit ? 'Активен' : 'Не активен'}</dd>
                     </div>
                   ) : null}
+                </dl>
+              ) : null}
+              {stateOpen && selectedPhotoresistor ? (
+                <dl
+                  className="workbench-measurements"
+                  data-testid="photoresistor-reference-profile"
+                >
+                  <div>
+                    <dt>Освещённость</dt>
+                    <dd>{formatIlluminanceLux(selectedPhotoresistor.lux)}</dd>
+                  </div>
+                  <div>
+                    <dt>Условия</dt>
+                    <dd>{photoresistorLightCondition(selectedPhotoresistor.lux)}</dd>
+                  </div>
+                  <div>
+                    <dt>Сопротивление сейчас</dt>
+                    <dd>{formatPhotoresistorResistance(selectedPhotoresistor.resistanceOhm)}</dd>
+                  </div>
+                  <div>
+                    <dt>Опорный профиль</dt>
+                    <dd>{PHOTORESISTOR_PROFILE.referenceClass}</dd>
+                  </div>
+                  <div>
+                    <dt>Зависимость</dt>
+                    <dd>Больше света → меньше сопротивление</dd>
+                  </div>
                 </dl>
               ) : null}
               {stateOpen && selectedLedProfile && selectedLedColourLabel ? (

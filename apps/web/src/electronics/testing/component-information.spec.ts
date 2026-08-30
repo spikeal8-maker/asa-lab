@@ -181,6 +181,30 @@ describe('component information registry', () => {
     expect(battery.some((section) => section.text.includes('нагрузку по току'))).toBe(true);
   });
 
+  it('explains the photoresistor profile, runtime light control and voltage divider', () => {
+    const profile = componentInformationProfile('photoresistor', 'photoresistor');
+    expect(profile.technicalMetrics.map((metric) => metric.metricId)).toEqual([
+      'voltage-drop',
+      'current',
+      'power',
+    ]);
+    const sections = componentHelpSections(
+      'photoresistor',
+      'Фоторезистор изменяет сопротивление.',
+      'photoresistor',
+    );
+    expect(sections.map((section) => section.title)).toEqual([
+      'Что имитируется',
+      'Как свет меняет сопротивление',
+      'Как подключать',
+      'Что означает ползунок',
+    ]);
+    expect(sections[0]?.text).toContain('GL5528');
+    expect(sections[1]?.text).toContain('15 кОм при 10 лк');
+    expect(sections[2]?.text).toContain('делитель напряжения');
+    expect(sections[3]?.text).toContain('не меняет схему');
+  });
+
   it('explains the NPN key and points beginners to the calculated operating point', () => {
     const sections = componentHelpSections('transistor', 'Транзистор.', 'transistor-npn');
     expect(sections.map((section) => section.title)).toEqual([

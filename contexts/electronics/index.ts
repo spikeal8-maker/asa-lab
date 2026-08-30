@@ -134,11 +134,16 @@ export {
   type NpnStressState,
 } from './domain/models/npn-dc-model.js';
 export {
+  canonicalPhotoresistorProfileRegistry,
   photoresistorIllumination,
+  photoresistorIlluminanceLux,
+  photoresistorResistanceAtIlluminanceOhm,
   photoresistorResistanceOhm,
   PHOTORESISTOR_BRIGHT_RESISTANCE_OHM,
   PHOTORESISTOR_DARK_RESISTANCE_OHM,
   PHOTORESISTOR_DEFAULT_ILLUMINATION,
+  PHOTORESISTOR_PROFILE,
+  PHOTORESISTOR_PROFILE_REGISTRY_VERSION,
 } from './domain/photoresistor-model.js';
 export {
   solveCircuit,
