@@ -398,6 +398,16 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(productionVisualSource).toContain('<OwnerPotentiometerVisual');
     expect(productionVisualSource).toContain('potentiometerRuntimeMarkup(ownerSvg, wiperPosition)');
     expect(productionVisualSource).toContain('data-testid="potentiometer-angle"');
+    expect(productionVisualSource).toContain('<OwnerDcMotorVisual');
+    expect(productionVisualSource).toContain('dcMotorRuntimeMarkup(ownerSvg, phaseRadian)');
+    expect(productionVisualSource).toContain('data-testid="dc-motor-phase"');
+    expect(stageSource).toContain('data-testid="dc-motor-rpm"');
+    expect(stageSource).toContain('formatMotorRpm(rpm)');
+    expect(stageSource).toContain('pointerEvents="none"');
+    expect(sidebarSource).toContain('data-testid="dc-motor-rpm-measurement"');
+    expect(sidebarSource).toContain('Электромагнитный момент');
+    expect(sidebarSource).toContain('Нагрузка на валу');
+    expect(sidebarSource).toContain('Обмотка');
     expect(stageSource).toContain('data-hit-surface="potentiometer-knob-face"');
     expect(stageSource).toContain('cx={baseSize.width * (71.5 / 144)}');
     expect(stageSource).toContain('cy={baseSize.height * (71 / 164)}');

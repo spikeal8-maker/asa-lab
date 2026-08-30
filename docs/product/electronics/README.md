@@ -923,9 +923,11 @@ stall-current и gear ratio и ограничивается declared profile bou
 
 Canonical fixture фиксирует пуск при 6 В, выход на паспортную no-load точку,
 выбег, реверс через ноль, TT 1:48 и отказ заблокированного двигателя при 12 В.
-Ядро экспортировано через общий electronics context, но production identity,
-Stage и solver ещё намеренно не переключены: runtime activation остаётся на
-границе MATH-5F после MATH-5C/D/E и browser evidence.
+Ядро экспортировано через общий electronics context. На MATH-5C production
+identity `dc-motor` переключён на профиль `pololu-1117-130-6v`, а состояние
+ротора, обмотки и температуры включено в общий transient state. Это не
+активирует `gearmotor`: его transmission profile, два наблюдаемых вала и
+owner-visible runtime остаются отдельными границами MATH-5D/E/F.
 
 #### MATH-5C — обычный DC motor
 
@@ -948,6 +950,20 @@ Readout не является биркой предупреждения, не в
 могут независимо запускать вращение. В `I` показываются напряжение, ток,
 signed RPM, направление, электромагнитный момент, нагрузка, температура и
 состояние обмотки.
+
+Реализация MATH-5C обязана сохранять следующие проверяемые границы:
+
+- старый сохранённый identity `generic-dc-motor-static` мигрирует на текущий
+  профиль без потери проекта;
+- новый и перенесённый transient state сортируется по component id и участвует
+  в проверке конечности результата;
+- runtime-control между clock ticks сохраняет фазу и скорость, поэтому
+  отключение питания даёт выбег, а не сброс в ноль;
+- Stage читает только `motorAngularPhaseRadian` и signed `motorRpm` из accepted
+  solve result; `speedPercent` остаётся совместимым вторичным наблюдением;
+- owner SVG не переписывается: runtime добавляет transform только существующей
+  группе `gear` с центром `141.5, 107.3`;
+- мотор-редуктор остаётся fail-closed до MATH-5D/E/F.
 
 #### MATH-5D — transmission profile мотор-редуктора
 

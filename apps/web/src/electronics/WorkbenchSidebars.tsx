@@ -889,6 +889,47 @@ export function WorkbenchSidebars({
                       <dd>{measurement.currentUtilizationPercent.toFixed(0)}%</dd>
                     </div>
                   ) : null}
+                  {c.selectedEntry.key === 'dc-motor' && measurement.motorRpm !== undefined ? (
+                    <>
+                      <div data-testid="dc-motor-rpm-measurement">
+                        <dt>Скорость</dt>
+                        <dd>{Math.round(measurement.motorRpm)} об/мин</dd>
+                      </div>
+                      <div>
+                        <dt>Направление</dt>
+                        <dd>
+                          {measurement.direction === 'clockwise'
+                            ? 'По часовой стрелке'
+                            : measurement.direction === 'counterclockwise'
+                              ? 'Против часовой стрелки'
+                              : 'Остановлен'}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Электромагнитный момент</dt>
+                        <dd>
+                          {((measurement.electromagneticTorqueNewtonMeter ?? 0) * 1_000).toFixed(2)}{' '}
+                          мН·м
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Нагрузка на валу</dt>
+                        <dd>
+                          {((measurement.outputLoadTorqueNewtonMeter ?? 0) * 1_000).toFixed(2)} мН·м
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Обмотка</dt>
+                        <dd>
+                          {measurement.windingFailureMode === 'winding_open'
+                            ? 'Перегорела — цепь разомкнута'
+                            : measurement.motorOperatingMode === 'stalled'
+                              ? 'Вал заблокирован'
+                              : 'Исправна'}
+                        </dd>
+                      </div>
+                    </>
+                  ) : null}
                   {measurement.temperatureCelsius !== undefined ? (
                     <div>
                       <dt>Температура</dt>

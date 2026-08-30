@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   buttonContactPairs,
+  dcMotorRuntimeMarkup,
+  formatMotorRpm,
   lampState,
   motorMotion,
   ordinaryLedState,
@@ -97,5 +99,18 @@ describe('typed Electronics state and animation contracts', () => {
     expect(markup.match(/transform="rotate\(135 71\.5 71\)"/g)).toHaveLength(2);
     expect(markup).toContain('<circle cx="71.5" cy="71" r="49"/>');
     expect(ownerSvg).not.toContain('transform=');
+  });
+
+  it('rotates only the owner motor gear from solver phase and formats signed RPM', () => {
+    const ownerSvg =
+      '<svg viewBox="0 0 284 245"><g id="body"><path d="M0 0"/></g><g id="gear"><path d="M1 1"/></g></svg>';
+    const markup = dcMotorRuntimeMarkup(ownerSvg, Math.PI / 2);
+    expect(markup).toContain('<g id="body"><path d="M0 0"/></g>');
+    expect(markup).toContain('<g id="gear" transform="rotate(90 141.5 107.3)">');
+    expect(ownerSvg).not.toContain('transform=');
+    expect(dcMotorRuntimeMarkup(ownerSvg, Number.NaN)).toBe('');
+    expect(formatMotorRpm(8420.4)).toBe('8420 об/мин');
+    expect(formatMotorRpm(-8420.4)).toBe('−8420 об/мин');
+    expect(formatMotorRpm(-0.2)).toBe('0 об/мин');
   });
 });

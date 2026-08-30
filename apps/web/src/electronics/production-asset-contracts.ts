@@ -309,6 +309,32 @@ export function potentiometerRuntimeMarkup(ownerSvg: string, wiperPosition: numb
   return withMovingPointer.slice(bodyStart + 1, bodyEnd);
 }
 
+/**
+ * Applies the accepted solver phase only to the owner SVG group named `gear`.
+ * The owner asset itself stays byte-exact; voltage and a CSS duration are not
+ * allowed to become a second source of motor motion.
+ */
+export function dcMotorRuntimeMarkup(ownerSvg: string, phaseRadian: number): string {
+  if (!Number.isFinite(phaseRadian)) return '';
+  const normalizedPhase = ((phaseRadian % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+  const degrees = Number(((normalizedPhase * 180) / Math.PI).toFixed(6));
+  const withRotatingGear = ownerSvg.replace(
+    '<g id="gear">',
+    `<g id="gear" transform="rotate(${degrees} 141.5 107.3)">`,
+  );
+  if (withRotatingGear === ownerSvg) return '';
+  const bodyStart = withRotatingGear.indexOf('>');
+  const bodyEnd = withRotatingGear.lastIndexOf('</svg>');
+  if (bodyStart < 0 || bodyEnd <= bodyStart) return '';
+  return withRotatingGear.slice(bodyStart + 1, bodyEnd);
+}
+
+export function formatMotorRpm(value: number): string {
+  const rounded = Number.isFinite(value) ? Math.round(value) : 0;
+  const normalized = Object.is(rounded, -0) ? 0 : rounded;
+  return `${normalized < 0 ? `−${Math.abs(normalized)}` : normalized} об/мин`;
+}
+
 export function lampState(powerRatio: number): LampState {
   const value = Math.min(1, Math.max(0, powerRatio));
   if (value === 0) return 'off';

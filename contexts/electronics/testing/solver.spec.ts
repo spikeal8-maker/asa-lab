@@ -147,7 +147,7 @@ describe('schema-versioned Electronics document', () => {
     });
     expect(parsed.document.components[1]).toMatchObject({
       electricalModelId: 'dc-motor',
-      modelProfileId: 'generic-dc-motor-static',
+      modelProfileId: 'pololu-1117-130-6v',
     });
     expect(electricalModelFor(parsed.document.components[1]!)).toMatchObject({
       support: 'supported',
@@ -553,31 +553,84 @@ describe('deterministic DC solver', () => {
     });
   });
 
-  it('solves the deterministic DC operating point of the owner motor', () => {
-    const result = solveCircuit(
-      doc(
-        [
-          component('source', 'source', 6),
-          component('motor', 'visual', 6, {
-            componentTypeId: 'dc-motor',
-            pinIds: ['negative', 'positive'],
-          }),
-        ],
-        [
-          connect('positive', 'source', 'a', 'motor', 'positive'),
-          connect('negative', 'motor', 'negative', 'source', 'b'),
-        ],
-      ),
+  it('advances the owner motor through the shared transient solver', () => {
+    const motorDocument = doc(
+      [
+        component('source', 'source', 6),
+        component('motor', 'visual', 6, {
+          componentTypeId: 'dc-motor',
+          pinIds: ['negative', 'positive'],
+        }),
+      ],
+      [
+        connect('positive', 'source', 'a', 'motor', 'positive'),
+        connect('negative', 'motor', 'negative', 'source', 'b'),
+      ],
     );
+    const result = solveCircuit(motorDocument, { simulationTimeMs: 500 });
 
     expect(result.status).toBe('solved');
     expect(result.components.find((item) => item.componentId === 'motor')).toMatchObject({
-      voltageDrop: 6,
-      current: 0.07,
       energized: true,
-      speedPercent: 100,
       direction: 'clockwise',
+      motorOperatingMode: 'running',
+      windingFailureMode: 'none',
     });
+    const motor = result.components.find((item) => item.componentId === 'motor');
+    expect(motor?.voltageDrop).toBeCloseTo(6, 9);
+    expect(motor?.current).toBeCloseTo(0.0718, 3);
+    expect(motor?.motorRpm).toBeCloseTo(11_471.7, 0);
+    expect(motor?.motorAngularPhaseRadian).toBeGreaterThanOrEqual(0);
+    expect(motor?.motorAngularPhaseRadian).toBeLessThan(2 * Math.PI);
+    expect(result.transientState?.motors).toHaveLength(1);
+    expect(result.transientAnalysis).toMatchObject({
+      acceptedSteps: 500,
+      rejectedSteps: 0,
+      minStepMs: 1,
+      maxStepMs: 1,
+    });
+  });
+
+  it('reports signed reverse RPM and carries rotor coast after power is removed', () => {
+    const direct = doc(
+      [
+        component('source', 'source', 6),
+        component('motor', 'visual', 6, {
+          componentTypeId: 'dc-motor',
+          pinIds: ['negative', 'positive'],
+        }),
+      ],
+      [
+        connect('positive', 'source', 'a', 'motor', 'positive'),
+        connect('negative', 'motor', 'negative', 'source', 'b'),
+      ],
+    );
+    const reverse = doc(Array.from(direct.components), [
+      connect('reverse-positive', 'source', 'a', 'motor', 'negative'),
+      connect('reverse-negative', 'motor', 'positive', 'source', 'b'),
+    ]);
+    const reversed = solveCircuit(reverse, { simulationTimeMs: 500 });
+    expect(reversed.components.find((item) => item.componentId === 'motor')).toMatchObject({
+      direction: 'counterclockwise',
+    });
+    expect(reversed.components.find((item) => item.componentId === 'motor')?.motorRpm).toBeLessThan(
+      -11_000,
+    );
+
+    const accelerated = solveCircuit(direct, { simulationTimeMs: 500 });
+    if (!accelerated.transientState) throw new Error('motor transient state missing');
+    const disconnected = doc(Array.from(direct.components), []);
+    const coasting = solveCircuit(disconnected, {
+      simulationTimeMs: 600,
+      transientState: accelerated.transientState,
+    });
+    const coastingMotor = coasting.components.find((item) => item.componentId === 'motor');
+    expect(coastingMotor).toMatchObject({
+      direction: 'clockwise',
+      motorOperatingMode: 'coasting',
+    });
+    expect(coastingMotor?.motorRpm).toBeGreaterThan(0);
+    expect(coastingMotor?.motorRpm).toBeLessThan(11_472);
   });
 
   it('fails before matrix assembly when a production component has an incomplete pin map', () => {

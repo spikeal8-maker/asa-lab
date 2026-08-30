@@ -363,6 +363,56 @@ function capacitorInteractionDocument(): SchematicDocument {
   };
 }
 
+function dcMotorDocument(): SchematicDocument {
+  return {
+    schemaVersion: 4,
+    components: [
+      {
+        id: 'source',
+        kind: 'source',
+        componentTypeId: 'battery-holder-aa-4',
+        variantId: 'battery-holder-aa-4',
+        name: 'Источник 6 В',
+        position: { x: 180, y: 340 },
+        rotation: 0,
+        value: 6,
+        pinIds: ['BAT-', 'BAT+'],
+        stateProperties: { cells: 4 },
+      },
+      {
+        id: 'motor',
+        kind: 'visual',
+        componentTypeId: 'dc-motor',
+        variantId: 'dc-motor',
+        name: 'Двигатель постоянного тока',
+        position: { x: 600, y: 260 },
+        rotation: 0,
+        value: 6,
+        pinIds: ['negative', 'positive'],
+        stateProperties: {},
+      },
+    ],
+    connections: [
+      {
+        id: 'motor-positive',
+        from: { componentId: 'source', terminal: 'BAT+' },
+        to: { componentId: 'motor', terminal: 'positive' },
+        color: '#e3212b',
+        vertices: [],
+      },
+      {
+        id: 'motor-negative',
+        from: { componentId: 'motor', terminal: 'negative' },
+        to: { componentId: 'source', terminal: 'BAT-' },
+        color: '#2a3035',
+        vertices: [],
+      },
+    ],
+    viewport: { x: 60, y: 80, zoom: 1 },
+    simulation: { running: false, maxIterations: 24 },
+  };
+}
+
 function reverseCapacitorDocument(): SchematicDocument {
   const interaction = capacitorInteractionDocument();
   return {
@@ -1549,6 +1599,50 @@ test('NPN key exposes its calculated operating point through I', async ({ page }
   await variant.selectOption('transistor-pnp');
   await expect(component(page, 'transistor-pnp')).toBeVisible();
   await expect(page.locator('[data-testid="schematic-wire"]')).toHaveCount(5);
+  failures.assertEmpty();
+});
+
+test('direct DC motor shows calculated signed RPM and rotates only from solver phase', async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await loginWithOrganization(page, teacher);
+  const projectId = await createProject(page, 'MATH-5C DC motor runtime');
+  await saveDocument(page, projectId, dcMotorDocument());
+  await page.goto(`/#/home/${projectId}`);
+
+  const motor = component(page, 'dc-motor');
+  const readout = page.locator('[data-testid="dc-motor-rpm"][data-component-id="motor"]');
+  await expect(readout).toHaveText('0 об/мин');
+  await page.getByRole('button', { name: 'Начать моделирование' }).click();
+  await expect
+    .poll(async () => (await readout.textContent())?.trim(), { timeout: 10_000 })
+    .not.toBe('0 об/мин');
+
+  const phaseVisual = motor.getByTestId('dc-motor-phase');
+  await expect(phaseVisual).toBeVisible();
+  const firstPhase = Number(await phaseVisual.getAttribute('data-motor-phase-radian'));
+  await page.waitForTimeout(250);
+  const secondPhase = Number(await phaseVisual.getAttribute('data-motor-phase-radian'));
+  expect(Number.isFinite(firstPhase)).toBe(true);
+  expect(Number.isFinite(secondPhase)).toBe(true);
+  expect(secondPhase).not.toBe(firstPhase);
+
+  await motor.locator('.workbench-part').click({ force: true });
+  const inspector = page.getByRole('complementary', { name: 'Параметры выделения' });
+  await inspector.getByRole('button', { name: /Техническое состояние/ }).click();
+  await expect(inspector.getByText('Скорость', { exact: true })).toBeVisible();
+  await expect(inspector.getByText('Направление', { exact: true })).toBeVisible();
+  await expect(inspector.getByText('Электромагнитный момент', { exact: true })).toBeVisible();
+  await expect(inspector.getByText('Нагрузка на валу', { exact: true })).toBeVisible();
+  await expect(inspector.getByText('Температура', { exact: true })).toBeVisible();
+  await expect(inspector.getByText('Обмотка', { exact: true })).toBeVisible();
+  await page.screenshot({
+    path: `${ARTIFACT_DIR}/electronics-dc-motor-runtime.png`,
+    fullPage: true,
+  });
   failures.assertEmpty();
 });
 

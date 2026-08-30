@@ -4,7 +4,7 @@
     "catalogPath": "apps/web/public/assets/electronics/component-database/catalog.json",
     "catalogSha256": "6dffb396ead7723c968f1964c21e9f2be2823c5c21095ba0a5ef2c11a5a4b3c3",
     "modelIdentityPath": "contexts/electronics/domain/model-identity.ts",
-    "modelIdentitySha256": "a41b4d3c2578f241d13dfc55edf2652e414d39edcb73155c609935a8776bb58c",
+    "modelIdentitySha256": "3b4966c3799b1456039d91188f3d87941be520e83bbbad7cb827cc8d36d0ccb9",
     "modelRegistryPath": "contexts/electronics/domain/model-registry.ts",
     "modelRegistrySha256": "f914993d54da74a740e4c575d9660e83200b8dcf7c19ebe8ecc700dac40298e1",
     "inspectorProfilePath": "apps/web/src/electronics/component-information.ts",
@@ -14,7 +14,7 @@
     "componentInformationTestPath": "apps/web/src/electronics/testing/component-information.spec.ts",
     "componentInformationTestSha256": "9311a8834a090ba1d65d20a5c18d2dc32e39a03420e80b45755ef46565a5cc5c",
     "browserEvidencePath": "e2e/electronics-simulation.spec.ts",
-    "browserEvidenceSha256": "9286456cdde8b75ef3b6bef28ac764805232846a00919b550b7c8855d1972b7b"
+    "browserEvidenceSha256": "752d5b33dc2a3994ef8120b2c3272e1664b9edcc97a4871de35623a04741130b"
   },
   "summary": {
     "total": 43,
@@ -327,7 +327,7 @@
       "inspectorHelp": "unverified",
       "browserEvidence": "unverified",
       "electricalModelId": "dc-motor",
-      "modelProfileId": "generic-dc-motor-static"
+      "modelProfileId": "pololu-1117-130-6v"
     },
     {
       "componentId": "servo-motor",

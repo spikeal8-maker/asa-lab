@@ -11,6 +11,7 @@ export const BRUSHED_MOTOR_DAMAGE_EXPOSURE_SECONDS = 10;
 
 const TWO_PI = 2 * Math.PI;
 const STOPPED_ANGULAR_VELOCITY_RAD_PER_SECOND = 0.1;
+const DEENERGIZED_VOLTAGE_VOLT = 1e-6;
 const MIN_STEP_SECONDS = 1e-9;
 
 export type BrushedMotorFailureMode = 'none' | 'winding_open';
@@ -392,7 +393,11 @@ function operatingModeFor(
     return 'reversing';
   }
   if (nextDirection === 'stopped') return 'stopped';
-  if (Math.abs(input.voltageVolt) < 1e-9) return 'coasting';
+  // An electrically open, spinning motor develops back EMF at its terminals,
+  // so terminal voltage alone cannot distinguish coast from powered running.
+  // With no armature current there is no electromagnetic drive torque.
+  if (Math.abs(nextState.currentAmp) < 1e-6) return 'coasting';
+  if (Math.abs(input.voltageVolt) < DEENERGIZED_VOLTAGE_VOLT) return 'coasting';
   if (previousDirection === 'stopped') return 'starting';
   return 'running';
 }

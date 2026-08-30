@@ -138,10 +138,10 @@ describe('MATH-5A brushed motor reference profiles', () => {
     expect(simulationInputDigest(ratio48)).not.toBe(simulationInputDigest(ratio90));
   });
 
-  it('does not activate the unfinished transient model or gearmotor solver', () => {
+  it('activates only the direct motor profile while the gearmotor remains unsupported', () => {
     expect(resolveElectricalModelIdentity(motor('dc-motor'))).toMatchObject({
       electricalModelId: 'dc-motor',
-      modelProfileId: 'generic-dc-motor-static',
+      modelProfileId: 'pololu-1117-130-6v',
     });
     expect(resolveElectricalModelIdentity(motor('gearmotor'))).toMatchObject({
       electricalModelId: 'unsupported',

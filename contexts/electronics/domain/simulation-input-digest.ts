@@ -1,7 +1,7 @@
 import type { ElectronicsDocument, ProductionStateValue, SchematicComponent } from './document.js';
 import { electricalModelIdentityForComponent } from './model-identity.js';
 
-export const SIMULATION_INPUT_DIGEST_VERSION = 'asa-electronics-simulation-input-v2';
+export const SIMULATION_INPUT_DIGEST_VERSION = 'asa-electronics-simulation-input-v3';
 
 type CanonicalValue = null | boolean | number | string | CanonicalValue[] | CanonicalObject;
 interface CanonicalObject {
@@ -104,7 +104,9 @@ export function canonicalSimulationInput(
       electricalMode:
         simulationTimeMs > 0 ||
         document.components.some(
-          (component) => component.componentTypeId === 'electrolytic-capacitor',
+          (component) =>
+            component.componentTypeId === 'electrolytic-capacitor' ||
+            component.componentTypeId === 'dc-motor',
         )
           ? 'transient'
           : 'dc',

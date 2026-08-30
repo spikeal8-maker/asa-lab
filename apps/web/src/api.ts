@@ -1009,6 +1009,19 @@ export interface ComponentResult {
   soundLevel?: number;
   speedPercent?: number;
   direction?: 'clockwise' | 'counterclockwise' | 'stopped';
+  motorRpm?: number;
+  outputRpm?: number;
+  motorAngularPhaseRadian?: number;
+  motorOperatingMode?:
+    'stopped' | 'starting' | 'running' | 'coasting' | 'reversing' | 'stalled' | 'failed';
+  electromagneticTorqueNewtonMeter?: number;
+  outputTorqueNewtonMeter?: number;
+  outputLoadTorqueNewtonMeter?: number;
+  transmissionEfficiency?: number;
+  copperLossWatt?: number;
+  motorMechanicalPowerWatt?: number;
+  outputMechanicalPowerWatt?: number;
+  windingFailureMode?: 'none' | 'winding_open';
   capacitanceFarad?: number;
   chargeCoulomb?: number;
   storedEnergyJoule?: number;
@@ -1050,6 +1063,19 @@ export interface SolveResult {
       componentId: string;
       region: 'cutoff' | 'active' | 'saturation';
     }[];
+    motors?: {
+      modelVersion: 1;
+      componentId: string;
+      profileId: string;
+      profileVersion: number;
+      simulationTimeSeconds: number;
+      currentAmp: number;
+      motorAngularVelocityRadPerSecond: number;
+      motorAngularPhaseRadian: number;
+      temperatureCelsius: number;
+      accumulatedDamage: number;
+      failureMode: 'none' | 'winding_open';
+    }[];
   };
   transientAnalysis?: {
     acceptedSteps: number;
@@ -1069,7 +1095,7 @@ export interface SolveResult {
   };
   topologySignature?: string;
   simulationInputDigest?: string;
-  solverRevision?: 'asa-electronics-solver-v6';
+  solverRevision?: 'asa-electronics-solver-v7';
   modelSetDigest?: string;
   analysis?: {
     electricalMode: 'dc' | 'transient';

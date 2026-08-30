@@ -15,7 +15,13 @@ import {
 } from './component-catalog';
 import { ProductionComponentVisual } from './ProductionComponentVisual';
 import { productionBreadboard } from './production-manifest-adapter';
-import { diagnosticBadgeGeometry, roundedWirePath, wirePoints } from './workbench-geometry';
+import {
+  diagnosticBadgeGeometry,
+  roundedWirePath,
+  stageReadoutGeometry,
+  wirePoints,
+} from './workbench-geometry';
+import { formatMotorRpm } from './production-asset-contracts';
 import { CircuitIcon, FitIcon, ZoomInIcon, ZoomOutIcon } from './workbench-icons';
 import { componentTransform } from './workbench-model';
 import { terminalPositionInDocument } from './workbench-document';
@@ -386,6 +392,42 @@ export function WorkbenchStage({
     ];
   });
   const badgeGeometry = diagnosticBadgeGeometry(c.viewport.zoom);
+  const readoutGeometry = stageReadoutGeometry(c.viewport.zoom);
+  const motorReadouts = orderedComponents.flatMap((component) => {
+    if (component.componentTypeId !== 'dc-motor') return [];
+    const entry = catalogEntry(component);
+    if (!entry?.asset || !entry.terminals) return [];
+    const baseSize = renderedSize(entry, 0);
+    const bounds = renderedSize(entry, component.rotation ?? 0);
+    const paintedBounds = paintedComponentBounds(
+      component,
+      baseSize,
+      bounds,
+      componentAssetVisibleBounds(entry, baseSize.width, baseSize.height),
+    );
+    const rpm = c.simulationRunning
+      ? Number(c.resultByComponent.get(component.id)?.motorRpm ?? 0)
+      : 0;
+    const label = formatMotorRpm(rpm);
+    return [
+      <text
+        key={`motor-rpm:${component.id}`}
+        className="workbench-stage-readout workbench-motor-rpm"
+        data-testid="dc-motor-rpm"
+        data-screen-upright="true"
+        data-component-id={component.id}
+        x={(paintedBounds.minX + paintedBounds.maxX) / 2}
+        y={paintedBounds.minY - readoutGeometry.gap}
+        fontSize={readoutGeometry.fontSize}
+        textAnchor="middle"
+        dominantBaseline="auto"
+        pointerEvents="none"
+        aria-label={`Скорость двигателя: ${label}`}
+      >
+        {label}
+      </text>,
+    ];
+  });
   // One compact marker per component renders above wires. Detailed values stay
   // in the existing I inspector; the canvas deliberately has no tooltip card.
   const diagnosticIndicators = orderedComponents
@@ -1131,6 +1173,9 @@ export function WorkbenchStage({
           />
         ) : null}
         <g className="workbench-diagnostic-layer" data-testid="diagnostic-layer">
+          <g className="workbench-stage-readout-layer" pointerEvents="none">
+            {motorReadouts}
+          </g>
           {diagnosticIndicators}
           {unsupportedModelIndicators}
         </g>

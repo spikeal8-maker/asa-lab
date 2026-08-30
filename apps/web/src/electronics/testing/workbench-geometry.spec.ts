@@ -7,6 +7,7 @@ import {
   magneticWirePoint,
   moveWireSegmentVertices,
   potentiometerWiperPosition,
+  stageReadoutGeometry,
   viewportViewBox,
   wireSegmentParallelDelta,
   type Point,
@@ -91,6 +92,17 @@ describe('diagnostic badge zoom geometry', () => {
     [2, 18],
   ])('keeps a readable but non-covering diameter at zoom %s', (zoom, expectedDiameter) => {
     expect(diagnosticBadgeGeometry(zoom).screenDiameter).toBeCloseTo(expectedDiameter, 8);
+  });
+});
+
+describe('calculated Stage readout zoom geometry', () => {
+  it.each([
+    [0.15, 7],
+    [0.5, 7],
+    [1, 12],
+    [2, 12],
+  ])('keeps a minimal readable font at zoom %s', (zoom, expectedFontSize) => {
+    expect(stageReadoutGeometry(zoom).screenFontSize).toBeCloseTo(expectedFontSize, 8);
   });
 });
 

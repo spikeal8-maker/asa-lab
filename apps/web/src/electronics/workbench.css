@@ -2585,6 +2585,16 @@
   outline: none;
 }
 
+.workbench-stage-readout {
+  fill: #263746;
+  stroke: #f4f5f6;
+  stroke-width: 3px;
+  paint-order: stroke fill;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  user-select: none;
+}
+
 /* A calculated destructive state changes the physical source/resistor itself.
    No extra card or toast is added; the I inspector owns the numeric cause. */
 [data-presentation-state='destructive'][data-kind='source'] .workbench-production-visual,

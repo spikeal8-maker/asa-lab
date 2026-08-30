@@ -32,6 +32,24 @@ export interface DiagnosticBadgeGeometry {
   readonly screenDiameter: number;
 }
 
+export interface StageReadoutGeometry {
+  readonly fontSize: number;
+  readonly gap: number;
+  readonly screenFontSize: number;
+}
+
+/** Neutral calculated values shrink with the circuit down to a readable 7 px floor. */
+export function stageReadoutGeometry(zoom: number): StageReadoutGeometry {
+  const safeZoom = Math.max(0.01, zoom);
+  const screenFontSize = clamp(12 * safeZoom, 7, 12);
+  const screenGap = clamp(8 * safeZoom, 4, 8);
+  return {
+    fontSize: screenFontSize / safeZoom,
+    gap: screenGap / safeZoom,
+    screenFontSize,
+  };
+}
+
 /**
  * Diagnostic badges follow the circuit while zooming out, then stop shrinking
  * at a 7 px readable floor. Above 100% they stop growing at 18 px. Returned

@@ -79,7 +79,7 @@ const EXACT_IDENTITIES: Readonly<Record<string, ElectricalModelIdentity>> = {
   'transistor-pnp': identity('pnp-transistor', 'generic-pnp-to92'),
   'transistor-fet': identity('n-channel-fet', 'generic-n-channel-fet-to92'),
   'incandescent-lamp': identity('incandescent-lamp', 'generic-incandescent-lamp'),
-  'dc-motor': identity('dc-motor', 'generic-dc-motor-static'),
+  'dc-motor': identity('dc-motor', 'pololu-1117-130-6v'),
   'breadboard-small': identity('breadboard-connectivity', 'breadboard-small'),
   'breadboard-medium': identity('breadboard-connectivity', 'breadboard-medium'),
   'breadboard-large': identity('breadboard-connectivity', 'breadboard-large'),
@@ -164,9 +164,12 @@ export function electricalModelIdentityForComponent(
     // unknown/future identities must remain fail-closed.
     if (
       component.componentTypeId === 'dc-motor' &&
-      component.electricalModelId === 'unsupported' &&
+      (component.electricalModelId === 'unsupported' ||
+        (component.electricalModelId === 'dc-motor' &&
+          component.modelProfileId === 'generic-dc-motor-static')) &&
       component.electricalModelVersion === 1 &&
-      component.modelProfileId === 'unsupported-dc-motor' &&
+      (component.modelProfileId === 'unsupported-dc-motor' ||
+        component.modelProfileId === 'generic-dc-motor-static') &&
       component.modelProfileVersion === 1
     ) {
       return resolveElectricalModelIdentity(component);

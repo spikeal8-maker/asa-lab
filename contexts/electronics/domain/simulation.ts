@@ -16,6 +16,8 @@ import {
   isElectrolyticCapacitor,
   type CapacitorTransientState,
 } from './models/capacitor-transient-model.js';
+import { canonicalBrushedMotorProfileRegistry } from './models/brushed-motor-profiles.js';
+import { BRUSHED_MOTOR_TRANSIENT_MODEL_VERSION } from './models/brushed-motor-transient-model.js';
 
 export type SimulationStatus = 'solved' | 'unsupported' | 'invalid' | 'nonconvergent';
 
@@ -49,7 +51,7 @@ export interface SimulationResult extends SolveResult {
   readonly quality: SimulationQuality;
   readonly topologySignature: string;
   readonly simulationInputDigest: string;
-  readonly solverRevision: 'asa-electronics-solver-v6';
+  readonly solverRevision: 'asa-electronics-solver-v7';
   readonly modelSetDigest: string;
   readonly analysis: {
     readonly electricalMode: 'dc' | 'transient';
@@ -66,6 +68,8 @@ const MODEL_SET_DIGEST = `sha256:${sha256Hex(
   JSON.stringify({
     identities: canonicalElectricalModelRegistry(),
     nonlinearDcProfiles: canonicalNonlinearDcProfileRegistry(),
+    brushedMotorProfiles: canonicalBrushedMotorProfileRegistry(),
+    brushedMotorTransientModelVersion: BRUSHED_MOTOR_TRANSIENT_MODEL_VERSION,
   }),
 )}`;
 
@@ -140,6 +144,13 @@ function deterministicSolveResult(result: SolveResult): SolveResult {
             ...(result.transientState.bjtRegions
               ? {
                   bjtRegions: [...result.transientState.bjtRegions].sort((left, right) =>
+                    ordinalCompare(left.componentId, right.componentId),
+                  ),
+                }
+              : {}),
+            ...(result.transientState.motors
+              ? {
+                  motors: [...result.transientState.motors].sort((left, right) =>
                     ordinalCompare(left.componentId, right.componentId),
                   ),
                 }
@@ -246,6 +257,14 @@ function allNumbers(result: SolveResult): readonly number[] {
             entry.loadRatio,
             entry.accumulatedDamage,
           ]),
+          ...(result.transientState.motors ?? []).flatMap((entry) => [
+            entry.simulationTimeSeconds,
+            entry.currentAmp,
+            entry.motorAngularVelocityRadPerSecond,
+            entry.motorAngularPhaseRadian,
+            entry.temperatureCelsius,
+            entry.accumulatedDamage,
+          ]),
         ]
       : []),
     ...(result.transientAnalysis
@@ -271,6 +290,16 @@ function allNumbers(result: SolveResult): readonly number[] {
       component.currentGain ?? 0,
       component.frequencyHz ?? 0,
       component.soundLevel ?? 0,
+      component.motorRpm ?? 0,
+      component.outputRpm ?? 0,
+      component.motorAngularPhaseRadian ?? 0,
+      component.electromagneticTorqueNewtonMeter ?? 0,
+      component.outputTorqueNewtonMeter ?? 0,
+      component.outputLoadTorqueNewtonMeter ?? 0,
+      component.transmissionEfficiency ?? 0,
+      component.copperLossWatt ?? 0,
+      component.motorMechanicalPowerWatt ?? 0,
+      component.outputMechanicalPowerWatt ?? 0,
       component.capacitanceFarad ?? 0,
       component.chargeCoulomb ?? 0,
       component.storedEnergyJoule ?? 0,
@@ -488,7 +517,9 @@ function verifyQuality(
   const powerBalanceComponents = document.components.filter(
     (component) =>
       !['wire', 'breadboard'].includes(component.kind) &&
-      (component.kind !== 'visual' || isElectrolyticCapacitor(component)),
+      (component.kind !== 'visual' ||
+        isElectrolyticCapacitor(component) ||
+        component.componentTypeId === 'dc-motor'),
   );
   const powerBalanceApplicable =
     powerBalanceComponents.length > 0 &&
@@ -569,7 +600,10 @@ export function analyseCircuit(
   const inputDigest = simulationInputDigest(document, options.simulationTimeMs ?? 0);
   const analysis = {
     electricalMode:
-      document.components.some(isElectrolyticCapacitor) || options.simulationTimeMs !== undefined
+      document.components.some(
+        (component) =>
+          isElectrolyticCapacitor(component) || component.componentTypeId === 'dc-motor',
+      ) || options.simulationTimeMs !== undefined
         ? 'transient'
         : 'dc',
     controllerRuntime: document.components.some((component) => isArduinoUno(component))
@@ -599,7 +633,7 @@ export function analyseCircuit(
       quality: failedQuality(),
       topologySignature: compiled.topologySignature,
       simulationInputDigest: inputDigest,
-      solverRevision: 'asa-electronics-solver-v6',
+      solverRevision: 'asa-electronics-solver-v7',
       modelSetDigest: MODEL_SET_DIGEST,
       analysis,
     };
@@ -624,7 +658,7 @@ export function analyseCircuit(
       quality,
       topologySignature: compiled.topologySignature,
       simulationInputDigest: inputDigest,
-      solverRevision: 'asa-electronics-solver-v6',
+      solverRevision: 'asa-electronics-solver-v7',
       modelSetDigest: MODEL_SET_DIGEST,
       analysis,
     };
@@ -636,7 +670,7 @@ export function analyseCircuit(
     quality,
     topologySignature: compiled.topologySignature,
     simulationInputDigest: inputDigest,
-    solverRevision: 'asa-electronics-solver-v6',
+    solverRevision: 'asa-electronics-solver-v7',
     modelSetDigest: MODEL_SET_DIGEST,
     analysis,
   };

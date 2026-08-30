@@ -1,4 +1,5 @@
 import type { SchematicComponent } from '../document.js';
+import type { BrushedMotorTransientStateEntry } from './brushed-motor-transient-model.js';
 
 export interface CapacitorParameters {
   readonly capacitanceFarad: number;
@@ -63,6 +64,12 @@ export interface CapacitorTransientState {
     readonly componentId: string;
     readonly region: 'cutoff' | 'active' | 'saturation';
   }[];
+  /**
+   * Accepted electromechanical state for every active brushed motor. Keeping it
+   * beside capacitor and thermal state makes browser and server replay the
+   * same acceleration, coast, reversal and winding temperature.
+   */
+  readonly motors?: readonly BrushedMotorTransientStateEntry[];
 }
 
 const MICROFARAD_TO_FARAD = 1e-6;

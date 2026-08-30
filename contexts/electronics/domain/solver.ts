@@ -58,6 +58,20 @@ import {
   thermalProfileFor,
   thermalProfileKey,
 } from './models/thermal-transient-model.js';
+import {
+  resolveBrushedMotorProfileSelection,
+  type BrushedMotorAssemblyProfile,
+} from './models/brushed-motor-profiles.js';
+import {
+  advanceBrushedMotorTransientState,
+  brushedMotorCompanion,
+  brushedMotorTransientStateIsCompatible,
+  createBrushedMotorTransientState,
+  type BrushedMotorObservation,
+  type BrushedMotorStepInput,
+  type BrushedMotorStepResult,
+  type BrushedMotorTransientStateEntry,
+} from './models/brushed-motor-transient-model.js';
 
 export { sourceInternalResistanceOhm } from './models/linear-dc-models.js';
 
@@ -167,6 +181,19 @@ export interface ComponentResult {
   readonly soundLevel?: number;
   readonly speedPercent?: number;
   readonly direction?: 'clockwise' | 'counterclockwise' | 'stopped';
+  readonly motorRpm?: number;
+  readonly outputRpm?: number;
+  readonly motorAngularPhaseRadian?: number;
+  readonly motorOperatingMode?:
+    'stopped' | 'starting' | 'running' | 'coasting' | 'reversing' | 'stalled' | 'failed';
+  readonly electromagneticTorqueNewtonMeter?: number;
+  readonly outputTorqueNewtonMeter?: number;
+  readonly outputLoadTorqueNewtonMeter?: number;
+  readonly transmissionEfficiency?: number;
+  readonly copperLossWatt?: number;
+  readonly motorMechanicalPowerWatt?: number;
+  readonly outputMechanicalPowerWatt?: number;
+  readonly windingFailureMode?: 'none' | 'winding_open';
   readonly capacitanceFarad?: number;
   readonly chargeCoulomb?: number;
   readonly storedEnergyJoule?: number;
@@ -210,6 +237,7 @@ interface InternalSolveOptions extends SolveOptions {
   readonly transientStepSeconds?: number;
   readonly capacitorPreviousVoltageById?: Readonly<Record<string, number>>;
   readonly bjtPreviousRegionById?: Readonly<Record<string, 'cutoff' | 'active' | 'saturation'>>;
+  readonly motorPreviousStateById?: Readonly<Record<string, BrushedMotorTransientStateEntry>>;
   readonly failedComponentIds?: ReadonlySet<string>;
 }
 
@@ -227,8 +255,8 @@ const FET_MIN_OHMIC_CONDUCTANCE = 1e-4;
 // only their finite leakage; audible drive is derived separately from a
 // confirmed time-varying Arduino output.
 const PIEZO_DC_RESISTANCE_OHM = 100_000_000;
-const DC_MOTOR_EFFECTIVE_RESISTANCE_OHM = 6 / 0.07;
 const TRANSIENT_TARGET_STEP_MS = 5;
+const MOTOR_TRANSIENT_STEP_MS = 1;
 const SWITCHED_BJT_TRANSIENT_STEP_MS = 1;
 const TRANSIENT_MAX_STEP_MS = 100;
 const TRANSIENT_MIN_STEP_MS = 0.01;
@@ -268,6 +296,125 @@ function damageObservationForStress(
 
 function isDcMotor(component: SchematicComponent): boolean {
   return component.componentTypeId === 'dc-motor';
+}
+
+function brushedMotorProfile(component: SchematicComponent): BrushedMotorAssemblyProfile | null {
+  const selection = resolveBrushedMotorProfileSelection(component);
+  return selection.ok ? selection.profile : null;
+}
+
+function brushedMotorStepInput(
+  component: SchematicComponent,
+  voltageVolt: number,
+  stepSeconds: number,
+): BrushedMotorStepInput {
+  return {
+    voltageVolt,
+    stepSeconds,
+    outputLoadTorqueNewtonMeter: Number(
+      component.stateProperties?.['outputLoadTorqueNewtonMeter'] ?? 0,
+    ),
+    shaftLocked: component.stateProperties?.['shaftLocked'] === true,
+    ambientTemperatureCelsius: Number(
+      component.stateProperties?.['ambientTemperatureCelsius'] ?? 25,
+    ),
+  };
+}
+
+function motorStateAfterResult(
+  component: SchematicComponent,
+  previousState: BrushedMotorTransientStateEntry,
+  result: SolveResult,
+  stepSeconds: number,
+): BrushedMotorStepResult | null {
+  const profile = brushedMotorProfile(component);
+  const solved = result.components.find((entry) => entry.componentId === component.id);
+  if (!profile || !solved) return null;
+  return advanceBrushedMotorTransientState(
+    profile,
+    previousState,
+    brushedMotorStepInput(component, solved.voltageDrop, stepSeconds),
+  );
+}
+
+function advanceMotorStates(
+  motors: readonly SchematicComponent[],
+  previousById: Readonly<Record<string, BrushedMotorTransientStateEntry>>,
+  result: SolveResult,
+  stepSeconds: number,
+): Record<string, BrushedMotorTransientStateEntry> {
+  return Object.fromEntries(
+    motors.map((component) => {
+      const previous = previousById[component.id];
+      if (!previous) throw new Error(`Missing transient motor state for ${component.id}`);
+      const transition = motorStateAfterResult(component, previous, result, stepSeconds);
+      return [component.id, transition?.state ?? previous];
+    }),
+  );
+}
+
+function motorComponentObservation(
+  component: SchematicComponent,
+  transition: BrushedMotorStepResult,
+): Partial<ComponentResult> {
+  const observation: BrushedMotorObservation = transition.observation;
+  const profile = brushedMotorProfile(component);
+  const referenceRpm =
+    profile?.referencePoints.find((point) => point.voltageVolt === profile.fitReferenceVoltageVolt)
+      ?.noLoadSpeedRpm ?? 1;
+  const failed = observation.failureMode === 'winding_open';
+  const stalled = observation.operatingMode === 'stalled';
+  const destructive = observation.thermalState === 'destructive';
+  const warning = observation.thermalState === 'warning';
+  return {
+    energized:
+      !failed &&
+      (Math.abs(observation.currentAmp) >= CURRENT_DEADBAND_AMP ||
+        observation.direction !== 'stopped'),
+    speedPercent: round(Math.min(100, (Math.abs(observation.motorRpm) / referenceRpm) * 100), 2),
+    direction: observation.direction,
+    motorRpm: round(observation.motorRpm, 3),
+    outputRpm: round(observation.outputRpm, 3),
+    motorAngularPhaseRadian: round(transition.state.motorAngularPhaseRadian, 12),
+    motorOperatingMode: observation.operatingMode,
+    electromagneticTorqueNewtonMeter: round(observation.electromagneticTorqueNewtonMeter, 12),
+    outputTorqueNewtonMeter: round(observation.outputTorqueNewtonMeter, 12),
+    outputLoadTorqueNewtonMeter: round(observation.outputLoadTorqueNewtonMeter, 12),
+    transmissionEfficiency: round(observation.transmissionEfficiency, 6),
+    copperLossWatt: round(observation.copperLossWatt, 12),
+    motorMechanicalPowerWatt: round(observation.motorMechanicalPowerWatt, 12),
+    outputMechanicalPowerWatt: round(observation.outputMechanicalPowerWatt, 12),
+    temperatureCelsius: round(observation.temperatureCelsius, 1),
+    currentUtilizationPercent: round(observation.currentUtilization * 100, 2),
+    accumulatedDamagePercent: round(observation.accumulatedDamage * 100, 2),
+    windingFailureMode: observation.failureMode,
+    stressState: failed
+      ? 'burned'
+      : destructive || stalled
+        ? 'overcurrent'
+        : warning
+          ? 'warning'
+          : 'normal',
+    deviceHealth: failed
+      ? 'failed_open'
+      : stalled
+        ? 'stalled'
+        : destructive
+          ? 'overheated'
+          : warning
+            ? 'warning'
+            : 'normal',
+    damageState: failed ? 'failed' : destructive ? 'destructive_preview' : 'none',
+    presentationState: failed
+      ? 'failed'
+      : stalled
+        ? 'stalled'
+        : destructive
+          ? 'destructive'
+          : warning
+            ? 'warning'
+            : 'normal',
+  };
 }
 
 function formatReferenceMilliamp(currentAmp: number): string {
@@ -474,6 +621,30 @@ function solveLinear(matrix: number[][], rhs: number[]): number[] | null {
 function propertyError(component: SchematicComponent): string | null {
   const capacitorError = capacitorPropertyError(component);
   if (capacitorError) return capacitorError;
+  if (isDcMotor(component)) {
+    const selection = resolveBrushedMotorProfileSelection(component);
+    if (!selection.ok) return selection.error.message;
+    const outputLoadTorque = Number(
+      component.stateProperties?.['outputLoadTorqueNewtonMeter'] ?? 0,
+    );
+    if (!Number.isFinite(outputLoadTorque) || outputLoadTorque < 0) {
+      return 'Момент нагрузки двигателя должен быть неотрицательным конечным числом.';
+    }
+    const ambientTemperature = Number(
+      component.stateProperties?.['ambientTemperatureCelsius'] ?? 25,
+    );
+    if (
+      !Number.isFinite(ambientTemperature) ||
+      ambientTemperature < -50 ||
+      ambientTemperature > 100
+    ) {
+      return 'Температура окружающей среды двигателя должна быть от −50 до 100 °C.';
+    }
+    const shaftLocked = component.stateProperties?.['shaftLocked'];
+    if (shaftLocked !== undefined && typeof shaftLocked !== 'boolean') {
+      return 'Состояние блокировки вала должно быть логическим значением.';
+    }
+  }
   if (!Number.isFinite(component.value) || component.value < 0)
     return 'Значение должно быть неотрицательным числом.';
   if (component.kind === 'source' && component.value <= 0)
@@ -646,11 +817,15 @@ export function solveCircuit(
   const orderedCapacitors = document.components
     .filter(isElectrolyticCapacitor)
     .sort((left, right) => (left.id < right.id ? -1 : left.id > right.id ? 1 : 0));
+  const orderedMotors = document.components
+    .filter(isDcMotor)
+    .sort((left, right) => (left.id < right.id ? -1 : left.id > right.id ? 1 : 0));
   const orderedThermalComponents = document.components
     .filter((component) => thermalProfileFor(component) !== null)
     .sort((left, right) => (left.id < right.id ? -1 : left.id > right.id ? 1 : 0));
   const transientRequested =
     orderedCapacitors.length > 0 ||
+    orderedMotors.length > 0 ||
     options.simulationTimeMs !== undefined ||
     options.transientState !== undefined;
   if (!transientRequested) return solveCircuitStep(document, options);
@@ -662,6 +837,7 @@ export function solveCircuit(
   const compatibleState = capacitorTransientStateIsCompatible(
     options.transientState,
     orderedCapacitors,
+    orderedMotors,
     targetTimeMs,
   )
     ? options.transientState
@@ -689,6 +865,14 @@ export function solveCircuit(
   );
   const bjtRegionById: Record<string, 'cutoff' | 'active' | 'saturation'> = Object.fromEntries(
     compatibleState?.bjtRegions?.map((entry) => [entry.componentId, entry.region]) ?? [],
+  );
+  let motorStateById: Record<string, BrushedMotorTransientStateEntry> = Object.fromEntries(
+    orderedMotors.map((component) => {
+      const profile = brushedMotorProfile(component);
+      if (!profile) throw new Error(`Missing validated motor profile for ${component.id}`);
+      const carried = compatibleState?.motors?.find((entry) => entry.componentId === component.id);
+      return [component.id, carried ?? createBrushedMotorTransientState(component.id, profile)];
+    }),
   );
   if (needsDeterministicAstableStartup) {
     document.components
@@ -726,16 +910,21 @@ export function solveCircuit(
       ];
     }),
   );
-  const failedComponentIds = new Set(
-    [...thermalById.values()]
+  const failedComponentIds = new Set([
+    ...[...thermalById.values()]
       .filter((entry) => entry.failureMode === 'open')
       .map((entry) => entry.componentId),
-  );
+    ...Object.values(motorStateById)
+      .filter((entry) => entry.failureMode === 'winding_open')
+      .map((entry) => entry.componentId),
+  ]);
   let accumulatedIterations = 0;
   let finalResult: SolveResult | null = null;
   let currentTimeMs = startTimeMs;
   let candidateStepMs = Math.min(
-    usesSwitchedBjtTransient ? SWITCHED_BJT_TRANSIENT_STEP_MS : TRANSIENT_TARGET_STEP_MS,
+    usesSwitchedBjtTransient || orderedMotors.length > 0
+      ? MOTOR_TRANSIENT_STEP_MS
+      : TRANSIENT_TARGET_STEP_MS,
     elapsedTimeMs,
   );
   let acceptedSteps = 0;
@@ -753,9 +942,11 @@ export function solveCircuit(
     const common = {
       capacitorPreviousVoltageById: previousVoltageById,
       bjtPreviousRegionById: bjtRegionById,
+      motorPreviousStateById: motorStateById,
       failedComponentIds,
     } as const;
     let acceptedResult: SolveResult;
+    let acceptedMotorStateById = motorStateById;
     let estimatedErrorVolt = 0;
 
     if (orderedCapacitors.length === 0) {
@@ -765,6 +956,14 @@ export function solveCircuit(
         transientStepSeconds: stepMs / 1_000,
       });
       accumulatedIterations += acceptedResult.iterations;
+      if (acceptedResult.solved) {
+        acceptedMotorStateById = advanceMotorStates(
+          orderedMotors,
+          motorStateById,
+          acceptedResult,
+          stepMs / 1_000,
+        );
+      }
     } else if (usesSwitchedBjtTransient) {
       // A transistor switching event is discontinuous, so Richardson error
       // estimation (one full step versus two half steps) can repeatedly chase
@@ -790,6 +989,12 @@ export function solveCircuit(
         };
       }
       acceptedResult = switched;
+      acceptedMotorStateById = advanceMotorStates(
+        orderedMotors,
+        motorStateById,
+        acceptedResult,
+        stepMs / 1_000,
+      );
     } else {
       const full = solveCircuitStep(document, {
         ...common,
@@ -808,11 +1013,15 @@ export function solveCircuit(
           voltageFromResult(firstHalf, capacitor.id, previousVoltageById[capacitor.id] as number),
         ]),
       );
+      const halfMotorStateById = firstHalf.solved
+        ? advanceMotorStates(orderedMotors, motorStateById, firstHalf, halfStepMs / 1_000)
+        : motorStateById;
       const secondHalf = solveCircuitStep(document, {
         simulationTimeMs: currentTimeMs + stepMs,
         transientStepSeconds: halfStepMs / 1_000,
         capacitorPreviousVoltageById: halfVoltageById,
         bjtPreviousRegionById: bjtRegionById,
+        motorPreviousStateById: halfMotorStateById,
         failedComponentIds,
       });
       accumulatedIterations += full.iterations + firstHalf.iterations + secondHalf.iterations;
@@ -829,6 +1038,12 @@ export function solveCircuit(
           ...(compatibleState ? { transientState: compatibleState } : {}),
         };
       }
+      acceptedMotorStateById = advanceMotorStates(
+        orderedMotors,
+        halfMotorStateById,
+        secondHalf,
+        halfStepMs / 1_000,
+      );
       estimatedErrorVolt = Math.max(
         0,
         ...orderedCapacitors.map((capacitor) =>
@@ -864,6 +1079,8 @@ export function solveCircuit(
       acceptedResult = secondHalf;
     }
 
+    motorStateById = acceptedMotorStateById;
+
     if (!acceptedResult.solved) {
       return {
         ...acceptedResult,
@@ -890,6 +1107,15 @@ export function solveCircuit(
     }
 
     let failureOccurred = false;
+    for (const motorState of Object.values(motorStateById)) {
+      if (
+        motorState.failureMode === 'winding_open' &&
+        !failedComponentIds.has(motorState.componentId)
+      ) {
+        failedComponentIds.add(motorState.componentId);
+        failureOccurred = true;
+      }
+    }
     for (const component of orderedThermalComponents) {
       const previous = thermalById.get(component.id)!;
       if (previous.failureMode === 'open') continue;
@@ -927,6 +1153,7 @@ export function solveCircuit(
         transientStepSeconds: TRANSIENT_FAILURE_EVENT_STEP_MS / 1_000,
         capacitorPreviousVoltageById: previousVoltageById,
         bjtPreviousRegionById: bjtRegionById,
+        motorPreviousStateById: motorStateById,
         failedComponentIds,
       });
       accumulatedIterations += postFailure.iterations;
@@ -958,16 +1185,19 @@ export function solveCircuit(
     );
     const toleranceVolt =
       TRANSIENT_ABSOLUTE_TOLERANCE_VOLT + TRANSIENT_RELATIVE_TOLERANCE * scaleVolt;
-    candidateStepMs = usesSwitchedBjtTransient
-      ? Math.min(SWITCHED_BJT_TRANSIENT_STEP_MS, Math.max(SWITCHED_BJT_MIN_STEP_MS, stepMs * 2))
-      : Math.min(
-          TRANSIENT_MAX_STEP_MS,
-          estimatedErrorVolt < toleranceVolt / 8 ? stepMs * 2 : stepMs,
-        );
+    candidateStepMs =
+      usesSwitchedBjtTransient || orderedMotors.length > 0
+        ? Math.min(SWITCHED_BJT_TRANSIENT_STEP_MS, Math.max(SWITCHED_BJT_MIN_STEP_MS, stepMs * 2))
+        : Math.min(
+            TRANSIENT_MAX_STEP_MS,
+            estimatedErrorVolt < toleranceVolt / 8 ? stepMs * 2 : stepMs,
+          );
   }
 
   if (!finalResult || currentTimeMs < targetTimeMs) {
-    const result = finalResult ?? solveCircuitStep(document, { failedComponentIds });
+    const result =
+      finalResult ??
+      solveCircuitStep(document, { failedComponentIds, motorPreviousStateById: motorStateById });
     return {
       ...result,
       solved: false,
@@ -1005,6 +1235,7 @@ export function solveCircuit(
       bjtRegions: Object.entries(bjtRegionById)
         .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
         .map(([componentId, region]) => ({ componentId, region })),
+      motors: orderedMotors.map((component) => motorStateById[component.id]!),
     },
     transientAnalysis: {
       acceptedSteps,
@@ -1018,6 +1249,7 @@ export function solveCircuit(
 function capacitorTransientStateIsCompatible(
   state: CapacitorTransientState | undefined,
   capacitors: readonly SchematicComponent[],
+  motors: readonly SchematicComponent[],
   targetTimeMs: number,
 ): state is CapacitorTransientState {
   if (
@@ -1027,21 +1259,33 @@ function capacitorTransientStateIsCompatible(
     state.simulationTimeMs >= targetTimeMs ||
     !Array.isArray(state.capacitors) ||
     !Array.isArray(state.thermal) ||
-    state.capacitors.length !== capacitors.length
+    state.capacitors.length !== capacitors.length ||
+    (motors.length > 0
+      ? !Array.isArray(state.motors) || state.motors.length !== motors.length
+      : Array.isArray(state.motors) && state.motors.length > 0)
   ) {
     return false;
   }
-  return capacitors.every((component, index) => {
-    const entry = state.capacitors[index];
-    const parameters = capacitorParameters(component);
-    return (
-      entry?.componentId === component.id &&
-      entry.capacitanceFarad === parameters.capacitanceFarad &&
-      entry.initialVoltageVolt === parameters.initialVoltageVolt &&
-      entry.voltageRatingVolt === parameters.voltageRatingVolt &&
-      Number.isFinite(entry.voltageVolt)
-    );
-  });
+  return (
+    capacitors.every((component, index) => {
+      const entry = state.capacitors[index];
+      const parameters = capacitorParameters(component);
+      return (
+        entry?.componentId === component.id &&
+        entry.capacitanceFarad === parameters.capacitanceFarad &&
+        entry.initialVoltageVolt === parameters.initialVoltageVolt &&
+        entry.voltageRatingVolt === parameters.voltageRatingVolt &&
+        Number.isFinite(entry.voltageVolt)
+      );
+    }) &&
+    motors.every((component, index) => {
+      const entry = state.motors?.[index];
+      const profile = brushedMotorProfile(component);
+      return Boolean(
+        entry && profile && brushedMotorTransientStateIsCompatible(entry, component.id, profile),
+      );
+    })
+  );
 }
 
 function solveCircuitStep(
@@ -1374,7 +1618,20 @@ function solveCircuitStep(
       } else if (component.kind === 'lamp') {
         stampConductance(a, b, 1 / component.value);
       } else if (isDcMotor(component)) {
-        stampConductance(a, b, 1 / DC_MOTOR_EFFECTIVE_RESISTANCE_OHM);
+        const profile = brushedMotorProfile(component);
+        const previousState = options.motorPreviousStateById?.[component.id];
+        if (!profile || !previousState) continue;
+        const companion = brushedMotorCompanion(
+          profile,
+          previousState,
+          brushedMotorStepInput(
+            component,
+            0,
+            options.transientStepSeconds ?? TRANSIENT_INITIAL_SAMPLE_MS / 1_000,
+          ),
+        );
+        stampConductance(a, b, companion.conductanceSiemens);
+        stampOffset(a, b, companion.historyCurrentAmp);
       } else if (isElectrolyticCapacitor(component)) {
         const parameters = capacitorParameters(component);
         const previousVoltage =
@@ -1759,9 +2016,26 @@ function solveCircuitStep(
       }
       if (failedComponentIds.has(component.id)) {
         const voltages = Object.values(terminalVoltages);
+        const voltageDrop = round((voltages[0] ?? 0) - (voltages[1] ?? 0));
+        const failedMotorState = isDcMotor(component)
+          ? options.motorPreviousStateById?.[component.id]
+          : undefined;
+        const failedMotorProfile = failedMotorState ? brushedMotorProfile(component) : null;
+        const failedMotorTransition =
+          failedMotorState && failedMotorProfile
+            ? advanceBrushedMotorTransientState(
+                failedMotorProfile,
+                failedMotorState,
+                brushedMotorStepInput(
+                  component,
+                  0,
+                  options.transientStepSeconds ?? TRANSIENT_INITIAL_SAMPLE_MS / 1_000,
+                ),
+              )
+            : null;
         return {
           componentId: component.id,
-          voltageDrop: round((voltages[0] ?? 0) - (voltages[1] ?? 0)),
+          voltageDrop,
           current: 0,
           terminalVoltages,
           terminalCurrents: Object.fromEntries(
@@ -1775,6 +2049,9 @@ function solveCircuitStep(
           deviceHealth: 'failed_open',
           damageState: 'failed',
           presentationState: 'failed',
+          ...(failedMotorTransition
+            ? motorComponentObservation(component, failedMotorTransition)
+            : {}),
         };
       }
       const branches = diodeBranches.filter((branch) => branch.component.id === component.id);
@@ -1808,6 +2085,22 @@ function solveCircuitStep(
             options.transientStepSeconds ?? TRANSIENT_INITIAL_SAMPLE_MS / 1_000,
           )
         : undefined;
+      const motorStep = isDcMotor(component)
+        ? (() => {
+            const profile = brushedMotorProfile(component);
+            const previousState = options.motorPreviousStateById?.[component.id];
+            if (!profile || !previousState) return undefined;
+            return advanceBrushedMotorTransientState(
+              profile,
+              previousState,
+              brushedMotorStepInput(
+                component,
+                voltageDrop,
+                options.transientStepSeconds ?? TRANSIENT_INITIAL_SAMPLE_MS / 1_000,
+              ),
+            );
+          })()
+        : undefined;
       const linearDcDevice = linearDcDeviceById.get(component.id);
       const reportedLinearCurrent =
         component.kind === 'source' ? -(sourceCurrents.get(component.id) ?? 0) : 0;
@@ -1827,7 +2120,7 @@ function solveCircuitStep(
         current = voltageDrop / photoresistorResistanceOhm(component);
       else if (component.kind === 'lamp') current = voltageDrop / component.value;
       else if (component.kind === 'piezo') current = voltageDrop / PIEZO_DC_RESISTANCE_OHM;
-      else if (isDcMotor(component)) current = voltageDrop / DC_MOTOR_EFFECTIVE_RESISTANCE_OHM;
+      else if (motorStep) current = motorStep.observation.currentAmp;
       else if (capacitorObservation) current = capacitorObservation.currentAmp;
       else if (component.kind === 'switch')
         current = component.componentTypeId
@@ -1970,39 +2263,45 @@ function solveCircuitStep(
         voltageDrop: round(voltageDrop),
         current: roundCurrent(current),
         terminalVoltages,
-        ...(capacitorObservation
+        ...(motorStep
           ? {
               terminalCurrents: {
-                positive: roundCurrent(capacitorObservation.currentAmp),
-                negative: roundCurrent(-capacitorObservation.currentAmp),
+                positive: roundCurrent(motorStep.observation.currentAmp),
+                negative: roundCurrent(-motorStep.observation.currentAmp),
               },
             }
-          : linearDcObservation
+          : capacitorObservation
             ? {
-                terminalCurrents: Object.fromEntries(
-                  Object.entries(linearDcObservation.terminalCurrents).map(([terminal, value]) => [
-                    terminal,
-                    roundCurrent(value),
-                  ]),
-                ),
-                ...(linearDcObservation.voltageConstraintResidual === undefined
-                  ? {}
-                  : {
-                      voltageConstraintResidual: round(
-                        linearDcObservation.voltageConstraintResidual,
-                      ),
-                    }),
+                terminalCurrents: {
+                  positive: roundCurrent(capacitorObservation.currentAmp),
+                  negative: roundCurrent(-capacitorObservation.currentAmp),
+                },
               }
-            : transistorResult?.terminalCurrents
+            : linearDcObservation
               ? {
                   terminalCurrents: Object.fromEntries(
-                    Object.entries(transistorResult.terminalCurrents).map(([terminal, value]) => [
-                      terminal,
-                      roundCurrent(value),
-                    ]),
+                    Object.entries(linearDcObservation.terminalCurrents).map(
+                      ([terminal, value]) => [terminal, roundCurrent(value)],
+                    ),
                   ),
+                  ...(linearDcObservation.voltageConstraintResidual === undefined
+                    ? {}
+                    : {
+                        voltageConstraintResidual: round(
+                          linearDcObservation.voltageConstraintResidual,
+                        ),
+                      }),
                 }
-              : {}),
+              : transistorResult?.terminalCurrents
+                ? {
+                    terminalCurrents: Object.fromEntries(
+                      Object.entries(transistorResult.terminalCurrents).map(([terminal, value]) => [
+                        terminal,
+                        roundCurrent(value),
+                      ]),
+                    ),
+                  }
+                : {}),
         power: round(power),
         brightness: round(brightness, 2),
         ...(branches.length > 0 || transistorResult || isArduinoUno(component)
@@ -2081,19 +2380,13 @@ function solveCircuitStep(
             }
           : {}),
         ...(isDcMotor(component)
-          ? {
-              energized: Math.abs(voltageDrop) >= 0.2,
-              speedPercent: round(
-                Math.min(100, (Math.abs(voltageDrop) / Math.max(0.1, component.value || 6)) * 100),
-                2,
-              ),
-              direction:
-                Math.abs(voltageDrop) < 0.2
-                  ? ('stopped' as const)
-                  : voltageDrop > 0
-                    ? ('clockwise' as const)
-                    : ('counterclockwise' as const),
-            }
+          ? motorStep
+            ? motorComponentObservation(component, motorStep)
+            : {
+                energized: false,
+                speedPercent: 0,
+                direction: 'stopped' as const,
+              }
           : {}),
         ...(capacitorObservation
           ? {

@@ -3,6 +3,7 @@ import type { ComponentResult, SchematicComponent } from '../api';
 import type { CatalogEntry, ComponentVisualState } from './component-catalog';
 import { visualAsset } from './component-catalog';
 import {
+  dcMotorRuntimeMarkup,
   potentiometerKnobAngle,
   potentiometerRuntimeMarkup,
   RESISTOR_BAND_CSS,
@@ -109,6 +110,54 @@ function OwnerPotentiometerVisual({
       width={width}
       height={height}
       viewBox="0 0 144 164"
+      preserveAspectRatio="xMidYMid meet"
+      pointerEvents="none"
+      dangerouslySetInnerHTML={{ __html: markup }}
+    />
+  );
+}
+
+function OwnerDcMotorVisual({
+  asset,
+  width,
+  height,
+  phaseRadian,
+}: {
+  readonly asset: string;
+  readonly width: number;
+  readonly height: number;
+  readonly phaseRadian: number;
+}): JSX.Element {
+  const [ownerSvg, setOwnerSvg] = useState<string | null>(null);
+  useEffect(() => {
+    let mounted = true;
+    void ownerSvgSource(asset)
+      .then((source) => {
+        if (mounted) setOwnerSvg(source);
+      })
+      .catch(() => {
+        if (mounted) setOwnerSvg(null);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [asset]);
+  const markup = useMemo(
+    () => (ownerSvg ? dcMotorRuntimeMarkup(ownerSvg, phaseRadian) : ''),
+    [ownerSvg, phaseRadian],
+  );
+  if (!markup) {
+    return <image href={asset} width={width} height={height} pointerEvents="none" />;
+  }
+  return (
+    <svg
+      data-testid="dc-motor-phase"
+      data-motor-phase-radian={phaseRadian}
+      x="0"
+      y="0"
+      width={width}
+      height={height}
+      viewBox="0 0 284 245"
       preserveAspectRatio="xMidYMid meet"
       pointerEvents="none"
       dangerouslySetInnerHTML={{ __html: markup }}
@@ -558,6 +607,13 @@ export function ProductionComponentVisual({
               width={width}
               height={height}
               wiperPosition={component.wiperPosition ?? 0.5}
+            />
+          ) : entry.key === 'dc-motor' ? (
+            <OwnerDcMotorVisual
+              asset={asset}
+              width={width}
+              height={height}
+              phaseRadian={simulationRunning ? Number(result?.motorAngularPhaseRadian ?? 0) : 0}
             />
           ) : (
             <image
