@@ -3077,7 +3077,8 @@ test('RGB LED mixes three calculated channels for both common modes', async ({ p
     }
     await expect(inspector.getByLabel('Разводка выводов RGB-светодиода')).toHaveValue('RCBG');
     await expect(inspector.locator('.workbench-calculated-property')).toHaveCount(0);
-    await expect(inspector.locator('.workbench-terminal-list')).toHaveCount(1);
+    await expect(inspector.locator('.workbench-terminal-list')).toHaveCount(0);
+    await expect(inspector.getByTestId('rgb-led-channel-measurements')).toHaveCount(1);
 
     if (commonMode === 'common-cathode') {
       await page.screenshot({
