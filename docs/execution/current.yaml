@@ -122,11 +122,11 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: math_10a1_multimeter_dc_voltage_implemented_browser_verified_owner_acceptance_pending_math_10a2_queued_math_10b_regulated_supply_queued
+      checkpoint: math_10a1_multimeter_dc_voltage_selector_visual_corrected_browser_verified_owner_acceptance_pending_math_10a2_queued_math_10b_regulated_supply_queued
       owner_acceptance: pending
     revisions:
       convergence_baseline_sha: 5b052dc631c7036de9d60f4206c9879fe364e732
-      head_sha: 984df43fc8eb000199841589cb9df678a7bf288d
+      head_sha: 486fb51dcac00f6e0f4d8b2521832be54acab647
       owner_accepted_sha: d4c06f33babcbe1f81b2dc33d06a9a6146eb5465
     execution_lease:
       executor_id: codex-electronics-docs
