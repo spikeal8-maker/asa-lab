@@ -11,7 +11,7 @@ import {
   isArduinoUno,
 } from './arduino-model.js';
 import { photoresistorResistanceOhm } from './photoresistor-model.js';
-import { spdtSelectedTerminal } from './switch-topology.js';
+import { buttonContactPairs, spdtSelectedTerminal } from './switch-topology.js';
 import { buildNetlist, terminalKey } from './netlist.js';
 import {
   unsupportedElectricalComponents,
@@ -1678,33 +1678,110 @@ function solveCircuitStep(
     const island = findIsland(ground);
     if (!referenceByIsland.has(island)) referenceByIsland.set(island, ground);
   }
-  const externallyPoweredIslands = new Set<number>();
+  // An ohmmeter must be blocked only when an external energy source spans both
+  // probes. Merely reaching one battery terminal is not enough: the other
+  // terminal can be loose, as in a motor connected to only one side of a
+  // holder. The general island map above intentionally joins every component
+  // for numerical references, so it is too coarse for this safety decision.
+  // Build a separate passive reachability map without sources, charged
+  // capacitors, Arduino outputs or the resistance meters' own test sources.
+  const resistancePathParent = Array.from({ length: netlist.nodeCount }, (_, node) => node);
+  const findResistancePath = (node: number): number => {
+    let root = node;
+    while (resistancePathParent[root] !== root) root = resistancePathParent[root] as number;
+    let current = node;
+    while (resistancePathParent[current] !== current) {
+      const next = resistancePathParent[current] as number;
+      resistancePathParent[current] = root;
+      current = next;
+    }
+    return root;
+  };
+  const joinResistancePath = (left: number, right: number): void => {
+    const leftRoot = findResistancePath(left);
+    const rightRoot = findResistancePath(right);
+    if (leftRoot !== rightRoot) resistancePathParent[rightRoot] = leftRoot;
+  };
+  const resistanceMeterIds = new Set(
+    resistanceMeterDevices.map((device) => device.instance.componentId),
+  );
+  for (const component of document.components.filter(
+    (candidate) => isSimulated(candidate) && !failedComponentIds.has(candidate.id),
+  )) {
+    if (
+      component.kind === 'source' ||
+      isArduinoUno(component) ||
+      isElectrolyticCapacitor(component) ||
+      resistanceMeterIds.has(component.id)
+    ) {
+      continue;
+    }
+    const terminalPairs: readonly (readonly [Terminal, Terminal])[] =
+      component.kind === 'button'
+        ? buttonContactPairs(component.state === true)
+        : component.kind === 'switch'
+          ? [[logicalTerminal(component, 'a'), logicalTerminal(component, 'b')]]
+          : component.kind === 'potentiometer'
+            ? [
+                [logicalTerminal(component, 'a'), logicalTerminal(component, 'wiper')],
+                [logicalTerminal(component, 'wiper'), logicalTerminal(component, 'b')],
+              ]
+            : (() => {
+                const terminals = terminalsForComponent(component);
+                const first = terminals[0];
+                return first === undefined
+                  ? []
+                  : terminals.slice(1).map((terminal) => [first, terminal] as const);
+              })();
+    for (const [leftTerminal, rightTerminal] of terminalPairs) {
+      const left = netlist.nodeOf.get(terminalKey(component.id, leftTerminal));
+      const right = netlist.nodeOf.get(terminalKey(component.id, rightTerminal));
+      if (left !== undefined && right !== undefined) joinResistancePath(left, right);
+    }
+  }
+  const externalPowerTerminalPairs: Array<readonly [number, number]> = [];
   for (const source of sources) {
-    const sourceNode = netlist.nodeOf.get(terminalKey(source.id, logicalTerminal(source, 'a')));
-    if (sourceNode !== undefined) externallyPoweredIslands.add(findIsland(sourceNode));
+    const positive = netlist.nodeOf.get(terminalKey(source.id, logicalTerminal(source, 'a')));
+    const negative = netlist.nodeOf.get(terminalKey(source.id, logicalTerminal(source, 'b')));
+    if (positive !== undefined && negative !== undefined)
+      externalPowerTerminalPairs.push([positive, negative]);
   }
   for (const branch of arduinoBranches) {
-    const outputNode = netlist.nodeOf.get(terminalKey(branch.component.id, branch.terminal));
-    if (outputNode !== undefined) externallyPoweredIslands.add(findIsland(outputNode));
+    const output = netlist.nodeOf.get(terminalKey(branch.component.id, branch.terminal));
+    const ground = netlist.nodeOf.get(terminalKey(branch.component.id, branch.ground));
+    if (output !== undefined && ground !== undefined)
+      externalPowerTerminalPairs.push([output, ground]);
   }
   for (const capacitor of capacitors) {
     const previousVoltage =
       options.capacitorPreviousVoltageById?.[capacitor.id] ??
       capacitorParameters(capacitor).initialVoltageVolt;
     if (Math.abs(previousVoltage) <= 1e-6) continue;
-    const capacitorNode = netlist.nodeOf.get(
-      terminalKey(capacitor.id, logicalTerminal(capacitor, 'a')),
-    );
-    if (capacitorNode !== undefined) externallyPoweredIslands.add(findIsland(capacitorNode));
+    const positive = netlist.nodeOf.get(terminalKey(capacitor.id, logicalTerminal(capacitor, 'a')));
+    const negative = netlist.nodeOf.get(terminalKey(capacitor.id, logicalTerminal(capacitor, 'b')));
+    if (positive !== undefined && negative !== undefined)
+      externalPowerTerminalPairs.push([positive, negative]);
   }
   const poweredResistanceMeterIds = new Set(
     resistanceMeterDevices.flatMap((device) => {
       const inputNode = netlist.nodeOf.get(
         terminalKey(device.instance.component.id, logicalTerminal(device.instance.component, 'a')),
       );
-      return inputNode !== undefined && externallyPoweredIslands.has(findIsland(inputNode))
-        ? [device.instance.componentId]
-        : [];
+      const commonNode = netlist.nodeOf.get(
+        terminalKey(device.instance.component.id, logicalTerminal(device.instance.component, 'b')),
+      );
+      if (inputNode === undefined || commonNode === undefined) return [];
+      const inputRoot = findResistancePath(inputNode);
+      const commonRoot = findResistancePath(commonNode);
+      const powered = externalPowerTerminalPairs.some(([positive, negative]) => {
+        const positiveRoot = findResistancePath(positive);
+        const negativeRoot = findResistancePath(negative);
+        return (
+          (positiveRoot === inputRoot && negativeRoot === commonRoot) ||
+          (positiveRoot === commonRoot && negativeRoot === inputRoot)
+        );
+      });
+      return powered ? [device.instance.componentId] : [];
     }),
   );
   const activeResistanceMeterDevices = resistanceMeterDevices.filter(
@@ -2438,7 +2515,7 @@ function solveCircuitStep(
             {
               code: 'multimeter_powered_resistance',
               severity: 'error',
-              message: `${label}: измерение сопротивления заблокировано, потому что в этой цепи есть внешнее питание.`,
+              message: `${label}: между щупами обнаружено внешнее напряжение, поэтому измерение сопротивления остановлено.`,
               suggestedAction:
                 'Отключите источники питания и разрядите конденсаторы, затем повторите измерение.',
             },

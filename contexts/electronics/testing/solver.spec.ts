@@ -391,7 +391,47 @@ describe('MATH-10A3 multimeter resistance', () => {
     });
   });
 
-  it('does not inject a test source into a powered circuit and explains OL', () => {
+  it('treats a one-terminal source path through a motor as an open circuit, not external power', () => {
+    const meter = component('meter', 'visual', 0, {
+      componentTypeId: 'multimeter',
+      pinIds: ['com', 'v-ohm-ma'],
+      stateProperties: { measurementMode: 'resistance', meterRange: 'auto' },
+    });
+    const motor = component('motor', 'visual', 0, {
+      componentTypeId: 'gearmotor',
+      pinIds: ['negative', 'positive'],
+      stateProperties: { motorAssemblyProfileId: 'adafruit-3777-tt-48to1' },
+    });
+    const source = component('battery', 'source', 3, {
+      componentTypeId: 'battery-holder-aa-2',
+      pinIds: ['BAT-', 'BAT+'],
+    });
+    const result = solveCircuit(
+      doc(
+        [source, motor, meter],
+        [
+          connect('source-to-motor', 'battery', 'BAT+', 'motor', 'positive'),
+          connect('motor-to-red-probe', 'motor', 'negative', 'meter', 'v-ohm-ma'),
+        ],
+      ),
+    );
+    const measurement = result.components.find((entry) => entry.componentId === 'meter');
+
+    expect(result.status).toBe('solved');
+    expect(measurement).toMatchObject({
+      measurementMode: 'resistance',
+      measurementUnit: 'Ω',
+      meterTestCurrentAmp: 0,
+      meterOpenCircuit: true,
+      meterExternalPowerPresent: false,
+      meterOverload: false,
+    });
+    expect(result.diagnostics).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ code: 'multimeter_powered_resistance' })]),
+    );
+  });
+
+  it('does not inject a test source into a powered circuit and reports external voltage', () => {
     const result = solveCircuit(resistanceCircuit({ powered: true }));
     const meter = result.components.find((entry) => entry.componentId === 'meter');
     expect(result.status).toBe('solved');

@@ -57,9 +57,9 @@ function formatMeterResistance(resistanceOhm: number, detailed = false): string 
 
 function multimeterReading(measurement: ComponentResult, detailed = false): string {
   if (measurement.meterFuseState === 'blown') return 'Предохранитель перегорел';
-  if (measurement.meterExternalPowerPresent) return 'OL · отключите питание';
-  if (measurement.meterOpenCircuit) return 'OL · разрыв или выше 50 МОм';
-  if (measurement.meterOverload) return 'OL · перегрузка';
+  if (measurement.meterExternalPowerPresent) return 'Ошибка · внешнее напряжение';
+  if (measurement.meterOpenCircuit) return 'Обрыв цепи или выше 50 МОм';
+  if (measurement.meterOverload) return 'Вне диапазона';
   if (measurement.measurementMode === 'dc-current') {
     return `${((measurement.measuredValue ?? measurement.current) * 1_000).toFixed(detailed ? 3 : 1)} мА`;
   }
@@ -1400,8 +1400,8 @@ export function WorkbenchSidebars({
                         <dt>Питание в цепи</dt>
                         <dd>
                           {measurement.meterExternalPowerPresent
-                            ? 'Обнаружено — измерение заблокировано'
-                            : 'Нет'}
+                            ? 'Есть между щупами — измерение остановлено'
+                            : 'Между щупами не обнаружено'}
                         </dd>
                       </div>
                       <div>
