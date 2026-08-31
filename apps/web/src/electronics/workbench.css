@@ -2580,15 +2580,14 @@
   font-weight: 700;
   letter-spacing: 0.02em;
 }
-.workbench-multimeter-runtime .workbench-multimeter-mode {
-  fill: #415158;
+.workbench-multimeter-runtime .workbench-multimeter-active-mode {
+  fill: #3d4a4f;
+  stroke: none;
+}
+.workbench-multimeter-runtime .workbench-multimeter-active-mode-label {
+  fill: #ffb20f;
   font-family: 'Roboto', sans-serif;
   font-weight: 700;
-}
-.workbench-multimeter-runtime .workbench-multimeter-active-mode {
-  fill: none;
-  stroke: #44c8ff;
-  stroke-width: 2px;
 }
 .workbench-multimeter-compact-reading {
   display: grid;

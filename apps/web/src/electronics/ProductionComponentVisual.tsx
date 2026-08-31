@@ -412,6 +412,16 @@ export function ProductionComponentVisual({
     : undefined;
   const meterDisplay =
     entry.key === 'multimeter' ? multimeterDisplayValue(simulationRunning, result) : '';
+  const meterMeasurementMode =
+    entry.key === 'multimeter'
+      ? String(component.stateProperties?.['measurementMode'] ?? 'dc-voltage')
+      : '';
+  const meterActiveMode =
+    meterMeasurementMode === 'dc-current'
+      ? { label: 'A', cy: height * 0.235 }
+      : meterMeasurementMode === 'resistance'
+        ? { label: 'R', cy: height * 0.631 }
+        : { label: 'V', cy: height * 0.433 };
   // Canonical selection contract: docs/product/electronics/README.md, section 7.
   // The rendered asset and its alpha-silhouette outline MUST share one transform;
   // per-component rectangle/capsule bounds are intentionally forbidden.
@@ -740,7 +750,7 @@ export function ProductionComponentVisual({
             <g
               className="workbench-multimeter-runtime"
               data-testid="multimeter-runtime-display"
-              data-measurement-mode="dc-voltage"
+              data-measurement-mode={meterMeasurementMode}
               data-measured-value={
                 simulationRunning && result?.measuredValue !== undefined
                   ? result.measuredValue
@@ -758,20 +768,22 @@ export function ProductionComponentVisual({
               >
                 {meterDisplay}
               </text>
-              <text
-                className="workbench-multimeter-mode"
-                x={width * 0.12}
-                y={height * 0.29}
-                fontSize={height * 0.09}
-              >
-                DC
-              </text>
               <circle
                 className="workbench-multimeter-active-mode"
                 cx={width * 0.866}
-                cy={height * 0.433}
-                r={height * 0.078}
+                cy={meterActiveMode.cy}
+                r={height * 0.057}
               />
+              <text
+                className="workbench-multimeter-active-mode-label"
+                x={width * 0.866}
+                y={meterActiveMode.cy}
+                fontSize={height * 0.105}
+                textAnchor="middle"
+                dominantBaseline="central"
+              >
+                {meterActiveMode.label}
+              </text>
             </g>
           ) : null}
         </>

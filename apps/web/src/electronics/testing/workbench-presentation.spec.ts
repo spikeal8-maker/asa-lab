@@ -536,7 +536,12 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(productionVisualSource).toContain('data-testid="multimeter-runtime-display"');
     expect(productionVisualSource).toContain("result?.measurementMode !== 'dc-voltage'");
     expect(productionVisualSource).toContain('data-measured-value');
+    expect(productionVisualSource).toContain('workbench-multimeter-active-mode-label');
+    expect(productionVisualSource).toContain("{ label: 'V', cy: height * 0.433 }");
+    expect(productionVisualSource).not.toContain('workbench-multimeter-mode');
+    expect(productionVisualSource).not.toContain('>DC</text>');
     expect(workbenchCss).toContain('.workbench-multimeter-reading');
+    expect(workbenchCss).toContain('fill: #3d4a4f');
   });
 
   it('provides a real phone workbench with a bottom component sheet and touch targets', () => {
