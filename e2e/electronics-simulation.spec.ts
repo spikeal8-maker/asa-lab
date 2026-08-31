@@ -3069,10 +3069,16 @@ test('RGB LED mixes three calculated channels for both common modes', async ({ p
     await expect(rgb.getByTestId('rgb-led-mixture')).toHaveCSS('opacity', /^(?!0(?:\.0+)?$)/);
     await rgb.locator('.workbench-part').click();
     const inspector = page.getByRole('complementary', { name: 'Параметры выделения' });
-    await inspector.getByRole('button', { name: 'Техническое состояние RGB-светодиод' }).click();
+    const technicalState = inspector.getByRole('button', {
+      name: 'Техническое состояние RGB-светодиод',
+    });
+    if ((await technicalState.getAttribute('aria-expanded')) !== 'true') {
+      await technicalState.click();
+    }
     await expect(inspector.getByLabel('Разводка выводов RGB-светодиода')).toHaveValue('RCBG');
     await expect(inspector.locator('.workbench-calculated-property')).toHaveCount(0);
-    await expect(inspector.locator('.workbench-terminal-list')).toHaveCount(1);
+    await expect(inspector.locator('.workbench-terminal-list')).toHaveCount(0);
+    await expect(inspector.getByTestId('rgb-led-channel-measurements')).toHaveCount(1);
 
     if (commonMode === 'common-cathode') {
       await page.screenshot({
@@ -3336,7 +3342,7 @@ test('MATH-10A3 multimeter measures resistance from the owner R button and block
   if ((await technicalState.getAttribute('aria-expanded')) !== 'true') await technicalState.click();
   const profile = inspector.getByTestId('multimeter-reference-profile');
   await expect(profile).toContainText('Авто · до 50.00 МОм');
-  await expect(profile).toContainText('Нет');
+  await expect(profile).toContainText('Между щупами не обнаружено');
   await page.screenshot({
     path: `${ARTIFACT_DIR}/electronics-multimeter-resistance.png`,
     fullPage: true,
@@ -3359,9 +3365,9 @@ test('MATH-10A3 multimeter measures resistance from the owner R button and block
   const poweredMeter = component(page, 'multimeter');
   await poweredMeter.locator('.workbench-part').press('Enter');
   const poweredInspector = page.getByRole('complementary', { name: 'Параметры выделения' });
-  await expect(poweredMeter.getByTestId('multimeter-runtime-display')).toContainText('OL');
+  await expect(poweredMeter.getByTestId('multimeter-runtime-display')).toContainText('ОШИБКА');
   await expect(poweredInspector.getByTestId('multimeter-panel-reading')).toContainText(
-    'OL · отключите питание',
+    'Ошибка · внешнее напряжение',
   );
   failures.assertEmpty();
 });

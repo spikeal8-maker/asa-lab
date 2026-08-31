@@ -347,7 +347,9 @@ function multimeterDisplayValue(
 ): string {
   if (!simulationRunning || !result?.measurementMode) return '';
   if (result.meterFuseState === 'blown') return 'FUSE';
-  if (result.meterOverload || result.meterOpenCircuit) return 'OL';
+  if (result.meterExternalPowerPresent) return 'ОШИБКА';
+  if (result.meterOpenCircuit) return 'ОБРЫВ';
+  if (result.meterOverload) return 'OL';
   const value = Number(result.measuredValue ?? result.voltageDrop);
   if (!Number.isFinite(value)) return '—';
   if (result.measurementMode === 'dc-current') {

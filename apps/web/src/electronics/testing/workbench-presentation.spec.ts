@@ -534,7 +534,10 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(sidebarSource).toContain('Напряжение DC');
     expect(sidebarSource).toContain('Ток DC');
     expect(sidebarSource).toContain('Сопротивление');
-    expect(sidebarSource).toContain('OL · отключите питание');
+    expect(sidebarSource).toContain('Ошибка · внешнее напряжение');
+    expect(sidebarSource).toContain('Обрыв цепи или выше 50 МОм');
+    expect(productionVisualSource).toContain("return 'ОШИБКА'");
+    expect(productionVisualSource).toContain("return 'ОБРЫВ'");
     expect(sidebarSource).toContain('Последовательно с нагрузкой');
     expect(productionVisualSource).toContain('data-testid="multimeter-runtime-display"');
     expect(productionVisualSource).toContain("result.measurementMode === 'dc-current'");

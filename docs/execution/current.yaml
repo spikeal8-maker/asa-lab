@@ -119,15 +119,15 @@ parallel_lanes:
       issue: 63
       branch: main
       base_branch: main
-      pr: null
+      pr: 170
       pr_draft: false
       status: in_progress
-      checkpoint: math_10a3_multimeter_resistance_internal_test_source_powered_circuit_ol_native_r_button_browser_verified_owner_acceptance_pending_math_10b_regulated_supply_queued
-      owner_acceptance: pending
+      checkpoint: math_10a3_multimeter_resistance_external_probe_voltage_preflight_single_node_powered_branch_measures_clear_russian_error_pr_170_ci_pending_owner_accepted
+      owner_acceptance: accepted
     revisions:
       convergence_baseline_sha: 5b052dc631c7036de9d60f4206c9879fe364e732
-      head_sha: e8659375990f5872d262341ec2eea5be6fe59a23
-      owner_accepted_sha: cca376741538a7781e73598dd9e7300836333754
+      head_sha: 7334d246da981221a519dcfe0e010fef722dcc8a
+      owner_accepted_sha: 7334d246da981221a519dcfe0e010fef722dcc8a
     execution_lease:
       executor_id: codex-electronics-docs
       holder: unassigned

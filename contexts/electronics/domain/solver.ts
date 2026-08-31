@@ -297,6 +297,7 @@ const FET_DEFAULT_THRESHOLD_VOLTAGE = 2;
 const FET_DEFAULT_TRANSCONDUCTANCE_FACTOR = 0.05;
 const FET_DEFAULT_MAX_DRAIN_CURRENT_A = 0.5;
 const FET_MIN_OHMIC_CONDUCTANCE = 1e-4;
+const MULTIMETER_EXTERNAL_VOLTAGE_THRESHOLD_VOLT = 1e-3;
 // Passive piezos are capacitive. The present deterministic DC solve represents
 // only their finite leakage; audible drive is derived separately from a
 // confirmed time-varying Arduino output.
@@ -1678,34 +1679,48 @@ function solveCircuitStep(
     const island = findIsland(ground);
     if (!referenceByIsland.has(island)) referenceByIsland.set(island, ground);
   }
-  const externallyPoweredIslands = new Set<number>();
-  for (const source of sources) {
-    const sourceNode = netlist.nodeOf.get(terminalKey(source.id, logicalTerminal(source, 'a')));
-    if (sourceNode !== undefined) externallyPoweredIslands.add(findIsland(sourceNode));
-  }
-  for (const branch of arduinoBranches) {
-    const outputNode = netlist.nodeOf.get(terminalKey(branch.component.id, branch.terminal));
-    if (outputNode !== undefined) externallyPoweredIslands.add(findIsland(outputNode));
-  }
-  for (const capacitor of capacitors) {
-    const previousVoltage =
-      options.capacitorPreviousVoltageById?.[capacitor.id] ??
-      capacitorParameters(capacitor).initialVoltageVolt;
-    if (Math.abs(previousVoltage) <= 1e-6) continue;
-    const capacitorNode = netlist.nodeOf.get(
-      terminalKey(capacitor.id, logicalTerminal(capacitor, 'a')),
-    );
-    if (capacitorNode !== undefined) externallyPoweredIslands.add(findIsland(capacitorNode));
+  // Determine whether external voltage is actually present across both probes,
+  // not merely somewhere in the same connected component. For the preflight,
+  // the resistance meters become finite-impedance voltmeters, so their own 1 V
+  // test sources cannot influence the result. This correctly permits a powered
+  // motor loop that touches the measured potentiometer at only one node while
+  // still blocking a meter placed across an energised load.
+  const resistanceMeterIds = new Set(
+    resistanceMeterDevices.map((device) => device.instance.componentId),
+  );
+  const externalVoltageByResistanceMeterId = new Map<string, number>();
+  if (resistanceMeterIds.size > 0) {
+    const externalVoltageDocument: ElectronicsDocument = {
+      ...document,
+      components: document.components.map((component) =>
+        resistanceMeterIds.has(component.id)
+          ? {
+              ...component,
+              stateProperties: {
+                ...component.stateProperties,
+                measurementMode: 'dc-voltage',
+              },
+            }
+          : component,
+      ),
+    };
+    const externalVoltageResult = solveCircuitStep(externalVoltageDocument, options);
+    if (externalVoltageResult.solved) {
+      for (const componentId of resistanceMeterIds) {
+        const probeResult = externalVoltageResult.components.find(
+          (component) => component.componentId === componentId,
+        );
+        externalVoltageByResistanceMeterId.set(
+          componentId,
+          Math.abs(probeResult?.measuredValue ?? probeResult?.voltageDrop ?? 0),
+        );
+      }
+    }
   }
   const poweredResistanceMeterIds = new Set(
-    resistanceMeterDevices.flatMap((device) => {
-      const inputNode = netlist.nodeOf.get(
-        terminalKey(device.instance.component.id, logicalTerminal(device.instance.component, 'a')),
-      );
-      return inputNode !== undefined && externallyPoweredIslands.has(findIsland(inputNode))
-        ? [device.instance.componentId]
-        : [];
-    }),
+    [...externalVoltageByResistanceMeterId]
+      .filter(([, voltage]) => voltage > MULTIMETER_EXTERNAL_VOLTAGE_THRESHOLD_VOLT)
+      .map(([componentId]) => componentId),
   );
   const activeResistanceMeterDevices = resistanceMeterDevices.filter(
     (device) => !poweredResistanceMeterIds.has(device.instance.componentId),
@@ -2438,7 +2453,7 @@ function solveCircuitStep(
             {
               code: 'multimeter_powered_resistance',
               severity: 'error',
-              message: `${label}: измерение сопротивления заблокировано, потому что в этой цепи есть внешнее питание.`,
+              message: `${label}: между щупами обнаружено внешнее напряжение, поэтому измерение сопротивления остановлено.`,
               suggestedAction:
                 'Отключите источники питания и разрядите конденсаторы, затем повторите измерение.',
             },
