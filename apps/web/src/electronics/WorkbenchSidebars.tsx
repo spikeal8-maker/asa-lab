@@ -720,20 +720,27 @@ export function WorkbenchSidebars({
                       }
                     >
                       <option value="dc-voltage">Напряжение DC</option>
+                      <option value="dc-current">Ток DC</option>
                     </select>
                   </label>
                   <div className="workbench-multimeter-compact-reading">
                     <span>Показание</span>
                     <strong data-testid="multimeter-panel-reading">
-                      {c.simulationRunning && measurement?.measurementMode === 'dc-voltage'
-                        ? measurement.meterOverload
-                          ? 'Перегрузка'
-                          : `${(measurement.measuredValue ?? measurement.voltageDrop).toFixed(3)} В`
+                      {c.simulationRunning && measurement?.measurementMode
+                        ? measurement.meterFuseState === 'blown'
+                          ? 'Предохранитель перегорел'
+                          : measurement.meterOverload
+                            ? 'Перегрузка'
+                            : measurement.measurementMode === 'dc-current'
+                              ? `${((measurement.measuredValue ?? measurement.current) * 1_000).toFixed(1)} мА`
+                              : `${(measurement.measuredValue ?? measurement.voltageDrop).toFixed(3)} В`
                         : 'Запустите моделирование'}
                     </strong>
                   </div>
                   <p className="workbench-component-note">
-                    Сейчас доступно измерение постоянного напряжения.
+                    {c.selectedComponent.stateProperties?.['measurementMode'] === 'dc-current'
+                      ? 'Подключите прибор последовательно с нагрузкой.'
+                      : 'Подключите прибор параллельно измеряемому участку.'}
                   </p>
                 </fieldset>
               ) : null}
@@ -1319,8 +1326,12 @@ export function WorkbenchSidebars({
                   <div>
                     <dt>Измерение</dt>
                     <dd>
-                      {c.simulationRunning && measurement?.measurementMode === 'dc-voltage'
-                        ? `${(measurement.measuredValue ?? measurement.voltageDrop).toFixed(6)} В`
+                      {c.simulationRunning && measurement?.measurementMode
+                        ? measurement.meterFuseState === 'blown'
+                          ? 'Цепь разомкнута предохранителем'
+                          : measurement.measurementMode === 'dc-current'
+                            ? `${((measurement.measuredValue ?? measurement.current) * 1_000).toFixed(3)} мА`
+                            : `${(measurement.measuredValue ?? measurement.voltageDrop).toFixed(6)} В`
                         : 'Моделирование остановлено'}
                     </dd>
                   </div>
@@ -1328,23 +1339,50 @@ export function WorkbenchSidebars({
                     <dt>Полярность</dt>
                     <dd>V/Ω/mA минус COM</dd>
                   </div>
-                  <div>
-                    <dt>Входное сопротивление</dt>
-                    <dd>
-                      {((measurement?.meterInputResistanceOhm ?? 10_000_000) / 1_000_000).toFixed(
-                        0,
-                      )}{' '}
-                      МОм
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>Ток через вход</dt>
-                    <dd>{(Math.abs(measurement?.current ?? 0) * 1_000_000).toFixed(3)} мкА</dd>
-                  </div>
-                  <div>
-                    <dt>Подключение</dt>
-                    <dd>Параллельно измеряемому участку</dd>
-                  </div>
+                  {measurement?.measurementMode === 'dc-current' ? (
+                    <>
+                      <div>
+                        <dt>Шунт</dt>
+                        <dd>{(measurement.meterShuntResistanceOhm ?? 1.8).toFixed(1)} Ом</dd>
+                      </div>
+                      <div>
+                        <dt>Падение на приборе</dt>
+                        <dd>{((measurement.meterBurdenVoltageVolt ?? 0) * 1_000).toFixed(1)} мВ</dd>
+                      </div>
+                      <div>
+                        <dt>Предохранитель</dt>
+                        <dd>
+                          {measurement.meterFuseState === 'blown'
+                            ? 'Перегорел'
+                            : `Исправен · ${((measurement.meterFuseRatingAmp ?? 0.44) * 1_000).toFixed(0)} мА`}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Подключение</dt>
+                        <dd>Последовательно с нагрузкой</dd>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div>
+                        <dt>Входное сопротивление</dt>
+                        <dd>
+                          {(
+                            (measurement?.meterInputResistanceOhm ?? 10_000_000) / 1_000_000
+                          ).toFixed(0)}{' '}
+                          МОм
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Ток через вход</dt>
+                        <dd>{(Math.abs(measurement?.current ?? 0) * 1_000_000).toFixed(3)} мкА</dd>
+                      </div>
+                      <div>
+                        <dt>Подключение</dt>
+                        <dd>Параллельно измеряемому участку</dd>
+                      </div>
+                    </>
+                  )}
                 </dl>
               ) : null}
 

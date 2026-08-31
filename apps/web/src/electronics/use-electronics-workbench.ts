@@ -749,6 +749,34 @@ export function useElectronicsWorkbench(projectId: string) {
     if (next) commitDocument(next, message);
   }
 
+  function setMultimeterMeasurementMode(
+    componentId: string,
+    measurementMode: 'dc-voltage' | 'dc-current',
+  ): void {
+    const component = runtimeDocument?.components.find((item) => item.id === componentId);
+    if (!document || component?.componentTypeId !== 'multimeter') return;
+    if (simulationRunning) {
+      setRuntimeComponentOverride(componentId, { stateProperties: { measurementMode } });
+      return;
+    }
+    commitDocument(
+      {
+        ...document,
+        components: document.components.map((item) =>
+          item.id === componentId
+            ? {
+                ...item,
+                stateProperties: { ...item.stateProperties, measurementMode },
+              }
+            : item,
+        ),
+      },
+      measurementMode === 'dc-current'
+        ? 'Мультиметр переключён в режим тока.'
+        : 'Мультиметр переключён в режим напряжения.',
+    );
+  }
+
   function updateArduinoProgram(
     componentId: string,
     properties: Readonly<Record<string, ProductionStateValue>>,
@@ -1797,6 +1825,7 @@ export function useElectronicsWorkbench(projectId: string) {
     setSelectedWiper,
     setSelectedMotorShaftLocked,
     setSelectedProperties,
+    setMultimeterMeasurementMode,
     updateArduinoProgram,
     resetArduinoRuntime,
     setSelectedVariant,

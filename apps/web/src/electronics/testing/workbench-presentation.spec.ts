@@ -532,16 +532,17 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(sidebarSource).toContain('data-testid="multimeter-primary-controls"');
     expect(sidebarSource).toContain('data-testid="multimeter-panel-reading"');
     expect(sidebarSource).toContain('Напряжение DC');
-    expect(sidebarSource).toContain('Сейчас доступно измерение постоянного напряжения');
+    expect(sidebarSource).toContain('Ток DC');
+    expect(sidebarSource).toContain('Последовательно с нагрузкой');
     expect(productionVisualSource).toContain('data-testid="multimeter-runtime-display"');
-    expect(productionVisualSource).toContain("result?.measurementMode !== 'dc-voltage'");
+    expect(productionVisualSource).toContain("result.measurementMode === 'dc-current'");
     expect(productionVisualSource).toContain('data-measured-value');
     expect(productionVisualSource).toContain('OwnerMultimeterVisual');
     expect(productionVisualSource).toContain(
       'multimeterRuntimeMarkup(ownerSvg, measurementMode, displayValue)',
     );
     expect(productionVisualSource).toContain("return '';");
-    expect(productionVisualSource).not.toContain('workbench-multimeter-mode');
+    expect(productionVisualSource).toContain('workbench-multimeter-mode-current');
     expect(productionVisualSource).not.toContain('>DC</text>');
     expect(workbenchCss).toContain('.workbench-multimeter-reading');
     expect(workbenchCss).toContain('.workbench-multimeter-mode-button.is-active');

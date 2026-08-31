@@ -2,19 +2,19 @@
   "schema": "asa-lab.electronics-component-coverage.v1",
   "generatedFrom": {
     "catalogPath": "apps/web/public/assets/electronics/component-database/catalog.json",
-    "catalogSha256": "78c69a255c8206d3cbfc9d1339bcc5446e906a99af2743422dabc216587d2f3b",
+    "catalogSha256": "58ab383a1abd40183356ab9295dc5200e28e93caaf2b97215d34baa945d56992",
     "modelIdentityPath": "contexts/electronics/domain/model-identity.ts",
-    "modelIdentitySha256": "123980af98eadfaf68a78ceb52bf0a30ef413090de261b1b8f3a8622e1d3f251",
+    "modelIdentitySha256": "6829b64a71c5ad4ebab9cf7bb864b0bffe80baea00ce8a93d559c044a90d206a",
     "modelRegistryPath": "contexts/electronics/domain/model-registry.ts",
-    "modelRegistrySha256": "9f26c7256f7173992e88716a68285c7c46a0e70768c96d920ffe1a72b0a59a1e",
+    "modelRegistrySha256": "01b0d44d5f4e5df15a331fc46d3533418b433f1a0265afc8033a05274460fdeb",
     "inspectorProfilePath": "apps/web/src/electronics/component-information.ts",
     "inspectorProfileSha256": "7f0683af49628fd5930cb89255558688c762e2d93dfc2e3aa6b5d9adb4a4abc5",
     "helpContentPath": "apps/web/src/electronics/component-help-content.ts",
-    "helpContentSha256": "83552a140976e8f89679a326d029c79124c52ecf5dc274b83ef6ade15f59ffad",
+    "helpContentSha256": "2522a564af80120b5c022846935f3557f146cb33379575ab5d2bdb0fbafffbb1",
     "componentInformationTestPath": "apps/web/src/electronics/testing/component-information.spec.ts",
-    "componentInformationTestSha256": "8fc17988de0998be7b6e4a47a215b401cd7d72b02c78263ba86f20233032716b",
+    "componentInformationTestSha256": "482cf90330040b13d5a0cc25c315d33bb5aee42355ea5188c833bdaf34781645",
     "browserEvidencePath": "e2e/electronics-simulation.spec.ts",
-    "browserEvidenceSha256": "f98862a23c0af0766ebc1596ba8b1112d133a7a07b411f413678bccfd8ab40c9"
+    "browserEvidenceSha256": "c0ab40ba282acc20d61ff9fc8ece2e4d8ed6395e0cf60c3680d8691f5e5980b4"
   },
   "summary": {
     "total": 43,
@@ -820,7 +820,7 @@
       "familyId": "multimeter",
       "variantId": "multimeter",
       "catalogStatus": "enabled",
-      "catalogSimulationSupport": "dc_voltmeter_10m_v1",
+      "catalogSimulationSupport": "digital_multimeter_dc_voltage_current_v2",
       "ownerArtwork": "verified",
       "placement": "verified",
       "physicalScale": "verified",
@@ -832,8 +832,8 @@
       "damageProfile": "unverified",
       "inspectorHelp": "unverified",
       "browserEvidence": "unverified",
-      "electricalModelId": "dc-voltmeter",
-      "modelProfileId": "asa-two-terminal-dmm-dc-voltage"
+      "electricalModelId": "digital-multimeter",
+      "modelProfileId": "asa-two-terminal-dmm"
     },
     {
       "componentId": "signal-generator",

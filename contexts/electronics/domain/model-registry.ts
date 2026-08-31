@@ -182,8 +182,8 @@ const ELECTROLYTIC_CAPACITOR_MODEL: ElectricalModelDescriptor = {
   requiredTerminals: ['negative', 'positive'],
 };
 
-const MULTIMETER_DC_VOLTAGE_MODEL: ElectricalModelDescriptor = {
-  id: 'dc-voltmeter',
+const DIGITAL_MULTIMETER_MODEL: ElectricalModelDescriptor = {
+  id: 'digital-multimeter',
   kind: 'visual',
   support: 'supported',
   topology: 'two-terminal',
@@ -202,7 +202,7 @@ export function electricalModelFor(component: SchematicComponent): ElectricalMod
         : component.componentTypeId === 'electrolytic-capacitor'
           ? ELECTROLYTIC_CAPACITOR_MODEL
           : component.componentTypeId === 'multimeter'
-            ? MULTIMETER_DC_VOLTAGE_MODEL
+            ? DIGITAL_MULTIMETER_MODEL
             : MODELS[component.kind];
   return {
     ...base,
@@ -227,8 +227,7 @@ function productionRequiredTerminals(component: SchematicComponent): readonly Te
     return DC_MOTOR_MODEL.requiredTerminals;
   if (component.componentTypeId === 'electrolytic-capacitor')
     return ELECTROLYTIC_CAPACITOR_MODEL.requiredTerminals;
-  if (component.componentTypeId === 'multimeter')
-    return MULTIMETER_DC_VOLTAGE_MODEL.requiredTerminals;
+  if (component.componentTypeId === 'multimeter') return DIGITAL_MULTIMETER_MODEL.requiredTerminals;
   // Holders expose BAT+/BAT-; single-cell batteries and the bench supply use
   // positive/negative. The simulation maps both already — the contract must
   // accept whichever pair the component actually carries, or a catalog battery

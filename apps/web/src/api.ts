@@ -997,10 +997,14 @@ export interface ComponentResult {
   internalPower?: number;
   voltageSag?: number;
   sourceOperatingMode?: 'delivering' | 'idle' | 'absorbing';
-  measurementMode?: 'dc-voltage';
+  measurementMode?: 'dc-voltage' | 'dc-current';
   measuredValue?: number;
-  measurementUnit?: 'V';
+  measurementUnit?: 'V' | 'A';
   meterInputResistanceOhm?: number;
+  meterShuntResistanceOhm?: number;
+  meterBurdenVoltageVolt?: number;
+  meterFuseRatingAmp?: number;
+  meterFuseState?: 'intact' | 'blown';
   meterOverload?: boolean;
   operatingRegion?: 'cutoff' | 'active' | 'saturation' | 'ohmic';
   baseCurrent?: number;
@@ -1091,6 +1095,12 @@ export interface SolveResult {
       accumulatedDamage: number;
       failureMode: 'none' | 'winding_open';
     }[];
+    multimeterFuses?: {
+      componentId: string;
+      profileKey: 'asa-two-terminal-dmm-current-400ma-v1';
+      accumulatedI2tAmpSquaredSecond: number;
+      fuseState: 'intact' | 'blown';
+    }[];
   };
   transientAnalysis?: {
     acceptedSteps: number;
@@ -1110,7 +1120,7 @@ export interface SolveResult {
   };
   topologySignature?: string;
   simulationInputDigest?: string;
-  solverRevision?: 'asa-electronics-solver-v7';
+  solverRevision?: 'asa-electronics-solver-v8';
   modelSetDigest?: string;
   analysis?: {
     electricalMode: 'dc' | 'transient';

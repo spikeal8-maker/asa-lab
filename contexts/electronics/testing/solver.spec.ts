@@ -379,10 +379,79 @@ describe('MATH-10A1 multimeter DC voltage', () => {
       }),
     );
     expect(upgraded).toEqual({
-      electricalModelId: 'dc-voltmeter',
+      electricalModelId: 'digital-multimeter',
       electricalModelVersion: 1,
-      modelProfileId: 'asa-two-terminal-dmm-dc-voltage',
-      modelProfileVersion: 1,
+      modelProfileId: 'asa-two-terminal-dmm',
+      modelProfileVersion: 2,
+    });
+  });
+});
+
+describe('MATH-10A2 multimeter DC current', () => {
+  function currentCircuit(directlyAcrossSource = false): ElectronicsDocument {
+    const source = component('battery', 'source', 3, {
+      componentTypeId: 'battery-holder-aa-2',
+      pinIds: ['BAT-', 'BAT+'],
+    });
+    const meter = component('meter', 'visual', 0, {
+      componentTypeId: 'multimeter',
+      pinIds: ['com', 'v-ohm-ma'],
+      stateProperties: { measurementMode: 'dc-current', meterRange: '400ma' },
+    });
+    const resistor = component('load', 'resistor', 100, {
+      componentTypeId: 'resistor-axial',
+      pinIds: ['lead-1', 'lead-2'],
+    });
+    return directlyAcrossSource
+      ? doc(
+          [source, meter],
+          [
+            connect('red', 'battery', 'BAT+', 'meter', 'v-ohm-ma'),
+            connect('black', 'meter', 'com', 'battery', 'BAT-'),
+          ],
+        )
+      : doc(
+          [source, resistor, meter],
+          [
+            connect('supply', 'battery', 'BAT+', 'load', 'lead-1'),
+            connect('series', 'load', 'lead-2', 'meter', 'v-ohm-ma'),
+            connect('return', 'meter', 'com', 'battery', 'BAT-'),
+          ],
+        );
+  }
+
+  it('measures series current and includes its burden voltage in the circuit', () => {
+    const result = solveCircuit(currentCircuit(), { simulationTimeMs: 1 });
+    const meter = result.components.find((entry) => entry.componentId === 'meter');
+    expect(result.status).toBe('solved');
+    expect(meter).toMatchObject({
+      measurementMode: 'dc-current',
+      measurementUnit: 'A',
+      meterShuntResistanceOhm: 1.8,
+      meterFuseRatingAmp: 0.44,
+      meterFuseState: 'intact',
+      meterOverload: false,
+    });
+    expect(meter?.measuredValue).toBeCloseTo(3 / (0.45 + 100 + 1.8), 8);
+    expect(meter?.meterBurdenVoltageVolt).toBeCloseTo((meter?.measuredValue ?? 0) * 1.8, 8);
+  });
+
+  it('opens the fuse after a sustained direct connection across a source', () => {
+    const result = solveCircuit(currentCircuit(true), { simulationTimeMs: 100 });
+    const meter = result.components.find((entry) => entry.componentId === 'meter');
+    expect(result.status).toBe('solved');
+    expect(meter).toMatchObject({
+      measurementMode: 'dc-current',
+      meterFuseState: 'blown',
+      meterOverload: true,
+    });
+    expect(Math.abs(meter?.current ?? 1)).toBeLessThan(1e-9);
+    expect(result.diagnostics).toEqual(
+      expect.arrayContaining([expect.objectContaining({ code: 'multimeter_fuse_blown' })]),
+    );
+    expect(result.transientState?.multimeterFuses?.[0]).toMatchObject({
+      componentId: 'meter',
+      fuseState: 'blown',
     });
   });
 });

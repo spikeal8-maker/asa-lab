@@ -21,9 +21,12 @@ import { ledBrightnessPercent, type LedJunctionProfile } from './led-model.js';
 import type { DcStampContext, IterativeDcStampContext } from './models/device-model.js';
 import {
   createLinearDcDevice,
+  isMultimeterDcCurrentDevice,
   isMultimeterDcVoltageDevice,
   isResistorDevice,
   isSourceDevice,
+  MULTIMETER_DC_CURRENT_FUSE_I2T_LIMIT_AMP_SQUARED_SECOND,
+  MULTIMETER_DC_CURRENT_FUSE_RATING_AMP,
   type LinearDcObservation,
 } from './models/linear-dc-models.js';
 import {
@@ -53,6 +56,7 @@ import {
   isElectrolyticCapacitor,
   observeCapacitor,
   type CapacitorTransientState,
+  type MultimeterFuseTransientStateEntry,
   type ThermalTransientStateEntry,
 } from './models/capacitor-transient-model.js';
 import {
@@ -98,6 +102,7 @@ export type DiagnosticCode =
   | 'resistor_overload'
   | 'source_overload'
   | 'multimeter_overload'
+  | 'multimeter_fuse_blown'
   | 'diode_near_limit'
   | 'diode_overcurrent'
   | 'diode_reverse_breakdown'
@@ -184,10 +189,14 @@ export interface ComponentResult {
   readonly voltageSag?: number;
   /** Whether a source delivers current, is idle, or is back-driven by another source. */
   readonly sourceOperatingMode?: 'delivering' | 'idle' | 'absorbing';
-  readonly measurementMode?: 'dc-voltage';
+  readonly measurementMode?: 'dc-voltage' | 'dc-current';
   readonly measuredValue?: number;
-  readonly measurementUnit?: 'V';
+  readonly measurementUnit?: 'V' | 'A';
   readonly meterInputResistanceOhm?: number;
+  readonly meterShuntResistanceOhm?: number;
+  readonly meterBurdenVoltageVolt?: number;
+  readonly meterFuseRatingAmp?: number;
+  readonly meterFuseState?: 'intact' | 'blown';
   readonly meterOverload?: boolean;
   readonly operatingRegion?: 'cutoff' | 'active' | 'saturation' | 'ohmic';
   readonly baseCurrent?: number;
@@ -270,6 +279,7 @@ interface InternalSolveOptions extends SolveOptions {
   readonly motorPreviousStateById?: Readonly<Record<string, BrushedMotorTransientStateEntry>>;
   readonly lampTemperatureById?: Readonly<Record<string, number>>;
   readonly failedComponentIds?: ReadonlySet<string>;
+  readonly meterFuseBlownById?: Readonly<Record<string, boolean>>;
 }
 
 const GMIN = 1e-12;
@@ -910,6 +920,12 @@ export function solveCircuit(
   const orderedLamps = document.components
     .filter((component) => component.kind === 'lamp')
     .sort((left, right) => (left.id < right.id ? -1 : left.id > right.id ? 1 : 0));
+  const orderedMultimeters = document.components
+    .filter((component) => component.componentTypeId === 'multimeter')
+    .sort((left, right) => (left.id < right.id ? -1 : left.id > right.id ? 1 : 0));
+  const hasCurrentMeter = orderedMultimeters.some(
+    (component) => component.stateProperties?.['measurementMode'] === 'dc-current',
+  );
   const orderedThermalComponents = document.components
     .filter((component) => thermalProfileFor(component) !== null)
     .sort((left, right) => (left.id < right.id ? -1 : left.id > right.id ? 1 : 0));
@@ -917,6 +933,7 @@ export function solveCircuit(
     orderedCapacitors.length > 0 ||
     orderedMotors.length > 0 ||
     orderedLamps.length > 0 ||
+    hasCurrentMeter ||
     options.simulationTimeMs !== undefined ||
     options.transientState !== undefined;
   if (!transientRequested) return solveCircuitStep(document, options);
@@ -929,6 +946,7 @@ export function solveCircuit(
     options.transientState,
     orderedCapacitors,
     orderedMotors,
+    orderedMultimeters,
     targetTimeMs,
   )
     ? options.transientState
@@ -963,6 +981,22 @@ export function solveCircuit(
       if (!profile) throw new Error(`Missing validated motor profile for ${component.id}`);
       const carried = compatibleState?.motors?.find((entry) => entry.componentId === component.id);
       return [component.id, carried ?? createBrushedMotorTransientState(component.id, profile)];
+    }),
+  );
+  const multimeterFuseById = new Map<string, MultimeterFuseTransientStateEntry>(
+    orderedMultimeters.map((component) => {
+      const carried = compatibleState?.multimeterFuses?.find(
+        (entry) => entry.componentId === component.id,
+      );
+      return [
+        component.id,
+        carried ?? {
+          componentId: component.id,
+          profileKey: 'asa-two-terminal-dmm-current-400ma-v1' as const,
+          accumulatedI2tAmpSquaredSecond: 0,
+          fuseState: 'intact' as const,
+        },
+      ];
     }),
   );
   if (needsDeterministicAstableStartup) {
@@ -1042,6 +1076,12 @@ export function solveCircuit(
         ]),
       ),
       failedComponentIds,
+      meterFuseBlownById: Object.fromEntries(
+        [...multimeterFuseById].map(([componentId, state]) => [
+          componentId,
+          state.fuseState === 'blown',
+        ]),
+      ),
     } as const;
     let acceptedResult: SolveResult;
     let acceptedMotorStateById = motorStateById;
@@ -1122,6 +1162,7 @@ export function solveCircuit(
         motorPreviousStateById: halfMotorStateById,
         lampTemperatureById: common.lampTemperatureById,
         failedComponentIds,
+        meterFuseBlownById: common.meterFuseBlownById,
       });
       accumulatedIterations += full.iterations + firstHalf.iterations + secondHalf.iterations;
       const failedSolve = [full, firstHalf, secondHalf].find((result) => !result.solved);
@@ -1206,6 +1247,38 @@ export function solveCircuit(
     }
 
     let failureOccurred = false;
+    for (const component of orderedMultimeters) {
+      const previous = multimeterFuseById.get(component.id)!;
+      if (
+        previous.fuseState === 'blown' ||
+        component.stateProperties?.['measurementMode'] !== 'dc-current'
+      ) {
+        continue;
+      }
+      const componentResult = acceptedResult.components.find(
+        (entry) => entry.componentId === component.id,
+      );
+      if (!componentResult) continue;
+      const currentAmp = Math.abs(componentResult.measuredValue ?? componentResult.current);
+      const accumulatedI2tAmpSquaredSecond =
+        previous.accumulatedI2tAmpSquaredSecond +
+        Math.max(
+          0,
+          currentAmp * currentAmp -
+            MULTIMETER_DC_CURRENT_FUSE_RATING_AMP * MULTIMETER_DC_CURRENT_FUSE_RATING_AMP,
+        ) *
+          (stepMs / 1_000);
+      const fuseState =
+        accumulatedI2tAmpSquaredSecond >= MULTIMETER_DC_CURRENT_FUSE_I2T_LIMIT_AMP_SQUARED_SECOND
+          ? ('blown' as const)
+          : ('intact' as const);
+      multimeterFuseById.set(component.id, {
+        ...previous,
+        accumulatedI2tAmpSquaredSecond,
+        fuseState,
+      });
+      if (fuseState === 'blown') failureOccurred = true;
+    }
     for (const motorState of Object.values(motorStateById)) {
       if (
         motorState.failureMode === 'winding_open' &&
@@ -1269,6 +1342,12 @@ export function solveCircuit(
           ]),
         ),
         failedComponentIds,
+        meterFuseBlownById: Object.fromEntries(
+          [...multimeterFuseById].map(([componentId, state]) => [
+            componentId,
+            state.fuseState === 'blown',
+          ]),
+        ),
       });
       accumulatedIterations += postFailure.iterations;
       if (postFailure.solved) {
@@ -1360,6 +1439,7 @@ export function solveCircuit(
         .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
         .map(([componentId, region]) => ({ componentId, region })),
       motors: orderedMotors.map((component) => motorStateById[component.id]!),
+      multimeterFuses: orderedMultimeters.map((component) => multimeterFuseById.get(component.id)!),
     },
     transientAnalysis: {
       acceptedSteps,
@@ -1374,6 +1454,7 @@ function capacitorTransientStateIsCompatible(
   state: CapacitorTransientState | undefined,
   capacitors: readonly SchematicComponent[],
   motors: readonly SchematicComponent[],
+  multimeters: readonly SchematicComponent[],
   targetTimeMs: number,
 ): state is CapacitorTransientState {
   if (
@@ -1386,7 +1467,10 @@ function capacitorTransientStateIsCompatible(
     state.capacitors.length !== capacitors.length ||
     (motors.length > 0
       ? !Array.isArray(state.motors) || state.motors.length !== motors.length
-      : Array.isArray(state.motors) && state.motors.length > 0)
+      : Array.isArray(state.motors) && state.motors.length > 0) ||
+    (multimeters.length > 0
+      ? !Array.isArray(state.multimeterFuses) || state.multimeterFuses.length !== multimeters.length
+      : Array.isArray(state.multimeterFuses) && state.multimeterFuses.length > 0)
   ) {
     return false;
   }
@@ -1408,6 +1492,17 @@ function capacitorTransientStateIsCompatible(
       return Boolean(
         entry && profile && brushedMotorTransientStateIsCompatible(entry, component.id, profile),
       );
+    }) &&
+    multimeters.every((component, index) => {
+      const entry = state.multimeterFuses?.[index];
+      return Boolean(
+        entry &&
+        entry.componentId === component.id &&
+        entry.profileKey === 'asa-two-terminal-dmm-current-400ma-v1' &&
+        Number.isFinite(entry.accumulatedI2tAmpSquaredSecond) &&
+        entry.accumulatedI2tAmpSquaredSecond >= 0 &&
+        (entry.fuseState === 'intact' || entry.fuseState === 'blown'),
+      );
     })
   );
 }
@@ -1421,7 +1516,17 @@ function solveCircuitStep(
   const failedComponentIds = options.failedComponentIds ?? new Set<string>();
   const linearDcDevices = document.components.flatMap((component) => {
     if (failedComponentIds.has(component.id)) return [];
-    const device = createLinearDcDevice(component);
+    const device = createLinearDcDevice(
+      component.componentTypeId === 'multimeter'
+        ? {
+            ...component,
+            stateProperties: {
+              ...component.stateProperties,
+              meterFuseBlownRuntime: options.meterFuseBlownById?.[component.id] === true,
+            },
+          }
+        : component,
+    );
     return device ? [device] : [];
   });
   const npnDcDevices = document.components.flatMap((component) => {
@@ -1791,6 +1896,9 @@ function solveCircuitStep(
       device.model.stampDc(modelStampContext, device.instance);
     }
     for (const device of linearDcDevices.filter(isMultimeterDcVoltageDevice)) {
+      device.model.stampDc(modelStampContext, device.instance);
+    }
+    for (const device of linearDcDevices.filter(isMultimeterDcCurrentDevice)) {
       device.model.stampDc(modelStampContext, device.instance);
     }
 
@@ -2515,12 +2623,36 @@ function solveCircuitStep(
               sourceOperatingMode: linearDcObservation.sourceOperatingMode ?? 'idle',
             }
           : {}),
-        ...(linearDcObservation?.measurementMode === 'dc-voltage'
+        ...(linearDcObservation?.measurementMode
           ? {
               measurementMode: linearDcObservation.measurementMode,
               measuredValue: round(linearDcObservation.measuredValue ?? voltageDrop),
-              measurementUnit: linearDcObservation.measurementUnit ?? ('V' as const),
-              meterInputResistanceOhm: round(linearDcObservation.meterInputResistanceOhm ?? 0, 3),
+              measurementUnit:
+                linearDcObservation.measurementUnit ??
+                (linearDcObservation.measurementMode === 'dc-current'
+                  ? ('A' as const)
+                  : ('V' as const)),
+              ...(linearDcObservation.meterInputResistanceOhm === undefined
+                ? {}
+                : {
+                    meterInputResistanceOhm: round(linearDcObservation.meterInputResistanceOhm, 3),
+                  }),
+              ...(linearDcObservation.meterShuntResistanceOhm === undefined
+                ? {}
+                : {
+                    meterShuntResistanceOhm: round(linearDcObservation.meterShuntResistanceOhm, 6),
+                  }),
+              ...(linearDcObservation.meterBurdenVoltageVolt === undefined
+                ? {}
+                : {
+                    meterBurdenVoltageVolt: round(linearDcObservation.meterBurdenVoltageVolt, 9),
+                  }),
+              ...(linearDcObservation.meterFuseRatingAmp === undefined
+                ? {}
+                : { meterFuseRatingAmp: round(linearDcObservation.meterFuseRatingAmp, 6) }),
+              ...(linearDcObservation.meterFuseState === undefined
+                ? {}
+                : { meterFuseState: linearDcObservation.meterFuseState }),
               meterOverload: linearDcObservation.meterOverload ?? false,
             }
           : {}),

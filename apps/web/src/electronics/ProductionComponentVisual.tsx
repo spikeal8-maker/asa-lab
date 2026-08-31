@@ -58,6 +58,7 @@ interface Props {
   readonly simulationTimeMs?: number;
   readonly onSwitchActuate?: (() => void) | undefined;
   readonly onArduinoReset?: (() => void) | undefined;
+  readonly onMultimeterModeChange?: ((mode: 'dc-voltage' | 'dc-current') => void) | undefined;
 }
 
 const ownerSvgSourceCache = new Map<string, Promise<string>>();
@@ -80,6 +81,7 @@ function OwnerMultimeterVisual({
   measurementMode,
   displayValue,
   measuredValue,
+  onModeChange,
 }: {
   readonly asset: string;
   readonly width: number;
@@ -87,6 +89,7 @@ function OwnerMultimeterVisual({
   readonly measurementMode: MultimeterVisualMode;
   readonly displayValue: string;
   readonly measuredValue: number | undefined;
+  readonly onModeChange?: ((mode: 'dc-voltage' | 'dc-current') => void) | undefined;
 }): JSX.Element {
   const [ownerSvg, setOwnerSvg] = useState<string | null>(null);
   useEffect(() => {
@@ -127,7 +130,20 @@ function OwnerMultimeterVisual({
       height={height}
       viewBox="0 0 474 247"
       preserveAspectRatio="xMidYMid meet"
-      pointerEvents="none"
+      pointerEvents="all"
+      onPointerDown={(event) => {
+        const target = event.target;
+        if (!(target instanceof Element)) return;
+        if (target.closest('.workbench-multimeter-mode-current')) {
+          event.preventDefault();
+          event.stopPropagation();
+          onModeChange?.('dc-current');
+        } else if (target.closest('.workbench-multimeter-mode-voltage')) {
+          event.preventDefault();
+          event.stopPropagation();
+          onModeChange?.('dc-voltage');
+        }
+      }}
       dangerouslySetInnerHTML={{ __html: markup }}
     />
   );
@@ -324,10 +340,16 @@ function multimeterDisplayValue(
   simulationRunning: boolean,
   result: ComponentResult | undefined,
 ): string {
-  if (!simulationRunning || result?.measurementMode !== 'dc-voltage') return '';
+  if (!simulationRunning || !result?.measurementMode) return '';
+  if (result.meterFuseState === 'blown') return 'FUSE';
   if (result.meterOverload) return 'OL';
   const value = Number(result.measuredValue ?? result.voltageDrop);
   if (!Number.isFinite(value)) return '—';
+  if (result.measurementMode === 'dc-current') {
+    const milliamp = value * 1_000;
+    const precision = Math.abs(milliamp) < 10 ? 2 : Math.abs(milliamp) < 100 ? 1 : 0;
+    return `${milliamp.toFixed(precision)} mA`;
+  }
   const absolute = Math.abs(value);
   const precision = absolute < 10 ? 3 : absolute < 100 ? 2 : 1;
   return `${value.toFixed(precision)} V`;
@@ -347,6 +369,7 @@ export function ProductionComponentVisual({
   simulationTimeMs = 0,
   onSwitchActuate,
   onArduinoReset,
+  onMultimeterModeChange,
 }: Props): JSX.Element {
   const properties = component.stateProperties ?? {};
   const ledColour = String(properties['ledColour'] ?? 'red');
@@ -794,6 +817,7 @@ export function ProductionComponentVisual({
                   ? result.measuredValue
                   : undefined
               }
+              onModeChange={onMultimeterModeChange}
             />
           ) : (
             <image

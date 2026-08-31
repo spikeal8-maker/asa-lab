@@ -3,10 +3,13 @@ import type { SchematicComponent } from '../domain/document';
 import type { DcStampContext } from '../domain/models/device-model';
 import {
   createLinearDcDevice,
+  isMultimeterDcCurrentDevice,
   isMultimeterDcVoltageDevice,
   isResistorDevice,
   isSourceDevice,
   MULTIMETER_DC_INPUT_RESISTANCE_OHM,
+  MULTIMETER_DC_CURRENT_DEVICE_MODEL,
+  MULTIMETER_DC_CURRENT_SHUNT_RESISTANCE_OHM,
   MULTIMETER_DC_VOLTAGE_DEVICE_MODEL,
   RESISTOR_DEVICE_MODEL,
   SOURCE_DEVICE_MODEL,
@@ -119,6 +122,40 @@ describe('MATH-1 linear DC device models', () => {
       terminalCurrents: { 'v-ohm-ma': -3e-7, com: 3e-7 },
       diagnostics: [],
     });
+  });
+
+  it('models DC current mode as a finite fused 1.8 Ω shunt', () => {
+    const meter = createLinearDcDevice(
+      component('meter', 'visual', 0, {
+        componentTypeId: 'multimeter',
+        pinIds: ['com', 'v-ohm-ma'],
+        stateProperties: { measurementMode: 'dc-current' },
+      }),
+    );
+    expect(meter && isMultimeterDcCurrentDevice(meter)).toBe(true);
+    if (!meter || !isMultimeterDcCurrentDevice(meter)) return;
+    expect(meter.instance.parameters.shuntResistanceOhm).toBe(
+      MULTIMETER_DC_CURRENT_SHUNT_RESISTANCE_OHM,
+    );
+
+    const observation = MULTIMETER_DC_CURRENT_DEVICE_MODEL.observe?.(meter.instance, {
+      voltageDrop: 0.18,
+      current: 0,
+    });
+    expect(observation).toMatchObject({
+      measurementMode: 'dc-current',
+      measurementUnit: 'A',
+      meterShuntResistanceOhm: 1.8,
+      meterBurdenVoltageVolt: 0.18,
+      meterFuseRatingAmp: 0.44,
+      meterFuseState: 'intact',
+      meterOverload: false,
+      diagnostics: [],
+    });
+    expect(observation?.current).toBeCloseTo(0.1, 12);
+    expect(observation?.measuredValue).toBeCloseTo(0.1, 12);
+    expect(observation?.terminalCurrents['v-ohm-ma']).toBeCloseTo(0.1, 12);
+    expect(observation?.terminalCurrents.com).toBeCloseTo(-0.1, 12);
   });
 
   it('reports source sag, internal heating and calculated burnout independently of UI', () => {

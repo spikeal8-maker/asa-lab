@@ -30466,7 +30466,7 @@
           "channels": []
         }
       ],
-      "simulationSupport": "dc_voltmeter_10m_v1",
+      "simulationSupport": "digital_multimeter_dc_voltage_current_v2",
       "catalogTier": "core",
       "metadataOnlyProof": {
         "source": "owner_direct_upload",

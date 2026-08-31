@@ -122,7 +122,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: math_10a1_multimeter_native_svg_controls_and_blank_stopped_display_browser_verified_owner_acceptance_pending_math_10a2_queued_math_10b_regulated_supply_queued
+      checkpoint: math_10a2_multimeter_dc_current_shunt_burden_fuse_and_native_a_button_browser_verified_owner_acceptance_pending_math_10a3_queued_math_10b_regulated_supply_queued
       owner_acceptance: pending
     revisions:
       convergence_baseline_sha: 5b052dc631c7036de9d60f4206c9879fe364e732

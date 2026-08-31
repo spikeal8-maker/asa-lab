@@ -301,17 +301,17 @@ describe('Electronics M1 editor document operations', () => {
     });
   });
 
-  it('places the multimeter with its versioned DC voltage profile and physical terminals', () => {
+  it('places the multimeter with its versioned voltage/current profile and physical terminals', () => {
     const placed = addComponentToDocument(EMPTY, 'multimeter', { x: 300, y: 200 }, 'meter');
     expect(placed.component).toMatchObject({
       kind: 'visual',
       componentTypeId: 'multimeter',
       pinIds: ['com', 'v-ohm-ma'],
       value: 0,
-      electricalModelId: 'dc-voltmeter',
+      electricalModelId: 'digital-multimeter',
       electricalModelVersion: 1,
-      modelProfileId: 'asa-two-terminal-dmm-dc-voltage',
-      modelProfileVersion: 1,
+      modelProfileId: 'asa-two-terminal-dmm',
+      modelProfileVersion: 2,
       stateProperties: { measurementMode: 'dc-voltage', meterRange: 'auto' },
     });
     expect(catalogEntry(placed.component)).toMatchObject({

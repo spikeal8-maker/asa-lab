@@ -45,6 +45,13 @@ export interface ThermalTransientStateEntry {
   readonly failureMode: TransientFailureMode;
 }
 
+export interface MultimeterFuseTransientStateEntry {
+  readonly componentId: string;
+  readonly profileKey: 'asa-two-terminal-dmm-current-400ma-v1';
+  readonly accumulatedI2tAmpSquaredSecond: number;
+  readonly fuseState: 'intact' | 'blown';
+}
+
 /**
  * Explicit transient state passed between pure solver calls. The state is part
  * of the simulation input, not mutable module memory, so a browser and server
@@ -70,6 +77,8 @@ export interface CapacitorTransientState {
    * same acceleration, coast, reversal and winding temperature.
    */
   readonly motors?: readonly BrushedMotorTransientStateEntry[];
+  /** Runtime-only state of the replaceable fuse in the V/ohm/mA input. */
+  readonly multimeterFuses?: readonly MultimeterFuseTransientStateEntry[];
 }
 
 const MICROFARAD_TO_FARAD = 1e-6;

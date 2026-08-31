@@ -803,6 +803,11 @@ export function WorkbenchStage({
                         ? () => c.toggleComponentState(component.id)
                         : undefined
                     }
+                    onMultimeterModeChange={
+                      entry.key === 'multimeter'
+                        ? (mode) => c.setMultimeterMeasurementMode(component.id, mode)
+                        : undefined
+                    }
                   />
                   {component.kind === 'potentiometer' && c.simulationRunning ? (
                     <circle

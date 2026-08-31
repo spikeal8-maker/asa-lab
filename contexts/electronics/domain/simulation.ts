@@ -53,7 +53,7 @@ export interface SimulationResult extends SolveResult {
   readonly quality: SimulationQuality;
   readonly topologySignature: string;
   readonly simulationInputDigest: string;
-  readonly solverRevision: 'asa-electronics-solver-v7';
+  readonly solverRevision: 'asa-electronics-solver-v8';
   readonly modelSetDigest: string;
   readonly analysis: {
     readonly electricalMode: 'dc' | 'transient';
@@ -158,6 +158,13 @@ function deterministicSolveResult(result: SolveResult): SolveResult {
                   ),
                 }
               : {}),
+            ...(result.transientState.multimeterFuses
+              ? {
+                  multimeterFuses: [...result.transientState.multimeterFuses].sort((left, right) =>
+                    ordinalCompare(left.componentId, right.componentId),
+                  ),
+                }
+              : {}),
           },
         }
       : {}),
@@ -257,6 +264,9 @@ function allNumbers(result: SolveResult): readonly number[] {
             entry.temperatureCelsius,
             entry.accumulatedDamage,
           ]),
+          ...(result.transientState.multimeterFuses ?? []).map(
+            (entry) => entry.accumulatedI2tAmpSquaredSecond,
+          ),
         ]
       : []),
     ...(result.transientAnalysis
@@ -512,7 +522,8 @@ function verifyQuality(
       (component.kind !== 'visual' ||
         isElectrolyticCapacitor(component) ||
         component.componentTypeId === 'dc-motor' ||
-        component.componentTypeId === 'gearmotor'),
+        component.componentTypeId === 'gearmotor' ||
+        component.componentTypeId === 'multimeter'),
   );
   const powerBalanceApplicable =
     powerBalanceComponents.length > 0 &&
@@ -628,7 +639,7 @@ export function analyseCircuit(
       quality: failedQuality(),
       topologySignature: compiled.topologySignature,
       simulationInputDigest: inputDigest,
-      solverRevision: 'asa-electronics-solver-v7',
+      solverRevision: 'asa-electronics-solver-v8',
       modelSetDigest: MODEL_SET_DIGEST,
       analysis,
     };
@@ -653,7 +664,7 @@ export function analyseCircuit(
       quality,
       topologySignature: compiled.topologySignature,
       simulationInputDigest: inputDigest,
-      solverRevision: 'asa-electronics-solver-v7',
+      solverRevision: 'asa-electronics-solver-v8',
       modelSetDigest: MODEL_SET_DIGEST,
       analysis,
     };
@@ -665,7 +676,7 @@ export function analyseCircuit(
     quality,
     topologySignature: compiled.topologySignature,
     simulationInputDigest: inputDigest,
-    solverRevision: 'asa-electronics-solver-v7',
+    solverRevision: 'asa-electronics-solver-v8',
     modelSetDigest: MODEL_SET_DIGEST,
     analysis,
   };
