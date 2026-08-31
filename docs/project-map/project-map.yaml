@@ -249,13 +249,14 @@ edges:
   - {from: PHASE-R10, to: PHASE-R11, type: next}
   - {from: PHASE-R11, to: PHASE-PILOT, type: next}
 
+execution_queue_semantics: historical_program_catalog_not_task_selection
 execution_queue:
-  - {position: 1, task_id: TASK-PRODUCT-DOC-001, instruction: "Completed product documentation foundation.", gate: "done"}
-  - {position: 2, task_id: TASK-PORTAL-001, instruction: "Completed Teacher Portal baseline.", gate: "done"}
-  - {position: 3, task_id: TASK-ACCOUNT-C1-001, instruction: "Completed Account C1 and merged PR #70.", gate: "done"}
-  - {position: 4, task_id: TASK-CREATOR-PORTAL-001, instruction: "Implement only R2 Creator Home and capability-aware Portal shell on agent/r2-creator-portal.", gate: "focused tests, full regression, live browser evidence and owner review"}
-  - {position: 5, task_id: TASK-R3A-ELECTRONICS-GATEWAY-001, instruction: "Verify the existing Registry, Editor Host and module-neutral lifecycle without an architecture rewrite.", gate: "focused module and project tests"}
-  - {position: 6, task_id: TASK-ELECTRONICS-M1-001, instruction: "Verify the preserved Electronics M1 foundation with corrected ordinary-LED states and zoom-stable wire/terminal presentation.", gate: "focused CI, one actual-editor journey and owner review"}
-  - {position: 7, task_id: TASK-3D-M0-001, instruction: "Preserve the merged ASA-native 3D foundation from Issue #94; later CAD, boolean and parity scope requires a separate task.", gate: "done: PR #95 merged after focused checks and an owner-requested save-reload browser verification"}
-  - {position: 8, task_id: TASK-CHECKERS-M1-001, instruction: "Build only the independent educational Russian-draughts system from Issue #98; preserve Chess, Electronics, 3D and subject-neutral Core.", gate: "focused rules/project/learning/bot/class-safety tests, student and teacher browser journeys, repository gate and owner review"}
-  - {position: 9, task_id: TASK-ADMIN-AUTH-STABILITY-001, instruction: "Stabilise the integrated Admin surface and owner access, add durable sessions, activate MAX in production and prove exact-main recovery without enabling email verification.", gate: "focused Admin/auth/MAX tests, real PostgreSQL/API/browser journeys, repository gate and owner review"}
+  - {position: 1, task_id: TASK-PRODUCT-DOC-001, instruction: "Historical result: Product documentation foundation completed.", gate: "done"}
+  - {position: 2, task_id: TASK-PORTAL-001, instruction: "Historical result: Teacher Portal baseline completed.", gate: "done"}
+  - {position: 3, task_id: TASK-ACCOUNT-C1-001, instruction: "Historical result: Account C1 completed; PR #70 is a historical receipt.", gate: "done"}
+  - {position: 4, task_id: TASK-CREATOR-PORTAL-001, instruction: "Historical result: R2 Creator Home and capability-aware Portal shell delivered.", gate: "focused tests, full regression, live browser evidence and owner review"}
+  - {position: 5, task_id: TASK-R3A-ELECTRONICS-GATEWAY-001, instruction: "Historical result: Registry, Editor Host and module-neutral lifecycle verified.", gate: "focused module and project tests"}
+  - {position: 6, task_id: TASK-ELECTRONICS-M1-001, instruction: "Historical result: Electronics M1 foundation preserved with corrected ordinary-LED states and zoom-stable presentation.", gate: "focused CI, one actual-editor journey and owner review"}
+  - {position: 7, task_id: TASK-3D-M0-001, instruction: "Historical result: ASA-native 3D foundation from Issue #94 merged; later capabilities remain separate roadmap items.", gate: "done: PR #95 merged after focused checks and an owner-requested save-reload browser verification"}
+  - {position: 8, task_id: TASK-CHECKERS-M1-001, instruction: "Historical result: Educational Russian-draughts system from Issue #98 delivered while existing modules and subject-neutral Core were preserved.", gate: "focused rules/project/learning/bot/class-safety tests, student and teacher browser journeys, repository gate and owner review"}
+  - {position: 9, task_id: TASK-ADMIN-AUTH-STABILITY-001, instruction: "Historical result: Integrated Admin, authentication and MAX stabilization catalogued; live execution state remains current.yaml.", gate: "focused Admin/auth/MAX tests, real PostgreSQL/API/browser journeys, repository gate and owner review"}

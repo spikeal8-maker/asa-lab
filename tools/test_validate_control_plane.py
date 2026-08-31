@@ -305,6 +305,87 @@ def project_map_structural(_):
     )
 
 
+@case("the historical queue cannot instruct the current agent", expect="imperative")
+def project_map_imperative_history(_):
+    return registry_case(
+        "docs/project-map/project-map.yaml",
+        {
+            "project": {"execution_state_source": "docs/execution/current.yaml"},
+            "execution_queue": [
+                {
+                    "position": 1,
+                    "task_id": "TASK-PORTAL-001",
+                    "instruction": (
+                        "Implement only the old portal on agent/r2-creator-portal"
+                    ),
+                    "gate": "historical receipt",
+                }
+            ],
+        },
+        cp.check_project_map,
+    )
+
+
+@case("neutral historical queue descriptions are accepted", expect="")
+def project_map_neutral_history(_):
+    return registry_case(
+        "docs/project-map/project-map.yaml",
+        {
+            "project": {"execution_state_source": "docs/execution/current.yaml"},
+            "execution_queue": [
+                {
+                    "position": 1,
+                    "task_id": "TASK-PORTAL-001",
+                    "instruction": "Historical result: Creator Portal shell delivered.",
+                    "gate": "historical receipt",
+                }
+            ],
+        },
+        cp.check_project_map,
+    )
+
+
+@case("a historical queue cannot say Build only", expect="imperative")
+def project_map_build_only_history(_):
+    return registry_case(
+        "docs/project-map/project-map.yaml",
+        {
+            "project": {"execution_state_source": "docs/execution/current.yaml"},
+            "execution_queue": [
+                {
+                    "position": 1,
+                    "task_id": "TASK-CHECKERS-M1-001",
+                    "instruction": "Historical result: Build only the old draughts task.",
+                    "gate": "historical receipt",
+                }
+            ],
+        },
+        cp.check_project_map,
+    )
+
+
+@case("a historical result cannot point to an old product branch", expect="product-branch")
+def project_map_old_branch_history(_):
+    return registry_case(
+        "docs/project-map/project-map.yaml",
+        {
+            "project": {"execution_state_source": "docs/execution/current.yaml"},
+            "execution_queue": [
+                {
+                    "position": 1,
+                    "task_id": "TASK-PORTAL-001",
+                    "instruction": (
+                        "Historical result: Portal delivered on "
+                        "agent/r2-creator-portal."
+                    ),
+                    "gate": "historical receipt",
+                }
+            ],
+        },
+        cp.check_project_map,
+    )
+
+
 @case("the execution test registry cannot copy active_task", expect="must not duplicate")
 def active_tests_live_task(_):
     return registry_case(

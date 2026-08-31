@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 import sys
 from collections import defaultdict, deque
@@ -16,6 +17,11 @@ ROOT = Path(__file__).resolve().parents[1]
 MAP_PATH = ROOT / "docs/project-map/project-map.yaml"
 MANIFEST_PATH = ROOT / "docs/delivery/EXECUTION_MANIFEST.yaml"
 RENDERED_MAP_PATH = ROOT / "docs/project-map/PROJECT_MAP.md"
+HISTORICAL_QUEUE_SEMANTICS = "historical_program_catalog_not_task_selection"
+HISTORICAL_IMPERATIVE_PATTERN = re.compile(
+    r"^Historical result:\s*(?:implement|build|verify|preserve|stabili[sz]e)\b",
+    re.IGNORECASE,
+)
 
 ALLOWED_STATUSES = {
     "planned",
@@ -238,6 +244,11 @@ def validate_execution_queue(
     if not isinstance(raw, list) or not raw:
         errors.append("execution_queue must be a non-empty array")
         return []
+    if document.get("execution_queue_semantics") != HISTORICAL_QUEUE_SEMANTICS:
+        errors.append(
+            "execution_queue_semantics must mark the queue as a historical program "
+            "catalog, not a task selector"
+        )
 
     ordered = sorted((item for item in raw if isinstance(item, dict)), key=lambda item: item.get("position", 0))
     positions = [item.get("position") for item in ordered]
@@ -257,6 +268,19 @@ def validate_execution_queue(
             value = item.get(field)
             if not isinstance(value, str) or not value.strip():
                 errors.append(f"Execution queue task {task_id} has empty {field}")
+        instruction = item.get("instruction")
+        if isinstance(instruction, str):
+            if not instruction.startswith(
+                "Historical result:"
+            ) or HISTORICAL_IMPERATIVE_PATTERN.search(instruction):
+                errors.append(
+                    f"Execution queue task {task_id} contains an imperative or "
+                    "non-historical instruction"
+                )
+            if "agent/" in instruction.casefold():
+                errors.append(
+                    f"Execution queue task {task_id} contains a stale product branch"
+                )
     return task_ids
 
 

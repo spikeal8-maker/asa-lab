@@ -42,6 +42,10 @@ TASK_SYSTEM_PATH = ROOT / "docs/project-map/TASK_SYSTEM.md"
 
 TASK_ID_PATTERN = re.compile(r"\bTASK-[A-Z0-9]+(?:-[A-Z0-9]+)*-[0-9]{3}\b")
 PRODUCT_BRANCH_PATTERN = re.compile(r"\bagent/[a-z0-9][a-z0-9./_-]*", re.IGNORECASE)
+HISTORICAL_IMPERATIVE_PATTERN = re.compile(
+    r"^Historical result:\s*(?:implement|build|verify|preserve|stabili[sz]e)\b",
+    re.IGNORECASE,
+)
 BRANCH_PATTERN = re.compile(r"(?:main|agent/[a-z0-9][a-z0-9./_-]*)", re.IGNORECASE)
 SHA_PATTERN = re.compile(r"\b[0-9a-f]{40}\b")
 
@@ -635,6 +639,28 @@ def check_project_map(errors: list[str]) -> None:
             "project-map.yaml must declare execution_state_source: "
             "docs/execution/current.yaml"
         )
+    queue = document.get("execution_queue") or []
+    if not isinstance(queue, list):
+        return
+    for item in queue:
+        if not isinstance(item, dict):
+            continue
+        instruction = item.get("instruction")
+        if not isinstance(instruction, str):
+            continue
+        if not instruction.startswith(
+            "Historical result:"
+        ) or HISTORICAL_IMPERATIVE_PATTERN.search(instruction):
+            errors.append(
+                "project-map.yaml execution_queue contains an imperative or "
+                "non-historical instruction; entries must start with "
+                "'Historical result:'"
+            )
+        if PRODUCT_BRANCH_PATTERN.search(instruction):
+            errors.append(
+                "project-map.yaml execution_queue contains an imperative historical "
+                "product-branch instruction"
+            )
 
 
 def check_active_tests(errors: list[str]) -> None:

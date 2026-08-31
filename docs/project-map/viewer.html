@@ -31,7 +31,7 @@
       <label for="status">Статус</label>
       <select id="status"><option value="">Все</option></select>
       <button id="fit">Показать всё</button>
-      <label>Execution queue</label>
+      <label>Исторический каталог поставок</label>
       <div id="queue"></div>
     </aside>
     <div id="cy" aria-label="Интерактивная карта ASA Lab"></div>
@@ -44,6 +44,7 @@ function fail(message){$('notice').textContent=message;$('notice').style.display
 function escapeHtml(value){return String(value??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));}
 function validateContracts(){
   if(!map?.project||!Array.isArray(map.nodes)||!Array.isArray(map.edges)||!Array.isArray(manifest?.tasks))fail('Некорректный project map или EXECUTION_MANIFEST.yaml.');
+  if(map.execution_queue_semantics!=='historical_program_catalog_not_task_selection')fail('Project Map queue должна быть только историческим каталогом.');
   const ids=new Set(map.nodes.map(node=>node.id));
   for(const edge of map.edges){if(!ids.has(edge.from)||!ids.has(edge.to))fail(`Некорректная связь ${edge.from} → ${edge.to}`);}
   const manifestOrder=[...manifest.tasks].sort((a,b)=>a.position-b.position).map(task=>task.task_id);

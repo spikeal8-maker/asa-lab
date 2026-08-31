@@ -12,7 +12,8 @@ planned_quality_source: docs/testing/planned-test-catalog.yaml
 execution_state_source: docs/execution/current.yaml
 
 semantics:
-  execution_order: Defined only by tasks.position and project-map execution_queue.
+  execution_order: Historical delivery order only; live task selection comes from current.yaml.
+  task_branch_fields: Historical receipts only; they never select or restrict current work.
   architecture_horizon: Informational grouping; it is not execution order.
   issue_scope: The linked GitHub Issue is the executable scope.
   current_release_rule: Only owner-activated tasks are executable.

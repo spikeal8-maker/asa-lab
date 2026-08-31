@@ -21,6 +21,7 @@ import yaml
 
 DEFAULT_ROOT = Path(__file__).resolve().parents[1]
 MAX_RENDERED_CHARS = 12_000
+TEXT_PATH_LIMIT = 20
 
 
 def load_current(root: Path) -> dict[str, Any]:
@@ -85,10 +86,11 @@ def _doc_hints(root: Path, owned_paths: list[Any]) -> list[str]:
 def _checkpoint_hint(checkpoint: Any) -> str | None:
     if not isinstance(checkpoint, str):
         return None
-    match = re.match(r"(?i)^([a-z]+)[_-](\d+)", checkpoint)
+    match = re.match(r"(?i)^([a-z]+)[_-](\d+)([a-z]\d*)?", checkpoint)
     if not match:
         return None
-    return f"{match.group(1).upper()}-{int(match.group(2))}"
+    suffix = (match.group(3) or "").upper()
+    return f"{match.group(1).upper()}-{int(match.group(2))}{suffix}"
 
 
 def _section_hints(root: Path, docs: list[str], checkpoint: Any) -> list[dict[str, Any]]:
@@ -96,42 +98,90 @@ def _section_hints(root: Path, docs: list[str], checkpoint: Any) -> list[dict[st
     if marker is None:
         return []
     matches: list[dict[str, Any]] = []
-    pattern = re.compile(rf"^#{{1,6}}\s+.*\b{re.escape(marker)}(?:\b|[A-Z0-9_-])", re.I)
+    pattern = re.compile(
+        rf"^#{{1,6}}\s+.*(?<![A-Z0-9]){re.escape(marker)}(?![A-Z0-9])",
+        re.I,
+    )
     for relative in docs:
         path = root / relative
-        for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
-            if pattern.search(line):
-                matches.append(
-                    {"path": relative, "line": line_number, "heading": line.lstrip("# ")}
-                )
-                break
+        with path.open(encoding="utf-8") as stream:
+            for line_number, line in enumerate(stream, 1):
+                if pattern.search(line):
+                    matches.append(
+                        {
+                            "path": relative,
+                            "line": line_number,
+                            "heading": line.lstrip("# ").strip(),
+                        }
+                    )
+                    break
     return matches
 
 
-def _git_paths(root: Path) -> list[str]:
-    result = subprocess.run(
-        ["git", "status", "--porcelain=v1", "-z"],
-        cwd=root,
-        capture_output=True,
-        check=False,
-    )
-    if result.returncode != 0:
-        return []
+def _parse_porcelain(payload: bytes) -> list[str]:
+    """Parse porcelain v1 -z without losing either side of rename/copy entries."""
+    try:
+        records = payload.decode("utf-8", errors="strict").split("\0")
+    except UnicodeDecodeError as exc:
+        raise ValueError("git status returned non-UTF-8 path data") from exc
+
     paths: list[str] = []
-    records = result.stdout.decode("utf-8", errors="replace").split("\0")
     index = 0
     while index < len(records):
         record = records[index]
         index += 1
         if not record:
             continue
-        path = record[3:]
-        if record[:2] in {"R ", "C ", "RM", "CM"} and index < len(records):
-            path = records[index]
-            index += 1
+        if len(record) < 4 or record[2] != " ":
+            raise ValueError("git status returned malformed porcelain data")
+        status = record[:2]
+        path = record[3:].replace("\\", "/")
         if path:
-            paths.append(path.replace("\\", "/"))
+            paths.append(path)
+        if status[0] in {"R", "C"} or status[1] in {"R", "C"}:
+            if index >= len(records) or not records[index]:
+                raise ValueError("git status returned incomplete rename/copy data")
+            paired_path = records[index].replace("\\", "/")
+            index += 1
+            paths.append(paired_path)
     return paths
+
+
+def _git_status(root: Path) -> dict[str, Any]:
+    try:
+        result = subprocess.run(
+            ["git", "status", "--porcelain=v1", "-z"],
+            cwd=root,
+            capture_output=True,
+            check=False,
+            timeout=30,
+        )
+    except FileNotFoundError:
+        return {
+            "state": "unavailable",
+            "message": "git executable unavailable",
+            "paths": None,
+        }
+    except (OSError, subprocess.SubprocessError):
+        return {
+            "state": "unavailable",
+            "message": "git status unavailable",
+            "paths": None,
+        }
+    if result.returncode != 0:
+        return {
+            "state": "unavailable",
+            "message": (
+                f"git status failed (exit {result.returncode}); "
+                "repository status is unknown"
+            ),
+            "paths": None,
+        }
+    try:
+        paths = _parse_porcelain(result.stdout)
+    except ValueError as exc:
+        return {"state": "unavailable", "message": str(exc), "paths": None}
+    return {"state": "available", "message": None, "paths": paths}
 
 
 def _matches_scope(path: str, scope: Any) -> bool:
@@ -143,20 +193,58 @@ def _matches_scope(path: str, scope: Any) -> bool:
     return path == scope
 
 
-def build_context(root: Path, document: dict[str, Any], lane: dict[str, Any]) -> dict[str, Any]:
+def build_context(
+    root: Path,
+    document: dict[str, Any],
+    lane: dict[str, Any],
+    *,
+    git_status: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     task = lane.get("task")
     if not isinstance(task, dict):
         raise ValueError(f"lane {lane.get('id')} has no task mapping")
     owned_paths = lane.get("owned_paths") or []
     shared_paths = (document.get("integration") or {}).get("shared_paths") or []
-    dirty = _git_paths(root)
-    lane_dirty = sorted(
-        path for path in dirty if any(_matches_scope(path, scope) for scope in owned_paths)
+    git_snapshot = git_status if git_status is not None else _git_status(root)
+    git_state = git_snapshot.get("state")
+    if git_state not in {"available", "unavailable"}:
+        raise ValueError("git status snapshot has an invalid state")
+    raw_paths = git_snapshot.get("paths")
+    if git_state == "available" and not isinstance(raw_paths, list):
+        raise ValueError("available git status snapshot must contain a paths array")
+    dirty = sorted(set(raw_paths or [])) if git_state == "available" else None
+    lane_dirty = (
+        sorted(
+            path
+            for path in dirty
+            if any(_matches_scope(path, scope) for scope in owned_paths)
+        )
+        if dirty is not None
+        else None
     )
-    shared_dirty = sorted(
-        path for path in dirty if any(_matches_scope(path, scope) for scope in shared_paths)
+    shared_dirty = (
+        sorted(
+            path
+            for path in dirty
+            if any(_matches_scope(path, scope) for scope in shared_paths)
+        )
+        if dirty is not None
+        else None
+    )
+    overlap_dirty = (
+        sorted(set(lane_dirty or []).intersection(shared_dirty or []))
+        if dirty is not None
+        else None
     )
     docs = _doc_hints(root, owned_paths)
+    checkpoint_marker = _checkpoint_hint(task.get("checkpoint"))
+    sections = _section_hints(root, docs, task.get("checkpoint"))
+    if checkpoint_marker is None:
+        section_resolution = "not_applicable"
+    elif sections:
+        section_resolution = "found"
+    else:
+        section_resolution = "not_found"
     gates = lane.get("gates") or {}
     gate_commands = {
         str(name): list(value.get("commands") or [])
@@ -166,6 +254,8 @@ def build_context(root: Path, document: dict[str, Any], lane: dict[str, Any]) ->
     return {
         "source": "docs/execution/current.yaml",
         "policy": "AGENTS.md",
+        "gitStatus": git_state,
+        "gitError": git_snapshot.get("message"),
         "scope": lane.get("id"),
         "primary": bool(lane.get("primary")),
         "development_mode": (document.get("development_policy") or {}).get("mode"),
@@ -186,14 +276,29 @@ def build_context(root: Path, document: dict[str, Any], lane: dict[str, Any]) ->
         "revisions": dict(lane.get("revisions") or {}),
         "gate_commands": gate_commands,
         "contract_documents": docs,
-        "contract_sections": _section_hints(root, docs, task.get("checkpoint")),
+        "checkpoint_marker": checkpoint_marker,
+        "contract_section_resolution": section_resolution,
+        "contract_sections": sections,
         "owned_paths": list(owned_paths),
         "dirty": {
-            "total_count": len(dirty),
+            "known": dirty is not None,
+            "total_count": len(dirty) if dirty is not None else None,
+            "all_paths": dirty,
             "lane_paths": lane_dirty,
             "shared_paths": shared_dirty,
+            "overlap_paths": overlap_dirty,
         },
     }
+
+
+def _render_paths(lines: list[str], label: str, paths: list[str]) -> None:
+    if not paths:
+        return
+    lines.append(f"{label}:")
+    lines.extend(f"  {path}" for path in paths[:TEXT_PATH_LIMIT])
+    remaining = len(paths) - TEXT_PATH_LIMIT
+    if remaining > 0:
+        lines.append(f"  ... and {remaining} more")
 
 
 def render_text(context: dict[str, Any]) -> str:
@@ -208,6 +313,8 @@ def render_text(context: dict[str, Any]) -> str:
         f"issue: #{task.get('issue')}",
         f"status: {task.get('status')}",
         f"checkpoint: {task.get('checkpoint')}",
+        f"checkpointMarker: {context['checkpoint_marker']}",
+        f"contractSection: {context['contract_section_resolution']}",
         f"ownerAcceptance: {task.get('owner_acceptance')}",
         f"branch: {task.get('branch')}",
         f"blocking: {len(context['blocking'])}",
@@ -226,14 +333,36 @@ def render_text(context: dict[str, Any]) -> str:
     for path in context["contract_documents"]:
         if path not in section_paths:
             lines.append(f"  {path}")
+    if context["contract_section_resolution"] == "not_found":
+        lines.append(
+            f"WARNING: exact section {context['checkpoint_marker']} was not found "
+            "in the lane contract documents; no broader heading was substituted."
+        )
     dirty = context["dirty"]
+    lines.append(f"gitStatus: {context['gitStatus']}")
+    if context["gitStatus"] == "unavailable":
+        lines.append(f"gitError: {context['gitError']}")
+        lines.append("workingTreeDirty: unknown")
+        lines.append("dirtyInScopeCount: unknown")
+        lines.append("dirtySharedCount: unknown")
+        lines.append("dirtyOverlapCount: unknown")
+        lines.append(
+            "WARNING: working-tree intersections are unverified; do not start writing."
+        )
+        return "\n".join(lines) + "\n"
+
     lines.append(f"workingTreeDirty: {dirty['total_count']}")
-    if dirty["lane_paths"]:
-        lines.append("dirtyInScope:")
-        lines.extend(f"  {path}" for path in dirty["lane_paths"][:20])
-    if dirty["shared_paths"]:
-        lines.append("dirtySharedPaths:")
-        lines.extend(f"  {path}" for path in dirty["shared_paths"][:20])
+    lines.append(f"dirtyInScopeCount: {len(dirty['lane_paths'])}")
+    _render_paths(lines, "dirtyInScope", dirty["lane_paths"])
+    lines.append(f"dirtySharedCount: {len(dirty['shared_paths'])}")
+    _render_paths(lines, "dirtySharedPaths", dirty["shared_paths"])
+    lines.append(f"dirtyOverlapCount: {len(dirty['overlap_paths'])}")
+    _render_paths(lines, "dirtyOverlapPaths", dirty["overlap_paths"])
+    if dirty["overlap_paths"]:
+        lines.append(
+            "handoff: dirty paths match both lane and shared scopes; owned_paths are "
+            "advisory, so coordinate before writing."
+        )
     return "\n".join(lines) + "\n"
 
 
@@ -259,6 +388,11 @@ def validate_all(root: Path, document: dict[str, Any]) -> list[str]:
             errors.append(f"lane {lane.get('id')} rendered with the wrong scope")
         if not context["gate_commands"]:
             errors.append(f"lane {lane.get('id')} has no gate commands")
+        if context["gitStatus"] != "available":
+            errors.append(
+                f"lane {lane.get('id')} git status is unavailable; "
+                "working-tree intersections are unknown"
+            )
     return errors
 
 
@@ -272,7 +406,15 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def _configure_utf8_streams() -> None:
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if callable(reconfigure):
+            reconfigure(encoding="utf-8", errors="strict")
+
+
 def main() -> int:
+    _configure_utf8_streams()
     args = parse_args()
     root = Path(args.root).resolve() if args.root else DEFAULT_ROOT
     try:
@@ -306,7 +448,7 @@ def main() -> int:
         print(json.dumps(context, ensure_ascii=False, indent=2))
     else:
         print(render_text(context), end="")
-    return 0
+    return 0 if context["gitStatus"] == "available" else 1
 
 
 if __name__ == "__main__":
