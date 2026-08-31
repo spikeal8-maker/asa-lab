@@ -536,7 +536,7 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(sidebarSource).toContain('Сопротивление');
     expect(sidebarSource).toContain('Ошибка · внешнее напряжение');
     expect(sidebarSource).toContain('Обрыв цепи или выше 50 МОм');
-    expect(productionVisualSource).toContain("return 'ERR'");
+    expect(productionVisualSource).toContain("return 'ОШИБКА'");
     expect(productionVisualSource).toContain("return 'ОБРЫВ'");
     expect(sidebarSource).toContain('Последовательно с нагрузкой');
     expect(productionVisualSource).toContain('data-testid="multimeter-runtime-display"');

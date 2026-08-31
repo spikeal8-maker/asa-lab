@@ -431,6 +431,54 @@ describe('MATH-10A3 multimeter resistance', () => {
     );
   });
 
+  it('measures a potentiometer when a powered motor loop touches it at only one node', () => {
+    const meter = component('meter', 'visual', 0, {
+      componentTypeId: 'multimeter',
+      pinIds: ['com', 'v-ohm-ma'],
+      stateProperties: { measurementMode: 'resistance', meterRange: 'auto' },
+    });
+    const potentiometer = component('pot', 'potentiometer', 1_000, {
+      componentTypeId: 'potentiometer',
+      pinIds: ['terminal-1', 'wiper', 'terminal-2'],
+      wiperPosition: 0.5,
+    });
+    const motor = component('motor', 'visual', 0, {
+      componentTypeId: 'gearmotor',
+      pinIds: ['negative', 'positive'],
+      stateProperties: { motorAssemblyProfileId: 'adafruit-3777-tt-48to1' },
+    });
+    const source = component('battery', 'source', 3, {
+      componentTypeId: 'battery-holder-aa-2',
+      pinIds: ['BAT-', 'BAT+'],
+    });
+    const result = solveCircuit(
+      doc(
+        [source, motor, potentiometer, meter],
+        [
+          connect('source-positive', 'battery', 'BAT+', 'motor', 'positive'),
+          connect('source-negative', 'battery', 'BAT-', 'motor', 'negative'),
+          connect('red-probe', 'meter', 'v-ohm-ma', 'pot', 'terminal-1'),
+          connect('single-shared-node', 'pot', 'terminal-1', 'motor', 'negative'),
+          connect('black-probe', 'meter', 'com', 'pot', 'terminal-2'),
+        ],
+      ),
+    );
+    const measurement = result.components.find((entry) => entry.componentId === 'meter');
+
+    expect(result.status).toBe('solved');
+    expect(measurement).toMatchObject({
+      measurementMode: 'resistance',
+      measurementUnit: 'Ω',
+      meterOpenCircuit: false,
+      meterExternalPowerPresent: false,
+      meterOverload: false,
+    });
+    expect(measurement?.measuredValue).toBeCloseTo(1_000, 3);
+    expect(result.diagnostics).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ code: 'multimeter_powered_resistance' })]),
+    );
+  });
+
   it('does not inject a test source into a powered circuit and reports external voltage', () => {
     const result = solveCircuit(resistanceCircuit({ powered: true }));
     const meter = result.components.find((entry) => entry.componentId === 'meter');

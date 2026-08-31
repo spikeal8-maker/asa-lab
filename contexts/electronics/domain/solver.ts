@@ -11,7 +11,7 @@ import {
   isArduinoUno,
 } from './arduino-model.js';
 import { photoresistorResistanceOhm } from './photoresistor-model.js';
-import { buttonContactPairs, spdtSelectedTerminal } from './switch-topology.js';
+import { spdtSelectedTerminal } from './switch-topology.js';
 import { buildNetlist, terminalKey } from './netlist.js';
 import {
   unsupportedElectricalComponents,
@@ -297,6 +297,7 @@ const FET_DEFAULT_THRESHOLD_VOLTAGE = 2;
 const FET_DEFAULT_TRANSCONDUCTANCE_FACTOR = 0.05;
 const FET_DEFAULT_MAX_DRAIN_CURRENT_A = 0.5;
 const FET_MIN_OHMIC_CONDUCTANCE = 1e-4;
+const MULTIMETER_EXTERNAL_VOLTAGE_THRESHOLD_VOLT = 1e-3;
 // Passive piezos are capacitive. The present deterministic DC solve represents
 // only their finite leakage; audible drive is derived separately from a
 // confirmed time-varying Arduino output.
@@ -1678,111 +1679,48 @@ function solveCircuitStep(
     const island = findIsland(ground);
     if (!referenceByIsland.has(island)) referenceByIsland.set(island, ground);
   }
-  // An ohmmeter must be blocked only when an external energy source spans both
-  // probes. Merely reaching one battery terminal is not enough: the other
-  // terminal can be loose, as in a motor connected to only one side of a
-  // holder. The general island map above intentionally joins every component
-  // for numerical references, so it is too coarse for this safety decision.
-  // Build a separate passive reachability map without sources, charged
-  // capacitors, Arduino outputs or the resistance meters' own test sources.
-  const resistancePathParent = Array.from({ length: netlist.nodeCount }, (_, node) => node);
-  const findResistancePath = (node: number): number => {
-    let root = node;
-    while (resistancePathParent[root] !== root) root = resistancePathParent[root] as number;
-    let current = node;
-    while (resistancePathParent[current] !== current) {
-      const next = resistancePathParent[current] as number;
-      resistancePathParent[current] = root;
-      current = next;
-    }
-    return root;
-  };
-  const joinResistancePath = (left: number, right: number): void => {
-    const leftRoot = findResistancePath(left);
-    const rightRoot = findResistancePath(right);
-    if (leftRoot !== rightRoot) resistancePathParent[rightRoot] = leftRoot;
-  };
+  // Determine whether external voltage is actually present across both probes,
+  // not merely somewhere in the same connected component. For the preflight,
+  // the resistance meters become finite-impedance voltmeters, so their own 1 V
+  // test sources cannot influence the result. This correctly permits a powered
+  // motor loop that touches the measured potentiometer at only one node while
+  // still blocking a meter placed across an energised load.
   const resistanceMeterIds = new Set(
     resistanceMeterDevices.map((device) => device.instance.componentId),
   );
-  for (const component of document.components.filter(
-    (candidate) => isSimulated(candidate) && !failedComponentIds.has(candidate.id),
-  )) {
-    if (
-      component.kind === 'source' ||
-      isArduinoUno(component) ||
-      isElectrolyticCapacitor(component) ||
-      resistanceMeterIds.has(component.id)
-    ) {
-      continue;
+  const externalVoltageByResistanceMeterId = new Map<string, number>();
+  if (resistanceMeterIds.size > 0) {
+    const externalVoltageDocument: ElectronicsDocument = {
+      ...document,
+      components: document.components.map((component) =>
+        resistanceMeterIds.has(component.id)
+          ? {
+              ...component,
+              stateProperties: {
+                ...component.stateProperties,
+                measurementMode: 'dc-voltage',
+              },
+            }
+          : component,
+      ),
+    };
+    const externalVoltageResult = solveCircuitStep(externalVoltageDocument, options);
+    if (externalVoltageResult.solved) {
+      for (const componentId of resistanceMeterIds) {
+        const probeResult = externalVoltageResult.components.find(
+          (component) => component.componentId === componentId,
+        );
+        externalVoltageByResistanceMeterId.set(
+          componentId,
+          Math.abs(probeResult?.measuredValue ?? probeResult?.voltageDrop ?? 0),
+        );
+      }
     }
-    const terminalPairs: readonly (readonly [Terminal, Terminal])[] =
-      component.kind === 'button'
-        ? buttonContactPairs(component.state === true)
-        : component.kind === 'switch'
-          ? [[logicalTerminal(component, 'a'), logicalTerminal(component, 'b')]]
-          : component.kind === 'potentiometer'
-            ? [
-                [logicalTerminal(component, 'a'), logicalTerminal(component, 'wiper')],
-                [logicalTerminal(component, 'wiper'), logicalTerminal(component, 'b')],
-              ]
-            : (() => {
-                const terminals = terminalsForComponent(component);
-                const first = terminals[0];
-                return first === undefined
-                  ? []
-                  : terminals.slice(1).map((terminal) => [first, terminal] as const);
-              })();
-    for (const [leftTerminal, rightTerminal] of terminalPairs) {
-      const left = netlist.nodeOf.get(terminalKey(component.id, leftTerminal));
-      const right = netlist.nodeOf.get(terminalKey(component.id, rightTerminal));
-      if (left !== undefined && right !== undefined) joinResistancePath(left, right);
-    }
-  }
-  const externalPowerTerminalPairs: Array<readonly [number, number]> = [];
-  for (const source of sources) {
-    const positive = netlist.nodeOf.get(terminalKey(source.id, logicalTerminal(source, 'a')));
-    const negative = netlist.nodeOf.get(terminalKey(source.id, logicalTerminal(source, 'b')));
-    if (positive !== undefined && negative !== undefined)
-      externalPowerTerminalPairs.push([positive, negative]);
-  }
-  for (const branch of arduinoBranches) {
-    const output = netlist.nodeOf.get(terminalKey(branch.component.id, branch.terminal));
-    const ground = netlist.nodeOf.get(terminalKey(branch.component.id, branch.ground));
-    if (output !== undefined && ground !== undefined)
-      externalPowerTerminalPairs.push([output, ground]);
-  }
-  for (const capacitor of capacitors) {
-    const previousVoltage =
-      options.capacitorPreviousVoltageById?.[capacitor.id] ??
-      capacitorParameters(capacitor).initialVoltageVolt;
-    if (Math.abs(previousVoltage) <= 1e-6) continue;
-    const positive = netlist.nodeOf.get(terminalKey(capacitor.id, logicalTerminal(capacitor, 'a')));
-    const negative = netlist.nodeOf.get(terminalKey(capacitor.id, logicalTerminal(capacitor, 'b')));
-    if (positive !== undefined && negative !== undefined)
-      externalPowerTerminalPairs.push([positive, negative]);
   }
   const poweredResistanceMeterIds = new Set(
-    resistanceMeterDevices.flatMap((device) => {
-      const inputNode = netlist.nodeOf.get(
-        terminalKey(device.instance.component.id, logicalTerminal(device.instance.component, 'a')),
-      );
-      const commonNode = netlist.nodeOf.get(
-        terminalKey(device.instance.component.id, logicalTerminal(device.instance.component, 'b')),
-      );
-      if (inputNode === undefined || commonNode === undefined) return [];
-      const inputRoot = findResistancePath(inputNode);
-      const commonRoot = findResistancePath(commonNode);
-      const powered = externalPowerTerminalPairs.some(([positive, negative]) => {
-        const positiveRoot = findResistancePath(positive);
-        const negativeRoot = findResistancePath(negative);
-        return (
-          (positiveRoot === inputRoot && negativeRoot === commonRoot) ||
-          (positiveRoot === commonRoot && negativeRoot === inputRoot)
-        );
-      });
-      return powered ? [device.instance.componentId] : [];
-    }),
+    [...externalVoltageByResistanceMeterId]
+      .filter(([, voltage]) => voltage > MULTIMETER_EXTERNAL_VOLTAGE_THRESHOLD_VOLT)
+      .map(([componentId]) => componentId),
   );
   const activeResistanceMeterDevices = resistanceMeterDevices.filter(
     (device) => !poweredResistanceMeterIds.has(device.instance.componentId),

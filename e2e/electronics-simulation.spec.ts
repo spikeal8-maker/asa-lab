@@ -3359,7 +3359,7 @@ test('MATH-10A3 multimeter measures resistance from the owner R button and block
   const poweredMeter = component(page, 'multimeter');
   await poweredMeter.locator('.workbench-part').press('Enter');
   const poweredInspector = page.getByRole('complementary', { name: 'Параметры выделения' });
-  await expect(poweredMeter.getByTestId('multimeter-runtime-display')).toContainText('ERR');
+  await expect(poweredMeter.getByTestId('multimeter-runtime-display')).toContainText('ОШИБКА');
   await expect(poweredInspector.getByTestId('multimeter-panel-reading')).toContainText(
     'Ошибка · внешнее напряжение',
   );
