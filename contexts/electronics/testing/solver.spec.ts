@@ -319,6 +319,97 @@ describe('schema-versioned Electronics document', () => {
   });
 });
 
+describe('MATH-10A3 multimeter resistance', () => {
+  function resistanceCircuit(
+    options: {
+      resistanceOhm?: number;
+      powered?: boolean;
+      shorted?: boolean;
+      open?: boolean;
+    } = {},
+  ): ElectronicsDocument {
+    const meter = component('meter', 'visual', 0, {
+      componentTypeId: 'multimeter',
+      pinIds: ['com', 'v-ohm-ma'],
+      stateProperties: { measurementMode: 'resistance', meterRange: 'auto' },
+    });
+    const resistor = component('load', 'resistor', options.resistanceOhm ?? 1_000, {
+      componentTypeId: 'resistor-axial',
+      pinIds: ['lead-1', 'lead-2'],
+    });
+    const source = component('battery', 'source', 3, {
+      componentTypeId: 'battery-holder-aa-2',
+      pinIds: ['BAT-', 'BAT+'],
+    });
+    if (options.open) return doc([meter], []);
+    if (options.shorted) {
+      return doc([meter], [connect('short', 'meter', 'v-ohm-ma', 'meter', 'com')]);
+    }
+    const components = options.powered ? [source, resistor, meter] : [resistor, meter];
+    const connections = [
+      connect('probe-red', 'meter', 'v-ohm-ma', 'load', 'lead-1'),
+      connect('probe-black', 'meter', 'com', 'load', 'lead-2'),
+      ...(options.powered
+        ? [
+            connect('supply-positive', 'battery', 'BAT+', 'load', 'lead-1'),
+            connect('supply-negative', 'battery', 'BAT-', 'load', 'lead-2'),
+          ]
+        : []),
+    ];
+    return doc(components, connections);
+  }
+
+  it('uses its own bounded test source to measure a de-energized resistor', () => {
+    const result = solveCircuit(resistanceCircuit({ resistanceOhm: 1_000 }));
+    const meter = result.components.find((entry) => entry.componentId === 'meter');
+    expect(result.status).toBe('solved');
+    expect(meter).toMatchObject({
+      measurementMode: 'resistance',
+      measurementUnit: 'Ω',
+      meterTestVoltageVolt: 1,
+      meterResistanceRangeOhm: 50_000_000,
+      meterOpenCircuit: false,
+      meterExternalPowerPresent: false,
+      meterOverload: false,
+    });
+    expect(meter?.measuredValue).toBeCloseTo(1_000, 3);
+    expect(meter?.meterTestCurrentAmp).toBeCloseTo(0.0005, 8);
+    expect(result.numericalResidual).toBeLessThanOrEqual(result.numericalTolerance);
+  });
+
+  it('reports zero for a short and OL for an open circuit', () => {
+    const shorted = solveCircuit(resistanceCircuit({ shorted: true }));
+    const open = solveCircuit(resistanceCircuit({ open: true }));
+    expect(shorted.components.find((entry) => entry.componentId === 'meter')).toMatchObject({
+      measuredValue: 0,
+      meterOpenCircuit: false,
+    });
+    expect(open.components.find((entry) => entry.componentId === 'meter')).toMatchObject({
+      measurementMode: 'resistance',
+      meterOpenCircuit: true,
+      meterOverload: false,
+    });
+  });
+
+  it('does not inject a test source into a powered circuit and explains OL', () => {
+    const result = solveCircuit(resistanceCircuit({ powered: true }));
+    const meter = result.components.find((entry) => entry.componentId === 'meter');
+    expect(result.status).toBe('solved');
+    expect(meter).toMatchObject({
+      measurementMode: 'resistance',
+      measurementUnit: 'Ω',
+      meterTestCurrentAmp: 0,
+      meterExternalPowerPresent: true,
+      meterOverload: true,
+    });
+    expect(result.diagnostics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ code: 'multimeter_powered_resistance', severity: 'error' }),
+      ]),
+    );
+  });
+});
+
 describe('MATH-10A1 multimeter DC voltage', () => {
   function meterCircuit(reverseProbes = false): ElectronicsDocument {
     const source = component('battery', 'source', 3, {
@@ -382,7 +473,7 @@ describe('MATH-10A1 multimeter DC voltage', () => {
       electricalModelId: 'digital-multimeter',
       electricalModelVersion: 1,
       modelProfileId: 'asa-two-terminal-dmm',
-      modelProfileVersion: 2,
+      modelProfileVersion: 3,
     });
   });
 });

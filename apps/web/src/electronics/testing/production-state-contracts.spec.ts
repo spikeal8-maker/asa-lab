@@ -127,6 +127,9 @@ describe('typed Electronics state and animation contracts', () => {
     expect(running).toContain('workbench-multimeter-mode-voltage is-active');
     expect(running).toContain('class="workbench-multimeter-reading"');
     expect(running).toContain('>3.000 V</text>');
+    const resistance = multimeterRuntimeMarkup(ownerSvg, 'resistance', '1.000 kΩ');
+    expect(resistance).toContain('workbench-multimeter-mode-resistance is-active');
+    expect(resistance).toContain('>1.000 kΩ</text>');
     expect(ownerSvg).not.toContain('workbench-multimeter');
     expect(multimeterRuntimeMarkup('<svg><path d="missing"/></svg>', 'voltage', '')).toBe('');
   });

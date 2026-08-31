@@ -83,7 +83,7 @@ const EXACT_IDENTITIES: Readonly<Record<string, ElectricalModelIdentity>> = {
   'incandescent-lamp': identity('incandescent-lamp', 't1-bipin-6v-incandescent', 2),
   'dc-motor': identity('dc-motor', 'pololu-1117-130-6v'),
   gearmotor: identity('dc-motor', 'adafruit-3777-tt-48to1'),
-  multimeter: identity('digital-multimeter', 'asa-two-terminal-dmm', 2),
+  multimeter: identity('digital-multimeter', 'asa-two-terminal-dmm', 3),
   'breadboard-small': identity('breadboard-connectivity', 'breadboard-small'),
   'breadboard-medium': identity('breadboard-connectivity', 'breadboard-medium'),
   'breadboard-large': identity('breadboard-connectivity', 'breadboard-large'),
@@ -246,6 +246,15 @@ export function electricalModelIdentityForComponent(
         (component.electricalModelId === 'dc-voltmeter' &&
           component.modelProfileId === 'asa-two-terminal-dmm-dc-voltage' &&
           component.modelProfileVersion === 1))
+    ) {
+      return resolveElectricalModelIdentity(component);
+    }
+    if (
+      component.componentTypeId === 'multimeter' &&
+      component.electricalModelId === 'digital-multimeter' &&
+      component.electricalModelVersion === 1 &&
+      component.modelProfileId === 'asa-two-terminal-dmm' &&
+      component.modelProfileVersion === 2
     ) {
       return resolveElectricalModelIdentity(component);
     }

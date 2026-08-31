@@ -58,7 +58,8 @@ interface Props {
   readonly simulationTimeMs?: number;
   readonly onSwitchActuate?: (() => void) | undefined;
   readonly onArduinoReset?: (() => void) | undefined;
-  readonly onMultimeterModeChange?: ((mode: 'dc-voltage' | 'dc-current') => void) | undefined;
+  readonly onMultimeterModeChange?:
+    ((mode: 'dc-voltage' | 'dc-current' | 'resistance') => void) | undefined;
 }
 
 const ownerSvgSourceCache = new Map<string, Promise<string>>();
@@ -89,7 +90,7 @@ function OwnerMultimeterVisual({
   readonly measurementMode: MultimeterVisualMode;
   readonly displayValue: string;
   readonly measuredValue: number | undefined;
-  readonly onModeChange?: ((mode: 'dc-voltage' | 'dc-current') => void) | undefined;
+  readonly onModeChange?: ((mode: 'dc-voltage' | 'dc-current' | 'resistance') => void) | undefined;
 }): JSX.Element {
   const [ownerSvg, setOwnerSvg] = useState<string | null>(null);
   useEffect(() => {
@@ -142,6 +143,10 @@ function OwnerMultimeterVisual({
           event.preventDefault();
           event.stopPropagation();
           onModeChange?.('dc-voltage');
+        } else if (target.closest('.workbench-multimeter-mode-resistance')) {
+          event.preventDefault();
+          event.stopPropagation();
+          onModeChange?.('resistance');
         }
       }}
       dangerouslySetInnerHTML={{ __html: markup }}
@@ -342,13 +347,20 @@ function multimeterDisplayValue(
 ): string {
   if (!simulationRunning || !result?.measurementMode) return '';
   if (result.meterFuseState === 'blown') return 'FUSE';
-  if (result.meterOverload) return 'OL';
+  if (result.meterOverload || result.meterOpenCircuit) return 'OL';
   const value = Number(result.measuredValue ?? result.voltageDrop);
   if (!Number.isFinite(value)) return '—';
   if (result.measurementMode === 'dc-current') {
     const milliamp = value * 1_000;
     const precision = Math.abs(milliamp) < 10 ? 2 : Math.abs(milliamp) < 100 ? 1 : 0;
     return `${milliamp.toFixed(precision)} mA`;
+  }
+  if (result.measurementMode === 'resistance') {
+    const absolute = Math.abs(value);
+    if (absolute >= 999_500)
+      return `${(value / 1_000_000).toFixed(absolute < 10_000_000 ? 3 : 2)} MΩ`;
+    if (absolute >= 999.5) return `${(value / 1_000).toFixed(absolute < 10_000 ? 3 : 2)} kΩ`;
+    return `${value.toFixed(absolute < 100 ? 1 : 0)} Ω`;
   }
   const absolute = Math.abs(value);
   const precision = absolute < 10 ? 3 : absolute < 100 ? 2 : 1;

@@ -324,7 +324,7 @@ describe('component information registry', () => {
     expect(sections[3]?.text).toContain('3–6 В');
   });
 
-  it('explains truthful DC voltage and current measurement without claiming resistance', () => {
+  it('explains truthful DC voltage, current, and resistance measurement', () => {
     const sections = componentHelpSections('visual', 'Мультиметр.', 'multimeter');
     expect(sections.map((section) => section.title)).toEqual([
       'Что сейчас работает',
@@ -335,12 +335,13 @@ describe('component information registry', () => {
     ]);
     expect(sections[0]?.text).toContain('постоянное напряжение');
     expect(sections[0]?.text).toContain('постоянный ток');
-    expect(sections[0]?.text).toContain('Режим сопротивления');
+    expect(sections[0]?.text).toContain('сопротивление');
     expect(sections[1]?.text).toContain('V/Ω/mA');
     expect(sections[2]?.text).toContain('параллельно');
     expect(sections[2]?.text).toContain('последовательно');
     expect(sections[3]?.text).toContain('10 МОм');
     expect(sections[3]?.text).toContain('1,8 Ом');
+    expect(sections[4]?.text).toContain('50 МОм');
   });
 
   it('publishes help only through a matching external approval digest', () => {

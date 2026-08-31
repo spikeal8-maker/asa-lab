@@ -19,6 +19,10 @@ export const MULTIMETER_DC_CURRENT_RANGE_AMP = 0.4;
 export const MULTIMETER_DC_CURRENT_FUSE_RATING_AMP = 0.44;
 export const MULTIMETER_DC_CURRENT_FUSE_I2T_LIMIT_AMP_SQUARED_SECOND = 0.1;
 export const MULTIMETER_OPEN_FUSE_RESISTANCE_OHM = 1_000_000_000_000;
+/** Deterministic educational autorange: 1 V open-circuit and 1 mA short-circuit. */
+export const MULTIMETER_RESISTANCE_TEST_VOLTAGE_VOLT = 1;
+export const MULTIMETER_RESISTANCE_SOURCE_RESISTANCE_OHM = 1_000;
+export const MULTIMETER_RESISTANCE_MAX_RANGE_OHM = 50_000_000;
 
 export type LinearDcStressState = 'normal' | 'warning' | 'overcurrent' | 'burned';
 
@@ -32,15 +36,20 @@ export interface LinearDcObservation {
   readonly internalPower?: number;
   readonly voltageSag?: number;
   readonly sourceOperatingMode?: 'delivering' | 'idle' | 'absorbing';
-  readonly measurementMode?: 'dc-voltage' | 'dc-current';
+  readonly measurementMode?: 'dc-voltage' | 'dc-current' | 'resistance';
   readonly measuredValue?: number;
-  readonly measurementUnit?: 'V' | 'A';
+  readonly measurementUnit?: 'V' | 'A' | 'Ω';
   readonly meterInputResistanceOhm?: number;
   readonly meterShuntResistanceOhm?: number;
   readonly meterBurdenVoltageVolt?: number;
   readonly meterFuseRatingAmp?: number;
   readonly meterFuseState?: 'intact' | 'blown';
   readonly meterOverload?: boolean;
+  readonly meterTestVoltageVolt?: number;
+  readonly meterTestCurrentAmp?: number;
+  readonly meterResistanceRangeOhm?: number;
+  readonly meterOpenCircuit?: boolean;
+  readonly meterExternalPowerPresent?: boolean;
   /** Positive values enter the component through the named physical terminal. */
   readonly terminalCurrents: Readonly<Record<Terminal, number>>;
   readonly voltageConstraintResidual?: number;
@@ -87,6 +96,12 @@ export interface MultimeterDcCurrentParameters {
   readonly currentRangeAmp: number;
   readonly fuseRatingAmp: number;
   readonly fuseBlown: boolean;
+}
+
+export interface MultimeterResistanceParameters {
+  readonly testVoltageVolt: number;
+  readonly sourceResistanceOhm: number;
+  readonly maxRangeOhm: number;
 }
 
 export function sourceInternalResistanceOhm(component: SchematicComponent): number {
@@ -387,6 +402,74 @@ export const MULTIMETER_DC_CURRENT_DEVICE_MODEL: DeviceModel<
   },
 };
 
+export const MULTIMETER_RESISTANCE_DEVICE_MODEL: DeviceModel<
+  MultimeterResistanceParameters,
+  LinearDcObservation
+> = {
+  id: 'digital-multimeter',
+  version: 3,
+  analyses: ['dc'],
+  validate(component) {
+    return component.componentTypeId === 'multimeter'
+      ? []
+      : [{ code: 'invalid_multimeter', message: 'Профиль предназначен для мультиметра.' }];
+  },
+  normalize(component) {
+    return {
+      componentId: component.id,
+      component,
+      parameters: {
+        testVoltageVolt: MULTIMETER_RESISTANCE_TEST_VOLTAGE_VOLT,
+        sourceResistanceOhm: MULTIMETER_RESISTANCE_SOURCE_RESISTANCE_OHM,
+        maxRangeOhm: MULTIMETER_RESISTANCE_MAX_RANGE_OHM,
+      },
+    };
+  },
+  stampDc(context, instance) {
+    const positive = context.node(instance.component, 'a');
+    const common = context.node(instance.component, 'b');
+    context.stampVoltageSource(
+      instance.componentId,
+      positive,
+      common,
+      instance.parameters.testVoltageVolt,
+      instance.parameters.sourceResistanceOhm,
+    );
+  },
+  observe(instance, operatingPoint) {
+    const deliveredCurrentAmp = Math.abs(operatingPoint.current);
+    const calculatedResistanceOhm =
+      deliveredCurrentAmp <= 1e-15
+        ? instance.parameters.maxRangeOhm
+        : Math.abs(operatingPoint.voltageDrop / deliveredCurrentAmp);
+    const openCircuit =
+      deliveredCurrentAmp <= 1e-12 ||
+      calculatedResistanceOhm > instance.parameters.maxRangeOhm * (1 + 1e-9);
+    const measuredResistanceOhm = openCircuit
+      ? instance.parameters.maxRangeOhm
+      : Math.max(0, calculatedResistanceOhm);
+    const [positive, common] = physicalTerminalPair(instance.component);
+    return {
+      // The internal source delivers current through V/Ω/mA, so conventional
+      // current entering the meter at that terminal is negative.
+      current: -deliveredCurrentAmp,
+      power: Math.abs(operatingPoint.voltageDrop * deliveredCurrentAmp),
+      stressState: 'normal' as const,
+      measurementMode: 'resistance' as const,
+      measuredValue: measuredResistanceOhm,
+      measurementUnit: 'Ω' as const,
+      meterTestVoltageVolt: instance.parameters.testVoltageVolt,
+      meterTestCurrentAmp: deliveredCurrentAmp,
+      meterResistanceRangeOhm: instance.parameters.maxRangeOhm,
+      meterOpenCircuit: openCircuit,
+      meterExternalPowerPresent: false,
+      meterOverload: false,
+      terminalCurrents: { [positive]: -deliveredCurrentAmp, [common]: deliveredCurrentAmp },
+      diagnostics: [],
+    };
+  },
+};
+
 export interface ResistorDevice {
   readonly model: typeof RESISTOR_DEVICE_MODEL;
   readonly instance: NormalizedDevice<ResistorParameters>;
@@ -407,8 +490,17 @@ export interface MultimeterDcCurrentDevice {
   readonly instance: NormalizedDevice<MultimeterDcCurrentParameters>;
 }
 
+export interface MultimeterResistanceDevice {
+  readonly model: typeof MULTIMETER_RESISTANCE_DEVICE_MODEL;
+  readonly instance: NormalizedDevice<MultimeterResistanceParameters>;
+}
+
 export type LinearDcDevice =
-  ResistorDevice | SourceDevice | MultimeterDcVoltageDevice | MultimeterDcCurrentDevice;
+  | ResistorDevice
+  | SourceDevice
+  | MultimeterDcVoltageDevice
+  | MultimeterDcCurrentDevice
+  | MultimeterResistanceDevice;
 
 export function isResistorDevice(device: LinearDcDevice): device is ResistorDevice {
   return device.model === RESISTOR_DEVICE_MODEL;
@@ -430,6 +522,12 @@ export function isMultimeterDcCurrentDevice(
   return device.model === MULTIMETER_DC_CURRENT_DEVICE_MODEL;
 }
 
+export function isMultimeterResistanceDevice(
+  device: LinearDcDevice,
+): device is MultimeterResistanceDevice {
+  return device.model === MULTIMETER_RESISTANCE_DEVICE_MODEL;
+}
+
 export function createLinearDcDevice(component: SchematicComponent): LinearDcDevice | null {
   if (!componentModelIdentityIsInstalled(component)) return null;
   const identity = electricalModelIdentityForComponent(component);
@@ -446,6 +544,15 @@ export function createLinearDcDevice(component: SchematicComponent): LinearDcDev
     return {
       model: MULTIMETER_DC_CURRENT_DEVICE_MODEL,
       instance: MULTIMETER_DC_CURRENT_DEVICE_MODEL.normalize(component),
+    };
+  }
+  if (
+    identity.electricalModelId === MULTIMETER_DC_VOLTAGE_DEVICE_MODEL.id &&
+    component.stateProperties?.['measurementMode'] === 'resistance'
+  ) {
+    return {
+      model: MULTIMETER_RESISTANCE_DEVICE_MODEL,
+      instance: MULTIMETER_RESISTANCE_DEVICE_MODEL.normalize(component),
     };
   }
   if (identity.electricalModelId === MULTIMETER_DC_VOLTAGE_DEVICE_MODEL.id) {

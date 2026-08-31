@@ -22,6 +22,7 @@ import type { DcStampContext, IterativeDcStampContext } from './models/device-mo
 import {
   createLinearDcDevice,
   isMultimeterDcCurrentDevice,
+  isMultimeterResistanceDevice,
   isMultimeterDcVoltageDevice,
   isResistorDevice,
   isSourceDevice,
@@ -103,6 +104,7 @@ export type DiagnosticCode =
   | 'source_overload'
   | 'multimeter_overload'
   | 'multimeter_fuse_blown'
+  | 'multimeter_powered_resistance'
   | 'diode_near_limit'
   | 'diode_overcurrent'
   | 'diode_reverse_breakdown'
@@ -189,15 +191,20 @@ export interface ComponentResult {
   readonly voltageSag?: number;
   /** Whether a source delivers current, is idle, or is back-driven by another source. */
   readonly sourceOperatingMode?: 'delivering' | 'idle' | 'absorbing';
-  readonly measurementMode?: 'dc-voltage' | 'dc-current';
+  readonly measurementMode?: 'dc-voltage' | 'dc-current' | 'resistance';
   readonly measuredValue?: number;
-  readonly measurementUnit?: 'V' | 'A';
+  readonly measurementUnit?: 'V' | 'A' | 'Ω';
   readonly meterInputResistanceOhm?: number;
   readonly meterShuntResistanceOhm?: number;
   readonly meterBurdenVoltageVolt?: number;
   readonly meterFuseRatingAmp?: number;
   readonly meterFuseState?: 'intact' | 'blown';
   readonly meterOverload?: boolean;
+  readonly meterTestVoltageVolt?: number;
+  readonly meterTestCurrentAmp?: number;
+  readonly meterResistanceRangeOhm?: number;
+  readonly meterOpenCircuit?: boolean;
+  readonly meterExternalPowerPresent?: boolean;
   readonly operatingRegion?: 'cutoff' | 'active' | 'saturation' | 'ohmic';
   readonly baseCurrent?: number;
   readonly collectorCurrent?: number;
@@ -1543,6 +1550,7 @@ function solveCircuitStep(
     (component) => isElectrolyticCapacitor(component) && !failedComponentIds.has(component.id),
   );
   const sourceDevices = linearDcDevices.filter(isSourceDevice);
+  const resistanceMeterDevices = linearDcDevices.filter(isMultimeterResistanceDevice);
   const linearDcDeviceById = new Map(
     linearDcDevices.map((device) => [device.instance.componentId, device] as const),
   );
@@ -1612,21 +1620,6 @@ function solveCircuitStep(
     });
     return empty('unsupported');
   }
-  if (
-    sources.length === 0 &&
-    arduinoBranches.length === 0 &&
-    capacitors.length === 0 &&
-    failedComponentIds.size === 0
-  ) {
-    diagnostics.push({
-      code: 'no_source',
-      severity: 'error',
-      message: 'В схеме нет источника постоянного напряжения.',
-      suggestedAction: 'Добавьте источник и соедините замкнутую цепь.',
-    });
-    return empty('invalid');
-  }
-
   const directlyShortedSourceIds = new Set<string>();
   for (const source of sources) {
     const positive = netlist.nodeOf.get(
@@ -1685,6 +1678,61 @@ function solveCircuitStep(
     const island = findIsland(ground);
     if (!referenceByIsland.has(island)) referenceByIsland.set(island, ground);
   }
+  const externallyPoweredIslands = new Set<number>();
+  for (const source of sources) {
+    const sourceNode = netlist.nodeOf.get(terminalKey(source.id, logicalTerminal(source, 'a')));
+    if (sourceNode !== undefined) externallyPoweredIslands.add(findIsland(sourceNode));
+  }
+  for (const branch of arduinoBranches) {
+    const outputNode = netlist.nodeOf.get(terminalKey(branch.component.id, branch.terminal));
+    if (outputNode !== undefined) externallyPoweredIslands.add(findIsland(outputNode));
+  }
+  for (const capacitor of capacitors) {
+    const previousVoltage =
+      options.capacitorPreviousVoltageById?.[capacitor.id] ??
+      capacitorParameters(capacitor).initialVoltageVolt;
+    if (Math.abs(previousVoltage) <= 1e-6) continue;
+    const capacitorNode = netlist.nodeOf.get(
+      terminalKey(capacitor.id, logicalTerminal(capacitor, 'a')),
+    );
+    if (capacitorNode !== undefined) externallyPoweredIslands.add(findIsland(capacitorNode));
+  }
+  const poweredResistanceMeterIds = new Set(
+    resistanceMeterDevices.flatMap((device) => {
+      const inputNode = netlist.nodeOf.get(
+        terminalKey(device.instance.component.id, logicalTerminal(device.instance.component, 'a')),
+      );
+      return inputNode !== undefined && externallyPoweredIslands.has(findIsland(inputNode))
+        ? [device.instance.componentId]
+        : [];
+    }),
+  );
+  const activeResistanceMeterDevices = resistanceMeterDevices.filter(
+    (device) => !poweredResistanceMeterIds.has(device.instance.componentId),
+  );
+  if (
+    sources.length === 0 &&
+    arduinoBranches.length === 0 &&
+    capacitors.length === 0 &&
+    activeResistanceMeterDevices.length === 0 &&
+    failedComponentIds.size === 0
+  ) {
+    diagnostics.push({
+      code: 'no_source',
+      severity: 'error',
+      message: 'В схеме нет источника постоянного напряжения.',
+      suggestedAction: 'Добавьте источник и соедините замкнутую цепь.',
+    });
+    return empty('invalid');
+  }
+  for (const device of activeResistanceMeterDevices) {
+    const common = netlist.nodeOf.get(
+      terminalKey(device.instance.component.id, logicalTerminal(device.instance.component, 'b')),
+    );
+    if (common === undefined) continue;
+    const island = findIsland(common);
+    if (!referenceByIsland.has(island)) referenceByIsland.set(island, common);
+  }
   for (let node = 0; node < netlist.nodeCount; node += 1) {
     const island = findIsland(node);
     if (!referenceByIsland.has(island)) referenceByIsland.set(island, node);
@@ -1696,7 +1744,11 @@ function solveCircuitStep(
     if (!referenceNodes.has(node)) nodeVariables.set(node, nodeVariables.size);
   }
   const nodeVariableCount = nodeVariables.size;
-  const size = nodeVariableCount + sources.length;
+  const stampedVoltageSourceComponents = [
+    ...sources,
+    ...activeResistanceMeterDevices.map((device) => device.instance.component),
+  ];
+  const size = nodeVariableCount + stampedVoltageSourceComponents.length;
   const diodeBranches = document.components.flatMap((component) =>
     failedComponentIds.has(component.id) ? [] : nonlinearDcBranchesForComponent(component),
   );
@@ -1790,7 +1842,9 @@ function solveCircuitStep(
       if (on !== undefined && cp !== undefined) matrix[on]![cp] -= transconductance;
       if (on !== undefined && cn !== undefined) matrix[on]![cn] += transconductance;
     };
-    const sourcePositionById = new Map(sources.map((source, index) => [source.id, index]));
+    const sourcePositionById = new Map(
+      stampedVoltageSourceComponents.map((source, index) => [source.id, index]),
+    );
     const modelStampContext: DcStampContext = {
       node(component, terminal) {
         return nodeIndex(component, terminal as LogicalTerminal);
@@ -1899,6 +1953,9 @@ function solveCircuitStep(
       device.model.stampDc(modelStampContext, device.instance);
     }
     for (const device of linearDcDevices.filter(isMultimeterDcCurrentDevice)) {
+      device.model.stampDc(modelStampContext, device.instance);
+    }
+    for (const device of activeResistanceMeterDevices) {
       device.model.stampDc(modelStampContext, device.instance);
     }
 
@@ -2106,7 +2163,7 @@ function solveCircuitStep(
     return node === undefined ? 0 : voltageFrom(solution as number[], node);
   };
   const sourceCurrents = new Map<string, number>();
-  for (const [position, source] of sources.entries()) {
+  for (const [position, source] of stampedVoltageSourceComponents.entries()) {
     sourceCurrents.set(source.id, solution[nodeVariableCount + position] as number);
   }
   const currentDeliveredByArduinoBranch = (branch: (typeof arduinoBranches)[number]): number => {
@@ -2349,14 +2406,45 @@ function solveCircuitStep(
           : incandescentLampResistanceOhm(lampTemperatureCelsius);
       const linearDcDevice = linearDcDeviceById.get(component.id);
       const reportedLinearCurrent =
-        component.kind === 'source' ? -(sourceCurrents.get(component.id) ?? 0) : 0;
-      const linearDcObservation: LinearDcObservation | undefined = linearDcDevice?.model.observe?.(
+        component.kind === 'source' ||
+        (linearDcDevice !== undefined && isMultimeterResistanceDevice(linearDcDevice))
+          ? -(sourceCurrents.get(component.id) ?? 0)
+          : 0;
+      let linearDcObservation: LinearDcObservation | undefined = linearDcDevice?.model.observe?.(
         linearDcDevice.instance as never,
-        {
-          voltageDrop,
-          current: reportedLinearCurrent,
-        },
+        { voltageDrop, current: reportedLinearCurrent },
       );
+      if (
+        linearDcDevice !== undefined &&
+        isMultimeterResistanceDevice(linearDcDevice) &&
+        poweredResistanceMeterIds.has(component.id)
+      ) {
+        const label = component.name ?? 'Мультиметр';
+        linearDcObservation = {
+          current: 0,
+          power: 0,
+          stressState: 'normal',
+          measurementMode: 'resistance',
+          measuredValue: 0,
+          measurementUnit: 'Ω',
+          meterTestVoltageVolt: linearDcDevice.instance.parameters.testVoltageVolt,
+          meterTestCurrentAmp: 0,
+          meterResistanceRangeOhm: linearDcDevice.instance.parameters.maxRangeOhm,
+          meterOpenCircuit: false,
+          meterExternalPowerPresent: true,
+          meterOverload: true,
+          terminalCurrents: { 'v-ohm-ma': 0, com: 0 },
+          diagnostics: [
+            {
+              code: 'multimeter_powered_resistance',
+              severity: 'error',
+              message: `${label}: измерение сопротивления заблокировано, потому что в этой цепи есть внешнее питание.`,
+              suggestedAction:
+                'Отключите источники питания и разрядите конденсаторы, затем повторите измерение.',
+            },
+          ],
+        };
+      }
       if (linearDcObservation) linearDcObservationById.set(component.id, linearDcObservation);
       let current = 0;
       if (linearDcObservation) current = linearDcObservation.current;
@@ -2631,7 +2719,9 @@ function solveCircuitStep(
                 linearDcObservation.measurementUnit ??
                 (linearDcObservation.measurementMode === 'dc-current'
                   ? ('A' as const)
-                  : ('V' as const)),
+                  : linearDcObservation.measurementMode === 'resistance'
+                    ? ('Ω' as const)
+                    : ('V' as const)),
               ...(linearDcObservation.meterInputResistanceOhm === undefined
                 ? {}
                 : {
@@ -2653,6 +2743,25 @@ function solveCircuitStep(
               ...(linearDcObservation.meterFuseState === undefined
                 ? {}
                 : { meterFuseState: linearDcObservation.meterFuseState }),
+              ...(linearDcObservation.meterTestVoltageVolt === undefined
+                ? {}
+                : { meterTestVoltageVolt: round(linearDcObservation.meterTestVoltageVolt, 6) }),
+              ...(linearDcObservation.meterTestCurrentAmp === undefined
+                ? {}
+                : { meterTestCurrentAmp: roundCurrent(linearDcObservation.meterTestCurrentAmp) }),
+              ...(linearDcObservation.meterResistanceRangeOhm === undefined
+                ? {}
+                : {
+                    meterResistanceRangeOhm: round(linearDcObservation.meterResistanceRangeOhm, 3),
+                  }),
+              ...(linearDcObservation.meterOpenCircuit === undefined
+                ? {}
+                : { meterOpenCircuit: linearDcObservation.meterOpenCircuit }),
+              ...(linearDcObservation.meterExternalPowerPresent === undefined
+                ? {}
+                : {
+                    meterExternalPowerPresent: linearDcObservation.meterExternalPowerPresent,
+                  }),
               meterOverload: linearDcObservation.meterOverload ?? false,
             }
           : {}),

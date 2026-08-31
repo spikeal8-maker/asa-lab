@@ -4,6 +4,7 @@ import type { DcStampContext } from '../domain/models/device-model';
 import {
   createLinearDcDevice,
   isMultimeterDcCurrentDevice,
+  isMultimeterResistanceDevice,
   isMultimeterDcVoltageDevice,
   isResistorDevice,
   isSourceDevice,
@@ -11,6 +12,8 @@ import {
   MULTIMETER_DC_CURRENT_DEVICE_MODEL,
   MULTIMETER_DC_CURRENT_SHUNT_RESISTANCE_OHM,
   MULTIMETER_DC_VOLTAGE_DEVICE_MODEL,
+  MULTIMETER_RESISTANCE_DEVICE_MODEL,
+  MULTIMETER_RESISTANCE_MAX_RANGE_OHM,
   RESISTOR_DEVICE_MODEL,
   SOURCE_DEVICE_MODEL,
 } from '../domain/models/linear-dc-models';
@@ -156,6 +159,47 @@ describe('MATH-1 linear DC device models', () => {
     expect(observation?.measuredValue).toBeCloseTo(0.1, 12);
     expect(observation?.terminalCurrents['v-ohm-ma']).toBeCloseTo(0.1, 12);
     expect(observation?.terminalCurrents.com).toBeCloseTo(-0.1, 12);
+  });
+
+  it('models resistance mode as a bounded internal test source', () => {
+    const meter = createLinearDcDevice(
+      component('meter', 'visual', 0, {
+        componentTypeId: 'multimeter',
+        pinIds: ['com', 'v-ohm-ma'],
+        stateProperties: { measurementMode: 'resistance' },
+      }),
+    );
+    expect(meter && isMultimeterResistanceDevice(meter)).toBe(true);
+    if (!meter || !isMultimeterResistanceDevice(meter)) return;
+
+    const stampVoltageSource = vi.fn();
+    MULTIMETER_RESISTANCE_DEVICE_MODEL.stampDc(
+      {
+        node: (_component, terminal) => (terminal === 'a' ? 2 : 1),
+        stampConductance: vi.fn(),
+        stampVoltageSource,
+      },
+      meter.instance,
+    );
+    expect(stampVoltageSource).toHaveBeenCalledWith('meter', 2, 1, 1, 1_000);
+
+    const observation = MULTIMETER_RESISTANCE_DEVICE_MODEL.observe?.(meter.instance, {
+      voltageDrop: 0.5,
+      current: 0.0005,
+    });
+    expect(observation).toMatchObject({
+      measurementMode: 'resistance',
+      measuredValue: 1_000,
+      measurementUnit: 'Ω',
+      meterTestVoltageVolt: 1,
+      meterTestCurrentAmp: 0.0005,
+      meterResistanceRangeOhm: MULTIMETER_RESISTANCE_MAX_RANGE_OHM,
+      meterOpenCircuit: false,
+      meterExternalPowerPresent: false,
+      meterOverload: false,
+      terminalCurrents: { 'v-ohm-ma': -0.0005, com: 0.0005 },
+      diagnostics: [],
+    });
   });
 
   it('reports source sag, internal heating and calculated burnout independently of UI', () => {

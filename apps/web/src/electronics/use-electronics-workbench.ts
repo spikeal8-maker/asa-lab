@@ -751,7 +751,7 @@ export function useElectronicsWorkbench(projectId: string) {
 
   function setMultimeterMeasurementMode(
     componentId: string,
-    measurementMode: 'dc-voltage' | 'dc-current',
+    measurementMode: 'dc-voltage' | 'dc-current' | 'resistance',
   ): void {
     const component = runtimeDocument?.components.find((item) => item.id === componentId);
     if (!document || component?.componentTypeId !== 'multimeter') return;
@@ -773,7 +773,9 @@ export function useElectronicsWorkbench(projectId: string) {
       },
       measurementMode === 'dc-current'
         ? 'Мультиметр переключён в режим тока.'
-        : 'Мультиметр переключён в режим напряжения.',
+        : measurementMode === 'resistance'
+          ? 'Мультиметр переключён в режим сопротивления.'
+          : 'Мультиметр переключён в режим напряжения.',
     );
   }
 

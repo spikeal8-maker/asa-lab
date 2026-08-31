@@ -525,7 +525,7 @@ describe('owner-reference Electronics presentation contract', () => {
     );
   });
 
-  it('shows the multimeter mode and calculated DC reading on the instrument and panel', () => {
+  it('shows all multimeter modes and their calculated reading on the instrument and panel', () => {
     expect(sidebarSource).toContain(
       "const selectedIsMultimeter = c.selectedEntry?.key === 'multimeter'",
     );
@@ -533,6 +533,8 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(sidebarSource).toContain('data-testid="multimeter-panel-reading"');
     expect(sidebarSource).toContain('Напряжение DC');
     expect(sidebarSource).toContain('Ток DC');
+    expect(sidebarSource).toContain('Сопротивление');
+    expect(sidebarSource).toContain('OL · отключите питание');
     expect(sidebarSource).toContain('Последовательно с нагрузкой');
     expect(productionVisualSource).toContain('data-testid="multimeter-runtime-display"');
     expect(productionVisualSource).toContain("result.measurementMode === 'dc-current'");
@@ -543,6 +545,7 @@ describe('owner-reference Electronics presentation contract', () => {
     );
     expect(productionVisualSource).toContain("return '';");
     expect(productionVisualSource).toContain('workbench-multimeter-mode-current');
+    expect(productionVisualSource).toContain('workbench-multimeter-mode-resistance');
     expect(productionVisualSource).not.toContain('>DC</text>');
     expect(workbenchCss).toContain('.workbench-multimeter-reading');
     expect(workbenchCss).toContain('.workbench-multimeter-mode-button.is-active');

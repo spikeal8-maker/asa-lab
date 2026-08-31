@@ -48,6 +48,27 @@ function valueLabel(kind: string): string {
   return 'Сопротивление';
 }
 
+function formatMeterResistance(resistanceOhm: number, detailed = false): string {
+  const value = Math.max(0, resistanceOhm);
+  if (value >= 999_500) return `${(value / 1_000_000).toFixed(detailed ? 4 : 2)} МОм`;
+  if (value >= 999.5) return `${(value / 1_000).toFixed(detailed ? 3 : 2)} кОм`;
+  return `${value.toFixed(detailed ? 2 : 1)} Ом`;
+}
+
+function multimeterReading(measurement: ComponentResult, detailed = false): string {
+  if (measurement.meterFuseState === 'blown') return 'Предохранитель перегорел';
+  if (measurement.meterExternalPowerPresent) return 'OL · отключите питание';
+  if (measurement.meterOpenCircuit) return 'OL · разрыв или выше 50 МОм';
+  if (measurement.meterOverload) return 'OL · перегрузка';
+  if (measurement.measurementMode === 'dc-current') {
+    return `${((measurement.measuredValue ?? measurement.current) * 1_000).toFixed(detailed ? 3 : 1)} мА`;
+  }
+  if (measurement.measurementMode === 'resistance') {
+    return formatMeterResistance(measurement.measuredValue ?? 0, detailed);
+  }
+  return `${(measurement.measuredValue ?? measurement.voltageDrop).toFixed(detailed ? 6 : 3)} В`;
+}
+
 function filamentStateLabel(state: ComponentResult['filamentState']): string {
   if (state === 'warming') return 'Нагревается';
   if (state === 'lit') return 'Светит';
@@ -721,26 +742,23 @@ export function WorkbenchSidebars({
                     >
                       <option value="dc-voltage">Напряжение DC</option>
                       <option value="dc-current">Ток DC</option>
+                      <option value="resistance">Сопротивление</option>
                     </select>
                   </label>
                   <div className="workbench-multimeter-compact-reading">
                     <span>Показание</span>
                     <strong data-testid="multimeter-panel-reading">
                       {c.simulationRunning && measurement?.measurementMode
-                        ? measurement.meterFuseState === 'blown'
-                          ? 'Предохранитель перегорел'
-                          : measurement.meterOverload
-                            ? 'Перегрузка'
-                            : measurement.measurementMode === 'dc-current'
-                              ? `${((measurement.measuredValue ?? measurement.current) * 1_000).toFixed(1)} мА`
-                              : `${(measurement.measuredValue ?? measurement.voltageDrop).toFixed(3)} В`
+                        ? multimeterReading(measurement)
                         : 'Запустите моделирование'}
                     </strong>
                   </div>
                   <p className="workbench-component-note">
                     {c.selectedComponent.stateProperties?.['measurementMode'] === 'dc-current'
                       ? 'Подключите прибор последовательно с нагрузкой.'
-                      : 'Подключите прибор параллельно измеряемому участку.'}
+                      : c.selectedComponent.stateProperties?.['measurementMode'] === 'resistance'
+                        ? 'Отключите питание и подключите прибор параллельно компоненту.'
+                        : 'Подключите прибор параллельно измеряемому участку.'}
                   </p>
                 </fieldset>
               ) : null}
@@ -1327,17 +1345,17 @@ export function WorkbenchSidebars({
                     <dt>Измерение</dt>
                     <dd>
                       {c.simulationRunning && measurement?.measurementMode
-                        ? measurement.meterFuseState === 'blown'
-                          ? 'Цепь разомкнута предохранителем'
-                          : measurement.measurementMode === 'dc-current'
-                            ? `${((measurement.measuredValue ?? measurement.current) * 1_000).toFixed(3)} мА`
-                            : `${(measurement.measuredValue ?? measurement.voltageDrop).toFixed(6)} В`
+                        ? multimeterReading(measurement, true)
                         : 'Моделирование остановлено'}
                     </dd>
                   </div>
                   <div>
-                    <dt>Полярность</dt>
-                    <dd>V/Ω/mA минус COM</dd>
+                    <dt>{measurement?.measurementMode === 'resistance' ? 'Щупы' : 'Полярность'}</dt>
+                    <dd>
+                      {measurement?.measurementMode === 'resistance'
+                        ? 'V/Ω/mA и COM · полярность не важна'
+                        : 'V/Ω/mA минус COM'}
+                    </dd>
                   </div>
                   {measurement?.measurementMode === 'dc-current' ? (
                     <>
@@ -1360,6 +1378,35 @@ export function WorkbenchSidebars({
                       <div>
                         <dt>Подключение</dt>
                         <dd>Последовательно с нагрузкой</dd>
+                      </div>
+                    </>
+                  ) : measurement?.measurementMode === 'resistance' ? (
+                    <>
+                      <div>
+                        <dt>Диапазон</dt>
+                        <dd>
+                          Авто · до{' '}
+                          {formatMeterResistance(measurement.meterResistanceRangeOhm ?? 50_000_000)}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Измерительный сигнал</dt>
+                        <dd>
+                          {(measurement.meterTestVoltageVolt ?? 1).toFixed(1)} В ·{' '}
+                          {((measurement.meterTestCurrentAmp ?? 0) * 1_000).toFixed(3)} мА
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Питание в цепи</dt>
+                        <dd>
+                          {measurement.meterExternalPowerPresent
+                            ? 'Обнаружено — измерение заблокировано'
+                            : 'Нет'}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Подключение</dt>
+                        <dd>Параллельно обесточенному компоненту</dd>
                       </div>
                     </>
                   ) : (

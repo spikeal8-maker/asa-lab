@@ -1569,6 +1569,85 @@ function multimeterDcCurrentDocument(): SchematicDocument {
   };
 }
 
+function multimeterResistanceDocument(powered = false): SchematicDocument {
+  const resistor = {
+    id: 'load',
+    kind: 'resistor' as const,
+    componentTypeId: 'resistor-axial',
+    variantId: 'resistor-axial',
+    name: 'Резистор 1 кОм',
+    position: { x: 420, y: 390 },
+    rotation: 90 as const,
+    value: 1_000,
+    pinIds: ['lead-1', 'lead-2'],
+    stateProperties: { powerRatingWatt: 0.25 },
+  };
+  const meter = {
+    id: 'meter',
+    kind: 'visual' as const,
+    componentTypeId: 'multimeter',
+    variantId: 'multimeter',
+    name: 'Мультиметр',
+    position: { x: 760, y: 230 },
+    rotation: 0 as const,
+    value: 0,
+    pinIds: ['com', 'v-ohm-ma'],
+    stateProperties: { measurementMode: powered ? 'resistance' : 'dc-voltage', meterRange: 'auto' },
+  };
+  const source = {
+    id: 'source',
+    kind: 'source' as const,
+    componentTypeId: 'battery-holder-aa-2',
+    variantId: 'battery-holder-aa-2',
+    name: 'Источник 3 В',
+    position: { x: 150, y: 390 },
+    rotation: 0 as const,
+    value: 3,
+    pinIds: ['BAT-', 'BAT+'],
+    stateProperties: { cells: 2 },
+  };
+  return {
+    schemaVersion: 4,
+    components: powered ? [source, resistor, meter] : [resistor, meter],
+    connections: [
+      {
+        id: 'probe-red',
+        from: { componentId: 'meter', terminal: 'v-ohm-ma' },
+        to: { componentId: 'load', terminal: 'lead-1' },
+        color: '#e3212b',
+        vertices: [],
+      },
+      {
+        id: 'probe-black',
+        from: { componentId: 'meter', terminal: 'com' },
+        to: { componentId: 'load', terminal: 'lead-2' },
+        color: '#2a3035',
+        vertices: [],
+      },
+      ...(powered
+        ? [
+            {
+              id: 'supply-positive',
+              from: { componentId: 'source', terminal: 'BAT+' },
+              to: { componentId: 'load', terminal: 'lead-1' },
+              color: '#e3212b',
+              vertices: [],
+            },
+            {
+              id: 'supply-negative',
+              from: { componentId: 'source', terminal: 'BAT-' },
+              to: { componentId: 'load', terminal: 'lead-2' },
+              color: '#2a3035',
+              vertices: [],
+            },
+          ]
+        : []),
+    ],
+    viewport: { x: 0, y: 0, zoom: 1 },
+    simulation: { running: false, maxIterations: 24 },
+  };
+}
+
 async function createProject(page: Page, title: string): Promise<string> {
   const response = await page.context().request.post('/api/projects', {
     headers: {
@@ -3219,6 +3298,71 @@ test('MATH-10A2 multimeter measures series DC current from the owner A button', 
     path: `${ARTIFACT_DIR}/electronics-multimeter-dc-current.png`,
     fullPage: true,
   });
+  failures.assertEmpty();
+});
+
+test('MATH-10A3 multimeter measures resistance from the owner R button and blocks powered circuits', async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
+  await page.setViewportSize({ width: 1920, height: 1080 });
+  await loginWithOrganization(page, teacher);
+
+  const projectId = await createProject(page, 'Мультиметр: сопротивление 1 кОм');
+  await saveDocument(page, projectId, multimeterResistanceDocument());
+  await page.goto(`/#/home/${projectId}`);
+  await expect(page.locator('.workbench-stage')).toBeVisible({ timeout: 15_000 });
+
+  const meter = component(page, 'multimeter');
+  await meter.locator('.workbench-part').press('Enter');
+  const inspector = page.getByRole('complementary', { name: 'Параметры выделения' });
+  await expect(inspector.getByLabel('Режим мультиметра')).toHaveValue('dc-voltage');
+  await page.getByRole('button', { name: 'Начать моделирование' }).click();
+  await meter.locator('.workbench-multimeter-mode-resistance').first().click();
+  await expect(inspector.getByLabel('Режим мультиметра')).toHaveValue('resistance');
+
+  const display = meter.getByTestId('multimeter-runtime-display');
+  await expect(display).toHaveAttribute('data-measurement-mode', 'resistance');
+  await expect
+    .poll(async () => Number((await display.getAttribute('data-measured-value')) ?? 'NaN'))
+    .toBeCloseTo(1_000, 2);
+  await expect(display).toContainText('1.000 kΩ');
+  await expect(inspector.getByTestId('multimeter-panel-reading')).toContainText('1.00 кОм');
+
+  const technicalState = inspector.getByRole('button', {
+    name: 'Техническое состояние Мультиметр',
+  });
+  if ((await technicalState.getAttribute('aria-expanded')) !== 'true') await technicalState.click();
+  const profile = inspector.getByTestId('multimeter-reference-profile');
+  await expect(profile).toContainText('Авто · до 50.00 МОм');
+  await expect(profile).toContainText('Нет');
+  await page.screenshot({
+    path: `${ARTIFACT_DIR}/electronics-multimeter-resistance.png`,
+    fullPage: true,
+  });
+
+  const saved = await page.context().request.get(`/api/projects/${projectId}`, {
+    headers: { origin: new URL(page.url()).origin },
+  });
+  const savedPayload = (await saved.json()) as { draft: { document: SchematicDocument } };
+  expect(
+    savedPayload.draft.document.components.find((item) => item.id === 'meter')?.stateProperties?.[
+      'measurementMode'
+    ],
+  ).toBe('dc-voltage');
+
+  const poweredProjectId = await createProject(page, 'Мультиметр: R под питанием');
+  await saveDocument(page, poweredProjectId, multimeterResistanceDocument(true));
+  await page.goto(`/#/home/${poweredProjectId}`);
+  await page.getByRole('button', { name: 'Начать моделирование' }).click();
+  const poweredMeter = component(page, 'multimeter');
+  await poweredMeter.locator('.workbench-part').press('Enter');
+  const poweredInspector = page.getByRole('complementary', { name: 'Параметры выделения' });
+  await expect(poweredMeter.getByTestId('multimeter-runtime-display')).toContainText('OL');
+  await expect(poweredInspector.getByTestId('multimeter-panel-reading')).toContainText(
+    'OL · отключите питание',
+  );
   failures.assertEmpty();
 });
 
