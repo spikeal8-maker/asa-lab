@@ -295,6 +295,72 @@ export function potentiometerRuntimeMarkup(ownerSvg: string, wiperPosition: numb
   return withMovingPointer.slice(bodyStart + 1, bodyEnd);
 }
 
+export type MultimeterVisualMode = 'current' | 'voltage' | 'resistance';
+
+const MULTIMETER_OWNER_MODE_PATHS = {
+  current: {
+    button: 'M415 72 A13 13 0 1 0 389 72 A13 13 0 1 0 415 72 Z',
+    glyph: 'M397 78 L402 66 L407 78 M399.3 73 H404.7',
+  },
+  voltage: {
+    button: 'M415 107 A13 13 0 1 0 389 107 A13 13 0 1 0 415 107 Z',
+    glyph: 'M397 101 L402 113 L407 101',
+  },
+  resistance: {
+    button: 'M415 139 A13 13 0 1 0 389 139 A13 13 0 1 0 415 139 Z',
+    glyph:
+      'M398.5 145.5 V132.5 H402.8 C405.5 132.5 406.8 134.2 406.8 136.2 C406.8 138.8 404.9 140 402.6 140 H398.5 M402 140 L407 145.5',
+  },
+} as const;
+
+function escapeMultimeterDisplay(value: string): string {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&apos;');
+}
+
+/**
+ * Marks the three existing owner SVG selector buttons and changes their visual
+ * state with CSS. No replacement circle or letter is drawn over the asset.
+ * The calculated reading is inserted into the existing LCD opening; an empty
+ * reading leaves that opening blank while simulation is stopped.
+ */
+export function multimeterRuntimeMarkup(
+  ownerSvg: string,
+  activeMode: MultimeterVisualMode,
+  displayValue: string,
+): string {
+  let withRuntimeState = ownerSvg;
+  for (const [mode, paths] of Object.entries(MULTIMETER_OWNER_MODE_PATHS) as [
+    MultimeterVisualMode,
+    (typeof MULTIMETER_OWNER_MODE_PATHS)[MultimeterVisualMode],
+  ][]) {
+    const activeClass = mode === activeMode ? ' is-active' : '';
+    withRuntimeState = withRuntimeState
+      .replace(
+        `<path d="${paths.button}"`,
+        `<path class="workbench-multimeter-mode-button workbench-multimeter-mode-${mode}${activeClass}" d="${paths.button}"`,
+      )
+      .replace(
+        `<path d="${paths.glyph}"`,
+        `<path class="workbench-multimeter-mode-glyph workbench-multimeter-mode-${mode}${activeClass}" d="${paths.glyph}"`,
+      );
+  }
+  const buttonClassCount = withRuntimeState.match(/workbench-multimeter-mode-button/g)?.length ?? 0;
+  const glyphClassCount = withRuntimeState.match(/workbench-multimeter-mode-glyph/g)?.length ?? 0;
+  if (buttonClassCount !== 3 || glyphClassCount !== 3) return '';
+  const bodyStart = withRuntimeState.indexOf('>');
+  const bodyEnd = withRuntimeState.lastIndexOf('</svg>');
+  if (bodyStart < 0 || bodyEnd <= bodyStart) return '';
+  const reading = displayValue
+    ? `<text class="workbench-multimeter-reading" x="218.5" y="108" font-size="58" text-anchor="middle" dominant-baseline="central">${escapeMultimeterDisplay(displayValue)}</text>`
+    : '';
+  return `${withRuntimeState.slice(bodyStart + 1, bodyEnd)}${reading}`;
+}
+
 /**
  * Marks only the existing owner SVG gear as the runtime moving part.
  * The source asset stays byte-exact. CSS owns the deliberately slow display

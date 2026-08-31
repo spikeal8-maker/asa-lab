@@ -7,6 +7,7 @@ import {
   dcMotorVisualMotion,
   gearmotorRuntimeMarkup,
   gearmotorVisualPresentation,
+  multimeterRuntimeMarkup,
   potentiometerKnobAngle,
   potentiometerRuntimeMarkup,
   RESISTOR_BAND_CSS,
@@ -21,6 +22,7 @@ import {
   type ResistorTolerancePercent,
   type SevenSegmentColour,
   type SevenSegmentId,
+  type MultimeterVisualMode,
 } from './production-asset-contracts';
 
 const TINKERCAD_MODEL_UNIT_MM = 0.254;
@@ -69,6 +71,66 @@ function ownerSvgSource(asset: string): Promise<string> {
   });
   ownerSvgSourceCache.set(asset, pending);
   return pending;
+}
+
+function OwnerMultimeterVisual({
+  asset,
+  width,
+  height,
+  measurementMode,
+  displayValue,
+  measuredValue,
+}: {
+  readonly asset: string;
+  readonly width: number;
+  readonly height: number;
+  readonly measurementMode: MultimeterVisualMode;
+  readonly displayValue: string;
+  readonly measuredValue: number | undefined;
+}): JSX.Element {
+  const [ownerSvg, setOwnerSvg] = useState<string | null>(null);
+  useEffect(() => {
+    let mounted = true;
+    void ownerSvgSource(asset)
+      .then((source) => {
+        if (mounted) setOwnerSvg(source);
+      })
+      .catch(() => {
+        if (mounted) setOwnerSvg(null);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [asset]);
+  const markup = useMemo(
+    () => (ownerSvg ? multimeterRuntimeMarkup(ownerSvg, measurementMode, displayValue) : ''),
+    [displayValue, measurementMode, ownerSvg],
+  );
+  if (!markup) {
+    return <image href={asset} width={width} height={height} pointerEvents="none" />;
+  }
+  return (
+    <svg
+      className="workbench-multimeter-runtime"
+      data-testid="multimeter-runtime-display"
+      data-measurement-mode={
+        measurementMode === 'current'
+          ? 'dc-current'
+          : measurementMode === 'resistance'
+            ? 'resistance'
+            : 'dc-voltage'
+      }
+      data-measured-value={measuredValue}
+      x="0"
+      y="0"
+      width={width}
+      height={height}
+      viewBox="0 0 474 247"
+      preserveAspectRatio="xMidYMid meet"
+      pointerEvents="none"
+      dangerouslySetInnerHTML={{ __html: markup }}
+    />
+  );
 }
 
 function OwnerPotentiometerVisual({
@@ -262,7 +324,7 @@ function multimeterDisplayValue(
   simulationRunning: boolean,
   result: ComponentResult | undefined,
 ): string {
-  if (!simulationRunning || result?.measurementMode !== 'dc-voltage') return '—';
+  if (!simulationRunning || result?.measurementMode !== 'dc-voltage') return '';
   if (result.meterOverload) return 'OL';
   const value = Number(result.measuredValue ?? result.voltageDrop);
   if (!Number.isFinite(value)) return '—';
@@ -416,12 +478,12 @@ export function ProductionComponentVisual({
     entry.key === 'multimeter'
       ? String(component.stateProperties?.['measurementMode'] ?? 'dc-voltage')
       : '';
-  const meterActiveMode =
+  const meterVisualMode: MultimeterVisualMode =
     meterMeasurementMode === 'dc-current'
-      ? { label: 'A', cy: height * 0.235 }
+      ? 'current'
       : meterMeasurementMode === 'resistance'
-        ? { label: 'R', cy: height * 0.631 }
-        : { label: 'V', cy: height * 0.433 };
+        ? 'resistance'
+        : 'voltage';
   // Canonical selection contract: docs/product/electronics/README.md, section 7.
   // The rendered asset and its alpha-silhouette outline MUST share one transform;
   // per-component rectangle/capsule bounds are intentionally forbidden.
@@ -720,6 +782,19 @@ export function ProductionComponentVisual({
               outputRpm={simulationRunning ? Number(result?.outputRpm ?? 0) : 0}
               simulationTimeMs={simulationRunning ? simulationTimeMs : 0}
             />
+          ) : entry.key === 'multimeter' ? (
+            <OwnerMultimeterVisual
+              asset={asset}
+              width={width}
+              height={height}
+              measurementMode={meterVisualMode}
+              displayValue={meterDisplay}
+              measuredValue={
+                simulationRunning && result?.measuredValue !== undefined
+                  ? result.measuredValue
+                  : undefined
+              }
+            />
           ) : (
             <image
               className={entry.key === 'led-5mm' ? 'workbench-led-asset' : undefined}
@@ -743,46 +818,6 @@ export function ProductionComponentVisual({
               />
               <text x={width * 0.5} y={height * 0.49} fontSize={width * 0.25}>
                 TMP
-              </text>
-            </g>
-          ) : null}
-          {entry.key === 'multimeter' ? (
-            <g
-              className="workbench-multimeter-runtime"
-              data-testid="multimeter-runtime-display"
-              data-measurement-mode={meterMeasurementMode}
-              data-measured-value={
-                simulationRunning && result?.measuredValue !== undefined
-                  ? result.measuredValue
-                  : undefined
-              }
-              pointerEvents="none"
-            >
-              <text
-                className="workbench-multimeter-reading"
-                x={width * 0.43}
-                y={height * 0.51}
-                fontSize={height * 0.25}
-                textAnchor="middle"
-                dominantBaseline="middle"
-              >
-                {meterDisplay}
-              </text>
-              <circle
-                className="workbench-multimeter-active-mode"
-                cx={width * 0.866}
-                cy={meterActiveMode.cy}
-                r={height * 0.057}
-              />
-              <text
-                className="workbench-multimeter-active-mode-label"
-                x={width * 0.866}
-                y={meterActiveMode.cy}
-                fontSize={height * 0.105}
-                textAnchor="middle"
-                dominantBaseline="central"
-              >
-                {meterActiveMode.label}
               </text>
             </g>
           ) : null}

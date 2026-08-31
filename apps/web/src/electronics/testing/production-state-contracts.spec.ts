@@ -10,6 +10,7 @@ import {
   gearmotorVisualPresentation,
   lampState,
   motorMotion,
+  multimeterRuntimeMarkup,
   ordinaryLedState,
   potentiometerKnobAngle,
   potentiometerRuntimeMarkup,
@@ -104,6 +105,30 @@ describe('typed Electronics state and animation contracts', () => {
     expect(markup.match(/transform="rotate\(135 71\.5 71\)"/g)).toHaveLength(2);
     expect(markup).toContain('<circle cx="71.5" cy="71" r="49"/>');
     expect(ownerSvg).not.toContain('transform=');
+  });
+
+  it('styles the existing owner multimeter selector paths without drawing duplicate buttons', () => {
+    const ownerSvg = `<svg viewBox="0 0 474 247">
+      <path d="M415 72 A13 13 0 1 0 389 72 A13 13 0 1 0 415 72 Z" fill="#F2AE16"/>
+      <path d="M397 78 L402 66 L407 78 M399.3 73 H404.7" fill="none"/>
+      <path d="M415 107 A13 13 0 1 0 389 107 A13 13 0 1 0 415 107 Z" fill="#4E5251"/>
+      <path d="M397 101 L402 113 L407 101" fill="none"/>
+      <path d="M415 139 A13 13 0 1 0 389 139 A13 13 0 1 0 415 139 Z" fill="#F2AE16"/>
+      <path d="M398.5 145.5 V132.5 H402.8 C405.5 132.5 406.8 134.2 406.8 136.2 C406.8 138.8 404.9 140 402.6 140 H398.5 M402 140 L407 145.5" fill="none"/>
+    </svg>`;
+    const stopped = multimeterRuntimeMarkup(ownerSvg, 'current', '');
+    expect(stopped).toContain('workbench-multimeter-mode-current is-active');
+    expect(stopped).toContain('workbench-multimeter-mode-voltage"');
+    expect(stopped).not.toContain('workbench-multimeter-reading');
+    expect(stopped).not.toContain('<circle');
+    expect(stopped.match(/<path/g)).toHaveLength(6);
+
+    const running = multimeterRuntimeMarkup(ownerSvg, 'voltage', '3.000 V');
+    expect(running).toContain('workbench-multimeter-mode-voltage is-active');
+    expect(running).toContain('class="workbench-multimeter-reading"');
+    expect(running).toContain('>3.000 V</text>');
+    expect(ownerSvg).not.toContain('workbench-multimeter');
+    expect(multimeterRuntimeMarkup('<svg><path d="missing"/></svg>', 'voltage', '')).toBe('');
   });
 
   it('marks only the owner motor gear and maps signed RPM to calm visual motion', () => {
