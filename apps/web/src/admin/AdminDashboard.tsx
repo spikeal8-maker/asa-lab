@@ -74,7 +74,7 @@ function MultiLineChart({
   const active = series.filter((item) => visible.has(item.id));
   const maximum = Math.max(1, ...active.flatMap((item) => item.values));
   const width = 760;
-  const height = 248;
+  const height = 176;
   const left = 42;
   const right = 16;
   const top = 18;
@@ -97,10 +97,8 @@ function MultiLineChart({
   return (
     <article className="admin-chart-card">
       <header>
-        <div>
-          <h3>{title}</h3>
-          <p>{description}</p>
-        </div>
+        <h3>{title}</h3>
+        <p className="sr-only">{description}</p>
         <div className="admin-chart-legend" aria-label={`Линии графика «${title}»`}>
           {series.map((item) => {
             const selected = visible.has(item.id);
@@ -228,27 +226,26 @@ export function AdminDashboard({
 
   return (
     <section className="admin-dashboard" aria-labelledby="admin-dashboard-title">
-      <div className="admin-dashboard-heading">
-        <div>
-          <h2 id="admin-dashboard-title">Пульс ASA Lab</h2>
-          <p>Использование продуктов, аудитория, входы, ученики и ключевые действия.</p>
+      <h2 id="admin-dashboard-title" className="sr-only">
+        Обзор
+      </h2>
+      <div className="admin-dashboard-toolbar">
+        <div className="admin-range-picker" aria-label="Период дашборда">
+          {RANGE_OPTIONS.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              className={range === option.value ? 'active' : ''}
+              aria-pressed={range === option.value}
+              onClick={() => setRange(option.value)}
+            >
+              {option.label}
+            </button>
+          ))}
         </div>
-        <button type="button" className="btn-secondary" onClick={() => void load()}>
+        <button type="button" className="admin-dashboard-refresh" onClick={() => void load()}>
           Обновить
         </button>
-      </div>
-      <div className="admin-range-picker" aria-label="Период дашборда">
-        {RANGE_OPTIONS.map((option) => (
-          <button
-            key={option.value}
-            type="button"
-            className={range === option.value ? 'active' : ''}
-            aria-pressed={range === option.value}
-            onClick={() => setRange(option.value)}
-          >
-            {option.label}
-          </button>
-        ))}
       </div>
 
       {state.kind === 'loading' ? (
@@ -318,13 +315,13 @@ function DashboardContent({
       <div className="admin-dashboard-kpis">
         {[
           ['Новые аккаунты', dashboard.summary.newAccounts],
-          ['Активные пользователи', dashboard.summary.activeAccounts],
-          ['Успешные входы', dashboard.summary.successfulLogins],
+          ['Активные', dashboard.summary.activeAccounts],
+          ['Вошли', dashboard.summary.successfulLogins],
           ['Не вошли', dashboard.summary.failedLogins],
-          ['Активные ученики', dashboard.summary.activeStudents],
+          ['Ученики', dashboard.summary.activeStudents],
           ['Новые ученики', dashboard.summary.newStudents],
           ['Разные IP', dashboard.summary.distinctIpAddresses],
-          ['Аккаунты с несколькими IP', dashboard.summary.accountsWithMultipleIps],
+          ['Несколько IP', dashboard.summary.accountsWithMultipleIps],
         ].map(([label, value]) => (
           <article key={label}>
             <span>{label}</span>
@@ -333,13 +330,13 @@ function DashboardContent({
         ))}
       </div>
 
-      <MultiLineChart
-        title="Использование систем"
-        description="Уникальные участники, действительно открывшие рабочую среду. Линии можно скрывать."
-        labels={labels}
-        series={modules}
-      />
       <div className="admin-dashboard-grid">
+        <MultiLineChart
+          title="Использование систем"
+          description="Уникальные участники, действительно открывшие рабочую среду. Линии можно скрывать."
+          labels={labels}
+          series={modules}
+        />
         <MultiLineChart
           title="Пользователи и входы"
           description="Люди и завершённые сценарии входа на одной временной шкале."
@@ -422,17 +419,6 @@ function DashboardContent({
           ]}
         />
       </div>
-      <aside className={`admin-max-status ${dashboard.max.configured ? 'ready' : 'not-ready'}`}>
-        <div>
-          <span>Интеграция MAX</span>
-          <strong>{dashboard.max.configured ? 'Подключена' : 'Не настроена'}</strong>
-          <p>
-            Связано аккаунтов: {dashboard.max.linkedAccounts} · ожидают предложения:{' '}
-            {dashboard.max.promptDueAccounts}
-          </p>
-        </div>
-        <small>Секрет и подписанные данные MAX никогда не выводятся в админку.</small>
-      </aside>
       <p className="admin-dashboard-updated">
         Обновлено {DATE_TIME.format(new Date(dashboard.generatedAt))}. События использования и входа
         собираются
@@ -445,7 +431,7 @@ function DashboardContent({
   );
 }
 
-export function MaxIntegrationSection({
+export function VerificationMethodsSection({
   scope,
   onAccessDenied,
 }: {
@@ -469,45 +455,49 @@ export function MaxIntegrationSection({
     };
   }, [onAccessDenied, scope]);
   return (
-    <section className="admin-integrations" aria-labelledby="admin-integrations-title">
+    <section className="admin-integrations" aria-labelledby="admin-confirmations-title">
       <div className="admin-section-heading">
         <div>
-          <h2 id="admin-integrations-title">Интеграции</h2>
-          <p>Рабочее состояние внешних способов входа без доступа к их секретам.</p>
+          <h2 id="admin-confirmations-title">Подтверждения</h2>
+          <p>Способы подтвердить учётную запись. Секреты интеграций здесь не показываются.</p>
         </div>
       </div>
       {state.kind === 'loading' ? <p>Проверяем MAX…</p> : null}
       {state.kind === 'error' ? <p role="alert">{state.message}</p> : null}
       {state.kind === 'ready' ? (
-        <div className="admin-integration-card">
-          <div>
-            <span>MAX</span>
-            <strong>{state.dashboard.max.configured ? 'Подключён' : 'Не настроен'}</strong>
+        <div className="admin-confirmation-grid">
+          <article>
+            <header>
+              <strong>MAX Bot</strong>
+              <span className={state.dashboard.max.configured ? 'ready' : 'not-ready'}>
+                {state.dashboard.max.configured ? 'Подключён' : 'Не настроен'}
+              </span>
+            </header>
             <p>
-              Связано аккаунтов: {state.dashboard.max.linkedAccounts}. Предложение подтверждения
-              ожидают: {state.dashboard.max.promptDueAccounts}.
+              Связано аккаунтов: {state.dashboard.max.linkedAccounts}. Ожидают предложения:{' '}
+              {state.dashboard.max.promptDueAccounts}.
             </p>
-          </div>
-          <dl>
-            <div>
-              <dt>Вход</dt>
-              <dd>{state.dashboard.max.configured ? 'Доступен' : 'Отключён'}</dd>
-            </div>
-            <div>
-              <dt>Секрет</dt>
-              <dd>Скрыт сервером</dd>
-            </div>
-            <div>
-              <dt>Ссылка запуска</dt>
-              <dd>{state.dashboard.max.launchUrl ? 'Сформирована' : 'Недоступна'}</dd>
-            </div>
-          </dl>
-          {!state.dashboard.max.configured ? (
-            <p className="admin-inline-warning">
-              Для включения нужен новый серверный секрет и feature flag. Ранее раскрытый токен
-              использовать нельзя.
-            </p>
-          ) : null}
+            <small>
+              Вход {state.dashboard.max.configured ? 'доступен' : 'отключён'} · ссылка запуска{' '}
+              {state.dashboard.max.launchUrl ? 'сформирована' : 'недоступна'}
+            </small>
+          </article>
+          <article>
+            <header>
+              <strong>Электронная почта</strong>
+              <span className="not-ready">Не подключена</span>
+            </header>
+            <p>ASA Lab пока не отправляет письма для подтверждения учётной записи.</p>
+            <small>Подключение сервиса отправки запланировано отдельно.</small>
+          </article>
+          <article>
+            <header>
+              <strong>Telegram</strong>
+              <span className="not-ready">Не подключён</span>
+            </header>
+            <p>Подтверждение и вход через Telegram сейчас не реализованы.</p>
+            <small>Пользовательский сценарий и бот ещё не настроены.</small>
+          </article>
         </div>
       ) : null}
     </section>

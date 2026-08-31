@@ -25,7 +25,12 @@ import { GalleryWorkPage } from './pages/GalleryWorkPage';
 import { CollectionsPage } from './pages/CollectionsPage';
 import { AdminPage, type AdminAccessState } from './admin/AdminPage';
 import { adminApi } from './admin/admin-api';
-import { ADMIN_HREF, isAdminLocation } from './admin/admin-navigation';
+import {
+  adminHref,
+  adminNavigationItems,
+  adminSectionFromLocation,
+  type AdminSection,
+} from './admin/admin-navigation';
 import { PortalHeader } from './components/PortalHeader';
 import { SchoolTimeProvider, deviceTimeZone } from './components/school-time';
 import { seatAvatar } from './creator-portal/default-avatars';
@@ -104,7 +109,10 @@ export function App(): JSX.Element {
   });
   const [shellCreating, setShellCreating] = useState(false);
   const [accountPanel, setAccountPanel] = useState<'profile' | 'school'>('profile');
-  const [adminRoute, setAdminRoute] = useState(() => isAdminLocation(window.location));
+  const [adminSection, setAdminSection] = useState<AdminSection | null>(() =>
+    adminSectionFromLocation(window.location),
+  );
+  const adminRoute = adminSection !== null;
   const [adminAccess, setAdminAccess] = useState<AdminAccessState>({ kind: 'idle' });
   const [maxVerificationDue, setMaxVerificationDue] = useState(false);
   const adminAccessRequest = useRef(0);
@@ -114,7 +122,7 @@ export function App(): JSX.Element {
   const [maxLaunchMessage, setMaxLaunchMessage] = useState<string | null>(null);
 
   const setView = useCallback((next: CreatorPortalView) => {
-    setAdminRoute(false);
+    setAdminSection(null);
     setViewState(next);
     const href = creatorViewToHref(next);
     const current = `${window.location.pathname}${window.location.search}${window.location.hash}`;
@@ -154,7 +162,7 @@ export function App(): JSX.Element {
     const sync = (): void => {
       const nextView = creatorViewFromLocation(window.location);
       setViewState(nextView);
-      setAdminRoute(isAdminLocation(window.location));
+      setAdminSection(adminSectionFromLocation(window.location));
       if (nextView.kind === 'teacher-invite') setPendingTeacherInvite(nextView.token);
       setPublicViewState(publicViewFromHash());
     };
@@ -298,10 +306,11 @@ export function App(): JSX.Element {
     };
   }, [loadAdminAccess]);
 
-  const openAdmin = useCallback((): void => {
-    setAdminRoute(true);
+  const openAdminSection = useCallback((section: AdminSection): void => {
+    setAdminSection(section);
+    const href = adminHref(section);
     const current = `${window.location.pathname}${window.location.search}${window.location.hash}`;
-    if (current !== ADMIN_HREF) window.history.pushState(null, '', ADMIN_HREF);
+    if (current !== href) window.history.pushState(null, '', href);
   }, []);
 
   /**
@@ -591,7 +600,15 @@ export function App(): JSX.Element {
             : {})}
           canTeach={hasTeachingCapability}
           {...(adminAccess.kind === 'granted'
-            ? { adminNavigation: { active: adminRoute, onNavigate: openAdmin } }
+            ? {
+                adminNavigation: {
+                  active: adminRoute,
+                  activeSection: adminSection ?? 'overview',
+                  items: adminNavigationItems(adminAccess.profile),
+                  onOpen: () => openAdminSection('overview'),
+                  onNavigate: openAdminSection,
+                },
+              }
             : {})}
           onNavigate={navigate}
           onSessionChanged={(updated) => setSession({ kind: 'authenticated', session: updated })}
@@ -604,6 +621,8 @@ export function App(): JSX.Element {
         {adminRoute ? (
           <AdminPage
             access={adminAccess}
+            section={adminSection ?? 'overview'}
+            onNavigate={openAdminSection}
             onRetry={() => void loadAdminAccess()}
             onBack={() => setView({ kind: 'home' })}
             onAccessDenied={() => setAdminAccess({ kind: 'denied' })}

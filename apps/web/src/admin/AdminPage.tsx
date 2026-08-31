@@ -22,7 +22,8 @@ import {
   type AdminSecuritySession,
 } from './admin-api';
 import { adminActionLabel, adminResultLabel, adminRoleLabel, adminScopeLabel } from './admin-model';
-import { AdminDashboard, IpActivitySection, MaxIntegrationSection } from './AdminDashboard';
+import { AdminDashboard, IpActivitySection, VerificationMethodsSection } from './AdminDashboard';
+import { scopeSupportsAdminSection, type AdminSection } from './admin-navigation';
 import './admin.css';
 
 export type AdminAccessState =
@@ -31,9 +32,6 @@ export type AdminAccessState =
   | { readonly kind: 'denied' }
   | { readonly kind: 'error'; readonly message: string }
   | { readonly kind: 'granted'; readonly profile: AdminProfile };
-
-type AdminTab =
-  'overview' | 'accounts' | 'organizations' | 'security' | 'integrations' | 'operations' | 'audit';
 
 type AuditState =
   | { readonly kind: 'idle' | 'loading' }
@@ -850,11 +848,15 @@ function SessionRevokeDialog({
 
 export function AdminPage({
   access,
+  section,
+  onNavigate,
   onRetry,
   onBack,
   onAccessDenied,
 }: {
   readonly access: AdminAccessState;
+  readonly section: AdminSection;
+  readonly onNavigate: (section: AdminSection) => void;
   readonly onRetry: () => void;
   readonly onBack: () => void;
   readonly onAccessDenied: () => void;
@@ -886,17 +888,27 @@ export function AdminPage({
       />
     );
   }
-  return <AdminWorkspace profile={access.profile} onAccessDenied={onAccessDenied} />;
+  return (
+    <AdminWorkspace
+      profile={access.profile}
+      section={section}
+      onNavigate={onNavigate}
+      onAccessDenied={onAccessDenied}
+    />
+  );
 }
 
 function AdminWorkspace({
   profile,
+  section,
+  onNavigate,
   onAccessDenied,
 }: {
   readonly profile: AdminProfile;
+  readonly section: AdminSection;
+  readonly onNavigate: (section: AdminSection) => void;
   readonly onAccessDenied: () => void;
 }): JSX.Element {
-  const [tab, setTab] = useState<AdminTab>('overview');
   const [helpOpen, setHelpOpen] = useState(false);
   const [selectedKey, setSelectedKey] = useState(() =>
     profile.scopes[0] ? scopeKey(profile.scopes[0]) : '',
@@ -913,40 +925,24 @@ function AdminWorkspace({
   const selectedScope =
     profile.scopes.find((scope) => scopeKey(scope) === selectedKey) ?? profile.scopes[0] ?? null;
   const selectedScopeKey = selectedScope ? scopeKey(selectedScope) : '';
-  const tabs = useMemo<readonly { readonly id: AdminTab; readonly label: string }[]>(() => {
-    if (!selectedScope) return [];
-    const available: { id: AdminTab; label: string }[] = [{ id: 'overview', label: 'Обзор' }];
-    if (selectedScope.permissions.includes('administration.accounts.read')) {
-      available.push({ id: 'accounts', label: 'Пользователи' });
-    }
-    if (selectedScope.permissions.includes('administration.organizations.read')) {
-      available.push({ id: 'organizations', label: 'Организации' });
-    }
-    if (selectedScope.permissions.includes('administration.security.read')) {
-      available.push({ id: 'security', label: 'Безопасность' });
-    }
-    if (
-      selectedScope.kind === 'platform' &&
-      selectedScope.permissions.includes('administration.operations.read')
-    ) {
-      available.push({ id: 'integrations', label: 'Интеграции' });
-      available.push({ id: 'operations', label: 'Система' });
-    }
-    if (selectedScope.permissions.includes('administration.audit.read')) {
-      available.push({ id: 'audit', label: 'История' });
-    }
-    return available;
-  }, [selectedScope]);
-
+  const visibleSection =
+    selectedScope && scopeSupportsAdminSection(selectedScope, section) ? section : 'overview';
   useEffect(() => {
     if (selectedScope) return;
     setSelectedKey(profile.scopes[0] ? scopeKey(profile.scopes[0]) : '');
   }, [profile.scopes, selectedScope]);
 
   useEffect(() => {
-    if (tabs.some((entry) => entry.id === tab)) return;
-    setTab('overview');
-  }, [tab, tabs]);
+    if (selectedScope && scopeSupportsAdminSection(selectedScope, section)) return;
+    const compatibleScope = profile.scopes.find((scope) =>
+      scopeSupportsAdminSection(scope, section),
+    );
+    if (compatibleScope) {
+      setSelectedKey(scopeKey(compatibleScope));
+      return;
+    }
+    onNavigate('overview');
+  }, [onNavigate, profile.scopes, section, selectedScope]);
 
   const loadAudit = useCallback(
     async (cursor: AdminAuditCursor | null, append: boolean): Promise<void> => {
@@ -1004,13 +1000,13 @@ function AdminWorkspace({
   );
 
   useEffect(() => {
-    if (tab !== 'audit' || !selectedScope) return;
+    if (visibleSection !== 'audit' || !selectedScope) return;
     setFilter('');
     void loadAudit(null, false);
     return () => {
       requestVersion.current += 1;
     };
-  }, [loadAudit, selectedScope, selectedScopeKey, tab]);
+  }, [loadAudit, selectedScope, selectedScopeKey, visibleSection]);
 
   const visibleAudit = useMemo(() => {
     if (audit.kind !== 'ready') return [];
@@ -1068,7 +1064,14 @@ function AdminWorkspace({
             <span className="sr-only">Область управления</span>
             <select
               value={selectedScopeKey}
-              onChange={(event) => setSelectedKey(event.target.value)}
+              onChange={(event) => {
+                const nextKey = event.target.value;
+                setSelectedKey(nextKey);
+                const nextScope = profile.scopes.find((scope) => scopeKey(scope) === nextKey);
+                if (nextScope && !scopeSupportsAdminSection(nextScope, section)) {
+                  onNavigate('overview');
+                }
+              }}
             >
               {profile.scopes.map((scope) => (
                 <option key={scopeKey(scope)} value={scopeKey(scope)}>
@@ -1093,30 +1096,13 @@ function AdminWorkspace({
         ) : null}
       </header>
 
-      <nav className="admin-tabs" aria-label="Разделы администрирования">
-        {tabs.map((entry) => (
-          <button
-            key={entry.id}
-            type="button"
-            className={tab === entry.id ? 'active' : ''}
-            aria-current={tab === entry.id ? 'page' : undefined}
-            onClick={() => {
-              setHelpOpen(false);
-              setTab(entry.id);
-            }}
-          >
-            {entry.label}
-          </button>
-        ))}
-      </nav>
-
-      {tab === 'overview' ? (
+      {visibleSection === 'overview' ? (
         <AdminDashboard scope={selectedScope} onAccessDenied={onAccessDenied} />
-      ) : tab === 'integrations' ? (
-        <MaxIntegrationSection scope={selectedScope} onAccessDenied={onAccessDenied} />
-      ) : tab === 'operations' ? (
+      ) : visibleSection === 'confirmations' ? (
+        <VerificationMethodsSection scope={selectedScope} onAccessDenied={onAccessDenied} />
+      ) : visibleSection === 'operations' ? (
         <OperationsSection onAccessDenied={onAccessDenied} />
-      ) : tab === 'audit' ? (
+      ) : visibleSection === 'audit' ? (
         <section className="admin-audit" aria-labelledby="admin-audit-title">
           <div className="admin-section-heading admin-audit-heading">
             <div>
@@ -1227,7 +1213,7 @@ function AdminWorkspace({
             </>
           ) : null}
         </section>
-      ) : tab === 'accounts' ? (
+      ) : visibleSection === 'accounts' ? (
         <DirectorySection
           key={`accounts:${selectedScopeKey}:${accountsVersion}`}
           scope={selectedScope}
@@ -1297,7 +1283,7 @@ function AdminWorkspace({
             </tr>
           )}
         />
-      ) : tab === 'organizations' ? (
+      ) : visibleSection === 'organizations' ? (
         <DirectorySection
           key={`organizations:${selectedScopeKey}`}
           scope={selectedScope}
@@ -1335,7 +1321,7 @@ function AdminWorkspace({
             </tr>
           )}
         />
-      ) : tab === 'security' ? (
+      ) : visibleSection === 'security' ? (
         <>
           <IpActivitySection scope={selectedScope} onAccessDenied={onAccessDenied} />
           <DirectorySection

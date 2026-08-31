@@ -260,7 +260,8 @@ test('administrator can inspect real scoped directory sections without secret fi
 
   await page.goto('/#/admin');
   await expect(page.getByRole('heading', { name: 'Админ', exact: true })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Пульс ASA Lab' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Пульс ASA Lab' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Обновить' })).toBeVisible();
   await expect(page.getByText('Разные IP')).toBeVisible();
   await expect(page.getByText('9', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: '7 дней' }).click();
@@ -271,16 +272,19 @@ test('administrator can inspect real scoped directory sections without secret fi
   await expect(page.getByText(/Вы управляете организацией «Школа № 1»/)).toBeVisible();
 
   await page.getByRole('button', { name: 'Пользователи', exact: true }).click();
+  await expect(page).toHaveURL(/#\/admin\/users$/);
   await expect(page.getByRole('cell', { name: /Администратор/ }).first()).toContainText(
     'admin@example.test',
   );
   await expect(page.getByText('Почта: Подтверждена')).toBeVisible();
 
   await page.getByRole('button', { name: 'Организации', exact: true }).click();
+  await expect(page).toHaveURL(/#\/admin\/organizations$/);
   await expect(page.getByRole('cell', { name: /Школа № 1/ }).first()).toBeVisible();
   await expect(page.getByRole('cell', { name: '12', exact: true })).toBeVisible();
 
   await page.getByRole('button', { name: 'Безопасность', exact: true }).click();
+  await expect(page).toHaveURL(/#\/admin\/security$/);
   await expect(page.getByRole('heading', { name: 'Входы с разных IP' })).toBeVisible();
   await expect(page.getByText('203.0.113.10 · 198.51.100.20')).toBeVisible();
   await expect(page.getByText('Chrome 140 · Windows 11')).toBeVisible();
@@ -380,8 +384,14 @@ test('platform administrator sees real system status and no infrastructure secre
     }),
   );
 
-  await page.goto('/#/admin');
+  await page.goto('/#/admin/confirmations');
+  await expect(page.getByRole('heading', { name: 'Подтверждения', exact: true })).toBeVisible();
+  await expect(page.getByText('MAX Bot', { exact: true })).toBeVisible();
+  await expect(page.getByText('Электронная почта', { exact: true })).toBeVisible();
+  await expect(page.getByText('Telegram', { exact: true })).toBeVisible();
+  await expect(page.getByText('Не подключена', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Система', exact: true }).click();
+  await expect(page).toHaveURL(/#\/admin\/system$/);
   await expect(page.getByRole('heading', { name: 'Система', exact: true })).toBeVisible();
   await expect(page.getByText('PostgreSQL').first()).toBeVisible();
   await expect(page.getByText('0071', { exact: true })).toBeVisible();
@@ -470,10 +480,10 @@ test('platform administrator can manage a user and revoke a foreign session with
     await json(route, { sessionId: '40000000-0000-4000-8000-000000000002', revoked: true });
   });
 
-  await page.goto('/#/admin');
+  await page.goto('/#/admin/users');
   await expect(page.getByRole('heading', { name: 'Админ', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Вернуться в ASA Lab' })).toHaveCount(0);
-  await page.getByRole('button', { name: 'Пользователи', exact: true }).click();
+  await expect(page).toHaveURL(/#\/admin\/users$/);
   await expect(page.getByText('Действующих входов: 1')).toBeVisible();
   await page.getByRole('button', { name: 'Управлять' }).click();
   await page.getByLabel('Причина изменения').fill('Запрос владельца аккаунта');

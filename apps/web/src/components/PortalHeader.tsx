@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { api, type SessionPayload } from '../api';
+import type { AdminNavigationItem, AdminSection } from '../admin/admin-navigation';
 import { AsaLabWordmark } from '../brand/AsaLabBrand';
 import {
   defaultAvatarForAccount,
@@ -87,7 +88,10 @@ export function PortalHeader({
   /** Shown only after the dedicated administrative endpoint confirms a grant. */
   adminNavigation?: {
     readonly active: boolean;
-    readonly onNavigate: () => void;
+    readonly activeSection: AdminSection;
+    readonly items: readonly AdminNavigationItem[];
+    readonly onOpen: () => void;
+    readonly onNavigate: (section: AdminSection) => void;
   };
   onNavigate: (section: PortalSection) => void;
   onSessionChanged: (session: SessionPayload) => void;
@@ -494,18 +498,39 @@ export function PortalHeader({
             </button>
           ))}
           {adminNavigation ? (
-            <button
-              type="button"
-              data-admin-navigation="true"
-              className={adminNavigation.active ? 'portal-nav-item active' : 'portal-nav-item'}
-              aria-current={adminNavigation.active ? 'page' : undefined}
-              onClick={adminNavigation.onNavigate}
-            >
-              <span className="portal-nav-glyph" aria-hidden="true">
-                <SchoolGlyph />
-              </span>
-              <span className="portal-nav-label">Админ</span>
-            </button>
+            <div className="portal-admin-navigation">
+              <button
+                type="button"
+                data-admin-navigation="true"
+                className={adminNavigation.active ? 'portal-nav-item active' : 'portal-nav-item'}
+                aria-expanded={adminNavigation.active}
+                onClick={adminNavigation.onOpen}
+              >
+                <span className="portal-nav-glyph" aria-hidden="true">
+                  <SchoolGlyph />
+                </span>
+                <span className="portal-nav-label">Админ</span>
+              </button>
+              {adminNavigation.active ? (
+                <div className="portal-admin-subnav" aria-label="Разделы администрирования">
+                  {adminNavigation.items.map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      className={
+                        adminNavigation.activeSection === item.id
+                          ? 'portal-admin-subnav-item active'
+                          : 'portal-admin-subnav-item'
+                      }
+                      aria-current={adminNavigation.activeSection === item.id ? 'page' : undefined}
+                      onClick={() => adminNavigation.onNavigate(item.id)}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
           ) : null}
         </nav>
         {helpNavigation ? (

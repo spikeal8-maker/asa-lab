@@ -53,7 +53,20 @@ function render(admin: boolean): string {
       onSessionChanged: vi.fn(),
       onLoggedOut: vi.fn(),
       onCreate: vi.fn(),
-      ...(admin ? { adminNavigation: { active: false, onNavigate: vi.fn() } } : {}),
+      ...(admin
+        ? {
+            adminNavigation: {
+              active: true,
+              activeSection: 'overview' as const,
+              items: [
+                { id: 'overview' as const, label: 'Обзор', href: '/#/admin' },
+                { id: 'accounts' as const, label: 'Пользователи', href: '/#/admin/users' },
+              ],
+              onOpen: vi.fn(),
+              onNavigate: vi.fn(),
+            },
+          }
+        : {}),
     }),
   );
 }
@@ -62,5 +75,7 @@ describe('administrative portal entry', () => {
   it('is absent until the server-confirmed navigation contract is supplied', () => {
     expect(render(false)).not.toContain('data-admin-navigation="true"');
     expect(render(true)).toContain('data-admin-navigation="true"');
+    expect(render(true)).toContain('Разделы администрирования');
+    expect(render(true)).toContain('Пользователи');
   });
 });

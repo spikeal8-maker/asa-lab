@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import { AdminPage } from '../AdminPage';
 import type { AdminProfile } from '../admin-api';
+import type { AdminSection } from '../admin-navigation';
 
 const PROFILE: AdminProfile = {
   administrator: true,
@@ -27,10 +28,15 @@ const PROFILE: AdminProfile = {
   ],
 };
 
-function render(access: Parameters<typeof AdminPage>[0]['access']): string {
+function render(
+  access: Parameters<typeof AdminPage>[0]['access'],
+  section: AdminSection = 'overview',
+): string {
   return renderToStaticMarkup(
     createElement(AdminPage, {
       access,
+      section,
+      onNavigate: vi.fn(),
       onRetry: vi.fn(),
       onBack: vi.fn(),
       onAccessDenied: vi.fn(),
@@ -49,15 +55,19 @@ describe('administrative page access states', () => {
     expect(denied).not.toContain('История');
   });
 
-  it('renders only server-granted scope and capability cards', () => {
+  it('renders one addressable section without the former tab strip', () => {
     const html = render({ kind: 'granted', profile: PROFILE });
-    expect(html).toContain('Пульс ASA Lab');
-    expect(html).toContain('Использование продуктов');
+    expect(html).toContain('Админ');
     expect(html).toContain('1 год');
-    expect(html).toContain('Пользователи');
-    expect(html).toContain('Безопасность');
-    expect(html).not.toContain('>Организации</button>');
-    expect(html).not.toContain('>Интеграции</button>');
+    expect(html).not.toContain('Пульс ASA Lab');
+    expect(html).not.toContain('admin-tabs');
+    expect(html).not.toContain('>Пользователи</button>');
+    expect(html).not.toContain('>Безопасность</button>');
+    const users = render({ kind: 'granted', profile: PROFILE }, 'accounts');
+    expect(users).toContain('Пользователи');
+    expect(users).not.toContain('1 год');
+    const unavailable = render({ kind: 'granted', profile: PROFILE }, 'confirmations');
+    expect(unavailable).not.toContain('MAX Bot');
     expect(html).not.toContain('Выберите, чем хотите управлять');
     expect(html).not.toContain('Финансы');
     expect(html).not.toContain('Система</h3>');

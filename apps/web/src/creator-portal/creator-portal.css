@@ -376,6 +376,45 @@
   height: 22px;
 }
 
+.portal-admin-navigation {
+  display: grid;
+  gap: 2px;
+}
+
+.portal-admin-subnav {
+  display: grid;
+  gap: 1px;
+  padding: 2px 8px 4px 48px;
+}
+
+.portal-admin-subnav-item {
+  min-height: 30px;
+  padding: 3px 8px;
+  border: 0;
+  border-radius: 7px;
+  color: #607783;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.2;
+  text-align: left;
+}
+
+.portal-admin-subnav-item:hover {
+  color: #173f53;
+  background: #f0f6f9;
+}
+
+.portal-admin-subnav-item.active {
+  color: #076b9b;
+  background: #eaf5fa;
+  font-weight: 800;
+}
+
+.portal-sidebar.collapsed .portal-admin-subnav {
+  display: none;
+}
+
 .portal-sidebar-footer {
   margin: auto -8px -58px;
   padding: 16px 8px 20px;
@@ -981,6 +1020,23 @@
     width: auto;
     height: 3px;
     border-radius: 3px 3px 0 0;
+  }
+
+  .portal-admin-navigation,
+  .portal-admin-subnav,
+  .portal-sidebar.collapsed .portal-admin-subnav {
+    display: contents;
+  }
+
+  .portal-admin-subnav-item {
+    min-height: 47px;
+    padding: 0 11px;
+    border-radius: 0;
+    white-space: nowrap;
+  }
+
+  .portal-admin-subnav-item.active {
+    box-shadow: inset 0 -3px #0877b3;
   }
 
   .portal-shell > .portal-content,
