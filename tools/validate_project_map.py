@@ -15,14 +15,7 @@ import yaml
 ROOT = Path(__file__).resolve().parents[1]
 MAP_PATH = ROOT / "docs/project-map/project-map.yaml"
 MANIFEST_PATH = ROOT / "docs/delivery/EXECUTION_MANIFEST.yaml"
-CURRENT_PATH = ROOT / "docs/execution/current.yaml"
 RENDERED_MAP_PATH = ROOT / "docs/project-map/PROJECT_MAP.md"
-
-
-def active_task_from_control_plane() -> str:
-    """The active task has exactly one home: docs/execution/current.yaml."""
-    document = yaml.safe_load(CURRENT_PATH.read_text(encoding="utf-8"))
-    return str(document["task"]["id"])
 
 ALLOWED_STATUSES = {
     "planned",
@@ -267,47 +260,21 @@ def validate_execution_queue(
     return task_ids
 
 
-def validate_focus(
-    document: dict[str, Any], nodes: dict[str, dict[str, Any]], queue_ids: list[str], errors: list[str]
-) -> None:
+def validate_execution_state_absence(document: dict[str, Any], errors: list[str]) -> None:
+    """The architecture graph must never become a second execution state file."""
     project = document.get("project")
     if not isinstance(project, dict):
         errors.append("project must be an object")
         return
-
-    active_tasks = sorted(
-        node_id
-        for node_id, node in nodes.items()
-        if node.get("kind") == "task" and node.get("status") in ACTIVE_STATUSES
-    )
-    if len(active_tasks) > 1:
-        errors.append("Only one active task is allowed: " + ", ".join(active_tasks))
-
-    focus = project.get("current_focus")
-    if focus is None:
-        if active_tasks:
-            errors.append(f"current_focus is null but active tasks exist: {active_tasks}")
-        actionable = [
-            task_id
-            for task_id in queue_ids
-            if nodes[task_id].get("status") not in {"done", "blocked"}
-        ]
-        if actionable:
+    for key in ("current_focus", "active_checkpoint"):
+        if key in project:
             errors.append(
-                "current_focus may be null only when no executable task is actionable: "
-                + ", ".join(actionable)
+                f"project.{key} duplicates docs/execution/current.yaml and must be absent"
             )
-        return
-
-    if focus not in nodes:
-        errors.append(f"current_focus references unknown node: {focus!r}")
-        return
-    if nodes[focus].get("kind") != "task":
-        errors.append("current_focus must reference a task node")
-    if nodes[focus].get("status") not in ACTIVE_STATUSES:
-        errors.append(f"current_focus must be active, got {nodes[focus].get('status')!r}")
-    if active_tasks and active_tasks != [focus]:
-        errors.append(f"current_focus {focus} does not match active task {active_tasks}")
+    if project.get("execution_state_source") != "docs/execution/current.yaml":
+        errors.append(
+            "project.execution_state_source must be docs/execution/current.yaml"
+        )
 
 
 def base_ref_candidate() -> str:
@@ -417,44 +384,26 @@ def validate_delivery_alignment(
     if not isinstance(canonical_state, dict) or not isinstance(tasks, list):
         errors.append("Execution manifest must expose canonical_state and tasks")
         return
-    # Read from the control plane, not from a copy inside the manifest.
-    active_task = active_task_from_control_plane()
-    manifest_task = next(
-        (
-            task
-            for task in tasks
-            if isinstance(task, dict) and task.get("task_id") == active_task
-        ),
-        None,
-    )
-    if not isinstance(active_task, str) or not isinstance(manifest_task, dict):
-        errors.append("Execution manifest active task is missing from tasks")
-        return
-    status = manifest_task.get("status")
-    focus = document.get("project", {}).get("current_focus")
-    # The map's focus names the task being worked on. Once that task is done there
-    # is nothing to focus on until the next one is defined, and the focus is null —
-    # which validate_focus permits when every remaining queue item is explicitly
-    # blocked. A null focus still cannot hide ready or in-flight work.
-    #
-    # Requiring the focus to equal the task's id whatever its status made the two
-    # rules contradict each other the moment a task finished: one demanded the id,
-    # the other demanded that the named node be active. Nothing could satisfy both,
-    # so no task could be recorded as done.
-    focus_may_be_null = status == "done"
-    if focus != active_task and not (focus is None and focus_may_be_null):
-        errors.append("Project map current_focus differs from execution manifest")
-    for node_id in (active_task, manifest_task.get("architecture_horizon"), "ACT-AGENT"):
-        node = nodes.get(str(node_id))
-        if not isinstance(node, dict) or node.get("status") != status:
-            errors.append(f"Project map node {node_id} must match manifest status {status!r}")
+    for task in tasks:
+        if not isinstance(task, dict) or not isinstance(task.get("task_id"), str):
+            continue
+        node = nodes.get(task["task_id"])
+        if not isinstance(node, dict):
+            errors.append(f"Project map misses manifest task {task['task_id']}")
+            continue
+        if node.get("status") != task.get("status"):
+            errors.append(
+                f"Project map task {task['task_id']} status {node.get('status')!r} "
+                f"differs from manifest catalog {task.get('status')!r}"
+            )
     rendered = (
         RENDERED_MAP_PATH.read_text(encoding="utf-8")
         if RENDERED_MAP_PATH.is_file()
         else ""
     )
-    if f"status {status}" not in rendered:
-        errors.append(f"PROJECT_MAP.md must display manifest status {status!r}")
+    for marker in ("docs/execution/current.yaml", "pnpm agent:context"):
+        if marker not in rendered:
+            errors.append(f"PROJECT_MAP.md must reference {marker}")
 
 
 def main() -> int:
@@ -470,16 +419,15 @@ def main() -> int:
     edges = validate_edges(document, nodes, errors)
     validate_task_dependencies(nodes, edges, errors)
     queue_ids = validate_execution_queue(document, nodes, errors)
-    validate_focus(document, nodes, queue_ids, errors)
+    validate_execution_state_absence(document, errors)
     validate_delivery_alignment(document, manifest, nodes, errors)
     validate_map_change_policy(errors)
     if errors:
         return fail(errors)
-    focus = document.get("project", {}).get("current_focus")
     print("ASA Lab project map validation: PASS")
     print(f"- nodes: {len(nodes)}")
     print(f"- edges: {len(edges)}")
-    print(f"- current focus: {focus}")
+    print("- live execution state: docs/execution/current.yaml")
     print(f"- executable tasks: {len(queue_ids)}")
     return 0
 

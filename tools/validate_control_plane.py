@@ -33,6 +33,12 @@ MAP_PATH = ROOT / "docs/project-map/project-map.yaml"
 ACTIVE_TESTS_PATH = ROOT / "docs/testing/active-task-tests.yaml"
 CATALOG_VALIDATOR_PATH = ROOT / "tools/validate_test_catalog.py"
 PACKAGE_JSON_PATH = ROOT / "package.json"
+AGENT_CONTEXT_PATH = ROOT / "tools/agent_context.py"
+BOT_RUNBOOK_PATH = ROOT / "docs/delivery/BOT_RUNBOOK.md"
+QUALITY_MAP_PATH = ROOT / "docs/project-map/QUALITY_MAP.md"
+PROJECT_MAP_README_PATH = ROOT / "docs/project-map/README.md"
+PRODUCT_README_PATH = ROOT / "docs/product/README.md"
+TASK_SYSTEM_PATH = ROOT / "docs/project-map/TASK_SYSTEM.md"
 
 TASK_ID_PATTERN = re.compile(r"\bTASK-[A-Z0-9]+(?:-[A-Z0-9]+)*-[0-9]{3}\b")
 PRODUCT_BRANCH_PATTERN = re.compile(r"\bagent/[a-z0-9][a-z0-9./_-]*", re.IGNORECASE)
@@ -40,7 +46,15 @@ BRANCH_PATTERN = re.compile(r"(?:main|agent/[a-z0-9][a-z0-9./_-]*)", re.IGNORECA
 SHA_PATTERN = re.compile(r"\b[0-9a-f]{40}\b")
 
 # Documents that describe policy or process and must not restate execution state.
-STATELESS_DOCUMENTS = (START_HERE_PATH, AGENTS_PATH)
+STATELESS_DOCUMENTS = (
+    START_HERE_PATH,
+    AGENTS_PATH,
+    BOT_RUNBOOK_PATH,
+    QUALITY_MAP_PATH,
+    PROJECT_MAP_README_PATH,
+    PRODUCT_README_PATH,
+    TASK_SYSTEM_PATH,
+)
 
 # Keys that used to be duplicated into the delivery manifest.
 FORBIDDEN_MANIFEST_KEYS = (
@@ -581,7 +595,8 @@ def check_stateless_documents(errors: list[str]) -> None:
                     )
 
 
-def check_manifest(task: dict[str, Any], errors: list[str]) -> None:
+def check_manifest(errors: list[str]) -> None:
+    """Keep the programme catalog structural and execution-state agnostic."""
     manifest = load_yaml(MANIFEST_PATH, errors)
     if not isinstance(manifest, dict):
         return
@@ -600,72 +615,60 @@ def check_manifest(task: dict[str, Any], errors: list[str]) -> None:
     tasks = manifest.get("tasks")
     if not isinstance(tasks, list):
         errors.append("EXECUTION_MANIFEST.yaml must contain a tasks array")
-        return
-    entry = next(
-        (item for item in tasks if isinstance(item, dict) and item.get("task_id") == task.get("id")),
-        None,
-    )
-    if entry is None:
-        errors.append(f"EXECUTION_MANIFEST.yaml has no task {task.get('id')}")
-        return
-    if entry.get("status") != task.get("status"):
-        errors.append(
-            f"EXECUTION_MANIFEST.yaml task status {entry.get('status')!r} != "
-            f"current.yaml {task.get('status')!r}"
-        )
-    for manifest_key, task_key in (("branch", "branch"), ("checkpoint", "checkpoint")):
-        if manifest_key in entry and entry.get(manifest_key) != task.get(task_key):
-            errors.append(
-                f"EXECUTION_MANIFEST.yaml task {manifest_key} {entry.get(manifest_key)!r} != "
-                f"current.yaml {task.get(task_key)!r}"
-            )
 
 
-def check_project_map(task: dict[str, Any], errors: list[str]) -> None:
+def check_project_map(errors: list[str]) -> None:
+    """Reject live execution fields in the structural architecture graph."""
     document = load_yaml(MAP_PATH, errors)
     if not isinstance(document, dict):
         return
     project = document.get("project")
     project = project if isinstance(project, dict) else document
-    focus = project.get("current_focus")
-    # While a task is in flight the map names it. Once it is done there is nothing
-    # to focus on until the next task is defined, and the map says null — which
-    # validate_project_map permits only when the executable queue is complete, so
-    # a null focus cannot stand in for unfinished work.
-    #
-    # Demanding the id whatever the status left no way to record a finished task:
-    # this check wanted the name, while the map's own focus rule wanted an active
-    # node, and a done task is not one.
-    if focus != task.get("id") and not (focus is None and task.get("status") == "done"):
-        errors.append(
-            f"project-map.yaml current_focus {focus!r} != current.yaml task.id {task.get('id')!r}"
-        )
-    if project.get("active_checkpoint") != task.get("checkpoint"):
-        errors.append(
-            f"project-map.yaml active_checkpoint {project.get('active_checkpoint')!r} != "
-            f"current.yaml task.checkpoint {task.get('checkpoint')!r}"
-        )
-    nodes = document.get("nodes")
-    if isinstance(nodes, list):
-        node = next(
-            (item for item in nodes if isinstance(item, dict) and item.get("id") == task.get("id")),
-            None,
-        )
-        if node is not None and node.get("status") != task.get("status"):
+    for key in ("current_focus", "active_checkpoint"):
+        if key in project:
             errors.append(
-                f"project-map.yaml node {task.get('id')} status {node.get('status')!r} != "
-                f"current.yaml {task.get('status')!r}"
+                f"project-map.yaml project.{key} duplicates execution state; "
+                "read docs/execution/current.yaml instead"
             )
+    if project.get("execution_state_source") != "docs/execution/current.yaml":
+        errors.append(
+            "project-map.yaml must declare execution_state_source: "
+            "docs/execution/current.yaml"
+        )
 
 
-def check_active_tests(task: dict[str, Any], errors: list[str]) -> None:
+def check_active_tests(errors: list[str]) -> None:
     document = load_yaml(ACTIVE_TESTS_PATH, errors)
     if not isinstance(document, dict):
         return
-    if document.get("active_task") != task.get("id"):
+    if "active_task" in document:
         errors.append(
-            f"active-task-tests.yaml active_task {document.get('active_task')!r} != "
-            f"current.yaml task.id {task.get('id')!r}"
+            "active-task-tests.yaml must not duplicate active_task; lane selection "
+            "comes from docs/execution/current.yaml"
+        )
+    if document.get("task_selection_source") != "docs/execution/current.yaml":
+        errors.append(
+            "active-task-tests.yaml must declare task_selection_source: "
+            "docs/execution/current.yaml"
+        )
+
+
+def check_agent_context(errors: list[str]) -> None:
+    if not AGENT_CONTEXT_PATH.is_file():
+        errors.append("Missing tools/agent_context.py")
+        return
+    code, output = run(
+        [sys.executable, str(AGENT_CONTEXT_PATH), "--check", "--root", str(ROOT)]
+    )
+    if code != 0:
+        errors.append(f"agent context validation failed: {output}")
+    try:
+        scripts = json.loads(PACKAGE_JSON_PATH.read_text(encoding="utf-8")).get("scripts", {})
+    except Exception:  # noqa: BLE001 - package parsing is reported elsewhere too
+        return
+    if scripts.get("agent:context") != "python tools/agent_context.py":
+        errors.append(
+            "package.json agent:context must run python tools/agent_context.py"
         )
 
 
@@ -1151,6 +1154,9 @@ def bind_root(root: Path) -> None:
     """
     global ROOT, CURRENT_PATH, START_HERE_PATH, AGENTS_PATH, MANIFEST_PATH
     global MAP_PATH, ACTIVE_TESTS_PATH, CATALOG_VALIDATOR_PATH, PACKAGE_JSON_PATH
+    global AGENT_CONTEXT_PATH, BOT_RUNBOOK_PATH, QUALITY_MAP_PATH
+    global PROJECT_MAP_README_PATH, PRODUCT_README_PATH
+    global TASK_SYSTEM_PATH
     global STATELESS_DOCUMENTS
 
     ROOT = root.resolve()
@@ -1162,7 +1168,21 @@ def bind_root(root: Path) -> None:
     ACTIVE_TESTS_PATH = ROOT / "docs/testing/active-task-tests.yaml"
     CATALOG_VALIDATOR_PATH = ROOT / "tools/validate_test_catalog.py"
     PACKAGE_JSON_PATH = ROOT / "package.json"
-    STATELESS_DOCUMENTS = (START_HERE_PATH, AGENTS_PATH)
+    AGENT_CONTEXT_PATH = ROOT / "tools/agent_context.py"
+    BOT_RUNBOOK_PATH = ROOT / "docs/delivery/BOT_RUNBOOK.md"
+    QUALITY_MAP_PATH = ROOT / "docs/project-map/QUALITY_MAP.md"
+    PROJECT_MAP_README_PATH = ROOT / "docs/project-map/README.md"
+    PRODUCT_README_PATH = ROOT / "docs/product/README.md"
+    TASK_SYSTEM_PATH = ROOT / "docs/project-map/TASK_SYSTEM.md"
+    STATELESS_DOCUMENTS = (
+        START_HERE_PATH,
+        AGENTS_PATH,
+        BOT_RUNBOOK_PATH,
+        QUALITY_MAP_PATH,
+        PROJECT_MAP_README_PATH,
+        PRODUCT_README_PATH,
+        TASK_SYSTEM_PATH,
+    )
 
 
 def main() -> int:
@@ -1208,6 +1228,10 @@ def main() -> int:
         check_source_invariants(errors)
         check_catalog_validator(errors)
         check_gate_scripts(current, errors, lanes)
+        check_manifest(errors)
+        check_project_map(errors)
+        check_active_tests(errors)
+        check_agent_context(errors)
         if direct_main:
             notes.append(
                 "direct_main mode: leases, lane path ownership, product branches and PRs "
@@ -1215,9 +1239,6 @@ def main() -> int:
             )
         else:
             check_state_file_is_canonical(lane_tasks, errors, notes)
-            check_manifest(task, errors)
-            check_project_map(task, errors)
-            check_active_tests(task, errors)
             check_lane_branch_scopes(lanes, errors, notes, args.require_github)
             for lane_task in lane_tasks:
                 check_git(lane_task, errors, notes)

@@ -57,11 +57,11 @@ ports:
   preview_reserved: 4613
   forbidden: [3000, 3100, 5173]
 
-map_protocol:
+execution_protocol:
   start:
-    - one task becomes ready or in_progress
-    - project.current_focus becomes that task
-    - branch, Issue, scope and tests are published together
+    - owner-selected task and lane are recorded in docs/execution/current.yaml
+    - branch, Issue, scope and gates are read from that lane
+    - programme catalog and architecture map remain structural
   draft_pr:
     - current task becomes in_review only after implementation and focused PASS
     - maps and quality evidence reflect the exact diff
@@ -74,8 +74,8 @@ map_protocol:
     - standalone review surfaces do not satisfy the user-visible result
     - the real product route must consume the integrated contracts before review
   after_merge:
-    - accepted task becomes done
-    - project.current_focus becomes null unless another task is separately activated
+    - accepted lane task becomes done in docs/execution/current.yaml
+    - another task starts only through a separate owner transition
     - coding agent stops
 
 report_contract:

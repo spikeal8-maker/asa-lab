@@ -1,49 +1,26 @@
 # ASA Lab — Product Documentation
 
-Product goal is defined by `PRODUCT_BLUEPRINT.md` and `CAPABILITY_MAP.yaml`. Execution is controlled by [`../delivery/EXECUTION_MANIFEST.yaml`](../delivery/EXECUTION_MANIFEST.yaml).
+Цель продукта описывают [`PRODUCT_BLUEPRINT.md`](PRODUCT_BLUEPRINT.md) и
+[`CAPABILITY_MAP.yaml`](CAPABILITY_MAP.yaml). Долговременные контракты модулей
+расположены в их поддиректориях.
 
-## Current product task
+Эта страница не хранит активную задачу. Получить точное состояние и документы
+нужного направления:
 
-```text
-TASK-CREATOR-PORTAL-001
-Issue #62
-branch agent/r2-creator-portal
-status ready
+```bash
+pnpm agent:context --list
+pnpm agent:context --scope <lane>
 ```
 
-R2 builds a coherent capability-aware Creator Portal on top of the completed Account C1 and existing project/module foundation.
+Единственный источник выполнения —
+[`../execution/current.yaml`](../execution/current.yaml). Каталог программы —
+[`../delivery/EXECUTION_MANIFEST.yaml`](../delivery/EXECUTION_MANIFEST.yaml),
+архитектурный граф — [`../project-map/project-map.yaml`](../project-map/project-map.yaml),
+стабильные проверки — [`../testing/test-catalog.yaml`](../testing/test-catalog.yaml).
 
-## User result
+## Правило документации
 
-```text
-Creator Home
-→ recent projects
-→ Projects / Learning / Collections / Challenges
-→ Classes for educator capability
-→ Help
-→ Account and workspace switcher
-```
-
-## Preserved capabilities
-
-- Account/Profile/Principal;
-- Personal Workspace, ActiveContext and sessions_v2;
-- educator capability;
-- Teacher Portal;
-- Project Hub;
-- Electronics, Chess and Chess Online;
-- PostgreSQL/RLS/Docker/recovery.
-
-## R2 boundaries
-
-R2 does not implement full Module Registry lifecycle, Electronics parity, StudentSeat, publication backend, assignments or administration.
-
-## Delivery sources
-
-- [`../delivery/EXECUTION_MANIFEST.yaml`](../delivery/EXECUTION_MANIFEST.yaml)
-- [`../project-map/project-map.yaml`](../project-map/project-map.yaml)
-- [`../project-map/QUALITY_MAP.md`](../project-map/QUALITY_MAP.md)
-- [`../testing/test-catalog.yaml`](../testing/test-catalog.yaml)
-- [`../testing/active-task-tests.yaml`](../testing/active-task-tests.yaml)
-
-R3 and R4 remain blocked until separate owner transitions.
+Product docs отвечают на вопросы «что должно уметь изделие» и «как это
+проверяется». Task, branch, checkpoint, SHA и текущий результат gate в них не
+копируются. Историческое решение помечается датой или релизом и не выдаётся за
+текущее состояние.

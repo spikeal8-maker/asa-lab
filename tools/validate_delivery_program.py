@@ -45,8 +45,8 @@ _CURRENT_TASK = _control_plane()
 ACTIVE_TASK = str(_CURRENT_TASK["id"])
 ACTIVE_BRANCH = str(_CURRENT_TASK["branch"])
 ACTIVE_ISSUE = f"https://github.com/spikeal8-maker/asa-lab/issues/{_CURRENT_TASK['issue']}"
-WORK_STATUS_PATH = ROOT / f"docs/delivery/{ACTIVE_TASK.replace('-', '_')}_WORK_STATUS.md"
 ACTIVE_STATUSES = {"ready", "in_progress", "in_review"}
+ALLOWED_TASK_STATUSES = ACTIVE_STATUSES | {"blocked", "done", "planned", "deprecated"}
 # A task the control plane records as finished is expected to read "done"
 # everywhere, exactly like the ones before it. Insisting the named task always be
 # in flight left no way to record the last one completing.
@@ -92,7 +92,6 @@ def validate_documents(errors: list[str]) -> None:
         ROOT / "docs/delivery/BOT_RUNBOOK.md", PROJECT_MAP_RENDERED_PATH,
         QUALITY_MAP_PATH, ROOT / "docs/project-map/README.md",
         ROOT / "docs/project-map/TASK_SYSTEM.md", ROOT / "docs/testing/TEST_STRATEGY.md",
-        WORK_STATUS_PATH,
     )
     for path in required:
         if not path.is_file():
@@ -107,8 +106,13 @@ def combined_catalog(errors: list[str]) -> dict[str, Any]:
     active = load_yaml(ACTIVE_CATALOG_PATH, errors)
     stable_tests = stable.get("tests") if isinstance(stable.get("tests"), list) else []
     active_tests = active.get("tests") if isinstance(active.get("tests"), list) else []
-    if active.get("active_task") != ACTIVE_TASK:
-        errors.append(f"active-task-tests.yaml must target {ACTIVE_TASK}")
+    if "active_task" in active:
+        errors.append("active-task-tests.yaml must not duplicate active_task")
+    if active.get("task_selection_source") != "docs/execution/current.yaml":
+        errors.append(
+            "active-task-tests.yaml task_selection_source must be "
+            "docs/execution/current.yaml"
+        )
     return {**stable, "tests": [*stable_tests, *active_tests]}
 
 
@@ -215,13 +219,7 @@ def validate_manifest(manifest: dict[str, Any], catalog: dict[str, Any], errors:
 
     for index, task in enumerate(tasks):
         task_id = str(task.get("task_id"))
-        if task_id == ACTIVE_TASK and not ACTIVE_TASK_IS_DONE:
-            expected_statuses = ACTIVE_STATUSES
-        elif task.get("activation") == "paused_by_owner":
-            expected_statuses = {"blocked"}
-        else:
-            expected_statuses = {"done"}
-        if task.get("status") not in expected_statuses:
+        if task.get("status") not in ALLOWED_TASK_STATUSES:
             errors.append(f"Task {task_id} has invalid status {task.get('status')!r}")
         for field in ("issue", "branch", "milestone", "track", "delivery_stage", "architecture_horizon", "visible_result"):
             value = task.get(field)
@@ -231,7 +229,7 @@ def validate_manifest(manifest: dict[str, Any], catalog: dict[str, Any], errors:
         if task.get("next_task") != expected_next:
             errors.append(f"Task {task_id} next_task must be {expected_next!r}")
         dependencies = string_list(task.get("depends_on"), f"{task_id}.depends_on", errors)
-        if task_id == ACTIVE_TASK:
+        if task.get("status") in ACTIVE_STATUSES:
             earlier = {str(item.get("task_id")): item for item in tasks[:index]}
             for dependency in dependencies:
                 if dependency not in earlier:
@@ -267,12 +265,6 @@ def validate_map(tasks: list[dict[str, Any]], document: dict[str, Any], errors: 
     queue_ids = [item.get("task_id") for item in sorted((item for item in queue_raw if isinstance(item, dict)), key=lambda item: item.get("position", 0))]
     if queue_ids != canonical_ids:
         errors.append("Project map execution_queue differs from manifest")
-    focus = document.get("project", {}).get("current_focus")
-    # Null once the named task is done: there is nothing to focus on until the next
-    # task exists, and validate_project_map allows that only when the whole
-    # executable queue is complete.
-    if focus != ACTIVE_TASK and not (focus is None and ACTIVE_TASK_IS_DONE):
-        errors.append(f"Project map current_focus must be {ACTIVE_TASK}, got {focus!r}")
     for task in tasks:
         node = nodes.get(task["task_id"])
         if not isinstance(node, dict):
@@ -289,45 +281,6 @@ def validate_map(tasks: list[dict[str, Any]], document: dict[str, Any], errors: 
             errors.append(f"Project map phase mismatch for {task['task_id']}")
 
 
-def validate_active_status_documents(
-    tasks: list[dict[str, Any]], document: dict[str, Any], errors: list[str]
-) -> None:
-    active = next((task for task in tasks if task.get("task_id") == ACTIVE_TASK), None)
-    if not active:
-        return
-    status = str(active.get("status"))
-    nodes = {
-        item.get("id"): item
-        for item in document.get("nodes") or []
-        if isinstance(item, dict) and isinstance(item.get("id"), str)
-    }
-    for node_id in ("ACT-AGENT", str(active.get("architecture_horizon"))):
-        node = nodes.get(node_id)
-        if not isinstance(node, dict) or node.get("status") != status:
-            errors.append(f"Project map node {node_id} must match active task status {status}")
-
-    # AGENTS.md deliberately absent: it carries policy only. Restating status
-    # there is what let the documents drift apart in the first place.
-    documents = {
-        "PROJECT_MAP.md": (
-            PROJECT_MAP_RENDERED_PATH,
-            rf"(?m)^status {re.escape(status)}\s*$",
-        ),
-        "QUALITY_MAP.md": (
-            QUALITY_MAP_PATH,
-            rf"(?m)^{re.escape(ACTIVE_TASK)}\s+{re.escape(status)}\s*$",
-        ),
-        WORK_STATUS_PATH.name: (
-            WORK_STATUS_PATH,
-            rf"(?m)^status:\s+{re.escape(status)}\s*$",
-        ),
-    }
-    for label, (path, pattern) in documents.items():
-        text = path.read_text(encoding="utf-8") if path.is_file() else ""
-        if re.search(pattern, text) is None:
-            errors.append(f"{label} must display active task status {status}")
-
-
 def main() -> int:
     errors: list[str] = []
     validate_documents(errors)
@@ -337,17 +290,14 @@ def main() -> int:
     validate_ports(manifest, errors)
     tasks = validate_manifest(manifest, catalog, errors)
     validate_map(tasks, project_map, errors)
-    validate_active_status_documents(tasks, project_map, errors)
     if errors:
         print("ASA Lab execution contract validation: FAIL", file=sys.stderr)
         for error in errors:
             print(f"- {error}", file=sys.stderr)
         return 1
-    active = next(task for task in tasks if task["task_id"] == ACTIVE_TASK)
     print("ASA Lab execution contract validation: PASS")
-    print(f"- executable tasks: {len(tasks)}")
-    print(f"- current focus: {ACTIVE_TASK} ({active['status']})")
-    print(f"- branch: {ACTIVE_BRANCH}")
+    print(f"- programme tasks: {len(tasks)}")
+    print("- live execution state: docs/execution/current.yaml")
     print("- deferred roadmap remains explicit in the manifest")
     print("- automatic future activation: forbidden")
     return 0

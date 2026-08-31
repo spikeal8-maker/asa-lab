@@ -91,6 +91,8 @@
     "test:three-d:corpus": "vitest run apps/web/src/three-d/testing/geometry-corpus.spec.ts",
     "benchmark:three-d": "node tools/run-three-d-benchmark.mjs",
     "e2e:three-d": "playwright test e2e/three-d-m0.spec.ts",
+    "agent:context": "python tools/agent_context.py",
+    "test:agent-context": "python tools/test_agent_context.py",
     "control-plane:check": "python tools/validate_control_plane.py",
     "gate:governance": "node tools/run-governance-gate.mjs",
     "gate:admin-control-plane": "corepack pnpm nx run api:build && corepack pnpm nx run web:build && corepack pnpm contracts:check && corepack pnpm db:migrate:check && corepack pnpm test:admin-control-plane",

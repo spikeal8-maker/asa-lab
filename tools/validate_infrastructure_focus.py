@@ -12,6 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 FOCUS_PATH = ROOT / "docs/project-map/infrastructure-focus.yaml"
 MANIFEST_PATH = ROOT / "docs/delivery/INFRASTRUCTURE_EXECUTION_MANIFEST.yaml"
 PRODUCT_MAP_PATH = ROOT / "docs/project-map/project-map.yaml"
+CURRENT_PATH = ROOT / "docs/execution/current.yaml"
 
 ALLOWED_PORTS = {"web": 4610, "api": 4611, "e2e": 4612}
 FORBIDDEN_PORTS = {3000, 3100, 5173}
@@ -50,6 +51,7 @@ def main() -> int:
     focus = load_yaml(FOCUS_PATH, errors)
     manifest = load_yaml(MANIFEST_PATH, errors)
     product_map = load_yaml(PRODUCT_MAP_PATH, errors)
+    current = load_yaml(CURRENT_PATH, errors)
 
     if focus.get("schema_version") != "1.0.0":
         errors.append("Unsupported infrastructure-focus schema_version")
@@ -129,12 +131,12 @@ def main() -> int:
     if task.get("draft_pr_base") != task.get("base_branch"):
         errors.append("Draft PR base must equal the infrastructure base branch")
 
-    product = product_map.get("project")
-    product_focus = product.get("current_focus") if isinstance(product, dict) else None
+    current_task = current.get("task")
+    product_focus = current_task.get("id") if isinstance(current_task, dict) else None
     frozen = focus.get("product_focus_frozen")
     if active and product_focus != frozen:
         errors.append(
-            f"Frozen product focus mismatch: expected project-map {product_focus!r}, got {frozen!r}"
+            f"Frozen product focus mismatch: expected current.yaml {product_focus!r}, got {frozen!r}"
         )
     if task.get("product_focus_frozen") != frozen:
         errors.append("Manifest and focus file disagree about the frozen product task")

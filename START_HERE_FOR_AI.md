@@ -16,16 +16,23 @@ AGENTS.md
 Там правила Git, безопасности, портов, данных и критерии остановки. Политика не
 зависит от того, какая задача активна.
 
-## 2. Прочитай состояние
+## 2. Получи короткий контекст направления
 
 ```bash
-cat docs/execution/current.yaml
+pnpm agent:context --list
+pnpm agent:context --scope <lane>
 ```
 
+Команда читает [`docs/execution/current.yaml`](docs/execution/current.yaml) и
+выводит только выбранное направление: задачу, checkpoint, gates, относящиеся к
+нему документы и пересекающиеся незавершённые файлы. Это штатный вход агента;
+полный `current.yaml` нужен только при изменении состояния или диагностике
+control plane.
+
 Поле `development_policy` определяет способ работы. При `mode: direct_main`
-единственная актуальная версия разрабатывается непосредственно в `main`.
-Исторические `execution_lease`, lane, branch, PR и `owned_paths` не являются
-разрешениями и не блокируют работу.
+единая актуальная версия разрабатывается непосредственно в `main`. Исторические
+`execution_lease`, branch, PR и `owned_paths` не являются разрешениями и не
+блокируют работу.
 
 Ни один другой файл не является источником этих значений. Если
 `EXECUTION_MANIFEST.yaml`, `project-map.yaml`, `QUALITY_MAP.md`, тело PR или
@@ -63,20 +70,19 @@ force-push, reset --hard, rebase опубликованной истории и�
 не перезаписывай чужие незавершённые изменения. Lane и `owned_paths` можно
 использовать как подсказки о расположении модулей, но не как запрет записи.
 
-## 6. Обязательное чтение по задаче
+## 6. Чтение по задаче
 
 ```text
 AGENTS.md
-→ docs/execution/current.yaml
-→ docs/project-map/infrastructure-focus.yaml
-→ docs/project-map/project-map.yaml
-→ docs/delivery/EXECUTION_MANIFEST.yaml
-→ docs/testing/active-task-tests.yaml
-→ GitHub Issue из current.yaml
+→ pnpm agent:context --scope <lane>
+→ документы и точные разделы из блока read
+→ GitHub Issue из результата команды, если нужен полный scope
 ```
 
-Manifest, project map и active-task registry описывают устройство и тесты
-проекта. Они не ограничивают работу только одной задачей или директорией.
+[`docs/delivery/EXECUTION_MANIFEST.yaml`](docs/delivery/EXECUTION_MANIFEST.yaml),
+project map и test catalogs являются справочниками программы, архитектуры и
+проверок. Они читаются только когда этого требует конкретная работа; из них
+запрещено восстанавливать активную задачу или checkpoint.
 
 Планируемые, ещё не исполнимые тесты лежат отдельно в
 [`docs/testing/planned-test-catalog.yaml`](docs/testing/planned-test-catalog.yaml)

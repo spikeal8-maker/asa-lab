@@ -10,14 +10,14 @@ product_focus_frozen: TASK-ELECTRONICS-SLICE-001
 completed_sha: 7afebdcf9441b027092ce17a37f1f89950af99c6
 completion_reason: owner_accepted_technical_alpha_baseline
 superseded_by: TASK-ACCOUNT-C1-001
-product_state_source: docs/project-map/project-map.yaml
+product_state_source: docs/execution/current.yaml
 execution_source: docs/delivery/INFRASTRUCTURE_EXECUTION_MANIFEST.yaml
 activation_source: docs/delivery/TASK_DOCKER_LINUX_001_ACTIVATION.md
 owner_authorized_at: 2026-07-30T08:17:00Z
 baseline_preflight_authorized_at: 2026-07-30T09:04:00Z
 resume_product_focus_after_merge: true
 notes:
-  - This file historically superseded project.current_focus only for the infrastructure task.
+  - This file historically superseded the primary product task only for the infrastructure task.
   - The frozen product task was not marked done, deprecated or merged by this infrastructure work.
   - Pre-existing failures in mandatory baseline commands may be corrected only under the bounded baseline_preflight rules in the execution manifest and activation source.
   - The owner accepted the Docker result as the technical Alpha baseline and activated TASK-ACCOUNT-C1-001.

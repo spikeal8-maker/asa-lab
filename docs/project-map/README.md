@@ -1,31 +1,21 @@
 # Project Map
 
-- [`project-map.yaml`](project-map.yaml) — current machine state;
-- [`../delivery/EXECUTION_MANIFEST.yaml`](../delivery/EXECUTION_MANIFEST.yaml) — executable queue;
-- [`PROJECT_MAP.md`](PROJECT_MAP.md) — human-readable map;
-- [`QUALITY_MAP.md`](QUALITY_MAP.md) — current gate;
-- [`../testing/test-catalog.yaml`](../testing/test-catalog.yaml) — stable tests;
-- [`../testing/active-task-tests.yaml`](../testing/active-task-tests.yaml) — active R2 tests;
-- [`viewer.html`](viewer.html) — interactive graph.
+- [`project-map.yaml`](project-map.yaml) — структурный граф архитектуры и
+  истории программы;
+- [`../delivery/EXECUTION_MANIFEST.yaml`](../delivery/EXECUTION_MANIFEST.yaml) —
+  каталог результатов программы;
+- [`PROJECT_MAP.md`](PROJECT_MAP.md) — короткое человекочитаемое объяснение;
+- [`QUALITY_MAP.md`](QUALITY_MAP.md) — устройство проверок;
+- [`viewer.html`](viewer.html) — интерактивный граф.
 
-## Current focus
+Живое состояние не хранится в этой директории. Его короткий срез:
 
-```text
-TASK-CREATOR-PORTAL-001
-Issue #62
-branch agent/r2-creator-portal
-status ready
+```bash
+pnpm agent:context --list
+pnpm agent:context --scope <lane>
 ```
 
-```text
-Product Docs done
-→ Teacher Portal done
-→ Account C1 done
-→ Creator Portal ready
-→ owner review / stop
-```
-
-R3 and R4 remain blocked. Architecture horizon does not allow the coding agent to skip the queue.
+Полный источник — [`../execution/current.yaml`](../execution/current.yaml).
 
 ## Validation
 
@@ -35,4 +25,4 @@ python tools/validate_delivery_program.py
 python tools/validate_test_catalog.py
 ```
 
-The viewer must show the same order as `EXECUTION_MANIFEST.yaml`. A mismatch is governance FAIL.
+Валидатор запрещает возвращать в map поля текущего focus или checkpoint.

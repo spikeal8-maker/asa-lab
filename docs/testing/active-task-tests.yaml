@@ -1,5 +1,6 @@
 schema_version: 1.0.0
-active_task: TASK-ADMIN-AUTH-STABILITY-001
+task_selection_source: docs/execution/current.yaml
+registry_scope: supplemental_execution_tests
 source_of_truth: docs/testing/active-task-tests.yaml
 result_states: [PASS, FAIL, NOT_RUN, BLOCKED]
 tests:

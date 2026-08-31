@@ -39,6 +39,15 @@ def _control_plane_task() -> dict[str, Any]:
     return dict(document["task"])
 
 
+def _control_plane_task_ids() -> set[str]:
+    document = yaml.safe_load(CURRENT_PATH.read_text(encoding="utf-8"))
+    task_ids = {str(document["task"]["id"])}
+    for lane in document.get("parallel_lanes") or []:
+        if isinstance(lane, dict) and isinstance(lane.get("task"), dict):
+            task_ids.add(str(lane["task"]["id"]))
+    return task_ids
+
+
 def _checkout_contains_task_branch(branch: str) -> bool:
     """Is the active task's code present in this checkout?
 
@@ -87,6 +96,7 @@ def _remote_branch_exists(branch: str) -> bool:
 
 _CURRENT_TASK = _control_plane_task()
 ACTIVE_TASK = str(_CURRENT_TASK["id"])
+CURRENT_TASK_IDS = _control_plane_task_ids()
 ACTIVE_BRANCH = str(_CURRENT_TASK["branch"])
 ACTIVE_TASK_IS_DONE = str(_CURRENT_TASK.get("status")) == "done"
 # A completed task is verified from the canonical checkout itself. Its temporary
@@ -208,8 +218,13 @@ def collect_catalogs(errors: list[str]) -> tuple[dict[str, Any], list[dict[str, 
         stable = {}
     if not isinstance(active, dict):
         active = {}
-    if active.get("active_task") != ACTIVE_TASK:
-        errors.append(f"active-task-tests.yaml active_task must be {ACTIVE_TASK}")
+    if "active_task" in active:
+        errors.append("active-task-tests.yaml must not duplicate active_task")
+    if active.get("task_selection_source") != "docs/execution/current.yaml":
+        errors.append(
+            "active-task-tests.yaml task_selection_source must be "
+            "docs/execution/current.yaml"
+        )
     if set(active.get("result_states") or []) != ALLOWED_RESULT_STATES:
         errors.append("active-task-tests result_states mismatch")
     stable_tests = stable.get("tests") if isinstance(stable.get("tests"), list) else []
@@ -228,7 +243,9 @@ def validate_catalogs(stable: dict[str, Any], tests: list[dict[str, Any]], activ
     if not isinstance(suites, dict) or not suites:
         errors.append("Stable catalog must contain suites")
         suites = {}
-    known_tasks = set(task_nodes) | EXTERNAL_GOVERNANCE_TASKS | HISTORICAL_TASK_IDS
+    known_tasks = (
+        set(task_nodes) | CURRENT_TASK_IDS | EXTERNAL_GOVERNANCE_TASKS | HISTORICAL_TASK_IDS
+    )
     seen: set[str] = set()
     covered: set[str] = set()
     for index, test in enumerate(tests, start=1):
@@ -280,8 +297,15 @@ def validate_catalogs(stable: dict[str, Any], tests: list[dict[str, Any]], activ
     for active_id in active_ids:
         test = next((item for item in tests if item.get("id") == active_id), {})
         required_for = test.get("required_for")
-        if not isinstance(required_for, list) or required_for != [ACTIVE_TASK]:
-            errors.append(f"{active_id}: active tests must belong only to {ACTIVE_TASK}")
+        if (
+            not isinstance(required_for, list)
+            or len(required_for) != 1
+            or required_for[0] not in CURRENT_TASK_IDS
+        ):
+            errors.append(
+                f"{active_id}: execution tests must belong to exactly one task "
+                "declared in current.yaml"
+            )
     tasks_requiring_coverage = {
         task_id for task_id, node in task_nodes.items()
         if task_id != "TASK-CI-001" and node.get("status") in COVERAGE_REQUIRED_STATUSES
@@ -304,18 +328,14 @@ def validate_documents(active_ids: list[str], errors: list[str]) -> None:
     for marker in ("test-catalog.yaml", "active-task-tests.yaml", "DEVELOPMENT_PROGRAM_V1.md", "LOCAL_PORT_POLICY.md"):
         if marker not in runbook:
             errors.append(f"BOT_RUNBOOK.md must reference {marker}")
-    for required_id in ("TST-ARCH-001", "TST-MAP-001", "TST-CATALOG-001", "TST-DEVELOPMENT-PROGRAM-001", *active_ids):
+    for required_id in (
+        "TST-ARCH-001",
+        "TST-MAP-001",
+        "TST-CATALOG-001",
+        "TST-DEVELOPMENT-PROGRAM-001",
+    ):
         if required_id not in quality:
             errors.append(f"QUALITY_MAP.md must display {required_id}")
-    task_map = load_yaml(MAP_PATH, errors)
-    task_nodes, _ = task_nodes_from_map(task_map, errors)
-    active_status = task_nodes.get(ACTIVE_TASK, {}).get("status")
-    if active_status == "in_review":
-        if "currently `NOT_RUN`" in quality:
-            errors.append("QUALITY_MAP.md cannot report current NOT_RUN results for an in-review task")
-        for test_id in active_ids:
-            if re.search(rf"(?m)^{re.escape(test_id)}\s+PASS\s*$", quality) is None:
-                errors.append(f"QUALITY_MAP.md must report {test_id} PASS while task is in_review")
 
 
 def validate_planned_catalog(executable_ids: set[str], errors: list[str]) -> int:
@@ -374,8 +394,8 @@ def main() -> int:
     print(f"registeredTests={test_count}")
     print(f"registeredSuites={suite_count}")
     print(f"plannedTests={planned_count}")
-    print(f"activeTask={ACTIVE_TASK}")
-    print(f"activeTests={len(active_ids)}")
+    print(f"currentLaneTasks={len(CURRENT_TASK_IDS)}")
+    print(f"executionTests={len(active_ids)}")
     if ACTIVE_CODE_PRESENT:
         source = "canonical checkout" if ACTIVE_TASK_IS_DONE else "task branch in this checkout"
         print(f"activeTaskLayer=executable ({source})")

@@ -2,11 +2,11 @@ schema_version: 1.0.0
 program_id: INFRA-BOOTSTRAP-001
 owner_issue: https://github.com/spikeal8-maker/asa-lab/issues/69
 state_source: docs/project-map/infrastructure-focus.yaml
-product_state_source: docs/project-map/project-map.yaml
+product_state_source: docs/execution/current.yaml
 
 semantics:
   purpose: Temporary owner-authorized infrastructure lane that does not reorder or complete the product delivery queue.
-  product_focus_rule: The product current_focus remains frozen while infrastructure_focus.active is true.
+  product_focus_rule: The primary product task in current.yaml remains frozen while infrastructure_focus.active is true.
   resume_rule: After the infrastructure PR is merged or explicitly cancelled, infrastructure_focus.active becomes false and the frozen product focus resumes.
   scope_rule: Only portability, containerization, deployment, environment, migration, recovery and verification work described by Issue 69 is allowed.
   baseline_preflight_rule: Mandatory commands must be green before Docker runtime evidence. Pre-existing defects already present on the exact base SHA may be corrected in this infrastructure branch only under the bounded baseline_preflight contract below.

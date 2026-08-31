@@ -261,6 +261,71 @@ def task_healthy(_):
     return errors
 
 
+# ── structural registries: no second live-state copy ───────────────────────
+
+
+def registry_case(relative: str, document: dict, check) -> list[str]:
+    with tempfile.TemporaryDirectory() as raw:
+        root = Path(raw)
+        path = root / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        import yaml
+
+        path.write_text(yaml.safe_dump(document, sort_keys=False), encoding="utf-8")
+        saved = cp.ROOT
+        try:
+            cp.bind_root(root)
+            errors: list[str] = []
+            check(errors)
+            return errors
+        finally:
+            cp.bind_root(saved)
+
+
+@case("the architecture map cannot copy current focus", expect="duplicates execution state")
+def project_map_live_focus(_):
+    return registry_case(
+        "docs/project-map/project-map.yaml",
+        {
+            "project": {
+                "current_focus": "TASK-PRIMARY-001",
+                "execution_state_source": "docs/execution/current.yaml",
+            }
+        },
+        cp.check_project_map,
+    )
+
+
+@case("a structural architecture map points to current.yaml", expect="")
+def project_map_structural(_):
+    return registry_case(
+        "docs/project-map/project-map.yaml",
+        {"project": {"execution_state_source": "docs/execution/current.yaml"}},
+        cp.check_project_map,
+    )
+
+
+@case("the execution test registry cannot copy active_task", expect="must not duplicate")
+def active_tests_live_task(_):
+    return registry_case(
+        "docs/testing/active-task-tests.yaml",
+        {
+            "active_task": "TASK-PRIMARY-001",
+            "task_selection_source": "docs/execution/current.yaml",
+        },
+        cp.check_active_tests,
+    )
+
+
+@case("the execution test registry delegates task selection", expect="")
+def active_tests_structural(_):
+    return registry_case(
+        "docs/testing/active-task-tests.yaml",
+        {"task_selection_source": "docs/execution/current.yaml"},
+        cp.check_active_tests,
+    )
+
+
 @case("direct main ignores expired legacy leases", expect="")
 def direct_main_ignores_expired_lease(_):
     document = task_document()

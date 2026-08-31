@@ -4,11 +4,8 @@ project:
   id: asa-lab
   name: ASA Lab
   repository: spikeal8-maker/asa-lab
-  # current_focus and active_checkpoint mirror docs/execution/current.yaml, which
-  # is the single source of execution state; validate_control_plane.py enforces
-  # the match. Executor and lease live only in that file.
-  current_focus: TASK-ADMIN-AUTH-STABILITY-001
-  active_checkpoint: production_restart_verified_max_secret_pending
+  # This graph describes architecture and programme history. It intentionally
+  # carries no current focus or checkpoint; live lanes are read from current.yaml.
   canonical_branch: main
   product_merge_sha: 20986b1c8aa023b8359008d55c82393cc0426954
   verified_account_sha: 35c06c42012672b9b4cb2626b85ba1f21b973bc0
@@ -38,12 +35,12 @@ relation_definitions:
   next: Next roadmap stage.
 
 nodes:
-  - {id: ASA, label: ASA Lab, kind: platform, layer: root, status: in_progress, summary: "Working Alpha platform; the independent educational Checkers M1 system is active.", path: README.md}
+  - {id: ASA, label: ASA Lab, kind: platform, layer: root, status: in_progress, summary: "Working Alpha platform; live execution lanes are read from docs/execution/current.yaml.", path: README.md}
   - {id: ACT-CREATOR, label: Creator, kind: actor, layer: actors, status: in_progress, summary: "Uses Creator Home and personal projects."}
   - {id: ACT-EDUCATOR, label: Educator, kind: actor, layer: actors, status: in_progress, summary: "Uses capability-aware Classes and creator surfaces."}
   - {id: ACT-STUDENT, label: Student, kind: actor, layer: actors, status: in_progress, summary: "Uses the Checkers learning path, assignments, bots and safe class play within existing account and class contracts."}
   - {id: ACT-ADMIN, label: Administrator, kind: actor, layer: actors, status: in_progress, summary: "Uses server-issued platform or organization administration grants inside the shared ASA Lab Web application."}
-  - {id: ACT-AGENT, label: Coding Agent, kind: actor, layer: actors, status: in_progress, summary: "Owner-authorised Admin, session and MAX stabilisation is active; see docs/execution/current.yaml."}
+  - {id: ACT-AGENT, label: Coding Agent, kind: actor, layer: actors, status: in_progress, summary: "Reads the selected lane from docs/execution/current.yaml and follows AGENTS.md."}
 
   - {id: PLANE-EXPERIENCE, label: Experience Plane, kind: plane, layer: architecture, status: in_progress, summary: "Public entry, Creator Portal, Account and editors."}
   - {id: PLANE-CONTROL, label: Control Plane, kind: plane, layer: architecture, status: in_progress, summary: "Modular monolith API and bounded contexts."}
@@ -82,18 +79,18 @@ nodes:
 
   - {id: DOC-AGENTS, label: AGENTS.md, kind: document, layer: governance, status: done, summary: "Coding-agent contract.", path: AGENTS.md}
   - {id: DOC-README, label: README, kind: document, layer: governance, status: done, summary: "Repository state.", path: README.md}
-  - {id: DOC-MANIFEST, label: Execution Manifest, kind: document, layer: governance, status: done, summary: "Executable queue and active Checkers M1 system.", path: docs/delivery/EXECUTION_MANIFEST.yaml}
+  - {id: DOC-MANIFEST, label: Execution Manifest, kind: document, layer: governance, status: done, summary: "Programme catalog and required results; not live execution state.", path: docs/delivery/EXECUTION_MANIFEST.yaml}
   - {id: DOC-PROGRAM, label: Development Program, kind: document, layer: governance, status: done, summary: "Human-readable delivery program.", path: docs/delivery/DEVELOPMENT_PROGRAM_V1.md}
-  - {id: DOC-MAP, label: Project Map, kind: document, layer: governance, status: done, summary: "Machine-readable current state.", path: docs/project-map/project-map.yaml}
-  - {id: DOC-QUALITY, label: Quality Map, kind: document, layer: governance, status: done, summary: "Checkers M1 focused gate.", path: docs/project-map/QUALITY_MAP.md}
+  - {id: DOC-MAP, label: Project Map, kind: document, layer: governance, status: done, summary: "Machine-readable architecture and programme history.", path: docs/project-map/project-map.yaml}
+  - {id: DOC-QUALITY, label: Quality Map, kind: document, layer: governance, status: done, summary: "Stable registry and gate boundaries without copied outcomes.", path: docs/project-map/QUALITY_MAP.md}
   - {id: DOC-TESTS, label: Test Catalog, kind: document, layer: governance, status: done, summary: "Stable test IDs.", path: docs/testing/test-catalog.yaml}
   - {id: DOC-PORTS, label: Port Policy, kind: document, layer: governance, status: done, summary: "Ports 4610/4611/4612.", path: docs/delivery/LOCAL_PORT_POLICY.md}
-  - {id: QG-LOCAL, label: Local Gate, kind: quality_gate, layer: governance, status: in_progress, summary: "Focused Checkers rules, project, learning, bots, class safety and browser tests run before owner acceptance."}
+  - {id: QG-LOCAL, label: Local Gate, kind: quality_gate, layer: governance, status: in_progress, summary: "The selected lane declares its focused, browser and general commands in current.yaml."}
   - {id: QG-HOSTED, label: Hosted Actions, kind: quality_gate, layer: governance, status: blocked, summary: "External runner/settings blocker."}
 
-  - {id: PROGRAM-ALPHA-001, label: Product Alpha, kind: program, layer: delivery, status: in_progress, summary: "The owner prioritised a complete educational Checkers system after the accepted Portal shell and R3A gateway."}
+  - {id: PROGRAM-ALPHA-001, label: Product Alpha, kind: program, layer: delivery, status: in_progress, summary: "Programme catalog for the working Alpha; current priorities are external live state."}
   - {id: TRACK-TECH-ALPHA, label: Technical Alpha, kind: delivery_track, layer: delivery, status: done, summary: "Foundation, Portal and Account C1 merged."}
-  - {id: TRACK-ROADMAP, label: Product Roadmap, kind: delivery_track, layer: delivery, status: in_progress, summary: "Portal, R3A and 3D M0 are merged; Electronics corrective work is paused; Checkers M1 remains active."}
+  - {id: TRACK-ROADMAP, label: Product Roadmap, kind: delivery_track, layer: delivery, status: in_progress, summary: "Historical delivery chain and future capability horizons; not a live queue."}
   - {id: PHASE-0, label: Foundation, kind: roadmap_phase, layer: roadmap, status: done, summary: "Foundation complete."}
   - {id: PHASE-1, label: Account C1, kind: roadmap_phase, layer: roadmap, status: done, summary: "Identity/security slice complete."}
   - {id: PHASE-R2, label: R2 Creator Portal, kind: roadmap_phase, layer: roadmap, status: done, summary: "Portal shell accepted and merged by PR #71."}

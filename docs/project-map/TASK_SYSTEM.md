@@ -1,98 +1,37 @@
 # Система задач ASA Lab
 
-Machine contract: [`../delivery/EXECUTION_MANIFEST.yaml`](../delivery/EXECUTION_MANIFEST.yaml)
-
-## Current task
-
-```text
-TASK-CREATOR-PORTAL-001
-Issue #62
-branch agent/r2-creator-portal
-status ready
-current_focus TASK-CREATOR-PORTAL-001
-```
-
-Coding-агент не выбирает другой task и не занимается аудитом старых PR.
-
-## Task selection
-
-Product code разрешён только когда одновременно верно:
-
-```text
-task_id = project.current_focus
-task is present in EXECUTION_MANIFEST.yaml
-status = ready | in_progress | in_review
-dependencies = done
-Issue is open
-branch matches manifest
-active test IDs are registered
-```
-
-## Queue
-
-```text
-TASK-PRODUCT-DOC-001      done
-→ TASK-PORTAL-001         done
-→ TASK-ACCOUNT-C1-001     done
-→ TASK-CREATOR-PORTAL-001 ready
-→ owner review / stop
-```
-
-R3 and R4 are blocked and absent from the executable queue.
-
-## R2 lifecycle
-
-### Start
-
-```text
-branch = agent/r2-creator-portal
-current_focus = TASK-CREATOR-PORTAL-001
-status = ready -> in_progress
-```
-
-### Review
-
-```text
-focused gate PASS
-full regression PASS
-owner screenshots exist
-Draft PR to main
-status may become in_review
-```
-
-### Acceptance
-
-```text
-owner decides merge separately
-task may become done
-R3 remains blocked until separate transition
-```
-
-## Evidence
-
-- exact final SHA;
-- changed user flow;
-- test IDs and exact results;
-- desktop/tablet/mobile screenshots;
-- browser counters;
-- data-preservation evidence;
-- clean tracked tree;
-- confirmation that R3 was not started.
-
-## Tests
-
-Stable registry: [`../testing/test-catalog.yaml`](../testing/test-catalog.yaml)  
-Active registry: [`../testing/active-task-tests.yaml`](../testing/active-task-tests.yaml)
+Живое выполнение имеет один источник:
+[`../execution/current.yaml`](../execution/current.yaml). Для повседневной
+работы используется его компактное представление:
 
 ```bash
-python tools/run_task_tests.py --task TASK-CREATOR-PORTAL-001
+pnpm agent:context --list
+pnpm agent:context --scope <lane>
 ```
 
-## Git rules
+## Разделение ответственности
 
-- one active product branch;
-- no force-push or history rewrite;
-- no automatic branch creation;
-- no merge/tag without owner decision;
-- old PRs and branches are untouched during R2;
-- backups and credentials are never committed.
+- `current.yaml` хранит task, Issue, status, checkpoint, acceptance, revisions,
+  gates и blockers каждого lane;
+- [`../delivery/EXECUTION_MANIFEST.yaml`](../delivery/EXECUTION_MANIFEST.yaml)
+  хранит каталог программы и ожидаемых результатов;
+- [`project-map.yaml`](project-map.yaml) хранит архитектурные и исторические
+  связи;
+- test catalogs связывают стабильные идентификаторы проверок с командами;
+- GitHub Actions и локальный вывод хранят фактический результат gate.
+
+Ни manifest, ни map, ни эта страница не выбирают следующую задачу и не могут
+повысить статус. Новое направление появляется только после явного решения
+владельца и записи в `current.yaml`.
+
+## Работа агента
+
+1. Прочитать `AGENTS.md`.
+2. Получить `agent:context` нужного lane.
+3. Проверить незавершённые файлы и `blocking`.
+4. Изменить только согласованный результат, сохранив чужую работу.
+5. Запустить команды из блока `gates`.
+6. Отдельно сообщить local validation, CI, публикацию и owner acceptance.
+
+Дублирование live-state в документации является ошибкой управляющей системы и
+проверяется командой `pnpm control-plane:check`.

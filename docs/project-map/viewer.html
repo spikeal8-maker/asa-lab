@@ -39,7 +39,7 @@
 <script>
 const statusColors={planned:'#6f7b8a',blocked:'#c65f5f',ready:'#4ca66b',in_progress:'#d6a84d',in_review:'#7e79d6',done:'#3aa6a0',deprecated:'#555b64'};
 const $=id=>document.getElementById(id);
-let map,manifest,cy;
+let map,manifest,current,cy;
 function fail(message){$('notice').textContent=message;$('notice').style.display='block';throw new Error(message);}
 function escapeHtml(value){return String(value??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));}
 function validateContracts(){
@@ -50,17 +50,11 @@ function validateContracts(){
   const mapOrder=[...(map.execution_queue||[])].sort((a,b)=>a.position-b.position).map(task=>task.task_id);
   if(JSON.stringify(manifestOrder)!==JSON.stringify(mapOrder))fail(`Queue mismatch: manifest=${manifestOrder.join(' → ')}; map=${mapOrder.join(' → ')}`);
   for(const task of manifest.tasks){if(!ids.has(task.task_id))fail(`Отсутствует task node ${task.task_id}`);}
-  const focus=map.project.current_focus;
-  if(focus===null){
-    const unfinished=manifest.tasks.filter(task=>task.status!=='done').map(task=>task.task_id);
-    if(unfinished.length)fail(`current_focus null, но queue не завершена: ${unfinished.join(', ')}`);
-  }else if(!manifestOrder.includes(focus)){
-    fail(`current_focus ${focus} отсутствует в execution manifest`);
-  }
 }
+function liveTaskIds(){return new Set([current?.task?.id,...(current?.parallel_lanes||[]).map(lane=>lane?.task?.id)].filter(Boolean));}
 function renderQueue(){
-  const focus=map.project.current_focus;
-  $('queue').innerHTML=[...manifest.tasks].sort((a,b)=>a.position-b.position).map(task=>`<div class="card ${task.task_id===focus?'current':''}" data-task="${escapeHtml(task.task_id)}"><b>${escapeHtml(task.task_id)}</b><small>${escapeHtml(task.status||'unknown')} · ${escapeHtml(task.delivery_stage)} · architecture_horizon=${escapeHtml(task.architecture_horizon)}</small></div>`).join('');
+  const live=liveTaskIds();
+  $('queue').innerHTML=[...manifest.tasks].sort((a,b)=>a.position-b.position).map(task=>`<div class="card ${live.has(task.task_id)?'current':''}" data-task="${escapeHtml(task.task_id)}"><b>${escapeHtml(task.task_id)}</b><small>${escapeHtml(task.status||'unknown')} · ${escapeHtml(task.delivery_stage)} · architecture_horizon=${escapeHtml(task.architecture_horizon)}</small></div>`).join('');
   document.querySelectorAll('[data-task]').forEach(card=>card.addEventListener('click',()=>selectNode(card.dataset.task)));
 }
 function selectNode(id){const node=cy.getElementById(id);if(!node.length)return;cy.elements().unselect();node.select();cy.animate({center:{eles:node},zoom:Math.max(cy.zoom(),1.1)},{duration:250});}
@@ -70,9 +64,9 @@ function applyFilters(){
 }
 async function init(){
   if(typeof cytoscape==='undefined'||typeof jsyaml==='undefined')fail('Не загрузились Cytoscape.js или js-yaml.');
-  const [mapResponse,manifestResponse]=await Promise.all([fetch('project-map.yaml',{cache:'no-store'}),fetch('../delivery/EXECUTION_MANIFEST.yaml',{cache:'no-store'})]);
-  if(!mapResponse.ok||!manifestResponse.ok)fail('Не удалось загрузить Project Map или Execution Manifest.');
-  map=jsyaml.load(await mapResponse.text());manifest=jsyaml.load(await manifestResponse.text());validateContracts();
+  const [mapResponse,manifestResponse,currentResponse]=await Promise.all([fetch('project-map.yaml',{cache:'no-store'}),fetch('../delivery/EXECUTION_MANIFEST.yaml',{cache:'no-store'}),fetch('../execution/current.yaml',{cache:'no-store'})]);
+  if(!mapResponse.ok||!manifestResponse.ok||!currentResponse.ok)fail('Не удалось загрузить Project Map, Execution Manifest или current.yaml.');
+  map=jsyaml.load(await mapResponse.text());manifest=jsyaml.load(await manifestResponse.text());current=jsyaml.load(await currentResponse.text());validateContracts();
   const statuses=[...new Set(map.nodes.map(node=>node.status))].sort();for(const value of statuses){const option=document.createElement('option');option.value=value;option.textContent=value;$('status').append(option);}
   const elements=[...map.nodes.map(node=>({data:{...node}})),...map.edges.map((edge,index)=>({data:{id:`edge-${index}`,source:edge.from,target:edge.to,type:edge.type,label:edge.label||edge.type}}))];
   cy=cytoscape({container:$('cy'),elements,style:[
@@ -83,7 +77,8 @@ async function init(){
     {selector:'edge[type="depends_on"]',style:{'line-style':'dashed','line-color':'#c65f5f','target-arrow-color':'#c65f5f'}},
     {selector:':selected',style:{'border-width':4,'border-color':'#ffffff'}}
   ],layout:{name:'cose',animate:false,padding:35}});
-  $('focusText').textContent=map.project.current_focus===null?'Активной задачи нет · queue completed':`Текущий focus: ${map.project.current_focus}`;
+  const lanes=[current?.primary_lane?.id,...(current?.parallel_lanes||[]).map(lane=>lane?.id)].filter(Boolean);
+  $('focusText').textContent=`Живые lanes: ${lanes.join(', ')}`;
   renderQueue();$('search').addEventListener('input',applyFilters);$('status').addEventListener('change',applyFilters);$('fit').addEventListener('click',()=>cy.fit(undefined,35));
 }
 init().catch(error=>{console.error(error);if(!$('notice').textContent){$('notice').textContent=error.message;$('notice').style.display='block';}});
