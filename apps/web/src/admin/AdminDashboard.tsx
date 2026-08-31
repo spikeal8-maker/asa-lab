@@ -74,7 +74,7 @@ function MultiLineChart({
   const active = series.filter((item) => visible.has(item.id));
   const maximum = Math.max(1, ...active.flatMap((item) => item.values));
   const width = 760;
-  const height = 176;
+  const height = 220;
   const left = 42;
   const right = 16;
   const top = 18;
@@ -439,65 +439,149 @@ export function VerificationMethodsSection({
   readonly onAccessDenied: () => void;
 }): JSX.Element {
   const [state, setState] = useState<DashboardState>({ kind: 'loading' });
-  useEffect(() => {
-    let active = true;
-    void adminApi.dashboard({ scope, range: '30d' }).then((result) => {
-      if (!active) return;
-      if (!result.ok) {
-        if (result.status === 401 || result.status === 403) onAccessDenied();
-        else setState({ kind: 'error', message: 'Не удалось проверить MAX.' });
-        return;
-      }
-      setState({ kind: 'ready', dashboard: result.data });
-    });
-    return () => {
-      active = false;
-    };
+  const load = useCallback(async (): Promise<void> => {
+    setState({ kind: 'loading' });
+    const result = await adminApi.dashboard({ scope, range: '30d' });
+    if (!result.ok) {
+      if (result.status === 401 || result.status === 403) onAccessDenied();
+      else setState({ kind: 'error', message: 'Не удалось проверить способы подтверждения.' });
+      return;
+    }
+    setState({ kind: 'ready', dashboard: result.data });
   }, [onAccessDenied, scope]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const max = state.kind === 'ready' ? state.dashboard.max : null;
+  const maxStatus = max?.configured
+    ? 'Готов к работе'
+    : max?.featureEnabled && !max.tokenConfigured
+      ? 'Нужен новый токен'
+      : 'Выключен';
+
   return (
     <section className="admin-integrations" aria-labelledby="admin-confirmations-title">
       <div className="admin-section-heading">
         <div>
           <h2 id="admin-confirmations-title">Подтверждения</h2>
-          <p>Способы подтвердить учётную запись. Секреты интеграций здесь не показываются.</p>
+          <p>Серверные настройки способов входа и подтверждения учётной записи.</p>
         </div>
+        <button
+          type="button"
+          className="btn-secondary"
+          disabled={state.kind === 'loading'}
+          onClick={() => void load()}
+        >
+          Обновить состояние
+        </button>
       </div>
-      {state.kind === 'loading' ? <p>Проверяем MAX…</p> : null}
+      {state.kind === 'loading' ? <p>Проверяем настройки…</p> : null}
       {state.kind === 'error' ? <p role="alert">{state.message}</p> : null}
-      {state.kind === 'ready' ? (
-        <div className="admin-confirmation-grid">
-          <article>
+      {max ? (
+        <div className="admin-confirmation-layout">
+          <article className="admin-confirmation-channel admin-confirmation-max">
             <header>
-              <strong>MAX Bot</strong>
-              <span className={state.dashboard.max.configured ? 'ready' : 'not-ready'}>
-                {state.dashboard.max.configured ? 'Подключён' : 'Не настроен'}
-              </span>
+              <div>
+                <span>Основной канал</span>
+                <h3>MAX Bot</h3>
+              </div>
+              <b className={max.configured ? 'ready' : 'not-ready'}>{maxStatus}</b>
             </header>
-            <p>
-              Связано аккаунтов: {state.dashboard.max.linkedAccounts}. Ожидают предложения:{' '}
-              {state.dashboard.max.promptDueAccounts}.
-            </p>
-            <small>
-              Вход {state.dashboard.max.configured ? 'доступен' : 'отключён'} · ссылка запуска{' '}
-              {state.dashboard.max.launchUrl ? 'сформирована' : 'недоступна'}
-            </small>
+            <div className="admin-confirmation-settings">
+              <section aria-labelledby="max-server-settings">
+                <h4 id="max-server-settings">Сервер</h4>
+                <dl>
+                  <div>
+                    <dt>Вход через MAX</dt>
+                    <dd>{max.featureEnabled ? 'Включён' : 'Выключен'}</dd>
+                  </div>
+                  <div>
+                    <dt>Токен</dt>
+                    <dd>{max.tokenConfigured ? 'Загружен на сервер' : 'Отсутствует'}</dd>
+                  </div>
+                  <div>
+                    <dt>Бот</dt>
+                    <dd>{max.botUsername ? `@${max.botUsername}` : 'Не указан'}</dd>
+                  </div>
+                  <div>
+                    <dt>Мини-приложение</dt>
+                    <dd>{max.miniAppUrl ?? 'URL не указан'}</dd>
+                  </div>
+                </dl>
+              </section>
+              <section aria-labelledby="max-account-settings">
+                <h4 id="max-account-settings">Учётные записи</h4>
+                <dl>
+                  <div>
+                    <dt>Предложение подтвердить</dt>
+                    <dd>Через 24 часа после первого входа</dd>
+                  </div>
+                  <div>
+                    <dt>Связано аккаунтов</dt>
+                    <dd>{max.linkedAccounts}</dd>
+                  </div>
+                  <div>
+                    <dt>Ожидают предложения</dt>
+                    <dd>{max.promptDueAccounts}</dd>
+                  </div>
+                  <div>
+                    <dt>Ссылка запуска</dt>
+                    <dd>{max.launchUrl ? 'Сформирована' : 'Недоступна'}</dd>
+                  </div>
+                </dl>
+              </section>
+            </div>
+            <footer>
+              <p>
+                Секрет никогда не передаётся в браузер. После замены токена изменение применяется
+                только после перезапуска API.
+              </p>
+              {max.launchUrl ? (
+                <a className="btn-secondary" href={max.launchUrl} rel="noreferrer">
+                  Открыть бота
+                </a>
+              ) : null}
+            </footer>
           </article>
-          <article>
-            <header>
-              <strong>Электронная почта</strong>
-              <span className="not-ready">Не подключена</span>
-            </header>
-            <p>ASA Lab пока не отправляет письма для подтверждения учётной записи.</p>
-            <small>Подключение сервиса отправки запланировано отдельно.</small>
-          </article>
-          <article>
-            <header>
-              <strong>Telegram</strong>
-              <span className="not-ready">Не подключён</span>
-            </header>
-            <p>Подтверждение и вход через Telegram сейчас не реализованы.</p>
-            <small>Пользовательский сценарий и бот ещё не настроены.</small>
-          </article>
+
+          <div className="admin-confirmation-secondary">
+            <article className="admin-confirmation-channel">
+              <header>
+                <h3>Электронная почта</h3>
+                <b className="not-ready">Без отправки</b>
+              </header>
+              <dl>
+                <div>
+                  <dt>Письма подтверждения</dt>
+                  <dd>Не отправляются</dd>
+                </div>
+                <div>
+                  <dt>Вход без подтверждения</dt>
+                  <dd>Разрешён</dd>
+                </div>
+              </dl>
+              <p>Сервис отправки будет подключён позднее; пользователю сейчас ничего не обещаем.</p>
+            </article>
+            <article className="admin-confirmation-channel">
+              <header>
+                <h3>Telegram</h3>
+                <b className="planned">Запланирован</b>
+              </header>
+              <dl>
+                <div>
+                  <dt>Бот</dt>
+                  <dd>Не создан</dd>
+                </div>
+                <div>
+                  <dt>Вход и привязка</dt>
+                  <dd>Не реализованы</dd>
+                </div>
+              </dl>
+              <p>Канал не показывается пользователям и не участвует во входе.</p>
+            </article>
+          </div>
         </div>
       ) : null}
     </section>

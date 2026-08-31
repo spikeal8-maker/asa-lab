@@ -975,6 +975,35 @@ a.btn-ghost {
 }
 
 @media (max-width: 640px) {
+  .page-center {
+    min-height: 100svh;
+    place-items: start center;
+    padding: 0;
+    background: var(--surface);
+  }
+
+  .login-card {
+    max-width: none;
+    min-height: 100svh;
+    padding: max(1rem, env(safe-area-inset-top)) 1.15rem calc(1.5rem + env(safe-area-inset-bottom));
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .entry-back {
+    margin: 0 0 0.65rem;
+  }
+
+  .login-methods {
+    margin: 0.8rem 0 1rem;
+  }
+
+  .login-method {
+    min-height: 58px;
+    padding: 0.65rem 0.75rem;
+  }
+
   .public-entry-header {
     min-height: 66px;
     grid-template-columns: 1fr auto;

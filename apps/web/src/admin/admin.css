@@ -959,13 +959,13 @@
 
 .admin-dashboard-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
 }
 
 .admin-chart-card {
   min-width: 0;
-  padding: 11px 12px 8px;
+  padding: 14px 15px 10px;
   border: 1px solid var(--admin-line);
   border-radius: 13px;
   background: #fff;
@@ -1030,8 +1030,12 @@
 .admin-chart-canvas svg {
   display: block;
   width: 100%;
-  min-height: 148px;
+  min-height: 205px;
   overflow: visible;
+}
+
+.admin-dashboard-grid > .admin-chart-card:last-child:nth-child(odd) {
+  grid-column: 1 / -1;
 }
 
 .admin-chart-grid {
@@ -1068,36 +1072,54 @@
   gap: 16px;
 }
 
-.admin-confirmation-grid {
+.admin-confirmation-layout {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
+  gap: 14px;
 }
 
-.admin-confirmation-grid article {
+.admin-confirmation-channel {
   display: grid;
   align-content: start;
-  gap: 9px;
-  min-height: 170px;
-  padding: 17px;
+  gap: 14px;
+  padding: 18px;
   border: 1px solid var(--admin-line);
-  border-radius: 13px;
+  border-radius: 15px;
   background: #fff;
 }
 
-.admin-confirmation-grid header {
+.admin-confirmation-channel > header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 10px;
 }
 
-.admin-confirmation-grid header strong {
-  color: var(--admin-ink);
-  font-size: 17px;
+.admin-confirmation-channel h3,
+.admin-confirmation-channel h4,
+.admin-confirmation-channel p,
+.admin-confirmation-channel dl,
+.admin-confirmation-channel dt,
+.admin-confirmation-channel dd {
+  margin: 0;
 }
 
-.admin-confirmation-grid header span {
+.admin-confirmation-channel h3 {
+  color: var(--admin-ink);
+  font-size: 18px;
+}
+
+.admin-confirmation-channel > header > div > span {
+  display: block;
+  margin-bottom: 3px;
+  color: var(--ink-muted);
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.admin-confirmation-channel > header > b {
+  flex: none;
   padding: 5px 8px;
   border-radius: 999px;
   color: #795714;
@@ -1106,21 +1128,87 @@
   font-weight: 750;
 }
 
-.admin-confirmation-grid header span.ready {
+.admin-confirmation-channel > header > b.ready {
   color: #176444;
   background: #e5f5ed;
 }
 
-.admin-confirmation-grid p,
-.admin-confirmation-grid small {
-  margin: 0;
+.admin-confirmation-channel > header > b.planned {
+  color: #4f4a83;
+  background: #eeebff;
+}
+
+.admin-confirmation-settings,
+.admin-confirmation-secondary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.admin-confirmation-settings > section {
+  padding: 14px;
+  border: 1px solid #e1e9ed;
+  border-radius: 12px;
+  background: #f8fbfc;
+}
+
+.admin-confirmation-settings h4 {
+  margin-bottom: 9px;
+  color: var(--admin-ink);
+  font-size: 13px;
+}
+
+.admin-confirmation-channel dl {
+  display: grid;
+}
+
+.admin-confirmation-channel dl > div {
+  display: grid;
+  grid-template-columns: minmax(130px, 1fr) minmax(0, 1.2fr);
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid #e4ebef;
+}
+
+.admin-confirmation-channel dl > div:last-child {
+  border-bottom: 0;
+}
+
+.admin-confirmation-channel dt {
   color: var(--ink-muted);
+  font-size: 12px;
+}
+
+.admin-confirmation-channel dd {
+  overflow-wrap: anywhere;
+  color: var(--admin-ink);
+  font-size: 12px;
+  font-weight: 700;
+  text-align: right;
+}
+
+.admin-confirmation-channel > p,
+.admin-confirmation-channel > footer p {
+  color: var(--ink-muted);
+  font-size: 12px;
   line-height: 1.45;
 }
 
-.admin-confirmation-grid small {
-  align-self: end;
-  font-size: 12px;
+.admin-confirmation-max > footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding-top: 2px;
+}
+
+.admin-confirmation-max > footer p {
+  max-width: 760px;
+}
+
+.admin-confirmation-max > footer a {
+  flex: none;
+  text-decoration: none;
 }
 
 .admin-ip-activity {
@@ -1181,9 +1269,13 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .admin-dashboard-grid,
-  .admin-confirmation-grid {
+  .admin-dashboard-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .admin-confirmation-settings,
+  .admin-confirmation-secondary {
+    grid-template-columns: 1fr;
   }
 
   .admin-ip-grid article {
@@ -1233,9 +1325,12 @@
     font-size: 11px;
   }
 
-  .admin-dashboard-grid,
-  .admin-confirmation-grid {
+  .admin-dashboard-grid {
     grid-template-columns: 1fr;
+  }
+
+  .admin-dashboard-grid > .admin-chart-card:last-child:nth-child(odd) {
+    grid-column: auto;
   }
 
   .admin-chart-card {
@@ -1243,7 +1338,25 @@
   }
 
   .admin-chart-canvas svg {
-    min-height: 155px;
+    min-height: 190px;
+  }
+
+  .admin-confirmation-channel {
+    padding: 14px;
+  }
+
+  .admin-confirmation-channel dl > div {
+    grid-template-columns: 1fr;
+    gap: 3px;
+  }
+
+  .admin-confirmation-channel dd {
+    text-align: left;
+  }
+
+  .admin-confirmation-max > footer {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .admin-command-grid button {

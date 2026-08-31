@@ -225,7 +225,11 @@ export interface AdminProductDashboard {
   readonly actions: readonly AdminActionPoint[];
   readonly max: {
     readonly configured: boolean;
+    readonly featureEnabled: boolean;
+    readonly tokenConfigured: boolean;
+    readonly botUsername: string | null;
     readonly launchUrl: string | null;
+    readonly miniAppUrl: string | null;
     readonly linkedAccounts: number;
     readonly promptDueAccounts: number;
   };

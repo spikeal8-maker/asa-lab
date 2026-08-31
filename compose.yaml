@@ -78,6 +78,10 @@ services:
       API_PORT: 4611
       ASA_WEB_PORT: ${ASA_WEB_PORT:-4610}
       APP_DATABASE_URL: ${APP_DATABASE_URL:-postgres://asalab_app:asa-local-runtime-change-me@postgres:5432/asalab}
+      MAX_AUTH_ENABLED: ${MAX_AUTH_ENABLED:-0}
+      MAX_BOT_USERNAME: ${MAX_BOT_USERNAME:-}
+      MAX_BOT_TOKEN: ${MAX_BOT_TOKEN:-}
+      MAX_MINI_APP_URL: ${MAX_MINI_APP_URL:-}
     expose:
       - '4611'
     tmpfs:

@@ -70,6 +70,7 @@ describe('MAX WebApp authentication boundary', () => {
     const service = new MaxAuthService({} as pg.Pool, {
       botToken: BOT_TOKEN,
       botUsername: '@id231408577954_3_bot',
+      miniAppUrl: 'https://asa-lab.ru/max-login',
       enabled: true,
       now: () => NOW_SECONDS * 1000,
     });
@@ -79,6 +80,15 @@ describe('MAX WebApp authentication boundary', () => {
       launchUrl: 'https://max.ru/id231408577954_3_bot?startapp=asa_login',
     });
     expect(JSON.stringify(config)).not.toContain(BOT_TOKEN);
+    expect(service.adminConfig()).toEqual({
+      enabled: true,
+      featureEnabled: true,
+      tokenConfigured: true,
+      botUsername: 'id231408577954_3_bot',
+      launchUrl: 'https://max.ru/id231408577954_3_bot?startapp=asa_login',
+      miniAppUrl: 'https://asa-lab.ru/max-login',
+    });
+    expect(JSON.stringify(service.adminConfig())).not.toContain(BOT_TOKEN);
   });
 
   it('keeps MAX disabled behind an explicit production flag even when a token exists', async () => {
@@ -90,6 +100,13 @@ describe('MAX WebApp authentication boundary', () => {
     });
     expect(service.config()).toMatchObject({ enabled: false });
     await expect(service.signIn(signedInitData())).rejects.toThrowError('max_auth_disabled');
+  });
+
+  it('publishes only an HTTPS mini-app address to administration', () => {
+    const service = new MaxAuthService({} as pg.Pool, {
+      miniAppUrl: 'javascript:alert(1)',
+    });
+    expect(service.adminConfig().miniAppUrl).toBeNull();
   });
 
   it('delegates unlink to the server-owned account and principal boundary', async () => {

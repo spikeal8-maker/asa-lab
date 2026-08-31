@@ -199,7 +199,7 @@ export class AppModule {
               new PgAccountDirectory(requirePool()),
               requirePool(),
               runtimeMetrics,
-              () => maxAuthService.config(),
+              () => maxAuthService.adminConfig(),
             ),
         },
         { provide: TOKENS.moduleRegistry, useValue: moduleRegistry },

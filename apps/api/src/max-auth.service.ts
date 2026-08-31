@@ -53,14 +53,35 @@ export interface MaxAccountStatus {
 interface MaxAuthOptions {
   readonly botToken?: string;
   readonly botUsername?: string;
+  readonly miniAppUrl?: string;
   readonly enabled?: boolean;
   readonly now?: () => number;
+}
+
+export interface MaxAdminConfig {
+  readonly enabled: boolean;
+  readonly featureEnabled: boolean;
+  readonly tokenConfigured: boolean;
+  readonly botUsername: string | null;
+  readonly launchUrl: string | null;
+  readonly miniAppUrl: string | null;
 }
 
 function boundedText(value: unknown, maxLength: number): string | null {
   if (typeof value !== 'string') return null;
   const normalized = value.trim();
   return normalized.length > 0 && normalized.length <= maxLength ? normalized : null;
+}
+
+function normalizedMiniAppUrl(value: string | undefined): string | null {
+  const normalized = boundedText(value, 2048);
+  if (normalized === null) return null;
+  try {
+    const url = new URL(normalized);
+    return url.protocol === 'https:' ? url.toString() : null;
+  } catch {
+    return null;
+  }
 }
 
 function normalizedBotUsername(value: string | undefined): string | null {
@@ -171,6 +192,7 @@ export function validateMaxInitData(
 export class MaxAuthService {
   private readonly botToken: string | null;
   private readonly botUsername: string | null;
+  private readonly miniAppUrl: string | null;
   private readonly enabled: boolean;
   private readonly now: () => number;
 
@@ -181,6 +203,9 @@ export class MaxAuthService {
     this.botToken = boundedText(options.botToken ?? process.env['MAX_BOT_TOKEN'], 512);
     this.botUsername = normalizedBotUsername(
       options.botUsername ?? process.env['MAX_BOT_USERNAME'] ?? 'id231408577954_3_bot',
+    );
+    this.miniAppUrl = normalizedMiniAppUrl(
+      options.miniAppUrl ?? process.env['MAX_MINI_APP_URL'] ?? 'https://asa-lab.ru/max-login',
     );
     this.enabled = options.enabled ?? process.env['MAX_AUTH_ENABLED'] === '1';
     this.now = options.now ?? Date.now;
@@ -193,6 +218,17 @@ export class MaxAuthService {
         this.botUsername === null
           ? null
           : `https://max.ru/${encodeURIComponent(this.botUsername)}?startapp=asa_login`,
+    };
+  }
+
+  adminConfig(): MaxAdminConfig {
+    const publicConfig = this.config();
+    return {
+      ...publicConfig,
+      featureEnabled: this.enabled,
+      tokenConfigured: this.botToken !== null,
+      botUsername: this.botUsername,
+      miniAppUrl: this.miniAppUrl,
     };
   }
 

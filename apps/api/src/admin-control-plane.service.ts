@@ -152,7 +152,11 @@ export interface AdminProductDashboardView {
   readonly actions: readonly Record<string, unknown>[];
   readonly max: {
     readonly configured: boolean;
+    readonly featureEnabled: boolean;
+    readonly tokenConfigured: boolean;
+    readonly botUsername: string | null;
     readonly launchUrl: string | null;
+    readonly miniAppUrl: string | null;
     readonly linkedAccounts: number;
     readonly promptDueAccounts: number;
   };
@@ -295,8 +299,19 @@ export class AdminControlPlaneService {
     private readonly runtimeMetrics: RuntimeMetrics | null = null,
     private readonly maxConfig: () => {
       readonly enabled: boolean;
+      readonly featureEnabled: boolean;
+      readonly tokenConfigured: boolean;
+      readonly botUsername: string | null;
       readonly launchUrl: string | null;
-    } = () => ({ enabled: false, launchUrl: null }),
+      readonly miniAppUrl: string | null;
+    } = () => ({
+      enabled: false,
+      featureEnabled: false,
+      tokenConfigured: false,
+      botUsername: null,
+      launchUrl: null,
+      miniAppUrl: null,
+    }),
   ) {}
 
   async resolveAccess(context: ActiveContext): Promise<ResolvedAdminAccess> {
@@ -593,7 +608,11 @@ export class AdminControlPlaneService {
       range: input.range,
       max: {
         configured: config.enabled,
+        featureEnabled: config.featureEnabled,
+        tokenConfigured: config.tokenConfigured,
+        botUsername: config.botUsername,
         launchUrl: config.launchUrl,
+        miniAppUrl: config.miniAppUrl,
         linkedAccounts: countValue(max['linkedAccounts']),
         promptDueAccounts: countValue(max['promptDueAccounts']),
       },

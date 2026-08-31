@@ -136,7 +136,16 @@ function dashboard(range = '24h') {
         passwordRecoveryAvailable: false,
       },
     ],
-    max: { configured: false, launchUrl: null, linkedAccounts: 0, promptDueAccounts: 3 },
+    max: {
+      configured: false,
+      featureEnabled: false,
+      tokenConfigured: false,
+      botUsername: 'id231408577954_3_bot',
+      launchUrl: 'https://max.ru/id231408577954_3_bot?startapp=asa_login',
+      miniAppUrl: 'https://asa-lab.ru/max-login',
+      linkedAccounts: 0,
+      promptDueAccounts: 3,
+    },
   };
 }
 
@@ -389,7 +398,12 @@ test('platform administrator sees real system status and no infrastructure secre
   await expect(page.getByText('MAX Bot', { exact: true })).toBeVisible();
   await expect(page.getByText('Электронная почта', { exact: true })).toBeVisible();
   await expect(page.getByText('Telegram', { exact: true })).toBeVisible();
-  await expect(page.getByText('Не подключена', { exact: true })).toBeVisible();
+  await expect(page.locator('.admin-confirmation-max > header > b')).toHaveText('Выключен');
+  await expect(page.getByText('Отсутствует', { exact: true })).toBeVisible();
+  await expect(page.getByText('Через 24 часа после первого входа', { exact: true })).toBeVisible();
+  await expect(page.getByText('https://asa-lab.ru/max-login', { exact: true })).toBeVisible();
+  await expect(page.getByText('Без отправки', { exact: true })).toBeVisible();
+  await expect(page.getByText('Запланирован', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Система', exact: true }).click();
   await expect(page).toHaveURL(/#\/admin\/system$/);
   await expect(page.getByRole('heading', { name: 'Система', exact: true })).toBeVisible();
@@ -500,4 +514,47 @@ test('platform administrator can manage a user and revoke a foreign session with
     reason: 'Запрос владельца аккаунта',
   });
   expect(mutations[1]?.body).toEqual({ reason: 'Подозрительная активность' });
+});
+
+test('public authentication routes stay addressable and fit a phone viewport', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/#/sign-in');
+
+  await expect(page).toHaveURL(/#\/sign-in$/);
+  await expect(page.getByText('Вход в ASA Lab', { exact: true })).toBeVisible();
+  await expect(page.getByTestId('login-class-code')).toBeVisible();
+
+  const signInLayout = await page.locator('.login-card').evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    const style = getComputedStyle(element);
+    return {
+      left: Math.round(rect.left),
+      width: Math.round(rect.width),
+      minHeight: Math.round(rect.height),
+      borderWidth: style.borderTopWidth,
+      borderRadius: style.borderTopLeftRadius,
+      shadow: style.boxShadow,
+      documentWidth: document.documentElement.scrollWidth,
+      viewportWidth: document.documentElement.clientWidth,
+    };
+  });
+  expect(signInLayout).toMatchObject({
+    left: 0,
+    width: 390,
+    borderWidth: '0px',
+    borderRadius: '0px',
+    shadow: 'none',
+    documentWidth: 390,
+    viewportWidth: 390,
+  });
+  expect(signInLayout.minHeight).toBeGreaterThanOrEqual(844);
+
+  await page.getByTestId('login-class-code').click();
+  await expect(page).toHaveURL(/#\/join-class$/);
+  await expect(page.getByRole('heading', { name: 'Введите код класса' })).toBeVisible();
+  await page.getByRole('button', { name: '← Назад' }).click();
+  await expect(page).toHaveURL(/#\/sign-in$/);
+
+  await page.getByTestId('auth-home').click();
+  await expect(page).toHaveURL(/#\/$/);
 });
