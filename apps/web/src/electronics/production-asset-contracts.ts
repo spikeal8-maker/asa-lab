@@ -361,6 +361,92 @@ export function multimeterRuntimeMarkup(
   return `${withRuntimeState.slice(bodyStart + 1, bodyEnd)}${reading}`;
 }
 
+export type RegulatedPowerSupplyVisualMode = 'off' | 'cv' | 'cc';
+
+export function regulatedPowerSupplyKnobAngle(value: number, maximum: number): number {
+  const normalized = maximum > 0 ? Math.min(1, Math.max(0, value / maximum)) : 0;
+  return 135 + normalized * 270;
+}
+
+/**
+ * Adds interaction hooks to the existing owner knobs/switch and writes the
+ * calculated readings into its two LCD openings. The owner file remains a
+ * byte-exact source asset; no replacement enclosure, knob or terminal art is
+ * generated at runtime.
+ */
+export function regulatedPowerSupplyRuntimeMarkup(
+  ownerSvg: string,
+  input: {
+    readonly voltageSetpointVolt: number;
+    readonly currentLimitAmp: number;
+    readonly outputEnabled: boolean;
+    readonly mode: RegulatedPowerSupplyVisualMode;
+    readonly voltageDisplay: string;
+    readonly currentDisplay: string;
+  },
+): string {
+  const voltageAngle = regulatedPowerSupplyKnobAngle(input.voltageSetpointVolt, 30);
+  const currentAngle = regulatedPowerSupplyKnobAngle(input.currentLimitAmp, 5);
+  const upperPointerRotation = voltageAngle - 178.67;
+  const lowerPointerRotation = currentAngle - 45;
+  let markup = ownerSvg
+    .replace(
+      '<g transform="translate(234 53)">',
+      '<g class="workbench-regulated-supply-knob workbench-regulated-supply-voltage-knob" transform="translate(234 53)">',
+    )
+    .replace(
+      '<circle cx="-21.5" cy="0.5" r="3" fill="#4E5251"/>',
+      `<circle class="workbench-regulated-supply-knob-pointer" cx="-21.5" cy="0.5" r="3" fill="#4E5251" transform="rotate(${upperPointerRotation} 0 0)"/>`,
+    )
+    .replace(
+      '<g transform="translate(234 145)">',
+      '<g class="workbench-regulated-supply-knob workbench-regulated-supply-current-knob" transform="translate(234 145)">',
+    )
+    .replace(
+      '<circle cx="15" cy="15" r="3" fill="#4E5251"/>',
+      `<circle class="workbench-regulated-supply-knob-pointer" cx="15" cy="15" r="3" fill="#4E5251" transform="rotate(${lowerPointerRotation} 0 0)"/>`,
+    )
+    .replace(
+      '<circle cx="266" cy="20" r="4" fill="#D8D8D8" stroke="#BEBEBE" stroke-width="1"/>',
+      `<circle class="workbench-regulated-supply-indicator${input.mode === 'cv' ? ' is-active' : ''}" cx="266" cy="20" r="4" fill="#D8D8D8" stroke="#BEBEBE" stroke-width="1"/>`,
+    )
+    .replace(
+      '<text x="273" y="23" class="label-small">VC</text>',
+      '<text x="273" y="23" class="label-small">CV</text>',
+    )
+    .replace(
+      '<circle cx="266" cy="109" r="4" fill="#D8D8D8" stroke="#BEBEBE" stroke-width="1"/>',
+      `<circle class="workbench-regulated-supply-indicator is-cc${input.mode === 'cc' ? ' is-active' : ''}" cx="266" cy="109" r="4" fill="#D8D8D8" stroke="#BEBEBE" stroke-width="1"/>`,
+    )
+    .replace(
+      '<rect x="14" y="202" width="67" height="26" rx="13" fill="#C4C4C4"/>',
+      '<rect class="workbench-regulated-supply-power-switch" x="14" y="202" width="67" height="26" rx="13" fill="#C4C4C4"/>',
+    )
+    .replace(
+      '<rect x="14" y="202" width="35" height="26" rx="13" fill="#4E5251"/>',
+      `<rect class="workbench-regulated-supply-power-switch workbench-regulated-supply-power-slider" x="14" y="202" width="35" height="26" rx="13" fill="#4E5251"${input.outputEnabled ? ' transform="translate(32 0)"' : ''}/>`,
+    )
+    .replace(
+      '<text x="56" y="218" class="label-off">OFF</text>',
+      `<text class="workbench-regulated-supply-power-switch label-off" x="56" y="218">${input.outputEnabled ? 'ON' : 'OFF'}</text>`,
+    );
+
+  const requiredHooks = [
+    'workbench-regulated-supply-voltage-knob',
+    'workbench-regulated-supply-current-knob',
+    'workbench-regulated-supply-power-slider',
+  ];
+  if (requiredHooks.some((hook) => !markup.includes(hook))) return '';
+  const bodyStart = markup.indexOf('>');
+  const bodyEnd = markup.lastIndexOf('</svg>');
+  if (bodyStart < 0 || bodyEnd <= bodyStart) return '';
+  const readings =
+    input.voltageDisplay || input.currentDisplay
+      ? `<text class="workbench-regulated-supply-reading" x="99" y="55" text-anchor="middle" dominant-baseline="central">${escapeMultimeterDisplay(input.voltageDisplay)}</text><text class="workbench-regulated-supply-reading" x="99" y="144" text-anchor="middle" dominant-baseline="central">${escapeMultimeterDisplay(input.currentDisplay)}</text>`
+      : '';
+  return `${markup.slice(bodyStart + 1, bodyEnd)}${readings}`;
+}
+
 /**
  * Marks only the existing owner SVG gear as the runtime moving part.
  * The source asset stays byte-exact. CSS owns the deliberately slow display

@@ -353,6 +353,20 @@ describe('owner SVG integration in the real Electronics document', () => {
       unit: 'мкФ',
       catalogStatus: 'enabled',
     });
+    expect(productionCatalogEntry('regulated-power-supply')).toMatchObject({
+      enabled: true,
+      simulationSupported: true,
+      defaultValue: 5,
+      unit: 'В',
+      defaultState: false,
+      defaultStateProperties: {
+        voltageSetpointVolt: 5,
+        currentLimitAmp: 1,
+        outputEnabled: false,
+        outputResistanceOhm: 0.05,
+      },
+      catalogStatus: 'enabled',
+    });
     expect(families.find((family) => family.familyId === 'ultrasonic-sensor')).toMatchObject({
       defaultVariantId: 'ultrasonic-sensor',
       enabled: true,
@@ -368,7 +382,6 @@ describe('owner SVG integration in the real Electronics document', () => {
       'soil-moisture-sensor',
       'ultrasonic-hc-sr04',
       'pir-sensor',
-      'regulated-power-supply',
       'signal-generator',
       'oscilloscope',
     ]) {

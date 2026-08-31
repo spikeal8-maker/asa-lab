@@ -4,6 +4,15 @@ import {
   electricalModelIdentityForComponent,
 } from '../model-identity.js';
 import type { DeviceDiagnostic, DeviceModel, NormalizedDevice } from './device-model.js';
+import {
+  regulatedPowerSupplyModeForOperatingPoint,
+  regulatedPowerSupplySettings,
+  regulatedPowerSupplyStamp,
+  regulatedPowerSupplyTemperatureCelsius,
+  regulatedPowerSupplyValidationMessage,
+  type RegulatedPowerSupplyMode,
+  type RegulatedPowerSupplySettings,
+} from './regulated-power-supply-model.js';
 
 const CLOSED_RESISTANCE_OHM = 1e-4;
 const LEGACY_SOURCE_RESISTANCE_OHM = 1e-12;
@@ -36,6 +45,11 @@ export interface LinearDcObservation {
   readonly internalPower?: number;
   readonly voltageSag?: number;
   readonly sourceOperatingMode?: 'delivering' | 'idle' | 'absorbing';
+  readonly regulatedOutputEnabled?: boolean;
+  readonly regulationMode?: RegulatedPowerSupplyMode;
+  readonly voltageSetpointVolt?: number;
+  readonly currentLimitAmp?: number;
+  readonly temperatureCelsius?: number;
   readonly measurementMode?: 'dc-voltage' | 'dc-current' | 'resistance';
   readonly measuredValue?: number;
   readonly measurementUnit?: 'V' | 'A' | 'Ω';
@@ -85,6 +99,8 @@ export interface SourceParameters {
   readonly internalResistanceOhm: number;
   readonly continuousCurrentAmp: number;
 }
+
+export type RegulatedPowerSupplyParameters = RegulatedPowerSupplySettings;
 
 export interface MultimeterDcVoltageParameters {
   readonly inputResistanceOhm: number;
@@ -260,6 +276,124 @@ export const SOURCE_DEVICE_MODEL: DeviceModel<SourceParameters, LinearDcObservat
     };
   },
 };
+
+export const REGULATED_POWER_SUPPLY_DEVICE_MODEL: DeviceModel<
+  RegulatedPowerSupplyParameters,
+  LinearDcObservation
+> = {
+  id: 'regulated-dc-supply',
+  version: 1,
+  analyses: ['dc'],
+  validate(component) {
+    const message = regulatedPowerSupplyValidationMessage(component);
+    return message ? [{ code: 'invalid_regulated_supply', message }] : [];
+  },
+  normalize(component) {
+    return {
+      componentId: component.id,
+      component,
+      parameters: regulatedPowerSupplySettings(component),
+    };
+  },
+  stampDc(context, instance) {
+    const positive = context.node(instance.component, 'a');
+    const negative = context.node(instance.component, 'b');
+    const mode: RegulatedPowerSupplyMode = instance.parameters.outputEnabled ? 'cv' : 'off';
+    const stamp = regulatedPowerSupplyStamp(instance.parameters, mode);
+    context.stampVoltageSource(
+      instance.componentId,
+      positive,
+      negative,
+      stamp.emfVolt,
+      stamp.seriesResistanceOhm,
+    );
+  },
+  observe(instance, operatingPoint) {
+    const mode = instance.parameters.outputEnabled ? 'cv' : 'off';
+    return observeRegulatedPowerSupply(instance, mode, operatingPoint);
+  },
+};
+
+export function regulatedPowerSupplyStampForMode(
+  instance: NormalizedDevice<RegulatedPowerSupplyParameters>,
+  mode: RegulatedPowerSupplyMode,
+) {
+  return regulatedPowerSupplyStamp(instance.parameters, mode);
+}
+
+export function nextRegulatedPowerSupplyMode(
+  instance: NormalizedDevice<RegulatedPowerSupplyParameters>,
+  previousMode: RegulatedPowerSupplyMode,
+  deliveredCurrentAmp: number,
+  outputVoltageVolt: number,
+): RegulatedPowerSupplyMode {
+  return regulatedPowerSupplyModeForOperatingPoint(
+    instance.parameters,
+    previousMode,
+    deliveredCurrentAmp,
+    outputVoltageVolt,
+  );
+}
+
+export function observeRegulatedPowerSupply(
+  instance: NormalizedDevice<RegulatedPowerSupplyParameters>,
+  mode: RegulatedPowerSupplyMode,
+  operatingPoint: { readonly voltageDrop: number; readonly current: number },
+): LinearDcObservation {
+  const currentAmp = mode === 'off' ? 0 : operatingPoint.current;
+  const outputVoltageVolt = mode === 'off' ? 0 : operatingPoint.voltageDrop;
+  const sourceOperatingMode =
+    currentAmp > 1e-9 ? 'delivering' : currentAmp < -1e-9 ? 'absorbing' : 'idle';
+  const currentUtilizationPercent =
+    instance.parameters.currentLimitAmp <= 0
+      ? Math.abs(currentAmp) <= 1e-9
+        ? 0
+        : 100
+      : (Math.abs(currentAmp) / instance.parameters.currentLimitAmp) * 100;
+  const [positive, negative] = physicalTerminalPair(instance.component);
+  const stamp = regulatedPowerSupplyStamp(instance.parameters, mode);
+  const controlLossWatt =
+    Math.max(0, instance.parameters.voltageSetpointVolt - Math.max(0, outputVoltageVolt)) *
+    Math.max(0, currentAmp);
+  const conductorLossWatt = currentAmp * currentAmp * instance.parameters.outputResistanceOhm;
+  const reverseCurrent = currentAmp < -1e-6;
+  return {
+    current: currentAmp,
+    power: Math.abs(currentAmp * outputVoltageVolt),
+    currentUtilizationPercent,
+    stressState: reverseCurrent ? 'warning' : 'normal',
+    internalResistanceOhm: instance.parameters.outputResistanceOhm,
+    internalPower: controlLossWatt + conductorLossWatt,
+    voltageSag: Math.max(0, instance.parameters.voltageSetpointVolt - outputVoltageVolt),
+    sourceOperatingMode,
+    regulatedOutputEnabled: instance.parameters.outputEnabled,
+    regulationMode: mode,
+    voltageSetpointVolt: instance.parameters.voltageSetpointVolt,
+    currentLimitAmp: instance.parameters.currentLimitAmp,
+    temperatureCelsius: regulatedPowerSupplyTemperatureCelsius(
+      instance.parameters,
+      mode,
+      outputVoltageVolt,
+      currentAmp,
+    ),
+    terminalCurrents: { [positive]: -currentAmp, [negative]: currentAmp },
+    voltageConstraintResidual: Math.abs(
+      operatingPoint.voltageDrop -
+        (stamp.emfVolt - operatingPoint.current * stamp.seriesResistanceOhm),
+    ),
+    diagnostics: reverseCurrent
+      ? [
+          {
+            code: 'regulated_supply_reverse_current',
+            severity: 'warning',
+            message: `${instance.component.name ?? 'Лабораторный источник'}: обнаружен обратный ток ${Math.abs(currentAmp).toFixed(3)} А.`,
+            suggestedAction:
+              'Проверьте полярность и не соединяйте включённые источники навстречу друг другу.',
+          },
+        ]
+      : [],
+  };
+}
 
 export const MULTIMETER_DC_VOLTAGE_DEVICE_MODEL: DeviceModel<
   MultimeterDcVoltageParameters,
@@ -480,6 +614,11 @@ export interface SourceDevice {
   readonly instance: NormalizedDevice<SourceParameters>;
 }
 
+export interface RegulatedPowerSupplyDevice {
+  readonly model: typeof REGULATED_POWER_SUPPLY_DEVICE_MODEL;
+  readonly instance: NormalizedDevice<RegulatedPowerSupplyParameters>;
+}
+
 export interface MultimeterDcVoltageDevice {
   readonly model: typeof MULTIMETER_DC_VOLTAGE_DEVICE_MODEL;
   readonly instance: NormalizedDevice<MultimeterDcVoltageParameters>;
@@ -498,6 +637,7 @@ export interface MultimeterResistanceDevice {
 export type LinearDcDevice =
   | ResistorDevice
   | SourceDevice
+  | RegulatedPowerSupplyDevice
   | MultimeterDcVoltageDevice
   | MultimeterDcCurrentDevice
   | MultimeterResistanceDevice;
@@ -508,6 +648,18 @@ export function isResistorDevice(device: LinearDcDevice): device is ResistorDevi
 
 export function isSourceDevice(device: LinearDcDevice): device is SourceDevice {
   return device.model === SOURCE_DEVICE_MODEL;
+}
+
+export function isRegulatedPowerSupplyDevice(
+  device: LinearDcDevice,
+): device is RegulatedPowerSupplyDevice {
+  return device.model === REGULATED_POWER_SUPPLY_DEVICE_MODEL;
+}
+
+export function isAnySourceDevice(
+  device: LinearDcDevice,
+): device is SourceDevice | RegulatedPowerSupplyDevice {
+  return isSourceDevice(device) || isRegulatedPowerSupplyDevice(device);
 }
 
 export function isMultimeterDcVoltageDevice(
@@ -536,6 +688,12 @@ export function createLinearDcDevice(component: SchematicComponent): LinearDcDev
   }
   if (identity.electricalModelId === SOURCE_DEVICE_MODEL.id) {
     return { model: SOURCE_DEVICE_MODEL, instance: SOURCE_DEVICE_MODEL.normalize(component) };
+  }
+  if (identity.electricalModelId === REGULATED_POWER_SUPPLY_DEVICE_MODEL.id) {
+    return {
+      model: REGULATED_POWER_SUPPLY_DEVICE_MODEL,
+      instance: REGULATED_POWER_SUPPLY_DEVICE_MODEL.normalize(component),
+    };
   }
   if (
     identity.electricalModelId === MULTIMETER_DC_VOLTAGE_DEVICE_MODEL.id &&

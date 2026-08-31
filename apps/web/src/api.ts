@@ -997,6 +997,10 @@ export interface ComponentResult {
   internalPower?: number;
   voltageSag?: number;
   sourceOperatingMode?: 'delivering' | 'idle' | 'absorbing';
+  regulatedOutputEnabled?: boolean;
+  regulationMode?: 'off' | 'cv' | 'cc';
+  voltageSetpointVolt?: number;
+  currentLimitAmp?: number;
   measurementMode?: 'dc-voltage' | 'dc-current' | 'resistance';
   measuredValue?: number;
   measurementUnit?: 'V' | 'A' | 'Ω';
@@ -1125,7 +1129,7 @@ export interface SolveResult {
   };
   topologySignature?: string;
   simulationInputDigest?: string;
-  solverRevision?: 'asa-electronics-solver-v8';
+  solverRevision?: 'asa-electronics-solver-v9';
   modelSetDigest?: string;
   analysis?: {
     electricalMode: 'dc' | 'transient';

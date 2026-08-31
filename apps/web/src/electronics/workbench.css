@@ -2595,6 +2595,58 @@
 .workbench-multimeter-runtime .workbench-multimeter-mode-glyph.is-active {
   stroke: #f2ae16;
 }
+.workbench-regulated-supply-runtime .workbench-regulated-supply-reading {
+  fill: #27353a;
+  font-family: 'Consolas', 'Roboto Mono', monospace;
+  font-size: 25px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+.workbench-regulated-supply-runtime .workbench-regulated-supply-knob,
+.workbench-regulated-supply-runtime .workbench-regulated-supply-power-switch {
+  cursor: pointer;
+}
+.workbench-regulated-supply-runtime .workbench-regulated-supply-knob-pointer,
+.workbench-regulated-supply-runtime .workbench-regulated-supply-power-slider {
+  transition: transform 80ms linear;
+}
+.workbench-regulated-supply-runtime .workbench-regulated-supply-indicator.is-active {
+  fill: #29b765;
+  stroke: #168347;
+}
+.workbench-regulated-supply-runtime .workbench-regulated-supply-indicator.is-cc.is-active {
+  fill: #f2a51a;
+  stroke: #b77709;
+}
+.workbench-regulated-supply-controls {
+  gap: 3px;
+}
+.workbench-regulated-supply-controls > label {
+  grid-template-columns: 104px minmax(0, 1fr) !important;
+}
+.workbench-regulated-supply-summary {
+  display: grid;
+  grid-template-columns: 104px minmax(0, 1fr);
+  min-height: 32px;
+}
+.workbench-regulated-supply-summary > span,
+.workbench-regulated-supply-summary > strong {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  padding: 4px 7px;
+}
+.workbench-regulated-supply-summary > span {
+  background: #0696d7;
+  color: #fff;
+}
+.workbench-regulated-supply-summary > strong {
+  border: 1px solid #c5cfd9;
+  background: #eef7f2;
+  color: #12633f;
+  font-size: 12px;
+}
 .workbench-multimeter-compact-reading {
   display: grid;
   grid-template-columns: 104px minmax(0, 1fr);

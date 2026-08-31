@@ -779,6 +779,58 @@ export function useElectronicsWorkbench(projectId: string) {
     );
   }
 
+  function setRegulatedPowerSupplyControls(
+    componentId: string,
+    patch: {
+      readonly voltageSetpointVolt?: number;
+      readonly currentLimitAmp?: number;
+      readonly outputEnabled?: boolean;
+    },
+  ): void {
+    if (!document || !runtimeDocument) return;
+    const component = runtimeDocument.components.find((item) => item.id === componentId);
+    if (!component || component.componentTypeId !== 'regulated-power-supply') return;
+    if (
+      (patch.voltageSetpointVolt !== undefined && !Number.isFinite(patch.voltageSetpointVolt)) ||
+      (patch.currentLimitAmp !== undefined && !Number.isFinite(patch.currentLimitAmp))
+    ) {
+      return;
+    }
+    const normalized = {
+      ...(patch.voltageSetpointVolt === undefined
+        ? {}
+        : { voltageSetpointVolt: clamp(patch.voltageSetpointVolt, 0, 30) }),
+      ...(patch.currentLimitAmp === undefined
+        ? {}
+        : { currentLimitAmp: clamp(patch.currentLimitAmp, 0, 5) }),
+      ...(patch.outputEnabled === undefined ? {} : { outputEnabled: patch.outputEnabled }),
+    };
+    if (simulationRunning) {
+      setRuntimeComponentOverride(componentId, { stateProperties: normalized });
+      return;
+    }
+    commitDocument(
+      {
+        ...document,
+        components: document.components.map((item) =>
+          item.id === componentId
+            ? {
+                ...item,
+                ...(normalized.voltageSetpointVolt === undefined
+                  ? {}
+                  : { value: normalized.voltageSetpointVolt }),
+                ...(normalized.outputEnabled === undefined
+                  ? {}
+                  : { state: normalized.outputEnabled }),
+                stateProperties: { ...item.stateProperties, ...normalized },
+              }
+            : item,
+        ),
+      },
+      'Настройки лабораторного источника изменены.',
+    );
+  }
+
   function updateArduinoProgram(
     componentId: string,
     properties: Readonly<Record<string, ProductionStateValue>>,
@@ -1828,6 +1880,7 @@ export function useElectronicsWorkbench(projectId: string) {
     setSelectedMotorShaftLocked,
     setSelectedProperties,
     setMultimeterMeasurementMode,
+    setRegulatedPowerSupplyControls,
     updateArduinoProgram,
     resetArduinoRuntime,
     setSelectedVariant,

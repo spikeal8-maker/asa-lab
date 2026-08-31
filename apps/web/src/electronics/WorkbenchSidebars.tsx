@@ -375,6 +375,20 @@ export function WorkbenchSidebars({
           resistanceOhm: photoresistorResistanceOhm(c.selectedComponent),
         }
       : null;
+  const selectedSupplyVoltageSetpoint = selectedIsAdjustableSource
+    ? Number(
+        c.selectedComponent?.stateProperties?.['voltageSetpointVolt'] ??
+          c.selectedComponent?.value ??
+          5,
+      )
+    : 0;
+  const selectedSupplyCurrentLimit = selectedIsAdjustableSource
+    ? Number(c.selectedComponent?.stateProperties?.['currentLimitAmp'] ?? 1)
+    : 0;
+  const selectedSupplyOutputEnabled = selectedIsAdjustableSource
+    ? c.selectedComponent?.stateProperties?.['outputEnabled'] === true ||
+      c.selectedComponent?.state === true
+    : false;
   useEffect(() => {
     setHelpSections(null);
   }, [c.selectedComponent?.id]);
@@ -762,6 +776,69 @@ export function WorkbenchSidebars({
                   </p>
                 </fieldset>
               ) : null}
+              {selectedIsAdjustableSource ? (
+                <fieldset
+                  className="workbench-state-controls workbench-primary-controls workbench-regulated-supply-controls"
+                  data-testid="regulated-power-supply-primary-controls"
+                >
+                  <legend>Лабораторный источник</legend>
+                  <label className="workbench-toggle-property">
+                    <span>Выход</span>
+                    <input
+                      aria-label="Включить выход лабораторного источника"
+                      type="checkbox"
+                      checked={selectedSupplyOutputEnabled}
+                      onChange={(event) =>
+                        c.setRegulatedPowerSupplyControls(c.selectedComponent!.id, {
+                          outputEnabled: event.target.checked,
+                        })
+                      }
+                    />
+                  </label>
+                  <label>
+                    <span>Напряжение, В</span>
+                    <input
+                      aria-label="Уставка напряжения лабораторного источника"
+                      type="number"
+                      min="0"
+                      max="30"
+                      step="0.1"
+                      value={selectedSupplyVoltageSetpoint}
+                      onChange={(event) =>
+                        c.setRegulatedPowerSupplyControls(c.selectedComponent!.id, {
+                          voltageSetpointVolt: event.target.valueAsNumber,
+                        })
+                      }
+                    />
+                  </label>
+                  <label>
+                    <span>Предел тока, А</span>
+                    <input
+                      aria-label="Ограничение тока лабораторного источника"
+                      type="number"
+                      min="0"
+                      max="5"
+                      step="0.01"
+                      value={selectedSupplyCurrentLimit}
+                      onChange={(event) =>
+                        c.setRegulatedPowerSupplyControls(c.selectedComponent!.id, {
+                          currentLimitAmp: event.target.valueAsNumber,
+                        })
+                      }
+                    />
+                  </label>
+                  <div className="workbench-regulated-supply-summary">
+                    <span>Сейчас</span>
+                    <strong data-testid="regulated-power-supply-panel-reading">
+                      {!c.simulationRunning
+                        ? 'Моделирование остановлено'
+                        : !selectedSupplyOutputEnabled || measurement?.regulationMode === 'off'
+                          ? 'Выход выключен'
+                          : `${measurement?.regulationMode === 'cc' ? 'CC' : 'CV'} · ${(measurement?.voltageDrop ?? 0).toFixed(2)} В · ${Math.abs(measurement?.current ?? 0).toFixed(3)} А`}
+                    </strong>
+                  </div>
+                </fieldset>
+              ) : null}
               {selectedIsArduino && stateOpen ? (
                 <div className="workbench-arduino-summary" data-testid="arduino-compact-summary">
                   <div>
@@ -798,8 +875,7 @@ export function WorkbenchSidebars({
                   </small>
                 </div>
               ) : null}
-              {selectedIsAdjustableSource ||
-              c.selectedEntry.key === 'electrolytic-capacitor' ||
+              {c.selectedEntry.key === 'electrolytic-capacitor' ||
               ['resistor', 'potentiometer'].includes(c.selectedComponent.kind) ||
               (c.selectedComponent.kind === 'diode' &&
                 !c.selectedComponent.componentTypeId &&
@@ -1547,6 +1623,32 @@ export function WorkbenchSidebars({
                       <dt>Нагрев источника</dt>
                       <dd>{measurement.internalPower.toFixed(3)} Вт</dd>
                     </div>
+                  ) : null}
+                  {selectedIsAdjustableSource && measurement.regulationMode ? (
+                    <>
+                      <div>
+                        <dt>Выход</dt>
+                        <dd>{measurement.regulatedOutputEnabled ? 'Включён' : 'Выключен'}</dd>
+                      </div>
+                      <div>
+                        <dt>Режим стабилизации</dt>
+                        <dd>
+                          {measurement.regulationMode === 'cc'
+                            ? 'CC · ограничение тока'
+                            : measurement.regulationMode === 'cv'
+                              ? 'CV · стабилизация напряжения'
+                              : 'Выход выключен'}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Уставка</dt>
+                        <dd>{(measurement.voltageSetpointVolt ?? 0).toFixed(1)} В</dd>
+                      </div>
+                      <div>
+                        <dt>Предел тока</dt>
+                        <dd>{(measurement.currentLimitAmp ?? 0).toFixed(2)} А</dd>
+                      </div>
+                    </>
                   ) : null}
                   {c.selectedEntry.key === 'electrolytic-capacitor' &&
                   measurement.voltageRatingVolt !== undefined ? (

@@ -29543,8 +29543,7 @@
           "channels": []
         }
       ],
-      "simulationSupport": "unsupported_fail_closed",
-      "blockReason": "Размещение, соединение и схема доступны; математическая модель пока не реализована.",
+      "simulationSupport": "regulated_dc_supply_cv_cc_v1",
       "catalogTier": "core",
       "metadataOnlyProof": {
         "source": "owner_direct_upload",

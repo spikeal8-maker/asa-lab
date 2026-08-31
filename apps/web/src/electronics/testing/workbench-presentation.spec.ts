@@ -555,6 +555,24 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(workbenchCss).not.toContain('.workbench-multimeter-active-mode');
   });
 
+  it('operates the regulated supply through its existing owner SVG and compact panel', () => {
+    expect(productionVisualSource).toContain('OwnerRegulatedPowerSupplyVisual');
+    expect(productionVisualSource).toContain('regulatedPowerSupplyRuntimeMarkup(ownerSvg, {');
+    expect(productionVisualSource).toContain('data-testid="regulated-power-supply-runtime"');
+    expect(productionVisualSource).toContain('workbench-regulated-supply-voltage-knob');
+    expect(productionVisualSource).toContain('workbench-regulated-supply-current-knob');
+    expect(productionVisualSource).toContain('workbench-regulated-supply-power-switch');
+    expect(stageSource).toContain('c.setRegulatedPowerSupplyControls(component.id, patch)');
+    expect(sidebarSource).toContain('data-testid="regulated-power-supply-primary-controls"');
+    expect(sidebarSource).toContain('Включить выход лабораторного источника');
+    expect(sidebarSource).toContain('Уставка напряжения лабораторного источника');
+    expect(sidebarSource).toContain('Ограничение тока лабораторного источника');
+    expect(sidebarSource).toContain('data-testid="regulated-power-supply-panel-reading"');
+    expect(sidebarSource).toContain("measurement?.regulationMode === 'cc' ? 'CC' : 'CV'");
+    expect(workbenchCss).toContain('.workbench-regulated-supply-reading');
+    expect(workbenchCss).toContain('.workbench-regulated-supply-indicator.is-cc.is-active');
+  });
+
   it('provides a real phone workbench with a bottom component sheet and touch targets', () => {
     expect(workbenchCss).toContain('@media (max-width: 760px)');
     expect(workbenchCss).toContain('--wb-library-open-height: min(44dvh, 360px)');

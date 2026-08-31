@@ -2,6 +2,7 @@ import type { ComponentKind, ProductionStateValue, SchematicComponent } from './
 
 export type ElectricalModelId =
   | 'ideal-dc-source'
+  | 'regulated-dc-supply'
   | 'resistor'
   | 'ordinary-led'
   | 'rgb-led'
@@ -39,6 +40,7 @@ export const ELECTRICAL_MODEL_REGISTRY_VERSION = 1;
 
 const KNOWN_MODEL_IDS: ReadonlySet<string> = new Set<ElectricalModelId>([
   'ideal-dc-source',
+  'regulated-dc-supply',
   'resistor',
   'ordinary-led',
   'rgb-led',
@@ -95,7 +97,7 @@ const EXACT_IDENTITIES: Readonly<Record<string, ElectricalModelIdentity>> = {
   'battery-holder-aa-4': identity('ideal-dc-source', 'generic-battery-pack-aa-4'),
   'battery-holder-aa-6': identity('ideal-dc-source', 'generic-battery-pack-aa-6'),
   'battery-holder-aa-8': identity('ideal-dc-source', 'generic-battery-pack-aa-8'),
-  'regulated-power-supply': identity('ideal-dc-source', 'generic-regulated-power-supply'),
+  'regulated-power-supply': identity('regulated-dc-supply', 'asa-bench-supply-30v-5a'),
 };
 
 function identity(
@@ -246,6 +248,15 @@ export function electricalModelIdentityForComponent(
         (component.electricalModelId === 'dc-voltmeter' &&
           component.modelProfileId === 'asa-two-terminal-dmm-dc-voltage' &&
           component.modelProfileVersion === 1))
+    ) {
+      return resolveElectricalModelIdentity(component);
+    }
+    if (
+      component.componentTypeId === 'regulated-power-supply' &&
+      component.electricalModelVersion === 1 &&
+      component.electricalModelId === 'ideal-dc-source' &&
+      component.modelProfileId === 'generic-regulated-power-supply' &&
+      component.modelProfileVersion === 1
     ) {
       return resolveElectricalModelIdentity(component);
     }

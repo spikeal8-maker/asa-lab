@@ -20,6 +20,7 @@ import {
 } from './models/capacitor-transient-model.js';
 import { canonicalBrushedMotorProfileRegistry } from './models/brushed-motor-profiles.js';
 import { BRUSHED_MOTOR_TRANSIENT_MODEL_VERSION } from './models/brushed-motor-transient-model.js';
+import { canonicalRegulatedPowerSupplyProfileRegistry } from './models/regulated-power-supply-model.js';
 
 export type SimulationStatus = 'solved' | 'unsupported' | 'invalid' | 'nonconvergent';
 
@@ -53,7 +54,7 @@ export interface SimulationResult extends SolveResult {
   readonly quality: SimulationQuality;
   readonly topologySignature: string;
   readonly simulationInputDigest: string;
-  readonly solverRevision: 'asa-electronics-solver-v8';
+  readonly solverRevision: 'asa-electronics-solver-v9';
   readonly modelSetDigest: string;
   readonly analysis: {
     readonly electricalMode: 'dc' | 'transient';
@@ -73,6 +74,7 @@ const MODEL_SET_DIGEST = `sha256:${sha256Hex(
     nonlinearDcProfiles: canonicalNonlinearDcProfileRegistry(),
     brushedMotorProfiles: canonicalBrushedMotorProfileRegistry(),
     brushedMotorTransientModelVersion: BRUSHED_MOTOR_TRANSIENT_MODEL_VERSION,
+    regulatedPowerSupplyProfiles: canonicalRegulatedPowerSupplyProfileRegistry(),
   }),
 )}`;
 
@@ -285,6 +287,8 @@ function allNumbers(result: SolveResult): readonly number[] {
       component.internalResistanceOhm ?? 0,
       component.internalPower ?? 0,
       component.voltageSag ?? 0,
+      component.voltageSetpointVolt ?? 0,
+      component.currentLimitAmp ?? 0,
       component.brightness ?? 0,
       component.baseCurrent ?? 0,
       component.collectorCurrent ?? 0,
@@ -639,7 +643,7 @@ export function analyseCircuit(
       quality: failedQuality(),
       topologySignature: compiled.topologySignature,
       simulationInputDigest: inputDigest,
-      solverRevision: 'asa-electronics-solver-v8',
+      solverRevision: 'asa-electronics-solver-v9',
       modelSetDigest: MODEL_SET_DIGEST,
       analysis,
     };
@@ -664,7 +668,7 @@ export function analyseCircuit(
       quality,
       topologySignature: compiled.topologySignature,
       simulationInputDigest: inputDigest,
-      solverRevision: 'asa-electronics-solver-v8',
+      solverRevision: 'asa-electronics-solver-v9',
       modelSetDigest: MODEL_SET_DIGEST,
       analysis,
     };
@@ -676,7 +680,7 @@ export function analyseCircuit(
     quality,
     topologySignature: compiled.topologySignature,
     simulationInputDigest: inputDigest,
-    solverRevision: 'asa-electronics-solver-v8',
+    solverRevision: 'asa-electronics-solver-v9',
     modelSetDigest: MODEL_SET_DIGEST,
     analysis,
   };

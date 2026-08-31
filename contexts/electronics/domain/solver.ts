@@ -21,15 +21,23 @@ import { ledBrightnessPercent, type LedJunctionProfile } from './led-model.js';
 import type { DcStampContext, IterativeDcStampContext } from './models/device-model.js';
 import {
   createLinearDcDevice,
+  isAnySourceDevice,
   isMultimeterDcCurrentDevice,
   isMultimeterResistanceDevice,
   isMultimeterDcVoltageDevice,
+  isRegulatedPowerSupplyDevice,
   isResistorDevice,
-  isSourceDevice,
+  nextRegulatedPowerSupplyMode,
+  observeRegulatedPowerSupply,
+  regulatedPowerSupplyStampForMode,
   MULTIMETER_DC_CURRENT_FUSE_I2T_LIMIT_AMP_SQUARED_SECOND,
   MULTIMETER_DC_CURRENT_FUSE_RATING_AMP,
   type LinearDcObservation,
 } from './models/linear-dc-models.js';
+import {
+  regulatedPowerSupplyValidationMessage,
+  type RegulatedPowerSupplyMode,
+} from './models/regulated-power-supply-model.js';
 import {
   nonlinearBranchKey,
   nonlinearDcBranchesForComponent,
@@ -102,6 +110,7 @@ export type DiagnosticCode =
   | 'resistor_near_limit'
   | 'resistor_overload'
   | 'source_overload'
+  | 'regulated_supply_reverse_current'
   | 'multimeter_overload'
   | 'multimeter_fuse_blown'
   | 'multimeter_powered_resistance'
@@ -191,6 +200,10 @@ export interface ComponentResult {
   readonly voltageSag?: number;
   /** Whether a source delivers current, is idle, or is back-driven by another source. */
   readonly sourceOperatingMode?: 'delivering' | 'idle' | 'absorbing';
+  readonly regulatedOutputEnabled?: boolean;
+  readonly regulationMode?: RegulatedPowerSupplyMode;
+  readonly voltageSetpointVolt?: number;
+  readonly currentLimitAmp?: number;
   readonly measurementMode?: 'dc-voltage' | 'dc-current' | 'resistance';
   readonly measuredValue?: number;
   readonly measurementUnit?: 'V' | 'A' | 'Ω';
@@ -684,6 +697,9 @@ function solveLinear(matrix: number[][], rhs: number[]): number[] | null {
 }
 
 function propertyError(component: SchematicComponent): string | null {
+  if (component.componentTypeId === 'regulated-power-supply') {
+    return regulatedPowerSupplyValidationMessage(component);
+  }
   const capacitorError = capacitorPropertyError(component);
   if (capacitorError) return capacitorError;
   if (isBrushedMotor(component)) {
@@ -1550,7 +1566,7 @@ function solveCircuitStep(
   const capacitors = document.components.filter(
     (component) => isElectrolyticCapacitor(component) && !failedComponentIds.has(component.id),
   );
-  const sourceDevices = linearDcDevices.filter(isSourceDevice);
+  const sourceDevices = linearDcDevices.filter(isAnySourceDevice);
   const resistanceMeterDevices = linearDcDevices.filter(isMultimeterResistanceDevice);
   const linearDcDeviceById = new Map(
     linearDcDevices.map((device) => [device.instance.componentId, device] as const),
@@ -1769,6 +1785,14 @@ function solveCircuitStep(
   );
   const diodeStates = new Map<string, boolean>();
   const diodeSegmentIndices = new Map<string, number>();
+  const regulatedSupplyModes = new Map<string, RegulatedPowerSupplyMode>(
+    sourceDevices
+      .filter(isRegulatedPowerSupplyDevice)
+      .map((device) => [
+        device.instance.componentId,
+        device.instance.parameters.outputEnabled ? 'cv' : 'off',
+      ]),
+  );
   const transistorModels = document.components.flatMap((component) => {
     if (failedComponentIds.has(component.id)) return [];
     const model = transistorModel(component);
@@ -2033,13 +2057,46 @@ function solveCircuitStep(
       }
     }
 
-    for (const device of sourceDevices) device.model.stampDc(modelStampContext, device.instance);
+    for (const device of sourceDevices) {
+      if (isRegulatedPowerSupplyDevice(device)) {
+        const mode = regulatedSupplyModes.get(device.instance.componentId) ?? 'off';
+        const stamp = regulatedPowerSupplyStampForMode(device.instance, mode);
+        modelStampContext.stampVoltageSource(
+          device.instance.componentId,
+          modelStampContext.node(device.instance.component, 'a'),
+          modelStampContext.node(device.instance.component, 'b'),
+          stamp.emfVolt,
+          stamp.seriesResistanceOhm,
+        );
+      } else {
+        device.model.stampDc(modelStampContext, device.instance);
+      }
+    }
 
     finalMatrix = matrix;
     finalRhs = rhs;
     solution = solveLinear(matrix, rhs);
     if (!solution) break;
     let changed = false;
+    for (const device of sourceDevices.filter(isRegulatedPowerSupplyDevice)) {
+      const sourcePosition = sourcePositionById.get(device.instance.componentId);
+      if (sourcePosition === undefined) continue;
+      const previousMode = regulatedSupplyModes.get(device.instance.componentId) ?? 'off';
+      const deliveredCurrentAmp = -(solution[nodeVariableCount + sourcePosition] ?? 0);
+      const outputVoltageVolt =
+        voltageFrom(solution, modelStampContext.node(device.instance.component, 'a')) -
+        voltageFrom(solution, modelStampContext.node(device.instance.component, 'b'));
+      const nextMode = nextRegulatedPowerSupplyMode(
+        device.instance,
+        previousMode,
+        deliveredCurrentAmp,
+        outputVoltageVolt,
+      );
+      if (nextMode !== previousMode) {
+        regulatedSupplyModes.set(device.instance.componentId, nextMode);
+        changed = true;
+      }
+    }
     for (const branch of diodeBranches) {
       const key = nonlinearBranchKey(branch);
       const segmentIndex = diodeSegmentIndices.get(key) ?? 0;
@@ -2425,10 +2482,17 @@ function solveCircuitStep(
         (linearDcDevice !== undefined && isMultimeterResistanceDevice(linearDcDevice))
           ? -(sourceCurrents.get(component.id) ?? 0)
           : 0;
-      let linearDcObservation: LinearDcObservation | undefined = linearDcDevice?.model.observe?.(
-        linearDcDevice.instance as never,
-        { voltageDrop, current: reportedLinearCurrent },
-      );
+      let linearDcObservation: LinearDcObservation | undefined =
+        linearDcDevice && isRegulatedPowerSupplyDevice(linearDcDevice)
+          ? observeRegulatedPowerSupply(
+              linearDcDevice.instance,
+              regulatedSupplyModes.get(component.id) ?? 'off',
+              { voltageDrop, current: reportedLinearCurrent },
+            )
+          : linearDcDevice?.model.observe?.(linearDcDevice.instance as never, {
+              voltageDrop,
+              current: reportedLinearCurrent,
+            });
       if (
         linearDcDevice !== undefined &&
         isMultimeterResistanceDevice(linearDcDevice) &&
@@ -2724,6 +2788,15 @@ function solveCircuitStep(
               internalPower: round(linearDcObservation.internalPower ?? 0),
               voltageSag: round(linearDcObservation.voltageSag ?? 0),
               sourceOperatingMode: linearDcObservation.sourceOperatingMode ?? 'idle',
+            }
+          : {}),
+        ...(linearDcObservation?.regulationMode
+          ? {
+              regulatedOutputEnabled: linearDcObservation.regulatedOutputEnabled ?? false,
+              regulationMode: linearDcObservation.regulationMode,
+              voltageSetpointVolt: round(linearDcObservation.voltageSetpointVolt ?? 0, 3),
+              currentLimitAmp: round(linearDcObservation.currentLimitAmp ?? 0, 3),
+              temperatureCelsius: round(linearDcObservation.temperatureCelsius ?? 25, 2),
             }
           : {}),
         ...(linearDcObservation?.measurementMode
@@ -3128,7 +3201,10 @@ function solveCircuitStep(
   }
   for (const source of sources) {
     const deliveredCurrent = Math.abs(sourceCurrents.get(source.id) ?? 0);
-    if (directlyShortedSourceIds.has(source.id)) {
+    if (
+      directlyShortedSourceIds.has(source.id) &&
+      source.componentTypeId !== 'regulated-power-supply'
+    ) {
       diagnostics.push({
         code: 'short_circuit',
         severity: 'error',
@@ -3138,7 +3214,11 @@ function solveCircuitStep(
     }
   }
   const highCurrentSourceIds = sources
-    .filter((source) => Math.abs(sourceCurrents.get(source.id) ?? 0) > SHORT_CIRCUIT_CURRENT_A)
+    .filter(
+      (source) =>
+        source.componentTypeId !== 'regulated-power-supply' &&
+        Math.abs(sourceCurrents.get(source.id) ?? 0) > SHORT_CIRCUIT_CURRENT_A,
+    )
     .map((source) => source.id);
   const highCurrentArduinoIds = document.components
     .filter(

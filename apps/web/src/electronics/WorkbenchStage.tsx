@@ -808,6 +808,11 @@ export function WorkbenchStage({
                         ? (mode) => c.setMultimeterMeasurementMode(component.id, mode)
                         : undefined
                     }
+                    onRegulatedPowerSupplyChange={
+                      entry.key === 'regulated-power-supply'
+                        ? (patch) => c.setRegulatedPowerSupplyControls(component.id, patch)
+                        : undefined
+                    }
                   />
                   {component.kind === 'potentiometer' && c.simulationRunning ? (
                     <circle

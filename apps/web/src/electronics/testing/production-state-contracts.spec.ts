@@ -14,6 +14,8 @@ import {
   ordinaryLedState,
   potentiometerKnobAngle,
   potentiometerRuntimeMarkup,
+  regulatedPowerSupplyKnobAngle,
+  regulatedPowerSupplyRuntimeMarkup,
   rgbLedColour,
   rgbLedDisplayColour,
   rgbLedState,
@@ -132,6 +134,64 @@ describe('typed Electronics state and animation contracts', () => {
     expect(resistance).toContain('>1.000 kΩ</text>');
     expect(ownerSvg).not.toContain('workbench-multimeter');
     expect(multimeterRuntimeMarkup('<svg><path d="missing"/></svg>', 'voltage', '')).toBe('');
+  });
+
+  it('drives the existing power-supply knobs, switch, indicators and LCD openings', () => {
+    const ownerSvg = `<svg viewBox="0 0 294 237">
+      <circle cx="266" cy="20" r="4" fill="#D8D8D8" stroke="#BEBEBE" stroke-width="1"/>
+      <text x="273" y="23" class="label-small">VC</text>
+      <g transform="translate(234 53)"><circle cx="-21.5" cy="0.5" r="3" fill="#4E5251"/></g>
+      <circle cx="266" cy="109" r="4" fill="#D8D8D8" stroke="#BEBEBE" stroke-width="1"/>
+      <g transform="translate(234 145)"><circle cx="15" cy="15" r="3" fill="#4E5251"/></g>
+      <rect x="14" y="202" width="67" height="26" rx="13" fill="#C4C4C4"/>
+      <rect x="14" y="202" width="35" height="26" rx="13" fill="#4E5251"/>
+      <text x="56" y="218" class="label-off">OFF</text>
+    </svg>`;
+
+    expect(regulatedPowerSupplyKnobAngle(0, 30)).toBe(135);
+    expect(regulatedPowerSupplyKnobAngle(15, 30)).toBe(270);
+    expect(regulatedPowerSupplyKnobAngle(30, 30)).toBe(405);
+
+    const running = regulatedPowerSupplyRuntimeMarkup(ownerSvg, {
+      voltageSetpointVolt: 12,
+      currentLimitAmp: 0.25,
+      outputEnabled: true,
+      mode: 'cc',
+      voltageDisplay: '2.500 V',
+      currentDisplay: '0.250 A',
+    });
+    expect(running).toContain('workbench-regulated-supply-voltage-knob');
+    expect(running).toContain('workbench-regulated-supply-current-knob');
+    expect(running).toContain('workbench-regulated-supply-indicator is-cc is-active');
+    expect(running).toContain('transform="translate(32 0)"');
+    expect(running).toContain('>ON</text>');
+    expect(running).toContain('>CV</text>');
+    expect(running).not.toContain('>VC</text>');
+    expect(running).toContain('>2.500 V</text>');
+    expect(running).toContain('>0.250 A</text>');
+    expect(ownerSvg).not.toContain('workbench-regulated-supply');
+
+    const off = regulatedPowerSupplyRuntimeMarkup(ownerSvg, {
+      voltageSetpointVolt: 0,
+      currentLimitAmp: 0,
+      outputEnabled: false,
+      mode: 'off',
+      voltageDisplay: '',
+      currentDisplay: '',
+    });
+    expect(off).toContain('>OFF</text>');
+    expect(off).not.toContain('translate(32 0)');
+    expect(off).not.toContain('workbench-regulated-supply-reading');
+    expect(
+      regulatedPowerSupplyRuntimeMarkup('<svg><rect/></svg>', {
+        voltageSetpointVolt: 5,
+        currentLimitAmp: 1,
+        outputEnabled: true,
+        mode: 'cv',
+        voltageDisplay: '5.000 V',
+        currentDisplay: '0.100 A',
+      }),
+    ).toBe('');
   });
 
   it('marks only the owner motor gear and maps signed RPM to calm visual motion', () => {

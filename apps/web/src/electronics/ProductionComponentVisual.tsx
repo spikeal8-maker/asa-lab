@@ -1,4 +1,10 @@
-import { useEffect, useMemo, useState, type CSSProperties } from 'react';
+import {
+  useEffect,
+  useMemo,
+  useState,
+  type CSSProperties,
+  type PointerEvent as ReactPointerEvent,
+} from 'react';
 import type { ComponentResult, SchematicComponent } from '../api';
 import type { CatalogEntry, ComponentVisualState } from './component-catalog';
 import { visualAsset } from './component-catalog';
@@ -10,6 +16,7 @@ import {
   multimeterRuntimeMarkup,
   potentiometerKnobAngle,
   potentiometerRuntimeMarkup,
+  regulatedPowerSupplyRuntimeMarkup,
   RESISTOR_BAND_CSS,
   resistorBandState,
   rgbLedColour,
@@ -60,6 +67,13 @@ interface Props {
   readonly onArduinoReset?: (() => void) | undefined;
   readonly onMultimeterModeChange?:
     ((mode: 'dc-voltage' | 'dc-current' | 'resistance') => void) | undefined;
+  readonly onRegulatedPowerSupplyChange?:
+    | ((patch: {
+        readonly voltageSetpointVolt?: number;
+        readonly currentLimitAmp?: number;
+        readonly outputEnabled?: boolean;
+      }) => void)
+    | undefined;
 }
 
 const ownerSvgSourceCache = new Map<string, Promise<string>>();
@@ -149,6 +163,164 @@ function OwnerMultimeterVisual({
           onModeChange?.('resistance');
         }
       }}
+      dangerouslySetInnerHTML={{ __html: markup }}
+    />
+  );
+}
+
+function regulatedSupplyValueFromPointer(
+  event: ReactPointerEvent<SVGSVGElement>,
+  centerY: number,
+  maximum: number,
+): number | null {
+  const matrix = event.currentTarget.getScreenCTM();
+  if (!matrix) return null;
+  const point = new DOMPoint(event.clientX, event.clientY).matrixTransform(matrix.inverse());
+  let angle = (Math.atan2(point.y - centerY, point.x - 234) * 180) / Math.PI;
+  if (angle < 0) angle += 360;
+  let arcAngle = angle;
+  if (angle <= 45) arcAngle = angle + 360;
+  else if (angle < 135) arcAngle = angle < 90 ? 405 : 135;
+  return Math.min(maximum, Math.max(0, ((arcAngle - 135) / 270) * maximum));
+}
+
+function OwnerRegulatedPowerSupplyVisual({
+  asset,
+  width,
+  height,
+  component,
+  result,
+  simulationRunning,
+  onChange,
+}: {
+  readonly asset: string;
+  readonly width: number;
+  readonly height: number;
+  readonly component: SchematicComponent;
+  readonly result?: ComponentResult | undefined;
+  readonly simulationRunning: boolean;
+  readonly onChange?: Props['onRegulatedPowerSupplyChange'];
+}): JSX.Element {
+  const [ownerSvg, setOwnerSvg] = useState<string | null>(null);
+  const [draggingKnob, setDraggingKnob] = useState<'voltage' | 'current' | null>(null);
+  useEffect(() => {
+    let mounted = true;
+    void ownerSvgSource(asset)
+      .then((source) => {
+        if (mounted) setOwnerSvg(source);
+      })
+      .catch(() => {
+        if (mounted) setOwnerSvg(null);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [asset]);
+  const properties = component.stateProperties ?? {};
+  const voltageSetpointVolt = Math.min(
+    30,
+    Math.max(0, Number(properties['voltageSetpointVolt'] ?? component.value ?? 5)),
+  );
+  const currentLimitAmp = Math.min(5, Math.max(0, Number(properties['currentLimitAmp'] ?? 1)));
+  const outputEnabled = properties['outputEnabled'] === true || component.state === true;
+  const mode = simulationRunning
+    ? (result?.regulationMode ?? (outputEnabled ? 'cv' : 'off'))
+    : 'off';
+  const voltageDisplay =
+    simulationRunning && outputEnabled ? `${Number(result?.voltageDrop ?? 0).toFixed(2)} V` : '';
+  const currentDisplay =
+    simulationRunning && outputEnabled
+      ? `${Math.abs(Number(result?.current ?? 0)).toFixed(3)} A`
+      : '';
+  const markup = useMemo(
+    () =>
+      ownerSvg
+        ? regulatedPowerSupplyRuntimeMarkup(ownerSvg, {
+            voltageSetpointVolt,
+            currentLimitAmp,
+            outputEnabled,
+            mode,
+            voltageDisplay,
+            currentDisplay,
+          })
+        : '',
+    [
+      currentDisplay,
+      currentLimitAmp,
+      mode,
+      outputEnabled,
+      ownerSvg,
+      voltageDisplay,
+      voltageSetpointVolt,
+    ],
+  );
+  const updateKnob = (
+    event: ReactPointerEvent<SVGSVGElement>,
+    knob: 'voltage' | 'current',
+  ): void => {
+    const value = regulatedSupplyValueFromPointer(
+      event,
+      knob === 'voltage' ? 53 : 145,
+      knob === 'voltage' ? 30 : 5,
+    );
+    if (value === null) return;
+    onChange?.(
+      knob === 'voltage'
+        ? { voltageSetpointVolt: Math.round(value * 10) / 10 }
+        : { currentLimitAmp: Math.max(0, Math.round(value * 100) / 100) },
+    );
+  };
+  if (!markup) return <image href={asset} width={width} height={height} pointerEvents="none" />;
+  return (
+    <svg
+      className="workbench-regulated-supply-runtime"
+      data-testid="regulated-power-supply-runtime"
+      data-output-enabled={String(outputEnabled)}
+      data-regulation-mode={mode}
+      data-voltage-setpoint={voltageSetpointVolt}
+      data-current-limit={currentLimitAmp}
+      x="0"
+      y="0"
+      width={width}
+      height={height}
+      viewBox="0 0 294 237"
+      preserveAspectRatio="xMidYMid meet"
+      pointerEvents="all"
+      onPointerDown={(event) => {
+        const target = event.target;
+        if (!(target instanceof Element)) return;
+        if (target.closest('.workbench-regulated-supply-power-switch')) {
+          onChange?.({ outputEnabled: !outputEnabled });
+        } else if (target.closest('.workbench-regulated-supply-voltage-knob')) {
+          setDraggingKnob('voltage');
+          event.currentTarget.setPointerCapture(event.pointerId);
+          updateKnob(event, 'voltage');
+        } else if (target.closest('.workbench-regulated-supply-current-knob')) {
+          setDraggingKnob('current');
+          event.currentTarget.setPointerCapture(event.pointerId);
+          updateKnob(event, 'current');
+        } else {
+          return;
+        }
+        event.preventDefault();
+        event.stopPropagation();
+      }}
+      onPointerMove={(event) => {
+        if (!draggingKnob) return;
+        updateKnob(event, draggingKnob);
+        event.preventDefault();
+        event.stopPropagation();
+      }}
+      onPointerUp={(event) => {
+        if (!draggingKnob) return;
+        if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+          event.currentTarget.releasePointerCapture(event.pointerId);
+        }
+        setDraggingKnob(null);
+        event.preventDefault();
+        event.stopPropagation();
+      }}
+      onPointerCancel={() => setDraggingKnob(null)}
       dangerouslySetInnerHTML={{ __html: markup }}
     />
   );
@@ -384,6 +556,7 @@ export function ProductionComponentVisual({
   onSwitchActuate,
   onArduinoReset,
   onMultimeterModeChange,
+  onRegulatedPowerSupplyChange,
 }: Props): JSX.Element {
   const properties = component.stateProperties ?? {};
   const ledColour = String(properties['ledColour'] ?? 'red');
@@ -832,6 +1005,16 @@ export function ProductionComponentVisual({
                   : undefined
               }
               onModeChange={onMultimeterModeChange}
+            />
+          ) : entry.key === 'regulated-power-supply' ? (
+            <OwnerRegulatedPowerSupplyVisual
+              asset={asset}
+              width={width}
+              height={height}
+              component={component}
+              result={result}
+              simulationRunning={simulationRunning}
+              onChange={onRegulatedPowerSupplyChange}
             />
           ) : (
             <image

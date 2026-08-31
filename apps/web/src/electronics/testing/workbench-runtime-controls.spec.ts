@@ -29,6 +29,19 @@ const document: SchematicDocument = {
       value: 6,
       stateProperties: {},
     },
+    {
+      id: 'supply',
+      kind: 'source',
+      componentTypeId: 'regulated-power-supply',
+      position: { x: 80, y: 0 },
+      value: 5,
+      state: false,
+      stateProperties: {
+        voltageSetpointVolt: 5,
+        currentLimitAmp: 1,
+        outputEnabled: false,
+      },
+    },
   ],
   connections: [],
   viewport: { x: 0, y: 0, zoom: 1 },
@@ -43,6 +56,13 @@ describe('Electronics runtime controls', () => {
       button: { state: true },
       ldr: { stateProperties: { illumination: 0.9 } },
       motor: { stateProperties: { shaftLocked: true } },
+      supply: {
+        stateProperties: {
+          voltageSetpointVolt: 12,
+          currentLimitAmp: 0.25,
+          outputEnabled: true,
+        },
+      },
     });
 
     expect(runtime).not.toBe(document);
@@ -56,6 +76,13 @@ describe('Electronics runtime controls', () => {
     expect(
       runtime?.components.find((item) => item.id === 'motor')?.stateProperties?.['shaftLocked'],
     ).toBe(true);
+    expect(runtime?.components.find((item) => item.id === 'supply')?.stateProperties).toMatchObject(
+      {
+        voltageSetpointVolt: 12,
+        currentLimitAmp: 0.25,
+        outputEnabled: true,
+      },
+    );
 
     expect(document.simulation.running).toBe(false);
     expect(document.components.find((item) => item.id === 'pot')?.wiperPosition).toBe(0.5);
@@ -67,6 +94,13 @@ describe('Electronics runtime controls', () => {
     expect(
       document.components.find((item) => item.id === 'motor')?.stateProperties?.['shaftLocked'],
     ).toBeUndefined();
+    expect(document.components.find((item) => item.id === 'supply')?.stateProperties).toMatchObject(
+      {
+        voltageSetpointVolt: 5,
+        currentLimitAmp: 1,
+        outputEnabled: false,
+      },
+    );
   });
 
   it('returns the persistent document unchanged while simulation is stopped', () => {

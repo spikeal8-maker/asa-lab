@@ -202,6 +202,7 @@ const SIMULATED_TYPES = new Set([
   'dc-motor',
   'gearmotor',
   'multimeter',
+  'regulated-power-supply',
 ]);
 
 const COMPONENT_DESCRIPTIONS: Readonly<Record<string, string>> = {
@@ -428,6 +429,18 @@ function defaults(componentId: string): {
       value: 0,
       unit: 'В',
       properties: { measurementMode: 'dc-voltage', meterRange: 'auto' },
+    };
+  if (componentId === 'regulated-power-supply')
+    return {
+      value: 5,
+      unit: 'В',
+      state: false,
+      properties: {
+        voltageSetpointVolt: 5,
+        currentLimitAmp: 1,
+        outputEnabled: false,
+        outputResistanceOhm: 0.05,
+      },
     };
   return { value: 0, unit: '', properties: { simulationStatus: 'not_yet_supported' } };
 }

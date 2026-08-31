@@ -1648,6 +1648,62 @@ function multimeterResistanceDocument(powered = false): SchematicDocument {
   };
 }
 
+function regulatedPowerSupplyDocument(): SchematicDocument {
+  return {
+    schemaVersion: 4,
+    components: [
+      {
+        id: 'bench-supply',
+        kind: 'source',
+        componentTypeId: 'regulated-power-supply',
+        variantId: 'regulated-power-supply',
+        name: 'Лабораторный источник',
+        position: { x: 270, y: 250 },
+        rotation: 0,
+        value: 5,
+        state: false,
+        pinIds: ['positive', 'negative'],
+        stateProperties: {
+          voltageSetpointVolt: 5,
+          currentLimitAmp: 1,
+          outputEnabled: false,
+          outputResistanceOhm: 0.05,
+        },
+      },
+      {
+        id: 'load',
+        kind: 'resistor',
+        componentTypeId: 'resistor-axial',
+        variantId: 'resistor-axial',
+        name: 'Нагрузка 100 Ом',
+        position: { x: 760, y: 310 },
+        rotation: 90,
+        value: 100,
+        pinIds: ['lead-1', 'lead-2'],
+        stateProperties: { powerRatingWatt: 5 },
+      },
+    ],
+    connections: [
+      {
+        id: 'supply-positive',
+        from: { componentId: 'bench-supply', terminal: 'positive' },
+        to: { componentId: 'load', terminal: 'lead-1' },
+        color: '#e3212b',
+        vertices: [],
+      },
+      {
+        id: 'supply-negative',
+        from: { componentId: 'bench-supply', terminal: 'negative' },
+        to: { componentId: 'load', terminal: 'lead-2' },
+        color: '#2a3035',
+        vertices: [],
+      },
+    ],
+    viewport: { x: 0, y: 0, zoom: 1 },
+    simulation: { running: false, maxIterations: 24 },
+  };
+}
+
 async function createProject(page: Page, title: string): Promise<string> {
   const response = await page.context().request.post('/api/projects', {
     headers: {
@@ -3369,6 +3425,76 @@ test('MATH-10A3 multimeter measures resistance from the owner R button and block
   await expect(poweredInspector.getByTestId('multimeter-panel-reading')).toContainText(
     'Ошибка · внешнее напряжение',
   );
+  failures.assertEmpty();
+});
+
+test('MATH-10B regulated supply operates its owner controls and transitions between CC and CV', async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
+  await page.setViewportSize({ width: 1920, height: 1080 });
+  await loginWithOrganization(page, teacher);
+  const projectId = await createProject(page, 'Лабораторный источник: CV и CC');
+  await saveDocument(page, projectId, regulatedPowerSupplyDocument());
+  await page.goto(`/#/home/${projectId}`);
+  await expect(page.locator('.workbench-stage')).toBeVisible({ timeout: 15_000 });
+
+  const supply = component(page, 'regulated-power-supply');
+  await supply.locator('.workbench-part').press('Enter');
+  const visual = supply.getByTestId('regulated-power-supply-runtime');
+  const inspector = page.getByRole('complementary', { name: 'Параметры выделения' });
+  await expect(visual).toHaveAttribute('data-output-enabled', 'false');
+  await expect(inspector.getByTestId('regulated-power-supply-primary-controls')).toBeVisible();
+  await inspector.getByLabel('Уставка напряжения лабораторного источника').fill('12');
+  await inspector.getByLabel('Ограничение тока лабораторного источника').fill('0.1');
+  await expect(visual).toHaveAttribute('data-voltage-setpoint', '12');
+  await expect(visual).toHaveAttribute('data-current-limit', '0.1');
+
+  await visual.locator('.workbench-regulated-supply-power-slider').click();
+  await expect(visual).toHaveAttribute('data-output-enabled', 'true');
+  await expect(inspector.getByLabel('Включить выход лабораторного источника')).toBeChecked();
+  await page.getByRole('button', { name: 'Начать моделирование' }).click();
+  await expect(visual).toHaveAttribute('data-regulation-mode', 'cc');
+  await expect(inspector.getByTestId('regulated-power-supply-panel-reading')).toContainText('CC');
+  await expect(visual.locator('.workbench-regulated-supply-reading').nth(0)).toContainText(
+    '10.00 V',
+  );
+  await expect(visual.locator('.workbench-regulated-supply-reading').nth(1)).toContainText(
+    '0.100 A',
+  );
+  await page.screenshot({
+    path: `${ARTIFACT_DIR}/electronics-regulated-supply-cc.png`,
+    fullPage: true,
+  });
+
+  await inspector.getByLabel('Ограничение тока лабораторного источника').fill('0.2');
+  await expect(visual).toHaveAttribute('data-current-limit', '0.2');
+  await expect(visual).toHaveAttribute('data-regulation-mode', 'cv');
+  await expect(inspector.getByTestId('regulated-power-supply-panel-reading')).toContainText('CV');
+  await expect(visual.locator('.workbench-regulated-supply-reading').nth(0)).toContainText(
+    '11.99 V',
+  );
+  await expect(visual.locator('.workbench-regulated-supply-reading').nth(1)).toContainText(
+    '0.120 A',
+  );
+  await page.screenshot({
+    path: `${ARTIFACT_DIR}/electronics-regulated-supply-cv.png`,
+    fullPage: true,
+  });
+
+  const saved = await page.context().request.get(`/api/projects/${projectId}`, {
+    headers: { origin: new URL(page.url()).origin },
+  });
+  const savedPayload = (await saved.json()) as { draft: { document: SchematicDocument } };
+  expect(
+    savedPayload.draft.document.components.find((item) => item.id === 'bench-supply')
+      ?.stateProperties,
+  ).toMatchObject({
+    voltageSetpointVolt: 12,
+    currentLimitAmp: 0.1,
+    outputEnabled: true,
+  });
   failures.assertEmpty();
 });
 
