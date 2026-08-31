@@ -5,6 +5,7 @@ import {
   HttpCode,
   HttpException,
   Inject,
+  Optional,
   Param,
   Post,
   Put,
@@ -26,6 +27,8 @@ import { SESSION_COOKIE, TOKENS } from './tokens.js';
 import { checkBodyShape } from './validation.js';
 import { clientAddress } from './client-address.js';
 import { BotChallengeService } from './bot-challenge.js';
+import { ProductAnalyticsService } from './product-analytics.service.js';
+import { SeatContextUseCase } from './seat-context.js';
 import { FixedWindowRateLimiter } from './rate-limit.js';
 import {
   LearningCanonicalProjectionService,
@@ -380,6 +383,9 @@ export class ClassroomJoinController {
     // здесь нужна и обычная сессия тоже.
     @Inject(TOKENS.activeContextUseCase) private readonly activeContext: ActiveContextUseCase,
     @Inject(TOKENS.botChallengeService) private readonly botChallenges: BotChallengeService,
+    @Optional()
+    @Inject(TOKENS.productAnalytics)
+    private readonly analytics?: ProductAnalyticsService,
   ) {}
 
   private requirePool(): pg.Pool {
@@ -513,6 +519,17 @@ export class ClassroomJoinController {
       maxAge: STUDENT_SESSION_HOURS * 60 * 60,
     });
     await this.recordSeatActivity(row.seat_id, 'seat.signed_in');
+    const seatContext = await new SeatContextUseCase(this.pool).resolve(token);
+    if (seatContext && this.analytics) {
+      await this.analytics.record({
+        actor: { kind: 'student', context: seatContext },
+        eventType: 'auth.class_join',
+        outcome: 'succeeded',
+        authMethod: 'class_code',
+        address: clientAddress(request),
+        userAgentSummary: request.headers['user-agent']?.slice(0, 128) ?? null,
+      });
+    }
     return studentPayload(row);
   }
 

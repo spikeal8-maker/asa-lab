@@ -32,6 +32,7 @@ export const TOKENS = {
   maxAuthService: 'MAX_AUTH_SERVICE',
   refreshSessionService: 'REFRESH_SESSION_SERVICE',
   adminControlPlane: 'ADMIN_CONTROL_PLANE',
+  productAnalytics: 'PRODUCT_ANALYTICS',
   chessLiveRepository: 'CHESS_LIVE_REPOSITORY',
   chessLiveService: 'CHESS_LIVE_SERVICE',
 } as const;

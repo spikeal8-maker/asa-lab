@@ -11,6 +11,7 @@ import {
   Res,
 } from '@nestjs/common';
 import type { FastifyReply, FastifyRequest } from 'fastify';
+import { randomUUID } from 'node:crypto';
 import type {
   AccountDirectoryPort,
   AccountLoginUseCase,
@@ -30,6 +31,12 @@ import {
   RefreshSessionService,
   type SessionSource,
 } from './refresh-session.service.js';
+import {
+  ProductAnalyticsService,
+  type AnalyticsAuthMethod,
+  type AnalyticsEventType,
+  type AnalyticsOutcome,
+} from './product-analytics.service.js';
 
 // Password hashing costs tens of milliseconds of thread-pool time per attempt,
 // so an endpoint without a ceiling lets one client spend the whole runtime on
@@ -50,6 +57,9 @@ export const REGISTER_PER_ADDRESS = 60;
 export const BOT_CHALLENGE_WINDOW_MS = 5 * 60 * 1000;
 export const BOT_CHALLENGE_PER_ADDRESS = 60;
 export const MAX_AUTH_PER_ADDRESS = 60;
+const AUTH_FLOW_COOKIE = 'asa_auth_flow';
+const AUTH_FLOW_MAX_AGE_SECONDS = 20 * 60;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 interface PublicUser {
   id: string;
@@ -174,6 +184,8 @@ export class AuthController {
     @Inject(TOKENS.maxAuthService) private readonly maxAuth: MaxAuthService,
     @Inject(TOKENS.refreshSessionService)
     private readonly refreshSessions: RefreshSessionService,
+    @Inject(TOKENS.productAnalytics)
+    private readonly analytics: ProductAnalyticsService,
   ) {}
 
   private setSessionCookie(reply: FastifyReply, token: string): void {
@@ -199,6 +211,51 @@ export class AuthController {
   private clearSessionCookies(reply: FastifyReply): void {
     reply.clearCookie(SESSION_COOKIE, { path: '/' });
     reply.clearCookie(REFRESH_COOKIE, { path: '/api/auth' });
+  }
+
+  private authFlow(request: FastifyRequest, reply: FastifyReply): string {
+    const existing = request.cookies[AUTH_FLOW_COOKIE];
+    const flowId = existing && UUID_PATTERN.test(existing) ? existing : randomUUID();
+    if (flowId !== existing) {
+      reply.setCookie(AUTH_FLOW_COOKIE, flowId, {
+        httpOnly: true,
+        sameSite: 'lax',
+        path: '/api/auth',
+        secure:
+          process.env['NODE_ENV'] === 'production' || process.env['ASA_SECURE_COOKIES'] === '1',
+        maxAge: AUTH_FLOW_MAX_AGE_SECONDS,
+      });
+    }
+    return flowId;
+  }
+
+  private closeAuthFlow(reply: FastifyReply): void {
+    reply.clearCookie(AUTH_FLOW_COOKIE, { path: '/api/auth' });
+  }
+
+  private analyticsOutcome(failure: unknown): AnalyticsOutcome {
+    const status = failure instanceof HttpException ? failure.getStatus() : 500;
+    return status === 403 || status === 429 ? 'blocked' : 'failed';
+  }
+
+  private async recordAuth(input: {
+    readonly eventType: AnalyticsEventType;
+    readonly method: AnalyticsAuthMethod;
+    readonly outcome: AnalyticsOutcome;
+    readonly flowId: string;
+    readonly address: string;
+    readonly userAgent: string | undefined;
+    readonly context?: ActiveContext;
+  }): Promise<void> {
+    await this.analytics.record({
+      actor: input.context ? { kind: 'account', context: input.context } : { kind: 'anonymous' },
+      eventType: input.eventType,
+      outcome: input.outcome,
+      authMethod: input.method,
+      flowId: input.flowId,
+      address: input.address,
+      userAgentSummary: summarizeUserAgent(input.userAgent) ?? null,
+    });
   }
 
   private async establishSession(
@@ -335,51 +392,75 @@ export class AuthController {
     @Req() request: FastifyRequest,
     @Res({ passthrough: true }) reply: FastifyReply,
   ): Promise<SessionPayload> {
-    this.enforce(this.maxAuthByAddress, clientAddress(request));
-    const shape = checkBodyShape(rawBody, ['initData']);
-    if (!shape.ok || typeof shape.body['initData'] !== 'string') {
-      throw new HttpException(error('validation_error', 'initData is required'), 400);
-    }
-    let result;
+    const address = clientAddress(request);
+    const flowId = this.authFlow(request, reply);
     try {
-      result = await this.maxAuth.signIn(
-        shape.body['initData'],
-        summarizeUserAgent(request.headers['user-agent']),
-      );
-    } catch (problem) {
-      this.throwMaxValidation(problem);
-    }
-    if (result.status === 'link_required') {
-      throw new HttpException(
-        error('max_link_required', 'Сначала привяжите MAX к существующему аккаунту ASA Lab.'),
-        409,
-      );
-    }
-    if (result.status === 'assertion_replayed') {
-      throw new HttpException(
-        error(
-          'max_assertion_replayed',
-          'Эта ссылка MAX уже использована. Откройте приложение заново.',
-        ),
-        409,
-      );
-    }
-    if (result.status === 'account_suspended') {
-      throw new HttpException(error('account_suspended', 'Учётная запись приостановлена.'), 403);
-    }
-    if (result.status !== 'authenticated') {
-      throw new HttpException(
-        error('max_auth_unavailable', 'Вход через MAX временно недоступен.'),
-        503,
-      );
-    }
+      this.enforce(this.maxAuthByAddress, address);
+      const shape = checkBodyShape(rawBody, ['initData']);
+      if (!shape.ok || typeof shape.body['initData'] !== 'string') {
+        throw new HttpException(error('validation_error', 'initData is required'), 400);
+      }
+      let result;
+      try {
+        result = await this.maxAuth.signIn(
+          shape.body['initData'],
+          summarizeUserAgent(request.headers['user-agent']),
+        );
+      } catch (problem) {
+        this.throwMaxValidation(problem);
+      }
+      if (result.status === 'link_required') {
+        throw new HttpException(
+          error('max_link_required', 'Сначала привяжите MAX к существующему аккаунту ASA Lab.'),
+          409,
+        );
+      }
+      if (result.status === 'assertion_replayed') {
+        throw new HttpException(
+          error(
+            'max_assertion_replayed',
+            'Эта ссылка MAX уже использована. Откройте приложение заново.',
+          ),
+          409,
+        );
+      }
+      if (result.status === 'account_suspended') {
+        throw new HttpException(error('account_suspended', 'Учётная запись приостановлена.'), 403);
+      }
+      if (result.status !== 'authenticated') {
+        throw new HttpException(
+          error('max_auth_unavailable', 'Вход через MAX временно недоступен.'),
+          503,
+        );
+      }
 
-    await this.establishSession(reply, result.token, 'max');
-    const context = await this.activeContext.resolve(result.token);
-    if (!context) {
-      throw new HttpException(error('server_error', 'session was not created'), 500);
+      await this.establishSession(reply, result.token, 'max');
+      const context = await this.activeContext.resolve(result.token);
+      if (!context) {
+        throw new HttpException(error('server_error', 'session was not created'), 500);
+      }
+      await this.recordAuth({
+        eventType: 'auth.max',
+        method: 'max',
+        outcome: 'succeeded',
+        flowId,
+        address,
+        userAgent: request.headers['user-agent'],
+        context,
+      });
+      this.closeAuthFlow(reply);
+      return this.payload(context);
+    } catch (failure) {
+      await this.recordAuth({
+        eventType: 'auth.max',
+        method: 'max',
+        outcome: this.analyticsOutcome(failure),
+        flowId,
+        address,
+        userAgent: request.headers['user-agent'],
+      });
+      throw failure;
     }
-    return this.payload(context);
   }
 
   @Post('max/link')
@@ -505,48 +586,76 @@ export class AuthController {
     @Res({ passthrough: true }) reply: FastifyReply,
   ): Promise<SessionPayload> {
     const address = clientAddress(request);
-    this.enforce(this.registerByAddress, address);
-    const shape = checkBodyShape(rawBody, [
-      'email',
-      'password',
-      'username',
-      'displayName',
-      'birthDate',
-      'country',
-      'botProof',
-    ]);
-    if (!shape.ok) {
-      throw new HttpException(error('validation_error', shape.message), 400);
-    }
-    if (
-      !this.botChallenges.verify('register', shape.body['botProof'], request.headers['user-agent'])
-    ) {
-      throw new HttpException(error('bot_check_required', 'Подтвердите, что вы не робот.'), 403);
-    }
-    const result = await this.registerUseCase.execute({
-      email: shape.body['email'],
-      password: shape.body['password'],
-      username: shape.body['username'],
-      displayName: shape.body['displayName'],
-      birthDate: shape.body['birthDate'],
-      country: shape.body['country'],
-    });
-    if (!result.ok) {
-      if (result.code === 'age_routed') {
-        throw new HttpException(
-          { error: { code: result.code, message: result.message, routes: result.routes } },
-          422,
-        );
+    const flowId = this.authFlow(request, reply);
+    try {
+      this.enforce(this.registerByAddress, address);
+      const shape = checkBodyShape(rawBody, [
+        'email',
+        'password',
+        'username',
+        'displayName',
+        'birthDate',
+        'country',
+        'botProof',
+      ]);
+      if (!shape.ok) {
+        throw new HttpException(error('validation_error', shape.message), 400);
       }
-      const status = result.code === 'email_taken' || result.code === 'username_taken' ? 409 : 400;
-      throw new HttpException(error(result.code, result.message), status);
+      if (
+        !this.botChallenges.verify(
+          'register',
+          shape.body['botProof'],
+          request.headers['user-agent'],
+        )
+      ) {
+        throw new HttpException(error('bot_check_required', 'Подтвердите, что вы не робот.'), 403);
+      }
+      const result = await this.registerUseCase.execute({
+        email: shape.body['email'],
+        password: shape.body['password'],
+        username: shape.body['username'],
+        displayName: shape.body['displayName'],
+        birthDate: shape.body['birthDate'],
+        country: shape.body['country'],
+      });
+      if (!result.ok) {
+        if (result.code === 'age_routed') {
+          throw new HttpException(
+            { error: { code: result.code, message: result.message, routes: result.routes } },
+            422,
+          );
+        }
+        const status =
+          result.code === 'email_taken' || result.code === 'username_taken' ? 409 : 400;
+        throw new HttpException(error(result.code, result.message), status);
+      }
+      await this.establishSession(reply, result.token, 'password');
+      const context = await this.activeContext.resolve(result.token);
+      if (!context) {
+        throw new HttpException(error('server_error', 'session was not created'), 500);
+      }
+      await this.recordAuth({
+        eventType: 'auth.register',
+        method: 'password',
+        outcome: 'succeeded',
+        flowId,
+        address,
+        userAgent: request.headers['user-agent'],
+        context,
+      });
+      this.closeAuthFlow(reply);
+      return this.payload(context);
+    } catch (failure) {
+      await this.recordAuth({
+        eventType: 'auth.register',
+        method: 'password',
+        outcome: this.analyticsOutcome(failure),
+        flowId,
+        address,
+        userAgent: request.headers['user-agent'],
+      });
+      throw failure;
     }
-    await this.establishSession(reply, result.token, 'password');
-    const context = await this.activeContext.resolve(result.token);
-    if (!context) {
-      throw new HttpException(error('server_error', 'session was not created'), 500);
-    }
-    return this.payload(context);
   }
 
   @Get('username-available')
@@ -567,36 +676,61 @@ export class AuthController {
     @Res({ passthrough: true }) reply: FastifyReply,
   ): Promise<SessionPayload> {
     const address = clientAddress(request);
-    this.enforce(this.loginByAddress, address);
-    const shape = checkBodyShape(rawBody, [
-      'workspace',
-      'identifier',
-      'email',
-      'password',
-      'botProof',
-    ]);
-    if (!shape.ok) {
-      throw new HttpException(error('validation_error', shape.message), 400);
+    const flowId = this.authFlow(request, reply);
+    let method: AnalyticsAuthMethod = 'password';
+    try {
+      this.enforce(this.loginByAddress, address);
+      const shape = checkBodyShape(rawBody, [
+        'workspace',
+        'identifier',
+        'email',
+        'password',
+        'botProof',
+      ]);
+      if (!shape.ok) {
+        throw new HttpException(error('validation_error', shape.message), 400);
+      }
+      if (
+        !this.botChallenges.verify('login', shape.body['botProof'], request.headers['user-agent'])
+      ) {
+        throw new HttpException(error('bot_check_required', 'Подтвердите, что вы не робот.'), 403);
+      }
+      const identifier = shape.body['identifier'] ?? shape.body['email'];
+      if (typeof identifier === 'string' && identifier.length > 0) {
+        this.enforce(this.loginByIdentifier, identifier.trim().toLowerCase());
+      }
+      const organizationLogin = shape.body['workspace'] !== undefined;
+      method = organizationLogin ? 'organization' : 'password';
+      const token = organizationLogin
+        ? await this.legacySignIn(shape.body)
+        : await this.accountSignIn(shape.body, summarizeUserAgent(request.headers['user-agent']));
+      await this.establishSession(reply, token, method);
+      const context = await this.activeContext.resolve(token);
+      if (!context) {
+        throw new HttpException(error('server_error', 'session was not created'), 500);
+      }
+      await this.recordAuth({
+        eventType: 'auth.login',
+        method,
+        outcome: 'succeeded',
+        flowId,
+        address,
+        userAgent: request.headers['user-agent'],
+        context,
+      });
+      this.closeAuthFlow(reply);
+      return this.payload(context);
+    } catch (failure) {
+      await this.recordAuth({
+        eventType: 'auth.login',
+        method,
+        outcome: this.analyticsOutcome(failure),
+        flowId,
+        address,
+        userAgent: request.headers['user-agent'],
+      });
+      throw failure;
     }
-    if (
-      !this.botChallenges.verify('login', shape.body['botProof'], request.headers['user-agent'])
-    ) {
-      throw new HttpException(error('bot_check_required', 'Подтвердите, что вы не робот.'), 403);
-    }
-    const identifier = shape.body['identifier'] ?? shape.body['email'];
-    if (typeof identifier === 'string' && identifier.length > 0) {
-      this.enforce(this.loginByIdentifier, identifier.trim().toLowerCase());
-    }
-    const organizationLogin = shape.body['workspace'] !== undefined;
-    const token = organizationLogin
-      ? await this.legacySignIn(shape.body)
-      : await this.accountSignIn(shape.body, summarizeUserAgent(request.headers['user-agent']));
-    await this.establishSession(reply, token, organizationLogin ? 'organization' : 'password');
-    const context = await this.activeContext.resolve(token);
-    if (!context) {
-      throw new HttpException(error('server_error', 'session was not created'), 500);
-    }
-    return this.payload(context);
   }
 
   private async accountSignIn(
@@ -695,6 +829,14 @@ export class AuthController {
     if (request.cookies[SESSION_COOKIE] === undefined) {
       return { authenticated: false };
     }
-    return this.payload(await this.requireContext(request));
+    const context = await this.requireContext(request);
+    await this.analytics.record({
+      actor: { kind: 'account', context },
+      eventType: 'session.observed',
+      outcome: 'succeeded',
+      address: clientAddress(request),
+      userAgentSummary: summarizeUserAgent(request.headers['user-agent']) ?? null,
+    });
+    return this.payload(context);
   }
 }

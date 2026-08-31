@@ -22,6 +22,7 @@ import {
   type AdminSecuritySession,
 } from './admin-api';
 import { adminActionLabel, adminResultLabel, adminRoleLabel, adminScopeLabel } from './admin-model';
+import { AdminDashboard, IpActivitySection, MaxIntegrationSection } from './AdminDashboard';
 import './admin.css';
 
 export type AdminAccessState =
@@ -31,7 +32,8 @@ export type AdminAccessState =
   | { readonly kind: 'error'; readonly message: string }
   | { readonly kind: 'granted'; readonly profile: AdminProfile };
 
-type AdminTab = 'overview' | 'accounts' | 'organizations' | 'security' | 'operations' | 'audit';
+type AdminTab =
+  'overview' | 'accounts' | 'organizations' | 'security' | 'integrations' | 'operations' | 'audit';
 
 type AuditState =
   | { readonly kind: 'idle' | 'loading' }
@@ -123,18 +125,6 @@ function isRoutineAudit(event: AdminAuditEvent): boolean {
   return (
     event.action.endsWith('.read') && (event.result === 'succeeded' || event.result === 'allowed')
   );
-}
-
-function tabDescription(tab: AdminTab): string {
-  const descriptions: Readonly<Record<AdminTab, string>> = {
-    overview: 'Краткая навигация по управлению сервисом.',
-    accounts: 'Блокировка входа, активность и назначение администраторов.',
-    organizations: 'Школы, участники и ответственные администраторы.',
-    security: 'Активные входы и завершение подозрительных сессий.',
-    operations: 'API, база данных, CPU, память и ошибки.',
-    audit: 'Важные изменения и полный технический журнал.',
-  };
-  return descriptions[tab];
 }
 
 function StatePage({
@@ -939,6 +929,7 @@ function AdminWorkspace({
       selectedScope.kind === 'platform' &&
       selectedScope.permissions.includes('administration.operations.read')
     ) {
+      available.push({ id: 'integrations', label: 'Интеграции' });
       available.push({ id: 'operations', label: 'Система' });
     }
     if (selectedScope.permissions.includes('administration.audit.read')) {
@@ -1120,32 +1111,9 @@ function AdminWorkspace({
       </nav>
 
       {tab === 'overview' ? (
-        <section className="admin-overview" aria-labelledby="admin-overview-title">
-          <div className="admin-section-heading">
-            <div>
-              <h2 id="admin-overview-title">Управление ASA Lab</h2>
-              <p>Выберите, чем хотите управлять.</p>
-            </div>
-          </div>
-          <div className="admin-command-grid">
-            {tabs
-              .filter((entry) => entry.id !== 'overview')
-              .map((entry) => (
-                <button
-                  key={entry.id}
-                  type="button"
-                  onClick={() => {
-                    setHelpOpen(false);
-                    setTab(entry.id);
-                  }}
-                >
-                  <strong>{entry.label}</strong>
-                  <span>{tabDescription(entry.id)}</span>
-                  <small>Открыть →</small>
-                </button>
-              ))}
-          </div>
-        </section>
+        <AdminDashboard scope={selectedScope} onAccessDenied={onAccessDenied} />
+      ) : tab === 'integrations' ? (
+        <MaxIntegrationSection scope={selectedScope} onAccessDenied={onAccessDenied} />
       ) : tab === 'operations' ? (
         <OperationsSection onAccessDenied={onAccessDenied} />
       ) : tab === 'audit' ? (
@@ -1368,66 +1336,71 @@ function AdminWorkspace({
           )}
         />
       ) : tab === 'security' ? (
-        <DirectorySection
-          key={`security:${selectedScopeKey}:${sessionsVersion}`}
-          scope={selectedScope}
-          title="Безопасность"
-          description="Здесь управляют отдельными входами и устройствами. Блокировка самого аккаунта находится во вкладке «Пользователи»."
-          searchPlaceholder="Имя, почта или устройство"
-          emptyMessage="Сессий в этой области пока нет"
-          privacyNote="IP-адрес пока не сохраняется. Пароли и токены в админку не передаются."
-          loader={loadSecuritySessions}
-          rowKey={(item) => item.sessionId}
-          onAccessDenied={onAccessDenied}
-          header={
-            <tr>
-              <th scope="col">Пользователь</th>
-              <th scope="col">Область</th>
-              <th scope="col">Состояние</th>
-              <th scope="col">Последняя активность</th>
-              <th scope="col">Устройство</th>
-              {canManageSessions ? (
-                <th scope="col">
-                  <span className="sr-only">Действия</span>
-                </th>
-              ) : null}
-            </tr>
-          }
-          row={(item) => (
-            <tr>
-              <td>
-                <strong>{item.displayName}</strong>
-                <span className="admin-table-secondary">{item.email}</span>
-              </td>
-              <td>{item.workspaceTitle}</td>
-              <td>
-                <span className={`admin-state-chip admin-state-chip-${item.status}`}>
-                  {statusLabel(item.status)}
-                </span>
-                <span className="admin-table-secondary">Истекает: {dateTime(item.expiresAt)}</span>
-              </td>
-              <td>{dateTime(item.lastSeenAt)}</td>
-              <td>{item.userAgentSummary ?? 'Не определено'}</td>
-              {canManageSessions ? (
+        <>
+          <IpActivitySection scope={selectedScope} onAccessDenied={onAccessDenied} />
+          <DirectorySection
+            key={`security:${selectedScopeKey}:${sessionsVersion}`}
+            scope={selectedScope}
+            title="Сессии и устройства"
+            description="Здесь управляют отдельными входами. Блокировка самого аккаунта находится во вкладке «Пользователи»."
+            searchPlaceholder="Имя, почта или устройство"
+            emptyMessage="Сессий в этой области пока нет"
+            privacyNote="Пароли и токены в админку не передаются. IP показываются отдельно только для успешных входов и проверки безопасности."
+            loader={loadSecuritySessions}
+            rowKey={(item) => item.sessionId}
+            onAccessDenied={onAccessDenied}
+            header={
+              <tr>
+                <th scope="col">Пользователь</th>
+                <th scope="col">Область</th>
+                <th scope="col">Состояние</th>
+                <th scope="col">Последняя активность</th>
+                <th scope="col">Устройство</th>
+                {canManageSessions ? (
+                  <th scope="col">
+                    <span className="sr-only">Действия</span>
+                  </th>
+                ) : null}
+              </tr>
+            }
+            row={(item) => (
+              <tr>
                 <td>
-                  {item.status === 'active' && item.accountId !== profile.accountId ? (
-                    <button
-                      type="button"
-                      className="admin-row-action"
-                      onClick={() => setSelectedSession(item)}
-                    >
-                      Завершить
-                    </button>
-                  ) : (
-                    <span className="admin-table-secondary">
-                      {item.accountId === profile.accountId ? 'Ваша сессия' : 'Завершена'}
-                    </span>
-                  )}
+                  <strong>{item.displayName}</strong>
+                  <span className="admin-table-secondary">{item.email}</span>
                 </td>
-              ) : null}
-            </tr>
-          )}
-        />
+                <td>{item.workspaceTitle}</td>
+                <td>
+                  <span className={`admin-state-chip admin-state-chip-${item.status}`}>
+                    {statusLabel(item.status)}
+                  </span>
+                  <span className="admin-table-secondary">
+                    Истекает: {dateTime(item.expiresAt)}
+                  </span>
+                </td>
+                <td>{dateTime(item.lastSeenAt)}</td>
+                <td>{item.userAgentSummary ?? 'Не определено'}</td>
+                {canManageSessions ? (
+                  <td>
+                    {item.status === 'active' && item.accountId !== profile.accountId ? (
+                      <button
+                        type="button"
+                        className="admin-row-action"
+                        onClick={() => setSelectedSession(item)}
+                      >
+                        Завершить
+                      </button>
+                    ) : (
+                      <span className="admin-table-secondary">
+                        {item.accountId === profile.accountId ? 'Ваша сессия' : 'Завершена'}
+                      </span>
+                    )}
+                  </td>
+                ) : null}
+              </tr>
+            )}
+          />
+        </>
       ) : null}
 
       {selectedAccount ? (

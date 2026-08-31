@@ -51,10 +51,14 @@ describe('administrative page access states', () => {
 
   it('renders only server-granted scope and capability cards', () => {
     const html = render({ kind: 'granted', profile: PROFILE });
-    expect(html).toContain('Управление ASA Lab');
+    expect(html).toContain('Пульс ASA Lab');
+    expect(html).toContain('Использование продуктов');
+    expect(html).toContain('1 год');
     expect(html).toContain('Пользователи');
     expect(html).toContain('Безопасность');
     expect(html).not.toContain('>Организации</button>');
+    expect(html).not.toContain('>Интеграции</button>');
+    expect(html).not.toContain('Выберите, чем хотите управлять');
     expect(html).not.toContain('Финансы');
     expect(html).not.toContain('Система</h3>');
     expect(html).not.toContain('Последний IP');

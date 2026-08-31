@@ -77,6 +77,8 @@ import { BotChallengeService } from './bot-challenge.js';
 import { MaxAuthService } from './max-auth.service.js';
 import { RefreshSessionService } from './refresh-session.service.js';
 import { TOKENS } from './tokens.js';
+import { ProductAnalyticsController } from './product-analytics.controller.js';
+import { ProductAnalyticsService } from './product-analytics.service.js';
 
 function validationMessage(
   entry: RegisteredModule,
@@ -117,6 +119,8 @@ export class AppModule {
     });
     const requirePool = (): pg.Pool => pool ?? unavailablePool;
     const runtimeMetrics = createRuntimeMetrics();
+    const maxAuthService = new MaxAuthService(requirePool());
+    const productAnalytics = new ProductAnalyticsService(requirePool());
     const projectRepository = (): PgProjectRepository => new PgProjectRepository(requirePool());
     const moduleRegistry = createApiModuleRegistry();
     // Health-only composition may be built without a DB. Every normal runtime
@@ -176,15 +180,14 @@ export class AppModule {
         CheckersClassroomController,
         ChessLiveController,
         VersionController,
+        ProductAnalyticsController,
       ],
       providers: [
         { provide: TOKENS.pool, useValue: pool },
         { provide: TOKENS.runtimeMetrics, useValue: runtimeMetrics },
         { provide: TOKENS.botChallengeService, useFactory: () => new BotChallengeService() },
-        {
-          provide: TOKENS.maxAuthService,
-          useFactory: () => new MaxAuthService(requirePool()),
-        },
+        { provide: TOKENS.maxAuthService, useValue: maxAuthService },
+        { provide: TOKENS.productAnalytics, useValue: productAnalytics },
         {
           provide: TOKENS.refreshSessionService,
           useFactory: () => new RefreshSessionService(requirePool()),
@@ -196,6 +199,7 @@ export class AppModule {
               new PgAccountDirectory(requirePool()),
               requirePool(),
               runtimeMetrics,
+              () => maxAuthService.config(),
             ),
         },
         { provide: TOKENS.moduleRegistry, useValue: moduleRegistry },

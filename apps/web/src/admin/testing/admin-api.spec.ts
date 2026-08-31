@@ -136,6 +136,41 @@ describe('administrative API client', () => {
     expect(request.mock.calls[0]?.[0]).toBe('/api/admin/v1/operations/status');
   });
 
+  it('builds scoped dashboard and IP activity periods without exposing tenant selectors', async () => {
+    const request = vi.fn(async (...args: Parameters<typeof fetch>) => {
+      void args;
+      return new Response(JSON.stringify({ items: [] }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    });
+    vi.stubGlobal('fetch', request);
+    const scope = {
+      kind: 'organization' as const,
+      id: '30000000-0000-4000-8000-000000000001',
+    };
+
+    await adminApi.dashboard({ scope, range: '90d' });
+    await adminApi.ipActivity({ scope, range: '24h', minimumDistinct: 2 });
+
+    const dashboard = new URL(String(request.mock.calls[0]?.[0]), 'https://asa.test');
+    expect(Object.fromEntries(dashboard.searchParams)).toEqual({
+      scopeKind: 'organization',
+      range: '90d',
+      scopeId: scope.id,
+    });
+    const ip = new URL(String(request.mock.calls[1]?.[0]), 'https://asa.test');
+    expect(Object.fromEntries(ip.searchParams)).toEqual({
+      scopeKind: 'organization',
+      range: '24h',
+      minimumDistinct: '2',
+      limit: '100',
+      scopeId: scope.id,
+    });
+    expect(dashboard.searchParams.has('tenantId')).toBe(false);
+    expect(ip.searchParams.has('tenantId')).toBe(false);
+  });
+
   it('sends user-management mutations as same-origin JSON without client role claims', async () => {
     const request = vi.fn(async (...args: Parameters<typeof fetch>) => {
       void args;

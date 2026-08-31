@@ -68,6 +68,11 @@ function controller(options: {
       if (options.directoryFailure) throw options.directoryFailure;
       return { services: { api: 'responding', database: 'responding' } };
     }),
+    productDashboard: vi.fn(async (_access, input) => ({
+      range: input.range,
+      summary: {},
+    })),
+    listIpActivity: vi.fn(async () => ({ items: [] })),
     setAccountStatus: vi.fn(async (_access, input) => ({
       accountId: input.targetAccountId,
       status: input.status,
@@ -255,6 +260,65 @@ describe('administrative control-plane transport', () => {
     expect(target.controlPlane.operationsStatus).toHaveBeenCalledWith(expect.anything(), {
       requestId: 'admin-request-1',
     });
+  });
+
+  it('validates dashboard ranges and forwards the server-owned scope', async () => {
+    const target = controller({ context: CONTEXT, access: access([SCHOOL_ADMIN_SCOPE]) });
+
+    await expect(
+      target.value.dashboard(
+        request({ asa_session: 'session' }),
+        'organization',
+        ORGANIZATION_ID,
+        '90d',
+      ),
+    ).resolves.toMatchObject({ range: '90d' });
+    expect(target.controlPlane.productDashboard).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        scope: { kind: 'organization', id: ORGANIZATION_ID },
+        range: '90d',
+      }),
+    );
+
+    await expect(
+      target.value.dashboard(
+        request({ asa_session: 'session' }),
+        'organization',
+        ORGANIZATION_ID,
+        'forever',
+      ),
+    ).rejects.toMatchObject({ status: 400 });
+  });
+
+  it('requires a valid threshold for concrete IP activity', async () => {
+    const target = controller({ context: CONTEXT, access: access([SCHOOL_ADMIN_SCOPE]) });
+
+    await expect(
+      target.value.ipActivity(
+        request({ asa_session: 'session' }),
+        'organization',
+        ORGANIZATION_ID,
+        '24h',
+        '2',
+        '25',
+      ),
+    ).resolves.toEqual({ items: [] });
+    expect(target.controlPlane.listIpActivity).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ minimumDistinct: 2, limit: 25 }),
+    );
+
+    await expect(
+      target.value.ipActivity(
+        request({ asa_session: 'session' }),
+        'organization',
+        ORGANIZATION_ID,
+        '24h',
+        '0',
+        '25',
+      ),
+    ).rejects.toMatchObject({ status: 400 });
   });
 
   it('validates and forwards account management with a required audit reason', async () => {

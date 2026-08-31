@@ -1359,6 +1359,11 @@ export const api = {
       body: JSON.stringify({}),
     }),
   listModules: () => call<{ items: ModuleSummary[] }>('/api/modules'),
+  recordModuleOpened: (moduleKey: 'electronics' | 'three-d' | 'chess' | 'checkers') =>
+    call<{ accepted: true }>('/api/analytics/v1/module-opened', {
+      method: 'POST',
+      body: JSON.stringify({ moduleKey }),
+    }),
   listClassrooms: () => call<{ items: Classroom[]; meta: { total: number } }>('/api/classrooms'),
   getClassroom: (classroomId: string) =>
     call<{ classroom: Classroom }>(`/api/classrooms/${encodeURIComponent(classroomId)}`),

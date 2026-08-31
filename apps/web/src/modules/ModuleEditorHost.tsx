@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState, type ComponentType } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState, type ComponentType } from 'react';
 import { api, type PublicUser } from '../api';
 import { loadChessEditor } from '../chess/load-chess-editor';
 import { chessRouteFromHash, chessRouteToHash } from '../chess/chess-navigation';
@@ -54,6 +54,7 @@ function canonicalEditorHash(
 /** Shared editor host. Project Core selects a module by manifest key; the host
  * mounts the registered subject editor without putting subject branches in App. */
 export function ModuleEditorHost(props: ModuleEditorHostProps): JSX.Element {
+  const recordedOpen = useRef<string | null>(null);
   const [state, setState] = useState<HostState>(() =>
     props.moduleKey
       ? { kind: 'ready', moduleKey: props.moduleKey, projectTitle: null }
@@ -106,6 +107,16 @@ export function ModuleEditorHost(props: ModuleEditorHostProps): JSX.Element {
       document.title = previousTitle;
     };
   }, [state]);
+
+  useEffect(() => {
+    if (state.kind !== 'ready' || !Object.hasOwn(EDITORS, state.moduleKey)) return;
+    const key = `${props.projectId}:${state.moduleKey}`;
+    if (recordedOpen.current === key) return;
+    recordedOpen.current = key;
+    void api.recordModuleOpened(
+      state.moduleKey as 'electronics' | 'three-d' | 'chess' | 'checkers',
+    );
+  }, [props.projectId, state]);
 
   if (state.kind === 'loading') {
     return <AppBootShell label="Открываем проект" />;

@@ -169,6 +169,77 @@ export interface AdminOperationsStatus {
   } | null;
 }
 
+export type AdminDashboardRange = '1h' | '6h' | '12h' | '24h' | '7d' | '30d' | '90d' | '1y';
+
+export interface AdminDashboardPoint {
+  readonly at: string;
+  readonly newAccounts: number;
+  readonly activeAccounts: number;
+  readonly successfulLogins: number;
+  readonly failedLogins: number;
+  readonly newStudents: number;
+  readonly activeStudents: number;
+}
+
+export interface AdminModulePoint {
+  readonly at: string;
+  readonly moduleKey: 'electronics' | 'three-d' | 'chess' | 'checkers';
+  readonly activePeople: number;
+  readonly launches: number;
+}
+
+export interface AdminLoginMethodPoint {
+  readonly at: string;
+  readonly method: 'password' | 'organization' | 'max' | 'class_code';
+  readonly successfulLogins: number;
+}
+
+export interface AdminActionPoint {
+  readonly at: string;
+  readonly classesCreated: number;
+  readonly projectsCreated: number;
+  readonly maxLinked: number;
+  readonly passwordRecoveryAvailable: boolean;
+}
+
+export interface AdminProductDashboard {
+  readonly generatedAt: string;
+  readonly analyticsStartedAt: string | null;
+  readonly from: string;
+  readonly to: string;
+  readonly bucketSeconds: number;
+  readonly range: AdminDashboardRange;
+  readonly summary: {
+    readonly newAccounts: number;
+    readonly activeAccounts: number;
+    readonly successfulLogins: number;
+    readonly failedLogins: number;
+    readonly newStudents: number;
+    readonly activeStudents: number;
+    readonly distinctIpAddresses: number;
+    readonly accountsWithMultipleIps: number;
+  };
+  readonly timeline: readonly AdminDashboardPoint[];
+  readonly modules: readonly AdminModulePoint[];
+  readonly loginMethods: readonly AdminLoginMethodPoint[];
+  readonly actions: readonly AdminActionPoint[];
+  readonly max: {
+    readonly configured: boolean;
+    readonly launchUrl: string | null;
+    readonly linkedAccounts: number;
+    readonly promptDueAccounts: number;
+  };
+}
+
+export interface AdminIpActivity {
+  readonly accountId: string;
+  readonly email: string;
+  readonly displayName: string;
+  readonly distinctIpCount: number;
+  readonly lastSeenAt: string;
+  readonly addresses: readonly string[];
+}
+
 export interface AdminApiError {
   readonly code: string;
   readonly message: string;
@@ -236,6 +307,30 @@ function list<T>(path: string, input: AdminListInput): Promise<AdminApiResult<Ad
 
 export const adminApi = {
   me: () => call<AdminProfile>('/api/admin/v1/me'),
+  dashboard: (input: {
+    readonly scope: Pick<AdminScope, 'kind' | 'id'>;
+    readonly range: AdminDashboardRange;
+  }) => {
+    const query = new URLSearchParams({ scopeKind: input.scope.kind, range: input.range });
+    if (input.scope.id !== null) query.set('scopeId', input.scope.id);
+    return call<AdminProductDashboard>(`/api/admin/v1/dashboard?${query.toString()}`);
+  },
+  ipActivity: (input: {
+    readonly scope: Pick<AdminScope, 'kind' | 'id'>;
+    readonly range: AdminDashboardRange;
+    readonly minimumDistinct?: number;
+  }) => {
+    const query = new URLSearchParams({
+      scopeKind: input.scope.kind,
+      range: input.range,
+      minimumDistinct: String(input.minimumDistinct ?? 2),
+      limit: '100',
+    });
+    if (input.scope.id !== null) query.set('scopeId', input.scope.id);
+    return call<{ readonly items: readonly AdminIpActivity[] }>(
+      `/api/admin/v1/security/ip-activity?${query.toString()}`,
+    );
+  },
   operationsStatus: () => call<AdminOperationsStatus>('/api/admin/v1/operations/status'),
   accounts: (input: AdminListInput) => list<AdminAccount>('/api/admin/v1/accounts', input),
   setAccountStatus: (

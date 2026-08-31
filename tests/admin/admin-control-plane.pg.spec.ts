@@ -271,6 +271,102 @@ describe('Administrative Control Plane PostgreSQL isolation', () => {
     expect(foreignSearch.json()).toMatchObject({ items: [] });
   });
 
+  it('serves scoped product analytics and concrete IP evidence without counting a recovered login as failed', async () => {
+    const recoveredFlow = randomUUID();
+    const failedFlow = randomUUID();
+    const record = async (
+      eventType: 'auth.login' | 'module.opened',
+      outcome: 'succeeded' | 'failed',
+      flowId: string | null,
+      address: string,
+      moduleKey: 'electronics' | null = null,
+    ): Promise<void> => {
+      await runtime.query(
+        `SELECT analytics_record_event(
+           'account',$1,$2,NULL,$3,$4,$5,'password',$6,$7,$8::inet,'Test browser'
+         )`,
+        [
+          schoolAdmin.accountId,
+          schoolAdmin.principalId,
+          schoolAdmin.workspaceId,
+          eventType,
+          outcome,
+          moduleKey,
+          flowId,
+          address,
+        ],
+      );
+    };
+
+    await record('auth.login', 'failed', recoveredFlow, '203.0.113.70');
+    await record('auth.login', 'succeeded', recoveredFlow, '203.0.113.70');
+    await record('auth.login', 'failed', failedFlow, '203.0.113.71');
+    await record('auth.login', 'succeeded', randomUUID(), '198.51.100.24');
+    await record('module.opened', 'succeeded', null, '198.51.100.24', 'electronics');
+    const observeSession = () =>
+      runtime.query(
+        `SELECT analytics_record_event(
+           'account',$1,$2,NULL,$3,'session.observed','succeeded',NULL,NULL,NULL,
+           '198.51.100.24'::inet,'Test browser'
+         ) AS id`,
+        [schoolAdmin.accountId, schoolAdmin.principalId, schoolAdmin.workspaceId],
+      );
+    const firstObservation = await observeSession();
+    const repeatedObservation = await observeSession();
+    expect(repeatedObservation.rows[0]?.id).toBe(firstObservation.rows[0]?.id);
+    const observationCount = await admin.query<{ count: string }>(
+      `SELECT count(*)::text AS count
+         FROM product_analytics_events
+        WHERE principal_id = $1 AND event_type = 'session.observed'`,
+      [schoolAdmin.principalId],
+    );
+    expect(observationCount.rows[0]?.count).toBe('1');
+
+    const dashboard = await inject(app, {
+      method: 'GET',
+      url: `/api/admin/v1/dashboard?scopeKind=organization&scopeId=${schoolAdmin.workspaceId}&range=24h`,
+      cookies: { asa_session: schoolAdmin.token },
+    });
+    expect(dashboard.statusCode).toBe(200);
+    expect(dashboard.json()).toMatchObject({
+      range: '24h',
+      summary: {
+        successfulLogins: expect.any(Number),
+        failedLogins: expect.any(Number),
+        distinctIpAddresses: expect.any(Number),
+        accountsWithMultipleIps: expect.any(Number),
+      },
+      modules: expect.arrayContaining([
+        expect.objectContaining({ moduleKey: 'electronics', activePeople: 1 }),
+      ]),
+    });
+    const summary = dashboard.json().summary as Record<string, number>;
+    expect(summary['successfulLogins']).toBe(2);
+    expect(summary['failedLogins']).toBe(1);
+    expect(summary['distinctIpAddresses']).toBe(2);
+    expect(summary['accountsWithMultipleIps']).toBe(1);
+
+    const ipActivity = await inject(app, {
+      method: 'GET',
+      url: `/api/admin/v1/security/ip-activity?scopeKind=organization&scopeId=${schoolAdmin.workspaceId}&range=24h&minimumDistinct=2`,
+      cookies: { asa_session: schoolAdmin.token },
+    });
+    expect(ipActivity.statusCode).toBe(200);
+    expect(ipActivity.json()).toMatchObject({
+      items: expect.arrayContaining([
+        expect.objectContaining({
+          accountId: schoolAdmin.accountId,
+          distinctIpCount: expect.any(Number),
+          addresses: expect.arrayContaining(['203.0.113.70', '198.51.100.24']),
+        }),
+      ]),
+    });
+
+    await expect(
+      runtime.query('SELECT ip_address FROM product_analytics_events'),
+    ).rejects.toMatchObject({ code: '42501' });
+  });
+
   it('returns only the selected organization and its real aggregate counts', async () => {
     const response = await inject(app, {
       method: 'GET',

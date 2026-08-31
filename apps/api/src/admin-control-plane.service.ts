@@ -127,6 +127,46 @@ export interface AdminOperationsStatusView {
   readonly runtime: RuntimeMetricsSnapshot | null;
 }
 
+export type AdminDashboardRange = '1h' | '6h' | '12h' | '24h' | '7d' | '30d' | '90d' | '1y';
+
+export interface AdminProductDashboardView {
+  readonly generatedAt: string;
+  readonly analyticsStartedAt: string | null;
+  readonly from: string;
+  readonly to: string;
+  readonly bucketSeconds: number;
+  readonly range: AdminDashboardRange;
+  readonly summary: {
+    readonly newAccounts: number;
+    readonly activeAccounts: number;
+    readonly successfulLogins: number;
+    readonly failedLogins: number;
+    readonly newStudents: number;
+    readonly activeStudents: number;
+    readonly distinctIpAddresses: number;
+    readonly accountsWithMultipleIps: number;
+  };
+  readonly timeline: readonly Record<string, unknown>[];
+  readonly modules: readonly Record<string, unknown>[];
+  readonly loginMethods: readonly Record<string, unknown>[];
+  readonly actions: readonly Record<string, unknown>[];
+  readonly max: {
+    readonly configured: boolean;
+    readonly launchUrl: string | null;
+    readonly linkedAccounts: number;
+    readonly promptDueAccounts: number;
+  };
+}
+
+export interface AdminIpActivityView {
+  readonly accountId: string;
+  readonly email: string;
+  readonly displayName: string;
+  readonly distinctIpCount: number;
+  readonly lastSeenAt: string;
+  readonly addresses: readonly string[];
+}
+
 interface AuditRow {
   readonly id: string;
   readonly occurred_at: Date | string;
@@ -217,11 +257,46 @@ function count(value: string | number): number {
   return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : 0;
 }
 
+function countValue(value: unknown): number {
+  return typeof value === 'number' || typeof value === 'string' ? count(value) : 0;
+}
+
+const DASHBOARD_WINDOWS: Readonly<
+  Record<AdminDashboardRange, { readonly durationSeconds: number; readonly bucketSeconds: number }>
+> = {
+  '1h': { durationSeconds: 60 * 60, bucketSeconds: 5 * 60 },
+  '6h': { durationSeconds: 6 * 60 * 60, bucketSeconds: 15 * 60 },
+  '12h': { durationSeconds: 12 * 60 * 60, bucketSeconds: 30 * 60 },
+  '24h': { durationSeconds: 24 * 60 * 60, bucketSeconds: 60 * 60 },
+  '7d': { durationSeconds: 7 * 24 * 60 * 60, bucketSeconds: 6 * 60 * 60 },
+  '30d': { durationSeconds: 30 * 24 * 60 * 60, bucketSeconds: 24 * 60 * 60 },
+  '90d': { durationSeconds: 90 * 24 * 60 * 60, bucketSeconds: 24 * 60 * 60 },
+  '1y': { durationSeconds: 365 * 24 * 60 * 60, bucketSeconds: 7 * 24 * 60 * 60 },
+};
+
+function dashboardWindow(range: AdminDashboardRange): {
+  readonly from: Date;
+  readonly to: Date;
+  readonly bucketSeconds: number;
+} {
+  const config = DASHBOARD_WINDOWS[range];
+  const to = new Date();
+  return {
+    from: new Date(to.getTime() - config.durationSeconds * 1000),
+    to,
+    bucketSeconds: config.bucketSeconds,
+  };
+}
+
 export class AdminControlPlaneService {
   constructor(
     private readonly accounts: AccountDirectoryPort,
     private readonly pool: pg.Pool,
     private readonly runtimeMetrics: RuntimeMetrics | null = null,
+    private readonly maxConfig: () => {
+      readonly enabled: boolean;
+      readonly launchUrl: string | null;
+    } = () => ({ enabled: false, launchUrl: null }),
   ) {}
 
   async resolveAccess(context: ActiveContext): Promise<ResolvedAdminAccess> {
@@ -486,6 +561,85 @@ export class AdminControlPlaneService {
         auditEvents24h: count(row.audit_event_count_24h),
       },
       runtime: this.runtimeMetrics?.snapshot(this.poolStats()) ?? null,
+    };
+  }
+
+  async productDashboard(
+    access: ResolvedAdminAccess,
+    input: {
+      readonly scope: { readonly kind: AdminScopeKind; readonly id: string | null };
+      readonly range: AdminDashboardRange;
+    },
+  ): Promise<AdminProductDashboardView> {
+    this.requirePermission(access, 'administration.open', input.scope);
+    const range = dashboardWindow(input.range);
+    const result = await this.pool.query<{ payload: Record<string, unknown> }>(
+      `SELECT admin_get_product_dashboard($1,$2,$3,$4,$5,$6) AS payload`,
+      [
+        access.subject.principalId,
+        input.scope.kind,
+        input.scope.id,
+        range.from,
+        range.to,
+        range.bucketSeconds,
+      ],
+    );
+    const payload = result.rows[0]?.payload;
+    if (!payload) throw new Error('ADMIN_DASHBOARD_UNAVAILABLE');
+    const max = (payload['max'] ?? {}) as Record<string, unknown>;
+    const config = this.maxConfig();
+    return {
+      ...(payload as unknown as Omit<AdminProductDashboardView, 'range' | 'max'>),
+      range: input.range,
+      max: {
+        configured: config.enabled,
+        launchUrl: config.launchUrl,
+        linkedAccounts: countValue(max['linkedAccounts']),
+        promptDueAccounts: countValue(max['promptDueAccounts']),
+      },
+    };
+  }
+
+  async listIpActivity(
+    access: ResolvedAdminAccess,
+    input: {
+      readonly scope: { readonly kind: AdminScopeKind; readonly id: string | null };
+      readonly range: AdminDashboardRange;
+      readonly minimumDistinct: number;
+      readonly limit: number;
+    },
+  ): Promise<{ readonly items: readonly AdminIpActivityView[] }> {
+    this.requirePermission(access, 'administration.security.read', input.scope);
+    const range = dashboardWindow(input.range);
+    const result = await this.pool.query<{
+      account_id: string;
+      email: string;
+      display_name: string;
+      distinct_ip_count: string | number;
+      last_seen_at: Date | string;
+      addresses: string[];
+    }>(
+      `SELECT account_id, email, display_name, distinct_ip_count, last_seen_at, addresses
+         FROM admin_list_account_ip_activity($1,$2,$3,$4,$5,$6,$7)`,
+      [
+        access.subject.principalId,
+        input.scope.kind,
+        input.scope.id,
+        range.from,
+        range.to,
+        input.minimumDistinct,
+        input.limit,
+      ],
+    );
+    return {
+      items: result.rows.map((row) => ({
+        accountId: row.account_id,
+        email: row.email,
+        displayName: row.display_name,
+        distinctIpCount: count(row.distinct_ip_count),
+        lastSeenAt: iso(row.last_seen_at),
+        addresses: row.addresses,
+      })),
     };
   }
 

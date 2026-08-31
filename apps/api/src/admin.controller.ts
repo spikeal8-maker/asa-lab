@@ -17,9 +17,21 @@ import { SESSION_COOKIE, TOKENS } from './tokens.js';
 import {
   AdminControlPlaneService,
   type AdminAuditCursor,
+  type AdminDashboardRange,
   type AdminListCursor,
   type ResolvedAdminAccess,
 } from './admin-control-plane.service.js';
+
+const DASHBOARD_RANGES = new Set<AdminDashboardRange>([
+  '1h',
+  '6h',
+  '12h',
+  '24h',
+  '7d',
+  '30d',
+  '90d',
+  '1y',
+]);
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -185,6 +197,46 @@ export class AdminController {
     }
   }
 
+  @Get('dashboard')
+  async dashboard(
+    @Req() request: FastifyRequest,
+    @Query('scopeKind') scopeKindRaw: string | undefined,
+    @Query('scopeId') scopeIdRaw: string | undefined,
+    @Query('range') rangeRaw: string | undefined,
+  ) {
+    const { access } = await this.requireAdmin(request);
+    try {
+      return await this.controlPlane.productDashboard(access, {
+        scope: this.scope(scopeKindRaw, scopeIdRaw),
+        range: this.dashboardRange(rangeRaw),
+      });
+    } catch (failure) {
+      this.rethrowAdminFailure(failure);
+    }
+  }
+
+  @Get('security/ip-activity')
+  async ipActivity(
+    @Req() request: FastifyRequest,
+    @Query('scopeKind') scopeKindRaw: string | undefined,
+    @Query('scopeId') scopeIdRaw: string | undefined,
+    @Query('range') rangeRaw: string | undefined,
+    @Query('minimumDistinct') minimumDistinctRaw: string | undefined,
+    @Query('limit') limitRaw: string | undefined,
+  ) {
+    const { access } = await this.requireAdmin(request);
+    try {
+      return await this.controlPlane.listIpActivity(access, {
+        scope: this.scope(scopeKindRaw, scopeIdRaw),
+        range: this.dashboardRange(rangeRaw),
+        minimumDistinct: this.minimumDistinct(minimumDistinctRaw),
+        limit: this.limit(limitRaw),
+      });
+    } catch (failure) {
+      this.rethrowAdminFailure(failure);
+    }
+  }
+
   @Post('accounts/:accountId/status')
   @HttpCode(200)
   async setAccountStatus(
@@ -344,6 +396,26 @@ export class AdminController {
       throw new HttpException(error('validation_error', 'limit must be between 1 and 200'), 400);
     }
     return limit;
+  }
+
+  private dashboardRange(value: string | undefined): AdminDashboardRange {
+    const range = value ?? '24h';
+    if (!DASHBOARD_RANGES.has(range as AdminDashboardRange)) {
+      throw new HttpException(error('validation_error', 'unknown dashboard range'), 400);
+    }
+    return range as AdminDashboardRange;
+  }
+
+  private minimumDistinct(value: string | undefined): number {
+    if (value === undefined) return 2;
+    if (!/^\d{1,3}$/.test(value)) {
+      throw new HttpException(error('validation_error', 'minimumDistinct must be 1 to 100'), 400);
+    }
+    const minimum = Number.parseInt(value, 10);
+    if (minimum < 1 || minimum > 100) {
+      throw new HttpException(error('validation_error', 'minimumDistinct must be 1 to 100'), 400);
+    }
+    return minimum;
   }
 
   private search(value: string | undefined): string | null {

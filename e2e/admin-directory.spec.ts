@@ -8,7 +8,10 @@ const authSession = {
   authenticated: true,
   user: { id: ACCOUNT_ID, displayName: 'Администратор', email: 'admin@example.test' },
   account: { id: ACCOUNT_ID, displayName: 'Администратор', email: 'admin@example.test' },
-  capabilities: [{ capability: 'educator', state: 'verified' }],
+  capabilities: [
+    { capability: 'educator', state: 'verified' },
+    { capability: 'platform_admin', state: 'verified' },
+  ],
   workspaces: [
     {
       workspaceId: ORGANIZATION_ID,
@@ -49,12 +52,105 @@ async function json(route: Route, body: unknown) {
   });
 }
 
+test.beforeEach(async ({ page }) => {
+  await page.route('**/api/auth/max/status', (route) =>
+    json(route, {
+      linked: false,
+      verifiedAt: null,
+      firstAuthenticatedAt: '2026-08-20T10:00:00.000Z',
+      promptDue: false,
+      promptDismissedUntil: null,
+      available: false,
+    }),
+  );
+  await page.route('**/api/admin/v1/dashboard?**', (route) => {
+    const range = new URL(route.request().url()).searchParams.get('range') ?? '24h';
+    return json(route, dashboard(range));
+  });
+  await page.route('**/api/admin/v1/security/ip-activity?**', (route) =>
+    json(route, { items: [] }),
+  );
+});
+
+function dashboard(range = '24h') {
+  const first = '2026-08-21T16:00:00.000Z';
+  const second = '2026-08-21T17:00:00.000Z';
+  return {
+    generatedAt: '2026-08-21T17:05:00.000Z',
+    analyticsStartedAt: '2026-08-21T16:00:00.000Z',
+    from: first,
+    to: second,
+    bucketSeconds: 3600,
+    range,
+    summary: {
+      newAccounts: 2,
+      activeAccounts: 8,
+      successfulLogins: 11,
+      failedLogins: 1,
+      newStudents: 3,
+      activeStudents: 7,
+      distinctIpAddresses: 9,
+      accountsWithMultipleIps: 1,
+    },
+    timeline: [
+      {
+        at: first,
+        newAccounts: 1,
+        activeAccounts: 5,
+        successfulLogins: 6,
+        failedLogins: 1,
+        newStudents: 2,
+        activeStudents: 4,
+      },
+      {
+        at: second,
+        newAccounts: 1,
+        activeAccounts: 3,
+        successfulLogins: 5,
+        failedLogins: 0,
+        newStudents: 1,
+        activeStudents: 3,
+      },
+    ],
+    modules: ['electronics', 'three-d', 'chess', 'checkers'].flatMap((moduleKey, index) => [
+      { at: first, moduleKey, activePeople: index + 1, launches: index + 1 },
+      { at: second, moduleKey, activePeople: index + 2, launches: index + 2 },
+    ]),
+    loginMethods: ['password', 'organization', 'max', 'class_code'].flatMap((method, index) => [
+      { at: first, method, successfulLogins: index + 1 },
+      { at: second, method, successfulLogins: index + 2 },
+    ]),
+    actions: [
+      {
+        at: first,
+        classesCreated: 1,
+        projectsCreated: 2,
+        maxLinked: 0,
+        passwordRecoveryAvailable: false,
+      },
+      {
+        at: second,
+        classesCreated: 0,
+        projectsCreated: 1,
+        maxLinked: 1,
+        passwordRecoveryAvailable: false,
+      },
+    ],
+    max: { configured: false, launchUrl: null, linkedAccounts: 0, promptDueAccounts: 3 },
+  };
+}
+
 async function mockAuthenticatedAdmin(page: Page, permissions: string[]): Promise<string[]> {
   const directoryRequests: string[] = [];
   await page.route('**/api/auth/me', (route) => json(route, authSession));
   await page.route('**/api/account/avatar', (route) => json(route, { avatarDataUrl: null }));
   await page.route('**/api/classrooms/awaiting-review', (route) => json(route, { total: 0 }));
   await page.route('**/api/admin/v1/me', (route) => json(route, profile(permissions)));
+  await page.route('**/api/admin/v1/dashboard?**', (route) => {
+    directoryRequests.push(route.request().url());
+    const range = new URL(route.request().url()).searchParams.get('range') ?? '24h';
+    return json(route, dashboard(range));
+  });
   await page.route('**/api/admin/v1/accounts?**', async (route) => {
     directoryRequests.push(route.request().url());
     await json(route, {
@@ -119,6 +215,21 @@ async function mockAuthenticatedAdmin(page: Page, permissions: string[]): Promis
       next: null,
     });
   });
+  await page.route('**/api/admin/v1/security/ip-activity?**', async (route) => {
+    directoryRequests.push(route.request().url());
+    await json(route, {
+      items: [
+        {
+          accountId: ACCOUNT_ID,
+          email: 'admin@example.test',
+          displayName: 'Администратор',
+          distinctIpCount: 2,
+          lastSeenAt: '2026-08-21T17:00:00.000Z',
+          addresses: ['203.0.113.10', '198.51.100.20'],
+        },
+      ],
+    });
+  });
   await page.route('**/api/admin/v1/audit-events?**', (route) =>
     json(route, { items: [], next: null }),
   );
@@ -149,6 +260,13 @@ test('administrator can inspect real scoped directory sections without secret fi
 
   await page.goto('/#/admin');
   await expect(page.getByRole('heading', { name: 'Админ', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Пульс ASA Lab' })).toBeVisible();
+  await expect(page.getByText('Разные IP')).toBeVisible();
+  await expect(page.getByText('9', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: '7 дней' }).click();
+  await expect
+    .poll(() => requests.some((request) => new URL(request).searchParams.get('range') === '7d'))
+    .toBe(true);
   await page.getByRole('button', { name: 'Что можно делать в админке' }).click();
   await expect(page.getByText(/Вы управляете организацией «Школа № 1»/)).toBeVisible();
 
@@ -163,12 +281,12 @@ test('administrator can inspect real scoped directory sections without secret fi
   await expect(page.getByRole('cell', { name: '12', exact: true })).toBeVisible();
 
   await page.getByRole('button', { name: 'Безопасность', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Входы с разных IP' })).toBeVisible();
+  await expect(page.getByText('203.0.113.10 · 198.51.100.20')).toBeVisible();
   await expect(page.getByText('Chrome 140 · Windows 11')).toBeVisible();
-  await expect(page.getByText(/IP-адрес пока не сохраняется/)).toBeVisible();
-  await expect(page.getByText('Последний IP')).toHaveCount(0);
   await expect(page.getByText('Хэш токена')).toHaveCount(0);
 
-  expect(requests).toHaveLength(3);
+  expect(requests).toHaveLength(6);
   for (const request of requests) {
     const url = new URL(request);
     expect(url.searchParams.get('scopeKind')).toBe('organization');
@@ -234,6 +352,12 @@ test('platform administrator sees real system status and no infrastructure secre
         organizations: 3,
         activeSessions: 7,
         auditEvents24h: 22,
+      },
+      build: {
+        revision: 'e2e-admin-dashboard',
+        builtAt: '2026-08-21T17:58:00.000Z',
+        expectedSchemaVersion: 4,
+        synchronized: true,
       },
       runtime: {
         uptimeSeconds: 7200,
@@ -316,6 +440,9 @@ test('platform administrator can manage a user and revoke a foreign session with
     mutations.push({ url: route.request().url(), body: route.request().postDataJSON() });
     await json(route, { accountId: TARGET_ACCOUNT_ID, status: 'suspended' });
   });
+  await page.route('**/api/admin/v1/accounts/*/max', (route) =>
+    json(route, { linked: false, verifiedAt: null, lastRevokedAt: null }),
+  );
   await page.route('**/api/admin/v1/security/sessions?**', (route) =>
     json(route, {
       items: [
