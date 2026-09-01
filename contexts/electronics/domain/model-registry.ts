@@ -108,7 +108,7 @@ const MODELS: Readonly<Record<ComponentKind, ElectricalModelDescriptor>> = {
     requiredTerminals: ['a', 'b'],
   },
   piezo: {
-    id: 'passive-piezo',
+    id: 'piezo-transducer',
     kind: 'piezo',
     support: 'supported',
     topology: 'two-terminal',

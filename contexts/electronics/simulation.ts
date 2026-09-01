@@ -44,6 +44,21 @@ export type {
   TransientFailureMode,
 } from './domain/models/capacitor-transient-model.js';
 export {
+  canonicalPiezoAudioProfileRegistry,
+  observeActivePiezo,
+  piezoDcResistanceOhm,
+  piezoOperatingMode,
+  piezoTransducerProfile,
+  PENDING_SMALL_SPEAKER_PROFILE,
+  PIEZO_AUDIO_MODEL_VERSION,
+  PIEZO_TRANSDUCER_PROFILES,
+  type PendingSpeakerProfile,
+  type PiezoActiveObservation,
+  type PiezoDriveState,
+  type PiezoOperatingMode,
+  type PiezoTransducerProfile,
+} from './domain/models/piezo-audio-model.js';
+export {
   canonicalPhotoresistorProfileRegistry,
   photoresistorIllumination,
   photoresistorIlluminanceLux,

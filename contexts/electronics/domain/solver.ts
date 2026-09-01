@@ -95,6 +95,14 @@ import {
   type BrushedMotorStepResult,
   type BrushedMotorTransientStateEntry,
 } from './models/brushed-motor-transient-model.js';
+import {
+  observeActivePiezo,
+  piezoDcResistanceOhm,
+  piezoOperatingMode,
+  piezoTransducerProfile,
+  type PiezoDriveState,
+  type PiezoOperatingMode,
+} from './models/piezo-audio-model.js';
 
 export { sourceInternalResistanceOhm } from './models/linear-dc-models.js';
 
@@ -126,6 +134,8 @@ export type DiagnosticCode =
   | 'transistor_overcurrent'
   | 'capacitor_reverse_polarity'
   | 'capacitor_overvoltage'
+  | 'piezo_reverse_polarity'
+  | 'piezo_overvoltage'
   | 'motor_overvoltage'
   | 'motor_stalled'
   | 'component_failed'
@@ -229,6 +239,8 @@ export interface ComponentResult {
   readonly maxPower?: number;
   readonly frequencyHz?: number;
   readonly soundLevel?: number;
+  readonly piezoMode?: PiezoOperatingMode;
+  readonly piezoDriveState?: PiezoDriveState;
   readonly speedPercent?: number;
   readonly direction?: 'clockwise' | 'counterclockwise' | 'stopped';
   readonly motorRpm?: number;
@@ -311,10 +323,6 @@ const FET_DEFAULT_TRANSCONDUCTANCE_FACTOR = 0.05;
 const FET_DEFAULT_MAX_DRAIN_CURRENT_A = 0.5;
 const FET_MIN_OHMIC_CONDUCTANCE = 1e-4;
 const MULTIMETER_EXTERNAL_VOLTAGE_THRESHOLD_VOLT = 1e-3;
-// Passive piezos are capacitive. The present deterministic DC solve represents
-// only their finite leakage; audible drive is derived separately from a
-// confirmed time-varying Arduino output.
-const PIEZO_DC_RESISTANCE_OHM = 100_000_000;
 const TRANSIENT_TARGET_STEP_MS = 5;
 const MOTOR_TRANSIENT_STEP_MS = 1;
 const SWITCHED_BJT_TRANSIENT_STEP_MS = 1;
@@ -1936,7 +1944,7 @@ function solveCircuitStep(
       if (component.kind === 'photoresistor') {
         stampConductance(a, b, 1 / photoresistorResistanceOhm(component));
       } else if (component.kind === 'piezo') {
-        stampConductance(a, b, 1 / PIEZO_DC_RESISTANCE_OHM);
+        stampConductance(a, b, 1 / piezoDcResistanceOhm(component));
       } else if (component.kind === 'lamp') {
         const temperatureCelsius =
           options.lampTemperatureById?.[component.id] ?? INCANDESCENT_LAMP_PROFILE.ambientCelsius;
@@ -2532,7 +2540,7 @@ function solveCircuitStep(
       else if (component.kind === 'photoresistor')
         current = voltageDrop / photoresistorResistanceOhm(component);
       else if (component.kind === 'lamp') current = voltageDrop / (lampResistanceOhm as number);
-      else if (component.kind === 'piezo') current = voltageDrop / PIEZO_DC_RESISTANCE_OHM;
+      else if (component.kind === 'piezo') current = voltageDrop / piezoDcResistanceOhm(component);
       else if (motorStep) current = motorStep.observation.currentAmp;
       else if (capacitorObservation) current = capacitorObservation.currentAmp;
       else if (component.kind === 'switch')
@@ -2625,37 +2633,41 @@ function solveCircuitStep(
         component.kind === 'lamp'
           ? Math.abs(voltageDrop) / INCANDESCENT_LAMP_PROFILE.ratedVoltageVolt
           : undefined;
+      const activePiezoObservation =
+        component.kind === 'piezo' ? observeActivePiezo(component, voltageDrop) : null;
       const stressState =
         linearDcObservation?.stressState ??
         transistorResult?.stressState ??
-        (lampVoltageRatio !== undefined
-          ? lampVoltageRatio >= INCANDESCENT_LAMP_PROFILE.overheatVoltageRatio
-            ? 'overvoltage'
-            : lampVoltageRatio > INCANDESCENT_LAMP_PROFILE.warningVoltageRatio
-              ? 'warning'
-              : 'normal'
-          : branches.length === 0
-            ? undefined
-            : reverseBreakdown ||
-                branchResults.some(
-                  ({ branch, current: branchCurrent }) =>
-                    Math.abs(branchCurrent) > branch.destructiveCurrentAmp,
-                )
-              ? 'burned'
-              : branchResults.some(
+        (activePiezoObservation?.driveState === 'overvoltage'
+          ? 'warning'
+          : lampVoltageRatio !== undefined
+            ? lampVoltageRatio >= INCANDESCENT_LAMP_PROFILE.overheatVoltageRatio
+              ? 'overvoltage'
+              : lampVoltageRatio > INCANDESCENT_LAMP_PROFILE.warningVoltageRatio
+                ? 'warning'
+                : 'normal'
+            : branches.length === 0
+              ? undefined
+              : reverseBreakdown ||
+                  branchResults.some(
                     ({ branch, current: branchCurrent }) =>
-                      Math.abs(branchCurrent) > branch.nominalCurrentAmp,
+                      Math.abs(branchCurrent) > branch.destructiveCurrentAmp,
                   )
-                ? 'overcurrent'
+                ? 'burned'
                 : branchResults.some(
                       ({ branch, current: branchCurrent }) =>
-                        branch.nearLimitWarning &&
-                        Math.abs(branchCurrent) >= branch.nominalCurrentAmp * LED_WARNING_RATIO,
+                        Math.abs(branchCurrent) > branch.nominalCurrentAmp,
                     )
-                  ? 'warning'
-                  : 'normal');
-      const piezoTone =
-        component.kind === 'piezo'
+                  ? 'overcurrent'
+                  : branchResults.some(
+                        ({ branch, current: branchCurrent }) =>
+                          branch.nearLimitWarning &&
+                          Math.abs(branchCurrent) >= branch.nominalCurrentAmp * LED_WARNING_RATIO,
+                      )
+                    ? 'warning'
+                    : 'normal');
+      const passivePiezoTone =
+        component.kind === 'piezo' && piezoOperatingMode(component) === 'passive'
           ? (() => {
               const positiveNode = netlist.nodeOf.get(terminalKey(component.id, 'positive'));
               const negativeNode = netlist.nodeOf.get(terminalKey(component.id, 'negative'));
@@ -2872,10 +2884,30 @@ function solveCircuitStep(
           : {}),
         ...(component.kind === 'piezo'
           ? {
-              energized: piezoTone !== null,
-              frequencyHz: round(piezoTone?.frequencyHz ?? 0, 2),
-              soundLevel:
-                piezoTone === null ? 0 : component.componentTypeId === 'piezo-disc' ? 0.55 : 0.8,
+              energized: activePiezoObservation!.energized || passivePiezoTone !== null,
+              frequencyHz: round(
+                activePiezoObservation!.energized
+                  ? activePiezoObservation!.frequencyHz
+                  : (passivePiezoTone?.frequencyHz ?? 0),
+                2,
+              ),
+              soundLevel: round(
+                activePiezoObservation!.energized
+                  ? activePiezoObservation!.soundLevel
+                  : passivePiezoTone === null
+                    ? 0
+                    : piezoTransducerProfile(component).acousticLevel,
+                3,
+              ),
+              piezoMode: activePiezoObservation!.mode,
+              piezoDriveState:
+                activePiezoObservation!.mode === 'active'
+                  ? activePiezoObservation!.driveState
+                  : passivePiezoTone
+                    ? ('sounding' as const)
+                    : ('silent' as const),
+              operatingVoltageMinVolt: activePiezoObservation!.minimumVoltageVolt,
+              operatingVoltageMaxVolt: activePiezoObservation!.maximumVoltageVolt,
             }
           : {}),
         ...(isBrushedMotor(component)
@@ -2973,6 +3005,29 @@ function solveCircuitStep(
         ? 'Уменьшите напряжение: при длительной перегрузке нить перегорит и разомкнёт цепь.'
         : 'Для штатной работы уменьшите напряжение до 6 В или ниже.',
     });
+  }
+
+  for (const piezo of document.components.filter((component) => component.kind === 'piezo')) {
+    const result = components.find((component) => component.componentId === piezo.id);
+    if (!result || result.piezoMode !== 'active') continue;
+    if (result.piezoDriveState === 'reverse_polarity') {
+      diagnostics.push({
+        code: 'piezo_reverse_polarity',
+        severity: 'warning',
+        message: `${piezo.name ?? 'Активный пьезоэлемент'}: полярность питания перепутана, поэтому звук выключен.`,
+        componentIds: [piezo.id],
+        suggestedAction: 'Подключите положительный вывод к плюсу, отрицательный — к минусу.',
+      });
+    }
+    if (result.piezoDriveState === 'overvoltage') {
+      diagnostics.push({
+        code: 'piezo_overvoltage',
+        severity: 'warning',
+        message: `${piezo.name ?? 'Активный пьезоэлемент'}: напряжение ${Math.abs(result.voltageDrop).toFixed(2)} В выше допустимых ${(result.operatingVoltageMaxVolt ?? 12).toFixed(0)} В.`,
+        componentIds: [piezo.id],
+        suggestedAction: 'Уменьшите напряжение питания до 12 В или ниже.',
+      });
+    }
   }
 
   for (const motor of document.components.filter(isBrushedMotor)) {

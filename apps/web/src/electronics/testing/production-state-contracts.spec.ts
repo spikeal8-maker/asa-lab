@@ -12,6 +12,7 @@ import {
   motorMotion,
   multimeterRuntimeMarkup,
   ordinaryLedState,
+  piezoRuntimeMarkup,
   potentiometerKnobAngle,
   potentiometerRuntimeMarkup,
   regulatedPowerSupplyKnobAngle,
@@ -107,6 +108,20 @@ describe('typed Electronics state and animation contracts', () => {
     expect(markup.match(/transform="rotate\(135 71\.5 71\)"/g)).toHaveLength(2);
     expect(markup).toContain('<circle cx="71.5" cy="71" r="49"/>');
     expect(ownerSvg).not.toContain('transform=');
+  });
+
+  it('lets calculated sound state drive the existing owner piezo-disc waves', () => {
+    const ownerSvg = `<svg viewBox="0 0 240 240">
+      <g id="sound-waves" opacity="0.32"><circle r="76"/><animate attributeName="opacity" values="0.2;0.4;0.2" dur="1.4s" repeatCount="indefinite"/></g>
+      <g id="component"><circle r="66"/></g>
+    </svg>`;
+    const markup = piezoRuntimeMarkup(ownerSvg);
+    expect(markup).toContain('class="workbench-piezo-owner-waves"');
+    expect(markup).toContain('<circle r="76"/>');
+    expect(markup).toContain('<g id="component"');
+    expect(markup).not.toContain('<animate');
+    expect(ownerSvg).toContain('<animate');
+    expect(piezoRuntimeMarkup('<svg><circle/></svg>')).toBe('');
   });
 
   it('styles the existing owner multimeter selector paths without drawing duplicate buttons', () => {

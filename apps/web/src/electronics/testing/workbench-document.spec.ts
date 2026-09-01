@@ -32,6 +32,7 @@ import {
   updateSelectedWireColor,
   updateSelectionName,
   updateSelectionState,
+  updateSelectionVariant,
   updateSelectionValue,
   updateWiperPosition,
 } from '../workbench-document';
@@ -171,10 +172,7 @@ describe('Electronics M1 editor document operations', () => {
   });
 
   it('plugs both lead ends of both owner piezo variants into breadboard holes', () => {
-    for (const [componentTypeId, negativeHole] of [
-      ['piezo-disc', 'J11'],
-      ['piezo-passive-buzzer', 'J12'],
-    ] as const) {
+    for (const componentTypeId of ['piezo-disc', 'piezo-passive-buzzer'] as const) {
       let document = addComponentToDocument(
         EMPTY,
         'breadboard-medium',
@@ -211,10 +209,81 @@ describe('Electronics M1 editor document operations', () => {
         componentTypeId,
       ).toEqual({
         positive: { breadboardComponentId: 'board', holeId: 'J8' },
-        negative: { breadboardComponentId: 'board', holeId: negativeHole },
+        negative: { breadboardComponentId: 'board', holeId: 'J11' },
       });
       expect(componentsBoundToBreadboard(document, 'board')).not.toContain('piezo');
     }
+  });
+
+  it('keeps piezo mode, wires and breadboard holes when the owner body changes', () => {
+    let document = addComponentToDocument(
+      EMPTY,
+      'breadboard-medium',
+      { x: 600, y: 500 },
+      'board',
+    ).document;
+    document = addComponentToDocument(
+      document,
+      'piezo-passive-buzzer',
+      { x: 600, y: 500 },
+      'piezo',
+    ).document;
+    document = addComponentToDocument(
+      document,
+      'battery-holder-aa-2',
+      { x: 300, y: 500 },
+      'source',
+    ).document;
+    document = {
+      ...document,
+      components: document.components.map((component) =>
+        component.id === 'piezo'
+          ? { ...component, stateProperties: { ...component.stateProperties, piezoMode: 'active' } }
+          : component,
+      ),
+      connections: [
+        {
+          id: 'drive-positive',
+          from: { componentId: 'source', terminal: 'BAT+' },
+          to: { componentId: 'piezo', terminal: 'positive' },
+        },
+        {
+          id: 'drive-negative',
+          from: { componentId: 'piezo', terminal: 'negative' },
+          to: { componentId: 'source', terminal: 'BAT-' },
+        },
+      ],
+    };
+    const boardComponent = document.components.find((component) => component.id === 'board')!;
+    const board = productionBreadboard('breadboard-medium')!;
+    const targetHole = board.holes.find((hole) => hole.id === 'J8')!;
+    const targetPoint = componentPointPosition(
+      boardComponent,
+      boardComponent.position,
+      targetHole,
+      0,
+    )!;
+    const piezo = document.components.find((component) => component.id === 'piezo')!;
+    const positive = terminalPosition(piezo, piezo.position, 'positive', 0)!;
+    document = moveComponentInDocument(document, 'piezo', {
+      x: piezo.position.x + targetPoint.x - positive.x,
+      y: piezo.position.y + targetPoint.y - positive.y,
+    });
+    document = snapComponentToBreadboard(document, 'piezo');
+    const switched = updateSelectionVariant(
+      document,
+      { kind: 'component', id: 'piezo', ids: ['piezo'] },
+      'piezo-disc',
+    );
+    expect(switched?.components.find((component) => component.id === 'piezo')).toMatchObject({
+      componentTypeId: 'piezo-disc',
+      stateProperties: expect.objectContaining({ piezoMode: 'active', piezoVariant: 'disc' }),
+      holeBindings: {
+        positive: { breadboardComponentId: 'board', holeId: 'J8' },
+        negative: { breadboardComponentId: 'board', holeId: 'J11' },
+      },
+    });
+    expect(switched?.connections).toEqual(document.connections);
   });
 
   it('keeps free user points by default and applies 90-degree locking only on demand', () => {

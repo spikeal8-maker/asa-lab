@@ -295,6 +295,31 @@ export function potentiometerRuntimeMarkup(ownerSvg: string, wiperPosition: numb
   return withMovingPointer.slice(bodyStart + 1, bodyEnd);
 }
 
+/**
+ * Reuses the sound-wave circles already present in the approved open-disc SVG.
+ * Its decorative always-running SMIL animation is removed; calculated runtime
+ * state controls the same owner geometry through CSS instead.
+ */
+export function piezoRuntimeMarkup(ownerSvg: string): string {
+  const withRuntimeWaves = ownerSvg
+    .replace('<g id="sound-waves"', '<g id="sound-waves" class="workbench-piezo-owner-waves"')
+    .replace(
+      /\s*<animate attributeName="opacity" values="0\.2;0\.4;0\.2" dur="1\.4s" repeatCount="indefinite"\s*\/>/,
+      '',
+    );
+  if (
+    withRuntimeWaves === ownerSvg ||
+    !withRuntimeWaves.includes('class="workbench-piezo-owner-waves"') ||
+    withRuntimeWaves.includes('<animate attributeName="opacity"')
+  ) {
+    return '';
+  }
+  const bodyStart = withRuntimeWaves.indexOf('>');
+  const bodyEnd = withRuntimeWaves.lastIndexOf('</svg>');
+  if (bodyStart < 0 || bodyEnd <= bodyStart) return '';
+  return withRuntimeWaves.slice(bodyStart + 1, bodyEnd);
+}
+
 export type MultimeterVisualMode = 'current' | 'voltage' | 'resistance';
 
 const MULTIMETER_OWNER_MODE_PATHS = {

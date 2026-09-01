@@ -30364,11 +30364,14 @@
         }
       ],
       "stateContract": {
-        "type": "buzzer",
-        "active": "boolean",
-        "driver": "simulation_state"
+        "type": "piezo_transducer",
+        "mode": ["passive", "active"],
+        "frequencyHz": [20, 20000],
+        "soundLevel": [0, 1],
+        "activeVoltageVolt": [3, 12],
+        "driver": "arduino_tone_or_dc_power"
       },
-      "simulationSupport": "passive_piezo_arduino_tone_v1",
+      "simulationSupport": "piezo_active_passive_audio_v2",
       "blockReason": null,
       "catalogTier": "core",
       "metadataOnlyProof": {
@@ -30431,12 +30434,14 @@
         }
       ],
       "stateContract": {
-        "type": "passive_piezo",
+        "type": "piezo_transducer",
+        "mode": ["passive", "active"],
         "frequencyHz": [20, 20000],
         "soundLevel": [0, 1],
-        "driver": "arduino_tone_or_digital_toggle"
+        "activeVoltageVolt": [3, 12],
+        "driver": "arduino_tone_or_dc_power"
       },
-      "simulationSupport": "passive_piezo_arduino_tone_v1",
+      "simulationSupport": "piezo_active_passive_audio_v2",
       "blockReason": null,
       "catalogTier": "core",
       "metadataOnlyProof": {

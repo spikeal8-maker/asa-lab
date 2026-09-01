@@ -12,7 +12,7 @@ export type ElectricalModelId =
   | 'potentiometer'
   | 'capacitor'
   | 'photoresistor'
-  | 'passive-piezo'
+  | 'piezo-transducer'
   | 'diode'
   | 'npn-transistor'
   | 'pnp-transistor'
@@ -50,7 +50,7 @@ const KNOWN_MODEL_IDS: ReadonlySet<string> = new Set<ElectricalModelId>([
   'potentiometer',
   'capacitor',
   'photoresistor',
-  'passive-piezo',
+  'piezo-transducer',
   'diode',
   'npn-transistor',
   'pnp-transistor',
@@ -75,8 +75,8 @@ const EXACT_IDENTITIES: Readonly<Record<string, ElectricalModelIdentity>> = {
   potentiometer: identity('potentiometer', 'generic-potentiometer'),
   'electrolytic-capacitor': identity('capacitor', 'generic-electrolytic-capacitor'),
   photoresistor: identity('photoresistor', 'generic-photoresistor', 2),
-  'piezo-passive-buzzer': identity('passive-piezo', 'passive-piezo-enclosed'),
-  'piezo-disc': identity('passive-piezo', 'passive-piezo-disc'),
+  'piezo-passive-buzzer': identity('piezo-transducer', 'piezo-enclosed-audio', 2),
+  'piezo-disc': identity('piezo-transducer', 'piezo-disc-audio', 2),
   'diode-do35': identity('diode', 'generic-signal-diode-do35'),
   'diode-do41': identity('diode', 'generic-rectifier-diode-do41'),
   'transistor-npn': identity('npn-transistor', 'generic-npn-to92'),
@@ -133,7 +133,7 @@ function legacyIdentity(
     switch: 'spdt-switch',
     potentiometer: 'potentiometer',
     photoresistor: 'photoresistor',
-    piezo: 'passive-piezo',
+    piezo: 'piezo-transducer',
     diode: 'diode',
     transistor: 'npn-transistor',
     lamp: 'incandescent-lamp',
@@ -169,6 +169,17 @@ export function electricalModelIdentityForComponent(
     // Schema v4 documents saved before these models existed contain exact
     // placeholder identities. Upgrade only those known placeholders;
     // unknown/future identities must remain fail-closed.
+    if (
+      (component.componentTypeId === 'piezo-passive-buzzer' ||
+        component.componentTypeId === 'piezo-disc') &&
+      component.electricalModelId === 'passive-piezo' &&
+      component.electricalModelVersion === 1 &&
+      (component.modelProfileId === 'passive-piezo-enclosed' ||
+        component.modelProfileId === 'passive-piezo-disc') &&
+      component.modelProfileVersion === 1
+    ) {
+      return resolveElectricalModelIdentity(component);
+    }
     if (
       component.componentTypeId === 'dc-motor' &&
       (component.electricalModelId === 'unsupported' ||
