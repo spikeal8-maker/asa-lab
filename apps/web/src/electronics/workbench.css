@@ -548,19 +548,6 @@
     transition: none;
   }
 }
-.workbench-piezo-summary {
-  display: grid;
-  gap: 4px;
-  padding: 10px;
-  border: 1px solid #d4e3eb;
-  border-radius: 4px;
-  background: #f5fbfe;
-  color: #344f5f;
-}
-.workbench-piezo-summary small {
-  color: #687b87;
-  line-height: 1.35;
-}
 .workbench-motor-profile-summary {
   display: grid;
   gap: 4px;
@@ -639,6 +626,9 @@
   opacity: 0;
   transform-box: fill-box;
   transform-origin: center;
+}
+.workbench-piezo-selection-copy .workbench-piezo-owner-waves {
+  display: none;
 }
 .workbench-piezo-visual.is-sounding .workbench-piezo-owner-waves {
   opacity: 0.42;

@@ -74,6 +74,43 @@ describe('MATH-8A piezo and future speaker audio contract', () => {
     expect(sounder?.power).toBeCloseTo(0.075, 8);
   });
 
+  it('starts from a nominal 3 V AA pack despite the normal loaded terminal sag', () => {
+    const document = poweredPiezo(3, 'active');
+    const result = analyseCircuit({
+      ...document,
+      components: document.components.map((component) =>
+        component.id === 'source'
+          ? {
+              ...component,
+              componentTypeId: 'battery-holder-aa-2',
+              pinIds: ['BAT-', 'BAT+'],
+            }
+          : component,
+      ),
+      connections: document.connections.map((connection) => ({
+        ...connection,
+        from:
+          connection.from.componentId === 'source'
+            ? { ...connection.from, terminal: 'BAT+' }
+            : connection.from,
+        to:
+          connection.to.componentId === 'source'
+            ? { ...connection.to, terminal: 'BAT-' }
+            : connection.to,
+      })),
+    });
+    const sounder = result.components.find((component) => component.componentId === 'sounder');
+    expect(result.status).toBe('solved');
+    expect(sounder).toBeDefined();
+    expect(sounder?.voltageDrop).toBeGreaterThanOrEqual(2.95);
+    expect(sounder?.voltageDrop).toBeLessThan(3);
+    expect(sounder).toMatchObject({
+      piezoDriveState: 'sounding',
+      energized: true,
+      frequencyHz: 2300,
+    });
+  });
+
   it('keeps passive DC silent while preserving the Arduino-tone model separately', () => {
     const result = analyseCircuit(poweredPiezo(5, 'passive'));
     expect(
@@ -86,6 +123,11 @@ describe('MATH-8A piezo and future speaker audio contract', () => {
       soundLevel: 0,
     });
     expect(piezoDcResistanceOhm(piezo('passive'))).toBe(100_000_000);
+
+    const reversed = analyseCircuit(poweredPiezo(5, 'passive', true));
+    expect(reversed.diagnostics).not.toContainEqual(
+      expect.objectContaining({ code: 'piezo_reverse_polarity' }),
+    );
   });
 
   it('silences reversed active power and reports a clear polarity warning', () => {
@@ -133,6 +175,11 @@ describe('MATH-8A piezo and future speaker audio contract', () => {
     expect(observeActivePiezo(piezo('active', 'piezo-disc'), 2.5)).toMatchObject({
       driveState: 'below_voltage',
       energized: false,
+    });
+    expect(observeActivePiezo(piezo('active'), 2.996)).toMatchObject({
+      driveState: 'sounding',
+      energized: true,
+      frequencyHz: 2300,
     });
   });
 

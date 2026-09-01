@@ -575,13 +575,19 @@ describe('owner-reference Electronics presentation contract', () => {
 
   it('shows active and passive piezo modes and animates only calculated sound state', () => {
     expect(sidebarSource).toContain('data-testid="piezo-primary-controls"');
-    expect(sidebarSource).toContain('Пассивный — нужен сигнал');
-    expect(sidebarSource).toContain('Активный — пищит от питания');
-    expect(sidebarSource).toContain('Пищит от 3–12 В');
+    expect(sidebarSource).toContain('<option value="passive">Пассивный</option>');
+    expect(sidebarSource).toContain('<option value="active">Активный</option>');
+    expect(sidebarSource).not.toContain('workbench-piezo-summary');
+    expect(sidebarSource).not.toContain('Пищит от 3–12 В');
     expect(productionVisualSource).toContain('OwnerPiezoVisual');
     expect(productionVisualSource).toContain('piezoRuntimeMarkup(ownerSvg)');
     expect(productionVisualSource).toContain('data-testid="piezo-owner-runtime"');
+    expect(productionVisualSource).toContain('workbench-piezo-selection-copy');
+    expect(productionVisualSource).toMatch(
+      /const piezoActive =[^;]+simulationRunning[^;]+result\?\.energized === true/s,
+    );
     expect(workbenchCss).toContain('.workbench-piezo-owner-waves');
+    expect(workbenchCss).toContain('.workbench-piezo-selection-copy .workbench-piezo-owner-waves');
     expect(workbenchCss).toContain('.workbench-piezo-visual.is-sounding');
   });
 

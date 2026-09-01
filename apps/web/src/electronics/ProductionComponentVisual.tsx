@@ -807,14 +807,25 @@ export function ProductionComponentVisual({
               <feComposite in="outlineColour" in2="outline" operator="in" />
             </filter>
           </defs>
-          <image
-            href={asset}
-            y={ownerAssetY}
-            width={ownerAssetWidth}
-            height={ownerAssetHeight}
-            preserveAspectRatio={narrowsDo41Body ? 'none' : imageFit}
-            filter={`url(#${selectionFilterId})`}
-          />
+          {entry.key === 'piezo-disc' ? (
+            <g className="workbench-piezo-selection-copy" filter={`url(#${selectionFilterId})`}>
+              <OwnerPiezoVisual
+                asset={asset}
+                width={ownerAssetWidth}
+                height={ownerAssetHeight}
+                viewBox={entry.viewBox}
+              />
+            </g>
+          ) : (
+            <image
+              href={asset}
+              y={ownerAssetY}
+              width={ownerAssetWidth}
+              height={ownerAssetHeight}
+              preserveAspectRatio={narrowsDo41Body ? 'none' : imageFit}
+              filter={`url(#${selectionFilterId})`}
+            />
+          )}
         </g>
       ) : null}
       {entry.key === 'resistor-axial' ? (

@@ -43,6 +43,10 @@ export const PIEZO_AUDIO_MODEL_VERSION = 2;
 const PASSIVE_DC_RESISTANCE_OHM = 100_000_000;
 const ACTIVE_NOMINAL_VOLTAGE_VOLT = 5;
 const ACTIVE_NOMINAL_CURRENT_AMP = 0.015;
+// A nominal 3 V battery pack settles a few millivolts below its label under
+// load. Keep the published 3 V operating limit while accepting that ordinary
+// source sag instead of incorrectly silencing a correctly wired buzzer.
+const ACTIVE_START_VOLTAGE_TOLERANCE_VOLT = 0.05;
 
 export const PIEZO_TRANSDUCER_PROFILES: Readonly<
   Record<'piezo-passive-buzzer' | 'piezo-disc', PiezoTransducerProfile>
@@ -140,7 +144,7 @@ export function observeActivePiezo(
       maximumVoltageVolt: profile.activeMaximumVoltageVolt,
     };
   }
-  if (voltageDropVolt < profile.activeStartVoltageVolt) {
+  if (voltageDropVolt + ACTIVE_START_VOLTAGE_TOLERANCE_VOLT < profile.activeStartVoltageVolt) {
     return {
       mode,
       driveState: 'below_voltage',
