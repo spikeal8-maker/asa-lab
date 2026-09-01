@@ -205,6 +205,7 @@ for (const [profile, overlays] of Object.entries(OVERLAYS)) {
       MIGRATION_CONFIRM: 'APPLY:asalab',
       APP_DATABASE_URL:
         'postgres://asalab_app:compose-validation-runtime-password@postgres:5432/asalab',
+      ASA_SETTINGS_ENCRYPTION_KEY: 'compose-validation-placeholder',
     },
   });
   if (result.status !== 0) {
@@ -224,6 +225,12 @@ for (const [profile, overlays] of Object.entries(OVERLAYS)) {
       : 'postgres://asalab_admin:compose-validation-admin-password@postgres:5432/asalab';
   if (migrationEnvironment.MIGRATION_DATABASE_URL !== expectedMigrationUrl) {
     errors.push(`${profile}/migration: dedicated MIGRATION_DATABASE_URL was not preserved`);
+  }
+  if (
+    config.services?.api?.environment?.ASA_SETTINGS_ENCRYPTION_KEY !==
+    'compose-validation-placeholder'
+  ) {
+    errors.push(`${profile}/api: runtime settings encryption key was not preserved`);
   }
   const published = [];
   for (const [name, service] of Object.entries(config.services ?? {})) {
