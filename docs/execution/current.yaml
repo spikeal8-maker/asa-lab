@@ -122,11 +122,11 @@ parallel_lanes:
       pr: 170
       pr_draft: false
       status: in_progress
-      checkpoint: math_10a3_multimeter_resistance_external_probe_voltage_preflight_single_node_powered_branch_measures_clear_russian_error_pr_170_ci_pending_owner_accepted
-      owner_acceptance: accepted
+      checkpoint: math_10b_regulated_power_supply_0_30v_0_5a_cv_cc_owner_svg_controls_focused_gate_pass_browser_and_owner_acceptance_pending
+      owner_acceptance: pending
     revisions:
       convergence_baseline_sha: 5b052dc631c7036de9d60f4206c9879fe364e732
-      head_sha: 7334d246da981221a519dcfe0e010fef722dcc8a
+      head_sha: 3e2e9cc50e99af6eae4a6ae2b562f5cc42e90988
       owner_accepted_sha: 7334d246da981221a519dcfe0e010fef722dcc8a
     execution_lease:
       executor_id: codex-electronics-docs
