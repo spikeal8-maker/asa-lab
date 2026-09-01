@@ -78,7 +78,7 @@ services:
       API_PORT: 4611
       ASA_WEB_PORT: ${ASA_WEB_PORT:-4610}
       APP_DATABASE_URL: ${APP_DATABASE_URL:-postgres://asalab_app:asa-local-runtime-change-me@postgres:5432/asalab}
-      ASA_SETTINGS_ENCRYPTION_KEY: ${ASA_SETTINGS_ENCRYPTION_KEY:?ASA_SETTINGS_ENCRYPTION_KEY is required}
+      ASA_SETTINGS_ENCRYPTION_KEY: ${ASA_SETTINGS_ENCRYPTION_KEY:-}
     expose:
       - '4611'
     tmpfs:

@@ -19,6 +19,7 @@ services:
     environment:
       NODE_ENV: production
       APP_DATABASE_URL: ${APP_DATABASE_URL:?set APP_DATABASE_URL in the private staging environment}
+      ASA_SETTINGS_ENCRYPTION_KEY: ${ASA_SETTINGS_ENCRYPTION_KEY:?set ASA_SETTINGS_ENCRYPTION_KEY in the private staging environment}
 
   web:
     restart: always
