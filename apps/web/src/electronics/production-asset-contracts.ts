@@ -389,7 +389,7 @@ export function regulatedPowerSupplyRuntimeMarkup(
   const currentAngle = regulatedPowerSupplyKnobAngle(input.currentLimitAmp, 5);
   const upperPointerRotation = voltageAngle - 178.67;
   const lowerPointerRotation = currentAngle - 45;
-  let markup = ownerSvg
+  const markup = ownerSvg
     .replace(
       '<g transform="translate(234 53)">',
       '<g class="workbench-regulated-supply-knob workbench-regulated-supply-voltage-knob" transform="translate(234 53)">',
