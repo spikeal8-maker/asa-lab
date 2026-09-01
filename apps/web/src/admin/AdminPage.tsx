@@ -562,6 +562,7 @@ function mutationMessage(result: Extract<AdminApiResult<unknown>, { ok: false }>
 }
 
 type AccountSort = 'last_login' | 'name' | 'activity' | 'registered';
+type AccountCrmTab = 'overview' | 'activity' | 'security' | 'management' | 'notes';
 
 type AccountCrmState =
   | { readonly kind: 'loading' }
@@ -678,6 +679,7 @@ function UserCrmPanel({
   const [version, setVersion] = useState(0);
   const [reason, setReason] = useState('');
   const [note, setNote] = useState('');
+  const [activeTab, setActiveTab] = useState<AccountCrmTab>('overview');
   const [busy, setBusy] = useState<'access' | 'role' | 'max' | 'note' | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
   const isSelf = account.accountId === currentAccountId;
@@ -765,81 +767,114 @@ function UserCrmPanel({
         </div>
       </dl>
 
-      <div className="admin-crm-grid">
-        <section className="admin-crm-card">
-          <h3>Организации</h3>
-          {detail.organizations.length ? (
-            <ul>
-              {detail.organizations.map((organization) => (
-                <li key={organization.workspaceId}>
-                  <strong>{organization.title}</strong>
-                  <span>
-                    {adminRoleLabel(organization.role)} · {statusLabel(organization.state)}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p>Не состоит в организации.</p>
-          )}
-        </section>
-
-        <section className="admin-crm-card">
-          <h3>Сессии и устройства</h3>
-          {detail.sessions.length ? (
-            <ul>
-              {detail.sessions.slice(0, 8).map((session) => (
-                <li key={session.sessionId}>
-                  <strong>{session.device ?? 'Устройство не определено'}</strong>
-                  <span>
-                    {session.workspaceTitle} · {dateTime(session.lastSeenAt)} ·{' '}
-                    {statusLabel(session.status)}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p>Входов ещё не было.</p>
-          )}
-        </section>
+      <div className="admin-user-tabs" role="tablist" aria-label="Карточка пользователя">
+        <button
+          type="button"
+          role="tab"
+          id={`admin-user-${account.accountId}-tab-overview`}
+          aria-controls={`admin-user-${account.accountId}-panel-overview`}
+          aria-selected={activeTab === 'overview'}
+          onClick={() => setActiveTab('overview')}
+        >
+          Обзор
+        </button>
+        <button
+          type="button"
+          role="tab"
+          id={`admin-user-${account.accountId}-tab-activity`}
+          aria-controls={`admin-user-${account.accountId}-panel-activity`}
+          aria-selected={activeTab === 'activity'}
+          onClick={() => setActiveTab('activity')}
+        >
+          Активность
+        </button>
+        <button
+          type="button"
+          role="tab"
+          id={`admin-user-${account.accountId}-tab-security`}
+          aria-controls={`admin-user-${account.accountId}-panel-security`}
+          aria-selected={activeTab === 'security'}
+          onClick={() => setActiveTab('security')}
+        >
+          Безопасность
+        </button>
+        {canManage ? (
+          <button
+            type="button"
+            role="tab"
+            id={`admin-user-${account.accountId}-tab-management`}
+            aria-controls={`admin-user-${account.accountId}-panel-management`}
+            aria-selected={activeTab === 'management'}
+            onClick={() => setActiveTab('management')}
+          >
+            Управление
+          </button>
+        ) : null}
+        <button
+          type="button"
+          role="tab"
+          id={`admin-user-${account.accountId}-tab-notes`}
+          aria-controls={`admin-user-${account.accountId}-panel-notes`}
+          aria-selected={activeTab === 'notes'}
+          onClick={() => setActiveTab('notes')}
+        >
+          Заметки
+        </button>
       </div>
 
-      <section className="admin-crm-card admin-crm-wide">
-        <h3>IP-адреса</h3>
-        {detail.ipAddresses.length ? (
-          <div className="admin-crm-ip-list">
-            {detail.ipAddresses.map((item) => (
-              <article key={item.address}>
-                <div>
-                  <strong>{item.address}</strong>
-                  <span>
-                    {item.device ?? 'Устройство не определено'} · последний раз{' '}
-                    {dateTime(item.lastSeenAt)} · событий: {item.eventCount}
-                  </span>
-                </div>
-                {canManage ? (
-                  <IpLabelEditor
-                    accountId={account.accountId}
-                    item={item}
-                    onSaved={() => setVersion((value) => value + 1)}
-                    onAccessDenied={onAccessDenied}
-                  />
-                ) : item.labelKind ? (
-                  <span className="admin-state-chip">
-                    {IP_LABELS.find((entry) => entry.value === item.labelKind)?.label}
-                    {item.label ? ` · ${item.label}` : ''}
-                  </span>
-                ) : null}
-              </article>
-            ))}
-          </div>
-        ) : (
-          <p>IP ещё не зафиксированы.</p>
-        )}
-      </section>
+      {activeTab === 'overview' ? (
+        <div
+          className="admin-crm-tab-panel admin-crm-grid"
+          role="tabpanel"
+          id={`admin-user-${account.accountId}-panel-overview`}
+          aria-labelledby={`admin-user-${account.accountId}-tab-overview`}
+        >
+          <section className="admin-crm-card">
+            <h3>Организации</h3>
+            {detail.organizations.length ? (
+              <ul>
+                {detail.organizations.map((organization) => (
+                  <li key={organization.workspaceId}>
+                    <strong>{organization.title}</strong>
+                    <span>
+                      {adminRoleLabel(organization.role)} · {statusLabel(organization.state)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p>Не состоит в организации.</p>
+            )}
+          </section>
 
-      <div className="admin-crm-grid">
-        <section className="admin-crm-card">
+          <section className="admin-crm-card">
+            <h3>Сессии и устройства</h3>
+            {detail.sessions.length ? (
+              <ul>
+                {detail.sessions.slice(0, 8).map((session) => (
+                  <li key={session.sessionId}>
+                    <strong>{session.device ?? 'Устройство не определено'}</strong>
+                    <span>
+                      {session.workspaceTitle} · {dateTime(session.lastSeenAt)} ·{' '}
+                      {statusLabel(session.status)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p>Входов ещё не было.</p>
+            )}
+          </section>
+        </div>
+      ) : null}
+
+      {activeTab === 'activity' ? (
+        <section
+          className="admin-crm-card admin-crm-tab-panel"
+          role="tabpanel"
+          id={`admin-user-${account.accountId}-panel-activity`}
+          aria-labelledby={`admin-user-${account.accountId}-tab-activity`}
+        >
           <h3>Последние действия</h3>
           {detail.activity.length ? (
             <ol className="admin-crm-timeline">
@@ -857,47 +892,56 @@ function UserCrmPanel({
             <p>Событий пока нет.</p>
           )}
         </section>
+      ) : null}
 
-        <section className="admin-crm-card">
-          <h3>Комментарии</h3>
-          {canManage ? (
-            <div className="admin-crm-note-form">
-              <textarea
-                value={note}
-                maxLength={2000}
-                rows={3}
-                placeholder="Добавить внутренний комментарий"
-                onChange={(event) => setNote(event.target.value)}
-              />
-              <button
-                type="button"
-                className="btn-secondary"
-                disabled={!note.trim() || busy !== null}
-                onClick={() => void addNote()}
-              >
-                {busy === 'note' ? 'Добавляем…' : 'Добавить'}
-              </button>
-            </div>
-          ) : null}
-          {detail.notes.length ? (
-            <ol className="admin-crm-notes">
-              {detail.notes.map((item) => (
-                <li key={item.id}>
-                  <p>{item.note}</p>
-                  <span>
-                    {item.authorDisplayName} · {dateTime(item.createdAt)}
-                  </span>
-                </li>
+      {activeTab === 'security' ? (
+        <section
+          className="admin-crm-card admin-crm-wide admin-crm-tab-panel"
+          role="tabpanel"
+          id={`admin-user-${account.accountId}-panel-security`}
+          aria-labelledby={`admin-user-${account.accountId}-tab-security`}
+        >
+          <h3>IP-адреса</h3>
+          {detail.ipAddresses.length ? (
+            <div className="admin-crm-ip-list">
+              {detail.ipAddresses.map((item) => (
+                <article key={item.address}>
+                  <div>
+                    <strong>{item.address}</strong>
+                    <span>
+                      {item.device ?? 'Устройство не определено'} · последний раз{' '}
+                      {dateTime(item.lastSeenAt)} · событий: {item.eventCount}
+                    </span>
+                  </div>
+                  {canManage ? (
+                    <IpLabelEditor
+                      accountId={account.accountId}
+                      item={item}
+                      onSaved={() => setVersion((value) => value + 1)}
+                      onAccessDenied={onAccessDenied}
+                    />
+                  ) : item.labelKind ? (
+                    <span className="admin-state-chip">
+                      {IP_LABELS.find((entry) => entry.value === item.labelKind)?.label}
+                      {item.label ? ` · ${item.label}` : ''}
+                    </span>
+                  ) : null}
+                </article>
               ))}
-            </ol>
+            </div>
           ) : (
-            <p>Комментариев пока нет.</p>
+            <p>IP ещё не зафиксированы.</p>
           )}
         </section>
-      </div>
+      ) : null}
 
-      {canManage ? (
-        <section className="admin-crm-card admin-crm-access">
+      {canManage && activeTab === 'management' ? (
+        <section
+          className="admin-crm-card admin-crm-access admin-crm-tab-panel"
+          role="tabpanel"
+          id={`admin-user-${account.accountId}-panel-management`}
+          aria-labelledby={`admin-user-${account.accountId}-tab-management`}
+        >
           <h3>Доступ</h3>
           <label className="admin-reason-field">
             <span>Причина изменения</span>
@@ -975,6 +1019,50 @@ function UserCrmPanel({
                   : 'Разрешить вход'}
             </button>
           </div>
+        </section>
+      ) : null}
+
+      {activeTab === 'notes' ? (
+        <section
+          className="admin-crm-card admin-crm-tab-panel"
+          role="tabpanel"
+          id={`admin-user-${account.accountId}-panel-notes`}
+          aria-labelledby={`admin-user-${account.accountId}-tab-notes`}
+        >
+          <h3>Комментарии</h3>
+          {canManage ? (
+            <div className="admin-crm-note-form">
+              <textarea
+                value={note}
+                maxLength={2000}
+                rows={3}
+                placeholder="Добавить внутренний комментарий"
+                onChange={(event) => setNote(event.target.value)}
+              />
+              <button
+                type="button"
+                className="btn-secondary"
+                disabled={!note.trim() || busy !== null}
+                onClick={() => void addNote()}
+              >
+                {busy === 'note' ? 'Добавляем…' : 'Добавить'}
+              </button>
+            </div>
+          ) : null}
+          {detail.notes.length ? (
+            <ol className="admin-crm-notes">
+              {detail.notes.map((item) => (
+                <li key={item.id}>
+                  <p>{item.note}</p>
+                  <span>
+                    {item.authorDisplayName} · {dateTime(item.createdAt)}
+                  </span>
+                </li>
+              ))}
+            </ol>
+          ) : (
+            <p>Комментариев пока нет.</p>
+          )}
         </section>
       ) : null}
     </div>

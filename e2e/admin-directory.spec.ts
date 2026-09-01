@@ -592,10 +592,25 @@ test('platform administrator can manage a user and revoke a foreign session with
   await expect(page.getByText('Действующих входов: 1')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Управлять' })).toHaveCount(0);
   await page.getByRole('button', { name: /Тестовый ученик.*learner@example\.test/ }).click();
+  await expect(page.getByRole('tab', { name: 'Обзор' })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('tab', { name: 'Управление' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Доступ' })).toHaveCount(0);
+  await page.getByRole('tab', { name: 'Безопасность' }).click();
   await expect(page.getByRole('heading', { name: 'IP-адреса' })).toBeVisible();
+  await page.getByRole('tab', { name: 'Управление' }).click();
+  await expect(page.getByRole('heading', { name: 'IP-адреса' })).toHaveCount(0);
   await page.getByLabel('Причина изменения').fill('Запрос владельца аккаунта');
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.getByRole('tab', { name: 'Управление' })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  );
+  await expect
+    .poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth))
+    .toBe(true);
   await page.getByRole('button', { name: 'Заблокировать вход' }).click();
 
+  await page.setViewportSize({ width: 1280, height: 720 });
   await page.getByRole('button', { name: 'Безопасность', exact: true }).click();
   await page.getByRole('button', { name: 'Завершить' }).click();
   await page.getByLabel('Причина', { exact: true }).fill('Подозрительная активность');

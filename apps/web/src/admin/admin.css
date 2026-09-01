@@ -835,6 +835,53 @@
   font-weight: 700;
 }
 
+.admin-user-tabs {
+  display: flex;
+  min-width: 0;
+  gap: 2px;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--admin-line);
+  scrollbar-width: thin;
+}
+
+.admin-user-tabs button {
+  position: relative;
+  flex: 0 0 auto;
+  min-height: 38px;
+  padding: 7px 12px 9px;
+  border: 0;
+  color: #526e7f;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 750;
+  background: transparent;
+}
+
+.admin-user-tabs button:hover,
+.admin-user-tabs button:focus-visible {
+  color: var(--admin-accent);
+  background: #eef6fa;
+}
+
+.admin-user-tabs button[aria-selected='true'] {
+  color: var(--admin-accent);
+}
+
+.admin-user-tabs button[aria-selected='true']::after {
+  position: absolute;
+  right: 8px;
+  bottom: 0;
+  left: 8px;
+  height: 3px;
+  border-radius: 3px 3px 0 0;
+  background: var(--admin-accent);
+  content: '';
+}
+
+.admin-crm-tab-panel {
+  min-width: 0;
+}
+
 .admin-crm-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1678,6 +1725,18 @@
 
   .admin-crm-panel {
     padding: 0 10px 12px;
+  }
+
+  .admin-user-tabs {
+    margin-right: -10px;
+    margin-left: -10px;
+    padding: 0 4px;
+  }
+
+  .admin-user-tabs button {
+    min-height: 42px;
+    padding-right: 10px;
+    padding-left: 10px;
   }
 
   .admin-crm-facts,
