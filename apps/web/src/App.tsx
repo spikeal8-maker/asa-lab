@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { api, type ClassroomStudentSession, type SessionPayload } from './api';
 import { LoginPage } from './pages/LoginPage';
 import { MaxLinkPage } from './pages/MaxLinkPage';
@@ -23,7 +23,7 @@ import { AssignmentLibraryPage } from './pages/AssignmentLibraryPage';
 import { GalleryPage } from './pages/GalleryPage';
 import { GalleryWorkPage } from './pages/GalleryWorkPage';
 import { CollectionsPage } from './pages/CollectionsPage';
-import { AdminPage, type AdminAccessState } from './admin/AdminPage';
+import type { AdminAccessState } from './admin/AdminPage';
 import { adminApi } from './admin/admin-api';
 import {
   adminHref,
@@ -54,6 +54,10 @@ import './modules/project-hub.css';
 import './modules/classroom-hub.css';
 import './account.css';
 import './creator-portal/creator-portal.css';
+
+const AdminPage = lazy(() =>
+  import('./admin/AdminPage').then((module) => ({ default: module.AdminPage })),
+);
 
 type SessionState =
   | { kind: 'checking' }
@@ -619,14 +623,22 @@ export function App(): JSX.Element {
           onCreate={() => setShellCreating(true)}
         />
         {adminRoute ? (
-          <AdminPage
-            access={adminAccess}
-            section={adminSection ?? 'overview'}
-            onNavigate={openAdminSection}
-            onRetry={() => void loadAdminAccess()}
-            onBack={() => setView({ kind: 'home' })}
-            onAccessDenied={() => setAdminAccess({ kind: 'denied' })}
-          />
+          <Suspense
+            fallback={
+              <main className="portal-content admin-page" aria-busy="true">
+                <span className="sr-only">Загрузка администрирования</span>
+              </main>
+            }
+          >
+            <AdminPage
+              access={adminAccess}
+              section={adminSection ?? 'overview'}
+              onNavigate={openAdminSection}
+              onRetry={() => void loadAdminAccess()}
+              onBack={() => setView({ kind: 'home' })}
+              onAccessDenied={() => setAdminAccess({ kind: 'denied' })}
+            />
+          </Suspense>
         ) : (
           <>
             {/* Главная одна для всех. Учащийся видит ту же страницу, что и любой
