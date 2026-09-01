@@ -126,7 +126,7 @@ parallel_lanes:
       owner_acceptance: pending
     revisions:
       convergence_baseline_sha: 5b052dc631c7036de9d60f4206c9879fe364e732
-      head_sha: 3e2e9cc50e99af6eae4a6ae2b562f5cc42e90988
+      head_sha: aa0f4b867967636ce0cd3e82250a1d1af94d5a0c
       owner_accepted_sha: 7334d246da981221a519dcfe0e010fef722dcc8a
     execution_lease:
       executor_id: codex-electronics-docs
