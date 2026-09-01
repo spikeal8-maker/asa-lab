@@ -56,6 +56,9 @@ function controller(options: {
       if (options.directoryFailure) throw options.directoryFailure;
       return { items: [], next: null };
     }),
+    accountCrm: vi.fn(async (_access, input) => ({ accountId: input.targetAccountId })),
+    addAccountNote: vi.fn(async () => ({ id: '60000000-0000-4000-8000-000000000001' })),
+    setAccountIpLabel: vi.fn(async () => ({ id: '70000000-0000-4000-8000-000000000001' })),
     listOrganizations: vi.fn(async () => {
       if (options.directoryFailure) throw options.directoryFailure;
       return { items: [], next: null };
@@ -354,5 +357,59 @@ describe('administrative control-plane transport', () => {
       }),
     ).rejects.toMatchObject({ status: 400 });
     expect(target.controlPlane.setPlatformAdmin).not.toHaveBeenCalled();
+  });
+
+  it('validates CRM notes and IP classification before forwarding them', async () => {
+    const platformScope: ResolvedAdminAccess['scopes'][number] = {
+      kind: 'platform',
+      id: null,
+      title: 'ASA Lab',
+      role: 'platform_admin',
+      permissions: [
+        'administration.open',
+        'administration.accounts.read',
+        'administration.accounts.manage',
+        'administration.security.manage',
+      ],
+    };
+    const target = controller({ context: CONTEXT, access: access([platformScope]) });
+    const accountId = '50000000-0000-4000-8000-000000000001';
+
+    await expect(
+      target.value.accountCrm(
+        request({ asa_session: 'session' }),
+        accountId,
+        'platform',
+        undefined,
+      ),
+    ).resolves.toEqual({ accountId });
+    await expect(
+      target.value.addAccountNote(request({ asa_session: 'session' }), accountId, {
+        note: '  Связаться с классным руководителем  ',
+      }),
+    ).resolves.toEqual({ id: expect.any(String) });
+    expect(target.controlPlane.addAccountNote).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ note: 'Связаться с классным руководителем' }),
+    );
+
+    await expect(
+      target.value.setAccountIpLabel(request({ asa_session: 'session' }), accountId, {
+        ipAddress: '203.0.113.10',
+        labelKind: 'school',
+        label: 'Школа № 1',
+      }),
+    ).resolves.toEqual({ id: expect.any(String) });
+    expect(target.controlPlane.setAccountIpLabel).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ ipAddress: '203.0.113.10', labelKind: 'school' }),
+    );
+
+    await expect(
+      target.value.setAccountIpLabel(request({ asa_session: 'session' }), accountId, {
+        ipAddress: 'not-an-ip',
+        labelKind: 'school',
+      }),
+    ).rejects.toMatchObject({ status: 400 });
   });
 });

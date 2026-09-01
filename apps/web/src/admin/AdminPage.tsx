@@ -10,6 +10,7 @@ import {
 import {
   adminApi,
   type AdminAccount,
+  type AdminAccountCrm,
   type AdminApiResult,
   type AdminAuditCursor,
   type AdminAuditEvent,
@@ -20,6 +21,7 @@ import {
   type AdminProfile,
   type AdminScope,
   type AdminSecuritySession,
+  type AdminIpLabelKind,
 } from './admin-api';
 import { adminActionLabel, adminResultLabel, adminRoleLabel, adminScopeLabel } from './admin-model';
 import { AdminDashboard, IpActivitySection, VerificationMethodsSection } from './AdminDashboard';
@@ -337,7 +339,6 @@ function DirectorySection<T>({
   );
 }
 
-const loadAccounts: DirectoryLoader<AdminAccount> = (input) => adminApi.accounts(input);
 const loadOrganizations: DirectoryLoader<AdminOrganization> = (input) =>
   adminApi.organizations(input);
 const loadSecuritySessions: DirectoryLoader<AdminSecuritySession> = (input) =>
@@ -560,199 +561,696 @@ function mutationMessage(result: Extract<AdminApiResult<unknown>, { ok: false }>
   return result.error.message || 'Изменение не выполнено.';
 }
 
-function UserManagementDialog({
+type AccountSort = 'last_login' | 'name' | 'activity' | 'registered';
+type AccountCrmTab = 'overview' | 'activity' | 'security' | 'management' | 'notes';
+
+type AccountCrmState =
+  | { readonly kind: 'loading' }
+  | { readonly kind: 'error'; readonly message: string }
+  | { readonly kind: 'ready'; readonly detail: AdminAccountCrm };
+
+const IP_LABELS: readonly { readonly value: AdminIpLabelKind; readonly label: string }[] = [
+  { value: 'school', label: 'Школа' },
+  { value: 'home', label: 'Дом' },
+  { value: 'mobile', label: 'Мобильная сеть' },
+  { value: 'organization', label: 'Организация' },
+  { value: 'other', label: 'Другое' },
+];
+
+function activityEventLabel(event: AdminAccountCrm['activity'][number]): string {
+  if (event.eventType === 'auth.login') return 'Вход в аккаунт';
+  if (event.eventType === 'auth.register') return 'Регистрация';
+  if (event.eventType === 'auth.max') return 'Подтверждение через MAX';
+  if (event.eventType === 'auth.class_join') return 'Вход по коду класса';
+  if (event.eventType === 'session.observed') return 'Активная сессия';
+  if (event.eventType === 'module.opened') {
+    const modules: Readonly<Record<string, string>> = {
+      electronics: 'Электроника',
+      'three-d': '3D',
+      chess: 'Шахматы',
+      checkers: 'Шашки',
+    };
+    return `Открыт модуль «${modules[event.moduleKey ?? ''] ?? event.moduleKey ?? 'Неизвестный'}»`;
+  }
+  return event.eventType;
+}
+
+function IpLabelEditor({
+  accountId,
+  item,
+  onSaved,
+  onAccessDenied,
+}: {
+  readonly accountId: string;
+  readonly item: AdminAccountCrm['ipAddresses'][number];
+  readonly onSaved: () => void;
+  readonly onAccessDenied: () => void;
+}): JSX.Element {
+  const [kind, setKind] = useState<AdminIpLabelKind>(item.labelKind ?? 'school');
+  const [label, setLabel] = useState(item.label ?? '');
+  const [busy, setBusy] = useState(false);
+  const [failure, setFailure] = useState<string | null>(null);
+
+  const save = async (): Promise<void> => {
+    setBusy(true);
+    setFailure(null);
+    const result = await adminApi.setAccountIpLabel(accountId, {
+      ipAddress: item.address,
+      labelKind: kind,
+      label: label.trim() || null,
+    });
+    if (!result.ok) {
+      if (result.status === 401 || result.status === 403) return onAccessDenied();
+      setFailure(mutationMessage(result));
+      setBusy(false);
+      return;
+    }
+    onSaved();
+  };
+
+  return (
+    <div className="admin-crm-ip-editor">
+      <select
+        aria-label={`Тип IP ${item.address}`}
+        value={kind}
+        onChange={(event) => setKind(event.target.value as AdminIpLabelKind)}
+      >
+        {IP_LABELS.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+      <input
+        aria-label={`Название IP ${item.address}`}
+        value={label}
+        maxLength={120}
+        placeholder="Например: школа № 12"
+        onChange={(event) => setLabel(event.target.value)}
+      />
+      <button type="button" className="btn-secondary" disabled={busy} onClick={() => void save()}>
+        {busy ? 'Сохраняем…' : 'Сохранить'}
+      </button>
+      {failure ? (
+        <span className="admin-crm-field-error" role="alert">
+          {failure}
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
+function UserCrmPanel({
   account,
+  scope,
   currentAccountId,
-  onClose,
+  canManage,
   onChanged,
   onAccessDenied,
 }: {
   readonly account: AdminAccount;
+  readonly scope: AdminScope;
   readonly currentAccountId: string;
-  readonly onClose: () => void;
+  readonly canManage: boolean;
   readonly onChanged: () => void;
   readonly onAccessDenied: () => void;
 }): JSX.Element {
+  const [state, setState] = useState<AccountCrmState>({ kind: 'loading' });
+  const [version, setVersion] = useState(0);
   const [reason, setReason] = useState('');
-  const [busy, setBusy] = useState<'access' | 'role' | 'max' | null>(null);
+  const [note, setNote] = useState('');
+  const [activeTab, setActiveTab] = useState<AccountCrmTab>('overview');
+  const [busy, setBusy] = useState<'access' | 'role' | 'max' | 'note' | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
-  const [maxIdentity, setMaxIdentity] = useState<{
-    linked: boolean;
-    verifiedAt: string | null;
-    lastRevokedAt: string | null;
-  } | null>(null);
   const isSelf = account.accountId === currentAccountId;
   const reasonReady = reason.trim().length >= 3;
 
   useEffect(() => {
     let cancelled = false;
-    void adminApi.maxIdentity(account.accountId).then((result) => {
+    setState({ kind: 'loading' });
+    void adminApi.accountCrm(account.accountId, scope).then((result) => {
       if (cancelled) return;
       if (!result.ok) {
-        if (result.status === 401 || result.status === 403) onAccessDenied();
+        if (result.status === 401 || result.status === 403) return onAccessDenied();
+        setState({ kind: 'error', message: mutationMessage(result) });
         return;
       }
-      setMaxIdentity(result.data);
+      setState({ kind: 'ready', detail: result.data });
     });
     return () => {
       cancelled = true;
     };
-  }, [account.accountId, onAccessDenied]);
+  }, [account.accountId, onAccessDenied, scope, version]);
 
   const finish = (result: AdminApiResult<unknown>): void => {
     if (!result.ok) {
-      if (result.status === 401 || result.status === 403) {
-        onAccessDenied();
-        return;
-      }
+      if (result.status === 401 || result.status === 403) return onAccessDenied();
       setFailure(mutationMessage(result));
       setBusy(null);
       return;
     }
+    setReason('');
+    setBusy(null);
+    setVersion((value) => value + 1);
     onChanged();
-    onClose();
   };
 
-  const changeAccess = async (): Promise<void> => {
-    setBusy('access');
+  const addNote = async (): Promise<void> => {
+    if (!note.trim()) return;
+    setBusy('note');
     setFailure(null);
-    const status = account.status === 'active' ? 'suspended' : 'active';
-    finish(await adminApi.setAccountStatus(account.accountId, { status, reason: reason.trim() }));
+    const result = await adminApi.addAccountNote(account.accountId, note.trim());
+    if (!result.ok) return finish(result);
+    setNote('');
+    finish(result);
   };
 
-  const changeRole = async (): Promise<void> => {
-    setBusy('role');
-    setFailure(null);
-    finish(
-      await adminApi.setPlatformAdmin(account.accountId, {
-        enabled: !account.isPlatformAdmin,
-        reason: reason.trim(),
-      }),
+  if (state.kind === 'loading') {
+    return (
+      <div className="admin-crm-loading" aria-busy="true">
+        <span className="admin-loading-mark" />
+        <span>Загружаем карточку…</span>
+      </div>
     );
-  };
-
-  const revokeMax = async (): Promise<void> => {
-    setBusy('max');
-    setFailure(null);
-    finish(
-      await adminApi.revokeMaxIdentity(account.accountId, {
-        reason: reason.trim(),
-      }),
+  }
+  if (state.kind === 'error') {
+    return (
+      <div className="admin-inline-error" role="alert">
+        {state.message}
+      </div>
     );
+  }
+
+  const detail = state.detail;
+  return (
+    <div className="admin-crm-panel">
+      <dl className="admin-crm-facts">
+        <div>
+          <dt>Регистрация</dt>
+          <dd>{dateTime(detail.createdAt)}</dd>
+        </div>
+        <div>
+          <dt>Первый вход</dt>
+          <dd>{dateTime(detail.firstAuthenticatedAt)}</dd>
+        </div>
+        <div>
+          <dt>Почта</dt>
+          <dd>
+            {detail.email} · {statusLabel(detail.emailVerificationState)}
+          </dd>
+        </div>
+        <div>
+          <dt>MAX</dt>
+          <dd>
+            {detail.max.linked ? `Подключён · ${dateTime(detail.max.verifiedAt)}` : 'Не подключён'}
+          </dd>
+        </div>
+      </dl>
+
+      <div className="admin-user-tabs" role="tablist" aria-label="Карточка пользователя">
+        <button
+          type="button"
+          role="tab"
+          id={`admin-user-${account.accountId}-tab-overview`}
+          aria-controls={`admin-user-${account.accountId}-panel-overview`}
+          aria-selected={activeTab === 'overview'}
+          onClick={() => setActiveTab('overview')}
+        >
+          Обзор
+        </button>
+        <button
+          type="button"
+          role="tab"
+          id={`admin-user-${account.accountId}-tab-activity`}
+          aria-controls={`admin-user-${account.accountId}-panel-activity`}
+          aria-selected={activeTab === 'activity'}
+          onClick={() => setActiveTab('activity')}
+        >
+          Активность
+        </button>
+        <button
+          type="button"
+          role="tab"
+          id={`admin-user-${account.accountId}-tab-security`}
+          aria-controls={`admin-user-${account.accountId}-panel-security`}
+          aria-selected={activeTab === 'security'}
+          onClick={() => setActiveTab('security')}
+        >
+          Безопасность
+        </button>
+        {canManage ? (
+          <button
+            type="button"
+            role="tab"
+            id={`admin-user-${account.accountId}-tab-management`}
+            aria-controls={`admin-user-${account.accountId}-panel-management`}
+            aria-selected={activeTab === 'management'}
+            onClick={() => setActiveTab('management')}
+          >
+            Управление
+          </button>
+        ) : null}
+        <button
+          type="button"
+          role="tab"
+          id={`admin-user-${account.accountId}-tab-notes`}
+          aria-controls={`admin-user-${account.accountId}-panel-notes`}
+          aria-selected={activeTab === 'notes'}
+          onClick={() => setActiveTab('notes')}
+        >
+          Заметки
+        </button>
+      </div>
+
+      {activeTab === 'overview' ? (
+        <div
+          className="admin-crm-tab-panel admin-crm-grid"
+          role="tabpanel"
+          id={`admin-user-${account.accountId}-panel-overview`}
+          aria-labelledby={`admin-user-${account.accountId}-tab-overview`}
+        >
+          <section className="admin-crm-card">
+            <h3>Организации</h3>
+            {detail.organizations.length ? (
+              <ul>
+                {detail.organizations.map((organization) => (
+                  <li key={organization.workspaceId}>
+                    <strong>{organization.title}</strong>
+                    <span>
+                      {adminRoleLabel(organization.role)} · {statusLabel(organization.state)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p>Не состоит в организации.</p>
+            )}
+          </section>
+
+          <section className="admin-crm-card">
+            <h3>Сессии и устройства</h3>
+            {detail.sessions.length ? (
+              <ul>
+                {detail.sessions.slice(0, 8).map((session) => (
+                  <li key={session.sessionId}>
+                    <strong>{session.device ?? 'Устройство не определено'}</strong>
+                    <span>
+                      {session.workspaceTitle} · {dateTime(session.lastSeenAt)} ·{' '}
+                      {statusLabel(session.status)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p>Входов ещё не было.</p>
+            )}
+          </section>
+        </div>
+      ) : null}
+
+      {activeTab === 'activity' ? (
+        <section
+          className="admin-crm-card admin-crm-tab-panel"
+          role="tabpanel"
+          id={`admin-user-${account.accountId}-panel-activity`}
+          aria-labelledby={`admin-user-${account.accountId}-tab-activity`}
+        >
+          <h3>Последние действия</h3>
+          {detail.activity.length ? (
+            <ol className="admin-crm-timeline">
+              {detail.activity.slice(0, 20).map((event) => (
+                <li key={event.id}>
+                  <strong>{activityEventLabel(event)}</strong>
+                  <span>
+                    {dateTime(event.occurredAt)}
+                    {event.ipAddress ? ` · ${event.ipAddress}` : ''}
+                  </span>
+                </li>
+              ))}
+            </ol>
+          ) : (
+            <p>Событий пока нет.</p>
+          )}
+        </section>
+      ) : null}
+
+      {activeTab === 'security' ? (
+        <section
+          className="admin-crm-card admin-crm-wide admin-crm-tab-panel"
+          role="tabpanel"
+          id={`admin-user-${account.accountId}-panel-security`}
+          aria-labelledby={`admin-user-${account.accountId}-tab-security`}
+        >
+          <h3>IP-адреса</h3>
+          {detail.ipAddresses.length ? (
+            <div className="admin-crm-ip-list">
+              {detail.ipAddresses.map((item) => (
+                <article key={item.address}>
+                  <div>
+                    <strong>{item.address}</strong>
+                    <span>
+                      {item.device ?? 'Устройство не определено'} · последний раз{' '}
+                      {dateTime(item.lastSeenAt)} · событий: {item.eventCount}
+                    </span>
+                  </div>
+                  {canManage ? (
+                    <IpLabelEditor
+                      accountId={account.accountId}
+                      item={item}
+                      onSaved={() => setVersion((value) => value + 1)}
+                      onAccessDenied={onAccessDenied}
+                    />
+                  ) : item.labelKind ? (
+                    <span className="admin-state-chip">
+                      {IP_LABELS.find((entry) => entry.value === item.labelKind)?.label}
+                      {item.label ? ` · ${item.label}` : ''}
+                    </span>
+                  ) : null}
+                </article>
+              ))}
+            </div>
+          ) : (
+            <p>IP ещё не зафиксированы.</p>
+          )}
+        </section>
+      ) : null}
+
+      {canManage && activeTab === 'management' ? (
+        <section
+          className="admin-crm-card admin-crm-access admin-crm-tab-panel"
+          role="tabpanel"
+          id={`admin-user-${account.accountId}-panel-management`}
+          aria-labelledby={`admin-user-${account.accountId}-tab-management`}
+        >
+          <h3>Доступ</h3>
+          <label className="admin-reason-field">
+            <span>Причина изменения</span>
+            <textarea
+              value={reason}
+              maxLength={500}
+              rows={2}
+              placeholder="Причина попадёт в журнал действий"
+              onChange={(event) => setReason(event.target.value)}
+            />
+          </label>
+          {isSelf ? (
+            <p className="admin-dialog-note">Собственный доступ и роль нельзя отозвать.</p>
+          ) : null}
+          {failure ? (
+            <p className="admin-inline-error" role="alert">
+              {failure}
+            </p>
+          ) : null}
+          <div className="admin-dialog-actions">
+            <button
+              type="button"
+              className="btn-secondary"
+              disabled={!reasonReady || busy !== null || (isSelf && account.isPlatformAdmin)}
+              onClick={() => {
+                setBusy('role');
+                setFailure(null);
+                void adminApi
+                  .setPlatformAdmin(account.accountId, {
+                    enabled: !account.isPlatformAdmin,
+                    reason: reason.trim(),
+                  })
+                  .then(finish);
+              }}
+            >
+              {busy === 'role'
+                ? 'Сохраняем…'
+                : account.isPlatformAdmin
+                  ? 'Снять роль администратора'
+                  : 'Назначить администратором'}
+            </button>
+            <button
+              type="button"
+              className="admin-danger-button"
+              disabled={!reasonReady || busy !== null || !detail.max.linked}
+              onClick={() => {
+                setBusy('max');
+                setFailure(null);
+                void adminApi
+                  .revokeMaxIdentity(account.accountId, { reason: reason.trim() })
+                  .then(finish);
+              }}
+            >
+              {busy === 'max' ? 'Отключаем…' : 'Отозвать MAX'}
+            </button>
+            <button
+              type="button"
+              className={account.status === 'active' ? 'admin-danger-button' : 'btn-primary'}
+              disabled={!reasonReady || busy !== null || (isSelf && account.status === 'active')}
+              onClick={() => {
+                setBusy('access');
+                setFailure(null);
+                void adminApi
+                  .setAccountStatus(account.accountId, {
+                    status: account.status === 'active' ? 'suspended' : 'active',
+                    reason: reason.trim(),
+                  })
+                  .then(finish);
+              }}
+            >
+              {busy === 'access'
+                ? 'Сохраняем…'
+                : account.status === 'active'
+                  ? 'Заблокировать вход'
+                  : 'Разрешить вход'}
+            </button>
+          </div>
+        </section>
+      ) : null}
+
+      {activeTab === 'notes' ? (
+        <section
+          className="admin-crm-card admin-crm-tab-panel"
+          role="tabpanel"
+          id={`admin-user-${account.accountId}-panel-notes`}
+          aria-labelledby={`admin-user-${account.accountId}-tab-notes`}
+        >
+          <h3>Комментарии</h3>
+          {canManage ? (
+            <div className="admin-crm-note-form">
+              <textarea
+                value={note}
+                maxLength={2000}
+                rows={3}
+                placeholder="Добавить внутренний комментарий"
+                onChange={(event) => setNote(event.target.value)}
+              />
+              <button
+                type="button"
+                className="btn-secondary"
+                disabled={!note.trim() || busy !== null}
+                onClick={() => void addNote()}
+              >
+                {busy === 'note' ? 'Добавляем…' : 'Добавить'}
+              </button>
+            </div>
+          ) : null}
+          {detail.notes.length ? (
+            <ol className="admin-crm-notes">
+              {detail.notes.map((item) => (
+                <li key={item.id}>
+                  <p>{item.note}</p>
+                  <span>
+                    {item.authorDisplayName} · {dateTime(item.createdAt)}
+                  </span>
+                </li>
+              ))}
+            </ol>
+          ) : (
+            <p>Комментариев пока нет.</p>
+          )}
+        </section>
+      ) : null}
+    </div>
+  );
+}
+
+function AccountsCrmSection({
+  scope,
+  currentAccountId,
+  canManage,
+  version,
+  onChanged,
+  onAccessDenied,
+}: {
+  readonly scope: AdminScope;
+  readonly currentAccountId: string;
+  readonly canManage: boolean;
+  readonly version: number;
+  readonly onChanged: () => void;
+  readonly onAccessDenied: () => void;
+}): JSX.Element {
+  const [query, setQuery] = useState('');
+  const [search, setSearch] = useState('');
+  const [sort, setSort] = useState<AccountSort>('last_login');
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [state, setState] = useState<DirectoryState<AdminAccount>>({ kind: 'loading' });
+
+  useEffect(() => {
+    let cancelled = false;
+    setState({ kind: 'loading' });
+    void adminApi.accounts({ scope, search, limit: 200 }).then((result) => {
+      if (cancelled) return;
+      if (!result.ok) {
+        if (result.status === 401 || result.status === 403) return onAccessDenied();
+        setState({ kind: 'error', message: mutationMessage(result) });
+        return;
+      }
+      setState({
+        kind: 'ready',
+        items: result.data.items,
+        next: result.data.next,
+        loadingMore: false,
+        moreError: null,
+      });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [onAccessDenied, scope, search, version]);
+
+  const items = useMemo(() => {
+    if (state.kind !== 'ready') return [];
+    const next = [...state.items];
+    const time = (value: string | null): number => (value ? Date.parse(value) : 0);
+    next.sort((left, right) => {
+      if (sort === 'name') return left.displayName.localeCompare(right.displayName, 'ru');
+      if (sort === 'activity')
+        return (
+          right.recentActivityCount - left.recentActivityCount ||
+          time(right.lastSeenAt) - time(left.lastSeenAt)
+        );
+      if (sort === 'registered') return time(right.createdAt) - time(left.createdAt);
+      return time(right.lastSeenAt) - time(left.lastSeenAt);
+    });
+    return next;
+  }, [sort, state]);
+
+  const submit = (event: FormEvent<HTMLFormElement>): void => {
+    event.preventDefault();
+    setSearch(query.trim());
+    setExpandedId(null);
   };
 
   return (
-    <div className="admin-dialog-backdrop" role="presentation" onMouseDown={onClose}>
-      <section
-        className="admin-dialog"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="admin-user-dialog-title"
-        onMouseDown={(event) => event.stopPropagation()}
-      >
-        <div className="admin-dialog-heading">
-          <div>
-            <span>Управление пользователем</span>
-            <h2 id="admin-user-dialog-title">{account.displayName}</h2>
-            <p>{account.email}</p>
-          </div>
-          <button
-            type="button"
-            className="admin-icon-button"
-            aria-label="Закрыть"
-            onClick={onClose}
-          >
-            ×
-          </button>
-        </div>
-
-        <dl className="admin-user-summary">
-          <div>
-            <dt>Доступ</dt>
-            <dd>{accountAccessLabel(account.status)}</dd>
-          </div>
-          <div>
-            <dt>Активность</dt>
-            <dd>{accountActivityLabel(account)}</dd>
-          </div>
-          <div>
-            <dt>Роль</dt>
-            <dd>{account.isPlatformAdmin ? 'Администратор' : 'Пользователь'}</dd>
-          </div>
-          <div>
-            <dt>MAX</dt>
-            <dd>
-              {maxIdentity?.linked
-                ? `Подключён${maxIdentity.verifiedAt ? ` · ${dateTime(maxIdentity.verifiedAt)}` : ''}`
-                : maxIdentity?.lastRevokedAt
-                  ? `Отключён · ${dateTime(maxIdentity.lastRevokedAt)}`
-                  : 'Не подключён'}
-            </dd>
-          </div>
-        </dl>
-
-        <label className="admin-reason-field">
-          <span>Причина изменения</span>
-          <textarea
-            value={reason}
-            maxLength={500}
-            rows={3}
-            placeholder="Например: обращение пользователя или смена ответственного"
-            onChange={(event) => setReason(event.target.value)}
+    <section className="admin-users-crm" aria-labelledby="admin-users-title">
+      <div className="admin-users-toolbar">
+        <h2 id="admin-users-title">Пользователи</h2>
+        <form onSubmit={submit}>
+          <input
+            type="search"
+            value={query}
+            maxLength={100}
+            placeholder="Имя, логин или почта"
+            aria-label="Поиск пользователей"
+            onChange={(event) => setQuery(event.target.value)}
           />
-          <small>Минимум 3 символа. Причина попадёт в историю действий.</small>
+          <button type="submit" className="btn-secondary">
+            Найти
+          </button>
+        </form>
+        <label>
+          <span className="sr-only">Сортировка</span>
+          <select value={sort} onChange={(event) => setSort(event.target.value as AccountSort)}>
+            <option value="last_login">Последний вход</option>
+            <option value="name">По имени</option>
+            <option value="activity">По активности</option>
+            <option value="registered">По регистрации</option>
+          </select>
         </label>
-
-        {isSelf ? (
-          <p className="admin-dialog-note">
-            Собственный доступ и роль нельзя отозвать из этой формы.
-          </p>
-        ) : null}
-        {failure ? (
-          <p className="admin-inline-error" role="alert">
-            {failure}
-          </p>
-        ) : null}
-
-        <div className="admin-dialog-actions">
-          <button type="button" className="btn-secondary" onClick={onClose}>
-            Отмена
-          </button>
-          <button
-            type="button"
-            className="btn-secondary"
-            disabled={!reasonReady || busy !== null || (isSelf && account.isPlatformAdmin)}
-            onClick={() => void changeRole()}
-          >
-            {busy === 'role'
-              ? 'Сохраняем…'
-              : account.isPlatformAdmin
-                ? 'Снять роль администратора'
-                : 'Назначить администратором'}
-          </button>
-          <button
-            type="button"
-            className="admin-danger-button"
-            disabled={!reasonReady || busy !== null || !maxIdentity?.linked}
-            onClick={() => void revokeMax()}
-          >
-            {busy === 'max' ? 'Отключаем…' : 'Отозвать MAX'}
-          </button>
-          <button
-            type="button"
-            className={account.status === 'active' ? 'admin-danger-button' : 'btn-primary'}
-            disabled={!reasonReady || busy !== null || (isSelf && account.status === 'active')}
-            onClick={() => void changeAccess()}
-          >
-            {busy === 'access'
-              ? 'Сохраняем…'
-              : account.status === 'active'
-                ? 'Заблокировать вход'
-                : 'Разрешить вход'}
-          </button>
+      </div>
+      {state.kind === 'loading' ? (
+        <div className="admin-crm-loading" aria-busy="true">
+          <span className="admin-loading-mark" />
+          <span>Загружаем пользователей…</span>
         </div>
-      </section>
-    </div>
+      ) : null}
+      {state.kind === 'error' ? (
+        <div className="admin-inline-error" role="alert">
+          {state.message}
+        </div>
+      ) : null}
+      {state.kind === 'ready' && items.length === 0 ? (
+        <div className="admin-audit-state">
+          <strong>Пользователи не найдены</strong>
+        </div>
+      ) : null}
+      {items.length ? (
+        <div className="admin-user-list" role="list">
+          {items.map((account) => {
+            const expanded = expandedId === account.accountId;
+            return (
+              <article
+                key={account.accountId}
+                className={`admin-user-item${expanded ? ' expanded' : ''}`}
+                role="listitem"
+              >
+                <button
+                  type="button"
+                  className="admin-user-row"
+                  aria-expanded={expanded}
+                  aria-controls={`admin-user-${account.accountId}`}
+                  onClick={() => setExpandedId(expanded ? null : account.accountId)}
+                >
+                  <span className="admin-user-identity">
+                    <strong>{account.displayName}</strong>
+                    <small>
+                      @{account.username} · {account.email}
+                    </small>
+                  </span>
+                  <span>
+                    <small>Откуда</small>
+                    <strong>{account.lastIpAddress ?? 'IP не зафиксирован'}</strong>
+                    <small>{account.lastDevice ?? scope.title}</small>
+                  </span>
+                  <span>
+                    <small>Активность</small>
+                    <strong>{accountActivityLabel(account)}</strong>
+                    <small>Событий за 30 дней: {account.recentActivityCount}</small>
+                  </span>
+                  <span>
+                    <small>Доступ</small>
+                    <strong>{accountAccessLabel(account.status)}</strong>
+                    <small>
+                      {account.isPlatformAdmin
+                        ? 'Администратор'
+                        : account.organizationRole
+                          ? adminRoleLabel(account.organizationRole)
+                          : 'Пользователь'}
+                      {account.accountId === currentAccountId ? ' · Вы' : ''}
+                    </small>
+                  </span>
+                  <span className="admin-user-chevron" aria-hidden="true">
+                    ⌄
+                  </span>
+                </button>
+                {expanded ? (
+                  <div id={`admin-user-${account.accountId}`}>
+                    <UserCrmPanel
+                      account={account}
+                      scope={scope}
+                      currentAccountId={currentAccountId}
+                      canManage={canManage}
+                      onChanged={onChanged}
+                      onAccessDenied={onAccessDenied}
+                    />
+                  </div>
+                ) : null}
+              </article>
+            );
+          })}
+        </div>
+      ) : null}
+      {state.kind === 'ready' && state.next ? (
+        <p className="admin-crm-limit-note">
+          Показаны первые 200 записей. Уточните поиск, чтобы найти более раннюю регистрацию.
+        </p>
+      ) : null}
+    </section>
   );
 }
 
@@ -916,7 +1414,6 @@ function AdminWorkspace({
   const [audit, setAudit] = useState<AuditState>({ kind: 'idle' });
   const [auditMode, setAuditMode] = useState<'important' | 'all'>('important');
   const [filter, setFilter] = useState('');
-  const [selectedAccount, setSelectedAccount] = useState<AdminAccount | null>(null);
   const [selectedSession, setSelectedSession] = useState<AdminSecuritySession | null>(null);
   const [accountsVersion, setAccountsVersion] = useState(0);
   const [sessionsVersion, setSessionsVersion] = useState(0);
@@ -1214,74 +1711,14 @@ function AdminWorkspace({
           ) : null}
         </section>
       ) : visibleSection === 'accounts' ? (
-        <DirectorySection
-          key={`accounts:${selectedScopeKey}:${accountsVersion}`}
+        <AccountsCrmSection
+          key={`accounts:${selectedScopeKey}`}
           scope={selectedScope}
-          title="Пользователи"
-          description="Управление доступом и ролями. «Вход разрешён» не означает, что человек сейчас онлайн."
-          searchPlaceholder="Имя, логин или почта"
-          emptyMessage="Пользователей в этой области пока нет"
-          privacyNote="Тестовые и демонстрационные аккаунты тоже являются записями базы. Активность показывается отдельно по реальным сессиям входа."
-          loader={loadAccounts}
-          rowKey={(item) => item.accountId}
+          currentAccountId={profile.accountId}
+          canManage={canManageAccounts}
+          version={accountsVersion}
+          onChanged={() => setAccountsVersion((value) => value + 1)}
           onAccessDenied={onAccessDenied}
-          header={
-            <tr>
-              <th scope="col">Пользователь</th>
-              <th scope="col">Доступ</th>
-              <th scope="col">Активность</th>
-              <th scope="col">Роль</th>
-              {canManageAccounts ? (
-                <th scope="col">
-                  <span className="sr-only">Действия</span>
-                </th>
-              ) : null}
-            </tr>
-          }
-          row={(item) => (
-            <tr>
-              <td>
-                <strong>{item.displayName}</strong>
-                <span className="admin-table-secondary">@{item.username}</span>
-                <span className="admin-table-secondary">{item.email}</span>
-                {item.accountId === profile.accountId ? (
-                  <span className="admin-you-chip">Вы</span>
-                ) : null}
-              </td>
-              <td>
-                <span className={`admin-state-chip admin-state-chip-${item.status}`}>
-                  {accountAccessLabel(item.status)}
-                </span>
-                <span className="admin-table-secondary">
-                  Почта: {statusLabel(item.emailVerificationState)}
-                </span>
-              </td>
-              <td>{accountActivityLabel(item)}</td>
-              <td>
-                {item.isPlatformAdmin
-                  ? 'Администратор'
-                  : item.organizationRole
-                    ? adminRoleLabel(item.organizationRole)
-                    : 'Пользователь'}
-                {item.membershipState ? (
-                  <span className="admin-table-secondary">
-                    Участие: {statusLabel(item.membershipState)}
-                  </span>
-                ) : null}
-              </td>
-              {canManageAccounts ? (
-                <td>
-                  <button
-                    type="button"
-                    className="admin-row-action"
-                    onClick={() => setSelectedAccount(item)}
-                  >
-                    Управлять
-                  </button>
-                </td>
-              ) : null}
-            </tr>
-          )}
         />
       ) : visibleSection === 'organizations' ? (
         <DirectorySection
@@ -1389,15 +1826,6 @@ function AdminWorkspace({
         </>
       ) : null}
 
-      {selectedAccount ? (
-        <UserManagementDialog
-          account={selectedAccount}
-          currentAccountId={profile.accountId}
-          onClose={() => setSelectedAccount(null)}
-          onChanged={() => setAccountsVersion((value) => value + 1)}
-          onAccessDenied={onAccessDenied}
-        />
-      ) : null}
       {selectedSession ? (
         <SessionRevokeDialog
           session={selectedSession}

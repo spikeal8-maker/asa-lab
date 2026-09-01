@@ -179,11 +179,46 @@ async function mockAuthenticatedAdmin(page: Page, permissions: string[]): Promis
           lastSeenAt: '2026-08-21T17:00:00.000Z',
           hasEverSignedIn: true,
           isPlatformAdmin: false,
+          lastIpAddress: '203.0.113.10',
+          lastDevice: 'Chrome 140 · Windows 11',
+          recentActivityCount: 8,
         },
       ],
       next: null,
     });
   });
+  await page.route('**/api/admin/v1/accounts/*/crm?**', (route) =>
+    json(route, {
+      accountId: ACCOUNT_ID,
+      email: 'admin@example.test',
+      displayName: 'Администратор',
+      username: 'school_admin',
+      status: 'active',
+      emailVerificationState: 'verified',
+      createdAt: '2026-08-20T10:00:00.000Z',
+      firstAuthenticatedAt: '2026-08-20T10:05:00.000Z',
+      organizations: [
+        { workspaceId: ORGANIZATION_ID, title: 'Школа № 1', role: 'school_admin', state: 'active' },
+      ],
+      sessions: [
+        {
+          sessionId: '40000000-0000-4000-8000-000000000001',
+          workspaceId: ORGANIZATION_ID,
+          workspaceTitle: 'Школа № 1',
+          createdAt: '2026-08-21T16:00:00.000Z',
+          lastSeenAt: '2026-08-21T17:00:00.000Z',
+          expiresAt: '2026-08-22T16:00:00.000Z',
+          revokedAt: null,
+          status: 'active',
+          device: 'Chrome 140 · Windows 11',
+        },
+      ],
+      activity: [],
+      ipAddresses: [],
+      notes: [],
+      max: { linked: false, verifiedAt: null },
+    }),
+  );
   await page.route('**/api/admin/v1/organizations?**', async (route) => {
     directoryRequests.push(route.request().url());
     await json(route, {
@@ -282,10 +317,12 @@ test('administrator can inspect real scoped directory sections without secret fi
 
   await page.getByRole('button', { name: 'Пользователи', exact: true }).click();
   await expect(page).toHaveURL(/#\/admin\/users$/);
-  await expect(page.getByRole('cell', { name: /Администратор/ }).first()).toContainText(
-    'admin@example.test',
-  );
-  await expect(page.getByText('Почта: Подтверждена')).toBeVisible();
+  const userRow = page.getByRole('button', { name: /Администратор.*admin@example\.test/ });
+  await expect(userRow).toContainText('203.0.113.10');
+  await userRow.click();
+  const organizationCard = page.getByRole('heading', { name: 'Организации' }).locator('..');
+  await expect(organizationCard).toBeVisible();
+  await expect(organizationCard.getByText('Школа № 1', { exact: true })).toBeVisible();
 
   await page.getByRole('button', { name: 'Организации', exact: true }).click();
   await expect(page).toHaveURL(/#\/admin\/organizations$/);
@@ -455,9 +492,63 @@ test('platform administrator can manage a user and revoke a foreign session with
           lastSeenAt: '2026-08-21T17:00:00.000Z',
           hasEverSignedIn: true,
           isPlatformAdmin: false,
+          lastIpAddress: '203.0.113.44',
+          lastDevice: 'Chrome · Windows',
+          recentActivityCount: 4,
         },
       ],
       next: null,
+    }),
+  );
+  await page.route('**/api/admin/v1/accounts/*/crm?**', (route) =>
+    json(route, {
+      accountId: TARGET_ACCOUNT_ID,
+      email: 'learner@example.test',
+      displayName: 'Тестовый ученик',
+      username: 'learner',
+      status: 'active',
+      emailVerificationState: 'unverified',
+      createdAt: '2026-08-20T10:00:00.000Z',
+      firstAuthenticatedAt: '2026-08-20T10:05:00.000Z',
+      organizations: [],
+      sessions: [
+        {
+          sessionId: '40000000-0000-4000-8000-000000000002',
+          workspaceId: ORGANIZATION_ID,
+          workspaceTitle: 'Школа № 1',
+          createdAt: '2026-08-21T16:00:00.000Z',
+          lastSeenAt: '2026-08-21T17:00:00.000Z',
+          expiresAt: '2026-08-22T16:00:00.000Z',
+          revokedAt: null,
+          status: 'active',
+          device: 'Chrome · Windows',
+        },
+      ],
+      activity: [
+        {
+          id: 1,
+          occurredAt: '2026-08-21T17:00:00.000Z',
+          eventType: 'auth.login',
+          outcome: 'succeeded',
+          authMethod: 'password',
+          moduleKey: null,
+          ipAddress: '203.0.113.44',
+          device: 'Chrome · Windows',
+        },
+      ],
+      ipAddresses: [
+        {
+          address: '203.0.113.44',
+          firstSeenAt: '2026-08-20T10:05:00.000Z',
+          lastSeenAt: '2026-08-21T17:00:00.000Z',
+          eventCount: 4,
+          device: 'Chrome · Windows',
+          labelKind: null,
+          label: null,
+        },
+      ],
+      notes: [],
+      max: { linked: false, verifiedAt: null },
     }),
   );
   await page.route('**/api/admin/v1/accounts/*/status', async (route) => {
@@ -499,10 +590,27 @@ test('platform administrator can manage a user and revoke a foreign session with
   await expect(page.getByRole('button', { name: 'Вернуться в ASA Lab' })).toHaveCount(0);
   await expect(page).toHaveURL(/#\/admin\/users$/);
   await expect(page.getByText('Действующих входов: 1')).toBeVisible();
-  await page.getByRole('button', { name: 'Управлять' }).click();
+  await expect(page.getByRole('button', { name: 'Управлять' })).toHaveCount(0);
+  await page.getByRole('button', { name: /Тестовый ученик.*learner@example\.test/ }).click();
+  await expect(page.getByRole('tab', { name: 'Обзор' })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('tab', { name: 'Управление' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Доступ' })).toHaveCount(0);
+  await page.getByRole('tab', { name: 'Безопасность' }).click();
+  await expect(page.getByRole('heading', { name: 'IP-адреса' })).toBeVisible();
+  await page.getByRole('tab', { name: 'Управление' }).click();
+  await expect(page.getByRole('heading', { name: 'IP-адреса' })).toHaveCount(0);
   await page.getByLabel('Причина изменения').fill('Запрос владельца аккаунта');
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.getByRole('tab', { name: 'Управление' })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  );
+  await expect
+    .poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth))
+    .toBe(true);
   await page.getByRole('button', { name: 'Заблокировать вход' }).click();
 
+  await page.setViewportSize({ width: 1280, height: 720 });
   await page.getByRole('button', { name: 'Безопасность', exact: true }).click();
   await page.getByRole('button', { name: 'Завершить' }).click();
   await page.getByLabel('Причина', { exact: true }).fill('Подозрительная активность');

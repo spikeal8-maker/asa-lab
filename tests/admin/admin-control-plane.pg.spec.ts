@@ -248,6 +248,91 @@ describe('Administrative Control Plane PostgreSQL isolation', () => {
     expect(result.rows.length).toBeGreaterThan(1);
   });
 
+  it('serves a scoped CRM card and persists audited notes and explicit IP labels', async () => {
+    const ownCard = await inject(app, {
+      method: 'GET',
+      url: `/api/admin/v1/accounts/${schoolAdmin.accountId}/crm?scopeKind=organization&scopeId=${schoolAdmin.workspaceId}`,
+      cookies: { asa_session: schoolAdmin.token },
+    });
+    expect(ownCard.statusCode).toBe(200);
+    expect(ownCard.json()).toMatchObject({
+      accountId: schoolAdmin.accountId,
+      organizations: [expect.objectContaining({ workspaceId: schoolAdmin.workspaceId })],
+      notes: [],
+    });
+    expect(ownCard.json()).not.toHaveProperty('passwordHash');
+    expect(ownCard.json()).not.toHaveProperty('tokenHash');
+
+    const foreignCard = await inject(app, {
+      method: 'GET',
+      url: `/api/admin/v1/accounts/${otherSchoolAdmin.accountId}/crm?scopeKind=organization&scopeId=${schoolAdmin.workspaceId}`,
+      cookies: { asa_session: schoolAdmin.token },
+    });
+    expect(foreignCard.statusCode).toBe(403);
+
+    await runtime.query(
+      `SELECT analytics_record_event(
+         'account',$1,$2,NULL,$3,'session.observed','succeeded',NULL,NULL,NULL,
+         '198.51.100.24'::inet,'CRM test browser'
+       )`,
+      [schoolAdmin.accountId, schoolAdmin.principalId, schoolAdmin.workspaceId],
+    );
+
+    const note = await inject(app, {
+      method: 'POST',
+      url: `/api/admin/v1/accounts/${schoolAdmin.accountId}/notes`,
+      cookies: { asa_session: platformAdmin.token },
+      body: { note: 'Ответственный классный руководитель — Ирина.' },
+    });
+    expect(note.statusCode).toBe(201);
+    expect(note.json()).toEqual({ id: expect.any(String) });
+
+    const label = await inject(app, {
+      method: 'POST',
+      url: `/api/admin/v1/accounts/${schoolAdmin.accountId}/ip-labels`,
+      cookies: { asa_session: platformAdmin.token },
+      body: {
+        ipAddress: '198.51.100.24',
+        labelKind: 'school',
+        label: 'Школа № 1',
+      },
+    });
+    expect(label.statusCode).toBe(200);
+    expect(label.json()).toEqual({ id: expect.any(String) });
+
+    const platformCard = await inject(app, {
+      method: 'GET',
+      url: `/api/admin/v1/accounts/${schoolAdmin.accountId}/crm?scopeKind=platform`,
+      cookies: { asa_session: platformAdmin.token },
+    });
+    expect(platformCard.statusCode).toBe(200);
+    expect(platformCard.json()).toMatchObject({
+      notes: [
+        expect.objectContaining({
+          note: 'Ответственный классный руководитель — Ирина.',
+          authorDisplayName: expect.any(String),
+        }),
+      ],
+      ipAddresses: expect.arrayContaining([
+        expect.objectContaining({
+          address: '198.51.100.24',
+          labelKind: 'school',
+          label: 'Школа № 1',
+        }),
+      ]),
+    });
+
+    const audit = await admin.query<{ action: string }>(
+      `SELECT action FROM administrative_audit_events
+        WHERE actor_principal_id = $1
+          AND action IN ('administration.account.note.add', 'administration.ip.label.set')`,
+      [platformAdmin.principalId],
+    );
+    expect(audit.rows.map((row) => row.action)).toEqual(
+      expect.arrayContaining(['administration.account.note.add', 'administration.ip.label.set']),
+    );
+  });
+
   it('returns only the selected organization account directory and no secrets', async () => {
     const own = await inject(app, {
       method: 'GET',
@@ -711,6 +796,12 @@ describe('Administrative Control Plane PostgreSQL isolation', () => {
         code: '42501',
       },
     );
+    await expect(
+      runtime.query(`SELECT note FROM admin_account_notes LIMIT 1`),
+    ).rejects.toMatchObject({ code: '42501' });
+    await expect(
+      runtime.query(`SELECT ip_address FROM admin_ip_labels LIMIT 1`),
+    ).rejects.toMatchObject({ code: '42501' });
     await expect(
       runtime.query(`SELECT admin_authorized_role($1, 'organization', $2)`, [
         schoolAdmin.principalId,
