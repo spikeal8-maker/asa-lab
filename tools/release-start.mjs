@@ -18,8 +18,18 @@ if (new Set([3000, 3100, 5173]).has(port)) {
   console.error(`ASA_API_PORT=${port} is forbidden by LOCAL_PORT_POLICY`);
   process.exit(78);
 }
-if (!process.env.APP_DATABASE_URL || !process.env.ASA_OWNER_ADMIN_EMAIL?.trim()) {
-  console.error('APP_DATABASE_URL and ASA_OWNER_ADMIN_EMAIL are required.');
+const settingsKey = process.env.ASA_SETTINGS_ENCRYPTION_KEY?.trim() ?? '';
+const settingsKeyValid =
+  /^[a-fA-F0-9]{64}$/.test(settingsKey) ||
+  (/^[A-Za-z0-9_-]{43}$/.test(settingsKey) && Buffer.from(settingsKey, 'base64url').length === 32);
+if (
+  !process.env.APP_DATABASE_URL ||
+  !process.env.ASA_OWNER_ADMIN_EMAIL?.trim() ||
+  !settingsKeyValid
+) {
+  console.error(
+    'APP_DATABASE_URL, ASA_OWNER_ADMIN_EMAIL and a 32-byte ASA_SETTINGS_ENCRYPTION_KEY are required.',
+  );
   process.exit(78);
 }
 

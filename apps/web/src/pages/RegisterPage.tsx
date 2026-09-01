@@ -83,75 +83,90 @@ export function RegisterPage({
 
   return (
     <div className="page-center">
-      <main className="login-card" aria-busy={busy}>
+      <main className="login-card auth-register-card" aria-busy={busy}>
         <button type="button" className="btn-ghost entry-back" onClick={onBackToLogin}>
           ← К входу
         </button>
         <AuthHomeBrand onHome={onHome} />
-        <p className="subtitle">Создание аккаунта</p>
-        <form onSubmit={(event) => void submit(event)} noValidate>
-          <label htmlFor="register-email">Email</label>
-          <input
-            id="register-email"
-            type="email"
-            autoComplete="email"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-          />
-          <label htmlFor="register-username">Имя пользователя</label>
-          <input
-            id="register-username"
-            autoComplete="username"
-            spellCheck={false}
-            value={username}
-            onChange={(event) => setUsername(event.target.value)}
-          />
-          <label htmlFor="register-name">Отображаемое имя (необязательно)</label>
-          <input
-            id="register-name"
-            value={displayName}
-            onChange={(event) => setDisplayName(event.target.value)}
-          />
-          <label htmlFor="register-birth-date">Дата рождения</label>
-          <input
-            id="register-birth-date"
-            type="date"
-            value={birthDate}
-            onChange={(event) => setBirthDate(event.target.value)}
-          />
-          <label htmlFor="register-country">Страна</label>
-          <select
-            id="register-country"
-            value={country}
-            onChange={(event) => setCountry(event.target.value)}
-          >
-            <option value="RU">Россия</option>
-            <option value="KZ">Казахстан</option>
-            <option value="BY">Беларусь</option>
-            <option value="AM">Армения</option>
-            <option value="RS">Сербия</option>
-          </select>
-          <label htmlFor="register-password">Пароль</label>
-          <input
-            id="register-password"
-            type="password"
-            autoComplete="new-password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-          />
-          <p className="field-hint">Не короче 10 символов. Личный аккаунт доступен с 18 лет.</p>
-          <BotCheck
-            key={`register-${botReset}`}
-            action="register"
-            disabled={busy}
-            onVerified={setBotProof}
-          />
-          <p className="form-error" role="alert" hidden={!message}>
-            {message}
-          </p>
-          <button type="submit" className="btn-primary" disabled={busy || !botProof}>
-            {busy ? 'Создаём…' : 'Создать аккаунт'}
-          </button>
+        <h1 className="auth-title">Создать аккаунт</h1>
+        <form className="auth-register-form" onSubmit={(event) => void submit(event)} noValidate>
+          <div className="auth-field">
+            <label htmlFor="register-email">Email</label>
+            <input
+              id="register-email"
+              type="email"
+              autoComplete="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+            />
+          </div>
+          <div className="auth-field">
+            <label htmlFor="register-username">Имя пользователя</label>
+            <input
+              id="register-username"
+              autoComplete="username"
+              spellCheck={false}
+              value={username}
+              onChange={(event) => setUsername(event.target.value)}
+            />
+          </div>
+          <div className="auth-field">
+            <label htmlFor="register-name">Отображаемое имя</label>
+            <input
+              id="register-name"
+              value={displayName}
+              placeholder="Необязательно"
+              onChange={(event) => setDisplayName(event.target.value)}
+            />
+          </div>
+          <div className="auth-field">
+            <label htmlFor="register-birth-date">Дата рождения</label>
+            <input
+              id="register-birth-date"
+              type="date"
+              value={birthDate}
+              onChange={(event) => setBirthDate(event.target.value)}
+            />
+          </div>
+          <div className="auth-field">
+            <label htmlFor="register-country">Страна</label>
+            <select
+              id="register-country"
+              value={country}
+              onChange={(event) => setCountry(event.target.value)}
+            >
+              <option value="RU">Россия</option>
+              <option value="KZ">Казахстан</option>
+              <option value="BY">Беларусь</option>
+              <option value="AM">Армения</option>
+              <option value="RS">Сербия</option>
+            </select>
+          </div>
+          <div className="auth-field">
+            <label htmlFor="register-password">Пароль</label>
+            <input
+              id="register-password"
+              type="password"
+              autoComplete="new-password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+            />
+            <p className="field-hint">Не короче 10 символов. Личный аккаунт — с 18 лет.</p>
+          </div>
+          <div className="auth-register-wide">
+            <BotCheck
+              key={`register-${botReset}`}
+              action="register"
+              disabled={busy}
+              onVerified={setBotProof}
+            />
+            <p className="form-error" role="alert" hidden={!message}>
+              {message}
+            </p>
+            <button type="submit" className="btn-primary" disabled={busy || !botProof}>
+              {busy ? 'Создаём…' : 'Создать аккаунт'}
+            </button>
+          </div>
         </form>
         {localPreviewEnabled ? (
           <button

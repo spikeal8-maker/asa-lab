@@ -645,6 +645,57 @@ describe('Administrative Control Plane PostgreSQL isolation', () => {
     });
   });
 
+  it('stores MAX runtime credentials behind audited server-only functions', async () => {
+    const requestId = `max-config-${randomUUID()}`;
+    await expect(
+      runtime.query(`SELECT * FROM admin_get_max_runtime_config($1)`, [schoolAdmin.principalId]),
+    ).rejects.toMatchObject({ code: '42501' });
+
+    await runtime.query(
+      `SELECT admin_set_max_runtime_config(
+         $1, false, 'id231408577954_3_bot', 'https://asa-lab.ru/max-login',
+         'replace', 'ciphertext-only', 'iv-only', 'auth-tag-only', '0123456789ab',
+         '231408577954', 'ASA Lab', 'Проверка защищённой настройки', $2
+       )`,
+      [platformAdmin.principalId, requestId],
+    );
+    const safe = await runtime.query<Record<string, unknown>>(
+      `SELECT * FROM admin_get_max_runtime_config($1)`,
+      [platformAdmin.principalId],
+    );
+    expect(safe.rows[0]).toMatchObject({
+      enabled: false,
+      token_configured: true,
+      bot_username: 'id231408577954_3_bot',
+      token_fingerprint: '0123456789ab',
+    });
+    expect(JSON.stringify(safe.rows[0])).not.toContain('ciphertext-only');
+
+    const internal = await runtime.query<{ token_ciphertext: string }>(
+      `SELECT token_ciphertext FROM auth_max_runtime_config()`,
+    );
+    expect(internal.rows[0]?.token_ciphertext).toBe('ciphertext-only');
+    const audit = await admin.query<{ count: string }>(
+      `SELECT count(*)::text AS count
+         FROM administrative_audit_events
+        WHERE actor_principal_id = $1
+          AND action = 'administration.max_configuration.update'
+          AND request_id = $2
+          AND reason_text NOT LIKE '%ciphertext-only%'`,
+      [platformAdmin.principalId, requestId],
+    );
+    expect(audit.rows[0]?.count).toBe('1');
+
+    await runtime.query(
+      `SELECT admin_set_max_runtime_config(
+         $1, false, 'id231408577954_3_bot', 'https://asa-lab.ru/max-login',
+         'clear', NULL, NULL, NULL, NULL, NULL, NULL,
+         'Очистка тестовой настройки', $2
+       )`,
+      [platformAdmin.principalId, `max-config-cleanup-${randomUUID()}`],
+    );
+  });
+
   it('manages access, administrator roles and sessions with audit and self-protection', async () => {
     const suspend = await inject(app, {
       method: 'POST',
@@ -801,6 +852,9 @@ describe('Administrative Control Plane PostgreSQL isolation', () => {
     ).rejects.toMatchObject({ code: '42501' });
     await expect(
       runtime.query(`SELECT ip_address FROM admin_ip_labels LIMIT 1`),
+    ).rejects.toMatchObject({ code: '42501' });
+    await expect(
+      runtime.query(`SELECT token_ciphertext FROM max_runtime_settings LIMIT 1`),
     ).rejects.toMatchObject({ code: '42501' });
     await expect(
       runtime.query(`SELECT admin_authorized_role($1, 'organization', $2)`, [

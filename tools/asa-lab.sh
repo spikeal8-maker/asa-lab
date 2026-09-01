@@ -25,7 +25,8 @@ require_docker() {
 }
 
 random_hex() {
-  od -An -N24 -tx1 /dev/urandom | tr -d ' \n'
+  bytes=${1:-24}
+  od -An -N"$bytes" -tx1 /dev/urandom | tr -d ' \n'
 }
 
 create_environment() {
@@ -41,12 +42,17 @@ create_environment() {
       echo "Add MIGRATION_DATABASE_URL, MIGRATION_EXPECT_DATABASE and MIGRATION_CONFIRM=APPLY:<exact-database-name>; generic DATABASE_URL is not accepted." >&2
       exit 78
     fi
+    if ! grep -Eq '^ASA_SETTINGS_ENCRYPTION_KEY=([a-fA-F0-9]{64}|[A-Za-z0-9_-]{43})[[:space:]]*$' .env; then
+      printf '\nASA_SETTINGS_ENCRYPTION_KEY=%s\n' "$(random_hex 32)" >>.env
+      echo "Added a private runtime settings encryption key to .env."
+    fi
     return
   fi
 
   admin_password=$(random_hex)
   runtime_password=$(random_hex)
   teacher_password=$(random_hex)
+  settings_encryption_key=$(random_hex 32)
   uid=$(id -u 2>/dev/null || printf 1000)
   gid=$(id -g 2>/dev/null || printf 1000)
 
@@ -66,6 +72,7 @@ MIGRATION_DATABASE_URL=postgres://asalab_admin:$admin_password@postgres:5432/asa
 MIGRATION_EXPECT_DATABASE=asalab
 MIGRATION_CONFIRM=APPLY:asalab
 APP_DATABASE_URL=postgres://asalab_app:$runtime_password@postgres:5432/asalab
+ASA_SETTINGS_ENCRYPTION_KEY=$settings_encryption_key
 
 ASA_WEB_PORT=4610
 ASA_API_PORT=4611

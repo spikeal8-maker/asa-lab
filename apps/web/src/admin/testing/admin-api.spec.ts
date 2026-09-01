@@ -264,6 +264,35 @@ describe('administrative API client', () => {
     );
   });
 
+  it('reads and saves server-owned MAX settings without putting a token in the URL', async () => {
+    const request = vi.fn(async (...args: Parameters<typeof fetch>) => {
+      void args;
+      return new Response(JSON.stringify({ enabled: false, tokenConfigured: false }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    });
+    vi.stubGlobal('fetch', request);
+
+    await adminApi.maxConfiguration();
+    await adminApi.updateMaxConfiguration({
+      enabled: true,
+      botUsername: 'asa_bot',
+      miniAppUrl: 'https://asa-lab.ru/max-login',
+      botToken: 'new-secret',
+      reason: 'Подключение владельцем',
+    });
+
+    expect(request.mock.calls[0]?.[0]).toBe('/api/admin/v1/integrations/max');
+    expect(request.mock.calls[1]?.[0]).toBe('/api/admin/v1/integrations/max');
+    expect(request.mock.calls[1]?.[1]).toEqual(
+      expect.objectContaining({
+        method: 'PUT',
+        body: expect.stringContaining('new-secret'),
+      }),
+    );
+  });
+
   it('turns network and malformed server failures into stable client errors', async () => {
     vi.stubGlobal(
       'fetch',

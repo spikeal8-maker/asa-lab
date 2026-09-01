@@ -148,6 +148,22 @@ export interface AdminMaxIdentity {
   readonly lastRevokedAt: string | null;
 }
 
+export interface AdminMaxConfiguration {
+  readonly enabled: boolean;
+  readonly featureEnabled: boolean;
+  readonly tokenConfigured: boolean;
+  readonly botUsername: string | null;
+  readonly launchUrl: string | null;
+  readonly miniAppUrl: string | null;
+  readonly encryptionReady: boolean;
+  readonly tokenFingerprint: string | null;
+  readonly verifiedBotId: string | null;
+  readonly verifiedBotName: string | null;
+  readonly tokenVerifiedAt: string | null;
+  readonly configurationVersion: number;
+  readonly updatedAt: string | null;
+}
+
 export interface AdminOrganization {
   readonly workspaceId: string;
   readonly title: string;
@@ -289,6 +305,13 @@ export interface AdminProductDashboard {
     readonly botUsername: string | null;
     readonly launchUrl: string | null;
     readonly miniAppUrl: string | null;
+    readonly encryptionReady: boolean;
+    readonly tokenFingerprint: string | null;
+    readonly verifiedBotId: string | null;
+    readonly verifiedBotName: string | null;
+    readonly tokenVerifiedAt: string | null;
+    readonly configurationVersion: number;
+    readonly updatedAt: string | null;
     readonly linkedAccounts: number;
     readonly promptDueAccounts: number;
   };
@@ -395,6 +418,19 @@ export const adminApi = {
     );
   },
   operationsStatus: () => call<AdminOperationsStatus>('/api/admin/v1/operations/status'),
+  maxConfiguration: () => call<AdminMaxConfiguration>('/api/admin/v1/integrations/max'),
+  updateMaxConfiguration: (input: {
+    readonly enabled: boolean;
+    readonly botUsername: string;
+    readonly miniAppUrl: string;
+    readonly botToken?: string;
+    readonly clearToken?: boolean;
+    readonly reason: string;
+  }) =>
+    call<AdminMaxConfiguration>('/api/admin/v1/integrations/max', {
+      method: 'PUT',
+      body: JSON.stringify(input),
+    }),
   accounts: (input: AdminListInput) => list<AdminAccount>('/api/admin/v1/accounts', input),
   accountCrm: (
     accountId: string,

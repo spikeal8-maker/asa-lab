@@ -78,6 +78,14 @@ if (!ownerAdminEmail) {
   console.error('ASA_OWNER_ADMIN_EMAIL is required for production owner preflight.');
   process.exit(78);
 }
+const settingsKey = process.env.ASA_SETTINGS_ENCRYPTION_KEY?.trim() ?? '';
+const settingsKeyValid =
+  /^[a-fA-F0-9]{64}$/.test(settingsKey) ||
+  (/^[A-Za-z0-9_-]{43}$/.test(settingsKey) && Buffer.from(settingsKey, 'base64url').length === 32);
+if (!settingsKeyValid) {
+  console.error('ASA_SETTINGS_ENCRYPTION_KEY must decode to exactly 32 bytes.');
+  process.exit(78);
+}
 const pg = (await import('pg')).default;
 const preflightClient = new pg.Client({ connectionString: process.env.APP_DATABASE_URL });
 try {

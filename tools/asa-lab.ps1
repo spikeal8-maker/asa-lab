@@ -46,7 +46,8 @@ function Assert-Docker {
 }
 
 function New-RandomHex {
-  $bytes = New-Object byte[] 24
+  param([int]$ByteCount = 24)
+  $bytes = New-Object byte[] $ByteCount
   $generator = [System.Security.Cryptography.RandomNumberGenerator]::Create()
   try {
     $generator.GetBytes($bytes)
@@ -73,12 +74,17 @@ function New-PrivateEnvironment {
     if ($missingMigrationSettings.Count -gt 0) {
       throw "Legacy .env is missing the dedicated migration target guard ($($missingMigrationSettings -join ', ')). Add all three settings and use MIGRATION_CONFIRM=APPLY:<exact-database-name>; generic DATABASE_URL is not accepted."
     }
+    if ($existing -notmatch '(?m)^ASA_SETTINGS_ENCRYPTION_KEY=(?:[a-fA-F0-9]{64}|[A-Za-z0-9_-]{43})\s*$') {
+      Add-Content -LiteralPath $EnvPath -Value "`nASA_SETTINGS_ENCRYPTION_KEY=$(New-RandomHex -ByteCount 32)"
+      Write-Host 'Added a private runtime settings encryption key to .env.'
+    }
     return
   }
 
   $adminPassword = New-RandomHex
   $runtimePassword = New-RandomHex
   $teacherPassword = New-RandomHex
+  $settingsEncryptionKey = New-RandomHex -ByteCount 32
   $content = @"
 # Generated locally by tools/asa-lab.ps1. Never commit this file.
 COMPOSE_PROJECT_NAME=asa-lab-dev
@@ -94,6 +100,7 @@ MIGRATION_DATABASE_URL=postgres://asalab_admin:$adminPassword@postgres:5432/asal
 MIGRATION_EXPECT_DATABASE=asalab
 MIGRATION_CONFIRM=APPLY:asalab
 APP_DATABASE_URL=postgres://asalab_app:$runtimePassword@postgres:5432/asalab
+ASA_SETTINGS_ENCRYPTION_KEY=$settingsEncryptionKey
 
 ASA_WEB_PORT=4610
 ASA_API_PORT=4611

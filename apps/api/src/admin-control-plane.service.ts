@@ -216,6 +216,13 @@ export interface AdminProductDashboardView {
     readonly botUsername: string | null;
     readonly launchUrl: string | null;
     readonly miniAppUrl: string | null;
+    readonly encryptionReady: boolean;
+    readonly tokenFingerprint: string | null;
+    readonly verifiedBotId: string | null;
+    readonly verifiedBotName: string | null;
+    readonly tokenVerifiedAt: string | null;
+    readonly configurationVersion: number;
+    readonly updatedAt: string | null;
     readonly linkedAccounts: number;
     readonly promptDueAccounts: number;
   };
@@ -359,20 +366,34 @@ export class AdminControlPlaneService {
     private readonly accounts: AccountDirectoryPort,
     private readonly pool: pg.Pool,
     private readonly runtimeMetrics: RuntimeMetrics | null = null,
-    private readonly maxConfig: () => {
+    private readonly maxConfig: () => Promise<{
       readonly enabled: boolean;
       readonly featureEnabled: boolean;
       readonly tokenConfigured: boolean;
       readonly botUsername: string | null;
       readonly launchUrl: string | null;
       readonly miniAppUrl: string | null;
-    } = () => ({
+      readonly encryptionReady: boolean;
+      readonly tokenFingerprint: string | null;
+      readonly verifiedBotId: string | null;
+      readonly verifiedBotName: string | null;
+      readonly tokenVerifiedAt: string | null;
+      readonly configurationVersion: number;
+      readonly updatedAt: string | null;
+    }> = async () => ({
       enabled: false,
       featureEnabled: false,
       tokenConfigured: false,
       botUsername: null,
       launchUrl: null,
       miniAppUrl: null,
+      encryptionReady: false,
+      tokenFingerprint: null,
+      verifiedBotId: null,
+      verifiedBotName: null,
+      tokenVerifiedAt: null,
+      configurationVersion: 1,
+      updatedAt: null,
     }),
   ) {}
 
@@ -730,7 +751,7 @@ export class AdminControlPlaneService {
     const payload = result.rows[0]?.payload;
     if (!payload) throw new Error('ADMIN_DASHBOARD_UNAVAILABLE');
     const max = (payload['max'] ?? {}) as Record<string, unknown>;
-    const config = this.maxConfig();
+    const config = await this.maxConfig();
     return {
       ...(payload as unknown as Omit<AdminProductDashboardView, 'range' | 'max'>),
       range: input.range,
@@ -741,6 +762,13 @@ export class AdminControlPlaneService {
         botUsername: config.botUsername,
         launchUrl: config.launchUrl,
         miniAppUrl: config.miniAppUrl,
+        encryptionReady: config.encryptionReady,
+        tokenFingerprint: config.tokenFingerprint,
+        verifiedBotId: config.verifiedBotId,
+        verifiedBotName: config.verifiedBotName,
+        tokenVerifiedAt: config.tokenVerifiedAt,
+        configurationVersion: config.configurationVersion,
+        updatedAt: config.updatedAt,
         linkedAccounts: countValue(max['linkedAccounts']),
         promptDueAccounts: countValue(max['promptDueAccounts']),
       },

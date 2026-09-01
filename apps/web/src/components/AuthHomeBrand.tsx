@@ -2,7 +2,7 @@ import { AsaLabWordmark } from '../brand/AsaLabBrand';
 
 export function AuthHomeBrand({ onHome }: { onHome: () => void }): JSX.Element {
   return (
-    <h1 className="brand-heading">
+    <div className="brand-heading">
       <button
         type="button"
         className="auth-home-brand"
@@ -13,6 +13,6 @@ export function AuthHomeBrand({ onHome }: { onHome: () => void }): JSX.Element {
       >
         <AsaLabWordmark />
       </button>
-    </h1>
+    </div>
   );
 }

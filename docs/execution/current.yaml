@@ -37,10 +37,11 @@ task:
   # account sessions and the real user CRM directory. The CRM slice includes
   # compact expandable rows, server-backed activity, administrative notes and
   # explicit IP classification. Email delivery, billing, competitions and
-  # moderation remain outside this task; unfinished MAX verification stays in
-  # the same lane and must not be reported as complete by this CRM package.
+  # moderation remain outside this task. MAX runtime configuration is implemented,
+  # but owner activation and the real-client journey require a newly rotated
+  # secret and therefore must not be reported as accepted yet.
   status: in_progress
-  checkpoint: user_crm_directory_authorized_dashboard_owner_accepted_max_secret_pending
+  checkpoint: max_runtime_configuration_implemented_new_secret_and_owner_activation_pending
   owner_acceptance: pending
 
 # Commits that mean something. Anything not listed here is ordinary history.
@@ -100,6 +101,7 @@ primary_lane:
     - apps/web/src/pages/MaxLinkPage.tsx
     - migrations/0077_admin_auth_sessions.sql
     - migrations/0078_max_verification_lifecycle.sql
+    - migrations/0100_max_runtime_settings.sql
     - tests/admin/**
     - tests/account/**
     - e2e/admin-auth-max.spec.ts

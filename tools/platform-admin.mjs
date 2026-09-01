@@ -36,7 +36,7 @@ try {
       await client.query(
         `INSERT INTO capability_grants
             (account_id, capability, state, policy_version, granted_by)
-         VALUES ($1, 'platform_admin', 'verified', 'admin-auth-stability-v1', 'owner_preflight')
+         VALUES ($1, 'platform_admin', 'verified', 'admin-auth-stability-v1', 'admin')
          ON CONFLICT (account_id, capability) DO UPDATE
              SET state = 'verified',
                  policy_version = EXCLUDED.policy_version,

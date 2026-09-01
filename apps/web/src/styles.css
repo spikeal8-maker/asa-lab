@@ -88,6 +88,70 @@ label {
   box-shadow: 0 12px 32px rgba(23, 33, 45, 0.08);
 }
 
+.auth-title {
+  margin: 0.35rem 0 1rem;
+  color: var(--text);
+  font-size: 1.55rem;
+  line-height: 1.15;
+}
+
+.auth-method-switch {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3px;
+  margin: 0 0 0.9rem;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #f4f7fa;
+}
+
+.auth-method-switch button {
+  min-height: 38px;
+  margin: 0;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--ink-muted);
+  font-weight: 700;
+}
+
+.auth-method-switch button.active {
+  background: #fff;
+  color: var(--primary);
+  box-shadow: 0 1px 4px rgba(23, 33, 45, 0.12);
+}
+
+.auth-account-switch,
+.auth-organization-link {
+  margin: 0.9rem 0 0;
+  text-align: center;
+}
+
+.auth-organization-link {
+  margin-top: 0.65rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border);
+}
+
+.auth-register-card {
+  max-width: 720px;
+}
+
+.auth-register-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 1rem;
+}
+
+.auth-field label {
+  margin-top: 0.65rem;
+}
+
+.auth-register-wide {
+  grid-column: 1 / -1;
+}
+
 .brand-heading {
   margin: 0 0 1.1rem;
 }
@@ -989,6 +1053,14 @@ a.btn-ghost {
     border: 0;
     border-radius: 0;
     box-shadow: none;
+  }
+
+  .auth-register-form {
+    grid-template-columns: 1fr;
+  }
+
+  .auth-register-wide {
+    grid-column: auto;
   }
 
   .entry-back {

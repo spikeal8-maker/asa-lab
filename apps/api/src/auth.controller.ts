@@ -357,7 +357,7 @@ export class AuthController {
   }
 
   @Get('max/config')
-  maxConfig(): { enabled: boolean; launchUrl: string | null } {
+  async maxConfig(): Promise<{ enabled: boolean; launchUrl: string | null }> {
     return this.maxAuth.config();
   }
 
@@ -366,7 +366,7 @@ export class AuthController {
     const context = await this.requireContext(request);
     const status = await this.maxAuth.status(context.accountId);
     if (!status) throw new HttpException(error('unauthorized', 'account is not active'), 401);
-    return { ...status, available: this.maxAuth.config().enabled };
+    return { ...status, available: (await this.maxAuth.config()).enabled };
   }
 
   @Post('max/prompt/dismiss')

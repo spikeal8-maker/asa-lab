@@ -70,6 +70,27 @@ test.beforeEach(async ({ page }) => {
   await page.route('**/api/admin/v1/security/ip-activity?**', (route) =>
     json(route, { items: [] }),
   );
+  await page.route('**/api/admin/v1/integrations/max', async (route) => {
+    const payload =
+      route.request().method() === 'PUT'
+        ? (route.request().postDataJSON() as { enabled: boolean })
+        : { enabled: false };
+    await json(route, {
+      enabled: payload.enabled,
+      featureEnabled: payload.enabled,
+      tokenConfigured: route.request().method() === 'PUT',
+      botUsername: 'id231408577954_3_bot',
+      launchUrl: 'https://max.ru/id231408577954_3_bot?startapp=asa_login',
+      miniAppUrl: 'https://asa-lab.ru/max-login',
+      encryptionReady: true,
+      tokenFingerprint: route.request().method() === 'PUT' ? '0123456789ab' : null,
+      verifiedBotId: route.request().method() === 'PUT' ? '231408577954' : null,
+      verifiedBotName: route.request().method() === 'PUT' ? 'ASA Lab' : null,
+      tokenVerifiedAt: route.request().method() === 'PUT' ? '2026-08-21T17:05:00.000Z' : null,
+      configurationVersion: route.request().method() === 'PUT' ? 2 : 1,
+      updatedAt: '2026-08-21T17:05:00.000Z',
+    });
+  });
 });
 
 function dashboard(range = '24h') {
@@ -435,12 +456,19 @@ test('platform administrator sees real system status and no infrastructure secre
   await expect(page.getByText('MAX Bot', { exact: true })).toBeVisible();
   await expect(page.getByText('Электронная почта', { exact: true })).toBeVisible();
   await expect(page.getByText('Telegram', { exact: true })).toBeVisible();
-  await expect(page.locator('.admin-confirmation-max > header > b')).toHaveText('Выключен');
-  await expect(page.getByText('Отсутствует', { exact: true })).toBeVisible();
+  await expect(page.getByLabel('Имя бота')).toHaveValue('id231408577954_3_bot');
+  await expect(page.getByLabel('Новый токен')).toHaveAttribute('type', 'password');
   await expect(page.getByText('Через 24 часа после первого входа', { exact: true })).toBeVisible();
-  await expect(page.getByText('https://asa-lab.ru/max-login', { exact: true })).toBeVisible();
+  await expect(page.getByLabel('Адрес мини-приложения')).toHaveValue(
+    'https://asa-lab.ru/max-login',
+  );
   await expect(page.getByText('Без отправки', { exact: true })).toBeVisible();
   await expect(page.getByText('Запланирован', { exact: true })).toBeVisible();
+  await page.getByLabel('Новый токен').fill('new-token-visible-only-in-password-field');
+  await page.locator('.admin-channel-switch input[type="checkbox"]').check();
+  await page.getByRole('button', { name: 'Проверить и сохранить' }).click();
+  await expect(page.getByText('MAX проверен и включён.')).toBeVisible();
+  await expect(page.getByLabel('Новый токен')).toHaveValue('');
   await page.getByRole('button', { name: 'Система', exact: true }).click();
   await expect(page).toHaveURL(/#\/admin\/system$/);
   await expect(page.getByRole('heading', { name: 'Система', exact: true })).toBeVisible();
@@ -629,7 +657,7 @@ test('public authentication routes stay addressable and fit a phone viewport', a
   await page.goto('/#/sign-in');
 
   await expect(page).toHaveURL(/#\/sign-in$/);
-  await expect(page.getByText('Вход в ASA Lab', { exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Вход', exact: true })).toBeVisible();
   await expect(page.getByTestId('login-class-code')).toBeVisible();
 
   const signInLayout = await page.locator('.login-card').evaluate((element) => {
@@ -656,6 +684,25 @@ test('public authentication routes stay addressable and fit a phone viewport', a
     viewportWidth: 390,
   });
   expect(signInLayout.minHeight).toBeGreaterThanOrEqual(844);
+
+  await page.getByRole('button', { name: 'Создать', exact: true }).click();
+  await expect(page).toHaveURL(/#\/sign-up$/);
+  await expect(page.getByRole('heading', { name: 'Создать аккаунт' })).toBeVisible();
+  await expect
+    .poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth))
+    .toBe(true);
+  const mobileColumns = await page
+    .locator('.auth-register-form')
+    .evaluate((element) => getComputedStyle(element).gridTemplateColumns.split(' ').length);
+  expect(mobileColumns).toBe(1);
+  await page.setViewportSize({ width: 1280, height: 800 });
+  const desktopColumns = await page
+    .locator('.auth-register-form')
+    .evaluate((element) => getComputedStyle(element).gridTemplateColumns.split(' ').length);
+  expect(desktopColumns).toBe(2);
+  await page.getByRole('button', { name: '← К входу' }).click();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page).toHaveURL(/#\/sign-in$/);
 
   await page.getByTestId('login-class-code').click();
   await expect(page).toHaveURL(/#\/join-class$/);

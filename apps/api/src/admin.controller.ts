@@ -7,6 +7,7 @@ import {
   Inject,
   Param,
   Post,
+  Put,
   Query,
   Req,
 } from '@nestjs/common';
@@ -23,6 +24,7 @@ import {
   type AdminListCursor,
   type ResolvedAdminAccess,
 } from './admin-control-plane.service.js';
+import { MaxAuthService, MaxConfigurationError } from './max-auth.service.js';
 
 const DASHBOARD_RANGES = new Set<AdminDashboardRange>([
   '1h',
@@ -47,6 +49,7 @@ export class AdminController {
     @Inject(TOKENS.activeContextUseCase) private readonly activeContext: ActiveContextUseCase,
     @Inject(TOKENS.adminControlPlane)
     private readonly controlPlane: AdminControlPlaneService,
+    @Inject(TOKENS.maxAuthService) private readonly maxAuth: MaxAuthService,
   ) {}
 
   private async requireContext(request: FastifyRequest): Promise<ActiveContext> {
@@ -287,6 +290,50 @@ export class AdminController {
       });
     } catch (failure) {
       this.rethrowAdminFailure(failure);
+    }
+  }
+
+  @Get('integrations/max')
+  async maxConfiguration(@Req() request: FastifyRequest) {
+    const { context } = await this.requireAdmin(request);
+    try {
+      return await this.maxAuth.adminConfig(context.principalId);
+    } catch (failure) {
+      this.rethrowMaxConfigurationFailure(failure);
+    }
+  }
+
+  @Put('integrations/max')
+  async updateMaxConfiguration(@Req() request: FastifyRequest, @Body() body: unknown) {
+    const { context } = await this.requireAdmin(request);
+    const value = this.object(body);
+    if (typeof value['enabled'] !== 'boolean') {
+      throw new HttpException(error('validation_error', 'enabled must be boolean'), 400);
+    }
+    if (value['clearToken'] !== undefined && typeof value['clearToken'] !== 'boolean') {
+      throw new HttpException(error('validation_error', 'clearToken must be boolean'), 400);
+    }
+    const token = value['botToken'];
+    if (token !== undefined && (typeof token !== 'string' || token.trim().length > 2048)) {
+      throw new HttpException(error('validation_error', 'botToken is invalid'), 400);
+    }
+    try {
+      return await this.maxAuth.updateAdminConfig(
+        context.principalId,
+        {
+          enabled: value['enabled'],
+          botUsername: this.text(value['botUsername'], 'botUsername', 3, 65),
+          miniAppUrl: this.text(value['miniAppUrl'], 'miniAppUrl', 12, 2048),
+          ...(typeof token === 'string' && token.trim().length > 0
+            ? { botToken: token.trim() }
+            : {}),
+          clearToken: value['clearToken'] === true,
+          reason: this.reason(value['reason']),
+        },
+        request.id,
+      );
+    } catch (failure) {
+      this.rethrowMaxConfigurationFailure(failure);
     }
   }
 
@@ -557,6 +604,33 @@ export class AdminController {
       throw new HttpException(error('validation_error', 'invalid administrative query'), 400);
     }
     throw failure;
+  }
+
+  private rethrowMaxConfigurationFailure(failure: unknown): never {
+    if (failure instanceof MaxConfigurationError) {
+      const responses: Record<
+        MaxConfigurationError['code'],
+        { readonly status: number; readonly message: string }
+      > = {
+        max_encryption_key_missing: {
+          status: 503,
+          message: 'Серверное хранилище секретов ещё не подготовлено.',
+        },
+        max_token_missing: { status: 409, message: 'Для включения MAX нужен новый токен.' },
+        max_token_invalid: { status: 422, message: 'MAX отклонил этот токен.' },
+        max_token_bot_mismatch: {
+          status: 422,
+          message: 'Имя бота не совпадает с ботом, которому принадлежит токен.',
+        },
+        max_service_unavailable: {
+          status: 503,
+          message: 'MAX сейчас не отвечает. Настройки не изменены.',
+        },
+      };
+      const response = responses[failure.code];
+      throw new HttpException(error(failure.code, response.message), response.status);
+    }
+    this.rethrowAdminFailure(failure);
   }
 
   private cursor(

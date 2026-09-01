@@ -1510,6 +1510,56 @@
   font-size: 13px;
 }
 
+.admin-confirmation-settings label:not(.admin-channel-switch) {
+  margin-top: 12px;
+  color: var(--admin-ink);
+  font-size: 12px;
+}
+
+.admin-confirmation-settings input {
+  min-height: 40px;
+  border-color: #b8ccd7;
+  background: #fff;
+}
+
+.admin-field-note,
+.admin-max-notice {
+  margin-top: 6px !important;
+  color: var(--ink-muted);
+  font-size: 11px !important;
+  line-height: 1.4;
+}
+
+.admin-max-notice {
+  color: var(--admin-ink);
+}
+
+.admin-max-save {
+  margin-top: 14px;
+}
+
+.admin-channel-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 6px 10px;
+  border: 1px solid #bfd1da;
+  border-radius: 999px;
+  background: #f8fbfc;
+  color: var(--admin-ink);
+  font-size: 12px;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.admin-channel-switch input {
+  width: 34px;
+  min-height: 18px;
+  margin: 0;
+  accent-color: var(--asa-cyan-600);
+}
+
 .admin-confirmation-channel dl {
   display: grid;
 }

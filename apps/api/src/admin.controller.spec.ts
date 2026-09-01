@@ -6,6 +6,7 @@ import type {
   AdminControlPlaneService,
   ResolvedAdminAccess,
 } from './admin-control-plane.service.js';
+import type { MaxAuthService } from './max-auth.service.js';
 
 const ORGANIZATION_ID = '10000000-0000-4000-8000-000000000001';
 
@@ -89,10 +90,18 @@ function controller(options: {
       revoked: true as const,
     })),
   } as unknown as AdminControlPlaneService;
+  const maxAuth = {
+    adminConfig: vi.fn(async () => ({ enabled: false, tokenConfigured: false })),
+    updateAdminConfig: vi.fn(async (_principalId, input) => ({
+      enabled: input.enabled,
+      tokenConfigured: Boolean(input.botToken),
+    })),
+  } as unknown as MaxAuthService;
   return {
-    value: new AdminController(activeContext, controlPlane),
+    value: new AdminController(activeContext, controlPlane, maxAuth),
     activeContext,
     controlPlane,
+    maxAuth,
   };
 }
 
@@ -409,6 +418,48 @@ describe('administrative control-plane transport', () => {
       target.value.setAccountIpLabel(request({ asa_session: 'session' }), accountId, {
         ipAddress: 'not-an-ip',
         labelKind: 'school',
+      }),
+    ).rejects.toMatchObject({ status: 400 });
+  });
+
+  it('keeps MAX configuration behind platform administration and validates the form', async () => {
+    const platformScope: ResolvedAdminAccess['scopes'][number] = {
+      kind: 'platform',
+      id: null,
+      title: 'ASA Lab',
+      role: 'platform_admin',
+      permissions: ['administration.open', 'administration.operations.read'],
+    };
+    const target = controller({ context: CONTEXT, access: access([platformScope]) });
+
+    await expect(
+      target.value.maxConfiguration(request({ asa_session: 'session' })),
+    ).resolves.toEqual({ enabled: false, tokenConfigured: false });
+    await expect(
+      target.value.updateMaxConfiguration(request({ asa_session: 'session' }), {
+        enabled: true,
+        botUsername: '@id231408577954_3_bot',
+        miniAppUrl: 'https://asa-lab.ru/max-login',
+        botToken: 'new-secret',
+        reason: 'Подключение MAX владельцем',
+      }),
+    ).resolves.toEqual({ enabled: true, tokenConfigured: true });
+    expect(target.maxAuth.updateAdminConfig).toHaveBeenCalledWith(
+      CONTEXT.principalId,
+      expect.objectContaining({
+        enabled: true,
+        botUsername: '@id231408577954_3_bot',
+        botToken: 'new-secret',
+      }),
+      'admin-request-1',
+    );
+
+    await expect(
+      target.value.updateMaxConfiguration(request({ asa_session: 'session' }), {
+        enabled: 'yes',
+        botUsername: 'bot',
+        miniAppUrl: 'https://asa-lab.ru/max-login',
+        reason: 'Подключение MAX',
       }),
     ).rejects.toMatchObject({ status: 400 });
   });

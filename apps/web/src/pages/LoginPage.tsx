@@ -94,26 +94,16 @@ export function LoginPage({
           ← Назад
         </button>
         <AuthHomeBrand onHome={onHome} />
-        <p className="subtitle">Вход в ASA Lab</p>
+        <h1 className="auth-title">Вход</h1>
         {onClassCodeLogin ? (
-          <section className="login-methods" aria-labelledby="login-methods-title">
-            <h2 id="login-methods-title">Выберите способ входа</h2>
-            <div className="login-method-list">
-              <div className="login-method login-method-current">
-                <strong>Личная учётная запись</strong>
-                <span>Email или имя пользователя и пароль</span>
-              </div>
-              <button
-                type="button"
-                className="login-method login-method-button"
-                data-testid="login-class-code"
-                onClick={onClassCodeLogin}
-              >
-                <strong>Войти по коду класса</strong>
-                <span>Для ученика с кодом от преподавателя</span>
-              </button>
-            </div>
-          </section>
+          <nav className="auth-method-switch" aria-label="Способ входа">
+            <button type="button" className="active" aria-current="page">
+              Аккаунт
+            </button>
+            <button type="button" data-testid="login-class-code" onClick={onClassCodeLogin}>
+              Код класса
+            </button>
+          </nav>
         ) : null}
         {contextMessage ? <p className="max-link-copy">{contextMessage}</p> : null}
         <form onSubmit={(event) => void submit(event)} noValidate>
@@ -172,16 +162,16 @@ export function LoginPage({
           </button>
         ) : null}
 
-        <nav className="login-links" aria-label="Другие способы">
+        <p className="auth-account-switch">
+          <span>Нет аккаунта?</span>{' '}
           <button type="button" className="link-button" onClick={onCreateAccount}>
-            Создать аккаунт
+            Создать
           </button>
-        </nav>
-        <p className="legacy-note">
+        </p>
+        <p className="auth-organization-link">
           <button type="button" className="link-button link-muted" onClick={onOrganizationLogin}>
-            Вход через организацию
+            Для организации
           </button>
-          <span className="legacy-hint">Для школ, ранее подключённых по коду организации.</span>
         </p>
       </main>
     </div>

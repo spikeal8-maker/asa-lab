@@ -15,12 +15,12 @@ describe('LoginPage entry methods', () => {
       }),
     );
 
-    expect(html).toContain('Выберите способ входа');
-    expect(html).toContain('Личная учётная запись');
+    expect(html).toContain('>Вход</h1>');
+    expect(html).toContain('>Аккаунт</button>');
     expect(html).toContain('data-testid="auth-home"');
     expect(html).toContain('aria-label="На главную ASA Lab"');
     expect(html).toContain('data-testid="login-class-code"');
-    expect(html).toContain('Войти по коду класса');
+    expect(html).toContain('>Код класса</button>');
   });
 
   it('does not interrupt a MAX account-linking login with unrelated entry methods', () => {

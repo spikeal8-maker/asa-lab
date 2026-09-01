@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import {
   adminApi,
   type AdminDashboardRange,
   type AdminIpActivity,
   type AdminProductDashboard,
+  type AdminMaxConfiguration,
   type AdminScope,
 } from './admin-api';
 
@@ -438,35 +439,97 @@ export function VerificationMethodsSection({
   readonly scope: AdminScope;
   readonly onAccessDenied: () => void;
 }): JSX.Element {
-  const [state, setState] = useState<DashboardState>({ kind: 'loading' });
+  type ConfirmationState =
+    | { readonly kind: 'loading' }
+    | { readonly kind: 'error'; readonly message: string }
+    | {
+        readonly kind: 'ready';
+        readonly config: AdminMaxConfiguration;
+        readonly linkedAccounts: number;
+        readonly promptDueAccounts: number;
+      };
+  const [state, setState] = useState<ConfirmationState>({ kind: 'loading' });
+  const [enabled, setEnabled] = useState(false);
+  const [botUsername, setBotUsername] = useState('id231408577954_3_bot');
+  const [miniAppUrl, setMiniAppUrl] = useState('https://asa-lab.ru/max-login');
+  const [botToken, setBotToken] = useState('');
+  const [reason, setReason] = useState('Настройка канала MAX');
+  const [saving, setSaving] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
   const load = useCallback(async (): Promise<void> => {
     setState({ kind: 'loading' });
-    const result = await adminApi.dashboard({ scope, range: '30d' });
-    if (!result.ok) {
-      if (result.status === 401 || result.status === 403) onAccessDenied();
-      else setState({ kind: 'error', message: 'Не удалось проверить способы подтверждения.' });
+    const [configuration, dashboard] = await Promise.all([
+      adminApi.maxConfiguration(),
+      adminApi.dashboard({ scope, range: '30d' }),
+    ]);
+    if (!configuration.ok) {
+      if (configuration.status === 401 || configuration.status === 403) onAccessDenied();
+      else setState({ kind: 'error', message: configuration.error.message });
       return;
     }
-    setState({ kind: 'ready', dashboard: result.data });
+    if (!dashboard.ok) {
+      if (dashboard.status === 401 || dashboard.status === 403) onAccessDenied();
+      else setState({ kind: 'error', message: dashboard.error.message });
+      return;
+    }
+    setEnabled(configuration.data.featureEnabled);
+    setBotUsername(configuration.data.botUsername ?? 'id231408577954_3_bot');
+    setMiniAppUrl(configuration.data.miniAppUrl ?? 'https://asa-lab.ru/max-login');
+    setState({
+      kind: 'ready',
+      config: configuration.data,
+      linkedAccounts: dashboard.data.max.linkedAccounts,
+      promptDueAccounts: dashboard.data.max.promptDueAccounts,
+    });
   }, [onAccessDenied, scope]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
-  const max = state.kind === 'ready' ? state.dashboard.max : null;
-  const maxStatus = max?.configured
-    ? 'Готов к работе'
-    : max?.featureEnabled && !max.tokenConfigured
-      ? 'Нужен новый токен'
-      : 'Выключен';
+  const max = state.kind === 'ready' ? state.config : null;
+  const linkedAccounts = state.kind === 'ready' ? state.linkedAccounts : 0;
+  const promptDueAccounts = state.kind === 'ready' ? state.promptDueAccounts : 0;
+  async function save(event: FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
+    setNotice(null);
+    setSaving(true);
+    const result = await adminApi.updateMaxConfiguration({
+      enabled,
+      botUsername,
+      miniAppUrl,
+      ...(botToken.trim() ? { botToken: botToken.trim() } : {}),
+      reason,
+    });
+    setSaving(false);
+    if (!result.ok) {
+      if (result.status === 401 || result.status === 403) onAccessDenied();
+      else {
+        if (result.error.code === 'max_token_missing' && state.kind === 'ready') {
+          setEnabled(state.config.featureEnabled);
+        }
+        setNotice(result.error.message);
+      }
+      return;
+    }
+    setBotToken('');
+    setState((current) =>
+      current.kind === 'ready' ? { ...current, config: result.data } : current,
+    );
+    setEnabled(result.data.featureEnabled);
+    setBotUsername(result.data.botUsername ?? botUsername);
+    setMiniAppUrl(result.data.miniAppUrl ?? miniAppUrl);
+    setNotice(
+      result.data.enabled ? 'MAX проверен и включён.' : 'Настройки сохранены. MAX выключен.',
+    );
+  }
 
   return (
     <section className="admin-integrations" aria-labelledby="admin-confirmations-title">
       <div className="admin-section-heading">
         <div>
           <h2 id="admin-confirmations-title">Подтверждения</h2>
-          <p>Серверные настройки способов входа и подтверждения учётной записи.</p>
+          <p>Каналы входа и подтверждения учётной записи.</p>
         </div>
         <button
           type="button"
@@ -474,45 +537,77 @@ export function VerificationMethodsSection({
           disabled={state.kind === 'loading'}
           onClick={() => void load()}
         >
-          Обновить состояние
+          Обновить
         </button>
       </div>
       {state.kind === 'loading' ? <p>Проверяем настройки…</p> : null}
       {state.kind === 'error' ? <p role="alert">{state.message}</p> : null}
       {max ? (
         <div className="admin-confirmation-layout">
-          <article className="admin-confirmation-channel admin-confirmation-max">
+          <form
+            className="admin-confirmation-channel admin-confirmation-max"
+            onSubmit={(event) => void save(event)}
+          >
             <header>
               <div>
                 <span>Основной канал</span>
                 <h3>MAX Bot</h3>
               </div>
-              <b className={max.configured ? 'ready' : 'not-ready'}>{maxStatus}</b>
+              <label className="admin-channel-switch">
+                <input
+                  type="checkbox"
+                  checked={enabled}
+                  disabled={saving || !max.encryptionReady}
+                  onChange={(event) => setEnabled(event.target.checked)}
+                />
+                <span>{enabled ? 'Включён' : 'Выключен'}</span>
+              </label>
             </header>
             <div className="admin-confirmation-settings">
               <section aria-labelledby="max-server-settings">
-                <h4 id="max-server-settings">Сервер</h4>
-                <dl>
-                  <div>
-                    <dt>Вход через MAX</dt>
-                    <dd>{max.featureEnabled ? 'Включён' : 'Выключен'}</dd>
-                  </div>
-                  <div>
-                    <dt>Токен</dt>
-                    <dd>{max.tokenConfigured ? 'Загружен на сервер' : 'Отсутствует'}</dd>
-                  </div>
-                  <div>
-                    <dt>Бот</dt>
-                    <dd>{max.botUsername ? `@${max.botUsername}` : 'Не указан'}</dd>
-                  </div>
-                  <div>
-                    <dt>Мини-приложение</dt>
-                    <dd>{max.miniAppUrl ?? 'URL не указан'}</dd>
-                  </div>
-                </dl>
+                <h4 id="max-server-settings">Подключение</h4>
+                <label htmlFor="max-bot-username">Имя бота</label>
+                <input
+                  id="max-bot-username"
+                  value={botUsername}
+                  disabled={saving}
+                  spellCheck={false}
+                  onChange={(event) => setBotUsername(event.target.value)}
+                />
+                <label htmlFor="max-bot-token">Новый токен</label>
+                <input
+                  id="max-bot-token"
+                  type="password"
+                  value={botToken}
+                  disabled={saving || !max.encryptionReady}
+                  autoComplete="new-password"
+                  placeholder={
+                    max.tokenConfigured
+                      ? 'Оставьте пустым, чтобы не менять'
+                      : 'Вставьте новый токен'
+                  }
+                  onChange={(event) => setBotToken(event.target.value)}
+                />
+                <p className="admin-field-note">
+                  {max.tokenConfigured
+                    ? `Токен сохранён${max.tokenFingerprint ? ` · …${max.tokenFingerprint}` : ''}`
+                    : 'Токен пока не сохранён'}
+                </p>
+                <label htmlFor="max-mini-app-url">Адрес мини-приложения</label>
+                <input
+                  id="max-mini-app-url"
+                  type="url"
+                  value={miniAppUrl}
+                  disabled={saving}
+                  spellCheck={false}
+                  onChange={(event) => setMiniAppUrl(event.target.value)}
+                />
+                <p className="admin-field-note">
+                  Тот же HTTPS-адрес указывается в настройках бота MAX.
+                </p>
               </section>
               <section aria-labelledby="max-account-settings">
-                <h4 id="max-account-settings">Учётные записи</h4>
+                <h4 id="max-account-settings">Состояние</h4>
                 <dl>
                   <div>
                     <dt>Предложение подтвердить</dt>
@@ -520,23 +615,50 @@ export function VerificationMethodsSection({
                   </div>
                   <div>
                     <dt>Связано аккаунтов</dt>
-                    <dd>{max.linkedAccounts}</dd>
+                    <dd>{linkedAccounts}</dd>
                   </div>
                   <div>
                     <dt>Ожидают предложения</dt>
-                    <dd>{max.promptDueAccounts}</dd>
+                    <dd>{promptDueAccounts}</dd>
                   </div>
                   <div>
                     <dt>Ссылка запуска</dt>
                     <dd>{max.launchUrl ? 'Сформирована' : 'Недоступна'}</dd>
                   </div>
+                  <div>
+                    <dt>Проверка токена</dt>
+                    <dd>
+                      {max.tokenVerifiedAt
+                        ? DATE_TIME.format(new Date(max.tokenVerifiedAt))
+                        : 'Не выполнялась'}
+                    </dd>
+                  </div>
                 </dl>
+                <label htmlFor="max-change-reason">Причина изменения</label>
+                <input
+                  id="max-change-reason"
+                  value={reason}
+                  disabled={saving}
+                  onChange={(event) => setReason(event.target.value)}
+                />
+                <button
+                  type="submit"
+                  className="btn-primary admin-max-save"
+                  disabled={saving || !max.encryptionReady}
+                >
+                  {saving ? 'Проверяем…' : 'Проверить и сохранить'}
+                </button>
+                {notice ? (
+                  <p className="admin-max-notice" role="status">
+                    {notice}
+                  </p>
+                ) : null}
               </section>
             </div>
             <footer>
               <p>
-                Секрет никогда не передаётся в браузер. После замены токена изменение применяется
-                только после перезапуска API.
+                Токен проверяется MAX, шифруется на сервере и никогда не возвращается в браузер.
+                Изменения применяются сразу.
               </p>
               {max.launchUrl ? (
                 <a className="btn-secondary" href={max.launchUrl} rel="noreferrer">
@@ -544,7 +666,7 @@ export function VerificationMethodsSection({
                 </a>
               ) : null}
             </footer>
-          </article>
+          </form>
 
           <div className="admin-confirmation-secondary">
             <article className="admin-confirmation-channel">
@@ -562,7 +684,7 @@ export function VerificationMethodsSection({
                   <dd>Разрешён</dd>
                 </div>
               </dl>
-              <p>Сервис отправки будет подключён позднее; пользователю сейчас ничего не обещаем.</p>
+              <p>Раздел подготовлен. Сервис отправки подключим отдельным этапом.</p>
             </article>
             <article className="admin-confirmation-channel">
               <header>
@@ -579,7 +701,7 @@ export function VerificationMethodsSection({
                   <dd>Не реализованы</dd>
                 </div>
               </dl>
-              <p>Канал не показывается пользователям и не участвует во входе.</p>
+              <p>Раздел подготовлен. Канал скрыт от пользователей до реализации.</p>
             </article>
           </div>
         </div>

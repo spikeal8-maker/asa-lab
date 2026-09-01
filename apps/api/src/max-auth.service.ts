@@ -1,4 +1,11 @@
-import { createHmac, timingSafeEqual } from 'node:crypto';
+import {
+  createCipheriv,
+  createDecipheriv,
+  createHash,
+  createHmac,
+  randomBytes,
+  timingSafeEqual,
+} from 'node:crypto';
 import type pg from 'pg';
 import { createSessionToken, hashSessionToken, SESSION_TTL_HOURS } from '@asa-lab/identity';
 
@@ -56,6 +63,8 @@ interface MaxAuthOptions {
   readonly miniAppUrl?: string;
   readonly enabled?: boolean;
   readonly now?: () => number;
+  readonly encryptionKey?: string;
+  readonly fetchImpl?: typeof fetch;
 }
 
 export interface MaxAdminConfig {
@@ -65,6 +74,57 @@ export interface MaxAdminConfig {
   readonly botUsername: string | null;
   readonly launchUrl: string | null;
   readonly miniAppUrl: string | null;
+  readonly encryptionReady: boolean;
+  readonly tokenFingerprint: string | null;
+  readonly verifiedBotId: string | null;
+  readonly verifiedBotName: string | null;
+  readonly tokenVerifiedAt: string | null;
+  readonly configurationVersion: number;
+  readonly updatedAt: string | null;
+}
+
+export interface MaxAdminUpdateInput {
+  readonly enabled: boolean;
+  readonly botUsername: string;
+  readonly miniAppUrl: string;
+  readonly botToken?: string;
+  readonly clearToken?: boolean;
+  readonly reason: string;
+}
+
+export type MaxConfigurationErrorCode =
+  | 'max_encryption_key_missing'
+  | 'max_token_missing'
+  | 'max_token_invalid'
+  | 'max_token_bot_mismatch'
+  | 'max_service_unavailable';
+
+export class MaxConfigurationError extends Error {
+  constructor(readonly code: MaxConfigurationErrorCode) {
+    super(code);
+    this.name = 'MaxConfigurationError';
+  }
+}
+
+interface MaxRuntimeRow {
+  readonly enabled: boolean;
+  readonly bot_username: string;
+  readonly mini_app_url: string;
+  readonly token_ciphertext: string | null;
+  readonly token_iv: string | null;
+  readonly token_auth_tag: string | null;
+  readonly token_fingerprint: string | null;
+  readonly verified_bot_id: string | null;
+  readonly verified_bot_name: string | null;
+  readonly token_verified_at: Date | string | null;
+  readonly configuration_version: string | number;
+  readonly updated_at: Date | string | null;
+}
+
+interface MaxVerifiedBot {
+  readonly id: string;
+  readonly username: string;
+  readonly name: string | null;
 }
 
 function boundedText(value: unknown, maxLength: number): string | null {
@@ -87,6 +147,28 @@ function normalizedMiniAppUrl(value: string | undefined): string | null {
 function normalizedBotUsername(value: string | undefined): string | null {
   const normalized = value?.trim().replace(/^@/, '') ?? '';
   return /^[A-Za-z0-9_]{3,64}$/.test(normalized) ? normalized : null;
+}
+
+function encryptionKey(value: string | undefined): Buffer | null {
+  if (!value) return null;
+  const trimmed = value.trim();
+  const decoded = /^[a-fA-F0-9]{64}$/.test(trimmed)
+    ? Buffer.from(trimmed, 'hex')
+    : /^[A-Za-z0-9_-]{43}$/.test(trimmed)
+      ? Buffer.from(trimmed, 'base64url')
+      : Buffer.alloc(0);
+  return decoded.length === 32 ? decoded : null;
+}
+
+function isoOrNull(value: Date | string | null): string | null {
+  if (value === null) return null;
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isFinite(date.getTime()) ? date.toISOString() : null;
+}
+
+function safeVersion(value: string | number): number {
+  const parsed = typeof value === 'number' ? value : Number.parseInt(value, 10);
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : 1;
 }
 
 /**
@@ -190,57 +272,150 @@ export function validateMaxInitData(
 }
 
 export class MaxAuthService {
-  private readonly botToken: string | null;
-  private readonly botUsername: string | null;
-  private readonly miniAppUrl: string | null;
-  private readonly enabled: boolean;
   private readonly now: () => number;
+  private readonly key: Buffer | null;
+  private readonly fetchImpl: typeof fetch;
+  private readonly staticRuntime: MaxRuntimeRow | null;
 
   constructor(
     private readonly pool: pg.Pool,
     options: MaxAuthOptions = {},
   ) {
-    this.botToken = boundedText(options.botToken ?? process.env['MAX_BOT_TOKEN'], 512);
-    this.botUsername = normalizedBotUsername(
-      options.botUsername ?? process.env['MAX_BOT_USERNAME'] ?? 'id231408577954_3_bot',
-    );
-    this.miniAppUrl = normalizedMiniAppUrl(
-      options.miniAppUrl ?? process.env['MAX_MINI_APP_URL'] ?? 'https://asa-lab.ru/max-login',
-    );
-    this.enabled = options.enabled ?? process.env['MAX_AUTH_ENABLED'] === '1';
     this.now = options.now ?? Date.now;
+    this.key = encryptionKey(options.encryptionKey ?? process.env['ASA_SETTINGS_ENCRYPTION_KEY']);
+    this.fetchImpl = options.fetchImpl ?? fetch;
+    const hasStaticOptions =
+      options.botToken !== undefined ||
+      options.botUsername !== undefined ||
+      options.miniAppUrl !== undefined ||
+      options.enabled !== undefined;
+    const staticToken = boundedText(options.botToken, 2048);
+    this.staticRuntime = hasStaticOptions
+      ? {
+          enabled: options.enabled ?? false,
+          bot_username:
+            normalizedBotUsername(options.botUsername ?? 'id231408577954_3_bot') ??
+            'id231408577954_3_bot',
+          mini_app_url:
+            normalizedMiniAppUrl(options.miniAppUrl ?? 'https://asa-lab.ru/max-login') ??
+            'https://asa-lab.ru/max-login',
+          token_ciphertext: staticToken,
+          token_iv: null,
+          token_auth_tag: null,
+          token_fingerprint: staticToken
+            ? createHash('sha256').update(staticToken).digest('hex').slice(0, 12)
+            : null,
+          verified_bot_id: null,
+          verified_bot_name: null,
+          token_verified_at: null,
+          configuration_version: 1,
+          updated_at: null,
+        }
+      : null;
   }
 
-  config(): { enabled: boolean; launchUrl: string | null } {
+  async config(): Promise<{ enabled: boolean; launchUrl: string | null }> {
+    const runtime = await this.runtime();
+    const token = this.runtimeToken(runtime);
     return {
-      enabled: this.enabled && this.botToken !== null && this.botUsername !== null,
+      enabled: runtime.enabled && token !== null,
       launchUrl:
-        this.botUsername === null
+        runtime.bot_username.length === 0
           ? null
-          : `https://max.ru/${encodeURIComponent(this.botUsername)}?startapp=asa_login`,
+          : `https://max.ru/${encodeURIComponent(runtime.bot_username)}?startapp=asa_login`,
     };
   }
 
-  adminConfig(): MaxAdminConfig {
-    const publicConfig = this.config();
+  async adminConfig(actorPrincipalId?: string): Promise<MaxAdminConfig> {
+    const runtime = actorPrincipalId
+      ? await this.adminRuntime(actorPrincipalId)
+      : await this.runtime();
+    const tokenConfigured = runtime.token_ciphertext !== null;
+    const publicConfig = {
+      enabled:
+        runtime.enabled &&
+        tokenConfigured &&
+        (actorPrincipalId ? this.key !== null : this.runtimeToken(runtime) !== null),
+      launchUrl: `https://max.ru/${encodeURIComponent(runtime.bot_username)}?startapp=asa_login`,
+    };
     return {
       ...publicConfig,
-      featureEnabled: this.enabled,
-      tokenConfigured: this.botToken !== null,
-      botUsername: this.botUsername,
-      miniAppUrl: this.miniAppUrl,
+      featureEnabled: runtime.enabled,
+      tokenConfigured,
+      botUsername: runtime.bot_username,
+      miniAppUrl: runtime.mini_app_url,
+      encryptionReady: this.key !== null || this.staticRuntime !== null,
+      tokenFingerprint: runtime.token_fingerprint,
+      verifiedBotId: runtime.verified_bot_id,
+      verifiedBotName: runtime.verified_bot_name,
+      tokenVerifiedAt: isoOrNull(runtime.token_verified_at),
+      configurationVersion: safeVersion(runtime.configuration_version),
+      updatedAt: isoOrNull(runtime.updated_at),
     };
   }
 
-  private identity(rawInitData: unknown): ValidatedMaxIdentity {
-    if (!this.enabled || this.botToken === null || this.botUsername === null) {
+  async updateAdminConfig(
+    actorPrincipalId: string,
+    input: MaxAdminUpdateInput,
+    requestId: string,
+  ): Promise<MaxAdminConfig> {
+    if (this.staticRuntime) throw new MaxConfigurationError('max_service_unavailable');
+    const botUsername = normalizedBotUsername(input.botUsername);
+    const miniAppUrl = normalizedMiniAppUrl(input.miniAppUrl);
+    if (!botUsername || !miniAppUrl) throw new MaxConfigurationError('max_token_bot_mismatch');
+    if (input.clearToken && input.enabled) throw new MaxConfigurationError('max_token_missing');
+
+    const current = await this.runtime();
+    const suppliedToken = boundedText(input.botToken, 2048);
+    if ((suppliedToken || input.enabled) && !this.key) {
+      throw new MaxConfigurationError('max_encryption_key_missing');
+    }
+    const candidateToken = suppliedToken ?? this.runtimeToken(current);
+    let verified: MaxVerifiedBot | null = null;
+    if (suppliedToken || input.enabled) {
+      if (!candidateToken) throw new MaxConfigurationError('max_token_missing');
+      verified = await this.verifyBotToken(candidateToken);
+      if (verified.username.toLowerCase() !== botUsername.toLowerCase()) {
+        throw new MaxConfigurationError('max_token_bot_mismatch');
+      }
+    }
+
+    let encrypted: { ciphertext: string; iv: string; tag: string; fingerprint: string } | null =
+      null;
+    if (suppliedToken) encrypted = this.encryptToken(suppliedToken);
+    const tokenAction = input.clearToken ? 'clear' : suppliedToken ? 'replace' : 'keep';
+    await this.pool.query(
+      `SELECT admin_set_max_runtime_config($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+      [
+        actorPrincipalId,
+        input.enabled,
+        botUsername,
+        miniAppUrl,
+        tokenAction,
+        encrypted?.ciphertext ?? null,
+        encrypted?.iv ?? null,
+        encrypted?.tag ?? null,
+        encrypted?.fingerprint ?? null,
+        verified?.id ?? current.verified_bot_id,
+        verified?.name ?? current.verified_bot_name,
+        input.reason,
+        requestId,
+      ],
+    );
+    return this.adminConfig(actorPrincipalId);
+  }
+
+  private async identity(rawInitData: unknown): Promise<ValidatedMaxIdentity> {
+    const runtime = await this.runtime();
+    const token = this.runtimeToken(runtime);
+    if (!runtime.enabled || token === null) {
       throw new MaxInitDataError('max_auth_disabled');
     }
-    return validateMaxInitData(rawInitData, this.botToken, this.now());
+    return validateMaxInitData(rawInitData, token, this.now());
   }
 
   async signIn(rawInitData: unknown, userAgentSummary?: string): Promise<MaxSignInResult> {
-    const identity = this.identity(rawInitData);
+    const identity = await this.identity(rawInitData);
     const activeIdentity = await this.pool.query<{ account_id: string | null }>(
       `SELECT auth_max_identity_account($1) AS account_id`,
       [identity.subject],
@@ -266,7 +441,7 @@ export class MaxAuthService {
   }
 
   async link(accountId: string, rawInitData: unknown): Promise<MaxLinkResult> {
-    const identity = this.identity(rawInitData);
+    const identity = await this.identity(rawInitData);
     const result = await this.pool.query(
       `SELECT result
          FROM auth_max_link($1, $2, $3, $4, $5, $6)`,
@@ -280,6 +455,124 @@ export class MaxAuthService {
       ],
     );
     return { status: String(result.rows[0]?.result ?? 'unavailable') as MaxLinkResult['status'] };
+  }
+
+  private async runtime(): Promise<MaxRuntimeRow> {
+    if (this.staticRuntime) return this.staticRuntime;
+    const result = await this.pool.query<MaxRuntimeRow>(
+      `SELECT enabled, bot_username, mini_app_url,
+              token_ciphertext, token_iv, token_auth_tag, token_fingerprint,
+              verified_bot_id, verified_bot_name, token_verified_at,
+              configuration_version, updated_at
+         FROM auth_max_runtime_config()`,
+    );
+    const row = result.rows[0];
+    if (!row) throw new MaxConfigurationError('max_service_unavailable');
+    return row;
+  }
+
+  private async adminRuntime(actorPrincipalId: string): Promise<MaxRuntimeRow> {
+    if (this.staticRuntime) return this.staticRuntime;
+    const result = await this.pool.query<
+      Omit<MaxRuntimeRow, 'token_ciphertext' | 'token_iv' | 'token_auth_tag'> & {
+        readonly token_configured: boolean;
+      }
+    >(
+      `SELECT enabled, bot_username, mini_app_url, token_configured,
+              token_fingerprint, verified_bot_id, verified_bot_name,
+              token_verified_at, configuration_version, updated_at
+         FROM admin_get_max_runtime_config($1)`,
+      [actorPrincipalId],
+    );
+    const row = result.rows[0];
+    if (!row) throw new MaxConfigurationError('max_service_unavailable');
+    return {
+      ...row,
+      token_ciphertext: row.token_configured ? 'configured' : null,
+      token_iv: null,
+      token_auth_tag: null,
+    };
+  }
+
+  private runtimeToken(runtime: MaxRuntimeRow): string | null {
+    if (runtime.token_ciphertext === null) return null;
+    if (runtime === this.staticRuntime) return boundedText(runtime.token_ciphertext, 2048);
+    if (!this.key || !runtime.token_iv || !runtime.token_auth_tag) return null;
+    try {
+      const decipher = createDecipheriv(
+        'aes-256-gcm',
+        this.key,
+        Buffer.from(runtime.token_iv, 'base64url'),
+      );
+      decipher.setAuthTag(Buffer.from(runtime.token_auth_tag, 'base64url'));
+      const clear = Buffer.concat([
+        decipher.update(Buffer.from(runtime.token_ciphertext, 'base64url')),
+        decipher.final(),
+      ]).toString('utf8');
+      return boundedText(clear, 2048);
+    } catch {
+      return null;
+    }
+  }
+
+  private encryptToken(token: string): {
+    readonly ciphertext: string;
+    readonly iv: string;
+    readonly tag: string;
+    readonly fingerprint: string;
+  } {
+    if (!this.key) throw new MaxConfigurationError('max_encryption_key_missing');
+    const iv = randomBytes(12);
+    const cipher = createCipheriv('aes-256-gcm', this.key, iv);
+    const ciphertext = Buffer.concat([cipher.update(token, 'utf8'), cipher.final()]);
+    return {
+      ciphertext: ciphertext.toString('base64url'),
+      iv: iv.toString('base64url'),
+      tag: cipher.getAuthTag().toString('base64url'),
+      fingerprint: createHash('sha256').update(token).digest('hex').slice(0, 12),
+    };
+  }
+
+  private async verifyBotToken(token: string): Promise<MaxVerifiedBot> {
+    let response: Response;
+    try {
+      response = await this.fetchImpl('https://platform-api2.max.ru/me', {
+        headers: { accept: 'application/json', authorization: token },
+        signal: AbortSignal.timeout(8_000),
+      });
+    } catch {
+      throw new MaxConfigurationError('max_service_unavailable');
+    }
+    if (response.status === 401 || response.status === 403) {
+      throw new MaxConfigurationError('max_token_invalid');
+    }
+    if (!response.ok) throw new MaxConfigurationError('max_service_unavailable');
+    let payload: Record<string, unknown>;
+    try {
+      const value = (await response.json()) as unknown;
+      if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('invalid');
+      payload = value as Record<string, unknown>;
+    } catch {
+      throw new MaxConfigurationError('max_service_unavailable');
+    }
+    const username = normalizedBotUsername(
+      typeof payload['username'] === 'string' ? payload['username'] : undefined,
+    );
+    const rawId = payload['user_id'] ?? payload['id'];
+    const id =
+      typeof rawId === 'number' && Number.isSafeInteger(rawId)
+        ? String(rawId)
+        : typeof rawId === 'string' && rawId.length <= 64
+          ? rawId
+          : null;
+    if (payload['is_bot'] !== true || !username || !id) {
+      throw new MaxConfigurationError('max_token_invalid');
+    }
+    return {
+      id,
+      username,
+      name: boundedText(payload['name'], 128),
+    };
   }
 
   async status(accountId: string): Promise<MaxAccountStatus | null> {
