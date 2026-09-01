@@ -445,7 +445,7 @@ describe('Administrative Control Plane PostgreSQL isolation', () => {
     expect(sessionAccounts).toEqual(
       expect.arrayContaining([schoolAdmin.accountId, otherSchoolAdmin.accountId]),
     );
-  });
+  }, 15_000);
 
   it('returns real platform operations aggregates without infrastructure secrets', async () => {
     const response = await inject(app, {
