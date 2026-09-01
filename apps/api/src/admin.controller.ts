@@ -11,6 +11,7 @@ import {
   Req,
 } from '@nestjs/common';
 import type { FastifyRequest } from 'fastify';
+import { isIP } from 'node:net';
 import type { ActiveContext, ActiveContextUseCase } from '@asa-lab/identity';
 import type { AdminScopeKind } from '@asa-lab/authz';
 import { SESSION_COOKIE, TOKENS } from './tokens.js';
@@ -18,6 +19,7 @@ import {
   AdminControlPlaneService,
   type AdminAuditCursor,
   type AdminDashboardRange,
+  type AdminIpLabelKind,
   type AdminListCursor,
   type ResolvedAdminAccess,
 } from './admin-control-plane.service.js';
@@ -156,6 +158,79 @@ export class AdminController {
         search: this.search(searchRaw),
         limit: this.limit(limitRaw),
         cursor: this.listCursor(beforeRaw, beforeIdRaw),
+        requestId: request.id,
+      });
+    } catch (failure) {
+      this.rethrowAdminFailure(failure);
+    }
+  }
+
+  @Get('accounts/:accountId/crm')
+  async accountCrm(
+    @Req() request: FastifyRequest,
+    @Param('accountId') accountIdRaw: string,
+    @Query('scopeKind') scopeKindRaw: string | undefined,
+    @Query('scopeId') scopeIdRaw: string | undefined,
+  ) {
+    const { access } = await this.requireAdmin(request);
+    try {
+      return await this.controlPlane.accountCrm(access, {
+        scope: this.scope(scopeKindRaw, scopeIdRaw),
+        targetAccountId: this.uuid(accountIdRaw, 'accountId'),
+        requestId: request.id,
+      });
+    } catch (failure) {
+      this.rethrowAdminFailure(failure);
+    }
+  }
+
+  @Post('accounts/:accountId/notes')
+  @HttpCode(201)
+  async addAccountNote(
+    @Req() request: FastifyRequest,
+    @Param('accountId') accountIdRaw: string,
+    @Body() body: unknown,
+  ) {
+    const { access } = await this.requireAdmin(request);
+    const value = this.object(body);
+    try {
+      return await this.controlPlane.addAccountNote(access, {
+        targetAccountId: this.uuid(accountIdRaw, 'accountId'),
+        note: this.text(value['note'], 'note', 1, 2000),
+        requestId: request.id,
+      });
+    } catch (failure) {
+      this.rethrowAdminFailure(failure);
+    }
+  }
+
+  @Post('accounts/:accountId/ip-labels')
+  @HttpCode(200)
+  async setAccountIpLabel(
+    @Req() request: FastifyRequest,
+    @Param('accountId') accountIdRaw: string,
+    @Body() body: unknown,
+  ) {
+    const { access } = await this.requireAdmin(request);
+    const value = this.object(body);
+    const ipAddress = this.text(value['ipAddress'], 'ipAddress', 2, 45);
+    if (isIP(ipAddress) === 0) {
+      throw new HttpException(error('validation_error', 'ipAddress must be IPv4 or IPv6'), 400);
+    }
+    const labelKind = value['labelKind'];
+    if (!['school', 'home', 'mobile', 'organization', 'other'].includes(String(labelKind))) {
+      throw new HttpException(error('validation_error', 'unknown IP label kind'), 400);
+    }
+    const label =
+      value['label'] === undefined || value['label'] === null || value['label'] === ''
+        ? null
+        : this.text(value['label'], 'label', 1, 120);
+    try {
+      return await this.controlPlane.setAccountIpLabel(access, {
+        targetAccountId: this.uuid(accountIdRaw, 'accountId'),
+        ipAddress,
+        labelKind: labelKind as AdminIpLabelKind,
+        label,
         requestId: request.id,
       });
     } catch (failure) {
@@ -384,6 +459,20 @@ export class AdminController {
       );
     }
     return reason;
+  }
+
+  private text(value: unknown, field: string, minimum: number, maximum: number): string {
+    if (typeof value !== 'string') {
+      throw new HttpException(error('validation_error', `${field} is required`), 400);
+    }
+    const text = value.trim();
+    if (text.length < minimum || text.length > maximum) {
+      throw new HttpException(
+        error('validation_error', `${field} must contain ${minimum} to ${maximum} characters`),
+        400,
+      );
+    }
+    return text;
   }
 
   private limit(value: string | undefined): number {

@@ -34,10 +34,13 @@ task:
   pr: null
   pr_draft: false
   # Owner-authorised stabilisation of the integrated Admin surface, durable
-  # account sessions and production MAX verification. Email delivery, CRM,
-  # billing, competitions and moderation remain outside this task.
+  # account sessions and the real user CRM directory. The CRM slice includes
+  # compact expandable rows, server-backed activity, administrative notes and
+  # explicit IP classification. Email delivery, billing, competitions and
+  # moderation remain outside this task; unfinished MAX verification stays in
+  # the same lane and must not be reported as complete by this CRM package.
   status: in_progress
-  checkpoint: production_restart_verified_max_secret_pending
+  checkpoint: user_crm_directory_authorized_dashboard_owner_accepted_max_secret_pending
   owner_acceptance: pending
 
 # Commits that mean something. Anything not listed here is ordinary history.

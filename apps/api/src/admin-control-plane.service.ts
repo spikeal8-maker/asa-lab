@@ -60,6 +60,65 @@ export interface AdminAccountView {
   readonly lastSeenAt: string | null;
   readonly hasEverSignedIn: boolean;
   readonly isPlatformAdmin: boolean;
+  readonly lastIpAddress: string | null;
+  readonly lastDevice: string | null;
+  readonly recentActivityCount: number;
+}
+
+export type AdminIpLabelKind = 'school' | 'home' | 'mobile' | 'organization' | 'other';
+
+export interface AdminAccountCrmView {
+  readonly accountId: string;
+  readonly email: string;
+  readonly displayName: string;
+  readonly username: string;
+  readonly status: string;
+  readonly emailVerificationState: string;
+  readonly createdAt: string;
+  readonly firstAuthenticatedAt: string | null;
+  readonly organizations: readonly {
+    readonly workspaceId: string;
+    readonly title: string;
+    readonly role: string;
+    readonly state: string;
+  }[];
+  readonly sessions: readonly {
+    readonly sessionId: string;
+    readonly workspaceId: string;
+    readonly workspaceTitle: string;
+    readonly createdAt: string;
+    readonly lastSeenAt: string;
+    readonly expiresAt: string;
+    readonly revokedAt: string | null;
+    readonly status: 'active' | 'expired' | 'revoked';
+    readonly device: string | null;
+  }[];
+  readonly activity: readonly {
+    readonly id: number;
+    readonly occurredAt: string;
+    readonly eventType: string;
+    readonly outcome: string;
+    readonly authMethod: string | null;
+    readonly moduleKey: string | null;
+    readonly ipAddress: string | null;
+    readonly device: string | null;
+  }[];
+  readonly ipAddresses: readonly {
+    readonly address: string;
+    readonly firstSeenAt: string;
+    readonly lastSeenAt: string;
+    readonly eventCount: number;
+    readonly device: string | null;
+    readonly labelKind: AdminIpLabelKind | null;
+    readonly label: string | null;
+  }[];
+  readonly notes: readonly {
+    readonly id: string;
+    readonly note: string;
+    readonly createdAt: string;
+    readonly authorDisplayName: string;
+  }[];
+  readonly max: { readonly linked: boolean; readonly verifiedAt: string | null };
 }
 
 export interface AdminMaxIdentityView {
@@ -205,6 +264,9 @@ interface AccountRow {
   readonly last_seen_at: Date | string | null;
   readonly has_ever_signed_in: boolean;
   readonly is_platform_admin: boolean;
+  readonly last_ip_address: string | null;
+  readonly last_device: string | null;
+  readonly recent_activity_count: string | number;
 }
 
 interface OrganizationRow {
@@ -403,7 +465,8 @@ export class AdminControlPlaneService {
       `SELECT account_id, principal_id, email, display_name, username,
               account_status, email_verification_state, created_at,
               organization_role, membership_state, active_session_count, last_seen_at,
-              has_ever_signed_in, is_platform_admin
+              has_ever_signed_in, is_platform_admin, last_ip_address, last_device,
+              recent_activity_count
          FROM admin_list_accounts($1, $2, $3, $4, $5, $6, $7)`,
       [
         access.subject.principalId,
@@ -430,11 +493,76 @@ export class AdminControlPlaneService {
       lastSeenAt: row.last_seen_at === null ? null : iso(row.last_seen_at),
       hasEverSignedIn: row.has_ever_signed_in,
       isPlatformAdmin: row.is_platform_admin,
+      lastIpAddress: row.last_ip_address,
+      lastDevice: row.last_device,
+      recentActivityCount: count(row.recent_activity_count),
     }));
     return this.page(items, input.limit, (item) => ({
       before: item.createdAt,
       id: item.accountId,
     }));
+  }
+
+  async accountCrm(
+    access: ResolvedAdminAccess,
+    input: {
+      readonly scope: { readonly kind: AdminScopeKind; readonly id: string | null };
+      readonly targetAccountId: string;
+      readonly requestId: string;
+    },
+  ): Promise<AdminAccountCrmView> {
+    this.requirePermission(access, 'administration.accounts.read', input.scope);
+    await this.auditRead(access, input, 'administration.accounts.read', 'account_crm');
+    const result = await this.pool.query<{ payload: AdminAccountCrmView | null }>(
+      `SELECT admin_get_account_crm($1, $2, $3, $4) AS payload`,
+      [access.subject.principalId, input.scope.kind, input.scope.id, input.targetAccountId],
+    );
+    const payload = result.rows[0]?.payload;
+    if (!payload) throw new Error('ADMIN_ACCOUNT_MISSING');
+    return payload;
+  }
+
+  async addAccountNote(
+    access: ResolvedAdminAccess,
+    input: { readonly targetAccountId: string; readonly note: string; readonly requestId: string },
+  ): Promise<{ readonly id: string }> {
+    const scope = { kind: 'platform' as const, id: null };
+    this.requirePermission(access, 'administration.accounts.manage', scope);
+    const result = await this.pool.query<{ id: string }>(
+      `SELECT admin_add_account_note($1, $2, $3, $4) AS id`,
+      [access.subject.principalId, input.targetAccountId, input.note, input.requestId],
+    );
+    const id = result.rows[0]?.id;
+    if (!id) throw new Error('ADMIN_NOTE_MISSING');
+    return { id };
+  }
+
+  async setAccountIpLabel(
+    access: ResolvedAdminAccess,
+    input: {
+      readonly targetAccountId: string;
+      readonly ipAddress: string;
+      readonly labelKind: AdminIpLabelKind;
+      readonly label: string | null;
+      readonly requestId: string;
+    },
+  ): Promise<{ readonly id: string }> {
+    const scope = { kind: 'platform' as const, id: null };
+    this.requirePermission(access, 'administration.security.manage', scope);
+    const result = await this.pool.query<{ id: string }>(
+      `SELECT admin_set_account_ip_label($1, $2, $3::inet, $4, $5, $6) AS id`,
+      [
+        access.subject.principalId,
+        input.targetAccountId,
+        input.ipAddress,
+        input.labelKind,
+        input.label,
+        input.requestId,
+      ],
+    );
+    const id = result.rows[0]?.id;
+    if (!id) throw new Error('ADMIN_IP_LABEL_MISSING');
+    return { id };
   }
 
   async listOrganizations(

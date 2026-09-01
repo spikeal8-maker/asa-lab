@@ -81,6 +81,65 @@ export interface AdminAccount {
   readonly lastSeenAt: string | null;
   readonly hasEverSignedIn: boolean;
   readonly isPlatformAdmin: boolean;
+  readonly lastIpAddress: string | null;
+  readonly lastDevice: string | null;
+  readonly recentActivityCount: number;
+}
+
+export type AdminIpLabelKind = 'school' | 'home' | 'mobile' | 'organization' | 'other';
+
+export interface AdminAccountCrm {
+  readonly accountId: string;
+  readonly email: string;
+  readonly displayName: string;
+  readonly username: string;
+  readonly status: string;
+  readonly emailVerificationState: string;
+  readonly createdAt: string;
+  readonly firstAuthenticatedAt: string | null;
+  readonly organizations: readonly {
+    readonly workspaceId: string;
+    readonly title: string;
+    readonly role: string;
+    readonly state: string;
+  }[];
+  readonly sessions: readonly {
+    readonly sessionId: string;
+    readonly workspaceId: string;
+    readonly workspaceTitle: string;
+    readonly createdAt: string;
+    readonly lastSeenAt: string;
+    readonly expiresAt: string;
+    readonly revokedAt: string | null;
+    readonly status: 'active' | 'expired' | 'revoked';
+    readonly device: string | null;
+  }[];
+  readonly activity: readonly {
+    readonly id: number;
+    readonly occurredAt: string;
+    readonly eventType: string;
+    readonly outcome: string;
+    readonly authMethod: string | null;
+    readonly moduleKey: string | null;
+    readonly ipAddress: string | null;
+    readonly device: string | null;
+  }[];
+  readonly ipAddresses: readonly {
+    readonly address: string;
+    readonly firstSeenAt: string;
+    readonly lastSeenAt: string;
+    readonly eventCount: number;
+    readonly device: string | null;
+    readonly labelKind: AdminIpLabelKind | null;
+    readonly label: string | null;
+  }[];
+  readonly notes: readonly {
+    readonly id: string;
+    readonly note: string;
+    readonly createdAt: string;
+    readonly authorDisplayName: string;
+  }[];
+  readonly max: { readonly linked: boolean; readonly verifiedAt: string | null };
 }
 
 export interface AdminMaxIdentity {
@@ -337,6 +396,33 @@ export const adminApi = {
   },
   operationsStatus: () => call<AdminOperationsStatus>('/api/admin/v1/operations/status'),
   accounts: (input: AdminListInput) => list<AdminAccount>('/api/admin/v1/accounts', input),
+  accountCrm: (
+    accountId: string,
+    scope: Pick<AdminScope, 'kind' | 'id'>,
+  ): Promise<AdminApiResult<AdminAccountCrm>> => {
+    const query = new URLSearchParams({ scopeKind: scope.kind });
+    if (scope.id !== null) query.set('scopeId', scope.id);
+    return call<AdminAccountCrm>(
+      `/api/admin/v1/accounts/${encodeURIComponent(accountId)}/crm?${query.toString()}`,
+    );
+  },
+  addAccountNote: (accountId: string, note: string) =>
+    call<{ readonly id: string }>(`/api/admin/v1/accounts/${encodeURIComponent(accountId)}/notes`, {
+      method: 'POST',
+      body: JSON.stringify({ note }),
+    }),
+  setAccountIpLabel: (
+    accountId: string,
+    input: {
+      readonly ipAddress: string;
+      readonly labelKind: AdminIpLabelKind;
+      readonly label: string | null;
+    },
+  ) =>
+    call<{ readonly id: string }>(
+      `/api/admin/v1/accounts/${encodeURIComponent(accountId)}/ip-labels`,
+      { method: 'POST', body: JSON.stringify(input) },
+    ),
   setAccountStatus: (
     accountId: string,
     input: { readonly status: 'active' | 'suspended'; readonly reason: string },

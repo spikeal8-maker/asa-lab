@@ -200,6 +200,47 @@ describe('administrative API client', () => {
     expect(body).not.toHaveProperty('actorId');
   });
 
+  it('uses account-scoped CRM endpoints for detail, notes and explicit IP labels', async () => {
+    const request = vi.fn(async (...args: Parameters<typeof fetch>) => {
+      void args;
+      return new Response(JSON.stringify({ id: 'entry' }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    });
+    vi.stubGlobal('fetch', request);
+
+    await adminApi.accountCrm('account/id', { kind: 'organization', id: 'scope/id' });
+    await adminApi.addAccountNote('account/id', 'Внутренний комментарий');
+    await adminApi.setAccountIpLabel('account/id', {
+      ipAddress: '203.0.113.10',
+      labelKind: 'school',
+      label: 'Школа № 1',
+    });
+
+    expect(request.mock.calls[0]?.[0]).toBe(
+      '/api/admin/v1/accounts/account%2Fid/crm?scopeKind=organization&scopeId=scope%2Fid',
+    );
+    expect(request.mock.calls[1]?.[0]).toBe('/api/admin/v1/accounts/account%2Fid/notes');
+    expect(request.mock.calls[1]?.[1]).toEqual(
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ note: 'Внутренний комментарий' }),
+      }),
+    );
+    expect(request.mock.calls[2]?.[0]).toBe('/api/admin/v1/accounts/account%2Fid/ip-labels');
+    expect(request.mock.calls[2]?.[1]).toEqual(
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({
+          ipAddress: '203.0.113.10',
+          labelKind: 'school',
+          label: 'Школа № 1',
+        }),
+      }),
+    );
+  });
+
   it('reads and revokes MAX identity through account-scoped admin endpoints', async () => {
     const request = vi.fn(async (...args: Parameters<typeof fetch>) => {
       void args;
