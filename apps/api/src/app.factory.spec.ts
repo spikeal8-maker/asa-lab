@@ -223,7 +223,8 @@ describe('API application factory', () => {
 
       expect(response.statusCode).toBe(403);
       expect(response.json().error.code).toBe('bot_check_required');
-      expect(query).not.toHaveBeenCalled();
+      expect(query).toHaveBeenCalledTimes(1);
+      expect(String(query.mock.calls[0]?.[0])).toContain('analytics_record_event');
     } finally {
       if (previousNodeEnv === undefined) delete process.env['NODE_ENV'];
       else process.env['NODE_ENV'] = previousNodeEnv;
