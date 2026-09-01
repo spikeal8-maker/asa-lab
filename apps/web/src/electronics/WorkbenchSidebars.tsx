@@ -98,6 +98,14 @@ function motorVoltageStateLabel(state: ComponentResult['motorVoltageState']): st
   return 'Рабочее напряжение';
 }
 
+function piezoDriveStateLabel(measurement: ComponentResult | undefined): string {
+  if (measurement?.piezoDriveState === 'sounding') return 'Звук воспроизводится';
+  if (measurement?.piezoDriveState === 'reverse_polarity') return 'Перепутана полярность';
+  if (measurement?.piezoDriveState === 'overvoltage') return 'Напряжение выше допустимого';
+  if (measurement?.piezoDriveState === 'below_voltage') return 'Недостаточно напряжения';
+  return measurement?.piezoMode === 'active' ? 'Питание не подано' : 'Нет звукового сигнала';
+}
+
 function GearmotorMeasurements({
   measurement,
   gearRatio,
@@ -346,6 +354,10 @@ export function WorkbenchSidebars({
   const selectedIsRgbLed = c.selectedEntry?.key === 'rgb-led';
   const selectedIsSevenSegment = c.selectedEntry?.key === 'seven-segment-display';
   const selectedIsMultimeter = c.selectedEntry?.key === 'multimeter';
+  const selectedIsPiezo = c.selectedComponent?.kind === 'piezo';
+  const selectedPiezoMode = selectedIsPiezo
+    ? String(c.selectedComponent?.stateProperties?.['piezoMode'] ?? 'passive')
+    : 'passive';
   const selectedMotorProfile =
     c.selectedComponent && (selectedIsDcMotor || selectedIsGearmotor)
       ? resolveBrushedMotorProfileSelection(c.selectedComponent)
@@ -737,6 +749,37 @@ export function WorkbenchSidebars({
                   onChange={(event) => c.updateSelectedName(event.target.value)}
                 />
               </label>
+              {selectedIsPiezo ? (
+                <fieldset
+                  className="workbench-state-controls workbench-primary-controls workbench-piezo-controls"
+                  data-testid="piezo-primary-controls"
+                >
+                  <legend>Звук</legend>
+                  <label>
+                    <span>Режим</span>
+                    <select
+                      aria-label="Режим пьезоэлемента"
+                      value={selectedPiezoMode}
+                      onChange={(event) =>
+                        c.setSelectedProperties(
+                          { piezoMode: event.target.value },
+                          event.target.value === 'active'
+                            ? 'Активный пьезоэлемент: звук от постоянного питания.'
+                            : 'Пассивный пьезоэлемент: частота задаётся сигналом.',
+                        )
+                      }
+                    >
+                      <option value="passive">Пассивный — нужен сигнал</option>
+                      <option value="active">Активный — пищит от питания</option>
+                    </select>
+                  </label>
+                  <p className="workbench-component-note">
+                    {selectedPiezoMode === 'active'
+                      ? 'Пищит от 3–12 В со встроенной частотой около 2300 Гц.'
+                      : 'Воспроизводит частоту tone() или другого быстрого сигнала.'}
+                  </p>
+                </fieldset>
+              ) : null}
               {selectedIsMultimeter ? (
                 <fieldset
                   className="workbench-state-controls workbench-primary-controls workbench-multimeter-controls"
@@ -859,19 +902,17 @@ export function WorkbenchSidebars({
               ) : null}
               {c.selectedComponent.kind === 'piezo' && stateOpen ? (
                 <div className="workbench-piezo-summary" data-testid="piezo-runtime-summary">
-                  <strong>
-                    {c.resultByComponent.get(c.selectedComponent.id)?.energized
-                      ? 'Звук воспроизводится'
-                      : 'Нет переменного сигнала'}
-                  </strong>
+                  <strong>{piezoDriveStateLabel(measurement)}</strong>
                   <span>
                     Частота:{' '}
-                    {Math.round(c.resultByComponent.get(c.selectedComponent.id)?.frequencyHz ?? 0)}{' '}
-                    Гц
+                    {measurement?.energized
+                      ? `${Math.round(measurement.frequencyHz ?? 0)} Гц`
+                      : 'нет звука'}
                   </span>
                   <small>
-                    Пассивный пьезоэлемент звучит от tone() или быстрого переключения вывода, но не
-                    от постоянного уровня.
+                    {selectedPiezoMode === 'active'
+                      ? 'В активном режиме встроенный генератор запускается от постоянного питания правильной полярности.'
+                      : 'В пассивном режиме частоту задаёт tone() или другой быстрый переменный сигнал; постоянный уровень звука не создаёт.'}
                   </small>
                 </div>
               ) : null}

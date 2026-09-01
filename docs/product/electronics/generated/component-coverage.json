@@ -2,15 +2,15 @@
   "schema": "asa-lab.electronics-component-coverage.v1",
   "generatedFrom": {
     "catalogPath": "apps/web/public/assets/electronics/component-database/catalog.json",
-    "catalogSha256": "79444670c8cccca77cd8bcc3bd68952ce59ba391d30f020964f69da15a55a4d5",
+    "catalogSha256": "0d086252c3d9ba9dec19ef32d284f5aab1f77758a36afb957be49ac7a2531251",
     "modelIdentityPath": "contexts/electronics/domain/model-identity.ts",
-    "modelIdentitySha256": "fc034b3168c4d5d9504404f83ddde3ba585b7904236ac60e58f2bdb1e20fd34c",
+    "modelIdentitySha256": "049c23ea930cb11aec56cdb3febd1b9d46fd2db0c06475295a72ac10c30cb05f",
     "modelRegistryPath": "contexts/electronics/domain/model-registry.ts",
-    "modelRegistrySha256": "01b0d44d5f4e5df15a331fc46d3533418b433f1a0265afc8033a05274460fdeb",
+    "modelRegistrySha256": "a7a7d94913145df1228758d9404da40a7aad3cc0b40f2915747141815327c3ba",
     "inspectorProfilePath": "apps/web/src/electronics/component-information.ts",
     "inspectorProfileSha256": "7f0683af49628fd5930cb89255558688c762e2d93dfc2e3aa6b5d9adb4a4abc5",
     "helpContentPath": "apps/web/src/electronics/component-help-content.ts",
-    "helpContentSha256": "968a623e91a80701fc96b958481fb1a1802f0611b706123e3e270e28b1d001ce",
+    "helpContentSha256": "7aa5fc9e9b9ccc53e0008a6015a987724c4e7baa3532cf5283e970150011b580",
     "componentInformationTestPath": "apps/web/src/electronics/testing/component-information.spec.ts",
     "componentInformationTestSha256": "ddd720f0c7b0012a60e0f07209126b5e92837c3c2f2f7e4427bbf2e01b48f8db",
     "browserEvidencePath": "e2e/electronics-simulation.spec.ts",
@@ -780,7 +780,7 @@
       "familyId": "piezo",
       "variantId": "piezo-passive-buzzer",
       "catalogStatus": "enabled",
-      "catalogSimulationSupport": "passive_piezo_arduino_tone_v1",
+      "catalogSimulationSupport": "piezo_active_passive_audio_v2",
       "ownerArtwork": "verified",
       "placement": "verified",
       "physicalScale": "verified",
@@ -792,15 +792,15 @@
       "damageProfile": "unverified",
       "inspectorHelp": "unverified",
       "browserEvidence": "unverified",
-      "electricalModelId": "passive-piezo",
-      "modelProfileId": "passive-piezo-enclosed"
+      "electricalModelId": "piezo-transducer",
+      "modelProfileId": "piezo-enclosed-audio"
     },
     {
       "componentId": "piezo-disc",
       "familyId": "piezo",
       "variantId": "piezo-disc",
       "catalogStatus": "enabled",
-      "catalogSimulationSupport": "passive_piezo_arduino_tone_v1",
+      "catalogSimulationSupport": "piezo_active_passive_audio_v2",
       "ownerArtwork": "verified",
       "placement": "verified",
       "physicalScale": "verified",
@@ -812,8 +812,8 @@
       "damageProfile": "unverified",
       "inspectorHelp": "unverified",
       "browserEvidence": "unverified",
-      "electricalModelId": "passive-piezo",
-      "modelProfileId": "passive-piezo-disc"
+      "electricalModelId": "piezo-transducer",
+      "modelProfileId": "piezo-disc-audio"
     },
     {
       "componentId": "multimeter",

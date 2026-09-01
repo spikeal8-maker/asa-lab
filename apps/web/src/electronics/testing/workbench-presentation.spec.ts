@@ -573,6 +573,18 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(workbenchCss).toContain('.workbench-regulated-supply-indicator.is-cc.is-active');
   });
 
+  it('shows active and passive piezo modes and animates only calculated sound state', () => {
+    expect(sidebarSource).toContain('data-testid="piezo-primary-controls"');
+    expect(sidebarSource).toContain('Пассивный — нужен сигнал');
+    expect(sidebarSource).toContain('Активный — пищит от питания');
+    expect(sidebarSource).toContain('Пищит от 3–12 В');
+    expect(productionVisualSource).toContain('OwnerPiezoVisual');
+    expect(productionVisualSource).toContain('piezoRuntimeMarkup(ownerSvg)');
+    expect(productionVisualSource).toContain('data-testid="piezo-owner-runtime"');
+    expect(workbenchCss).toContain('.workbench-piezo-owner-waves');
+    expect(workbenchCss).toContain('.workbench-piezo-visual.is-sounding');
+  });
+
   it('provides a real phone workbench with a bottom component sheet and touch targets', () => {
     expect(workbenchCss).toContain('@media (max-width: 760px)');
     expect(workbenchCss).toContain('--wb-library-open-height: min(44dvh, 360px)');

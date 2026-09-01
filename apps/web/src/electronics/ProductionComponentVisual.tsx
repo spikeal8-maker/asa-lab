@@ -14,6 +14,7 @@ import {
   gearmotorRuntimeMarkup,
   gearmotorVisualPresentation,
   multimeterRuntimeMarkup,
+  piezoRuntimeMarkup,
   potentiometerKnobAngle,
   potentiometerRuntimeMarkup,
   regulatedPowerSupplyRuntimeMarkup,
@@ -163,6 +164,49 @@ function OwnerMultimeterVisual({
           onModeChange?.('resistance');
         }
       }}
+      dangerouslySetInnerHTML={{ __html: markup }}
+    />
+  );
+}
+
+function OwnerPiezoVisual({
+  asset,
+  width,
+  height,
+  viewBox,
+}: {
+  readonly asset: string;
+  readonly width: number;
+  readonly height: number;
+  readonly viewBox: CatalogEntry['viewBox'];
+}): JSX.Element {
+  const [ownerSvg, setOwnerSvg] = useState<string | null>(null);
+  useEffect(() => {
+    let mounted = true;
+    void ownerSvgSource(asset)
+      .then((source) => {
+        if (mounted) setOwnerSvg(source);
+      })
+      .catch(() => {
+        if (mounted) setOwnerSvg(null);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [asset]);
+  const markup = useMemo(() => (ownerSvg ? piezoRuntimeMarkup(ownerSvg) : ''), [ownerSvg]);
+  if (!markup) return <image href={asset} width={width} height={height} pointerEvents="none" />;
+  return (
+    <svg
+      className="workbench-piezo-owner-runtime"
+      data-testid="piezo-owner-runtime"
+      x="0"
+      y="0"
+      width={width}
+      height={height}
+      viewBox={`${viewBox.x} ${viewBox.y} ${viewBox.width} ${viewBox.height}`}
+      preserveAspectRatio="xMidYMid meet"
+      pointerEvents="none"
       dangerouslySetInnerHTML={{ __html: markup }}
     />
   );
@@ -969,7 +1013,9 @@ export function ProductionComponentVisual({
         </g>
       ) : (
         <>
-          {entry.key === 'potentiometer' ? (
+          {entry.familyId === 'piezo' ? (
+            <OwnerPiezoVisual asset={asset} width={width} height={height} viewBox={entry.viewBox} />
+          ) : entry.key === 'potentiometer' ? (
             <OwnerPotentiometerVisual
               asset={asset}
               width={width}
@@ -1045,7 +1091,7 @@ export function ProductionComponentVisual({
         </>
       )}
 
-      {entry.familyId === 'piezo' ? (
+      {entry.key === 'piezo-passive-buzzer' ? (
         <g
           className="workbench-piezo-waves"
           data-testid="piezo-sound-waves"

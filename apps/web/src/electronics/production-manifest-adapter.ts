@@ -381,6 +381,7 @@ function defaults(componentId: string): {
       value: 0,
       unit: 'Гц',
       properties: {
+        piezoMode: 'passive',
         piezoVariant: componentId === 'piezo-disc' ? 'disc' : 'enclosed',
         waveform: componentId === 'piezo-disc' ? 'sine' : 'square',
       },

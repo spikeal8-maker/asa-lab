@@ -629,10 +629,20 @@
   border-bottom: 1px solid #d8e0e5;
   background: #f4f9fc;
 }
-.workbench-piezo-visual.is-sounding > image {
+.workbench-piezo-visual.is-sounding > image,
+.workbench-piezo-visual.is-sounding > .workbench-piezo-owner-runtime {
   transform-box: fill-box;
   transform-origin: center;
   animation: workbench-piezo-vibrate 72ms ease-in-out infinite alternate;
+}
+.workbench-piezo-owner-waves {
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.workbench-piezo-visual.is-sounding .workbench-piezo-owner-waves {
+  opacity: 0.42;
+  animation: workbench-piezo-owner-wave 560ms ease-out infinite alternate;
 }
 .workbench-piezo-waves path {
   fill: none;
@@ -663,8 +673,20 @@
     transform: scale(1.08);
   }
 }
+@keyframes workbench-piezo-owner-wave {
+  from {
+    opacity: 0.2;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 0.48;
+    transform: scale(1.035);
+  }
+}
 @media (prefers-reduced-motion: reduce) {
   .workbench-piezo-visual.is-sounding > image,
+  .workbench-piezo-visual.is-sounding > .workbench-piezo-owner-runtime,
+  .workbench-piezo-visual.is-sounding .workbench-piezo-owner-waves,
   .workbench-piezo-waves path {
     animation: none;
   }

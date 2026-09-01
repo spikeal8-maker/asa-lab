@@ -13,7 +13,11 @@ import {
   renderedSize,
   terminalPosition,
 } from './component-catalog';
-import { PIN_ANCHOR_TOLERANCE_MM, WORLD_UNITS_PER_MM } from './production-asset-contracts';
+import {
+  BREADBOARD_PITCH_MM,
+  PIN_ANCHOR_TOLERANCE_MM,
+  WORLD_UNITS_PER_MM,
+} from './production-asset-contracts';
 import { productionBreadboard } from './production-manifest-adapter';
 import { moveWireSegmentVertices, snap, wirePoints, type Point } from './workbench-geometry';
 import type { Selection, TerminalRef } from './workbench-model';
@@ -182,7 +186,13 @@ export function updateSelectionVariant(
     ...(entry.defaultWiperPosition === undefined
       ? {}
       : { wiperPosition: entry.defaultWiperPosition }),
-    stateProperties: { ...entry.defaultStateProperties },
+    stateProperties:
+      currentEntry.familyId === 'piezo' && entry.familyId === 'piezo'
+        ? {
+            ...entry.defaultStateProperties,
+            piezoMode: current.stateProperties?.['piezoMode'] ?? 'passive',
+          }
+        : { ...entry.defaultStateProperties },
     rotation,
     // Family variants grow around their physical centre. This keeps centred
     // terminals (notably the two battery-holder wire ends) at the same world
@@ -651,6 +661,100 @@ function hasFlexibleBreadboardLeads(component: SchematicComponent): boolean {
   );
 }
 
+function snapPiezoLeadsToBreadboard(
+  document: SchematicDocument,
+  component: SchematicComponent,
+): SchematicDocument | null {
+  const positivePoint = terminalPosition(
+    component,
+    component.position,
+    'positive',
+    component.rotation ?? 0,
+  );
+  const negativePoint = terminalPosition(
+    component,
+    component.position,
+    'negative',
+    component.rotation ?? 0,
+  );
+  if (!positivePoint || !negativePoint) return null;
+
+  const targetSpacing = BREADBOARD_PITCH_MM * 3 * WORLD_UNITS_PER_MM;
+  let best:
+    | {
+        boardId: string;
+        positiveHoleId: string;
+        negativeHoleId: string;
+        score: number;
+      }
+    | undefined;
+  for (const boardComponent of document.components.filter((item) => item.kind === 'breadboard')) {
+    const board = productionBreadboard(boardComponent.componentTypeId ?? '');
+    if (!board) continue;
+    const holes = board.holes.flatMap((hole) => {
+      const point = componentPointPosition(
+        boardComponent,
+        boardComponent.position,
+        hole,
+        boardComponent.rotation ?? 0,
+      );
+      return point ? [{ hole, point }] : [];
+    });
+    for (const positiveCandidate of holes) {
+      const positiveDistance = Math.hypot(
+        positiveCandidate.point.x - positivePoint.x,
+        positiveCandidate.point.y - positivePoint.y,
+      );
+      if (positiveDistance > 45) continue;
+      for (const negativeCandidate of holes) {
+        if (negativeCandidate.hole.id === positiveCandidate.hole.id) continue;
+        const holeSpacing = Math.hypot(
+          negativeCandidate.point.x - positiveCandidate.point.x,
+          negativeCandidate.point.y - positiveCandidate.point.y,
+        );
+        if (Math.abs(holeSpacing - targetSpacing) > 0.5) continue;
+        const negativeDistance = Math.hypot(
+          negativeCandidate.point.x - negativePoint.x,
+          negativeCandidate.point.y - negativePoint.y,
+        );
+        if (negativeDistance > 45) continue;
+        // The positive lead is the placement anchor. Keep it in the hole the
+        // user aimed at, then flex the second lead to the shared 3-pitch base.
+        const score = positiveDistance * 4 + negativeDistance;
+        if (!best || score < best.score) {
+          best = {
+            boardId: boardComponent.id,
+            positiveHoleId: positiveCandidate.hole.id,
+            negativeHoleId: negativeCandidate.hole.id,
+            score,
+          };
+        }
+      }
+    }
+  }
+  if (!best) return null;
+  return {
+    ...document,
+    components: document.components.map((item) =>
+      item.id === component.id
+        ? {
+            ...item,
+            holeBindings: {
+              positive: {
+                breadboardComponentId: best.boardId,
+                holeId: best.positiveHoleId,
+              },
+              negative: {
+                breadboardComponentId: best.boardId,
+                holeId: best.negativeHoleId,
+              },
+            },
+          }
+        : item,
+    ),
+  };
+}
+
 function snapFlexibleLeadsToBreadboard(
   document: SchematicDocument,
   component: SchematicComponent,
@@ -728,6 +832,10 @@ export function snapComponentToBreadboard(
   const component = document.components.find((item) => item.id === componentId);
   const entry = component ? catalogEntry(component) : null;
   if (component && hasFlexibleBreadboardLeads(component)) {
+    if (component.kind === 'piezo') {
+      const snappedPiezo = snapPiezoLeadsToBreadboard(document, component);
+      if (snappedPiezo) return snappedPiezo;
+    }
     return snapFlexibleLeadsToBreadboard(document, component);
   }
   const offsets = entry?.footprint?.pinOffsetsMm;

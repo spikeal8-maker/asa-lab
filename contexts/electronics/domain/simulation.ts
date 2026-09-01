@@ -21,6 +21,7 @@ import {
 import { canonicalBrushedMotorProfileRegistry } from './models/brushed-motor-profiles.js';
 import { BRUSHED_MOTOR_TRANSIENT_MODEL_VERSION } from './models/brushed-motor-transient-model.js';
 import { canonicalRegulatedPowerSupplyProfileRegistry } from './models/regulated-power-supply-model.js';
+import { canonicalPiezoAudioProfileRegistry } from './models/piezo-audio-model.js';
 
 export type SimulationStatus = 'solved' | 'unsupported' | 'invalid' | 'nonconvergent';
 
@@ -75,6 +76,7 @@ const MODEL_SET_DIGEST = `sha256:${sha256Hex(
     brushedMotorProfiles: canonicalBrushedMotorProfileRegistry(),
     brushedMotorTransientModelVersion: BRUSHED_MOTOR_TRANSIENT_MODEL_VERSION,
     regulatedPowerSupplyProfiles: canonicalRegulatedPowerSupplyProfileRegistry(),
+    piezoAudioProfiles: canonicalPiezoAudioProfileRegistry(),
   }),
 )}`;
 
@@ -184,6 +186,7 @@ function logicalTerminal(component: SchematicComponent, terminal: LogicalTermina
   }
   if (component.kind === 'resistor' || component.kind === 'photoresistor')
     return terminal === 'a' ? 'lead-1' : 'lead-2';
+  if (component.kind === 'piezo') return terminal === 'a' ? 'positive' : 'negative';
   if (component.kind === 'led' || component.kind === 'diode') {
     return terminal === 'a' ? 'anode' : 'cathode';
   }
