@@ -112,7 +112,7 @@ export function App(): JSX.Element {
     return initial.kind === 'teacher-invite' ? initial.token : null;
   });
   const [shellCreating, setShellCreating] = useState(false);
-  const [accountPanel, setAccountPanel] = useState<'profile' | 'school'>('profile');
+  const [accountPanel, setAccountPanel] = useState<'profile' | 'school' | 'security'>('profile');
   const [adminSection, setAdminSection] = useState<AdminSection | null>(() =>
     adminSectionFromLocation(window.location),
   );
@@ -479,6 +479,18 @@ export function App(): JSX.Element {
       return (
         <RegisterPage
           onRegistered={signedIn}
+          {...(pendingMaxLink
+            ? {
+                maxInitData: pendingMaxLink,
+                onMaxRegistered: (payload: SessionPayload) => {
+                  setPendingMaxLink(null);
+                  setMaxLaunchMessage(null);
+                  maxLaunchData.current = null;
+                  leaveMaxLaunch();
+                  signedIn(payload);
+                },
+              }
+            : {})}
           onBackToLogin={() => setPublicView({ kind: 'sign-in' })}
           onHome={goToPublicHome}
         />
@@ -569,7 +581,7 @@ export function App(): JSX.Element {
     else if (section === 'classes') setView({ kind: 'classrooms' });
     else if (section === 'help') setView({ kind: 'help' });
     else {
-      setAccountPanel('profile');
+      setAccountPanel(maxVerificationDue ? 'security' : 'profile');
       setView({ kind: 'account' });
     }
   };

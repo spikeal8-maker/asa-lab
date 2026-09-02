@@ -280,7 +280,6 @@ describe('administrative API client', () => {
       botUsername: 'asa_bot',
       miniAppUrl: 'https://asa-lab.ru/max-login',
       botToken: 'new-secret',
-      reason: 'Подключение владельцем',
     });
 
     expect(request.mock.calls[0]?.[0]).toBe('/api/admin/v1/integrations/max');

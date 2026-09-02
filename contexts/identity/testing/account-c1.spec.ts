@@ -10,6 +10,7 @@ import type {
   SessionV2StorePort,
 } from '../application/account.ports';
 import { hashSessionToken } from '../domain/session-token';
+import { hashPassword } from '../domain/password';
 
 const ACCOUNT_ID = '087e994f-9970-4fad-b32f-8172c3273132';
 const PRINCIPAL_ID = '45cf51a5-6792-47aa-9fa2-20f03720a3f7';
@@ -34,6 +35,9 @@ function directory(
     educatorMode?: EducatorModeChange;
     school?: SchoolWorkspaceRecord | null;
     usernameTaken?: boolean;
+    passwordSource?: 'password' | 'max';
+    passwordConfigured?: boolean;
+    changedPasswords?: string[];
   } = {},
 ): AccountDirectoryPort {
   return {
@@ -86,6 +90,15 @@ function directory(
         : overrides.school,
     accountForUser: async () => null,
     legacyActor: async () => null,
+    passwordContext: async () => ({
+      passwordHash: hashPassword('current-password'),
+      passwordConfigured: overrides.passwordConfigured ?? true,
+      authenticationSource: overrides.passwordSource ?? 'password',
+    }),
+    setPassword: async (_accountId, _tokenHash, passwordHash) => {
+      overrides.changedPasswords?.push(passwordHash);
+      return true;
+    },
   };
 }
 
@@ -293,5 +306,29 @@ describe('Account C1 management use case', () => {
     expect(sessions.hashes).toHaveLength(4);
     expect(new Set(sessions.hashes)).toEqual(new Set([hashSessionToken('secret-token')]));
     expect(sessions.hashes).not.toContain('secret-token');
+  });
+
+  it('requires the current password for password sessions but trusts a fresh MAX session', async () => {
+    const passwordUsecase = new AccountManagementUseCase(directory(), sessionStore());
+    await expect(
+      passwordUsecase.changePassword(ACCOUNT_ID, 'session-token', {
+        currentPassword: 'wrong-password',
+        newPassword: 'a-new-password',
+      }),
+    ).resolves.toEqual({ ok: false, code: 'current_password_invalid' });
+
+    const changedPasswords: string[] = [];
+    const maxUsecase = new AccountManagementUseCase(
+      directory({ passwordSource: 'max', changedPasswords }),
+      sessionStore(),
+    );
+    await expect(
+      maxUsecase.changePassword(ACCOUNT_ID, 'session-token', {
+        currentPassword: '',
+        newPassword: 'a-new-password',
+      }),
+    ).resolves.toEqual({ ok: true });
+    expect(changedPasswords).toHaveLength(1);
+    expect(changedPasswords[0]).not.toContain('a-new-password');
   });
 });

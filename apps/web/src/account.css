@@ -1196,6 +1196,52 @@ button.portal-account-identity:hover:not(:disabled) {
   font-size: 13px;
 }
 
+.account-password-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin: 0 0 32px;
+  padding: 20px;
+  border: 1px solid #dce5ea;
+  border-radius: 10px;
+  background: #f9fbfc;
+}
+
+.account-password-form .account-section-heading {
+  grid-column: 1 / -1;
+  margin: 0 0 4px;
+}
+
+.account-password-form .account-section-heading h3 {
+  margin: 0 0 5px;
+  color: #2a404c;
+  font-size: 18px;
+}
+
+.account-password-form label {
+  display: grid;
+  gap: 7px;
+  color: #314854;
+  font-size: 13px;
+  font-weight: 780;
+}
+
+.account-password-form input {
+  min-height: 44px;
+  width: 100%;
+  padding: 0 12px;
+  border: 1px solid #bccbd3;
+  border-radius: 6px;
+  background: #fff;
+  color: #263b47;
+  font: inherit;
+}
+
+.account-password-form button {
+  align-self: end;
+  justify-self: start;
+}
+
 .account-sessions-heading {
   display: flex;
   align-items: center;
@@ -1354,6 +1400,10 @@ button.portal-account-identity:hover:not(:disabled) {
   }
 
   .account-private-facts {
+    grid-template-columns: 1fr;
+  }
+
+  .account-password-form {
     grid-template-columns: 1fr;
   }
 

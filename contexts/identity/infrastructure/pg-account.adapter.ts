@@ -7,6 +7,7 @@ import type {
   EducatorModeChange,
   RegistrationConflict,
   AccountRecord,
+  AccountPasswordContext,
   CapabilityRef,
   LinkedAccount,
   LegacyActor,
@@ -80,6 +81,33 @@ export class PgAccountDirectory implements AccountDirectoryPort {
       username,
     ]);
     return result.rows[0]?.available === true;
+  }
+
+  async passwordContext(
+    accountId: string,
+    tokenHash: string,
+  ): Promise<AccountPasswordContext | null> {
+    const result = await this.pool.query(
+      `SELECT password_hash, password_configured, authentication_source
+         FROM auth_account_password_context($1, $2)`,
+      [accountId, tokenHash],
+    );
+    const row = result.rows[0];
+    return row
+      ? {
+          passwordHash: row.password_hash,
+          passwordConfigured: row.password_configured === true,
+          authenticationSource: row.authentication_source,
+        }
+      : null;
+  }
+
+  async setPassword(accountId: string, tokenHash: string, passwordHash: string): Promise<boolean> {
+    const result = await this.pool.query<{ changed: boolean }>(
+      `SELECT auth_account_password_set($1, $2, $3) AS changed`,
+      [accountId, tokenHash, passwordHash],
+    );
+    return result.rows[0]?.changed === true;
   }
 
   async personalWorkspace(accountId: string): Promise<PersonalWorkspaceRef | null> {

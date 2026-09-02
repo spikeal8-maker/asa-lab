@@ -245,6 +245,36 @@ export class AccountC1Controller {
     return { items };
   }
 
+  @Get('account/password')
+  async passwordStatus(@Req() request: FastifyRequest) {
+    const context = await this.requireContext(request);
+    const status = await this.account.passwordStatus(context.accountId, this.token(request));
+    if (!status) throw new HttpException(error('unauthorized', 'no active session'), 401);
+    return status;
+  }
+
+  @Post('account/password')
+  async changePassword(@Req() request: FastifyRequest, @Body() rawBody: unknown) {
+    const context = await this.requireContext(request);
+    const shape = checkBodyShape(rawBody, ['currentPassword', 'newPassword']);
+    if (!shape.ok) throw new HttpException(error('validation_error', shape.message), 400);
+    const result = await this.account.changePassword(context.accountId, this.token(request), {
+      currentPassword: shape.body['currentPassword'],
+      newPassword: shape.body['newPassword'],
+    });
+    if (!result.ok) {
+      const status = result.code === 'unauthorized' ? 401 : 400;
+      const message =
+        result.code === 'current_password_invalid'
+          ? 'Текущий пароль указан неверно.'
+          : result.code === 'validation_error'
+            ? 'Новый пароль должен содержать от 10 до 200 символов.'
+            : 'Сессия больше не активна.';
+      throw new HttpException(error(result.code, message), status);
+    }
+    return { changed: true };
+  }
+
   @Delete('account/sessions/:id')
   async revokeSession(@Req() request: FastifyRequest, @Param('id') sessionId: string) {
     await this.requireContext(request);

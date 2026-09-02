@@ -4,6 +4,12 @@ export interface AccountRecord {
   readonly passwordHash: string;
 }
 
+export interface AccountPasswordContext {
+  readonly passwordHash: string;
+  readonly passwordConfigured: boolean;
+  readonly authenticationSource: string;
+}
+
 export interface RegisterAccountInput {
   readonly email: string;
   readonly passwordHash: string;
@@ -131,6 +137,8 @@ export interface AccountDirectoryPort {
   createSchoolWorkspace(accountId: string, title: string): Promise<SchoolWorkspaceRecord | null>;
   accountForUser(tenantId: string, userId: string): Promise<LinkedAccount | null>;
   legacyActor(accountId: string): Promise<LegacyActor | null>;
+  passwordContext(accountId: string, tokenHash: string): Promise<AccountPasswordContext | null>;
+  setPassword(accountId: string, tokenHash: string, passwordHash: string): Promise<boolean>;
 }
 
 export interface ActiveContext {

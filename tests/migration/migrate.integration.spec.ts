@@ -206,4 +206,99 @@ describe('migration runner apply (embedded PostgreSQL via PGlite)', () => {
       await db.close();
     }
   }, 30_000);
+
+  it('registers through MAX, completes a one-time browser pairing and creates a password', async () => {
+    const db = new PGlite();
+    try {
+      await applyPlan(pgliteClient(db), planMigrations('migrations'));
+      const now = Math.floor(Date.now() / 1000);
+      const registered = await db.query<{
+        result: string;
+        account_id: string;
+      }>(
+        `SELECT result, account_id
+           FROM auth_max_register_account(
+             $1,$2,$3,$4,$5,$6,$7,$8,$9,$10::date,$11,$12,$13,$14
+           )`,
+        [
+          '231408577955',
+          'query-register-1',
+          now,
+          'asa_new',
+          'ASA New',
+          'max-new@example.test',
+          'initial-password-hash'.repeat(3),
+          'ASA New',
+          'max_new',
+          '1990-01-01',
+          'RU',
+          'adult-v1',
+          'r'.repeat(64),
+          12,
+        ],
+      );
+      expect(registered.rows[0].result).toBe('authenticated');
+      const accountId = registered.rows[0].account_id;
+
+      const created = await db.query<{ created: boolean }>(
+        `SELECT auth_max_pairing_start($1, 10) AS created`,
+        ['q'.repeat(64)],
+      );
+      expect(created.rows[0].created).toBe(true);
+      const approved = await db.query<{ approved: boolean }>(
+        `SELECT auth_max_pairing_approve($1, $2) AS approved`,
+        ['q'.repeat(64), accountId],
+      );
+      expect(approved.rows[0].approved).toBe(true);
+      const consumed = await db.query<{ result: string; account_id: string }>(
+        `SELECT result, account_id FROM auth_max_pairing_consume($1, $2, 12, $3)`,
+        ['q'.repeat(64), 's'.repeat(64), 'MAX · Windows'],
+      );
+      expect(consumed.rows[0]).toEqual({ result: 'authenticated', account_id: accountId });
+      const consumedAgain = await db.query<{ result: string }>(
+        `SELECT result FROM auth_max_pairing_consume($1, $2, 12, NULL)`,
+        ['q'.repeat(64), 'x'.repeat(64)],
+      );
+      expect(consumedAgain.rows[0].result).toBe('consumed');
+
+      const context = await db.query<{
+        password_configured: boolean;
+        authentication_source: string;
+      }>(
+        `SELECT password_configured, authentication_source
+           FROM auth_account_password_context($1, $2)`,
+        [accountId, 's'.repeat(64)],
+      );
+      expect(context.rows[0]).toEqual({
+        password_configured: false,
+        authentication_source: 'max',
+      });
+      const changed = await db.query<{ changed: boolean }>(
+        `SELECT auth_account_password_set($1, $2, $3) AS changed`,
+        [accountId, 's'.repeat(64), 'new-password-hash'.repeat(3)],
+      );
+      expect(changed.rows[0].changed).toBe(true);
+      const state = await db.query<{
+        password_configured: boolean;
+        current_active: boolean;
+        original_revoked: boolean;
+      }>(
+        `SELECT a.password_configured,
+                (current_session.revoked_at IS NULL) AS current_active,
+                (original_session.revoked_at IS NOT NULL) AS original_revoked
+           FROM accounts a
+           JOIN sessions_v2 current_session ON current_session.token_hash = $2
+           JOIN sessions_v2 original_session ON original_session.token_hash = $3
+          WHERE a.id = $1`,
+        [accountId, 's'.repeat(64), 'r'.repeat(64)],
+      );
+      expect(state.rows[0]).toEqual({
+        password_configured: true,
+        current_active: true,
+        original_revoked: true,
+      });
+    } finally {
+      await db.close();
+    }
+  }, 30_000);
 });

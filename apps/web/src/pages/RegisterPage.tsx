@@ -7,10 +7,14 @@ export function RegisterPage({
   onRegistered,
   onBackToLogin,
   onHome,
+  maxInitData,
+  onMaxRegistered,
 }: {
   onRegistered: (session: SessionPayload) => void;
   onBackToLogin: () => void;
   onHome: () => void;
+  maxInitData?: string;
+  onMaxRegistered?: (session: SessionPayload) => void;
 }): JSX.Element {
   const [email, setEmail] = useState('');
   const [username, setUsername] = useState('');
@@ -49,27 +53,40 @@ export function RegisterPage({
   async function submit(event: FormEvent): Promise<void> {
     event.preventDefault();
     setMessage(null);
-    if (!email.trim() || !username.trim() || !password || !birthDate) {
-      setMessage('Заполните email, имя пользователя, пароль и дату рождения.');
+    if (!email.trim() || !username.trim() || (!maxInitData && !password) || !birthDate) {
+      setMessage(
+        maxInitData
+          ? 'Заполните email, имя пользователя и дату рождения.'
+          : 'Заполните email, имя пользователя, пароль и дату рождения.',
+      );
       return;
     }
-    if (!botProof) {
+    if (!maxInitData && !botProof) {
       setMessage('Поставьте галочку «Я не робот» и дождитесь проверки.');
       return;
     }
     setBusy(true);
-    const result = await api.register({
-      email: email.trim(),
-      username: username.trim().toLowerCase(),
-      displayName: displayName.trim(),
-      password,
-      birthDate,
-      country,
-      botProof,
-    });
+    const result = maxInitData
+      ? await api.maxRegister({
+          initData: maxInitData,
+          email: email.trim(),
+          username: username.trim().toLowerCase(),
+          displayName: displayName.trim(),
+          birthDate,
+          country,
+        })
+      : await api.register({
+          email: email.trim(),
+          username: username.trim().toLowerCase(),
+          displayName: displayName.trim(),
+          password,
+          birthDate,
+          country,
+          botProof: botProof as BotProof,
+        });
     setBusy(false);
     if (result.ok) {
-      onRegistered(result.data);
+      (maxInitData ? (onMaxRegistered ?? onRegistered) : onRegistered)(result.data);
       return;
     }
     setBotProof(null);
@@ -88,7 +105,12 @@ export function RegisterPage({
           ← К входу
         </button>
         <AuthHomeBrand onHome={onHome} />
-        <h1 className="auth-title">Создать аккаунт</h1>
+        <h1 className="auth-title">{maxInitData ? 'Продолжить с MAX' : 'Создать аккаунт'}</h1>
+        {maxInitData ? (
+          <p className="max-link-copy">
+            MAX подтвердил вас. Осталось заполнить данные аккаунта ASA Lab — пароль не нужен.
+          </p>
+        ) : null}
         <form className="auth-register-form" onSubmit={(event) => void submit(event)} noValidate>
           <div className="auth-field">
             <label htmlFor="register-email">Email</label>
@@ -142,33 +164,43 @@ export function RegisterPage({
               <option value="RS">Сербия</option>
             </select>
           </div>
-          <div className="auth-field">
-            <label htmlFor="register-password">Пароль</label>
-            <input
-              id="register-password"
-              type="password"
-              autoComplete="new-password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-            />
-            <p className="field-hint">Не короче 10 символов. Личный аккаунт — с 18 лет.</p>
-          </div>
+          {maxInitData ? null : (
+            <div className="auth-field">
+              <label htmlFor="register-password">Пароль</label>
+              <input
+                id="register-password"
+                type="password"
+                autoComplete="new-password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+              />
+              <p className="field-hint">Не короче 10 символов. Личный аккаунт — с 18 лет.</p>
+            </div>
+          )}
           <div className="auth-register-wide">
-            <BotCheck
-              key={`register-${botReset}`}
-              action="register"
-              disabled={busy}
-              onVerified={setBotProof}
-            />
+            {maxInitData ? (
+              <p className="field-hint">Личный аккаунт доступен с 18 лет.</p>
+            ) : (
+              <BotCheck
+                key={`register-${botReset}`}
+                action="register"
+                disabled={busy}
+                onVerified={setBotProof}
+              />
+            )}
             <p className="form-error" role="alert" hidden={!message}>
               {message}
             </p>
-            <button type="submit" className="btn-primary" disabled={busy || !botProof}>
-              {busy ? 'Создаём…' : 'Создать аккаунт'}
+            <button
+              type="submit"
+              className="btn-primary"
+              disabled={busy || (!maxInitData && !botProof)}
+            >
+              {busy ? 'Создаём…' : maxInitData ? 'Создать и войти' : 'Создать аккаунт'}
             </button>
           </div>
         </form>
-        {localPreviewEnabled ? (
+        {localPreviewEnabled && !maxInitData ? (
           <button
             type="button"
             className="btn-secondary max-login-button"

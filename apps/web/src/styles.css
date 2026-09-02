@@ -603,6 +603,41 @@ label {
   text-decoration: none;
 }
 
+.auth-forgot-password {
+  justify-self: end;
+  margin: 0.4rem 0 0;
+  padding: 0;
+  font-size: 0.82rem;
+}
+
+.auth-max-fallback {
+  display: block;
+  margin-top: 0.55rem;
+  color: var(--primary);
+  font-size: 0.8rem;
+  text-align: center;
+}
+
+.auth-recovery-note {
+  margin-top: 0.75rem;
+  padding: 0.8rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #f7fafc;
+}
+
+.auth-recovery-note strong,
+.auth-recovery-note p {
+  margin: 0;
+}
+
+.auth-recovery-note p {
+  margin-top: 0.35rem;
+  color: var(--ink-muted);
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
 .max-link-copy {
   margin: 0.75rem 0 1rem;
   color: var(--ink-muted);
