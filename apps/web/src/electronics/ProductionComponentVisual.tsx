@@ -283,12 +283,17 @@ function OwnerRegulatedPowerSupplyVisual({
   const mode = simulationRunning
     ? (result?.regulationMode ?? (outputEnabled ? 'cv' : 'off'))
     : 'off';
-  const voltageDisplay =
-    simulationRunning && outputEnabled ? `${Number(result?.voltageDrop ?? 0).toFixed(2)} V` : '';
-  const currentDisplay =
+  // A bench supply keeps both set-point displays readable before a load is
+  // attached and while the output is disabled. Once the live output is on,
+  // the same LCD openings switch to the calculated terminal values.
+  const voltageDisplay = `${Number(
     simulationRunning && outputEnabled
-      ? `${Math.abs(Number(result?.current ?? 0)).toFixed(3)} A`
-      : '';
+      ? (result?.voltageDrop ?? voltageSetpointVolt)
+      : voltageSetpointVolt,
+  ).toFixed(2)} V`;
+  const currentDisplay = `${Math.abs(
+    Number(simulationRunning && outputEnabled ? (result?.current ?? 0) : currentLimitAmp),
+  ).toFixed(3)} A`;
   const markup = useMemo(
     () =>
       ownerSvg

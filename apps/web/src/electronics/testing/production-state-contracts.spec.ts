@@ -192,16 +192,17 @@ describe('typed Electronics state and animation contracts', () => {
     expect(ownerSvg).not.toContain('workbench-regulated-supply');
 
     const off = regulatedPowerSupplyRuntimeMarkup(ownerSvg, {
-      voltageSetpointVolt: 0,
-      currentLimitAmp: 0,
+      voltageSetpointVolt: 5,
+      currentLimitAmp: 1,
       outputEnabled: false,
       mode: 'off',
-      voltageDisplay: '',
-      currentDisplay: '',
+      voltageDisplay: '5.00 V',
+      currentDisplay: '1.000 A',
     });
     expect(off).toContain('>OFF</text>');
     expect(off).not.toContain('translate(32 0)');
-    expect(off).not.toContain('workbench-regulated-supply-reading');
+    expect(off).toContain('>5.00 V</text>');
+    expect(off).toContain('>1.000 A</text>');
     expect(
       regulatedPowerSupplyRuntimeMarkup('<svg><rect/></svg>', {
         voltageSetpointVolt: 5,

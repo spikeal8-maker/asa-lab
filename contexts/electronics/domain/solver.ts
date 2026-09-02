@@ -348,6 +348,7 @@ interface InternalSolveOptions extends SolveOptions {
   readonly lampTemperatureById?: Readonly<Record<string, number>>;
   readonly failedComponentIds?: ReadonlySet<string>;
   readonly meterFuseBlownById?: Readonly<Record<string, boolean>>;
+  readonly suppressOscilloscopeTrace?: boolean;
 }
 
 const GMIN = 1e-12;
@@ -1022,10 +1023,7 @@ function applyThermalObservations(
   };
 }
 
-export function solveCircuit(
-  document: ElectronicsDocument,
-  options: SolveOptions = {},
-): SolveResult {
+function solveCircuitBase(document: ElectronicsDocument, options: SolveOptions = {}): SolveResult {
   const orderedCapacitors = document.components
     .filter(isElectrolyticCapacitor)
     .sort((left, right) => (left.id < right.id ? -1 : left.id > right.id ? 1 : 0));
@@ -1563,6 +1561,101 @@ export function solveCircuit(
       maxStepMs,
     },
   };
+}
+
+function sampledOscilloscopeTrace(
+  document: ElectronicsDocument,
+  scope: SchematicComponent,
+  generator: SchematicComponent,
+): readonly { readonly timeMs: number; readonly voltageVolt: number }[] | undefined {
+  const scopeSettings = oscilloscopeSettings(scope);
+  const generatorSettings = signalGeneratorSettings(generator);
+  if (!scopeSettings.displayEnabled || !generatorSettings.outputEnabled) return undefined;
+
+  // Components with stored energy need their carried transient history. This
+  // deterministic sampler is for stateless paths such as generator -> resistor
+  // -> oscilloscope, including static diode and transistor stages.
+  if (
+    document.components.some(
+      (component) =>
+        isElectrolyticCapacitor(component) ||
+        isBrushedMotor(component) ||
+        component.kind === 'lamp',
+    )
+  ) {
+    return undefined;
+  }
+
+  const windowMs = scopeSettings.timePerDivisionMs * 10;
+  const triggerPhase = signalGeneratorRisingTriggerPhase(
+    generatorSettings,
+    generatorSettings.dcOffsetVolt,
+  );
+  const startTimeMs =
+    triggerPhase === null
+      ? -windowMs * 0.2
+      : (triggerPhase / generatorSettings.frequencyHz) * 1_000 - windowMs * 0.2;
+  const samples: { timeMs: number; voltageVolt: number }[] = [];
+  for (let index = 0; index <= 160; index += 1) {
+    const timeMs = startTimeMs + (windowMs * index) / 160;
+    const sampled = solveCircuitStep(document, {
+      simulationTimeMs: timeMs,
+      suppressOscilloscopeTrace: true,
+    });
+    if (!sampled.solved) return undefined;
+    const scopeResult = sampled.components.find((entry) => entry.componentId === scope.id);
+    if (!scopeResult) return undefined;
+    samples.push({
+      timeMs: round(timeMs, 6),
+      voltageVolt: round(scopeResult.oscilloscopeInputVoltageVolt ?? scopeResult.voltageDrop, 9),
+    });
+  }
+  return samples;
+}
+
+function addSampledOscilloscopeTraces(
+  document: ElectronicsDocument,
+  result: SolveResult,
+): SolveResult {
+  if (!result.solved) return result;
+  const generators = document.components
+    .filter(
+      (component) =>
+        component.componentTypeId === 'signal-generator' &&
+        signalGeneratorSettings(component).outputEnabled,
+    )
+    .sort((left, right) => (left.id < right.id ? -1 : left.id > right.id ? 1 : 0));
+  if (generators.length !== 1) return result;
+  const generator = generators[0]!;
+  const generatorSettings = signalGeneratorSettings(generator);
+  let changed = false;
+  const components = result.components.map((componentResult) => {
+    if (componentResult.oscilloscopeTrace?.length) return componentResult;
+    const scope = document.components.find(
+      (candidate) =>
+        candidate.id === componentResult.componentId &&
+        candidate.componentTypeId === 'oscilloscope',
+    );
+    if (!scope) return componentResult;
+    const trace = sampledOscilloscopeTrace(document, scope, generator);
+    if (!trace?.length) return componentResult;
+    changed = true;
+    const voltages = trace.map((sample) => sample.voltageVolt);
+    return {
+      ...componentResult,
+      oscilloscopeFrequencyHz: round(generatorSettings.frequencyHz, 3),
+      oscilloscopeAmplitudeVpp: round(Math.max(...voltages) - Math.min(...voltages), 3),
+      oscilloscopeTrace: trace,
+    };
+  });
+  return changed ? { ...result, components } : result;
+}
+
+export function solveCircuit(
+  document: ElectronicsDocument,
+  options: SolveOptions = {},
+): SolveResult {
+  return addSampledOscilloscopeTraces(document, solveCircuitBase(document, options));
 }
 
 function capacitorTransientStateIsCompatible(
@@ -2816,7 +2909,10 @@ function solveCircuitStep(
           : -1
         : 1;
       const oscilloscopeTrace =
-        scopeSettings?.displayEnabled && directGenerator && directGeneratorSettings?.outputEnabled
+        !options.suppressOscilloscopeTrace &&
+        scopeSettings?.displayEnabled &&
+        directGenerator &&
+        directGeneratorSettings?.outputEnabled
           ? Array.from({ length: 161 }, (_, index) => {
               const windowMs = scopeSettings.timePerDivisionMs * 10;
               const triggerPhase = signalGeneratorRisingTriggerPhase(

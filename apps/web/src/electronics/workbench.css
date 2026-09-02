@@ -2694,12 +2694,13 @@
 .workbench-oscilloscope-runtime .workbench-oscilloscope-status,
 .workbench-oscilloscope-runtime .workbench-oscilloscope-scale {
   fill: #24434a;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 13px;
+  font-family: 'Consolas', 'Roboto Mono', monospace;
+  font-size: 21px;
   font-weight: 700;
+  letter-spacing: 0.01em;
 }
 .workbench-oscilloscope-runtime .workbench-oscilloscope-scale {
-  font-size: 11px;
+  font-size: 18px;
 }
 .workbench-signal-generator-controls,
 .workbench-oscilloscope-controls {

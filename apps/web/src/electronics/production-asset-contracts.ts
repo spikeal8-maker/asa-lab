@@ -395,7 +395,9 @@ export function regulatedPowerSupplyKnobAngle(value: number, maximum: number): n
 
 /**
  * Adds interaction hooks to the existing owner knobs/switch and writes the
- * calculated readings into its two LCD openings. The owner file remains a
+ * calculated readings into its two LCD openings. When the output is disabled,
+ * the caller supplies the voltage and current set-points so the instrument
+ * remains readable before a load is attached. The owner file remains a
  * byte-exact source asset; no replacement enclosure, knob or terminal art is
  * generated at runtime.
  */
@@ -465,10 +467,7 @@ export function regulatedPowerSupplyRuntimeMarkup(
   const bodyStart = markup.indexOf('>');
   const bodyEnd = markup.lastIndexOf('</svg>');
   if (bodyStart < 0 || bodyEnd <= bodyStart) return '';
-  const readings =
-    input.voltageDisplay || input.currentDisplay
-      ? `<text class="workbench-regulated-supply-reading" x="99" y="55" text-anchor="middle" dominant-baseline="central">${escapeMultimeterDisplay(input.voltageDisplay)}</text><text class="workbench-regulated-supply-reading" x="99" y="144" text-anchor="middle" dominant-baseline="central">${escapeMultimeterDisplay(input.currentDisplay)}</text>`
-      : '';
+  const readings = `<text class="workbench-regulated-supply-reading" x="99" y="55" text-anchor="middle" dominant-baseline="central">${escapeMultimeterDisplay(input.voltageDisplay)}</text><text class="workbench-regulated-supply-reading" x="99" y="144" text-anchor="middle" dominant-baseline="central">${escapeMultimeterDisplay(input.currentDisplay)}</text>`;
   return `${markup.slice(bodyStart + 1, bodyEnd)}${readings}`;
 }
 

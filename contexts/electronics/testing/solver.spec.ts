@@ -200,6 +200,35 @@ describe('MATH-10E generator and oscilloscope', () => {
     ).toBeUndefined();
   });
 
+  it('plots the calculated waveform after a series resistor instead of requiring a direct wire', () => {
+    const direct = instrumentDocument();
+    const seriesResistor = component('series-resistor', 'resistor', 10_000_000, {
+      componentTypeId: 'resistor-axial',
+      pinIds: ['lead-1', 'lead-2'],
+    });
+    const throughResistor: ElectronicsDocument = {
+      ...direct,
+      components: [...direct.components, seriesResistor],
+      connections: [
+        connect('generator-resistor', 'generator', 'signal', 'series-resistor', 'lead-1'),
+        connect('resistor-scope', 'series-resistor', 'lead-2', 'scope', 'signal'),
+        connect('common-ground', 'generator', 'ground', 'scope', 'ground'),
+      ],
+    };
+
+    const result = solveCircuit(throughResistor, { simulationTimeMs: 2.5 });
+    expect(result.solved).toBe(true);
+    const scope = result.components.find((entry) => entry.componentId === 'scope');
+    expect(scope?.oscilloscopeTrace).toHaveLength(161);
+    expect(scope?.oscilloscopeFrequencyHz).toBe(100);
+    // 10 MOhm series and the oscilloscope's 10 MOhm input form a divider;
+    // the generator's 50 Ohm output resistance is negligible but included.
+    expect(scope?.oscilloscopeAmplitudeVpp).toBeCloseTo(2, 2);
+    const traceVoltages = scope?.oscilloscopeTrace?.map((point) => point.voltageVolt) ?? [];
+    expect(Math.max(...traceVoltages)).toBeCloseTo(1.5, 2);
+    expect(Math.min(...traceVoltages)).toBeCloseTo(-0.5, 2);
+  });
+
   it('upgrades only the known saved instrument placeholders', () => {
     expect(
       electricalModelIdentityForComponent({
