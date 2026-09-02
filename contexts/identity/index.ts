@@ -44,6 +44,7 @@ export type {
   AccountAvatarRecord,
   AccountProfileRecord,
   AccountRecord,
+  AccountPasswordContext,
   AccountSessionRef,
   ActiveContext,
   CapabilityRef,
@@ -77,6 +78,8 @@ export {
   type CreateSchoolWorkspaceResult,
   type UpdateAvatarResult,
   type UpdateProfileResult,
+  type AccountPasswordStatus,
+  type ChangePasswordResult,
 } from './application/account-management.usecase.js';
 export { ActiveContextUseCase } from './application/active-context.usecase.js';
 export { PgAccountDirectory } from './infrastructure/pg-account.adapter.js';

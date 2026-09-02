@@ -328,7 +328,6 @@ export class AdminController {
             ? { botToken: token.trim() }
             : {}),
           clearToken: value['clearToken'] === true,
-          reason: this.reason(value['reason']),
         },
         request.id,
       );

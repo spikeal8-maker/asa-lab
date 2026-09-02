@@ -1,5 +1,7 @@
 import { hashSessionToken } from '../domain/session-token.js';
+import { hashPasswordAsync, verifyPasswordAsync } from '../domain/password.js';
 import { isValidDisplayName, isValidUsername } from '../domain/account-policy.js';
+import { isValidPassword } from '../domain/account-policy.js';
 import { isValidTimeZone } from '../domain/validation.js';
 import type {
   AccountDirectoryPort,
@@ -64,6 +66,18 @@ export type SetAccountRoleResult =
 export type CreateSchoolWorkspaceResult =
   | { readonly ok: true; readonly school: SchoolWorkspaceRecord }
   | { readonly ok: false; readonly code: 'validation_error' | 'educator_required' };
+
+export type AccountPasswordStatus = {
+  readonly configured: boolean;
+  readonly canResetWithoutCurrent: boolean;
+};
+
+export type ChangePasswordResult =
+  | { readonly ok: true }
+  | {
+      readonly ok: false;
+      readonly code: 'unauthorized' | 'validation_error' | 'current_password_invalid';
+    };
 
 export class AccountManagementUseCase {
   constructor(
@@ -201,5 +215,48 @@ export class AccountManagementUseCase {
     if (!token) return null;
     const count = await this.sessions.revokeOthers(hashSessionToken(token));
     return count < 0 ? null : count;
+  }
+
+  async passwordStatus(
+    accountId: string,
+    token: string | undefined,
+  ): Promise<AccountPasswordStatus | null> {
+    if (!token) return null;
+    const context = await this.accounts.passwordContext(accountId, hashSessionToken(token));
+    return context
+      ? {
+          configured: context.passwordConfigured,
+          canResetWithoutCurrent:
+            !context.passwordConfigured || context.authenticationSource === 'max',
+        }
+      : null;
+  }
+
+  async changePassword(
+    accountId: string,
+    token: string | undefined,
+    input: { readonly currentPassword: unknown; readonly newPassword: unknown },
+  ): Promise<ChangePasswordResult> {
+    if (!token) return { ok: false, code: 'unauthorized' };
+    if (!isValidPassword(input.newPassword)) {
+      return { ok: false, code: 'validation_error' };
+    }
+    const tokenHash = hashSessionToken(token);
+    const context = await this.accounts.passwordContext(accountId, tokenHash);
+    if (!context) return { ok: false, code: 'unauthorized' };
+    const currentRequired = context.passwordConfigured && context.authenticationSource !== 'max';
+    if (
+      currentRequired &&
+      (typeof input.currentPassword !== 'string' ||
+        !(await verifyPasswordAsync(input.currentPassword, context.passwordHash)))
+    ) {
+      return { ok: false, code: 'current_password_invalid' };
+    }
+    const changed = await this.accounts.setPassword(
+      accountId,
+      tokenHash,
+      await hashPasswordAsync(input.newPassword),
+    );
+    return changed ? { ok: true } : { ok: false, code: 'unauthorized' };
   }
 }

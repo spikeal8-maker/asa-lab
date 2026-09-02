@@ -361,6 +361,61 @@ export class AuthController {
     return this.maxAuth.config();
   }
 
+  @Post('max/pairing/start')
+  @HttpCode(200)
+  async startMaxPairing(
+    @Req() request: FastifyRequest,
+    @Res({ passthrough: true }) reply: FastifyReply,
+  ): Promise<{ pairingToken: string; launchUrl: string }> {
+    this.enforce(this.maxAuthByAddress, clientAddress(request));
+    this.authFlow(request, reply);
+    try {
+      return await this.maxAuth.startPairing();
+    } catch (problem) {
+      this.throwMaxValidation(problem);
+    }
+  }
+
+  @Post('max/pairing/complete')
+  @HttpCode(200)
+  async completeMaxPairing(
+    @Body() rawBody: unknown,
+    @Req() request: FastifyRequest,
+    @Res({ passthrough: true }) reply: FastifyReply,
+  ): Promise<{ status: 'pending' } | { status: 'authenticated'; session: SessionPayload }> {
+    this.enforce(this.maxAuthByAddress, clientAddress(request));
+    const shape = checkBodyShape(rawBody, ['pairingToken']);
+    if (!shape.ok) throw new HttpException(error('validation_error', shape.message), 400);
+    const result = await this.maxAuth.consumePairing(
+      shape.body['pairingToken'],
+      summarizeUserAgent(request.headers['user-agent']),
+    );
+    if (result.status === 'pending') return { status: 'pending' };
+    if (result.status === 'expired' || result.status === 'consumed') {
+      throw new HttpException(
+        error('max_pairing_expired', 'Запрос входа истёк. Откройте MAX заново.'),
+        410,
+      );
+    }
+    if (result.status !== 'authenticated') {
+      throw new HttpException(error('max_pairing_invalid', 'Запрос входа недействителен.'), 400);
+    }
+    await this.establishSession(reply, result.token, 'max');
+    const context = await this.activeContext.resolve(result.token);
+    if (!context) throw new HttpException(error('server_error', 'session was not created'), 500);
+    await this.recordAuth({
+      eventType: 'auth.max',
+      method: 'max',
+      outcome: 'succeeded',
+      flowId: this.authFlow(request, reply),
+      address: clientAddress(request),
+      userAgent: request.headers['user-agent'],
+      context,
+    });
+    this.closeAuthFlow(reply);
+    return { status: 'authenticated', session: await this.payload(context) };
+  }
+
   @Get('max/status')
   async maxStatus(@Req() request: FastifyRequest) {
     const context = await this.requireContext(request);
@@ -461,6 +516,109 @@ export class AuthController {
       });
       throw failure;
     }
+  }
+
+  @Post('max/register')
+  @HttpCode(201)
+  async maxRegister(
+    @Body() rawBody: unknown,
+    @Req() request: FastifyRequest,
+    @Res({ passthrough: true }) reply: FastifyReply,
+  ): Promise<SessionPayload> {
+    const address = clientAddress(request);
+    const flowId = this.authFlow(request, reply);
+    try {
+      this.enforce(this.registerByAddress, address);
+      this.enforce(this.maxAuthByAddress, address);
+      const shape = checkBodyShape(rawBody, [
+        'initData',
+        'email',
+        'username',
+        'displayName',
+        'birthDate',
+        'country',
+      ]);
+      if (!shape.ok || typeof shape.body['initData'] !== 'string') {
+        throw new HttpException(
+          error('validation_error', shape.ok ? 'initData is required' : shape.message),
+          400,
+        );
+      }
+      let result;
+      try {
+        result = await this.maxAuth.register(shape.body['initData'], {
+          email: shape.body['email'],
+          username: shape.body['username'],
+          displayName: shape.body['displayName'],
+          birthDate: shape.body['birthDate'],
+          country: shape.body['country'],
+        });
+      } catch (problem) {
+        this.throwMaxValidation(problem);
+      }
+      if (result.status !== 'authenticated') {
+        const messages: Record<string, string> = {
+          email_taken: 'Аккаунт с таким email уже существует. Выберите «У меня есть аккаунт».',
+          username_taken: 'Это имя пользователя уже занято.',
+          identity_taken: 'Этот профиль MAX уже связан с другим аккаунтом.',
+          assertion_replayed: 'Откройте мини-приложение MAX заново.',
+          unavailable: 'Регистрация через MAX временно недоступна.',
+        };
+        if (result.status === 'age_routed') {
+          throw new HttpException(
+            { error: { code: result.status, message: result.message, routes: result.routes } },
+            422,
+          );
+        }
+        const status =
+          result.status === 'email_taken' ||
+          result.status === 'username_taken' ||
+          result.status === 'identity_taken' ||
+          result.status === 'assertion_replayed'
+            ? 409
+            : result.status === 'unavailable'
+              ? 503
+              : 400;
+        throw new HttpException(
+          error(result.status, result.message ?? messages[result.status] ?? 'Проверьте данные.'),
+          status,
+        );
+      }
+      await this.establishSession(reply, result.token, 'max');
+      const context = await this.activeContext.resolve(result.token);
+      if (!context) throw new HttpException(error('server_error', 'session was not created'), 500);
+      await this.recordAuth({
+        eventType: 'auth.register',
+        method: 'max',
+        outcome: 'succeeded',
+        flowId,
+        address,
+        userAgent: request.headers['user-agent'],
+        context,
+      });
+      this.closeAuthFlow(reply);
+      return this.payload(context);
+    } catch (failure) {
+      await this.recordAuth({
+        eventType: 'auth.register',
+        method: 'max',
+        outcome: this.analyticsOutcome(failure),
+        flowId,
+        address,
+        userAgent: request.headers['user-agent'],
+      });
+      throw failure;
+    }
+  }
+
+  @Post('max/webhook')
+  @HttpCode(200)
+  async maxWebhook(@Body() body: unknown, @Req() request: FastifyRequest): Promise<{ ok: true }> {
+    const result = await this.maxAuth.handleWebhook(request.headers['x-max-bot-api-secret'], body);
+    if (result === 'unauthorized') {
+      throw new HttpException(error('unauthorized', 'invalid MAX webhook secret'), 401);
+    }
+    return { ok: true };
   }
 
   @Post('max/link')

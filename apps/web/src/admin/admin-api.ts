@@ -162,6 +162,9 @@ export interface AdminMaxConfiguration {
   readonly tokenVerifiedAt: string | null;
   readonly configurationVersion: number;
   readonly updatedAt: string | null;
+  readonly webhookUrl: string | null;
+  readonly webhookVerifiedAt: string | null;
+  readonly webhookLastError: string | null;
 }
 
 export interface AdminOrganization {
@@ -425,7 +428,6 @@ export const adminApi = {
     readonly miniAppUrl: string;
     readonly botToken?: string;
     readonly clearToken?: boolean;
-    readonly reason: string;
   }) =>
     call<AdminMaxConfiguration>('/api/admin/v1/integrations/max', {
       method: 'PUT',

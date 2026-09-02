@@ -11,6 +11,7 @@ function signedInitData(
     queryId?: string;
     authDate?: number;
     user?: Record<string, unknown>;
+    startParam?: string;
   } = {},
 ): string {
   const values = new Map<string, string>([
@@ -29,6 +30,7 @@ function signedInitData(
       ),
     ],
   ]);
+  if (options.startParam) values.set('start_param', options.startParam);
   const checkString = [...values.entries()]
     .sort(([left], [right]) => left.localeCompare(right))
     .map(([key, value]) => `${key}=${value}`)
@@ -46,6 +48,7 @@ describe('MAX WebApp authentication boundary', () => {
       authDate: NOW_SECONDS,
       username: 'asa_owner',
       displayName: 'Александр Сергеев',
+      startParam: null,
     });
   });
 
@@ -64,6 +67,16 @@ describe('MAX WebApp authentication boundary', () => {
         NOW_SECONDS * 1000,
       ),
     ).toThrowError('max_init_data_expired');
+  });
+
+  it('keeps an authenticated one-time browser pairing capability from startapp', () => {
+    expect(
+      validateMaxInitData(
+        signedInitData({ startParam: `pair_${'a'.repeat(43)}` }),
+        BOT_TOKEN,
+        NOW_SECONDS * 1000,
+      ).startParam,
+    ).toBe(`pair_${'a'.repeat(43)}`);
   });
 
   it('never returns the bot credential in public configuration', async () => {
@@ -129,6 +142,26 @@ describe('MAX WebApp authentication boundary', () => {
     ]);
   });
 
+  it('stores only a hash for desktop pairing and keeps pending requests anonymous', async () => {
+    const query = vi.fn(async (sql: string) => {
+      if (sql.includes('auth_max_pairing_start')) return { rows: [{ created: true }] };
+      if (sql.includes('auth_max_pairing_consume')) return { rows: [{ result: 'pending' }] };
+      return { rows: [] };
+    });
+    const service = new MaxAuthService({ query } as unknown as pg.Pool, {
+      botToken: BOT_TOKEN,
+      botUsername: 'id231408577954_3_bot',
+      enabled: true,
+    });
+    const pairing = await service.startPairing();
+    expect(pairing.pairingToken).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    expect(pairing.launchUrl).toContain(`startapp=pair_${pairing.pairingToken}`);
+    expect(JSON.stringify(query.mock.calls[0])).not.toContain(pairing.pairingToken);
+    await expect(service.consumePairing(pairing.pairingToken)).resolves.toEqual({
+      status: 'pending',
+    });
+  });
+
   it('verifies, encrypts and applies a runtime token without returning the secret', async () => {
     const encryptionKey = Buffer.alloc(32, 7).toString('base64url');
     let runtime = {
@@ -191,7 +224,6 @@ describe('MAX WebApp authentication boundary', () => {
         botUsername: '@id231408577954_3_bot',
         miniAppUrl: 'https://asa-lab.ru/max-login',
         botToken: BOT_TOKEN,
-        reason: 'Новый токен владельца',
       },
       'request-id',
     );

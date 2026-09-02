@@ -42,7 +42,7 @@ const SECURITY_HEADERS = {
     "object-src 'none'",
     "frame-ancestors 'none'",
     "form-action 'self'",
-    "script-src 'self'",
+    "script-src 'self' https://st.max.ru",
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob:",
     "media-src 'self'",
@@ -222,21 +222,26 @@ export async function createApiApp(
       return;
     }
 
-    const allowed = isAllowedMutationOrigin({
-      origin: request.headers.origin,
-      requestHost: request.headers.host,
-      requestProtocol: request.protocol,
-      allowedWebOrigin,
-      additionalAllowedOrigins,
-      secFetchSite:
-        typeof request.headers['sec-fetch-site'] === 'string'
-          ? request.headers['sec-fetch-site']
-          : undefined,
-    });
-    if (!allowed) {
-      return reply
-        .code(403)
-        .send({ error: { code: 'origin_forbidden', message: 'request origin is not allowed' } });
+    // MAX calls this endpoint server-to-server and therefore has no browser
+    // Origin. It is authenticated by a dedicated HMAC-derived webhook secret;
+    // every browser mutation, including MAX pairing, remains origin-bound.
+    if (path !== '/api/auth/max/webhook') {
+      const allowed = isAllowedMutationOrigin({
+        origin: request.headers.origin,
+        requestHost: request.headers.host,
+        requestProtocol: request.protocol,
+        allowedWebOrigin,
+        additionalAllowedOrigins,
+        secFetchSite:
+          typeof request.headers['sec-fetch-site'] === 'string'
+            ? request.headers['sec-fetch-site']
+            : undefined,
+      });
+      if (!allowed) {
+        return reply
+          .code(403)
+          .send({ error: { code: 'origin_forbidden', message: 'request origin is not allowed' } });
+      }
     }
 
     const abuse = mutationAbuseProtection.consume(request);

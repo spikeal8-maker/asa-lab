@@ -453,7 +453,6 @@ export function VerificationMethodsSection({
   const [botUsername, setBotUsername] = useState('id231408577954_3_bot');
   const [miniAppUrl, setMiniAppUrl] = useState('https://asa-lab.ru/max-login');
   const [botToken, setBotToken] = useState('');
-  const [reason, setReason] = useState('Настройка канала MAX');
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const load = useCallback(async (): Promise<void> => {
@@ -499,7 +498,6 @@ export function VerificationMethodsSection({
       botUsername,
       miniAppUrl,
       ...(botToken.trim() ? { botToken: botToken.trim() } : {}),
-      reason,
     });
     setSaving(false);
     if (!result.ok) {
@@ -634,13 +632,23 @@ export function VerificationMethodsSection({
                     </dd>
                   </div>
                 </dl>
-                <label htmlFor="max-change-reason">Причина изменения</label>
-                <input
-                  id="max-change-reason"
-                  value={reason}
-                  disabled={saving}
-                  onChange={(event) => setReason(event.target.value)}
-                />
+                <dl>
+                  <div>
+                    <dt>Связь с ботом</dt>
+                    <dd>
+                      {max.webhookVerifiedAt
+                        ? `Подключена ${DATE_TIME.format(new Date(max.webhookVerifiedAt))}`
+                        : max.webhookLastError
+                          ? 'Требует проверки'
+                          : 'Подключается автоматически'}
+                    </dd>
+                  </div>
+                </dl>
+                {max.webhookLastError ? (
+                  <p className="admin-field-note" role="status">
+                    Бот сохранён, но MAX не подтвердил канал сообщений. Повторите сохранение позже.
+                  </p>
+                ) : null}
                 <button
                   type="submit"
                   className="btn-primary admin-max-save"

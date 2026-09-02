@@ -62,6 +62,11 @@ export interface MaxAccountStatus {
   available: boolean;
 }
 
+export interface AccountPasswordStatus {
+  configured: boolean;
+  canResetWithoutCurrent: boolean;
+}
+
 export interface AccountProfile {
   email: string;
   emailVerificationState: string;
@@ -1274,6 +1279,30 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ initData }),
     }),
+  startMaxPairing: () =>
+    call<{ pairingToken: string; launchUrl: string }>('/api/auth/max/pairing/start', {
+      method: 'POST',
+    }),
+  completeMaxPairing: (pairingToken: string) =>
+    call<{ status: 'pending' } | { status: 'authenticated'; session: SessionPayload }>(
+      '/api/auth/max/pairing/complete',
+      {
+        method: 'POST',
+        body: JSON.stringify({ pairingToken }),
+      },
+    ),
+  maxRegister: (input: {
+    initData: string;
+    email: string;
+    username: string;
+    displayName: string;
+    birthDate: string;
+    country: string;
+  }) =>
+    call<SessionPayload>('/api/auth/max/register', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
   maxLink: (initData: string) =>
     call<{ linked: true }>('/api/auth/max/link', {
       method: 'POST',
@@ -1316,6 +1345,12 @@ export const api = {
     return result;
   },
   accountProfile: () => call<AccountProfile>('/api/account/profile'),
+  accountPasswordStatus: () => call<AccountPasswordStatus>('/api/account/password'),
+  changeAccountPassword: (currentPassword: string, newPassword: string) =>
+    call<{ changed: true }>('/api/account/password', {
+      method: 'POST',
+      body: JSON.stringify({ currentPassword, newPassword }),
+    }),
   accountAvatar: () => call<AccountAvatar>('/api/account/avatar'),
   updateAccountAvatar: (avatarDataUrl: string | null) =>
     call<AccountAvatar>('/api/account/avatar', {

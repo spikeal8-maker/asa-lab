@@ -67,6 +67,9 @@ describe('API application factory', () => {
     expect(live.json()).toEqual({ status: 'live' });
     expect(live.headers['x-request-id']).toBeTruthy();
     expect(live.headers['content-security-policy']).toContain("frame-ancestors 'none'");
+    expect(live.headers['content-security-policy']).toContain(
+      "script-src 'self' https://st.max.ru",
+    );
     expect(live.headers['content-security-policy']).toContain("connect-src 'self' blob:");
     expect(live.headers['content-security-policy']).toContain("worker-src 'self' blob:");
     expect(live.headers['strict-transport-security']).toBe('max-age=31536000; includeSubDomains');
@@ -176,6 +179,57 @@ describe('API application factory', () => {
     });
     expect(rejected.statusCode).toBe(403);
     expect(rejected.json().error.code).toBe('origin_forbidden');
+  });
+
+  it('lets the server-to-server MAX webhook reach its secret check without weakening browser mutations', async () => {
+    const query = vi.fn(async () => ({
+      rows: [
+        {
+          enabled: true,
+          bot_username: 'id231408577954_3_bot',
+          mini_app_url: 'https://asa-lab.ru/max-login',
+          token_ciphertext: null,
+          token_iv: null,
+          token_auth_tag: null,
+          token_fingerprint: null,
+          verified_bot_id: null,
+          verified_bot_name: null,
+          token_verified_at: null,
+          configuration_version: 1,
+          updated_at: null,
+        },
+      ],
+    }));
+    const pool = {
+      query,
+      end: vi.fn(async () => undefined),
+    } as unknown as pg.Pool;
+    const app = await createApiApp({
+      pool,
+      webDist: null,
+      allowedWebOrigin: 'https://asa-lab.ru',
+    });
+    apps.push(app);
+    const fastify = app.getHttpAdapter().getInstance();
+
+    const webhook = await fastify.inject({
+      method: 'POST',
+      url: '/api/auth/max/webhook',
+      headers: { 'x-max-bot-api-secret': 'invalid', 'content-type': 'application/json' },
+      payload: {},
+    });
+    expect(webhook.statusCode).toBe(401);
+    expect(webhook.json().error.code).toBe('unauthorized');
+    expect(query).toHaveBeenCalled();
+
+    const pairing = await fastify.inject({
+      method: 'POST',
+      url: '/api/auth/max/pairing/start',
+      headers: { 'content-type': 'application/json' },
+      payload: {},
+    });
+    expect(pairing.statusCode).toBe(403);
+    expect(pairing.json().error.code).toBe('origin_forbidden');
   });
 
   it('hides detailed runtime metrics in production', async () => {

@@ -38,7 +38,7 @@ import { CreateProjectModal } from './components/CreateProjectModal';
 import { AsaLabWordmark } from './brand/AsaLabBrand';
 import { ModuleEditorHost } from './modules/ModuleEditorHost';
 import { AppBootShell } from './components/AppBootShell';
-import { leaveMaxLaunch, readMaxInitData } from './max-auth';
+import { isMaxLaunchLocation, leaveMaxLaunch, readMaxInitData } from './max-auth';
 import { onSessionLoggedOut } from './session-fetch';
 import {
   canUseClasses,
@@ -86,6 +86,7 @@ function publicViewToHash(view: PublicView): string {
 }
 
 function publicViewFromHash(): PublicView {
+  if (isMaxLaunchLocation()) return { kind: 'sign-in' };
   const path = window.location.hash.replace(/^#/, '').split('?')[0] ?? '';
   return PUBLIC_ROUTES.find((route) => route.path === path)?.view ?? { kind: 'entry' };
 }
@@ -112,7 +113,7 @@ export function App(): JSX.Element {
     return initial.kind === 'teacher-invite' ? initial.token : null;
   });
   const [shellCreating, setShellCreating] = useState(false);
-  const [accountPanel, setAccountPanel] = useState<'profile' | 'school'>('profile');
+  const [accountPanel, setAccountPanel] = useState<'profile' | 'school' | 'security'>('profile');
   const [adminSection, setAdminSection] = useState<AdminSection | null>(() =>
     adminSectionFromLocation(window.location),
   );
@@ -123,7 +124,11 @@ export function App(): JSX.Element {
   const maxLaunchData = useRef<string | null>(readMaxInitData());
   const maxLaunchAttempted = useRef(false);
   const [pendingMaxLink, setPendingMaxLink] = useState<string | null>(null);
-  const [maxLaunchMessage, setMaxLaunchMessage] = useState<string | null>(null);
+  const [maxLaunchMessage, setMaxLaunchMessage] = useState<string | null>(() =>
+    isMaxLaunchLocation() && maxLaunchData.current === null
+      ? 'Откройте мини-приложение ASA Lab внутри MAX. Если MAX уже связан с аккаунтом, вход завершится автоматически.'
+      : null,
+  );
 
   const setView = useCallback((next: CreatorPortalView) => {
     setAdminSection(null);
@@ -196,7 +201,7 @@ export function App(): JSX.Element {
   const checkSession = useCallback(async () => {
     setSession({ kind: 'checking' });
     const launchData = maxLaunchData.current;
-    const isMaxLaunch = launchData !== null;
+    const isMaxLaunch = isMaxLaunchLocation();
     if (launchData && !maxLaunchAttempted.current) {
       maxLaunchAttempted.current = true;
       setPublicViewState({ kind: 'sign-in' });
@@ -415,7 +420,7 @@ export function App(): JSX.Element {
   if (session.kind === 'anonymous') {
     const signedIn = (payload: SessionPayload): void => {
       setSession({ kind: 'authenticated', session: payload });
-      if (!pendingMaxLink && maxLaunchData.current) {
+      if (!pendingMaxLink && (maxLaunchData.current || isMaxLaunchLocation())) {
         setMaxLaunchMessage(null);
         maxLaunchData.current = null;
         leaveMaxLaunch();
@@ -479,6 +484,18 @@ export function App(): JSX.Element {
       return (
         <RegisterPage
           onRegistered={signedIn}
+          {...(pendingMaxLink
+            ? {
+                maxInitData: pendingMaxLink,
+                onMaxRegistered: (payload: SessionPayload) => {
+                  setPendingMaxLink(null);
+                  setMaxLaunchMessage(null);
+                  maxLaunchData.current = null;
+                  leaveMaxLaunch();
+                  signedIn(payload);
+                },
+              }
+            : {})}
           onBackToLogin={() => setPublicView({ kind: 'sign-in' })}
           onHome={goToPublicHome}
         />
@@ -569,7 +586,7 @@ export function App(): JSX.Element {
     else if (section === 'classes') setView({ kind: 'classrooms' });
     else if (section === 'help') setView({ kind: 'help' });
     else {
-      setAccountPanel('profile');
+      setAccountPanel(maxVerificationDue ? 'security' : 'profile');
       setView({ kind: 'account' });
     }
   };

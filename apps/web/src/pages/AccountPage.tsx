@@ -10,6 +10,7 @@ import {
 import {
   api,
   type AccountProfile,
+  type AccountPasswordStatus,
   type AccountSession,
   type MaxAccountStatus,
   type MaxAuthConfig,
@@ -83,6 +84,7 @@ export function AccountPage({
   const [profile, setProfile] = useState<AccountProfile | null>(null);
   const [maxStatus, setMaxStatus] = useState<MaxAccountStatus | null>(null);
   const [maxConfig, setMaxConfig] = useState<MaxAuthConfig | null>(null);
+  const [passwordStatus, setPasswordStatus] = useState<AccountPasswordStatus | null>(null);
   const [sessions, setSessions] = useState<AccountSession[]>([]);
   const [avatarDataUrl, setAvatarDataUrl] = useState<string | null>(null);
   const [avatarPickerOpen, setAvatarPickerOpen] = useState(false);
@@ -96,6 +98,11 @@ export function AccountPage({
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [maxPairingToken, setMaxPairingToken] = useState<string | null>(null);
+  const [maxPairingUrl, setMaxPairingUrl] = useState<string | null>(null);
   const avatarInput = useRef<HTMLInputElement>(null);
   const deviceZone = useMemo(() => deviceTimeZone(), []);
   const [timeZone, setTimeZone] = useState(session.timeZone ?? deviceZone);
@@ -125,14 +132,21 @@ export function AccountPage({
   const refresh = useCallback(async (): Promise<void> => {
     setLoading(true);
     setError(null);
-    const [profileResult, sessionsResult, avatarResult, maxStatusResult, maxConfigResult] =
-      await Promise.all([
-        api.accountProfile(),
-        api.listAccountSessions(),
-        api.accountAvatar(),
-        api.maxStatus(),
-        api.maxConfig(),
-      ]);
+    const [
+      profileResult,
+      sessionsResult,
+      avatarResult,
+      maxStatusResult,
+      maxConfigResult,
+      passwordResult,
+    ] = await Promise.all([
+      api.accountProfile(),
+      api.listAccountSessions(),
+      api.accountAvatar(),
+      api.maxStatus(),
+      api.maxConfig(),
+      api.accountPasswordStatus(),
+    ]);
     if (!profileResult.ok || !sessionsResult.ok || !avatarResult.ok) {
       setError('Не удалось загрузить настройки аккаунта.');
       setLoading(false);
@@ -147,12 +161,47 @@ export function AccountPage({
     setAvatarDataUrl(avatarResult.data.avatarDataUrl);
     setMaxStatus(maxStatusResult.ok ? maxStatusResult.data : null);
     setMaxConfig(maxConfigResult.ok ? maxConfigResult.data : null);
+    setPasswordStatus(passwordResult.ok ? passwordResult.data : null);
     setLoading(false);
   }, []);
 
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    if (!maxPairingToken) return;
+    let active = true;
+    let timer: number | null = null;
+    const check = async (): Promise<void> => {
+      const result = await api.completeMaxPairing(maxPairingToken);
+      if (!active) return;
+      if (result.ok && result.data.status === 'authenticated') {
+        setMaxPairingToken(null);
+        setBusyAction(null);
+        onSessionChanged(result.data.session);
+        setNotice('MAX подключён.');
+        await refresh();
+        return;
+      }
+      if (!result.ok && result.status !== 0) {
+        setMaxPairingToken(null);
+        setBusyAction(null);
+        setError(
+          result.error.code === 'max_pairing_expired'
+            ? 'Время подтверждения истекло. Откройте MAX ещё раз.'
+            : 'Не удалось подтвердить MAX.',
+        );
+        return;
+      }
+      timer = window.setTimeout(() => void check(), 6_000);
+    };
+    timer = window.setTimeout(() => void check(), 2_000);
+    return () => {
+      active = false;
+      if (timer !== null) window.clearTimeout(timer);
+    };
+  }, [maxPairingToken, onSessionChanged, refresh]);
 
   useEffect(() => {
     if (!session.navigation.classroomManagement) {
@@ -393,6 +442,57 @@ export function AccountPage({
     }
     setNotice(result.data.unlinked ? 'MAX отключён.' : 'MAX уже был отключён.');
     await refresh();
+  }
+
+  async function startMaxPairing(): Promise<void> {
+    const popup = window.open('', '_blank');
+    if (popup) popup.opener = null;
+    setBusyAction('max-pairing');
+    setError(null);
+    setNotice(null);
+    const result = await api.startMaxPairing();
+    if (!result.ok) {
+      popup?.close();
+      setBusyAction(null);
+      setError('Не удалось открыть MAX. Попробуйте ещё раз.');
+      return;
+    }
+    setMaxPairingToken(result.data.pairingToken);
+    setMaxPairingUrl(result.data.launchUrl);
+    setNotice('Завершите привязку в MAX и вернитесь сюда. Страница обновится автоматически.');
+    if (popup) popup.location.href = result.data.launchUrl;
+  }
+
+  async function changePassword(event: FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
+    setError(null);
+    setNotice(null);
+    if (newPassword.length < 10) {
+      setError('Новый пароль должен содержать не меньше 10 символов.');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setError('Повтор нового пароля не совпадает.');
+      return;
+    }
+    setBusyAction('password');
+    const result = await api.changeAccountPassword(currentPassword, newPassword);
+    setBusyAction(null);
+    if (!result.ok) {
+      setError(
+        result.error.code === 'current_password_invalid'
+          ? 'Текущий пароль указан неверно.'
+          : result.error.message || 'Не удалось изменить пароль.',
+      );
+      return;
+    }
+    setCurrentPassword('');
+    setNewPassword('');
+    setConfirmPassword('');
+    setPasswordStatus({ configured: true, canResetWithoutCurrent: false });
+    setNotice('Пароль изменён. Остальные входы завершены.');
+    const sessionsResult = await api.listAccountSessions();
+    if (sessionsResult.ok) setSessions(sessionsResult.data.items);
   }
 
   if (loading || !profile) {
@@ -723,8 +823,8 @@ export function AccountPage({
             <section className="account-settings-section" aria-labelledby="security-settings-title">
               <div className="account-section-heading">
                 <p className="account-card-kicker">Учётная запись</p>
-                <h2 id="security-settings-title">Email и активные входы</h2>
-                <p>Закрытые данные аккаунта и устройства, на которых открыт ASA Lab.</p>
+                <h2 id="security-settings-title">Вход и безопасность</h2>
+                <p>Пароль, MAX, закрытые данные и устройства, на которых открыт ASA Lab.</p>
               </div>
 
               <div className="account-private-facts">
@@ -768,13 +868,82 @@ export function AccountPage({
                 {!maxStatus?.linked && maxConfig?.enabled && maxConfig.launchUrl ? (
                   <div>
                     <span>Подтверждение</span>
-                    <a className="btn-secondary" href={maxConfig.launchUrl} rel="noreferrer">
-                      Открыть MAX
-                    </a>
-                    <small>Вернитесь в ASA Lab через бот MAX</small>
+                    <button
+                      type="button"
+                      className="btn-secondary"
+                      disabled={busyAction !== null}
+                      onClick={() => void startMaxPairing()}
+                    >
+                      {maxPairingToken ? 'Ждём MAX…' : 'Подключить MAX'}
+                    </button>
+                    <small>Откройте мини-приложение и привяжите этот аккаунт</small>
+                    {maxPairingUrl && maxPairingToken ? (
+                      <a href={maxPairingUrl} target="_blank" rel="noreferrer">
+                        Открыть MAX ещё раз
+                      </a>
+                    ) : null}
                   </div>
                 ) : null}
               </div>
+
+              <form
+                className="account-password-form"
+                onSubmit={(event) => void changePassword(event)}
+              >
+                <div className="account-section-heading">
+                  <h3>{passwordStatus?.configured ? 'Изменить пароль' : 'Создать пароль'}</h3>
+                  <p>
+                    {passwordStatus?.canResetWithoutCurrent
+                      ? 'Вы вошли через MAX, поэтому текущий пароль не требуется.'
+                      : 'После изменения все остальные активные входы будут завершены.'}
+                  </p>
+                </div>
+                {!passwordStatus?.canResetWithoutCurrent ? (
+                  <label>
+                    Текущий пароль
+                    <input
+                      type="password"
+                      autoComplete="current-password"
+                      value={currentPassword}
+                      onChange={(event) => setCurrentPassword(event.target.value)}
+                    />
+                  </label>
+                ) : null}
+                <label>
+                  Новый пароль
+                  <input
+                    type="password"
+                    minLength={10}
+                    maxLength={200}
+                    autoComplete="new-password"
+                    value={newPassword}
+                    onChange={(event) => setNewPassword(event.target.value)}
+                  />
+                </label>
+                <label>
+                  Повторите новый пароль
+                  <input
+                    type="password"
+                    minLength={10}
+                    maxLength={200}
+                    autoComplete="new-password"
+                    value={confirmPassword}
+                    onChange={(event) => setConfirmPassword(event.target.value)}
+                  />
+                </label>
+                <button
+                  type="submit"
+                  className="btn-primary"
+                  disabled={
+                    busyAction !== null ||
+                    newPassword.length < 10 ||
+                    newPassword !== confirmPassword ||
+                    (!passwordStatus?.canResetWithoutCurrent && currentPassword.length === 0)
+                  }
+                >
+                  {busyAction === 'password' ? 'Сохраняем…' : 'Сохранить пароль'}
+                </button>
+              </form>
 
               <div className="account-sessions-heading">
                 <h3>Активные входы</h3>

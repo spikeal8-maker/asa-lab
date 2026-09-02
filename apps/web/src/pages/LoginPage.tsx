@@ -27,6 +27,9 @@ export function LoginPage({
   const [botProof, setBotProof] = useState<BotProof | null>(null);
   const [botReset, setBotReset] = useState(0);
   const [maxLaunchUrl, setMaxLaunchUrl] = useState<string | null>(null);
+  const [pairingToken, setPairingToken] = useState<string | null>(null);
+  const [pairingLaunchUrl, setPairingLaunchUrl] = useState<string | null>(null);
+  const [recoveryOpen, setRecoveryOpen] = useState(false);
   const [localPreviewEnabled, setLocalPreviewEnabled] = useState(false);
   const messageId = useId();
   const identifierRef = useRef<HTMLInputElement>(null);
@@ -43,6 +46,54 @@ export function LoginPage({
       active = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (!pairingToken) return;
+    let active = true;
+    let timer: number | null = null;
+    const check = async (): Promise<void> => {
+      const result = await api.completeMaxPairing(pairingToken);
+      if (!active) return;
+      if (result.ok && result.data.status === 'authenticated') {
+        setPairingToken(null);
+        onSignedIn(result.data.session);
+        return;
+      }
+      if (!result.ok && result.status !== 0) {
+        setPairingToken(null);
+        setMessage(
+          result.error.code === 'max_pairing_expired'
+            ? 'Время входа истекло. Откройте MAX ещё раз.'
+            : 'Не удалось завершить вход через MAX.',
+        );
+        return;
+      }
+      timer = window.setTimeout(() => void check(), 6_000);
+    };
+    timer = window.setTimeout(() => void check(), 2_000);
+    return () => {
+      active = false;
+      if (timer !== null) window.clearTimeout(timer);
+    };
+  }, [onSignedIn, pairingToken]);
+
+  async function openMax(): Promise<void> {
+    const popup = window.open('', '_blank');
+    if (popup) popup.opener = null;
+    setBusy(true);
+    setMessage(null);
+    const result = await api.startMaxPairing();
+    setBusy(false);
+    if (!result.ok) {
+      popup?.close();
+      setMessage('Не удалось создать вход через MAX. Попробуйте ещё раз.');
+      return;
+    }
+    setPairingToken(result.data.pairingToken);
+    setPairingLaunchUrl(result.data.launchUrl);
+    setMessage('Завершите вход в MAX, затем вернитесь в эту вкладку. Она войдёт автоматически.');
+    if (popup) popup.location.href = result.data.launchUrl;
+  }
 
   async function submit(event: FormEvent): Promise<void> {
     event.preventDefault();
@@ -131,6 +182,13 @@ export function LoginPage({
             aria-describedby={message ? messageId : undefined}
             onChange={(event) => setPassword(event.target.value)}
           />
+          <button
+            type="button"
+            className="link-button auth-forgot-password"
+            onClick={() => setRecoveryOpen((value) => !value)}
+          >
+            Не помню пароль
+          </button>
           <BotCheck
             key={`login-${botReset}`}
             action="login"
@@ -145,10 +203,29 @@ export function LoginPage({
           </button>
         </form>
 
-        {maxLaunchUrl ? (
-          <a className="btn-secondary max-login-button" href={maxLaunchUrl}>
-            Войти через MAX
+        {maxLaunchUrl && !contextMessage ? (
+          <button
+            type="button"
+            className="btn-secondary max-login-button"
+            disabled={busy || pairingToken !== null}
+            onClick={() => void openMax()}
+          >
+            {pairingToken ? 'Ждём подтверждение в MAX…' : 'Войти через MAX'}
+          </button>
+        ) : null}
+        {pairingLaunchUrl && pairingToken ? (
+          <a className="auth-max-fallback" href={pairingLaunchUrl} target="_blank" rel="noreferrer">
+            MAX не открылся? Открыть ещё раз
           </a>
+        ) : null}
+        {recoveryOpen ? (
+          <section className="auth-recovery-note" aria-label="Восстановление пароля">
+            <strong>Восстановление через MAX</strong>
+            <p>
+              Если MAX уже связан с аккаунтом, войдите через него. Затем новый пароль можно задать в
+              разделе «Учётная запись». Отправку писем подключим позже.
+            </p>
+          </section>
         ) : null}
 
         {localPreviewEnabled ? (
