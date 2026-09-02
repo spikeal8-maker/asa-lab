@@ -564,10 +564,7 @@ function OwnerVibrationMotorVisual({
       mounted = false;
     };
   }, [asset]);
-  const markup = useMemo(
-    () => (ownerSvg ? vibrationMotorRuntimeMarkup(ownerSvg) : ''),
-    [ownerSvg],
-  );
+  const markup = useMemo(() => (ownerSvg ? vibrationMotorRuntimeMarkup(ownerSvg) : ''), [ownerSvg]);
   if (!markup) {
     return <image href={asset} width={width} height={height} pointerEvents="none" />;
   }

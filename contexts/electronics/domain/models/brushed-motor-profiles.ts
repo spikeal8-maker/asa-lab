@@ -12,10 +12,7 @@ export interface MotorProfileSource {
   readonly title: string;
   readonly url: string;
   readonly accessedOn: string;
-  readonly kind:
-    | 'vendor_product_page'
-    | 'vendor_datasheet'
-    | 'internal_engineering_contract';
+  readonly kind: 'vendor_product_page' | 'vendor_datasheet' | 'internal_engineering_contract';
 }
 
 export interface MotorNumericParameter {
@@ -289,8 +286,7 @@ function profile(input: {
   const derivedSources = [fitPoint.sourceId, assumptionSourceId];
   const transmissionBasis =
     input.material === 'none' ? 'derived_from_vendor_reference' : 'vendor_reported';
-  const transmissionSources =
-    input.material === 'none' ? [assumptionSourceId] : [input.sourceId];
+  const transmissionSources = input.material === 'none' ? [assumptionSourceId] : [input.sourceId];
   return {
     profileId: input.profileId,
     profileVersion: 1,
@@ -303,12 +299,9 @@ function profile(input: {
     ...(input.startingVoltageMin === undefined
       ? {}
       : {
-          startingVoltageMin: parameter(
-            input.startingVoltageMin,
-            'V',
-            'vendor_reported',
-            [input.sourceId],
-          ),
+          startingVoltageMin: parameter(input.startingVoltageMin, 'V', 'vendor_reported', [
+            input.sourceId,
+          ]),
         }),
     fitReferenceVoltageVolt: input.fitReferenceVoltageVolt,
     referencePoints: input.referencePoints,

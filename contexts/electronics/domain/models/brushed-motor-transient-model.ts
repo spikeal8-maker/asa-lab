@@ -157,8 +157,7 @@ function heldBelowStartingVoltage(
   const startingVoltageMin = profile.startingVoltageMin?.value;
   return (
     startingVoltageMin !== undefined &&
-    Math.abs(state.motorAngularVelocityRadPerSecond) <
-      STOPPED_ANGULAR_VELOCITY_RAD_PER_SECOND &&
+    Math.abs(state.motorAngularVelocityRadPerSecond) < STOPPED_ANGULAR_VELOCITY_RAD_PER_SECOND &&
     Math.abs(voltageVolt) < startingVoltageMin
   );
 }
@@ -308,10 +307,7 @@ export function brushedMotorCompanion(
     voltageVolt,
   );
 
-  if (
-    input.shaftLocked === true ||
-    heldBelowStartingVoltage(profile, previousState, voltageVolt)
-  ) {
+  if (input.shaftLocked === true || heldBelowStartingVoltage(profile, previousState, voltageVolt)) {
     const effectiveResistanceOhm = resistanceOhm + inductanceHenry / stepSeconds;
     return {
       conductanceSiemens: 1 / effectiveResistanceOhm,

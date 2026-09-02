@@ -352,8 +352,7 @@ export function WorkbenchSidebars({
     ? String(c.selectedComponent?.stateProperties?.['piezoMode'] ?? 'passive')
     : 'passive';
   const selectedMotorProfile =
-    c.selectedComponent &&
-    (selectedIsDcMotor || selectedIsGearmotor || selectedIsVibrationMotor)
+    c.selectedComponent && (selectedIsDcMotor || selectedIsGearmotor || selectedIsVibrationMotor)
       ? resolveBrushedMotorProfileSelection(c.selectedComponent)
       : null;
   const selectedDiagnostics = c.selectedComponent
@@ -1607,8 +1606,7 @@ export function WorkbenchSidebars({
                       </div>
                     </>
                   ) : null}
-                  {selectedIsVibrationMotor &&
-                  measurement.vibrationFrequencyHz !== undefined ? (
+                  {selectedIsVibrationMotor && measurement.vibrationFrequencyHz !== undefined ? (
                     <>
                       <div>
                         <dt>Рабочий диапазон</dt>

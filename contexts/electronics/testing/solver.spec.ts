@@ -1088,9 +1088,7 @@ describe('deterministic DC solver', () => {
       ],
     );
     const belowStartResult = solveCircuit(belowStartDocument, { simulationTimeMs: 500 });
-    const belowStart = belowStartResult.components.find(
-      (item) => item.componentId === 'vibration',
-    );
+    const belowStart = belowStartResult.components.find((item) => item.componentId === 'vibration');
     expect(belowStart).toMatchObject({
       direction: 'stopped',
       motorOperatingMode: 'stopped',

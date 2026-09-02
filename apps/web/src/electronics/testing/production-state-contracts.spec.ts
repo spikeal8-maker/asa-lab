@@ -240,12 +240,8 @@ describe('typed Electronics state and animation contracts', () => {
       '<svg viewBox="0 0 120 370"><g id="wire-cores"><path/></g><g id="connector"><rect/></g><g id="motor-body"><circle/></g></svg>';
     const markup = vibrationMotorRuntimeMarkup(ownerSvg);
     expect(markup).toContain('<g id="wire-cores"><path/></g>');
-    expect(markup).toContain(
-      '<g id="connector" class="workbench-vibration-motor-moving-body">',
-    );
-    expect(markup).toContain(
-      '<g id="motor-body" class="workbench-vibration-motor-moving-body">',
-    );
+    expect(markup).toContain('<g id="connector" class="workbench-vibration-motor-moving-body">');
+    expect(markup).toContain('<g id="motor-body" class="workbench-vibration-motor-moving-body">');
     expect(ownerSvg).not.toContain('class=');
     expect(vibrationMotorRuntimeMarkup('<svg><g id="motor-body"/></svg>')).toBe('');
     expect(vibrationMotorVisualMotion(0, 100)).toEqual({
