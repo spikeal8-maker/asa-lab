@@ -27,6 +27,11 @@ export function apiChildEnv(base, apiPort) {
   for (const key of API_STRIP) {
     delete env[key];
   }
+  // MAX moved its API to a certificate chain trusted by the operating system.
+  // Node.js does not include the system trust store unless this opt-in is set,
+  // which otherwise makes valid MAX tokens fail before the HTTP request starts.
+  // This adds system roots to Node's bundled roots; TLS verification remains on.
+  env.NODE_USE_SYSTEM_CA = '1';
   env.API_PORT = String(apiPort);
   env.API_HOST = '127.0.0.1';
   return env;
