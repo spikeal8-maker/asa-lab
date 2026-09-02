@@ -591,7 +591,7 @@ export function VerificationMethodsSection({
                     ? `Токен сохранён${max.tokenFingerprint ? ` · …${max.tokenFingerprint}` : ''}`
                     : 'Токен пока не сохранён'}
                 </p>
-                <label htmlFor="max-mini-app-url">Адрес мини-приложения</label>
+                <label htmlFor="max-mini-app-url">Адрес ASA Lab для возврата</label>
                 <input
                   id="max-mini-app-url"
                   type="url"

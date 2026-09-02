@@ -378,7 +378,7 @@ export class MaxAuthService {
       launchUrl:
         runtime.bot_username.length === 0
           ? null
-          : `https://max.ru/${encodeURIComponent(runtime.bot_username)}?startapp=asa_login`,
+          : `https://max.ru/${encodeURIComponent(runtime.bot_username)}?start=asa_login`,
     };
   }
 
@@ -392,7 +392,7 @@ export class MaxAuthService {
         runtime.enabled &&
         tokenConfigured &&
         (actorPrincipalId ? this.key !== null : this.runtimeToken(runtime) !== null),
-      launchUrl: `https://max.ru/${encodeURIComponent(runtime.bot_username)}?startapp=asa_login`,
+      launchUrl: `https://max.ru/${encodeURIComponent(runtime.bot_username)}?start=asa_login`,
     };
     let webhook: MaxWebhookStatusRow | null = null;
     if (!this.staticRuntime) {
@@ -482,7 +482,7 @@ export class MaxAuthService {
     if (current.enabled !== input.enabled) changes.push(input.enabled ? 'включение' : 'выключение');
     if (current.bot_username !== normalizedBotUsername(input.botUsername)) changes.push('имя бота');
     if (current.mini_app_url !== normalizedMiniAppUrl(input.miniAppUrl)) {
-      changes.push('адрес мини-приложения');
+      changes.push('адрес возврата ASA Lab');
     }
     if (tokenReplaced) changes.push('замена токена');
     if (input.clearToken) changes.push('удаление токена');
@@ -504,7 +504,9 @@ export class MaxAuthService {
       `SELECT auth_max_identity_account($1) AS account_id`,
       [identity.subject],
     );
-    if (!activeIdentity.rows[0]?.account_id) return { status: 'link_required' };
+    if (!activeIdentity.rows[0]?.account_id) {
+      return this.registerGeneratedIdentity(identity, false);
+    }
     const token = createSessionToken();
     const result = await this.pool.query(
       `SELECT result, account_id
@@ -529,6 +531,87 @@ export class MaxAuthService {
     return {
       status: status === 'authenticated' ? 'unavailable' : status,
     };
+  }
+
+  /**
+   * MAX itself is the credential. A provider-only account therefore gets an
+   * internal, non-routable identifier and a random unreachable password hash;
+   * neither value is requested from or shown to the person signing in.
+   */
+  private async registerGeneratedIdentity(
+    identity: ValidatedMaxIdentity,
+    discardProvisionalSession: boolean,
+  ): Promise<MaxSignInResult> {
+    const token = createSessionToken();
+    const tokenHash = hashSessionToken(token);
+    const generatedPassword = randomBytes(48).toString('base64url');
+    const subjectHash = createHash('sha256').update(identity.subject).digest('hex').slice(0, 20);
+    const username = `max_${subjectHash}`;
+    const displayName = identity.displayName ?? identity.username ?? 'Пользователь MAX';
+    const technicalEmail = `max-${identity.subject}@users.asa.invalid`;
+    const birthDate = new Date(this.now()).toISOString().slice(0, 10);
+    try {
+      const result = await this.pool.query(
+        `SELECT result, account_id
+           FROM auth_max_register_account(
+             $1,$2,$3,$4,$5,$6,$7,$8,$9,$10::date,$11,$12,$13,$14
+           )`,
+        [
+          identity.subject,
+          identity.queryId,
+          identity.authDate,
+          identity.username,
+          identity.displayName,
+          technicalEmail,
+          await hashPasswordAsync(generatedPassword),
+          displayName,
+          username,
+          birthDate,
+          'RU',
+          AGE_POLICY_VERSION,
+          tokenHash,
+          SESSION_TTL_HOURS,
+        ],
+      );
+      const status = String(result.rows[0]?.result ?? 'unavailable');
+      const accountId = String(result.rows[0]?.account_id ?? '');
+      if (status === 'authenticated' && accountId) {
+        if (discardProvisionalSession) {
+          await this.pool.query(`SELECT auth_max_discard_provisional_session($1) AS discarded`, [
+            tokenHash,
+          ]);
+        }
+        await this.approvePairing(identity.startParam, accountId);
+        return { status: 'authenticated', token, accountId };
+      }
+      if (status === 'identity_taken') {
+        const existing = await this.pool.query<{ account_id: string | null }>(
+          `SELECT auth_max_identity_account($1) AS account_id`,
+          [identity.subject],
+        );
+        const accountId = existing.rows[0]?.account_id;
+        if (accountId && discardProvisionalSession) {
+          await this.approvePairing(identity.startParam, accountId);
+          return { status: 'authenticated', token, accountId };
+        }
+      }
+      return { status: 'unavailable' };
+    } catch (problem) {
+      const failure = problem as { code?: string };
+      if (failure.code === '23505') {
+        const existing = await this.pool.query<{ account_id: string | null }>(
+          `SELECT auth_max_identity_account($1) AS account_id`,
+          [identity.subject],
+        );
+        const accountId = existing.rows[0]?.account_id;
+        if (accountId && discardProvisionalSession) {
+          await this.approvePairing(identity.startParam, accountId);
+          return { status: 'authenticated', token, accountId };
+        }
+        return { status: 'unavailable' };
+      }
+      throw problem;
+    }
   }
 
   async link(accountId: string, rawInitData: unknown): Promise<MaxLinkResult> {
@@ -643,21 +726,23 @@ export class MaxAuthService {
     }
   }
 
-  async startPairing(): Promise<{ pairingToken: string; launchUrl: string }> {
+  async startPairing(
+    requestedAccountId?: string,
+  ): Promise<{ pairingToken: string; launchUrl: string }> {
     const runtime = await this.runtime();
     const token = this.runtimeToken(runtime);
     if (!runtime.enabled || !token) throw new MaxInitDataError('max_auth_disabled');
     const pairingToken = randomBytes(32).toString('base64url');
     const created = await this.pool.query<{ created: boolean }>(
-      `SELECT auth_max_pairing_start($1, $2) AS created`,
-      [hashSessionToken(pairingToken), MAX_PAIRING_TTL_MINUTES],
+      `SELECT auth_max_pairing_start($1, $2, $3) AS created`,
+      [hashSessionToken(pairingToken), MAX_PAIRING_TTL_MINUTES, requestedAccountId ?? null],
     );
     if (created.rows[0]?.created !== true) {
       throw new MaxConfigurationError('max_service_unavailable');
     }
     return {
       pairingToken,
-      launchUrl: `https://max.ru/${encodeURIComponent(runtime.bot_username)}?startapp=pair_${pairingToken}`,
+      launchUrl: `https://max.ru/${encodeURIComponent(runtime.bot_username)}?start=pair_${pairingToken}`,
     };
   }
 
@@ -686,14 +771,15 @@ export class MaxAuthService {
       : { status: status === 'authenticated' ? 'invalid' : status };
   }
 
-  private async approvePairing(startParam: string | null, accountId: string): Promise<void> {
-    if (!startParam?.startsWith('pair_')) return;
+  private async approvePairing(startParam: string | null, accountId: string): Promise<boolean> {
+    if (!startParam?.startsWith('pair_')) return false;
     const pairingToken = startParam.slice(5);
-    if (!/^[A-Za-z0-9_-]{43}$/.test(pairingToken)) return;
-    await this.pool.query(`SELECT auth_max_pairing_approve($1, $2)`, [
-      hashSessionToken(pairingToken),
-      accountId,
-    ]);
+    if (!/^[A-Za-z0-9_-]{43}$/.test(pairingToken)) return false;
+    const result = await this.pool.query<{ approved: boolean }>(
+      `SELECT auth_max_pairing_approve($1, $2) AS approved`,
+      [hashSessionToken(pairingToken), accountId],
+    );
+    return result.rows[0]?.approved === true;
   }
 
   private webhookSecret(runtime: MaxRuntimeRow): string | null {
@@ -710,6 +796,71 @@ export class MaxAuthService {
     } catch {
       return null;
     }
+  }
+
+  private async confirmBotPairing(
+    identity: ValidatedMaxIdentity,
+  ): Promise<
+    | 'authenticated'
+    | 'linked'
+    | 'identity_taken'
+    | 'account_already_linked'
+    | 'account_suspended'
+    | 'invalid'
+    | 'unavailable'
+  > {
+    if (!identity.startParam?.startsWith('pair_')) return 'invalid';
+    const pairingToken = identity.startParam.slice(5);
+    if (!/^[A-Za-z0-9_-]{43}$/.test(pairingToken)) return 'invalid';
+    const pairingHash = hashSessionToken(pairingToken);
+    const target = await this.pool.query<{
+      result: string;
+      requested_account_id: string | null;
+    }>(`SELECT result, requested_account_id FROM auth_max_pairing_target($1)`, [pairingHash]);
+    const pairing = target.rows[0];
+    if (!pairing || !['pending', 'approved'].includes(pairing.result)) return 'invalid';
+    if (pairing.result === 'approved') return 'authenticated';
+
+    if (pairing.requested_account_id) {
+      const linked = await this.pool.query<{ result: string }>(
+        `SELECT result FROM auth_max_link($1, $2, $3, $4, $5, $6)`,
+        [
+          pairing.requested_account_id,
+          identity.subject,
+          identity.queryId,
+          identity.authDate,
+          identity.username,
+          identity.displayName,
+        ],
+      );
+      const result = String(linked.rows[0]?.result ?? 'unavailable');
+      if (result === 'linked' || result === 'already_linked') {
+        return (await this.approvePairing(identity.startParam, pairing.requested_account_id))
+          ? 'linked'
+          : 'invalid';
+      }
+      if (
+        result === 'identity_taken' ||
+        result === 'account_already_linked' ||
+        result === 'account_suspended'
+      ) {
+        return result;
+      }
+      return 'unavailable';
+    }
+
+    const activeIdentity = await this.pool.query<{ account_id: string | null }>(
+      `SELECT auth_max_identity_account($1) AS account_id`,
+      [identity.subject],
+    );
+    const existingAccountId = activeIdentity.rows[0]?.account_id;
+    if (existingAccountId) {
+      return (await this.approvePairing(identity.startParam, existingAccountId))
+        ? 'authenticated'
+        : 'account_suspended';
+    }
+    const registered = await this.registerGeneratedIdentity(identity, true);
+    return registered.status === 'authenticated' ? 'authenticated' : 'unavailable';
   }
 
   async ensureWebhookSubscription(force = false): Promise<void> {
@@ -787,12 +938,6 @@ export class MaxAuthService {
     const eventHash = createHash('sha256')
       .update(JSON.stringify(update).slice(0, 64 * 1024))
       .digest('hex');
-    const claim = await this.pool.query<{ claimed: boolean }>(
-      `SELECT auth_max_webhook_event_claim($1) AS claimed`,
-      [eventHash],
-    );
-    if (claim.rows[0]?.claimed !== true) return 'duplicate';
-
     const updateType = update['update_type'];
     if (updateType !== 'bot_started' && updateType !== 'message_created') return 'accepted';
     const directUser = update['user'];
@@ -816,7 +961,56 @@ export class MaxAuthService {
           : null;
     const token = this.runtimeToken(runtime);
     if (!userId || !token) return 'accepted';
-    const launchUrl = `https://max.ru/${encodeURIComponent(runtime.bot_username)}?startapp=asa_login`;
+    const payload = boundedText(update['payload'], 512);
+    const isPairingLaunch =
+      updateType === 'bot_started' &&
+      payload?.startsWith('pair_') === true &&
+      /^[A-Za-z0-9_-]{43}$/.test(payload.slice(5));
+    let responseText = 'Чтобы войти, нажмите «Войти через MAX» на сайте ASA Lab.';
+    if (isPairingLaunch && payload) {
+      const firstName = boundedText(user?.['first_name'], 128);
+      const lastName = boundedText(user?.['last_name'], 128);
+      const displayName =
+        boundedText([firstName, lastName].filter(Boolean).join(' '), 255) ??
+        boundedText(user?.['name'], 255);
+      const rawTimestamp = update['timestamp'];
+      const authDate =
+        typeof rawTimestamp === 'number' && Number.isSafeInteger(rawTimestamp) && rawTimestamp > 0
+          ? Math.floor(rawTimestamp / 1000)
+          : Math.floor(this.now() / 1000);
+      const confirmation = await this.confirmBotPairing({
+        subject: userId,
+        queryId: `webhook:${eventHash}`,
+        authDate,
+        username: boundedText(user?.['username'], 64),
+        displayName,
+        startParam: payload,
+      });
+      responseText =
+        confirmation === 'authenticated'
+          ? 'Готово. Личность подтверждена — вернитесь в ASA Lab, вход завершится автоматически.'
+          : confirmation === 'linked'
+            ? 'Готово. MAX подключён к вашему аккаунту ASA Lab.'
+            : confirmation === 'identity_taken'
+              ? 'Этот профиль MAX уже подключён к другому аккаунту ASA Lab.'
+              : confirmation === 'account_already_linked'
+                ? 'К этому аккаунту ASA Lab уже подключён другой профиль MAX.'
+                : confirmation === 'account_suspended'
+                  ? 'Аккаунт ASA Lab приостановлен. Обратитесь к администратору.'
+                  : 'Запрос входа устарел. Вернитесь на сайт и нажмите «Войти через MAX» ещё раз.';
+    } else {
+      const claim = await this.pool.query<{ claimed: boolean }>(
+        `SELECT auth_max_webhook_event_claim($1) AS claimed`,
+        [eventHash],
+      );
+      if (claim.rows[0]?.claimed !== true) return 'duplicate';
+    }
+    let siteUrl = 'https://asa-lab.ru/#/sign-in';
+    try {
+      siteUrl = `${new URL(runtime.mini_app_url).origin}/#/sign-in`;
+    } catch {
+      // The runtime setting is validated on write; keep the canonical fallback.
+    }
     await this.fetchImpl(
       `https://platform-api2.max.ru/messages?user_id=${encodeURIComponent(userId)}`,
       {
@@ -827,12 +1021,12 @@ export class MaxAuthService {
           'content-type': 'application/json',
         },
         body: JSON.stringify({
-          text: 'Откройте ASA Lab, чтобы войти, создать аккаунт или подтвердить существующий.',
+          text: responseText,
           attachments: [
             {
               type: 'inline_keyboard',
               payload: {
-                buttons: [[{ type: 'link', text: 'Открыть ASA Lab', url: launchUrl }]],
+                buttons: [[{ type: 'link', text: 'Вернуться в ASA Lab', url: siteUrl }]],
               },
             },
           ],

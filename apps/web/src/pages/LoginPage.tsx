@@ -91,7 +91,9 @@ export function LoginPage({
     }
     setPairingToken(result.data.pairingToken);
     setPairingLaunchUrl(result.data.launchUrl);
-    setMessage('Завершите вход в MAX, затем вернитесь в эту вкладку. Она войдёт автоматически.');
+    setMessage(
+      'В MAX нажмите «Начать». Ничего вводить не нужно — затем вернитесь сюда, вход завершится автоматически.',
+    );
     if (popup) popup.location.href = result.data.launchUrl;
   }
 
@@ -210,7 +212,7 @@ export function LoginPage({
             disabled={busy || pairingToken !== null}
             onClick={() => void openMax()}
           >
-            {pairingToken ? 'Ждём подтверждение в MAX…' : 'Войти через MAX'}
+            {pairingToken ? 'Подтвердите вход в MAX…' : 'Войти через MAX'}
           </button>
         ) : null}
         {pairingLaunchUrl && pairingToken ? (
@@ -222,8 +224,8 @@ export function LoginPage({
           <section className="auth-recovery-note" aria-label="Восстановление пароля">
             <strong>Восстановление через MAX</strong>
             <p>
-              Если MAX уже связан с аккаунтом, войдите через него. Затем новый пароль можно задать в
-              разделе «Учётная запись». Отправку писем подключим позже.
+              Если MAX уже связан с аккаунтом, просто подтвердите вход в боте. Затем новый пароль
+              можно задать в разделе «Учётная запись». Отправку писем подключим позже.
             </p>
           </section>
         ) : null}

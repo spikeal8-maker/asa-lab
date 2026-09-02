@@ -245,6 +245,16 @@ describe('migration runner apply (embedded PostgreSQL via PGlite)', () => {
         ['q'.repeat(64)],
       );
       expect(created.rows[0].created).toBe(true);
+      const linkCreated = await db.query<{ created: boolean }>(
+        `SELECT auth_max_pairing_start($1, 10, $2) AS created`,
+        ['l'.repeat(64), accountId],
+      );
+      expect(linkCreated.rows[0].created).toBe(true);
+      const linkTarget = await db.query<{ result: string; requested_account_id: string }>(
+        `SELECT result, requested_account_id FROM auth_max_pairing_target($1)`,
+        ['l'.repeat(64)],
+      );
+      expect(linkTarget.rows[0]).toEqual({ result: 'pending', requested_account_id: accountId });
       const approved = await db.query<{ approved: boolean }>(
         `SELECT auth_max_pairing_approve($1, $2) AS approved`,
         ['q'.repeat(64), accountId],

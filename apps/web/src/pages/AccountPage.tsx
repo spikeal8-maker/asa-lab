@@ -450,7 +450,7 @@ export function AccountPage({
     setBusyAction('max-pairing');
     setError(null);
     setNotice(null);
-    const result = await api.startMaxPairing();
+    const result = await api.startMaxPairing('link');
     if (!result.ok) {
       popup?.close();
       setBusyAction(null);
@@ -459,7 +459,9 @@ export function AccountPage({
     }
     setMaxPairingToken(result.data.pairingToken);
     setMaxPairingUrl(result.data.launchUrl);
-    setNotice('Завершите привязку в MAX и вернитесь сюда. Страница обновится автоматически.');
+    setNotice(
+      'В MAX нажмите «Начать». Ничего вводить не нужно — привязка завершится автоматически.',
+    );
     if (popup) popup.location.href = result.data.launchUrl;
   }
 
@@ -504,6 +506,8 @@ export function AccountPage({
       </main>
     );
   }
+
+  const maxManagedProfile = profile.email.endsWith('@users.asa.invalid');
 
   const roleChanged = accountRole !== (isEducator ? 'educator' : 'creator');
   const profileChanged =
@@ -830,13 +834,23 @@ export function AccountPage({
               <div className="account-private-facts">
                 <div>
                   <span>Email</span>
-                  <strong>{profile.email}</strong>
-                  <small>Контактный адрес аккаунта</small>
+                  <strong>
+                    {maxManagedProfile ? 'Не требуется — вход через MAX' : profile.email}
+                  </strong>
+                  <small>
+                    {maxManagedProfile
+                      ? 'Не нужен для входа через MAX'
+                      : 'Контактный адрес аккаунта'}
+                  </small>
                 </div>
                 <div>
                   <span>Дата рождения</span>
-                  <strong>{profile.birthDate}</strong>
-                  <small>Не показывается другим пользователям</small>
+                  <strong>{maxManagedProfile ? 'Не указана' : profile.birthDate}</strong>
+                  <small>
+                    {maxManagedProfile
+                      ? 'Не запрашивается при входе через MAX'
+                      : 'Не показывается другим пользователям'}
+                  </small>
                 </div>
                 <div>
                   <span>Страна</span>
@@ -876,7 +890,7 @@ export function AccountPage({
                     >
                       {maxPairingToken ? 'Ждём MAX…' : 'Подключить MAX'}
                     </button>
-                    <small>Откройте мини-приложение и привяжите этот аккаунт</small>
+                    <small>Откройте бота MAX и нажмите «Начать»</small>
                     {maxPairingUrl && maxPairingToken ? (
                       <a href={maxPairingUrl} target="_blank" rel="noreferrer">
                         Открыть MAX ещё раз

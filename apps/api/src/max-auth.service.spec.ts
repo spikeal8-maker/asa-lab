@@ -69,7 +69,7 @@ describe('MAX WebApp authentication boundary', () => {
     ).toThrowError('max_init_data_expired');
   });
 
-  it('keeps an authenticated one-time browser pairing capability from startapp', () => {
+  it('keeps an authenticated one-time browser pairing capability from a native bot link', () => {
     expect(
       validateMaxInitData(
         signedInitData({ startParam: `pair_${'a'.repeat(43)}` }),
@@ -90,7 +90,7 @@ describe('MAX WebApp authentication boundary', () => {
     const config = await service.config();
     expect(config).toEqual({
       enabled: true,
-      launchUrl: 'https://max.ru/id231408577954_3_bot?startapp=asa_login',
+      launchUrl: 'https://max.ru/id231408577954_3_bot?start=asa_login',
     });
     expect(JSON.stringify(config)).not.toContain(BOT_TOKEN);
     const adminConfig = await service.adminConfig();
@@ -99,7 +99,7 @@ describe('MAX WebApp authentication boundary', () => {
       featureEnabled: true,
       tokenConfigured: true,
       botUsername: 'id231408577954_3_bot',
-      launchUrl: 'https://max.ru/id231408577954_3_bot?startapp=asa_login',
+      launchUrl: 'https://max.ru/id231408577954_3_bot?start=asa_login',
       miniAppUrl: 'https://asa-lab.ru/max-login',
       encryptionReady: true,
       tokenFingerprint: expect.any(String),
@@ -155,11 +155,105 @@ describe('MAX WebApp authentication boundary', () => {
     });
     const pairing = await service.startPairing();
     expect(pairing.pairingToken).toMatch(/^[A-Za-z0-9_-]{43}$/);
-    expect(pairing.launchUrl).toContain(`startapp=pair_${pairing.pairingToken}`);
+    expect(pairing.launchUrl).toContain(`start=pair_${pairing.pairingToken}`);
     expect(JSON.stringify(query.mock.calls[0])).not.toContain(pairing.pairingToken);
+    expect(query.mock.calls[0]?.[1]).toEqual([expect.any(String), 10, null]);
     await expect(service.consumePairing(pairing.pairingToken)).resolves.toEqual({
       status: 'pending',
     });
+    await service.startPairing('account-id');
+    expect(query).toHaveBeenCalledWith(expect.stringContaining('auth_max_pairing_start'), [
+      expect.any(String),
+      10,
+      'account-id',
+    ]);
+  });
+
+  it('uses a native bot deep link and confirms a linked account without a mini-app', async () => {
+    const encryptionBytes = Buffer.alloc(32, 7);
+    const pairingToken = 'p'.repeat(43);
+    const query = vi.fn(async (sql: string) => {
+      if (sql.includes('auth_max_pairing_target')) {
+        return { rows: [{ result: 'pending', requested_account_id: null }] };
+      }
+      if (sql.includes('auth_max_identity_account')) {
+        return { rows: [{ account_id: 'account-1' }] };
+      }
+      if (sql.includes('auth_max_pairing_approve')) {
+        return { rows: [{ approved: true }] };
+      }
+      throw new Error(`unexpected query: ${sql}`);
+    });
+    const fetchImpl = vi.fn(async () => new Response('{}', { status: 200 }));
+    const service = new MaxAuthService({ query } as unknown as pg.Pool, {
+      botToken: BOT_TOKEN,
+      botUsername: 'id231408577954_3_bot',
+      miniAppUrl: 'https://asa-lab.ru/max-login',
+      enabled: true,
+      encryptionKey: encryptionBytes.toString('base64url'),
+      fetchImpl,
+    });
+    const secret = createHmac('sha256', encryptionBytes)
+      .update('max-webhook:id231408577954_3_bot')
+      .digest('base64url');
+
+    await expect(
+      service.handleWebhook(secret, {
+        update_type: 'bot_started',
+        timestamp: NOW_SECONDS * 1000,
+        payload: `pair_${pairingToken}`,
+        user: {
+          user_id: 231408577954,
+          first_name: 'Александр',
+          last_name: 'Сергеев',
+          username: 'asa_owner',
+        },
+      }),
+    ).resolves.toBe('accepted');
+    const messageBody = JSON.parse(
+      String((fetchImpl.mock.calls[0]?.[1] as RequestInit | undefined)?.body),
+    ) as { text: string; attachments: Array<{ payload: { buttons: unknown[][] } }> };
+    expect(messageBody.text).toContain('Личность подтверждена');
+    expect(JSON.stringify(messageBody)).toContain('https://asa-lab.ru/#/sign-in');
+    expect(JSON.stringify(messageBody)).not.toContain('max-login');
+    expect(query).toHaveBeenCalledWith(expect.stringContaining('auth_max_pairing_approve'), [
+      expect.any(String),
+      'account-1',
+    ]);
+  });
+
+  it('creates a provider-only account automatically when MAX has no linked identity', async () => {
+    const query = vi.fn(async (sql: string, parameters?: readonly unknown[]) => {
+      if (sql.includes('auth_max_identity_account')) return { rows: [{ account_id: null }] };
+      if (sql.includes('auth_max_register_account')) {
+        expect(parameters?.[5]).toBe('max-231408577954@users.asa.invalid');
+        expect(parameters?.[8]).toMatch(/^max_[a-f0-9]{20}$/);
+        return { rows: [{ result: 'authenticated', account_id: 'new-account' }] };
+      }
+      if (sql.includes('auth_max_discard_provisional_session')) {
+        return { rows: [{ discarded: true }] };
+      }
+      if (sql.includes('auth_max_pairing_approve')) {
+        return { rows: [{ approved: true }] };
+      }
+      throw new Error(`unexpected query: ${sql}`);
+    });
+    const service = new MaxAuthService({ query } as unknown as pg.Pool, {
+      botToken: BOT_TOKEN,
+      botUsername: 'id231408577954_3_bot',
+      enabled: true,
+      now: () => NOW_SECONDS * 1000,
+    });
+
+    await expect(service.signIn(signedInitData())).resolves.toMatchObject({
+      status: 'authenticated',
+      accountId: 'new-account',
+      token: expect.any(String),
+    });
+    expect(query).not.toHaveBeenCalledWith(
+      expect.stringContaining('auth_max_discard_provisional_session'),
+      expect.anything(),
+    );
   });
 
   it('verifies, encrypts and applies a runtime token without returning the secret', async () => {
@@ -237,7 +331,7 @@ describe('MAX WebApp authentication boundary', () => {
     expect(JSON.stringify(result)).not.toContain(BOT_TOKEN);
     await expect(service.config()).resolves.toEqual({
       enabled: true,
-      launchUrl: 'https://max.ru/id231408577954_3_bot?startapp=asa_login',
+      launchUrl: 'https://max.ru/id231408577954_3_bot?start=asa_login',
     });
   });
 });

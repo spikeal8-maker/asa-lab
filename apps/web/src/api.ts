@@ -1275,9 +1275,10 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ initData }),
     }),
-  startMaxPairing: () =>
+  startMaxPairing: (purpose: 'login' | 'link' = 'login') =>
     call<{ pairingToken: string; launchUrl: string }>('/api/auth/max/pairing/start', {
       method: 'POST',
+      body: JSON.stringify({ purpose }),
     }),
   completeMaxPairing: (pairingToken: string) =>
     call<{ status: 'pending' } | { status: 'authenticated'; session: SessionPayload }>(

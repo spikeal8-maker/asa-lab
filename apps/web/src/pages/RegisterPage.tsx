@@ -90,7 +90,9 @@ export function RegisterPage({
     }
     setPairingToken(result.data.pairingToken);
     setPairingLaunchUrl(result.data.launchUrl);
-    setMessage('Продолжите в MAX, затем вернитесь в эту вкладку. Вход завершится автоматически.');
+    setMessage(
+      'В MAX нажмите «Начать». Если аккаунта ещё нет, он создастся автоматически — без почты и пароля.',
+    );
     if (popup) popup.location.href = result.data.launchUrl;
   }
 
@@ -263,7 +265,7 @@ export function RegisterPage({
             disabled={busy || pairingToken !== null}
             onClick={() => void openMax()}
           >
-            {pairingToken ? 'Ждём подтверждение в MAX…' : 'Продолжить через MAX'}
+            {pairingToken ? 'Подтвердите регистрацию в MAX…' : 'Зарегистрироваться через MAX'}
           </button>
         ) : null}
         {pairingLaunchUrl && pairingToken ? (

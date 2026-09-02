@@ -126,7 +126,7 @@ export function App(): JSX.Element {
   const [pendingMaxLink, setPendingMaxLink] = useState<string | null>(null);
   const [maxLaunchMessage, setMaxLaunchMessage] = useState<string | null>(() =>
     isMaxLaunchLocation() && maxLaunchData.current === null
-      ? 'Откройте мини-приложение ASA Lab внутри MAX. Если MAX уже связан с аккаунтом, вход завершится автоматически.'
+      ? 'Вернитесь на страницу входа ASA Lab и нажмите «Войти через MAX». В боте останется нажать «Начать».'
       : null,
   );
 
@@ -215,11 +215,15 @@ export function App(): JSX.Element {
       if (maxResult.status === 409 && maxResult.error.code === 'max_link_required') {
         setPendingMaxLink(launchData);
       } else if (maxResult.error.code === 'max_init_data_expired') {
-        setMaxLaunchMessage('Ссылка MAX устарела. Закройте и заново откройте ASA Lab в MAX.');
+        setMaxLaunchMessage(
+          'Ссылка MAX устарела. Вернитесь на страницу входа и откройте бота ещё раз.',
+        );
       } else if (maxResult.error.code === 'max_auth_disabled') {
         setMaxLaunchMessage('Вход через MAX пока не подключён. Войдите по почте.');
       } else {
-        setMaxLaunchMessage('MAX не смог подтвердить вход. Откройте мини-приложение заново.');
+        setMaxLaunchMessage(
+          'MAX не смог подтвердить вход. Вернитесь на страницу входа и откройте бота ещё раз.',
+        );
       }
     }
     const result = await api.me();

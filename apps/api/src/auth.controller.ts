@@ -344,7 +344,7 @@ export class AuthController {
       }
       if (problem.code === 'max_init_data_expired') {
         throw new HttpException(
-          error('max_init_data_expired', 'Ссылка MAX устарела. Откройте мини-приложение заново.'),
+          error('max_init_data_expired', 'Ссылка MAX устарела. Откройте бота заново.'),
           401,
         );
       }
@@ -364,13 +364,23 @@ export class AuthController {
   @Post('max/pairing/start')
   @HttpCode(200)
   async startMaxPairing(
+    @Body() rawBody: unknown,
     @Req() request: FastifyRequest,
     @Res({ passthrough: true }) reply: FastifyReply,
   ): Promise<{ pairingToken: string; launchUrl: string }> {
     this.enforce(this.maxAuthByAddress, clientAddress(request));
     this.authFlow(request, reply);
+    const purpose =
+      rawBody && typeof rawBody === 'object' && !Array.isArray(rawBody)
+        ? (rawBody as Record<string, unknown>)['purpose']
+        : undefined;
+    if (purpose !== undefined && purpose !== 'login' && purpose !== 'link') {
+      throw new HttpException(error('validation_error', 'unknown MAX pairing purpose'), 400);
+    }
+    const requestedAccountId =
+      purpose === 'link' ? (await this.requireContext(request)).accountId : undefined;
     try {
-      return await this.maxAuth.startPairing();
+      return await this.maxAuth.startPairing(requestedAccountId);
     } catch (problem) {
       this.throwMaxValidation(problem);
     }
@@ -561,7 +571,7 @@ export class AuthController {
           email_taken: 'Аккаунт с таким email уже существует. Выберите «У меня есть аккаунт».',
           username_taken: 'Это имя пользователя уже занято.',
           identity_taken: 'Этот профиль MAX уже связан с другим аккаунтом.',
-          assertion_replayed: 'Откройте мини-приложение MAX заново.',
+          assertion_replayed: 'Откройте бота MAX заново.',
           unavailable: 'Регистрация через MAX временно недоступна.',
         };
         if (result.status === 'age_routed') {
