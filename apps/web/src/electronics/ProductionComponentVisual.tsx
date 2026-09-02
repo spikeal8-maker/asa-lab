@@ -25,6 +25,8 @@ import {
   rgbLedState,
   rgbLedVisualOpacity,
   SEVEN_SEGMENT_COLOUR_CSS,
+  vibrationMotorRuntimeMarkup,
+  vibrationMotorVisualMotion,
   WORLD_UNITS_PER_MM,
   type RgbCommonMode,
   type ResistorTolerancePercent,
@@ -528,6 +530,68 @@ function OwnerGearmotorVisual({
       width={width}
       height={height}
       viewBox="0 0 514 810"
+      preserveAspectRatio="xMidYMid meet"
+      pointerEvents="none"
+      dangerouslySetInnerHTML={{ __html: markup }}
+    />
+  );
+}
+
+function OwnerVibrationMotorVisual({
+  asset,
+  width,
+  height,
+  frequencyHz,
+  vibrationLevelPercent,
+}: {
+  readonly asset: string;
+  readonly width: number;
+  readonly height: number;
+  readonly frequencyHz: number;
+  readonly vibrationLevelPercent: number;
+}): JSX.Element {
+  const [ownerSvg, setOwnerSvg] = useState<string | null>(null);
+  useEffect(() => {
+    let mounted = true;
+    void ownerSvgSource(asset)
+      .then((source) => {
+        if (mounted) setOwnerSvg(source);
+      })
+      .catch(() => {
+        if (mounted) setOwnerSvg(null);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [asset]);
+  const markup = useMemo(
+    () => (ownerSvg ? vibrationMotorRuntimeMarkup(ownerSvg) : ''),
+    [ownerSvg],
+  );
+  if (!markup) {
+    return <image href={asset} width={width} height={height} pointerEvents="none" />;
+  }
+  const motion = vibrationMotorVisualMotion(frequencyHz, vibrationLevelPercent);
+  const motionStyle = {
+    '--workbench-vibration-motor-period': `${motion.periodMilliseconds}ms`,
+    '--workbench-vibration-motor-amplitude-x': `${motion.amplitudeX}px`,
+    '--workbench-vibration-motor-amplitude-y': `${motion.amplitudeY}px`,
+  } as CSSProperties;
+  return (
+    <svg
+      data-testid="vibration-motor-motion"
+      data-vibration-active={motion.active ? 'true' : 'false'}
+      data-vibration-frequency-hz={Number.isFinite(frequencyHz) ? frequencyHz : 0}
+      data-vibration-level-percent={
+        Number.isFinite(vibrationLevelPercent) ? vibrationLevelPercent : 0
+      }
+      className="workbench-vibration-motor-visual"
+      style={motionStyle}
+      x="0"
+      y="0"
+      width={width}
+      height={height}
+      viewBox="0 0 120 370"
       preserveAspectRatio="xMidYMid meet"
       pointerEvents="none"
       dangerouslySetInnerHTML={{ __html: markup }}
@@ -1048,6 +1112,16 @@ export function ProductionComponentVisual({
               motorRpm={simulationRunning ? Number(result?.motorRpm ?? 0) : 0}
               outputRpm={simulationRunning ? Number(result?.outputRpm ?? 0) : 0}
               simulationTimeMs={simulationRunning ? simulationTimeMs : 0}
+            />
+          ) : entry.key === 'vibration-motor' ? (
+            <OwnerVibrationMotorVisual
+              asset={asset}
+              width={width}
+              height={height}
+              frequencyHz={simulationRunning ? Number(result?.vibrationFrequencyHz ?? 0) : 0}
+              vibrationLevelPercent={
+                simulationRunning ? Number(result?.vibrationLevelPercent ?? 0) : 0
+              }
             />
           ) : entry.key === 'multimeter' ? (
             <OwnerMultimeterVisual

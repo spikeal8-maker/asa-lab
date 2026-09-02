@@ -25,6 +25,8 @@ import {
   sevenSegmentState,
   servoAngle,
   spdtConnections,
+  vibrationMotorRuntimeMarkup,
+  vibrationMotorVisualMotion,
 } from '../production-asset-contracts';
 
 describe('typed Electronics state and animation contracts', () => {
@@ -231,6 +233,39 @@ describe('typed Electronics state and animation contracts', () => {
     expect(formatMotorRpm(8420.4)).toBe('8420 об/мин');
     expect(formatMotorRpm(-8420.4)).toBe('−8420 об/мин');
     expect(formatMotorRpm(-0.2)).toBe('0 об/мин');
+  });
+
+  it('moves only the confirmed vibration-motor body and caps visual aliasing', () => {
+    const ownerSvg =
+      '<svg viewBox="0 0 120 370"><g id="wire-cores"><path/></g><g id="connector"><rect/></g><g id="motor-body"><circle/></g></svg>';
+    const markup = vibrationMotorRuntimeMarkup(ownerSvg);
+    expect(markup).toContain('<g id="wire-cores"><path/></g>');
+    expect(markup).toContain(
+      '<g id="connector" class="workbench-vibration-motor-moving-body">',
+    );
+    expect(markup).toContain(
+      '<g id="motor-body" class="workbench-vibration-motor-moving-body">',
+    );
+    expect(ownerSvg).not.toContain('class=');
+    expect(vibrationMotorRuntimeMarkup('<svg><g id="motor-body"/></svg>')).toBe('');
+    expect(vibrationMotorVisualMotion(0, 100)).toEqual({
+      active: false,
+      periodMilliseconds: 160,
+      amplitudeX: 0,
+      amplitudeY: 0,
+    });
+    expect(vibrationMotorVisualMotion(200, 100)).toEqual({
+      active: true,
+      periodMilliseconds: 100,
+      amplitudeX: 3.8,
+      amplitudeY: 1.8,
+    });
+    expect(vibrationMotorVisualMotion(200, 25)).toEqual({
+      active: true,
+      periodMilliseconds: 133,
+      amplitudeX: 2.45,
+      amplitudeY: 1.175,
+    });
   });
 
   it('drives only existing TT shaft highlights from deterministic model time', () => {

@@ -342,7 +342,11 @@ export function componentInformationProfile(
   componentFamilyId: string,
   kind: ComponentKind,
 ): ComponentInformationProfile {
-  if (componentFamilyId === 'dc-motor' || componentFamilyId === 'gearmotor') {
+  if (
+    componentFamilyId === 'dc-motor' ||
+    componentFamilyId === 'gearmotor' ||
+    componentFamilyId === 'vibration-motor'
+  ) {
     return {
       componentFamilyId,
       compactFields: [NAME_FIELD],

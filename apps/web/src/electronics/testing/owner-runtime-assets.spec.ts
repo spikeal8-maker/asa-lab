@@ -40,7 +40,7 @@ describe('owner SVG runtime catalog adapter', () => {
     const vibrationMotor = ownerCatalogItems().find((entry) => entry.key === 'vibration-motor');
     expect(vibrationMotor?.catalogStatus).toBe('enabled');
     expect(vibrationMotor?.enabled).toBe(true);
-    expect(vibrationMotor?.simulationSupported).toBe(false);
+    expect(vibrationMotor?.simulationSupported).toBe(true);
     expect(vibrationMotor?.sourceOwnerPath).toBe('ASA_Lab_vibration_motor.svg');
 
     const substitution = structuredClone(manifest) as unknown as {

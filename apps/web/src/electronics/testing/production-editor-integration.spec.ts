@@ -367,6 +367,16 @@ describe('owner SVG integration in the real Electronics document', () => {
       },
       catalogStatus: 'enabled',
     });
+    expect(productionCatalogEntry('vibration-motor')).toMatchObject({
+      enabled: true,
+      simulationSupported: true,
+      defaultValue: 3,
+      unit: 'В',
+      defaultStateProperties: {
+        motorAssemblyProfileId: 'precision-microdrives-310-101-3v',
+      },
+      catalogStatus: 'enabled',
+    });
     expect(families.find((family) => family.familyId === 'ultrasonic-sensor')).toMatchObject({
       defaultVariantId: 'ultrasonic-sensor',
       enabled: true,
@@ -378,7 +388,6 @@ describe('owner SVG integration in the real Electronics document', () => {
         ?.variants.map((variant) => variant.variantId),
     ).toEqual(['ultrasonic-sensor', 'ultrasonic-hc-sr04']);
     for (const componentId of [
-      'vibration-motor',
       'soil-moisture-sensor',
       'ultrasonic-hc-sr04',
       'pir-sensor',

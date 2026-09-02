@@ -28074,13 +28074,13 @@
       "stateAssets": [],
       "animations": [
         {
-          "driver": "none",
+          "driver": "simulation_state",
           "decorativeLoop": false,
-          "channels": []
+          "channels": ["speed"]
         }
       ],
-      "simulationSupport": "unsupported_fail_closed",
-      "blockReason": "Размещение, соединение и схема доступны; математическая модель пока не реализована.",
+      "simulationSupport": "existing_model",
+      "blockReason": null,
       "catalogTier": "core",
       "metadataOnlyProof": {
         "source": "owner_direct_upload",

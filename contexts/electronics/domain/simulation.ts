@@ -530,6 +530,7 @@ function verifyQuality(
         isElectrolyticCapacitor(component) ||
         component.componentTypeId === 'dc-motor' ||
         component.componentTypeId === 'gearmotor' ||
+        component.componentTypeId === 'vibration-motor' ||
         component.componentTypeId === 'multimeter'),
   );
   const powerBalanceApplicable =
@@ -615,7 +616,8 @@ export function analyseCircuit(
         (component) =>
           isElectrolyticCapacitor(component) ||
           component.componentTypeId === 'dc-motor' ||
-          component.componentTypeId === 'gearmotor',
+          component.componentTypeId === 'gearmotor' ||
+          component.componentTypeId === 'vibration-motor',
       ) || options.simulationTimeMs !== undefined
         ? 'transient'
         : 'dc',

@@ -396,7 +396,7 @@ describe('Electronics owner SVG foundation', () => {
     expect(ownerCatalogItems().some((item) => item.key === 'battery-6v')).toBe(false);
     expect(ownerCatalogItems().find((item) => item.key === 'vibration-motor')).toMatchObject({
       enabled: true,
-      simulationSupported: false,
+      simulationSupported: true,
     });
     expect(ownerCatalogItems().some((item) => item.key === 'microbit')).toBe(false);
   });

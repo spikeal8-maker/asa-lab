@@ -1,9 +1,9 @@
 import type { SchematicComponent } from '../document.js';
 
-export const BRUSHED_MOTOR_PROFILE_REGISTRY_VERSION = 1;
+export const BRUSHED_MOTOR_PROFILE_REGISTRY_VERSION = 2;
 export const MOTOR_ASSEMBLY_PROFILE_PROPERTY = 'motorAssemblyProfileId';
 
-export type MotorComponentTypeId = 'dc-motor' | 'gearmotor';
+export type MotorComponentTypeId = 'dc-motor' | 'gearmotor' | 'vibration-motor';
 export type MotorParameterBasis =
   'vendor_reported' | 'derived_from_vendor_reference' | 'educational_assumption';
 
@@ -12,7 +12,10 @@ export interface MotorProfileSource {
   readonly title: string;
   readonly url: string;
   readonly accessedOn: string;
-  readonly kind: 'vendor_product_page' | 'internal_engineering_contract';
+  readonly kind:
+    | 'vendor_product_page'
+    | 'vendor_datasheet'
+    | 'internal_engineering_contract';
 }
 
 export interface MotorNumericParameter {
@@ -44,10 +47,12 @@ export interface BrushedMotorAssemblyProfile {
   readonly profileVersion: number;
   readonly componentTypeId: MotorComponentTypeId;
   readonly displayName: string;
-  readonly activation: 'math_5b_required';
+  readonly activation: 'math_5b_required' | 'math_8b_required';
   readonly selectionStatus: 'selectable_reference' | 'reference_only_visual_variant_required';
   readonly operatingVoltageMin: MotorNumericParameter;
   readonly operatingVoltageMax: MotorNumericParameter;
+  /** Minimum voltage needed to start from rest when a vendor publishes it. */
+  readonly startingVoltageMin?: MotorNumericParameter;
   readonly fitReferenceVoltageVolt: number;
   readonly referencePoints: readonly MotorReferencePoint[];
   readonly armatureResistanceOhm: MotorNumericParameter;
@@ -60,6 +65,8 @@ export interface BrushedMotorAssemblyProfile {
   readonly thermalResistanceCelsiusPerWatt: MotorNumericParameter;
   readonly warningTemperatureCelsius: MotorNumericParameter;
   readonly failureTemperatureCelsius: MotorNumericParameter;
+  /** Rated case acceleration for an ERM vibration motor, when the vendor publishes it. */
+  readonly ratedVibrationAccelerationG?: MotorNumericParameter;
   readonly transmission: MotorTransmissionProfile;
 }
 
@@ -77,6 +84,7 @@ export type MotorProfileSelection =
   | { readonly ok: false; readonly error: MotorProfileSelectionError };
 
 const INTERNAL_ASSUMPTIONS_SOURCE_ID = 'asa-math-5a-educational-assumptions-v1';
+const VIBRATION_MOTOR_ASSUMPTIONS_SOURCE_ID = 'asa-math-8b-educational-assumptions-v1';
 
 export const BRUSHED_MOTOR_PROFILE_SOURCES: readonly MotorProfileSource[] = [
   {
@@ -101,10 +109,24 @@ export const BRUSHED_MOTOR_PROFILE_SOURCES: readonly MotorProfileSource[] = [
     kind: 'vendor_product_page',
   },
   {
+    id: 'precision-microdrives-310-101-datasheet',
+    title: '310-101 10 mm vibration motor datasheet',
+    url: 'https://www.pololu.com/file/download/310-101_datasheet.pdf?file_id=0J251',
+    accessedOn: '2026-09-02',
+    kind: 'vendor_datasheet',
+  },
+  {
     id: INTERNAL_ASSUMPTIONS_SOURCE_ID,
     title: 'ASA Lab MATH-5A declared educational assumptions',
     url: 'docs/product/electronics/README.md#math-5--dc-motor-и-мотор-редуктор',
     accessedOn: '2026-08-30',
+    kind: 'internal_engineering_contract',
+  },
+  {
+    id: VIBRATION_MOTOR_ASSUMPTIONS_SOURCE_ID,
+    title: 'ASA Lab MATH-8B vibration motor educational assumptions',
+    url: 'docs/product/electronics/README.md#math-8b--монетный-вибромотор',
+    accessedOn: '2026-09-02',
     kind: 'internal_engineering_contract',
   },
 ];
@@ -125,8 +147,12 @@ function parameter(
   };
 }
 
-function educational(value: number, unit: string): MotorNumericParameter {
-  return parameter(value, unit, 'educational_assumption', [INTERNAL_ASSUMPTIONS_SOURCE_ID]);
+function educationalFrom(
+  value: number,
+  unit: string,
+  assumptionSourceId: string,
+): MotorNumericParameter {
+  return parameter(value, unit, 'educational_assumption', [assumptionSourceId]);
 }
 
 function radiansPerSecond(rpm: number): number {
@@ -221,6 +247,19 @@ const ADAFRUIT_3801_POINTS: readonly MotorReferencePoint[] = [
   },
 ];
 
+const PRECISION_MICRODRIVES_310_101_POINTS: readonly MotorReferencePoint[] = [
+  {
+    sourceId: 'precision-microdrives-310-101-datasheet',
+    voltageVolt: 3,
+    noLoadSpeedRpm: 12_000,
+    noLoadCurrentAmp: 0.075,
+    // The datasheet publishes start current rather than a locked-rotor curve.
+    // MATH-8B deliberately uses it as the conservative fit point and exposes
+    // that approximation in the product contract instead of inventing data.
+    stallCurrentAmp: 0.085,
+  },
+];
+
 function profile(input: {
   readonly profileId: string;
   readonly componentTypeId: MotorComponentTypeId;
@@ -239,23 +278,38 @@ function profile(input: {
   readonly rotorInertiaKgMeterSquared: number;
   readonly thermalCapacitanceJoulePerCelsius: number;
   readonly thermalResistanceCelsiusPerWatt: number;
+  readonly activation?: BrushedMotorAssemblyProfile['activation'];
+  readonly assumptionSourceId?: string;
+  readonly ratedVibrationAccelerationG?: number;
+  readonly startingVoltageMin?: number;
 }): BrushedMotorAssemblyProfile {
   const fitPoint = referencePointAt(input.referencePoints, input.fitReferenceVoltageVolt);
   const fit = fitLinearMotor(fitPoint, input.gearRatio);
-  const derivedSources = [fitPoint.sourceId, INTERNAL_ASSUMPTIONS_SOURCE_ID];
+  const assumptionSourceId = input.assumptionSourceId ?? INTERNAL_ASSUMPTIONS_SOURCE_ID;
+  const derivedSources = [fitPoint.sourceId, assumptionSourceId];
   const transmissionBasis =
     input.material === 'none' ? 'derived_from_vendor_reference' : 'vendor_reported';
   const transmissionSources =
-    input.material === 'none' ? [INTERNAL_ASSUMPTIONS_SOURCE_ID] : [input.sourceId];
+    input.material === 'none' ? [assumptionSourceId] : [input.sourceId];
   return {
     profileId: input.profileId,
     profileVersion: 1,
     componentTypeId: input.componentTypeId,
     displayName: input.displayName,
-    activation: 'math_5b_required',
+    activation: input.activation ?? 'math_5b_required',
     selectionStatus: input.selectionStatus,
     operatingVoltageMin: parameter(input.voltageMin, 'V', 'vendor_reported', [input.sourceId]),
     operatingVoltageMax: parameter(input.voltageMax, 'V', 'vendor_reported', [input.sourceId]),
+    ...(input.startingVoltageMin === undefined
+      ? {}
+      : {
+          startingVoltageMin: parameter(
+            input.startingVoltageMin,
+            'V',
+            'vendor_reported',
+            [input.sourceId],
+          ),
+        }),
     fitReferenceVoltageVolt: input.fitReferenceVoltageVolt,
     referencePoints: input.referencePoints,
     armatureResistanceOhm: parameter(
@@ -265,7 +319,11 @@ function profile(input: {
       [fitPoint.sourceId],
       'R = V / I_stall',
     ),
-    armatureInductanceHenry: educational(input.armatureInductanceHenry, 'H'),
+    armatureInductanceHenry: educationalFrom(
+      input.armatureInductanceHenry,
+      'H',
+      assumptionSourceId,
+    ),
     backEmfVoltSecondPerRadian: parameter(
       fit.backEmfConstant,
       'V*s/rad',
@@ -280,7 +338,11 @@ function profile(input: {
       derivedSources,
       'Kt = Ke in coherent SI units',
     ),
-    rotorInertiaKgMeterSquared: educational(input.rotorInertiaKgMeterSquared, 'kg*m^2'),
+    rotorInertiaKgMeterSquared: educationalFrom(
+      input.rotorInertiaKgMeterSquared,
+      'kg*m^2',
+      assumptionSourceId,
+    ),
     viscousFrictionNewtonMeterSecondPerRadian: parameter(
       fit.viscousFriction,
       'N*m*s/rad',
@@ -288,10 +350,28 @@ function profile(input: {
       derivedSources,
       'b = Kt*I0 / omega_motor',
     ),
-    thermalCapacitanceJoulePerCelsius: educational(input.thermalCapacitanceJoulePerCelsius, 'J/C'),
-    thermalResistanceCelsiusPerWatt: educational(input.thermalResistanceCelsiusPerWatt, 'C/W'),
-    warningTemperatureCelsius: educational(90, 'C'),
-    failureTemperatureCelsius: educational(150, 'C'),
+    thermalCapacitanceJoulePerCelsius: educationalFrom(
+      input.thermalCapacitanceJoulePerCelsius,
+      'J/C',
+      assumptionSourceId,
+    ),
+    thermalResistanceCelsiusPerWatt: educationalFrom(
+      input.thermalResistanceCelsiusPerWatt,
+      'C/W',
+      assumptionSourceId,
+    ),
+    warningTemperatureCelsius: educationalFrom(90, 'C', assumptionSourceId),
+    failureTemperatureCelsius: educationalFrom(150, 'C', assumptionSourceId),
+    ...(input.ratedVibrationAccelerationG === undefined
+      ? {}
+      : {
+          ratedVibrationAccelerationG: parameter(
+            input.ratedVibrationAccelerationG,
+            'g',
+            'vendor_reported',
+            [input.sourceId],
+          ),
+        }),
     transmission: {
       gearRatio: parameter(
         input.gearRatio,
@@ -301,8 +381,16 @@ function profile(input: {
         input.material === 'none' ? 'direct drive identity ratio' : undefined,
       ),
       material: input.material,
-      efficiencyLowerBound: educational(input.efficiencyLowerBound, 'ratio'),
-      efficiencyUpperBound: educational(input.efficiencyUpperBound, 'ratio'),
+      efficiencyLowerBound: educationalFrom(
+        input.efficiencyLowerBound,
+        'ratio',
+        assumptionSourceId,
+      ),
+      efficiencyUpperBound: educationalFrom(
+        input.efficiencyUpperBound,
+        'ratio',
+        assumptionSourceId,
+      ),
     },
   };
 }
@@ -365,11 +453,35 @@ export const BRUSHED_MOTOR_ASSEMBLY_PROFILES: readonly BrushedMotorAssemblyProfi
     thermalCapacitanceJoulePerCelsius: 7,
     thermalResistanceCelsiusPerWatt: 10,
   }),
+  profile({
+    profileId: 'precision-microdrives-310-101-3v',
+    componentTypeId: 'vibration-motor',
+    displayName: '10 mm coin ERM vibration motor, 3 V reference',
+    selectionStatus: 'selectable_reference',
+    sourceId: 'precision-microdrives-310-101-datasheet',
+    voltageMin: 2.5,
+    voltageMax: 3.8,
+    referencePoints: PRECISION_MICRODRIVES_310_101_POINTS,
+    fitReferenceVoltageVolt: 3,
+    gearRatio: 1,
+    material: 'none',
+    efficiencyLowerBound: 1,
+    efficiencyUpperBound: 1,
+    armatureInductanceHenry: 0.000_1,
+    rotorInertiaKgMeterSquared: 0.000_000_000_5,
+    thermalCapacitanceJoulePerCelsius: 0.6,
+    thermalResistanceCelsiusPerWatt: 35,
+    activation: 'math_8b_required',
+    assumptionSourceId: VIBRATION_MOTOR_ASSUMPTIONS_SOURCE_ID,
+    ratedVibrationAccelerationG: 0.8,
+    startingVoltageMin: 2.3,
+  }),
 ];
 
 export const DEFAULT_BRUSHED_MOTOR_PROFILE_IDS: Readonly<Record<MotorComponentTypeId, string>> = {
   'dc-motor': 'pololu-1117-130-6v',
   gearmotor: 'adafruit-3777-tt-48to1',
+  'vibration-motor': 'precision-microdrives-310-101-3v',
 };
 
 function ordinalCompare(left: string, right: string): number {
@@ -391,7 +503,11 @@ export function brushedMotorProfilesForComponent(
 export function resolveBrushedMotorProfileSelection(
   component: SchematicComponent,
 ): MotorProfileSelection {
-  if (component.componentTypeId !== 'dc-motor' && component.componentTypeId !== 'gearmotor') {
+  if (
+    component.componentTypeId !== 'dc-motor' &&
+    component.componentTypeId !== 'gearmotor' &&
+    component.componentTypeId !== 'vibration-motor'
+  ) {
     return {
       ok: false,
       error: { code: 'not_a_motor', message: 'Компонент не является DC-мотором.' },
@@ -443,6 +559,7 @@ function numericParameters(profile: BrushedMotorAssemblyProfile): readonly Motor
   return [
     profile.operatingVoltageMin,
     profile.operatingVoltageMax,
+    ...(profile.startingVoltageMin === undefined ? [] : [profile.startingVoltageMin]),
     profile.armatureResistanceOhm,
     profile.armatureInductanceHenry,
     profile.backEmfVoltSecondPerRadian,
@@ -453,6 +570,9 @@ function numericParameters(profile: BrushedMotorAssemblyProfile): readonly Motor
     profile.thermalResistanceCelsiusPerWatt,
     profile.warningTemperatureCelsius,
     profile.failureTemperatureCelsius,
+    ...(profile.ratedVibrationAccelerationG === undefined
+      ? []
+      : [profile.ratedVibrationAccelerationG]),
     profile.transmission.gearRatio,
     profile.transmission.efficiencyLowerBound,
     profile.transmission.efficiencyUpperBound,

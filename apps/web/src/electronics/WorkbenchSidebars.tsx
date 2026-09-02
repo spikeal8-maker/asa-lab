@@ -342,6 +342,7 @@ export function WorkbenchSidebars({
   const selectedIsAdjustableSource = c.selectedEntry?.key === 'regulated-power-supply';
   const selectedIsDcMotor = c.selectedEntry?.key === 'dc-motor';
   const selectedIsGearmotor = c.selectedEntry?.key === 'gearmotor';
+  const selectedIsVibrationMotor = c.selectedEntry?.key === 'vibration-motor';
   const selectedIsLamp = c.selectedEntry?.key === 'incandescent-lamp';
   const selectedIsRgbLed = c.selectedEntry?.key === 'rgb-led';
   const selectedIsSevenSegment = c.selectedEntry?.key === 'seven-segment-display';
@@ -351,7 +352,8 @@ export function WorkbenchSidebars({
     ? String(c.selectedComponent?.stateProperties?.['piezoMode'] ?? 'passive')
     : 'passive';
   const selectedMotorProfile =
-    c.selectedComponent && (selectedIsDcMotor || selectedIsGearmotor)
+    c.selectedComponent &&
+    (selectedIsDcMotor || selectedIsGearmotor || selectedIsVibrationMotor)
       ? resolveBrushedMotorProfileSelection(c.selectedComponent)
       : null;
   const selectedDiagnostics = c.selectedComponent
@@ -1601,6 +1603,46 @@ export function WorkbenchSidebars({
                             : measurement.motorOperatingMode === 'stalled'
                               ? 'Вал заблокирован'
                               : 'Исправна'}
+                        </dd>
+                      </div>
+                    </>
+                  ) : null}
+                  {selectedIsVibrationMotor &&
+                  measurement.vibrationFrequencyHz !== undefined ? (
+                    <>
+                      <div>
+                        <dt>Рабочий диапазон</dt>
+                        <dd>
+                          {(measurement.operatingVoltageMinVolt ?? 0).toFixed(1)}–
+                          {(measurement.operatingVoltageMaxVolt ?? 0).toFixed(1)} В
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Состояние питания</dt>
+                        <dd>{motorVoltageStateLabel(measurement.motorVoltageState)}</dd>
+                      </div>
+                      <div>
+                        <dt>Пуск от покоя</dt>
+                        <dd>от {(measurement.startingVoltageMinVolt ?? 2.3).toFixed(1)} В</dd>
+                      </div>
+                      <div data-testid="vibration-motor-frequency-measurement">
+                        <dt>Частота вибрации</dt>
+                        <dd>{measurement.vibrationFrequencyHz.toFixed(1)} Гц</dd>
+                      </div>
+                      <div data-testid="vibration-motor-level-measurement">
+                        <dt>Интенсивность</dt>
+                        <dd>{(measurement.vibrationLevelPercent ?? 0).toFixed(0)}%</dd>
+                      </div>
+                      <div>
+                        <dt>Ускорение корпуса</dt>
+                        <dd>{(measurement.vibrationAccelerationG ?? 0).toFixed(2)} g</dd>
+                      </div>
+                      <div>
+                        <dt>Обмотка</dt>
+                        <dd>
+                          {measurement.windingFailureMode === 'winding_open'
+                            ? 'Перегорела — цепь разомкнута'
+                            : 'Исправна'}
                         </dd>
                       </div>
                     </>

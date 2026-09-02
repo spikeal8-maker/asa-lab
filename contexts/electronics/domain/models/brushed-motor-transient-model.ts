@@ -149,6 +149,20 @@ function directionFor(angularVelocityRadPerSecond: number): BrushedMotorDirectio
   return angularVelocityRadPerSecond > 0 ? 'clockwise' : 'counterclockwise';
 }
 
+function heldBelowStartingVoltage(
+  profile: BrushedMotorAssemblyProfile,
+  state: BrushedMotorTransientStateEntry,
+  voltageVolt: number,
+): boolean {
+  const startingVoltageMin = profile.startingVoltageMin?.value;
+  return (
+    startingVoltageMin !== undefined &&
+    Math.abs(state.motorAngularVelocityRadPerSecond) <
+      STOPPED_ANGULAR_VELOCITY_RAD_PER_SECOND &&
+    Math.abs(voltageVolt) < startingVoltageMin
+  );
+}
+
 function reflectedLoadTorque(
   profile: BrushedMotorAssemblyProfile,
   outputLoadTorqueNewtonMeter: number,
@@ -294,7 +308,10 @@ export function brushedMotorCompanion(
     voltageVolt,
   );
 
-  if (input.shaftLocked === true) {
+  if (
+    input.shaftLocked === true ||
+    heldBelowStartingVoltage(profile, previousState, voltageVolt)
+  ) {
     const effectiveResistanceOhm = resistanceOhm + inductanceHenry / stepSeconds;
     return {
       conductanceSiemens: 1 / effectiveResistanceOhm,
@@ -503,7 +520,7 @@ export function advanceBrushedMotorTransientState(
       voltageVolt,
     );
   const motorAngularVelocityRadPerSecond =
-    input.shaftLocked === true
+    input.shaftLocked === true || heldBelowStartingVoltage(profile, previousState, voltageVolt)
       ? 0
       : (inertia * previousState.motorAngularVelocityRadPerSecond) /
           stepSeconds /
