@@ -22,9 +22,11 @@ import type { DcStampContext, IterativeDcStampContext } from './models/device-mo
 import {
   createLinearDcDevice,
   isAnySourceDevice,
+  isFunctionGeneratorDevice,
   isMultimeterDcCurrentDevice,
   isMultimeterResistanceDevice,
   isMultimeterDcVoltageDevice,
+  isOscilloscopeDevice,
   isRegulatedPowerSupplyDevice,
   isResistorDevice,
   nextRegulatedPowerSupplyMode,
@@ -38,6 +40,16 @@ import {
   regulatedPowerSupplyValidationMessage,
   type RegulatedPowerSupplyMode,
 } from './models/regulated-power-supply-model.js';
+import {
+  oscilloscopeSettings,
+  oscilloscopeValidationMessage,
+  signalGeneratorSettings,
+  signalGeneratorNormalizedWave,
+  signalGeneratorValidationMessage,
+  signalGeneratorVoltageAt,
+  type SignalGeneratorWaveform,
+  type SignalGeneratorSettings,
+} from './models/signal-generator-model.js';
 import {
   nonlinearBranchKey,
   nonlinearDcBranchesForComponent,
@@ -228,6 +240,23 @@ export interface ComponentResult {
   readonly meterResistanceRangeOhm?: number;
   readonly meterOpenCircuit?: boolean;
   readonly meterExternalPowerPresent?: boolean;
+  readonly signalWaveform?: SignalGeneratorWaveform;
+  readonly signalFrequencyHz?: number;
+  readonly signalAmplitudeVpp?: number;
+  readonly signalOffsetVolt?: number;
+  readonly signalOutputEnabled?: boolean;
+  readonly signalInstantaneousVolt?: number;
+  readonly oscilloscopeInputResistanceOhm?: number;
+  readonly oscilloscopeInputVoltageVolt?: number;
+  readonly oscilloscopeVoltsPerDivision?: number;
+  readonly oscilloscopeTimePerDivisionMs?: number;
+  readonly oscilloscopeTriggerLevelVolt?: number;
+  readonly oscilloscopeFrequencyHz?: number;
+  readonly oscilloscopeAmplitudeVpp?: number;
+  readonly oscilloscopeTrace?: readonly {
+    readonly timeMs: number;
+    readonly voltageVolt: number;
+  }[];
   readonly operatingRegion?: 'cutoff' | 'active' | 'saturation' | 'ohmic';
   readonly baseCurrent?: number;
   readonly collectorCurrent?: number;
@@ -637,6 +666,8 @@ type LogicalTerminal = 'a' | 'b' | 'wiper';
 function logicalTerminal(component: SchematicComponent, terminal: LogicalTerminal): Terminal {
   const type = component.componentTypeId;
   if (!type) return terminal;
+  if (type === 'signal-generator' || type === 'oscilloscope')
+    return terminal === 'a' ? 'signal' : 'ground';
   if (component.kind === 'source' && type) {
     const positive = component.pinIds?.includes('BAT+') ? 'BAT+' : 'positive';
     const negative = component.pinIds?.includes('BAT-') ? 'BAT-' : 'negative';
@@ -670,6 +701,7 @@ function isSimulated(component: SchematicComponent): boolean {
     isBrushedMotor(component) ||
     isElectrolyticCapacitor(component) ||
     component.componentTypeId === 'multimeter' ||
+    component.componentTypeId === 'oscilloscope' ||
     !['breadboard', 'visual', 'wire'].includes(component.kind)
   );
 }
@@ -685,6 +717,25 @@ function round(value: number, digits = 12): number {
   const factor = 10 ** digits;
   const result = Math.round(value * factor) / factor;
   return Object.is(result, -0) ? 0 : result;
+}
+
+function signalGeneratorRisingTriggerPhase(
+  settings: SignalGeneratorSettings,
+  triggerLevelVolt: number,
+): number | null {
+  if (!settings.outputEnabled) return null;
+  const samples = 4_096;
+  const valueAtPhase = (phase: number): number =>
+    settings.dcOffsetVolt +
+    (settings.amplitudeVpp / 2) * signalGeneratorNormalizedWave(settings.waveform, phase);
+  let previous = valueAtPhase((samples - 1) / samples);
+  for (let index = 0; index <= samples; index += 1) {
+    const phase = (index % samples) / samples;
+    const current = valueAtPhase(phase);
+    if (previous < triggerLevelVolt && current >= triggerLevelVolt) return phase;
+    previous = current;
+  }
+  return null;
 }
 
 /**
@@ -731,6 +782,12 @@ function solveLinear(matrix: number[][], rhs: number[]): number[] | null {
 }
 
 function propertyError(component: SchematicComponent): string | null {
+  if (component.componentTypeId === 'signal-generator') {
+    return signalGeneratorValidationMessage(component);
+  }
+  if (component.componentTypeId === 'oscilloscope') {
+    return oscilloscopeValidationMessage(component);
+  }
   if (component.componentTypeId === 'regulated-power-supply') {
     return regulatedPowerSupplyValidationMessage(component);
   }
@@ -1575,15 +1632,20 @@ function solveCircuitStep(
   const linearDcDevices = document.components.flatMap((component) => {
     if (failedComponentIds.has(component.id)) return [];
     const device = createLinearDcDevice(
-      component.componentTypeId === 'multimeter'
+      component.componentTypeId === 'signal-generator'
         ? {
             ...component,
-            stateProperties: {
-              ...component.stateProperties,
-              meterFuseBlownRuntime: options.meterFuseBlownById?.[component.id] === true,
-            },
+            value: signalGeneratorVoltageAt(component, options.simulationTimeMs ?? 0),
           }
-        : component,
+        : component.componentTypeId === 'multimeter'
+          ? {
+              ...component,
+              stateProperties: {
+                ...component.stateProperties,
+                meterFuseBlownRuntime: options.meterFuseBlownById?.[component.id] === true,
+              },
+            }
+          : component,
     );
     return device ? [device] : [];
   });
@@ -2028,6 +2090,9 @@ function solveCircuitStep(
     for (const device of linearDcDevices.filter(isMultimeterDcCurrentDevice)) {
       device.model.stampDc(modelStampContext, device.instance);
     }
+    for (const device of linearDcDevices.filter(isOscilloscopeDevice)) {
+      device.model.stampDc(modelStampContext, device.instance);
+    }
     for (const device of activeResistanceMeterDevices) {
       device.model.stampDc(modelStampContext, device.instance);
     }
@@ -2102,6 +2167,8 @@ function solveCircuitStep(
           stamp.emfVolt,
           stamp.seriesResistanceOhm,
         );
+      } else if (isFunctionGeneratorDevice(device)) {
+        device.model.stampDc(modelStampContext, device.instance);
       } else {
         device.model.stampDc(modelStampContext, device.instance);
       }
@@ -2719,6 +2786,57 @@ function solveCircuitStep(
               return null;
             })()
           : null;
+      const scopeSettings =
+        component.componentTypeId === 'oscilloscope' ? oscilloscopeSettings(component) : null;
+      const scopeSignalNode = scopeSettings
+        ? netlist.nodeOf.get(terminalKey(component.id, 'signal'))
+        : undefined;
+      const scopeGroundNode = scopeSettings
+        ? netlist.nodeOf.get(terminalKey(component.id, 'ground'))
+        : undefined;
+      const directGenerator =
+        scopeSignalNode === undefined || scopeGroundNode === undefined
+          ? null
+          : (document.components.find((candidate) => {
+              if (candidate.componentTypeId !== 'signal-generator') return false;
+              const generatorSignalNode = netlist.nodeOf.get(terminalKey(candidate.id, 'signal'));
+              const generatorGroundNode = netlist.nodeOf.get(terminalKey(candidate.id, 'ground'));
+              return (
+                (generatorSignalNode === scopeSignalNode &&
+                  generatorGroundNode === scopeGroundNode) ||
+                (generatorSignalNode === scopeGroundNode && generatorGroundNode === scopeSignalNode)
+              );
+            }) ?? null);
+      const directGeneratorSettings = directGenerator
+        ? signalGeneratorSettings(directGenerator)
+        : null;
+      const directGeneratorPolarity = directGenerator
+        ? netlist.nodeOf.get(terminalKey(directGenerator.id, 'signal')) === scopeSignalNode
+          ? 1
+          : -1
+        : 1;
+      const oscilloscopeTrace =
+        scopeSettings?.displayEnabled && directGenerator && directGeneratorSettings?.outputEnabled
+          ? Array.from({ length: 161 }, (_, index) => {
+              const windowMs = scopeSettings.timePerDivisionMs * 10;
+              const triggerPhase = signalGeneratorRisingTriggerPhase(
+                directGeneratorSettings,
+                scopeSettings.triggerLevelVolt,
+              );
+              const startTimeMs =
+                triggerPhase === null
+                  ? (options.simulationTimeMs ?? 0) - windowMs
+                  : (triggerPhase / directGeneratorSettings.frequencyHz) * 1_000 - windowMs * 0.2;
+              const timeMs = startTimeMs + (windowMs * index) / 160;
+              return {
+                timeMs: round(timeMs, 6),
+                voltageVolt: round(
+                  directGeneratorPolarity * signalGeneratorVoltageAt(directGenerator, timeMs),
+                  9,
+                ),
+              };
+            })
+          : undefined;
       return {
         componentId: component.id,
         voltageDrop: round(voltageDrop),
@@ -2889,6 +3007,36 @@ function solveCircuitStep(
                     meterExternalPowerPresent: linearDcObservation.meterExternalPowerPresent,
                   }),
               meterOverload: linearDcObservation.meterOverload ?? false,
+            }
+          : {}),
+        ...(linearDcObservation?.signalWaveform
+          ? {
+              signalWaveform: linearDcObservation.signalWaveform,
+              signalFrequencyHz: round(linearDcObservation.signalFrequencyHz ?? 0, 3),
+              signalAmplitudeVpp: round(linearDcObservation.signalAmplitudeVpp ?? 0, 3),
+              signalOffsetVolt: round(linearDcObservation.signalOffsetVolt ?? 0, 3),
+              signalOutputEnabled: linearDcObservation.signalOutputEnabled ?? false,
+              signalInstantaneousVolt: round(linearDcObservation.signalInstantaneousVolt ?? 0, 9),
+            }
+          : {}),
+        ...(scopeSettings
+          ? {
+              oscilloscopeInputResistanceOhm:
+                linearDcObservation?.oscilloscopeInputResistanceOhm ?? 10_000_000,
+              oscilloscopeInputVoltageVolt: round(
+                linearDcObservation?.oscilloscopeInputVoltageVolt ?? voltageDrop,
+                9,
+              ),
+              oscilloscopeVoltsPerDivision: scopeSettings.voltsPerDivision,
+              oscilloscopeTimePerDivisionMs: scopeSettings.timePerDivisionMs,
+              oscilloscopeTriggerLevelVolt: scopeSettings.triggerLevelVolt,
+              ...(directGeneratorSettings?.outputEnabled
+                ? {
+                    oscilloscopeFrequencyHz: round(directGeneratorSettings.frequencyHz, 3),
+                    oscilloscopeAmplitudeVpp: round(directGeneratorSettings.amplitudeVpp, 3),
+                  }
+                : {}),
+              ...(oscilloscopeTrace ? { oscilloscopeTrace } : {}),
             }
           : {}),
         ...(component.kind === 'led' ||

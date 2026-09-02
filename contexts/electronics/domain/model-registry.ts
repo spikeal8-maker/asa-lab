@@ -190,6 +190,22 @@ const DIGITAL_MULTIMETER_MODEL: ElectricalModelDescriptor = {
   requiredTerminals: ['v-ohm-ma', 'com'],
 };
 
+const FUNCTION_GENERATOR_MODEL: ElectricalModelDescriptor = {
+  id: 'function-generator',
+  kind: 'source',
+  support: 'supported',
+  topology: 'voltage-source',
+  requiredTerminals: ['signal', 'ground'],
+};
+
+const OSCILLOSCOPE_MODEL: ElectricalModelDescriptor = {
+  id: 'oscilloscope',
+  kind: 'visual',
+  support: 'supported',
+  topology: 'two-terminal',
+  requiredTerminals: ['signal', 'ground'],
+};
+
 export function electricalModelFor(component: SchematicComponent): ElectricalModelDescriptor {
   const identity = electricalModelIdentityForComponent(component);
   const installed = componentModelIdentityIsInstalled(component);
@@ -205,7 +221,11 @@ export function electricalModelFor(component: SchematicComponent): ElectricalMod
           ? ELECTROLYTIC_CAPACITOR_MODEL
           : component.componentTypeId === 'multimeter'
             ? DIGITAL_MULTIMETER_MODEL
-            : MODELS[component.kind];
+            : component.componentTypeId === 'signal-generator'
+              ? FUNCTION_GENERATOR_MODEL
+              : component.componentTypeId === 'oscilloscope'
+                ? OSCILLOSCOPE_MODEL
+                : MODELS[component.kind];
   return {
     ...base,
     id: installed ? (identity.electricalModelId as ElectricalModelId) : 'unsupported',
@@ -234,6 +254,9 @@ function productionRequiredTerminals(component: SchematicComponent): readonly Te
   if (component.componentTypeId === 'electrolytic-capacitor')
     return ELECTROLYTIC_CAPACITOR_MODEL.requiredTerminals;
   if (component.componentTypeId === 'multimeter') return DIGITAL_MULTIMETER_MODEL.requiredTerminals;
+  if (component.componentTypeId === 'signal-generator')
+    return FUNCTION_GENERATOR_MODEL.requiredTerminals;
+  if (component.componentTypeId === 'oscilloscope') return OSCILLOSCOPE_MODEL.requiredTerminals;
   // Holders expose BAT+/BAT-; single-cell batteries and the bench supply use
   // positive/negative. The simulation maps both already — the contract must
   // accept whichever pair the component actually carries, or a catalog battery

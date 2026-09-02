@@ -831,6 +831,63 @@ export function useElectronicsWorkbench(projectId: string) {
     );
   }
 
+  function setSignalGeneratorControls(
+    componentId: string,
+    patch: {
+      readonly waveform?: 'sine' | 'square' | 'triangle';
+      readonly frequencyHz?: number;
+      readonly amplitudeVpp?: number;
+      readonly dcOffsetVolt?: number;
+      readonly outputEnabled?: boolean;
+    },
+  ): void {
+    if (!document || !runtimeDocument) return;
+    const component = runtimeDocument.components.find((item) => item.id === componentId);
+    if (!component || component.componentTypeId !== 'signal-generator') return;
+    if (
+      (patch.frequencyHz !== undefined && !Number.isFinite(patch.frequencyHz)) ||
+      (patch.amplitudeVpp !== undefined && !Number.isFinite(patch.amplitudeVpp)) ||
+      (patch.dcOffsetVolt !== undefined && !Number.isFinite(patch.dcOffsetVolt))
+    ) {
+      return;
+    }
+    const normalized = {
+      ...(patch.waveform === undefined ? {} : { waveform: patch.waveform }),
+      ...(patch.frequencyHz === undefined
+        ? {}
+        : { frequencyHz: clamp(patch.frequencyHz, 1, 1_000_000) }),
+      ...(patch.amplitudeVpp === undefined
+        ? {}
+        : { amplitudeVpp: clamp(patch.amplitudeVpp, 0, 10) }),
+      ...(patch.dcOffsetVolt === undefined
+        ? {}
+        : { dcOffsetVolt: clamp(patch.dcOffsetVolt, -5, 5) }),
+      ...(patch.outputEnabled === undefined ? {} : { outputEnabled: patch.outputEnabled }),
+    };
+    if (simulationRunning) {
+      setRuntimeComponentOverride(componentId, { stateProperties: normalized });
+      return;
+    }
+    commitDocument(
+      {
+        ...document,
+        components: document.components.map((item) =>
+          item.id === componentId
+            ? {
+                ...item,
+                ...(normalized.frequencyHz === undefined ? {} : { value: normalized.frequencyHz }),
+                ...(normalized.outputEnabled === undefined
+                  ? {}
+                  : { state: normalized.outputEnabled }),
+                stateProperties: { ...item.stateProperties, ...normalized },
+              }
+            : item,
+        ),
+      },
+      'Настройки генератора сигналов изменены.',
+    );
+  }
+
   function updateArduinoProgram(
     componentId: string,
     properties: Readonly<Record<string, ProductionStateValue>>,
@@ -1881,6 +1938,7 @@ export function useElectronicsWorkbench(projectId: string) {
     setSelectedProperties,
     setMultimeterMeasurementMode,
     setRegulatedPowerSupplyControls,
+    setSignalGeneratorControls,
     updateArduinoProgram,
     resetArduinoRuntime,
     setSelectedVariant,

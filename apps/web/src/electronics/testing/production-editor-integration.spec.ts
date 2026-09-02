@@ -387,13 +387,38 @@ describe('owner SVG integration in the real Electronics document', () => {
         .find((family) => family.familyId === 'ultrasonic-sensor')
         ?.variants.map((variant) => variant.variantId),
     ).toEqual(['ultrasonic-sensor', 'ultrasonic-hc-sr04']);
-    for (const componentId of [
-      'soil-moisture-sensor',
-      'ultrasonic-hc-sr04',
-      'pir-sensor',
-      'signal-generator',
-      'oscilloscope',
-    ]) {
+    expect(productionCatalogEntry('signal-generator')).toMatchObject({
+      enabled: true,
+      simulationSupported: true,
+      defaultValue: 1_000,
+      unit: 'Гц',
+      defaultState: false,
+      defaultStateProperties: {
+        waveform: 'sine',
+        frequencyHz: 1_000,
+        amplitudeVpp: 5,
+        dcOffsetVolt: 0,
+        outputEnabled: false,
+        outputResistanceOhm: 50,
+      },
+      catalogStatus: 'enabled',
+    });
+    expect(productionCatalogEntry('oscilloscope')).toMatchObject({
+      enabled: true,
+      simulationSupported: true,
+      defaultValue: 1,
+      unit: 'В/дел',
+      defaultState: true,
+      defaultStateProperties: {
+        voltsPerDivision: 1,
+        timePerDivisionMs: 1,
+        triggerLevelVolt: 0,
+        displayEnabled: true,
+        coupling: 'DC',
+      },
+      catalogStatus: 'enabled',
+    });
+    for (const componentId of ['soil-moisture-sensor', 'ultrasonic-hc-sr04', 'pir-sensor']) {
       expect(productionCatalogEntry(componentId), componentId).toMatchObject({
         enabled: true,
         simulationSupported: false,

@@ -13,6 +13,13 @@ import {
   type RegulatedPowerSupplyMode,
   type RegulatedPowerSupplySettings,
 } from './regulated-power-supply-model.js';
+import {
+  OSCILLOSCOPE_INPUT_RESISTANCE_OHM,
+  SIGNAL_GENERATOR_DISABLED_OUTPUT_RESISTANCE_OHM,
+  signalGeneratorSettings,
+  signalGeneratorValidationMessage,
+  type SignalGeneratorSettings,
+} from './signal-generator-model.js';
 
 const CLOSED_RESISTANCE_OHM = 1e-4;
 const LEGACY_SOURCE_RESISTANCE_OHM = 1e-12;
@@ -64,6 +71,14 @@ export interface LinearDcObservation {
   readonly meterResistanceRangeOhm?: number;
   readonly meterOpenCircuit?: boolean;
   readonly meterExternalPowerPresent?: boolean;
+  readonly signalWaveform?: SignalGeneratorSettings['waveform'];
+  readonly signalFrequencyHz?: number;
+  readonly signalAmplitudeVpp?: number;
+  readonly signalOffsetVolt?: number;
+  readonly signalOutputEnabled?: boolean;
+  readonly signalInstantaneousVolt?: number;
+  readonly oscilloscopeInputResistanceOhm?: number;
+  readonly oscilloscopeInputVoltageVolt?: number;
   /** Positive values enter the component through the named physical terminal. */
   readonly terminalCurrents: Readonly<Record<Terminal, number>>;
   readonly voltageConstraintResidual?: number;
@@ -72,6 +87,8 @@ export interface LinearDcObservation {
 
 function physicalTerminalPair(component: SchematicComponent): readonly [Terminal, Terminal] {
   if (!component.componentTypeId) return ['a', 'b'];
+  if (component.componentTypeId === 'signal-generator') return ['signal', 'ground'];
+  if (component.componentTypeId === 'oscilloscope') return ['signal', 'ground'];
   if (component.kind === 'source') {
     return component.pinIds?.includes('BAT+') ? ['BAT+', 'BAT-'] : ['positive', 'negative'];
   }
@@ -101,6 +118,15 @@ export interface SourceParameters {
 }
 
 export type RegulatedPowerSupplyParameters = RegulatedPowerSupplySettings;
+
+export interface FunctionGeneratorParameters extends SignalGeneratorSettings {
+  readonly instantaneousVolt: number;
+  readonly seriesResistanceOhm: number;
+}
+
+export interface OscilloscopeParameters {
+  readonly inputResistanceOhm: number;
+}
 
 export interface MultimeterDcVoltageParameters {
   readonly inputResistanceOhm: number;
@@ -273,6 +299,121 @@ export const SOURCE_DEVICE_MODEL: DeviceModel<SourceParameters, LinearDcObservat
           (instance.parameters.emfVolt - currentAmp * instance.parameters.internalResistanceOhm),
       ),
       diagnostics,
+    };
+  },
+};
+
+export const FUNCTION_GENERATOR_DEVICE_MODEL: DeviceModel<
+  FunctionGeneratorParameters,
+  LinearDcObservation
+> = {
+  id: 'function-generator',
+  version: 1,
+  analyses: ['dc'],
+  validate(component) {
+    const message = signalGeneratorValidationMessage(component);
+    return message ? [{ code: 'invalid_signal_generator', message }] : [];
+  },
+  normalize(component) {
+    const settings = signalGeneratorSettings(component);
+    return {
+      componentId: component.id,
+      component,
+      parameters: {
+        ...settings,
+        instantaneousVolt: component.value,
+        seriesResistanceOhm: settings.outputEnabled
+          ? settings.outputResistanceOhm
+          : SIGNAL_GENERATOR_DISABLED_OUTPUT_RESISTANCE_OHM,
+      },
+    };
+  },
+  stampDc(context, instance) {
+    context.stampVoltageSource(
+      instance.componentId,
+      context.node(instance.component, 'a'),
+      context.node(instance.component, 'b'),
+      instance.parameters.outputEnabled ? instance.parameters.instantaneousVolt : 0,
+      instance.parameters.seriesResistanceOhm,
+    );
+  },
+  observe(instance, operatingPoint) {
+    const currentAmp = instance.parameters.outputEnabled ? operatingPoint.current : 0;
+    const currentUtilizationPercent =
+      (Math.abs(currentAmp) / instance.parameters.continuousCurrentAmp) * 100;
+    const [signal, ground] = physicalTerminalPair(instance.component);
+    const overloaded = currentUtilizationPercent > 100.000_001;
+    return {
+      current: currentAmp,
+      power: Math.abs(currentAmp * operatingPoint.voltageDrop),
+      stressState: stressFromPercent(currentUtilizationPercent, 80),
+      currentUtilizationPercent,
+      internalResistanceOhm: instance.parameters.outputResistanceOhm,
+      internalPower: currentAmp * currentAmp * instance.parameters.outputResistanceOhm,
+      sourceOperatingMode:
+        currentAmp > 1e-9 ? 'delivering' : currentAmp < -1e-9 ? 'absorbing' : 'idle',
+      signalWaveform: instance.parameters.waveform,
+      signalFrequencyHz: instance.parameters.frequencyHz,
+      signalAmplitudeVpp: instance.parameters.amplitudeVpp,
+      signalOffsetVolt: instance.parameters.dcOffsetVolt,
+      signalOutputEnabled: instance.parameters.outputEnabled,
+      signalInstantaneousVolt: instance.parameters.outputEnabled
+        ? instance.parameters.instantaneousVolt
+        : 0,
+      terminalCurrents: { [signal]: -currentAmp, [ground]: currentAmp },
+      voltageConstraintResidual: Math.abs(
+        operatingPoint.voltageDrop -
+          ((instance.parameters.outputEnabled ? instance.parameters.instantaneousVolt : 0) -
+            operatingPoint.current * instance.parameters.seriesResistanceOhm),
+      ),
+      diagnostics: overloaded
+        ? [
+            {
+              code: 'signal_generator_overload',
+              severity: 'error',
+              message: `${instance.component.name ?? 'Генератор'}: выходной ток ${Math.abs(currentAmp).toFixed(3)} А превышает предел ${instance.parameters.continuousCurrentAmp.toFixed(3)} А.`,
+              suggestedAction: 'Уберите короткое замыкание или увеличьте сопротивление нагрузки.',
+            },
+          ]
+        : [],
+    };
+  },
+};
+
+export const OSCILLOSCOPE_DEVICE_MODEL: DeviceModel<OscilloscopeParameters, LinearDcObservation> = {
+  id: 'oscilloscope',
+  version: 1,
+  analyses: ['dc'],
+  validate(component) {
+    return component.componentTypeId === 'oscilloscope'
+      ? []
+      : [{ code: 'invalid_oscilloscope', message: 'Профиль предназначен для осциллографа.' }];
+  },
+  normalize(component) {
+    return {
+      componentId: component.id,
+      component,
+      parameters: { inputResistanceOhm: OSCILLOSCOPE_INPUT_RESISTANCE_OHM },
+    };
+  },
+  stampDc(context, instance) {
+    context.stampConductance(
+      context.node(instance.component, 'a'),
+      context.node(instance.component, 'b'),
+      1 / instance.parameters.inputResistanceOhm,
+    );
+  },
+  observe(instance, operatingPoint) {
+    const currentAmp = operatingPoint.voltageDrop / instance.parameters.inputResistanceOhm;
+    const [signal, ground] = physicalTerminalPair(instance.component);
+    return {
+      current: currentAmp,
+      power: Math.abs(currentAmp * operatingPoint.voltageDrop),
+      stressState: 'normal',
+      oscilloscopeInputResistanceOhm: instance.parameters.inputResistanceOhm,
+      oscilloscopeInputVoltageVolt: operatingPoint.voltageDrop,
+      terminalCurrents: { [signal]: currentAmp, [ground]: -currentAmp },
+      diagnostics: [],
     };
   },
 };
@@ -619,6 +760,16 @@ export interface RegulatedPowerSupplyDevice {
   readonly instance: NormalizedDevice<RegulatedPowerSupplyParameters>;
 }
 
+export interface FunctionGeneratorDevice {
+  readonly model: typeof FUNCTION_GENERATOR_DEVICE_MODEL;
+  readonly instance: NormalizedDevice<FunctionGeneratorParameters>;
+}
+
+export interface OscilloscopeDevice {
+  readonly model: typeof OSCILLOSCOPE_DEVICE_MODEL;
+  readonly instance: NormalizedDevice<OscilloscopeParameters>;
+}
+
 export interface MultimeterDcVoltageDevice {
   readonly model: typeof MULTIMETER_DC_VOLTAGE_DEVICE_MODEL;
   readonly instance: NormalizedDevice<MultimeterDcVoltageParameters>;
@@ -638,6 +789,8 @@ export type LinearDcDevice =
   | ResistorDevice
   | SourceDevice
   | RegulatedPowerSupplyDevice
+  | FunctionGeneratorDevice
+  | OscilloscopeDevice
   | MultimeterDcVoltageDevice
   | MultimeterDcCurrentDevice
   | MultimeterResistanceDevice;
@@ -656,10 +809,24 @@ export function isRegulatedPowerSupplyDevice(
   return device.model === REGULATED_POWER_SUPPLY_DEVICE_MODEL;
 }
 
+export function isFunctionGeneratorDevice(
+  device: LinearDcDevice,
+): device is FunctionGeneratorDevice {
+  return device.model === FUNCTION_GENERATOR_DEVICE_MODEL;
+}
+
+export function isOscilloscopeDevice(device: LinearDcDevice): device is OscilloscopeDevice {
+  return device.model === OSCILLOSCOPE_DEVICE_MODEL;
+}
+
 export function isAnySourceDevice(
   device: LinearDcDevice,
-): device is SourceDevice | RegulatedPowerSupplyDevice {
-  return isSourceDevice(device) || isRegulatedPowerSupplyDevice(device);
+): device is SourceDevice | RegulatedPowerSupplyDevice | FunctionGeneratorDevice {
+  return (
+    isSourceDevice(device) ||
+    isRegulatedPowerSupplyDevice(device) ||
+    isFunctionGeneratorDevice(device)
+  );
 }
 
 export function isMultimeterDcVoltageDevice(
@@ -693,6 +860,18 @@ export function createLinearDcDevice(component: SchematicComponent): LinearDcDev
     return {
       model: REGULATED_POWER_SUPPLY_DEVICE_MODEL,
       instance: REGULATED_POWER_SUPPLY_DEVICE_MODEL.normalize(component),
+    };
+  }
+  if (identity.electricalModelId === FUNCTION_GENERATOR_DEVICE_MODEL.id) {
+    return {
+      model: FUNCTION_GENERATOR_DEVICE_MODEL,
+      instance: FUNCTION_GENERATOR_DEVICE_MODEL.normalize(component),
+    };
+  }
+  if (identity.electricalModelId === OSCILLOSCOPE_DEVICE_MODEL.id) {
+    return {
+      model: OSCILLOSCOPE_DEVICE_MODEL,
+      instance: OSCILLOSCOPE_DEVICE_MODEL.normalize(component),
     };
   }
   if (

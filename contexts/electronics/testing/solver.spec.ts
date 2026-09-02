@@ -113,6 +113,116 @@ function deterministicResistanceSamples(count: number): readonly number[] {
   return [0, ...samples].sort((left, right) => left - right);
 }
 
+describe('MATH-10E generator and oscilloscope', () => {
+  function instrumentDocument(
+    waveform: 'sine' | 'square' | 'triangle' = 'sine',
+    outputEnabled = true,
+  ): ElectronicsDocument {
+    const generator = component('generator', 'source', 100, {
+      componentTypeId: 'signal-generator',
+      pinIds: ['signal', 'ground'],
+      state: outputEnabled,
+      stateProperties: {
+        waveform,
+        frequencyHz: 100,
+        amplitudeVpp: 4,
+        dcOffsetVolt: 1,
+        outputEnabled,
+        outputResistanceOhm: 50,
+        maxContinuousCurrentAmp: 0.1,
+      },
+    });
+    const scope = component('scope', 'visual', 1, {
+      componentTypeId: 'oscilloscope',
+      pinIds: ['signal', 'ground'],
+      state: true,
+      stateProperties: {
+        voltsPerDivision: 1,
+        timePerDivisionMs: 2,
+        triggerLevelVolt: 0,
+        displayEnabled: true,
+      },
+    });
+    return doc(
+      [generator, scope],
+      [
+        connect('signal-wire', 'generator', 'signal', 'scope', 'signal'),
+        connect('ground-wire', 'generator', 'ground', 'scope', 'ground'),
+      ],
+    );
+  }
+
+  it('solves the selected waveform and exposes a real trace at the scope input', () => {
+    const result = solveCircuit(instrumentDocument(), { simulationTimeMs: 2.5 });
+    expect(result.solved).toBe(true);
+    const generator = result.components.find((entry) => entry.componentId === 'generator');
+    const scope = result.components.find((entry) => entry.componentId === 'scope');
+    expect(generator).toMatchObject({
+      signalWaveform: 'sine',
+      signalFrequencyHz: 100,
+      signalAmplitudeVpp: 4,
+      signalOffsetVolt: 1,
+      signalOutputEnabled: true,
+      signalInstantaneousVolt: 3,
+    });
+    expect(scope?.oscilloscopeInputResistanceOhm).toBe(10_000_000);
+    expect(scope?.oscilloscopeInputVoltageVolt).toBeCloseTo(3, 4);
+    expect(scope?.oscilloscopeFrequencyHz).toBe(100);
+    expect(scope?.oscilloscopeAmplitudeVpp).toBe(4);
+    expect(scope?.oscilloscopeTrace).toHaveLength(161);
+    const traceVoltages = scope?.oscilloscopeTrace?.map((point) => point.voltageVolt) ?? [];
+    expect(Math.max(...traceVoltages)).toBeCloseTo(3, 2);
+    expect(Math.min(...traceVoltages)).toBeCloseTo(-1, 2);
+  });
+
+  it('supports square and triangle waveforms and leaves a disabled output high-impedance', () => {
+    const square = solveCircuit(instrumentDocument('square'), { simulationTimeMs: 7.5 });
+    expect(
+      square.components.find((entry) => entry.componentId === 'generator')?.signalInstantaneousVolt,
+    ).toBe(-1);
+
+    const triangle = solveCircuit(instrumentDocument('triangle'), { simulationTimeMs: 5 });
+    expect(
+      triangle.components.find((entry) => entry.componentId === 'generator')
+        ?.signalInstantaneousVolt,
+    ).toBe(3);
+
+    const disabled = solveCircuit(instrumentDocument('sine', false), {
+      simulationTimeMs: 2.5,
+    });
+    expect(disabled.solved).toBe(true);
+    expect(
+      disabled.components.find((entry) => entry.componentId === 'scope')
+        ?.oscilloscopeInputVoltageVolt,
+    ).toBe(0);
+    expect(
+      disabled.components.find((entry) => entry.componentId === 'scope')?.oscilloscopeTrace,
+    ).toBeUndefined();
+  });
+
+  it('upgrades only the known saved instrument placeholders', () => {
+    expect(
+      electricalModelIdentityForComponent({
+        ...component('generator', 'source', 1_000, {
+          componentTypeId: 'signal-generator',
+        }),
+        electricalModelId: 'unsupported',
+        electricalModelVersion: 1,
+        modelProfileId: 'unsupported-signal-generator',
+        modelProfileVersion: 1,
+      }),
+    ).toMatchObject({ electricalModelId: 'function-generator' });
+    expect(
+      electricalModelFor(
+        component('scope', 'visual', 1, {
+          componentTypeId: 'oscilloscope',
+          pinIds: ['signal', 'ground'],
+        }),
+      ),
+    ).toMatchObject({ support: 'supported', id: 'oscilloscope' });
+  });
+});
+
 describe('schema-versioned Electronics document', () => {
   it('normalises an existing schema v1 document without data loss', () => {
     const parsed = parseElectronicsDocument({

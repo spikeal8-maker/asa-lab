@@ -12,11 +12,14 @@ import {
   motorMotion,
   multimeterRuntimeMarkup,
   ordinaryLedState,
+  oscilloscopeRuntimeMarkup,
   piezoRuntimeMarkup,
   potentiometerKnobAngle,
   potentiometerRuntimeMarkup,
   regulatedPowerSupplyKnobAngle,
   regulatedPowerSupplyRuntimeMarkup,
+  signalGeneratorKnobAngle,
+  signalGeneratorRuntimeMarkup,
   rgbLedColour,
   rgbLedDisplayColour,
   rgbLedState,
@@ -209,6 +212,58 @@ describe('typed Electronics state and animation contracts', () => {
         currentDisplay: '0.100 A',
       }),
     ).toBe('');
+  });
+
+  it('drives the owner generator controls and the owner oscilloscope screen', () => {
+    const generatorOwnerSvg = `<svg viewBox="0 0 579 405">
+      <g class="knob" transform="translate(267 82)"><circle cx="0.00" cy="-22.00" r="2.8" fill="#5D6160"/></g>
+      <g class="knob" transform="translate(267 174)"><circle cx="18.02" cy="12.62" r="2.8" fill="#5D6160"/></g>
+      <g class="knob" transform="translate(267 265)"><circle cx="21.92" cy="-1.92" r="2.8" fill="#5D6160"/></g>
+      <rect class="btn" x="338" y="56" width="53" height="53" rx="4"/>
+      <rect class="btn" x="405" y="56" width="53" height="53" rx="4"/>
+      <rect class="btn" x="472" y="56" width="53" height="53" rx="4"/>
+      <path d="M352 93 V72 H362 V83 H372 V93 H378 V72"/>
+      <path d="M416 82 C420 70, 428 70, 432 82 C436 94, 444 94, 448 82"/>
+      <polyline points="486,90 494,74 506,94 512,82"/>
+      <rect x="43" y="321" width="69" height="27" rx="13.5" fill="#C4C4C4"/>
+      <rect x="43" y="321" width="35" height="27" rx="13.5" fill="#4E5251"/>
+      <text x="85" y="338" fill="#6C6E6E" font-family="Arial,Helvetica,sans-serif" font-size="10" font-weight="700">OFF</text>
+    </svg>`;
+    expect(signalGeneratorKnobAngle('frequency', 1)).toBe(135);
+    expect(signalGeneratorKnobAngle('frequency', 1_000)).toBe(270);
+    expect(signalGeneratorKnobAngle('frequency', 1_000_000)).toBe(405);
+    const generatorMarkup = signalGeneratorRuntimeMarkup(generatorOwnerSvg, {
+      waveform: 'triangle',
+      frequencyHz: 1_000,
+      amplitudeVpp: 4,
+      dcOffsetVolt: -1,
+      outputEnabled: true,
+    });
+    expect(generatorMarkup).toContain('workbench-signal-generator-frequency');
+    expect(generatorMarkup).toContain('workbench-signal-generator-triangle is-active');
+    expect(generatorMarkup).toContain('transform="translate(34 0)"');
+    expect(generatorMarkup).toContain('>ON</text>');
+    expect(generatorMarkup).toContain('>1.00 kHz</text>');
+    expect(generatorOwnerSvg).not.toContain('workbench-signal-generator');
+
+    const scopeOwnerSvg =
+      '<svg viewBox="0 0 545 566"><g id="oscilloscope-component"><rect class="screen" x="60" y="55" width="402" height="402"/></g></svg>';
+    const scopeMarkup = oscilloscopeRuntimeMarkup(scopeOwnerSvg, {
+      displayEnabled: true,
+      voltsPerDivision: 1,
+      timePerDivisionMs: 2,
+      inputVoltageVolt: 1,
+      frequencyHz: 100,
+      amplitudeVpp: 4,
+      trace: [
+        { timeMs: 0, voltageVolt: -1 },
+        { timeMs: 5, voltageVolt: 3 },
+      ],
+    });
+    expect(scopeMarkup).toContain('workbench-oscilloscope-trace');
+    expect(scopeMarkup).toContain('M60.00 296.00 L462.00 136.00');
+    expect(scopeMarkup).toContain('100 Hz · 4.00 Vpp');
+    expect(scopeOwnerSvg).not.toContain('workbench-oscilloscope');
   });
 
   it('marks only the owner motor gear and maps signed RPM to calm visual motion', () => {

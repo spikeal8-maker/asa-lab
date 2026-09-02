@@ -472,6 +472,158 @@ export function regulatedPowerSupplyRuntimeMarkup(
   return `${markup.slice(bodyStart + 1, bodyEnd)}${readings}`;
 }
 
+export type SignalGeneratorVisualWaveform = 'sine' | 'square' | 'triangle';
+
+export function signalGeneratorKnobAngle(
+  kind: 'frequency' | 'amplitude' | 'offset',
+  value: number,
+): number {
+  const normalized =
+    kind === 'frequency'
+      ? Math.log10(Math.min(1_000_000, Math.max(1, value))) / 6
+      : kind === 'amplitude'
+        ? Math.min(1, Math.max(0, value / 10))
+        : Math.min(1, Math.max(0, (value + 5) / 10));
+  return 135 + normalized * 270;
+}
+
+export function signalGeneratorRuntimeMarkup(
+  ownerSvg: string,
+  input: {
+    readonly waveform: SignalGeneratorVisualWaveform;
+    readonly frequencyHz: number;
+    readonly amplitudeVpp: number;
+    readonly dcOffsetVolt: number;
+    readonly outputEnabled: boolean;
+  },
+): string {
+  const angles = {
+    frequency: signalGeneratorKnobAngle('frequency', input.frequencyHz),
+    amplitude: signalGeneratorKnobAngle('amplitude', input.amplitudeVpp),
+    offset: signalGeneratorKnobAngle('offset', input.dcOffsetVolt),
+  };
+  let markup = ownerSvg
+    .replace(
+      '<g class="knob" transform="translate(267 82)">',
+      '<g class="knob workbench-signal-generator-knob workbench-signal-generator-frequency" transform="translate(267 82)">',
+    )
+    .replace(
+      '<circle cx="0.00" cy="-22.00" r="2.8" fill="#5D6160"/>',
+      `<circle class="workbench-signal-generator-pointer" cx="0.00" cy="-22.00" r="2.8" fill="#5D6160" transform="rotate(${angles.frequency + 90} 0 0)"/>`,
+    )
+    .replace(
+      '<g class="knob" transform="translate(267 174)">',
+      '<g class="knob workbench-signal-generator-knob workbench-signal-generator-amplitude" transform="translate(267 174)">',
+    )
+    .replace(
+      '<circle cx="18.02" cy="12.62" r="2.8" fill="#5D6160"/>',
+      `<circle class="workbench-signal-generator-pointer" cx="18.02" cy="12.62" r="2.8" fill="#5D6160" transform="rotate(${angles.amplitude - 35} 0 0)"/>`,
+    )
+    .replace(
+      '<g class="knob" transform="translate(267 265)">',
+      '<g class="knob workbench-signal-generator-knob workbench-signal-generator-offset" transform="translate(267 265)">',
+    )
+    .replace(
+      '<circle cx="21.92" cy="-1.92" r="2.8" fill="#5D6160"/>',
+      `<circle class="workbench-signal-generator-pointer" cx="21.92" cy="-1.92" r="2.8" fill="#5D6160" transform="rotate(${angles.offset + 5} 0 0)"/>`,
+    )
+    .replace(
+      '<rect class="btn" x="338" y="56" width="53" height="53" rx="4"/>',
+      `<rect class="btn workbench-signal-generator-waveform workbench-signal-generator-square${input.waveform === 'square' ? ' is-active' : ''}" x="338" y="56" width="53" height="53" rx="4"/>`,
+    )
+    .replace(
+      '<rect class="btn" x="405" y="56" width="53" height="53" rx="4"/>',
+      `<rect class="btn workbench-signal-generator-waveform workbench-signal-generator-sine${input.waveform === 'sine' ? ' is-active' : ''}" x="405" y="56" width="53" height="53" rx="4"/>`,
+    )
+    .replace(
+      '<rect class="btn" x="472" y="56" width="53" height="53" rx="4"/>',
+      `<rect class="btn workbench-signal-generator-waveform workbench-signal-generator-triangle${input.waveform === 'triangle' ? ' is-active' : ''}" x="472" y="56" width="53" height="53" rx="4"/>`,
+    )
+    .replace(
+      '<path d="M352 93 V72 H362 V83 H372 V93 H378 V72"',
+      `<path class="workbench-signal-generator-icon${input.waveform === 'square' ? ' is-active' : ''}" d="M352 93 V72 H362 V83 H372 V93 H378 V72"`,
+    )
+    .replace(
+      '<path d="M416 82 C420 70, 428 70, 432 82 C436 94, 444 94, 448 82"',
+      `<path class="workbench-signal-generator-icon${input.waveform === 'sine' ? ' is-active' : ''}" d="M416 82 C420 70, 428 70, 432 82 C436 94, 444 94, 448 82"`,
+    )
+    .replace(
+      '<polyline points="486,90 494,74 506,94 512,82"',
+      `<polyline class="workbench-signal-generator-icon${input.waveform === 'triangle' ? ' is-active' : ''}" points="486,90 494,74 506,94 512,82"`,
+    )
+    .replace(
+      '<rect x="43" y="321" width="69" height="27" rx="13.5" fill="#C4C4C4"/>',
+      '<rect class="workbench-signal-generator-power" x="43" y="321" width="69" height="27" rx="13.5" fill="#C4C4C4"/>',
+    )
+    .replace(
+      '<rect x="43" y="321" width="35" height="27" rx="13.5" fill="#4E5251"/>',
+      `<rect class="workbench-signal-generator-power workbench-signal-generator-power-slider" x="43" y="321" width="35" height="27" rx="13.5" fill="#4E5251"${input.outputEnabled ? ' transform="translate(34 0)"' : ''}/>`,
+    )
+    .replace(
+      '<text x="85" y="338" fill="#6C6E6E" font-family="Arial,Helvetica,sans-serif" font-size="10" font-weight="700">OFF</text>',
+      `<text class="workbench-signal-generator-power" x="85" y="338" fill="#6C6E6E" font-family="Arial,Helvetica,sans-serif" font-size="10" font-weight="700">${input.outputEnabled ? 'ON' : 'OFF'}</text>`,
+    );
+  const hooks = [
+    'workbench-signal-generator-frequency',
+    'workbench-signal-generator-amplitude',
+    'workbench-signal-generator-offset',
+    'workbench-signal-generator-square',
+    'workbench-signal-generator-sine',
+    'workbench-signal-generator-triangle',
+    'workbench-signal-generator-icon',
+    'workbench-signal-generator-power-slider',
+  ];
+  if (hooks.some((hook) => !markup.includes(hook))) return '';
+  const bodyStart = markup.indexOf('>');
+  const bodyEnd = markup.lastIndexOf('</svg>');
+  if (bodyStart < 0 || bodyEnd <= bodyStart) return '';
+  const readings = `<g class="workbench-signal-generator-readings" pointer-events="none"><text x="131.5" y="83" text-anchor="middle" dominant-baseline="central">${escapeMultimeterDisplay(formatSignalFrequency(input.frequencyHz))}</text><text x="131.5" y="174" text-anchor="middle" dominant-baseline="central">${input.amplitudeVpp.toFixed(2)} Vpp</text><text x="131.5" y="264" text-anchor="middle" dominant-baseline="central">${input.dcOffsetVolt >= 0 ? '+' : ''}${input.dcOffsetVolt.toFixed(2)} V</text></g>`;
+  markup = `${markup.slice(bodyStart + 1, bodyEnd)}${readings}`;
+  return markup;
+}
+
+function formatSignalFrequency(frequencyHz: number): string {
+  if (frequencyHz >= 1_000_000) return `${(frequencyHz / 1_000_000).toFixed(2)} MHz`;
+  if (frequencyHz >= 1_000) return `${(frequencyHz / 1_000).toFixed(2)} kHz`;
+  return `${frequencyHz.toFixed(frequencyHz < 10 ? 1 : 0)} Hz`;
+}
+
+export function oscilloscopeRuntimeMarkup(
+  ownerSvg: string,
+  input: {
+    readonly displayEnabled: boolean;
+    readonly voltsPerDivision: number;
+    readonly timePerDivisionMs: number;
+    readonly inputVoltageVolt: number;
+    readonly frequencyHz?: number;
+    readonly amplitudeVpp?: number;
+    readonly trace?: readonly { readonly timeMs: number; readonly voltageVolt: number }[];
+  },
+): string {
+  if (!ownerSvg.includes('id="oscilloscope-component"')) return '';
+  const bodyStart = ownerSvg.indexOf('>');
+  const bodyEnd = ownerSvg.lastIndexOf('</svg>');
+  if (bodyStart < 0 || bodyEnd <= bodyStart) return '';
+  const samples = input.displayEnabled ? (input.trace ?? []) : [];
+  const tracePath = samples
+    .map((sample, index) => {
+      const x = 60 + (402 * index) / Math.max(1, samples.length - 1);
+      const y = Math.min(
+        457,
+        Math.max(55, 256 - (sample.voltageVolt / Math.max(0.001, input.voltsPerDivision)) * 40),
+      );
+      return `${index === 0 ? 'M' : 'L'}${x.toFixed(2)} ${y.toFixed(2)}`;
+    })
+    .join(' ');
+  const status = !input.displayEnabled
+    ? 'OFF'
+    : input.frequencyHz
+      ? `${formatSignalFrequency(input.frequencyHz)} · ${(input.amplitudeVpp ?? 0).toFixed(2)} Vpp`
+      : `${input.inputVoltageVolt.toFixed(3)} V DC`;
+  const runtime = `<g class="workbench-oscilloscope-runtime-layer" pointer-events="none">${tracePath ? `<path class="workbench-oscilloscope-trace" d="${tracePath}"/>` : ''}<text class="workbench-oscilloscope-status" x="72" y="78">${escapeMultimeterDisplay(status)}</text><text class="workbench-oscilloscope-scale" x="72" y="444">${input.voltsPerDivision.toFixed(2)} V/div · ${input.timePerDivisionMs.toFixed(2)} ms/div</text></g>`;
+  return `${ownerSvg.slice(bodyStart + 1, bodyEnd)}${runtime}`;
+}
+
 /**
  * Marks only the existing owner SVG gear as the runtime moving part.
  * The source asset stays byte-exact. CSS owns the deliberately slow display

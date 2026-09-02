@@ -204,6 +204,8 @@ const SIMULATED_TYPES = new Set([
   'vibration-motor',
   'multimeter',
   'regulated-power-supply',
+  'signal-generator',
+  'oscilloscope',
 ]);
 
 const COMPONENT_DESCRIPTIONS: Readonly<Record<string, string>> = {
@@ -241,9 +243,9 @@ const COMPONENT_DESCRIPTIONS: Readonly<Record<string, string>> = {
   piezo: 'Пьезоизлучатель преобразует электрический сигнал в звук.',
   multimeter: 'Измерительный прибор для напряжения, тока и сопротивления.',
   'signal-generator':
-    'Функциональный генератор сигналов. Размещение и соединение доступны; математическая модель готовится.',
+    'Функциональный генератор синусоидального, прямоугольного и треугольного сигнала.',
   oscilloscope:
-    'Осциллограф для наблюдения формы сигнала. Размещение и соединение доступны; математическая модель готовится.',
+    'Осциллограф показывает напряжение во времени между сигнальным входом и землёй.',
 };
 
 const BATTERY_CATALOG_PRESENTATION: Readonly<
@@ -265,7 +267,8 @@ const BATTERY_CATALOG_PRESENTATION: Readonly<
 };
 
 function componentKind(componentId: string): Exclude<ComponentKind, 'wire'> {
-  if (/^battery(?:-|$)|^regulated-power-supply$/.test(componentId)) return 'source';
+  if (/^battery(?:-|$)|^regulated-power-supply$|^signal-generator$/.test(componentId))
+    return 'source';
   if (componentId === 'resistor-axial') return 'resistor';
   if (componentId === 'led-5mm') return 'led';
   if (componentId === 'rgb-led') return 'rgb-led';
@@ -448,6 +451,34 @@ function defaults(componentId: string): {
         currentLimitAmp: 1,
         outputEnabled: false,
         outputResistanceOhm: 0.05,
+      },
+    };
+  if (componentId === 'signal-generator')
+    return {
+      value: 1_000,
+      unit: 'Гц',
+      state: false,
+      properties: {
+        waveform: 'sine',
+        frequencyHz: 1_000,
+        amplitudeVpp: 5,
+        dcOffsetVolt: 0,
+        outputEnabled: false,
+        outputResistanceOhm: 50,
+        maxContinuousCurrentAmp: 0.1,
+      },
+    };
+  if (componentId === 'oscilloscope')
+    return {
+      value: 1,
+      unit: 'В/дел',
+      state: true,
+      properties: {
+        voltsPerDivision: 1,
+        timePerDivisionMs: 1,
+        triggerLevelVolt: 0,
+        displayEnabled: true,
+        coupling: 'DC',
       },
     };
   return { value: 0, unit: '', properties: { simulationStatus: 'not_yet_supported' } };

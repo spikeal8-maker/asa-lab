@@ -18,6 +18,8 @@ import {
   potentiometerKnobAngle,
   potentiometerRuntimeMarkup,
   regulatedPowerSupplyRuntimeMarkup,
+  oscilloscopeRuntimeMarkup,
+  signalGeneratorRuntimeMarkup,
   RESISTOR_BAND_CSS,
   resistorBandState,
   rgbLedColour,
@@ -74,6 +76,15 @@ interface Props {
     | ((patch: {
         readonly voltageSetpointVolt?: number;
         readonly currentLimitAmp?: number;
+        readonly outputEnabled?: boolean;
+      }) => void)
+    | undefined;
+  readonly onSignalGeneratorChange?:
+    | ((patch: {
+        readonly waveform?: 'sine' | 'square' | 'triangle';
+        readonly frequencyHz?: number;
+        readonly amplitudeVpp?: number;
+        readonly dcOffsetVolt?: number;
         readonly outputEnabled?: boolean;
       }) => void)
     | undefined;
@@ -372,6 +383,225 @@ function OwnerRegulatedPowerSupplyVisual({
   );
 }
 
+function signalGeneratorValueFromPointer(
+  event: ReactPointerEvent<SVGSVGElement>,
+  centerY: number,
+  kind: 'frequency' | 'amplitude' | 'offset',
+): number | null {
+  const matrix = event.currentTarget.getScreenCTM();
+  if (!matrix) return null;
+  const point = new DOMPoint(event.clientX, event.clientY).matrixTransform(matrix.inverse());
+  let angle = (Math.atan2(point.y - centerY, point.x - 267) * 180) / Math.PI;
+  if (angle < 0) angle += 360;
+  let arcAngle = angle;
+  if (angle <= 45) arcAngle = angle + 360;
+  else if (angle < 135) arcAngle = angle < 90 ? 405 : 135;
+  const ratio = Math.min(1, Math.max(0, (arcAngle - 135) / 270));
+  if (kind === 'frequency') return Number((10 ** (ratio * 6)).toPrecision(3));
+  if (kind === 'amplitude') return Math.round(ratio * 200) / 20;
+  return Math.round((ratio * 10 - 5) * 20) / 20;
+}
+
+function OwnerSignalGeneratorVisual({
+  asset,
+  width,
+  height,
+  component,
+  onChange,
+}: {
+  readonly asset: string;
+  readonly width: number;
+  readonly height: number;
+  readonly component: SchematicComponent;
+  readonly onChange?: Props['onSignalGeneratorChange'];
+}): JSX.Element {
+  const [ownerSvg, setOwnerSvg] = useState<string | null>(null);
+  const [draggingKnob, setDraggingKnob] = useState<'frequency' | 'amplitude' | 'offset' | null>(
+    null,
+  );
+  useEffect(() => {
+    let mounted = true;
+    void ownerSvgSource(asset)
+      .then((source) => {
+        if (mounted) setOwnerSvg(source);
+      })
+      .catch(() => {
+        if (mounted) setOwnerSvg(null);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [asset]);
+  const properties = component.stateProperties ?? {};
+  const waveformValue = String(properties['waveform'] ?? 'sine');
+  const waveform =
+    waveformValue === 'square' || waveformValue === 'triangle' ? waveformValue : 'sine';
+  const frequencyHz = Math.min(
+    1_000_000,
+    Math.max(1, Number(properties['frequencyHz'] ?? component.value ?? 1_000)),
+  );
+  const amplitudeVpp = Math.min(10, Math.max(0, Number(properties['amplitudeVpp'] ?? 5)));
+  const dcOffsetVolt = Math.min(5, Math.max(-5, Number(properties['dcOffsetVolt'] ?? 0)));
+  const outputEnabled = properties['outputEnabled'] === true || component.state === true;
+  const markup = useMemo(
+    () =>
+      ownerSvg
+        ? signalGeneratorRuntimeMarkup(ownerSvg, {
+            waveform,
+            frequencyHz,
+            amplitudeVpp,
+            dcOffsetVolt,
+            outputEnabled,
+          })
+        : '',
+    [amplitudeVpp, dcOffsetVolt, frequencyHz, outputEnabled, ownerSvg, waveform],
+  );
+  const updateKnob = (
+    event: ReactPointerEvent<SVGSVGElement>,
+    knob: 'frequency' | 'amplitude' | 'offset',
+  ): void => {
+    const value = signalGeneratorValueFromPointer(
+      event,
+      knob === 'frequency' ? 82 : knob === 'amplitude' ? 174 : 265,
+      knob,
+    );
+    if (value === null) return;
+    onChange?.(
+      knob === 'frequency'
+        ? { frequencyHz: value }
+        : knob === 'amplitude'
+          ? { amplitudeVpp: value }
+          : { dcOffsetVolt: value },
+    );
+  };
+  if (!markup) return <image href={asset} width={width} height={height} pointerEvents="none" />;
+  return (
+    <svg
+      className="workbench-signal-generator-runtime"
+      data-testid="signal-generator-runtime"
+      data-waveform={waveform}
+      data-output-enabled={String(outputEnabled)}
+      x="0"
+      y="0"
+      width={width}
+      height={height}
+      viewBox="0 0 579 405"
+      preserveAspectRatio="xMidYMid meet"
+      pointerEvents="all"
+      onPointerDown={(event) => {
+        const target = event.target;
+        if (!(target instanceof Element)) return;
+        if (target.closest('.workbench-signal-generator-power')) {
+          onChange?.({ outputEnabled: !outputEnabled });
+        } else if (target.closest('.workbench-signal-generator-square')) {
+          onChange?.({ waveform: 'square' });
+        } else if (target.closest('.workbench-signal-generator-sine')) {
+          onChange?.({ waveform: 'sine' });
+        } else if (target.closest('.workbench-signal-generator-triangle')) {
+          onChange?.({ waveform: 'triangle' });
+        } else {
+          const knob = target.closest('.workbench-signal-generator-frequency')
+            ? 'frequency'
+            : target.closest('.workbench-signal-generator-amplitude')
+              ? 'amplitude'
+              : target.closest('.workbench-signal-generator-offset')
+                ? 'offset'
+                : null;
+          if (!knob) return;
+          setDraggingKnob(knob);
+          event.currentTarget.setPointerCapture(event.pointerId);
+          updateKnob(event, knob);
+        }
+        event.preventDefault();
+        event.stopPropagation();
+      }}
+      onPointerMove={(event) => {
+        if (draggingKnob) updateKnob(event, draggingKnob);
+      }}
+      onPointerUp={(event) => {
+        if (!draggingKnob) return;
+        setDraggingKnob(null);
+        if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+          event.currentTarget.releasePointerCapture(event.pointerId);
+        }
+      }}
+      onPointerCancel={() => setDraggingKnob(null)}
+      dangerouslySetInnerHTML={{ __html: markup }}
+    />
+  );
+}
+
+function OwnerOscilloscopeVisual({
+  asset,
+  width,
+  height,
+  component,
+  result,
+  simulationRunning,
+}: {
+  readonly asset: string;
+  readonly width: number;
+  readonly height: number;
+  readonly component: SchematicComponent;
+  readonly result?: ComponentResult | undefined;
+  readonly simulationRunning: boolean;
+}): JSX.Element {
+  const [ownerSvg, setOwnerSvg] = useState<string | null>(null);
+  useEffect(() => {
+    let mounted = true;
+    void ownerSvgSource(asset)
+      .then((source) => {
+        if (mounted) setOwnerSvg(source);
+      })
+      .catch(() => {
+        if (mounted) setOwnerSvg(null);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [asset]);
+  const properties = component.stateProperties ?? {};
+  const displayEnabled =
+    properties['displayEnabled'] !== false && component.state !== false && simulationRunning;
+  const voltsPerDivision = Math.max(0.001, Number(properties['voltsPerDivision'] ?? 1));
+  const timePerDivisionMs = Math.max(0.001, Number(properties['timePerDivisionMs'] ?? 1));
+  const markup = useMemo(
+    () =>
+      ownerSvg
+        ? oscilloscopeRuntimeMarkup(ownerSvg, {
+            displayEnabled,
+            voltsPerDivision,
+            timePerDivisionMs,
+            inputVoltageVolt: result?.oscilloscopeInputVoltageVolt ?? 0,
+            ...(result?.oscilloscopeFrequencyHz === undefined
+              ? {}
+              : { frequencyHz: result.oscilloscopeFrequencyHz }),
+            ...(result?.oscilloscopeAmplitudeVpp === undefined
+              ? {}
+              : { amplitudeVpp: result.oscilloscopeAmplitudeVpp }),
+            ...(result?.oscilloscopeTrace === undefined ? {} : { trace: result.oscilloscopeTrace }),
+          })
+        : '',
+    [displayEnabled, ownerSvg, result, timePerDivisionMs, voltsPerDivision],
+  );
+  if (!markup) return <image href={asset} width={width} height={height} pointerEvents="none" />;
+  return (
+    <svg
+      className="workbench-oscilloscope-runtime"
+      data-testid="oscilloscope-runtime"
+      data-display-enabled={String(displayEnabled)}
+      x="0"
+      y="0"
+      width={width}
+      height={height}
+      viewBox="0 0 545 566"
+      preserveAspectRatio="xMidYMid meet"
+      pointerEvents="none"
+      dangerouslySetInnerHTML={{ __html: markup }}
+    />
+  );
+}
+
 function OwnerPotentiometerVisual({
   asset,
   width,
@@ -662,6 +892,7 @@ export function ProductionComponentVisual({
   onArduinoReset,
   onMultimeterModeChange,
   onRegulatedPowerSupplyChange,
+  onSignalGeneratorChange,
 }: Props): JSX.Element {
   const properties = component.stateProperties ?? {};
   const ledColour = String(properties['ledColour'] ?? 'red');
@@ -1143,6 +1374,23 @@ export function ProductionComponentVisual({
               result={result}
               simulationRunning={simulationRunning}
               onChange={onRegulatedPowerSupplyChange}
+            />
+          ) : entry.key === 'signal-generator' ? (
+            <OwnerSignalGeneratorVisual
+              asset={asset}
+              width={width}
+              height={height}
+              component={component}
+              onChange={onSignalGeneratorChange}
+            />
+          ) : entry.key === 'oscilloscope' ? (
+            <OwnerOscilloscopeVisual
+              asset={asset}
+              width={width}
+              height={height}
+              component={component}
+              result={result}
+              simulationRunning={simulationRunning}
             />
           ) : (
             <image

@@ -2661,6 +2661,50 @@
   fill: #f2a51a;
   stroke: #b77709;
 }
+.workbench-signal-generator-runtime .workbench-signal-generator-knob,
+.workbench-signal-generator-runtime .workbench-signal-generator-waveform,
+.workbench-signal-generator-runtime .workbench-signal-generator-power {
+  cursor: pointer;
+}
+.workbench-signal-generator-runtime .workbench-signal-generator-pointer,
+.workbench-signal-generator-runtime .workbench-signal-generator-power-slider {
+  transition: transform 90ms linear;
+}
+.workbench-signal-generator-runtime .workbench-signal-generator-waveform.is-active {
+  fill: #4e5251;
+  stroke: #222827;
+  stroke-width: 2.2;
+}
+.workbench-signal-generator-runtime .workbench-signal-generator-icon.is-active {
+  stroke: #f2ae16;
+}
+.workbench-signal-generator-runtime .workbench-signal-generator-readings {
+  fill: #233036;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 18px;
+  font-weight: 700;
+}
+.workbench-oscilloscope-runtime .workbench-oscilloscope-trace {
+  fill: none;
+  stroke: #0b8f4d;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 3;
+}
+.workbench-oscilloscope-runtime .workbench-oscilloscope-status,
+.workbench-oscilloscope-runtime .workbench-oscilloscope-scale {
+  fill: #24434a;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px;
+  font-weight: 700;
+}
+.workbench-oscilloscope-runtime .workbench-oscilloscope-scale {
+  font-size: 11px;
+}
+.workbench-signal-generator-controls,
+.workbench-oscilloscope-controls {
+  grid-template-columns: minmax(0, 1fr);
+}
 .workbench-regulated-supply-controls {
   gap: 3px;
 }

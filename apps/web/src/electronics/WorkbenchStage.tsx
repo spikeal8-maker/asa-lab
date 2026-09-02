@@ -813,6 +813,11 @@ export function WorkbenchStage({
                         ? (patch) => c.setRegulatedPowerSupplyControls(component.id, patch)
                         : undefined
                     }
+                    onSignalGeneratorChange={
+                      entry.key === 'signal-generator'
+                        ? (patch) => c.setSignalGeneratorControls(component.id, patch)
+                        : undefined
+                    }
                   />
                   {component.kind === 'potentiometer' && c.simulationRunning ? (
                     <circle

@@ -3,6 +3,8 @@ import type { ComponentKind, ProductionStateValue, SchematicComponent } from './
 export type ElectricalModelId =
   | 'ideal-dc-source'
   | 'regulated-dc-supply'
+  | 'function-generator'
+  | 'oscilloscope'
   | 'resistor'
   | 'ordinary-led'
   | 'rgb-led'
@@ -41,6 +43,8 @@ export const ELECTRICAL_MODEL_REGISTRY_VERSION = 1;
 const KNOWN_MODEL_IDS: ReadonlySet<string> = new Set<ElectricalModelId>([
   'ideal-dc-source',
   'regulated-dc-supply',
+  'function-generator',
+  'oscilloscope',
   'resistor',
   'ordinary-led',
   'rgb-led',
@@ -99,6 +103,8 @@ const EXACT_IDENTITIES: Readonly<Record<string, ElectricalModelIdentity>> = {
   'battery-holder-aa-6': identity('ideal-dc-source', 'generic-battery-pack-aa-6'),
   'battery-holder-aa-8': identity('ideal-dc-source', 'generic-battery-pack-aa-8'),
   'regulated-power-supply': identity('regulated-dc-supply', 'asa-bench-supply-30v-5a'),
+  'signal-generator': identity('function-generator', 'asa-function-generator-1mhz'),
+  oscilloscope: identity('oscilloscope', 'asa-two-terminal-oscilloscope'),
 };
 
 function identity(
@@ -269,6 +275,16 @@ export function electricalModelIdentityForComponent(
         (component.electricalModelId === 'dc-voltmeter' &&
           component.modelProfileId === 'asa-two-terminal-dmm-dc-voltage' &&
           component.modelProfileVersion === 1))
+    ) {
+      return resolveElectricalModelIdentity(component);
+    }
+    if (
+      (component.componentTypeId === 'signal-generator' ||
+        component.componentTypeId === 'oscilloscope') &&
+      component.electricalModelId === 'unsupported' &&
+      component.electricalModelVersion === 1 &&
+      component.modelProfileId === `unsupported-${component.componentTypeId}` &&
+      component.modelProfileVersion === 1
     ) {
       return resolveElectricalModelIdentity(component);
     }

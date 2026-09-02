@@ -347,6 +347,8 @@ export function WorkbenchSidebars({
   const selectedIsRgbLed = c.selectedEntry?.key === 'rgb-led';
   const selectedIsSevenSegment = c.selectedEntry?.key === 'seven-segment-display';
   const selectedIsMultimeter = c.selectedEntry?.key === 'multimeter';
+  const selectedIsSignalGenerator = c.selectedEntry?.key === 'signal-generator';
+  const selectedIsOscilloscope = c.selectedEntry?.key === 'oscilloscope';
   const selectedIsPiezo = c.selectedComponent?.kind === 'piezo';
   const selectedPiezoMode = selectedIsPiezo
     ? String(c.selectedComponent?.stateProperties?.['piezoMode'] ?? 'passive')
@@ -394,6 +396,39 @@ export function WorkbenchSidebars({
     ? c.selectedComponent?.stateProperties?.['outputEnabled'] === true ||
       c.selectedComponent?.state === true
     : false;
+  const selectedGeneratorWaveform = selectedIsSignalGenerator
+    ? String(c.selectedComponent?.stateProperties?.['waveform'] ?? 'sine')
+    : 'sine';
+  const selectedGeneratorFrequencyHz = selectedIsSignalGenerator
+    ? Number(
+        c.selectedComponent?.stateProperties?.['frequencyHz'] ??
+          c.selectedComponent?.value ??
+          1_000,
+      )
+    : 1_000;
+  const selectedGeneratorAmplitudeVpp = selectedIsSignalGenerator
+    ? Number(c.selectedComponent?.stateProperties?.['amplitudeVpp'] ?? 5)
+    : 5;
+  const selectedGeneratorOffsetVolt = selectedIsSignalGenerator
+    ? Number(c.selectedComponent?.stateProperties?.['dcOffsetVolt'] ?? 0)
+    : 0;
+  const selectedGeneratorOutputEnabled = selectedIsSignalGenerator
+    ? c.selectedComponent?.stateProperties?.['outputEnabled'] === true ||
+      c.selectedComponent?.state === true
+    : false;
+  const selectedScopeDisplayEnabled = selectedIsOscilloscope
+    ? c.selectedComponent?.stateProperties?.['displayEnabled'] !== false &&
+      c.selectedComponent?.state !== false
+    : true;
+  const selectedScopeVoltsPerDivision = selectedIsOscilloscope
+    ? Number(c.selectedComponent?.stateProperties?.['voltsPerDivision'] ?? 1)
+    : 1;
+  const selectedScopeTimePerDivisionMs = selectedIsOscilloscope
+    ? Number(c.selectedComponent?.stateProperties?.['timePerDivisionMs'] ?? 1)
+    : 1;
+  const selectedScopeTriggerLevelVolt = selectedIsOscilloscope
+    ? Number(c.selectedComponent?.stateProperties?.['triggerLevelVolt'] ?? 0)
+    : 0;
   useEffect(() => {
     setHelpSections(null);
   }, [c.selectedComponent?.id]);
@@ -866,6 +901,168 @@ export function WorkbenchSidebars({
                         : !selectedSupplyOutputEnabled || measurement?.regulationMode === 'off'
                           ? 'Выход выключен'
                           : `${measurement?.regulationMode === 'cc' ? 'CC' : 'CV'} · ${(measurement?.voltageDrop ?? 0).toFixed(2)} В · ${Math.abs(measurement?.current ?? 0).toFixed(3)} А`}
+                    </strong>
+                  </div>
+                </fieldset>
+              ) : null}
+              {selectedIsSignalGenerator ? (
+                <fieldset
+                  className="workbench-state-controls workbench-primary-controls workbench-signal-generator-controls"
+                  data-testid="signal-generator-primary-controls"
+                >
+                  <legend>Генератор сигналов</legend>
+                  <label className="workbench-toggle-property">
+                    <span>Выход</span>
+                    <input
+                      aria-label="Включить выход генератора"
+                      type="checkbox"
+                      checked={selectedGeneratorOutputEnabled}
+                      onChange={(event) =>
+                        c.setSignalGeneratorControls(c.selectedComponent!.id, {
+                          outputEnabled: event.target.checked,
+                        })
+                      }
+                    />
+                  </label>
+                  <label>
+                    <span>Форма</span>
+                    <select
+                      aria-label="Форма сигнала"
+                      value={selectedGeneratorWaveform}
+                      onChange={(event) =>
+                        c.setSignalGeneratorControls(c.selectedComponent!.id, {
+                          waveform: event.target.value as 'sine' | 'square' | 'triangle',
+                        })
+                      }
+                    >
+                      <option value="sine">Синус</option>
+                      <option value="square">Меандр</option>
+                      <option value="triangle">Треугольник</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>Частота, Гц</span>
+                    <input
+                      aria-label="Частота генератора"
+                      type="number"
+                      min="1"
+                      max="1000000"
+                      step="1"
+                      value={selectedGeneratorFrequencyHz}
+                      onChange={(event) =>
+                        c.setSignalGeneratorControls(c.selectedComponent!.id, {
+                          frequencyHz: event.target.valueAsNumber,
+                        })
+                      }
+                    />
+                  </label>
+                  <label>
+                    <span>Амплитуда, Vpp</span>
+                    <input
+                      aria-label="Амплитуда генератора пик-пик"
+                      type="number"
+                      min="0"
+                      max="10"
+                      step="0.1"
+                      value={selectedGeneratorAmplitudeVpp}
+                      onChange={(event) =>
+                        c.setSignalGeneratorControls(c.selectedComponent!.id, {
+                          amplitudeVpp: event.target.valueAsNumber,
+                        })
+                      }
+                    />
+                  </label>
+                  <label>
+                    <span>Смещение, В</span>
+                    <input
+                      aria-label="Постоянное смещение генератора"
+                      type="number"
+                      min="-5"
+                      max="5"
+                      step="0.1"
+                      value={selectedGeneratorOffsetVolt}
+                      onChange={(event) =>
+                        c.setSignalGeneratorControls(c.selectedComponent!.id, {
+                          dcOffsetVolt: event.target.valueAsNumber,
+                        })
+                      }
+                    />
+                  </label>
+                  <div className="workbench-regulated-supply-summary">
+                    <span>Сейчас</span>
+                    <strong data-testid="signal-generator-panel-reading">
+                      {!c.simulationRunning
+                        ? 'Моделирование остановлено'
+                        : !selectedGeneratorOutputEnabled
+                          ? 'Выход выключен'
+                          : `${selectedGeneratorFrequencyHz.toLocaleString('ru-RU')} Гц · ${selectedGeneratorAmplitudeVpp.toFixed(2)} Vpp`}
+                    </strong>
+                  </div>
+                </fieldset>
+              ) : null}
+              {selectedIsOscilloscope ? (
+                <fieldset
+                  className="workbench-state-controls workbench-primary-controls workbench-oscilloscope-controls"
+                  data-testid="oscilloscope-primary-controls"
+                >
+                  <legend>Осциллограф</legend>
+                  <label className="workbench-toggle-property">
+                    <span>Экран</span>
+                    <input
+                      aria-label="Включить экран осциллографа"
+                      type="checkbox"
+                      checked={selectedScopeDisplayEnabled}
+                      onChange={(event) => c.setSelectedState(event.target.checked)}
+                    />
+                  </label>
+                  <label>
+                    <span>В/дел</span>
+                    <input
+                      aria-label="Масштаб осциллографа по напряжению"
+                      type="number"
+                      min="0.01"
+                      max="100"
+                      step="0.1"
+                      value={selectedScopeVoltsPerDivision}
+                      onChange={(event) =>
+                        c.setSelectedProperties({ voltsPerDivision: event.target.valueAsNumber })
+                      }
+                    />
+                  </label>
+                  <label>
+                    <span>мс/дел</span>
+                    <input
+                      aria-label="Масштаб осциллографа по времени"
+                      type="number"
+                      min="0.001"
+                      max="10000"
+                      step="0.1"
+                      value={selectedScopeTimePerDivisionMs}
+                      onChange={(event) =>
+                        c.setSelectedProperties({ timePerDivisionMs: event.target.valueAsNumber })
+                      }
+                    />
+                  </label>
+                  <label>
+                    <span>Триггер, В</span>
+                    <input
+                      aria-label="Уровень синхронизации осциллографа"
+                      type="number"
+                      min="-100"
+                      max="100"
+                      step="0.1"
+                      value={selectedScopeTriggerLevelVolt}
+                      onChange={(event) =>
+                        c.setSelectedProperties({ triggerLevelVolt: event.target.valueAsNumber })
+                      }
+                    />
+                  </label>
+                  <div className="workbench-regulated-supply-summary">
+                    <span>Вход</span>
+                    <strong data-testid="oscilloscope-panel-reading">
+                      {!c.simulationRunning
+                        ? 'Моделирование остановлено'
+                        : `${(measurement?.oscilloscopeInputVoltageVolt ?? 0).toFixed(3)} В${measurement?.oscilloscopeFrequencyHz ? ` · ${measurement.oscilloscopeFrequencyHz.toLocaleString('ru-RU')} Гц` : ''}`}
                     </strong>
                   </div>
                 </fieldset>
@@ -1699,6 +1896,66 @@ export function WorkbenchSidebars({
                       <div>
                         <dt>Предел тока</dt>
                         <dd>{(measurement.currentLimitAmp ?? 0).toFixed(2)} А</dd>
+                      </div>
+                    </>
+                  ) : null}
+                  {selectedIsSignalGenerator && measurement.signalWaveform ? (
+                    <>
+                      <div>
+                        <dt>Выход</dt>
+                        <dd>{measurement.signalOutputEnabled ? 'Включён' : 'Выключен'}</dd>
+                      </div>
+                      <div>
+                        <dt>Форма</dt>
+                        <dd>
+                          {measurement.signalWaveform === 'square'
+                            ? 'Меандр'
+                            : measurement.signalWaveform === 'triangle'
+                              ? 'Треугольник'
+                              : 'Синус'}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Частота</dt>
+                        <dd>{(measurement.signalFrequencyHz ?? 0).toLocaleString('ru-RU')} Гц</dd>
+                      </div>
+                      <div>
+                        <dt>Амплитуда</dt>
+                        <dd>{(measurement.signalAmplitudeVpp ?? 0).toFixed(2)} Vpp</dd>
+                      </div>
+                      <div>
+                        <dt>Смещение</dt>
+                        <dd>{(measurement.signalOffsetVolt ?? 0).toFixed(2)} В</dd>
+                      </div>
+                    </>
+                  ) : null}
+                  {selectedIsOscilloscope &&
+                  measurement.oscilloscopeInputVoltageVolt !== undefined ? (
+                    <>
+                      <div>
+                        <dt>Напряжение входа</dt>
+                        <dd>{measurement.oscilloscopeInputVoltageVolt.toFixed(3)} В</dd>
+                      </div>
+                      <div>
+                        <dt>Частота</dt>
+                        <dd>
+                          {measurement.oscilloscopeFrequencyHz === undefined
+                            ? 'Постоянный уровень'
+                            : `${measurement.oscilloscopeFrequencyHz.toLocaleString('ru-RU')} Гц`}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Размах</dt>
+                        <dd>{(measurement.oscilloscopeAmplitudeVpp ?? 0).toFixed(2)} Vpp</dd>
+                      </div>
+                      <div>
+                        <dt>Входное сопротивление</dt>
+                        <dd>
+                          {((measurement.oscilloscopeInputResistanceOhm ?? 0) / 1_000_000).toFixed(
+                            0,
+                          )}{' '}
+                          МОм
+                        </dd>
                       </div>
                     </>
                   ) : null}
