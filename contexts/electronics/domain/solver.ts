@@ -245,6 +245,12 @@ export interface ComponentResult {
   readonly direction?: 'clockwise' | 'counterclockwise' | 'stopped';
   readonly motorRpm?: number;
   readonly outputRpm?: number;
+  /** Mechanical ERM vibration rate; absolute rotor turns per second. */
+  readonly vibrationFrequencyHz?: number;
+  /** Calculated case acceleration relative to standard gravity. */
+  readonly vibrationAccelerationG?: number;
+  /** Normalised vibration strength at the vendor reference point. */
+  readonly vibrationLevelPercent?: number;
   readonly motorAngularPhaseRadian?: number;
   readonly motorOperatingMode?:
     'stopped' | 'starting' | 'running' | 'coasting' | 'reversing' | 'stalled' | 'failed';
@@ -257,6 +263,7 @@ export interface ComponentResult {
   readonly outputMechanicalPowerWatt?: number;
   readonly operatingVoltageMinVolt?: number;
   readonly operatingVoltageMaxVolt?: number;
+  readonly startingVoltageMinVolt?: number;
   readonly motorVoltageState?: 'below_range' | 'normal' | 'overvoltage';
   readonly windingFailureMode?: 'none' | 'winding_open';
   readonly capacitanceFarad?: number;
@@ -364,7 +371,11 @@ function damageObservationForStress(
 }
 
 function isBrushedMotor(component: SchematicComponent): boolean {
-  return component.componentTypeId === 'dc-motor' || component.componentTypeId === 'gearmotor';
+  return (
+    component.componentTypeId === 'dc-motor' ||
+    component.componentTypeId === 'gearmotor' ||
+    component.componentTypeId === 'vibration-motor'
+  );
 }
 
 function brushedMotorProfile(component: SchematicComponent): BrushedMotorAssemblyProfile | null {
@@ -441,6 +452,11 @@ function motorComponentObservation(
   const belowRange = absoluteVoltage > 1e-6 && absoluteVoltage < minimumVoltage;
   const destructive = observation.thermalState === 'destructive' || severeOvervoltage;
   const warning = observation.thermalState === 'warning' || overvoltage;
+  const vibrationRatio = Math.abs(observation.outputRpm) / referenceRpm;
+  const vibrationAccelerationG =
+    component.componentTypeId === 'vibration-motor'
+      ? (profile?.ratedVibrationAccelerationG?.value ?? 0) * vibrationRatio * vibrationRatio
+      : undefined;
   return {
     energized:
       !failed &&
@@ -450,6 +466,13 @@ function motorComponentObservation(
     direction: observation.direction,
     motorRpm: round(observation.motorRpm, 3),
     outputRpm: round(observation.outputRpm, 3),
+    ...(vibrationAccelerationG === undefined
+      ? {}
+      : {
+          vibrationFrequencyHz: round(Math.abs(observation.outputRpm) / 60, 3),
+          vibrationAccelerationG: round(vibrationAccelerationG, 4),
+          vibrationLevelPercent: round(Math.min(100, vibrationRatio * vibrationRatio * 100), 2),
+        }),
     motorAngularPhaseRadian: round(transition.state.motorAngularPhaseRadian, 12),
     motorOperatingMode: observation.operatingMode,
     electromagneticTorqueNewtonMeter: round(observation.electromagneticTorqueNewtonMeter, 12),
@@ -461,6 +484,9 @@ function motorComponentObservation(
     outputMechanicalPowerWatt: round(observation.outputMechanicalPowerWatt, 12),
     operatingVoltageMinVolt: round(minimumVoltage, 3),
     operatingVoltageMaxVolt: round(maximumVoltage, 3),
+    ...(profile?.startingVoltageMin === undefined
+      ? {}
+      : { startingVoltageMinVolt: round(profile.startingVoltageMin.value, 3) }),
     motorVoltageState: overvoltage ? 'overvoltage' : belowRange ? 'below_range' : 'normal',
     temperatureCelsius: round(observation.temperatureCelsius, 1),
     currentUtilizationPercent: round(observation.currentUtilization * 100, 2),
@@ -3035,17 +3061,20 @@ function solveCircuitStep(
     if (!result) continue;
     if (result.motorVoltageState === 'overvoltage') {
       const maximumVoltage = result.operatingVoltageMaxVolt ?? 0;
+      const minimumVoltage = result.operatingVoltageMinVolt ?? 0;
       const destructive =
         result.presentationState === 'destructive' || result.presentationState === 'failed';
       diagnostics.push({
         code: 'motor_overvoltage',
         severity: destructive ? 'error' : 'warning',
-        message: `${motor.name ?? motor.id}: напряжение ${Math.abs(result.voltageDrop).toFixed(2)} В выше рабочего диапазона до ${maximumVoltage.toFixed(0)} В.`,
+        message: `${motor.name ?? motor.id}: напряжение ${Math.abs(result.voltageDrop).toFixed(2)} В выше рабочего диапазона до ${motor.componentTypeId === 'vibration-motor' ? maximumVoltage.toFixed(1) : maximumVoltage.toFixed(0)} В.`,
         componentIds: [motor.id],
         suggestedAction:
           motor.componentTypeId === 'gearmotor'
             ? `Этот TT-мотор рассчитан на 3–${maximumVoltage.toFixed(0)} В. При длительном питании ${Math.abs(result.voltageDrop).toFixed(1)} В накапливается повреждение и обмотка перегорит; для штатной работы уменьшите напряжение.`
-            : 'Уменьшите напряжение. Для контролируемого опыта с нагревом используйте блокировку вала.',
+            : motor.componentTypeId === 'vibration-motor'
+              ? `Этот монетный вибромотор рассчитан на ${minimumVoltage.toFixed(1)}–${maximumVoltage.toFixed(1)} В. Уменьшите напряжение: длительная работа выше диапазона повреждает щётки и обмотку.`
+              : 'Уменьшите напряжение. Для контролируемого опыта с нагревом используйте блокировку вала.',
       });
     }
     if (result.motorOperatingMode === 'stalled') {

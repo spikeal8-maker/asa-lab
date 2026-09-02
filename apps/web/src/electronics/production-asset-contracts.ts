@@ -521,6 +521,67 @@ export function dcMotorVisualMotion(motorRpm: number): DcMotorVisualMotion {
   };
 }
 
+/**
+ * Adds runtime classes to the existing body and strain relief of the confirmed
+ * owner vibration-motor SVG. Leads, metal tips and the source file stay exact
+ * and stationary so electrical anchors never wobble with the presentation.
+ */
+export function vibrationMotorRuntimeMarkup(ownerSvg: string): string {
+  const withRuntimeBody = ownerSvg
+    .replace(
+      '<g id="connector">',
+      '<g id="connector" class="workbench-vibration-motor-moving-body">',
+    )
+    .replace(
+      '<g id="motor-body">',
+      '<g id="motor-body" class="workbench-vibration-motor-moving-body">',
+    );
+  if (
+    withRuntimeBody === ownerSvg ||
+    !withRuntimeBody.includes('id="connector" class="workbench-vibration-motor-moving-body"') ||
+    !withRuntimeBody.includes('id="motor-body" class="workbench-vibration-motor-moving-body"')
+  ) {
+    return '';
+  }
+  const bodyStart = withRuntimeBody.indexOf('>');
+  const bodyEnd = withRuntimeBody.lastIndexOf('</svg>');
+  if (bodyStart < 0 || bodyEnd <= bodyStart) return '';
+  return withRuntimeBody.slice(bodyStart + 1, bodyEnd);
+}
+
+export interface VibrationMotorVisualMotion {
+  readonly active: boolean;
+  readonly periodMilliseconds: number;
+  readonly amplitudeX: number;
+  readonly amplitudeY: number;
+}
+
+/**
+ * Maps the calculated ERM vibration to a legible, capped display motion.
+ * A real 200 Hz case displacement would alias against the monitor refresh rate,
+ * so frequency and acceleration remain numeric truth while the visual uses a
+ * smooth 6-10 Hz envelope whose amplitude follows the calculated strength.
+ */
+export function vibrationMotorVisualMotion(
+  frequencyHz: number,
+  vibrationLevelPercent: number,
+): VibrationMotorVisualMotion {
+  const frequency = Number.isFinite(frequencyHz) ? Math.max(0, frequencyHz) : 0;
+  const level = Number.isFinite(vibrationLevelPercent)
+    ? Math.min(100, Math.max(0, vibrationLevelPercent))
+    : 0;
+  if (frequency < 1 || level < 0.5) {
+    return { active: false, periodMilliseconds: 160, amplitudeX: 0, amplitudeY: 0 };
+  }
+  const normalized = Math.sqrt(level / 100);
+  return {
+    active: true,
+    periodMilliseconds: Math.round(165 - normalized * 65),
+    amplitudeX: Number((1.1 + normalized * 2.7).toFixed(3)),
+    amplitudeY: Number((0.55 + normalized * 1.25).toFixed(3)),
+  };
+}
+
 export interface GearmotorVisualPresentation {
   readonly motorDirection: MotorDirection;
   readonly outputDirection: MotorDirection;

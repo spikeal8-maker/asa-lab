@@ -1,6 +1,6 @@
 {
   "schema": "asa-lab.electronics-brushed-motor-reference-fixtures.v1",
-  "registryVersion": 1,
+  "registryVersion": 2,
   "profiles": [
     {
       "profileId": "adafruit-3777-tt-48to1",
@@ -74,6 +74,21 @@
           "noLoadSpeedRpm": 11500,
           "noLoadCurrentAmp": 0.07,
           "stallCurrentAmp": 0.8
+        }
+      ]
+    },
+    {
+      "profileId": "precision-microdrives-310-101-3v",
+      "profileVersion": 1,
+      "componentTypeId": "vibration-motor",
+      "fitReferenceVoltageVolt": 3,
+      "referencePoints": [
+        {
+          "sourceId": "precision-microdrives-310-101-datasheet",
+          "voltageVolt": 3,
+          "noLoadSpeedRpm": 12000,
+          "noLoadCurrentAmp": 0.075,
+          "stallCurrentAmp": 0.085
         }
       ]
     }

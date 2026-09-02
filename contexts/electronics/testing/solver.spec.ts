@@ -1015,6 +1015,91 @@ describe('deterministic DC solver', () => {
     });
   });
 
+  it('drives the owner coin vibration motor and reports mechanical vibration', () => {
+    const vibrationMotorDocument = doc(
+      [
+        component('source', 'source', 3),
+        component('vibration', 'visual', 3, {
+          componentTypeId: 'vibration-motor',
+          pinIds: ['negative', 'positive'],
+          stateProperties: {
+            motorAssemblyProfileId: 'precision-microdrives-310-101-3v',
+          },
+        }),
+      ],
+      [
+        connect('positive', 'source', 'a', 'vibration', 'positive'),
+        connect('negative', 'vibration', 'negative', 'source', 'b'),
+      ],
+    );
+    const result = solveCircuit(vibrationMotorDocument, { simulationTimeMs: 500 });
+    const vibrationMotor = result.components.find((item) => item.componentId === 'vibration');
+
+    expect(result.status).toBe('solved');
+    expect(vibrationMotor).toMatchObject({
+      energized: true,
+      direction: 'clockwise',
+      motorOperatingMode: 'running',
+      windingFailureMode: 'none',
+      operatingVoltageMinVolt: 2.5,
+      operatingVoltageMaxVolt: 3.8,
+      motorVoltageState: 'normal',
+    });
+    expect(vibrationMotor?.vibrationFrequencyHz).toBeCloseTo(200, 0);
+    expect(vibrationMotor?.vibrationAccelerationG).toBeCloseTo(0.8, 1);
+    expect(vibrationMotor?.vibrationLevelPercent).toBeCloseTo(100, 0);
+    expect(vibrationMotor?.current).toBeCloseTo(0.075, 2);
+
+    const reversedDocument = doc(
+      [
+        component('source', 'source', 3),
+        component('vibration', 'visual', 3, {
+          componentTypeId: 'vibration-motor',
+          pinIds: ['negative', 'positive'],
+        }),
+      ],
+      [
+        connect('positive', 'source', 'a', 'vibration', 'negative'),
+        connect('negative', 'vibration', 'positive', 'source', 'b'),
+      ],
+    );
+    const reversedResult = solveCircuit(reversedDocument, { simulationTimeMs: 500 });
+    const reversed = reversedResult.components.find((item) => item.componentId === 'vibration');
+    expect(reversed).toMatchObject({ energized: true, direction: 'counterclockwise' });
+    expect(reversed?.vibrationFrequencyHz).toBeCloseTo(
+      vibrationMotor?.vibrationFrequencyHz ?? 0,
+      6,
+    );
+    expect(reversedResult.diagnostics.map((diagnostic) => diagnostic.code)).not.toContain(
+      'motor_reverse_polarity',
+    );
+
+    const belowStartDocument = doc(
+      [
+        component('source', 'source', 1.5),
+        component('vibration', 'visual', 3, {
+          componentTypeId: 'vibration-motor',
+          pinIds: ['negative', 'positive'],
+        }),
+      ],
+      [
+        connect('positive', 'source', 'a', 'vibration', 'positive'),
+        connect('negative', 'vibration', 'negative', 'source', 'b'),
+      ],
+    );
+    const belowStartResult = solveCircuit(belowStartDocument, { simulationTimeMs: 500 });
+    const belowStart = belowStartResult.components.find((item) => item.componentId === 'vibration');
+    expect(belowStart).toMatchObject({
+      direction: 'stopped',
+      motorOperatingMode: 'stopped',
+      vibrationFrequencyHz: 0,
+      vibrationLevelPercent: 0,
+      motorVoltageState: 'below_range',
+      startingVoltageMinVolt: 2.3,
+    });
+    expect(Math.abs(belowStart?.current ?? 0)).toBeGreaterThan(0);
+  });
+
   it('advances the confirmed 1:48 gearmotor and reports its output shaft separately', () => {
     const gearmotorDocument = doc(
       [

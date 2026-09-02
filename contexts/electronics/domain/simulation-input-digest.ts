@@ -107,7 +107,8 @@ export function canonicalSimulationInput(
           (component) =>
             component.componentTypeId === 'electrolytic-capacitor' ||
             component.componentTypeId === 'dc-motor' ||
-            component.componentTypeId === 'gearmotor',
+            component.componentTypeId === 'gearmotor' ||
+            component.componentTypeId === 'vibration-motor',
         )
           ? 'transient'
           : 'dc',

@@ -201,6 +201,7 @@ const SIMULATED_TYPES = new Set([
   'piezo-disc',
   'dc-motor',
   'gearmotor',
+  'vibration-motor',
   'multimeter',
   'regulated-power-supply',
 ]);
@@ -416,14 +417,20 @@ function defaults(componentId: string): {
       unit: 'В',
       properties: { lampLevel: 'off' },
     };
-  if (componentId === 'dc-motor' || componentId === 'gearmotor')
+  if (
+    componentId === 'dc-motor' ||
+    componentId === 'gearmotor' ||
+    componentId === 'vibration-motor'
+  )
     return {
-      value: 6,
+      value: componentId === 'vibration-motor' ? 3 : 6,
       unit: 'В',
       properties:
         componentId === 'gearmotor'
           ? { motorAssemblyProfileId: 'adafruit-3777-tt-48to1' }
-          : {},
+          : componentId === 'vibration-motor'
+            ? { motorAssemblyProfileId: 'precision-microdrives-310-101-3v' }
+            : {},
     };
   if (componentId === 'multimeter')
     return {

@@ -509,6 +509,37 @@
     animation: none;
   }
 }
+.workbench-vibration-motor-visual .workbench-vibration-motor-moving-body {
+  transform-box: view-box;
+  transform-origin: 59.5px 59.5px;
+}
+.workbench-vibration-motor-visual[data-vibration-active='true']
+  .workbench-vibration-motor-moving-body {
+  animation: workbench-vibration-motor-case-motion var(--workbench-vibration-motor-period, 160ms)
+    linear infinite;
+  will-change: transform;
+}
+@keyframes workbench-vibration-motor-case-motion {
+  0%,
+  100% {
+    transform: translate(var(--workbench-vibration-motor-amplitude-x, 0), 0);
+  }
+  25% {
+    transform: translate(0, var(--workbench-vibration-motor-amplitude-y, 0));
+  }
+  50% {
+    transform: translate(calc(-1 * var(--workbench-vibration-motor-amplitude-x, 0)), 0);
+  }
+  75% {
+    transform: translate(0, calc(-1 * var(--workbench-vibration-motor-amplitude-y, 0)));
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .workbench-vibration-motor-visual .workbench-vibration-motor-moving-body {
+    animation: none;
+    transform: none;
+  }
+}
 .workbench-gearmotor-visual .workbench-gearmotor-output-bar {
   transform-box: view-box;
   transform-origin: 232px 207px;

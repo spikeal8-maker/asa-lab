@@ -1035,6 +1035,9 @@ export interface ComponentResult {
   direction?: 'clockwise' | 'counterclockwise' | 'stopped';
   motorRpm?: number;
   outputRpm?: number;
+  vibrationFrequencyHz?: number;
+  vibrationAccelerationG?: number;
+  vibrationLevelPercent?: number;
   motorAngularPhaseRadian?: number;
   motorOperatingMode?:
     'stopped' | 'starting' | 'running' | 'coasting' | 'reversing' | 'stalled' | 'failed';
@@ -1047,6 +1050,7 @@ export interface ComponentResult {
   outputMechanicalPowerWatt?: number;
   operatingVoltageMinVolt?: number;
   operatingVoltageMaxVolt?: number;
+  startingVoltageMinVolt?: number;
   motorVoltageState?: 'below_range' | 'normal' | 'overvoltage';
   windingFailureMode?: 'none' | 'winding_open';
   capacitanceFarad?: number;

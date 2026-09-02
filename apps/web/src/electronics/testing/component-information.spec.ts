@@ -324,6 +324,27 @@ describe('component information registry', () => {
     expect(sections[3]?.text).toContain('3–6 В');
   });
 
+  it('explains the source-backed coin vibration motor and its polarity behaviour', () => {
+    const profile = componentInformationProfile('vibration-motor', 'visual');
+    expect(profile.technicalMetrics.map((metric) => metric.metricId)).toEqual([
+      'voltage-drop',
+      'current',
+      'power',
+    ]);
+    expect(profile.terminalPresentation).toBe('full');
+    const sections = componentHelpSections('visual', 'Вибромотор.', 'vibration-motor');
+    expect(sections.map((section) => section.title)).toEqual([
+      'Что имитируется',
+      'Что показывает моделирование',
+      'Полярность',
+      'Питание и пределы',
+    ]);
+    expect(sections[0]?.text).toContain('ERM');
+    expect(sections[1]?.text).toContain('200 Гц');
+    expect(sections[2]?.text).toContain('продолжает вибрировать');
+    expect(sections[3]?.text).toContain('2,5–3,8 В');
+  });
+
   it('explains truthful DC voltage, current, and resistance measurement', () => {
     const sections = componentHelpSections('visual', 'Мультиметр.', 'multimeter');
     expect(sections.map((section) => section.title)).toEqual([

@@ -1,7 +1,10 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import type { ElectronicsDocument, SchematicComponent } from '../domain/document.js';
-import { resolveElectricalModelIdentity } from '../domain/model-identity.js';
+import {
+  electricalModelIdentityForComponent,
+  resolveElectricalModelIdentity,
+} from '../domain/model-identity.js';
 import { electricalModelFor } from '../domain/model-registry.js';
 import {
   BRUSHED_MOTOR_ASSEMBLY_PROFILES,
@@ -17,7 +20,10 @@ import {
 } from '../domain/models/brushed-motor-profiles.js';
 import { simulationInputDigest } from '../domain/simulation-input-digest.js';
 
-function motor(componentTypeId: 'dc-motor' | 'gearmotor', profileId?: string): SchematicComponent {
+function motor(
+  componentTypeId: 'dc-motor' | 'gearmotor' | 'vibration-motor',
+  profileId?: string,
+): SchematicComponent {
   return {
     id: componentTypeId,
     kind: 'visual',
@@ -48,6 +54,7 @@ describe('MATH-5A brushed motor reference profiles', () => {
       'pololu-1117-130-6v',
       'adafruit-3777-tt-48to1',
       'adafruit-3801-tt-bimetal-90to1',
+      'precision-microdrives-310-101-3v',
     ]);
     expect(BRUSHED_MOTOR_PROFILE_SOURCES.every((source) => source.url.length > 0)).toBe(true);
     const canonical = canonicalBrushedMotorProfileRegistry();
@@ -55,6 +62,7 @@ describe('MATH-5A brushed motor reference profiles', () => {
     expect(canonical).not.toMatch(/NaN|Infinity/);
     expect(canonical).toContain('educational_assumption');
     expect(canonical).toContain('math_5b_required');
+    expect(canonical).toContain('math_8b_required');
   });
 
   it('matches the checked-in numeric vendor reference fixture exactly', () => {
@@ -115,10 +123,35 @@ describe('MATH-5A brushed motor reference profiles', () => {
     ).toBe(true);
   });
 
+  it('binds the owner coin ERM to its 3 V source-backed vibration profile', () => {
+    const profile = brushedMotorProfile('precision-microdrives-310-101-3v');
+    expect(profile).toMatchObject({
+      componentTypeId: 'vibration-motor',
+      activation: 'math_8b_required',
+      operatingVoltageMin: { value: 2.5, basis: 'vendor_reported' },
+      operatingVoltageMax: { value: 3.8, basis: 'vendor_reported' },
+      startingVoltageMin: { value: 2.3, basis: 'vendor_reported' },
+      ratedVibrationAccelerationG: { value: 0.8, basis: 'vendor_reported' },
+      transmission: { gearRatio: { value: 1 }, material: 'none' },
+    });
+    expect(profile?.referencePoints).toEqual([
+      expect.objectContaining({
+        voltageVolt: 3,
+        noLoadSpeedRpm: 12_000,
+        noLoadCurrentAmp: 0.075,
+        stallCurrentAmp: 0.085,
+      }),
+    ]);
+  });
+
   it('resolves only registered profiles compatible with the placed component', () => {
     expect(resolveBrushedMotorProfileSelection(motor('dc-motor'))).toMatchObject({
       ok: true,
       profile: { profileId: DEFAULT_BRUSHED_MOTOR_PROFILE_IDS['dc-motor'] },
+    });
+    expect(resolveBrushedMotorProfileSelection(motor('vibration-motor'))).toMatchObject({
+      ok: true,
+      profile: { profileId: DEFAULT_BRUSHED_MOTOR_PROFILE_IDS['vibration-motor'] },
     });
     expect(
       resolveBrushedMotorProfileSelection(motor('gearmotor', 'adafruit-3801-tt-bimetal-90to1')),
@@ -138,7 +171,7 @@ describe('MATH-5A brushed motor reference profiles', () => {
     expect(simulationInputDigest(ratio48)).not.toBe(simulationInputDigest(ratio90));
   });
 
-  it('activates the confirmed direct-motor and 1:48 gearmotor profiles', () => {
+  it('activates the confirmed direct, gear and vibration motor profiles', () => {
     expect(resolveElectricalModelIdentity(motor('dc-motor'))).toMatchObject({
       electricalModelId: 'dc-motor',
       modelProfileId: 'pololu-1117-130-6v',
@@ -146,6 +179,27 @@ describe('MATH-5A brushed motor reference profiles', () => {
     expect(resolveElectricalModelIdentity(motor('gearmotor'))).toMatchObject({
       electricalModelId: 'dc-motor',
       modelProfileId: 'adafruit-3777-tt-48to1',
+    });
+    expect(resolveElectricalModelIdentity(motor('vibration-motor'))).toMatchObject({
+      electricalModelId: 'dc-motor',
+      modelProfileId: 'precision-microdrives-310-101-3v',
+    });
+    expect(electricalModelFor(motor('vibration-motor'))).toMatchObject({
+      id: 'dc-motor',
+      support: 'supported',
+      topology: 'two-terminal',
+    });
+    expect(
+      electricalModelIdentityForComponent({
+        ...motor('vibration-motor'),
+        electricalModelId: 'unsupported',
+        electricalModelVersion: 1,
+        modelProfileId: 'unsupported-vibration-motor',
+        modelProfileVersion: 1,
+      }),
+    ).toMatchObject({
+      electricalModelId: 'dc-motor',
+      modelProfileId: 'precision-microdrives-310-101-3v',
     });
     expect(electricalModelFor(motor('gearmotor'))).toMatchObject({
       id: 'dc-motor',
