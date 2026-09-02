@@ -4,11 +4,14 @@ type MaxBridgeGlobal = typeof globalThis & {
   readonly WebApp?: { readonly initData?: unknown };
 };
 
+export function isMaxLaunchLocation(location: Location = window.location): boolean {
+  return (location.pathname.replace(/\/+$/, '') || '/') === MAX_LAUNCH_PATH;
+}
+
 /** MAX Bridge is the canonical source. The fragment fallback keeps older MAX
  * clients compatible without putting the signed value in an HTTP request. */
 export function readMaxInitData(location: Location = window.location): string | null {
-  const pathname = location.pathname.replace(/\/+$/, '') || '/';
-  if (pathname !== MAX_LAUNCH_PATH) return null;
+  if (!isMaxLaunchLocation(location)) return null;
   const bridgeValue = (globalThis as MaxBridgeGlobal).WebApp?.initData;
   if (
     typeof bridgeValue === 'string' &&

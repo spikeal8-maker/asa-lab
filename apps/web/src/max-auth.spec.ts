@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { readMaxInitData } from './max-auth';
+import { isMaxLaunchLocation, readMaxInitData } from './max-auth';
 
 function location(pathname: string, hash = ''): Location {
   return { pathname, hash } as Location;
@@ -10,6 +10,12 @@ afterEach(() => {
 });
 
 describe('MAX mini-app launch data', () => {
+  it('recognizes the dedicated mini-app path even before Bridge supplies initData', () => {
+    expect(isMaxLaunchLocation(location('/max-login'))).toBe(true);
+    expect(isMaxLaunchLocation(location('/max-login/'))).toBe(true);
+    expect(isMaxLaunchLocation(location('/'))).toBe(false);
+  });
+
   it('prefers the signed value from MAX Bridge', () => {
     (globalThis as typeof globalThis & { WebApp?: unknown }).WebApp = {
       initData: 'query_id=bridge&hash=signed',

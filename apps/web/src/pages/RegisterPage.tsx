@@ -26,17 +26,73 @@ export function RegisterPage({
   const [message, setMessage] = useState<string | null>(null);
   const [botProof, setBotProof] = useState<BotProof | null>(null);
   const [botReset, setBotReset] = useState(0);
+  const [maxLaunchUrl, setMaxLaunchUrl] = useState<string | null>(null);
+  const [pairingToken, setPairingToken] = useState<string | null>(null);
+  const [pairingLaunchUrl, setPairingLaunchUrl] = useState<string | null>(null);
   const [localPreviewEnabled, setLocalPreviewEnabled] = useState(false);
 
   useEffect(() => {
     let active = true;
+    if (!maxInitData) {
+      void api.maxConfig().then((result) => {
+        if (active && result.ok && result.data.enabled) setMaxLaunchUrl(result.data.launchUrl);
+      });
+    }
     void api.localPreviewConfig().then((result) => {
       if (active && result.ok) setLocalPreviewEnabled(result.data.enabled);
     });
     return () => {
       active = false;
     };
-  }, []);
+  }, [maxInitData]);
+
+  useEffect(() => {
+    if (!pairingToken) return;
+    let active = true;
+    let timer: number | null = null;
+    const check = async (): Promise<void> => {
+      const result = await api.completeMaxPairing(pairingToken);
+      if (!active) return;
+      if (result.ok && result.data.status === 'authenticated') {
+        setPairingToken(null);
+        onRegistered(result.data.session);
+        return;
+      }
+      if (!result.ok && result.status !== 0) {
+        setPairingToken(null);
+        setMessage(
+          result.error.code === 'max_pairing_expired'
+            ? 'Время входа истекло. Откройте MAX ещё раз.'
+            : 'Не удалось завершить вход через MAX.',
+        );
+        return;
+      }
+      timer = window.setTimeout(() => void check(), 6_000);
+    };
+    timer = window.setTimeout(() => void check(), 2_000);
+    return () => {
+      active = false;
+      if (timer !== null) window.clearTimeout(timer);
+    };
+  }, [onRegistered, pairingToken]);
+
+  async function openMax(): Promise<void> {
+    const popup = window.open('', '_blank');
+    if (popup) popup.opener = null;
+    setBusy(true);
+    setMessage(null);
+    const result = await api.startMaxPairing();
+    setBusy(false);
+    if (!result.ok) {
+      popup?.close();
+      setMessage('Не удалось создать вход через MAX. Попробуйте ещё раз.');
+      return;
+    }
+    setPairingToken(result.data.pairingToken);
+    setPairingLaunchUrl(result.data.launchUrl);
+    setMessage('Продолжите в MAX, затем вернитесь в эту вкладку. Вход завершится автоматически.');
+    if (popup) popup.location.href = result.data.launchUrl;
+  }
 
   async function enterLocalPreview(): Promise<void> {
     setBusy(true);
@@ -200,6 +256,21 @@ export function RegisterPage({
             </button>
           </div>
         </form>
+        {maxLaunchUrl && !maxInitData ? (
+          <button
+            type="button"
+            className="btn-secondary max-login-button"
+            disabled={busy || pairingToken !== null}
+            onClick={() => void openMax()}
+          >
+            {pairingToken ? 'Ждём подтверждение в MAX…' : 'Продолжить через MAX'}
+          </button>
+        ) : null}
+        {pairingLaunchUrl && pairingToken ? (
+          <a className="auth-max-fallback" href={pairingLaunchUrl} target="_blank" rel="noreferrer">
+            MAX не открылся? Открыть ещё раз
+          </a>
+        ) : null}
         {localPreviewEnabled && !maxInitData ? (
           <button
             type="button"

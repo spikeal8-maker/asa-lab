@@ -327,6 +327,7 @@ export class MaxAuthService {
   private readonly fetchImpl: typeof fetch;
   private readonly staticRuntime: MaxRuntimeRow | null;
   private webhookSync: Promise<void> | null = null;
+  private webhookNextSyncAt = 0;
 
   constructor(
     private readonly pool: pg.Pool,
@@ -368,7 +369,8 @@ export class MaxAuthService {
   async config(): Promise<{ enabled: boolean; launchUrl: string | null }> {
     const runtime = await this.runtime();
     const token = this.runtimeToken(runtime);
-    if (!this.staticRuntime && runtime.enabled && token) {
+    if (!this.staticRuntime && runtime.enabled && token && this.now() >= this.webhookNextSyncAt) {
+      this.webhookNextSyncAt = this.now() + 15 * 60 * 1000;
       void this.ensureWebhookSubscription().catch(() => undefined);
     }
     return {
