@@ -74,42 +74,19 @@
 
 ## Реальные интерфейсы
 
-Ниже показаны актуальные экраны ASA Lab: общее рабочее пространство, личные проекты и предметные редакторы.
-
-### Рабочее пространство и проекты
-
 <table>
   <tr>
     <td width="50%" valign="top">
-      <img src="e2e/artifacts/readme-current/home-dashboard.webp" width="100%" alt="Главная страница ASA Lab с последними проектами" />
-      <br />
-      <strong>Главная</strong><br />
-      Единая стартовая страница с последними 3D-, электронными и игровыми проектами.
-    </td>
-    <td width="50%" valign="top">
-      <img src="e2e/artifacts/readme-current/projects-dashboard.webp" width="100%" alt="Раздел Мои проекты в ASA Lab" />
-      <br />
-      <strong>Мои проекты</strong><br />
-      Поиск, фильтры и общая галерея личных проектов из разных предметных сред.
-    </td>
-  </tr>
-</table>
-
-### Предметные редакторы
-
-<table>
-  <tr>
-    <td width="50%" valign="top">
-      <img src="e2e/artifacts/readme-current/electronics-editor.webp" width="100%" alt="Обновлённый редактор виртуальной электроники ASA Lab" />
+      <img src="e2e/artifacts/docker-electronics.png" width="100%" alt="Редактор виртуальной электроники ASA Lab" />
       <br />
       <strong>Виртуальная электроника</strong><br />
-      Arduino, компоненты, соединения, моделирование и диагностика внутри проекта.
+      Сборка схем, компоненты, симуляция и диагностика внутри проекта.
     </td>
     <td width="50%" valign="top">
-      <img src="e2e/artifacts/readme-current/three-d-editor.webp" width="100%" alt="Обновлённый редактор 3D-моделирования ASA Lab" />
+      <img src="e2e/artifacts/three-d-desktop.png" width="100%" alt="Редактор 3D-моделирования ASA Lab" />
       <br />
       <strong>3D-моделирование</strong><br />
-      Рабочая плоскость, библиотека форм, прямое редактирование и экспорт моделей.
+      Рабочая плоскость, базовые формы, преобразования и жизненный цикл модели.
     </td>
   </tr>
   <tr>
@@ -127,12 +104,6 @@
     </td>
   </tr>
 </table>
-
-### Блочное управление и сгенерированный код
-
-В редакторе электроники визуальная программа связана со схемой, а рядом отображается сгенерированный C++-код.
-
-<img src="e2e/artifacts/readme-current/electronics-blocks-code.webp" width="100%" alt="Блочное управление электронной схемой и сгенерированный C++-код в ASA Lab" />
 
 ### Классы, задания и прогресс
 
