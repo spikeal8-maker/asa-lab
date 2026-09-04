@@ -21,6 +21,8 @@ describe('LoginPage entry methods', () => {
     expect(html).toContain('aria-label="На главную ASA Lab"');
     expect(html).toContain('data-testid="login-class-code"');
     expect(html).toContain('>Код класса</button>');
+    expect(html).toContain('data-testid="login-organization"');
+    expect(html).toContain('>Для организации</button>');
   });
 
   it('does not interrupt a MAX account-linking login with unrelated entry methods', () => {

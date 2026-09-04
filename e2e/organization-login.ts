@@ -15,7 +15,7 @@ export async function loginWithOrganization(
     .getByRole('button', { name: 'Войти', exact: true })
     .or(page.getByRole('link', { name: 'Войти', exact: true }))
     .click();
-  await page.getByRole('button', { name: 'Вход через организацию' }).click();
+  await page.getByTestId('login-organization').click();
   await page.getByLabel('Код организации').fill(credentials.workspace);
   await page.getByLabel('Email', { exact: true }).fill(credentials.email);
   await page.getByLabel('Пароль').fill(credentials.password);

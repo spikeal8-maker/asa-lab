@@ -248,7 +248,12 @@ export function LoginPage({
           </button>
         </p>
         <p className="auth-organization-link">
-          <button type="button" className="link-button link-muted" onClick={onOrganizationLogin}>
+          <button
+            type="button"
+            className="link-button link-muted"
+            data-testid="login-organization"
+            onClick={onOrganizationLogin}
+          >
             Для организации
           </button>
         </p>

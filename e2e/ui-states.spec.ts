@@ -36,7 +36,7 @@ test('session-check failure is explicit and can be retried', async ({ page }) =>
   await expect(page.getByRole('alert')).toContainText('Не удалось проверить активную сессию');
   await page.getByRole('button', { name: 'Повторить' }).click();
   await page.getByTestId('entry-sign-in').click();
-  await page.getByRole('button', { name: 'Вход через организацию' }).click();
+  await page.getByTestId('login-organization').click();
   await expect(page.getByLabel('Код организации')).toBeVisible();
 });
 

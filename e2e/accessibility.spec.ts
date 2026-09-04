@@ -124,7 +124,7 @@ test('critical controls have names and reduced motion disables skeleton animatio
   await page.goto('/');
 
   await page.getByTestId('entry-sign-in').click();
-  await page.getByRole('button', { name: 'Вход через организацию' }).click();
+  await page.getByTestId('login-organization').click();
   await expect(page.getByLabel('Код организации')).toBeVisible();
   await expect(page.getByLabel('Email', { exact: true })).toBeVisible();
   await expect(page.getByLabel('Пароль')).toBeVisible();
