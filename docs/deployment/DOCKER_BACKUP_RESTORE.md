@@ -17,6 +17,14 @@ Select another running profile explicitly:
 ```bash
 ASA_COMPOSE_PROFILE=dev bash tools/docker-backup.sh backups/asa-lab-dev.dump
 ASA_COMPOSE_PROFILE=staging bash tools/docker-backup.sh backups/asa-lab-staging.dump
+ASA_COMPOSE_PROFILE=production bash tools/docker-backup.sh backups/asa-lab-production.dump
+```
+
+On Windows, use the native PowerShell helper; it copies the binary dump out of
+the container without passing it through text redirection:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\tools\docker-backup.ps1 -Profile production -Output backups/asa-lab-production.dump
 ```
 
 Store verified backups outside the checkout according to the operator's

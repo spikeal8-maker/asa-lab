@@ -16,9 +16,9 @@ esac
 test -s "$backup"
 
 case "$profile" in
-  base|dev|test|staging) ;;
+  base|dev|test|staging|production) ;;
   *)
-    echo "ASA_COMPOSE_PROFILE must be base, dev, test or staging" >&2
+    echo "ASA_COMPOSE_PROFILE must be base, dev, test, staging or production" >&2
     exit 64
     ;;
 esac

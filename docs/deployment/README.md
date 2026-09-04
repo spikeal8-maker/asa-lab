@@ -9,10 +9,15 @@ real application readiness endpoint.
 
 Operator references:
 
-- [`LINUX_DOCKER_DEPLOYMENT.md`](LINUX_DOCKER_DEPLOYMENT.md) — staging and TLS boundary;
+- [`LINUX_DOCKER_DEPLOYMENT.md`](LINUX_DOCKER_DEPLOYMENT.md) — Linux production,
+  staging and TLS boundary;
 - [`WINDOWS11_WSL2_DOCKER.md`](WINDOWS11_WSL2_DOCKER.md) — WSL2 development option;
 - [`DOCKER_BACKUP_RESTORE.md`](DOCKER_BACKUP_RESTORE.md) — guarded backup and restore;
 - [`DOCKER_TROUBLESHOOTING.md`](DOCKER_TROUBLESHOOTING.md) — diagnostics and safe cleanup.
 
 Historical infrastructure task state remains in the delivery/governance
 documents. Deployment instructions always target the current `main` branch.
+
+Production uses the tracked `compose.production.yaml` overlay. Host-specific
+credentials, database dumps and optional transport overlays such as
+`compose.frp.yaml` stay local and must never be committed.

@@ -77,6 +77,7 @@ services:
       API_HOST: 0.0.0.0
       API_PORT: 4611
       ASA_WEB_PORT: ${ASA_WEB_PORT:-4610}
+      ASA_EXPECTED_SCHEMA_VERSION: ${ASA_EXPECTED_SCHEMA_VERSION:-}
       APP_DATABASE_URL: ${APP_DATABASE_URL:-postgres://asalab_app:asa-local-runtime-change-me@postgres:5432/asalab}
       ASA_SETTINGS_ENCRYPTION_KEY: ${ASA_SETTINGS_ENCRYPTION_KEY:-}
     expose:

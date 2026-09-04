@@ -10,6 +10,7 @@ const OVERLAYS = {
   dev: ['compose.dev.yaml'],
   test: ['compose.test.yaml'],
   staging: ['compose.staging.yaml'],
+  production: ['compose.production.yaml'],
 };
 const REQUIRED_FILES = [
   BASE_PATH,
@@ -23,6 +24,7 @@ const REQUIRED_FILES = [
   'docker/web/Caddyfile',
   'tools/asa-lab.sh',
   'tools/asa-lab.ps1',
+  'tools/docker-backup.ps1',
   'docs/deployment/QUICK_START.md',
 ];
 const FORBIDDEN_PORTS = new Set([3000, 3100, 5173]);
@@ -31,6 +33,7 @@ const EXPECTED_PORTS = {
   dev: [4610, 4611],
   test: [4612],
   staging: [4610],
+  production: [4610],
 };
 const errors = [];
 
@@ -58,7 +61,13 @@ for (const path of portableDeploymentFiles) {
 const quickStart = existsSync('docs/deployment/QUICK_START.md')
   ? readFileSync('docs/deployment/QUICK_START.md', 'utf8')
   : '';
-for (const marker of ['tools/asa-lab.sh up', 'tools\\asa-lab.ps1 up', 'Node.js, pnpm']) {
+for (const marker of [
+  'tools/asa-lab.sh up',
+  'tools\\asa-lab.ps1 up',
+  'Profile production',
+  'ASA_COMPOSE_PROFILE=production',
+  'Node.js, pnpm',
+]) {
   if (quickStart && !quickStart.includes(marker)) {
     errors.push(`docs/deployment/QUICK_START.md: missing portability marker ${marker}`);
   }
@@ -70,16 +79,19 @@ const shellBootstrap = existsSync('tools/asa-lab.sh')
 const powershellBootstrap = existsSync('tools/asa-lab.ps1')
   ? readFileSync('tools/asa-lab.ps1', 'utf8')
   : '';
-for (const [path, source] of [
-  ['tools/asa-lab.sh', shellBootstrap],
-  ['tools/asa-lab.ps1', powershellBootstrap],
+for (const [path, source, markers] of [
+  [
+    'tools/asa-lab.sh',
+    shellBootstrap,
+    ['compose.yaml', 'compose.${profile}.yaml', 'health/ready', 'ASA_SEED_TEACHER_PASSWORD'],
+  ],
+  [
+    'tools/asa-lab.ps1',
+    powershellBootstrap,
+    ['compose.yaml', 'compose.$Profile.yaml', 'health/ready', 'ASA_SEED_TEACHER_PASSWORD'],
+  ],
 ]) {
-  for (const marker of [
-    'compose.yaml',
-    'compose.dev.yaml',
-    'health/ready',
-    'ASA_SEED_TEACHER_PASSWORD',
-  ]) {
+  for (const marker of markers) {
     if (source && !source.includes(marker)) {
       errors.push(`${path}: missing bootstrap marker ${marker}`);
     }
@@ -206,6 +218,8 @@ for (const [profile, overlays] of Object.entries(OVERLAYS)) {
       APP_DATABASE_URL:
         'postgres://asalab_app:compose-validation-runtime-password@postgres:5432/asalab',
       ASA_SETTINGS_ENCRYPTION_KEY: 'compose-validation-placeholder',
+      ASA_EXPECTED_SCHEMA_VERSION: '102',
+      ASA_PUBLIC_WEB_ORIGINS: 'https://asa-lab.ru',
     },
   });
   if (result.status !== 0) {
@@ -231,6 +245,20 @@ for (const [profile, overlays] of Object.entries(OVERLAYS)) {
     'compose-validation-placeholder'
   ) {
     errors.push(`${profile}/api: runtime settings encryption key was not preserved`);
+  }
+  if (config.services?.api?.environment?.ASA_EXPECTED_SCHEMA_VERSION !== '102') {
+    errors.push(`${profile}/api: expected schema version was not preserved`);
+  }
+  if (profile === 'production') {
+    if (config.services?.api?.environment?.NODE_ENV !== 'production') {
+      errors.push('production/api: NODE_ENV must be production');
+    }
+    if (config.services?.migration?.environment?.ASA_SEED_DEV !== 'false') {
+      errors.push('production/migration: development seed must be disabled');
+    }
+    if (!config.services?.api?.environment?.ASA_PUBLIC_WEB_ORIGINS) {
+      errors.push('production/api: public browser origins must be configured');
+    }
   }
   const published = [];
   for (const [name, service] of Object.entries(config.services ?? {})) {
@@ -277,6 +305,6 @@ function finish() {
   }
   console.log('compose:check PASS');
   console.log(`- services: ${expectedServices.join(', ')}`);
-  console.log('- profiles: base, dev, test, staging');
+  console.log('- profiles: base, dev, test, staging, production');
   console.log('- PostgreSQL internal, loopback ports and non-root security verified');
 }

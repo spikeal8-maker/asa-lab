@@ -23,6 +23,7 @@ crates/**/pkg/
 !.env.example
 seed-teacher-credentials.txt
 *-credentials.txt
+/compose.frp.yaml
 
 # Local database backups and runtime data
 /backups/

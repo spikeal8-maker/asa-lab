@@ -4,9 +4,9 @@ set -eu
 profile=${1:-dev}
 
 case "$profile" in
-  base|dev|test|staging) ;;
+  base|dev|test|staging|production) ;;
   *)
-    echo "usage: $0 [base|dev|test|staging]" >&2
+    echo "usage: $0 [base|dev|test|staging|production]" >&2
     exit 64
     ;;
 esac

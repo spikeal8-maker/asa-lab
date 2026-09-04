@@ -2,17 +2,44 @@
 set -eu
 
 action=${1:-up}
+profile=${ASA_COMPOSE_PROFILE:-dev}
 script_dir=$(CDPATH= cd -- "$(dirname "$0")" && pwd)
 repo_root=$(CDPATH= cd -- "$script_dir/.." && pwd)
 cd "$repo_root"
+
+case "$profile" in
+  base|dev|test|staging|production) ;;
+  *)
+    echo "ASA_COMPOSE_PROFILE must be base, dev, test, staging or production" >&2
+    exit 64
+    ;;
+esac
 
 if [ -z "${ASA_BUILD_REVISION:-}" ]; then
   ASA_BUILD_REVISION=$(git -c safe.directory="$repo_root" rev-parse HEAD 2>/dev/null || printf unknown)
   export ASA_BUILD_REVISION
 fi
 
+if [ -z "${ASA_EXPECTED_SCHEMA_VERSION:-}" ]; then
+  ASA_EXPECTED_SCHEMA_VERSION=$(
+    for migration in migrations/*.sql; do basename "$migration"; done |
+      sed -n 's/^0*\([0-9][0-9]*\)_.*/\1/p' |
+      sort -n |
+      tail -n 1
+  )
+  if [ -z "$ASA_EXPECTED_SCHEMA_VERSION" ]; then
+    echo "No numbered SQL migrations were found." >&2
+    exit 78
+  fi
+  export ASA_EXPECTED_SCHEMA_VERSION
+fi
+
 compose() {
-  docker compose -f compose.yaml -f compose.dev.yaml "$@"
+  if [ "$profile" = "base" ]; then
+    docker compose -f compose.yaml "$@"
+  else
+    docker compose -f compose.yaml -f "compose.${profile}.yaml" "$@"
+  fi
 }
 
 require_docker() {
@@ -30,6 +57,10 @@ random_hex() {
 }
 
 create_environment() {
+  case "$profile" in
+    staging|production) production_like=true ;;
+    *) production_like=false ;;
+  esac
   if [ -f .env ]; then
     if grep -Eq 'replace-with|CHANGE_ME|change-me' .env; then
       echo ".env still contains placeholder credentials; replace them or remove .env and rerun." >&2
@@ -46,6 +77,11 @@ create_environment() {
       printf '\nASA_SETTINGS_ENCRYPTION_KEY=%s\n' "$(random_hex 32)" >>.env
       echo "Added a private runtime settings encryption key to .env."
     fi
+    if [ "$production_like" = true ] && ! grep -Eq '^ASA_SEED_DEV=false[[:space:]]*$' .env; then
+      echo "$profile requires ASA_SEED_DEV=false in .env." >&2
+      echo "Refusing to seed development accounts into a production-like database." >&2
+      exit 78
+    fi
     return
   fi
 
@@ -55,11 +91,17 @@ create_environment() {
   settings_encryption_key=$(random_hex 32)
   uid=$(id -u 2>/dev/null || printf 1000)
   gid=$(id -g 2>/dev/null || printf 1000)
+  case "$profile" in
+    production) project_name=asa-lab-production ;;
+    staging) project_name=asa-lab-staging ;;
+    *) project_name=asa-lab-dev ;;
+  esac
+  if [ "$production_like" = true ]; then seed_dev=false; else seed_dev=true; fi
 
   umask 077
   cat >.env <<EOF
 # Generated locally by tools/asa-lab.sh. Never commit this file.
-COMPOSE_PROJECT_NAME=asa-lab-dev
+COMPOSE_PROJECT_NAME=$project_name
 ASA_IMAGE_TAG=local
 ASA_TEST_UID=$uid
 ASA_TEST_GID=$gid
@@ -76,7 +118,7 @@ ASA_SETTINGS_ENCRYPTION_KEY=$settings_encryption_key
 
 ASA_WEB_PORT=4610
 ASA_API_PORT=4611
-ASA_SEED_DEV=true
+ASA_SEED_DEV=$seed_dev
 ASA_SEED_WORKSPACE=school-1580
 ASA_SEED_TEACHER_EMAIL=teacher@school-1580.local
 ASA_SEED_TEACHER_PASSWORD=$teacher_password
@@ -118,8 +160,11 @@ show_access() {
   echo
   echo "ASA Lab is ready: http://127.0.0.1:4610"
   echo "Revision: $ASA_BUILD_REVISION"
-  echo "Teacher: $(environment_value ASA_SEED_TEACHER_EMAIL)"
-  echo "Password: $(environment_value ASA_SEED_TEACHER_PASSWORD)"
+  echo "Schema: $ASA_EXPECTED_SCHEMA_VERSION"
+  if [ "$(environment_value ASA_SEED_DEV)" = "true" ]; then
+    echo "Teacher: $(environment_value ASA_SEED_TEACHER_EMAIL)"
+    echo "Password: $(environment_value ASA_SEED_TEACHER_PASSWORD)"
+  fi
   echo "Credentials are stored only in .env."
 }
 
@@ -129,7 +174,9 @@ case "$action" in
     create_environment
     compose config --quiet
     echo "Deployment doctor PASS: Docker, Compose and private configuration are ready."
+    echo "Profile: $profile"
     echo "Revision: $ASA_BUILD_REVISION"
+    echo "Schema: $ASA_EXPECTED_SCHEMA_VERSION"
     ;;
   up)
     require_docker

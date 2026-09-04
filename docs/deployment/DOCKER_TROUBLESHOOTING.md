@@ -20,6 +20,7 @@ For an overlay, include the same files used to start it:
 docker compose -f compose.yaml -f compose.dev.yaml ps -a
 docker compose -f compose.yaml -f compose.test.yaml ps -a
 docker compose -f compose.yaml -f compose.staging.yaml ps -a
+docker compose -f compose.yaml -f compose.production.yaml ps -a
 ```
 
 ## Migration does not complete
@@ -91,6 +92,7 @@ bash tools/docker-down.sh base
 bash tools/docker-down.sh dev
 bash tools/docker-down.sh test
 bash tools/docker-down.sh staging
+bash tools/docker-down.sh production
 ```
 
 These commands preserve volumes. Never run `docker system prune` or

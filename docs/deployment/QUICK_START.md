@@ -51,7 +51,7 @@ cd asa-lab
 | Действие | Windows | Linux/WSL2 |
 | --- | --- | --- |
 | Проверить компьютер без запуска | `powershell -ExecutionPolicy Bypass -File .\tools\asa-lab.ps1 doctor` | `./tools/asa-lab.sh doctor` |
-| Запустить или обновить | `powershell -ExecutionPolicy Bypass -File .\tools\asa-lab.ps1 up` | `./tools/asa-lab.sh up` |
+| Собрать или запустить текущий checkout | `powershell -ExecutionPolicy Bypass -File .\tools\asa-lab.ps1 up` | `./tools/asa-lab.sh up` |
 | Проверить готовность | `powershell -ExecutionPolicy Bypass -File .\tools\asa-lab.ps1 health` | `./tools/asa-lab.sh health` |
 | Показать состояние | `powershell -ExecutionPolicy Bypass -File .\tools\asa-lab.ps1 status` | `./tools/asa-lab.sh status` |
 | Показать последние логи | `powershell -ExecutionPolicy Bypass -File .\tools\asa-lab.ps1 logs` | `./tools/asa-lab.sh logs` |
@@ -60,21 +60,49 @@ cd asa-lab
 Повторный `up` не пересоздаёт `.env` и не удаляет данные. Команда `down`
 останавливает только Compose-проект `asa-lab-dev` и сохраняет PostgreSQL volume.
 
-## Обновление
-
-Перед обновлением сделайте резервную копию по инструкции
-[`DOCKER_BACKUP_RESTORE.md`](DOCKER_BACKUP_RESTORE.md), затем выполните:
-
-```bash
-git pull --ff-only
-./tools/asa-lab.sh up
-```
-
-В Windows последняя команда выглядит так:
+Для production используется отдельный профиль. Он включает `NODE_ENV=production`,
+запрещает тестовое наполнение БД и оставляет наружу только Web на `127.0.0.1:4610`:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\tools\asa-lab.ps1 up
+powershell -ExecutionPolicy Bypass -File .\tools\asa-lab.ps1 -Action up -Profile production
 ```
+
+```bash
+ASA_COMPOSE_PROFILE=production ./tools/asa-lab.sh up
+```
+
+На уже работающей установке не меняйте `COMPOSE_PROJECT_NAME`: имя определяет,
+какой PostgreSQL volume подключит Compose. Для production в `.env` обязательно
+должно быть `ASA_SEED_DEV=false`.
+
+## Обновление
+
+`up` не загружает код из GitHub. Безопасное обновление состоит из отдельных,
+проверяемых шагов: резервная копия, fast-forward `main`, сборка, запуск и
+readiness. Для production на Linux выполните:
+
+```bash
+ASA_COMPOSE_PROFILE=production bash tools/docker-backup.sh "backups/pre-update-$(date +%Y%m%d-%H%M%S).dump"
+git fetch origin main
+git pull --ff-only origin main
+ASA_COMPOSE_PROFILE=production ./tools/asa-lab.sh up
+curl --fail http://127.0.0.1:4610/health/ready
+```
+
+В Windows:
+
+```powershell
+$stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
+powershell -ExecutionPolicy Bypass -File .\tools\docker-backup.ps1 -Profile production -Output "backups/pre-update-$stamp.dump"
+git fetch origin main
+git pull --ff-only origin main
+powershell -ExecutionPolicy Bypass -File .\tools\asa-lab.ps1 -Action up -Profile production
+Invoke-RestMethod http://127.0.0.1:4610/health/ready
+```
+
+Готовность считается подтверждённой только когда ответ содержит фактическую и
+ожидаемую версии схемы и `synchronized: true`. При ошибке не удаляйте volume и
+не восстанавливайте дамп поверх рабочей БД автоматически — сначала изучите логи.
 
 ## Доступ из локальной сети или интернета
 

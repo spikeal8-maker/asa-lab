@@ -1,8 +1,8 @@
 # Linux Docker deployment
 
 The same Compose model used through WSL2 is portable to a regular x86-64 Linux
-Docker host. The staging profile serves the production Web build through Caddy;
-it does not run the Vite development server.
+Docker host. The production profile serves the Web build through Caddy; it does
+not run the Vite development server or publish PostgreSQL and API host ports.
 
 ## Host and checkout
 
@@ -48,16 +48,30 @@ chmod 600 .env
 For a local single-computer installation, use [`QUICK_START.md`](QUICK_START.md)
 instead; its helper generates consistent private credentials automatically.
 
+## Production environment
+
+Use the tracked `compose.production.yaml` overlay. In the private `.env`, set a
+stable `COMPOSE_PROJECT_NAME` once, set `ASA_SEED_DEV=false`, and configure
+`ASA_PUBLIC_WEB_ORIGINS` with the HTTPS origins accepted by the API. Never
+rename an existing Compose project during an upgrade: a new name selects a new
+PostgreSQL volume and can look like data loss.
+
+The repository contains no production passwords, bot tokens, tunnel credentials
+or database dumps. Keep those values in the host-owned `.env` or the deployment
+platform's secret store. A local transport overlay such as `compose.frp.yaml`
+is ignored by Git and is not part of the portable application stack.
+
 ## Deploy
 
 ```bash
-export ASA_BUILD_REVISION="$(git rev-parse HEAD)"
-docker compose -f compose.yaml -f compose.staging.yaml config --quiet
-docker compose -f compose.yaml -f compose.staging.yaml build
-docker compose -f compose.yaml -f compose.staging.yaml up -d
-docker compose -f compose.yaml -f compose.staging.yaml ps
-bash tools/docker-healthcheck.sh
+ASA_COMPOSE_PROFILE=production ./tools/asa-lab.sh doctor
+ASA_COMPOSE_PROFILE=production ./tools/asa-lab.sh up
+ASA_COMPOSE_PROFILE=production ./tools/asa-lab.sh health
 ```
+
+The helper records the exact Git revision in the image and derives the expected
+schema from the checked-out migration files. `/health/ready` then fails closed
+when the running database schema does not match that checkout.
 
 Only Web is published, by default on `127.0.0.1:4610`. PostgreSQL and API stay
 on private Compose networks. Put an operator-managed TLS reverse proxy in front
@@ -81,17 +95,18 @@ drops all capabilities, and writes only to its named data volume.
 Before changing images or source:
 
 ```bash
-ASA_COMPOSE_PROFILE=staging bash tools/docker-backup.sh backups/pre-upgrade.dump
-docker compose -f compose.yaml -f compose.staging.yaml build --pull
-docker compose -f compose.yaml -f compose.staging.yaml up -d
-bash tools/docker-healthcheck.sh
+ASA_COMPOSE_PROFILE=production bash tools/docker-backup.sh backups/pre-upgrade.dump
+git fetch origin main
+git pull --ff-only origin main
+ASA_COMPOSE_PROFILE=production ./tools/asa-lab.sh up
+curl --fail http://127.0.0.1:4610/health/ready
 ```
 
 Review the migration job and health output:
 
 ```bash
-docker compose -f compose.yaml -f compose.staging.yaml logs --tail=200 migration api web
-docker compose -f compose.yaml -f compose.staging.yaml run --rm migration
+docker compose -f compose.yaml -f compose.production.yaml logs --tail=200 migration api web
+docker compose -f compose.yaml -f compose.production.yaml run --rm migration
 ```
 
 A repeated migration must report zero newly applied migrations.
@@ -99,5 +114,5 @@ A repeated migration must report zero newly applied migrations.
 Stop without deleting persistent data:
 
 ```bash
-bash tools/docker-down.sh staging
+bash tools/docker-down.sh production
 ```
