@@ -835,11 +835,18 @@ function ArduinoSourceEditor({
     (diagnostic) => diagnostic.status === 'unsupported',
   ).length;
   const limitedCount = supportDiagnostics.length - unsupportedCount;
+  const previousUnsupportedCountRef = useRef(unsupportedCount);
   const [cursor, setCursor] = useState(0);
   const [scroll, setScroll] = useState({ left: 0, top: 0 });
   const [completionIndex, setCompletionIndex] = useState(0);
   const [completionDismissed, setCompletionDismissed] = useState(false);
   const [snippetDropTarget, setSnippetDropTarget] = useState<ArduinoSnippetDropTarget | null>(null);
+
+  useEffect(() => {
+    const previousCount = previousUnsupportedCountRef.current;
+    previousUnsupportedCountRef.current = unsupportedCount;
+    if (unsupportedCount > previousCount) onDiagnosticsOpenChange(true);
+  }, [onDiagnosticsOpenChange, unsupportedCount]);
   const completion = useMemo(
     () =>
       readOnly || !completionEnabled || completionDismissed
@@ -1413,7 +1420,7 @@ export function ArduinoCodePanel({
         </details>
         <button
           type="button"
-          className="arduino-toolbar-button"
+          className="arduino-toolbar-button arduino-check-button"
           onClick={checkProgram}
           title="Проверить поддержку команд"
         >
@@ -1422,7 +1429,7 @@ export function ArduinoCodePanel({
         </button>
         <button
           type="button"
-          className="arduino-square-button"
+          className="arduino-square-button arduino-download-button"
           onClick={downloadSource}
           title="Скачать .ino"
         >
@@ -1430,7 +1437,7 @@ export function ArduinoCodePanel({
         </button>
         <button
           type="button"
-          className={`arduino-toolbar-button${commandReferenceOpen ? ' active' : ''}`}
+          className={`arduino-toolbar-button arduino-commands-button${commandReferenceOpen ? ' active' : ''}`}
           title="Справочник команд Arduino"
           aria-expanded={commandReferenceOpen}
           onClick={() => setCommandReferenceOpen((current) => !current)}
@@ -1441,7 +1448,7 @@ export function ArduinoCodePanel({
         {program.mode === 'text' ? (
           <button
             type="button"
-            className={`arduino-toolbar-button${autocompleteEnabled ? ' active' : ''}`}
+            className={`arduino-toolbar-button arduino-autocomplete-button${autocompleteEnabled ? ' active' : ''}`}
             title={autocompleteEnabled ? 'Отключить автодополнение' : 'Включить автодополнение'}
             aria-label={
               autocompleteEnabled ? 'Отключить автодополнение' : 'Включить автодополнение'

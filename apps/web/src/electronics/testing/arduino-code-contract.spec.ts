@@ -98,6 +98,9 @@ describe('Arduino programming room contract', () => {
     expect(css).toContain('inset: 0 0 0 auto');
     expect(css).toContain('.arduino-scratch-host');
     expect(css).toContain('inset: 0;');
+    expect(css).toContain('grid-template-columns: minmax(80px, 1fr) repeat(4, 42px)');
+    expect(css).toContain('width: min(88vw, 340px)');
+    expect(css).toContain('grid-template-rows: minmax(0, 3fr) minmax(0, 2fr)');
     expect(blocksSource).toContain('ARDUINO_FLYOUT_HEADER_GAP = 98');
     expect(blocksSource).toContain("kind: 'sep'");
     expect(blocksSource).toContain('ARDUINO_FLYOUT_HEADER_GAP / Math.max(0.1, flyoutScale)');
@@ -162,6 +165,8 @@ describe('Arduino programming room contract', () => {
     expect(panelSource).toContain('Моделирование заблокировано');
     expect(panelSource).toContain('Это не ошибки компиляции: программа исполняется');
     expect(panelSource).toContain('onDiagnosticsOpenChange');
+    expect(panelSource).toContain('previousUnsupportedCountRef');
+    expect(panelSource).toContain('unsupportedCount > previousCount');
     expect(panelSource).not.toContain('arduino-support-legend');
     expect(css).toContain('.arduino-code-check.has-blockers');
     expect(css).toContain('.arduino-code-check.has-limitations');
