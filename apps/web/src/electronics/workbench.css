@@ -3370,6 +3370,8 @@
   background: #087fb2;
 }
 .arduino-code-panel {
+  --arduino-ui-font: Arial, 'Segoe UI', sans-serif;
+  --arduino-code-font: 'Roboto Mono', 'Cascadia Mono', Consolas, monospace;
   position: absolute;
   z-index: 45;
   inset: 0 0 0 auto;
@@ -3381,6 +3383,8 @@
   border-top: 1px solid #d6dce1;
   border-left: 1px solid #bdc8d0;
   background: #f7f8f9;
+  color: #1d2226;
+  font-family: var(--arduino-ui-font);
   box-shadow: -7px 0 20px rgba(38, 52, 63, 0.08);
   transform: translateX(0);
   opacity: 1;
@@ -3475,8 +3479,8 @@ html.arduino-drawer-resizing * {
   border: 1px solid #d4dce2;
   border-radius: 3px;
   background: #fff;
-  color: #314451;
-  font-size: 15px;
+  color: #202428;
+  font: 400 13px/1 var(--arduino-ui-font);
 }
 .arduino-mode-menu > summary {
   display: flex;
@@ -3522,7 +3526,8 @@ html.arduino-drawer-resizing * {
   padding: 0 15px;
   border: 0;
   background: #fff;
-  color: #344b5b;
+  color: #202428;
+  font: 400 13px/1.25 var(--arduino-ui-font);
   text-align: left;
   cursor: pointer;
 }
@@ -3542,7 +3547,8 @@ html.arduino-drawer-resizing * {
   border: 1px solid #d4dce2;
   border-radius: 3px;
   background: #fff;
-  color: #354c5c;
+  color: #202428;
+  font-family: var(--arduino-ui-font);
   cursor: pointer;
 }
 .arduino-toolbar-button {
@@ -3554,9 +3560,9 @@ html.arduino-drawer-resizing * {
   border: 1px solid #d4dce2;
   border-radius: 3px;
   background: #fff;
-  color: #354c5c;
+  color: #202428;
   font: inherit;
-  font-size: 12px;
+  font-size: 13px;
   cursor: pointer;
 }
 .arduino-toolbar-button:hover,
@@ -3613,7 +3619,8 @@ html.arduino-drawer-resizing * {
   border: 1px solid #d4dce2;
   border-radius: 3px;
   background: #fff;
-  color: #354c5c;
+  color: #202428;
+  font-family: var(--arduino-ui-font);
 }
 .arduino-font-size-select > span {
   padding-left: 8px;
@@ -3631,6 +3638,7 @@ html.arduino-drawer-resizing * {
   border: 0;
   background: transparent;
   color: inherit;
+  font-family: inherit;
   font-size: 12px;
   outline: none;
 }
@@ -4209,8 +4217,8 @@ html.arduino-palette-resizing * {
   min-height: 0;
   overflow: hidden;
   background: #fbfbfb;
-  color: #30343a;
-  font-family: Consolas, 'Cascadia Mono', monospace;
+  color: #15191c;
+  font-family: var(--arduino-code-font);
   font-size: var(--arduino-code-size);
   line-height: 1.45;
 }
@@ -4363,6 +4371,7 @@ html.arduino-palette-resizing * {
   border-radius: 3px;
   background: transparent;
   color: #283d4a;
+  font-family: var(--arduino-ui-font);
   text-align: left;
   cursor: pointer;
 }
@@ -4372,7 +4381,7 @@ html.arduino-palette-resizing * {
 }
 .arduino-code-suggestions code {
   color: #006699;
-  font: inherit;
+  font-family: var(--arduino-code-font);
   font-weight: 600;
 }
 .arduino-code-suggestion-copy {
@@ -4390,9 +4399,7 @@ html.arduino-palette-resizing * {
 }
 .arduino-code-suggestion-copy > em {
   color: #375d70;
-  font:
-    italic 10px Consolas,
-    monospace;
+  font: italic 10px/1.3 var(--arduino-code-font);
 }
 .arduino-code-suggestions .support-unsupported .arduino-code-suggestion-copy > span {
   color: #a23f35;
@@ -4410,7 +4417,8 @@ html.arduino-palette-resizing * {
   overflow: hidden;
   border-top: 1px solid #cbd3d9;
   background: #fff;
-  color: #3b5361;
+  color: #202428;
+  font-family: var(--arduino-ui-font);
   transition: height 150ms ease;
 }
 .arduino-code-check.open {
@@ -4513,11 +4521,11 @@ html.arduino-palette-resizing * {
 }
 .arduino-code-check.has-limitations .arduino-code-check-body {
   background: #fffaf0;
-  color: #635324;
+  color: #3f361d;
 }
 .arduino-code-check.has-blockers .arduino-code-check-body {
   background: #fff5f3;
-  color: #74342e;
+  color: #632d28;
 }
 .arduino-code-check-body > p {
   margin: 0;
@@ -4565,6 +4573,7 @@ html.arduino-palette-resizing * {
 .arduino-serial-monitor {
   position: relative;
   z-index: 16;
+  box-sizing: border-box;
   flex: 0 0 34px;
   overflow: hidden;
   border-top: 1px solid #cbd3d9;
@@ -4572,7 +4581,7 @@ html.arduino-palette-resizing * {
   transition: flex-basis 150ms ease;
 }
 .arduino-serial-monitor.open {
-  flex-basis: 188px;
+  flex-basis: 210px;
 }
 .arduino-serial-title {
   display: flex;
@@ -4583,7 +4592,9 @@ html.arduino-palette-resizing * {
   padding: 0 14px 0 18px;
   border: 0;
   background: #fff;
-  color: #3978ad;
+  box-sizing: border-box;
+  color: #202428;
+  font-family: var(--arduino-ui-font);
   font-size: 13px;
   text-align: left;
   cursor: pointer;
@@ -4612,21 +4623,23 @@ html.arduino-palette-resizing * {
 }
 .arduino-serial-body {
   display: grid;
-  height: 154px;
-  grid-template-rows: minmax(0, 1fr) 38px;
+  height: calc(100% - 34px);
+  min-height: 0;
+  box-sizing: border-box;
+  grid-template-rows: minmax(0, 1fr) 44px;
   border-top: 1px solid #e0e4e7;
 }
 .arduino-serial-output {
   padding: 8px 12px;
   overflow: auto;
   background: #fbfbfc;
-  color: #374b5a;
-  font:
-    12px/1.4 Consolas,
-    monospace;
+  color: #202428;
+  font: 12px/1.4 var(--arduino-code-font);
 }
 .arduino-serial-body form {
   display: grid;
+  min-height: 0;
+  box-sizing: border-box;
   grid-template-columns: minmax(0, 1fr) 110px 66px 66px;
   gap: 6px;
   padding: 5px 8px;
@@ -4636,11 +4649,14 @@ html.arduino-palette-resizing * {
 .arduino-serial-body input,
 .arduino-serial-body select,
 .arduino-serial-body button {
+  height: 32px;
   min-width: 0;
+  min-height: 0;
   border: 1px solid #cbd4db;
   border-radius: 2px;
   background: #fff;
-  color: #344b5b;
+  color: #202428;
+  font-family: var(--arduino-ui-font);
   font-size: 12px;
 }
 .arduino-serial-body input {
@@ -5082,6 +5098,9 @@ html.arduino-palette-resizing * {
     grid-row: 1;
     grid-column: 3;
   }
+  .arduino-code-toolbar.mode-blocks .arduino-download-button {
+    grid-column: 2;
+  }
   .arduino-commands-button {
     grid-row: 1;
     grid-column: 4;
@@ -5196,5 +5215,15 @@ html.arduino-palette-resizing * {
   .arduino-code-check-body {
     height: 172px;
     font-size: 12px;
+  }
+  .arduino-serial-monitor.open {
+    flex-basis: min(252px, 40dvh);
+  }
+  .arduino-serial-body {
+    grid-template-rows: minmax(0, 1fr) auto;
+  }
+  .arduino-serial-body form {
+    grid-template-columns: minmax(0, 1fr) 110px;
+    grid-template-rows: repeat(2, 36px);
   }
 }

@@ -226,6 +226,9 @@ describe('Arduino programming room contract', () => {
     expect(panelSource).toContain('ARDUINO_AUTOCOMPLETE_STORAGE_KEY');
     expect(panelSource).toContain('aria-pressed={autocompleteEnabled}');
     expect(panelSource).toContain('Отключить автодополнение');
+    expect(panelSource).toContain('`arduino-code-toolbar mode-${program.mode}`');
+    expect(panelSource).toContain("if (program.mode === 'blocks' && commandReferenceOpen)");
+    expect(panelSource).toContain("open={commandReferenceOpen && program.mode !== 'blocks'}");
     expect(panelSource).toContain('persistTimersRef.current.get(selectedBoardId)');
     expect(panelSource).toContain('programRef.current = next');
     expect(panelSource).toContain('const activateBoard = useCallback');
@@ -256,6 +259,9 @@ describe('Arduino programming room contract', () => {
     expect(commandReferenceSource).toContain("entry.status === 'supported' ? null");
     expect(css).toContain("grid-template-areas: 'command expand'");
     expect(css).toContain("'status status'");
+    expect(css).toContain('--arduino-ui-font');
+    expect(css).toContain('--arduino-code-font');
+    expect(css).toContain('.arduino-code-toolbar.mode-blocks .arduino-download-button');
   });
 
   it('keeps a collapsible serial monitor with send, clear and baud controls', () => {
@@ -265,6 +271,8 @@ describe('Arduino programming room contract', () => {
     expect(panelSource).toContain('Отпр.');
     expect(panelSource).toContain('Очист.');
     expect(css).toContain('.arduino-serial-monitor.open');
+    expect(css).toContain('height: calc(100% - 34px);');
+    expect(css).toContain('grid-template-rows: repeat(2, 36px);');
   });
 
   it('shows live Uno indicators, restarts the program and keeps pin details compact', () => {

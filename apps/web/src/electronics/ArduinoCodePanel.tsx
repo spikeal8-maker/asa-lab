@@ -1290,6 +1290,10 @@ export function ArduinoCodePanel({
     localStorage.setItem(ARDUINO_AUTOCOMPLETE_STORAGE_KEY, String(autocompleteEnabled));
   }, [autocompleteEnabled]);
 
+  useEffect(() => {
+    if (program.mode === 'blocks' && commandReferenceOpen) setCommandReferenceOpen(false);
+  }, [commandReferenceOpen, program.mode]);
+
   function persist(next: ArduinoProgramState): void {
     if (!selectedBoard) return;
     const selectedBoardId = selectedBoard.id;
@@ -1398,7 +1402,7 @@ export function ArduinoCodePanel({
       style={{ '--arduino-flyout-width': `${flyoutWidth}px` } as CSSProperties}
     >
       <DrawerResizeHandle width={drawerWidth} onWidthChange={onDrawerWidthChange} />
-      <header className="arduino-code-toolbar">
+      <header className={`arduino-code-toolbar mode-${program.mode}`}>
         <details className="arduino-mode-menu" ref={modeMenuRef}>
           <summary>
             <span>{MODE_LABELS[program.mode]}</span>
@@ -1418,15 +1422,17 @@ export function ArduinoCodePanel({
             ))}
           </div>
         </details>
-        <button
-          type="button"
-          className="arduino-toolbar-button arduino-check-button"
-          onClick={checkProgram}
-          title="Проверить поддержку команд"
-        >
-          <CheckIcon />
-          <span>Проверить</span>
-        </button>
+        {program.mode !== 'blocks' ? (
+          <button
+            type="button"
+            className="arduino-toolbar-button arduino-check-button"
+            onClick={checkProgram}
+            title="Проверить поддержку команд"
+          >
+            <CheckIcon />
+            <span>Проверить</span>
+          </button>
+        ) : null}
         <button
           type="button"
           className="arduino-square-button arduino-download-button"
@@ -1435,16 +1441,18 @@ export function ArduinoCodePanel({
         >
           <DownloadIcon />
         </button>
-        <button
-          type="button"
-          className={`arduino-toolbar-button arduino-commands-button${commandReferenceOpen ? ' active' : ''}`}
-          title="Справочник команд Arduino"
-          aria-expanded={commandReferenceOpen}
-          onClick={() => setCommandReferenceOpen((current) => !current)}
-        >
-          <CommandsIcon />
-          <span>Команды</span>
-        </button>
+        {program.mode !== 'blocks' ? (
+          <button
+            type="button"
+            className={`arduino-toolbar-button arduino-commands-button${commandReferenceOpen ? ' active' : ''}`}
+            title="Справочник команд Arduino"
+            aria-expanded={commandReferenceOpen}
+            onClick={() => setCommandReferenceOpen((current) => !current)}
+          >
+            <CommandsIcon />
+            <span>Команды</span>
+          </button>
+        ) : null}
         {program.mode === 'text' ? (
           <button
             type="button"
@@ -1497,10 +1505,10 @@ export function ArduinoCodePanel({
         </select>
       </header>
       <div
-        className={`arduino-code-body mode-${program.mode}${commandReferenceOpen ? ' commands-open' : ''}`}
+        className={`arduino-code-body mode-${program.mode}${program.mode !== 'blocks' && commandReferenceOpen ? ' commands-open' : ''}`}
       >
         <ArduinoCommandReference
-          open={commandReferenceOpen}
+          open={commandReferenceOpen && program.mode !== 'blocks'}
           canInsert={program.mode === 'text'}
           onClose={() => setCommandReferenceOpen(false)}
           onInsert={appendCommandSnippet}
