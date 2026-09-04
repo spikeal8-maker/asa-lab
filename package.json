@@ -107,7 +107,7 @@
     "gate:electronics-m1:browser": "corepack pnpm e2e:electronics-simulation",
     "gate:three-d-m0": "corepack pnpm nx build module-sdk && corepack pnpm nx build chess && corepack pnpm nx build checkers && corepack pnpm test:three-d && corepack pnpm typecheck && corepack pnpm build",
     "gate:three-d-m0:browser": "corepack pnpm e2e:three-d",
-    "gate:three-d-opt-1": "corepack pnpm test:three-d:worker && corepack pnpm test:three-d:corpus && corepack pnpm nx run web:typecheck && corepack pnpm nx run web:build",
+    "gate:three-d-opt-1": "corepack pnpm nx build module-sdk && corepack pnpm test:three-d:worker && corepack pnpm test:three-d:corpus && corepack pnpm nx run web:typecheck && corepack pnpm nx run web:build",
     "test:checkers": "vitest run contexts/checkers/testing apps/web/src/checkers/testing apps/api/src/modules.controller.spec.ts",
     "typecheck:checkers": "tsc -p contexts/checkers/tsconfig.json --noEmit",
     "e2e:checkers": "playwright test e2e/checkers-module.spec.ts",
