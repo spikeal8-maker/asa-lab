@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { BooleanOperation, ThreeDNode } from '@asa-lab/three-d';
+import type { EvaluatedBooleanGeometry } from '../geometry/worker-protocol';
 import { addModelOutlineGeometry, createPrimitiveGeometry } from './geometry';
 import { createCadSolidMaterial } from './cad-appearance';
 
@@ -8,6 +9,11 @@ const FEATURE_EDGE_EPSILON = 1e-4;
 const FEATURE_EDGE_ANGLE = THREE.MathUtils.degToRad(24);
 const FEATURE_EDGE_COSINE = Math.cos(FEATURE_EDGE_ANGLE);
 const FEATURE_EDGE_DATA = 'asaBooleanFeatureEdges';
+
+export function readBooleanFeatureEdges(geometry: THREE.BufferGeometry): readonly number[] {
+  const values = geometry.userData[FEATURE_EDGE_DATA];
+  return Array.isArray(values) ? values : [];
+}
 
 class Vertex {
   constructor(
@@ -531,12 +537,19 @@ export function createBooleanMesh(
     geometry?.dispose();
     return null;
   }
+  return createBooleanMeshFromGeometry(geometry, nodes);
+}
+
+function createBooleanMeshFromGeometry(
+  geometry: THREE.BufferGeometry,
+  nodes: readonly ThreeDNode[],
+): THREE.Mesh {
   const firstSolid = nodes.find((node) => node.operation === 'solid');
   const color = firstSolid?.color ?? '#27a9e1';
   const material = createCadSolidMaterial(color, firstSolid?.opacity ?? 1);
   const mesh = new THREE.Mesh(geometry, material);
-  const featureEdgePositions = geometry.userData[FEATURE_EDGE_DATA];
-  if (Array.isArray(featureEdgePositions) && featureEdgePositions.length > 0) {
+  const featureEdgePositions = readBooleanFeatureEdges(geometry);
+  if (featureEdgePositions.length > 0) {
     const outlineGeometry = new THREE.BufferGeometry();
     outlineGeometry.setAttribute(
       'position',
@@ -548,4 +561,23 @@ export function createBooleanMesh(
   mesh.receiveShadow = false;
   mesh.userData['booleanGroupId'] = nodes[0]?.groupId ?? '';
   return mesh;
+}
+
+export function createBooleanMeshFromEvaluation(
+  evaluation: EvaluatedBooleanGeometry,
+  nodes: readonly ThreeDNode[],
+): THREE.Mesh | null {
+  if (
+    evaluation.positions.length === 0 ||
+    evaluation.normals.length !== evaluation.positions.length
+  ) {
+    return null;
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(evaluation.positions, 3));
+  geometry.setAttribute('normal', new THREE.Float32BufferAttribute(evaluation.normals, 3));
+  geometry.userData[FEATURE_EDGE_DATA] = Array.from(evaluation.featureEdges);
+  geometry.computeBoundingBox();
+  geometry.computeBoundingSphere();
+  return createBooleanMeshFromGeometry(geometry, nodes);
 }

@@ -207,9 +207,10 @@ parallel_lanes:
           - pnpm gate:repository
 
   - id: three-d
-    # Owner activated the measurement-only OPT-0 package on 2026-08-26. It runs
-    # directly in main and must not change CSG behaviour, persisted schema or UI.
-    worktree_id: three-d-opt-0-main
+    # Owner advanced the 3D optimisation programme to OPT-1. The first package
+    # moves the existing BSP evaluator behind a Worker without changing the
+    # persisted document or claiming OPT-2 topology correctness.
+    worktree_id: three-d-opt-1-main
     owned_paths:
       - contexts/three-d/**
       - apps/web/src/three-d/**
@@ -219,31 +220,31 @@ parallel_lanes:
       - docs/product/ASA_3D_OPTIMIZATION_EXECUTION_PLAN.md
       - tools/run-three-d-benchmark.mjs
     task:
-      id: TASK-3D-OPT-0-001
-      issue: 162
+      id: TASK-3D-OPT-1-001
+      issue: 168
       branch: main
       base_branch: main
-      pr: 169
+      pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: opt_0_baseline_measured_owner_evidence_pending
+      checkpoint: opt_1_worker_boundary_local_gate_pass_ci_and_owner_acceptance_pending
       owner_acceptance: pending
     revisions:
-      convergence_baseline_sha: 2c0da5e260677d62898e1f63832262e272260ce4
-      head_sha: 2c0da5e260677d62898e1f63832262e272260ce4
+      convergence_baseline_sha: 9371222ab69cbb53c7f52411f6f7cb96c780aa65
+      head_sha: 9371222ab69cbb53c7f52411f6f7cb96c780aa65
     execution_lease:
-      executor_id: codex-three-d-opt-0
+      executor_id: codex-three-d-opt-1
       holder: unassigned
       acquired_at: null
       expires_at: null
       reviewer_role_requires_lease: false
     gates:
       focused:
-        workflow: 3D M0 Focused
+        workflow: 3D Core Focused
         commands:
-          - pnpm test:three-d:corpus
+          - pnpm gate:three-d-opt-1
       browser:
-        workflow: 3D M0 Focused
+        workflow: 3D Core Focused
         commands:
           - pnpm gate:three-d-m0:browser
       general:

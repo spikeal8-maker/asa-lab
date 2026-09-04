@@ -14,10 +14,11 @@ import {
   type DirectManipulationCommit,
   type DirectManipulationEntry,
 } from './DirectManipulator';
-import { createBooleanMesh } from './csg';
+import { createBooleanMeshFromEvaluation } from './csg';
 import { createNodeObject, disposeObject } from './geometry';
 import { addCadSceneLights } from './cad-appearance';
 import { runtimeSelectionKeys } from '../selection-model';
+import { GeometryWorkerClient } from '../geometry/worker-client';
 
 export interface SceneRuntimeCallbacks {
   readonly onSelect: (nodeId: string | null, additive: boolean) => void;
@@ -144,6 +145,7 @@ export class SceneRuntime {
   private readonly raycaster = new THREE.Raycaster();
   private readonly pointer = new THREE.Vector2();
   private readonly entries = new Map<string, SceneEntry>();
+  private readonly geometryWorker = new GeometryWorkerClient();
   private readonly booleanRoot = new THREE.Group();
   private readonly rulerRoot = new THREE.Group();
   private placementPreview: PlacementPreview | null = null;
@@ -155,6 +157,8 @@ export class SceneRuntime {
   private animationFrame = 0;
   private readonly resizeObserver: ResizeObserver;
   private readonly onCameraChange: ((state: CameraViewState) => void) | undefined;
+  private selectedIds: readonly string[] = [];
+  private currentDocument: ThreeDDocument | null = null;
 
   private readonly publishCameraState = (): void => {
     const values = [
@@ -178,6 +182,7 @@ export class SceneRuntime {
     callbacks: SceneRuntimeCallbacks,
   ) {
     this.onCameraChange = callbacks.onCameraChange;
+    this.container.dataset['geometryWorkerState'] = 'idle';
     this.scene.background = new THREE.Color('#fafafa');
     this.scene.fog = new THREE.Fog('#fafafa', 560, 980);
     this.camera = new THREE.PerspectiveCamera(HOME_CAMERA_FOV, 1, 0.5, 2400);
@@ -260,6 +265,8 @@ export class SceneRuntime {
   };
 
   setDocument(document: ThreeDDocument, selectedIds: readonly string[]): void {
+    this.currentDocument = document;
+    this.selectedIds = selectedIds;
     this.gridSnap = document.grid.snap;
     this.manipulator.setGridSnap(document.grid.snap);
     const gridSignature = JSON.stringify(document.grid);
@@ -284,7 +291,7 @@ export class SceneRuntime {
     ]);
     for (const [id, entry] of this.entries) {
       if (incomingIds.has(id)) continue;
-      this.scene.remove(entry.object);
+      entry.object.parent?.remove(entry.object);
       disposeObject(entry.object);
       this.entries.delete(id);
     }
@@ -301,9 +308,24 @@ export class SceneRuntime {
       this.scene.add(object);
       this.entries.set(node.id, { object, node, signature });
     }
-    if (documentChanged) this.syncBooleanGroups(document);
+    if (documentChanged) {
+      if (groupEntryIds.size > 0) {
+        const generationId = this.geometryWorker.beginGeneration();
+        void this.syncBooleanGroups(document, generationId);
+      } else {
+        this.geometryWorker.cancelActiveGeneration();
+        this.container.dataset['geometryWorkerState'] = 'idle';
+        delete this.container.dataset['geometryEngine'];
+      }
+    }
     this.syncRuler(document, selectedIds);
-    const selectedNodes = selectedIds
+    this.syncRuntimeSelection();
+  }
+
+  private syncRuntimeSelection(): void {
+    const document = this.currentDocument;
+    if (!document) return;
+    const selectedNodes = this.selectedIds
       .map((id) => document.nodes.find((node) => node.id === id))
       .filter((node): node is ThreeDNode => Boolean(node));
     // A boolean result is one scene object even though the editable document
@@ -317,14 +339,10 @@ export class SceneRuntime {
     this.setSelection(runtimeSelectionIds.at(-1) ?? null, runtimeSelectionIds);
   }
 
-  private syncBooleanGroups(document: ThreeDDocument): void {
-    for (const [id, entry] of this.entries) {
-      if (!id.startsWith('group:')) continue;
-      this.booleanRoot.remove(entry.object);
-      disposeObject(entry.object);
-      this.entries.delete(id);
-    }
-    this.booleanRoot.clear();
+  private async syncBooleanGroups(document: ThreeDDocument, generationId: number): Promise<void> {
+    this.container.dataset['geometryWorkerState'] = 'evaluating';
+    this.container.dataset['geometryEngine'] = 'legacy-bsp@1';
+    let evaluationFailed = false;
     const groups = new Map<string, ThreeDNode[]>();
     for (const node of document.nodes) {
       if (!node.groupId) continue;
@@ -336,8 +354,14 @@ export class SceneRuntime {
       const operation = nodes[0]?.groupOperation ?? 'union';
       let rendered: THREE.Object3D | null;
       try {
-        rendered = createBooleanMesh(nodes, operation);
-      } catch {
+        const evaluation = await this.geometryWorker.evaluate(generationId, nodes, operation);
+        if (!this.geometryWorker.isCurrent(generationId)) return;
+        rendered = createBooleanMeshFromEvaluation(evaluation, nodes);
+      } catch (error) {
+        if (!this.geometryWorker.isCurrent(generationId)) return;
+        evaluationFailed = true;
+        this.container.dataset['geometryWorkerError'] =
+          error instanceof Error ? error.message.slice(0, 240) : 'Unknown Geometry Worker error.';
         const fallback = new THREE.Group();
         nodes
           .filter((node) => node.visible)
@@ -346,6 +370,12 @@ export class SceneRuntime {
       }
       if (!rendered) continue;
       const entryId = `group:${groupId}`;
+      const existing = this.entries.get(entryId);
+      if (existing) {
+        existing.object.parent?.remove(existing.object);
+        disposeObject(existing.object);
+        this.entries.delete(entryId);
+      }
       const bounds = new THREE.Box3().setFromObject(rendered);
       const size = bounds.getSize(new THREE.Vector3());
       const center = bounds.getCenter(new THREE.Vector3());
@@ -377,6 +407,11 @@ export class SceneRuntime {
         node: proxyNode,
         signature: JSON.stringify(nodes),
       });
+      this.syncRuntimeSelection();
+    }
+    if (this.geometryWorker.isCurrent(generationId)) {
+      this.container.dataset['geometryWorkerState'] = evaluationFailed ? 'fallback' : 'ready';
+      if (!evaluationFailed) delete this.container.dataset['geometryWorkerError'];
     }
   }
 
@@ -778,6 +813,7 @@ export class SceneRuntime {
     window.cancelAnimationFrame(this.animationFrame);
     this.resizeObserver.disconnect();
     this.manipulator.dispose();
+    this.geometryWorker.dispose();
     this.clearPlacementPreview();
     this.orbit.removeEventListener('change', this.publishCameraState);
     this.orbit.dispose();

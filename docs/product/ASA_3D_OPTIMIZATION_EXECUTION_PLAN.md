@@ -1,6 +1,6 @@
 # ASA 3D — план стабилизации и оптимизации ядра
 
-Статус документа: `planning`
+Статус документа: `executing — OPT-1`
 
 Базовая ревизия анализа: `667d2467cd512da7e8b724499f1479c74f170876`
 
@@ -413,6 +413,7 @@ Screenshot не доказывает manifold, unit-тест не доказыв
 | 3D-CORE-003 | Скрытая подмена при ошибке | безымянный `catch` показывает исходные пересекающиеся тела | OPT-2 | типизированная ошибка; исходные тела не выглядят успешным result mesh |
 | 3D-CORE-004 | Недостаточная topology validation | успешный mesh не доказывает manifold/watertight/self-intersection | OPT-0, OPT-2 | успешный printable result проходит утверждённый валидатор |
 | 3D-CORE-005 | Preview/export могут расходиться | STL повторно зависит от вычисления геометрии, нет общего result identity | OPT-2 | viewport, bounds, selection и export используют один result key/checksum |
+| 3D-PERF-001 | Worker дублирует тяжёлый geometry bundle | production build OPT-1 создаёт лениво загружаемый `geometry.worker` около 2,85 MB рядом с 3D route около 2,86 MB | OPT-4 | общий движок разбит на измеренные chunks; cold/warm бюджеты проходят desktop/mobile gate |
 | 3D-DATA-001 | Дорогая история | undo/redo хранит до 100 полных документов | OPT-0, OPT-4 | память укладывается в утверждённый бюджет на 100/500 объектах |
 | 3D-DATA-002 | Полная сериализация на изменениях | `JSON.stringify` и local draft выполняются на изменениях документа | OPT-0, OPT-4 | transient движения не сериализуют полный документ на каждый frame |
 | 3D-DATA-003 | Восстановление версии оставляло устаревшую revision | browser journey на `4ed3009` завершался лишним autosave и `409 Conflict` после успешного restore | OPT-0 | восстановленный document и его server revision принимаются атомарно; save/reload/version journey проходит без 409 |
@@ -630,13 +631,13 @@ Versioned Service Worker, precache минимального shell, update/rollba
 
 Перед первым изменением runtime-кода должны быть выполнены пункты:
 
-- [ ] владелец активировал отдельную задачу в `docs/execution/current.yaml`;
-- [ ] в задаче указан первый пакет `OPT-0`, а не вся программа одновременно;
-- [ ] `blocking` пуст и `pnpm control-plane:check` проходит;
-- [ ] baseline revision совпадает с фактическим `origin/main`;
-- [ ] paths корпуса и отчётов не пересекаются с незавершённой чужой работой;
-- [ ] planned test scripts добавляются одновременно с реализацией и CI routing;
-- [ ] первый PR/commit не меняет пользовательское CSG-поведение;
-- [ ] owner evidence выполняется с `NX_SKIP_NX_CACHE=true`;
+- [x] владелец активировал отдельную задачу в `docs/execution/current.yaml`;
+- [x] OPT-0 измерен; владелец отдельно активировал следующий пакет OPT-1;
+- [x] `blocking` пуст и `pnpm control-plane:check` проходит;
+- [x] baseline и опубликованные OPT-0 receipts находятся в истории `origin/main`;
+- [x] paths Worker-пакета не пересекаются с незавершённой чужой работой;
+- [x] `test:three-d:worker` и `gate:three-d-opt-1` добавлены вместе с CI routing;
+- [x] первый commit сохраняет прежний `legacy-bsp@1` и существующий visual fallback;
+- [x] owner evidence выполнен с `NX_SKIP_NX_CACHE=true`, Nx сообщил `Cache: Skipped`;
 - [ ] публикация `main`, runtime deployment и browser verification отчётливо
       разделены в отчёте.

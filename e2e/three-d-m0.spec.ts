@@ -312,6 +312,10 @@ test('teacher models, autosaves, reloads and versions an ASA 3D scene', async ({
   });
   await expect(groupButton).toBeEnabled();
   await page.getByRole('button', { name: 'Сгруппировать выбранные объекты' }).click();
+  await expect(viewport).toHaveAttribute('data-geometry-worker-state', 'ready', {
+    timeout: 20_000,
+  });
+  await expect(viewport).toHaveAttribute('data-geometry-engine', 'legacy-bsp@1');
   await expect(page.getByText(/Булева группа/)).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Разгруппировать (Ctrl+Shift+G)' })).toBeEnabled();
   await page.getByRole('button', { name: 'Разгруппировать (Ctrl+Shift+G)' }).click();

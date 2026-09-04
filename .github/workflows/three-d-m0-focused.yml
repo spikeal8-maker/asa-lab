@@ -1,4 +1,4 @@
-name: 3D M0 Focused
+name: 3D Core Focused
 
 on:
   push:
@@ -73,8 +73,8 @@ jobs:
       - name: Install exact dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Focused 3D M0 gate
-        run: pnpm gate:three-d-m0
+      - name: Focused 3D OPT-1 gate
+        run: pnpm gate:three-d-opt-1
 
   browser:
     name: Desktop, tablet and mobile save-reload journey
