@@ -111,6 +111,23 @@ assert_github_ci_success() {
     */*) ;;
     *) die 'cannot derive owner/repository from origin' ;;
   esac
+  if command -v gh >/dev/null 2>&1; then
+    ci_line=$(gh run list --repo "$repository" --commit "$revision" \
+      --json headSha,name,status,conclusion,url --limit 20 \
+      --jq ".[] | select(.headSha == \"$revision\" and .name == \"ASA Lab Governance and Code Gates\") | [.status, (if .conclusion == \"\" then \"pending\" else .conclusion end), .url] | @tsv" \
+      2>/dev/null | head -n 1) || ci_line=''
+    if [ -n "$ci_line" ]; then
+      set -- $ci_line
+      ci_status=$1
+      ci_conclusion=$2
+      ci_url=$3
+      [ "$ci_status" = completed ] && [ "$ci_conclusion" = success ] ||
+        die "required GitHub workflow is $ci_status/$ci_conclusion: $ci_url"
+      printf 'CI OK: %s\n' "$ci_url"
+      return 0
+    fi
+  fi
+
   GITHUB_REPOSITORY=$repository
   TARGET_SHA=$revision
   export GITHUB_REPOSITORY TARGET_SHA

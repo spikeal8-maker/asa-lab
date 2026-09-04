@@ -134,6 +134,25 @@ function Assert-GitHubCiSuccess {
     throw 'Origin is not a supported GitHub repository; exact CI status cannot be verified.'
   }
   $repository = $Matches.repository
+  if (Get-Command gh -ErrorAction SilentlyContinue) {
+    $ghJson = & gh run list --repo $repository --commit $Revision `
+      --json headSha,name,status,conclusion,url --limit 20 2>$null
+    if ($LASTEXITCODE -eq 0) {
+      $runs = @($ghJson | ConvertFrom-Json)
+      $run = $runs | Where-Object {
+        $_.headSha -eq $Revision -and $_.name -eq 'ASA Lab Governance and Code Gates'
+      } | Select-Object -First 1
+      if (-not $run) {
+        throw "Required GitHub workflow was not found for $Revision. Wait for CI to start and retry."
+      }
+      if ($run.status -ne 'completed' -or $run.conclusion -ne 'success') {
+        throw "Required GitHub workflow is $($run.status)/$($run.conclusion): $($run.url)"
+      }
+      Write-Host "CI OK: $($run.url)"
+      return
+    }
+  }
+
   $probe = @'
 const repository = process.env.GITHUB_REPOSITORY;
 const revision = process.env.TARGET_SHA;

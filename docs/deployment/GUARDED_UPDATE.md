@@ -11,7 +11,8 @@
 - текущая ветка — `main`, рабочее дерево чистое;
 - локальная история допускает только fast-forward до `origin/main`;
 - обязательный workflow `ASA Lab Governance and Code Gates` завершился успешно
-  именно для целевого SHA (для private-репозитория задайте `GH_TOKEN`);
+  именно для целевого SHA (`gh` с выполненным входом используется первым;
+  иначе применяется GitHub API, а для private-репозитория нужен `GH_TOKEN`);
 - `.env` содержит прежний `COMPOSE_PROJECT_NAME`, определяющий существующий
   PostgreSQL volume;
 - PostgreSQL выбранного Compose-проекта уже запущен;
