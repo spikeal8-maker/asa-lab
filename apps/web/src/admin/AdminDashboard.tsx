@@ -287,7 +287,7 @@ function DashboardContent({
           const source = dashboard.modules.find(
             (entry) => entry.at === point.at && entry.moduleKey === moduleKey,
           );
-          return number(source?.activePeople);
+          return number(source?.launches);
         }),
       })),
     [dashboard.modules, dashboard.timeline],
@@ -298,6 +298,7 @@ function DashboardContent({
       ['organization', 'Организация', '#8257c7'],
       ['max', 'MAX', '#d4841c'],
       ['class_code', 'Код класса', '#16835f'],
+      ['registration', 'Регистрация', '#c54b43'],
     ] as const
   ).map(([method, label, color]) => ({
     id: method,
@@ -317,12 +318,16 @@ function DashboardContent({
         {[
           ['Новые аккаунты', dashboard.summary.newAccounts],
           ['Активные', dashboard.summary.activeAccounts],
-          ['Вошли', dashboard.summary.successfulLogins],
-          ['Не вошли', dashboard.summary.failedLogins],
+          ['Начатые сессии', dashboard.summary.authenticatedSessions],
+          ['Повторные входы', dashboard.summary.successfulLogins],
+          ['Отклонено попыток', dashboard.summary.rejectedAuthAttempts],
+          ['Незавершённые входы', dashboard.summary.failedLogins],
           ['Ученики', dashboard.summary.activeStudents],
           ['Новые ученики', dashboard.summary.newStudents],
           ['Разные IP', dashboard.summary.distinctIpAddresses],
           ['Несколько IP', dashboard.summary.accountsWithMultipleIps],
+          ['Локальная сеть', dashboard.summary.localNetworkAccounts],
+          ['Источник неизвестен', dashboard.summary.unclassifiedNetworkEvents],
         ].map(([label, value]) => (
           <article key={label}>
             <span>{label}</span>
@@ -334,7 +339,7 @@ function DashboardContent({
       <div className="admin-dashboard-grid">
         <MultiLineChart
           title="Использование систем"
-          description="Уникальные участники, действительно открывшие рабочую среду. Линии можно скрывать."
+          description="Фактические открытия рабочих сред. Повторная загрузка считается новым запуском."
           labels={labels}
           series={modules}
         />
@@ -356,18 +361,34 @@ function DashboardContent({
               values: dashboard.timeline.map((point) => point.newAccounts),
             },
             {
-              id: 'successfulLogins',
-              label: 'Вошли',
+              id: 'authenticatedSessions',
+              label: 'Начали сессию',
               color: '#8257c7',
-              values: dashboard.timeline.map((point) => point.successfulLogins),
+              values: dashboard.timeline.map((point) => point.authenticatedSessions),
             },
             {
               id: 'failedLogins',
-              label: 'Не вошли',
+              label: 'Не смогли войти',
               color: '#c54b43',
               values: dashboard.timeline.map((point) => point.failedLogins),
             },
           ]}
+        />
+        <MultiLineChart
+          title="Активное время в системах"
+          description="Минуты подтверждённой активности. Долгий простой и скрытая вкладка не засчитываются."
+          labels={labels}
+          series={moduleKeys.map((moduleKey, index) => ({
+            id: `time-${moduleKey}`,
+            label: MODULE_LABELS[moduleKey],
+            color: ['#0877b3', '#8257c7', '#d4841c', '#16835f'][index] as string,
+            values: dashboard.timeline.map((point) => {
+              const source = dashboard.modules.find(
+                (entry) => entry.at === point.at && entry.moduleKey === moduleKey,
+              );
+              return Math.round(number(source?.activeSeconds) / 60);
+            }),
+          }))}
         />
         <MultiLineChart
           title="Способы входа"

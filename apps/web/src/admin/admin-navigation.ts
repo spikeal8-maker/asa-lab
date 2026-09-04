@@ -35,6 +35,10 @@ export function adminHref(section: AdminSection): string {
   return `/#${path}`;
 }
 
+export function adminSectionLabel(section: AdminSection): string {
+  return ADMIN_SECTIONS.find((entry) => entry.id === section)?.label ?? 'Обзор';
+}
+
 export function adminSectionFromLocation(location: { readonly hash: string }): AdminSection | null {
   const path = normalizedPath(location);
   if (path === '/admin/integrations') return 'confirmations';

@@ -23,7 +23,7 @@ import type {
 import { REFRESH_COOKIE, SESSION_COOKIE, TOKENS } from './tokens.js';
 import { checkBodyShape } from './validation.js';
 import { FixedWindowRateLimiter } from './rate-limit.js';
-import { clientAddress } from './client-address.js';
+import { clientAddress, clientConnection, type ClientNetworkKind } from './client-address.js';
 import { BotChallengeService, type BotAction } from './bot-challenge.js';
 import { MaxAuthService, MaxInitDataError } from './max-auth.service.js';
 import {
@@ -244,6 +244,7 @@ export class AuthController {
     readonly outcome: AnalyticsOutcome;
     readonly flowId: string;
     readonly address: string;
+    readonly networkKind: ClientNetworkKind;
     readonly userAgent: string | undefined;
     readonly context?: ActiveContext;
   }): Promise<void> {
@@ -254,6 +255,7 @@ export class AuthController {
       authMethod: input.method,
       flowId: input.flowId,
       address: input.address,
+      networkKind: input.networkKind,
       userAgentSummary: summarizeUserAgent(input.userAgent) ?? null,
     });
   }
@@ -393,7 +395,8 @@ export class AuthController {
     @Req() request: FastifyRequest,
     @Res({ passthrough: true }) reply: FastifyReply,
   ): Promise<{ status: 'pending' } | { status: 'authenticated'; session: SessionPayload }> {
-    this.enforce(this.maxAuthByAddress, clientAddress(request));
+    const connection = clientConnection(request);
+    this.enforce(this.maxAuthByAddress, connection.address);
     const shape = checkBodyShape(rawBody, ['pairingToken']);
     if (!shape.ok) throw new HttpException(error('validation_error', shape.message), 400);
     const result = await this.maxAuth.consumePairing(
@@ -418,7 +421,8 @@ export class AuthController {
       method: 'max',
       outcome: 'succeeded',
       flowId: this.authFlow(request, reply),
-      address: clientAddress(request),
+      address: connection.address,
+      networkKind: connection.networkKind,
       userAgent: request.headers['user-agent'],
       context,
     });
@@ -457,7 +461,8 @@ export class AuthController {
     @Req() request: FastifyRequest,
     @Res({ passthrough: true }) reply: FastifyReply,
   ): Promise<SessionPayload> {
-    const address = clientAddress(request);
+    const connection = clientConnection(request);
+    const address = connection.address;
     const flowId = this.authFlow(request, reply);
     try {
       this.enforce(this.maxAuthByAddress, address);
@@ -510,6 +515,7 @@ export class AuthController {
         outcome: 'succeeded',
         flowId,
         address,
+        networkKind: connection.networkKind,
         userAgent: request.headers['user-agent'],
         context,
       });
@@ -522,6 +528,7 @@ export class AuthController {
         outcome: this.analyticsOutcome(failure),
         flowId,
         address,
+        networkKind: connection.networkKind,
         userAgent: request.headers['user-agent'],
       });
       throw failure;
@@ -535,7 +542,8 @@ export class AuthController {
     @Req() request: FastifyRequest,
     @Res({ passthrough: true }) reply: FastifyReply,
   ): Promise<SessionPayload> {
-    const address = clientAddress(request);
+    const connection = clientConnection(request);
+    const address = connection.address;
     const flowId = this.authFlow(request, reply);
     try {
       this.enforce(this.registerByAddress, address);
@@ -603,6 +611,7 @@ export class AuthController {
         outcome: 'succeeded',
         flowId,
         address,
+        networkKind: connection.networkKind,
         userAgent: request.headers['user-agent'],
         context,
       });
@@ -615,6 +624,7 @@ export class AuthController {
         outcome: this.analyticsOutcome(failure),
         flowId,
         address,
+        networkKind: connection.networkKind,
         userAgent: request.headers['user-agent'],
       });
       throw failure;
@@ -753,7 +763,8 @@ export class AuthController {
     @Req() request: FastifyRequest,
     @Res({ passthrough: true }) reply: FastifyReply,
   ): Promise<SessionPayload> {
-    const address = clientAddress(request);
+    const connection = clientConnection(request);
+    const address = connection.address;
     const flowId = this.authFlow(request, reply);
     try {
       this.enforce(this.registerByAddress, address);
@@ -808,6 +819,7 @@ export class AuthController {
         outcome: 'succeeded',
         flowId,
         address,
+        networkKind: connection.networkKind,
         userAgent: request.headers['user-agent'],
         context,
       });
@@ -820,6 +832,7 @@ export class AuthController {
         outcome: this.analyticsOutcome(failure),
         flowId,
         address,
+        networkKind: connection.networkKind,
         userAgent: request.headers['user-agent'],
       });
       throw failure;
@@ -843,7 +856,8 @@ export class AuthController {
     @Req() request: FastifyRequest,
     @Res({ passthrough: true }) reply: FastifyReply,
   ): Promise<SessionPayload> {
-    const address = clientAddress(request);
+    const connection = clientConnection(request);
+    const address = connection.address;
     const flowId = this.authFlow(request, reply);
     let method: AnalyticsAuthMethod = 'password';
     try {
@@ -883,6 +897,7 @@ export class AuthController {
         outcome: 'succeeded',
         flowId,
         address,
+        networkKind: connection.networkKind,
         userAgent: request.headers['user-agent'],
         context,
       });
@@ -895,6 +910,7 @@ export class AuthController {
         outcome: this.analyticsOutcome(failure),
         flowId,
         address,
+        networkKind: connection.networkKind,
         userAgent: request.headers['user-agent'],
       });
       throw failure;
@@ -998,11 +1014,13 @@ export class AuthController {
       return { authenticated: false };
     }
     const context = await this.requireContext(request);
+    const connection = clientConnection(request);
     await this.analytics.record({
       actor: { kind: 'account', context },
       eventType: 'session.observed',
       outcome: 'succeeded',
-      address: clientAddress(request),
+      address: connection.address,
+      networkKind: connection.networkKind,
       userAgentSummary: summarizeUserAgent(request.headers['user-agent']) ?? null,
     });
     return this.payload(context);

@@ -17,6 +17,17 @@ for (const [address, prefix, type] of [
   PRIVATE_OR_PROXY.addSubnet(address, prefix, type);
 }
 
+const LOOPBACK = new BlockList();
+LOOPBACK.addSubnet('127.0.0.0', 8, 'ipv4');
+LOOPBACK.addSubnet('::1', 128, 'ipv6');
+
+export type ClientNetworkKind = 'public' | 'local_network' | 'local_device' | 'proxy' | 'unknown';
+
+export interface ClientConnectionInfo {
+  readonly address: string;
+  readonly networkKind: ClientNetworkKind;
+}
+
 // Source: https://www.cloudflare.com/ips/ . These ranges are used only to
 // decide whether CF-Connecting-IP is trustworthy; they do not control access.
 const CLOUDFLARE = new BlockList();
@@ -80,22 +91,63 @@ function forwardedChain(value: string | string[] | undefined): string[] {
     .filter((entry): entry is string => entry !== null);
 }
 
+function configuredTrustedProxies(): BlockList {
+  const block = new BlockList();
+  const raw = process.env.ASA_TRUSTED_PROXY_CIDRS?.trim() ?? '';
+  if (!raw || raw.length > 2_048) return block;
+
+  for (const value of raw.split(',').slice(0, 16)) {
+    const [rawAddress, rawPrefix, ...extra] = value.trim().split('/');
+    const address = normalizeIp(rawAddress);
+    const version = address ? isIP(address) : 0;
+    const prefix = Number(rawPrefix);
+    const maximum = version === 4 ? 32 : 128;
+    if (
+      !address ||
+      version === 0 ||
+      extra.length > 0 ||
+      !Number.isInteger(prefix) ||
+      prefix < 0 ||
+      prefix > maximum
+    ) {
+      continue;
+    }
+    block.addSubnet(address, prefix, version === 4 ? 'ipv4' : 'ipv6');
+  }
+  return block;
+}
+
+function trustedProxy(address: string): boolean {
+  return blockContains(LOOPBACK, address) || blockContains(configuredTrustedProxies(), address);
+}
+
+function networkKindForAddress(address: string): ClientNetworkKind {
+  if (blockContains(LOOPBACK, address)) return 'local_device';
+  return blockContains(PRIVATE_OR_PROXY, address) ? 'local_network' : 'public';
+}
+
 /**
  * Address used for abuse controls.
  *
  * Fastify's request.ip is the TCP peer unless trustProxy is enabled. Blindly
  * enabling trustProxy would instead let a caller choose any X-Forwarded-For
- * value. Assolab listens on loopback, so forwarded headers are accepted only
- * from that local FRP hop and are read from right to left (the side proxies
- * append), ignoring attacker-controlled values farther left.
+ * value. ASA Lab accepts forwarded headers only from loopback or explicitly
+ * configured Docker/reverse-proxy networks and reads the chain from right to
+ * left, ignoring attacker-controlled values farther left.
  */
-export function clientAddress(request: FastifyRequest): string {
-  const socketAddress = normalizeIp(request.raw.socket.remoteAddress) ?? 'unknown';
-  if (socketAddress !== '127.0.0.1' && socketAddress !== '::1') {
-    return socketAddress;
+export function clientConnection(request: FastifyRequest): ClientConnectionInfo {
+  const socketAddress = normalizeIp(request.raw.socket.remoteAddress);
+  if (!socketAddress) {
+    return { address: 'unknown', networkKind: 'unknown' };
+  }
+  if (!trustedProxy(socketAddress)) {
+    return { address: socketAddress, networkKind: networkKindForAddress(socketAddress) };
   }
 
   const chain = forwardedChain(request.headers['x-forwarded-for']);
+  if (chain.length === 0) {
+    return { address: socketAddress, networkKind: 'proxy' };
+  }
   let nearestPublic: string | null = null;
   for (let index = chain.length - 1; index >= 0; index -= 1) {
     const candidate = chain[index] as string;
@@ -105,13 +157,23 @@ export function clientAddress(request: FastifyRequest): string {
     }
   }
 
-  if (!nearestPublic) return chain.at(-1) ?? socketAddress;
+  if (!nearestPublic) {
+    const visitor = chain.at(-1) as string;
+    return { address: visitor, networkKind: networkKindForAddress(visitor) };
+  }
 
   if (blockContains(CLOUDFLARE, nearestPublic)) {
     const cloudflareVisitor = normalizeIp(headerValue(request.headers['cf-connecting-ip']));
-    if (cloudflareVisitor && !blockContains(PRIVATE_OR_PROXY, cloudflareVisitor)) {
-      return cloudflareVisitor;
+    if (cloudflareVisitor) {
+      return {
+        address: cloudflareVisitor,
+        networkKind: networkKindForAddress(cloudflareVisitor),
+      };
     }
   }
-  return nearestPublic;
+  return { address: nearestPublic, networkKind: networkKindForAddress(nearestPublic) };
+}
+
+export function clientAddress(request: FastifyRequest): string {
+  return clientConnection(request).address;
 }

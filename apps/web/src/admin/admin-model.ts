@@ -56,6 +56,9 @@ const ACTION_LABELS: Readonly<Record<string, string>> = {
   'administration.platform_admin.grant': 'Назначен администратор',
   'administration.platform_admin.revoke': 'Снята роль администратора',
   'administration.session.revoke': 'Сессия пользователя завершена',
+  'administration.account.note.add': 'Добавлена заметка о пользователе',
+  'administration.ip.label.set': 'IP-адресу назначена метка',
+  'administration.ip.label.clear': 'Метка IP-адреса снята',
   'administration.test': 'Проверка административного аудита',
 };
 

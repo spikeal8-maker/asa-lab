@@ -273,7 +273,7 @@ describe('Administrative Control Plane PostgreSQL isolation', () => {
     await runtime.query(
       `SELECT analytics_record_event(
          'account',$1,$2,NULL,$3,'session.observed','succeeded',NULL,NULL,NULL,
-         '198.51.100.24'::inet,'CRM test browser'
+         '198.51.100.24'::inet,'CRM test browser','public'
        )`,
       [schoolAdmin.accountId, schoolAdmin.principalId, schoolAdmin.workspaceId],
     );
@@ -368,7 +368,7 @@ describe('Administrative Control Plane PostgreSQL isolation', () => {
     ): Promise<void> => {
       await runtime.query(
         `SELECT analytics_record_event(
-           'account',$1,$2,NULL,$3,$4,$5,'password',$6,$7,$8::inet,'Test browser'
+           'account',$1,$2,NULL,$3,$4,$5,'password',$6,$7,$8::inet,'Test browser','public'
          )`,
         [
           schoolAdmin.accountId,
@@ -392,7 +392,7 @@ describe('Administrative Control Plane PostgreSQL isolation', () => {
       runtime.query(
         `SELECT analytics_record_event(
            'account',$1,$2,NULL,$3,'session.observed','succeeded',NULL,NULL,NULL,
-           '198.51.100.24'::inet,'Test browser'
+           '198.51.100.24'::inet,'Test browser','public'
          ) AS id`,
         [schoolAdmin.accountId, schoolAdmin.principalId, schoolAdmin.workspaceId],
       );
@@ -418,6 +418,8 @@ describe('Administrative Control Plane PostgreSQL isolation', () => {
       summary: {
         successfulLogins: expect.any(Number),
         failedLogins: expect.any(Number),
+        authenticatedSessions: expect.any(Number),
+        rejectedAuthAttempts: expect.any(Number),
         distinctIpAddresses: expect.any(Number),
         accountsWithMultipleIps: expect.any(Number),
       },
@@ -428,6 +430,8 @@ describe('Administrative Control Plane PostgreSQL isolation', () => {
     const summary = dashboard.json().summary as Record<string, number>;
     expect(summary['successfulLogins']).toBe(2);
     expect(summary['failedLogins']).toBe(1);
+    expect(summary['authenticatedSessions']).toBe(2);
+    expect(summary['rejectedAuthAttempts']).toBe(2);
     expect(summary['distinctIpAddresses']).toBe(2);
     expect(summary['accountsWithMultipleIps']).toBe(1);
 
@@ -450,6 +454,127 @@ describe('Administrative Control Plane PostgreSQL isolation', () => {
     await expect(
       runtime.query('SELECT ip_address FROM product_analytics_events'),
     ).rejects.toMatchObject({ code: '42501' });
+  });
+
+  it('keeps local transport unclassified and measures only bounded server time', async () => {
+    const project = await admin.query<{ id: string }>(
+      `INSERT INTO projects
+         (tenant_id, module_key, title, status, owner_principal_id, project_scope)
+       VALUES ($1, 'checkers', 'Analytics timing test', 'active', $2, 'personal')
+       RETURNING id`,
+      [schoolAdmin.tenantId, schoolAdmin.principalId],
+    );
+    const projectId = project.rows[0]!.id;
+    const sessionId = randomUUID();
+    const start = () =>
+      runtime.query(
+        `SELECT analytics_start_module_session(
+           $1,'account',$2,$3,NULL,$4,'checkers',$5,'192.168.55.20'::inet,
+           'local_network','School browser'
+         ) AS id`,
+        [
+          sessionId,
+          schoolAdmin.accountId,
+          schoolAdmin.principalId,
+          schoolAdmin.workspaceId,
+          projectId,
+        ],
+      );
+    await start();
+    await start();
+    const launches = await admin.query<{ count: string }>(
+      `SELECT count(*)::text AS count FROM product_analytics_events
+        WHERE principal_id = $1 AND event_type = 'module.opened'
+          AND module_key = 'checkers' AND ip_address = '192.168.55.20'::inet`,
+      [schoolAdmin.principalId],
+    );
+    expect(launches.rows[0]?.count).toBe('1');
+
+    await admin.query(
+      `UPDATE product_module_sessions SET last_seen_at = clock_timestamp() - interval '30 seconds'
+        WHERE id = $1`,
+      [sessionId],
+    );
+    const touch = await runtime.query<{ seconds: number }>(
+      `SELECT analytics_touch_module_session($1,'account',$2,$3,false) AS seconds`,
+      [sessionId, schoolAdmin.accountId, schoolAdmin.principalId],
+    );
+    expect(touch.rows[0]?.seconds).toBeGreaterThanOrEqual(29);
+    expect(touch.rows[0]?.seconds).toBeLessThanOrEqual(31);
+
+    const dashboard = await inject(app, {
+      method: 'GET',
+      url: `/api/admin/v1/dashboard?scopeKind=organization&scopeId=${schoolAdmin.workspaceId}&range=24h`,
+      cookies: { asa_session: schoolAdmin.token },
+    });
+    expect(dashboard.statusCode).toBe(200);
+    expect(dashboard.json().summary).toMatchObject({ localNetworkAccounts: 1 });
+    expect(dashboard.json().modules).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          moduleKey: 'checkers',
+          activeSeconds: expect.any(Number),
+        }),
+      ]),
+    );
+    const measured = (dashboard.json().modules as Array<Record<string, unknown>>)
+      .filter((point) => point['moduleKey'] === 'checkers')
+      .reduce((total, point) => total + Number(point['activeSeconds'] ?? 0), 0);
+    const measuredLaunches = (dashboard.json().modules as Array<Record<string, unknown>>)
+      .filter((point) => point['moduleKey'] === 'checkers')
+      .reduce((total, point) => total + Number(point['launches'] ?? 0), 0);
+    expect(measured).toBeGreaterThanOrEqual(29);
+    expect(measuredLaunches).toBe(1);
+
+    const card = await inject(app, {
+      method: 'GET',
+      url: `/api/admin/v1/accounts/${schoolAdmin.accountId}/crm?scopeKind=organization&scopeId=${schoolAdmin.workspaceId}`,
+      cookies: { asa_session: schoolAdmin.token },
+    });
+    expect(card.statusCode).toBe(200);
+    expect(card.json().ipAddresses).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          address: '192.168.55.20',
+          networkKind: 'local_network',
+          labelKind: null,
+        }),
+      ]),
+    );
+    expect(card.json().moduleUsage).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ moduleKey: 'checkers', projectCount: 1, launches: 1 }),
+      ]),
+    );
+
+    const setLabel = await inject(app, {
+      method: 'POST',
+      url: `/api/admin/v1/accounts/${schoolAdmin.accountId}/ip-labels`,
+      cookies: { asa_session: platformAdmin.token },
+      payload: {
+        ipAddress: '192.168.55.20',
+        labelKind: 'school',
+        label: 'Проверочная школа',
+      },
+    });
+    expect(setLabel.statusCode).toBe(200);
+    const clearLabel = await inject(app, {
+      method: 'DELETE',
+      url: `/api/admin/v1/accounts/${schoolAdmin.accountId}/ip-labels`,
+      cookies: { asa_session: platformAdmin.token },
+      payload: { ipAddress: '192.168.55.20' },
+    });
+    expect(clearLabel.statusCode).toBe(200);
+    expect(clearLabel.json()).toEqual({ cleared: true });
+
+    const labels = await admin.query<{ count: string }>(
+      `SELECT count(*)::text AS count FROM admin_ip_labels
+        WHERE ip_address = '192.168.55.20'::inet`,
+    );
+    expect(labels.rows[0]?.count).toBe('0');
+    await expect(runtime.query('SELECT id FROM product_module_sessions')).rejects.toMatchObject({
+      code: '42501',
+    });
   });
 
   it('returns only the selected organization and its real aggregate counts', async () => {

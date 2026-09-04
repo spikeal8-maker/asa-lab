@@ -113,9 +113,61 @@ export function ModuleEditorHost(props: ModuleEditorHostProps): JSX.Element {
     const key = `${props.projectId}:${state.moduleKey}`;
     if (recordedOpen.current === key) return;
     recordedOpen.current = key;
-    void api.recordModuleOpened(
-      state.moduleKey as 'electronics' | 'three-d' | 'chess' | 'checkers',
-    );
+    const sessionId = crypto.randomUUID();
+    const moduleKey = state.moduleKey as 'electronics' | 'three-d' | 'chess' | 'checkers';
+    let active = true;
+    let started = false;
+    let lastInteraction = Date.now();
+    const noteInteraction = (): void => {
+      lastInteraction = Date.now();
+    };
+    const close = (): void => {
+      if (!started) return;
+      started = false;
+      void api.touchModuleSession(sessionId, true, true);
+    };
+    const noteVisibility = (): void => {
+      if (document.visibilityState === 'visible') {
+        noteInteraction();
+      } else if (started) {
+        void api.touchModuleSession(sessionId, false, true);
+      }
+    };
+
+    window.addEventListener('pointerdown', noteInteraction, { passive: true });
+    window.addEventListener('keydown', noteInteraction, { passive: true });
+    window.addEventListener('pagehide', close);
+    document.addEventListener('visibilitychange', noteVisibility);
+    // Deferring the start avoids recording React StrictMode's development-only
+    // mount probe as a second launch.
+    const startTimer = window.setTimeout(() => {
+      void api.startModuleSession(sessionId, props.projectId, moduleKey).then((result) => {
+        if (!result.ok || !result.data.accepted) return;
+        started = true;
+        if (!active) close();
+      });
+    }, 0);
+    const heartbeat = window.setInterval(() => {
+      if (
+        started &&
+        document.visibilityState === 'visible' &&
+        Date.now() - lastInteraction <= 90_000
+      ) {
+        void api.touchModuleSession(sessionId);
+      }
+    }, 30_000);
+
+    return () => {
+      active = false;
+      if (recordedOpen.current === key) recordedOpen.current = null;
+      window.clearTimeout(startTimer);
+      window.clearInterval(heartbeat);
+      window.removeEventListener('pointerdown', noteInteraction);
+      window.removeEventListener('keydown', noteInteraction);
+      window.removeEventListener('pagehide', close);
+      document.removeEventListener('visibilitychange', noteVisibility);
+      close();
+    };
   }, [props.projectId, state]);
 
   if (state.kind === 'loading') {

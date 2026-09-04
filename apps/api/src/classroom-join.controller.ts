@@ -25,7 +25,7 @@ import { createSessionToken, hashSessionToken } from '@asa-lab/identity';
 import type { ActiveContextUseCase } from '@asa-lab/identity';
 import { SESSION_COOKIE, TOKENS } from './tokens.js';
 import { checkBodyShape } from './validation.js';
-import { clientAddress } from './client-address.js';
+import { clientAddress, clientConnection } from './client-address.js';
 import { BotChallengeService } from './bot-challenge.js';
 import { ProductAnalyticsService } from './product-analytics.service.js';
 import { SeatContextUseCase } from './seat-context.js';
@@ -521,12 +521,14 @@ export class ClassroomJoinController {
     await this.recordSeatActivity(row.seat_id, 'seat.signed_in');
     const seatContext = await new SeatContextUseCase(this.pool).resolve(token);
     if (seatContext && this.analytics) {
+      const connection = clientConnection(request);
       await this.analytics.record({
         actor: { kind: 'student', context: seatContext },
         eventType: 'auth.class_join',
         outcome: 'succeeded',
         authMethod: 'class_code',
-        address: clientAddress(request),
+        address: connection.address,
+        networkKind: connection.networkKind,
         userAgentSummary: request.headers['user-agent']?.slice(0, 128) ?? null,
       });
     }

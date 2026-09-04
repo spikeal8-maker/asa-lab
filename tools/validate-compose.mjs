@@ -2,6 +2,7 @@
 
 import { existsSync, readFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
+import { createHash, X509Certificate } from 'node:crypto';
 import { parse as parseYaml } from 'yaml';
 
 const BASE_PATH = 'compose.yaml';
@@ -21,11 +22,15 @@ const REQUIRED_FILES = [
   '.env.docker.example',
   'docker/api-entrypoint.sh',
   'docker/migrate-entrypoint.sh',
+  'docker/certs/russian-trusted-root-ca.pem',
   'docker/web/Caddyfile',
   'tools/asa-lab.sh',
   'tools/asa-lab.ps1',
   'tools/docker-backup.ps1',
+  'tools/docker-update.sh',
+  'tools/docker-update.ps1',
   'docs/deployment/QUICK_START.md',
+  'docs/deployment/GUARDED_UPDATE.md',
 ];
 const FORBIDDEN_PORTS = new Set([3000, 3100, 5173]);
 const EXPECTED_PORTS = {
@@ -39,6 +44,45 @@ const errors = [];
 
 for (const path of REQUIRED_FILES) {
   if (!existsSync(path)) errors.push(`missing required Docker file: ${path}`);
+}
+
+const maxRootCertificatePath = 'docker/certs/russian-trusted-root-ca.pem';
+const maxRootCertificateSha256 = 'd26d2d0231b7c39f92cc738512ba54103519e4405d68b5bd703e9788ca8ecf31';
+if (existsSync(maxRootCertificatePath)) {
+  try {
+    const certificateBytes = readFileSync(maxRootCertificatePath);
+    const certificate = new X509Certificate(certificateBytes);
+    const fingerprint = createHash('sha256').update(certificate.raw).digest('hex');
+    if (fingerprint !== maxRootCertificateSha256) {
+      errors.push('MAX trust root fingerprint does not match the pinned official certificate');
+    }
+    if (
+      certificate.subject !== certificate.issuer ||
+      !certificate.subject.includes('CN=Russian Trusted Root CA')
+    ) {
+      errors.push('MAX trust root is not the expected self-signed Russian Trusted Root CA');
+    }
+    if (
+      Date.now() < Date.parse(certificate.validFrom) ||
+      Date.now() >= Date.parse(certificate.validTo)
+    ) {
+      errors.push('MAX trust root is outside its validity period');
+    }
+  } catch (problem) {
+    errors.push(
+      `MAX trust root cannot be parsed: ${problem instanceof Error ? problem.message : String(problem)}`,
+    );
+  }
+}
+
+const apiDockerfile = existsSync('Dockerfile.api') ? readFileSync('Dockerfile.api', 'utf8') : '';
+for (const marker of [
+  'NODE_EXTRA_CA_CERTS=/app/certs/russian-trusted-root-ca.pem',
+  '/workspace/docker/certs/russian-trusted-root-ca.pem',
+]) {
+  if (apiDockerfile && !apiDockerfile.includes(marker)) {
+    errors.push(`Dockerfile.api: missing MAX trust marker ${marker}`);
+  }
 }
 
 const portableDeploymentFiles = [
@@ -67,9 +111,73 @@ for (const marker of [
   'Profile production',
   'ASA_COMPOSE_PROFILE=production',
   'Node.js, pnpm',
+  'docker-update.sh --check',
+  'docker-update.ps1 -Profile production -CheckOnly',
 ]) {
   if (quickStart && !quickStart.includes(marker)) {
     errors.push(`docs/deployment/QUICK_START.md: missing portability marker ${marker}`);
+  }
+}
+
+const guardedUpdaterSources = [
+  {
+    path: 'tools/docker-update.sh',
+    source: existsSync('tools/docker-update.sh')
+      ? readFileSync('tools/docker-update.sh', 'utf8')
+      : '',
+    orderedMarkers: [
+      'git status --porcelain',
+      'git fetch origin main',
+      'assert_github_ci_success "$target_revision"',
+      'backup_database "$backup_path"',
+      'git pull --ff-only origin main',
+      'ASA_BUILD_REVISION=$new_revision',
+      'compose up -d --build',
+      '&& wait_exact_readiness',
+    ],
+  },
+  {
+    path: 'tools/docker-update.ps1',
+    source: existsSync('tools/docker-update.ps1')
+      ? readFileSync('tools/docker-update.ps1', 'utf8')
+      : '',
+    orderedMarkers: [
+      'git status --porcelain',
+      'Invoke-Native git fetch origin main',
+      'Assert-GitHubCiSuccess $targetRevision',
+      'New-DatabaseBackup $backupPath',
+      'Invoke-Native git pull --ff-only origin main',
+      '$env:ASA_BUILD_REVISION = $newRevision',
+      'Invoke-Compose up -d --build',
+      '[void](Wait-ExactReadiness',
+    ],
+  },
+];
+for (const { path, source, orderedMarkers } of guardedUpdaterSources) {
+  for (const marker of ['pg_restore --list', 'synchronized', 'ASA Lab Governance and Code Gates']) {
+    if (!source.includes(marker)) {
+      errors.push(`${path}: missing guarded-update marker ${marker}`);
+    }
+  }
+  let previousIndex = -1;
+  for (const marker of orderedMarkers) {
+    const index = source.indexOf(marker);
+    if (index < 0) {
+      errors.push(`${path}: missing guarded-update marker ${marker}`);
+    } else if (index <= previousIndex) {
+      errors.push(`${path}: guarded-update marker is out of order: ${marker}`);
+    }
+    previousIndex = index;
+  }
+  for (const forbidden of ['reset --hard', 'git clean', 'down --volumes', 'docker volume rm']) {
+    if (source.includes(forbidden)) {
+      errors.push(`${path}: destructive command is forbidden: ${forbidden}`);
+    }
+  }
+  for (const marker of ['COMPOSE_PROJECT_NAME', 'rollback-', 'automatic_database_restore']) {
+    if (!source.includes(marker)) {
+      errors.push(`${path}: missing fail-closed marker ${marker}`);
+    }
   }
 }
 
@@ -218,7 +326,7 @@ for (const [profile, overlays] of Object.entries(OVERLAYS)) {
       APP_DATABASE_URL:
         'postgres://asalab_app:compose-validation-runtime-password@postgres:5432/asalab',
       ASA_SETTINGS_ENCRYPTION_KEY: 'compose-validation-placeholder',
-      ASA_EXPECTED_SCHEMA_VERSION: '102',
+      ASA_EXPECTED_SCHEMA_VERSION: '103',
       ASA_PUBLIC_WEB_ORIGINS: 'https://asa-lab.ru',
     },
   });
@@ -246,7 +354,7 @@ for (const [profile, overlays] of Object.entries(OVERLAYS)) {
   ) {
     errors.push(`${profile}/api: runtime settings encryption key was not preserved`);
   }
-  if (config.services?.api?.environment?.ASA_EXPECTED_SCHEMA_VERSION !== '102') {
+  if (config.services?.api?.environment?.ASA_EXPECTED_SCHEMA_VERSION !== '103') {
     errors.push(`${profile}/api: expected schema version was not preserved`);
   }
   if (profile === 'production') {

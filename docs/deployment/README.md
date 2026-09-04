@@ -13,6 +13,8 @@ Operator references:
   staging and TLS boundary;
 - [`WINDOWS11_WSL2_DOCKER.md`](WINDOWS11_WSL2_DOCKER.md) — WSL2 development option;
 - [`DOCKER_BACKUP_RESTORE.md`](DOCKER_BACKUP_RESTORE.md) — guarded backup and restore;
+- [`GUARDED_UPDATE.md`](GUARDED_UPDATE.md) — verified fast-forward update with backup,
+  exact-SHA CI and readiness receipts;
 - [`DOCKER_TROUBLESHOOTING.md`](DOCKER_TROUBLESHOOTING.md) — diagnostics and safe cleanup.
 
 Historical infrastructure task state remains in the delivery/governance
