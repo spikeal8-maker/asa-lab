@@ -89,7 +89,7 @@
     "e2e:electronics-simulation": "playwright test e2e/electronics-simulation.spec.ts",
     "test:three-d": "vitest run contexts/three-d/testing apps/web/src/three-d/testing apps/api/src/three-d.controller.spec.ts",
     "test:three-d:corpus": "vitest run apps/web/src/three-d/testing/geometry-corpus.spec.ts",
-    "test:three-d:worker": "vitest run apps/web/src/three-d/testing/geometry-worker.spec.ts",
+    "test:three-d:worker": "vitest run apps/web/src/client-id.spec.ts apps/web/src/three-d/testing/geometry-worker.spec.ts",
     "benchmark:three-d": "node tools/run-three-d-benchmark.mjs",
     "e2e:three-d": "playwright test e2e/three-d-m0.spec.ts",
     "agent:context": "python tools/agent_context.py",

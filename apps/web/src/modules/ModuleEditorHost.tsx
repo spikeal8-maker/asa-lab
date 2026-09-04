@@ -8,6 +8,7 @@ import { loadSchematicEditor } from '../electronics/load-schematic-editor';
 import { EditorErrorBoundary } from './EditorErrorBoundary';
 import { AssignmentBrief } from '../components/AssignmentBrief';
 import { AppBootShell } from '../components/AppBootShell';
+import { newClientId } from '../client-id';
 
 interface ModuleEditorProps {
   projectId: string;
@@ -113,7 +114,10 @@ export function ModuleEditorHost(props: ModuleEditorHostProps): JSX.Element {
     const key = `${props.projectId}:${state.moduleKey}`;
     if (recordedOpen.current === key) return;
     recordedOpen.current = key;
-    const sessionId = crypto.randomUUID();
+    // randomUUID is unavailable in Chromium on the plain-HTTP Docker hostname
+    // used by the browser gate. Keep module telemetry working there with the
+    // same Web Crypto fallback used by other durable client actions.
+    const sessionId = newClientId();
     const moduleKey = state.moduleKey as 'electronics' | 'three-d' | 'chess' | 'checkers';
     let active = true;
     let started = false;
