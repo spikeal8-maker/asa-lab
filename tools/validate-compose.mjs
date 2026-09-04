@@ -2,6 +2,7 @@
 
 import { existsSync, readFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
+import { createHash, X509Certificate } from 'node:crypto';
 import { parse as parseYaml } from 'yaml';
 
 const BASE_PATH = 'compose.yaml';
@@ -21,6 +22,7 @@ const REQUIRED_FILES = [
   '.env.docker.example',
   'docker/api-entrypoint.sh',
   'docker/migrate-entrypoint.sh',
+  'docker/certs/russian-trusted-root-ca.pem',
   'docker/web/Caddyfile',
   'tools/asa-lab.sh',
   'tools/asa-lab.ps1',
@@ -39,6 +41,45 @@ const errors = [];
 
 for (const path of REQUIRED_FILES) {
   if (!existsSync(path)) errors.push(`missing required Docker file: ${path}`);
+}
+
+const maxRootCertificatePath = 'docker/certs/russian-trusted-root-ca.pem';
+const maxRootCertificateSha256 = 'd26d2d0231b7c39f92cc738512ba54103519e4405d68b5bd703e9788ca8ecf31';
+if (existsSync(maxRootCertificatePath)) {
+  try {
+    const certificateBytes = readFileSync(maxRootCertificatePath);
+    const certificate = new X509Certificate(certificateBytes);
+    const fingerprint = createHash('sha256').update(certificate.raw).digest('hex');
+    if (fingerprint !== maxRootCertificateSha256) {
+      errors.push('MAX trust root fingerprint does not match the pinned official certificate');
+    }
+    if (
+      certificate.subject !== certificate.issuer ||
+      !certificate.subject.includes('CN=Russian Trusted Root CA')
+    ) {
+      errors.push('MAX trust root is not the expected self-signed Russian Trusted Root CA');
+    }
+    if (
+      Date.now() < Date.parse(certificate.validFrom) ||
+      Date.now() >= Date.parse(certificate.validTo)
+    ) {
+      errors.push('MAX trust root is outside its validity period');
+    }
+  } catch (problem) {
+    errors.push(
+      `MAX trust root cannot be parsed: ${problem instanceof Error ? problem.message : String(problem)}`,
+    );
+  }
+}
+
+const apiDockerfile = existsSync('Dockerfile.api') ? readFileSync('Dockerfile.api', 'utf8') : '';
+for (const marker of [
+  'NODE_EXTRA_CA_CERTS=/app/certs/russian-trusted-root-ca.pem',
+  '/workspace/docker/certs/russian-trusted-root-ca.pem',
+]) {
+  if (apiDockerfile && !apiDockerfile.includes(marker)) {
+    errors.push(`Dockerfile.api: missing MAX trust marker ${marker}`);
+  }
 }
 
 const portableDeploymentFiles = [
