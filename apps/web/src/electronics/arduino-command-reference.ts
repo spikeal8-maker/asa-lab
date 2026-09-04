@@ -16,6 +16,8 @@ export interface ArduinoCommandReferenceEntry {
   readonly example: string;
 }
 
+export const ARDUINO_SNIPPET_MIME = 'application/x-asa-arduino-snippet';
+
 export const ARDUINO_COMMAND_CATEGORY_LABELS: Readonly<Record<ArduinoCommandCategory, string>> = {
   program: 'Программа',
   io: 'Ввод и вывод',
@@ -268,4 +270,21 @@ export function filterArduinoCommandReference(
       .toLocaleLowerCase('ru')
       .includes(needle);
   });
+}
+
+export function insertArduinoSnippet(
+  source: string,
+  snippet: string,
+  position: number,
+): { readonly source: string; readonly cursor: number } {
+  const at = Math.max(0, Math.min(source.length, Math.trunc(position)));
+  const before = source.slice(0, at);
+  const after = source.slice(at);
+  const leadingBreak = before.length > 0 && !before.endsWith('\n') ? '\n' : '';
+  const trailingBreak = after.length > 0 && !after.startsWith('\n') ? '\n' : '';
+  const insertion = `${leadingBreak}${snippet}${trailingBreak}`;
+  return {
+    source: `${before}${insertion}${after}`,
+    cursor: before.length + insertion.length,
+  };
 }

@@ -4,6 +4,7 @@ import {
   ARDUINO_COMMAND_REFERENCE,
   arduinoSupportStatusLabel,
   filterArduinoCommandReference,
+  insertArduinoSnippet,
 } from '../arduino-command-reference';
 
 describe('Arduino command reference', () => {
@@ -34,5 +35,15 @@ describe('Arduino command reference', () => {
     expect(arduinoSupportStatusLabel('supported')).toBe('Работает');
     expect(arduinoSupportStatusLabel('limited')).toBe('Ограничено');
     expect(arduinoSupportStatusLabel('unsupported')).toBe('Пока не работает');
+  });
+
+  it('inserts a dragged example at the selected code position', () => {
+    expect(insertArduinoSnippet('void loop() {\n}\n', 'digitalWrite(13, HIGH);', 14)).toEqual({
+      source: 'void loop() {\ndigitalWrite(13, HIGH);\n}\n',
+      cursor: 38,
+    });
+    expect(insertArduinoSnippet('void setup() {}', 'void loop() {}', 15).source).toBe(
+      'void setup() {}\nvoid loop() {}',
+    );
   });
 });

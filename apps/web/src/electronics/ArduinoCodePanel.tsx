@@ -5,6 +5,7 @@ import {
   useRef,
   useState,
   type FormEvent,
+  type DragEvent,
   type KeyboardEvent,
   type PointerEvent,
   type CSSProperties,
@@ -44,6 +45,7 @@ import {
   type ArduinoSourceToken,
 } from './arduino-source-language';
 import { ArduinoCommandReference } from './ArduinoCommandReference';
+import { ARDUINO_SNIPPET_MIME, insertArduinoSnippet } from './arduino-command-reference';
 import type { ElectronicsWorkbenchController } from './use-electronics-workbench';
 
 const CATEGORY_ITEMS: readonly {
@@ -789,11 +791,13 @@ function ArduinoSourceEditor({
   readOnly,
   fontSize,
   onChange,
+  onCursorChange,
 }: {
   source: string;
   readOnly: boolean;
   fontSize: number;
   onChange: (source: string) => void;
+  onCursorChange: (position: number) => void;
 }): JSX.Element {
   const editorRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -809,6 +813,7 @@ function ArduinoSourceEditor({
   const [cursor, setCursor] = useState(0);
   const [scroll, setScroll] = useState({ left: 0, top: 0 });
   const [completionIndex, setCompletionIndex] = useState(0);
+  const [snippetDropActive, setSnippetDropActive] = useState(false);
   const completion = useMemo(
     () => (readOnly ? null : arduinoCompletionsAt(source, cursor)),
     [cursor, readOnly, source],
@@ -831,6 +836,11 @@ function ArduinoSourceEditor({
 
   useEffect(() => setCompletionIndex(0), [completion?.from, completion?.items]);
 
+  function updateCursor(position: number): void {
+    setCursor(position);
+    onCursorChange(position);
+  }
+
   function syncScroll(target: HTMLTextAreaElement): void {
     if (highlightRef.current) {
       highlightRef.current.scrollTop = target.scrollTop;
@@ -845,11 +855,25 @@ function ArduinoSourceEditor({
     const next = source.slice(0, completion.from) + item.label + source.slice(cursor);
     const nextCursor = completion.from + item.label.length;
     onChange(next);
-    setCursor(nextCursor);
+    updateCursor(nextCursor);
     requestAnimationFrame(() => {
       textareaRef.current?.focus();
       textareaRef.current?.setSelectionRange(nextCursor, nextCursor);
     });
+  }
+
+  function applySnippet(snippet: string, position: number): void {
+    const insertion = insertArduinoSnippet(source, snippet, position);
+    onChange(insertion.source);
+    updateCursor(insertion.cursor);
+    requestAnimationFrame(() => {
+      textareaRef.current?.focus();
+      textareaRef.current?.setSelectionRange(insertion.cursor, insertion.cursor);
+    });
+  }
+
+  function acceptsArduinoSnippet(event: DragEvent<HTMLTextAreaElement>): boolean {
+    return !readOnly && Array.from(event.dataTransfer.types).includes(ARDUINO_SNIPPET_MIME);
   }
 
   function revealDiagnostic(diagnostic: ArduinoSourceSupportDiagnostic): void {
@@ -857,7 +881,7 @@ function ArduinoSourceEditor({
     if (!textarea) return;
     textarea.focus();
     textarea.setSelectionRange(diagnostic.start, diagnostic.start + diagnostic.length);
-    setCursor(diagnostic.start);
+    updateCursor(diagnostic.start);
     const lineHeight = fontSize * 1.45;
     textarea.scrollTop = Math.max(0, (diagnostic.line - 2) * lineHeight);
     syncScroll(textarea);
@@ -884,12 +908,12 @@ function ArduinoSourceEditor({
     }
     if (event.key === 'Escape') {
       event.preventDefault();
-      setCursor(0);
+      updateCursor(0);
     }
   }
   return (
     <div
-      className={`arduino-source-editor${readOnly ? ' read-only' : ''}${supportDiagnostics.length > 0 ? ' has-diagnostics' : ''}`}
+      className={`arduino-source-editor${readOnly ? ' read-only' : ''}${supportDiagnostics.length > 0 ? ' has-diagnostics' : ''}${snippetDropActive ? ' snippet-drop-active' : ''}`}
       style={{ '--arduino-code-size': `${fontSize}px` } as React.CSSProperties}
       ref={editorRef}
     >
@@ -911,13 +935,31 @@ function ArduinoSourceEditor({
         aria-describedby="arduino-source-editor-status arduino-source-diagnostics"
         onChange={(event) => {
           onChange(event.target.value);
-          setCursor(event.currentTarget.selectionStart);
+          updateCursor(event.currentTarget.selectionStart);
         }}
-        onClick={(event) => setCursor(event.currentTarget.selectionStart)}
+        onClick={(event) => updateCursor(event.currentTarget.selectionStart)}
         onKeyDown={handleEditorKeyDown}
-        onKeyUp={(event) => setCursor(event.currentTarget.selectionStart)}
-        onSelect={(event) => setCursor(event.currentTarget.selectionStart)}
+        onKeyUp={(event) => updateCursor(event.currentTarget.selectionStart)}
+        onSelect={(event) => updateCursor(event.currentTarget.selectionStart)}
         onScroll={(event) => syncScroll(event.currentTarget)}
+        onDragEnter={(event) => {
+          if (!acceptsArduinoSnippet(event)) return;
+          event.preventDefault();
+          setSnippetDropActive(true);
+        }}
+        onDragOver={(event) => {
+          if (!acceptsArduinoSnippet(event)) return;
+          event.preventDefault();
+          event.dataTransfer.dropEffect = 'copy';
+        }}
+        onDragLeave={() => setSnippetDropActive(false)}
+        onDrop={(event) => {
+          if (!acceptsArduinoSnippet(event)) return;
+          event.preventDefault();
+          setSnippetDropActive(false);
+          const snippet = event.dataTransfer.getData(ARDUINO_SNIPPET_MIME);
+          if (snippet) applySnippet(snippet, event.currentTarget.selectionStart ?? cursor);
+        }}
       />
       {completion ? (
         <div
@@ -1102,6 +1144,7 @@ export function ArduinoCodePanel({
     readArduinoProgramState(selectedBoard?.stateProperties),
   );
   const programRef = useRef(program);
+  const sourceCursorRef = useRef(program.source.length);
   const [category, setCategory] = useState<ArduinoBlockCategory>('output');
   const [fontSize, setFontSize] = useState(initialArduinoFontSize);
   const [commandReferenceOpen, setCommandReferenceOpen] = useState(false);
@@ -1112,6 +1155,7 @@ export function ArduinoCodePanel({
   const activateBoard = useCallback((board: SchematicComponent): void => {
     const nextProgram = readArduinoProgramState(board.stateProperties);
     programRef.current = nextProgram;
+    sourceCursorRef.current = nextProgram.source.length;
     setProgram(nextProgram);
     setBoardId(board.id);
     setPendingMode(null);
@@ -1218,6 +1262,16 @@ export function ArduinoCodePanel({
       return;
     }
     c.setNotice('Проверка Arduino: все использованные команды поддерживаются.');
+  }
+
+  function appendCommandSnippet(snippet: string): void {
+    const insertion = insertArduinoSnippet(
+      programRef.current.source,
+      snippet,
+      sourceCursorRef.current,
+    );
+    sourceCursorRef.current = insertion.cursor;
+    updateProgram({ source: insertion.source });
   }
 
   if (!selectedBoard) {
@@ -1327,11 +1381,15 @@ export function ArduinoCodePanel({
           ))}
         </select>
       </header>
-      <ArduinoCommandReference
-        open={commandReferenceOpen}
-        onClose={() => setCommandReferenceOpen(false)}
-      />
-      <div className={`arduino-code-body mode-${program.mode}`}>
+      <div
+        className={`arduino-code-body mode-${program.mode}${commandReferenceOpen ? ' commands-open' : ''}`}
+      >
+        <ArduinoCommandReference
+          open={commandReferenceOpen}
+          canInsert={program.mode === 'text'}
+          onClose={() => setCommandReferenceOpen(false)}
+          onInsert={appendCommandSnippet}
+        />
         {program.mode !== 'text' ? (
           <div className="arduino-block-editor">
             <PaletteResizeHandle
@@ -1404,6 +1462,9 @@ export function ArduinoCodePanel({
             readOnly={program.mode === 'blocks-text'}
             fontSize={fontSize}
             onChange={(source) => updateProgram({ source })}
+            onCursorChange={(position) => {
+              sourceCursorRef.current = position;
+            }}
           />
         ) : null}
       </div>
