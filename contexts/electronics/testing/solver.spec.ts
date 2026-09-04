@@ -996,6 +996,36 @@ describe('deterministic DC solver', () => {
     expect(result.diagnostics.map((item) => item.code)).not.toContain('unsupported_component');
   });
 
+  it('fails closed when an Arduino sketch uses an unsupported command', () => {
+    const result = solveCircuit(
+      doc(
+        [
+          component('uno', 'visual', 5, {
+            name: 'Плата управления',
+            componentTypeId: 'arduino-uno',
+            pinIds: ['d13', 'power-5v', 'power-3v3', 'power-gnd-1'],
+            stateProperties: {
+              arduinoSource: 'void loop() { Serial.println(analogRead(A0)); }',
+            },
+          }),
+        ],
+        [],
+      ),
+    );
+
+    expect(result.solved).toBe(false);
+    expect(result.status).toBe('unsupported');
+    expect(result.components).toEqual([]);
+    expect(result.nodes).toEqual([]);
+    expect(result.diagnostics).toContainEqual(
+      expect.objectContaining({
+        code: 'arduino_program_unsupported',
+        severity: 'error',
+        componentIds: ['uno'],
+      }),
+    );
+  });
+
   it('models a resistor-less LED on Arduino D13 and reports physical burnout', () => {
     const result = solveCircuit(
       doc(

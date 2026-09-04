@@ -14,6 +14,7 @@ import {
   arduinoSourceUsesInputReads,
   type ArduinoTerminalVoltages,
 } from './arduino-program-runtime.js';
+import { analyseArduinoSourceSupport } from './arduino-capabilities.js';
 import { photoresistorResistanceOhm } from './photoresistor-model.js';
 import { spdtSelectedTerminal } from './switch-topology.js';
 import { buildNetlist, terminalKey } from './netlist.js';
@@ -155,6 +156,7 @@ export type DiagnosticCode =
   | 'motor_overvoltage'
   | 'motor_stalled'
   | 'component_failed'
+  | 'arduino_program_unsupported'
   | 'unsupported_component'
   | 'unsupported_topology'
   | 'numerical_instability'
@@ -1862,6 +1864,29 @@ function solveCircuitStep(
     });
   }
   if (invalidTerminalContracts.length > 0) return empty('invalid');
+  const unsupportedArduinoPrograms = document.components.flatMap((component) => {
+    if (!isArduinoUno(component)) return [];
+    const source = component.stateProperties?.['arduinoSource'];
+    if (typeof source !== 'string') return [];
+    const unsupportedDiagnostics = analyseArduinoSourceSupport(source).filter(
+      (diagnostic) => diagnostic.status === 'unsupported',
+    );
+    return unsupportedDiagnostics.length > 0
+      ? [{ component, diagnostics: unsupportedDiagnostics }]
+      : [];
+  });
+  for (const entry of unsupportedArduinoPrograms) {
+    const first = entry.diagnostics[0];
+    diagnostics.push({
+      code: 'arduino_program_unsupported',
+      severity: 'error',
+      message: `${entry.component.name ?? entry.component.id}: программа Arduino содержит ${entry.diagnostics.length} неподдерживаемых команд. Первая — строка ${first?.line ?? 1}: ${first?.message ?? 'команда не поддерживается.'}`,
+      componentIds: [entry.component.id],
+      suggestedAction:
+        'Откройте редактор кода и замените команды, отмеченные как неподдерживаемые.',
+    });
+  }
+  if (unsupportedArduinoPrograms.length > 0) return empty('unsupported');
   const unsupported = unsupportedElectricalComponents(document.components);
   if (unsupported.length > 0) {
     diagnostics.push({

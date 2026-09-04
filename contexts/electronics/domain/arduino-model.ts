@@ -62,7 +62,9 @@ function applyWrites(
 /**
  * Execute the deterministic digital/PWM subset emitted by the block editor.
  * setup() runs once; loop() repeats according to delay()/delayMicroseconds().
- * Unknown C++ stays inert instead of inventing an electrical state.
+ * The circuit solver validates the sketch against the shared capability
+ * registry before calling this bounded executor, so unknown C++ fails closed
+ * instead of becoming an invented electrical state.
  */
 export function arduinoProgrammedOutputs(
   component: SchematicComponent,

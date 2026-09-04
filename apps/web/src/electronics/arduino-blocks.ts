@@ -1,4 +1,5 @@
 import * as ScratchBlocks from 'scratch-blocks';
+import { arduinoBlockSupport } from '@asa-lab/electronics';
 
 export type ArduinoBlockCategory =
   'output' | 'input' | 'comment' | 'control' | 'data' | 'variables';
@@ -708,7 +709,19 @@ export function registerArduinoBlocks(): void {
   // before that theme has settled, the renderer falls back to black. An explicit
   // colour is the stable Blockly contract and still uses the genuine Scratch
   // shapes, fields and renderer.
-  ScratchBlocks.defineBlocksWithJsonArray(definitions);
+  const annotatedDefinitions = definitions.map((definition) => {
+    const blockType = typeof definition['type'] === 'string' ? definition['type'] : '';
+    const support = arduinoBlockSupport(blockType);
+    if (support.status === 'supported') return definition;
+    const marker = support.status === 'unsupported' ? '⚠' : '◐';
+    const tooltip = typeof definition['tooltip'] === 'string' ? definition['tooltip'].trim() : '';
+    return {
+      ...definition,
+      message0: `${marker} ${String(definition['message0'] ?? '')}`,
+      tooltip: [tooltip, support.summary].filter(Boolean).join(' '),
+    };
+  });
+  ScratchBlocks.defineBlocksWithJsonArray(annotatedDefinitions);
 }
 
 const TOOLBOX_BY_CATEGORY: Record<ArduinoBlockCategory, readonly string[]> = {

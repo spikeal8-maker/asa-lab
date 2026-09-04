@@ -191,6 +191,19 @@ export {
   type SpdtThrow,
 } from './domain/switch-topology.js';
 export {
+  ARDUINO_BLOCK_SUPPORT,
+  ARDUINO_TEXT_COMMAND_SUPPORT,
+  analyseArduinoSourceSupport,
+  arduinoBlockSupport,
+  arduinoSourceHasUnsupportedFeatures,
+  arduinoTextCommandSupport,
+  type ArduinoBlockSupport,
+  type ArduinoBlockType,
+  type ArduinoSourceSupportDiagnostic,
+  type ArduinoSupportStatus,
+  type ArduinoTextCommand,
+} from './domain/arduino-capabilities.js';
+export {
   solveCircuit,
   sourceInternalResistanceOhm,
   type ComponentResult,

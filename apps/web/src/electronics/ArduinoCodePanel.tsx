@@ -11,6 +11,10 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 import * as ScratchBlocks from 'scratch-blocks';
+import {
+  analyseArduinoSourceSupport,
+  type ArduinoSourceSupportDiagnostic,
+} from '@asa-lab/electronics';
 import scratchSpritesUrl from '../../node_modules/scratch-blocks/media/sprites.png?url';
 import scratchZoomInUrl from '../../node_modules/scratch-blocks/media/zoom-in.svg?url';
 import scratchZoomOutUrl from '../../node_modules/scratch-blocks/media/zoom-out.svg?url';
@@ -788,6 +792,11 @@ function ArduinoSourceEditor({
   const gutterRef = useRef<HTMLDivElement>(null);
   const lines = source.split('\n');
   const highlightedLines = useMemo(() => tokenizeArduinoSource(source), [source]);
+  const supportDiagnostics = useMemo(() => analyseArduinoSourceSupport(source), [source]);
+  const unsupportedCount = supportDiagnostics.filter(
+    (diagnostic) => diagnostic.status === 'unsupported',
+  ).length;
+  const limitedCount = supportDiagnostics.length - unsupportedCount;
   const [cursor, setCursor] = useState(0);
   const [scroll, setScroll] = useState({ left: 0, top: 0 });
   const [completionIndex, setCompletionIndex] = useState(0);
@@ -834,6 +843,17 @@ function ArduinoSourceEditor({
     });
   }
 
+  function revealDiagnostic(diagnostic: ArduinoSourceSupportDiagnostic): void {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    textarea.focus();
+    textarea.setSelectionRange(diagnostic.start, diagnostic.start + diagnostic.length);
+    setCursor(diagnostic.start);
+    const lineHeight = fontSize * 1.45;
+    textarea.scrollTop = Math.max(0, (diagnostic.line - 2) * lineHeight);
+    syncScroll(textarea);
+  }
+
   function handleEditorKeyDown(event: KeyboardEvent<HTMLTextAreaElement>): void {
     if (!completion) return;
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
@@ -860,7 +880,7 @@ function ArduinoSourceEditor({
   }
   return (
     <div
-      className={`arduino-source-editor${readOnly ? ' read-only' : ''}`}
+      className={`arduino-source-editor${readOnly ? ' read-only' : ''}${supportDiagnostics.length > 0 ? ' has-diagnostics' : ''}`}
       style={{ '--arduino-code-size': `${fontSize}px` } as React.CSSProperties}
       ref={editorRef}
     >
@@ -877,8 +897,9 @@ function ArduinoSourceEditor({
         value={source}
         readOnly={readOnly}
         spellCheck={false}
+        aria-invalid={unsupportedCount > 0}
         aria-label={readOnly ? 'Сгенерированный код Arduino' : 'Код Arduino C++'}
-        aria-describedby="arduino-source-editor-status"
+        aria-describedby="arduino-source-editor-status arduino-source-diagnostics"
         onChange={(event) => {
           onChange(event.target.value);
           setCursor(event.currentTarget.selectionStart);
@@ -900,21 +921,68 @@ function ArduinoSourceEditor({
             <button
               type="button"
               key={item.label}
-              className={index === completionIndex ? 'active' : ''}
+              className={`${index === completionIndex ? 'active ' : ''}support-${item.support}`}
               role="option"
               aria-selected={index === completionIndex}
               onMouseDown={(event) => event.preventDefault()}
               onClick={() => applyCompletion(item)}
             >
               <code>{item.label}</code>
-              <span>{item.detail}</span>
+              <span>
+                {item.support === 'unsupported'
+                  ? '⚠ Пока не работает · '
+                  : item.support === 'limited'
+                    ? '◐ Ограничено · '
+                    : ''}
+                {item.detail}
+              </span>
             </button>
           ))}
         </div>
       ) : null}
+      {supportDiagnostics.length > 0 ? (
+        <div
+          className={`arduino-source-diagnostics${unsupportedCount > 0 ? ' has-errors' : ''}`}
+          id="arduino-source-diagnostics"
+          role="status"
+          aria-label="Поддержка команд Arduino"
+        >
+          <strong>
+            {unsupportedCount > 0
+              ? `Не исполняется: ${unsupportedCount}`
+              : `Ограниченная модель: ${limitedCount}`}
+          </strong>
+          <div>
+            {supportDiagnostics.slice(0, 4).map((diagnostic) => (
+              <button
+                type="button"
+                key={`${diagnostic.code}-${diagnostic.start}`}
+                className={diagnostic.status}
+                onClick={() => revealDiagnostic(diagnostic)}
+                title={diagnostic.message}
+              >
+                <span>{diagnostic.status === 'unsupported' ? '⚠' : '◐'}</span>
+                <code>строка {diagnostic.line}</code>
+                {diagnostic.message}
+              </button>
+            ))}
+            {supportDiagnostics.length > 4 ? (
+              <small>Ещё {supportDiagnostics.length - 4}</small>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
       <div className="arduino-source-status" id="arduino-source-editor-status">
-        <span>Arduino C++</span>
-        <span>{completion ? '↑↓ выбрать · Tab вставить' : 'Подсветка и автодополнение'}</span>
+        <span>{unsupportedCount > 0 ? 'Расчёт заблокирован' : 'Arduino C++'}</span>
+        <span>
+          {completion
+            ? '↑↓ выбрать · Tab вставить'
+            : unsupportedCount > 0
+              ? 'Исправьте неподдерживаемые команды'
+              : limitedCount > 0
+                ? 'Есть ограничения модели'
+                : 'Поддерживаемый срез'}
+        </span>
       </div>
     </div>
   );
@@ -1252,6 +1320,10 @@ export function ArduinoCodePanel({
               >
                 +
               </button>
+            </div>
+            <div className="arduino-support-legend" aria-label="Обозначения поддержки блоков">
+              <span>⚠ пока не работает</span>
+              <span>◐ ограничено</span>
             </div>
           </div>
         ) : null}

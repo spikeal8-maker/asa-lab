@@ -17,6 +17,7 @@ export type ArduinoSourceToken = {
 export type ArduinoCompletion = {
   readonly label: string;
   readonly detail: string;
+  readonly support: ArduinoSupportStatus;
 };
 
 const KEYWORDS = new Set([
@@ -111,7 +112,7 @@ const BUILTINS = new Set([
   'write',
 ]);
 
-export const ARDUINO_COMPLETIONS: readonly ArduinoCompletion[] = [
+const COMPLETION_DEFINITIONS: readonly Omit<ArduinoCompletion, 'support'>[] = [
   { label: 'analogRead', detail: 'Считать аналоговый вход' },
   { label: 'analogWrite', detail: 'Записать ШИМ-значение' },
   { label: 'delay', detail: 'Пауза в миллисекундах' },
@@ -134,6 +135,13 @@ export const ARDUINO_COMPLETIONS: readonly ArduinoCompletion[] = [
   { label: 'Serial.println', detail: 'Вывести значение с переносом' },
   { label: 'tone', detail: 'Запустить звуковой сигнал' },
 ] as const;
+
+export const ARDUINO_COMPLETIONS: readonly ArduinoCompletion[] = COMPLETION_DEFINITIONS.map(
+  (completion) => ({
+    ...completion,
+    support: arduinoTextCommandSupport(completion.label).status,
+  }),
+);
 
 function identifierKind(identifier: string): ArduinoSourceTokenKind {
   if (KEYWORDS.has(identifier)) return 'keyword';
@@ -232,3 +240,4 @@ export function arduinoCompletionsAt(
   ).slice(0, limit);
   return items.length > 0 ? { from: cursor - match[0].length, items } : null;
 }
+import { arduinoTextCommandSupport, type ArduinoSupportStatus } from '@asa-lab/electronics';

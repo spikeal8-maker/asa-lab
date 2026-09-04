@@ -3740,6 +3740,26 @@ html.arduino-palette-resizing * {
   opacity: 0.35;
   cursor: default;
 }
+.arduino-support-legend {
+  position: absolute;
+  z-index: 65;
+  bottom: 54px;
+  left: 12px;
+  display: grid;
+  gap: 2px;
+  padding: 5px 8px;
+  border: 1px solid rgba(203, 211, 217, 0.9);
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 2px 7px rgba(30, 49, 62, 0.1);
+  color: #586b78;
+  font-size: 10px;
+  line-height: 1.25;
+  pointer-events: none;
+}
+.arduino-support-legend > span:first-child {
+  color: #9a3c32;
+}
 
 .arduino-block-context-menu {
   position: fixed;
@@ -3913,6 +3933,10 @@ html.arduino-palette-resizing * {
 .arduino-source-editor textarea::selection {
   background: rgba(56, 150, 205, 0.28);
 }
+.arduino-source-editor.has-diagnostics .arduino-code-highlight,
+.arduino-source-editor.has-diagnostics textarea {
+  padding-bottom: 150px;
+}
 .arduino-code-line {
   display: block;
   min-height: calc(var(--arduino-code-size) * 1.45);
@@ -3985,6 +4009,12 @@ html.arduino-palette-resizing * {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.arduino-code-suggestions .support-unsupported span {
+  color: #a23f35;
+}
+.arduino-code-suggestions .support-limited span {
+  color: #7a6524;
+}
 .arduino-source-status {
   position: absolute;
   z-index: 3;
@@ -4004,6 +4034,65 @@ html.arduino-palette-resizing * {
 .arduino-source-status > span:first-child {
   color: #087f8c;
   font-weight: 600;
+}
+.arduino-source-diagnostics {
+  position: absolute;
+  z-index: 4;
+  right: 8px;
+  bottom: 32px;
+  left: 52px;
+  display: grid;
+  max-height: 112px;
+  gap: 4px;
+  box-sizing: border-box;
+  padding: 7px;
+  overflow: auto;
+  border: 1px solid #d4b66b;
+  border-radius: 4px;
+  background: rgba(255, 250, 232, 0.97);
+  box-shadow: 0 3px 12px rgba(38, 51, 59, 0.14);
+  color: #635324;
+  font-size: 11px;
+}
+.arduino-source-diagnostics.has-errors {
+  border-color: #d58a81;
+  background: rgba(255, 244, 242, 0.98);
+  color: #74342e;
+}
+.arduino-source-diagnostics > div {
+  display: grid;
+  gap: 2px;
+}
+.arduino-source-diagnostics button {
+  display: grid;
+  grid-template-columns: 16px 64px minmax(0, 1fr);
+  gap: 5px;
+  align-items: baseline;
+  padding: 2px 3px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 2px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.arduino-source-diagnostics button:hover,
+.arduino-source-diagnostics button:focus-visible {
+  background: rgba(113, 78, 42, 0.09);
+  outline: 1px solid currentColor;
+}
+.arduino-source-diagnostics code {
+  color: inherit;
+  font: inherit;
+  font-weight: 700;
+}
+.arduino-source-diagnostics small {
+  padding-left: 21px;
+  color: #6d7d87;
 }
 .arduino-serial-monitor {
   position: relative;

@@ -1,6 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { ARDUINO_BLOCK_SUPPORT, ARDUINO_TEXT_COMMAND_SUPPORT } from '@asa-lab/electronics';
+import { ARDUINO_COMPLETIONS } from '../arduino-source-language';
 
 const electronicsRoot = resolve(process.cwd(), 'apps/web/src/electronics');
 const blocksSource = readFileSync(resolve(electronicsRoot, 'arduino-blocks.ts'), 'utf8');
@@ -124,6 +126,29 @@ describe('Arduino programming room contract', () => {
     ]) {
       expect(blocksSource).toContain(`type: '${block}'`);
     }
+  });
+
+  it('marks every offered block and diagnoses unsupported text before simulation', () => {
+    const toolboxMatch = blocksSource.match(
+      /const TOOLBOX_BY_CATEGORY:[\s\S]*?= \{([\s\S]*?)\n\};/,
+    );
+    const offeredBlocks = [...(toolboxMatch?.[1] ?? '').matchAll(/'(asa_[a-z0-9_]+)'/g)].map(
+      (match) => match[1],
+    );
+    expect(offeredBlocks.length).toBeGreaterThan(50);
+    expect(offeredBlocks.filter((block) => !(block in ARDUINO_BLOCK_SUPPORT))).toEqual([]);
+    expect(
+      ARDUINO_COMPLETIONS.filter(
+        (completion) => !(completion.label in ARDUINO_TEXT_COMMAND_SUPPORT),
+      ),
+    ).toEqual([]);
+    expect(blocksSource).toContain("support.status === 'unsupported' ? '⚠' : '◐'");
+    expect(panelSource).toContain('analyseArduinoSourceSupport(source)');
+    expect(panelSource).toContain('Не исполняется: ${unsupportedCount}');
+    expect(panelSource).toContain('Расчёт заблокирован');
+    expect(panelSource).toContain('⚠ пока не работает');
+    expect(css).toContain('.arduino-source-diagnostics.has-errors');
+    expect(css).toContain('.arduino-support-legend');
   });
 
   it('keeps block inputs visible and supports complete stack actions', () => {
