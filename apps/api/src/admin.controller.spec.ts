@@ -60,6 +60,7 @@ function controller(options: {
     accountCrm: vi.fn(async (_access, input) => ({ accountId: input.targetAccountId })),
     addAccountNote: vi.fn(async () => ({ id: '60000000-0000-4000-8000-000000000001' })),
     setAccountIpLabel: vi.fn(async () => ({ id: '70000000-0000-4000-8000-000000000001' })),
+    clearAccountIpLabel: vi.fn(async () => ({ cleared: true })),
     listOrganizations: vi.fn(async () => {
       if (options.directoryFailure) throw options.directoryFailure;
       return { items: [], next: null };
@@ -412,6 +413,15 @@ describe('administrative control-plane transport', () => {
     expect(target.controlPlane.setAccountIpLabel).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({ ipAddress: '203.0.113.10', labelKind: 'school' }),
+    );
+    await expect(
+      target.value.clearAccountIpLabel(request({ asa_session: 'session' }), accountId, {
+        ipAddress: '203.0.113.10',
+      }),
+    ).resolves.toEqual({ cleared: true });
+    expect(target.controlPlane.clearAccountIpLabel).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ ipAddress: '203.0.113.10' }),
     );
 
     await expect(

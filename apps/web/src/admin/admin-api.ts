@@ -82,11 +82,13 @@ export interface AdminAccount {
   readonly hasEverSignedIn: boolean;
   readonly isPlatformAdmin: boolean;
   readonly lastIpAddress: string | null;
+  readonly lastNetworkKind: AdminNetworkKind | null;
   readonly lastDevice: string | null;
   readonly recentActivityCount: number;
 }
 
 export type AdminIpLabelKind = 'school' | 'home' | 'mobile' | 'organization' | 'other';
+export type AdminNetworkKind = 'public' | 'local_network' | 'local_device' | 'proxy' | 'unknown';
 
 export interface AdminAccountCrm {
   readonly accountId: string;
@@ -122,6 +124,7 @@ export interface AdminAccountCrm {
     readonly authMethod: string | null;
     readonly moduleKey: string | null;
     readonly ipAddress: string | null;
+    readonly networkKind: AdminNetworkKind;
     readonly device: string | null;
   }[];
   readonly ipAddresses: readonly {
@@ -130,6 +133,7 @@ export interface AdminAccountCrm {
     readonly lastSeenAt: string;
     readonly eventCount: number;
     readonly device: string | null;
+    readonly networkKind: AdminNetworkKind;
     readonly labelKind: AdminIpLabelKind | null;
     readonly label: string | null;
   }[];
@@ -140,6 +144,13 @@ export interface AdminAccountCrm {
     readonly authorDisplayName: string;
   }[];
   readonly max: { readonly linked: boolean; readonly verifiedAt: string | null };
+  readonly moduleUsage: readonly {
+    readonly moduleKey: string;
+    readonly projectCount: number;
+    readonly launches: number;
+    readonly activeSeconds: number;
+    readonly lastOpenedAt: string;
+  }[];
 }
 
 export interface AdminMaxIdentity {
@@ -255,6 +266,9 @@ export interface AdminDashboardPoint {
   readonly activeAccounts: number;
   readonly successfulLogins: number;
   readonly failedLogins: number;
+  readonly successfulRegistrations: number;
+  readonly authenticatedSessions: number;
+  readonly rejectedAuthAttempts: number;
   readonly newStudents: number;
   readonly activeStudents: number;
 }
@@ -264,11 +278,12 @@ export interface AdminModulePoint {
   readonly moduleKey: 'electronics' | 'three-d' | 'chess' | 'checkers';
   readonly activePeople: number;
   readonly launches: number;
+  readonly activeSeconds: number;
 }
 
 export interface AdminLoginMethodPoint {
   readonly at: string;
-  readonly method: 'password' | 'organization' | 'max' | 'class_code';
+  readonly method: 'password' | 'organization' | 'max' | 'class_code' | 'registration';
   readonly successfulLogins: number;
 }
 
@@ -292,10 +307,15 @@ export interface AdminProductDashboard {
     readonly activeAccounts: number;
     readonly successfulLogins: number;
     readonly failedLogins: number;
+    readonly successfulRegistrations: number;
+    readonly authenticatedSessions: number;
+    readonly rejectedAuthAttempts: number;
     readonly newStudents: number;
     readonly activeStudents: number;
     readonly distinctIpAddresses: number;
     readonly accountsWithMultipleIps: number;
+    readonly localNetworkAccounts: number;
+    readonly unclassifiedNetworkEvents: number;
   };
   readonly timeline: readonly AdminDashboardPoint[];
   readonly modules: readonly AdminModulePoint[];
@@ -460,6 +480,11 @@ export const adminApi = {
     call<{ readonly id: string }>(
       `/api/admin/v1/accounts/${encodeURIComponent(accountId)}/ip-labels`,
       { method: 'POST', body: JSON.stringify(input) },
+    ),
+  clearAccountIpLabel: (accountId: string, ipAddress: string) =>
+    call<{ readonly cleared: boolean }>(
+      `/api/admin/v1/accounts/${encodeURIComponent(accountId)}/ip-labels`,
+      { method: 'DELETE', body: JSON.stringify({ ipAddress }) },
     ),
   setAccountStatus: (
     accountId: string,

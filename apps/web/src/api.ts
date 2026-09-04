@@ -1418,6 +1418,21 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ moduleKey }),
     }),
+  startModuleSession: (
+    sessionId: string,
+    projectId: string,
+    moduleKey: 'electronics' | 'three-d' | 'chess' | 'checkers',
+  ) =>
+    call<{ accepted: boolean; sessionId: string }>('/api/analytics/v1/module-session/start', {
+      method: 'POST',
+      body: JSON.stringify({ sessionId, projectId, moduleKey }),
+    }),
+  touchModuleSession: (sessionId: string, closed = false, keepalive = false) =>
+    call<{ accepted: boolean }>('/api/analytics/v1/module-session/touch', {
+      method: 'POST',
+      body: JSON.stringify({ sessionId, closed }),
+      keepalive,
+    }),
   listClassrooms: () => call<{ items: Classroom[]; meta: { total: number } }>('/api/classrooms'),
   getClassroom: (classroomId: string) =>
     call<{ classroom: Classroom }>(`/api/classrooms/${encodeURIComponent(classroomId)}`),

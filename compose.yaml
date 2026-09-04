@@ -80,6 +80,7 @@ services:
       ASA_EXPECTED_SCHEMA_VERSION: ${ASA_EXPECTED_SCHEMA_VERSION:-}
       APP_DATABASE_URL: ${APP_DATABASE_URL:-postgres://asalab_app:asa-local-runtime-change-me@postgres:5432/asalab}
       ASA_SETTINGS_ENCRYPTION_KEY: ${ASA_SETTINGS_ENCRYPTION_KEY:-}
+      ASA_TRUSTED_PROXY_CIDRS: ${ASA_TRUSTED_PROXY_CIDRS:-172.16.0.0/12}
     expose:
       - '4611'
     tmpfs:

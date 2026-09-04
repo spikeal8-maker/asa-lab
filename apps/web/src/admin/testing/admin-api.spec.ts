@@ -217,6 +217,7 @@ describe('administrative API client', () => {
       labelKind: 'school',
       label: 'Школа № 1',
     });
+    await adminApi.clearAccountIpLabel('account/id', '203.0.113.10');
 
     expect(request.mock.calls[0]?.[0]).toBe(
       '/api/admin/v1/accounts/account%2Fid/crm?scopeKind=organization&scopeId=scope%2Fid',
@@ -237,6 +238,13 @@ describe('administrative API client', () => {
           labelKind: 'school',
           label: 'Школа № 1',
         }),
+      }),
+    );
+    expect(request.mock.calls[3]?.[0]).toBe('/api/admin/v1/accounts/account%2Fid/ip-labels');
+    expect(request.mock.calls[3]?.[1]).toEqual(
+      expect.objectContaining({
+        method: 'DELETE',
+        body: JSON.stringify({ ipAddress: '203.0.113.10' }),
       }),
     );
   });

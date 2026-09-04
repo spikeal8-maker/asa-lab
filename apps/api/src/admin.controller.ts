@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpException,
@@ -234,6 +235,30 @@ export class AdminController {
         ipAddress,
         labelKind: labelKind as AdminIpLabelKind,
         label,
+        requestId: request.id,
+      });
+    } catch (failure) {
+      this.rethrowAdminFailure(failure);
+    }
+  }
+
+  @Delete('accounts/:accountId/ip-labels')
+  @HttpCode(200)
+  async clearAccountIpLabel(
+    @Req() request: FastifyRequest,
+    @Param('accountId') accountIdRaw: string,
+    @Body() body: unknown,
+  ) {
+    const { access } = await this.requireAdmin(request);
+    const value = this.object(body);
+    const ipAddress = this.text(value['ipAddress'], 'ipAddress', 2, 45);
+    if (isIP(ipAddress) === 0) {
+      throw new HttpException(error('validation_error', 'ipAddress must be IPv4 or IPv6'), 400);
+    }
+    try {
+      return await this.controlPlane.clearAccountIpLabel(access, {
+        targetAccountId: this.uuid(accountIdRaw, 'accountId'),
+        ipAddress,
         requestId: request.id,
       });
     } catch (failure) {

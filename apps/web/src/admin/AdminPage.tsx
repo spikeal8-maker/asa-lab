@@ -22,10 +22,15 @@ import {
   type AdminScope,
   type AdminSecuritySession,
   type AdminIpLabelKind,
+  type AdminNetworkKind,
 } from './admin-api';
 import { adminActionLabel, adminResultLabel, adminRoleLabel, adminScopeLabel } from './admin-model';
 import { AdminDashboard, IpActivitySection, VerificationMethodsSection } from './AdminDashboard';
-import { scopeSupportsAdminSection, type AdminSection } from './admin-navigation';
+import {
+  adminSectionLabel,
+  scopeSupportsAdminSection,
+  type AdminSection,
+} from './admin-navigation';
 import './admin.css';
 
 export type AdminAccessState =
@@ -577,6 +582,27 @@ const IP_LABELS: readonly { readonly value: AdminIpLabelKind; readonly label: st
   { value: 'other', label: 'Другое' },
 ];
 
+function networkKindLabel(kind: AdminNetworkKind | null): string {
+  if (kind === 'public') return 'Публичный интернет';
+  if (kind === 'local_network') return 'Локальная сеть';
+  if (kind === 'local_device') return 'Этот сервер';
+  if (kind === 'proxy') return 'Технический прокси';
+  return 'Источник не определён';
+}
+
+function moduleLabel(moduleKey: string): string {
+  return (
+    { electronics: 'Электроника', 'three-d': '3D', chess: 'Шахматы', checkers: 'Шашки' }[
+      moduleKey
+    ] ?? moduleKey
+  );
+}
+
+function activeDuration(seconds: number): string {
+  if (seconds < 60) return seconds > 0 ? `${seconds} сек` : '0 мин';
+  return `${Math.round(seconds / 60)} мин`;
+}
+
 function activityEventLabel(event: AdminAccountCrm['activity'][number]): string {
   if (event.eventType === 'auth.login') return 'Вход в аккаунт';
   if (event.eventType === 'auth.register') return 'Регистрация';
@@ -606,19 +632,22 @@ function IpLabelEditor({
   readonly onSaved: () => void;
   readonly onAccessDenied: () => void;
 }): JSX.Element {
-  const [kind, setKind] = useState<AdminIpLabelKind>(item.labelKind ?? 'school');
+  const [kind, setKind] = useState<AdminIpLabelKind | ''>(item.labelKind ?? '');
   const [label, setLabel] = useState(item.label ?? '');
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
 
   const save = async (): Promise<void> => {
+    if (!kind && !item.labelKind) return;
     setBusy(true);
     setFailure(null);
-    const result = await adminApi.setAccountIpLabel(accountId, {
-      ipAddress: item.address,
-      labelKind: kind,
-      label: label.trim() || null,
-    });
+    const result = kind
+      ? await adminApi.setAccountIpLabel(accountId, {
+          ipAddress: item.address,
+          labelKind: kind,
+          label: label.trim() || null,
+        })
+      : await adminApi.clearAccountIpLabel(accountId, item.address);
     if (!result.ok) {
       if (result.status === 401 || result.status === 403) return onAccessDenied();
       setFailure(mutationMessage(result));
@@ -633,8 +662,9 @@ function IpLabelEditor({
       <select
         aria-label={`Тип IP ${item.address}`}
         value={kind}
-        onChange={(event) => setKind(event.target.value as AdminIpLabelKind)}
+        onChange={(event) => setKind(event.target.value as AdminIpLabelKind | '')}
       >
+        <option value="">Не определён</option>
         {IP_LABELS.map((option) => (
           <option key={option.value} value={option.value}>
             {option.label}
@@ -644,12 +674,18 @@ function IpLabelEditor({
       <input
         aria-label={`Название IP ${item.address}`}
         value={label}
+        disabled={!kind}
         maxLength={120}
         placeholder="Например: школа № 12"
         onChange={(event) => setLabel(event.target.value)}
       />
-      <button type="button" className="btn-secondary" disabled={busy} onClick={() => void save()}>
-        {busy ? 'Сохраняем…' : 'Сохранить'}
+      <button
+        type="button"
+        className="btn-secondary"
+        disabled={busy || (!kind && !item.labelKind)}
+        onClick={() => void save()}
+      >
+        {busy ? 'Сохраняем…' : kind ? 'Сохранить' : 'Снять метку'}
       </button>
       {failure ? (
         <span className="admin-crm-field-error" role="alert">
@@ -865,6 +901,26 @@ function UserCrmPanel({
               <p>Входов ещё не было.</p>
             )}
           </section>
+
+          <section className="admin-crm-card admin-crm-wide">
+            <h3>Работа в системах</h3>
+            {detail.moduleUsage.length ? (
+              <ul>
+                {detail.moduleUsage.map((usage) => (
+                  <li key={usage.moduleKey}>
+                    <strong>{moduleLabel(usage.moduleKey)}</strong>
+                    <span>
+                      проектов: {usage.projectCount} · открытий: {usage.launches} · активного
+                      времени: {activeDuration(usage.activeSeconds)} · последний запуск{' '}
+                      {dateTime(usage.lastOpenedAt)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p>Использование рабочих сред пока не зафиксировано.</p>
+            )}
+          </section>
         </div>
       ) : null}
 
@@ -884,6 +940,7 @@ function UserCrmPanel({
                   <span>
                     {dateTime(event.occurredAt)}
                     {event.ipAddress ? ` · ${event.ipAddress}` : ''}
+                    {event.ipAddress ? ` · ${networkKindLabel(event.networkKind)}` : ''}
                   </span>
                 </li>
               ))}
@@ -909,12 +966,14 @@ function UserCrmPanel({
                   <div>
                     <strong>{item.address}</strong>
                     <span>
+                      {networkKindLabel(item.networkKind)} ·{' '}
                       {item.device ?? 'Устройство не определено'} · последний раз{' '}
                       {dateTime(item.lastSeenAt)} · событий: {item.eventCount}
                     </span>
                   </div>
                   {canManage ? (
                     <IpLabelEditor
+                      key={`${item.address}:${item.labelKind ?? ''}:${item.label ?? ''}`}
                       accountId={account.accountId}
                       item={item}
                       onSaved={() => setVersion((value) => value + 1)}
@@ -1139,7 +1198,9 @@ function AccountsCrmSection({
   return (
     <section className="admin-users-crm" aria-labelledby="admin-users-title">
       <div className="admin-users-toolbar">
-        <h2 id="admin-users-title">Пользователи</h2>
+        <h2 id="admin-users-title" className="sr-only">
+          Пользователи
+        </h2>
         <form onSubmit={submit}>
           <input
             type="search"
@@ -1181,6 +1242,13 @@ function AccountsCrmSection({
       ) : null}
       {items.length ? (
         <div className="admin-user-list" role="list">
+          <div className="admin-user-list-header" aria-hidden="true">
+            <span>Пользователь</span>
+            <span>Откуда</span>
+            <span>Активность</span>
+            <span>Доступ</span>
+            <span />
+          </div>
           {items.map((account) => {
             const expanded = expandedId === account.accountId;
             return (
@@ -1203,17 +1271,19 @@ function AccountsCrmSection({
                     </small>
                   </span>
                   <span>
-                    <small>Откуда</small>
                     <strong>{account.lastIpAddress ?? 'IP не зафиксирован'}</strong>
-                    <small>{account.lastDevice ?? scope.title}</small>
+                    <small>
+                      {account.lastIpAddress
+                        ? networkKindLabel(account.lastNetworkKind)
+                        : scope.title}
+                      {account.lastDevice ? ` · ${account.lastDevice}` : ''}
+                    </small>
                   </span>
                   <span>
-                    <small>Активность</small>
                     <strong>{accountActivityLabel(account)}</strong>
                     <small>Событий за 30 дней: {account.recentActivityCount}</small>
                   </span>
                   <span>
-                    <small>Доступ</small>
                     <strong>{accountAccessLabel(account.status)}</strong>
                     <small>
                       {account.isPlatformAdmin
@@ -1407,7 +1477,6 @@ function AdminWorkspace({
   readonly onNavigate: (section: AdminSection) => void;
   readonly onAccessDenied: () => void;
 }): JSX.Element {
-  const [helpOpen, setHelpOpen] = useState(false);
   const [selectedKey, setSelectedKey] = useState(() =>
     profile.scopes[0] ? scopeKey(profile.scopes[0]) : '',
   );
@@ -1545,16 +1614,11 @@ function AdminWorkspace({
     <main id="main-content" className="portal-content admin-page" tabIndex={-1}>
       <header className="admin-heading admin-heading-compact">
         <div className="admin-title-line">
-          <h1>Админ</h1>
-          <button
-            type="button"
-            className="admin-info-button"
-            aria-label="Что можно делать в админке"
-            aria-expanded={helpOpen}
-            onClick={() => setHelpOpen((value) => !value)}
-          >
-            i
-          </button>
+          <h1>
+            <span>Админ</span>
+            <b aria-hidden="true">/</b>
+            <span>{adminSectionLabel(visibleSection)}</span>
+          </h1>
         </div>
         {profile.scopes.length > 1 ? (
           <label className="admin-scope-select">
@@ -1577,19 +1641,6 @@ function AdminWorkspace({
               ))}
             </select>
           </label>
-        ) : null}
-        {helpOpen ? (
-          <aside className="admin-help-popover" role="note">
-            <strong>
-              {selectedScope.kind === 'platform'
-                ? 'У вас полный доступ ко всему ASA Lab'
-                : `Вы управляете организацией «${adminScopeLabel(selectedScope)}»`}
-            </strong>
-            <p>
-              Здесь можно управлять пользователями, сессиями и ролями, следить за системой и видеть
-              историю изменений. Опасные действия требуют причины и записываются в историю.
-            </p>
-          </aside>
         ) : null}
       </header>
 

@@ -61,11 +61,13 @@ export interface AdminAccountView {
   readonly hasEverSignedIn: boolean;
   readonly isPlatformAdmin: boolean;
   readonly lastIpAddress: string | null;
+  readonly lastNetworkKind: AdminNetworkKind | null;
   readonly lastDevice: string | null;
   readonly recentActivityCount: number;
 }
 
 export type AdminIpLabelKind = 'school' | 'home' | 'mobile' | 'organization' | 'other';
+export type AdminNetworkKind = 'public' | 'local_network' | 'local_device' | 'proxy' | 'unknown';
 
 export interface AdminAccountCrmView {
   readonly accountId: string;
@@ -101,6 +103,7 @@ export interface AdminAccountCrmView {
     readonly authMethod: string | null;
     readonly moduleKey: string | null;
     readonly ipAddress: string | null;
+    readonly networkKind: AdminNetworkKind;
     readonly device: string | null;
   }[];
   readonly ipAddresses: readonly {
@@ -109,6 +112,7 @@ export interface AdminAccountCrmView {
     readonly lastSeenAt: string;
     readonly eventCount: number;
     readonly device: string | null;
+    readonly networkKind: AdminNetworkKind;
     readonly labelKind: AdminIpLabelKind | null;
     readonly label: string | null;
   }[];
@@ -119,6 +123,13 @@ export interface AdminAccountCrmView {
     readonly authorDisplayName: string;
   }[];
   readonly max: { readonly linked: boolean; readonly verifiedAt: string | null };
+  readonly moduleUsage: readonly {
+    readonly moduleKey: string;
+    readonly projectCount: number;
+    readonly launches: number;
+    readonly activeSeconds: number;
+    readonly lastOpenedAt: string;
+  }[];
 }
 
 export interface AdminMaxIdentityView {
@@ -200,10 +211,15 @@ export interface AdminProductDashboardView {
     readonly activeAccounts: number;
     readonly successfulLogins: number;
     readonly failedLogins: number;
+    readonly successfulRegistrations: number;
+    readonly authenticatedSessions: number;
+    readonly rejectedAuthAttempts: number;
     readonly newStudents: number;
     readonly activeStudents: number;
     readonly distinctIpAddresses: number;
     readonly accountsWithMultipleIps: number;
+    readonly localNetworkAccounts: number;
+    readonly unclassifiedNetworkEvents: number;
   };
   readonly timeline: readonly Record<string, unknown>[];
   readonly modules: readonly Record<string, unknown>[];
@@ -272,6 +288,7 @@ interface AccountRow {
   readonly has_ever_signed_in: boolean;
   readonly is_platform_admin: boolean;
   readonly last_ip_address: string | null;
+  readonly last_network_kind: AdminNetworkKind | null;
   readonly last_device: string | null;
   readonly recent_activity_count: string | number;
 }
@@ -486,9 +503,9 @@ export class AdminControlPlaneService {
       `SELECT account_id, principal_id, email, display_name, username,
               account_status, email_verification_state, created_at,
               organization_role, membership_state, active_session_count, last_seen_at,
-              has_ever_signed_in, is_platform_admin, last_ip_address, last_device,
+              has_ever_signed_in, is_platform_admin, last_ip_address, last_network_kind, last_device,
               recent_activity_count
-         FROM admin_list_accounts($1, $2, $3, $4, $5, $6, $7)`,
+         FROM admin_list_accounts_v2($1, $2, $3, $4, $5, $6, $7)`,
       [
         access.subject.principalId,
         input.scope.kind,
@@ -515,6 +532,7 @@ export class AdminControlPlaneService {
       hasEverSignedIn: row.has_ever_signed_in,
       isPlatformAdmin: row.is_platform_admin,
       lastIpAddress: row.last_ip_address,
+      lastNetworkKind: row.last_network_kind,
       lastDevice: row.last_device,
       recentActivityCount: count(row.recent_activity_count),
     }));
@@ -535,7 +553,7 @@ export class AdminControlPlaneService {
     this.requirePermission(access, 'administration.accounts.read', input.scope);
     await this.auditRead(access, input, 'administration.accounts.read', 'account_crm');
     const result = await this.pool.query<{ payload: AdminAccountCrmView | null }>(
-      `SELECT admin_get_account_crm($1, $2, $3, $4) AS payload`,
+      `SELECT admin_get_account_crm_v2($1, $2, $3, $4) AS payload`,
       [access.subject.principalId, input.scope.kind, input.scope.id, input.targetAccountId],
     );
     const payload = result.rows[0]?.payload;
@@ -584,6 +602,23 @@ export class AdminControlPlaneService {
     const id = result.rows[0]?.id;
     if (!id) throw new Error('ADMIN_IP_LABEL_MISSING');
     return { id };
+  }
+
+  async clearAccountIpLabel(
+    access: ResolvedAdminAccess,
+    input: {
+      readonly targetAccountId: string;
+      readonly ipAddress: string;
+      readonly requestId: string;
+    },
+  ): Promise<{ readonly cleared: boolean }> {
+    const scope = { kind: 'platform' as const, id: null };
+    this.requirePermission(access, 'administration.security.manage', scope);
+    const result = await this.pool.query<{ cleared: boolean }>(
+      `SELECT admin_clear_account_ip_label($1, $2, $3::inet, $4) AS cleared`,
+      [access.subject.principalId, input.targetAccountId, input.ipAddress, input.requestId],
+    );
+    return { cleared: result.rows[0]?.cleared === true };
   }
 
   async listOrganizations(
@@ -738,7 +773,7 @@ export class AdminControlPlaneService {
     this.requirePermission(access, 'administration.open', input.scope);
     const range = dashboardWindow(input.range);
     const result = await this.pool.query<{ payload: Record<string, unknown> }>(
-      `SELECT admin_get_product_dashboard($1,$2,$3,$4,$5,$6) AS payload`,
+      `SELECT admin_get_product_dashboard_v2($1,$2,$3,$4,$5,$6) AS payload`,
       [
         access.subject.principalId,
         input.scope.kind,
@@ -795,7 +830,7 @@ export class AdminControlPlaneService {
       addresses: string[];
     }>(
       `SELECT account_id, email, display_name, distinct_ip_count, last_seen_at, addresses
-         FROM admin_list_account_ip_activity($1,$2,$3,$4,$5,$6,$7)`,
+         FROM admin_list_account_ip_activity_v2($1,$2,$3,$4,$5,$6,$7)`,
       [
         access.subject.principalId,
         input.scope.kind,

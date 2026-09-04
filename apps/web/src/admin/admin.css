@@ -48,6 +48,24 @@
   gap: 10px;
 }
 
+.admin-title-line h1 {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 22px;
+  letter-spacing: -0.02em;
+}
+
+.admin-title-line h1 b {
+  color: #91a8b5;
+  font-weight: 500;
+}
+
+.admin-title-line h1 span:last-child {
+  color: var(--ink-muted);
+  font-weight: 700;
+}
+
 .admin-info-button,
 .admin-icon-button {
   display: inline-grid;
@@ -683,7 +701,7 @@
 
 .admin-users-toolbar {
   display: grid;
-  grid-template-columns: minmax(150px, 1fr) minmax(320px, 520px) minmax(170px, auto);
+  grid-template-columns: minmax(0, 1fr) minmax(170px, auto);
   align-items: center;
   gap: 10px;
 }
@@ -712,10 +730,30 @@
 }
 
 .admin-user-list {
-  overflow: hidden;
+  overflow: auto;
+  max-height: min(72vh, 760px);
   border: 1px solid var(--admin-line);
   border-radius: 14px;
   background: #fff;
+}
+
+.admin-user-list-header {
+  position: sticky;
+  z-index: 2;
+  top: 0;
+  display: grid;
+  grid-template-columns:
+    minmax(220px, 1.35fr) minmax(185px, 1fr) minmax(205px, 1.1fr) minmax(170px, 0.9fr)
+    22px;
+  gap: 15px;
+  padding: 9px 15px;
+  border-bottom: 1px solid var(--admin-line);
+  color: var(--ink-muted);
+  background: #f4f8fa;
+  font-size: 10px;
+  font-weight: 850;
+  letter-spacing: 0.045em;
+  text-transform: uppercase;
 }
 
 .admin-user-item + .admin-user-item {
@@ -723,7 +761,12 @@
 }
 
 .admin-user-item.expanded {
-  background: #f8fbfc;
+  border-left: 4px solid var(--admin-blue);
+  background: #eef7fb;
+}
+
+.admin-user-item.expanded .admin-user-row {
+  padding-left: 11px;
 }
 
 .admin-user-row {
@@ -1669,11 +1712,13 @@
     grid-column: 1 / -1;
   }
 
-  .admin-user-row {
+  .admin-user-row,
+  .admin-user-list-header {
     grid-template-columns: minmax(190px, 1.25fr) minmax(170px, 1fr) minmax(170px, 1fr) 22px;
   }
 
-  .admin-user-row > span:nth-child(4) {
+  .admin-user-row > span:nth-child(4),
+  .admin-user-list-header > span:nth-child(4) {
     display: none;
   }
 
@@ -1746,8 +1791,13 @@
 
   .admin-user-list {
     overflow: visible;
+    max-height: none;
     border: 0;
     background: transparent;
+  }
+
+  .admin-user-list-header {
+    display: none;
   }
 
   .admin-user-item {

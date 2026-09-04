@@ -218,7 +218,7 @@ for (const [profile, overlays] of Object.entries(OVERLAYS)) {
       APP_DATABASE_URL:
         'postgres://asalab_app:compose-validation-runtime-password@postgres:5432/asalab',
       ASA_SETTINGS_ENCRYPTION_KEY: 'compose-validation-placeholder',
-      ASA_EXPECTED_SCHEMA_VERSION: '102',
+      ASA_EXPECTED_SCHEMA_VERSION: '103',
       ASA_PUBLIC_WEB_ORIGINS: 'https://asa-lab.ru',
     },
   });
@@ -246,7 +246,7 @@ for (const [profile, overlays] of Object.entries(OVERLAYS)) {
   ) {
     errors.push(`${profile}/api: runtime settings encryption key was not preserved`);
   }
-  if (config.services?.api?.environment?.ASA_EXPECTED_SCHEMA_VERSION !== '102') {
+  if (config.services?.api?.environment?.ASA_EXPECTED_SCHEMA_VERSION !== '103') {
     errors.push(`${profile}/api: expected schema version was not preserved`);
   }
   if (profile === 'production') {
