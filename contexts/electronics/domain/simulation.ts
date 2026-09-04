@@ -11,6 +11,7 @@ import {
   transistorTypeOf,
   type ComponentResult,
   type Diagnostic,
+  type ArduinoControllerState,
   type SolveResult,
 } from './solver.js';
 import { sha256Hex, simulationInputDigest } from './simulation-input-digest.js';
@@ -22,6 +23,7 @@ import { canonicalBrushedMotorProfileRegistry } from './models/brushed-motor-pro
 import { BRUSHED_MOTOR_TRANSIENT_MODEL_VERSION } from './models/brushed-motor-transient-model.js';
 import { canonicalRegulatedPowerSupplyProfileRegistry } from './models/regulated-power-supply-model.js';
 import { canonicalPiezoAudioProfileRegistry } from './models/piezo-audio-model.js';
+import { ARDUINO_RUNTIME_STATE_VERSION } from './arduino-program-runtime.js';
 
 export type SimulationStatus = 'solved' | 'unsupported' | 'invalid' | 'nonconvergent';
 
@@ -55,7 +57,7 @@ export interface SimulationResult extends SolveResult {
   readonly quality: SimulationQuality;
   readonly topologySignature: string;
   readonly simulationInputDigest: string;
-  readonly solverRevision: 'asa-electronics-solver-v9';
+  readonly solverRevision: 'asa-electronics-solver-v10';
   readonly modelSetDigest: string;
   readonly analysis: {
     readonly electricalMode: 'dc' | 'transient';
@@ -77,6 +79,7 @@ const MODEL_SET_DIGEST = `sha256:${sha256Hex(
     brushedMotorTransientModelVersion: BRUSHED_MOTOR_TRANSIENT_MODEL_VERSION,
     regulatedPowerSupplyProfiles: canonicalRegulatedPowerSupplyProfileRegistry(),
     piezoAudioProfiles: canonicalPiezoAudioProfileRegistry(),
+    arduinoRuntimeStateVersion: ARDUINO_RUNTIME_STATE_VERSION,
   }),
 )}`;
 
@@ -169,6 +172,16 @@ function deterministicSolveResult(result: SolveResult): SolveResult {
                   ),
                 }
               : {}),
+          },
+        }
+      : {}),
+    ...(result.controllerState
+      ? {
+          controllerState: {
+            ...result.controllerState,
+            boards: [...result.controllerState.boards].sort((left, right) =>
+              ordinalCompare(left.componentId, right.componentId),
+            ),
           },
         }
       : {}),
@@ -272,6 +285,38 @@ function allNumbers(result: SolveResult): readonly number[] {
           ...(result.transientState.multimeterFuses ?? []).map(
             (entry) => entry.accumulatedI2tAmpSquaredSecond,
           ),
+        ]
+      : []),
+    ...(result.controllerState
+      ? [
+          result.controllerState.simulationTimeMs,
+          ...result.controllerState.boards.flatMap((entry) => [
+            entry.runtime.virtualTimeMs,
+            entry.runtime.nextLoopAtMs,
+            entry.runtime.loopIterations,
+            ...Object.values(entry.runtime.variables),
+            ...Object.values(entry.runtime.outputVoltages).filter(
+              (value): value is number => value !== undefined,
+            ),
+            ...Object.values(entry.runtime.tones).flatMap((tone) =>
+              tone
+                ? [tone.frequencyHz, ...(tone.expiresAtMs === undefined ? [] : [tone.expiresAtMs])]
+                : [],
+            ),
+            ...entry.runtime.pendingActions.flatMap((scheduled) => [
+              scheduled.atMs,
+              ...(scheduled.action.kind === 'write'
+                ? [scheduled.action.targetVoltage]
+                : scheduled.action.kind === 'tone'
+                  ? [
+                      scheduled.action.frequencyHz,
+                      ...(scheduled.action.durationMs === undefined
+                        ? []
+                        : [scheduled.action.durationMs]),
+                    ]
+                  : []),
+            ]),
+          ]),
         ]
       : []),
     ...(result.transientAnalysis
@@ -602,6 +647,7 @@ function statusFor(result: SolveResult): SimulationStatus {
 export interface SimulationOptions {
   readonly simulationTimeMs?: number;
   readonly transientState?: CapacitorTransientState;
+  readonly controllerState?: ArduinoControllerState;
 }
 
 export function analyseCircuit(
@@ -648,7 +694,7 @@ export function analyseCircuit(
       quality: failedQuality(),
       topologySignature: compiled.topologySignature,
       simulationInputDigest: inputDigest,
-      solverRevision: 'asa-electronics-solver-v9',
+      solverRevision: 'asa-electronics-solver-v10',
       modelSetDigest: MODEL_SET_DIGEST,
       analysis,
     };
@@ -673,7 +719,7 @@ export function analyseCircuit(
       quality,
       topologySignature: compiled.topologySignature,
       simulationInputDigest: inputDigest,
-      solverRevision: 'asa-electronics-solver-v9',
+      solverRevision: 'asa-electronics-solver-v10',
       modelSetDigest: MODEL_SET_DIGEST,
       analysis,
     };
@@ -685,7 +731,7 @@ export function analyseCircuit(
     quality,
     topologySignature: compiled.topologySignature,
     simulationInputDigest: inputDigest,
-    solverRevision: 'asa-electronics-solver-v9',
+    solverRevision: 'asa-electronics-solver-v10',
     modelSetDigest: MODEL_SET_DIGEST,
     analysis,
   };

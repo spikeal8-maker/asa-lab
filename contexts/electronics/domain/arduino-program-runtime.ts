@@ -43,7 +43,7 @@ export interface ArduinoProgramExecution {
   readonly loopActions: readonly ArduinoProgramAction[];
 }
 
-export const ARDUINO_RUNTIME_STATE_VERSION = 1 as const;
+export const ARDUINO_RUNTIME_STATE_VERSION = 2 as const;
 
 export interface ArduinoRuntimeDiagnostic {
   readonly code: 'statement_budget_exceeded' | 'loop_advance_budget_exceeded';
@@ -63,6 +63,23 @@ export interface ArduinoRuntimeState {
   readonly nextLoopAtMs: number;
   readonly loopIterations: number;
   readonly variables: Readonly<Record<string, number>>;
+  readonly pinModes: Readonly<Partial<Record<Terminal, ArduinoPinMode>>>;
+  readonly outputVoltages: Readonly<Partial<Record<Terminal, number>>>;
+  readonly tones: Readonly<
+    Partial<
+      Record<
+        Terminal,
+        {
+          readonly frequencyHz: number;
+          readonly expiresAtMs?: number;
+        }
+      >
+    >
+  >;
+  readonly pendingActions: readonly {
+    readonly atMs: number;
+    readonly action: Exclude<ArduinoProgramAction, ArduinoDelayAction>;
+  }[];
 }
 
 export interface ArduinoRuntimeAdvance {
@@ -116,7 +133,43 @@ function programFingerprint(source: string): string {
     .padStart(8, '0')}`;
 }
 
+function isDigitalTerminal(value: unknown): value is Terminal {
+  return typeof value === 'string' && /^d(?:[0-9]|1[0-3])$/.test(value);
+}
+
+function scheduledActionIsValid(value: unknown): boolean {
+  if (value === null || typeof value !== 'object') return false;
+  const action = value as Partial<Exclude<ArduinoProgramAction, ArduinoDelayAction>>;
+  if (!isDigitalTerminal(action.terminal)) return false;
+  if (action.kind === 'pin-mode') {
+    return action.mode === 'INPUT' || action.mode === 'INPUT_PULLUP' || action.mode === 'OUTPUT';
+  }
+  if (action.kind === 'write') {
+    return (
+      Number.isFinite(action.targetVoltage) &&
+      Number(action.targetVoltage) >= 0 &&
+      Number(action.targetVoltage) <= 5
+    );
+  }
+  if (action.kind === 'tone') {
+    return (
+      Number.isFinite(action.frequencyHz) &&
+      Number(action.frequencyHz) >= 1 &&
+      Number(action.frequencyHz) <= 20_000 &&
+      (action.durationMs === undefined ||
+        (Number.isFinite(action.durationMs) && Number(action.durationMs) >= 0))
+    );
+  }
+  return action.kind === 'no-tone';
+}
+
 function runtimeStateIsValid(state: ArduinoRuntimeState): boolean {
+  const pinModeEntries = Object.entries(state.pinModes ?? {});
+  const outputVoltageEntries = Object.entries(state.outputVoltages ?? {});
+  const toneEntries = Object.entries(state.tones ?? {});
+  const pinModes = Object.values(state.pinModes ?? {});
+  const outputVoltages = Object.values(state.outputVoltages ?? {});
+  const tones = Object.values(state.tones ?? {});
   return (
     state.version === ARDUINO_RUNTIME_STATE_VERSION &&
     typeof state.programFingerprint === 'string' &&
@@ -128,7 +181,37 @@ function runtimeStateIsValid(state: ArduinoRuntimeState): boolean {
     state.loopIterations >= 0 &&
     state.variables !== null &&
     typeof state.variables === 'object' &&
-    Object.values(state.variables).every((value) => Number.isFinite(value))
+    Object.values(state.variables).every((value) => Number.isFinite(value)) &&
+    state.pinModes !== null &&
+    typeof state.pinModes === 'object' &&
+    pinModeEntries.every(([terminal]) => isDigitalTerminal(terminal)) &&
+    pinModes.every((mode) => mode === 'INPUT' || mode === 'INPUT_PULLUP' || mode === 'OUTPUT') &&
+    state.outputVoltages !== null &&
+    typeof state.outputVoltages === 'object' &&
+    outputVoltageEntries.every(([terminal]) => isDigitalTerminal(terminal)) &&
+    outputVoltages.every(
+      (value) => value !== undefined && Number.isFinite(value) && value >= 0 && value <= 5,
+    ) &&
+    state.tones !== null &&
+    typeof state.tones === 'object' &&
+    toneEntries.every(([terminal]) => isDigitalTerminal(terminal)) &&
+    tones.every(
+      (tone) =>
+        tone !== undefined &&
+        Number.isFinite(tone.frequencyHz) &&
+        tone.frequencyHz >= 1 &&
+        tone.frequencyHz <= 20_000 &&
+        (tone.expiresAtMs === undefined ||
+          (Number.isFinite(tone.expiresAtMs) && tone.expiresAtMs >= 0)),
+    ) &&
+    Array.isArray(state.pendingActions) &&
+    state.pendingActions.every(
+      (scheduled, index) =>
+        Number.isFinite(scheduled.atMs) &&
+        scheduled.atMs >= state.virtualTimeMs &&
+        scheduledActionIsValid(scheduled.action) &&
+        (index === 0 || scheduled.atMs >= state.pendingActions[index - 1]!.atMs),
+    )
   );
 }
 
@@ -148,6 +231,75 @@ function serializableVariables(
       .filter(([, value]) => Number.isFinite(value))
       .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0)),
   );
+}
+
+function sortedRecord<T>(
+  entries: ReadonlyMap<Terminal, T>,
+): Readonly<Partial<Record<Terminal, T>>> {
+  return Object.fromEntries(
+    [...entries.entries()].sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0)),
+  );
+}
+
+function terminalMap<T>(entries: Readonly<Partial<Record<Terminal, T>>>): Map<Terminal, T> {
+  return new Map(
+    Object.entries(entries).sort(([left], [right]) =>
+      left < right ? -1 : left > right ? 1 : 0,
+    ) as [Terminal, T][],
+  );
+}
+
+type ScheduledArduinoAction = ArduinoRuntimeState['pendingActions'][number];
+
+function scheduleActions(
+  actions: readonly ArduinoProgramAction[],
+  startTimeMs: number,
+): { readonly endTimeMs: number; readonly scheduled: readonly ScheduledArduinoAction[] } {
+  const scheduled: ScheduledArduinoAction[] = [];
+  let cursorMs = startTimeMs;
+  for (const action of actions) {
+    if (action.kind === 'delay') {
+      cursorMs += action.durationMs;
+    } else {
+      scheduled.push({ atMs: cursorMs, action });
+    }
+  }
+  return { endTimeMs: cursorMs, scheduled };
+}
+
+function applyScheduledActions(
+  scheduled: readonly ScheduledArduinoAction[],
+  targetTimeMs: number,
+  pinModes: Map<Terminal, ArduinoPinMode>,
+  outputVoltages: Map<Terminal, number>,
+  tones: Map<Terminal, { readonly frequencyHz: number; readonly expiresAtMs?: number }>,
+): readonly ScheduledArduinoAction[] {
+  const pending: ScheduledArduinoAction[] = [];
+  for (const entry of scheduled) {
+    if (entry.atMs > targetTimeMs) {
+      pending.push(entry);
+      continue;
+    }
+    const action = entry.action;
+    if (action.kind === 'pin-mode') {
+      pinModes.set(action.terminal, action.mode);
+    } else if (action.kind === 'write') {
+      outputVoltages.set(action.terminal, action.targetVoltage);
+    } else if (action.kind === 'tone') {
+      tones.set(action.terminal, {
+        frequencyHz: action.frequencyHz,
+        ...(action.durationMs !== undefined ? { expiresAtMs: entry.atMs + action.durationMs } : {}),
+      });
+    } else {
+      tones.delete(action.terminal);
+    }
+  }
+  for (const [terminal, tone] of tones) {
+    if (tone.expiresAtMs !== undefined && tone.expiresAtMs <= targetTimeMs) {
+      tones.delete(terminal);
+    }
+  }
+  return pending;
 }
 
 function statementBudgetDiagnostic(state: RuntimeState): void {
@@ -777,20 +929,11 @@ function discardLocalVariables(
   }
 }
 
-function loopDurationMs(actions: readonly ArduinoProgramAction[]): number {
-  return actions.reduce(
-    (duration, action) => duration + (action.kind === 'delay' ? action.durationMs : 0),
-    0,
-  );
-}
-
 /**
- * Advance completed loop iterations through deterministic virtual time while
- * carrying globals outside the saved document. In this first headless slice,
- * delays define loop cadence; the circuit bridge continues using its existing
- * action timeline until a later slice carries this state into the solver. A
- * loop with no delay receives a 1 ms scheduling quantum so a large time jump
- * stays finite and reproducible.
+ * Advance loop iterations through deterministic virtual time while carrying
+ * globals and scheduled output changes outside the saved document. Delays
+ * define action boundaries and loop cadence. A loop with no delay receives a
+ * 1 ms scheduling quantum so a large time jump stays finite and reproducible.
  */
 export function advanceArduinoRuntime(
   source: string,
@@ -819,6 +962,15 @@ export function advanceArduinoRuntime(
     };
   }
   const variables = compatible ? runtimeVariables(previous.variables) : new Map<string, number>();
+  const pinModes = compatible
+    ? terminalMap(previous.pinModes)
+    : new Map<Terminal, ArduinoPinMode>();
+  const outputVoltages = compatible
+    ? terminalMap(previous.outputVoltages)
+    : new Map<Terminal, number>();
+  const tones = compatible
+    ? terminalMap(previous.tones)
+    : new Map<Terminal, { readonly frequencyHz: number; readonly expiresAtMs?: number }>();
   const diagnostics: ArduinoRuntimeDiagnostic[] = [];
   const setupActions: ArduinoProgramAction[] = [];
   const loopActions: ArduinoProgramAction[] = [];
@@ -826,6 +978,7 @@ export function advanceArduinoRuntime(
   let nextLoopAtMs = compatible ? previous.nextLoopAtMs : resetAtMs;
   let loopIterations = compatible ? previous.loopIterations : 0;
   let advanceStatementCount = 0;
+  let scheduledActions: ScheduledArduinoAction[] = compatible ? [...previous.pendingActions] : [];
 
   if (!compatible) {
     const setupState: RuntimeState = {
@@ -840,6 +993,9 @@ export function advanceArduinoRuntime(
     executeStatements(setupBody, setupState);
     discardLocalVariables(variables, globalNames);
     advanceStatementCount += setupState.statementCount;
+    const scheduledSetup = scheduleActions(setupActions, resetAtMs);
+    scheduledActions.push(...scheduledSetup.scheduled);
+    nextLoopAtMs = Math.max(nextLoopAtMs, scheduledSetup.endTimeMs);
   }
 
   let advances = 0;
@@ -864,9 +1020,15 @@ export function advanceArduinoRuntime(
     loopActions.push(...iterationActions);
     loopIterations += 1;
     advances += 1;
-    nextLoopAtMs += Math.max(MIN_LOOP_DURATION_MS, loopDurationMs(iterationActions));
+    const scheduledLoop = scheduleActions(iterationActions, nextLoopAtMs);
+    scheduledActions.push(...scheduledLoop.scheduled);
+    nextLoopAtMs += Math.max(MIN_LOOP_DURATION_MS, scheduledLoop.endTimeMs - nextLoopAtMs);
     if (diagnostics.some((entry) => entry.code === 'statement_budget_exceeded')) break;
   }
+
+  scheduledActions = [
+    ...applyScheduledActions(scheduledActions, targetTimeMs, pinModes, outputVoltages, tones),
+  ];
 
   if (
     nextLoopAtMs <= targetTimeMs &&
@@ -900,6 +1062,10 @@ export function advanceArduinoRuntime(
       nextLoopAtMs,
       loopIterations,
       variables: serializableVariables(variables),
+      pinModes: sortedRecord(pinModes),
+      outputVoltages: sortedRecord(outputVoltages),
+      tones: sortedRecord(tones),
+      pendingActions: scheduledActions,
     },
     diagnostics,
   };

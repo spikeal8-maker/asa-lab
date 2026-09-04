@@ -1026,6 +1026,35 @@ describe('deterministic DC solver', () => {
     );
   });
 
+  it('fails closed when an Arduino loop exceeds the runtime operation budget', () => {
+    const result = solveCircuit(
+      doc(
+        [
+          component('uno', 'visual', 5, {
+            componentTypeId: 'arduino-uno',
+            pinIds: ['d13', 'power-5v', 'power-3v3', 'power-gnd-1'],
+            stateProperties: {
+              arduinoSource: 'int count = 0; void loop() { while (1) { count++; } }',
+            },
+          }),
+        ],
+        [],
+      ),
+      { simulationTimeMs: 1 },
+    );
+
+    expect(result).toMatchObject({ solved: false, status: 'invalid' });
+    expect(result.components).toEqual([]);
+    expect(result.nodes).toEqual([]);
+    expect(result.diagnostics).toContainEqual(
+      expect.objectContaining({
+        code: 'arduino_statement_budget_exceeded',
+        severity: 'error',
+        componentIds: ['uno'],
+      }),
+    );
+  });
+
   it('models a resistor-less LED on Arduino D13 and reports physical burnout', () => {
     const result = solveCircuit(
       doc(
@@ -1079,6 +1108,59 @@ describe('deterministic DC solver', () => {
       lit: false,
       current: 0,
     });
+  });
+
+  it('carries Arduino globals and output latches between solver clock samples', () => {
+    const document = doc(
+      [
+        component('uno', 'visual', 5, {
+          componentTypeId: 'arduino-uno',
+          pinIds: ['d13', 'power-5v', 'power-3v3', 'power-gnd-1'],
+          stateProperties: {
+            arduinoSource: `
+              int count = 0;
+              void setup() { pinMode(13, OUTPUT); }
+              void loop() {
+                count++;
+                if (count % 2 == 1) {
+                  digitalWrite(13, HIGH);
+                } else {
+                  digitalWrite(13, LOW);
+                }
+                delay(100);
+              }
+            `,
+          },
+        }),
+      ],
+      [],
+    );
+
+    const first = solveCircuit(document, { simulationTimeMs: 1 });
+    const second = solveCircuit(document, {
+      simulationTimeMs: 100,
+      transientState: first.transientState,
+      controllerState: first.controllerState,
+    });
+    const controllerOnly = solveCircuit(document, {
+      simulationTimeMs: 100,
+      controllerState: first.controllerState,
+    });
+    const replayed = solveCircuit(document, { simulationTimeMs: 100 });
+
+    expect(first.controllerState?.boards[0]?.runtime.variables.count).toBe(1);
+    expect(
+      first.components.find((entry) => entry.componentId === 'uno')?.terminalVoltages.d13,
+    ).toBeCloseTo(5, 9);
+    expect(second.controllerState?.boards[0]?.runtime.variables.count).toBe(2);
+    expect(
+      second.components.find((entry) => entry.componentId === 'uno')?.terminalVoltages.d13,
+    ).toBeCloseTo(0, 9);
+    expect(controllerOnly.controllerState?.boards[0]?.runtime.variables.count).toBe(2);
+    expect(
+      controllerOnly.components.find((entry) => entry.componentId === 'uno')?.terminalVoltages.d13,
+    ).toBeCloseTo(0, 9);
+    expect(JSON.stringify(second)).toBe(JSON.stringify(replayed));
   });
 
   it('reads a pressed button on every Uno digital input and drives a programmed output', () => {

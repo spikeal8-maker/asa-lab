@@ -134,6 +134,7 @@ export {
   type BrushedMotorTransientStateEntry,
 } from './domain/models/brushed-motor-transient-model.js';
 export type {
+  ArduinoControllerState,
   ComponentResult,
   Diagnostic,
   DiagnosticAnchor,

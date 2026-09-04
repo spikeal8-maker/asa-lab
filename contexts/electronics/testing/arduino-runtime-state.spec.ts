@@ -57,6 +57,35 @@ describe('Arduino persistent runtime state', () => {
     expect(reset.setupActions).not.toHaveLength(0);
   });
 
+  it('carries pin latches through delay boundaries without applying future writes early', () => {
+    const source = `
+      void setup() {
+        pinMode(13, OUTPUT);
+      }
+      void loop() {
+        digitalWrite(13, HIGH);
+        delay(100);
+        digitalWrite(13, LOW);
+        delay(100);
+      }
+    `;
+
+    const atStart = advanceArduinoRuntime(source, {}, 0);
+    const beforeLow = advanceArduinoRuntime(source, {}, 99, atStart.state);
+    const atLow = advanceArduinoRuntime(source, {}, 100, beforeLow.state);
+    const beforeNextLoop = advanceArduinoRuntime(source, {}, 199, atLow.state);
+    const atNextLoop = advanceArduinoRuntime(source, {}, 200, beforeNextLoop.state);
+
+    expect(atStart.state.pinModes.d13).toBe('OUTPUT');
+    expect(atStart.state.outputVoltages.d13).toBe(5);
+    expect(atStart.state.pendingActions).toHaveLength(1);
+    expect(beforeLow.state.outputVoltages.d13).toBe(5);
+    expect(atLow.state.outputVoltages.d13).toBe(0);
+    expect(beforeNextLoop.state.outputVoltages.d13).toBe(0);
+    expect(atNextLoop.state.outputVoltages.d13).toBe(5);
+    expect(atNextLoop.state.loopIterations).toBe(2);
+  });
+
   it('executes finite for and while loops with bounded C++ semantics', () => {
     const result = advanceArduinoRuntime(
       `
@@ -158,5 +187,28 @@ describe('Arduino persistent runtime state', () => {
     expect(changed.state.variables.count).toBe(42);
     expect(changed.state.loopIterations).toBe(1);
     expect(changed.state.programFingerprint).not.toBe(left.state.programFingerprint);
+  });
+
+  it('rejects forged carried output state instead of sourcing an impossible voltage', () => {
+    const source = `
+      int count = 0;
+      void setup() { pinMode(13, OUTPUT); }
+      void loop() {
+        count++;
+        digitalWrite(13, HIGH);
+        delay(100);
+      }
+    `;
+    const started = advanceArduinoRuntime(source, {}, 0);
+    const forged = {
+      ...started.state,
+      outputVoltages: { ...started.state.outputVoltages, d13: 12 },
+    };
+
+    const restarted = advanceArduinoRuntime(source, {}, 100, forged);
+
+    expect(restarted.state.loopIterations).toBe(1);
+    expect(restarted.state.variables.count).toBe(1);
+    expect(restarted.state.outputVoltages.d13).toBe(5);
   });
 });

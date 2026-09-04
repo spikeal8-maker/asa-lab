@@ -208,6 +208,7 @@ export {
 export {
   solveCircuit,
   sourceInternalResistanceOhm,
+  type ArduinoControllerState,
   type ComponentResult,
   type DamageState,
   type Diagnostic,

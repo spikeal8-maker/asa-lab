@@ -2,6 +2,7 @@
  * client never sends or stores tenant identifiers. */
 
 import type { ModulePreviewDescriptor } from '@asa-lab/module-sdk';
+import type { ArduinoControllerState } from '@asa-lab/electronics/simulation';
 import { projectDraftMutationId } from './modules/project-draft-mutation';
 import { fetchWithSessionRefresh, notifySessionLoggedOut } from './session-fetch';
 
@@ -1134,6 +1135,7 @@ export interface SolveResult {
       fuseState: 'intact' | 'blown';
     }[];
   };
+  controllerState?: ArduinoControllerState;
   transientAnalysis?: {
     acceptedSteps: number;
     rejectedSteps: number;
@@ -1152,7 +1154,7 @@ export interface SolveResult {
   };
   topologySignature?: string;
   simulationInputDigest?: string;
-  solverRevision?: 'asa-electronics-solver-v9';
+  solverRevision?: 'asa-electronics-solver-v10';
   modelSetDigest?: string;
   analysis?: {
     electricalMode: 'dc' | 'transient';

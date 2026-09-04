@@ -91,6 +91,47 @@ describe('live Electronics simulation', () => {
     expect(prepareLiveSimulationStart(circuit)).not.toHaveProperty('notice');
   });
 
+  it('carries Arduino runtime state through successive browser simulation ticks', () => {
+    const arduinoCircuit: SchematicDocument = {
+      ...circuit,
+      components: [
+        {
+          id: 'uno',
+          kind: 'visual',
+          componentTypeId: 'arduino-uno',
+          pinIds: ['d13', 'power-5v', 'power-3v3', 'power-gnd-1'],
+          position: { x: 0, y: 0 },
+          value: 5,
+          stateProperties: {
+            arduinoSource: `
+              int count = 0;
+              void setup() { pinMode(13, OUTPUT); }
+              void loop() {
+                count++;
+                if (count % 2 == 1) {
+                  digitalWrite(13, HIGH);
+                } else {
+                  digitalWrite(13, LOW);
+                }
+                delay(100);
+              }
+            `,
+          },
+        },
+      ],
+      connections: [],
+    };
+
+    const first = advanceLiveSimulation(arduinoCircuit, null, 1);
+    const second = advanceLiveSimulation(arduinoCircuit, first, 100);
+
+    expect(first.controllerState?.boards[0]?.runtime.variables.count).toBe(1);
+    expect(second.controllerState?.boards[0]?.runtime.variables.count).toBe(2);
+    expect(
+      second.components.find((entry) => entry.componentId === 'uno')?.terminalVoltages.d13,
+    ).toBe(0);
+  });
+
   it('keeps capacitor charge when a runtime topology changes between clock ticks', () => {
     const capacitor = {
       id: 'capacitor',

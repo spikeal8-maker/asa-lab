@@ -41,7 +41,7 @@ const UNSUPPORTED = (summary: string): ArduinoBlockSupport => ({
  * command that the simulator silently ignores.
  */
 export const ARDUINO_BLOCK_SUPPORT = {
-  asa_setup: LIMITED('setup() пересчитывается детерминированно, без памяти настоящего МК.'),
+  asa_setup: LIMITED('setup() выполняется один раз на Reset в пределах поддерживаемого подмножества.'),
   asa_loop: LIMITED('loop() моделируется ограниченным циклом, а не полным AVR-рантаймом.'),
   asa_wait: SUPPORTED('Задержка управляет фазой виртуального времени симуляции.'),
   asa_repeat: LIMITED('Цикл исполняется по условию в пределах лимита операций.'),
@@ -168,7 +168,9 @@ export const ARDUINO_LANGUAGE_FEATURE_SUPPORT = {
   constant: LIMITED(
     'const принимается, но запрет последующего присваивания пока не контролируется.',
   ),
-  assignment: LIMITED('Переменные живут только внутри одного детерминированного пересчёта.'),
+  assignment: LIMITED(
+    'Числовые globals сохраняются между тиками; сложные типы и полная C++-семантика не поддерживаются.',
+  ),
   if: SUPPORTED('Условие вычисляется, и исполняется подходящая ветвь.'),
   'if-else': SUPPORTED('Исполняется ровно одна ветвь if/else.'),
   for: LIMITED('Заголовок и тело for исполняются по условию в пределах защитного лимита операций.'),

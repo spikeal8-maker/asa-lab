@@ -1,7 +1,10 @@
 import type { SchematicComponent, Terminal } from './document.js';
 import {
+  advanceArduinoRuntime,
   executeArduinoProgram,
   type ArduinoProgramAction,
+  type ArduinoRuntimeDiagnostic,
+  type ArduinoRuntimeState,
   type ArduinoTerminalVoltages,
   type ArduinoWriteAction,
 } from './arduino-program-runtime.js';
@@ -24,6 +27,14 @@ export interface ArduinoToneOutput {
   readonly terminal: Terminal;
   readonly frequencyHz: number;
   readonly source: 'tone' | 'digital-toggle';
+}
+
+export interface ArduinoRuntimeSnapshot {
+  readonly state: ArduinoRuntimeState;
+  readonly diagnostics: readonly ArduinoRuntimeDiagnostic[];
+  readonly outputs: ReadonlyMap<Terminal, number>;
+  readonly pinModes: ReadonlyMap<Terminal, 'INPUT' | 'INPUT_PULLUP' | 'OUTPUT'>;
+  readonly tones: ReadonlyMap<Terminal, ArduinoToneOutput>;
 }
 
 const DEFAULT_ARDUINO_SOURCE = `
@@ -50,13 +61,44 @@ function loopCycleDuration(actions: readonly ArduinoProgramAction[]): number {
   );
 }
 
-function applyWrites(
-  outputs: Map<Terminal, number>,
-  actions: readonly ArduinoProgramAction[],
-): void {
-  for (const action of actions) {
-    if (action.kind === 'write') outputs.set(action.terminal, action.targetVoltage);
-  }
+function sourceFor(component: SchematicComponent): string {
+  const storedSource = component.stateProperties?.['arduinoSource'];
+  return typeof storedSource === 'string' ? storedSource : DEFAULT_ARDUINO_SOURCE;
+}
+
+function terminalMap<T>(record: Readonly<Partial<Record<Terminal, T>>>): Map<Terminal, T> {
+  return new Map(Object.entries(record) as [Terminal, T][]);
+}
+
+export function arduinoRuntimeSnapshot(
+  component: SchematicComponent,
+  simulationTimeMs = 0,
+  inputVoltages: ArduinoTerminalVoltages = {},
+  previousState?: ArduinoRuntimeState,
+): ArduinoRuntimeSnapshot | null {
+  if (!isArduinoUno(component)) return null;
+  const advanced = advanceArduinoRuntime(
+    sourceFor(component),
+    inputVoltages,
+    simulationTimeMs,
+    previousState,
+  );
+  return {
+    state: advanced.state,
+    diagnostics: advanced.diagnostics,
+    outputs: terminalMap(advanced.state.outputVoltages),
+    pinModes: terminalMap(advanced.state.pinModes),
+    tones: new Map(
+      Object.entries(advanced.state.tones).map(([terminal, tone]) => [
+        terminal as Terminal,
+        {
+          terminal: terminal as Terminal,
+          frequencyHz: tone!.frequencyHz,
+          source: 'tone' as const,
+        },
+      ]),
+    ),
+  };
 }
 
 /**
@@ -70,35 +112,12 @@ export function arduinoProgrammedOutputs(
   component: SchematicComponent,
   simulationTimeMs = 0,
   inputVoltages: ArduinoTerminalVoltages = {},
+  previousState?: ArduinoRuntimeState,
 ): ReadonlyMap<Terminal, number> {
-  if (!isArduinoUno(component)) return new Map();
-  const storedSource = component.stateProperties?.['arduinoSource'];
-  const source = typeof storedSource === 'string' ? storedSource : DEFAULT_ARDUINO_SOURCE;
-  const execution = executeArduinoProgram(source, inputVoltages, simulationTimeMs);
-  const outputs = new Map<Terminal, number>();
-  applyWrites(outputs, execution.setupActions);
-
-  const loopActions = execution.loopActions;
-  const cycleDurationMs = loopCycleDuration(loopActions);
-  if (cycleDurationMs <= 0) {
-    applyWrites(outputs, loopActions);
-    return outputs;
-  }
-
-  const finiteTime = Number.isFinite(simulationTimeMs) ? Math.max(0, simulationTimeMs) : 0;
-  const cycleTime = finiteTime % cycleDurationMs;
-  let cursorMs = 0;
-  for (const action of loopActions) {
-    if (action.kind === 'delay') {
-      cursorMs += action.durationMs;
-      if (cursorMs > cycleTime) break;
-      continue;
-    }
-    if (action.kind === 'write' && cursorMs <= cycleTime) {
-      outputs.set(action.terminal, action.targetVoltage);
-    }
-  }
-  return outputs;
+  return (
+    arduinoRuntimeSnapshot(component, simulationTimeMs, inputVoltages, previousState)?.outputs ??
+    new Map()
+  );
 }
 
 /**
@@ -111,58 +130,31 @@ export function arduinoProgrammedToneOutputs(
   component: SchematicComponent,
   simulationTimeMs = 0,
   inputVoltages: ArduinoTerminalVoltages = {},
+  previousState?: ArduinoRuntimeState,
 ): ReadonlyMap<Terminal, ArduinoToneOutput> {
   if (!isArduinoUno(component)) return new Map();
-  const storedSource = component.stateProperties?.['arduinoSource'];
-  const source = typeof storedSource === 'string' ? storedSource : DEFAULT_ARDUINO_SOURCE;
-  const execution = executeArduinoProgram(source, inputVoltages, simulationTimeMs);
-  const tones = new Map<Terminal, ArduinoToneOutput>();
-  const expiry = new Map<Terminal, number>();
-  const applyTone = (action: ArduinoProgramAction, cursorMs: number): void => {
-    if (action.kind === 'tone') {
-      tones.set(action.terminal, {
-        terminal: action.terminal,
-        frequencyHz: action.frequencyHz,
-        source: 'tone',
-      });
-      if (action.durationMs !== undefined)
-        expiry.set(action.terminal, cursorMs + action.durationMs);
-      else expiry.delete(action.terminal);
-    } else if (action.kind === 'no-tone') {
-      tones.delete(action.terminal);
-      expiry.delete(action.terminal);
-    }
-  };
+  const snapshot = arduinoRuntimeSnapshot(
+    component,
+    simulationTimeMs,
+    inputVoltages,
+    previousState,
+  );
+  return snapshot
+    ? arduinoProgrammedToneOutputsFromSnapshot(component, snapshot, simulationTimeMs, inputVoltages)
+    : new Map();
+}
 
-  for (const action of execution.setupActions) applyTone(action, 0);
+export function arduinoProgrammedToneOutputsFromSnapshot(
+  component: SchematicComponent,
+  snapshot: ArduinoRuntimeSnapshot,
+  simulationTimeMs = 0,
+  inputVoltages: ArduinoTerminalVoltages = {},
+): ReadonlyMap<Terminal, ArduinoToneOutput> {
+  const source = sourceFor(component);
+  const tones = new Map(snapshot.tones);
+  const execution = executeArduinoProgram(source, inputVoltages, simulationTimeMs);
   const loopActions = execution.loopActions;
   const cycleDurationMs = loopCycleDuration(loopActions);
-  if (cycleDurationMs <= 0) {
-    for (const action of loopActions) applyTone(action, 0);
-    return tones;
-  }
-
-  const finiteTime = Number.isFinite(simulationTimeMs) ? Math.max(0, simulationTimeMs) : 0;
-  const cycleTime = finiteTime % cycleDurationMs;
-  let cursorMs = 0;
-  for (const action of loopActions) {
-    if (action.kind === 'delay') {
-      const nextCursor = cursorMs + action.durationMs;
-      if (nextCursor > cycleTime) break;
-      cursorMs = nextCursor;
-      for (const [terminal, expiresAt] of expiry) {
-        if (expiresAt <= cursorMs) {
-          tones.delete(terminal);
-          expiry.delete(terminal);
-        }
-      }
-      continue;
-    }
-    applyTone(action, cursorMs);
-  }
-  for (const [terminal, expiresAt] of expiry) {
-    if (expiresAt <= cycleTime) tones.delete(terminal);
-  }
 
   const writesByTerminal = new Map<Terminal, ArduinoWriteAction[]>();
   for (const action of loopActions) {
@@ -182,7 +174,7 @@ export function arduinoProgrammedToneOutputs(
       const current = writes[index] as ArduinoWriteAction;
       if (previous.targetVoltage < 2.5 && current.targetVoltage >= 2.5) risingEdges += 1;
     }
-    const frequencyHz = (risingEdges * 1000) / cycleDurationMs;
+    const frequencyHz = cycleDurationMs > 0 ? (risingEdges * 1000) / cycleDurationMs : 0;
     if (frequencyHz >= 20 && frequencyHz <= 20_000) {
       tones.set(terminal, { terminal, frequencyHz, source: 'digital-toggle' });
     }
@@ -201,8 +193,26 @@ export function arduinoOutputBranches(
   component: SchematicComponent,
   simulationTimeMs = 0,
   inputVoltages: ArduinoTerminalVoltages = {},
+  previousState?: ArduinoRuntimeState,
 ): readonly ArduinoOutputBranch[] {
   if (!isArduinoUno(component)) return [];
+  const snapshot = arduinoRuntimeSnapshot(
+    component,
+    simulationTimeMs,
+    inputVoltages,
+    previousState,
+  );
+  return snapshot
+    ? arduinoOutputBranchesFromSnapshot(component, snapshot, simulationTimeMs, inputVoltages)
+    : [];
+}
+
+export function arduinoOutputBranchesFromSnapshot(
+  component: SchematicComponent,
+  snapshot: ArduinoRuntimeSnapshot,
+  simulationTimeMs = 0,
+  inputVoltages: ArduinoTerminalVoltages = {},
+): readonly ArduinoOutputBranch[] {
   const pins = new Set(component.pinIds ?? []);
   const ground = ARDUINO_GROUND_TERMINALS.find((terminal) => pins.has(terminal));
   if (!ground) return [];
@@ -227,12 +237,15 @@ export function arduinoOutputBranches(
     });
   }
 
-  const storedSource = component.stateProperties?.['arduinoSource'];
-  const source = typeof storedSource === 'string' ? storedSource : DEFAULT_ARDUINO_SOURCE;
-  const execution = executeArduinoProgram(source, inputVoltages, simulationTimeMs);
-  const programmedOutputs = arduinoProgrammedOutputs(component, simulationTimeMs, inputVoltages);
+  const programmedOutputs = snapshot.outputs;
+  const programmedTones = arduinoProgrammedToneOutputsFromSnapshot(
+    component,
+    snapshot,
+    simulationTimeMs,
+    inputVoltages,
+  );
   for (const [terminal, targetVoltage] of programmedOutputs) {
-    if (!pins.has(terminal)) continue;
+    if (!pins.has(terminal) || programmedTones.has(terminal)) continue;
     branches.push({
       id: terminal,
       terminal,
@@ -241,12 +254,14 @@ export function arduinoOutputBranches(
       resistanceOhm: 10,
     });
   }
-  const modes = new Map<Terminal, 'INPUT' | 'INPUT_PULLUP' | 'OUTPUT'>();
-  for (const action of [...execution.setupActions, ...execution.loopActions]) {
-    if (action.kind === 'pin-mode') modes.set(action.terminal, action.mode);
-  }
-  for (const [terminal, mode] of modes) {
-    if (mode !== 'INPUT_PULLUP' || !pins.has(terminal) || programmedOutputs.has(terminal)) continue;
+  for (const [terminal, mode] of snapshot.pinModes) {
+    if (
+      mode !== 'INPUT_PULLUP' ||
+      !pins.has(terminal) ||
+      programmedOutputs.has(terminal) ||
+      programmedTones.has(terminal)
+    )
+      continue;
     branches.push({
       id: terminal,
       terminal,
@@ -255,12 +270,8 @@ export function arduinoOutputBranches(
       resistanceOhm: 20_000,
     });
   }
-  for (const tone of arduinoProgrammedToneOutputs(
-    component,
-    simulationTimeMs,
-    inputVoltages,
-  ).values()) {
-    if (!pins.has(tone.terminal) || programmedOutputs.has(tone.terminal)) continue;
+  for (const tone of programmedTones.values()) {
+    if (!pins.has(tone.terminal)) continue;
     const periodMs = 1000 / tone.frequencyHz;
     const phaseMs = Math.max(0, simulationTimeMs) % periodMs;
     branches.push({

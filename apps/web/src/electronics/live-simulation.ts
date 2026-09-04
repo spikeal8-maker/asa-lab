@@ -50,12 +50,14 @@ export function advanceLiveSimulation(
       return analyseCircuit(document, {
         simulationTimeMs: previousTimeMs + 1,
         transientState: previousState,
+        ...(previous.controllerState ? { controllerState: previous.controllerState } : {}),
       }) as SolveResult;
     }
   }
   return analyseCircuit(document, {
     simulationTimeMs,
     ...(previous?.transientState ? { transientState: previous.transientState } : {}),
+    ...(previous?.controllerState ? { controllerState: previous.controllerState } : {}),
   }) as SolveResult;
 }
 

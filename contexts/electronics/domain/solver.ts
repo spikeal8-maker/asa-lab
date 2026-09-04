@@ -6,12 +6,14 @@ import {
 } from './document.js';
 import {
   ARDUINO_GROUND_TERMINALS,
-  arduinoOutputBranches,
-  arduinoProgrammedToneOutputs,
+  arduinoOutputBranchesFromSnapshot,
+  arduinoProgrammedToneOutputsFromSnapshot,
+  arduinoRuntimeSnapshot,
   isArduinoUno,
 } from './arduino-model.js';
 import {
   arduinoSourceUsesInputReads,
+  type ArduinoRuntimeState,
   type ArduinoTerminalVoltages,
 } from './arduino-program-runtime.js';
 import { analyseArduinoSourceSupport } from './arduino-capabilities.js';
@@ -157,6 +159,8 @@ export type DiagnosticCode =
   | 'motor_stalled'
   | 'component_failed'
   | 'arduino_program_unsupported'
+  | 'arduino_statement_budget_exceeded'
+  | 'arduino_loop_advance_budget_exceeded'
   | 'unsupported_component'
   | 'unsupported_topology'
   | 'numerical_instability'
@@ -333,6 +337,7 @@ export interface SolveResult {
   readonly numericalResidual: number;
   readonly numericalTolerance: number;
   readonly transientState?: CapacitorTransientState;
+  readonly controllerState?: ArduinoControllerState;
   readonly transientAnalysis?: {
     readonly acceptedSteps: number;
     readonly rejectedSteps: number;
@@ -341,9 +346,19 @@ export interface SolveResult {
   };
 }
 
+export interface ArduinoControllerState {
+  readonly version: 1;
+  readonly simulationTimeMs: number;
+  readonly boards: readonly {
+    readonly componentId: string;
+    readonly runtime: ArduinoRuntimeState;
+  }[];
+}
+
 export interface SolveOptions {
   readonly simulationTimeMs?: number;
   readonly transientState?: CapacitorTransientState;
+  readonly controllerState?: ArduinoControllerState;
 }
 
 interface InternalSolveOptions extends SolveOptions {
@@ -356,6 +371,7 @@ interface InternalSolveOptions extends SolveOptions {
   readonly meterFuseBlownById?: Readonly<Record<string, boolean>>;
   readonly suppressOscilloscopeTrace?: boolean;
   readonly arduinoInputVoltagesById?: Readonly<Record<string, ArduinoTerminalVoltages>>;
+  readonly arduinoRuntimeStateById?: Readonly<Record<string, ArduinoRuntimeState>>;
 }
 
 const GMIN = 1e-12;
@@ -1030,6 +1046,48 @@ function applyThermalObservations(
   };
 }
 
+function arduinoRuntimeStatesFromController(
+  state: ArduinoControllerState | undefined,
+): Readonly<Record<string, ArduinoRuntimeState>> {
+  if (
+    state?.version !== 1 ||
+    !Number.isFinite(state.simulationTimeMs) ||
+    state.simulationTimeMs < 0 ||
+    !Array.isArray(state.boards)
+  ) {
+    return {};
+  }
+  return Object.fromEntries(
+    state.boards
+      .filter(
+        (entry) => entry && typeof entry.componentId === 'string' && entry.runtime !== undefined,
+      )
+      .map((entry) => [entry.componentId, entry.runtime]),
+  );
+}
+
+function arduinoControllerStateIsCompatible(
+  state: ArduinoControllerState | undefined,
+  targetTimeMs: number,
+  requiredStartTimeMs?: number,
+): state is ArduinoControllerState {
+  if (
+    state?.version !== 1 ||
+    !Number.isFinite(state.simulationTimeMs) ||
+    state.simulationTimeMs < 0 ||
+    state.simulationTimeMs >= targetTimeMs ||
+    !Array.isArray(state.boards) ||
+    (requiredStartTimeMs !== undefined && state.simulationTimeMs !== requiredStartTimeMs)
+  ) {
+    return false;
+  }
+  const componentIds = state.boards.map((entry) => entry?.componentId);
+  return (
+    componentIds.every((componentId) => typeof componentId === 'string' && componentId.length > 0) &&
+    new Set(componentIds).size === componentIds.length
+  );
+}
+
 function solveCircuitBase(
   document: ElectronicsDocument,
   options: InternalSolveOptions = {},
@@ -1059,7 +1117,11 @@ function solveCircuitBase(
     hasCurrentMeter ||
     options.simulationTimeMs !== undefined ||
     options.transientState !== undefined;
-  if (!transientRequested) return solveCircuitStep(document, options);
+  if (!transientRequested)
+    return solveCircuitStep(document, {
+      ...options,
+      arduinoRuntimeStateById: arduinoRuntimeStatesFromController(options.controllerState),
+    });
 
   const requestedTimeMs = Number.isFinite(options.simulationTimeMs)
     ? Math.max(0, options.simulationTimeMs ?? 0)
@@ -1074,7 +1136,23 @@ function solveCircuitBase(
   )
     ? options.transientState
     : undefined;
-  const startTimeMs = compatibleState?.simulationTimeMs ?? 0;
+  const carriesPhysicalRuntime =
+    orderedCapacitors.length > 0 ||
+    orderedMotors.length > 0 ||
+    orderedMultimeters.length > 0 ||
+    orderedThermalComponents.length > 0;
+  const compatibleControllerState = arduinoControllerStateIsCompatible(
+    options.controllerState,
+    targetTimeMs,
+    compatibleState?.simulationTimeMs,
+  )
+    ? compatibleState || !carriesPhysicalRuntime
+      ? options.controllerState
+      : undefined
+    : undefined;
+  let arduinoRuntimeStateById = arduinoRuntimeStatesFromController(compatibleControllerState);
+  const startTimeMs =
+    compatibleState?.simulationTimeMs ?? compatibleControllerState?.simulationTimeMs ?? 0;
   const elapsedTimeMs = Math.max(TRANSIENT_INITIAL_SAMPLE_MS, targetTimeMs - startTimeMs);
   const bjtCount = document.components.filter(
     (component) =>
@@ -1205,6 +1283,7 @@ function solveCircuitBase(
           state.fuseState === 'blown',
         ]),
       ),
+      arduinoRuntimeStateById,
     } as const;
     let acceptedResult: SolveResult;
     let acceptedMotorStateById = motorStateById;
@@ -1286,6 +1365,7 @@ function solveCircuitBase(
         lampTemperatureById: common.lampTemperatureById,
         failedComponentIds,
         meterFuseBlownById: common.meterFuseBlownById,
+        arduinoRuntimeStateById: arduinoRuntimeStatesFromController(firstHalf.controllerState),
       });
       accumulatedIterations += full.iterations + firstHalf.iterations + secondHalf.iterations;
       const failedSolve = [full, firstHalf, secondHalf].find((result) => !result.solved);
@@ -1343,6 +1423,7 @@ function solveCircuitBase(
     }
 
     motorStateById = acceptedMotorStateById;
+    arduinoRuntimeStateById = arduinoRuntimeStatesFromController(acceptedResult.controllerState);
 
     if (!acceptedResult.solved) {
       return {
@@ -1471,6 +1552,7 @@ function solveCircuitBase(
             state.fuseState === 'blown',
           ]),
         ),
+        arduinoRuntimeStateById,
       });
       accumulatedIterations += postFailure.iterations;
       if (postFailure.solved) {
@@ -1516,6 +1598,7 @@ function solveCircuitBase(
       solveCircuitStep(document, {
         failedComponentIds,
         motorPreviousStateById: motorStateById,
+        arduinoRuntimeStateById,
         lampTemperatureById: Object.fromEntries(
           orderedLamps.map((component) => [
             component.id,
@@ -1810,14 +1893,51 @@ function solveCircuitStep(
     linearDcDevices.map((device) => [device.instance.componentId, device] as const),
   );
   const sources = sourceDevices.map((device) => device.instance.component);
+  const simulationTimeMs = options.simulationTimeMs ?? 0;
+  const arduinoSnapshots = new Map(
+    document.components
+      .filter((component) => isArduinoUno(component) && !failedComponentIds.has(component.id))
+      .sort((left, right) => (left.id < right.id ? -1 : left.id > right.id ? 1 : 0))
+      .flatMap((component) => {
+        const snapshot = arduinoRuntimeSnapshot(
+          component,
+          simulationTimeMs,
+          options.arduinoInputVoltagesById?.[component.id],
+          options.arduinoRuntimeStateById?.[component.id],
+        );
+        return snapshot ? ([[component.id, snapshot]] as const) : [];
+      }),
+  );
+  const controllerState: ArduinoControllerState | undefined =
+    arduinoSnapshots.size > 0
+      ? {
+          version: 1,
+          simulationTimeMs,
+          boards: [...arduinoSnapshots]
+            .map(([componentId, snapshot]) => ({ componentId, runtime: snapshot.state }))
+            .sort((left, right) =>
+              left.componentId < right.componentId
+                ? -1
+                : left.componentId > right.componentId
+                  ? 1
+                  : 0,
+            ),
+        }
+      : undefined;
   const arduinoBranches = document.components.flatMap((component) =>
     failedComponentIds.has(component.id)
       ? []
-      : arduinoOutputBranches(
-          component,
-          options.simulationTimeMs ?? 0,
-          options.arduinoInputVoltagesById?.[component.id],
-        ).map((branch) => ({ component, ...branch })),
+      : (() => {
+          const snapshot = arduinoSnapshots.get(component.id);
+          return snapshot
+            ? arduinoOutputBranchesFromSnapshot(
+                component,
+                snapshot,
+                simulationTimeMs,
+                options.arduinoInputVoltagesById?.[component.id],
+              ).map((branch) => ({ component, ...branch }))
+            : [];
+        })(),
   );
   const empty = (
     status: Exclude<SimulationSolveStatus, 'solved'>,
@@ -1834,7 +1954,27 @@ function solveCircuitStep(
     iterations,
     numericalResidual,
     numericalTolerance,
+    ...(controllerState ? { controllerState } : {}),
   });
+
+  for (const [componentId, snapshot] of arduinoSnapshots) {
+    for (const runtimeDiagnostic of snapshot.diagnostics) {
+      diagnostics.push({
+        code:
+          runtimeDiagnostic.code === 'statement_budget_exceeded'
+            ? 'arduino_statement_budget_exceeded'
+            : 'arduino_loop_advance_budget_exceeded',
+        severity: 'error',
+        message: runtimeDiagnostic.message,
+        componentIds: [componentId],
+        suggestedAction:
+          'Остановите бесконечный цикл или уменьшите объём работы за один шаг симуляции.',
+      });
+    }
+  }
+  if ([...arduinoSnapshots.values()].some((snapshot) => snapshot.diagnostics.length > 0)) {
+    return empty('invalid');
+  }
 
   const invalid = document.components.flatMap((component) => {
     const message = propertyError(component);
@@ -2935,8 +3075,11 @@ function solveCircuitStep(
                 const groundNodes = ARDUINO_GROUND_TERMINALS.map((terminal) =>
                   netlist.nodeOf.get(terminalKey(arduino.id, terminal)),
                 ).filter((node): node is number => node !== undefined);
-                for (const tone of arduinoProgrammedToneOutputs(
+                const snapshot = arduinoSnapshots.get(arduino.id);
+                if (!snapshot) continue;
+                for (const tone of arduinoProgrammedToneOutputsFromSnapshot(
                   arduino,
+                  snapshot,
                   options.simulationTimeMs ?? 0,
                   options.arduinoInputVoltagesById?.[arduino.id],
                 ).values()) {
@@ -3671,5 +3814,6 @@ function solveCircuitStep(
     iterations,
     numericalResidual,
     numericalTolerance,
+    ...(controllerState ? { controllerState } : {}),
   };
 }
