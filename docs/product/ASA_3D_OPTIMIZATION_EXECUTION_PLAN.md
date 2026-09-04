@@ -639,5 +639,5 @@ Versioned Service Worker, precache минимального shell, update/rollba
 - [x] `test:three-d:worker` и `gate:three-d-opt-1` добавлены вместе с CI routing;
 - [x] первый commit сохраняет прежний `legacy-bsp@1` и существующий visual fallback;
 - [x] owner evidence выполнен с `NX_SKIP_NX_CACHE=true`, Nx сообщил `Cache: Skipped`;
-- [ ] публикация `main`, runtime deployment и browser verification отчётливо
+- [x] публикация `main`, runtime deployment и browser verification отчётливо
       разделены в отчёте.

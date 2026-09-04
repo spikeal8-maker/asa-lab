@@ -227,11 +227,11 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: opt_1_worker_boundary_local_gate_pass_ci_and_owner_acceptance_pending
+      checkpoint: opt_1_worker_boundary_published_focused_and_browser_ci_pass_owner_acceptance_pending
       owner_acceptance: pending
     revisions:
       convergence_baseline_sha: 9371222ab69cbb53c7f52411f6f7cb96c780aa65
-      head_sha: 9371222ab69cbb53c7f52411f6f7cb96c780aa65
+      head_sha: 1cedd085796c88113efe07c1a62b380fb3b8471c
     execution_lease:
       executor_id: codex-three-d-opt-1
       holder: unassigned
