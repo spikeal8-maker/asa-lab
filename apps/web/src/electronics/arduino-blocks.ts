@@ -199,10 +199,10 @@ export function registerArduinoBlocks(): void {
     },
     {
       type: 'asa_analog_write',
-      message0: 'назначить вывод %1 на %2',
+      message0: 'назначить ШИМ-вывод %1 на %2',
       args0: [
         { type: 'field_dropdown', name: 'PIN', options: PWM_PINS },
-        { type: 'field_number', name: 'VALUE', value: '0', min: 0, max: 255, precision: 1 },
+        { type: 'input_value', name: 'VALUE', check: 'Number' },
       ],
       previousStatement: null,
       nextStatement: null,
@@ -816,13 +816,13 @@ const TOOLBOX_INPUT_DEFAULTS: Readonly<
   asa_constrain: { VALUE: NUMBER_SHADOW('0') },
   asa_abs: { VALUE: NUMBER_SHADOW('0') },
   asa_var_set: { VALUE: NUMBER_SHADOW() },
+  asa_analog_write: { VALUE: NUMBER_SHADOW('0') },
 };
 
 const TOOLBOX_FIELD_DEFAULTS: Readonly<Record<string, Readonly<Record<string, string>>>> = {
   asa_wait: { TIME: '1', UNIT: 'SECONDS' },
   asa_repeat: { COUNT: '10' },
   asa_for: { NAME: 'i', STEP: '1', FROM: '1', TO: '10' },
-  asa_analog_write: { VALUE: '0' },
   asa_servo_write: { ANGLE: '0' },
   asa_tone: { FREQUENCY: '440' },
   asa_play_note: { FREQUENCY: '262', DURATION: '1' },
@@ -968,6 +968,21 @@ export function migrateLegacyArduinoWorkspaceState(
       if (fields && typeof legacyName === 'string') {
         const name = legacyName.trim() || 'переменная';
         fields['NAME'] = { id: idForName(name) };
+      }
+    }
+    if (node['type'] === 'asa_analog_write') {
+      const fields = objectValue(node['fields']);
+      const legacyValue = fields?.['VALUE'];
+      const inputs = objectValue(node['inputs']) ?? {};
+      if (
+        (typeof legacyValue === 'string' || typeof legacyValue === 'number') &&
+        !inputs['VALUE']
+      ) {
+        inputs['VALUE'] = {
+          shadow: { type: 'asa_number', fields: { VALUE: String(legacyValue) } },
+        };
+        node['inputs'] = inputs;
+        delete fields?.['VALUE'];
       }
     }
     for (const child of Object.values(node)) visit(child);
@@ -1148,7 +1163,9 @@ function statements(first: ScratchBlocks.Block | null): string {
         lines.push(`digitalWrite(${field(block, 'PIN', '0')}, ${field(block, 'LEVEL', 'HIGH')});`);
         break;
       case 'asa_analog_write':
-        lines.push(`analogWrite(${field(block, 'PIN', '3')}, ${field(block, 'VALUE', '0')});`);
+        lines.push(
+          `analogWrite(${field(block, 'PIN', '3')}, ${expression(block.getInputTargetBlock('VALUE'))});`,
+        );
         break;
       case 'asa_servo_write':
         lines.push(`servo_${field(block, 'PIN', '9')}.write(${field(block, 'ANGLE', '0')});`);
@@ -1234,7 +1251,15 @@ export function generateArduinoCode(workspace: ScratchBlocks.Workspace): string 
   const digitalPins = new Set<string>();
   for (const block of allBlocks) {
     if (block.type === 'asa_builtin_led') digitalPins.add('LED_BUILTIN');
-    if (['asa_digital_write', 'asa_tone', 'asa_play_note', 'asa_no_tone'].includes(block.type)) {
+    if (
+      [
+        'asa_digital_write',
+        'asa_analog_write',
+        'asa_tone',
+        'asa_play_note',
+        'asa_no_tone',
+      ].includes(block.type)
+    ) {
       digitalPins.add(field(block, 'PIN', '0'));
     }
   }

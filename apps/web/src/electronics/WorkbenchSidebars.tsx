@@ -77,6 +77,31 @@ function filamentStateLabel(state: ComponentResult['filamentState']): string {
   return 'Холодная';
 }
 
+function arduinoPinRuntimeLabel(
+  terminal: string,
+  measurement: ComponentResult | undefined,
+): string {
+  const voltage = measurement?.terminalVoltages[terminal];
+  if (voltage === undefined) return '';
+  const ground =
+    measurement?.terminalVoltages['power-gnd-1'] ??
+    measurement?.terminalVoltages['power-gnd-2'] ??
+    measurement?.terminalVoltages['gnd-top'] ??
+    0;
+  const measuredReference = Number(measurement?.terminalVoltages['power-5v']) - ground;
+  const reference =
+    Number.isFinite(measuredReference) && measuredReference > 0.1 ? measuredReference : 5;
+  const relative = voltage - ground;
+  if (/^a[0-5]$/.test(terminal)) {
+    const reading = Math.round((Math.min(reference, Math.max(0, relative)) / reference) * 1023);
+    return ` · АЦП ${reading}/1023`;
+  }
+  if (/^d(?:[0-9]|1[0-3])$/.test(terminal)) {
+    return ` · ${relative >= reference * 0.5 ? 'HIGH' : 'LOW'}`;
+  }
+  return '';
+}
+
 const LED_COLOUR_OPTIONS = [
   { value: 'green', label: 'Зелёный' },
   { value: 'yellow', label: 'Жёлтый' },
@@ -1575,6 +1600,9 @@ export function WorkbenchSidebars({
                             {connected ? 'Подключён' : 'Свободен'}
                             {c.simulationRunning && voltage !== undefined
                               ? ` · ${voltage.toFixed(3)} В`
+                              : ''}
+                            {c.simulationRunning && selectedIsArduino
+                              ? arduinoPinRuntimeLabel(terminal, measurement)
                               : ''}
                           </dd>
                         </div>

@@ -10,6 +10,10 @@ import {
   arduinoProgrammedToneOutputs,
   isArduinoUno,
 } from './arduino-model.js';
+import {
+  arduinoSourceUsesInputReads,
+  type ArduinoTerminalVoltages,
+} from './arduino-program-runtime.js';
 import { photoresistorResistanceOhm } from './photoresistor-model.js';
 import { spdtSelectedTerminal } from './switch-topology.js';
 import { buildNetlist, terminalKey } from './netlist.js';
@@ -349,6 +353,7 @@ interface InternalSolveOptions extends SolveOptions {
   readonly failedComponentIds?: ReadonlySet<string>;
   readonly meterFuseBlownById?: Readonly<Record<string, boolean>>;
   readonly suppressOscilloscopeTrace?: boolean;
+  readonly arduinoInputVoltagesById?: Readonly<Record<string, ArduinoTerminalVoltages>>;
 }
 
 const GMIN = 1e-12;
@@ -1023,7 +1028,10 @@ function applyThermalObservations(
   };
 }
 
-function solveCircuitBase(document: ElectronicsDocument, options: SolveOptions = {}): SolveResult {
+function solveCircuitBase(
+  document: ElectronicsDocument,
+  options: InternalSolveOptions = {},
+): SolveResult {
   const orderedCapacitors = document.components
     .filter(isElectrolyticCapacitor)
     .sort((left, right) => (left.id < right.id ? -1 : left.id > right.id ? 1 : 0));
@@ -1655,7 +1663,46 @@ export function solveCircuit(
   document: ElectronicsDocument,
   options: SolveOptions = {},
 ): SolveResult {
-  return addSampledOscilloscopeTraces(document, solveCircuitBase(document, options));
+  let result = solveCircuitBase(document, options);
+  const inputDrivenBoards = document.components.filter((component) => {
+    if (!isArduinoUno(component)) return false;
+    const source = component.stateProperties?.['arduinoSource'];
+    return typeof source === 'string' && arduinoSourceUsesInputReads(source);
+  });
+  if (result.solved && inputDrivenBoards.length > 0) {
+    for (let iteration = 0; iteration < 4; iteration += 1) {
+      const arduinoInputVoltagesById: Record<string, ArduinoTerminalVoltages> = {};
+      for (const component of inputDrivenBoards) {
+        const componentResult = result.components.find(
+          (candidate) => candidate.componentId === component.id,
+        );
+        if (componentResult)
+          arduinoInputVoltagesById[component.id] = componentResult.terminalVoltages;
+      }
+      const next = solveCircuitBase(document, { ...options, arduinoInputVoltagesById });
+      if (!next.solved) {
+        result = next;
+        break;
+      }
+      const settled = inputDrivenBoards.every((component) => {
+        const before = result.components.find(
+          (candidate) => candidate.componentId === component.id,
+        );
+        const after = next.components.find((candidate) => candidate.componentId === component.id);
+        if (!before || !after) return false;
+        return (component.pinIds ?? []).every(
+          (terminal) =>
+            Math.abs(
+              Number(before.terminalVoltages[terminal] ?? 0) -
+                Number(after.terminalVoltages[terminal] ?? 0),
+            ) <= 1e-6,
+        );
+      });
+      result = next;
+      if (settled) break;
+    }
+  }
+  return addSampledOscilloscopeTraces(document, result);
 }
 
 function capacitorTransientStateIsCompatible(
@@ -1764,10 +1811,11 @@ function solveCircuitStep(
   const arduinoBranches = document.components.flatMap((component) =>
     failedComponentIds.has(component.id)
       ? []
-      : arduinoOutputBranches(component, options.simulationTimeMs ?? 0).map((branch) => ({
+      : arduinoOutputBranches(
           component,
-          ...branch,
-        })),
+          options.simulationTimeMs ?? 0,
+          options.arduinoInputVoltagesById?.[component.id],
+        ).map((branch) => ({ component, ...branch })),
   );
   const empty = (
     status: Exclude<SimulationSolveStatus, 'solved'>,
@@ -2865,6 +2913,7 @@ function solveCircuitStep(
                 for (const tone of arduinoProgrammedToneOutputs(
                   arduino,
                   options.simulationTimeMs ?? 0,
+                  options.arduinoInputVoltagesById?.[arduino.id],
                 ).values()) {
                   const toneNode = netlist.nodeOf.get(terminalKey(arduino.id, tone.terminal));
                   if (toneNode === undefined) continue;

@@ -132,6 +132,9 @@ describe('Arduino programming room contract', () => {
     expect(blocksSource).toContain('TOOLBOX_INPUT_DEFAULTS');
     expect(blocksSource).toContain('applyArduinoBlockDefaults');
     expect(blocksSource).toContain('asa_var_set: { VALUE: NUMBER_SHADOW() }');
+    expect(blocksSource).toContain("asa_analog_write: { VALUE: NUMBER_SHADOW('0') }");
+    expect(blocksSource).toContain("node['type'] === 'asa_analog_write'");
+    expect(blocksSource).toContain("block.getInputTargetBlock('VALUE')");
     expect(panelSource).toContain('arduino-block-context-menu');
     expect(panelSource).toContain('block.toCopyData(true)');
     expect(panelSource).toContain('block.dispose(false, true)');
@@ -189,6 +192,8 @@ describe('Arduino programming room contract', () => {
     expect(sidebarSource).toContain('selectedIsArduino && stateOpen');
     expect(sidebarSource).toContain("data-testid={selectedIsArduino ? 'arduino-pin-details'");
     expect(sidebarSource).toContain("selectedIsArduino ? ' arduino-pin-status' : ''");
+    expect(sidebarSource).toContain('` · АЦП ${reading}/1023`');
+    expect(sidebarSource).toContain("relative >= reference * 0.5 ? 'HIGH' : 'LOW'");
     expect(css).toContain('.workbench-terminal-status.arduino-pin-status');
   });
 });

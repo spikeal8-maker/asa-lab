@@ -1051,6 +1051,130 @@ describe('deterministic DC solver', () => {
     });
   });
 
+  it('reads a pressed button on every Uno digital input and drives a programmed output', () => {
+    for (let pin = 0; pin <= 13; pin += 1) {
+      const input = `d${pin}`;
+      const output = pin === 13 ? 'd12' : 'd13';
+      const circuit = (pressed: boolean) =>
+        doc(
+          [
+            component('uno', 'visual', 5, {
+              componentTypeId: 'arduino-uno',
+              pinIds: [input, output, 'power-5v', 'power-3v3', 'power-gnd-1'],
+              stateProperties: {
+                arduinoSource: `
+                  void setup() { pinMode(${pin === 13 ? 12 : 13}, OUTPUT); }
+                  void loop() {
+                    if (digitalRead(${pin}) == HIGH) {
+                      digitalWrite(${pin === 13 ? 12 : 13}, HIGH);
+                    } else {
+                      digitalWrite(${pin === 13 ? 12 : 13}, LOW);
+                    }
+                  }
+                `,
+              },
+            }),
+            component('button', 'button', 0, { state: pressed }),
+            component('pull-down', 'resistor', 10_000),
+          ],
+          [
+            connect('button-high', 'uno', 'power-5v', 'button', 'a'),
+            connect('button-input', 'button', 'b', 'uno', input),
+            connect('pull-down-input', 'pull-down', 'a', 'uno', input),
+            connect('pull-down-ground', 'pull-down', 'b', 'uno', 'power-gnd-1'),
+          ],
+        );
+
+      const released = resultFor(circuit(false), 'uno');
+      const pressed = resultFor(circuit(true), 'uno');
+      expect(released?.terminalVoltages[input], input).toBeCloseTo(0, 5);
+      expect(released?.terminalVoltages[output], output).toBeCloseTo(0, 5);
+      expect(pressed?.terminalVoltages[input], input).toBeGreaterThan(4.9);
+      expect(pressed?.terminalVoltages[output], output).toBeGreaterThan(4.9);
+    }
+  });
+
+  it('uses the Uno internal pull-up for a button wired directly to ground', () => {
+    const circuit = (pressed: boolean) =>
+      doc(
+        [
+          component('uno', 'visual', 5, {
+            componentTypeId: 'arduino-uno',
+            pinIds: ['d2', 'd13', 'power-5v', 'power-3v3', 'power-gnd-1'],
+            stateProperties: {
+              arduinoSource: `
+                void setup() {
+                  pinMode(2, INPUT_PULLUP);
+                  pinMode(13, OUTPUT);
+                }
+                void loop() {
+                  if (digitalRead(2) == LOW) {
+                    digitalWrite(13, HIGH);
+                  } else {
+                    digitalWrite(13, LOW);
+                  }
+                }
+              `,
+            },
+          }),
+          component('button', 'button', 0, { state: pressed }),
+        ],
+        [
+          connect('button-input', 'uno', 'd2', 'button', 'a'),
+          connect('button-ground', 'button', 'b', 'uno', 'power-gnd-1'),
+        ],
+      );
+
+    const released = resultFor(circuit(false), 'uno');
+    const pressed = resultFor(circuit(true), 'uno');
+    expect(released?.terminalVoltages.d2).toBeGreaterThan(4.9);
+    expect(released?.terminalVoltages.d13).toBeCloseTo(0, 5);
+    expect(pressed?.terminalVoltages.d2).toBeCloseTo(0, 2);
+    expect(pressed?.terminalVoltages.d13).toBeGreaterThan(4.9);
+  });
+
+  it('reads a potentiometer on every analog input and applies its value to a PWM load', () => {
+    for (let pin = 0; pin <= 5; pin += 1) {
+      const analogInput = `a${pin}`;
+      const result = solveCircuit(
+        doc(
+          [
+            component('uno', 'visual', 5, {
+              componentTypeId: 'arduino-uno',
+              pinIds: [analogInput, 'd9', 'd13', 'power-5v', 'power-3v3', 'power-gnd-1'],
+              stateProperties: {
+                arduinoSource: `
+                  float sensor = 0;
+                  void setup() { pinMode(9, OUTPUT); }
+                  void loop() {
+                    sensor = analogRead(A${pin});
+                    analogWrite(9, map(sensor, 0, 1023, 0, 255));
+                  }
+                `,
+              },
+            }),
+            component('pot', 'potentiometer', 10_000, { wiperPosition: 0.25 }),
+            component('load', 'resistor', 10_000),
+          ],
+          [
+            connect('pot-high', 'uno', 'power-5v', 'pot', 'a'),
+            connect('pot-ground', 'pot', 'b', 'uno', 'power-gnd-1'),
+            connect('pot-wiper', 'pot', 'wiper', 'uno', analogInput),
+            connect('pwm-load', 'uno', 'd9', 'load', 'a'),
+            connect('load-ground', 'load', 'b', 'uno', 'power-gnd-1'),
+          ],
+        ),
+      );
+      const uno = result.components.find((entry) => entry.componentId === 'uno');
+      expect(result.solved, analogInput).toBe(true);
+      expect(uno?.terminalVoltages[analogInput], analogInput).toBeCloseTo(3.75, 2);
+      expect(uno?.terminalVoltages.d9, analogInput).toBeGreaterThan(3.6);
+      expect(
+        result.components.find((entry) => entry.componentId === 'load')?.current,
+      ).toBeGreaterThan(0.0003);
+    }
+  });
+
   it('fails closed when the document contains an unsupported electrical component', () => {
     const result = solveCircuit(
       doc(
