@@ -49,6 +49,13 @@ ASA_COMPOSE_PROFILE=staging \
   bash tools/docker-restore.sh backups/asa-lab-staging.dump asalab_restore_test
 ```
 
+On Windows, the PowerShell helper applies the same `_test` guard and validates
+the custom-format archive before creating the disposable database:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\tools\docker-restore.ps1 -Profile production -Backup backups/asa-lab-production.dump -RestoreDatabase asalab_restore_test
+```
+
 After verification, remove only the disposable restore database:
 
 ```bash
@@ -64,5 +71,9 @@ For dev or staging, include the same profile files or set
 - Take a new backup before upgrades or destructive maintenance.
 - Test the dump in a separate `*_test` database before relying on it.
 - Never restore over the live database with the verification helper.
+- A live recovery is a separate owner-approved maintenance operation. Record
+  the exact Compose project and database, take a fresh backup of the current
+  state, verify the recovery dump in `*_test`, define a rollback, and only then
+  schedule downtime. The generic agent workflow never performs it automatically.
 - Never commit dumps or `.env` files.
 - Do not remove the PostgreSQL volume until a tested external backup exists.

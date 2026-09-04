@@ -9,6 +9,8 @@ real application readiness endpoint.
 
 Operator references:
 
+- [`../delivery/AGENT_CHANGE_WORKFLOW.md`](../delivery/AGENT_CHANGE_WORKFLOW.md) —
+  agent path from a focused change through GitHub, CI and an explicitly requested deploy;
 - [`LINUX_DOCKER_DEPLOYMENT.md`](LINUX_DOCKER_DEPLOYMENT.md) — Linux production,
   staging and TLS boundary;
 - [`WINDOWS11_WSL2_DOCKER.md`](WINDOWS11_WSL2_DOCKER.md) — WSL2 development option;

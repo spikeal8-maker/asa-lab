@@ -115,7 +115,15 @@ NX_SKIP_NX_CACHE=true pnpm gate:repository
 Убедись по выводу, что задачи выполнились: `Cache: N/N hit (100%)` означает, что
 не проверялось ничего.
 
-## 8. Stop
+## 8. Публикация и развёртывание
+
+Перед коммитом, публикацией, обновлением Docker или работой с backup обязательно
+следуй единому маршруту
+[`docs/delivery/AGENT_CHANGE_WORKFLOW.md`](docs/delivery/AGENT_CHANGE_WORKFLOW.md).
+Он разделяет локальную проверку, commit, push, CI, deployment и owner acceptance
+и не позволяет принять одно за другое.
+
+## 9. Stop
 
 Останавливайся на условиях из `AGENTS.md` и из `blocking` в `current.yaml`.
 В режиме `direct_main` execution lease, product branch, PR и lane ownership не

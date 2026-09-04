@@ -26,10 +26,14 @@ const REQUIRED_FILES = [
   'docker/web/Caddyfile',
   'tools/asa-lab.sh',
   'tools/asa-lab.ps1',
+  'tools/docker-backup.sh',
   'tools/docker-backup.ps1',
+  'tools/docker-restore.sh',
+  'tools/docker-restore.ps1',
   'tools/docker-update.sh',
   'tools/docker-update.ps1',
   'docs/deployment/QUICK_START.md',
+  'docs/deployment/DOCKER_BACKUP_RESTORE.md',
   'docs/deployment/GUARDED_UPDATE.md',
 ];
 const FORBIDDEN_PORTS = new Set([3000, 3100, 5173]);
@@ -177,6 +181,38 @@ for (const { path, source, orderedMarkers } of guardedUpdaterSources) {
   for (const marker of ['COMPOSE_PROJECT_NAME', 'rollback-', 'automatic_database_restore']) {
     if (!source.includes(marker)) {
       errors.push(`${path}: missing fail-closed marker ${marker}`);
+    }
+  }
+}
+
+const databaseSafetySources = [
+  {
+    path: 'tools/docker-backup.sh',
+    markers: ['pg_dump --format=custom', 'pg_restore --list', 'umask 077'],
+  },
+  {
+    path: 'tools/docker-backup.ps1',
+    markers: ['pg_dump --format=custom', 'pg_restore --list', 'Docker backup is empty'],
+  },
+  {
+    path: 'tools/docker-restore.sh',
+    markers: ['_test', 'pg_restore --exit-on-error', 'schema_migrations'],
+  },
+  {
+    path: 'tools/docker-restore.ps1',
+    markers: ['_test', 'pg_restore --exit-on-error', 'schema_migrations'],
+  },
+];
+for (const { path, markers } of databaseSafetySources) {
+  const source = existsSync(path) ? readFileSync(path, 'utf8') : '';
+  for (const marker of markers) {
+    if (source && !source.includes(marker)) {
+      errors.push(`${path}: missing database safety marker ${marker}`);
+    }
+  }
+  for (const forbidden of ['down --volumes', 'docker volume rm']) {
+    if (source.includes(forbidden)) {
+      errors.push(`${path}: destructive command is forbidden: ${forbidden}`);
     }
   }
 }

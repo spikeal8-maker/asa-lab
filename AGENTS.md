@@ -8,6 +8,9 @@
 поломка, из-за которой процесс разъезжается.
 
 Порядок входа описан в [`START_HERE_FOR_AI.md`](START_HERE_FOR_AI.md).
+Полный маршрут от изменения до GitHub, Docker, backup и проверочного
+восстановления описан в
+[`docs/delivery/AGENT_CHANGE_WORKFLOW.md`](docs/delivery/AGENT_CHANGE_WORKFLOW.md).
 Короткий контекст нужного направления формирует
 `pnpm agent:context --scope <lane>`; команда не создаёт второго состояния, а
 читает выбранный lane непосредственно из `current.yaml`.
@@ -36,6 +39,11 @@
 
 - Прямая разработка, коммиты и разрешённая владельцем публикация в `main`
   допустимы. Перед началом `main` обновляется fast-forward до `origin/main`.
+- Один проверенный срез публикуется одним осмысленным коммитом. Перед push
+  повторно проверяются `origin/main`, пересечения путей и состав индекса.
+- Если удалённый `main` сдвинулся без пересечения путей, разрешено перенести
+  только ещё не опубликованный локальный коммит поверх него и повторить gate.
+  При конфликте перенос отменяется, а работа останавливается для согласования.
 - Запрещены: force-push, `reset --hard` на опубликованную историю, rebase
   опубликованной истории и создание тегов без отдельного поручения владельца.
 - Запрещено удалять untracked backups, credentials, owner screenshots и
@@ -70,6 +78,11 @@ forbidden: 3000, 3100, 5173
 Один постоянный Compose-проект `asa-lab-dev`. Дополнительные постоянные проекты
 не создаются. Изменение tenant/RLS-модели и destructive persistence migration
 запрещены.
+
+Push в GitHub не является deployment. Перезапуск или обновление Docker,
+создание backup и любое восстановление рабочей БД выполняются отдельно и только
+по прямому поручению владельца. Проверочное восстановление допустимо только в
+одноразовую базу с суффиксом `_test`.
 
 ## 5. Инварианты симуляции
 
@@ -148,8 +161,9 @@ pnpm control-plane:check         # только согласованность �
 ## 8. Отчёт
 
 ```text
-TASK, ISSUE, STATUS, VISIBLE_RESULT, USER_FLOW, PORTS, DEMO_URLS,
-SCREENSHOTS, TESTS_RUN, MAP_NODES_CHANGED, WORKING_TREE, NEXT_ALLOWED_TASK
+TASK, ISSUE, STATUS, COMMIT_SHA, CI, DEPLOYMENT, DATABASE_ACTIONS,
+VISIBLE_RESULT, USER_FLOW, PORTS, DEMO_URLS, SCREENSHOTS, TESTS_RUN,
+MAP_NODES_CHANGED, WORKING_TREE, NEXT_ALLOWED_TASK
 ```
 
 `TESTS_RUN` перечисляет фактически выполненные команды и указывает, был ли

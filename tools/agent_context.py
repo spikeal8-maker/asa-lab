@@ -22,6 +22,7 @@ import yaml
 DEFAULT_ROOT = Path(__file__).resolve().parents[1]
 MAX_RENDERED_CHARS = 12_000
 TEXT_PATH_LIMIT = 20
+DELIVERY_WORKFLOW = "docs/delivery/AGENT_CHANGE_WORKFLOW.md"
 
 
 def load_current(root: Path) -> dict[str, Any]:
@@ -254,6 +255,7 @@ def build_context(
     return {
         "source": "docs/execution/current.yaml",
         "policy": "AGENTS.md",
+        "delivery_workflow": DELIVERY_WORKFLOW,
         "gitStatus": git_state,
         "gitError": git_snapshot.get("message"),
         "scope": lane.get("id"),
@@ -307,6 +309,7 @@ def render_text(context: dict[str, Any]) -> str:
         "ASA Lab agent context",
         f"source: {context['source']}",
         f"policy: {context['policy']}",
+        f"delivery: {context['delivery_workflow']}",
         f"scope: {context['scope']}",
         f"development: {context['development_mode']}",
         f"task: {task.get('id')}",
@@ -327,6 +330,7 @@ def render_text(context: dict[str, Any]) -> str:
         lines.append(f"  {name}: {' && '.join(commands)}")
     lines.append("read:")
     lines.append("  AGENTS.md")
+    lines.append(f"  {context['delivery_workflow']}")
     for section in context["contract_sections"]:
         lines.append(f"  {section['path']}:{section['line']}  # {section['heading']}")
     section_paths = {section["path"] for section in context["contract_sections"]}

@@ -4,6 +4,10 @@
 Этот файл оставлен как совместимая ссылка для старых инструментов и не хранит
 задачу, ветку, Issue, checkpoint или SHA.
 
+После изменения кода обязательный маршрут commit → push → CI → отдельный deploy
+находится в [`AGENT_CHANGE_WORKFLOW.md`](AGENT_CHANGE_WORKFLOW.md). Там же
+описаны безопасное обновление Docker, backup и проверочное восстановление.
+
 ## Начало работы
 
 ```bash
@@ -17,6 +21,11 @@ git status --short --branch
 [`../execution/current.yaml`](../execution/current.yaml), показывает gates и
 точные документы выбранного направления. Политика находится в
 [`../../AGENTS.md`](../../AGENTS.md).
+
+Короткий цикл: один цельный срез → focused gate → один осмысленный коммит →
+проверка свежего `origin/main` → обычный push → CI точного SHA. Push не означает
+deployment, а product bot не обновляет runtime или рабочую БД без прямого
+поручения владельца.
 
 ## Справочники
 

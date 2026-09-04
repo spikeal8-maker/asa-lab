@@ -95,12 +95,15 @@ drops all capabilities, and writes only to its named data volume.
 Before changing images or source:
 
 ```bash
-ASA_COMPOSE_PROFILE=production bash tools/docker-backup.sh backups/pre-upgrade.dump
-git fetch origin main
-git pull --ff-only origin main
-ASA_COMPOSE_PROFILE=production ./tools/asa-lab.sh up
-curl --fail http://127.0.0.1:4610/health/ready
+ASA_COMPOSE_PROFILE=production bash tools/docker-update.sh --check
+ASA_COMPOSE_PROFILE=production bash tools/docker-update.sh
 ```
+
+The first command is read-only. The second is run only after an explicit update
+decision; it verifies a clean checkout, fast-forward eligibility and exact-SHA
+GitHub CI, creates and validates a database backup, updates the stack, and waits
+for `/health/ready`. See [`GUARDED_UPDATE.md`](GUARDED_UPDATE.md). Do not replace
+this sequence with a bare `git pull` plus `compose up`.
 
 Review the migration job and health output:
 

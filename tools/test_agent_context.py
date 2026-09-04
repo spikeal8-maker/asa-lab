@@ -102,6 +102,21 @@ class AgentContextTests(unittest.TestCase):
                 ["primary", "electronics"],
             )
 
+    def test_delivery_workflow_is_always_in_compact_context(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            document = fixture(root)
+            context = MODULE.build_context(
+                root, document, lane(document), git_status=available()
+            )
+            rendered = MODULE.render_text(context)
+        self.assertEqual(
+            context["delivery_workflow"],
+            "docs/delivery/AGENT_CHANGE_WORKFLOW.md",
+        )
+        self.assertIn("delivery: docs/delivery/AGENT_CHANGE_WORKFLOW.md", rendered)
+        self.assertIn("  docs/delivery/AGENT_CHANGE_WORKFLOW.md", rendered)
+
     def test_git_status_failure_is_not_a_clean_tree(self):
         with tempfile.TemporaryDirectory() as raw:
             snapshot = MODULE._git_status(Path(raw))

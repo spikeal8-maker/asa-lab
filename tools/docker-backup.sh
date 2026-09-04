@@ -24,4 +24,7 @@ docker compose "$@" exec -T postgres sh -eu -c \
   >"$output"
 
 test -s "$output"
+docker compose "$@" exec -T postgres sh -eu -c 'exec pg_restore --list' \
+  <"$output" >/dev/null
+chmod 600 "$output"
 printf 'Docker backup PASS: %s\n' "$output"

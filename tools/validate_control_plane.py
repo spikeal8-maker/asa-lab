@@ -35,6 +35,7 @@ CATALOG_VALIDATOR_PATH = ROOT / "tools/validate_test_catalog.py"
 PACKAGE_JSON_PATH = ROOT / "package.json"
 AGENT_CONTEXT_PATH = ROOT / "tools/agent_context.py"
 BOT_RUNBOOK_PATH = ROOT / "docs/delivery/BOT_RUNBOOK.md"
+AGENT_WORKFLOW_PATH = ROOT / "docs/delivery/AGENT_CHANGE_WORKFLOW.md"
 QUALITY_MAP_PATH = ROOT / "docs/project-map/QUALITY_MAP.md"
 PROJECT_MAP_README_PATH = ROOT / "docs/project-map/README.md"
 PRODUCT_README_PATH = ROOT / "docs/product/README.md"
@@ -54,6 +55,7 @@ STATELESS_DOCUMENTS = (
     START_HERE_PATH,
     AGENTS_PATH,
     BOT_RUNBOOK_PATH,
+    AGENT_WORKFLOW_PATH,
     QUALITY_MAP_PATH,
     PROJECT_MAP_README_PATH,
     PRODUCT_README_PATH,
@@ -1180,7 +1182,7 @@ def bind_root(root: Path) -> None:
     """
     global ROOT, CURRENT_PATH, START_HERE_PATH, AGENTS_PATH, MANIFEST_PATH
     global MAP_PATH, ACTIVE_TESTS_PATH, CATALOG_VALIDATOR_PATH, PACKAGE_JSON_PATH
-    global AGENT_CONTEXT_PATH, BOT_RUNBOOK_PATH, QUALITY_MAP_PATH
+    global AGENT_CONTEXT_PATH, BOT_RUNBOOK_PATH, AGENT_WORKFLOW_PATH, QUALITY_MAP_PATH
     global PROJECT_MAP_README_PATH, PRODUCT_README_PATH
     global TASK_SYSTEM_PATH
     global STATELESS_DOCUMENTS
@@ -1196,6 +1198,7 @@ def bind_root(root: Path) -> None:
     PACKAGE_JSON_PATH = ROOT / "package.json"
     AGENT_CONTEXT_PATH = ROOT / "tools/agent_context.py"
     BOT_RUNBOOK_PATH = ROOT / "docs/delivery/BOT_RUNBOOK.md"
+    AGENT_WORKFLOW_PATH = ROOT / "docs/delivery/AGENT_CHANGE_WORKFLOW.md"
     QUALITY_MAP_PATH = ROOT / "docs/project-map/QUALITY_MAP.md"
     PROJECT_MAP_README_PATH = ROOT / "docs/project-map/README.md"
     PRODUCT_README_PATH = ROOT / "docs/product/README.md"
@@ -1204,6 +1207,7 @@ def bind_root(root: Path) -> None:
         START_HERE_PATH,
         AGENTS_PATH,
         BOT_RUNBOOK_PATH,
+        AGENT_WORKFLOW_PATH,
         QUALITY_MAP_PATH,
         PROJECT_MAP_README_PATH,
         PRODUCT_README_PATH,

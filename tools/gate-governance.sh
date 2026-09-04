@@ -47,6 +47,7 @@ fi
 # these cases were being written.
 run "$PYTHON" tools/test_validate_control_plane.py
 run "$PYTHON" tools/test_agent_context.py
+run "$PYTHON" tools/validate_agent_workflow.py
 run "$PYTHON" tools/validate_control_plane.py "${CONTROL_PLANE_ARGS[@]}"
 
 run "$PYTHON" tools/validate_architecture.py
