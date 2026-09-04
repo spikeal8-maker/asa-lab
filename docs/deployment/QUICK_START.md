@@ -77,32 +77,26 @@ ASA_COMPOSE_PROFILE=production ./tools/asa-lab.sh up
 
 ## Обновление
 
-`up` не загружает код из GitHub. Безопасное обновление состоит из отдельных,
-проверяемых шагов: резервная копия, fast-forward `main`, сборка, запуск и
-readiness. Для production на Linux выполните:
+`up` не загружает код из GitHub. Для уже работающей установки используйте
+отдельный защищённый updater. Сначала можно выполнить preflight без изменений:
 
 ```bash
-ASA_COMPOSE_PROFILE=production bash tools/docker-backup.sh "backups/pre-update-$(date +%Y%m%d-%H%M%S).dump"
-git fetch origin main
-git pull --ff-only origin main
-ASA_COMPOSE_PROFILE=production ./tools/asa-lab.sh up
-curl --fail http://127.0.0.1:4610/health/ready
+ASA_COMPOSE_PROFILE=production ./tools/docker-update.sh --check
+ASA_COMPOSE_PROFILE=production ./tools/docker-update.sh
 ```
 
 В Windows:
 
 ```powershell
-$stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
-powershell -ExecutionPolicy Bypass -File .\tools\docker-backup.ps1 -Profile production -Output "backups/pre-update-$stamp.dump"
-git fetch origin main
-git pull --ff-only origin main
-powershell -ExecutionPolicy Bypass -File .\tools\asa-lab.ps1 -Action up -Profile production
-Invoke-RestMethod http://127.0.0.1:4610/health/ready
+powershell -ExecutionPolicy Bypass -File .\tools\docker-update.ps1 -Profile production -CheckOnly
+powershell -ExecutionPolicy Bypass -File .\tools\docker-update.ps1 -Profile production
 ```
 
-Готовность считается подтверждённой только когда ответ содержит фактическую и
-ожидаемую версии схемы и `synchronized: true`. При ошибке не удаляйте volume и
-не восстанавливайте дамп поверх рабочей БД автоматически — сначала изучите логи.
+Команда требует чистый `main`, допускает только fast-forward, создаёт и проверяет
+backup до изменения checkout, сохраняет rollback-образы с SHA, затем сверяет
+точную revision, обе версии схемы и `synchronized: true`. При ошибке она не
+удаляет volume и не восстанавливает дамп автоматически. Полный контракт и
+действия при остановке: [`GUARDED_UPDATE.md`](GUARDED_UPDATE.md).
 
 ## Доступ из локальной сети или интернета
 
