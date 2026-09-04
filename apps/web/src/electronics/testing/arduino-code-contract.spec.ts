@@ -53,7 +53,7 @@ describe('Arduino programming room contract', () => {
     expect(panelSource).toContain('tokenizeArduinoSource(source)');
     expect(panelSource).toContain('arduinoCompletionsAt(source, cursor)');
     expect(panelSource).toContain('aria-label="Подсказки Arduino"');
-    expect(panelSource).toContain('Enter строка · Tab вставить · Esc закрыть');
+    expect(panelSource).toContain('Enter — строка · Tab — вставить · Esc — закрыть');
     expect(panelSource).toContain('insertArduinoCompletion(');
     expect(panelSource).toContain('setCompletionDismissed(true)');
     expect(panelSource).toContain('item.example');
@@ -156,10 +156,17 @@ describe('Arduino programming room contract', () => {
     expect(blocksSource).toContain("? 'Пока не работает.'");
     expect(blocksSource).not.toContain('message0: `${marker}');
     expect(panelSource).toContain('analyseArduinoSourceSupport(source)');
-    expect(panelSource).toContain('Не исполняется: ${unsupportedCount}');
-    expect(panelSource).toContain('Расчёт заблокирован');
+    expect(panelSource).toContain('<strong>Проверка кода</strong>');
+    expect(panelSource).toContain('Блокирующих: {unsupportedCount}');
+    expect(panelSource).toContain('Ограничений: {limitedCount}');
+    expect(panelSource).toContain('Моделирование заблокировано');
+    expect(panelSource).toContain('Это не ошибки компиляции: программа исполняется');
+    expect(panelSource).toContain('onDiagnosticsOpenChange');
     expect(panelSource).not.toContain('arduino-support-legend');
-    expect(css).toContain('.arduino-source-diagnostics.has-errors');
+    expect(css).toContain('.arduino-code-check.has-blockers');
+    expect(css).toContain('.arduino-code-check.has-limitations');
+    expect(css).toContain('.arduino-code-check.open');
+    expect(css).not.toContain('.arduino-source-diagnostics.has-errors');
     expect(css).not.toContain('.arduino-support-legend');
   });
 

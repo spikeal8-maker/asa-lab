@@ -4252,7 +4252,7 @@ html.arduino-palette-resizing * {
   position: absolute;
   z-index: 3;
   top: 0;
-  bottom: 0;
+  bottom: 34px;
   left: 0;
   box-sizing: border-box;
   width: 44px;
@@ -4272,10 +4272,10 @@ html.arduino-palette-resizing * {
 .arduino-source-editor textarea {
   position: absolute;
   z-index: 1;
-  inset: 0 0 0 44px;
+  inset: 0 0 34px 44px;
   box-sizing: border-box;
   width: calc(100% - 44px);
-  height: 100%;
+  height: auto;
   margin: 0;
   padding: 10px 12px 60px;
   overflow: auto;
@@ -4303,9 +4303,12 @@ html.arduino-palette-resizing * {
 .arduino-source-editor textarea::selection {
   background: rgba(56, 150, 205, 0.28);
 }
-.arduino-source-editor.has-diagnostics .arduino-code-highlight,
-.arduino-source-editor.has-diagnostics textarea {
-  padding-bottom: 150px;
+.arduino-source-editor.diagnostics-open .arduino-code-gutter {
+  bottom: 164px;
+}
+.arduino-source-editor.diagnostics-open .arduino-code-highlight,
+.arduino-source-editor.diagnostics-open textarea {
+  bottom: 164px;
 }
 .arduino-code-line {
   display: block;
@@ -4397,83 +4400,164 @@ html.arduino-palette-resizing * {
 .arduino-code-suggestions .support-limited .arduino-code-suggestion-copy > span {
   color: #7a6524;
 }
-.arduino-source-status {
+.arduino-code-check {
   position: absolute;
-  z-index: 3;
-  right: 8px;
-  bottom: 6px;
+  z-index: 6;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 34px;
+  overflow: hidden;
+  border-top: 1px solid #cbd3d9;
+  background: #fff;
+  color: #3b5361;
+  transition: height 150ms ease;
+}
+.arduino-code-check.open {
+  height: 164px;
+}
+.arduino-code-check-title {
   display: flex;
-  gap: 14px;
-  padding: 3px 7px;
-  border: 1px solid rgba(174, 186, 195, 0.72);
-  border-radius: 3px;
-  background: rgba(255, 255, 255, 0.94);
-  color: #6d7d87;
-  font-size: 10px;
-  line-height: 1.25;
-  pointer-events: none;
+  width: 100%;
+  height: 34px;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  border: 0;
+  background: #fff;
+  color: #3b5361;
+  font: inherit;
+  font-size: 11px;
+  text-align: left;
+  cursor: pointer;
 }
-.arduino-source-status > span:first-child {
-  color: #087f8c;
-  font-weight: 600;
+.arduino-code-check-title:hover {
+  background: #f4f7f9;
 }
-.arduino-source-diagnostics {
-  position: absolute;
-  z-index: 4;
-  right: 8px;
-  bottom: 32px;
-  left: 52px;
+.arduino-code-check-title > strong {
+  color: #2d4858;
+  font-size: 12px;
+}
+.arduino-code-check-icon {
   display: grid;
-  max-height: 112px;
-  gap: 4px;
+  width: 17px;
+  height: 17px;
+  flex: 0 0 17px;
+  place-items: center;
+  border-radius: 50%;
+  background: #dff0e6;
+  color: #217143;
+  font:
+    700 11px Arial,
+    sans-serif;
+}
+.arduino-code-check.has-limitations .arduino-code-check-icon {
+  background: #fff0c6;
+  color: #7d6016;
+}
+.arduino-code-check.has-blockers .arduino-code-check-icon {
+  background: #f8d9d5;
+  color: #9a3c34;
+}
+.arduino-code-check-count {
+  padding: 2px 6px;
+  border-radius: 9px;
+  background: #eef2f4;
+  color: #72818a;
+  font-size: 9px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.arduino-code-check-count.active {
+  background: #f8d9d5;
+  color: #913a32;
+}
+.arduino-code-check-count.limited.active {
+  background: #fff0c6;
+  color: #715916;
+}
+.arduino-code-check-summary {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  color: #71828c;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.arduino-code-check-title > svg {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  transition: transform 140ms ease;
+}
+.arduino-code-check.open .arduino-code-check-title > svg {
+  transform: rotate(180deg);
+}
+.arduino-code-check-body {
+  display: grid;
+  height: 130px;
+  grid-template-rows: auto minmax(0, 1fr);
   box-sizing: border-box;
-  padding: 7px;
-  overflow: auto;
-  border: 1px solid #d4b66b;
-  border-radius: 4px;
-  background: rgba(255, 250, 232, 0.97);
-  box-shadow: 0 3px 12px rgba(38, 51, 59, 0.14);
-  color: #635324;
+  gap: 5px;
+  padding: 7px 10px 9px;
+  overflow: hidden;
+  border-top: 1px solid #e1e6e9;
+  background: #f7faf8;
   font-size: 11px;
 }
-.arduino-source-diagnostics.has-errors {
-  border-color: #d58a81;
-  background: rgba(255, 244, 242, 0.98);
+.arduino-code-check.has-limitations .arduino-code-check-body {
+  background: #fffaf0;
+  color: #635324;
+}
+.arduino-code-check.has-blockers .arduino-code-check-body {
+  background: #fff5f3;
   color: #74342e;
 }
-.arduino-source-diagnostics > div {
-  display: grid;
-  gap: 2px;
+.arduino-code-check-body > p {
+  margin: 0;
+  color: inherit;
+  line-height: 1.35;
 }
-.arduino-source-diagnostics button {
+.arduino-code-check-messages {
+  display: grid;
+  align-content: start;
+  gap: 2px;
+  overflow: auto;
+}
+.arduino-code-check-messages > button {
   display: grid;
   grid-template-columns: 16px 64px minmax(0, 1fr);
   gap: 5px;
   align-items: baseline;
   padding: 2px 3px;
-  overflow: hidden;
   border: 0;
   border-radius: 2px;
   background: transparent;
   color: inherit;
   font: inherit;
   text-align: left;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   cursor: pointer;
 }
-.arduino-source-diagnostics button:hover,
-.arduino-source-diagnostics button:focus-visible {
+.arduino-code-check-messages > button:hover,
+.arduino-code-check-messages > button:focus-visible {
   background: rgba(113, 78, 42, 0.09);
   outline: 1px solid currentColor;
 }
-.arduino-source-diagnostics code {
+.arduino-code-check-messages code {
   color: inherit;
   font: inherit;
   font-weight: 700;
+  white-space: nowrap;
 }
-.arduino-source-diagnostics small {
-  padding-left: 21px;
+.arduino-code-check-messages > button > span:last-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.arduino-code-check-messages > span {
   color: #6d7d87;
 }
 .arduino-serial-monitor {

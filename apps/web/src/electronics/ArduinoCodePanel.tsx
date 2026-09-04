@@ -810,15 +810,19 @@ function ArduinoSourceEditor({
   readOnly,
   fontSize,
   completionEnabled,
+  diagnosticsOpen,
   onChange,
   onCursorChange,
+  onDiagnosticsOpenChange,
 }: {
   source: string;
   readOnly: boolean;
   fontSize: number;
   completionEnabled: boolean;
+  diagnosticsOpen: boolean;
   onChange: (source: string) => void;
   onCursorChange: (position: number) => void;
+  onDiagnosticsOpenChange: (open: boolean) => void;
 }): JSX.Element {
   const editorRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -952,7 +956,7 @@ function ArduinoSourceEditor({
   }
   return (
     <div
-      className={`arduino-source-editor${readOnly ? ' read-only' : ''}${supportDiagnostics.length > 0 ? ' has-diagnostics' : ''}`}
+      className={`arduino-source-editor${readOnly ? ' read-only' : ''}${diagnosticsOpen ? ' diagnostics-open' : ''}`}
       style={{ '--arduino-code-size': `${fontSize}px` } as React.CSSProperties}
       ref={editorRef}
     >
@@ -1052,50 +1056,68 @@ function ArduinoSourceEditor({
           ))}
         </div>
       ) : null}
-      {supportDiagnostics.length > 0 ? (
-        <div
-          className={`arduino-source-diagnostics${unsupportedCount > 0 ? ' has-errors' : ''}`}
-          id="arduino-source-diagnostics"
-          role="status"
-          aria-label="Поддержка команд Arduino"
+      <section
+        className={`arduino-code-check${diagnosticsOpen ? ' open' : ''}${unsupportedCount > 0 ? ' has-blockers' : limitedCount > 0 ? ' has-limitations' : ''}`}
+        id="arduino-source-diagnostics"
+        aria-label="Проверка кода Arduino"
+        aria-live="polite"
+      >
+        <button
+          type="button"
+          className="arduino-code-check-title"
+          aria-expanded={diagnosticsOpen}
+          aria-controls="arduino-code-check-body"
+          onClick={() => onDiagnosticsOpenChange(!diagnosticsOpen)}
         >
-          <strong>
-            {unsupportedCount > 0
-              ? `Не исполняется: ${unsupportedCount}`
-              : `Ограниченная модель: ${limitedCount}`}
-          </strong>
-          <div>
-            {supportDiagnostics.slice(0, 4).map((diagnostic) => (
-              <button
-                type="button"
-                key={`${diagnostic.code}-${diagnostic.start}`}
-                className={diagnostic.status}
-                onClick={() => revealDiagnostic(diagnostic)}
-                title={diagnostic.message}
-              >
-                <span>{diagnostic.status === 'unsupported' ? '⚠' : '◐'}</span>
-                <code>строка {diagnostic.line}</code>
-                {diagnostic.message}
-              </button>
-            ))}
-            {supportDiagnostics.length > 4 ? (
-              <small>Ещё {supportDiagnostics.length - 4}</small>
-            ) : null}
+          <span className="arduino-code-check-icon" aria-hidden="true">
+            {unsupportedCount > 0 ? '!' : limitedCount > 0 ? '◐' : '✓'}
+          </span>
+          <strong>Проверка кода</strong>
+          <span className={`arduino-code-check-count${unsupportedCount > 0 ? ' active' : ''}`}>
+            Блокирующих: {unsupportedCount}
+          </span>
+          <span className={`arduino-code-check-count limited${limitedCount > 0 ? ' active' : ''}`}>
+            Ограничений: {limitedCount}
+          </span>
+          <span className="arduino-code-check-summary" id="arduino-source-editor-status">
+            {completion
+              ? 'Enter — строка · Tab — вставить · Esc — закрыть'
+              : unsupportedCount > 0
+                ? 'Моделирование заблокировано'
+                : limitedCount > 0
+                  ? 'Код исполняется упрощённо'
+                  : 'Ошибок не найдено'}
+          </span>
+          <ChevronDown />
+        </button>
+        {diagnosticsOpen ? (
+          <div className="arduino-code-check-body" id="arduino-code-check-body">
+            <p>
+              {unsupportedCount > 0
+                ? 'Найдены команды, которые симулятор пока не исполняет. Нажмите сообщение, чтобы перейти к строке.'
+                : limitedCount > 0
+                  ? 'Это не ошибки компиляции: программа исполняется, но перечисленные возможности моделируются упрощённо.'
+                  : 'Поддерживаемая часть программы не содержит известных ошибок или ограничений.'}
+            </p>
+            <div className="arduino-code-check-messages">
+              {supportDiagnostics.map((diagnostic) => (
+                <button
+                  type="button"
+                  key={`${diagnostic.code}-${diagnostic.start}`}
+                  className={diagnostic.status}
+                  onClick={() => revealDiagnostic(diagnostic)}
+                  title={`Перейти к строке ${diagnostic.line}`}
+                >
+                  <span>{diagnostic.status === 'unsupported' ? '!' : '◐'}</span>
+                  <code>строка {diagnostic.line}</code>
+                  <span>{diagnostic.message}</span>
+                </button>
+              ))}
+              {supportDiagnostics.length === 0 ? <span>Сообщений нет.</span> : null}
+            </div>
           </div>
-        </div>
-      ) : null}
-      <div className="arduino-source-status" id="arduino-source-editor-status">
-        <span>{unsupportedCount > 0 ? 'Расчёт заблокирован' : 'Arduino C++'}</span>
-        <span>
-          {completion
-            ? '↑↓ выбрать · Enter строка · Tab вставить · Esc закрыть'
-            : unsupportedCount > 0
-              ? 'Исправьте неподдерживаемые команды'
-              : limitedCount > 0
-                ? 'Есть ограничения модели'
-                : 'Поддерживаемый срез'}
-        </span>
-      </div>
+        ) : null}
+      </section>
     </div>
   );
 }
@@ -1209,6 +1231,9 @@ export function ArduinoCodePanel({
   const [category, setCategory] = useState<ArduinoBlockCategory>('output');
   const [fontSize, setFontSize] = useState(initialArduinoFontSize);
   const [autocompleteEnabled, setAutocompleteEnabled] = useState(initialArduinoAutocomplete);
+  const [diagnosticsOpen, setDiagnosticsOpen] = useState(
+    () => analyseArduinoSourceSupport(program.source).length > 0,
+  );
   const [commandReferenceOpen, setCommandReferenceOpen] = useState(false);
   const [pendingMode, setPendingMode] = useState<ArduinoCodeMode | null>(null);
   const modeMenuRef = useRef<HTMLDetailsElement>(null);
@@ -1221,6 +1246,7 @@ export function ArduinoCodePanel({
     setProgram(nextProgram);
     setBoardId(board.id);
     setPendingMode(null);
+    setDiagnosticsOpen(analyseArduinoSourceSupport(nextProgram.source).length > 0);
   }, []);
 
   useEffect(() => {
@@ -1314,6 +1340,7 @@ export function ArduinoCodePanel({
 
   function checkProgram(): void {
     const diagnostics = analyseArduinoSourceSupport(program.source);
+    setDiagnosticsOpen(true);
     const unsupported = diagnostics.filter((diagnostic) => diagnostic.status === 'unsupported');
     if (unsupported.length > 0) {
       c.setNotice(
@@ -1539,14 +1566,17 @@ export function ArduinoCodePanel({
         ) : null}
         {program.mode !== 'blocks' ? (
           <ArduinoSourceEditor
+            key={selectedBoard.id}
             source={program.source}
             readOnly={program.mode === 'blocks-text'}
             fontSize={fontSize}
             completionEnabled={autocompleteEnabled}
+            diagnosticsOpen={diagnosticsOpen}
             onChange={(source) => updateProgram({ source })}
             onCursorChange={(position) => {
               sourceCursorRef.current = position;
             }}
+            onDiagnosticsOpenChange={setDiagnosticsOpen}
           />
         ) : null}
       </div>
