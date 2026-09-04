@@ -142,13 +142,18 @@ describe('Arduino programming room contract', () => {
         (completion) => !(completion.label in ARDUINO_TEXT_COMMAND_SUPPORT),
       ),
     ).toEqual([]);
-    expect(blocksSource).toContain("support.status === 'unsupported' ? '⚠' : '◐'");
+    expect(blocksSource).toContain("const UNSUPPORTED_BLOCK = '#59636b'");
+    expect(blocksSource).toContain(
+      "support.status === 'unsupported' ? { colour: UNSUPPORTED_BLOCK }",
+    );
+    expect(blocksSource).toContain("? 'Пока не работает.'");
+    expect(blocksSource).not.toContain('message0: `${marker}');
     expect(panelSource).toContain('analyseArduinoSourceSupport(source)');
     expect(panelSource).toContain('Не исполняется: ${unsupportedCount}');
     expect(panelSource).toContain('Расчёт заблокирован');
-    expect(panelSource).toContain('⚠ пока не работает');
+    expect(panelSource).not.toContain('arduino-support-legend');
     expect(css).toContain('.arduino-source-diagnostics.has-errors');
-    expect(css).toContain('.arduino-support-legend');
+    expect(css).not.toContain('.arduino-support-legend');
   });
 
   it('keeps block inputs visible and supports complete stack actions', () => {

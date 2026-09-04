@@ -1321,10 +1321,6 @@ export function ArduinoCodePanel({
                 +
               </button>
             </div>
-            <div className="arduino-support-legend" aria-label="Обозначения поддержки блоков">
-              <span>⚠ пока не работает</span>
-              <span>◐ ограничено</span>
-            </div>
           </div>
         ) : null}
         {program.mode !== 'blocks' ? (

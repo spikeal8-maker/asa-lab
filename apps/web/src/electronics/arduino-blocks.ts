@@ -60,6 +60,7 @@ const COMMENT = '#8e8e8e';
 const CONTROL = '#ffab19';
 const DATA = '#40bf4a';
 const VARIABLES = '#cf63cf';
+const UNSUPPORTED_BLOCK = '#59636b';
 
 let registered = false;
 
@@ -713,12 +714,13 @@ export function registerArduinoBlocks(): void {
     const blockType = typeof definition['type'] === 'string' ? definition['type'] : '';
     const support = arduinoBlockSupport(blockType);
     if (support.status === 'supported') return definition;
-    const marker = support.status === 'unsupported' ? '⚠' : '◐';
     const tooltip = typeof definition['tooltip'] === 'string' ? definition['tooltip'].trim() : '';
+    const statusMessage =
+      support.status === 'unsupported' ? 'Пока не работает.' : 'Работает с ограничениями модели.';
     return {
       ...definition,
-      message0: `${marker} ${String(definition['message0'] ?? '')}`,
-      tooltip: [tooltip, support.summary].filter(Boolean).join(' '),
+      ...(support.status === 'unsupported' ? { colour: UNSUPPORTED_BLOCK } : {}),
+      tooltip: [statusMessage, tooltip, support.summary].filter(Boolean).join(' '),
     };
   });
   ScratchBlocks.defineBlocksWithJsonArray(annotatedDefinitions);
