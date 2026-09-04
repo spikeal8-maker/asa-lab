@@ -43,6 +43,35 @@ export interface ArduinoProgramExecution {
   readonly loopActions: readonly ArduinoProgramAction[];
 }
 
+export const ARDUINO_RUNTIME_STATE_VERSION = 1 as const;
+
+export interface ArduinoRuntimeDiagnostic {
+  readonly code: 'statement_budget_exceeded' | 'loop_advance_budget_exceeded';
+  readonly severity: 'error';
+  readonly message: string;
+}
+
+/**
+ * Serializable runtime-only state. It is deliberately separate from the saved
+ * schematic document: browser and server may carry it between simulation
+ * steps, while Reset or a changed sketch starts from a clean snapshot.
+ */
+export interface ArduinoRuntimeState {
+  readonly version: typeof ARDUINO_RUNTIME_STATE_VERSION;
+  readonly programFingerprint: string;
+  readonly virtualTimeMs: number;
+  readonly nextLoopAtMs: number;
+  readonly loopIterations: number;
+  readonly variables: Readonly<Record<string, number>>;
+}
+
+export interface ArduinoRuntimeAdvance {
+  readonly setupActions: readonly ArduinoProgramAction[];
+  readonly loopActions: readonly ArduinoProgramAction[];
+  readonly state: ArduinoRuntimeState;
+  readonly diagnostics: readonly ArduinoRuntimeDiagnostic[];
+}
+
 export type ArduinoTerminalVoltages = Readonly<Partial<Record<Terminal, number>>>;
 
 interface Token {
@@ -54,11 +83,15 @@ interface RuntimeState {
   readonly variables: Map<string, number>;
   readonly inputs: ArduinoTerminalVoltages;
   readonly actions: ArduinoProgramAction[];
+  readonly diagnostics: ArduinoRuntimeDiagnostic[];
   readonly simulationTimeMs: number;
   statementCount: number;
 }
 
 const MAX_STATEMENTS = 512;
+const MAX_LOOP_ADVANCES = 4_096;
+const MAX_ADVANCE_STATEMENTS = 16_384;
+const MIN_LOOP_DURATION_MS = 1;
 const PWM_TERMINALS = new Set<Terminal>(['d3', 'd5', 'd6', 'd9', 'd10', 'd11']);
 
 function finite(value: number, fallback = 0): number {
@@ -67,6 +100,72 @@ function finite(value: number, fallback = 0): number {
 
 function clamp(value: number, minimum: number, maximum: number): number {
   return Math.min(maximum, Math.max(minimum, finite(value)));
+}
+
+function programFingerprint(source: string): string {
+  let fnv = 0x811c9dc5;
+  let djb = 0x1505;
+  for (let index = 0; index < source.length; index += 1) {
+    const code = source.charCodeAt(index);
+    fnv ^= code;
+    fnv = Math.imul(fnv, 0x01000193);
+    djb = Math.imul(djb, 33) ^ code;
+  }
+  return `arduino-v1-${source.length}-${(fnv >>> 0).toString(16).padStart(8, '0')}-${(djb >>> 0)
+    .toString(16)
+    .padStart(8, '0')}`;
+}
+
+function runtimeStateIsValid(state: ArduinoRuntimeState): boolean {
+  return (
+    state.version === ARDUINO_RUNTIME_STATE_VERSION &&
+    typeof state.programFingerprint === 'string' &&
+    Number.isFinite(state.virtualTimeMs) &&
+    state.virtualTimeMs >= 0 &&
+    Number.isFinite(state.nextLoopAtMs) &&
+    state.nextLoopAtMs >= 0 &&
+    Number.isSafeInteger(state.loopIterations) &&
+    state.loopIterations >= 0 &&
+    state.variables !== null &&
+    typeof state.variables === 'object' &&
+    Object.values(state.variables).every((value) => Number.isFinite(value))
+  );
+}
+
+function runtimeVariables(entries: Readonly<Record<string, number>>): Map<string, number> {
+  return new Map(
+    Object.entries(entries)
+      .filter(([, value]) => Number.isFinite(value))
+      .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0)),
+  );
+}
+
+function serializableVariables(
+  variables: ReadonlyMap<string, number>,
+): Readonly<Record<string, number>> {
+  return Object.fromEntries(
+    [...variables.entries()]
+      .filter(([, value]) => Number.isFinite(value))
+      .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0)),
+  );
+}
+
+function statementBudgetDiagnostic(state: RuntimeState): void {
+  if (state.diagnostics.some((entry) => entry.code === 'statement_budget_exceeded')) return;
+  state.diagnostics.push({
+    code: 'statement_budget_exceeded',
+    severity: 'error',
+    message: `Программа превысила лимит ${MAX_STATEMENTS} операций за один проход Arduino.`,
+  });
+}
+
+function consumeStatement(state: RuntimeState): boolean {
+  if (state.statementCount >= MAX_STATEMENTS) {
+    statementBudgetDiagnostic(state);
+    return false;
+  }
+  state.statementCount += 1;
+  return true;
 }
 
 function removeComments(source: string): string {
@@ -417,8 +516,7 @@ function splitArguments(source: string): readonly string[] {
 
 function executeSimpleStatement(statement: string, state: RuntimeState): void {
   const compact = statement.trim();
-  if (!compact || state.statementCount >= MAX_STATEMENTS) return;
-  state.statementCount += 1;
+  if (!compact || !consumeStatement(state)) return;
 
   const declaration =
     /^(?:const\s+)?(?:unsigned\s+long|int|long|float|double|bool|boolean|byte)\s+([A-Za-z_]\w*)\s*(?:=\s*(.+))?$/i.exec(
@@ -447,6 +545,13 @@ function executeSimpleStatement(statement: string, state: RuntimeState): void {
                 ? 0
                 : current / value,
     );
+    return;
+  }
+  const increment = /^(?:\+\+|--)?([A-Za-z_]\w*)(\+\+|--)?$/.exec(compact);
+  if (increment && (compact.startsWith('++') || compact.startsWith('--') || increment[2])) {
+    const name = increment[1]!;
+    const delta = compact.includes('++') ? 1 : -1;
+    state.variables.set(name, (state.variables.get(name) ?? 0) + delta);
     return;
   }
 
@@ -516,6 +621,22 @@ function skipWhitespace(source: string, start: number): number {
   return index;
 }
 
+function splitForHeader(source: string): readonly [string, string, string] {
+  const parts: string[] = [];
+  let depth = 0;
+  let start = 0;
+  for (let index = 0; index < source.length; index += 1) {
+    if (source[index] === '(') depth += 1;
+    if (source[index] === ')') depth -= 1;
+    if (source[index] === ';' && depth === 0) {
+      parts.push(source.slice(start, index).trim());
+      start = index + 1;
+    }
+  }
+  parts.push(source.slice(start).trim());
+  return [parts[0] ?? '', parts[1] ?? '', parts[2] ?? ''];
+}
+
 function executeStatements(source: string, state: RuntimeState): void {
   let index = 0;
   while (index < source.length && state.statementCount < MAX_STATEMENTS) {
@@ -542,9 +663,21 @@ function executeStatements(source: string, state: RuntimeState): void {
         elseBody = balancedSlice(source, cursor, '{', '}');
         if (elseBody) cursor = elseBody.end;
       }
-      const conditionTrue = evaluate(condition.content, state) !== 0;
-      if (conditionTrue) executeStatements(body.content, state);
-      else if (elseBody) executeStatements(elseBody.content, state);
+      if (control[1] === 'if') {
+        if (!consumeStatement(state)) break;
+        const conditionTrue = evaluate(condition.content, state) !== 0;
+        if (conditionTrue) executeStatements(body.content, state);
+        else if (elseBody) executeStatements(elseBody.content, state);
+      } else {
+        while (consumeStatement(state)) {
+          if (evaluate(condition.content, state) === 0) break;
+          executeStatements(body.content, state);
+          if (state.statementCount >= MAX_STATEMENTS) {
+            statementBudgetDiagnostic(state);
+            break;
+          }
+        }
+      }
       index = cursor;
       continue;
     }
@@ -555,9 +688,17 @@ function executeStatements(source: string, state: RuntimeState): void {
       cursor = skipWhitespace(source, header.end);
       const body = balancedSlice(source, cursor, '{', '}');
       if (!body) break;
-      // One bounded pass preserves the generated block's electrical intent
-      // without pretending to be an unrestricted C++ virtual machine.
-      executeStatements(body.content, state);
+      const [initialization, condition, increment] = splitForHeader(header.content);
+      if (initialization) executeSimpleStatement(initialization, state);
+      while (consumeStatement(state)) {
+        if (condition && evaluate(condition, state) === 0) break;
+        executeStatements(body.content, state);
+        if (state.statementCount >= MAX_STATEMENTS) {
+          statementBudgetDiagnostic(state);
+          break;
+        }
+        if (increment) executeSimpleStatement(increment, state);
+      }
       index = body.end;
       continue;
     }
@@ -572,17 +713,204 @@ function executeStatements(source: string, state: RuntimeState): void {
     executeSimpleStatement(source.slice(index, end), state);
     index = end + 1;
   }
+  if (index < source.length && state.statementCount >= MAX_STATEMENTS) {
+    statementBudgetDiagnostic(state);
+  }
 }
 
-function initialVariables(source: string, state: RuntimeState): void {
-  const withoutFunctions = source
-    .replace(/\bvoid\s+setup\s*\([^)]*\)\s*\{[\s\S]*?\}/i, '')
-    .replace(/\bvoid\s+loop\s*\([^)]*\)\s*\{[\s\S]*?\}/i, '');
-  const declaration =
-    /(?:^|;)\s*(?:const\s+)?(?:unsigned\s+long|int|long|float|double|bool|boolean|byte)\s+([A-Za-z_]\w*)\s*(?:=\s*([^;]+))?/gi;
-  for (const match of withoutFunctions.matchAll(declaration)) {
-    state.variables.set(match[1]!, match[2] ? evaluate(match[2], state) : 0);
+interface GlobalDeclaration {
+  readonly name: string;
+  readonly initializer?: string;
+}
+
+function globalDeclarations(source: string): readonly GlobalDeclaration[] {
+  const statements: string[] = [];
+  let depth = 0;
+  let start = 0;
+  for (let index = 0; index < source.length; index += 1) {
+    if (source[index] === '{') {
+      if (depth === 0) start = index + 1;
+      depth += 1;
+      continue;
+    }
+    if (source[index] === '}') {
+      depth = Math.max(0, depth - 1);
+      if (depth === 0) start = index + 1;
+      continue;
+    }
+    if (source[index] === ';' && depth === 0) {
+      statements.push(source.slice(start, index).trim());
+      start = index + 1;
+    }
   }
+
+  return statements.flatMap((statement) => {
+    const declaration =
+      /^(?:const\s+)?(?:unsigned\s+long|int|long|float|double|bool|boolean|byte)\s+([A-Za-z_]\w*)\s*(?:=\s*(.+))?$/i.exec(
+        statement,
+      );
+    if (!declaration) return [];
+    return [
+      {
+        name: declaration[1]!,
+        ...(declaration[2] ? { initializer: declaration[2] } : {}),
+      },
+    ];
+  });
+}
+
+function initializeGlobals(declarations: readonly GlobalDeclaration[], state: RuntimeState): void {
+  for (const declaration of declarations) {
+    state.variables.set(
+      declaration.name,
+      declaration.initializer ? evaluate(declaration.initializer, state) : 0,
+    );
+  }
+}
+
+function discardLocalVariables(
+  variables: Map<string, number>,
+  globalNames: ReadonlySet<string>,
+): void {
+  for (const name of variables.keys()) {
+    if (!globalNames.has(name)) variables.delete(name);
+  }
+}
+
+function loopDurationMs(actions: readonly ArduinoProgramAction[]): number {
+  return actions.reduce(
+    (duration, action) => duration + (action.kind === 'delay' ? action.durationMs : 0),
+    0,
+  );
+}
+
+/**
+ * Advance completed loop iterations through deterministic virtual time while
+ * carrying globals outside the saved document. In this first headless slice,
+ * delays define loop cadence; the circuit bridge continues using its existing
+ * action timeline until a later slice carries this state into the solver. A
+ * loop with no delay receives a 1 ms scheduling quantum so a large time jump
+ * stays finite and reproducible.
+ */
+export function advanceArduinoRuntime(
+  source: string,
+  inputs: ArduinoTerminalVoltages = {},
+  simulationTimeMs = 0,
+  previous?: ArduinoRuntimeState,
+): ArduinoRuntimeAdvance {
+  const cleanSource = removeComments(source);
+  const setupBody = functionBody(cleanSource, 'setup') ?? '';
+  const loopBody = functionBody(cleanSource, 'loop') ?? cleanSource;
+  const declarations = globalDeclarations(cleanSource);
+  const globalNames = new Set(declarations.map((declaration) => declaration.name));
+  const fingerprint = programFingerprint(source);
+  const targetTimeMs = Math.max(0, finite(simulationTimeMs));
+  const compatible =
+    previous !== undefined &&
+    runtimeStateIsValid(previous) &&
+    previous.programFingerprint === fingerprint &&
+    previous.virtualTimeMs <= targetTimeMs;
+  if (compatible && previous.virtualTimeMs === targetTimeMs) {
+    return {
+      setupActions: [],
+      loopActions: [],
+      state: previous,
+      diagnostics: [],
+    };
+  }
+  const variables = compatible ? runtimeVariables(previous.variables) : new Map<string, number>();
+  const diagnostics: ArduinoRuntimeDiagnostic[] = [];
+  const setupActions: ArduinoProgramAction[] = [];
+  const loopActions: ArduinoProgramAction[] = [];
+  const resetAtMs = previous && previous.virtualTimeMs <= targetTimeMs ? targetTimeMs : 0;
+  let nextLoopAtMs = compatible ? previous.nextLoopAtMs : resetAtMs;
+  let loopIterations = compatible ? previous.loopIterations : 0;
+  let advanceStatementCount = 0;
+
+  if (!compatible) {
+    const setupState: RuntimeState = {
+      variables,
+      inputs,
+      actions: setupActions,
+      diagnostics,
+      simulationTimeMs: resetAtMs,
+      statementCount: 0,
+    };
+    initializeGlobals(declarations, setupState);
+    executeStatements(setupBody, setupState);
+    discardLocalVariables(variables, globalNames);
+    advanceStatementCount += setupState.statementCount;
+  }
+
+  let advances = 0;
+  while (
+    nextLoopAtMs <= targetTimeMs &&
+    advances < MAX_LOOP_ADVANCES &&
+    advanceStatementCount < MAX_ADVANCE_STATEMENTS
+  ) {
+    discardLocalVariables(variables, globalNames);
+    const iterationActions: ArduinoProgramAction[] = [];
+    const loopState: RuntimeState = {
+      variables,
+      inputs,
+      actions: iterationActions,
+      diagnostics,
+      simulationTimeMs: nextLoopAtMs,
+      statementCount: 0,
+    };
+    executeStatements(loopBody, loopState);
+    discardLocalVariables(variables, globalNames);
+    advanceStatementCount += loopState.statementCount;
+    loopActions.push(...iterationActions);
+    loopIterations += 1;
+    advances += 1;
+    nextLoopAtMs += Math.max(MIN_LOOP_DURATION_MS, loopDurationMs(iterationActions));
+    if (diagnostics.some((entry) => entry.code === 'statement_budget_exceeded')) break;
+  }
+
+  if (
+    nextLoopAtMs <= targetTimeMs &&
+    advances >= MAX_LOOP_ADVANCES &&
+    !diagnostics.some((entry) => entry.code === 'statement_budget_exceeded')
+  ) {
+    diagnostics.push({
+      code: 'loop_advance_budget_exceeded',
+      severity: 'error',
+      message: `Arduino не успела догнать виртуальное время за ${MAX_LOOP_ADVANCES} проходов loop().`,
+    });
+  } else if (
+    nextLoopAtMs <= targetTimeMs &&
+    advanceStatementCount >= MAX_ADVANCE_STATEMENTS &&
+    !diagnostics.some((entry) => entry.code === 'statement_budget_exceeded')
+  ) {
+    diagnostics.push({
+      code: 'loop_advance_budget_exceeded',
+      severity: 'error',
+      message: `Arduino не успела догнать виртуальное время за ${MAX_ADVANCE_STATEMENTS} операций.`,
+    });
+  }
+
+  return {
+    setupActions,
+    loopActions,
+    state: {
+      version: ARDUINO_RUNTIME_STATE_VERSION,
+      programFingerprint: fingerprint,
+      virtualTimeMs: targetTimeMs,
+      nextLoopAtMs,
+      loopIterations,
+      variables: serializableVariables(variables),
+    },
+    diagnostics,
+  };
+}
+
+export function resetArduinoRuntime(
+  source: string,
+  inputs: ArduinoTerminalVoltages = {},
+  simulationTimeMs = 0,
+): ArduinoRuntimeAdvance {
+  return advanceArduinoRuntime(source, inputs, simulationTimeMs);
 }
 
 export function executeArduinoProgram(
@@ -596,10 +924,11 @@ export function executeArduinoProgram(
     variables: sharedVariables,
     inputs,
     actions: [],
+    diagnostics: [],
     simulationTimeMs: finite(simulationTimeMs),
     statementCount: 0,
   };
-  initialVariables(cleanSource, setupState);
+  initializeGlobals(globalDeclarations(cleanSource), setupState);
   executeStatements(functionBody(cleanSource, 'setup') ?? '', setupState);
   const loopState: RuntimeState = {
     ...setupState,
