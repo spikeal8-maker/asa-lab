@@ -80,6 +80,9 @@ git diff --name-only origin/main...HEAD
 
 Push в GitHub не обновляет Docker и не означает deployment. Продуктовый бот не
 перезапускает локальный или production runtime без прямого поручения владельца.
+В отчёте нельзя использовать неоднозначное «опубликовано»: укажи отдельно
+`pushed` (SHA находится в GitHub) и `deployed` (конкретная Docker-установка
+подтвердила тот же SHA).
 
 ## 5. Обнови существующую Docker-установку
 
@@ -96,11 +99,18 @@ ASA_COMPOSE_PROFILE=production bash tools/docker-update.sh --check
 Только после прямого поручения на обновление запусти ту же команду без
 `-CheckOnly` или `--check`. Защищённый updater проверяет чистоту checkout,
 fast-forward, зелёный CI точного SHA, создаёт проверенный backup, обновляет
-Compose и ждёт `/health/ready`. Подробности:
+Compose и ждёт `/health/ready`. Дополнительно он привязывает запуск к каталогу
+работающей PostgreSQL, запрещает смешение контейнеров из разных checkout и
+требует одинаковый точный SHA от API и Web `build-metadata.json`. Подробности:
 [`../deployment/GUARDED_UPDATE.md`](../deployment/GUARDED_UPDATE.md).
 
 Не меняй `COMPOSE_PROJECT_NAME`: другое имя подключит другой PostgreSQL volume
 и может выглядеть как потеря пользователей.
+
+Не обновляй эту установку из другой копии репозитория. Если preflight сообщает
+`CHECK BLOCKED` и перечисляет разные working directories, перейди в каталог,
+которому принадлежит контейнер PostgreSQL, и только оттуда выполни полный
+защищённый updater. Он пересоберёт Web и API из одного `origin/main`.
 
 ## 6. Разверни на новом компьютере
 

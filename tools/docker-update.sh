@@ -58,6 +58,25 @@ assert_container_running() {
   [ -n "$container_id" ] || die "service $service is absent; guarded update is not a bootstrap command"
   [ "$(docker inspect --format '{{.State.Running}}' "$container_id")" = true ] ||
     die "service $service is not running"
+  printf '%s\n' "$container_id"
+}
+
+container_working_directory() {
+  docker inspect --format '{{ index .Config.Labels "com.docker.compose.project.working_dir" }}' "$1"
+}
+
+mixed_origin_services() {
+  drift=''
+  for service in postgres api web; do
+    container_id=$(compose ps -q "$service")
+    [ -n "$container_id" ] || continue
+    working_directory=$(container_working_directory "$container_id")
+    if [ "$working_directory" != "$repo_root" ]; then
+      [ -n "$working_directory" ] || working_directory='<missing>'
+      drift="${drift}${service}=${working_directory};"
+    fi
+  done
+  printf '%s\n' "$drift"
 }
 
 backup_database() {
@@ -168,17 +187,21 @@ wait_exact_readiness() {
     if compose exec -T api node -e '
       const expectedRevision = process.env.ASA_BUILD_REVISION;
       const expectedSchema = Number(process.env.ASA_EXPECTED_SCHEMA_VERSION);
-      fetch("http://127.0.0.1:4611/health/ready")
-        .then((response) => response.ok ? response.json() : Promise.reject(new Error(String(response.status))))
-        .then((ready) => {
+      Promise.all([
+        fetch("http://127.0.0.1:4611/health/ready")
+          .then((response) => response.ok ? response.json() : Promise.reject(new Error(String(response.status)))),
+        fetch("http://web:4610/build-metadata.json")
+          .then((response) => response.ok ? response.json() : Promise.reject(new Error(String(response.status)))),
+      ]).then(([ready, webMetadata]) => {
           const deployment = ready.deployment || {};
           if (ready.status !== "ready" || deployment.revision !== expectedRevision ||
+              webMetadata.revision !== expectedRevision ||
               Number(deployment.schemaVersion) !== expectedSchema ||
               Number(deployment.expectedSchemaVersion) !== expectedSchema ||
               deployment.synchronized !== true) process.exit(1);
         })
         .catch(() => process.exit(1));
-    ' >/dev/null 2>&1 && compose exec -T web wget -qO- http://127.0.0.1:4610/health/ready >/dev/null 2>&1; then
+    ' >/dev/null 2>&1; then
       return 0
     fi
     attempts=$((attempts + 1))
@@ -226,7 +249,15 @@ main() {
   esac
 
   compose config --quiet
-  assert_container_running postgres
+  postgres_container_id=$(assert_container_running postgres)
+  database_origin=$(container_working_directory "$postgres_container_id")
+  [ -n "$database_origin" ] || die 'running PostgreSQL has no Compose working-directory label; deployment root is unknown'
+  [ "$database_origin" = "$repo_root" ] ||
+    die "this checkout is not the database deployment root; PostgreSQL belongs to $database_origin"
+  origin_drift=$(mixed_origin_services)
+  if [ -n "$origin_drift" ]; then
+    printf 'WARNING: mixed Compose working directories detected: %s\n' "$origin_drift" >&2
+  fi
 
   git fetch origin main
   set -- $(git rev-list --left-right --count HEAD...origin/main)
@@ -241,6 +272,8 @@ main() {
   printf 'CHECK current=%s target=%s behind=%s\n' "$old_revision" "$target_revision" "$behind"
 
   if [ "$check_only" = true ]; then
+    [ -z "$origin_drift" ] ||
+      die 'CHECK BLOCKED: installation mixes containers from different checkouts; run the full guarded updater from the PostgreSQL deployment root'
     printf 'CHECK OK: no code, container or database changes were made.\n'
     exit 0
   fi
@@ -273,7 +306,8 @@ main() {
   export ASA_BUILD_REVISION ASA_IMAGE_TAG ASA_EXPECTED_SCHEMA_VERSION
   receipt_path="$backup_root/update-$stamp-$(printf '%.8s' "$new_revision").receipt.txt"
 
-  if compose config --quiet && compose up -d --build && wait_exact_readiness; then
+  if compose config --quiet && compose up -d --build && wait_exact_readiness &&
+    [ -z "$(mixed_origin_services)" ]; then
     write_receipt "$receipt_path" \
       'status=success' "updated_at_utc=$stamp" "compose_project=$project_name" \
       "profile=$profile" "transport=$transport_label" "previous_revision=$old_revision" \

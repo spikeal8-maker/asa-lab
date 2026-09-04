@@ -183,6 +183,19 @@ for (const { path, source, orderedMarkers } of guardedUpdaterSources) {
       errors.push(`${path}: missing fail-closed marker ${marker}`);
     }
   }
+  for (const marker of ['build-metadata.json', 'CHECK BLOCKED']) {
+    if (!source.includes(marker)) {
+      errors.push(`${path}: missing deployment-coherence marker ${marker}`);
+    }
+  }
+  const originMarkers = path.endsWith('.ps1')
+    ? ['Select-RequiredWorkflowRun', 'Get-MixedOriginServices', 'Assert-CanonicalDatabaseOrigin']
+    : ['mixed_origin_services', 'database_origin'];
+  for (const marker of originMarkers) {
+    if (!source.includes(marker)) {
+      errors.push(`${path}: missing deployment-origin marker ${marker}`);
+    }
+  }
 }
 
 const databaseSafetySources = [

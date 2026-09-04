@@ -39,6 +39,7 @@ def main() -> int:
             "docs/delivery/AGENT_CHANGE_WORKFLOW.md",
             "docs/deployment/GUARDED_UPDATE.md",
             "docs/deployment/DOCKER_BACKUP_RESTORE.md",
+            "docs/architecture/OFFLINE_MULTI_NODE_DATA_SYNC_IDEA.md",
             "tools/agent_context.py",
             "tools/docker-update.sh",
             "tools/docker-update.ps1",
@@ -82,6 +83,8 @@ def main() -> int:
             "_test",
             "COMMIT_SHA",
             "DATABASE_ACTIONS",
+            "CHECK BLOCKED",
+            "build-metadata.json",
         ],
         errors,
     )
@@ -93,6 +96,30 @@ def main() -> int:
     )
     for relative in ("tools/docker-restore.sh", "tools/docker-restore.ps1"):
         require(relative, sources[relative], ["_test", "pg_restore", "schema_migrations"], errors)
+    require(
+        "tools/docker-update.sh",
+        sources["tools/docker-update.sh"],
+        ["mixed_origin_services", "database_origin", "build-metadata.json", "CHECK BLOCKED"],
+        errors,
+    )
+    require(
+        "tools/docker-update.ps1",
+        sources["tools/docker-update.ps1"],
+        [
+            "Select-RequiredWorkflowRun",
+            "Get-MixedOriginServices",
+            "Assert-CanonicalDatabaseOrigin",
+            "build-metadata.json",
+            "CHECK BLOCKED",
+        ],
+        errors,
+    )
+    require(
+        "docs/architecture/OFFLINE_MULTI_NODE_DATA_SYNC_IDEA.md",
+        sources["docs/architecture/OFFLINE_MULTI_NODE_DATA_SYNC_IDEA.md"],
+        ["архитектурная идея", "transactional outbox", "идемпотент", "multi-master PostgreSQL"],
+        errors,
+    )
 
     package_path = ROOT / "package.json"
     try:

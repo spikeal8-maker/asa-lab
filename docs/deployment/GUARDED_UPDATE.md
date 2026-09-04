@@ -16,15 +16,19 @@
 - `.env` содержит прежний `COMPOSE_PROJECT_NAME`, определяющий существующий
   PostgreSQL volume;
 - PostgreSQL выбранного Compose-проекта уже запущен;
+- текущий checkout совпадает с Compose working directory работающей PostgreSQL;
+- Web, API и PostgreSQL не принадлежат разным checkout;
 - для production отключено тестовое наполнение: `ASA_SEED_DEV=false`;
 - итоговая Compose-конфигурация корректна.
 
 После этого updater создаёт и проверяет custom-format дамп PostgreSQL, сохраняет
 текущие API/Web-образы с rollback-тегами, выполняет `git pull --ff-only`, собирает
 образы с тегом точного Git SHA и запускает одноразовую миграцию через Compose.
-Успех объявляется только если `/health/ready` подтвердил одновременно:
+Успех объявляется только если `/health/ready` и Web
+`/build-metadata.json` подтвердили одновременно:
 
 - точный новый `revision`;
+- одинаковый точный `revision` API и Web;
 - фактическую и ожидаемую версии схемы;
 - `synchronized: true`.
 
@@ -38,6 +42,11 @@
 Сначала выполните безопасный preflight. Он читает состояние, делает `git fetch`,
 проверяет CI точного SHA через GitHub API и рендерит Compose, но не создаёт
 backup, не делает pull и не перезапускает контейнеры.
+
+Если preflight обнаруживает Web/API/PostgreSQL из разных checkout, он выводит
+`CHECK BLOCKED`. Это не повод запускать Compose из случайного каталога. Полный
+updater разрешён только из каталога, записанного в метке работающей PostgreSQL;
+после пересборки он повторно проверяет, что смешения больше нет.
 
 Windows:
 

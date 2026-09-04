@@ -94,7 +94,9 @@ powershell -ExecutionPolicy Bypass -File .\tools\docker-update.ps1 -Profile prod
 
 Команда требует чистый `main`, допускает только fast-forward, создаёт и проверяет
 backup до изменения checkout, сохраняет rollback-образы с SHA, затем сверяет
-точную revision, обе версии схемы и `synchronized: true`. При ошибке она не
+точную revision API и Web, обе версии схемы и `synchronized: true`. Команда
+также требует запуск из каталога работающей PostgreSQL и блокирует смешение
+контейнеров, созданных из разных копий репозитория. При ошибке она не
 удаляет volume и не восстанавливает дамп автоматически. Полный контракт и
 действия при остановке: [`GUARDED_UPDATE.md`](GUARDED_UPDATE.md).
 

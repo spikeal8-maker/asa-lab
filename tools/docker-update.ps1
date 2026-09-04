@@ -5,7 +5,8 @@ param(
   [ValidateSet('auto', 'none', 'frp')]
   [string]$Transport = 'auto',
   [string]$BackupDirectory = 'backups',
-  [switch]$CheckOnly
+  [switch]$CheckOnly,
+  [switch]$SelfTest
 )
 
 $ErrorActionPreference = 'Stop'
@@ -89,6 +90,55 @@ function Assert-ContainerRunning {
   return $containerId
 }
 
+function Get-ContainerWorkingDirectory {
+  param([Parameter(Mandatory = $true)][string]$ContainerId)
+
+  $workingDirectory = (& docker inspect --format '{{ index .Config.Labels "com.docker.compose.project.working_dir" }}' $ContainerId).Trim()
+  if ($LASTEXITCODE -ne 0) {
+    throw "Cannot inspect Compose working directory for container $ContainerId."
+  }
+  return $workingDirectory
+}
+
+function Test-SamePath {
+  param(
+    [Parameter(Mandatory = $true)][string]$Left,
+    [Parameter(Mandatory = $true)][string]$Right
+  )
+
+  $leftPath = [System.IO.Path]::GetFullPath($Left).TrimEnd('\', '/')
+  $rightPath = [System.IO.Path]::GetFullPath($Right).TrimEnd('\', '/')
+  return [string]::Equals($leftPath, $rightPath, [System.StringComparison]::OrdinalIgnoreCase)
+}
+
+function Get-MixedOriginServices {
+  param([string[]]$Services = @('postgres', 'api', 'web'))
+
+  $drift = @()
+  foreach ($service in $Services) {
+    $containerId = (& docker @script:ComposeArguments ps -q $service).Trim()
+    if ($LASTEXITCODE -ne 0 -or -not $containerId) { continue }
+    $workingDirectory = Get-ContainerWorkingDirectory $containerId
+    if (-not $workingDirectory -or -not (Test-SamePath $workingDirectory $RepoRoot)) {
+      $shownDirectory = if ($workingDirectory) { $workingDirectory } else { '<missing>' }
+      $drift += "$service=$shownDirectory"
+    }
+  }
+  return $drift
+}
+
+function Assert-CanonicalDatabaseOrigin {
+  param([Parameter(Mandatory = $true)][string]$PostgresContainerId)
+
+  $databaseOrigin = Get-ContainerWorkingDirectory $PostgresContainerId
+  if (-not $databaseOrigin) {
+    throw 'The running PostgreSQL container has no Compose working-directory label; deployment root is unknown.'
+  }
+  if (-not (Test-SamePath $databaseOrigin $RepoRoot)) {
+    throw "This checkout is not the database deployment root. PostgreSQL belongs to $databaseOrigin; run the updater there."
+  }
+}
+
 function New-DatabaseBackup {
   param([Parameter(Mandatory = $true)][string]$OutputPath)
 
@@ -126,6 +176,23 @@ function Save-RollbackImage {
   return $tag
 }
 
+function Select-RequiredWorkflowRun {
+  param(
+    [Parameter(Mandatory = $true)]$Runs,
+    [Parameter(Mandatory = $true)][string]$Revision
+  )
+
+  foreach ($candidate in $Runs) {
+    if (
+      $candidate.headSha -eq $Revision -and
+      $candidate.name -eq 'ASA Lab Governance and Code Gates'
+    ) {
+      return $candidate
+    }
+  }
+  return $null
+}
+
 function Assert-GitHubCiSuccess {
   param([Parameter(Mandatory = $true)][string]$Revision)
 
@@ -138,10 +205,8 @@ function Assert-GitHubCiSuccess {
     $ghJson = & gh run list --repo $repository --commit $Revision `
       --json headSha,name,status,conclusion,url --limit 20 2>$null
     if ($LASTEXITCODE -eq 0) {
-      $runs = @($ghJson | ConvertFrom-Json)
-      $run = $runs | Where-Object {
-        $_.headSha -eq $Revision -and $_.name -eq 'ASA Lab Governance and Code Gates'
-      } | Select-Object -First 1
+      $runs = $ghJson | ConvertFrom-Json
+      $run = Select-RequiredWorkflowRun -Runs $runs -Revision $Revision
       if (-not $run) {
         throw "Required GitHub workflow was not found for $Revision. Wait for CI to start and retry."
       }
@@ -210,13 +275,16 @@ function Wait-ExactReadiness {
   $webPort = Get-EnvValue 'ASA_WEB_PORT'
   if (-not $webPort) { $webPort = '4610' }
   $uri = "http://127.0.0.1:$webPort/health/ready"
+  $metadataUri = "http://127.0.0.1:$webPort/build-metadata.json"
 
   for ($attempt = 1; $attempt -le $Attempts; $attempt++) {
     try {
       $ready = Invoke-RestMethod -Uri $uri -TimeoutSec 2
+      $webMetadata = Invoke-RestMethod -Uri $metadataUri -TimeoutSec 2
       if (
         $ready.status -eq 'ready' -and
         $ready.deployment.revision -eq $Revision -and
+        $webMetadata.revision -eq $Revision -and
         [int]$ready.deployment.schemaVersion -eq $SchemaVersion -and
         [int]$ready.deployment.expectedSchemaVersion -eq $SchemaVersion -and
         $ready.deployment.synchronized -eq $true
@@ -230,7 +298,7 @@ function Wait-ExactReadiness {
     Start-Sleep -Seconds 3
   }
 
-  throw "Readiness did not confirm revision=$Revision, schema=$SchemaVersion and synchronized=true within the startup window."
+  throw "Readiness did not confirm matching API/Web revision=$Revision, schema=$SchemaVersion and synchronized=true within the startup window."
 }
 
 function Write-Receipt {
@@ -279,7 +347,12 @@ function Invoke-GuardedUpdate {
 
   $script:ComposeArguments = Get-ComposeArguments
   Invoke-Compose config --quiet
-  [void](Assert-ContainerRunning 'postgres')
+  $postgresContainerId = Assert-ContainerRunning 'postgres'
+  Assert-CanonicalDatabaseOrigin $postgresContainerId
+  $originDrift = @(Get-MixedOriginServices)
+  if ($originDrift.Count -gt 0) {
+    Write-Warning "Mixed Compose working directories detected: $($originDrift -join '; ')"
+  }
 
   Invoke-Native git fetch origin main
   $counts = (& git rev-list --left-right --count HEAD...origin/main).Trim() -split '\s+'
@@ -300,6 +373,9 @@ function Invoke-GuardedUpdate {
   Write-Host "CHECK current=$oldRevision target=$targetRevision behind=$behind"
 
   if ($CheckOnly) {
+    if ($originDrift.Count -gt 0) {
+      throw 'CHECK BLOCKED: the installation mixes containers from different checkouts. Run the full guarded updater from the PostgreSQL deployment root to reconcile it.'
+    }
     Write-Host 'CHECK OK: no code, container or database changes were made.'
     return
   }
@@ -342,6 +418,10 @@ function Invoke-GuardedUpdate {
     Invoke-Compose config --quiet
     Invoke-Compose up -d --build
     [void](Wait-ExactReadiness -Revision $newRevision -SchemaVersion $schemaVersion)
+    $remainingOriginDrift = @(Get-MixedOriginServices)
+    if ($remainingOriginDrift.Count -gt 0) {
+      throw "Containers still have mixed Compose working directories: $($remainingOriginDrift -join '; ')"
+    }
     Write-Receipt $receiptPath ([ordered]@{
       status = 'success'
       updated_at_utc = $stamp
@@ -382,4 +462,28 @@ function Invoke-GuardedUpdate {
   Write-Host 'The PostgreSQL volume was preserved.'
 }
 
-Invoke-GuardedUpdate
+function Invoke-UpdaterSelfTest {
+  $revision = '0123456789abcdef0123456789abcdef01234567'
+  $runsJson = @"
+[
+  {"headSha":"$revision","name":"Chess R1 Focused","status":"completed","conclusion":"failure"},
+  {"headSha":"$revision","name":"ASA Lab Governance and Code Gates","status":"completed","conclusion":"success"},
+  {"headSha":"$revision","name":"3D M0 Focused","status":"completed","conclusion":"failure"}
+]
+"@
+  $runs = $runsJson | ConvertFrom-Json
+  $selected = Select-RequiredWorkflowRun -Runs $runs -Revision $revision
+  if (-not $selected -or $selected.conclusion -ne 'success') {
+    throw 'Updater self-test failed to isolate the required workflow.'
+  }
+  if (-not (Test-SamePath $RepoRoot $RepoRoot)) {
+    throw 'Updater self-test failed path normalization.'
+  }
+  Write-Host 'Docker updater self-test PASS'
+}
+
+if ($SelfTest) {
+  Invoke-UpdaterSelfTest
+} else {
+  Invoke-GuardedUpdate
+}

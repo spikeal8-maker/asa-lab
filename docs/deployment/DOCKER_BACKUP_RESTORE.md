@@ -77,3 +77,8 @@ For dev or staging, include the same profile files or set
   schedule downtime. The generic agent workflow never performs it automatically.
 - Never commit dumps or `.env` files.
 - Do not remove the PostgreSQL volume until a tested external backup exists.
+
+Offline work by several school installations is not solved by copying or merging
+PostgreSQL dumps. The future design and its safety boundary are recorded in
+[`../architecture/OFFLINE_MULTI_NODE_DATA_SYNC_IDEA.md`](../architecture/OFFLINE_MULTI_NODE_DATA_SYNC_IDEA.md);
+it is an idea only and is not an active database migration.
