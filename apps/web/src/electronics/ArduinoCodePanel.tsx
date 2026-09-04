@@ -40,6 +40,7 @@ import {
 } from './arduino-blocks';
 import {
   arduinoCompletionsAt,
+  insertArduinoCompletion,
   tokenizeArduinoSource,
   type ArduinoCompletion,
   type ArduinoSourceToken,
@@ -73,6 +74,7 @@ const ARDUINO_WORKSPACE_MIN_WIDTH = 300;
 const ARDUINO_FLYOUT_STORAGE_KEY = 'asa-lab:electronics:arduino-palette-width-v2';
 const ARDUINO_PALETTE_SCALE_STORAGE_KEY = 'asa-lab:electronics:arduino-palette-scale-v2';
 const ARDUINO_FONT_SIZE_STORAGE_KEY = 'asa-lab:electronics:arduino-font-size-v1';
+const ARDUINO_AUTOCOMPLETE_STORAGE_KEY = 'asa-lab:electronics:arduino-autocomplete-v1';
 const ARDUINO_PALETTE_SCALE_MIN = 0.75;
 const ARDUINO_PALETTE_SCALE_MAX = 1.25;
 const ARDUINO_PALETTE_SCALE_STEP = 0.1;
@@ -102,6 +104,10 @@ function initialArduinoPaletteScale(): number {
 function initialArduinoFontSize(): number {
   const stored = Number(localStorage.getItem(ARDUINO_FONT_SIZE_STORAGE_KEY));
   return ARDUINO_FONT_SIZES.includes(stored as (typeof ARDUINO_FONT_SIZES)[number]) ? stored : 13;
+}
+
+function initialArduinoAutocomplete(): boolean {
+  return localStorage.getItem(ARDUINO_AUTOCOMPLETE_STORAGE_KEY) !== 'false';
 }
 
 function responsiveFlyoutScale(flyoutWidth: number, userScale: number): number {
@@ -400,6 +406,14 @@ function CommandsIcon(): JSX.Element {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">
       <path d="M5 4h14v16H5zM8 8h8M8 12h8M8 16h5" />
+    </svg>
+  );
+}
+
+function AutocompleteIcon(): JSX.Element {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M5 6h5M5 11h8M5 16h5M15 7l2 2 3-4M15 16h5M17.5 13.5v5" />
     </svg>
   );
 }
@@ -795,12 +809,14 @@ function ArduinoSourceEditor({
   source,
   readOnly,
   fontSize,
+  completionEnabled,
   onChange,
   onCursorChange,
 }: {
   source: string;
   readOnly: boolean;
   fontSize: number;
+  completionEnabled: boolean;
   onChange: (source: string) => void;
   onCursorChange: (position: number) => void;
 }): JSX.Element {
@@ -818,10 +834,14 @@ function ArduinoSourceEditor({
   const [cursor, setCursor] = useState(0);
   const [scroll, setScroll] = useState({ left: 0, top: 0 });
   const [completionIndex, setCompletionIndex] = useState(0);
+  const [completionDismissed, setCompletionDismissed] = useState(false);
   const [snippetDropTarget, setSnippetDropTarget] = useState<ArduinoSnippetDropTarget | null>(null);
   const completion = useMemo(
-    () => (readOnly ? null : arduinoCompletionsAt(source, cursor)),
-    [cursor, readOnly, source],
+    () =>
+      readOnly || !completionEnabled || completionDismissed
+        ? null
+        : arduinoCompletionsAt(source, cursor),
+    [completionDismissed, completionEnabled, cursor, readOnly, source],
   );
   const beforeCursor = source.slice(0, cursor);
   const cursorLine = beforeCursor.split('\n').length - 1;
@@ -831,15 +851,17 @@ function ArduinoSourceEditor({
   const suggestionPosition = {
     left: Math.max(
       52,
-      Math.min(editorWidth - 280, 56 + cursorColumn * fontSize * 0.61 - scroll.left),
+      Math.min(editorWidth - 340, 56 + cursorColumn * fontSize * 0.61 - scroll.left),
     ),
     top: Math.max(
       8,
-      Math.min(editorHeight - 210, 10 + (cursorLine + 1) * fontSize * 1.45 - scroll.top),
+      Math.min(editorHeight - 275, 10 + (cursorLine + 1) * fontSize * 1.45 - scroll.top),
     ),
   };
 
   useEffect(() => setCompletionIndex(0), [completion?.from, completion?.items]);
+
+  useEffect(() => setCompletionDismissed(false), [completionEnabled]);
 
   function updateCursor(position: number): void {
     setCursor(position);
@@ -855,15 +877,15 @@ function ArduinoSourceEditor({
     setScroll({ left: target.scrollLeft, top: target.scrollTop });
   }
 
-  function applyCompletion(item: ArduinoCompletion): void {
+  function applyCompletion(item: ArduinoCompletion, key: 'Enter' | 'Tab'): void {
     if (!completion) return;
-    const next = source.slice(0, completion.from) + item.label + source.slice(cursor);
-    const nextCursor = completion.from + item.label.length;
-    onChange(next);
-    updateCursor(nextCursor);
+    const insertion = insertArduinoCompletion(source, completion.from, cursor, item, key);
+    setCompletionDismissed(true);
+    onChange(insertion.source);
+    updateCursor(insertion.cursor);
     requestAnimationFrame(() => {
       textareaRef.current?.focus();
-      textareaRef.current?.setSelectionRange(nextCursor, nextCursor);
+      textareaRef.current?.setSelectionRange(insertion.cursor, insertion.cursor);
     });
   }
 
@@ -904,6 +926,11 @@ function ArduinoSourceEditor({
 
   function handleEditorKeyDown(event: KeyboardEvent<HTMLTextAreaElement>): void {
     if (!completion) return;
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      setCompletionDismissed(true);
+      return;
+    }
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
       event.preventDefault();
       const direction = event.key === 'ArrowDown' ? 1 : -1;
@@ -918,12 +945,9 @@ function ArduinoSourceEditor({
         completion.items[
           Math.min(completionIndex, completion.items.length - 1)
         ] as ArduinoCompletion,
+        event.key,
       );
       return;
-    }
-    if (event.key === 'Escape') {
-      event.preventDefault();
-      updateCursor(0);
     }
   }
   return (
@@ -949,10 +973,14 @@ function ArduinoSourceEditor({
         aria-label={readOnly ? 'Сгенерированный код Arduino' : 'Код Arduino C++'}
         aria-describedby="arduino-source-editor-status arduino-source-diagnostics"
         onChange={(event) => {
+          setCompletionDismissed(false);
           onChange(event.target.value);
           updateCursor(event.currentTarget.selectionStart);
         }}
-        onClick={(event) => updateCursor(event.currentTarget.selectionStart)}
+        onClick={(event) => {
+          setCompletionDismissed(false);
+          updateCursor(event.currentTarget.selectionStart);
+        }}
         onKeyDown={handleEditorKeyDown}
         onKeyUp={(event) => updateCursor(event.currentTarget.selectionStart)}
         onSelect={(event) => updateCursor(event.currentTarget.selectionStart)}
@@ -1006,16 +1034,19 @@ function ArduinoSourceEditor({
               role="option"
               aria-selected={index === completionIndex}
               onMouseDown={(event) => event.preventDefault()}
-              onClick={() => applyCompletion(item)}
+              onClick={() => applyCompletion(item, 'Tab')}
             >
               <code>{item.label}</code>
-              <span>
-                {item.support === 'unsupported'
-                  ? '⚠ Пока не работает · '
-                  : item.support === 'limited'
-                    ? '◐ Ограничено · '
-                    : ''}
-                {item.detail}
+              <span className="arduino-code-suggestion-copy">
+                <span>
+                  {item.support === 'unsupported'
+                    ? '⚠ Пока не работает · '
+                    : item.support === 'limited'
+                      ? '◐ Ограничено · '
+                      : ''}
+                  {item.detail}
+                </span>
+                <em>{item.example}</em>
               </span>
             </button>
           ))}
@@ -1057,7 +1088,7 @@ function ArduinoSourceEditor({
         <span>{unsupportedCount > 0 ? 'Расчёт заблокирован' : 'Arduino C++'}</span>
         <span>
           {completion
-            ? '↑↓ выбрать · Tab вставить'
+            ? '↑↓ выбрать · Enter строка · Tab вставить · Esc закрыть'
             : unsupportedCount > 0
               ? 'Исправьте неподдерживаемые команды'
               : limitedCount > 0
@@ -1177,6 +1208,7 @@ export function ArduinoCodePanel({
   const sourceCursorRef = useRef(program.source.length);
   const [category, setCategory] = useState<ArduinoBlockCategory>('output');
   const [fontSize, setFontSize] = useState(initialArduinoFontSize);
+  const [autocompleteEnabled, setAutocompleteEnabled] = useState(initialArduinoAutocomplete);
   const [commandReferenceOpen, setCommandReferenceOpen] = useState(false);
   const [pendingMode, setPendingMode] = useState<ArduinoCodeMode | null>(null);
   const modeMenuRef = useRef<HTMLDetailsElement>(null);
@@ -1220,6 +1252,10 @@ export function ArduinoCodePanel({
   useEffect(() => {
     localStorage.setItem(ARDUINO_FONT_SIZE_STORAGE_KEY, String(fontSize));
   }, [fontSize]);
+
+  useEffect(() => {
+    localStorage.setItem(ARDUINO_AUTOCOMPLETE_STORAGE_KEY, String(autocompleteEnabled));
+  }, [autocompleteEnabled]);
 
   function persist(next: ArduinoProgramState): void {
     if (!selectedBoard) return;
@@ -1375,6 +1411,21 @@ export function ArduinoCodePanel({
           <CommandsIcon />
           <span>Команды</span>
         </button>
+        {program.mode === 'text' ? (
+          <button
+            type="button"
+            className={`arduino-toolbar-button${autocompleteEnabled ? ' active' : ''}`}
+            title={autocompleteEnabled ? 'Отключить автодополнение' : 'Включить автодополнение'}
+            aria-label={
+              autocompleteEnabled ? 'Отключить автодополнение' : 'Включить автодополнение'
+            }
+            aria-pressed={autocompleteEnabled}
+            onClick={() => setAutocompleteEnabled((current) => !current)}
+          >
+            <AutocompleteIcon />
+            <span>Авто</span>
+          </button>
+        ) : null}
         {program.mode !== 'blocks' ? (
           <label className="arduino-font-size-select" title="Размер текста">
             <span aria-hidden="true">Aa</span>
@@ -1491,6 +1542,7 @@ export function ArduinoCodePanel({
             source={program.source}
             readOnly={program.mode === 'blocks-text'}
             fontSize={fontSize}
+            completionEnabled={autocompleteEnabled}
             onChange={(source) => updateProgram({ source })}
             onCursorChange={(position) => {
               sourceCursorRef.current = position;

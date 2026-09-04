@@ -3765,15 +3765,24 @@ html.arduino-drawer-resizing * {
 .arduino-command-reference-item > header {
   display: grid;
   min-height: 48px;
-  grid-template-columns: minmax(0, 1fr) auto 30px;
+  grid-template-areas: 'command expand';
+  grid-template-columns: minmax(0, 1fr) 30px;
   align-items: center;
   gap: 4px;
-  padding: 0 3px 0 4px;
+  padding: 3px 3px 3px 4px;
+}
+.arduino-command-reference-item > header.has-support-status {
+  grid-template-areas:
+    'status status'
+    'command expand';
+  row-gap: 1px;
+  padding-top: 5px;
 }
 .arduino-command-drag {
+  grid-area: command;
   display: flex;
   min-width: 0;
-  min-height: 42px;
+  min-height: 40px;
   align-items: center;
   gap: 5px;
   padding: 0 4px;
@@ -3802,24 +3811,26 @@ html.arduino-drawer-resizing * {
   letter-spacing: normal;
 }
 .arduino-command-label strong {
-  overflow: hidden;
   color: #314b5a;
   font-size: 11px;
   font-weight: 700;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
 }
 .arduino-command-drag code {
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
   color: #075f8b;
   font:
     600 12px Consolas,
     monospace;
-  white-space: nowrap;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 .arduino-command-status {
+  grid-area: status;
+  justify-self: start;
+  margin-left: 20px;
   flex: 0 0 auto;
   padding: 2px 6px;
   border-radius: 9px;
@@ -3837,6 +3848,7 @@ html.arduino-drawer-resizing * {
   color: #913a32;
 }
 .arduino-command-expand {
+  grid-area: expand;
   width: 30px;
   height: 30px;
   padding: 0;
@@ -4328,8 +4340,8 @@ html.arduino-palette-resizing * {
   position: absolute;
   z-index: 5;
   display: grid;
-  width: min(310px, calc(100% - 64px));
-  max-height: 196px;
+  width: min(370px, calc(100% - 64px));
+  max-height: 260px;
   overflow: auto;
   padding: 4px;
   border: 1px solid #aebac3;
@@ -4339,9 +4351,9 @@ html.arduino-palette-resizing * {
 }
 .arduino-code-suggestions > button {
   display: grid;
-  grid-template-columns: minmax(104px, auto) 1fr;
+  grid-template-columns: minmax(104px, 126px) minmax(0, 1fr);
   gap: 12px;
-  min-height: 32px;
+  min-height: 45px;
   align-items: center;
   padding: 4px 8px;
   border: 0;
@@ -4360,17 +4372,29 @@ html.arduino-palette-resizing * {
   font: inherit;
   font-weight: 600;
 }
-.arduino-code-suggestions span {
+.arduino-code-suggestion-copy {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+.arduino-code-suggestion-copy > span,
+.arduino-code-suggestion-copy > em {
   overflow: hidden;
   color: #647784;
   font-size: 11px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.arduino-code-suggestions .support-unsupported span {
+.arduino-code-suggestion-copy > em {
+  color: #375d70;
+  font:
+    italic 10px Consolas,
+    monospace;
+}
+.arduino-code-suggestions .support-unsupported .arduino-code-suggestion-copy > span {
   color: #a23f35;
 }
-.arduino-code-suggestions .support-limited span {
+.arduino-code-suggestions .support-limited .arduino-code-suggestion-copy > span {
   color: #7a6524;
 }
 .arduino-source-status {

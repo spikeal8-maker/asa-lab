@@ -1,3 +1,9 @@
+import {
+  arduinoTextCommandSupport,
+  type ArduinoSupportStatus,
+  type ArduinoTextCommand,
+} from '@asa-lab/electronics';
+
 export type ArduinoSourceTokenKind =
   | 'plain'
   | 'keyword'
@@ -17,6 +23,9 @@ export type ArduinoSourceToken = {
 export type ArduinoCompletion = {
   readonly label: string;
   readonly detail: string;
+  readonly insertText: string;
+  readonly example: string;
+  readonly lineComplete: boolean;
   readonly support: ArduinoSupportStatus;
 };
 
@@ -112,36 +121,241 @@ const BUILTINS = new Set([
   'write',
 ]);
 
-const COMPLETION_DEFINITIONS: readonly Omit<ArduinoCompletion, 'support'>[] = [
-  { label: 'analogRead', detail: 'Считать аналоговый вход' },
-  { label: 'analogWrite', detail: 'Записать ШИМ-значение' },
-  { label: 'delay', detail: 'Пауза в миллисекундах' },
-  { label: 'delayMicroseconds', detail: 'Пауза в микросекундах' },
-  { label: 'digitalRead', detail: 'Считать цифровой вход' },
-  { label: 'digitalWrite', detail: 'Установить цифровой выход' },
-  { label: 'HIGH', detail: 'Высокий логический уровень' },
-  { label: 'INPUT', detail: 'Режим цифрового входа' },
-  { label: 'INPUT_PULLUP', detail: 'Вход со встроенной подтяжкой' },
-  { label: 'LED_BUILTIN', detail: 'Встроенный светодиод платы' },
-  { label: 'LOW', detail: 'Низкий логический уровень' },
-  { label: 'map', detail: 'Перенести число в другой диапазон' },
-  { label: 'micros', detail: 'Время работы в микросекундах' },
-  { label: 'millis', detail: 'Время работы в миллисекундах' },
-  { label: 'OUTPUT', detail: 'Режим цифрового выхода' },
-  { label: 'pinMode', detail: 'Настроить режим вывода' },
-  { label: 'pulseIn', detail: 'Измерить длительность импульса' },
-  { label: 'Serial.begin', detail: 'Запустить последовательный порт' },
-  { label: 'Serial.print', detail: 'Вывести значение без переноса' },
-  { label: 'Serial.println', detail: 'Вывести значение с переносом' },
-  { label: 'tone', detail: 'Запустить звуковой сигнал' },
-] as const;
+type ArduinoCompletionDefinition = Omit<ArduinoCompletion, 'support'>;
 
-export const ARDUINO_COMPLETIONS: readonly ArduinoCompletion[] = COMPLETION_DEFINITIONS.map(
-  (completion) => ({
-    ...completion,
-    support: arduinoTextCommandSupport(completion.label).status,
-  }),
-);
+const COMPLETION_DEFINITIONS = {
+  setup: {
+    label: 'setup',
+    detail: 'Настройка при запуске',
+    insertText: 'void setup() {\n  pinMode(13, OUTPUT);\n}',
+    example: 'void setup() { … }',
+    lineComplete: true,
+  },
+  loop: {
+    label: 'loop',
+    detail: 'Повторяющаяся программа',
+    insertText: 'void loop() {\n  digitalWrite(13, HIGH);\n}',
+    example: 'void loop() { … }',
+    lineComplete: true,
+  },
+  pinMode: {
+    label: 'pinMode',
+    detail: 'Настроить цифровой вывод',
+    insertText: 'pinMode(13, OUTPUT);',
+    example: 'pinMode(13, OUTPUT);',
+    lineComplete: true,
+  },
+  digitalWrite: {
+    label: 'digitalWrite',
+    detail: 'Записать цифровой уровень',
+    insertText: 'digitalWrite(13, HIGH);',
+    example: 'digitalWrite(13, HIGH);',
+    lineComplete: true,
+  },
+  digitalRead: {
+    label: 'digitalRead',
+    detail: 'Считать цифровой вход',
+    insertText: 'int state = digitalRead(2);',
+    example: 'int state = digitalRead(2);',
+    lineComplete: true,
+  },
+  analogRead: {
+    label: 'analogRead',
+    detail: 'Считать аналоговый вход',
+    insertText: 'int value = analogRead(A0);',
+    example: 'int value = analogRead(A0);',
+    lineComplete: true,
+  },
+  analogWrite: {
+    label: 'analogWrite',
+    detail: 'Записать ШИМ-уровень',
+    insertText: 'analogWrite(9, 128);',
+    example: 'analogWrite(9, 128);',
+    lineComplete: true,
+  },
+  delay: {
+    label: 'delay',
+    detail: 'Пауза в миллисекундах',
+    insertText: 'delay(1000);',
+    example: 'delay(1000);',
+    lineComplete: true,
+  },
+  delayMicroseconds: {
+    label: 'delayMicroseconds',
+    detail: 'Пауза в микросекундах',
+    insertText: 'delayMicroseconds(50);',
+    example: 'delayMicroseconds(50);',
+    lineComplete: true,
+  },
+  tone: {
+    label: 'tone',
+    detail: 'Включить звуковой тон',
+    insertText: 'tone(8, 440, 500);',
+    example: 'tone(8, 440, 500);',
+    lineComplete: true,
+  },
+  noTone: {
+    label: 'noTone',
+    detail: 'Остановить звуковой тон',
+    insertText: 'noTone(8);',
+    example: 'noTone(8);',
+    lineComplete: true,
+  },
+  map: {
+    label: 'map',
+    detail: 'Перенести число в диапазон',
+    insertText: 'int pwm = map(value, 0, 1023, 0, 255);',
+    example: 'map(value, 0, 1023, 0, 255)',
+    lineComplete: true,
+  },
+  constrain: {
+    label: 'constrain',
+    detail: 'Ограничить число границами',
+    insertText: 'value = constrain(value, 0, 255);',
+    example: 'constrain(value, 0, 255)',
+    lineComplete: true,
+  },
+  abs: {
+    label: 'abs',
+    detail: 'Получить модуль числа',
+    insertText: 'int magnitude = abs(value);',
+    example: 'abs(value)',
+    lineComplete: true,
+  },
+  min: {
+    label: 'min',
+    detail: 'Выбрать меньшее число',
+    insertText: 'int lower = min(left, right);',
+    example: 'min(left, right)',
+    lineComplete: true,
+  },
+  max: {
+    label: 'max',
+    detail: 'Выбрать большее число',
+    insertText: 'int upper = max(left, right);',
+    example: 'max(left, right)',
+    lineComplete: true,
+  },
+  millis: {
+    label: 'millis',
+    detail: 'Прочитать время симуляции',
+    insertText: 'unsigned long now = millis();',
+    example: 'unsigned long now = millis();',
+    lineComplete: true,
+  },
+  micros: {
+    label: 'micros',
+    detail: 'Прочитать микросекундное время',
+    insertText: 'unsigned long now = micros();',
+    example: 'unsigned long now = micros();',
+    lineComplete: true,
+  },
+  pulseIn: {
+    label: 'pulseIn',
+    detail: 'Измерить длительность импульса',
+    insertText: 'long width = pulseIn(7, HIGH);',
+    example: 'long width = pulseIn(7, HIGH);',
+    lineComplete: true,
+  },
+  random: {
+    label: 'random',
+    detail: 'Получить случайное число',
+    insertText: 'long value = random(0, 100);',
+    example: 'random(0, 100)',
+    lineComplete: true,
+  },
+  randomSeed: {
+    label: 'randomSeed',
+    detail: 'Задать начальное случайное число',
+    insertText: 'randomSeed(42);',
+    example: 'randomSeed(42);',
+    lineComplete: true,
+  },
+  'Serial.begin': {
+    label: 'Serial.begin',
+    detail: 'Открыть последовательный порт',
+    insertText: 'Serial.begin(9600);',
+    example: 'Serial.begin(9600);',
+    lineComplete: true,
+  },
+  'Serial.print': {
+    label: 'Serial.print',
+    detail: 'Напечатать без переноса',
+    insertText: 'Serial.print(value);',
+    example: 'Serial.print(value);',
+    lineComplete: true,
+  },
+  'Serial.println': {
+    label: 'Serial.println',
+    detail: 'Напечатать с новой строки',
+    insertText: 'Serial.println(value);',
+    example: 'Serial.println(value);',
+    lineComplete: true,
+  },
+  'Serial.available': {
+    label: 'Serial.available',
+    detail: 'Проверить входящие данные',
+    insertText: 'int available = Serial.available();',
+    example: 'Serial.available()',
+    lineComplete: true,
+  },
+  'Serial.read': {
+    label: 'Serial.read',
+    detail: 'Прочитать входящие данные',
+    insertText: 'int incoming = Serial.read();',
+    example: 'Serial.read()',
+    lineComplete: true,
+  },
+  HIGH: {
+    label: 'HIGH',
+    detail: 'Высокий логический уровень',
+    insertText: 'HIGH',
+    example: 'digitalWrite(13, HIGH);',
+    lineComplete: false,
+  },
+  LOW: {
+    label: 'LOW',
+    detail: 'Низкий логический уровень',
+    insertText: 'LOW',
+    example: 'digitalWrite(13, LOW);',
+    lineComplete: false,
+  },
+  INPUT: {
+    label: 'INPUT',
+    detail: 'Режим цифрового входа',
+    insertText: 'INPUT',
+    example: 'pinMode(2, INPUT);',
+    lineComplete: false,
+  },
+  INPUT_PULLUP: {
+    label: 'INPUT_PULLUP',
+    detail: 'Вход со встроенной подтяжкой',
+    insertText: 'INPUT_PULLUP',
+    example: 'pinMode(2, INPUT_PULLUP);',
+    lineComplete: false,
+  },
+  OUTPUT: {
+    label: 'OUTPUT',
+    detail: 'Режим цифрового выхода',
+    insertText: 'OUTPUT',
+    example: 'pinMode(13, OUTPUT);',
+    lineComplete: false,
+  },
+  LED_BUILTIN: {
+    label: 'LED_BUILTIN',
+    detail: 'Встроенный светодиод платы',
+    insertText: 'LED_BUILTIN',
+    example: 'digitalWrite(LED_BUILTIN, HIGH);',
+    lineComplete: false,
+  },
+} as const satisfies Readonly<Record<ArduinoTextCommand, ArduinoCompletionDefinition>>;
+
+export const ARDUINO_COMPLETIONS: readonly ArduinoCompletion[] = Object.values(
+  COMPLETION_DEFINITIONS,
+).map((completion) => ({
+  ...completion,
+  support: arduinoTextCommandSupport(completion.label).status,
+}));
 
 function identifierKind(identifier: string): ArduinoSourceTokenKind {
   if (KEYWORDS.has(identifier)) return 'keyword';
@@ -240,4 +454,35 @@ export function arduinoCompletionsAt(
   ).slice(0, limit);
   return items.length > 0 ? { from: cursor - match[0].length, items } : null;
 }
-import { arduinoTextCommandSupport, type ArduinoSupportStatus } from '@asa-lab/electronics';
+
+export function insertArduinoCompletion(
+  source: string,
+  from: number,
+  cursor: number,
+  completion: ArduinoCompletion,
+  key: 'Enter' | 'Tab',
+): { readonly source: string; readonly cursor: number } {
+  const safeFrom = Math.max(0, Math.min(source.length, Math.trunc(from)));
+  const safeCursor = Math.max(safeFrom, Math.min(source.length, Math.trunc(cursor)));
+  const lineStart = source.lastIndexOf('\n', safeFrom - 1) + 1;
+  const indentation = /^[\t ]*/.exec(source.slice(lineStart, safeFrom))?.[0] ?? '';
+  const lineEnd = source.indexOf('\n', safeCursor);
+  const currentLineEnd = lineEnd < 0 ? source.length : lineEnd;
+  const afterCursorOnLine = source.slice(safeCursor, currentLineEnd);
+  const completesLine =
+    key === 'Enter' && completion.lineComplete && afterCursorOnLine.trim().length === 0;
+
+  if (completesLine) {
+    const rest = lineEnd < 0 ? '' : source.slice(lineEnd);
+    const insertion = `${completion.insertText}\n${indentation}`;
+    return {
+      source: `${source.slice(0, safeFrom)}${insertion}${rest}`,
+      cursor: safeFrom + insertion.length,
+    };
+  }
+
+  return {
+    source: `${source.slice(0, safeFrom)}${completion.insertText}${source.slice(safeCursor)}`,
+    cursor: safeFrom + completion.insertText.length,
+  };
+}

@@ -35,7 +35,10 @@ function CommandReferenceItem({
     <article
       className={`arduino-command-reference-item support-${entry.status}${expanded ? ' expanded' : ''}`}
     >
-      <header>
+      <header className={entry.status === 'supported' ? undefined : 'has-support-status'}>
+        {entry.status === 'supported' ? null : (
+          <span className="arduino-command-status">{arduinoSupportStatusLabel(entry.status)}</span>
+        )}
         <button
           type="button"
           className="arduino-command-drag"
@@ -58,7 +61,6 @@ function CommandReferenceItem({
             <code>{entry.signature}</code>
           </span>
         </button>
-        <span className="arduino-command-status">{arduinoSupportStatusLabel(entry.status)}</span>
         <button
           type="button"
           className="arduino-command-expand"

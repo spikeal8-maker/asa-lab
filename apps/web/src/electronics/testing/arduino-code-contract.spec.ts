@@ -53,7 +53,10 @@ describe('Arduino programming room contract', () => {
     expect(panelSource).toContain('tokenizeArduinoSource(source)');
     expect(panelSource).toContain('arduinoCompletionsAt(source, cursor)');
     expect(panelSource).toContain('aria-label="Подсказки Arduino"');
-    expect(panelSource).toContain('↑↓ выбрать · Tab вставить');
+    expect(panelSource).toContain('Enter строка · Tab вставить · Esc закрыть');
+    expect(panelSource).toContain('insertArduinoCompletion(');
+    expect(panelSource).toContain('setCompletionDismissed(true)');
+    expect(panelSource).toContain('item.example');
     for (const token of [
       '.token-keyword',
       '.token-type',
@@ -208,6 +211,9 @@ describe('Arduino programming room contract', () => {
     expect(panelSource).toContain('Справочник команд Arduino');
     expect(panelSource).toContain('aria-label="Размер текста Arduino"');
     expect(panelSource).toContain('ARDUINO_FONT_SIZE_STORAGE_KEY');
+    expect(panelSource).toContain('ARDUINO_AUTOCOMPLETE_STORAGE_KEY');
+    expect(panelSource).toContain('aria-pressed={autocompleteEnabled}');
+    expect(panelSource).toContain('Отключить автодополнение');
     expect(panelSource).toContain('persistTimersRef.current.get(selectedBoardId)');
     expect(panelSource).toContain('programRef.current = next');
     expect(panelSource).toContain('const activateBoard = useCallback');
@@ -235,6 +241,9 @@ describe('Arduino programming room contract', () => {
     expect(css).toContain('.arduino-snippet-drop-line');
     expect(css).not.toContain('Отпустите, чтобы вставить команду');
     expect(commandReferenceSource).toContain('entry.title');
+    expect(commandReferenceSource).toContain("entry.status === 'supported' ? null");
+    expect(css).toContain("grid-template-areas: 'command expand'");
+    expect(css).toContain("'status status'");
   });
 
   it('keeps a collapsible serial monitor with send, clear and baud controls', () => {
