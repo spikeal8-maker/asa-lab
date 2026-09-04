@@ -157,7 +157,7 @@ const REFERENCE_METADATA = {
   delayMicroseconds: {
     signature: 'delayMicroseconds(microseconds)',
     category: 'time',
-    limits: 'Ограниченная временная модель, без полного AVR-таймера.',
+    limits: 'Неотрицательное число микросекунд виртуального времени.',
     example: 'delayMicroseconds(50);',
   },
   tone: {

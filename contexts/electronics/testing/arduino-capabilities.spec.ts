@@ -21,10 +21,26 @@ describe('Arduino capability contract', () => {
 
   it('classifies representative blocks from the one shared registry', () => {
     expect(arduinoBlockSupport('asa_digital_write').status).toBe('supported');
+    expect(arduinoBlockSupport('asa_wait').status).toBe('supported');
     expect(arduinoBlockSupport('asa_analog_write').status).toBe('limited');
     expect(arduinoBlockSupport('asa_serial_print').status).toBe('unsupported');
     expect(Object.keys(ARDUINO_BLOCK_SUPPORT).length).toBeGreaterThan(50);
     expect(ARDUINO_TEXT_COMMAND_SUPPORT['Serial.println'].status).toBe('unsupported');
+  });
+
+  it('treats the implemented delay timeline as supported', () => {
+    expect(ARDUINO_TEXT_COMMAND_SUPPORT.delay.status).toBe('supported');
+    expect(ARDUINO_TEXT_COMMAND_SUPPORT.delayMicroseconds.status).toBe('supported');
+    expect(
+      analyseArduinoSourceSupport(`
+        void loop() {
+          digitalWrite(13, HIGH);
+          delay(1000);
+          digitalWrite(13, LOW);
+          delayMicroseconds(500);
+        }
+      `),
+    ).toEqual([]);
   });
 
   it('accepts the supported digital and analog input slice', () => {

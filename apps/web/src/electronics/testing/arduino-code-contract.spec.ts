@@ -163,7 +163,7 @@ describe('Arduino programming room contract', () => {
     expect(panelSource).toContain('Блокирующих: {unsupportedCount}');
     expect(panelSource).toContain('Ограничений: {limitedCount}');
     expect(panelSource).toContain('Моделирование заблокировано');
-    expect(panelSource).toContain('Это не ошибки компиляции: программа исполняется');
+    expect(panelSource).toContain('Это проверка модели ASA Lab, а не компиляция Arduino C++');
     expect(panelSource).toContain('onDiagnosticsOpenChange');
     expect(panelSource).toContain('previousUnsupportedCountRef');
     expect(panelSource).toContain('unsupportedCount > previousCount');
@@ -219,13 +219,17 @@ describe('Arduino programming room contract', () => {
   });
 
   it('keeps the ARD-1 toolbar compact and synchronises multiple boards', () => {
-    expect(panelSource).toContain('Проверить поддержку команд');
+    expect(panelSource).toContain('Проверить совместимость кода с симулятором (не компиляция)');
+    expect(panelSource).toContain('<span>Проверить код</span>');
+    expect(panelSource).not.toContain("? '◐ Ограничено · '");
     expect(panelSource).toContain('Справочник команд Arduino');
     expect(panelSource).toContain('aria-label="Размер текста Arduino"');
     expect(panelSource).toContain('ARDUINO_FONT_SIZE_STORAGE_KEY');
     expect(panelSource).toContain('ARDUINO_AUTOCOMPLETE_STORAGE_KEY');
     expect(panelSource).toContain('aria-pressed={autocompleteEnabled}');
     expect(panelSource).toContain('Отключить автодополнение');
+    expect(panelSource).toContain('const suggestionWidth = Math.min(680');
+    expect(panelSource).toContain('width: suggestionWidth');
     expect(panelSource).toContain('`arduino-code-toolbar mode-${program.mode}`');
     expect(panelSource).toContain("if (program.mode === 'blocks' && commandReferenceOpen)");
     expect(panelSource).toContain("open={commandReferenceOpen && program.mode !== 'blocks'}");
@@ -261,6 +265,9 @@ describe('Arduino programming room contract', () => {
     expect(css).toContain("'status status'");
     expect(css).toContain('--arduino-ui-font');
     expect(css).toContain('--arduino-code-font');
+    expect(css).toContain('.arduino-toolbar-button.active:hover');
+    expect(css).toContain('width: min(680px, calc(100% - 64px));');
+    expect(css).toContain('min-height: 34px;');
     expect(css).toContain('.arduino-code-toolbar.mode-blocks .arduino-download-button');
   });
 

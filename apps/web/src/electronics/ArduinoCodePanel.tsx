@@ -859,15 +859,20 @@ function ArduinoSourceEditor({
   const cursorColumn = beforeCursor.length - (beforeCursor.lastIndexOf('\n') + 1);
   const editorWidth = editorRef.current?.clientWidth ?? 600;
   const editorHeight = editorRef.current?.clientHeight ?? 400;
+  const suggestionWidth = Math.min(680, Math.max(280, editorWidth - 64));
   const suggestionPosition = {
     left: Math.max(
       52,
-      Math.min(editorWidth - 340, 56 + cursorColumn * fontSize * 0.61 - scroll.left),
+      Math.min(
+        editorWidth - suggestionWidth - 8,
+        56 + cursorColumn * fontSize * 0.61 - scroll.left,
+      ),
     ),
     top: Math.max(
       8,
       Math.min(editorHeight - 275, 10 + (cursorLine + 1) * fontSize * 1.45 - scroll.top),
     ),
+    width: suggestionWidth,
   };
 
   useEffect(() => setCompletionIndex(0), [completion?.from, completion?.items]);
@@ -1050,11 +1055,7 @@ function ArduinoSourceEditor({
               <code>{item.label}</code>
               <span className="arduino-code-suggestion-copy">
                 <span>
-                  {item.support === 'unsupported'
-                    ? '⚠ Пока не работает · '
-                    : item.support === 'limited'
-                      ? '◐ Ограничено · '
-                      : ''}
+                  {item.support === 'unsupported' ? '⚠ Пока не работает · ' : ''}
                   {item.detail}
                 </span>
                 <em>{item.example}</em>
@@ -1101,10 +1102,10 @@ function ArduinoSourceEditor({
           <div className="arduino-code-check-body" id="arduino-code-check-body">
             <p>
               {unsupportedCount > 0
-                ? 'Найдены команды, которые симулятор пока не исполняет. Нажмите сообщение, чтобы перейти к строке.'
+                ? 'Симулятор пока не исполняет эти команды. Это проверка модели ASA Lab, а не компиляция Arduino C++.'
                 : limitedCount > 0
-                  ? 'Это не ошибки компиляции: программа исполняется, но перечисленные возможности моделируются упрощённо.'
-                  : 'Поддерживаемая часть программы не содержит известных ошибок или ограничений.'}
+                  ? 'Код запускается, но перечисленные возможности моделируются упрощённо. Это не ошибки компиляции.'
+                  : 'Все использованные команды исполняются симулятором. Это проверка модели ASA Lab, а не компиляция Arduino C++.'}
             </p>
             <div className="arduino-code-check-messages">
               {supportDiagnostics.map((diagnostic) => (
@@ -1427,10 +1428,10 @@ export function ArduinoCodePanel({
             type="button"
             className="arduino-toolbar-button arduino-check-button"
             onClick={checkProgram}
-            title="Проверить поддержку команд"
+            title="Проверить совместимость кода с симулятором (не компиляция)"
           >
             <CheckIcon />
-            <span>Проверить</span>
+            <span>Проверить код</span>
           </button>
         ) : null}
         <button

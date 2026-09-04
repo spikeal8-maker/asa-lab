@@ -43,7 +43,7 @@ const UNSUPPORTED = (summary: string): ArduinoBlockSupport => ({
 export const ARDUINO_BLOCK_SUPPORT = {
   asa_setup: LIMITED('setup() пересчитывается детерминированно, без памяти настоящего МК.'),
   asa_loop: LIMITED('loop() моделируется ограниченным циклом, а не полным AVR-рантаймом.'),
-  asa_wait: LIMITED('Задержка влияет на фазу моделирования, но не запускает полный AVR-таймер.'),
+  asa_wait: SUPPORTED('Задержка управляет фазой виртуального времени симуляции.'),
   asa_repeat: LIMITED('Тело цикла исполняется одним ограниченным проходом.'),
   asa_forever: LIMITED('Тело цикла исполняется одним ограниченным проходом.'),
   asa_if: SUPPORTED('Условие вычисляется электрическим рантаймом.'),
@@ -120,8 +120,8 @@ export const ARDUINO_TEXT_COMMAND_SUPPORT = {
   digitalRead: SUPPORTED('Считывает электрический уровень с D0–D13.'),
   analogRead: SUPPORTED('Считывает A0–A5 как значение 0–1023.'),
   analogWrite: LIMITED('ШИМ представлен средним постоянным напряжением.'),
-  delay: LIMITED('Задержка участвует в ограниченной временной модели.'),
-  delayMicroseconds: LIMITED('Задержка участвует в ограниченной временной модели.'),
+  delay: SUPPORTED('Задержка управляет виртуальным временем симуляции.'),
+  delayMicroseconds: SUPPORTED('Задержка управляет виртуальным временем симуляции.'),
   tone: LIMITED('Работает со звуковой нагрузкой без общей временной формы сигнала.'),
   noTone: LIMITED('Останавливает поддерживаемый ограниченный tone()-выход.'),
   map: SUPPORTED('Числовое преобразование диапазона поддерживается.'),
@@ -394,9 +394,9 @@ export function analyseArduinoSourceSupport(
       message: 'ШИМ представлен средним постоянным напряжением.',
     },
     {
-      expression: /\b(?:tone|noTone|delay|delayMicroseconds)\s*\(/gi,
+      expression: /\b(?:tone|noTone)\s*\(/gi,
       code: 'bounded-timing',
-      message: 'Команда времени исполняется ограниченной моделью, а не полным AVR-таймером.',
+      message: 'Звуковой сигнал передаётся нагрузке без полной временной формы в общем solver.',
     },
     {
       expression: /\bmillis\s*\(/gi,
