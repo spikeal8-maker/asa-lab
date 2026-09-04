@@ -1026,6 +1026,109 @@ describe('deterministic DC solver', () => {
     );
   });
 
+  it('keeps valid but unsupported Arduino syntax distinct from compile errors', () => {
+    const result = solveCircuit(
+      doc(
+        [
+          component('uno', 'visual', 5, {
+            componentTypeId: 'arduino-uno',
+            pinIds: ['d2', 'd13', 'power-5v', 'power-3v3', 'power-gnd-1'],
+            stateProperties: {
+              arduinoSource: `
+                void loop() {
+                  switch (digitalRead(2)) {
+                    default: digitalWrite(13, LOW); break;
+                  }
+                }
+              `,
+            },
+          }),
+        ],
+        [],
+      ),
+    );
+
+    expect(result).toMatchObject({ solved: false, status: 'unsupported' });
+    expect(result.diagnostics).toContainEqual(
+      expect.objectContaining({ code: 'arduino_program_unsupported' }),
+    );
+    expect(result.diagnostics.map((diagnostic) => diagnostic.code)).not.toContain(
+      'arduino_program_compile_error',
+    );
+  });
+
+  it('reports malformed Arduino source as a compile error instead of an electrical failure', () => {
+    const result = solveCircuit(
+      doc(
+        [
+          component('uno', 'visual', 5, {
+            name: 'Плата управления',
+            componentTypeId: 'arduino-uno',
+            pinIds: ['d13', 'power-5v', 'power-3v3', 'power-gnd-1'],
+            stateProperties: {
+              arduinoSource:
+                'void setup() { pinMode(13, OUTPUT); } void loop() { digitalWrite(13, HIGH) }',
+            },
+          }),
+        ],
+        [],
+      ),
+    );
+
+    expect(result).toMatchObject({ solved: false, status: 'invalid' });
+    expect(result.components).toEqual([]);
+    expect(result.nodes).toEqual([]);
+    expect(result.diagnostics).toContainEqual(
+      expect.objectContaining({
+        code: 'arduino_program_compile_error',
+        severity: 'error',
+        componentIds: ['uno'],
+      }),
+    );
+    expect(result.diagnostics.map((diagnostic) => diagnostic.code)).not.toContain(
+      'nonconvergent_topology',
+    );
+  });
+
+  it('fails closed when Arduino input/output feedback oscillates instead of settling', () => {
+    const result = solveCircuit(
+      doc(
+        [
+          component('uno', 'visual', 5, {
+            componentTypeId: 'arduino-uno',
+            pinIds: ['d2', 'd13', 'power-5v', 'power-3v3', 'power-gnd-1'],
+            stateProperties: {
+              arduinoSource: `
+                void setup() { pinMode(13, OUTPUT); }
+                void loop() {
+                  if (digitalRead(2) == HIGH) {
+                    digitalWrite(13, LOW);
+                  } else {
+                    digitalWrite(13, HIGH);
+                  }
+                  delay(100);
+                }
+              `,
+            },
+          }),
+        ],
+        [connect('feedback', 'uno', 'd13', 'uno', 'd2')],
+      ),
+    );
+
+    expect(result).toMatchObject({ solved: false, status: 'nonconvergent', current: 0 });
+    expect(result.components).toEqual([]);
+    expect(result.nodes).toEqual([]);
+    expect(result.numericalResidual).toBeGreaterThan(0);
+    expect(result.diagnostics).toContainEqual(
+      expect.objectContaining({
+        code: 'arduino_feedback_nonconvergent',
+        severity: 'error',
+        componentIds: ['uno'],
+      }),
+    );
+  });
+
   it('fails closed when an Arduino loop exceeds the runtime operation budget', () => {
     const result = solveCircuit(
       doc(

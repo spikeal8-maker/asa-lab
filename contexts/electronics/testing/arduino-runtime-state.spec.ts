@@ -312,6 +312,52 @@ describe('Arduino persistent runtime state', () => {
     expect(result.state.variables.counter).toBe(4_096);
   });
 
+  it('fails closed instead of partially executing a command without a semicolon', () => {
+    const result = advanceArduinoRuntime(
+      `
+        void setup() { pinMode(13, OUTPUT); }
+        void loop() {
+          digitalWrite(13, HIGH)
+        }
+      `,
+      {},
+      0,
+    );
+
+    expect(result.diagnostics).toEqual([
+      expect.objectContaining({
+        code: 'compile_error',
+        severity: 'error',
+        message: expect.stringContaining('точкой с запятой'),
+      }),
+    ]);
+    expect(result.setupActions).toEqual([]);
+    expect(result.loopActions).toEqual([]);
+    expect(result.state).toMatchObject({
+      phase: 'setup',
+      loopIterations: 0,
+      variables: {},
+      pinModes: {},
+      outputVoltages: {},
+    });
+  });
+
+  it('fails closed on unmatched source delimiters', () => {
+    const result = advanceArduinoRuntime(
+      'void loop() { if (digitalRead(2) == HIGH) { digitalWrite(13, HIGH); }',
+      {},
+      0,
+    );
+
+    expect(result.diagnostics).toEqual([
+      expect.objectContaining({
+        code: 'compile_error',
+        message: expect.stringContaining('закрывающая скобка'),
+      }),
+    ]);
+    expect(result.state.outputVoltages).toEqual({});
+  });
+
   it('resets on a changed sketch and remains byte-for-byte deterministic', () => {
     const firstSource = 'int count = 0; void loop() { count += 1; delay(5); }';
     const changedSource = 'int count = 40; void loop() { count += 2; delay(5); }';

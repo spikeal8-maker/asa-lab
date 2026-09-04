@@ -88,6 +88,24 @@ void loop() {
     expect(diagnostics).toEqual([]);
   });
 
+  it('shows supported-subset syntax errors as blocking code diagnostics', () => {
+    const diagnostics = analyseArduinoSourceSupport(`
+      void setup() { pinMode(13, OUTPUT); }
+      void loop() {
+        digitalWrite(13, HIGH)
+      }
+    `);
+
+    expect(diagnostics).toContainEqual(
+      expect.objectContaining({
+        code: 'syntax-error',
+        status: 'unsupported',
+        line: 3,
+        message: expect.stringContaining('точкой с запятой'),
+      }),
+    );
+  });
+
   it('fails closed for unsupported control syntax', () => {
     const diagnostics = analyseArduinoSourceSupport(
       'void loop() { switch (digitalRead(2)) { break; } }',

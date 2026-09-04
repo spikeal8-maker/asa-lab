@@ -46,7 +46,7 @@ export interface ArduinoProgramExecution {
 export const ARDUINO_RUNTIME_STATE_VERSION = 3 as const;
 
 export interface ArduinoRuntimeDiagnostic {
-  readonly code: 'statement_budget_exceeded' | 'loop_advance_budget_exceeded';
+  readonly code: 'compile_error' | 'statement_budget_exceeded' | 'loop_advance_budget_exceeded';
   readonly severity: 'error';
   readonly message: string;
 }
@@ -767,9 +767,47 @@ function splitForHeader(source: string): readonly [string, string, string] {
   return [parts[0] ?? '', parts[1] ?? '', parts[2] ?? ''];
 }
 
+function compileError(diagnostics: string[], message: string): void {
+  if (diagnostics.length === 0) diagnostics.push(message);
+}
+
+function structuralCompileError(source: string): string | null {
+  const stack: Array<{ readonly character: '(' | '{'; readonly index: number }> = [];
+  let quote: '"' | "'" | null = null;
+  for (let index = 0; index < source.length; index += 1) {
+    const character = source[index] ?? '';
+    if (quote) {
+      if (character === '\\') index += 1;
+      else if (character === quote) quote = null;
+      continue;
+    }
+    if (character === '"' || character === "'") {
+      quote = character;
+      continue;
+    }
+    if (character === '(' || character === '{') {
+      stack.push({ character, index });
+      continue;
+    }
+    if (character !== ')' && character !== '}') continue;
+    const expected = character === ')' ? '(' : '{';
+    const opening = stack.pop();
+    if (!opening || opening.character !== expected) {
+      return `Ошибка синтаксиса Arduino: лишняя закрывающая скобка «${character}».`;
+    }
+  }
+  if (quote) return 'Ошибка синтаксиса Arduino: строка или символ не закрыты кавычкой.';
+  const opening = stack.pop();
+  if (!opening) return null;
+  const expected = opening.character === '(' ? ')' : '}';
+  return `Ошибка синтаксиса Arduino: для «${opening.character}» не найдена закрывающая скобка «${expected}».`;
+}
+
 function compileStatements(
   source: string,
   instructions: CompiledInstruction[] = [],
+  diagnostics: string[] = [],
+  scope: 'setup' | 'loop' = 'loop',
 ): readonly CompiledInstruction[] {
   let index = 0;
   while (index < source.length) {
@@ -785,21 +823,41 @@ function compileStatements(
     if (control) {
       let cursor = skipWhitespace(source, index + control[0].length);
       const condition = balancedSlice(source, cursor, '(', ')');
-      if (!condition) break;
+      if (!condition) {
+        compileError(
+          diagnostics,
+          `Ошибка синтаксиса в ${scope}(): после ${control[1]} ожидается условие в круглых скобках.`,
+        );
+        break;
+      }
       cursor = skipWhitespace(source, condition.end);
       const body = balancedSlice(source, cursor, '{', '}');
-      if (!body) break;
+      if (!body) {
+        compileError(
+          diagnostics,
+          `Ошибка синтаксиса в ${scope}(): после ${control[1]} ожидается блок в фигурных скобках.`,
+        );
+        break;
+      }
       cursor = skipWhitespace(source, body.end);
       let elseBody: { readonly content: string; readonly end: number } | null = null;
       if (control[1] === 'if' && /^else\b/.test(source.slice(cursor))) {
         cursor = skipWhitespace(source, cursor + 4);
         elseBody = balancedSlice(source, cursor, '{', '}');
         if (elseBody) cursor = elseBody.end;
+        else if (!/^if\b/.test(source.slice(cursor))) {
+          compileError(
+            diagnostics,
+            `Ошибка синтаксиса в ${scope}(): после else ожидается блок в фигурных скобках.`,
+          );
+          break;
+        }
       }
 
       const branchIndex = instructions.length;
       instructions.push({ kind: 'branch', condition: condition.content, falseTarget: -1 });
-      compileStatements(body.content, instructions);
+      compileStatements(body.content, instructions, diagnostics, scope);
+      if (diagnostics.length > 0) break;
       if (control[1] === 'while') {
         instructions.push({ kind: 'jump', target: branchIndex });
         (instructions[branchIndex] as BranchInstruction).falseTarget = instructions.length;
@@ -807,7 +865,8 @@ function compileStatements(
         const jumpIndex = instructions.length;
         instructions.push({ kind: 'jump', target: -1 });
         (instructions[branchIndex] as BranchInstruction).falseTarget = instructions.length;
-        compileStatements(elseBody.content, instructions);
+        compileStatements(elseBody.content, instructions, diagnostics, scope);
+        if (diagnostics.length > 0) break;
         (instructions[jumpIndex] as JumpInstruction).target = instructions.length;
       } else {
         (instructions[branchIndex] as BranchInstruction).falseTarget = instructions.length;
@@ -818,15 +877,35 @@ function compileStatements(
     if (/^for\b/.test(remaining)) {
       let cursor = skipWhitespace(source, index + 3);
       const header = balancedSlice(source, cursor, '(', ')');
-      if (!header) break;
+      if (!header) {
+        compileError(
+          diagnostics,
+          `Ошибка синтаксиса в ${scope}(): после for ожидаются круглые скобки.`,
+        );
+        break;
+      }
       cursor = skipWhitespace(source, header.end);
       const body = balancedSlice(source, cursor, '{', '}');
-      if (!body) break;
+      if (!body) {
+        compileError(
+          diagnostics,
+          `Ошибка синтаксиса в ${scope}(): после for ожидается блок в фигурных скобках.`,
+        );
+        break;
+      }
+      if ((header.content.match(/;/g) ?? []).length !== 2) {
+        compileError(
+          diagnostics,
+          `Ошибка синтаксиса в ${scope}(): заголовок for должен содержать две точки с запятой.`,
+        );
+        break;
+      }
       const [initialization, condition, increment] = splitForHeader(header.content);
       if (initialization) instructions.push({ kind: 'simple', statement: initialization });
       const branchIndex = instructions.length;
       instructions.push({ kind: 'branch', condition: condition || '1', falseTarget: -1 });
-      compileStatements(body.content, instructions);
+      compileStatements(body.content, instructions, diagnostics, scope);
+      if (diagnostics.length > 0) break;
       if (increment) instructions.push({ kind: 'simple', statement: increment });
       instructions.push({ kind: 'jump', target: branchIndex });
       (instructions[branchIndex] as BranchInstruction).falseTarget = instructions.length;
@@ -841,7 +920,15 @@ function compileStatements(
       if (source[end] === ')') depth -= 1;
       if (source[end] === ';' && depth === 0) break;
     }
-    if (end >= source.length) break;
+    if (end >= source.length) {
+      if (source.slice(index).trim()) {
+        compileError(
+          diagnostics,
+          `Ошибка синтаксиса в ${scope}(): команда должна заканчиваться точкой с запятой.`,
+        );
+      }
+      break;
+    }
     const statement = source.slice(index, end).trim();
     if (statement) instructions.push({ kind: 'simple', statement });
     index = end + 1;
@@ -989,6 +1076,53 @@ function discardLocalVariables(
   }
 }
 
+interface ArduinoProgramCompilation {
+  readonly cleanSource: string;
+  readonly setupInstructions: readonly CompiledInstruction[];
+  readonly loopInstructions: readonly CompiledInstruction[];
+  readonly diagnostics: readonly ArduinoRuntimeDiagnostic[];
+}
+
+function compileArduinoProgram(source: string): ArduinoProgramCompilation {
+  const cleanSource = removeComments(source);
+  const messages: string[] = [];
+  const structuralError = structuralCompileError(cleanSource);
+  if (structuralError) messages.push(structuralError);
+  const declaredSetup = /\bvoid\s+setup\b/i.test(cleanSource);
+  const declaredLoop = /\bvoid\s+loop\b/i.test(cleanSource);
+  const extractedSetupBody = functionBody(cleanSource, 'setup');
+  const extractedLoopBody = functionBody(cleanSource, 'loop');
+  if (!structuralError && declaredSetup && extractedSetupBody === null) {
+    messages.push(
+      'Ошибка синтаксиса Arduino: функция setup() должна иметь корректное тело в фигурных скобках.',
+    );
+  }
+  if (!structuralError && declaredLoop && extractedLoopBody === null) {
+    messages.push(
+      'Ошибка синтаксиса Arduino: функция loop() должна иметь корректное тело в фигурных скобках.',
+    );
+  }
+  const setupBody = extractedSetupBody ?? '';
+  const loopBody = extractedLoopBody ?? (declaredSetup || declaredLoop ? '' : cleanSource);
+  const setupInstructions = compileStatements(setupBody, [], messages, 'setup');
+  const loopInstructions = compileStatements(loopBody, [], messages, 'loop');
+  return {
+    cleanSource,
+    setupInstructions,
+    loopInstructions,
+    diagnostics: messages.map((message) => ({
+      code: 'compile_error',
+      severity: 'error',
+      message,
+    })),
+  };
+}
+
+/** Lightweight syntax pass for the supported Arduino subset; it never executes the sketch. */
+export function analyseArduinoProgramSyntax(source: string): readonly ArduinoRuntimeDiagnostic[] {
+  return compileArduinoProgram(source).diagnostics;
+}
+
 /**
  * Advance the compiled setup/loop continuation through deterministic virtual
  * time. A delay suspends the exact instruction, locals and control flow until
@@ -1002,15 +1136,35 @@ export function advanceArduinoRuntime(
   simulationTimeMs = 0,
   previous?: ArduinoRuntimeState,
 ): ArduinoRuntimeAdvance {
-  const cleanSource = removeComments(source);
-  const setupBody = functionBody(cleanSource, 'setup') ?? '';
-  const loopBody = functionBody(cleanSource, 'loop') ?? cleanSource;
-  const setupInstructions = compileStatements(setupBody);
-  const loopInstructions = compileStatements(loopBody);
+  const compilation = compileArduinoProgram(source);
+  const { cleanSource, setupInstructions, loopInstructions } = compilation;
   const declarations = globalDeclarations(cleanSource);
   const globalNames = new Set(declarations.map((declaration) => declaration.name));
   const fingerprint = programFingerprint(source);
   const targetTimeMs = Math.max(0, finite(simulationTimeMs));
+  if (compilation.diagnostics.length > 0) {
+    return {
+      setupActions: [],
+      loopActions: [],
+      state: {
+        version: ARDUINO_RUNTIME_STATE_VERSION,
+        programFingerprint: fingerprint,
+        virtualTimeMs: targetTimeMs,
+        resumeAtMs: targetTimeMs,
+        phase: 'setup',
+        programCounter: 0,
+        loopIterationActive: false,
+        loopStartedAtMs: targetTimeMs,
+        loopIterations: 0,
+        variables: {},
+        locals: {},
+        pinModes: {},
+        outputVoltages: {},
+        tones: {},
+      },
+      diagnostics: compilation.diagnostics,
+    };
+  }
   const previousInstructionCount =
     previous?.phase === 'setup' ? setupInstructions.length : loopInstructions.length;
   const compatible =
@@ -1144,9 +1298,7 @@ export function advanceArduinoRuntime(
     const consumed = instructionState.statementCount - statementCountBefore;
     advanceStatementCount += consumed;
     continuousStatementCount =
-      resumeAtMs > instructionState.simulationTimeMs
-        ? 0
-        : instructionState.statementCount;
+      resumeAtMs > instructionState.simulationTimeMs ? 0 : instructionState.statementCount;
   }
 
   expireTones(targetTimeMs, tones);

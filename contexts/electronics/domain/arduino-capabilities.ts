@@ -1,3 +1,5 @@
+import { analyseArduinoProgramSyntax } from './arduino-program-runtime.js';
+
 export type ArduinoSupportStatus = 'supported' | 'limited' | 'unsupported';
 
 export interface ArduinoBlockSupport {
@@ -11,6 +13,7 @@ export interface ArduinoSourceSupportDiagnostic {
     | 'member-call'
     | 'unsupported-call'
     | 'unknown-call'
+    | 'syntax-error'
     | 'unsupported-syntax'
     | 'bounded-control-flow'
     | 'averaged-pwm'
@@ -41,7 +44,9 @@ const UNSUPPORTED = (summary: string): ArduinoBlockSupport => ({
  * command that the simulator silently ignores.
  */
 export const ARDUINO_BLOCK_SUPPORT = {
-  asa_setup: LIMITED('setup() выполняется один раз на Reset в пределах поддерживаемого подмножества.'),
+  asa_setup: LIMITED(
+    'setup() выполняется один раз на Reset в пределах поддерживаемого подмножества.',
+  ),
   asa_loop: LIMITED('loop() моделируется ограниченным циклом, а не полным AVR-рантаймом.'),
   asa_wait: SUPPORTED('Задержка управляет фазой виртуального времени симуляции.'),
   asa_repeat: LIMITED('Цикл исполняется по условию в пределах лимита операций.'),
@@ -313,6 +318,18 @@ export function analyseArduinoSourceSupport(
     dedupe.add(key);
     diagnostics.push({ code, status, start, length, message, ...sourcePosition(source, start) });
   };
+
+  for (const syntaxDiagnostic of analyseArduinoProgramSyntax(source)) {
+    const scope = syntaxDiagnostic.message.includes('setup()') ? 'setup' : 'loop';
+    const scopeStart = clean.search(new RegExp(`\\bvoid\\s+${scope}\\b`, 'i'));
+    add(
+      'syntax-error',
+      'unsupported',
+      scopeStart >= 0 ? scopeStart : 0,
+      scopeStart >= 0 ? scope.length : 1,
+      syntaxDiagnostic.message,
+    );
+  }
 
   for (const match of clean.matchAll(/^\s*#\s*(?:include|define|if|ifdef|ifndef|pragma)\b.*$/gim)) {
     const start = match.index ?? 0;

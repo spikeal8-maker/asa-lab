@@ -187,7 +187,7 @@ describe('electrolytic capacitor transient model', () => {
     expect(switched).toMatchObject({
       solved: true,
       status: 'solved',
-      solverRevision: 'asa-electronics-solver-v11',
+      solverRevision: 'asa-electronics-solver-v12',
       quality: { finite: true, passed: true },
       transientState: { version: 2, simulationTimeMs: 200 },
     });

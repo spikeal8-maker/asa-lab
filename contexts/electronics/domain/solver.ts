@@ -158,9 +158,11 @@ export type DiagnosticCode =
   | 'motor_overvoltage'
   | 'motor_stalled'
   | 'component_failed'
+  | 'arduino_program_compile_error'
   | 'arduino_program_unsupported'
   | 'arduino_statement_budget_exceeded'
   | 'arduino_loop_advance_budget_exceeded'
+  | 'arduino_feedback_nonconvergent'
   | 'unsupported_component'
   | 'unsupported_topology'
   | 'numerical_instability'
@@ -1083,8 +1085,9 @@ function arduinoControllerStateIsCompatible(
   }
   const componentIds = state.boards.map((entry) => entry?.componentId);
   return (
-    componentIds.every((componentId) => typeof componentId === 'string' && componentId.length > 0) &&
-    new Set(componentIds).size === componentIds.length
+    componentIds.every(
+      (componentId) => typeof componentId === 'string' && componentId.length > 0,
+    ) && new Set(componentIds).size === componentIds.length
   );
 }
 
@@ -1749,12 +1752,16 @@ export function solveCircuit(
   options: SolveOptions = {},
 ): SolveResult {
   let result = solveCircuitBase(document, options);
-  const inputDrivenBoards = document.components.filter((component) => {
-    if (!isArduinoUno(component)) return false;
-    const source = component.stateProperties?.['arduinoSource'];
-    return typeof source === 'string' && arduinoSourceUsesInputReads(source);
-  });
+  const inputDrivenBoards = document.components
+    .filter((component) => {
+      if (!isArduinoUno(component)) return false;
+      const source = component.stateProperties?.['arduinoSource'];
+      return typeof source === 'string' && arduinoSourceUsesInputReads(source);
+    })
+    .sort((left, right) => (left.id < right.id ? -1 : left.id > right.id ? 1 : 0));
   if (result.solved && inputDrivenBoards.length > 0) {
+    let feedbackSettled = false;
+    let maximumFeedbackDelta = 0;
     for (let iteration = 0; iteration < 4; iteration += 1) {
       const arduinoInputVoltagesById: Record<string, ArduinoTerminalVoltages> = {};
       for (const component of inputDrivenBoards) {
@@ -1769,22 +1776,56 @@ export function solveCircuit(
         result = next;
         break;
       }
-      const settled = inputDrivenBoards.every((component) => {
+      const feedbackDeltas: number[] = [];
+      let settled = true;
+      for (const component of inputDrivenBoards) {
         const before = result.components.find(
           (candidate) => candidate.componentId === component.id,
         );
         const after = next.components.find((candidate) => candidate.componentId === component.id);
-        if (!before || !after) return false;
-        return (component.pinIds ?? []).every(
-          (terminal) =>
-            Math.abs(
-              Number(before.terminalVoltages[terminal] ?? 0) -
-                Number(after.terminalVoltages[terminal] ?? 0),
-            ) <= 1e-6,
-        );
-      });
+        if (!before || !after) {
+          settled = false;
+          continue;
+        }
+        for (const terminal of component.pinIds ?? []) {
+          const delta = Math.abs(
+            Number(before.terminalVoltages[terminal] ?? 0) -
+              Number(after.terminalVoltages[terminal] ?? 0),
+          );
+          feedbackDeltas.push(delta);
+          if (delta > 1e-6) settled = false;
+        }
+      }
+      maximumFeedbackDelta = Math.max(0, ...feedbackDeltas);
       result = next;
-      if (settled) break;
+      if (settled) {
+        feedbackSettled = true;
+        break;
+      }
+    }
+    if (result.solved && !feedbackSettled) {
+      result = {
+        solved: false,
+        status: 'nonconvergent',
+        current: 0,
+        components: [],
+        nodes: [],
+        diagnostics: [
+          ...result.diagnostics,
+          withDiagnosticAnchors({
+            code: 'arduino_feedback_nonconvergent',
+            severity: 'error',
+            message:
+              'Arduino и электрическая схема не пришли к устойчивому состоянию входов и выходов.',
+            componentIds: inputDrivenBoards.map((component) => component.id),
+            suggestedAction:
+              'Уберите мгновенную обратную связь выхода на вход или добавьте в схему устойчивое состояние, задержку либо подтягивающий резистор.',
+          }),
+        ],
+        iterations: result.iterations,
+        numericalResidual: Math.max(result.numericalResidual, maximumFeedbackDelta),
+        numericalTolerance: Math.max(result.numericalTolerance, 1e-6),
+      };
     }
   }
   return addSampledOscilloscopeTraces(document, result);
@@ -1957,18 +1998,69 @@ function solveCircuitStep(
     ...(controllerState ? { controllerState } : {}),
   });
 
+  const arduinoProgramChecks = document.components.flatMap((component) => {
+    if (!isArduinoUno(component)) return [];
+    const source = component.stateProperties?.['arduinoSource'];
+    if (typeof source !== 'string') return [];
+    return [{ component, diagnostics: analyseArduinoSourceSupport(source) }];
+  });
+  const unsupportedArduinoPrograms = arduinoProgramChecks.flatMap((entry) => {
+    const unsupportedDiagnostics = entry.diagnostics.filter(
+      (diagnostic) => diagnostic.status === 'unsupported' && diagnostic.code !== 'syntax-error',
+    );
+    return unsupportedDiagnostics.length > 0
+      ? [{ component: entry.component, diagnostics: unsupportedDiagnostics }]
+      : [];
+  });
+  for (const entry of unsupportedArduinoPrograms) {
+    const first = entry.diagnostics[0];
+    diagnostics.push({
+      code: 'arduino_program_unsupported',
+      severity: 'error',
+      message: `${entry.component.name ?? entry.component.id}: программа Arduino содержит ${entry.diagnostics.length} неподдерживаемых команд. Первая — строка ${first?.line ?? 1}: ${first?.message ?? 'команда не поддерживается.'}`,
+      componentIds: [entry.component.id],
+      suggestedAction:
+        'Откройте редактор кода и замените команды, отмеченные как неподдерживаемые.',
+    });
+  }
+  if (unsupportedArduinoPrograms.length > 0) return empty('unsupported');
+
+  const malformedArduinoPrograms = arduinoProgramChecks.flatMap((entry) => {
+    const syntaxDiagnostics = entry.diagnostics.filter(
+      (diagnostic) => diagnostic.code === 'syntax-error',
+    );
+    return syntaxDiagnostics.length > 0
+      ? [{ component: entry.component, diagnostics: syntaxDiagnostics }]
+      : [];
+  });
+  for (const entry of malformedArduinoPrograms) {
+    const first = entry.diagnostics[0];
+    diagnostics.push({
+      code: 'arduino_program_compile_error',
+      severity: 'error',
+      message: `${entry.component.name ?? entry.component.id}: ошибка программы Arduino в строке ${first?.line ?? 1}. ${first?.message ?? 'Проверьте синтаксис.'}`,
+      componentIds: [entry.component.id],
+      suggestedAction: 'Исправьте синтаксис программы Arduino и снова запустите моделирование.',
+    });
+  }
+  if (malformedArduinoPrograms.length > 0) return empty('invalid');
+
   for (const [componentId, snapshot] of arduinoSnapshots) {
     for (const runtimeDiagnostic of snapshot.diagnostics) {
       diagnostics.push({
         code:
-          runtimeDiagnostic.code === 'statement_budget_exceeded'
-            ? 'arduino_statement_budget_exceeded'
-            : 'arduino_loop_advance_budget_exceeded',
+          runtimeDiagnostic.code === 'compile_error'
+            ? 'arduino_program_compile_error'
+            : runtimeDiagnostic.code === 'statement_budget_exceeded'
+              ? 'arduino_statement_budget_exceeded'
+              : 'arduino_loop_advance_budget_exceeded',
         severity: 'error',
         message: runtimeDiagnostic.message,
         componentIds: [componentId],
         suggestedAction:
-          'Остановите бесконечный цикл или уменьшите объём работы за один шаг симуляции.',
+          runtimeDiagnostic.code === 'compile_error'
+            ? 'Исправьте синтаксис программы Arduino и снова запустите моделирование.'
+            : 'Остановите бесконечный цикл или уменьшите объём работы за один шаг симуляции.',
       });
     }
   }
@@ -2004,29 +2096,6 @@ function solveCircuitStep(
     });
   }
   if (invalidTerminalContracts.length > 0) return empty('invalid');
-  const unsupportedArduinoPrograms = document.components.flatMap((component) => {
-    if (!isArduinoUno(component)) return [];
-    const source = component.stateProperties?.['arduinoSource'];
-    if (typeof source !== 'string') return [];
-    const unsupportedDiagnostics = analyseArduinoSourceSupport(source).filter(
-      (diagnostic) => diagnostic.status === 'unsupported',
-    );
-    return unsupportedDiagnostics.length > 0
-      ? [{ component, diagnostics: unsupportedDiagnostics }]
-      : [];
-  });
-  for (const entry of unsupportedArduinoPrograms) {
-    const first = entry.diagnostics[0];
-    diagnostics.push({
-      code: 'arduino_program_unsupported',
-      severity: 'error',
-      message: `${entry.component.name ?? entry.component.id}: программа Arduino содержит ${entry.diagnostics.length} неподдерживаемых команд. Первая — строка ${first?.line ?? 1}: ${first?.message ?? 'команда не поддерживается.'}`,
-      componentIds: [entry.component.id],
-      suggestedAction:
-        'Откройте редактор кода и замените команды, отмеченные как неподдерживаемые.',
-    });
-  }
-  if (unsupportedArduinoPrograms.length > 0) return empty('unsupported');
   const unsupported = unsupportedElectricalComponents(document.components);
   if (unsupported.length > 0) {
     diagnostics.push({
