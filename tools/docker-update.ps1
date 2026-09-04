@@ -163,13 +163,21 @@ fetch(url, { headers })
     process.exit(1);
   });
 '@
+  $probeBase64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($probe))
   $ciArguments = @(
     'exec', '-T',
     '-e', "GITHUB_REPOSITORY=$repository",
     '-e', "TARGET_SHA=$Revision"
   )
   if ($env:GH_TOKEN) { $ciArguments += @('-e', 'GH_TOKEN') }
-  $ciArguments += @('api', 'node', '-e', $probe)
+  $ciArguments += @(
+    'api',
+    'node',
+    '-e',
+    'eval(Buffer.from(process.argv[1],process.argv[2]).toString())',
+    $probeBase64,
+    'base64'
+  )
   Invoke-Compose @ciArguments
 }
 
