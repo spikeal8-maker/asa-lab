@@ -213,6 +213,8 @@ export function useWorkbenchProjectState(projectId: string) {
     [projectId],
   );
 
+  const getCurrentDocument = useCallback((): SchematicDocument | null => documentRef.current, []);
+
   const initialiseHistory = useCallback((next: SchematicDocument) => {
     historyRef.current = { entries: [cloneJson(next)], cursor: 0 };
     setHistoryTick((value) => value + 1);
@@ -642,6 +644,7 @@ export function useWorkbenchProjectState(projectId: string) {
     document,
     serverRevision: serverRevisionRef.current,
     setDocument,
+    getCurrentDocument,
     result,
     versions,
     status,

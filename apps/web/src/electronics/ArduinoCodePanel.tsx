@@ -1,4 +1,5 @@
 import {
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -42,6 +43,7 @@ import {
   type ArduinoCompletion,
   type ArduinoSourceToken,
 } from './arduino-source-language';
+import { ArduinoCommandReference } from './ArduinoCommandReference';
 import type { ElectronicsWorkbenchController } from './use-electronics-workbench';
 
 const CATEGORY_ITEMS: readonly {
@@ -63,10 +65,12 @@ const ARDUINO_FLYOUT_DEFAULT_WIDTH = 290;
 const ARDUINO_WORKSPACE_MIN_WIDTH = 300;
 const ARDUINO_FLYOUT_STORAGE_KEY = 'asa-lab:electronics:arduino-palette-width-v2';
 const ARDUINO_PALETTE_SCALE_STORAGE_KEY = 'asa-lab:electronics:arduino-palette-scale-v2';
+const ARDUINO_FONT_SIZE_STORAGE_KEY = 'asa-lab:electronics:arduino-font-size-v1';
 const ARDUINO_PALETTE_SCALE_MIN = 0.75;
 const ARDUINO_PALETTE_SCALE_MAX = 1.25;
 const ARDUINO_PALETTE_SCALE_STEP = 0.1;
 const ARDUINO_PALETTE_VISUAL_BASELINE = 1.25;
+const ARDUINO_FONT_SIZES = [12, 13, 14, 15, 16, 18, 20] as const;
 
 function clampArduinoFlyoutWidth(width: number, drawerWidth: number): number {
   const maximum = Math.max(
@@ -86,6 +90,11 @@ function initialArduinoPaletteScale(): number {
   return Number.isFinite(stored) && stored >= ARDUINO_PALETTE_SCALE_MIN
     ? Math.min(ARDUINO_PALETTE_SCALE_MAX, stored)
     : 1;
+}
+
+function initialArduinoFontSize(): number {
+  const stored = Number(localStorage.getItem(ARDUINO_FONT_SIZE_STORAGE_KEY));
+  return ARDUINO_FONT_SIZES.includes(stored as (typeof ARDUINO_FONT_SIZES)[number]) ? stored : 13;
 }
 
 function responsiveFlyoutScale(flyoutWidth: number, userScale: number): number {
@@ -372,18 +381,18 @@ function DownloadIcon(): JSX.Element {
   );
 }
 
-function LibraryIcon(): JSX.Element {
+function CheckIcon(): JSX.Element {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M4 6h16v14H4zM7 3h10l2 3H5zM8 10h8m-8 4h8" />
+      <path d="m4 12 5 5L20 6" />
     </svg>
   );
 }
 
-function TextSizeIcon(): JSX.Element {
+function CommandsIcon(): JSX.Element {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M4 19l4.2-14h2.1l4.2 14M5.5 14h7M15 10h6m-3-3v12" />
+      <path d="M5 4h14v16H5zM8 8h8M8 12h8M8 16h5" />
     </svg>
   );
 }
@@ -1092,24 +1101,36 @@ export function ArduinoCodePanel({
   const [program, setProgram] = useState<ArduinoProgramState>(() =>
     readArduinoProgramState(selectedBoard?.stateProperties),
   );
+  const programRef = useRef(program);
   const [category, setCategory] = useState<ArduinoBlockCategory>('output');
-  const [fontSize, setFontSize] = useState(13);
+  const [fontSize, setFontSize] = useState(initialArduinoFontSize);
+  const [commandReferenceOpen, setCommandReferenceOpen] = useState(false);
   const [pendingMode, setPendingMode] = useState<ArduinoCodeMode | null>(null);
   const modeMenuRef = useRef<HTMLDetailsElement>(null);
-  const persistTimerRef = useRef<number | null>(null);
+  const persistTimersRef = useRef<Map<string, number>>(new Map());
 
-  useEffect(() => {
-    if (!selectedBoard && boards[0]) setBoardId(boards[0].id);
-  }, [boards, selectedBoard]);
-
-  useEffect(() => {
-    setProgram(readArduinoProgramState(selectedBoard?.stateProperties));
+  const activateBoard = useCallback((board: SchematicComponent): void => {
+    const nextProgram = readArduinoProgramState(board.stateProperties);
+    programRef.current = nextProgram;
+    setProgram(nextProgram);
+    setBoardId(board.id);
     setPendingMode(null);
-  }, [selectedBoard?.id]);
+  }, []);
+
+  useEffect(() => {
+    if (boards.length > 0 && !boards.some((board) => board.id === boardId)) {
+      activateBoard(boards[0] as SchematicComponent);
+    }
+  }, [activateBoard, boardId, boards]);
+
+  useEffect(() => {
+    if (preferredBoard?.id && preferredBoard.id !== boardId) activateBoard(preferredBoard);
+  }, [activateBoard, boardId, preferredBoard]);
 
   useEffect(
     () => () => {
-      if (persistTimerRef.current !== null) window.clearTimeout(persistTimerRef.current);
+      for (const timer of persistTimersRef.current.values()) window.clearTimeout(timer);
+      persistTimersRef.current.clear();
     },
     [],
   );
@@ -1122,10 +1143,17 @@ export function ArduinoCodePanel({
     localStorage.setItem(ARDUINO_PALETTE_SCALE_STORAGE_KEY, String(paletteScale));
   }, [paletteScale]);
 
+  useEffect(() => {
+    localStorage.setItem(ARDUINO_FONT_SIZE_STORAGE_KEY, String(fontSize));
+  }, [fontSize]);
+
   function persist(next: ArduinoProgramState): void {
     if (!selectedBoard) return;
-    if (persistTimerRef.current !== null) window.clearTimeout(persistTimerRef.current);
-    persistTimerRef.current = window.setTimeout(() => {
+    const selectedBoardId = selectedBoard.id;
+    const currentTimer = persistTimersRef.current.get(selectedBoardId);
+    if (currentTimer !== undefined) window.clearTimeout(currentTimer);
+    const timer = window.setTimeout(() => {
+      persistTimersRef.current.delete(selectedBoardId);
       const properties: Readonly<Record<string, ProductionStateValue>> = {
         arduinoCodeMode: next.mode,
         arduinoWorkspace: next.workspaceJson,
@@ -1133,16 +1161,16 @@ export function ArduinoCodePanel({
         arduinoSerialOpen: next.serialOpen,
         arduinoBaudRate: next.baudRate,
       };
-      c.updateArduinoProgram(selectedBoard.id, properties);
+      c.updateArduinoProgram(selectedBoardId, properties);
     }, 260);
+    persistTimersRef.current.set(selectedBoardId, timer);
   }
 
   function updateProgram(patch: Partial<ArduinoProgramState>): void {
-    setProgram((current) => {
-      const next = { ...current, ...patch };
-      persist(next);
-      return next;
-    });
+    const next = { ...programRef.current, ...patch };
+    programRef.current = next;
+    setProgram(next);
+    persist(next);
   }
 
   function chooseMode(mode: ArduinoCodeMode): void {
@@ -1172,6 +1200,24 @@ export function ArduinoCodePanel({
     link.download = `${selectedBoard?.name?.trim() || 'arduino-uno'}.ino`;
     link.click();
     URL.revokeObjectURL(url);
+  }
+
+  function checkProgram(): void {
+    const diagnostics = analyseArduinoSourceSupport(program.source);
+    const unsupported = diagnostics.filter((diagnostic) => diagnostic.status === 'unsupported');
+    if (unsupported.length > 0) {
+      c.setNotice(
+        `Проверка Arduino: ${unsupported.length} команд пока не работают. Расчёт будет заблокирован.`,
+      );
+      return;
+    }
+    if (diagnostics.length > 0) {
+      c.setNotice(
+        `Проверка Arduino: код исполняется с ${diagnostics.length} ограничениями модели.`,
+      );
+      return;
+    }
+    c.setNotice('Проверка Arduino: все использованные команды поддерживаются.');
   }
 
   if (!selectedBoard) {
@@ -1220,34 +1266,59 @@ export function ArduinoCodePanel({
         </details>
         <button
           type="button"
+          className="arduino-toolbar-button"
+          onClick={checkProgram}
+          title="Проверить поддержку команд"
+        >
+          <CheckIcon />
+          <span>Проверить</span>
+        </button>
+        <button
+          type="button"
           className="arduino-square-button"
           onClick={downloadSource}
           title="Скачать .ino"
         >
           <DownloadIcon />
         </button>
-        {program.mode === 'text' ? (
-          <button type="button" className="arduino-square-button" title="Библиотеки Arduino">
-            <LibraryIcon />
-          </button>
-        ) : null}
+        <button
+          type="button"
+          className={`arduino-toolbar-button${commandReferenceOpen ? ' active' : ''}`}
+          title="Справочник команд Arduino"
+          aria-expanded={commandReferenceOpen}
+          onClick={() => setCommandReferenceOpen((current) => !current)}
+        >
+          <CommandsIcon />
+          <span>Команды</span>
+        </button>
         {program.mode !== 'blocks' ? (
-          <button
-            type="button"
-            className="arduino-square-button"
-            title="Размер текста"
-            onClick={() => setFontSize((size) => (size >= 17 ? 12 : size + 1))}
-          >
-            <TextSizeIcon />
-            <ChevronDown />
-          </button>
+          <label className="arduino-font-size-select" title="Размер текста">
+            <span aria-hidden="true">Aa</span>
+            <select
+              value={fontSize}
+              onChange={(event) => setFontSize(Number(event.target.value))}
+              aria-label="Размер текста Arduino"
+            >
+              {ARDUINO_FONT_SIZES.map((size) => (
+                <option key={size} value={size}>
+                  {size} px
+                </option>
+              ))}
+            </select>
+          </label>
         ) : null}
         <span className="arduino-code-toolbar-spacer" />
         <select
           className="arduino-board-select"
           value={selectedBoard.id}
           aria-label="Программируемая плата"
-          onChange={(event) => setBoardId(event.target.value)}
+          title={`Активная плата: ${selectedBoard.name?.trim() || 'Arduino Uno R3'}`}
+          onChange={(event) => {
+            const nextBoard = boards.find((board) => board.id === event.target.value);
+            if (!nextBoard) return;
+            activateBoard(nextBoard);
+            c.selectComponent(nextBoard.id, false);
+          }}
         >
           {boards.map((board, index) => (
             <option key={board.id} value={board.id}>
@@ -1256,6 +1327,10 @@ export function ArduinoCodePanel({
           ))}
         </select>
       </header>
+      <ArduinoCommandReference
+        open={commandReferenceOpen}
+        onClose={() => setCommandReferenceOpen(false)}
+      />
       <div className={`arduino-code-body mode-${program.mode}`}>
         {program.mode !== 'text' ? (
           <div className="arduino-block-editor">

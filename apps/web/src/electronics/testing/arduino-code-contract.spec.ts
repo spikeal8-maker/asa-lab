@@ -7,6 +7,10 @@ import { ARDUINO_COMPLETIONS } from '../arduino-source-language';
 const electronicsRoot = resolve(process.cwd(), 'apps/web/src/electronics');
 const blocksSource = readFileSync(resolve(electronicsRoot, 'arduino-blocks.ts'), 'utf8');
 const panelSource = readFileSync(resolve(electronicsRoot, 'ArduinoCodePanel.tsx'), 'utf8');
+const commandReferenceSource = readFileSync(
+  resolve(electronicsRoot, 'ArduinoCommandReference.tsx'),
+  'utf8',
+);
 const controllerSource = readFileSync(
   resolve(electronicsRoot, 'use-electronics-workbench.ts'),
   'utf8',
@@ -197,6 +201,25 @@ describe('Arduino programming room contract', () => {
     expect(panelSource).toContain('arduinoSource: next.source');
     expect(controllerSource).toContain('function updateArduinoProgram(');
     expect(controllerSource).toContain("component.componentTypeId !== 'arduino-uno'");
+  });
+
+  it('keeps the ARD-1 toolbar compact and synchronises multiple boards', () => {
+    expect(panelSource).toContain('Проверить поддержку команд');
+    expect(panelSource).toContain('Справочник команд Arduino');
+    expect(panelSource).toContain('aria-label="Размер текста Arduino"');
+    expect(panelSource).toContain('ARDUINO_FONT_SIZE_STORAGE_KEY');
+    expect(panelSource).toContain('persistTimersRef.current.get(selectedBoardId)');
+    expect(panelSource).toContain('programRef.current = next');
+    expect(panelSource).toContain('const activateBoard = useCallback');
+    expect(panelSource).toContain('preferredBoard.id !== boardId');
+    expect(panelSource).toContain('c.selectComponent(nextBoard.id, false)');
+    expect(controllerSource).toContain('const currentDocument = getCurrentDocument()');
+    expect(panelSource).not.toContain('title="Библиотеки Arduino"');
+    expect(commandReferenceSource).toContain('Поиск команды Arduino');
+    expect(commandReferenceSource).toContain('Категория команд Arduino');
+    expect(commandReferenceSource).toContain('Показываются только фактические возможности');
+    expect(css).toContain('.arduino-command-reference');
+    expect(css).toContain('width: min(440px, 100%);');
   });
 
   it('keeps a collapsible serial monitor with send, clear and baud controls', () => {

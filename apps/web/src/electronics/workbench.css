@@ -3457,7 +3457,7 @@ html.arduino-drawer-resizing * {
   display: flex;
   flex: 0 0 50px;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   padding: 0 9px;
   border-bottom: 1px solid #ccd4da;
   background: #f6f8f9;
@@ -3465,8 +3465,8 @@ html.arduino-drawer-resizing * {
 }
 .arduino-mode-menu {
   position: relative;
-  width: 260px;
-  flex: 0 0 260px;
+  width: 158px;
+  flex: 0 0 158px;
 }
 .arduino-mode-menu > summary,
 .arduino-board-select {
@@ -3503,7 +3503,7 @@ html.arduino-drawer-resizing * {
   top: 40px;
   left: 0;
   display: grid;
-  width: 260px;
+  width: 220px;
   overflow: hidden;
   border: 1px solid #cbd3d9;
   border-radius: 3px;
@@ -3545,6 +3545,34 @@ html.arduino-drawer-resizing * {
   color: #354c5c;
   cursor: pointer;
 }
+.arduino-toolbar-button {
+  display: flex;
+  height: 36px;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  border: 1px solid #d4dce2;
+  border-radius: 3px;
+  background: #fff;
+  color: #354c5c;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.arduino-toolbar-button:hover,
+.arduino-toolbar-button.active {
+  border-color: #8fc5dd;
+  background: #eaf5fa;
+  color: #087fb2;
+}
+.arduino-toolbar-button > svg {
+  width: 17px;
+  height: 17px;
+  flex: 0 0 auto;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+}
 .arduino-square-button:hover {
   background: #eef5f8;
   color: #087fb2;
@@ -3566,8 +3594,190 @@ html.arduino-drawer-resizing * {
   flex: 1;
 }
 .arduino-board-select {
-  min-width: 220px;
-  padding: 0 35px 0 14px;
+  width: clamp(160px, 25%, 240px);
+  min-width: 160px;
+  padding: 0 30px 0 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.arduino-font-size-select {
+  display: flex;
+  height: 36px;
+  align-items: center;
+  overflow: hidden;
+  border: 1px solid #d4dce2;
+  border-radius: 3px;
+  background: #fff;
+  color: #354c5c;
+}
+.arduino-font-size-select > span {
+  padding-left: 8px;
+  color: #516774;
+  font-size: 13px;
+  font-weight: 650;
+}
+.arduino-font-size-select > select {
+  width: 66px;
+  height: 34px;
+  padding: 0 5px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-size: 12px;
+  outline: none;
+}
+.arduino-command-reference {
+  position: absolute;
+  z-index: 76;
+  top: 50px;
+  right: 0;
+  bottom: 34px;
+  display: flex;
+  width: min(440px, 100%);
+  box-sizing: border-box;
+  flex-direction: column;
+  border-left: 1px solid #bdc8d0;
+  background: #f7f9fa;
+  box-shadow: -8px 4px 24px rgba(30, 47, 58, 0.18);
+}
+.arduino-command-reference > header {
+  display: flex;
+  min-height: 58px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+  border-bottom: 1px solid #d5dde2;
+  background: #fff;
+}
+.arduino-command-reference > header > div {
+  display: grid;
+  gap: 2px;
+}
+.arduino-command-reference > header strong {
+  color: #243b49;
+  font-size: 15px;
+}
+.arduino-command-reference > header small {
+  color: #6b7c87;
+  font-size: 10px;
+}
+.arduino-command-reference > header button {
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: #536a78;
+  font-size: 24px;
+  cursor: pointer;
+}
+.arduino-command-reference > header button:hover {
+  background: #edf3f6;
+}
+.arduino-command-reference-filters {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 150px;
+  gap: 7px;
+  padding: 10px 10px 6px;
+}
+.arduino-command-reference-filters input,
+.arduino-command-reference-filters select {
+  box-sizing: border-box;
+  min-width: 0;
+  height: 34px;
+  padding: 0 9px;
+  border: 1px solid #c8d2d9;
+  border-radius: 3px;
+  background: #fff;
+  color: #304653;
+  font: inherit;
+  font-size: 12px;
+}
+.arduino-command-reference-count {
+  padding: 0 11px 7px;
+  color: #6a7d89;
+  font-size: 10px;
+}
+.arduino-command-reference-list {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  min-height: 0;
+  padding: 0 10px 12px;
+  overflow: auto;
+}
+.arduino-command-reference-list article {
+  display: grid;
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid #d1dbe1;
+  border-left: 4px solid #2c9d59;
+  border-radius: 4px;
+  background: #fff;
+}
+.arduino-command-reference-list article.support-limited {
+  border-left-color: #d49b1d;
+}
+.arduino-command-reference-list article.support-unsupported {
+  border-left-color: #b44d43;
+  background: #f7f7f7;
+}
+.arduino-command-reference-list article > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+.arduino-command-reference-list article code {
+  color: #075f8b;
+  font:
+    600 12px Consolas,
+    monospace;
+}
+.arduino-command-reference-list article > header span {
+  flex: 0 0 auto;
+  padding: 2px 6px;
+  border-radius: 9px;
+  background: #e4f4e9;
+  color: #236f3c;
+  font-size: 9px;
+  font-weight: 700;
+}
+.arduino-command-reference-list article.support-limited > header span {
+  background: #fff2cc;
+  color: #715916;
+}
+.arduino-command-reference-list article.support-unsupported > header span {
+  background: #f7dedb;
+  color: #913a32;
+}
+.arduino-command-reference-list article p,
+.arduino-command-reference-list article small {
+  margin: 0;
+  color: #526875;
+  font-size: 11px;
+  line-height: 1.35;
+}
+.arduino-command-reference-list article small {
+  color: #71828c;
+}
+.arduino-command-reference-list article pre {
+  margin: 0;
+  padding: 7px;
+  overflow: auto;
+  border-radius: 3px;
+  background: #edf2f4;
+  color: #253d4b;
+  font:
+    11px/1.35 Consolas,
+    monospace;
+  white-space: pre-wrap;
+}
+.arduino-command-reference-empty {
+  margin: 30px 0;
+  color: #6d7f8a;
+  text-align: center;
 }
 .arduino-code-body {
   display: grid;

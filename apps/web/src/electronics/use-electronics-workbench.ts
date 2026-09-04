@@ -156,6 +156,7 @@ export function useElectronicsWorkbench(projectId: string) {
     document,
     serverRevision,
     setDocument,
+    getCurrentDocument,
     result: persistedResult,
     versions,
     status,
@@ -892,8 +893,13 @@ export function useElectronicsWorkbench(projectId: string) {
     componentId: string,
     properties: Readonly<Record<string, ProductionStateValue>>,
   ): void {
-    if (!document) return;
-    const component = document.components.find((item) => item.id === componentId);
+    // Arduino text is persisted after a short debounce. Always merge it into
+    // the newest document instead of the render snapshot captured when the
+    // timer was created; otherwise switching between two boards can restore
+    // the previous source of the first board.
+    const currentDocument = getCurrentDocument();
+    if (!currentDocument) return;
+    const component = currentDocument.components.find((item) => item.id === componentId);
     if (
       !component ||
       (component.componentTypeId !== 'arduino-uno' && component.variantId !== 'arduino-uno')
@@ -901,8 +907,8 @@ export function useElectronicsWorkbench(projectId: string) {
       return;
     }
     commitDocument({
-      ...document,
-      components: document.components.map((item) =>
+      ...currentDocument,
+      components: currentDocument.components.map((item) =>
         item.id === componentId
           ? { ...item, stateProperties: { ...item.stateProperties, ...properties } }
           : item,
