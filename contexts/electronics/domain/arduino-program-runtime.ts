@@ -43,7 +43,7 @@ export interface ArduinoProgramExecution {
   readonly loopActions: readonly ArduinoProgramAction[];
 }
 
-export const ARDUINO_RUNTIME_STATE_VERSION = 2 as const;
+export const ARDUINO_RUNTIME_STATE_VERSION = 3 as const;
 
 export interface ArduinoRuntimeDiagnostic {
   readonly code: 'statement_budget_exceeded' | 'loop_advance_budget_exceeded';
@@ -60,9 +60,14 @@ export interface ArduinoRuntimeState {
   readonly version: typeof ARDUINO_RUNTIME_STATE_VERSION;
   readonly programFingerprint: string;
   readonly virtualTimeMs: number;
-  readonly nextLoopAtMs: number;
+  readonly resumeAtMs: number;
+  readonly phase: 'setup' | 'loop';
+  readonly programCounter: number;
+  readonly loopIterationActive: boolean;
+  readonly loopStartedAtMs: number;
   readonly loopIterations: number;
   readonly variables: Readonly<Record<string, number>>;
+  readonly locals: Readonly<Record<string, number>>;
   readonly pinModes: Readonly<Partial<Record<Terminal, ArduinoPinMode>>>;
   readonly outputVoltages: Readonly<Partial<Record<Terminal, number>>>;
   readonly tones: Readonly<
@@ -76,10 +81,6 @@ export interface ArduinoRuntimeState {
       >
     >
   >;
-  readonly pendingActions: readonly {
-    readonly atMs: number;
-    readonly action: Exclude<ArduinoProgramAction, ArduinoDelayAction>;
-  }[];
 }
 
 export interface ArduinoRuntimeAdvance {
@@ -101,9 +102,27 @@ interface RuntimeState {
   readonly inputs: ArduinoTerminalVoltages;
   readonly actions: ArduinoProgramAction[];
   readonly diagnostics: ArduinoRuntimeDiagnostic[];
-  readonly simulationTimeMs: number;
+  simulationTimeMs: number;
   statementCount: number;
 }
+
+interface SimpleInstruction {
+  readonly kind: 'simple';
+  readonly statement: string;
+}
+
+interface BranchInstruction {
+  readonly kind: 'branch';
+  readonly condition: string;
+  falseTarget: number;
+}
+
+interface JumpInstruction {
+  readonly kind: 'jump';
+  target: number;
+}
+
+type CompiledInstruction = SimpleInstruction | BranchInstruction | JumpInstruction;
 
 const MAX_STATEMENTS = 512;
 const MAX_LOOP_ADVANCES = 4_096;
@@ -133,34 +152,8 @@ function programFingerprint(source: string): string {
     .padStart(8, '0')}`;
 }
 
-function isDigitalTerminal(value: unknown): value is Terminal {
-  return typeof value === 'string' && /^d(?:[0-9]|1[0-3])$/.test(value);
-}
-
-function scheduledActionIsValid(value: unknown): boolean {
-  if (value === null || typeof value !== 'object') return false;
-  const action = value as Partial<Exclude<ArduinoProgramAction, ArduinoDelayAction>>;
-  if (!isDigitalTerminal(action.terminal)) return false;
-  if (action.kind === 'pin-mode') {
-    return action.mode === 'INPUT' || action.mode === 'INPUT_PULLUP' || action.mode === 'OUTPUT';
-  }
-  if (action.kind === 'write') {
-    return (
-      Number.isFinite(action.targetVoltage) &&
-      Number(action.targetVoltage) >= 0 &&
-      Number(action.targetVoltage) <= 5
-    );
-  }
-  if (action.kind === 'tone') {
-    return (
-      Number.isFinite(action.frequencyHz) &&
-      Number(action.frequencyHz) >= 1 &&
-      Number(action.frequencyHz) <= 20_000 &&
-      (action.durationMs === undefined ||
-        (Number.isFinite(action.durationMs) && Number(action.durationMs) >= 0))
-    );
-  }
-  return action.kind === 'no-tone';
+function isArduinoGpioTerminal(value: unknown): value is Terminal {
+  return typeof value === 'string' && /^(?:d(?:[0-9]|1[0-3])|a[0-5])$/.test(value);
 }
 
 function runtimeStateIsValid(state: ArduinoRuntimeState): boolean {
@@ -175,26 +168,38 @@ function runtimeStateIsValid(state: ArduinoRuntimeState): boolean {
     typeof state.programFingerprint === 'string' &&
     Number.isFinite(state.virtualTimeMs) &&
     state.virtualTimeMs >= 0 &&
-    Number.isFinite(state.nextLoopAtMs) &&
-    state.nextLoopAtMs >= 0 &&
+    Number.isFinite(state.resumeAtMs) &&
+    state.resumeAtMs >= 0 &&
+    state.resumeAtMs >= state.virtualTimeMs &&
+    (state.phase === 'setup' || state.phase === 'loop') &&
+    Number.isSafeInteger(state.programCounter) &&
+    state.programCounter >= 0 &&
+    typeof state.loopIterationActive === 'boolean' &&
+    (state.phase === 'loop' || !state.loopIterationActive) &&
+    Number.isFinite(state.loopStartedAtMs) &&
+    state.loopStartedAtMs >= 0 &&
+    state.loopStartedAtMs <= state.resumeAtMs &&
     Number.isSafeInteger(state.loopIterations) &&
     state.loopIterations >= 0 &&
     state.variables !== null &&
     typeof state.variables === 'object' &&
     Object.values(state.variables).every((value) => Number.isFinite(value)) &&
+    state.locals !== null &&
+    typeof state.locals === 'object' &&
+    Object.values(state.locals).every((value) => Number.isFinite(value)) &&
     state.pinModes !== null &&
     typeof state.pinModes === 'object' &&
-    pinModeEntries.every(([terminal]) => isDigitalTerminal(terminal)) &&
+    pinModeEntries.every(([terminal]) => isArduinoGpioTerminal(terminal)) &&
     pinModes.every((mode) => mode === 'INPUT' || mode === 'INPUT_PULLUP' || mode === 'OUTPUT') &&
     state.outputVoltages !== null &&
     typeof state.outputVoltages === 'object' &&
-    outputVoltageEntries.every(([terminal]) => isDigitalTerminal(terminal)) &&
+    outputVoltageEntries.every(([terminal]) => isArduinoGpioTerminal(terminal)) &&
     outputVoltages.every(
       (value) => value !== undefined && Number.isFinite(value) && value >= 0 && value <= 5,
     ) &&
     state.tones !== null &&
     typeof state.tones === 'object' &&
-    toneEntries.every(([terminal]) => isDigitalTerminal(terminal)) &&
+    toneEntries.every(([terminal]) => isArduinoGpioTerminal(terminal)) &&
     tones.every(
       (tone) =>
         tone !== undefined &&
@@ -203,14 +208,6 @@ function runtimeStateIsValid(state: ArduinoRuntimeState): boolean {
         tone.frequencyHz <= 20_000 &&
         (tone.expiresAtMs === undefined ||
           (Number.isFinite(tone.expiresAtMs) && tone.expiresAtMs >= 0)),
-    ) &&
-    Array.isArray(state.pendingActions) &&
-    state.pendingActions.every(
-      (scheduled, index) =>
-        Number.isFinite(scheduled.atMs) &&
-        scheduled.atMs >= state.virtualTimeMs &&
-        scheduledActionIsValid(scheduled.action) &&
-        (index === 0 || scheduled.atMs >= state.pendingActions[index - 1]!.atMs),
     )
   );
 }
@@ -249,57 +246,38 @@ function terminalMap<T>(entries: Readonly<Partial<Record<Terminal, T>>>): Map<Te
   );
 }
 
-type ScheduledArduinoAction = ArduinoRuntimeState['pendingActions'][number];
-
-function scheduleActions(
-  actions: readonly ArduinoProgramAction[],
-  startTimeMs: number,
-): { readonly endTimeMs: number; readonly scheduled: readonly ScheduledArduinoAction[] } {
-  const scheduled: ScheduledArduinoAction[] = [];
-  let cursorMs = startTimeMs;
-  for (const action of actions) {
-    if (action.kind === 'delay') {
-      cursorMs += action.durationMs;
-    } else {
-      scheduled.push({ atMs: cursorMs, action });
-    }
-  }
-  return { endTimeMs: cursorMs, scheduled };
-}
-
-function applyScheduledActions(
-  scheduled: readonly ScheduledArduinoAction[],
+function expireTones(
   targetTimeMs: number,
-  pinModes: Map<Terminal, ArduinoPinMode>,
-  outputVoltages: Map<Terminal, number>,
   tones: Map<Terminal, { readonly frequencyHz: number; readonly expiresAtMs?: number }>,
-): readonly ScheduledArduinoAction[] {
-  const pending: ScheduledArduinoAction[] = [];
-  for (const entry of scheduled) {
-    if (entry.atMs > targetTimeMs) {
-      pending.push(entry);
-      continue;
-    }
-    const action = entry.action;
-    if (action.kind === 'pin-mode') {
-      pinModes.set(action.terminal, action.mode);
-    } else if (action.kind === 'write') {
-      outputVoltages.set(action.terminal, action.targetVoltage);
-    } else if (action.kind === 'tone') {
-      tones.set(action.terminal, {
-        frequencyHz: action.frequencyHz,
-        ...(action.durationMs !== undefined ? { expiresAtMs: entry.atMs + action.durationMs } : {}),
-      });
-    } else {
-      tones.delete(action.terminal);
-    }
-  }
+): void {
   for (const [terminal, tone] of tones) {
     if (tone.expiresAtMs !== undefined && tone.expiresAtMs <= targetTimeMs) {
       tones.delete(terminal);
     }
   }
-  return pending;
+}
+
+function applyRuntimeAction(
+  action: Exclude<ArduinoProgramAction, ArduinoDelayAction>,
+  executionTimeMs: number,
+  pinModes: Map<Terminal, ArduinoPinMode>,
+  outputVoltages: Map<Terminal, number>,
+  tones: Map<Terminal, { readonly frequencyHz: number; readonly expiresAtMs?: number }>,
+): void {
+  if (action.kind === 'pin-mode') {
+    pinModes.set(action.terminal, action.mode);
+  } else if (action.kind === 'write') {
+    outputVoltages.set(action.terminal, action.targetVoltage);
+  } else if (action.kind === 'tone') {
+    tones.set(action.terminal, {
+      frequencyHz: action.frequencyHz,
+      ...(action.durationMs !== undefined
+        ? { expiresAtMs: executionTimeMs + action.durationMs }
+        : {}),
+    });
+  } else {
+    tones.delete(action.terminal);
+  }
 }
 
 function statementBudgetDiagnostic(state: RuntimeState): void {
@@ -789,6 +767,88 @@ function splitForHeader(source: string): readonly [string, string, string] {
   return [parts[0] ?? '', parts[1] ?? '', parts[2] ?? ''];
 }
 
+function compileStatements(
+  source: string,
+  instructions: CompiledInstruction[] = [],
+): readonly CompiledInstruction[] {
+  let index = 0;
+  while (index < source.length) {
+    index = skipWhitespace(source, index);
+    if (index >= source.length) break;
+    if (source[index] === '#') {
+      index = source.indexOf('\n', index);
+      if (index < 0) break;
+      continue;
+    }
+    const remaining = source.slice(index);
+    const control = /^(if|while)\b/.exec(remaining);
+    if (control) {
+      let cursor = skipWhitespace(source, index + control[0].length);
+      const condition = balancedSlice(source, cursor, '(', ')');
+      if (!condition) break;
+      cursor = skipWhitespace(source, condition.end);
+      const body = balancedSlice(source, cursor, '{', '}');
+      if (!body) break;
+      cursor = skipWhitespace(source, body.end);
+      let elseBody: { readonly content: string; readonly end: number } | null = null;
+      if (control[1] === 'if' && /^else\b/.test(source.slice(cursor))) {
+        cursor = skipWhitespace(source, cursor + 4);
+        elseBody = balancedSlice(source, cursor, '{', '}');
+        if (elseBody) cursor = elseBody.end;
+      }
+
+      const branchIndex = instructions.length;
+      instructions.push({ kind: 'branch', condition: condition.content, falseTarget: -1 });
+      compileStatements(body.content, instructions);
+      if (control[1] === 'while') {
+        instructions.push({ kind: 'jump', target: branchIndex });
+        (instructions[branchIndex] as BranchInstruction).falseTarget = instructions.length;
+      } else if (elseBody) {
+        const jumpIndex = instructions.length;
+        instructions.push({ kind: 'jump', target: -1 });
+        (instructions[branchIndex] as BranchInstruction).falseTarget = instructions.length;
+        compileStatements(elseBody.content, instructions);
+        (instructions[jumpIndex] as JumpInstruction).target = instructions.length;
+      } else {
+        (instructions[branchIndex] as BranchInstruction).falseTarget = instructions.length;
+      }
+      index = cursor;
+      continue;
+    }
+    if (/^for\b/.test(remaining)) {
+      let cursor = skipWhitespace(source, index + 3);
+      const header = balancedSlice(source, cursor, '(', ')');
+      if (!header) break;
+      cursor = skipWhitespace(source, header.end);
+      const body = balancedSlice(source, cursor, '{', '}');
+      if (!body) break;
+      const [initialization, condition, increment] = splitForHeader(header.content);
+      if (initialization) instructions.push({ kind: 'simple', statement: initialization });
+      const branchIndex = instructions.length;
+      instructions.push({ kind: 'branch', condition: condition || '1', falseTarget: -1 });
+      compileStatements(body.content, instructions);
+      if (increment) instructions.push({ kind: 'simple', statement: increment });
+      instructions.push({ kind: 'jump', target: branchIndex });
+      (instructions[branchIndex] as BranchInstruction).falseTarget = instructions.length;
+      index = body.end;
+      continue;
+    }
+
+    let depth = 0;
+    let end = index;
+    for (; end < source.length; end += 1) {
+      if (source[end] === '(') depth += 1;
+      if (source[end] === ')') depth -= 1;
+      if (source[end] === ';' && depth === 0) break;
+    }
+    if (end >= source.length) break;
+    const statement = source.slice(index, end).trim();
+    if (statement) instructions.push({ kind: 'simple', statement });
+    index = end + 1;
+  }
+  return instructions;
+}
+
 function executeStatements(source: string, state: RuntimeState): void {
   let index = 0;
   while (index < source.length && state.statementCount < MAX_STATEMENTS) {
@@ -930,10 +990,11 @@ function discardLocalVariables(
 }
 
 /**
- * Advance loop iterations through deterministic virtual time while carrying
- * globals and scheduled output changes outside the saved document. Delays
- * define action boundaries and loop cadence. A loop with no delay receives a
- * 1 ms scheduling quantum so a large time jump stays finite and reproducible.
+ * Advance the compiled setup/loop continuation through deterministic virtual
+ * time. A delay suspends the exact instruction, locals and control flow until
+ * its boundary; later statements are neither evaluated nor applied early. A
+ * loop with no delay receives a 1 ms scheduling quantum so a large time jump
+ * stays finite and reproducible.
  */
 export function advanceArduinoRuntime(
   source: string,
@@ -944,15 +1005,20 @@ export function advanceArduinoRuntime(
   const cleanSource = removeComments(source);
   const setupBody = functionBody(cleanSource, 'setup') ?? '';
   const loopBody = functionBody(cleanSource, 'loop') ?? cleanSource;
+  const setupInstructions = compileStatements(setupBody);
+  const loopInstructions = compileStatements(loopBody);
   const declarations = globalDeclarations(cleanSource);
   const globalNames = new Set(declarations.map((declaration) => declaration.name));
   const fingerprint = programFingerprint(source);
   const targetTimeMs = Math.max(0, finite(simulationTimeMs));
+  const previousInstructionCount =
+    previous?.phase === 'setup' ? setupInstructions.length : loopInstructions.length;
   const compatible =
     previous !== undefined &&
     runtimeStateIsValid(previous) &&
     previous.programFingerprint === fingerprint &&
-    previous.virtualTimeMs <= targetTimeMs;
+    previous.virtualTimeMs <= targetTimeMs &&
+    previous.programCounter <= previousInstructionCount;
   if (compatible && previous.virtualTimeMs === targetTimeMs) {
     return {
       setupActions: [],
@@ -961,7 +1027,12 @@ export function advanceArduinoRuntime(
       diagnostics: [],
     };
   }
-  const variables = compatible ? runtimeVariables(previous.variables) : new Map<string, number>();
+  const variables = compatible
+    ? new Map<string, number>([
+        ...runtimeVariables(previous.variables),
+        ...runtimeVariables(previous.locals),
+      ])
+    : new Map<string, number>();
   const pinModes = compatible
     ? terminalMap(previous.pinModes)
     : new Map<Terminal, ArduinoPinMode>();
@@ -975,64 +1046,114 @@ export function advanceArduinoRuntime(
   const setupActions: ArduinoProgramAction[] = [];
   const loopActions: ArduinoProgramAction[] = [];
   const resetAtMs = previous && previous.virtualTimeMs <= targetTimeMs ? targetTimeMs : 0;
-  let nextLoopAtMs = compatible ? previous.nextLoopAtMs : resetAtMs;
+  let resumeAtMs = compatible ? previous.resumeAtMs : resetAtMs;
+  let phase: ArduinoRuntimeState['phase'] = compatible ? previous.phase : 'setup';
+  let programCounter = compatible ? previous.programCounter : 0;
+  let loopIterationActive = compatible ? previous.loopIterationActive : false;
+  let loopStartedAtMs = compatible ? previous.loopStartedAtMs : resetAtMs;
   let loopIterations = compatible ? previous.loopIterations : 0;
   let advanceStatementCount = 0;
-  let scheduledActions: ScheduledArduinoAction[] = compatible ? [...previous.pendingActions] : [];
+  let continuousStatementCount = 0;
 
   if (!compatible) {
-    const setupState: RuntimeState = {
+    const initializationState: RuntimeState = {
       variables,
       inputs,
-      actions: setupActions,
+      actions: [],
       diagnostics,
       simulationTimeMs: resetAtMs,
       statementCount: 0,
     };
-    initializeGlobals(declarations, setupState);
-    executeStatements(setupBody, setupState);
-    discardLocalVariables(variables, globalNames);
-    advanceStatementCount += setupState.statementCount;
-    const scheduledSetup = scheduleActions(setupActions, resetAtMs);
-    scheduledActions.push(...scheduledSetup.scheduled);
-    nextLoopAtMs = Math.max(nextLoopAtMs, scheduledSetup.endTimeMs);
+    initializeGlobals(declarations, initializationState);
   }
 
-  let advances = 0;
+  let completedLoops = 0;
   while (
-    nextLoopAtMs <= targetTimeMs &&
-    advances < MAX_LOOP_ADVANCES &&
-    advanceStatementCount < MAX_ADVANCE_STATEMENTS
+    resumeAtMs <= targetTimeMs &&
+    completedLoops < MAX_LOOP_ADVANCES &&
+    advanceStatementCount < MAX_ADVANCE_STATEMENTS &&
+    diagnostics.length === 0
   ) {
-    discardLocalVariables(variables, globalNames);
-    const iterationActions: ArduinoProgramAction[] = [];
-    const loopState: RuntimeState = {
+    expireTones(resumeAtMs, tones);
+    const instructions = phase === 'setup' ? setupInstructions : loopInstructions;
+
+    if (phase === 'setup' && programCounter >= instructions.length) {
+      discardLocalVariables(variables, globalNames);
+      phase = 'loop';
+      programCounter = 0;
+      loopIterationActive = false;
+      loopStartedAtMs = resumeAtMs;
+      continuousStatementCount = 0;
+      continue;
+    }
+
+    if (phase === 'loop' && !loopIterationActive) {
+      loopIterationActive = true;
+      loopStartedAtMs = resumeAtMs;
+      loopIterations += 1;
+    }
+
+    if (phase === 'loop' && programCounter >= instructions.length) {
+      discardLocalVariables(variables, globalNames);
+      programCounter = 0;
+      loopIterationActive = false;
+      completedLoops += 1;
+      continuousStatementCount = 0;
+      if (resumeAtMs <= loopStartedAtMs) resumeAtMs = loopStartedAtMs + MIN_LOOP_DURATION_MS;
+      continue;
+    }
+
+    const instruction = instructions[programCounter];
+    if (!instruction) break;
+    if (instruction.kind === 'jump') {
+      programCounter = instruction.target;
+      continue;
+    }
+
+    const actions = phase === 'setup' ? setupActions : loopActions;
+    const instructionState: RuntimeState = {
       variables,
       inputs,
-      actions: iterationActions,
+      actions,
       diagnostics,
-      simulationTimeMs: nextLoopAtMs,
-      statementCount: 0,
+      simulationTimeMs: resumeAtMs,
+      statementCount: continuousStatementCount,
     };
-    executeStatements(loopBody, loopState);
-    discardLocalVariables(variables, globalNames);
-    advanceStatementCount += loopState.statementCount;
-    loopActions.push(...iterationActions);
-    loopIterations += 1;
-    advances += 1;
-    const scheduledLoop = scheduleActions(iterationActions, nextLoopAtMs);
-    scheduledActions.push(...scheduledLoop.scheduled);
-    nextLoopAtMs += Math.max(MIN_LOOP_DURATION_MS, scheduledLoop.endTimeMs - nextLoopAtMs);
-    if (diagnostics.some((entry) => entry.code === 'statement_budget_exceeded')) break;
+    const statementCountBefore = instructionState.statementCount;
+
+    if (instruction.kind === 'branch') {
+      if (!consumeStatement(instructionState)) break;
+      programCounter =
+        evaluate(instruction.condition, instructionState) !== 0
+          ? programCounter + 1
+          : instruction.falseTarget;
+    } else {
+      const actionStart = actions.length;
+      executeSimpleStatement(instruction.statement, instructionState);
+      programCounter += 1;
+      const executionTimeMs = resumeAtMs;
+      for (const action of actions.slice(actionStart)) {
+        if (action.kind === 'delay') {
+          resumeAtMs += action.durationMs;
+          if (action.durationMs > 0) continuousStatementCount = 0;
+        } else {
+          applyRuntimeAction(action, executionTimeMs, pinModes, outputVoltages, tones);
+        }
+      }
+    }
+    const consumed = instructionState.statementCount - statementCountBefore;
+    advanceStatementCount += consumed;
+    continuousStatementCount =
+      resumeAtMs > instructionState.simulationTimeMs
+        ? 0
+        : instructionState.statementCount;
   }
 
-  scheduledActions = [
-    ...applyScheduledActions(scheduledActions, targetTimeMs, pinModes, outputVoltages, tones),
-  ];
+  expireTones(targetTimeMs, tones);
 
   if (
-    nextLoopAtMs <= targetTimeMs &&
-    advances >= MAX_LOOP_ADVANCES &&
+    resumeAtMs <= targetTimeMs &&
+    completedLoops >= MAX_LOOP_ADVANCES &&
     !diagnostics.some((entry) => entry.code === 'statement_budget_exceeded')
   ) {
     diagnostics.push({
@@ -1041,7 +1162,7 @@ export function advanceArduinoRuntime(
       message: `Arduino не успела догнать виртуальное время за ${MAX_LOOP_ADVANCES} проходов loop().`,
     });
   } else if (
-    nextLoopAtMs <= targetTimeMs &&
+    resumeAtMs <= targetTimeMs &&
     advanceStatementCount >= MAX_ADVANCE_STATEMENTS &&
     !diagnostics.some((entry) => entry.code === 'statement_budget_exceeded')
   ) {
@@ -1059,13 +1180,21 @@ export function advanceArduinoRuntime(
       version: ARDUINO_RUNTIME_STATE_VERSION,
       programFingerprint: fingerprint,
       virtualTimeMs: targetTimeMs,
-      nextLoopAtMs,
+      resumeAtMs,
+      phase,
+      programCounter,
+      loopIterationActive,
+      loopStartedAtMs,
       loopIterations,
-      variables: serializableVariables(variables),
+      variables: serializableVariables(
+        new Map([...variables].filter(([name]) => globalNames.has(name))),
+      ),
+      locals: serializableVariables(
+        new Map([...variables].filter(([name]) => !globalNames.has(name))),
+      ),
       pinModes: sortedRecord(pinModes),
       outputVoltages: sortedRecord(outputVoltages),
       tones: sortedRecord(tones),
-      pendingActions: scheduledActions,
     },
     diagnostics,
   };

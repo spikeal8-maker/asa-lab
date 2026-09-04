@@ -57,7 +57,7 @@ export interface SimulationResult extends SolveResult {
   readonly quality: SimulationQuality;
   readonly topologySignature: string;
   readonly simulationInputDigest: string;
-  readonly solverRevision: 'asa-electronics-solver-v10';
+  readonly solverRevision: 'asa-electronics-solver-v11';
   readonly modelSetDigest: string;
   readonly analysis: {
     readonly electricalMode: 'dc' | 'transient';
@@ -292,9 +292,12 @@ function allNumbers(result: SolveResult): readonly number[] {
           result.controllerState.simulationTimeMs,
           ...result.controllerState.boards.flatMap((entry) => [
             entry.runtime.virtualTimeMs,
-            entry.runtime.nextLoopAtMs,
+            entry.runtime.resumeAtMs,
+            entry.runtime.programCounter,
+            entry.runtime.loopStartedAtMs,
             entry.runtime.loopIterations,
             ...Object.values(entry.runtime.variables),
+            ...Object.values(entry.runtime.locals),
             ...Object.values(entry.runtime.outputVoltages).filter(
               (value): value is number => value !== undefined,
             ),
@@ -303,19 +306,6 @@ function allNumbers(result: SolveResult): readonly number[] {
                 ? [tone.frequencyHz, ...(tone.expiresAtMs === undefined ? [] : [tone.expiresAtMs])]
                 : [],
             ),
-            ...entry.runtime.pendingActions.flatMap((scheduled) => [
-              scheduled.atMs,
-              ...(scheduled.action.kind === 'write'
-                ? [scheduled.action.targetVoltage]
-                : scheduled.action.kind === 'tone'
-                  ? [
-                      scheduled.action.frequencyHz,
-                      ...(scheduled.action.durationMs === undefined
-                        ? []
-                        : [scheduled.action.durationMs]),
-                    ]
-                  : []),
-            ]),
           ]),
         ]
       : []),
@@ -694,7 +684,7 @@ export function analyseCircuit(
       quality: failedQuality(),
       topologySignature: compiled.topologySignature,
       simulationInputDigest: inputDigest,
-      solverRevision: 'asa-electronics-solver-v10',
+      solverRevision: 'asa-electronics-solver-v11',
       modelSetDigest: MODEL_SET_DIGEST,
       analysis,
     };
@@ -719,7 +709,7 @@ export function analyseCircuit(
       quality,
       topologySignature: compiled.topologySignature,
       simulationInputDigest: inputDigest,
-      solverRevision: 'asa-electronics-solver-v10',
+      solverRevision: 'asa-electronics-solver-v11',
       modelSetDigest: MODEL_SET_DIGEST,
       analysis,
     };
@@ -731,7 +721,7 @@ export function analyseCircuit(
     quality,
     topologySignature: compiled.topologySignature,
     simulationInputDigest: inputDigest,
-    solverRevision: 'asa-electronics-solver-v10',
+    solverRevision: 'asa-electronics-solver-v11',
     modelSetDigest: MODEL_SET_DIGEST,
     analysis,
   };

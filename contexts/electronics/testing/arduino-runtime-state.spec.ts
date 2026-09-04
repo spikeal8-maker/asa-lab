@@ -78,12 +78,151 @@ describe('Arduino persistent runtime state', () => {
 
     expect(atStart.state.pinModes.d13).toBe('OUTPUT');
     expect(atStart.state.outputVoltages.d13).toBe(5);
-    expect(atStart.state.pendingActions).toHaveLength(1);
+    expect(atStart.state).toMatchObject({
+      phase: 'loop',
+      programCounter: 2,
+      resumeAtMs: 100,
+    });
     expect(beforeLow.state.outputVoltages.d13).toBe(5);
     expect(atLow.state.outputVoltages.d13).toBe(0);
     expect(beforeNextLoop.state.outputVoltages.d13).toBe(0);
     expect(atNextLoop.state.outputVoltages.d13).toBe(5);
     expect(atNextLoop.state.loopIterations).toBe(2);
+  });
+
+  it('resumes after delay before mutating globals or evaluating the next branch', () => {
+    const source = `
+      int count = 0;
+      long observedAt = -1;
+      void setup() { pinMode(13, OUTPUT); }
+      void loop() {
+        count++;
+        digitalWrite(13, HIGH);
+        delay(100);
+        count += 10;
+        observedAt = millis();
+        if (count == 11) {
+          digitalWrite(13, LOW);
+        } else {
+          digitalWrite(13, HIGH);
+        }
+        delay(100);
+      }
+    `;
+
+    const atStart = advanceArduinoRuntime(source, {}, 0);
+    const beforeResume = advanceArduinoRuntime(source, {}, 99, atStart.state);
+    const atResume = advanceArduinoRuntime(source, {}, 100, beforeResume.state);
+    const beforeNextIteration = advanceArduinoRuntime(source, {}, 199, atResume.state);
+    const nextIteration = advanceArduinoRuntime(source, {}, 200, beforeNextIteration.state);
+
+    expect(atStart.state.variables).toMatchObject({ count: 1, observedAt: -1 });
+    expect(beforeResume.state.variables).toMatchObject({ count: 1, observedAt: -1 });
+    expect(atResume.state.variables).toMatchObject({ count: 11, observedAt: 100 });
+    expect(atResume.state.outputVoltages.d13).toBe(0);
+    expect(beforeNextIteration.state.variables.count).toBe(11);
+    expect(nextIteration.state.variables.count).toBe(12);
+    expect(nextIteration.state.outputVoltages.d13).toBe(5);
+  });
+
+  it('keeps loop locals and control flow suspended across a delay', () => {
+    const source = `
+      int total = 0;
+      void loop() {
+        for (int index = 0; index < 3; index++) {
+          delay(10);
+          total += index + 1;
+        }
+        delay(100);
+      }
+    `;
+
+    const atStart = advanceArduinoRuntime(source, {}, 0);
+    const afterFirstDelay = advanceArduinoRuntime(source, {}, 10, atStart.state);
+    const afterSecondDelay = advanceArduinoRuntime(source, {}, 20, afterFirstDelay.state);
+    const afterThirdDelay = advanceArduinoRuntime(source, {}, 30, afterSecondDelay.state);
+
+    expect(atStart.state.variables.total).toBe(0);
+    expect(atStart.state.locals.index).toBe(0);
+    expect(afterFirstDelay.state.variables.total).toBe(1);
+    expect(afterFirstDelay.state.locals.index).toBe(1);
+    expect(afterSecondDelay.state.variables.total).toBe(3);
+    expect(afterSecondDelay.state.locals.index).toBe(2);
+    expect(afterThirdDelay.state.variables.total).toBe(6);
+    expect(afterThirdDelay.state.locals.index).toBe(3);
+  });
+
+  it('samples a changed digital input when execution actually resumes', () => {
+    const source = `
+      void setup() { pinMode(13, OUTPUT); }
+      void loop() {
+        delay(100);
+        digitalWrite(13, digitalRead(2));
+        delay(100);
+      }
+    `;
+    const lowInput = { d2: 0, 'power-5v': 5, 'power-gnd-1': 0 } as const;
+    const highInput = { d2: 5, 'power-5v': 5, 'power-gnd-1': 0 } as const;
+
+    const atStart = advanceArduinoRuntime(source, lowInput, 0);
+    const atResume = advanceArduinoRuntime(source, highInput, 100, atStart.state);
+
+    expect(atStart.state.outputVoltages.d13).toBe(0);
+    expect(atResume.state.outputVoltages.d13).toBe(5);
+  });
+
+  it('finishes a delayed setup before starting the first loop iteration', () => {
+    const source = `
+      int phaseValue = 0;
+      void setup() {
+        pinMode(13, OUTPUT);
+        phaseValue = 1;
+        delay(50);
+        phaseValue = 2;
+        digitalWrite(13, HIGH);
+      }
+      void loop() {
+        phaseValue += 1;
+        delay(100);
+      }
+    `;
+
+    const atStart = advanceArduinoRuntime(source, {}, 0);
+    const beforeSetupResume = advanceArduinoRuntime(source, {}, 49, atStart.state);
+    const afterSetupResume = advanceArduinoRuntime(source, {}, 50, beforeSetupResume.state);
+
+    expect(atStart.state).toMatchObject({
+      phase: 'setup',
+      loopIterations: 0,
+      variables: { phaseValue: 1 },
+      outputVoltages: { d13: 0 },
+    });
+    expect(beforeSetupResume.state.variables.phaseValue).toBe(1);
+    expect(afterSetupResume.state).toMatchObject({
+      phase: 'loop',
+      loopIterations: 1,
+      variables: { phaseValue: 3 },
+      outputVoltages: { d13: 5 },
+    });
+  });
+
+  it('expires a duration-limited tone while the sketch is suspended', () => {
+    const source = `
+      void loop() {
+        tone(8, 440, 50);
+        delay(100);
+        noTone(8);
+        delay(100);
+      }
+    `;
+
+    const atStart = advanceArduinoRuntime(source, {}, 0);
+    const beforeExpiry = advanceArduinoRuntime(source, {}, 49, atStart.state);
+    const atExpiry = advanceArduinoRuntime(source, {}, 50, beforeExpiry.state);
+
+    expect(atStart.state.tones.d8?.frequencyHz).toBe(440);
+    expect(beforeExpiry.state.tones.d8?.frequencyHz).toBe(440);
+    expect(atExpiry.state.tones.d8).toBeUndefined();
   });
 
   it('executes finite for and while loops with bounded C++ semantics', () => {
