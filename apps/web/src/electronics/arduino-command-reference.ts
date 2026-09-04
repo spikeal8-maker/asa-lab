@@ -1,13 +1,27 @@
 import {
+  ARDUINO_LANGUAGE_FEATURE_SUPPORT,
   ARDUINO_TEXT_COMMAND_SUPPORT,
   type ArduinoSupportStatus,
+  type ArduinoLanguageFeature,
   type ArduinoTextCommand,
 } from '@asa-lab/electronics';
 
-export type ArduinoCommandCategory = 'program' | 'io' | 'time' | 'math' | 'serial' | 'constant';
+export type ArduinoCommandCategory =
+  | 'basics'
+  | 'control'
+  | 'logic'
+  | 'types'
+  | 'program'
+  | 'io'
+  | 'time'
+  | 'math'
+  | 'serial'
+  | 'constant';
 
 export interface ArduinoCommandReferenceEntry {
-  readonly command: ArduinoTextCommand;
+  readonly id: string;
+  readonly command: string;
+  readonly title: string;
   readonly signature: string;
   readonly category: ArduinoCommandCategory;
   readonly status: ArduinoSupportStatus;
@@ -17,8 +31,19 @@ export interface ArduinoCommandReferenceEntry {
 }
 
 export const ARDUINO_SNIPPET_MIME = 'application/x-asa-arduino-snippet';
+export const ARDUINO_EDITOR_PADDING_TOP = 10;
+
+export interface ArduinoSnippetDropTarget {
+  readonly lineIndex: number;
+  readonly position: number;
+  readonly top: number;
+}
 
 export const ARDUINO_COMMAND_CATEGORY_LABELS: Readonly<Record<ArduinoCommandCategory, string>> = {
+  basics: 'Основы C++',
+  control: 'Условия и циклы',
+  logic: 'Сравнения и логика',
+  types: 'Типы и переменные',
   program: 'Программа',
   io: 'Ввод и вывод',
   time: 'Время и звук',
@@ -28,6 +53,10 @@ export const ARDUINO_COMMAND_CATEGORY_LABELS: Readonly<Record<ArduinoCommandCate
 };
 
 const ARDUINO_COMMAND_CATEGORY_SEARCH_TERMS: Readonly<Record<ArduinoCommandCategory, string>> = {
+  basics: 'основы c++ комментарий строка скобки точка запятая',
+  control: 'условие если иначе цикл for while switch управление',
+  logic: 'сравнение больше меньше равно не равно и или не логика',
+  types: 'тип данные переменная число целое дробное boolean строка const',
   program: 'программа скетч setup loop',
   io: 'ввод вывод gpio pin',
   time: 'время таймер звук tone',
@@ -38,8 +67,43 @@ const ARDUINO_COMMAND_CATEGORY_SEARCH_TERMS: Readonly<Record<ArduinoCommandCateg
 
 type ArduinoCommandReferenceMetadata = Omit<
   ArduinoCommandReferenceEntry,
-  'command' | 'status' | 'summary'
+  'id' | 'command' | 'title' | 'status' | 'summary'
 >;
+
+const ARDUINO_COMMAND_TITLES = {
+  setup: 'Настройка при запуске',
+  loop: 'Повторяющаяся программа',
+  pinMode: 'Режим цифрового вывода',
+  digitalWrite: 'Запись цифрового уровня',
+  digitalRead: 'Чтение цифрового входа',
+  analogRead: 'Чтение аналогового входа',
+  analogWrite: 'Запись ШИМ-уровня',
+  delay: 'Пауза в миллисекундах',
+  delayMicroseconds: 'Пауза в микросекундах',
+  tone: 'Включить звуковой тон',
+  noTone: 'Остановить звуковой тон',
+  map: 'Перенести число в диапазон',
+  constrain: 'Ограничить число',
+  abs: 'Модуль числа',
+  min: 'Меньшее из двух чисел',
+  max: 'Большее из двух чисел',
+  millis: 'Время симуляции',
+  micros: 'Микросекундное время',
+  pulseIn: 'Длительность импульса',
+  random: 'Случайное число',
+  randomSeed: 'Начальное значение случайных чисел',
+  'Serial.begin': 'Открыть последовательный порт',
+  'Serial.print': 'Напечатать без переноса',
+  'Serial.println': 'Напечатать с новой строки',
+  'Serial.available': 'Проверить входящие данные',
+  'Serial.read': 'Прочитать входящие данные',
+  HIGH: 'Высокий логический уровень',
+  LOW: 'Низкий логический уровень',
+  INPUT: 'Цифровой вход',
+  INPUT_PULLUP: 'Вход с подтяжкой',
+  OUTPUT: 'Цифровой выход',
+  LED_BUILTIN: 'Встроенный светодиод',
+} as const satisfies Readonly<Record<ArduinoTextCommand, string>>;
 
 const REFERENCE_METADATA = {
   setup: {
@@ -236,13 +300,221 @@ const REFERENCE_METADATA = {
   },
 } as const satisfies Readonly<Record<ArduinoTextCommand, ArduinoCommandReferenceMetadata>>;
 
+type ArduinoLanguageReferenceMetadata = Omit<
+  ArduinoCommandReferenceEntry,
+  'id' | 'status' | 'summary'
+>;
+
+const LANGUAGE_REFERENCE_METADATA = {
+  comment: {
+    command: 'comment',
+    title: 'Комментарий',
+    signature: '// текст или /* текст */',
+    category: 'basics',
+    limits: 'Комментарий нужен человеку и не меняет электрический расчёт.',
+    example: '// Включаем светодиод на D13',
+  },
+  statement: {
+    command: 'statement',
+    title: 'Строка команды и блок',
+    signature: 'команда;  { команды }',
+    category: 'basics',
+    limits:
+      'Простая команда заканчивается точкой с запятой; фигурные скобки нужны вокруг тела setup, loop, if и поддерживаемых циклов.',
+    example: 'digitalWrite(13, HIGH);',
+  },
+  'type-int': {
+    command: 'int',
+    title: 'Целое число',
+    signature: 'int имя = значение;',
+    category: 'types',
+    limits:
+      'Подходит для показаний 0–1023 и других целых значений; переполнение AVR пока не имитируется.',
+    example: 'int sensor = analogRead(A0);',
+  },
+  'type-long': {
+    command: 'long',
+    title: 'Большое целое число',
+    signature: 'long / unsigned long',
+    category: 'types',
+    limits:
+      'Используйте для времени и больших целых чисел; точная 32-битная арифметика AVR пока не имитируется.',
+    example: 'unsigned long now = millis();',
+  },
+  'type-float': {
+    command: 'float',
+    title: 'Дробное число',
+    signature: 'float / double',
+    category: 'types',
+    limits:
+      'Дроби вычисляются, но различие float и double как на настоящем Uno не воспроизводится.',
+    example: 'float voltage = analogRead(A0) * 5.0 / 1023.0;',
+  },
+  'type-bool': {
+    command: 'bool',
+    title: 'Логическое значение',
+    signature: 'bool имя = true;',
+    category: 'types',
+    limits: 'true соответствует 1, false — 0; значение хранится только в текущем пересчёте.',
+    example: 'bool pressed = digitalRead(2) == LOW;',
+  },
+  'type-byte': {
+    command: 'byte',
+    title: 'Число для байта',
+    signature: 'byte имя = значение;',
+    category: 'types',
+    limits:
+      'Объявление работает, но автоматическое ограничение диапазоном 0–255 пока не моделируется.',
+    example: 'byte brightness = 128;',
+  },
+  'type-text': {
+    command: 'String',
+    title: 'Символы и строки',
+    signature: 'char / String',
+    category: 'types',
+    limits:
+      'Текст можно написать в редакторе, но электрический runtime пока не исполняет строковые операции.',
+    example: 'String message = "Привет";',
+  },
+  constant: {
+    command: 'const',
+    title: 'Именованная константа',
+    signature: 'const тип имя = значение;',
+    category: 'types',
+    limits: 'Значение читается, но runtime пока не запрещает его случайное изменение позже.',
+    example: 'const int ledPin = 13;',
+  },
+  assignment: {
+    command: 'assignment',
+    title: 'Записать или изменить переменную',
+    signature: '=  +=  -=  *=  /=',
+    category: 'types',
+    limits: 'Переменные не сохраняют состояние между независимыми пересчётами схемы.',
+    example: 'counter += 1;',
+  },
+  if: {
+    command: 'if',
+    title: 'Выполнить при условии',
+    signature: 'if (условие) { ... }',
+    category: 'control',
+    limits: 'Тело выполняется, только когда числовое условие не равно нулю.',
+    example: 'if (digitalRead(2) == HIGH) {\n  digitalWrite(13, HIGH);\n}',
+  },
+  'if-else': {
+    command: 'if-else',
+    title: 'Выбрать одну из двух ветвей',
+    signature: 'if (...) { ... } else { ... }',
+    category: 'control',
+    limits:
+      'Поддерживается обычный if/else с фигурными скобками; цепочка else if пока не подтверждена.',
+    example:
+      'if (digitalRead(2) == HIGH) {\n  digitalWrite(13, HIGH);\n} else {\n  digitalWrite(13, LOW);\n}',
+  },
+  for: {
+    command: 'for',
+    title: 'Цикл со счётчиком',
+    signature: 'for (начало; условие; шаг) { ... }',
+    category: 'control',
+    limits:
+      'Для безопасности тело выполняется один раз; это не полноценный цикл настоящего контроллера.',
+    example: 'for (int i = 0; i < 3; i += 1) {\n  digitalWrite(13, HIGH);\n}',
+  },
+  while: {
+    command: 'while',
+    title: 'Цикл пока условие истинно',
+    signature: 'while (условие) { ... }',
+    category: 'control',
+    limits: 'Условие проверяется, но тело выполняется не более одного раза за расчёт.',
+    example: 'while (digitalRead(2) == HIGH) {\n  digitalWrite(13, HIGH);\n}',
+  },
+  switch: {
+    command: 'switch',
+    title: 'Выбор из нескольких вариантов',
+    signature: 'switch (value) { case ... }',
+    category: 'control',
+    limits: 'Редактор показывает синтаксис, но симуляция такую конструкцию сейчас блокирует.',
+    example: 'switch (value) {\n  case 1: digitalWrite(13, HIGH); break;\n}',
+  },
+  'do-while': {
+    command: 'do-while',
+    title: 'Цикл с проверкой в конце',
+    signature: 'do { ... } while (...);',
+    category: 'control',
+    limits: 'Конструкция пока не исполняется электрическим runtime.',
+    example: 'do {\n  counter += 1;\n} while (counter < 3);',
+  },
+  comparison: {
+    command: 'comparison',
+    title: 'Больше и меньше',
+    signature: '<  <=  >  >=',
+    category: 'logic',
+    limits: 'Результат сравнения — 1 (истина) или 0 (ложь).',
+    example: 'if (analogRead(A0) >= 512) {\n  digitalWrite(13, HIGH);\n}',
+  },
+  equality: {
+    command: 'equality',
+    title: 'Равно и не равно',
+    signature: '==  !=',
+    category: 'logic',
+    limits: 'Для сравнения используйте ==; один знак = записывает значение в переменную.',
+    example: 'bool released = digitalRead(2) != LOW;',
+  },
+  'logical-and': {
+    command: 'logical-and',
+    title: 'Логическое И',
+    signature: 'условие1 && условие2',
+    category: 'logic',
+    limits: 'Истина получается, только когда истинны оба условия.',
+    example: 'if (sensor > 300 && sensor < 700) {\n  digitalWrite(13, HIGH);\n}',
+  },
+  'logical-or': {
+    command: 'logical-or',
+    title: 'Логическое ИЛИ',
+    signature: 'условие1 || условие2',
+    category: 'logic',
+    limits: 'Истина получается, когда истинно хотя бы одно условие.',
+    example: 'if (button1 == HIGH || button2 == HIGH) {\n  digitalWrite(13, HIGH);\n}',
+  },
+  'logical-not': {
+    command: 'logical-not',
+    title: 'Логическое НЕ',
+    signature: '!условие',
+    category: 'logic',
+    limits: 'Меняет истину на ложь и ложь на истину.',
+    example: 'if (!pressed) {\n  digitalWrite(13, LOW);\n}',
+  },
+  arithmetic: {
+    command: 'arithmetic',
+    title: 'Арифметические действия',
+    signature: '+  -  *  /  %',
+    category: 'math',
+    limits: 'Деление и остаток от деления на ноль дают безопасный ноль, а не ошибку платы.',
+    example: 'int average = (left + right) / 2;',
+  },
+} as const satisfies Readonly<Record<ArduinoLanguageFeature, ArduinoLanguageReferenceMetadata>>;
+
+export const ARDUINO_LANGUAGE_REFERENCE: readonly ArduinoCommandReferenceEntry[] = (
+  Object.keys(ARDUINO_LANGUAGE_FEATURE_SUPPORT) as ArduinoLanguageFeature[]
+).map((feature) => ({
+  id: `language:${feature}`,
+  ...LANGUAGE_REFERENCE_METADATA[feature],
+  ...ARDUINO_LANGUAGE_FEATURE_SUPPORT[feature],
+}));
+
 export const ARDUINO_COMMAND_REFERENCE: readonly ArduinoCommandReferenceEntry[] = (
   Object.keys(ARDUINO_TEXT_COMMAND_SUPPORT) as ArduinoTextCommand[]
 ).map((command) => ({
+  id: `command:${command}`,
   command,
+  title: ARDUINO_COMMAND_TITLES[command],
   ...REFERENCE_METADATA[command],
   ...ARDUINO_TEXT_COMMAND_SUPPORT[command],
 }));
+
+export const ARDUINO_REFERENCE_ENTRIES: readonly ArduinoCommandReferenceEntry[] = [
+  ...ARDUINO_LANGUAGE_REFERENCE,
+  ...ARDUINO_COMMAND_REFERENCE,
+];
 
 export function arduinoSupportStatusLabel(status: ArduinoSupportStatus): string {
   if (status === 'supported') return 'Работает';
@@ -255,11 +527,12 @@ export function filterArduinoCommandReference(
   category: ArduinoCommandCategory | 'all',
 ): readonly ArduinoCommandReferenceEntry[] {
   const needle = query.trim().toLocaleLowerCase('ru');
-  return ARDUINO_COMMAND_REFERENCE.filter((entry) => {
+  return ARDUINO_REFERENCE_ENTRIES.filter((entry) => {
     if (category !== 'all' && entry.category !== category) return false;
     if (!needle) return true;
     return [
       entry.command,
+      entry.title,
       entry.signature,
       entry.summary,
       entry.limits,
@@ -286,5 +559,34 @@ export function insertArduinoSnippet(
   return {
     source: `${before}${insertion}${after}`,
     cursor: before.length + insertion.length,
+  };
+}
+
+export function arduinoSnippetDropTarget(
+  source: string,
+  pointerY: number,
+  scrollTop: number,
+  fontSize: number,
+): ArduinoSnippetDropTarget {
+  const lineHeight = Math.max(1, fontSize * 1.45);
+  const lineCount = source.split('\n').length;
+  const lineIndex = Math.max(
+    0,
+    Math.min(
+      lineCount,
+      Math.round((pointerY + scrollTop - ARDUINO_EDITOR_PADDING_TOP) / lineHeight),
+    ),
+  );
+  let position = source.length;
+  if (lineIndex < lineCount) {
+    position = 0;
+    for (let index = 0; index < lineIndex; index += 1) {
+      position = source.indexOf('\n', position) + 1;
+    }
+  }
+  return {
+    lineIndex,
+    position,
+    top: ARDUINO_EDITOR_PADDING_TOP + lineIndex * lineHeight - scrollTop,
   };
 }

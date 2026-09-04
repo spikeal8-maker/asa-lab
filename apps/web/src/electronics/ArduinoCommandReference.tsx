@@ -50,8 +50,13 @@ function CommandReferenceItem({
               : 'Вставка доступна в текстовом режиме'
           }
         >
-          <span aria-hidden="true">⋮⋮</span>
-          <code>{entry.signature}</code>
+          <span className="arduino-command-grip" aria-hidden="true">
+            ⋮⋮
+          </span>
+          <span className="arduino-command-label">
+            <strong>{entry.title}</strong>
+            <code>{entry.signature}</code>
+          </span>
         </button>
         <span className="arduino-command-status">{arduinoSupportStatusLabel(entry.status)}</span>
         <button
@@ -164,11 +169,11 @@ export function ArduinoCommandReference({
             </h3>
             {group.entries.map((entry) => (
               <CommandReferenceItem
-                key={entry.command}
+                key={entry.id}
                 entry={entry}
-                expanded={expandedCommands.has(entry.command)}
+                expanded={expandedCommands.has(entry.id)}
                 canInsert={canInsert}
-                onExpandedChange={() => toggleExpanded(entry.command)}
+                onExpandedChange={() => toggleExpanded(entry.id)}
                 onInsert={onInsert}
               />
             ))}

@@ -222,6 +222,8 @@ describe('Arduino programming room contract', () => {
     expect(commandReferenceSource).toContain('ARDUINO_COMMAND_CATEGORY_LABELS');
     expect(panelSource).toContain('ARDUINO_SNIPPET_MIME');
     expect(panelSource).toContain('insertArduinoSnippet(source, snippet, position)');
+    expect(panelSource).toContain('arduinoSnippetDropTarget(');
+    expect(panelSource).toContain('Вставить перед строкой');
     expect(panelSource).toContain('event.dataTransfer.getData(ARDUINO_SNIPPET_MIME)');
     expect(commandReferenceSource).toContain(
       'event.dataTransfer.setData(ARDUINO_SNIPPET_MIME, entry.example)',
@@ -230,6 +232,9 @@ describe('Arduino programming room contract', () => {
     expect(css).toContain('align-self: center;');
     expect(css).toContain('.arduino-command-reference');
     expect(css).toContain('border-right: 1px solid #bdc8d0;');
+    expect(css).toContain('.arduino-snippet-drop-line');
+    expect(css).not.toContain('Отпустите, чтобы вставить команду');
+    expect(commandReferenceSource).toContain('entry.title');
   });
 
   it('keeps a collapsible serial monitor with send, clear and baud controls', () => {

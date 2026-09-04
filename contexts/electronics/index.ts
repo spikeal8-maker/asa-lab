@@ -192,6 +192,7 @@ export {
 } from './domain/switch-topology.js';
 export {
   ARDUINO_BLOCK_SUPPORT,
+  ARDUINO_LANGUAGE_FEATURE_SUPPORT,
   ARDUINO_TEXT_COMMAND_SUPPORT,
   analyseArduinoSourceSupport,
   arduinoBlockSupport,
@@ -199,6 +200,7 @@ export {
   arduinoTextCommandSupport,
   type ArduinoBlockSupport,
   type ArduinoBlockType,
+  type ArduinoLanguageFeature,
   type ArduinoSourceSupportDiagnostic,
   type ArduinoSupportStatus,
   type ArduinoTextCommand,

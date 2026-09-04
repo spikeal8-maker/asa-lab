@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   ARDUINO_BLOCK_SUPPORT,
+  ARDUINO_LANGUAGE_FEATURE_SUPPORT,
   ARDUINO_TEXT_COMMAND_SUPPORT,
   analyseArduinoSourceSupport,
   arduinoBlockSupport,
@@ -8,6 +9,16 @@ import {
 } from '../domain/arduino-capabilities';
 
 describe('Arduino capability contract', () => {
+  it('publishes the bounded Arduino C++ language subset', () => {
+    expect(ARDUINO_LANGUAGE_FEATURE_SUPPORT.if.status).toBe('supported');
+    expect(ARDUINO_LANGUAGE_FEATURE_SUPPORT.comparison.status).toBe('supported');
+    expect(ARDUINO_LANGUAGE_FEATURE_SUPPORT['logical-or'].status).toBe('supported');
+    expect(ARDUINO_LANGUAGE_FEATURE_SUPPORT.for.status).toBe('limited');
+    expect(ARDUINO_LANGUAGE_FEATURE_SUPPORT['type-int'].status).toBe('limited');
+    expect(ARDUINO_LANGUAGE_FEATURE_SUPPORT['type-text'].status).toBe('unsupported');
+    expect(ARDUINO_LANGUAGE_FEATURE_SUPPORT.switch.status).toBe('unsupported');
+  });
+
   it('classifies representative blocks from the one shared registry', () => {
     expect(arduinoBlockSupport('asa_digital_write').status).toBe('supported');
     expect(arduinoBlockSupport('asa_analog_write').status).toBe('limited');
@@ -71,5 +82,19 @@ void loop() {
         expect.objectContaining({ code: 'unsupported-syntax', status: 'unsupported' }),
       ]),
     );
+  });
+
+  it('fails closed for unsupported text types and else-if chains', () => {
+    const diagnostics = analyseArduinoSourceSupport(`
+      String message = "ready";
+      char marker = 'A';
+      void loop() {
+        if (digitalRead(2)) { digitalWrite(13, HIGH); }
+        else if (digitalRead(3)) { digitalWrite(13, LOW); }
+      }
+    `);
+
+    expect(diagnostics.filter((entry) => entry.code === 'unsupported-syntax')).toHaveLength(3);
+    expect(diagnostics.every((entry) => entry.status === 'unsupported')).toBe(true);
   });
 });

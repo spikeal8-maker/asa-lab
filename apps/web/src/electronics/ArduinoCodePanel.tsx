@@ -45,7 +45,12 @@ import {
   type ArduinoSourceToken,
 } from './arduino-source-language';
 import { ArduinoCommandReference } from './ArduinoCommandReference';
-import { ARDUINO_SNIPPET_MIME, insertArduinoSnippet } from './arduino-command-reference';
+import {
+  ARDUINO_SNIPPET_MIME,
+  arduinoSnippetDropTarget,
+  insertArduinoSnippet,
+  type ArduinoSnippetDropTarget,
+} from './arduino-command-reference';
 import type { ElectronicsWorkbenchController } from './use-electronics-workbench';
 
 const CATEGORY_ITEMS: readonly {
@@ -813,7 +818,7 @@ function ArduinoSourceEditor({
   const [cursor, setCursor] = useState(0);
   const [scroll, setScroll] = useState({ left: 0, top: 0 });
   const [completionIndex, setCompletionIndex] = useState(0);
-  const [snippetDropActive, setSnippetDropActive] = useState(false);
+  const [snippetDropTarget, setSnippetDropTarget] = useState<ArduinoSnippetDropTarget | null>(null);
   const completion = useMemo(
     () => (readOnly ? null : arduinoCompletionsAt(source, cursor)),
     [cursor, readOnly, source],
@@ -876,6 +881,16 @@ function ArduinoSourceEditor({
     return !readOnly && Array.from(event.dataTransfer.types).includes(ARDUINO_SNIPPET_MIME);
   }
 
+  function dropTargetFor(event: DragEvent<HTMLTextAreaElement>): ArduinoSnippetDropTarget {
+    const bounds = event.currentTarget.getBoundingClientRect();
+    return arduinoSnippetDropTarget(
+      source,
+      event.clientY - bounds.top,
+      event.currentTarget.scrollTop,
+      fontSize,
+    );
+  }
+
   function revealDiagnostic(diagnostic: ArduinoSourceSupportDiagnostic): void {
     const textarea = textareaRef.current;
     if (!textarea) return;
@@ -913,7 +928,7 @@ function ArduinoSourceEditor({
   }
   return (
     <div
-      className={`arduino-source-editor${readOnly ? ' read-only' : ''}${supportDiagnostics.length > 0 ? ' has-diagnostics' : ''}${snippetDropActive ? ' snippet-drop-active' : ''}`}
+      className={`arduino-source-editor${readOnly ? ' read-only' : ''}${supportDiagnostics.length > 0 ? ' has-diagnostics' : ''}`}
       style={{ '--arduino-code-size': `${fontSize}px` } as React.CSSProperties}
       ref={editorRef}
     >
@@ -945,22 +960,37 @@ function ArduinoSourceEditor({
         onDragEnter={(event) => {
           if (!acceptsArduinoSnippet(event)) return;
           event.preventDefault();
-          setSnippetDropActive(true);
+          setSnippetDropTarget(dropTargetFor(event));
         }}
         onDragOver={(event) => {
           if (!acceptsArduinoSnippet(event)) return;
           event.preventDefault();
           event.dataTransfer.dropEffect = 'copy';
+          setSnippetDropTarget(dropTargetFor(event));
         }}
-        onDragLeave={() => setSnippetDropActive(false)}
+        onDragLeave={() => setSnippetDropTarget(null)}
         onDrop={(event) => {
           if (!acceptsArduinoSnippet(event)) return;
           event.preventDefault();
-          setSnippetDropActive(false);
+          const target = dropTargetFor(event);
+          setSnippetDropTarget(null);
           const snippet = event.dataTransfer.getData(ARDUINO_SNIPPET_MIME);
-          if (snippet) applySnippet(snippet, event.currentTarget.selectionStart ?? cursor);
+          if (snippet) applySnippet(snippet, target.position);
         }}
       />
+      {snippetDropTarget ? (
+        <div
+          className="arduino-snippet-drop-line"
+          style={{ top: `${snippetDropTarget.top}px` }}
+          aria-hidden="true"
+        >
+          <span>
+            {snippetDropTarget.lineIndex < lines.length
+              ? `Вставить перед строкой ${snippetDropTarget.lineIndex + 1}`
+              : `Добавить строку ${snippetDropTarget.lineIndex + 1}`}
+          </span>
+        </div>
+      ) : null}
       {completion ? (
         <div
           className="arduino-code-suggestions"

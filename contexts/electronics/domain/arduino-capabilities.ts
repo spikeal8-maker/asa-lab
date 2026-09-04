@@ -149,6 +149,44 @@ export const ARDUINO_TEXT_COMMAND_SUPPORT = {
 
 export type ArduinoTextCommand = keyof typeof ARDUINO_TEXT_COMMAND_SUPPORT;
 
+/**
+ * The supported Arduino C++ subset is wider than the function registry above.
+ * Keep language constructs here so the reference panel and tests use the same
+ * product truth as the bounded program runtime.
+ */
+export const ARDUINO_LANGUAGE_FEATURE_SUPPORT = {
+  comment: SUPPORTED('Однострочные и блочные комментарии игнорируются при расчёте.'),
+  statement: SUPPORTED(
+    'Простые команды с точкой с запятой и тела поддерживаемых функций и условий исполняются.',
+  ),
+  'type-int': LIMITED('Целое число исполняется как числовое значение без AVR-переполнения.'),
+  'type-long': LIMITED('long и unsigned long исполняются без точной AVR-разрядности.'),
+  'type-float': LIMITED('float и double исполняются общей числовой моделью JavaScript.'),
+  'type-bool': LIMITED('bool и boolean исполняются как числовые 0 и 1.'),
+  'type-byte': LIMITED('byte исполняется как число без автоматического ограничения 0–255.'),
+  'type-text': UNSUPPORTED('char, String и операции со строками ещё не исполняются.'),
+  constant: LIMITED(
+    'const принимается, но запрет последующего присваивания пока не контролируется.',
+  ),
+  assignment: LIMITED('Переменные живут только внутри одного детерминированного пересчёта.'),
+  if: SUPPORTED('Условие вычисляется, и исполняется подходящая ветвь.'),
+  'if-else': SUPPORTED('Исполняется ровно одна ветвь if/else.'),
+  for: LIMITED(
+    'Тело for исполняется одним ограниченным проходом; заголовок цикла не разворачивается.',
+  ),
+  while: LIMITED('Тело while исполняется не более одного раза за расчёт.'),
+  switch: UNSUPPORTED('switch/case ещё не входит в подтверждённое подмножество.'),
+  'do-while': UNSUPPORTED('do…while ещё не входит в подтверждённое подмножество.'),
+  comparison: SUPPORTED('Поддерживаются <, <=, > и >=.'),
+  equality: SUPPORTED('Поддерживаются == и !=.'),
+  'logical-and': SUPPORTED('Логическое И && поддерживается.'),
+  'logical-or': SUPPORTED('Логическое ИЛИ || поддерживается.'),
+  'logical-not': SUPPORTED('Логическое НЕ ! поддерживается.'),
+  arithmetic: SUPPORTED('Поддерживаются +, −, *, / и %; деление на ноль даёт безопасный ноль.'),
+} as const satisfies Readonly<Record<string, ArduinoBlockSupport>>;
+
+export type ArduinoLanguageFeature = keyof typeof ARDUINO_LANGUAGE_FEATURE_SUPPORT;
+
 export function arduinoTextCommandSupport(command: string): ArduinoBlockSupport {
   return (
     ARDUINO_TEXT_COMMAND_SUPPORT[command as ArduinoTextCommand] ??
@@ -325,6 +363,18 @@ export function analyseArduinoSourceSupport(
       match.index ?? 0,
       match[0].length,
       `${match[0]} не входит в подтверждённое подмножество Arduino C++.`,
+    );
+  }
+
+  for (const match of clean.matchAll(/\b(?:char|String)\b|\belse\s+if\b/g)) {
+    add(
+      'unsupported-syntax',
+      'unsupported',
+      match.index ?? 0,
+      match[0].length,
+      /else\s+if/i.test(match[0])
+        ? 'Цепочка else if ещё не входит в подтверждённое подмножество; используйте один if/else.'
+        : `${match[0]} и строковые операции ещё не исполняются Arduino-рантаймом.`,
     );
   }
 

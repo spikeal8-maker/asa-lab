@@ -3764,7 +3764,7 @@ html.arduino-drawer-resizing * {
 }
 .arduino-command-reference-item > header {
   display: grid;
-  min-height: 38px;
+  min-height: 48px;
   grid-template-columns: minmax(0, 1fr) auto 30px;
   align-items: center;
   gap: 4px;
@@ -3773,7 +3773,7 @@ html.arduino-drawer-resizing * {
 .arduino-command-drag {
   display: flex;
   min-width: 0;
-  height: 32px;
+  min-height: 42px;
   align-items: center;
   gap: 5px;
   padding: 0 4px;
@@ -3789,11 +3789,25 @@ html.arduino-drawer-resizing * {
 .arduino-command-drag[draggable='true']:active {
   cursor: grabbing;
 }
-.arduino-command-drag > span {
+.arduino-command-grip {
   flex: 0 0 auto;
   color: #9aa8b1;
   font-size: 12px;
   letter-spacing: -3px;
+}
+.arduino-command-label {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+  letter-spacing: normal;
+}
+.arduino-command-label strong {
+  overflow: hidden;
+  color: #314b5a;
+  font-size: 11px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .arduino-command-drag code {
   min-width: 0;
@@ -4188,21 +4202,39 @@ html.arduino-palette-resizing * {
   font-size: var(--arduino-code-size);
   line-height: 1.45;
 }
-.arduino-source-editor.snippet-drop-active::after {
+.arduino-snippet-drop-line {
   position: absolute;
   z-index: 8;
-  inset: 8px;
-  display: grid;
-  border: 2px dashed #1396ce;
-  border-radius: 5px;
-  background: rgba(231, 247, 253, 0.86);
-  color: #0879aa;
-  content: 'Отпустите, чтобы вставить команду';
-  font:
-    700 13px Arial,
-    sans-serif;
-  place-items: center;
+  right: 12px;
+  left: 50px;
+  height: 0;
+  border-top: 2px solid #0798d1;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.82);
   pointer-events: none;
+}
+.arduino-snippet-drop-line::before {
+  position: absolute;
+  top: -5px;
+  left: -5px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #0798d1;
+  content: '';
+}
+.arduino-snippet-drop-line > span {
+  position: absolute;
+  right: 0;
+  bottom: 5px;
+  padding: 3px 6px;
+  border-radius: 3px;
+  background: #087fab;
+  box-shadow: 0 1px 3px rgba(26, 56, 71, 0.2);
+  color: #fff;
+  font:
+    700 10px Arial,
+    sans-serif;
+  white-space: nowrap;
 }
 .arduino-code-gutter {
   position: absolute;
