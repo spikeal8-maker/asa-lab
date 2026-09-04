@@ -93,11 +93,17 @@ function Assert-ContainerRunning {
 function Get-ContainerWorkingDirectory {
   param([Parameter(Mandatory = $true)][string]$ContainerId)
 
-  $workingDirectory = (& docker inspect --format '{{ index .Config.Labels "com.docker.compose.project.working_dir" }}' $ContainerId).Trim()
+  $inspectJson = & docker inspect $ContainerId
   if ($LASTEXITCODE -ne 0) {
     throw "Cannot inspect Compose working directory for container $ContainerId."
   }
-  return $workingDirectory
+  $inspect = $inspectJson | ConvertFrom-Json
+  $record = @($inspect)[0]
+  $label = $record.Config.Labels.PSObject.Properties[
+    'com.docker.compose.project.working_dir'
+  ]
+  if (-not $label) { return '' }
+  return [string]$label.Value
 }
 
 function Test-SamePath {
@@ -478,6 +484,15 @@ function Invoke-UpdaterSelfTest {
   }
   if (-not (Test-SamePath $RepoRoot $RepoRoot)) {
     throw 'Updater self-test failed path normalization.'
+  }
+  $inspectFixture = @"
+[{"Config":{"Labels":{"com.docker.compose.project.working_dir":"$($RepoRoot.Replace('\', '\\'))"}}}]
+"@ | ConvertFrom-Json
+  $label = $inspectFixture[0].Config.Labels.PSObject.Properties[
+    'com.docker.compose.project.working_dir'
+  ]
+  if (-not $label -or -not (Test-SamePath ([string]$label.Value) $RepoRoot)) {
+    throw 'Updater self-test failed Compose working-directory label parsing.'
   }
   Write-Host 'Docker updater self-test PASS'
 }
