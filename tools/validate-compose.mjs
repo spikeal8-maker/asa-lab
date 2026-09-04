@@ -152,7 +152,7 @@ const guardedUpdaterSources = [
       'New-DatabaseBackup $backupPath',
       'Invoke-Native git pull --ff-only origin main',
       '$env:ASA_BUILD_REVISION = $newRevision',
-      'Invoke-Compose up -d --build',
+      "Invoke-Compose -Arguments @('up', '-d', '--build')",
       '[void](Wait-ExactReadiness',
     ],
   },

@@ -59,7 +59,7 @@ function Get-ComposeArguments {
 }
 
 function Invoke-Compose {
-  param([Parameter(ValueFromRemainingArguments = $true)][string[]]$Arguments)
+  param([Parameter(Mandatory = $true)][string[]]$Arguments)
 
   & docker @script:ComposeArguments @Arguments
   if ($LASTEXITCODE -ne 0) {
@@ -150,9 +150,11 @@ function New-DatabaseBackup {
 
   $containerPath = "/tmp/asa-lab-update-$([guid]::NewGuid().ToString('N')).dump"
   try {
-    Invoke-Compose exec -T -e "BACKUP_PATH=$containerPath" postgres sh -eu -c `
+    Invoke-Compose -Arguments @(
+      'exec', '-T', '-e', "BACKUP_PATH=$containerPath", 'postgres', 'sh', '-eu', '-c',
       'pg_dump --format=custom --no-owner --no-acl --dbname="$POSTGRES_DB" --username="$POSTGRES_USER" --file="$BACKUP_PATH"; pg_restore --list "$BACKUP_PATH" >/dev/null; chmod 0644 "$BACKUP_PATH"'
-    Invoke-Compose cp "postgres:$containerPath" $OutputPath
+    )
+    Invoke-Compose -Arguments @('cp', "postgres:$containerPath", $OutputPath)
   }
   finally {
     & docker @script:ComposeArguments exec -T -e "BACKUP_PATH=$containerPath" postgres sh -c `
@@ -268,7 +270,7 @@ fetch(url, { headers })
     $probeBase64,
     'base64'
   )
-  Invoke-Compose @ciArguments
+  Invoke-Compose -Arguments $ciArguments
 }
 
 function Wait-ExactReadiness {
@@ -352,7 +354,7 @@ function Invoke-GuardedUpdate {
   }
 
   $script:ComposeArguments = Get-ComposeArguments
-  Invoke-Compose config --quiet
+  Invoke-Compose -Arguments @('config', '--quiet')
   $postgresContainerId = Assert-ContainerRunning 'postgres'
   Assert-CanonicalDatabaseOrigin $postgresContainerId
   $originDrift = @(Get-MixedOriginServices)
@@ -421,8 +423,8 @@ function Invoke-GuardedUpdate {
 
   $receiptPath = Join-Path $backupRoot "update-$stamp-$($newRevision.Substring(0, 8)).receipt.txt"
   try {
-    Invoke-Compose config --quiet
-    Invoke-Compose up -d --build
+    Invoke-Compose -Arguments @('config', '--quiet')
+    Invoke-Compose -Arguments @('up', '-d', '--build')
     [void](Wait-ExactReadiness -Revision $newRevision -SchemaVersion $schemaVersion)
     $remainingOriginDrift = @(Get-MixedOriginServices)
     if ($remainingOriginDrift.Count -gt 0) {
@@ -493,6 +495,13 @@ function Invoke-UpdaterSelfTest {
   ]
   if (-not $label -or -not (Test-SamePath ([string]$label.Value) $RepoRoot)) {
     throw 'Updater self-test failed Compose working-directory label parsing.'
+  }
+  $composeParameter = (Get-Command Invoke-Compose).Parameters['Arguments']
+  $mandatoryAttribute = $composeParameter.Attributes | Where-Object {
+    $_ -is [System.Management.Automation.ParameterAttribute] -and $_.Mandatory
+  }
+  if (-not $composeParameter -or -not $mandatoryAttribute) {
+    throw 'Updater self-test failed explicit Compose argument binding.'
   }
   Write-Host 'Docker updater self-test PASS'
 }
