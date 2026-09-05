@@ -4,6 +4,7 @@ import pg from 'pg';
 import { collectBrowserFailures } from './browser-failures';
 import { loginWithOrganization } from './organization-login';
 import { e2eAdminPool, seedTeacher, type SeededTeacher } from './seed';
+import { createEmptyThreeDDocument, createThreeDNode } from '../contexts/three-d/domain/document';
 
 let admin: pg.Pool;
 let teacher: SeededTeacher;
@@ -535,4 +536,80 @@ test('teacher models, autosaves, reloads and versions an ASA 3D scene', async ({
     fullPage: true,
   });
   failures.assertEmpty();
+});
+
+test('Boolean groups hide, produce empty results and recover after a Worker crash', async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  await loginWithOrganization(page, teacher);
+  await createThreeDProject(page, 'Проверка жизненного цикла Boolean');
+  const viewport = page.getByTestId('asa3d-viewport');
+  const overlay = page.getByTestId('asa3d-manipulator-overlay');
+  const nodes = ['a', 'b'].map((id, index) => {
+    const node = createThreeDNode('box', id);
+    return {
+      ...node,
+      groupId: 'g',
+      groupOperation: 'union' as const,
+      transform: { ...node.transform, position: { x: index * 40, y: 10, z: 0 } },
+    };
+  });
+  const importNodes = async (members: typeof nodes) => {
+    await page.locator('input[type="file"]').setInputFiles({
+      name: 'boolean-regression.asa3d.json',
+      mimeType: 'application/json',
+      buffer: Buffer.from(JSON.stringify({ ...createEmptyThreeDDocument(), nodes: members })),
+    });
+    await expect(
+      page.getByText(`Импортировано объектов: ${members.length}.`, { exact: true }),
+    ).toBeVisible();
+    await dismissNotice(page);
+  };
+
+  await importNodes(nodes);
+  await expect(viewport).toHaveAttribute('data-geometry-worker-state', 'ready');
+  await page.keyboard.press('Control+a');
+  await expect(overlay).toHaveAttribute('data-handle-positions', /resize-height/);
+  await page.keyboard.press('Control+h');
+  await expect(viewport).toHaveAttribute('data-geometry-worker-state', 'idle');
+  await expect(overlay).toHaveAttribute('data-handle-positions', '{"centre":null,"handles":[]}');
+  await page.screenshot({ path: 'e2e/artifacts/three-d/boolean-hidden.png', fullPage: true });
+
+  await page.keyboard.press('Control+Shift+h');
+  await expect(viewport).toHaveAttribute('data-geometry-worker-state', 'ready');
+  await page.keyboard.press('Control+a');
+  await expandShapeInspector(page);
+  await page.getByRole('button', { name: 'Пересечение', exact: true }).click();
+  await expect(viewport).toHaveAttribute('data-geometry-worker-state', 'ready');
+  await expect(overlay).toHaveAttribute('data-handle-positions', '{"centre":null,"handles":[]}');
+  await page.screenshot({
+    path: 'e2e/artifacts/three-d/boolean-empty-intersection.png',
+    fullPage: true,
+  });
+  await page.getByRole('button', { name: 'Объединение', exact: true }).click();
+  await expect(overlay).toHaveAttribute('data-handle-positions', /resize-height/);
+
+  // Fail the real browser Worker's startup, then verify all groups settle and
+  // a subsequent document generation can start a healthy Worker again.
+  const workerUrl = '**/assets/geometry.worker-*.js';
+  await page.route(workerUrl, (route) =>
+    route.fulfill({
+      contentType: 'application/javascript',
+      body: 'throw new Error("Injected Boolean Worker startup failure");',
+    }),
+  );
+  await importNodes([
+    ...nodes,
+    ...nodes.map((node) => ({ ...node, id: `other-${node.id}`, groupId: 'other' })),
+  ]);
+  await expect(viewport).toHaveAttribute('data-geometry-worker-state', 'fallback');
+  await expect(viewport).toHaveAttribute('data-runtime-ready', 'true');
+  await page.unroute(workerUrl);
+  await page.keyboard.press('Control+z');
+  await expect(viewport).toHaveAttribute('data-geometry-worker-state', 'ready');
+  await page.keyboard.press('Control+y');
+  await expect(page.getByText('4 объекта', { exact: true })).toBeVisible();
+  await expect(viewport).toHaveAttribute('data-geometry-worker-state', 'ready');
+  await expect(viewport).not.toHaveAttribute('data-geometry-worker-error', /.+/);
 });

@@ -567,6 +567,7 @@ export function createBooleanMeshFromEvaluation(
   evaluation: EvaluatedBooleanGeometry,
   nodes: readonly ThreeDNode[],
 ): THREE.Mesh | null {
+  if (evaluation.resultKind === 'empty') return null;
   if (
     evaluation.positions.length === 0 ||
     evaluation.normals.length !== evaluation.positions.length

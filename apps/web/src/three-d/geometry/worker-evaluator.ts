@@ -58,8 +58,34 @@ export function evaluateGeometryRequest(request: GeometryEvaluateRequest): Geome
     geometry = createBooleanGeometry(request.operands, request.operation);
     const positionAttribute = geometry?.getAttribute('position');
     const normalAttribute = geometry?.getAttribute('normal');
-    if (!geometry || !positionAttribute || positionAttribute.count === 0 || !normalAttribute) {
-      return failure(request, 'invalid-geometry', 'Boolean operation produced no geometry.');
+    // No visible solid, complete subtraction and disjoint intersection are
+    // valid empty results, not failures that should restore the source solids.
+    if (!geometry || positionAttribute?.count === 0) {
+      return {
+        protocolVersion: THREE_D_GEOMETRY_WORKER_PROTOCOL,
+        requestId: request.requestId,
+        generationId: request.generationId,
+        ok: true,
+        resultKind: 'empty',
+        positions: new ArrayBuffer(0),
+        normals: new ArrayBuffer(0),
+        featureEdges: new ArrayBuffer(0),
+        metrics: {
+          engine: request.engine,
+          computeMs: performance.now() - startedAt,
+          triangleCount: 0,
+          featureEdgeSegmentCount: 0,
+          checksum: checksumFloat32(),
+          bounds: null,
+        },
+      };
+    }
+    if (!positionAttribute || !normalAttribute) {
+      return failure(
+        request,
+        'invalid-geometry',
+        'Boolean operation produced incomplete geometry.',
+      );
     }
 
     const positions = new Float32Array(positionAttribute.array);
@@ -81,6 +107,7 @@ export function evaluateGeometryRequest(request: GeometryEvaluateRequest): Geome
       requestId: request.requestId,
       generationId: request.generationId,
       ok: true,
+      resultKind: 'mesh',
       positions: exactArrayBuffer(positions),
       normals: exactArrayBuffer(normals),
       featureEdges: exactArrayBuffer(featureEdges),

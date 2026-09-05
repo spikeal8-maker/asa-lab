@@ -282,7 +282,7 @@ export class SceneRuntime {
     );
     const groupEntryIds = new Set(
       document.nodes
-        .filter((node) => node.groupId)
+        .filter((node) => node.groupId && node.visible)
         .map((node) => `group:${node.groupId as string}`),
     );
     const incomingIds = new Set([
@@ -316,6 +316,7 @@ export class SceneRuntime {
         this.geometryWorker.cancelActiveGeneration();
         this.container.dataset['geometryWorkerState'] = 'idle';
         delete this.container.dataset['geometryEngine'];
+        delete this.container.dataset['geometryWorkerError'];
       }
     }
     this.syncRuler(document, selectedIds);
@@ -351,6 +352,9 @@ export class SceneRuntime {
       groups.set(node.groupId, group);
     }
     for (const [groupId, nodes] of groups) {
+      // setDocument already removes fully hidden groups and their selection
+      // proxies. Do not let another group's pending work recreate them.
+      if (!nodes.some((node) => node.visible)) continue;
       const operation = nodes[0]?.groupOperation ?? 'union';
       let rendered: THREE.Object3D | null;
       try {
@@ -368,13 +372,16 @@ export class SceneRuntime {
           .forEach((node) => fallback.add(createNodeObject(node)));
         rendered = fallback.children.length > 0 ? fallback : null;
       }
-      if (!rendered) continue;
       const entryId = `group:${groupId}`;
       const existing = this.entries.get(entryId);
       if (existing) {
         existing.object.parent?.remove(existing.object);
         disposeObject(existing.object);
         this.entries.delete(entryId);
+      }
+      if (!rendered) {
+        this.syncRuntimeSelection();
+        continue;
       }
       const bounds = new THREE.Box3().setFromObject(rendered);
       const size = bounds.getSize(new THREE.Vector3());
