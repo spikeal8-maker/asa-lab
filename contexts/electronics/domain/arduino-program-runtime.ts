@@ -43,7 +43,18 @@ export interface ArduinoProgramExecution {
   readonly loopActions: readonly ArduinoProgramAction[];
 }
 
-export const ARDUINO_RUNTIME_STATE_VERSION = 3 as const;
+export const ARDUINO_RUNTIME_STATE_VERSION = 4 as const;
+export const ARDUINO_RUNTIME_EVENT_QUEUE_LIMIT = 256 as const;
+
+export interface ArduinoRuntimeEvent {
+  readonly sequence: number;
+  readonly atMicroseconds: number;
+  readonly kind: 'pin-mode-change' | 'output-change' | 'tone-start' | 'tone-stop';
+  readonly terminal: Terminal;
+  readonly mode?: ArduinoPinMode;
+  readonly voltage?: number;
+  readonly frequencyHz?: number;
+}
 
 export interface ArduinoRuntimeDiagnostic {
   readonly code: 'compile_error' | 'statement_budget_exceeded' | 'loop_advance_budget_exceeded';
@@ -66,6 +77,8 @@ export interface ArduinoRuntimeState {
   readonly loopIterationActive: boolean;
   readonly loopStartedAtMs: number;
   readonly loopIterations: number;
+  readonly nextEventSequence: number;
+  readonly eventQueue: readonly ArduinoRuntimeEvent[];
   readonly variables: Readonly<Record<string, number>>;
   readonly locals: Readonly<Record<string, number>>;
   readonly pinModes: Readonly<Partial<Record<Terminal, ArduinoPinMode>>>;
@@ -86,6 +99,7 @@ export interface ArduinoRuntimeState {
 export interface ArduinoRuntimeAdvance {
   readonly setupActions: readonly ArduinoProgramAction[];
   readonly loopActions: readonly ArduinoProgramAction[];
+  readonly events: readonly ArduinoRuntimeEvent[];
   readonly state: ArduinoRuntimeState;
   readonly diagnostics: readonly ArduinoRuntimeDiagnostic[];
 }
@@ -138,6 +152,10 @@ function clamp(value: number, minimum: number, maximum: number): number {
   return Math.min(maximum, Math.max(minimum, finite(value)));
 }
 
+function microsecondsFromMilliseconds(value: number): number {
+  return Math.min(Number.MAX_SAFE_INTEGER, Math.max(0, Math.round(finite(value) * 1_000)));
+}
+
 function programFingerprint(source: string): string {
   let fnv = 0x811c9dc5;
   let djb = 0x1505;
@@ -181,6 +199,33 @@ function runtimeStateIsValid(state: ArduinoRuntimeState): boolean {
     state.loopStartedAtMs <= state.resumeAtMs &&
     Number.isSafeInteger(state.loopIterations) &&
     state.loopIterations >= 0 &&
+    Number.isSafeInteger(state.nextEventSequence) &&
+    state.nextEventSequence >= 0 &&
+    Array.isArray(state.eventQueue) &&
+    state.eventQueue.length <= ARDUINO_RUNTIME_EVENT_QUEUE_LIMIT &&
+    state.eventQueue.every(
+      (event, index) =>
+        event !== null &&
+        typeof event === 'object' &&
+        Number.isSafeInteger(event.sequence) &&
+        event.sequence >= 0 &&
+        event.sequence < state.nextEventSequence &&
+        (index === 0 || event.sequence > state.eventQueue[index - 1]!.sequence) &&
+        Number.isSafeInteger(event.atMicroseconds) &&
+        event.atMicroseconds >= 0 &&
+        isArduinoGpioTerminal(event.terminal) &&
+        ['pin-mode-change', 'output-change', 'tone-start', 'tone-stop'].includes(event.kind) &&
+        (event.mode === undefined ||
+          event.mode === 'INPUT' ||
+          event.mode === 'INPUT_PULLUP' ||
+          event.mode === 'OUTPUT') &&
+        (event.voltage === undefined ||
+          (Number.isFinite(event.voltage) && event.voltage >= 0 && event.voltage <= 5)) &&
+        (event.frequencyHz === undefined ||
+          (Number.isFinite(event.frequencyHz) &&
+            event.frequencyHz >= 1 &&
+            event.frequencyHz <= 20_000)),
+    ) &&
     state.variables !== null &&
     typeof state.variables === 'object' &&
     Object.values(state.variables).every((value) => Number.isFinite(value)) &&
@@ -249,10 +294,12 @@ function terminalMap<T>(entries: Readonly<Partial<Record<Terminal, T>>>): Map<Te
 function expireTones(
   targetTimeMs: number,
   tones: Map<Terminal, { readonly frequencyHz: number; readonly expiresAtMs?: number }>,
+  emit: (event: Omit<ArduinoRuntimeEvent, 'sequence' | 'atMicroseconds'>, atMs: number) => void,
 ): void {
   for (const [terminal, tone] of tones) {
     if (tone.expiresAtMs !== undefined && tone.expiresAtMs <= targetTimeMs) {
       tones.delete(terminal);
+      emit({ kind: 'tone-stop', terminal }, tone.expiresAtMs);
     }
   }
 }
@@ -263,12 +310,32 @@ function applyRuntimeAction(
   pinModes: Map<Terminal, ArduinoPinMode>,
   outputVoltages: Map<Terminal, number>,
   tones: Map<Terminal, { readonly frequencyHz: number; readonly expiresAtMs?: number }>,
+  emit: (event: Omit<ArduinoRuntimeEvent, 'sequence' | 'atMicroseconds'>, atMs: number) => void,
 ): void {
   if (action.kind === 'pin-mode') {
+    if (pinModes.get(action.terminal) !== action.mode) {
+      emit(
+        { kind: 'pin-mode-change', terminal: action.terminal, mode: action.mode },
+        executionTimeMs,
+      );
+    }
     pinModes.set(action.terminal, action.mode);
   } else if (action.kind === 'write') {
+    if (outputVoltages.get(action.terminal) !== action.targetVoltage) {
+      emit(
+        { kind: 'output-change', terminal: action.terminal, voltage: action.targetVoltage },
+        executionTimeMs,
+      );
+    }
     outputVoltages.set(action.terminal, action.targetVoltage);
   } else if (action.kind === 'tone') {
+    const previous = tones.get(action.terminal);
+    if (previous?.frequencyHz !== action.frequencyHz) {
+      emit(
+        { kind: 'tone-start', terminal: action.terminal, frequencyHz: action.frequencyHz },
+        executionTimeMs,
+      );
+    }
     tones.set(action.terminal, {
       frequencyHz: action.frequencyHz,
       ...(action.durationMs !== undefined
@@ -276,6 +343,9 @@ function applyRuntimeAction(
         : {}),
     });
   } else {
+    if (tones.has(action.terminal)) {
+      emit({ kind: 'tone-stop', terminal: action.terminal }, executionTimeMs);
+    }
     tones.delete(action.terminal);
   }
 }
@@ -1146,6 +1216,7 @@ export function advanceArduinoRuntime(
     return {
       setupActions: [],
       loopActions: [],
+      events: [],
       state: {
         version: ARDUINO_RUNTIME_STATE_VERSION,
         programFingerprint: fingerprint,
@@ -1156,6 +1227,8 @@ export function advanceArduinoRuntime(
         loopIterationActive: false,
         loopStartedAtMs: targetTimeMs,
         loopIterations: 0,
+        nextEventSequence: 0,
+        eventQueue: [],
         variables: {},
         locals: {},
         pinModes: {},
@@ -1177,6 +1250,7 @@ export function advanceArduinoRuntime(
     return {
       setupActions: [],
       loopActions: [],
+      events: [],
       state: previous,
       diagnostics: [],
     };
@@ -1206,6 +1280,25 @@ export function advanceArduinoRuntime(
   let loopIterationActive = compatible ? previous.loopIterationActive : false;
   let loopStartedAtMs = compatible ? previous.loopStartedAtMs : resetAtMs;
   let loopIterations = compatible ? previous.loopIterations : 0;
+  let nextEventSequence = compatible ? previous.nextEventSequence : 0;
+  const eventQueue = compatible ? [...previous.eventQueue] : [];
+  const events: ArduinoRuntimeEvent[] = [];
+  const emit = (
+    event: Omit<ArduinoRuntimeEvent, 'sequence' | 'atMicroseconds'>,
+    atMs: number,
+  ): void => {
+    const sequenced: ArduinoRuntimeEvent = {
+      ...event,
+      sequence: nextEventSequence,
+      atMicroseconds: microsecondsFromMilliseconds(atMs),
+    };
+    nextEventSequence += 1;
+    eventQueue.push(sequenced);
+    events.push(sequenced);
+    if (eventQueue.length > ARDUINO_RUNTIME_EVENT_QUEUE_LIMIT) {
+      eventQueue.splice(0, eventQueue.length - ARDUINO_RUNTIME_EVENT_QUEUE_LIMIT);
+    }
+  };
   let advanceStatementCount = 0;
   let continuousStatementCount = 0;
 
@@ -1228,7 +1321,7 @@ export function advanceArduinoRuntime(
     advanceStatementCount < MAX_ADVANCE_STATEMENTS &&
     diagnostics.length === 0
   ) {
-    expireTones(resumeAtMs, tones);
+    expireTones(resumeAtMs, tones, emit);
     const instructions = phase === 'setup' ? setupInstructions : loopInstructions;
 
     if (phase === 'setup' && programCounter >= instructions.length) {
@@ -1291,7 +1384,7 @@ export function advanceArduinoRuntime(
           resumeAtMs += action.durationMs;
           if (action.durationMs > 0) continuousStatementCount = 0;
         } else {
-          applyRuntimeAction(action, executionTimeMs, pinModes, outputVoltages, tones);
+          applyRuntimeAction(action, executionTimeMs, pinModes, outputVoltages, tones, emit);
         }
       }
     }
@@ -1301,7 +1394,7 @@ export function advanceArduinoRuntime(
       resumeAtMs > instructionState.simulationTimeMs ? 0 : instructionState.statementCount;
   }
 
-  expireTones(targetTimeMs, tones);
+  expireTones(targetTimeMs, tones, emit);
 
   if (
     resumeAtMs <= targetTimeMs &&
@@ -1328,6 +1421,7 @@ export function advanceArduinoRuntime(
   return {
     setupActions,
     loopActions,
+    events,
     state: {
       version: ARDUINO_RUNTIME_STATE_VERSION,
       programFingerprint: fingerprint,
@@ -1338,6 +1432,8 @@ export function advanceArduinoRuntime(
       loopIterationActive,
       loopStartedAtMs,
       loopIterations,
+      nextEventSequence,
+      eventQueue,
       variables: serializableVariables(
         new Map([...variables].filter(([name]) => globalNames.has(name))),
       ),

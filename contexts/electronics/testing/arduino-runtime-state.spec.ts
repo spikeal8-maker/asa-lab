@@ -90,6 +90,57 @@ describe('Arduino persistent runtime state', () => {
     expect(atNextLoop.state.loopIterations).toBe(2);
   });
 
+  it('emits ordered GPIO events and carries a bounded serializable queue', () => {
+    const source = `
+      void setup() { pinMode(13, OUTPUT); }
+      void loop() {
+        digitalWrite(13, HIGH);
+        delay(100);
+        digitalWrite(13, LOW);
+        delay(100);
+      }
+    `;
+
+    const atStart = advanceArduinoRuntime(source, {}, 0);
+    const duplicate = advanceArduinoRuntime(source, {}, 0, atStart.state);
+    const atLow = advanceArduinoRuntime(source, {}, 100, duplicate.state);
+
+    expect(atStart.events).toEqual([
+      expect.objectContaining({
+        sequence: 0,
+        atMicroseconds: 0,
+        kind: 'pin-mode-change',
+        terminal: 'd13',
+        mode: 'OUTPUT',
+      }),
+      expect.objectContaining({
+        sequence: 1,
+        atMicroseconds: 0,
+        kind: 'output-change',
+        terminal: 'd13',
+        voltage: 0,
+      }),
+      expect.objectContaining({
+        sequence: 2,
+        atMicroseconds: 0,
+        kind: 'output-change',
+        terminal: 'd13',
+        voltage: 5,
+      }),
+    ]);
+    expect(duplicate.events).toEqual([]);
+    expect(atLow.events).toEqual([
+      expect.objectContaining({
+        sequence: 3,
+        atMicroseconds: 100_000,
+        kind: 'output-change',
+        voltage: 0,
+      }),
+    ]);
+    expect(atLow.state.nextEventSequence).toBe(4);
+    expect(atLow.state.eventQueue).toEqual([...atStart.events, ...atLow.events]);
+  });
+
   it('resumes after delay before mutating globals or evaluating the next branch', () => {
     const source = `
       int count = 0;
@@ -223,6 +274,34 @@ describe('Arduino persistent runtime state', () => {
     expect(atStart.state.tones.d8?.frequencyHz).toBe(440);
     expect(beforeExpiry.state.tones.d8?.frequencyHz).toBe(440);
     expect(atExpiry.state.tones.d8).toBeUndefined();
+    expect(atStart.events).toContainEqual(
+      expect.objectContaining({ kind: 'tone-start', terminal: 'd8', frequencyHz: 440 }),
+    );
+    expect(atExpiry.events).toContainEqual(
+      expect.objectContaining({
+        kind: 'tone-stop',
+        terminal: 'd8',
+        atMicroseconds: 50_000,
+      }),
+    );
+  });
+
+  it('bounds the persistent event queue without reordering new events', () => {
+    const writes = Array.from(
+      { length: 300 },
+      (_, index) => `digitalWrite(13, ${index % 2 === 0 ? 'LOW' : 'HIGH'});`,
+    ).join('\n');
+    const result = advanceArduinoRuntime(
+      `void setup() { pinMode(13, OUTPUT); } void loop() { ${writes} delay(100); }`,
+      {},
+      0,
+    );
+
+    expect(result.diagnostics).toEqual([]);
+    expect(result.events.length).toBeGreaterThan(256);
+    expect(result.state.eventQueue).toHaveLength(256);
+    expect(result.state.eventQueue.at(-1)?.sequence).toBe(result.state.nextEventSequence - 1);
+    expect(result.state.eventQueue[0]?.sequence).toBe(result.state.nextEventSequence - 256);
   });
 
   it('executes finite for and while loops with bounded C++ semantics', () => {
