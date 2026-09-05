@@ -4,15 +4,8 @@ import { arduinoBlockSupport } from '@asa-lab/electronics';
 export type ArduinoBlockCategory =
   'output' | 'input' | 'comment' | 'control' | 'data' | 'variables';
 
-export type ArduinoCodeMode = 'blocks' | 'blocks-text' | 'text';
-
-export interface ArduinoProgramState {
-  readonly mode: ArduinoCodeMode;
-  readonly workspaceJson: string;
-  readonly source: string;
-  readonly serialOpen: boolean;
-  readonly baudRate: number;
-}
+export { readArduinoProgramState, DEFAULT_ARDUINO_SOURCE } from './arduino-program-state';
+export type { ArduinoCodeMode, ArduinoProgramState } from './arduino-program-state';
 
 export interface ArduinoVariableChoice {
   readonly id: string;
@@ -29,22 +22,6 @@ export function arduinoRenameVariableCallback(variableId: string): string {
 export function arduinoDeleteVariableCallback(variableId: string): string {
   return `DELETE_ARDUINO_VARIABLE:${variableId}`;
 }
-
-export const DEFAULT_ARDUINO_SOURCE = `// C++ code
-//
-void setup()
-{
-  pinMode(LED_BUILTIN, OUTPUT);
-}
-
-void loop()
-{
-  digitalWrite(LED_BUILTIN, HIGH);
-  delay(1000); // Wait for 1000 millisecond(s)
-  digitalWrite(LED_BUILTIN, LOW);
-  delay(1000); // Wait for 1000 millisecond(s)
-}
-`;
 
 const DIGITAL_PINS = Array.from({ length: 14 }, (_, pin) => [String(pin), String(pin)]);
 const PWM_PINS = ['3', '5', '6', '9', '10', '11'].map((pin) => [pin, pin]);
@@ -1411,22 +1388,4 @@ export function createDefaultArduinoBlocks(workspace: ScratchBlocks.WorkspaceSvg
   ledLow.nextConnection?.connect(waitLow.previousConnection);
   setup.moveBy(330, 120);
   loop.moveBy(330, 280);
-}
-
-export function readArduinoProgramState(
-  properties: Readonly<Record<string, string | number | boolean | readonly string[]>> | undefined,
-): ArduinoProgramState {
-  const mode = properties?.['arduinoCodeMode'];
-  const baud = properties?.['arduinoBaudRate'];
-  return {
-    mode: mode === 'blocks-text' || mode === 'text' ? mode : 'blocks',
-    workspaceJson:
-      typeof properties?.['arduinoWorkspace'] === 'string' ? properties['arduinoWorkspace'] : '',
-    source:
-      typeof properties?.['arduinoSource'] === 'string'
-        ? properties['arduinoSource']
-        : DEFAULT_ARDUINO_SOURCE,
-    serialOpen: properties?.['arduinoSerialOpen'] === true,
-    baudRate: typeof baud === 'number' && Number.isFinite(baud) ? baud : 9600,
-  };
 }

@@ -1,12 +1,10 @@
 import type { SchematicComponent, Terminal } from './document.js';
 import {
   advanceArduinoRuntime,
-  executeArduinoProgram,
-  type ArduinoProgramAction,
+  type ArduinoInputReader,
   type ArduinoRuntimeDiagnostic,
   type ArduinoRuntimeState,
   type ArduinoTerminalVoltages,
-  type ArduinoWriteAction,
 } from './arduino-program-runtime.js';
 
 export const ARDUINO_GROUND_TERMINALS = [
@@ -54,13 +52,6 @@ export function isArduinoUno(component: SchematicComponent): boolean {
   return component.componentTypeId === 'arduino-uno' || component.variantId === 'arduino-uno';
 }
 
-function loopCycleDuration(actions: readonly ArduinoProgramAction[]): number {
-  return actions.reduce(
-    (duration, action) => duration + (action.kind === 'delay' ? action.durationMs : 0),
-    0,
-  );
-}
-
 function sourceFor(component: SchematicComponent): string {
   const storedSource = component.stateProperties?.['arduinoSource'];
   return typeof storedSource === 'string' ? storedSource : DEFAULT_ARDUINO_SOURCE;
@@ -75,6 +66,7 @@ export function arduinoRuntimeSnapshot(
   simulationTimeMs = 0,
   inputVoltages: ArduinoTerminalVoltages = {},
   previousState?: ArduinoRuntimeState,
+  readInputs?: ArduinoInputReader,
 ): ArduinoRuntimeSnapshot | null {
   if (!isArduinoUno(component)) return null;
   const advanced = advanceArduinoRuntime(
@@ -82,6 +74,7 @@ export function arduinoRuntimeSnapshot(
     inputVoltages,
     simulationTimeMs,
     previousState,
+    readInputs,
   );
   return {
     state: advanced.state,
@@ -140,7 +133,7 @@ export function arduinoProgrammedToneOutputs(
     previousState,
   );
   return snapshot
-    ? arduinoProgrammedToneOutputsFromSnapshot(component, snapshot, simulationTimeMs, inputVoltages)
+    ? arduinoProgrammedToneOutputsFromSnapshot(component, snapshot, simulationTimeMs)
     : new Map();
 }
 
@@ -148,33 +141,30 @@ export function arduinoProgrammedToneOutputsFromSnapshot(
   component: SchematicComponent,
   snapshot: ArduinoRuntimeSnapshot,
   simulationTimeMs = 0,
-  inputVoltages: ArduinoTerminalVoltages = {},
 ): ReadonlyMap<Terminal, ArduinoToneOutput> {
-  const source = sourceFor(component);
   const tones = new Map(snapshot.tones);
-  const execution = executeArduinoProgram(source, inputVoltages, simulationTimeMs);
-  const loopActions = execution.loopActions;
-  const cycleDurationMs = loopCycleDuration(loopActions);
-
-  const writesByTerminal = new Map<Terminal, ArduinoWriteAction[]>();
-  for (const action of loopActions) {
-    if (action.kind !== 'write') continue;
-    writesByTerminal.set(action.terminal, [
-      ...(writesByTerminal.get(action.terminal) ?? []),
-      action,
-    ]);
-  }
-  for (const [terminal, writes] of writesByTerminal) {
-    if (tones.has(terminal) || writes.length < 2) continue;
-    const levels = new Set(writes.map((write) => write.targetVoltage >= 2.5));
-    if (levels.size < 2) continue;
-    let risingEdges = 0;
-    for (let index = 0; index < writes.length; index += 1) {
-      const previous = writes[(index + writes.length - 1) % writes.length] as ArduinoWriteAction;
-      const current = writes[index] as ArduinoWriteAction;
-      if (previous.targetVoltage < 2.5 && current.targetVoltage >= 2.5) risingEdges += 1;
-    }
-    const frequencyHz = cycleDurationMs > 0 ? (risingEdges * 1000) / cycleDurationMs : 0;
+  // Audio observes actual transitions. It never substitutes a synthetic voltage
+  // source for the GPIO latch and cannot execute future setup/loop instructions.
+  for (const terminal of component.pinIds ?? []) {
+    if (tones.has(terminal) || snapshot.pinModes.get(terminal) !== 'OUTPUT') continue;
+    const edges = snapshot.state.eventQueue.filter(
+      (event) => event.terminal === terminal && event.kind === 'output-change',
+    );
+    const last = edges.slice(-5);
+    if (last.length < 5) continue;
+    const periods = [
+      last[2]!.atMicroseconds - last[0]!.atMicroseconds,
+      last[4]!.atMicroseconds - last[2]!.atMicroseconds,
+    ];
+    if (periods[0]! <= 0 || Math.abs(periods[0]! - periods[1]!) > 1) continue;
+    if (
+      last.some(
+        (event, index) => index > 0 && event.voltage! >= 2.5 === last[index - 1]!.voltage! >= 2.5,
+      )
+    )
+      continue;
+    if (simulationTimeMs * 1000 - last[4]!.atMicroseconds > periods[1]!) continue;
+    const frequencyHz = 1_000_000 / periods[1]!;
     if (frequencyHz >= 20 && frequencyHz <= 20_000) {
       tones.set(terminal, { terminal, frequencyHz, source: 'digital-toggle' });
     }
@@ -202,16 +192,13 @@ export function arduinoOutputBranches(
     inputVoltages,
     previousState,
   );
-  return snapshot
-    ? arduinoOutputBranchesFromSnapshot(component, snapshot, simulationTimeMs, inputVoltages)
-    : [];
+  return snapshot ? arduinoOutputBranchesFromSnapshot(component, snapshot, simulationTimeMs) : [];
 }
 
 export function arduinoOutputBranchesFromSnapshot(
   component: SchematicComponent,
   snapshot: ArduinoRuntimeSnapshot,
   simulationTimeMs = 0,
-  inputVoltages: ArduinoTerminalVoltages = {},
 ): readonly ArduinoOutputBranch[] {
   const pins = new Set(component.pinIds ?? []);
   const ground = ARDUINO_GROUND_TERMINALS.find((terminal) => pins.has(terminal));
@@ -238,14 +225,14 @@ export function arduinoOutputBranchesFromSnapshot(
   }
 
   const programmedOutputs = snapshot.outputs;
-  const programmedTones = arduinoProgrammedToneOutputsFromSnapshot(
-    component,
-    snapshot,
-    simulationTimeMs,
-    inputVoltages,
-  );
+  const programmedTones = snapshot.tones;
   for (const [terminal, targetVoltage] of programmedOutputs) {
-    if (!pins.has(terminal) || programmedTones.has(terminal)) continue;
+    if (
+      !pins.has(terminal) ||
+      programmedTones.has(terminal) ||
+      snapshot.pinModes.get(terminal) !== 'OUTPUT'
+    )
+      continue;
     branches.push({
       id: terminal,
       terminal,
@@ -255,13 +242,7 @@ export function arduinoOutputBranchesFromSnapshot(
     });
   }
   for (const [terminal, mode] of snapshot.pinModes) {
-    if (
-      mode !== 'INPUT_PULLUP' ||
-      !pins.has(terminal) ||
-      programmedOutputs.has(terminal) ||
-      programmedTones.has(terminal)
-    )
-      continue;
+    if (mode !== 'INPUT_PULLUP' || !pins.has(terminal) || programmedTones.has(terminal)) continue;
     branches.push({
       id: terminal,
       terminal,

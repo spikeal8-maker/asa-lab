@@ -10,9 +10,10 @@ import {
   arduinoProgrammedToneOutputsFromSnapshot,
   arduinoRuntimeSnapshot,
   isArduinoUno,
+  type ArduinoRuntimeSnapshot,
 } from './arduino-model.js';
 import {
-  arduinoSourceUsesInputReads,
+  advanceArduinoRuntime,
   type ArduinoRuntimeState,
   type ArduinoTerminalVoltages,
 } from './arduino-program-runtime.js';
@@ -374,6 +375,8 @@ interface InternalSolveOptions extends SolveOptions {
   readonly suppressOscilloscopeTrace?: boolean;
   readonly arduinoInputVoltagesById?: Readonly<Record<string, ArduinoTerminalVoltages>>;
   readonly arduinoRuntimeStateById?: Readonly<Record<string, ArduinoRuntimeState>>;
+  /** Internal read-only electrical solve: never advances the controller. */
+  readonly heldArduinoSnapshots?: ReadonlyMap<string, ArduinoRuntimeSnapshot>;
 }
 
 const GMIN = 1e-12;
@@ -1751,84 +1754,7 @@ export function solveCircuit(
   document: ElectronicsDocument,
   options: SolveOptions = {},
 ): SolveResult {
-  let result = solveCircuitBase(document, options);
-  const inputDrivenBoards = document.components
-    .filter((component) => {
-      if (!isArduinoUno(component)) return false;
-      const source = component.stateProperties?.['arduinoSource'];
-      return typeof source === 'string' && arduinoSourceUsesInputReads(source);
-    })
-    .sort((left, right) => (left.id < right.id ? -1 : left.id > right.id ? 1 : 0));
-  if (result.solved && inputDrivenBoards.length > 0) {
-    let feedbackSettled = false;
-    let maximumFeedbackDelta = 0;
-    for (let iteration = 0; iteration < 4; iteration += 1) {
-      const arduinoInputVoltagesById: Record<string, ArduinoTerminalVoltages> = {};
-      for (const component of inputDrivenBoards) {
-        const componentResult = result.components.find(
-          (candidate) => candidate.componentId === component.id,
-        );
-        if (componentResult)
-          arduinoInputVoltagesById[component.id] = componentResult.terminalVoltages;
-      }
-      const next = solveCircuitBase(document, { ...options, arduinoInputVoltagesById });
-      if (!next.solved) {
-        result = next;
-        break;
-      }
-      const feedbackDeltas: number[] = [];
-      let settled = true;
-      for (const component of inputDrivenBoards) {
-        const before = result.components.find(
-          (candidate) => candidate.componentId === component.id,
-        );
-        const after = next.components.find((candidate) => candidate.componentId === component.id);
-        if (!before || !after) {
-          settled = false;
-          continue;
-        }
-        for (const terminal of component.pinIds ?? []) {
-          const delta = Math.abs(
-            Number(before.terminalVoltages[terminal] ?? 0) -
-              Number(after.terminalVoltages[terminal] ?? 0),
-          );
-          feedbackDeltas.push(delta);
-          if (delta > 1e-6) settled = false;
-        }
-      }
-      maximumFeedbackDelta = Math.max(0, ...feedbackDeltas);
-      result = next;
-      if (settled) {
-        feedbackSettled = true;
-        break;
-      }
-    }
-    if (result.solved && !feedbackSettled) {
-      result = {
-        solved: false,
-        status: 'nonconvergent',
-        current: 0,
-        components: [],
-        nodes: [],
-        diagnostics: [
-          ...result.diagnostics,
-          withDiagnosticAnchors({
-            code: 'arduino_feedback_nonconvergent',
-            severity: 'error',
-            message:
-              'Arduino и электрическая схема не пришли к устойчивому состоянию входов и выходов.',
-            componentIds: inputDrivenBoards.map((component) => component.id),
-            suggestedAction:
-              'Уберите мгновенную обратную связь выхода на вход или добавьте в схему устойчивое состояние, задержку либо подтягивающий резистор.',
-          }),
-        ],
-        iterations: result.iterations,
-        numericalResidual: Math.max(result.numericalResidual, maximumFeedbackDelta),
-        numericalTolerance: Math.max(result.numericalTolerance, 1e-6),
-      };
-    }
-  }
-  return addSampledOscilloscopeTraces(document, result);
+  return addSampledOscilloscopeTraces(document, solveCircuitBase(document, options));
 }
 
 function capacitorTransientStateIsCompatible(
@@ -1935,20 +1861,74 @@ function solveCircuitStep(
   );
   const sources = sourceDevices.map((device) => device.instance.component);
   const simulationTimeMs = options.simulationTimeMs ?? 0;
-  const arduinoSnapshots = new Map(
-    document.components
-      .filter((component) => isArduinoUno(component) && !failedComponentIds.has(component.id))
-      .sort((left, right) => (left.id < right.id ? -1 : left.id > right.id ? 1 : 0))
-      .flatMap((component) => {
-        const snapshot = arduinoRuntimeSnapshot(
-          component,
-          simulationTimeMs,
-          options.arduinoInputVoltagesById?.[component.id],
-          options.arduinoRuntimeStateById?.[component.id],
-        );
-        return snapshot ? ([[component.id, snapshot]] as const) : [];
-      }),
-  );
+  const heldSnapshots = new Map(options.heldArduinoSnapshots);
+  if (!options.heldArduinoSnapshots) {
+    for (const component of document.components.filter(isArduinoUno)) {
+      const state =
+        options.arduinoRuntimeStateById?.[component.id] ?? advanceArduinoRuntime('').state;
+      heldSnapshots.set(component.id, {
+        state,
+        diagnostics: [],
+        outputs: new Map(Object.entries(state.outputVoltages) as [Terminal, number][]),
+        pinModes: new Map(
+          Object.entries(state.pinModes) as [Terminal, 'INPUT' | 'INPUT_PULLUP' | 'OUTPUT'][],
+        ),
+        tones: new Map(
+          Object.entries(state.tones).map(([terminal, tone]) => [
+            terminal as Terminal,
+            {
+              terminal: terminal as Terminal,
+              frequencyHz: tone!.frequencyHz,
+              source: 'tone' as const,
+            },
+          ]),
+        ),
+      });
+    }
+  }
+  let inputFailure: SolveResult | undefined;
+  const arduinoSnapshots =
+    options.heldArduinoSnapshots ??
+    new Map(
+      document.components
+        .filter((component) => isArduinoUno(component) && !failedComponentIds.has(component.id))
+        .sort((left, right) => (left.id < right.id ? -1 : left.id > right.id ? 1 : 0))
+        .flatMap((component) => {
+          const snapshot = arduinoRuntimeSnapshot(
+            component,
+            simulationTimeMs,
+            options.arduinoInputVoltagesById?.[component.id],
+            options.arduinoRuntimeStateById?.[component.id],
+            (electricalState) => {
+              const frozen = heldSnapshots.get(component.id)!;
+              heldSnapshots.set(component.id, {
+                ...frozen,
+                outputs: new Map(electricalState.outputVoltages),
+                pinModes: new Map(electricalState.pinModes),
+                tones: new Map(
+                  [...electricalState.tones].map(([terminal, tone]) => [
+                    terminal,
+                    { terminal, frequencyHz: tone.frequencyHz, source: 'tone' as const },
+                  ]),
+                ),
+              });
+              const sampled = solveCircuitStep(document, {
+                ...options,
+                simulationTimeMs: electricalState.simulationTimeMs,
+                heldArduinoSnapshots: heldSnapshots,
+                suppressOscilloscopeTrace: true,
+              });
+              if (!sampled.solved) inputFailure = sampled;
+              return (
+                sampled.components.find((entry) => entry.componentId === component.id)
+                  ?.terminalVoltages ?? {}
+              );
+            },
+          );
+          if (snapshot) heldSnapshots.set(component.id, snapshot);
+          return snapshot ? ([[component.id, snapshot]] as const) : [];
+        }),
+    );
   const controllerState: ArduinoControllerState | undefined =
     arduinoSnapshots.size > 0
       ? {
@@ -1971,12 +1951,9 @@ function solveCircuitStep(
       : (() => {
           const snapshot = arduinoSnapshots.get(component.id);
           return snapshot
-            ? arduinoOutputBranchesFromSnapshot(
-                component,
-                snapshot,
-                simulationTimeMs,
-                options.arduinoInputVoltagesById?.[component.id],
-              ).map((branch) => ({ component, ...branch }))
+            ? arduinoOutputBranchesFromSnapshot(component, snapshot, simulationTimeMs).map(
+                (branch) => ({ component, ...branch }),
+              )
             : [];
         })(),
   );
@@ -1997,6 +1974,8 @@ function solveCircuitStep(
     numericalTolerance,
     ...(controllerState ? { controllerState } : {}),
   });
+
+  if (inputFailure) return inputFailure;
 
   const arduinoProgramChecks = document.components.flatMap((component) => {
     if (!isArduinoUno(component)) return [];
@@ -3150,7 +3129,6 @@ function solveCircuitStep(
                   arduino,
                   snapshot,
                   options.simulationTimeMs ?? 0,
-                  options.arduinoInputVoltagesById?.[arduino.id],
                 ).values()) {
                   const toneNode = netlist.nodeOf.get(terminalKey(arduino.id, tone.terminal));
                   if (toneNode === undefined) continue;

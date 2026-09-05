@@ -261,6 +261,16 @@ export function WorkbenchStage({
     // along (and onto) other wires. Swallowing the event here made cable
     // management impossible — the bend simply never happened.
     if (c.pendingTerminal) return;
+    // Wire hit areas are deliberately above the parts for editing. During
+    // simulation they must not swallow a physical button press underneath:
+    // use the same pointer-capture/release path as pressing the button body.
+    if (c.simulationRunning) {
+      const component = componentAtClientPoint(event.clientX, event.clientY);
+      if (component?.kind === 'button') {
+        c.startComponentDrag(event, component);
+        return;
+      }
+    }
     event.stopPropagation();
     const previous = lastWireClick.current;
     const repeated = previous?.wireId === wireId && isRepeatedClick(previous, event);

@@ -6,6 +6,7 @@ export interface ArduinoWriteAction {
   readonly kind: 'write';
   readonly terminal: Terminal;
   readonly targetVoltage: number;
+  readonly enableOutput?: boolean;
 }
 
 export interface ArduinoDelayAction {
@@ -38,12 +39,7 @@ export type ArduinoProgramAction =
   | ArduinoNoToneAction
   | ArduinoPinModeAction;
 
-export interface ArduinoProgramExecution {
-  readonly setupActions: readonly ArduinoProgramAction[];
-  readonly loopActions: readonly ArduinoProgramAction[];
-}
-
-export const ARDUINO_RUNTIME_STATE_VERSION = 4 as const;
+export const ARDUINO_RUNTIME_STATE_VERSION = 5 as const;
 export const ARDUINO_RUNTIME_EVENT_QUEUE_LIMIT = 256 as const;
 
 export interface ArduinoRuntimeEvent {
@@ -105,6 +101,18 @@ export interface ArduinoRuntimeAdvance {
 }
 
 export type ArduinoTerminalVoltages = Readonly<Partial<Record<Terminal, number>>>;
+
+/** The circuit bridge resolves a read against the already executed GPIO state. */
+export interface ArduinoElectricalState {
+  readonly simulationTimeMs: number;
+  readonly pinModes: ReadonlyMap<Terminal, ArduinoPinMode>;
+  readonly outputVoltages: ReadonlyMap<Terminal, number>;
+  readonly tones: ReadonlyMap<
+    Terminal,
+    { readonly frequencyHz: number; readonly expiresAtMs?: number }
+  >;
+}
+export type ArduinoInputReader = (state: ArduinoElectricalState) => ArduinoTerminalVoltages;
 
 interface Token {
   readonly kind: 'number' | 'identifier' | 'operator' | 'punctuation';
@@ -213,6 +221,7 @@ function runtimeStateIsValid(state: ArduinoRuntimeState): boolean {
         (index === 0 || event.sequence > state.eventQueue[index - 1]!.sequence) &&
         Number.isSafeInteger(event.atMicroseconds) &&
         event.atMicroseconds >= 0 &&
+        (index === 0 || event.atMicroseconds >= state.eventQueue[index - 1]!.atMicroseconds) &&
         isArduinoGpioTerminal(event.terminal) &&
         ['pin-mode-change', 'output-change', 'tone-start', 'tone-stop'].includes(event.kind) &&
         (event.mode === undefined ||
@@ -296,7 +305,12 @@ function expireTones(
   tones: Map<Terminal, { readonly frequencyHz: number; readonly expiresAtMs?: number }>,
   emit: (event: Omit<ArduinoRuntimeEvent, 'sequence' | 'atMicroseconds'>, atMs: number) => void,
 ): void {
-  for (const [terminal, tone] of tones) {
+  const ordered = [...tones].sort(
+    ([a, left], [b, right]) =>
+      (left.expiresAtMs ?? Number.MAX_VALUE) - (right.expiresAtMs ?? Number.MAX_VALUE) ||
+      (a < b ? -1 : a > b ? 1 : 0),
+  );
+  for (const [terminal, tone] of ordered) {
     if (tone.expiresAtMs !== undefined && tone.expiresAtMs <= targetTimeMs) {
       tones.delete(terminal);
       emit({ kind: 'tone-stop', terminal }, tone.expiresAtMs);
@@ -320,7 +334,40 @@ function applyRuntimeAction(
       );
     }
     pinModes.set(action.terminal, action.mode);
+    const latch =
+      action.mode === 'OUTPUT'
+        ? (outputVoltages.get(action.terminal) ?? 0)
+        : action.mode === 'INPUT_PULLUP'
+          ? 5
+          : 0;
+    if (outputVoltages.get(action.terminal) !== latch) {
+      emit({ kind: 'output-change', terminal: action.terminal, voltage: latch }, executionTimeMs);
+      outputVoltages.set(action.terminal, latch);
+    }
   } else if (action.kind === 'write') {
+    if (action.enableOutput && pinModes.get(action.terminal) !== 'OUTPUT') {
+      applyRuntimeAction(
+        { kind: 'pin-mode', terminal: action.terminal, mode: 'OUTPUT' },
+        executionTimeMs,
+        pinModes,
+        outputVoltages,
+        tones,
+        emit,
+      );
+    } else if (pinModes.get(action.terminal) !== 'OUTPUT') {
+      applyRuntimeAction(
+        {
+          kind: 'pin-mode',
+          terminal: action.terminal,
+          mode: action.targetVoltage > 0 ? 'INPUT_PULLUP' : 'INPUT',
+        },
+        executionTimeMs,
+        pinModes,
+        outputVoltages,
+        tones,
+        emit,
+      );
+    }
     if (outputVoltages.get(action.terminal) !== action.targetVoltage) {
       emit(
         { kind: 'output-change', terminal: action.terminal, voltage: action.targetVoltage },
@@ -384,6 +431,7 @@ function removeComments(source: string): string {
       continue;
     }
     if (blockComment) {
+      output += character === '\n' ? '\n' : ' ';
       if (character === '*' && next === '/') {
         blockComment = false;
         index += 1;
@@ -411,6 +459,7 @@ function removeComments(source: string): string {
       continue;
     }
     if (character === '/' && next === '*') {
+      output += ' ';
       blockComment = true;
       index += 1;
       continue;
@@ -458,7 +507,7 @@ function tokenize(expression: string): readonly Token[] {
       index += 1;
       continue;
     }
-    index += 1;
+    throw new SyntaxError(`Недопустимый символ «${character}» в выражении.`);
   }
   return tokens;
 }
@@ -511,7 +560,12 @@ class ExpressionParser {
   ) {}
 
   parse(): number {
-    return finite(this.parseOr());
+    const value = this.parseOr();
+    if (this.current())
+      throw new SyntaxError(
+        `Лишний элемент «${this.current()!.value}» в выражении. Проверьте точку с запятой.`,
+      );
+    return finite(value);
   }
 
   private current(): Token | undefined {
@@ -527,13 +581,19 @@ class ExpressionParser {
 
   private parseOr(): number {
     let value = this.parseAnd();
-    while (this.take('||')) value = value !== 0 || this.parseAnd() !== 0 ? 1 : 0;
+    while (this.take('||')) {
+      const right = this.parseAnd();
+      value = value !== 0 || right !== 0 ? 1 : 0;
+    }
     return value;
   }
 
   private parseAnd(): number {
     let value = this.parseEquality();
-    while (this.take('&&')) value = value !== 0 && this.parseEquality() !== 0 ? 1 : 0;
+    while (this.take('&&')) {
+      const right = this.parseEquality();
+      value = value !== 0 && right !== 0 ? 1 : 0;
+    }
     return value;
   }
 
@@ -610,14 +670,14 @@ class ExpressionParser {
 
   private parsePrimary(): number {
     const token = this.take();
-    if (!token) return 0;
+    if (!token) throw new SyntaxError('Ожидается выражение.');
     if (token.kind === 'number') return finite(Number(token.value));
     if (token.value === '(') {
       const value = this.parseOr();
-      this.take(')');
+      if (!this.take(')')) throw new SyntaxError('Ожидается закрывающая скобка.');
       return value;
     }
-    if (token.kind !== 'identifier') return 0;
+    if (token.kind !== 'identifier') throw new SyntaxError(`Неожиданный элемент «${token.value}».`);
     if (this.current()?.value === '(') {
       this.take('(');
       const argumentsList: number[] = [];
@@ -626,7 +686,7 @@ class ExpressionParser {
           argumentsList.push(this.parseOr());
         } while (this.take(','));
       }
-      this.take(')');
+      if (!this.take(')')) throw new SyntaxError('Ожидается закрывающая скобка вызова.');
       return this.call(token.value, argumentsList);
     }
     const upper = token.value.toUpperCase();
@@ -637,10 +697,13 @@ class ExpressionParser {
     if (analog) return 14 + Number(analog[1]);
     const digital = /^D(\d{1,2})$/.exec(upper);
     if (digital) return Number(digital[1]);
-    return this.state.variables.get(token.value) ?? 0;
+    if (!this.state.variables.has(token.value))
+      throw new SyntaxError(`Переменная «${token.value}» не объявлена.`);
+    return this.state.variables.get(token.value)!;
   }
 
   private call(name: string, argumentsList: readonly number[]): number {
+    validateCallArguments(name, argumentsList.length, true);
     const lower = name.toLowerCase();
     if (lower === 'analogread') {
       const terminal = analogTerminalFromPin(argumentsList[0] ?? 0);
@@ -667,6 +730,32 @@ class ExpressionParser {
 
 function evaluate(expression: string, state: RuntimeState): number {
   return new ExpressionParser(tokenize(expression), state).parse();
+}
+
+function validateCallArguments(name: string, count: number, expression = false): void {
+  const valueCalls: Readonly<Record<string, readonly [number, number]>> = {
+    digitalRead: [1, 1],
+    analogRead: [1, 1],
+    millis: [0, 0],
+    map: [5, 5],
+    constrain: [3, 3],
+    abs: [1, 1],
+    min: [2, 2],
+    max: [2, 2],
+  };
+  const commandCalls: Readonly<Record<string, readonly [number, number]>> = {
+    pinMode: [2, 2],
+    digitalWrite: [2, 2],
+    analogWrite: [2, 2],
+    delay: [1, 1],
+    delayMicroseconds: [1, 1],
+    tone: [2, 3],
+    noTone: [1, 1],
+  };
+  const range = valueCalls[name] ?? (expression ? undefined : commandCalls[name]);
+  if (!range) throw new SyntaxError(`Команда «${name}» не поддерживается в этом выражении.`);
+  if (count < range[0] || count > range[1])
+    throw new SyntaxError(`Неверное число аргументов ${name}().`);
 }
 
 function functionBody(source: string, name: 'setup' | 'loop'): string | null {
@@ -720,15 +809,16 @@ function executeSimpleStatement(statement: string, state: RuntimeState): void {
 
   const declaration =
     /^(?:const\s+)?(?:unsigned\s+long|int|long|float|double|bool|boolean|byte)\s+([A-Za-z_]\w*)\s*(?:=\s*(.+))?$/i.exec(
-      compact,
+      compact.replace(/\s+/g, ' '),
     );
   if (declaration) {
     state.variables.set(declaration[1]!, declaration[2] ? evaluate(declaration[2], state) : 0);
     return;
   }
-  const assignment = /^([A-Za-z_]\w*)\s*(=|\+=|-=|\*=|\/=)\s*(.+)$/.exec(compact);
+  const assignment = /^([A-Za-z_]\w*)\s*(=|\+=|-=|\*=|\/=)\s*([\s\S]+)$/.exec(compact);
   if (assignment) {
     const name = assignment[1]!;
+    if (!state.variables.has(name)) throw new SyntaxError(`Переменная «${name}» не объявлена.`);
     const current = state.variables.get(name) ?? 0;
     const value = evaluate(assignment[3]!, state);
     state.variables.set(
@@ -750,25 +840,30 @@ function executeSimpleStatement(statement: string, state: RuntimeState): void {
   const increment = /^(?:\+\+|--)?([A-Za-z_]\w*)(\+\+|--)?$/.exec(compact);
   if (increment && (compact.startsWith('++') || compact.startsWith('--') || increment[2])) {
     const name = increment[1]!;
+    if (!state.variables.has(name)) throw new SyntaxError(`Переменная «${name}» не объявлена.`);
     const delta = compact.includes('++') ? 1 : -1;
     state.variables.set(name, (state.variables.get(name) ?? 0) + delta);
     return;
   }
 
-  const call = /^([A-Za-z_]\w*)\s*\((.*)\)$/.exec(compact);
-  if (!call) return;
+  const call = /^([A-Za-z_]\w*)\s*\(([\s\S]*)\)$/.exec(compact);
+  if (!call)
+    throw new SyntaxError('Не удалось разобрать команду. Проверьте синтаксис и точку с запятой.');
   const name = call[1]!.toLowerCase();
   const argumentsList = splitArguments(call[2] ?? '');
+  if (argumentsList.some((arg) => arg.length === 0) && call[2]?.trim())
+    throw new SyntaxError('Пустой аргумент команды.');
+  validateCallArguments(call[1]!, argumentsList.filter((arg) => arg.length > 0).length);
+  for (const [index, argument] of argumentsList.entries()) {
+    if (argument && !(name === 'pinmode' && index === 1)) evaluate(argument, state);
+  }
   const pinValue = evaluate(argumentsList[0] ?? '0', state);
   const digitalTerminal = digitalTerminalFromPin(pinValue);
   if (name === 'pinmode' && digitalTerminal) {
     const mode = (argumentsList[1] ?? 'INPUT').trim().toUpperCase();
     if (mode === 'OUTPUT' || mode === 'INPUT' || mode === 'INPUT_PULLUP') {
       state.actions.push({ kind: 'pin-mode', terminal: digitalTerminal, mode });
-      if (mode === 'OUTPUT') {
-        state.actions.push({ kind: 'write', terminal: digitalTerminal, targetVoltage: 0 });
-      }
-    }
+    } else throw new SyntaxError('Режим pinMode должен быть INPUT, INPUT_PULLUP или OUTPUT.');
     return;
   }
   if (name === 'digitalwrite' && digitalTerminal) {
@@ -786,7 +881,12 @@ function executeSimpleStatement(statement: string, state: RuntimeState): void {
       : value < 128
         ? 0
         : 5;
-    state.actions.push({ kind: 'write', terminal: digitalTerminal, targetVoltage });
+    state.actions.push({
+      kind: 'write',
+      terminal: digitalTerminal,
+      targetVoltage,
+      enableOutput: true,
+    });
     return;
   }
   if (name === 'delay' || name === 'delaymicroseconds') {
@@ -1006,87 +1106,6 @@ function compileStatements(
   return instructions;
 }
 
-function executeStatements(source: string, state: RuntimeState): void {
-  let index = 0;
-  while (index < source.length && state.statementCount < MAX_STATEMENTS) {
-    index = skipWhitespace(source, index);
-    if (index >= source.length) break;
-    if (source[index] === '#') {
-      index = source.indexOf('\n', index);
-      if (index < 0) break;
-      continue;
-    }
-    const remaining = source.slice(index);
-    const control = /^(if|while)\b/.exec(remaining);
-    if (control) {
-      let cursor = skipWhitespace(source, index + control[0].length);
-      const condition = balancedSlice(source, cursor, '(', ')');
-      if (!condition) break;
-      cursor = skipWhitespace(source, condition.end);
-      const body = balancedSlice(source, cursor, '{', '}');
-      if (!body) break;
-      cursor = skipWhitespace(source, body.end);
-      let elseBody: { readonly content: string; readonly end: number } | null = null;
-      if (control[1] === 'if' && /^else\b/.test(source.slice(cursor))) {
-        cursor = skipWhitespace(source, cursor + 4);
-        elseBody = balancedSlice(source, cursor, '{', '}');
-        if (elseBody) cursor = elseBody.end;
-      }
-      if (control[1] === 'if') {
-        if (!consumeStatement(state)) break;
-        const conditionTrue = evaluate(condition.content, state) !== 0;
-        if (conditionTrue) executeStatements(body.content, state);
-        else if (elseBody) executeStatements(elseBody.content, state);
-      } else {
-        while (consumeStatement(state)) {
-          if (evaluate(condition.content, state) === 0) break;
-          executeStatements(body.content, state);
-          if (state.statementCount >= MAX_STATEMENTS) {
-            statementBudgetDiagnostic(state);
-            break;
-          }
-        }
-      }
-      index = cursor;
-      continue;
-    }
-    if (/^for\b/.test(remaining)) {
-      let cursor = skipWhitespace(source, index + 3);
-      const header = balancedSlice(source, cursor, '(', ')');
-      if (!header) break;
-      cursor = skipWhitespace(source, header.end);
-      const body = balancedSlice(source, cursor, '{', '}');
-      if (!body) break;
-      const [initialization, condition, increment] = splitForHeader(header.content);
-      if (initialization) executeSimpleStatement(initialization, state);
-      while (consumeStatement(state)) {
-        if (condition && evaluate(condition, state) === 0) break;
-        executeStatements(body.content, state);
-        if (state.statementCount >= MAX_STATEMENTS) {
-          statementBudgetDiagnostic(state);
-          break;
-        }
-        if (increment) executeSimpleStatement(increment, state);
-      }
-      index = body.end;
-      continue;
-    }
-    let depth = 0;
-    let end = index;
-    for (; end < source.length; end += 1) {
-      if (source[end] === '(') depth += 1;
-      if (source[end] === ')') depth -= 1;
-      if (source[end] === ';' && depth === 0) break;
-    }
-    if (end >= source.length) break;
-    executeSimpleStatement(source.slice(index, end), state);
-    index = end + 1;
-  }
-  if (index < source.length && state.statementCount >= MAX_STATEMENTS) {
-    statementBudgetDiagnostic(state);
-  }
-}
-
 interface GlobalDeclaration {
   readonly name: string;
   readonly initializer?: string;
@@ -1176,6 +1195,36 @@ function compileArduinoProgram(source: string): ArduinoProgramCompilation {
   const loopBody = extractedLoopBody ?? (declaredSetup || declaredLoop ? '' : cleanSource);
   const setupInstructions = compileStatements(setupBody, [], messages, 'setup');
   const loopInstructions = compileStatements(loopBody, [], messages, 'loop');
+  // Parse every instruction, including unreachable branches, before driving GPIO.
+  // This is validation of the bounded language, not execution of the sketch.
+  if (messages.length === 0) {
+    const validation: RuntimeState = {
+      variables: new Map(),
+      inputs: {},
+      actions: [],
+      diagnostics: [],
+      simulationTimeMs: 0,
+      statementCount: 0,
+    };
+    try {
+      initializeGlobals(globalDeclarations(cleanSource), validation);
+      const globals = new Map(validation.variables);
+      for (const instructions of [setupInstructions, loopInstructions]) {
+        validation.variables.clear();
+        for (const [name, value] of globals) validation.variables.set(name, value);
+        for (const instruction of instructions) {
+          validation.statementCount = 0;
+          validation.actions.length = 0;
+          if (instruction.kind === 'branch') evaluate(instruction.condition, validation);
+          if (instruction.kind === 'simple')
+            executeSimpleStatement(instruction.statement, validation);
+        }
+      }
+    } catch (error) {
+      if (!(error instanceof SyntaxError)) throw error;
+      compileError(messages, `Ошибка программы Arduino: ${error.message}`);
+    }
+  }
   return {
     cleanSource,
     setupInstructions,
@@ -1205,6 +1254,7 @@ export function advanceArduinoRuntime(
   inputs: ArduinoTerminalVoltages = {},
   simulationTimeMs = 0,
   previous?: ArduinoRuntimeState,
+  readInputs?: ArduinoInputReader,
 ): ArduinoRuntimeAdvance {
   const compilation = compileArduinoProgram(source);
   const { cleanSource, setupInstructions, loopInstructions } = compilation;
@@ -1305,7 +1355,11 @@ export function advanceArduinoRuntime(
   if (!compatible) {
     const initializationState: RuntimeState = {
       variables,
-      inputs,
+      get inputs() {
+        return readInputs
+          ? readInputs({ simulationTimeMs: resumeAtMs, pinModes, outputVoltages, tones })
+          : inputs;
+      },
       actions: [],
       diagnostics,
       simulationTimeMs: resetAtMs,
@@ -1360,7 +1414,11 @@ export function advanceArduinoRuntime(
     const actions = phase === 'setup' ? setupActions : loopActions;
     const instructionState: RuntimeState = {
       variables,
-      inputs,
+      get inputs() {
+        return readInputs
+          ? readInputs({ simulationTimeMs: resumeAtMs, pinModes, outputVoltages, tones })
+          : inputs;
+      },
       actions,
       diagnostics,
       simulationTimeMs: resumeAtMs,
@@ -1368,25 +1426,30 @@ export function advanceArduinoRuntime(
     };
     const statementCountBefore = instructionState.statementCount;
 
-    if (instruction.kind === 'branch') {
-      if (!consumeStatement(instructionState)) break;
-      programCounter =
-        evaluate(instruction.condition, instructionState) !== 0
-          ? programCounter + 1
-          : instruction.falseTarget;
-    } else {
-      const actionStart = actions.length;
-      executeSimpleStatement(instruction.statement, instructionState);
-      programCounter += 1;
-      const executionTimeMs = resumeAtMs;
-      for (const action of actions.slice(actionStart)) {
-        if (action.kind === 'delay') {
-          resumeAtMs += action.durationMs;
-          if (action.durationMs > 0) continuousStatementCount = 0;
-        } else {
-          applyRuntimeAction(action, executionTimeMs, pinModes, outputVoltages, tones, emit);
+    try {
+      if (instruction.kind === 'branch') {
+        if (!consumeStatement(instructionState)) break;
+        programCounter =
+          evaluate(instruction.condition, instructionState) !== 0
+            ? programCounter + 1
+            : instruction.falseTarget;
+      } else {
+        const actionStart = actions.length;
+        executeSimpleStatement(instruction.statement, instructionState);
+        programCounter += 1;
+        const executionTimeMs = resumeAtMs;
+        for (const action of actions.slice(actionStart)) {
+          if (action.kind === 'delay') {
+            resumeAtMs += action.durationMs;
+            if (action.durationMs > 0) continuousStatementCount = 0;
+          } else {
+            applyRuntimeAction(action, executionTimeMs, pinModes, outputVoltages, tones, emit);
+          }
         }
       }
+    } catch (error) {
+      if (!(error instanceof SyntaxError)) throw error;
+      diagnostics.push({ code: 'compile_error', severity: 'error', message: error.message });
     }
     const consumed = instructionState.statementCount - statementCountBefore;
     advanceStatementCount += consumed;
@@ -1454,32 +1517,6 @@ export function resetArduinoRuntime(
   simulationTimeMs = 0,
 ): ArduinoRuntimeAdvance {
   return advanceArduinoRuntime(source, inputs, simulationTimeMs);
-}
-
-export function executeArduinoProgram(
-  source: string,
-  inputs: ArduinoTerminalVoltages = {},
-  simulationTimeMs = 0,
-): ArduinoProgramExecution {
-  const cleanSource = removeComments(source);
-  const sharedVariables = new Map<string, number>();
-  const setupState: RuntimeState = {
-    variables: sharedVariables,
-    inputs,
-    actions: [],
-    diagnostics: [],
-    simulationTimeMs: finite(simulationTimeMs),
-    statementCount: 0,
-  };
-  initializeGlobals(globalDeclarations(cleanSource), setupState);
-  executeStatements(functionBody(cleanSource, 'setup') ?? '', setupState);
-  const loopState: RuntimeState = {
-    ...setupState,
-    actions: [],
-    statementCount: 0,
-  };
-  executeStatements(functionBody(cleanSource, 'loop') ?? cleanSource, loopState);
-  return { setupActions: setupState.actions, loopActions: loopState.actions };
 }
 
 export function arduinoSourceUsesInputReads(source: string): boolean {

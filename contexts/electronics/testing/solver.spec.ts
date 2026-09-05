@@ -1090,7 +1090,7 @@ describe('deterministic DC solver', () => {
     );
   });
 
-  it('fails closed when Arduino input/output feedback oscillates instead of settling', () => {
+  it('allows a timed Arduino feedback program without requiring a DC fixed point', () => {
     const result = solveCircuit(
       doc(
         [
@@ -1116,17 +1116,11 @@ describe('deterministic DC solver', () => {
       ),
     );
 
-    expect(result).toMatchObject({ solved: false, status: 'nonconvergent', current: 0 });
-    expect(result.components).toEqual([]);
-    expect(result.nodes).toEqual([]);
-    expect(result.numericalResidual).toBeGreaterThan(0);
-    expect(result.diagnostics).toContainEqual(
-      expect.objectContaining({
-        code: 'arduino_feedback_nonconvergent',
-        severity: 'error',
-        componentIds: ['uno'],
-      }),
-    );
+    expect(result).toMatchObject({ solved: true, status: 'solved' });
+    expect(result.components[0]?.terminalVoltages.d13).toBeCloseTo(5);
+    expect(
+      result.diagnostics.some((entry) => entry.code === 'arduino_feedback_nonconvergent'),
+    ).toBe(false);
   });
 
   it('fails closed when an Arduino loop exceeds the runtime operation budget', () => {

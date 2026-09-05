@@ -1852,6 +1852,200 @@ async function unobstructedComponentPoint(
     }, componentTypeId);
 }
 
+function arduinoInputDocument(
+  mode: 'button' | 'buttons' | 'ladder' | 'pot',
+  pin = '2',
+): SchematicDocument {
+  const base = circuitDocument({ switchClosed: false, resistorOhms: 330, reversedLed: false });
+  const outputPin = mode === 'pot' ? '9' : '13';
+  const terminal = pin.startsWith('A') ? pin.toLowerCase() : `d${pin}`;
+  const source =
+    mode === 'pot'
+      ? `void setup(){pinMode(9,OUTPUT);}void loop(){analogWrite(9,map(analogRead(${pin}),0,1023,0,255));delay(10);}`
+      : mode === 'button'
+        ? `void setup(){pinMode(${pin},INPUT_PULLUP);pinMode(13,OUTPUT);}void loop(){if(digitalRead(${pin})==LOW){digitalWrite(13,HIGH);}else{digitalWrite(13,LOW);}delay(10);}`
+        : mode === 'ladder'
+          ? 'void setup(){pinMode(13,OUTPUT);}void loop(){if(analogRead(A1)>200){digitalWrite(13,HIGH);}else{digitalWrite(13,LOW);}delay(10);}'
+          : 'void setup(){pinMode(2,INPUT);pinMode(4,INPUT);pinMode(13,OUTPUT);}void loop(){if(digitalRead(2)==HIGH || digitalRead(4)==HIGH){digitalWrite(13,HIGH);}else{digitalWrite(13,LOW);}delay(10);}';
+  const components: SchematicDocument['components'][number][] = [
+    {
+      id: 'uno',
+      kind: 'visual',
+      componentTypeId: 'arduino-uno',
+      variantId: 'arduino-uno',
+      name: 'Arduino Uno',
+      position: { x: 120, y: 120 },
+      value: 5,
+      pinIds: ownerCatalog.components
+        .find((c) => c.componentId === 'arduino-uno')!
+        .pins.map((p) => p.id),
+      stateProperties: { arduinoSource: source },
+    },
+    { ...base.components.find((c) => c.id === 'resistor')!, position: { x: 650, y: 190 } },
+    { ...base.components.find((c) => c.id === 'led')!, position: { x: 840, y: 190 } },
+  ];
+  const connections: SchematicDocument['connections'][number][] = [];
+  const wire = (from: string, fromPin: string, to: string, toPin: string) =>
+    connections.push({
+      id: `wire-${connections.length}`,
+      from: { componentId: from, terminal: fromPin },
+      to: { componentId: to, terminal: toPin },
+      color: '#149447',
+      vertices: [],
+    });
+  wire('uno', `d${outputPin}`, 'resistor', 'lead-1');
+  wire('resistor', 'lead-2', 'led', 'anode');
+  wire('led', 'cathode', 'uno', 'power-gnd-1');
+  if (mode === 'pot') {
+    components.push({
+      id: 'pot',
+      kind: 'potentiometer',
+      componentTypeId: 'potentiometer',
+      variantId: 'potentiometer',
+      name: 'Потенциометр',
+      position: { x: 580, y: 400 },
+      value: 10_000,
+      wiperPosition: 0,
+      pinIds: ownerCatalog.components
+        .find((c) => c.componentId === 'potentiometer')!
+        .pins.map((p) => p.id),
+      stateProperties: {},
+    });
+    wire('uno', 'power-5v', 'pot', 'terminal-1');
+    wire('uno', 'power-gnd-1', 'pot', 'terminal-2');
+    wire('pot', 'wiper', 'uno', terminal);
+  } else {
+    const count = mode === 'button' ? 1 : 2;
+    for (let index = 0; index < count; index++) {
+      const id = `button-${index}`;
+      const input =
+        mode === 'button' ? terminal : mode === 'ladder' ? 'a1' : index === 0 ? 'd2' : 'd4';
+      components.push({
+        ...buttonCircuitDocument(330).components.find((c) => c.id === 'button')!,
+        id,
+        name: `Кнопка ${index + 1}`,
+        position: { x: 510 + index * 210, y: 410 },
+      });
+      if (mode === 'button') {
+        wire('uno', input, id, 'SW-A1');
+        wire(id, 'SW-B1', 'uno', 'power-gnd-1');
+      } else {
+        wire('uno', 'power-5v', id, 'SW-A1');
+        const resistanceId = `pull-${index}`;
+        components.push({
+          ...base.components.find((c) => c.id === 'resistor')!,
+          id: resistanceId,
+          name: `R${index + 2}`,
+          position: { x: 510 + index * 210, y: 540 },
+          value: mode === 'ladder' ? (index + 1) * 10_000 : 10_000,
+        });
+        if (mode === 'ladder') {
+          wire(id, 'SW-B1', resistanceId, 'lead-1');
+          wire(resistanceId, 'lead-2', 'uno', input);
+        } else {
+          wire(id, 'SW-B1', 'uno', input);
+          wire('uno', input, resistanceId, 'lead-1');
+          wire(resistanceId, 'lead-2', 'uno', 'power-gnd-1');
+        }
+      }
+    }
+    if (mode === 'ladder') {
+      components.push({
+        ...base.components.find((c) => c.id === 'resistor')!,
+        id: 'ladder-ground',
+        name: 'R4',
+        position: { x: 930, y: 480 },
+        value: 10_000,
+      });
+      wire('uno', 'a1', 'ladder-ground', 'lead-1');
+      wire('ladder-ground', 'lead-2', 'uno', 'power-gnd-1');
+    }
+  }
+  return { ...base, components, connections };
+}
+
+for (const scenario of [
+  { mode: 'button', pin: '2' },
+  { mode: 'button', pin: 'A0' },
+  { mode: 'buttons', pin: '2' },
+  { mode: 'ladder', pin: 'A1' },
+  { mode: 'pot', pin: 'A0' },
+  { mode: 'pot', pin: 'A5' },
+] as const) {
+  test(`Arduino correctness: ${scenario.mode} ${scenario.pin}`, async ({ page }) => {
+    test.setTimeout(90_000);
+    const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
+    await page.setViewportSize({ width: 1600, height: 1000 });
+    await loginWithOrganization(page, teacher);
+    const projectId = await createProject(page, `Arduino ${scenario.mode} ${scenario.pin}`);
+    const document = arduinoInputDocument(scenario.mode, scenario.pin);
+    const source = String(
+      document.components.find((item) => item.id === 'uno')?.stateProperties?.['arduinoSource'],
+    );
+    await saveDocument(page, projectId, document);
+    await page.goto(`/#/home/${projectId}`);
+    await expect(page.locator('.workbench-stage')).toBeVisible();
+    // Loading the editor must not replace source-only imported sketches with
+    // the default block program, even though the panel is pre-mounted hidden.
+    await page.getByRole('button', { name: 'Открыть редактор кода', exact: true }).click();
+    await expect(page.locator('.arduino-source-editor textarea')).toHaveValue(source);
+    await page.getByRole('button', { name: 'Закрыть редактор кода', exact: true }).click();
+    await page.getByRole('button', { name: 'Начать моделирование' }).click();
+    if (scenario.mode === 'pot') {
+      await component(page, 'potentiometer').locator('.workbench-part').click();
+      await page
+        .locator('.workbench-inspector')
+        .getByRole('button', { name: /Техническое состояние/ })
+        .click();
+      const slider = page.getByRole('slider', { name: 'Положение движка' });
+      await slider.press('Home');
+      const first = await brightnessValue(page);
+      await slider.press('End');
+      await expect.poll(() => brightnessValue(page)).not.toBe(first);
+      const second = await brightnessValue(page);
+      await slider.press('Home');
+      await expect.poll(() => brightnessValue(page)).toBe(first);
+      expect(Math.max(first, second)).toBeGreaterThan(0);
+      expect(Math.min(first, second)).toBe(0);
+    } else {
+      await expect.poll(() => brightnessValue(page)).toBe(0);
+      const buttons = component(page, 'button-tactile-6mm');
+      for (let index = 0; index < (await buttons.count()); index++) {
+        const box = await buttons.nth(index).locator('.workbench-part').boundingBox();
+        if (!box) throw new Error('Button is not visible');
+        if (scenario.mode === 'buttons' && index === 0) {
+          // This fixture deliberately crosses the button with a wire. Its
+          // transparent editing hit area must not swallow a running input.
+          expect(
+            await page.evaluate(
+              ({ x, y }) =>
+                Boolean(
+                  document
+                    .elementFromPoint(x, y)
+                    ?.closest('.workbench-wire-hit, .workbench-wire-segment-hit'),
+                ),
+              { x: box.x + box.width / 2, y: box.y + box.height / 2 },
+            ),
+          ).toBe(true);
+        }
+        await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+        await page.mouse.down();
+        await expect.poll(() => brightnessValue(page)).toBeGreaterThan(0);
+        await page.screenshot({
+          path: `${ARTIFACT_DIR}/arduino-${scenario.mode}-${scenario.pin}-${index}.png`,
+        });
+        await page.mouse.up();
+        await expect.poll(() => brightnessValue(page)).toBe(0);
+      }
+    }
+    await page.screenshot({ path: `${ARTIFACT_DIR}/arduino-${scenario.mode}-${scenario.pin}.png` });
+    await page.getByRole('button', { name: 'Остановить моделирование' }).click();
+    await page.getByRole('button', { name: 'Открыть редактор кода', exact: true }).click();
+    await expect(page.locator('.arduino-source-editor textarea')).toHaveValue(source);
+    failures.assertEmpty();
+  });
+}
+
 test.beforeAll(async () => {
   mkdirSync(ARTIFACT_DIR, { recursive: true });
   admin = e2eAdminPool();

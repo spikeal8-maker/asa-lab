@@ -57,7 +57,7 @@ export interface SimulationResult extends SolveResult {
   readonly quality: SimulationQuality;
   readonly topologySignature: string;
   readonly simulationInputDigest: string;
-  readonly solverRevision: 'asa-electronics-solver-v13';
+  readonly solverRevision: 'asa-electronics-solver-v14';
   readonly modelSetDigest: string;
   readonly analysis: {
     readonly electricalMode: 'dc' | 'transient';
@@ -684,7 +684,7 @@ export function analyseCircuit(
       quality: failedQuality(),
       topologySignature: compiled.topologySignature,
       simulationInputDigest: inputDigest,
-      solverRevision: 'asa-electronics-solver-v13',
+      solverRevision: 'asa-electronics-solver-v14',
       modelSetDigest: MODEL_SET_DIGEST,
       analysis,
     };
@@ -709,7 +709,7 @@ export function analyseCircuit(
       quality,
       topologySignature: compiled.topologySignature,
       simulationInputDigest: inputDigest,
-      solverRevision: 'asa-electronics-solver-v13',
+      solverRevision: 'asa-electronics-solver-v14',
       modelSetDigest: MODEL_SET_DIGEST,
       analysis,
     };
@@ -721,7 +721,7 @@ export function analyseCircuit(
     quality,
     topologySignature: compiled.topologySignature,
     simulationInputDigest: inputDigest,
-    solverRevision: 'asa-electronics-solver-v13',
+    solverRevision: 'asa-electronics-solver-v14',
     modelSetDigest: MODEL_SET_DIGEST,
     analysis,
   };
