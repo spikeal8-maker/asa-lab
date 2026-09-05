@@ -1,6 +1,9 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
+import { ModuleEditorHost } from '../../apps/web/src/modules/ModuleEditorHost';
 
 const root = resolve(import.meta.dirname, '../..');
 
@@ -28,10 +31,27 @@ describe('ASA Lab first-frame shell', () => {
     const host = readFileSync(resolve(root, 'apps/web/src/modules/ModuleEditorHost.tsx'), 'utf8');
 
     expect(app).toContain('return <AppBootShell />;');
-    expect(host).toContain('<AppBootShell label="Открываем проект" />');
     expect(host).toContain('<AppBootShell label="Открываем рабочую среду" />');
     expect(host).not.toContain('Загружаем среду проекта…');
     expect(host).not.toContain('Загружаем учебную среду…');
+  });
+
+  it.each([
+    ['my-projects', 'Открываем проект'],
+    ['games', 'Открываем игру'],
+  ] as const)('keeps the branded first frame and correct loading label for %s', (kind, label) => {
+    const html = renderToStaticMarkup(
+      createElement(ModuleEditorHost, {
+        projectId: 'saved-document',
+        returnTo: { kind },
+        user: { id: 'player', displayName: 'Игрок', email: 'player@example.test' },
+        onBack: () => undefined,
+      }),
+    );
+    expect(html).toContain('class="app-boot-shell"');
+    expect(html).toContain('role="status"');
+    expect(html).toContain(`aria-label="${label}"`);
+    expect(html).not.toContain('seo-fallback');
   });
 
   it('uses a known route module without asking Project Core to resolve it again', () => {

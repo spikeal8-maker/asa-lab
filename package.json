@@ -79,7 +79,7 @@
     "test:chess-live:pg": "vitest run tests/chess-live/pg-repository.spec.ts",
     "typecheck:chess-live": "tsc -p contexts/chess-live/tsconfig.json --noEmit",
     "e2e:chess-live": "playwright test e2e/chess-live.spec.ts",
-    "test:games": "vitest run apps/web/src/games apps/web/src/components/testing/create-project-modal.model.spec.ts tests/portal/creator-routing.spec.ts tests/portal/creator-home.spec.ts tests/portal/capability-navigation.spec.ts",
+    "test:games": "vitest run apps/web/src/games apps/web/src/components/testing/create-project-modal.model.spec.ts tests/portal/creator-routing.spec.ts tests/portal/creator-home.spec.ts tests/portal/capability-navigation.spec.ts tests/portal/boot-shell.spec.ts",
     "e2e:games": "playwright test e2e/games-navigation.spec.ts",
     "gate:chess-r1": "corepack pnpm nx build module-sdk && corepack pnpm nx build chess && corepack pnpm nx build checkers && corepack pnpm chess:contract && corepack pnpm test:chess && corepack pnpm typecheck:chess && corepack pnpm nx build database && corepack pnpm chess-live:contract && corepack pnpm test:chess-live && corepack pnpm typecheck:chess-live && corepack pnpm nx run web:typecheck && corepack pnpm nx run web:build",
     "gate:chess-r1:browser": "corepack pnpm e2e:games && corepack pnpm e2e:chess && corepack pnpm e2e:chess-live",
