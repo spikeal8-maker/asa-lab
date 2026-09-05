@@ -9,6 +9,8 @@ import { studentSessionPayload } from './creator-portal/student-session';
 import { PublicEntryPage, type PublicIntent } from './pages/PublicEntryPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { MyProjectsPage } from './pages/MyProjectsPage';
+import { GamesPage } from './pages/GamesPage';
+import { isGameModule } from './games/game-catalog';
 import { ProjectsPage } from './pages/ProjectsPage';
 import { ClassroomPage } from './pages/ClassroomPage';
 import { TeacherInvitePage } from './pages/TeacherInvitePage';
@@ -568,7 +570,14 @@ export function App(): JSX.Element {
         <ModuleEditorHost
           projectId={view.projectId}
           {...(view.moduleKey ? { moduleKey: view.moduleKey } : {})}
-          onBack={() => setView(view.returnTo)}
+          onBack={() =>
+            setView(
+              isGameModule(view.moduleKey) &&
+                (view.returnTo.kind === 'home' || view.returnTo.kind === 'my-projects')
+                ? { kind: 'games' }
+                : view.returnTo,
+            )
+          }
           onModuleResolved={handleModuleResolved}
           returnTo={view.returnTo}
           seatLearner={isSeatLearner}
@@ -583,6 +592,7 @@ export function App(): JSX.Element {
   const navigate = (section: CreatorPortalSection): void => {
     if (section === 'home') setView({ kind: 'home' });
     else if (section === 'projects') setView({ kind: 'my-projects' });
+    else if (section === 'games') setView({ kind: 'games' });
     else if (section === 'learning') setView({ kind: 'learning' });
     else if (section === 'collections') setView({ kind: 'collections' });
     else if (section === 'gallery') setView({ kind: 'gallery' });
@@ -683,6 +693,13 @@ export function App(): JSX.Element {
                     moduleKey,
                     returnTo: { kind: 'my-projects' },
                   })
+                }
+              />
+            ) : null}
+            {view.kind === 'games' ? (
+              <GamesPage
+                onOpenGame={(projectId, moduleKey) =>
+                  setView({ kind: 'editor', projectId, moduleKey, returnTo: { kind: 'games' } })
                 }
               />
             ) : null}

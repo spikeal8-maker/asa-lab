@@ -3,6 +3,7 @@ import { expect, test, type Browser, type Page } from '@playwright/test';
 import pg from 'pg';
 import { collectBrowserFailures } from './browser-failures';
 import { loginWithOrganization } from './organization-login';
+import { openChessGame } from './open-chess-game';
 import { e2eAdminPool, seedLegacyTeacherIdentity, seedTeacher, type SeededTeacher } from './seed';
 
 interface LivePlayerCredentials {
@@ -55,12 +56,7 @@ async function login(page: Page, credentials: LivePlayerCredentials): Promise<vo
 }
 
 async function createChessProject(page: Page, title: string): Promise<void> {
-  await page.getByRole('button', { name: /^Создать(?: проект)?$/ }).click();
-  await page.getByLabel('Название проекта').fill(title);
-  const tile = page.locator('.module-tile').filter({ hasText: 'ASA Chess' });
-  await tile.click();
-  await expect(tile.getByRole('radio')).toBeChecked();
-  await page.getByRole('dialog').getByRole('button', { name: 'Создать проект' }).click();
+  await openChessGame(page, title);
   await expect(page.getByRole('navigation', { name: 'Меню ASA Chess' })).toBeVisible();
   await page.getByRole('button', { name: 'Онлайн', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Онлайн-шахматы' })).toBeAttached();

@@ -183,7 +183,7 @@ export function AssignmentLibraryPage(): JSX.Element {
   }, [reload]);
 
   useEffect(() => {
-    void api.listModules().then((result) => {
+    void api.listProjectModules().then((result) => {
       if (result.ok) {
         setModules(
           result.data.items.filter((entry) => entry.availability === 'active' && entry.creatable),

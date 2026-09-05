@@ -169,7 +169,7 @@ export function CheckersWorkspace({
         title={{
           kind: 'editable',
           value: draftTitle,
-          ariaLabel: 'Название шашечного проекта',
+          ariaLabel: 'Название игры',
           maxLength: 255,
           onChange: setDraftTitle,
           onCommit: () => onRename(draftTitle),

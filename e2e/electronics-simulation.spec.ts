@@ -3677,18 +3677,36 @@ test('MATH-10B regulated supply operates its owner controls and transitions betw
     fullPage: true,
   });
 
-  const saved = await page.context().request.get(`/api/projects/${projectId}`, {
-    headers: { origin: new URL(page.url()).origin },
-  });
-  const savedPayload = (await saved.json()) as { draft: { document: SchematicDocument } };
-  expect(
-    savedPayload.draft.document.components.find((item) => item.id === 'bench-supply')
-      ?.stateProperties,
-  ).toMatchObject({
-    voltageSetpointVolt: 12,
-    currentLimitAmp: 0.1,
-    outputEnabled: true,
-  });
+  // The live solver updates before the debounced draft request finishes. Wait
+  // for the server, not an arbitrary delay or the already updated SVG. The
+  // runtime-only 0.2 A adjustment must not replace the saved 0.1 A setting.
+  await expect
+    .poll(
+      async () => {
+        const saved = await page.context().request.get(`/api/projects/${projectId}`, {
+          headers: { origin: new URL(page.url()).origin },
+        });
+        expect(saved.ok()).toBe(true);
+        const payload = (await saved.json()) as { draft: { document: SchematicDocument } };
+        return payload.draft.document.components.find((item) => item.id === 'bench-supply')
+          ?.stateProperties;
+      },
+      { timeout: 15_000 },
+    )
+    .toMatchObject({
+      voltageSetpointVolt: 12,
+      currentLimitAmp: 0.1,
+      outputEnabled: true,
+    });
+  await expect(visual).toHaveAttribute('data-current-limit', '0.2');
+
+  await page.reload();
+  await expect(page.getByRole('button', { name: 'Начать моделирование' })).toBeVisible();
+  await expect(visual).toHaveAttribute('data-voltage-setpoint', '12');
+  await expect(visual).toHaveAttribute('data-current-limit', '0.1');
+  await expect(visual).toHaveAttribute('data-output-enabled', 'true');
+  await page.getByRole('button', { name: 'Начать моделирование' }).click();
+  await expect(visual).toHaveAttribute('data-regulation-mode', 'cc');
   failures.assertEmpty();
 });
 

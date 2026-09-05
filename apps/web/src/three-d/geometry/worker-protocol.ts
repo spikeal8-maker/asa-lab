@@ -1,7 +1,7 @@
 import type { BooleanOperation, ThreeDNode } from '@asa-lab/three-d';
 
 /** Serializable boundary between the editor and geometry evaluators. */
-export const THREE_D_GEOMETRY_WORKER_PROTOCOL = 2 as const;
+export const THREE_D_GEOMETRY_WORKER_PROTOCOL = 3 as const;
 export const THREE_D_LEGACY_BSP_ENGINE = { id: 'legacy-bsp', version: '1' } as const;
 
 export interface GeometryEngineIdentity {
@@ -37,7 +37,7 @@ export interface GeometryEvaluationMetrics {
   readonly bounds: {
     readonly min: readonly [number, number, number];
     readonly max: readonly [number, number, number];
-  };
+  } | null;
 }
 
 export type GeometryWorkerResponse =
@@ -46,6 +46,7 @@ export type GeometryWorkerResponse =
       readonly requestId: string;
       readonly generationId: number;
       readonly ok: true;
+      readonly resultKind: 'mesh' | 'empty';
       readonly positions: ArrayBuffer;
       readonly normals: ArrayBuffer;
       readonly featureEdges: ArrayBuffer;
@@ -62,6 +63,7 @@ export type GeometryWorkerResponse =
     };
 
 export interface EvaluatedBooleanGeometry {
+  readonly resultKind: 'mesh' | 'empty';
   readonly positions: Float32Array;
   readonly normals: Float32Array;
   readonly featureEdges: Float32Array;

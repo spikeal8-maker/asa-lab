@@ -5,6 +5,7 @@ import type { ModulePreviewDescriptor } from '@asa-lab/module-sdk';
 import type { ArduinoControllerState } from '@asa-lab/electronics/simulation';
 import { projectDraftMutationId } from './modules/project-draft-mutation';
 import { fetchWithSessionRefresh, notifySessionLoggedOut } from './session-fetch';
+import { projectEntries } from './games/game-catalog';
 
 export interface PublicUser {
   id: string;
@@ -1204,6 +1205,8 @@ export interface ProjectListOptions {
   scope?: ProjectScope;
   classroomId?: string;
   status?: ProjectStatus;
+  /** Only the Games entry needs saved game documents in its list. */
+  includeGames?: boolean;
 }
 
 export interface CreateProjectOptions {
@@ -1415,6 +1418,12 @@ export const api = {
       body: JSON.stringify({}),
     }),
   listModules: () => call<{ items: ModuleSummary[] }>('/api/modules'),
+  listProjectModules: async () => {
+    const result = await call<{ items: ModuleSummary[] }>('/api/modules');
+    return result.ok
+      ? { ...result, data: { ...result.data, items: projectEntries(result.data.items) } }
+      : result;
+  },
   recordModuleOpened: (moduleKey: 'electronics' | 'three-d' | 'chess' | 'checkers') =>
     call<{ accepted: true }>('/api/analytics/v1/module-opened', {
       method: 'POST',
@@ -1548,8 +1557,14 @@ export const api = {
       { method: 'DELETE' },
     ),
   listCollections: () => call<{ items: Collection[] }>('/api/collections'),
-  collectionItems: (collectionId: string) =>
-    call<{ items: CollectionItem[] }>(`/api/collections/${encodeURIComponent(collectionId)}`),
+  collectionItems: async (collectionId: string) => {
+    const result = await call<{ items: CollectionItem[] }>(
+      `/api/collections/${encodeURIComponent(collectionId)}`,
+    );
+    return result.ok
+      ? { ...result, data: { ...result.data, items: projectEntries(result.data.items) } }
+      : result;
+  },
   createCollection: (title: string) =>
     call<{ id: string }>('/api/collections', {
       method: 'POST',
@@ -1583,13 +1598,20 @@ export const api = {
     call<{ items: Array<SeatAssignment & { classroomTitle: string }> }>(
       '/api/class-join/account/assignments',
     ),
-  gallery: (options: { sort?: 'recent' | 'popular'; module?: string; offset?: number } = {}) => {
+  gallery: async (
+    options: { sort?: 'recent' | 'popular'; module?: string; offset?: number } = {},
+  ) => {
     const query = new URLSearchParams();
     if (options.sort) query.set('sort', options.sort);
     if (options.module) query.set('module', options.module);
     if (options.offset) query.set('offset', String(options.offset));
     const suffix = query.toString();
-    return call<{ items: GalleryItem[] }>(`/api/gallery${suffix ? `?${suffix}` : ''}`);
+    const result = await call<{ items: GalleryItem[] }>(
+      `/api/gallery${suffix ? `?${suffix}` : ''}`,
+    );
+    return result.ok
+      ? { ...result, data: { ...result.data, items: projectEntries(result.data.items) } }
+      : result;
   },
   myGalleryProjects: () => call<{ projectIds: string[] }>('/api/gallery/mine'),
   galleryWork: (projectId: string) =>
@@ -2114,13 +2136,16 @@ export const api = {
     call<ClassroomStudentSession | { authenticated: false }>('/api/class-join/me'),
   classroomStudentLogout: () =>
     call<{ ok: true }>('/api/class-join/logout', { method: 'POST', body: JSON.stringify({}) }),
-  listProjects: (options: ProjectListOptions = {}) => {
+  listProjects: async (options: ProjectListOptions = {}) => {
     const query = new URLSearchParams();
     if (options.scope) query.set('scope', options.scope);
     if (options.classroomId) query.set('classroomId', options.classroomId);
     if (options.status) query.set('status', options.status);
     const suffix = query.size > 0 ? `?${query.toString()}` : '';
-    return call<{ items: Project[] }>(`/api/projects${suffix}`);
+    const result = await call<{ items: Project[] }>(`/api/projects${suffix}`);
+    return result.ok && !options.includeGames
+      ? { ...result, data: { ...result.data, items: projectEntries(result.data.items) } }
+      : result;
   },
   suggestProjectTitle: (options: ProjectTitleSuggestionOptions) => {
     const query = new URLSearchParams({ scope: options.scope, module: options.module });

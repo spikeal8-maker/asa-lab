@@ -12,6 +12,7 @@ describe('Creator Portal routing', () => {
   it.each([
     ['#/home', { kind: 'home' }],
     ['#/projects', { kind: 'my-projects' }],
+    ['#/games', { kind: 'games' }],
     ['#/learning', { kind: 'learning' }],
     ['#/collections', { kind: 'collections' }],
     ['#/challenges', { kind: 'challenges' }],
@@ -122,8 +123,18 @@ describe('Creator Portal routing', () => {
       kind: 'editor',
       projectId: 'chess-project',
       moduleKey: 'chess',
-      returnTo: { kind: 'my-projects' },
+      returnTo: { kind: 'games' },
     });
+  });
+
+  it.each(['chess', 'checkers'])('restores %s and returns to Games after reload', (moduleKey) => {
+    const view: CreatorPortalView = {
+      kind: 'editor',
+      projectId: 'saved game/one',
+      moduleKey,
+      returnTo: { kind: 'games' },
+    };
+    expect(creatorViewFromHash(creatorViewToHash(view))).toEqual(view);
   });
 
   it('keeps a co-teacher invitation token through sign-in and refresh navigation', () => {

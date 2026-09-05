@@ -446,10 +446,10 @@ export function ChessEditor({
     return (
       <main className="asa-chess-loading">
         <section role="alert">
-          <h1>Шахматный проект не открыт</h1>
-          <p>{controller.notice ?? 'Неизвестная ошибка проекта.'}</p>
+          <h1>Не удалось открыть шахматы</h1>
+          <p>{controller.notice ?? 'Попробуйте открыть игру ещё раз.'}</p>
           <button type="button" className="secondary-button" onClick={onBack}>
-            К проектам
+            К играм
           </button>
         </section>
       </main>
@@ -603,7 +603,7 @@ export function ChessEditor({
         </section>
 
         <aside className="asa-chess-panel">
-          <div className="asa-chess-tabs" role="tablist" aria-label="Панель шахматного проекта">
+          <div className="asa-chess-tabs" role="tablist" aria-label="Панель шахматной игры">
             {(
               [
                 ['game', 'Партия'],

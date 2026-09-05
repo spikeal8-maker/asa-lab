@@ -185,7 +185,7 @@ export function ChessHome(props: ChessHomeProps): JSX.Element {
       <EditorHeader
         moduleId="chess"
         onExit={props.onBack}
-        exitLabel="Вернуться к проектам"
+        exitLabel="Вернуться к играм"
         title={{ kind: 'readonly', text: project.title }}
         status={{
           kind: 'saved',

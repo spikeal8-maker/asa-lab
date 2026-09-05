@@ -3,6 +3,7 @@ import { expect, test, type Page } from '@playwright/test';
 import pg from 'pg';
 import { collectBrowserFailures } from './browser-failures';
 import { loginWithOrganization } from './organization-login';
+import { openChessGame } from './open-chess-game';
 import { e2eAdminPool, seedTeacher, type SeededTeacher } from './seed';
 
 let admin: pg.Pool;
@@ -15,21 +16,14 @@ async function login(page: Page): Promise<void> {
 }
 
 async function createChessProject(page: Page, title: string): Promise<void> {
-  await page.getByRole('button', { name: /^Создать(?: проект)?$/ }).click();
-  await expect(page.getByRole('heading', { name: 'Что вы хотите создать?' })).toBeVisible();
-  await page.getByLabel('Название проекта').fill(title);
-  const chessTile = page.locator('.module-tile').filter({ hasText: 'ASA Chess' });
-  await expect(page.getByRole('dialog')).not.toContainText('Поддерживает безопасный режим');
-  await chessTile.click();
-  await expect(chessTile.getByRole('radio')).toBeChecked();
-  await page.getByRole('dialog').getByRole('button', { name: 'Создать проект' }).click();
+  await openChessGame(page, title);
   await expect(page.getByRole('heading', { name: /Добро пожаловать/ })).toBeVisible();
   await expect(page).toHaveURL(/#\/chess\/[^/?#]+\/home$/);
   await expect(page.getByRole('navigation', { name: 'Меню ASA Chess' })).toBeVisible();
   await page.getByRole('button', { name: 'Открыть доску', exact: true }).click();
   await expect(page.getByTestId('asa-chess-board')).toBeVisible();
   await expect(page).toHaveURL(/#\/chess\/[^/?#]+\/play\/game$/);
-  await expect(page.getByLabel('Название проекта')).toHaveValue(title);
+  await expect(page.getByLabel('Название игры')).toHaveValue(title);
 }
 
 async function clickMove(page: Page, from: string, to: string): Promise<void> {

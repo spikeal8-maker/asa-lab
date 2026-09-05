@@ -9,6 +9,7 @@ import { EditorErrorBoundary } from './EditorErrorBoundary';
 import { AssignmentBrief } from '../components/AssignmentBrief';
 import { AppBootShell } from '../components/AppBootShell';
 import { newClientId } from '../client-id';
+import { isGameModule } from '../games/game-catalog';
 
 interface ModuleEditorProps {
   projectId: string;
@@ -174,17 +175,19 @@ export function ModuleEditorHost(props: ModuleEditorHostProps): JSX.Element {
     };
   }, [props.projectId, state]);
 
+  const game = isGameModule(props.moduleKey) || props.returnTo.kind === 'games';
+  const backLabel = game ? 'К играм' : 'К проектам';
   if (state.kind === 'loading') {
-    return <AppBootShell label="Открываем проект" />;
+    return <AppBootShell label={game ? 'Открываем игру' : 'Открываем проект'} />;
   }
   if (state.kind === 'error') {
     return (
       <main className="page-center">
         <section className="login-card" role="alert">
-          <h1>Проект не открыт</h1>
+          <h1>{game ? 'Игра не открыта' : 'Проект не открыт'}</h1>
           <p>{state.message}</p>
           <button type="button" className="btn-secondary" onClick={props.onBack}>
-            К проектам
+            {backLabel}
           </button>
         </section>
       </main>
@@ -202,7 +205,7 @@ export function ModuleEditorHost(props: ModuleEditorHostProps): JSX.Element {
             подключённого редактора.
           </p>
           <button type="button" className="btn-secondary" onClick={props.onBack}>
-            К проектам
+            {backLabel}
           </button>
         </section>
       </main>
@@ -210,7 +213,7 @@ export function ModuleEditorHost(props: ModuleEditorHostProps): JSX.Element {
   }
 
   return (
-    <EditorErrorBoundary onBack={props.onBack}>
+    <EditorErrorBoundary onBack={props.onBack} backLabel={backLabel}>
       {/* What to make, while you are making it. Renders nothing for anyone
           whose project is not work a teacher set. */}
       {props.seatLearner ? <AssignmentBrief projectId={props.projectId} /> : null}

@@ -87,11 +87,11 @@ export function ChessEditorHeader({
     <EditorHeader
       moduleId="chess"
       onExit={onBack}
-      exitLabel="Вернуться к проектам"
+      exitLabel="Вернуться к играм"
       title={{
         kind: 'editable',
         value: projectTitle,
-        ariaLabel: 'Название проекта',
+        ariaLabel: 'Название игры',
         maxLength: 160,
         onChange: onProjectTitleChange,
         onCommit: onProjectTitleCommit,

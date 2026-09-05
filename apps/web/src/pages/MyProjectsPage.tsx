@@ -123,7 +123,7 @@ export function MyProjectsPage({
     // learner with no teacher simply has none.
     const [projectsResult, modulesResult, feedbackResult] = await Promise.all([
       api.listProjects({ scope: 'personal', status: statusFilter }),
-      api.listModules(),
+      api.listProjectModules(),
       api.myProjectFeedback(),
     ]);
     if (!projectsResult.ok || !modulesResult.ok) {

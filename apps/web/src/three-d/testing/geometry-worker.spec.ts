@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createThreeDNode, type ThreeDNode } from '@asa-lab/three-d';
 import { GeometryWorkerClient, type GeometryWorkerLike } from '../geometry/worker-client';
 import { evaluateGeometryRequest } from '../geometry/worker-evaluator';
@@ -47,6 +47,7 @@ function successfulResponse(requestId: string, generationId: number): GeometryWo
     requestId,
     generationId,
     ok: true,
+    resultKind: 'mesh',
     positions: positions.buffer,
     normals: normals.buffer,
     featureEdges: new Float32Array().buffer,
@@ -64,6 +65,7 @@ function successfulResponse(requestId: string, generationId: number): GeometryWo
 class FakeWorker implements GeometryWorkerLike {
   onmessage: ((event: MessageEvent<GeometryWorkerResponse>) => void) | null = null;
   onerror: ((event: ErrorEvent) => void) | null = null;
+  onmessageerror: ((event: MessageEvent) => void) | null = null;
   readonly messages: GeometryWorkerRequest[] = [];
   terminated = false;
 
@@ -85,6 +87,147 @@ class FakeWorker implements GeometryWorkerLike {
 }
 
 describe('ASA 3D OPT-1 Geometry Worker boundary', () => {
+  afterEach(() => vi.useRealTimers());
+
+  it('returns a successful empty intersection for disjoint solids', () => {
+    const [first, second] = operands();
+    const response = evaluateGeometryRequest({
+      ...request(),
+      operation: 'intersection',
+      operands: [
+        first!,
+        { ...second!, transform: { ...second!.transform, position: { x: 100, y: 10, z: 0 } } },
+      ],
+    });
+
+    expect(response).toMatchObject({
+      ok: true,
+      resultKind: 'empty',
+      metrics: { triangleCount: 0, featureEdgeSegmentCount: 0, bounds: null },
+    });
+  });
+
+  it('returns a successful empty difference when the hole removes the entire solid', () => {
+    const solid = createThreeDNode('box', 'solid');
+    const response = evaluateGeometryRequest({
+      ...request(),
+      operation: 'difference',
+      operands: [solid, { ...solid, id: 'hole', operation: 'hole' }],
+    });
+
+    expect(response).toMatchObject({ ok: true, resultKind: 'empty', metrics: { bounds: null } });
+  });
+
+  it('returns empty when every operand is hidden', () => {
+    const response = evaluateGeometryRequest({
+      ...request(),
+      operands: operands().map((node) => ({ ...node, visible: false })),
+    });
+    expect(response).toMatchObject({ ok: true, resultKind: 'empty', metrics: { bounds: null } });
+  });
+
+  it('bounds a silent Worker request and clears all deadlines on failure', async () => {
+    vi.useFakeTimers();
+    const worker = new FakeWorker();
+    const client = new GeometryWorkerClient(() => worker, 100);
+    const generation = client.beginGeneration();
+    const first = expect(client.evaluate(generation, operands(), 'union')).rejects.toThrow(
+      'timed out',
+    );
+    const second = expect(client.evaluate(generation, operands(), 'union')).rejects.toThrow(
+      'timed out',
+    );
+
+    await vi.advanceTimersByTimeAsync(100);
+    await Promise.all([first, second]);
+    expect(worker.terminated).toBe(true);
+    expect(vi.getTimerCount()).toBe(0);
+    await expect(client.evaluate(generation, operands(), 'union')).rejects.toThrow('timed out');
+    client.dispose();
+  });
+
+  it('clears a completed request deadline before starting the next one', async () => {
+    vi.useFakeTimers();
+    const worker = new FakeWorker();
+    const client = new GeometryWorkerClient(() => worker, 100);
+    const generation = client.beginGeneration();
+    const first = client.evaluate(generation, operands(), 'union');
+    worker.respond(successfulResponse(worker.messages[0]!.requestId, generation));
+    await first;
+    expect(vi.getTimerCount()).toBe(0);
+    await vi.advanceTimersByTimeAsync(100);
+
+    const second = client.evaluate(generation, operands(), 'union');
+    worker.respond(successfulResponse(worker.messages[1]!.requestId, generation));
+    await expect(second).resolves.toMatchObject({ resultKind: 'mesh' });
+    expect(worker.terminated).toBe(false);
+    client.dispose();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('contains synchronous Worker startup and postMessage failures', async () => {
+    const worker = new FakeWorker();
+    const factory = vi
+      .fn<() => GeometryWorkerLike>()
+      .mockImplementationOnce(() => {
+        throw new Error('Worker startup blocked');
+      })
+      .mockReturnValue(worker);
+    const client = new GeometryWorkerClient(factory);
+    const failedGeneration = client.beginGeneration();
+    await expect(client.evaluate(failedGeneration, operands(), 'union')).rejects.toThrow(
+      'startup blocked',
+    );
+
+    const nextGeneration = client.beginGeneration();
+    vi.spyOn(worker, 'postMessage').mockImplementation(() => {
+      throw new Error('Cannot clone request');
+    });
+    await expect(client.evaluate(nextGeneration, operands(), 'union')).rejects.toThrow(
+      'Cannot clone',
+    );
+    expect(worker.terminated).toBe(true);
+    expect(() => client.dispose()).not.toThrow();
+  });
+
+  it('terminates a Worker whose response cannot be decoded', async () => {
+    const worker = new FakeWorker();
+    const client = new GeometryWorkerClient(() => worker);
+    const generation = client.beginGeneration();
+    const pending = client.evaluate(generation, operands(), 'union');
+    worker.onmessageerror?.({} as MessageEvent);
+    await expect(pending).rejects.toThrow('could not be decoded');
+    expect(worker.terminated).toBe(true);
+    client.dispose();
+  });
+
+  it('fails later requests promptly after a fatal Worker error, then recovers on a new generation', async () => {
+    const workers: FakeWorker[] = [];
+    const client = new GeometryWorkerClient(() => {
+      const worker = new FakeWorker();
+      workers.push(worker);
+      return worker;
+    });
+    try {
+      const generationId = client.beginGeneration();
+      const first = client.evaluate(generationId, operands(), 'union');
+      workers[0]!.fail('Worker initialization failed');
+      await expect(first).rejects.toThrow('Worker initialization failed');
+      expect(workers[0]!.terminated).toBe(true);
+      await expect(client.evaluate(generationId, operands(), 'union')).rejects.toThrow(
+        'Worker initialization failed',
+      );
+
+      const recoveredGeneration = client.beginGeneration();
+      const recovered = client.evaluate(recoveredGeneration, operands(), 'union');
+      const message = workers[1]!.messages[0]!;
+      workers[1]!.respond(successfulResponse(message.requestId, recoveredGeneration));
+      await expect(recovered).resolves.toMatchObject({ metrics: { checksum: 'fixture' } });
+    } finally {
+      client.dispose();
+    }
+  });
+
   it('evaluates the legacy BSP deterministically into transferable buffers', () => {
     const first = evaluateGeometryRequest(request('first'));
     const second = evaluateGeometryRequest(request('second'));
@@ -156,6 +299,7 @@ describe('ASA 3D OPT-1 Geometry Worker boundary', () => {
     });
     client.beginGeneration();
     const staleWorker = workers[0]!;
+    const lateError = staleWorker.onerror!;
     const activeGeneration = client.beginGeneration();
     const activeWorker = workers[1]!;
     const pending = client.evaluate(activeGeneration, operands(), 'union');
@@ -163,7 +307,7 @@ describe('ASA 3D OPT-1 Geometry Worker boundary', () => {
       (message): message is GeometryEvaluateRequest => message.kind === 'evaluate-boolean',
     );
 
-    staleWorker.fail('late failure from terminated Worker');
+    lateError({ message: 'late failure from terminated Worker' } as ErrorEvent);
     activeWorker.respond(successfulResponse(evaluateMessage!.requestId, activeGeneration));
 
     await expect(pending).resolves.toMatchObject({ metrics: { checksum: 'fixture' } });

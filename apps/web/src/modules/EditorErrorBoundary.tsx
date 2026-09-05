@@ -3,6 +3,7 @@ import { Component, type ErrorInfo, type ReactNode } from 'react';
 interface EditorErrorBoundaryProps {
   readonly children: ReactNode;
   readonly onBack: () => void;
+  readonly backLabel?: string;
 }
 
 interface EditorErrorBoundaryState {
@@ -43,7 +44,7 @@ export class EditorErrorBoundary extends Component<
           <p>{this.state.message}</p>
           <div className="modal-actions">
             <button type="button" className="btn-secondary" onClick={this.props.onBack}>
-              К проектам
+              {this.props.backLabel ?? 'К проектам'}
             </button>
             <button type="button" className="btn-primary" onClick={() => window.location.reload()}>
               Попробовать снова

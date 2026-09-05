@@ -49,7 +49,7 @@ describe('independent subject routes', () => {
       kind: 'editor',
       moduleKey: 'chess',
       projectId: 'chess-project',
-      returnTo: { kind: 'my-projects' },
+      returnTo: { kind: 'games' },
     });
   });
 

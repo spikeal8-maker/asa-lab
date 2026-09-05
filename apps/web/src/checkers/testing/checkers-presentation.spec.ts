@@ -204,7 +204,7 @@ describe('Checkers presentation contract', () => {
     );
 
     expect(markup).toContain('aria-label="Вернуться в кабинет шашек"');
-    expect(markup).toContain('Название шашечного проекта');
+    expect(markup).toContain('Название игры');
     expect(markup).toContain('Учусь');
     expect(markup).toContain('Играю');
     expect(markup).toContain('Разбор');
