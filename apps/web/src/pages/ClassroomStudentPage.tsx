@@ -123,7 +123,7 @@ export function ClassroomStudentPage({
   }, [load]);
 
   useEffect(() => {
-    void api.listModules().then((result) => {
+    void api.listProjectModules().then((result) => {
       if (result.ok) setModules(result.data.items);
     });
   }, []);

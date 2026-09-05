@@ -73,9 +73,9 @@ export function CollectionsPage({
           <div>
             <h1>{open.title}</h1>
             <p>
-              {open.itemCount === 0
+              {items.length === 0
                 ? 'Пока пусто. Работы добавляются из галереи.'
-                : `Работ в подборке: ${open.itemCount}`}
+                : `Работ в подборке: ${items.length}`}
             </p>
           </div>
         </header>
@@ -212,9 +212,6 @@ export function CollectionsPage({
                   >
                     {entry.title}
                   </button>
-                  <span className="collections-count">
-                    {entry.itemCount === 0 ? 'пусто' : `работ: ${entry.itemCount}`}
-                  </span>
                   <div className="collections-actions">
                     <button
                       type="button"

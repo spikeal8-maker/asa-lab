@@ -1,0 +1,126 @@
+.games-page {
+  max-width: 1320px;
+}
+.games-heading {
+  margin-bottom: 28px;
+}
+.games-heading h1 {
+  margin: 0 0 8px;
+  font-size: clamp(28px, 3vw, 38px);
+}
+.games-heading p {
+  margin: 0;
+  color: #536a78;
+}
+.games-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+}
+.game-card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 0;
+  overflow: hidden;
+  text-align: left;
+  color: #17384b;
+  background: #fff;
+  border: 1px solid #d5e2eb;
+  border-radius: 22px;
+  cursor: pointer;
+  box-shadow: 0 5px 20px #16394d08;
+  transition:
+    box-shadow 160ms,
+    border-color 160ms;
+}
+.game-card:hover:not(:disabled) {
+  border-color: #0780b1;
+  box-shadow: 0 10px 28px #16394d16;
+}
+.game-card:focus-visible {
+  outline: 3px solid #0780b1;
+  outline-offset: 4px;
+}
+.game-card:disabled {
+  cursor: default;
+}
+.game-card-art {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1.7;
+  background-image: url('/social/asa-lab-chess-checkers.png');
+  background-size: 180% auto;
+  background-repeat: no-repeat;
+  background-color: #faf6ef;
+}
+.game-card--chess .game-card-art {
+  background-position: right top;
+}
+.game-card--checkers .game-card-art {
+  background-position: right bottom;
+}
+.game-card-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  padding: 24px;
+}
+.game-card-title {
+  font-size: 27px;
+  font-weight: 750;
+}
+.game-card-description {
+  margin: 10px 0 24px;
+  color: #536a78;
+  font-size: 15px;
+  line-height: 1.6;
+}
+.game-card-action {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: auto;
+  color: #007cae;
+  font-size: 16px;
+  font-weight: 700;
+}
+.game-card-action span {
+  font-size: 24px;
+}
+.games-error {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 18px;
+  border: 1px solid #e5b7b7;
+  border-radius: 12px;
+  color: #8d3030;
+  background: #fff6f6;
+}
+.portal-games-glyph {
+  font-size: 23px;
+  line-height: 1;
+}
+@media (max-width: 760px) {
+  .games-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 18px;
+  }
+  .games-heading {
+    margin-bottom: 20px;
+  }
+  .game-card-body {
+    padding: 20px;
+  }
+  .game-card-art {
+    aspect-ratio: 1.9;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .game-card {
+    transition: none;
+  }
+}

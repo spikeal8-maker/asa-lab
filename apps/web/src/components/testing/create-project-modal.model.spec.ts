@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { orderModulesForCreation } from '../create-project-modal.model';
 
 describe('create project module order', () => {
-  it('puts electronics, 3D, checkers and chess first without mutating the catalog', () => {
+  it('keeps games out of the project chooser without mutating the complete catalog', () => {
     const catalog = [
       { moduleKey: 'blocks', displayName: 'Блоки' },
       { moduleKey: 'chess', displayName: 'ASA Chess' },
@@ -16,8 +16,6 @@ describe('create project module order', () => {
     expect(orderModulesForCreation(catalog).map((module) => module.moduleKey)).toEqual([
       'electronics',
       'three-d',
-      'checkers',
-      'chess',
       'blocks',
       'robotics',
       'drawing',

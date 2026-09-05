@@ -1,8 +1,10 @@
 import type { Project } from '../api';
+import { isGameModule, projectEntries } from '../games/game-catalog';
 
 export type CreatorPortalSection =
   | 'home'
   | 'projects'
+  | 'games'
   | 'learning'
   | 'collections'
   | 'gallery'
@@ -14,6 +16,7 @@ export type CreatorPortalSection =
 export type CreatorPortalView =
   | { kind: 'home' }
   | { kind: 'my-projects' }
+  | { kind: 'games' }
   | { kind: 'learning' }
   | { kind: 'collections' }
   | { kind: 'attending' }
@@ -35,6 +38,7 @@ export type CreatorPortalView =
       returnTo:
         | { kind: 'home' }
         | { kind: 'my-projects' }
+        | { kind: 'games' }
         | { kind: 'learning' }
         | { kind: 'classroom'; classroomId: string; classroomTitle: string; seatId?: string }
         | { kind: 'classroom-projects'; classroomId: string; classroomTitle: string };
@@ -61,6 +65,7 @@ const PORTAL_ROUTES: ReadonlyArray<{
 }> = [
   { path: '/home', view: { kind: 'home' } },
   { path: '/projects', view: { kind: 'my-projects' } },
+  { path: '/games', view: { kind: 'games' } },
   { path: '/learning', view: { kind: 'learning' } },
   { path: '/collections', view: { kind: 'collections' } },
   { path: '/gallery', view: { kind: 'gallery' } },
@@ -92,6 +97,7 @@ export function portalNavigation(
     { section: 'home', label: 'Главная' },
     ...(classes ? ([{ section: 'classes', label: 'Классы' }] as const) : []),
     { section: 'projects', label: 'Проекты' },
+    { section: 'games', label: 'Игры' },
     { section: 'collections', label: 'Коллекции' },
     // Where the work that was shared lives. Everyone has it: seeing what other
     // people made is the reason a child opens a making tool twice.
@@ -117,6 +123,8 @@ export function sectionForView(view: CreatorPortalView, canTeach: boolean): Crea
   void canTeach;
   if (view.kind === 'account') return 'account';
   if (view.kind === 'home') return 'home';
+  if (view.kind === 'games' || (view.kind === 'editor' && isGameModule(view.moduleKey)))
+    return 'games';
   if (view.kind === 'learning') return 'learning';
   if (view.kind === 'collections') return 'collections';
   if (view.kind === 'gallery' || view.kind === 'gallery-work') return 'gallery';
@@ -150,6 +158,9 @@ export function creatorViewToHash(view: CreatorPortalView): string {
     return `#/gallery/${encodeURIComponent(view.projectId)}`;
   }
   if (view.kind !== 'editor') return '#/home';
+  if (view.returnTo.kind === 'games' && isGameModule(view.moduleKey)) {
+    return `#/games/${view.moduleKey}/${encodeURIComponent(view.projectId)}`;
+  }
   if (view.returnTo.kind === 'classroom-projects') {
     const query = new URLSearchParams({ title: view.returnTo.classroomTitle });
     if (view.moduleKey) query.set('module', view.moduleKey);
@@ -229,6 +240,18 @@ export function creatorViewFromHash(hash: string): CreatorPortalView {
   const moduleKey =
     requestedModule && /^[a-z0-9-]+$/.test(requestedModule) ? requestedModule : undefined;
   const teacherInvite = /^\/teacher-invite\/([^/]+)$/.exec(path ?? '');
+  const gameEditor = /^\/games\/(chess|checkers)\/([^/]+)$/.exec(path ?? '');
+  if (gameEditor) {
+    const projectId = decodeRouteParameter(gameEditor[2] as string);
+    return projectId
+      ? {
+          kind: 'editor',
+          projectId,
+          moduleKey: gameEditor[1] as string,
+          returnTo: { kind: 'games' },
+        }
+      : { kind: 'games' };
+  }
   if (teacherInvite) {
     const token = decodeRouteParameter(teacherInvite[1] as string);
     return token ? { kind: 'teacher-invite', token } : { kind: 'home' };
@@ -291,7 +314,7 @@ export function creatorViewFromHash(hash: string): CreatorPortalView {
       kind: 'editor',
       projectId,
       moduleKey: 'chess',
-      returnTo: { kind: 'my-projects' },
+      returnTo: { kind: 'games' },
     };
   }
   const personalEditor = /^\/(home|projects)\/([^/]+)$/.exec(path ?? '');
@@ -327,7 +350,7 @@ export function creatorViewFromLocation(location: {
 }
 
 export function recentProjects(projects: readonly Project[], limit = 4): readonly Project[] {
-  return [...projects]
+  return projectEntries(projects)
     .sort((left, right) => {
       const timeDifference =
         new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime();

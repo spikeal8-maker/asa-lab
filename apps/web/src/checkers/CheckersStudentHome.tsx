@@ -78,7 +78,7 @@ export function CheckersStudentHome({
       <EditorHeader
         moduleId="checkers"
         onExit={onBack}
-        exitLabel="Вернуться к проектам ASA Lab"
+        exitLabel="Вернуться к играм ASA Lab"
         title={{ kind: 'readonly', text: projectTitle }}
         status={{ kind: 'saved', label: 'Прогресс сохранён', icon: '✓' }}
         navigation={{

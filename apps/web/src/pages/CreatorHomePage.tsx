@@ -7,7 +7,7 @@ import { ModuleGlyph, moduleAccent } from '../modules/ModuleGlyph';
 import { ProjectCard } from '../modules/ProjectCard';
 
 const PROJECTS_PER_MODULE = 4;
-const HOME_MODULE_ORDER = ['three-d', 'electronics', 'chess'] as const;
+const HOME_MODULE_ORDER = ['three-d', 'electronics'] as const;
 
 function formatRelativeDate(value: string): string {
   const date = new Date(value);
@@ -72,7 +72,7 @@ export function CreatorHomePage({
     setError(null);
     const [projectsResult, modulesResult, sharedResult] = await Promise.all([
       api.listProjects({ scope: 'personal' }),
-      api.listModules(),
+      api.listProjectModules(),
       api.myGalleryProjects(),
     ]);
     if (sharedResult.ok) setShared(new Set(sharedResult.data.projectIds));

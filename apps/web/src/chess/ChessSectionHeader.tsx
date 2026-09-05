@@ -26,7 +26,7 @@ export function ChessSectionHeader(props: ChessSectionHeaderProps): JSX.Element 
       <EditorHeader
         moduleId="chess"
         onExit={props.onExit}
-        exitLabel="Вернуться ко всем проектам"
+        exitLabel="Вернуться к играм"
         title={{ kind: 'readonly', text: props.title }}
         status={props.status}
         navigation={{

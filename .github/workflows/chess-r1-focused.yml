@@ -10,6 +10,12 @@ on:
       - 'apps/api/src/chess-live.controller.ts'
       - 'apps/api/src/chess-live.controller.spec.ts'
       - 'apps/web/src/chess/**'
+      - 'apps/web/src/games/**'
+      - 'apps/web/src/pages/GamesPage.tsx'
+      - 'apps/web/src/pages/games.css'
+      - 'apps/web/src/creator-portal/navigation.ts'
+      - 'e2e/games-navigation.spec.ts'
+      - 'e2e/open-chess-game.ts'
       - 'apps/web/public/assets/chess/**'
       - 'e2e/chess-module.spec.ts'
       - 'e2e/chess-live.spec.ts'
@@ -26,6 +32,12 @@ on:
       - 'apps/api/src/chess-live.controller.ts'
       - 'apps/api/src/chess-live.controller.spec.ts'
       - 'apps/web/src/chess/**'
+      - 'apps/web/src/games/**'
+      - 'apps/web/src/pages/GamesPage.tsx'
+      - 'apps/web/src/pages/games.css'
+      - 'apps/web/src/creator-portal/navigation.ts'
+      - 'e2e/games-navigation.spec.ts'
+      - 'e2e/open-chess-game.ts'
       - 'apps/web/public/assets/chess/**'
       - 'apps/web/src/components/editor-chrome/**'
       - 'e2e/chess-module.spec.ts'
@@ -78,6 +90,9 @@ jobs:
 
       - name: Focused Chess R1 gate
         run: pnpm gate:chess-r1
+
+      - name: Games navigation and saved-game entry
+        run: pnpm test:games
 
   browser:
     name: Local and live Chess journeys

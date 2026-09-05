@@ -35,6 +35,7 @@ function sectionIcon(section: Exclude<PortalSection, 'account'>): JSX.Element {
   if (section === 'home') return <HomeGlyph />;
   if (section === 'classes') return <ClassesGlyph />;
   if (section === 'projects') return <ProjectsGlyph />;
+  if (section === 'games') return <span className="portal-games-glyph">♟</span>;
   if (section === 'collections') return <CollectionsGlyph />;
   if (section === 'gallery') return <GalleryGlyph />;
   if (section === 'learning') return <LearningGlyph />;

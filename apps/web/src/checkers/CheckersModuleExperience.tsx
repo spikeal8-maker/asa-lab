@@ -817,7 +817,7 @@ export function CheckersModuleExperience(props: CheckersModuleExperienceProps): 
     return (
       <main className="checkers-loading" role="alert">
         <span className="checkers-kicker">ASA Шашки</span>
-        <h1>Проект не открыт</h1>
+        <h1>Не удалось открыть шашки</h1>
         <p>{checkers.notice}</p>
         <div>
           <button
@@ -828,7 +828,7 @@ export function CheckersModuleExperience(props: CheckersModuleExperienceProps): 
             Повторить
           </button>
           <button type="button" className="checkers-link-button" onClick={props.onBack}>
-            К проектам
+            К играм
           </button>
         </div>
       </main>
