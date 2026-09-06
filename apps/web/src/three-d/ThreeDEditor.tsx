@@ -296,10 +296,10 @@ export function ThreeDEditor({ projectId, onBack, user }: ThreeDEditorProps): JS
           </span>
         )}
         <nav className="asa3d-mode-buttons" aria-label="Среда проекта">
-          <button type="button" className="active" aria-current="page">
+          <span className="asa3d-mode-indicator" aria-label="Редактор 3D">
             <CubeIcon />
             <span>3D</span>
-          </button>
+          </span>
           <EditorAvatar className="asa3d-user" avatar={avatar} />
         </nav>
       </header>

@@ -204,6 +204,12 @@ export function ThreeDToolbar({
             setToolsOpen(false);
         }}
       >
+        <details className="asa3d-touch-help">
+          <summary>Управление пальцами</summary>
+          <p>Один палец: на детали — перемещение, на свободном поле — вращение вида.</p>
+          <p>Два пальца: двигайте вместе для сдвига вида, разводите для приближения.</p>
+          <p>«Выбор» включает выделение нескольких деталей касанием или рамкой.</p>
+        </details>
         <div className="asa3d-toolbar-group asa3d-toolbar-edit" aria-label="Правка">
           <ToolbarButton
             command="copy"

@@ -207,6 +207,44 @@ export function ShapeInspector({ node, group, execute }: ShapeInspectorProps): J
         >
           <ViewIcon aria-hidden="true" />
         </button>
+        {compactViewport && !expanded && (
+          <div className="asa3d-quick-operation" aria-label="Тип формы">
+            <button
+              type="button"
+              aria-label="Тело"
+              aria-pressed={operation === 'solid'}
+              disabled={locked}
+              onClick={() => {
+                if (operation !== 'solid') setOperation('solid');
+                else {
+                  setExpandedMobileKey(selectionKey);
+                  setColorOpenKey(selectionKey);
+                }
+              }}
+            >
+              <i
+                className="solid"
+                aria-hidden="true"
+                style={
+                  selectedColor
+                    ? { backgroundColor: selectedColor, opacity: selectedOpacity }
+                    : undefined
+                }
+              />
+              Тело
+            </button>
+            <button
+              type="button"
+              aria-label="Отверстие"
+              aria-pressed={operation === 'hole'}
+              disabled={locked}
+              onClick={() => setOperation('hole')}
+            >
+              <i className="hole" aria-hidden="true" />
+              Отверстие
+            </button>
+          </div>
+        )}
       </header>
 
       {expanded && (

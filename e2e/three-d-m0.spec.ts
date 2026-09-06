@@ -1,4 +1,4 @@
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, readFileSync } from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
 import pg from 'pg';
 import { collectBrowserFailures } from './browser-failures';
@@ -546,6 +546,141 @@ test('teacher models, autosaves, reloads and versions an ASA 3D scene', async ({
 
 test.describe('Boolean result recovery', () => {
   test.use({ hasTouch: true });
+  test('phone exposes shapes and avatar, routes orbit/pan/pinch without editing the model', async ({
+    page,
+    context,
+  }) => {
+    test.setTimeout(120_000);
+    const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
+    await loginWithOrganization(page, teacher);
+    await createThreeDProject(page, 'Телефон: фигуры и управление пальцами');
+    await page.setViewportSize({ width: 390, height: 844 });
+    const viewport = page.getByTestId('asa3d-viewport');
+    const library = page.getByLabel('Библиотека форм');
+    const strip = library.locator('.asa3d-shape-grid');
+    const profile = page.locator('.asa3d-user');
+    await expect(profile).toBeVisible();
+    await expect(profile).toHaveAttribute('aria-label', /^Профиль:/);
+    await expect(page.getByLabel('Редактор 3D', { exact: true })).toBeVisible();
+    await expect(library).toHaveAttribute('data-mobile-expanded', 'true');
+    await expect(
+      page.getByRole('button', { name: 'Параллелепипед', exact: true }),
+    ).toBeInViewport();
+    expect((await library.boundingBox())!.height).toBeLessThanOrEqual(133);
+    expect((await viewport.boundingBox())!.height).toBeGreaterThan(600);
+    const cdp = await context.newCDPSession(page);
+    const touch = async (
+      type: 'touchStart' | 'touchMove' | 'touchEnd',
+      points: { id: number; x: number; y: number }[] = [],
+    ) => {
+      await cdp.send('Input.dispatchTouchEvent', {
+        type,
+        touchPoints: points.map((point) => ({ ...point, radiusX: 2, radiusY: 2, force: 1 })),
+      });
+    };
+    const stripBounds = (await strip.boundingBox())!;
+    const stripY = stripBounds.y + stripBounds.height / 2;
+    await touch('touchStart', [{ id: 1, x: 330, y: stripY }]);
+    for (const x of [280, 220, 160, 100]) await touch('touchMove', [{ id: 1, x, y: stripY }]);
+    await touch('touchEnd');
+    await expect.poll(() => strip.evaluate((element) => element.scrollLeft)).toBeGreaterThan(80);
+    await expect(viewport).toHaveAttribute('data-selected-node-id', '');
+    const box = page.getByRole('button', { name: 'Параллелепипед', exact: true });
+    await box.scrollIntoViewIfNeeded();
+    await box.tap();
+    const inspector = page.getByTestId('asa3d-shape-inspector');
+    await expect(inspector).toHaveClass(/compact/);
+    expect((await inspector.boundingBox())!.height).toBeLessThanOrEqual(46);
+    await page.getByRole('button', { name: 'Отверстие', exact: true }).tap();
+    await expect(page.getByRole('button', { name: 'Отверстие', exact: true })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    await page.getByRole('button', { name: 'Тело', exact: true }).tap();
+    await expect(inspector).toHaveClass(/compact/);
+    await expect(page.getByRole('button', { name: 'Тело', exact: true })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    await page.getByRole('button', { name: 'Тело', exact: true }).tap();
+    await expect(inspector).toHaveClass(/expanded/);
+    await expect(inspector.locator('.asa3d-color-presets')).toBeVisible();
+    await page.getByRole('button', { name: 'Свернуть параметры', exact: true }).tap();
+    await page.screenshot({
+      path: 'e2e/artifacts/three-d/phone-bottom-shapes-compact-body.png',
+      fullPage: true,
+    });
+    const exportNodes = async () => {
+      await page.getByRole('button', { name: 'Все инструменты' }).tap();
+      await page.getByRole('button', { name: 'Экспорт', exact: true }).tap();
+      const [download] = await Promise.all([
+        page.waitForEvent('download'),
+        page.getByRole('button', { name: 'ASA 3D JSON', exact: true }).tap(),
+      ]);
+      expect(await download.failure()).toBeNull();
+      const nodes: unknown = JSON.parse(readFileSync((await download.path())!, 'utf8')).nodes;
+      await page.getByRole('button', { name: 'Все инструменты' }).tap();
+      return nodes;
+    };
+    const original = await exportNodes();
+    const camera = async () =>
+      (await viewport.getAttribute('data-camera-state'))!.split(',').map(Number);
+    const distance = (state: number[]) =>
+      Math.hypot(state[0] - state[3], state[1] - state[4], state[2] - state[5]);
+    const initialCamera = await camera();
+    await touch('touchStart', [{ id: 1, x: 330, y: 550 }]);
+    await touch('touchMove', [{ id: 1, x: 280, y: 520 }]);
+    await touch('touchEnd');
+    const orbited = await camera();
+    expect(orbited.slice(0, 3)).not.toEqual(initialCamera.slice(0, 3));
+    expect(orbited.slice(3)).toEqual(initialCamera.slice(3));
+    await touch('touchStart', [
+      { id: 1, x: 100, y: 540 },
+      { id: 2, x: 250, y: 540 },
+    ]);
+    await touch('touchMove', [
+      { id: 1, x: 140, y: 520 },
+      { id: 2, x: 290, y: 520 },
+    ]);
+    const panned = await camera();
+    expect(panned.slice(3)).not.toEqual(orbited.slice(3));
+    expect(Math.abs(distance(panned) - distance(orbited))).toBeLessThan(1);
+    await touch('touchMove', [
+      { id: 1, x: 70, y: 520 },
+      { id: 2, x: 330, y: 520 },
+    ]);
+    await touch('touchEnd');
+    expect(distance(await camera())).toBeLessThan(distance(panned) * 0.7);
+    expect(await exportNodes()).toEqual(original);
+    // Adding a second finger in the middle of resizing cancels the preview.
+    await page.getByRole('button', { name: 'Домой', exact: true }).tap();
+    const before = await directHandlePoint(page, 'resize-east');
+    await touch('touchStart', [{ id: 1, ...before.handle }]);
+    await touch('touchMove', [{ id: 1, ...extendFromCentre(before.handle, before.centre, 20) }]);
+    await touch('touchStart', [
+      { id: 1, ...extendFromCentre(before.handle, before.centre, 20) },
+      { id: 2, x: 330, y: 550 },
+    ]);
+    await touch('touchEnd');
+    const after = await directHandlePoint(page, 'resize-east');
+    expect(
+      Math.hypot(after.handle.x - before.handle.x, after.handle.y - before.handle.y),
+    ).toBeLessThanOrEqual(1);
+    expect(await exportNodes()).toEqual(original);
+    await page.getByRole('button', { name: 'Все инструменты' }).tap();
+    await page.getByText('Управление пальцами', { exact: true }).tap();
+    await expect(page.getByText('Два пальца:', { exact: false })).toBeVisible();
+    await page.getByRole('button', { name: 'Все инструменты' }).tap();
+    await page.setViewportSize({ width: 844, height: 390 });
+    await expect(profile).toBeVisible();
+    await expect(box).toBeInViewport();
+    expect((await library.boundingBox())!.height).toBeLessThanOrEqual(113);
+    await page.screenshot({
+      path: 'e2e/artifacts/three-d/phone-landscape-bottom-shapes.png',
+      fullPage: true,
+    });
+    failures.assertEmpty();
+  });
   test('phone authors a cut model with touch, keeps resize frames stable, undoes and exports', async ({
     page,
     context,
@@ -588,7 +723,8 @@ test.describe('Boolean result recovery', () => {
       });
     };
     const addBox = async () => {
-      await page.getByRole('button', { name: 'Добавить фигуру', exact: true }).tap();
+      const showLibrary = page.getByRole('button', { name: 'Добавить фигуру', exact: true });
+      if (await showLibrary.isVisible()) await showLibrary.tap();
       const boxCard = page.getByRole('button', { name: 'Параллелепипед', exact: true });
       await boxCard.scrollIntoViewIfNeeded();
       const cardBounds = (await boxCard.boundingBox())!;
@@ -602,7 +738,7 @@ test.describe('Boolean result recovery', () => {
       await page.screenshot({ path: 'e2e/artifacts/three-d/r2-phone-library.png', fullPage: true });
       await page.getByRole('button', { name: 'Параллелепипед', exact: true }).tap();
       await expect(
-        page.getByRole('button', { name: 'Добавить фигуру', exact: true }),
+        page.getByRole('button', { name: 'Свернуть фигуры', exact: true }),
       ).toBeVisible();
       await expect(
         page.getByRole('button', { name: 'Развернуть параметры', exact: true }),

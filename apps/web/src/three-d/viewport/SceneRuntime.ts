@@ -18,6 +18,7 @@ import {
 import { createBooleanMeshFromEvaluation } from './csg';
 import { applyNodeTransform, createNodeObject, disposeObject } from './geometry';
 import { addCadSceneLights } from './cad-appearance';
+import { TouchNavigation } from './TouchNavigation';
 import { directManipulationReplacements, runtimeSelectionKeys } from '../selection-model';
 import { commonResultTransform, dimensionMatrix } from './result-transform';
 import { GeometryWorkerClient } from '../geometry/worker-client';
@@ -152,6 +153,7 @@ export class SceneRuntime {
   private readonly renderer: THREE.WebGLRenderer;
   private readonly orbit: OrbitControls;
   private readonly manipulator: DirectManipulator;
+  private readonly touchNavigation: TouchNavigation;
   private readonly raycaster = new THREE.Raycaster();
   private readonly pointer = new THREE.Vector2();
   private readonly entries = new Map<string, SceneEntry>();
@@ -259,6 +261,15 @@ export class SceneRuntime {
         onInteractionEnd: () => this.flushDeferredResults(),
       },
     );
+
+    this.touchNavigation = new TouchNavigation(this.container, this.renderer.domElement, {
+      targetsModel: (x, y) => this.manipulator.touchTargetsModel(x, y),
+      cancelModelGesture: () => this.manipulator.cancelTouchGesture(),
+      clearSelection: () => this.manipulator.clearTouchSelection(),
+      orbit: (dx, dy) => this.orbitBy(dx, dy),
+      panZoom: (dx, dy, scale) => this.panZoomBy(dx, dy, scale),
+    });
+    this.container.dataset['touchNavigation'] = 'model-move;empty-orbit;two-finger-pan-zoom';
 
     addCadSceneLights(this.scene);
     this.scene.add(this.gridRoot, this.booleanRoot, this.rulerRoot);
@@ -934,6 +945,24 @@ export class SceneRuntime {
     this.orbit.update();
   }
 
+  private panZoomBy(deltaX: number, deltaY: number, scale: number): void {
+    const offset = this.camera.position.clone().sub(this.orbit.target);
+    const distance = offset.length();
+    const unitsPerPixel =
+      (2 * distance * Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2))) /
+      Math.max(1, this.renderer.domElement.clientHeight);
+    const shift = new THREE.Vector3(-deltaX, deltaY, 0)
+      .applyQuaternion(this.camera.quaternion)
+      .multiplyScalar(unitsPerPixel);
+    this.orbit.target.add(shift);
+    offset.setLength(
+      THREE.MathUtils.clamp(distance * scale, this.orbit.minDistance, this.orbit.maxDistance),
+    );
+    this.camera.position.copy(this.orbit.target).add(offset);
+    this.camera.lookAt(this.orbit.target);
+    this.orbit.update();
+  }
+
   fitToScene(): void {
     const box = new THREE.Box3();
     for (const entry of this.entries.values()) {
@@ -964,7 +993,7 @@ export class SceneRuntime {
    * scene is framed first and the camera put back afterwards.
    */
   captureFrame(): HTMLCanvasElement | null {
-    if (this.manipulator.isDragging()) return null;
+    if (this.manipulator.isDragging() || this.touchNavigation.isActive()) return null;
     const position = this.camera.position.clone();
     const target = this.orbit.target.clone();
     try {
@@ -983,6 +1012,7 @@ export class SceneRuntime {
     this.clearDeferredResults();
     window.cancelAnimationFrame(this.animationFrame);
     this.resizeObserver.disconnect();
+    this.touchNavigation.dispose();
     this.manipulator.dispose();
     this.geometryWorker.dispose();
     this.clearPlacementPreview();

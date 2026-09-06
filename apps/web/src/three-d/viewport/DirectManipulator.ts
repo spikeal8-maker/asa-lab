@@ -501,6 +501,21 @@ export class DirectManipulator {
     this.finishDrag(false);
   }
 
+  touchTargetsModel(x: number, y: number): boolean {
+    if (this.additiveSelection) return true;
+    this.setPointer(x, y);
+    return Boolean(this.intersectHandle() || this.intersectEntry());
+  }
+
+  cancelTouchGesture(): void {
+    this.cancelDrag();
+    this.finishMarquee(false);
+  }
+
+  clearTouchSelection(): void {
+    this.applySelection([], false);
+  }
+
   private selectedEntry(): DirectManipulationEntry | null {
     return this.selectedId ? (this.getEntries().get(this.selectedId) ?? null) : null;
   }

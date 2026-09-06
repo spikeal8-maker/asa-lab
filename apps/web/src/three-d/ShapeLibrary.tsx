@@ -146,7 +146,7 @@ export function ShapeLibrary({
   const [query, setQuery] = useState('');
   const [showHint, setShowHint] = useState(true);
   const [category, setCategory] = useState<ShapeCategory>('basic');
-  const [mobileExpanded, setMobileExpanded] = useState(false);
+  const [mobileExpanded, setMobileExpanded] = useState(true);
   const filteredShapes = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase('ru');
     if (searchOpen && normalized)
@@ -256,7 +256,6 @@ export function ShapeLibrary({
               onDragEnd={() => onDragStateChange(null)}
               onClick={(event) => {
                 onAdd(primitive, undefined, event.shiftKey, 'hole');
-                setMobileExpanded(false);
               }}
               aria-label={`Отверстие: ${label}`}
               title={`Отверстие: ${label}`}
@@ -280,7 +279,6 @@ export function ShapeLibrary({
             onDragEnd={() => onDragStateChange(null)}
             onClick={(event) => {
               onAdd(primitive, undefined, event.shiftKey, 'solid');
-              setMobileExpanded(false);
             }}
             aria-label={label}
             title={label}
