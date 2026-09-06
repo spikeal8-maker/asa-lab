@@ -1390,7 +1390,7 @@ describe('deterministic DC solver', () => {
         [
           component('source', 'source', 5),
           component('r1', 'resistor', 1000),
-          component('sensor', 'visual', 0, { componentTypeId: 'temperature-sensor' }),
+          component('sensor', 'visual', 0, { componentTypeId: 'soil-moisture-sensor' }),
         ],
         [connect('w1', 'source', 'a', 'r1', 'a'), connect('w2', 'r1', 'b', 'source', 'b')],
       ),

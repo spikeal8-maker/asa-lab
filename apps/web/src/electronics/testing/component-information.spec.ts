@@ -31,6 +31,22 @@ const measurement: ComponentResult = {
 };
 
 describe('component information registry', () => {
+  it('documents temperature-sensor TMP36 pins, ordinary circuit use and honest model limits', () => {
+    const profile = componentInformationProfile('temperature-sensor', 'visual');
+    expect(profile.terminalPresentation).toBe('full');
+    expect(profile.technicalMetrics.map((m) => m.label)).toContain('Ток питания');
+    const help = componentHelpSections('visual', '', 'temperature-sensor');
+    expect(help.map((section) => section.id)).toEqual([
+      'description',
+      'principle',
+      'connection',
+      'usage',
+      'safety',
+    ]);
+    expect(help.find((section) => section.id === 'connection')!.text).toContain('посередине 2');
+    expect(help.find((section) => section.id === 'usage')!.text).toContain('analogRead(A0)');
+    expect(help.find((section) => section.id === 'safety')!.text).toContain('не моделируются');
+  });
   it('covers every enabled catalog family through a typed component kind profile', () => {
     const enabled = workbenchCatalog().filter((family) => family.enabled);
     const kinds = enabled.flatMap((family) =>

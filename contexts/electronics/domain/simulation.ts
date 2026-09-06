@@ -7,6 +7,7 @@ import {
 import { buildNetlist, terminalKey, type Netlist } from './netlist.js';
 import { canonicalElectricalModelRegistry } from './model-identity.js';
 import { canonicalPhotoresistorProfileRegistry } from './photoresistor-model.js';
+import { TMP36_PROFILE } from './models/tmp36-dc-model.js';
 import { SEVEN_SEGMENT_TERMINALS } from './led-model.js';
 import { electricalModelFor } from './model-registry.js';
 import { canonicalNonlinearDcProfileRegistry } from './models/nonlinear-dc-models.js';
@@ -61,7 +62,7 @@ export interface SimulationResult extends SolveResult {
   readonly quality: SimulationQuality;
   readonly topologySignature: string;
   readonly simulationInputDigest: string;
-  readonly solverRevision: 'asa-electronics-solver-v18';
+  readonly solverRevision: 'asa-electronics-solver-v19';
   readonly modelSetDigest: string;
   readonly analysis: {
     readonly electricalMode: 'dc' | 'transient';
@@ -77,6 +78,7 @@ const MIN_POWER_BALANCE_TOLERANCE_W = 1e-9;
 const MODEL_SET_DIGEST = `sha256:${sha256Hex(
   JSON.stringify({
     identities: canonicalElectricalModelRegistry(),
+    tmp36Profile: TMP36_PROFILE,
     photoresistorProfiles: canonicalPhotoresistorProfileRegistry(),
     nonlinearDcProfiles: canonicalNonlinearDcProfileRegistry(),
     brushedMotorProfiles: canonicalBrushedMotorProfileRegistry(),
@@ -353,6 +355,10 @@ function allNumbers(result: SolveResult): readonly number[] {
       component.storedEnergyJoule ?? 0,
       component.voltageRatingVolt ?? 0,
       component.temperatureCelsius ?? 0,
+      component.sensorTemperatureCelsius ?? 0,
+      component.sensorOutputVoltageVolt ?? 0,
+      component.sensorSupplyVoltageVolt ?? 0,
+      component.sensorOutputCurrentAmp ?? 0,
       component.thermalLoadPercent ?? 0,
       component.accumulatedDamagePercent ?? 0,
       component.voltageConstraintResidual ?? 0,
@@ -584,6 +590,7 @@ export function verifyCircuitQuality(
         component.componentTypeId === 'dc-motor' ||
         component.componentTypeId === 'gearmotor' ||
         component.componentTypeId === 'vibration-motor' ||
+        component.componentTypeId === 'temperature-sensor' ||
         component.componentTypeId === 'multimeter'),
   );
   const powerBalanceApplicable =
@@ -702,7 +709,7 @@ export function analyseCircuit(
       quality: failedQuality(),
       topologySignature: compiled.topologySignature,
       simulationInputDigest: inputDigest,
-      solverRevision: 'asa-electronics-solver-v18',
+      solverRevision: 'asa-electronics-solver-v19',
       modelSetDigest: MODEL_SET_DIGEST,
       analysis,
     };
@@ -727,7 +734,7 @@ export function analyseCircuit(
       quality,
       topologySignature: compiled.topologySignature,
       simulationInputDigest: inputDigest,
-      solverRevision: 'asa-electronics-solver-v18',
+      solverRevision: 'asa-electronics-solver-v19',
       modelSetDigest: MODEL_SET_DIGEST,
       analysis,
     };
@@ -739,7 +746,7 @@ export function analyseCircuit(
     quality,
     topologySignature: compiled.topologySignature,
     simulationInputDigest: inputDigest,
-    solverRevision: 'asa-electronics-solver-v18',
+    solverRevision: 'asa-electronics-solver-v19',
     modelSetDigest: MODEL_SET_DIGEST,
     analysis,
   };

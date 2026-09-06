@@ -30,7 +30,7 @@ const PHYSICS_QUANTUM_US = 1000;
 export interface ArduinoCircuitInputEvent {
   readonly atMicroseconds: number;
   readonly componentId: string;
-  readonly property: 'state' | 'wiperPosition';
+  readonly property: 'state' | 'wiperPosition' | 'temperatureCelsius';
   readonly value: boolean | number;
 }
 
@@ -80,6 +80,7 @@ function clockedComponent(component: SchematicComponent): boolean {
       'spdt-switch',
       'potentiometer',
       'photoresistor',
+      'analog-temperature-sensor',
       'breadboard-connectivity',
       'ideal-wire',
       'ideal-dc-source',
@@ -113,7 +114,13 @@ function validInputs(
             typeof event.value === 'number' &&
             Number.isFinite(event.value) &&
             event.value >= 0 &&
-            event.value <= 1))
+            event.value <= 1) ||
+          (event.property === 'temperatureCelsius' &&
+            component.componentTypeId === 'temperature-sensor' &&
+            typeof event.value === 'number' &&
+            Number.isFinite(event.value) &&
+            event.value >= -40 &&
+            event.value <= 125))
       );
     })
   );
@@ -136,7 +143,12 @@ function applyInput(
     ...document,
     components: document.components.map((component) =>
       component.id === event.componentId
-        ? ({ ...component, [event.property]: event.value } as SchematicComponent)
+        ? event.property === 'temperatureCelsius'
+          ? {
+              ...component,
+              stateProperties: { ...component.stateProperties, temperatureCelsius: event.value },
+            }
+          : ({ ...component, [event.property]: event.value } as SchematicComponent)
         : component,
     ),
   };

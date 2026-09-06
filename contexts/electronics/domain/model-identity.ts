@@ -14,6 +14,7 @@ export type ElectricalModelId =
   | 'potentiometer'
   | 'capacitor'
   | 'photoresistor'
+  | 'analog-temperature-sensor'
   | 'piezo-transducer'
   | 'diode'
   | 'npn-transistor'
@@ -54,6 +55,7 @@ const KNOWN_MODEL_IDS: ReadonlySet<string> = new Set<ElectricalModelId>([
   'potentiometer',
   'capacitor',
   'photoresistor',
+  'analog-temperature-sensor',
   'piezo-transducer',
   'diode',
   'npn-transistor',
@@ -69,6 +71,7 @@ const KNOWN_MODEL_IDS: ReadonlySet<string> = new Set<ElectricalModelId>([
 ]);
 
 const EXACT_IDENTITIES: Readonly<Record<string, ElectricalModelIdentity>> = {
+  'temperature-sensor': identity('analog-temperature-sensor', 'tmp36-to92-dc'),
   'arduino-uno': identity('arduino-uno', 'arduino-uno-r3'),
   'resistor-axial': identity('resistor', 'axial-resistor'),
   'led-5mm': identity('ordinary-led', 'generic-red-led'),
@@ -176,6 +179,14 @@ export function electricalModelIdentityForComponent(
     // Schema v4 documents saved before these models existed contain exact
     // placeholder identities. Upgrade only those known placeholders;
     // unknown/future identities must remain fail-closed.
+    if (
+      component.componentTypeId === 'temperature-sensor' &&
+      component.electricalModelId === 'unsupported' &&
+      component.electricalModelVersion === 1 &&
+      component.modelProfileId === 'unsupported-temperature-sensor' &&
+      component.modelProfileVersion === 1
+    )
+      return resolveElectricalModelIdentity(component);
     if (
       (component.componentTypeId === 'piezo-passive-buzzer' ||
         component.componentTypeId === 'piezo-disc') &&

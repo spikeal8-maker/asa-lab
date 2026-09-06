@@ -1307,6 +1307,32 @@ export function WorkbenchSidebars({
                   </button>
                 </fieldset>
               ) : null}
+              {c.selectedComponent.componentTypeId === 'temperature-sensor' ? (
+                <>
+                  <label>
+                    <span>Модель</span>
+                    <span>TMP36 · TO-92</span>
+                  </label>
+                  <label>
+                    <span>Температура, °C</span>
+                    <input
+                      aria-label="Температура TMP36, °C"
+                      type="number"
+                      min="-40"
+                      max="125"
+                      step="1"
+                      value={Number(
+                        c.selectedComponent.stateProperties?.['temperatureCelsius'] ?? 25,
+                      )}
+                      onChange={(event) => {
+                        const value = event.target.valueAsNumber;
+                        if (Number.isFinite(value) && value >= -40 && value <= 125)
+                          c.setSelectedProperties({ temperatureCelsius: value });
+                      }}
+                    />
+                  </label>
+                </>
+              ) : null}
               {c.selectedComponent.kind === 'potentiometer' && stateOpen ? (
                 <label>
                   <span>Положение</span>

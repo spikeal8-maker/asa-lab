@@ -30,6 +30,12 @@ import {
 import { ledBrightnessPercent, type LedJunctionProfile } from './led-model.js';
 import type { DcStampContext, IterativeDcStampContext } from './models/device-model.js';
 import {
+  createTmp36DcDevice,
+  TMP36_DEVICE_MODEL,
+  type Tmp36State,
+  type Tmp36Observation,
+} from './models/tmp36-dc-model.js';
+import {
   createLinearDcDevice,
   isAnySourceDevice,
   isFunctionGeneratorDevice,
@@ -129,6 +135,9 @@ import {
 export { sourceInternalResistanceOhm } from './models/linear-dc-models.js';
 
 export type DiagnosticCode =
+  | 'temperature_sensor_power'
+  | 'temperature_sensor_load'
+  | 'temperature_sensor_backfeed'
   | 'circuit_ok'
   | 'no_source'
   | 'open_circuit'
@@ -202,6 +211,12 @@ export interface DiagnosticAnchor {
 }
 
 export interface ComponentResult {
+  readonly sensorTemperatureCelsius?: number;
+  readonly sensorPowerState?: Tmp36Observation['sensorPowerState'];
+  readonly sensorOutputRegion?: Tmp36Observation['sensorOutputRegion'];
+  readonly sensorOutputVoltageVolt?: number;
+  readonly sensorSupplyVoltageVolt?: number;
+  readonly sensorOutputCurrentAmp?: number;
   readonly componentId: string;
   readonly voltageDrop: number;
   readonly current: number;
@@ -702,6 +717,7 @@ type LogicalTerminal = 'a' | 'b' | 'wiper';
 function logicalTerminal(component: SchematicComponent, terminal: LogicalTerminal): Terminal {
   const type = component.componentTypeId;
   if (!type) return terminal;
+  if (type === 'temperature-sensor') return terminal === 'a' ? 'pin-2' : 'pin-3';
   if (type === 'signal-generator' || type === 'oscilloscope')
     return terminal === 'a' ? 'signal' : 'ground';
   if (component.kind === 'source' && type) {
@@ -733,6 +749,7 @@ function logicalTerminal(component: SchematicComponent, terminal: LogicalTermina
 
 function isSimulated(component: SchematicComponent): boolean {
   return (
+    component.componentTypeId === 'temperature-sensor' ||
     isArduinoUno(component) ||
     isBrushedMotor(component) ||
     isElectrolyticCapacitor(component) ||
@@ -786,6 +803,8 @@ function roundCurrent(value: number): number {
 }
 
 function propertyError(component: SchematicComponent): string | null {
+  if (component.componentTypeId === 'temperature-sensor')
+    return TMP36_DEVICE_MODEL.validate(component)[0]?.message ?? null;
   if (component.componentTypeId === 'signal-generator') {
     return signalGeneratorValidationMessage(component);
   }
@@ -1936,6 +1955,10 @@ function solveCircuitStep(
     );
     return device ? [device] : [];
   });
+  const tmp36Devices = document.components.flatMap((component) => {
+    const device = createTmp36DcDevice(component);
+    return device ? [device] : [];
+  });
   const npnDcDevices = document.components.flatMap((component) => {
     if (failedComponentIds.has(component.id)) return [];
     const device = createNpnDcDevice(component);
@@ -2381,6 +2404,12 @@ function solveCircuitStep(
   });
   const transistorRegions = new Map<string, TransistorOperatingRegion>();
   const fetOverdrives = new Map<string, number>();
+  const tmp36States = new Map<string, Tmp36State>(
+    tmp36Devices.map((device) => [
+      device.instance.componentId,
+      device.model.initialIterationState(device.instance),
+    ]),
+  );
   const npnIterationStates = new Map<string, NpnIterationState>(
     npnDcDevices.map((device) => {
       const initial = device.model.initialIterationState(device.instance);
@@ -2599,6 +2628,13 @@ function solveCircuitStep(
       }
     }
 
+    for (const device of tmp36Devices) {
+      device.model.stampDc(
+        iterativeStampContext,
+        device.instance,
+        tmp36States.get(device.instance.componentId)!,
+      );
+    }
     for (const device of npnDcDevices) {
       device.model.stampDc(
         iterativeStampContext,
@@ -2706,6 +2742,20 @@ function solveCircuitStep(
         diodeSegmentIndices.set(key, nextSegmentIndex);
         changed = true;
       }
+    }
+    for (const device of tmp36Devices) {
+      const component = device.instance.component;
+      const ground = voltageFrom(solution, physicalNodeIndex(component, 'pin-3'));
+      const evaluated = device.model.evaluateIteration(
+        device.instance,
+        tmp36States.get(component.id)!,
+        {
+          supplyVolt: voltageFrom(solution, physicalNodeIndex(component, 'pin-1')) - ground,
+          outputVolt: voltageFrom(solution, physicalNodeIndex(component, 'pin-2')) - ground,
+        },
+      );
+      tmp36States.set(component.id, evaluated.state);
+      if (evaluated.changed) changed = true;
     }
     for (const device of npnDcDevices) {
       const component = device.instance.component;
@@ -2864,6 +2914,19 @@ function solveCircuitStep(
         : 0,
     };
   };
+  const tmp36Results = new Map<string, Tmp36Observation>(
+    tmp36Devices.map((device) => {
+      const component = device.instance.component;
+      const ground = physicalVoltageAt(component, 'pin-3');
+      return [
+        component.id,
+        device.model.observe(device.instance, tmp36States.get(component.id)!, {
+          supplyVolt: physicalVoltageAt(component, 'pin-1') - ground,
+          outputVolt: physicalVoltageAt(component, 'pin-2') - ground,
+        }),
+      ];
+    }),
+  );
   const npnResultById = new Map<string, TransistorOperatingResult>(
     npnDcDevices.map((device) => {
       const component = device.instance.component;
@@ -3082,6 +3145,7 @@ function solveCircuitStep(
           ? undefined
           : incandescentLampResistanceOhm(lampTemperatureCelsius);
       const linearDcDevice = linearDcDeviceById.get(component.id);
+      const temperature = tmp36Results.get(component.id);
       const reportedLinearCurrent =
         component.kind === 'source' ||
         (linearDcDevice !== undefined && isMultimeterResistanceDevice(linearDcDevice))
@@ -3131,7 +3195,8 @@ function solveCircuitStep(
       }
       if (linearDcObservation) linearDcObservationById.set(component.id, linearDcObservation);
       let current = 0;
-      if (linearDcObservation) current = linearDcObservation.current;
+      if (temperature) current = temperature.current;
+      else if (linearDcObservation) current = linearDcObservation.current;
       else if (isArduinoUno(component))
         current = Math.max(0, ...arduinoBranchResults.map((entry) => Math.abs(entry.current)));
       else if (component.kind === 'photoresistor')
@@ -3157,6 +3222,7 @@ function solveCircuitStep(
       else if (branches.length > 0)
         current = branchResults.reduce((sum, branch) => sum + branch.current, 0);
       const power =
+        temperature?.power ??
         linearDcObservation?.power ??
         transistorResult?.power ??
         Math.abs(
@@ -3399,6 +3465,22 @@ function solveCircuitStep(
                     }
                   : {}),
         power: round(power),
+        ...(temperature
+          ? {
+              sensorTemperatureCelsius: temperature.sensorTemperatureCelsius,
+              sensorPowerState: temperature.sensorPowerState,
+              sensorOutputRegion: temperature.sensorOutputRegion,
+              sensorOutputVoltageVolt: round(temperature.sensorOutputVoltageVolt),
+              sensorSupplyVoltageVolt: round(temperature.sensorSupplyVoltageVolt),
+              sensorOutputCurrentAmp: roundCurrent(temperature.sensorOutputCurrentAmp),
+              terminalCurrents: Object.fromEntries(
+                Object.entries(temperature.terminalCurrents).map(([pin, value]) => [
+                  pin,
+                  roundCurrent(value),
+                ]),
+              ),
+            }
+          : {}),
         brightness: round(brightness, 2),
         ...(branches.length > 0 || transistorResult || isArduinoUno(component)
           ? {
@@ -3646,6 +3728,15 @@ function solveCircuitStep(
       };
     });
 
+  for (const [componentId, observation] of tmp36Results) {
+    diagnostics.push(
+      ...observation.diagnostics.map((diagnostic) => ({
+        ...diagnostic,
+        code: diagnostic.code as DiagnosticCode,
+        componentIds: [componentId],
+      })),
+    );
+  }
   for (const [componentId, observation] of linearDcObservationById) {
     diagnostics.push(
       ...observation.diagnostics.map((diagnostic) => ({

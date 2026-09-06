@@ -158,6 +158,14 @@ const MODELS: Readonly<Record<ComponentKind, ElectricalModelDescriptor>> = {
   },
 };
 
+const TMP36_MODEL: ElectricalModelDescriptor = {
+  id: 'analog-temperature-sensor',
+  kind: 'visual',
+  support: 'supported',
+  topology: 'three-terminal',
+  requiredTerminals: ['pin-1', 'pin-2', 'pin-3'],
+};
+
 const ARDUINO_UNO_MODEL: ElectricalModelDescriptor = {
   id: 'arduino-uno',
   kind: 'visual',
@@ -209,23 +217,26 @@ const OSCILLOSCOPE_MODEL: ElectricalModelDescriptor = {
 export function electricalModelFor(component: SchematicComponent): ElectricalModelDescriptor {
   const identity = electricalModelIdentityForComponent(component);
   const installed = componentModelIdentityIsInstalled(component);
-  const base = !installed
-    ? MODELS.visual
-    : isArduinoUno(component)
-      ? ARDUINO_UNO_MODEL
-      : component.componentTypeId === 'dc-motor' ||
-          component.componentTypeId === 'gearmotor' ||
-          component.componentTypeId === 'vibration-motor'
-        ? DC_MOTOR_MODEL
-        : component.componentTypeId === 'electrolytic-capacitor'
-          ? ELECTROLYTIC_CAPACITOR_MODEL
-          : component.componentTypeId === 'multimeter'
-            ? DIGITAL_MULTIMETER_MODEL
-            : component.componentTypeId === 'signal-generator'
-              ? FUNCTION_GENERATOR_MODEL
-              : component.componentTypeId === 'oscilloscope'
-                ? OSCILLOSCOPE_MODEL
-                : MODELS[component.kind];
+  const base =
+    installed && component.componentTypeId === 'temperature-sensor'
+      ? TMP36_MODEL
+      : !installed
+        ? MODELS.visual
+        : isArduinoUno(component)
+          ? ARDUINO_UNO_MODEL
+          : component.componentTypeId === 'dc-motor' ||
+              component.componentTypeId === 'gearmotor' ||
+              component.componentTypeId === 'vibration-motor'
+            ? DC_MOTOR_MODEL
+            : component.componentTypeId === 'electrolytic-capacitor'
+              ? ELECTROLYTIC_CAPACITOR_MODEL
+              : component.componentTypeId === 'multimeter'
+                ? DIGITAL_MULTIMETER_MODEL
+                : component.componentTypeId === 'signal-generator'
+                  ? FUNCTION_GENERATOR_MODEL
+                  : component.componentTypeId === 'oscilloscope'
+                    ? OSCILLOSCOPE_MODEL
+                    : MODELS[component.kind];
   return {
     ...base,
     id: installed ? (identity.electricalModelId as ElectricalModelId) : 'unsupported',
@@ -244,6 +255,7 @@ export function unsupportedElectricalComponents(
 
 function productionRequiredTerminals(component: SchematicComponent): readonly Terminal[] {
   if (!component.componentTypeId) return [];
+  if (component.componentTypeId === 'temperature-sensor') return TMP36_MODEL.requiredTerminals;
   if (isArduinoUno(component)) return ARDUINO_UNO_MODEL.requiredTerminals;
   if (
     component.componentTypeId === 'dc-motor' ||

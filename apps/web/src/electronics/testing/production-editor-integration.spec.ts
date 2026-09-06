@@ -428,7 +428,7 @@ describe('owner SVG integration in the real Electronics document', () => {
     expect(families.find((family) => family.familyId === 'temperature-sensor')).toMatchObject({
       defaultVariantId: 'temperature-sensor',
       enabled: true,
-      simulationStatus: 'not_yet_supported',
+      simulationStatus: 'supported',
     });
     expect(families.find((family) => family.familyId === 'diode')?.defaultVariantId).toBe(
       'diode-do35',

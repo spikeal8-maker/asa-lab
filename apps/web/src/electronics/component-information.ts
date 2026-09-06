@@ -342,6 +342,17 @@ export function componentInformationProfile(
   componentFamilyId: string,
   kind: ComponentKind,
 ): ComponentInformationProfile {
+  if (componentFamilyId === 'temperature-sensor')
+    return {
+      componentFamilyId,
+      compactFields: [NAME_FIELD],
+      technicalMetrics: [
+        { ...METRICS.voltage, label: 'Выход относительно GND' },
+        { ...METRICS.current, label: 'Ток питания' },
+        METRICS.power,
+      ],
+      terminalPresentation: 'full',
+    };
   if (
     componentFamilyId === 'dc-motor' ||
     componentFamilyId === 'gearmotor' ||

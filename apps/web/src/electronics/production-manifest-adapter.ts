@@ -189,6 +189,7 @@ const SIMULATED_TYPES = new Set([
   'potentiometer',
   'electrolytic-capacitor',
   'photoresistor',
+  'temperature-sensor',
   'diode-do35',
   'diode-do41',
   'transistor-npn',
@@ -236,7 +237,7 @@ const COMPONENT_DESCRIPTIONS: Readonly<Record<string, string>> = {
   'pir-sensor':
     'Пироэлектрический ИК-датчик движения. Размещение и соединение доступны; математическая модель готовится.',
   'temperature-sensor':
-    'Трёхвыводный датчик температуры TMP. Размещение и соединение доступны; математическая модель готовится.',
+    'TMP36: аналоговый датчик температуры. Питание 2,7–5,5 В; выход 0,5 В + 10 мВ/°C.',
   'transistor-npn': 'NPN-транзистор для усиления и переключения электрического сигнала.',
   transistor:
     'Транзистор для усиления и переключения сигнала: NPN, PNP или полевой (N-канал). Тип выбирается в панели настроек.',
@@ -481,6 +482,9 @@ function defaults(componentId: string): {
         coupling: 'DC',
       },
     };
+  if (componentId === 'temperature-sensor') return {
+    value: 0, unit: '', properties: { temperatureCelsius: 25 },
+  };
   return { value: 0, unit: '', properties: { simulationStatus: 'not_yet_supported' } };
 }
 
@@ -489,7 +493,7 @@ function pinLabel(componentId: string, pinId: string): string {
     return { gnd: 'GND', vcc: '5V', signal: 'SIG' }[pinId] ?? pinId;
   }
   if (componentId === 'temperature-sensor') {
-    return { 'pin-1': '1', 'pin-2': '2', 'pin-3': '3' }[pinId] ?? pinId;
+    return { 'pin-1': '1 · +Vs', 'pin-2': '2 · Выход', 'pin-3': '3 · GND' }[pinId] ?? pinId;
   }
   if (componentId === 'rgb-led') {
     const rgbLabels: Readonly<Record<string, string>> = {

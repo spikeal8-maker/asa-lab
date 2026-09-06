@@ -2079,6 +2079,149 @@ void loop(){delay(100);}`;
   failures.assertEmpty();
 });
 
+function tmp36Document(withArduino: boolean): SchematicDocument {
+  const base = arduinoInputDocument('button');
+  const source =
+    'void setup(){pinMode(13,OUTPUT);} void loop(){digitalWrite(13,analogRead(A0)>200);delay(10);}';
+  const components: SchematicDocument['components'][number][] = withArduino
+    ? base.components
+        .filter((part) => ['uno', 'led', 'resistor'].includes(part.id))
+        .map((part) =>
+          part.id === 'uno' ? { ...part, stateProperties: { arduinoSource: source } } : part,
+        )
+    : [
+        {
+          id: 'supply',
+          kind: 'source',
+          componentTypeId: 'battery-holder-aa-2',
+          variantId: 'battery-holder-aa-2',
+          value: 3,
+          position: { x: 100, y: 150 },
+          pinIds: ['BAT+', 'BAT-'],
+          stateProperties: { cells: 2 },
+        },
+      ];
+  components.push(
+    {
+      id: 'tmp',
+      kind: 'visual',
+      componentTypeId: 'temperature-sensor',
+      variantId: 'temperature-sensor',
+      name: 'TMP36',
+      value: 0,
+      position: { x: 510, y: 400 },
+      pinIds: ['pin-1', 'pin-2', 'pin-3'],
+      stateProperties: { temperatureCelsius: 25 },
+    },
+    {
+      id: 'meter',
+      kind: 'visual',
+      componentTypeId: 'multimeter',
+      variantId: 'multimeter',
+      name: 'Мультиметр',
+      value: 0,
+      position: { x: 790, y: 430 },
+      pinIds: ['v-ohm-ma', 'com'],
+      stateProperties: { measurementMode: 'dc-voltage' },
+    },
+  );
+  const wires: string[][] = [
+    [withArduino ? 'uno' : 'supply', withArduino ? 'power-5v' : 'BAT+', 'tmp', 'pin-1'],
+    [withArduino ? 'uno' : 'supply', withArduino ? 'power-gnd-1' : 'BAT-', 'tmp', 'pin-3'],
+    ['tmp', 'pin-2', 'meter', 'v-ohm-ma'],
+    ['tmp', 'pin-3', 'meter', 'com'],
+  ];
+  if (withArduino)
+    wires.push(
+      ['tmp', 'pin-2', 'uno', 'a0'],
+      ['uno', 'd13', 'resistor', 'lead-1'],
+      ['resistor', 'lead-2', 'led', 'anode'],
+      ['led', 'cathode', 'uno', 'power-gnd-1'],
+    );
+  return {
+    ...base,
+    components,
+    connections: wires.map(([from, a, to, b], index) => ({
+      id: `tmp-wire-${index}`,
+      from: { componentId: from, terminal: a },
+      to: { componentId: to, terminal: b },
+      color: '#149447',
+      vertices: [],
+    })),
+  };
+}
+
+for (const withArduino of [false, true]) {
+  test(`TMP36 temperature-sensor: ${withArduino ? 'Arduino ADC' : 'standalone multimeter'} and save/reload`, async ({
+    page,
+  }) => {
+    test.setTimeout(120_000);
+    const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await loginWithOrganization(page, teacher);
+    const projectId = await createProject(page, `TMP36 ${withArduino ? 'Arduino' : 'Multimeter'}`);
+    await saveDocument(page, projectId, tmp36Document(withArduino));
+    await page.goto(`/#/home/${projectId}`);
+    await expect(page.locator('.workbench-stage')).toBeVisible();
+    await component(page, 'temperature-sensor').locator('.workbench-part').press('Enter');
+    const inspector = page.getByRole('complementary', { name: 'Параметры выделения' });
+    const input = inspector.getByRole('spinbutton', { name: 'Температура TMP36, °C' });
+    await expect(input).toHaveValue('25');
+    await expect(inspector).toContainText('TMP36 · TO-92');
+    await page.getByRole('button', { name: 'Начать моделирование' }).click();
+    const display = component(page, 'multimeter').getByTestId('multimeter-runtime-display');
+    await expect(display).toContainText('0.750 V');
+    if (withArduino) await expect.poll(() => brightnessValue(page)).toBe(0);
+    for (const [temperature, text] of [
+      [0, '0.500 V'],
+      [100, '1.500 V'],
+    ] as const) {
+      await input.fill(String(temperature));
+      await expect(display).toContainText(text);
+    }
+    if (withArduino) await expect.poll(() => brightnessValue(page)).toBeGreaterThan(0);
+    await page.screenshot({
+      path: `${ARTIFACT_DIR}/tmp36-${withArduino ? 'arduino' : 'multimeter'}.png`,
+    });
+    await page.getByRole('button', { name: 'Остановить моделирование' }).click();
+    // GET recomputes the stored document through the API's shared electronics provider.
+    await expect
+      .poll(
+        async () => {
+          const response = await page.context().request.get(`/api/projects/${projectId}`, {
+            headers: { origin: new URL(page.url()).origin },
+          });
+          expect(response.ok()).toBe(true);
+          const payload = (await response.json()) as {
+            draft: { document: SchematicDocument };
+            result: {
+              solved: boolean;
+              components: { componentId: string; sensorOutputVoltageVolt?: number }[];
+            };
+          };
+          const saved = payload.draft.document.components.find((p) => p.id === 'tmp')
+            ?.stateProperties?.['temperatureCelsius'];
+          return (
+            saved === 100 &&
+            payload.result.solved &&
+            Math.abs(
+              (payload.result.components.find((p) => p.componentId === 'tmp')
+                ?.sensorOutputVoltageVolt ?? 0) - 1.5,
+            ) < 0.001
+          );
+        },
+        { timeout: 25_000 },
+      )
+      .toBe(true);
+    await page.reload();
+    await component(page, 'temperature-sensor').locator('.workbench-part').press('Enter');
+    await expect(input).toHaveValue('100');
+    await page.getByRole('button', { name: 'Начать моделирование' }).click();
+    await expect(display).toContainText('1.500 V');
+    failures.assertEmpty();
+  });
+}
+
 test.beforeAll(async () => {
   mkdirSync(ARTIFACT_DIR, { recursive: true });
   admin = e2eAdminPool();
