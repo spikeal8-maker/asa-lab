@@ -101,11 +101,21 @@ export function CreatorHomePage({
                 key={key}
               >
                 <div className="creator-module-heading">
-                  <h2 id={`creator-module-${key}`}>
-                    <span aria-hidden="true">
-                      <ModuleGlyph module={module} size={24} />
-                    </span>
-                    {title}
+                  <h2 id={`creator-module-${key}`} aria-label={title}>
+                    <button
+                      type="button"
+                      className="home-module-all"
+                      aria-label={key === 'three-d' ? 'Все модели' : 'Все схемы'}
+                      onClick={() => {
+                        rememberScroll();
+                        onAllProjects(key);
+                      }}
+                    >
+                      <span className="home-module-icon" aria-hidden="true">
+                        <ModuleGlyph module={module} size={24} />
+                      </span>
+                      {title} <span aria-hidden="true">›</span>
+                    </button>
                   </h2>
                   <button
                     type="button"
@@ -159,19 +169,6 @@ export function CreatorHomePage({
                     </span>
                   </button>
                 )}
-                {items.length ? (
-                  <button
-                    type="button"
-                    className="home-module-all"
-                    onClick={() => {
-                      rememberScroll();
-                      onAllProjects(key);
-                    }}
-                  >
-                    {key === 'three-d' ? 'Все модели' : 'Все схемы'}{' '}
-                    <span aria-hidden="true">›</span>
-                  </button>
-                ) : null}
               </section>
             );
           })}

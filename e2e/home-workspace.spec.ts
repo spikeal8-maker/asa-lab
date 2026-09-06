@@ -20,6 +20,35 @@ async function noOverflow(page: Page): Promise<void> {
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 }
 
+async function compactHome(page: Page): Promise<void> {
+  const measurements = await page.locator('.creator-module-feed').evaluate((feed) => {
+    const sections = Array.from(feed.querySelectorAll('.creator-module-section'));
+    return sections.map((section, index) => {
+      const heading = section.querySelector('.creator-module-heading')!;
+      const title = heading.querySelector('h2')!.getBoundingClientRect();
+      const create = heading.querySelector('.home-create-button')!.getBoundingClientRect();
+      const shelf = section.querySelector('.home-shelf, .home-empty-create')!;
+      return {
+        sectionGap:
+          index === 0
+            ? 0
+            : section.getBoundingClientRect().top -
+              sections[index - 1].getBoundingClientRect().bottom,
+        headingGap: shelf.getBoundingClientRect().top - heading.getBoundingClientRect().bottom,
+        titleClearance: create.left - title.right,
+      };
+    });
+  });
+  expect(measurements).toHaveLength(2);
+  for (const measurement of measurements) {
+    expect(measurement.sectionGap).toBeGreaterThanOrEqual(0);
+    expect(measurement.sectionGap).toBeLessThanOrEqual(16);
+    expect(measurement.headingGap).toBeGreaterThanOrEqual(0);
+    expect(measurement.headingGap).toBeLessThanOrEqual(6);
+    expect(measurement.titleClearance).toBeGreaterThanOrEqual(4);
+  }
+}
+
 test('Home: production-build baseline, desktop and mobile workspace', async ({ page }) => {
   test.setTimeout(120_000);
   mkdirSync(evidence, { recursive: true });
@@ -73,6 +102,7 @@ test('Home: production-build baseline, desktop and mobile workspace', async ({ p
   for (const width of [320, 360, 390, 768, 1024, 1440]) {
     await page.setViewportSize({ width, height: 900 });
     await noOverflow(page);
+    await compactHome(page);
     await expect(page.locator('.portal-header-create-label:visible')).toHaveCount(1);
     if (width <= 820) {
       await page.getByRole('button', { name: 'Открыть меню', exact: true }).click();
@@ -176,10 +206,12 @@ test('ten-item shelves scroll on phones, public feed errors never hide personal 
   }
   await page.reload();
   await expect(page.getByTestId('project-card')).toHaveCount(20);
+  await compactHome(page);
   await page.screenshot({ path: `${evidence}/desktop-filled.png`, fullPage: true });
   for (const width of [320, 360, 390, 430, 768]) {
     await page.setViewportSize({ width, height: 844 });
     await noOverflow(page);
+    await compactHome(page);
     const track = page.locator('.home-shelf-track').first();
     await expect(track.locator('.project-card')).toHaveCount(10);
     expect(await track.evaluate((el) => getComputedStyle(el).scrollbarWidth)).toBe('none');
