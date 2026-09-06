@@ -14,8 +14,17 @@ function download(data: BlobPart, mime: string, fileName: string): void {
   const anchor = window.document.createElement('a');
   anchor.href = url;
   anchor.download = fileName;
-  anchor.click();
-  window.setTimeout(() => URL.revokeObjectURL(url), 0);
+  anchor.hidden = true;
+  window.document.body.append(anchor);
+  try {
+    anchor.click();
+  } finally {
+    anchor.remove();
+    // The browser consumes a Blob download asynchronously, after click returns.
+    // Revoking on the next task races that handoff (especially in a busy tab).
+    // Bound retention; unloading the document also releases its object URLs.
+    window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  }
 }
 
 export function downloadThreeDJson(document: ThreeDDocument, title: string): void {

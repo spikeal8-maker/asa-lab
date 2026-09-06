@@ -13,6 +13,7 @@ import { disposeObject } from '../viewport/geometry';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { GeometryResultNotice } from '../GeometryResultNotice';
+import { downloadThreeDJson } from '../exporters';
 import { geometryResultIsCurrent, type GeometryResultState } from '../geometry/result-state';
 
 class ControlledWorker implements GeometryWorkerLike {
@@ -103,7 +104,33 @@ function pair(): ThreeDNode[] {
 }
 
 describe('Boolean Worker scene lifecycle', () => {
-  afterEach(() => cleanup.splice(0).forEach((dispose) => dispose()));
+  afterEach(() => {
+    cleanup.splice(0).forEach((dispose) => dispose());
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+
+  it('keeps the named source download URL alive across asynchronous browser handoff and releases it afterwards', () => {
+    vi.useFakeTimers();
+    const anchor = { href: '', download: '', hidden: false, click: vi.fn(), remove: vi.fn() };
+    const append = vi.fn();
+    vi.stubGlobal('window', {
+      document: { createElement: () => anchor, body: { append } },
+      setTimeout,
+    });
+    vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:source');
+    const revoke = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
+    downloadThreeDJson(createEmptyThreeDDocument(), 'Проверка модели');
+    expect(anchor.download).toBe('Проверка-модели.asa3d.json');
+    expect(append).toHaveBeenCalledWith(anchor);
+    expect(anchor.click).toHaveBeenCalledOnce();
+    expect(anchor.remove).toHaveBeenCalledOnce();
+    vi.advanceTimersByTime(1000);
+    expect(revoke).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(59_000);
+    expect(revoke).toHaveBeenCalledWith('blob:source');
+  });
 
   it('removes a hidden group immediately, clears its selection proxy, and restores it when shown', async () => {
     const scene = harness();

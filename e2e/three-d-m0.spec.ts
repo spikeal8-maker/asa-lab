@@ -619,7 +619,16 @@ test.describe('Boolean result recovery', () => {
       page.waitForEvent('download'),
       page.getByRole('button', { name: 'ASA 3D JSON' }).click(),
     ]);
+    expect(await sourceDownload.failure()).toBeNull();
     expect(sourceDownload.suggestedFilename()).toMatch(/\.asa3d\.json$/);
+    const sourceStream = await sourceDownload.createReadStream();
+    if (!sourceStream) throw new Error('Source JSON download has no data');
+    const sourceChunks: Buffer[] = [];
+    for await (const chunk of sourceStream) sourceChunks.push(Buffer.from(chunk));
+    const sourceDocument = JSON.parse(Buffer.concat(sourceChunks).toString('utf8')) as {
+      nodes: Array<{ id: string }>;
+    };
+    expect(sourceDocument.nodes.map((node) => node.id)).toEqual(['a', 'b', 'other-a', 'other-b']);
     await page.screenshot({
       path: 'e2e/artifacts/three-d/boolean-stale-error.png',
       fullPage: true,
@@ -649,6 +658,7 @@ test.describe('Boolean result recovery', () => {
       page.waitForEvent('download'),
       page.getByRole('button', { name: 'STL для 3D-печати' }).click(),
     ]);
+    expect(await stlDownload.failure()).toBeNull();
     expect(stlDownload.suggestedFilename()).toMatch(/\.stl$/);
     // Retry must not add an undo step or change the source document.
     await page.keyboard.press('Control+z');
