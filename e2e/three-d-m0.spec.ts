@@ -379,7 +379,7 @@ test('teacher models, autosaves, reloads and versions an ASA 3D scene', async ({
   await page.getByRole('button', { name: 'Отменить (Ctrl+Z)' }).click();
   const restoredLift = await directHandlePoint(page, 'lift');
   await page.mouse.move(restoredLift.handle.x, restoredLift.handle.y);
-  await expect(page.getByTestId('asa3d-lift-value')).toHaveText('0.00');
+  await expect(page.getByTestId('asa3d-lift-value').locator('input')).toHaveValue('0');
 
   const rotate = await directHandlePoint(page, 'rotate-y');
   await page.mouse.move(rotate.handle.x, rotate.handle.y);
@@ -399,7 +399,7 @@ test('teacher models, autosaves, reloads and versions an ASA 3D scene', async ({
   await page.getByRole('button', { name: 'Отменить (Ctrl+Z)' }).click();
   const restoredRotation = await directHandlePoint(page, 'rotate-y');
   await page.mouse.move(restoredRotation.handle.x, restoredRotation.handle.y);
-  await expect(page.getByTestId('asa3d-angle-value')).toHaveText('0°');
+  await expect(page.getByTestId('asa3d-angle-value').locator('input')).toHaveValue('0');
 
   const movable = await directHandlePoint(page, 'resize-height');
   await page.mouse.move(movable.centre.x, movable.centre.y);
@@ -646,8 +646,13 @@ test.describe('Boolean result recovery', () => {
     ).toBe(true);
     const initial = await directHandlePoint(page, 'resize-east');
     // Real move gesture, then one undo restores the same screen position.
-    await touch('touchStart', initial.centre);
-    await touch('touchMove', { x: initial.centre.x + 24, y: initial.centre.y });
+    // The centre is the actual opening, so grab the visible right wall.
+    const grip = {
+      x: initial.centre.x + (initial.handle.x - initial.centre.x) * 0.82,
+      y: initial.centre.y,
+    };
+    await touch('touchStart', grip);
+    await touch('touchMove', { x: grip.x + 24, y: grip.y });
     await touch('touchEnd');
     await expect(viewport).toHaveAttribute('data-geometry-worker-state', 'ready');
     const moved = await directHandlePoint(page, 'resize-east');
