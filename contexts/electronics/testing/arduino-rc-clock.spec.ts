@@ -88,7 +88,148 @@ function through(
 const cap = (done: ArduinoCircuitClockAdvance) =>
   done.result!.components.find((part) => part.componentId === 'c')!;
 
-describe('Arduino shared rc-inputs-v1 clock', () => {
+function parallelRc(initialVoltageVolt = 0): ElectronicsDocument {
+  const base = rc(undefined, 1, initialVoltageVolt);
+  return {
+    ...base,
+    components: [...base.components, { ...base.components[2]!, id: 'c2', value: 3 }],
+    connections: [
+      ...base.connections,
+      ...(['positive', 'negative'] as const).map((terminal) => ({
+        id: `parallel-${terminal}`,
+        from: { componentId: 'c', terminal },
+        to: { componentId: 'c2', terminal },
+      })),
+    ],
+  };
+}
+
+describe('Arduino clock with dependent capacitor constraints', () => {
+  it('divides the current at the exact GPIO edge without advancing either charge', () => {
+    const done = through(parallelRc(), 1);
+    const second = done.result!.components.find((part) => part.componentId === 'c2')!;
+    expect(cap(done).current).toBeCloseTo(5 / 1010 / 4, 10);
+    expect(second.current).toBeCloseTo(((5 / 1010) * 3) / 4, 10);
+    expect(cap(done).voltageDrop).toBe(0);
+    expect(second.voltageDrop).toBe(0);
+    expect(second.storedEnergyJoule).toBe(0);
+  });
+  it('charges like the sum of the capacitances and preserves each energy separately', () => {
+    const done = through(parallelRc(), 1001);
+    const second = done.result!.components.find((part) => part.componentId === 'c2')!;
+    const single = through(rc(undefined, 4), 1001);
+    expect(cap(done).voltageDrop).toBeCloseTo(5 * (1 - Math.exp(-1 / 4.04)), 1);
+    expect(second.voltageDrop).toBe(cap(done).voltageDrop);
+    expect(cap(done).voltageDrop).toBeCloseTo(cap(single).voltageDrop, 6);
+    expect(second.current).toBeCloseTo(3 * cap(done).current, 10);
+    expect(second.storedEnergyJoule).toBeCloseTo(3 * cap(done).storedEnergyJoule!, 10);
+  });
+  it('preserves consistent initial charge and rejects inconsistent charge without output', () => {
+    const doc = parallelRc(2);
+    const done = through(doc, 0);
+    expect(cap(done).voltageDrop).toBe(2);
+    expect(done.result!.components.find((part) => part.componentId === 'c2')!.voltageDrop).toBe(2);
+    const invalid = {
+      ...doc,
+      components: doc.components.map((part) =>
+        part.id === 'c2'
+          ? { ...part, stateProperties: { ...part.stateProperties, initialVoltageVolt: 3 } }
+          : part,
+      ),
+    };
+    const fault = advanceArduinoCircuitClock(invalid, 1000);
+    expect(fault.executionStatus).toBe('fault');
+    expect(fault.state).toBeNull();
+    expect(fault.result).toBeNull();
+    expect(fault.events).toEqual([]);
+  });
+  it('handles a capacitor-only triangle without arbitrary circulating branch currents', () => {
+    const base = rc();
+    const doc: ElectronicsDocument = {
+      ...base,
+      components: [
+        ...base.components,
+        { ...base.components[2]!, id: 'c2' },
+        { ...base.components[2]!, id: 'c3' },
+      ],
+      connections: [
+        ...base.connections,
+        {
+          id: 'triangle-1',
+          from: { componentId: 'c', terminal: 'positive' },
+          to: { componentId: 'c2', terminal: 'positive' },
+        },
+        {
+          id: 'triangle-2',
+          from: { componentId: 'c2', terminal: 'negative' },
+          to: { componentId: 'c3', terminal: 'positive' },
+        },
+        {
+          id: 'triangle-3',
+          from: { componentId: 'c3', terminal: 'negative' },
+          to: { componentId: 'c', terminal: 'negative' },
+        },
+      ],
+    };
+    const edge = through(doc, 1);
+    for (const id of ['c2', 'c3'])
+      expect(edge.result!.components.find((part) => part.componentId === id)!.current).toBeCloseTo(
+        5 / 1010 / 3,
+        9,
+      );
+    expect(cap(edge).current).toBeCloseTo(((5 / 1010) * 2) / 3, 9);
+    const charged = through(doc, 1001);
+    expect(cap(charged).voltageDrop).toBeCloseTo(5 * (1 - Math.exp(-1 / 1.515)), 1);
+    for (const id of ['c2', 'c3'])
+      expect(
+        charged.result!.components.find((part) => part.componentId === id)!.voltageDrop,
+      ).toBeCloseTo(cap(charged).voltageDrop / 2, 8);
+  });
+  it('keeps an uncharged shorted capacitor harmless', () => {
+    const base = rc();
+    const doc: ElectronicsDocument = {
+      ...base,
+      connections: [
+        ...base.connections,
+        {
+          id: 'short',
+          from: { componentId: 'c', terminal: 'positive' },
+          to: { componentId: 'c', terminal: 'negative' },
+        },
+      ],
+    };
+    const done = through(doc, 1001);
+    expect(cap(done).voltageDrop).toBe(0);
+    expect(cap(done).current).toBe(0);
+  });
+  it('is byte-identical under array permutation, yielding, JSON resumes and UI horizons', () => {
+    const doc = parallelRc();
+    const reference = through(doc, 3000);
+    expect(
+      through(
+        {
+          ...doc,
+          components: [...doc.components].reverse(),
+          connections: [...doc.connections].reverse(),
+        },
+        3000,
+        undefined,
+        1,
+      ),
+    ).toEqual(reference);
+    let previous: ArduinoCircuitClockState | undefined;
+    const events: ArduinoCircuitClockAdvance['events'][number][] = [];
+    let last!: ArduinoCircuitClockAdvance;
+    for (const target of [0, 1, 113, 1000, 1004, 1777, 3000]) {
+      last = through(doc, target, previous, 3);
+      events.push(...last.events);
+      previous = JSON.parse(JSON.stringify(last.state));
+    }
+    expect(JSON.stringify({ ...last, events })).toBe(JSON.stringify(reference));
+  });
+});
+
+describe('Arduino shared rc-inputs-v2 clock', () => {
   it('keeps a fractional-millisecond observation numerically valid', () => {
     const doc = rc();
     const start = through(doc, 7);
@@ -201,7 +342,7 @@ describe('Arduino shared rc-inputs-v1 clock', () => {
   });
   it('starts at exactly zero without charging or an implicit 1 ms step', () => {
     const done = through(rc(), 0);
-    expect(done.state!.profile).toBe('rc-inputs-v1');
+    expect(done.state!.profile).toBe('rc-inputs-v2');
     expect(done.result!.transientState!.simulationTimeMs).toBe(0);
     expect(cap(done).voltageDrop).toBe(0);
     expect(cap(done).storedEnergyJoule).toBe(0);
@@ -329,6 +470,10 @@ describe('Arduino shared rc-inputs-v1 clock', () => {
     const doc = rc();
     const done = through(doc, 2000);
     for (const mutate of [
+      (state: ArduinoCircuitClockState) => ({
+        ...state,
+        profile: 'rc-inputs-v1' as ArduinoCircuitClockState['profile'],
+      }),
       (state: ArduinoCircuitClockState) => ({ ...state, physicalState: undefined }),
       (state: ArduinoCircuitClockState) => ({
         ...state,

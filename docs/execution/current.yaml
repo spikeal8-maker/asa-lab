@@ -127,7 +127,7 @@ parallel_lanes:
       pr: 170
       pr_draft: false
       status: in_progress
-      checkpoint: ard_3a8b2a_rc_clock_focused_gate_pass_other_physics_and_ui_pending
+      checkpoint: ard_3a8b2b_capacitor_constraints_focused_gate_pass_physics_ui_and_legacy_cleanup_pending
       owner_acceptance: pending
     revisions:
       convergence_baseline_sha: 5b052dc631c7036de9d60f4206c9879fe364e732

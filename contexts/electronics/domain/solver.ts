@@ -21,6 +21,8 @@ import { analyseArduinoSourceSupport } from './arduino-capabilities.js';
 import { photoresistorResistanceOhm } from './photoresistor-model.js';
 import { spdtSelectedTerminal } from './switch-topology.js';
 import { buildNetlist, terminalKey } from './netlist.js';
+import { solveLinear } from './linear-system.js';
+import { planCapacitorConstraints, recoverCapacitorCurrents } from './capacitor-constraints.js';
 import {
   unsupportedElectricalComponents,
   validateElectricalTerminalContract,
@@ -781,38 +783,6 @@ function signalGeneratorRisingTriggerPhase(
 const CURRENT_DEADBAND_AMP = 1e-9;
 function roundCurrent(value: number): number {
   return Math.abs(value) < CURRENT_DEADBAND_AMP ? 0 : round(value);
-}
-
-function solveLinear(matrix: number[][], rhs: number[]): number[] | null {
-  const size = rhs.length;
-  const augmented = matrix.map((row, index) => [...row, rhs[index] as number]);
-  for (let column = 0; column < size; column += 1) {
-    let pivot = column;
-    for (let row = column + 1; row < size; row += 1) {
-      if (Math.abs(augmented[row]?.[column] ?? 0) > Math.abs(augmented[pivot]?.[column] ?? 0)) {
-        pivot = row;
-      }
-    }
-    if (Math.abs(augmented[pivot]?.[column] ?? 0) < 1e-14) return null;
-    [augmented[column], augmented[pivot]] = [
-      augmented[pivot] as number[],
-      augmented[column] as number[],
-    ];
-    const divisor = augmented[column]?.[column] as number;
-    for (let cell = column; cell <= size; cell += 1) {
-      (augmented[column] as number[])[cell] = (augmented[column]?.[cell] as number) / divisor;
-    }
-    for (let row = 0; row < size; row += 1) {
-      if (row === column) continue;
-      const factor = augmented[row]?.[column] as number;
-      if (Math.abs(factor) < 1e-18) continue;
-      for (let cell = column; cell <= size; cell += 1) {
-        (augmented[row] as number[])[cell] =
-          (augmented[row]?.[cell] as number) - factor * (augmented[column]?.[cell] as number);
-      }
-    }
-  }
-  return augmented.map((row) => row[size] as number);
 }
 
 function propertyError(component: SchematicComponent): string | null {
@@ -2354,15 +2324,41 @@ function solveCircuitStep(
     if (!referenceNodes.has(node)) nodeVariables.set(node, nodeVariables.size);
   }
   const nodeVariableCount = nodeVariables.size;
+  const nodeIndex = (component: SchematicComponent, terminal: LogicalTerminal): number =>
+    netlist.nodeOf.get(terminalKey(component.id, logicalTerminal(component, terminal))) as number;
+  const heldCapacitors = options.holdCapacitorVoltages
+    ? document.components.filter(
+        (component) => isElectrolyticCapacitor(component) && !failedComponentIds.has(component.id),
+      )
+    : [];
+  const capacitorConstraints = planCapacitorConstraints(
+    heldCapacitors.map((component) => {
+      const parameters = capacitorParameters(component);
+      return {
+        componentId: component.id,
+        positiveNode: nodeIndex(component, 'a'),
+        negativeNode: nodeIndex(component, 'b'),
+        capacitanceFarad: parameters.capacitanceFarad,
+        voltageVolt:
+          options.capacitorPreviousVoltageById?.[component.id] ?? parameters.initialVoltageVolt,
+      };
+    }),
+  );
+  if (!capacitorConstraints) {
+    diagnostics.push({
+      code: 'conflicting_sources',
+      severity: 'error',
+      componentIds: heldCapacitors.map((component) => component.id),
+      message: 'Сохранённые напряжения конденсаторов противоречат соединениям цепи.',
+      suggestedAction:
+        'Проверьте начальные напряжения, полярность и короткие замыкания: заряд не может измениться мгновенно.',
+    });
+    return empty('invalid');
+  }
   const stampedVoltageSourceComponents = [
     ...sources,
     ...activeResistanceMeterDevices.map((device) => device.instance.component),
-    ...(options.holdCapacitorVoltages
-      ? document.components.filter(
-          (component) =>
-            isElectrolyticCapacitor(component) && !failedComponentIds.has(component.id),
-        )
-      : []),
+    ...heldCapacitors.filter((component) => capacitorConstraints.independentIds.has(component.id)),
   ];
   const size = nodeVariableCount + stampedVoltageSourceComponents.length;
   const diodeBranches = document.components.flatMap((component) =>
@@ -2424,8 +2420,6 @@ function solveCircuitStep(
   let finalMatrix: number[][] | null = null;
   let finalRhs: number[] | null = null;
   const maxIterations = document.simulation.maxIterations;
-  const nodeIndex = (component: SchematicComponent, terminal: LogicalTerminal): number =>
-    netlist.nodeOf.get(terminalKey(component.id, logicalTerminal(component, terminal))) as number;
   const physicalNodeIndex = (component: SchematicComponent, terminal: Terminal): number =>
     netlist.nodeOf.get(terminalKey(component.id, terminal)) as number;
   const voltageFrom = (values: number[], node: number): number =>
@@ -2832,6 +2826,17 @@ function solveCircuitStep(
   for (const [position, source] of stampedVoltageSourceComponents.entries()) {
     sourceCurrents.set(source.id, solution[nodeVariableCount + position] as number);
   }
+  const heldCapacitorCurrents = recoverCapacitorCurrents(capacitorConstraints, sourceCurrents);
+  if (!heldCapacitorCurrents) {
+    diagnostics.push({
+      code: 'numerical_instability',
+      severity: 'error',
+      componentIds: heldCapacitors.map((component) => component.id),
+      message: 'Не удалось согласовать токи конденсаторов с балансом токов в узлах.',
+      suggestedAction: 'Проверьте ёмкости и соединения цепи.',
+    });
+    return empty('nonconvergent', iterations, numericalResidual, numericalTolerance);
+  }
   const currentDeliveredByArduinoBranch = (branch: (typeof arduinoBranches)[number]): number => {
     const measured =
       physicalVoltageAt(branch.component, branch.terminal) -
@@ -3048,7 +3053,7 @@ function solveCircuitStep(
       if (capacitorObservation && options.holdCapacitorVoltages) {
         capacitorObservation = {
           ...capacitorObservation,
-          currentAmp: sourceCurrents.get(component.id) ?? 0,
+          currentAmp: heldCapacitorCurrents.get(component.id) ?? 0,
         };
       }
       const motorStep = isBrushedMotor(component)

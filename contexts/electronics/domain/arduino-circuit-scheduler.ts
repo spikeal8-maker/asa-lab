@@ -36,7 +36,7 @@ export interface ArduinoCircuitInputEvent {
 
 export interface ArduinoCircuitClockState {
   readonly version: 1;
-  readonly profile: 'dc-inputs-v1' | 'rc-inputs-v1';
+  readonly profile: 'dc-inputs-v1' | 'rc-inputs-v2';
   readonly documentDigest: string;
   readonly reachedMicroseconds: number;
   /** Ordered, append-only history. Array index is the stable event sequence. */
@@ -173,7 +173,7 @@ export function advanceArduinoCircuitClock(
   if (!Number.isInteger(budget) || budget < 1 || budget > 1024)
     return fault('invalid_clock_budget', 'Квант общего scheduler: от 1 до 1024 отметок времени.');
   const profile = document.components.some(isElectrolyticCapacitor)
-    ? 'rc-inputs-v1'
+    ? 'rc-inputs-v2'
     : 'dc-inputs-v1';
   const unsupported = document.components.find((component) => !clockedComponent(component));
   if (unsupported)
@@ -209,7 +209,7 @@ export function advanceArduinoCircuitClock(
       previous.documentDigest !== digest ||
       !integerTime(previous.reachedMicroseconds) ||
       previous.reachedMicroseconds > targetMicroseconds ||
-      (profile === 'rc-inputs-v1'
+      (profile === 'rc-inputs-v2'
         ? !previous.physicalState ||
           !clockedRcStateIsCompatible(
             document,
@@ -302,7 +302,7 @@ export function advanceArduinoCircuitClock(
     );
   const sample = (time: number): NonNullable<ArduinoCircuitClockAdvance['result']> => {
     if (cachedFrame && (profile === 'dc-inputs-v1' || cachedFrameTime === time)) return cachedFrame;
-    if (profile === 'rc-inputs-v1') {
+    if (profile === 'rc-inputs-v2') {
       // A horizon between canonical events may be observed but never committed:
       // otherwise UI frame rate would change adaptive integration and later ADC reads.
       const advanced = advancePhysics(time);
@@ -332,7 +332,7 @@ export function advanceArduinoCircuitClock(
         return state ? Math.round(state.resumeAtMs * 1000) : 0;
       }),
       inputs[nextInputIndex]?.atMicroseconds ?? Number.POSITIVE_INFINITY,
-      profile === 'rc-inputs-v1'
+      profile === 'rc-inputs-v2'
         ? (Math.floor(
             Math.round((physicalState?.simulationTimeMs ?? 0) * 1000) / PHYSICS_QUANTUM_US,
           ) +
@@ -344,7 +344,7 @@ export function advanceArduinoCircuitClock(
   let clockEvents = 0;
   while (nextTime() <= targetMicroseconds && clockEvents < budget) {
     const time = nextTime();
-    if (profile === 'rc-inputs-v1') {
+    if (profile === 'rc-inputs-v2') {
       const advanced = advancePhysics(time);
       if (!advanced.solved || !advanced.quality.passed || !advanced.transientState)
         return fault(
