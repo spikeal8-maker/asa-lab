@@ -166,7 +166,16 @@ async function expandShapeInspector(page: Page): Promise<void> {
 
 async function dismissNotice(page: Page): Promise<void> {
   const close = page.getByRole('button', { name: 'Закрыть уведомление' });
-  if (await close.isVisible()) await close.click();
+  if (await close.isVisible()) {
+    try {
+      await close.click({ timeout: 2_000 });
+    } catch (error) {
+      // The toast can expire between visibility and click. Only its verified
+      // disappearance is success; an obstructed, still visible button must fail.
+      if (await close.isVisible()) throw error;
+    }
+  }
+  await expect(close).toBeHidden();
 }
 
 async function previewAndDropShape(page: Page): Promise<void> {
