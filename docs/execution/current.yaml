@@ -227,11 +227,11 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: opt_1_owner_regressions_audited_corrective_plan_updated_runtime_fixes_pending
+      checkpoint: opt_1_r1_explicit_result_state_and_guarded_export_implemented_ci_and_owner_verification_pending
       owner_acceptance: pending
     revisions:
       convergence_baseline_sha: 9371222ab69cbb53c7f52411f6f7cb96c780aa65
-      head_sha: 61741eea70164c0a57d9f828d29c197ec53ad909
+      head_sha: d635ad5fb136fa1a5b00adaa579138de0f6fc727
     execution_lease:
       executor_id: codex-three-d-opt-1
       holder: unassigned

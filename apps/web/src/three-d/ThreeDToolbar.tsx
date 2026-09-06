@@ -83,6 +83,7 @@ export interface ThreeDToolbarProps {
   readonly onDrop: () => void;
   readonly onImport: () => void;
   readonly onExportStl: () => void;
+  readonly stlUnavailableReason?: string;
   readonly onExportJson: () => void;
   readonly sendControl: ReactNode;
 }
@@ -123,6 +124,7 @@ export function ThreeDToolbar({
   onDrop,
   onImport,
   onExportStl,
+  stlUnavailableReason,
   onExportJson,
   sendControl,
 }: ThreeDToolbarProps): JSX.Element {
@@ -346,8 +348,10 @@ export function ThreeDToolbar({
           </button>
           {exportOpen && (
             <div className="asa3d-export-menu">
+              {stlUnavailableReason && <small role="status">{stlUnavailableReason}</small>}
               <button
                 type="button"
+                disabled={Boolean(stlUnavailableReason)}
                 onClick={() => {
                   onExportStl();
                   setExportOpen(false);

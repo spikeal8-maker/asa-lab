@@ -567,12 +567,27 @@ export function createBooleanMeshFromEvaluation(
   evaluation: EvaluatedBooleanGeometry,
   nodes: readonly ThreeDNode[],
 ): THREE.Mesh | null {
-  if (evaluation.resultKind === 'empty') return null;
-  if (
-    evaluation.positions.length === 0 ||
-    evaluation.normals.length !== evaluation.positions.length
-  ) {
+  if (evaluation.resultKind === 'empty') {
+    if (
+      evaluation.positions.length ||
+      evaluation.normals.length ||
+      evaluation.featureEdges.length
+    ) {
+      throw new Error('Invalid empty Boolean result.');
+    }
     return null;
+  }
+  if (
+    evaluation.resultKind !== 'mesh' ||
+    evaluation.positions.length === 0 ||
+    evaluation.positions.length % 9 !== 0 ||
+    evaluation.normals.length !== evaluation.positions.length ||
+    evaluation.featureEdges.length % 6 !== 0 ||
+    !evaluation.positions.every(Number.isFinite) ||
+    !evaluation.normals.every(Number.isFinite) ||
+    !evaluation.featureEdges.every(Number.isFinite)
+  ) {
+    throw new Error('Invalid Boolean mesh buffers.');
   }
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(evaluation.positions, 3));

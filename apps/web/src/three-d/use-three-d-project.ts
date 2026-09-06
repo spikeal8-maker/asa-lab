@@ -621,7 +621,7 @@ export function useThreeDProject(projectId: string): ThreeDProjectController {
         groupDocumentNodes(document, groupNodeIds, makeId('group'), effectiveOperation),
       );
       setSelectedIds(groupNodeIds);
-      setNotice('Формы объединены в редактируемую булеву группу.');
+      setNotice('Операция объединения задана. Результат появится после расчёта.');
     },
     [commitDocument, selectedIds],
   );

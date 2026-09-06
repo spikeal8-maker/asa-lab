@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { STLExporter } from 'three/addons/exporters/STLExporter.js';
 import type {
   PrimitiveKind,
   ShapeOperation,
@@ -15,10 +16,16 @@ import {
   type DirectManipulationEntry,
 } from './DirectManipulator';
 import { createBooleanMeshFromEvaluation } from './csg';
-import { createNodeObject, disposeObject } from './geometry';
+import { applyNodeTransform, createNodeObject, disposeObject } from './geometry';
 import { addCadSceneLights } from './cad-appearance';
 import { runtimeSelectionKeys } from '../selection-model';
 import { GeometryWorkerClient } from '../geometry/worker-client';
+import {
+  geometryResultIsCurrent,
+  geometryResultStatus,
+  type BooleanGroupResultState,
+  type GeometryResultState,
+} from '../geometry/result-state';
 
 export interface SceneRuntimeCallbacks {
   readonly onSelect: (nodeId: string | null, additive: boolean) => void;
@@ -30,6 +37,7 @@ export interface SceneRuntimeCallbacks {
   readonly onTransformCommitMany: (commits: readonly DirectManipulationCommit[]) => void;
   readonly onWebGlError: (message: string) => void;
   readonly onCameraChange?: (state: CameraViewState) => void;
+  readonly onGeometryStateChange?: (state: GeometryResultState) => void;
 }
 
 export type StandardCameraView = 'home' | 'top' | 'bottom' | 'front' | 'back' | 'left' | 'right';
@@ -159,6 +167,8 @@ export class SceneRuntime {
   private readonly onCameraChange: ((state: CameraViewState) => void) | undefined;
   private selectedIds: readonly string[] = [];
   private currentDocument: ThreeDDocument | null = null;
+  private geometryState: GeometryResultState | null = null;
+  private readonly onGeometryStateChange: SceneRuntimeCallbacks['onGeometryStateChange'];
 
   private readonly publishCameraState = (): void => {
     const values = [
@@ -182,6 +192,7 @@ export class SceneRuntime {
     callbacks: SceneRuntimeCallbacks,
   ) {
     this.onCameraChange = callbacks.onCameraChange;
+    this.onGeometryStateChange = callbacks.onGeometryStateChange;
     this.container.dataset['geometryWorkerState'] = 'idle';
     this.scene.background = new THREE.Color('#fafafa');
     this.scene.fog = new THREE.Fog('#fafafa', 560, 980);
@@ -314,9 +325,8 @@ export class SceneRuntime {
         void this.syncBooleanGroups(document, generationId);
       } else {
         this.geometryWorker.cancelActiveGeneration();
-        this.container.dataset['geometryWorkerState'] = 'idle';
+        this.publishGeometryState({ documentSignature, groups: [] });
         delete this.container.dataset['geometryEngine'];
-        delete this.container.dataset['geometryWorkerError'];
       }
     }
     this.syncRuler(document, selectedIds);
@@ -341,9 +351,7 @@ export class SceneRuntime {
   }
 
   private async syncBooleanGroups(document: ThreeDDocument, generationId: number): Promise<void> {
-    this.container.dataset['geometryWorkerState'] = 'evaluating';
     this.container.dataset['geometryEngine'] = 'legacy-bsp@1';
-    let evaluationFailed = false;
     const groups = new Map<string, ThreeDNode[]>();
     for (const node of document.nodes) {
       if (!node.groupId) continue;
@@ -351,28 +359,48 @@ export class SceneRuntime {
       group.push(node);
       groups.set(node.groupId, group);
     }
+    const states: BooleanGroupResultState[] = [...groups]
+      .filter(([, nodes]) => nodes.some((node) => node.visible))
+      .map(([groupId, nodes], index) => ({
+        groupId,
+        label: `Группа ${index + 1} (${nodes.length} деталей)`,
+        status: 'pending',
+      }));
+    const documentSignature = JSON.stringify(document.nodes);
+    const publish = (): void =>
+      this.publishGeometryState({
+        documentSignature,
+        groups: [...states],
+      });
+    publish();
     for (const [groupId, nodes] of groups) {
       // setDocument already removes fully hidden groups and their selection
       // proxies. Do not let another group's pending work recreate them.
       if (!nodes.some((node) => node.visible)) continue;
+      const stateIndex = states.findIndex((state) => state.groupId === groupId);
+      const entryId = `group:${groupId}`;
       const operation = nodes[0]?.groupOperation ?? 'union';
       let rendered: THREE.Object3D | null;
       try {
         const evaluation = await this.geometryWorker.evaluate(generationId, nodes, operation);
         if (!this.geometryWorker.isCurrent(generationId)) return;
         rendered = createBooleanMeshFromEvaluation(evaluation, nodes);
+        states[stateIndex] = { ...states[stateIndex]!, status: rendered ? 'ready' : 'valid-empty' };
       } catch (error) {
         if (!this.geometryWorker.isCurrent(generationId)) return;
-        evaluationFailed = true;
-        this.container.dataset['geometryWorkerError'] =
-          error instanceof Error ? error.message.slice(0, 240) : 'Unknown Geometry Worker error.';
-        const fallback = new THREE.Group();
-        nodes
-          .filter((node) => node.visible)
-          .forEach((node) => fallback.add(createNodeObject(node)));
-        rendered = fallback.children.length > 0 ? fallback : null;
+        // Never turn failed CSG into an apparently successful pile of operands.
+        // Only an already confirmed result may remain, explicitly marked stale.
+        states[stateIndex] = {
+          ...states[stateIndex]!,
+          status: this.entries.has(entryId) ? 'stale' : 'error',
+          message:
+            error instanceof Error ? error.message.slice(0, 240) : 'Unknown Geometry Worker error.',
+        };
+        const previous = this.entries.get(entryId);
+        if (previous) applyNodeTransform(previous.object, previous.node);
+        publish();
+        continue;
       }
-      const entryId = `group:${groupId}`;
       const existing = this.entries.get(entryId);
       if (existing) {
         existing.object.parent?.remove(existing.object);
@@ -380,6 +408,7 @@ export class SceneRuntime {
         this.entries.delete(entryId);
       }
       if (!rendered) {
+        publish();
         this.syncRuntimeSelection();
         continue;
       }
@@ -391,6 +420,7 @@ export class SceneRuntime {
         id: entryId,
         name: `Группа (${nodes.length})`,
         operation: 'solid',
+        visible: true,
         transform: {
           position: { x: center.x, y: center.y, z: center.z },
           rotation: { x: 0, y: 0, z: 0 },
@@ -414,12 +444,51 @@ export class SceneRuntime {
         node: proxyNode,
         signature: JSON.stringify(nodes),
       });
+      publish();
       this.syncRuntimeSelection();
     }
-    if (this.geometryWorker.isCurrent(generationId)) {
-      this.container.dataset['geometryWorkerState'] = evaluationFailed ? 'fallback' : 'ready';
-      if (!evaluationFailed) delete this.container.dataset['geometryWorkerError'];
+  }
+
+  private publishGeometryState(state: GeometryResultState): void {
+    this.geometryState = state;
+    const status = geometryResultStatus(state);
+    this.container.dataset['geometryWorkerState'] = status === 'pending' ? 'evaluating' : status;
+    const errors = state.groups.flatMap((group) => (group.message ? [group.message] : []));
+    if (errors.length)
+      this.container.dataset['geometryWorkerError'] = errors.join('; ').slice(0, 480);
+    else delete this.container.dataset['geometryWorkerError'];
+    this.container.dataset['geometryGroupStates'] = JSON.stringify(state.groups);
+    this.onGeometryStateChange?.(state);
+  }
+
+  retryGeometry(): void {
+    if (
+      !this.currentDocument ||
+      !this.geometryState?.groups.some(
+        (group) => group.status === 'stale' || group.status === 'error',
+      )
+    )
+      return;
+    void this.syncBooleanGroups(this.currentDocument, this.geometryWorker.beginGeneration());
+  }
+
+  exportStl(document: ThreeDDocument): DataView<ArrayBuffer> {
+    // Check the caller's document too: React may not have delivered a new edit
+    // to the runtime yet. A disabled menu alone cannot protect that boundary.
+    if (!geometryResultIsCurrent(this.geometryState, document)) {
+      throw new Error('STL недоступен: дождитесь успешного расчёта текущего проекта.');
     }
+    const scene = new THREE.Scene();
+    for (const entry of this.entries.values()) {
+      if (!entry.node.visible || entry.node.operation === 'hole') continue;
+      const object = entry.object.clone(true);
+      // A pointer preview is not a committed edit. Export confirmed transforms.
+      applyNodeTransform(object, entry.node);
+      scene.add(object);
+    }
+    scene.updateMatrixWorld(true);
+    // Clones share GPU resources with the viewport; do not dispose them here.
+    return new STLExporter().parse(scene, { binary: true });
   }
 
   private syncRuler(document: ThreeDDocument, selectedIds: readonly string[]): void {

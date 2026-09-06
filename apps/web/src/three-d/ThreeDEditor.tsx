@@ -5,6 +5,7 @@ import { AsaLabMark } from '../brand/AsaLabBrand';
 import { EditorAvatar, useEditorAvatar } from '../components/editor-chrome/EditorAvatar';
 import { CheckIcon } from '../electronics/workbench-icons';
 import { downloadThreeDJson, downloadThreeDStl } from './exporters';
+import { geometryResultIsCurrent, type GeometryResultState } from './geometry/result-state';
 import { ShapeInspector } from './ShapeInspector';
 import { ShapeLibrary } from './ShapeLibrary';
 import { SelectionTools } from './SelectionTools';
@@ -53,6 +54,8 @@ export function ThreeDEditor({ projectId, onBack, user }: ThreeDEditorProps): JS
   const controller = useThreeDProject(projectId);
   const avatar = useEditorAvatar(user);
   const viewportRef = useRef<ThreeViewportHandle>(null);
+  const [geometryState, setGeometryState] = useState<GeometryResultState | null>(null);
+  const [exportError, setExportError] = useState<string | null>(null);
   const importRef = useRef<HTMLInputElement>(null);
   const [gridSettingsOpen, setGridSettingsOpen] = useState(false);
   const [alignmentOpen, setAlignmentOpen] = useState(false);
@@ -336,7 +339,20 @@ export function ThreeDEditor({ projectId, onBack, user }: ThreeDEditorProps): JS
         onToggleWorkplane={toggleShapeWorkplane}
         onDrop={() => controller.dropSelectedToWorkplane(workplaneY)}
         onImport={() => importRef.current?.click()}
-        onExportStl={() => downloadThreeDStl(document, controller.title)}
+        stlUnavailableReason={
+          geometryResultIsCurrent(geometryState, document)
+            ? ''
+            : 'STL доступен после успешного расчёта. Исходный JSON можно скачать сейчас.'
+        }
+        onExportStl={() => {
+          try {
+            if (!viewportRef.current) throw new Error('Рабочая плоскость ещё не готова.');
+            downloadThreeDStl(viewportRef.current.exportStl(document), controller.title);
+            setExportError(null);
+          } catch (error) {
+            setExportError(error instanceof Error ? error.message : 'Не удалось подготовить STL.');
+          }
+        }}
         onExportJson={() => downloadThreeDJson(document, controller.title)}
         sendControl={
           <VersionHistory
@@ -371,6 +387,7 @@ export function ThreeDEditor({ projectId, onBack, user }: ThreeDEditorProps): JS
             onDropPrimitive={controller.addPrimitive}
             activePlacement={draggedPlacement}
             onCameraChange={setCameraView}
+            onGeometryStateChange={setGeometryState}
           />
 
           <ViewCube
@@ -559,7 +576,15 @@ export function ThreeDEditor({ projectId, onBack, user }: ThreeDEditorProps): JS
         />
       </section>
 
-      {controller.notice && (
+      {exportError && (
+        <div className="asa3d-notice" role="alert">
+          <span>{exportError}</span>
+          <button type="button" onClick={() => setExportError(null)}>
+            Закрыть
+          </button>
+        </div>
+      )}
+      {controller.notice && !exportError && (
         <div className="asa3d-notice" role="status" aria-live="polite">
           <span>{controller.notice}</span>
           <button type="button" onClick={controller.clearNotice} aria-label="Закрыть уведомление">

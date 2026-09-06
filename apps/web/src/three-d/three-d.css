@@ -640,6 +640,49 @@ button.asa3d-save-recovery {
   cursor: pointer;
 }
 
+.asa3d-geometry-notice {
+  position: absolute;
+  right: 12px;
+  bottom: 42px;
+  z-index: 7;
+  display: grid;
+  gap: 6px;
+  box-sizing: border-box;
+  width: min(340px, calc(100% - 24px));
+  max-height: 34%;
+  padding: 10px 12px;
+  overflow: auto;
+  color: #513d1c;
+  font-size: 12px;
+  line-height: 1.4;
+  background: #fff8e8;
+  border: 1px solid #b99c65;
+  border-radius: 6px;
+  touch-action: pan-y;
+}
+
+.asa3d-geometry-notice ul {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.asa3d-geometry-notice button {
+  min-height: 44px;
+  padding: 6px 10px;
+  color: inherit;
+  font: inherit;
+  background: #fff;
+  border: 1px solid #b99c65;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.asa3d-export-menu small {
+  max-width: 230px;
+  padding: 8px;
+  color: var(--ink-muted);
+}
+
 .asa3d-loader {
   width: 38px;
   height: 38px;

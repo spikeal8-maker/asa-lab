@@ -14,6 +14,8 @@ import {
   type StandardCameraView,
 } from './SceneRuntime';
 import type { DirectManipulationCommit } from './DirectManipulator';
+import { GeometryResultNotice } from '../GeometryResultNotice';
+import { geometryResultIsCurrent, type GeometryResultState } from '../geometry/result-state';
 
 export interface ThreeViewportHandle {
   readonly setView: (view: StandardCameraView) => void;
@@ -21,6 +23,7 @@ export interface ThreeViewportHandle {
   readonly orbitBy: (deltaX: number, deltaY: number) => void;
   readonly zoom: (direction: 1 | -1) => void;
   readonly fit: () => void;
+  readonly exportStl: (document: ThreeDDocument) => DataView<ArrayBuffer>;
   /**
    * A canvas holding a frame of the whole scene, for the project card. The
    * frame is drawn during this call and the drawing buffer is not preserved,
@@ -51,6 +54,7 @@ interface ThreeViewportProps {
     readonly operation: ShapeOperation;
   } | null;
   readonly onCameraChange?: (state: CameraViewState) => void;
+  readonly onGeometryStateChange?: (state: GeometryResultState | null) => void;
 }
 
 const PRIMITIVES = new Set<PrimitiveKind>(PRIMITIVE_KINDS);
@@ -62,6 +66,7 @@ export const ThreeViewport = forwardRef<ThreeViewportHandle, ThreeViewportProps>
     const [webGlError, setWebGlError] = useState<string | null>(null);
     const [runtimeGeneration, setRuntimeGeneration] = useState(0);
     const [runtimeReady, setRuntimeReady] = useState(false);
+    const [geometryState, setGeometryState] = useState<GeometryResultState | null>(null);
     const propsRef = useRef(props);
     propsRef.current = props;
 
@@ -71,6 +76,8 @@ export const ThreeViewport = forwardRef<ThreeViewportHandle, ThreeViewportProps>
       let retryTimer = 0;
       const startRuntime = (): void => {
         setRuntimeReady(false);
+        setGeometryState(null);
+        propsRef.current.onGeometryStateChange?.(null);
         setWebGlError(null);
         runtimeRef.current?.dispose();
         runtimeRef.current = null;
@@ -82,6 +89,10 @@ export const ThreeViewport = forwardRef<ThreeViewportHandle, ThreeViewportProps>
             onTransformCommitMany: (commits) => propsRef.current.onTransformCommitMany(commits),
             onWebGlError: setWebGlError,
             onCameraChange: (state) => propsRef.current.onCameraChange?.(state),
+            onGeometryStateChange: (state) => {
+              setGeometryState(state);
+              propsRef.current.onGeometryStateChange?.(state);
+            },
           });
           runtimeRef.current.setDocument(propsRef.current.document, propsRef.current.selectedIds);
           runtimeRef.current.setWorkplaneY(propsRef.current.workplaneY);
@@ -89,6 +100,8 @@ export const ThreeViewport = forwardRef<ThreeViewportHandle, ThreeViewportProps>
         } catch (error) {
           runtimeRef.current?.dispose();
           runtimeRef.current = null;
+          setGeometryState(null);
+          propsRef.current.onGeometryStateChange?.(null);
           setWebGlError(
             error instanceof Error
               ? error.message
@@ -117,6 +130,8 @@ export const ThreeViewport = forwardRef<ThreeViewportHandle, ThreeViewportProps>
         runtime.dispose();
         runtimeRef.current = null;
         setRuntimeReady(false);
+        setGeometryState(null);
+        propsRef.current.onGeometryStateChange?.(null);
         setWebGlError(
           error instanceof Error
             ? error.message
@@ -141,9 +156,16 @@ export const ThreeViewport = forwardRef<ThreeViewportHandle, ThreeViewportProps>
         orbitBy: (deltaX, deltaY) => runtimeRef.current?.orbitBy(deltaX, deltaY),
         zoom: (direction) => runtimeRef.current?.zoom(direction),
         fit: () => runtimeRef.current?.fitToScene(),
-        captureFrame: () => runtimeRef.current?.captureFrame() ?? null,
+        exportStl: (document) => {
+          if (!runtimeRef.current) throw new Error('Рабочая плоскость ещё не готова.');
+          return runtimeRef.current.exportStl(document);
+        },
+        captureFrame: () =>
+          geometryResultIsCurrent(geometryState, propsRef.current.document)
+            ? (runtimeRef.current?.captureFrame() ?? null)
+            : null,
       }),
-      [],
+      [geometryState],
     );
 
     const handleDrop = (event: React.DragEvent<HTMLDivElement>): void => {
@@ -190,6 +212,12 @@ export const ThreeViewport = forwardRef<ThreeViewportHandle, ThreeViewportProps>
         data-selected-node-id={props.selectedIds.at(-1) ?? ''}
         data-selected-node-ids={props.selectedIds.join(',')}
       >
+        {runtimeReady && !webGlError && (
+          <GeometryResultNotice
+            state={geometryState}
+            onRetry={() => runtimeRef.current?.retryGeometry()}
+          />
+        )}
         {!runtimeReady && !webGlError && (
           <div className="asa3d-viewport-starting" role="status">
             <span className="asa3d-loader" />

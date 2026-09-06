@@ -538,78 +538,125 @@ test('teacher models, autosaves, reloads and versions an ASA 3D scene', async ({
   failures.assertEmpty();
 });
 
-test('Boolean groups hide, produce empty results and recover after a Worker crash', async ({
-  page,
-}) => {
-  test.setTimeout(120_000);
-  await loginWithOrganization(page, teacher);
-  await createThreeDProject(page, 'Проверка жизненного цикла Boolean');
-  const viewport = page.getByTestId('asa3d-viewport');
-  const overlay = page.getByTestId('asa3d-manipulator-overlay');
-  const nodes = ['a', 'b'].map((id, index) => {
-    const node = createThreeDNode('box', id);
-    return {
-      ...node,
-      groupId: 'g',
-      groupOperation: 'union' as const,
-      transform: { ...node.transform, position: { x: index * 40, y: 10, z: 0 } },
-    };
-  });
-  const importNodes = async (members: typeof nodes) => {
-    await page.locator('input[type="file"]').setInputFiles({
-      name: 'boolean-regression.asa3d.json',
-      mimeType: 'application/json',
-      buffer: Buffer.from(JSON.stringify({ ...createEmptyThreeDDocument(), nodes: members })),
+test.describe('Boolean result recovery', () => {
+  test.use({ hasTouch: true });
+  test('Boolean groups hide, produce empty results and recover after a Worker crash', async ({
+    page,
+  }) => {
+    test.setTimeout(120_000);
+    await loginWithOrganization(page, teacher);
+    await createThreeDProject(page, 'Проверка жизненного цикла Boolean');
+    const viewport = page.getByTestId('asa3d-viewport');
+    const overlay = page.getByTestId('asa3d-manipulator-overlay');
+    const nodes = ['a', 'b'].map((id, index) => {
+      const node = createThreeDNode('box', id);
+      return {
+        ...node,
+        groupId: 'g',
+        groupOperation: 'union' as const,
+        transform: { ...node.transform, position: { x: index * 40, y: 10, z: 0 } },
+      };
     });
-    await expect(
-      page.getByText(`Импортировано объектов: ${members.length}.`, { exact: true }),
-    ).toBeVisible();
-    await dismissNotice(page);
-  };
+    const importNodes = async (members: typeof nodes) => {
+      await page.locator('input[type="file"]').setInputFiles({
+        name: 'boolean-regression.asa3d.json',
+        mimeType: 'application/json',
+        buffer: Buffer.from(JSON.stringify({ ...createEmptyThreeDDocument(), nodes: members })),
+      });
+      await expect(
+        page.getByText(`Импортировано объектов: ${members.length}.`, { exact: true }),
+      ).toBeVisible();
+      await dismissNotice(page);
+    };
 
-  await importNodes(nodes);
-  await expect(viewport).toHaveAttribute('data-geometry-worker-state', 'ready');
-  await page.keyboard.press('Control+a');
-  await expect(overlay).toHaveAttribute('data-handle-positions', /resize-height/);
-  await page.keyboard.press('Control+h');
-  await expect(viewport).toHaveAttribute('data-geometry-worker-state', 'idle');
-  await expect(overlay).toHaveAttribute('data-handle-positions', '{"centre":null,"handles":[]}');
-  await page.screenshot({ path: 'e2e/artifacts/three-d/boolean-hidden.png', fullPage: true });
+    await importNodes(nodes);
+    await expect(viewport).toHaveAttribute('data-geometry-worker-state', 'ready');
+    await page.keyboard.press('Control+a');
+    await expect(overlay).toHaveAttribute('data-handle-positions', /resize-height/);
+    await page.keyboard.press('Control+h');
+    await expect(viewport).toHaveAttribute('data-geometry-worker-state', 'idle');
+    await expect(overlay).toHaveAttribute('data-handle-positions', '{"centre":null,"handles":[]}');
+    await page.screenshot({ path: 'e2e/artifacts/three-d/boolean-hidden.png', fullPage: true });
 
-  await page.keyboard.press('Control+Shift+h');
-  await expect(viewport).toHaveAttribute('data-geometry-worker-state', 'ready');
-  await page.keyboard.press('Control+a');
-  await expandShapeInspector(page);
-  await page.getByRole('button', { name: 'Пересечение', exact: true }).click();
-  await expect(viewport).toHaveAttribute('data-geometry-worker-state', 'ready');
-  await expect(overlay).toHaveAttribute('data-handle-positions', '{"centre":null,"handles":[]}');
-  await page.screenshot({
-    path: 'e2e/artifacts/three-d/boolean-empty-intersection.png',
-    fullPage: true,
+    await page.keyboard.press('Control+Shift+h');
+    await expect(viewport).toHaveAttribute('data-geometry-worker-state', 'ready');
+    await page.keyboard.press('Control+a');
+    await expandShapeInspector(page);
+    await page.getByRole('button', { name: 'Пересечение', exact: true }).click();
+    await expect(viewport).toHaveAttribute('data-geometry-worker-state', 'valid-empty');
+    await expect(page.getByTestId('asa3d-geometry-notice')).toContainText('Пустой результат');
+    await expect(overlay).toHaveAttribute('data-handle-positions', '{"centre":null,"handles":[]}');
+    await page.screenshot({
+      path: 'e2e/artifacts/three-d/boolean-empty-intersection.png',
+      fullPage: true,
+    });
+    await page.getByRole('button', { name: 'Объединение', exact: true }).click();
+    await expect(overlay).toHaveAttribute('data-handle-positions', /resize-height/);
+
+    // Fail the real browser Worker's startup: retain only the previous confirmed
+    // group, mark it stale, and never manufacture geometry for the new group.
+    const workerUrl = '**/assets/geometry.worker-*.js';
+    await page.route(workerUrl, (route) =>
+      route.fulfill({
+        contentType: 'application/javascript',
+        body: 'throw new Error("Injected Boolean Worker startup failure");',
+      }),
+    );
+    await importNodes([
+      ...nodes,
+      ...nodes.map((node) => ({ ...node, id: `other-${node.id}`, groupId: 'other' })),
+    ]);
+    await expect(viewport).toHaveAttribute('data-geometry-worker-state', 'stale');
+    await expect(viewport).toHaveAttribute('data-runtime-ready', 'true');
+    const notice = page.getByTestId('asa3d-geometry-notice');
+    await expect(notice).toHaveAttribute('role', 'alert');
+    await expect(notice).toContainText('показана устаревшая модель');
+    await expect(notice).toContainText('результат не показан');
+    await page.getByRole('button', { name: 'Экспорт', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'STL для 3D-печати' })).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'ASA 3D JSON' })).toBeEnabled();
+    const [sourceDownload] = await Promise.all([
+      page.waitForEvent('download'),
+      page.getByRole('button', { name: 'ASA 3D JSON' }).click(),
+    ]);
+    expect(sourceDownload.suggestedFilename()).toMatch(/\.asa3d\.json$/);
+    await page.screenshot({
+      path: 'e2e/artifacts/three-d/boolean-stale-error.png',
+      fullPage: true,
+    });
+
+    // Real touch input on the recovery control, not just a mobile screenshot.
+    await page.setViewportSize({ width: 390, height: 844 });
+    const retry = page.getByRole('button', { name: 'Повторить расчёт', exact: true });
+    await expect(retry).toBeVisible();
+    const retryBounds = await retry.boundingBox();
+    expect(retryBounds!.height).toBeGreaterThanOrEqual(44);
+    expect(retryBounds!.x).toBeGreaterThanOrEqual(0);
+    expect(retryBounds!.x + retryBounds!.width).toBeLessThanOrEqual(390);
+    await page.screenshot({
+      path: 'e2e/artifacts/three-d/boolean-stale-mobile.png',
+      fullPage: true,
+    });
+    await page.unroute(workerUrl);
+    await retry.tap();
+    await expect(viewport).toHaveAttribute('data-geometry-worker-state', 'ready');
+    await expect(notice).toHaveCount(0);
+    await expect(page.getByText('4 объекта', { exact: true })).toBeVisible();
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.getByRole('button', { name: 'Экспорт', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'STL для 3D-печати' })).toBeEnabled();
+    const [stlDownload] = await Promise.all([
+      page.waitForEvent('download'),
+      page.getByRole('button', { name: 'STL для 3D-печати' }).click(),
+    ]);
+    expect(stlDownload.suggestedFilename()).toMatch(/\.stl$/);
+    // Retry must not add an undo step or change the source document.
+    await page.keyboard.press('Control+z');
+    await expect(page.getByText('2 объекта', { exact: true })).toBeVisible();
+    await expect(viewport).toHaveAttribute('data-geometry-worker-state', 'ready');
+    await page.keyboard.press('Control+y');
+    await expect(page.getByText('4 объекта', { exact: true })).toBeVisible();
+    await expect(viewport).toHaveAttribute('data-geometry-worker-state', 'ready');
+    await expect(viewport).not.toHaveAttribute('data-geometry-worker-error', /.+/);
   });
-  await page.getByRole('button', { name: 'Объединение', exact: true }).click();
-  await expect(overlay).toHaveAttribute('data-handle-positions', /resize-height/);
-
-  // Fail the real browser Worker's startup, then verify all groups settle and
-  // a subsequent document generation can start a healthy Worker again.
-  const workerUrl = '**/assets/geometry.worker-*.js';
-  await page.route(workerUrl, (route) =>
-    route.fulfill({
-      contentType: 'application/javascript',
-      body: 'throw new Error("Injected Boolean Worker startup failure");',
-    }),
-  );
-  await importNodes([
-    ...nodes,
-    ...nodes.map((node) => ({ ...node, id: `other-${node.id}`, groupId: 'other' })),
-  ]);
-  await expect(viewport).toHaveAttribute('data-geometry-worker-state', 'fallback');
-  await expect(viewport).toHaveAttribute('data-runtime-ready', 'true');
-  await page.unroute(workerUrl);
-  await page.keyboard.press('Control+z');
-  await expect(viewport).toHaveAttribute('data-geometry-worker-state', 'ready');
-  await page.keyboard.press('Control+y');
-  await expect(page.getByText('4 объекта', { exact: true })).toBeVisible();
-  await expect(viewport).toHaveAttribute('data-geometry-worker-state', 'ready');
-  await expect(viewport).not.toHaveAttribute('data-geometry-worker-error', /.+/);
 });
