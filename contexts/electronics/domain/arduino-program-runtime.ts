@@ -59,8 +59,9 @@ export type ArduinoProgramAction =
   | ArduinoNoToneAction
   | ArduinoPinModeAction;
 
-export const ARDUINO_RUNTIME_STATE_VERSION = 6 as const;
+export const ARDUINO_RUNTIME_STATE_VERSION = 7 as const;
 export const ARDUINO_RUNTIME_EVENT_QUEUE_LIMIT = 256 as const;
+export type ArduinoClockProfile = 'legacy-ms-v1' | 'instruction-us-v1';
 
 export interface ArduinoRuntimeEvent {
   readonly sequence: number;
@@ -76,6 +77,7 @@ export interface ArduinoRuntimeDiagnostic {
   readonly code:
     | 'compile_error'
     | 'arithmetic_error'
+    | 'clock_range_exceeded'
     | 'statement_budget_exceeded'
     | 'loop_advance_budget_exceeded';
   readonly severity: 'error';
@@ -90,6 +92,7 @@ export interface ArduinoRuntimeDiagnostic {
  */
 export interface ArduinoRuntimeState {
   readonly version: typeof ARDUINO_RUNTIME_STATE_VERSION;
+  readonly clockProfile: ArduinoClockProfile;
   readonly programFingerprint: string;
   readonly virtualTimeMs: number;
   readonly resumeAtMs: number;
@@ -120,6 +123,7 @@ export interface ArduinoRuntimeState {
 }
 
 export interface ArduinoRuntimeAdvance {
+  readonly executionStatus: 'ready' | 'yielded' | 'fault';
   readonly setupActions: readonly ArduinoProgramAction[];
   readonly loopActions: readonly ArduinoProgramAction[];
   readonly events: readonly ArduinoRuntimeEvent[];
@@ -182,6 +186,9 @@ const MAX_STATEMENTS = 512;
 const MAX_LOOP_ADVANCES = 4_096;
 const MAX_ADVANCE_STATEMENTS = 16_384;
 const MIN_LOOP_DURATION_MS = 1;
+// Leave enough floating-point precision for lossless microsecond <-> ms state serialization.
+const MAX_CLOCK_MICROSECONDS = 2 ** 50 - 1;
+const MAX_CLOCK_TARGET_MS = (MAX_CLOCK_MICROSECONDS - 1000) / 1000;
 const PWM_TERMINALS = new Set<Terminal>(['d3', 'd5', 'd6', 'd9', 'd10', 'd11']);
 
 function finite(value: number, fallback = 0): number {
@@ -194,6 +201,16 @@ function clamp(value: number, minimum: number, maximum: number): number {
 
 function microsecondsFromMilliseconds(value: number): number {
   return Math.min(Number.MAX_SAFE_INTEGER, Math.max(0, Math.round(finite(value) * 1_000)));
+}
+
+function clockHorizonMilliseconds(value: number): number {
+  // Values such as 1.001 ms must survive binary floating-point round trips.
+  // Compare on the caller's ms scale instead of an epsilon that grows with time
+  // and could otherwise round a truly fractional horizon into the future.
+  let ticks = Math.floor(value * 1000);
+  if ((ticks + 1) / 1000 <= value) ticks += 1;
+  if (ticks / 1000 > value) ticks -= 1;
+  return ticks / 1000;
 }
 
 function programFingerprint(source: string): string {
@@ -223,6 +240,7 @@ function runtimeStateIsValid(state: ArduinoRuntimeState): boolean {
   const tones = Object.values(state.tones ?? {});
   return (
     state.version === ARDUINO_RUNTIME_STATE_VERSION &&
+    (state.clockProfile === 'legacy-ms-v1' || state.clockProfile === 'instruction-us-v1') &&
     validScopes(state.scopes) &&
     Array.isArray(state.faults) &&
     state.faults.every(
@@ -231,6 +249,7 @@ function runtimeStateIsValid(state: ArduinoRuntimeState): boolean {
         [
           'compile_error',
           'arithmetic_error',
+          'clock_range_exceeded',
           'statement_budget_exceeded',
           'loop_advance_budget_exceeded',
         ].includes(fault.code) &&
@@ -243,6 +262,11 @@ function runtimeStateIsValid(state: ArduinoRuntimeState): boolean {
     Number.isFinite(state.resumeAtMs) &&
     state.resumeAtMs >= 0 &&
     state.resumeAtMs >= state.virtualTimeMs &&
+    (state.clockProfile !== 'instruction-us-v1' ||
+      (state.virtualTimeMs <= MAX_CLOCK_TARGET_MS &&
+        state.resumeAtMs <= MAX_CLOCK_MICROSECONDS / 1000 &&
+        microsecondsFromMilliseconds(state.virtualTimeMs) / 1000 === state.virtualTimeMs &&
+        microsecondsFromMilliseconds(state.resumeAtMs) / 1000 === state.resumeAtMs)) &&
     (state.phase === 'setup' || state.phase === 'loop') &&
     Number.isSafeInteger(state.programCounter) &&
     state.programCounter >= 0 &&
@@ -1437,13 +1461,7 @@ export function analyseArduinoProgramSyntax(source: string): readonly ArduinoRun
   return compileArduinoProgram(source).diagnostics;
 }
 
-/**
- * Advance the compiled setup/loop continuation through deterministic virtual
- * time. A delay suspends the exact instruction, locals and control flow until
- * its boundary; later statements are neither evaluated nor applied early. A
- * loop with no delay receives a 1 ms scheduling quantum so a large time jump
- * stays finite and reproducible.
- */
+/** Existing circuit bridge. Kept on its legacy clock until the shared scheduler is ready. */
 export function advanceArduinoRuntime(
   source: string,
   inputs: ArduinoTerminalVoltages = {},
@@ -1451,18 +1469,82 @@ export function advanceArduinoRuntime(
   previous?: ArduinoRuntimeState,
   readInputs?: ArduinoInputReader,
 ): ArduinoRuntimeAdvance {
+  return advanceRuntime(source, inputs, simulationTimeMs, previous, readInputs, 'legacy-ms-v1');
+}
+
+/**
+ * Scheduler foundation, not yet enabled in the circuit bridge.
+ * Each compiled instruction and setup/loop return costs one virtual microsecond;
+ * effects occur at instruction start. This is an abstract clock, NOT AVR cycles.
+ * A work quantum yields a serializable continuation, never a program error.
+ * The caller must consume every returned events batch before resuming, use a
+ * timestamped input reader (or inputs constant over the entire advance), and
+ * must not present a yielded state as the result at the requested future time.
+ */
+export function advanceClockedArduinoRuntime(
+  source: string,
+  inputs: ArduinoTerminalVoltages = {},
+  simulationTimeMs = 0,
+  previous?: ArduinoRuntimeState,
+  readInputs?: ArduinoInputReader,
+  options: { readonly instructionBudget?: number } = {},
+): ArduinoRuntimeAdvance {
+  return advanceRuntime(
+    source,
+    inputs,
+    simulationTimeMs,
+    previous,
+    readInputs,
+    'instruction-us-v1',
+    Math.floor(
+      clamp(options.instructionBudget ?? MAX_ADVANCE_STATEMENTS, 1, MAX_ADVANCE_STATEMENTS),
+    ),
+  );
+}
+
+function advanceRuntime(
+  source: string,
+  inputs: ArduinoTerminalVoltages,
+  simulationTimeMs: number,
+  previous: ArduinoRuntimeState | undefined,
+  readInputs: ArduinoInputReader | undefined,
+  clockProfile: ArduinoClockProfile,
+  instructionBudget = MAX_ADVANCE_STATEMENTS,
+): ArduinoRuntimeAdvance {
+  const clocked = clockProfile === 'instruction-us-v1';
   const compilation = compileArduinoProgram(source);
   const { cleanSource, setupInstructions, loopInstructions } = compilation;
   const declarations = globalDeclarations(cleanSource);
   const fingerprint = programFingerprint(source);
-  const targetTimeMs = Math.max(0, finite(simulationTimeMs));
-  if (compilation.diagnostics.length > 0) {
+  const invalidClockTime =
+    clocked &&
+    (!Number.isFinite(simulationTimeMs) ||
+      simulationTimeMs < 0 ||
+      simulationTimeMs > MAX_CLOCK_TARGET_MS);
+  const targetTimeMs = clocked
+    ? invalidClockTime
+      ? 0
+      : clockHorizonMilliseconds(simulationTimeMs)
+    : Math.max(0, finite(simulationTimeMs));
+  const initialDiagnostics: readonly ArduinoRuntimeDiagnostic[] = invalidClockTime
+    ? [
+        {
+          code: 'clock_range_exceeded',
+          severity: 'error',
+          message:
+            'Время Arduino должно быть конечным, неотрицательным и находиться в диапазоне instruction-us-v1 (до 2^50 − 1001 мкс).',
+        },
+      ]
+    : compilation.diagnostics;
+  if (initialDiagnostics.length > 0) {
     return {
+      executionStatus: 'fault',
       setupActions: [],
       loopActions: [],
       events: [],
       state: {
         version: ARDUINO_RUNTIME_STATE_VERSION,
+        clockProfile,
         programFingerprint: fingerprint,
         virtualTimeMs: targetTimeMs,
         resumeAtMs: targetTimeMs,
@@ -1476,18 +1558,19 @@ export function advanceArduinoRuntime(
         variables: {},
         locals: {},
         scopes: [{}, {}],
-        faults: compilation.diagnostics,
+        faults: initialDiagnostics,
         pinModes: {},
         outputVoltages: {},
         tones: {},
       },
-      diagnostics: compilation.diagnostics,
+      diagnostics: initialDiagnostics,
     };
   }
   const previousInstructions = previous?.phase === 'setup' ? setupInstructions : loopInstructions;
   const compatible =
     previous !== undefined &&
     runtimeStateIsValid(previous) &&
+    previous.clockProfile === clockProfile &&
     previous.programFingerprint === fingerprint &&
     previous.virtualTimeMs <= targetTimeMs &&
     previous.programCounter <= previousInstructions.length &&
@@ -1502,6 +1585,7 @@ export function advanceArduinoRuntime(
         );
   if (compatible && (previous.virtualTimeMs === targetTimeMs || previous.faults.length > 0)) {
     return {
+      executionStatus: previous.faults.length > 0 ? 'fault' : 'ready',
       setupActions: [],
       loopActions: [],
       events: [],
@@ -1559,6 +1643,13 @@ export function advanceArduinoRuntime(
   };
   let advanceStatementCount = 0;
   let continuousStatementCount = 0;
+  let executedInstructions = 0;
+  const consumeClockInstruction = (): void => {
+    if (!clocked) return;
+    executedInstructions += 1;
+    resumeAtMs =
+      Math.min(MAX_CLOCK_MICROSECONDS, microsecondsFromMilliseconds(resumeAtMs) + 1) / 1000;
+  };
 
   if (!compatible) {
     const initializationState: RuntimeState = {
@@ -1594,8 +1685,9 @@ export function advanceArduinoRuntime(
   let completedLoops = 0;
   while (
     resumeAtMs <= targetTimeMs &&
-    completedLoops < MAX_LOOP_ADVANCES &&
-    advanceStatementCount < MAX_ADVANCE_STATEMENTS &&
+    (clocked
+      ? executedInstructions < instructionBudget
+      : completedLoops < MAX_LOOP_ADVANCES && advanceStatementCount < MAX_ADVANCE_STATEMENTS) &&
     diagnostics.length === 0
   ) {
     expireTones(resumeAtMs, tones, emit);
@@ -1608,6 +1700,7 @@ export function advanceArduinoRuntime(
       loopIterationActive = false;
       loopStartedAtMs = resumeAtMs;
       continuousStatementCount = 0;
+      consumeClockInstruction();
       continue;
     }
 
@@ -1623,7 +1716,8 @@ export function advanceArduinoRuntime(
       loopIterationActive = false;
       completedLoops += 1;
       continuousStatementCount = 0;
-      if (resumeAtMs <= loopStartedAtMs) resumeAtMs = loopStartedAtMs + MIN_LOOP_DURATION_MS;
+      if (clocked) consumeClockInstruction();
+      else if (resumeAtMs <= loopStartedAtMs) resumeAtMs = loopStartedAtMs + MIN_LOOP_DURATION_MS;
       continue;
     }
 
@@ -1631,11 +1725,13 @@ export function advanceArduinoRuntime(
     if (!instruction) break;
     if (instruction.kind === 'jump') {
       programCounter = instruction.target;
+      consumeClockInstruction();
       continue;
     }
     if (instruction.kind === 'enter-scope' || instruction.kind === 'exit-scope') {
       applyScopeInstruction(instruction, scopes);
       programCounter += 1;
+      consumeClockInstruction();
       continue;
     }
 
@@ -1650,7 +1746,7 @@ export function advanceArduinoRuntime(
       actions,
       diagnostics,
       simulationTimeMs: resumeAtMs,
-      statementCount: continuousStatementCount,
+      statementCount: clocked ? 0 : continuousStatementCount,
     };
     const statementCountBefore = instructionState.statementCount;
 
@@ -1668,7 +1764,13 @@ export function advanceArduinoRuntime(
         const executionTimeMs = resumeAtMs;
         for (const action of actions.slice(actionStart)) {
           if (action.kind === 'delay') {
-            resumeAtMs += action.durationMs;
+            resumeAtMs = clocked
+              ? Math.min(
+                  MAX_CLOCK_MICROSECONDS,
+                  microsecondsFromMilliseconds(resumeAtMs) +
+                    microsecondsFromMilliseconds(action.durationMs),
+                ) / 1000
+              : resumeAtMs + action.durationMs;
             if (action.durationMs > 0) continuousStatementCount = 0;
           } else {
             applyRuntimeAction(action, executionTimeMs, pinModes, outputVoltages, tones, emit);
@@ -1689,11 +1791,22 @@ export function advanceArduinoRuntime(
     advanceStatementCount += consumed;
     continuousStatementCount =
       resumeAtMs > instructionState.simulationTimeMs ? 0 : instructionState.statementCount;
+    consumeClockInstruction();
   }
 
-  expireTones(targetTimeMs, tones, emit);
+  const yielded = clocked && resumeAtMs <= targetTimeMs && diagnostics.length === 0;
+  // The interval before the next instruction is known. Never expire timers at
+  // the caller's future target while unexecuted instructions can change them.
+  const reachedTimeMs = yielded
+    ? Math.max(
+        compatible ? previous.virtualTimeMs : resetAtMs,
+        (microsecondsFromMilliseconds(resumeAtMs) - 1) / 1000,
+      )
+    : targetTimeMs;
+  expireTones(reachedTimeMs, tones, emit);
 
   if (
+    !clocked &&
     resumeAtMs <= targetTimeMs &&
     completedLoops >= MAX_LOOP_ADVANCES &&
     !diagnostics.some((entry) => entry.code === 'statement_budget_exceeded')
@@ -1704,6 +1817,7 @@ export function advanceArduinoRuntime(
       message: `Arduino не успела догнать виртуальное время за ${MAX_LOOP_ADVANCES} проходов loop().`,
     });
   } else if (
+    !clocked &&
     resumeAtMs <= targetTimeMs &&
     advanceStatementCount >= MAX_ADVANCE_STATEMENTS &&
     !diagnostics.some((entry) => entry.code === 'statement_budget_exceeded')
@@ -1727,13 +1841,15 @@ export function advanceArduinoRuntime(
     resumeAtMs = Math.max(resumeAtMs, targetTimeMs);
   }
   return {
+    executionStatus: diagnostics.length > 0 ? 'fault' : yielded ? 'yielded' : 'ready',
     setupActions,
     loopActions,
     events,
     state: {
       version: ARDUINO_RUNTIME_STATE_VERSION,
+      clockProfile,
       programFingerprint: fingerprint,
-      virtualTimeMs: targetTimeMs,
+      virtualTimeMs: reachedTimeMs,
       resumeAtMs,
       phase,
       programCounter,
