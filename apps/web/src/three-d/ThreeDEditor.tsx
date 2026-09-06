@@ -60,6 +60,7 @@ export function ThreeDEditor({ projectId, onBack, user }: ThreeDEditorProps): JS
   const [gridSettingsOpen, setGridSettingsOpen] = useState(false);
   const [alignmentOpen, setAlignmentOpen] = useState(false);
   const [mirrorOpen, setMirrorOpen] = useState(false);
+  const [additiveSelection, setAdditiveSelection] = useState(false);
   const [cruiseActive, setCruiseActive] = useState(false);
   const [workplaneY, setWorkplaneY] = useState(0);
   const [cameraView, setCameraView] = useState<CameraViewState>({ yaw: 0, pitch: 45 });
@@ -305,6 +306,8 @@ export function ThreeDEditor({ projectId, onBack, user }: ThreeDEditorProps): JS
 
       <input ref={importRef} type="file" accept=".json,.asa3d.json" hidden onChange={importJson} />
       <ThreeDToolbar
+        additiveSelection={additiveSelection}
+        onToggleAdditiveSelection={() => setAdditiveSelection((value) => !value)}
         selectedCount={controller.selectedNodes.length}
         editableSelectedCount={editableSelectedCount}
         hasClipboard={controller.hasClipboard}
@@ -374,6 +377,7 @@ export function ThreeDEditor({ projectId, onBack, user }: ThreeDEditorProps): JS
             ref={viewportRef}
             document={document}
             selectedIds={controller.selectedIds}
+            additiveSelection={additiveSelection}
             workplaneY={workplaneY}
             onSelect={(nodeId, additive) => {
               if (cruiseActive && nodeId && controller.cruiseSelectedTo(nodeId)) {

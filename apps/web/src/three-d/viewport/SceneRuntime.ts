@@ -18,7 +18,8 @@ import {
 import { createBooleanMeshFromEvaluation } from './csg';
 import { applyNodeTransform, createNodeObject, disposeObject } from './geometry';
 import { addCadSceneLights } from './cad-appearance';
-import { runtimeSelectionKeys } from '../selection-model';
+import { directManipulationReplacements, runtimeSelectionKeys } from '../selection-model';
+import { commonResultTransform, dimensionMatrix } from './result-transform';
 import { GeometryWorkerClient } from '../geometry/worker-client';
 import {
   geometryResultIsCurrent,
@@ -33,6 +34,7 @@ export interface SceneRuntimeCallbacks {
     nodeId: string,
     transform: ThreeDTransform,
     dimensions?: ThreeDDimensions,
+    basis?: DirectManipulationCommit['basis'],
   ) => void;
   readonly onTransformCommitMany: (commits: readonly DirectManipulationCommit[]) => void;
   readonly onWebGlError: (message: string) => void;
@@ -154,6 +156,7 @@ export class SceneRuntime {
   private readonly pointer = new THREE.Vector2();
   private readonly entries = new Map<string, SceneEntry>();
   private readonly geometryWorker = new GeometryWorkerClient();
+  private readonly deferredResults = new Map<string, { apply: () => void; dispose: () => void }>();
   private readonly booleanRoot = new THREE.Group();
   private readonly rulerRoot = new THREE.Group();
   private placementPreview: PlacementPreview | null = null;
@@ -245,8 +248,15 @@ export class SceneRuntime {
       () => this.entries,
       {
         onSelect: callbacks.onSelect,
-        onCommit: callbacks.onTransformCommit,
-        onCommitMany: callbacks.onTransformCommitMany,
+        onCommit: (nodeId, transform, dimensions, basis) => {
+          this.acceptPreview([{ nodeId, transform, dimensions, basis }]);
+          callbacks.onTransformCommit(nodeId, transform, dimensions, basis);
+        },
+        onCommitMany: (commits) => {
+          this.acceptPreview(commits);
+          callbacks.onTransformCommitMany(commits);
+        },
+        onInteractionEnd: () => this.flushDeferredResults(),
       },
     );
 
@@ -287,6 +297,10 @@ export class SceneRuntime {
     }
     const documentSignature = JSON.stringify(document.nodes);
     const documentChanged = documentSignature !== this.documentSignature;
+    if (documentChanged) {
+      this.clearDeferredResults();
+      this.manipulator.cancelDrag();
+    }
     this.documentSignature = documentSignature;
     const groupedIds = new Set(
       document.nodes.filter((node) => node.groupId).map((node) => node.id),
@@ -333,6 +347,55 @@ export class SceneRuntime {
     this.syncRuntimeSelection();
   }
 
+  private acceptPreview(commits: readonly DirectManipulationCommit[]): void {
+    if (!this.currentDocument) return;
+    const replacements = new Map(
+      directManipulationReplacements(this.currentDocument, commits).map((node) => [node.id, node]),
+    );
+    // The same reducer feeds the controller's one undo command. Reconcile now,
+    // before a late result or the next pointerdown can replace the released pose.
+    this.setDocument(
+      {
+        ...this.currentDocument,
+        nodes: this.currentDocument.nodes.map((node) => replacements.get(node.id) ?? node),
+      },
+      this.selectedIds,
+    );
+  }
+
+  private clearDeferredResults(): void {
+    for (const result of this.deferredResults.values()) result.dispose();
+    this.deferredResults.clear();
+  }
+
+  private flushDeferredResults(): void {
+    for (const [id, result] of this.deferredResults) {
+      if (this.manipulator.isDragging(id)) continue;
+      this.deferredResults.delete(id);
+      result.apply();
+    }
+  }
+
+  private applyAfterGesture(entryId: string, apply: () => void, dispose: () => void): void {
+    if (this.manipulator.isDragging(entryId)) {
+      this.deferredResults.get(entryId)?.dispose();
+      this.deferredResults.set(entryId, { apply, dispose });
+    } else apply();
+  }
+
+  private syncPendingTransform(entry: SceneEntry, nodes: readonly ThreeDNode[]): void {
+    const previousNodes = JSON.parse(entry.signature) as ThreeDNode[];
+    const delta = commonResultTransform(previousNodes, nodes);
+    applyNodeTransform(entry.object, entry.node);
+    if (delta) {
+      const matrix = delta.multiply(
+        dimensionMatrix(entry.node.transform, { width: 1, height: 1, depth: 1 }),
+      );
+      matrix.decompose(entry.object.position, entry.object.quaternion, entry.object.scale);
+    }
+    entry.object.updateMatrixWorld(true);
+  }
+
   private syncRuntimeSelection(): void {
     const document = this.currentDocument;
     if (!document) return;
@@ -372,6 +435,13 @@ export class SceneRuntime {
         documentSignature,
         groups: [...states],
       });
+    // All selected results must retain the same committed pose before the
+    // first asynchronous group evaluation yields control to another frame.
+    for (const [groupId, nodes] of groups) {
+      const retained = this.entries.get(`group:${groupId}`);
+      if (retained && nodes.some((node) => node.visible))
+        this.syncPendingTransform(retained, nodes);
+    }
     publish();
     for (const [groupId, nodes] of groups) {
       // setDocument already removes fully hidden groups and their selection
@@ -385,67 +455,86 @@ export class SceneRuntime {
         const evaluation = await this.geometryWorker.evaluate(generationId, nodes, operation);
         if (!this.geometryWorker.isCurrent(generationId)) return;
         rendered = createBooleanMeshFromEvaluation(evaluation, nodes);
-        states[stateIndex] = { ...states[stateIndex]!, status: rendered ? 'ready' : 'valid-empty' };
       } catch (error) {
         if (!this.geometryWorker.isCurrent(generationId)) return;
         // Never turn failed CSG into an apparently successful pile of operands.
         // Only an already confirmed result may remain, explicitly marked stale.
-        states[stateIndex] = {
-          ...states[stateIndex]!,
-          status: this.entries.has(entryId) ? 'stale' : 'error',
-          message:
-            error instanceof Error ? error.message.slice(0, 240) : 'Unknown Geometry Worker error.',
-        };
-        const previous = this.entries.get(entryId);
-        if (previous) applyNodeTransform(previous.object, previous.node);
-        publish();
+        this.applyAfterGesture(
+          entryId,
+          () => {
+            if (!this.geometryWorker.isCurrent(generationId)) return;
+            states[stateIndex] = {
+              ...states[stateIndex]!,
+              status: this.entries.has(entryId) ? 'stale' : 'error',
+              message:
+                error instanceof Error
+                  ? error.message.slice(0, 240)
+                  : 'Unknown Geometry Worker error.',
+            };
+            const previous = this.entries.get(entryId);
+            if (previous) applyNodeTransform(previous.object, previous.node);
+            publish();
+            this.syncRuntimeSelection();
+          },
+          () => {},
+        );
         continue;
       }
-      const existing = this.entries.get(entryId);
-      if (existing) {
-        existing.object.parent?.remove(existing.object);
-        disposeObject(existing.object);
-        this.entries.delete(entryId);
-      }
-      if (!rendered) {
+      const apply = (): void => {
+        if (!this.geometryWorker.isCurrent(generationId)) {
+          if (rendered) disposeObject(rendered);
+          return;
+        }
+        states[stateIndex] = { ...states[stateIndex]!, status: rendered ? 'ready' : 'valid-empty' };
+        const existing = this.entries.get(entryId);
+        if (existing) {
+          existing.object.parent?.remove(existing.object);
+          disposeObject(existing.object);
+          this.entries.delete(entryId);
+        }
+        if (!rendered) {
+          publish();
+          this.syncRuntimeSelection();
+          return;
+        }
+        const bounds = new THREE.Box3().setFromObject(rendered);
+        const size = bounds.getSize(new THREE.Vector3());
+        const center = bounds.getCenter(new THREE.Vector3());
+        const proxyNode: ThreeDNode = {
+          ...nodes[0]!,
+          id: entryId,
+          name: `Группа (${nodes.length})`,
+          operation: 'solid',
+          visible: true,
+          transform: {
+            position: { x: center.x, y: center.y, z: center.z },
+            rotation: { x: 0, y: 0, z: 0 },
+            scale: { x: 1, y: 1, z: 1 },
+          },
+          dimensions: { width: size.x, depth: size.z, height: size.y },
+          groupId,
+        };
+        const wrapper = new THREE.Group();
+        wrapper.userData['nodeId'] = entryId;
+        wrapper.name = proxyNode.name;
+        rendered.position.sub(center);
+        rendered.traverse((child) => {
+          child.userData['nodeId'] = entryId;
+        });
+        wrapper.position.copy(center);
+        wrapper.add(rendered);
+        this.booleanRoot.add(wrapper);
+        this.entries.set(entryId, {
+          object: wrapper,
+          node: proxyNode,
+          signature: JSON.stringify(nodes),
+        });
         publish();
         this.syncRuntimeSelection();
-        continue;
-      }
-      const bounds = new THREE.Box3().setFromObject(rendered);
-      const size = bounds.getSize(new THREE.Vector3());
-      const center = bounds.getCenter(new THREE.Vector3());
-      const proxyNode: ThreeDNode = {
-        ...nodes[0]!,
-        id: entryId,
-        name: `Группа (${nodes.length})`,
-        operation: 'solid',
-        visible: true,
-        transform: {
-          position: { x: center.x, y: center.y, z: center.z },
-          rotation: { x: 0, y: 0, z: 0 },
-          scale: { x: 1, y: 1, z: 1 },
-        },
-        dimensions: { width: size.x, depth: size.z, height: size.y },
-        groupId,
       };
-      const wrapper = new THREE.Group();
-      wrapper.userData['nodeId'] = entryId;
-      wrapper.name = proxyNode.name;
-      rendered.position.sub(center);
-      rendered.traverse((child) => {
-        child.userData['nodeId'] = entryId;
+      this.applyAfterGesture(entryId, apply, () => {
+        if (rendered) disposeObject(rendered);
       });
-      wrapper.position.copy(center);
-      wrapper.add(rendered);
-      this.booleanRoot.add(wrapper);
-      this.entries.set(entryId, {
-        object: wrapper,
-        node: proxyNode,
-        signature: JSON.stringify(nodes),
-      });
-      publish();
-      this.syncRuntimeSelection();
     }
   }
 
@@ -713,6 +802,10 @@ export class SceneRuntime {
     this.manipulator.setSelection(nodeId, nodeIds);
   }
 
+  setAdditiveSelection(value: boolean): void {
+    this.manipulator.setAdditiveSelection(value);
+  }
+
   setWorkplaneY(value: number): void {
     this.workplaneY = Number.isFinite(value) ? value : 0;
     this.gridRoot.position.y = this.workplaneY;
@@ -870,7 +963,8 @@ export class SceneRuntime {
    * camera may be zoomed into a corner, which says nothing on a card, so the
    * scene is framed first and the camera put back afterwards.
    */
-  captureFrame(): HTMLCanvasElement {
+  captureFrame(): HTMLCanvasElement | null {
+    if (this.manipulator.isDragging()) return null;
     const position = this.camera.position.clone();
     const target = this.orbit.target.clone();
     try {
@@ -886,6 +980,7 @@ export class SceneRuntime {
   }
 
   dispose(): void {
+    this.clearDeferredResults();
     window.cancelAnimationFrame(this.animationFrame);
     this.resizeObserver.disconnect();
     this.manipulator.dispose();

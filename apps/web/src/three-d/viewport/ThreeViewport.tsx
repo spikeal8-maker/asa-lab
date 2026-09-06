@@ -35,12 +35,14 @@ export interface ThreeViewportHandle {
 interface ThreeViewportProps {
   readonly document: ThreeDDocument;
   readonly selectedIds: readonly string[];
+  readonly additiveSelection: boolean;
   readonly workplaneY: number;
   readonly onSelect: (nodeId: string | null, additive?: boolean) => void;
   readonly onTransformCommit: (
     nodeId: string,
     transform: ThreeDTransform,
     dimensions?: ThreeDDimensions,
+    basis?: DirectManipulationCommit['basis'],
   ) => void;
   readonly onTransformCommitMany: (commits: readonly DirectManipulationCommit[]) => void;
   readonly onDropPrimitive: (
@@ -84,8 +86,8 @@ export const ThreeViewport = forwardRef<ThreeViewportHandle, ThreeViewportProps>
         try {
           runtimeRef.current = new SceneRuntime(container, {
             onSelect: (nodeId, additive) => propsRef.current.onSelect(nodeId, additive),
-            onTransformCommit: (nodeId, transform, dimensions) =>
-              propsRef.current.onTransformCommit(nodeId, transform, dimensions),
+            onTransformCommit: (nodeId, transform, dimensions, basis) =>
+              propsRef.current.onTransformCommit(nodeId, transform, dimensions, basis),
             onTransformCommitMany: (commits) => propsRef.current.onTransformCommitMany(commits),
             onWebGlError: setWebGlError,
             onCameraChange: (state) => propsRef.current.onCameraChange?.(state),
@@ -96,6 +98,7 @@ export const ThreeViewport = forwardRef<ThreeViewportHandle, ThreeViewportProps>
           });
           runtimeRef.current.setDocument(propsRef.current.document, propsRef.current.selectedIds);
           runtimeRef.current.setWorkplaneY(propsRef.current.workplaneY);
+          runtimeRef.current.setAdditiveSelection(propsRef.current.additiveSelection);
           setRuntimeReady(true);
         } catch (error) {
           runtimeRef.current?.dispose();
@@ -143,6 +146,10 @@ export const ThreeViewport = forwardRef<ThreeViewportHandle, ThreeViewportProps>
     useEffect(() => {
       runtimeRef.current?.setWorkplaneY(props.workplaneY);
     }, [props.workplaneY]);
+
+    useEffect(() => {
+      runtimeRef.current?.setAdditiveSelection(props.additiveSelection);
+    }, [props.additiveSelection]);
 
     useEffect(() => {
       if (!props.activePlacement) runtimeRef.current?.clearPlacementPreview();

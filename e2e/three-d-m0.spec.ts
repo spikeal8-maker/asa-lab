@@ -546,6 +546,207 @@ test('teacher models, autosaves, reloads and versions an ASA 3D scene', async ({
 
 test.describe('Boolean result recovery', () => {
   test.use({ hasTouch: true });
+  test('phone authors a cut model with touch, keeps resize frames stable, undoes and exports', async ({
+    page,
+    context,
+  }) => {
+    test.setTimeout(150_000);
+    const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
+    // Hold real Worker replies, not the UI thread. Release is controlled by the
+    // test, so every frame in the handoff window can be inspected deterministically.
+    await page.addInitScript(() => {
+      const gate = { hold: false, replies: [] as (() => void)[] };
+      Object.assign(window, { asa3dTestGate: gate });
+      const NativeWorker = window.Worker;
+      window.Worker = class extends NativeWorker {
+        constructor(url: string | URL, options?: WorkerOptions) {
+          super(url, options);
+          if (String(url).includes('geometry.worker'))
+            this.addEventListener('message', (event) => {
+              if (!gate.hold) return;
+              event.stopImmediatePropagation();
+              gate.replies.push(() =>
+                this.dispatchEvent(new MessageEvent('message', { data: event.data })),
+              );
+            });
+        }
+      };
+    });
+    await loginWithOrganization(page, teacher);
+    await createThreeDProject(page, 'Телефон: вырез и непрерывный размер');
+    await page.setViewportSize({ width: 390, height: 844 });
+    const viewport = page.getByTestId('asa3d-viewport');
+    const overlay = page.getByTestId('asa3d-manipulator-overlay');
+    const cdp = await context.newCDPSession(page);
+    const touch = async (
+      type: 'touchStart' | 'touchMove' | 'touchEnd' | 'touchCancel',
+      point?: { x: number; y: number },
+    ) => {
+      await cdp.send('Input.dispatchTouchEvent', {
+        type,
+        touchPoints: point ? [{ ...point, id: 1, radiusX: 2, radiusY: 2, force: 1 }] : [],
+      });
+    };
+    const addBox = async () => {
+      await page.getByRole('button', { name: 'Добавить фигуру', exact: true }).tap();
+      await page.getByRole('button', { name: 'Параллелепипед', exact: true }).tap();
+      await expect(
+        page.getByRole('button', { name: 'Добавить фигуру', exact: true }),
+      ).toBeVisible();
+      await expect(
+        page.getByRole('button', { name: 'Развернуть параметры', exact: true }),
+      ).toBeVisible();
+    };
+    const dimensions = async (width: string, depth: string, height: string) => {
+      await page.getByRole('button', { name: 'Развернуть параметры', exact: true }).tap();
+      await page.getByLabel('Длина, мм').fill(width);
+      await page.getByLabel('Ширина, мм').fill(depth);
+      await page.getByLabel('Высота, мм').fill(height);
+    };
+    await addBox();
+    await dimensions('30', '30', '30');
+    await page.getByRole('button', { name: 'Свернуть параметры', exact: true }).tap();
+    const first = await directHandlePoint(page, 'resize-east');
+    const firstSurface = {
+      x: first.centre.x + (first.handle.x - first.centre.x) * 0.82,
+      y: first.centre.y,
+    };
+    await addBox();
+    await dimensions('10', '40', '40');
+    await page.getByRole('button', { name: 'Отверстие', exact: true }).tap();
+    await page.getByRole('button', { name: 'Свернуть параметры', exact: true }).tap();
+    await page.getByRole('button', { name: 'Выбрать несколько фигур' }).tap();
+    await page.touchscreen.tap(firstSurface.x, firstSurface.y);
+    await expect(page.getByTestId('asa3d-multi-selection-panel')).toHaveAttribute(
+      'data-selection-count',
+      '2',
+    );
+    await page.getByRole('button', { name: 'Выбрать несколько фигур' }).tap();
+    await page.getByRole('button', { name: 'Объединить фигуры', exact: true }).tap();
+    await expect(viewport).toHaveAttribute('data-geometry-worker-state', 'ready');
+    await expect(overlay).toHaveAttribute('data-handle-positions', /resize-east/);
+    expect((await viewport.boundingBox())!.height).toBeGreaterThan(600);
+    const beforeFit = await overlay.getAttribute('data-handle-positions');
+    await page.getByRole('button', { name: 'Показать всё', exact: true }).tap();
+    await expect(overlay).not.toHaveAttribute('data-handle-positions', beforeFit!);
+    // Every persistent primary button must be in the viewport and hit-testable.
+    expect(
+      await page.locator('.asa3d-mobile-tools button').evaluateAll((buttons) =>
+        buttons.every((button) => {
+          const r = button.getBoundingClientRect();
+          return (
+            r.width >= 44 &&
+            r.height >= 44 &&
+            r.left >= 0 &&
+            r.right <= innerWidth &&
+            button.contains(document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2))
+          );
+        }),
+      ),
+    ).toBe(true);
+    const initial = await directHandlePoint(page, 'resize-east');
+    // Real move gesture, then one undo restores the same screen position.
+    await touch('touchStart', initial.centre);
+    await touch('touchMove', { x: initial.centre.x + 24, y: initial.centre.y });
+    await touch('touchEnd');
+    await expect(viewport).toHaveAttribute('data-geometry-worker-state', 'ready');
+    const moved = await directHandlePoint(page, 'resize-east');
+    expect(Math.abs(moved.centre.x - initial.centre.x)).toBeGreaterThan(10);
+    await page.getByRole('button', { name: 'Отменить действие' }).tap();
+    await expect(viewport).toHaveAttribute('data-geometry-worker-state', 'ready');
+    const start = await directHandlePoint(page, 'resize-east');
+    expect(Math.abs(start.centre.x - initial.centre.x)).toBeLessThanOrEqual(1);
+
+    await page.evaluate(() => {
+      (window as unknown as { asa3dTestGate: { hold: boolean } }).asa3dTestGate.hold = true;
+    });
+    await touch('touchStart', start.handle);
+    await touch('touchMove', extendFromCentre(start.handle, start.centre, 34));
+    await expect(viewport).toHaveAttribute('data-manipulating', 'resize');
+    const preview = await directHandlePoint(page, 'resize-east');
+    const samples: { x: number; y: number }[] = [];
+    await touch('touchEnd');
+    await expect(viewport).toHaveAttribute('data-geometry-worker-state', 'evaluating');
+    // Measure rendered handle positions on successive animation frames, NOT
+    // just the final ready state. 20→40→20→40 fails this check.
+    samples.push(
+      ...(await overlay.evaluate(async (element) => {
+        const frames: { x: number; y: number }[] = [];
+        for (let i = 0; i < 8; i += 1) {
+          await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+          const state = JSON.parse((element as HTMLElement).dataset['handlePositions']!);
+          frames.push(state.handles.find((handle: { id: string }) => handle.id === 'resize-east'));
+        }
+        return frames;
+      })),
+    );
+    const bounds = (await viewport.boundingBox())!;
+    for (const frame of samples)
+      expect(
+        Math.hypot(frame.x + bounds.x - preview.handle.x, frame.y + bounds.y - preview.handle.y),
+      ).toBeLessThanOrEqual(1);
+    await page.evaluate(() => {
+      const gate = (
+        window as unknown as { asa3dTestGate: { hold: boolean; replies: (() => void)[] } }
+      ).asa3dTestGate;
+      gate.hold = false;
+      gate.replies.splice(0).forEach((reply) => reply());
+    });
+    await expect(viewport).toHaveAttribute('data-geometry-worker-state', 'ready');
+    const ready = await directHandlePoint(page, 'resize-east');
+    expect(
+      Math.hypot(ready.handle.x - preview.handle.x, ready.handle.y - preview.handle.y),
+    ).toBeLessThanOrEqual(1);
+    const exactWidth = page.getByTestId('asa3d-width-value').locator('input');
+    await expect(exactWidth).toBeVisible();
+    await exactWidth.fill('45');
+    await exactWidth.press('Enter');
+    await expect(viewport).toHaveAttribute('data-geometry-worker-state', 'ready');
+    await expect(exactWidth).toHaveValue('45');
+    await page.screenshot({ path: 'e2e/artifacts/three-d/r2-phone-model.png', fullPage: true });
+    // Pointer cancellation must not become an edit or an undo entry.
+    const beforeCancel = await directHandlePoint(page, 'resize-east');
+    await touch('touchStart', beforeCancel.handle);
+    await touch('touchMove', extendFromCentre(beforeCancel.handle, beforeCancel.centre, 20));
+    await touch('touchCancel');
+    const afterCancel = await directHandlePoint(page, 'resize-east');
+    expect(
+      Math.hypot(
+        afterCancel.handle.x - beforeCancel.handle.x,
+        afterCancel.handle.y - beforeCancel.handle.y,
+      ),
+    ).toBeLessThanOrEqual(1);
+    await page.getByRole('button', { name: 'Отменить действие' }).tap();
+    await expect(viewport).toHaveAttribute('data-geometry-worker-state', 'ready');
+    const undone = await directHandlePoint(page, 'resize-east');
+    expect(
+      Math.hypot(undone.handle.x - ready.handle.x, undone.handle.y - ready.handle.y),
+    ).toBeLessThanOrEqual(1);
+    await page.getByRole('button', { name: 'Все инструменты' }).tap();
+    await page.getByRole('button', { name: 'Повторить (Ctrl+Y)', exact: true }).tap();
+    await expect(viewport).toHaveAttribute('data-geometry-worker-state', 'ready');
+    await page.getByRole('button', { name: 'Все инструменты' }).tap();
+    await page.getByRole('button', { name: 'Экспорт', exact: true }).tap();
+    const [download] = await Promise.all([
+      page.waitForEvent('download'),
+      page.getByRole('button', { name: 'STL для 3D-печати' }).tap(),
+    ]);
+    expect(await download.failure()).toBeNull();
+    expect(download.suggestedFilename()).toMatch(/\.stl$/);
+    await expect(page.locator('.asa3d-save-state')).toHaveClass(/save-saved/, { timeout: 20_000 });
+    await page.reload();
+    await expect(viewport).toHaveAttribute('data-runtime-ready', 'true');
+    await expect(viewport).toHaveAttribute('data-geometry-worker-state', 'ready');
+    await expect(page.getByText('2 объекта', { exact: true })).toBeVisible();
+    await page.setViewportSize({ width: 844, height: 390 });
+    await expect(page.getByRole('button', { name: 'Все инструменты' })).toBeVisible();
+    await page.getByRole('button', { name: 'Показать всё', exact: true }).tap();
+    await page.screenshot({ path: 'e2e/artifacts/three-d/r2-phone-landscape.png', fullPage: true });
+    await page.getByRole('button', { name: 'Все инструменты' }).tap();
+    await expect(page.getByRole('button', { name: 'Экспорт', exact: true })).toBeVisible();
+    await page.screenshot({ path: 'e2e/artifacts/three-d/r2-phone-tools.png', fullPage: true });
+    failures.assertEmpty();
+  });
   test('Boolean groups hide, produce empty results and recover after a Worker crash', async ({
     page,
   }) => {
@@ -590,7 +791,7 @@ test.describe('Boolean result recovery', () => {
     await expandShapeInspector(page);
     await page.getByRole('button', { name: 'Пересечение', exact: true }).click();
     await expect(viewport).toHaveAttribute('data-geometry-worker-state', 'valid-empty');
-    await expect(page.getByTestId('asa3d-geometry-notice')).toContainText('Пустой результат');
+    await expect(page.getByTestId('asa3d-geometry-notice')).toContainText('Вырезано всё');
     await expect(overlay).toHaveAttribute('data-handle-positions', '{"centre":null,"handles":[]}');
     await page.screenshot({
       path: 'e2e/artifacts/three-d/boolean-empty-intersection.png',
@@ -616,8 +817,8 @@ test.describe('Boolean result recovery', () => {
     await expect(viewport).toHaveAttribute('data-runtime-ready', 'true');
     const notice = page.getByTestId('asa3d-geometry-notice');
     await expect(notice).toHaveAttribute('role', 'alert');
-    await expect(notice).toContainText('показана устаревшая модель');
-    await expect(notice).toContainText('результат не показан');
+    await expect(notice).toContainText('Показана прежняя форма');
+    await expect(viewport).toHaveAttribute('data-geometry-group-states', /"status":"error"/);
     await page.getByRole('button', { name: 'Экспорт', exact: true }).click();
     await expect(page.getByRole('button', { name: 'STL для 3D-печати' })).toBeDisabled();
     await expect(page.getByRole('button', { name: 'ASA 3D JSON' })).toBeEnabled();
@@ -642,7 +843,7 @@ test.describe('Boolean result recovery', () => {
 
     // Real touch input on the recovery control, not just a mobile screenshot.
     await page.setViewportSize({ width: 390, height: 844 });
-    const retry = page.getByRole('button', { name: 'Повторить расчёт', exact: true });
+    const retry = notice.getByRole('button', { name: 'Повторить', exact: true });
     await expect(retry).toBeVisible();
     const retryBounds = await retry.boundingBox();
     expect(retryBounds!.height).toBeGreaterThanOrEqual(44);

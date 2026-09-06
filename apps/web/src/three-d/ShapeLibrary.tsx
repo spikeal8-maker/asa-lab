@@ -146,6 +146,7 @@ export function ShapeLibrary({
   const [query, setQuery] = useState('');
   const [showHint, setShowHint] = useState(true);
   const [category, setCategory] = useState<ShapeCategory>('basic');
+  const [mobileExpanded, setMobileExpanded] = useState(false);
   const filteredShapes = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase('ru');
     if (searchOpen && normalized)
@@ -154,7 +155,20 @@ export function ShapeLibrary({
   }, [category, query, searchOpen]);
 
   return (
-    <aside className="asa3d-library" aria-label="Библиотека форм">
+    <aside
+      className="asa3d-library"
+      aria-label="Библиотека форм"
+      data-mobile-expanded={mobileExpanded}
+    >
+      <button
+        type="button"
+        className="asa3d-library-toggle"
+        aria-expanded={mobileExpanded}
+        onClick={() => setMobileExpanded((open) => !open)}
+      >
+        {mobileExpanded ? 'Свернуть фигуры' : 'Добавить фигуру'}{' '}
+        <span aria-hidden="true">{mobileExpanded ? '⌄' : '+'}</span>
+      </button>
       <header className="asa3d-library-tools" aria-label="Инструменты рабочей плоскости">
         <button
           type="button"
@@ -240,7 +254,10 @@ export function ShapeLibrary({
                 onDragStateChange({ primitive, operation: 'hole' });
               }}
               onDragEnd={() => onDragStateChange(null)}
-              onClick={(event) => onAdd(primitive, undefined, event.shiftKey, 'hole')}
+              onClick={(event) => {
+                onAdd(primitive, undefined, event.shiftKey, 'hole');
+                setMobileExpanded(false);
+              }}
               aria-label={`Отверстие: ${label}`}
               title={`Отверстие: ${label}`}
             >
@@ -261,7 +278,10 @@ export function ShapeLibrary({
               onDragStateChange({ primitive, operation: 'solid' });
             }}
             onDragEnd={() => onDragStateChange(null)}
-            onClick={(event) => onAdd(primitive, undefined, event.shiftKey, 'solid')}
+            onClick={(event) => {
+              onAdd(primitive, undefined, event.shiftKey, 'solid');
+              setMobileExpanded(false);
+            }}
             aria-label={label}
             title={label}
           >

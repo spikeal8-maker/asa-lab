@@ -214,6 +214,14 @@ button.asa3d-save-recovery {
   border-bottom: 1px solid #d9dde1;
 }
 
+.asa3d-toolbox {
+  display: contents;
+}
+.asa3d-mobile-tools,
+.asa3d-library-toggle {
+  display: none;
+}
+
 .asa3d-toolbar-group {
   position: relative;
   display: flex;
@@ -645,12 +653,13 @@ button.asa3d-save-recovery {
   right: 12px;
   bottom: 80px;
   z-index: 7;
-  display: grid;
+  display: flex;
+  align-items: center;
   gap: 6px;
   box-sizing: border-box;
   width: min(340px, calc(100% - 24px));
-  max-height: 34%;
-  padding: 10px 12px;
+  max-height: 100px;
+  padding: 6px 10px;
   overflow: auto;
   color: #513d1c;
   font-size: 12px;
@@ -667,6 +676,7 @@ button.asa3d-save-recovery {
 }
 
 .asa3d-geometry-notice button {
+  flex: 0 0 auto;
   min-height: 44px;
   padding: 6px 10px;
   color: inherit;
@@ -2462,10 +2472,10 @@ button.asa3d-save-recovery {
   }
 }
 
-@media (max-width: 760px) {
+@media (max-width: 760px), (max-width: 1100px) and (max-height: 500px) {
   .asa3d-shell {
     --asa3d-header-height: 48px;
-    --asa3d-toolbar-height: 44px;
+    --asa3d-toolbar-height: 56px;
     grid-template-rows: var(--asa3d-header-height) var(--asa3d-toolbar-height) minmax(0, 1fr);
   }
 
@@ -2512,10 +2522,123 @@ button.asa3d-save-recovery {
   }
 
   .asa3d-toolbar {
-    height: 44px;
-    overflow-x: auto;
-    overflow-y: hidden;
-    scrollbar-width: none;
+    height: var(--asa3d-toolbar-height);
+    overflow: visible;
+  }
+
+  .asa3d-mobile-tools {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    width: 100%;
+  }
+  .asa3d-mobile-tools button {
+    display: grid;
+    justify-items: center;
+    align-content: center;
+    gap: 2px;
+    min-width: 0;
+    min-height: 44px;
+    padding: 4px;
+    border: 0;
+    border-right: 1px solid var(--asa3d-line);
+    background: #fff;
+    color: var(--asa3d-ink);
+    font: inherit;
+    font-size: 11px;
+  }
+  .asa3d-mobile-tools button[aria-pressed='true'],
+  .asa3d-mobile-tools button[aria-expanded='true'] {
+    background: #e2f5fc;
+    color: #007ca3;
+  }
+  .asa3d-mobile-tools button:disabled {
+    color: #87939b;
+  }
+  .asa3d-mobile-tools svg {
+    width: 22px;
+    height: 22px;
+  }
+  .asa3d-mobile-tools button:last-child > span:first-child {
+    font-size: 23px;
+    line-height: 22px;
+  }
+  .asa3d-toolbox {
+    display: none;
+  }
+  .asa3d-toolbox.open {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    display: grid;
+    gap: 8px;
+    box-sizing: border-box;
+    max-height: 60dvh;
+    padding: 8px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    background: #fff;
+    border-bottom: 1px solid var(--asa3d-line);
+    box-shadow: 0 4px 8px #1a344522;
+  }
+  .asa3d-toolbox .asa3d-toolbar-group {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 4px;
+  }
+  .asa3d-toolbox .asa3d-toolbar-divider,
+  .asa3d-toolbox .asa3d-toolbar-spacer {
+    display: none;
+  }
+  .asa3d-toolbox .asa3d-tool {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 6px;
+    width: 100%;
+    height: auto;
+    min-height: 44px;
+    padding: 6px;
+    border: 1px solid var(--asa3d-line);
+  }
+  .asa3d-toolbox .asa3d-tool::after {
+    content: attr(aria-label);
+    font-size: 11px;
+    text-align: left;
+    line-height: 1.3;
+  }
+  .asa3d-toolbox .asa3d-tool > svg {
+    flex: 0 0 22px;
+    width: 22px;
+    height: 22px;
+  }
+  .asa3d-toolbox .asa3d-actions {
+    position: static;
+    flex-wrap: wrap;
+    height: auto;
+    margin: 0;
+    padding: 0;
+    gap: 6px;
+  }
+  .asa3d-toolbox .asa3d-text-action,
+  .asa3d-toolbox .asa3d-version-button {
+    min-height: 44px;
+    font-size: 13px;
+  }
+  .asa3d-toolbox .asa3d-toolbar-menu,
+  .asa3d-toolbox .asa3d-export-menu {
+    position: static;
+    min-width: 0;
+    width: 100%;
+    box-sizing: border-box;
+  }
+  .asa3d-toolbox .asa3d-export-wrap {
+    flex: 1;
+  }
+  .asa3d-toolbox .asa3d-toolbar-menu button,
+  .asa3d-toolbox .asa3d-export-menu button {
+    min-height: 44px;
+    white-space: normal;
   }
 
   .asa3d-toolbar::-webkit-scrollbar {
@@ -2561,7 +2684,53 @@ button.asa3d-save-recovery {
 
   .asa3d-workspace {
     grid-template-columns: 1fr;
-    grid-template-rows: minmax(0, 1fr) 168px;
+    grid-template-rows: minmax(0, 1fr) 44px;
+  }
+  .asa3d-workspace:has(.asa3d-library[data-mobile-expanded='true']) {
+    grid-template-rows: minmax(0, 1fr) min(200px, 38dvh);
+  }
+  .asa3d-library-toggle {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    grid-row: 1;
+    height: 44px;
+    width: 100%;
+    padding: 0 14px;
+    border: 0;
+    background: #fff;
+    color: #146887;
+    font: inherit;
+    font-weight: 600;
+  }
+  .asa3d-library[data-mobile-expanded='false'] > :not(.asa3d-library-toggle) {
+    display: none;
+  }
+  .asa3d-library[data-mobile-expanded='true'] {
+    grid-template-rows: 44px 36px minmax(0, 1fr);
+  }
+  .asa3d-library[data-mobile-expanded='true'] .asa3d-library-title {
+    grid-row: 2;
+    min-height: 36px;
+  }
+  .asa3d-library[data-mobile-expanded='true'] .asa3d-shape-grid {
+    grid-row: 3;
+    min-height: 0;
+    overflow-x: auto;
+    box-sizing: border-box;
+  }
+  .asa3d-library[data-mobile-expanded='true'] .asa3d-shape-card {
+    min-height: 0;
+  }
+  .asa3d-library[data-mobile-expanded='true'] .asa3d-shape-card small {
+    display: block;
+    position: static;
+    transform: none;
+    opacity: 1;
+    font-size: 10px;
+    white-space: normal;
+    background: none;
+    color: var(--asa3d-ink);
   }
 
   .asa3d-library {
@@ -2652,8 +2821,20 @@ button.asa3d-save-recovery {
     right: 8px;
     bottom: auto;
     width: min(230px, calc(100% - 78px));
-    max-height: calc(100% - 16px);
+    max-height: min(360px, 55%);
     overscroll-behavior: contain;
+  }
+
+  .asa3d-inspector > header {
+    min-height: 44px;
+    grid-template-columns: 44px minmax(0, 1fr) 44px 44px;
+  }
+  .asa3d-inspector > header button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  .asa3d-inspector.compact {
+    width: min(230px, calc(100% - 88px));
   }
 
   .asa3d-operation-picker button {
@@ -2728,6 +2909,18 @@ button.asa3d-save-recovery {
 
   .asa3d-grid-controls select {
     width: 84px;
+  }
+}
+
+@media (max-width: 1100px) and (max-height: 500px) {
+  .asa3d-view-tools {
+    display: grid;
+    grid-template-columns: repeat(2, 40px);
+    top: 82px;
+    gap: 4px;
+  }
+  .asa3d-inspector {
+    max-height: calc(100% - 16px);
   }
 }
 

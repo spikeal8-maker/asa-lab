@@ -91,6 +91,7 @@ export interface ThreeDProjectController {
     nodeId: string,
     transform: ThreeDTransform,
     dimensions?: ThreeDDimensions,
+    basis?: DirectManipulationCommit['basis'],
   ) => void;
   readonly commitTransforms: (commits: readonly DirectManipulationCommit[]) => void;
   readonly undo: () => void;
@@ -132,30 +133,6 @@ function friendlySaveFailure(status: number): {
   return {
     message: 'Сервер пока не принял изменения. Они сохранены в этом браузере.',
     signIn: false,
-  };
-}
-
-function rotateVector(
-  vector: { readonly x: number; readonly y: number; readonly z: number },
-  rotation: { readonly x: number; readonly y: number; readonly z: number },
-): { readonly x: number; readonly y: number; readonly z: number } {
-  const xAngle = (rotation.x * Math.PI) / 180;
-  const yAngle = (rotation.y * Math.PI) / 180;
-  const zAngle = (rotation.z * Math.PI) / 180;
-  const afterX = {
-    x: vector.x,
-    y: vector.y * Math.cos(xAngle) - vector.z * Math.sin(xAngle),
-    z: vector.y * Math.sin(xAngle) + vector.z * Math.cos(xAngle),
-  };
-  const afterY = {
-    x: afterX.x * Math.cos(yAngle) + afterX.z * Math.sin(yAngle),
-    y: afterX.y,
-    z: -afterX.x * Math.sin(yAngle) + afterX.z * Math.cos(yAngle),
-  };
-  return {
-    x: afterY.x * Math.cos(zAngle) - afterY.y * Math.sin(zAngle),
-    y: afterY.x * Math.sin(zAngle) + afterY.y * Math.cos(zAngle),
-    z: afterY.z,
   };
 }
 
@@ -738,80 +715,6 @@ export function useThreeDProject(projectId: string): ThreeDProjectController {
     execute({ type: 'replace-ruler', value: { ...document.ruler, visible: true, origin } });
   }, [execute, selectedIds]);
 
-  const commitTransform = useCallback(
-    (nodeId: string, transform: ThreeDTransform, dimensions?: ThreeDDimensions): void => {
-      if (nodeId.startsWith('group:')) {
-        const document = historyRef.current?.present;
-        if (!document) return;
-        const groupId = nodeId.slice('group:'.length);
-        const members = document.nodes.filter((node) => node.groupId === groupId && !node.locked);
-        const bounds = selectionBounds(members);
-        if (!bounds) return;
-        const targetDimensions = dimensions ?? {
-          width: bounds.size.x,
-          depth: bounds.size.z,
-          height: bounds.size.y,
-        };
-        const scale = {
-          x: targetDimensions.width / Math.max(bounds.size.x, 0.001),
-          y: targetDimensions.height / Math.max(bounds.size.y, 0.001),
-          z: targetDimensions.depth / Math.max(bounds.size.z, 0.001),
-        };
-        const updated = members.map((member): ThreeDNode => {
-          const relative = {
-            x: (member.transform.position.x - bounds.center.x) * scale.x,
-            y: (member.transform.position.y - bounds.center.y) * scale.y,
-            z: (member.transform.position.z - bounds.center.z) * scale.z,
-          };
-          const rotated = rotateVector(relative, transform.rotation);
-          return {
-            ...member,
-            dimensions: {
-              width: member.dimensions.width * scale.x,
-              depth: member.dimensions.depth * scale.z,
-              height: member.dimensions.height * scale.y,
-            },
-            transform: {
-              ...member.transform,
-              position: {
-                x: transform.position.x + rotated.x,
-                y: transform.position.y + rotated.y,
-                z: transform.position.z + rotated.z,
-              },
-              rotation: {
-                x: member.transform.rotation.x + transform.rotation.x,
-                y: member.transform.rotation.y + transform.rotation.y,
-                z: member.transform.rotation.z + transform.rotation.z,
-              },
-              scale: { x: 1, y: 1, z: 1 },
-            },
-          };
-        });
-        execute({ type: 'replace-nodes', nodes: updated });
-        return;
-      }
-      if (!dimensions) {
-        execute({ type: 'replace-transform', nodeId, value: transform });
-        return;
-      }
-      const current = historyRef.current?.present.nodes.find((node) => node.id === nodeId);
-      if (!current) return;
-      execute({
-        type: 'replace-node',
-        node: {
-          ...current,
-          dimensions: { ...dimensions },
-          transform: {
-            position: { ...transform.position },
-            rotation: { ...transform.rotation },
-            scale: { ...transform.scale },
-          },
-        },
-      });
-    },
-    [execute],
-  );
-
   const commitTransforms = useCallback(
     (commits: readonly DirectManipulationCommit[]): void => {
       const document = historyRef.current?.present;
@@ -820,6 +723,16 @@ export function useThreeDProject(projectId: string): ThreeDProjectController {
       if (nodes.length > 0) execute({ type: 'replace-nodes', nodes });
     },
     [execute],
+  );
+
+  const commitTransform = useCallback(
+    (
+      nodeId: string,
+      transform: ThreeDTransform,
+      dimensions?: ThreeDDimensions,
+      basis?: DirectManipulationCommit['basis'],
+    ): void => commitTransforms([{ nodeId, transform, dimensions, basis }]),
+    [commitTransforms],
   );
 
   const undo = useCallback((): void => {

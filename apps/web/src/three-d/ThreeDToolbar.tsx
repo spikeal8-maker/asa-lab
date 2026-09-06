@@ -86,6 +86,8 @@ export interface ThreeDToolbarProps {
   readonly stlUnavailableReason?: string;
   readonly onExportJson: () => void;
   readonly sendControl: ReactNode;
+  readonly additiveSelection: boolean;
+  readonly onToggleAdditiveSelection: () => void;
 }
 
 export function ThreeDToolbar({
@@ -127,251 +129,307 @@ export function ThreeDToolbar({
   stlUnavailableReason,
   onExportJson,
   sendControl,
+  additiveSelection,
+  onToggleAdditiveSelection,
 }: ThreeDToolbarProps): JSX.Element {
   const [visibilityOpen, setVisibilityOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
+  const [toolsOpen, setToolsOpen] = useState(false);
   const hasSelection = selectedCount > 0;
   const hasEditableSelection = editableSelectedCount > 0;
 
   return (
     <div className="asa3d-toolbar" role="toolbar" aria-label="Инструменты редактора">
-      <div className="asa3d-toolbar-group asa3d-toolbar-edit" aria-label="Правка">
-        <ToolbarButton
-          command="copy"
-          label="Копировать (Ctrl+C)"
-          onClick={onCopy}
-          disabled={!hasSelection}
-        >
-          <DuplicateIcon />
-        </ToolbarButton>
-        <ToolbarButton
-          command="paste"
-          label="Вставить (Ctrl+V)"
-          onClick={onPaste}
-          disabled={!hasClipboard}
-        >
-          <PasteIcon />
-        </ToolbarButton>
-        <ToolbarButton
-          command="duplicate"
-          label="Дублировать и повторить (Ctrl+D)"
-          onClick={onDuplicate}
-          disabled={!hasSelection}
-          className="asa3d-duplicate-tool"
-        >
-          <DuplicateIcon />
-          <span aria-hidden="true">✦</span>
-        </ToolbarButton>
-        <ToolbarButton
-          command="delete"
-          label="Удалить (Delete)"
-          onClick={onDelete}
-          disabled={!hasEditableSelection}
-        >
-          <DeleteIcon />
-        </ToolbarButton>
-        <span className="asa3d-toolbar-divider" aria-hidden="true" />
-        <ToolbarButton
-          command="undo"
-          label="Отменить (Ctrl+Z)"
-          onClick={onUndo}
-          disabled={!canUndo}
-        >
+      <div className="asa3d-mobile-tools">
+        <button type="button" aria-label="Отменить действие" disabled={!canUndo} onClick={onUndo}>
           <UndoIcon />
-        </ToolbarButton>
-        <ToolbarButton
-          command="redo"
-          label="Повторить (Ctrl+Y)"
-          onClick={onRedo}
-          disabled={!canRedo}
-        >
-          <RedoIcon />
-        </ToolbarButton>
-      </div>
-
-      <span className="asa3d-toolbar-spacer" aria-hidden="true" />
-
-      <div className="asa3d-toolbar-group asa3d-toolbar-model" aria-label="Операции над формами">
-        <div className="asa3d-split-tool asa3d-visibility-tool">
-          <ToolbarButton
-            command="visibility"
-            label={hasSelection ? 'Скрыть выбранное (Ctrl+H)' : 'Показать все скрытые объекты'}
-            onClick={hasSelection ? onHideSelected : onShowAll}
-            disabled={!hasSelection && !hasHiddenNodes}
-          >
-            <ViewIcon />
-          </ToolbarButton>
-          <button
-            type="button"
-            className="asa3d-tool-chevron"
-            aria-label="Меню видимости"
-            aria-expanded={visibilityOpen}
-            onClick={() => setVisibilityOpen((open) => !open)}
-          >
-            ▾
-          </button>
-          {visibilityOpen && (
-            <div className="asa3d-toolbar-menu asa3d-visibility-menu">
-              <button
-                type="button"
-                disabled={!hasSelection}
-                onClick={() => {
-                  onHideSelected();
-                  setVisibilityOpen(false);
-                }}
-              >
-                Скрыть выбранное <kbd>Ctrl+H</kbd>
-              </button>
-              <button
-                type="button"
-                disabled={!hasHiddenNodes}
-                onClick={() => {
-                  onShowAll();
-                  setVisibilityOpen(false);
-                }}
-              >
-                Показать всё <kbd>Ctrl+Shift+H</kbd>
-              </button>
-            </div>
-          )}
-        </div>
-        <ToolbarButton
-          command="bundle"
-          label="Быстрая группа без слияния (Ctrl+B)"
-          onClick={onBundle}
-          disabled={!canBundle}
-          className="asa3d-bundle-tool"
+          <span>Отмена</span>
+        </button>
+        <button
+          type="button"
+          aria-label="Выбрать несколько фигур"
+          aria-pressed={additiveSelection}
+          onClick={onToggleAdditiveSelection}
         >
           <DuplicateIcon />
-        </ToolbarButton>
-        <ToolbarButton
-          command="group"
-          label="Булево объединение (Ctrl+G); пересечение — Ctrl+I"
-          onClick={onGroup}
+          <span>Выбор</span>
+        </button>
+        <button
+          type="button"
+          aria-label="Объединить фигуры"
           disabled={!canBundle}
+          onClick={onGroup}
         >
           <GroupIcon />
-        </ToolbarButton>
-        <ToolbarButton
-          command="ungroup"
-          label="Разгруппировать (Ctrl+Shift+G)"
-          onClick={onUngroup}
-          disabled={!canUngroup}
+          <span>Объединить</span>
+        </button>
+        <button
+          type="button"
+          aria-label="Все инструменты"
+          aria-expanded={toolsOpen}
+          onClick={() => setToolsOpen((open) => !open)}
         >
-          <UngroupIcon />
-        </ToolbarButton>
-        <ToolbarButton
-          command="align"
-          label="Выровнять (L)"
-          active={alignmentActive}
-          onClick={onToggleAlign}
-          disabled={!canAlign}
-        >
-          <AlignIcon />
-        </ToolbarButton>
-        <div className="asa3d-mirror-tool">
+          <span aria-hidden="true">{toolsOpen ? '×' : '⋯'}</span>
+          <span>Ещё</span>
+        </button>
+      </div>
+      <div
+        className={`asa3d-toolbox${toolsOpen ? ' open' : ''}`}
+        onClick={(event) => {
+          const button = (event.target as HTMLElement).closest<HTMLButtonElement>(
+            'button[data-command]',
+          );
+          if (button && !['mirror', 'visibility'].includes(button.dataset['command'] ?? ''))
+            setToolsOpen(false);
+        }}
+      >
+        <div className="asa3d-toolbar-group asa3d-toolbar-edit" aria-label="Правка">
           <ToolbarButton
-            command="mirror"
-            label="Отразить (M)"
-            active={mirrorActive}
-            onClick={onToggleMirror}
+            command="copy"
+            label="Копировать (Ctrl+C)"
+            onClick={onCopy}
+            disabled={!hasSelection}
+          >
+            <DuplicateIcon />
+          </ToolbarButton>
+          <ToolbarButton
+            command="paste"
+            label="Вставить (Ctrl+V)"
+            onClick={onPaste}
+            disabled={!hasClipboard}
+          >
+            <PasteIcon />
+          </ToolbarButton>
+          <ToolbarButton
+            command="duplicate"
+            label="Дублировать и повторить (Ctrl+D)"
+            onClick={onDuplicate}
+            disabled={!hasSelection}
+            className="asa3d-duplicate-tool"
+          >
+            <DuplicateIcon />
+            <span aria-hidden="true">✦</span>
+          </ToolbarButton>
+          <ToolbarButton
+            command="delete"
+            label="Удалить (Delete)"
+            onClick={onDelete}
             disabled={!hasEditableSelection}
           >
-            <MirrorIcon />
+            <DeleteIcon />
           </ToolbarButton>
-          {mirrorActive && (
-            <div className="asa3d-toolbar-menu asa3d-mirror-menu" aria-label="Ось отражения">
-              {(['x', 'y', 'z'] as const).map((axis) => (
+          <span className="asa3d-toolbar-divider" aria-hidden="true" />
+          <ToolbarButton
+            command="undo"
+            label="Отменить (Ctrl+Z)"
+            onClick={onUndo}
+            disabled={!canUndo}
+          >
+            <UndoIcon />
+          </ToolbarButton>
+          <ToolbarButton
+            command="redo"
+            label="Повторить (Ctrl+Y)"
+            onClick={onRedo}
+            disabled={!canRedo}
+          >
+            <RedoIcon />
+          </ToolbarButton>
+        </div>
+
+        <span className="asa3d-toolbar-spacer" aria-hidden="true" />
+
+        <div className="asa3d-toolbar-group asa3d-toolbar-model" aria-label="Операции над формами">
+          <div className="asa3d-split-tool asa3d-visibility-tool">
+            <ToolbarButton
+              command="visibility"
+              label={hasSelection ? 'Скрыть выбранное (Ctrl+H)' : 'Показать все скрытые объекты'}
+              onClick={hasSelection ? onHideSelected : onShowAll}
+              disabled={!hasSelection && !hasHiddenNodes}
+            >
+              <ViewIcon />
+            </ToolbarButton>
+            <button
+              type="button"
+              className="asa3d-tool-chevron"
+              aria-label="Меню видимости"
+              aria-expanded={visibilityOpen}
+              onClick={() => setVisibilityOpen((open) => !open)}
+            >
+              ▾
+            </button>
+            {visibilityOpen && (
+              <div className="asa3d-toolbar-menu asa3d-visibility-menu">
                 <button
-                  key={axis}
                   type="button"
+                  disabled={!hasSelection}
                   onClick={() => {
-                    onMirror(axis);
-                    onToggleMirror();
+                    onHideSelected();
+                    setVisibilityOpen(false);
                   }}
                 >
-                  Ось {axis.toUpperCase()}
+                  Скрыть выбранное <kbd>Ctrl+H</kbd>
                 </button>
-              ))}
-            </div>
-          )}
+                <button
+                  type="button"
+                  disabled={!hasHiddenNodes}
+                  onClick={() => {
+                    onShowAll();
+                    setVisibilityOpen(false);
+                  }}
+                >
+                  Показать всё <kbd>Ctrl+Shift+H</kbd>
+                </button>
+              </div>
+            )}
+          </div>
+          <ToolbarButton
+            command="bundle"
+            label="Быстрая группа без слияния (Ctrl+B)"
+            onClick={onBundle}
+            disabled={!canBundle}
+            className="asa3d-bundle-tool"
+          >
+            <DuplicateIcon />
+          </ToolbarButton>
+          <ToolbarButton
+            command="group"
+            label="Булево объединение (Ctrl+G); пересечение — Ctrl+I"
+            onClick={onGroup}
+            disabled={!canBundle}
+          >
+            <GroupIcon />
+          </ToolbarButton>
+          <ToolbarButton
+            command="ungroup"
+            label="Разгруппировать (Ctrl+Shift+G)"
+            onClick={onUngroup}
+            disabled={!canUngroup}
+          >
+            <UngroupIcon />
+          </ToolbarButton>
+          <ToolbarButton
+            command="align"
+            label="Выровнять (L)"
+            active={alignmentActive}
+            onClick={onToggleAlign}
+            disabled={!canAlign}
+          >
+            <AlignIcon />
+          </ToolbarButton>
+          <div className="asa3d-mirror-tool">
+            <ToolbarButton
+              command="mirror"
+              label="Отразить (M)"
+              active={mirrorActive}
+              onClick={onToggleMirror}
+              disabled={!hasEditableSelection}
+            >
+              <MirrorIcon />
+            </ToolbarButton>
+            {mirrorActive && (
+              <div className="asa3d-toolbar-menu asa3d-mirror-menu" aria-label="Ось отражения">
+                {(['x', 'y', 'z'] as const).map((axis) => (
+                  <button
+                    key={axis}
+                    type="button"
+                    onClick={() => {
+                      onMirror(axis);
+                      onToggleMirror();
+                    }}
+                  >
+                    Ось {axis.toUpperCase()}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          <ToolbarButton
+            command="cruise"
+            label="Cruise: поставить на поверхность (C)"
+            active={cruiseActive}
+            onClick={onToggleCruise}
+            disabled={!canCruise}
+          >
+            <CircuitIcon />
+          </ToolbarButton>
+          <ToolbarButton
+            command="ruler"
+            label="Линейка (R)"
+            active={rulerActive}
+            onClick={onToggleRuler}
+          >
+            <RulerIcon />
+          </ToolbarButton>
+          <ToolbarButton
+            command="workplane"
+            label="Плоскость выбранной формы (E)"
+            active={workplaneActive}
+            onClick={onToggleWorkplane}
+            disabled={!hasSelection && !workplaneActive}
+          >
+            <GridIcon />
+          </ToolbarButton>
+          <ToolbarButton
+            command="drop"
+            label="Опустить на рабочую плоскость (D)"
+            onClick={onDrop}
+            disabled={!hasEditableSelection}
+            className="asa3d-drop-tool"
+          >
+            <ArrowLeftIcon />
+          </ToolbarButton>
         </div>
-        <ToolbarButton
-          command="cruise"
-          label="Cruise: поставить на поверхность (C)"
-          active={cruiseActive}
-          onClick={onToggleCruise}
-          disabled={!canCruise}
-        >
-          <CircuitIcon />
-        </ToolbarButton>
-        <ToolbarButton
-          command="ruler"
-          label="Линейка (R)"
-          active={rulerActive}
-          onClick={onToggleRuler}
-        >
-          <RulerIcon />
-        </ToolbarButton>
-        <ToolbarButton
-          command="workplane"
-          label="Плоскость выбранной формы (E)"
-          active={workplaneActive}
-          onClick={onToggleWorkplane}
-          disabled={!hasSelection && !workplaneActive}
-        >
-          <GridIcon />
-        </ToolbarButton>
-        <ToolbarButton
-          command="drop"
-          label="Опустить на рабочую плоскость (D)"
-          onClick={onDrop}
-          disabled={!hasEditableSelection}
-          className="asa3d-drop-tool"
-        >
-          <ArrowLeftIcon />
-        </ToolbarButton>
-      </div>
 
-      <div className="asa3d-actions" aria-label="Файлы и публикация">
-        <button type="button" className="asa3d-text-action" onClick={onImport}>
-          Импорт
-        </button>
-        <div className="asa3d-export-wrap">
+        <div className="asa3d-actions" aria-label="Файлы и публикация">
           <button
             type="button"
             className="asa3d-text-action"
-            onClick={() => setExportOpen((open) => !open)}
-            aria-expanded={exportOpen}
+            onClick={() => {
+              onImport();
+              setToolsOpen(false);
+            }}
           >
-            Экспорт
+            Импорт
           </button>
-          {exportOpen && (
-            <div className="asa3d-export-menu">
-              {stlUnavailableReason && <small role="status">{stlUnavailableReason}</small>}
-              <button
-                type="button"
-                disabled={Boolean(stlUnavailableReason)}
-                onClick={() => {
-                  onExportStl();
-                  setExportOpen(false);
-                }}
-              >
-                STL для 3D-печати
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  onExportJson();
-                  setExportOpen(false);
-                }}
-              >
-                ASA 3D JSON
-              </button>
-            </div>
-          )}
+          <div className="asa3d-export-wrap">
+            <button
+              type="button"
+              className="asa3d-text-action"
+              onClick={() => setExportOpen((open) => !open)}
+              aria-expanded={exportOpen}
+            >
+              Экспорт
+            </button>
+            {exportOpen && (
+              <div className="asa3d-export-menu">
+                {stlUnavailableReason && <small role="status">{stlUnavailableReason}</small>}
+                <button
+                  type="button"
+                  disabled={Boolean(stlUnavailableReason)}
+                  onClick={() => {
+                    onExportStl();
+                    setExportOpen(false);
+                    setToolsOpen(false);
+                  }}
+                >
+                  STL для 3D-печати
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onExportJson();
+                    setExportOpen(false);
+                    setToolsOpen(false);
+                  }}
+                >
+                  ASA 3D JSON
+                </button>
+              </div>
+            )}
+          </div>
+          {sendControl}
         </div>
-        {sendControl}
       </div>
     </div>
   );

@@ -227,7 +227,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: opt_1_r1_explicit_result_state_and_guarded_export_implemented_ci_and_owner_verification_pending
+      checkpoint: opt_1_r2_resize_handoff_and_mobile_authoring_implemented_ci_and_owner_verification_pending
       owner_acceptance: pending
     revisions:
       convergence_baseline_sha: 9371222ab69cbb53c7f52411f6f7cb96c780aa65

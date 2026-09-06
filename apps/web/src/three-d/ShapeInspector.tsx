@@ -9,6 +9,7 @@ import type {
 } from '@asa-lab/three-d';
 import { ChevronIcon, ViewIcon } from '../electronics/workbench-icons';
 import { measureTextWidthAtHeight } from './viewport/geometry';
+import { useCompactViewport } from './use-compact-viewport';
 
 interface GroupSelection {
   readonly id: string;
@@ -100,9 +101,13 @@ function primitiveTitle(node: ThreeDNode): string {
 export function ShapeInspector({ node, group, execute }: ShapeInspectorProps): JSX.Element | null {
   const selectionKey = group ? `group:${group.id}` : node?.id;
   const [collapsedKey, setCollapsedKey] = useState<string | null>(null);
+  const [expandedMobileKey, setExpandedMobileKey] = useState<string | null>(null);
+  const compactViewport = useCompactViewport();
   const [colorOpenKey, setColorOpenKey] = useState<string | null>(null);
   if (!selectionKey || (!node && !group)) return null;
-  const expanded = collapsedKey !== selectionKey;
+  const expanded = compactViewport
+    ? expandedMobileKey === selectionKey
+    : collapsedKey !== selectionKey;
   const nodes = group?.nodes ?? (node ? [node] : []);
   const locked = nodes.length > 0 && nodes.every((item) => item.locked);
   const hidden = nodes.length > 0 && nodes.every((item) => !item.visible);
@@ -165,7 +170,10 @@ export function ShapeInspector({ node, group, execute }: ShapeInspectorProps): J
           className="asa3d-inspector-expand"
           aria-label={expanded ? 'Свернуть параметры' : 'Развернуть параметры'}
           aria-expanded={expanded}
-          onClick={() => setCollapsedKey(expanded ? selectionKey : null)}
+          onClick={() => {
+            setCollapsedKey(expanded ? selectionKey : null);
+            setExpandedMobileKey(expanded ? null : selectionKey);
+          }}
         >
           <ChevronIcon className={expanded ? 'expanded' : ''} />
         </button>

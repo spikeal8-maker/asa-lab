@@ -1,5 +1,6 @@
 import { selectionBounds, type ThreeDDocument, type ThreeDNode } from '@asa-lab/three-d';
 import type { DirectManipulationCommit } from './viewport/DirectManipulator';
+import { dimensionMatrix, transformOperand } from './viewport/result-transform';
 
 export function runtimeSelectionKeys(nodes: readonly ThreeDNode[]): readonly string[] {
   return [...new Set(nodes.map((node) => (node.groupId ? `group:${node.groupId}` : node.id)))];
@@ -53,6 +54,15 @@ export function directManipulationReplacements(
     const groupTransform = node.groupId ? groupTransforms.get(node.groupId) : undefined;
     if (node.locked || (!commit && !groupTransform)) return [];
     if (groupTransform) {
+      const { basis } = groupTransform.commit;
+      if (basis) {
+        const target = groupTransform.commit;
+        const delta = dimensionMatrix(
+          { ...target.transform, scale: { x: 1, y: 1, z: 1 } },
+          target.dimensions ?? basis.dimensions,
+        ).multiply(dimensionMatrix(basis.transform, basis.dimensions).invert());
+        return [transformOperand(node, delta)];
+      }
       const { bounds, scale } = groupTransform;
       const relative = {
         x: (node.transform.position.x - bounds.center.x) * scale.x,

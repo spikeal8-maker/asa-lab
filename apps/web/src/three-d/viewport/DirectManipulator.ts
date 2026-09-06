@@ -19,7 +19,10 @@ export interface DirectManipulationEntry {
 export interface DirectManipulationCommit {
   readonly nodeId: string;
   readonly transform: ThreeDTransform;
-  readonly dimensions?: ThreeDDimensions;
+  readonly dimensions?: ThreeDDimensions | undefined;
+  /** Visible result at gesture start, not the bounds of its hidden operands. */
+  readonly basis?:
+    { readonly transform: ThreeDTransform; readonly dimensions: ThreeDDimensions } | undefined;
 }
 
 interface OrbitLike {
@@ -32,8 +35,10 @@ interface DirectManipulatorCallbacks {
     nodeId: string,
     transform: ThreeDTransform,
     dimensions?: ThreeDDimensions,
+    basis?: DirectManipulationCommit['basis'],
   ) => void;
   readonly onCommitMany: (commits: readonly DirectManipulationCommit[]) => void;
+  readonly onInteractionEnd?: () => void;
 }
 
 type RotationAxis = 'x' | 'y' | 'z';
@@ -84,6 +89,7 @@ interface DragState {
     readonly startScale: THREE.Vector3;
   }[];
   readonly multiSelection: boolean;
+  readonly bases: ReadonlyMap<string, NonNullable<DirectManipulationCommit['basis']>>;
   moved: boolean;
   currentAngleDegrees: number;
 }
@@ -294,6 +300,7 @@ export class DirectManipulator {
   private workplaneY = 0;
   private footprintSignature = '';
   private gridSnap = 1;
+  private additiveSelection = false;
   private marquee: MarqueeState | null = null;
   private drag: DragState | null = null;
   private pinnedMeasurement: PinnedMeasurement | null = null;
@@ -455,6 +462,10 @@ export class DirectManipulator {
     this.gridSnap = Number.isFinite(step) && step > 0 ? step : 1;
   }
 
+  setAdditiveSelection(value: boolean): void {
+    this.additiveSelection = value;
+  }
+
   setWorkplaneY(value: number): void {
     this.workplaneY = Number.isFinite(value) ? value : 0;
     this.footprintSignature = '';
@@ -462,6 +473,8 @@ export class DirectManipulator {
   }
 
   setSelection(nodeId: string | null, nodeIds: readonly string[] = nodeId ? [nodeId] : []): void {
+    const changed = nodeId !== this.selectedId || nodeIds.join(',') !== this.selectedIds.join(',');
+    if (changed) this.cancelDrag();
     this.selectedId = nodeId;
     this.selectedIds = [...new Set(nodeIds.filter((id) => this.getEntries().has(id)))];
     if (nodeId && !this.selectedIds.includes(nodeId)) {
@@ -469,10 +482,19 @@ export class DirectManipulator {
     }
     this.container.dataset['selectedNodeId'] = nodeId ?? '';
     this.container.dataset['selectedNodeIds'] = this.selectedIds.join(',');
-    this.pinnedMeasurement = null;
+    if (changed) this.pinnedMeasurement = null;
     this.clearDimensionVisuals();
     this.setHoveredHandle(null);
     this.update();
+    this.showPinnedMeasurements();
+  }
+
+  isDragging(nodeId?: string): boolean {
+    return Boolean(this.drag && (!nodeId || this.drag.bases.has(nodeId)));
+  }
+
+  cancelDrag(): void {
+    this.finishDrag(false);
   }
 
   private selectedEntry(): DirectManipulationEntry | null {
@@ -944,7 +966,12 @@ export class DirectManipulator {
 
   private readonly handlePointerDown = (event: PointerEvent): void => {
     if (event.button !== 0) return;
-    const additive = event.shiftKey || event.ctrlKey || event.metaKey;
+    if (this.drag || this.marquee) {
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+    const additive = this.additiveSelection || event.shiftKey || event.ctrlKey || event.metaKey;
     this.setPointer(event.clientX, event.clientY);
     const handle = this.intersectHandle();
     const selected = this.selectedEntry();
@@ -1039,7 +1066,7 @@ export class DirectManipulator {
 
   private readonly handlePointerCancel = (event: PointerEvent): void => {
     if (this.marquee?.pointerId === event.pointerId) this.finishMarquee(false);
-    if (this.drag?.pointerId === event.pointerId) this.finishDrag();
+    if (this.drag?.pointerId === event.pointerId) this.cancelDrag();
   };
 
   private readonly handlePointerLeave = (): void => {
@@ -1170,6 +1197,9 @@ export class DirectManipulator {
       moveEntries,
       transformEntries,
       multiSelection,
+      bases: new Map(
+        selectedEntries.map((selected) => [selected.node.id, this.commitBasis(selected)]),
+      ),
       moved: false,
       currentAngleDegrees: 0,
     };
@@ -1387,7 +1417,7 @@ export class DirectManipulator {
     );
   }
 
-  private finishDrag(): void {
+  private finishDrag(commit = true): void {
     const drag = this.drag;
     if (!drag) return;
     if (this.canvas.hasPointerCapture(drag.pointerId))
@@ -1398,6 +1428,25 @@ export class DirectManipulator {
     delete this.container.dataset['manipulating'];
     delete this.container.dataset['manipulationCount'];
     this.canvas.style.cursor = 'default';
+    if (!commit) {
+      for (const moving of drag.transformEntries) {
+        moving.entry.object.position.copy(moving.startPosition);
+        moving.entry.object.quaternion.copy(moving.startQuaternion);
+        moving.entry.object.scale.copy(moving.startScale);
+        moving.entry.object.updateMatrixWorld(true);
+      }
+      // A move can include several selected entries even without multi-resize.
+      for (const moving of drag.moveEntries) {
+        moving.entry.object.position.copy(moving.startPosition);
+        moving.entry.object.updateMatrixWorld(true);
+      }
+      this.pinnedMeasurement = null;
+      this.clearDimensionVisuals();
+      this.setHoveredHandle(null);
+      this.update();
+      this.callbacks.onInteractionEnd?.();
+      return;
+    }
     if (drag.moved) {
       if ((drag.descriptor.kind === 'move' && drag.moveEntries.length > 1) || drag.multiSelection) {
         const movingEntries = drag.multiSelection ? drag.transformEntries : drag.moveEntries;
@@ -1411,15 +1460,20 @@ export class DirectManipulator {
                 depth: round(effective.z, 3),
                 height: round(effective.y, 3),
               };
-              moving.entry.object.scale.set(1, 1, 1);
             }
-            return this.createCommit(moving.nodeId, moving.entry.object, dimensions);
+            return this.createCommit(
+              moving.nodeId,
+              moving.entry.object,
+              dimensions,
+              drag.bases.get(moving.nodeId),
+            );
           }),
         );
         this.clearDimensionVisuals();
         this.pinnedMeasurement = null;
         this.setHoveredHandle(null);
         this.update();
+        this.callbacks.onInteractionEnd?.();
         return;
       }
       let dimensions: ThreeDDimensions | undefined;
@@ -1430,9 +1484,8 @@ export class DirectManipulator {
           depth: round(effective.z, 3),
           height: round(effective.y, 3),
         };
-        drag.entry.object.scale.set(1, 1, 1);
       }
-      this.commitEntry(drag.nodeId, drag.entry.object, dimensions);
+      this.commitEntry(drag.nodeId, drag.entry.object, dimensions, drag.bases.get(drag.nodeId));
     }
     this.pinnedMeasurement = {
       descriptor: drag.descriptor,
@@ -1442,17 +1495,35 @@ export class DirectManipulator {
     this.setHoveredHandle(null);
     this.update();
     this.showPinnedMeasurements();
+    this.callbacks.onInteractionEnd?.();
   }
 
-  private commitEntry(nodeId: string, object: THREE.Object3D, dimensions?: ThreeDDimensions): void {
-    const commit = this.createCommit(nodeId, object, dimensions);
-    this.callbacks.onCommit(commit.nodeId, commit.transform, commit.dimensions);
+  private commitBasis(
+    entry: DirectManipulationEntry,
+  ): NonNullable<DirectManipulationCommit['basis']> {
+    const size = this.effectiveDimensions(entry);
+    const dimensions = { width: size.x, height: size.y, depth: size.z };
+    return {
+      transform: this.createCommit(entry.node.id, entry.object, dimensions).transform,
+      dimensions,
+    };
+  }
+
+  private commitEntry(
+    nodeId: string,
+    object: THREE.Object3D,
+    dimensions?: ThreeDDimensions,
+    basis?: DirectManipulationCommit['basis'],
+  ): void {
+    const commit = this.createCommit(nodeId, object, dimensions, basis);
+    this.callbacks.onCommit(commit.nodeId, commit.transform, commit.dimensions, commit.basis);
   }
 
   private createCommit(
     nodeId: string,
     object: THREE.Object3D,
     dimensions?: ThreeDDimensions,
+    basis?: DirectManipulationCommit['basis'],
   ): DirectManipulationCommit {
     const toDegrees = 180 / Math.PI;
     return {
@@ -1469,12 +1540,13 @@ export class DirectManipulator {
           z: round(normaliseDegrees(object.rotation.z * toDegrees), 1),
         },
         scale: {
-          x: Math.max(0.0025, round(Math.abs(object.scale.x), 4)),
-          y: Math.max(0.0025, round(Math.abs(object.scale.y), 4)),
-          z: Math.max(0.0025, round(Math.abs(object.scale.z), 4)),
+          x: dimensions ? 1 : Math.max(0.0025, round(Math.abs(object.scale.x), 4)),
+          y: dimensions ? 1 : Math.max(0.0025, round(Math.abs(object.scale.y), 4)),
+          z: dimensions ? 1 : Math.max(0.0025, round(Math.abs(object.scale.z), 4)),
         },
       },
       ...(dimensions ? { dimensions } : {}),
+      ...(basis ? { basis } : {}),
     };
   }
 
@@ -1942,13 +2014,12 @@ export class DirectManipulator {
   ): void {
     if (!Number.isFinite(value) || value <= 0) return;
     const current = this.effectiveDimensions(entry);
+    const basis = this.commitBasis(entry);
     const dimensions: ThreeDDimensions = {
       width: dimension === 'width' ? value : current.x,
       depth: dimension === 'depth' ? value : current.z,
       height: dimension === 'height' ? value : current.y,
     };
-    entry.object.scale.set(1, 1, 1);
-    this.commitEntry(entry.node.id, entry.object, dimensions);
     // Keep the edited value visible until React replaces this runtime entry
     // with geometry built from the committed dimensions.
     entry.object.scale.set(
@@ -1957,16 +2028,18 @@ export class DirectManipulator {
       dimensions.depth / entry.node.dimensions.depth,
     );
     entry.object.updateMatrixWorld(true);
+    this.commitEntry(entry.node.id, entry.object, dimensions, basis);
     this.update();
     this.showPinnedMeasurements();
   }
 
   private commitLiftValue(entry: DirectManipulationEntry, value: number): void {
     if (!Number.isFinite(value)) return;
+    const basis = this.commitBasis(entry);
     const bounds = new THREE.Box3().setFromObject(entry.object);
     entry.object.position.y += Math.max(0, value) - bounds.min.y;
     entry.object.updateMatrixWorld(true);
-    this.commitEntry(entry.node.id, entry.object);
+    this.commitEntry(entry.node.id, entry.object, undefined, basis);
     this.update();
     this.showPinnedMeasurements();
   }
@@ -1977,9 +2050,10 @@ export class DirectManipulator {
     value: number,
   ): void {
     if (!Number.isFinite(value)) return;
+    const basis = this.commitBasis(entry);
     entry.object.rotation[axis] = THREE.MathUtils.degToRad(normaliseDegrees(value));
     entry.object.updateMatrixWorld(true);
-    this.commitEntry(entry.node.id, entry.object);
+    this.commitEntry(entry.node.id, entry.object, undefined, basis);
     this.update();
     this.showPinnedMeasurements();
   }
@@ -1991,9 +2065,10 @@ export class DirectManipulator {
     value: number,
   ): void {
     if (!Number.isFinite(value)) return;
+    const basis = this.commitBasis(entry);
     entry.object.position[axis] = start[axis] + value;
     entry.object.updateMatrixWorld(true);
-    this.commitEntry(entry.node.id, entry.object);
+    this.commitEntry(entry.node.id, entry.object, undefined, basis);
     this.update();
     this.showPinnedMeasurements();
   }

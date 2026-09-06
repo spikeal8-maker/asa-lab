@@ -11,6 +11,8 @@ function props(overrides: Partial<ThreeDToolbarProps> = {}): ThreeDToolbarProps 
     selectedCount: 2,
     editableSelectedCount: 2,
     hasClipboard: true,
+    additiveSelection: false,
+    onToggleAdditiveSelection: action,
     hasHiddenNodes: true,
     canUndo: true,
     canRedo: true,
