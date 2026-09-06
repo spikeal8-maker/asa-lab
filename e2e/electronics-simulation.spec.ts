@@ -2167,7 +2167,7 @@ for (const withArduino of [false, true]) {
     const inspector = page.getByRole('complementary', { name: 'Параметры выделения' });
     const input = inspector.getByRole('spinbutton', { name: 'Температура TMP36, °C' });
     await expect(input).toHaveValue('25');
-    await expect(inspector).toContainText('TMP36 · TO-92');
+    await expect(inspector.getByLabel('Модель датчика температуры')).toHaveValue('TMP36 · TO-92');
     await page.getByRole('button', { name: 'Начать моделирование' }).click();
     const display = component(page, 'multimeter').getByTestId('multimeter-runtime-display');
     await expect(display).toContainText('0.750 V');

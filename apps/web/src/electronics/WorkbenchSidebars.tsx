@@ -1311,7 +1311,7 @@ export function WorkbenchSidebars({
                 <>
                   <label>
                     <span>Модель</span>
-                    <span>TMP36 · TO-92</span>
+                    <input aria-label="Модель датчика температуры" value="TMP36 · TO-92" readOnly />
                   </label>
                   <label>
                     <span>Температура, °C</span>
