@@ -127,7 +127,7 @@ parallel_lanes:
       pr: 170
       pr_draft: false
       status: in_progress
-      checkpoint: math_10b_regulated_power_supply_0_30v_0_5a_cv_cc_owner_svg_controls_focused_gate_pass_browser_and_owner_acceptance_pending
+      checkpoint: ard_3a7_uno_numeric_types_scopes_focused_and_browser_gates_pass_owner_acceptance_pending
       owner_acceptance: pending
     revisions:
       convergence_baseline_sha: 5b052dc631c7036de9d60f4206c9879fe364e732

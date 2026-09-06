@@ -329,7 +329,7 @@ const LANGUAGE_REFERENCE_METADATA = {
     signature: 'int имя = значение;',
     category: 'types',
     limits:
-      'Подходит для показаний 0–1023 и других целых значений; переполнение AVR пока не имитируется.',
+      'int Uno: от −32768 до 32767. Дробь при присваивании усекается к нулю; знаковое переполнение даёт ошибку.',
     example: 'int sensor = analogRead(A0);',
   },
   'type-long': {
@@ -338,7 +338,7 @@ const LANGUAGE_REFERENCE_METADATA = {
     signature: 'long / unsigned long',
     category: 'types',
     limits:
-      'Используйте для времени и больших целых чисел; точная 32-битная арифметика AVR пока не имитируется.',
+      '32-битные целые: long со знаком, unsigned long от 0 до 4294967295 с переходом через ноль при переполнении.',
     example: 'unsigned long now = millis();',
   },
   'type-float': {
@@ -347,7 +347,7 @@ const LANGUAGE_REFERENCE_METADATA = {
     signature: 'float / double',
     category: 'types',
     limits:
-      'Дроби вычисляются, но различие float и double как на настоящем Uno не воспроизводится.',
+      'На Uno float и double имеют одинаковую 32-битную точность. Например, 5/2 даёт 2, а 5.0/2 — 2.5. Бесконечность и NaN не допускаются.',
     example: 'float voltage = analogRead(A0) * 5.0 / 1023.0;',
   },
   'type-bool': {
@@ -355,7 +355,8 @@ const LANGUAGE_REFERENCE_METADATA = {
     title: 'Логическое значение',
     signature: 'bool имя = true;',
     category: 'types',
-    limits: 'true соответствует 1, false — 0; значение хранится только в текущем пересчёте.',
+    limits:
+      'Ноль преобразуется в false, любое ненулевое число — в true. Значение сохраняется между тиками в своей области видимости.',
     example: 'bool pressed = digitalRead(2) == LOW;',
   },
   'type-byte': {
@@ -364,7 +365,7 @@ const LANGUAGE_REFERENCE_METADATA = {
     signature: 'byte имя = значение;',
     category: 'types',
     limits:
-      'Объявление работает, но автоматическое ограничение диапазоном 0–255 пока не моделируется.',
+      'Целое без знака от 0 до 255. При присваивании целого сохраняются младшие 8 бит: после 255 инкремент даёт 0.',
     example: 'byte brightness = 128;',
   },
   'type-text': {
@@ -381,7 +382,8 @@ const LANGUAGE_REFERENCE_METADATA = {
     title: 'Именованная константа',
     signature: 'const тип имя = значение;',
     category: 'types',
-    limits: 'Значение читается, но runtime пока не запрещает его случайное изменение позже.',
+    limits:
+      'Начальное значение обязательно; последующее присваивание или инкремент запрещены и дают ошибку проверки.',
     example: 'const int ledPin = 13;',
   },
   assignment: {
@@ -389,7 +391,8 @@ const LANGUAGE_REFERENCE_METADATA = {
     title: 'Записать или изменить переменную',
     signature: '=  +=  -=  *=  /=',
     category: 'types',
-    limits: 'Переменные не сохраняют состояние между независимыми пересчётами схемы.',
+    limits:
+      'Тип и значение сохраняются через паузы. Локальная переменная исчезает при выходе из своего блока; Reset начинает программу заново.',
     example: 'counter += 1;',
   },
   if: {

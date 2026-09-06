@@ -14,7 +14,7 @@ describe('Arduino capability contract', () => {
     expect(ARDUINO_LANGUAGE_FEATURE_SUPPORT.comparison.status).toBe('supported');
     expect(ARDUINO_LANGUAGE_FEATURE_SUPPORT['logical-or'].status).toBe('supported');
     expect(ARDUINO_LANGUAGE_FEATURE_SUPPORT.for.status).toBe('limited');
-    expect(ARDUINO_LANGUAGE_FEATURE_SUPPORT['type-int'].status).toBe('limited');
+    expect(ARDUINO_LANGUAGE_FEATURE_SUPPORT['type-int'].status).toBe('supported');
     expect(ARDUINO_LANGUAGE_FEATURE_SUPPORT['type-text'].status).toBe('unsupported');
     expect(ARDUINO_LANGUAGE_FEATURE_SUPPORT.switch.status).toBe('unsupported');
   });

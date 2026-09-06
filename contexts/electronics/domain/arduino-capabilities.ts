@@ -89,7 +89,9 @@ export const ARDUINO_BLOCK_SUPPORT = {
   asa_math_add: SUPPORTED('Сложение поддерживается.'),
   asa_math_minus: SUPPORTED('Вычитание поддерживается.'),
   asa_math_multiply: SUPPORTED('Умножение поддерживается.'),
-  asa_math_divide: SUPPORTED('Деление поддерживается; деление на ноль даёт безопасный ноль.'),
+  asa_math_divide: SUPPORTED(
+    'Целочисленное деление усекается к нулю; деление на ноль останавливает расчёт с ошибкой.',
+  ),
   asa_math_modulo: SUPPORTED('Остаток от деления поддерживается.'),
   asa_compare_lt: SUPPORTED('Сравнение поддерживается.'),
   asa_compare_eq: SUPPORTED('Сравнение поддерживается.'),
@@ -102,9 +104,15 @@ export const ARDUINO_BLOCK_SUPPORT = {
   asa_constrain: SUPPORTED('constrain() поддерживается.'),
   asa_abs: SUPPORTED('abs() поддерживается.'),
   asa_level: SUPPORTED('HIGH и LOW поддерживаются.'),
-  asa_var_get: LIMITED('Переменная живёт только внутри одного пересчёта симуляции.'),
-  asa_var_set: LIMITED('Переменная живёт только внутри одного пересчёта симуляции.'),
-  asa_var_change: LIMITED('Переменная живёт только внутри одного пересчёта симуляции.'),
+  asa_var_get: LIMITED(
+    'Числовые переменные сохраняют тип и значение между тиками; сложные типы пока не поддерживаются.',
+  ),
+  asa_var_set: LIMITED(
+    'Присваивание преобразует число к объявленному типу Uno и сохраняет его между тиками.',
+  ),
+  asa_var_change: LIMITED(
+    'Изменение учитывает объявленный тип Uno; знаковое переполнение даёт ошибку.',
+  ),
   asa_comment: SUPPORTED('Комментарий сохраняется и не влияет на расчёт.'),
 } as const satisfies Readonly<Record<string, ArduinoBlockSupport>>;
 
@@ -129,7 +137,9 @@ export const ARDUINO_TEXT_COMMAND_SUPPORT = {
   delayMicroseconds: SUPPORTED('Задержка управляет виртуальным временем симуляции.'),
   tone: LIMITED('Работает со звуковой нагрузкой без общей временной формы сигнала.'),
   noTone: LIMITED('Останавливает поддерживаемый ограниченный tone()-выход.'),
-  map: SUPPORTED('Числовое преобразование диапазона поддерживается.'),
+  map: SUPPORTED(
+    'Целочисленный map Arduino: аргументы и результат long; деление усекается к нулю.',
+  ),
   constrain: SUPPORTED('Числовое ограничение диапазона поддерживается.'),
   abs: SUPPORTED('Абсолютное значение поддерживается.'),
   min: SUPPORTED('Минимум поддерживается.'),
@@ -164,17 +174,23 @@ export const ARDUINO_LANGUAGE_FEATURE_SUPPORT = {
   statement: SUPPORTED(
     'Простые команды с точкой с запятой и тела поддерживаемых функций и условий исполняются.',
   ),
-  'type-int': LIMITED('Целое число исполняется как числовое значение без AVR-переполнения.'),
-  'type-long': LIMITED('long и unsigned long исполняются без точной AVR-разрядности.'),
-  'type-float': LIMITED('float и double исполняются общей числовой моделью JavaScript.'),
-  'type-bool': LIMITED('bool и boolean исполняются как числовые 0 и 1.'),
-  'type-byte': LIMITED('byte исполняется как число без автоматического ограничения 0–255.'),
+  'type-int': SUPPORTED(
+    'int — 16 бит; unsigned int — 16 бит без знака. Знаковое переполнение останавливает расчёт с ошибкой.',
+  ),
+  'type-long': SUPPORTED(
+    'long — 32 бита; unsigned long — 32 бита с переходом через ноль при переполнении.',
+  ),
+  'type-float': LIMITED(
+    'float и double округляются до 32 бит как у Uno; нечисловые и бесконечные результаты останавливают расчёт.',
+  ),
+  'type-bool': SUPPORTED('bool и boolean хранят true/false; числовое преобразование даёт 1/0.'),
+  'type-byte': SUPPORTED('byte — 8 бит без знака; присваивание целого выполняется по модулю 256.'),
   'type-text': UNSUPPORTED('char, String и операции со строками ещё не исполняются.'),
-  constant: LIMITED(
-    'const принимается, но запрет последующего присваивания пока не контролируется.',
+  constant: SUPPORTED(
+    'const требует начального значения и запрещает последующие присваивания и инкремент.',
   ),
   assignment: LIMITED(
-    'Числовые globals сохраняются между тиками; сложные типы и полная C++-семантика не поддерживаются.',
+    'Типизированные globals и вложенные locals сохраняются через паузы; локальные имена исчезают при выходе из области. Сложные типы пока не поддерживаются.',
   ),
   if: SUPPORTED('Условие вычисляется, и исполняется подходящая ветвь.'),
   'if-else': SUPPORTED('Исполняется ровно одна ветвь if/else.'),
@@ -184,10 +200,12 @@ export const ARDUINO_LANGUAGE_FEATURE_SUPPORT = {
   'do-while': UNSUPPORTED('do…while ещё не входит в подтверждённое подмножество.'),
   comparison: SUPPORTED('Поддерживаются <, <=, > и >=.'),
   equality: SUPPORTED('Поддерживаются == и !=.'),
-  'logical-and': SUPPORTED('Логическое И && поддерживается.'),
-  'logical-or': SUPPORTED('Логическое ИЛИ || поддерживается.'),
+  'logical-and': SUPPORTED('Логическое И &&: правая часть не вычисляется при ложной левой.'),
+  'logical-or': SUPPORTED('Логическое ИЛИ ||: правая часть не вычисляется при истинной левой.'),
   'logical-not': SUPPORTED('Логическое НЕ ! поддерживается.'),
-  arithmetic: SUPPORTED('Поддерживаются +, −, *, / и %; деление на ноль даёт безопасный ноль.'),
+  arithmetic: SUPPORTED(
+    'Арифметика учитывает типы Uno и целочисленное деление; деление на ноль и знаковое переполнение дают явную ошибку.',
+  ),
 } as const satisfies Readonly<Record<string, ArduinoBlockSupport>>;
 
 export type ArduinoLanguageFeature = keyof typeof ARDUINO_LANGUAGE_FEATURE_SUPPORT;
@@ -423,7 +441,8 @@ export function analyseArduinoSourceSupport(
     {
       expression: /(?:\+\+|--)/g,
       code: 'increment',
-      message: 'Инкремент и декремент учитываются только внутри ограниченной модели цикла.',
+      message:
+        'Инкремент и декремент поддерживаются отдельной командой, но не внутри выражений; bool-инкремент не поддерживается.',
     },
   ];
   for (const pattern of limitedPatterns) {

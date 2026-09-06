@@ -37,7 +37,7 @@ describe('Arduino command reference', () => {
       ['if', 'supported'],
       ['comparison', 'supported'],
       ['logical-and', 'supported'],
-      ['type-int', 'limited'],
+      ['type-int', 'supported'],
       ['for', 'limited'],
       ['type-text', 'unsupported'],
       ['switch', 'unsupported'],

@@ -160,6 +160,7 @@ export type DiagnosticCode =
   | 'motor_stalled'
   | 'component_failed'
   | 'arduino_program_compile_error'
+  | 'arduino_arithmetic_error'
   | 'arduino_program_unsupported'
   | 'arduino_statement_budget_exceeded'
   | 'arduino_loop_advance_budget_exceeded'
@@ -2030,16 +2031,20 @@ function solveCircuitStep(
         code:
           runtimeDiagnostic.code === 'compile_error'
             ? 'arduino_program_compile_error'
-            : runtimeDiagnostic.code === 'statement_budget_exceeded'
-              ? 'arduino_statement_budget_exceeded'
-              : 'arduino_loop_advance_budget_exceeded',
+            : runtimeDiagnostic.code === 'arithmetic_error'
+              ? 'arduino_arithmetic_error'
+              : runtimeDiagnostic.code === 'statement_budget_exceeded'
+                ? 'arduino_statement_budget_exceeded'
+                : 'arduino_loop_advance_budget_exceeded',
         severity: 'error',
         message: runtimeDiagnostic.message,
         componentIds: [componentId],
         suggestedAction:
           runtimeDiagnostic.code === 'compile_error'
             ? 'Исправьте синтаксис программы Arduino и снова запустите моделирование.'
-            : 'Остановите бесконечный цикл или уменьшите объём работы за один шаг симуляции.',
+            : runtimeDiagnostic.code === 'arithmetic_error'
+              ? 'Проверьте делитель, диапазон числового типа и начальные значения переменных.'
+              : 'Остановите бесконечный цикл или уменьшите объём работы за один шаг симуляции.',
       });
     }
   }

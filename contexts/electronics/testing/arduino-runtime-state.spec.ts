@@ -2,6 +2,43 @@ import { describe, expect, it } from 'vitest';
 import { advanceArduinoRuntime, resetArduinoRuntime } from '../domain/arduino-program-runtime.js';
 
 describe('Arduino persistent runtime state', () => {
+  it('keeps nested typed bindings and const across a serialized delay', () => {
+    const source = `int value=1; int observed=0; void setup(){
+      const int step=2;
+      if(HIGH){byte value=255; delay(10); value++; observed=value+step;}
+      observed+=value;
+    }void loop(){delay(100);}`;
+    const paused = advanceArduinoRuntime(source);
+    expect(paused.diagnostics).toEqual([]);
+    expect(paused.state.variables.value).toBe(1);
+    const resumed = advanceArduinoRuntime(source, {}, 10, JSON.parse(JSON.stringify(paused.state)));
+    expect(resumed.diagnostics).toEqual([]);
+    expect(resumed.state.variables).toMatchObject({ value: 1, observed: 3 });
+  });
+
+  it('recreates loop and for block locals without leaking or overwriting globals', () => {
+    const source = `int value=1; int total=0;void setup(){}void loop(){
+      int value=2;
+      for(int index=0;index<2;index++){int value=3; total+=value; delay(5);}
+      total+=value;delay(10);
+    }`;
+    const result = advanceArduinoRuntime(source, {}, 30);
+    expect(result.diagnostics).toEqual([]);
+    expect(result.state.variables).toMatchObject({ value: 1, total: 16 });
+  });
+
+  it('resets incompatible numeric state and validates typed values before using it', () => {
+    const source = 'byte value=255;void setup(){value++;}void loop(){delay(100);}';
+    const first = advanceArduinoRuntime(source);
+    const old = JSON.parse(JSON.stringify(first.state));
+    old.version = 5;
+    old.scopes[0].value.value = 42;
+    expect(advanceArduinoRuntime(source, {}, 100, old).state.variables.value).toBe(0);
+    const forged = JSON.parse(JSON.stringify(first.state));
+    forged.scopes[0].value.value = 256;
+    expect(advanceArduinoRuntime(source, {}, 100, forged).state.variables.value).toBe(0);
+  });
+
   it('runs setup once, repeats loop on virtual time and preserves globals', () => {
     const source = `
       int setupCount = 0;
@@ -200,7 +237,8 @@ describe('Arduino persistent runtime state', () => {
     expect(afterSecondDelay.state.variables.total).toBe(3);
     expect(afterSecondDelay.state.locals.index).toBe(2);
     expect(afterThirdDelay.state.variables.total).toBe(6);
-    expect(afterThirdDelay.state.locals.index).toBe(3);
+    // The loop has ended: the for initializer's binding must leave scope.
+    expect(afterThirdDelay.state.locals.index).toBeUndefined();
   });
 
   it('samples a changed digital input when execution actually resumes', () => {
@@ -474,5 +512,17 @@ describe('Arduino persistent runtime state', () => {
     expect(restarted.state.loopIterations).toBe(1);
     expect(restarted.state.variables.count).toBe(1);
     expect(restarted.state.outputVoltages.d13).toBe(5);
+  });
+
+  it('resets a scope stack that does not match the saved continuation', () => {
+    const source =
+      'int count=0;void setup(){{int local=1;delay(100);count=local;}}void loop(){delay(100);}';
+    const start = advanceArduinoRuntime(source);
+    const corrupt = { ...start.state, scopes: start.state.scopes.slice(0, 2) };
+    const restarted = advanceArduinoRuntime(source, {}, 100, corrupt);
+    expect(restarted.diagnostics).toEqual([]);
+    expect(restarted.state.variables.count).toBe(0);
+    expect(restarted.state.scopes).toHaveLength(3);
+    expect(restarted.state.resumeAtMs).toBe(200);
   });
 });

@@ -2046,6 +2046,39 @@ for (const scenario of [
   });
 }
 
+test('Arduino correctness: Uno numeric types and scopes across delay', async ({ page }) => {
+  const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
+  await page.setViewportSize({ width: 1600, height: 1000 });
+  await loginWithOrganization(page, teacher);
+  const projectId = await createProject(page, 'Arduino typed arithmetic');
+  const source = `int value=1;
+void setup(){
+  pinMode(13,OUTPUT);
+  int halves=5/2;
+  byte rollover=255;
+  rollover++;
+  {int value=9;delay(10);}
+  digitalWrite(13,halves==2 && rollover==0 && value==1 && map(512,0,1023,0,255)==127);
+}
+void loop(){delay(100);}`;
+  const base = arduinoInputDocument('button', '2');
+  await saveDocument(page, projectId, {
+    ...base,
+    components: base.components.map((entry) =>
+      entry.id === 'uno' ? { ...entry, stateProperties: { arduinoSource: source } } : entry,
+    ),
+  });
+  await page.goto(`/#/home/${projectId}`);
+  await expect(page.locator('.workbench-stage')).toBeVisible();
+  await page.getByRole('button', { name: 'Начать моделирование' }).click();
+  await expect.poll(() => brightnessValue(page)).toBeGreaterThan(0);
+  await page.screenshot({ path: `${ARTIFACT_DIR}/arduino-numeric-types.png` });
+  await page.getByRole('button', { name: 'Остановить моделирование' }).click();
+  await page.getByRole('button', { name: 'Открыть редактор кода', exact: true }).click();
+  await expect(page.locator('.arduino-source-editor textarea')).toHaveValue(source);
+  failures.assertEmpty();
+});
+
 test.beforeAll(async () => {
   mkdirSync(ARTIFACT_DIR, { recursive: true });
   admin = e2eAdminPool();

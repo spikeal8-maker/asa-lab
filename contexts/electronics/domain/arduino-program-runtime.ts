@@ -1,4 +1,24 @@
 import type { Terminal } from './document.js';
+import {
+  ArduinoArithmeticError,
+  assignBinding,
+  binaryValue,
+  bindingFor,
+  commonType,
+  convertValue,
+  numericValue,
+  parseNumericLiteral,
+  readBinding,
+  scopeNumbers,
+  serializeScopes,
+  unaryValue,
+  validScopes,
+  zeroValue,
+  type ArduinoNumericType,
+  type ArduinoScope,
+  type ArduinoScopeSnapshot,
+  type ArduinoValue,
+} from './arduino-values.js';
 
 export type ArduinoPinMode = 'INPUT' | 'INPUT_PULLUP' | 'OUTPUT';
 
@@ -39,7 +59,7 @@ export type ArduinoProgramAction =
   | ArduinoNoToneAction
   | ArduinoPinModeAction;
 
-export const ARDUINO_RUNTIME_STATE_VERSION = 5 as const;
+export const ARDUINO_RUNTIME_STATE_VERSION = 6 as const;
 export const ARDUINO_RUNTIME_EVENT_QUEUE_LIMIT = 256 as const;
 
 export interface ArduinoRuntimeEvent {
@@ -53,9 +73,14 @@ export interface ArduinoRuntimeEvent {
 }
 
 export interface ArduinoRuntimeDiagnostic {
-  readonly code: 'compile_error' | 'statement_budget_exceeded' | 'loop_advance_budget_exceeded';
+  readonly code:
+    | 'compile_error'
+    | 'arithmetic_error'
+    | 'statement_budget_exceeded'
+    | 'loop_advance_budget_exceeded';
   readonly severity: 'error';
   readonly message: string;
+  readonly line?: number;
 }
 
 /**
@@ -77,6 +102,8 @@ export interface ArduinoRuntimeState {
   readonly eventQueue: readonly ArduinoRuntimeEvent[];
   readonly variables: Readonly<Record<string, number>>;
   readonly locals: Readonly<Record<string, number>>;
+  readonly scopes: readonly ArduinoScopeSnapshot[];
+  readonly faults: readonly ArduinoRuntimeDiagnostic[];
   readonly pinModes: Readonly<Partial<Record<Terminal, ArduinoPinMode>>>;
   readonly outputVoltages: Readonly<Partial<Record<Terminal, number>>>;
   readonly tones: Readonly<
@@ -120,7 +147,8 @@ interface Token {
 }
 
 interface RuntimeState {
-  readonly variables: Map<string, number>;
+  readonly scopes: ArduinoScope[];
+  readonly validateOnly?: boolean;
   readonly inputs: ArduinoTerminalVoltages;
   readonly actions: ArduinoProgramAction[];
   readonly diagnostics: ArduinoRuntimeDiagnostic[];
@@ -131,12 +159,14 @@ interface RuntimeState {
 interface SimpleInstruction {
   readonly kind: 'simple';
   readonly statement: string;
+  readonly line: number;
 }
 
 interface BranchInstruction {
   readonly kind: 'branch';
   readonly condition: string;
   falseTarget: number;
+  readonly line: number;
 }
 
 interface JumpInstruction {
@@ -144,7 +174,9 @@ interface JumpInstruction {
   target: number;
 }
 
-type CompiledInstruction = SimpleInstruction | BranchInstruction | JumpInstruction;
+type ScopeInstruction = { readonly kind: 'enter-scope' } | { readonly kind: 'exit-scope' };
+type CompiledInstruction =
+  SimpleInstruction | BranchInstruction | JumpInstruction | ScopeInstruction;
 
 const MAX_STATEMENTS = 512;
 const MAX_LOOP_ADVANCES = 4_096;
@@ -191,6 +223,20 @@ function runtimeStateIsValid(state: ArduinoRuntimeState): boolean {
   const tones = Object.values(state.tones ?? {});
   return (
     state.version === ARDUINO_RUNTIME_STATE_VERSION &&
+    validScopes(state.scopes) &&
+    Array.isArray(state.faults) &&
+    state.faults.every(
+      (fault) =>
+        fault &&
+        [
+          'compile_error',
+          'arithmetic_error',
+          'statement_budget_exceeded',
+          'loop_advance_budget_exceeded',
+        ].includes(fault.code) &&
+        fault.severity === 'error' &&
+        typeof fault.message === 'string',
+    ) &&
     typeof state.programFingerprint === 'string' &&
     Number.isFinite(state.virtualTimeMs) &&
     state.virtualTimeMs >= 0 &&
@@ -263,24 +309,6 @@ function runtimeStateIsValid(state: ArduinoRuntimeState): boolean {
         (tone.expiresAtMs === undefined ||
           (Number.isFinite(tone.expiresAtMs) && tone.expiresAtMs >= 0)),
     )
-  );
-}
-
-function runtimeVariables(entries: Readonly<Record<string, number>>): Map<string, number> {
-  return new Map(
-    Object.entries(entries)
-      .filter(([, value]) => Number.isFinite(value))
-      .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0)),
-  );
-}
-
-function serializableVariables(
-  variables: ReadonlyMap<string, number>,
-): Readonly<Record<string, number>> {
-  return Object.fromEntries(
-    [...variables.entries()]
-      .filter(([, value]) => Number.isFinite(value))
-      .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0)),
   );
 }
 
@@ -477,7 +505,10 @@ function tokenize(expression: string): readonly Token[] {
       index += 1;
       continue;
     }
-    const number = /^(?:\d+(?:\.\d*)?|\.\d+)/.exec(expression.slice(index));
+    const number =
+      /^(?:0[xX][\da-fA-F]+(?:[uU][lL]?|[lL][uU]?)?|0[bB][01]+(?:[uU][lL]?|[lL][uU]?)?|(?:\d+\.\d*|\.\d+|\d+)(?:[eE][+-]?\d+)?(?:[uU][lL]?|[lL][uU]?|[fF])?)/.exec(
+        expression.slice(index),
+      );
     if (number) {
       tokens.push({ kind: 'number', value: number[0] });
       index += number[0].length;
@@ -553,19 +584,24 @@ export function arduinoDigitalReading(inputs: ArduinoTerminalVoltages, terminal:
 
 class ExpressionParser {
   private index = 0;
+  private suppressed = 0;
 
   constructor(
     private readonly tokens: readonly Token[],
     private readonly state: RuntimeState,
   ) {}
 
-  parse(): number {
+  private get validateOnly(): boolean {
+    return Boolean(this.state.validateOnly || this.suppressed);
+  }
+
+  parse(): ArduinoValue {
     const value = this.parseOr();
     if (this.current())
       throw new SyntaxError(
         `Лишний элемент «${this.current()!.value}» в выражении. Проверьте точку с запятой.`,
       );
-    return finite(value);
+    return value;
   }
 
   private current(): Token | undefined {
@@ -579,99 +615,82 @@ class ExpressionParser {
     return token;
   }
 
-  private parseOr(): number {
+  private parseOr(): ArduinoValue {
     let value = this.parseAnd();
     while (this.take('||')) {
+      const skip = value.value !== 0;
+      if (skip) this.suppressed++;
       const right = this.parseAnd();
-      value = value !== 0 || right !== 0 ? 1 : 0;
+      if (skip) this.suppressed--;
+      value = numericValue('bool', Number(skip || right.value !== 0));
     }
     return value;
   }
 
-  private parseAnd(): number {
+  private parseAnd(): ArduinoValue {
     let value = this.parseEquality();
     while (this.take('&&')) {
+      const skip = value.value === 0;
+      if (skip) this.suppressed++;
       const right = this.parseEquality();
-      value = value !== 0 && right !== 0 ? 1 : 0;
+      if (skip) this.suppressed--;
+      value = numericValue('bool', Number(!skip && right.value !== 0));
     }
     return value;
   }
 
-  private parseEquality(): number {
+  private parseEquality(): ArduinoValue {
     let value = this.parseComparison();
     while (this.current()?.value === '==' || this.current()?.value === '!=') {
       const operator = this.take()?.value;
       const right = this.parseComparison();
-      value = operator === '==' ? (value === right ? 1 : 0) : value !== right ? 1 : 0;
+      value = binaryValue(operator!, value, right, this.validateOnly);
     }
     return value;
   }
 
-  private parseComparison(): number {
+  private parseComparison(): ArduinoValue {
     let value = this.parseAdditive();
     while (['<', '<=', '>', '>='].includes(this.current()?.value ?? '')) {
       const operator = this.take()?.value;
       const right = this.parseAdditive();
-      value =
-        operator === '<'
-          ? value < right
-            ? 1
-            : 0
-          : operator === '<='
-            ? value <= right
-              ? 1
-              : 0
-            : operator === '>'
-              ? value > right
-                ? 1
-                : 0
-              : value >= right
-                ? 1
-                : 0;
+      value = binaryValue(operator!, value, right, this.validateOnly);
     }
     return value;
   }
 
-  private parseAdditive(): number {
+  private parseAdditive(): ArduinoValue {
     let value = this.parseMultiplicative();
     while (this.current()?.value === '+' || this.current()?.value === '-') {
       const operator = this.take()?.value;
       const right = this.parseMultiplicative();
-      value = operator === '+' ? value + right : value - right;
+      value = binaryValue(operator!, value, right, this.validateOnly);
     }
     return value;
   }
 
-  private parseMultiplicative(): number {
+  private parseMultiplicative(): ArduinoValue {
     let value = this.parseUnary();
     while (['*', '/', '%'].includes(this.current()?.value ?? '')) {
       const operator = this.take()?.value;
       const right = this.parseUnary();
-      value =
-        operator === '*'
-          ? value * right
-          : operator === '/'
-            ? right === 0
-              ? 0
-              : value / right
-            : right === 0
-              ? 0
-              : value % right;
+      value = binaryValue(operator!, value, right, this.validateOnly);
     }
     return value;
   }
 
-  private parseUnary(): number {
-    if (this.take('!')) return this.parseUnary() === 0 ? 1 : 0;
-    if (this.take('-')) return -this.parseUnary();
-    if (this.take('+')) return this.parseUnary();
+  private parseUnary(): ArduinoValue {
+    if (['!', '-', '+'].includes(this.current()?.value ?? '')) {
+      const operator = this.take()!.value;
+      return unaryValue(operator, this.parseUnary(), this.validateOnly);
+    }
     return this.parsePrimary();
   }
 
-  private parsePrimary(): number {
+  private parsePrimary(): ArduinoValue {
     const token = this.take();
     if (!token) throw new SyntaxError('Ожидается выражение.');
-    if (token.kind === 'number') return finite(Number(token.value));
+    if (token.kind === 'number') return parseNumericLiteral(token.value);
     if (token.value === '(') {
       const value = this.parseOr();
       if (!this.take(')')) throw new SyntaxError('Ожидается закрывающая скобка.');
@@ -680,55 +699,118 @@ class ExpressionParser {
     if (token.kind !== 'identifier') throw new SyntaxError(`Неожиданный элемент «${token.value}».`);
     if (this.current()?.value === '(') {
       this.take('(');
-      const argumentsList: number[] = [];
+      const macro = ['min', 'max', 'abs', 'constrain'].includes(token.value);
+      const argumentsList: ArduinoValue[] = [];
+      const argumentTokens: Array<readonly Token[]> = [];
       if (this.current()?.value !== ')') {
         do {
+          const start = this.index;
+          if (macro) this.suppressed++;
           argumentsList.push(this.parseOr());
+          if (macro) this.suppressed--;
+          argumentTokens.push(this.tokens.slice(start, this.index));
         } while (this.take(','));
       }
       if (!this.take(')')) throw new SyntaxError('Ожидается закрывающая скобка вызова.');
+      if (macro) return this.macro(token.value, argumentsList, argumentTokens);
       return this.call(token.value, argumentsList);
     }
-    const upper = token.value.toUpperCase();
-    if (upper === 'HIGH' || upper === 'TRUE') return 1;
-    if (upper === 'LOW' || upper === 'FALSE') return 0;
-    if (upper === 'LED_BUILTIN') return 13;
-    const analog = /^A([0-5])$/.exec(upper);
-    if (analog) return 14 + Number(analog[1]);
-    const digital = /^D(\d{1,2})$/.exec(upper);
-    if (digital) return Number(digital[1]);
-    if (!this.state.variables.has(token.value))
-      throw new SyntaxError(`Переменная «${token.value}» не объявлена.`);
-    return this.state.variables.get(token.value)!;
+    if (token.value === 'true' || token.value === 'false')
+      return numericValue('bool', Number(token.value === 'true'));
+    const constants: Readonly<Record<string, number>> = {
+      HIGH: 1,
+      LOW: 0,
+      INPUT: 0,
+      OUTPUT: 1,
+      INPUT_PULLUP: 2,
+      LED_BUILTIN: 13,
+    };
+    if (Object.hasOwn(constants, token.value)) return numericValue('int', constants[token.value]!);
+    const analog = /^A([0-5])$/.exec(token.value);
+    if (analog) return numericValue('byte', 14 + Number(analog[1]));
+    const digital = /^D(\d{1,2})$/.exec(token.value);
+    if (digital) return numericValue('int', Number(digital[1]));
+    return readBinding(this.state.scopes, token.value, this.validateOnly);
   }
 
-  private call(name: string, argumentsList: readonly number[]): number {
+  // Arduino.h defines these as conditional macros, not eager JS functions.
+  // Parse/type-check every argument, but evaluate only the selected branches,
+  // including repeated reads in the selected macro expansion.
+  private macro(
+    name: string,
+    types: readonly ArduinoValue[],
+    tokens: readonly (readonly Token[])[],
+  ): ArduinoValue {
+    validateCallArguments(name, types.length, true);
+    const conditionalType = (a: ArduinoNumericType, b: ArduinoNumericType): ArduinoNumericType =>
+      a === b ? a : commonType(a, b);
+    const type =
+      name === 'abs'
+        ? conditionalType(types[0]!.type, unaryValue('-', types[0]!, true).type)
+        : name === 'constrain'
+          ? conditionalType(types[1]!.type, conditionalType(types[2]!.type, types[0]!.type))
+          : conditionalType(types[0]!.type, types[1]!.type);
+    if (this.validateOnly) return zeroValue(type);
+    const read = (index: number): ArduinoValue =>
+      new ExpressionParser(tokens[index]!, this.state).parse();
+    let value: ArduinoValue;
+    if (name === 'abs')
+      value = binaryValue('>', read(0), zeroValue()).value ? read(0) : unaryValue('-', read(0));
+    else if (name === 'constrain')
+      value = binaryValue('<', read(0), read(1)).value
+        ? read(1)
+        : binaryValue('>', read(0), read(2)).value
+          ? read(2)
+          : read(0);
+    else
+      value = binaryValue(name === 'min' ? '<' : '>', read(0), read(1)).value ? read(0) : read(1);
+    return convertValue(value, type);
+  }
+
+  private call(name: string, argumentsList: readonly ArduinoValue[]): ArduinoValue {
     validateCallArguments(name, argumentsList.length, true);
+    if (this.state.scopes.some((scope) => scope.has(name)))
+      throw new SyntaxError(`«${name}» — переменная, а не функция.`);
     const lower = name.toLowerCase();
     if (lower === 'analogread') {
-      const terminal = analogTerminalFromPin(argumentsList[0] ?? 0);
-      return terminal ? arduinoAnalogReading(this.state.inputs, terminal) : 0;
+      if (this.validateOnly) return zeroValue();
+      const terminal = analogTerminalFromPin(convertValue(argumentsList[0]!, 'byte').value);
+      return numericValue('int', terminal ? arduinoAnalogReading(this.state.inputs, terminal) : 0);
     }
     if (lower === 'digitalread') {
-      const terminal = digitalTerminalFromPin(argumentsList[0] ?? 0);
-      return terminal ? arduinoDigitalReading(this.state.inputs, terminal) : 0;
+      if (this.validateOnly) return zeroValue();
+      const terminal = digitalTerminalFromPin(convertValue(argumentsList[0]!, 'byte').value);
+      return numericValue('int', terminal ? arduinoDigitalReading(this.state.inputs, terminal) : 0);
     }
     if (lower === 'map') {
-      const [value = 0, fromLow = 0, fromHigh = 0, toLow = 0, toHigh = 0] = argumentsList;
-      if (fromHigh === fromLow) return toLow;
-      return ((value - fromLow) * (toHigh - toLow)) / (fromHigh - fromLow) + toLow;
+      const [value, fromLow, fromHigh, toLow, toHigh] = argumentsList.map((arg) =>
+        convertValue(arg, 'long', this.validateOnly),
+      );
+      const binary = (operator: string, a: ArduinoValue, b: ArduinoValue): ArduinoValue =>
+        binaryValue(operator, a, b, this.validateOnly);
+      return binary(
+        '+',
+        binary(
+          '/',
+          binary('*', binary('-', value!, fromLow!), binary('-', toHigh!, toLow!)),
+          binary('-', fromHigh!, fromLow!),
+        ),
+        toLow!,
+      );
     }
-    if (lower === 'constrain')
-      return clamp(argumentsList[0] ?? 0, argumentsList[1] ?? 0, argumentsList[2] ?? 0);
-    if (lower === 'abs') return Math.abs(argumentsList[0] ?? 0);
-    if (lower === 'min') return Math.min(...argumentsList);
-    if (lower === 'max') return Math.max(...argumentsList);
-    if (lower === 'millis') return this.state.simulationTimeMs;
-    return 0;
+    if (lower === 'millis')
+      return this.validateOnly
+        ? zeroValue('unsigned long')
+        : numericValue('unsigned long', Math.floor(this.state.simulationTimeMs) % 4294967296);
+    throw new SyntaxError(`Команда «${name}» не поддерживается.`);
   }
 }
 
 function evaluate(expression: string, state: RuntimeState): number {
+  return evaluateValue(expression, state).value;
+}
+
+function evaluateValue(expression: string, state: RuntimeState): ArduinoValue {
   return new ExpressionParser(tokenize(expression), state).parse();
 }
 
@@ -759,7 +841,9 @@ function validateCallArguments(name: string, count: number, expression = false):
 }
 
 function functionBody(source: string, name: 'setup' | 'loop'): string | null {
-  const declaration = new RegExp(`\\bvoid\\s+${name}\\s*\\([^)]*\\)\\s*\\{`, 'i').exec(source);
+  const declaration = new RegExp(`\\bvoid\\s+${name}\\s*\\(\\s*(?:void\\s*)?\\)\\s*\\{`).exec(
+    source,
+  );
   if (!declaration) return null;
   const start = declaration.index + declaration[0].length;
   let depth = 1;
@@ -807,42 +891,43 @@ function executeSimpleStatement(statement: string, state: RuntimeState): void {
   const compact = statement.trim();
   if (!compact || !consumeStatement(state)) return;
 
-  const declaration =
-    /^(?:const\s+)?(?:unsigned\s+long|int|long|float|double|bool|boolean|byte)\s+([A-Za-z_]\w*)\s*(?:=\s*(.+))?$/i.exec(
-      compact.replace(/\s+/g, ' '),
-    );
+  const declaration = parseDeclaration(compact);
   if (declaration) {
-    state.variables.set(declaration[1]!, declaration[2] ? evaluate(declaration[2], state) : 0);
+    declareVariable(declaration, state);
     return;
   }
-  const assignment = /^([A-Za-z_]\w*)\s*(=|\+=|-=|\*=|\/=)\s*([\s\S]+)$/.exec(compact);
+  const assignment = /^([A-Za-z_]\w*)\s*(=|\+=|-=|\*=|\/=|%=)\s*([\s\S]+)$/.exec(compact);
   if (assignment) {
     const name = assignment[1]!;
-    if (!state.variables.has(name)) throw new SyntaxError(`Переменная «${name}» не объявлена.`);
-    const current = state.variables.get(name) ?? 0;
-    const value = evaluate(assignment[3]!, state);
-    state.variables.set(
-      name,
+    bindingFor(state.scopes, name);
+    const value = evaluateValue(assignment[3]!, state);
+    const result =
       assignment[2] === '='
         ? value
-        : assignment[2] === '+='
-          ? current + value
-          : assignment[2] === '-='
-            ? current - value
-            : assignment[2] === '*='
-              ? current * value
-              : value === 0
-                ? 0
-                : current / value,
-    );
+        : binaryValue(
+            assignment[2]![0]!,
+            readBinding(state.scopes, name, Boolean(state.validateOnly)),
+            value,
+            state.validateOnly,
+          );
+    assignBinding(state.scopes, name, result, Boolean(state.validateOnly));
     return;
   }
   const increment = /^(?:\+\+|--)?([A-Za-z_]\w*)(\+\+|--)?$/.exec(compact);
   if (increment && (compact.startsWith('++') || compact.startsWith('--') || increment[2])) {
     const name = increment[1]!;
-    if (!state.variables.has(name)) throw new SyntaxError(`Переменная «${name}» не объявлена.`);
     const delta = compact.includes('++') ? 1 : -1;
-    state.variables.set(name, (state.variables.get(name) ?? 0) + delta);
+    const current = readBinding(state.scopes, name, Boolean(state.validateOnly));
+    if (current.type === 'bool')
+      throw new SyntaxError(
+        'Инкремент bool не поддерживается; используйте присваивание true/false.',
+      );
+    assignBinding(
+      state.scopes,
+      name,
+      binaryValue('+', current, numericValue('int', delta), state.validateOnly),
+      Boolean(state.validateOnly),
+    );
     return;
   }
 
@@ -854,14 +939,35 @@ function executeSimpleStatement(statement: string, state: RuntimeState): void {
   if (argumentsList.some((arg) => arg.length === 0) && call[2]?.trim())
     throw new SyntaxError('Пустой аргумент команды.');
   validateCallArguments(call[1]!, argumentsList.filter((arg) => arg.length > 0).length);
-  for (const [index, argument] of argumentsList.entries()) {
-    if (argument && !(name === 'pinmode' && index === 1)) evaluate(argument, state);
+  if (state.scopes.some((scope) => scope.has(call[1]!)))
+    throw new SyntaxError(`«${call[1]}» — переменная, а не функция.`);
+  if (
+    ![
+      'pinmode',
+      'digitalwrite',
+      'analogwrite',
+      'delay',
+      'delaymicroseconds',
+      'tone',
+      'notone',
+    ].includes(name)
+  ) {
+    evaluateValue(compact, state);
+    return;
   }
-  const pinValue = evaluate(argumentsList[0] ?? '0', state);
-  const digitalTerminal = digitalTerminalFromPin(pinValue);
+  const values = argumentsList.filter(Boolean).map((argument) => evaluateValue(argument, state));
+  const argument = (index: number, type: ArduinoNumericType): number =>
+    convertValue(values[index] ?? zeroValue(), type, state.validateOnly).value;
+  const digitalTerminal = ['pinmode', 'digitalwrite', 'analogwrite', 'tone', 'notone'].includes(
+    name,
+  )
+    ? digitalTerminalFromPin(argument(0, 'byte'))
+    : null;
   if (name === 'pinmode' && digitalTerminal) {
-    const mode = (argumentsList[1] ?? 'INPUT').trim().toUpperCase();
-    if (mode === 'OUTPUT' || mode === 'INPUT' || mode === 'INPUT_PULLUP') {
+    const rawMode = argument(1, 'byte');
+    const mode =
+      rawMode === 0 ? 'INPUT' : rawMode === 1 ? 'OUTPUT' : rawMode === 2 ? 'INPUT_PULLUP' : null;
+    if (mode) {
       state.actions.push({ kind: 'pin-mode', terminal: digitalTerminal, mode });
     } else throw new SyntaxError('Режим pinMode должен быть INPUT, INPUT_PULLUP или OUTPUT.');
     return;
@@ -870,12 +976,12 @@ function executeSimpleStatement(statement: string, state: RuntimeState): void {
     state.actions.push({
       kind: 'write',
       terminal: digitalTerminal,
-      targetVoltage: evaluate(argumentsList[1] ?? 'LOW', state) === 0 ? 0 : 5,
+      targetVoltage: argument(1, 'byte') === 0 ? 0 : 5,
     });
     return;
   }
   if (name === 'analogwrite' && digitalTerminal) {
-    const value = clamp(evaluate(argumentsList[1] ?? '0', state), 0, 255);
+    const value = clamp(argument(1, 'int'), 0, 255);
     const targetVoltage = PWM_TERMINALS.has(digitalTerminal)
       ? (5 * value) / 255
       : value < 128
@@ -890,7 +996,10 @@ function executeSimpleStatement(statement: string, state: RuntimeState): void {
     return;
   }
   if (name === 'delay' || name === 'delaymicroseconds') {
-    const rawDuration = Math.max(0, evaluate(argumentsList[0] ?? '0', state));
+    const rawDuration = argument(
+      0,
+      name === 'delaymicroseconds' ? 'unsigned int' : 'unsigned long',
+    );
     state.actions.push({
       kind: 'delay',
       durationMs: name === 'delaymicroseconds' ? rawDuration / 1000 : rawDuration,
@@ -898,8 +1007,8 @@ function executeSimpleStatement(statement: string, state: RuntimeState): void {
     return;
   }
   if (name === 'tone' && digitalTerminal) {
-    const frequencyHz = evaluate(argumentsList[1] ?? '0', state);
-    const durationMs = evaluate(argumentsList[2] ?? '0', state);
+    const frequencyHz = argument(1, 'unsigned int');
+    const durationMs = argument(2, 'unsigned long');
     if (frequencyHz >= 1 && frequencyHz <= 20_000) {
       state.actions.push({
         kind: 'tone',
@@ -978,7 +1087,16 @@ function compileStatements(
   instructions: CompiledInstruction[] = [],
   diagnostics: string[] = [],
   scope: 'setup' | 'loop' = 'loop',
+  firstLine = 1,
+  forHeaderName?: string,
 ): readonly CompiledInstruction[] {
+  const lineAt = (offset: number): number =>
+    firstLine + (source.slice(0, offset).match(/\n/g)?.length ?? 0);
+  const compileBlock = (body: string, offset: number, headerName?: string): void => {
+    instructions.push({ kind: 'enter-scope' });
+    compileStatements(body, instructions, diagnostics, scope, lineAt(offset), headerName);
+    instructions.push({ kind: 'exit-scope' });
+  };
   let index = 0;
   while (index < source.length) {
     index = skipWhitespace(source, index);
@@ -989,6 +1107,17 @@ function compileStatements(
       continue;
     }
     const remaining = source.slice(index);
+    const line = lineAt(index);
+    if (source[index] === '{') {
+      const block = balancedSlice(source, index, '{', '}');
+      if (!block) {
+        compileError(diagnostics, 'Незакрытый блок.');
+        break;
+      }
+      compileBlock(block.content, index + 1);
+      index = block.end;
+      continue;
+    }
     const control = /^(if|while)\b/.exec(remaining);
     if (control) {
       let cursor = skipWhitespace(source, index + control[0].length);
@@ -1025,8 +1154,8 @@ function compileStatements(
       }
 
       const branchIndex = instructions.length;
-      instructions.push({ kind: 'branch', condition: condition.content, falseTarget: -1 });
-      compileStatements(body.content, instructions, diagnostics, scope);
+      instructions.push({ kind: 'branch', condition: condition.content, falseTarget: -1, line });
+      compileBlock(body.content, body.end - body.content.length - 1);
       if (diagnostics.length > 0) break;
       if (control[1] === 'while') {
         instructions.push({ kind: 'jump', target: branchIndex });
@@ -1035,7 +1164,7 @@ function compileStatements(
         const jumpIndex = instructions.length;
         instructions.push({ kind: 'jump', target: -1 });
         (instructions[branchIndex] as BranchInstruction).falseTarget = instructions.length;
-        compileStatements(elseBody.content, instructions, diagnostics, scope);
+        compileBlock(elseBody.content, elseBody.end - elseBody.content.length - 1);
         if (diagnostics.length > 0) break;
         (instructions[jumpIndex] as JumpInstruction).target = instructions.length;
       } else {
@@ -1071,14 +1200,20 @@ function compileStatements(
         break;
       }
       const [initialization, condition, increment] = splitForHeader(header.content);
-      if (initialization) instructions.push({ kind: 'simple', statement: initialization });
+      instructions.push({ kind: 'enter-scope' });
+      if (initialization) instructions.push({ kind: 'simple', statement: initialization, line });
       const branchIndex = instructions.length;
-      instructions.push({ kind: 'branch', condition: condition || '1', falseTarget: -1 });
-      compileStatements(body.content, instructions, diagnostics, scope);
+      instructions.push({ kind: 'branch', condition: condition || '1', falseTarget: -1, line });
+      compileBlock(
+        body.content,
+        body.end - body.content.length - 1,
+        parseDeclaration(initialization)?.name,
+      );
       if (diagnostics.length > 0) break;
-      if (increment) instructions.push({ kind: 'simple', statement: increment });
+      if (increment) instructions.push({ kind: 'simple', statement: increment, line });
       instructions.push({ kind: 'jump', target: branchIndex });
       (instructions[branchIndex] as BranchInstruction).falseTarget = instructions.length;
+      instructions.push({ kind: 'exit-scope' });
       index = body.end;
       continue;
     }
@@ -1100,7 +1235,11 @@ function compileStatements(
       break;
     }
     const statement = source.slice(index, end).trim();
-    if (statement) instructions.push({ kind: 'simple', statement });
+    if (forHeaderName && parseDeclaration(statement)?.name === forHeaderName) {
+      compileError(diagnostics, `Повторное объявление «${forHeaderName}» в теле его цикла for.`);
+      break;
+    }
+    if (statement) instructions.push({ kind: 'simple', statement, line });
     index = end + 1;
   }
   return instructions;
@@ -1108,7 +1247,58 @@ function compileStatements(
 
 interface GlobalDeclaration {
   readonly name: string;
+  readonly type: ArduinoNumericType;
+  readonly constant: boolean;
   readonly initializer?: string;
+  readonly line?: number;
+}
+
+function parseDeclaration(statement: string): GlobalDeclaration | null {
+  const match =
+    /^(const\s+)?(unsigned\s+long|unsigned\s+int|int|long|float|double|bool|boolean|byte)\s+([A-Za-z_]\w*)\s*(?:=\s*([\s\S]+))?$/.exec(
+      statement.trim(),
+    );
+  if (!match) return null;
+  const type = match[2]!.replace(/\s+/g, ' ');
+  return {
+    name: match[3]!,
+    type: (type === 'boolean' ? 'bool' : type) as ArduinoNumericType,
+    constant: Boolean(match[1]),
+    ...(match[4] ? { initializer: match[4] } : {}),
+  };
+}
+
+function declareVariable(
+  declaration: GlobalDeclaration,
+  state: RuntimeState,
+  global = false,
+): void {
+  const { name, type, constant, initializer } = declaration;
+  const scope = state.scopes[state.scopes.length - 1]!;
+  if (scope.has(name)) throw new SyntaxError(`Повторное объявление «${name}» в одной области.`);
+  if (
+    /^(?:true|false|HIGH|LOW|INPUT|OUTPUT|INPUT_PULLUP|LED_BUILTIN|A[0-5]|int|long|float|double|bool|boolean|byte|const|unsigned|void|if|else|for|while)$/.test(
+      name,
+    )
+  )
+    throw new SyntaxError(`Зарезервированное имя «${name}».`);
+  if (constant && !initializer)
+    throw new SyntaxError(`const «${name}» требует начального значения.`);
+  scope.set(name, { type, constant, value: global ? 0 : null });
+  if (initializer) {
+    try {
+      scope.set(name, {
+        type,
+        constant,
+        value: convertValue(evaluateValue(initializer, state), type, state.validateOnly).value,
+      });
+    } catch (error) {
+      // A failed initializer must not leave an invalid half-declared const in
+      // the fault snapshot and accidentally turn the next tick into a Reset.
+      scope.delete(name);
+      throw error;
+    }
+  }
 }
 
 function globalDeclarations(source: string): readonly GlobalDeclaration[] {
@@ -1133,15 +1323,12 @@ function globalDeclarations(source: string): readonly GlobalDeclaration[] {
   }
 
   return statements.flatMap((statement) => {
-    const declaration =
-      /^(?:const\s+)?(?:unsigned\s+long|int|long|float|double|bool|boolean|byte)\s+([A-Za-z_]\w*)\s*(?:=\s*(.+))?$/i.exec(
-        statement,
-      );
+    const declaration = parseDeclaration(statement);
     if (!declaration) return [];
     return [
       {
-        name: declaration[1]!,
-        ...(declaration[2] ? { initializer: declaration[2] } : {}),
+        ...declaration,
+        line: 1 + (source.slice(0, source.indexOf(statement)).match(/\n/g)?.length ?? 0),
       },
     ];
   });
@@ -1149,19 +1336,7 @@ function globalDeclarations(source: string): readonly GlobalDeclaration[] {
 
 function initializeGlobals(declarations: readonly GlobalDeclaration[], state: RuntimeState): void {
   for (const declaration of declarations) {
-    state.variables.set(
-      declaration.name,
-      declaration.initializer ? evaluate(declaration.initializer, state) : 0,
-    );
-  }
-}
-
-function discardLocalVariables(
-  variables: Map<string, number>,
-  globalNames: ReadonlySet<string>,
-): void {
-  for (const name of variables.keys()) {
-    if (!globalNames.has(name)) variables.delete(name);
+    declareVariable(declaration, state, true);
   }
 }
 
@@ -1170,6 +1345,17 @@ interface ArduinoProgramCompilation {
   readonly setupInstructions: readonly CompiledInstruction[];
   readonly loopInstructions: readonly CompiledInstruction[];
   readonly diagnostics: readonly ArduinoRuntimeDiagnostic[];
+}
+
+function applyScopeInstruction(instruction: ScopeInstruction, scopes: ArduinoScope[]): void {
+  if (instruction.kind === 'enter-scope') {
+    if (scopes.length >= 128)
+      throw new SyntaxError('Превышена допустимая вложенность областей Arduino.');
+    scopes.push(new Map());
+  } else {
+    if (scopes.length <= 2) throw new SyntaxError('Некорректное завершение области Arduino.');
+    scopes.pop();
+  }
 }
 
 function compileArduinoProgram(source: string): ArduinoProgramCompilation {
@@ -1193,13 +1379,20 @@ function compileArduinoProgram(source: string): ArduinoProgramCompilation {
   }
   const setupBody = extractedSetupBody ?? '';
   const loopBody = extractedLoopBody ?? (declaredSetup || declaredLoop ? '' : cleanSource);
-  const setupInstructions = compileStatements(setupBody, [], messages, 'setup');
-  const loopInstructions = compileStatements(loopBody, [], messages, 'loop');
+  const bodyLine = (name: string): number => {
+    const match = new RegExp(`\\bvoid\\s+${name}\\s*\\([^)]*\\)\\s*\\{`).exec(cleanSource);
+    return match
+      ? 1 + (cleanSource.slice(0, match.index + match[0].length).match(/\n/g)?.length ?? 0)
+      : 1;
+  };
+  const setupInstructions = compileStatements(setupBody, [], messages, 'setup', bodyLine('setup'));
+  const loopInstructions = compileStatements(loopBody, [], messages, 'loop', bodyLine('loop'));
   // Parse every instruction, including unreachable branches, before driving GPIO.
   // This is validation of the bounded language, not execution of the sketch.
   if (messages.length === 0) {
     const validation: RuntimeState = {
-      variables: new Map(),
+      scopes: [new Map()],
+      validateOnly: true,
       inputs: {},
       actions: [],
       diagnostics: [],
@@ -1208,20 +1401,22 @@ function compileArduinoProgram(source: string): ArduinoProgramCompilation {
     };
     try {
       initializeGlobals(globalDeclarations(cleanSource), validation);
-      const globals = new Map(validation.variables);
+      const globals = new Map(validation.scopes[0]);
       for (const instructions of [setupInstructions, loopInstructions]) {
-        validation.variables.clear();
-        for (const [name, value] of globals) validation.variables.set(name, value);
+        validation.scopes.splice(0, validation.scopes.length, new Map(globals), new Map());
         for (const instruction of instructions) {
           validation.statementCount = 0;
           validation.actions.length = 0;
           if (instruction.kind === 'branch') evaluate(instruction.condition, validation);
           if (instruction.kind === 'simple')
             executeSimpleStatement(instruction.statement, validation);
+          if (instruction.kind === 'enter-scope' || instruction.kind === 'exit-scope')
+            applyScopeInstruction(instruction, validation.scopes);
         }
       }
     } catch (error) {
-      if (!(error instanceof SyntaxError)) throw error;
+      if (!(error instanceof SyntaxError) && !(error instanceof ArduinoArithmeticError))
+        throw error;
       compileError(messages, `Ошибка программы Arduino: ${error.message}`);
     }
   }
@@ -1259,7 +1454,6 @@ export function advanceArduinoRuntime(
   const compilation = compileArduinoProgram(source);
   const { cleanSource, setupInstructions, loopInstructions } = compilation;
   const declarations = globalDeclarations(cleanSource);
-  const globalNames = new Set(declarations.map((declaration) => declaration.name));
   const fingerprint = programFingerprint(source);
   const targetTimeMs = Math.max(0, finite(simulationTimeMs));
   if (compilation.diagnostics.length > 0) {
@@ -1281,6 +1475,8 @@ export function advanceArduinoRuntime(
         eventQueue: [],
         variables: {},
         locals: {},
+        scopes: [{}, {}],
+        faults: compilation.diagnostics,
         pinModes: {},
         outputVoltages: {},
         tones: {},
@@ -1288,29 +1484,41 @@ export function advanceArduinoRuntime(
       diagnostics: compilation.diagnostics,
     };
   }
-  const previousInstructionCount =
-    previous?.phase === 'setup' ? setupInstructions.length : loopInstructions.length;
+  const previousInstructions = previous?.phase === 'setup' ? setupInstructions : loopInstructions;
   const compatible =
     previous !== undefined &&
     runtimeStateIsValid(previous) &&
     previous.programFingerprint === fingerprint &&
     previous.virtualTimeMs <= targetTimeMs &&
-    previous.programCounter <= previousInstructionCount;
-  if (compatible && previous.virtualTimeMs === targetTimeMs) {
+    previous.programCounter <= previousInstructions.length &&
+    previous.scopes.length ===
+      previousInstructions
+        .slice(0, previous.programCounter)
+        .reduce(
+          (depth, instruction) =>
+            depth +
+            (instruction.kind === 'enter-scope' ? 1 : instruction.kind === 'exit-scope' ? -1 : 0),
+          2,
+        );
+  if (compatible && (previous.virtualTimeMs === targetTimeMs || previous.faults.length > 0)) {
     return {
       setupActions: [],
       loopActions: [],
       events: [],
-      state: previous,
-      diagnostics: [],
+      state:
+        previous.virtualTimeMs === targetTimeMs
+          ? previous
+          : {
+              ...previous,
+              virtualTimeMs: targetTimeMs,
+              resumeAtMs: Math.max(previous.resumeAtMs, targetTimeMs),
+            },
+      diagnostics: previous.faults,
     };
   }
-  const variables = compatible
-    ? new Map<string, number>([
-        ...runtimeVariables(previous.variables),
-        ...runtimeVariables(previous.locals),
-      ])
-    : new Map<string, number>();
+  const scopes: ArduinoScope[] = compatible
+    ? previous.scopes.map((scope) => new Map(Object.entries(scope)))
+    : [new Map()];
   const pinModes = compatible
     ? terminalMap(previous.pinModes)
     : new Map<Terminal, ArduinoPinMode>();
@@ -1354,7 +1562,7 @@ export function advanceArduinoRuntime(
 
   if (!compatible) {
     const initializationState: RuntimeState = {
-      variables,
+      scopes,
       get inputs() {
         return readInputs
           ? readInputs({ simulationTimeMs: resumeAtMs, pinModes, outputVoltages, tones })
@@ -1365,7 +1573,22 @@ export function advanceArduinoRuntime(
       simulationTimeMs: resetAtMs,
       statementCount: 0,
     };
-    initializeGlobals(declarations, initializationState);
+    for (const declaration of declarations) {
+      try {
+        declareVariable(declaration, initializationState, true);
+      } catch (error) {
+        if (!(error instanceof SyntaxError) && !(error instanceof ArduinoArithmeticError))
+          throw error;
+        diagnostics.push({
+          code: error instanceof ArduinoArithmeticError ? 'arithmetic_error' : 'compile_error',
+          severity: 'error',
+          message: `Строка ${declaration.line ?? 1}: ${error.message}`,
+          line: declaration.line ?? 1,
+        });
+        break;
+      }
+    }
+    scopes.push(new Map());
   }
 
   let completedLoops = 0;
@@ -1379,7 +1602,7 @@ export function advanceArduinoRuntime(
     const instructions = phase === 'setup' ? setupInstructions : loopInstructions;
 
     if (phase === 'setup' && programCounter >= instructions.length) {
-      discardLocalVariables(variables, globalNames);
+      scopes.splice(1, scopes.length - 1, new Map());
       phase = 'loop';
       programCounter = 0;
       loopIterationActive = false;
@@ -1395,7 +1618,7 @@ export function advanceArduinoRuntime(
     }
 
     if (phase === 'loop' && programCounter >= instructions.length) {
-      discardLocalVariables(variables, globalNames);
+      scopes.splice(1, scopes.length - 1, new Map());
       programCounter = 0;
       loopIterationActive = false;
       completedLoops += 1;
@@ -1410,10 +1633,15 @@ export function advanceArduinoRuntime(
       programCounter = instruction.target;
       continue;
     }
+    if (instruction.kind === 'enter-scope' || instruction.kind === 'exit-scope') {
+      applyScopeInstruction(instruction, scopes);
+      programCounter += 1;
+      continue;
+    }
 
     const actions = phase === 'setup' ? setupActions : loopActions;
     const instructionState: RuntimeState = {
-      variables,
+      scopes,
       get inputs() {
         return readInputs
           ? readInputs({ simulationTimeMs: resumeAtMs, pinModes, outputVoltages, tones })
@@ -1433,7 +1661,7 @@ export function advanceArduinoRuntime(
           evaluate(instruction.condition, instructionState) !== 0
             ? programCounter + 1
             : instruction.falseTarget;
-      } else {
+      } else if (instruction.kind === 'simple') {
         const actionStart = actions.length;
         executeSimpleStatement(instruction.statement, instructionState);
         programCounter += 1;
@@ -1448,8 +1676,14 @@ export function advanceArduinoRuntime(
         }
       }
     } catch (error) {
-      if (!(error instanceof SyntaxError)) throw error;
-      diagnostics.push({ code: 'compile_error', severity: 'error', message: error.message });
+      if (!(error instanceof SyntaxError) && !(error instanceof ArduinoArithmeticError))
+        throw error;
+      diagnostics.push({
+        code: error instanceof ArduinoArithmeticError ? 'arithmetic_error' : 'compile_error',
+        severity: 'error',
+        message: `Строка ${instruction.line}: ${error.message}`,
+        line: instruction.line,
+      });
     }
     const consumed = instructionState.statementCount - statementCountBefore;
     advanceStatementCount += consumed;
@@ -1481,6 +1715,17 @@ export function advanceArduinoRuntime(
     });
   }
 
+  if (diagnostics.length > 0) {
+    setupActions.length = 0;
+    loopActions.length = 0;
+    events.length = 0;
+    eventQueue.length = 0;
+    nextEventSequence = 0;
+    pinModes.clear();
+    outputVoltages.clear();
+    tones.clear();
+    resumeAtMs = Math.max(resumeAtMs, targetTimeMs);
+  }
   return {
     setupActions,
     loopActions,
@@ -1497,12 +1742,10 @@ export function advanceArduinoRuntime(
       loopIterations,
       nextEventSequence,
       eventQueue,
-      variables: serializableVariables(
-        new Map([...variables].filter(([name]) => globalNames.has(name))),
-      ),
-      locals: serializableVariables(
-        new Map([...variables].filter(([name]) => !globalNames.has(name))),
-      ),
+      variables: scopeNumbers(scopes.slice(0, 1)),
+      locals: scopeNumbers(scopes.slice(1)),
+      scopes: serializeScopes(scopes),
+      faults: diagnostics,
       pinModes: sortedRecord(pinModes),
       outputVoltages: sortedRecord(outputVoltages),
       tones: sortedRecord(tones),
