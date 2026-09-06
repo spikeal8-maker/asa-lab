@@ -648,6 +648,11 @@ test.describe('Boolean result recovery', () => {
     expect(retryBounds!.height).toBeGreaterThanOrEqual(44);
     expect(retryBounds!.x).toBeGreaterThanOrEqual(0);
     expect(retryBounds!.x + retryBounds!.width).toBeLessThanOrEqual(390);
+    const workplaneSettings = await page
+      .getByRole('button', { name: 'Параметры', exact: true })
+      .boundingBox();
+    expect(workplaneSettings).not.toBeNull();
+    expect(retryBounds!.y + retryBounds!.height).toBeLessThan(workplaneSettings!.y);
     await page.screenshot({
       path: 'e2e/artifacts/three-d/boolean-stale-mobile.png',
       fullPage: true,

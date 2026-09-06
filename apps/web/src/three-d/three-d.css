@@ -643,7 +643,7 @@ button.asa3d-save-recovery {
 .asa3d-geometry-notice {
   position: absolute;
   right: 12px;
-  bottom: 42px;
+  bottom: 80px;
   z-index: 7;
   display: grid;
   gap: 6px;
