@@ -9,6 +9,7 @@ import {
   snapToStep,
   canDragOnPlane,
   dragPlaneHeight,
+  placeMeasurementLabel,
 } from './manipulation';
 
 export interface DirectManipulationEntry {
@@ -114,6 +115,9 @@ interface ScreenRectangle {
 interface LabelAnchor {
   readonly element: HTMLDivElement;
   readonly point: THREE.Vector3;
+  readonly editable: boolean;
+  readonly width: number;
+  readonly height: number;
 }
 
 type MeasurementDescriptor = HandleDescriptor | { readonly id: 'move'; readonly kind: 'move' };
@@ -1990,7 +1994,14 @@ export class DirectManipulator {
       element.textContent = text;
     }
     this.overlay.append(element);
-    this.labelAnchors.push({ element, point });
+    // Measure once when the label is built, not on every animation frame.
+    this.labelAnchors.push({
+      element,
+      point,
+      editable: Boolean(edit && this.measurementEditingEnabled),
+      width: element.offsetWidth,
+      height: element.offsetHeight,
+    });
     this.updateLabelPositions();
   }
 
@@ -2078,14 +2089,28 @@ export class DirectManipulator {
   }
 
   private updateLabelPositions(): void {
+    if (this.labelAnchors.length === 0) return;
     const width = Math.max(1, this.canvas.clientWidth);
     const height = Math.max(1, this.canvas.clientHeight);
+    const handlePoints = [...this.handles.values()]
+      .filter((visual) => visual.root.visible)
+      .map((visual) => {
+        const projected = visual.root.position.clone().project(this.camera);
+        return { x: (projected.x * 0.5 + 0.5) * width, y: (-projected.y * 0.5 + 0.5) * height };
+      });
     for (const anchor of this.labelAnchors) {
       const projected = anchor.point.clone().project(this.camera);
       const visible = projected.z >= -1 && projected.z <= 1;
-      anchor.element.style.display = visible ? 'block' : 'none';
-      anchor.element.style.left = `${(projected.x * 0.5 + 0.5) * width}px`;
-      anchor.element.style.top = `${(-projected.y * 0.5 + 0.5) * height}px`;
+      anchor.element.style.display = visible ? (anchor.editable ? 'inline-flex' : 'block') : 'none';
+      const point = {
+        x: (projected.x * 0.5 + 0.5) * width,
+        y: (-projected.y * 0.5 + 0.5) * height,
+      };
+      const placed = anchor.editable
+        ? placeMeasurementLabel(point, anchor, { width, height }, handlePoints)
+        : point;
+      anchor.element.style.left = `${placed.x}px`;
+      anchor.element.style.top = `${placed.y}px`;
     }
   }
 

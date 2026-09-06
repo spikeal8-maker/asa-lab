@@ -8,9 +8,38 @@ import {
   snapToStep,
   canDragOnPlane,
   dragPlaneHeight,
+  placeMeasurementLabel,
 } from '../viewport/manipulation';
 
 describe('ASA 3D direct-manipulation math', () => {
+  it('keeps an editable lift/angle value away from all neighbouring handles', () => {
+    const handles = [
+      { x: 566, y: 408 },
+      { x: 535, y: 435 },
+      { x: 530, y: 380 },
+    ];
+    const placed = placeMeasurementLabel(
+      { x: 540, y: 408 },
+      { width: 82, height: 26 },
+      { width: 1000, height: 700 },
+      handles,
+    );
+    for (const handle of handles)
+      expect(Math.abs(placed.x - handle.x) >= 57 || Math.abs(placed.y - handle.y) >= 29).toBe(true);
+  });
+
+  it('keeps editable measurements on a phone screen without moving unobstructed labels', () => {
+    const size = { width: 82, height: 26 };
+    const viewport = { width: 390, height: 250 };
+    expect(placeMeasurementLabel({ x: 100, y: 150 }, size, viewport, [])).toEqual({
+      x: 100,
+      y: 150,
+    });
+    const placed = placeMeasurementLabel({ x: 380, y: 248 }, size, viewport, [{ x: 345, y: 232 }]);
+    expect(placed.x + 41).toBeLessThanOrEqual(386);
+    expect(placed.y + 13).toBeLessThanOrEqual(246);
+    expect(Math.abs(placed.x - 345) >= 57 || Math.abs(placed.y - 232) >= 29).toBe(true);
+  });
   it('snaps positions to the active millimetre grid', () => {
     expect(snapToStep(4.49, 1)).toBe(4);
     expect(snapToStep(4.51, 1)).toBe(5);

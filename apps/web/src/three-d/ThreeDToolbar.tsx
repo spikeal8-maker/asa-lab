@@ -12,6 +12,24 @@ import {
 } from '../electronics/workbench-icons';
 import { AlignIcon, GridIcon, GroupIcon, RulerIcon, UngroupIcon } from './three-d-icons';
 
+const MOBILE_LABELS: Readonly<Record<string, string>> = {
+  copy: 'Копировать',
+  paste: 'Вставить',
+  duplicate: 'Дублировать',
+  delete: 'Удалить',
+  undo: 'Отменить',
+  redo: 'Повторить',
+  bundle: 'Собрать в группу',
+  group: 'Объединить тела',
+  ungroup: 'Разгруппировать',
+  align: 'Выровнять',
+  mirror: 'Отразить',
+  cruise: 'На поверхность',
+  ruler: 'Линейка',
+  workplane: 'Рабочая плоскость',
+  drop: 'Опустить на плоскость',
+};
+
 interface ToolbarButtonProps {
   readonly command: string;
   readonly label: string;
@@ -38,6 +56,9 @@ function ToolbarButton({
       title={label}
       aria-label={label}
       aria-pressed={active || undefined}
+      data-mobile-label={
+        MOBILE_LABELS[command] ?? (label.startsWith('Скрыть') ? 'Скрыть' : 'Показать всё')
+      }
       data-command={command}
       disabled={disabled}
       onClick={onClick}

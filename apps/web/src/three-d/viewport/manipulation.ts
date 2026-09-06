@@ -129,3 +129,43 @@ export const GRAZING_LIMIT = 0.08;
 export function canDragOnPlane(rayDotPlaneNormal: number): boolean {
   return Math.abs(rayDotPlaneNormal) >= GRAZING_LIMIT;
 }
+
+interface ScreenPoint {
+  readonly x: number;
+  readonly y: number;
+}
+
+/** Editable labels must not intercept a neighbouring resize/rotation handle. */
+export function placeMeasurementLabel(
+  anchor: ScreenPoint,
+  size: { readonly width: number; readonly height: number },
+  viewport: { readonly width: number; readonly height: number },
+  handles: readonly ScreenPoint[],
+): ScreenPoint {
+  const halfWidth = size.width / 2;
+  const halfHeight = size.height / 2;
+  const clamp = (value: number, half: number, limit: number): number =>
+    Math.max(half + 4, Math.min(limit - half - 4, value));
+  const candidates = [
+    anchor,
+    ...handles.flatMap((handle) => [
+      { x: anchor.x, y: handle.y - halfHeight - 18 },
+      { x: anchor.x, y: handle.y + halfHeight + 18 },
+      { x: handle.x - halfWidth - 18, y: anchor.y },
+      { x: handle.x + halfWidth + 18, y: anchor.y },
+    ]),
+  ].map((point) => ({
+    x: clamp(point.x, halfWidth, viewport.width),
+    y: clamp(point.y, halfHeight, viewport.height),
+  }));
+  const score = (point: ScreenPoint): number =>
+    handles.filter(
+      (handle) =>
+        Math.abs(point.x - handle.x) < halfWidth + 16 &&
+        Math.abs(point.y - handle.y) < halfHeight + 16,
+    ).length *
+      1e9 +
+    (point.x - anchor.x) ** 2 +
+    (point.y - anchor.y) ** 2;
+  return candidates.reduce((best, point) => (score(point) < score(best) ? point : best));
+}

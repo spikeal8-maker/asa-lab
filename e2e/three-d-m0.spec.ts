@@ -589,6 +589,17 @@ test.describe('Boolean result recovery', () => {
     };
     const addBox = async () => {
       await page.getByRole('button', { name: 'Добавить фигуру', exact: true }).tap();
+      const boxCard = page.getByRole('button', { name: 'Параллелепипед', exact: true });
+      await boxCard.scrollIntoViewIfNeeded();
+      const cardBounds = (await boxCard.boundingBox())!;
+      const captionBounds = (await boxCard.locator('small').boundingBox())!;
+      const libraryBounds = (await page.getByLabel('Библиотека форм').boundingBox())!;
+      expect(cardBounds.height).toBeGreaterThanOrEqual(44);
+      expect(captionBounds.y + captionBounds.height).toBeLessThanOrEqual(
+        Math.min(cardBounds.y + cardBounds.height, libraryBounds.y + libraryBounds.height),
+      );
+      expect(cardBounds.y + cardBounds.height).toBeLessThanOrEqual(844);
+      await page.screenshot({ path: 'e2e/artifacts/three-d/r2-phone-library.png', fullPage: true });
       await page.getByRole('button', { name: 'Параллелепипед', exact: true }).tap();
       await expect(
         page.getByRole('button', { name: 'Добавить фигуру', exact: true }),
@@ -605,6 +616,26 @@ test.describe('Boolean result recovery', () => {
     };
     await addBox();
     await dimensions('30', '30', '30');
+    const inspector = page.getByTestId('asa3d-shape-inspector');
+    expect((await inspector.boundingBox())!.height).toBeLessThanOrEqual(360);
+    expect(
+      await inspector
+        .locator('.asa3d-compact-range')
+        .evaluateAll((rows) => rows.every((row) => row.getBoundingClientRect().height <= 34)),
+    ).toBe(true);
+    expect(
+      await page.getByLabel('Высота, мм').evaluate((input) => {
+        const bounds = input.getBoundingClientRect();
+        return (
+          input ===
+          document.elementFromPoint(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2)
+        );
+      }),
+    ).toBe(true);
+    await page.screenshot({
+      path: 'e2e/artifacts/three-d/r2-phone-properties.png',
+      fullPage: true,
+    });
     await page.getByRole('button', { name: 'Свернуть параметры', exact: true }).tap();
     const first = await directHandlePoint(page, 'resize-east');
     const firstSurface = {

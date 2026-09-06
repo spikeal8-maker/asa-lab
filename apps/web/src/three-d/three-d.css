@@ -1978,12 +1978,17 @@ button.asa3d-save-recovery {
   align-items: center;
   gap: 4px;
   min-height: 22px;
+  margin: 0;
   color: #526978;
   font-size: 11px;
 }
 
 .asa3d-compact-range input[type='range'] {
   min-width: 0;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  background: transparent;
   accent-color: #079cca;
 }
 
@@ -2007,6 +2012,7 @@ button.asa3d-save-recovery {
   align-items: center;
   gap: 4px;
   min-height: 28px;
+  margin: 0;
   color: #526978;
   font-size: 11px;
 }
@@ -2602,8 +2608,8 @@ button.asa3d-save-recovery {
     border: 1px solid var(--asa3d-line);
   }
   .asa3d-toolbox .asa3d-tool::after {
-    content: attr(aria-label);
-    font-size: 11px;
+    content: attr(data-mobile-label);
+    font-size: 12px;
     text-align: left;
     line-height: 1.3;
   }
@@ -2611,6 +2617,10 @@ button.asa3d-save-recovery {
     flex: 0 0 22px;
     width: 22px;
     height: 22px;
+  }
+  .asa3d-toolbox .asa3d-split-tool > .asa3d-tool {
+    flex: 1 1 auto;
+    width: auto;
   }
   .asa3d-toolbox .asa3d-actions {
     position: static;
@@ -2711,7 +2721,9 @@ button.asa3d-save-recovery {
   }
   .asa3d-library[data-mobile-expanded='true'] .asa3d-library-title {
     grid-row: 2;
+    height: 36px;
     min-height: 36px;
+    margin: 0;
   }
   .asa3d-library[data-mobile-expanded='true'] .asa3d-shape-grid {
     grid-row: 3;
@@ -2720,6 +2732,13 @@ button.asa3d-save-recovery {
     box-sizing: border-box;
   }
   .asa3d-library[data-mobile-expanded='true'] .asa3d-shape-card {
+    min-height: 0;
+    grid-template-rows: minmax(0, 1fr) auto;
+    padding: 4px 2px;
+  }
+  .asa3d-library[data-mobile-expanded='true'] .asa3d-shape-thumbnail {
+    height: 100%;
+    max-height: 70px;
     min-height: 0;
   }
   .asa3d-library[data-mobile-expanded='true'] .asa3d-shape-card small {
@@ -2731,9 +2750,14 @@ button.asa3d-save-recovery {
     white-space: normal;
     background: none;
     color: var(--asa3d-ink);
+    max-height: 2.3em;
+    padding: 0 2px;
+    box-shadow: none;
   }
 
   .asa3d-library {
+    display: grid;
+    min-height: 0;
     grid-row: 2;
     grid-template-rows: 40px minmax(0, 1fr);
     overflow-x: auto;
