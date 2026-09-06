@@ -99,17 +99,25 @@ function extendFromCentre(
 }
 
 async function createThreeDProject(page: Page, title: string): Promise<void> {
-  await page.getByRole('button', { name: 'Создать проект', exact: true }).click();
-  await page.getByLabel('Название проекта').fill(title);
-  const tile = page.locator('.module-tile').filter({ hasText: 'ASA 3D' });
-  await expect(tile).toContainText('Браузерное 3D-моделирование');
-  await tile.click();
-  await page.getByRole('dialog').getByRole('button', { name: 'Создать проект' }).click();
+  const createMenu = page.locator('.portal-quick-create:visible');
+  await createMenu.locator('> summary').click();
+  await createMenu.getByRole('button', { name: /^3D модель/ }).click();
   await expect(page.getByTestId('asa3d-viewport')).toBeVisible({ timeout: 20_000 });
   await expect(page.getByTestId('asa3d-viewport')).toHaveAttribute('data-runtime-ready', 'true', {
     timeout: 20_000,
   });
-  await expect(page).toHaveURL(/#\/3d\/[^/?#]+\?returnTo=%2Fprojects$/);
+  await expect(page).toHaveURL(/#\/3d\/[^/?#]+\?returnTo=%2Fhome$/);
+  const titleField = page.getByLabel('Название проекта', { exact: true });
+  await expect(titleField).toHaveValue(/^3D модель \d+$/);
+  await titleField.fill(title);
+  const renamed = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'PATCH' &&
+      /\/api\/projects\/[^/]+$/.test(new URL(response.url()).pathname),
+  );
+  await titleField.press('Enter');
+  expect((await renamed).ok()).toBe(true);
+  await expect(titleField).toHaveValue(title);
 
   const toolbar = page.getByRole('toolbar', { name: 'Инструменты редактора' });
   await expect(toolbar.locator('[data-command]')).toHaveCount(16);
