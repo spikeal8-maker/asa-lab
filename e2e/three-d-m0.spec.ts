@@ -631,7 +631,10 @@ test.describe('Boolean result recovery', () => {
       ]);
       expect(await download.failure()).toBeNull();
       const nodes: unknown = JSON.parse(readFileSync((await download.path())!, 'utf8')).nodes;
-      await page.getByRole('button', { name: 'Все инструменты' }).tap();
+      await expect(page.getByRole('button', { name: 'Все инструменты' })).toHaveAttribute(
+        'aria-expanded',
+        'false',
+      );
       return nodes;
     };
     const original = await exportNodes();
@@ -640,6 +643,7 @@ test.describe('Boolean result recovery', () => {
     const distance = (state: number[]) =>
       Math.hypot(state[0] - state[3], state[1] - state[4], state[2] - state[5]);
     const initialCamera = await camera();
+    expect(await page.evaluate(() => document.elementFromPoint(330, 550)?.tagName)).toBe('CANVAS');
     await touch('touchStart', [{ id: 1, x: 330, y: 550 }]);
     await touch('touchMove', [{ id: 1, x: 280, y: 520 }]);
     await touch('touchEnd');
