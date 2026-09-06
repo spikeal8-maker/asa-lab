@@ -10,11 +10,22 @@ import type { ElectronicsDocument, SchematicComponent } from './document.js';
 import { simulationInputDigest } from './simulation-input-digest.js';
 import { electricalModelFor } from './model-registry.js';
 import { compileCircuit, verifyCircuitQuality, type SimulationQuality } from './simulation.js';
-import { solveCircuitWithHeldArduino, type SolveResult } from './solver.js';
+import {
+  clockedRcStateIsCompatible,
+  solveCircuitWithHeldArduino,
+  solveRcCircuitWithHeldArduino,
+  type SolveResult,
+} from './solver.js';
+import {
+  isElectrolyticCapacitor,
+  type CapacitorTransientState,
+} from './models/capacitor-transient-model.js';
 
 const MAX_TIME_US = 2 ** 50 - 1001;
 const MAX_INPUT_EVENTS = 1024;
 const MAX_BOARDS = 8;
+// Fixed barriers independent of UI refresh times. Adaptive trial steps stay inside each barrier.
+const PHYSICS_QUANTUM_US = 1000;
 
 export interface ArduinoCircuitInputEvent {
   readonly atMicroseconds: number;
@@ -25,12 +36,14 @@ export interface ArduinoCircuitInputEvent {
 
 export interface ArduinoCircuitClockState {
   readonly version: 1;
-  readonly profile: 'dc-inputs-v1';
+  readonly profile: 'dc-inputs-v1' | 'rc-inputs-v1';
   readonly documentDigest: string;
   readonly reachedMicroseconds: number;
   /** Ordered, append-only history. Array index is the stable event sequence. */
   readonly inputs: readonly ArduinoCircuitInputEvent[];
   readonly nextInputIndex: number;
+  /** Committed physics at the last clock barrier, NOT a speculative UI-horizon sample. */
+  readonly physicalState?: CapacitorTransientState;
   readonly boards: readonly {
     readonly componentId: string;
     readonly runtime: ArduinoRuntimeState;
@@ -55,7 +68,7 @@ function integerTime(value: number): boolean {
   return Number.isSafeInteger(value) && value >= 0 && value <= MAX_TIME_US;
 }
 
-function dcComponent(component: SchematicComponent): boolean {
+function clockedComponent(component: SchematicComponent): boolean {
   // A narrow, opt-in electrical profile. Do not silently freeze physical history.
   const model = electricalModelFor(component);
   return (
@@ -70,6 +83,7 @@ function dcComponent(component: SchematicComponent): boolean {
       'breadboard-connectivity',
       'ideal-wire',
       'ideal-dc-source',
+      'capacitor',
     ].includes(model.id)
   );
 }
@@ -129,8 +143,8 @@ function applyInput(
 }
 
 /**
- * ARD-3A8B1 opt-in DC coupling, not the web/transient solver's default clock.
- * Inputs at t, then a frozen electrical sample, then one instruction per due board.
+ * Opt-in DC/RC coupling, not the web/transient solver's default clock.
+ * Advance physics with old GPIO/inputs to t; apply inputs, sample, execute due boards together.
  * Simultaneous boards see the same pre-instruction frame, never a peer's future.
  * The caller supplies the full input history (or omits it to keep the old history).
  */
@@ -158,11 +172,14 @@ export function advanceArduinoCircuitClock(
   const budget = options.maxClockEvents ?? 256;
   if (!Number.isInteger(budget) || budget < 1 || budget > 1024)
     return fault('invalid_clock_budget', 'Квант общего scheduler: от 1 до 1024 отметок времени.');
-  const unsupported = document.components.find((component) => !dcComponent(component));
+  const profile = document.components.some(isElectrolyticCapacitor)
+    ? 'rc-inputs-v1'
+    : 'dc-inputs-v1';
+  const unsupported = document.components.find((component) => !clockedComponent(component));
   if (unsupported)
     return fault(
       'clocked_profile_unsupported',
-      `${unsupported.id}: профиль dc-inputs-v1 ещё не поддерживает временное сопряжение этого компонента.`,
+      `${unsupported.id}: общий DC/RC clock ещё не поддерживает временное сопряжение этого компонента.`,
     );
   const boards = document.components
     .filter(isArduinoUno)
@@ -188,10 +205,24 @@ export function advanceArduinoCircuitClock(
   if (previous) {
     if (
       previous.version !== 1 ||
-      previous.profile !== 'dc-inputs-v1' ||
+      previous.profile !== profile ||
       previous.documentDigest !== digest ||
       !integerTime(previous.reachedMicroseconds) ||
       previous.reachedMicroseconds > targetMicroseconds ||
+      (profile === 'rc-inputs-v1'
+        ? !previous.physicalState ||
+          !clockedRcStateIsCompatible(
+            document,
+            previous.physicalState,
+            previous.reachedMicroseconds / 1000,
+          ) ||
+          !integerTime(Math.round(previous.physicalState.simulationTimeMs * 1000)) ||
+          Math.round(previous.physicalState.simulationTimeMs * 1000) / 1000 !==
+            previous.physicalState.simulationTimeMs ||
+          previous.reachedMicroseconds -
+            Math.round(previous.physicalState.simulationTimeMs * 1000) >=
+            PHYSICS_QUANTUM_US
+        : previous.physicalState !== undefined) ||
       !validInputs(document, previous.inputs) ||
       !Number.isInteger(previous.nextInputIndex) ||
       previous.nextInputIndex < 0 ||
@@ -245,26 +276,53 @@ export function advanceArduinoCircuitClock(
   );
   const coldState = advanceClockedArduinoRuntime('').state;
   let reachedMicroseconds = previous?.reachedMicroseconds ?? -1;
+  let physicalState = previous?.physicalState;
   const events: (ArduinoRuntimeEvent & { readonly componentId: string })[] = [];
   let cachedFrame: NonNullable<ArduinoCircuitClockAdvance['result']> | undefined;
-  const sample = (time: number): NonNullable<ArduinoCircuitClockAdvance['result']> => {
-    if (cachedFrame) return cachedFrame;
-    const frame = solveCircuitWithHeldArduino(
-      activeDocument,
-      time / 1000,
-      new Map(
-        boards.map(
-          (board) =>
-            [board.id, arduinoSnapshotFromState(states.get(board.id) ?? coldState)] as const,
-        ),
+  let cachedFrameTime = -1;
+  const snapshots = () =>
+    new Map(
+      boards.map(
+        (board) => [board.id, arduinoSnapshotFromState(states.get(board.id) ?? coldState)] as const,
       ),
     );
-    cachedFrame = {
-      ...frame,
-      quality: verifyCircuitQuality(activeDocument, compileCircuit(activeDocument), frame, {
-        simulationTimeMs: time / 1000,
-      }),
-    };
+  const withQuality = (
+    frame: SolveResult,
+    time: number,
+  ): NonNullable<ArduinoCircuitClockAdvance['result']> => ({
+    ...frame,
+    quality: verifyCircuitQuality(activeDocument, compileCircuit(activeDocument), frame, {
+      simulationTimeMs: time / 1000,
+    }),
+  });
+  const advancePhysics = (time: number) =>
+    withQuality(
+      solveRcCircuitWithHeldArduino(activeDocument, time / 1000, snapshots(), physicalState),
+      time,
+    );
+  const sample = (time: number): NonNullable<ArduinoCircuitClockAdvance['result']> => {
+    if (cachedFrame && (profile === 'dc-inputs-v1' || cachedFrameTime === time)) return cachedFrame;
+    if (profile === 'rc-inputs-v1') {
+      // A horizon between canonical events may be observed but never committed:
+      // otherwise UI frame rate would change adaptive integration and later ADC reads.
+      const advanced = advancePhysics(time);
+      if (!advanced.solved || !advanced.quality.passed) return advanced;
+      cachedFrame = withQuality(
+        solveRcCircuitWithHeldArduino(
+          activeDocument,
+          time / 1000,
+          snapshots(),
+          advanced.transientState,
+        ),
+        time,
+      );
+    } else {
+      cachedFrame = withQuality(
+        solveCircuitWithHeldArduino(activeDocument, time / 1000, snapshots()),
+        time,
+      );
+    }
+    cachedFrameTime = time;
     return cachedFrame;
   };
   const nextTime = (): number =>
@@ -274,11 +332,29 @@ export function advanceArduinoCircuitClock(
         return state ? Math.round(state.resumeAtMs * 1000) : 0;
       }),
       inputs[nextInputIndex]?.atMicroseconds ?? Number.POSITIVE_INFINITY,
+      profile === 'rc-inputs-v1'
+        ? (Math.floor(
+            Math.round((physicalState?.simulationTimeMs ?? 0) * 1000) / PHYSICS_QUANTUM_US,
+          ) +
+            1) *
+            PHYSICS_QUANTUM_US
+        : Number.POSITIVE_INFINITY,
     );
   // A returned frame is never a speculative MCU state. Failure discards this whole batch.
   let clockEvents = 0;
   while (nextTime() <= targetMicroseconds && clockEvents < budget) {
     const time = nextTime();
+    if (profile === 'rc-inputs-v1') {
+      const advanced = advancePhysics(time);
+      if (!advanced.solved || !advanced.quality.passed || !advanced.transientState)
+        return fault(
+          'physical_advance_failed',
+          advanced.diagnostics.map((entry) => entry.message).join(' ') ||
+            'Не выполнены проверки переходного расчёта.',
+        );
+      physicalState = advanced.transientState;
+      cachedFrame = undefined;
+    }
     while (inputs[nextInputIndex]?.atMicroseconds === time) {
       activeDocument = applyInput(activeDocument, inputs[nextInputIndex++]!);
       cachedFrame = undefined;
@@ -317,7 +393,7 @@ export function advanceArduinoCircuitClock(
       ) {
         return fault(
           'clocked_profile_unsupported',
-          'tone требует планирования периферийных фронтов; dc-inputs-v1 не подменяет его постоянным напряжением.',
+          'tone требует планирования периферийных фронтов; общий DC/RC clock не подменяет его постоянным напряжением.',
         );
       }
       updates.push([board.id, advanced.state]);
@@ -347,11 +423,12 @@ export function advanceArduinoCircuitClock(
   }
   const state: ArduinoCircuitClockState = {
     version: 1,
-    profile: 'dc-inputs-v1',
+    profile,
     documentDigest: digest,
     reachedMicroseconds,
     inputs: inputs.map((event) => ({ ...event })),
     nextInputIndex,
+    ...(physicalState ? { physicalState } : {}),
     boards: boards.map((board) => ({ componentId: board.id, runtime: states.get(board.id)! })),
   };
   let result: ArduinoCircuitClockAdvance['result'] = null;

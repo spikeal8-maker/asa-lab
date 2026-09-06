@@ -377,7 +377,11 @@ interface InternalSolveOptions extends SolveOptions {
   readonly arduinoInputVoltagesById?: Readonly<Record<string, ArduinoTerminalVoltages>>;
   readonly arduinoRuntimeStateById?: Readonly<Record<string, ArduinoRuntimeState>>;
   /** Internal read-only electrical solve: never advances the controller. */
-  readonly heldArduinoSnapshots?: ReadonlyMap<string, ArduinoRuntimeSnapshot>;
+  readonly heldArduinoSnapshots?: ReadonlyMap<string, ArduinoRuntimeSnapshot> | undefined;
+  /** RC clock only: honour t=0/sub-ms horizons and allow zero-duration observation. */
+  readonly clockedRcTransient?: boolean;
+  /** Algebraic event frame: preserve capacitor voltage, solve its instantaneous current. */
+  readonly holdCapacitorVoltages?: boolean | undefined;
 }
 
 const GMIN = 1e-12;
@@ -1133,13 +1137,16 @@ function solveCircuitBase(
   const requestedTimeMs = Number.isFinite(options.simulationTimeMs)
     ? Math.max(0, options.simulationTimeMs ?? 0)
     : 0;
-  const targetTimeMs = Math.max(TRANSIENT_INITIAL_SAMPLE_MS, requestedTimeMs);
+  const targetTimeMs = options.clockedRcTransient
+    ? requestedTimeMs
+    : Math.max(TRANSIENT_INITIAL_SAMPLE_MS, requestedTimeMs);
   const compatibleState = capacitorTransientStateIsCompatible(
     options.transientState,
     orderedCapacitors,
     orderedMotors,
     orderedMultimeters,
     targetTimeMs,
+    options.clockedRcTransient,
   )
     ? options.transientState
     : undefined;
@@ -1251,6 +1258,41 @@ function solveCircuitBase(
       .filter((entry) => entry.failureMode === 'winding_open')
       .map((entry) => entry.componentId),
   ]);
+  const physicalState = (): CapacitorTransientState => ({
+    version: 2,
+    simulationTimeMs: targetTimeMs,
+    capacitors: orderedCapacitors.map((component) => {
+      const parameters = capacitorParameters(component);
+      return {
+        componentId: component.id,
+        capacitanceFarad: parameters.capacitanceFarad,
+        initialVoltageVolt: parameters.initialVoltageVolt,
+        voltageRatingVolt: parameters.voltageRatingVolt,
+        voltageVolt: previousVoltageById[component.id] as number,
+      };
+    }),
+    thermal: [...thermalById.values()],
+    bjtRegions: Object.entries(bjtRegionById)
+      .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
+      .map(([componentId, region]) => ({ componentId, region })),
+    motors: orderedMotors.map((component) => motorStateById[component.id]!),
+    multimeterFuses: orderedMultimeters.map((component) => multimeterFuseById.get(component.id)!),
+  });
+  if (options.clockedRcTransient && startTimeMs === targetTimeMs) {
+    const frame = solveCircuitStep(document, {
+      simulationTimeMs: targetTimeMs,
+      heldArduinoSnapshots: options.heldArduinoSnapshots,
+      holdCapacitorVoltages: true,
+      capacitorPreviousVoltageById: previousVoltageById,
+      failedComponentIds,
+      suppressOscilloscopeTrace: true,
+    });
+    return {
+      ...applyThermalObservations(document, frame, thermalById, failedComponentIds),
+      transientState: physicalState(),
+      transientAnalysis: { acceptedSteps: 0, rejectedSteps: 0, minStepMs: 0, maxStepMs: 0 },
+    };
+  }
   let accumulatedIterations = 0;
   let finalResult: SolveResult | null = null;
   let currentTimeMs = startTimeMs;
@@ -1264,6 +1306,9 @@ function solveCircuitBase(
   let rejectedSteps = 0;
   let minStepMs = Number.POSITIVE_INFINITY;
   let maxStepMs = 0;
+  const minimumStepMs = options.clockedRcTransient
+    ? Math.max(1e-6, Number.EPSILON * Math.max(1, targetTimeMs) * 4)
+    : TRANSIENT_MIN_STEP_MS;
 
   const voltageFromResult = (result: SolveResult, componentId: string, fallback: number): number =>
     result.components.find((component) => component.componentId === componentId)?.voltageDrop ??
@@ -1271,7 +1316,12 @@ function solveCircuitBase(
 
   while (currentTimeMs < targetTimeMs && acceptedSteps < TRANSIENT_MAX_ACCEPTED_STEPS) {
     const remainingMs = targetTimeMs - currentTimeMs;
-    const stepMs = Math.min(candidateStepMs, remainingMs);
+    const endpointToleranceMs = options.clockedRcTransient
+      ? Number.EPSILON * Math.max(1, targetTimeMs) * 8
+      : 0;
+    const stepMs =
+      remainingMs <= candidateStepMs + endpointToleranceMs ? remainingMs : candidateStepMs;
+    const stepEndTimeMs = stepMs === remainingMs ? targetTimeMs : currentTimeMs + stepMs;
     const common = {
       capacitorPreviousVoltageById: previousVoltageById,
       bjtPreviousRegionById: bjtRegionById,
@@ -1291,6 +1341,7 @@ function solveCircuitBase(
         ]),
       ),
       arduinoRuntimeStateById,
+      heldArduinoSnapshots: options.heldArduinoSnapshots,
     } as const;
     let acceptedResult: SolveResult;
     let acceptedMotorStateById = motorStateById;
@@ -1299,7 +1350,7 @@ function solveCircuitBase(
     if (orderedCapacitors.length === 0) {
       acceptedResult = solveCircuitStep(document, {
         ...common,
-        simulationTimeMs: currentTimeMs + stepMs,
+        simulationTimeMs: stepEndTimeMs,
         transientStepSeconds: stepMs / 1_000,
       });
       accumulatedIterations += acceptedResult.iterations;
@@ -1319,7 +1370,7 @@ function solveCircuitBase(
       // state instead of asymptotically freezing at VBE.
       const switched = solveCircuitStep(document, {
         ...common,
-        simulationTimeMs: currentTimeMs + stepMs,
+        simulationTimeMs: stepEndTimeMs,
         transientStepSeconds: stepMs / 1_000,
       });
       accumulatedIterations += switched.iterations;
@@ -1345,7 +1396,7 @@ function solveCircuitBase(
     } else {
       const full = solveCircuitStep(document, {
         ...common,
-        simulationTimeMs: currentTimeMs + stepMs,
+        simulationTimeMs: stepEndTimeMs,
         transientStepSeconds: stepMs / 1_000,
       });
       const halfStepMs = stepMs / 2;
@@ -1364,7 +1415,7 @@ function solveCircuitBase(
         ? advanceMotorStates(orderedMotors, motorStateById, firstHalf, halfStepMs / 1_000)
         : motorStateById;
       const secondHalf = solveCircuitStep(document, {
-        simulationTimeMs: currentTimeMs + stepMs,
+        simulationTimeMs: stepEndTimeMs,
         transientStepSeconds: halfStepMs / 1_000,
         capacitorPreviousVoltageById: halfVoltageById,
         bjtPreviousRegionById: bjtRegionById,
@@ -1373,13 +1424,14 @@ function solveCircuitBase(
         failedComponentIds,
         meterFuseBlownById: common.meterFuseBlownById,
         arduinoRuntimeStateById: arduinoRuntimeStatesFromController(firstHalf.controllerState),
+        heldArduinoSnapshots: options.heldArduinoSnapshots,
       });
       accumulatedIterations += full.iterations + firstHalf.iterations + secondHalf.iterations;
       const failedSolve = [full, firstHalf, secondHalf].find((result) => !result.solved);
       if (failedSolve) {
-        if (failedSolve.status === 'nonconvergent' && stepMs > TRANSIENT_MIN_STEP_MS) {
+        if (failedSolve.status === 'nonconvergent' && stepMs > minimumStepMs) {
           rejectedSteps += 1;
-          candidateStepMs = Math.max(TRANSIENT_MIN_STEP_MS, stepMs / 2);
+          candidateStepMs = Math.max(minimumStepMs, stepMs / 2);
           continue;
         }
         return {
@@ -1421,10 +1473,24 @@ function solveCircuitBase(
       );
       const toleranceVolt =
         TRANSIENT_ABSOLUTE_TOLERANCE_VOLT + TRANSIENT_RELATIVE_TOLERANCE * scaleVolt;
-      if (estimatedErrorVolt > toleranceVolt && stepMs > TRANSIENT_MIN_STEP_MS) {
+      if (estimatedErrorVolt > toleranceVolt && stepMs > minimumStepMs) {
         rejectedSteps += 1;
-        candidateStepMs = Math.max(TRANSIENT_MIN_STEP_MS, stepMs / 2);
+        candidateStepMs = Math.max(minimumStepMs, stepMs / 2);
         continue;
+      }
+      if (options.clockedRcTransient && estimatedErrorVolt > toleranceVolt) {
+        return {
+          ...secondHalf,
+          solved: false,
+          status: 'nonconvergent',
+          diagnostics: [
+            {
+              code: 'numerical_instability',
+              severity: 'error',
+              message: 'RC-процесс быстрее допустимого шага: требуемая погрешность не достигнута.',
+            },
+          ],
+        };
       }
       acceptedResult = secondHalf;
     }
@@ -1441,6 +1507,7 @@ function solveCircuitBase(
     }
 
     for (const capacitor of orderedCapacitors) {
+      if (options.clockedRcTransient && failedComponentIds.has(capacitor.id)) continue;
       previousVoltageById[capacitor.id] = voltageFromResult(
         acceptedResult,
         capacitor.id,
@@ -1540,7 +1607,9 @@ function solveCircuitBase(
 
     if (failureOccurred) {
       const postFailure = solveCircuitStep(document, {
-        simulationTimeMs: currentTimeMs + stepMs,
+        heldArduinoSnapshots: options.heldArduinoSnapshots,
+        holdCapacitorVoltages: options.clockedRcTransient,
+        simulationTimeMs: stepEndTimeMs,
         transientStepSeconds: TRANSIENT_FAILURE_EVENT_STEP_MS / 1_000,
         capacitorPreviousVoltageById: previousVoltageById,
         bjtPreviousRegionById: bjtRegionById,
@@ -1562,9 +1631,11 @@ function solveCircuitBase(
         arduinoRuntimeStateById,
       });
       accumulatedIterations += postFailure.iterations;
+      if (options.clockedRcTransient && !postFailure.solved) return postFailure;
       if (postFailure.solved) {
         acceptedResult = postFailure;
         for (const capacitor of orderedCapacitors) {
+          if (options.clockedRcTransient) continue;
           previousVoltageById[capacitor.id] = voltageFromResult(
             postFailure,
             capacitor.id,
@@ -1580,7 +1651,7 @@ function solveCircuitBase(
       thermalById,
       failedComponentIds,
     );
-    currentTimeMs += stepMs;
+    currentTimeMs = stepEndTimeMs;
     acceptedSteps += 1;
     minStepMs = Math.min(minStepMs, stepMs);
     maxStepMs = Math.max(maxStepMs, stepMs);
@@ -1603,6 +1674,7 @@ function solveCircuitBase(
     const result =
       finalResult ??
       solveCircuitStep(document, {
+        heldArduinoSnapshots: options.heldArduinoSnapshots,
         failedComponentIds,
         motorPreviousStateById: motorStateById,
         arduinoRuntimeStateById,
@@ -1634,26 +1706,7 @@ function solveCircuitBase(
   return {
     ...finalResult,
     iterations: accumulatedIterations,
-    transientState: {
-      version: 2,
-      simulationTimeMs: targetTimeMs,
-      capacitors: orderedCapacitors.map((component) => {
-        const parameters = capacitorParameters(component);
-        return {
-          componentId: component.id,
-          capacitanceFarad: parameters.capacitanceFarad,
-          initialVoltageVolt: parameters.initialVoltageVolt,
-          voltageRatingVolt: parameters.voltageRatingVolt,
-          voltageVolt: previousVoltageById[component.id] as number,
-        };
-      }),
-      thermal: [...thermalById.values()],
-      bjtRegions: Object.entries(bjtRegionById)
-        .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
-        .map(([componentId, region]) => ({ componentId, region })),
-      motors: orderedMotors.map((component) => motorStateById[component.id]!),
-      multimeterFuses: orderedMultimeters.map((component) => multimeterFuseById.get(component.id)!),
-    },
+    transientState: physicalState(),
     transientAnalysis: {
       acceptedSteps,
       rejectedSteps,
@@ -1764,12 +1817,15 @@ function capacitorTransientStateIsCompatible(
   motors: readonly SchematicComponent[],
   multimeters: readonly SchematicComponent[],
   targetTimeMs: number,
+  allowSameTime = false,
 ): state is CapacitorTransientState {
   if (
     state?.version !== 2 ||
     !Number.isFinite(state.simulationTimeMs) ||
     state.simulationTimeMs < 0 ||
-    state.simulationTimeMs >= targetTimeMs ||
+    (allowSameTime
+      ? state.simulationTimeMs > targetTimeMs
+      : state.simulationTimeMs >= targetTimeMs) ||
     !Array.isArray(state.capacitors) ||
     !Array.isArray(state.thermal) ||
     state.capacitors.length !== capacitors.length ||
@@ -1824,6 +1880,61 @@ export function solveCircuitWithHeldArduino(
   return solveCircuitStep(document, {
     simulationTimeMs,
     heldArduinoSnapshots: snapshots,
+    suppressOscilloscopeTrace: true,
+  });
+}
+
+/** Validate persisted RC history before the scheduler can consume any of it. */
+export function clockedRcStateIsCompatible(
+  document: ElectronicsDocument,
+  state: CapacitorTransientState,
+  targetTimeMs: number,
+): boolean {
+  const ordered = [...document.components].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  const thermal = ordered.filter((component) => thermalProfileFor(component) !== null);
+  return (
+    capacitorTransientStateIsCompatible(
+      state,
+      ordered.filter(isElectrolyticCapacitor),
+      [],
+      [],
+      targetTimeMs,
+      true,
+    ) &&
+    state.thermal.length === thermal.length &&
+    (state.bjtRegions === undefined ||
+      (Array.isArray(state.bjtRegions) && state.bjtRegions.length === 0)) &&
+    (state.motors === undefined || (Array.isArray(state.motors) && state.motors.length === 0)) &&
+    (state.multimeterFuses === undefined ||
+      (Array.isArray(state.multimeterFuses) && state.multimeterFuses.length === 0)) &&
+    state.thermal.every((entry, index) => {
+      const component = thermal[index]!;
+      return (
+        entry?.componentId === component.id &&
+        entry.profileKey === thermalProfileKey(component, thermalProfileFor(component)!) &&
+        Number.isFinite(entry.temperatureCelsius) &&
+        Number.isFinite(entry.loadRatio) &&
+        entry.loadRatio >= 0 &&
+        Number.isFinite(entry.accumulatedDamage) &&
+        entry.accumulatedDamage >= 0 &&
+        (entry.failureMode === 'none' || entry.failureMode === 'open')
+      );
+    })
+  );
+}
+
+/** RC phase adapter. Caller validates the profile/history; no controller is executed here. */
+export function solveRcCircuitWithHeldArduino(
+  document: ElectronicsDocument,
+  simulationTimeMs: number,
+  snapshots: ReadonlyMap<string, ArduinoRuntimeSnapshot>,
+  transientState?: CapacitorTransientState,
+): SolveResult {
+  return solveCircuitBase(document, {
+    simulationTimeMs,
+    ...(transientState ? { transientState } : {}),
+    heldArduinoSnapshots: snapshots,
+    clockedRcTransient: true,
     suppressOscilloscopeTrace: true,
   });
 }
@@ -2246,6 +2357,12 @@ function solveCircuitStep(
   const stampedVoltageSourceComponents = [
     ...sources,
     ...activeResistanceMeterDevices.map((device) => device.instance.component),
+    ...(options.holdCapacitorVoltages
+      ? document.components.filter(
+          (component) =>
+            isElectrolyticCapacitor(component) && !failedComponentIds.has(component.id),
+        )
+      : []),
   ];
   const size = nodeVariableCount + stampedVoltageSourceComponents.length;
   const diodeBranches = document.components.flatMap((component) =>
@@ -2428,6 +2545,10 @@ function solveCircuitStep(
         const parameters = capacitorParameters(component);
         const previousVoltage =
           options.capacitorPreviousVoltageById?.[component.id] ?? parameters.initialVoltageVolt;
+        if (options.holdCapacitorVoltages) {
+          modelStampContext.stampVoltageSource(component.id, a, b, previousVoltage, 0);
+          continue;
+        }
         const companion = capacitorCompanion(
           parameters,
           previousVoltage,
@@ -2915,7 +3036,7 @@ function solveCircuitStep(
         arduinoBranchResults.find((entry) => entry.branch.id === 'd13')?.voltageDrop ??
         arduinoBranchResults[0]?.voltageDrop ??
         (isSimulated(component) ? voltageAt(component, 'a') - voltageAt(component, 'b') : 0);
-      const capacitorObservation = isElectrolyticCapacitor(component)
+      let capacitorObservation = isElectrolyticCapacitor(component)
         ? observeCapacitor(
             capacitorParameters(component),
             options.capacitorPreviousVoltageById?.[component.id] ??
@@ -2924,6 +3045,12 @@ function solveCircuitStep(
             options.transientStepSeconds ?? TRANSIENT_INITIAL_SAMPLE_MS / 1_000,
           )
         : undefined;
+      if (capacitorObservation && options.holdCapacitorVoltages) {
+        capacitorObservation = {
+          ...capacitorObservation,
+          currentAmp: sourceCurrents.get(component.id) ?? 0,
+        };
+      }
       const motorStep = isBrushedMotor(component)
         ? (() => {
             const profile = brushedMotorProfile(component);

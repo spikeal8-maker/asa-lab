@@ -1155,7 +1155,7 @@ export interface SolveResult {
   };
   topologySignature?: string;
   simulationInputDigest?: string;
-  solverRevision?: 'asa-electronics-solver-v16';
+  solverRevision?: 'asa-electronics-solver-v17';
   modelSetDigest?: string;
   analysis?: {
     electricalMode: 'dc' | 'transient';
