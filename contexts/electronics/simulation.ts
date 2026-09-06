@@ -11,6 +11,13 @@ export type {
 } from './domain/document.js';
 export { buildNetlist, terminalKey, type Netlist } from './domain/netlist.js';
 export {
+  advanceArduinoCircuitClock,
+  type ArduinoCircuitClockAdvance,
+  type ArduinoCircuitClockState,
+  type ArduinoCircuitClockDiagnostic,
+  type ArduinoCircuitInputEvent,
+} from './domain/arduino-circuit-scheduler.js';
+export {
   canonicalElectricalModelRegistry,
   componentModelIdentityIsInstalled,
   electricalModelIdentityForComponent,

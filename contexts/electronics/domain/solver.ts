@@ -1815,6 +1815,19 @@ function capacitorTransientStateIsCompatible(
   );
 }
 
+/** Domain scheduler adapter: the existing MNA solver, with all controllers held. */
+export function solveCircuitWithHeldArduino(
+  document: ElectronicsDocument,
+  simulationTimeMs: number,
+  snapshots: ReadonlyMap<string, ArduinoRuntimeSnapshot>,
+): SolveResult {
+  return solveCircuitStep(document, {
+    simulationTimeMs,
+    heldArduinoSnapshots: snapshots,
+    suppressOscilloscopeTrace: true,
+  });
+}
+
 function solveCircuitStep(
   document: ElectronicsDocument,
   options: InternalSolveOptions = {},

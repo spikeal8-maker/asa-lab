@@ -326,7 +326,7 @@ function runtimeStateIsValid(state: ArduinoRuntimeState): boolean {
     toneEntries.every(([terminal]) => isArduinoGpioTerminal(terminal)) &&
     tones.every(
       (tone) =>
-        tone !== undefined &&
+        tone != null &&
         Number.isFinite(tone.frequencyHz) &&
         tone.frequencyHz >= 1 &&
         tone.frequencyHz <= 20_000 &&
@@ -1461,6 +1461,31 @@ export function analyseArduinoProgramSyntax(source: string): readonly ArduinoRun
   return compileArduinoProgram(source).diagnostics;
 }
 
+/** Validate persisted state before exposing its GPIO to an electrical solver. */
+export function arduinoRuntimeStateMatchesProgram(
+  source: string,
+  state: ArduinoRuntimeState,
+): boolean {
+  if (!state || !runtimeStateIsValid(state)) return false;
+  const compilation = compileArduinoProgram(source);
+  const instructions =
+    state.phase === 'setup' ? compilation.setupInstructions : compilation.loopInstructions;
+  return (
+    compilation.diagnostics.length === 0 &&
+    state.programFingerprint === programFingerprint(source) &&
+    state.programCounter <= instructions.length &&
+    state.scopes.length ===
+      instructions
+        .slice(0, state.programCounter)
+        .reduce(
+          (depth, instruction) =>
+            depth +
+            (instruction.kind === 'enter-scope' ? 1 : instruction.kind === 'exit-scope' ? -1 : 0),
+          2,
+        )
+  );
+}
+
 /** Existing circuit bridge. Kept on its legacy clock until the shared scheduler is ready. */
 export function advanceArduinoRuntime(
   source: string,
@@ -1566,23 +1591,11 @@ function advanceRuntime(
       diagnostics: initialDiagnostics,
     };
   }
-  const previousInstructions = previous?.phase === 'setup' ? setupInstructions : loopInstructions;
   const compatible =
     previous !== undefined &&
-    runtimeStateIsValid(previous) &&
+    arduinoRuntimeStateMatchesProgram(source, previous) &&
     previous.clockProfile === clockProfile &&
-    previous.programFingerprint === fingerprint &&
-    previous.virtualTimeMs <= targetTimeMs &&
-    previous.programCounter <= previousInstructions.length &&
-    previous.scopes.length ===
-      previousInstructions
-        .slice(0, previous.programCounter)
-        .reduce(
-          (depth, instruction) =>
-            depth +
-            (instruction.kind === 'enter-scope' ? 1 : instruction.kind === 'exit-scope' ? -1 : 0),
-          2,
-        );
+    previous.virtualTimeMs <= targetTimeMs;
   if (compatible && (previous.virtualTimeMs === targetTimeMs || previous.faults.length > 0)) {
     return {
       executionStatus: previous.faults.length > 0 ? 'fault' : 'ready',

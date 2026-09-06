@@ -1,5 +1,9 @@
 import { type ElectronicsDocument, type SchematicComponent, type Terminal } from './document.js';
-import { arduinoOutputBranches, isArduinoUno } from './arduino-model.js';
+import {
+  arduinoOutputBranchesFromSnapshot,
+  arduinoSnapshotFromState,
+  isArduinoUno,
+} from './arduino-model.js';
 import { buildNetlist, terminalKey, type Netlist } from './netlist.js';
 import { canonicalElectricalModelRegistry } from './model-identity.js';
 import { canonicalPhotoresistorProfileRegistry } from './photoresistor-model.js';
@@ -57,7 +61,7 @@ export interface SimulationResult extends SolveResult {
   readonly quality: SimulationQuality;
   readonly topologySignature: string;
   readonly simulationInputDigest: string;
-  readonly solverRevision: 'asa-electronics-solver-v15';
+  readonly solverRevision: 'asa-electronics-solver-v16';
   readonly modelSetDigest: string;
   readonly analysis: {
     readonly electricalMode: 'dc' | 'transient';
@@ -364,7 +368,7 @@ function allNumbers(result: SolveResult): readonly number[] {
   ];
 }
 
-function verifyQuality(
+export function verifyCircuitQuality(
   document: ElectronicsDocument,
   compiled: CompiledCircuit,
   result: SolveResult,
@@ -420,7 +424,18 @@ function verifyQuality(
       continue;
     }
     if (isArduinoUno(component)) {
-      for (const branch of arduinoOutputBranches(component, options.simulationTimeMs ?? 0)) {
+      const runtime = result.controllerState?.boards.find(
+        (entry) => entry.componentId === component.id,
+      )?.runtime;
+      // Verification observes the same controller state that supplied MNA. Never
+      // replay a sketch with missing inputs to invent a different source voltage.
+      if (!runtime) return { ...failedQuality(), finite };
+      const branches = arduinoOutputBranchesFromSnapshot(
+        component,
+        arduinoSnapshotFromState(runtime),
+        options.simulationTimeMs ?? 0,
+      );
+      for (const branch of branches) {
         const positive = resultForComponent.terminalVoltages[branch.terminal] ?? 0;
         const ground = resultForComponent.terminalVoltages[branch.ground] ?? 0;
         const currentLeaving = (positive - ground - branch.targetVoltage) / branch.resistanceOhm;
@@ -562,6 +577,9 @@ function verifyQuality(
     (component) =>
       !['wire', 'breadboard'].includes(component.kind) &&
       (component.kind !== 'visual' ||
+        // A partial sum containing loads but omitting their Arduino supply is
+        // not a circuit power balance. Require terminal currents for all parties.
+        isArduinoUno(component) ||
         isElectrolyticCapacitor(component) ||
         component.componentTypeId === 'dc-motor' ||
         component.componentTypeId === 'gearmotor' ||
@@ -684,14 +702,14 @@ export function analyseCircuit(
       quality: failedQuality(),
       topologySignature: compiled.topologySignature,
       simulationInputDigest: inputDigest,
-      solverRevision: 'asa-electronics-solver-v15',
+      solverRevision: 'asa-electronics-solver-v16',
       modelSetDigest: MODEL_SET_DIGEST,
       analysis,
     };
   }
 
   const solved = deterministicSolveResult(solveCircuit(document, options));
-  const quality = verifyQuality(document, compiled, solved, options);
+  const quality = verifyCircuitQuality(document, compiled, solved, options);
   if (solved.solved && !quality.passed) {
     const diagnostic: Diagnostic = {
       code: 'nonconvergent_topology',
@@ -709,7 +727,7 @@ export function analyseCircuit(
       quality,
       topologySignature: compiled.topologySignature,
       simulationInputDigest: inputDigest,
-      solverRevision: 'asa-electronics-solver-v15',
+      solverRevision: 'asa-electronics-solver-v16',
       modelSetDigest: MODEL_SET_DIGEST,
       analysis,
     };
@@ -721,7 +739,7 @@ export function analyseCircuit(
     quality,
     topologySignature: compiled.topologySignature,
     simulationInputDigest: inputDigest,
-    solverRevision: 'asa-electronics-solver-v15',
+    solverRevision: 'asa-electronics-solver-v16',
     modelSetDigest: MODEL_SET_DIGEST,
     analysis,
   };

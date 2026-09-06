@@ -127,7 +127,7 @@ parallel_lanes:
       pr: 170
       pr_draft: false
       status: in_progress
-      checkpoint: ard_3a8_clocked_runtime_foundation_focused_gate_pass_circuit_integration_pending
+      checkpoint: ard_3a8b1_shared_dc_clock_focused_gate_pass_transient_and_ui_pending
       owner_acceptance: pending
     revisions:
       convergence_baseline_sha: 5b052dc631c7036de9d60f4206c9879fe364e732

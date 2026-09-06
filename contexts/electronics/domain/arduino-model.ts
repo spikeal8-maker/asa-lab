@@ -52,7 +52,7 @@ export function isArduinoUno(component: SchematicComponent): boolean {
   return component.componentTypeId === 'arduino-uno' || component.variantId === 'arduino-uno';
 }
 
-function sourceFor(component: SchematicComponent): string {
+export function arduinoSourceFor(component: SchematicComponent): string {
   const storedSource = component.stateProperties?.['arduinoSource'];
   return typeof storedSource === 'string' ? storedSource : DEFAULT_ARDUINO_SOURCE;
 }
@@ -70,19 +70,24 @@ export function arduinoRuntimeSnapshot(
 ): ArduinoRuntimeSnapshot | null {
   if (!isArduinoUno(component)) return null;
   const advanced = advanceArduinoRuntime(
-    sourceFor(component),
+    arduinoSourceFor(component),
     inputVoltages,
     simulationTimeMs,
     previousState,
     readInputs,
   );
+  return arduinoSnapshotFromState(advanced.state);
+}
+
+/** Pure projection of the authoritative runtime; never executes or infers GPIO. */
+export function arduinoSnapshotFromState(state: ArduinoRuntimeState): ArduinoRuntimeSnapshot {
   return {
-    state: advanced.state,
-    diagnostics: advanced.diagnostics,
-    outputs: terminalMap(advanced.state.outputVoltages),
-    pinModes: terminalMap(advanced.state.pinModes),
+    state,
+    diagnostics: state.faults,
+    outputs: terminalMap(state.outputVoltages),
+    pinModes: terminalMap(state.pinModes),
     tones: new Map(
-      Object.entries(advanced.state.tones).map(([terminal, tone]) => [
+      Object.entries(state.tones).map(([terminal, tone]) => [
         terminal as Terminal,
         {
           terminal: terminal as Terminal,
