@@ -2911,6 +2911,7 @@ button.asa3d-save-recovery {
     grid-template-columns: 44px minmax(0, 1fr);
     padding: 0;
     gap: 0;
+    border-bottom: 0;
   }
   .asa3d-inspector.compact > header > input,
   .asa3d-inspector.compact > header > strong,
@@ -2921,7 +2922,7 @@ button.asa3d-save-recovery {
     display: flex;
     min-width: 0;
   }
-  .asa3d-quick-operation button {
+  .asa3d-inspector .asa3d-quick-operation button {
     display: flex;
     align-items: center;
     justify-content: center;
@@ -2934,7 +2935,7 @@ button.asa3d-save-recovery {
     border-left: 1px solid var(--asa3d-line);
     border-radius: 0;
   }
-  .asa3d-quick-operation button[aria-pressed='true'] {
+  .asa3d-inspector .asa3d-quick-operation button[aria-pressed='true'] {
     color: #087ea6;
     background: #edf9fd;
   }

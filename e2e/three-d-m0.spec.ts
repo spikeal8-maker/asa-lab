@@ -591,6 +591,18 @@ test.describe('Boolean result recovery', () => {
     const inspector = page.getByTestId('asa3d-shape-inspector');
     await expect(inspector).toHaveClass(/compact/);
     expect((await inspector.boundingBox())!.height).toBeLessThanOrEqual(46);
+    expect(
+      await inspector.locator('.asa3d-quick-operation button').evaluateAll((buttons) =>
+        buttons.every((button) => {
+          const style = getComputedStyle(button);
+          return (
+            style.display === 'flex' &&
+            parseFloat(style.fontSize) <= 12 &&
+            button.scrollWidth <= button.clientWidth
+          );
+        }),
+      ),
+    ).toBe(true);
     await page.getByRole('button', { name: 'Отверстие', exact: true }).tap();
     await expect(page.getByRole('button', { name: 'Отверстие', exact: true })).toHaveAttribute(
       'aria-pressed',
