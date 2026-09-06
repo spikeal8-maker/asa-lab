@@ -6,6 +6,12 @@ import { loginWithOrganization } from './organization-login';
 import { e2eAdminPool, seedTeacher, type SeededTeacher } from './seed';
 import { createEmptyThreeDDocument, createThreeDNode } from '../contexts/three-d/domain/document';
 
+// Chromium's POSIX filename conversion uses the process locale, not the
+// browser context language. The slim CI image has no UTF-8 locale selected;
+// Cyrillic download names otherwise collapse to the fallback "download".
+// Keep Unicode filenames under test instead of weakening the assertion.
+test.use({ launchOptions: { env: { ...process.env, LANG: 'C.UTF-8', LC_ALL: 'C.UTF-8' } } });
+
 let admin: pg.Pool;
 let teacher: SeededTeacher;
 
