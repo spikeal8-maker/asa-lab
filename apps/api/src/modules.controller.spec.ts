@@ -34,8 +34,8 @@ describe('ModulesController', () => {
       iconKey: 'checkers',
     });
     expect(modules.find((module) => module.moduleKey === 'three-d')).toMatchObject({
-      displayName: 'ASA 3D',
-      defaultProjectTitlePrefix: '3D-модель',
+      displayName: '3D-моделирование',
+      defaultProjectTitlePrefix: '3D модель',
       projectType: 'three-d-scene',
       availability: 'active',
       creatable: true,

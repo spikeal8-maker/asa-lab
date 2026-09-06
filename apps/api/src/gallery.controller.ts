@@ -18,6 +18,7 @@ import type { AccountDirectoryPort, ActiveContextUseCase } from '@asa-lab/identi
 import { hashSessionToken } from '@asa-lab/identity';
 import { SESSION_COOKIE, TOKENS } from './tokens.js';
 import { checkBodyShape } from './validation.js';
+import { cataloguePreview, type CataloguePreviewRow } from './course-preview.js';
 
 /**
  * The gallery: work somebody chose to show, and what people say about it.
@@ -119,6 +120,7 @@ export class GalleryController {
     @Query('sort') sort: string | undefined,
     @Query('module') moduleKey: string | undefined,
     @Query('offset') offset: string | undefined,
+    @Query('limit') limit?: string,
   ) {
     const viewer = await this.requireViewer(request);
     const order = sort === 'popular' ? 'popular' : 'recent';
@@ -128,7 +130,7 @@ export class GalleryController {
       `SELECT project_id, title, module_key, author_label, published_at, snapshot_revision,
               editors_choice, like_count, wow_count, viewer_liked, viewer_wowed, viewer_may_remove
          FROM gallery_list($1, $2, $3, $4, $5)`,
-      [viewer.principalId, order, key, 24, Number.isFinite(skip) ? skip : 0],
+      [viewer.principalId, order, key, limit === '10' ? 10 : 24, Number.isFinite(skip) ? skip : 0],
     );
     return {
       items: (result.rows as GalleryRow[]).map((row) => ({
@@ -146,6 +148,68 @@ export class GalleryController {
         viewerMayRemove: row.viewer_may_remove === true,
       })),
     };
+  }
+
+  /** The public shelf is deliberately narrower than the teacher sharing catalogue.
+   * School/shared/private entries never reach this API, even for their teachers.
+   * Reuse existing visibility functions without changing grants or RLS. */
+  @Get('knowledge')
+  async knowledge(
+    @Req() request: FastifyRequest,
+    @Query('offset') offset?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const viewer = await this.requireViewer(request);
+    const skip = offset && /^\d{1,6}$/.test(offset) ? Number(offset) : 0;
+    const take = limit === '10' ? 10 : 24;
+    const result = await this.requirePool().query(
+      `SELECT id, title, summary, author_name, created_at, item_count
+         FROM shared_catalogue($1, NULL, NULL)
+        WHERE kind = 'course' AND visibility = 'public'
+        ORDER BY created_at DESC, id DESC LIMIT $2 OFFSET $3`,
+      [viewer.principalId, take + 1, skip],
+    );
+    const rows = result.rows as Array<{
+      id: string;
+      title: string;
+      summary: string | null;
+      author_name: string;
+      created_at: Date | string;
+      item_count: number | string;
+    }>;
+    return {
+      items: rows.slice(0, take).map((row) => ({
+        id: row.id,
+        title: row.title,
+        summary: row.summary,
+        authorName: row.author_name,
+        publishedAt: iso(row.created_at),
+        lessonCount: Number(row.item_count),
+      })),
+      nextOffset: rows.length > take ? skip + take : null,
+    };
+  }
+
+  @Get('knowledge/:courseId')
+  async knowledgeCourse(@Req() request: FastifyRequest, @Param('courseId') courseId: string) {
+    const viewer = await this.requireViewer(request);
+    this.requireUuid(courseId, 'course');
+    // Visibility and published version are read in one SQL snapshot. Hiding a
+    // course revokes this direct URL too; no preview is served from client cache.
+    const result = await this.requirePool().query(
+      `SELECT preview.version_number, preview.title, preview.summary, preview.outline, preview.published_at
+         FROM shared_catalogue($2, NULL, NULL) entry
+         CROSS JOIN LATERAL course_catalogue_preview(entry.id, $2, NULL, NULL) preview
+        WHERE entry.id = $1 AND entry.kind = 'course' AND entry.visibility = 'public'`,
+      [courseId, viewer.principalId],
+    );
+    const row = result.rows[0] as CataloguePreviewRow | undefined;
+    if (!row)
+      throw new HttpException(
+        error('not_available', 'Курс не опубликован или больше недоступен.'),
+        404,
+      );
+    return cataloguePreview(row);
   }
 
   /**

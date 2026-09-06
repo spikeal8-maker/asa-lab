@@ -88,7 +88,7 @@ export function GalleryPage({
     <main id="main-content" className="portal-content" tabIndex={-1}>
       <header className="gallery-heading">
         <div>
-          <h1>Галерея</h1>
+          <h1>Проекты сообщества</h1>
           <p>Работы, которыми поделились. Поставьте реакцию тому, что понравилось.</p>
         </div>
       </header>

@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SessionPayload } from '../../api';
 import { PortalHeader } from '../../components/PortalHeader';
+vi.mock('../../creator-portal/QuickProjectCreation', () => ({ QuickCreateMenu: () => null }));
 
 const SESSION: SessionPayload = {
   authenticated: true,
@@ -52,7 +53,6 @@ function render(admin: boolean): string {
       onNavigate: vi.fn(),
       onSessionChanged: vi.fn(),
       onLoggedOut: vi.fn(),
-      onCreate: vi.fn(),
       ...(admin
         ? {
             adminNavigation: {

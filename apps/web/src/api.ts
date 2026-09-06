@@ -371,6 +371,15 @@ export interface CatalogueEntry {
   createdAt: string;
 }
 
+export interface PublicKnowledgeItem {
+  id: string;
+  title: string;
+  summary: string | null;
+  authorName: string;
+  publishedAt: string;
+  lessonCount: number;
+}
+
 export interface CatalogueCoursePreview {
   versionNumber: number;
   title: string;
@@ -1202,9 +1211,14 @@ async function call<T>(path: string, init?: RequestInit): Promise<ApiResult<T>> 
 }
 
 export interface ProjectListOptions {
+  cursor?: string;
+  search?: string;
+  sort?: 'recent' | 'oldest' | 'title';
   scope?: ProjectScope;
   classroomId?: string;
   status?: ProjectStatus;
+  module?: string;
+  limit?: number;
   /** Only the Games entry needs saved game documents in its list. */
   includeGames?: boolean;
 }
@@ -1212,7 +1226,7 @@ export interface ProjectListOptions {
 export interface CreateProjectOptions {
   scope: ProjectScope;
   classroomId?: string | null;
-  title: string;
+  title?: string;
   module: string;
   automaticTitle?: boolean;
   idempotencyKey: string;
@@ -1599,12 +1613,13 @@ export const api = {
       '/api/class-join/account/assignments',
     ),
   gallery: async (
-    options: { sort?: 'recent' | 'popular'; module?: string; offset?: number } = {},
+    options: { sort?: 'recent' | 'popular'; module?: string; offset?: number; limit?: 10 } = {},
   ) => {
     const query = new URLSearchParams();
     if (options.sort) query.set('sort', options.sort);
     if (options.module) query.set('module', options.module);
     if (options.offset) query.set('offset', String(options.offset));
+    if (options.limit) query.set('limit', String(options.limit));
     const suffix = query.toString();
     const result = await call<{ items: GalleryItem[] }>(
       `/api/gallery${suffix ? `?${suffix}` : ''}`,
@@ -1614,6 +1629,12 @@ export const api = {
       : result;
   },
   myGalleryProjects: () => call<{ projectIds: string[] }>('/api/gallery/mine'),
+  publicKnowledge: (offset = 0, limit: 10 | 24 = 24) =>
+    call<{ items: PublicKnowledgeItem[]; nextOffset: number | null }>(
+      `/api/gallery/knowledge?offset=${offset}&limit=${limit}`,
+    ),
+  publicKnowledgeCourse: (courseId: string) =>
+    call<CatalogueCoursePreview>(`/api/gallery/knowledge/${encodeURIComponent(courseId)}`),
   galleryWork: (projectId: string) =>
     call<{ work: GalleryWork }>(`/api/gallery/${encodeURIComponent(projectId)}/work`),
   copyGalleryWork: (projectId: string, title?: string) =>
@@ -2141,8 +2162,16 @@ export const api = {
     if (options.scope) query.set('scope', options.scope);
     if (options.classroomId) query.set('classroomId', options.classroomId);
     if (options.status) query.set('status', options.status);
+    if (options.module) query.set('module', options.module);
+    if (options.limit !== undefined) query.set('limit', String(options.limit));
+    if (options.cursor) query.set('cursor', options.cursor);
+    if (options.search) query.set('search', options.search);
+    if (options.sort) query.set('sort', options.sort);
+    if (!options.includeGames) query.set('excludeGames', 'true');
     const suffix = query.size > 0 ? `?${query.toString()}` : '';
-    const result = await call<{ items: Project[] }>(`/api/projects${suffix}`);
+    const result = await call<{ items: Project[]; nextCursor?: string | null }>(
+      `/api/projects${suffix}`,
+    );
     return result.ok && !options.includeGames
       ? { ...result, data: { ...result.data, items: projectEntries(result.data.items) } }
       : result;

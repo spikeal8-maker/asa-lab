@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type pg from 'pg';
-import { createApiApp, shouldServeSpaDocument } from './app.factory.js';
+import { contentSecurityPolicyFor, createApiApp, shouldServeSpaDocument } from './app.factory.js';
 
 const apps: Array<Awaited<ReturnType<typeof createApiApp>>> = [];
 const temporaryDirectories: string[] = [];
@@ -19,6 +19,37 @@ afterEach(async () => {
 });
 
 describe('API application factory', () => {
+  it('keeps public HTTPS protection without upgrading HTTP LAN assets to a nonexistent TLS port', async () => {
+    for (const host of ['192.168.1.115', '172.20.0.3', '10.1.2.3', '100.105.67.69', '[fd12::1]']) {
+      expect(contentSecurityPolicyFor('http', host)).not.toContain('upgrade-insecure-requests');
+      expect(contentSecurityPolicyFor('http', host)).toContain(
+        "script-src 'self' https://st.max.ru",
+      );
+      expect(contentSecurityPolicyFor('https', host)).toContain('upgrade-insecure-requests');
+    }
+    for (const host of ['asa-lab.ru', '8.8.8.8', '172.32.0.1', '192.168.1.1.evil.test']) {
+      expect(contentSecurityPolicyFor('http', host)).toContain('upgrade-insecure-requests');
+    }
+    const app = await createApiApp({ pool: null, webDist: null });
+    apps.push(app);
+    const fastify = app.getHttpAdapter().getInstance();
+    const local = await fastify.inject({
+      method: 'GET',
+      url: '/health/live',
+      headers: { host: '172.20.0.3:4612' },
+    });
+    expect(local.headers['content-security-policy']).not.toContain('upgrade-insecure-requests');
+    const publicRequest = await fastify.inject({
+      method: 'GET',
+      url: '/health/live',
+      headers: {
+        host: 'asa-lab.ru',
+        'x-forwarded-host': '172.20.0.3',
+        'x-forwarded-proto': 'http',
+      },
+    });
+    expect(publicRequest.headers['content-security-policy']).toContain('upgrade-insecure-requests');
+  });
   it('serves the SPA only for real browser routes, not arbitrary crawl paths', () => {
     expect(shouldServeSpaDocument('/')).toBe(true);
     expect(shouldServeSpaDocument('/max-login')).toBe(true);

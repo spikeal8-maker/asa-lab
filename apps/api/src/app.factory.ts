@@ -1,6 +1,7 @@
 import 'reflect-metadata';
 import { randomUUID } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
+import { BlockList, isIP } from 'node:net';
 import { basename, join, resolve } from 'node:path';
 import { NestFactory } from '@nestjs/core';
 import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fastify';
@@ -53,7 +54,6 @@ const SECURITY_HEADERS = {
     "connect-src 'self' blob:",
     "worker-src 'self' blob:",
     "manifest-src 'self'",
-    'upgrade-insecure-requests',
   ].join('; '),
   'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), payment=()',
   'Referrer-Policy': 'strict-origin-when-cross-origin',
@@ -62,6 +62,35 @@ const SECURITY_HEADERS = {
   'X-Frame-Options': 'DENY',
   'X-Permitted-Cross-Domain-Policies': 'none',
 } as const;
+
+const LOCAL_WEB_ADDRESSES = new BlockList();
+for (const [address, prefix, type] of [
+  ['10.0.0.0', 8, 'ipv4'],
+  ['100.64.0.0', 10, 'ipv4'],
+  ['127.0.0.0', 8, 'ipv4'],
+  ['169.254.0.0', 16, 'ipv4'],
+  ['172.16.0.0', 12, 'ipv4'],
+  ['192.168.0.0', 16, 'ipv4'],
+  ['::1', 128, 'ipv6'],
+  ['fc00::', 7, 'ipv6'],
+  ['fe80::', 10, 'ipv6'],
+] as const)
+  LOCAL_WEB_ADDRESSES.addSubnet(address, prefix, type);
+
+/** Direct HTTP LAN installs have no TLS listener on their application port.
+ * Keep every source restriction; omit only the forced resource upgrade there.
+ * Public hostnames keep upgrade-insecure-requests, including behind a proxy.
+ * Forwarded headers never decide this exemption or grant authentication rights.
+ */
+export function contentSecurityPolicyFor(protocol: string, hostname: string): string {
+  const address = hostname.replace(/^\[|\]$/g, '');
+  const version = isIP(address);
+  const local =
+    hostname === 'localhost' ||
+    (version !== 0 && LOCAL_WEB_ADDRESSES.check(address, version === 4 ? 'ipv4' : 'ipv6'));
+  const policy = SECURITY_HEADERS['Content-Security-Policy'];
+  return protocol === 'http' && local ? policy : `${policy}; upgrade-insecure-requests`;
+}
 
 export function cacheControlFor(fileName: string): string {
   return HASHED_ASSET.test(fileName) ? 'public, max-age=31536000, immutable' : 'no-cache';
@@ -164,9 +193,16 @@ export async function createApiApp(
   const fastify = app.getHttpAdapter().getInstance() as unknown as FastifyInstance;
   await fastify.register(fastifyCookie);
 
-  fastify.addHook('onSend', async (_request, reply, payload) => {
+  fastify.addHook('onSend', async (request, reply, payload) => {
     for (const [name, value] of Object.entries(SECURITY_HEADERS)) {
-      if (!reply.hasHeader(name)) void reply.header(name, value);
+      if (!reply.hasHeader(name)) {
+        void reply.header(
+          name,
+          name === 'Content-Security-Policy'
+            ? contentSecurityPolicyFor(request.protocol, request.hostname)
+            : value,
+        );
+      }
     }
     return payload;
   });

@@ -4,7 +4,7 @@ import { collectBrowserFailures } from './browser-failures';
 import { openPortalSection } from './portal-navigation';
 
 const EVIDENCE_DIR =
-  process.env['ASA_OWNER_EVIDENCE_DIR'] ?? 'e2e/artifacts/project-hub/r3b-project-lifecycle';
+  process.env['ASA_OWNER_EVIDENCE_DIR'] ?? 'e2e/artifacts/owner-preview/home-workspace/lifecycle';
 
 /**
  * Reveals a card's actions and opens its menu. The menu is a <details>, and
@@ -38,32 +38,21 @@ test('project hub supports duplicate, archive, trash and restore journeys', asyn
   await page.getByTestId('entry-sign-up').click();
   await page.getByLabel('Email').fill(`project_${unique}@r3b-e2e.test`);
   await page.getByLabel('Имя пользователя').fill(`project_${unique}`.slice(0, 36));
-  await page.getByLabel('Отображаемое имя (необязательно)').fill('Анна Проектова');
+  await page.getByLabel('Отображаемое имя', { exact: true }).fill('Анна Проектова');
   await page.getByLabel('Дата рождения').fill('1993-04-18');
   await page.getByLabel('Пароль').fill(`Safe-${unique}-Password`);
+  const botCheck = page.getByRole('checkbox', { name: 'Я не робот' });
+  if (await botCheck.isVisible()) await botCheck.press('Space');
   await page.getByRole('button', { name: 'Создать аккаунт' }).click();
   await expect(page).toHaveURL(/#\/home$/);
 
-  await page.getByRole('button', { name: /^Создать(?: проект)?$/ }).click();
-  const createDialog = page.getByRole('dialog');
-  await expect(createDialog).toBeVisible();
-  await expect(createDialog.locator('.module-tile-title')).toHaveText([
-    'Электроника',
-    'ASA 3D',
-    'ASA Шашки',
-    'ASA Chess',
-    'Блочное программирование',
-    'Виртуальная робототехника',
-    'Рисование и черчение',
+  await page.locator('.portal-header .portal-quick-create > summary').click();
+  await expect(page.locator('.portal-header .portal-create-options strong')).toHaveText([
+    '3D модель',
+    'Электрическая цепь',
   ]);
-  await expect(createDialog).not.toContainText('Поддерживает безопасный режим');
-  await expect(page.getByLabel('Название проекта')).toHaveValue('Электрическая цепь 1');
-  await createDialog.locator('.module-tile').filter({ hasText: 'ASA 3D' }).click();
-  await expect(page.getByLabel('Название проекта')).toHaveValue('3D-модель 1');
-  expect(
-    await createDialog.evaluate((element) => element.scrollHeight <= element.clientHeight),
-  ).toBe(true);
-  await createDialog.getByRole('button', { name: 'Закрыть' }).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await page.keyboard.press('Escape');
 
   const response = await page.context().request.post('/api/projects', {
     headers: { origin: new URL(page.url()).origin, 'idempotency-key': `hub-${unique}` },
@@ -114,9 +103,10 @@ test('project hub supports duplicate, archive, trash and restore journeys', asyn
 
   await page.getByRole('button', { name: 'Корзина' }).click();
   await expect(page.getByText('Умный светильник', { exact: true })).toBeVisible();
-  await page.getByRole('button', { name: /^Создать(?: проект)?$/ }).click();
-  await expect(page.getByLabel('Название проекта')).toHaveValue('Электрическая цепь 3');
-  await page.getByRole('dialog').getByRole('button', { name: 'Закрыть' }).click();
+  const suggestion = await page.request.get(
+    '/api/projects/title-suggestion?scope=personal&module=electronics',
+  );
+  expect((await suggestion.json()).title).toBe('Электрическая цепь 3');
   await page.screenshot({ path: `${EVIDENCE_DIR}/01-project-hub-desktop.png`, fullPage: true });
 
   await page.setViewportSize({ width: 390, height: 844 });

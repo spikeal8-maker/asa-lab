@@ -1190,6 +1190,26 @@ paths:
           in: query
           schema:
             $ref: '#/components/schemas/ProjectStatus'
+        - name: module
+          in: query
+          schema: { type: string, pattern: '^[a-z][a-z0-9-]{0,63}$' }
+        - name: limit
+          in: query
+          description: Optional bounded page; omit for the legacy full collection.
+          schema: { type: integer, minimum: 1, maximum: 100 }
+        - name: cursor
+          in: query
+          description: nextCursor from the preceding page, with the same filters and sort. Requires limit.
+          schema: { type: string, maxLength: 2048 }
+        - name: search
+          in: query
+          schema: { type: string, maxLength: 255 }
+        - name: sort
+          in: query
+          schema: { type: string, enum: [recent, oldest, title], default: recent }
+        - name: excludeGames
+          in: query
+          schema: { type: boolean, default: false }
       responses:
         '200':
           description: Project collection filtered by lifecycle state
@@ -2615,6 +2635,9 @@ components:
       additionalProperties: false
       required: [items]
       properties:
+        nextCursor:
+          type: [string, 'null']
+          description: Present only for bounded requests; null ends pagination. An exactly full final page may be followed by an empty page.
         items:
           type: array
           items:
@@ -2638,7 +2661,12 @@ components:
     CreateProjectRequest:
       type: object
       additionalProperties: false
-      required: [scope, classroomId, module, title]
+      required: [scope, module]
+      anyOf:
+        - required: [title]
+        - required: [automaticTitle]
+          properties:
+            automaticTitle: { const: true }
       properties:
         scope:
           type: string
@@ -2654,6 +2682,9 @@ components:
           type: string
           minLength: 1
           maxLength: 255
+        automaticTitle:
+          type: boolean
+          description: Allocate the module-specific name atomically; title may be omitted.
     RenameProjectRequest:
       type: object
       additionalProperties: false

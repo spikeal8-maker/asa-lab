@@ -188,6 +188,58 @@ afterAll(async () => {
 });
 
 describe('personal teacher projects', () => {
+  it('validates bounded lists and replays server-named creates without a client title', async () => {
+    const token = await registerPersonalAccount('home-contract');
+    const request = {
+      method: 'POST' as const,
+      url: '/api/projects',
+      cookies: { asa_session: token },
+      headers: { 'idempotency-key': crypto.randomUUID() },
+      payload: { scope: 'personal', module: 'three-d', automaticTitle: true },
+    };
+    const first = await inject(app, request);
+    expect(first.statusCode).toBe(201);
+    expect(first.json().project.title).toBe('3D модель 1');
+    const replay = await inject(app, request);
+    expect(replay.statusCode).toBe(200);
+    expect(replay.json().project.id).toBe(first.json().project.id);
+    for (const query of [
+      'limit=0',
+      'limit=101',
+      'limit=1.5',
+      'limit=5&cursor=garbage',
+      'sort=DROP',
+      'module=bad%27module',
+    ]) {
+      const result = await inject(app, {
+        method: 'GET',
+        url: `/api/projects?scope=personal&${query}`,
+        cookies: { asa_session: token },
+      });
+      expect(result.statusCode, query).toBe(400);
+    }
+    const firstPage = await inject(app, {
+      method: 'GET',
+      url: '/api/projects?scope=personal&limit=1&module=three-d',
+      cookies: { asa_session: token },
+    });
+    expect(firstPage.statusCode).toBe(200);
+    expect(firstPage.json().items).toHaveLength(1);
+    const next = await inject(app, {
+      method: 'GET',
+      url: `/api/projects?scope=personal&limit=1&module=three-d&cursor=${encodeURIComponent(firstPage.json().nextCursor)}`,
+      cookies: { asa_session: token },
+    });
+    expect(next.statusCode).toBe(200);
+    expect(next.json()).toEqual({ items: [], nextCursor: null });
+    const other = await registerPersonalAccount('home-stranger');
+    const privateList = await inject(app, {
+      method: 'GET',
+      url: '/api/projects?scope=personal&limit=5&module=three-d',
+      cookies: { asa_session: other },
+    });
+    expect(privateList.json().items).toEqual([]);
+  });
   it('creates and lists a project without a classroom', async () => {
     const teacher = await seedTeacher(admin, 'personal-create');
     const token = await login(teacher);

@@ -39,6 +39,12 @@ export interface ProjectListFilter {
   readonly scope?: ProjectScope;
   readonly classroomId?: string;
   readonly status?: ProjectStatus;
+  readonly moduleKey?: string;
+  readonly limit?: number;
+  readonly search?: string;
+  readonly sort?: 'recent' | 'oldest' | 'title';
+  readonly excludeGames?: boolean;
+  readonly after?: { readonly id: string; readonly updatedAt: string; readonly title: string };
 }
 
 export interface SaveDraftInput {

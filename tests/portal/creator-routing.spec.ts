@@ -9,6 +9,38 @@ import {
 } from '../../apps/web/src/creator-portal/navigation';
 
 describe('Creator Portal routing', () => {
+  it('keeps module, search, status, sort and page through both editor routes', () => {
+    const list = {
+      kind: 'my-projects',
+      module: 'three-d',
+      search: 'Модель 10',
+      status: 'archived',
+      sort: 'title',
+      cursor: 'test-cursor',
+    } as const;
+    expect(creatorViewFromHash(creatorViewToHash(list))).toEqual(list);
+    expect(creatorViewFromHash(threeDEditorHash('model-1', list))).toMatchObject({
+      returnTo: list,
+    });
+    const electronics = creatorViewToHref({
+      kind: 'editor',
+      projectId: 'circuit-1',
+      moduleKey: 'electronics',
+      returnTo: list,
+    });
+    const location = new URL(electronics, 'http://localhost');
+    expect(creatorViewFromLocation(location)).toMatchObject({ returnTo: list });
+    expect(
+      creatorViewFromHash(
+        creatorViewToHash({
+          kind: 'editor',
+          projectId: 'model-1',
+          moduleKey: 'three-d',
+          returnTo: list,
+        }),
+      ),
+    ).toMatchObject({ returnTo: list });
+  });
   it.each([
     ['#/home', { kind: 'home' }],
     ['#/projects', { kind: 'my-projects' }],
@@ -150,5 +182,13 @@ describe('Creator Portal routing', () => {
   it('uses Home for the public root and unknown routes', () => {
     expect(creatorViewFromHash('#/')).toEqual({ kind: 'home' });
     expect(creatorViewFromHash('#/not-a-real-route')).toEqual({ kind: 'home' });
+  });
+  it('keeps Knowledge list and course deep links distinct from personal learning', () => {
+    for (const view of [
+      { kind: 'knowledge' },
+      { kind: 'knowledge-course', courseId: 'course-one' },
+    ] as const) {
+      expect(creatorViewFromHash(creatorViewToHash(view))).toEqual(view);
+    }
   });
 });

@@ -74,7 +74,7 @@ const COPY: Record<ResourceSection, ResourceCopy> = {
       },
       {
         title: 'Когда доступны классы?',
-        body: 'Раздел появляется только для аккаунта педагога в организационном рабочем пространстве.',
+        body: 'В «Классах» находятся ваши занятия и задания. Преподаватель здесь также управляет своими классами.',
         action: 'Настройки аккаунта',
         target: 'account',
       },
@@ -112,6 +112,24 @@ export function CreatorResourcePage({
           </article>
         ))}
       </div>
+      {section === 'help' ? (
+        <section className="creator-resource-card">
+          <h2>О проекте и сообщество</h2>
+          <p>
+            ASA Lab — среда для творчества и обучения. Здесь можно создавать 3D модели, собирать
+            электронные схемы и делиться работами. Платформа развивается; новости и обратная связь —
+            в нашем сообществе.
+          </p>
+          <div className="home-community-links">
+            <a href="https://vk.ru/asalabru" target="_blank" rel="noopener noreferrer">
+              ВКонтакте ↗
+            </a>
+            <a href="https://max.ru/id231408577954_3_bot" target="_blank" rel="noopener noreferrer">
+              Бот ASA Lab в MAX ↗
+            </a>
+          </div>
+        </section>
+      ) : null}
     </main>
   );
 }

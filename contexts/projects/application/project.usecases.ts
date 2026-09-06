@@ -116,14 +116,20 @@ export class CreateProjectUseCase {
     if (!module) {
       return fail('validation_error', `module "${input.moduleKey}" is not available for creation`);
     }
-    if (!isValidProjectTitle(input.title)) {
+    if (
+      (input.automaticTitle !== true || input.title !== undefined) &&
+      !isValidProjectTitle(input.title)
+    ) {
       return fail('validation_error', 'title must be 1..255 characters');
     }
     if (input.automaticTitle !== undefined && typeof input.automaticTitle !== 'boolean') {
       return fail('validation_error', 'automaticTitle must be a boolean');
     }
 
-    const title = input.title.trim();
+    const title =
+      input.automaticTitle === true
+        ? module.defaultProjectTitlePrefix
+        : (input.title as string).trim();
     const automaticTitle = input.automaticTitle === true;
     const initialDocument = module.createEmptyProject();
     const result = await this.repository.createWithDraft({
@@ -214,7 +220,17 @@ export class ListProjectsUseCase {
   async execute(
     tenantId: string,
     actor: ProjectActor,
-    rawFilter: { scope?: unknown; classroomId?: unknown; status?: unknown },
+    rawFilter: {
+      scope?: unknown;
+      classroomId?: unknown;
+      status?: unknown;
+      moduleKey?: unknown;
+      limit?: unknown;
+      search?: unknown;
+      sort?: unknown;
+      cursor?: unknown;
+      excludeGames?: unknown;
+    },
   ): Promise<UseCaseResult<Project[]>> {
     let scope: ProjectScope | undefined;
     let classroomId: string | undefined;
@@ -237,18 +253,83 @@ export class ListProjectsUseCase {
       }
       status = rawFilter.status;
     }
+    if (
+      rawFilter.moduleKey !== undefined &&
+      (typeof rawFilter.moduleKey !== 'string' ||
+        !/^[a-z][a-z0-9-]{0,63}$/.test(rawFilter.moduleKey))
+    ) {
+      return fail('validation_error', 'invalid module filter');
+    }
+    const limit = rawFilter.limit === undefined ? undefined : Number(rawFilter.limit);
+    if (limit !== undefined && (!Number.isInteger(limit) || limit < 1 || limit > 100)) {
+      return fail('validation_error', 'limit must be 1..100');
+    }
     const filter: ProjectListFilter = {
+      ...(rawFilter.moduleKey === undefined ? {} : { moduleKey: rawFilter.moduleKey as string }),
+      ...(limit === undefined ? {} : { limit }),
       ...(scope === undefined ? {} : { scope }),
       ...(classroomId === undefined ? {} : { classroomId }),
       ...(status === undefined ? {} : { status }),
     };
+    if (
+      rawFilter.sort !== undefined &&
+      !['recent', 'oldest', 'title'].includes(String(rawFilter.sort))
+    ) {
+      return fail('validation_error', 'invalid project sort');
+    }
+    if (
+      rawFilter.search !== undefined &&
+      (typeof rawFilter.search !== 'string' || rawFilter.search.length > 255)
+    ) {
+      return fail('validation_error', 'invalid project search');
+    }
+    const sort = (rawFilter.sort ?? 'recent') as 'recent' | 'oldest' | 'title';
+    let after: ProjectListFilter['after'];
+    if (rawFilter.cursor !== undefined) {
+      try {
+        if (
+          typeof rawFilter.cursor !== 'string' ||
+          rawFilter.cursor.length > 2048 ||
+          limit === undefined
+        )
+          throw new Error('cursor');
+        const value = JSON.parse(
+          Buffer.from(rawFilter.cursor, 'base64url').toString('utf8'),
+        ) as unknown;
+        if (
+          !Array.isArray(value) ||
+          value.length !== 4 ||
+          value[0] !== sort ||
+          typeof value[1] !== 'string' ||
+          !/^\d{4}-\d\d-\d\dT/.test(value[1]) ||
+          !Number.isFinite(Date.parse(value[1])) ||
+          typeof value[2] !== 'string' ||
+          !/^[\da-f]{8}(-[\da-f]{4}){3}-[\da-f]{12}$/i.test(value[2]) ||
+          typeof value[3] !== 'string' ||
+          value[3].length > 255
+        )
+          throw new Error('cursor');
+        after = { updatedAt: new Date(value[1]).toISOString(), id: value[2], title: value[3] };
+      } catch {
+        return fail('validation_error', 'invalid project cursor');
+      }
+    }
     if (filter.scope === 'personal' && filter.classroomId) {
       return fail('validation_error', 'personal project list must not contain classroomId');
     }
     if (filter.scope === 'classroom' && !filter.classroomId) {
       return fail('validation_error', 'classroomId is required for classroom projects');
     }
-    return { ok: true, value: await this.repository.listForActor(tenantId, actor, filter) };
+    return {
+      ok: true,
+      value: await this.repository.listForActor(tenantId, actor, {
+        ...filter,
+        ...(rawFilter.sort === undefined ? {} : { sort }),
+        ...(rawFilter.search ? { search: (rawFilter.search as string).trim() } : {}),
+        ...(rawFilter.excludeGames === 'true' ? { excludeGames: true } : {}),
+        ...(after ? { after } : {}),
+      }),
+    };
   }
 }
 

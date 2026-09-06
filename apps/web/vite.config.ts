@@ -101,6 +101,7 @@ export default defineConfig(({ command }) => {
       __ASA_BUILT_AT__: JSON.stringify(builtAt),
     },
     build: {
+      manifest: true,
       outDir: 'dist',
       emptyOutDir: true,
       rollupOptions: {

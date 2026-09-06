@@ -179,6 +179,16 @@ describe('project domain rules', () => {
 });
 
 describe('create project', () => {
+  it('allocates an automatic title without a client-supplied title', async () => {
+    const { port, creates } = repo();
+    const result = await new CreateProjectUseCase(port, catalog()).execute({
+      ...personalInput,
+      title: undefined,
+      automaticTitle: true,
+    });
+    expect(result.ok).toBe(true);
+    expect(creates[0]?.automaticTitlePrefix).toBe('Электрическая цепь');
+  });
   it('suggests the next module-specific title from every historical project', async () => {
     const { port } = repo({ nextTitleSequence: async () => 7 });
     const result = await new SuggestProjectTitleUseCase(port, catalog()).execute({

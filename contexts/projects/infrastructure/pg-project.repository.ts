@@ -87,8 +87,8 @@ function toProject(row: ProjectRow, preview: ProjectPreview | null = toPreview(r
     moduleKey: row.module_key,
     title: row.title,
     status: row.status,
-    createdAt: String(row.created_at),
-    updatedAt: String(row.updated_at ?? row.created_at),
+    createdAt: new Date(row.created_at).toISOString(),
+    updatedAt: new Date(row.updated_at ?? row.created_at).toISOString(),
     preview,
     snapshotRevision: revision === null || revision === undefined ? null : Number(revision),
     description: row.description ?? null,
@@ -148,8 +148,9 @@ interface ResolvedProjectContext {
  * correction on the learner's own record. A teacher's own project belongs to no
  * class and is not recorded.
  *
- * A failure here is swallowed: the record exists to tell a teacher how someone
- * is getting on, and that is never worth failing the work itself.
+ * An optional activity failure is isolated with a savepoint, so it cannot
+ * abort the surrounding project transaction. Failure to recover still aborts
+ * the write; the caller must never acknowledge work that was rolled back.
  */
 async function recordClassroomActivity(
   client: { query: (text: string, values: unknown[]) => Promise<unknown> },
@@ -157,15 +158,29 @@ async function recordClassroomActivity(
   projectId: string,
   action: string,
 ): Promise<void> {
+  await client.query('SAVEPOINT project_activity', []);
   try {
     await client.query(`SELECT classroom_activity_record_project($1,$2,$3)`, [
       principalId,
       projectId,
       action,
     ]);
-  } catch {
-    // Deliberately silent: see above.
+  } catch (error) {
+    await client.query('ROLLBACK TO SAVEPOINT project_activity', []);
+    // Do not log the query, document, account or database error detail.
+    console.warn('project_activity_record_failed', {
+      action,
+      code:
+        typeof error === 'object' &&
+        error !== null &&
+        'code' in error &&
+        typeof error.code === 'string' &&
+        /^[A-Z0-9]{5}$/.test(error.code)
+          ? error.code
+          : 'unknown',
+    });
   }
+  await client.query('RELEASE SAVEPOINT project_activity', []);
 }
 
 export class PgProjectRepository implements ProjectRepositoryPort {
@@ -368,6 +383,26 @@ export class PgProjectRepository implements ProjectRepositoryPort {
     filter: ProjectListFilter,
   ): Promise<Project[]> {
     const status = filter.status ?? 'active';
+    // Cursor precision matches the ISO milliseconds exposed by the API. ID is
+    // the tie breaker, including multiple writes in the same millisecond.
+    const sortColumn =
+      filter.sort === 'title' ? 'p.title COLLATE "C"' : "date_trunc('milliseconds', d.updated_at)";
+    const ascending = filter.sort === 'title' || filter.sort === 'oldest';
+    const tail = (index: number): string =>
+      ` AND ($${index}::text IS NULL OR p.module_key=$${index})
+        AND ($${index + 2}::text IS NULL OR strpos(lower(p.title), lower($${index + 2})) > 0)
+        AND (NOT $${index + 3}::boolean OR p.module_key NOT IN ('chess', 'checkers'))
+        AND ($${index + 4}::uuid IS NULL OR (${sortColumn}, p.id) ${ascending ? '>' : '<'}
+          (${filter.sort === 'title' ? `$${index + 5}::text COLLATE "C"` : `$${index + 5}::timestamptz`}, $${index + 4}::uuid))
+        ORDER BY ${sortColumn} ${ascending ? 'ASC' : 'DESC'}, p.id ${ascending ? 'ASC' : 'DESC'} LIMIT $${index + 1}`;
+    const pageValues = [
+      filter.moduleKey ?? null,
+      filter.limit ?? null,
+      filter.search ?? null,
+      filter.excludeGames ?? false,
+      filter.after?.id ?? null,
+      (filter.sort === 'title' ? filter.after?.title : filter.after?.updatedAt) ?? null,
+    ];
     if (filter.scope === 'classroom' && filter.classroomId) {
       const access = await this.pool.query(
         `SELECT tenant_id, user_id
@@ -385,8 +420,8 @@ export class PgProjectRepository implements ProjectRepositoryPort {
              LEFT JOIN project_snapshots s ON s.tenant_id=p.tenant_id AND s.project_id=p.id
             WHERE p.tenant_id=$1 AND p.project_scope='classroom'
               AND p.classroom_id=$2 AND p.status=$3
-            ORDER BY d.updated_at DESC`,
-          [row.tenant_id, filter.classroomId, status],
+            ${tail(4)}`,
+          [row.tenant_id, filter.classroomId, status, ...pageValues],
         );
         return (result.rows as ProjectRow[]).map((row) => toProject(row));
       });
@@ -405,8 +440,8 @@ export class PgProjectRepository implements ProjectRepositoryPort {
              LEFT JOIN project_snapshots s ON s.tenant_id=p.tenant_id AND s.project_id=p.id
             WHERE p.tenant_id=$1 AND p.owner_principal_id=$2
               AND p.project_scope='personal' AND p.status=$3
-            ORDER BY d.updated_at DESC`,
-          [tenantId, actor.principalId, status],
+            ${tail(4)}`,
+          [tenantId, actor.principalId, status, ...pageValues],
         );
         return (result.rows as ProjectRow[]).map((row) => toProject(row));
       });
@@ -425,13 +460,13 @@ export class PgProjectRepository implements ProjectRepositoryPort {
             WHERE p.tenant_id = $1 AND p.project_scope = 'personal' AND p.status = $4
               AND ((p.owner_principal_id IS NOT NULL AND p.owner_principal_id = $2)
                    OR p.created_by = $3)
-            ORDER BY d.updated_at DESC`,
-          [tenantId, actor.principalId, actor.userId, status],
+            ${tail(5)}`,
+          [tenantId, actor.principalId, actor.userId, status, ...pageValues],
         );
         return (result.rows as ProjectRow[]).map((row) => toProject(row));
       }
       const result = await client.query(
-        `SELECT DISTINCT
+        `SELECT DISTINCT ${sortColumn} AS page_order,
                 p.id,p.project_scope,p.classroom_id,p.module_key,p.title,p.status,p.created_at,
                 d.updated_at,d.preview_json,d.preview_digest,s.source_revision AS snapshot_revision
            FROM projects p
@@ -445,8 +480,8 @@ export class PgProjectRepository implements ProjectRepositoryPort {
                   AND ((p.owner_principal_id IS NOT NULL AND p.owner_principal_id=$2)
                        OR p.created_by=$3))
                  OR (p.project_scope='classroom' AND m.user_id IS NOT NULL))
-          ORDER BY d.updated_at DESC`,
-        [tenantId, actor.principalId, actor.userId, status],
+          ${tail(5)}`,
+        [tenantId, actor.principalId, actor.userId, status, ...pageValues],
       );
       return (result.rows as ProjectRow[]).map((row) => toProject(row));
     });

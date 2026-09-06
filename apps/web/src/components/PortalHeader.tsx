@@ -7,16 +7,17 @@ import {
   PROFILE_AVATAR_CHANGED_EVENT,
 } from '../creator-portal/default-avatars';
 import { portalNavigation, type CreatorPortalSection } from '../creator-portal/navigation';
+import { QuickCreateMenu } from '../creator-portal/QuickProjectCreation';
+import { classAttention } from '../creator-portal/attention';
+import { PortalLink } from './PortalLink';
 import {
   ChevronIcon,
   CloseIcon,
   CollapseIcon,
   ExpandIcon,
   PlusIcon,
-  SearchIcon,
 } from '../electronics/workbench-icons';
 import {
-  BellGlyph,
   ChallengesGlyph,
   ClassesGlyph,
   CollectionsGlyph,
@@ -30,6 +31,8 @@ import {
 } from './portal-icons';
 
 export type PortalSection = CreatorPortalSection;
+const sectionHref = (section: PortalSection): string =>
+  `/#/${section === 'classes' ? 'classrooms' : section}`;
 
 function sectionIcon(section: Exclude<PortalSection, 'account'>): JSX.Element {
   if (section === 'home') return <HomeGlyph />;
@@ -39,6 +42,7 @@ function sectionIcon(section: Exclude<PortalSection, 'account'>): JSX.Element {
   if (section === 'collections') return <CollectionsGlyph />;
   if (section === 'gallery') return <GalleryGlyph />;
   if (section === 'learning') return <LearningGlyph />;
+  if (section === 'knowledge') return <LearningGlyph />;
   if (section === 'challenges') return <ChallengesGlyph />;
   return <HelpGlyph />;
 }
@@ -66,7 +70,6 @@ export function PortalHeader({
   onNavigate,
   onSessionChanged,
   onLoggedOut,
-  onCreate,
 }: {
   session: SessionPayload;
   active: PortalSection;
@@ -97,7 +100,6 @@ export function PortalHeader({
   onNavigate: (section: PortalSection) => void;
   onSessionChanged: (session: SessionPayload) => void;
   onLoggedOut: () => void;
-  onCreate: () => void;
 }): JSX.Element {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -106,6 +108,59 @@ export function PortalHeader({
     () => window.localStorage.getItem('asa-portal-sidebar') === 'collapsed',
   );
   const accountMenu = useRef<HTMLDetailsElement>(null);
+  const sidebar = useRef<HTMLElement>(null);
+  const menuButton = useRef<HTMLButtonElement>(null);
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const attention = classAttention(unfinishedCount, classroomBadge ?? 0);
+  const go = (section: PortalSection): void => {
+    setMobileOpen(false);
+    onNavigate(section);
+  };
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    const background = [
+      ...document.querySelectorAll<HTMLElement>('.portal-shell > main, .portal-header'),
+    ];
+    const previousInert = background.map((element) => element.inert);
+    background.forEach((element) => {
+      element.inert = true;
+    });
+    document.body.style.overflow = 'hidden';
+    sidebar.current?.querySelector<HTMLButtonElement>('button')?.focus();
+    const closeOnResize = (): void => {
+      if (window.innerWidth > 820) setMobileOpen(false);
+    };
+    const handleKey = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') setMobileOpen(false);
+      if (event.key !== 'Tab') return;
+      const elements = [
+        ...(sidebar.current?.querySelectorAll<HTMLElement>(
+          'button:not(:disabled), a[href], summary',
+        ) ?? []),
+      ].filter((element) => element.getClientRects().length > 0);
+      const first = elements[0],
+        last = elements.at(-1);
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last?.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first?.focus();
+      }
+    };
+    window.addEventListener('resize', closeOnResize);
+    document.addEventListener('keydown', handleKey);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      background.forEach((element, index) => {
+        element.inert = previousInert[index] ?? false;
+      });
+      window.removeEventListener('resize', closeOnResize);
+      document.removeEventListener('keydown', handleKey);
+      menuButton.current?.focus();
+    };
+  }, [mobileOpen]);
   const activeWorkspace = session.workspaces.find(
     (workspace) => workspace.workspaceId === session.activeWorkspace.workspaceId,
   );
@@ -127,7 +182,9 @@ export function PortalHeader({
   const effectiveAvatarUrl =
     avatarDataUrl ?? seatAvatarUrl ?? defaultAvatarForAccount(session.user.id).src;
   const navigationItems = portalNavigation(canTeach);
-  const primaryNavigation = navigationItems.filter((item) => item.section !== 'help');
+  const primaryNavigation = navigationItems.filter(
+    (item) => item.section !== 'help' && item.section !== 'gallery',
+  );
   const helpNavigation = navigationItems.find((item) => item.section === 'help');
 
   useEffect(() => {
@@ -181,12 +238,6 @@ export function PortalHeader({
     accountMenu.current?.removeAttribute('open');
   }
 
-  function openAccountMenu(): void {
-    if (!accountMenu.current) return;
-    accountMenu.current.open = true;
-    window.requestAnimationFrame(() => accountMenu.current?.querySelector('summary')?.focus());
-  }
-
   function navigateFromAccount(section: PortalSection): void {
     closeAccountMenu();
     onNavigate(section);
@@ -236,54 +287,51 @@ export function PortalHeader({
   return (
     <>
       <header className="portal-header">
-        <button type="button" className="portal-brand" onClick={() => onNavigate('home')}>
+        <button
+          ref={menuButton}
+          type="button"
+          className="portal-menu-toggle"
+          aria-label="Открыть меню"
+          aria-description={attention ? `Классы — ${attention}` : undefined}
+          aria-expanded={mobileOpen}
+          aria-controls="portal-sidebar"
+          onClick={() => setMobileOpen(true)}
+        >
+          <span aria-hidden="true">☰</span>
+          {attention ? <span className="portal-attention-dot" aria-hidden="true" /> : null}
+        </button>
+        <button
+          type="button"
+          className="portal-brand"
+          aria-label="ASA Lab — главная"
+          onClick={() => onNavigate('home')}
+        >
           <AsaLabWordmark />
         </button>
         <nav className="portal-global-nav" aria-label="Разделы ASA Lab">
-          <button type="button" onClick={() => onNavigate('projects')}>
-            Проекты
-          </button>
-          <button type="button" onClick={() => onNavigate('gallery')}>
-            Галерея
-          </button>
-          <button type="button" onClick={() => onNavigate('learning')}>
-            Обучение
-          </button>
-          {canTeach ? (
-            <button type="button" onClick={() => onNavigate('classes')}>
-              Преподаватели
-            </button>
-          ) : null}
-          <button type="button" onClick={() => onNavigate('help')}>
-            Ресурсы
-          </button>
+          <PortalLink href={sectionHref('gallery')} onNavigate={() => onNavigate('gallery')}>
+            <GalleryGlyph />
+            <span>Проекты</span>
+          </PortalLink>
+          <PortalLink href={sectionHref('knowledge')} onNavigate={() => onNavigate('knowledge')}>
+            <LearningGlyph />
+            <span>Знания</span>
+          </PortalLink>
         </nav>
-        <button
-          type="button"
-          className="portal-header-search"
-          aria-label="Поиск проектов"
-          title="Поиск проектов"
-          onClick={() => onNavigate('projects')}
-        >
-          <SearchIcon />
-        </button>
-        <button
-          type="button"
-          className="portal-header-create"
-          aria-label="Создать проект"
-          onClick={onCreate}
-        >
-          <span aria-hidden="true">＋</span>
-          <span className="portal-header-create-label">Создать</span>
-        </button>
+        <QuickCreateMenu />
         <details
           ref={accountMenu}
           className={active === 'account' ? 'portal-account active' : 'portal-account'}
         >
-          <summary aria-label={`Меню аккаунта ${session.user.displayName}`}>
+          <summary
+            aria-label={`Меню аккаунта ${session.user.displayName}`}
+            aria-description={
+              maxVerificationDue ? 'Подтвердите учётную запись через MAX' : undefined
+            }
+          >
             <span className="portal-user-avatar" aria-hidden="true">
               <AvatarVisual avatarDataUrl={effectiveAvatarUrl} initials={initials} />
-              {maxVerificationDue ? <span className="portal-max-verification-badge" /> : null}
+              {maxVerificationDue ? <span className="portal-attention-dot" /> : null}
             </span>
             <span className="portal-user-copy">
               <strong>{session.user.displayName}</strong>
@@ -316,19 +364,18 @@ export function PortalHeader({
             </div>
 
             <div className="portal-account-group">
-              <button
-                type="button"
-                className="portal-account-item"
-                onClick={() => {
-                  closeAccountMenu();
-                  onCreate();
-                }}
-              >
-                <span className="portal-account-item-icon" aria-hidden="true">
-                  <PlusIcon />
-                </span>
-                <span>Новый проект</span>
-              </button>
+              {maxVerificationDue ? (
+                <button
+                  type="button"
+                  className="portal-account-item portal-account-notice"
+                  onClick={() => navigateFromAccount('account')}
+                >
+                  <span className="portal-account-item-icon" aria-hidden="true">
+                    <SettingsGlyph />
+                  </span>
+                  <span>Подтвердить аккаунт через MAX</span>
+                </button>
+              ) : null}
               <button
                 type="button"
                 className="portal-account-item"
@@ -339,16 +386,6 @@ export function PortalHeader({
                 </span>
                 <span>Мои проекты</span>
               </button>
-              <div
-                className="portal-account-item portal-account-notifications"
-                aria-label="Уведомления: новых нет"
-              >
-                <span className="portal-account-item-icon" aria-hidden="true">
-                  <BellGlyph />
-                </span>
-                <span>Уведомления</span>
-                <span className="portal-account-item-meta">Нет новых</span>
-              </div>
               {/* A seat has settings too — fewer of them. It owns its picture,
                   which is the one thing about themselves a learner should not
                   have to ask a teacher for. */}
@@ -361,9 +398,16 @@ export function PortalHeader({
                   <SettingsGlyph />
                 </span>
                 <span>Настройки</span>
-                {maxVerificationDue ? (
-                  <span className="portal-account-item-meta">Подтвердить через MAX</span>
-                ) : null}
+              </button>
+              <button
+                type="button"
+                className="portal-account-item"
+                onClick={() => navigateFromAccount('help')}
+              >
+                <span className="portal-account-item-icon" aria-hidden="true">
+                  <HelpGlyph />
+                </span>
+                <span>Помощь и сообщество</span>
               </button>
             </div>
 
@@ -444,25 +488,34 @@ export function PortalHeader({
           </div>
         </details>
       </header>
+      {mobileOpen ? (
+        <button
+          className="portal-menu-backdrop"
+          tabIndex={-1}
+          aria-label="Закрыть меню"
+          onClick={() => setMobileOpen(false)}
+        />
+      ) : null}
       <aside
-        className={sidebarCollapsed ? 'portal-sidebar collapsed' : 'portal-sidebar'}
+        ref={sidebar}
+        id="portal-sidebar"
+        className={`portal-sidebar${sidebarCollapsed ? ' collapsed' : ''}${mobileOpen ? ' mobile-open' : ''}`}
+        role={mobileOpen ? 'dialog' : undefined}
+        aria-modal={mobileOpen ? true : undefined}
         aria-label="Основная навигация"
       >
+        <button
+          type="button"
+          className="portal-menu-close"
+          aria-label="Закрыть меню"
+          onClick={() => setMobileOpen(false)}
+        >
+          Закрыть <span aria-hidden="true">×</span>
+        </button>
         <div className="portal-sidebar-profile">
-          <button
-            type="button"
-            className="portal-sidebar-avatar"
-            aria-label={`Открыть меню аккаунта ${session.user.displayName}`}
-            title="Открыть меню аккаунта"
-            disabled={busy !== null}
-            onClick={openAccountMenu}
-          >
+          <div className="portal-sidebar-avatar">
             <AvatarVisual avatarDataUrl={effectiveAvatarUrl} initials={initials} />
-            {maxVerificationDue ? <span className="portal-max-verification-badge" /> : null}
-            <span className="portal-avatar-upload-badge" aria-hidden="true">
-              <ChevronIcon />
-            </span>
-          </button>
+          </div>
           <span className="portal-sidebar-profile-copy">
             <strong>{session.user.displayName}</strong>
             {/* Учащемуся под именем показываем класс, а не ссылку на смену
@@ -472,13 +525,33 @@ export function PortalHeader({
           </span>
         </div>
         <nav className="portal-nav">
+          <PortalLink
+            href={sectionHref('gallery')}
+            className="portal-nav-item portal-mobile-public"
+            onNavigate={() => go('gallery')}
+          >
+            <span className="portal-nav-glyph">
+              <GalleryGlyph />
+            </span>
+            <span>Проекты сообщества</span>
+          </PortalLink>
+          <PortalLink
+            href={sectionHref('knowledge')}
+            className="portal-nav-item portal-mobile-public"
+            onNavigate={() => go('knowledge')}
+          >
+            <span className="portal-nav-glyph">
+              <LearningGlyph />
+            </span>
+            <span>Знания</span>
+          </PortalLink>
           {primaryNavigation.map((item) => (
-            <button
-              type="button"
+            <PortalLink
+              href={sectionHref(item.section)}
               key={item.section}
               className={active === item.section ? 'portal-nav-item active' : 'portal-nav-item'}
               aria-current={active === item.section ? 'page' : undefined}
-              onClick={() => onNavigate(item.section)}
+              onNavigate={() => go(item.section)}
             >
               <span className="portal-nav-glyph" aria-hidden="true">
                 {sectionIcon(item.section)}
@@ -486,17 +559,10 @@ export function PortalHeader({
               <span className="portal-nav-label">{item.label}</span>
               {/* Одна и та же отметка о невыполненном: учащемуся — сколько он
                   не сдал, преподавателю — сколько работ ждёт его ответа. */}
-              {item.section === 'classes' && unfinishedCount > 0 ? (
-                <span className="portal-nav-count" aria-label={`Не сдано: ${unfinishedCount}`}>
-                  {unfinishedCount}
-                </span>
+              {item.section === 'classes' && attention ? (
+                <span className="portal-section-attention">{attention}</span>
               ) : null}
-              {item.section === 'classes' && !seatLearner && (classroomBadge ?? 0) > 0 ? (
-                <span className="portal-nav-count" aria-label={`Ждут проверки: ${classroomBadge}`}>
-                  {classroomBadge}
-                </span>
-              ) : null}
-            </button>
+            </PortalLink>
           ))}
           {adminNavigation ? (
             <div className="portal-admin-navigation">
@@ -505,7 +571,10 @@ export function PortalHeader({
                 data-admin-navigation="true"
                 className={adminNavigation.active ? 'portal-nav-item active' : 'portal-nav-item'}
                 aria-expanded={adminNavigation.active}
-                onClick={adminNavigation.onOpen}
+                onClick={() => {
+                  setMobileOpen(false);
+                  adminNavigation.onOpen();
+                }}
               >
                 <span className="portal-nav-glyph" aria-hidden="true">
                   <SchoolGlyph />
@@ -524,7 +593,10 @@ export function PortalHeader({
                           : 'portal-admin-subnav-item'
                       }
                       aria-current={adminNavigation.activeSection === item.id ? 'page' : undefined}
-                      onClick={() => adminNavigation.onNavigate(item.id)}
+                      onClick={() => {
+                        setMobileOpen(false);
+                        adminNavigation.onNavigate(item.id);
+                      }}
                     >
                       {item.label}
                     </button>
@@ -534,13 +606,26 @@ export function PortalHeader({
             </div>
           ) : null}
         </nav>
+        <div className="portal-mobile-account">
+          <button type="button" className="portal-nav-item" onClick={() => go('account')}>
+            Настройки
+          </button>
+          <button
+            type="button"
+            className="portal-nav-item"
+            disabled={busy !== null}
+            onClick={() => void logout()}
+          >
+            Выход
+          </button>
+        </div>
         {helpNavigation ? (
           <div className="portal-sidebar-footer">
             <button
               type="button"
               className={active === 'help' ? 'portal-nav-item active' : 'portal-nav-item'}
               aria-current={active === 'help' ? 'page' : undefined}
-              onClick={() => onNavigate('help')}
+              onClick={() => go('help')}
             >
               <span className="portal-nav-glyph" aria-hidden="true">
                 {sectionIcon('help')}

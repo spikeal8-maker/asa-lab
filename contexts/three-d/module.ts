@@ -98,9 +98,9 @@ export interface ThreeDAnalysisSummary {
 const THREE_D_MANIFEST = {
   moduleKey: 'three-d',
   moduleVersion: '0.1.0',
-  displayName: 'ASA 3D',
+  displayName: '3D-моделирование',
   shortDescription: 'Браузерное 3D-моделирование из простых форм с точными размерами.',
-  defaultProjectTitlePrefix: '3D-модель',
+  defaultProjectTitlePrefix: '3D модель',
   projectType: 'three-d-scene',
   schemaVersion: 1,
   editorRoute: '/projects/:projectId/three-d',

@@ -137,15 +137,34 @@ export class ProjectsController {
     @Query('scope') scope: string | undefined,
     @Query('classroomId') classroomId: string | undefined,
     @Query('status') status: string | undefined,
-  ): Promise<{ items: unknown[] }> {
+    @Query('module') moduleKey: string | undefined,
+    @Query('limit') limit: string | undefined,
+    @Query('cursor') cursor: string | undefined,
+    @Query('search') search: string | undefined,
+    @Query('sort') sort: string | undefined,
+    @Query('excludeGames') excludeGames: string | undefined,
+  ): Promise<{ items: unknown[]; nextCursor?: string | null }> {
     const context = await this.requireContext(request);
     const result = await this.listUseCase.execute(
       context.tenantId,
       ProjectsController.actorOf(context),
-      { scope, classroomId, status },
+      { scope, classroomId, status, moduleKey, limit, cursor, search, sort, excludeGames },
     );
     if (!result.ok) ProjectsController.reject(result.code, result.message);
-    return { items: result.value };
+    const last = result.value.at(-1);
+    return {
+      items: result.value,
+      ...(limit === undefined
+        ? {}
+        : {
+            nextCursor:
+              last && result.value.length === Number(limit)
+                ? Buffer.from(
+                    JSON.stringify([sort ?? 'recent', last.updatedAt, last.id, last.title]),
+                  ).toString('base64url')
+                : null,
+          }),
+    };
   }
 
   @Get('title-suggestion')

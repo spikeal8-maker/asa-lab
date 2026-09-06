@@ -14,16 +14,24 @@ export async function withTenantContext<T>(
   fn: (client: pg.PoolClient) => Promise<T>,
 ): Promise<T> {
   const client = await pool.connect();
+  let discard = false;
   try {
     await client.query('BEGIN');
     await client.query("SELECT set_config('app.tenant_id', $1, true)", [tenantId]);
     const result = await fn(client);
-    await client.query('COMMIT');
+    const committed = await client.query('COMMIT');
+    // PostgreSQL answers ROLLBACK (without throwing) when the callback has
+    // swallowed a SQL error and left the transaction aborted.
+    if (committed.command !== 'COMMIT') {
+      throw new Error('Transaction was not committed');
+    }
     return result;
   } catch (error) {
-    await client.query('ROLLBACK');
+    await client.query('ROLLBACK').catch(() => {
+      discard = true;
+    });
     throw error;
   } finally {
-    client.release();
+    client.release(discard);
   }
 }

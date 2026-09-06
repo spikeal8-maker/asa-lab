@@ -1,14 +1,12 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { api, type Project, type ProjectFeedback, type ProjectStatus } from '../api';
 import {
-  api,
-  type ModuleSummary,
-  type Project,
-  type ProjectFeedback,
-  type ProjectStatus,
-} from '../api';
-import { CreateProjectModal } from '../components/CreateProjectModal';
-import { creatorViewToHref } from '../creator-portal/navigation';
-import { PlusIcon } from '../electronics/workbench-icons';
+  QuickCreateMenu,
+  useQuickProjectCreation,
+  useProjectScroll,
+} from '../creator-portal/QuickProjectCreation';
+import { creatorViewToHref, type ProjectListView } from '../creator-portal/navigation';
+import { newClientId } from '../client-id';
 import { ProjectCard } from '../modules/ProjectCard';
 import { ProjectProperties } from '../components/ProjectProperties';
 import { ProjectHistoryDialog } from '../components/ProjectHistoryDialog';
@@ -93,17 +91,35 @@ const STATUS_PLACES: ReadonlyArray<{ value: ProjectStatus; label: string }> = [
 
 export function MyProjectsPage({
   onOpenProject,
+  view,
+  onView,
 }: {
   onOpenProject: (projectId: string, moduleKey: string) => void;
+  view: ProjectListView;
+  onView: (view: ProjectListView) => void;
 }): JSX.Element {
   const [items, setItems] = useState<Project[] | null>(null);
-  const [modules, setModules] = useState<ModuleSummary[] | null>(null);
+  const { modules } = useQuickProjectCreation();
   const [error, setError] = useState<string | null>(null);
-  const [creating, setCreating] = useState(false);
-  const [query, setQuery] = useState('');
-  const [moduleFilter, setModuleFilter] = useState('all');
-  const [statusFilter, setStatusFilter] = useState<ProjectStatus>('active');
-  const [sortMode, setSortMode] = useState<SortMode>('recent');
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [query, setQuery] = useState(view.search ?? '');
+  const { module: selectedModule, search, sort, status, cursor } = view;
+  const moduleFilter = selectedModule ?? 'all';
+  const { cursor: _cursor, ...firstPage } = view;
+  void _cursor;
+  const setModuleFilter = (value: string): void => {
+    const { module: _module, ...rest } = firstPage;
+    void _module;
+    onView({ ...rest, ...(value === 'all' ? {} : { module: value }) });
+  };
+  const statusFilter = status ?? 'active';
+  const setStatusFilter = (value: ProjectStatus): void => onView({ ...firstPage, status: value });
+  const sortMode = sort ?? 'recent';
+  const setSortMode = (value: SortMode): void => onView({ ...firstPage, sort: value });
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const sequence = useRef(0);
+  const mounted = useRef(true);
+  const duplicateKeys = useRef(new Map<string, string>());
   const [layout, setLayout] = useState<LayoutMode>('grid');
   const [actionBusy, setActionBusy] = useState<string | null>(null);
   // What a teacher said, keyed by project. Empty for anyone with no teacher.
@@ -116,32 +132,43 @@ export function MyProjectsPage({
   const [collecting, setCollecting] = useState<Project | null>(null);
 
   const load = useCallback(async () => {
-    setItems(null);
+    const current = ++sequence.current;
     setError(null);
-    // The teacher's responses arrive with the projects, so a mark is on the card
-    // when the card appears. A response is not required for the page to work: a
-    // learner with no teacher simply has none.
-    const [projectsResult, modulesResult, feedbackResult] = await Promise.all([
-      api.listProjects({ scope: 'personal', status: statusFilter }),
-      api.listProjectModules(),
-      api.myProjectFeedback(),
-    ]);
-    if (!projectsResult.ok || !modulesResult.ok) {
+    void api.myProjectFeedback().then((result) => {
+      if (current === sequence.current && mounted.current && result.ok)
+        setFeedback(result.data.items);
+    });
+    const projectsResult = await api.listProjects({
+      scope: 'personal',
+      status: status ?? 'active',
+      limit: 40,
+      ...(selectedModule ? { module: selectedModule } : {}),
+      ...(search ? { search } : {}),
+      ...(sort ? { sort } : {}),
+      ...(cursor ? { cursor } : {}),
+    });
+    if (current !== sequence.current || !mounted.current) return;
+    if (!projectsResult.ok) {
       setError(
-        projectsResult.status === 0 || modulesResult.status === 0
-          ? 'Сервер недоступен.'
-          : 'Не удалось загрузить мастерскую.',
+        projectsResult.status === 0 ? 'Сервер недоступен.' : 'Не удалось загрузить проекты.',
       );
       return;
     }
     setItems(projectsResult.data.items);
-    setModules(modulesResult.data.items);
-    setFeedback(feedbackResult.ok ? feedbackResult.data.items : {});
-  }, [statusFilter]);
+    setNextCursor(projectsResult.data.nextCursor ?? null);
+  }, [selectedModule, search, sort, status, cursor]);
 
   useEffect(() => {
+    mounted.current = true;
+    setItems(null);
+    setNextCursor(null);
     void load();
+    return () => {
+      sequence.current++;
+      mounted.current = false;
+    };
   }, [load]);
+  useEffect(() => setQuery(search ?? ''), [search]);
 
   const modulesByKey = useMemo(
     () => new Map((modules ?? []).map((module) => [module.moduleKey, module])),
@@ -161,47 +188,36 @@ export function MyProjectsPage({
     [modules],
   );
 
-  const visibleItems = useMemo(() => {
-    const normalized = query.trim().toLocaleLowerCase('ru-RU');
-    const result = (items ?? []).filter((project) => {
-      const matchesModule = moduleFilter === 'all' || project.moduleKey === moduleFilter;
-      const matchesQuery =
-        normalized.length === 0 || project.title.toLocaleLowerCase('ru-RU').includes(normalized);
-      return matchesModule && matchesQuery;
-    });
-    return [...result].sort((left, right) => {
-      if (sortMode === 'title') return left.title.localeCompare(right.title, 'ru');
-      const direction = sortMode === 'oldest' ? 1 : -1;
-      return direction * (new Date(left.updatedAt).getTime() - new Date(right.updatedAt).getTime());
-    });
-  }, [items, moduleFilter, query, sortMode]);
+  const visibleItems = items ?? [];
+  const rememberScroll = useProjectScroll(items !== null);
 
   async function changeStatus(project: Project, status: ProjectStatus): Promise<void> {
     setActionBusy(project.id);
-    setError(null);
+    setActionError(null);
     const result = await api.changeProjectStatus(project.id, status);
+    if (!mounted.current) return;
     setActionBusy(null);
     if (!result.ok) {
-      setError(result.error.message || 'Не удалось изменить состояние проекта.');
+      setActionError(result.error.message || 'Не удалось изменить состояние проекта.');
       return;
     }
-    setItems((current) => current?.filter((item) => item.id !== project.id) ?? null);
+    await load();
   }
 
   async function duplicate(project: Project): Promise<void> {
     setActionBusy(project.id);
-    setError(null);
-    const result = await api.duplicateProject(
-      project.id,
-      `${project.title} — копия`,
-      `duplicate-${project.id}-${crypto.randomUUID()}`,
-    );
+    setActionError(null);
+    const key = duplicateKeys.current.get(project.id) ?? newClientId();
+    duplicateKeys.current.set(project.id, key);
+    const result = await api.duplicateProject(project.id, `${project.title} — копия`, key);
+    if (!mounted.current) return;
     setActionBusy(null);
     if (!result.ok) {
-      setError(result.error.message || 'Не удалось создать копию проекта.');
+      setActionError(result.error.message || 'Не удалось создать копию проекта.');
       return;
     }
-    setItems((current) => (current ? [result.data.project, ...current] : [result.data.project]));
+    duplicateKeys.current.delete(project.id);
+    await load();
   }
 
   return (
@@ -211,18 +227,30 @@ export function MyProjectsPage({
           <h1>Мои проекты</h1>
         </div>
         <div className="project-hub-heading-tools">
-          <label className="project-search">
-            <span className="sr-only">Поиск проектов</span>
-            <input
-              type="search"
-              placeholder="Поиск"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-            />
-          </label>
-          <button type="button" className="portal-create-button" onClick={() => setCreating(true)}>
-            <PlusIcon /> Создать
-          </button>
+          <form
+            className="project-search-form"
+            onSubmit={(event) => {
+              event.preventDefault();
+              const { search: _search, ...rest } = firstPage;
+              void _search;
+              onView({ ...rest, ...(query.trim() ? { search: query.trim() } : {}) });
+            }}
+          >
+            <label className="project-search">
+              <span className="sr-only">Поиск проектов</span>
+              <input
+                type="search"
+                maxLength={255}
+                placeholder="Поиск"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+              />
+            </label>
+            <button type="submit" className="btn-secondary">
+              Найти
+            </button>
+          </form>
+          <QuickCreateMenu />
         </div>
       </section>
 
@@ -306,6 +334,11 @@ export function MyProjectsPage({
           {shareNotice}
         </p>
       ) : null}
+      {actionError ? (
+        <p role="alert" className="notice-error">
+          {actionError}
+        </p>
+      ) : null}
       {error ? (
         <div className="portal-empty" role="alert">
           <p>{error}</p>
@@ -329,26 +362,22 @@ export function MyProjectsPage({
             +
           </span>
           <h2>
-            {statusFilter === 'active'
-              ? 'Создайте первый проект'
-              : statusFilter === 'archived'
-                ? 'Архив пуст'
-                : 'Корзина пуста'}
+            {search || cursor
+              ? 'Ничего не найдено'
+              : statusFilter === 'active'
+                ? 'Создайте первый проект'
+                : statusFilter === 'archived'
+                  ? 'Архив пуст'
+                  : 'Корзина пуста'}
           </h2>
           <p>
-            {statusFilter === 'active'
-              ? 'Выберите учебную среду. Класс для личной работы не требуется.'
-              : 'Здесь появятся проекты после соответствующего действия.'}
+            {search || cursor
+              ? 'Измените поиск или вернитесь к началу списка.'
+              : statusFilter === 'active'
+                ? 'Выберите учебную среду. Класс для личной работы не требуется.'
+                : 'Здесь появятся проекты после соответствующего действия.'}
           </p>
-          {statusFilter === 'active' ? (
-            <button
-              type="button"
-              className="portal-create-button"
-              onClick={() => setCreating(true)}
-            >
-              <PlusIcon /> Создать проект
-            </button>
-          ) : null}
+          {statusFilter === 'active' ? <QuickCreateMenu /> : null}
         </section>
       ) : null}
 
@@ -367,7 +396,7 @@ export function MyProjectsPage({
               kind: 'editor',
               projectId: project.id,
               moduleKey: project.moduleKey,
-              returnTo: { kind: 'my-projects' },
+              returnTo: view,
             });
             const busy = actionBusy === project.id;
             const active = statusFilter === 'active';
@@ -399,7 +428,10 @@ export function MyProjectsPage({
                   ? {
                       open: {
                         href: editorHref,
-                        onNavigate: () => onOpenProject(project.id, project.moduleKey),
+                        onNavigate: () => {
+                          rememberScroll();
+                          onOpenProject(project.id, project.moduleKey);
+                        },
                       },
                     }
                   : {
@@ -470,6 +502,25 @@ export function MyProjectsPage({
         </ul>
       ) : null}
 
+      {cursor || nextCursor ? (
+        <nav className="project-pagination" aria-label="Страницы проектов">
+          {cursor ? (
+            <button type="button" className="btn-secondary" onClick={() => onView(firstPage)}>
+              В начало списка
+            </button>
+          ) : null}
+          {nextCursor ? (
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => onView({ ...view, cursor: nextCursor })}
+            >
+              Следующие проекты
+            </button>
+          ) : null}
+        </nav>
+      ) : null}
+
       {properties ? (
         <ProjectProperties
           project={properties}
@@ -500,17 +551,6 @@ export function MyProjectsPage({
           title={reading.title}
           entry={reading.entry}
           onClose={() => setReading(null)}
-        />
-      ) : null}
-
-      {creating ? (
-        <CreateProjectModal
-          scope="personal"
-          onClose={() => setCreating(false)}
-          onCreated={(project) => {
-            setCreating(false);
-            onOpenProject(project.id, project.moduleKey);
-          }}
         />
       ) : null}
     </main>

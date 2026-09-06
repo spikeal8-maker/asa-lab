@@ -128,7 +128,7 @@ test('Games has two large cards and games disappear from project shelves and cre
   const state = await fixture(page);
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto('/#/games');
-  await expect(page.getByRole('button', { name: 'Игры', exact: true })).toHaveAttribute(
+  await expect(page.getByRole('link', { name: 'Игры', exact: true })).toHaveAttribute(
     'aria-current',
     'page',
   );
@@ -155,7 +155,7 @@ test('Games has two large cards and games disappear from project shelves and cre
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page
     .locator('.portal-nav-item')
-    .filter({ hasText: /^Проекты$/ })
+    .filter({ hasText: /^Мои проекты$/ })
     .click();
   await expect(page.locator('.project-card:not(.is-new)')).toHaveCount(0);
   await expect(page.locator('main')).not.toContainText('Шахматы');
@@ -166,13 +166,10 @@ test('Games has two large cards and games disappear from project shelves and cre
     .click();
   await expect(page.locator('.creator-home')).not.toContainText('Шахматы');
   await expect(page.locator('.creator-home')).not.toContainText('Шашки');
-  await page
-    .getByRole('button', { name: /^Создать(?: проект)?$/ })
-    .first()
-    .click();
-  await expect(page.getByRole('dialog')).toBeVisible();
-  await expect(page.getByRole('dialog')).not.toContainText('Шахматы');
-  await expect(page.getByRole('dialog')).not.toContainText('Шашки');
+  await page.locator('.portal-header .portal-quick-create > summary').click();
+  await expect(page.locator('.portal-header .portal-create-options')).toBeVisible();
+  await expect(page.locator('.portal-header .portal-create-options')).not.toContainText('Шахматы');
+  await expect(page.locator('.portal-header .portal-create-options')).not.toContainText('Шашки');
   expect(state.errors).toEqual([]);
 });
 
@@ -215,7 +212,9 @@ test('an unavailable save list shows an error and does not create a duplicate', 
   const state = await fixture(page, true);
   await page.goto('/#/games');
   await page.getByRole('button', { name: 'Играть: Шахматы', exact: true }).click();
-  await expect(page.getByRole('alert')).toContainText('Не удалось загрузить игры');
+  await expect(page.locator('.games-page').getByRole('alert')).toContainText(
+    'Не удалось загрузить игры',
+  );
   await expect(page.getByRole('button', { name: 'Играть: Шахматы', exact: true })).toBeEnabled();
   expect(state.creations()).toBe(0);
 });
@@ -230,10 +229,12 @@ test('an unavailable catalogue can be retried without a stuck loading screen', a
     }),
   );
   await page.goto('/#/games');
-  await expect(page.getByRole('alert')).toContainText('Не удалось загрузить игры');
+  await expect(page.locator('.games-page').getByRole('alert')).toContainText(
+    'Не удалось загрузить игры',
+  );
   await expect(page.locator('.game-card')).not.toContainText(['Загрузка…', 'Загрузка…']);
   await page.unroute('**/api/modules');
-  await page.getByRole('button', { name: 'Повторить', exact: true }).click();
+  await page.locator('.games-page').getByRole('button', { name: 'Повторить', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Играть: Шахматы', exact: true })).toBeEnabled();
   expect(state.creations()).toBe(0);
   expect(state.errors).toEqual([]);

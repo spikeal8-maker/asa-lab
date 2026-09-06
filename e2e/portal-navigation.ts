@@ -20,10 +20,20 @@ export function portalTopBar(page: Page) {
 }
 
 export function portalSection(page: Page, label: string) {
-  return portalSidebar(page).getByRole('button', { name: label, exact: true });
+  const current =
+    (
+      { Проекты: 'Мои проекты', Коллекции: 'Сохранённое', Обучение: 'Моё обучение' } as Record<
+        string,
+        string
+      >
+    )[label] ?? label;
+  return portalSidebar(page).getByRole('link', { name: current, exact: true });
 }
 
 export async function openPortalSection(page: Page, label: string): Promise<void> {
+  const menu = page.getByRole('button', { name: 'Открыть меню', exact: true });
+  if ((await menu.isVisible()) && !(await portalSection(page, label).isVisible()))
+    await menu.click();
   await expect(portalSection(page, label)).toBeVisible();
   await portalSection(page, label).click();
 }
