@@ -1,0 +1,1 @@
+Landing screenshot assets are exact byte copies of the verified E2E screenshots from `e2e/artifacts/readme-2026-09-07/` and `e2e/artifacts/classroom-management/`. They must not be recompressed when refreshed.
