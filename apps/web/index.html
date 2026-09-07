@@ -6,22 +6,19 @@
     <meta name="theme-color" content="#0B3558" />
     <meta
       name="description"
-      content="ASA Lab объединяет 3D-моделирование, виртуальную электронику, блочное программирование, рисование и черчение, шахматы и русские шашки в одной среде для собственных проектов, экспериментов и поиска решений."
+      content="ASA Lab — цифровая среда для проектов и обучения: 3D-моделирование, виртуальная электроника, Arduino, программирование, визуальные проекты, шахматы и шашки, знания, курсы, классы и проекты сообщества."
     />
     <meta
       name="robots"
       content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1"
     />
-    <meta name="author" content="ASA Lab" />
+    <meta name="author" content="Александр Аликин" />
     <link rel="canonical" href="https://asa-lab.ru/" />
     <link rel="alternate" hreflang="ru" href="https://asa-lab.ru/" />
     <link rel="alternate" hreflang="x-default" href="https://asa-lab.ru/" />
     <link rel="icon" type="image/svg+xml" href="/asa-lab-mark.svg" />
     <link rel="stylesheet" href="/seo.css" />
     <style>
-      /* Critical first-frame shell. It is deliberately inline: the old SEO
-         document must never become visible while even the stylesheet or the
-         application bundle is still in flight. */
       #root > .app-boot-shell-static {
         position: fixed;
         z-index: 2147483647;
@@ -65,11 +62,11 @@
     <meta property="og:site_name" content="ASA Lab" />
     <meta
       property="og:title"
-      content="ASA Lab — цифровая лаборатория для проектирования и изобретений"
+      content="ASA Lab — проекты, обучение, 3D и электроника в браузере"
     />
     <meta
       property="og:description"
-      content="3D-моделирование, электроника, программирование, черчение и другие инструменты для собственных проектов, экспериментов и новых идей."
+      content="Создавайте собственные проекты, работайте с 3D, электроникой и Arduino, изучайте материалы, смотрите опубликованные работы и используйте классы и задания в одной среде."
     />
     <meta property="og:url" content="https://asa-lab.ru/" />
     <meta property="og:image" content="https://asa-lab.ru/social/asa-lab-og.png" />
@@ -78,21 +75,21 @@
     <meta property="og:image:type" content="image/png" />
     <meta
       property="og:image:alt"
-      content="ASA Lab — цифровая лаборатория с 3D-моделированием, электроникой, программированием и инструментами для собственных проектов"
+      content="ASA Lab — цифровая среда для проектов, обучения, 3D-моделирования, электроники и программирования"
     />
     <meta name="twitter:card" content="summary_large_image" />
     <meta
       name="twitter:title"
-      content="ASA Lab — цифровая лаборатория для проектирования и изобретений"
+      content="ASA Lab — проекты, обучение, 3D и электроника в браузере"
     />
     <meta
       name="twitter:description"
-      content="3D-моделирование, электроника, программирование, черчение и инструменты для собственных проектов и экспериментов."
+      content="Проекты, 3D, виртуальная электроника, Arduino, программирование, обучение и классы в одной цифровой среде."
     />
     <meta name="twitter:image" content="https://asa-lab.ru/social/asa-lab-og.png" />
     <meta
       name="twitter:image:alt"
-      content="ASA Lab — цифровая лаборатория с 3D-моделированием, электроникой, программированием и инструментами для собственных проектов"
+      content="ASA Lab — цифровая среда для проектов, обучения и творчества"
     />
 
     <script type="application/ld+json">
@@ -100,13 +97,27 @@
         "@context": "https://schema.org",
         "@graph": [
           {
+            "@type": "Person",
+            "@id": "https://asa-lab.ru/#creator",
+            "name": "Александр Аликин",
+            "url": "https://asa-lab.ru/about/",
+            "sameAs": [
+              "https://github.com/spikeal8-maker",
+              "https://vk.ru/asalabru"
+            ]
+          },
+          {
             "@type": "Organization",
             "@id": "https://asa-lab.ru/#organization",
             "name": "ASA Lab",
             "alternateName": "АСА Лаб",
             "url": "https://asa-lab.ru/",
             "logo": "https://asa-lab.ru/asa-lab-mark.svg",
-            "sameAs": ["https://github.com/spikeal8-maker/asa-lab"]
+            "founder": { "@id": "https://asa-lab.ru/#creator" },
+            "sameAs": [
+              "https://github.com/spikeal8-maker/asa-lab",
+              "https://vk.ru/asalabru"
+            ]
           },
           {
             "@type": "WebSite",
@@ -114,7 +125,7 @@
             "url": "https://asa-lab.ru/",
             "name": "ASA Lab",
             "alternateName": "АСА Лаб",
-            "description": "Цифровая лаборатория для проектирования, моделирования, программирования, виртуальной электроники, экспериментов и собственных проектов.",
+            "description": "Цифровая среда для проектов, обучения, 3D-моделирования, виртуальной электроники, Arduino, программирования, творчества и интеллектуальных игр.",
             "inLanguage": "ru-RU",
             "publisher": { "@id": "https://asa-lab.ru/#organization" }
           },
@@ -127,15 +138,18 @@
             "applicationCategory": "DesignApplication",
             "operatingSystem": "Современный веб-браузер",
             "inLanguage": "ru-RU",
-            "description": "Веб-платформа для проектирования, 3D-моделирования, программирования, виртуальной электроники, рисования, черчения и создания собственных цифровых проектов.",
+            "author": { "@id": "https://asa-lab.ru/#creator" },
+            "description": "Веб-платформа для собственных проектов и обучения: 3D-моделирование, виртуальная электроника и Arduino, программирование, визуальные проекты, шахматы и русские шашки, знания, курсы, классы и задания.",
             "featureList": [
-              "3D-моделирование",
+              "3D-моделирование и CAD-сценарии",
               "Виртуальная электроника",
+              "Arduino и программирование",
               "Блочное программирование",
-              "Рисование и черчение",
+              "Рисование и визуальные проекты",
               "Шахматы и русские шашки",
-              "Проекты",
-              "Классы и задания для совместной работы"
+              "Личные и опубликованные проекты",
+              "Знания, курсы и задания",
+              "Классы и обратная связь"
             ],
             "publisher": { "@id": "https://asa-lab.ru/#organization" }
           }
@@ -143,7 +157,7 @@
       }
     </script>
 
-    <title>ASA Lab — 3D, электроника, программирование и проектирование</title>
+    <title>ASA Lab — проекты, обучение, 3D и электроника в браузере</title>
   </head>
   <body>
     <div id="root">
@@ -157,104 +171,102 @@
         <header class="seo-header">
           <a class="seo-brand" href="/" aria-label="ASA Lab — главная">ASA <span>Lab</span></a>
           <nav aria-label="Основная навигация">
-            <a href="/features/">Возможности</a>
+            <a href="/#capabilities">Возможности</a>
+            <a href="/#projects">Проекты</a>
+            <a href="/#learning">Обучение</a>
             <a href="/for-teachers/">Преподавателям</a>
             <a href="/#/sign-in">Войти</a>
           </nav>
         </header>
         <main id="main-content">
           <section class="seo-hero">
-            <p class="seo-eyebrow">От идеи к работающему проекту</p>
-            <h1>Цифровая лаборатория для проектирования и изобретений</h1>
+            <p class="seo-eyebrow">Цифровая среда для проектов и обучения</p>
+            <h1>Создавай. Исследуй. Учись через действие.</h1>
             <p class="seo-lead">
-              Создавайте 3D-модели, электронные схемы, программы, чертежи и другие цифровые проекты.
-              Экспериментируйте, проверяйте идеи, меняйте решения и превращайте замысел в
-              собственный работающий результат.
+              ASA Lab объединяет 3D-моделирование, виртуальную электронику, Arduino,
+              программирование, творчество и интеллектуальные игры. Создавайте свои проекты,
+              изучайте работы других, проходите обучение или работайте в классе — всё в одной среде.
             </p>
             <div class="seo-actions">
-              <a class="seo-button seo-button-primary" href="/#/sign-up">Начать проект</a>
-              <a class="seo-button" href="/features/">Посмотреть возможности</a>
+              <a class="seo-button seo-button-primary" href="/#/sign-up">Создать аккаунт</a>
+              <a class="seo-button" href="/#/sign-in">Войти</a>
+              <a class="seo-button" href="/#/join-class">У меня есть код класса</a>
             </div>
           </section>
 
           <section class="seo-section" aria-labelledby="fallback-capabilities">
-            <p class="seo-eyebrow">Инструменты</p>
-            <h2 id="fallback-capabilities">Всё, что нужно, чтобы придумать, собрать и проверить</h2>
+            <p class="seo-eyebrow">Что можно делать</p>
+            <h2 id="fallback-capabilities">Создавать и решать задачи разными способами</h2>
             <div class="seo-grid">
-              <article>
-                <h3><a href="/features/block-programming/">Блочное программирование</a></h3>
-                <p>
-                  Составляйте алгоритмы из визуальных блоков, работайте с последовательностями,
-                  условиями, циклами и переменными.
-                </p>
-              </article>
-              <article>
-                <h3><a href="/features/drawing/">Рисование и черчение</a></h3>
-                <p>
-                  Создавайте эскизы, рисунки, схемы и визуальные конструкции с помощью линий, форм и
-                  инструментов черчения.
-                </p>
-              </article>
-              <article>
-                <h3><a href="/features/3d-modeling/">3D-моделирование</a></h3>
-                <p>
-                  Создавайте объекты из базовых форм, меняйте размеры, положение и ориентацию и
-                  собирайте собственные трёхмерные модели.
-                </p>
-              </article>
-              <article>
-                <h3><a href="/features/electronics/">Виртуальная электроника</a></h3>
-                <p>
-                  Собирайте схемы из компонентов, соединяйте их, запускайте симуляцию, измеряйте
-                  параметры и находите ошибки.
-                </p>
-              </article>
-              <article>
-                <h3><a href="/features/chess-and-checkers/">Шахматы и русские шашки</a></h3>
-                <p>
-                  Решайте задачи, анализируйте позиции, играйте и проверяйте разные стратегии и
-                  варианты решения.
-                </p>
-              </article>
-              <article>
-                <h3><a href="/for-teachers/">Классы и задания</a></h3>
-                <p>
-                  Объединяйте участников, выдавайте задания и организуйте совместную проектную
-                  работу, когда это необходимо.
-                </p>
-              </article>
+              <article><h3><a href="/features/electronics/">Виртуальная электроника</a></h3><p>Схемы, компоненты, Arduino, моделирование, измерения и диагностика.</p></article>
+              <article><h3><a href="/features/3d-modeling/">3D и CAD</a></h3><p>Модели из форм, размеры, составные объекты и развитие CAD-сценариев.</p></article>
+              <article><h3><a href="/features/block-programming/">Блочное программирование</a></h3><p>Алгоритмы, условия, циклы и визуальное управление Arduino рядом со схемой.</p></article>
+              <article><h3><a href="/features/drawing/">Рисование и визуальные проекты</a></h3><p>Форма, цвет, композиция, эскизы и собственные творческие работы.</p></article>
+              <article><h3><a href="/features/chess-and-checkers/">Шахматы и русские шашки</a></h3><p>Партии, задачи, позиции, варианты и стратегическое мышление.</p></article>
+              <article><h3>Проекты, обучение и классы</h3><p>Личная работа, опубликованные проекты, знания, курсы, задания и обратная связь.</p></article>
             </div>
           </section>
 
-          <section class="seo-section seo-panel" aria-labelledby="fallback-teachers">
+          <section class="seo-section seo-panel" aria-labelledby="fallback-projects">
             <div>
-              <p class="seo-eyebrow">Проектный подход</p>
-              <h2 id="fallback-teachers">От первой идеи до собственного результата</h2>
+              <p class="seo-eyebrow">Проекты и сообщество</p>
+              <h2 id="fallback-projects">Смотрите опубликованные работы и развивайте свою идею</h2>
             </div>
             <p>
-              ASA Lab объединяет разные инструменты в одной среде. Можно начать с идеи, создать
-              модель, программу или схему, проверить результат, изменить решение и сохранить
-              собственную работу. Главное — не просто получить готовый ответ, а пройти путь создания
-              самостоятельно.
+              Пользователь может хранить собственные проекты и смотреть опубликованные работы.
+              Галерея помогает увидеть другой подход, найти идею и затем сделать собственную версию.
             </p>
           </section>
 
-          <section class="seo-section" aria-labelledby="fallback-safety">
-            <p class="seo-eyebrow">Для совместной работы</p>
-            <h2 id="fallback-safety">Проекты можно объединять в классы и задания</h2>
+          <section class="seo-section" aria-labelledby="fallback-learning">
+            <p class="seo-eyebrow">Обучение</p>
+            <h2 id="fallback-learning">Знания, курсы, задания и практика в редакторах</h2>
             <p>
-              Если ASA Lab используется на занятии, в кружке или в команде, проекты можно связать с
-              классом и заданием. Преподаватель получает возможность организовать работу и видеть её
-              результат, но основой остаётся сам проект и процесс его создания.
+              ASA Lab связывает объяснение и действие: материал можно изучить, задачу — выполнить в
+              реальном редакторе, а результат — сохранить, проверить и улучшить.
             </p>
+          </section>
+
+          <section class="seo-section" aria-labelledby="fallback-workflows">
+            <p class="seo-eyebrow">Для разных сценариев</p>
+            <h2 id="fallback-workflows">Самостоятельно, в классе, с преподавателем или в организации</h2>
+            <p>
+              Платформа не ограничена школьным сценарием. Она подходит самостоятельным пользователям,
+              ученикам, преподавателям, кружкам и образовательным организациям.
+            </p>
+          </section>
+
+          <section class="seo-section seo-panel" aria-labelledby="fallback-development">
+            <div>
+              <p class="seo-eyebrow">Развитие ASA Lab</p>
+              <h2 id="fallback-development">Одна цифровая мастерская</h2>
+            </div>
+            <p>
+              3D и CAD, программирование, визуальные проекты, электроника, обучение и сообщество
+              развиваются как связанные сценарии. CAD-направление включает переход к профессиональной
+              работе, в том числе сценариям с КОМПАС-3D.
+            </p>
+          </section>
+
+          <section class="seo-section" aria-labelledby="fallback-about">
+            <p class="seo-eyebrow">О проекте</p>
+            <h2 id="fallback-about">ASA Lab создаёт Александр Аликин</h2>
+            <p>
+              Педагог технических и цифровых дисциплин, инженер-практик и предприниматель. Проект
+              развивается вокруг практической работы: сделать собственную попытку, увидеть результат,
+              исправить ошибку и объяснить решение.
+            </p>
+            <p><a href="/about/">Подробнее о проекте</a> · <a href="https://vk.ru/asalabru">Сообщество ВКонтакте</a></p>
           </section>
         </main>
         <footer class="seo-footer">
-          <span>© ASA Lab</span>
-          <a href="/for-schools/">Для школ</a>
+          <span>© ASA Lab · Александр Аликин</span>
+          <a href="/for-teachers/">Преподавателям</a>
+          <a href="/for-schools/">Организациям</a>
           <a href="/safety/">Безопасность</a>
           <a href="/about/">О проекте</a>
           <a href="/faq/">FAQ</a>
+          <a href="https://vk.ru/asalabru">ВКонтакте</a>
           <a href="https://github.com/spikeal8-maker/asa-lab">Открытый исходный код</a>
           <a href="/llms.txt">Информация для AI-систем</a>
         </footer>
