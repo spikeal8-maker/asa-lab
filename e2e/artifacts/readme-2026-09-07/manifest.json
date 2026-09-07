@@ -1,0 +1,63 @@
+{
+  "captured_on": "2026-09-07",
+  "source": "Owner-provided original PNG files; cover is promotional artwork",
+  "verification": "Original file bytes preserved; SHA-256 checked before upload; Git blob SHA verified after upload",
+  "assets": [
+    {
+      "file": "home-dashboard.png",
+      "bytes": 513328,
+      "width": 1970,
+      "height": 1305,
+      "sha256": "df680f42ee9c5444c3355a964fc596af29e7ac97fa126ba12f8102843e9f8fd1",
+      "git_blob_sha": "19ee85e6a04c93712bc5e9522d4f77ef3d836091"
+    },
+    {
+      "file": "electronics-cpp.png",
+      "bytes": 324678,
+      "width": 1987,
+      "height": 1307,
+      "sha256": "4c73e9f7015234d4269a06e873f6bcb085bf51a3b1acf92e0bbe9df98d925cb2",
+      "git_blob_sha": "d11c02e9f993709809f49de1895ec03452d371ee"
+    },
+    {
+      "file": "electronics-blocks.png",
+      "bytes": 391460,
+      "width": 1978,
+      "height": 1274,
+      "sha256": "7c9249bf792816efc1ad63b8f9c105409f3538f7f5c261b5abee56329d47d543",
+      "git_blob_sha": "0dbb6af294cabb2959235ddfbbda5372f8f662eb"
+    },
+    {
+      "file": "electronics-simulation.png",
+      "bytes": 319148,
+      "width": 1984,
+      "height": 1226,
+      "sha256": "62323a60df3f3c15e09d54404f146b395fb56d6bd7661dab6bc406813503d088",
+      "git_blob_sha": "02a2ee99acc4e2830280f58b42b65d310bd16ced"
+    },
+    {
+      "file": "three-d-bus.png",
+      "bytes": 685675,
+      "width": 1986,
+      "height": 1116,
+      "sha256": "94de8dfa14a54dd4c253d0e9cd7fcd66579c99f853f7198a58290fc742d87ed7",
+      "git_blob_sha": "ee830c16b27dadb1418007c8b6f815f0bd0a32e3"
+    },
+    {
+      "file": "three-d-house.png",
+      "bytes": 556256,
+      "width": 1984,
+      "height": 1139,
+      "sha256": "2e2edf601fcb37455077e9fba71a1c67473bf5d5e5a0ba1e72ca8d6c5046cbbb",
+      "git_blob_sha": "cf450ad007bedd19aaa3511670038a6c70fb313d"
+    },
+    {
+      "file": "github-cover.png",
+      "bytes": 1791539,
+      "width": 1731,
+      "height": 909,
+      "sha256": "571db555e7963c0f05b5a56b053f47a3134add66e73e8bca21cad9a08bf3974b",
+      "git_blob_sha": "468277b2c522d9c009ebac677c19629195c0d5f6"
+    }
+  ]
+}
