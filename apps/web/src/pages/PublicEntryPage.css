@@ -108,7 +108,10 @@
   font-weight: 800;
   line-height: 1;
   text-decoration: none;
-  transition: transform 150ms ease, box-shadow 150ms ease, background 150ms ease;
+  transition:
+    transform 150ms ease,
+    box-shadow 150ms ease,
+    background 150ms ease;
 }
 
 .public-home-button:hover {
