@@ -1,0 +1,62 @@
+name: Import verified README materials
+on:
+  push:
+    branches: [docs/readme-materials-20260907]
+    paths: [.github/workflows/readme-materials-import.yml]
+permissions:
+  contents: write
+jobs:
+  import:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - name: Import original PNG files and verify SHA-256
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARGET_BRANCH: docs/readme-materials-20260907
+        shell: python
+        run: |
+          import base64, hashlib, json, os, struct, urllib.request
+          repo = os.environ['GITHUB_REPOSITORY']
+          assert repo == 'spikeal8-maker/asa-lab'
+          branch = os.environ['TARGET_BRANCH']
+          root = 'e2e/artifacts/readme-2026-09-07/'
+          assets = [
+            ('home-dashboard.png', 'df680f42ee9c5444c3355a964fc596af29e7ac97fa126ba12f8102843e9f8fd1', 'https://oaisdmntprsoutheastus3.blob.core.windows.net/files/00000000-66e0-820c-ad31-62950e7f6bb9/raw?se=2026-09-07T17%3A16%3A13Z&sp=r&sv=2026-02-06&sr=b&scid=01a07cd4-7924-70b2-b37b-f230563d09f1&skoid=dd316919-ffbf-4550-9c54-dfc99f412009&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2026-09-07T12%3A57%3A03Z&ske=2026-09-08T12%3A57%3A03Z&sks=b&skv=2026-02-06&sig=DaSeMlq80Gb72TIUNemaHtLLJEnxmi2ic6mEUd8tu/s%3D'),
+            ('electronics-cpp.png', '4c73e9f7015234d4269a06e873f6bcb085bf51a3b1acf92e0bbe9df98d925cb2', 'https://oaisdmntprsoutheastus3.blob.core.windows.net/files/00000000-7b30-820c-a432-d9ac7fa72626/raw?se=2026-09-07T17%3A16%3A13Z&sp=r&sv=2026-02-06&sr=b&scid=01a07cd4-7924-70b2-b37b-f230563d09f1&skoid=dd316919-ffbf-4550-9c54-dfc99f412009&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2026-09-07T11%3A24%3A52Z&ske=2026-09-08T11%3A24%3A52Z&sks=b&skv=2026-02-06&sig=%2BENogFyEafaRlXV4MnifDn3JBpto3oq5kavwSLjArQw%3D'),
+            ('electronics-blocks.png', '7c9249bf792816efc1ad63b8f9c105409f3538f7f5c261b5abee56329d47d543', 'https://oaisdmntprnorthcentralus.blob.core.windows.net/files/00000000-2800-822f-a9d8-b0985b038ede/raw?se=2026-09-07T17%3A16%3A13Z&sp=r&sv=2026-02-06&sr=b&scid=01a07cd4-7924-70b2-b37b-f230563d09f1&skoid=dd316919-ffbf-4550-9c54-dfc99f412009&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2026-09-06T21%3A15%3A37Z&ske=2026-09-07T21%3A15%3A37Z&sks=b&skv=2026-02-06&sig=ea9lexXdTRTcBOhyb7N54J4zkBHVUtDhkkVOEJldBCo%3D'),
+            ('electronics-simulation.png', '62323a60df3f3c15e09d54404f146b395fb56d6bd7661dab6bc406813503d088', 'https://oaisdmntprsoutheastus3.blob.core.windows.net/files/00000000-7a8c-820c-9506-824a852dad63/raw?se=2026-09-07T17%3A16%3A13Z&sp=r&sv=2026-02-06&sr=b&scid=01a07cd4-7924-70b2-b37b-f230563d09f1&skoid=dd316919-ffbf-4550-9c54-dfc99f412009&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2026-09-07T12%3A01%3A52Z&ske=2026-09-08T12%3A01%3A52Z&sks=b&skv=2026-02-06&sig=BwPkEthffsRCmxED2dg983YCrNIdDjildH2nQc9udV0%3D'),
+            ('three-d-bus.png', '94de8dfa14a54dd4c253d0e9cd7fcd66579c99f853f7198a58290fc742d87ed7', 'https://oaisdmntpreastus2.blob.core.windows.net/files/00000000-1f34-81f6-9c3d-e1ae2e79ee5d/raw?se=2026-09-07T17%3A16%3A13Z&sp=r&sv=2026-02-06&sr=b&scid=01a07cd4-7924-70b2-b37b-f230563d09f1&skoid=dd316919-ffbf-4550-9c54-dfc99f412009&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2026-09-07T11%3A24%3A53Z&ske=2026-09-08T11%3A24%3A53Z&sks=b&skv=2026-02-06&sig=RwkQPCt0JN/trAPwIGMv4O/%2BSW1BkB5qSHUj/f%2Bxf9A%3D'),
+            ('three-d-house.png', '2e2edf601fcb37455077e9fba71a1c67473bf5d5e5a0ba1e72ca8d6c5046cbbb', 'https://oaisdmntprnorthcentralus.blob.core.windows.net/files/00000000-7ddc-822f-bbf0-5b3a19ae80c4/raw?se=2026-09-07T17%3A16%3A13Z&sp=r&sv=2026-02-06&sr=b&scid=01a07cd4-7924-70b2-b37b-f230563d09f1&skoid=dd316919-ffbf-4550-9c54-dfc99f412009&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2026-09-06T21%3A20%3A30Z&ske=2026-09-07T21%3A20%3A30Z&sks=b&skv=2026-02-06&sig=rJ3BbGjp0aUqSvIRMAeGKgomJTncm7vAtElI3Vaq7jU%3D'),
+            ('github-cover.png', '571db555e7963c0f05b5a56b053f47a3134add66e73e8bca21cad9a08bf3974b', 'https://oaisdmntprnorthcentralus.blob.core.windows.net/files/00000000-3614-822f-a9bb-56690b7cbe2e/raw?se=2026-09-07T17%3A16%3A13Z&sp=r&sv=2026-02-06&sr=b&scid=01a07cd4-7924-70b2-b37b-f230563d09f1&skoid=dd316919-ffbf-4550-9c54-dfc99f412009&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2026-09-06T21%3A23%3A20Z&ske=2026-09-07T21%3A23%3A20Z&sks=b&skv=2026-02-06&sig=1/g2q%2BUiEMFApmpLZ2hGfwAu4mIj4WEWlNGdjkwVcJU%3D'),
+          ]
+          def api(path, data=None, method=None):
+              request = urllib.request.Request('https://api.github.com/repos/' + repo + path, data=None if data is None else json.dumps(data).encode(), headers={'Authorization': 'Bearer ' + os.environ['GH_TOKEN'], 'Accept': 'application/vnd.github+json', 'Content-Type': 'application/json', 'User-Agent': 'ASA-Lab-materials-import'}, method=method or ('GET' if data is None else 'POST'))
+              with urllib.request.urlopen(request, timeout=90) as response:
+                  return json.load(response)
+          downloaded = []
+          for name, expected, url in assets:
+              with urllib.request.urlopen(url, timeout=90) as response:
+                  content = response.read(10000000)
+              assert content[:8] == b'\x89PNG\r\n\x1a\n', name + ': not PNG'
+              assert hashlib.sha256(content).hexdigest() == expected, name + ': source checksum mismatch'
+              downloaded.append((name, content, expected))
+          entries = []
+          report = []
+          for name, content, expected in downloaded:
+              result = api('/git/blobs', {'content': base64.b64encode(content).decode('ascii'), 'encoding': 'base64'})
+              expected_blob = hashlib.sha1(b'blob ' + str(len(content)).encode() + b'\0' + content).hexdigest()
+              assert result['sha'] == expected_blob, name + ': uploaded blob mismatch'
+              entries.append({'path': root + name, 'mode': '100644', 'type': 'blob', 'sha': result['sha']})
+              width, height = struct.unpack('>II', content[16:24])
+              report.append({'file': name, 'bytes': len(content), 'width': width, 'height': height, 'sha256': expected, 'git_blob_sha': result['sha']})
+              print(name, len(content), str(width) + 'x' + str(height), result['sha'])
+          entries.append({'path': root + 'manifest.json', 'mode': '100644', 'type': 'blob', 'content': json.dumps({'captured_on': '2026-09-07', 'source': 'Owner-provided original PNG files; cover is promotional artwork', 'verification': 'Original file bytes preserved; SHA-256 checked before upload; Git blob SHA verified after upload', 'assets': report}, ensure_ascii=False, indent=2) + '\n'})
+          head = api('/git/ref/heads/' + branch)['object']['sha']
+          tree = api('/git/commits/' + head)['tree']['sha']
+          new_tree = api('/git/trees', {'base_tree': tree, 'tree': entries})['sha']
+          commit = api('/git/commits', {'message': 'docs: import original September 7 screenshots and promo cover', 'tree': new_tree, 'parents': [head]})['sha']
+          api('/git/refs/heads/' + branch, {'sha': commit, 'force': False}, 'PATCH')
+          print('ASSET_COMMIT=' + commit)
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as summary:
+              summary.write('All seven original PNG files imported and verified.\n\nCommit: `' + commit + '`\n')
