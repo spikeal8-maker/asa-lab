@@ -37,19 +37,11 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
+          import re
 
           page = Path('apps/web/src/pages/PublicEntryPage.tsx')
           source = page.read_text(encoding='utf-8')
-          old = '''          <div className="public-home-ecosystem-line" aria-label="Общий образовательный контур">
-            <strong>Единый контур:</strong>
-            <span>Проекты</span>
-            <span>Галерея</span>
-            <span>Знания</span>
-            <span>Курсы и задания</span>
-            <span>Классы</span>
-            <span>Обратная связь</span>
-          </div>'''
-          new = '''          <div className="public-home-ecosystem-line" aria-label="Общий образовательный контур">
+          replacement = '''<div className="public-home-ecosystem-line" aria-label="Общий образовательный контур">
             <strong>Инструменты и контур:</strong>
             <span>Блочное программирование</span>
             <span>Проекты</span>
@@ -59,9 +51,15 @@ jobs:
             <span>Классы и задания</span>
             <span>Обратная связь</span>
           </div>'''
-          if old not in source:
-              raise SystemExit('Expected ecosystem block not found')
-          page.write_text(source.replace(old, new), encoding='utf-8')
+          source, count = re.subn(
+              r'<div\s+className="public-home-ecosystem-line"[\s\S]*?</div>',
+              replacement,
+              source,
+              count=1,
+          )
+          if count != 1:
+              raise SystemExit(f'Expected exactly one ecosystem block, replaced {count}')
+          page.write_text(source, encoding='utf-8')
 
           index = Path('apps/web/index.html')
           html = index.read_text(encoding='utf-8')
