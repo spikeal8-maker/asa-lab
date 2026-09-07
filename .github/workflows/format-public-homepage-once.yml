@@ -1,0 +1,53 @@
+name: Format public homepage once
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/format-public-homepage-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Format homepage files
+        run: >-
+          pnpm exec prettier --write
+          apps/web/index.html
+          apps/web/src/pages/PublicEntryPage.tsx
+          apps/web/src/pages/PublicEntryPage.css
+
+      - name: Commit formatting
+        run: |
+          if git diff --quiet; then
+            echo "No formatting changes required"
+            exit 0
+          fi
+          git config user.name "ASA Lab automation"
+          git config user.email "actions@users.noreply.github.com"
+          git add apps/web/index.html apps/web/src/pages/PublicEntryPage.tsx apps/web/src/pages/PublicEntryPage.css
+          git commit -m "style(web): format public homepage"
+          git push origin HEAD:main
