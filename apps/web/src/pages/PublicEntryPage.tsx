@@ -1,12 +1,12 @@
 import { AsaLabWordmark } from '../brand/AsaLabBrand';
-import homeDashboard from '../../../../e2e/artifacts/readme-2026-09-07/home-dashboard.png';
-import electronicsSimulation from '../../../../e2e/artifacts/readme-2026-09-07/electronics-simulation.png';
-import electronicsBlocks from '../../../../e2e/artifacts/readme-2026-09-07/electronics-blocks.png';
-import electronicsCpp from '../../../../e2e/artifacts/readme-2026-09-07/electronics-cpp.png';
-import threeDBus from '../../../../e2e/artifacts/readme-2026-09-07/three-d-bus.png';
-import threeDHouse from '../../../../e2e/artifacts/readme-2026-09-07/three-d-house.png';
-import assignmentProgress from '../../../../e2e/artifacts/classroom-management/assignment-progress.png';
 import './PublicEntryPage.css';
+const homeDashboard = '/landing/home-dashboard.png';
+const electronicsSimulation = '/landing/electronics-simulation.png';
+const electronicsBlocks = '/landing/electronics-blocks.png';
+const electronicsCpp = '/landing/electronics-cpp.png';
+const threeDBus = '/landing/three-d-bus.png';
+const threeDHouse = '/landing/three-d-house.png';
+const assignmentProgress = '/landing/assignment-progress.png';
 
 export type PublicIntent = 'sign-in' | 'sign-up' | 'class-code';
 
