@@ -18,7 +18,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          sed -i 's/>GitHub</>Исходный код · AGPL-3.0</g' apps/web/src/pages/PublicEntryPage.tsx
+          sed -i 's/GitHub →/Исходный код · AGPL-3.0 →/' apps/web/src/pages/PublicEntryPage.tsx
           grep -F 'Исходный код · AGPL-3.0' apps/web/src/pages/PublicEntryPage.tsx
       - uses: pnpm/action-setup@v4
         with:
