@@ -568,7 +568,7 @@ export function PublicEntryPage({
             <div className="public-home-about-links">
               <a href="/about/">Подробнее о проекте →</a>
               <a href="https://github.com/spikeal8-maker/asa-lab" target="_blank" rel="noreferrer">
-                GitHub →
+                Исходный код · AGPL-3.0 →
               </a>
               <a href="https://vk.ru/asalabru" target="_blank" rel="noreferrer">
                 VK →
