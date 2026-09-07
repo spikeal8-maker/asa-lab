@@ -207,12 +207,13 @@ export function PublicEntryPage({
           </div>
 
           <div className="public-home-ecosystem-line" aria-label="Общий образовательный контур">
-            <strong>Единый контур:</strong>
+            <strong>Инструменты и контур:</strong>
+            <span>Блочное программирование</span>
             <span>Проекты</span>
             <span>Галерея</span>
             <span>Знания</span>
-            <span>Курсы и задания</span>
-            <span>Классы</span>
+            <span>Курсы</span>
+            <span>Классы и задания</span>
             <span>Обратная связь</span>
           </div>
         </section>
