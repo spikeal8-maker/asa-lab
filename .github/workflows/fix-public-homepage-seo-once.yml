@@ -1,0 +1,91 @@
+name: Fix public homepage SEO contracts once
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/fix-public-homepage-seo-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Align homepage with SEO contracts
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          page = Path('apps/web/src/pages/PublicEntryPage.tsx')
+          source = page.read_text(encoding='utf-8')
+          old = '''          <div className="public-home-ecosystem-line" aria-label="Общий образовательный контур">
+            <strong>Единый контур:</strong>
+            <span>Проекты</span>
+            <span>Галерея</span>
+            <span>Знания</span>
+            <span>Курсы и задания</span>
+            <span>Классы</span>
+            <span>Обратная связь</span>
+          </div>'''
+          new = '''          <div className="public-home-ecosystem-line" aria-label="Общий образовательный контур">
+            <strong>Инструменты и контур:</strong>
+            <span>Блочное программирование</span>
+            <span>Проекты</span>
+            <span>Галерея</span>
+            <span>Знания</span>
+            <span>Курсы</span>
+            <span>Классы и задания</span>
+            <span>Обратная связь</span>
+          </div>'''
+          if old not in source:
+              raise SystemExit('Expected ecosystem block not found')
+          page.write_text(source.replace(old, new), encoding='utf-8')
+
+          index = Path('apps/web/index.html')
+          html = index.read_text(encoding='utf-8')
+          html = html.replace(
+              'content="ASA Lab — цифровая среда для проектов, обучения и творчества"',
+              'content="ASA Lab — цифровая среда для проектов, обучения, 3D-моделирования, электроники и программирования"',
+          )
+          html = html.replace('"Рисование и визуальные проекты"', '"Рисование и черчение"')
+          html = html.replace('"Знания, курсы и задания"', '"Знания и курсы"')
+          html = html.replace('"Классы и обратная связь"', '"Классы и задания"')
+          index.write_text(html, encoding='utf-8')
+          PY
+
+      - name: Format changed files
+        run: pnpm exec prettier --write apps/web/index.html apps/web/src/pages/PublicEntryPage.tsx
+
+      - name: Commit fixes
+        run: |
+          if git diff --quiet; then
+            echo "No changes required"
+            exit 0
+          fi
+          git config user.name "ASA Lab automation"
+          git config user.email "actions@users.noreply.github.com"
+          git add apps/web/index.html apps/web/src/pages/PublicEntryPage.tsx
+          git commit -m "fix(web): satisfy public homepage SEO contracts"
+          git push origin HEAD:main
