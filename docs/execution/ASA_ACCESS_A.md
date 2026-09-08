@@ -132,7 +132,7 @@ PostgreSQL кластер на свободном loopback-порту и ост�
   merge более поздние Electronics/3D изменения требуют отдельной интеграции
   и повторной проверки. Draft PR не разрешает merge/deployment.
 
-## Явные границы, не обещания
+## Историческое evidence исходного Result A
 
 Локальный итог после интеграции dd084c02: `pnpm gate:repository` PASS,
 228 файлов / 1813 тестов; отдельный RLS повтор — 15/15. `pnpm test:access-a`
@@ -142,6 +142,49 @@ PostgreSQL кластер на свободном loopback-порту и ост�
 Nx заново выполнил 25 lint + 39 typecheck/dependency + 25 build = 89 задач,
 все три прогона `Cache: Skipped`. Это локальные факты, не CI/owner acceptance.
 CI результат читается по конечному SHA; production не менялся.
+
+Этот прогон относится к исходному принятому кандидату, не к его будущему
+интегрированному descendant. Решение владельца и accepted source находятся только
+в `current.yaml`; техническая интеграция не отменяет продуктовую приёмку.
+
+## Техническая интеграция после приёмки
+
+Перед merge выполнен новый fetch; исходный HEAD и чистый status сохранены вместе
+с полными списками 82 файлов Access A, 28 файлов main и их 7 пересечений.
+Both-added файлов нет. Локальная ветка `codex/asa-access-a-accepted-62fd1772`
+и проверенная копия bundle сохранены до изменения дерева. Receipt:
+`C:/Users/spike/AppData/Local/asa-access-a-integrate-20260909/PRE_INTEGRATION.md`.
+Ранее созданный backup всех 57 незавершённых файлов также сохранён.
+
+Semantic review всех пересечений (не только текстовых конфликтов):
+
+| Файл | Сохранено из нового main | Сохранено из Access A |
+|---|---|---|
+| `.github/workflows/electronics-r4-m1-focused.yml` | Триггеры shell и interaction browser suite | Checkout точного candidate и отключение Nx cache |
+| `apps/web/src/pages/SchematicEditor.tsx` | Transactional drag snapshot guard, touch/viewport/Arduino drawer | Изолированные Seat notes и реальный save-status для E2E |
+| `docs/execution/current.yaml` | Актуальный Electronics checkpoint и все остальные lanes | Scope/приёмка Access A; отдельная техническая задача интеграции |
+| `docs/product/electronics/generated/component-coverage.json` | Итоговый E2E source | Итоговый E2E source; файл пересоздан генератором, support claims не менялись |
+| `e2e/electronics-simulation.spec.ts` | Preview сохраняется до pointer release | Ожидание настоящего autosave между fixture phases, CAS не обходится |
+| `e2e/three-d-m0.spec.ts` | Ожидание image.decode перед измерениями | Однозначный header-scoped Create selector |
+| `package.json` | Interaction browser tests в обеих Electronics командах | Access scripts и адресный js-yaml security override |
+
+Единственный текстовый конфликт — generated coverage; source-файлы объединились
+автоматически и затем проверены вручную с обеих сторон. Непересекающиеся upstream
+файлы переносятся без изменений. API, App, OpenAPI и lock не менялись в новой main
+дельте. Модель Account/Seat, grants и RLS, MAX/password и миграции 0104–0106 не
+меняются интеграцией. Новых миграций для неё нет.
+
+Дополнительная техническая поправка четырёх module workflows: metadata и теги
+изолированных CI images используют тот же точный head, что checkout, а не
+synthetic PR merge SHA. Это исправляет provenance evidence, не runtime поведение.
+
+Порядок проверки: upstream regressions → focused Access A → repository gate →
+реальные A–J/C1 и module browser gates → CI точного нового SHA → заключительный
+fetch/divergence check. Старые зелёные результаты не засчитываются новому SHA.
+`MERGE_READY` допустим только по его собственному зелёному evidence; Draft PR,
+merge и production остаются под отдельным решением владельца.
+
+## Явные границы, не обещания
 
 - Account-профиль, password/MAX/avatar/sessions/timezone сохраняются. Преподавание
   и авторство — отдельные серверные команды. Восемь разделов не содержат fake switches.

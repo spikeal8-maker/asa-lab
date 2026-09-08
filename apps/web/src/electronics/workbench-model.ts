@@ -50,12 +50,13 @@ export interface ComponentDrag {
   pointerId: number;
   offset: Point;
   startedAt: Point;
-  startedPositions: Record<string, Point>;
+  startedDocument: SchematicDocument;
+  startClient: Point;
+  bounds: { minX: number; minY: number; maxX: number; maxY: number } | null;
 }
 
 export interface CatalogPlacement {
   componentTypeId: string;
-  point: Point | null;
   clientPoint: Point | null;
   startClientPoint: Point | null;
   pointerId: number | null;
@@ -90,6 +91,7 @@ export interface VertexDrag {
   pointerId: number;
   wireId: string;
   vertexIndex: number;
+  startedDocument: SchematicDocument;
 }
 
 export interface SegmentDrag {
@@ -98,7 +100,6 @@ export interface SegmentDrag {
   segmentIndex: number;
   startPointer: Point;
   startedDocument: SchematicDocument;
-  moved: boolean;
 }
 
 export interface EndpointDrag {

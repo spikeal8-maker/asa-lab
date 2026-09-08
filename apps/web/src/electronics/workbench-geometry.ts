@@ -251,7 +251,7 @@ export function viewportViewBox(
 export function clientToWorld(
   clientX: number,
   clientY: number,
-  rect: DOMRect,
+  rect: Pick<DOMRect, 'left' | 'top' | 'width' | 'height'>,
   viewport: Viewport,
   canvasWidth: number,
   canvasHeight: number,
@@ -268,21 +268,42 @@ export function clientToWorld(
   };
 }
 
-export function fitViewport(
-  bounds: { minX: number; minY: number; maxX: number; maxY: number } | null,
+/** One xMidYMid/slice transform for pointer, pan, pinch, wheel and fit. */
+export function gestureViewport(
+  start: Viewport,
+  anchor: Point,
+  pointer: Point,
+  zoom: number,
+  rect: Pick<DOMRect, 'left' | 'top' | 'width' | 'height'>,
   canvasWidth: number,
   canvasHeight: number,
-  padding = 90,
 ): Viewport {
-  if (!bounds) return { x: 0, y: 0, zoom: 1 };
-  const width = Math.max(160, bounds.maxX - bounds.minX + padding * 2);
-  const height = Math.max(120, bounds.maxY - bounds.minY + padding * 2);
-  const zoom = clamp(Math.min(canvasWidth / width, canvasHeight / height), 0.35, 2.5);
-  const visibleWidth = canvasWidth / zoom;
-  const visibleHeight = canvasHeight / zoom;
+  if (rect.width <= 0 || rect.height <= 0 || !Number.isFinite(zoom) || zoom <= 0) return start;
+  const before = clientToWorld(anchor.x, anchor.y, rect, start, canvasWidth, canvasHeight);
+  const candidate = { ...start, zoom };
+  const after = clientToWorld(pointer.x, pointer.y, rect, candidate, canvasWidth, canvasHeight);
+  return { x: start.x + before.x - after.x, y: start.y + before.y - after.y, zoom };
+}
+
+export function fitViewportToScreen(
+  bounds: { minX: number; minY: number; maxX: number; maxY: number },
+  rect: Pick<DOMRect, 'width' | 'height'>,
+  canvasWidth: number,
+  canvasHeight: number,
+  minZoom: number,
+  maxZoom: number,
+  padding = 28,
+): Viewport {
+  const baseScale = Math.max(rect.width / canvasWidth, rect.height / canvasHeight);
+  if (baseScale <= 0) return { x: 0, y: 0, zoom: 1 };
+  const targetScale = Math.min(
+    Math.max(1, rect.width - 2 * padding) / Math.max(1, bounds.maxX - bounds.minX),
+    Math.max(1, rect.height - 2 * padding) / Math.max(1, bounds.maxY - bounds.minY),
+  );
+  const zoom = clamp(targetScale / baseScale, minZoom, maxZoom);
   return {
-    x: bounds.minX - padding - (visibleWidth - width) / 2,
-    y: bounds.minY - padding - (visibleHeight - height) / 2,
+    x: (bounds.minX + bounds.maxX) / 2 - canvasWidth / zoom / 2,
+    y: (bounds.minY + bounds.maxY) / 2 - canvasHeight / zoom / 2,
     zoom,
   };
 }

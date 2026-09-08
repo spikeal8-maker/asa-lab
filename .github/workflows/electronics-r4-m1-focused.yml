@@ -6,9 +6,11 @@ on:
       - 'AGENTS.md'
       - 'contexts/electronics/**'
       - 'apps/web/src/electronics/**'
+      - 'apps/web/src/pages/SchematicEditor.tsx'
       - 'apps/web/vite.config.ts'
       - 'apps/web/tsconfig.json'
       - 'e2e/electronics-simulation.spec.ts'
+      - 'e2e/electronics-interactions.spec.ts'
       - 'package.json'
       - 'pnpm-lock.yaml'
       - '.github/workflows/electronics-r4-m1-focused.yml'
@@ -66,8 +68,8 @@ jobs:
     timeout-minutes: 35
     env:
       CI: 'true'
-      ASA_BUILD_REVISION: ${{ github.sha }}
-      ASA_IMAGE_TAG: ${{ github.sha }}
+      ASA_BUILD_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
+      ASA_IMAGE_TAG: ${{ github.event.pull_request.head.sha || github.sha }}
       COMPOSE_PROJECT_NAME: asa-lab-electronics-${{ github.run_id }}
       ASA_TEST_UID: '1000'
       ASA_TEST_GID: '1000'

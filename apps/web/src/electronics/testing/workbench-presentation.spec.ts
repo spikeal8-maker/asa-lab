@@ -390,7 +390,8 @@ describe('owner-reference Electronics presentation contract', () => {
     );
     expect(endpointDrag.slice(0, 320)).toContain('if (simulationRunning) return;');
     expect(controllerSource).toContain('onEmptyCanvas && !event.shiftKey');
-    expect(stageSource).toContain('onPointerDownCapture={c.placeCatalogComponent}');
+    expect(stageSource).toContain('onPointerDownCapture={c.beginStagePointer}');
+    expect(controllerSource).toContain('placeCatalogComponent(event)');
   });
 
   it('uses compact inline properties and real schematic/BOM export actions', () => {
@@ -592,17 +593,21 @@ describe('owner-reference Electronics presentation contract', () => {
   });
 
   it('provides a real phone workbench with a bottom component sheet and touch targets', () => {
-    expect(workbenchCss).toContain('@media (max-width: 760px)');
-    expect(workbenchCss).toContain('--wb-library-open-height: min(44dvh, 360px)');
+    expect(workbenchCss).toContain('@media (max-width: 980px)');
+    expect(workbenchCss).toContain(
+      '--wb-library-open-height: calc(194px + env(safe-area-inset-bottom))',
+    );
     expect(workbenchCss).toContain('.workbench-library-handle-label');
     expect(workbenchCss).toMatch(
-      /@media \(max-width: 760px\)[\s\S]*?\.workbench-library,[\s\S]*?\.workbench-library\.collapsed\s*\{[\s\S]*?bottom:\s*0;[\s\S]*?width:\s*100%;/,
+      /@media \(max-width: 980px\)[\s\S]*?\.workbench-library,[\s\S]*?\.workbench-library\.collapsed\s*\{[\s\S]*?bottom:\s*0;[\s\S]*?width:\s*100%;/,
     );
     expect(workbenchCss).toMatch(
-      /@media \(max-width: 760px\)[\s\S]*?\.workbench-stage,[\s\S]*?right:\s*0;/,
+      /@media \(max-width: 980px\)[\s\S]*?\.workbench-stage,[\s\S]*?right:\s*0;/,
     );
     expect(sidebarSource).toContain("c.libraryOpen ? 'Скрыть компоненты' : 'Компоненты'");
-    expect(controllerModuleSource).toContain("window.matchMedia?.('(max-width: 760px)')");
+    expect(controllerModuleSource).toContain("window.matchMedia?.('(max-width: 980px)')");
+    expect(workbenchCss).toContain('touch-action: pan-x');
+    expect(editorSource).toContain('onMobileHeightChange={setCodeHeightPercent}');
     expect(controllerModuleSource).toContain('Компонент выбран. Коснитесь места на рабочем поле');
     expect(stageSource).toContain('coarseInteraction ? 14 : 8');
     expect(stageSource).toContain('coarseInteraction ? 10 : 5');

@@ -67,8 +67,8 @@ jobs:
     timeout-minutes: 40
     env:
       CI: 'true'
-      ASA_BUILD_REVISION: ${{ github.sha }}
-      ASA_IMAGE_TAG: ${{ github.sha }}
+      ASA_BUILD_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
+      ASA_IMAGE_TAG: ${{ github.event.pull_request.head.sha || github.sha }}
       COMPOSE_PROJECT_NAME: asa-lab-checkers-${{ github.run_id }}
       ASA_TEST_UID: '1000'
       ASA_TEST_GID: '1000'

@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState, type CSSProperties } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState, type CSSProperties } from 'react';
 import type { PublicUser } from '../api';
 import { catalogEntry } from '../electronics/component-catalog';
 import { WorkbenchHeader } from '../electronics/WorkbenchHeader';
@@ -175,6 +175,8 @@ export function SchematicEditor({
   const [codeOpen, setCodeOpen] = useState(false);
   const [codePanelMounted, setCodePanelMounted] = useState(false);
   const [codePanelWidth, setCodePanelWidth] = useState(initialArduinoDrawerWidth);
+  const [codeHeightPercent, setCodeHeightPercent] = useState(50);
+  const shellRef = useRef<HTMLDivElement>(null);
   const [shareOpen, setShareOpen] = useState(false);
   // Student notes belong only to this browser session, not the shared device.
   // Existing Account-local notes are preserved; no historical notes are migrated.
@@ -189,6 +191,24 @@ export function SchematicEditor({
       return '';
     }
   });
+
+  useEffect(() => {
+    const visible = window.visualViewport;
+    const resize = () => {
+      const shell = shellRef.current;
+      if (!shell) return;
+      const height = visible?.height ?? window.innerHeight;
+      shell.style.setProperty('--wb-visible-height', height + 'px');
+      shell.dataset['keyboardOpen'] = String(height < window.innerHeight * 0.72);
+    };
+    resize();
+    visible?.addEventListener('resize', resize);
+    window.addEventListener('resize', resize);
+    return () => {
+      visible?.removeEventListener('resize', resize);
+      window.removeEventListener('resize', resize);
+    };
+  }, [controller.status]);
 
   useEffect(() => {
     const clampToViewport = (): void => {
@@ -229,7 +249,8 @@ export function SchematicEditor({
       projectId,
       () => {
         const stage = controller.stageRef.current;
-        if (!stage) return null;
+        if (!stage || stage.dataset['componentDragging'] || stage.dataset['wireDragging'])
+          return null;
         return rasteriseSvgStage(stage, SNAPSHOT_WIDTH, {
           contentSelector: '[data-testid="schematic-component"],[data-testid="wire-segment"]',
         });
@@ -296,10 +317,16 @@ export function SchematicEditor({
     );
   return (
     <div
+      ref={shellRef}
       className={`workbench-shell${controller.libraryOpen ? '' : ' library-collapsed'}${
         codeOpen ? ' code-open' : ''
-      }`}
-      style={{ '--arduino-code-panel-width': `${codePanelWidth}px` } as CSSProperties}
+      }${codeOpen && codeHeightPercent >= 95 ? ' code-expanded' : ''}`}
+      style={
+        {
+          '--arduino-code-panel-width': `${codePanelWidth}px`,
+          '--wb-code-height': `${codeHeightPercent}%`,
+        } as CSSProperties
+      }
     >
       <WorkbenchHeader
         controller={controller}
@@ -311,6 +338,10 @@ export function SchematicEditor({
         codeOpen={codeOpen}
         onToggleNotes={() => setNotesOpen((value) => !value)}
         onToggleCode={toggleCodePanel}
+        onToggleLibrary={() => {
+          setCodeOpen(false);
+          controller.setLibraryOpen((value) => codeOpen || !value);
+        }}
         onOpenShare={() => setShareOpen(true)}
         onExportView={exportCurrentView}
       />
@@ -356,6 +387,9 @@ export function SchematicEditor({
               open={codeOpen}
               drawerWidth={codePanelWidth}
               onDrawerWidthChange={updateCodePanelWidth}
+              mobileHeightPercent={codeHeightPercent}
+              onMobileHeightChange={setCodeHeightPercent}
+              onClose={() => setCodeOpen(false)}
             />
           </Suspense>
         ) : null}

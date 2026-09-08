@@ -1818,7 +1818,7 @@ async function dragCatalogComponent(
   await page.mouse.move(start.x - 4, start.y, { steps: 2 });
   await expect(page.locator('.workbench-picked-up')).toHaveCount(1);
   await page.mouse.move(target.x, target.y, { steps: 12 });
-  await expect(page.locator('.workbench-picked-up')).toHaveCount(0);
+  await expect(page.locator('.workbench-picked-up')).toHaveCount(1);
   await expect(page.getByTestId('catalog-placement-preview')).toHaveCount(1);
   await page.mouse.up();
   await expect(page.locator('.workbench-picked-up')).toHaveCount(0);

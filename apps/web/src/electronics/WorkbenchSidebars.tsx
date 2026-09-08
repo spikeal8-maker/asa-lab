@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   INCANDESCENT_LAMP_PROFILE,
   ledForwardVoltageAtCurrent,
@@ -357,6 +357,7 @@ export function WorkbenchSidebars({
   controller: ElectronicsWorkbenchController;
 }): JSX.Element {
   const [helpOpen, setHelpOpen] = useState(false);
+  const shelfTouches = useRef(new Map<number, { x: number; y: number }>());
   const [stateOpen, setStateOpen] = useState(false);
   const [helpSections, setHelpSections] = useState<readonly HelpSection[] | null>(null);
   const measurement = c.selectedComponent
@@ -607,6 +608,13 @@ export function WorkbenchSidebars({
                     // pointer and lands where it is put.
                     onPointerDown={(event) => {
                       if (!family.enabled || event.button !== 0) return;
+                      if (event.pointerType === 'touch') {
+                        shelfTouches.current.set(event.pointerId, {
+                          x: event.clientX,
+                          y: event.clientY,
+                        });
+                        return; // Native shelf scrolling; a short tap selects a part on pointerup.
+                      }
                       event.currentTarget.setPointerCapture(event.pointerId);
                       c.beginFamilyPlacement(family.familyId, {
                         pointerId: event.pointerId,
@@ -615,16 +623,29 @@ export function WorkbenchSidebars({
                       });
                       event.preventDefault();
                     }}
-                    onPointerMove={(event) =>
-                      c.moveFamilyPlacement(event.pointerId, event.clientX, event.clientY)
-                    }
+                    onPointerMove={(event) => {
+                      if (event.pointerType !== 'touch')
+                        c.moveFamilyPlacement(event.pointerId, event.clientX, event.clientY);
+                    }}
                     onPointerUp={(event) => {
+                      if (event.pointerType === 'touch') {
+                        const start = shelfTouches.current.get(event.pointerId);
+                        shelfTouches.current.delete(event.pointerId);
+                        if (
+                          start &&
+                          Math.hypot(event.clientX - start.x, event.clientY - start.y) < 10
+                        ) {
+                          c.selectFamilyByTouch(family.familyId);
+                        }
+                        return;
+                      }
                       c.finishFamilyPlacement(event.pointerId, event.clientX, event.clientY);
                       if (event.currentTarget.hasPointerCapture(event.pointerId)) {
                         event.currentTarget.releasePointerCapture(event.pointerId);
                       }
                     }}
                     onPointerCancel={(event) => {
+                      shelfTouches.current.delete(event.pointerId);
                       c.cancelFamilyPlacement(event.pointerId);
                       if (event.currentTarget.hasPointerCapture(event.pointerId)) {
                         event.currentTarget.releasePointerCapture(event.pointerId);

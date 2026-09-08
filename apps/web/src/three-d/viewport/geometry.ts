@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { TextGeometry } from 'three/addons/geometries/TextGeometry.js';
 import { FontLoader, type Font } from 'three/addons/loaders/FontLoader.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import type { PrimitiveKind, ThreeDNode } from '@asa-lab/three-d';
 import notoSansTypeface from '../fonts/noto-sans.typeface.json';
 import notoSerifTypeface from '../fonts/noto-serif.typeface.json';
@@ -172,14 +173,18 @@ function roundRoofGeometry(sides: number): THREE.BufferGeometry {
 
 function hemisphereGeometry(sides: number): THREE.BufferGeometry {
   const segments = Math.max(8, Math.floor(sides / 4));
-  const profile = [new THREE.Vector2(0, 0)];
-  for (let index = 0; index <= segments; index++) {
-    const angle = ((index / segments) * Math.PI) / 2;
-    profile.push(
-      new THREE.Vector2(index === segments ? 0 : 0.5 * Math.cos(angle), 0.5 * Math.sin(angle)),
-    );
-  }
-  return new THREE.LatheGeometry(profile, sides);
+  const dome = new THREE.SphereGeometry(0.5, sides, segments, 0, Math.PI * 2, 0, Math.PI / 2);
+  const base = new THREE.CircleGeometry(0.5, sides);
+  base.rotateX(Math.PI / 2);
+  // SphereGeometry starts its equator at -X, including with odd side counts.
+  base.rotateY(Math.PI);
+  // Keep separate rim vertices for the curved wall and the flat downward cap.
+  // Sharing their normals makes the new closed base darken the dome's rim.
+  const geometry = mergeGeometries([dome, base]);
+  dome.dispose();
+  base.dispose();
+  if (!geometry) throw new Error('Cannot close hemisphere geometry');
+  return geometry;
 }
 
 function revolveSketchGeometry(

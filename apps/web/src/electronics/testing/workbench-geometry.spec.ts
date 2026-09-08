@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   clientToWorld,
+  gestureViewport,
+  fitViewportToScreen,
   diagnosticBadgeGeometry,
   freeWirePoint,
   lockOrthogonalPoint,
@@ -13,6 +15,44 @@ import {
   type Point,
   type Viewport,
 } from '../workbench-geometry';
+
+describe('shared screen gesture transform', () => {
+  it.each([
+    { width: 390, height: 600 },
+    { width: 844, height: 240 },
+    { width: 768, height: 920 },
+    { width: 1920, height: 980 },
+    { width: 2560, height: 1200 },
+    { width: 3840, height: 2000 },
+  ])('keeps pan and pinch under the fingers at $width × $height', (size) => {
+    const rect = { ...size, left: 12, top: 106 };
+    const start = { x: -180, y: 230, zoom: 1.7 };
+    const anchor = { x: 190, y: 230 };
+    const pointer = { x: 290, y: 260 };
+    const held = clientToWorld(anchor.x, anchor.y, rect, start, 1600, 980);
+    for (const zoom of [start.zoom, 0.2, 0.8, 3.4, 8]) {
+      const next = gestureViewport(start, anchor, pointer, zoom, rect, 1600, 980);
+      const after = worldToClient(held, rect, next, 1600, 980);
+      expect(after.x).toBeCloseTo(pointer.x, 8);
+      expect(after.y).toBeCloseTo(pointer.y, 8);
+    }
+  });
+  it.each([
+    { width: 390, height: 600 },
+    { width: 844, height: 250 },
+    { width: 3840, height: 2000 },
+  ])('fits a large board into the actual visible screen $width × $height', (size) => {
+    const rect = { ...size, left: 0, top: 0 };
+    const bounds = { minX: -300, minY: 100, maxX: 1700, maxY: 950 };
+    const viewport = fitViewportToScreen(bounds, rect, 1600, 980, 0.2, 8);
+    const a = worldToClient({ x: bounds.minX, y: bounds.minY }, rect, viewport, 1600, 980);
+    const b = worldToClient({ x: bounds.maxX, y: bounds.maxY }, rect, viewport, 1600, 980);
+    expect(a.x).toBeGreaterThanOrEqual(27.99);
+    expect(a.y).toBeGreaterThanOrEqual(27.99);
+    expect(b.x).toBeLessThanOrEqual(size.width - 27.99);
+    expect(b.y).toBeLessThanOrEqual(size.height - 27.99);
+  });
+});
 
 function worldToClient(
   point: Point,

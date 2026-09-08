@@ -9,7 +9,7 @@ tests:
     suite: authorization
     level: system
     phase_available: PHASE-12
-    required_for: [TASK-ASA-ACCESS-A-001]
+    required_for: [TASK-ASA-ACCESS-A-INTEGRATE-001]
     command: pnpm test:access-a
     timeout_seconds: 1800
     owner: access-a
@@ -20,7 +20,7 @@ tests:
     suite: e2e
     level: system
     phase_available: PHASE-12
-    required_for: [TASK-ASA-ACCESS-A-001]
+    required_for: [TASK-ASA-ACCESS-A-INTEGRATE-001]
     command: pnpm e2e:access-a
     timeout_seconds: 1800
     owner: access-a
@@ -31,7 +31,7 @@ tests:
     suite: integration
     level: system
     phase_available: PHASE-12
-    required_for: [TASK-ASA-ACCESS-A-001]
+    required_for: [TASK-ASA-ACCESS-A-INTEGRATE-001]
     command: pnpm gate:repository
     timeout_seconds: 3600
     owner: access-a

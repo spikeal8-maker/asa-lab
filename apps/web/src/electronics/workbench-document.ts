@@ -1067,18 +1067,6 @@ export function moveComponentInDocument(
   };
 }
 
-export function moveComponentsInDocument(
-  document: SchematicDocument,
-  positions: Readonly<Record<string, Point>>,
-): SchematicDocument {
-  return {
-    ...document,
-    components: document.components.map((item) =>
-      positions[item.id] ? { ...item, position: positions[item.id] } : item,
-    ),
-  };
-}
-
 export function sceneBounds(
   document: SchematicDocument,
 ): { minX: number; minY: number; maxX: number; maxY: number } | null {

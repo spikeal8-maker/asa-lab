@@ -4,8 +4,8 @@
   --wb-library-width: 276px;
   --arduino-code-panel-width: 1040px;
   --arduino-flyout-width: 330px;
-  min-width: 980px;
-  height: 100vh;
+  min-width: 0;
+  height: var(--wb-visible-height, 100dvh);
   overflow: hidden;
   background: #eef1f4;
   color: #304352;
@@ -1765,6 +1765,8 @@
 }
 .workbench-component-vector-preview {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
   place-items: center;
   width: 65px;
   height: 61px;
@@ -1774,6 +1776,8 @@
   height: 100%;
   max-width: 65px;
   max-height: 61px;
+  min-width: 0;
+  min-height: 0;
 }
 .workbench-catalog-grid.list-view {
   display: grid;
@@ -2897,11 +2901,6 @@
 .workbench-canvas.panning,
 .workbench-canvas.panning .workbench-grid-hit {
   cursor: grabbing;
-}
-.workbench-placement-preview {
-  opacity: 0.82;
-  pointer-events: none;
-  filter: drop-shadow(0 8px 8px rgba(31, 48, 59, 0.22));
 }
 
 /* A selected component gets a silhouette; terminals appear only on direct hover. */
@@ -4748,109 +4747,156 @@ html.arduino-palette-resizing * {
   }
 }
 
-/* The part in hand, over everything, including the panel it came from. Fixed
-   rather than absolute so no ancestors
-
-/* The part in hand, over everything including the panel it came from. Fixed rather
-   than absolute so no ancestor's overflow can clip it, and inert to the pointer so
-   it never becomes the thing under the cursor. */
+/* One opaque owner-art preview. No switch of artwork, anchor or opacity at the shelf edge. */
 .workbench-picked-up {
   position: fixed;
   top: 0;
   left: 0;
-  z-index: 60;
+  z-index: 120;
   pointer-events: none;
-  opacity: 0.92;
-  filter: drop-shadow(0 6px 14px rgba(20, 40, 60, 0.35));
+  opacity: 1;
   transform-origin: center;
 }
-
-/* Phone workbench: the circuit is the primary surface and the parts shelf is a
-   bottom sheet. A phone must never inherit the desktop's 980px-wide canvas or
-   require horizontal page scrolling just to reach the library. */
-.workbench-library-handle-label {
+.workbench-canvas[data-component-dragging] .workbench-terminal-tooltip,
+.workbench-canvas[data-wire-dragging] .workbench-wire-segment-hit {
+  visibility: hidden;
+}
+.workbench-catalog-card {
+  touch-action: pan-y;
+}
+.workbench-mobile-library-toggle,
+.workbench-library-handle-label,
+.arduino-mobile-panel-header {
   display: none;
 }
 
-@media (max-width: 760px) {
-  .workbench-inspector-heading .workbench-inspector-help {
-    width: 44px;
-    height: 44px;
-    font-size: 16px;
-  }
+/* UI text is independent of circuit zoom; larger desktops have comfortable panels. */
+.workbench-shell {
+  --wb-ui-font-size: clamp(14px, 0.35vw + 8px, 18px);
+  --wb-library-width: clamp(276px, 19vw, 360px);
+  --wb-inspector-width: clamp(258px, 18vw, 340px);
+  font-size: var(--wb-ui-font-size);
+}
+.workbench-shell.library-collapsed {
+  --wb-library-width: 32px;
+}
+.workbench-main {
+  height: calc(
+    var(--wb-visible-height, 100dvh) - var(--wb-header-height) - var(--wb-toolbar-height)
+  );
+}
+.workbench-inspector {
+  width: var(--wb-inspector-width);
+  max-height: calc(100% - 24px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.workbench-catalog-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.workbench-catalog-card {
+  min-width: 0;
+  width: 100%;
+}
+.workbench-catalog-name {
+  font-size: max(12px, 0.85em);
+  line-height: 1.3;
+}
+.arduino-source-editor {
+  --code-check-open-height: min(190px, 50%);
+}
+.arduino-source-editor.diagnostics-open .arduino-code-gutter,
+.arduino-source-editor.diagnostics-open .arduino-code-highlight,
+.arduino-source-editor.diagnostics-open textarea {
+  bottom: var(--code-check-open-height);
+}
+.arduino-code-check.open {
+  height: var(--code-check-open-height);
+}
+.arduino-code-check-body {
+  height: calc(100% - 40px);
+  min-height: 0;
+}
+.arduino-serial-monitor.open {
+  flex-basis: min(230px, 35%);
+}
 
-  .workbench-inspector-information-actions {
-    gap: 4px;
-  }
-
+/* Phones and tablets: a scrollable part strip and a resizable code sheet. */
+@media (max-width: 980px) {
   .workbench-shell {
-    --wb-header-height: 52px;
-    --wb-toolbar-height: 52px;
+    --wb-header-height: 48px;
+    --wb-toolbar-height: 46px;
     --wb-library-width: 0px;
-    --wb-library-open-height: min(44dvh, 360px);
-    --wb-library-closed-height: calc(54px + env(safe-area-inset-bottom));
+    --wb-library-open-height: calc(194px + env(safe-area-inset-bottom));
+    --wb-library-closed-height: calc(44px + env(safe-area-inset-bottom));
+    width: 100%;
     min-width: 0;
-    width: 100vw;
-    height: 100dvh;
+    height: var(--wb-visible-height, 100dvh);
     overflow: hidden;
   }
-
   .workbench-header {
     grid-template-columns: minmax(0, 1fr) auto;
-    height: var(--wb-header-height);
   }
   .workbench-brand-zone {
     min-width: 0;
   }
   .workbench-brand {
-    flex: 0 0 44px;
-    width: 44px;
+    flex: 0 0 42px;
+    width: 42px;
     padding: 0;
     justify-content: center;
   }
   .workbench-brand-mark {
-    width: 28px;
-    height: 28px;
+    width: 26px;
+    height: 26px;
   }
-  .workbench-brand-name,
-  .workbench-save-state {
+  .workbench-brand-name {
     display: none;
+  }
+  .workbench-save-state {
+    position: absolute;
+    left: 49px;
+    bottom: 1px;
+    max-width: 120px;
+    overflow: hidden;
+    white-space: nowrap;
+    font-size: 10px;
+    line-height: 12px;
   }
   .workbench-title-input {
     flex: 1 1 auto;
     box-sizing: border-box;
-    width: min(38vw, 150px);
-    min-width: 0;
-    height: 36px;
-    margin: 0 6px;
-    padding: 6px 10px;
-    font-size: 14px;
+    width: 100%;
+    min-width: 40px;
+    height: 32px;
+    margin: 0 5px 7px;
+    padding: 3px 7px;
+    font-size: 16px;
   }
   .workbench-mode-buttons {
-    gap: 1px;
+    gap: 0;
     padding: 0 3px 0 0;
   }
   .workbench-mode-buttons > button {
-    width: 38px;
-    height: 38px;
+    width: 40px;
+    min-height: 44px;
     padding: 0;
     justify-content: center;
-    border-radius: 19px;
+    border-radius: 8px;
   }
   .workbench-mode-buttons > button span {
     display: none;
   }
   .workbench-mode-buttons svg {
-    width: 21px;
-    height: 21px;
+    width: 20px;
+    height: 20px;
   }
   .workbench-avatar {
     position: static;
-    width: 34px;
-    height: 34px;
-    margin: 0 2px;
+    width: 32px;
+    height: 32px;
+    margin: 0 3px;
   }
-
   .workbench-toolbar {
     height: var(--wb-toolbar-height);
     min-width: 0;
@@ -4862,18 +4908,19 @@ html.arduino-palette-resizing * {
     overflow-y: hidden;
     overscroll-behavior-x: contain;
     scrollbar-width: none;
+    touch-action: pan-x;
   }
   .workbench-toolbar-group:not(.right)::-webkit-scrollbar {
     display: none;
   }
   .workbench-tool {
-    flex: 0 0 46px;
-    width: 46px;
-    height: 52px;
+    flex: 0 0 44px;
+    width: 44px;
+    height: 46px;
   }
   .workbench-toolbar-gap,
   .workbench-toolbar-divider {
-    height: 52px;
+    height: 46px;
   }
   .workbench-toolbar-spacer,
   .workbench-simulation-time {
@@ -4881,41 +4928,50 @@ html.arduino-palette-resizing * {
   }
   .workbench-toolbar-group.right {
     flex: 0 0 auto;
-    gap: 4px;
-    padding: 0 5px;
+    gap: 3px;
+    padding: 0 4px;
     background: #fff;
-    box-shadow: -6px 0 10px rgba(44, 61, 73, 0.08);
   }
-  .workbench-toolbar-group.right .workbench-pill:first-child,
-  .workbench-toolbar-group.right .workbench-pill.simulate {
-    width: 44px;
-    min-width: 44px;
-    height: 42px;
-    min-height: 42px;
-    padding: 0;
+  .workbench-toolbar-group.right .workbench-pill.code,
+  .workbench-toolbar-group.right .workbench-pill.simulate,
+  .workbench-mobile-library-toggle {
+    display: inline-flex;
+    align-items: center;
     justify-content: center;
+    width: 42px;
+    min-width: 42px;
+    height: 44px;
+    min-height: 44px;
+    padding: 0;
     overflow: hidden;
     font-size: 0;
     line-height: 1;
+    border-radius: 5px;
   }
-  .workbench-toolbar-group.right .workbench-pill:first-child svg,
+  .workbench-mobile-library-toggle {
+    border: 1px solid #c8d6df;
+    background: #fff;
+    color: #304352;
+  }
+  .workbench-mobile-library-toggle[aria-pressed='true'] {
+    background: #dceef8;
+    border-color: #168cc5;
+  }
+  .workbench-mobile-library-toggle svg,
+  .workbench-toolbar-group.right .workbench-pill.code svg,
   .workbench-toolbar-group.right .workbench-pill.simulate svg {
     width: 21px;
     height: 21px;
     margin: 0;
   }
-  .workbench-toolbar-group.right .workbench-pill:last-child {
+  .workbench-toolbar-group.right .workbench-pill:last-child:not(.simulate):not(.code) {
     display: none;
-  }
-
-  .workbench-main {
-    height: calc(100dvh - var(--wb-header-height) - var(--wb-toolbar-height));
   }
   .workbench-stage,
   .workbench-alternate-view {
     inset: 0 0 var(--wb-library-closed-height) 0;
     min-width: 0;
-    transition: bottom 180ms ease;
+    transition: none;
   }
   .workbench-shell:not(.library-collapsed) .workbench-stage,
   .workbench-shell:not(.library-collapsed) .workbench-alternate-view {
@@ -4925,7 +4981,6 @@ html.arduino-palette-resizing * {
     width: 100%;
     height: 100%;
   }
-
   .workbench-library,
   .workbench-library.collapsed {
     position: absolute;
@@ -4936,34 +4991,33 @@ html.arduino-palette-resizing * {
     left: 0;
     width: 100%;
     height: var(--wb-library-open-height);
+    box-sizing: border-box;
     padding-bottom: env(safe-area-inset-bottom);
     border: 0;
     border-top: 1px solid #cfd6dc;
-    border-radius: 14px 14px 0 0;
-    background: #e6e7eb;
-    box-shadow: 0 -8px 24px rgba(27, 42, 53, 0.16);
-    transition: height 180ms ease;
+    border-radius: 10px 10px 0 0;
+    background: #f3f5f7;
+    transition: none;
   }
   .workbench-library.collapsed {
     height: var(--wb-library-closed-height);
     background: #fff;
   }
   .workbench-library-collapse {
-    left: 50%;
+    left: 0;
+    right: 0;
     top: 0;
-    transform: translate(-50%, -50%);
+    transform: none;
+    width: 100%;
+    height: 40px;
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 7px;
-    width: 154px;
-    height: 34px;
-    border: 1px solid #cbd4da;
-    border-radius: 18px;
-    color: #314b5c;
-    font-size: 13px;
-    font-weight: 650;
-    box-shadow: 0 -3px 12px rgba(34, 49, 59, 0.12);
+    gap: 8px;
+    border: 0;
+    border-radius: 10px 10px 0 0;
+    font-size: 14px;
+    box-shadow: none;
   }
   .workbench-library-collapse svg {
     width: 18px;
@@ -4974,94 +5028,107 @@ html.arduino-palette-resizing * {
     white-space: nowrap;
   }
   .workbench-library-heading {
-    min-height: 52px;
-    padding-top: 8px;
-    border-radius: 14px 14px 0 0;
+    position: absolute;
+    top: 40px;
+    left: 8px;
+    width: 40%;
+    min-height: 40px;
+    grid-template-columns: minmax(0, 1fr);
+    border: 0;
+    background: transparent;
   }
   .workbench-library-heading > div {
-    padding: 7px 12px;
+    padding: 0;
+  }
+  .workbench-library-heading span,
+  .workbench-library-heading > button {
+    display: none;
+  }
+  .workbench-library-heading select {
+    height: 40px;
+    font-size: 16px;
   }
   .workbench-library-search {
-    margin: 7px 10px;
+    position: absolute;
+    top: 40px;
+    left: 44%;
+    right: 8px;
+    margin: 0;
   }
   .workbench-library-search input {
     height: 40px;
+    font-size: 16px;
   }
   .workbench-catalog-grid,
   .workbench-catalog-grid.list-view {
+    position: absolute;
+    top: 86px;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: auto;
     box-sizing: border-box;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    justify-content: stretch;
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: 94px;
+    grid-template-columns: none;
+    grid-template-rows: 100px;
+    justify-content: start;
     gap: 8px;
-    height: calc(100% - 106px);
-    padding: 4px 10px calc(14px + env(safe-area-inset-bottom));
-    overflow-x: hidden;
-    overflow-y: auto;
-    overscroll-behavior: contain;
+    padding: 0 10px 8px;
+    margin: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    touch-action: pan-x;
   }
   .workbench-catalog-card,
   .workbench-catalog-grid.list-view .workbench-catalog-card {
-    width: 100%;
-    height: 104px;
-    min-height: 104px;
-    touch-action: none;
+    width: 94px;
+    height: 100px;
+    min-height: 100px;
+    touch-action: pan-x;
   }
   .workbench-catalog-add,
   .workbench-catalog-grid.list-view .workbench-catalog-add {
+    width: 100%;
+    height: 100%;
     grid-template-columns: 1fr;
-    grid-template-rows: 70px 28px;
+    grid-template-rows: 66px 28px;
     justify-items: center;
     gap: 0;
-    padding: 3px 4px;
+    padding: 2px 4px;
     text-align: center;
   }
   .workbench-catalog-art,
   .workbench-catalog-grid.list-view .workbench-catalog-art {
     width: 100%;
-    height: 68px;
+    height: 66px;
   }
   .workbench-shell:not(.library-collapsed) .workbench-inspector {
     display: none;
   }
   .workbench-inspector,
   .workbench-inspector.library-hidden {
-    position: absolute;
-    z-index: 35;
-    top: auto;
+    top: 8px;
     right: 8px;
-    bottom: calc(var(--wb-library-closed-height) + 8px);
-    left: 8px;
-    box-sizing: border-box;
-    width: auto;
-    max-height: min(43dvh, 390px);
+    left: auto;
+    width: min(300px, calc(100% - 60px));
+    max-height: calc(100% - var(--wb-library-closed-height) - 16px);
     overflow-y: auto;
-    border-radius: 10px;
   }
-  .workbench-inspector-heading {
-    min-height: 44px;
-  }
-  .workbench-inspector-heading button,
-  .workbench-inspector-actions button {
-    min-height: 44px;
-  }
-  .workbench-inspector-body > label,
-  .workbench-state-controls label {
-    min-height: 44px;
-  }
-  .workbench-inspector-body input,
-  .workbench-inspector-body select {
-    min-height: 40px;
+  .workbench-inspector-heading .workbench-inspector-help {
+    width: 44px;
+    height: 44px;
     font-size: 16px;
   }
-
-  .workbench-utility-panel {
-    top: auto;
-    right: 8px;
-    bottom: calc(var(--wb-library-closed-height) + 8px);
-    left: 8px;
-    width: auto;
-    max-height: 55dvh;
-    border-radius: 10px;
+  .workbench-inspector-information-actions {
+    gap: 4px;
+  }
+  .workbench-inspector input,
+  .workbench-inspector select {
+    min-height: 40px;
+    font-size: 16px;
   }
   .workbench-stage-controls {
     left: 7px;
@@ -5077,23 +5144,88 @@ html.arduino-palette-resizing * {
   .workbench-wire-segment-hit {
     stroke-width: 24;
   }
+  .workbench-utility-panel {
+    left: 8px;
+    right: 8px;
+    width: auto;
+    max-height: 65%;
+  }
 
   .arduino-code-panel {
-    inset: 0;
+    inset: auto 0 0 0;
     width: 100%;
     min-width: 0;
+    height: var(--wb-code-height);
+    max-height: 100%;
     border-left: 0;
-    box-shadow: none;
+    border-radius: 10px 10px 0 0;
+    transform: translateY(0);
+    transition: none;
+  }
+  .arduino-code-panel.closed {
+    transform: translateY(calc(100% + 16px));
+    transition: none;
+  }
+  .workbench-shell.code-open .workbench-stage,
+  .workbench-shell.code-open .workbench-alternate-view {
+    bottom: var(--wb-code-height);
+    right: 0;
+  }
+  .workbench-shell.code-open .workbench-library,
+  .workbench-shell.code-open .workbench-inspector {
+    display: none;
+  }
+  .workbench-shell.code-open.code-expanded .workbench-stage {
+    visibility: hidden;
+  }
+  .workbench-shell.code-open[data-keyboard-open='true'] .arduino-code-panel {
+    height: 100%;
+  }
+  .workbench-shell.code-open[data-keyboard-open='true'] .workbench-stage {
+    visibility: hidden;
   }
   .arduino-drawer-resize-handle,
   .arduino-palette-resize-handle {
     display: none;
   }
+  .arduino-mobile-panel-header {
+    display: flex;
+    flex: 0 0 36px;
+    align-items: center;
+    border-bottom: 1px solid #d5dde3;
+    background: #fff;
+  }
+  .arduino-mobile-panel-grip {
+    display: flex;
+    flex: 1;
+    min-width: 0;
+    align-items: center;
+    justify-content: center;
+    gap: 9px;
+    height: 36px;
+    touch-action: none;
+    cursor: ns-resize;
+    font-size: 13px;
+  }
+  .arduino-mobile-panel-grip span {
+    width: 26px;
+    height: 4px;
+    border-radius: 3px;
+    background: #9baeb9;
+  }
+  .arduino-mobile-panel-header > button {
+    width: 44px;
+    height: 36px;
+    border: 0;
+    border-left: 1px solid #d5dde3;
+    background: #fff;
+    font-size: 23px;
+  }
   .arduino-code-toolbar {
     display: grid;
-    flex: 0 0 92px;
-    grid-template-columns: minmax(80px, 1fr) repeat(4, 42px);
-    grid-template-rows: repeat(2, 38px);
+    flex: 0 0 88px;
+    grid-template-columns: minmax(72px, 1fr) repeat(4, 40px);
+    grid-template-rows: repeat(2, 36px);
     gap: 4px;
     padding: 6px;
   }
@@ -5104,7 +5236,7 @@ html.arduino-palette-resizing * {
   }
   .arduino-mode-menu > summary,
   .arduino-board-select {
-    height: 38px;
+    height: 36px;
     font-size: 14px;
   }
   .arduino-check-button {
@@ -5128,36 +5260,34 @@ html.arduino-palette-resizing * {
   }
   .arduino-code-toolbar > .arduino-toolbar-button,
   .arduino-code-toolbar > .arduino-square-button {
-    width: 42px;
-    height: 38px;
+    width: 40px;
+    height: 36px;
     justify-content: center;
     padding: 0;
   }
-  .arduino-code-toolbar > .arduino-toolbar-button > span {
-    display: none;
-  }
+  .arduino-code-toolbar > .arduino-toolbar-button > span,
   .arduino-code-toolbar-spacer {
     display: none;
   }
   .arduino-board-select {
     grid-row: 2;
-    grid-column: 1 / 5;
+    grid-column: 1 / 4;
     width: 100%;
     min-width: 0;
   }
   .arduino-font-size-select {
-    height: 38px;
+    height: 36px;
     grid-row: 2;
-    grid-column: 5;
+    grid-column: 4 / 6;
   }
   .arduino-font-size-select > span {
     display: none;
   }
   .arduino-font-size-select > select {
-    width: 40px;
-    height: 36px;
+    width: 100%;
+    height: 34px;
     padding: 0 2px;
-    font-size: 11px;
+    font-size: 14px;
   }
   .arduino-code-body {
     position: relative;
@@ -5176,71 +5306,108 @@ html.arduino-palette-resizing * {
     z-index: 20;
     inset: 0 auto 0 0;
     width: min(88vw, 340px);
-    border-right: 1px solid #aebbc4;
-    box-shadow: 8px 0 22px rgba(30, 47, 58, 0.18);
-  }
-  .arduino-code-gutter {
-    bottom: 58px;
-  }
-  .arduino-code-highlight,
-  .arduino-source-editor textarea {
-    bottom: 58px;
-  }
-  .arduino-source-editor.diagnostics-open .arduino-code-gutter,
-  .arduino-source-editor.diagnostics-open .arduino-code-highlight,
-  .arduino-source-editor.diagnostics-open textarea {
-    bottom: 230px;
-  }
-  .arduino-code-check {
-    height: 58px;
-  }
-  .arduino-code-check.open {
-    height: 230px;
-  }
-  .arduino-code-check-title {
-    height: 58px;
-    flex-wrap: wrap;
-    align-content: center;
-    gap: 4px 7px;
-    padding: 4px 8px;
-  }
-  .arduino-code-check-title::after {
-    order: 4;
-    flex-basis: 100%;
-    height: 0;
-    content: '';
-  }
-  .arduino-code-check-icon {
-    order: 1;
-  }
-  .arduino-code-check-title > strong {
-    order: 2;
-    flex: 1;
-  }
-  .arduino-code-check-title > svg {
-    order: 3;
-  }
-  .arduino-code-check-count {
-    order: 5;
-  }
-  .arduino-code-check-title > strong + .arduino-code-check-count {
-    margin-left: 24px;
+    box-shadow: 8px 0 22px rgb(30 47 58 / 18%);
   }
   .arduino-code-check-summary {
     display: none;
   }
-  .arduino-code-check-body {
-    height: 172px;
+  .arduino-code-check-title {
+    padding: 0 6px;
+    gap: 4px;
+  }
+  .arduino-code-check-count {
+    font-size: 10px;
+    padding: 3px 4px;
+  }
+  .arduino-code-check-title > strong {
     font-size: 12px;
   }
-  .arduino-serial-monitor.open {
-    flex-basis: min(252px, 40dvh);
+  .arduino-code-check-body {
+    font-size: 12px;
   }
   .arduino-serial-body {
     grid-template-rows: minmax(0, 1fr) auto;
   }
   .arduino-serial-body form {
-    grid-template-columns: minmax(0, 1fr) 110px;
-    grid-template-rows: repeat(2, 36px);
+    grid-template-columns: minmax(0, 1fr) 92px;
+    grid-template-rows: repeat(2, 34px);
+  }
+  .arduino-serial-body input {
+    font-size: 16px;
+  }
+}
+
+@media (max-width: 980px) and (orientation: landscape) and (max-height: 550px) {
+  .workbench-shell {
+    --wb-library-open-height: 152px;
+  }
+  .workbench-library-heading,
+  .workbench-library-search {
+    top: 40px;
+  }
+  .workbench-catalog-grid,
+  .workbench-catalog-grid.list-view {
+    top: 84px;
+    grid-template-rows: 64px;
+  }
+  .workbench-catalog-card,
+  .workbench-catalog-grid.list-view .workbench-catalog-card {
+    height: 64px;
+    min-height: 64px;
+    width: 94px;
+  }
+  .workbench-catalog-add,
+  .workbench-catalog-grid.list-view .workbench-catalog-add {
+    grid-template-rows: 40px 20px;
+  }
+  .workbench-catalog-art,
+  .workbench-catalog-grid.list-view .workbench-catalog-art {
+    height: 40px;
+  }
+  .workbench-catalog-name {
+    min-height: 20px;
+    font-size: 11px;
+    line-height: 12px;
+  }
+  .workbench-catalog-art .workbench-component-vector-preview {
+    width: 40px;
+    height: 40px;
+  }
+  .workbench-catalog-art .workbench-component-preview {
+    max-width: 40px;
+    max-height: 40px;
+  }
+  .workbench-shell.code-open .workbench-stage,
+  .workbench-shell.code-open .workbench-alternate-view {
+    bottom: 0;
+    right: 55%;
+  }
+  .arduino-code-panel {
+    inset: 0 0 0 auto;
+    height: 100%;
+    width: 55%;
+    border-radius: 0;
+  }
+  .workbench-shell.code-expanded .arduino-code-panel {
+    width: 100%;
+  }
+}
+
+@media (min-width: 2000px) {
+  .workbench-inspector {
+    font-size: 15px;
+  }
+  .workbench-inspector input,
+  .workbench-inspector select {
+    font-size: 15px;
+    min-height: 36px;
+  }
+  .workbench-inspector label,
+  .workbench-property-label,
+  .workbench-library-heading span {
+    font-size: 14px;
+  }
+  .workbench-tool {
+    width: 48px;
   }
 }

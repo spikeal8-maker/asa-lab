@@ -103,7 +103,11 @@ function initialArduinoPaletteScale(): number {
 
 function initialArduinoFontSize(): number {
   const stored = Number(localStorage.getItem(ARDUINO_FONT_SIZE_STORAGE_KEY));
-  return ARDUINO_FONT_SIZES.includes(stored as (typeof ARDUINO_FONT_SIZES)[number]) ? stored : 13;
+  return ARDUINO_FONT_SIZES.includes(stored as (typeof ARDUINO_FONT_SIZES)[number])
+    ? stored
+    : window.innerWidth >= 2000
+      ? 18
+      : 14;
 }
 
 function initialArduinoAutocomplete(): boolean {
@@ -313,6 +317,81 @@ function DrawerResizeHandle({
         document.documentElement.classList.remove('arduino-drawer-resizing');
       }}
     />
+  );
+}
+
+function MobileCodeHandle({
+  height,
+  onHeightChange,
+  onClose,
+}: {
+  height: number;
+  onHeightChange: (value: number) => void;
+  onClose: () => void;
+}): JSX.Element {
+  const drag = useRef<{ id: number; y: number; height: number; available: number } | null>(null);
+  const stop = (event: PointerEvent<HTMLDivElement>) => {
+    drag.current = null;
+    if (event.currentTarget.hasPointerCapture(event.pointerId))
+      event.currentTarget.releasePointerCapture(event.pointerId);
+  };
+  return (
+    <div className="arduino-mobile-panel-header">
+      <div
+        role="separator"
+        tabIndex={0}
+        aria-label="Изменить высоту редактора кода"
+        aria-orientation="horizontal"
+        aria-valuemin={30}
+        aria-valuemax={100}
+        aria-valuenow={Math.round(height)}
+        className="arduino-mobile-panel-grip"
+        onPointerDown={(event) => {
+          if (event.button !== 0) return;
+          const available =
+            event.currentTarget.closest('.workbench-main')?.getBoundingClientRect().height ?? 1;
+          drag.current = { id: event.pointerId, y: event.clientY, height, available };
+          event.currentTarget.setPointerCapture(event.pointerId);
+          event.preventDefault();
+        }}
+        onPointerMove={(event) => {
+          const start = drag.current;
+          if (start?.id !== event.pointerId) return;
+          onHeightChange(
+            Math.max(
+              30,
+              Math.min(100, start.height + ((start.y - event.clientY) / start.available) * 100),
+            ),
+          );
+        }}
+        onPointerUp={stop}
+        onPointerCancel={stop}
+        onLostPointerCapture={() => {
+          drag.current = null;
+        }}
+        onKeyDown={(event) => {
+          if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return;
+          event.preventDefault();
+          onHeightChange(
+            Math.max(30, Math.min(100, height + (event.key === 'ArrowUp' ? 10 : -10))),
+          );
+        }}
+      >
+        <span aria-hidden="true" />
+        Код Arduino
+      </div>
+      <button
+        type="button"
+        aria-label={height >= 95 ? 'Код на половину экрана' : 'Развернуть код'}
+        aria-pressed={height >= 95}
+        onClick={() => onHeightChange(height >= 95 ? 50 : 100)}
+      >
+        {height >= 95 ? '½' : '↕'}
+      </button>
+      <button type="button" aria-label="Закрыть панель кода" onClick={onClose}>
+        ×
+      </button>
+    </div>
   );
 }
 
@@ -1209,11 +1288,17 @@ export function ArduinoCodePanel({
   open,
   drawerWidth,
   onDrawerWidthChange,
+  mobileHeightPercent,
+  onMobileHeightChange,
+  onClose,
 }: {
   controller: ElectronicsWorkbenchController;
   open: boolean;
   drawerWidth: number;
   onDrawerWidthChange: (width: number) => void;
+  mobileHeightPercent: number;
+  onMobileHeightChange: (value: number) => void;
+  onClose: () => void;
 }): JSX.Element {
   const boards = useMemo(
     () => c.document?.components.filter(isArduino) ?? [],
@@ -1387,6 +1472,11 @@ export function ArduinoCodePanel({
         aria-hidden={!open}
       >
         <DrawerResizeHandle width={drawerWidth} onWidthChange={onDrawerWidthChange} />
+        <MobileCodeHandle
+          height={mobileHeightPercent}
+          onHeightChange={onMobileHeightChange}
+          onClose={onClose}
+        />
         <div className="arduino-code-empty-state">
           <strong>Добавьте Arduino Uno R3</strong>
           <p>После добавления платы здесь появятся Scratch-блоки, C++ и монитор порта.</p>
@@ -1403,6 +1493,11 @@ export function ArduinoCodePanel({
       style={{ '--arduino-flyout-width': `${flyoutWidth}px` } as CSSProperties}
     >
       <DrawerResizeHandle width={drawerWidth} onWidthChange={onDrawerWidthChange} />
+      <MobileCodeHandle
+        height={mobileHeightPercent}
+        onHeightChange={onMobileHeightChange}
+        onClose={onClose}
+      />
       <header className={`arduino-code-toolbar mode-${program.mode}`}>
         <details className="arduino-mode-menu" ref={modeMenuRef}>
           <summary>
