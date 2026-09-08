@@ -1,139 +1,65 @@
-# ASA Lab Learning — START HERE FOR CODING AGENT
+# ASA Lab Learning — вход coding-агента
 
-**Пакет:** ASA Learning Agent Package v1  
-**Репозиторий:** `spikeal8-maker/asa-lab`
+Этот файл определяет постоянный маршрут чтения. Он не хранит активную задачу,
+checkpoint, текущий SHA или разрешение на следующий этап. Актуальное состояние
+читается из [`../../execution/current.yaml`](../../execution/current.yaml),
+а инженерная политика — из [`../../../AGENTS.md`](../../../AGENTS.md).
 
-Этот файл — первая точка входа для coding-agent.
+## 1. Сначала актуальный контекст, не историческая первая задача
 
----
+Следуй [`../../../START_HERE_FOR_AI.md`](../../../START_HERE_FOR_AI.md).
+Получай адресный контекст через `pnpm agent:context --scope learning` и проверяй
+`pnpm control-plane:check`. Список разрешённых работ определяется действующим
+поручением и current.yaml, не этим файлом и не устаревшими M0-примерами.
 
-# 1. Что находится в пакете
+Исторические завершённые аудиты не запускаются заново только потому, что они
+первые в прежней Work Queue. Не создавай новые роли, таблицы и owner-задачи
+ради каждого пользовательского персонажа.
 
-```text
-docs/product/learning/START_HERE_FOR_AGENT.md
-docs/product/ASA_LEARNING_TECHNICAL_SPEC.md
-docs/product/ASA_LEARNING_REQUIREMENTS_LEDGER.yaml
-docs/product/learning/ASA_LEARNING_AGENT_WORK_QUEUE.md
-docs/product/learning/TASK_EXECUTION_SPEC_TEMPLATE.md
-docs/product/learning/MILESTONE_ACCEPTANCE_TEMPLATE.md
-```
+## 2. Где находится основа продукта
 
-Назначение:
+| Область вопроса | Источник |
+|---|---|
+| Пользователь, способ входа, scoped обязанности, меню, профиль, кабинеты | [`../ASA_USERS_ACCESS_AND_SETTINGS_SPEC.md`](../ASA_USERS_ACCESS_AND_SETTINGS_SPEC.md) |
+| Учебная версия, Attempt, Submission, проверка, результат, журнал, завершение курса | [`../ASA_LEARNING_TECHNICAL_SPEC.md`](../ASA_LEARNING_TECHNICAL_SPEC.md) |
+| Архитектурная learner identity | [`../../architecture/ADR-LEARNER-IDENTITY-001.md`](../../architecture/ADR-LEARNER-IDENTITY-001.md) |
+| Академические requirement IDs и evidence | [`../ASA_LEARNING_REQUIREMENTS_LEDGER.yaml`](../ASA_LEARNING_REQUIREMENTS_LEDGER.yaml) |
+| Принятый порядок реализации | [`ASA_LEARNING_AGENT_WORK_QUEUE.md`](ASA_LEARNING_AGENT_WORK_QUEUE.md), только вместе с текущим разрешённым scope |
+| Фактический CURRENT | Код, миграции, OpenAPI и выполненные проверки на фиксированном срезе |
 
-- `01_*` — какой должна стать система;
-- `02_*` — machine-readable critical requirements;
-- `03_*` — какую атомарную задачу брать и в каком порядке;
-- `04_*` — обязательная форма execution-spec перед кодированием;
-- `05_*` — форма итоговой приёмки milestone.
+Новая основа пользователей задаёт TARGET своей области, но не отменяет
+академические инварианты, протоколы Auth, принятые ADR, запреты изменения
+защищённой tenant/RLS-модели и правила deployment. Точное противоречие требует
+ограниченного согласованного изменения соответствующего контракта.
 
----
+## 3. Читай ровно то, что нужно пользовательскому результату
 
-# 2. Сначала прочитать репозиторий
+Для интерфейса и доступа: §0 основной спецификации → нужные P-паспорта §34 →
+permissions §6 и scope §5 → нужные страницы §§18,31–36 → тесты §§25/38.
+Для академической команды добавь применимые разделы Learning Master и текущие
+writers/readers. Пустой экран, публичное чтение, личное прохождение и участие
+ученика в классе не являются одним и тем же состоянием.
 
-Перед любыми изменениями ОБЯЗАТЕЛЬНО прочитать из самого репозитория:
+Обычный Account не требует школу. StudentSeat входит напрямую по защищённому
+кодовому маршруту. Авторство не равно преподаванию; роли не складываются между
+разными ресурсами. P-ID — сценарий, не глобальный `user.role`.
 
-```text
-AGENTS.md
-START_HERE_FOR_AI.md
-docs/execution/current.yaml
-schemas/openapi.yaml
-relevant docs/project-map/**
-relevant migrations/**
-relevant tests/**
-```
+## 4. Реализуй разрешённый цельный результат
 
-`docs/execution/current.yaml` является источником истины о том, какая работа разрешена прямо сейчас.
+Внутреннюю декомпозицию выбирает исполнитель. Если владелец разрешил крупный
+пользовательский результат, связанные DB/domain/API/UI/tests выполняются в его
+границах без отдельных owner-gates на каждую форму или FK. Это не разрешение
+автоматически выполнять следующие результаты, менять Auth/tenant/RLS за
+пределами согласованного объёма или развёртывать production.
 
-Пакет НЕ заменяет governance репозитория.
+Одна короткая рабочая заметка хранит решения, checkpoint, точные изменённые
+границы и оставшееся. Старые TASK_EXECUTION_SPEC_TEMPLATE и
+MILESTONE_ACCEPTANCE_TEMPLATE остаются шаблонами, но не создают обязательный
+повтор общего аудита для каждой микроправки.
 
----
+## 5. Инварианты общего учебного ядра
 
-# 3. Приоритет источников
-
-При конфликте использовать:
-
-```text
-1. docs/execution/current.yaml
-2. AGENTS.md / START_HERE_FOR_AI.md / repository governance
-3. docs/product/ASA_LEARNING_TECHNICAL_SPEC.md
-4. owner-approved milestone execution spec
-5. docs/product/learning/ASA_LEARNING_AGENT_WORK_QUEUE.md
-6. docs/product/ASA_LEARNING_REQUIREMENTS_LEDGER.yaml
-7. current code/migrations/OpenAPI as evidence of CURRENT
-```
-
-Master Technical Spec определяет TARGET.
-
-Код и миграции определяют CURRENT.
-
-Нельзя выдавать TARGET за уже реализованную функцию.
-
----
-
-# 4. Главная команда
-
-НЕ реализовывать ASA Learning целиком.
-
-Работать так:
-
-```text
-одна атомарная task
-→ audit CURRENT
-→ TASK EXECUTION SPEC
-→ implementation
-→ migration/OpenAPI where required
-→ tests
-→ browser/security evidence
-→ ledger update
-→ DONE
-→ next task of SAME milestone
-```
-
-На границе milestone STOP до owner acceptance.
-
----
-
-# 5. Первая работа
-
-Первая задача после owner activation Learning:
-
-```text
-LRN-M0-001 — Current Learning Architecture Audit
-```
-
-Из `docs/product/learning/ASA_LEARNING_AGENT_WORK_QUEUE.md`.
-
-До начала кода необходимо:
-
-1. проверить `docs/execution/current.yaml`;
-2. если Learning milestone НЕ активирован — продуктовый код не менять;
-3. подготовить M0 audit/execution material;
-4. сообщить owner, что требуется activation;
-5. STOP.
-
-Если owner уже активировал M0:
-
-1. выполнить `LRN-M0-001`;
-2. создать execution-spec по `docs/product/learning/TASK_EXECUTION_SPEC_TEMPLATE.md`;
-3. не переходить к M1;
-4. не создавать новую learner identity table до `ADR-LEARNER-IDENTITY-001`;
-5. не делать Gradebook redesign;
-6. не начинать новый Quiz Engine до завершения M0 convergence.
-
----
-
-# 6. Критический запрет
-
-Нельзя создавать отдельные runtime-системы для:
-
-```text
-quiz
-project
-course assignment
-manual assignment
-```
-
-Все они должны сходиться в:
+Переиспользовать единый путь:
 
 ```text
 LearningActivityVersion
@@ -146,74 +72,28 @@ LearningActivityVersion
 → projections
 ```
 
----
+Разные direct/course/quiz/project input adapters не становятся отдельными
+системами статусов, попыток и оценок. Published evidence не переписывается.
+Legacy history не восстанавливается догадками. Наличие кода в main не означает
+установку новой схемы или доступность функции пользователю.
 
-# 7. Что считается доказательством
+Личный learning context — отдельная реальная архитектурная зависимость, а не
+скрытый школьный класс. Если для текущей работы требуется изменение принятой
+school-scoped границы, сначала действует соответствующее owner-разрешение и
+совместимое архитектурное решение. Продуктовый текст сам его не выдаёт.
 
-Функция НЕ считается готовой по:
+## 6. Проверки и завершение
 
-```text
-mock
-screenshot
-component
-API endpoint alone
-migration alone
-unit test alone
-```
+Во время разработки выполняй адресные тесты изменяемого контура. Перед
+интеграцией — предусмотренные текущим scope gates по
+[`../../delivery/AGENT_CHANGE_WORKFLOW.md`](../../delivery/AGENT_CHANGE_WORKFLOW.md).
+Проверки реального пользовательского пути не заменяются mock, одной миграцией
+или картинкой. Права доказываются также прямыми отрицательными API/DB-сценариями.
 
-Нужна совокупность, соответствующая task:
+Отчёт начинает пользовательский результат и доступный показ, затем exact SHA,
+реально выполненные tests/CI, изменения схемы/API, ограничения, deployment и
+следующее разрешённое действие. `not_run`, `unavailable`, `failure` и `success`
+не взаимозаменяемы. Не объявляй весь requirement proven по одной частной ветке.
 
-```text
-implementation
-+ schema/OpenAPI
-+ migrations
-+ tests
-+ negative authorization
-+ browser evidence
-+ accepted SHA
-```
-
----
-
-# 8. Финальный отчёт каждой task
-
-В ответе owner всегда указать:
-
-```text
-TASK:
-STATUS:
-BASELINE SHA:
-FINAL SHA:
-
-REQUIREMENTS CLOSED:
-FILES CHANGED:
-MIGRATIONS:
-OPENAPI:
-TESTS:
-BROWSER EVIDENCE:
-SECURITY EVIDENCE:
-KNOWN GAPS:
-NEXT READY TASK:
-```
-
-Если acceptance не доказан:
-
-```text
-STATUS != DONE
-```
-
----
-
-# 9. Нельзя редактировать будущее ТЗ молча
-
-Если во время coding обнаружена проблема Master Spec:
-
-```text
-STOP architecture invention
-→ document conflict
-→ propose ADR/spec correction
-→ request owner decision
-```
-
-Coding-agent не может молча менять будущую архитектуру под удобство текущей реализации.
-
+После разрешённого результата остановись на заданной владельцем границе.
+Документ не активирует следующий пункт очереди и не подменяет owner acceptance.

@@ -79,6 +79,18 @@ AGENTS.md
 → GitHub Issue из результата команды, если нужен полный scope
 ```
 
+Для задач о пользователях, доступах, профилях, меню и кабинетах основной
+продуктовый источник —
+[`ASA_USERS_ACCESS_AND_SETTINGS_SPEC.md`](docs/product/ASA_USERS_ACCESS_AND_SETTINGS_SPEC.md).
+Прочитай его §0, затем нужный паспорт персонажа §34, permissions §6 и нужный
+экран; не загружай весь архив спецификаций. Логические P/U/R обозначения —
+сценарии, способы входа и scoped обязанности, а не глобальные типы аккаунта.
+
+Этот документ определяет TARGET пользователей. Auth определяет протоколы,
+Learning Master — академическую семантику, ADR — принятую архитектуру,
+`AGENTS.md` — инженерные ограничения. Ни один продуктовый документ не заменяет
+разрешение на конкретную работу, tenant/RLS-изменение или deployment.
+
 [`docs/delivery/EXECUTION_MANIFEST.yaml`](docs/delivery/EXECUTION_MANIFEST.yaml),
 project map и test catalogs являются справочниками программы, архитектуры и
 проверок. Они читаются только когда этого требует конкретная работа; из них
@@ -95,7 +107,7 @@ project map и test catalogs являются справочниками про�
 
 ```bash
 pnpm gate:electronics-m1         # focused gate задачи, без браузера
-pnpm gate:electronics-m1:browser # браузерный journey, нужен поднятый стек
+pnpm gate:electronics-m1:browser # браузерный journey — нужен стек
 pnpm gate:repository             # governance + code + data, нужен PostgreSQL
 ```
 

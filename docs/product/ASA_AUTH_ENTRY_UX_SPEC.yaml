@@ -1,3 +1,7 @@
+# Product authority for users, access and navigation:
+# docs/product/ASA_USERS_ACCESS_AND_SETTINGS_SPEC.md, section 0.
+# This is a TARGET companion to ASA_AUTH_ENTRY_UX_SPEC.md, not runtime
+# configuration, execution state, or permission to change existing credentials.
 schema_version: 1.0.0
 contract_id: asa-auth-entry-ux-2026-07
 status: normative
@@ -18,7 +22,7 @@ public_actions:
     route: /sign-up
   - id: class_code
     label: Войти по коду класса
-    description: Для StudentSeat или Account, который присоединяется к найденному классу.
+    description: Для StudentSeat с индивидуальной проверкой либо Account с подтверждённым вступлением.
     route: /join-class
 
 account_sign_in:
@@ -91,6 +95,8 @@ educator:
   activation_stage: post_registration
   flow:
     - account_menu_or_onboarding
+    # Historical product policy label; not a universal legal age statement.
+    # Implementation must use the approved server policy for the deployment.
     - server_age_check_18_plus
     - attestation
     - provisional_capability_grant
@@ -114,6 +120,9 @@ student_seat:
   credentials:
     - class_code
     - assigned_login_handle
+    - individual_secret_or_teacher_approved_browser_challenge
+  # Compatibility field: no additional optional PIN by default.
+  # This does NOT disable mandatory individual verification in credentials above.
   optional_pin_default: off
   safe_mode_default: true
 
@@ -128,25 +137,30 @@ join_class_flow:
       flow:
         - universal_sign_in
         - confirm_current_account_and_class
+        - teacher_approval_or_exact_preapproved_invitation
         - create_classroom_membership
     - id: assigned_handle
-      label: Педагог выдал мне имя для входа
+      label: У меня данные от преподавателя
       flow:
         - enter_login_handle
-        - optional_pin_if_policy
+        - individual_secret_or_teacher_approved_browser_challenge
         - create_student_seat_session
   security:
     - normalize_spaces_dashes_case
     - rate_limit
     - no_roster_enumeration
     - no_membership_before_confirmation
+    - class_code_is_not_individual_authentication
+    - no_learning_attempt_or_participation_activation_from_login_alone
+    - linking_credential_revocation_is_not_learning_withdrawal
 
 school_association:
   registration_required: false
   login_credential: false
   options_after_educator_onboarding:
     - independent_pilot_in_personal_workspace
-    - organization_invitation_or_claim
+    - accepted_organization_invitation
+    - explicit_creation_of_own_voluntary_team
     - unverified_institution_profile_claim
   unverified_claim_grants_permissions: false
 
@@ -157,7 +171,7 @@ user_visible_terms:
     - Войти по коду класса
     - Стать педагогом
     - Ученический аккаунт
-    - Имя для входа, выданное педагогом
+    - Личная карточка доступа от преподавателя
     - Личное пространство
   avoid_on_public_entry:
     - Principal
@@ -167,6 +181,8 @@ user_visible_terms:
     - Personal account and Educator as mutually exclusive types
     - Присоединиться к классу before class code entry
 
+# Historical provenance, not an executable task list or current checkpoint.
+# Current work is read from docs/execution/current.yaml and the owner scope.
 pr59_corrections:
   - keep_three_public_actions
   - rename_join_class_to_sign_in_by_class_code
@@ -174,9 +190,9 @@ pr59_corrections:
   - sign_in_opens_universal_account_login
   - sign_up_opens_age_aware_registration
   - class_code_opens_code_first_flow
-  - educator_onboarding_remains_later_milestone
+  - educator_onboarding_is_separate_from_profile_save
   - legacy_organization_login_is_separate
-  - stop_for_owner_review_before_next_milestone
+  - historical_reference_not_current_execution_state
 
 acceptance_scenarios:
   - adult_visitor_to_sign_up
@@ -186,3 +202,6 @@ acceptance_scenarios:
   - registered_student_same_sign_in_then_join_class
   - underage_sign_up_routes_to_student_options
   - legacy_organization_login_separate
+  - class_code_without_individual_proof_cannot_open_profile
+  - expired_or_replayed_browser_approval_cannot_open_another_profile
+  - account_link_keeps_learning_history_and_participation

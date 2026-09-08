@@ -1,8 +1,18 @@
 # ASA Lab — спецификация school и platform administration
 
-**Статус:** нормативный кандидат R0.  
+**Статус:** нормативный кандидат R0 для специализированных административных операций.  
+**Продуктовая основа пользователей:** [`ASA_USERS_ACCESS_AND_SETTINGS_SPEC.md`](ASA_USERS_ACCESS_AND_SETTINGS_SPEC.md), особенно §§0,4–7,14–17,34–35. Она определяет персонажей, выдачу и область прав, меню и кабинеты; настоящий документ не является второй независимой классификацией пользователей.  
 **Маршруты и screenshot IDs:** [`ASA_PRODUCT_SURFACE_CATALOG.yaml`](ASA_PRODUCT_SURFACE_CATALOG.yaml).  
-**Целевой релиз:** преимущественно R10, moderation foundation — R8.
+**Целевой релиз:** преимущественно R10, moderation foundation — R8; это классификация области, не активная задача.
+
+Организация может быть добровольной образовательной командой. Подтверждённая
+принадлежность реальному учреждению — отдельный признак. `school_admin` действует
+только в выданной организации/подмножестве подразделений, а не во всех школах с
+похожим названием. Administrative membership не даёт автоматически академическую
+детализацию, просмотр сдач или изменение оценок. Владелец может получить
+дополнительные учебные grants только явной разрешённой audited-командой, не
+нажатием скрытой ссылки dashboard. Принятие этой спецификации не является
+разрешением deployment, изменения tenant/RLS или подтверждением готовности UI.
 
 ## 1. Назначение
 
@@ -20,10 +30,10 @@ Moderator          разбор публикационных и safety cases
 
 ## 2. Основные принципы
 
-1. `school_admin` действует только внутри конкретного Organization Workspace.
+1. `school_admin` действует только внутри конкретного Organization Workspace и явно разрешённого подмножества его ресурсов.
 2. `platform_admin` — отдельная глобальная capability, не выводимая из school role.
 3. SupportSession не является скрытым impersonation.
-4. Никакая страница не показывает plaintext password, session token, class-code token или StudentSeat credential.
+4. Общие страницы не показывают plaintext password, session token, class-code token или StudentSeat credential. Свежая индивидуальная карточка — только отдельный защищённый issuance flow по §9 основной спецификации; старый секрет не читается.
 5. Любое чувствительное изменение имеет reason, actor, scope, request ID и AuditEvent.
 6. Destructive bulk action всегда имеет dry-run/preview и отдельное подтверждение.
 7. Админка не обходит RLS незаметно; elevated paths изолированы и аудируются.
@@ -49,6 +59,11 @@ Moderator          разбор публикационных и safety cases
 │ Reports          │                                             │
 └──────────────────┴─────────────────────────────────────────────┘
 ```
+
+Это набор возможных destinations, не обязательное меню каждого администратора.
+Вход школьного администратора — через выбранную организацию; платформенные
+страницы имеют отдельную точку входа. Видимость каждого раздела и каждого
+действия определяется реальным server-issued scope/action.
 
 Обязательные состояния:
 
@@ -87,6 +102,11 @@ partial_data_warning
 - cross-workspace totals;
 - platform-wide user search.
 
+Учебный aggregate, персональный журнал, конкретная сдача и экспорт требуют
+разных полномочий. Подсчёт school-scoped learner identities не объявляется
+числом уникальных физических людей нескольких школ без доказанного отдельного
+mapping. Неподдержанные периоды/отчёты не изображаются рабочими функциями.
+
 ### 4.2. Schools and academic structure
 
 Routes:
@@ -115,6 +135,12 @@ moderator
 billing_admin
 member
 ```
+
+Это существующие organizational role names, не все пользовательские типы и не
+глобальное поле роли Account. Учебные, авторские и помощнические обязанности
+сопоставляются с R/P-паспортами основной спецификации. Pending invite не grant.
+Принятое организационное назначение не исчезает только из-за ухода прежнего
+оператора; личное делегирование и его parent-зависимость проверяются отдельно.
 
 Page displays:
 
@@ -150,7 +176,7 @@ Search/filter:
 
 Actions:
 
-- open class in Teacher Portal context;
+- open class in Teacher Portal context only when the corresponding teaching/read grant is present;
 - transfer owner with preview/audit;
 - archive/restore;
 - revoke join code;
@@ -161,7 +187,7 @@ Admin does not silently edit learner projects.
 
 ### 4.5. Learners and StudentSeats
 
-The admin surface can inspect:
+The admin surface can inspect within explicitly granted learner-management scope:
 
 - principal type;
 - display label;
@@ -173,7 +199,9 @@ The admin surface can inspect:
 - credential version only;
 - reset/revocation history.
 
-It cannot reveal an old StudentSeat credential. Reset produces a new one-time credential.
+It cannot reveal an old StudentSeat credential. Reset issues a new credential
+through the protected issuance flow; it is not an archive of readable passwords.
+Resetting login access is not withdrawing the learner from educational participation.
 
 ### 4.6. Module availability
 
@@ -275,7 +303,7 @@ Rules:
 - report generation is asynchronous/idempotent;
 - output has scope/watermark/generatedAt;
 - sensitive fields omitted by default;
-- download URL short-lived;
+- download access is re-authorized; any permitted short-lived URL has an explicit residual-access window and is not called immediate revocation;
 - export access audited.
 
 ## 5. Platform Admin
@@ -511,7 +539,10 @@ Principal
 → AuditEvent
 ```
 
-UI-hidden action is not authorization.
+UI-hidden action is not authorization. Revocation of membership disables only
+authorization paths dependent on that membership; independent personal and
+other-organization permissions are not accidentally revoked. Global security
+restrictions remain applicable to their own defined scope.
 
 ## 7. Bulk actions
 
@@ -573,20 +604,26 @@ platform-admin-storage
 platform-admin-incidents
 ```
 
-Screenshots use synthetic data only.
+Screenshots use synthetic data only. They cover the actually authorized and
+implemented delivery scope, not an obligation to build all future platform
+operations before the first working personal or teaching cabinet.
 
 ## 10. Definition of Done
 
-Админка считается готовой только когда:
+Админка считается готовой в заявленной области только когда:
 
-- every surface has route/grants/states/actions/tests;
-- school admin cannot reach another workspace;
+- every included surface has route/grants/states/actions/tests;
+- school admin cannot reach another workspace or an ungranted school subset;
 - school admin cannot grant platform admin;
 - support session is visible, time-limited and audited;
-- secrets/credentials are never returned;
+- old secrets/credentials are never returned; fresh issuance follows its separate protected contract;
 - bulk actions have preview/idempotency/per-row results;
 - audit is append-only;
 - health is honest;
 - retention/export/deletion are policy-driven;
-- owner can complete live school-admin and platform-admin flows;
+- owner can complete the included live school-admin and platform-admin flows;
 - accessibility and responsive desktop/tablet layouts pass.
+
+Unimplemented administration functions remain explicitly outside the accepted
+scope. Documentation, CI success, owner acceptance and deployment are separate
+facts; this document does not update their state.
