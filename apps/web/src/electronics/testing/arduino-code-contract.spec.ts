@@ -93,12 +93,16 @@ describe('Arduino programming room contract', () => {
     expect(panelSource).toContain('centerArduinoProgram(workspace)');
     expect(panelSource).toContain("image.setAttribute('href', url)");
     expect(blocksSource).not.toContain("delete definition['colour']");
-    expect(css).not.toContain('.workbench-shell.code-open .workbench-stage');
+    expect(css.slice(0, css.indexOf('@media (max-width: 980px)'))).not.toContain(
+      '.workbench-shell.code-open .workbench-stage',
+    );
+    expect(css).toContain('.workbench-shell.code-open .workbench-stage');
+    expect(panelSource).toContain('MobileCodeHandle');
     expect(css).toContain('.arduino-palette-resize-handle');
     expect(css).toContain('inset: 0 0 0 auto');
     expect(css).toContain('.arduino-scratch-host');
     expect(css).toContain('inset: 0;');
-    expect(css).toContain('grid-template-columns: minmax(80px, 1fr) repeat(4, 42px)');
+    expect(css).toContain('grid-template-columns: minmax(72px, 1fr) repeat(4, 40px)');
     expect(css).toContain('width: min(88vw, 340px)');
     expect(css).toContain('grid-template-rows: minmax(0, 3fr) minmax(0, 2fr)');
     expect(blocksSource).toContain('ARDUINO_FLYOUT_HEADER_GAP = 98');

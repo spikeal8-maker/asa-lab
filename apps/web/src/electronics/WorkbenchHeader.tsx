@@ -72,6 +72,7 @@ export function WorkbenchHeader({
   codeOpen,
   onToggleNotes,
   onToggleCode,
+  onToggleLibrary,
   onOpenShare,
   onExportView,
 }: {
@@ -84,6 +85,7 @@ export function WorkbenchHeader({
   codeOpen: boolean;
   onToggleNotes: () => void;
   onToggleCode: () => void;
+  onToggleLibrary: () => void;
   onOpenShare: () => void;
   onExportView: (view: Exclude<WorkbenchView, 'breadboard'>) => void;
 }): JSX.Element {
@@ -308,6 +310,16 @@ export function WorkbenchHeader({
         ) : null}
         <div className="workbench-toolbar-spacer" />
         <div className="workbench-toolbar-group right">
+          <button
+            type="button"
+            className="workbench-mobile-library-toggle"
+            aria-label="Каталог деталей"
+            title="Каталог деталей"
+            aria-pressed={c.libraryOpen && !codeOpen}
+            onClick={onToggleLibrary}
+          >
+            <ListIcon />
+          </button>
           <button
             type="button"
             className={`workbench-pill code${codeOpen ? ' active' : ''}`}

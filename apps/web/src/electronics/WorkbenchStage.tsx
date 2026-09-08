@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type CSSProperties,
@@ -39,78 +40,48 @@ import {
 import type { ElectronicsWorkbenchController } from './use-electronics-workbench';
 import { formatIlluminanceLux, photoresistorLightCondition } from './photoresistor-presentation';
 
-/** The part currently in hand, drawn on the cursor wherever the cursor is.
- *
- * The placement preview lives inside the canvas, so until the pointer crossed
- * onto the board there was nothing to see: a part picked from the catalogue
- * disappeared behind the panel it came from, and the only sign anything had
- * happened was a line of text. This follows the pointer over the whole window,
- * including the panel, from the moment the card is pressed.
- *
- * It writes its own transform rather than holding the position in state: this sits
- * above a canvas that is expensive to re-render, and a pointer move must not cost
- * a render of the scene.
- */
+/** A single owner-art preview across the shelf, canvas and viewport edges. */
 function PickedUpPart({
   controller: c,
 }: {
   controller: ElectronicsWorkbenchController;
 }): JSX.Element | null {
-  const holder = useRef<HTMLDivElement>(null);
-  // Driven by the intent to place, not by the preview on the canvas. That preview
-  // needs a point on the board, and there is none until the pointer crosses onto
-  // it — so keying this to the preview drew nothing at all while the cursor was
-  // still over the panel, which is exactly the moment it is needed.
   const placing = c.catalogPlacement;
-  const typeId = placing?.mode === 'pointer' && !placing.point ? placing.componentTypeId : null;
-
-  useEffect(() => {
-    if (!typeId) return;
-    function follow(event: PointerEvent): void {
-      const node = holder.current;
-      if (node) {
-        node.style.transform = `translate(${event.clientX}px, ${event.clientY}px) translate(-50%, -50%)`;
-      }
-    }
-    window.addEventListener('pointermove', follow);
-    return () => window.removeEventListener('pointermove', follow);
-  }, [typeId]);
-
-  if (!typeId || !placing?.clientPoint) return null;
-  const entry = catalogEntry(typeId);
+  useLayoutEffect(() => c.syncCatalogPreview());
+  if (!placing) return null;
+  const entry = catalogEntry(placing.componentTypeId);
   if (!entry) return null;
   const size = renderedSize(entry, 0);
-  const stageRect = c.stageRef.current?.getBoundingClientRect();
-  const scale = stageRect
-    ? Math.max(stageRect.width / c.viewBox.width, stageRect.height / c.viewBox.height)
-    : 1;
+  const bounds = renderedSize(entry, entry.defaultRotation);
+  const component: SchematicComponent = {
+    id: 'catalog-pointer-preview',
+    kind: entry.kind,
+    componentTypeId: entry.key,
+    variantId: entry.variantId,
+    position: { x: 0, y: 0 },
+    value: entry.defaultValue,
+    rotation: entry.defaultRotation,
+    stateProperties: { ...entry.defaultStateProperties },
+  };
   return (
     <div
       className="workbench-picked-up"
-      ref={holder}
+      data-testid="catalog-placement-preview"
+      ref={c.catalogPreviewRef}
       aria-hidden="true"
-      style={{
-        width: `${size.width * scale}px`,
-        height: `${size.height * scale}px`,
-        transform: `translate(${placing.clientPoint.x}px, ${placing.clientPoint.y}px) translate(-50%, -50%)`,
-      }}
+      style={{ visibility: 'hidden' }}
     >
-      <svg viewBox={`0 0 ${size.width} ${size.height}`} width="100%" height="100%">
-        <ProductionComponentVisual
-          entry={entry}
-          component={{
-            id: 'catalog-pointer-preview',
-            kind: entry.kind,
-            componentTypeId: entry.key,
-            variantId: entry.variantId,
-            position: { x: 0, y: 0 },
-            value: entry.defaultValue,
-          }}
-          width={size.width}
-          height={size.height}
-          visualState="default"
-          effectiveBrightness={0}
-        />
+      <svg viewBox={`0 0 ${bounds.width} ${bounds.height}`} width="100%" height="100%">
+        <g transform={componentTransform(component)}>
+          <ProductionComponentVisual
+            entry={entry}
+            component={component}
+            width={size.width}
+            height={size.height}
+            visualState="default"
+            effectiveBrightness={0}
+          />
+        </g>
       </svg>
     </div>
   );
@@ -649,11 +620,11 @@ export function WorkbenchStage({
         }${c.catalogPlacement ? ' placing' : ''}`}
         viewBox={`${c.viewBox.x} ${c.viewBox.y} ${c.viewBox.width} ${c.viewBox.height}`}
         preserveAspectRatio="xMidYMid slice"
-        onPointerDownCapture={c.placeCatalogComponent}
+        onPointerDownCapture={c.beginStagePointer}
         onPointerDown={handleStagePointerDown}
         onPointerMove={c.handlePointerMove}
         onPointerUp={c.finishPointer}
-        onPointerCancel={c.finishPointer}
+        onPointerCancel={c.cancelPointer}
         onWheel={c.handleWheel}
       >
         <defs>
@@ -1109,7 +1080,7 @@ export function WorkbenchStage({
         <g className="workbench-wire-layer workbench-wire-overlay" data-testid="wire-layer">
           {routedWires.map(({ wire, path, selected }) => {
             return (
-              <g key={wire.id}>
+              <g key={wire.id} data-wire-id={wire.id}>
                 {/* No non-scaling-stroke on the wire itself. A wire is a physical
                     object: zoom in and it should thicken along with the parts it
                     connects. Pinning its width to screen pixels made it look like
@@ -1224,29 +1195,6 @@ export function WorkbenchStage({
                 />
               );
             })}
-          </g>
-        ) : null}
-        {c.catalogPlacementComponent ? (
-          <g
-            className="workbench-placement-preview"
-            transform={componentTransform(c.catalogPlacementComponent)}
-            data-testid="catalog-placement-preview"
-          >
-            {(() => {
-              const entry = catalogEntry(c.catalogPlacementComponent);
-              if (!entry) return null;
-              const size = renderedSize(entry, 0);
-              return (
-                <ProductionComponentVisual
-                  entry={entry}
-                  component={c.catalogPlacementComponent}
-                  width={size.width}
-                  height={size.height}
-                  visualState="default"
-                  effectiveBrightness={0}
-                />
-              );
-            })()}
           </g>
         ) : null}
         {c.marquee ? (

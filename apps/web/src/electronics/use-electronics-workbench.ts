@@ -26,7 +26,8 @@ import {
   clientToWorld,
   clamp,
   completeOrthogonalRoute,
-  fitViewport,
+  fitViewportToScreen,
+  gestureViewport,
   freeWirePoint,
   lockOrthogonalBend,
   lockOrthogonalPoint,
@@ -43,8 +44,6 @@ import {
   connectTerminals,
   duplicateComponentInDocument,
   insertWireVertex,
-  moveComponentInDocument,
-  moveComponentsInDocument,
   moveWireSegment,
   moveWireVertex,
   mirrorSelectionInDocument,
@@ -95,6 +94,12 @@ import {
   type RuntimeComponentOverride,
   type RuntimeComponentOverrides,
 } from './workbench-runtime-controls';
+import {
+  createComponentDragPreview,
+  createWireDragPreview,
+  createVisualFrame,
+  translatedDragDocument,
+} from './workbench-drag-preview';
 
 function terminalRefKey(componentId: string, terminal: Terminal): string {
   return `${componentId}:${terminal}`;
@@ -102,7 +107,7 @@ function terminalRefKey(componentId: string, terminal: Terminal): string {
 
 function compactWorkbench(): boolean {
   if (typeof window === 'undefined') return false;
-  return window.matchMedia?.('(max-width: 760px)').matches ?? window.innerWidth <= 760;
+  return window.matchMedia?.('(max-width: 980px)').matches ?? window.innerWidth <= 980;
 }
 
 const ELECTRONICS_VIEWPORT_PREFIX = 'asa-electronics-viewport:';
@@ -155,7 +160,6 @@ export function useElectronicsWorkbench(projectId: string) {
     project,
     document,
     serverRevision,
-    setDocument,
     getCurrentDocument,
     result: persistedResult,
     versions,
@@ -174,7 +178,6 @@ export function useElectronicsWorkbench(projectId: string) {
     canRedo,
     undo,
     redo,
-    pushHistory,
     commitDocument,
     saveNow,
     toggleSimulation,
@@ -329,8 +332,20 @@ export function useElectronicsWorkbench(projectId: string) {
   } | null>(null);
 
   const stageRef = useRef<SVGSVGElement>(null);
+  const catalogPreviewRef = useRef<HTMLDivElement>(null);
   const catalogPlacementRef = useRef<CatalogPlacement | null>(null);
   const componentDragRef = useRef<ComponentDrag | null>(null);
+  const dragPreviewRef = useRef<ReturnType<typeof createComponentDragPreview> | null>(null);
+  const wireDragPreviewRef = useRef<ReturnType<typeof createWireDragPreview> | null>(null);
+  const visualFrameRef = useRef<ReturnType<typeof createVisualFrame> | null>(null);
+  if (!visualFrameRef.current) visualFrameRef.current = createVisualFrame();
+  const touchPointsRef = useRef(new Map<number, Point>());
+  const pinchRef = useRef<{
+    ids: number[];
+    center: Point;
+    distance: number;
+    viewport: Viewport;
+  } | null>(null);
   const panDragRef = useRef<PanDrag | null>(null);
   // Where the view actually is while a pan is in flight, since React state is
   // deliberately not being updated for each frame of it.
@@ -356,6 +371,114 @@ export function useElectronicsWorkbench(projectId: string) {
   const spacePressedRef = useRef(false);
   const counterRef = useRef(0);
   const viewportProjectRef = useRef<string | null>(null);
+
+  function clearDragPreview(): void {
+    visualFrameRef.current?.cancel();
+    dragPreviewRef.current?.restore();
+    wireDragPreviewRef.current?.restore();
+    dragPreviewRef.current = null;
+    wireDragPreviewRef.current = null;
+    if (stageRef.current) {
+      delete stageRef.current.dataset['componentDragging'];
+      delete stageRef.current.dataset['wireDragging'];
+    }
+  }
+
+  function cancelInteraction(): void {
+    clearDragPreview();
+    spacePressedRef.current = false;
+    const stage = stageRef.current;
+    const pointerIds = [
+      componentDragRef.current?.pointerId,
+      vertexDragRef.current?.pointerId,
+      segmentDragRef.current?.pointerId,
+      panDragRef.current?.pointerId,
+      ...touchPointsRef.current.keys(),
+    ];
+    componentDragRef.current = null;
+    vertexDragRef.current = null;
+    segmentDragRef.current = null;
+    endpointDragRef.current = null;
+    potentiometerDragRef.current = null;
+    panDragRef.current = null;
+    pinchRef.current = null;
+    touchPointsRef.current.clear();
+    setDraggingComponents(false);
+    setPanning(false);
+    setMarquee(null);
+    setReconnectHover(null);
+    const settled = panViewportRef.current;
+    if (settled) applyViewport(settled);
+    for (const id of pointerIds) {
+      if (id !== undefined && stage?.hasPointerCapture(id)) stage.releasePointerCapture(id);
+    }
+    const press = actuatorPressRef.current;
+    actuatorPressRef.current = null;
+    if (press) setComponentState(press.componentId, false, 'Кнопка отпущена.');
+  }
+
+  function componentDragDelta(drag: ComponentDrag, client: Point): Point {
+    if (Math.hypot(client.x - drag.startClient.x, client.y - drag.startClient.y) < 3)
+      return { x: 0, y: 0 };
+    const stage = stageRef.current;
+    if (!stage) return { x: 0, y: 0 };
+    const world = clientToWorld(
+      client.x,
+      client.y,
+      stage.getBoundingClientRect(),
+      panViewportRef.current ?? viewport,
+      STAGE_WIDTH,
+      STAGE_HEIGHT,
+    );
+    const bounds = drag.bounds;
+    if (!bounds) return { x: 0, y: 0 };
+    return {
+      x: clamp(world.x - drag.offset.x - drag.startedAt.x, -980 - bounds.minX, 4980 - bounds.maxX),
+      y: clamp(world.y - drag.offset.y - drag.startedAt.y, -980 - bounds.minY, 3980 - bounds.maxY),
+    };
+  }
+
+  function previewWire(
+    source: NonNullable<ReturnType<typeof getCurrentDocument>>,
+    next: typeof source,
+    wireId: string,
+  ): void {
+    visualFrameRef.current?.schedule(() => {
+      const stage = stageRef.current;
+      if (!stage) return;
+      wireDragPreviewRef.current ??= createWireDragPreview(stage, source, wireId);
+      wireDragPreviewRef.current.draw(next);
+    });
+  }
+
+  // A cancelled pointer, Escape, tab switch or route unmount cannot save a half gesture.
+  const cancelInteractionRef = useRef(cancelInteraction);
+  cancelInteractionRef.current = cancelInteraction;
+  useEffect(() => {
+    const cancel = () => {
+      cancelInteractionRef.current();
+      setCatalogPlacementState(null);
+    };
+    const hide = () => {
+      if (globalThis.document.visibilityState === 'hidden') cancel();
+    };
+    window.addEventListener('blur', cancel);
+    globalThis.document.addEventListener('visibilitychange', hide);
+    return () => {
+      clearDragPreview();
+      componentDragRef.current = null;
+      vertexDragRef.current = null;
+      segmentDragRef.current = null;
+      endpointDragRef.current = null;
+      potentiometerDragRef.current = null;
+      panDragRef.current = null;
+      pinchRef.current = null;
+      touchPointsRef.current.clear();
+      catalogPlacementRef.current = null;
+      window.removeEventListener('blur', cancel);
+      globalThis.document.removeEventListener('visibilitychange', hide);
+    };
+  }, [projectId]);
   function nextId(prefix: string): string {
     counterRef.current += 1;
     return `${prefix}-${Date.now().toString(36)}-${counterRef.current}`;
@@ -388,11 +511,20 @@ export function useElectronicsWorkbench(projectId: string) {
     ) {
       return null;
     }
-    const pointer = clientToWorld(clientX, clientY, rect, viewport, STAGE_WIDTH, STAGE_HEIGHT);
+    const pointer = clientToWorld(
+      clientX,
+      clientY,
+      rect,
+      panViewportRef.current ?? viewport,
+      STAGE_WIDTH,
+      STAGE_HEIGHT,
+    );
+    // addComponentToDocument accepts the centre and applies the size offset once.
     return pointer;
   }
 
   function applyViewport(next: Viewport): void {
+    panViewportRef.current = null;
     setViewport(next);
     writeLocalElectronicsViewport(projectId, next);
   }
@@ -492,11 +624,9 @@ export function useElectronicsWorkbench(projectId: string) {
     const family = familyById(familyId);
     if (!family?.enabled) return;
     const variant = selectedFamilyVariant(family, null);
+    cancelInteraction();
     const next: CatalogPlacement = {
       componentTypeId: variant.componentTypeId,
-      point: pointer
-        ? catalogPositionAtClient(variant.componentTypeId, pointer.clientX, pointer.clientY)
-        : null,
       clientPoint: pointer ? { x: pointer.clientX, y: pointer.clientY } : null,
       startClientPoint: pointer ? { x: pointer.clientX, y: pointer.clientY } : null,
       pointerId: pointer?.pointerId ?? null,
@@ -516,11 +646,40 @@ export function useElectronicsWorkbench(projectId: string) {
   function moveFamilyPlacement(pointerId: number, clientX: number, clientY: number): void {
     const current = catalogPlacementRef.current;
     if (current?.mode !== 'pointer' || current.pointerId !== pointerId) return;
-    setCatalogPlacementState({
+    catalogPlacementRef.current = {
       ...current,
-      point: catalogPositionAtClient(current.componentTypeId, clientX, clientY),
       clientPoint: { x: clientX, y: clientY },
-    });
+    };
+    visualFrameRef.current?.schedule(syncCatalogPreview);
+  }
+
+  function syncCatalogPreview(): void {
+    const node = catalogPreviewRef.current;
+    const placing = catalogPlacementRef.current;
+    const stage = stageRef.current;
+    if (!node || !placing || !stage) return;
+    node.style.visibility = placing.clientPoint ? 'visible' : 'hidden';
+    if (!placing.clientPoint) return;
+    const entry = catalogEntry(placing.componentTypeId);
+    if (!entry) return;
+    const size = renderedSize(entry, entry.defaultRotation);
+    const rect = stage.getBoundingClientRect();
+    const zoom = (panViewportRef.current ?? viewport).zoom;
+    const scale = Math.max(rect.width / STAGE_WIDTH, rect.height / STAGE_HEIGHT) * zoom;
+    node.style.width = size.width * scale + 'px';
+    node.style.height = size.height * scale + 'px';
+    node.style.transform =
+      'translate(' +
+      placing.clientPoint.x +
+      'px,' +
+      placing.clientPoint.y +
+      'px) translate(-50%, -50%)';
+  }
+
+  function selectFamilyByTouch(familyId: string): void {
+    beginFamilyPlacement(familyId);
+    setLibraryOpen(false);
+    setNotice('Компонент выбран. Коснитесь места на рабочем поле, куда его поставить.');
   }
 
   function finishFamilyPlacement(pointerId: number, clientX: number, clientY: number): void {
@@ -537,7 +696,6 @@ export function useElectronicsWorkbench(projectId: string) {
       if (compactWorkbench() && travel <= 12) {
         setCatalogPlacementState({
           ...current,
-          point: null,
           clientPoint: null,
           startClientPoint: null,
           pointerId: null,
@@ -560,6 +718,7 @@ export function useElectronicsWorkbench(projectId: string) {
     const current = catalogPlacementRef.current;
     if (!current || (pointerId !== undefined && current.pointerId !== pointerId)) return;
     setCatalogPlacementState(null);
+    visualFrameRef.current?.cancel();
     setNotice('Размещение отменено.');
   }
 
@@ -1082,7 +1241,7 @@ export function useElectronicsWorkbench(projectId: string) {
       event.clientX,
       event.clientY,
       stage.getBoundingClientRect(),
-      viewport,
+      panViewportRef.current ?? viewport,
       STAGE_WIDTH,
       STAGE_HEIGHT,
     );
@@ -1167,6 +1326,7 @@ export function useElectronicsWorkbench(projectId: string) {
       event.stopPropagation();
       return;
     }
+    if (!document) return;
     const point = toWorld(event);
     const selectedComponentIds =
       selection?.kind === 'component' && selection.ids.includes(component.id)
@@ -1183,20 +1343,21 @@ export function useElectronicsWorkbench(projectId: string) {
         }),
       ]),
     ];
-    const startedPositions = Object.fromEntries(
-      document?.components
-        .filter((item) => componentIds.includes(item.id))
-        .map((item) => [item.id, item.position]) ?? [],
-    );
     componentDragRef.current = {
       componentId: component.id,
       componentIds,
       pointerId: event.pointerId,
       offset: { x: point.x - component.position.x, y: point.y - component.position.y },
       startedAt: component.position,
-      startedPositions,
+      startedDocument: document,
+      startClient: { x: event.clientX, y: event.clientY },
+      bounds: sceneBounds({
+        ...document,
+        components: document.components.filter((part) => componentIds.includes(part.id)),
+      }),
     };
     setDraggingComponents(true);
+    if (stageRef.current) stageRef.current.dataset['componentDragging'] = 'true';
     stageRef.current?.setPointerCapture(event.pointerId);
     if (selection?.kind !== 'component' || !selection.ids.includes(component.id)) {
       setSelection({ kind: 'component', id: component.id, ids: [component.id] });
@@ -1286,12 +1447,50 @@ export function useElectronicsWorkbench(projectId: string) {
     panDragRef.current = {
       pointerId: event.pointerId,
       startClient: { x: event.clientX, y: event.clientY },
-      startViewport: viewport,
+      startViewport: panViewportRef.current ?? viewport,
     };
     setPanning(true);
     event.currentTarget.setPointerCapture(event.pointerId);
     if (onEmptyCanvas && !event.shiftKey) setSelection(null);
     event.preventDefault();
+  }
+
+  function beginStagePointer(event: PointerEvent<SVGSVGElement>): void {
+    if (event.pointerType === 'touch') {
+      if (pinchRef.current && !pinchRef.current.ids.includes(event.pointerId)) {
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+      }
+      touchPointsRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      if (touchPointsRef.current.size >= 2) {
+        const points = [...touchPointsRef.current.entries()].slice(0, 2);
+        const a = points[0];
+        const b = points[1];
+        if (!a || !b) return;
+        const startViewport = panViewportRef.current ?? viewport;
+        cancelInteraction();
+        for (const [id, point] of points) {
+          touchPointsRef.current.set(id, point);
+          event.currentTarget.setPointerCapture(id);
+        }
+        pinchRef.current = {
+          ids: points.map(([id]) => id),
+          center: { x: (a[1].x + b[1].x) / 2, y: (a[1].y + b[1].y) / 2 },
+          distance: Math.max(1, Math.hypot(a[1].x - b[1].x, a[1].y - b[1].y)),
+          viewport: startViewport,
+        };
+        setCatalogPlacementState(null);
+        setPendingTerminal(null);
+        setWireDraftVertices([]);
+        setWirePreviewEnd(null);
+        setPanning(true);
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+      }
+    }
+    placeCatalogComponent(event);
   }
 
   // The dragged wire endpoint rides under the pointer, so a plain
@@ -1311,6 +1510,35 @@ export function useElectronicsWorkbench(projectId: string) {
   }
 
   function handlePointerMove(event: PointerEvent<SVGSVGElement>): void {
+    const client = { x: event.clientX, y: event.clientY };
+    if (touchPointsRef.current.has(event.pointerId))
+      touchPointsRef.current.set(event.pointerId, client);
+    const pinch = pinchRef.current;
+    if (pinch) {
+      const a = touchPointsRef.current.get(pinch.ids[0] as number);
+      const b = touchPointsRef.current.get(pinch.ids[1] as number);
+      if (a && b) {
+        const center = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+        const zoom = clamp(
+          (pinch.viewport.zoom * Math.hypot(a.x - b.x, a.y - b.y)) / pinch.distance,
+          MIN_ZOOM,
+          MAX_ZOOM,
+        );
+        moveViewport(
+          gestureViewport(
+            pinch.viewport,
+            pinch.center,
+            center,
+            zoom,
+            event.currentTarget.getBoundingClientRect(),
+            STAGE_WIDTH,
+            STAGE_HEIGHT,
+          ),
+        );
+      }
+      event.preventDefault();
+      return;
+    }
     const world = toWorld(event);
     const endpointDrag = endpointDragRef.current;
     if (endpointDrag?.pointerId === event.pointerId) {
@@ -1324,27 +1552,24 @@ export function useElectronicsWorkbench(projectId: string) {
       return;
     }
     if (catalogPlacement?.mode === 'keyboard') {
-      const point = catalogPositionAtClient(
-        catalogPlacement.componentTypeId,
-        event.clientX,
-        event.clientY,
-      );
-      setCatalogPlacementState({
+      catalogPlacementRef.current = {
         ...catalogPlacement,
-        point,
         clientPoint: { x: event.clientX, y: event.clientY },
-      });
+      };
+      visualFrameRef.current?.schedule(syncCatalogPreview);
       return;
     }
     const vertexDrag = vertexDragRef.current;
     if (vertexDrag?.pointerId === event.pointerId && document) {
-      setDocument(
+      previewWire(
+        vertexDrag.startedDocument,
         moveWireVertex(
-          document,
+          vertexDrag.startedDocument,
           vertexDrag.wireId,
           vertexDrag.vertexIndex,
           wireVertexDragPoint(vertexDrag.wireId, vertexDrag.vertexIndex, world, event.shiftKey),
         ),
+        vertexDrag.wireId,
       );
       return;
     }
@@ -1354,14 +1579,15 @@ export function useElectronicsWorkbench(projectId: string) {
         x: world.x - segmentDrag.startPointer.x,
         y: world.y - segmentDrag.startPointer.y,
       };
-      if (Math.hypot(pointerDelta.x, pointerDelta.y) >= 0.5) segmentDrag.moved = true;
-      setDocument(
+      previewWire(
+        segmentDrag.startedDocument,
         moveWireSegment(
           segmentDrag.startedDocument,
           segmentDrag.wireId,
           segmentDrag.segmentIndex,
           pointerDelta,
         ),
+        segmentDrag.wireId,
       );
       return;
     }
@@ -1377,51 +1603,55 @@ export function useElectronicsWorkbench(projectId: string) {
     }
     const drag = componentDragRef.current;
     if (drag && drag.pointerId === event.pointerId && document) {
-      const component = document.components.find((item) => item.id === drag.componentId);
-      const entry = component ? catalogEntry(component) : null;
-      if (!component || !entry) return;
-      const size = renderedSize(entry, component.rotation ?? 0);
-      const margin = 20;
-      const next = {
-        // Free placement. A component lands where it was dropped; the only thing
-        // allowed to move it afterwards is the breadboard, which pulls its pins
-        // into the holes below. A background grid that captured everything made
-        // the canvas feel sticky and put parts where nobody put them.
-        x: Math.round(clamp(world.x - drag.offset.x, -1000 + margin, 5000 - size.width - margin)),
-        y: Math.round(clamp(world.y - drag.offset.y, -1000 + margin, 4000 - size.height - margin)),
-      };
-      const delta = { x: next.x - drag.startedAt.x, y: next.y - drag.startedAt.y };
-      const positions = Object.fromEntries(
-        drag.componentIds.map((id) => {
-          const start = drag.startedPositions[id] ?? drag.startedAt;
-          return [id, { x: start.x + delta.x, y: start.y + delta.y }];
-        }),
-      );
-      const movedDocument =
-        drag.componentIds.length === 1
-          ? moveComponentInDocument(document, drag.componentId, next)
-          : moveComponentsInDocument(document, positions);
-      setDocument(
-        drag.componentIds.length === 1 && component.kind !== 'breadboard'
-          ? snapComponentToBreadboard(movedDocument, drag.componentId)
-          : movedDocument,
-      );
+      const delta = componentDragDelta(drag, client);
+      visualFrameRef.current?.schedule(() => {
+        const stage = stageRef.current;
+        if (!stage || componentDragRef.current !== drag) return;
+        dragPreviewRef.current ??= createComponentDragPreview(
+          stage,
+          drag.startedDocument,
+          drag.componentIds,
+        );
+        dragPreviewRef.current.draw(delta);
+      });
       return;
     }
     const pan = panDragRef.current;
     if (pan && pan.pointerId === event.pointerId) {
       const rect = event.currentTarget.getBoundingClientRect();
-      const scaleX = STAGE_WIDTH / pan.startViewport.zoom / rect.width;
-      const scaleY = STAGE_HEIGHT / pan.startViewport.zoom / rect.height;
-      moveViewport({
-        ...pan.startViewport,
-        x: pan.startViewport.x - (event.clientX - pan.startClient.x) * scaleX,
-        y: pan.startViewport.y - (event.clientY - pan.startClient.y) * scaleY,
-      });
+      moveViewport(
+        gestureViewport(
+          pan.startViewport,
+          pan.startClient,
+          client,
+          pan.startViewport.zoom,
+          rect,
+          STAGE_WIDTH,
+          STAGE_HEIGHT,
+        ),
+      );
     }
   }
 
   function finishPointer(event: PointerEvent<SVGSVGElement>): void {
+    touchPointsRef.current.delete(event.pointerId);
+    if (pinchRef.current && !pinchRef.current.ids.includes(event.pointerId)) return;
+    if (pinchRef.current) {
+      pinchRef.current = null;
+      const settled = panViewportRef.current ?? viewport;
+      const remaining = [...touchPointsRef.current.entries()][0];
+      panDragRef.current = remaining
+        ? { pointerId: remaining[0], startClient: remaining[1], startViewport: settled }
+        : null;
+      if (!remaining) {
+        setPanning(false);
+        applyViewport(settled);
+      }
+      if (event.currentTarget.hasPointerCapture(event.pointerId))
+        event.currentTarget.releasePointerCapture(event.pointerId);
+      event.preventDefault();
+      return;
+    }
     const endpointDrag = endpointDragRef.current;
     if (endpointDrag?.pointerId === event.pointerId) {
       endpointDragRef.current = null;
@@ -1461,15 +1691,46 @@ export function useElectronicsWorkbench(projectId: string) {
     const vertexDrag = vertexDragRef.current;
     if (vertexDrag?.pointerId === event.pointerId) {
       vertexDragRef.current = null;
-      if (document) pushHistory(document);
-      setNotice('Изгиб провода перемещён.');
+      const point = wireVertexDragPoint(
+        vertexDrag.wireId,
+        vertexDrag.vertexIndex,
+        toWorld(event),
+        event.shiftKey,
+      );
+      const source = vertexDrag.startedDocument;
+      const old = source.connections.find((wire) => wire.id === vertexDrag.wireId)?.vertices?.[
+        vertexDrag.vertexIndex
+      ];
+      clearDragPreview();
+      if (getCurrentDocument() === source && old && (point.x !== old.x || point.y !== old.y)) {
+        commitDocument(
+          moveWireVertex(source, vertexDrag.wireId, vertexDrag.vertexIndex, point),
+          'Изгиб провода перемещён.',
+        );
+      }
     }
     const segmentDrag = segmentDragRef.current;
     if (segmentDrag?.pointerId === event.pointerId) {
       segmentDragRef.current = null;
-      if (segmentDrag.moved && document) {
-        pushHistory(document);
-        setNotice('Отрезок провода перемещён параллельно.');
+      const point = toWorld(event);
+      const delta = {
+        x: point.x - segmentDrag.startPointer.x,
+        y: point.y - segmentDrag.startPointer.y,
+      };
+      clearDragPreview();
+      if (
+        getCurrentDocument() === segmentDrag.startedDocument &&
+        Math.hypot(delta.x, delta.y) >= 0.5
+      ) {
+        commitDocument(
+          moveWireSegment(
+            segmentDrag.startedDocument,
+            segmentDrag.wireId,
+            segmentDrag.segmentIndex,
+            delta,
+          ),
+          'Отрезок провода перемещён параллельно.',
+        );
       }
     }
     if (marquee?.pointerId === event.pointerId && document) {
@@ -1501,25 +1762,25 @@ export function useElectronicsWorkbench(projectId: string) {
     }
     const drag = componentDragRef.current;
     if (drag?.pointerId === event.pointerId) {
-      setDraggingComponents(false);
+      const rawDelta = componentDragDelta(drag, { x: event.clientX, y: event.clientY });
+      const delta = {
+        x: Math.round(rawDelta.x * 1000) / 1000,
+        y: Math.round(rawDelta.y * 1000) / 1000,
+      };
+      clearDragPreview();
       componentDragRef.current = null;
       setDraggingComponents(false);
-      if (document) {
-        const moved = document.components.find((item) => item.id === drag.componentId);
-        const didMove = Boolean(
-          moved && (moved.position.x !== drag.startedAt.x || moved.position.y !== drag.startedAt.y),
-        );
-        if (didMove) {
-          const snapped = snapComponentToBreadboard(document, drag.componentId);
-          setDocument(snapped);
-          pushHistory(snapped);
-          const snappedComponent = snapped.components.find((item) => item.id === drag.componentId);
-          setNotice(
-            Object.keys(snappedComponent?.holeBindings ?? {}).length > 0
-              ? 'Выводы привязаны к отверстиям макетки.'
-              : 'Положение сохранится автоматически.',
+      if (getCurrentDocument() === drag.startedDocument && (delta.x !== 0 || delta.y !== 0)) {
+        let next = translatedDragDocument(drag.startedDocument, drag.componentIds, delta);
+        for (const id of drag.componentIds) {
+          const part = next.components.find((item) => item.id === id);
+          const carried = Object.values(part?.holeBindings ?? {}).some((binding) =>
+            drag.componentIds.includes(binding.breadboardComponentId),
           );
+          if (part && part.kind !== 'breadboard' && !carried)
+            next = snapComponentToBreadboard(next, id);
         }
+        commitDocument(next, 'Положение сохранится автоматически.');
       }
     }
     if (panDragRef.current?.pointerId === event.pointerId) {
@@ -1538,6 +1799,14 @@ export function useElectronicsWorkbench(projectId: string) {
     } catch {
       /* capture may already be released */
     }
+  }
+
+  function cancelPointer(event: PointerEvent<SVGSVGElement>): void {
+    cancelInteraction();
+    setWirePreviewEnd(null);
+    setReconnectEndpoint(null);
+    if (event.currentTarget.hasPointerCapture(event.pointerId))
+      event.currentTarget.releasePointerCapture(event.pointerId);
   }
 
   function startVertexDrag(
@@ -1567,7 +1836,13 @@ export function useElectronicsWorkbench(projectId: string) {
       y: event.clientY,
       at: Date.now(),
     };
-    vertexDragRef.current = { pointerId: event.pointerId, wireId, vertexIndex };
+    if (!document) return;
+    vertexDragRef.current = {
+      pointerId: event.pointerId,
+      wireId,
+      vertexIndex,
+      startedDocument: document,
+    };
     setSelection({ kind: 'wire', id: wireId, vertexIndex });
     stageRef.current?.setPointerCapture(event.pointerId);
     event.stopPropagation();
@@ -1606,7 +1881,6 @@ export function useElectronicsWorkbench(projectId: string) {
       segmentIndex,
       startPointer: toWorld(event),
       startedDocument: document,
-      moved: false,
     };
     setSelection({ kind: 'wire', id: wireId, segmentIndex });
     stageRef.current?.setPointerCapture(event.pointerId);
@@ -1651,30 +1925,18 @@ export function useElectronicsWorkbench(projectId: string) {
 
   function handleWheel(event: WheelEvent<SVGSVGElement>): void {
     event.preventDefault();
+    if (
+      componentDragRef.current ||
+      vertexDragRef.current ||
+      segmentDragRef.current ||
+      pinchRef.current
+    )
+      return;
     const rect = event.currentTarget.getBoundingClientRect();
-    const zoom = clamp(viewport.zoom * (event.deltaY > 0 ? 0.88 : 1.14), MIN_ZOOM, MAX_ZOOM);
-    if (zoom === viewport.zoom) return;
-
-    // Keep whatever is under the pointer under the pointer. The old arithmetic
-    // placed the view from a plain fraction of the element's width, which ignores
-    // the xMidYMid slice cropping the canvas — so the scene drifted sideways on
-    // every step, and kept drifting at the zoom limits where nothing should have
-    // moved at all. Asking the same inverse transform the rest of the editor uses
-    // removes the discrepancy instead of compensating for it.
-    const before = toWorld(event);
-    const after = clientToWorld(
-      event.clientX,
-      event.clientY,
-      rect,
-      { x: viewport.x, y: viewport.y, zoom },
-      STAGE_WIDTH,
-      STAGE_HEIGHT,
-    );
-    applyViewport({
-      x: viewport.x + (before.x - after.x),
-      y: viewport.y + (before.y - after.y),
-      zoom,
-    });
+    const current = panViewportRef.current ?? viewport;
+    const zoom = clamp(current.zoom * (event.deltaY > 0 ? 0.88 : 1.14), MIN_ZOOM, MAX_ZOOM);
+    const anchor = { x: event.clientX, y: event.clientY };
+    applyViewport(gestureViewport(current, anchor, anchor, zoom, rect, STAGE_WIDTH, STAGE_HEIGHT));
   }
 
   function zoomBy(factor: number): void {
@@ -1693,7 +1955,12 @@ export function useElectronicsWorkbench(projectId: string) {
       return;
     }
     const bounds = sceneBounds(document);
-    applyViewport(bounds ? fitViewport(bounds, STAGE_WIDTH, STAGE_HEIGHT) : DEFAULT_VIEWPORT);
+    const rect = stageRef.current?.getBoundingClientRect();
+    applyViewport(
+      bounds && rect
+        ? fitViewportToScreen(bounds, rect, STAGE_WIDTH, STAGE_HEIGHT, MIN_ZOOM, MAX_ZOOM)
+        : DEFAULT_VIEWPORT,
+    );
   }
 
   useEffect(() => {
@@ -1729,6 +1996,7 @@ export function useElectronicsWorkbench(projectId: string) {
         event.preventDefault();
         rotateSelected();
       } else if (event.key === 'Escape') {
+        cancelInteraction();
         setCatalogPlacementState(null);
         setPendingTerminal(null);
         setWireDraftVertices([]);
@@ -1770,15 +2038,6 @@ export function useElectronicsWorkbench(projectId: string) {
   const selectedFamily = selectedComponent
     ? familyForVariant(selectedComponent.variantId ?? selectedComponent.componentTypeId)
     : null;
-  const catalogPlacementComponent = useMemo(() => {
-    if (!document || !catalogPlacement?.point) return null;
-    return addComponentToDocument(
-      document,
-      catalogPlacement.componentTypeId,
-      catalogPlacement.point,
-      'catalog-placement-preview',
-    ).component;
-  }, [catalogPlacement, document]);
   const resultByComponent = useMemo(() => {
     const map = new Map<string, ComponentResult>();
     for (const item of result?.components ?? []) map.set(item.componentId, item);
@@ -1963,8 +2222,10 @@ export function useElectronicsWorkbench(projectId: string) {
     startEndpointDrag,
     addWireVertexAt,
     startPan,
+    beginStagePointer,
     handlePointerMove,
     finishPointer,
+    cancelPointer,
     handleWheel,
     zoomBy,
     fitScene,
@@ -1993,7 +2254,9 @@ export function useElectronicsWorkbench(projectId: string) {
     draggingComponents,
     marquee,
     catalogPlacement,
-    catalogPlacementComponent,
+    catalogPreviewRef,
+    syncCatalogPreview,
+    selectFamilyByTouch,
     addComponent,
     addFamily,
     beginFamilyPlacement,
