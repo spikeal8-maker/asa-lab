@@ -31,8 +31,8 @@ task:
   issue: 173
   branch: codex/asa-access-a-result-a
   base_branch: main
-  pr: null
-  pr_draft: false
+  pr: 174
+  pr_draft: true
   # Owner-authorized ASA-ACCESS-A: personal settings/navigation, separate author
   # and educator capabilities, independent teaching and protected StudentSeat.
   # Existing Auth/MAX/Admin remain compatible. Result B/C and production are
