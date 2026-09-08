@@ -423,6 +423,10 @@ describe('owner SVG integration in the real Electronics document', () => {
       simulationSupported: true,
       defaultStateProperties: { moisturePercent: 50 },
     });
+    expect(families.find((family) => family.familyId === 'soil-moisture-sensor')).toMatchObject({
+      enabled: true,
+      simulationStatus: 'supported',
+    });
     for (const componentId of ['ultrasonic-hc-sr04', 'pir-sensor']) {
       expect(productionCatalogEntry(componentId), componentId).toMatchObject({
         enabled: true,

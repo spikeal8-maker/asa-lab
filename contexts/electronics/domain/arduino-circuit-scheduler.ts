@@ -12,6 +12,7 @@ import { electricalModelFor } from './model-registry.js';
 import { compileCircuit, verifyCircuitQuality, type SimulationQuality } from './simulation.js';
 import {
   clockedRcStateIsCompatible,
+  clockedPhysicalStateIsCompatible,
   solveCircuitWithHeldArduino,
   solveRcCircuitWithHeldArduino,
   type SolveResult,
@@ -26,6 +27,19 @@ const MAX_INPUT_EVENTS = 1024;
 const MAX_BOARDS = 8;
 // Fixed barriers independent of UI refresh times. Adaptive trial steps stay inside each barrier.
 const PHYSICS_QUANTUM_US = 1000;
+const ELECTROTHERMAL_MODELS = new Set([
+  'ordinary-led',
+  'rgb-led',
+  'seven-segment',
+  'diode',
+  'npn-transistor',
+  'pnp-transistor',
+  'n-channel-fet',
+  'incandescent-lamp',
+  'dc-motor',
+  'digital-multimeter',
+  'regulated-dc-supply',
+]);
 
 export interface ArduinoCircuitInputEvent {
   readonly atMicroseconds: number;
@@ -36,7 +50,7 @@ export interface ArduinoCircuitInputEvent {
 
 export interface ArduinoCircuitClockState {
   readonly version: 1;
-  readonly profile: 'dc-inputs-v1' | 'rc-inputs-v2';
+  readonly profile: 'dc-inputs-v1' | 'rc-inputs-v2' | 'electrothermal-v1';
   readonly documentDigest: string;
   readonly reachedMicroseconds: number;
   /** Ordered, append-only history. Array index is the stable event sequence. */
@@ -73,20 +87,21 @@ function clockedComponent(component: SchematicComponent): boolean {
   const model = electricalModelFor(component);
   return (
     model.support !== 'unsupported' &&
-    [
-      'arduino-uno',
-      'resistor',
-      'momentary-button',
-      'spdt-switch',
-      'potentiometer',
-      'photoresistor',
-      'analog-temperature-sensor',
-      'resistive-soil-sensor',
-      'breadboard-connectivity',
-      'ideal-wire',
-      'ideal-dc-source',
-      'capacitor',
-    ].includes(model.id)
+    (ELECTROTHERMAL_MODELS.has(model.id) ||
+      [
+        'arduino-uno',
+        'resistor',
+        'momentary-button',
+        'spdt-switch',
+        'potentiometer',
+        'photoresistor',
+        'analog-temperature-sensor',
+        'resistive-soil-sensor',
+        'breadboard-connectivity',
+        'ideal-wire',
+        'ideal-dc-source',
+        'capacitor',
+      ].includes(model.id))
   );
 }
 
@@ -191,9 +206,14 @@ export function advanceArduinoCircuitClock(
   const budget = options.maxClockEvents ?? 256;
   if (!Number.isInteger(budget) || budget < 1 || budget > 1024)
     return fault('invalid_clock_budget', 'Квант общего scheduler: от 1 до 1024 отметок времени.');
-  const profile = document.components.some(isElectrolyticCapacitor)
-    ? 'rc-inputs-v2'
-    : 'dc-inputs-v1';
+  const profile = document.components.some((component) =>
+    ELECTROTHERMAL_MODELS.has(electricalModelFor(component).id),
+  )
+    ? 'electrothermal-v1'
+    : document.components.some(isElectrolyticCapacitor)
+      ? 'rc-inputs-v2'
+      : 'dc-inputs-v1';
+  const hasPhysics = profile !== 'dc-inputs-v1';
   const unsupported = document.components.find((component) => !clockedComponent(component));
   if (unsupported)
     return fault(
@@ -228,13 +248,13 @@ export function advanceArduinoCircuitClock(
       previous.documentDigest !== digest ||
       !integerTime(previous.reachedMicroseconds) ||
       previous.reachedMicroseconds > targetMicroseconds ||
-      (profile === 'rc-inputs-v2'
+      (hasPhysics
         ? !previous.physicalState ||
-          !clockedRcStateIsCompatible(
-            document,
-            previous.physicalState,
-            previous.reachedMicroseconds / 1000,
-          ) ||
+          !(
+            profile === 'electrothermal-v1'
+              ? clockedPhysicalStateIsCompatible
+              : clockedRcStateIsCompatible
+          )(document, previous.physicalState, previous.reachedMicroseconds / 1000) ||
           !integerTime(Math.round(previous.physicalState.simulationTimeMs * 1000)) ||
           Math.round(previous.physicalState.simulationTimeMs * 1000) / 1000 !==
             previous.physicalState.simulationTimeMs ||
@@ -321,7 +341,7 @@ export function advanceArduinoCircuitClock(
     );
   const sample = (time: number): NonNullable<ArduinoCircuitClockAdvance['result']> => {
     if (cachedFrame && (profile === 'dc-inputs-v1' || cachedFrameTime === time)) return cachedFrame;
-    if (profile === 'rc-inputs-v2') {
+    if (hasPhysics) {
       // A horizon between canonical events may be observed but never committed:
       // otherwise UI frame rate would change adaptive integration and later ADC reads.
       const advanced = advancePhysics(time);
@@ -351,7 +371,7 @@ export function advanceArduinoCircuitClock(
         return state ? Math.round(state.resumeAtMs * 1000) : 0;
       }),
       inputs[nextInputIndex]?.atMicroseconds ?? Number.POSITIVE_INFINITY,
-      profile === 'rc-inputs-v2'
+      hasPhysics
         ? (Math.floor(
             Math.round((physicalState?.simulationTimeMs ?? 0) * 1000) / PHYSICS_QUANTUM_US,
           ) +
@@ -363,7 +383,7 @@ export function advanceArduinoCircuitClock(
   let clockEvents = 0;
   while (nextTime() <= targetMicroseconds && clockEvents < budget) {
     const time = nextTime();
-    if (profile === 'rc-inputs-v2') {
+    if (hasPhysics) {
       const advanced = advancePhysics(time);
       if (!advanced.solved || !advanced.quality.passed || !advanced.transientState)
         return fault(

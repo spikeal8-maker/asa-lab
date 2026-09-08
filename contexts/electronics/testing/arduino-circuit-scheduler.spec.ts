@@ -375,8 +375,8 @@ describe('Arduino shared dc-inputs-v1 circuit clock', () => {
     expect(result.events).toEqual([]);
   });
 
-  it('does not silently freeze a motor, capacitor, lamp or unknown visual component', () => {
-    for (const type of ['dc-motor', 'capacitor', 'incandescent-lamp', 'unknown-component']) {
+  it('does not silently freeze an unsupported protocol or unknown visual component', () => {
+    for (const type of ['signal-generator', 'capacitor', 'piezo-disc', 'unknown-component']) {
       const doc = circuit([
         board('uno', `void setup(){}${idle}`),
         { ...part('physical', 'visual'), componentTypeId: type },

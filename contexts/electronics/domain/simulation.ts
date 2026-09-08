@@ -14,6 +14,7 @@ import { electricalModelFor } from './model-registry.js';
 import { canonicalNonlinearDcProfileRegistry } from './models/nonlinear-dc-models.js';
 import {
   solveCircuit,
+  ELECTRICAL_EVENT_FRAME_VERSION,
   transistorTypeOf,
   type ComponentResult,
   type Diagnostic,
@@ -63,7 +64,7 @@ export interface SimulationResult extends SolveResult {
   readonly quality: SimulationQuality;
   readonly topologySignature: string;
   readonly simulationInputDigest: string;
-  readonly solverRevision: 'asa-electronics-solver-v20';
+  readonly solverRevision: 'asa-electronics-solver-v21';
   readonly modelSetDigest: string;
   readonly analysis: {
     readonly electricalMode: 'dc' | 'transient';
@@ -79,6 +80,7 @@ const MIN_POWER_BALANCE_TOLERANCE_W = 1e-9;
 const MODEL_SET_DIGEST = `sha256:${sha256Hex(
   JSON.stringify({
     identities: canonicalElectricalModelRegistry(),
+    electricalEventFrameVersion: ELECTRICAL_EVENT_FRAME_VERSION,
     tmp36Profile: TMP36_PROFILE,
     soilMoistureProfile: SOIL_MOISTURE_PROFILE,
     photoresistorProfiles: canonicalPhotoresistorProfileRegistry(),
@@ -714,7 +716,7 @@ export function analyseCircuit(
       quality: failedQuality(),
       topologySignature: compiled.topologySignature,
       simulationInputDigest: inputDigest,
-      solverRevision: 'asa-electronics-solver-v20',
+      solverRevision: 'asa-electronics-solver-v21',
       modelSetDigest: MODEL_SET_DIGEST,
       analysis,
     };
@@ -739,7 +741,7 @@ export function analyseCircuit(
       quality,
       topologySignature: compiled.topologySignature,
       simulationInputDigest: inputDigest,
-      solverRevision: 'asa-electronics-solver-v20',
+      solverRevision: 'asa-electronics-solver-v21',
       modelSetDigest: MODEL_SET_DIGEST,
       analysis,
     };
@@ -751,7 +753,7 @@ export function analyseCircuit(
     quality,
     topologySignature: compiled.topologySignature,
     simulationInputDigest: inputDigest,
-    solverRevision: 'asa-electronics-solver-v20',
+    solverRevision: 'asa-electronics-solver-v21',
     modelSetDigest: MODEL_SET_DIGEST,
     analysis,
   };

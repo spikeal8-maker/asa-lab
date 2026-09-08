@@ -123,6 +123,7 @@ import {
   brushedMotorCompanion,
   brushedMotorTransientStateIsCompatible,
   createBrushedMotorTransientState,
+  observeBrushedMotorTransientState,
   type BrushedMotorObservation,
   type BrushedMotorStepInput,
   type BrushedMotorStepResult,
@@ -390,6 +391,9 @@ export interface SolveOptions {
   readonly controllerState?: ArduinoControllerState;
 }
 
+/** Capacitor-voltage and motor-current continuity in zero-duration event frames. */
+export const ELECTRICAL_EVENT_FRAME_VERSION = 2;
+
 interface InternalSolveOptions extends SolveOptions {
   readonly transientStepSeconds?: number;
   readonly capacitorPreviousVoltageById?: Readonly<Record<string, number>>;
@@ -407,6 +411,8 @@ interface InternalSolveOptions extends SolveOptions {
   readonly clockedRcTransient?: boolean;
   /** Algebraic event frame: preserve capacitor voltage, solve its instantaneous current. */
   readonly holdCapacitorVoltages?: boolean | undefined;
+  /** Algebraic event frame: armature current and mechanical state cannot jump. */
+  readonly holdMotorStates?: boolean | undefined;
 }
 
 const GMIN = 1e-12;
@@ -1284,7 +1290,20 @@ function solveCircuitBase(
       simulationTimeMs: targetTimeMs,
       heldArduinoSnapshots: options.heldArduinoSnapshots,
       holdCapacitorVoltages: true,
+      holdMotorStates: true,
       capacitorPreviousVoltageById: previousVoltageById,
+      motorPreviousStateById: motorStateById,
+      bjtPreviousRegionById: bjtRegionById,
+      lampTemperatureById: Object.fromEntries(
+        orderedLamps.map((component) => [
+          component.id,
+          thermalById.get(component.id)?.temperatureCelsius ??
+            INCANDESCENT_LAMP_PROFILE.ambientCelsius,
+        ]),
+      ),
+      meterFuseBlownById: Object.fromEntries(
+        [...multimeterFuseById].map(([id, state]) => [id, state.fuseState === 'blown']),
+      ),
       failedComponentIds,
       suppressOscilloscopeTrace: true,
     });
@@ -1891,23 +1910,48 @@ export function clockedRcStateIsCompatible(
   state: CapacitorTransientState,
   targetTimeMs: number,
 ): boolean {
+  if (
+    document.components.some(isBrushedMotor) ||
+    document.components.some((component) => component.componentTypeId === 'multimeter')
+  )
+    return false;
+  return clockedPhysicalStateIsCompatible(document, state, targetTimeMs);
+}
+
+/** Exact physical histories accepted by the shared electrical clock. */
+export function clockedPhysicalStateIsCompatible(
+  document: ElectronicsDocument,
+  state: CapacitorTransientState,
+  targetTimeMs: number,
+): boolean {
   const ordered = [...document.components].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   const thermal = ordered.filter((component) => thermalProfileFor(component) !== null);
+  const bjts = new Set(
+    ordered.filter((component) => component.kind === 'transistor').map((component) => component.id),
+  );
   return (
     capacitorTransientStateIsCompatible(
       state,
       ordered.filter(isElectrolyticCapacitor),
-      [],
-      [],
+      ordered.filter(isBrushedMotor),
+      ordered.filter((component) => component.componentTypeId === 'multimeter'),
       targetTimeMs,
       true,
     ) &&
     state.thermal.length === thermal.length &&
     (state.bjtRegions === undefined ||
-      (Array.isArray(state.bjtRegions) && state.bjtRegions.length === 0)) &&
-    (state.motors === undefined || (Array.isArray(state.motors) && state.motors.length === 0)) &&
-    (state.multimeterFuses === undefined ||
-      (Array.isArray(state.multimeterFuses) && state.multimeterFuses.length === 0)) &&
+      (Array.isArray(state.bjtRegions) &&
+        new Set(state.bjtRegions.map((entry) => entry?.componentId)).size ===
+          state.bjtRegions.length &&
+        state.bjtRegions.every(
+          (entry) =>
+            entry &&
+            bjts.has(entry.componentId) &&
+            ['cutoff', 'active', 'saturation'].includes(entry.region),
+        ))) &&
+    (state.motors ?? []).every(
+      (entry) => Math.abs(entry.simulationTimeSeconds * 1000 - state.simulationTimeMs) < 1e-8,
+    ) &&
     state.thermal.every((entry, index) => {
       const component = thermal[index]!;
       return (
@@ -2569,6 +2613,10 @@ function solveCircuitStep(
         const profile = brushedMotorProfile(component);
         const previousState = options.motorPreviousStateById?.[component.id];
         if (!profile || !previousState) continue;
+        if (options.holdMotorStates) {
+          stampOffset(a, b, -previousState.currentAmp);
+          continue;
+        }
         const companion = brushedMotorCompanion(
           profile,
           previousState,
@@ -3083,15 +3131,26 @@ function solveCircuitStep(
         const failedMotorProfile = failedMotorState ? brushedMotorProfile(component) : null;
         const failedMotorTransition =
           failedMotorState && failedMotorProfile
-            ? advanceBrushedMotorTransientState(
-                failedMotorProfile,
-                failedMotorState,
-                brushedMotorStepInput(
-                  component,
-                  voltageDrop,
-                  options.transientStepSeconds ?? TRANSIENT_INITIAL_SAMPLE_MS / 1_000,
-                ),
-              )
+            ? options.holdMotorStates
+              ? {
+                  state: failedMotorState,
+                  companion: null,
+                  observation: observeBrushedMotorTransientState(
+                    failedMotorProfile,
+                    failedMotorState,
+                    failedMotorState,
+                    brushedMotorStepInput(component, voltageDrop, 0),
+                  ),
+                }
+              : advanceBrushedMotorTransientState(
+                  failedMotorProfile,
+                  failedMotorState,
+                  brushedMotorStepInput(
+                    component,
+                    voltageDrop,
+                    options.transientStepSeconds ?? TRANSIENT_INITIAL_SAMPLE_MS / 1_000,
+                  ),
+                )
             : null;
         return {
           componentId: component.id,
@@ -3156,6 +3215,17 @@ function solveCircuitStep(
             const profile = brushedMotorProfile(component);
             const previousState = options.motorPreviousStateById?.[component.id];
             if (!profile || !previousState) return undefined;
+            if (options.holdMotorStates)
+              return {
+                state: previousState,
+                companion: null,
+                observation: observeBrushedMotorTransientState(
+                  profile,
+                  previousState,
+                  previousState,
+                  brushedMotorStepInput(component, voltageDrop, 0),
+                ),
+              };
             return advanceBrushedMotorTransientState(
               profile,
               previousState,
