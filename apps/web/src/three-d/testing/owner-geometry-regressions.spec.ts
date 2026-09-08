@@ -42,8 +42,35 @@ function unmatchedEdges(geometry: THREE.BufferGeometry): number {
 }
 
 describe('owner underside and rounded-body regressions', () => {
-  it.each(['round-roof', 'half-sphere'] as const)('%s has a closed outward-facing base', (kind) => {
-    const geometry = createPrimitiveGeometry(createThreeDNode(kind, kind));
+  it('keeps the hemisphere base normal separate from the curved rim', () => {
+    const geometry = createPrimitiveGeometry(createThreeDNode('half-sphere', 'dome'));
+    try {
+      const p = geometry.getAttribute('position');
+      const n = geometry.getAttribute('normal');
+      let downward = 0;
+      let curved = 0;
+      for (let i = 0; i < p.count; i++) {
+        if (Math.abs(p.getY(i) + 0.5) > 1e-5 || Math.hypot(p.getX(i), p.getZ(i)) < 0.49) continue;
+        if (n.getY(i) < -0.99) downward++;
+        else {
+          expect(n.getY(i)).toBeGreaterThanOrEqual(-1e-5);
+          curved++;
+        }
+      }
+      expect(downward).toBeGreaterThan(0);
+      expect(curved).toBeGreaterThan(0);
+    } finally {
+      geometry.dispose();
+    }
+  });
+
+  it.each([
+    ['round-roof', 24],
+    ['half-sphere', 24],
+    ['half-sphere', 7],
+    ['half-sphere', 25],
+  ] as const)('%s with %s sides has a closed outward-facing base', (kind, sides) => {
+    const geometry = createPrimitiveGeometry({ ...createThreeDNode(kind, kind), sides });
     try {
       expect(unmatchedEdges(geometry)).toBe(0);
       expect(volume(geometry)).toBeGreaterThan(0);

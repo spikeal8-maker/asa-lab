@@ -324,8 +324,9 @@ test('portrait snapshots cannot stretch existing project cards on desktop or pho
   await page.setContent(
     `<style>${css}</style><ul class="project-card-grid">${[0, 1].map(() => '<li class="project-card"><div class="project-card-frame"><div class="project-card-surface"><img class="project-preview-snapshot"></div></div><div class="project-card-body">Проект</div></li>').join('')}</ul>`,
   );
-  await page.evaluate(() => {
-    document.querySelectorAll<HTMLImageElement>('img').forEach((image, index) => {
+  await page.evaluate(async () => {
+    const images = [...document.querySelectorAll<HTMLImageElement>('img')];
+    images.forEach((image, index) => {
       const canvas = document.createElement('canvas');
       canvas.width = index ? 390 : 960;
       canvas.height = index ? 844 : 640;
@@ -334,6 +335,7 @@ test('portrait snapshots cannot stretch existing project cards on desktop or pho
       context.fillRect(0, 0, canvas.width, canvas.height);
       image.src = canvas.toDataURL();
     });
+    await Promise.all(images.map((image) => image.decode()));
   });
   for (const width of [1100, 390]) {
     await page.setViewportSize({ width, height: 900 });

@@ -49,7 +49,7 @@ function shadeColor(base: THREE.Color, intensity: number): string {
   return shaded.getStyle(THREE.SRGBColorSpace);
 }
 
-function collectTriangles(
+export function collectThumbnailTriangles(
   geometry: THREE.BufferGeometry,
   camera: THREE.OrthographicCamera,
   modelMatrix: THREE.Matrix4,
@@ -87,7 +87,17 @@ function collectTriangles(
     edgeA.subVectors(b, a);
     edgeB.subVectors(c, a);
     normal.crossVectors(edgeA, edgeB);
-    if (normal.lengthSq() < 0.000001) continue;
+    // Fine pole triangles are small but valid; reject only degenerate faces.
+    if (normal.lengthSq() < 1e-18) continue;
+    center
+      .copy(a)
+      .add(b)
+      .add(c)
+      .multiplyScalar(1 / 3);
+    toCamera.subVectors(camera.position, center).normalize();
+    // Visibility follows triangle winding, never the smoothed lighting normal.
+    // Otherwise the underside can leak through and silhouette triangles vanish.
+    if (normal.dot(toCamera) <= 0) continue;
     if (normalAttribute instanceof THREE.BufferAttribute) {
       normal
         .set(0, 0, 0)
@@ -102,13 +112,6 @@ function collectTriangles(
         );
     }
     normal.normalize();
-    center
-      .copy(a)
-      .add(b)
-      .add(c)
-      .multiplyScalar(1 / 3);
-    toCamera.subVectors(camera.position, center).normalize();
-    if (normal.dot(toCamera) <= 0) continue;
 
     const diffuse = Math.max(0, normal.dot(toKey.subVectors(KEY_POSITION, center).normalize()));
     const rim = Math.max(0, normal.dot(toRim.subVectors(RIM_POSITION, center).normalize()));
@@ -245,7 +248,7 @@ function renderThumbnail(
 
   const modelMatrix = previewModelMatrix(primitive);
   const geometry = createPrimitiveGeometryForKind(primitive, 48);
-  const fitted = fitTriangles(collectTriangles(geometry, camera, modelMatrix, color));
+  const fitted = fitTriangles(collectThumbnailTriangles(geometry, camera, modelMatrix, color));
   drawShadow(context, fitted.bounds);
   const stripeCanvas = globalThis.document.createElement('canvas');
   stripeCanvas.width = 12;
