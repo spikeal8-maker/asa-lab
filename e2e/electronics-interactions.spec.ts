@@ -340,6 +340,17 @@ test.describe('interaction: electronics input and responsive layout', () => {
         const grid = page.locator('.workbench-catalog-grid');
         expect(await grid.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(true);
         expect(await grid.evaluate((el) => getComputedStyle(el).touchAction)).toBe('pan-x');
+        const overflowingArt = await grid.locator('.workbench-catalog-art').evaluateAll(
+          (items) =>
+            items.filter((item) => {
+              const visual = item.querySelector('.workbench-production-visual');
+              if (!visual) return false;
+              return (
+                visual.getBoundingClientRect().bottom > item.getBoundingClientRect().bottom + 1
+              );
+            }).length,
+        );
+        expect(overflowingArt).toBe(0);
       }
       await page.screenshot({
         path: 'reports/interactions/layout-' + width + 'x' + height + '.png',
