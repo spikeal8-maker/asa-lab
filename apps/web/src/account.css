@@ -677,13 +677,17 @@ button.portal-account-identity:hover:not(:disabled) {
 /* Settings information architecture: one focused section at a time. */
 .account-settings-page {
   width: min(1280px, calc(100% - 48px));
-  padding-top: 34px;
+  padding-top: 18px;
+}
+
+.account-mobile-panel-picker {
+  display: none;
 }
 
 .account-settings-shell {
   display: grid;
   grid-template-columns: 230px minmax(0, 1fr);
-  min-height: 680px;
+  min-height: 480px;
   overflow: hidden;
   border: 1px solid #d7e0e6;
   border-radius: 12px;
@@ -692,7 +696,7 @@ button.portal-account-identity:hover:not(:disabled) {
 }
 
 .account-settings-navigation {
-  padding: 26px 14px;
+  padding: 18px 14px;
   border-right: 1px solid #e0e7eb;
   background: #fbfcfd;
 }
@@ -706,7 +710,7 @@ button.portal-account-identity:hover:not(:disabled) {
 
 .account-settings-navigation nav {
   display: grid;
-  gap: 7px;
+  gap: 3px;
 }
 
 .account-settings-navigation button {
@@ -747,7 +751,7 @@ button.portal-account-identity:hover:not(:disabled) {
 
 .account-settings-content {
   min-width: 0;
-  padding: 34px 44px 54px;
+  padding: 22px 28px;
 }
 
 .account-settings-section {
@@ -755,13 +759,13 @@ button.portal-account-identity:hover:not(:disabled) {
 }
 
 .account-section-heading {
-  margin-bottom: 27px;
+  margin-bottom: 16px;
 }
 
 .account-section-heading h2 {
   margin: 3px 0 9px;
   color: #1f3542;
-  font-size: clamp(26px, 3vw, 34px);
+  font-size: clamp(22px, 2vw, 28px);
   letter-spacing: -0.025em;
 }
 
@@ -776,8 +780,8 @@ button.portal-account-identity:hover:not(:disabled) {
   display: grid;
   grid-template-columns: 104px minmax(0, 1fr);
   align-items: center;
-  gap: 22px;
-  padding: 20px;
+  gap: 14px;
+  padding: 14px;
   border: 1px solid #dce5ea;
   border-radius: 12px;
   background: #f8fbfc;
@@ -830,8 +834,12 @@ button.portal-account-identity:hover:not(:disabled) {
 
 .account-profile-form {
   display: grid;
-  gap: 22px;
-  margin-top: 28px;
+  gap: 14px;
+  margin-top: 18px;
+}
+
+.account-settings-section .account-profile-form label {
+  margin: 0;
 }
 
 .account-profile-form label {
@@ -873,7 +881,7 @@ button.portal-account-identity:hover:not(:disabled) {
 }
 
 .account-profile-form textarea {
-  min-height: 150px;
+  min-height: 100px;
   padding: 12px;
   line-height: 1.55;
   resize: vertical;
@@ -1378,6 +1386,28 @@ button.portal-account-identity:hover:not(:disabled) {
 }
 
 @media (max-width: 900px) {
+  .account-settings-navigation {
+    display: none;
+  }
+  .account-mobile-panel-picker {
+    display: grid;
+    gap: 6px;
+    padding: 12px 16px;
+    border-bottom: 1px solid #e0e7eb;
+    font-size: 13px;
+    font-weight: 700;
+  }
+  .account-mobile-panel-picker select {
+    width: 100%;
+    min-width: 0;
+    min-height: 44px;
+    padding: 8px 12px;
+    border: 1px solid #bccbd3;
+    border-radius: 6px;
+    color: #263b47;
+    background: #fff;
+    font: inherit;
+  }
   .account-settings-page {
     width: calc(100% - 24px);
   }
@@ -1396,7 +1426,7 @@ button.portal-account-identity:hover:not(:disabled) {
   }
 
   .account-settings-content {
-    padding: 28px 24px 42px;
+    padding: 18px;
   }
 
   .account-private-facts {
@@ -1423,11 +1453,21 @@ button.portal-account-identity:hover:not(:disabled) {
   }
 
   .account-settings-content {
-    padding: 22px 16px 34px;
+    padding: 16px;
   }
 
   .account-avatar-editor {
-    grid-template-columns: 1fr;
+    grid-template-columns: 64px minmax(0, 1fr);
+    padding: 12px;
+    gap: 10px;
+  }
+
+  .account-avatar-editor > img {
+    width: 64px;
+    height: 64px;
+  }
+  .account-avatar-editor .account-avatar-buttons {
+    gap: 6px;
   }
 
   .account-access-list article {
@@ -1512,4 +1552,17 @@ button.portal-account-identity:hover:not(:disabled) {
   margin-top: 34px;
   padding-top: 28px;
   border-top: 1px solid #e3e9ed;
+}
+.learning-sections,
+.access-personal-start {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin: 8px 0 16px;
+}
+.learning-sections [aria-current='page'] {
+  border-color: #087eaf;
+  background: #eaf5fb;
+  font-weight: 700;
 }

@@ -11,6 +11,7 @@ import {
   Res,
 } from '@nestjs/common';
 import type { FastifyReply, FastifyRequest } from 'fastify';
+import { effectiveAccountActions } from '@asa-lab/identity';
 import { randomUUID } from 'node:crypto';
 import type {
   AccountDirectoryPort,
@@ -21,6 +22,7 @@ import type {
   RegisterAccountUseCase,
 } from '@asa-lab/identity';
 import { REFRESH_COOKIE, SESSION_COOKIE, TOKENS } from './tokens.js';
+import { STUDENT_SESSION_COOKIE } from './seat-context.js';
 import { checkBodyShape } from './validation.js';
 import { FixedWindowRateLimiter } from './rate-limit.js';
 import { clientAddress, clientConnection, type ClientNetworkKind } from './client-address.js';
@@ -74,7 +76,8 @@ interface SessionPayload {
   capabilities: { capability: string; state: string }[];
   workspaces: { workspaceId: string; kind: string; title: string; role: string }[];
   activeWorkspace: { workspaceId: string; kind: string };
-  navigation: { classes: boolean; classroomManagement: boolean };
+  actions: readonly string[];
+  navigation: { classes: boolean; classroomManagement: boolean; contentAuthoring: boolean };
   /** IANA name, or null until the browser has reported one. */
   timeZone: string | null;
 }
@@ -210,6 +213,7 @@ export class AuthController {
 
   private clearSessionCookies(reply: FastifyReply): void {
     reply.clearCookie(SESSION_COOKIE, { path: '/' });
+    reply.clearCookie('asa_student_session', { path: '/' });
     reply.clearCookie(REFRESH_COOKIE, { path: '/api/auth' });
   }
 
@@ -266,6 +270,7 @@ export class AuthController {
     source: SessionSource,
   ): Promise<void> {
     const refreshToken = await this.refreshSessions.attach(accessToken, source);
+    reply.clearCookie('asa_student_session', { path: '/' });
     this.setSessionCookie(reply, accessToken);
     if (refreshToken) this.setRefreshCookie(reply, refreshToken);
   }
@@ -276,11 +281,7 @@ export class AuthController {
       this.accounts.workspaces(context.accountId),
       this.accounts.timeZone(context.accountId),
     ]);
-    const educator = capabilities.some(
-      (entry) =>
-        entry.capability === 'educator' &&
-        (entry.state === 'verified' || entry.state === 'provisional'),
-    );
+    const actions = effectiveAccountActions(context, capabilities, workspaces);
     const account = {
       id: context.accountId,
       displayName: context.displayName,
@@ -304,9 +305,11 @@ export class AuthController {
         workspaceId: context.workspaceId,
         kind: context.workspaceKind,
       },
+      actions,
       navigation: {
-        classes: educator,
-        classroomManagement: educator,
+        classes: actions.includes('class.create') || actions.includes('class.read.staff'),
+        classroomManagement: actions.includes('class.read.staff'),
+        contentAuthoring: actions.includes('content.create.own'),
       },
       timeZone,
     };
@@ -972,6 +975,7 @@ export class AuthController {
     await this.refreshSessions.revoke(
       request.cookies[REFRESH_COOKIE],
       request.cookies[SESSION_COOKIE],
+      request.cookies[STUDENT_SESSION_COOKIE],
     );
     await this.activeContext.logout(request.cookies[SESSION_COOKIE]);
     this.clearSessionCookies(reply);

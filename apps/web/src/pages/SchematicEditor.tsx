@@ -161,10 +161,12 @@ export function SchematicEditor({
   projectId,
   onBack,
   user,
+  seatLearner = false,
 }: {
   projectId: string;
   onBack: () => void;
   user: PublicUser;
+  seatLearner?: boolean;
 }): JSX.Element {
   const controller = useElectronicsWorkbench(projectId);
   const [view, setView] = useState<WorkbenchView>('breadboard');
@@ -174,8 +176,19 @@ export function SchematicEditor({
   const [codePanelMounted, setCodePanelMounted] = useState(false);
   const [codePanelWidth, setCodePanelWidth] = useState(initialArduinoDrawerWidth);
   const [shareOpen, setShareOpen] = useState(false);
-  const notesStorageKey = `asa-lab:electronics-notes:${projectId}`;
-  const [notes, setNotes] = useState(() => localStorage.getItem(notesStorageKey) ?? '');
+  // Student notes belong only to this browser session, not the shared device.
+  // Existing Account-local notes are preserved; no historical notes are migrated.
+  const notesStorageKey = seatLearner
+    ? `asa-seat-notes:${user.id}:${projectId}`
+    : `asa-lab:electronics-notes:${projectId}`;
+  const notesStorage = seatLearner ? sessionStorage : localStorage;
+  const [notes, setNotes] = useState(() => {
+    try {
+      return notesStorage.getItem(notesStorageKey) ?? '';
+    } catch {
+      return '';
+    }
+  });
 
   useEffect(() => {
     const clampToViewport = (): void => {
@@ -233,7 +246,11 @@ export function SchematicEditor({
   }, [controller.saveStatus, controller.serverRevision, controller.stageRef, projectId]);
   function updateNotes(value: string): void {
     setNotes(value);
-    localStorage.setItem(notesStorageKey, value);
+    try {
+      notesStorage.setItem(notesStorageKey, value);
+    } catch {
+      /* Notes remain in the open editor. */
+    }
   }
   function exportCurrentView(target: Exclude<WorkbenchView, 'breadboard'>): void {
     if (target === 'schematic') {

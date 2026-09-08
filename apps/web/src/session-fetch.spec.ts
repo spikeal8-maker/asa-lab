@@ -7,6 +7,13 @@ afterEach(() => {
 });
 
 describe('session-aware fetch', () => {
+  it('does not refresh an Account session after a StudentSeat auth failure', async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(new Response(null, { status: 401 }));
+    vi.stubGlobal('fetch', fetchMock);
+    expect((await fetchWithSessionRefresh('/api/class-join/me/assignments')).status).toBe(401);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it('refreshes once after 401 and retries the original request', async () => {
     const fetchMock = vi
       .fn<typeof fetch>()

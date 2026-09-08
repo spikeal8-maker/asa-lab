@@ -71,6 +71,18 @@ export function CreatorHomePage({
           <QuickCreateMenu />
         </div>
       </div>
+      {projects?.length === 0 ? (
+        <section className="access-personal-start" aria-label="Начать работу">
+          <QuickCreateMenu />
+          <PortalLink
+            href={creatorViewToHref({ kind: 'knowledge' })}
+            className="btn-secondary"
+            onNavigate={() => onNavigate('knowledge')}
+          >
+            Открыть знания
+          </PortalLink>
+        </section>
+      ) : null}
       {error ? (
         <section className="creator-dashboard-state" role="alert">
           <strong>Проекты сейчас не загрузились</strong>

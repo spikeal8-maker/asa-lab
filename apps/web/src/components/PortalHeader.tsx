@@ -16,6 +16,7 @@ import {
   CollapseIcon,
   ExpandIcon,
   PlusIcon,
+  UserIcon,
 } from '../electronics/workbench-icons';
 import {
   ChallengesGlyph,
@@ -34,7 +35,8 @@ export type PortalSection = CreatorPortalSection;
 const sectionHref = (section: PortalSection): string =>
   `/#/${section === 'classes' ? 'classrooms' : section}`;
 
-function sectionIcon(section: Exclude<PortalSection, 'account'>): JSX.Element {
+function sectionIcon(section: PortalSection): JSX.Element {
+  if (section === 'account') return <UserIcon />;
   if (section === 'home') return <HomeGlyph />;
   if (section === 'classes') return <ClassesGlyph />;
   if (section === 'projects') return <ProjectsGlyph />;
@@ -181,10 +183,12 @@ export function PortalHeader({
    */
   const effectiveAvatarUrl =
     avatarDataUrl ?? seatAvatarUrl ?? defaultAvatarForAccount(session.user.id).src;
-  const navigationItems = portalNavigation(canTeach);
-  const primaryNavigation = navigationItems.filter(
-    (item) => item.section !== 'help' && item.section !== 'gallery',
-  );
+  const navigationItems = portalNavigation(canTeach, {
+    classes: session.navigation.classes,
+    contentAuthoring: session.navigation.contentAuthoring === true,
+    seat: seatLearner,
+  });
+  const primaryNavigation = navigationItems.filter((item) => item.section !== 'help');
   const helpNavigation = navigationItems.find((item) => item.section === 'help');
 
   useEffect(() => {
@@ -525,31 +529,12 @@ export function PortalHeader({
           </span>
         </div>
         <nav className="portal-nav">
-          <PortalLink
-            href={sectionHref('gallery')}
-            className="portal-nav-item portal-mobile-public"
-            onNavigate={() => go('gallery')}
-          >
-            <span className="portal-nav-glyph">
-              <GalleryGlyph />
-            </span>
-            <span>Проекты сообщества</span>
-          </PortalLink>
-          <PortalLink
-            href={sectionHref('knowledge')}
-            className="portal-nav-item portal-mobile-public"
-            onNavigate={() => go('knowledge')}
-          >
-            <span className="portal-nav-glyph">
-              <LearningGlyph />
-            </span>
-            <span>Знания</span>
-          </PortalLink>
           {primaryNavigation.map((item) => (
             <PortalLink
               href={sectionHref(item.section)}
               key={item.section}
               className={active === item.section ? 'portal-nav-item active' : 'portal-nav-item'}
+              aria-label={item.label}
               aria-current={active === item.section ? 'page' : undefined}
               onNavigate={() => go(item.section)}
             >
@@ -559,8 +544,15 @@ export function PortalHeader({
               <span className="portal-nav-label">{item.label}</span>
               {/* Одна и та же отметка о невыполненном: учащемуся — сколько он
                   не сдал, преподавателю — сколько работ ждёт его ответа. */}
-              {item.section === 'classes' && attention ? (
-                <span className="portal-section-attention">{attention}</span>
+              {item.section === 'classes' && classAttention(0, classroomBadge ?? 0) ? (
+                <span className="portal-section-attention">
+                  {classAttention(0, classroomBadge ?? 0)}
+                </span>
+              ) : null}
+              {item.section === 'learning' && classAttention(unfinishedCount, 0) ? (
+                <span className="portal-section-attention">
+                  {classAttention(unfinishedCount, 0)}
+                </span>
               ) : null}
             </PortalLink>
           ))}

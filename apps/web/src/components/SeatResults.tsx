@@ -4,21 +4,63 @@ import { useSchoolTime } from './school-time';
 import './seat-results.css';
 import { canonicalLearningLabel } from '../learning/canonical-learning-presentation';
 
-export function SeatResults(): JSX.Element | null {
+export function SeatResults({
+  completedOnly = false,
+}: {
+  readonly completedOnly?: boolean;
+}): JSX.Element {
   const [items, setItems] = useState<LearnerResult[] | null>(null);
+  const [failed, setFailed] = useState(false);
+  const [reload, setReload] = useState(0);
   const time = useSchoolTime();
   useEffect(() => {
-    void api.seatResults().then((result) => setItems(result.ok ? result.data.items : []));
-  }, []);
-  if (!items?.length) return null;
+    let active = true;
+    setFailed(false);
+    void api
+      .seatResults()
+      .then((result) => {
+        if (!active) return;
+        if (result.ok) setItems(result.data.items);
+        else setFailed(true);
+      })
+      .catch(() => {
+        if (active) setFailed(true);
+      });
+    return () => {
+      active = false;
+    };
+  }, [reload]);
+  if (failed)
+    return (
+      <p role="alert">
+        Не удалось загрузить результаты.{' '}
+        <button
+          type="button"
+          className="btn-secondary"
+          onClick={() => setReload((value) => value + 1)}
+        >
+          Повторить
+        </button>
+      </p>
+    );
+  if (!items) return <p role="status">Загружаем результаты…</p>;
+  const visibleItems = items.filter(
+    (item) => !completedOnly || item.canonicalState?.workflowState === 'completed',
+  );
+  if (!visibleItems.length)
+    return (
+      <p>
+        {completedOnly ? 'Завершённых заданий пока нет.' : 'Опубликованных результатов пока нет.'}
+      </p>
+    );
   return (
     <section className="seat-results" aria-labelledby="seat-results-title">
       <div>
         <h2 id="seat-results-title">Мои результаты</h2>
-        <span>{items.length}</span>
+        <span>{visibleItems.length}</span>
       </div>
       <ul>
-        {items.map((item) => (
+        {visibleItems.map((item) => (
           <li key={item.assignmentId}>
             <span>
               <strong>{item.assignmentTitle}</strong>

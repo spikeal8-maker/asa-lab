@@ -11,6 +11,53 @@ servers:
   - url: http://127.0.0.1:4611
     description: Local development
 paths:
+  /api/capabilities/content-author/self-attest:
+    post:
+      operationId: selfAttestContentAuthor
+      summary: Enable own private material authoring without classroom staff rights
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, additionalProperties: false }
+      responses:
+        '201': { description: Active or already active author capability }
+        '401': { description: Account session required }
+        '403':
+          { description: Account or capability unavailable; revoked grants are not resurrected }
+        '409': { description: Conflicting Account and StudentSeat cookies; logout required }
+  /api/classrooms/{classroomId}/seats/{seatId}/credential:
+    parameters:
+      - { name: classroomId, in: path, required: true, schema: { type: string, format: uuid } }
+      - { name: seatId, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      operationId: issueClassroomSeatCredential
+      summary: Authorized teacher issues a private key once and revokes previous Seat sessions
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [requestId]
+              properties:
+                requestId: { type: string, format: uuid }
+      responses:
+        '201':
+          description: Copy once; never stored or returned by a read endpoint
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [credential, version]
+                properties:
+                  credential: { type: string, minLength: 24, maxLength: 24 }
+                  version: { type: integer, minimum: 1 }
+        '401': { description: Account session required }
+        '403': { description: Active teacher capability required }
+        '404': { description: Seat unavailable to this teacher; no owner identity disclosure }
+        '409': { description: Request already completed; no rotation or secret replay }
   /health/live:
     get:
       operationId: getHealthLive
@@ -852,7 +899,20 @@ paths:
   /api/class-join/studentseat:
     post:
       operationId: signInClassroomStudentSeat
-      summary: Sign in with class code and teacher-assigned handle, without email
+      summary: Sign in with class code, teacher-assigned handle and private 144-bit credential, without email
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [code, loginHandle, credential]
+              properties:
+                code: { type: string }
+                loginHandle: { type: string, minLength: 3, maxLength: 32 }
+                credential: { type: string, pattern: '^[A-Za-z0-9_-]{24}$', writeOnly: true }
+                botProof: { type: object }
       responses:
         '200': { description: HttpOnly StudentSeat session created }
         '401': { description: Generic invalid class credentials response }
@@ -2276,6 +2336,10 @@ components:
           $ref: '#/components/schemas/ActiveWorkspace'
         navigation:
           $ref: '#/components/schemas/PortalNavigation'
+        actions:
+          description: Server-effective action names, never accepted as authorization input.
+          type: array
+          items: { type: string }
         timeZone:
           description: >-
             IANA zone the account keeps time in. Every date shown about a class
@@ -2350,6 +2414,8 @@ components:
         classes:
           type: boolean
         classroomManagement:
+          type: boolean
+        contentAuthoring:
           type: boolean
     SwitchWorkspaceRequest:
       type: object
@@ -2428,6 +2494,14 @@ components:
         - createdAt
         - archivedAt
       properties:
+        learningContext:
+          type: object
+          additionalProperties: false
+          required: [id, kind, schoolId]
+          properties:
+            id: { type: string, format: uuid }
+            kind: { type: string, enum: [school, independent_teaching] }
+            schoolId: { type: [string, 'null'], format: uuid }
         id:
           type: string
           format: uuid

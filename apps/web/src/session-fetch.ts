@@ -5,6 +5,8 @@ const LOCAL_LOGOUT_EVENT = 'asa-session-logout';
 let refreshInFlight: Promise<boolean> | null = null;
 
 function canRefresh(path: string): boolean {
+  // A StudentSeat has its own session, never an Account refresh credential.
+  if (path.startsWith('/api/class-join/')) return false;
   return ![
     REFRESH_PATH,
     '/api/auth/login',
@@ -55,6 +57,7 @@ export async function fetchWithSessionRefresh(
 }
 
 export function notifySessionLoggedOut(): void {
+  clearProtectedSessionCache();
   if (typeof window !== 'undefined') window.dispatchEvent(new Event(LOCAL_LOGOUT_EVENT));
   if (typeof BroadcastChannel === 'undefined') return;
   const channel = new BroadcastChannel(SESSION_CHANNEL);
@@ -71,10 +74,28 @@ export function onSessionLoggedOut(listener: () => void): () => void {
   }
   const channel = new BroadcastChannel(SESSION_CHANNEL);
   channel.onmessage = (event) => {
-    if ((event.data as { type?: unknown } | null)?.type === 'logged-out') listener();
+    if ((event.data as { type?: unknown } | null)?.type === 'logged-out') {
+      clearProtectedSessionCache();
+      listener();
+    }
   };
   return () => {
     if (typeof window !== 'undefined') window.removeEventListener(LOCAL_LOGOUT_EVENT, listener);
     channel.close();
   };
+}
+
+function clearProtectedSessionCache(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    const keys = Object.keys(window.sessionStorage).filter(
+      (key) =>
+        key.startsWith('asa-seat-notes:') ||
+        key.startsWith('asa-pending-create:') ||
+        key.startsWith('asa-project-scroll:'),
+    );
+    for (const key of keys) window.sessionStorage.removeItem(key);
+  } catch {
+    /* Disabled storage must not prevent logout. */
+  }
 }

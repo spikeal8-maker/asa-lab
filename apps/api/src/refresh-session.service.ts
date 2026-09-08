@@ -39,7 +39,15 @@ export class RefreshSessionService {
       : { status };
   }
 
-  async revoke(refreshToken: string | undefined, accessToken: string | undefined): Promise<void> {
+  async revoke(
+    refreshToken: string | undefined,
+    accessToken: string | undefined,
+    seatToken?: string,
+  ): Promise<void> {
+    if (seatToken)
+      await this.pool.query('SELECT classroom_student_session_revoke($1)', [
+        hashSessionToken(seatToken),
+      ]);
     if (!refreshToken && !accessToken) return;
     await this.pool.query(`SELECT session_refresh_revoke($1, $2)`, [
       refreshToken ? hashSessionToken(refreshToken) : '',

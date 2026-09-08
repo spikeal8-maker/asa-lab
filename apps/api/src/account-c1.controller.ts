@@ -104,6 +104,20 @@ export class AccountC1Controller {
     };
   }
 
+  @Post('capabilities/content-author/self-attest')
+  async attestContentAuthor(@Req() request: FastifyRequest, @Body() rawBody: unknown) {
+    const context = await this.requireContext(request);
+    const shape = checkBodyShape(rawBody, []);
+    if (!shape.ok) throw new HttpException(error('validation_error', shape.message), 400);
+    const result = await this.account.selfAttestContentAuthor(context.accountId);
+    if (!result.ok)
+      throw new HttpException(
+        error(result.code, 'Авторство сейчас недоступно для этого аккаунта.'),
+        403,
+      );
+    return { capability: 'content_author', state: result.state, created: result.created };
+  }
+
   @Put('account/role')
   async setAccountRole(@Req() request: FastifyRequest, @Body() rawBody: unknown) {
     const context = await this.requireContext(request);

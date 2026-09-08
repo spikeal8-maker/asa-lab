@@ -46,14 +46,17 @@
 
 Это ТЗ определяет **семантику, инварианты, доменную модель, UX-контракты и обязательные acceptance criteria**.
 
-Оно НЕ заменяет milestone-specific implementation package.
+Оно НЕ заменяет компактный implementation package разрешённого крупного результата.
+Delivery-порядок определяет [принятая очередь V3.1](learning/ASA_LEARNING_AGENT_WORK_QUEUE.md).
+`M0…M7` сохраняются как классификация архитектурных требований и evidence;
+переход между ними внутри одного разрешённого результата не требует нового owner-gate.
 
-Перед реализацией каждого milestone `M0…M7` MUST быть создан отдельный execution spec, который фиксирует:
+Одна рабочая заметка крупного результата MUST ссылаться на:
 
 ```text
 точные изменяемые файлы
-точные migration SQL / DDL
-точные OpenAPI schemas
+точные migration SQL / DDL в version-controlled migration files, без копии SQL в Markdown
+точные OpenAPI schemas в schemas/openapi.yaml
 transaction boundaries
 indexes / constraints / RLS policies
 feature flags / cutover
@@ -4048,7 +4051,8 @@ legacy_unresolved teacher-only diagnostic
 
 Master ТЗ intentionally does not hard-code every physical SQL/OpenAPI detail for future milestones.
 
-Before coding each milestone, create one executable package containing:
+For each owner-authorized delivery result, maintain one compact executable package
+with references to the version-controlled implementation files containing:
 
 ```text
 scope
@@ -4094,15 +4098,13 @@ evidence
 
 # 68. Implementation roadmap
 
-Это единственный normative dependency order, пока owner не изменил execution state.
-
-Каждый milestone MUST сначала получить собственный:
-
-```text
-docs/product/learning/Mx_EXECUTION_SPEC.md
-```
-
-с exact files/OpenAPI/SQL/tests/cutover.
+Ниже сохранена архитектурная классификация M0–M7 и её обязательства.
+Текущий delivery-порядок — Э1–Э4 и проверка конкретного кандидата Э5 из
+[очереди V3.1](learning/ASA_LEARNING_AGENT_WORK_QUEUE.md). Она не активирует
+этапы без поручения владельца. Прежние внутренние границы milestones не
+требуют остановки внутри уже разрешённого крупного результата. Одна рабочая
+заметка с exact files/OpenAPI/SQL/tests/cutover заменяет отдельный обязательный
+execution-spec на каждую микрозадачу. Доменные MUST и evidence сохраняются.
 
 ## M0 — State convergence
 
@@ -4864,4 +4866,3 @@ OPTIONAL OFFICIAL PERIOD GRADE
 ```
 
 После выполнения настоящего ТЗ ASA Learning должна обеспечивать единый, воспроизводимый и безопасный учебный цикл для курса и любой отдельной учебной активности, без параллельных систем сдачи/оценивания и без расхождения результатов между преподавателем, учеником и журналом.
-

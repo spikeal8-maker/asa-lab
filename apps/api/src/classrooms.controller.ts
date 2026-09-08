@@ -16,6 +16,7 @@ import {
 } from '@nestjs/common';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { randomBytes, randomUUID } from 'node:crypto';
+import { hashSessionToken } from '@asa-lab/identity';
 import type pg from 'pg';
 import type { AccountDirectoryPort, ActiveContext, ActiveContextUseCase } from '@asa-lab/identity';
 import type { GetTeachingContextUseCase } from '@asa-lab/organization';
@@ -376,7 +377,24 @@ export class ClassroomsController {
 
   @Get(':classroomId')
   async get(@Req() request: FastifyRequest, @Param('classroomId') classroomId: string) {
-    return { classroom: await this.summary(await this.requireEducator(request), classroomId) };
+    const actor = await this.requireEducator(request);
+    const classroom = await this.summary(actor, classroomId);
+    const result = await this.requirePool().query(
+      'SELECT id,kind,school_id FROM classroom_learning_context($1,$2)',
+      [actor.accountId, classroomId],
+    );
+    const context = result.rows[0];
+    if (!context)
+      throw new HttpException(
+        error('learning_context_unavailable', 'Учебное пространство временно недоступно.'),
+        503,
+      );
+    return {
+      classroom: {
+        ...classroom,
+        learningContext: { id: context.id, kind: context.kind, schoolId: context.school_id },
+      },
+    };
   }
 
   @Post()
@@ -786,6 +804,49 @@ export class ClassroomsController {
       }
     }
     return { results, created: results.filter((item) => item.ok).length };
+  }
+
+  @Post(':classroomId/seats/:seatId/credential')
+  async issueCredential(
+    @Req() request: FastifyRequest,
+    @Param('classroomId') classroomId: string,
+    @Param('seatId') seatId: string,
+    @Body() rawBody: unknown,
+  ) {
+    const context = await this.requireEducator(request);
+    this.requireUuid(classroomId, 'classroom');
+    this.requireUuid(seatId, 'seat');
+    const shape = checkBodyShape(rawBody, ['requestId']);
+    if (
+      !shape.ok ||
+      typeof shape.body['requestId'] !== 'string' ||
+      !UUID_PATTERN.test(shape.body['requestId'])
+    ) {
+      throw new HttpException(error('validation_error', 'Требуется идентификатор выдачи.'), 400);
+    }
+    const credential = randomBytes(18).toString('base64url');
+    const result = await this.requirePool().query(
+      'SELECT result_code, credential_version FROM classroom_seat_credential_issue($1,$2,$3,$4,$5)',
+      [
+        context.accountId,
+        classroomId,
+        seatId,
+        hashSessionToken(credential),
+        shape.body['requestId'],
+      ],
+    );
+    const row = result.rows[0];
+    if (row?.result_code === 'already_issued')
+      throw new HttpException(
+        error(
+          'credential_already_issued',
+          'Этот ключ уже выдан. Старый ключ нельзя прочитать повторно. Для замены начните новую выдачу.',
+        ),
+        409,
+      );
+    if (row?.result_code !== 'issued')
+      throw new HttpException(error('seat_not_found', 'Место ученика недоступно.'), 404);
+    return { credential, version: Number(row.credential_version) };
   }
 
   @Patch(':classroomId/seats/:seatId')

@@ -4,35 +4,35 @@ registry_scope: supplemental_execution_tests
 source_of_truth: docs/testing/active-task-tests.yaml
 result_states: [PASS, FAIL, NOT_RUN, BLOCKED]
 tests:
-  - id: TST-ADMIN-AUTH-MAX-CORE-001
-    title: Integrated Admin authorization, PostgreSQL isolation and MAX signature boundary
+  - id: TST-ASA-ACCESS-A-CORE-001
+    title: Access A identity, account, authorization, fresh schema and supported upgrade
     suite: authorization
     level: system
     phase_available: PHASE-12
-    required_for: [TASK-ADMIN-AUTH-STABILITY-001]
-    command: pnpm gate:admin-control-plane
+    required_for: [TASK-ASA-ACCESS-A-001]
+    command: pnpm test:access-a
     timeout_seconds: 1800
-    owner: admin-auth
+    owner: access-a
     artifacts: [vitest-report, migration-report, authorization-matrix]
 
-  - id: TST-ADMIN-AUTH-MAX-E2E-001
-    title: Admin navigation and scoped management browser baseline
+  - id: TST-ASA-ACCESS-A-E2E-001
+    title: Real Access A browser A-J and Account C1, including Seat logout isolation
     suite: e2e
     level: system
     phase_available: PHASE-12
-    required_for: [TASK-ADMIN-AUTH-STABILITY-001]
-    command: pnpm e2e:admin-control-plane
+    required_for: [TASK-ASA-ACCESS-A-001]
+    command: pnpm e2e:access-a
     timeout_seconds: 1800
-    owner: admin-auth
-    artifacts: [playwright-report, admin-desktop-screenshot, admin-mobile-screenshot]
+    owner: access-a
+    artifacts: [playwright-report, access-a-desktop-screenshot, access-a-mobile-screenshot]
 
-  - id: TST-ADMIN-AUTH-MAX-PRODUCTION-001
-    title: Durable owner session, real MAX client and exact production revision
-    suite: recovery
+  - id: TST-ASA-ACCESS-A-REPOSITORY-001
+    title: Full integrated repository gate on isolated test data; no production access
+    suite: integration
     level: system
     phase_available: PHASE-12
-    required_for: [TASK-ADMIN-AUTH-STABILITY-001]
+    required_for: [TASK-ASA-ACCESS-A-001]
     command: pnpm gate:repository
     timeout_seconds: 3600
-    owner: admin-auth
-    artifacts: [owner-evidence-report, production-version-report, recovery-report]
+    owner: access-a
+    artifacts: [repository-report, ci-candidate-sha, migration-report]

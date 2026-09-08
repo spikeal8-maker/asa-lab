@@ -27,21 +27,18 @@ development_policy:
 # ─────────────────────────────────────────────────────────────────────────────
 
 task:
-  id: TASK-ADMIN-AUTH-STABILITY-001
-  issue: 135
-  branch: main
+  id: TASK-ASA-ACCESS-A-001
+  issue: 173
+  branch: codex/asa-access-a-result-a
   base_branch: main
   pr: null
   pr_draft: false
-  # Owner-authorised stabilisation of the integrated Admin surface, durable
-  # account sessions and the real user CRM directory. The CRM slice includes
-  # compact expandable rows, server-backed activity, administrative notes and
-  # explicit IP classification. Email delivery, billing, competitions and
-  # moderation remain outside this task. MAX runtime configuration is implemented,
-  # but owner activation and the real-client journey require a newly rotated
-  # secret and therefore must not be reported as accepted yet.
+  # Owner-authorized ASA-ACCESS-A: personal settings/navigation, separate author
+  # and educator capabilities, independent teaching and protected StudentSeat.
+  # Existing Auth/MAX/Admin remain compatible. Result B/C and production are
+  # explicitly outside this authorization. Prior task state remains in Git history.
   status: in_progress
-  checkpoint: max_runtime_configuration_implemented_new_secret_and_owner_activation_pending
+  checkpoint: result_a_locally_verified_ci_pending
   owner_acceptance: pending
 
 # Commits that mean something. Anything not listed here is ordinary history.
@@ -52,7 +49,7 @@ revisions:
   # not recorded here: a hand-maintained copy went stale within hours the last
   # time, and it would go stale again on the next push.
   # Owner-visible convergence baseline for the current task.
-  convergence_baseline_sha: 3cdbeeffb254d9578b7133dfee666a34db1d1978
+  convergence_baseline_sha: 567af172e411623370e41a46c2a574b03c117c5f
 
 # Legacy compatibility record. It is not an access-control mechanism while
 # development_policy.execution_leases is disabled.
@@ -74,11 +71,11 @@ gates:
   focused:
     workflow: ASA Lab Governance and Code Gates
     commands:
-      - pnpm gate:admin-control-plane
+      - pnpm test:access-a
   browser:
     workflow: ASA Lab Governance and Code Gates
     commands:
-      - pnpm e2e:admin-control-plane
+      - pnpm e2e:access-a
   general:
     workflow: ASA Lab Governance and Code Gates
     commands:
@@ -106,6 +103,7 @@ primary_lane:
     - tests/account/**
     - e2e/admin-auth-max.spec.ts
     - docs/execution/ADMIN_AUTH_MAX_EXECUTION_PLAN.md
+    - docs/execution/ASA_ACCESS_A.md
 
 parallel_lanes:
   - id: electronics

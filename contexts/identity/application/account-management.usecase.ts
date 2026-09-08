@@ -173,6 +173,18 @@ export class AccountManagementUseCase {
     return { ok: true, role, state: result.state, changed: result.changed };
   }
 
+  async selfAttestContentAuthor(
+    accountId: string,
+  ): Promise<
+    { ok: true; state: string; created: boolean } | { ok: false; code: 'grant_unavailable' }
+  > {
+    const result = await this.accounts.selfAttestContentAuthor(accountId);
+    if (!result.eligible || (result.state !== 'provisional' && result.state !== 'verified')) {
+      return { ok: false, code: 'grant_unavailable' };
+    }
+    return { ok: true, state: result.state, created: result.created };
+  }
+
   async createSchoolWorkspace(
     accountId: string,
     title: unknown,

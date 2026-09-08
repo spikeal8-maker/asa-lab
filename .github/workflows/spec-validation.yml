@@ -6,6 +6,7 @@ name: ASA Lab Governance and Code Gates
       - main
       - "agent/**"
       - "assistant/**"
+      - "codex/**"
   pull_request: {}
 
 # Read-only, but wider than contents alone: the control-plane validator compares
@@ -24,6 +25,7 @@ concurrency:
 
 env:
   CI: "true"
+  NX_SKIP_NX_CACHE: "true"
 
 jobs:
   governance:
@@ -35,6 +37,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
           fetch-depth: 0
 
@@ -67,6 +70,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
           fetch-depth: 0
 
@@ -99,6 +103,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
           fetch-depth: 0
 
@@ -125,8 +130,8 @@ jobs:
 
       - name: Build migration and test images
         env:
-          ASA_BUILD_REVISION: ${{ github.sha }}
-          ASA_IMAGE_TAG: ${{ github.sha }}
+          ASA_BUILD_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
+          ASA_IMAGE_TAG: ${{ github.event.pull_request.head.sha || github.sha }}
           COMPOSE_PROJECT_NAME: asa-lab-ci-${{ github.run_id }}
         run: docker compose -f compose.yaml -f compose.test.yaml --profile test build migration test-runner
 
@@ -137,8 +142,8 @@ jobs:
 
       - name: Apply migrations and provision runtime role
         env:
-          ASA_BUILD_REVISION: ${{ github.sha }}
-          ASA_IMAGE_TAG: ${{ github.sha }}
+          ASA_BUILD_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
+          ASA_IMAGE_TAG: ${{ github.event.pull_request.head.sha || github.sha }}
           COMPOSE_PROJECT_NAME: asa-lab-ci-${{ github.run_id }}
         run: docker compose -f compose.yaml -f compose.test.yaml --profile test run --rm migration
 
@@ -147,8 +152,8 @@ jobs:
       # makes a local PASS mean the same thing as this job.
       - name: Data gate
         env:
-          ASA_BUILD_REVISION: ${{ github.sha }}
-          ASA_IMAGE_TAG: ${{ github.sha }}
+          ASA_BUILD_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
+          ASA_IMAGE_TAG: ${{ github.event.pull_request.head.sha || github.sha }}
           COMPOSE_PROJECT_NAME: asa-lab-ci-${{ github.run_id }}
         run: docker compose -f compose.yaml -f compose.test.yaml --profile test run --rm --no-deps test-runner pnpm gate:data
 
@@ -157,3 +162,61 @@ jobs:
         env:
           COMPOSE_PROJECT_NAME: asa-lab-ci-${{ github.run_id }}
         run: docker compose -f compose.yaml -f compose.test.yaml --profile test down -v --remove-orphans
+
+  access-a-browser:
+    name: Access A real browser journeys
+    needs: code
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: asa_access_a_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: access-a-ci-isolated-test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d asa_access_a_test"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    env:
+      TEST_DATABASE_URL: postgresql://postgres:access-a-ci-isolated-test@127.0.0.1:5432/asa_access_a_test
+      APP_TEST_DATABASE_URL: postgresql://asalab_app:access-a-ci-isolated-test@127.0.0.1:5432/asa_access_a_test
+      MIGRATION_DATABASE_URL: postgresql://postgres:access-a-ci-isolated-test@127.0.0.1:5432/asa_access_a_test
+      MIGRATION_EXPECT_DATABASE: asa_access_a_test
+      MIGRATION_CONFIRM: APPLY:asa_access_a_test
+      VITEST_MAX_THREADS: "2"
+      VITEST_MIN_THREADS: "1"
+      VITEST_MAX_FORKS: "2"
+      VITEST_MIN_FORKS: "1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm build
+      - name: Migrate isolated database and provision restricted runtime
+        run: |
+          pnpm db:migrate
+          psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -c "ALTER ROLE asalab_app WITH LOGIN PASSWORD 'access-a-ci-isolated-test'"
+      - run: pnpm test:access-a
+      - run: pnpm e2e:access-a
+      - name: Preserve synthetic browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: access-a-browser-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            e2e/artifacts/owner-preview/access-a
+            reports/playwright/access-a
+          retention-days: 14

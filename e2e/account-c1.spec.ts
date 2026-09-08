@@ -52,18 +52,21 @@ test('owner completes Account C1 and existing project modules remain available',
 
   await page.setViewportSize({ width: 1366, height: 900 });
   await page.goto('/#/');
-  await expect(page.getByRole('heading', { name: 'ASA Lab' })).toBeVisible();
+  await expect(
+    page.getByRole('heading', { name: 'Создавай. Исследуй. Учись через действие.' }),
+  ).toBeVisible();
   await page.screenshot({
     path: `${EVIDENCE_DIR}/01-public-entry-desktop.png`,
     fullPage: true,
   });
 
-  await page.getByTestId('entry-sign-up').click();
+  await page.getByRole('button', { name: 'Создать аккаунт', exact: true }).first().click();
   await page.getByLabel('Email').fill(email);
   await page.getByLabel('Имя пользователя').fill(username);
-  await page.getByLabel('Отображаемое имя (необязательно)').fill('Owner Preview');
+  await page.getByLabel('Отображаемое имя', { exact: true }).fill('Owner Preview');
   await page.getByLabel('Дата рождения').fill('1990-04-12');
   await page.getByLabel('Пароль').fill(password);
+  await page.getByRole('checkbox', { name: 'Я не робот' }).press('Space');
   await page.getByRole('button', { name: 'Создать аккаунт' }).click();
   // A new account lands on the creator home, not on the projects list.
   await expect(page.getByRole('heading', { name: 'Главная' })).toBeVisible();
@@ -71,7 +74,7 @@ test('owner completes Account C1 and existing project modules remain available',
   const context = page.context();
   for (const [module, title] of [
     ['electronics', 'Account C1 Electronics'],
-    ['chess', 'Account C1 Chess'],
+    ['three-d', 'Account C1 3D'],
   ] as const) {
     const response = await context.request.post('/api/projects', {
       headers: {
@@ -89,7 +92,7 @@ test('owner completes Account C1 and existing project modules remain available',
   }
   await page.reload();
   await expect(page.getByText('Account C1 Electronics')).toBeVisible();
-  await expect(page.getByText('Account C1 Chess')).toBeVisible();
+  await expect(page.getByText('Account C1 3D')).toBeVisible();
   await page.screenshot({
     path: `${EVIDENCE_DIR}/02-project-hub-electronics-chess.png`,
     fullPage: true,
@@ -100,10 +103,10 @@ test('owner completes Account C1 and existing project modules remain available',
   const secondFailures = collectBrowserFailures(secondPage, {
     allowAnonymousSessionProbe: true,
   });
-  await secondPage.goto(page.url());
-  await secondPage.getByTestId('entry-sign-in').click();
+  await secondPage.goto('/#/sign-in');
   await secondPage.getByLabel('Email или имя пользователя').fill(username);
   await secondPage.getByLabel('Пароль').fill(password);
+  await secondPage.getByRole('checkbox', { name: 'Я не робот' }).press('Space');
   await secondPage.getByRole('button', { name: 'Войти', exact: true }).click();
   await expect(secondPage.getByRole('heading', { name: 'Главная' })).toBeVisible();
   secondFailures.assertEmpty();
@@ -145,11 +148,8 @@ test('owner completes Account C1 and existing project modules remain available',
   // first and reports it as hidden.
   const settingsContent = page.locator('.account-settings-content');
 
-  // Name and educator role are one form now, saved together; a membership row
-  // alone does not make an account an educator, and the school panel lists
-  // nothing until the role is on.
-  await page.getByLabel('Отображаемое имя').fill('Owner C1 Ready');
-  await page.getByLabel(/Кто вы в ASA Lab/).selectOption('educator');
+  // Profile save must not issue a capability. Teaching is a separate command.
+  await page.getByLabel(/^Отображаемое имя/).fill('Owner C1 Ready');
   await page.getByRole('button', { name: 'Сохранить изменения' }).click();
   await expect(
     settingsContent.getByText(/Изменения сохранены|Роль педагога включена/),
@@ -158,10 +158,20 @@ test('owner completes Account C1 and existing project modules remain available',
     path: `${EVIDENCE_DIR}/03-account-profile-desktop.png`,
     fullPage: true,
   });
-
-  await settingsPanel('Школа и классы').click();
-  await expect(settingsContent.getByText('Owner Preview School')).toBeVisible();
-  await settingsPanel('Учётная запись').click();
+  expect(
+    (await (await context.request.get('/api/auth/me')).json()).capabilities.some(
+      (grant: { capability: string }) => grant.capability === 'educator',
+    ),
+  ).toBe(false);
+  await settingsPanel('Возможности').click();
+  await page
+    .getByRole('article')
+    .filter({ has: page.getByRole('heading', { name: 'Преподавание', exact: true }) })
+    .getByRole('button', { name: 'Подключить', exact: true })
+    .click();
+  await settingsPanel('Мои доступы').click();
+  await expect(settingsContent.getByText('Owner Preview School', { exact: true })).toBeVisible();
+  await settingsPanel('Вход и безопасность').click();
   // The session summary carries the platform of whatever machine runs the
   // browser, so pinning it to Linux made the spec pass only on CI.
   await expect(settingsContent.getByText(/Chrome · \S+/)).toBeVisible();
@@ -185,7 +195,7 @@ test('owner completes Account C1 and existing project modules remain available',
   await secondPage.close();
 
   await openAccountSettings(page);
-  await settingsPanel('Учётная запись').click();
+  await settingsPanel('Вход и безопасность').click();
   await settingsContent.getByRole('button', { name: 'Завершить', exact: true }).first().click();
   await expect(settingsContent.getByText('Выбранный вход завершён.')).toBeVisible();
   const revokedSession = await secondContext.request.get('/api/auth/me');
@@ -211,15 +221,16 @@ test('owner completes Account C1 and existing project modules remain available',
   await page.setViewportSize({ width: 1366, height: 900 });
   await page.goto('/#/projects');
   await expect(page.getByText('Account C1 Electronics')).toBeVisible();
-  await expect(page.getByText('Account C1 Chess')).toBeVisible();
+  await expect(page.getByText('Account C1 3D')).toBeVisible();
   await openAccountMenu(page);
   await page.getByRole('button', { name: 'Выход' }).click();
-  await expect(page.getByTestId('entry-sign-in')).toBeVisible();
-  await page.getByTestId('entry-sign-in').click();
+  await expect(page.getByRole('button', { name: 'Войти', exact: true }).first()).toBeVisible();
+  await page.goto('/#/sign-in');
   await page.getByLabel('Email или имя пользователя').fill(username);
   await page.getByLabel('Пароль').fill(password);
+  await page.getByRole('checkbox', { name: 'Я не робот' }).press('Space');
   await page.getByRole('button', { name: 'Войти', exact: true }).click();
   await expect(page.getByText('Account C1 Electronics')).toBeVisible();
-  await expect(page.getByText('Account C1 Chess')).toBeVisible();
+  await expect(page.getByText('Account C1 3D')).toBeVisible();
   failures.assertEmpty();
 });

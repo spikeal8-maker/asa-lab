@@ -1,4 +1,5 @@
 import { api } from '../api';
+import { onSessionLoggedOut } from '../session-fetch';
 
 /**
  * The picture a project card shows, taken from the editor that drew it.
@@ -50,6 +51,11 @@ interface CapturedSnapshot {
 
 const sources = new Map<string, RegisteredSnapshotSource>();
 const lastSent = new Map<string, string>();
+if (typeof window !== 'undefined')
+  onSessionLoggedOut(() => {
+    sources.clear();
+    lastSent.clear();
+  });
 
 /**
  * Called by an editor while it is mounted. The returned function unregisters,

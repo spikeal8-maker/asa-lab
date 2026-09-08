@@ -12,6 +12,7 @@ import {
 import type { FastifyRequest } from 'fastify';
 import type pg from 'pg';
 import type { AccountDirectoryPort, ActiveContext, ActiveContextUseCase } from '@asa-lab/identity';
+import { effectiveAccountActions } from '@asa-lab/identity';
 import { SESSION_COOKIE, TOKENS } from './tokens.js';
 import { checkBodyShape } from './validation.js';
 
@@ -65,10 +66,17 @@ export class LearningActivitiesController {
   private async requireEducator(request: FastifyRequest): Promise<ActiveContext> {
     const context = await this.activeContext.resolve(request.cookies[SESSION_COOKIE]);
     if (!context) throw new HttpException(error('unauthorized', 'no active session'), 401);
-    const capabilities = await this.accounts.capabilities(context.accountId);
-    const educator = capabilities.find((entry) => entry.capability === 'educator');
-    if (!educator || (educator.state !== 'verified' && educator.state !== 'provisional')) {
-      throw new HttpException(error('educator_required', 'Доступно только педагогам.'), 403);
+    const [capabilities, workspaces] = await Promise.all([
+      this.accounts.capabilities(context.accountId),
+      this.accounts.workspaces(context.accountId),
+    ]);
+    if (
+      !effectiveAccountActions(context, capabilities, workspaces).includes('content.create.own')
+    ) {
+      throw new HttpException(
+        error('author_required', 'Подключите создание материалов в разделе «Возможности».'),
+        403,
+      );
     }
     return context;
   }
@@ -193,6 +201,25 @@ export class LearningActivitiesController {
     const scope = body['scope'] ?? 'personal';
     const visibility = body['visibility'] ?? 'private';
     const sourceTeacherAssignmentId = body['sourceTeacherAssignmentId'] ?? null;
+    // A personal author cannot relabel a private draft as school-owned or
+    // import teacher-only evidence through a client-supplied source UUID.
+    if (
+      context.workspaceKind === 'personal' &&
+      (scope !== 'personal' || visibility !== 'private')
+    ) {
+      throw new HttpException(error('scope_forbidden', 'Личный материал остаётся личным.'), 403);
+    }
+    if (sourceTeacherAssignmentId !== null) {
+      const capabilities = await this.accounts.capabilities(context.accountId);
+      if (
+        !capabilities.some(
+          (entry) =>
+            entry.capability === 'educator' && ['verified', 'provisional'].includes(entry.state),
+        )
+      ) {
+        throw new HttpException(error('source_forbidden', 'Источник недоступен.'), 403);
+      }
+    }
     const requestId = body['requestId'];
     if (
       !['personal', 'school'].includes(String(scope)) ||

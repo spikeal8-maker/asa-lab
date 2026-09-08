@@ -444,6 +444,26 @@ def direct_main_without_pr(_):
 
 # ── schema 1.1 lanes: identity and portable disjoint scopes ─────────────────
 
+@case("optional codex branch can exist before PR in direct main", expect="")
+def direct_main_unpublished_codex_branch(_):
+    errors: list[str] = []
+    cp.check_task_record(task_document(branch="codex/access-result-a", pr=None)["task"], errors, optional_pr=True)
+    return errors
+
+
+@case("coordinated codex branch still requires a PR", expect="pr must be a positive integer")
+def coordinated_codex_branch_requires_pr(_):
+    errors: list[str] = []
+    cp.check_task_record(task_document(branch="codex/access-result-a", pr=None)["task"], errors)
+    return errors
+
+
+@case("optional PR does not accept a boolean ID", expect="pr must be null or a positive integer")
+def optional_pr_rejects_boolean(_):
+    errors: list[str] = []
+    cp.check_task_record(task_document(branch="codex/access-result-a", pr=True)["task"], errors, optional_pr=True)
+    return errors
+
 
 def chess_task(**overrides) -> dict:
     task = {

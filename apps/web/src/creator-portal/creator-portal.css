@@ -353,6 +353,12 @@
   color: #183d50;
 }
 
+.portal-sidebar .portal-nav-label {
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
 .portal-sidebar .portal-nav-item.active {
   border-color: #0877b3;
   background: #fff;

@@ -15,6 +15,7 @@ interface ModuleEditorProps {
   projectId: string;
   onBack: () => void;
   user: PublicUser;
+  readonly seatLearner?: boolean;
 }
 
 interface ModuleEditorHostProps extends ModuleEditorProps {
@@ -218,7 +219,12 @@ export function ModuleEditorHost(props: ModuleEditorHostProps): JSX.Element {
           whose project is not work a teacher set. */}
       {props.seatLearner ? <AssignmentBrief projectId={props.projectId} /> : null}
       <Suspense fallback={<AppBootShell label="Открываем рабочую среду" />}>
-        <Editor projectId={props.projectId} onBack={props.onBack} user={props.user} />
+        <Editor
+          projectId={props.projectId}
+          onBack={props.onBack}
+          user={props.user}
+          seatLearner={props.seatLearner ?? false}
+        />
       </Suspense>
     </EditorErrorBoundary>
   );

@@ -84,6 +84,8 @@
     "gate:chess-r1": "corepack pnpm nx build module-sdk && corepack pnpm nx build chess && corepack pnpm nx build checkers && corepack pnpm chess:contract && corepack pnpm test:chess && corepack pnpm typecheck:chess && corepack pnpm nx build database && corepack pnpm chess-live:contract && corepack pnpm test:chess-live && corepack pnpm typecheck:chess-live && corepack pnpm nx run web:typecheck && corepack pnpm nx run web:build",
     "gate:chess-r1:browser": "corepack pnpm e2e:games && corepack pnpm e2e:chess && corepack pnpm e2e:chess-live",
     "test:account-c1": "vitest run contexts/identity/testing/account-c1.spec.ts",
+    "test:access-a": "vitest run contexts/identity/testing apps/api/src/account-c1.controller.spec.ts apps/api/src/auth.controller.spec.ts apps/api/src/max-auth.service.spec.ts apps/api/src/refresh-session.service.spec.ts apps/api/src/learning-activities.controller.spec.ts apps/api/src/classroom-join.controller.spec.ts apps/web/src/session-fetch.spec.ts tests/account tests/portal tests/courses",
+    "e2e:access-a": "playwright test --config playwright.access-a.config.ts",
     "test:account-c1:pg": "vitest run tests/account/account-c1.pg.spec.ts",
     "e2e:account-c1": "playwright test e2e/account-c1.spec.ts",
     "test:creator-portal": "node tools/run-creator-portal-tests.mjs",

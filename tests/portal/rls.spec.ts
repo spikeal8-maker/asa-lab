@@ -172,6 +172,9 @@ describe('runtime role hardening', () => {
       'content_shares:SELECT',
       'course_items:SELECT',
       'courses:SELECT',
+      // Result A adds the tenant-scoped parent for school/independent teaching.
+      // Only SELECT is granted; forced RLS and forbidden CRUD are tested separately.
+      'learning_contexts:SELECT',
       'project_drafts:INSERT',
       'project_drafts:SELECT',
       'project_drafts:UPDATE',
