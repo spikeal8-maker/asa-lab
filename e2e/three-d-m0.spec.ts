@@ -211,6 +211,147 @@ test.afterAll(async () => {
   await admin.end();
 });
 
+test('3D keyboard works in Russian layout and nudges selected models with Shift', async ({
+  page,
+}) => {
+  test.setTimeout(180_000);
+  await loginWithOrganization(page, teacher);
+  await createThreeDProject(page, 'Клавиатура и шаг перемещения');
+  await page.getByRole('button', { name: 'Параллелепипед', exact: true }).click();
+  const viewport = page.getByTestId('asa3d-viewport');
+  await expect(viewport).toHaveAttribute('data-selected-node-id', /box-/);
+  const canvas = viewport.locator('canvas').first();
+  await canvas.focus();
+  const session = await page.context().newCDPSession(page);
+  for (const [key, code, keyCode] of [
+    ['с', 'KeyC', 67],
+    ['м', 'KeyV', 86],
+  ] as const) {
+    await session.send('Input.dispatchKeyEvent', {
+      type: 'keyDown',
+      key,
+      code,
+      windowsVirtualKeyCode: keyCode,
+      modifiers: 2,
+    });
+    await session.send('Input.dispatchKeyEvent', {
+      type: 'keyUp',
+      key,
+      code,
+      windowsVirtualKeyCode: keyCode,
+      modifiers: 2,
+    });
+    if (code === 'KeyC') await expect(page.locator('[data-command="paste"]')).toBeEnabled();
+  }
+  await expect(page.getByText('2 объекта', { exact: true })).toBeVisible();
+  const exportDocument = async () => {
+    await page.getByRole('button', { name: 'Экспорт', exact: true }).click();
+    const [download] = await Promise.all([
+      page.waitForEvent('download'),
+      page.getByRole('button', { name: 'ASA 3D JSON', exact: true }).click(),
+    ]);
+    return JSON.parse(readFileSync((await download.path())!, 'utf8')) as ReturnType<
+      typeof createEmptyThreeDDocument
+    >;
+  };
+  const before = await exportDocument();
+  await canvas.focus();
+  await page.keyboard.press('ArrowRight');
+  await page.keyboard.press('Shift+ArrowRight');
+  await page.keyboard.press('ArrowUp');
+  const after = await exportDocument();
+  expect(after.nodes[0]).toEqual(before.nodes[0]);
+  expect(after.nodes[1]!.transform.position).toEqual({
+    ...before.nodes[1]!.transform.position,
+    x: before.nodes[1]!.transform.position.x + 11,
+    z: before.nodes[1]!.transform.position.z - 1,
+  });
+  await canvas.focus();
+  await page.keyboard.press('Control+z');
+  expect((await exportDocument()).nodes[1]!.transform.position.z).toBe(
+    before.nodes[1]!.transform.position.z,
+  );
+  await session.detach();
+  const body = {
+    ...createThreeDNode('box', 'body'),
+    bevel: 2,
+    sides: 24,
+    dimensions: { width: 91, height: 31, depth: 54 },
+    transform: {
+      position: { x: 5.5, y: 23.5, z: 14 },
+      rotation: { x: 0, y: 0, z: 0 },
+      scale: { x: 1, y: 1, z: 1 },
+    },
+  };
+  const cab = {
+    ...body,
+    id: 'cab',
+    dimensions: { width: 20, height: 20, depth: 54 },
+    transform: { ...body.transform, position: { x: -44, y: 18, z: 14 } },
+  };
+  await page.locator('input[type="file"]').setInputFiles({
+    name: 'rounded-body.asa3d.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(JSON.stringify({ ...createEmptyThreeDDocument(), nodes: [body, cab] })),
+  });
+  await expect(page.getByText('Импортировано объектов: 2.', { exact: true })).toBeVisible();
+  await dismissNotice(page);
+  await canvas.focus();
+  await page.keyboard.press('Control+a');
+  await page.keyboard.press('Control+g');
+  await expect(viewport).toHaveAttribute('data-geometry-worker-state', 'ready', {
+    timeout: 60_000,
+  });
+  await expect(viewport).toHaveAttribute('data-selected-node-id', /group:/);
+  await expect(viewport).not.toHaveAttribute('data-geometry-worker-error', /.+/);
+  await expect(page.getByTestId('asa3d-manipulator-overlay')).toHaveAttribute(
+    'data-handle-positions',
+    /resize-height/,
+  );
+  await page.getByRole('button', { name: 'Показать всё', exact: true }).click();
+  mkdirSync('e2e/artifacts/three-d', { recursive: true });
+  await page.screenshot({ path: 'e2e/artifacts/three-d/rounded-bus-union.png', fullPage: true });
+});
+
+test('portrait snapshots cannot stretch existing project cards on desktop or phone', async ({
+  page,
+}) => {
+  // Render the real shared card styles against saved portrait/landscape images;
+  // no deleting a project or regenerating its snapshot is needed for the fix.
+  const css =
+    readFileSync('apps/web/src/modules/project-card.css', 'utf8') +
+    readFileSync('apps/web/src/modules/project-preview.css', 'utf8');
+  await page.setContent(
+    `<style>${css}</style><ul class="project-card-grid">${[0, 1].map(() => '<li class="project-card"><div class="project-card-frame"><div class="project-card-surface"><img class="project-preview-snapshot"></div></div><div class="project-card-body">Проект</div></li>').join('')}</ul>`,
+  );
+  await page.evaluate(() => {
+    document.querySelectorAll<HTMLImageElement>('img').forEach((image, index) => {
+      const canvas = document.createElement('canvas');
+      canvas.width = index ? 390 : 960;
+      canvas.height = index ? 844 : 640;
+      const context = canvas.getContext('2d')!;
+      context.fillStyle = index ? '#b82430' : '#238bb0';
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      image.src = canvas.toDataURL();
+    });
+  });
+  for (const width of [1100, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    const frames = await page.locator('.project-card-frame').evaluateAll((elements) =>
+      elements.map((element) => {
+        const bounds = element.getBoundingClientRect();
+        return { width: bounds.width, height: bounds.height };
+      }),
+    );
+    for (const frame of frames)
+      expect(Math.abs(frame.height - (frame.width * 3) / 4)).toBeLessThan(2);
+    expect(Math.abs(frames[0]!.height - frames[1]!.height)).toBeLessThan(2);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+      width,
+    );
+  }
+});
+
 test('teacher models, autosaves, reloads and versions an ASA 3D scene', async ({ page }) => {
   test.setTimeout(300_000);
   const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });

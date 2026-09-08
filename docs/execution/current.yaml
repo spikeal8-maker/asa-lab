@@ -227,7 +227,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: opt_1_r2_mobile_shape_strip_compact_operations_and_touch_camera_ci_and_owner_verification_pending
+      checkpoint: opt_1_owner_closed_caps_iterative_bsp_keyboard_cards_ci_pending_rotated_resize_and_r3_open
       owner_acceptance: pending
     revisions:
       convergence_baseline_sha: 9371222ab69cbb53c7f52411f6f7cb96c780aa65

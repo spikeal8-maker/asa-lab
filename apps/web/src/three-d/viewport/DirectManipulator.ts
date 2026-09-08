@@ -985,6 +985,8 @@ export class DirectManipulator {
 
   private readonly handlePointerDown = (event: PointerEvent): void => {
     if (event.button !== 0) return;
+    // A previous inspector input must not keep swallowing editor shortcuts.
+    this.canvas.focus({ preventScroll: true });
     if (this.drag || this.marquee) {
       event.preventDefault();
       event.stopPropagation();

@@ -33,6 +33,7 @@ import { api, type ProjectVersion } from '../api';
 import { clearLocalThreeDDraft, readLocalThreeDDraft, writeLocalThreeDDraft } from './local-draft';
 import type { DirectManipulationCommit } from './viewport/DirectManipulator';
 import { directManipulationReplacements } from './selection-model';
+import { nudgedSelection } from './keyboard';
 
 export type SaveState = 'saved' | 'dirty' | 'saving' | 'error';
 
@@ -71,6 +72,7 @@ export interface ThreeDProjectController {
   readonly cutSelected: () => void;
   readonly pasteCopied: () => void;
   readonly duplicateSelected: () => void;
+  readonly nudgeSelected: (delta: { x: number; z: number }) => void;
   readonly removeSelected: () => void;
   readonly setSelectionOperation: (operation: 'solid' | 'hole') => void;
   readonly hideSelected: () => void;
@@ -725,6 +727,16 @@ export function useThreeDProject(projectId: string): ThreeDProjectController {
     [execute],
   );
 
+  const nudgeSelected = useCallback(
+    (delta: { x: number; z: number }): void => {
+      const document = historyRef.current?.present;
+      if (!document) return;
+      const nodes = nudgedSelection(document, selectedIds, delta);
+      if (nodes.length) execute({ type: 'replace-nodes', nodes });
+    },
+    [execute, selectedIds],
+  );
+
   const commitTransform = useCallback(
     (
       nodeId: string,
@@ -909,6 +921,7 @@ export function useThreeDProject(projectId: string): ThreeDProjectController {
     cutSelected,
     pasteCopied,
     duplicateSelected,
+    nudgeSelected,
     removeSelected,
     setSelectionOperation,
     hideSelected,

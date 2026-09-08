@@ -154,9 +154,32 @@ function pointedStarGeometry(pointsCount = 5, innerRatio = 0.44): THREE.BufferGe
 }
 
 function roundRoofGeometry(sides: number): THREE.BufferGeometry {
-  const geometry = new THREE.CylinderGeometry(0.5, 0.5, 1, sides, 1, false, 0, Math.PI);
-  geometry.rotateZ(Math.PI / 2);
+  // A partial CylinderGeometry has end caps but no face across its cut.
+  // Extrude a closed semicircle so the underside is a real Boolean boundary.
+  const profile = new THREE.Shape();
+  for (let index = 0; index <= sides; index++) {
+    const angle = (index / sides) * Math.PI;
+    const x = Math.cos(angle) * 0.5;
+    const y = Math.sin(angle) * 0.5;
+    if (index === 0) profile.moveTo(x, y);
+    else profile.lineTo(x, y);
+  }
+  profile.closePath();
+  const geometry = new THREE.ExtrudeGeometry(profile, { depth: 1, bevelEnabled: false });
+  geometry.rotateY(Math.PI / 2);
   return geometry;
+}
+
+function hemisphereGeometry(sides: number): THREE.BufferGeometry {
+  const segments = Math.max(8, Math.floor(sides / 4));
+  const profile = [new THREE.Vector2(0, 0)];
+  for (let index = 0; index <= segments; index++) {
+    const angle = ((index / segments) * Math.PI) / 2;
+    profile.push(
+      new THREE.Vector2(index === segments ? 0 : 0.5 * Math.cos(angle), 0.5 * Math.sin(angle)),
+    );
+  }
+  return new THREE.LatheGeometry(profile, sides);
 }
 
 function revolveSketchGeometry(
@@ -407,16 +430,7 @@ export function createPrimitiveGeometryForKind(
       geometry = new THREE.CylinderGeometry(0, 0.5, 1, 4);
       break;
     case 'half-sphere':
-      geometry = new THREE.SphereGeometry(
-        0.5,
-        sides,
-        Math.max(8, Math.floor(sides / 4)),
-        0,
-        Math.PI * 2,
-        0,
-        Math.PI / 2,
-      );
-      geometry.translate(0, -0.25, 0);
+      geometry = hemisphereGeometry(sides);
       break;
     case 'tube':
       geometry = tubeGeometry();

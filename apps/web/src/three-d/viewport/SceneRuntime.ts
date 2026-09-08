@@ -221,6 +221,7 @@ export class SceneRuntime {
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 0.98;
     this.renderer.domElement.className = 'asa3d-canvas';
+    this.renderer.domElement.tabIndex = 0;
     this.renderer.domElement.setAttribute('aria-label', 'Рабочая область 3D-моделирования');
     this.container.append(this.renderer.domElement);
 

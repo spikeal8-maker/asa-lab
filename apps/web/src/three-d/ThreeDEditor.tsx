@@ -10,6 +10,7 @@ import { ShapeInspector } from './ShapeInspector';
 import { ShapeLibrary } from './ShapeLibrary';
 import { SelectionTools } from './SelectionTools';
 import { logicalSelectionCount } from './selection-model';
+import { editorShortcutKey, isEditorTypingTarget, keyboardNudge } from './keyboard';
 import { AlignIcon, CubeIcon, GroupIcon, HomeIcon } from './three-d-icons';
 import { ThreeDToolbar } from './ThreeDToolbar';
 import { useThreeDProject } from './use-three-d-project';
@@ -32,14 +33,6 @@ const SAVE_LABELS = {
   saving: 'Сохраняем…',
   error: 'Ошибка сохранения',
 } as const;
-
-function isTypingTarget(target: EventTarget | null): boolean {
-  return (
-    target instanceof HTMLInputElement ||
-    target instanceof HTMLTextAreaElement ||
-    target instanceof HTMLSelectElement
-  );
-}
 
 function objectCountLabel(count: number): string {
   const lastTwo = count % 100;
@@ -111,10 +104,22 @@ export function ThreeDEditor({ projectId, onBack, user }: ThreeDEditorProps): JS
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent): void => {
-      if (isTypingTarget(event.target)) return;
+      if (
+        isEditorTypingTarget(event.target) ||
+        event.isComposing ||
+        event.altKey ||
+        event.defaultPrevented
+      )
+        return;
       const modifier = event.ctrlKey || event.metaKey;
-      const key = event.key.toLowerCase();
-      if (modifier && key === 'z') {
+      const key = editorShortcutKey(event);
+      const nudge = !modifier
+        ? keyboardNudge(event.key, controller.document?.grid.snap ?? 1, event.shiftKey)
+        : null;
+      if (nudge && controller.selectedIds.length > 0) {
+        event.preventDefault();
+        controller.nudgeSelected(nudge);
+      } else if (modifier && key === 'z') {
         event.preventDefault();
         if (event.shiftKey) controller.redo();
         else controller.undo();

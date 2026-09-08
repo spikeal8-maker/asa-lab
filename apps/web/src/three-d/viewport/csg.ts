@@ -69,12 +69,13 @@ class Plane {
     const BACK = 2;
     const SPANNING = 3;
     let polygonType = COPLANAR;
-    const types = polygon.vertices.map((vertex) => {
+    const classify = (vertex: Vertex): number => {
       const value = this.normal.dot(vertex.position) - this.w;
-      const type = value < -EPSILON ? BACK : value > EPSILON ? FRONT : COPLANAR;
-      polygonType |= type;
-      return type;
-    });
+      return value < -EPSILON ? BACK : value > EPSILON ? FRONT : COPLANAR;
+    };
+    // Most tests do not split the polygon. Avoid allocating a vertex-types
+    // array for every plane along a several-thousand-plane rounded-solid tree.
+    for (const vertex of polygon.vertices) polygonType |= classify(vertex);
     if (polygonType === COPLANAR) {
       (this.normal.dot(polygon.plane.normal) > 0 ? coplanarFront : coplanarBack).push(polygon);
       return;
@@ -91,10 +92,10 @@ class Plane {
     const backVertices: Vertex[] = [];
     for (let index = 0; index < polygon.vertices.length; index += 1) {
       const next = (index + 1) % polygon.vertices.length;
-      const type = types[index] ?? COPLANAR;
-      const nextType = types[next] ?? COPLANAR;
       const vertex = polygon.vertices[index] as Vertex;
       const nextVertex = polygon.vertices[next] as Vertex;
+      const type = classify(vertex);
+      const nextType = classify(nextVertex);
       if (type !== BACK) frontVertices.push(vertex);
       if (type !== FRONT) backVertices.push(type !== BACK ? vertex.clone() : vertex);
       if ((type | nextType) === SPANNING) {
@@ -191,61 +192,90 @@ class Node {
   }
 
   clone(): Node {
-    const node = new Node();
-    node.plane = this.plane?.clone() ?? null;
-    node.front = this.front?.clone() ?? null;
-    node.back = this.back?.clone() ?? null;
-    node.polygons = this.polygons.map((polygon) => polygon.clone());
-    return node;
+    const root = new Node();
+    const pending: Array<readonly [Node, Node]> = [[this, root]];
+    while (pending.length) {
+      const [source, target] = pending.pop()!;
+      target.plane = source.plane?.clone() ?? null;
+      target.polygons = source.polygons.map((polygon) => polygon.clone());
+      for (const side of ['front', 'back'] as const) {
+        if (!source[side]) continue;
+        target[side] = new Node();
+        pending.push([source[side], target[side]]);
+      }
+    }
+    return root;
+  }
+
+  // Convex rounded solids form deep BSP chains, not balanced trees. All tree
+  // traversals must use an explicit stack, including cloning and clipping:
+  // merely making build iterative still crashes on the next union operation.
+  private *walk(): Generator<Node> {
+    const pending: Node[] = [this];
+    while (pending.length) {
+      const node = pending.pop()!;
+      yield node;
+      if (node.back) pending.push(node.back);
+      if (node.front) pending.push(node.front);
+    }
   }
 
   invert(): void {
-    this.polygons.forEach((polygon) => polygon.flip());
-    this.plane?.flip();
-    this.front?.invert();
-    this.back?.invert();
-    [this.front, this.back] = [this.back, this.front];
+    for (const node of this.walk()) {
+      node.polygons.forEach((polygon) => polygon.flip());
+      node.plane?.flip();
+      [node.front, node.back] = [node.back, node.front];
+    }
   }
 
   clipPolygons(polygons: readonly Polygon[]): Polygon[] {
-    if (!this.plane) return polygons.map((polygon) => polygon.clone());
-    let front: Polygon[] = [];
-    let back: Polygon[] = [];
-    polygons.forEach((polygon) => this.plane!.splitPolygon(polygon, front, back, front, back));
-    if (this.front) front = this.front.clipPolygons(front);
-    back = this.back ? this.back.clipPolygons(back) : [];
-    return [...front, ...back];
+    const result: Polygon[] = [];
+    const pending: Array<readonly [Node | null, readonly Polygon[]]> = [[this, polygons]];
+    while (pending.length) {
+      const [node, input] = pending.pop()!;
+      if (input.length === 0) continue;
+      if (!node?.plane) {
+        for (const polygon of input) result.push(polygon.clone());
+        continue;
+      }
+      const front: Polygon[] = [];
+      const back: Polygon[] = [];
+      for (const polygon of input) node.plane.splitPolygon(polygon, front, back, front, back);
+      if (node.back && back.length) pending.push([node.back, back]);
+      if (front.length) pending.push([node.front, front]);
+    }
+    return result;
   }
 
   clipTo(node: Node): void {
-    this.polygons = node.clipPolygons(this.polygons);
-    this.front?.clipTo(node);
-    this.back?.clipTo(node);
+    for (const current of this.walk()) current.polygons = node.clipPolygons(current.polygons);
   }
 
   allPolygons(): Polygon[] {
-    return [
-      ...this.polygons,
-      ...(this.front?.allPolygons() ?? []),
-      ...(this.back?.allPolygons() ?? []),
-    ];
+    const result: Polygon[] = [];
+    for (const node of this.walk()) for (const polygon of node.polygons) result.push(polygon);
+    return result;
   }
 
   build(polygons: readonly Polygon[]): void {
-    if (polygons.length === 0) return;
-    this.plane ??= polygons[0]!.plane.clone();
-    const front: Polygon[] = [];
-    const back: Polygon[] = [];
-    polygons.forEach((polygon) =>
-      this.plane!.splitPolygon(polygon, this.polygons, this.polygons, front, back),
-    );
-    if (front.length > 0) {
-      this.front ??= new Node();
-      this.front.build(front);
-    }
-    if (back.length > 0) {
-      this.back ??= new Node();
-      this.back.build(back);
+    const pending: Array<readonly [Node, readonly Polygon[]]> = [[this, polygons]];
+    while (pending.length) {
+      const [node, input] = pending.pop()!;
+      if (input.length === 0) continue;
+      node.plane ??= input[0]!.plane.clone();
+      const front: Polygon[] = [];
+      const back: Polygon[] = [];
+      for (const polygon of input) {
+        node.plane.splitPolygon(polygon, node.polygons, node.polygons, front, back);
+      }
+      if (back.length) {
+        node.back ??= new Node();
+        pending.push([node.back, back]);
+      }
+      if (front.length) {
+        node.front ??= new Node();
+        pending.push([node.front, front]);
+      }
     }
   }
 }
