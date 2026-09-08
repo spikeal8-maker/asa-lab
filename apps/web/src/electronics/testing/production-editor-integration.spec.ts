@@ -418,7 +418,12 @@ describe('owner SVG integration in the real Electronics document', () => {
       },
       catalogStatus: 'enabled',
     });
-    for (const componentId of ['soil-moisture-sensor', 'ultrasonic-hc-sr04', 'pir-sensor']) {
+    expect(productionCatalogEntry('soil-moisture-sensor')).toMatchObject({
+      enabled: true,
+      simulationSupported: true,
+      defaultStateProperties: { moisturePercent: 50 },
+    });
+    for (const componentId of ['ultrasonic-hc-sr04', 'pir-sensor']) {
       expect(productionCatalogEntry(componentId), componentId).toMatchObject({
         enabled: true,
         simulationSupported: false,

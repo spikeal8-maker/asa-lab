@@ -74,7 +74,7 @@ describe('live Electronics simulation', () => {
         {
           id: 'sensor',
           kind: 'visual',
-          componentTypeId: 'soil-moisture-sensor',
+          componentTypeId: 'pir-sensor',
           position: { x: 50, y: 0 },
           value: 0,
         },

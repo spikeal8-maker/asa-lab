@@ -127,7 +127,7 @@ parallel_lanes:
       pr: 170
       pr_draft: false
       status: in_progress
-      checkpoint: ard_6at_tmp36_shared_dc_model_owner_review_pending
+      checkpoint: ard_6as_soil_shared_divider_verification
       owner_acceptance: pending
     revisions:
       convergence_baseline_sha: 5b052dc631c7036de9d60f4206c9879fe364e732

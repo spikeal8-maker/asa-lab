@@ -190,6 +190,7 @@ const SIMULATED_TYPES = new Set([
   'electrolytic-capacitor',
   'photoresistor',
   'temperature-sensor',
+  'soil-moisture-sensor',
   'diode-do35',
   'diode-do41',
   'transistor-npn',
@@ -482,6 +483,9 @@ function defaults(componentId: string): {
         coupling: 'DC',
       },
     };
+  if (componentId === 'soil-moisture-sensor') return {
+    value: 0, unit: '', properties: { moisturePercent: 50 },
+  };
   if (componentId === 'temperature-sensor') return {
     value: 0, unit: '', properties: { temperatureCelsius: 25 },
   };

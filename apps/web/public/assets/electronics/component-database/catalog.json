@@ -29679,8 +29679,8 @@
           "channels": []
         }
       ],
-      "simulationSupport": "unsupported_fail_closed",
-      "blockReason": "Размещение, соединение и схема доступны; математическая модель пока не реализована.",
+      "simulationSupport": "resistive_soil_divider_dc",
+      "blockReason": null,
       "catalogTier": "core",
       "metadataOnlyProof": {
         "source": "owner_direct_upload",

@@ -36,6 +36,11 @@ import {
   type Tmp36Observation,
 } from './models/tmp36-dc-model.js';
 import {
+  createSoilMoistureDevice,
+  SOIL_MOISTURE_MODEL,
+  type SoilObservation,
+} from './models/soil-moisture-model.js';
+import {
   createLinearDcDevice,
   isAnySourceDevice,
   isFunctionGeneratorDevice,
@@ -211,9 +216,12 @@ export interface DiagnosticAnchor {
 }
 
 export interface ComponentResult {
+  readonly sensorMoisturePercent?: number;
+  readonly sensorResistanceOhm?: number;
   readonly sensorTemperatureCelsius?: number;
   readonly sensorPowerState?: Tmp36Observation['sensorPowerState'];
-  readonly sensorOutputRegion?: Tmp36Observation['sensorOutputRegion'];
+  readonly sensorOutputRegion?:
+    Tmp36Observation['sensorOutputRegion'] | SoilObservation['sensorOutputRegion'];
   readonly sensorOutputVoltageVolt?: number;
   readonly sensorSupplyVoltageVolt?: number;
   readonly sensorOutputCurrentAmp?: number;
@@ -717,6 +725,7 @@ type LogicalTerminal = 'a' | 'b' | 'wiper';
 function logicalTerminal(component: SchematicComponent, terminal: LogicalTerminal): Terminal {
   const type = component.componentTypeId;
   if (!type) return terminal;
+  if (type === 'soil-moisture-sensor') return terminal === 'a' ? 'signal' : 'gnd';
   if (type === 'temperature-sensor') return terminal === 'a' ? 'pin-2' : 'pin-3';
   if (type === 'signal-generator' || type === 'oscilloscope')
     return terminal === 'a' ? 'signal' : 'ground';
@@ -749,6 +758,7 @@ function logicalTerminal(component: SchematicComponent, terminal: LogicalTermina
 
 function isSimulated(component: SchematicComponent): boolean {
   return (
+    component.componentTypeId === 'soil-moisture-sensor' ||
     component.componentTypeId === 'temperature-sensor' ||
     isArduinoUno(component) ||
     isBrushedMotor(component) ||
@@ -803,6 +813,8 @@ function roundCurrent(value: number): number {
 }
 
 function propertyError(component: SchematicComponent): string | null {
+  if (component.componentTypeId === 'soil-moisture-sensor')
+    return SOIL_MOISTURE_MODEL.validate(component)[0]?.message ?? null;
   if (component.componentTypeId === 'temperature-sensor')
     return TMP36_DEVICE_MODEL.validate(component)[0]?.message ?? null;
   if (component.componentTypeId === 'signal-generator') {
@@ -1959,6 +1971,10 @@ function solveCircuitStep(
     const device = createTmp36DcDevice(component);
     return device ? [device] : [];
   });
+  const soilDevices = document.components.flatMap((component) => {
+    const device = createSoilMoistureDevice(component);
+    return device ? [device] : [];
+  });
   const npnDcDevices = document.components.flatMap((component) => {
     if (failedComponentIds.has(component.id)) return [];
     const device = createNpnDcDevice(component);
@@ -2628,6 +2644,9 @@ function solveCircuitStep(
       }
     }
 
+    for (const device of soilDevices) {
+      device.model.stampDc(iterativeStampContext, device.instance, null);
+    }
     for (const device of tmp36Devices) {
       device.model.stampDc(
         iterativeStampContext,
@@ -2927,6 +2946,19 @@ function solveCircuitStep(
       ];
     }),
   );
+  const soilResults = new Map<string, SoilObservation>(
+    soilDevices.map((device) => {
+      const component = device.instance.component;
+      const ground = physicalVoltageAt(component, 'gnd');
+      return [
+        component.id,
+        device.model.observe(device.instance, null, {
+          supplyVolt: physicalVoltageAt(component, 'vcc') - ground,
+          outputVolt: physicalVoltageAt(component, 'signal') - ground,
+        }),
+      ];
+    }),
+  );
   const npnResultById = new Map<string, TransistorOperatingResult>(
     npnDcDevices.map((device) => {
       const component = device.instance.component;
@@ -3145,7 +3177,7 @@ function solveCircuitStep(
           ? undefined
           : incandescentLampResistanceOhm(lampTemperatureCelsius);
       const linearDcDevice = linearDcDeviceById.get(component.id);
-      const temperature = tmp36Results.get(component.id);
+      const temperature = tmp36Results.get(component.id) ?? soilResults.get(component.id);
       const reportedLinearCurrent =
         component.kind === 'source' ||
         (linearDcDevice !== undefined && isMultimeterResistanceDevice(linearDcDevice))
@@ -3467,7 +3499,12 @@ function solveCircuitStep(
         power: round(power),
         ...(temperature
           ? {
-              sensorTemperatureCelsius: temperature.sensorTemperatureCelsius,
+              ...('sensorTemperatureCelsius' in temperature
+                ? { sensorTemperatureCelsius: temperature.sensorTemperatureCelsius }
+                : {
+                    sensorMoisturePercent: temperature.sensorMoisturePercent,
+                    sensorResistanceOhm: temperature.sensorResistanceOhm,
+                  }),
               sensorPowerState: temperature.sensorPowerState,
               sensorOutputRegion: temperature.sensorOutputRegion,
               sensorOutputVoltageVolt: round(temperature.sensorOutputVoltageVolt),
@@ -3728,7 +3765,7 @@ function solveCircuitStep(
       };
     });
 
-  for (const [componentId, observation] of tmp36Results) {
+  for (const [componentId, observation] of [...tmp36Results, ...soilResults]) {
     diagnostics.push(
       ...observation.diagnostics.map((diagnostic) => ({
         ...diagnostic,

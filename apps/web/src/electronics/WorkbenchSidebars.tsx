@@ -1307,6 +1307,34 @@ export function WorkbenchSidebars({
                   </button>
                 </fieldset>
               ) : null}
+              {c.selectedComponent.componentTypeId === 'soil-moisture-sensor' ? (
+                <>
+                  <label>
+                    <span>Модель</span>
+                    <input
+                      aria-label="Модель датчика влажности"
+                      value="Резистивный модуль"
+                      readOnly
+                    />
+                  </label>
+                  <label>
+                    <span>Влажность, %</span>
+                    <input
+                      aria-label="Влажность почвы, %"
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="1"
+                      value={Number(c.selectedComponent.stateProperties?.['moisturePercent'] ?? 50)}
+                      onChange={(event) => {
+                        const value = event.target.valueAsNumber;
+                        if (Number.isFinite(value) && value >= 0 && value <= 100)
+                          c.setSelectedProperties({ moisturePercent: value });
+                      }}
+                    />
+                  </label>
+                </>
+              ) : null}
               {c.selectedComponent.componentTypeId === 'temperature-sensor' ? (
                 <>
                   <label>

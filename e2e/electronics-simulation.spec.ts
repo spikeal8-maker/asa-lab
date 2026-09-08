@@ -2222,6 +2222,130 @@ for (const withArduino of [false, true]) {
   });
 }
 
+for (const withArduino of [false, true]) {
+  test(`soil-moisture-sensor: ${withArduino ? 'Arduino ADC' : 'multimeter'} live moisture and persistence`, async ({
+    page,
+  }) => {
+    test.setTimeout(120_000);
+    const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await loginWithOrganization(page, teacher);
+    const base = tmp36Document(withArduino);
+    const doc: SchematicDocument = {
+      ...base,
+      components: base.components.map((p) =>
+        p.id === 'tmp'
+          ? {
+              ...p,
+              componentTypeId: 'soil-moisture-sensor',
+              variantId: 'soil-moisture-sensor',
+              name: 'Датчик влажности',
+              pinIds: ['vcc', 'signal', 'gnd'],
+              stateProperties: { moisturePercent: 50 },
+            }
+          : p.id === 'source' || p.id === 'supply'
+            ? {
+                ...p,
+                componentTypeId: 'battery-holder-aa-3',
+                variantId: 'battery-holder-aa-3',
+                value: 4.5,
+                stateProperties: { cells: 3 },
+              }
+            : p.id === 'uno'
+              ? {
+                  ...p,
+                  stateProperties: {
+                    arduinoSource:
+                      'void setup() { pinMode(13, OUTPUT); } void loop() { digitalWrite(13, analogRead(A0) > 500); delay(1); }',
+                  },
+                }
+              : p,
+      ),
+      connections: base.connections.map((w) => ({
+        ...w,
+        from:
+          w.from.componentId === 'tmp'
+            ? {
+                ...w.from,
+                terminal: (
+                  { 'pin-1': 'vcc', 'pin-2': 'signal', 'pin-3': 'gnd' } as Record<string, string>
+                )[w.from.terminal]!,
+              }
+            : w.from,
+        to:
+          w.to.componentId === 'tmp'
+            ? {
+                ...w.to,
+                terminal: (
+                  { 'pin-1': 'vcc', 'pin-2': 'signal', 'pin-3': 'gnd' } as Record<string, string>
+                )[w.to.terminal]!,
+              }
+            : w.to,
+      })),
+    };
+    const projectId = await createProject(page, `Soil ${withArduino ? 'Arduino' : 'Multimeter'}`);
+    await saveDocument(page, projectId, doc);
+    await page.goto(`/#/home/${projectId}`);
+    await component(page, 'soil-moisture-sensor').locator('.workbench-part').press('Enter');
+    const inspector = page.getByRole('complementary', { name: 'Параметры выделения' });
+    const input = inspector.getByRole('spinbutton', { name: 'Влажность почвы, %' });
+    await expect(input).toHaveValue('50');
+    await expect(inspector.getByLabel('Модель датчика влажности')).toHaveValue(
+      'Резистивный модуль',
+    );
+    await page.getByRole('button', { name: 'Начать моделирование' }).click();
+    const display = component(page, 'multimeter').getByTestId('multimeter-runtime-display');
+    for (const moisture of [50, 0, 100]) {
+      await input.fill(String(moisture));
+      const bottom = 1 / (1 / 10000 + 1 / 10e6);
+      const expected =
+        ((withArduino ? 5 : 4.5) * bottom) /
+        (1e6 * 1e-3 ** (moisture / 100) + bottom + (withArduino ? 0 : 0.675));
+      await expect
+        .poll(async () =>
+          Math.abs(Number.parseFloat((await display.textContent()) ?? '') - expected),
+        )
+        .toBeLessThan(0.002);
+      if (withArduino && moisture !== 100) await expect.poll(() => brightnessValue(page)).toBe(0);
+      if (withArduino && moisture === 100)
+        await expect.poll(() => brightnessValue(page)).toBeGreaterThan(0);
+    }
+    await page.screenshot({
+      path: `${ARTIFACT_DIR}/soil-${withArduino ? 'arduino' : 'multimeter'}.png`,
+    });
+    await page.getByRole('button', { name: 'Остановить моделирование' }).click();
+    await expect
+      .poll(
+        async () => {
+          const response = await page
+            .context()
+            .request.get(`/api/projects/${projectId}`, {
+              headers: { origin: new URL(page.url()).origin },
+            });
+          expect(response.ok()).toBe(true);
+          const payload = await response.json();
+          return (
+            payload.draft.document.components.find((p: { id: string }) => p.id === 'tmp')
+              ?.stateProperties?.moisturePercent === 100 &&
+            payload.result.solved &&
+            payload.result.components.find((p: { componentId: string }) => p.componentId === 'tmp')
+              ?.sensorOutputVoltageVolt > (withArduino ? 4.5 : 4)
+          );
+        },
+        { timeout: 25_000 },
+      )
+      .toBe(true);
+    await page.reload();
+    await component(page, 'soil-moisture-sensor').locator('.workbench-part').press('Enter');
+    await expect(input).toHaveValue('100');
+    await page.getByRole('button', { name: 'Начать моделирование' }).click();
+    await expect
+      .poll(async () => Number.parseFloat((await display.textContent()) ?? ''))
+      .toBeGreaterThan(withArduino ? 4.5 : 4);
+    failures.assertEmpty();
+  });
+}
+
 test.beforeAll(async () => {
   mkdirSync(ARTIFACT_DIR, { recursive: true });
   admin = e2eAdminPool();

@@ -15,6 +15,7 @@ export type ElectricalModelId =
   | 'capacitor'
   | 'photoresistor'
   | 'analog-temperature-sensor'
+  | 'resistive-soil-sensor'
   | 'piezo-transducer'
   | 'diode'
   | 'npn-transistor'
@@ -56,6 +57,7 @@ const KNOWN_MODEL_IDS: ReadonlySet<string> = new Set<ElectricalModelId>([
   'capacitor',
   'photoresistor',
   'analog-temperature-sensor',
+  'resistive-soil-sensor',
   'piezo-transducer',
   'diode',
   'npn-transistor',
@@ -71,6 +73,7 @@ const KNOWN_MODEL_IDS: ReadonlySet<string> = new Set<ElectricalModelId>([
 ]);
 
 const EXACT_IDENTITIES: Readonly<Record<string, ElectricalModelIdentity>> = {
+  'soil-moisture-sensor': identity('resistive-soil-sensor', 'asa-resistive-soil-divider'),
   'temperature-sensor': identity('analog-temperature-sensor', 'tmp36-to92-dc'),
   'arduino-uno': identity('arduino-uno', 'arduino-uno-r3'),
   'resistor-axial': identity('resistor', 'axial-resistor'),
@@ -180,10 +183,10 @@ export function electricalModelIdentityForComponent(
     // placeholder identities. Upgrade only those known placeholders;
     // unknown/future identities must remain fail-closed.
     if (
-      component.componentTypeId === 'temperature-sensor' &&
+      ['temperature-sensor', 'soil-moisture-sensor'].includes(component.componentTypeId ?? '') &&
       component.electricalModelId === 'unsupported' &&
       component.electricalModelVersion === 1 &&
-      component.modelProfileId === 'unsupported-temperature-sensor' &&
+      component.modelProfileId === `unsupported-${component.componentTypeId}` &&
       component.modelProfileVersion === 1
     )
       return resolveElectricalModelIdentity(component);

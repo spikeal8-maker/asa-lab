@@ -31,6 +31,14 @@ const measurement: ComponentResult = {
 };
 
 describe('component information registry', () => {
+  it('explains the three-wire soil module and its educational calibration', () => {
+    const profile = componentInformationProfile('soil-moisture-sensor', 'visual');
+    expect(profile.terminalPresentation).toBe('full');
+    expect(profile.technicalMetrics.map((m) => m.label)).toContain('Ток питания');
+    const help = componentHelpSections('visual', '', 'soil-moisture-sensor');
+    expect(help.map((section) => section.text).join(' ')).toContain('analogRead(A0)');
+    expect(help.map((section) => section.text).join(' ')).toContain('Калибровка');
+  });
   it('documents temperature-sensor TMP36 pins, ordinary circuit use and honest model limits', () => {
     const profile = componentInformationProfile('temperature-sensor', 'visual');
     expect(profile.terminalPresentation).toBe('full');

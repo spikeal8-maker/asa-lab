@@ -30,7 +30,7 @@ const PHYSICS_QUANTUM_US = 1000;
 export interface ArduinoCircuitInputEvent {
   readonly atMicroseconds: number;
   readonly componentId: string;
-  readonly property: 'state' | 'wiperPosition' | 'temperatureCelsius';
+  readonly property: 'state' | 'wiperPosition' | 'temperatureCelsius' | 'moisturePercent';
   readonly value: boolean | number;
 }
 
@@ -81,6 +81,7 @@ function clockedComponent(component: SchematicComponent): boolean {
       'potentiometer',
       'photoresistor',
       'analog-temperature-sensor',
+      'resistive-soil-sensor',
       'breadboard-connectivity',
       'ideal-wire',
       'ideal-dc-source',
@@ -115,6 +116,12 @@ function validInputs(
             Number.isFinite(event.value) &&
             event.value >= 0 &&
             event.value <= 1) ||
+          (event.property === 'moisturePercent' &&
+            component.componentTypeId === 'soil-moisture-sensor' &&
+            typeof event.value === 'number' &&
+            Number.isFinite(event.value) &&
+            event.value >= 0 &&
+            event.value <= 100) ||
           (event.property === 'temperatureCelsius' &&
             component.componentTypeId === 'temperature-sensor' &&
             typeof event.value === 'number' &&
@@ -143,10 +150,10 @@ function applyInput(
     ...document,
     components: document.components.map((component) =>
       component.id === event.componentId
-        ? event.property === 'temperatureCelsius'
+        ? event.property === 'temperatureCelsius' || event.property === 'moisturePercent'
           ? {
               ...component,
-              stateProperties: { ...component.stateProperties, temperatureCelsius: event.value },
+              stateProperties: { ...component.stateProperties, [event.property]: event.value },
             }
           : ({ ...component, [event.property]: event.value } as SchematicComponent)
         : component,

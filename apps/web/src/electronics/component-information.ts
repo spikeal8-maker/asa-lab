@@ -342,7 +342,7 @@ export function componentInformationProfile(
   componentFamilyId: string,
   kind: ComponentKind,
 ): ComponentInformationProfile {
-  if (componentFamilyId === 'temperature-sensor')
+  if (componentFamilyId === 'temperature-sensor' || componentFamilyId === 'soil-moisture-sensor')
     return {
       componentFamilyId,
       compactFields: [NAME_FIELD],

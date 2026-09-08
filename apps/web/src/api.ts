@@ -979,9 +979,11 @@ export interface Diagnostic {
 }
 
 export interface ComponentResult {
+  readonly sensorMoisturePercent?: number;
+  readonly sensorResistanceOhm?: number;
   readonly sensorTemperatureCelsius?: number;
   readonly sensorPowerState?: 'powered' | 'unpowered' | 'undervoltage' | 'overvoltage' | 'reversed';
-  readonly sensorOutputRegion?: 'regulated' | 'current-limit' | 'high-impedance';
+  readonly sensorOutputRegion?: 'regulated' | 'current-limit' | 'high-impedance' | 'divider';
   readonly sensorOutputVoltageVolt?: number;
   readonly sensorSupplyVoltageVolt?: number;
   readonly sensorOutputCurrentAmp?: number;
@@ -1170,7 +1172,7 @@ export interface SolveResult {
   };
   topologySignature?: string;
   simulationInputDigest?: string;
-  solverRevision?: 'asa-electronics-solver-v19';
+  solverRevision?: 'asa-electronics-solver-v20';
   modelSetDigest?: string;
   analysis?: {
     electricalMode: 'dc' | 'transient';
