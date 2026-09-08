@@ -107,6 +107,9 @@ PostgreSQL кластер на свободном loopback-порту и ост�
 - CI дополнительно обнаружил high advisory GHSA-2883-xcg3-v3hh для js-yaml 4.3.1
   в инструментах OpenAPI. Override и lock обновлены адресно до исправленной 4.3.2;
   security gate не обходится. Источник: https://github.com/advisories/GHSA-2883-xcg3-v3hh.
+- Реальный 3D browser CI выявил неоднозначный selector «Создать»: у нового
+  Account теперь есть и header, и стартовая карточка. Селектор ограничен header;
+  моделирование, сохранение, reload, touch и Worker assertions не сокращены.
 - Повторный fetch обнаружил более поздний `origin/main` cc712bc5. Он не включён
   автоматически: согласованная база этого кандидата — dd084c02. Перед будущим
   merge более поздние Electronics/3D изменения требуют отдельной интеграции
