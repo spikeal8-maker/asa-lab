@@ -58,7 +58,9 @@ Production, внешние службы и Result B/C не входят в ра�
 - `current.yaml`: сохранены оба checkpoint Electronics/3D; отдельно внесены
   задача Access, её ветка, focused/browser команды. Owner acceptance pending.
 - Остальные 35 upstream-путей после переноса совпадали с dd084c02 байт-в-байт.
-  Electronics/3D runtime в этом пакете не редактируется.
+  Ядра расчётов Electronics/3D не изменены. Позднее в оболочку редактора добавлен
+  только диагностический data-project-save-status для точной проверки сохранения;
+  подготовка E2E fixtures и производный hash описаны ниже.
 
 ## Четыре исходных падения
 
@@ -78,7 +80,9 @@ hero/картинка. Тесты сохраняют проверку исход
   класс, Account/Seat/проекты/learner/Attempt/Submission). UUID не переназначаются.
 - `pnpm e2e:access-a`: настоящие A–J и Account C1; никаких route mocks.
   H выдаёт ключ через учительский UI, выходит, проверяет старый токен/cache и
-  входит вторым Seat; чужие работа и профиль недоступны.
+  входит вторым Seat; чужие работа и профиль недоступны. Личное замечание
+  преподавателя к значку реально хранится в БД и видно первому; второй не видит
+  его ни в UI, ни в собственном awards API, старый токен получает 401.
 - `playwright.access-ui.config.ts`: отдельные mock UI-contract tests ошибок,
   partial failure/draft и ширин 320/390/1024/1440. Не замена A–J.
 - `pnpm gate:repository`: governance + code + полные data/RLS проверки.
@@ -117,6 +121,8 @@ PostgreSQL кластер на свободном loopback-порту и ост�
   Между фазами тест ждёт реального `saveStatus: saved` и проверяет отсутствие
   несохранённого local draft, вместо его удаления. CAS и расчёты не изменены;
   ожидание не добавлено перед проверками мгновенной локальной симуляции.
+  Штатный generator обновляет только browserEvidenceSha256 в component coverage;
+  строки компонентов, модели и их declared support остаются без изменений.
 - Все focused module workflows проверяют точный head кандидата (не подменяют
   его synthetic merge с более поздним main) и явно отключают Nx cache, как общий
   Result A workflow. При конфликте PR их можно запускать workflow_dispatch на

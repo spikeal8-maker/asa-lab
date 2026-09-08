@@ -278,6 +278,7 @@ test('H: private StudentSeat key, profile, logout, next learner does not see fir
     { displayLabel: 'Второй ученик', loginHandle: 'browser-second', safeMode: true },
     teacherCookie,
   );
+  const privateTeacherNote = 'Личное замечание преподавателя только первому ученику';
   const keys: string[] = [];
   for (const seat of [first, second]) {
     keys.push(
@@ -326,6 +327,16 @@ test('H: private StudentSeat key, profile, logout, next learner does not see fir
     await expect(portalSection(page, 'Мой учебный профиль')).toBeVisible();
   }
   await enter('browser-first', keys[0]!);
+  // First real sign-in creates the Seat principal. Give this active learner
+  // a real teacher note; do not manufacture principal rows in the fixture.
+  const award = await page.request.put(
+    `/api/classrooms/${classId}/students/${first.student.id}/awards/careful-work`,
+    {
+      headers: { origin, cookie: teacherCookie },
+      data: { granted: true, note: privateTeacherNote },
+    },
+  );
+  expect(award.ok(), await award.text()).toBeTruthy();
   await openPortalSection(page, 'Моё обучение');
   await expect(page.getByRole('heading', { name: 'Моё обучение', exact: true })).toBeVisible();
   await expect(page.locator('.seat-class-heading')).toContainText('Независимый класс Access A');
@@ -340,6 +351,7 @@ test('H: private StudentSeat key, profile, logout, next learner does not see fir
   await openPortalSection(page, 'Мои учебные работы');
   await expect(page.getByText('Секретная работа первого', { exact: true }).first()).toBeVisible();
   await openPortalSection(page, 'Мой учебный профиль');
+  await expect(page.getByText(privateTeacherNote, { exact: true })).toBeVisible();
   await shot(page, 'H-first-seat-profile');
   await page.evaluate(() => {
     sessionStorage.setItem('asa-seat-notes:synthetic-first-seat', 'private first learner draft');
@@ -357,6 +369,13 @@ test('H: private StudentSeat key, profile, logout, next learner does not see fir
     headers: { cookie: `asa_student_session=${previousToken}` },
   });
   expect((await ended.json()).authenticated).toBe(false);
+  expect(
+    (
+      await page.request.get('/api/class-join/me/awards', {
+        headers: { cookie: `asa_student_session=${previousToken}` },
+      })
+    ).status(),
+  ).toBe(401);
   await enter('browser-second', keys[1]!);
   await openPortalSection(page, 'Мои учебные работы');
   await expect(page.getByText('Секретная работа первого', { exact: true })).toHaveCount(0);
@@ -365,6 +384,10 @@ test('H: private StudentSeat key, profile, logout, next learner does not see fir
   );
   await openPortalSection(page, 'Мой учебный профиль');
   await expect(page.getByText('Первый ученик', { exact: true })).toHaveCount(0);
+  await expect(page.getByText(privateTeacherNote, { exact: true })).toHaveCount(0);
+  const secondAwards = await page.request.get('/api/class-join/me/awards');
+  expect(secondAwards.status()).toBe(200);
+  expect((await secondAwards.json()).items).toEqual([]);
   await expect(page.getByText('private first learner draft')).toHaveCount(0);
   expect((await (await page.request.get('/api/class-join/me')).json()).student.seatId).toBe(
     second.student.id,
