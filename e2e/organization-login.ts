@@ -11,10 +11,7 @@ export async function loginWithOrganization(
   credentials: OrganizationCredentials,
 ): Promise<void> {
   await page.goto('/#/projects');
-  await page
-    .getByRole('button', { name: 'Войти', exact: true })
-    .or(page.getByRole('link', { name: 'Войти', exact: true }))
-    .click();
+  await page.getByRole('banner').getByRole('button', { name: 'Войти', exact: true }).click();
   await page.getByTestId('login-organization').click();
   await page.getByLabel('Код организации').fill(credentials.workspace);
   await page.getByLabel('Email', { exact: true }).fill(credentials.email);

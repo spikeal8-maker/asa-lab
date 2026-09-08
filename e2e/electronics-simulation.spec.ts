@@ -2317,11 +2317,9 @@ for (const withArduino of [false, true]) {
     await expect
       .poll(
         async () => {
-          const response = await page
-            .context()
-            .request.get(`/api/projects/${projectId}`, {
-              headers: { origin: new URL(page.url()).origin },
-            });
+          const response = await page.context().request.get(`/api/projects/${projectId}`, {
+            headers: { origin: new URL(page.url()).origin },
+          });
           expect(response.ok()).toBe(true);
           const payload = await response.json();
           return (
