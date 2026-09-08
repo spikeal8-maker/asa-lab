@@ -3070,6 +3070,21 @@ test('catalog placement is one hold-drag-release gesture and snaps on the first 
   failures.assertEmpty();
 });
 
+async function leaveSavedWorkbench(page: Page, projectId: string): Promise<void> {
+  // Do not race pagehide's legitimate autosave with the next API fixture PUT.
+  // This is the controller's actual state, not the delayed/transient indicator.
+  // Waiting is only between fixture phases, never before local-simulation checks.
+  await expect(page.locator('.workbench-shell')).toHaveAttribute(
+    'data-project-save-status',
+    'saved',
+    { timeout: 15_000 },
+  );
+  expect(
+    await page.evaluate((id) => localStorage.getItem(`asa-project-local-draft:${id}`), projectId),
+  ).toBeNull();
+  await page.goto('/#/projects');
+}
+
 test('real editor recalculates SPDT, resistor and LED without waiting for persistence', async ({
   page,
 }) => {
@@ -3266,8 +3281,7 @@ test('real editor recalculates SPDT, resistor and LED without waiting for persis
 
   await page.getByRole('button', { name: 'Остановить моделирование' }).click();
   await expect(page.getByRole('button', { name: 'Начать моделирование' })).toBeVisible();
-  await page.goto('/#/projects');
-  await page.evaluate((id) => localStorage.removeItem(`asa-project-local-draft:${id}`), projectId);
+  await leaveSavedWorkbench(page, projectId);
   await saveDocument(
     page,
     projectId,
@@ -3309,8 +3323,7 @@ test('real editor recalculates SPDT, resistor and LED without waiting for persis
     /special\/led_red_burned\.svg$/,
   );
   await expect(diagnostic(page, 'led-5mm', 'led-burnout-explosion')).toHaveCount(0);
-  await page.goto('/#/projects');
-  await page.evaluate((id) => localStorage.removeItem(`asa-project-local-draft:${id}`), projectId);
+  await leaveSavedWorkbench(page, projectId);
   await saveDocument(
     page,
     projectId,
@@ -3336,8 +3349,7 @@ test('real editor recalculates SPDT, resistor and LED without waiting for persis
   });
 
   await page.getByRole('button', { name: 'Остановить моделирование' }).click();
-  await page.goto('/#/projects');
-  await page.evaluate((id) => localStorage.removeItem(`asa-project-local-draft:${id}`), projectId);
+  await leaveSavedWorkbench(page, projectId);
   await saveDocument(page, projectId, shortCircuitDocument());
   await page.goto(`/#/home/${projectId}`);
   await page.getByRole('button', { name: 'Начать моделирование' }).click();
@@ -3369,8 +3381,7 @@ test('real editor recalculates SPDT, resistor and LED without waiting for persis
   await expect(page.locator('.workbench-toast')).toHaveCount(0);
 
   await page.getByRole('button', { name: 'Остановить моделирование' }).click();
-  await page.goto('/#/projects');
-  await page.evaluate((id) => localStorage.removeItem(`asa-project-local-draft:${id}`), projectId);
+  await leaveSavedWorkbench(page, projectId);
   await saveDocument(page, projectId, resistorOverloadDocument());
   await page.goto(`/#/home/${projectId}`);
   await page.getByRole('button', { name: 'Начать моделирование' }).click();

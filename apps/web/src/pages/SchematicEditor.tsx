@@ -299,6 +299,7 @@ export function SchematicEditor({
       className={`workbench-shell${controller.libraryOpen ? '' : ' library-collapsed'}${
         codeOpen ? ' code-open' : ''
       }`}
+      data-project-save-status={controller.saveStatus}
       style={{ '--arduino-code-panel-width': `${codePanelWidth}px` } as CSSProperties}
     >
       <WorkbenchHeader

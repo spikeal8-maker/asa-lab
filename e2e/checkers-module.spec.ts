@@ -113,16 +113,11 @@ test('learner solves an original Russian-64 task, reloads progress and receives 
   const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
   await login(page);
   const projectId = await createProject(page, { title: 'Мой путь в шашках' });
-  // Mount the project list after the API-created project exists, then enter the
-  // lazy editor through the SPA. No page reload is allowed in this journey.
-  await page.goto('/#/projects');
-  // A card opens by its title, the same way a learner opens one.
-  await page
-    .getByRole('listitem')
-    .filter({ hasText: 'Мой путь в шашках' })
-    .getByRole('link', { name: 'Мой путь в шашках' })
-    .click();
-  await expect(page).toHaveURL(new RegExp(`/#/projects/${projectId}\\?module=checkers$`));
+  // Games have their own accepted section, not a project-list card. Enter
+  // through its real UI and prove it resumes this save rather than creating one.
+  await page.goto('/#/games');
+  await page.getByRole('button', { name: 'Играть: Шашки', exact: true }).click();
+  await expect(page).toHaveURL(new RegExp(`/#/games/checkers/${projectId}$`));
 
   await expect(page.getByRole('heading', { name: /твой следующий ход/ })).toBeVisible();
   await expect(page.getByText('Здесь собраны задания, обучение, игры и повторение')).toBeVisible();
