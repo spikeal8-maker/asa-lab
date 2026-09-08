@@ -299,7 +299,6 @@ export function SchematicEditor({
       className={`workbench-shell${controller.libraryOpen ? '' : ' library-collapsed'}${
         codeOpen ? ' code-open' : ''
       }`}
-      data-project-save-status={controller.saveStatus}
       style={{ '--arduino-code-panel-width': `${codePanelWidth}px` } as CSSProperties}
     >
       <WorkbenchHeader
@@ -315,7 +314,7 @@ export function SchematicEditor({
         onOpenShare={() => setShareOpen(true)}
         onExportView={exportCurrentView}
       />
-      <div className="workbench-main">
+      <div className="workbench-main" data-project-save-status={controller.saveStatus}>
         {view === 'breadboard' ? (
           <WorkbenchStage controller={controller} showGrid={showGrid} />
         ) : (

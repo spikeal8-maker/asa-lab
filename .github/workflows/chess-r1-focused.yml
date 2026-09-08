@@ -55,6 +55,9 @@ on:
 permissions:
   contents: read
 
+env:
+  NX_SKIP_NX_CACHE: 'true'
+
 concurrency:
   group: chess-r1-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
@@ -70,6 +73,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
           fetch-depth: 0
 
@@ -110,6 +114,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
           fetch-depth: 0
 

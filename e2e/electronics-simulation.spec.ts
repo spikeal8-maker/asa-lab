@@ -3074,7 +3074,7 @@ async function leaveSavedWorkbench(page: Page, projectId: string): Promise<void>
   // Do not race pagehide's legitimate autosave with the next API fixture PUT.
   // This is the controller's actual state, not the delayed/transient indicator.
   // Waiting is only between fixture phases, never before local-simulation checks.
-  await expect(page.locator('.workbench-shell')).toHaveAttribute(
+  await expect(page.locator('.workbench-main')).toHaveAttribute(
     'data-project-save-status',
     'saved',
     { timeout: 15_000 },
