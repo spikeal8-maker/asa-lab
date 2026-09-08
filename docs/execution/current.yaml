@@ -38,7 +38,7 @@ task:
   # Existing Auth/MAX/Admin remain compatible. Result B/C and production are
   # explicitly outside this authorization. Prior task state remains in Git history.
   status: in_progress
-  checkpoint: result_a_locally_verified_ci_pending
+  checkpoint: result_a_candidate_owner_acceptance_pending
   owner_acceptance: pending
 
 # Commits that mean something. Anything not listed here is ordinary history.
