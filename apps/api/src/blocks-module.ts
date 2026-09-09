@@ -172,8 +172,8 @@ function createPreview(document: BlocksProjectDocumentV1): ModulePreviewDescript
   };
 }
 
-export const BLOCKS_MODULE = defineModule<BlocksProjectDocumentV1>({
-  manifest: {
+export const BLOCKS_MODULE = defineModule<BlocksProjectDocumentV1>(
+  {
     moduleKey: 'blocks',
     moduleVersion: '0.1.0',
     displayName: 'Визуальное программирование',
@@ -190,7 +190,7 @@ export const BLOCKS_MODULE = defineModule<BlocksProjectDocumentV1>({
     iconKey: 'blocks',
     categories: ['coding', 'creative'],
   },
-  provider: {
+  {
     createEmptyProject: () => ({
       schemaVersion: 1,
       format: 'scratch-3',
@@ -200,4 +200,4 @@ export const BLOCKS_MODULE = defineModule<BlocksProjectDocumentV1>({
     validate: validateDocument,
     createPreview,
   },
-});
+);
