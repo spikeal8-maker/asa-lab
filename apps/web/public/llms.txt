@@ -15,7 +15,7 @@ Community: https://vk.ru/asalabru
 - Creator loop: choose a tool -> try -> create -> test -> save -> publish -> get a reaction -> make the next version.
 - Community loop: discover a work -> open the project or author -> inspect -> copy/download when available -> make your own version -> publish -> discuss.
 - Community is built around projects and authors, not around a generic anonymous chat.
-- Classes, assignments, teacher and organization workflows are optional collaborative scenarios, not the definition of ASA Lab.
+- Creating personal projects is the primary use case. Classes and assignments are an optional way to organize group work; teacher and organization workflows remain secondary scenarios.
 
 ## Current product capabilities
 
