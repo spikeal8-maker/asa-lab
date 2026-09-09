@@ -22,17 +22,41 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: Align homepage with SEO contracts
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          page = Path('apps/web/src/pages/PublicEntryPage.tsx')
+          text = page.read_text()
+          text = text.replace(
+              "title: 'Программирование и робототехника',",
+              "title: 'Блочное программирование и робототехника',",
+          )
+          text = text.replace(
+              '<span>Совместная работа</span>',
+              '<span>Классы и задания — дополнительно</span>',
+          )
+          page.write_text(text)
+
+          llms = Path('apps/web/public/llms.txt')
+          text = llms.read_text()
+          marker = '- Classes, assignments, teacher and organization workflows are optional collaborative scenarios, not the definition of ASA Lab.'
+          replacement = '- Creating personal projects is the primary use case. Classes and assignments are an optional way to organize group work; teacher and organization workflows remain secondary scenarios.'
+          text = text.replace(marker, replacement)
+          llms.write_text(text)
+          PY
       - run: pnpm exec prettier --write apps/web/src/pages/PublicEntryPage.tsx apps/web/index.html
       - name: Commit formatted files
         run: |
-          if git diff --quiet -- apps/web/src/pages/PublicEntryPage.tsx apps/web/index.html; then
-            echo "Already formatted"
+          if git diff --quiet -- apps/web/src/pages/PublicEntryPage.tsx apps/web/index.html apps/web/public/llms.txt; then
+            echo "Already aligned"
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add apps/web/src/pages/PublicEntryPage.tsx apps/web/index.html
-          git commit -m "style(web): format public homepage"
+          git add apps/web/src/pages/PublicEntryPage.tsx apps/web/index.html apps/web/public/llms.txt
+          git commit -m "fix(web): satisfy public positioning SEO contracts"
           git push
       - uses: actions/upload-artifact@v4
         with:
@@ -40,3 +64,4 @@ jobs:
           path: |
             apps/web/src/pages/PublicEntryPage.tsx
             apps/web/index.html
+            apps/web/public/llms.txt
