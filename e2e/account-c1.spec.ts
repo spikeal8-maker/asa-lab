@@ -1,14 +1,37 @@
+import { expect, test, type Page } from '@playwright/test';
 import { mkdirSync } from 'node:fs';
-import { resolve } from 'node:path';
-import { expect, test } from '@playwright/test';
-import { Client } from 'pg';
-import { collectBrowserFailures, registerAccount, signOutAccount } from './access-a.helpers';
+import pg from 'pg';
+import { collectBrowserFailures } from './browser-failures';
+import {
+  openAccountMenu,
+  openAccountSettings,
+  PERSONAL_WORKSPACE,
+  portalSection,
+  switchWorkspace,
+} from './portal-navigation';
+import { e2eAdminPool } from './seed';
 
-const EVIDENCE_DIR = resolve('e2e/artifacts/owner-preview/access-a');
-const admin = new Client({ connectionString: process.env.TEST_DATABASE_URL });
+const EVIDENCE_DIR = 'e2e/artifacts/owner-preview/account-c1';
+let admin: pg.Pool;
 
-test.beforeAll(async () => {
-  await admin.connect();
+async function expectNoHorizontalOverflow(page: Page): Promise<void> {
+  const metrics = await page.evaluate(() => ({
+    viewport: window.innerWidth,
+    document: document.documentElement.scrollWidth,
+    offenders: [...document.querySelectorAll<HTMLElement>('body *')]
+      .filter((element) => element.getBoundingClientRect().right > window.innerWidth + 1)
+      .map((element) => ({
+        tag: element.tagName,
+        className: element.className,
+        right: Math.round(element.getBoundingClientRect().right),
+      }))
+      .slice(0, 10),
+  }));
+  expect(metrics.document, JSON.stringify(metrics)).toBeLessThanOrEqual(metrics.viewport);
+}
+
+test.beforeAll(() => {
+  admin = e2eAdminPool();
   mkdirSync(EVIDENCE_DIR, { recursive: true });
 });
 
@@ -29,7 +52,9 @@ test('owner completes Account C1 and existing project modules remain available',
 
   await page.setViewportSize({ width: 1366, height: 900 });
   await page.goto('/#/');
-  await expect(page.getByRole('heading', { name: 'Идея есть? Сделай её.' })).toBeVisible();
+  await expect(
+    page.getByRole('heading', { name: 'Идея есть? Сделай её.' }),
+  ).toBeVisible();
   await page.screenshot({
     path: `${EVIDENCE_DIR}/01-public-entry-desktop.png`,
     fullPage: true,
@@ -43,74 +68,169 @@ test('owner completes Account C1 and existing project modules remain available',
   await page.getByLabel('Пароль').fill(password);
   await page.getByRole('checkbox', { name: 'Я не робот' }).press('Space');
   await page.getByRole('button', { name: 'Создать аккаунт' }).click();
-
-  await expect(page.getByRole('heading', { name: 'Подтвердите email' })).toBeVisible();
-  const verification = await admin.query<{ token: string }>(
-    `SELECT token FROM account_verification_tokens_v2
-       WHERE account_id=(SELECT id FROM accounts WHERE email=$1)
-       ORDER BY created_at DESC LIMIT 1`,
-    [email],
-  );
-  expect(verification.rowCount).toBe(1);
-  await page.goto(`/#/verify-email?token=${verification.rows[0].token}`);
-  await expect(page.getByText('Email подтверждён')).toBeVisible();
-  await page.getByRole('button', { name: 'Продолжить' }).click();
-
-  await expect(page).toHaveURL(/#\/home$/);
+  // A new account lands on the creator home, not on the projects list.
   await expect(page.getByRole('heading', { name: 'Главная' })).toBeVisible();
+
+  const context = page.context();
+  for (const [module, title] of [
+    ['electronics', 'Account C1 Electronics'],
+    ['three-d', 'Account C1 3D'],
+  ] as const) {
+    const response = await context.request.post('/api/projects', {
+      headers: {
+        origin: new URL(page.url()).origin,
+        'idempotency-key': `account-c1-${module}-${unique}`,
+      },
+      data: {
+        scope: 'personal',
+        classroomId: null,
+        module,
+        title,
+      },
+    });
+    expect(response.status()).toBe(201);
+  }
+  await page.reload();
+  await expect(page.getByText('Account C1 Electronics')).toBeVisible();
+  await expect(page.getByText('Account C1 3D')).toBeVisible();
   await page.screenshot({
-    path: `${EVIDENCE_DIR}/02-owner-home.png`,
+    path: `${EVIDENCE_DIR}/02-project-hub-electronics-chess.png`,
     fullPage: true,
   });
 
-  await page.getByRole('link', { name: 'Мои проекты' }).first().click();
-  await expect(page.getByRole('heading', { name: 'Мои проекты' })).toBeVisible();
+  const secondContext = await browser.newContext();
+  const secondPage = await secondContext.newPage();
+  const secondFailures = collectBrowserFailures(secondPage, {
+    allowAnonymousSessionProbe: true,
+  });
+  await secondPage.goto('/#/sign-in');
+  await secondPage.getByLabel('Email или имя пользователя').fill(username);
+  await secondPage.getByLabel('Пароль').fill(password);
+  await secondPage.getByRole('checkbox', { name: 'Я не робот' }).press('Space');
+  await secondPage.getByRole('button', { name: 'Войти', exact: true }).click();
+  await expect(secondPage.getByRole('heading', { name: 'Главная' })).toBeVisible();
+  secondFailures.assertEmpty();
+
+  const meResponse = await context.request.get('/api/auth/me');
+  expect(meResponse.status()).toBe(200);
+  const accountId = (await meResponse.json()).user.id as string;
+  const tenantResult = await admin.query(
+    `INSERT INTO tenants (title, workspace_slug)
+     VALUES ('Owner Preview Organization', $1) RETURNING id`,
+    [`owner-preview-${unique}`.slice(0, 60)],
+  );
+  const organizationResult = await admin.query(
+    `INSERT INTO workspaces (tenant_id, kind, title)
+     VALUES ($1, 'organization', 'Owner Preview School') RETURNING id`,
+    [tenantResult.rows[0].id],
+  );
+  await admin.query(
+    `INSERT INTO workspace_memberships (account_id, workspace_id, role)
+     VALUES ($1, $2, 'educator')`,
+    [accountId, organizationResult.rows[0].id],
+  );
+
+  // The school above was linked straight in the database, so the page still
+  // holds the profile it loaded before that.
+  await page.reload();
+  // The account shell is reached through "Настройки" now, and its heading is
+  // written for a person rather than for the architecture.
+  await openAccountSettings(page);
+  await expect(page.getByRole('heading', { name: 'Ваш аккаунт' })).toBeVisible();
+  // The shell is tabbed now: schools and sessions live on their own panels
+  // rather than all on one page. The panel names repeat as headings inside the
+  // panels, so the clicks go through the settings navigation.
+  const settingsPanel = (name: string) =>
+    page.getByLabel('Разделы настроек').getByRole('button', { name, exact: true });
+
+  // Scoped to the panel: the school name also sits in the header's account
+  // menu, which is a closed disclosure, and an unscoped match finds that copy
+  // first and reports it as hidden.
+  const settingsContent = page.locator('.account-settings-content');
+
+  // Profile save must not issue a capability. Teaching is a separate command.
+  await page.getByLabel(/^Отображаемое имя/).fill('Owner C1 Ready');
+  await page.getByRole('button', { name: 'Сохранить изменения' }).click();
+  await expect(
+    settingsContent.getByText(/Изменения сохранены|Роль педагога включена/),
+  ).toBeVisible();
   await page.screenshot({
-    path: `${EVIDENCE_DIR}/03-owner-projects-empty.png`,
+    path: `${EVIDENCE_DIR}/03-account-profile-desktop.png`,
+    fullPage: true,
+  });
+  expect(
+    (await (await context.request.get('/api/auth/me')).json()).capabilities.some(
+      (grant: { capability: string }) => grant.capability === 'educator',
+    ),
+  ).toBe(false);
+  await settingsPanel('Возможности').click();
+  await page
+    .getByRole('article')
+    .filter({ has: page.getByRole('heading', { name: 'Преподавание', exact: true }) })
+    .getByRole('button', { name: 'Подключить', exact: true })
+    .click();
+  await settingsPanel('Мои доступы').click();
+  await expect(settingsContent.getByText('Owner Preview School', { exact: true })).toBeVisible();
+  await settingsPanel('Вход и безопасность').click();
+  // The session summary carries the platform of whatever machine runs the
+  // browser, so pinning it to Linux made the spec pass only on CI.
+  await expect(settingsContent.getByText(/Chrome · \S+/)).toBeVisible();
+  await settingsPanel('Профиль').click();
+
+  // Switching workspace is done from the account menu now, not from a card on
+  // the account page.
+  await switchWorkspace(page, 'Owner Preview School');
+  await expect(portalSection(page, 'Классы')).toBeVisible();
+  await page.screenshot({
+    path: `${EVIDENCE_DIR}/04-workspace-switched-desktop.png`,
     fullPage: true,
   });
 
-  await page.getByRole('button', { name: 'Новый проект' }).click();
-  await page.getByText('Виртуальная электроника').click();
-  await page.getByRole('button', { name: 'Создать' }).click();
-  await expect(page).toHaveURL(/#\/projects\/[^/]+\/edit$/);
-  await expect(page.getByText('Виртуальная электроника')).toBeVisible();
-  const electronicsUrl = page.url();
-  await page.screenshot({
-    path: `${EVIDENCE_DIR}/04-electronics-editor.png`,
-    fullPage: true,
-  });
+  await switchWorkspace(page, PERSONAL_WORKSPACE);
+  await expect(page).toHaveURL(/#\/home$/);
 
-  await page.goto('/#/projects');
-  await page.getByRole('button', { name: 'Новый проект' }).click();
-  await page.getByText('3D-моделирование').click();
-  await page.getByRole('button', { name: 'Создать' }).click();
-  await expect(page).toHaveURL(/#\/projects\/[^/]+\/edit$/);
-  await expect(page.getByText('3D-моделирование')).toBeVisible();
-  await page.screenshot({
-    path: `${EVIDENCE_DIR}/05-three-d-editor.png`,
-    fullPage: true,
-  });
-
-  await page.goto('/#/projects');
-  await expect(page.getByRole('link', { name: /Виртуальная электроника/ })).toBeVisible();
-  await expect(page.getByRole('link', { name: /3D-моделирование/ })).toBeVisible();
-  await page.screenshot({
-    path: `${EVIDENCE_DIR}/06-owner-projects-filled.png`,
-    fullPage: true,
-  });
-
-  await page.goto(electronicsUrl);
-  await expect(page.getByText('Виртуальная электроника')).toBeVisible();
-
-  const secondPage = await browser.newPage();
-  const secondFailures = collectBrowserFailures(secondPage);
-  const second = await registerAccount(admin, secondPage, `other_${unique}`);
-  await secondPage.goto('/#/projects');
-  await expect(secondPage.getByText('У вас пока нет проектов')).toBeVisible();
-  await signOutAccount(secondPage);
-  expect(secondFailures).toEqual([]);
+  // Closed before the session behind it is ended: once revoked, that page's own
+  // polling answers 401 by design, and leaving it open reports the expected
+  // consequence as an unexpected browser failure.
   await secondPage.close();
 
-  expect(failures).toEqual([]);
+  await openAccountSettings(page);
+  await settingsPanel('Вход и безопасность').click();
+  await settingsContent.getByRole('button', { name: 'Завершить', exact: true }).first().click();
+  await expect(settingsContent.getByText('Выбранный вход завершён.')).toBeVisible();
+  const revokedSession = await secondContext.request.get('/api/auth/me');
+  expect(revokedSession.status()).toBe(401);
+  await secondContext.close();
+  await page.screenshot({
+    path: `${EVIDENCE_DIR}/05-session-management-desktop.png`,
+    fullPage: true,
+  });
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.evaluate(() => {
+    window.scrollTo(0, 0);
+    if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+  });
+  await expectNoHorizontalOverflow(page);
+  await expect(page.getByRole('heading', { name: 'Ваш аккаунт' })).toBeVisible();
+  await page.screenshot({
+    path: `${EVIDENCE_DIR}/06-account-profile-mobile.png`,
+    fullPage: true,
+  });
+
+  await page.setViewportSize({ width: 1366, height: 900 });
+  await page.goto('/#/projects');
+  await expect(page.getByText('Account C1 Electronics')).toBeVisible();
+  await expect(page.getByText('Account C1 3D')).toBeVisible();
+  await openAccountMenu(page);
+  await page.getByRole('button', { name: 'Выход' }).click();
+  await expect(page.getByRole('button', { name: 'Войти', exact: true }).first()).toBeVisible();
+  await page.goto('/#/sign-in');
+  await page.getByLabel('Email или имя пользователя').fill(username);
+  await page.getByLabel('Пароль').fill(password);
+  await page.getByRole('checkbox', { name: 'Я не робот' }).press('Space');
+  await page.getByRole('button', { name: 'Войти', exact: true }).click();
+  await expect(page.getByText('Account C1 Electronics')).toBeVisible();
+  await expect(page.getByText('Account C1 3D')).toBeVisible();
+  failures.assertEmpty();
 });
