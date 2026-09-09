@@ -6,7 +6,7 @@ on:
       - bot/format-public-homepage
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   format:
@@ -23,6 +23,17 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec prettier --write apps/web/src/pages/PublicEntryPage.tsx apps/web/index.html
+      - name: Commit formatted files
+        run: |
+          if git diff --quiet -- apps/web/src/pages/PublicEntryPage.tsx apps/web/index.html; then
+            echo "Already formatted"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/web/src/pages/PublicEntryPage.tsx apps/web/index.html
+          git commit -m "style(web): format public homepage"
+          git push
       - uses: actions/upload-artifact@v4
         with:
           name: formatted-public-homepage
