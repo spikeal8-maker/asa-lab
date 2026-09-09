@@ -29,31 +29,40 @@ development_policy:
 task:
   id: TASK-ASA-ACCESS-A-INTEGRATE-001
   issue: 173
-  branch: codex/asa-access-a-result-a
+  branch: main
   base_branch: main
   pr: 174
-  pr_draft: true
-  # Technical integration only. Product acceptance below applies to the accepted
-  # source, not to unverified descendant checks. No PR merge, deployment or B/C.
-  status: in_progress
-  checkpoint: accepted_result_a_integration_candidate_verification
+  pr_draft: false
+  # Owner-authorized integration and merge are complete. This does not assert a
+  # CI conclusion: Actions holds the result for each SHA. No deployment or B/C.
+  status: done
+  checkpoint: owner_accepted_result_a_merged_without_deployment
   owner_acceptance: accepted
 
 accepted_result:
   id: ASA-ACCESS-A
   status: OWNER_ACCEPTED
   source_sha: 62fd17721d779a957be0f398d7357774bed61795
+  integrated_sha: 75d0ec4e8b558935eb28a3a5677a73d67882b8fb
+  integrated_base_sha: cc712bc5155291b64dca3207457d26b055c118f6
+  merge_sha: 07ffd4e5266ded960ae8485a93a20103d607d6d9
   decision_date: '2026-09-09'
   known_unsupported:
     - bilateral_student_seat_to_account_linking
     - personal_self_study_runtime_progress
-  merge_authorized: false
+  # Consumed authorization for the exact integrated SHA/base above, not a
+  # standing permission for later changes or the unresolved requirements.
+  merge_authorized: true
   deployment_authorized: false
+  open_environment_checks:
+    - id: native_windows_three_d_touch_after_cdp_gesture
+      status: unverified
+      evidence: docs/testing/ACCESS_A_WINDOWS_TOUCH_REPRO.md
 
 # Commits that mean something. Anything not listed here is ordinary history.
 revisions:
   # Last merge into main. The product baseline every release candidate builds on.
-  product_merge_sha: 20986b1c8aa023b8359008d55c82393cc0426954
+  product_merge_sha: 07ffd4e5266ded960ae8485a93a20103d607d6d9
   # Which revision is green is a fact GitHub Actions holds per commit. It is
   # not recorded here: a hand-maintained copy went stale within hours the last
   # time, and it would go stale again on the next push.

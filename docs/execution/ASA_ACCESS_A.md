@@ -214,6 +214,11 @@ merge и production остаются под отдельным решением 
 
 ## Явные границы, не обещания
 
+Два native Windows touch-ограничения, версии среды, воспроизведение и отдельный
+пункт последующей проверки сохранены в
+[Windows touch evidence](../testing/ACCESS_A_WINDOWS_TOUCH_REPRO.md).
+Их нельзя закрывать результатом Linux CI.
+
 - Account-профиль, password/MAX/avatar/sessions/timezone сохраняются. Преподавание
   и авторство — отдельные серверные команды. Восемь разделов не содержат fake switches.
 - Linking Seat→Account **pending**: отсутствует контракт подтверждения обеих
@@ -229,3 +234,40 @@ merge и production остаются под отдельным решением 
   Seat. Слабые старые сессии без credential version намеренно не возобновляются;
   сами Seats, аватары, награды и учебные записи сохраняются.
 - Production rollout и Result B/C не разрешены. Принятие владельцем отдельно от CI.
+
+## Показ принятой реализации без production
+
+Скриншоты исходят из реального A–J/C1 browser run проверенного integrated
+candidate, а не из макета:
+[CI browser artifact](https://github.com/spikeal8-maker/asa-lab/actions/runs/34293114187/artifacts/10082236846).
+Внутри `e2e/artifacts/owner-preview/access-a`:
+`C-profile-no-role-change.png` — кабинет,
+`D-teaching-capability.png` — возможности,
+`E-independent-class.png` — независимый класс,
+`H-first-seat-profile.png` — результат входа ученика по личному ключу,
+`H-second-seat-isolation.png` — другой ученик после logout.
+
+Для интерактивного просмотра на Windows с установленными зависимостями,
+тестовыми PostgreSQL binaries и собранным проектом:
+
+```powershell
+$env:NX_SKIP_NX_CACHE = 'true'
+$env:ASA_TEST_PG_BIN = '<каталог тестовых PostgreSQL binaries с initdb и pg_ctl>'
+$accessCorepack = '<каталог установки Node.js>\node_modules\corepack\dist\corepack.js'
+pnpm build
+node tools/access-a-sandbox.mjs $accessCorepack pnpm exec playwright test --config playwright.access-a.config.ts --debug
+```
+
+Заменить два пути на существующие локальные. Сначала убедиться, что тестовый
+порт 4612 свободен; работающий production/чужой процесс не останавливать.
+Sandbox создаёт новую БД `asa_access_a_test` в отдельном временном кластере,
+сам задаёт её credentials и случайный loopback-порт PostgreSQL, применяет
+миграции только туда и останавливает этот кластер при завершении. Browser
+launcher отказывается использовать нетестовую БД и не переиспользует сервер.
+Не запускать с production-конфигурацией, не подставлять рабочую БД в команды.
+
+Playwright Inspector позволяет продолжать сценарий кнопкой Resume и смотреть
+страницы на `http://127.0.0.1:4612`. Короткий маршрут:
+Account → профиль → возможности → самостоятельное преподавание → класс;
+сценарий H: личный ключ Seat → «Моё обучение» → выход → другой Seat.
+Это временный проверочный стенд, не постоянно доступная новая публикация.
