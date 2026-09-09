@@ -1,4 +1,4 @@
-# ASA Lab publishes public educational and product information for search and
+# ASA Lab publishes public product and community information for search and
 # citation. Private application data and API endpoints must not be crawled.
 User-agent: *
 Content-Signal: search=yes,ai-input=yes,ai-train=no,use=reference
