@@ -166,9 +166,7 @@ function validateDocument(value: unknown): ModuleValidationResult<BlocksProjectD
 
 function spriteCount(projectJson: Record<string, unknown> | null): number {
   if (!projectJson || !Array.isArray(projectJson.targets)) return 0;
-  return projectJson.targets.filter(
-    (target) => isRecord(target) && target.isStage !== true,
-  ).length;
+  return projectJson.targets.filter((target) => isRecord(target) && target.isStage !== true).length;
 }
 
 function createPreview(document: BlocksProjectDocumentV1): ModulePreviewDescriptor {
