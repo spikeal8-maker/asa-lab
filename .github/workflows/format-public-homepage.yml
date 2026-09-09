@@ -1,0 +1,31 @@
+name: Format public homepage artifact
+
+on:
+  push:
+    branches:
+      - bot/format-public-homepage
+
+permissions:
+  contents: read
+
+jobs:
+  format:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec prettier --write apps/web/src/pages/PublicEntryPage.tsx apps/web/index.html
+      - uses: actions/upload-artifact@v4
+        with:
+          name: formatted-public-homepage
+          path: |
+            apps/web/src/pages/PublicEntryPage.tsx
+            apps/web/index.html
