@@ -23,7 +23,8 @@ import {
 } from '@asa-lab/classroom';
 import { createSessionToken, hashSessionToken } from '@asa-lab/identity';
 import type { ActiveContextUseCase } from '@asa-lab/identity';
-import { SESSION_COOKIE, TOKENS } from './tokens.js';
+import { REFRESH_COOKIE, SESSION_COOKIE, TOKENS } from './tokens.js';
+import { RefreshSessionService } from './refresh-session.service.js';
 import { checkBodyShape } from './validation.js';
 import { clientAddress, clientConnection } from './client-address.js';
 import { BotChallengeService } from './bot-challenge.js';
@@ -463,18 +464,24 @@ export class ClassroomJoinController {
     @Body() rawBody: unknown,
   ) {
     this.checkRateLimit(request);
-    const shape = checkBodyShape(rawBody, ['code', 'loginHandle', 'botProof']);
+    const shape = checkBodyShape(rawBody, ['code', 'loginHandle', 'credential', 'botProof']);
     const code = shape.ok ? shape.body['code'] : null;
     const loginHandle = shape.ok ? shape.body['loginHandle'] : null;
+    const credential = shape.ok ? shape.body['credential'] : null;
     if (
       !shape.ok ||
       typeof code !== 'string' ||
       normalizeClassroomCode(code).length !== 9 ||
       typeof loginHandle !== 'string' ||
+      typeof credential !== 'string' ||
+      !/^[A-Za-z0-9_-]{24}$/.test(credential) ||
       !/^[a-zA-Z0-9._-]{3,32}$/.test(loginHandle.trim())
     ) {
       throw new HttpException(
-        error('validation_error', 'Введите код класса и выданное педагогом имя.'),
+        error(
+          'validation_error',
+          'Введите код класса, имя и личный ключ, выданный преподавателем.',
+        ),
         400,
       );
     }
@@ -493,10 +500,11 @@ export class ClassroomJoinController {
     }
     const token = createSessionToken();
     const result = await this.requirePool().query(
-      `SELECT ${SEAT_SESSION_COLUMNS} FROM classroom_student_seat_sign_in($1, $2, $3, $4)`,
+      `SELECT ${SEAT_SESSION_COLUMNS} FROM classroom_student_seat_sign_in($1, $2, $3, $4, $5)`,
       [
         classroomCodeHash(code),
         loginHandle.trim().toLowerCase(),
+        hashSessionToken(credential),
         hashSessionToken(token),
         STUDENT_SESSION_HOURS,
       ],
@@ -506,7 +514,7 @@ export class ClassroomJoinController {
       throw new HttpException(
         error(
           'invalid_class_credentials',
-          'Код или имя для входа не подошли. Попросите педагога проверить данные.',
+          'Данные для входа не подошли. Попросите преподавателя проверить имя и личный ключ.',
         ),
         401,
       );
@@ -518,6 +526,8 @@ export class ClassroomJoinController {
       secure: process.env['NODE_ENV'] === 'production',
       maxAge: STUDENT_SESSION_HOURS * 60 * 60,
     });
+    reply.clearCookie(SESSION_COOKIE, { path: '/' });
+    reply.clearCookie(REFRESH_COOKIE, { path: '/api/auth' });
     await this.recordSeatActivity(row.seat_id, 'seat.signed_in');
     const seatContext = await new SeatContextUseCase(this.pool).resolve(token);
     if (seatContext && this.analytics) {
@@ -1359,7 +1369,16 @@ export class ClassroomJoinController {
       ]);
       if (seatId) await this.recordSeatActivity(seatId, 'seat.signed_out');
     }
+    if (request.cookies[SESSION_COOKIE]) {
+      await new RefreshSessionService(this.requirePool()).revoke(
+        request.cookies[REFRESH_COOKIE],
+        request.cookies[SESSION_COOKIE],
+      );
+      await this.activeContext.logout(request.cookies[SESSION_COOKIE]);
+    }
     reply.clearCookie(STUDENT_SESSION_COOKIE, { path: '/' });
+    reply.clearCookie(SESSION_COOKIE, { path: '/' });
+    reply.clearCookie(REFRESH_COOKIE, { path: '/api/auth' });
     return { ok: true };
   }
 }

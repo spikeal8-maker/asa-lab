@@ -84,6 +84,11 @@ export async function switchWorkspace(page: Page, title: string | RegExp): Promi
   const entry = page.locator('.portal-account-workspace-list button').filter({ hasText: title });
   await expect(entry).toBeVisible();
   await entry.click();
+  // The URL may already be /home while POST context + GET me are still pending.
+  // Wait for the server-refreshed selection, not the old header that is about
+  // to be replaced and would detach the next account-menu action.
+  await expect(entry).toHaveClass('current');
+  await expect(accountMenu(page)).not.toBeVisible();
 }
 
 /** Personal space is listed by its own title with this subtitle underneath. */

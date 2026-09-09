@@ -61,6 +61,14 @@ def _checkout_contains_task_branch(branch: str) -> bool:
     unchecked.
     """
     try:
+        local = subprocess.run(
+            ["git", "symbolic-ref", "--quiet", "--short", "HEAD"],
+            cwd=ROOT, capture_output=True, text=True, timeout=30, check=False,
+        )
+        # A legitimate local task branch must be checked before its first push.
+        # Detached CI checkouts still use the ancestry proof below.
+        if local.returncode == 0 and local.stdout.strip() == branch:
+            return True
         result = subprocess.run(
             ["git", "merge-base", "--is-ancestor", f"origin/{branch}", "HEAD"],
             cwd=ROOT,
@@ -110,6 +118,7 @@ HISTORICAL_TASK_IDS = {
     "TASK-ELECTRONICS-SLICE-001", "TASK-CHECKERS-LITE-001",
     "TASK-ELECTRONICS-ALPHA-001", "TASK-SEAT-001", "TASK-ACT-001",
     "TASK-REVIEW-001", "TASK-ELEC-001",
+    "TASK-ADMIN-AUTH-STABILITY-001",
 }
 COVERAGE_REQUIRED_STATUSES = {"ready", "in_progress", "in_review", "done"}
 REQUIRED_TEST_FIELDS = {"id", "title", "suite", "level", "phase_available", "required_for", "command", "timeout_seconds", "owner", "artifacts"}

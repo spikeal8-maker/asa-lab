@@ -42,12 +42,12 @@ PRODUCT_README_PATH = ROOT / "docs/product/README.md"
 TASK_SYSTEM_PATH = ROOT / "docs/project-map/TASK_SYSTEM.md"
 
 TASK_ID_PATTERN = re.compile(r"\bTASK-[A-Z0-9]+(?:-[A-Z0-9]+)*-[0-9]{3}\b")
-PRODUCT_BRANCH_PATTERN = re.compile(r"\bagent/[a-z0-9][a-z0-9./_-]*", re.IGNORECASE)
+PRODUCT_BRANCH_PATTERN = re.compile(r"\b(?:agent|codex)/[a-z0-9][a-z0-9./_-]*", re.IGNORECASE)
 HISTORICAL_IMPERATIVE_PATTERN = re.compile(
     r"^Historical result:\s*(?:implement|build|verify|preserve|stabili[sz]e)\b",
     re.IGNORECASE,
 )
-BRANCH_PATTERN = re.compile(r"(?:main|agent/[a-z0-9][a-z0-9./_-]*)", re.IGNORECASE)
+BRANCH_PATTERN = re.compile(r"(?:main|(?:agent|codex)/[a-z0-9][a-z0-9./_-]*)", re.IGNORECASE)
 SHA_PATTERN = re.compile(r"\b[0-9a-f]{40}\b")
 
 # Documents that describe policy or process and must not restate execution state.
@@ -170,7 +170,7 @@ def check_no_duplicate_keys(errors: list[str]) -> None:
             errors.append(f"{relative}: {detail}")
 
 
-def check_task_record(task: Any, errors: list[str], label: str = "current.yaml task") -> dict[str, Any]:
+def check_task_record(task: Any, errors: list[str], label: str = "current.yaml task", *, optional_pr: bool = False) -> dict[str, Any]:
     if not isinstance(task, dict):
         errors.append(f"{label} must be a mapping")
         return {}
@@ -188,11 +188,11 @@ def check_task_record(task: Any, errors: list[str], label: str = "current.yaml t
     if not isinstance(issue, int) or isinstance(issue, bool) or issue <= 0:
         errors.append(f"{label}.issue must be a positive integer")
     pr = task.get("pr")
-    if branch == "main":
+    if branch == "main" or optional_pr:
         if pr is not None and (
             not isinstance(pr, int) or isinstance(pr, bool) or pr <= 0
         ):
-            errors.append(f"{label}.pr must be null or a positive integer for main")
+            errors.append(f"{label}.pr must be null or a positive integer when PR is optional")
     elif not isinstance(pr, int) or isinstance(pr, bool) or pr <= 0:
         errors.append(f"{label}.pr must be a positive integer")
     base_branch = task.get("base_branch")
@@ -244,7 +244,7 @@ def check_current(current: Any, errors: list[str]) -> dict[str, Any]:
     if version not in SUPPORTED_SCHEMA_VERSIONS:
         errors.append(f"current.yaml schema_version unsupported: {version!r}")
     mode = check_development_policy(current, errors)
-    task = check_task_record(current.get("task"), errors)
+    task = check_task_record(current.get("task"), errors, optional_pr=mode == DIRECT_MAIN_MODE)
     if mode != DIRECT_MAIN_MODE:
         check_lease(current.get("execution_lease"), errors)
     check_gate_shape(current.get("gates"), errors)
@@ -464,7 +464,7 @@ def collect_lanes(
             revisions = current.get("revisions") or {}
         else:
             task = check_task_record(
-                source.get("task"), errors, f"current.yaml {label}.task"
+                source.get("task"), errors, f"current.yaml {label}.task", optional_pr=not leases_required
             )
             lease = source.get("execution_lease")
             gates = source.get("gates")

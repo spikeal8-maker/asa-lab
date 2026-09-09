@@ -32,7 +32,7 @@ describe('classroom seat sign-in abuse limits', () => {
       activeContext,
       new BotChallengeService({ required: false }),
     );
-    const body = { code: 'ABC DEF 234', loginHandle: 'student-one' };
+    const body = { code: 'ABC DEF 234', loginHandle: 'student-one', credential: 'A'.repeat(24) };
 
     for (let attempt = 0; attempt < 10; attempt += 1) {
       await expect(

@@ -30,9 +30,12 @@ function target(options: { educator?: boolean; rows?: unknown[] } = {}) {
       principalId: PRINCIPAL_ID,
       accountId: ACCOUNT_ID,
       tenantId: TENANT_ID,
+      workspaceId: TENANT_ID,
+      workspaceKind: 'personal',
     })),
   } as unknown as ActiveContextUseCase;
   const accounts = {
+    workspaces: vi.fn(async () => [{ workspaceId: TENANT_ID, kind: 'personal', role: 'owner' }]),
     capabilities: vi.fn(async () =>
       options.educator === false ? [] : [{ capability: 'educator', state: 'verified' }],
     ),

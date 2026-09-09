@@ -41,7 +41,8 @@ export interface SessionPayload {
   capabilities: CapabilityRef[];
   workspaces: WorkspaceRef[];
   activeWorkspace: { workspaceId: string; kind: string };
-  navigation: { classes: boolean; classroomManagement: boolean };
+  actions?: readonly string[];
+  navigation: { classes: boolean; classroomManagement: boolean; contentAuthoring?: boolean };
   /** The teacher's own zone; every classroom date is read in it. */
   timeZone: string | null;
 }
@@ -112,6 +113,11 @@ export interface BotProof extends BotChallenge {
 
 export interface Classroom {
   id: string;
+  learningContext?: {
+    id: string;
+    kind: 'school' | 'independent_teaching';
+    schoolId: string | null;
+  };
   title: string;
   status: string;
   ageBand: '6-8' | '9-10' | '11-12' | '13-15' | '16-18' | 'mixed';
@@ -1429,6 +1435,50 @@ export const api = {
       '/api/capabilities/educator/self-attest',
       { method: 'POST', body: JSON.stringify({}) },
     ),
+  selfAttestContentAuthor: () =>
+    call<{ capability: 'content_author'; state: string; created: boolean }>(
+      '/api/capabilities/content-author/self-attest',
+      { method: 'POST', body: JSON.stringify({}) },
+    ),
+  authoredActivities: () =>
+    call<{
+      items: {
+        id: string;
+        title: string;
+        kind: string;
+        draftRevision: number;
+        currentPublishedVersionId: string | null;
+      }[];
+    }>('/api/learning/activities'),
+  authoredActivity: (id: string) =>
+    call<{
+      id: string;
+      title: string;
+      draftRevision: number;
+      draft: { instructions: string | null };
+    }>(`/api/learning/activities/${encodeURIComponent(id)}`),
+  createAuthoredActivity: (title: string, instructions: string, requestId: string) =>
+    call<{ id: string; draftRevision: number }>('/api/learning/activities', {
+      method: 'POST',
+      body: JSON.stringify({
+        title,
+        instructions,
+        requestId,
+        kind: 'manual',
+        resultMode: 'ungraded',
+        maxPoints: null,
+        scope: 'personal',
+        visibility: 'private',
+        policies: {
+          attemptPolicy: null,
+          resultSelectionPolicy: null,
+          completionPolicy: null,
+          latePolicy: null,
+          assessmentPolicy: null,
+          feedbackReleasePolicy: null,
+        },
+      }),
+    }),
   listAccountSessions: () => call<{ items: AccountSession[] }>('/api/account/sessions'),
   revokeAccountSession: (sessionId: string) =>
     call<{ ok: true }>(`/api/account/sessions/${encodeURIComponent(sessionId)}`, {
@@ -2156,15 +2206,31 @@ export const api = {
     call<{
       classroom: { id: string; title: string; teacherDisplayName: string; safeMode: boolean };
     }>('/api/class-join/resolve', { method: 'POST', body: JSON.stringify({ code }) }),
-  signInClassroomSeat: (code: string, loginHandle: string, botProof: BotProof) =>
+  signInClassroomSeat: (
+    code: string,
+    loginHandle: string,
+    botProof: BotProof,
+    credential: string,
+  ) =>
     call<ClassroomStudentSession>('/api/class-join/studentseat', {
       method: 'POST',
-      body: JSON.stringify({ code, loginHandle, botProof }),
+      body: JSON.stringify({ code, loginHandle, botProof, credential }),
     }),
+  issueSeatCredential: (classroomId: string, seatId: string, requestId: string) =>
+    call<{ credential: string; version: number }>(
+      `/api/classrooms/${encodeURIComponent(classroomId)}/seats/${encodeURIComponent(seatId)}/credential`,
+      { method: 'POST', body: JSON.stringify({ requestId }) },
+    ),
   classroomStudentMe: () =>
     call<ClassroomStudentSession | { authenticated: false }>('/api/class-join/me'),
-  classroomStudentLogout: () =>
-    call<{ ok: true }>('/api/class-join/logout', { method: 'POST', body: JSON.stringify({}) }),
+  classroomStudentLogout: async () => {
+    const result = await call<{ ok: true }>('/api/class-join/logout', {
+      method: 'POST',
+      body: JSON.stringify({}),
+    });
+    if (result.ok) notifySessionLoggedOut();
+    return result;
+  },
   listProjects: async (options: ProjectListOptions = {}) => {
     const query = new URLSearchParams();
     if (options.scope) query.set('scope', options.scope);

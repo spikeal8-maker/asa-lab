@@ -30,8 +30,15 @@ import { deviceTimeZone, timeZoneLabel } from '../components/school-time';
 
 const USERNAME_PATTERN = String.raw`[a-zA-Z0-9][a-zA-Z0-9._\-]*[a-zA-Z0-9]`;
 
-type SettingsPanel = 'profile' | 'school' | 'security';
-type AccountRole = 'creator' | 'educator';
+type SettingsPanel =
+  | 'profile'
+  | 'school'
+  | 'security'
+  | 'interface'
+  | 'notifications'
+  | 'capabilities'
+  | 'requests'
+  | 'privacy';
 
 const SETTINGS_PANELS: ReadonlyArray<{
   readonly id: SettingsPanel;
@@ -39,8 +46,13 @@ const SETTINGS_PANELS: ReadonlyArray<{
   readonly icon: JSX.Element;
 }> = [
   { id: 'profile', label: 'Профиль', icon: <UserIcon /> },
-  { id: 'school', label: 'Школа и классы', icon: <ClassesIcon /> },
-  { id: 'security', label: 'Учётная запись', icon: <InspectIcon /> },
+  { id: 'security', label: 'Вход и безопасность', icon: <InspectIcon /> },
+  { id: 'interface', label: 'Интерфейс', icon: <InspectIcon /> },
+  { id: 'notifications', label: 'Уведомления', icon: <InspectIcon /> },
+  { id: 'capabilities', label: 'Возможности', icon: <ClassesIcon /> },
+  { id: 'school', label: 'Мои доступы', icon: <ClassesIcon /> },
+  { id: 'requests', label: 'Приглашения и запросы', icon: <ClassesIcon /> },
+  { id: 'privacy', label: 'Данные и приватность', icon: <InspectIcon /> },
 ];
 
 /** Sign-in history reads in the account's own zone, like everything else. */
@@ -91,7 +103,10 @@ export function AccountPage({
   const [username, setUsername] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [bio, setBio] = useState('');
-  const [accountRole, setAccountRole] = useState<AccountRole>('creator');
+  const profileDirty = useRef(false);
+  const profileLoaded = useRef(false);
+  const loadGeneration = useRef(0);
+  const [resourceErrors, setResourceErrors] = useState<string[]>([]);
   const [schoolTitle, setSchoolTitle] = useState('');
   const [classroomCount, setClassroomCount] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
@@ -130,44 +145,107 @@ export function AccountPage({
   useEffect(() => setPanel(initialPanel), [initialPanel]);
 
   const refresh = useCallback(async (): Promise<void> => {
-    setLoading(true);
+    const generation = ++loadGeneration.current;
+    setLoading(!profileLoaded.current);
     setError(null);
-    const [
-      profileResult,
-      sessionsResult,
-      avatarResult,
-      maxStatusResult,
-      maxConfigResult,
-      passwordResult,
-    ] = await Promise.all([
-      api.accountProfile(),
-      api.listAccountSessions(),
-      api.accountAvatar(),
-      api.maxStatus(),
-      api.maxConfig(),
-      api.accountPasswordStatus(),
+    setResourceErrors([]);
+    // Each resource settles independently. A slow avatar or unavailable MAX must
+    // not hold the profile behind a spinner, nor erase an unsaved profile draft.
+    const current = () => generation === loadGeneration.current;
+    const failed = (label: string) => {
+      if (current()) setResourceErrors((items) => [...items, label]);
+    };
+    await Promise.all([
+      (async () => {
+        try {
+          const result = await api.accountProfile();
+          if (!current()) return;
+          if (!result.ok) throw new Error('profile_unavailable');
+          setProfile(result.data);
+          if (!profileDirty.current) {
+            setUsername(result.data.username);
+            setDisplayName(result.data.displayName);
+            setBio(result.data.bio ?? '');
+          }
+          profileLoaded.current = true;
+        } catch {
+          if (current()) setError('Не удалось загрузить профиль. Повторите попытку.');
+        } finally {
+          if (current()) setLoading(false);
+        }
+      })(),
+      (async () => {
+        try {
+          const result = await api.listAccountSessions();
+          if (!current()) return;
+          if (!result.ok) throw new Error('sessions_unavailable');
+          setSessions(result.data.items);
+        } catch {
+          failed('Активные входы');
+        }
+      })(),
+      (async () => {
+        try {
+          const result = await api.accountAvatar();
+          if (!current()) return;
+          if (!result.ok) throw new Error('avatar_unavailable');
+          setAvatarDataUrl(result.data.avatarDataUrl);
+        } catch {
+          failed('Аватар');
+        }
+      })(),
+      (async () => {
+        try {
+          const result = await api.maxStatus();
+          if (!current()) return;
+          setMaxStatus(result.ok ? result.data : null);
+          if (!result.ok) failed('Статус MAX');
+        } catch {
+          if (current()) setMaxStatus(null);
+          failed('Статус MAX');
+        }
+      })(),
+      (async () => {
+        try {
+          const result = await api.maxConfig();
+          if (!current()) return;
+          setMaxConfig(result.ok ? result.data : null);
+          if (!result.ok) failed('Подключение MAX');
+        } catch {
+          if (current()) setMaxConfig(null);
+          failed('Подключение MAX');
+        }
+      })(),
+      (async () => {
+        try {
+          const result = await api.accountPasswordStatus();
+          if (!current()) return;
+          setPasswordStatus(result.ok ? result.data : null);
+          if (!result.ok) failed('Пароль');
+        } catch {
+          if (current()) setPasswordStatus(null);
+          failed('Пароль');
+        }
+      })(),
     ]);
-    if (!profileResult.ok || !sessionsResult.ok || !avatarResult.ok) {
-      setError('Не удалось загрузить настройки аккаунта.');
-      setLoading(false);
-      return;
-    }
-    setProfile(profileResult.data);
-    setUsername(profileResult.data.username);
-    setDisplayName(profileResult.data.displayName);
-    setBio(profileResult.data.bio ?? '');
-    setAccountRole(educatorEnabled(profileResult.data) ? 'educator' : 'creator');
-    setSessions(sessionsResult.data.items);
-    setAvatarDataUrl(avatarResult.data.avatarDataUrl);
-    setMaxStatus(maxStatusResult.ok ? maxStatusResult.data : null);
-    setMaxConfig(maxConfigResult.ok ? maxConfigResult.data : null);
-    setPasswordStatus(passwordResult.ok ? passwordResult.data : null);
-    setLoading(false);
   }, []);
 
   useEffect(() => {
     void refresh();
+    return () => {
+      loadGeneration.current += 1;
+    };
   }, [refresh]);
+
+  useEffect(() => {
+    const protectDraft = (event: BeforeUnloadEvent) => {
+      if (!profileDirty.current) return;
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', protectDraft);
+    return () => window.removeEventListener('beforeunload', protectDraft);
+  }, []);
 
   useEffect(() => {
     if (!maxPairingToken) return;
@@ -266,20 +344,6 @@ export function AccountPage({
     setError(null);
     setNotice(null);
 
-    const persistedRole: AccountRole = isEducator ? 'educator' : 'creator';
-    if (accountRole !== persistedRole) {
-      const roleResult = await api.setAccountRole(accountRole);
-      if (!roleResult.ok) {
-        setBusyAction(null);
-        setError(
-          roleResult.error.code === 'underage'
-            ? 'Роль педагога доступна совершеннолетним пользователям.'
-            : roleResult.error.message,
-        );
-        return;
-      }
-    }
-
     const result = await api.updateAccountProfile(username, displayName, bio);
     if (!result.ok) {
       setBusyAction(null);
@@ -291,13 +355,52 @@ export function AccountPage({
       return;
     }
 
-    await Promise.all([refresh(), refreshSession()]);
+    profileDirty.current = false;
+    setProfile(result.data);
+    setUsername(result.data.username);
+    setDisplayName(result.data.displayName);
+    setBio(result.data.bio ?? '');
+    await refreshSession();
     setBusyAction(null);
-    setNotice(
-      accountRole === 'educator' && schoolWorkspaces.length === 0
-        ? 'Роль педагога включена. Теперь создайте школу в разделе «Школа и классы».'
-        : 'Изменения сохранены.',
-    );
+    setNotice('Изменения сохранены.');
+  }
+
+  async function enableTeaching(): Promise<void> {
+    setBusyAction('educator');
+    setError(null);
+    setNotice(null);
+    try {
+      const result = await api.selfAttestEducator();
+      if (!result.ok) {
+        setError(
+          result.error.code === 'underage'
+            ? 'Преподавание доступно совершеннолетним пользователям.'
+            : result.error.message || 'Не удалось подключить преподавание.',
+        );
+        return;
+      }
+      await Promise.all([refresh(), refreshSession()]);
+      setNotice('Преподавание подключено. Ваши личные проекты и обучение сохранены.');
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function enableAuthoring(): Promise<void> {
+    setBusyAction('author');
+    setError(null);
+    setNotice(null);
+    try {
+      const result = await api.selfAttestContentAuthor();
+      if (!result.ok) {
+        setError(result.error.message);
+        return;
+      }
+      await Promise.all([refresh(), refreshSession()]);
+      setNotice('Создание материалов подключено. Доступ к ученикам не изменён.');
+    } finally {
+      setBusyAction(null);
+    }
   }
 
   async function saveAvatarFile(file: File): Promise<void> {
@@ -381,7 +484,7 @@ export function AccountPage({
       setBusyAction(null);
       setError(
         result.error.code === 'educator_required'
-          ? 'Сначала выберите роль «Педагог» в профиле.'
+          ? 'Сначала подключите преподавание в разделе «Возможности».'
           : result.error.message,
       );
       return;
@@ -497,7 +600,7 @@ export function AccountPage({
     if (sessionsResult.ok) setSessions(sessionsResult.data.items);
   }
 
-  if (loading || !profile) {
+  if (loading) {
     return (
       <main id="main-content" className="account-page" aria-busy="true" tabIndex={-1}>
         <div className="account-loading" role="status">
@@ -507,24 +610,50 @@ export function AccountPage({
     );
   }
 
+  if (!profile)
+    return (
+      <main id="main-content" className="account-page" tabIndex={-1}>
+        <h1>Ваш аккаунт</h1>
+        <p role="alert">{error ?? 'Профиль временно недоступен.'}</p>
+        <button type="button" className="btn-secondary" onClick={() => void refresh()}>
+          Повторить
+        </button>
+      </main>
+    );
+
   const maxManagedProfile = profile.email.endsWith('@users.asa.invalid');
 
-  const roleChanged = accountRole !== (isEducator ? 'educator' : 'creator');
   const profileChanged =
     username !== profile.username ||
     displayName !== profile.displayName ||
-    bio !== (profile.bio ?? '') ||
-    roleChanged;
+    bio !== (profile.bio ?? '');
 
   return (
     <main id="main-content" className="account-page account-settings-page" tabIndex={-1}>
       <header className="account-heading">
         <p className="portal-eyebrow">Настройки</p>
         <h1>Ваш аккаунт</h1>
-        <p>Профиль, роль, школы и безопасность — без технических терминов.</p>
       </header>
 
       <div className="account-settings-shell">
+        <label className="account-mobile-panel-picker">
+          Раздел настроек
+          <select
+            aria-label="Выбрать раздел настроек"
+            value={panel}
+            onChange={(event) => {
+              setPanel(event.target.value as SettingsPanel);
+              setError(null);
+              setNotice(null);
+            }}
+          >
+            {SETTINGS_PANELS.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.label}
+              </option>
+            ))}
+          </select>
+        </label>
         <aside className="account-settings-navigation" aria-label="Разделы настроек">
           <strong>Настройки</strong>
           <nav>
@@ -535,6 +664,13 @@ export function AccountPage({
                 className={panel === item.id ? 'active' : undefined}
                 aria-current={panel === item.id ? 'page' : undefined}
                 onClick={() => {
+                  if (
+                    profileChanged &&
+                    !window.confirm(
+                      'Оставить несохранённые изменения в черновике и перейти в другой раздел?',
+                    )
+                  )
+                    return;
                   setPanel(item.id);
                   setError(null);
                   setNotice(null);
@@ -548,6 +684,18 @@ export function AccountPage({
         </aside>
 
         <div className="account-settings-content">
+          {resourceErrors.length > 0 ? (
+            <div className="account-message error" role="status">
+              Не удалось обновить: {resourceErrors.join(', ')}. Остальные настройки доступны.
+              <button
+                type="button"
+                className="account-inline-action"
+                onClick={() => void refresh()}
+              >
+                Повторить загрузку
+              </button>
+            </div>
+          ) : null}
           {error ? (
             <p className="account-message error" role="alert">
               {error}
@@ -624,7 +772,11 @@ export function AccountPage({
                     maxLength={40}
                     pattern={USERNAME_PATTERN}
                     autoComplete="username"
-                    onChange={(event) => setUsername(event.target.value)}
+                    disabled={busyAction === 'profile'}
+                    onChange={(event) => {
+                      profileDirty.current = true;
+                      setUsername(event.target.value);
+                    }}
                   />
                 </label>
                 <label>
@@ -635,21 +787,12 @@ export function AccountPage({
                     minLength={2}
                     maxLength={255}
                     autoComplete="name"
-                    onChange={(event) => setDisplayName(event.target.value)}
+                    disabled={busyAction === 'profile'}
+                    onChange={(event) => {
+                      profileDirty.current = true;
+                      setDisplayName(event.target.value);
+                    }}
                   />
-                </label>
-                <label>
-                  Кто вы в ASA Lab
-                  <small>
-                    Педагог может создавать школы и классы. Автор работает с личными проектами.
-                  </small>
-                  <select
-                    value={accountRole}
-                    onChange={(event) => setAccountRole(event.target.value as AccountRole)}
-                  >
-                    <option value="creator">Автор проектов</option>
-                    <option value="educator">Педагог</option>
-                  </select>
                 </label>
                 <label>
                   О себе
@@ -657,9 +800,13 @@ export function AccountPage({
                   <textarea
                     value={bio}
                     maxLength={960}
-                    rows={7}
+                    rows={4}
                     placeholder="Например: преподаю технологию, собираю роботов и создаю учебные модели."
-                    onChange={(event) => setBio(event.target.value)}
+                    disabled={busyAction === 'profile'}
+                    onChange={(event) => {
+                      profileDirty.current = true;
+                      setBio(event.target.value);
+                    }}
                   />
                   <span className="account-character-count">{bio.length} / 960</span>
                 </label>
@@ -671,10 +818,12 @@ export function AccountPage({
                   {busyAction === 'profile' ? 'Сохраняем…' : 'Сохранить изменения'}
                 </button>
               </form>
+            </section>
+          ) : null}
 
-              {/* Its own form because it has its own endpoint, and its own
-                  meaning: this is the clock the register runs on, not a detail
-                  of the public profile. */}
+          {panel === 'interface' ? (
+            <section className="account-settings-section" aria-label="Интерфейс">
+              <h2>Интерфейс</h2>
               <form
                 className="account-profile-form account-time-zone"
                 onSubmit={(event) => void saveTimeZone(event)}
@@ -705,27 +854,124 @@ export function AccountPage({
             </section>
           ) : null}
 
+          {panel === 'capabilities' ? (
+            <section className="account-settings-section" aria-label="Возможности">
+              <h2>Возможности</h2>
+              <article className="account-school-empty">
+                <div>
+                  <h3>Создавать материалы</h3>
+                  <p>Личная библиотека учебных материалов. Без управления классами и учениками.</p>
+                </div>
+                {session.navigation.contentAuthoring ? (
+                  <a className="btn-secondary" href="#/challenges">
+                    Открыть материалы
+                  </a>
+                ) : (
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    disabled={busyAction !== null}
+                    onClick={() => void enableAuthoring()}
+                  >
+                    {busyAction === 'author' ? 'Подключаем…' : 'Подключить авторство'}
+                  </button>
+                )}
+              </article>
+              <article className="account-school-empty">
+                <div>
+                  <h3>Преподавание</h3>
+                  <p>
+                    {isEducator
+                      ? 'Подключено. Личные проекты и обучение остаются доступны.'
+                      : 'Создавайте классы и проводите занятия. Школа для подключения не требуется.'}
+                  </p>
+                </div>
+                {isEducator ? (
+                  <button type="button" className="btn-primary" onClick={onOpenClasses}>
+                    Открыть классы
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="btn-primary"
+                    disabled={busyAction !== null}
+                    onClick={() => void enableTeaching()}
+                  >
+                    {busyAction === 'educator' ? 'Подключаем…' : 'Подключить'}
+                  </button>
+                )}
+              </article>
+            </section>
+          ) : null}
+
+          {panel === 'notifications' ? (
+            <section className="account-settings-section" aria-label="Уведомления">
+              <h2>Уведомления</h2>
+              <p>
+                События классов и аккаунта показываются в меню ASA Lab. Настройка отдельных рассылок
+                пока недоступна.
+              </p>
+              <p>Подключение MAX для входа само по себе не включает рассылку сообщений.</p>
+            </section>
+          ) : null}
+
+          {panel === 'requests' ? (
+            <section className="account-settings-section" aria-label="Приглашения и запросы">
+              <h2>Приглашения и запросы</h2>
+              <p>
+                Откройте адрес приглашения, полученный от преподавателя. Общий список приглашений
+                пока недоступен.
+              </p>
+              <a className="btn-secondary" href="#/attending">
+                Моё обучение с преподавателем
+              </a>
+            </section>
+          ) : null}
+
+          {panel === 'privacy' ? (
+            <section className="account-settings-section" aria-label="Данные и приватность">
+              <h2>Данные и приватность</h2>
+              <p>
+                Email и дата рождения не показываются другим пользователям. Видимость проектов
+                задаётся отдельно в каждом проекте.
+              </p>
+              <p>
+                Самостоятельное удаление аккаунта и выгрузка архива пока недоступны. Для запроса
+                обратитесь через справку.
+              </p>
+              <a className="btn-secondary" href="#/help">
+                Справка
+              </a>
+            </section>
+          ) : null}
+
           {panel === 'school' ? (
             <section className="account-settings-section" aria-labelledby="school-settings-title">
               <div className="account-section-heading">
-                <p className="account-card-kicker">Для педагога</p>
-                <h2 id="school-settings-title">Школа и классы</h2>
+                <h2 id="school-settings-title">Мои доступы</h2>
                 <p>
-                  Создайте школу с любым названием. Вы сразу станете её администратором и сможете
-                  создавать классы, приглашать учеников и выдавать задания.
+                  Ваши рабочие пространства. Доступ к каждому классу и материалу проверяется
+                  отдельно.
                 </p>
               </div>
+              <ul>
+                {profile.workspaces.map((workspace) => (
+                  <li key={workspace.workspaceId}>
+                    {workspace.title} ·{' '}
+                    {workspace.kind === 'personal'
+                      ? 'Личное пространство'
+                      : schoolRoleLabel(workspace.role)}
+                  </li>
+                ))}
+              </ul>
 
               {!isEducator ? (
                 <div className="account-school-empty">
                   <ClassesIcon />
                   <div>
-                    <h3>Включите роль педагога</h3>
-                    <p>Откройте «Профиль», выберите «Педагог» и сохраните изменения.</p>
+                    <h3>Личное пространство</h3>
+                    <p>Проекты и обучение доступны без подключения преподавания.</p>
                   </div>
-                  <button type="button" className="btn-primary" onClick={() => setPanel('profile')}>
-                    Перейти в профиль
-                  </button>
                 </div>
               ) : (
                 <>
@@ -862,7 +1108,13 @@ export function AccountPage({
               <div className="account-private-facts">
                 <div>
                   <span>MAX</span>
-                  <strong>{maxStatus?.linked ? 'Подтверждён' : 'Не подключён'}</strong>
+                  <strong>
+                    {maxStatus === null
+                      ? 'Статус недоступен'
+                      : maxStatus.linked
+                        ? 'Подтверждён'
+                        : 'Не подключён'}
+                  </strong>
                   <small>
                     {maxStatus?.verifiedAt
                       ? `Связан ${formatDate(maxStatus.verifiedAt, timeZone)}`
@@ -879,7 +1131,7 @@ export function AccountPage({
                     </button>
                   ) : null}
                 </div>
-                {!maxStatus?.linked && maxConfig?.enabled && maxConfig.launchUrl ? (
+                {maxStatus && !maxStatus.linked && maxConfig?.enabled && maxConfig.launchUrl ? (
                   <div>
                     <span>Подтверждение</span>
                     <button
@@ -900,64 +1152,70 @@ export function AccountPage({
                 ) : null}
               </div>
 
-              <form
-                className="account-password-form"
-                onSubmit={(event) => void changePassword(event)}
-              >
-                <div className="account-section-heading">
-                  <h3>{passwordStatus?.configured ? 'Изменить пароль' : 'Создать пароль'}</h3>
-                  <p>
-                    {passwordStatus?.canResetWithoutCurrent
-                      ? 'Вы вошли через MAX, поэтому текущий пароль не требуется.'
-                      : 'После изменения все остальные активные входы будут завершены.'}
-                  </p>
-                </div>
-                {!passwordStatus?.canResetWithoutCurrent ? (
+              {passwordStatus ? (
+                <form
+                  className="account-password-form"
+                  onSubmit={(event) => void changePassword(event)}
+                >
+                  <div className="account-section-heading">
+                    <h3>{passwordStatus?.configured ? 'Изменить пароль' : 'Создать пароль'}</h3>
+                    <p>
+                      {passwordStatus?.canResetWithoutCurrent
+                        ? 'Вы вошли через MAX, поэтому текущий пароль не требуется.'
+                        : 'После изменения все остальные активные входы будут завершены.'}
+                    </p>
+                  </div>
+                  {!passwordStatus?.canResetWithoutCurrent ? (
+                    <label>
+                      Текущий пароль
+                      <input
+                        type="password"
+                        autoComplete="current-password"
+                        value={currentPassword}
+                        onChange={(event) => setCurrentPassword(event.target.value)}
+                      />
+                    </label>
+                  ) : null}
                   <label>
-                    Текущий пароль
+                    Новый пароль
                     <input
                       type="password"
-                      autoComplete="current-password"
-                      value={currentPassword}
-                      onChange={(event) => setCurrentPassword(event.target.value)}
+                      minLength={10}
+                      maxLength={200}
+                      autoComplete="new-password"
+                      value={newPassword}
+                      onChange={(event) => setNewPassword(event.target.value)}
                     />
                   </label>
-                ) : null}
-                <label>
-                  Новый пароль
-                  <input
-                    type="password"
-                    minLength={10}
-                    maxLength={200}
-                    autoComplete="new-password"
-                    value={newPassword}
-                    onChange={(event) => setNewPassword(event.target.value)}
-                  />
-                </label>
-                <label>
-                  Повторите новый пароль
-                  <input
-                    type="password"
-                    minLength={10}
-                    maxLength={200}
-                    autoComplete="new-password"
-                    value={confirmPassword}
-                    onChange={(event) => setConfirmPassword(event.target.value)}
-                  />
-                </label>
-                <button
-                  type="submit"
-                  className="btn-primary"
-                  disabled={
-                    busyAction !== null ||
-                    newPassword.length < 10 ||
-                    newPassword !== confirmPassword ||
-                    (!passwordStatus?.canResetWithoutCurrent && currentPassword.length === 0)
-                  }
-                >
-                  {busyAction === 'password' ? 'Сохраняем…' : 'Сохранить пароль'}
-                </button>
-              </form>
+                  <label>
+                    Повторите новый пароль
+                    <input
+                      type="password"
+                      minLength={10}
+                      maxLength={200}
+                      autoComplete="new-password"
+                      value={confirmPassword}
+                      onChange={(event) => setConfirmPassword(event.target.value)}
+                    />
+                  </label>
+                  <button
+                    type="submit"
+                    className="btn-primary"
+                    disabled={
+                      busyAction !== null ||
+                      newPassword.length < 10 ||
+                      newPassword !== confirmPassword ||
+                      (!passwordStatus?.canResetWithoutCurrent && currentPassword.length === 0)
+                    }
+                  >
+                    {busyAction === 'password' ? 'Сохраняем…' : 'Сохранить пароль'}
+                  </button>
+                </form>
+              ) : (
+                <p role="status">
+                  Состояние пароля временно недоступно. Повторите загрузку настроек.
+                </p>
+              )}
 
               <div className="account-sessions-heading">
                 <h3>Активные входы</h3>

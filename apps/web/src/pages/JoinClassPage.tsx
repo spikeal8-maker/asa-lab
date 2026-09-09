@@ -32,6 +32,7 @@ export function JoinClassPage({
   const [state, setState] = useState<JoinState>({ kind: 'code' });
   const [code, setCode] = useState(initialCode);
   const [loginHandle, setLoginHandle] = useState('');
+  const [credential, setCredential] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [botProof, setBotProof] = useState<BotProof | null>(null);
@@ -58,7 +59,7 @@ export function JoinClassPage({
       return;
     }
     setBusy(true);
-    const result = await api.signInClassroomSeat(code, loginHandle, botProof);
+    const result = await api.signInClassroomSeat(code, loginHandle, botProof, credential.trim());
     setBusy(false);
     if (result.ok) {
       onSignedIn();
@@ -120,8 +121,8 @@ export function JoinClassPage({
               <small>Педагог: {state.classroom.teacherDisplayName}</small>
               {state.classroom.safeMode ? <em>Безопасный режим</em> : null}
             </div>
-            <h2>Ваше имя для входа</h2>
-            <p className="subtitle">Введите имя, которое педагог выдал именно вам.</p>
+            <h2>Личный вход ученика</h2>
+            <p className="subtitle">Имя и личный ключ выдаёт преподаватель.</p>
             <label htmlFor="class-login-handle">Имя для входа</label>
             <input
               id="class-login-handle"
@@ -132,6 +133,20 @@ export function JoinClassPage({
               disabled={busy}
               placeholder="alina-k"
               onChange={(event) => setLoginHandle(event.target.value.toLowerCase())}
+            />
+            <label htmlFor="class-personal-credential">Личный ключ</label>
+            <input
+              id="class-personal-credential"
+              type="password"
+              autoComplete="current-password"
+              autoCapitalize="none"
+              spellCheck={false}
+              value={credential}
+              disabled={busy}
+              required
+              minLength={24}
+              maxLength={24}
+              onChange={(event) => setCredential(event.target.value.trim())}
             />
             <BotCheck
               key={`class-join-${botReset}`}

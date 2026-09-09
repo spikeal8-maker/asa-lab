@@ -242,6 +242,19 @@ export class PgAccountDirectory implements AccountDirectoryPort {
     };
   }
 
+  async selfAttestContentAuthor(accountId: string): Promise<EducatorAttestation> {
+    const result = await this.pool.query(
+      'SELECT eligible, grant_state, created FROM auth_self_attest_content_author($1)',
+      [accountId],
+    );
+    const row = result.rows[0];
+    return {
+      eligible: row?.eligible === true,
+      state: row?.grant_state ?? null,
+      created: row?.created === true,
+    };
+  }
+
   async createSchoolWorkspace(
     accountId: string,
     title: string,

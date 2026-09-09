@@ -116,7 +116,7 @@ test('header keeps identity, visible event source and gentle reduced-motion-safe
     );
     for (let i = 1; i < controls.length; i++)
       expect(controls[i].left).toBeGreaterThanOrEqual(controls[i - 1].right - 1);
-    const create = page.locator('.portal-quick-create:visible > summary');
+    const create = page.locator('.portal-header .portal-quick-create:visible > summary');
     expect((await create.boundingBox())!.height).toBeGreaterThanOrEqual(44);
     expect(
       await create.evaluate((el) => {

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import {
   api,
   type Classroom,
@@ -286,6 +286,12 @@ export function ClassroomPage({
   const [editing, setEditing] = useState<ClassroomStudentSeat | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [personalKey, setPersonalKey] = useState<{
+    name: string;
+    loginHandle: string;
+    value: string;
+  } | null>(null);
+  const credentialRequests = useRef(new Map<string, string>());
   const [teacherTeam, setTeacherTeam] = useState<TeacherTeamState>({ kind: 'idle' });
   const [teacherInviteLink, setTeacherInviteLink] = useState<string | null>(null);
   const [activityKind, setActivityKind] = useState<'all' | 'projects'>('all');
@@ -559,6 +565,28 @@ export function ClassroomPage({
         </p>
       ) : null}
 
+      {personalKey ? (
+        <section className="classroom-archived-note" aria-label="Личный ключ ученика">
+          <strong>
+            {personalKey.name} · {personalKey.loginHandle}
+          </strong>
+          <p>
+            Передайте ключ только этому ученику. Он показывается один раз; старые входы завершены.
+          </p>
+          <code>{personalKey.value}</code>{' '}
+          <button
+            type="button"
+            className="btn-secondary"
+            onClick={() => void copy(personalKey.value, 'Личный ключ скопирован.')}
+          >
+            Скопировать ключ
+          </button>{' '}
+          <button type="button" className="btn-secondary" onClick={() => setPersonalKey(null)}>
+            Скрыть
+          </button>
+        </section>
+      ) : null}
+
       {/* The tabs and the one switch that applies to every learner share a row:
           both are about the class as a whole, and the switch used to be a
           banner of its own that pushed the register below the fold. */}
@@ -802,6 +830,51 @@ export function ClassroomPage({
                             }}
                           >
                             Изменить данные
+                          </button>
+                          <button
+                            type="button"
+                            disabled={archived || Boolean(busy)}
+                            onClick={async () => {
+                              close();
+                              if (
+                                !window.confirm(
+                                  `Выдать новый личный ключ для ${student.displayLabel}? Старый ключ и все входы этого ученика будут закрыты.`,
+                                )
+                              )
+                                return;
+                              setPersonalKey(null);
+                              setBusy(`credential:${student.id}`);
+                              const requestId =
+                                credentialRequests.current.get(student.id) ?? crypto.randomUUID();
+                              credentialRequests.current.set(student.id, requestId);
+                              try {
+                                const result = await api.issueSeatCredential(
+                                  classroomId,
+                                  student.id,
+                                  requestId,
+                                );
+                                if (result.ok) {
+                                  credentialRequests.current.delete(student.id);
+                                  setPersonalKey({
+                                    name: student.displayLabel,
+                                    loginHandle: student.loginHandle,
+                                    value: result.data.credential,
+                                  });
+                                } else {
+                                  if (result.status === 409)
+                                    credentialRequests.current.delete(student.id);
+                                  setNotice(
+                                    result.status === 409
+                                      ? 'Предыдущая выдача уже завершена. Ключ повторно не показывается. Для нового ключа повторите выдачу.'
+                                      : 'Не удалось подтвердить выдачу ключа. Повторите попытку.',
+                                  );
+                                }
+                              } finally {
+                                setBusy(null);
+                              }
+                            }}
+                          >
+                            Выдать личный ключ
                           </button>
                           <button
                             type="button"

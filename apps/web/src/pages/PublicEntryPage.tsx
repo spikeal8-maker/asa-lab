@@ -577,7 +577,7 @@ export function PublicEntryPage({
           </div>
           <article className="public-home-creator">
             <img
-              src="https://avatars.githubusercontent.com/u/256861174?v=4"
+              src="/landing/creator-avatar.jpg"
               alt="Александр Аликин — создатель ASA Lab"
               loading="lazy"
             />

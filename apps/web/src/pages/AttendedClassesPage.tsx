@@ -23,9 +23,11 @@ import {
 export function AttendedClassesPage({
   onOpenProject,
   mode = 'classes',
+  completedOnly = false,
 }: {
   readonly onOpenProject: (projectId: string, moduleKey: string) => void;
   readonly mode?: 'classes' | 'learning';
+  readonly completedOnly?: boolean;
 }): JSX.Element {
   const [classes, setClasses] = useState<readonly AttendedClass[] | null>(null);
   const [assignments, setAssignments] = useState<
@@ -36,12 +38,16 @@ export function AttendedClassesPage({
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const time = useSchoolTime();
 
   const load = useCallback(async () => {
+    setLoadError(null);
     const [attended, work] = await Promise.all([api.attendedClasses(), api.attendedAssignments()]);
-    setClasses(attended.ok ? attended.data.items : []);
-    setAssignments(work.ok ? work.data.items : []);
+    if (attended.ok) setClasses(attended.data.items);
+    if (work.ok) setAssignments(work.data.items);
+    if (!attended.ok || !work.ok)
+      setLoadError('Не удалось загрузить часть обучения. Доступные данные сохранены.');
   }, []);
 
   useEffect(() => {
@@ -96,7 +102,7 @@ export function AttendedClassesPage({
     <main id="main-content" className="portal-content attended-classes" tabIndex={-1}>
       <header className="attended-heading">
         <div>
-          <h1>{mode === 'learning' ? 'Обучение' : 'Я учусь'}</h1>
+          <h1>{mode === 'learning' ? 'Моё обучение' : 'Я учусь'}</h1>
           <p>
             {mode === 'learning'
               ? 'Здесь собраны выданные вам материалы и задания. Чтобы получить маршрут, войдите в класс по коду преподавателя.'
@@ -105,195 +111,228 @@ export function AttendedClassesPage({
         </div>
       </header>
 
-      <form className="attended-join" onSubmit={(event) => void join(event)}>
-        <label htmlFor="attend-code">Код класса</label>
-        <div>
-          <input
-            id="attend-code"
-            value={code}
-            maxLength={11}
-            disabled={busy}
-            placeholder="ABC DEF 234"
-            onChange={(event) => setCode(event.target.value.toUpperCase())}
-          />
-          <button type="submit" className="portal-create-button" disabled={busy || !code.trim()}>
-            {busy ? 'Входим…' : 'Войти в класс'}
+      {loadError ? (
+        <p role="alert">
+          {loadError}{' '}
+          <button type="button" className="btn-secondary" onClick={() => void load()}>
+            Повторить
           </button>
-        </div>
-        {/* Преподаватель своего класса не может быть в нём учеником: об этом
+        </p>
+      ) : null}
+      {!completedOnly ? (
+        <>
+          <form className="attended-join" onSubmit={(event) => void join(event)}>
+            <label htmlFor="attend-code">Код класса</label>
+            <div>
+              <input
+                id="attend-code"
+                value={code}
+                maxLength={11}
+                disabled={busy}
+                placeholder="ABC DEF 234"
+                onChange={(event) => setCode(event.target.value.toUpperCase())}
+              />
+              <button
+                type="submit"
+                className="portal-create-button"
+                disabled={busy || !code.trim()}
+              >
+                {busy ? 'Входим…' : 'Войти в класс'}
+              </button>
+            </div>
+            {/* Преподаватель своего класса не может быть в нём учеником: об этом
             говорит сервер, и сообщение сюда приходит как есть. */}
-        {error ? (
-          <p className="form-error" role="alert">
-            {error}
-          </p>
-        ) : null}
-        {notice ? (
-          <p className="notice-success" role="status">
-            {notice}
-          </p>
-        ) : null}
-      </form>
+            {error ? (
+              <p className="form-error" role="alert">
+                {error}
+              </p>
+            ) : null}
+            {notice ? (
+              <p className="notice-success" role="status">
+                {notice}
+              </p>
+            ) : null}
+          </form>
 
-      {classes === null ? (
-        <p role="status">Загружаем…</p>
-      ) : classes.length === 0 ? (
-        <div className="classroom-roster-empty">
-          <h3>Вы пока никуда не записаны</h3>
-          <p>Введите код класса, который дал преподаватель.</p>
-        </div>
-      ) : (
-        <ul className="attended-list">
-          {classes.map((entry) => (
-            <li key={entry.seatId}>
-              <div>
-                <strong>{entry.classroomTitle}</strong>
-                <span>Преподаватель: {entry.teacherDisplayName}</span>
-              </div>
-              {entry.unfinishedCount > 0 ? (
-                <span className="attended-owed">Не сдано: {entry.unfinishedCount}</span>
-              ) : (
-                <span className="attended-clear">Всё сдано</span>
-              )}
-            </li>
-          ))}
-        </ul>
-      )}
+          {classes === null ? (
+            !loadError ? (
+              <p role="status">Загружаем…</p>
+            ) : null
+          ) : classes.length === 0 ? (
+            <div className="classroom-roster-empty">
+              <h3>Вы пока никуда не записаны</h3>
+              <p>Введите код класса, который дал преподаватель.</p>
+            </div>
+          ) : (
+            <ul className="attended-list">
+              {classes.map((entry) => (
+                <li key={entry.seatId}>
+                  <div>
+                    <strong>{entry.classroomTitle}</strong>
+                    <span>Преподаватель: {entry.teacherDisplayName}</span>
+                  </div>
+                  {entry.unfinishedCount > 0 ? (
+                    <span className="attended-owed">Не сдано: {entry.unfinishedCount}</span>
+                  ) : (
+                    <span className="attended-clear">Всё сдано</span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </>
+      ) : null}
 
-      {mode === 'learning' ? <SeatCourses source="account" onOpenProject={onOpenProject} /> : null}
+      {mode === 'learning' ? (
+        <SeatCourses source="account" onOpenProject={onOpenProject} completedOnly={completedOnly} />
+      ) : null}
+      {completedOnly &&
+      !loadError &&
+      !assignments.some((item) => item.canonicalState?.workflowState === 'completed') ? (
+        <p>
+          Завершённых заданий пока нет. Сданная работа, ожидающая проверки, ещё не считается
+          завершённой.
+        </p>
+      ) : null}
 
       {assignments.length > 0 ? (
         <section aria-labelledby="attended-tasks">
           <h2 id="attended-tasks">Задания</h2>
           <ul className="seat-assignments" data-testid="attended-assignments">
-            {assignments.map((assignment) => (
-              <li
-                key={assignment.id}
-                className={openId === assignment.id ? 'is-open' : undefined}
-                onClick={(event) => {
-                  const target = event.target as HTMLElement;
-                  if (target.closest('button, a')) return;
-                  setOpenId(openId === assignment.id ? null : assignment.id);
-                }}
-              >
-                {assignment.sampleImage ? (
-                  <img
-                    className="seat-assignment-sample"
-                    src={assignment.sampleImage}
-                    alt={`Образец: ${assignment.title}`}
-                    width={96}
-                    height={96}
-                    loading="lazy"
-                  />
-                ) : null}
-                <div className="seat-assignment-body">
-                  <button
-                    type="button"
-                    className="seat-assignment-open"
-                    aria-expanded={openId === assignment.id}
-                    onClick={() => setOpenId(openId === assignment.id ? null : assignment.id)}
-                  >
-                    {assignment.title}
-                  </button>
-                  <span>
-                    {assignment.classroomTitle}
-                    {assignment.dueAt ? ` · сдать до ${time.date(assignment.dueAt)}` : ''}
-                  </span>
-                  <span
-                    className={`seat-assignment-state${canonicalLearningClass(assignment.canonicalState) || (assignment.submittedAt ? ' is-done' : assignment.projectId ? ' is-working' : '')}`}
-                  >
-                    {canonicalLearningLabel(assignment.canonicalState) ??
-                      (assignment.submittedAt
-                        ? `Сдано ${time.dateTime(assignment.submittedAt)}`
-                        : assignment.projectId
-                          ? 'В работе'
-                          : 'Не начато')}
-                  </span>
-                  {openId === assignment.id ? (
-                    <div className="seat-assignment-full">
-                      {/* Тот же вид задания и та же своя работа рядом, что и у
-                          ребёнка с местом: учится тот же человек. */}
-                      <AssignmentView
-                        assignment={assignment}
-                        aside={
-                          assignment.projectId ? (
-                            <figure className="seat-assignment-work">
-                              {assignment.snapshotRevision === null ? (
-                                <span className="seat-assignment-work-empty">
-                                  Работа открыта, но пока пустая.
-                                </span>
-                              ) : (
-                                <img
-                                  src={`/api/projects/${encodeURIComponent(
-                                    assignment.projectId,
-                                  )}/snapshot?rev=${assignment.snapshotRevision}`}
-                                  alt="Ваша работа"
-                                  loading="lazy"
-                                />
-                              )}
-                              <figcaption>
-                                {assignment.updatedAt
-                                  ? `Вы работали ${time.dateTime(assignment.updatedAt)}`
-                                  : 'Ваша работа'}
-                              </figcaption>
-                            </figure>
-                          ) : null
-                        }
-                      />
-                    </div>
+            {assignments
+              .filter(
+                (assignment) =>
+                  !completedOnly || assignment.canonicalState?.workflowState === 'completed',
+              )
+              .map((assignment) => (
+                <li
+                  key={assignment.id}
+                  className={openId === assignment.id ? 'is-open' : undefined}
+                  onClick={(event) => {
+                    const target = event.target as HTMLElement;
+                    if (target.closest('button, a')) return;
+                    setOpenId(openId === assignment.id ? null : assignment.id);
+                  }}
+                >
+                  {assignment.sampleImage ? (
+                    <img
+                      className="seat-assignment-sample"
+                      src={assignment.sampleImage}
+                      alt={`Образец: ${assignment.title}`}
+                      width={96}
+                      height={96}
+                      loading="lazy"
+                    />
                   ) : null}
-                </div>
-                <div className="seat-assignment-actions">
-                  {assignment.projectId ? (
-                    <>
+                  <div className="seat-assignment-body">
+                    <button
+                      type="button"
+                      className="seat-assignment-open"
+                      aria-expanded={openId === assignment.id}
+                      onClick={() => setOpenId(openId === assignment.id ? null : assignment.id)}
+                    >
+                      {assignment.title}
+                    </button>
+                    <span>
+                      {assignment.classroomTitle}
+                      {assignment.dueAt ? ` · сдать до ${time.date(assignment.dueAt)}` : ''}
+                    </span>
+                    <span
+                      className={`seat-assignment-state${canonicalLearningClass(assignment.canonicalState) || (assignment.submittedAt ? ' is-done' : assignment.projectId ? ' is-working' : '')}`}
+                    >
+                      {canonicalLearningLabel(assignment.canonicalState) ??
+                        (assignment.submittedAt
+                          ? `Сдано ${time.dateTime(assignment.submittedAt)}`
+                          : assignment.projectId
+                            ? 'В работе'
+                            : 'Не начато')}
+                    </span>
+                    {openId === assignment.id ? (
+                      <div className="seat-assignment-full">
+                        {/* Тот же вид задания и та же своя работа рядом, что и у
+                          ребёнка с местом: учится тот же человек. */}
+                        <AssignmentView
+                          assignment={assignment}
+                          aside={
+                            assignment.projectId ? (
+                              <figure className="seat-assignment-work">
+                                {assignment.snapshotRevision === null ? (
+                                  <span className="seat-assignment-work-empty">
+                                    Работа открыта, но пока пустая.
+                                  </span>
+                                ) : (
+                                  <img
+                                    src={`/api/projects/${encodeURIComponent(
+                                      assignment.projectId,
+                                    )}/snapshot?rev=${assignment.snapshotRevision}`}
+                                    alt="Ваша работа"
+                                    loading="lazy"
+                                  />
+                                )}
+                                <figcaption>
+                                  {assignment.updatedAt
+                                    ? `Вы работали ${time.dateTime(assignment.updatedAt)}`
+                                    : 'Ваша работа'}
+                                </figcaption>
+                              </figure>
+                            ) : null
+                          }
+                        />
+                      </div>
+                    ) : null}
+                  </div>
+                  <div className="seat-assignment-actions">
+                    {assignment.projectId ? (
+                      <>
+                        <button
+                          type="button"
+                          className="portal-create-button"
+                          onClick={() =>
+                            onOpenProject(assignment.projectId as string, assignment.moduleKey)
+                          }
+                        >
+                          Открыть работу
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-secondary"
+                          disabled={
+                            busy ||
+                            (assignment.canonicalState
+                              ? canonicalSubmissionLocked(assignment.canonicalState)
+                              : assignment.submittedAt !== null)
+                          }
+                          onClick={async () => {
+                            setBusy(true);
+                            const result = await api.submitSeatAssignment(assignment.id, true);
+                            setBusy(false);
+                            if (result.ok) await load();
+                          }}
+                        >
+                          {assignment.canonicalState
+                            ? assignment.canonicalState.workflowState === 'changes_requested'
+                              ? 'Сдать доработку'
+                              : canonicalSubmissionLocked(assignment.canonicalState)
+                                ? 'Работа сдана'
+                                : 'Сдать'
+                            : assignment.submittedAt
+                              ? 'Работа сдана'
+                              : 'Сдать'}
+                        </button>
+                      </>
+                    ) : (
                       <button
                         type="button"
                         className="portal-create-button"
-                        onClick={() =>
-                          onOpenProject(assignment.projectId as string, assignment.moduleKey)
-                        }
+                        disabled={busy || assignment.status === 'closed'}
+                        onClick={() => void start(assignment)}
                       >
-                        Открыть работу
+                        {busy ? 'Открываем…' : 'Открыть'}
                       </button>
-                      <button
-                        type="button"
-                        className="btn-secondary"
-                        disabled={
-                          busy ||
-                          (assignment.canonicalState
-                            ? canonicalSubmissionLocked(assignment.canonicalState)
-                            : assignment.submittedAt !== null)
-                        }
-                        onClick={async () => {
-                          setBusy(true);
-                          const result = await api.submitSeatAssignment(assignment.id, true);
-                          setBusy(false);
-                          if (result.ok) await load();
-                        }}
-                      >
-                        {assignment.canonicalState
-                          ? assignment.canonicalState.workflowState === 'changes_requested'
-                            ? 'Сдать доработку'
-                            : canonicalSubmissionLocked(assignment.canonicalState)
-                              ? 'Работа сдана'
-                              : 'Сдать'
-                          : assignment.submittedAt
-                            ? 'Работа сдана'
-                            : 'Сдать'}
-                      </button>
-                    </>
-                  ) : (
-                    <button
-                      type="button"
-                      className="portal-create-button"
-                      disabled={busy || assignment.status === 'closed'}
-                      onClick={() => void start(assignment)}
-                    >
-                      {busy ? 'Открываем…' : 'Открыть'}
-                    </button>
-                  )}
-                </div>
-              </li>
-            ))}
+                    )}
+                  </div>
+                </li>
+              ))}
           </ul>
         </section>
       ) : null}

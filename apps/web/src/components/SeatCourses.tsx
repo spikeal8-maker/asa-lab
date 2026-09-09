@@ -39,9 +39,11 @@ function lessonComplete(lesson: SeatCourseRunLesson): boolean {
 export function SeatCourses({
   onOpenProject,
   source = 'seat',
+  completedOnly = false,
 }: {
   readonly onOpenProject: (projectId: string, moduleKey: string) => void;
   readonly source?: 'seat' | 'account';
+  readonly completedOnly?: boolean;
 }): JSX.Element | null {
   const [runs, setRuns] = useState<SeatCourseRun[] | null>(null);
   const [openRunId, setOpenRunId] = useState<string | null>(null);
@@ -51,9 +53,10 @@ export function SeatCourses({
   const time = useSchoolTime();
 
   const reload = useCallback(async () => {
+    setError(null);
     const result =
       source === 'account' ? await api.accountCourseRuns() : await api.seatCourseRuns();
-    setRuns(result.ok ? result.data.items : []);
+    if (result.ok) setRuns(result.data.items);
     if (!result.ok) setError(result.error.message);
   }, [source]);
 
@@ -61,7 +64,19 @@ export function SeatCourses({
     void reload();
   }, [reload]);
 
-  const openRun = runs?.find((run) => run.id === openRunId) ?? null;
+  const visibleRuns = runs?.filter(
+    (run) =>
+      !completedOnly ||
+      (run.sections.some((section) => section.lessons.length > 0) &&
+        run.sections.every((section) =>
+          section.lessons.every((lesson) =>
+            lesson.kind === 'material'
+              ? lesson.completedAt !== null
+              : lesson.canonicalState?.workflowState === 'completed',
+          ),
+        )),
+  );
+  const openRun = visibleRuns?.find((run) => run.id === openRunId) ?? null;
   const lessons = useMemo(
     () => openRun?.sections.flatMap((section) => section.lessons) ?? [],
     [openRun],
@@ -117,7 +132,19 @@ export function SeatCourses({
     return true;
   }
 
-  if (runs === null || runs.length === 0) return null;
+  if (error)
+    return (
+      <p role="alert">
+        {error}{' '}
+        <button type="button" className="btn-secondary" onClick={() => void reload()}>
+          Повторить загрузку курсов
+        </button>
+      </p>
+    );
+  if (visibleRuns === null || visibleRuns === undefined)
+    return <p role="status">Загружаем курсы…</p>;
+  if (visibleRuns.length === 0)
+    return <p>{completedOnly ? 'Завершённых курсов пока нет.' : 'Курсы пока не назначены.'}</p>;
 
   if (openRun && openLesson) {
     const assignment =
@@ -333,7 +360,7 @@ export function SeatCourses({
         <p>Проходите уроки по порядку и возвращайтесь к начатой практике.</p>
       </div>
       <ul data-testid="seat-courses">
-        {runs.map((run) => {
+        {visibleRuns.map((run) => {
           const lessons = run.sections.flatMap((section) => section.lessons);
           const assignments = lessons.filter((lesson) => lesson.kind === 'assignment');
           const completed = lessons.filter(lessonComplete).length;

@@ -133,6 +133,7 @@ export interface AccountDirectoryPort {
     bio: string,
   ): Promise<AccountProfileRecord | RegistrationConflict | null>;
   selfAttestEducator(accountId: string): Promise<EducatorAttestation>;
+  selfAttestContentAuthor(accountId: string): Promise<EducatorAttestation>;
   setEducatorMode(accountId: string, enabled: boolean): Promise<EducatorModeChange>;
   createSchoolWorkspace(accountId: string, title: string): Promise<SchoolWorkspaceRecord | null>;
   accountForUser(tenantId: string, userId: string): Promise<LinkedAccount | null>;

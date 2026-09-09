@@ -71,6 +71,8 @@ function directory(
         : { ...PROFILE, username, displayName, bio },
     selfAttestEducator: async () =>
       overrides.attestation ?? { eligible: true, state: 'provisional', created: true },
+    selfAttestContentAuthor: async () =>
+      overrides.attestation ?? { eligible: true, state: 'provisional', created: true },
     setEducatorMode: async (_accountId, enabled) =>
       overrides.educatorMode ?? {
         eligible: true,

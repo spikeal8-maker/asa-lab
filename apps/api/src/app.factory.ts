@@ -247,6 +247,20 @@ export async function createApiApp(
     void reply.header('x-request-id', request.id);
     const path = (request.raw.url ?? '/').split('?')[0];
     if (
+      path.startsWith('/api/') &&
+      request.cookies['asa_session'] &&
+      request.cookies['asa_student_session'] &&
+      path !== '/api/auth/logout' &&
+      path !== '/api/class-join/logout'
+    ) {
+      return reply.code(409).send({
+        error: {
+          code: 'session_conflict',
+          message: 'Обнаружены два разных входа. Выйдите и войдите заново.',
+        },
+      });
+    }
+    if (
       process.env['NODE_ENV'] === 'production' &&
       process.env['ASA_PUBLIC_METRICS'] !== '1' &&
       path === '/health/metrics'

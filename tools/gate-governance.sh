@@ -53,6 +53,7 @@ run "$PYTHON" tools/validate_control_plane.py "${CONTROL_PLANE_ARGS[@]}"
 run "$PYTHON" tools/validate_architecture.py
 run "$PYTHON" tools/validate_capability_map.py
 run "$PYTHON" tools/validate_project_map.py
+run "$PYTHON" tools/test_validate_test_catalog.py
 run "$PYTHON" tools/validate_test_catalog.py
 run "$PYTHON" tools/validate_delivery_program.py
 run "$PYTHON" tools/validate_infrastructure_focus.py

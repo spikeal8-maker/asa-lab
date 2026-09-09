@@ -99,7 +99,9 @@ function extendFromCentre(
 }
 
 async function createThreeDProject(page: Page, title: string): Promise<void> {
-  const createMenu = page.locator('.portal-quick-create:visible');
+  // A new personal account also has a starter card. Exercise the global
+  // header action, not an ambiguous match across both legitimate entry points.
+  const createMenu = page.locator('.portal-header .portal-quick-create:visible');
   await createMenu.locator('> summary').click();
   await createMenu.getByRole('button', { name: /^3D модель/ }).click();
   await expect(page.getByTestId('asa3d-viewport')).toBeVisible({ timeout: 20_000 });

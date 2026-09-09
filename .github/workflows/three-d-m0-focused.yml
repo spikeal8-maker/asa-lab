@@ -40,6 +40,9 @@ on:
 permissions:
   contents: read
 
+env:
+  NX_SKIP_NX_CACHE: 'true'
+
 concurrency:
   group: three-d-m0-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
@@ -55,6 +58,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
           fetch-depth: 0
 
@@ -83,8 +87,8 @@ jobs:
     timeout-minutes: 35
     env:
       CI: 'true'
-      ASA_BUILD_REVISION: ${{ github.sha }}
-      ASA_IMAGE_TAG: ${{ github.sha }}
+      ASA_BUILD_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
+      ASA_IMAGE_TAG: ${{ github.event.pull_request.head.sha || github.sha }}
       COMPOSE_PROJECT_NAME: asa-lab-three-d-${{ github.run_id }}
       ASA_TEST_UID: '1000'
       ASA_TEST_GID: '1000'
@@ -92,6 +96,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
           fetch-depth: 0
 

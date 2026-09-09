@@ -82,5 +82,6 @@ export {
   type ChangePasswordResult,
 } from './application/account-management.usecase.js';
 export { ActiveContextUseCase } from './application/active-context.usecase.js';
+export { effectiveAccountActions } from './application/effective-actions.js';
 export { PgAccountDirectory } from './infrastructure/pg-account.adapter.js';
 export { PgSessionV2Store } from './infrastructure/pg-session-v2.store.js';

@@ -27,22 +27,28 @@ development_policy:
 # ─────────────────────────────────────────────────────────────────────────────
 
 task:
-  id: TASK-ADMIN-AUTH-STABILITY-001
-  issue: 135
-  branch: main
+  id: TASK-ASA-ACCESS-A-INTEGRATE-001
+  issue: 173
+  branch: codex/asa-access-a-result-a
   base_branch: main
-  pr: null
-  pr_draft: false
-  # Owner-authorised stabilisation of the integrated Admin surface, durable
-  # account sessions and the real user CRM directory. The CRM slice includes
-  # compact expandable rows, server-backed activity, administrative notes and
-  # explicit IP classification. Email delivery, billing, competitions and
-  # moderation remain outside this task. MAX runtime configuration is implemented,
-  # but owner activation and the real-client journey require a newly rotated
-  # secret and therefore must not be reported as accepted yet.
+  pr: 174
+  pr_draft: true
+  # Technical integration only. Product acceptance below applies to the accepted
+  # source, not to unverified descendant checks. No PR merge, deployment or B/C.
   status: in_progress
-  checkpoint: max_runtime_configuration_implemented_new_secret_and_owner_activation_pending
-  owner_acceptance: pending
+  checkpoint: accepted_result_a_integration_candidate_verification
+  owner_acceptance: accepted
+
+accepted_result:
+  id: ASA-ACCESS-A
+  status: OWNER_ACCEPTED
+  source_sha: 62fd17721d779a957be0f398d7357774bed61795
+  decision_date: '2026-09-09'
+  known_unsupported:
+    - bilateral_student_seat_to_account_linking
+    - personal_self_study_runtime_progress
+  merge_authorized: false
+  deployment_authorized: false
 
 # Commits that mean something. Anything not listed here is ordinary history.
 revisions:
@@ -52,7 +58,7 @@ revisions:
   # not recorded here: a hand-maintained copy went stale within hours the last
   # time, and it would go stale again on the next push.
   # Owner-visible convergence baseline for the current task.
-  convergence_baseline_sha: 3cdbeeffb254d9578b7133dfee666a34db1d1978
+  convergence_baseline_sha: cc712bc5155291b64dca3207457d26b055c118f6
 
 # Legacy compatibility record. It is not an access-control mechanism while
 # development_policy.execution_leases is disabled.
@@ -74,11 +80,11 @@ gates:
   focused:
     workflow: ASA Lab Governance and Code Gates
     commands:
-      - pnpm gate:admin-control-plane
+      - pnpm test:access-a
   browser:
     workflow: ASA Lab Governance and Code Gates
     commands:
-      - pnpm e2e:admin-control-plane
+      - pnpm e2e:access-a
   general:
     workflow: ASA Lab Governance and Code Gates
     commands:
@@ -106,6 +112,7 @@ primary_lane:
     - tests/account/**
     - e2e/admin-auth-max.spec.ts
     - docs/execution/ADMIN_AUTH_MAX_EXECUTION_PLAN.md
+    - docs/execution/ASA_ACCESS_A.md
 
 parallel_lanes:
   - id: electronics

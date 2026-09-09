@@ -126,10 +126,17 @@ describe('classrooms', () => {
       safeMode: true,
     });
 
+    const issued = await inject(app, {
+      method: 'POST',
+      url: `/api/classrooms/${classroomId}/seats/${seatId}/credential`,
+      cookies: { asa_session: token },
+      payload: { requestId: crypto.randomUUID() },
+    });
+    expect(issued.statusCode, issued.body).toBe(201);
     const signedIn = await inject(app, {
       method: 'POST',
       url: '/api/class-join/studentseat',
-      payload: { code, loginHandle: 'alina-k' },
+      payload: { code, loginHandle: 'alina-k', credential: issued.json().credential },
     });
     expect(signedIn.statusCode).toBe(200);
     expect(signedIn.json()).toMatchObject({

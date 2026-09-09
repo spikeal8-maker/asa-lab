@@ -86,7 +86,7 @@ export type CreatorPortalView =
 export type CreatorPortalReturnView = Extract<CreatorPortalView, { kind: 'editor' }>['returnTo'];
 
 export interface PortalNavigationItem {
-  readonly section: Exclude<CreatorPortalSection, 'account'>;
+  readonly section: CreatorPortalSection;
   readonly label: string;
 }
 
@@ -126,13 +126,23 @@ function decodeRouteParameter(value: string): string | null {
 
 export function portalNavigation(
   canTeach: boolean,
-  options: { readonly classes?: boolean } = {},
+  options: {
+    readonly classes?: boolean;
+    readonly contentAuthoring?: boolean;
+    readonly seat?: boolean;
+  } = {},
 ): readonly PortalNavigationItem[] {
-  // The Classes destination is available to every signed-in account: what stays
-  // behind the educator capability is managing a class, not seeing where they
-  // live. A learner has one too — it is where the work set for them lives, and
-  // hiding it put their homework on the same page as their own models.
-  const classes = options.classes ?? true;
+  // A missing server projection must not invent staff access. The legacy
+  // canTeach argument is kept for callers, not used as an authority.
+  void canTeach;
+  if (options.seat)
+    return [
+      { section: 'learning', label: 'Моё обучение' },
+      { section: 'projects', label: 'Мои учебные работы' },
+      { section: 'help', label: 'Помощь' },
+      { section: 'account', label: 'Мой учебный профиль' },
+    ];
+  const classes = options.classes === true;
   return [
     { section: 'home', label: 'Главная' },
     ...(classes ? ([{ section: 'classes', label: 'Классы' }] as const) : []),
@@ -141,13 +151,17 @@ export function portalNavigation(
     { section: 'collections', label: 'Сохранённое' },
     // Where the work that was shared lives. Everyone has it: seeing what other
     // people made is the reason a child opens a making tool twice.
-    { section: 'gallery', label: 'Проекты сообщества' },
+    { section: 'gallery', label: 'Сообщество' },
+    { section: 'knowledge', label: 'Знания' },
     // Learning is the place where a person studies. Course authoring lives in
     // the teacher-only destination below, so the two labels describe different
     // actions instead of competing for the same meaning.
     { section: 'learning', label: 'Моё обучение' },
-    { section: 'challenges', label: canTeach ? 'Курсы и задания' : 'Задачи' },
-    { section: 'help', label: 'Справочный центр' },
+    ...(options.contentAuthoring
+      ? ([{ section: 'challenges', label: 'Курсы и задания' }] as const)
+      : []),
+    { section: 'help', label: 'Справка' },
+    { section: 'account', label: 'Профиль' },
   ];
 }
 
@@ -169,7 +183,7 @@ export function sectionForView(view: CreatorPortalView, canTeach: boolean): Crea
   if (view.kind === 'knowledge' || view.kind === 'knowledge-course') return 'knowledge';
   if (view.kind === 'collections') return 'collections';
   if (view.kind === 'gallery' || view.kind === 'gallery-work') return 'gallery';
-  if (view.kind === 'attending') return 'classes';
+  if (view.kind === 'attending') return 'learning';
   if (view.kind === 'challenges') return 'challenges';
   if (view.kind === 'help') return 'help';
   if (

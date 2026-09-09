@@ -48,6 +48,11 @@ const AssignmentLibraryPage = lazy(() =>
     default: module.AssignmentLibraryPage,
   })),
 );
+const AuthoredMaterialsPage = lazy(() =>
+  import('./pages/AuthoredMaterialsPage').then((module) => ({
+    default: module.AuthoredMaterialsPage,
+  })),
+);
 const GalleryPage = lazy(() =>
   import('./pages/GalleryPage').then((module) => ({ default: module.GalleryPage })),
 );
@@ -104,7 +109,7 @@ type SessionState =
   | { kind: 'authenticated'; session: SessionPayload }
   /** Signed in with a class seat: a learner, not an account holder. */
   | { kind: 'student'; session: ClassroomStudentSession }
-  | { kind: 'error' };
+  | { kind: 'error'; conflict?: boolean };
 
 type PublicView =
   | { kind: 'entry' }
@@ -151,7 +156,9 @@ export function App(): JSX.Element {
     const initial = creatorViewFromLocation(window.location);
     return initial.kind === 'teacher-invite' ? initial.token : null;
   });
-  const [accountPanel, setAccountPanel] = useState<'profile' | 'school' | 'security'>('profile');
+  const [accountPanel, setAccountPanel] = useState<
+    'profile' | 'school' | 'security' | 'capabilities'
+  >('profile');
   const [adminSection, setAdminSection] = useState<AdminSection | null>(() =>
     adminSectionFromLocation(window.location),
   );
@@ -277,7 +284,10 @@ export function App(): JSX.Element {
       if (isMaxLaunch) setSession({ kind: 'anonymous' });
       else await resolveStudent();
     } else {
-      setSession({ kind: 'error' });
+      setSession({
+        kind: 'error',
+        conflict: result.status === 409 && result.error.code === 'session_conflict',
+      });
     }
   }, [resolveStudent]);
 
@@ -457,10 +467,28 @@ export function App(): JSX.Element {
           <h1 className="brand-heading">
             <AsaLabWordmark />
           </h1>
-          <p>Не удалось проверить активную сессию.</p>
-          <button type="button" className="btn-primary" onClick={() => void checkSession()}>
-            Повторить
-          </button>
+          <p>
+            {session.conflict
+              ? 'В этом браузере обнаружены два разных входа. Завершите их и войдите заново.'
+              : 'Не удалось проверить активную сессию.'}
+          </p>
+          {session.conflict ? (
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={async () => {
+                await api.classroomStudentLogout();
+                await api.logout();
+                await checkSession();
+              }}
+            >
+              Завершить входы
+            </button>
+          ) : (
+            <button type="button" className="btn-primary" onClick={() => void checkSession()}>
+              Повторить
+            </button>
+          )}
         </section>
       </main>
     );
@@ -625,6 +653,7 @@ export function App(): JSX.Element {
   );
   const canTeachHere = canUseClasses(portalSession.navigation, portalSession.activeWorkspace.kind);
   const canManageClasses = canTeachHere && portalSession.navigation.classroomManagement;
+  const canAuthor = portalSession.navigation.contentAuthoring === true && !isSeatLearner;
 
   if (view.kind === 'editor') {
     return (
@@ -793,8 +822,11 @@ export function App(): JSX.Element {
               {/* "Задачи" is a teacher's own library of work now, not a leaflet. A
             learner has no library — the tasks they were given live in their
             class — so they still get the informational page. */}
-              {view.kind === 'challenges' && hasTeachingCapability && !isSeatLearner ? (
+              {view.kind === 'challenges' && canAuthor && canManageClasses ? (
                 <AssignmentLibraryPage />
+              ) : null}
+              {view.kind === 'challenges' && canAuthor && !canManageClasses ? (
+                <AuthoredMaterialsPage />
               ) : null}
               {/* The gallery is the one place people see each other's work, and that
             is the whole point of it: inside a class nobody sees a classmate's
@@ -851,8 +883,7 @@ export function App(): JSX.Element {
                   }
                 />
               ) : null}
-              {(view.kind === 'challenges' && (!hasTeachingCapability || isSeatLearner)) ||
-              view.kind === 'help' ? (
+              {(view.kind === 'challenges' && !canAuthor) || view.kind === 'help' ? (
                 <CreatorResourcePage
                   section={view.kind === 'challenges' ? 'challenges' : view.kind}
                   onNavigate={navigate}
@@ -896,6 +927,20 @@ export function App(): JSX.Element {
                     setView({ kind: 'classroom', classroomId, classroomTitle })
                   }
                 />
+              ) : null}
+              {(view.kind === 'classroom' || view.kind === 'classroom-projects') &&
+              !canManageClasses ? (
+                <main id="main-content" className="portal-content" tabIndex={-1}>
+                  <h1>Доступ к управлению классом закрыт</h1>
+                  <p>Ваши занятия и работы находятся в «Моём обучении».</p>
+                  <button
+                    type="button"
+                    className="btn-primary"
+                    onClick={() => setView({ kind: 'learning' })}
+                  >
+                    Моё обучение
+                  </button>
+                </main>
               ) : null}
               {view.kind === 'classroom' && canManageClasses ? (
                 <ClassroomPage
@@ -948,18 +993,18 @@ export function App(): JSX.Element {
                     <p className="portal-eyebrow">Классы</p>
                     <h1>Хотите вести занятия?</h1>
                     <p>
-                      Выберите роль «Педагог» в профиле — после этого можно сразу создать первый
-                      класс.
+                      Подключите преподавание в разделе «Возможности». Доступ к чужим классам это не
+                      предоставляет.
                     </p>
                     <button
                       type="button"
                       className="btn-secondary"
                       onClick={() => {
-                        setAccountPanel('profile');
+                        setAccountPanel('capabilities');
                         setView({ kind: 'account' });
                       }}
                     >
-                      Настроить профиль
+                      Возможности
                     </button>
                   </section>
                 </main>

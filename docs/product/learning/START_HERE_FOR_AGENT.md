@@ -24,7 +24,7 @@ checkpoint, текущий SHA или разрешение на следующи
 | Учебная версия, Attempt, Submission, проверка, результат, журнал, завершение курса | [`../ASA_LEARNING_TECHNICAL_SPEC.md`](../ASA_LEARNING_TECHNICAL_SPEC.md) |
 | Архитектурная learner identity | [`../../architecture/ADR-LEARNER-IDENTITY-001.md`](../../architecture/ADR-LEARNER-IDENTITY-001.md) |
 | Академические requirement IDs и evidence | [`../ASA_LEARNING_REQUIREMENTS_LEDGER.yaml`](../ASA_LEARNING_REQUIREMENTS_LEDGER.yaml) |
-| Принятый порядок реализации | [`ASA_LEARNING_AGENT_WORK_QUEUE.md`](ASA_LEARNING_AGENT_WORK_QUEUE.md), только вместе с текущим разрешённым scope |
+| Принятый порядок реализации | [`ASA_LEARNING_AGENT_WORK_QUEUE.md`](ASA_LEARNING_AGENT_WORK_QUEUE.md), V3.1: Э1–Э4 и проверка кандидата Э5, только вместе с текущим разрешённым scope |
 | Фактический CURRENT | Код, миграции, OpenAPI и выполненные проверки на фиксированном срезе |
 
 Новая основа пользователей задаёт TARGET своей области, но не отменяет
