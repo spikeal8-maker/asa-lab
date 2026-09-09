@@ -93,7 +93,10 @@ function validateAsset(value: unknown, index: number): ModuleDiagnostic | null {
     value.dataFormat.length > 16 ||
     !/^[a-z0-9]+$/.test(value.dataFormat)
   ) {
-    return diagnostic('blocks.asset.data_format', `Scratch asset ${index} has an invalid dataFormat.`);
+    return diagnostic(
+      'blocks.asset.data_format',
+      `Scratch asset ${index} has an invalid dataFormat.`,
+    );
   }
   if (
     typeof value.objectKey !== 'string' ||
@@ -102,17 +105,26 @@ function validateAsset(value: unknown, index: number): ModuleDiagnostic | null {
     value.objectKey.includes('\\') ||
     value.objectKey.includes('..')
   ) {
-    return diagnostic('blocks.asset.object_key', `Scratch asset ${index} has an invalid objectKey.`);
+    return diagnostic(
+      'blocks.asset.object_key',
+      `Scratch asset ${index} has an invalid objectKey.`,
+    );
   }
   if (typeof value.sha256 !== 'string' || !/^[a-f0-9]{64}$/.test(value.sha256)) {
-    return diagnostic('blocks.asset.sha256', `Scratch asset ${index} has an invalid sha256 digest.`);
+    return diagnostic(
+      'blocks.asset.sha256',
+      `Scratch asset ${index} has an invalid sha256 digest.`,
+    );
   }
   if (
     typeof value.sizeBytes !== 'number' ||
     !Number.isSafeInteger(value.sizeBytes) ||
     value.sizeBytes < 1
   ) {
-    return diagnostic('blocks.asset.size', `Scratch asset ${index} has an invalid sizeBytes value.`);
+    return diagnostic(
+      'blocks.asset.size',
+      `Scratch asset ${index} has an invalid sizeBytes value.`,
+    );
   }
   return null;
 }
