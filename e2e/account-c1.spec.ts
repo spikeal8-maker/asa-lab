@@ -52,9 +52,7 @@ test('owner completes Account C1 and existing project modules remain available',
 
   await page.setViewportSize({ width: 1366, height: 900 });
   await page.goto('/#/');
-  await expect(
-    page.getByRole('heading', { name: 'Идея есть? Сделай её.' }),
-  ).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Идея есть? Сделай её.' })).toBeVisible();
   await page.screenshot({
     path: `${EVIDENCE_DIR}/01-public-entry-desktop.png`,
     fullPage: true,
