@@ -1,58 +1,79 @@
 import { AsaLabWordmark } from '../brand/AsaLabBrand';
 import './PublicEntryPage.css';
+
 const homeDashboard = '/landing/home-dashboard.png';
 const electronicsSimulation = '/landing/electronics-simulation.png';
 const electronicsBlocks = '/landing/electronics-blocks.png';
 const electronicsCpp = '/landing/electronics-cpp.png';
 const threeDBus = '/landing/three-d-bus.png';
 const threeDHouse = '/landing/three-d-house.png';
-const assignmentProgress = '/landing/assignment-progress.png';
 
 export type PublicIntent = 'sign-in' | 'sign-up' | 'class-code';
 
-const capabilities = [
-  {
-    title: 'Виртуальная электроника',
-    copy: 'Собирайте схемы, подключайте компоненты и Arduino, запускайте моделирование, измеряйте параметры и находите ошибки.',
-    href: '/features/electronics/',
-    image: '/social/asa-lab-electronics.png',
-    alt: 'Виртуальная электроника ASA Lab',
-  },
+type Capability = {
+  readonly title: string;
+  readonly copy: string;
+  readonly image: string;
+  readonly alt: string;
+  readonly href?: string;
+  readonly status?: string;
+};
+
+const capabilities: readonly Capability[] = [
   {
     title: '3D и CAD',
-    copy: 'Создавайте модели из базовых форм, работайте с размерами и композицией и переходите к более профессиональным CAD-сценариям.',
-    href: '/features/3d-modeling/',
+    copy: 'Создавайте 3D-модели, работайте с формами, размерами и геометрией. CAD-направление развивается в сторону более точного инженерного проектирования.',
     image: '/social/asa-lab-3d-modeling.png',
-    alt: '3D-моделирование ASA Lab',
+    alt: '3D-моделирование и CAD в ASA Lab',
+    href: '/features/3d-modeling/',
+    status: '3D доступно · CAD развивается',
   },
   {
-    title: 'Блочное программирование',
-    copy: 'Собирайте алгоритмы из понятных действий, условий и циклов. В электронике визуальные блоки работают рядом с реальной схемой Arduino.',
-    href: '/features/block-programming/',
+    title: 'Электроника и Arduino',
+    copy: 'Собирайте схемы, подключайте компоненты, запускайте моделирование, измеряйте параметры и управляйте Arduino блоками или текстовым кодом.',
+    image: '/social/asa-lab-electronics.png',
+    alt: 'Виртуальная электроника и Arduino в ASA Lab',
+    href: '/features/electronics/',
+    status: 'Доступно',
+  },
+  {
+    title: 'Программирование и робототехника',
+    copy: 'Собирайте алгоритмы из визуальных блоков, переходите к текстовому коду и связывайте программу с поведением схем, устройств и роботов.',
     image: '/social/asa-lab-block-programming.png',
-    alt: 'Блочное программирование ASA Lab',
+    alt: 'Блочное программирование и робототехника в ASA Lab',
+    href: '/features/block-programming/',
+    status: 'Развивается',
   },
   {
-    title: 'Рисование и визуальные проекты',
-    copy: 'Работайте с формой, цветом, композицией, эскизами и собственными визуальными идеями в общей проектной логике ASA Lab.',
-    href: '/features/drawing/',
+    title: 'Творческие инструменты',
+    copy: 'Работайте с формой, цветом, композицией, эскизами и визуальными проектами — на одном уровне с техническими инструментами.',
     image: '/social/asa-lab-drawing.png',
-    alt: 'Рисование и визуальные проекты ASA Lab',
+    alt: 'Рисование и визуальные проекты в ASA Lab',
+    href: '/features/drawing/',
+    status: 'Развивается',
   },
   {
-    title: 'Шахматы',
-    copy: 'Решайте задачи, играйте партии, анализируйте позиции и проверяйте варианты — не только ответ, но и ход рассуждения.',
-    href: '/features/chess-and-checkers/',
+    title: 'Шахматы и русские шашки',
+    copy: 'Играйте, разбирайте позиции, проверяйте варианты и сохраняйте результаты в интерактивных игровых и аналитических средах.',
     image: '/social/asa-lab-chess-checkers.png',
-    alt: 'Шахматы и русские шашки ASA Lab',
+    alt: 'Шахматы и русские шашки в ASA Lab',
+    href: '/features/chess-and-checkers/',
+    status: 'Доступно',
   },
   {
-    title: 'Русские шашки',
-    copy: 'Разбирайте комбинации, рассчитывайте варианты и развивайте стратегическое мышление в отдельной игровой среде.',
-    href: '/features/chess-and-checkers/',
-    image: '/social/asa-lab-chess-checkers.png',
-    alt: 'Русские шашки ASA Lab',
+    title: 'ИИ и генеративные инструменты',
+    copy: 'ИИ развивается как помощник и соавтор внутри проекта, а генеративные инструменты — как быстрый способ получить заготовку и продолжить работу.',
+    image: '/social/asa-lab-og.png',
+    alt: 'ASA Lab — цифровая мастерская с ИИ и генеративными инструментами',
+    status: 'Развивается',
   },
+];
+
+const creatorCycle = [
+  ['01', 'Выбрать инструмент', '3D, электроника, программирование, творчество или игровая среда.'],
+  ['02', 'Сделать проект', 'Попробовать идею, проверить результат и сохранить работу.'],
+  ['03', 'Показать другим', 'Опубликовать проект и получить реакцию сообщества.'],
+  ['04', 'Сделать следующую версию', 'Вернуться к работе, изменить подход и развить идею дальше.'],
 ] as const;
 
 export function PublicEntryPage({
@@ -72,10 +93,10 @@ export function PublicEntryPage({
         </a>
 
         <nav className="public-home-nav" aria-label="Основная навигация">
-          <a href="#capabilities">Возможности</a>
+          <a href="#community">Сообщество</a>
+          <a href="#capabilities">Инструменты</a>
           <a href="#projects">Проекты</a>
-          <a href="#learning">Обучение</a>
-          <a href="#teachers">Преподавателям</a>
+          <a href="#development">Развитие</a>
           <a href="#about">О проекте</a>
         </nav>
 
@@ -99,10 +120,10 @@ export function PublicEntryPage({
         <details className="public-home-mobile-menu">
           <summary aria-label="Открыть меню">Меню</summary>
           <div>
-            <a href="#capabilities">Возможности</a>
+            <a href="#community">Сообщество</a>
+            <a href="#capabilities">Инструменты</a>
             <a href="#projects">Проекты</a>
-            <a href="#learning">Обучение</a>
-            <a href="#teachers">Преподавателям</a>
+            <a href="#development">Развитие</a>
             <a href="#about">О проекте</a>
             <button type="button" onClick={() => onChoose('sign-in')}>
               Войти
@@ -117,12 +138,12 @@ export function PublicEntryPage({
       <main id="public-home-main">
         <section className="public-home-hero" aria-labelledby="public-home-title">
           <div className="public-home-hero-copy">
-            <p className="public-home-kicker">Цифровая среда для проектов и обучения</p>
-            <h1 id="public-home-title">Создавай. Исследуй. Учись через действие.</h1>
+            <p className="public-home-kicker">Цифровая мастерская и сообщество</p>
+            <h1 id="public-home-title">Идея есть? Сделай её.</h1>
             <p className="public-home-hero-lead">
-              ASA Lab объединяет 3D-моделирование, виртуальную электронику, программирование,
-              творчество и интеллектуальные игры. Создавайте свои проекты, изучайте работы других,
-              проходите обучение или работайте в классе — всё в одной среде.
+              ASA Lab — браузерная среда, где можно моделировать, собирать схемы,
+              программировать, создавать собственные цифровые проекты и смотреть, что делают другие.
+              Инструменты, проекты, авторы и сообщество связаны в одной экосистеме.
             </p>
             <div className="public-home-actions">
               <button
@@ -130,47 +151,125 @@ export function PublicEntryPage({
                 className="public-home-button public-home-button-primary"
                 onClick={() => onChoose('sign-up')}
               >
-                Создать аккаунт
+                Начать создавать
               </button>
-              <button
-                type="button"
-                className="public-home-button public-home-button-secondary"
-                onClick={() => onChoose('sign-in')}
-              >
-                Войти
-              </button>
+              <a className="public-home-button public-home-button-secondary" href="#community">
+                Смотреть проекты
+              </a>
             </div>
             <button
               type="button"
               className="public-home-class-code"
               onClick={() => onChoose('class-code')}
             >
-              Мне дали код класса →
+              У меня есть код класса →
             </button>
-            <div className="public-home-trust" aria-label="Ключевые возможности">
+            <div className="public-home-trust" aria-label="Ключевые свойства ASA Lab">
               <span>Работает в браузере</span>
               <span>Свои проекты</span>
-              <span>Обучение</span>
-              <span>Классы и задания</span>
+              <span>Проекты сообщества</span>
+              <span>Разные инструменты в одной среде</span>
             </div>
           </div>
 
-          <div className="public-home-hero-stage" aria-label="Текущий интерфейс ASA Lab">
-            <figure className="public-home-hero-main-shot">
+          <div className="public-home-hero-stage" aria-label="Актуальные интерфейсы ASA Lab">
+            <figure className="public-home-shot public-home-shot-main">
               <img
                 src={homeDashboard}
                 alt="Главная ASA Lab с 3D-моделями и электронными проектами"
               />
             </figure>
-            <figure className="public-home-hero-float public-home-hero-float-code">
-              <img
-                src={electronicsBlocks}
-                alt="Arduino и программа из визуальных блоков в ASA Lab"
-              />
-            </figure>
-            <figure className="public-home-hero-float public-home-hero-float-3d">
-              <img src={threeDBus} alt="Модель автобуса в 3D-редакторе ASA Lab" />
-            </figure>
+            <div className="public-home-shot-row">
+              <figure className="public-home-shot">
+                <img
+                  src={electronicsBlocks}
+                  alt="Arduino и программа из визуальных блоков в ASA Lab"
+                />
+              </figure>
+              <figure className="public-home-shot">
+                <img src={threeDBus} alt="Модель автобуса в 3D-редакторе ASA Lab" />
+              </figure>
+            </div>
+          </div>
+        </section>
+
+        <section
+          className="public-home-section public-home-community"
+          id="community"
+          aria-labelledby="community-title"
+        >
+          <div className="public-home-section-head public-home-section-head-wide">
+            <p className="public-home-kicker">Проекты сообщества</p>
+            <h2 id="community-title">Смотри, что делают другие. Показывай своё.</h2>
+            <p>
+              В ASA Lab уже есть галерея опубликованных работ: новые и популярные проекты,
+              фильтрация по средам, реакции и выбор редакции. Социальный слой развивается дальше —
+              вокруг авторов, проектов и их новых версий, а не вокруг бесконечного общего чата.
+            </p>
+          </div>
+
+          <div className="public-home-community-layout">
+            <div className="public-home-project-wall" aria-label="Примеры проектов ASA Lab">
+              <figure>
+                <img src={threeDBus} alt="3D-проект автобуса в ASA Lab" loading="lazy" />
+                <figcaption>
+                  <strong>3D-модель</strong>
+                  <span>Проект в 3D-среде</span>
+                </figcaption>
+              </figure>
+              <figure>
+                <img
+                  src={electronicsSimulation}
+                  alt="Электронный проект со светодиодами в ASA Lab"
+                  loading="lazy"
+                />
+                <figcaption>
+                  <strong>Электроника</strong>
+                  <span>Схема и симуляция</span>
+                </figcaption>
+              </figure>
+              <figure>
+                <img src={threeDHouse} alt="3D-проект домика в ASA Lab" loading="lazy" />
+                <figcaption>
+                  <strong>3D-модель</strong>
+                  <span>Работа пользователя</span>
+                </figcaption>
+              </figure>
+              <figure>
+                <img
+                  src={electronicsBlocks}
+                  alt="Проект Arduino с визуальными блоками в ASA Lab"
+                  loading="lazy"
+                />
+                <figcaption>
+                  <strong>Arduino + блоки</strong>
+                  <span>Программа рядом со схемой</span>
+                </figcaption>
+              </figure>
+            </div>
+
+            <aside className="public-home-community-panel">
+              <span className="public-home-status is-live">Уже есть</span>
+              <h3>Галерея опубликованных работ</h3>
+              <ul>
+                <li>Новые и популярные проекты</li>
+                <li>Реакции «Нравится» и «Ого»</li>
+                <li>Фильтрация по средам</li>
+                <li>Выбор редакции</li>
+              </ul>
+              <span className="public-home-status">Развивается</span>
+              <p>
+                Профили авторов, подписки, обсуждения, скачивание, связь с оригиналом и возможность
+                создавать собственную версию проекта.
+              </p>
+              <button
+                type="button"
+                className="public-home-button public-home-button-secondary"
+                onClick={() => onChoose('sign-in')}
+              >
+                Войти и открыть галерею
+              </button>
+            </aside>
           </div>
         </section>
 
@@ -180,14 +279,11 @@ export function PublicEntryPage({
           aria-labelledby="capabilities-title"
         >
           <div className="public-home-section-head">
-            <p className="public-home-kicker">Что можно делать</p>
-            <h2 id="capabilities-title">
-              Несколько способов создавать и решать задачи — в одной среде
-            </h2>
+            <p className="public-home-kicker">Инструменты</p>
+            <h2 id="capabilities-title">Выбери среду и сделай что-то своё</h2>
             <p>
-              Выбирайте инструмент под задачу, сохраняйте результат как проект и возвращайтесь к
-              нему, чтобы улучшать решение. ASA Lab связывает разные направления общей проектной
-              логикой.
+              ASA Lab не сводится к одному редактору. Разные инструменты объединяются общей системой
+              проектов, чтобы результат можно было сохранить, показать и продолжить развивать.
             </p>
           </div>
 
@@ -198,356 +294,200 @@ export function PublicEntryPage({
                   <img src={capability.image} alt={capability.alt} loading="lazy" />
                 </div>
                 <div className="public-home-capability-copy">
+                  {capability.status ? <span className="public-home-card-status">{capability.status}</span> : null}
                   <h3>{capability.title}</h3>
                   <p>{capability.copy}</p>
-                  <a href={capability.href}>Подробнее →</a>
+                  {capability.href ? <a href={capability.href}>Подробнее →</a> : null}
                 </div>
               </article>
             ))}
           </div>
 
-          <div className="public-home-ecosystem-line" aria-label="Общий образовательный контур">
-            <strong>Инструменты и контур:</strong>
-            <span>Блочное программирование</span>
+          <div className="public-home-ecosystem-line" aria-label="Экосистема ASA Lab">
+            <strong>Одна экосистема:</strong>
+            <span>Инструменты</span>
             <span>Проекты</span>
+            <span>Авторы</span>
             <span>Галерея</span>
-            <span>Знания</span>
-            <span>Курсы</span>
-            <span>Классы и задания</span>
-            <span>Обратная связь</span>
+            <span>Реакции</span>
+            <span>ИИ</span>
+            <span>Совместная работа</span>
+          </div>
+        </section>
+
+        <section
+          className="public-home-section public-home-project-core"
+          id="projects"
+          aria-labelledby="projects-title"
+        >
+          <div className="public-home-section-head public-home-section-head-wide">
+            <p className="public-home-kicker">Проект — центр ASA Lab</p>
+            <h2 id="projects-title">Создавай. Пробуй. Делись. Улучшай.</h2>
+            <p>
+              Проект — это не одноразовая сессия. Это сохраняемый результат, к которому можно
+              вернуться, сделать новую версию, опубликовать его и использовать как точку старта для
+              следующей идеи.
+            </p>
+          </div>
+          <div className="public-home-cycle-grid">
+            {creatorCycle.map(([number, title, copy]) => (
+              <article key={number}>
+                <span>{number}</span>
+                <h3>{title}</h3>
+                <p>{copy}</p>
+              </article>
+            ))}
           </div>
         </section>
 
         <section className="public-home-section public-home-proof" aria-labelledby="proof-title">
           <div className="public-home-section-head public-home-section-head-wide">
             <p className="public-home-kicker">Реальный продукт</p>
-            <h2 id="proof-title">Это не макет — это рабочая среда</h2>
+            <h2 id="proof-title">Не рекламный макет — рабочие редакторы</h2>
             <p>
-              Ниже — актуальные интерфейсы ASA Lab. Схема, код, блоки и 3D-модель находятся рядом с
-              тем, что пользователь действительно создаёт и проверяет.
+              Показываем интерфейсы без декоративного обрезания и наложений: так видно, чем человек
+              действительно пользуется внутри ASA Lab.
             </p>
           </div>
 
-          <div className="public-home-proof-story">
-            <div className="public-home-proof-copy">
-              <span className="public-home-proof-index">01</span>
-              <h3>Электроника и Arduino</h3>
-              <p>
-                Соберите схему, запустите моделирование, управляйте Arduino визуальными блоками или
-                текстовым C++ и сразу наблюдайте результат на компонентах.
-              </p>
-              <a href="/features/electronics/">О виртуальной электронике →</a>
-            </div>
-            <div className="public-home-proof-media public-home-proof-media-electronics">
-              <img
-                className="is-main"
-                src={electronicsCpp}
-                alt="Arduino и текстовый C++ в редакторе электроники ASA Lab"
-                loading="lazy"
-              />
-              <img
-                className="is-secondary"
-                src={electronicsBlocks}
-                alt="Arduino и визуальные блоки в ASA Lab"
-                loading="lazy"
-              />
-            </div>
-          </div>
+          <div className="public-home-proof-grid">
+            <article className="public-home-proof-card">
+              <div className="public-home-proof-copy">
+                <span className="public-home-proof-index">01</span>
+                <h3>Электроника и Arduino</h3>
+                <p>
+                  Схема, компоненты, симуляция, визуальные блоки и текстовый C++ находятся рядом с
+                  реальным результатом проекта.
+                </p>
+                <a href="/features/electronics/">О виртуальной электронике →</a>
+              </div>
+              <div className="public-home-proof-images">
+                <img
+                  src={electronicsCpp}
+                  alt="Arduino и текстовый C++ в редакторе электроники ASA Lab"
+                  loading="lazy"
+                />
+                <img
+                  src={electronicsBlocks}
+                  alt="Arduino и визуальные блоки в ASA Lab"
+                  loading="lazy"
+                />
+              </div>
+            </article>
 
-          <div className="public-home-proof-story is-reversed">
-            <div className="public-home-proof-copy">
-              <span className="public-home-proof-index">02</span>
-              <h3>3D-моделирование</h3>
-              <p>
-                Собирайте объекты из форм, меняйте размеры и положение, создавайте составные модели
-                и сохраняйте их как собственные проекты. 3D-направление развивается в сторону
-                CAD-сценариев.
-              </p>
-              <a href="/features/3d-modeling/">О 3D и CAD →</a>
-            </div>
-            <div className="public-home-proof-media public-home-proof-media-3d">
-              <img
-                className="is-main"
-                src={threeDBus}
-                alt="Красный автобус в 3D-редакторе ASA Lab"
-                loading="lazy"
-              />
-              <img
-                className="is-secondary"
-                src={threeDHouse}
-                alt="Домик в 3D-редакторе ASA Lab"
-                loading="lazy"
-              />
-            </div>
+            <article className="public-home-proof-card">
+              <div className="public-home-proof-copy">
+                <span className="public-home-proof-index">02</span>
+                <h3>3D-моделирование</h3>
+                <p>
+                  Формы, размеры, композиция и составные объекты — с сохранением работы как
+                  собственного проекта. CAD-сценарии развиваются поверх этой основы.
+                </p>
+                <a href="/features/3d-modeling/">О 3D и CAD →</a>
+              </div>
+              <div className="public-home-proof-images">
+                <img src={threeDBus} alt="Автобус в 3D-редакторе ASA Lab" loading="lazy" />
+                <img src={threeDHouse} alt="Домик в 3D-редакторе ASA Lab" loading="lazy" />
+              </div>
+            </article>
           </div>
         </section>
 
         <section
-          className="public-home-section public-home-projects"
-          id="projects"
-          aria-labelledby="projects-title"
+          className="public-home-section public-home-development"
+          id="development"
+          aria-labelledby="development-title"
         >
-          <div className="public-home-projects-copy">
-            <p className="public-home-kicker">Проекты и сообщество</p>
-            <h2 id="projects-title">Смотри, что создают другие. Продолжай своей идеей.</h2>
+          <div className="public-home-development-copy">
+            <p className="public-home-kicker">Куда развивается ASA Lab</p>
+            <h2 id="development-title">Больше способов создавать — то же проектное ядро</h2>
             <p>
-              В ASA Lab можно хранить свои работы и смотреть опубликованные проекты. Чужой проект —
-              это не готовый ответ, а источник идеи, другой подход и повод попробовать собственное
-              решение.
-            </p>
-            <div className="public-home-project-tags" aria-label="Типы проектов">
-              <span>3D</span>
-              <span>Электроника</span>
-              <span>Arduino</span>
-              <span>Игры</span>
-              <span>Визуальные проекты</span>
-            </div>
-            <button
-              type="button"
-              className="public-home-button public-home-button-secondary"
-              onClick={() => onChoose('sign-in')}
-            >
-              Открыть галерею проектов
-            </button>
-            <p className="public-home-small-note">
-              Галерея и личные проекты открываются после входа.
+              Новые инструменты не должны превращать ASA Lab в случайный каталог редакторов. Они
+              подключаются к общей системе проектов, авторов и сообщества.
             </p>
           </div>
-          <div className="public-home-project-wall" aria-label="Примеры проектов ASA Lab">
-            <figure>
-              <img src={threeDBus} alt="3D-проект автобуса" loading="lazy" />
-              <figcaption>3D-модель</figcaption>
-            </figure>
-            <figure>
-              <img
-                src={electronicsSimulation}
-                alt="Электронный проект со светодиодами"
-                loading="lazy"
-              />
-              <figcaption>Электроника</figcaption>
-            </figure>
-            <figure>
-              <img src={threeDHouse} alt="3D-проект домика" loading="lazy" />
-              <figcaption>3D-модель</figcaption>
-            </figure>
-            <figure>
-              <img
-                src={electronicsBlocks}
-                alt="Проект Arduino с визуальными блоками"
-                loading="lazy"
-              />
-              <figcaption>Arduino + блоки</figcaption>
-            </figure>
-          </div>
-        </section>
-
-        <section
-          className="public-home-section public-home-learning"
-          id="learning"
-          aria-labelledby="learning-title"
-        >
-          <div className="public-home-learning-visual">
-            <img
-              src={homeDashboard}
-              alt="Главная ASA Lab с разделами проектов и обучения"
-              loading="lazy"
-            />
-          </div>
-          <div className="public-home-learning-copy">
-            <p className="public-home-kicker">Обучение внутри платформы</p>
-            <h2 id="learning-title">Не только создавай — учись и развивайся</h2>
-            <p>
-              Проекты связаны с материалами и учебными сценариями. Можно читать объяснение, получить
-              задачу, выполнить её в реальном редакторе и вернуться к результату позже.
-            </p>
-            <div className="public-home-learning-list">
-              <article>
-                <strong>Знания</strong>
-                <span>Объяснения, примеры и материалы.</span>
-              </article>
-              <article>
-                <strong>Курсы и задания</strong>
-                <span>Последовательная практическая работа.</span>
-              </article>
-              <article>
-                <strong>Моё обучение</strong>
-                <span>Личные активности и возвращение к работе.</span>
-              </article>
-              <article>
-                <strong>Практика</strong>
-                <span>Редакторы, где знания сразу превращаются в действие.</span>
-              </article>
-            </div>
+          <div className="public-home-development-grid">
+            <article>
+              <span className="public-home-status">Развивается</span>
+              <strong>CAD-среда</strong>
+              <p>
+                Более точное инженерное моделирование с привычной логикой профессиональных CAD-систем.
+                КОМПАС-3D остаётся ориентиром для отдельных российских сценариев, а не определением бренда.
+              </p>
+            </article>
+            <article>
+              <span className="public-home-status">Интегрируется</span>
+              <strong>Scratch</strong>
+              <p>
+                Оригинальная среда Scratch рассматривается как отдельный визуальный сценарий внутри
+                экосистемы ASA Lab.
+              </p>
+            </article>
+            <article>
+              <span className="public-home-status">Развивается</span>
+              <strong>Визуальная робототехника</strong>
+              <p>Движение, условия, циклы, датчики и поведение роботов через блочные программы.</p>
+            </article>
+            <article>
+              <span className="public-home-status">Развивается</span>
+              <strong>ИИ-помощник</strong>
+              <p>
+                ИИ как соавтор внутри проекта: помогает перейти от замысла к результату и от первой
+                версии к следующей.
+              </p>
+            </article>
+            <article>
+              <span className="public-home-status">Развивается</span>
+              <strong>Генеративные инструменты</strong>
+              <p>Быстрые заготовки и результаты, которые можно продолжить редактировать в проекте.</p>
+            </article>
+            <article>
+              <span className="public-home-status">Развивается</span>
+              <strong>Социальный слой</strong>
+              <p>
+                Профили, подписки, обсуждения, скачивание, свои версии и видимая связь производной
+                работы с оригиналом.
+              </p>
+            </article>
           </div>
         </section>
 
         <section className="public-home-section public-home-use" aria-labelledby="use-title">
           <div className="public-home-section-head">
-            <p className="public-home-kicker">Для разных сценариев</p>
-            <h2 id="use-title">Используйте ASA Lab так, как удобно вам</h2>
+            <p className="public-home-kicker">Как использовать</p>
+            <h2 id="use-title">Для себя, вместе с другими или в группе</h2>
+            <p>
+              Базовый сценарий — просто прийти и сделать проект. Классы, задания и преподавательские
+              функции остаются дополнительным способом организовать совместную работу.
+            </p>
           </div>
           <div className="public-home-use-grid">
             <article>
               <span>01</span>
-              <h3>Самостоятельно</h3>
-              <p>
-                Создавайте свои проекты, изучайте материалы и возвращайтесь к работе в удобном
-                темпе.
-              </p>
+              <h3>Для себя</h3>
+              <p>Хобби, личная идея, эксперимент, прототип или просто желание попробовать новый инструмент.</p>
             </article>
             <article>
               <span>02</span>
-              <h3>В классе</h3>
-              <p>
-                Войдите по коду, получите задание и выполните его в той же среде, где создаётся
-                проект.
-              </p>
+              <h3>С сообществом</h3>
+              <p>Смотрите опубликованные работы, реагируйте, находите идеи и показывайте собственные проекты.</p>
+            </article>
+            <article>
+              <span>03</span>
+              <h3>В группе или классе</h3>
+              <p>При необходимости подключайте код класса, задания и общую организацию работы.</p>
               <button type="button" onClick={() => onChoose('class-code')}>
                 У меня есть код →
               </button>
             </article>
             <article>
-              <span>03</span>
-              <h3>Преподавателю</h3>
-              <p>Организуйте классы и задания, смотрите работу и возвращайте обратную связь.</p>
-              <a href="/for-teachers/">Подробнее →</a>
-            </article>
-            <article>
               <span>04</span>
-              <h3>Школе и организации</h3>
-              <p>
-                Объединяйте пользователей и преподавателей, сохраняя роли, контроль и общую среду.
-              </p>
-              <a href="/for-schools/">Для организаций →</a>
-            </article>
-          </div>
-        </section>
-
-        <section
-          className="public-home-section public-home-teachers"
-          id="teachers"
-          aria-labelledby="teachers-title"
-        >
-          <div className="public-home-teachers-copy">
-            <p className="public-home-kicker">Преподавателю</p>
-            <h2 id="teachers-title">Видно не только ответ, но и путь к нему</h2>
-            <p>
-              Преподаватель создаёт класс, выдаёт задание, получает работу и возвращает обратную
-              связь в том же учебном контексте, где пользователь выполнял проект.
-            </p>
-            <ol>
-              <li>
-                <strong>1</strong>
-                <span>Создать класс</span>
-              </li>
-              <li>
-                <strong>2</strong>
-                <span>Выдать задание</span>
-              </li>
-              <li>
-                <strong>3</strong>
-                <span>Получить работу</span>
-              </li>
-              <li>
-                <strong>4</strong>
-                <span>Проверить и ответить</span>
-              </li>
-            </ol>
-            <a className="public-home-text-link" href="/for-teachers/">
-              Возможности для преподавателей →
-            </a>
-          </div>
-          <div className="public-home-teachers-media">
-            <img
-              src={assignmentProgress}
-              alt="Прогресс выполнения задания в классе ASA Lab"
-              loading="lazy"
-            />
-          </div>
-        </section>
-
-        <section
-          className="public-home-section public-home-safety"
-          id="safety"
-          aria-labelledby="safety-title"
-        >
-          <div className="public-home-section-head">
-            <p className="public-home-kicker">Среда под контролем</p>
-            <h2 id="safety-title">Спокойная работа без лишнего шума</h2>
-          </div>
-          <div className="public-home-safety-grid">
-            <article>
-              <h3>Работает в браузере</h3>
-              <p>Для начала не нужно собирать сложную локальную среду на каждом устройстве.</p>
-            </article>
-            <article>
-              <h3>Без рекламы</h3>
-              <p>
-                Интерфейс не конкурирует за внимание с рекламными вставками и механиками удержания.
-              </p>
-            </article>
-            <article>
-              <h3>Роли и классы</h3>
-              <p>Учебная работа связана с конкретными участниками и пространствами.</p>
-            </article>
-            <article>
-              <h3>Контролируемое общение</h3>
-              <p>Без открытого детского чата с незнакомыми пользователями.</p>
-            </article>
-          </div>
-          <a className="public-home-text-link" href="/safety/">
-            Подробнее о безопасности →
-          </a>
-        </section>
-
-        <section
-          className="public-home-section public-home-development"
-          aria-labelledby="development-title"
-        >
-          <div className="public-home-development-copy">
-            <p className="public-home-kicker">Развитие ASA Lab</p>
-            <h2 id="development-title">
-              Одна цифровая мастерская — всё больше связанных сценариев
-            </h2>
-            <p>
-              ASA Lab развивается вокруг одной идеи: пользователь должен пройти путь от замысла до
-              собственного результата. Поэтому редакторы, обучение, проекты сообщества и инструменты
-              преподавателя связываются между собой, а не живут отдельными сервисами.
-            </p>
-          </div>
-          <div className="public-home-development-grid">
-            <article>
-              <strong>3D и CAD</strong>
-              <span>
-                Браузерное моделирование и переход к профессиональным CAD-сценариям, включая работу
-                с КОМПАС-3D.
-              </span>
-            </article>
-            <article>
-              <strong>Программирование</strong>
-              <span>Визуальные блоки, Arduino и переход от алгоритма к текстовому коду.</span>
-            </article>
-            <article>
-              <strong>Творчество</strong>
-              <span>
-                Рисование, форма, цвет и визуальные проекты как полноценная часть общей среды.
-              </span>
-            </article>
-            <article>
-              <strong>Обучение</strong>
-              <span>Знания, курсы, задания и практика непосредственно в редакторах.</span>
-            </article>
-            <article>
-              <strong>Сообщество</strong>
-              <span>
-                Опубликованные работы, идеи других пользователей и собственная галерея проектов.
-              </span>
-            </article>
-            <article>
-              <strong>Электроника</strong>
-              <span>
-                Компоненты, моделирование, измерения, Arduino и расширение инженерных сценариев.
-              </span>
+              <h3>Преподавателю или организации</h3>
+              <p>Классы, роли, задания и обратная связь доступны как отдельный рабочий контур.</p>
+              <div className="public-home-inline-links">
+                <a href="/for-teachers/">Преподавателям →</a>
+                <a href="/for-schools/">Организациям →</a>
+              </div>
             </article>
           </div>
         </section>
@@ -559,11 +499,16 @@ export function PublicEntryPage({
         >
           <div className="public-home-about-copy">
             <p className="public-home-kicker">О проекте</p>
-            <h2 id="about-title">ASA Lab создаётся вокруг реальной практики</h2>
+            <h2 id="about-title">ASA Lab строится как самостоятельная цифровая экосистема</h2>
             <p>
-              Платформа строится как цифровая мастерская: пользователь не только смотрит
-              демонстрацию, а делает собственную попытку, видит результат, исправляет ошибки и
-              объясняет решение.
+              Ценность ASA Lab не в количестве редакторов сама по себе. Платформа связывает
+              инструменты, проекты, авторов, публикации и развитие идей, чтобы человеку не приходилось
+              собирать весь процесс из несвязанных сервисов.
+            </p>
+            <p>
+              Проект может закрывать часть сценариев, для которых раньше использовались разные или
+              недоступные сервисы, но ASA Lab не позиционируется как копия Tinkercad, Scratch или
+              КОМПАС-3D.
             </p>
             <div className="public-home-about-links">
               <a href="/about/">Подробнее о проекте →</a>
@@ -571,7 +516,7 @@ export function PublicEntryPage({
                 Исходный код · AGPL-3.0 →
               </a>
               <a href="https://vk.ru/asalabru" target="_blank" rel="noreferrer">
-                VK →
+                Сообщество ВКонтакте →
               </a>
             </div>
           </div>
@@ -586,8 +531,8 @@ export function PublicEntryPage({
               <h3>Александр Аликин</h3>
               <p>
                 Преподаватель технических и цифровых дисциплин, инженер-практик и предприниматель.
-                Развивает ASA Lab на основе проектных задач, образовательных сценариев и
-                практической работы с пользователями и учащимися.
+                Развивает ASA Lab как среду, где человек может попробовать идею, сделать собственный
+                результат и продолжить его развивать.
               </p>
             </div>
           </article>
@@ -595,8 +540,8 @@ export function PublicEntryPage({
 
         <section className="public-home-final" aria-labelledby="final-title">
           <div>
-            <p className="public-home-kicker">Начните с собственной идеи</p>
-            <h2 id="final-title">Создавайте, проверяйте и развивайте результат в ASA Lab</h2>
+            <p className="public-home-kicker">Начни с интереса или идеи</p>
+            <h2 id="final-title">Сделай своё. Покажи другим. Вернись с новой версией.</h2>
           </div>
           <div className="public-home-actions">
             <button
@@ -606,13 +551,9 @@ export function PublicEntryPage({
             >
               Создать аккаунт
             </button>
-            <button
-              type="button"
-              className="public-home-button public-home-button-secondary"
-              onClick={() => onChoose('sign-in')}
-            >
-              Войти
-            </button>
+            <a className="public-home-button public-home-button-secondary" href="#community">
+              Смотреть проекты
+            </a>
           </div>
         </section>
       </main>
@@ -620,17 +561,18 @@ export function PublicEntryPage({
       <footer className="public-home-footer">
         <div className="public-home-footer-brand">
           <AsaLabWordmark />
-          <p>Цифровая среда для проектов, обучения и творчества.</p>
+          <p>Цифровая мастерская и сообщество для создания и развития проектов.</p>
         </div>
         <div className="public-home-footer-links">
           <div>
             <strong>Платформа</strong>
-            <a href="#capabilities">Возможности</a>
+            <a href="#capabilities">Инструменты</a>
             <a href="#projects">Проекты</a>
-            <a href="#learning">Обучение</a>
+            <a href="#community">Сообщество</a>
+            <a href="#development">Развитие</a>
           </div>
           <div>
-            <strong>Работа вместе</strong>
+            <strong>Совместная работа</strong>
             <a href="/for-teachers/">Преподавателям</a>
             <a href="/for-schools/">Организациям</a>
             <a href="/safety/">Безопасность</a>
