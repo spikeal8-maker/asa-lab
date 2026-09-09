@@ -36,10 +36,7 @@ function diagnostic(code: string, message: string): ModuleDiagnostic {
   return { code, severity: 'error', message };
 }
 
-function invalid(
-  code: string,
-  message: string,
-): ModuleValidationResult<BlocksProjectDocumentV1> {
+function invalid(code: string, message: string): ModuleValidationResult<BlocksProjectDocumentV1> {
   return { ok: false, diagnostics: [diagnostic(code, message)] };
 }
 
