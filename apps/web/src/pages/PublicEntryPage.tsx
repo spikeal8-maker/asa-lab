@@ -37,7 +37,7 @@ const capabilities: readonly Capability[] = [
     status: 'Доступно',
   },
   {
-    title: 'Программирование и робототехника',
+    title: 'Блочное программирование и робототехника',
     copy: 'Собирайте алгоритмы из визуальных блоков, переходите к текстовому коду и связывайте программу с поведением схем, устройств и роботов.',
     image: '/social/asa-lab-block-programming.png',
     alt: 'Блочное программирование и робототехника в ASA Lab',
@@ -313,7 +313,7 @@ export function PublicEntryPage({
             <span>Галерея</span>
             <span>Реакции</span>
             <span>ИИ</span>
-            <span>Совместная работа</span>
+            <span>Классы и задания — дополнительно</span>
           </div>
         </section>
 
