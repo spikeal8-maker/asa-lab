@@ -69,6 +69,30 @@ jobs:
       - name: Install exact dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Format check Scratch foundation files
+        run: >-
+          pnpm exec prettier --check
+          apps/api/src/blocks-module.ts
+          apps/api/src/blocks-module.spec.ts
+          apps/api/src/module-registry.ts
+          .github/workflows/scratch-m0-focused.yml
+          docs/architecture/ADR-VSCR-001-SCRATCH-EDITOR-INTEGRATION.md
+
+      - name: Lint Scratch module integration
+        run: >-
+          pnpm exec eslint
+          apps/api/src/blocks-module.ts
+          apps/api/src/blocks-module.spec.ts
+          apps/api/src/module-registry.ts
+
+      - name: Build internal module dependencies
+        run: |
+          pnpm nx build module-sdk
+          pnpm nx build electronics
+          pnpm nx build chess
+          pnpm nx build checkers
+          pnpm nx build three-d
+
       - name: Scratch module contract tests
         run: >-
           pnpm vitest run
