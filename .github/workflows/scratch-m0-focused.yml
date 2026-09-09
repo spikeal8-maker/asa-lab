@@ -78,6 +78,12 @@ jobs:
           .github/workflows/scratch-m0-focused.yml
           docs/architecture/ADR-VSCR-001-SCRATCH-EDITOR-INTEGRATION.md
 
+      - name: Show Prettier diff on failure
+        if: failure()
+        run: |
+          pnpm exec prettier apps/api/src/blocks-module.ts > /tmp/blocks-module.formatted.ts
+          diff -u apps/api/src/blocks-module.ts /tmp/blocks-module.formatted.ts || true
+
       - name: Lint Scratch module integration
         run: >-
           pnpm exec eslint
