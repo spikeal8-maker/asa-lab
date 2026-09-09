@@ -35,10 +35,6 @@ permissions:
 env:
   NX_SKIP_NX_CACHE: 'true'
 
-concurrency:
-  group: scratch-m0-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
-
 jobs:
   contracts:
     name: Module contract and API typecheck
@@ -112,6 +108,9 @@ jobs:
     name: Pinned upstream image and health smoke
     runs-on: ubuntu-24.04
     timeout-minutes: 35
+    concurrency:
+      group: scratch-runtime-${{ github.event.pull_request.number || github.ref }}
+      cancel-in-progress: true
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
