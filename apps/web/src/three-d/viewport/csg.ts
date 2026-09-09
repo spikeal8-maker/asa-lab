@@ -38,10 +38,16 @@ class Vertex {
 }
 
 class Plane {
+  private readonly normalLength: number;
+  private readonly distanceMargin: number;
+
   constructor(
     readonly normal: THREE.Vector3,
     readonly w: number,
-  ) {}
+  ) {
+    this.normalLength = normal.length();
+    this.distanceMargin = EPSILON * 2 + Number.EPSILON * 16 * Math.abs(w);
+  }
 
   static fromPoints(a: THREE.Vector3, b: THREE.Vector3, c: THREE.Vector3): Plane {
     const normal = b.clone().sub(a).cross(c.clone().sub(a)).normalize();
@@ -57,6 +63,11 @@ class Plane {
     (this as { w: number }).w = -this.w;
   }
 
+  private classify(vertex: Vertex): number {
+    const value = this.normal.dot(vertex.position) - this.w;
+    return value < -EPSILON ? 2 : value > EPSILON ? 1 : 0;
+  }
+
   splitPolygon(
     polygon: Polygon,
     coplanarFront: Polygon[],
@@ -68,14 +79,27 @@ class Plane {
     const FRONT = 1;
     const BACK = 2;
     const SPANNING = 3;
+    // Immutable polygon bounds let distant planes classify a whole face with
+    // one dot product. Keep a conservative floating-point margin: near a plane
+    // the original per-vertex classification below remains authoritative.
+    const distance = this.normal.dot(polygon.centre) - this.w;
+    const radius = polygon.radius * this.normalLength + this.distanceMargin;
+    if (distance > radius) {
+      front.push(polygon);
+      return;
+    }
+    if (distance < -radius) {
+      back.push(polygon);
+      return;
+    }
     let polygonType = COPLANAR;
-    const classify = (vertex: Vertex): number => {
-      const value = this.normal.dot(vertex.position) - this.w;
-      return value < -EPSILON ? BACK : value > EPSILON ? FRONT : COPLANAR;
-    };
-    // Most tests do not split the polygon. Avoid allocating a vertex-types
-    // array for every plane along a several-thousand-plane rounded-solid tree.
-    for (const vertex of polygon.vertices) polygonType |= classify(vertex);
+    // This is the hot loop for rounded solids. No per-polygon closure/iterator
+    // allocation, and SPANNING cannot change after both sides have been found.
+    // Plane order, distance arithmetic and EPSILON are deliberately unchanged.
+    for (let index = 0; index < polygon.vertices.length; index++) {
+      polygonType |= this.classify(polygon.vertices[index]!);
+      if (polygonType === SPANNING) break;
+    }
     if (polygonType === COPLANAR) {
       (this.normal.dot(polygon.plane.normal) > 0 ? coplanarFront : coplanarBack).push(polygon);
       return;
@@ -94,8 +118,8 @@ class Plane {
       const next = (index + 1) % polygon.vertices.length;
       const vertex = polygon.vertices[index] as Vertex;
       const nextVertex = polygon.vertices[next] as Vertex;
-      const type = classify(vertex);
-      const nextType = classify(nextVertex);
+      const type = this.classify(vertex);
+      const nextType = this.classify(nextVertex);
       if (type !== BACK) frontVertices.push(vertex);
       if (type !== FRONT) backVertices.push(type !== BACK ? vertex.clone() : vertex);
       if ((type | nextType) === SPANNING) {
@@ -115,6 +139,8 @@ class Plane {
 
 class Polygon {
   readonly plane: Plane;
+  readonly centre: THREE.Vector3;
+  readonly radius: number;
 
   constructor(readonly vertices: Vertex[]) {
     this.plane = Plane.fromPoints(
@@ -122,6 +148,19 @@ class Polygon {
       vertices[1]!.position,
       vertices[2]!.position,
     );
+    const bounds = new THREE.Box3().setFromPoints(vertices.map((vertex) => vertex.position));
+    this.centre = bounds.getCenter(new THREE.Vector3());
+    let radiusSquared = 0;
+    for (const vertex of vertices)
+      radiusSquared = Math.max(radiusSquared, vertex.position.distanceToSquared(this.centre));
+    const radius = Math.sqrt(radiusSquared);
+    // Inflate once, not once per BSP plane; include coordinate cancellation in
+    // the bound. This only avoids the fast path near a plane, never changes it.
+    this.radius =
+      radius +
+      Number.EPSILON *
+        32 *
+        (Math.abs(this.centre.x) + Math.abs(this.centre.y) + Math.abs(this.centre.z) + radius);
   }
 
   clone(): Polygon {

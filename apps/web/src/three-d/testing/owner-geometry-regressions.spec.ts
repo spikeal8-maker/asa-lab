@@ -1,8 +1,20 @@
 import { describe, expect, it } from 'vitest';
+import { createHash } from 'node:crypto';
 import * as THREE from 'three';
 import { createThreeDNode } from '@asa-lab/three-d';
 import { createPrimitiveGeometry } from '../viewport/geometry';
 import { createBooleanGeometry } from '../viewport/csg';
+
+// Captured from the integrated pre-optimization engine (6d2bf2da). Preserve
+// vertex order, normals and feature edges, not just a similar bounding box.
+function fingerprint(geometry: THREE.BufferGeometry | null): string | null {
+  if (!geometry) return null;
+  const hash = createHash('sha256');
+  for (const name of ['position', 'normal'])
+    hash.update(Buffer.from(geometry.getAttribute(name).array.buffer));
+  hash.update(JSON.stringify(geometry.userData));
+  return hash.digest('hex');
+}
 
 function volume(geometry: THREE.BufferGeometry): number {
   const positions = geometry.getAttribute('position');
@@ -98,6 +110,9 @@ describe('owner underside and rounded-body regressions', () => {
       },
     };
     const geometry = createBooleanGeometry([first, second], 'union');
+    expect(fingerprint(geometry)).toBe(
+      'a86a8ee9574d73deecc782594ed2d4c706340e798aac4a2f97994e7daef0ce90',
+    );
     expect(geometry).not.toBeNull();
     try {
       expect(volume(geometry!)).toBeGreaterThan(10000);
@@ -128,6 +143,9 @@ describe('owner underside and rounded-body regressions', () => {
       transform: { ...first.transform, position: { x: -44, y: 18, z: 14 } },
     };
     const geometry = createBooleanGeometry([first, second], 'union');
+    expect(fingerprint(geometry)).toBe(
+      'a1238d5c7bbf50c637bf78842cbe7ec198bd8a5ab0a54902139d0279cdd066eb',
+    );
     expect(geometry).not.toBeNull();
     try {
       expect(volume(geometry!)).toBeGreaterThan(155000);

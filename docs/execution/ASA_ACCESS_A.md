@@ -178,6 +178,34 @@ Semantic review всех пересечений (не только тексто�
 изолированных CI images используют тот же точный head, что checkout, а не
 synthetic PR merge SHA. Это исправляет provenance evidence, не runtime поведение.
 
+Первый интегрированный CI выявил два новых блокирующих результата, несмотря на
+локальный repository PASS. Их красные logs/trace сохранены:
+
+- Account C1: URL `/home` проверялся до завершения POST context + GET me;
+  следующий клик попадал в исчезающий header. Helper теперь ждёт server-refreshed
+  `.current` workspace и закрытия disclosure. Assertions доступа не ослаблены.
+- Реальная геометрия скруглённого автобуса из main превысила 30 секунд и в data
+  test, и в браузерном Worker. CPU profile показал основную стоимость splitPolygon.
+  Консервативная bounding-sphere классификация и устранение per-call allocations
+  сохраняют порядок BSP, EPSILON и исходную per-vertex проверку около плоскости.
+  Порог Worker и test timeout не увеличены, детализация не уменьшена. Два полных
+  hash геометрии/нормалей/feature edges зафиксированы до оптимизации и проверяются
+  новыми assertions. На той же машине профилированные пары дали 31.6 → 21.4 сек;
+  это измерение, не универсальная гарантия производительности. Owner geometry
+  regressions теперь входят также в focused 3D gate, а не только repository test.
+- Два локальных Windows touch-сценария остановились на первом tap после CDP
+  жеста. Потеря click воспроизведена на пустой HTML-странице без ASA/React;
+  ожидание scroll, длительности нажатия и другой CDP channel не исправили её.
+  Экспериментальные изменения E2E удалены, исходные gestures/assertions сохранены.
+  Этот локальный прогон — FAIL, не PASS. Для нового candidate обязательны те же
+  полные 6/6 сценариев в Linux CI; предыдущий Linux PASS мобильных тестов не
+  переносится на новый SHA. Диагностический reproducer и traces сохранены локально.
+
+Эти дополнительные изменения относятся к технической проверке интеграции, не к
+новым возможностям Result A. Непересекающиеся main-файлы первоначально перенесены
+побайтно; затем owner-geometry test дополнен указанными fingerprint assertions.
+Принятые пользовательские semantics Access A не изменяются.
+
 Порядок проверки: upstream regressions → focused Access A → repository gate →
 реальные A–J/C1 и module browser gates → CI точного нового SHA → заключительный
 fetch/divergence check. Старые зелёные результаты не засчитываются новому SHA.
