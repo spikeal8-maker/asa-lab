@@ -1,151 +1,168 @@
-# VSCR-M0.1-002 — Normalise Scratch upstream pin to the reviewed release commit
+# VSCR-M0.1-002 — Scratch upstream pin provenance review
 
-**Status:** coding-ready documentation package; execution still requires explicit task selection  
-**Scope:** upstream reproducibility only  
+**Status:** REVIEW COMPLETE — current pin retained; no code/config change required  
+**Scope:** upstream reproducibility and provenance only  
 **Host contract:** [`VSCR-D0-001-SCRATCH-HOST-CONTRACT.md`](VSCR-D0-001-SCRATCH-HOST-CONTRACT.md)
 
 ---
 
-## 1. Why this task exists
+## 1. Why this review exists
 
-Audit on 10 September 2026 established:
-
-```text
-latest published Scratch Editor release: v15.1.1
-release tag commit: 99bcc17e0580588f181f8a87577a2f676537a487
-current ASA M0 pin: 82c5fea6d3e60c781f25c09b375045f9b46a43f7
-```
-
-The current ASA pin is nine commits after the release tag. The inspected release-tag → ASA
-pin delta consists of dependency-maintenance changes and does not contain an identified ASA
-integration requirement.
-
-Therefore the correct conservative baseline is the official v15.1.1 release commit unless
-a separately reviewed requirement proves otherwise.
-
----
-
-## 2. Goal
-
-Change the exact upstream commit lock from the post-release snapshot to the official
-`v15.1.1` release commit while keeping the declared version `15.1.1`.
-
-This task does not build the ASA host and does not change Scratch behaviour intentionally.
-
----
-
-## 3. Preconditions
+The 10 September 2026 audit established two different immutable revisions associated with
+the declared Scratch Editor version `15.1.1`:
 
 ```text
-blocks remains coming_soon
-no learner Blocks data exists
-M0 focused Docker build currently succeeds on the old pin
-D0-001 current revision has been read
+official v15.1.1 release tag commit
+  99bcc17e0580588f181f8a87577a2f676537a487
+
+current ASA M0 pin
+  82c5fea6d3e60c781f25c09b375045f9b46a43f7
 ```
 
-Do not combine this task with an upstream version upgrade beyond `15.1.1`.
+The second revision is nine upstream commits after the release tag. Calling it the
+"v15.1.1 release commit" would therefore be inaccurate, but changing it merely to make the
+SHA equal the tag would also be unjustified without inspecting the delta.
+
+This review resolves that ambiguity before M1 host work.
 
 ---
 
-## 4. Expected changed paths
+## 2. Evidence reviewed
 
-Normally only:
+GitHub compare for:
 
 ```text
-infra/scratch-editor/upstream.env
-infra/scratch-editor/README.md
+99bcc17e0580588f181f8a87577a2f676537a487
+...
+82c5fea6d3e60c781f25c09b375045f9b46a43f7
 ```
 
-The focused workflow may change only if it hard-codes the old SHA rather than reading
-`upstream.env`.
+shows:
 
-Documentation that literally repeats the old SHA may be corrected in the same slice, but
-no runtime/API/Project Core/module schema code is authorised.
+```text
+ahead_by: 9
+source-code files changed: 0
+changed files: package-lock.json + package manifests only
+```
+
+The nine upstream commits are:
+
+```text
+b5be4a3 fix(deps): update scratch-l10n to v6.1.112
+01ef390 style(deps): update eslint-config-scratch to v14.1.62
+cdd2a10 chore(deps): update unplugin-dts to v1.1.0
+d933a9a chore(deps): update jest to v30.5.1
+a2b34a9 style(deps): update eslint-config-scratch to v14.1.64
+d4eb487 style(deps): update eslint-config-scratch to v14.1.65
+320c5e9 chore(deps): update tap to v21.8.0
+0c78f15 style(deps): update eslint-config-scratch to v14.1.66
+82c5fea chore(deps): update playwright monorepo to v1.63.0
+```
+
+Eight are build/test/style dependency maintenance. `scratch-l10n 6.1.112` is the only
+runtime-facing dependency change in the inspected manifest delta; it is an upstream
+localisation dependency update, not a Scratch editor source patch.
+
+The existing ASA M0 Docker build already verifies the exact current SHA and package version
+and the current pin has passed the pinned-image/health smoke.
 
 ---
 
-## 5. Exact lock
+## 3. Decision
 
-`infra/scratch-editor/upstream.env` becomes:
+**Retain the current immutable ASA pin:**
 
 ```env
 SCRATCH_EDITOR_REPOSITORY=https://github.com/scratchfoundation/scratch-editor.git
-SCRATCH_EDITOR_COMMIT=99bcc17e0580588f181f8a87577a2f676537a487
+SCRATCH_EDITOR_COMMIT=82c5fea6d3e60c781f25c09b375045f9b46a43f7
 SCRATCH_EDITOR_VERSION=15.1.1
 ```
 
-Do not use:
+Do **not** roll back to `99bcc17...` solely because it is the tag commit.
+
+The correct provenance wording is:
 
 ```text
-v15.1.1 as a floating Git ref at build time
-develop
-main
-latest
-an npm range
-82c5fea... without a new explicit exception decision
+Scratch Editor package version: 15.1.1
+ASA exact pin: 82c5fea...
+provenance: reviewed post-release snapshot, nine dependency-maintenance commits after v15.1.1
+source-code delta from v15.1.1 tag: none in the reviewed compare
 ```
 
-The release tag may be recorded as provenance in documentation, but build reproducibility
-uses the immutable commit SHA.
+This is intentionally different from saying that `82c5fea...` *is* the release-tag commit.
 
 ---
 
-## 6. Docker verification
+## 4. Reproducibility rule
 
-The existing Docker build must continue to verify:
+Builds continue to use an immutable commit SHA, never a floating ref:
 
 ```text
-checked-out HEAD == SCRATCH_EDITOR_COMMIT
-root package version == SCRATCH_EDITOR_VERSION
-npm ci succeeds
-expected M0 build output exists
+allowed: exact reviewed SHA
+forbidden: develop / main / latest / mutable tag-only checkout / npm range
 ```
 
-This task does not replace the M0 playground with the production standalone host; that is
-owned by `VSCR-M1-002`.
+`SCRATCH_EDITOR_VERSION` remains an independent package-version assertion. The Docker build
+must continue to fail if either the Git SHA or package version differs from the declared
+lock.
 
 ---
 
-## 7. Required verification
+## 5. Future upstream updates
 
-Run the exact focused Scratch gate/workflow and prove:
+A future pin change is a new reviewed change, not an automatic Renovate-style movement in
+ASA.
+
+For every candidate pin:
 
 ```text
-1. repository checks out 99bcc17e0580588f181f8a87577a2f676537a487
-2. package version check still reports 15.1.1
-3. npm ci/build succeeds from the release commit
-4. isolated Docker health/root smoke passes
-5. module contract/API typecheck remain green
-6. no Scratch dependency enters the ASA Web dependency graph
+1. identify nearest official Scratch release/tag
+2. compare exact tag SHA -> candidate SHA
+3. enumerate changed source files and dependency manifests
+4. review runtime-facing dependency changes
+5. review license/trademark-relevant changes
+6. verify D0-001 integration coupling/patch contexts
+7. build exact Docker image
+8. run browser/runtime compatibility evidence
+9. record exact accepted SHA and provenance
 ```
 
-Then run the repository-required gate against the branch rebased/merged with the current
-main baseline. A stale branch failure caused by dependencies already fixed in main is not
-accepted as final evidence.
+If a candidate contains source-code changes after the nearest release tag, the review must
+name why ASA needs them. "Newer" is not sufficient.
 
 ---
 
-## 8. Forbidden
+## 6. Effect on milestone readiness
+
+This review removes the **upstream-provenance blocker** from `VSCR-M1-002`.
+
+It does **not** make M1-002 coding-ready by itself. M1-002 still requires its exact task
+package to be amended/accepted against the current D0-001 branding/File/Extensions patch
+ledger and must start from a branch reconciled with current `main`.
+
+`infra/scratch-editor/upstream.env` therefore requires no change from this review.
+
+---
+
+## 7. Forbidden interpretations
 
 ```text
-no upgrade to 15.2/other release
-no arbitrary post-release commit
-no package.json dependency edits in ASA
-no Project Core changes
-no object storage
-no host branding patch implementation
-no module activation
-no deployment
-no service restart
-no current.yaml transition unless this exact task is selected by governance
+NO claim that 82c5fea is the official v15.1.1 tag commit
+NO automatic rollback to 99bcc17
+NO automatic movement to a newer upstream commit
+NO Scratch dependency added to apps/web
+NO host implementation in this review
+NO Project Core/storage/security work
+NO activation/deployment/restart
 ```
 
 ---
 
-## 9. Done
+## 8. Done
 
-The source lock is an immutable SHA that is exactly the official `v15.1.1` release commit,
-the existing M0 focused build/health gate is green on that SHA, and no unrelated code has
-changed.
+The provenance ambiguity is resolved when documentation consistently identifies
+`82c5fea...` as the reviewed post-release `15.1.1` snapshot, the exact lock remains
+immutable, and later host work no longer depends on a cosmetic rollback to the release-tag
+SHA.
 
-Stop after evidence; do not continue automatically into `VSCR-M1-002`.
+**Review result: COMPLETE. Current pin retained.**
