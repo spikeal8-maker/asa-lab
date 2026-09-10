@@ -1,8 +1,5 @@
 schema_version: 1.1.0
 
-# Owner-selected development workflow. There is one user-visible product and it
-# is developed directly in main. Legacy lane, branch, PR and lease records below
-# remain as planning/history metadata only; they do not grant or block writes.
 development_policy:
   mode: direct_main
   branch: main
@@ -11,21 +8,6 @@ development_policy:
   execution_leases: disabled
   lane_path_ownership: advisory
 
-# ─────────────────────────────────────────────────────────────────────────────
-# THE single source of execution state for ASA Lab.
-#
-# Every other document — START_HERE_FOR_AI.md, AGENTS.md, EXECUTION_MANIFEST,
-# project-map, QUALITY_MAP, PR bodies — describes policy, history or structure.
-# None of them may restate the fields below. When they disagree with this file,
-# this file wins and the disagreement is a validation failure, not a judgement
-# call.
-#
-# Verify with:  pnpm control-plane:check
-#
-# What "stabilised" means, in which order it is reached and which decisions the
-# owner still has to make: docs/execution/STABILIZATION_PLAN.md
-# ─────────────────────────────────────────────────────────────────────────────
-
 task:
   id: TASK-ASA-ACCESS-A-INTEGRATE-001
   issue: 173
@@ -33,8 +15,6 @@ task:
   base_branch: main
   pr: 174
   pr_draft: false
-  # Owner-authorized integration and merge are complete. This does not assert a
-  # CI conclusion: Actions holds the result for each SHA. No deployment or B/C.
   status: done
   checkpoint: owner_accepted_result_a_merged_without_deployment
   owner_acceptance: accepted
@@ -50,8 +30,6 @@ accepted_result:
   known_unsupported:
     - bilateral_student_seat_to_account_linking
     - personal_self_study_runtime_progress
-  # Consumed authorization for the exact integrated SHA/base above, not a
-  # standing permission for later changes or the unresolved requirements.
   merge_authorized: true
   deployment_authorized: false
   open_environment_checks:
@@ -59,32 +37,17 @@ accepted_result:
       status: unverified
       evidence: docs/testing/ACCESS_A_WINDOWS_TOUCH_REPRO.md
 
-# Commits that mean something. Anything not listed here is ordinary history.
 revisions:
-  # Last merge into main. The product baseline every release candidate builds on.
   product_merge_sha: 07ffd4e5266ded960ae8485a93a20103d607d6d9
-  # Which revision is green is a fact GitHub Actions holds per commit. It is
-  # not recorded here: a hand-maintained copy went stale within hours the last
-  # time, and it would go stale again on the next push.
-  # Owner-visible convergence baseline for the current task.
   convergence_baseline_sha: cc712bc5155291b64dca3207457d26b055c118f6
 
-# Legacy compatibility record. It is not an access-control mechanism while
-# development_policy.execution_leases is disabled.
 execution_lease:
   executor_id: codex-admin-auth-max
   holder: unassigned
   acquired_at: null
   expires_at: null
-  # Anyone may read, analyse, run tests and report without holding the lease.
   reviewer_role_requires_lease: false
 
-# Which checks exist, and what runs them. Not their outcomes.
-#
-# Outcomes live in GitHub Actions, which already holds a conclusion per commit.
-# validate_control_plane.py reads them for the current head rather than comparing
-# against a copy kept here — a copy would have to be rewritten after every push,
-# on every branch carrying this file, and would be wrong in between.
 gates:
   focused:
     workflow: ASA Lab Governance and Code Gates
@@ -99,9 +62,6 @@ gates:
     commands:
       - pnpm gate:repository
 
-# Schema 1.1 keeps the root task, lease and gates as the canonical primary lane
-# so every existing consumer remains valid. Lane metadata adds disjoint writable
-# scopes for independently leased product work.
 primary_lane:
   id: admin-auth
   worktree_id: admin-auth-main
@@ -125,8 +85,6 @@ primary_lane:
 
 parallel_lanes:
   - id: electronics
-    # One normative human document, colocated machine contracts and a
-    # reconciled execution checkpoint replace the historical R4-M1 document set.
     worktree_id: electronics-main
     owned_paths:
       - contexts/electronics/**
@@ -223,9 +181,6 @@ parallel_lanes:
           - pnpm gate:repository
 
   - id: three-d
-    # Owner advanced the 3D optimisation programme to OPT-1. The first package
-    # moves the existing BSP evaluator behind a Worker without changing the
-    # persisted document or claiming OPT-2 topology correctness.
     worktree_id: three-d-opt-1-main
     owned_paths:
       - contexts/three-d/**
@@ -323,15 +278,14 @@ parallel_lanes:
         commands:
           - pnpm gate:repository
 
-  # Owner-accepted ASA Learning M0, LRN-M1-001 through LRN-M1-005 and
-  # LRN-VS-001 lane. Only the product-first LRN-VS-002 slice is active;
-  # M1-006 onward and M2-M7 remain outside activation.
   - id: learning
-    worktree_id: learning-vs-002
+    worktree_id: learning-course-01
     owned_paths:
+      - docs/product/ASA_INTEGRATED_IMPLEMENTATION_SPEC.md
       - docs/product/ASA_LEARNING_TECHNICAL_SPEC.md
       - docs/product/ASA_LEARNING_REQUIREMENTS_LEDGER.yaml
       - docs/product/learning/**
+      - docs/execution/LRN_COURSE_01.md
       - docs/architecture/ADR-LEARNER-IDENTITY-001.md
       - contexts/learning/**
       - apps/api/src/learning-canonical-projection.service.ts
@@ -347,11 +301,17 @@ parallel_lanes:
       - apps/web/src/components/ClassroomAssignments.tsx
       - apps/web/src/components/ClassroomCourses.tsx
       - apps/web/src/components/ClassroomGradebook.tsx
+      - apps/web/src/components/CoursesPanel.tsx
       - apps/web/src/components/SeatAssignments.tsx
       - apps/web/src/components/SeatCourses.tsx
       - apps/web/src/components/SeatResults.tsx
+      - apps/web/src/components/WorkPreview.tsx
+      - apps/web/src/pages/AssignmentLibraryPage.tsx
+      - apps/web/src/pages/AuthoredMaterialsPage.tsx
       - apps/web/src/pages/AttendedClassesPage.tsx
+      - apps/web/src/pages/ClassroomPage.tsx
       - apps/web/src/pages/ClassroomStudentPage.tsx
+      - apps/web/src/pages/LearningPage.tsx
       - e2e/learning-surface-convergence.spec.ts
       - e2e/artifacts/learning/**
       - migrations/0086_learning_identity_foundation.sql
@@ -375,22 +335,20 @@ parallel_lanes:
       - tools/learning-additive-backfill.mjs
       - tests/courses/**
     task:
-      id: TASK-LEARNING-VS-002
-      issue: 167
+      id: TASK-LRN-COURSE-001
+      issue: 179
       branch: main
       base_branch: main
       pr: null
       pr_draft: false
-      status: done
-      checkpoint: merged_to_main
+      status: in_progress
+      checkpoint: e1_authorized_spec_integrated_delta_review
       owner_acceptance: pending
     revisions:
-      convergence_baseline_sha: b18cd9ba6092708c3961cdfd017c9c1e15191de3
-      head_sha: c05d87ae59c7ffe5c216d8beffaf403130e8ab41
-      owner_accepted_sha: 793a537ea731ebeec10c2e4ff06322f11c2896d6
-      product_merge_sha: c05d87ae59c7ffe5c216d8beffaf403130e8ab41
+      convergence_baseline_sha: b963ef828f0e10042adacba4199bba972526c0df
+      head_sha: b963ef828f0e10042adacba4199bba972526c0df
     execution_lease:
-      executor_id: codex-learning-vs-002
+      executor_id: codex-learning-course-01
       holder: unassigned
       acquired_at: null
       expires_at: null
@@ -430,6 +388,4 @@ integration:
     - docs/testing/**
 
 blocking: []
-
-# A future task becomes executable only through a separate owner transition.
 next_task: null
