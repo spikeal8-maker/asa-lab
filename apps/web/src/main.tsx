@@ -4,6 +4,7 @@ import { App } from './App';
 import { AppErrorBoundary } from './AppErrorBoundary';
 import './styles.css';
 import './accessibility.css';
+import './pages/PublicEntryHeroV2.css';
 
 const container = document.getElementById('root');
 if (!container) {
