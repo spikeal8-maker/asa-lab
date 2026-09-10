@@ -493,25 +493,42 @@ mode.
 The existing ordinary mutation limiter is inappropriate for thirty learners behind one
 school NAT because rapid autosave can make one IP look like one abusive user.
 
-Runtime routes therefore use their own limiter.
+Runtime routes therefore use their own bounded limiter family.
 
-Initial configurable ceilings:
+Initial configurable request/concurrency ceilings:
 
 ```text
-successful/authenticated requests per jti: 300 / 5 minutes
-coarse all-runtime requests per IP:       12000 / 5 minutes
-invalid-token attempts per IP:              300 / 5 minutes
-runtime-session issuance per normal session: 60 / 5 minutes
-concurrent asset PUT per jti:                  4
+successful/authenticated requests per jti:    300 / 5 minutes
+coarse all-runtime requests per IP:          12000 / 5 minutes
+invalid-token attempts per IP:                 300 / 5 minutes
+runtime-session issuance per normal session:    12 / 5 minutes
+concurrent asset PUT per jti:                     4
 ```
 
+Asset persistence additionally applies the unique-byte ceilings from D0-003:
+
+```text
+new unique asset bytes per capability lifetime: 512 MiB
+new unique asset bytes per project / 5 minutes:    1 GiB
+```
+
+The M1-003 security slice creates the bounded capability/project/IP limiter structure and
+runtime-session limits. The M1-004 asset slice charges unique-byte budgets only after it
+knows whether the incoming bytes represent a new immutable blob/alias; exact idempotent
+replays do not consume the same unique-byte budget twice.
+
 The normal generic mutation limiter is not double-applied to authenticated runtime paths.
+
+All limiter maps/caches are bounded; a bot must not introduce an unbounded per-jti/project
+Map that grows for the lifetime of the API process.
 
 A representative NAT test must model at least 30 simultaneous editor capabilities and
 prove ordinary autosave does not produce 429 responses.
 
 The coarse IP ceiling remains to cap accidental/hostile floods; it is deliberately much
 higher than a normal single-user mutation budget.
+
+These limits do not replace the per-file and current-project size limits in D0-003.
 
 ---
 
@@ -622,9 +639,12 @@ Must prove:
 13. wrong-origin/wrong-nonce iframe messages fail
 14. token never appears in URL/localStorage/IndexedDB/logs
 15. parent refreshes token; pending exact mutation survives expiry
-16. 30-editor shared-NAT test avoids false 429 under normal workload
-17. invalid-token flood is still bounded
-18. no Blocks security failure crashes unrelated ASA APIs
+16. runtime-session issuance churn is bounded
+17. 30-editor shared-NAT test avoids false 429 under normal workload
+18. invalid-token flood is still bounded
+19. asset unique-byte budgets prevent an authorised upload loop from creating unbounded
+    orphan storage in one capability/project window
+20. no Blocks security failure crashes unrelated ASA APIs
 ```
 
 Any requirement to weaken a global security header/policy is a STOP condition, not an
