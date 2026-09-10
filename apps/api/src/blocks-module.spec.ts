@@ -36,15 +36,18 @@ function expectAssetDiagnostic(document: unknown, code: string) {
 }
 
 describe('BLOCKS_MODULE', () => {
-  it('keeps the Scratch-backed environment gated with the corrected pre-release provider version', () => {
-    expect(BLOCKS_MODULE.manifest).toMatchObject({
-      moduleKey: 'blocks',
-      moduleVersion: '0.1.1',
-      projectType: 'scratch-3',
-      availability: 'coming_soon',
-      previewKind: 'stage',
-    });
-  });
+  it(
+    'keeps the Scratch-backed environment gated with the corrected pre-release provider version',
+    () => {
+      expect(BLOCKS_MODULE.manifest).toMatchObject({
+        moduleKey: 'blocks',
+        moduleVersion: '0.1.1',
+        projectType: 'scratch-3',
+        availability: 'coming_soon',
+        previewKind: 'stage',
+      });
+    },
+  );
 
   it('creates an empty ASA envelope without inventing a fake Scratch project.json', () => {
     const moduleProvider = provider();
@@ -58,17 +61,20 @@ describe('BLOCKS_MODULE', () => {
     expect(moduleProvider.validate(document)).toMatchObject({ ok: true, diagnostics: [] });
   });
 
-  it('accepts canonical Scratch 3 JSON plus logical asset references and preserves preview counts', () => {
-    const moduleProvider = provider();
-    const result = moduleProvider.validate(validDocument());
+  it(
+    'accepts canonical Scratch 3 JSON plus logical asset references and preserves preview counts',
+    () => {
+      const moduleProvider = provider();
+      const result = moduleProvider.validate(validDocument());
 
-    expect(result.ok).toBe(true);
-    if (!result.ok) throw new Error('expected valid blocks document');
-    expect(moduleProvider.createPreview(result.payload)).toMatchObject({
-      kind: 'stage',
-      summary: 'Scratch 3 · спрайтов: 1 · ресурсов: 1',
-    });
-  });
+      expect(result.ok).toBe(true);
+      if (!result.ok) throw new Error('expected valid blocks document');
+      expect(moduleProvider.createPreview(result.payload)).toMatchObject({
+        kind: 'stage',
+        summary: 'Scratch 3 · спрайтов: 1 · ресурсов: 1',
+      });
+    },
+  );
 
   it('rejects the former physical objectKey field as an unknown asset field', () => {
     const document = validDocument();
