@@ -92,30 +92,42 @@ AGENTS.md
 Сначала прочитай его §0–§4, затем только раздел выбранного VSCR task ID и
 [`ADR-VSCR-001`](docs/architecture/ADR-VSCR-001-SCRATCH-EDITOR-INTEGRATION.md).
 
-Для любого VSCR task, который затрагивает Scratch host, Project persistence,
-asset storage, runtime security/origin или deployment/activation, дополнительно
-обязательно прочитай соответствующий implementation contract в
-[`docs/product/visual-programming/`](docs/product/visual-programming/):
+Перед **любой** coding-задачей Visual Programming сначала открой индекс готовности:
+
+[`docs/product/visual-programming/README.md`](docs/product/visual-programming/README.md).
+
+Если выбранный task помечен там `NO`, coding запрещён, даже если старый task package
+содержит подробные шаги. `NO` означает, что после более свежего аудита остался
+неразрешённый prerequisite и пакет ещё не является разрешением на реализацию.
+
+Для VSCR-задач дополнительно обязательно прочитай соответствующий design contract:
 
 ```text
-VSCR-D0-001 — Scratch host
+VSCR-D0-001 — Scratch host / branding / File / Extensions
 VSCR-D0-002 — Project persistence guard
 VSCR-D0-003 — asset metadata/object storage
 VSCR-D0-004 — runtime capability/CORS/CSP/rate limits
 VSCR-D0-005 — deployment/backup/activation
+VSCR-D0-006 — immutable Gallery publication/player/cross-tenant remix
 ```
 
-Для coding-задач первой волны `VSCR-M0.1-001` и `VSCR-M1-001…005` обязательно
-прочитай также точный task package в
-[`VSCR-IMPLEMENTATION-PACKAGES-M0.1-M1.md`](docs/product/visual-programming/VSCR-IMPLEMENTATION-PACKAGES-M0.1-M1.md).
-Master/ADR/D0 объясняют архитектуру; task package фиксирует конкретные paths,
-шаги, тесты, запреты и Definition of Done для одного coding slice.
+Для coding-задачи обязательно должен существовать точный task package. Текущие
+пакеты лежат в [`docs/product/visual-programming/`](docs/product/visual-programming/),
+включая:
 
-Если выбранного coding task ID нет в актуальном implementation-package документе,
-не восстанавливай его из общего roadmap и не придумывай детали самостоятельно —
-STOP и запроси/подготовь отдельный task package. Для M2/M3 это специально
-обязательное правило: их task packages создаются только после принятия реальных
-интерфейсов предыдущего milestone.
+```text
+VSCR-IMPLEMENTATION-PACKAGES-M0.1-M1.md
+VSCR-IMPLEMENTATION-PACKAGE-M0.1-002-UPSTREAM-PIN.md
+```
+
+Master/ADR/D0 объясняют архитектуру; readiness index говорит, можно ли вообще
+кодировать выбранный task; task package фиксирует конкретные paths, шаги, тесты,
+запреты и Definition of Done для одного coding slice.
+
+Если выбранного coding task ID нет в актуальном package или readiness index говорит
+`NO`, не восстанавливай реализацию из roadmap, старого PR, комментария или чата — STOP.
+Для M2/M3 это специально обязательное правило: их task packages создаются только после
+принятия реальных интерфейсов предыдущего milestone.
 
 Если master spec требует D0 prerequisite, а соответствующий D0 contract отсутствует,
 противоречит коду или не принят для выбранной границы — STOP. Coding-агенту
