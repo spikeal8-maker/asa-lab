@@ -1,11 +1,12 @@
 # VSCR-D0-001 — ASA Scratch host contract
 
-**Status:** accepted design contract for the Visual Programming programme  
+**Status:** accepted design contract; `VSCR-M1-002` remains blocked until the exact upstream release pin is normalised by `VSCR-M0.1-002`  
 **Master:** [`../ASA_VISUAL_PROGRAMMING_SCRATCH_MASTER_SPEC.md`](../ASA_VISUAL_PROGRAMMING_SCRATCH_MASTER_SPEC.md)  
 **Upstream lock:** `infra/scratch-editor/upstream.env`
 
 This file fixes the host/runtime architecture so a coding agent does not decide how to
-embed Scratch while implementing another task. It is not permission to start coding.
+embed, brand or partially disable Scratch while implementing another task. It is not
+permission to start coding.
 
 ---
 
@@ -14,27 +15,48 @@ embed Scratch while implementing another task. It is not permission to start cod
 M1+ uses the pinned Scratch Editor **shipping standalone distribution** as a library inside
 an ASA-owned static host.
 
-The current M0 image that serves `packages/scratch-gui/build/index.html` is only a proof
-that the pinned upstream source builds and responds. It is not the product runtime.
+The current M0 image that serves `packages/scratch-gui/build/index.html` is only build and
+health evidence. It is not the ASA product runtime.
 
-The production direction is:
+Target direction:
 
 ```text
-scratchfoundation/scratch-editor @ exact commit
+scratchfoundation/scratch-editor @ exact reviewed release commit
 → npm ci
-→ production scratch-gui standalone dist
+→ scratch-gui shipping standalone dist
+→ two enumerated ASA compatibility patches where upstream has no safe host prop
 → ASA-owned host files
-→ Nginx container
+→ Nginx runtime container
 ```
 
 The ASA Web application never imports Scratch GUI/VM packages directly.
 
 ---
 
-## 2. Upstream API surface we intentionally depend on
+## 2. Exact upstream provenance is a prerequisite
 
-At the pinned upstream revision the standalone export provides the integration surface we
-need:
+The current M0 lock is intentionally treated as provisional for M1 host work.
+
+Audit on 10 September 2026 established:
+
+```text
+official tag v15.1.1 → 99bcc17e0580588f181f8a87577a2f676537a487
+current ASA pin        → 82c5fea6d3e60c781f25c09b375045f9b46a43f7
+```
+
+The current pin is nine commits after the release tag and the inspected delta is dependency
+maintenance rather than an ASA-required Scratch feature. Therefore M1 host work MUST NOT
+continue while documentation calls the current commit the exact `v15.1.1` release.
+
+`VSCR-M0.1-002` normalises the pin to the official release-tag commit unless a later
+explicit review proves an ASA-required reason to retain a post-release snapshot. A coding
+agent may not silently choose another SHA.
+
+---
+
+## 3. Upstream API surface we intentionally depend on
+
+At the reviewed upstream revision the standalone export must provide and tests must verify:
 
 ```text
 EditorState
@@ -43,27 +65,24 @@ setAppElement
 GUIConfig / GUIStorage shape
 ScratchStorage
 buildDefaultProject
-```
-
-GUI also exposes callbacks/props needed by the host, including:
-
-```text
 onVmInit(vm)
 onProjectLoaded()
 onSetProjectThumbnailer(...)
 projectId
 isPlayerOnly
+VM PROJECT_CHANGED
+vm.toJSON()
+vm.assets
 ```
 
-These are the preferred extension points. A direct patch to upstream Scratch source is a
-last resort and requires a separate enumerated compatibility patch.
+These are preferred extension points. Any removed/renamed surface is an upstream-update
+STOP condition.
 
 ---
 
-## 3. Target files
+## 4. ASA-owned host and image layout
 
-The first host implementation uses this shape unless the selected task explicitly proves
-a smaller equivalent split:
+Target repository shape:
 
 ```text
 infra/scratch-editor/
@@ -71,63 +90,148 @@ infra/scratch-editor/
 ├── Dockerfile
 ├── nginx.conf.template
 ├── README.md
+├── patches/
+│   ├── 0001-host-logo-prop.patch
+│   └── 0002-extension-button-visibility.patch
 └── host/
     ├── index.html
     ├── host.js
-    └── host.css
+    ├── host.css
+    └── assets/
+        └── asa-blocks-mark.svg
 ```
 
-No new package manager or second JS build system is introduced for the ASA host. The host
-loads the upstream UMD standalone bundle and accesses its exported `GUI` global.
+No second package manager/build system is introduced for the host. The host loads the
+upstream standalone bundle produced from the pinned source.
 
-Target image layout:
+Target image:
 
 ```text
 /usr/share/nginx/html/
 ├── index.html
 ├── host.js
 ├── host.css
+├── assets/**
 └── vendor/scratch/
     ├── scratch-gui-standalone.js
     ├── static/**
     ├── chunks/**
-    └── any other dist files required by the pinned standalone build
+    └── other files required by the exact standalone build
 ```
 
-The Docker build MUST verify at least:
-
-```text
-packages/scratch-gui/dist/scratch-gui-standalone.js exists
-ASA host/index.html exists
-all required standalone static/chunk directories copied
-```
-
-Do not copy `packages/scratch-gui/build/index.html` as the runtime entry document after
-this contract is implemented.
+The Docker build fails if the expected standalone bundle or ASA host entry file is absent.
+After M1-002 it MUST NOT serve upstream `build/index.html` as `/`.
 
 ---
 
-## 4. Host startup
+## 5. Branding and trademark boundary
 
-`index.html` loads, in order:
+ASA product branding is `ASA Lab — Визуальное программирование`.
+
+The Scratch name is used only in factual compatibility/attribution text such as:
 
 ```text
-/vendor/scratch/scratch-gui-standalone.js
-/host.js
+совместимо с проектами Scratch 3 (.sb3)
 ```
 
-`host.js` does not obtain project identity or authority from URL query/hash parameters.
-Runtime token, project ID and mode arrive only through the parent/iframe message protocol.
+The ASA product host MUST NOT display the Scratch logo as ASA navigation or product
+branding. Merely setting `onClickLogo = no-op` is insufficient because pinned upstream
+MenuBar still renders the Scratch mark.
 
-The host creates exactly one editor root per iframe lifetime.
+### 5.1 Enumerated compatibility patch: host-supplied logo
+
+Pinned upstream already carries a `logo` prop through GUI/MenuBar but the inspected MenuBar
+implementation renders `getScratchLogo(...)` instead of the supplied prop. M1-002 is
+authorised to carry one minimal patch whose only behavioural purpose is:
+
+```text
+MenuBar image source uses the supplied host `logo` prop when provided
+→ ASA host supplies /assets/asa-blocks-mark.svg
+→ upstream Scratch mark is not shown as ASA product chrome
+```
+
+Do not remove attribution/license files. Do not mass-rebrand upstream source strings.
+
+The patch must be stored under `infra/scratch-editor/patches/`, applied deterministically
+during Docker build and guarded by a patch-application/upstream-update test.
+
+### 5.2 Default project assets
+
+`buildDefaultProject()` MAY be used only as a pinned upstream compatibility fixture during
+non-user-facing M1 development while `blocks` remains `coming_soon`.
+
+It is NOT the final ASA production default-project asset set.
+
+Before M3 acceptance/public activation, ASA MUST provide a rights-cleared ASA-owned default
+project/sprite/backdrop/sounds (or a deliberately empty stage) and verify that creating a
+new project requires no Scratch Foundation trademark/media asset.
+
+Thus:
+
+```text
+M1 technical fixture may use upstream default assets
+M3 activation baseline may not depend on them without explicit rights decision
+```
 
 ---
 
-## 5. Parent/iframe bootstrap protocol
+## 6. File menu and extension surface
 
-### 5.1 Initial message
+ASA owns project naming, save status and `.sb3` import/export.
 
-The ASA parent creates a random `sessionNonce`, waits for iframe `load`, then sends:
+Therefore editor host v1 explicitly sets:
+
+```text
+canSave = false
+canCreateNew = false
+canEditTitle = false
+canManageFiles = false
+canShare = false
+canRemix = false
+backpackVisible = false
+showComingSoon = false
+canUseCloud = false
+```
+
+`canManageFiles=false` is mandatory: built-in Scratch File import/export is not a second
+persistence path.
+
+### 6.1 Extensions button
+
+Pinned GUI renders its Extensions button unconditionally and its connected default opens
+the upstream extension library. A no-op click handler is not an acceptable product state.
+
+M1-002 is authorised to carry one additional minimal upstream patch:
+
+```text
+new host-controlled boolean: extensionsButtonVisible
+upstream default: true
+ASA host core mode: false
+```
+
+The button is hidden, not merely disabled, through M1/M2 core mode. M3 defines the approved
+local extension allowlist and may enable a controlled extension surface.
+
+No additional upstream patch is authorised by this contract. A third patch is a STOP and
+requires design update.
+
+---
+
+## 7. Host startup and authority
+
+`index.html` loads the standalone vendor bundle and `/host.js`.
+
+Project identity and API authority never come from query/hash parameters. Runtime token,
+project ID and mode arrive only through the parent/iframe protocol.
+
+One iframe lifetime creates one editor root.
+
+---
+
+## 8. Parent/iframe bootstrap protocol v1
+
+Parent creates a cryptographically random `sessionNonce`, waits for iframe load and sends
+to the exact configured runtime origin:
 
 ```json
 {
@@ -146,61 +250,26 @@ The ASA parent creates a random `sessionNonce`, waits for iframe `load`, then se
 }
 ```
 
-For player mode:
+Player mode binds an immutable `versionId` and uses a read-only capability.
 
-```text
-mode = player
-versionId = immutable project version UUID
-```
-
-The parent MUST call `postMessage` with the exact configured runtime origin, never `*`.
-
-### 5.2 Initial origin validation in the child
-
-Before accepting `ASA_BLOCKS_INIT`, the child requires all of:
+Child accepts INIT only when:
 
 ```text
 event.source === window.parent
 protocolVersion === 1
 messageType === ASA_BLOCKS_INIT
-projectId is valid
-sessionNonce is non-empty
-runtimeToken is non-empty
+projectId valid
+sessionNonce non-empty
+runtimeToken non-empty
+event.origin equals expected ASA parent origin
 ```
 
-The child derives the expected parent origin from `document.referrer` and requires
-`event.origin` to equal that origin. Cross-origin referrer policy may provide only the
-origin; that is sufficient.
+The expected parent origin is derived from validated deployment configuration/referrer as
+defined by D0-004; missing or mismatched origin fails closed.
 
-If referrer is missing/invalid or origin does not match, the host fails closed and does
-not render an authorised editor.
+After mount child emits `ASA_BLOCKS_READY` with the exact Scratch version/commit.
 
-Server-side `frame-ancestors` is still required; referrer checking is not its replacement.
-
-### 5.3 Child ready
-
-After storage/config is installed and the Scratch root is mounted, child sends:
-
-```json
-{
-  "protocolVersion": 1,
-  "messageType": "ASA_BLOCKS_READY",
-  "projectId": "uuid",
-  "sessionNonce": "same-value",
-  "runtimeBuild": {
-    "scratchVersion": "15.1.1",
-    "scratchCommit": "exact-pin"
-  }
-}
-```
-
-Every message after INIT includes `protocolVersion`, `projectId` and `sessionNonce`.
-Messages with a wrong origin/project/nonce/version are ignored and recorded only as a
-technical rejection counter, never with token/body logging.
-
-### 5.4 Required message types v1
-
-Parent → child:
+Required parent → child messages:
 
 ```text
 ASA_BLOCKS_INIT
@@ -209,7 +278,7 @@ ASA_BLOCKS_FLUSH_REQUEST
 ASA_BLOCKS_STOP
 ```
 
-Child → parent:
+Required child → parent messages:
 
 ```text
 ASA_BLOCKS_READY
@@ -219,150 +288,89 @@ ASA_BLOCKS_FLUSH_RESULT
 ASA_BLOCKS_FATAL
 ```
 
-`requestId` is required for FLUSH request/result pairing.
-
-No generic RPC/eval/message-forwarding mechanism is allowed in protocol v1.
-
----
-
-## 6. Scratch GUI configuration
-
-ASA owns the outer navigation/title/save status. The embedded Scratch GUI is rendered with
-its server/product ownership controls disabled:
-
-```text
-canSave = false
-canCreateNew = false
-canEditTitle = false
-backpackVisible = false
-showComingSoon = false
-cloud provider = absent
-account/community functions = absent
-onClickLogo = no-op or explicit parent message; never scratch.mit.edu navigation
-```
-
-Do not use the upstream playground's `HashParserHOC` as a way to pass project authority or
-runtime tokens.
-
-Player mode sets upstream player-only state/props and still uses the same ASA host and ASA
-asset storage.
+Every post-init message carries `protocolVersion`, `projectId`, `sessionNonce`; flush pairs
+also carry `requestId`. No generic RPC/eval bridge exists.
 
 ---
 
-## 7. ASA GUIStorage
+## 9. ASA GUIStorage
 
-The host creates a new `ScratchStorage` instance and supplies a GUIStorage implementation
-through `new EditorState(params, () => ({storage: asaStorage}))`.
+The host creates a new `ScratchStorage` and supplies it through the `EditorState`
+configuration factory.
 
-The ASA storage object contains:
+ASA GUIStorage contains:
 
 ```text
 scratchStorage
-saveProject()             # defensive failure: ASA orchestrator owns persistence
-getLibraryAssetUrl()      # local/ASA URL only; never implicit Scratch fallback
+saveProject()        # defensive failure; ASA save orchestrator owns persistence
+getLibraryAssetUrl() # ASA/local only, never implicit Scratch-host fallback
 ```
 
-`backpackStorage` and `cloudVariables` are absent in the core programme.
+`backpackStorage` and cloud-variable provider are absent.
 
-### 7.1 Default project cache
+### 9.1 New project
 
-Before rendering a new project, the host calls upstream `buildDefaultProject()` and caches
-the returned Project/Sound/Image assets in the local `ScratchStorage` built-in cache.
+While `hasProjectJson=false`:
 
-The pinned default project uses internal Scratch project ID `0`. ASA may use that internal
-ID for local Scratch initialisation only; the canonical persistence identity remains the
-ASA project UUID from INIT.
+```text
+ASA UUID stays only in ASA host/API state
+Scratch GUI projectId is omitted/undefined
+local Scratch internal default ID 0 may initialise the technical M1 fixture
+```
 
-When `hasProjectJson=false`, the host MUST keep the ASA project UUID only in ASA host
-state/API paths and MUST NOT pass that UUID as Scratch GUI `projectId`. Passing it would
-make upstream `ProjectFetcherHOC` treat the empty ASA project as an existing Scratch
-project and fetch a raw project that does not exist yet. In this state, omit/leave Scratch
-`projectId` undefined so its locally cached default project ID `0` is used.
+Passing the ASA UUID to upstream ProjectFetcher in this state is forbidden because it
+would attempt to fetch a nonexistent existing Scratch project.
 
-After the first durable save, a new page/runtime session returns `hasProjectJson=true`; at
-that point the host passes the ASA UUID as Scratch `projectId` and the custom Project web
-store loads the saved raw `project.json` from ASA.
+The first durable save materialises every referenced asset, including clean/default assets.
 
-The first ASA durable save MUST materialise every referenced default asset through the ASA
-asset API even if Scratch marks it clean.
+### 9.2 Existing project
 
-### 7.2 Existing project load
-
-When `hasProjectJson=true`, Scratch internal `projectId` is the ASA project UUID and a
-custom Project web store resolves raw JSON from:
+When `hasProjectJson=true`, custom Project storage loads raw JSON from:
 
 ```text
 GET /api/blocks/runtime/projects/{projectId}/project.json
 ```
 
-The request uses the current in-memory bearer token and `credentials: omit`.
-
-Custom ImageVector/ImageBitmap/Sound web stores resolve:
+Asset web stores load:
 
 ```text
 GET /api/blocks/runtime/projects/{projectId}/assets/{assetId}.{format}
 ```
 
-The request function reads the current mutable in-memory token so token rotation does not
-require rebuilding the ScratchStorage instance.
+Requests use the current in-memory bearer token and `credentials: omit`. Token rotation
+changes subsequent storage requests without rebuilding the ScratchStorage object.
 
-### 7.3 Library URL behaviour before M3
+### 9.3 Library behaviour before M3
 
-The host MUST implement `getLibraryAssetUrl`; leaving it undefined would allow upstream
-legacy Scratch-host fallback.
-
-Before rights-cleared local libraries exist, unsupported library asset URLs resolve only
-to an ASA/local endpoint that may return a controlled unavailable state. They never fall
-back to `assets.scratch.mit.edu`.
-
-M3 replaces this with the approved local library catalogue.
+`getLibraryAssetUrl()` never falls back to Scratch Foundation hosts. Before an approved
+local library exists, unavailable library items resolve to a controlled ASA/local
+unavailable state. M3 replaces that with a rights-cleared local catalogue.
 
 ---
 
-## 8. ASA-owned save orchestrator
+## 10. ASA-owned save orchestrator
 
-Server persistence in upstream `ProjectSaverHOC` is intentionally disabled by
-`canSave=false`.
+Upstream server save remains disabled.
 
-Reason: pinned upstream project dirty state is a boolean. Its save path serialises state,
-performs asynchronous work, then calls `setProjectUnchanged()` unconditionally. A change
-that occurs while that save is in flight can therefore be cleared from the dirty flag.
-That is incompatible with ASA's rapid autosave guarantee.
-
-Instead:
-
-```text
-onVmInit(vm)
-→ retain VM reference
-→ subscribe to VM PROJECT_CHANGED
-→ generation-aware ASA save orchestrator
-```
-
-The orchestrator defined by the master/persistence contract owns:
+ASA obtains the VM through `onVmInit(vm)`, listens to `PROJECT_CHANGED` and owns a
+generation-aware persistence queue:
 
 ```text
 changeGeneration
 save scheduling
-asset durability preparation
-draft PUT
-revision tracking
-retry/token wait
+ensureReferencedAssetsDurable
+optimistic draft PUT
+confirmed revision tracking
+token refresh/retry
 conflict handling
 recovery snapshots
-ASA shell status messages
+status messages to parent
 ```
 
-Do not simultaneously enable upstream project server save and ASA autosave.
+Never enable upstream project server save simultaneously with ASA autosave.
 
----
-
-## 9. Initial-load suppression
-
-VM/project loading may emit internal state changes. The orchestrator starts in `LOADING`
-and does not mark the project dirty until upstream `onProjectLoaded()` has fired and the
-initial project has reached a stable rendered state.
-
-After that transition:
+Initial project load starts in `LOADING`; VM changes emitted during load do not become user
+edits. After `onProjectLoaded()` and stable initialisation:
 
 ```text
 changeGeneration = 0
@@ -370,126 +378,88 @@ confirmedGeneration = 0
 state = CLEAN
 ```
 
-Only subsequent learner/editor changes enter the save scheduler.
+---
 
-For a new default project, the first owner-visible edit causes normal autosave. A selected
-implementation task MAY also schedule one initial materialisation save after load if the
-technical-project lifecycle requires a persisted default before editing; if so the task
-must test that it does not create save loops.
+## 11. Thumbnail integration
+
+Use supported upstream thumbnail callback/stage-capture surface when available. Do not
+scrape arbitrary DOM/canvas internals merely to obtain a thumbnail.
+
+Snapshot save is bound to a confirmed project revision and is non-fatal to the draft save.
 
 ---
 
-## 10. Thumbnail integration
+## 12. Iframe and runtime headers
 
-Use the pinned GUI/VM callback surface (`onSetProjectThumbnailer` or equivalent tested
-stage capture). Do not inspect arbitrary DOM/canvas internals if the supported callback is
-available.
-
-Thumbnail/snapshot persistence occurs only after a confirmed project revision and is
-non-fatal to the draft save.
-
----
-
-## 11. Iframe sandbox and browser permissions
-
-Initial ASA iframe:
+Initial iframe sandbox:
 
 ```html
 sandbox="allow-scripts allow-same-origin"
 ```
 
-The iframe may also use the normal `allowfullscreen` mechanism for player/editor
-fullscreen when tested.
+No popup/top-navigation/forms/download/camera/microphone/geolocation permission is added
+by core mode. `.sb3` import/export belongs to ASA outer routes.
 
-Do not add:
-
-```text
-allow-top-navigation
-allow-popups
-allow-forms
-allow-modals
-allow-downloads
-camera
-microphone
-geolocation
-```
-
-unless a later authorised feature proves the exact requirement and updates the security
-contract.
-
-`.sb3` import/export is owned by ASA outer routes and does not require giving the embedded
-runtime general download/pop-up permissions.
-
----
-
-## 12. Nginx runtime requirements
-
-The runtime container keeps `/healthz`.
-
-After M1 host implementation Nginx also sets at least:
+Runtime keeps `/healthz` and sets at least:
 
 ```text
 X-Content-Type-Options: nosniff
 Referrer-Policy: no-referrer
 X-Permitted-Cross-Domain-Policies: none
-Content-Security-Policy with exact configured frame-ancestors
+Content-Security-Policy with exact frame-ancestors/connect-src from D0-004
 ```
 
-`frame-ancestors` is generated from explicit deployment configuration. It is never `*`.
-
-The runtime must not set cookies and does not need credentialed CORS.
-
-Static content-hashed vendor files may use immutable caching; `index.html` and host control
-files must revalidate so security/runtime changes propagate.
+Runtime sets no cookie and requires no credentialed CORS.
 
 ---
 
-## 13. Focused acceptance for the host task
+## 13. M1-002 acceptance
 
-The implementation is not accepted until tests prove:
+M1-002 is not accepted until browser/Docker evidence proves all of:
 
 ```text
-1. image uses scratch-gui standalone dist, not playground index
-2. exact upstream version/commit still verified
-3. ASA host root loads and emits READY only after valid INIT
-4. wrong parent origin INIT is rejected
-5. wrong nonce/project/version messages are rejected
-6. token is absent from URL/localStorage/log output
-7. editor mode exposes no Scratch server save/account/backpack/cloud authority
-8. player mode mounts from same host with read-only orchestration disabled
-9. new project uses local default ID 0 without trying to fetch the ASA UUID as an existing project
-10. existing project requests raw project.json from ASA runtime API
-11. asset loads carry Authorization and credentials: omit
-12. token update changes subsequent storage requests
-13. getLibraryAssetUrl never falls back to Scratch Foundation
-14. PROJECT_CHANGED after initial load reaches ASA orchestrator
-15. upstream saveProject defensive stub is not invoked in normal ASA editor flow
-16. Scratch runtime failure does not crash the ASA parent shell
+1. official reviewed upstream release SHA is the configured exact pin
+2. runtime uses standalone dist, not playground build/index.html
+3. the two authorised compatibility patches apply cleanly and no third patch exists
+4. ASA-owned mark is shown instead of Scratch logo in product chrome
+5. built-in File menu is absent (`canManageFiles=false`)
+6. Extensions button is absent in core mode
+7. no account/share/backpack/cloud/Scratch-server save authority is exposed
+8. editor does not render before valid INIT
+9. wrong parent origin/source/project/nonce/version is rejected
+10. runtime token is absent from URL/localStorage/sessionStorage/IndexedDB/logs
+11. new technical project uses local internal ID 0 and does not fetch ASA UUID
+12. existing project requests raw project JSON only from ASA runtime API
+13. asset loads use Authorization + credentials: omit
+14. token update affects subsequent storage requests
+15. no library URL falls back to Scratch Foundation
+16. PROJECT_CHANGED reaches the ASA orchestrator after initial load
+17. player mode mounts from the same host with writes disabled
+18. runtime failure does not crash ASA Web parent
 ```
 
-A browser test must inspect actual network requests. Source grep alone is not sufficient.
+Actual browser network inspection is mandatory; source grep is insufficient.
 
 ---
 
-## 14. Upstream upgrade coupling inventory
+## 14. Upstream-update coupling ledger
 
-The following upstream behaviours are intentional compatibility couplings and must be
-rechecked when the pin changes:
+Every future Scratch pin update must re-check:
 
 ```text
-standalone UMD export global name/API
-EditorState configFactory
+standalone bundle/export global
+EditorState config factory
 createStandaloneRoot
-ScratchStorage addWebStore request config support
-buildDefaultProject descriptor shape
-GUI onVmInit
-GUI onProjectLoaded
-player-only support
-thumbnail callback support
-VM PROJECT_CHANGED event
-vm.toJSON()
-vm.assets availability used by durability preparation
+ScratchStorage request hooks
+buildDefaultProject technical fixture shape
+GUI onVmInit/onProjectLoaded
+player-only mode
+thumbnail callback
+VM PROJECT_CHANGED
+vm.toJSON/vm.assets
+host logo patch context
+extension visibility patch context
 ```
 
-If one disappears, STOP the upstream update and update this contract before changing the
-integration architecture.
+If either compatibility patch no longer applies exactly, STOP the upstream update and
+review whether upstream now provides a native host control before rewriting the patch.
