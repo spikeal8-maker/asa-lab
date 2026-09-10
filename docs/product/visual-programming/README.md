@@ -62,7 +62,7 @@ VSCR-IMPLEMENTATION-PACKAGE-M0.1-002-UPSTREAM-PIN.md
 
 | Task | Coding-ready now from docs? | Blocker / prerequisite |
 | --- | --- | --- |
-| `VSCR-M0.1-001` | **IMPLEMENTED on feature branch; owner acceptance pending** | code result is commit `d277c4f71553b6c6ef90e52adb41e3200f036a1b`; focused contract/API job PASS; full focused workflow must still be read from Actions |
+| `VSCR-M0.1-001` | **IMPLEMENTED on feature branch; owner acceptance pending** | code result `d277c4f71553b6c6ef90e52adb41e3200f036a1b`; focused contract/API job PASS; runtime smoke is independent evidence |
 | `VSCR-M0.1-002` | **YES** | execute as its own upstream-lock slice; official v15.1.1 tag SHA is fixed in package |
 | `VSCR-M1-001` | **NO until M0.1-001 is explicitly accepted** | extract context only; no runtime/storage |
 | `VSCR-M1-002` | **NO** | first complete M0.1-002, then amend its task package to the new D0-001 branding/File/Extensions patch ledger |
@@ -82,10 +82,8 @@ VSCR-IMPLEMENTATION-PACKAGE-M0.1-002-UPSTREAM-PIN.md
 
 ## Correct near-term order
 
-The safe order after the 10 September audit is:
-
 ```text
-A. VSCR-M0.1-001 — IMPLEMENTED, acceptance pending
+A. VSCR-M0.1-001 — IMPLEMENTED, owner acceptance pending
    objectKey removed; strict pre-release Blocks asset contract in feature branch
 
 B. after explicit M0.1-001 acceptance: VSCR-M1-001
@@ -108,17 +106,16 @@ G. select/pin M1-004 content-validation stack, then make M1-004 READY
 H. select/prove M1-005 semantic Scratch validator, then make M1-005 READY
 ```
 
-C remains a separate correction slice; do not combine it with another uncontrolled change.
+`VSCR-M0.1-002` is independent of M1-001 but remains a separate correction slice. Do not
+combine tasks merely because both are small.
 
 ---
 
 ## Known current-code gaps
 
-Current feature branch status:
-
 ```text
 BlocksAssetReferenceV1 no longer contains objectKey
-  → VSCR-M0.1-001 implemented in code result d277c4f71553b6c6ef90e52adb41e3200f036a1b
+  → VSCR-M0.1-001 implementation result: d277c4f71553b6c6ef90e52adb41e3200f036a1b
 
 upstream.env points to post-release 82c5fea...
   → owned only by VSCR-M0.1-002
@@ -133,9 +130,9 @@ no runtime capability, S3/MinIO, durable save/load, recovery or sb3 pipeline exi
   → later bounded tasks only
 ```
 
-The feature branch is also behind the current `main` baseline. `main` already contains the
-`smol-toml 1.8.0` security override that the branch-wide gate lacked. Before any final PR
-acceptance/merge, reconcile with current `main` and run the required gates on one exact
+The feature branch is behind the current `main` baseline. `main` already contains the
+`smol-toml 1.8.0` security override that the branch-wide gate lacked. Before final PR
+acceptance/merge, reconcile with current `main` and run required gates on one exact
 resulting SHA. Do not treat a stale-branch dependency failure as a Scratch implementation
 failure, and do not treat focused PASS as repository-wide green.
 
