@@ -27,7 +27,7 @@ describe('PublicEntryPage licensing notice', () => {
     expect(headerActions).toBeDefined();
     expect(headerActions!.match(/>Войти<\/button>/g)).toHaveLength(1);
     expect(headerActions!.match(/>Создать аккаунт<\/button>/g)).toHaveLength(1);
-    expect(html).toContain('Мне дали код класса →');
+    expect(html).toContain('У меня есть код класса →');
   });
 
   it('keeps projects primary without presenting blocks or drawing as future modules', () => {
@@ -35,7 +35,8 @@ describe('PublicEntryPage licensing notice', () => {
 
     expect(html).not.toMatch(/STEM-лаборатория для школы|в разработке|будущая среда|планируется/i);
     // Check the shipped landing's project-first semantics, not obsolete hero artwork/copy.
-    expect(html).toContain('Создавай. Исследуй. Учись через действие.');
+    expect(html).toContain('Проект — центр ASA Lab');
+    expect(html).toContain('Создавай. Пробуй. Делись. Улучшай.');
     expect(html).toContain('/landing/home-dashboard.png');
     expect(html).toContain('Свои проекты');
     expect(html).toContain('Виртуальная электроника');
