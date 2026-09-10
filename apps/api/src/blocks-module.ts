@@ -5,14 +5,14 @@ import {
   type ModuleValidationResult,
 } from '@asa-lab/module-sdk';
 
+export type BlocksAssetFormat = 'svg' | 'png' | 'jpg' | 'wav' | 'mp3';
+
 export interface BlocksAssetReferenceV1 {
-  /** Scratch asset identifier (normally the content hash used by project.json). */
+  /** Scratch compatibility identity: lowercase MD5 of the asset bytes. */
   readonly assetId: string;
-  /** File extension without a dot: svg, png, wav, mp3, and so on. */
-  readonly dataFormat: string;
-  /** Stable object-store key. The bytes themselves never belong in Project Core JSONB. */
-  readonly objectKey: string;
-  /** Integrity digest of the stored bytes. */
+  /** Supported Scratch media format without a leading dot. */
+  readonly dataFormat: BlocksAssetFormat;
+  /** ASA integrity digest of the stored bytes. */
   readonly sha256: string;
   readonly sizeBytes: number;
 }
@@ -21,8 +21,8 @@ export interface BlocksAssetReferenceV1 {
  * ASA-owned envelope around Scratch 3 state.
  *
  * `projectJson` is the JSON document found inside an .sb3 archive. Binary assets
- * are deliberately represented by references only. M1 will connect these
- * references to the ASA object store and implement .sb3 import/export.
+ * are deliberately represented by logical references only. Physical bucket/object
+ * location is server-side metadata and never belongs in Project Core JSONB.
  */
 export interface BlocksProjectDocumentV1 {
   readonly schemaVersion: 1;
@@ -31,6 +31,9 @@ export interface BlocksProjectDocumentV1 {
   readonly projectJson: Record<string, unknown> | null;
   readonly assets: readonly BlocksAssetReferenceV1[];
 }
+
+const ASSET_KEYS = new Set(['assetId', 'dataFormat', 'sha256', 'sizeBytes']);
+const ASSET_FORMATS = new Set<BlocksAssetFormat>(['svg', 'png', 'jpg', 'wav', 'mp3']);
 
 function diagnostic(code: string, message: string): ModuleDiagnostic {
   return { code, severity: 'error', message };
@@ -65,46 +68,39 @@ function validateAsset(value: unknown, index: number): ModuleDiagnostic | null {
     return diagnostic('blocks.asset.type', `Scratch asset ${index} must be an object.`);
   }
 
-  // Inline bytes would make every autosave/checkpoint duplicate the complete
-  // .sb3 payload in PostgreSQL. This is a hard architectural boundary.
+  // Keep the architectural error explicit for the common binary-inline fields.
+  // These must be diagnosed before the generic strict-key check below.
   for (const forbidden of ['data', 'base64', 'bytes', 'dataUrl'] as const) {
     if (forbidden in value) {
       return diagnostic(
         'blocks.asset.inline_binary',
-        `Scratch asset ${index} must reference object storage; inline ${forbidden} is forbidden.`,
+        `Scratch asset ${index} must reference durable storage; inline ${forbidden} is forbidden.`,
       );
     }
   }
 
-  if (
-    typeof value.assetId !== 'string' ||
-    value.assetId.length < 1 ||
-    value.assetId.length > 128 ||
-    !/^[A-Za-z0-9_-]+$/.test(value.assetId)
-  ) {
-    return diagnostic('blocks.asset.asset_id', `Scratch asset ${index} has an invalid assetId.`);
+  for (const key of Object.keys(value)) {
+    if (!ASSET_KEYS.has(key)) {
+      return diagnostic(
+        'blocks.asset.unknown_field',
+        `Scratch asset ${index} contains unsupported field ${key}.`,
+      );
+    }
   }
-  if (
-    typeof value.dataFormat !== 'string' ||
-    value.dataFormat.length < 1 ||
-    value.dataFormat.length > 16 ||
-    !/^[a-z0-9]+$/.test(value.dataFormat)
-  ) {
+
+  if (typeof value.assetId !== 'string' || !/^[a-f0-9]{32}$/.test(value.assetId)) {
     return diagnostic(
-      'blocks.asset.data_format',
-      `Scratch asset ${index} has an invalid dataFormat.`,
+      'blocks.asset.asset_id',
+      `Scratch asset ${index} must use a lowercase 32-hex assetId.`,
     );
   }
   if (
-    typeof value.objectKey !== 'string' ||
-    value.objectKey.length < 1 ||
-    value.objectKey.length > 1024 ||
-    value.objectKey.includes('\\') ||
-    value.objectKey.includes('..')
+    typeof value.dataFormat !== 'string' ||
+    !ASSET_FORMATS.has(value.dataFormat as BlocksAssetFormat)
   ) {
     return diagnostic(
-      'blocks.asset.object_key',
-      `Scratch asset ${index} has an invalid objectKey.`,
+      'blocks.asset.data_format',
+      `Scratch asset ${index} must use one of svg, png, jpg, wav, mp3.`,
     );
   }
   if (typeof value.sha256 !== 'string' || !/^[a-f0-9]{64}$/.test(value.sha256)) {
@@ -182,7 +178,7 @@ function createPreview(document: BlocksProjectDocumentV1): ModulePreviewDescript
 export const BLOCKS_MODULE = defineModule<BlocksProjectDocumentV1>(
   {
     moduleKey: 'blocks',
-    moduleVersion: '0.1.0',
+    moduleVersion: '0.1.1',
     displayName: 'Визуальное программирование',
     shortDescription: 'Блочное программирование, совместимое с проектами Scratch 3.',
     defaultProjectTitlePrefix: 'Визуальный проект',
