@@ -6,12 +6,15 @@ and [`ADR-VSCR-001`](../../architecture/ADR-VSCR-001-SCRATCH-EDITOR-INTEGRATION.
 
 It is not current execution state and does not replace `docs/execution/current.yaml`.
 
+Latest factual readiness review: [`VSCR-AUDIT-2026-09-10-READINESS-NOTE.md`](VSCR-AUDIT-2026-09-10-READINESS-NOTE.md).
+
 ## Read order for a coding agent
 
 ```text
 AGENTS.md
 → START_HERE_FOR_AI.md
 → current authorised task from agent:context/current.yaml
+→ this readiness index
 → master spec §0–§4 + selected milestone/task
 → ADR-VSCR-001
 → matching D0 design contract(s)
