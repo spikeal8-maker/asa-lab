@@ -156,11 +156,19 @@
     white-space: nowrap;
   }
 
-  body .public-home .public-home-hero-stage .public-home-shot-row .public-home-shot:first-child::after {
+  body
+    .public-home
+    .public-home-hero-stage
+    .public-home-shot-row
+    .public-home-shot:first-child::after {
     content: 'Arduino + Blocks';
   }
 
-  body .public-home .public-home-hero-stage .public-home-shot-row .public-home-shot:last-child::after {
+  body
+    .public-home
+    .public-home-hero-stage
+    .public-home-shot-row
+    .public-home-shot:last-child::after {
     content: '3D / CAD';
   }
 
