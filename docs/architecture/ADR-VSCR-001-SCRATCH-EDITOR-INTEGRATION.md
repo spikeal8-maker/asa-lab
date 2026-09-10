@@ -4,6 +4,15 @@ Status: **accepted for VSCR-M0 foundation**
 Issue: **#176**  
 Module key: **`blocks`**
 
+Master implementation contract:  
+[`ASA_VISUAL_PROGRAMMING_SCRATCH_MASTER_SPEC.md`](../product/ASA_VISUAL_PROGRAMMING_SCRATCH_MASTER_SPEC.md)
+
+This ADR owns the stable architecture decisions for the Scratch integration. The master
+specification owns the TARGET, task decomposition, safety invariants and acceptance gates.
+Neither document owns current execution state: the active task, checkpoint, branch/PR and
+owner acceptance are read only from `docs/execution/current.yaml` according to
+`AGENTS.md`.
+
 ## Context
 
 ASA Lab already owns authentication, subject-neutral projects, immutable project
