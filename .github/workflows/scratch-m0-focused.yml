@@ -65,6 +65,11 @@ jobs:
       - name: Install exact dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Show inherited main CSS Prettier diff
+        run: |
+          pnpm exec prettier apps/web/src/pages/PublicEntryHeroV2.css > /tmp/PublicEntryHeroV2.formatted.css
+          diff -u apps/web/src/pages/PublicEntryHeroV2.css /tmp/PublicEntryHeroV2.formatted.css || true
+
       - name: Format check Scratch foundation files
         run: >-
           pnpm exec prettier --check
