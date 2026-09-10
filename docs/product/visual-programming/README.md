@@ -4,7 +4,10 @@ This directory is the implementation-detail layer below
 [`ASA_VISUAL_PROGRAMMING_SCRATCH_MASTER_SPEC.md`](../ASA_VISUAL_PROGRAMMING_SCRATCH_MASTER_SPEC.md)
 and [`ADR-VSCR-001`](../../architecture/ADR-VSCR-001-SCRATCH-EDITOR-INTEGRATION.md).
 
-It is not current execution state and does not replace `docs/execution/current.yaml`.
+Post-v2 normative repairs are recorded in
+[`VSCR-MASTER-V2-REPAIR-ADDENDUM-2026-09-10.md`](VSCR-MASTER-V2-REPAIR-ADDENDUM-2026-09-10.md).
+
+This directory is not current execution state and does not replace `docs/execution/current.yaml`.
 
 Latest factual readiness review: [`VSCR-AUDIT-2026-09-10-READINESS-NOTE.md`](VSCR-AUDIT-2026-09-10-READINESS-NOTE.md).
 
@@ -15,7 +18,9 @@ AGENTS.md
 → START_HERE_FOR_AI.md
 → current authorised task from agent:context/current.yaml
 → this readiness index
-→ master spec §0–§4 + selected milestone/task
+→ master spec §0–§4
+→ repair addendum
+→ selected master milestone/task
 → ADR-VSCR-001
 → matching D0 design contract(s)
 → exact implementation package for the selected coding task
@@ -59,8 +64,8 @@ Upstream provenance review record:
 VSCR-IMPLEMENTATION-PACKAGE-M0.1-002-UPSTREAM-PIN.md
 ```
 
-The latter is no longer a pending rollback task. Review concluded that the current
-`82c5fea...` pin should be retained as an explicitly documented post-release `15.1.1`
+The latter is not a pending rollback task. Review concluded that exact pin `82c5fea...`
+should be retained as an explicitly documented post-release Scratch Editor `15.1.1`
 snapshot.
 
 ### Current coding-readiness matrix
@@ -69,14 +74,14 @@ snapshot.
 | --- | --- | --- |
 | `VSCR-M0.1-001` | **IMPLEMENTED + focused verified; owner acceptance pending** | strict asset contract implemented; no durable/public Blocks data |
 | `VSCR-M0.1-002` | **REVIEW COMPLETE — NO CODE CHANGE** | current `82c5fea...` retained; provenance wording fixed |
-| `VSCR-REPO-CONVERGENCE` | **REQUIRED BEFORE NEXT CODE SLICE** | merge current `main` into feature branch without changing Scratch execution selection; run exact-head gates |
-| `VSCR-M1-001` | **NO** | M0.1-001 acceptance **and** repository convergence/green combined baseline required first |
+| `VSCR-REPO-CONVERGENCE` | **STRUCTURAL MERGE COMPLETE** | current main is an ancestor of feature branch; latest exact-head focused + repository gates remain required evidence |
+| `VSCR-M1-001` | **NO** | explicit M0.1-001 acceptance + latest exact-head convergence gates green required first |
 | `VSCR-M1-002` | **NO** | accepted M1-001 + amend/accept exact package against current D0-001 branding/File/Extensions patch ledger |
 | `VSCR-M1-003` | **NO** | depends on accepted M1-002 host boundary even though D0-004 design is accepted |
 | `VSCR-M1-004` | **NO** | exact safe content-validation parser/sniffer set is not yet selected and pinned |
 | `VSCR-M1-005` | **NO** | exact server-side Scratch project semantic validator is not yet selected/proven |
 | `VSCR-M1-006` | **NO** | write package against accepted M1-005 interfaces |
-| `VSCR-M1-007` | **NO** | D0-007 now exists, but exact ZIP library/limits + legacy media normalisation strategy/corpus still require a package |
+| `VSCR-M1-007` | **NO** | exact ZIP library/limits + legacy media normalisation strategy/corpus still require a package under D0-007 |
 | `VSCR-M1-008` | **NO** | acceptance package after M1-006/007 exist |
 | `VSCR-M2-*` | **NO** | requires accepted M1 plus D0-006 and exact M2 packages |
 | `VSCR-M3-*` | **NO** | requires accepted M2/runtime deployment plus rights/network/backup evidence packages |
@@ -95,11 +100,11 @@ A. VSCR-M0.1-001 — IMPLEMENTED + focused verified
 B. upstream provenance review — COMPLETE
    retain exact 82c5fea... post-release 15.1.1 snapshot; do not cosmetic-rollback to tag
 
-C. repository convergence — REQUIRED NOW
-   current main → Scratch feature branch
-   preserve current main docs/execution/current.yaml and dependency/security fixes
-   inspect resulting diff
-   run Scratch focused + repository gates on one exact SHA
+C. repository convergence — STRUCTURALLY COMPLETE
+   current main merged into Scratch feature branch
+   main current.yaml/dependency/security/web/Learning state preserved
+   behind current merged main baseline = 0
+   latest exact-head focused + repository evidence still required before next shared-file slice
 
 D. after convergence evidence + explicit M0.1-001 acceptance: VSCR-M1-001
    extract @asa-lab/blocks bounded context
@@ -135,7 +140,7 @@ Scratch Docker image still serves upstream playground build
   → replaced only by future accepted VSCR-M1-002
 
 no contexts/blocks package exists
-  → VSCR-M1-001 only after repository convergence + M0.1 acceptance
+  → VSCR-M1-001 only after convergence evidence + M0.1 acceptance
 
 no runtime capability, S3/MinIO, durable save/load, recovery or sb3 pipeline exists
   → later bounded tasks only
@@ -161,13 +166,15 @@ fetch current main
 → only then start the selected VSCR task
 ```
 
-This rule exists specifically to prevent a later Blocks package extraction/storage task
-from regenerating an obsolete lockfile and reintroducing a dependency vulnerability that
-main already fixed.
+If `main` advances again after a successful convergence, this check repeats. A previous
+`behind_by=0` is evidence for that baseline only, not a permanent exemption.
+
+This rule prevents a later Blocks package extraction/storage task from regenerating an
+obsolete lockfile and reintroducing a dependency vulnerability that main already fixed.
 
 ---
 
-## Current `main` versus Scratch feature branch
+## Main versus Scratch feature branch
 
 Until PR #177 is integrated, `main` still does not contain the Scratch-backed provider or
 these contracts.
@@ -176,7 +183,7 @@ Status language must distinguish:
 
 ```text
 implemented in Scratch feature branch
-≠ reconciled with current main
+reconciled with a specific main baseline
 ≠ merged into ASA Lab main
 ≠ deployed
 ≠ activated for users
