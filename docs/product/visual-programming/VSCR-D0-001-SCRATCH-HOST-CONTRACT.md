@@ -273,6 +273,16 @@ The pinned default project uses internal Scratch project ID `0`. ASA may use tha
 ID for local Scratch initialisation only; the canonical persistence identity remains the
 ASA project UUID from INIT.
 
+When `hasProjectJson=false`, the host MUST keep the ASA project UUID only in ASA host
+state/API paths and MUST NOT pass that UUID as Scratch GUI `projectId`. Passing it would
+make upstream `ProjectFetcherHOC` treat the empty ASA project as an existing Scratch
+project and fetch a raw project that does not exist yet. In this state, omit/leave Scratch
+`projectId` undefined so its locally cached default project ID `0` is used.
+
+After the first durable save, a new page/runtime session returns `hasProjectJson=true`; at
+that point the host passes the ASA UUID as Scratch `projectId` and the custom Project web
+store loads the saved raw `project.json` from ASA.
+
 The first ASA durable save MUST materialise every referenced default asset through the ASA
 asset API even if Scratch marks it clean.
 
@@ -447,7 +457,7 @@ The implementation is not accepted until tests prove:
 6. token is absent from URL/localStorage/log output
 7. editor mode exposes no Scratch server save/account/backpack/cloud authority
 8. player mode mounts from same host with read-only orchestration disabled
-9. new project can load pinned built-in default project locally
+9. new project uses local default ID 0 without trying to fetch the ASA UUID as an existing project
 10. existing project requests raw project.json from ASA runtime API
 11. asset loads carry Authorization and credentials: omit
 12. token update changes subsequent storage requests
