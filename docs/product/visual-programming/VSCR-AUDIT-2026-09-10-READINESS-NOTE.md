@@ -9,6 +9,7 @@ In the Scratch feature branch:
 
 ```text
 M0 Blocks provider/schema/tests
+VSCR-M0.1-001 corrected persistent Blocks asset-reference contract
 pinned upstream Scratch build boundary
 M0 Docker/Nginx playground smoke
 Scratch-focused CI workflow
@@ -36,8 +37,10 @@ production activation
 
 ## Corrections produced by this audit
 
-1. `VSCR-M0.1-001` remains the first safe schema correction: remove `objectKey` from the
-   persistent Blocks document.
+1. `VSCR-M0.1-001` has been implemented in the feature branch: `objectKey` is removed from
+   the persistent Blocks document, canonical asset keys/formats/digests/sizes are strict,
+   module version is `0.1.1`, and the focused module contract/API job passes. Explicit owner
+   acceptance remains separate from implementation evidence.
 2. Added `VSCR-M0.1-002`: normalise the upstream lock from post-release `82c5fea...` to the
    official `v15.1.1` release commit `99bcc17...` before M1 host implementation.
 3. D0-001 now explicitly owns branding/File/Extensions controls. M1 host uses exactly two
@@ -55,14 +58,39 @@ production activation
    current `main`, which already pins `smol-toml 1.8.0`. Final integration evidence must be
    rerun after reconciliation with current `main`.
 
-## Next safe execution
+## M0.1-001 evidence
 
-The documentation/convergence step is complete when exact-head documentation/focused CI is
-checked. The first coding slice remains:
+Implemented code SHA:
 
 ```text
-VSCR-M0.1-001 only
+d277c4f71553b6c6ef90e52adb41e3200f036a1b
 ```
 
-It must not auto-advance into M1. `VSCR-M0.1-002` is a separate small upstream-lock slice
-and must be complete before `VSCR-M1-002`.
+The final task delta from the pre-task documentation head changes only:
+
+```text
+apps/api/src/blocks-module.ts
+apps/api/src/blocks-module.spec.ts
+```
+
+At that SHA, the focused `Module contract and API typecheck` job passed formatting, lint,
+internal builds, Blocks contract tests and API typecheck. The independent pinned upstream
+Docker smoke is reported from GitHub Actions separately and must not be assumed from this
+note.
+
+The repository-wide branch gate still sees the feature branch's old `smol-toml 1.6.1`
+lock and therefore is not integration-green until the branch is reconciled with current
+`main`, which already contains the `1.8.0` override.
+
+## Next safe execution
+
+Do not auto-advance from implementation evidence.
+
+```text
+VSCR-M0.1-001 → implementation complete; explicit acceptance pending
+VSCR-M0.1-002 → separate coding-ready upstream-lock correction
+VSCR-M1-001   → wait for explicit M0.1-001 acceptance
+```
+
+`VSCR-M0.1-002` must be complete before `VSCR-M1-002`. No M1 host/storage/security work is
+authorised by this audit note.
