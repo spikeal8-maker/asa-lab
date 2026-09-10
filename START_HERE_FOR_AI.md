@@ -86,6 +86,14 @@ AGENTS.md
 экран; не загружай весь архив спецификаций. Логические P/U/R обозначения —
 сценарии, способы входа и scoped обязанности, а не глобальные типы аккаунта.
 
+Для задач `Визуального программирования` / Scratch-compatible runtime основной
+продуктовый источник —
+[`ASA_VISUAL_PROGRAMMING_SCRATCH_MASTER_SPEC.md`](docs/product/ASA_VISUAL_PROGRAMMING_SCRATCH_MASTER_SPEC.md).
+Сначала прочитай его §0–§4, затем только раздел выбранного VSCR task ID и
+[`ADR-VSCR-001`](docs/architecture/ADR-VSCR-001-SCRATCH-EDITOR-INTEGRATION.md).
+Master spec задаёт TARGET, порядок зависимостей и safety gates, но сам по себе
+не разрешает выполнять следующий milestone и не заменяет `current.yaml`.
+
 Этот документ определяет TARGET пользователей. Auth определяет протоколы,
 Learning Master — академическую семантику, ADR — принятую архитектуру,
 `AGENTS.md` — инженерные ограничения. Ни один продуктовый документ не заменяет
