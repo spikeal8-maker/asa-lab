@@ -31,12 +31,13 @@ coding-ready. Do not infer implementation from the roadmap or from a previous ch
 
 | Contract | Boundary | Status |
 | --- | --- | --- |
-| `VSCR-D0-001-SCRATCH-HOST-CONTRACT.md` | standalone host, branding, File/Extensions controls, iframe/bootstrap | accepted design; M1-002 waits for upstream-pin correction |
+| `VSCR-D0-001-SCRATCH-HOST-CONTRACT.md` | standalone host, reviewed exact upstream pin, branding, File/Extensions controls, iframe/bootstrap | accepted design; pin provenance review complete |
 | `VSCR-D0-002-PERSISTENCE-CONTRACT.md` | Project Core async durability guard and bypass prevention | design accepted |
 | `VSCR-D0-003-ASSET-STORAGE-CONTRACT.md` | Scratch identity, SHA-256 blobs, private S3/MinIO, asset API | architecture accepted; concrete content-validation dependency still required before M1-004 |
 | `VSCR-D0-004-RUNTIME-SECURITY-CONTRACT.md` | project capability, runtime origin/CORS/CSP, rate limits | design accepted |
 | `VSCR-D0-005-DEPLOYMENT-ACTIVATION-CONTRACT.md` | LAN/public topology, backup/restore, degradation, activation | design accepted |
 | `VSCR-D0-006-PUBLICATION-REMIX-CONTRACT.md` | immutable Gallery version/player and cross-tenant Blocks remix | design accepted for future M2; no M2 coding package yet |
+| `VSCR-D0-007-SB3-IMPORT-COMPATIBILITY-CONTRACT.md` | canonical ASA media vs legacy `.sb3` BMP/JPEG/GIF compatibility and ZIP safety boundary | safety boundary accepted; exact M1-007 package still required |
 
 `design accepted` fixes an architectural direction. It does not mean the implementation
 exists, the dependency choice has been made, the task is selected, CI is green or the
@@ -44,33 +45,38 @@ owner accepted a result.
 
 ---
 
-## Coding task packages
+## Coding task packages / completed reviews
 
-Existing first-wave package:
+First-wave package:
 
 ```text
 VSCR-IMPLEMENTATION-PACKAGES-M0.1-M1.md
 ```
 
-Additional bounded correction package:
+Upstream provenance review record:
 
 ```text
 VSCR-IMPLEMENTATION-PACKAGE-M0.1-002-UPSTREAM-PIN.md
 ```
 
+The latter is no longer a pending rollback task. Review concluded that the current
+`82c5fea...` pin should be retained as an explicitly documented post-release `15.1.1`
+snapshot.
+
 ### Current coding-readiness matrix
 
 | Task | Coding-ready now from docs? | Blocker / prerequisite |
 | --- | --- | --- |
-| `VSCR-M0.1-001` | **IMPLEMENTED on feature branch; owner acceptance pending** | code result `d277c4f71553b6c6ef90e52adb41e3200f036a1b`; focused contract/API job PASS; runtime smoke is independent evidence |
-| `VSCR-M0.1-002` | **YES** | execute as its own upstream-lock slice; official v15.1.1 tag SHA is fixed in package |
-| `VSCR-M1-001` | **NO until M0.1-001 is explicitly accepted** | extract context only; no runtime/storage |
-| `VSCR-M1-002` | **NO** | first complete M0.1-002, then amend its task package to the new D0-001 branding/File/Extensions patch ledger |
+| `VSCR-M0.1-001` | **IMPLEMENTED + focused verified; owner acceptance pending** | strict asset contract implemented; no durable/public Blocks data |
+| `VSCR-M0.1-002` | **REVIEW COMPLETE — NO CODE CHANGE** | current `82c5fea...` retained; provenance wording fixed |
+| `VSCR-REPO-CONVERGENCE` | **REQUIRED BEFORE NEXT CODE SLICE** | merge current `main` into feature branch without changing Scratch execution selection; run exact-head gates |
+| `VSCR-M1-001` | **NO** | M0.1-001 acceptance **and** repository convergence/green combined baseline required first |
+| `VSCR-M1-002` | **NO** | accepted M1-001 + amend/accept exact package against current D0-001 branding/File/Extensions patch ledger |
 | `VSCR-M1-003` | **NO** | depends on accepted M1-002 host boundary even though D0-004 design is accepted |
 | `VSCR-M1-004` | **NO** | exact safe content-validation parser/sniffer set is not yet selected and pinned |
 | `VSCR-M1-005` | **NO** | exact server-side Scratch project semantic validator is not yet selected/proven |
 | `VSCR-M1-006` | **NO** | write package against accepted M1-005 interfaces |
-| `VSCR-M1-007` | **NO** | choose multipart/ZIP implementation and write package after persistence stabilises |
+| `VSCR-M1-007` | **NO** | D0-007 now exists, but exact ZIP library/limits + legacy media normalisation strategy/corpus still require a package |
 | `VSCR-M1-008` | **NO** | acceptance package after M1-006/007 exist |
 | `VSCR-M2-*` | **NO** | requires accepted M1 plus D0-006 and exact M2 packages |
 | `VSCR-M3-*` | **NO** | requires accepted M2/runtime deployment plus rights/network/backup evidence packages |
@@ -83,71 +89,94 @@ VSCR-IMPLEMENTATION-PACKAGE-M0.1-002-UPSTREAM-PIN.md
 ## Correct near-term order
 
 ```text
-A. VSCR-M0.1-001 — IMPLEMENTED, owner acceptance pending
+A. VSCR-M0.1-001 — IMPLEMENTED + focused verified
    objectKey removed; strict pre-release Blocks asset contract in feature branch
 
-B. after explicit M0.1-001 acceptance: VSCR-M1-001
+B. upstream provenance review — COMPLETE
+   retain exact 82c5fea... post-release 15.1.1 snapshot; do not cosmetic-rollback to tag
+
+C. repository convergence — REQUIRED NOW
+   current main → Scratch feature branch
+   preserve current main docs/execution/current.yaml and dependency/security fixes
+   inspect resulting diff
+   run Scratch focused + repository gates on one exact SHA
+
+D. after convergence evidence + explicit M0.1-001 acceptance: VSCR-M1-001
    extract @asa-lab/blocks bounded context
 
-C. VSCR-M0.1-002 before any host implementation
-   normalise upstream lock to official v15.1.1 release SHA
-
-D. revise/accept M1-002 package against current D0-001
+E. revise/accept M1-002 package against current D0-001
    exact two-patch host ledger + canManageFiles=false + Extensions hidden
 
-E. M1-002
+F. M1-002
    ASA-owned Scratch standalone host
 
-F. M1-003
+G. M1-003
    runtime capability/origin boundary
 
-G. select/pin M1-004 content-validation stack, then make M1-004 READY
+H. select/pin M1-004 content-validation stack, then make M1-004 READY
 
-H. select/prove M1-005 semantic Scratch validator, then make M1-005 READY
+I. select/prove M1-005 semantic Scratch validator, then make M1-005 READY
 ```
 
-`VSCR-M0.1-002` is independent of M1-001 but remains a separate correction slice. Do not
-combine tasks merely because both are small.
+Do not combine these into one large implementation merely because several are related.
 
 ---
 
-## Known current-code gaps
+## Current implementation facts
 
 ```text
 BlocksAssetReferenceV1 no longer contains objectKey
-  → VSCR-M0.1-001 implementation result: d277c4f71553b6c6ef90e52adb41e3200f036a1b
+  → VSCR-M0.1-001 implementation complete
 
-upstream.env points to post-release 82c5fea...
-  → owned only by VSCR-M0.1-002
+upstream.env remains 82c5fea...
+  → intentional after completed provenance review; not a defect
 
-Scratch Docker image serves upstream playground build
+Scratch Docker image still serves upstream playground build
   → replaced only by future accepted VSCR-M1-002
 
 no contexts/blocks package exists
-  → VSCR-M1-001 after M0.1-001 acceptance
+  → VSCR-M1-001 only after repository convergence + M0.1 acceptance
 
 no runtime capability, S3/MinIO, durable save/load, recovery or sb3 pipeline exists
   → later bounded tasks only
 ```
 
-The feature branch is behind the current `main` baseline. `main` already contains the
-`smol-toml 1.8.0` security override that the branch-wide gate lacked. Before final PR
-acceptance/merge, reconcile with current `main` and run required gates on one exact
-resulting SHA. Do not treat a stale-branch dependency failure as a Scratch implementation
-failure, and do not treat focused PASS as repository-wide green.
+---
+
+## Repository convergence invariant
+
+The Scratch feature branch must not begin a task that edits workspace dependencies,
+`pnpm-lock.yaml`, execution state or other shared infrastructure while it is behind current
+`main`.
+
+Before every new VSCR coding slice that touches shared files:
+
+```text
+fetch current main
+→ compare feature branch to main
+→ if behind/diverged, reconcile first
+→ preserve main's current.yaml exactly unless owner explicitly changes task selection
+→ preserve security/dependency fixes
+→ run exact-head focused + repository gates
+→ only then start the selected VSCR task
+```
+
+This rule exists specifically to prevent a later Blocks package extraction/storage task
+from regenerating an obsolete lockfile and reintroducing a dependency vulnerability that
+main already fixed.
 
 ---
 
 ## Current `main` versus Scratch feature branch
 
-Until PR #177 is integrated, `main` still has only the historical future `blocks` manifest
-(`projectType: block-program`) and does not contain the Scratch-backed module/provider or
+Until PR #177 is integrated, `main` still does not contain the Scratch-backed provider or
 these contracts.
 
-Therefore status language must distinguish:
+Status language must distinguish:
 
 ```text
 implemented in Scratch feature branch
+≠ reconciled with current main
 ≠ merged into ASA Lab main
 ≠ deployed
 ≠ activated for users
@@ -155,13 +184,27 @@ implemented in Scratch feature branch
 
 ---
 
-## Gallery/publication prerequisite discovered by audit
+## `.sb3` compatibility invariant
 
-Current ASA Gallery reads/copies current project drafts for published works. That is not
-acceptable for Blocks because a published Scratch player must execute the exact immutable
-published version and cross-tenant JSON copy would leave tenant-private asset refs broken.
+Canonical ASA asset formats remain:
 
-D0-006 therefore requires, before M2 Blocks Gallery integration:
+```text
+svg/png/jpg/wav/mp3
+```
+
+Pinned Scratch VM can recognise some legacy archive costume formats (`bmp`, `jpeg`, `gif`).
+This does not authorise widening the durable ASA asset schema. D0-007 requires a future
+M1-007 package to prove deterministic legacy normalisation, ZIP safety and round-trip
+compatibility using a versioned fixture corpus.
+
+Until that package is accepted, do not claim universal historical `.sb3` compatibility.
+
+---
+
+## Gallery/publication prerequisite
+
+Current ASA Gallery draft-copy semantics are not acceptable for Blocks publication.
+D0-006 requires before M2:
 
 ```text
 publication pins exact project_version_id
@@ -180,7 +223,7 @@ When a blocker is resolved:
 
 ```text
 inspect actual accepted interfaces/current main
-→ update the exact D0/task package if needed
+→ update exact D0/task package if needed
 → add exact dependency/version/path/tests
 → change readiness NO → YES only in this file
 → select the task through normal owner/current execution flow
@@ -188,5 +231,5 @@ inspect actual accepted interfaces/current main
 → stop after evidence
 ```
 
-Do not edit an accepted architecture simply because a coding shortcut is easier. A real
+Do not edit accepted architecture simply because a coding shortcut is easier. A real
 architecture change must be explicit and reflected in the relevant D0/master/ADR sources.
