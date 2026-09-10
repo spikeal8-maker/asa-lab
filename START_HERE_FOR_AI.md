@@ -91,6 +91,24 @@ AGENTS.md
 [`ASA_VISUAL_PROGRAMMING_SCRATCH_MASTER_SPEC.md`](docs/product/ASA_VISUAL_PROGRAMMING_SCRATCH_MASTER_SPEC.md).
 Сначала прочитай его §0–§4, затем только раздел выбранного VSCR task ID и
 [`ADR-VSCR-001`](docs/architecture/ADR-VSCR-001-SCRATCH-EDITOR-INTEGRATION.md).
+
+Для любого VSCR task, который затрагивает Scratch host, Project persistence,
+asset storage, runtime security/origin или deployment/activation, дополнительно
+обязательно прочитай соответствующий implementation contract в
+[`docs/product/visual-programming/`](docs/product/visual-programming/):
+
+```text
+VSCR-D0-001 — Scratch host
+VSCR-D0-002 — Project persistence guard
+VSCR-D0-003 — asset metadata/object storage
+VSCR-D0-004 — runtime capability/CORS/CSP/rate limits
+VSCR-D0-005 — deployment/backup/activation
+```
+
+Если master spec требует D0 prerequisite, а соответствующий D0 contract отсутствует,
+противоречит коду или не принят для выбранной границы — STOP. Coding-агенту
+запрещено самостоятельно выбирать альтернативную архитектуру и продолжать M1.
+
 Master spec задаёт TARGET, порядок зависимостей и safety gates, но сам по себе
 не разрешает выполнять следующий milestone и не заменяет `current.yaml`.
 
