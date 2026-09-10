@@ -7,7 +7,7 @@ function provider() {
   return result;
 }
 
-function validDocument() {
+function validDocument(assetOverrides: Record<string, unknown> = {}) {
   return {
     schemaVersion: 1,
     format: 'scratch-3',
@@ -23,6 +23,7 @@ function validDocument() {
         dataFormat: 'svg',
         sha256: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
         sizeBytes: 1234,
+        ...assetOverrides,
       },
     ],
   };
@@ -77,13 +78,10 @@ describe('BLOCKS_MODULE', () => {
   );
 
   it('rejects the former physical objectKey field as an unknown asset field', () => {
-    const document = validDocument();
-    document.assets[0] = {
-      ...document.assets[0],
-      objectKey: 'scratch-assets/sha256/aa/asset.svg',
-    } as typeof document.assets[0];
-
-    expectAssetDiagnostic(document, 'blocks.asset.unknown_field');
+    expectAssetDiagnostic(
+      validDocument({ objectKey: 'scratch-assets/sha256/aa/asset.svg' }),
+      'blocks.asset.unknown_field',
+    );
   });
 
   it.each([
@@ -91,15 +89,11 @@ describe('BLOCKS_MODULE', () => {
     ['too short', '0123456789abcdef'],
     ['non-hex', 'zz23456789abcdef0123456789abcdef'],
   ])('rejects %s Scratch assetId values', (_label, assetId) => {
-    const document = validDocument();
-    document.assets[0].assetId = assetId;
-    expectAssetDiagnostic(document, 'blocks.asset.asset_id');
+    expectAssetDiagnostic(validDocument({ assetId }), 'blocks.asset.asset_id');
   });
 
   it.each(['gif', 'json', 'sb3'])('rejects unsupported %s asset format', (dataFormat) => {
-    const document = validDocument();
-    document.assets[0].dataFormat = dataFormat;
-    expectAssetDiagnostic(document, 'blocks.asset.data_format');
+    expectAssetDiagnostic(validDocument({ dataFormat }), 'blocks.asset.data_format');
   });
 
   it.each([
@@ -107,25 +101,15 @@ describe('BLOCKS_MODULE', () => {
     ['too short', 'aaaaaaaa'],
     ['non-hex', 'z'.repeat(64)],
   ])('rejects %s SHA-256 values', (_label, sha256) => {
-    const document = validDocument();
-    document.assets[0].sha256 = sha256;
-    expectAssetDiagnostic(document, 'blocks.asset.sha256');
+    expectAssetDiagnostic(validDocument({ sha256 }), 'blocks.asset.sha256');
   });
 
   it.each([0, -1, 1.5])('rejects invalid sizeBytes value %s', (sizeBytes) => {
-    const document = validDocument();
-    document.assets[0].sizeBytes = sizeBytes;
-    expectAssetDiagnostic(document, 'blocks.asset.size');
+    expectAssetDiagnostic(validDocument({ sizeBytes }), 'blocks.asset.size');
   });
 
   it('rejects inline asset bytes with the dedicated architectural diagnostic', () => {
-    const document = validDocument();
-    document.assets[0] = {
-      ...document.assets[0],
-      base64: 'PHN2Zy8+',
-    } as typeof document.assets[0];
-
-    expectAssetDiagnostic(document, 'blocks.asset.inline_binary');
+    expectAssetDiagnostic(validDocument({ base64: 'PHN2Zy8+' }), 'blocks.asset.inline_binary');
   });
 
   it('rejects an .sb3 archive embedded at the document root', () => {
