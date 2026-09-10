@@ -7,10 +7,39 @@ function provider() {
   return result;
 }
 
+function validDocument() {
+  return {
+    schemaVersion: 1,
+    format: 'scratch-3',
+    projectJson: {
+      targets: [{ isStage: true }, { isStage: false }],
+      monitors: [],
+      extensions: [],
+      meta: { semver: '3.0.0' },
+    },
+    assets: [
+      {
+        assetId: '0123456789abcdef0123456789abcdef',
+        dataFormat: 'svg',
+        sha256: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+        sizeBytes: 1234,
+      },
+    ],
+  };
+}
+
+function expectAssetDiagnostic(document: unknown, code: string) {
+  expect(provider().validate(document)).toMatchObject({
+    ok: false,
+    diagnostics: [{ code, severity: 'error' }],
+  });
+}
+
 describe('BLOCKS_MODULE', () => {
-  it('keeps the Scratch-backed environment gated until persistence is connected', () => {
+  it('keeps the Scratch-backed environment gated with the corrected pre-release provider version', () => {
     expect(BLOCKS_MODULE.manifest).toMatchObject({
       moduleKey: 'blocks',
+      moduleVersion: '0.1.1',
       projectType: 'scratch-3',
       availability: 'coming_soon',
       previewKind: 'stage',
@@ -29,27 +58,9 @@ describe('BLOCKS_MODULE', () => {
     expect(moduleProvider.validate(document)).toMatchObject({ ok: true, diagnostics: [] });
   });
 
-  it('accepts Scratch 3 JSON plus object-store asset references', () => {
+  it('accepts canonical Scratch 3 JSON plus logical asset references and preserves preview counts', () => {
     const moduleProvider = provider();
-    const result = moduleProvider.validate({
-      schemaVersion: 1,
-      format: 'scratch-3',
-      projectJson: {
-        targets: [{ isStage: true }, { isStage: false }],
-        monitors: [],
-        extensions: [],
-        meta: { semver: '3.0.0' },
-      },
-      assets: [
-        {
-          assetId: '0123456789abcdef0123456789abcdef',
-          dataFormat: 'svg',
-          objectKey: 'scratch-assets/sha256/aa/asset.svg',
-          sha256: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
-          sizeBytes: 1234,
-        },
-      ],
-    });
+    const result = moduleProvider.validate(validDocument());
 
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error('expected valid blocks document');
@@ -59,31 +70,56 @@ describe('BLOCKS_MODULE', () => {
     });
   });
 
-  it('rejects inline asset bytes so autosaves cannot duplicate .sb3 binaries in JSONB', () => {
-    const result = provider().validate({
-      schemaVersion: 1,
-      format: 'scratch-3',
-      projectJson: {
-        targets: [],
-        monitors: [],
-        extensions: [],
-      },
-      assets: [
-        {
-          assetId: '0123456789abcdef0123456789abcdef',
-          dataFormat: 'png',
-          objectKey: 'scratch-assets/sha256/bb/asset.png',
-          sha256: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
-          sizeBytes: 100,
-          base64: 'iVBORw0KGgo=',
-        },
-      ],
-    });
+  it('rejects the former physical objectKey field as an unknown asset field', () => {
+    const document = validDocument();
+    document.assets[0] = {
+      ...document.assets[0],
+      objectKey: 'scratch-assets/sha256/aa/asset.svg',
+    } as typeof document.assets[0];
 
-    expect(result).toMatchObject({
-      ok: false,
-      diagnostics: [{ code: 'blocks.asset.inline_binary', severity: 'error' }],
-    });
+    expectAssetDiagnostic(document, 'blocks.asset.unknown_field');
+  });
+
+  it.each([
+    ['uppercase', '0123456789ABCDEF0123456789ABCDEF'],
+    ['too short', '0123456789abcdef'],
+    ['non-hex', 'zz23456789abcdef0123456789abcdef'],
+  ])('rejects %s Scratch assetId values', (_label, assetId) => {
+    const document = validDocument();
+    document.assets[0].assetId = assetId;
+    expectAssetDiagnostic(document, 'blocks.asset.asset_id');
+  });
+
+  it.each(['gif', 'json', 'sb3'])('rejects unsupported %s asset format', (dataFormat) => {
+    const document = validDocument();
+    document.assets[0].dataFormat = dataFormat;
+    expectAssetDiagnostic(document, 'blocks.asset.data_format');
+  });
+
+  it.each([
+    ['uppercase', 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'],
+    ['too short', 'aaaaaaaa'],
+    ['non-hex', 'z'.repeat(64)],
+  ])('rejects %s SHA-256 values', (_label, sha256) => {
+    const document = validDocument();
+    document.assets[0].sha256 = sha256;
+    expectAssetDiagnostic(document, 'blocks.asset.sha256');
+  });
+
+  it.each([0, -1, 1.5])('rejects invalid sizeBytes value %s', (sizeBytes) => {
+    const document = validDocument();
+    document.assets[0].sizeBytes = sizeBytes;
+    expectAssetDiagnostic(document, 'blocks.asset.size');
+  });
+
+  it('rejects inline asset bytes with the dedicated architectural diagnostic', () => {
+    const document = validDocument();
+    document.assets[0] = {
+      ...document.assets[0],
+      base64: 'PHN2Zy8+',
+    } as typeof document.assets[0];
+
+    expectAssetDiagnostic(document, 'blocks.asset.inline_binary');
   });
 
   it('rejects an .sb3 archive embedded at the document root', () => {
