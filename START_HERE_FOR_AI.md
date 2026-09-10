@@ -105,6 +105,18 @@ VSCR-D0-004 — runtime capability/CORS/CSP/rate limits
 VSCR-D0-005 — deployment/backup/activation
 ```
 
+Для coding-задач первой волны `VSCR-M0.1-001` и `VSCR-M1-001…005` обязательно
+прочитай также точный task package в
+[`VSCR-IMPLEMENTATION-PACKAGES-M0.1-M1.md`](docs/product/visual-programming/VSCR-IMPLEMENTATION-PACKAGES-M0.1-M1.md).
+Master/ADR/D0 объясняют архитектуру; task package фиксирует конкретные paths,
+шаги, тесты, запреты и Definition of Done для одного coding slice.
+
+Если выбранного coding task ID нет в актуальном implementation-package документе,
+не восстанавливай его из общего roadmap и не придумывай детали самостоятельно —
+STOP и запроси/подготовь отдельный task package. Для M2/M3 это специально
+обязательное правило: их task packages создаются только после принятия реальных
+интерфейсов предыдущего milestone.
+
 Если master spec требует D0 prerequisite, а соответствующий D0 contract отсутствует,
 противоречит коду или не принят для выбранной границы — STOP. Coding-агенту
 запрещено самостоятельно выбирать альтернативную архитектуру и продолжать M1.
