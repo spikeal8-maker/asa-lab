@@ -62,9 +62,9 @@ VSCR-IMPLEMENTATION-PACKAGE-M0.1-002-UPSTREAM-PIN.md
 
 | Task | Coding-ready now from docs? | Blocker / prerequisite |
 | --- | --- | --- |
-| `VSCR-M0.1-001` | **YES** | current M0 branch has no durable/public Blocks data |
+| `VSCR-M0.1-001` | **IMPLEMENTED on feature branch; owner acceptance pending** | code at `d277c4f71553b6c6ef90e52adb41e3200f036a1b`; focused contract/API job PASS; full focused workflow must still be read from Actions |
 | `VSCR-M0.1-002` | **YES** | execute as its own upstream-lock slice; official v15.1.1 tag SHA is fixed in package |
-| `VSCR-M1-001` | **YES after M0.1-001** | extract context only; no runtime/storage |
+| `VSCR-M1-001` | **NO until M0.1-001 is explicitly accepted** | extract context only; no runtime/storage |
 | `VSCR-M1-002` | **NO** | first complete M0.1-002, then amend its task package to the new D0-001 branding/File/Extensions patch ledger |
 | `VSCR-M1-003` | **NO** | depends on accepted M1-002 host boundary even though D0-004 design is accepted |
 | `VSCR-M1-004` | **NO** | exact safe content-validation parser/sniffer set is not yet selected and pinned |
@@ -85,10 +85,10 @@ VSCR-IMPLEMENTATION-PACKAGE-M0.1-002-UPSTREAM-PIN.md
 The safe order after the 10 September audit is:
 
 ```text
-A. VSCR-M0.1-001
-   remove objectKey from the pre-release Blocks document contract
+A. VSCR-M0.1-001 — IMPLEMENTED, acceptance pending
+   objectKey removed; strict pre-release Blocks asset contract in feature branch
 
-B. VSCR-M1-001
+B. after explicit M0.1-001 acceptance: VSCR-M1-001
    extract @asa-lab/blocks bounded context
 
 C. VSCR-M0.1-002 before any host implementation
@@ -108,18 +108,17 @@ G. select/pin M1-004 content-validation stack, then make M1-004 READY
 H. select/prove M1-005 semantic Scratch validator, then make M1-005 READY
 ```
 
-A and C are independent correction slices. Do not combine them into one uncontrolled
-change merely because both are small.
+C remains a separate correction slice; do not combine it with another uncontrolled change.
 
 ---
 
 ## Known current-code gaps
 
-Current feature branch intentionally still differs from the target:
+Current feature branch status:
 
 ```text
-BlocksAssetReferenceV1 still contains objectKey
-  → owned only by VSCR-M0.1-001
+BlocksAssetReferenceV1 no longer contains objectKey
+  → VSCR-M0.1-001 implemented at d277c4f71553b6c6ef90e52adb41e3200f036a1b
 
 upstream.env points to post-release 82c5fea...
   → owned only by VSCR-M0.1-002
@@ -128,7 +127,7 @@ Scratch Docker image serves upstream playground build
   → replaced only by future accepted VSCR-M1-002
 
 no contexts/blocks package exists
-  → VSCR-M1-001
+  → VSCR-M1-001 after M0.1-001 acceptance
 
 no runtime capability, S3/MinIO, durable save/load, recovery or sb3 pipeline exists
   → later bounded tasks only
