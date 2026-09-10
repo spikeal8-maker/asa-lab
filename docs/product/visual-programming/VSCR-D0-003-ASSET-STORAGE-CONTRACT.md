@@ -245,18 +245,24 @@ The exact safety order is:
 ```text
 1. validate runtime origin/capability/project/permission
 2. validate path assetId/format syntax
-3. enforce request byte limit while streaming
-4. stream request body to an API-owned temporary file
-5. compute MD5 + SHA-256 + size while streaming
-6. validate actual content/container as the declared format
-7. require computed MD5 == path assetId
-8. derive final objectKey from tenant + SHA-256 + format
-9. ensure immutable object exists in private store
-10. commit/reuse blocks_blobs metadata
-11. commit/reuse immutable blocks_asset_aliases mapping
-12. remove temporary file in finally
-13. return canonical success response
+3. reserve/check runtime upload byte/request budget for this capability/project
+4. enforce request byte limit while streaming
+5. stream request body to an API-owned temporary file
+6. compute MD5 + SHA-256 + size while streaming
+7. validate actual content/container as the declared format
+8. require computed MD5 == path assetId
+9. derive final objectKey from tenant + SHA-256 + format
+10. check whether immutable alias/blob already exists
+11. for newly accepted unique bytes, account the actual size against runtime byte budget
+12. ensure immutable object exists in private store
+13. commit/reuse blocks_blobs metadata
+14. commit/reuse immutable blocks_asset_aliases mapping
+15. remove temporary file in finally
+16. return canonical success response
 ```
+
+An idempotent replay of an already existing exact alias does not consume the same
+"new unique bytes" budget again, although it still consumes request-rate budget.
 
 Do not buffer arbitrary 25 MiB assets per request into long-lived application memory when
 streaming is available.
@@ -277,9 +283,40 @@ PNG: validate PNG signature/container
 JPG: validate JPEG container markers sufficiently to reject arbitrary bytes
 WAV: validate RIFF/WAVE container
 MP3: validate recognised MP3 frame/ID3 structure, not extension alone
-SVG: UTF-8/XML parse with root svg; reject malformed XML and obviously active/non-image
-     structures incompatible with the supported Scratch costume path
+SVG: UTF-8/XML parse with root svg and the exact active/external-content policy below
 ```
+
+### 9.1 SVG active/external-content policy
+
+For core v1, uploaded/imported SVG MUST be rejected when any of the following is present:
+
+```text
+DOCTYPE or ENTITY declarations
+<script>
+<foreignObject>
+any attribute whose local name starts with "on" (event handler)
+an href/xlink:href with http:, https:, ftp:, file:, javascript:, protocol-relative //,
+  or another external scheme
+CSS @import
+CSS url(...) targeting an external scheme/protocol-relative URL
+```
+
+The following reference classes may be allowed after normalisation/validation:
+
+```text
+local fragment: #id
+data: URI embedded inside the same bounded SVG asset
+```
+
+The parser MUST NOT resolve external entities or fetch resources during validation.
+
+SVG remains subject to the normal per-file byte limit. Nested data URIs are part of the
+same SVG bytes and do not create a second hidden storage object; their total encoded size
+is therefore bounded by that file limit.
+
+If a compatibility fixture proves that a legitimate pinned Scratch project requires a
+currently rejected construct, that becomes an explicit compatibility/security design
+review. A bot MUST NOT simply disable SVG validation or add an external host to CSP.
 
 The implementation should use small well-reviewed parsers/sniffers where appropriate and
 must pass dependency security/license gates.
@@ -287,10 +324,6 @@ must pass dependency security/license gates.
 Do not render uploaded SVG in the main ASA origin for validation. SVG remains untrusted
 content served only through the isolated runtime asset path with `nosniff` and restrictive
 response headers.
-
-If compatibility fixtures prove that a stricter SVG rule rejects a legitimate pinned
-Scratch project, update the validator and fixture deliberately; do not disable SVG
-validation globally.
 
 ---
 
@@ -441,21 +474,41 @@ semantics remain tenant-owned and must not leak existence or keys across tenants
 
 ---
 
-## 16. Limits
+## 16. Limits and orphan-growth protection
 
-Initial configurable limits:
+Initial configurable content limits:
 
 ```text
-SVG/PNG/JPG:                     10 MiB each
-WAV/MP3:                         25 MiB each
+SVG/PNG/JPG:                       10 MiB each
+WAV/MP3:                           25 MiB each
 unique assets referenced/project: 250 MiB total
-projectJson:                     16 MiB
-runtime concurrent uploads:       4 / capability
+projectJson:                       16 MiB
+runtime concurrent uploads:         4 / capability
 ```
 
-The API rejects a stream once its configured limit is exceeded and deletes its temp file.
+Because core programme GC is intentionally disabled, request-count limits alone are not
+enough: a buggy or hostile authorised client could otherwise create unbounded orphan
+unique blobs that are never committed into a project document.
 
-The project total is checked again by the persistence guard from canonical metadata.
+Runtime security therefore also enforces initial new-unique-byte budgets:
+
+```text
+new unique asset bytes per capability lifetime: 512 MiB
+new unique asset bytes per project / 5 minutes:    1 GiB
+```
+
+Only bytes that would create a new immutable blob/alias are charged to these byte budgets;
+exact idempotent replays are not charged again. A failed upload before object acceptance is
+not charged as durable bytes, while request-rate accounting still applies.
+
+These are abuse ceilings, not project quota. The persistence guard still enforces the
+250 MiB current-project reference total independently.
+
+A future persistent tenant billing/quota subsystem is outside core M1 and MUST NOT be
+invented as part of asset storage unless separately authorised.
+
+The API rejects a stream once its configured per-file limit is exceeded and deletes its
+temp file.
 
 ---
 
@@ -552,21 +605,23 @@ Implementation must prove:
 3. objectKey is server-derived and never returned to browser
 4. bucket is private
 5. supported format sniffing rejects arbitrary bytes
-6. path assetId must equal computed MD5
-7. SHA-256 is server-computed
-8. same upload is idempotent
-9. same alias + different bytes is conflict, not retarget
-10. same-tenant same SHA dedup reuses blob when enabled
-11. cross-tenant metadata/read is denied
-12. project token cannot read an unreferenced same-tenant alias
-13. S3 failure cannot create DB metadata claiming durability
-14. DB failure after S3 may leave orphan but deletes nothing
-15. temp files are cleaned on success/failure
-16. per-file/project limits are enforced
-17. exact response contains status=ok and canonical ref
-18. exact bytes reload through authorised asset GET
-19. MinIO/test backend joins the existing Compose project when selected
-20. object-store outage degrades Blocks without taking down unrelated modules
+6. SVG rejects script/foreignObject/event handlers/external resource URLs/DTD entities
+7. path assetId must equal computed MD5
+8. SHA-256 is server-computed
+9. same upload is idempotent
+10. same alias + different bytes is conflict, not retarget
+11. same-tenant same SHA dedup reuses blob when enabled
+12. cross-tenant metadata/read is denied
+13. project token cannot read an unreferenced same-tenant alias
+14. S3 failure cannot create DB metadata claiming durability
+15. DB failure after S3 may leave orphan but deletes nothing
+16. temp files are cleaned on success/failure
+17. per-file/project limits are enforced
+18. per-capability/project new-unique-byte budgets stop orphan upload floods
+19. exact response contains status=ok and canonical ref
+20. exact bytes reload through authorised asset GET
+21. MinIO/test backend joins the existing Compose project when selected
+22. object-store outage degrades Blocks without taking down unrelated modules
 ```
 
 The storage task MUST NOT activate `blocks` and MUST NOT implement GC.
