@@ -1,9 +1,9 @@
 # VSCR readiness audit — 10 September 2026
 
-**Purpose:** concise factual checkpoint after the second critical Scratch audit.  
+**Purpose:** factual checkpoint after the critical Scratch repair review.  
 **Authority:** this note does not replace `current.yaml`, the master spec, D0 contracts or task packages.
 
-## What actually exists today
+## What actually exists
 
 In the Scratch feature branch:
 
@@ -14,13 +14,15 @@ pinned upstream Scratch build boundary
 M0 Docker/Nginx playground smoke
 Scratch-focused CI workflow
 Master v2 / ADR / D0 design contracts
-first-wave implementation packages
+D0-006 Gallery/publication/remix boundary
+D0-007 sb3 compatibility boundary
+first-wave implementation packages/readiness index
 ```
 
-In `main` these Scratch changes are **not integrated yet**. `main` still exposes the old
-future `blocks` manifest and ordinary users cannot create a Scratch-backed project.
+The Scratch work is still not merged or deployed. `blocks` remains `coming_soon` and cannot
+be created through the ordinary Project Core `getCreatable()` path.
 
-No current implementation exists yet for:
+No implementation exists yet for:
 
 ```text
 ASA standalone Scratch host
@@ -35,62 +37,129 @@ Blocks object backup/restore
 production activation
 ```
 
-## Corrections produced by this audit
+---
 
-1. `VSCR-M0.1-001` has been implemented in the feature branch: `objectKey` is removed from
-   the persistent Blocks document, canonical asset keys/formats/digests/sizes are strict,
-   module version is `0.1.1`, and the focused module contract/API job passes. Explicit owner
-   acceptance remains separate from implementation evidence.
-2. Added `VSCR-M0.1-002`: normalise the upstream lock from post-release `82c5fea...` to the
-   official `v15.1.1` release commit `99bcc17...` before M1 host implementation.
-3. D0-001 now explicitly owns branding/File/Extensions controls. M1 host uses exactly two
-   enumerated minimal compatibility patches if pinned upstream still lacks native controls:
-   host-supplied logo and Extensions-button visibility. `canManageFiles=false` is mandatory.
-4. Upstream default Scratch assets are technical M1 fixtures only. M3 activation requires a
-   rights-cleared ASA-owned default project/asset baseline unless rights are explicitly
-   established.
-5. Added D0-006 because current Gallery reads/copies current drafts. New Blocks publication
-   must pin immutable `project_version_id`; cross-tenant remix must server-materialise asset
-   ownership into the destination tenant.
-6. Readiness was corrected: M1-002/003/004/005 are currently `NO` until their exact
-   prerequisites are closed. Old detailed task text cannot override the readiness index.
-7. Branch-wide historical dependency failure for `smol-toml 1.6.1` is stale relative to
-   current `main`, which already pins `smol-toml 1.8.0`. Final integration evidence must be
-   rerun after reconciliation with current `main`.
+## Repair conclusions
 
-## M0.1-001 evidence
+### M0.1-001
 
-Implemented code SHA:
+Implemented and focused-verified:
+
+```text
+objectKey removed from persistent Blocks document
+assetId = lowercase 32-hex
+formats = svg/png/jpg/wav/mp3
+sha256 = lowercase 64-hex
+sizeBytes = positive safe integer
+strict asset keys
+moduleVersion = 0.1.1
+availability = coming_soon
+```
+
+Implementation code SHA:
 
 ```text
 d277c4f71553b6c6ef90e52adb41e3200f036a1b
 ```
 
-The final task delta from the pre-task documentation head changes only:
+A later exact feature-head Scratch M0 Focused run passed both jobs, including Docker
+build/start/health/root smoke. Explicit owner acceptance remains distinct from CI evidence.
+
+### Upstream pin provenance
+
+The earlier recommendation to roll the pin back to the official `v15.1.1` tag SHA was too
+strong and has been withdrawn after a complete delta review.
 
 ```text
-apps/api/src/blocks-module.ts
-apps/api/src/blocks-module.spec.ts
+v15.1.1 tag SHA: 99bcc17e0580588f181f8a87577a2f676537a487
+ASA exact pin:    82c5fea6d3e60c781f25c09b375045f9b46a43f7
 ```
 
-At that SHA, the focused `Module contract and API typecheck` job passed formatting, lint,
-internal builds, Blocks contract tests and API typecheck. The independent pinned upstream
-Docker smoke is reported from GitHub Actions separately and must not be assumed from this
-note.
+The ASA pin is nine commits after the tag. The reviewed compare changes only package
+manifests and `package-lock.json`, with no Scratch source-code file delta. Eight commits are
+build/test/style dependency maintenance; one updates `scratch-l10n` to `6.1.112`.
 
-The repository-wide branch gate still sees the feature branch's old `smol-toml 1.6.1`
-lock and therefore is not integration-green until the branch is reconciled with current
-`main`, which already contains the `1.8.0` override.
-
-## Next safe execution
-
-Do not auto-advance from implementation evidence.
+Decision:
 
 ```text
-VSCR-M0.1-001 → implementation complete; explicit acceptance pending
-VSCR-M0.1-002 → separate coding-ready upstream-lock correction
-VSCR-M1-001   → wait for explicit M0.1-001 acceptance
+retain 82c5fea...
+call it a reviewed post-release 15.1.1 snapshot
+never call it the official v15.1.1 tag commit
 ```
 
-`VSCR-M0.1-002` must be complete before `VSCR-M1-002`. No M1 host/storage/security work is
-authorised by this audit note.
+`VSCR-M0.1-002` is therefore a completed provenance review, not a pending code rollback.
+
+### `.sb3` compatibility
+
+Canonical ASA storage remains:
+
+```text
+svg/png/jpg/wav/mp3
+```
+
+The pinned Scratch VM can recognise legacy archive costume formats such as BMP/JPEG/GIF.
+D0-007 now prevents a future import bot from either widening the durable schema casually or
+rejecting historical archives while claiming universal Scratch compatibility.
+
+`VSCR-M1-007` remains STOP until exact ZIP limits/library, legacy media normalisation and a
+round-trip fixture corpus are specified.
+
+### Gallery
+
+D0-006 remains mandatory: Blocks publication must pin immutable `project_version_id`; a
+cross-tenant remix must materialise referenced assets into destination-tenant ownership.
+Current draft-copy Gallery semantics are not accepted for Blocks.
+
+---
+
+## Repository convergence finding
+
+The Scratch feature branch diverged from current `main`. Main contains shared changes that
+must not be regenerated or overwritten from the stale Scratch baseline, including:
+
+```text
+current execution/Learning control-plane state
+package.json dependency-security override
+pnpm-lock.yaml dependency graph
+current web changes
+```
+
+In particular current main fixes the repository HIGH advisory by pinning
+`smol-toml 1.8.0`, while the stale Scratch branch gate still sees `1.6.1`.
+
+Therefore the next technical repair is **repository convergence**, before M1-001 or any
+other task touching shared dependencies/lockfiles.
+
+Convergence invariant:
+
+```text
+current main → Scratch feature branch
+preserve main current.yaml exactly
+preserve main dependency/security fixes exactly
+preserve Scratch M0/M0.1/docs
+inspect merged tree
+Scratch focused gate on exact merged SHA
+repository gate on exact merged SHA
+```
+
+No `current.yaml` transition to Scratch is implied.
+
+---
+
+## Current readiness after repair
+
+```text
+VSCR-M0.1-001      IMPLEMENTED + focused verified; owner acceptance pending
+VSCR-M0.1-002      REVIEW COMPLETE; current exact pin retained
+VSCR-REPO-CONVERGENCE  REQUIRED NOW
+VSCR-M1-001        STOP until convergence + M0.1 acceptance
+VSCR-M1-002        STOP until M1-001 accepted + exact host package amended
+VSCR-M1-003        STOP until host accepted
+VSCR-M1-004        STOP until exact media/XML validation stack selected
+VSCR-M1-005        STOP until exact Scratch semantic validator selected/proven
+VSCR-M1-006+       STOP
+VSCR-M1-007        additionally requires D0-007 exact ZIP/legacy-normalisation package
+VSCR-M2+           STOP
+```
+
+No M1 host/storage/security work is authorised by this audit note.
