@@ -1,6 +1,6 @@
 # VSCR-D0-001 — ASA Scratch host contract
 
-**Status:** accepted design contract; `VSCR-M1-002` remains blocked until the exact upstream release pin is normalised by `VSCR-M0.1-002`  
+**Status:** accepted design contract; upstream provenance review complete, current exact pin retained  
 **Master:** [`../ASA_VISUAL_PROGRAMMING_SCRATCH_MASTER_SPEC.md`](../ASA_VISUAL_PROGRAMMING_SCRATCH_MASTER_SPEC.md)  
 **Upstream lock:** `infra/scratch-editor/upstream.env`
 
@@ -21,7 +21,7 @@ health evidence. It is not the ASA product runtime.
 Target direction:
 
 ```text
-scratchfoundation/scratch-editor @ exact reviewed release commit
+scratchfoundation/scratch-editor @ exact reviewed immutable commit
 → npm ci
 → scratch-gui shipping standalone dist
 → two enumerated ASA compatibility patches where upstream has no safe host prop
@@ -33,24 +33,40 @@ The ASA Web application never imports Scratch GUI/VM packages directly.
 
 ---
 
-## 2. Exact upstream provenance is a prerequisite
+## 2. Exact upstream provenance
 
-The current M0 lock is intentionally treated as provisional for M1 host work.
-
-Audit on 10 September 2026 established:
+The upstream provenance review is complete.
 
 ```text
 official tag v15.1.1 → 99bcc17e0580588f181f8a87577a2f676537a487
-current ASA pin        → 82c5fea6d3e60c781f25c09b375045f9b46a43f7
+ASA exact pin        → 82c5fea6d3e60c781f25c09b375045f9b46a43f7
 ```
 
-The current pin is nine commits after the release tag and the inspected delta is dependency
-maintenance rather than an ASA-required Scratch feature. Therefore M1 host work MUST NOT
-continue while documentation calls the current commit the exact `v15.1.1` release.
+The ASA pin is a reviewed post-release snapshot nine commits after the `v15.1.1` tag. The
+reviewed GitHub compare changes only `package-lock.json` and package manifests; it contains
+no Scratch Editor source-code file delta. Eight commits are build/test/style dependency
+maintenance and one updates upstream `scratch-l10n` from `6.1.111` to `6.1.112`.
 
-`VSCR-M0.1-002` normalises the pin to the official release-tag commit unless a later
-explicit review proves an ASA-required reason to retain a post-release snapshot. A coding
-agent may not silently choose another SHA.
+The current exact pin is therefore deliberately **retained**. Rolling back to the tag SHA
+merely to make provenance wording simpler is not an engineering requirement and could
+remove reviewed dependency maintenance.
+
+Correct wording everywhere in ASA is:
+
+```text
+Scratch Editor package version: 15.1.1
+ASA pin: 82c5fea...
+reviewed post-release snapshot after v15.1.1
+```
+
+Do not call `82c5fea...` the official `v15.1.1` tag commit.
+
+`VSCR-M0.1-002` records this review decision and is complete without changing
+`infra/scratch-editor/upstream.env`.
+
+Future pin changes require a new exact tag→candidate diff review, dependency/license review,
+compatibility-coupling review and Docker/browser evidence. A coding agent may never choose
+a newer SHA merely because it is newer.
 
 ---
 
@@ -418,7 +434,7 @@ Runtime sets no cookie and requires no credentialed CORS.
 M1-002 is not accepted until browser/Docker evidence proves all of:
 
 ```text
-1. official reviewed upstream release SHA is the configured exact pin
+1. configured Scratch SHA equals the reviewed immutable ASA pin and runtime reports its exact provenance
 2. runtime uses standalone dist, not playground build/index.html
 3. the two authorised compatibility patches apply cleanly and no third patch exists
 4. ASA-owned mark is shown instead of Scratch logo in product chrome
