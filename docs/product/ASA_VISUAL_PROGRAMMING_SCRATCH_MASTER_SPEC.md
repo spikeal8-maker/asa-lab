@@ -1,7 +1,7 @@
 # ASA Lab Visual Programming — Scratch integration master specification
 
 **Document:** Master Technical Specification / implementation contract  
-**Version:** 1.0  
+**Version:** 1.1  
 **Date:** 10 September 2026  
 **Product:** ASA Lab  
 **Module key:** `blocks`  
@@ -70,8 +70,8 @@ create Visual Programming project in ASA Lab
 ```
 
 The critical product property is **durability before visibility**. The module MUST remain
-non-creatable for ordinary users until the save/load acceptance gate proves that closing
-and reopening does not lose work.
+non-creatable for ordinary users until the save/load and product acceptance gates prove
+that closing and reopening does not lose work.
 
 ---
 
@@ -141,6 +141,10 @@ These rules apply to every VSCR task.
 12. No silent overwrite on project revision conflict.
 13. No bot may advance to the next VSCR task automatically. One owner-authorised slice
     is implemented, tested and reported at a time.
+14. Scratch compatibility identifiers (`assetId`, `md5ext`) MUST NOT be silently replaced
+    with ASA integrity identifiers (`sha256`). They serve different purposes.
+15. Hiding write controls in the UI is not authorisation. Editor and viewer capabilities
+    MUST be enforced server-side with different least-privilege permissions.
 
 ---
 
@@ -274,7 +278,36 @@ BlocksProjectDocumentV1
 `projectJson = null` is allowed only before the embedded VM has initialised a new default
 project.
 
-### 6.1 Asset-reference security
+### 6.1 Compatibility identity versus storage integrity
+
+Scratch project JSON commonly identifies a costume/sound with compatibility fields such
+as `assetId`, `dataFormat` and `md5ext`. ASA additionally records `sha256` to verify the
+stored bytes.
+
+These identifiers MUST NOT be conflated:
+
+```text
+assetId / md5ext = Scratch project compatibility identity
+sha256           = ASA storage/integrity digest
+objectKey        = ASA server-owned storage location
+```
+
+A server MAY deduplicate physical bytes by SHA-256, but MUST preserve the Scratch
+compatibility identifier required by `projectJson`. It MUST NOT rewrite `assetId` to the
+SHA-256 value just because the storage key is content-addressed.
+
+For every binary costume/sound reference in the saved `projectJson`, the canonical
+`assets[]` set MUST contain exactly one matching `(assetId, dataFormat)` reference. If
+`md5ext` is present, its filename/format relationship MUST be validated against the
+Scratch fields rather than trusted blindly. Missing, duplicate or inconsistent required
+references make the draft invalid.
+
+The canonical current-draft `assets[]` SHOULD contain only assets referenced by that
+current `projectJson`. Historical bytes remain protected by immutable version documents
+and storage metadata; they are not kept alive by stuffing obsolete references into the
+current draft.
+
+### 6.2 Asset-reference security
 
 `objectKey` is **server-owned metadata**, even though it is persisted in the project
 envelope. A browser/runtime MUST NOT be trusted to choose an arbitrary object key.
@@ -289,11 +322,12 @@ On asset upload the server MUST:
 6. return the complete canonical asset reference.
 
 On draft save the server MUST verify every submitted asset reference against server-side
-asset metadata for the same tenant. A forged `objectKey`, size or digest MUST fail the
+asset metadata for the same tenant and then validate the complete
+`projectJson ↔ assets[]` relationship. A forged `objectKey`, size or digest MUST fail the
 save. A project MUST NOT be able to reference another tenant's private blob by guessing a
 key.
 
-### 6.2 Storage ownership
+### 6.3 Storage ownership
 
 The current base Compose stack does not contain S3/MinIO. Therefore storage introduction
 is a deliberate M1 infrastructure slice, not an assumption.
@@ -325,25 +359,25 @@ tenants/{tenantId}/blocks/assets/{sha256[0:2]}/{sha256}.{dataFormat}
 
 The exact key scheme is internal; clients must not construct it.
 
-### 6.3 Asset metadata
+### 6.4 Asset metadata
 
 If a relational metadata table is introduced, it MUST be additive and tenant-scoped. The
 minimum semantics are:
 
 ```text
 asset identity
- tenant_id
- scratch assetId + dataFormat
- sha256
- sizeBytes
- storage key
- created_at
+tenant_id
+Scratch assetId + dataFormat
+sha256
+sizeBytes
+storage key
+created_at
 ```
 
 Deduplication MAY happen within one tenant by `(sha256, dataFormat)`. Cross-tenant
 physical sharing MUST NOT leak authorisation or storage keys.
 
-### 6.4 No GC in M1–M3 activation path
+### 6.5 No GC in M1–M3 activation path
 
 Uploads may temporarily become orphaned when a later draft save fails. That is accepted.
 An orphan is cheaper than a broken historical checkpoint.
@@ -406,7 +440,7 @@ to the runtime. Expiry must not destroy unsaved local recovery data.
 
 ### 7.2 Runtime capability operations
 
-The capability is limited to operations equivalent to:
+Editor capability is limited to operations equivalent to:
 
 ```text
 project:read
@@ -417,6 +451,10 @@ snapshot:write
 ```
 
 No classroom/admin/account/settings operation is permitted.
+
+A viewer/player MUST receive a different capability that contains only the read operations
+needed for one immutable version (normally project/version read + asset read). Viewer
+capability MUST NOT include `project:save`, `asset:write` or `snapshot:write`.
 
 ### 7.3 Browser handling
 
@@ -457,7 +495,7 @@ The Scratch iframe MUST NOT be granted generic access to all normal ASA cookie-a
 project APIs. Provide a minimal bearer-authenticated facade that calls the same Project
 Core use cases internally.
 
-Target logical endpoints:
+Target logical editor endpoints:
 
 ```text
 GET  /api/blocks/runtime/projects/{projectId}
@@ -466,6 +504,10 @@ GET  /api/blocks/runtime/projects/{projectId}/assets/{assetId}.{format}
 PUT  /api/blocks/runtime/projects/{projectId}/assets/{assetId}.{format}
 PUT  /api/blocks/runtime/projects/{projectId}/snapshot
 ```
+
+Viewer/publication delivery MUST use an explicitly read-only version-scoped route or
+capability. A public gallery project does **not** make the underlying bucket public and
+does not grant draft access.
 
 All new endpoints MUST be specified in `schemas/openapi.yaml` in the same change that
 introduces them.
@@ -624,8 +666,13 @@ The runtime MUST maintain a bounded recovery store, for example:
 
 ```text
 database: asa-blocks-recovery
-key:      tenantId/projectId
+key:      projectId
 ```
+
+`projectId` is already the opaque project namespace. Recovery MUST NOT require exposing a
+raw `tenantId` to the iframe merely to construct a browser key. If a stronger namespace is
+needed, the server may provide a non-secret opaque recovery namespace in the bootstrap
+protocol.
 
 Recovery contains:
 
@@ -721,18 +768,20 @@ receive .sb3
 → require exactly one project.json
 → parse/validate Scratch project JSON
 → validate/extract supported asset entries
-→ persist immutable assets
+→ persist immutable assets without changing Scratch asset identity
 → build canonical BlocksProjectDocumentV1
+→ validate projectJson ↔ assets[] consistency
 → save through Project Core optimistic path/checkpoint policy
 ```
 
 Default configurable archive limits:
 
 ```text
-compressed size:   100 MiB
-unpacked size:     300 MiB
-entries:           1000
-single entry:      obey asset/document limits
+compressed size:        100 MiB
+unpacked size:          300 MiB
+entries:                1000
+max compression ratio:  50:1 per entry and aggregate
+single entry:           obey asset/document limits
 ```
 
 Reject path traversal, absolute paths, duplicate `project.json`, malformed ZIP, nested
@@ -752,8 +801,9 @@ Pipeline:
 
 ```text
 load authorised draft or immutable version
-→ verify document
+→ verify projectJson ↔ assets[] consistency
 → resolve every referenced asset
+→ preserve Scratch assetId/dataFormat/md5ext compatibility
 → create project.json
 → add Scratch-named asset files
 → stream ZIP as .sb3
@@ -770,6 +820,44 @@ Missing referenced bytes are an error; do not silently export a damaged partial 
 
 The IDs below are stable planning identifiers. They are not active tasks until selected by
 the owner/current execution state.
+
+### 15.1 Dependency graph — no skipping
+
+```text
+VSCR-M0
+  ↓
+VSCR-M1-001  Blocks bounded context
+  ↓
+VSCR-M1-002  iframe/message protocol skeleton
+  ↓
+VSCR-M1-003  runtime capability auth
+  ↓
+VSCR-M1-004  private blob store + canonical asset refs
+  ↓
+VSCR-M1-005  load/save/autosave/recovery
+  ├──────────────→ VSCR-M1-006 snapshot
+  └──────────────→ VSCR-M1-007 .sb3 round trip
+                       ↓
+                 VSCR-M1-008 M1 acceptance
+                       ↓
+                 VSCR-M2-001 editor shell
+                       ↓
+                 VSCR-M2-002 read-only viewer
+                       ↓
+                 VSCR-M2-003 Learning integration
+                       ↓
+                 VSCR-M2-004 gallery/remix
+                       ↓
+                 VSCR-M2-005 product acceptance
+                       ↓
+                 VSCR-M2-006 activation
+                       ↓
+                 VSCR-M3-001…006 sovereign acceptance
+```
+
+A later task MUST NOT start if its prerequisite acceptance evidence is missing. If the
+repository already contains equivalent functionality, the bot must prove equivalence with
+code/tests and record the prerequisite as satisfied; it must not simply skip it.
 
 ## VSCR-M0 — Foundation
 
@@ -810,8 +898,10 @@ Acceptance: wrong origin, wrong nonce and wrong project messages are rejected in
 Implement issuance, refresh and verification of least-privilege project-scoped runtime
 capabilities. Introduce no general bearer access to ASA APIs.
 
-Acceptance includes expiry, wrong-project, wrong-tenant, wrong-module, tamper and replay/
-retry semantics appropriate to the selected credential design.
+Acceptance includes expiry, wrong-project, wrong-tenant, wrong-module, tamper and
+permission-scope tests appropriate to the selected credential design. Do not impose a
+one-use token model unless that design is explicitly selected; normal editor sessions
+need multiple authorised API calls during the token lifetime.
 
 ### VSCR-M1-004 — Blob-store port + asset persistence
 
@@ -823,8 +913,10 @@ Acceptance:
 
 ```text
 upload supported asset
-server computes digest/key
+server preserves Scratch asset identity
+server computes SHA-256/storage key
 reload exact bytes
+projectJson ↔ assets[] validator rejects missing/duplicate/inconsistent refs
 same-tenant dedup works if enabled
 forged objectKey/ref is rejected
 cross-tenant access is rejected
@@ -848,7 +940,8 @@ reopen
 same blocks/sprites/assets appear
 ```
 
-Also test network failure, browser close during dirty state and revision conflict.
+Also test network failure, browser close during dirty state, runtime token refresh and
+revision conflict.
 
 ### VSCR-M1-006 — Stage snapshot
 
@@ -894,13 +987,15 @@ F. WAV/MP3 sound reloads
 G. close/reopen reproduces work
 H. revision conflict never silently overwrites
 I. crash recovery preserves dirty local state
-J. stage snapshot is tied to confirmed revision
-K. checkpoint restore reopens historical work
-L. .sb3 import succeeds
-M. .sb3 export succeeds and reopens
-N. Project Core JSON contains no inline asset bytes/full .sb3
-O. cross-tenant asset access is denied
-P. focused and required repository gates are green/non-skipped
+J. token expiry/refresh does not lose dirty work
+K. stage snapshot is tied to confirmed revision
+L. checkpoint restore reopens historical work
+M. .sb3 import succeeds under archive safety limits
+N. .sb3 export succeeds and reopens with compatible asset IDs
+O. Project Core JSON contains no inline asset bytes/full .sb3
+P. projectJson ↔ assets[] integrity is enforced
+Q. cross-tenant asset access is denied
+R. focused and required repository gates are green/non-skipped
 ```
 
 **After M1, the module still remains `coming_soon` for ordinary users.** Product shell,
@@ -926,6 +1021,12 @@ deep link MUST NOT become an accidental production bypass of module availability
 Implement the module viewer route for an **immutable project version**. Viewer mode may
 run green flag/stop/fullscreen but MUST NOT save or mutate the project.
 
+The restriction is server-side, not cosmetic. Viewer bootstrap must issue/read through a
+version-scoped read-only capability. Private versions remain subject to ASA authorisation.
+A publicly published version may receive a narrowly scoped public-read capability or
+server-proxied delivery, but the underlying object bucket MUST remain private and draft
+endpoints MUST remain inaccessible.
+
 ## VSCR-M2-003 — Classroom/Learning integration
 
 Blocks projects use the existing ASA assignment/attempt/submission runtime. Do not create
@@ -947,7 +1048,7 @@ learner submits version N
 ## VSCR-M2-004 — Gallery and remix
 
 Publication uses ASA Gallery/project metadata. Viewer uses the immutable published
-version.
+version and the read-only delivery model from M2-002.
 
 Remix uses ASA project provenance. Same-tenant remixes MAY reuse immutable asset blobs;
 cross-tenant remixes MUST establish destination-tenant-owned references/copies and MUST
@@ -961,9 +1062,10 @@ Before activation prove:
 create route is ready but still gated
 editor shell works desktop + target school viewport
 save/reload works through real browser
+viewer is truly read-only at API level
 viewer works from immutable version
 assignment submission freezes exact version
-gallery/player works
+gallery/player works without public bucket access
 remix provenance works
 import/export remains green
 ```
@@ -1039,7 +1141,9 @@ export
 ```
 
 Runtime/server headers include an explicit CSP, `nosniff`, referrer policy and narrowly
-configured `frame-ancestors`. API CORS allows only configured runtime origins; never `*`.
+configured `frame-ancestors`. The Scratch runtime must be frameable only by the configured
+ASA origins; do not solve framing by disabling protection globally. API CORS allows only
+configured runtime origins; never `*`.
 
 ## VSCR-M3-005 — Backup and restore
 
@@ -1107,7 +1211,7 @@ Required upgrade evidence grows with implemented milestones:
 ```text
 always: image build + health + editor smoke + licence inventory
 M1+: old fixture load + save/reload + .sb3 round trip
-M2+: viewer + assignment submission immutable-version check
+M2+: read-only viewer + assignment submission immutable-version check
 M3+: outbound network-deny + local-library checks
 ```
 
@@ -1133,6 +1237,7 @@ idempotency where retries can occur
 no secrets/tokens in response logs
 RLS/tenant tests for new relational metadata
 negative auth tests, not only happy path
+editor/viewer permission separation tests
 ```
 
 Runtime bearer endpoints and normal cookie-authenticated endpoints are distinct trust
@@ -1209,16 +1314,18 @@ Planned gate names MUST NOT be written into canonical execution state until the 
 actually exist. Once a Blocks focused gate exists, local, CI and owner evidence must run
 the same command.
 
-Browser tests MUST include at least:
+Browser/integration tests MUST include as soon as the corresponding feature exists:
 
 ```text
 reload after save
 network interruption/retry
 revision conflict
 large/invalid asset rejection
+projectJson/assets inconsistency rejection
 cross-tenant asset denial
 iframe wrong-origin rejection
 runtime token expiry/refresh
+viewer write-operation denial
 submitted immutable-version view
 ```
 
@@ -1248,22 +1355,24 @@ The core VSCR programme (M0–M3) is done only when all are true:
 2. The pinned editor opens inside the ASA shell without receiving ambient ASA authority.
 3. Blocks, sprites, costumes and sounds save durably.
 4. Closing/reopening reproduces the same project.
-5. Binary assets are outside Project Core JSONB and cannot be forged cross-tenant.
-6. Autosave uses optimistic revisions and never silently overwrites conflicts.
-7. Crash/network recovery preserves dirty local work.
-8. Historical checkpoints reopen with their historical assets.
-9. `.sb3` import is safe against malformed/archive attacks.
-10. `.sb3` export reopens compatibly.
-11. Project cards use revision-bound snapshots.
-12. Read-only viewer uses immutable project versions.
-13. Learning submission uses ASA's canonical immutable `project_version_id` path.
-14. Gallery/publication uses ASA metadata/version semantics.
-15. Remix provenance is preserved and cross-tenant asset access remains isolated.
-16. Supported school editing works with Scratch Foundation hosts blocked.
-17. Only rights-cleared local media/extensions are claimed as supported.
-18. Object storage and PostgreSQL are both covered by backup/isolated restore evidence.
-19. Scratch upstream can be updated only through a pinned, tested change.
-20. No neighbouring subject module, user model or Learning state machine was forked to
+5. Scratch compatibility asset IDs survive round trips while ASA verifies bytes by SHA-256.
+6. Binary assets are outside Project Core JSONB and cannot be forged cross-tenant.
+7. `projectJson ↔ assets[]` consistency is validated on durable saves/import/export.
+8. Autosave uses optimistic revisions and never silently overwrites conflicts.
+9. Crash/network recovery preserves dirty local work.
+10. Historical checkpoints reopen with their historical assets.
+11. `.sb3` import is safe against malformed/archive attacks.
+12. `.sb3` export reopens compatibly.
+13. Project cards use revision-bound snapshots.
+14. Read-only viewer uses immutable project versions and server-enforced read-only authority.
+15. Learning submission uses ASA's canonical immutable `project_version_id` path.
+16. Gallery/publication uses ASA metadata/version semantics without public blob buckets.
+17. Remix provenance is preserved and cross-tenant asset access remains isolated.
+18. Supported school editing works with Scratch Foundation hosts blocked.
+19. Only rights-cleared local media/extensions are claimed as supported.
+20. Object storage and PostgreSQL are both covered by backup/isolated restore evidence.
+21. Scratch upstream can be updated only through a pinned, tested change.
+22. No neighbouring subject module, user model or Learning state machine was forked to
     make Blocks work.
 
 ---
@@ -1279,6 +1388,7 @@ Read AGENTS.md, START_HERE_FOR_AI.md,
 docs/product/ASA_VISUAL_PROGRAMMING_SCRATCH_MASTER_SPEC.md §0–§7 and §15,
 ADR-VSCR-001, then inspect current storage/compose code.
 Do not activate blocks, do not deploy, do not touch other subject contexts.
+Do not advance to M1-005 automatically after completing M1-004.
 Return exact changed paths, tests/gates, SHA and any STOP condition.
 ```
 
