@@ -79,6 +79,8 @@ jobs:
         run: |
           pnpm exec prettier apps/api/src/blocks-module.ts > /tmp/blocks-module.formatted.ts
           diff -u apps/api/src/blocks-module.ts /tmp/blocks-module.formatted.ts || true
+          pnpm exec prettier apps/api/src/blocks-module.spec.ts > /tmp/blocks-module.spec.formatted.ts
+          diff -u apps/api/src/blocks-module.spec.ts /tmp/blocks-module.spec.formatted.ts || true
 
       - name: Lint Scratch module integration
         run: >-
