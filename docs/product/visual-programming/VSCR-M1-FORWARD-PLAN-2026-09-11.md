@@ -1,50 +1,28 @@
-# ASA Lab Visual Programming — post-M0 forward plan
+# ASA Lab Visual Programming — post-M0 readiness and order
 
-**Date:** 11 September 2026  
 **Programme:** `blocks` / `Визуальное программирование`  
-**Status:** readiness/order only — not execution authorisation
+**Status:** the single Scratch readiness/order source; never execution authorisation.
 
 This file answers only:
 
 ```text
-what milestone/task comes next?
-what is ready vs blocked?
+what comes next?
+what is eligible vs blocked?
 what prerequisite unlocks it?
 ```
 
-It does **not** duplicate implementation details. Exact implementation belongs in:
-
-```text
-tasks/<selected-task>.md
-→ COMPONENT_MAP.yaml
-→ one components/*.yaml subsystem card
-→ matching D0 contract section
-```
+It does not contain implementation details. Those live only in exact task cards, subsystem
+component cards and canonical D0 contracts.
 
 Live task selection remains in `docs/execution/current.yaml` + explicit owner instruction.
 
-## Current baseline
+## Baseline
 
-Integrated M0/M0.1 provides:
+Integrated M0/M0.1 provides the Blocks project envelope/provider, strict logical asset
+references, `moduleVersion 0.1.1`, `availability coming_soon`, the reviewed exact Scratch pin
+and accepted D0 architecture contracts.
 
-```text
-Blocks project envelope/provider
-strict asset references
-objectKey excluded from project JSON
-moduleVersion 0.1.1
-availability coming_soon
-reviewed exact Scratch upstream pin
-accepted D0 architecture contracts
-```
-
-Current main planning baseline after PR #182:
-
-```text
-post-M0 Scratch M1 plan integrated
-canonical ASA logo decision integrated
-blocks remains coming_soon
-no M1 implementation selected by this document
-```
+No M1 implementation is selected by this document.
 
 ## Strict order
 
@@ -52,25 +30,36 @@ no M1 implementation selected by this document
 M0/M0.1  COMPLETE
 
 M1-001    Extract @asa-lab/blocks bounded context
-  ↓ accept exact result
-M1-002    ASA-owned standalone Scratch host + iframe/message skeleton
-  ↓ accept exact result
-M1-003    Runtime capability auth + exact path-scoped origin/CORS/CSP
-  ↓ accept exact result
+  ↓ owner acceptance
+
+M1-002    ASA-owned Scratch host milestone
+  M1-002A standalone build + minimal ASA host shell
+    ↓ STOP / acceptance
+  M1-002B ASA branding + File/Extensions controls
+    ↓ STOP / acceptance
+  M1-002C parent/iframe protocol boundary
+    ↓ STOP / acceptance
+  M1-002D ScratchStorage/GUIStorage fixture adapter
+    ↓ STOP / acceptance
+  M1-002E integrated host acceptance + independent review
+    ↓ owner acceptance of M1-002 milestone
+
+M1-003    Runtime capability auth + exact Origin/CORS/CSP + current-authority recheck
+  ↓ owner acceptance
 M1-004P   Select exact content-validation stack
-  ↓ accept dependency/security/license decision
+  ↓ accepted dependency/security/license decision
 M1-004    Tenant-private asset metadata + S3/MinIO + validated asset API
-  ↓ accept exact result
+  ↓ owner acceptance
 M1-005P   Select/prove exact Scratch semantic validation strategy
-  ↓ accept decision
+  ↓ accepted decision
 M1-005    Project Core durability guard + durable Scratch load/save
-  ↓ accept exact result
+  ↓ owner acceptance
 M1-006    Generation-aware autosave/recovery/conflict + snapshot
-  ↓ accept exact result
+  ↓ owner acceptance
 M1-007P   Select ZIP/legacy-media stack, limits and corpus
-  ↓ accept decision
+  ↓ accepted decision
 M1-007    Safe .sb3 import/export
-  ↓ accept exact result
+  ↓ owner acceptance
 M1-008    End-to-end M1 durability/security acceptance
 
 M2        ASA product UI + immutable Gallery/player/remix
@@ -78,20 +67,25 @@ M3        sovereign local media/extensions + network deny + backup/restore/deplo
 M4-001    explicit coming_soon → active decision
 ```
 
-No task automatically advances to the next one.
+No task or sub-slice automatically advances to the next one.
 
 ## Readiness matrix
 
 | Task | Readiness | Unlock condition / exact card |
 | --- | --- | --- |
 | `VSCR-M1-001` | **READY FOR OWNER SELECTION** | `tasks/VSCR-M1-001.md` |
-| `VSCR-M1-002` | **BLOCKED** | M1-001 accepted → `tasks/VSCR-M1-002.md` |
-| `VSCR-M1-003` | **BLOCKED** | M1-002 accepted; create/refine exact card against accepted host interfaces |
+| `VSCR-M1-002` | **BLOCKED** | M1-001 owner-accepted; use milestone router `tasks/VSCR-M1-002.md` |
+| `VSCR-M1-002A` | **BLOCKED** | M1-001 accepted + M1-002 milestone selected |
+| `VSCR-M1-002B` | **BLOCKED** | M1-002A accepted |
+| `VSCR-M1-002C` | **BLOCKED** | M1-002B accepted |
+| `VSCR-M1-002D` | **BLOCKED** | M1-002C accepted |
+| `VSCR-M1-002E` | **BLOCKED** | M1-002A–D each accepted |
+| `VSCR-M1-003` | **BLOCKED** | M1-002E + owner acceptance of M1-002; then write exact M1-003 card against accepted interfaces |
 | `VSCR-M1-004P` | **SELECTABLE DESIGN WORK** | exact parser/sniffer/version/license/security decision |
 | `VSCR-M1-004` | **BLOCKED** | M1-003 + M1-004P accepted |
 | `VSCR-M1-005P` | **SELECTABLE DESIGN WORK** | exact semantic-validator strategy/proof |
 | `VSCR-M1-005` | **BLOCKED** | M1-004 + M1-005P accepted |
-| `VSCR-M1-006` | **BLOCKED** | M1-005 accepted interfaces |
+| `VSCR-M1-006` | **BLOCKED** | M1-005 accepted interfaces + explicit recovery-store/TTL/isolation decision in its card |
 | `VSCR-M1-007P` | **SELECTABLE DESIGN WORK** | exact ZIP stack/limits/legacy-media corpus decision |
 | `VSCR-M1-007` | **BLOCKED** | durable M1 storage/load-save + M1-007P accepted |
 | `VSCR-M1-008` | **BLOCKED** | M1-006 + M1-007 accepted |
@@ -99,7 +93,7 @@ No task automatically advances to the next one.
 | `VSCR-M3-*` | **BLOCKED** | M2 accepted + rights/network/backup decisions |
 | `VSCR-M4-001` | **BLOCKED** | M3 sovereign/restore/deployment acceptance |
 
-`READY` / `SELECTABLE DESIGN WORK` means eligible for a separate owner selection, not active.
+`READY` / `SELECTABLE DESIGN WORK` means eligible for separate owner selection, not active.
 `BLOCKED` means coding STOP.
 
 ## Immediate next coding slice
@@ -110,65 +104,56 @@ Only:
 VSCR-M1-001
 ```
 
-Its exact implementation scope is:
+Exact card:
 
 ```text
 tasks/VSCR-M1-001.md
 ```
 
-After implementation/evidence/self-review:
+After its evidence and bounded self-review: STOP for owner acceptance.
+
+## Task-card creation rule
+
+Do not pre-write exact source/test paths for distant work.
+
+For M1-003+ implementation cards:
 
 ```text
-STOP
-→ owner review/acceptance
-→ only then M1-002 may become selectable
+prerequisites accepted
+→ inspect actual accepted interfaces
+→ resolve component IDs
+→ record the smallest real read/write/test scope
+→ set ownership/risk/review profile
+→ select task separately
 ```
 
-## Stable cross-milestone invariants
+Blocked component cards therefore describe purpose, ownership, canonical contract and
+dependencies, but do not freeze speculative filenames/tests.
 
-These do not change the readiness table but must remain true:
+## Stable cross-milestone invariants
 
 ```text
 Scratch logo is not ASA product chrome
 canonical ASA logo is apps/web/public/asa-lab-mark.svg
-built-in Scratch File/server-save/account/community/cloud ownership is not ASA product flow
-Gallery publication must bind immutable project_version_id
-cross-tenant Blocks remix must re-materialise referenced assets server-side
-Learning reuses existing immutable project_version_id submission semantics
-M3 must prove a school baseline without implicit Scratch Foundation dependency
+built-in Scratch server-save/account/community/cloud ownership is not ASA product flow
+Gallery publication binds exact immutable project_version_id
+cross-tenant remix re-materialises referenced assets server-side
+Learning reuses immutable project_version_id submission semantics
+school baseline has no implicit Scratch Foundation dependency
 only M4-001 may activate blocks
 ```
 
-## Task-card creation rule
-
-Do not pre-write detailed executable cards for distant tasks against speculative interfaces.
-
-Create/refine the exact card only when its prerequisites are accepted:
-
-```text
-inspect accepted interfaces
-→ resolve stable component IDs
-→ record minimal read/write/test scope
-→ set risk/review profile
-→ select task separately
-```
-
-This is intentional token and correctness control: a future bot must not implement M1-006
-from an old plan written before M1-005 exists.
-
 ## Planning vs maintenance
 
-Milestone planning uses this file.
+Milestone planning may read this file.
 
-A future bounded maintenance request after implementation does **not** read this file by
-default. It uses:
+A bounded maintenance request after implementation does not read the roadmap by default. It
+uses:
 
 ```text
 README.md
-→ AGENT_GUIDE.md
 → COMPONENT_MAP.yaml
 → one subsystem card
 → mapped source/test/contract
+→ bounded self-review
 ```
-
-That keeps small fixes independent from the full roadmap.
