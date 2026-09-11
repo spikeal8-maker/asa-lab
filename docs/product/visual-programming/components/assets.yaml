@@ -1,0 +1,55 @@
+schema_version: 1.0.0
+area: asset-storage
+components:
+  - id: blocks.assets.reference
+    state: implemented
+    risk: medium
+    purpose: "Persistent logical asset reference only; no physical object locator."
+    contracts:
+      - path: docs/product/visual-programming/VSCR-D0-003-ASSET-STORAGE-CONTRACT.md
+        section: "§1–§3 identity and metadata model"
+    sources:
+      - path: apps/api/src/blocks-module.ts
+        symbols: [BlocksAssetReferenceV1, validateAsset]
+    tests: [apps/api/src/blocks-module.spec.ts]
+    task: null
+
+  - id: blocks.assets.metadata
+    state: planned
+    risk: high
+    purpose: "Tenant-private immutable blob and Scratch alias metadata."
+    contracts:
+      - path: docs/product/visual-programming/VSCR-D0-003-ASSET-STORAGE-CONTRACT.md
+        section: "§3 Relational model and §4 tenant/RLS"
+    planned_sources:
+      - contexts/blocks/infrastructure/**
+      - migrations/*blocks*.sql
+    planned_tests: [tests/blocks/assets.pg.spec.ts]
+    task: VSCR-M1-004
+
+  - id: blocks.assets.upload
+    state: planned
+    risk: high
+    purpose: "Validated streaming asset PUT with identity/integrity/content limits."
+    contracts:
+      - path: docs/product/visual-programming/VSCR-D0-003-ASSET-STORAGE-CONTRACT.md
+        section: "§8 Asset upload endpoint + §9 Content validation"
+    planned_sources:
+      - apps/api/src/blocks-runtime.controller.ts
+      - contexts/blocks/infrastructure/**
+    planned_tests: [tests/blocks/asset-upload.spec.ts]
+    task: VSCR-M1-004
+    design_gate: VSCR-M1-004P
+
+  - id: blocks.assets.read
+    state: planned
+    risk: high
+    purpose: "Reference-authorised private asset GET for exact draft/version."
+    contracts:
+      - path: docs/product/visual-programming/VSCR-D0-003-ASSET-STORAGE-CONTRACT.md
+        section: "§13 Asset GET endpoint"
+    planned_sources:
+      - apps/api/src/blocks-runtime.controller.ts
+      - contexts/blocks/infrastructure/**
+    planned_tests: [tests/blocks/asset-read.spec.ts]
+    task: VSCR-M1-004
