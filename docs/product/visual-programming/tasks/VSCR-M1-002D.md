@@ -94,7 +94,25 @@ no production route exposure
 Review only storage-adapter behaviour, final diff, mapped D0 section and network/browser
 evidence. Confirm no persistence success is claimed and no external fallback remains.
 
+## Independent review
+
+Because this is a HIGH-risk external-fallback/runtime-boundary slice, acceptance requires a
+reviewer that is not the authoring execution context. Give the reviewer only:
+
+```text
+this task card
+final diff
+blocks.host.storage-adapter component entry
+mapped D0-001 sections
+authoritative browser/network evidence on the exact SHA
+```
+
+The reviewer checks that no Scratch Foundation fallback remains, fixture IDs cannot invoke
+upstream project fetch semantics, `saveProject()` cannot fake durable success and no real
+M1-003/M1-004/M1-005 API was implemented early. A product defect is `FAIL/STOP`; repair it in
+a separately selected bounded component task and rerun the review.
+
 ## Stop
 
-STOP after evidence. VSCR-M1-002E requires separate owner-authorised selection in
-`current.yaml` after D is accepted.
+STOP after self-review, independent review and evidence. VSCR-M1-002E requires separate
+owner-authorised selection in `current.yaml` after D is accepted.
