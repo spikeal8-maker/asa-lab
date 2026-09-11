@@ -5,13 +5,15 @@
 **Module:** `blocks`  
 **Product name:** `Визуальное программирование`
 
-This is the **stable product/architecture master**. It defines the destination, invariants and
+## 0. How to use this master
+
+This is the **stable product/architecture master**. It defines destination, invariants and
 milestone order. It is intentionally short enough to remain useful to humans and agents.
 
 It does **not** select the active task. Execution state lives only in
 `docs/execution/current.yaml` plus explicit owner instruction.
 
-For implementation/maintenance routing, start at:
+For implementation/maintenance routing, use:
 
 ```text
 docs/product/visual-programming/README.md
@@ -20,7 +22,9 @@ docs/product/visual-programming/README.md
 → one selected task card / one matching D0 contract
 ```
 
-Do not read all Scratch documentation by default.
+Do not read all Scratch documentation by default. Sections §1–§4 are the minimum stable
+product/architecture context expected by the global agent entry flow; task-specific detail
+is routed by §11 and the component map.
 
 ---
 
