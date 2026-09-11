@@ -1,17 +1,18 @@
 # VSCR-D0-004 — Blocks runtime security contract
 
-**Status:** accepted design contract for the Visual Programming programme  
-**Master:** [`../ASA_VISUAL_PROGRAMMING_SCRATCH_MASTER_SPEC.md`](../ASA_VISUAL_PROGRAMMING_SCRATCH_MASTER_SPEC.md)
+**Status:** canonical accepted runtime-security design  
+**Master:** `../ASA_VISUAL_PROGRAMMING_SCRATCH_MASTER_SPEC.md`  
+**Component routing:** `COMPONENT_MAP.yaml`
 
-This contract fixes the capability, CORS/origin, iframe and abuse-protection model. A
-coding agent MUST NOT solve a runtime 403/CSP problem by widening ASA's normal cookie
-trust boundary.
+This is the single active security contract for the Scratch runtime trust surface. It preserves
+the detailed accepted D0-004 requirements and incorporates the current-authority/revocation
+closure that previously lived in D0-004A.
 
----
+It does not authorise coding by itself.
 
-## 1. Trust surfaces are separate
+## Trust surfaces
 
-ASA has two different browser trust surfaces:
+ASA has two separate browser trust surfaces:
 
 ```text
 A. normal ASA Web → /api/**
@@ -21,19 +22,21 @@ A. normal ASA Web → /api/**
 B. Scratch runtime iframe → /api/blocks/runtime/**
    authority: short-lived Blocks capability in Authorization header
    origin: exact configured Scratch runtime origin
-   cookies: ignored / credentials omitted
+   cookies: ignored
+   credentials: omit
 ```
 
 The runtime origin is never added as a generic trusted origin for normal ASA cookie
-mutations.
+authenticated mutations.
 
----
+A runtime capability is not an ASA account session and does not grant authority to generic
+account, classroom, admin or unrelated subject APIs.
 
-## 2. Runtime capability format
+## Capability profile
 
 Use the standard `jose` package to create and verify compact JWS/JWT capabilities.
 
-Initial profile:
+Initial v1 profile:
 
 ```text
 JWS alg: HS256
@@ -41,7 +44,7 @@ JWT issuer: asa-lab
 JWT audience: asa-blocks-runtime
 editor TTL: 10 minutes
 player TTL: 10 minutes
-hard TTL ceiling without new design decision: 15 minutes
+hard TTL ceiling without a new design decision: 15 minutes
 ```
 
 Dependency rule:
@@ -49,15 +52,13 @@ Dependency rule:
 ```text
 package: jose
 version: exact version pinned by implementation PR
-requirement: repository dependency-security + license gates PASS
+dependency security/license gates: required PASS
 ```
 
-Do not implement custom JWT encoding/signature code with raw string concatenation or
-handwritten crypto.
+Do not implement custom JWT encoding/signature code with handwritten crypto or untrusted
+algorithm selection.
 
----
-
-## 3. Signing key
+### Signing key
 
 Environment:
 
@@ -65,8 +66,8 @@ Environment:
 ASA_BLOCKS_RUNTIME_SIGNING_KEY
 ```
 
-The value is a high-entropy deployment secret, minimum 32 random bytes represented in the
-format selected by the implementation configuration loader.
+The value is high entropy, minimum 32 random bytes in the representation selected by the
+implementation configuration loader.
 
 It is:
 
@@ -79,15 +80,13 @@ not sent to ASA Web
 not logged
 ```
 
-Core v1 uses one active key. Rotating the key through deployment invalidates existing
-runtime capabilities; with a 10-minute TTL this is acceptable. Online multi-key rotation
-is not required for v1 and must not be invented opportunistically.
+Core v1 uses one active signing key. Deployment key rotation invalidates existing runtime
+capabilities, which is acceptable with the bounded TTL. Online multi-key rotation is not
+required for v1 and must not be invented opportunistically.
 
----
+### Required claims
 
-## 4. Required capability claims
-
-Editor token payload contains at least:
+Editor capability contains at least:
 
 ```json
 {
@@ -112,7 +111,7 @@ Editor token payload contains at least:
 }
 ```
 
-Player token contains:
+Player capability contains at least:
 
 ```json
 {
@@ -124,7 +123,7 @@ Player token contains:
 }
 ```
 
-Player token MUST NOT contain:
+Player capability MUST NOT contain:
 
 ```text
 project:save
@@ -132,23 +131,18 @@ asset:write
 snapshot:write
 ```
 
-For a public publication where no account principal is required, the later M2 issuance
-route may use a dedicated public subject marker instead of an account principal, but it
-must still bind project/version and read-only permissions exactly.
+A future public-publication capability may use a dedicated public subject marker instead of
+an account principal, but it still binds the exact project/version and read-only permissions.
 
----
+## Capability validation
 
-## 5. Token header validation
-
-Verifier accepts only the configured algorithm/profile.
-
-Required checks on every runtime request:
+Every protected runtime request verifies at least:
 
 ```text
 signature valid
 alg exactly HS256
 iss == asa-lab
-aud contains asa-blocks-runtime
+aud includes asa-blocks-runtime
 nbf/exp valid with small bounded clock skew
 moduleKey == blocks
 jti valid UUID
@@ -158,12 +152,16 @@ mode valid for endpoint
 versionId exact for version-scoped player endpoints
 ```
 
-Never select a verification algorithm from an untrusted token without enforcing the
-configured algorithm.
+Never select a verification algorithm from untrusted token input without enforcing the
+configured profile.
 
----
+Capability permissions are constructed server-side. HTTP request bodies never choose their
+own permissions.
 
-## 6. Editor runtime-session issuance
+Capability validation is necessary but not sufficient: the current resource-authority
+recheck below is also mandatory for protected operations.
+
+## Editor runtime-session issuance
 
 Cookie-authenticated parent endpoint:
 
@@ -186,13 +184,13 @@ Before signing:
 1. resolve current ASA account/student actor through existing session logic
 2. load/authorise project through existing Project Core access path
 3. require project.moduleKey == blocks
-4. require project is editable by actor
-5. require project status permits editing
-6. construct exact permissions, never accept permissions from body
-7. issue 10-minute token
+4. require current edit authority
+5. require current project state permits editing
+6. construct exact permissions server-side
+7. issue a 10-minute capability
 ```
 
-Response:
+Logical response:
 
 ```json
 {
@@ -208,16 +206,14 @@ Response:
 }
 ```
 
-`runtimeOrigin` comes from validated server configuration, never client input.
+`runtimeOrigin` comes only from validated server configuration, never client input.
 
-The endpoint itself remains under the normal ASA Web cookie/origin policy.
+The endpoint remains under the normal ASA Web cookie/origin policy. The Scratch iframe does
+not receive ambient account cookies as runtime authority.
 
----
+### Player issuance
 
-## 7. Player issuance
-
-The M2 implementation uses a separate version-scoped issuance path. Logical authenticated
-shape:
+Authenticated immutable-version player issuance is logically separate from editor issuance:
 
 ```http
 POST /api/projects/{projectId}/versions/{versionId}/blocks/runtime-session
@@ -226,33 +222,116 @@ POST /api/projects/{projectId}/versions/{versionId}/blocks/runtime-session
 It must:
 
 ```text
-authorise read of the immutable version
+authorise read of the exact immutable version
 require version belongs to project
 require module blocks
-issue mode=player token
+issue mode=player
 bind exact versionId
+issue read-only permissions only
 ```
 
-A later public-publication issuance route may exist, but it must first prove that the
-requested immutable version is the version authorised by ASA publication metadata.
+A later public-publication issuance route first proves that the requested immutable version
+is the one authorised by ASA publication metadata.
 
-Do not reuse editor session endpoint with a client-supplied arbitrary permissions list.
+Do not reuse the editor session endpoint with a client-supplied permission list.
 
----
+## Current authority recheck
 
-## 8. Refresh model
+A Blocks runtime JWT is a short-lived cryptographically scoped capability. It is **not** a
+frozen copy of ASA authorisation state until token expiry.
 
-The iframe cannot mint/refresh its own capability.
+For every protected runtime request:
+
+```text
+verify capability signature + claims + resource binding + mode + permission
+→ apply current ASA resource-authorisation rule for subject/resource/operation
+→ execute only if current authority still permits it
+```
+
+For authenticated editor mode:
+
+```text
+valid bearer capability
++ current principal still resolves in token tenant
++ current principal still has required read/edit authority for project
++ current project state permits requested operation
+= request may proceed
+```
+
+A cryptographically valid token whose principal no longer has required resource authority is
+denied.
+
+Changes that affect the next protected runtime request include:
+
+```text
+project access revoked
+learner/actor removed from authorising relationship
+project becomes non-editable for that actor
+project is trashed/deleted
+version/publication is no longer authorised for requested player path
+```
+
+An already in-flight operation may finish according to that operation's transaction
+semantics; distributed cancellation is not required.
+
+A normal account-session logout does not by itself require a JWT blacklist if underlying
+resource authority remains unchanged. Expiry, signing-key rotation and current resource
+authorisation are independent controls.
+
+Do not introduce a Scratch-specific token blacklist, process-local denylist or unbounded
+revocation map in core v1.
+
+Required model:
+
+```text
+stateless JWT verification
+→ current ASA resource authorisation
+→ endpoint-specific operation
+```
+
+This remains compatible with multi-instance API deployment.
+
+The implementation should reuse the canonical ASA actor/project access path or a
+subject-neutral equivalent. It must not create a second Blocks-only role model.
+
+At minimum, current authority is rechecked for these operations when they exist:
+
+```text
+bootstrap/project JSON read
+asset GET
+asset PUT
+draft PUT
+snapshot PUT
+immutable player/version read
+```
+
+Write operations require current edit authority, not merely a token permission string.
+
+Asset access additionally requires D0-003 document-reference/tenant checks. Current project
+authority does not make same-tenant asset aliases tenant-wide readable.
+
+For a future public player capability, the server rechecks that the exact
+publication/version relationship still authorises public read. Unpublishing that relationship
+denies subsequent protected reads even if a previously issued token remains unexpired.
+
+The immutable project version itself is never rewritten as a revocation mechanism.
+
+The common current-authority boundary is established in M1-003 and reused by later M1/M2
+operations; later slices must not bypass it because the JWT already contains a permission.
+
+## Token refresh and browser handling
+
+The iframe cannot mint or refresh its own capability.
 
 Flow:
 
 ```text
-child sees expiry approaching or receives 401 expired
+child sees expiry approaching or receives expired-token response
 → child emits ASA_BLOCKS_TOKEN_REFRESH_REQUIRED
 → parent calls normal cookie-auth runtime-session endpoint again
-→ parent sends ASA_BLOCKS_TOKEN_UPDATE with exact runtime origin + sessionNonce
+→ parent sends ASA_BLOCKS_TOKEN_UPDATE to exact runtime origin + sessionNonce
 → child replaces in-memory token
-→ pending exact mutation retries with same mutationId
+→ pending exact mutation may retry with same mutationId
 ```
 
 Suggested refresh threshold:
@@ -263,36 +342,9 @@ refresh when <= 2 minutes remain
 
 Multiple simultaneous refresh requests in one parent page are coalesced.
 
-Token expiry never clears IndexedDB recovery or silently discards a pending save.
+Token expiry never clears recovery data or silently discards a pending save.
 
----
-
-## 9. Revocation semantics v1
-
-Capabilities are short-lived stateless credentials. Core v1 does not introduce a token
-revocation database solely for Scratch.
-
-Explicit consequence:
-
-```text
-logout/key rotation does not revoke an already issued token before exp unless another
-server-side resource check independently denies the operation
-```
-
-Maximum exposure is bounded by the 10-minute TTL.
-
-Every runtime operation still verifies path/resource consistency, token permissions and
-current resource existence/status. A trashed/deleted/nonexistent project cannot be mutated
-just because an old capability still names it.
-
-If future threat modelling requires immediate revocation, that is a separate security
-design; do not add a hidden in-memory denylist that breaks multi-instance deployments.
-
----
-
-## 10. Runtime token browser handling
-
-Token is kept only in JS memory inside parent/iframe runtime lifetime.
+Runtime capability is kept only in JS memory for the parent/iframe runtime lifetime.
 
 Forbidden storage/transport:
 
@@ -309,19 +361,17 @@ console/request logs
 HTML data attributes
 ```
 
-Runtime fetch:
+Runtime fetch uses:
 
 ```js
 headers.Authorization = `Bearer ${token}`
 credentials = 'omit'
 ```
 
-Recovery data may contain project state and unsent asset bytes but never the runtime
+Recovery data may contain bounded project state and unsent asset bytes but never the runtime
 capability.
 
----
-
-## 11. Path-scoped CORS/origin policy
+## Origin CORS CSP boundary
 
 Runtime browser API prefix:
 
@@ -329,22 +379,25 @@ Runtime browser API prefix:
 /api/blocks/runtime/**
 ```
 
-For requests under that prefix, the API performs runtime-specific origin handling before
-the generic mutation-origin decision.
-
 Configured origin:
 
 ```text
 ASA_BLOCKS_RUNTIME_ORIGIN
 ```
 
-For a browser request:
+Runtime requests use a narrow path-specific trust branch before the normal generic mutation
+origin decision.
+
+For browser runtime requests:
 
 ```text
 Origin MUST exactly equal configured runtime origin
+bearer capability required for protected endpoints
+cookies are not authority
+credentials omitted
 ```
 
-Response/preflight headers:
+Response/preflight policy:
 
 ```text
 Access-Control-Allow-Origin: <exact runtime origin>
@@ -354,31 +407,22 @@ Access-Control-Allow-Headers: Authorization, Content-Type
 Access-Control-Max-Age: bounded configured value
 ```
 
-Do not return:
+Forbidden:
 
 ```text
 Access-Control-Allow-Origin: *
 Access-Control-Allow-Credentials: true
 ```
 
-Runtime endpoints never become cookie-authorised because a cookie happened to accompany a
-request.
+For every other path, existing normal ASA cookie-origin behaviour remains unchanged.
 
----
-
-## 12. Existing normal ASA origin policy remains intact
-
-Current ASA app has a global mutation-origin check for non-GET/HEAD/OPTIONS API requests.
-The implementation must add a narrow runtime-path branch without changing the meaning of
-normal paths.
-
-Required structure conceptually:
+Conceptually:
 
 ```text
 if path starts /api/blocks/runtime/
-  → runtime origin/CORS + bearer trust surface
+  → exact runtime Origin/CORS + bearer trust surface
 else
-  → current isAllowedMutationOrigin(...) cookie mutation policy unchanged
+  → existing isAllowedMutationOrigin(...) behaviour unchanged
 ```
 
 Forbidden shortcut:
@@ -387,35 +431,24 @@ Forbidden shortcut:
 resolveAdditionalWebOrigins += ASA_BLOCKS_RUNTIME_ORIGIN
 ```
 
-That shortcut would trust Scratch-origin code for unrelated normal ASA mutations and is a
-security defect.
+That would trust runtime-origin code for unrelated normal ASA mutations.
 
----
+### Parent ASA CSP
 
-## 13. Parent ASA CSP must allow only the configured runtime frame
-
-Current ASA CSP uses `default-src 'self'` and does not generically allow arbitrary
-cross-origin frames. The Blocks shell therefore needs an exact configured runtime origin
-in its parent CSP `frame-src` policy.
-
-Target parent policy addition:
+ASA parent CSP permits only the exact configured runtime frame origin:
 
 ```text
 frame-src 'self' <ASA_BLOCKS_RUNTIME_ORIGIN>
 ```
 
-This is not a change to ASA's `frame-ancestors`; ASA itself remains protected from being
-framed by other sites.
+The value is validated as an absolute HTTP(S) origin and rendered safely into CSP. Never
+concatenate request/body strings into security headers.
 
-The runtime origin value is validated as an absolute HTTP(S) origin and safely rendered
-into CSP; do not concatenate arbitrary request/body strings into security headers.
+ASA's own `frame-ancestors` protection is not weakened.
 
----
+### Runtime CSP
 
-## 14. Runtime CSP
-
-The Scratch host response sets its own CSP. Initial target policy is local-first and has
-no Scratch Foundation network origins:
+The Scratch host sets its own local-first CSP with no implicit Scratch Foundation origins:
 
 ```text
 default-src 'self'
@@ -432,14 +465,14 @@ connect-src 'self' <exact ASA API origin> blob:
 worker-src 'self' blob:
 ```
 
-If the pinned standalone build demonstrably requires another directive such as a narrowly
-scoped `unsafe-eval`, the host implementation must prove it with a browser failure/test and
-record the exception in this contract. Do not add broad external hosts merely to make
-Scratch load.
+If the pinned standalone build demonstrably requires another directive such as narrowly
+scoped `unsafe-eval`, the implementation must prove the need with browser evidence and
+update this contract explicitly. Do not add broad external hosts merely to make Scratch
+load.
 
-M3 network-deny acceptance verifies the final CSP against actual browser traffic.
+M3 network-deny acceptance verifies final browser traffic and CSP.
 
-Runtime headers also include:
+Runtime headers include at least:
 
 ```text
 X-Content-Type-Options: nosniff
@@ -447,20 +480,18 @@ Referrer-Policy: no-referrer
 X-Permitted-Cross-Domain-Policies: none
 ```
 
----
+## Iframe message authority
 
-## 15. Iframe message authority
+Parent uses the exact runtime origin as `postMessage` target.
 
-Parent uses the exact runtime origin in `postMessage`.
+Child accepts INIT only from `window.parent` and the expected ASA parent origin. After INIT,
+messages additionally bind exact `protocolVersion`, `sessionNonce` and project ID; flush
+pairs also bind a request ID.
 
-Child accepts INIT only from `window.parent` and the expected ASA parent origin derived
-from the iframe referrer; after INIT it additionally requires exact `sessionNonce` and
-project ID.
+A postMessage does not grant API authority. The bearer capability still controls server
+operations.
 
-A postMessage does not itself grant API authority; the bearer capability still determines
-server operations.
-
-No message may contain:
+Messages must not contain:
 
 ```text
 ASA account cookie
@@ -469,70 +500,61 @@ signing key
 arbitrary JavaScript/eval payload
 ```
 
----
+No generic RPC/eval bridge exists. `postMessage('*')` is forbidden.
 
-## 16. Initial iframe sandbox
+## Iframe sandbox
 
 Core iframe:
 
-```text
+```html
 sandbox="allow-scripts allow-same-origin"
 ```
 
-`allow-same-origin` is required because the separate runtime origin owns IndexedDB recovery
-and normal browser-origin APIs. Since the iframe origin differs from ASA Web, this does not
-collapse the ASA/Scratch origin boundary.
+`allow-same-origin` is required for the separate runtime origin's own IndexedDB/browser
+origin APIs and does not collapse the boundary with ASA Web because the origins differ.
 
-No popup/top-navigation/forms/download/camera/microphone permission is included in core
-mode.
+Core mode does not add popup, top-navigation, forms, download, camera, microphone or
+geolocation permission.
 
----
+## Runtime rate limits
 
-## 17. Runtime-specific abuse protection
+Runtime routes use their own bounded limiter family because ordinary single-IP mutation
+limits are inappropriate for a school NAT with many simultaneous learners.
 
-The existing ordinary mutation limiter is inappropriate for thirty learners behind one
-school NAT because rapid autosave can make one IP look like one abusive user.
-
-Runtime routes therefore use their own bounded limiter family.
-
-Initial configurable request/concurrency ceilings:
+Initial configurable ceilings:
 
 ```text
-successful/authenticated requests per jti:    300 / 5 minutes
-coarse all-runtime requests per IP:          12000 / 5 minutes
-invalid-token attempts per IP:                 300 / 5 minutes
-runtime-session issuance per normal session:    12 / 5 minutes
-concurrent asset PUT per jti:                     4
+successful/authenticated requests per jti:     300 / 5 minutes
+coarse all-runtime requests per IP:           12000 / 5 minutes
+invalid-token attempts per IP:                  300 / 5 minutes
+runtime-session issuance per normal session:     12 / 5 minutes
+concurrent asset PUT per jti:                      4
 ```
 
-Asset persistence additionally applies the unique-byte ceilings from D0-003:
+Asset persistence additionally applies D0-003 unique-byte ceilings:
 
 ```text
 new unique asset bytes per capability lifetime: 512 MiB
 new unique asset bytes per project / 5 minutes:    1 GiB
 ```
 
-The M1-003 security slice creates the bounded capability/project/IP limiter structure and
-runtime-session limits. The M1-004 asset slice charges unique-byte budgets only after it
-knows whether the incoming bytes represent a new immutable blob/alias; exact idempotent
-replays do not consume the same unique-byte budget twice.
+M1-003 establishes bounded capability/project/IP limiter structure and session-issuance
+limits. M1-004 charges unique-byte budgets only after it knows whether incoming bytes create
+a new immutable blob/alias; exact idempotent replays do not consume the same unique-byte
+budget twice.
 
 The normal generic mutation limiter is not double-applied to authenticated runtime paths.
 
-All limiter maps/caches are bounded; a bot must not introduce an unbounded per-jti/project
-Map that grows for the lifetime of the API process.
+All limiter maps/caches are bounded; never introduce an unbounded per-jti/project Map that
+grows for process lifetime.
 
-A representative NAT test must model at least 30 simultaneous editor capabilities and
-prove ordinary autosave does not produce 429 responses.
+A representative NAT test models at least 30 simultaneous editor capabilities and proves
+ordinary workload does not produce false 429 responses.
 
-The coarse IP ceiling remains to cap accidental/hostile floods; it is deliberately much
-higher than a normal single-user mutation budget.
+The coarse IP ceiling remains to bound floods. These limits do not replace D0-003 per-file
+and current-project size limits.
 
-These limits do not replace the per-file and current-project size limits in D0-003.
-
----
-
-## 18. Endpoint permission matrix
+## Endpoint permission matrix
 
 | Endpoint | Editor | Player |
 | --- | --- | --- |
@@ -545,11 +567,9 @@ These limits do not replace the per-file and current-project size limits in D0-0
 
 Server tests verify every deny, not only UI hiding.
 
----
+## Runtime error contract
 
-## 19. Error contract
-
-Runtime auth errors use stable machine-readable families, for example:
+Runtime auth/security errors use stable machine-readable families. Initial families include:
 
 ```text
 401 runtime_token_missing
@@ -557,20 +577,21 @@ Runtime auth errors use stable machine-readable families, for example:
 401 runtime_token_expired
 403 runtime_origin_forbidden
 403 runtime_permission_denied
+403 runtime_current_authority_denied
 403 runtime_project_mismatch
 403 runtime_version_mismatch
 429 runtime_rate_limited
+503 runtime_dependency_unavailable
 ```
 
-Do not put raw token claims or token bytes in error bodies/logs.
+Do not expose raw token claims, token bytes, signing material, object-store credentials or
+internal authorisation details in bodies/logs.
 
-OpenAPI documents the selected final codes in the implementation change.
+OpenAPI documents the selected final status/code families in the implementation change.
 
----
+## Logging and privacy
 
-## 20. Logging/privacy
-
-Allowed request log fields:
+Allowed runtime request-log fields:
 
 ```text
 requestId
@@ -579,7 +600,7 @@ status
 duration
 projectId when repository policy permits
 runtime mode
-safe jti hash/prefix only if needed for rate diagnostics, never raw token
+safe jti hash/prefix only when needed for diagnostics
 ```
 
 Forbidden:
@@ -593,59 +614,57 @@ asset bytes
 signing key
 ```
 
----
+## Implementation ownership across M1
 
-## 21. Security implementation changed paths
+The common runtime security/current-authority boundary is established in M1-003.
 
-Expected minimum paths may include:
+Later slices reuse it:
 
 ```text
-apps/api/src/blocks-runtime-token.service.ts
-apps/api/src/blocks-runtime.controller.ts
-apps/api/src/blocks-runtime-session.controller.ts
-apps/api/src/blocks-runtime-rate-limit.ts
-apps/api/src/app.factory.ts
-apps/api/src/origin-policy.ts only if a generic validated-origin helper is reused safely
-apps/web/src/blocks/**
-infra/scratch-editor/nginx.conf.template
-schemas/openapi.yaml
-tests/blocks/**
-e2e/blocks-*.spec.ts
-.env*.example
-package.json / pnpm-lock.yaml for jose only in the authorised dependency slice
+M1-003 → bootstrap/runtime read boundary + current project authority recheck
+M1-004 → asset GET/PUT reuse same current-authority boundary
+M1-005 → draft PUT and durable load/save reuse same current-authority boundary
+M2     → immutable player/publication paths apply current read/publication authority
 ```
 
-Do not modify other subject contexts.
+Expected M1-003 implementation areas may include API capability/session/limiter composition,
+path-scoped origin handling, parent/runtime CSP configuration, OpenAPI and focused security
+tests. Exact filenames are deliberately deferred to the M1-003 task card after M1-002 is
+accepted; this contract must not force speculative future path names.
 
----
+Do not modify unrelated subject contexts.
 
-## 22. Focused security acceptance
+## M1-003 acceptance
 
-Must prove:
+M1-003 security evidence must prove at least:
 
 ```text
-1. valid editor token authorises only its exact project operations
+1. valid editor capability authorises only exact project operations
 2. wrong project path fails
 3. wrong tenant/module fails
 4. tampered/expired/not-yet-valid token fails
 5. algorithm confusion is rejected
 6. player token cannot write draft/asset/snapshot
 7. runtime requests use credentials: omit and no cookie authority
-8. runtime origin is exact; wildcard CORS absent
+8. runtime Origin is exact; wildcard CORS absent
 9. runtime origin cannot mutate normal ASA APIs
-10. normal ASA Web origin policy is unchanged for non-runtime routes
+10. normal ASA Web origin policy remains unchanged for non-runtime routes
 11. parent CSP permits only configured runtime frame origin
 12. runtime frame-ancestors permits only configured ASA parent origin
 13. wrong-origin/wrong-nonce iframe messages fail
-14. token never appears in URL/localStorage/IndexedDB/logs
-15. parent refreshes token; pending exact mutation survives expiry
+14. token never appears in URL/localStorage/sessionStorage/IndexedDB/logs
+15. parent refreshes token and pending exact mutation can survive expiry
 16. runtime-session issuance churn is bounded
 17. 30-editor shared-NAT test avoids false 429 under normal workload
-18. invalid-token flood is still bounded
-19. asset unique-byte budgets prevent an authorised upload loop from creating unbounded
-    orphan storage in one capability/project window
+18. invalid-token flood remains bounded
+19. asset unique-byte budgets prevent authorised upload loops from creating unbounded orphan storage
 20. no Blocks security failure crashes unrelated ASA APIs
+21. issue valid editor capability while actor may edit, revoke actor project authority without expiring token, then same token is denied on next protected read
+22. project trash/delete denies the same still-valid capability
+23. later asset PUT/draft/snapshot routes deny same token after authority revocation
+24. future public player reads are denied after exact publication/version is unpublished
+25. no process-local JWT denylist is required for those revocation cases
 ```
 
-Any requirement to weaken a global security header/policy is a STOP condition, not an
-implementation shortcut.
+Any requirement to weaken a global security header/policy or bypass current resource
+authorisation is a STOP condition, not an implementation shortcut.

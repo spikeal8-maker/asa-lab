@@ -1,0 +1,112 @@
+schema_version: 2.0.0
+area: scratch-host
+components:
+  - id: blocks.host.build
+    state: planned
+    risk: medium
+    ownership: infrastructure
+    purpose: "Build the shipping standalone Scratch distribution and package the ASA-owned host shell."
+    contracts:
+      - path: docs/product/visual-programming/VSCR-D0-001-SCRATCH-HOST-CONTRACT.md
+        section: "Host layout"
+    planned_sources:
+      - infra/scratch-editor/Dockerfile
+      - infra/scratch-editor/nginx.conf.template
+      - infra/scratch-editor/README.md
+      - infra/scratch-editor/host/index.html
+      - infra/scratch-editor/host/main.js
+      - infra/scratch-editor/host/host.css
+    planned_tests:
+      - .github/workflows/scratch-m0-focused.yml
+    task: VSCR-M1-002A
+    task_card: VSCR-M1-002A.md
+    depends_on: [blocks.upstream.pin]
+
+  - id: blocks.host.branding
+    state: planned
+    risk: medium
+    ownership: upstream_patch
+    purpose: "Render the canonical ASA Lab mark and remove Scratch product logo/navigation."
+    contracts:
+      - path: docs/product/visual-programming/VSCR-D0-001-SCRATCH-HOST-CONTRACT.md
+        section: "Branding"
+    canonical_asset: apps/web/public/asa-lab-mark.svg
+    planned_sources:
+      - infra/scratch-editor/host/branding.js
+      - infra/scratch-editor/patches/0001-host-logo-prop.patch
+    planned_tests:
+      - e2e/blocks-host-controls.spec.ts
+    task: VSCR-M1-002B
+    task_card: VSCR-M1-002B.md
+    depends_on: [blocks.host.build]
+
+  - id: blocks.host.file-menu
+    state: planned
+    risk: low
+    ownership: upstream_config
+    purpose: "Disable upstream File/new/save/title paths so ASA owns persistence and sb3 flows."
+    contracts:
+      - path: docs/product/visual-programming/VSCR-D0-001-SCRATCH-HOST-CONTRACT.md
+        section: "Product controls"
+    planned_sources:
+      - infra/scratch-editor/host/editor-config.js
+    planned_tests:
+      - e2e/blocks-host-controls.spec.ts
+    task: VSCR-M1-002B
+    task_card: VSCR-M1-002B.md
+    depends_on: [blocks.host.build]
+
+  - id: blocks.host.extensions
+    state: planned
+    risk: medium
+    ownership: upstream_patch
+    purpose: "Hide the upstream Extensions library in core mode; later controlled allowlist only."
+    contracts:
+      - path: docs/product/visual-programming/VSCR-D0-001-SCRATCH-HOST-CONTRACT.md
+        section: "Extensions"
+    planned_sources:
+      - infra/scratch-editor/host/editor-config.js
+      - infra/scratch-editor/patches/0002-extension-button-visibility.patch
+    planned_tests:
+      - e2e/blocks-host-controls.spec.ts
+    task: VSCR-M1-002B
+    task_card: VSCR-M1-002B.md
+    depends_on: [blocks.host.build]
+
+  - id: blocks.host.protocol
+    state: planned
+    risk: high
+    ownership: asa
+    purpose: "Exact parent/iframe message protocol and validation boundary."
+    contracts:
+      - path: docs/product/visual-programming/VSCR-D0-001-SCRATCH-HOST-CONTRACT.md
+        section: "Parent/iframe protocol"
+      - path: docs/product/visual-programming/VSCR-D0-004-RUNTIME-SECURITY-CONTRACT.md
+        section: "Origin CORS CSP boundary"
+    planned_sources:
+      - apps/web/src/blocks/**
+      - infra/scratch-editor/host/protocol.js
+      - infra/scratch-editor/host/status.js
+      - infra/scratch-editor/host/main.js
+    planned_tests:
+      - e2e/blocks-host-protocol.spec.ts
+    task: VSCR-M1-002C
+    task_card: VSCR-M1-002C.md
+    depends_on: [blocks.host.build]
+
+  - id: blocks.host.storage-adapter
+    state: planned
+    risk: high
+    ownership: asa
+    purpose: "ASA ScratchStorage/GUIStorage fixture adapter without Scratch-host fallback or durable writes."
+    contracts:
+      - path: docs/product/visual-programming/VSCR-D0-001-SCRATCH-HOST-CONTRACT.md
+        section: "Scratch storage adapter"
+    planned_sources:
+      - infra/scratch-editor/host/storage.js
+      - infra/scratch-editor/host/main.js
+    planned_tests:
+      - e2e/blocks-host-storage.spec.ts
+    task: VSCR-M1-002D
+    task_card: VSCR-M1-002D.md
+    depends_on: [blocks.host.protocol]

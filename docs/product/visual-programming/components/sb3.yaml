@@ -1,0 +1,28 @@
+schema_version: 2.0.0
+area: sb3-interchange
+components:
+  - id: blocks.sb3.import
+    state: blocked
+    risk: high
+    ownership: cross_boundary
+    purpose: "Safe ASA-owned sb3 import with bounded ZIP handling and deterministic legacy-media normalisation."
+    contracts:
+      - path: docs/product/visual-programming/VSCR-D0-007-SB3-IMPORT-COMPATIBILITY-CONTRACT.md
+        section: "Required import architecture"
+      - path: docs/product/visual-programming/VSCR-D0-007-SB3-IMPORT-COMPATIBILITY-CONTRACT.md
+        section: "Security boundary"
+    task: VSCR-M1-007
+    design_gate: VSCR-M1-007P
+    depends_on: [blocks.project.load-save, blocks.assets.upload]
+
+  - id: blocks.sb3.export
+    state: blocked
+    risk: high
+    ownership: asa
+    purpose: "ASA-owned sb3 export from one exact durable project revision/version."
+    contracts:
+      - path: docs/product/visual-programming/VSCR-D0-007-SB3-IMPORT-COMPATIBILITY-CONTRACT.md
+        section: "Export boundary"
+    task: VSCR-M1-007
+    design_gate: VSCR-M1-007P
+    depends_on: [blocks.project.load-save, blocks.assets.read]
