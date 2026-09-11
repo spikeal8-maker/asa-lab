@@ -1,0 +1,77 @@
+name: Scratch Documentation Routing
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'docs/product/ASA_VISUAL_PROGRAMMING_SCRATCH_MASTER_SPEC.md'
+      - 'docs/product/visual-programming/**'
+      - 'docs/architecture/ADR-VSCR-001-SCRATCH-EDITOR-INTEGRATION.md'
+      - 'tools/validate-blocks-docs.mjs'
+      - 'contexts/blocks/**'
+      - 'apps/api/src/blocks-*.ts'
+      - 'apps/api/src/module-registry.ts'
+      - 'apps/web/src/blocks/**'
+      - 'infra/scratch-editor/**'
+      - 'tests/blocks/**'
+      - 'e2e/blocks-*.spec.ts'
+      - '.github/workflows/scratch-docs-routing.yml'
+  pull_request:
+    paths:
+      - 'docs/product/ASA_VISUAL_PROGRAMMING_SCRATCH_MASTER_SPEC.md'
+      - 'docs/product/visual-programming/**'
+      - 'docs/architecture/ADR-VSCR-001-SCRATCH-EDITOR-INTEGRATION.md'
+      - 'tools/validate-blocks-docs.mjs'
+      - 'contexts/blocks/**'
+      - 'apps/api/src/blocks-*.ts'
+      - 'apps/api/src/module-registry.ts'
+      - 'apps/web/src/blocks/**'
+      - 'infra/scratch-editor/**'
+      - 'tests/blocks/**'
+      - 'e2e/blocks-*.spec.ts'
+      - '.github/workflows/scratch-docs-routing.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  routing:
+    name: Scratch component routing
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact revision
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install exact dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Validate routing contracts
+        run: node tools/validate-blocks-docs.mjs
+
+      - name: Check Scratch routing format
+        run: >-
+          pnpm exec prettier --check
+          docs/product/ASA_VISUAL_PROGRAMMING_SCRATCH_MASTER_SPEC.md
+          docs/product/visual-programming
+          docs/architecture/ADR-VSCR-001-SCRATCH-EDITOR-INTEGRATION.md
+          tools/validate-blocks-docs.mjs
+          .github/workflows/scratch-docs-routing.yml
