@@ -2,6 +2,7 @@ import type {
   ComponentKind,
   ElectronicsDocument,
   SchematicComponent,
+  SchematicConnection,
   Terminal,
 } from '../domain/document.js';
 import { advanceArduinoCircuitClock } from '../domain/arduino-circuit-scheduler.js';
@@ -63,7 +64,7 @@ function seriesResistors(count: number): ElectronicsDocument {
   const resistors = Array.from({ length: count }, (_, index) =>
     component(`r${index}`, 'resistor', 100 + index),
   );
-  const connections: ElectronicsDocument['connections'] = [
+  const connections: SchematicConnection[] = [
     connect('w-source', 'source', 'a', resistors[0]!.id, 'a'),
   ];
   for (let index = 0; index < resistors.length; index += 1) {
@@ -82,7 +83,7 @@ function parallelResistors(count: number): ElectronicsDocument {
   const resistors = Array.from({ length: count }, (_, index) =>
     component(`r${index}`, 'resistor', 220 + index * 10),
   );
-  const connections: ElectronicsDocument['connections'] = [];
+  const connections: SchematicConnection[] = [];
   for (const resistor of resistors) {
     connections.push(
       connect(`p-${resistor.id}`, 'source', 'a', resistor.id, 'a'),
@@ -96,7 +97,7 @@ function ledCircuit(seriesOhm: number | null): ElectronicsDocument {
     component('source', 'source', 5),
     component('led', 'led', 2),
   ];
-  const connections: ElectronicsDocument['connections'] = [];
+  const connections: SchematicConnection[] = [];
   if (seriesOhm === null) {
     connections.push(
       connect('p', 'source', 'a', 'led', 'a'),
@@ -122,7 +123,7 @@ function rgbCircuit(): ElectronicsDocument {
   const resistors = ['red', 'green', 'blue'].map((channel) =>
     component(`r-${channel}`, 'resistor', 220),
   );
-  const connections: ElectronicsDocument['connections'] = [];
+  const connections: SchematicConnection[] = [];
   for (const channel of ['red', 'green', 'blue'] as const) {
     connections.push(
       connect(`p-${channel}`, 'source', 'a', `r-${channel}`, 'a'),
@@ -161,7 +162,7 @@ function sevenSegmentCircuit(): ElectronicsDocument {
     dp: 'bottom-5',
   };
   const components: SchematicComponent[] = [component('source', 'source', 3), display];
-  const connections: ElectronicsDocument['connections'] = [];
+  const connections: SchematicConnection[] = [];
   for (const [segment, pin] of Object.entries(pins)) {
     components.push(component(`r-${segment}`, 'resistor', 220));
     connections.push(
