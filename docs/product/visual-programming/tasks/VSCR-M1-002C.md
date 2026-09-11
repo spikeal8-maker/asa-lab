@@ -18,6 +18,8 @@ blocks.host.protocol
 ```
 
 Open only that entry in `components/host.yaml` plus its direct host-build dependency if needed.
+Its component entry owns the exact D0-001 protocol and D0-004 origin/security contract
+sections for this slice.
 
 ## Minimal read set
 
@@ -26,8 +28,7 @@ Open only that entry in `components/host.yaml` plus its direct host-build depend
 ../AGENT_GUIDE.md
 ../COMPONENT_MAP.yaml
 ../components/host.yaml → blocks.host.protocol
-../VSCR-D0-001-SCRATCH-HOST-CONTRACT.md → Parent/iframe protocol
-../VSCR-D0-004-RUNTIME-SECURITY-CONTRACT.md → Origin CORS CSP boundary (design constraints only)
+only the exact contract sections mapped by blocks.host.protocol
 actual host shell accepted in M1-002A/B
 ```
 
@@ -100,8 +101,9 @@ no M1-003 work
 
 ## Bounded self-review
 
-Review only the protocol component, final diff, D0-001 protocol section and mapped browser
-evidence. Confirm security transport implementation did not leak forward into M1-003.
+Review only the protocol component, final diff, mapped protocol/security contract sections
+and mapped browser evidence. Confirm security transport implementation did not leak forward
+into M1-003.
 
 ## Stop
 
