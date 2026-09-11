@@ -159,7 +159,7 @@ JWT/capability, Origin/CORS/CSP, storage, persistence, autosave/recovery/conflic
 cross-tenant behaviour.
 
 ```text
-bounded self-review + focused/repository-required gates + independent review
+bounded self-review + focused/repository-required gates + independent review before slice acceptance
 ```
 
 ### CRITICAL
@@ -169,7 +169,7 @@ weakening.
 
 ```text
 STOP without explicit owner selection and exact contract/task card
-independent review + owner acceptance mandatory
+bounded self-review + independent review + owner acceptance mandatory
 ```
 
 ## 7. Bounded self-review after every implementation slice
@@ -219,10 +219,13 @@ next_allowed_task: STOP | <owner-selectable task>
 
 Do not run a second full-project review after every small UI change.
 
-Independent review is required for high-risk milestone boundaries, including:
+Independent review is required before acceptance of every HIGH/CRITICAL executable slice and
+for integrated high-risk milestone boundaries, including:
 
 ```text
-M1-002E host acceptance
+M1-002C protocol boundary
+M1-002D storage-adapter boundary
+M1-002E integrated host acceptance
 M1-003 runtime security
 M1-004 storage/content validation
 M1-005 persistence/load-save
@@ -234,8 +237,25 @@ M3 deployment/backup
 M4 activation
 ```
 
-Reviewer input defaults to the exact task card, final diff, relevant component entries,
-mapped contract sections and test evidence—not the entire repository.
+`Independent` means the reviewer is not the authoring execution context for that slice. It may
+be another agent/context or a human reviewer. The reviewer receives only the exact task card,
+final diff, relevant component entries, mapped contract sections and test evidence—not the
+entire repository by default.
+
+Reviewer responsibilities:
+
+```text
+verify scope and acceptance independently
+challenge author assumptions at the mapped boundary
+check evidence belongs to the exact reviewed SHA
+report PASS / PASS_WITH_RISK / FAIL
+never silently edit product code while claiming independent review
+```
+
+A product defect found by an independent reviewer is `FAIL/STOP`. The fix belongs to a
+separately selected bounded repair task owned by the affected component; after repair, review
+runs again. If a genuinely independent reviewer is unavailable, the slice remains
+unaccepted—it does not downgrade itself to self-review.
 
 ## 9. Documentation stays with the code
 
