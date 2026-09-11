@@ -2,7 +2,8 @@
 
 **Kind:** executable implementation slice  
 **Risk:** medium  
-**Prerequisite:** VSCR-M1-002A accepted.
+**Prerequisite:** VSCR-M1-002A accepted.  
+**Execution:** coding starts only when `docs/execution/current.yaml.task.id` is exactly `VSCR-M1-002B`.
 
 ## Goal
 
@@ -92,4 +93,5 @@ absorb branding/control logic and no third patch was added.
 
 ## Stop
 
-STOP after evidence. VSCR-M1-002C is separately selected.
+STOP after evidence. VSCR-M1-002C requires separate owner-authorised selection in
+`current.yaml` after B is accepted.
