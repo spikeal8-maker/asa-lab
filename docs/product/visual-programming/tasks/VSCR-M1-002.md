@@ -68,11 +68,31 @@ VSCR-M1-002D.md
 VSCR-M1-002E.md
 ```
 
+## Pre-selection card refresh
+
+A/B/C/D/E cards are bounded design snapshots, not permission to ignore interfaces accepted by
+an earlier sub-slice.
+
+Before selecting the next sub-slice in `current.yaml`:
+
+```text
+read the accepted previous slice component entries
+→ compare the next card's planned paths/dependencies with actual accepted interfaces
+→ if still exact, select the next task normally
+→ if stale, update only that next task/component routing first
+→ run node tools/validate-blocks-docs.mjs
+→ then select the refined exact task separately
+```
+
+Do not expand a stale card during coding. Card refinement is documentation/control work and
+must finish before the implementation task becomes active.
+
 ## Forbidden
 
 ```text
 no one-shot implementation of all M1-002 concerns
 no automatic A → B → C → D → E progression
+no execution from a stale next-slice card
 no M1-003 runtime JWT work
 no S3/MinIO
 no Project Core persistence
@@ -86,6 +106,7 @@ At the milestone level, verify only that:
 ```text
 A–D have separate accepted evidence
 E reviewed the integrated host boundary
+next cards were refreshed against accepted prior interfaces before selection
 no sub-slice started automatically
 component cards contain actual source/test ownership
 M1-003 was not started
