@@ -13,6 +13,12 @@ const errors = [];
 
 const allowedStates = new Set(['implemented', 'planned', 'blocked']);
 const allowedRisks = new Set(['low', 'medium', 'high', 'critical']);
+const riskRank = new Map([
+  ['low', 0],
+  ['medium', 1],
+  ['high', 2],
+  ['critical', 3],
+]);
 const allowedOwnership = new Set([
   'asa',
   'upstream_config',
@@ -63,6 +69,26 @@ function readYaml(relative) {
     errors.push(`${relative}: invalid YAML (${error.message})`);
     return null;
   }
+}
+
+function listFilesRecursive(relativeDir) {
+  const output = [];
+  const root = absolute(relativeDir);
+  if (!fs.existsSync(root)) return output;
+
+  function visit(directory) {
+    for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+      const full = path.join(directory, entry.name);
+      if (entry.isDirectory()) {
+        visit(full);
+      } else if (entry.isFile()) {
+        output.push(path.relative(ROOT, full).split(path.sep).join('/'));
+      }
+    }
+  }
+
+  visit(root);
+  return output;
 }
 
 function normalizeHeading(value) {
@@ -159,6 +185,16 @@ for (const retired of retiredActivePaths) {
     errors.push(
       `${retired}: retired historical/addendum file must not remain in active Scratch docs`,
     );
+  }
+}
+
+const retiredNames = retiredActivePaths.map((relative) => path.basename(relative));
+for (const relative of listFilesRecursive(DOC_ROOT).filter((value) => value.endsWith('.md'))) {
+  const text = readText(relative);
+  for (const retiredName of retiredNames) {
+    if (text.includes(retiredName)) {
+      errors.push(`${relative}: references retired active document ${retiredName}`);
+    }
   }
 }
 
@@ -387,6 +423,29 @@ if (fs.existsSync(taskDir)) {
       errors.push(`${relative}: missing ## Bounded self-review`);
     }
 
+    const riskMatch = text.match(/\*\*Risk:\*\*\s*(low|medium|high|critical)\b/i);
+    if (!riskMatch) {
+      errors.push(`${relative}: missing valid **Risk:** low|medium|high|critical`);
+    }
+    const taskRisk = riskMatch?.[1]?.toLowerCase();
+    const ownedComponents = [...cardComponents.values()].filter(
+      (component) => component.task === taskId,
+    );
+    if (taskRisk && ownedComponents.length) {
+      const maximumComponentRisk = ownedComponents.reduce(
+        (maximum, component) => Math.max(maximum, riskRank.get(component.risk) ?? 0),
+        0,
+      );
+      if ((riskRank.get(taskRisk) ?? -1) < maximumComponentRisk) {
+        const requiredRisk = [...riskRank.entries()].find(
+          ([, rank]) => rank === maximumComponentRisk,
+        )?.[0];
+        errors.push(
+          `${relative}: task risk ${taskRisk} is lower than owned component risk ${requiredRisk}`,
+        );
+      }
+    }
+
     const requiresExecutionMarker =
       text.includes('**Kind:** executable implementation slice') ||
       text.includes('**Kind:** acceptance/review slice');
@@ -401,7 +460,7 @@ if (fs.existsSync(taskDir)) {
         errors.push(`${relative}: execution marker/card must name exact task ID ${taskId}`);
       }
 
-      const highRisk = text.includes('**Risk:** high') || text.includes('**Risk:** critical');
+      const highRisk = taskRisk === 'high' || taskRisk === 'critical';
       if (highRisk && !text.includes('## Independent review')) {
         errors.push(
           `${relative}: HIGH/CRITICAL executable/review card needs ## Independent review`,
@@ -447,8 +506,9 @@ if (errors.length) {
 console.log('Scratch documentation routing validation: PASS');
 console.log(`- components: ${cardComponents.size}`);
 console.log(`- subsystem cards: ${cardPaths.size}`);
-console.log('- retired competing docs/addenda absent from active tree');
+console.log('- retired competing docs/addenda absent and unreferenced in active Scratch docs');
 console.log('- implemented source/test paths, symbols and canonical contract headings verified');
 console.log('- shared/large implemented code sources have symbol-level routing');
 console.log('- executable task cards are bound to exact current.yaml task IDs');
+console.log('- task risk cannot understate owned component risk');
 console.log('- HIGH/CRITICAL executable slices require independent review');
