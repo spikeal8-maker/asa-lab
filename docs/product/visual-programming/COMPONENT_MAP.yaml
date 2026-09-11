@@ -1,11 +1,9 @@
-schema_version: 3.0.0
+schema_version: 3.1.0
 module: blocks
 product: "Визуальное программирование"
-purpose: "Compact human/agent lookup from a stable concern ID to one small subsystem card."
+purpose: "Compact lookup: human phrase/component ID → one subsystem card."
 execution_state_source: docs/execution/current.yaml
 readiness_source: docs/product/visual-programming/VSCR-M1-FORWARD-PLAN-2026-09-11.md
-router: docs/product/visual-programming/README.md
-agent_guide: docs/product/visual-programming/AGENT_GUIDE.md
 
 rules:
   default_read: "this index + one referenced card only"
@@ -13,7 +11,6 @@ rules:
   broad_search: only_if_map_stale_or_cross_cutting
   index_owns: [component_id, card_route, human_keywords]
   card_owns: [implementation_state, risk, ownership, contracts, sources, tests, dependencies]
-  update_card_when_source_or_test_ownership_changes: true
 
 areas:
   module: components/module.yaml
@@ -26,100 +23,40 @@ areas:
   sovereign-deployment: components/sovereign-deployment.yaml
 
 components:
-  blocks.module.contract:
-    card: components/module.yaml
-    keywords: ["модуль blocks", "контракт blocks", "схема проекта", "module registry"]
-  blocks.upstream.pin:
-    card: components/module.yaml
-    keywords: ["версия scratch", "sha scratch", "обновить scratch", "upstream pin"]
+  blocks.module.contract: {card: components/module.yaml, keywords: ["контракт blocks", "схема проекта"]}
+  blocks.upstream.pin: {card: components/module.yaml, keywords: ["версия scratch", "upstream pin"]}
 
-  blocks.host.build:
-    card: components/host.yaml
-    keywords: ["сборка scratch", "docker scratch", "standalone scratch", "scratch host"]
-  blocks.host.branding:
-    card: components/host.yaml
-    keywords: ["логотип scratch", "логотип asa", "брендинг scratch", "scratch logo"]
-  blocks.host.file-menu:
-    card: components/host.yaml
-    keywords: ["file menu", "меню файл", "импорт scratch меню", "сохранить scratch меню"]
-  blocks.host.extensions:
-    card: components/host.yaml
-    keywords: ["extensions", "расширения scratch", "кнопка расширений", "extension button"]
-  blocks.host.protocol:
-    card: components/host.yaml
-    keywords: ["iframe", "postmessage", "init scratch", "parent child protocol"]
-  blocks.host.storage-adapter:
-    card: components/host.yaml
-    keywords: ["scratchstorage", "guistorage", "storage adapter", "library asset url"]
+  blocks.host.build: {card: components/host.yaml, keywords: ["сборка scratch", "scratch host"]}
+  blocks.host.branding: {card: components/host.yaml, keywords: ["логотип scratch", "логотип asa"]}
+  blocks.host.file-menu: {card: components/host.yaml, keywords: ["file menu", "меню файл"]}
+  blocks.host.extensions: {card: components/host.yaml, keywords: ["расширения scratch", "кнопка расширений"]}
+  blocks.host.protocol: {card: components/host.yaml, keywords: ["iframe", "postmessage"]}
+  blocks.host.storage-adapter: {card: components/host.yaml, keywords: ["scratchstorage", "storage adapter"]}
 
-  blocks.runtime.session:
-    card: components/runtime.yaml
-    keywords: ["runtime session", "сессия scratch", "runtime token issuance", "runtime-session"]
-  blocks.runtime.capability:
-    card: components/runtime.yaml
-    keywords: ["jwt scratch", "capability scratch", "bearer scratch", "runtime token"]
-  blocks.runtime.origin-security:
-    card: components/runtime.yaml
-    keywords: ["cors scratch", "csp scratch", "origin scratch", "frame ancestors"]
+  blocks.runtime.session: {card: components/runtime.yaml, keywords: ["runtime session", "сессия scratch"]}
+  blocks.runtime.capability: {card: components/runtime.yaml, keywords: ["jwt scratch", "runtime token"]}
+  blocks.runtime.origin-security: {card: components/runtime.yaml, keywords: ["cors scratch", "csp scratch"]}
 
-  blocks.assets.reference:
-    card: components/assets.yaml
-    keywords: ["asset reference", "assetid", "sha256 asset", "ресурс scratch ссылка"]
-  blocks.assets.metadata:
-    card: components/assets.yaml
-    keywords: ["blocks blobs", "asset aliases", "метаданные ресурсов", "minio metadata"]
-  blocks.assets.upload:
-    card: components/assets.yaml
-    keywords: ["загрузка ресурса", "asset upload", "put asset", "svg upload scratch"]
-  blocks.assets.read:
-    card: components/assets.yaml
-    keywords: ["чтение ресурса", "asset get", "скачать asset", "read asset scratch"]
+  blocks.assets.reference: {card: components/assets.yaml, keywords: ["asset reference", "assetid"]}
+  blocks.assets.metadata: {card: components/assets.yaml, keywords: ["blocks blobs", "asset aliases"]}
+  blocks.assets.upload: {card: components/assets.yaml, keywords: ["загрузка ресурса", "asset upload"]}
+  blocks.assets.read: {card: components/assets.yaml, keywords: ["чтение ресурса", "asset get"]}
 
-  blocks.project.persistence-guard:
-    card: components/project.yaml
-    keywords: ["persistence guard", "durability guard", "проверка сохранения", "project guard"]
-  blocks.project.load-save:
-    card: components/project.yaml
-    keywords: ["сохранение scratch", "загрузка scratch проекта", "load save scratch", "project json save"]
-  blocks.project.autosave:
-    card: components/project.yaml
-    keywords: ["автосохранение scratch", "autosave scratch", "save queue", "generation save"]
-  blocks.project.recovery:
-    card: components/project.yaml
-    keywords: ["восстановление scratch", "recovery scratch", "offline scratch", "retry save"]
-  blocks.project.conflict:
-    card: components/project.yaml
-    keywords: ["конфликт сохранения", "revision conflict", "last write wins", "base revision"]
+  blocks.project.persistence-guard: {card: components/project.yaml, keywords: ["persistence guard", "проверка сохранения"]}
+  blocks.project.load-save: {card: components/project.yaml, keywords: ["сохранение scratch", "загрузка scratch проекта"]}
+  blocks.project.autosave: {card: components/project.yaml, keywords: ["автосохранение scratch", "autosave scratch"]}
+  blocks.project.recovery: {card: components/project.yaml, keywords: ["восстановление scratch", "recovery scratch"]}
+  blocks.project.conflict: {card: components/project.yaml, keywords: ["конфликт сохранения", "revision conflict"]}
 
-  blocks.sb3.import:
-    card: components/sb3.yaml
-    keywords: ["импорт sb3", "открыть sb3", "zip scratch", "sb3 import"]
-  blocks.sb3.export:
-    card: components/sb3.yaml
-    keywords: ["экспорт sb3", "скачать sb3", "sb3 export", "сохранить sb3"]
+  blocks.sb3.import: {card: components/sb3.yaml, keywords: ["импорт sb3", "sb3 import"]}
+  blocks.sb3.export: {card: components/sb3.yaml, keywords: ["экспорт sb3", "sb3 export"]}
 
-  blocks.gallery.publication:
-    card: components/gallery-learning.yaml
-    keywords: ["публикация scratch", "gallery publication", "опубликовать проект", "project version publication"]
-  blocks.gallery.player:
-    card: components/gallery-learning.yaml
-    keywords: ["player scratch", "проигрыватель scratch", "gallery player", "read only scratch"]
-  blocks.gallery.remix:
-    card: components/gallery-learning.yaml
-    keywords: ["remix scratch", "ремикс проекта", "копировать scratch", "cross tenant remix"]
-  blocks.learning.submission:
-    card: components/gallery-learning.yaml
-    keywords: ["сдать scratch", "learning scratch", "submission scratch", "задание scratch"]
+  blocks.gallery.publication: {card: components/gallery-learning.yaml, keywords: ["публикация scratch", "gallery publication"]}
+  blocks.gallery.player: {card: components/gallery-learning.yaml, keywords: ["player scratch", "проигрыватель scratch"]}
+  blocks.gallery.remix: {card: components/gallery-learning.yaml, keywords: ["remix scratch", "ремикс проекта"]}
+  blocks.learning.submission: {card: components/gallery-learning.yaml, keywords: ["сдать scratch", "submission scratch"]}
 
-  blocks.sovereign.media:
-    card: components/sovereign-deployment.yaml
-    keywords: ["локальная библиотека scratch", "спрайты scratch", "медиа scratch", "offline media"]
-  blocks.sovereign.extensions:
-    card: components/sovereign-deployment.yaml
-    keywords: ["локальные расширения", "extension allowlist", "offline extensions", "hardware extensions"]
-  blocks.deployment.backup-restore:
-    card: components/sovereign-deployment.yaml
-    keywords: ["backup scratch", "restore scratch", "резервная копия scratch", "object store backup"]
-  blocks.activation:
-    card: components/sovereign-deployment.yaml
-    keywords: ["активировать scratch", "coming soon active", "включить blocks", "activation blocks"]
+  blocks.sovereign.media: {card: components/sovereign-deployment.yaml, keywords: ["локальная библиотека scratch", "offline media"]}
+  blocks.sovereign.extensions: {card: components/sovereign-deployment.yaml, keywords: ["локальные расширения", "extension allowlist"]}
+  blocks.deployment.backup-restore: {card: components/sovereign-deployment.yaml, keywords: ["backup scratch", "restore scratch"]}
+  blocks.activation: {card: components/sovereign-deployment.yaml, keywords: ["активировать scratch", "включить blocks"]}
