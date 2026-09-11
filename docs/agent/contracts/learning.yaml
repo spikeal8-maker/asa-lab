@@ -1,0 +1,176 @@
+schema_version: 1.0.0
+contract_id: LRN-DOMAIN
+domain: learning
+registry_document_id: LEARNING-DOMAIN-CONTRACT
+master_documents:
+  - LEARNING-MASTER-V20
+  - PRODUCT-INTEGRATED-V13
+  - ADR-LEARNER-IDENTITY-001
+
+invariants:
+  - id: LRN-ARCH-001
+    statement: Direct and course delivery converge on one ActivityRun to Attempt to Submission to Result runtime.
+    master_refs:
+      - document: LEARNING-MASTER-V20
+        section: ARCH-001
+      - document: PRODUCT-INTEGRATED-V13
+        section: '§2 Canonical academic chain'
+    applies_to: [activity_run, direct_assignment, course_run, assessment]
+    forbid: [parallel_learning_runtime, module_specific_attempt_engine]
+
+  - id: LRN-VER-001
+    statement: Published content versions are immutable; later change creates a new version with provenance.
+    master_refs:
+      - document: LEARNING-MASTER-V20
+        section: ARCH-006 / CRS-002
+      - document: PRODUCT-INTEGRATED-V13
+        section: '§0 / §4.3'
+    applies_to: [learning_activity_version, course_version, published_content]
+    forbid: [in_place_published_edit, destructive_version_rollback]
+
+  - id: LRN-IDN-001
+    statement: Academic history resolves through the stable school-scoped LearnerIdentity selected by the accepted ADR, not a transient login principal.
+    master_refs:
+      - document: LEARNING-MASTER-V20
+        section: IDN-001 / IDN-003
+      - document: ADR-LEARNER-IDENTITY-001
+        section: Stable learner key
+    applies_to: [course_enrollment, activity_participation, attempt_lineage, result]
+    forbid: [merge_by_name, merge_by_email_guess, session_principal_as_learner_key]
+
+  - id: LRN-RUN-001
+    statement: CourseRun pins an exact CourseVersion and materializes persistent child ActivityRuns; content, people and delivery remain different objects.
+    master_refs:
+      - document: LEARNING-MASTER-V20
+        section: RUN-001 / RUN-005
+      - document: PRODUCT-INTEGRATED-V13
+        section: '§0 / §2'
+    applies_to: [course_version, course_run, activity_run]
+    forbid: [live_course_draft_as_run_content, reopen_closed_run_by_content_edit]
+
+  - id: LRN-AUD-001
+    statement: Whole-class audience is dynamic, named-learners audience is a snapshot, and audience changes preserve historical evidence.
+    master_refs:
+      - document: LEARNING-MASTER-V20
+        section: AUD-201 through AUD-206
+      - document: PRODUCT-INTEGRATED-V13
+        section: '§4.8'
+    applies_to: [audience_definition, course_enrollment, activity_participation]
+    forbid: [silent_history_delete, duplicate_materialization_on_retry]
+
+  - id: LRN-ATT-001
+    statement: Attempt.status stores only lifecycle state; accepted, changes_requested, incomplete and excused are pedagogical decisions, never Attempt states.
+    master_refs:
+      - document: LEARNING-MASTER-V20
+        section: ATT-002 / ATT-003 / ASM-003
+      - document: PRODUCT-INTEGRATED-V13
+        section: '§2 / §4.11'
+    applies_to: [learning_attempt, assessment_result_revision, canonical_workflow]
+    forbid: [attempt_state_accepted, attempt_state_changes_requested, attempt_state_incomplete, attempt_state_excused]
+
+  - id: LRN-ATT-002
+    statement: At most one non-terminal Attempt exists per ActivityParticipation; resubmission creates a new linked Attempt instead of mutating the old one.
+    master_refs:
+      - document: LEARNING-MASTER-V20
+        section: ATT-004 / ATT-006 / ASM-004
+      - document: PRODUCT-INTEGRATED-V13
+        section: '§4.10 / §4.11'
+    applies_to: [activity_participation, learning_attempt, revision_attempt]
+    forbid: [second_active_attempt, reopen_old_attempt_for_resubmit]
+
+  - id: LRN-SUB-001
+    statement: Submission is immutable and pins the exact server-confirmed project evidence submitted by the learner.
+    master_refs:
+      - document: LEARNING-MASTER-V20
+        section: ATT-101 / ATT-102
+      - document: PRODUCT-INTEGRATED-V13
+        section: '§4.10'
+    applies_to: [submission, project_version, evidence_digest]
+    forbid: [mutable_draft_as_submission, later_edit_changes_submission]
+
+  - id: LRN-ASM-001
+    statement: Published assessment corrections are append-only revisions with reason and optimistic expected revision.
+    master_refs:
+      - document: LEARNING-MASTER-V20
+        section: ASM-005 through ASM-007
+      - document: PRODUCT-INTEGRATED-V13
+        section: '§4.11'
+    applies_to: [assessment_result_revision, review_command]
+    forbid: [update_published_result_in_place, silent_concurrent_overwrite]
+
+  - id: LRN-SEL-001
+    statement: Gradebook, learner results and course aggregation use one server-side selected-result resolver over the selected Attempt and its latest valid result revision.
+    master_refs:
+      - document: LEARNING-MASTER-V20
+        section: ASM-SEL-007 / ASM-008
+      - document: PRODUCT-INTEGRATED-V13
+        section: '§2 / §4.12'
+    applies_to: [result_selection, gradebook_projection, learner_result_projection]
+    forbid: [surface_specific_result_selection, stale_grade_pointer_as_authority]
+
+  - id: LRN-GRD-001
+    statement: Gradebook is a projection, never an independent grade store; its cell keeps workflowState, selectedResult and flags as orthogonal semantics.
+    master_refs:
+      - document: LEARNING-MASTER-V20
+        section: ARCH-003 / GRD-002 / GRD-005
+      - document: PRODUCT-INTEGRATED-V13
+        section: '§4.12'
+    applies_to: [gradebook_projection, gradebook_cell, review_queue]
+    forbid: [gradebook_as_source_of_truth, unread_as_work_state, invented_generic_average]
+  - id: LRN-CMP-001
+    statement: Course completion is a server-derived projection separate from course result or grade; the client cannot declare completion truth.
+    master_refs:
+      - document: LEARNING-MASTER-V20
+        section: CRS-CMP-003 / CRS-CMP-004
+      - document: PRODUCT-INTEGRATED-V13
+        section: '§4.13 / E1 completion behavior'
+    applies_to: [course_enrollment, course_completion_projection, learner_course_ui]
+    forbid: [client_sets_completed, completion_implies_grade, time_on_page_completion]
+
+  - id: LRN-SET-001
+    statement: Effective learner conditions resolve by participation override, then run pin, then course block template, then activity-version default; existing evidence is never rewritten by a later override.
+    master_refs:
+      - document: LEARNING-MASTER-V20
+        section: RUN-106 / RUN-107
+      - document: PRODUCT-INTEGRATED-V13
+        section: '§4.9'
+    applies_to: [activity_participation, activity_run, attempt_conditions, deadline]
+    forbid: [mutable_school_default_changes_old_run, override_rewrites_submission, implicit_timezone_shift]
+
+  - id: LRN-NOT-001
+    statement: Academic truth and work queues are independent from notification delivery, preferences and unread state.
+    master_refs:
+      - document: PRODUCT-INTEGRATED-V13
+        section: '§4.13 Notifications in E1'
+    applies_to: [submission, review_queue, notification_event, unread_count]
+    forbid: [notification_failure_rolls_back_submission, unread_as_awaiting_review, preferences_change_academic_state]
+
+  - id: LRN-AUTH-001
+    statement: Sensitive learning mutations are authorized server-side from the authenticated principal, scope, resource and current state; UI visibility is never authority.
+    master_refs:
+      - document: LEARNING-MASTER-V20
+        section: ARCH-010
+      - document: PRODUCT-INTEGRATED-V13
+        section: '§0'
+    applies_to: [learning_command, learner_access, teacher_review, audience_change]
+    forbid: [client_claims_learner_identity, client_claims_grade_authority, hidden_button_as_authorization]
+
+  - id: LRN-FBK-001
+    statement: ProjectFeedback, badges and module evidence are feedback/evidence only and never become an official grade by themselves.
+    master_refs:
+      - document: LEARNING-MASTER-V20
+        section: ASM-EVD-004
+      - document: PRODUCT-INTEGRATED-V13
+        section: '§4.11'
+    applies_to: [project_feedback, module_evidence, assessment_result_revision]
+    forbid: [feedback_badge_as_grade, module_writes_gradebook]
+
+  - id: LRN-LIFE-001
+    statement: Archiving a class or run preserves enrollments, attempts, submissions, results and audit; restore never reopens closed or cancelled runs or withdrawn participation.
+    master_refs:
+      - document: LEARNING-MASTER-V20
+        section: RUN-001 through RUN-004 / AUD-003
+      - document: PRODUCT-INTEGRATED-V13
+        section: '§4.7'
+    applies_to: [classroom, course_run, activity_run, enrollment, participation, academic_history]
+    forbid: [archive_deletes_history, restore_reopens_closed_run, restore_reactivates_withdrawn]
