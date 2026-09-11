@@ -1,70 +1,63 @@
-schema_version: 1.0.0
+schema_version: 2.0.0
 area: project-persistence
 components:
   - id: blocks.project.persistence-guard
-    state: planned
+    state: blocked
     risk: high
-    purpose: "Generic Project Core pre-save durability guard plus Blocks implementation."
+    ownership: cross_boundary
+    purpose: "Generic Project Core pre-save durability guard plus Blocks-specific implementation."
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-002-PERSISTENCE-CONTRACT.md
-        section: "Async durability guard and bypass prevention"
-    planned_sources:
-      - contexts/projects/**
-      - contexts/blocks/**
-    planned_tests: [tests/blocks/persistence-guard.spec.ts]
+        section: "Decision: generic async pre-save persistence guard"
+      - path: docs/product/visual-programming/VSCR-D0-002-PERSISTENCE-CONTRACT.md
+        section: "Generic project-draft API must not bypass durability"
     task: VSCR-M1-005
     design_gate: VSCR-M1-005P
+    depends_on: [blocks.assets.metadata]
 
   - id: blocks.project.load-save
-    state: planned
+    state: blocked
     risk: high
-    purpose: "Durable projectJson load/save with exact durable referenced assets."
+    ownership: cross_boundary
+    purpose: "Durable projectJson load/save with exact already-durable referenced assets."
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-002-PERSISTENCE-CONTRACT.md
-        section: "Blocks save/load persistence"
+        section: "Asset-before-document invariant"
       - path: docs/product/visual-programming/VSCR-D0-003-ASSET-STORAGE-CONTRACT.md
-        section: "§17 Project save interaction"
-    planned_sources:
-      - contexts/blocks/**
-      - apps/api/src/blocks-runtime.controller.ts
-      - infra/scratch-editor/host/storage.js
-      - infra/scratch-editor/host/save-orchestrator.js
-    planned_tests:
-      - tests/blocks/durable-save.spec.ts
-      - e2e/blocks-save-reload.spec.ts
+        section: "Project save interaction"
     task: VSCR-M1-005
+    depends_on: [blocks.project.persistence-guard, blocks.assets.upload, blocks.assets.read]
 
   - id: blocks.project.autosave
-    state: planned
+    state: blocked
     risk: high
-    purpose: "Generation-aware latest-state queue; edits during in-flight save are not lost."
+    ownership: asa
+    purpose: "Generation-aware latest-state queue; edits during an in-flight save are not lost."
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-002-PERSISTENCE-CONTRACT.md
-        section: "Save ordering/revision semantics"
-    planned_sources: [infra/scratch-editor/host/save-orchestrator.js]
-    planned_tests: [e2e/blocks-autosave.spec.ts]
+        section: "Autosave transaction identity"
     task: VSCR-M1-006
+    depends_on: [blocks.project.load-save]
 
   - id: blocks.project.recovery
-    state: planned
+    state: blocked
     risk: high
-    purpose: "Bounded recovery/offline retry without becoming canonical storage."
+    ownership: asa
+    purpose: "Bounded recovery/offline retry without becoming canonical project storage."
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-002-PERSISTENCE-CONTRACT.md
-        section: "Recovery requirements"
-    planned_sources: [infra/scratch-editor/host/save-orchestrator.js]
-    planned_tests: [e2e/blocks-recovery.spec.ts]
+        section: "Conflict behaviour"
     task: VSCR-M1-006
+    depends_on: [blocks.project.load-save]
+    design_gap: "The exact browser recovery store, TTL/quota, logout cleanup and user/tenant/project isolation must be fixed in the M1-006 task card before coding."
 
   - id: blocks.project.conflict
-    state: planned
+    state: blocked
     risk: high
+    ownership: asa
     purpose: "Optimistic revision conflict handling with no silent last-write-wins."
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-002-PERSISTENCE-CONTRACT.md
-        section: "Revision/conflict semantics"
-    planned_sources:
-      - contexts/blocks/**
-      - infra/scratch-editor/host/save-orchestrator.js
-    planned_tests: [e2e/blocks-conflict.spec.ts]
+        section: "Conflict behaviour"
     task: VSCR-M1-006
+    depends_on: [blocks.project.load-save]
