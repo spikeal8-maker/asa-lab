@@ -132,6 +132,28 @@ class DocumentRegistryTests(unittest.TestCase):
             errors = MODULE.validate_registry(root, data)
             self.assertIn("full coverage cannot allow unregistered documents", errors)
 
+    def test_v11_requires_routing_fields(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            data = registry(root)
+            data["schema_version"] = "1.1.0"
+            data["strict_task_scopes"] = []
+            errors = MODULE.validate_registry(root, data)
+            self.assertTrue(any("context_role" in error for error in errors))
+            self.assertTrue(any(".lanes" in error for error in errors))
+
+    def test_v11_routing_fields_pass(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            data = registry(root)
+            data["schema_version"] = "1.1.0"
+            data["strict_task_scopes"] = []
+            data["context_role_values"] = MODULE.CONTEXT_ROLE_VALUES
+            for item in data["documents"]:
+                item["lanes"] = ["*"]
+                item["context_role"] = "root"
+            self.assertEqual(MODULE.validate_registry(root, data), [])
+
 
 if __name__ == "__main__":
     unittest.main()

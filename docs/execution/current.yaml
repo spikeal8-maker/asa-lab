@@ -383,6 +383,13 @@ parallel_lanes:
       status: in_progress
       checkpoint: e1_authorized_spec_integrated_delta_review
       owner_acceptance: pending
+      normative_refs:
+        - document: PRODUCT-INTEGRATED-V13
+          revision: '1.3'
+        - document: LEARNING-MASTER-V20
+          revision: '2.0'
+        - document: IDENTITY-ACCESS-V20
+          revision: '2.0'
     revisions:
       convergence_baseline_sha: b963ef828f0e10042adacba4199bba972526c0df
       head_sha: b963ef828f0e10042adacba4199bba972526c0df

@@ -23,6 +23,16 @@ pnpm agent:context --list
 pnpm agent:context --scope <lane>
 ```
 
+Если задача локальная и известен адрес изменения, начинай с более узкого контекста:
+
+```bash
+pnpm agent:context --path <repo-path>
+pnpm agent:context --surface <SURF-ID>
+pnpm agent:context --control <CTRL-ID>
+```
+
+Targeted context берёт Domain Contract и Surface Map из `docs/agent/`, показывает только связанные implementation paths, invariant IDs и исполнимые tests, а полный Master оставляет как точечную escalation-ссылку. Если path ещё не картирован, команда останавливается вместо догадки — тогда используй `--scope` и добавь отсутствующую карту вместе с изменением.
+
 Команда читает [`docs/execution/current.yaml`](docs/execution/current.yaml) и
 выводит только выбранное направление: задачу, checkpoint, gates, относящиеся к
 нему документы и пересекающиеся незавершённые файлы. Это штатный вход агента;

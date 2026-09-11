@@ -6,10 +6,16 @@
 
 ## Files
 
-- `document-registry.yaml` — authority/status документов;
+- `document-registry.yaml` — authority/status и routing документов;
+- `schemas/*.yaml` — машинные формы Domain Contract и Surface Map;
+- `contracts/*.yaml` — компактные стабильные domain invariants;
+- `surfaces/*.yaml` — route/control → implementation/invariant/test map;
 - `review-protocol.md` — обязательная self-review/challenge-review модель;
-- будущие `surfaces/*.yaml` — route/control → implementation/test map;
 - архитектура системы — `docs/architecture/AI_MAINTENANCE_DOCUMENTATION_SYSTEM.md`.
+
+## Addressed context
+
+Для большой задачи остаётся `pnpm agent:context --scope <lane>`. Для сопровождения сначала используйте самый узкий известный адрес: `--control <CTRL-…>`, `--surface <SURF-…>` или `--path <repo-path>`. Targeted context выдаёт только затронутые файлы, compact invariants, исполнимые tests и точные escalation refs; полный Master не читается по умолчанию.
 
 ## Status semantics
 
