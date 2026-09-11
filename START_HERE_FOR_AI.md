@@ -99,14 +99,17 @@ AGENTS.md
 
 [`docs/product/visual-programming/README.md`](docs/product/visual-programming/README.md).
 
-Не читай весь Scratch-раздел по умолчанию. Сначала определи профиль работы.
+Не читай весь Scratch-раздел по умолчанию. Сначала определи профиль работы. Scratch coding
+или review начинается только когда `docs/execution/current.yaml` содержит точный выбранный
+Scratch task/scope; readiness или текст запроса сами по себе execution state не заменяют.
 
 #### Milestone / VSCR implementation
 
 Для выбранного milestone/sub-slice:
 
 ```text
-README router
+точный VSCR task ID уже выбран в current.yaml
+→ README router
 → readiness/order из VSCR-M1-FORWARD-PLAN-2026-09-11.md
 → точная tasks/<selected-task>.md
 → Master §0–§4 + selected task stub
@@ -151,12 +154,13 @@ VSCR-D0-007 — sb3 compatibility / ZIP safety
 Стандартный путь:
 
 ```text
-README router
+точный bounded maintenance task/scope уже выбран в current.yaml
+→ README router
 → COMPONENT_MAP.yaml по human keyword/component ID
 → ровно одна components/*.yaml card
 → ровно один component entry
 → mapped contract section
-→ mapped source file(s)
+→ mapped source file(s) / symbols
 → mapped focused test(s)
 → bounded self-review
 ```
@@ -164,9 +168,9 @@ README router
 Если component ownership = `upstream_patch`, новый Scratch source patch не создаётся по
 аналогии: разрешён только уже принятый patch; новый patch — STOP/design review.
 
-Если routing указывает на отсутствующий implemented source/test или несуществующий contract
-heading, сначала исправь routing defect. Broad repository search допустим только после
-явной фиксации причины.
+Если routing указывает на отсутствующий implemented source/test, symbol или несуществующий
+contract heading, сначала исправь routing defect. Broad repository search допустим только
+после явной фиксации причины.
 
 После Scratch implementation/maintenance обязательно выполни:
 
