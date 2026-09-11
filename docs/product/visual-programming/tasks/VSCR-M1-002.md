@@ -1,21 +1,34 @@
-# VSCR-M1-002 — ASA-owned Scratch host + iframe/message skeleton
+# VSCR-M1-002 — ASA-owned Scratch host milestone router
 
-**Status:** BLOCKED until M1-001 is accepted  
+**Kind:** milestone router; not a single coding slice  
 **Risk:** high  
-**Behavioral goal:** establish the isolated ASA host boundary; no durable writes yet.
+**Prerequisite:** VSCR-M1-001 accepted and the M1-002 milestone explicitly selected.
 
 ## Goal
 
-Replace the M0 upstream playground boundary with an ASA-owned host around the pinned Scratch
-shipping standalone distribution, using small maintainable host modules and the exact
-parent/iframe protocol.
+Establish the ASA-owned standalone Scratch host boundary without combining build, branding,
+protocol, storage-fixture and acceptance work into one agent run.
 
-This task deliberately stops before real runtime JWT issuance, S3/MinIO or Project Core
-persistence.
+M1-002 is complete only after all five sub-slices are separately accepted:
+
+```text
+VSCR-M1-002A  standalone build + minimal ASA host shell
+→ STOP / evidence / acceptance
+VSCR-M1-002B  ASA branding + File/Extensions controls
+→ STOP / evidence / acceptance
+VSCR-M1-002C  parent/iframe protocol boundary
+→ STOP / evidence / acceptance
+VSCR-M1-002D  ScratchStorage/GUIStorage fixture adapter
+→ STOP / evidence / acceptance
+VSCR-M1-002E  integrated browser/Docker acceptance + independent review
+→ STOP / owner acceptance of M1-002 milestone
+```
+
+Do not execute this router as one coding task.
 
 ## Components
 
-Resolve in `../COMPONENT_MAP.yaml`:
+The milestone covers:
 
 ```text
 blocks.upstream.pin
@@ -27,213 +40,58 @@ blocks.host.protocol
 blocks.host.storage-adapter
 ```
 
-Open only the referenced cards:
-
-```text
-../components/module.yaml → blocks.upstream.pin only
-../components/host.yaml
-```
-
-Do not read runtime/assets/project/Gallery/Learning/sb3 cards for this task except the exact
-D0-004 sections explicitly required for iframe/origin semantics.
+Each sub-slice loads only the component entries named by its own card.
 
 ## Minimal read set
 
+For milestone planning only:
+
 ```text
-AGENTS.md
-START_HERE_FOR_AI.md
 ../README.md
-../AGENT_GUIDE.md
-../COMPONENT_MAP.yaml compact index
-../components/module.yaml → blocks.upstream.pin
-../components/host.yaml
-../../ASA_VISUAL_PROGRAMMING_SCRATCH_MASTER_SPEC.md §§0–5,9–11,13
-../../../architecture/ADR-VSCR-001-SCRATCH-EDITOR-INTEGRATION.md
-../VSCR-D0-001-SCRATCH-HOST-CONTRACT.md
-../VSCR-D0-004-RUNTIME-SECURITY-CONTRACT.md only sections required for iframe/origin/CSP semantics
-infra/scratch-editor/upstream.env
-current infra/scratch-editor/Dockerfile
-current infra/scratch-editor/nginx.conf
+../VSCR-M1-FORWARD-PLAN-2026-09-11.md
+this router
 ```
 
-Do not read all runtime-security/storage contracts.
+For coding, read the selected A/B/C/D/E card instead. Do not preload all five cards.
 
 ## Expected write paths
 
-```text
-infra/scratch-editor/Dockerfile
-infra/scratch-editor/nginx.conf.template
-infra/scratch-editor/README.md
-infra/scratch-editor/patches/0001-host-logo-prop.patch
-infra/scratch-editor/patches/0002-extension-button-visibility.patch
-infra/scratch-editor/host/index.html
-infra/scratch-editor/host/main.js
-infra/scratch-editor/host/protocol.js
-infra/scratch-editor/host/editor-config.js
-infra/scratch-editor/host/branding.js
-infra/scratch-editor/host/storage.js
-infra/scratch-editor/host/status.js
-infra/scratch-editor/host/host.css
-apps/web/src/blocks/**                  # minimal parent component/test harness only
-.github/workflows/scratch-m0-focused.yml or one focused successor workflow
-e2e/blocks-host.spec.ts                 # if this is the accepted test placement
-../components/host.yaml
-../components/module.yaml               # only if upstream/build ownership changed
-```
+None. This file routes work only.
 
-Canonical ASA logo source is read/copied, not redrawn:
+## Sub-slice cards
 
 ```text
-apps/web/public/asa-lab-mark.svg
+VSCR-M1-002A.md
+VSCR-M1-002B.md
+VSCR-M1-002C.md
+VSCR-M1-002D.md
+VSCR-M1-002E.md
 ```
-
-Do not create a second independently editable ASA logo asset under `infra/scratch-editor/**`.
-
-## Host module boundaries
-
-Keep `main.js` composition-only. Do not turn it into a monolith.
-
-```text
-main.js          editor root composition / lifecycle wiring
-protocol.js      parent/iframe message parsing/validation
-editor-config.js Scratch GUI feature flags
-branding.js      canonical ASA logo/product-brand configuration
-storage.js       ScratchStorage/GUIStorage adapter skeleton
-status.js        child status/error messages/state presentation
-host.css         runtime-local presentation
-```
-
-Later persistence tasks may add `save-orchestrator.js`; M1-002 does not implement durable
-save logic.
-
-## Required product controls
-
-```text
-canSave = false
-canCreateNew = false
-canEditTitle = false
-canManageFiles = false
-canShare = false
-canRemix = false
-backpackVisible = false
-showComingSoon = false
-canUseCloud = false
-extensionsButtonVisible = false
-```
-
-Required branding result:
-
-```text
-Scratch product logo              absent
-ASA Lab canonical mark            present
-scratch.mit.edu navigation         absent
-Scratch account/community chrome  absent
-```
-
-Exactly two upstream compatibility patches are allowed. A third patch is STOP.
-
-## Protocol now
-
-Implement the exact finite message set from D0-001:
-
-```text
-parent → child
-  ASA_BLOCKS_INIT
-  ASA_BLOCKS_TOKEN_UPDATE
-  ASA_BLOCKS_FLUSH_REQUEST
-  ASA_BLOCKS_STOP
-
-child → parent
-  ASA_BLOCKS_READY
-  ASA_BLOCKS_STATUS
-  ASA_BLOCKS_TOKEN_REFRESH_REQUIRED
-  ASA_BLOCKS_FLUSH_RESULT
-  ASA_BLOCKS_FATAL
-```
-
-Validate exact source, origin, protocol version, project ID and session nonce. No wildcard
-postMessage target. No generic RPC/eval bridge.
-
-M1-002 may use deterministic fixture capability data in tests. Real capability issuance is
-M1-003.
-
-## Storage adapter now
-
-Create the ScratchStorage/GUIStorage skeleton required to mount/load controlled fixtures.
-
-```text
-saveProject()        defensive failure; no fake successful save
-getLibraryAssetUrl() ASA/local only; no Scratch Foundation fallback
-backpack/cloud       absent
-```
-
-Do not claim durable writes.
-
-## Tests/evidence
-
-Browser/Docker evidence must prove at least:
-
-```text
-standalone dist, not upstream playground root
-exact pin/version identity reported
-exactly two patches apply
-canonical ASA logo rendered; no Scratch logo
-File menu absent
-Extensions button absent
-no account/share/backpack/cloud/server-save ownership
-editor does not render before valid INIT
-wrong source/origin/project/nonce/protocol rejected
-token absent from URL/localStorage/sessionStorage/IndexedDB/logs
-no postMessage '*'
-new fixture does not fetch ASA UUID as upstream project ID
-no project/library fallback to Scratch Foundation
-PROJECT_CHANGED reaches ASA host after load
-player mode mounts read-only
-runtime failure leaves ASA parent alive with controlled error state
-```
-
-Use actual DOM/network evidence; source grep alone is not acceptance.
 
 ## Forbidden
 
 ```text
-no real JWT issuance
+no one-shot implementation of all M1-002 concerns
+no automatic A → B → C → D → E progression
+no M1-003 runtime JWT work
 no S3/MinIO
-no database migration
-no Project Core save
-no asset PUT
-no production-hidden editor route exposed accidentally
+no Project Core persistence
 no activation
-no third upstream patch
-no M1-003 work in this slice
-```
-
-## Done
-
-```text
-ASA-owned standalone host builds reproducibly
-host is split into mapped maintainable modules
-canonical logo source is used
-iframe protocol is browser-tested
-no durable write is claimed
-components/host.yaml contains actual source/test ownership
-focused + required repository gates pass on exact final SHA
 ```
 
 ## Bounded self-review
 
-Use `../AGENT_GUIDE.md` against this task, final diff, D0-001 and browser/Docker evidence.
-
-Extra questions:
+At the milestone level, verify only that:
 
 ```text
-Did I leave any Scratch product branding/navigation visible?
-Did I accidentally expose File/Extensions/account/cloud paths?
-Did I create a second logo source?
-Did main.js absorb logic that belongs in a smaller mapped module?
-Did I accidentally implement or claim persistence/JWT/storage?
-Did I use more than two upstream patches?
-Did I update actual components/host.yaml source/test paths and symbols?
+A–D have separate accepted evidence
+E reviewed the integrated host boundary
+no sub-slice started automatically
+component cards contain actual source/test ownership
+M1-003 was not started
 ```
 
-Then STOP. M1-003 requires separate owner selection and independent review.
+## Stop
+
+After each sub-slice STOP. After M1-002E STOP again for owner milestone acceptance. Only then
+may M1-003 become selectable.
