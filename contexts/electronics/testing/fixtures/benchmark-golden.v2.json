@@ -1,0 +1,206 @@
+{
+  "schema": "asa-lab.electronics-benchmark-golden.v1",
+  "corpusVersion": "asa-electronics-opt0-v2",
+  "entries": {
+    "digest-series-1": {
+      "status": "digest",
+      "fingerprint": "853a23db6bd6ff20c999efb888508bd8031e6a4e40e32af61d986fbe18595cd6"
+    },
+    "digest-series-50": {
+      "status": "digest",
+      "fingerprint": "9cb008ab5cfc3cf999484dc5f80001c819c0e1d932eab2956fcc829acad94755"
+    },
+    "dc-series-1": {
+      "status": "solved",
+      "fingerprint": "8c7889fd33854fa3f0ebad5542c3ea2af152a437dd37da175f98a669f0958148"
+    },
+    "dc-series-10": {
+      "status": "solved",
+      "fingerprint": "b58552cd79d6fb6026f905ee4c191b007224de0b033627297298466b2fe880c3"
+    },
+    "dc-series-50": {
+      "status": "solved",
+      "fingerprint": "53274b5fc32e7eb69b3f49802d164932c693b42ec02f4d6b663b547880e56433"
+    },
+    "dc-parallel-4": {
+      "status": "solved",
+      "fingerprint": "ffbe35d6ec038ef7b2be74b38de92c17af1c94265191f2f354a7425138f9134d"
+    },
+    "dc-parallel-20": {
+      "status": "solved",
+      "fingerprint": "c728597b1ec461de4d77ead21916684d07768cac977b499eb6c6429f16c24e15"
+    },
+    "dc-led-series": {
+      "status": "solved",
+      "fingerprint": "487207a0302e1a5c83fe72594b5e945fd1aa273775afd386807670c89243a41b"
+    },
+    "dc-led-overcurrent": {
+      "status": "solved",
+      "fingerprint": "007bfb16e81097c1f0c15588a1b6666f35f5b7366aa669b3f586e60089d2587a"
+    },
+    "dc-led-reverse": {
+      "status": "solved",
+      "fingerprint": "a8a91403285e741300719aade9d1fc08ee8c650b4614f0209829ffd7ba19fd28"
+    },
+    "dc-button-released": {
+      "status": "solved",
+      "fingerprint": "1e9667e5a72c8d4dc825c9e7108b7f12aac9933d35b2c73f64c284fa532d6a24"
+    },
+    "dc-button-pressed": {
+      "status": "solved",
+      "fingerprint": "47e08bc1956d0d3df0a4405f354418096725d34b0c2551bb486d2e0faaa19566"
+    },
+    "dc-spdt-left": {
+      "status": "solved",
+      "fingerprint": "8437f47fc791baa2279ca056d02387184dd712676e0885ea1ad264538e84541c"
+    },
+    "dc-spdt-right": {
+      "status": "solved",
+      "fingerprint": "538ae0022e7d7ed5799c2dc0127a4c8719eef482e423933c5a527b2b4c827845"
+    },
+    "dc-transistor-npn-active": {
+      "status": "solved",
+      "fingerprint": "2a7256b8aaa85a53e48640a2e119d30792eefb86aabe019eb06ff1f88a595505"
+    },
+    "dc-transistor-npn-nonconvergent": {
+      "status": "nonconvergent",
+      "fingerprint": "e3432876271c4d6068eb09ecc2dc2361bdaae46d87c7dd1fb80d68597f99ce22"
+    },
+    "dc-rgb-led": {
+      "status": "solved",
+      "fingerprint": "5dfe7dd6e5d26c3dae0941bbe17185c86bbafbeedb570a90b57a6404bd01d2ea"
+    },
+    "dc-seven-segment": {
+      "status": "solved",
+      "fingerprint": "ea5c33cde20055bb6ab542313bac7217d2b09a489cfb5cd604afbed8aaf0a971"
+    },
+    "dc-potentiometer-25": {
+      "status": "solved",
+      "fingerprint": "0eb1e7181225717630b52f2d2ec7a81722ab27e864641ee049ed45f894d637e1"
+    },
+    "dc-potentiometer-75": {
+      "status": "solved",
+      "fingerprint": "a3528f752e0d6bb40e0b2413bc5d0bb054c5a5dc27589167e394c31a2311a443"
+    },
+    "dc-photoresistor-dark": {
+      "status": "solved",
+      "fingerprint": "d7e2889e740e58069ce127e379f3f18fa14598f1c63b0ce3e7c5304056c4a5cc"
+    },
+    "dc-photoresistor-bright": {
+      "status": "solved",
+      "fingerprint": "775cb626703cd0f783d9466b26127dbd44878b5ca8b3e3faf7cb2d9da6a126a3"
+    },
+    "dc-tmp36-25c": {
+      "status": "solved",
+      "fingerprint": "3ecff8faef79fcddce112e0824e9026fca3e9ad50955010bc34cabf9d27ee456"
+    },
+    "dc-tmp36-100c": {
+      "status": "solved",
+      "fingerprint": "56d603de2befb76b20daa67b94bac684173c2577e4a924ec87c190e5456ec5f6"
+    },
+    "dc-soil-0": {
+      "status": "solved",
+      "fingerprint": "283edf41a55a05a0fe2e520bafc7e5fb33d93f757a437350aaf031e94febb293"
+    },
+    "dc-soil-50": {
+      "status": "solved",
+      "fingerprint": "8d5c1832de22a63605d9b528d17c81725627f4363da5dc734a7b84c43ef7d491"
+    },
+    "dc-soil-100": {
+      "status": "solved",
+      "fingerprint": "8e80e0b353d98406faa9cc02a664bacd39ec24e3e0ac4b992f25e39bb8d840bd"
+    },
+    "dc-bench-supply-cv": {
+      "status": "solved",
+      "fingerprint": "77792b4a9f83db876e59cdd906c6890691cd04e1ccc47556efc5c4b1863fba42"
+    },
+    "dc-bench-supply-cc": {
+      "status": "solved",
+      "fingerprint": "d354c41eb749e9f42df37465175c4c878074e1b21d8101c26b29e63d703ce919"
+    },
+    "transient-capacitor-1ms": {
+      "status": "solved",
+      "fingerprint": "9e1cf6412161e826d84b288551d86c4bbc4ffb94d6f641f917ed1f0856cfbd68"
+    },
+    "transient-capacitor-100ms": {
+      "status": "solved",
+      "fingerprint": "c785ef0a400555437215ee051c8d472c93ce1477009c53de46d916a9a3f2835c"
+    },
+    "transient-capacitor-5000ms": {
+      "status": "solved",
+      "fingerprint": "b9cd1b9b5485638a7ec1f4cc5369d0c6647e8edd02d2620d494919c6f018af07"
+    },
+    "transient-dc-motor-10ms": {
+      "status": "solved",
+      "fingerprint": "7c70e3e7db1d8d59ea126d2f6e5546fe73b6935d40be25578f7ef09d6f223a59"
+    },
+    "transient-dc-motor-1000ms": {
+      "status": "solved",
+      "fingerprint": "7b40a30af812c2d05b5180f9d8a58b37e6a4a4ecd6f05d409e206b0154db858a"
+    },
+    "transient-gearmotor-1000ms": {
+      "status": "solved",
+      "fingerprint": "1b66e6a714cd7f798350111fe7362b5d87ab758cce2c13a719124cbd35d15d8f"
+    },
+    "transient-vibration-motor-1000ms": {
+      "status": "solved",
+      "fingerprint": "103032208b30cbf62c3d02fca314774179b27be3fe9113d6eca5b62a547f8c80"
+    },
+    "instrument-generator-scope": {
+      "status": "solved",
+      "fingerprint": "4298d83fced9b6c648ecb732a43861816cc0f60fb6b0b3f2d31aa405a98d1acf"
+    },
+    "instrument-multimeter-voltage": {
+      "status": "solved",
+      "fingerprint": "77694b225494f91bc61192f290c79d1cbd3d136f151a67d539e9bfe150c6bca5"
+    },
+    "unsupported-future-device": {
+      "status": "unsupported",
+      "fingerprint": "b1d870e5d3ab21022b5c30b3972db4614ac689598f50f92c36c9fc3e657b069e"
+    },
+    "invalid-nonfinite-component": {
+      "status": "invalid",
+      "fingerprint": "7356d30720ca967f42128dc9925389cd72a2bacbd4341cd078c766e6194c091d"
+    },
+    "motor-model-startup": {
+      "status": "model",
+      "fingerprint": "5b90ea50fa77919cd6840cdca12c4fe53b32012d5c9919c217e8e8447e968e48"
+    },
+    "motor-model-stall": {
+      "status": "model",
+      "fingerprint": "e1783181ad663b70cf5a7bdd23848648a510985d4cc61005738b74d2751bbb2b"
+    },
+    "motor-model-thermal": {
+      "status": "model",
+      "fingerprint": "e445bae955dfcfa0da1bf3bc8d978af9af655e6ce5b4b31fc1c65ad6e85be1fe"
+    },
+    "arduino-blink-analyse-10ms": {
+      "status": "solved",
+      "fingerprint": "677797402ed1401c0c3ef5a50c0574be5e4706547a113c96cfb51d9786a67e3f"
+    },
+    "arduino-pwm-analyse-10ms": {
+      "status": "solved",
+      "fingerprint": "fc1c2f0aae00cbe846d3875d77b64491b61bc753a5748a99480bfa97a4b3ebbf"
+    },
+    "arduino-tone-analyse-10ms": {
+      "status": "solved",
+      "fingerprint": "6275c4c8ceadac0328f25e3498d4885074010a3e8f6938e2d6d6049d04ac1064"
+    },
+    "arduino-gpio-clock-2000us": {
+      "status": "ready",
+      "fingerprint": "f88c818921db33eda874247796fdbd7d1744a353ced3431782c2ebebb64162eb"
+    },
+    "arduino-adc-clock-3500us": {
+      "status": "ready",
+      "fingerprint": "847a6a545835a1c4aba4ce9b0d92ea08d08213ff8c5fb43a75ace02d3f04ea33"
+    },
+    "arduino-two-board-clock-3500us": {
+      "status": "ready",
+      "fingerprint": "c808ba2e697de79f9ab0f11fef1ec7dfe5f1c04840e77244fce3002e212582ee"
+    },
+    "arduino-gpio-small-budget": {
+      "status": "ready",
+      "fingerprint": "f88c818921db33eda874247796fdbd7d1744a353ced3431782c2ebebb64162eb"
+    }
+  }
+}

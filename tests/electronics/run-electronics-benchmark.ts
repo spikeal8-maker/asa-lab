@@ -59,9 +59,9 @@ function resultFingerprint(value: unknown): string {
 
 const output = process.env['ASA_ELECTRONICS_BENCHMARK_REPORT'];
 if (!output) throw new Error('ASA_ELECTRONICS_BENCHMARK_REPORT must name the generated receipt');
-const warmups = positiveInteger('ASA_ELECTRONICS_BENCHMARK_WARMUPS', 3);
-const iterations = positiveInteger('ASA_ELECTRONICS_BENCHMARK_ITERATIONS', 10);
-const seriesCount = positiveInteger('ASA_ELECTRONICS_BENCHMARK_SERIES', 2);
+const warmups = positiveInteger('ASA_ELECTRONICS_BENCHMARK_WARMUPS', 5);
+const iterations = positiveInteger('ASA_ELECTRONICS_BENCHMARK_ITERATIONS', 30);
+const seriesCount = positiveInteger('ASA_ELECTRONICS_BENCHMARK_SERIES', 3);
 const revision = git('rev-parse', 'HEAD');
 const dirtyTree = git('status', '--porcelain').length > 0;
 const startedAt = new Date().toISOString();

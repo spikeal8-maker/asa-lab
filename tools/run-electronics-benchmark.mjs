@@ -6,7 +6,7 @@ import { createServer } from 'vite';
 
 const repositoryRoot = resolve(import.meta.dirname, '..');
 const reportPath = resolve(repositoryRoot, 'reports/electronics-opt0-baseline.json');
-const summaryPath = resolve(repositoryRoot, 'docs/delivery/ELECTRONICS_OPT0_BASELINE.md');
+const summaryPath = resolve(repositoryRoot, 'reports/electronics-opt0-baseline.md');
 const quick = process.argv.includes('--quick');
 const environment = {
   ...process.env,

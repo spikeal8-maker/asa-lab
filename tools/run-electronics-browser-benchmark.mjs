@@ -10,11 +10,14 @@ import { chromium } from '@playwright/test';
 import { createServer as createViteServer } from 'vite';
 
 const repositoryRoot = resolve(import.meta.dirname, '..');
-const reportPath = resolve(repositoryRoot, 'reports/electronics-opt0-browser-baseline.json');
-const summaryPath = resolve(repositoryRoot, 'docs/delivery/ELECTRONICS_OPT0_BROWSER_BASELINE.md');
 const quick = process.argv.includes('--quick');
-const warmups = quick ? 1 : 2;
-const iterations = quick ? 2 : 5;
+const lowEnd = process.argv.includes('--low-end');
+const cpuThrottleRate = lowEnd ? 4 : 1;
+const profileId = lowEnd ? 'low-end-4x-cpu' : 'native';
+const reportPath = resolve(repositoryRoot, `reports/electronics-opt0-browser-${profileId}.json`);
+const summaryPath = resolve(repositoryRoot, `reports/electronics-opt0-browser-${profileId}.md`);
+const warmups = quick ? 1 : 5;
+const iterations = quick ? 2 : 30;
 
 function git(...args) {
   return execFileSync('git', args, {
@@ -50,9 +53,14 @@ const digestModulePath = resolve(
   repositoryRoot,
   'contexts/electronics/domain/simulation-input-digest.ts',
 ).replaceAll('\\', '/');
+const liveSimulationPath = resolve(
+  repositoryRoot,
+  'apps/web/src/electronics/live-simulation.ts',
+).replaceAll('\\', '/');
 const benchmarkHtml = `<!doctype html><html><body><script type="module">
 import { ELECTRONICS_BENCHMARK_CORPUS } from '/@fs/${corpusModulePath}';
 import { sha256Hex } from '/@fs/${digestModulePath}';
+import { calculateSimulationPreflight, advanceLiveSimulation } from '/@fs/${liveSimulationPath}';
 const cases = [
   'dc-series-50',
   'transient-capacitor-5000ms',
@@ -67,6 +75,19 @@ const statusOf = (value, operation) => {
   return operation === 'arduino-clock'
     ? String(value.executionStatus ?? 'missing')
     : String(value.status ?? 'missing');
+};
+const liveDocument = {
+  schemaVersion: 4,
+  components: [
+    { id: 'source', kind: 'source', value: 6, position: { x: 0, y: 0 } },
+    { id: 'motor', kind: 'visual', value: 0, position: { x: 0, y: 0 }, componentTypeId: 'dc-motor', pinIds: ['negative', 'positive'] },
+  ],
+  connections: [
+    { id: 'p', from: { componentId: 'source', terminal: 'a' }, to: { componentId: 'motor', terminal: 'positive' }, vertices: [] },
+    { id: 'n', from: { componentId: 'motor', terminal: 'negative' }, to: { componentId: 'source', terminal: 'b' }, vertices: [] },
+  ],
+  viewport: { x: 0, y: 0, zoom: 1 },
+  simulation: { running: true, maxIterations: 64 },
 };
 const yieldToBrowser = () => new Promise((resolve) => globalThis.setTimeout(resolve, 0));
 async function runCase(caseId, warmups, iterations) {
@@ -104,7 +125,30 @@ async function runCase(caseId, warmups, iterations) {
     expectedStatus: testCase.expectedStatus,
   };
 }
-globalThis.__ASA_ELECTRONICS_BENCHMARK__ = { cases, runCase, ready: true };
+async function runLivePath(warmups, iterations) {
+  let previous = calculateSimulationPreflight(liveDocument, 0);
+  for (let index = 0; index < warmups; index += 1) {
+    previous = advanceLiveSimulation(liveDocument, previous, (index + 1) * 100);
+    await yieldToBrowser();
+  }
+  previous = calculateSimulationPreflight(liveDocument, 0);
+  const measured = [];
+  for (let index = 0; index < iterations; index += 1) {
+    const timerStarted = globalThis.performance.now();
+    const timerDelay = new Promise((resolve) =>
+      globalThis.setTimeout(() => resolve(globalThis.performance.now() - timerStarted), 0),
+    );
+    const started = globalThis.performance.now();
+    previous = advanceLiveSimulation(liveDocument, previous, (index + 1) * 100);
+    measured.push({
+      durationMs: globalThis.performance.now() - started,
+      eventLoopDelayMs: await timerDelay,
+    });
+    await yieldToBrowser();
+  }
+  return { iterations: measured, finalFingerprint: fingerprint(previous) };
+}
+globalThis.__ASA_ELECTRONICS_BENCHMARK__ = { cases, runCase, runLivePath, ready: true };
 </script></body></html>`;
 const server = createHttpServer((request, response) => {
   if (request.url === '/__electronics_benchmark') {
@@ -127,6 +171,8 @@ if (!address || typeof address === 'string')
 const url = `http://127.0.0.1:${address.port}/__electronics_benchmark`;
 const browser = await chromium.launch({ headless: true, args: ['--enable-precise-memory-info'] });
 const page = await browser.newPage();
+const cdp = await page.context().newCDPSession(page);
+await cdp.send('Emulation.setCPUThrottlingRate', { rate: cpuThrottleRate });
 const startedAt = new Date().toISOString();
 try {
   await page.goto(url, { waitUntil: 'domcontentloaded' });
@@ -190,6 +236,39 @@ try {
       fingerprint: result.iterations[0]?.fingerprint ?? null,
     });
   }
+  await page.evaluate(() => {
+    globalThis.__ASA_ELECTRONICS_LONG_TASKS__.length = 0;
+  });
+  const liveHeapBefore = await page.evaluate(
+    () => globalThis.performance.memory?.usedJSHeapSize ?? null,
+  );
+  const liveResult = await page.evaluate(
+    async ({ warmups: w, iterations: count }) =>
+      globalThis.__ASA_ELECTRONICS_BENCHMARK__.runLivePath(w, count),
+    { warmups, iterations },
+  );
+  await page.waitForTimeout(100);
+  const liveHeapAfter = await page.evaluate(
+    () => globalThis.performance.memory?.usedJSHeapSize ?? null,
+  );
+  const liveLongTasks = await page.evaluate(() => [...globalThis.__ASA_ELECTRONICS_LONG_TASKS__]);
+  const liveDurations = liveResult.iterations.map((entry) => entry.durationMs);
+  const liveEventLoopDelays = liveResult.iterations.map((entry) => entry.eventLoopDelayMs);
+  const livePath = {
+    caseId: 'production-live-simulation-motor-100ms-ticks',
+    p50Ms: percentile(liveDurations, 0.5),
+    p95Ms: percentile(liveDurations, 0.95),
+    p99Ms: percentile(liveDurations, 0.99),
+    maxMs: Math.max(...liveDurations),
+    eventLoopDelayP95Ms: percentile(liveEventLoopDelays, 0.95),
+    longTaskCount: liveLongTasks.length,
+    longTaskMaxMs: liveLongTasks.length
+      ? Math.max(...liveLongTasks.map((entry) => entry.duration))
+      : 0,
+    heapDeltaBytes:
+      liveHeapBefore === null || liveHeapAfter === null ? null : liveHeapAfter - liveHeapBefore,
+    finalFingerprint: liveResult.finalFingerprint,
+  };
   const assetsDirectory = resolve(repositoryRoot, 'apps/web/dist/assets');
   const assetNames = readdirSync(assetsDirectory);
   const findAsset = (prefix, extension = '.js') => {
@@ -222,10 +301,13 @@ try {
     cpu: cpus()[0]?.model ?? 'unknown',
     logicalCpuCount: cpus().length,
     totalMemoryBytes: totalmem(),
+    profileId,
+    cpuThrottleRate,
     warmups,
     iterations,
     isolation: 'ephemeral 127.0.0.1 HTTP server + Vite middleware; no API or database',
     cases,
+    livePath,
     bundle,
   };
   const absolute = resolve(reportPath);
@@ -243,7 +325,7 @@ try {
         `| ${key} | ${entry.fileName} | ${(entry.bytes / 1024).toFixed(1)} | ${(entry.gzipBytes / 1024).toFixed(1)} |`,
     )
     .join('\n');
-  const markdown = `# ASA Lab Electronics E-OPT-0 browser baseline
+  const markdown = `# ASA Lab Electronics E-OPT-0 browser baseline (${profileId})
 
 This receipt measures the current Electronics computation on Chromium's main thread.
 The server is ephemeral and isolated: no ASA API, PostgreSQL or live Docker is used.
@@ -255,6 +337,7 @@ The server is ephemeral and isolated: no ASA API, PostgreSQL or live Docker is u
 - browser: \`${report.browser}\`
 - runtime: \`${report.runtime}\`
 - CPU: \`${report.cpu}\` (${report.logicalCpuCount} logical CPUs)
+- profile: ${profileId}, CPU throttle: ${cpuThrottleRate}x
 - protocol: ${warmups} warmups, ${iterations} measured iterations
 - isolation: ${report.isolation}
 
@@ -263,6 +346,12 @@ The server is ephemeral and isolated: no ASA API, PostgreSQL or live Docker is u
 | Case | Status | p50 ms | p95 ms | event-loop p95 ms | Long Tasks | max Long Task ms |
 | --- | --- | ---: | ---: | ---: | ---: | ---: |
 ${rows}
+
+## Production live-simulation path
+
+| Case | p50 ms | p95 ms | p99 ms | event-loop p95 ms | Long Tasks | max Long Task ms |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| ${livePath.caseId} | ${livePath.p50Ms.toFixed(3)} | ${livePath.p95Ms.toFixed(3)} | ${livePath.p99Ms.toFixed(3)} | ${livePath.eventLoopDelayP95Ms.toFixed(3)} | ${livePath.longTaskCount} | ${livePath.longTaskMaxMs.toFixed(3)} |
 
 ## Production Electronics payload baseline
 

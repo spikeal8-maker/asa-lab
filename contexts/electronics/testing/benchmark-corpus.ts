@@ -5,11 +5,17 @@ import type {
   SchematicConnection,
   Terminal,
 } from '../domain/document.js';
+import { parseElectronicsDocument } from '../domain/document.js';
+import { brushedMotorProfile } from '../domain/models/brushed-motor-profiles.js';
+import {
+  advanceBrushedMotorTransientState,
+  createBrushedMotorTransientState,
+} from '../domain/models/brushed-motor-transient-model.js';
 import { advanceArduinoCircuitClock } from '../domain/arduino-circuit-scheduler.js';
 import { analyseCircuit } from '../domain/simulation.js';
 import { simulationInputDigest } from '../domain/simulation-input-digest.js';
 
-export const ELECTRONICS_BENCHMARK_CORPUS_VERSION = 'asa-electronics-opt0-v1';
+export const ELECTRONICS_BENCHMARK_CORPUS_VERSION = 'asa-electronics-opt0-v2';
 export type ElectronicsBenchmarkTier = 'micro' | 'medium' | 'stress';
 export type ElectronicsBenchmarkOperation = 'analyse' | 'digest' | 'arduino-clock';
 
@@ -362,6 +368,114 @@ function unsupportedCircuit(): ElectronicsDocument {
     [],
   );
 }
+function ledReverseCircuit(): ElectronicsDocument {
+  return document(
+    [component('source', 'source', 5), component('led', 'led', 2), component('r', 'resistor', 220)],
+    [
+      connect('p', 'source', 'a', 'r', 'a'),
+      connect('reverse', 'r', 'b', 'led', 'b'),
+      connect('n', 'led', 'a', 'source', 'b'),
+    ],
+  );
+}
+
+function buttonCircuit(pressed: boolean): ElectronicsDocument {
+  return document(
+    [
+      component('source', 'source', 5),
+      component('button', 'button', 0, { state: pressed }),
+      component('r', 'resistor', 200),
+    ],
+    [
+      connect('p', 'source', 'a', 'button', 'a'),
+      connect('mid', 'button', 'b', 'r', 'a'),
+      connect('n', 'r', 'b', 'source', 'b'),
+    ],
+  );
+}
+
+function spdtCircuit(right: boolean): ElectronicsDocument {
+  return document(
+    [
+      component('source', 'source', 5),
+      component('switch', 'switch', 0, {
+        componentTypeId: 'switch-spdt',
+        pinIds: ['throw-left', 'common', 'throw-right'],
+        state: right,
+      }),
+      component('left', 'resistor', 500),
+      component('right', 'resistor', 1000),
+    ],
+    [
+      connect('common', 'source', 'a', 'switch', 'common'),
+      connect('left', 'switch', 'throw-left', 'left', 'a'),
+      connect('left-return', 'left', 'b', 'source', 'b'),
+      connect('right', 'switch', 'throw-right', 'right', 'a'),
+      connect('right-return', 'right', 'b', 'source', 'b'),
+    ],
+  );
+}
+
+function npnCircuit(maxIterations = 64): ElectronicsDocument {
+  const transistor = component('q', 'transistor', 100, {
+    componentTypeId: 'transistor-npn',
+    pinIds: ['collector', 'base', 'emitter'],
+    stateProperties: {
+      currentGain: 100,
+      baseEmitterVoltage: 0.7,
+      saturationVoltage: 0.2,
+      maxCollectorCurrent: 0.2,
+    },
+  });
+  return document(
+    [
+      component('source', 'source', 5),
+      component('rb', 'resistor', 1000),
+      component('rc', 'resistor', 470),
+      transistor,
+    ],
+    [
+      connect('bp', 'source', 'a', 'rb', 'a'),
+      connect('base', 'rb', 'b', 'q', 'base'),
+      connect('cp', 'source', 'a', 'rc', 'a'),
+      connect('collector', 'rc', 'b', 'q', 'collector'),
+      connect('emitter', 'q', 'emitter', 'source', 'b'),
+    ],
+    maxIterations,
+  );
+}
+
+function invalidDocumentResult() {
+  const parsed = parseElectronicsDocument({
+    schemaVersion: 4,
+    components: [{ id: 'bad', kind: 'resistor', value: Number.NaN, position: { x: 0, y: 0 } }],
+    connections: [],
+    viewport: { x: 0, y: 0, zoom: 1 },
+    simulation: { running: true, maxIterations: 64 },
+  });
+  return parsed.ok ? { status: 'valid' } : { status: 'invalid', message: parsed.message };
+}
+
+function motorModelResult(mode: 'startup' | 'stall' | 'thermal') {
+  const profile = brushedMotorProfile('pololu-1117-130-6v');
+  if (!profile) throw new Error('missing benchmark motor profile');
+  let state = createBrushedMotorTransientState(`benchmark-${mode}`, profile);
+  const durationSeconds = mode === 'startup' ? 0.25 : mode === 'stall' ? 0.05 : 5;
+  const stepSeconds = mode === 'thermal' ? 0.05 : 0.001;
+  let observation = null;
+  const target = state.simulationTimeSeconds + durationSeconds;
+  while (state.simulationTimeSeconds < target - 1e-12) {
+    const result = advanceBrushedMotorTransientState(profile, state, {
+      voltageVolt: mode === 'thermal' ? 12 : 6,
+      stepSeconds: Math.min(stepSeconds, target - state.simulationTimeSeconds),
+      shaftLocked: mode !== 'startup',
+    });
+    state = result.state;
+    observation = result.observation;
+  }
+  return { status: 'model', state, observation };
+}
+
 function arduinoBoard(id: string, source: string): SchematicComponent {
   return component(id, 'visual', 5, {
     componentTypeId: 'arduino-uno',
@@ -380,6 +494,38 @@ function arduinoBoard(id: string, source: string): SchematicComponent {
     ],
     stateProperties: { arduinoSource: source },
   });
+}
+
+function arduinoPwmCircuit(): ElectronicsDocument {
+  return document(
+    [
+      arduinoBoard(
+        'uno',
+        'void setup(){pinMode(3,OUTPUT);analogWrite(3,128);}void loop(){delay(10);}',
+      ),
+      component('load', 'resistor', 1000),
+    ],
+    [
+      connect('pwm', 'uno', 'd3', 'load', 'a'),
+      connect('ground', 'load', 'b', 'uno', 'power-gnd-1'),
+    ],
+  );
+}
+
+function arduinoToneCircuit(): ElectronicsDocument {
+  return document(
+    [
+      arduinoBoard('uno', 'void setup(){}void loop(){tone(8,440);delay(10);}'),
+      component('piezo', 'piezo', 0, {
+        componentTypeId: 'piezo-passive-buzzer',
+        pinIds: ['positive', 'negative'],
+      }),
+    ],
+    [
+      connect('tone', 'uno', 'd8', 'piezo', 'positive'),
+      connect('ground', 'piezo', 'negative', 'uno', 'power-gnd-1'),
+    ],
+  );
 }
 
 function arduinoBlinkCircuit(): ElectronicsDocument {
@@ -508,6 +654,16 @@ function clockCase(
   };
 }
 
+function customCase(
+  id: string,
+  tier: ElectronicsBenchmarkTier,
+  category: string,
+  expectedStatus: string,
+  run: () => unknown,
+): ElectronicsBenchmarkCase {
+  return { id, tier, category, operation: 'analyse', expectedStatus, run };
+}
+
 const series1 = seriesResistors(1);
 const series10 = seriesResistors(10);
 const series50 = seriesResistors(50);
@@ -527,6 +683,20 @@ export const ELECTRONICS_BENCHMARK_CORPUS: readonly ElectronicsBenchmarkCase[] =
   analyseCase('dc-parallel-20', 'stress', 'linear-dc', parallel20),
   analyseCase('dc-led-series', 'micro', 'nonlinear-dc', ledCircuit(220)),
   analyseCase('dc-led-overcurrent', 'micro', 'nonlinear-dc', ledCircuit(null)),
+  analyseCase('dc-led-reverse', 'micro', 'nonlinear-dc', ledReverseCircuit()),
+  analyseCase('dc-button-released', 'micro', 'switching', buttonCircuit(false)),
+  analyseCase('dc-button-pressed', 'micro', 'switching', buttonCircuit(true)),
+  analyseCase('dc-spdt-left', 'micro', 'switching', spdtCircuit(false)),
+  analyseCase('dc-spdt-right', 'micro', 'switching', spdtCircuit(true)),
+  analyseCase('dc-transistor-npn-active', 'medium', 'nonlinear-dc', npnCircuit()),
+  analyseCase(
+    'dc-transistor-npn-nonconvergent',
+    'micro',
+    'safety',
+    npnCircuit(1),
+    0,
+    'nonconvergent',
+  ),
   analyseCase('dc-rgb-led', 'medium', 'nonlinear-dc', rgbCircuit()),
   analyseCase('dc-seven-segment', 'medium', 'nonlinear-dc', sevenSegmentCircuit()),
   analyseCase('dc-potentiometer-25', 'micro', 'linear-dc', potentiometerCircuit(0.25)),
@@ -557,7 +727,19 @@ export const ELECTRONICS_BENCHMARK_CORPUS: readonly ElectronicsBenchmarkCase[] =
     0,
     'unsupported',
   ),
+  customCase('invalid-nonfinite-component', 'micro', 'safety', 'invalid', invalidDocumentResult),
+  customCase('motor-model-startup', 'medium', 'motor-model', 'model', () =>
+    motorModelResult('startup'),
+  ),
+  customCase('motor-model-stall', 'medium', 'motor-model', 'model', () =>
+    motorModelResult('stall'),
+  ),
+  customCase('motor-model-thermal', 'stress', 'motor-model', 'model', () =>
+    motorModelResult('thermal'),
+  ),
   analyseCase('arduino-blink-analyse-10ms', 'medium', 'arduino', arduinoBlinkCircuit(), 10),
+  analyseCase('arduino-pwm-analyse-10ms', 'medium', 'arduino', arduinoPwmCircuit(), 10),
+  analyseCase('arduino-tone-analyse-10ms', 'medium', 'arduino', arduinoToneCircuit(), 10),
   clockCase('arduino-gpio-clock-2000us', 'medium', 'arduino-clock', arduinoGpioCircuit(), 2_000),
   clockCase('arduino-adc-clock-3500us', 'medium', 'arduino-clock', arduinoAdcCircuit(), 3_500),
   clockCase(
