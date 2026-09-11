@@ -2,7 +2,8 @@
 
 **Kind:** executable implementation slice  
 **Risk:** medium  
-**Prerequisite:** VSCR-M1-001 accepted; M1-002 milestone selected.
+**Prerequisite:** VSCR-M1-001 accepted; M1-002 milestone owner-authorised.  
+**Execution:** coding starts only when `docs/execution/current.yaml.task.id` is exactly `VSCR-M1-002A`.
 
 ## Goal
 
@@ -87,4 +88,5 @@ contract. Confirm no later M1-002 component was started.
 
 ## Stop
 
-STOP after evidence. VSCR-M1-002B requires separate selection/acceptance transition.
+STOP after evidence. VSCR-M1-002B requires separate owner-authorised selection in
+`current.yaml` after A is accepted.
