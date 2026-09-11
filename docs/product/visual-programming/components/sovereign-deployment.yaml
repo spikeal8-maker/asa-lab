@@ -1,0 +1,47 @@
+schema_version: 1.0.0
+area: sovereign-deployment
+components:
+  - id: blocks.sovereign.media
+    state: blocked
+    risk: medium
+    purpose: "Rights-cleared local default project/media libraries without Scratch Foundation fallback."
+    contracts:
+      - path: docs/product/visual-programming/VSCR-D0-005-DEPLOYMENT-ACTIVATION-CONTRACT.md
+        section: "Sovereign/local baseline"
+    planned_sources:
+      - infra/scratch-editor/host/**
+      - apps/web/public/assets/**
+    task: VSCR-M3
+
+  - id: blocks.sovereign.extensions
+    state: blocked
+    risk: high
+    purpose: "Approved local extension allowlist; external/hardware extensions classified separately."
+    contracts:
+      - path: docs/product/visual-programming/VSCR-D0-001-SCRATCH-HOST-CONTRACT.md
+        section: "Extensions"
+      - path: docs/product/visual-programming/VSCR-D0-005-DEPLOYMENT-ACTIVATION-CONTRACT.md
+        section: "Sovereign/local baseline"
+    planned_sources: [infra/scratch-editor/host/**]
+    task: VSCR-M3
+
+  - id: blocks.deployment.backup-restore
+    state: blocked
+    risk: critical
+    purpose: "Coherent Postgres + object-store backup/restore evidence."
+    contracts:
+      - path: docs/product/visual-programming/VSCR-D0-005-DEPLOYMENT-ACTIVATION-CONTRACT.md
+        section: "Backup/restore acceptance"
+    task: VSCR-M3
+
+  - id: blocks.activation
+    state: blocked
+    risk: critical
+    purpose: "Only authorised coming_soon → active transition after all acceptance gates."
+    contracts:
+      - path: docs/product/visual-programming/VSCR-D0-005-DEPLOYMENT-ACTIVATION-CONTRACT.md
+        section: "Activation gate"
+    planned_sources:
+      - contexts/blocks/**
+      - apps/api/src/module-registry.ts
+    task: VSCR-M4-001
