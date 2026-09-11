@@ -34,6 +34,11 @@ control plane.
 `execution_lease`, branch, PR и `owned_paths` не являются разрешениями и не
 блокируют работу.
 
+Even in `direct_main`, a feature branch MUST NOT select its own execution task:
+`docs/execution/current.yaml` is changed and accepted on `main` first, then product
+branches inherit that canonical state. A product branch editing `current.yaml` to
+authorize itself is a governance failure.
+
 Ни один другой файл не является источником этих значений. Если
 `EXECUTION_MANIFEST.yaml`, `project-map.yaml`, `QUALITY_MAP.md`, тело PR или
 комментарий в чате противоречат `current.yaml` — прав `current.yaml`, а

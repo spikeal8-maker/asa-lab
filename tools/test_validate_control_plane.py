@@ -710,6 +710,31 @@ def state_edited(_):
     return errors
 
 
+@case(
+    "direct main product branch cannot self-select execution state",
+    expect="modifies docs/execution/current.yaml",
+)
+def direct_main_state_edited(_):
+    with tempfile.TemporaryDirectory() as raw:
+        root = Path(raw) / "repo"
+        build_repo(root, main_state=BASE_STATE, branch_state=BASE_STATE + "  pr: 72\n")
+        saved = cp.ROOT
+        try:
+            cp.bind_root(root)
+            errors: list[str] = []
+            notes: list[str] = []
+            cp.check_execution_branch_policy(
+                True,
+                [{"branch": "agent/r4-electronics-m1"}],
+                [],
+                errors,
+                notes,
+            )
+            return errors
+        finally:
+            cp.bind_root(saved)
+
+
 @case("the task branch leaves the state file alone", expect="")
 def state_untouched(_):
     errors, notes = state_file_case(BASE_STATE, None)

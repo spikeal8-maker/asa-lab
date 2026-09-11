@@ -33,7 +33,7 @@ gates:
   focused:
     workflow: Scratch M0 Focused
     commands:
-      - pnpm gate:blocks-m1-001
+      - pnpm gate:code
   general:
     workflow: ASA Lab Governance and Code Gates
     commands:
