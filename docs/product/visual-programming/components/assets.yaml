@@ -1,55 +1,56 @@
-schema_version: 1.0.0
+schema_version: 2.0.0
 area: asset-storage
 components:
   - id: blocks.assets.reference
     state: implemented
     risk: medium
-    purpose: "Persistent logical asset reference only; no physical object locator."
+    ownership: asa
+    purpose: "Persistent logical Scratch asset reference only; no physical object locator."
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-003-ASSET-STORAGE-CONTRACT.md
-        section: "§1–§3 identity and metadata model"
+        section: "Separation of identities"
     sources:
       - path: apps/api/src/blocks-module.ts
         symbols: [BlocksAssetReferenceV1, validateAsset]
-    tests: [apps/api/src/blocks-module.spec.ts]
-    task: null
+    tests:
+      - apps/api/src/blocks-module.spec.ts
+    task: VSCR-M1-001
 
   - id: blocks.assets.metadata
-    state: planned
+    state: blocked
     risk: high
-    purpose: "Tenant-private immutable blob and Scratch alias metadata."
+    ownership: infrastructure
+    purpose: "Tenant-private immutable blob metadata and Scratch asset-alias metadata."
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-003-ASSET-STORAGE-CONTRACT.md
-        section: "§3 Relational model and §4 tenant/RLS"
-    planned_sources:
-      - contexts/blocks/infrastructure/**
-      - migrations/*blocks*.sql
-    planned_tests: [tests/blocks/assets.pg.spec.ts]
-    task: VSCR-M1-004
-
-  - id: blocks.assets.upload
-    state: planned
-    risk: high
-    purpose: "Validated streaming asset PUT with identity/integrity/content limits."
-    contracts:
+        section: "Relational model"
       - path: docs/product/visual-programming/VSCR-D0-003-ASSET-STORAGE-CONTRACT.md
-        section: "§8 Asset upload endpoint + §9 Content validation"
-    planned_sources:
-      - apps/api/src/blocks-runtime.controller.ts
-      - contexts/blocks/infrastructure/**
-    planned_tests: [tests/blocks/asset-upload.spec.ts]
+        section: "Tenant and RLS policy"
     task: VSCR-M1-004
     design_gate: VSCR-M1-004P
+    depends_on: [blocks.runtime.capability]
 
-  - id: blocks.assets.read
-    state: planned
+  - id: blocks.assets.upload
+    state: blocked
     risk: high
-    purpose: "Reference-authorised private asset GET for exact draft/version."
+    ownership: cross_boundary
+    purpose: "Validated streaming asset PUT with identity, integrity, content and byte limits."
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-003-ASSET-STORAGE-CONTRACT.md
-        section: "§13 Asset GET endpoint"
-    planned_sources:
-      - apps/api/src/blocks-runtime.controller.ts
-      - contexts/blocks/infrastructure/**
-    planned_tests: [tests/blocks/asset-read.spec.ts]
+        section: "Asset upload endpoint"
+      - path: docs/product/visual-programming/VSCR-D0-003-ASSET-STORAGE-CONTRACT.md
+        section: "Content validation"
     task: VSCR-M1-004
+    design_gate: VSCR-M1-004P
+    depends_on: [blocks.assets.metadata, blocks.runtime.origin-security]
+
+  - id: blocks.assets.read
+    state: blocked
+    risk: high
+    ownership: cross_boundary
+    purpose: "Reference-authorised private asset GET for the exact authorised draft/version."
+    contracts:
+      - path: docs/product/visual-programming/VSCR-D0-003-ASSET-STORAGE-CONTRACT.md
+        section: "Asset GET endpoint"
+    task: VSCR-M1-004
+    depends_on: [blocks.assets.metadata, blocks.runtime.capability]
