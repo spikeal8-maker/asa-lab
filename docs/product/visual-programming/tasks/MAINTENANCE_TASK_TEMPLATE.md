@@ -1,7 +1,9 @@
 # Scratch maintenance task template
 
 Use this only for a bounded post-implementation Scratch change that is not a milestone task.
-Active execution still comes from `docs/execution/current.yaml` + explicit owner instruction.
+Active execution state still comes only from `docs/execution/current.yaml`. An owner request
+may authorise creating/selecting this bounded maintenance task, but editing begins only after
+`current.yaml` reflects the exact task/scope.
 
 ## Goal
 
