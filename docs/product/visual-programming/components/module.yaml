@@ -1,13 +1,14 @@
-schema_version: 1.0.0
+schema_version: 2.0.0
 area: module-foundation
 components:
   - id: blocks.module.contract
     state: implemented
     risk: medium
+    ownership: asa
     purpose: "Canonical Blocks envelope, manifest and structural validation."
     contracts:
       - path: docs/product/ASA_VISUAL_PROGRAMMING_SCRATCH_MASTER_SPEC.md
-        section: "§4 Canonical project document"
+        section: "Canonical project document"
     sources:
       - path: apps/api/src/blocks-module.ts
         symbols: [BlocksProjectDocumentV1, BlocksAssetReferenceV1, BLOCKS_MODULE]
@@ -23,7 +24,8 @@ components:
   - id: blocks.upstream.pin
     state: implemented
     risk: high
-    purpose: "Exact reviewed Scratch Editor source/version lock and update provenance."
+    ownership: upstream_config
+    purpose: "Exact reviewed Scratch Editor source/version lock and controlled update boundary."
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-001-SCRATCH-HOST-CONTRACT.md
         section: "Upstream provenance"
