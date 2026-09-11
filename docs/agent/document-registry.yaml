@@ -1,7 +1,7 @@
 schema_version: 1.1.0
 coverage: partial
 unregistered_documents_allowed: true
-strict_task_scopes: [learning]
+strict_task_scopes: [admin-auth, learning]
 
 status_values:
   - canonical
@@ -80,6 +80,38 @@ documents:
     revision: '2.0'
     context_role: escalation
     read_when: [account, student_seat, access, profile, navigation, settings]
+
+  - id: IDENTITY-DOMAIN-CONTRACT
+    path: docs/agent/contracts/identity.yaml
+    scope: identity
+    lanes: [admin-auth]
+    kind: domain_contract
+    status: canonical
+    authority: identity_core_invariants
+    revision: '1.0'
+    context_role: compact
+    read_when: [identity_any_change, account, auth, student_seat, access, profile, session]
+
+  - id: ADMIN-AUTH-MAX-BLUEPRINT
+    path: docs/execution/ADMIN_AUTH_MAX_EXECUTION_PLAN.md
+    scope: identity
+    lanes: [admin-auth]
+    kind: execution_blueprint
+    status: supporting
+    authority: none
+    context_role: trace
+    read_when: [admin_session_max_change, production_auth_recovery]
+
+  - id: ACCESS-A-REVIEW-RECEIPT
+    path: docs/execution/ASA_ACCESS_A.md
+    scope: identity
+    lanes: [admin-auth]
+    kind: accepted_result_receipt
+    status: review_only
+    authority: none
+    context_role: historical
+    read_when: [access_a_history, accepted_result_evidence]
+    do_not_read_for: [new_identity_implementation]
 
   - id: LEARNING-DOMAIN-CONTRACT
     path: docs/agent/contracts/learning.yaml

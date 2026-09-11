@@ -170,6 +170,7 @@ def _validate_contract(
     schema: dict[str, Any],
     registry: dict[str, dict[str, Any]],
     invariant_ids: set[str],
+    invariant_domains: dict[str, str],
     errors: list[str],
 ) -> None:
     relative = path.relative_to(root).as_posix()
@@ -235,6 +236,7 @@ def _validate_contract(
         else:
             local_ids.add(invariant_id)
             invariant_ids.add(invariant_id)
+            invariant_domains[invariant_id] = str(domain)
         if not isinstance(inv.get("statement"), str) or not inv.get("statement").strip():
             errors.append(f"{label}.statement must be non-empty")
         master_refs = inv.get("master_refs")
@@ -257,11 +259,29 @@ def _validate_contract(
         if not isinstance(inv.get("applies_to"), list) or not inv.get("applies_to"):
             errors.append(f"{label}.applies_to must be non-empty")
 
+def _compact_route_lanes(
+    registry: dict[str, dict[str, Any]], context: str
+) -> set[str]:
+    lanes: set[str] = set()
+    for raw in registry.values():
+        if (
+            raw.get("status") == "canonical"
+            and raw.get("context_role") == "compact"
+            and raw.get("scope") == context
+        ):
+            for lane in raw.get("lanes") or []:
+                if isinstance(lane, str) and lane and lane != "*":
+                    lanes.add(lane)
+    return lanes
+
+
 def _validate_surface_map(
     root: Path,
     path: Path,
     schema: dict[str, Any],
     invariant_ids: set[str],
+    invariant_domains: dict[str, str],
+    registry: dict[str, dict[str, Any]],
     surface_ids: set[str],
     control_ids: set[str],
     test_ids: set[str],
@@ -279,8 +299,20 @@ def _validate_surface_map(
         return
     if doc.get("schema_version") != "1.0.0":
         errors.append(f"{relative}.schema_version must be '1.0.0'")
-    if not isinstance(doc.get("context"), str) or not doc.get("context"):
-        errors.append(f"{relative}.context must be non-empty")
+    for forbidden in schema.get("forbidden_top_level") or []:
+        if forbidden in doc:
+            errors.append(f"{relative} must not contain routing/live-state field {forbidden}")
+    context = doc.get("context")
+    if not isinstance(context, str) or not re.fullmatch(r"[a-z][a-z0-9_-]*", context):
+        errors.append(f"{relative}.context must be a bounded-context id")
+        context = ""
+    if context:
+        lanes = _compact_route_lanes(registry, context)
+        if len(lanes) != 1:
+            errors.append(
+                f"{relative}.context {context!r} must route through exactly one canonical "
+                f"compact-document lane; found {sorted(lanes)}"
+            )
 
     surface_pattern = re.compile(str((schema.get("id_rules") or {}).get("surface_id")))
     control_pattern = re.compile(str((schema.get("id_rules") or {}).get("control_id")))
@@ -327,8 +359,14 @@ def _validate_surface_map(
             errors.append(f"{label}.invariants must be an array")
         else:
             for invariant_id in refs:
-                if str(invariant_id) not in invariant_ids:
+                invariant_key = str(invariant_id)
+                if invariant_key not in invariant_ids:
                     errors.append(f"{label} references unknown invariant {invariant_id}")
+                elif context and invariant_domains.get(invariant_key) != context:
+                    errors.append(
+                        f"{label} references invariant {invariant_key} from bounded context "
+                        f"{invariant_domains.get(invariant_key)!r}, expected {context!r}"
+                    )
 
         tests = surface.get("tests")
         if not isinstance(tests, list) or not tests or not all(isinstance(item, str) and item for item in tests):
@@ -376,8 +414,14 @@ def _validate_surface_map(
                 errors.append(f"{control_label}.invariants must be an array")
             else:
                 for invariant_id in refs:
-                    if str(invariant_id) not in invariant_ids:
+                    invariant_key = str(invariant_id)
+                    if invariant_key not in invariant_ids:
                         errors.append(f"{control_label} references unknown invariant {invariant_id}")
+                    elif context and invariant_domains.get(invariant_key) != context:
+                        errors.append(
+                            f"{control_label} references invariant {invariant_key} from bounded context "
+                            f"{invariant_domains.get(invariant_key)!r}, expected {context!r}"
+                        )
             control_tests = control.get("tests")
             if not isinstance(control_tests, list) or not control_tests:
                 errors.append(f"{control_label}.tests must be non-empty")
@@ -399,6 +443,7 @@ def validate(root: Path) -> list[str]:
         root, SURFACE_SCHEMA_PATH, "ASA-AGENT-SURFACE-MAP-V1", errors
     )
     invariant_ids: set[str] = set()
+    invariant_domains: dict[str, str] = {}
     surface_ids: set[str] = set()
     control_ids: set[str] = set()
     test_ids = _load_test_ids(root, errors)
@@ -406,10 +451,13 @@ def validate(root: Path) -> list[str]:
     contract_paths = sorted((root / CONTRACT_DIR).glob("*.yaml"))
     surface_paths = sorted((root / SURFACE_DIR).glob("*.yaml"))
     for path in contract_paths:
-        _validate_contract(root, path, domain_schema, registry, invariant_ids, errors)
+        _validate_contract(
+            root, path, domain_schema, registry, invariant_ids, invariant_domains, errors
+        )
     for path in surface_paths:
         _validate_surface_map(
-            root, path, surface_schema, invariant_ids, surface_ids, control_ids, test_ids, errors
+            root, path, surface_schema, invariant_ids, invariant_domains, registry,
+            surface_ids, control_ids, test_ids, errors
         )
     return errors
 
