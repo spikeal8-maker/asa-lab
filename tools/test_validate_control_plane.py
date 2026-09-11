@@ -254,6 +254,27 @@ def task_bad_id(_):
     return errors
 
 
+@case("a canonical VSCR milestone task id", expect="")
+def task_vscr_milestone_id(_):
+    errors: list[str] = []
+    cp.check_current(task_document(id="VSCR-M1-001"), errors)
+    return errors
+
+
+@case("a canonical VSCR sub-slice task id", expect="")
+def task_vscr_subslice_id(_):
+    errors: list[str] = []
+    cp.check_current(task_document(id="VSCR-M1-002A"), errors)
+    return errors
+
+
+@case("a malformed VSCR task id", expect="task.id invalid")
+def task_bad_vscr_id(_):
+    errors: list[str] = []
+    cp.check_current(task_document(id="VSCR-M1-01"), errors)
+    return errors
+
+
 @case("a complete task record", expect="")
 def task_healthy(_):
     errors: list[str] = []
