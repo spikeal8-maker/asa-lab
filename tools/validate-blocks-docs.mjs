@@ -400,6 +400,11 @@ if (fs.existsSync(taskDir)) {
       if (!text.includes(taskId)) {
         errors.push(`${relative}: execution marker/card must name exact task ID ${taskId}`);
       }
+
+      const highRisk = text.includes('**Risk:** high') || text.includes('**Risk:** critical');
+      if (highRisk && !text.includes('## Independent review')) {
+        errors.push(`${relative}: HIGH/CRITICAL executable/review card needs ## Independent review`);
+      }
     }
   }
 }
@@ -444,3 +449,4 @@ console.log('- retired competing docs/addenda absent from active tree');
 console.log('- implemented source/test paths, symbols and canonical contract headings verified');
 console.log('- shared/large implemented code sources have symbol-level routing');
 console.log('- executable task cards are bound to exact current.yaml task IDs');
+console.log('- HIGH/CRITICAL executable slices require independent review');
