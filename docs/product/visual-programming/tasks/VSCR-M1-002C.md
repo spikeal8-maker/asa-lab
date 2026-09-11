@@ -1,0 +1,107 @@
+# VSCR-M1-002C — Parent/iframe protocol boundary
+
+**Kind:** executable implementation slice  
+**Risk:** high  
+**Prerequisite:** VSCR-M1-002B accepted.
+
+## Goal
+
+Establish the finite ASA parent ↔ Scratch-host message boundary with strict source/origin,
+protocol, project and nonce validation. Use deterministic fixture authority only; real runtime
+capability issuance belongs to M1-003.
+
+## Components
+
+```text
+blocks.host.protocol
+```
+
+Open only that entry in `components/host.yaml` plus its direct host-build dependency if needed.
+
+## Minimal read set
+
+```text
+../README.md
+../AGENT_GUIDE.md
+../COMPONENT_MAP.yaml
+../components/host.yaml → blocks.host.protocol
+../VSCR-D0-001-SCRATCH-HOST-CONTRACT.md → Parent/iframe protocol
+../VSCR-D0-004-RUNTIME-SECURITY-CONTRACT.md → Origin CORS CSP boundary (design constraints only)
+actual host shell accepted in M1-002A/B
+```
+
+## Expected write paths
+
+```text
+apps/web/src/blocks/**                  # minimal reusable parent component/tests only
+infra/scratch-editor/host/protocol.js
+infra/scratch-editor/host/status.js
+infra/scratch-editor/host/main.js       # composition only
+infra/scratch-editor/host/index.html    # only if bootstrap marker/wiring requires it
+e2e/blocks-host-protocol.spec.ts
+../components/host.yaml → blocks.host.protocol only
+```
+
+## Protocol scope
+
+Implement only the finite message set from D0-001:
+
+```text
+parent → child
+  ASA_BLOCKS_INIT
+  ASA_BLOCKS_TOKEN_UPDATE
+  ASA_BLOCKS_FLUSH_REQUEST
+  ASA_BLOCKS_STOP
+
+child → parent
+  ASA_BLOCKS_READY
+  ASA_BLOCKS_STATUS
+  ASA_BLOCKS_TOKEN_REFRESH_REQUIRED
+  ASA_BLOCKS_FLUSH_RESULT
+  ASA_BLOCKS_FATAL
+```
+
+Every accepted post-init message binds protocolVersion, projectId and sessionNonce. No
+generic RPC/eval bridge and no wildcard `postMessage('*')` target.
+
+## Acceptance
+
+```text
+editor does not mount before valid INIT
+wrong event.source/origin/project/nonce/protocol is rejected
+parent sends only to exact configured runtime origin
+fixture token stays memory-only
+TOKEN_UPDATE changes only in-memory authority fixture
+runtime failure produces controlled parent error state
+no production hidden editor route is exposed
+```
+
+## Tests/evidence
+
+```text
+browser wrong-origin/source/nonce/project negatives
+no postMessage target '*'
+no token in URL/localStorage/sessionStorage/IndexedDB/logs
+parent survives child FATAL/runtime crash
+node tools/validate-blocks-docs.mjs
+```
+
+## Forbidden
+
+```text
+no real JWT issuance or verification
+no generic CORS policy change
+no S3/MinIO
+no Project Core save
+no ScratchStorage load/save implementation
+no M1-003 work
+```
+
+## Bounded self-review
+
+Review only the protocol component, final diff, D0-001 protocol section and mapped browser
+evidence. Confirm security transport implementation did not leak forward into M1-003.
+
+## Stop
+
+STOP after evidence. VSCR-M1-002D is separately selected.
