@@ -51,4 +51,16 @@ components:
       - path: docs/product/visual-programming/VSCR-D0-005-DEPLOYMENT-ACTIVATION-CONTRACT.md
         section: "Activation preflight evidence"
     task: VSCR-M4-001
-    depends_on: [blocks.deployment.backup-restore, blocks.gallery.player, blocks.learning.submission]
+    depends_on:
+      - blocks.project.autosave
+      - blocks.project.recovery
+      - blocks.project.conflict
+      - blocks.sb3.import
+      - blocks.sb3.export
+      - blocks.gallery.publication
+      - blocks.gallery.player
+      - blocks.gallery.remix
+      - blocks.learning.submission
+      - blocks.sovereign.media
+      - blocks.sovereign.extensions
+      - blocks.deployment.backup-restore
