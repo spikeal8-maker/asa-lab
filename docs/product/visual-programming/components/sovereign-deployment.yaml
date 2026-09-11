@@ -1,47 +1,54 @@
-schema_version: 1.0.0
+schema_version: 2.0.0
 area: sovereign-deployment
 components:
   - id: blocks.sovereign.media
     state: blocked
     risk: medium
+    ownership: asa
     purpose: "Rights-cleared local default project/media libraries without Scratch Foundation fallback."
     contracts:
+      - path: docs/product/visual-programming/VSCR-D0-001-SCRATCH-HOST-CONTRACT.md
+        section: "Branding"
       - path: docs/product/visual-programming/VSCR-D0-005-DEPLOYMENT-ACTIVATION-CONTRACT.md
-        section: "Sovereign/local baseline"
-    planned_sources:
-      - infra/scratch-editor/host/**
-      - apps/web/public/assets/**
+        section: "Sovereign deployment test"
     task: VSCR-M3
+    depends_on: [blocks.project.load-save]
 
   - id: blocks.sovereign.extensions
     state: blocked
     risk: high
-    purpose: "Approved local extension allowlist; external/hardware extensions classified separately."
+    ownership: upstream_config
+    purpose: "Approved local extension allowlist; external-service/hardware extensions classified separately."
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-001-SCRATCH-HOST-CONTRACT.md
         section: "Extensions"
       - path: docs/product/visual-programming/VSCR-D0-005-DEPLOYMENT-ACTIVATION-CONTRACT.md
-        section: "Sovereign/local baseline"
-    planned_sources: [infra/scratch-editor/host/**]
+        section: "Sovereign deployment test"
     task: VSCR-M3
+    depends_on: [blocks.host.extensions]
 
   - id: blocks.deployment.backup-restore
     state: blocked
     risk: critical
-    purpose: "Coherent Postgres + object-store backup/restore evidence."
+    ownership: infrastructure
+    purpose: "Coherent PostgreSQL + object-store backup/isolated-restore evidence."
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-005-DEPLOYMENT-ACTIVATION-CONTRACT.md
-        section: "Backup/restore acceptance"
+        section: "Restore acceptance"
+      - path: docs/product/visual-programming/VSCR-D0-005-DEPLOYMENT-ACTIVATION-CONTRACT.md
+        section: "Backup consistency invariant"
     task: VSCR-M3
+    depends_on: [blocks.assets.metadata, blocks.project.load-save]
 
   - id: blocks.activation
     state: blocked
     risk: critical
-    purpose: "Only authorised coming_soon → active transition after all acceptance gates."
+    ownership: asa
+    purpose: "Only authorised coming_soon → active transition after every acceptance gate."
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-005-DEPLOYMENT-ACTIVATION-CONTRACT.md
-        section: "Activation gate"
-    planned_sources:
-      - contexts/blocks/**
-      - apps/api/src/module-registry.ts
+        section: "Activation task VSCR-M4-001"
+      - path: docs/product/visual-programming/VSCR-D0-005-DEPLOYMENT-ACTIVATION-CONTRACT.md
+        section: "Activation preflight evidence"
     task: VSCR-M4-001
+    depends_on: [blocks.deployment.backup-restore, blocks.gallery.player, blocks.learning.submission]
