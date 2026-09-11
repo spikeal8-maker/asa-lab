@@ -19,7 +19,10 @@ Resolve from `../COMPONENT_MAP.yaml` before reading code:
 <blocks.component.id>
 ```
 
-If no component matches, STOP and repair the component map first.
+The compact index points to one `../components/*.yaml` card. Open only that card and the
+matching component entry.
+
+If no component matches, STOP and repair routing first.
 
 ## Risk
 
@@ -34,18 +37,20 @@ Use the policy in `../AGENT_GUIDE.md`.
 ```text
 ../README.md
 ../AGENT_GUIDE.md
-../COMPONENT_MAP.yaml → exact component entry
+../COMPONENT_MAP.yaml compact index
+<one referenced ../components/*.yaml card>
 <only mapped canonical contract section(s)>
 <only mapped source file(s)>
 <only mapped test file(s)>
 ```
 
-Do not read unrelated Scratch subsystems.
+Do not read other Scratch subsystem cards unless a concrete dependency requires one more hop.
 
 ## Expected write paths
 
 ```text
 <small exact path set>
+<the matching components/*.yaml card only if ownership/routing changes>
 ```
 
 Any extra path must have a concrete dependency reason stated before editing.
@@ -82,7 +87,7 @@ Use the `AGENT_GUIDE.md` checklist against:
 ```text
 this maintenance card
 the final diff
-the mapped component contract
+the mapped component entry + contract
 the focused test evidence
 ```
 
@@ -93,10 +98,13 @@ Do not reread the full Scratch project for self-review.
 If source/test ownership moved or a new stable component/symbol was introduced:
 
 ```text
-update ../COMPONENT_MAP.yaml in the same slice
+update the matching ../components/*.yaml card in the same slice
 ```
 
-If ownership did not change, report `component_map: unchanged`.
+Update `../COMPONENT_MAP.yaml` only when the stable component ID/card/state/risk routing
+itself changes.
+
+If ownership did not change, report `routing_docs: unchanged`.
 
 ## Stop
 
