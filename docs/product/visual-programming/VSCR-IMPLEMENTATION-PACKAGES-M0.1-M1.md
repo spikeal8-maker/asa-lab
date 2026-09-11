@@ -216,6 +216,7 @@ apps/api/src/module-registry.ts
 apps/api/src/blocks-module.ts          # delete after imports migrate
 apps/api/src/blocks-module.spec.ts     # delete/move after tests migrate
 pnpm-lock.yaml                         # only workspace-link update if pnpm changes it
+package.json                            # only to add blocks build before an existing registry-loading focused gate if CI proves it is required
 .github/workflows/scratch-m0-focused.yml # only if paths/commands must follow moved tests
 ```
 
@@ -322,6 +323,7 @@ existing modules controller tests
 API typecheck
 boundaries:check
 focused Scratch workflow updated to execute the moved tests/build
+any existing focused gate that loads apps/api/src/modules.controller.spec.ts builds blocks first
 ```
 
 ## Forbidden
