@@ -148,6 +148,27 @@ def _surface_index(root: Path) -> list[dict[str, Any]]:
     return result
 
 
+def _execution_lane_for_context(registry: dict[str, Any], context: str) -> str:
+    lanes: set[str] = set()
+    for raw in registry.get("documents") or []:
+        if not isinstance(raw, dict):
+            continue
+        if (
+            raw.get("status") == "canonical"
+            and raw.get("context_role") == "compact"
+            and raw.get("scope") == context
+        ):
+            for lane in raw.get("lanes") or []:
+                if isinstance(lane, str) and lane and lane != "*":
+                    lanes.add(lane)
+    if len(lanes) != 1:
+        raise ValueError(
+            f"bounded context {context!r} must route through exactly one canonical compact-document lane; "
+            f"found {sorted(lanes)}"
+        )
+    return next(iter(lanes))
+
+
 def _test_index(root: Path) -> dict[str, dict[str, Any]]:
     result: dict[str, dict[str, Any]] = {}
     for relative in TEST_CATALOGS:
@@ -230,13 +251,16 @@ def _resolve_target(
     contexts = {str(item.get("context")) for item in selected_surfaces}
     if len(contexts) != 1:
         raise ValueError(f"target resolves to multiple bounded contexts: {sorted(contexts)}")
+    context = next(iter(contexts))
+    lane = _execution_lane_for_context(load_registry(root), context)
     return {
         "selector": {
             "surface": surface_id,
             "control": control_id,
             "path": normalized_path,
         },
-        "context": next(iter(contexts)),
+        "context": context,
+        "lane": lane,
         "surfaces": selected_surfaces,
         "controls": selected_controls,
     }
@@ -532,10 +556,10 @@ def build_targeted_context(
     *,
     git_status: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    if str(lane.get("id")) != target.get("context"):
+    if str(lane.get("id")) != target.get("lane"):
         raise ValueError(
-            f"target belongs to context {target.get('context')!r}, "
-            f"not selected scope {lane.get('id')!r}"
+            f"target belongs to bounded context {target.get('context')!r} "
+            f"on execution lane {target.get('lane')!r}, not selected scope {lane.get('id')!r}"
         )
     base = build_context(root, document, lane, git_status=git_status)
     invariants = _invariant_index(root)
@@ -640,6 +664,7 @@ def build_targeted_context(
         "source": base["source"],
         "policy": base["policy"],
         "scope": base["scope"],
+        "bounded_context": target["context"],
         "task": base["task"],
         "selector": selector,
         "surfaces": [
@@ -683,6 +708,7 @@ def render_targeted_text(context: dict[str, Any]) -> str:
     lines = [
         "ASA Lab targeted agent context",
         f"scope: {context['scope']}",
+        f"boundedContext: {context['bounded_context']}",
         f"task: {task.get('id')}",
         f"target: {selected}",
         f"changeClass: {context['change_class']}",
@@ -947,7 +973,7 @@ def main() -> int:
             print(f"agent context: FAIL\n- {exc}", file=sys.stderr)
             return 1
     selected = args.scope or (
-        str(target_context.get("context")) if target_context is not None else str(lanes[0].get("id"))
+        str(target_context.get("lane")) if target_context is not None else str(lanes[0].get("id"))
     )
     lane = next((item for item in lanes if item.get("id") == selected), None)
     if lane is None:

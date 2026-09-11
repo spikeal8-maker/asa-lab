@@ -31,12 +31,16 @@ def fixture(root: Path) -> None:
                 {
                     "id": "MASTER",
                     "path": "docs/master.md",
+                    "scope": "test",
+                    "lanes": ["test"],
                     "status": "canonical",
                     "context_role": "escalation",
                 },
                 {
                     "id": "TEST-DOMAIN",
                     "path": "docs/agent/contracts/test.yaml",
+                    "scope": "test",
+                    "lanes": ["test"],
                     "status": "canonical",
                     "context_role": "compact",
                 },
@@ -76,6 +80,7 @@ def fixture(root: Path) -> None:
                 "test_id": r"^TST-[A-Z0-9]+(?:-[A-Z0-9]+)*$",
             },
             "required_top_level": ["schema_version", "context", "surfaces"],
+            "forbidden_top_level": ["lane", "active_task", "checkpoint", "head_sha"],
             "surface_required_fields": ["id", "routes", "implementation", "invariants", "tests"],
             "control_required_fields": ["id", "change_class", "files", "invariants", "tests"],
             "allowed_change_classes": ["L0_LOCAL_UI", "L1_UI_BEHAVIOR", "L2_DOMAIN_MUTATION", "L3_CRITICAL"],
@@ -207,6 +212,51 @@ class MaintenanceDocsTests(unittest.TestCase):
             write_yaml(root / "docs/agent/contracts/test.yaml", contract)
             errors = MODULE.validate(root)
             self.assertTrue(any("missing anchor ATT-999" in item for item in errors))
+
+
+
+
+    def test_surface_map_cannot_store_execution_lane(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            fixture(root)
+            (root / "apps").mkdir()
+            (root / "apps/test.ts").write_text("export {};\n", encoding="utf-8")
+            write_yaml(root / "docs/agent/contracts/test.yaml", valid_contract())
+            surface = valid_surface()
+            surface["lane"] = "test"
+            write_yaml(root / "docs/agent/surfaces/test.yaml", surface)
+            errors = MODULE.validate(root)
+            self.assertTrue(any("must not contain routing/live-state field lane" in item for item in errors), errors)
+
+    def test_surface_context_requires_one_compact_registry_route(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            fixture(root)
+            (root / "apps").mkdir()
+            (root / "apps/test.ts").write_text("export {};\n", encoding="utf-8")
+            write_yaml(root / "docs/agent/contracts/test.yaml", valid_contract())
+            write_yaml(root / "docs/agent/surfaces/test.yaml", valid_surface())
+            registry_path = root / "docs/agent/document-registry.yaml"
+            registry = yaml.safe_load(registry_path.read_text(encoding="utf-8"))
+            compact = next(item for item in registry["documents"] if item["id"] == "TEST-DOMAIN")
+            compact["lanes"] = ["test", "other"]
+            write_yaml(registry_path, registry)
+            errors = MODULE.validate(root)
+            self.assertTrue(any("exactly one canonical compact-document lane" in item for item in errors), errors)
+
+    def test_surface_cannot_use_invariant_from_another_bounded_context(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            fixture(root)
+            (root / "apps").mkdir()
+            (root / "apps/test.ts").write_text("export {};\n", encoding="utf-8")
+            contract = valid_contract()
+            contract["domain"] = "other"
+            write_yaml(root / "docs/agent/contracts/test.yaml", contract)
+            write_yaml(root / "docs/agent/surfaces/test.yaml", valid_surface())
+            errors = MODULE.validate(root)
+            self.assertTrue(any("expected 'test'" in item for item in errors), errors)
 
     def test_surface_test_id_must_be_registered(self):
         with tempfile.TemporaryDirectory() as raw:

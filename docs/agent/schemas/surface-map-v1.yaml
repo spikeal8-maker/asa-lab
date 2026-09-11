@@ -7,6 +7,12 @@ required_top_level:
   - context
   - surfaces
 
+forbidden_top_level:
+  - lane
+  - active_task
+  - checkpoint
+  - head_sha
+
 id_rules:
   surface_id: '^SURF-[A-Z0-9]+(?:-[A-Z0-9]+)*$'
   control_id: '^CTRL-[A-Z0-9]+(?:-[A-Z0-9]+)*$'
