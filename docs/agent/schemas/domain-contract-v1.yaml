@@ -1,0 +1,32 @@
+schema_id: ASA-AGENT-DOMAIN-CONTRACT-V1
+schema_version: 1.0.0
+purpose: Compact invariant contract for one bounded context.
+
+required_top_level:
+  - schema_version
+  - contract_id
+  - domain
+  - registry_document_id
+  - master_documents
+  - invariants
+
+id_rules:
+  contract_id: '^[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*-DOMAIN$'
+  invariant_id: '^[A-Z][A-Z0-9]*-[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*-[0-9]{3}$'
+
+invariant_required_fields:
+  - id
+  - statement
+  - master_refs
+  - applies_to
+
+master_ref_required_fields:
+  - document
+  - section
+
+forbidden_top_level:
+  - active_task
+  - checkpoint
+  - head_sha
+  - ci_status
+  - owner_acceptance

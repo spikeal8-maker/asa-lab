@@ -14,6 +14,9 @@ ROOT = Path(__file__).resolve().parents[1]
 REGISTRY = "docs/agent/document-registry.yaml"
 REQUIRED_FIELDS = {"id", "path", "scope", "kind", "status", "authority", "read_when"}
 ALLOWED_STATUS = {"canonical", "supporting", "historical", "superseded", "review_only"}
+CONTEXT_ROLE_VALUES = ["root", "compact", "target", "task", "escalation", "trace", "historical", "review"]
+ALLOWED_CONTEXT_ROLES = set(CONTEXT_ROLE_VALUES)
+SUPPORTED_SCHEMA_VERSIONS = {"1.0.0", "1.1.0"}
 
 
 def load_registry(root: Path) -> dict[str, Any]:
@@ -36,6 +39,9 @@ def _valid_relative_path(raw: Any) -> bool:
 
 def validate_registry(root: Path, data: dict[str, Any]) -> list[str]:
     errors: list[str] = []
+    version = str(data.get("schema_version") or "1.0.0")
+    if version not in SUPPORTED_SCHEMA_VERSIONS:
+        errors.append(f"schema_version unsupported: {version!r}")
     if data.get("coverage") not in {"partial", "full"}:
         errors.append("coverage must be 'partial' or 'full'")
     if not isinstance(data.get("unregistered_documents_allowed"), bool):
@@ -46,6 +52,8 @@ def validate_registry(root: Path, data: dict[str, Any]) -> list[str]:
     declared = data.get("status_values")
     if declared != ["canonical", "supporting", "historical", "superseded", "review_only"]:
         errors.append("status_values must use the canonical ordered set")
+    if version == "1.1.0" and data.get("context_role_values") != CONTEXT_ROLE_VALUES:
+        errors.append("context_role_values must use the canonical ordered set")
 
     documents = data.get("documents")
     if not isinstance(documents, list) or not documents:
@@ -71,6 +79,16 @@ def validate_registry(root: Path, data: dict[str, Any]) -> list[str]:
         status = raw.get("status")
         authority = raw.get("authority")
         read_when = raw.get("read_when")
+        lanes = raw.get("lanes")
+        context_role = raw.get("context_role")
+
+        if version == "1.1.0":
+            if not isinstance(lanes, list) or not lanes or not all(
+                isinstance(item, str) and item for item in lanes
+            ):
+                errors.append(f"{prefix}.lanes must be a non-empty string array")
+            if context_role not in ALLOWED_CONTEXT_ROLES:
+                errors.append(f"{prefix}.context_role invalid: {context_role!r}")
 
         if not isinstance(doc_id, str) or not doc_id:
             errors.append(f"{prefix}.id must be non-empty string")
@@ -121,6 +139,14 @@ def validate_registry(root: Path, data: dict[str, Any]) -> list[str]:
             errors.append(f"superseded document {doc_id} points to unknown id {target}")
         elif target_doc.get("status") != "canonical":
             errors.append(f"superseded document {doc_id} must point to canonical document")
+
+    strict_scopes = data.get("strict_task_scopes") or []
+    if version == "1.1.0" and (
+        not isinstance(strict_scopes, list)
+        or not all(isinstance(item, str) and item for item in strict_scopes)
+        or len(strict_scopes) != len(set(strict_scopes))
+    ):
+        errors.append("strict_task_scopes must be a unique string array")
 
     live = [raw for raw in documents if isinstance(raw, dict) and raw.get("kind") == "live_state"]
     if len(live) != 1 or live[0].get("path") != "docs/execution/current.yaml":
