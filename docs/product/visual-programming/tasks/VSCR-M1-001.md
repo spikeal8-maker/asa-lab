@@ -1,7 +1,7 @@
 # VSCR-M1-001 — Extract `@asa-lab/blocks` bounded context
 
 **Kind:** executable implementation slice  
-**Risk:** medium  
+**Risk:** high
 **Prerequisite:** M0/M0.1 integrated and owner-authorised selection.  
 **Execution:** coding starts only when `docs/execution/current.yaml.task.id` is exactly `VSCR-M1-001`.  
 **Behavioral goal:** none; structural extraction only.
@@ -54,6 +54,10 @@ widening scope.
 
 ```text
 package.json                              # exact test:blocks-m1-001 / gate:blocks-m1-001 scripts only
+eslint.config.mjs                         # context:blocks dependency rule only
+tools/validate-context-boundaries.mjs    # register blocks as an isolated context only
+tools/validate-blocks-docs.mjs           # assert Blocks boundary registration stays fail-closed
+docs/project-map/nx-project-graph.json   # regenerate normally after adding the context
 contexts/blocks/package.json
 contexts/blocks/project.json
 contexts/blocks/tsconfig.json
@@ -108,7 +112,7 @@ contexts/blocks/
     BLOCKS_MODULE and preview/provider assembly
 
   index.ts
-    public exports only
+    public types + BLOCKS_MODULE only; structural validators remain internal
 ```
 
 No Nest/Fastify/pg/React/Scratch GUI/VM dependency enters `contexts/blocks` in this task.
@@ -185,6 +189,14 @@ Did availability change?
 Did I start host/storage work?
 Did I update actual routing paths after moving the provider?
 ```
+
+## Independent review
+
+Because the final slice changes a new bounded-context boundary plus shared build/governance
+integration, acceptance requires a review-only pass after implementation. The reviewer must
+inspect the final diff, boundary enforcement, regenerated Nx graph, exact-SHA CI and the
+forbidden M1-002 scope. A review finding is repaired in a separate bounded commit and then
+reviewed again; the review step does not silently edit product code.
 
 ## Stop
 

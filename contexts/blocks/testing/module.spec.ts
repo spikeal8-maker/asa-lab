@@ -42,6 +42,9 @@ describe('BLOCKS_MODULE', () => {
       moduleKey: 'blocks',
       moduleVersion: '0.1.1',
       projectType: 'scratch-3',
+      schemaVersion: 1,
+      editorRoute: '/projects/:projectId/blocks',
+      viewerRoute: '/view/projects/:versionId/blocks',
       availability: 'coming_soon',
       previewKind: 'stage',
     });

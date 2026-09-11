@@ -1,4 +1,4 @@
-﻿import type { ModuleDiagnostic, ModuleValidationResult } from '@asa-lab/module-sdk';
+import type { ModuleDiagnostic, ModuleValidationResult } from '@asa-lab/module-sdk';
 import type { BlocksAssetFormat, BlocksProjectDocumentV1 } from './document.js';
 
 const ASSET_KEYS = new Set(['assetId', 'dataFormat', 'sha256', 'sizeBytes']);
