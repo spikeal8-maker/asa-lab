@@ -10,14 +10,17 @@ components:
       - path: docs/product/ASA_VISUAL_PROGRAMMING_SCRATCH_MASTER_SPEC.md
         section: "Canonical project document"
     sources:
-      - path: apps/api/src/blocks-module.ts
-        symbols: [BlocksProjectDocumentV1, BlocksAssetReferenceV1, BLOCKS_MODULE]
+      - path: contexts/blocks/domain/document.ts
+        symbols: [BlocksProjectDocumentV1, BlocksAssetReferenceV1]
+      - path: contexts/blocks/domain/validation.ts
+        symbols: [validateBlocksDocument]
+      - path: contexts/blocks/module.ts
+        symbols: [BLOCKS_MODULE]
       - path: apps/api/src/module-registry.ts
         symbols: [createApiModuleRegistry]
     tests:
-      - apps/api/src/blocks-module.spec.ts
+      - contexts/blocks/testing/module.spec.ts
       - apps/api/src/modules.controller.spec.ts
-    future_owner: contexts/blocks/**
     task: VSCR-M1-001
     avoid_unless_needed: [host, runtime, storage, gallery, learning, sb3]
 

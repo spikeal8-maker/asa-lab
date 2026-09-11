@@ -53,6 +53,7 @@ widening scope.
 ## Expected write paths
 
 ```text
+package.json                              # exact test:blocks-m1-001 / gate:blocks-m1-001 scripts only
 contexts/blocks/package.json
 contexts/blocks/project.json
 contexts/blocks/tsconfig.json
@@ -120,7 +121,13 @@ import { BLOCKS_MODULE } from '@asa-lab/blocks';
 
 ## Tests/gates
 
-Run the moved/final equivalents of:
+The exact focused local/CI command is:
+
+```text
+pnpm gate:blocks-m1-001
+```
+
+It covers the moved/final equivalents of:
 
 ```text
 nx build module-sdk

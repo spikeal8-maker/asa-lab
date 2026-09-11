@@ -1,36 +1,5 @@
-import {
-  defineModule,
-  type ModuleDiagnostic,
-  type ModulePreviewDescriptor,
-  type ModuleValidationResult,
-} from '@asa-lab/module-sdk';
-
-export type BlocksAssetFormat = 'svg' | 'png' | 'jpg' | 'wav' | 'mp3';
-
-export interface BlocksAssetReferenceV1 {
-  /** Scratch compatibility identity: lowercase MD5 of the asset bytes. */
-  readonly assetId: string;
-  /** Supported Scratch media format without a leading dot. */
-  readonly dataFormat: BlocksAssetFormat;
-  /** ASA integrity digest of the stored bytes. */
-  readonly sha256: string;
-  readonly sizeBytes: number;
-}
-
-/**
- * ASA-owned envelope around Scratch 3 state.
- *
- * `projectJson` is the JSON document found inside an .sb3 archive. Binary assets
- * are deliberately represented by logical references only. Physical bucket/object
- * location is server-side metadata and never belongs in Project Core JSONB.
- */
-export interface BlocksProjectDocumentV1 {
-  readonly schemaVersion: 1;
-  readonly format: 'scratch-3';
-  /** Null until the embedded Scratch runtime has initialised its default project. */
-  readonly projectJson: Record<string, unknown> | null;
-  readonly assets: readonly BlocksAssetReferenceV1[];
-}
+﻿import type { ModuleDiagnostic, ModuleValidationResult } from '@asa-lab/module-sdk';
+import type { BlocksAssetFormat, BlocksProjectDocumentV1 } from './document.js';
 
 const ASSET_KEYS = new Set(['assetId', 'dataFormat', 'sha256', 'sizeBytes']);
 const ASSET_FORMATS = new Set<BlocksAssetFormat>(['svg', 'png', 'jpg', 'wav', 'mp3']);
@@ -63,7 +32,10 @@ function validateProjectJson(value: unknown): ModuleDiagnostic | null {
   return null;
 }
 
-function validateAsset(value: unknown, index: number): ModuleDiagnostic | null {
+export function validateBlocksAssetReference(
+  value: unknown,
+  index: number,
+): ModuleDiagnostic | null {
   if (!isRecord(value)) {
     return diagnostic('blocks.asset.type', `Scratch asset ${index} must be an object.`);
   }
@@ -122,7 +94,9 @@ function validateAsset(value: unknown, index: number): ModuleDiagnostic | null {
   return null;
 }
 
-function validateDocument(value: unknown): ModuleValidationResult<BlocksProjectDocumentV1> {
+export function validateBlocksDocument(
+  value: unknown,
+): ModuleValidationResult<BlocksProjectDocumentV1> {
   if (!isRecord(value)) {
     return invalid('blocks.document.type', 'Visual-programming project must be a JSON object.');
   }
@@ -146,7 +120,7 @@ function validateDocument(value: unknown): ModuleValidationResult<BlocksProjectD
     return invalid('blocks.document.assets', 'Visual-programming assets must be an array.');
   }
   for (let index = 0; index < value.assets.length; index += 1) {
-    const assetDiagnostic = validateAsset(value.assets[index], index);
+    const assetDiagnostic = validateBlocksAssetReference(value.assets[index], index);
     if (assetDiagnostic) return { ok: false, diagnostics: [assetDiagnostic] };
   }
 
@@ -156,51 +130,3 @@ function validateDocument(value: unknown): ModuleValidationResult<BlocksProjectD
     diagnostics: [],
   };
 }
-
-function spriteCount(projectJson: Record<string, unknown> | null): number {
-  if (!projectJson || !Array.isArray(projectJson.targets)) return 0;
-  return projectJson.targets.filter((target) => isRecord(target) && target.isStage !== true).length;
-}
-
-function createPreview(document: BlocksProjectDocumentV1): ModulePreviewDescriptor {
-  if (document.projectJson === null) {
-    return {
-      kind: 'stage',
-      summary: 'Scratch 3 · проект ещё не инициализирован',
-    };
-  }
-  return {
-    kind: 'stage',
-    summary: `Scratch 3 · спрайтов: ${spriteCount(document.projectJson)} · ресурсов: ${document.assets.length}`,
-  };
-}
-
-export const BLOCKS_MODULE = defineModule<BlocksProjectDocumentV1>(
-  {
-    moduleKey: 'blocks',
-    moduleVersion: '0.1.1',
-    displayName: 'Визуальное программирование',
-    shortDescription: 'Блочное программирование, совместимое с проектами Scratch 3.',
-    defaultProjectTitlePrefix: 'Визуальный проект',
-    projectType: 'scratch-3',
-    schemaVersion: 1,
-    editorRoute: '/projects/:projectId/blocks',
-    viewerRoute: '/view/projects/:versionId/blocks',
-    safeModeSupported: true,
-    // M0 is deliberately gated: save/load and asset persistence arrive in M1.
-    availability: 'coming_soon',
-    previewKind: 'stage',
-    iconKey: 'blocks',
-    categories: ['coding', 'creative'],
-  },
-  {
-    createEmptyProject: () => ({
-      schemaVersion: 1,
-      format: 'scratch-3',
-      projectJson: null,
-      assets: [],
-    }),
-    validate: validateDocument,
-    createPreview,
-  },
-);

@@ -13,7 +13,7 @@ task:
   issue: 183
   branch: agent/vscr-m1-001
   base_branch: main
-  pr: null
+  pr: 187
   pr_draft: true
   status: in_progress
   checkpoint: m1_001_bounded_context_extraction
@@ -33,7 +33,7 @@ gates:
   focused:
     workflow: Scratch M0 Focused
     commands:
-      - pnpm gate:code
+      - pnpm gate:blocks-m1-001
   general:
     workflow: ASA Lab Governance and Code Gates
     commands:

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BLOCKS_MODULE } from './blocks-module';
+import { BLOCKS_MODULE } from '../index.js';
 
 function provider() {
   const result = BLOCKS_MODULE.provider;
