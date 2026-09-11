@@ -3,8 +3,7 @@
 **Purpose:** minimal entry point for ASA Lab `blocks` / `Визуальное программирование`.  
 **Authority:** routing only; it never selects work.
 
-Active execution comes only from `docs/execution/current.yaml` + explicit owner instruction.
-Do not read this whole directory for a Scratch change.
+Active execution state comes only from `docs/execution/current.yaml`. An owner instruction may authorise selecting/updating that state, but it does not bypass the control plane. Do not read this whole directory for a Scratch change.
 
 ## 1. Choose the work profile
 
@@ -12,7 +11,7 @@ Do not read this whole directory for a Scratch change.
 
 ```text
 AGENTS.md / START_HERE_FOR_AI.md
-→ authorised VSCR task
+→ authorised VSCR task selected in current.yaml
 → Master required sections + ADR as required by global entry flow
 → this router
 → exact tasks/<task>.md
@@ -26,7 +25,8 @@ AGENTS.md / START_HERE_FOR_AI.md
 For a request such as “change a button”, “rename a label”, “hide an element”:
 
 ```text
-this router
+current.yaml selects the bounded maintenance task/scope
+→ this router
 → COMPONENT_MAP.yaml keywords/component ID
 → exactly one referenced components/*.yaml card
 → only that component entry
@@ -144,16 +144,17 @@ independently editable ASA logo for the runtime host. Factual compatibility word
 For a future local change:
 
 ```text
-1. resolve the component ID by exact ID or COMPONENT_MAP keywords
-2. open one subsystem card and one component entry
-3. inspect its ownership/risk/contracts/sources/tests
-4. state exact expected write paths before editing
-5. change only the smallest coherent source set
-6. run mapped focused evidence
-7. run node tools/validate-blocks-docs.mjs
-8. perform bounded self-review from AGENT_GUIDE.md
-9. update the same subsystem card if real source/test ownership changed
-10. STOP
+1. verify current.yaml selects the exact bounded maintenance task/scope
+2. resolve the component ID by exact ID or COMPONENT_MAP keywords
+3. open one subsystem card and one component entry
+4. inspect its ownership/risk/contracts/sources/tests
+5. state exact expected write paths before editing
+6. change only the smallest coherent source set
+7. run mapped focused evidence
+8. run node tools/validate-blocks-docs.mjs
+9. perform bounded self-review from AGENT_GUIDE.md
+10. update the same subsystem card if real source/test ownership changed
+11. STOP
 ```
 
 If a mapped implemented source/test disappears or is renamed, repair routing before doing a
