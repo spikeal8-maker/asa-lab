@@ -100,6 +100,7 @@ def fixture(root: Path) -> None:
                 {
                     "id": "ELECTRONICS-MASTER",
                     "path": "docs/product/electronics/README.md",
+                    "scope": "electronics",
                     "lanes": ["electronics"],
                     "status": "canonical",
                     "context_role": "escalation",
@@ -109,6 +110,7 @@ def fixture(root: Path) -> None:
                 {
                     "id": "ELECTRONICS-DOMAIN-CONTRACT",
                     "path": "docs/agent/contracts/electronics.yaml",
+                    "scope": "electronics",
                     "lanes": ["electronics"],
                     "status": "canonical",
                     "context_role": "compact",
@@ -117,6 +119,7 @@ def fixture(root: Path) -> None:
                 {
                     "id": "VSCR-MASTER",
                     "path": "docs/product/visual/README.md",
+                    "scope": "visual_programming",
                     "lanes": ["visual-programming"],
                     "status": "canonical",
                     "context_role": "escalation",
@@ -178,6 +181,29 @@ class TargetedAgentContextTests(unittest.TestCase):
         self.assertNotIn("docs/product/visual/README.md", output)
         self.assertLess(len(output), 8000)
 
+    def test_context_and_execution_lane_are_separate(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            fixture(root)
+            map_path = root / "docs/agent/surfaces/electronics.yaml"
+            surface_map = yaml.safe_load(map_path.read_text(encoding="utf-8"))
+            surface_map["context"] = "identity"
+            write_yaml(map_path, surface_map)
+            contract_path = root / "docs/agent/contracts/electronics.yaml"
+            contract = yaml.safe_load(contract_path.read_text(encoding="utf-8"))
+            contract["domain"] = "identity"
+            write_yaml(contract_path, contract)
+            registry_path = root / "docs/agent/document-registry.yaml"
+            registry = yaml.safe_load(registry_path.read_text(encoding="utf-8"))
+            compact = next(item for item in registry["documents"] if item["id"] == "ELECTRONICS-DOMAIN-CONTRACT")
+            compact["scope"] = "identity"
+            write_yaml(registry_path, registry)
+            result = run_cli(root, "--control", "CTRL-ELECTRONICS-RUN")
+        output = text(result)
+        self.assertEqual(result.returncode, 0, output)
+        self.assertIn("scope: electronics", output)
+        self.assertIn("boundedContext: identity", output)
+
     def test_control_requires_challenge_review_for_l3(self):
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw)
@@ -189,6 +215,21 @@ class TargetedAgentContextTests(unittest.TestCase):
         self.assertIn("POST_STEP_REVIEW: REQUIRED", output)
         self.assertIn("CHALLENGE_REVIEW: REQUIRED", output)
         self.assertIn("run_simulation", output)
+
+    def test_l2_control_requires_post_step_but_not_challenge(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            fixture(root)
+            map_path = root / "docs/agent/surfaces/electronics.yaml"
+            surface_map = yaml.safe_load(map_path.read_text(encoding="utf-8"))
+            surface_map["surfaces"][0]["controls"][0]["change_class"] = "L2_DOMAIN_MUTATION"
+            write_yaml(map_path, surface_map)
+            result = run_cli(root, "--control", "CTRL-ELECTRONICS-RUN")
+        output = text(result)
+        self.assertEqual(result.returncode, 0, output)
+        self.assertIn("POST_STEP_REVIEW: REQUIRED", output)
+        self.assertNotIn("CHALLENGE_REVIEW: REQUIRED", output)
+
     def test_surface_and_windows_path_are_supported(self):
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw)
@@ -199,6 +240,39 @@ class TargetedAgentContextTests(unittest.TestCase):
         self.assertEqual(windows_path.returncode, 0, text(windows_path))
         self.assertIn("CTRL-ELECTRONICS-RUN", text(surface))
         self.assertIn("target: apps/web/src/electronics/TestSurface.tsx", text(windows_path))
+
+
+    def test_shared_path_across_contexts_fails_instead_of_guessing(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            fixture(root)
+            shared = "apps/shared/api.ts"
+            write_text(root / shared, "export const shared = true;\n")
+            electronics_path = root / "docs/agent/surfaces/electronics.yaml"
+            electronics = yaml.safe_load(electronics_path.read_text(encoding="utf-8"))
+            electronics["surfaces"][0]["implementation"]["files"].append(shared)
+            write_yaml(electronics_path, electronics)
+            write_yaml(
+                root / "docs/agent/surfaces/identity.yaml",
+                {
+                    "schema_version": "1.0.0",
+                    "context": "identity",
+                    "surfaces": [
+                        {
+                            "id": "SURF-IDENTITY-TEST",
+                            "routes": ["#/account"],
+                            "implementation": {"files": [shared]},
+                            "invariants": [],
+                            "tests": ["TST-ELECTRONICS-TARGET-001"],
+                            "controls": [],
+                        }
+                    ],
+                },
+            )
+            result = run_cli(root, "--path", shared)
+        output = text(result)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("multiple bounded contexts", output)
 
     def test_unmapped_path_fails_instead_of_guessing(self):
         with tempfile.TemporaryDirectory() as raw:
