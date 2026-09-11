@@ -4,35 +4,7 @@ on:
   push:
     branches:
       - main
-    paths:
-      - 'START_HERE_FOR_AI.md'
-      - 'docs/product/ASA_VISUAL_PROGRAMMING_SCRATCH_MASTER_SPEC.md'
-      - 'docs/product/visual-programming/**'
-      - 'docs/architecture/ADR-VSCR-001-SCRATCH-EDITOR-INTEGRATION.md'
-      - 'tools/validate-blocks-docs.mjs'
-      - 'contexts/blocks/**'
-      - 'apps/api/src/blocks-*.ts'
-      - 'apps/api/src/module-registry.ts'
-      - 'apps/web/src/blocks/**'
-      - 'infra/scratch-editor/**'
-      - 'tests/blocks/**'
-      - 'e2e/blocks-*.spec.ts'
-      - '.github/workflows/scratch-docs-routing.yml'
   pull_request:
-    paths:
-      - 'START_HERE_FOR_AI.md'
-      - 'docs/product/ASA_VISUAL_PROGRAMMING_SCRATCH_MASTER_SPEC.md'
-      - 'docs/product/visual-programming/**'
-      - 'docs/architecture/ADR-VSCR-001-SCRATCH-EDITOR-INTEGRATION.md'
-      - 'tools/validate-blocks-docs.mjs'
-      - 'contexts/blocks/**'
-      - 'apps/api/src/blocks-*.ts'
-      - 'apps/api/src/module-registry.ts'
-      - 'apps/web/src/blocks/**'
-      - 'infra/scratch-editor/**'
-      - 'tests/blocks/**'
-      - 'e2e/blocks-*.spec.ts'
-      - '.github/workflows/scratch-docs-routing.yml'
   workflow_dispatch:
 
 permissions:
