@@ -14,7 +14,8 @@ what prerequisite unlocks it?
 It does not contain implementation details. Those live only in exact task cards, subsystem
 component cards and canonical D0 contracts.
 
-Live task selection remains in `docs/execution/current.yaml` + explicit owner instruction.
+Live task selection lives only in `docs/execution/current.yaml`. An owner instruction may
+authorise selecting/updating the exact task there, but does not replace that state transition.
 
 ## Baseline
 
@@ -73,28 +74,30 @@ No task or sub-slice automatically advances to the next one.
 
 | Task | Readiness | Unlock condition / exact card |
 | --- | --- | --- |
-| `VSCR-M1-001` | **READY FOR OWNER SELECTION** | `tasks/VSCR-M1-001.md` |
+| `VSCR-M1-001` | **READY FOR OWNER SELECTION** | owner authorises selection; then `current.yaml` must select `VSCR-M1-001`; exact card `tasks/VSCR-M1-001.md` |
 | `VSCR-M1-002` | **BLOCKED** | M1-001 owner-accepted; use milestone router `tasks/VSCR-M1-002.md` |
-| `VSCR-M1-002A` | **BLOCKED** | M1-001 accepted + M1-002 milestone selected |
-| `VSCR-M1-002B` | **BLOCKED** | M1-002A accepted |
-| `VSCR-M1-002C` | **BLOCKED** | M1-002B accepted |
-| `VSCR-M1-002D` | **BLOCKED** | M1-002C accepted |
-| `VSCR-M1-002E` | **BLOCKED** | M1-002A–D each accepted |
+| `VSCR-M1-002A` | **BLOCKED** | M1-001 accepted + M1-002 milestone selected + `current.yaml` selects exact sub-slice |
+| `VSCR-M1-002B` | **BLOCKED** | M1-002A accepted + `current.yaml` selects exact sub-slice |
+| `VSCR-M1-002C` | **BLOCKED** | M1-002B accepted + `current.yaml` selects exact sub-slice |
+| `VSCR-M1-002D` | **BLOCKED** | M1-002C accepted + `current.yaml` selects exact sub-slice |
+| `VSCR-M1-002E` | **BLOCKED** | M1-002A–D each accepted + `current.yaml` selects exact acceptance slice |
 | `VSCR-M1-003` | **BLOCKED** | M1-002E + owner acceptance of M1-002; then write exact M1-003 card against accepted interfaces |
-| `VSCR-M1-004P` | **SELECTABLE DESIGN WORK** | exact parser/sniffer/version/license/security decision |
+| `VSCR-M1-004P` | **DESIGN CARD REQUIRED** | create/review exact design-decision card before owner selection; no implementation coding from roadmap |
 | `VSCR-M1-004` | **BLOCKED** | M1-003 + M1-004P accepted |
-| `VSCR-M1-005P` | **SELECTABLE DESIGN WORK** | exact semantic-validator strategy/proof |
+| `VSCR-M1-005P` | **DESIGN CARD REQUIRED** | create/review exact semantic-validator decision card before owner selection |
 | `VSCR-M1-005` | **BLOCKED** | M1-004 + M1-005P accepted |
 | `VSCR-M1-006` | **BLOCKED** | M1-005 accepted interfaces + explicit recovery-store/TTL/isolation decision in its card |
-| `VSCR-M1-007P` | **SELECTABLE DESIGN WORK** | exact ZIP stack/limits/legacy-media corpus decision |
+| `VSCR-M1-007P` | **DESIGN CARD REQUIRED** | create/review exact ZIP/limits/corpus decision card before owner selection |
 | `VSCR-M1-007` | **BLOCKED** | durable M1 storage/load-save + M1-007P accepted |
 | `VSCR-M1-008` | **BLOCKED** | M1-006 + M1-007 accepted |
 | `VSCR-M2-*` | **BLOCKED** | M1-008 accepted; write exact cards against real M1 interfaces |
 | `VSCR-M3-*` | **BLOCKED** | M2 accepted + rights/network/backup decisions |
 | `VSCR-M4-001` | **BLOCKED** | M3 sovereign/restore/deployment acceptance |
 
-`READY` / `SELECTABLE DESIGN WORK` means eligible for separate owner selection, not active.
-`BLOCKED` means coding STOP.
+`READY FOR OWNER SELECTION` means eligible for owner-authorised selection into `current.yaml`,
+not active by itself. `DESIGN CARD REQUIRED` means the roadmap is insufficient even for the
+design gate: create an exact bounded card first, then select that card through the control
+plane. `BLOCKED` means coding STOP.
 
 ## Immediate next coding slice
 
@@ -110,13 +113,14 @@ Exact card:
 tasks/VSCR-M1-001.md
 ```
 
-After its evidence and bounded self-review: STOP for owner acceptance.
+It may start only after `docs/execution/current.yaml` selects that exact task. After its
+evidence and bounded self-review: STOP for owner acceptance.
 
 ## Task-card creation rule
 
 Do not pre-write exact source/test paths for distant work.
 
-For M1-003+ implementation cards:
+For M1-003+ implementation/design cards:
 
 ```text
 prerequisites accepted
@@ -124,7 +128,7 @@ prerequisites accepted
 → resolve component IDs
 → record the smallest real read/write/test scope
 → set ownership/risk/review profile
-→ select task separately
+→ select the exact card separately in current.yaml
 ```
 
 Blocked component cards therefore describe purpose, ownership, canonical contract and
@@ -148,7 +152,7 @@ only M4-001 may activate blocks
 Milestone planning may read this file.
 
 A bounded maintenance request after implementation does not read the roadmap by default. It
-uses:
+still requires an exact bounded maintenance task/scope selected in `current.yaml`, then uses:
 
 ```text
 README.md
