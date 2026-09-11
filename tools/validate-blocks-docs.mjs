@@ -9,6 +9,7 @@ const INDEX_PATH = `${DOC_ROOT}/COMPONENT_MAP.yaml`;
 const TASK_ROOT = `${DOC_ROOT}/tasks`;
 const GLOBAL_ENTRY_PATH = 'START_HERE_FOR_AI.md';
 const UNSCOPED_CODE_SOURCE_MAX_BYTES = 12_000;
+const TASK_CARD_MAX_BYTES = 12_000;
 const errors = [];
 
 const allowedStates = new Set(['implemented', 'planned', 'blocked']);
@@ -41,6 +42,9 @@ const sizeBudgets = new Map([
   [`${DOC_ROOT}/README.md`, 7_000],
   [`${DOC_ROOT}/AGENT_GUIDE.md`, 9_000],
   [INDEX_PATH, 6_000],
+  [`${TASK_ROOT}/README.md`, 6_000],
+  [`${TASK_ROOT}/MAINTENANCE_TASK_TEMPLATE.md`, 8_000],
+  [`${TASK_ROOT}/DESIGN_TASK_TEMPLATE.md`, 8_000],
 ]);
 
 function absolute(relative) {
@@ -413,6 +417,11 @@ if (fs.existsSync(taskDir)) {
   for (const name of fs.readdirSync(taskDir)) {
     if (!/^VSCR-.*\.md$/.test(name)) continue;
     const relative = `${TASK_ROOT}/${name}`;
+    const bytes = fs.statSync(absolute(relative)).size;
+    if (bytes > TASK_CARD_MAX_BYTES) {
+      errors.push(`${relative}: ${bytes} bytes exceeds task-card budget ${TASK_CARD_MAX_BYTES}`);
+    }
+
     const text = readText(relative);
     const taskId = name.replace(/\.md$/, '');
     if (text.includes('**Status:**')) {
@@ -448,10 +457,11 @@ if (fs.existsSync(taskDir)) {
 
     const requiresExecutionMarker =
       text.includes('**Kind:** executable implementation slice') ||
-      text.includes('**Kind:** acceptance/review slice');
+      text.includes('**Kind:** acceptance/review slice') ||
+      text.includes('**Kind:** design decision slice');
     if (requiresExecutionMarker) {
       if (!text.includes('**Execution:**')) {
-        errors.push(`${relative}: executable/review card must declare **Execution:**`);
+        errors.push(`${relative}: executable/review/design card must declare **Execution:**`);
       }
       if (!text.includes('docs/execution/current.yaml.task.id')) {
         errors.push(`${relative}: execution marker must bind to current.yaml.task.id`);
@@ -463,7 +473,7 @@ if (fs.existsSync(taskDir)) {
       const highRisk = taskRisk === 'high' || taskRisk === 'critical';
       if (highRisk && !text.includes('## Independent review')) {
         errors.push(
-          `${relative}: HIGH/CRITICAL executable/review card needs ## Independent review`,
+          `${relative}: HIGH/CRITICAL executable/review/design card needs ## Independent review`,
         );
       }
     }
@@ -509,6 +519,6 @@ console.log(`- subsystem cards: ${cardPaths.size}`);
 console.log('- retired competing docs/addenda absent and unreferenced in active Scratch docs');
 console.log('- implemented source/test paths, symbols and canonical contract headings verified');
 console.log('- shared/large implemented code sources have symbol-level routing');
-console.log('- executable task cards are bound to exact current.yaml task IDs');
+console.log('- executable/design/review task cards are bounded and bind exact current.yaml task IDs');
 console.log('- task risk cannot understate owned component risk');
-console.log('- HIGH/CRITICAL executable slices require independent review');
+console.log('- HIGH/CRITICAL executable/design/review slices require independent review');
