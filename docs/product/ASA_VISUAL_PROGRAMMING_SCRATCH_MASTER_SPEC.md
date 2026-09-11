@@ -267,7 +267,69 @@ No bot automatically advances to the next task.
 
 ---
 
-## 11. Activation gate
+## 11. Task routing stubs
+
+These headings exist so global agent entry instructions can resolve a selected VSCR task
+without loading the historical consolidated implementation package.
+
+### VSCR-M1-001
+
+Exact card when selected:
+
+```text
+docs/product/visual-programming/tasks/VSCR-M1-001.md
+```
+
+Do not start M1-002 in the same slice.
+
+### VSCR-M1-002
+
+Exact card after M1-001 acceptance:
+
+```text
+docs/product/visual-programming/tasks/VSCR-M1-002.md
+```
+
+Do not start M1-003 in the same slice.
+
+### VSCR-M1-003
+
+Blocked until M1-002 is accepted. Create/refine its exact task card against the accepted
+host/protocol interfaces before coding.
+
+### VSCR-M1-004P / VSCR-M1-004
+
+M1-004P first selects the exact content-validation dependency stack. M1-004 remains blocked
+until M1-003 and M1-004P are accepted. Exact coding card is written against real accepted
+interfaces.
+
+### VSCR-M1-005P / VSCR-M1-005
+
+M1-005P first selects/proves the semantic-validation strategy. M1-005 remains blocked until
+M1-004 and M1-005P are accepted. Exact coding card is written then.
+
+### VSCR-M1-006
+
+Blocked until accepted M1-005 persistence interfaces. Exact autosave/recovery/conflict card
+must reference actual save APIs, not speculative ones.
+
+### VSCR-M1-007P / VSCR-M1-007
+
+M1-007P fixes ZIP library/limits/legacy-media corpus. M1-007 coding remains blocked until
+that decision and durable M1 storage/load-save are accepted.
+
+### VSCR-M1-008
+
+End-to-end M1 acceptance only after M1-006 and M1-007 are accepted.
+
+### VSCR-M2 / VSCR-M3 / VSCR-M4-001
+
+Blocked. Their implementation cards are created only after prior milestone interfaces and
+evidence exist. Roadmap text is not executable scope.
+
+---
+
+## 12. Activation gate
 
 `blocks` remains `coming_soon` until explicit M4-001 owner acceptance after all required
 M1–M3 evidence.
@@ -291,7 +353,7 @@ Completing M1 or M2 does not activate the module.
 
 ---
 
-## 12. Agent execution invariant
+## 13. Agent execution invariant
 
 For every Scratch implementation or maintenance change:
 
