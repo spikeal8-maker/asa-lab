@@ -1,221 +1,189 @@
 # Scratch / Visual Programming — token-efficient agent guide
 
 **Scope:** only ASA Lab `blocks` / Scratch-compatible implementation and maintenance.  
-**Goal:** let an agent change one bounded Scratch concern without reading the whole module,
-whole repository, or all Scratch documentation.
+**Goal:** change one bounded concern without reading the whole module, repository or all
+Scratch documentation.
 
-## 1. Default operating model
+## 1. Progressive disclosure
 
-Use **progressive disclosure**.
-
-Start with the smallest context that can safely answer the task:
+Start with the smallest safe context:
 
 ```text
-router README
-→ compact COMPONENT_MAP index
-→ one referenced subsystem card
-→ one task card if this is milestone implementation
-→ one canonical contract section
-→ mapped source file(s)
-→ mapped focused test(s)
+router
+→ compact component index
+→ one subsystem card
+→ one component entry
+→ one task card only for milestone implementation
+→ mapped contract section
+→ mapped source/test
 ```
 
-Do not preload every subsystem card, every D0 contract, the full roadmap, old audits, or
-unrelated source trees. Expand only when a concrete unresolved dependency requires it.
+Do not preload all component cards, all D0 contracts, the roadmap or unrelated source trees.
+Expand one dependency hop only when a concrete unresolved dependency requires it and record
+why.
 
-### Default context budget
+### Maintenance budget
 
-For an ordinary maintenance change, begin with:
+Ordinary post-implementation maintenance should normally need:
 
 ```text
-1 router
-1 compact component index
-1 subsystem card
-0–1 task card
-0–2 contract sections/files
+README router
+COMPONENT_MAP index
+one subsystem card
+0–1 mapped contract sections
 1–5 source files
 1–2 focused tests
 ```
 
-This is a routing rule, not an arbitrary hard security ceiling. If correctness requires more,
-expand one dependency hop and state why.
+Master/ADR/task cards are milestone context, not default maintenance reading unless the
+mapped component or global entry policy requires them.
 
 ## 2. Component-first lookup
 
-Every maintainable Scratch concern has a stable component ID in `COMPONENT_MAP.yaml`.
-The compact index points to one small `components/*.yaml` card containing actual/planned
-source ownership, contract section and focused tests.
+Resolve a human request through `COMPONENT_MAP.yaml` by stable component ID or keywords.
+Then open only its one `components/*.yaml` card and the matching entry.
 
 Examples:
 
 ```text
-blocks.host.branding
-blocks.host.extensions
-blocks.runtime.capability
-blocks.assets.upload
-blocks.project.autosave
-blocks.sb3.import
-blocks.gallery.player
+"кнопка расширений" → blocks.host.extensions
+"логотип Scratch"   → blocks.host.branding
+"CORS Scratch"      → blocks.runtime.origin-security
+"автосохранение"    → blocks.project.autosave
+"импорт sb3"        → blocks.sb3.import
 ```
 
-When the user asks for a small change:
+If one request genuinely spans multiple components, list those IDs before editing and load
+only their cards/direct dependencies.
+
+If no component matches, STOP and repair routing before broad code search.
+
+## 3. What each layer owns
 
 ```text
-resolve component ID
-→ open only referenced card
-→ inspect only that component entry
+current.yaml             active execution only
+forward plan             Scratch readiness/order only
+COMPONENT_MAP.yaml       component ID/keywords → card route only
+components/*.yaml        state/risk/ownership/contracts/source/tests/dependencies
+tasks/*.md               one executable slice; no live readiness status
+D0 contracts             exact design boundary
+Master/ADR               stable destination/architecture
+Git history              historical evidence only
 ```
 
-Do not load all subsystem cards.
+Do not duplicate one of these responsibilities in another layer.
 
-If a request spans multiple components, list those IDs explicitly before editing and load
-only their referenced cards.
+## 4. Ownership classes
 
-## 3. Read rules
-
-### Always read
+Before editing inspect the component `ownership`:
 
 ```text
-AGENTS.md
-START_HERE_FOR_AI.md
-current authorised task context
-visual-programming/README.md
-this AGENT_GUIDE.md
-COMPONENT_MAP.yaml compact index
-one referenced components/*.yaml card
+asa
+  ASA-owned implementation; edit inside selected scope.
+
+infrastructure
+  ASA build/deployment surface; use infrastructure gates.
+
+upstream_config
+  use supported upstream configuration/props; avoid source patch.
+
+upstream_patch
+  only the exact reviewed compatibility patch is allowed.
+  A new/third Scratch source patch is a STOP/design decision.
+
+cross_boundary
+  change spans trust/storage/project boundaries; high-risk review required.
+
+shared_existing
+  reuse existing ASA capability; do not clone it into Scratch.
 ```
 
-### Read only when mapped or required
+This prevents “change any button” from becoming an uncontrolled Scratch fork.
+
+## 5. Write rules
+
+Before editing state:
 
 ```text
-Master sections required by global Scratch entry flow
-Scratch ADR
-selected D0 contract section(s)
-forward plan for planning questions
-task card for selected milestone implementation
-Project Core/Learning/Gallery docs only when the component crosses those boundaries
-```
-
-### Do not read by default
-
-```text
-all component cards
-all D0 contracts
-historical readiness audits
-superseded addenda
-old PR bodies/comments
-historical consolidated implementation package
-unrelated module docs
-all of apps/web or apps/api
-```
-
-A broad repository `grep/search` is permitted only when:
-
-```text
-the component index/card is stale,
-the mapped symbol/path no longer exists,
-or the request is genuinely cross-cutting.
-```
-
-Record that reason in the final report.
-
-## 4. Write rules
-
-Before editing, state:
-
-```text
-COMPONENTS
+COMPONENT IDS
+OWNERSHIP
+RISK
 EXPECTED WRITE PATHS
-CONTRACTS READ
+CONTRACT SECTIONS READ
 TESTS TO RUN
-RISK LEVEL
 ```
 
-Write only the smallest coherent set. If implementation unexpectedly needs a path outside
-mapped ownership, stop and inspect that dependency before widening scope.
+Write the smallest coherent set. If implementation unexpectedly requires a path outside
+mapped ownership, inspect that direct dependency first. Do not widen scope merely to keep
+coding.
 
-Never start the next milestone package because the current one finished early.
+Never begin the next milestone/sub-slice automatically.
 
-## 5. Risk profiles
+## 6. Risk profiles
 
 ### LOW
 
-Examples: text, spacing, CSS, local icon visibility, local presentation with no authority or
-persistence change.
-
-Required review:
+Text/CSS/local ASA presentation with no authority or persistence change.
 
 ```text
-bounded self-review
-focused unit/browser test where present
+bounded self-review + mapped focused test
 ```
 
 ### MEDIUM
 
-Examples: event handler, component state, message-shape implementation inside an already
-accepted contract, non-security orchestration.
-
-Required review:
+Component state/handlers, reviewed upstream config/patch or local orchestration.
 
 ```text
-bounded self-review
-focused tests
-type/lint/build gate required by task/component
+bounded self-review + focused tests + mapped type/lint/build evidence
 ```
 
 ### HIGH
 
-Examples: JWT/capability, origin/CORS/CSP, persistence guard, S3/MinIO, asset validation,
-cross-tenant behaviour, `.sb3` parsing/import, recovery/conflict semantics.
-
-Required review:
+JWT/capability, Origin/CORS/CSP, storage, persistence, autosave/recovery/conflict, sb3,
+cross-tenant behaviour.
 
 ```text
-bounded self-review
-focused + repository-required gates
-independent review before owner acceptance
+bounded self-review + focused/repository-required gates + independent review
 ```
 
 ### CRITICAL
 
-Examples: activation, destructive migration, live restore, security-boundary weakening,
-public bucket or tenant/RLS redesign.
-
-Required action:
+Activation, destructive migration, live restore, tenant/RLS redesign or security-boundary
+weakening.
 
 ```text
-STOP unless explicitly authorised by owner and exact contract/task card exists
+STOP without explicit owner selection and exact contract/task card
 independent review + owner acceptance mandatory
 ```
 
-## 6. Bounded self-review after every implementation slice
+## 7. Bounded self-review after every implementation slice
 
-Do this after code/tests, using only:
+Use only:
 
 ```text
 selected task/maintenance card
 final diff
-mapped component contract(s)
-focused test results
+mapped component entries + contract sections
+focused test evidence
 ```
 
-Do **not** reread the whole project.
+Do not reread the whole project.
 
 Checklist:
 
 ```text
 1. Did I implement exactly the requested outcome?
-2. Did I touch only justified paths?
-3. Did I add behavior not requested by the task?
-4. Did I preserve mapped invariants and neighbour boundaries?
-5. Are acceptance criteria evidenced by tests rather than assumed?
-6. Did I leave dead code, duplicate paths or a second source of truth?
-7. Did source/test ownership change? If yes, did I update the subsystem card?
-8. Did I accidentally begin a future task?
+2. Are all touched paths justified by mapped ownership/dependencies?
+3. Did I add unrequested behaviour?
+4. Did I preserve neighbour/security/persistence boundaries?
+5. Is acceptance evidenced by tests rather than assumed?
+6. Did I create duplicate/dead code or a second source of truth?
+7. Did actual source/test ownership change, and is the subsystem card updated?
+8. Did I accidentally begin a future task/sub-slice?
 9. What concrete residual risk remains?
 ```
 
-Report form:
+Report:
 
 ```text
 SELF_REVIEW: PASS | PASS_WITH_RISK | FAIL
@@ -229,98 +197,60 @@ residual_risk: none | ...
 next_allowed_task: STOP | <owner-selectable task>
 ```
 
-A `FAIL` self-review means fix the current slice or stop; it does not authorise widening.
+`FAIL` means repair the current slice or stop; it never authorises scope expansion.
 
-## 7. Independent review policy
+## 8. Independent review
 
-Do not use a second full-project review after every button change. That wastes context.
+Do not run a second full-project review after every small UI change.
 
-Independent review is expected for:
+Independent review is required for high-risk milestone boundaries, including:
 
 ```text
-M1-002 host boundary acceptance
+M1-002E host acceptance
 M1-003 runtime security
 M1-004 storage/content validation
-M1-005 persistence guard/load-save
-M1-006 autosave/recovery/conflict
-M1-007 sb3 safety/compatibility
-M1-008 end-to-end milestone acceptance
-M2 Gallery/player/remix security-sensitive work
-M3 sovereign/deployment/backup acceptance
+M1-005 persistence/load-save
+M1-006 recovery/conflict
+M1-007 sb3 safety
+M1-008 end-to-end M1 acceptance
+M2 Gallery/remix security-sensitive work
+M3 deployment/backup
 M4 activation
 ```
 
-The reviewer receives the exact task card, final diff, relevant subsystem card, mapped
-contract sections and evidence—not the whole repository unless review discovers an
-unresolved dependency.
+Reviewer input defaults to the exact task card, final diff, relevant component entries,
+mapped contract sections and test evidence—not the entire repository.
 
-## 8. Documentation update rule
+## 9. Documentation stays with the code
 
-Documentation is part of the implementation result.
-
-When a task creates, renames, moves or deletes a Scratch source/test surface, update the
-matching `components/*.yaml` entry in the same slice.
-
-Update the compact `COMPONENT_MAP.yaml` only when a stable component ID/card/state/risk
-routing entry itself changes.
-
-After a milestone task is accepted:
+When a slice creates/moves/renames/deletes Scratch source or tests, update its subsystem
+component entry in the same slice:
 
 ```text
-planned source paths → actual source paths
-planned tests → actual focused tests
-component state → implemented
+planned paths → exact actual paths
+planned tests → exact actual focused tests
+state → implemented only after accepted evidence
 obsolete alternatives removed
-new stable symbols/components recorded
 ```
 
-Do not copy temporary SHA/PR state into component cards. Live execution state stays in
-`current.yaml`.
+Update compact `COMPONENT_MAP.yaml` only when the stable ID, card route or human keywords
+change.
 
-## 9. Handling stale documentation
+Do not put SHA/PR/current readiness into component cards.
 
-If two active Scratch documents disagree:
+## 10. Stale routing
 
-1. stop before coding the disputed behavior;
-2. prefer the canonical hierarchy in `README.md`;
-3. compare with actual code and accepted owner decision;
-4. repair the canonical document/routing card first;
-5. remove superseded wording from the default read path.
+If two active Scratch documents disagree, STOP before coding the disputed behaviour. Repair
+the canonical source/routing first rather than making the coding agent choose by judgement.
 
-Do not make a coding bot choose architecture by “best judgement” between conflicting docs.
+If an implemented component points to a missing source/test or nonexistent contract section,
+that is a documentation failure.
 
-If `COMPONENT_MAP.yaml` or a subsystem card points to a missing/renamed source or test, treat
-that as a routing defect. Repair routing before doing a broad code search.
+Mandatory routing check:
 
-## 10. Small-maintenance example
-
-Request: “hide the Extensions button in Scratch”.
-
-Expected context:
-
-```text
-README.md
-AGENT_GUIDE.md
-COMPONENT_MAP.yaml → blocks.host.extensions → components/host.yaml
-only blocks.host.extensions entry
-D0-001 → Extensions section
-mapped editor config / patch file
-mapped host browser test
+```bash
+node tools/validate-blocks-docs.mjs
 ```
 
-Unnecessary context:
-
-```text
-components/runtime.yaml
-components/assets.yaml
-components/project.yaml
-components/gallery-learning.yaml
-S3 contracts
-Project Core persistence
-Learning
-sb3 import
-whole apps/web
-whole apps/api
-```
-
-That is the standard to preserve as the implementation grows.
+A broad repository search is fallback only when this routing is stale or the task is truly
+cross-cutting.
