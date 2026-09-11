@@ -2,7 +2,8 @@
 
 **Kind:** executable implementation slice  
 **Risk:** medium  
-**Prerequisite:** M0/M0.1 integrated and this task explicitly selected by owner/current execution flow.  
+**Prerequisite:** M0/M0.1 integrated and owner-authorised selection.  
+**Execution:** coding starts only when `docs/execution/current.yaml.task.id` is exactly `VSCR-M1-001`.  
 **Behavioral goal:** none; structural extraction only.
 
 ## Goal
@@ -181,4 +182,4 @@ Did I update actual routing paths after moving the provider?
 ## Stop
 
 STOP after evidence and self-review. M1-002 is a separate milestone and requires separate
-owner selection after M1-001 acceptance.
+owner-authorised selection through the control plane after M1-001 acceptance.
