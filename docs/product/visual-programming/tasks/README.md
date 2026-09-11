@@ -1,13 +1,17 @@
 # Scratch task cards
 
 This directory contains small Scratch implementation/acceptance cards. It is not a work queue.
-Readiness/order lives only in `../VSCR-M1-FORWARD-PLAN-2026-09-11.md`; active execution lives
-only in `docs/execution/current.yaml` + explicit owner instruction.
+Readiness/order lives only in `../VSCR-M1-FORWARD-PLAN-2026-09-11.md`; active execution state
+lives only in `docs/execution/current.yaml`.
+
+An owner instruction may authorise selecting/updating a task in the control plane, but does
+not bypass `current.yaml`. Coding/review of an executable slice starts only when the exact task
+ID is selected there.
 
 Default flow:
 
 ```text
-selected task
+current.yaml selects exact task
 → read only that task card
 → resolve its component IDs in ../COMPONENT_MAP.yaml
 → open only referenced subsystem card entries
@@ -35,6 +39,7 @@ real preceding interfaces are known. Do not reconstruct a future implementation 
 history, old PR comments or deleted historical planning files.
 
 For a bounded post-implementation maintenance request use
-`MAINTENANCE_TASK_TEMPLATE.md` together with the component index/card.
+`MAINTENANCE_TASK_TEMPLATE.md` together with the component index/card, and select the exact
+maintenance task/scope in `current.yaml` before editing.
 
 No task card stores current readiness status or current SHA/PR state.
