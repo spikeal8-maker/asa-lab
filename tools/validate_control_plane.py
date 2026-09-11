@@ -1092,6 +1092,28 @@ def check_gate_results(
     return all_green
 
 
+def check_execution_branch_policy(
+    direct_main: bool,
+    lane_tasks: list[dict[str, Any]],
+    lanes: list[dict[str, Any]],
+    errors: list[str],
+    notes: list[str],
+    require_remote: bool = False,
+) -> None:
+    """Protect canonical execution state even when feature branches are optional."""
+    check_state_file_is_canonical(lane_tasks, errors, notes)
+    if direct_main:
+        notes.append(
+            "direct_main mode: leases, lane path ownership, product branches and PRs "
+            "are advisory; docs/execution/current.yaml is still canonical on main"
+        )
+        return
+    check_lane_branch_scopes(lanes, errors, notes, require_remote)
+    for lane_task in lane_tasks:
+        check_git(lane_task, errors, notes)
+        check_github(lane_task, errors, notes, require_remote)
+
+
 def check_state_file_is_canonical(
     task: dict[str, Any] | list[dict[str, Any]], errors: list[str], notes: list[str]
 ) -> None:
@@ -1264,17 +1286,9 @@ def main() -> int:
         check_project_map(errors)
         check_active_tests(errors)
         check_agent_context(errors)
-        if direct_main:
-            notes.append(
-                "direct_main mode: leases, lane path ownership, product branches and PRs "
-                "are advisory and do not block development"
-            )
-        else:
-            check_state_file_is_canonical(lane_tasks, errors, notes)
-            check_lane_branch_scopes(lanes, errors, notes, args.require_github)
-            for lane_task in lane_tasks:
-                check_git(lane_task, errors, notes)
-                check_github(lane_task, errors, notes, args.require_github)
+        check_execution_branch_policy(
+            direct_main, lane_tasks, lanes, errors, notes, args.require_github
+        )
 
     if errors:
         print("ASA Lab control plane validation: FAIL", file=sys.stderr)
