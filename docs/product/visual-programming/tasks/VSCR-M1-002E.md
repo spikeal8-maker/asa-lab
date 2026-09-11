@@ -2,7 +2,8 @@
 
 **Kind:** acceptance/review slice; no new architecture  
 **Risk:** high  
-**Prerequisite:** VSCR-M1-002A, B, C and D each accepted on their own exact evidence.
+**Prerequisite:** VSCR-M1-002A, B, C and D each accepted on their own exact evidence.  
+**Execution:** review starts only when `docs/execution/current.yaml.task.id` is exactly `VSCR-M1-002E`.
 
 ## Goal
 
@@ -40,16 +41,18 @@ accepted A–D evidence and final host diff
 
 ## Expected write paths
 
-Normally only:
+Acceptance/review normally changes no product implementation. Allowed writes are limited to
+acceptance evidence/tests or routing corrections discovered by the review:
 
 ```text
 e2e/blocks-host-acceptance.spec.ts
 .github/workflows/scratch-m0-focused.yml or focused successor
-../components/host.yaml                # actual paths/tests/state after acceptance
+../components/host.yaml                # evidence/routing correction only; no new implementation ownership
 ```
 
-If acceptance uncovers a defect, fix only the mapped A–D component that owns it and rerun its
-focused evidence plus this acceptance. Do not introduce a new concern in E.
+If acceptance uncovers a product defect, mark this slice `FAIL` and STOP. Do not repair the
+product inside M1-002E. Create/select a separate bounded repair task for the owning A–D
+component, rerun its focused evidence, then rerun M1-002E from a clean acceptance state.
 
 ## Acceptance
 
@@ -91,6 +94,9 @@ The reviewer checks for scope creep, hidden upstream coupling, token exposure, a
 persistence claims and missing component-map updates. Full-repository reread is not the
 default.
 
+The reviewer must not silently repair product code while reviewing. A product defect is a
+review failure and routes back to the owning bounded component task.
+
 ## Tests/evidence
 
 ```text
@@ -106,6 +112,7 @@ required repository gate on exact final SHA
 
 ```text
 no new M1-002 feature invented during acceptance
+no product-code repair hidden inside the review slice
 no runtime JWT issuance
 no S3/MinIO
 no Project Core persistence
@@ -116,10 +123,12 @@ no activation
 
 ## Bounded self-review
 
-Confirm acceptance/review work changed no architecture and all host component cards now point
-to actual accepted sources/tests with `state: implemented` only after evidence exists.
+Confirm acceptance/review work changed no product architecture and all host component cards
+already point to actual accepted sources/tests with `state: implemented`. If routing itself is
+wrong, correct only the routing metadata and re-run validation; if product behaviour is wrong,
+FAIL/STOP and route to a separate repair task.
 
 ## Stop
 
 STOP after independent review and evidence. M1-002 milestone still requires explicit owner
-acceptance before M1-003 becomes selectable.
+acceptance before any M1-003 design/card work becomes selectable.
