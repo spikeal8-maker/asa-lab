@@ -1,0 +1,125 @@
+{
+  "receiptVersion": 1,
+  "revision": "fcb1a73859383a5be8405b52358e5246971665a1",
+  "dirtyTree": false,
+  "startedAt": "2026-09-11T22:35:46.215Z",
+  "completedAt": "2026-09-11T22:35:48.594Z",
+  "runtime": "v24.14.1",
+  "browser": "Chromium 140.0.7339.186",
+  "os": "win32 10.0.26200 x64",
+  "cpu": "13th Gen Intel(R) Core(TM) i5-13400",
+  "logicalCpuCount": 16,
+  "totalMemoryBytes": 68384935936,
+  "warmups": 2,
+  "iterations": 5,
+  "isolation": "ephemeral 127.0.0.1 HTTP server + Vite middleware; no API or database",
+  "cases": [
+    {
+      "caseId": "dc-series-50",
+      "status": "solved",
+      "p50Ms": 4.5999999940395355,
+      "p95Ms": 4.9000000059604645,
+      "p99Ms": 4.9000000059604645,
+      "maxMs": 4.9000000059604645,
+      "eventLoopDelayP95Ms": 5,
+      "longTaskCount": 0,
+      "longTaskMaxMs": 0,
+      "heapDeltaBytes": 1797089,
+      "deterministic": true,
+      "fingerprint": "53274b5fc32e7eb69b3f49802d164932c693b42ec02f4d6b663b547880e56433"
+    },
+    {
+      "caseId": "transient-capacitor-5000ms",
+      "status": "solved",
+      "p50Ms": 13.599999994039536,
+      "p95Ms": 16.099999994039536,
+      "p99Ms": 16.099999994039536,
+      "maxMs": 16.099999994039536,
+      "eventLoopDelayP95Ms": 16.099999994039536,
+      "longTaskCount": 0,
+      "longTaskMaxMs": 0,
+      "heapDeltaBytes": 1855828,
+      "deterministic": true,
+      "fingerprint": "b9cd1b9b5485638a7ec1f4cc5369d0c6647e8edd02d2620d494919c6f018af07"
+    },
+    {
+      "caseId": "transient-dc-motor-1000ms",
+      "status": "solved",
+      "p50Ms": 24.69999998807907,
+      "p95Ms": 30.80000001192093,
+      "p99Ms": 30.80000001192093,
+      "maxMs": 30.80000001192093,
+      "eventLoopDelayP95Ms": 30.80000001192093,
+      "longTaskCount": 0,
+      "longTaskMaxMs": 0,
+      "heapDeltaBytes": 2532579,
+      "deterministic": true,
+      "fingerprint": "7b40a30af812c2d05b5180f9d8a58b37e6a4a4ecd6f05d409e206b0154db858a"
+    },
+    {
+      "caseId": "arduino-gpio-clock-2000us",
+      "status": "ready",
+      "p50Ms": 30.19999998807907,
+      "p95Ms": 39,
+      "p99Ms": 39,
+      "maxMs": 39,
+      "eventLoopDelayP95Ms": 39.099999994039536,
+      "longTaskCount": 0,
+      "longTaskMaxMs": 0,
+      "heapDeltaBytes": 2025665,
+      "deterministic": true,
+      "fingerprint": "f88c818921db33eda874247796fdbd7d1744a353ced3431782c2ebebb64162eb"
+    },
+    {
+      "caseId": "arduino-gpio-small-budget",
+      "status": "ready",
+      "p50Ms": 44.19999998807907,
+      "p95Ms": 48.29999998211861,
+      "p99Ms": 48.29999998211861,
+      "maxMs": 48.29999998211861,
+      "eventLoopDelayP95Ms": 48.39999997615814,
+      "longTaskCount": 0,
+      "longTaskMaxMs": 0,
+      "heapDeltaBytes": 4750261,
+      "deterministic": true,
+      "fingerprint": "f88c818921db33eda874247796fdbd7d1744a353ced3431782c2ebebb64162eb"
+    }
+  ],
+  "bundle": {
+    "simulationCore": {
+      "fileName": "electronics-simulation-core-dt79V2de.js",
+      "bytes": 216130,
+      "gzipBytes": 59958
+    },
+    "arduinoCodePanel": {
+      "fileName": "ArduinoCodePanel-CUdR0jD4.js",
+      "bytes": 1978979,
+      "gzipBytes": 479479
+    },
+    "schematicEditor": {
+      "fileName": "SchematicEditor-D5paAhe6.js",
+      "bytes": 157930,
+      "gzipBytes": 50857
+    },
+    "schematicEditorCss": {
+      "fileName": "SchematicEditor-0eqg7OIE.css",
+      "bytes": 98098,
+      "gzipBytes": 18820
+    },
+    "workbenchSidebars": {
+      "fileName": "WorkbenchSidebars-DRBLWgwg.js",
+      "bytes": 69694,
+      "gzipBytes": 16207
+    },
+    "productionManifestAdapter": {
+      "fileName": "production-manifest-adapter-OQdm0YsI.js",
+      "bytes": 51101,
+      "gzipBytes": 17250
+    },
+    "componentCatalog": {
+      "fileName": "catalog.json",
+      "bytes": 1011144,
+      "gzipBytes": 80309
+    }
+  }
+}

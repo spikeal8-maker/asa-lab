@@ -1,0 +1,1599 @@
+{
+  "receiptVersion": 1,
+  "corpusVersion": "asa-electronics-opt0-v1",
+  "revision": "fcb1a73859383a5be8405b52358e5246971665a1",
+  "dirtyTree": false,
+  "startedAt": "2026-09-11T22:35:23.911Z",
+  "completedAt": "2026-09-11T22:35:33.571Z",
+  "runtime": "v24.14.1",
+  "os": "win32 10.0.26200 x64",
+  "cpu": "13th Gen Intel(R) Core(TM) i5-13400",
+  "logicalCpuCount": 16,
+  "totalMemoryBytes": 68384935936,
+  "memoryMethod": "process.memoryUsage before/after each case with explicit GC",
+  "longTaskMethod": "not measured in Node receipt; browser/main-thread receipt is separate",
+  "warmups": 3,
+  "iterations": 10,
+  "seriesCount": 2,
+  "cases": [
+    {
+      "caseId": "digest-series-1",
+      "tier": "micro",
+      "category": "serialization",
+      "operation": "digest",
+      "expectedStatus": "digest",
+      "status": "digest",
+      "diagnosticCodes": [],
+      "fingerprint": "853a23db6bd6ff20c999efb888508bd8031e6a4e40e32af61d986fbe18595cd6",
+      "p50Ms": 0.06119999999987158,
+      "p95Ms": 0.868900000000167,
+      "p99Ms": 0.868900000000167,
+      "maxMs": 0.868900000000167,
+      "heapDeltaBytes": -204824,
+      "rssDeltaBytes": -1196032,
+      "deterministic": true,
+      "series": [
+        {
+          "p50Ms": 0.09200000000009823,
+          "p95Ms": 0.868900000000167,
+          "p99Ms": 0.868900000000167,
+          "maxMs": 0.868900000000167,
+          "coefficientOfVariation": 1.0842745620406324,
+          "deterministic": true,
+          "statuses": [
+            "digest"
+          ]
+        },
+        {
+          "p50Ms": 0.06119999999987158,
+          "p95Ms": 0.1268000000000029,
+          "p99Ms": 0.1268000000000029,
+          "maxMs": 0.1268000000000029,
+          "coefficientOfVariation": 0.3427837512076064,
+          "deterministic": true,
+          "statuses": [
+            "digest"
+          ]
+        }
+      ]
+    },
+    {
+      "caseId": "digest-series-50",
+      "tier": "stress",
+      "category": "serialization",
+      "operation": "digest",
+      "expectedStatus": "digest",
+      "status": "digest",
+      "diagnosticCodes": [],
+      "fingerprint": "9cb008ab5cfc3cf999484dc5f80001c819c0e1d932eab2956fcc829acad94755",
+      "p50Ms": 1.0028999999999542,
+      "p95Ms": 3.9021000000000186,
+      "p99Ms": 3.9021000000000186,
+      "maxMs": 3.9021000000000186,
+      "heapDeltaBytes": 66392,
+      "rssDeltaBytes": -684032,
+      "deterministic": true,
+      "series": [
+        {
+          "p50Ms": 1.1553999999998723,
+          "p95Ms": 3.9021000000000186,
+          "p99Ms": 3.9021000000000186,
+          "maxMs": 3.9021000000000186,
+          "coefficientOfVariation": 0.5306022274161911,
+          "deterministic": true,
+          "statuses": [
+            "digest"
+          ]
+        },
+        {
+          "p50Ms": 1.0028999999999542,
+          "p95Ms": 1.1790000000000873,
+          "p99Ms": 1.1790000000000873,
+          "maxMs": 1.1790000000000873,
+          "coefficientOfVariation": 0.07379896668692458,
+          "deterministic": true,
+          "statuses": [
+            "digest"
+          ]
+        }
+      ]
+    },
+    {
+      "caseId": "dc-series-1",
+      "tier": "micro",
+      "category": "linear-dc",
+      "operation": "analyse",
+      "expectedStatus": "solved",
+      "status": "solved",
+      "diagnosticCodes": [
+        "resistor_overload"
+      ],
+      "fingerprint": "8c7889fd33854fa3f0ebad5542c3ea2af152a437dd37da175f98a669f0958148",
+      "p50Ms": 0.28559999999993124,
+      "p95Ms": 0.8532999999999902,
+      "p99Ms": 0.8532999999999902,
+      "maxMs": 0.8532999999999902,
+      "heapDeltaBytes": 562160,
+      "rssDeltaBytes": 909312,
+      "deterministic": true,
+      "series": [
+        {
+          "p50Ms": 0.34819999999990614,
+          "p95Ms": 0.8532999999999902,
+          "p99Ms": 0.8532999999999902,
+          "maxMs": 0.8532999999999902,
+          "coefficientOfVariation": 0.4675675392558075,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        },
+        {
+          "p50Ms": 0.28559999999993124,
+          "p95Ms": 0.31719999999995707,
+          "p99Ms": 0.31719999999995707,
+          "maxMs": 0.31719999999995707,
+          "coefficientOfVariation": 0.09784609079441009,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        }
+      ]
+    },
+    {
+      "caseId": "dc-series-10",
+      "tier": "medium",
+      "category": "linear-dc",
+      "operation": "analyse",
+      "expectedStatus": "solved",
+      "status": "solved",
+      "diagnosticCodes": [
+        "circuit_ok"
+      ],
+      "fingerprint": "b58552cd79d6fb6026f905ee4c191b007224de0b033627297298466b2fe880c3",
+      "p50Ms": 0.6419999999998254,
+      "p95Ms": 0.9572000000000571,
+      "p99Ms": 0.9572000000000571,
+      "maxMs": 0.9572000000000571,
+      "heapDeltaBytes": 57160,
+      "rssDeltaBytes": 352256,
+      "deterministic": true,
+      "series": [
+        {
+          "p50Ms": 0.7070999999998548,
+          "p95Ms": 0.9572000000000571,
+          "p99Ms": 0.9572000000000571,
+          "maxMs": 0.9572000000000571,
+          "coefficientOfVariation": 0.1239678483552345,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        },
+        {
+          "p50Ms": 0.6419999999998254,
+          "p95Ms": 0.7263000000000375,
+          "p99Ms": 0.7263000000000375,
+          "maxMs": 0.7263000000000375,
+          "coefficientOfVariation": 0.08308664893834043,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        }
+      ]
+    },
+    {
+      "caseId": "dc-series-50",
+      "tier": "stress",
+      "category": "linear-dc",
+      "operation": "analyse",
+      "expectedStatus": "solved",
+      "status": "solved",
+      "diagnosticCodes": [
+        "circuit_ok"
+      ],
+      "fingerprint": "53274b5fc32e7eb69b3f49802d164932c693b42ec02f4d6b663b547880e56433",
+      "p50Ms": 2.1260999999999513,
+      "p95Ms": 3.7094999999999345,
+      "p99Ms": 3.7094999999999345,
+      "maxMs": 3.7094999999999345,
+      "heapDeltaBytes": 208160,
+      "rssDeltaBytes": 4300800,
+      "deterministic": true,
+      "series": [
+        {
+          "p50Ms": 2.4815000000000964,
+          "p95Ms": 3.7094999999999345,
+          "p99Ms": 3.7094999999999345,
+          "maxMs": 3.7094999999999345,
+          "coefficientOfVariation": 0.22135915029691833,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        },
+        {
+          "p50Ms": 2.1260999999999513,
+          "p95Ms": 2.657699999999977,
+          "p99Ms": 2.657699999999977,
+          "maxMs": 2.657699999999977,
+          "coefficientOfVariation": 0.12185627287438118,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        }
+      ]
+    },
+    {
+      "caseId": "dc-parallel-4",
+      "tier": "medium",
+      "category": "linear-dc",
+      "operation": "analyse",
+      "expectedStatus": "solved",
+      "status": "solved",
+      "diagnosticCodes": [
+        "circuit_ok"
+      ],
+      "fingerprint": "ffbe35d6ec038ef7b2be74b38de92c17af1c94265191f2f354a7425138f9134d",
+      "p50Ms": 0.32600000000002183,
+      "p95Ms": 0.8033000000000357,
+      "p99Ms": 0.8033000000000357,
+      "maxMs": 0.8033000000000357,
+      "heapDeltaBytes": -60488,
+      "rssDeltaBytes": 98304,
+      "deterministic": true,
+      "series": [
+        {
+          "p50Ms": 0.33930000000009386,
+          "p95Ms": 0.8033000000000357,
+          "p99Ms": 0.8033000000000357,
+          "maxMs": 0.8033000000000357,
+          "coefficientOfVariation": 0.38810504728381895,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        },
+        {
+          "p50Ms": 0.32600000000002183,
+          "p95Ms": 0.3830999999997857,
+          "p99Ms": 0.3830999999997857,
+          "maxMs": 0.3830999999997857,
+          "coefficientOfVariation": 0.055992202198860204,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        }
+      ]
+    },
+    {
+      "caseId": "dc-parallel-20",
+      "tier": "stress",
+      "category": "linear-dc",
+      "operation": "analyse",
+      "expectedStatus": "solved",
+      "status": "solved",
+      "diagnosticCodes": [
+        "circuit_ok"
+      ],
+      "fingerprint": "c728597b1ec461de4d77ead21916684d07768cac977b499eb6c6429f16c24e15",
+      "p50Ms": 1.0564999999999145,
+      "p95Ms": 1.4692000000000007,
+      "p99Ms": 1.4692000000000007,
+      "maxMs": 1.4692000000000007,
+      "heapDeltaBytes": 21736,
+      "rssDeltaBytes": -577536,
+      "deterministic": true,
+      "series": [
+        {
+          "p50Ms": 1.0936999999998989,
+          "p95Ms": 1.4692000000000007,
+          "p99Ms": 1.4692000000000007,
+          "maxMs": 1.4692000000000007,
+          "coefficientOfVariation": 0.1051824351261972,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        },
+        {
+          "p50Ms": 1.0564999999999145,
+          "p95Ms": 1.2429999999999382,
+          "p99Ms": 1.2429999999999382,
+          "maxMs": 1.2429999999999382,
+          "coefficientOfVariation": 0.06153592743094913,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        }
+      ]
+    },
+    {
+      "caseId": "dc-led-series",
+      "tier": "micro",
+      "category": "nonlinear-dc",
+      "operation": "analyse",
+      "expectedStatus": "solved",
+      "status": "solved",
+      "diagnosticCodes": [
+        "circuit_ok"
+      ],
+      "fingerprint": "487207a0302e1a5c83fe72594b5e945fd1aa273775afd386807670c89243a41b",
+      "p50Ms": 0.26720000000000255,
+      "p95Ms": 0.7402999999999338,
+      "p99Ms": 0.7402999999999338,
+      "maxMs": 0.7402999999999338,
+      "heapDeltaBytes": 33320,
+      "rssDeltaBytes": 94208,
+      "deterministic": true,
+      "series": [
+        {
+          "p50Ms": 0.30480000000011387,
+          "p95Ms": 0.7402999999999338,
+          "p99Ms": 0.7402999999999338,
+          "maxMs": 0.7402999999999338,
+          "coefficientOfVariation": 0.3740856127622864,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        },
+        {
+          "p50Ms": 0.26720000000000255,
+          "p95Ms": 0.3587999999999738,
+          "p99Ms": 0.3587999999999738,
+          "maxMs": 0.3587999999999738,
+          "coefficientOfVariation": 0.11602945090421118,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        }
+      ]
+    },
+    {
+      "caseId": "dc-led-overcurrent",
+      "tier": "micro",
+      "category": "nonlinear-dc",
+      "operation": "analyse",
+      "expectedStatus": "solved",
+      "status": "solved",
+      "diagnosticCodes": [
+        "led_overcurrent"
+      ],
+      "fingerprint": "007bfb16e81097c1f0c15588a1b6666f35f5b7366aa669b3f586e60089d2587a",
+      "p50Ms": 0.22029999999995198,
+      "p95Ms": 0.6357999999997901,
+      "p99Ms": 0.6357999999997901,
+      "maxMs": 0.6357999999997901,
+      "heapDeltaBytes": 25080,
+      "rssDeltaBytes": 32768,
+      "deterministic": true,
+      "series": [
+        {
+          "p50Ms": 0.22490000000016153,
+          "p95Ms": 0.6357999999997901,
+          "p99Ms": 0.6357999999997901,
+          "maxMs": 0.6357999999997901,
+          "coefficientOfVariation": 0.4506497923547992,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        },
+        {
+          "p50Ms": 0.22029999999995198,
+          "p95Ms": 0.27320000000008804,
+          "p99Ms": 0.27320000000008804,
+          "maxMs": 0.27320000000008804,
+          "coefficientOfVariation": 0.08400293133752429,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        }
+      ]
+    },
+    {
+      "caseId": "dc-rgb-led",
+      "tier": "medium",
+      "category": "nonlinear-dc",
+      "operation": "analyse",
+      "expectedStatus": "solved",
+      "status": "solved",
+      "diagnosticCodes": [
+        "circuit_ok"
+      ],
+      "fingerprint": "5dfe7dd6e5d26c3dae0941bbe17185c86bbafbeedb570a90b57a6404bd01d2ea",
+      "p50Ms": 0.4519000000000233,
+      "p95Ms": 1.1585000000000036,
+      "p99Ms": 1.1585000000000036,
+      "maxMs": 1.1585000000000036,
+      "heapDeltaBytes": 43216,
+      "rssDeltaBytes": 49152,
+      "deterministic": true,
+      "series": [
+        {
+          "p50Ms": 0.47309999999993124,
+          "p95Ms": 1.1585000000000036,
+          "p99Ms": 1.1585000000000036,
+          "maxMs": 1.1585000000000036,
+          "coefficientOfVariation": 0.3820406884005965,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        },
+        {
+          "p50Ms": 0.4519000000000233,
+          "p95Ms": 0.5129000000001724,
+          "p99Ms": 0.5129000000001724,
+          "maxMs": 0.5129000000001724,
+          "coefficientOfVariation": 0.07004688425507095,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        }
+      ]
+    },
+    {
+      "caseId": "dc-seven-segment",
+      "tier": "medium",
+      "category": "nonlinear-dc",
+      "operation": "analyse",
+      "expectedStatus": "solved",
+      "status": "solved",
+      "diagnosticCodes": [
+        "circuit_ok"
+      ],
+      "fingerprint": "ea5c33cde20055bb6ab542313bac7217d2b09a489cfb5cd604afbed8aaf0a971",
+      "p50Ms": 0.799199999999928,
+      "p95Ms": 1.2983000000001539,
+      "p99Ms": 1.2983000000001539,
+      "maxMs": 1.2983000000001539,
+      "heapDeltaBytes": 48384,
+      "rssDeltaBytes": 32768,
+      "deterministic": true,
+      "series": [
+        {
+          "p50Ms": 0.8325999999999567,
+          "p95Ms": 1.2983000000001539,
+          "p99Ms": 1.2983000000001539,
+          "maxMs": 1.2983000000001539,
+          "coefficientOfVariation": 0.1648300225998695,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        },
+        {
+          "p50Ms": 0.799199999999928,
+          "p95Ms": 0.8427000000001499,
+          "p99Ms": 0.8427000000001499,
+          "maxMs": 0.8427000000001499,
+          "coefficientOfVariation": 0.03477312816371923,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        }
+      ]
+    },
+    {
+      "caseId": "dc-potentiometer-25",
+      "tier": "micro",
+      "category": "linear-dc",
+      "operation": "analyse",
+      "expectedStatus": "solved",
+      "status": "solved",
+      "diagnosticCodes": [
+        "circuit_ok"
+      ],
+      "fingerprint": "0eb1e7181225717630b52f2d2ec7a81722ab27e864641ee049ed45f894d637e1",
+      "p50Ms": 0.26510000000007494,
+      "p95Ms": 0.6045999999998912,
+      "p99Ms": 0.6045999999998912,
+      "maxMs": 0.6045999999998912,
+      "heapDeltaBytes": 12368,
+      "rssDeltaBytes": 0,
+      "deterministic": true,
+      "series": [
+        {
+          "p50Ms": 0.28449999999998,
+          "p95Ms": 0.6045999999998912,
+          "p99Ms": 0.6045999999998912,
+          "maxMs": 0.6045999999998912,
+          "coefficientOfVariation": 0.2992439799774611,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        },
+        {
+          "p50Ms": 0.26510000000007494,
+          "p95Ms": 0.3061999999999898,
+          "p99Ms": 0.3061999999999898,
+          "maxMs": 0.3061999999999898,
+          "coefficientOfVariation": 0.06304925803377139,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        }
+      ]
+    },
+    {
+      "caseId": "dc-potentiometer-75",
+      "tier": "micro",
+      "category": "linear-dc",
+      "operation": "analyse",
+      "expectedStatus": "solved",
+      "status": "solved",
+      "diagnosticCodes": [
+        "circuit_ok"
+      ],
+      "fingerprint": "a3528f752e0d6bb40e0b2413bc5d0bb054c5a5dc27589167e394c31a2311a443",
+      "p50Ms": 0.26510000000007494,
+      "p95Ms": 0.6142999999999574,
+      "p99Ms": 0.6142999999999574,
+      "maxMs": 0.6142999999999574,
+      "heapDeltaBytes": 13560,
+      "rssDeltaBytes": 0,
+      "deterministic": true,
+      "series": [
+        {
+          "p50Ms": 0.2725000000000364,
+          "p95Ms": 0.6142999999999574,
+          "p99Ms": 0.6142999999999574,
+          "maxMs": 0.6142999999999574,
+          "coefficientOfVariation": 0.3367257513965903,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        },
+        {
+          "p50Ms": 0.26510000000007494,
+          "p95Ms": 0.32560000000012224,
+          "p99Ms": 0.32560000000012224,
+          "maxMs": 0.32560000000012224,
+          "coefficientOfVariation": 0.09139536745853453,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        }
+      ]
+    },
+    {
+      "caseId": "dc-photoresistor-dark",
+      "tier": "micro",
+      "category": "sensor",
+      "operation": "analyse",
+      "expectedStatus": "solved",
+      "status": "solved",
+      "diagnosticCodes": [
+        "circuit_ok"
+      ],
+      "fingerprint": "d7e2889e740e58069ce127e379f3f18fa14598f1c63b0ce3e7c5304056c4a5cc",
+      "p50Ms": 0.2514000000001033,
+      "p95Ms": 0.7846999999997024,
+      "p99Ms": 0.7846999999997024,
+      "maxMs": 0.7846999999997024,
+      "heapDeltaBytes": 21592,
+      "rssDeltaBytes": 0,
+      "deterministic": true,
+      "series": [
+        {
+          "p50Ms": 0.2638000000001739,
+          "p95Ms": 0.7846999999997024,
+          "p99Ms": 0.7846999999997024,
+          "maxMs": 0.7846999999997024,
+          "coefficientOfVariation": 0.46343227968933376,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        },
+        {
+          "p50Ms": 0.2514000000001033,
+          "p95Ms": 0.28150000000005093,
+          "p99Ms": 0.28150000000005093,
+          "maxMs": 0.28150000000005093,
+          "coefficientOfVariation": 0.057097131697638394,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        }
+      ]
+    },
+    {
+      "caseId": "dc-photoresistor-bright",
+      "tier": "micro",
+      "category": "sensor",
+      "operation": "analyse",
+      "expectedStatus": "solved",
+      "status": "solved",
+      "diagnosticCodes": [
+        "circuit_ok"
+      ],
+      "fingerprint": "775cb626703cd0f783d9466b26127dbd44878b5ca8b3e3faf7cb2d9da6a126a3",
+      "p50Ms": 0.2266999999997097,
+      "p95Ms": 0.6547999999997955,
+      "p99Ms": 0.6547999999997955,
+      "maxMs": 0.6547999999997955,
+      "heapDeltaBytes": 11992,
+      "rssDeltaBytes": 0,
+      "deterministic": true,
+      "series": [
+        {
+          "p50Ms": 0.2377000000001317,
+          "p95Ms": 0.6547999999997955,
+          "p99Ms": 0.6547999999997955,
+          "maxMs": 0.6547999999997955,
+          "coefficientOfVariation": 0.446830493213139,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        },
+        {
+          "p50Ms": 0.2266999999997097,
+          "p95Ms": 0.2723000000000866,
+          "p99Ms": 0.2723000000000866,
+          "maxMs": 0.2723000000000866,
+          "coefficientOfVariation": 0.07995351941672343,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        }
+      ]
+    },
+    {
+      "caseId": "dc-tmp36-25c",
+      "tier": "medium",
+      "category": "sensor",
+      "operation": "analyse",
+      "expectedStatus": "solved",
+      "status": "solved",
+      "diagnosticCodes": [
+        "circuit_ok"
+      ],
+      "fingerprint": "3ecff8faef79fcddce112e0824e9026fca3e9ad50955010bc34cabf9d27ee456",
+      "p50Ms": 0.3166999999998552,
+      "p95Ms": 0.7011999999999716,
+      "p99Ms": 0.7011999999999716,
+      "maxMs": 0.7011999999999716,
+      "heapDeltaBytes": 31864,
+      "rssDeltaBytes": 0,
+      "deterministic": true,
+      "series": [
+        {
+          "p50Ms": 0.3485000000000582,
+          "p95Ms": 0.7011999999999716,
+          "p99Ms": 0.7011999999999716,
+          "maxMs": 0.7011999999999716,
+          "coefficientOfVariation": 0.307311364451661,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        },
+        {
+          "p50Ms": 0.3166999999998552,
+          "p95Ms": 0.4244000000003325,
+          "p99Ms": 0.4244000000003325,
+          "maxMs": 0.4244000000003325,
+          "coefficientOfVariation": 0.13694414592720752,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        }
+      ]
+    },
+    {
+      "caseId": "dc-tmp36-100c",
+      "tier": "medium",
+      "category": "sensor",
+      "operation": "analyse",
+      "expectedStatus": "solved",
+      "status": "solved",
+      "diagnosticCodes": [
+        "circuit_ok"
+      ],
+      "fingerprint": "56d603de2befb76b20daa67b94bac684173c2577e4a924ec87c190e5456ec5f6",
+      "p50Ms": 0.2765999999996893,
+      "p95Ms": 0.753400000000056,
+      "p99Ms": 0.753400000000056,
+      "maxMs": 0.753400000000056,
+      "heapDeltaBytes": 20640,
+      "rssDeltaBytes": 0,
+      "deterministic": true,
+      "series": [
+        {
+          "p50Ms": 0.2943000000000211,
+          "p95Ms": 0.753400000000056,
+          "p99Ms": 0.753400000000056,
+          "maxMs": 0.753400000000056,
+          "coefficientOfVariation": 0.3890887412977647,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        },
+        {
+          "p50Ms": 0.2765999999996893,
+          "p95Ms": 0.3317000000001826,
+          "p99Ms": 0.3317000000001826,
+          "maxMs": 0.3317000000001826,
+          "coefficientOfVariation": 0.07306970128787792,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        }
+      ]
+    },
+    {
+      "caseId": "dc-soil-0",
+      "tier": "medium",
+      "category": "sensor",
+      "operation": "analyse",
+      "expectedStatus": "solved",
+      "status": "solved",
+      "diagnosticCodes": [
+        "circuit_ok"
+      ],
+      "fingerprint": "283edf41a55a05a0fe2e520bafc7e5fb33d93f757a437350aaf031e94febb293",
+      "p50Ms": 0.2680000000000291,
+      "p95Ms": 0.7381000000000313,
+      "p99Ms": 0.7381000000000313,
+      "maxMs": 0.7381000000000313,
+      "heapDeltaBytes": 21744,
+      "rssDeltaBytes": 20480,
+      "deterministic": true,
+      "series": [
+        {
+          "p50Ms": 0.2680000000000291,
+          "p95Ms": 0.7381000000000313,
+          "p99Ms": 0.7381000000000313,
+          "maxMs": 0.7381000000000313,
+          "coefficientOfVariation": 0.43749021983340025,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        },
+        {
+          "p50Ms": 0.2817000000000007,
+          "p95Ms": 0.3317000000001826,
+          "p99Ms": 0.3317000000001826,
+          "maxMs": 0.3317000000001826,
+          "coefficientOfVariation": 0.11339270448882584,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        }
+      ]
+    },
+    {
+      "caseId": "dc-soil-50",
+      "tier": "medium",
+      "category": "sensor",
+      "operation": "analyse",
+      "expectedStatus": "solved",
+      "status": "solved",
+      "diagnosticCodes": [
+        "circuit_ok"
+      ],
+      "fingerprint": "8d5c1832de22a63605d9b528d17c81725627f4363da5dc734a7b84c43ef7d491",
+      "p50Ms": 0.2678000000000793,
+      "p95Ms": 0.7012999999997191,
+      "p99Ms": 0.7012999999997191,
+      "maxMs": 0.7012999999997191,
+      "heapDeltaBytes": 15752,
+      "rssDeltaBytes": 0,
+      "deterministic": true,
+      "series": [
+        {
+          "p50Ms": 0.2678000000000793,
+          "p95Ms": 0.7012999999997191,
+          "p99Ms": 0.7012999999997191,
+          "maxMs": 0.7012999999997191,
+          "coefficientOfVariation": 0.3993030385285164,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        },
+        {
+          "p50Ms": 0.2830000000003565,
+          "p95Ms": 0.3141000000000531,
+          "p99Ms": 0.3141000000000531,
+          "maxMs": 0.3141000000000531,
+          "coefficientOfVariation": 0.047126496088177386,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        }
+      ]
+    },
+    {
+      "caseId": "dc-soil-100",
+      "tier": "medium",
+      "category": "sensor",
+      "operation": "analyse",
+      "expectedStatus": "solved",
+      "status": "solved",
+      "diagnosticCodes": [
+        "circuit_ok"
+      ],
+      "fingerprint": "8e80e0b353d98406faa9cc02a664bacd39ec24e3e0ac4b992f25e39bb8d840bd",
+      "p50Ms": 0.27120000000013533,
+      "p95Ms": 0.6640999999999622,
+      "p99Ms": 0.6640999999999622,
+      "maxMs": 0.6640999999999622,
+      "heapDeltaBytes": 11264,
+      "rssDeltaBytes": 12288,
+      "deterministic": true,
+      "series": [
+        {
+          "p50Ms": 0.27559999999994034,
+          "p95Ms": 0.6640999999999622,
+          "p99Ms": 0.6640999999999622,
+          "maxMs": 0.6640999999999622,
+          "coefficientOfVariation": 0.37487534538288625,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        },
+        {
+          "p50Ms": 0.27120000000013533,
+          "p95Ms": 0.32580000000007203,
+          "p99Ms": 0.32580000000007203,
+          "maxMs": 0.32580000000007203,
+          "coefficientOfVariation": 0.07048362365778865,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        }
+      ]
+    },
+    {
+      "caseId": "dc-bench-supply-cv",
+      "tier": "medium",
+      "category": "source",
+      "operation": "analyse",
+      "expectedStatus": "solved",
+      "status": "solved",
+      "diagnosticCodes": [
+        "resistor_near_limit"
+      ],
+      "fingerprint": "77792b4a9f83db876e59cdd906c6890691cd04e1ccc47556efc5c4b1863fba42",
+      "p50Ms": 0.2341999999998734,
+      "p95Ms": 0.6252999999996973,
+      "p99Ms": 0.6252999999996973,
+      "maxMs": 0.6252999999996973,
+      "heapDeltaBytes": 30848,
+      "rssDeltaBytes": 0,
+      "deterministic": true,
+      "series": [
+        {
+          "p50Ms": 0.24839999999994689,
+          "p95Ms": 0.6252999999996973,
+          "p99Ms": 0.6252999999996973,
+          "maxMs": 0.6252999999996973,
+          "coefficientOfVariation": 0.4243421543239569,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        },
+        {
+          "p50Ms": 0.2341999999998734,
+          "p95Ms": 0.27599999999983993,
+          "p99Ms": 0.27599999999983993,
+          "maxMs": 0.27599999999983993,
+          "coefficientOfVariation": 0.07133702664739094,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        }
+      ]
+    },
+    {
+      "caseId": "dc-bench-supply-cc",
+      "tier": "medium",
+      "category": "source",
+      "operation": "analyse",
+      "expectedStatus": "solved",
+      "status": "solved",
+      "diagnosticCodes": [
+        "circuit_ok"
+      ],
+      "fingerprint": "d354c41eb749e9f42df37465175c4c878074e1b21d8101c26b29e63d703ce919",
+      "p50Ms": 0.23369999999977153,
+      "p95Ms": 0.7804000000000997,
+      "p99Ms": 0.7804000000000997,
+      "maxMs": 0.7804000000000997,
+      "heapDeltaBytes": 19560,
+      "rssDeltaBytes": 65536,
+      "deterministic": true,
+      "series": [
+        {
+          "p50Ms": 0.24290000000019063,
+          "p95Ms": 0.7804000000000997,
+          "p99Ms": 0.7804000000000997,
+          "maxMs": 0.7804000000000997,
+          "coefficientOfVariation": 0.5516208490071556,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        },
+        {
+          "p50Ms": 0.23369999999977153,
+          "p95Ms": 0.2795000000000982,
+          "p99Ms": 0.2795000000000982,
+          "maxMs": 0.2795000000000982,
+          "coefficientOfVariation": 0.10422692158386908,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        }
+      ]
+    },
+    {
+      "caseId": "transient-capacitor-1ms",
+      "tier": "medium",
+      "category": "transient",
+      "operation": "analyse",
+      "expectedStatus": "solved",
+      "status": "solved",
+      "diagnosticCodes": [
+        "circuit_ok"
+      ],
+      "fingerprint": "9e1cf6412161e826d84b288551d86c4bbc4ffb94d6f641f917ed1f0856cfbd68",
+      "p50Ms": 0.4375,
+      "p95Ms": 0.8924999999999272,
+      "p99Ms": 0.8924999999999272,
+      "maxMs": 0.8924999999999272,
+      "heapDeltaBytes": 36872,
+      "rssDeltaBytes": 221184,
+      "deterministic": true,
+      "series": [
+        {
+          "p50Ms": 0.45180000000027576,
+          "p95Ms": 0.8924999999999272,
+          "p99Ms": 0.8924999999999272,
+          "maxMs": 0.8924999999999272,
+          "coefficientOfVariation": 0.2883022799109583,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        },
+        {
+          "p50Ms": 0.4375,
+          "p95Ms": 0.7899000000002161,
+          "p99Ms": 0.7899000000002161,
+          "maxMs": 0.7899000000002161,
+          "coefficientOfVariation": 0.23698766941395577,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        }
+      ]
+    },
+    {
+      "caseId": "transient-capacitor-100ms",
+      "tier": "medium",
+      "category": "transient",
+      "operation": "analyse",
+      "expectedStatus": "solved",
+      "status": "solved",
+      "diagnosticCodes": [
+        "circuit_ok"
+      ],
+      "fingerprint": "c785ef0a400555437215ee051c8d472c93ce1477009c53de46d916a9a3f2835c",
+      "p50Ms": 6.66190000000006,
+      "p95Ms": 11.799999999999727,
+      "p99Ms": 11.799999999999727,
+      "maxMs": 11.799999999999727,
+      "heapDeltaBytes": 474368,
+      "rssDeltaBytes": -15765504,
+      "deterministic": true,
+      "series": [
+        {
+          "p50Ms": 8.479400000000169,
+          "p95Ms": 11.799999999999727,
+          "p99Ms": 11.799999999999727,
+          "maxMs": 11.799999999999727,
+          "coefficientOfVariation": 0.1357727307587481,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        },
+        {
+          "p50Ms": 6.66190000000006,
+          "p95Ms": 7.415599999999813,
+          "p99Ms": 7.415599999999813,
+          "maxMs": 7.415599999999813,
+          "coefficientOfVariation": 0.04713755216323925,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        }
+      ]
+    },
+    {
+      "caseId": "transient-capacitor-5000ms",
+      "tier": "stress",
+      "category": "transient",
+      "operation": "analyse",
+      "expectedStatus": "solved",
+      "status": "solved",
+      "diagnosticCodes": [
+        "circuit_ok"
+      ],
+      "fingerprint": "b9cd1b9b5485638a7ec1f4cc5369d0c6647e8edd02d2620d494919c6f018af07",
+      "p50Ms": 17.58470000000034,
+      "p95Ms": 23.053100000000086,
+      "p99Ms": 23.053100000000086,
+      "maxMs": 23.053100000000086,
+      "heapDeltaBytes": 27872,
+      "rssDeltaBytes": 41136128,
+      "deterministic": true,
+      "series": [
+        {
+          "p50Ms": 20.1554000000001,
+          "p95Ms": 21.017699999999877,
+          "p99Ms": 21.017699999999877,
+          "maxMs": 21.017699999999877,
+          "coefficientOfVariation": 0.10056852447847132,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        },
+        {
+          "p50Ms": 17.58470000000034,
+          "p95Ms": 23.053100000000086,
+          "p99Ms": 23.053100000000086,
+          "maxMs": 23.053100000000086,
+          "coefficientOfVariation": 0.12410683060336075,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        }
+      ]
+    },
+    {
+      "caseId": "transient-dc-motor-10ms",
+      "tier": "medium",
+      "category": "motor",
+      "operation": "analyse",
+      "expectedStatus": "solved",
+      "status": "solved",
+      "diagnosticCodes": [
+        "circuit_ok"
+      ],
+      "fingerprint": "7c70e3e7db1d8d59ea126d2f6e5546fe73b6935d40be25578f7ef09d6f223a59",
+      "p50Ms": 0.9020999999997912,
+      "p95Ms": 1.6485999999999876,
+      "p99Ms": 1.6485999999999876,
+      "maxMs": 1.6485999999999876,
+      "heapDeltaBytes": -448664,
+      "rssDeltaBytes": 995328,
+      "deterministic": true,
+      "series": [
+        {
+          "p50Ms": 1.045799999999872,
+          "p95Ms": 1.6485999999999876,
+          "p99Ms": 1.6485999999999876,
+          "maxMs": 1.6485999999999876,
+          "coefficientOfVariation": 0.2065024582868076,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        },
+        {
+          "p50Ms": 0.9020999999997912,
+          "p95Ms": 1.3618999999998778,
+          "p99Ms": 1.3618999999998778,
+          "maxMs": 1.3618999999998778,
+          "coefficientOfVariation": 0.23783322418957917,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        }
+      ]
+    },
+    {
+      "caseId": "transient-dc-motor-1000ms",
+      "tier": "stress",
+      "category": "motor",
+      "operation": "analyse",
+      "expectedStatus": "solved",
+      "status": "solved",
+      "diagnosticCodes": [
+        "circuit_ok"
+      ],
+      "fingerprint": "7b40a30af812c2d05b5180f9d8a58b37e6a4a4ecd6f05d409e206b0154db858a",
+      "p50Ms": 46.33019999999988,
+      "p95Ms": 58.69270000000006,
+      "p99Ms": 58.69270000000006,
+      "maxMs": 58.69270000000006,
+      "heapDeltaBytes": 32880,
+      "rssDeltaBytes": 5898240,
+      "deterministic": true,
+      "series": [
+        {
+          "p50Ms": 48.42729999999983,
+          "p95Ms": 58.69270000000006,
+          "p99Ms": 58.69270000000006,
+          "maxMs": 58.69270000000006,
+          "coefficientOfVariation": 0.08605820357443053,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        },
+        {
+          "p50Ms": 46.33019999999988,
+          "p95Ms": 57.66139999999996,
+          "p99Ms": 57.66139999999996,
+          "maxMs": 57.66139999999996,
+          "coefficientOfVariation": 0.11614110171291206,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        }
+      ]
+    },
+    {
+      "caseId": "transient-gearmotor-1000ms",
+      "tier": "stress",
+      "category": "motor",
+      "operation": "analyse",
+      "expectedStatus": "solved",
+      "status": "solved",
+      "diagnosticCodes": [
+        "circuit_ok"
+      ],
+      "fingerprint": "1b66e6a714cd7f798350111fe7362b5d87ab758cce2c13a719124cbd35d15d8f",
+      "p50Ms": 37.13199999999961,
+      "p95Ms": 76.00700000000052,
+      "p99Ms": 76.00700000000052,
+      "maxMs": 76.00700000000052,
+      "heapDeltaBytes": 103064,
+      "rssDeltaBytes": 26193920,
+      "deterministic": true,
+      "series": [
+        {
+          "p50Ms": 51.44560000000001,
+          "p95Ms": 76.00700000000052,
+          "p99Ms": 76.00700000000052,
+          "maxMs": 76.00700000000052,
+          "coefficientOfVariation": 0.23102606455277594,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        },
+        {
+          "p50Ms": 37.13199999999961,
+          "p95Ms": 52.490600000000086,
+          "p99Ms": 52.490600000000086,
+          "maxMs": 52.490600000000086,
+          "coefficientOfVariation": 0.164538433173148,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        }
+      ]
+    },
+    {
+      "caseId": "transient-vibration-motor-1000ms",
+      "tier": "stress",
+      "category": "motor",
+      "operation": "analyse",
+      "expectedStatus": "solved",
+      "status": "solved",
+      "diagnosticCodes": [
+        "circuit_ok"
+      ],
+      "fingerprint": "103032208b30cbf62c3d02fca314774179b27be3fe9113d6eca5b62a547f8c80",
+      "p50Ms": 43.203599999999824,
+      "p95Ms": 62.76470000000063,
+      "p99Ms": 62.76470000000063,
+      "maxMs": 62.76470000000063,
+      "heapDeltaBytes": 305760,
+      "rssDeltaBytes": 3121152,
+      "deterministic": true,
+      "series": [
+        {
+          "p50Ms": 43.203599999999824,
+          "p95Ms": 56.896600000000035,
+          "p99Ms": 56.896600000000035,
+          "maxMs": 56.896600000000035,
+          "coefficientOfVariation": 0.13049830272194385,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        },
+        {
+          "p50Ms": 48.530400000000554,
+          "p95Ms": 62.76470000000063,
+          "p99Ms": 62.76470000000063,
+          "maxMs": 62.76470000000063,
+          "coefficientOfVariation": 0.14612055383559738,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        }
+      ]
+    },
+    {
+      "caseId": "instrument-generator-scope",
+      "tier": "medium",
+      "category": "instrument",
+      "operation": "analyse",
+      "expectedStatus": "solved",
+      "status": "solved",
+      "diagnosticCodes": [
+        "circuit_ok"
+      ],
+      "fingerprint": "4298d83fced9b6c648ecb732a43861816cc0f60fb6b0b3f2d31aa405a98d1acf",
+      "p50Ms": 0.34979999999995925,
+      "p95Ms": 1.2226000000000568,
+      "p99Ms": 1.2226000000000568,
+      "maxMs": 1.2226000000000568,
+      "heapDeltaBytes": 10264,
+      "rssDeltaBytes": 233472,
+      "deterministic": true,
+      "series": [
+        {
+          "p50Ms": 0.5769000000000233,
+          "p95Ms": 1.2226000000000568,
+          "p99Ms": 1.2226000000000568,
+          "maxMs": 1.2226000000000568,
+          "coefficientOfVariation": 0.314548915666614,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        },
+        {
+          "p50Ms": 0.34979999999995925,
+          "p95Ms": 0.7191000000002532,
+          "p99Ms": 0.7191000000002532,
+          "maxMs": 0.7191000000002532,
+          "coefficientOfVariation": 0.29891571181729776,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        }
+      ]
+    },
+    {
+      "caseId": "instrument-multimeter-voltage",
+      "tier": "micro",
+      "category": "instrument",
+      "operation": "analyse",
+      "expectedStatus": "solved",
+      "status": "solved",
+      "diagnosticCodes": [
+        "circuit_ok"
+      ],
+      "fingerprint": "77694b225494f91bc61192f290c79d1cbd3d136f151a67d539e9bfe150c6bca5",
+      "p50Ms": 0.4048000000002503,
+      "p95Ms": 1.1760000000003856,
+      "p99Ms": 1.1760000000003856,
+      "maxMs": 1.1760000000003856,
+      "heapDeltaBytes": -7272,
+      "rssDeltaBytes": 131072,
+      "deterministic": true,
+      "series": [
+        {
+          "p50Ms": 0.5218000000004395,
+          "p95Ms": 1.1760000000003856,
+          "p99Ms": 1.1760000000003856,
+          "maxMs": 1.1760000000003856,
+          "coefficientOfVariation": 0.39116946573408024,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        },
+        {
+          "p50Ms": 0.4048000000002503,
+          "p95Ms": 0.9328999999997905,
+          "p99Ms": 0.9328999999997905,
+          "maxMs": 0.9328999999997905,
+          "coefficientOfVariation": 0.40029066590715606,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        }
+      ]
+    },
+    {
+      "caseId": "unsupported-future-device",
+      "tier": "micro",
+      "category": "safety",
+      "operation": "analyse",
+      "expectedStatus": "unsupported",
+      "status": "unsupported",
+      "diagnosticCodes": [
+        "unsupported_component"
+      ],
+      "fingerprint": "b1d870e5d3ab21022b5c30b3972db4614ac689598f50f92c36c9fc3e657b069e",
+      "p50Ms": 0.07949999999982538,
+      "p95Ms": 0.30680000000029395,
+      "p99Ms": 0.30680000000029395,
+      "maxMs": 0.30680000000029395,
+      "heapDeltaBytes": 3096,
+      "rssDeltaBytes": -258048,
+      "deterministic": true,
+      "series": [
+        {
+          "p50Ms": 0.10739999999987049,
+          "p95Ms": 0.30680000000029395,
+          "p99Ms": 0.30680000000029395,
+          "maxMs": 0.30680000000029395,
+          "coefficientOfVariation": 0.47007248606795016,
+          "deterministic": true,
+          "statuses": [
+            "unsupported"
+          ]
+        },
+        {
+          "p50Ms": 0.07949999999982538,
+          "p95Ms": 0.09729999999944994,
+          "p99Ms": 0.09729999999944994,
+          "maxMs": 0.09729999999944994,
+          "coefficientOfVariation": 0.08021892712362602,
+          "deterministic": true,
+          "statuses": [
+            "unsupported"
+          ]
+        }
+      ]
+    },
+    {
+      "caseId": "arduino-blink-analyse-10ms",
+      "tier": "medium",
+      "category": "arduino",
+      "operation": "analyse",
+      "expectedStatus": "solved",
+      "status": "solved",
+      "diagnosticCodes": [
+        "circuit_ok"
+      ],
+      "fingerprint": "677797402ed1401c0c3ef5a50c0574be5e4706547a113c96cfb51d9786a67e3f",
+      "p50Ms": 0.907799999999952,
+      "p95Ms": 2.1970000000001164,
+      "p99Ms": 2.1970000000001164,
+      "maxMs": 2.1970000000001164,
+      "heapDeltaBytes": 114600,
+      "rssDeltaBytes": 4096,
+      "deterministic": true,
+      "series": [
+        {
+          "p50Ms": 1.02599999999984,
+          "p95Ms": 2.1970000000001164,
+          "p99Ms": 2.1970000000001164,
+          "maxMs": 2.1970000000001164,
+          "coefficientOfVariation": 0.3434603751216926,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        },
+        {
+          "p50Ms": 0.907799999999952,
+          "p95Ms": 1.1141999999999825,
+          "p99Ms": 1.1141999999999825,
+          "maxMs": 1.1141999999999825,
+          "coefficientOfVariation": 0.14882150574098052,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        }
+      ]
+    },
+    {
+      "caseId": "arduino-gpio-clock-2000us",
+      "tier": "medium",
+      "category": "arduino-clock",
+      "operation": "arduino-clock",
+      "expectedStatus": "ready",
+      "status": "ready",
+      "diagnosticCodes": [],
+      "fingerprint": "f88c818921db33eda874247796fdbd7d1744a353ced3431782c2ebebb64162eb",
+      "p50Ms": 42.96740000000045,
+      "p95Ms": 63.31500000000051,
+      "p99Ms": 63.31500000000051,
+      "maxMs": 63.31500000000051,
+      "heapDeltaBytes": 313592,
+      "rssDeltaBytes": 80265216,
+      "deterministic": true,
+      "series": [
+        {
+          "p50Ms": 46.41999999999916,
+          "p95Ms": 63.31500000000051,
+          "p99Ms": 63.31500000000051,
+          "maxMs": 63.31500000000051,
+          "coefficientOfVariation": 0.13962384063747066,
+          "deterministic": true,
+          "statuses": [
+            "ready"
+          ]
+        },
+        {
+          "p50Ms": 42.96740000000045,
+          "p95Ms": 46.81620000000021,
+          "p99Ms": 46.81620000000021,
+          "maxMs": 46.81620000000021,
+          "coefficientOfVariation": 0.06816824833208283,
+          "deterministic": true,
+          "statuses": [
+            "ready"
+          ]
+        }
+      ]
+    },
+    {
+      "caseId": "arduino-adc-clock-3500us",
+      "tier": "medium",
+      "category": "arduino-clock",
+      "operation": "arduino-clock",
+      "expectedStatus": "ready",
+      "status": "ready",
+      "diagnosticCodes": [],
+      "fingerprint": "847a6a545835a1c4aba4ce9b0d92ea08d08213ff8c5fb43a75ace02d3f04ea33",
+      "p50Ms": 26.487999999999374,
+      "p95Ms": 42.86200000000099,
+      "p99Ms": 42.86200000000099,
+      "maxMs": 42.86200000000099,
+      "heapDeltaBytes": -244272,
+      "rssDeltaBytes": -2048000,
+      "deterministic": true,
+      "series": [
+        {
+          "p50Ms": 32.84219999999914,
+          "p95Ms": 42.86200000000099,
+          "p99Ms": 42.86200000000099,
+          "maxMs": 42.86200000000099,
+          "coefficientOfVariation": 0.14377061889335319,
+          "deterministic": true,
+          "statuses": [
+            "ready"
+          ]
+        },
+        {
+          "p50Ms": 26.487999999999374,
+          "p95Ms": 35.77770000000055,
+          "p99Ms": 35.77770000000055,
+          "maxMs": 35.77770000000055,
+          "coefficientOfVariation": 0.15106024300687712,
+          "deterministic": true,
+          "statuses": [
+            "ready"
+          ]
+        }
+      ]
+    },
+    {
+      "caseId": "arduino-two-board-clock-3500us",
+      "tier": "stress",
+      "category": "arduino-clock",
+      "operation": "arduino-clock",
+      "expectedStatus": "ready",
+      "status": "ready",
+      "diagnosticCodes": [],
+      "fingerprint": "c808ba2e697de79f9ab0f11fef1ec7dfe5f1c04840e77244fce3002e212582ee",
+      "p50Ms": 29.685300000001007,
+      "p95Ms": 46.302700000000186,
+      "p99Ms": 46.302700000000186,
+      "maxMs": 46.302700000000186,
+      "heapDeltaBytes": 60160,
+      "rssDeltaBytes": 2260992,
+      "deterministic": true,
+      "series": [
+        {
+          "p50Ms": 31.02059999999983,
+          "p95Ms": 46.302700000000186,
+          "p99Ms": 46.302700000000186,
+          "maxMs": 46.302700000000186,
+          "coefficientOfVariation": 0.15951153946699514,
+          "deterministic": true,
+          "statuses": [
+            "ready"
+          ]
+        },
+        {
+          "p50Ms": 29.685300000001007,
+          "p95Ms": 43.19920000000093,
+          "p99Ms": 43.19920000000093,
+          "maxMs": 43.19920000000093,
+          "coefficientOfVariation": 0.15535725307256557,
+          "deterministic": true,
+          "statuses": [
+            "ready"
+          ]
+        }
+      ]
+    },
+    {
+      "caseId": "arduino-gpio-small-budget",
+      "tier": "stress",
+      "category": "arduino-clock",
+      "operation": "arduino-clock",
+      "expectedStatus": "ready",
+      "status": "ready",
+      "diagnosticCodes": [],
+      "fingerprint": "f88c818921db33eda874247796fdbd7d1744a353ced3431782c2ebebb64162eb",
+      "p50Ms": 63.465400000000955,
+      "p95Ms": 76.34120000000075,
+      "p99Ms": 76.34120000000075,
+      "maxMs": 76.34120000000075,
+      "heapDeltaBytes": 467712,
+      "rssDeltaBytes": 10686464,
+      "deterministic": true,
+      "series": [
+        {
+          "p50Ms": 64.23440000000119,
+          "p95Ms": 76.34120000000075,
+          "p99Ms": 76.34120000000075,
+          "maxMs": 76.34120000000075,
+          "coefficientOfVariation": 0.07930616398929709,
+          "deterministic": true,
+          "statuses": [
+            "ready"
+          ]
+        },
+        {
+          "p50Ms": 63.465400000000955,
+          "p95Ms": 73.34569999999985,
+          "p99Ms": 73.34569999999985,
+          "maxMs": 73.34569999999985,
+          "coefficientOfVariation": 0.10573828582407037,
+          "deterministic": true,
+          "statuses": [
+            "ready"
+          ]
+        }
+      ]
+    }
+  ]
+}
