@@ -105,7 +105,24 @@ Review only the protocol component, final diff, mapped protocol/security contrac
 and mapped browser evidence. Confirm security transport implementation did not leak forward
 into M1-003.
 
+## Independent review
+
+Because this is a HIGH-risk trust-boundary slice, acceptance requires a reviewer that is not
+the authoring execution context. Give the reviewer only:
+
+```text
+this task card
+final diff
+blocks.host.protocol component entry
+mapped D0-001/D0-004 sections
+browser/protocol evidence on the exact SHA
+```
+
+The reviewer checks origin/source/project/nonce binding, token leakage, wildcard messaging,
+controlled failure behaviour and scope creep. A product defect is `FAIL/STOP`; fix it through
+a separately selected bounded repair task and rerun the review.
+
 ## Stop
 
-STOP after evidence. VSCR-M1-002D requires separate owner-authorised selection in
-`current.yaml` after C is accepted.
+STOP after self-review, independent review and evidence. VSCR-M1-002D requires separate
+owner-authorised selection in `current.yaml` after C is accepted.
