@@ -62,7 +62,7 @@ It does not change solver equations, Arduino semantics, production data or deplo
 
 ## Slowest p95 cases
 
-${slowest.map((entry, index) => `${index + 1}. \`${entry.caseId}\` вЂ” ${entry.p95Ms.toFixed(3)} ms`).join('\n')}
+${slowest.map((entry, index) => `${index + 1}. \`${entry.caseId}\` - ${entry.p95Ms.toFixed(3)} ms`).join('\n')}
 `;
 const completedMarkdown = `${markdown}
 
