@@ -12,15 +12,16 @@ Start with the smallest context that can safely answer the task:
 
 ```text
 router README
-→ one component entry
+→ compact COMPONENT_MAP index
+→ one referenced subsystem card
 → one task card if this is milestone implementation
 → one canonical contract section
 → mapped source file(s)
 → mapped focused test(s)
 ```
 
-Do not preload every D0 contract, the full roadmap, old audits, or unrelated source trees.
-Expand only when a concrete unresolved dependency requires it.
+Do not preload every subsystem card, every D0 contract, the full roadmap, old audits, or
+unrelated source trees. Expand only when a concrete unresolved dependency requires it.
 
 ### Default context budget
 
@@ -28,7 +29,8 @@ For an ordinary maintenance change, begin with:
 
 ```text
 1 router
-1 component entry
+1 compact component index
+1 subsystem card
 0–1 task card
 0–2 contract sections/files
 1–5 source files
@@ -41,26 +43,33 @@ expand one dependency hop and state why.
 ## 2. Component-first lookup
 
 Every maintainable Scratch concern has a stable component ID in `COMPONENT_MAP.yaml`.
+The compact index points to one small `components/*.yaml` card containing actual/planned
+source ownership, contract section and focused tests.
+
 Examples:
 
 ```text
-blocks.module.contract
 blocks.host.branding
-blocks.host.file-menu
 blocks.host.extensions
-blocks.host.protocol
 blocks.runtime.capability
 blocks.assets.upload
-blocks.project.persistence
 blocks.project.autosave
 blocks.sb3.import
 blocks.gallery.player
 ```
 
-When the user asks for a small change, resolve the component before searching code.
+When the user asks for a small change:
 
-If one component entry is enough, do not read adjacent components.
-If a request spans multiple mapped components, list them explicitly before editing.
+```text
+resolve component ID
+→ open only referenced card
+→ inspect only that component entry
+```
+
+Do not load all subsystem cards.
+
+If a request spans multiple components, list those IDs explicitly before editing and load
+only their referenced cards.
 
 ## 3. Read rules
 
@@ -72,37 +81,43 @@ START_HERE_FOR_AI.md
 current authorised task context
 visual-programming/README.md
 this AGENT_GUIDE.md
-matching COMPONENT_MAP.yaml entry
+COMPONENT_MAP.yaml compact index
+one referenced components/*.yaml card
 ```
 
 ### Read only when mapped or required
 
 ```text
-Master spec
-D0 contracts
-forward plan
-task cards
-Project Core docs
-Learning docs
-Gallery docs
-storage/security contracts
+Master sections required by global Scratch entry flow
+Scratch ADR
+selected D0 contract section(s)
+forward plan for planning questions
+task card for selected milestone implementation
+Project Core/Learning/Gallery docs only when the component crosses those boundaries
 ```
 
 ### Do not read by default
 
 ```text
+all component cards
+all D0 contracts
 historical readiness audits
 superseded addenda
 old PR bodies/comments
+historical consolidated implementation package
 unrelated module docs
 all of apps/web or apps/api
-all D0 contracts at once
-all task packages at once
 ```
 
-A broad `grep/search` of the repository is permitted only when the component map is stale,
-the mapped symbol no longer exists, or the request is genuinely cross-cutting. Record that
-reason in the final report.
+A broad repository `grep/search` is permitted only when:
+
+```text
+the component index/card is stale,
+the mapped symbol/path no longer exists,
+or the request is genuinely cross-cutting.
+```
+
+Record that reason in the final report.
 
 ## 4. Write rules
 
@@ -137,7 +152,7 @@ focused unit/browser test where present
 
 ### MEDIUM
 
-Examples: event handler, component state, message shape implementation inside an already
+Examples: event handler, component state, message-shape implementation inside an already
 accepted contract, non-security orchestration.
 
 Required review:
@@ -151,7 +166,7 @@ type/lint/build gate required by task/component
 ### HIGH
 
 Examples: JWT/capability, origin/CORS/CSP, persistence guard, S3/MinIO, asset validation,
-cross-tenant behaviour, `.sb3` parser/import, recovery/conflict semantics.
+cross-tenant behaviour, `.sb3` parsing/import, recovery/conflict semantics.
 
 Required review:
 
@@ -169,25 +184,33 @@ public bucket or tenant/RLS redesign.
 Required action:
 
 ```text
-STOP unless explicitly authorised by owner and exact contract/task package exists
+STOP unless explicitly authorised by owner and exact contract/task card exists
 independent review + owner acceptance mandatory
 ```
 
 ## 6. Bounded self-review after every implementation slice
 
-Do this after code/tests, using only the task contract, final diff, mapped contracts and test
-results. Do **not** reread the whole project.
+Do this after code/tests, using only:
+
+```text
+selected task/maintenance card
+final diff
+mapped component contract(s)
+focused test results
+```
+
+Do **not** reread the whole project.
 
 Checklist:
 
 ```text
 1. Did I implement exactly the requested outcome?
 2. Did I touch only justified paths?
-3. Did I add behaviour not requested by the task?
+3. Did I add behavior not requested by the task?
 4. Did I preserve mapped invariants and neighbour boundaries?
-5. Are acceptance criteria actually evidenced by tests, not assumed?
+5. Are acceptance criteria evidenced by tests rather than assumed?
 6. Did I leave dead code, duplicate paths or a second source of truth?
-7. Did source/test ownership change? If yes, did I update COMPONENT_MAP.yaml?
+7. Did source/test ownership change? If yes, did I update the subsystem card?
 8. Did I accidentally begin a future task?
 9. What concrete residual risk remains?
 ```
@@ -196,11 +219,12 @@ Report form:
 
 ```text
 SELF_REVIEW: PASS | PASS_WITH_RISK | FAIL
+components: ...
 scope: ...
 acceptance: ...
 tests: ...
 unrequested_changes: none | ...
-component_map: unchanged | updated
+routing_docs: unchanged | updated
 residual_risk: none | ...
 next_allowed_task: STOP | <owner-selectable task>
 ```
@@ -226,15 +250,19 @@ M3 sovereign/deployment/backup acceptance
 M4 activation
 ```
 
-The reviewer should receive the task card, diff, mapped contracts and evidence—not the whole
-repository unless the review finds an unresolved dependency.
+The reviewer receives the exact task card, final diff, relevant subsystem card, mapped
+contract sections and evidence—not the whole repository unless review discovers an
+unresolved dependency.
 
 ## 8. Documentation update rule
 
 Documentation is part of the implementation result.
 
 When a task creates, renames, moves or deletes a Scratch source/test surface, update the
-matching component entry in the same slice.
+matching `components/*.yaml` entry in the same slice.
+
+Update the compact `COMPONENT_MAP.yaml` only when a stable component ID/card/state/risk
+routing entry itself changes.
 
 After a milestone task is accepted:
 
@@ -253,15 +281,18 @@ Do not copy temporary SHA/PR state into component cards. Live execution state st
 
 If two active Scratch documents disagree:
 
-1. stop before coding the disputed behaviour;
+1. stop before coding the disputed behavior;
 2. prefer the canonical hierarchy in `README.md`;
 3. compare with actual code and accepted owner decision;
-4. repair the canonical document first;
-5. mark/remove superseded wording from the default read path.
+4. repair the canonical document/routing card first;
+5. remove superseded wording from the default read path.
 
-Do not make the coding bot choose architecture by “best judgement” between conflicting docs.
+Do not make a coding bot choose architecture by “best judgement” between conflicting docs.
 
-## 10. Future small-maintenance example
+If `COMPONENT_MAP.yaml` or a subsystem card points to a missing/renamed source or test, treat
+that as a routing defect. Repair routing before doing a broad code search.
+
+## 10. Small-maintenance example
 
 Request: “hide the Extensions button in Scratch”.
 
@@ -270,8 +301,9 @@ Expected context:
 ```text
 README.md
 AGENT_GUIDE.md
-COMPONENT_MAP.yaml → blocks.host.extensions
-D0-001 § Extensions
+COMPONENT_MAP.yaml → blocks.host.extensions → components/host.yaml
+only blocks.host.extensions entry
+D0-001 → Extensions section
 mapped editor config / patch file
 mapped host browser test
 ```
@@ -279,9 +311,12 @@ mapped host browser test
 Unnecessary context:
 
 ```text
+components/runtime.yaml
+components/assets.yaml
+components/project.yaml
+components/gallery-learning.yaml
 S3 contracts
 Project Core persistence
-Gallery remix
 Learning
 sb3 import
 whole apps/web
