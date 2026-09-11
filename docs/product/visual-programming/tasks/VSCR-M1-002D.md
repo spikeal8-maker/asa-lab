@@ -2,7 +2,8 @@
 
 **Kind:** executable implementation slice  
 **Risk:** high  
-**Prerequisite:** VSCR-M1-002C accepted.
+**Prerequisite:** VSCR-M1-002C accepted.  
+**Execution:** coding starts only when `docs/execution/current.yaml.task.id` is exactly `VSCR-M1-002D`.
 
 ## Goal
 
@@ -95,4 +96,5 @@ evidence. Confirm no persistence success is claimed and no external fallback rem
 
 ## Stop
 
-STOP after evidence. VSCR-M1-002E is acceptance/review only and separately selected.
+STOP after evidence. VSCR-M1-002E requires separate owner-authorised selection in
+`current.yaml` after D is accepted.
