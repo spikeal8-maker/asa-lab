@@ -7,6 +7,7 @@ const ROOT = path.resolve(import.meta.dirname, '..');
 const DOC_ROOT = 'docs/product/visual-programming';
 const INDEX_PATH = `${DOC_ROOT}/COMPONENT_MAP.yaml`;
 const TASK_ROOT = `${DOC_ROOT}/tasks`;
+const GLOBAL_ENTRY_PATH = 'START_HERE_FOR_AI.md';
 const errors = [];
 
 const allowedStates = new Set(['implemented', 'planned', 'blocked']);
@@ -105,6 +106,27 @@ function requireExactExistingPath(relative, owner) {
   if (!exists(relative)) errors.push(`${owner}: missing path ${relative}`);
 }
 
+function validateSourceEntry(entry, owner) {
+  const relative = sourcePath(entry);
+  requireExactExistingPath(relative, owner);
+  if (!relative || !exists(relative) || typeof entry === 'string') return;
+
+  if (entry.symbols !== undefined) {
+    if (!Array.isArray(entry.symbols) || entry.symbols.length === 0) {
+      errors.push(`${owner}: symbols must be a non-empty array when present`);
+      return;
+    }
+    const text = readText(relative);
+    for (const symbol of entry.symbols) {
+      if (typeof symbol !== 'string' || !symbol.trim()) {
+        errors.push(`${owner}: symbol names must be non-empty strings`);
+      } else if (!text.includes(symbol)) {
+        errors.push(`${owner}: symbol ${symbol} not found in ${relative}`);
+      }
+    }
+  }
+}
+
 function validateContract(contract, owner) {
   if (!contract || typeof contract !== 'object') {
     errors.push(`${owner}: contract entry must be a mapping`);
@@ -129,9 +151,7 @@ function validateContract(contract, owner) {
 
 for (const retired of retiredActivePaths) {
   if (exists(retired)) {
-    errors.push(
-      `${retired}: retired historical/addendum file must not remain in active Scratch docs`,
-    );
+    errors.push(`${retired}: retired historical/addendum file must not remain in active Scratch docs`);
   }
 }
 
@@ -255,8 +275,7 @@ for (const id of cardComponents.keys()) {
 
 for (const [id, component] of cardComponents) {
   const owner = `${component.cardPath}:${id}`;
-  if (!allowedStates.has(component.state))
-    errors.push(`${owner}: invalid state ${component.state}`);
+  if (!allowedStates.has(component.state)) errors.push(`${owner}: invalid state ${component.state}`);
   if (!allowedRisks.has(component.risk)) errors.push(`${owner}: invalid risk ${component.risk}`);
   if (!allowedOwnership.has(component.ownership)) {
     errors.push(`${owner}: invalid/missing ownership ${component.ownership}`);
@@ -274,6 +293,9 @@ for (const [id, component] of cardComponents) {
   for (const dependency of component.depends_on || []) {
     if (!cardComponents.has(dependency)) errors.push(`${owner}: unknown dependency ${dependency}`);
   }
+  if (component.canonical_asset !== undefined) {
+    requireExactExistingPath(component.canonical_asset, `${owner}.canonical_asset`);
+  }
 
   if (component.state === 'implemented') {
     if (!Array.isArray(component.sources) || component.sources.length === 0) {
@@ -283,7 +305,7 @@ for (const [id, component] of cardComponents) {
       errors.push(`${owner}: implemented component needs exact tests`);
     }
     for (const entry of component.sources || []) {
-      requireExactExistingPath(sourcePath(entry), `${owner}.sources`);
+      validateSourceEntry(entry, `${owner}.sources`);
     }
     for (const test of component.tests || []) requireExactExistingPath(test, `${owner}.tests`);
     if (component.planned_sources || component.planned_tests) {
@@ -302,7 +324,18 @@ for (const [id, component] of cardComponents) {
     if (typeof component.task_card !== 'string') {
       errors.push(`${owner}: planned source/test paths require an exact task_card`);
     } else {
-      requireExactExistingPath(`${TASK_ROOT}/${component.task_card}`, `${owner}.task_card`);
+      const taskPath = `${TASK_ROOT}/${component.task_card}`;
+      requireExactExistingPath(taskPath, `${owner}.task_card`);
+      if (exists(taskPath)) {
+        const taskText = readText(taskPath);
+        if (!taskText.includes(id)) {
+          errors.push(`${owner}: task card ${component.task_card} does not name component ${id}`);
+        }
+        const taskId = component.task_card.replace(/\.md$/, '');
+        if (component.task && component.task !== taskId) {
+          errors.push(`${owner}: task ${component.task} does not match task_card ${taskId}`);
+        }
+      }
     }
   }
 }
@@ -313,6 +346,7 @@ if (fs.existsSync(taskDir)) {
     if (!/^VSCR-.*\.md$/.test(name)) continue;
     const relative = `${TASK_ROOT}/${name}`;
     const text = readText(relative);
+    const taskId = name.replace(/\.md$/, '');
     if (text.includes('**Status:**')) {
       errors.push(`${relative}: task card must not duplicate readiness/status`);
     }
@@ -320,10 +354,26 @@ if (fs.existsSync(taskDir)) {
     if (!text.includes('## Bounded self-review')) {
       errors.push(`${relative}: missing ## Bounded self-review`);
     }
+
+    const requiresExecutionMarker =
+      text.includes('**Kind:** executable implementation slice') ||
+      text.includes('**Kind:** acceptance/review slice');
+    if (requiresExecutionMarker) {
+      if (!text.includes('**Execution:**')) {
+        errors.push(`${relative}: executable/review card must declare **Execution:**`);
+      }
+      if (!text.includes('docs/execution/current.yaml.task.id')) {
+        errors.push(`${relative}: execution marker must bind to current.yaml.task.id`);
+      }
+      if (!text.includes(taskId)) {
+        errors.push(`${relative}: execution marker/card must name exact task ID ${taskId}`);
+      }
+    }
   }
 }
 
 const activeRoutingDocs = [
+  GLOBAL_ENTRY_PATH,
   `${DOC_ROOT}/README.md`,
   `${DOC_ROOT}/AGENT_GUIDE.md`,
   'docs/product/ASA_VISUAL_PROGRAMMING_SCRATCH_MASTER_SPEC.md',
@@ -337,13 +387,14 @@ const forbiddenActiveStrings = [
   'VSCR-AUDIT-2026-09-10-READINESS-NOTE.md',
   'VSCR-IMPLEMENTATION-PACKAGE-M0.1-002-UPSTREAM-PIN.md',
   'VSCR-D0-004A-CURRENT-AUTHORIZATION-RECHECK.md',
+  'current.yaml` + explicit owner instruction',
 ];
 for (const relative of activeRoutingDocs) {
   if (!exists(relative)) continue;
   const text = readText(relative);
   for (const forbidden of forbiddenActiveStrings) {
     if (text.includes(forbidden)) {
-      errors.push(`${relative}: references retired active-history/addendum ${forbidden}`);
+      errors.push(`${relative}: references retired/forbidden routing text ${forbidden}`);
     }
   }
 }
@@ -358,4 +409,5 @@ console.log('Scratch documentation routing validation: PASS');
 console.log(`- components: ${cardComponents.size}`);
 console.log(`- subsystem cards: ${cardPaths.size}`);
 console.log('- retired competing docs/addenda absent from active tree');
-console.log('- implemented source/test paths and canonical contract headings verified');
+console.log('- implemented source/test paths, symbols and canonical contract headings verified');
+console.log('- executable task cards are bound to exact current.yaml task IDs');
