@@ -136,6 +136,7 @@ STRUCTURED_DOCUMENTS = (
     "docs/testing/test-catalog.yaml",
     "docs/testing/planned-test-catalog.yaml",
     "docs/testing/active-task-tests.yaml",
+    "docs/agent/document-registry.yaml",
 )
 
 

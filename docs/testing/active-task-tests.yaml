@@ -36,3 +36,36 @@ tests:
     timeout_seconds: 3600
     owner: access-a
     artifacts: [repository-report, ci-candidate-sha, migration-report]
+
+  - id: TST-LRN-COURSE-E1-CORE-001
+    title: Learning E1 focused canonical direct project and learner access checks
+    suite: integration
+    level: system
+    phase_available: PHASE-12
+    required_for: [TASK-LRN-COURSE-001]
+    command: pnpm test:learning-vs-002
+    timeout_seconds: 1800
+    owner: learning
+    artifacts: [vitest-report, learning-migration-report, authorization-report]
+
+  - id: TST-LRN-COURSE-E1-E2E-001
+    title: Learning E1 real learner project submit browser journey
+    suite: e2e
+    level: system
+    phase_available: PHASE-12
+    required_for: [TASK-LRN-COURSE-001]
+    command: pnpm e2e:learning-vs-002
+    timeout_seconds: 1800
+    owner: learning
+    artifacts: [playwright-report, learning-browser-evidence]
+
+  - id: TST-LRN-COURSE-E1-REPOSITORY-001
+    title: Learning E1 final integrated repository gate
+    suite: integration
+    level: system
+    phase_available: PHASE-12
+    required_for: [TASK-LRN-COURSE-001]
+    command: pnpm gate:repository
+    timeout_seconds: 3600
+    owner: learning
+    artifacts: [repository-report, migration-report, candidate-sha]

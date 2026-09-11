@@ -95,40 +95,52 @@ Self-review не является независимым acceptance. Отдел�
 ### DOC-M0 — authority foundation
 
 - создать machine-readable Document Registry;
-- классифицировать canonical документы без массового переписывания архива;
-- валидировать существование paths, уникальность authority и supersession links;
-- подключить validator к governance gate.
+- классифицировать canonical документы без массовой переписи архива;
+- валидировать paths, authority и supersession links;
+- подключить проверки к governance gate.
 
-### DOC-M1 — compact domain contracts
+### DOC-M0.5 — routing and contract foundation
 
-Пилотные контексты: Identity/Access и Learning. Контракт содержит только устойчивые термины, state machines, authority boundaries и ссылки на master-spec.
+До создания большого числа компактных контрактов:
+- зафиксировать schema для Domain Contract и Surface Map;
+- ввести стабильные invariant/surface/control IDs;
+- маршрутизировать `agent:context --scope` через Document Registry;
+- разделить `readFirst`, `readIfNeeded`, `doNotUse` и review process;
+- привязать активные задачи к exact canonical document revisions;
+- обнаруживать revision drift автоматически.
+### DOC-M1 — Learning vertical pilot
 
-### DOC-M2 — root router cleanup
+Проверить систему на одном сложном домене end-to-end:
+- компактный Learning Domain Contract;
+- несколько реальных Learning Surface Maps;
+- `agent:context --path`, `--surface`, `--control`;
+- resolver invariant IDs и исполнимых focused tests;
+- ограниченный context budget без чтения целого Master по умолчанию.
 
-Только после появления целевых Domain Contracts:
+Пилот должен доказать, что локальная правка получает нужную архитектурную семантику без исследования всего Learning.
 
+### DOC-M2 — review enforcement
+
+`POST_STEP_REVIEW` обязателен после логически законченного шага. Для `L3_CRITICAL`, milestone и candidate дополнительно требуется `CHALLENGE_REVIEW`. Требование должно приходить через tooling/context, а не существовать только как Markdown.
+
+### DOC-M3 — Identity/Access rollout
+
+После подтверждения Learning-пилота применить тот же формат к Account/Profile/Login/StudentSeat/Classroom access/settings. Не создавать второй способ маршрутизации.
+### DOC-M4 — root router cleanup
+
+Только после доказанной новой маршрутизации:
 - сократить `AGENTS.md` до универсальной политики;
 - сократить `START_HERE_FOR_AI.md` до маршрутизатора;
-- вынести Electronics/Scratch/Learning-specific правила в зарегистрированные контексты;
-- не удалять правило из root, пока registry не указывает его новое authority-место.
+- перенести domain-specific правила в зарегистрированные контракты;
+- не удалять root-правило, пока новый resolver не выдаёт его адресно.
 
-### DOC-M3 — maintenance surface maps
+### DOC-M5 — gradual rollout
 
-Сначала Account/Profile/Classroom/Learning, затем Projects/Electronics/3D/Chess/Admin/Visual Programming.
+Подключать Projects/Electronics/3D/Chess/Admin/Visual Programming по мере реальной работы. Не проводить массовую перепись документов без продуктовой причины.
 
-Surface Map не описывает дизайн заново. Он связывает пользовательскую поверхность с реальными implementation paths, commands и tests.
+### DOC-M6 — full maintenance coverage
 
-### DOC-M4 — targeted agent context
-
-Расширить `agent:context` режимами `--surface`, `--control`, `--path`. Ввести ограничение размера выдачи и тесты на отсутствие нерелевантных документов.
-
-### DOC-M5 — enforced review
-
-Формализовать `POST_STEP_REVIEW` и `CHALLENGE_REVIEW`; milestone/candidate без требуемого review evidence не объявляется готовым.
-
-### DOC-M6 — gradual rollout
-
-Перенести оставшиеся bounded contexts и классифицировать historical/superseded archive по мере реальной работы. Не делать массовую документационную миграцию без продуктовой необходимости.
+После покрытия bounded contexts перевести registry из `partial` в `full`, запретить незарегистрированные нормативные документы и закрепить context budgets для L0–L3.
 
 ## 8. Acceptance всей системы
 
