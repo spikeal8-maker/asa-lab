@@ -93,51 +93,89 @@ AGENTS.md
 экран; не загружай весь архив спецификаций. Логические P/U/R обозначения —
 сценарии, способы входа и scoped обязанности, а не глобальные типы аккаунта.
 
-Для задач `Визуального программирования` / Scratch-compatible runtime основной
-продуктовый источник —
-[`ASA_VISUAL_PROGRAMMING_SCRATCH_MASTER_SPEC.md`](docs/product/ASA_VISUAL_PROGRAMMING_SCRATCH_MASTER_SPEC.md).
-Сначала прочитай его §0–§4, затем только раздел выбранного VSCR task ID и
-[`ADR-VSCR-001`](docs/architecture/ADR-VSCR-001-SCRATCH-EDITOR-INTEGRATION.md).
+### Visual Programming / Scratch
 
-Перед **любой** coding-задачей Visual Programming сначала открой индекс готовности:
+Для `Визуального программирования` используется отдельный token-efficient router:
 
 [`docs/product/visual-programming/README.md`](docs/product/visual-programming/README.md).
 
-Если выбранный task помечен там `NO`, coding запрещён, даже если старый task package
-содержит подробные шаги. `NO` означает, что после более свежего аудита остался
-неразрешённый prerequisite и пакет ещё не является разрешением на реализацию.
+Не читай весь Scratch-раздел по умолчанию. Сначала определи профиль работы.
 
-Для VSCR-задач дополнительно обязательно прочитай соответствующий design contract:
+#### Milestone / VSCR implementation
+
+Для выбранного milestone/sub-slice:
 
 ```text
-VSCR-D0-001 — Scratch host / upstream provenance / branding / File / Extensions
-VSCR-D0-002 — Project persistence guard
-VSCR-D0-003 — asset metadata/object storage
-VSCR-D0-004 — runtime capability/CORS/CSP/rate limits
-VSCR-D0-005 — deployment/backup/activation
-VSCR-D0-006 — immutable Gallery publication/player/cross-tenant remix
-VSCR-D0-007 — sb3 canonical formats / legacy import compatibility / ZIP safety boundary
+README router
+→ readiness/order из VSCR-M1-FORWARD-PLAN-2026-09-11.md
+→ точная tasks/<selected-task>.md
+→ Master §0–§4 + selected task stub
+→ ADR-VSCR-001
+→ COMPONENT_MAP.yaml
+→ только указанные task card subsystem entries
+→ только mapped D0 contract sections/source/tests
 ```
 
-Для coding-задачи обязательно должен существовать точный task package. Текущие
-пакеты и review records лежат в
-[`docs/product/visual-programming/`](docs/product/visual-programming/).
+Основной стабильный продуктовый источник —
+[`ASA_VISUAL_PROGRAMMING_SCRATCH_MASTER_SPEC.md`](docs/product/ASA_VISUAL_PROGRAMMING_SCRATCH_MASTER_SPEC.md),
+архитектурное решение —
+[`ADR-VSCR-001`](docs/architecture/ADR-VSCR-001-SCRATCH-EDITOR-INTEGRATION.md).
 
-Master/ADR/D0 объясняют архитектуру; readiness index говорит, можно ли вообще
-кодировать выбранный task; task package фиксирует конкретные paths, шаги, тесты,
-запреты и Definition of Done для одного coding slice.
+Readiness хранится только в
+[`VSCR-M1-FORWARD-PLAN-2026-09-11.md`](docs/product/visual-programming/VSCR-M1-FORWARD-PLAN-2026-09-11.md).
+Если выбранный task/sub-slice там `BLOCKED`, coding запрещён. `READY` означает только
+возможность отдельного выбора владельцем, а не автоматический старт.
 
-Если выбранного coding task ID нет в актуальном package или readiness index говорит
-`NO`, не восстанавливай реализацию из roadmap, старого PR, комментария или чата — STOP.
-Для M2/M3 это специально обязательное правило: их task packages создаются только после
-принятия реальных интерфейсов предыдущего milestone.
+Для executable milestone-среза обязана существовать точная task card. Если её нет, не
+восстанавливай реализацию из roadmap, Git history, старого PR, комментария или чата — STOP.
+Для M1-003+ и M2/M3 это намеренно: точная card создаётся после принятия реальных
+предыдущих интерфейсов.
 
-Если master spec требует D0 prerequisite, а соответствующий D0 contract отсутствует,
-противоречит коду или не принят для выбранной границы — STOP. Coding-агенту
-запрещено самостоятельно выбирать альтернативную архитектуру и продолжать M1.
+D0-контракты читаются адресно по task/component mapping, а не все сразу:
+
+```text
+VSCR-D0-001 — host / branding / product controls / iframe / fixture storage
+VSCR-D0-002 — Project durability
+VSCR-D0-003 — asset metadata/object storage
+VSCR-D0-004 — runtime capability/current authority/Origin/CORS/CSP
+VSCR-D0-005 — deployment/backup/activation
+VSCR-D0-006 — immutable Gallery publication/player/remix
+VSCR-D0-007 — sb3 compatibility / ZIP safety
+```
+
+#### Bounded Scratch maintenance
+
+Для уже реализованной локальной правки вроде «изменить кнопку», «переименовать label»,
+«скрыть элемент» Master, ADR и full roadmap **не загружаются автоматически**.
+
+Стандартный путь:
+
+```text
+README router
+→ COMPONENT_MAP.yaml по human keyword/component ID
+→ ровно одна components/*.yaml card
+→ ровно один component entry
+→ mapped contract section
+→ mapped source file(s)
+→ mapped focused test(s)
+→ bounded self-review
+```
+
+Если component ownership = `upstream_patch`, новый Scratch source patch не создаётся по
+аналогии: разрешён только уже принятый patch; новый patch — STOP/design review.
+
+Если routing указывает на отсутствующий implemented source/test или несуществующий contract
+heading, сначала исправь routing defect. Broad repository search допустим только после
+явной фиксации причины.
+
+После Scratch implementation/maintenance обязательно выполни:
+
+```bash
+node tools/validate-blocks-docs.mjs
+```
 
 Для Scratch/VSCR отдельная feature-ветка не имеет права начинать новый slice на
-устаревшем shared baseline. Readiness `YES` не отменяет обязательную проверку divergence
+устаревшем shared baseline. Readiness не отменяет обязательную проверку divergence
 с текущим `main`; если следующий slice затрагивает workspace dependency graph, lockfile,
 execution state или shared infrastructure, repository convergence идёт раньше coding.
 
