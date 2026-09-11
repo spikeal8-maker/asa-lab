@@ -519,6 +519,8 @@ console.log(`- subsystem cards: ${cardPaths.size}`);
 console.log('- retired competing docs/addenda absent and unreferenced in active Scratch docs');
 console.log('- implemented source/test paths, symbols and canonical contract headings verified');
 console.log('- shared/large implemented code sources have symbol-level routing');
-console.log('- executable/design/review task cards are bounded and bind exact current.yaml task IDs');
+console.log(
+  '- executable/design/review task cards are bounded and bind exact current.yaml task IDs',
+);
 console.log('- task/design-gate risk cannot understate mapped component risk');
 console.log('- HIGH/CRITICAL executable/design/review slices require independent review');
