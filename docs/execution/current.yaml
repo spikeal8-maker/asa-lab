@@ -9,40 +9,21 @@ development_policy:
   lane_path_ownership: advisory
 
 task:
-  id: TASK-ASA-ACCESS-A-INTEGRATE-001
-  issue: 173
-  branch: main
+  id: VSCR-M1-001
+  issue: 183
+  branch: agent/vscr-m1-001
   base_branch: main
-  pr: 174
-  pr_draft: false
-  status: done
-  checkpoint: owner_accepted_result_a_merged_without_deployment
-  owner_acceptance: accepted
-
-accepted_result:
-  id: ASA-ACCESS-A
-  status: OWNER_ACCEPTED
-  source_sha: 62fd17721d779a957be0f398d7357774bed61795
-  integrated_sha: 75d0ec4e8b558935eb28a3a5677a73d67882b8fb
-  integrated_base_sha: cc712bc5155291b64dca3207457d26b055c118f6
-  merge_sha: 07ffd4e5266ded960ae8485a93a20103d607d6d9
-  decision_date: '2026-09-09'
-  known_unsupported:
-    - bilateral_student_seat_to_account_linking
-    - personal_self_study_runtime_progress
-  merge_authorized: true
-  deployment_authorized: false
-  open_environment_checks:
-    - id: native_windows_three_d_touch_after_cdp_gesture
-      status: unverified
-      evidence: docs/testing/ACCESS_A_WINDOWS_TOUCH_REPRO.md
+  pr: null
+  pr_draft: true
+  status: in_progress
+  checkpoint: m1_001_bounded_context_extraction
+  owner_acceptance: pending
 
 revisions:
-  product_merge_sha: 07ffd4e5266ded960ae8485a93a20103d607d6d9
-  convergence_baseline_sha: cc712bc5155291b64dca3207457d26b055c118f6
+  convergence_baseline_sha: 3fe1e298422c225843db7fcda927b27221159a18
 
 execution_lease:
-  executor_id: codex-admin-auth-max
+  executor_id: codex-vscr-m1-001
   holder: unassigned
   acquired_at: null
   expires_at: null
@@ -50,40 +31,95 @@ execution_lease:
 
 gates:
   focused:
-    workflow: ASA Lab Governance and Code Gates
+    workflow: Scratch M0 Focused
     commands:
-      - pnpm test:access-a
-  browser:
-    workflow: ASA Lab Governance and Code Gates
-    commands:
-      - pnpm e2e:access-a
+      - pnpm gate:code
   general:
     workflow: ASA Lab Governance and Code Gates
     commands:
       - pnpm gate:repository
 
 primary_lane:
-  id: admin-auth
-  worktree_id: admin-auth-main
+  id: visual-programming
+  worktree_id: visual-programming-m1
   owned_paths:
-    - contexts/identity/**
-    - apps/api/src/auth.controller.ts
-    - apps/api/src/max-auth.service.ts
-    - apps/api/src/admin-control-plane.service.ts
-    - apps/web/src/admin/**
-    - apps/web/src/pages/AccountPage.tsx
-    - apps/web/src/pages/LoginPage.tsx
-    - apps/web/src/pages/MaxLinkPage.tsx
-    - migrations/0077_admin_auth_sessions.sql
-    - migrations/0078_max_verification_lifecycle.sql
-    - migrations/0100_max_runtime_settings.sql
-    - tests/admin/**
-    - tests/account/**
-    - e2e/admin-auth-max.spec.ts
-    - docs/execution/ADMIN_AUTH_MAX_EXECUTION_PLAN.md
-    - docs/execution/ASA_ACCESS_A.md
+    - contexts/blocks/**
+    - apps/api/src/blocks-module.ts
+    - apps/api/src/blocks-module.spec.ts
+    - docs/product/visual-programming/components/module.yaml
+    - docs/product/visual-programming/components/assets.yaml
 
 parallel_lanes:
+  - id: admin-auth
+    worktree_id: admin-auth-main
+    owned_paths:
+      - contexts/identity/**
+      - apps/api/src/auth.controller.ts
+      - apps/api/src/max-auth.service.ts
+      - apps/api/src/admin-control-plane.service.ts
+      - apps/web/src/admin/**
+      - apps/web/src/pages/AccountPage.tsx
+      - apps/web/src/pages/LoginPage.tsx
+      - apps/web/src/pages/MaxLinkPage.tsx
+      - migrations/0077_admin_auth_sessions.sql
+      - migrations/0078_max_verification_lifecycle.sql
+      - migrations/0100_max_runtime_settings.sql
+      - tests/admin/**
+      - tests/account/**
+      - e2e/admin-auth-max.spec.ts
+      - docs/execution/ADMIN_AUTH_MAX_EXECUTION_PLAN.md
+      - docs/execution/ASA_ACCESS_A.md
+    task:
+      id: TASK-ASA-ACCESS-A-INTEGRATE-001
+      issue: 173
+      branch: main
+      base_branch: main
+      pr: 174
+      pr_draft: false
+      status: done
+      checkpoint: owner_accepted_result_a_merged_without_deployment
+      owner_acceptance: accepted
+    accepted_result:
+      id: ASA-ACCESS-A
+      status: OWNER_ACCEPTED
+      source_sha: 62fd17721d779a957be0f398d7357774bed61795
+      integrated_sha: 75d0ec4e8b558935eb28a3a5677a73d67882b8fb
+      integrated_base_sha: cc712bc5155291b64dca3207457d26b055c118f6
+      merge_sha: 07ffd4e5266ded960ae8485a93a20103d607d6d9
+      decision_date: '2026-09-09'
+      known_unsupported:
+        - bilateral_student_seat_to_account_linking
+        - personal_self_study_runtime_progress
+      merge_authorized: true
+      deployment_authorized: false
+      open_environment_checks:
+        - id: native_windows_three_d_touch_after_cdp_gesture
+          status: unverified
+          evidence: docs/testing/ACCESS_A_WINDOWS_TOUCH_REPRO.md
+    revisions:
+      convergence_baseline_sha: cc712bc5155291b64dca3207457d26b055c118f6
+      head_sha: 07ffd4e5266ded960ae8485a93a20103d607d6d9
+      product_merge_sha: 07ffd4e5266ded960ae8485a93a20103d607d6d9
+    execution_lease:
+      executor_id: codex-admin-auth-max
+      holder: unassigned
+      acquired_at: null
+      expires_at: null
+      reviewer_role_requires_lease: false
+    gates:
+      focused:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm test:access-a
+      browser:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm e2e:access-a
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
+
   - id: electronics
     worktree_id: electronics-main
     owned_paths:
@@ -368,7 +404,7 @@ parallel_lanes:
           - pnpm gate:repository
 
 integration:
-  owner_lane: admin-auth
+  owner_lane: visual-programming
   shared_paths:
     - docs/execution/current.yaml
     - AGENTS.md
