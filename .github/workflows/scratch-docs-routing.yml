@@ -75,3 +75,19 @@ jobs:
           docs/architecture/ADR-VSCR-001-SCRATCH-EDITOR-INTEGRATION.md
           tools/validate-blocks-docs.mjs
           .github/workflows/scratch-docs-routing.yml
+
+      - name: Show required formatting diff
+        if: failure()
+        run: |
+          pnpm exec prettier --write \
+            docs/product/ASA_VISUAL_PROGRAMMING_SCRATCH_MASTER_SPEC.md \
+            docs/product/visual-programming \
+            docs/architecture/ADR-VSCR-001-SCRATCH-EDITOR-INTEGRATION.md \
+            tools/validate-blocks-docs.mjs \
+            .github/workflows/scratch-docs-routing.yml
+          git diff -- \
+            docs/product/ASA_VISUAL_PROGRAMMING_SCRATCH_MASTER_SPEC.md \
+            docs/product/visual-programming \
+            docs/architecture/ADR-VSCR-001-SCRATCH-EDITOR-INTEGRATION.md \
+            tools/validate-blocks-docs.mjs \
+            .github/workflows/scratch-docs-routing.yml
