@@ -1,112 +1,123 @@
 # Scratch maintenance task template
 
-Use this for a bounded post-implementation Scratch change that is not a milestone package.
+Use this only for a bounded post-implementation Scratch change that is not a milestone task.
+Active execution still comes from `docs/execution/current.yaml` + explicit owner instruction.
 
-Do not copy execution state into this template. The active task still comes from
-`docs/execution/current.yaml` + owner instruction.
-
-## Request
+## Goal
 
 ```text
-<one sentence describing the requested visible/behavioral change>
+<one sentence describing the requested visible/behavioural result>
 ```
 
-## Component IDs
+## Components
 
-Resolve from `../COMPONENT_MAP.yaml` before reading code:
+Resolve by ID/keywords from `../COMPONENT_MAP.yaml` before reading code:
 
 ```text
 <blocks.component.id>
 ```
 
-The compact index points to one `../components/*.yaml` card. Open only that card and the
-matching component entry.
+Open only the referenced subsystem card and matching component entry. If no component fits,
+STOP and repair routing first.
 
-If no component matches, STOP and repair routing first.
+## Ownership and risk
 
-## Risk
+Copy from the subsystem card; do not invent a lower risk:
 
 ```text
-low | medium | high | critical
+ownership: <asa | infrastructure | upstream_config | upstream_patch | cross_boundary | shared_existing>
+risk: <low | medium | high | critical>
 ```
 
-Use the policy in `../AGENT_GUIDE.md`.
+An unmapped upstream Scratch UI control is not automatically safe to patch. STOP for design
+review rather than creating a new upstream patch casually.
 
 ## Minimal read set
 
 ```text
 ../README.md
-../AGENT_GUIDE.md
-../COMPONENT_MAP.yaml compact index
-<one referenced ../components/*.yaml card>
+../COMPONENT_MAP.yaml
+<one referenced ../components/*.yaml card and one component entry>
 <only mapped canonical contract section(s)>
 <only mapped source file(s)>
-<only mapped test file(s)>
+<only mapped focused test file(s)>
 ```
 
-Do not read other Scratch subsystem cards unless a concrete dependency requires one more hop.
+Use `../AGENT_GUIDE.md` for review/risk rules when needed. Do not load other Scratch
+subsystems unless a concrete direct dependency requires one more hop.
 
 ## Expected write paths
 
 ```text
 <small exact path set>
-<the matching components/*.yaml card only if ownership/routing changes>
+<matching subsystem card only if actual source/test ownership changes>
 ```
 
-Any extra path must have a concrete dependency reason stated before editing.
+Any extra path requires a concrete dependency reason before editing.
 
 ## Acceptance
 
 ```text
-1. <observable result>
-2. <invariant preserved>
-3. <focused test evidence>
-```
-
-## Forbidden
-
-```text
-no unrelated component refactor
-no next milestone work
-no activation/deploy/restart unless separately authorised
-no widening security/persistence boundaries to make the local change easier
+1. <observable requested result>
+2. <mapped invariant preserved>
+3. <focused test/browser evidence>
 ```
 
 ## Tests
 
 ```text
 <mapped focused test/gate>
+node tools/validate-blocks-docs.mjs
 ```
 
 Run broader gates only when required by shared-path/risk policy.
 
+## Forbidden
+
+```text
+no unrelated component refactor
+no next milestone/sub-slice work
+no new upstream patch unless an exact reviewed task/contract authorises it
+no security/persistence widening to make a local UI change easier
+no deploy/restart/activation unless separately authorised
+```
+
 ## Bounded self-review
 
-Use the `AGENT_GUIDE.md` checklist against:
+Review only:
 
 ```text
 this maintenance card
-the final diff
-the mapped component entry + contract
-the focused test evidence
+final diff
+mapped component entry + exact contract section
+focused evidence
 ```
 
-Do not reread the full Scratch project for self-review.
+Report:
+
+```text
+SELF_REVIEW: PASS | PASS_WITH_RISK | FAIL
+components: ...
+ownership: ...
+scope: ...
+acceptance: ...
+tests: ...
+unrequested_changes: none | ...
+routing_docs: unchanged | updated
+residual_risk: none | ...
+next_allowed_task: STOP
+```
 
 ## Documentation completion
 
-If source/test ownership moved or a new stable component/symbol was introduced:
+If actual source/test ownership moved or a stable concern changed:
 
 ```text
-update the matching ../components/*.yaml card in the same slice
+update the matching ../components/*.yaml entry in the same slice
 ```
 
-Update `../COMPONENT_MAP.yaml` only when the stable component ID/card/state/risk routing
-itself changes.
-
-If ownership did not change, report `routing_docs: unchanged`.
+Update compact `../COMPONENT_MAP.yaml` only if component ID/card route/human keywords change.
 
 ## Stop
 
-After acceptance evidence and self-review, STOP. Do not begin another Scratch change without
-separate selection.
+STOP after evidence and self-review. Do not begin another Scratch change automatically.
