@@ -58,6 +58,22 @@ only their cards/direct dependencies.
 
 If no component matches, STOP and repair routing before broad code search.
 
+### Routing granularity
+
+The map is a maintenance map, not a DOM inventory. Create a distinct stable component ID when
+a concern can be independently requested/owned/tested or has a different contract/risk
+boundary. Do not create IDs for incidental wrappers or styling-only markup that is wholly
+owned by one existing component.
+
+When implemented source is shared by multiple mapped components, each component entry must
+name the exact relevant `symbols`. A large code source must also expose symbols even when only
+one component currently owns it. If a source has no stable bounded symbol and keeps growing,
+split the code before accepting the slice rather than making future agents reread a monolith.
+
+For newly implemented ASA UI, independently maintained controls such as a toolbar action,
+status indicator or dialog normally either get their own component ID or live in a dedicated
+small source module owned by one existing component. Update routing in the same slice.
+
 ## 3. What each layer owns
 
 ```text
@@ -230,6 +246,7 @@ component entry in the same slice:
 planned paths → exact actual paths
 planned tests → exact actual focused tests
 state → implemented only after accepted evidence
+shared/large code sources → exact symbols
 obsolete alternatives removed
 ```
 
