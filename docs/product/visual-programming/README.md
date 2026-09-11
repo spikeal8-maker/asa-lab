@@ -1,66 +1,83 @@
 # Visual Programming / Scratch — agent router
 
-**Purpose:** minimal-entry documentation for all ASA Lab Scratch/Blocks work.  
-**Module:** `blocks` / `Визуальное программирование`  
-**Status:** routing document only; never selects work by itself.
+**Purpose:** minimal entry point for ASA Lab `blocks` / `Визуальное программирование`.  
+**Authority:** routing only; it never selects work.
 
-## 1. First rule
+Active execution comes only from `docs/execution/current.yaml` + explicit owner instruction.
+Do not read this whole directory for a Scratch change.
 
-Active work is selected only through `docs/execution/current.yaml` + explicit owner instruction.
-This directory explains **how** to work on Scratch; it does not authorise a task.
+## 1. Choose the work profile
 
-For any Scratch change, do **not** read this whole directory.
-
-Default read path:
+### Milestone implementation
 
 ```text
-AGENTS.md
-→ START_HERE_FOR_AI.md
-→ current authorised task
-→ this README
-→ AGENT_GUIDE.md
-→ COMPONENT_MAP.yaml compact index
-→ one referenced components/*.yaml card
-→ only the contract/task/source/test files named by that card
+AGENTS.md / START_HERE_FOR_AI.md
+→ authorised VSCR task
+→ Master required sections + ADR as required by global entry flow
+→ this router
+→ exact tasks/<task>.md
+→ COMPONENT_MAP.yaml
+→ only referenced subsystem-card entries
+→ only mapped contract/source/test files
 ```
 
-If the component cannot be resolved, expand one dependency hop at a time. Broad repository
-scans and reading all Scratch contracts are a last resort, not the default workflow.
+### Bounded maintenance after implementation
+
+For a request such as “change a button”, “rename a label”, “hide an element”:
+
+```text
+this router
+→ COMPONENT_MAP.yaml keywords/component ID
+→ exactly one referenced components/*.yaml card
+→ only that component entry
+→ mapped contract section + source + focused test
+→ bounded self-review
+```
+
+Do not load the roadmap, all D0 contracts, all subsystem cards or unrelated ASA modules by
+default. Expand one dependency hop only when a concrete unresolved dependency requires it.
 
 ## 2. Canonical documents
 
-| Need | Read |
+| Need | Canonical source |
 | --- | --- |
-| product goal / stable invariants / milestone order | `../ASA_VISUAL_PROGRAMMING_SCRATCH_MASTER_SPEC.md` |
-| stable architecture decisions | `../../architecture/ADR-VSCR-001-SCRATCH-EDITOR-INTEGRATION.md` |
-| token-efficient agent workflow / review rules | `AGENT_GUIDE.md` |
-| component ID → one small subsystem card | `COMPONENT_MAP.yaml` |
-| host / branding / File / Extensions / iframe | `VSCR-D0-001-SCRATCH-HOST-CONTRACT.md` |
-| Project Core durability guard | `VSCR-D0-002-PERSISTENCE-CONTRACT.md` |
-| asset identity / S3 / MinIO / upload/read | `VSCR-D0-003-ASSET-STORAGE-CONTRACT.md` |
-| runtime JWT / origin / CORS / CSP / rate limits | `VSCR-D0-004-RUNTIME-SECURITY-CONTRACT.md` + `VSCR-D0-004A-CURRENT-AUTHORIZATION-RECHECK.md` |
+| stable product goal / invariants / milestone order | `../ASA_VISUAL_PROGRAMMING_SCRATCH_MASTER_SPEC.md` |
+| stable architecture decision | `../../architecture/ADR-VSCR-001-SCRATCH-EDITOR-INTEGRATION.md` |
+| token-efficient workflow / risk / self-review | `AGENT_GUIDE.md` |
+| human request/component ID → subsystem card | `COMPONENT_MAP.yaml` |
+| readiness/order | `VSCR-M1-FORWARD-PLAN-2026-09-11.md` |
+| one selected implementation slice | `tasks/<task-id>.md` |
+| host / branding / controls / iframe / fixture storage | `VSCR-D0-001-SCRATCH-HOST-CONTRACT.md` |
+| Project Core durability | `VSCR-D0-002-PERSISTENCE-CONTRACT.md` |
+| asset identity / S3 / MinIO / asset API | `VSCR-D0-003-ASSET-STORAGE-CONTRACT.md` |
+| runtime capability / current authority / Origin/CORS/CSP | `VSCR-D0-004-RUNTIME-SECURITY-CONTRACT.md` |
 | deployment / backup / activation | `VSCR-D0-005-DEPLOYMENT-ACTIVATION-CONTRACT.md` |
-| Gallery publication / player / remix | `VSCR-D0-006-PUBLICATION-REMIX-CONTRACT.md` |
+| immutable Gallery publication/player/remix | `VSCR-D0-006-PUBLICATION-REMIX-CONTRACT.md` |
 | `.sb3` compatibility / ZIP safety | `VSCR-D0-007-SB3-IMPORT-COMPATIBILITY-CONTRACT.md` |
-| current post-M0 milestone plan | `VSCR-M1-FORWARD-PLAN-2026-09-11.md` |
-| one implementation slice | `tasks/<task-id>.md` when present |
 
-Historical audits/addenda are evidence only. They are not part of the default coding read
-path and must never override the canonical documents above.
+Git history is evidence/history, not an alternative active specification.
 
 ## 3. Component routing
 
-`COMPONENT_MAP.yaml` is intentionally small. It does not contain source/test detail.
-It maps a stable component ID to exactly one small card:
+`COMPONENT_MAP.yaml` is intentionally only a compact lookup index:
 
 ```text
-blocks.host.branding
-→ components/host.yaml
-→ branding entry only
-→ mapped D0 section + source + focused test
+human keywords / stable component ID
+→ one components/*.yaml card
 ```
 
-Subsystem cards:
+The subsystem card alone owns:
+
+```text
+implementation state
+risk
+ownership class
+canonical contract section
+actual source/test ownership when implemented
+direct dependencies
+```
+
+Cards:
 
 ```text
 components/module.yaml
@@ -73,113 +90,101 @@ components/gallery-learning.yaml
 components/sovereign-deployment.yaml
 ```
 
-Do not load all subsystem cards.
+Never load all cards for one local change.
 
-## 4. Current factual baseline
+## 4. Ownership classes
 
-Integrated M0/M0.1:
+Every component declares one ownership class so an agent knows how freely it may change the
+surface:
+
+```text
+asa               ASA-owned code/config; change inside selected scope
+infrastructure    ASA deployment/build ownership
+upstream_config   use supported upstream configuration surface; avoid source patch
+upstream_patch    only the exact reviewed compatibility patch is allowed
+cross_boundary    touches multiple ASA boundaries; high-risk review required
+shared_existing   reuse an existing ASA subsystem; do not create a Scratch copy
+```
+
+An upstream-owned control that is not already mapped to `upstream_config` or an accepted
+`upstream_patch` is not “just another button”. STOP and review the integration boundary
+before editing upstream Scratch source.
+
+## 5. Current factual baseline
+
+Integrated today:
 
 ```text
 moduleKey      blocks
 projectType    scratch-3
 moduleVersion  0.1.1
 availability   coming_soon
-project asset  assetId + dataFormat + sha256 + sizeBytes
+asset ref      assetId + dataFormat + sha256 + sizeBytes
 objectKey      server-only, forbidden in Project Core JSON
-Scratch pin    exact reviewed immutable commit from infra/scratch-editor/upstream.env
+Scratch pin    exact reviewed commit in infra/scratch-editor/upstream.env
 ```
 
-Not yet implemented:
-
-```text
-@asa-lab/blocks bounded context
-ASA-owned Scratch host
-runtime capability API
-S3/MinIO asset persistence
-durable load/save
-autosave/recovery/conflict handling
-.sb3 product import/export
-Gallery/player/remix
-sovereign local media/extensions baseline
-activation
-```
-
-## 5. Readiness
-
-```text
-M0/M0.1     COMPLETE / IN MAIN
-M1-001      READY FOR OWNER SELECTION
-M1-002      BLOCKED until M1-001 accepted
-M1-003      BLOCKED until M1-002 accepted
-M1-004P     design work may be selected separately
-M1-004      BLOCKED until M1-003 + M1-004P
-M1-005P     design work may be selected separately
-M1-005      BLOCKED until M1-004 + M1-005P
-M1-006      BLOCKED until M1-005
-M1-007P     design work may be selected separately
-M1-007      BLOCKED until durable M1 storage/load-save + M1-007P
-M1-008      BLOCKED until M1-006 + M1-007
-M2+         BLOCKED until preceding milestone acceptance and exact task cards
-```
-
-`READY` means eligible for owner selection. It never means “start automatically”.
-`BLOCKED` means STOP before coding.
+The implementation state/readiness of future work is **not repeated here**. Read only
+`VSCR-M1-FORWARD-PLAN-2026-09-11.md` when the question is “what comes next?”.
 
 ## 6. Branding invariant
 
-Canonical product logo source:
+Canonical ASA product mark:
 
 ```text
 apps/web/public/asa-lab-mark.svg
 ```
 
-Scratch logo must not appear as ASA product chrome. Do not create a second independently
-editable ASA logo for the Scratch host. Factual compatibility wording such as
-“совместимо с проектами Scratch 3 (.sb3)” is allowed where appropriate.
+Scratch product logo/navigation is not ASA product chrome. Do not maintain a second
+independently editable ASA logo for the runtime host. Factual compatibility wording such as
+“совместимо с проектами Scratch 3 (.sb3)” is permitted where appropriate.
 
-## 7. Maintenance changes after implementation
+## 7. Maintenance workflow
 
-For a future request such as “change a button”, “adjust a label”, “hide an element”:
+For a future local change:
 
-1. resolve component ID in `COMPONENT_MAP.yaml`;
-2. open only its referenced `components/*.yaml` card;
-3. read only that component's `contracts`, `sources`, `tests` and direct dependencies;
-4. do not read unrelated persistence/storage/Gallery/Learning documents;
-5. change only the smallest source set;
-6. run the mapped focused test/gate;
-7. perform bounded self-review from `AGENT_GUIDE.md`;
-8. update the subsystem card if source/test ownership changed.
+```text
+1. resolve the component ID by exact ID or COMPONENT_MAP keywords
+2. open one subsystem card and one component entry
+3. inspect its ownership/risk/contracts/sources/tests
+4. state exact expected write paths before editing
+5. change only the smallest coherent source set
+6. run mapped focused evidence
+7. run node tools/validate-blocks-docs.mjs
+8. perform bounded self-review from AGENT_GUIDE.md
+9. update the same subsystem card if real source/test ownership changed
+10. STOP
+```
 
-If the index/card points to a missing or renamed source, STOP and repair routing before
-expanding into broad code search.
+If a mapped implemented source/test disappears or is renamed, repair routing before doing a
+broad repository search.
 
 ## 8. Hard boundaries
 
 ```text
 no automatic next task
-no Scratch logo as product chrome
-no Scratch GUI/VM packages in apps/web dependency graph
-no scratch-www/account/community/LMS copy
+no parallel scratch module/account/LMS/project backend
+no Scratch GUI/VM dependency in apps/web
 no objectKey in project JSON
 no silent last-write-wins
 no generic cookie trust for Scratch runtime origin
-no public bucket shortcut
+no public object-store shortcut
 no Gallery current-draft shortcut for published Blocks
-no cross-tenant JSON-only remix
-no activation before durability + sovereign + backup/restore gates
+no JSON-only cross-tenant remix
+no activation before durability + sovereign + backup/restore acceptance
 no deploy/restart/live restore without explicit owner instruction
 ```
 
-## 9. Completion rule for every Scratch task
+## 9. Documentation completion rule
 
-Every accepted implementation slice must leave routing usable for the next agent:
+A Scratch implementation slice is not complete until routing still works for the next agent:
 
 ```text
-actual source paths recorded in the matching components/*.yaml card
-actual focused test/gate recorded
-obsolete paths removed
-one task only completed
-bounded self-review recorded in report
-known residual risk stated explicitly
-next task not started
+implemented component card points to exact actual source paths and focused tests
+obsolete planned paths removed
+ownership/risk still correct
+new stable component ID added only when a genuinely new concern exists
+node tools/validate-blocks-docs.mjs passes
+bounded self-review records residual risk
+next slice not started
 ```
