@@ -1,0 +1,52 @@
+schema_version: 1.0.0
+area: gallery-learning
+components:
+  - id: blocks.gallery.publication
+    state: blocked
+    risk: high
+    purpose: "Publish exact immutable project_version_id, never mutable current draft."
+    contracts:
+      - path: docs/product/visual-programming/VSCR-D0-006-PUBLICATION-REMIX-CONTRACT.md
+        section: "§2–§4 immutable publication/read semantics"
+    planned_sources:
+      - migrations/*gallery*.sql
+      - contexts/projects/**
+    planned_tests: [tests/blocks/gallery-publication.spec.ts]
+    task: VSCR-M2
+
+  - id: blocks.gallery.player
+    state: blocked
+    risk: high
+    purpose: "Read-only player bound to exact immutable published Blocks version."
+    contracts:
+      - path: docs/product/visual-programming/VSCR-D0-006-PUBLICATION-REMIX-CONTRACT.md
+        section: "§4–§5 player/version asset authority"
+    planned_sources:
+      - apps/web/src/blocks/**
+      - apps/api/src/blocks-runtime.controller.ts
+    planned_tests: [e2e/blocks-gallery-player.spec.ts]
+    task: VSCR-M2
+
+  - id: blocks.gallery.remix
+    state: blocked
+    risk: high
+    purpose: "Server-side cross-tenant asset re-materialisation from immutable publication."
+    contracts:
+      - path: docs/product/visual-programming/VSCR-D0-006-PUBLICATION-REMIX-CONTRACT.md
+        section: "§6–§9 remix, failure ordering and provenance"
+    planned_sources:
+      - contexts/blocks/**
+      - contexts/projects/**
+    planned_tests: [tests/blocks/gallery-remix.spec.ts]
+    task: VSCR-M2
+
+  - id: blocks.learning.submission
+    state: blocked
+    risk: medium
+    purpose: "Reuse existing ASA Learning immutable project_version_id submission semantics."
+    contracts:
+      - path: docs/product/visual-programming/VSCR-D0-006-PUBLICATION-REMIX-CONTRACT.md
+        section: "§10 Learning is separate from Gallery publication"
+    existing_sources: [contexts/learning/**]
+    rule: "No Scratch-specific LMS."
+    task: VSCR-M2
