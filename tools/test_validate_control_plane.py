@@ -254,6 +254,27 @@ def task_bad_id(_):
     return errors
 
 
+@case("a canonical VSCR milestone task id", expect="")
+def task_vscr_milestone_id(_):
+    errors: list[str] = []
+    cp.check_current(task_document(id="VSCR-M1-001"), errors)
+    return errors
+
+
+@case("a canonical VSCR sub-slice task id", expect="")
+def task_vscr_subslice_id(_):
+    errors: list[str] = []
+    cp.check_current(task_document(id="VSCR-M1-002A"), errors)
+    return errors
+
+
+@case("a malformed VSCR task id", expect="task.id invalid")
+def task_bad_vscr_id(_):
+    errors: list[str] = []
+    cp.check_current(task_document(id="VSCR-M1-01"), errors)
+    return errors
+
+
 @case("a complete task record", expect="")
 def task_healthy(_):
     errors: list[str] = []
@@ -687,6 +708,31 @@ def state_file_case(main_state: str, branch_state: str | None, advance_main: str
 def state_edited(_):
     errors, _ = state_file_case(BASE_STATE, BASE_STATE + "  pr: 72\n")
     return errors
+
+
+@case(
+    "direct main product branch cannot self-select execution state",
+    expect="modifies docs/execution/current.yaml",
+)
+def direct_main_state_edited(_):
+    with tempfile.TemporaryDirectory() as raw:
+        root = Path(raw) / "repo"
+        build_repo(root, main_state=BASE_STATE, branch_state=BASE_STATE + "  pr: 72\n")
+        saved = cp.ROOT
+        try:
+            cp.bind_root(root)
+            errors: list[str] = []
+            notes: list[str] = []
+            cp.check_execution_branch_policy(
+                True,
+                [{"branch": "agent/r4-electronics-m1"}],
+                [],
+                errors,
+                notes,
+            )
+            return errors
+        finally:
+            cp.bind_root(saved)
 
 
 @case("the task branch leaves the state file alone", expect="")
