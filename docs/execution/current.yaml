@@ -79,6 +79,9 @@ parallel_lanes:
       status: done
       checkpoint: owner_accepted_result_a_merged_without_deployment
       owner_acceptance: accepted
+      normative_refs:
+        - document: IDENTITY-ACCESS-V20
+          revision: '2.0'
     accepted_result:
       id: ASA-ACCESS-A
       status: OWNER_ACCEPTED

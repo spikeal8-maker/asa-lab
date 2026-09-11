@@ -1,0 +1,257 @@
+schema_version: 1.0.0
+context: identity
+surfaces:
+- id: SURF-ACCOUNT-SETTINGS
+  routes:
+  - '#/account'
+  implementation:
+    files:
+    - apps/web/src/pages/AccountPage.tsx
+    - apps/web/src/api.ts
+    - apps/api/src/account-c1.controller.ts
+    - contexts/identity/application/effective-actions.ts
+  invariants:
+  - IDA-ACC-001
+  - IDA-SCOPE-001
+  - IDA-AUTH-001
+  - IDA-CAP-001
+  - IDA-CTX-001
+  - IDA-PROFILE-001
+  - IDA-SESSION-001
+  tests:
+  - TST-ASA-ACCESS-A-CORE-001
+  - TST-ASA-ACCESS-A-E2E-001
+  controls:
+  - id: CTRL-ACCOUNT-SAVE-PROFILE
+    label: Save account profile
+    change_class: L2_DOMAIN_MUTATION
+    files:
+    - apps/web/src/pages/AccountPage.tsx
+    - apps/web/src/api.ts
+    - apps/api/src/account-c1.controller.ts
+    commands:
+    - account_profile_update
+    invariants:
+    - IDA-AUTH-001
+    - IDA-PROFILE-001
+    tests:
+    - TST-ASA-ACCESS-A-CORE-001
+    - TST-ASA-ACCESS-A-E2E-001
+  - id: CTRL-ACCOUNT-ENABLE-AUTHORING
+    label: Enable content authoring capability
+    change_class: L3_CRITICAL
+    files:
+    - apps/web/src/pages/AccountPage.tsx
+    - apps/web/src/api.ts
+    - apps/api/src/account-c1.controller.ts
+    - contexts/identity/application/effective-actions.ts
+    commands:
+    - content_author_self_attest
+    invariants:
+    - IDA-SCOPE-001
+    - IDA-AUTH-001
+    - IDA-CAP-001
+    tests:
+    - TST-ASA-ACCESS-A-CORE-001
+    - TST-ASA-ACCESS-A-E2E-001
+  - id: CTRL-ACCOUNT-ENABLE-TEACHING
+    label: Enable educator capability
+    change_class: L3_CRITICAL
+    files:
+    - apps/web/src/pages/AccountPage.tsx
+    - apps/web/src/api.ts
+    - apps/api/src/account-c1.controller.ts
+    - contexts/identity/application/effective-actions.ts
+    commands:
+    - educator_self_attest
+    invariants:
+    - IDA-SCOPE-001
+    - IDA-AUTH-001
+    - IDA-CAP-001
+    tests:
+    - TST-ASA-ACCESS-A-CORE-001
+    - TST-ASA-ACCESS-A-E2E-001
+  - id: CTRL-ACCOUNT-SWITCH-WORKSPACE
+    label: Switch active workspace context
+    change_class: L3_CRITICAL
+    files:
+    - apps/web/src/pages/AccountPage.tsx
+    - apps/web/src/api.ts
+    - apps/api/src/account-c1.controller.ts
+    - contexts/identity/application/effective-actions.ts
+    commands:
+    - session_context_switch
+    invariants:
+    - IDA-AUTH-001
+    - IDA-CTX-001
+    - IDA-REV-001
+    tests:
+    - TST-ASA-ACCESS-A-CORE-001
+    - TST-ASA-ACCESS-A-E2E-001
+  - id: CTRL-ACCOUNT-REVOKE-SESSION
+    label: Revoke an account session
+    change_class: L3_CRITICAL
+    files:
+    - apps/web/src/pages/AccountPage.tsx
+    - apps/web/src/api.ts
+    - apps/api/src/account-c1.controller.ts
+    commands:
+    - account_session_revoke
+    invariants:
+    - IDA-AUTH-001
+    - IDA-REV-001
+    - IDA-SESSION-001
+    tests:
+    - TST-ASA-ACCESS-A-CORE-001
+    - TST-ASA-ACCESS-A-E2E-001
+- id: SURF-ACCOUNT-AUTH
+  routes:
+  - '#/sign-in'
+  - '#/sign-up'
+  implementation:
+    files:
+    - apps/web/src/pages/LoginPage.tsx
+    - apps/web/src/pages/RegisterPage.tsx
+    - apps/web/src/api.ts
+    - apps/api/src/auth.controller.ts
+    - contexts/identity/application/account-login.usecase.ts
+    - contexts/identity/application/register-account.usecase.ts
+  invariants:
+  - IDA-ACC-001
+  - IDA-SCOPE-001
+  - IDA-AUTH-001
+  - IDA-SESSION-001
+  tests:
+  - TST-ASA-ACCESS-A-CORE-001
+  - TST-ASA-ACCESS-A-E2E-001
+  controls:
+  - id: CTRL-AUTH-LOGIN
+    label: Sign in to an Account
+    change_class: L3_CRITICAL
+    files:
+    - apps/web/src/pages/LoginPage.tsx
+    - apps/web/src/api.ts
+    - apps/api/src/auth.controller.ts
+    - contexts/identity/application/account-login.usecase.ts
+    commands:
+    - account_login
+    invariants:
+    - IDA-AUTH-001
+    - IDA-SESSION-001
+    tests:
+    - TST-ASA-ACCESS-A-CORE-001
+    - TST-ASA-ACCESS-A-E2E-001
+  - id: CTRL-AUTH-REGISTER
+    label: Create a personal Account
+    change_class: L3_CRITICAL
+    files:
+    - apps/web/src/pages/RegisterPage.tsx
+    - apps/web/src/api.ts
+    - apps/api/src/auth.controller.ts
+    - contexts/identity/application/register-account.usecase.ts
+    commands:
+    - account_register
+    invariants:
+    - IDA-ACC-001
+    - IDA-SCOPE-001
+    - IDA-AUTH-001
+    tests:
+    - TST-ASA-ACCESS-A-CORE-001
+    - TST-ASA-ACCESS-A-E2E-001
+  - id: CTRL-AUTH-MAX-PAIRING
+    label: Sign in through the supported MAX pairing flow
+    change_class: L3_CRITICAL
+    files:
+    - apps/web/src/pages/LoginPage.tsx
+    - apps/web/src/api.ts
+    - apps/api/src/auth.controller.ts
+    - apps/api/src/max-auth.service.ts
+    commands:
+    - max_pairing_start
+    - max_pairing_complete
+    invariants:
+    - IDA-AUTH-001
+    - IDA-SESSION-001
+    tests:
+    - TST-ASA-ACCESS-A-CORE-001
+    - TST-ASA-ACCESS-A-E2E-001
+- id: SURF-STUDENT-SEAT-ENTRY
+  routes:
+  - '#/join-class'
+  implementation:
+    files:
+    - apps/web/src/pages/JoinClassPage.tsx
+    - apps/web/src/api.ts
+    - apps/api/src/classroom-join.controller.ts
+  invariants:
+  - IDA-AUTH-001
+  - IDA-SEAT-001
+  - IDA-LINK-001
+  - IDA-REV-001
+  tests:
+  - TST-ASA-ACCESS-A-CORE-001
+  - TST-ASA-ACCESS-A-E2E-001
+  controls:
+  - id: CTRL-SEAT-RESOLVE-CLASS
+    label: Resolve a class code to safe class metadata
+    change_class: L2_DOMAIN_MUTATION
+    files:
+    - apps/web/src/pages/JoinClassPage.tsx
+    - apps/web/src/api.ts
+    - apps/api/src/classroom-join.controller.ts
+    commands:
+    - class_code_resolve
+    invariants:
+    - IDA-AUTH-001
+    - IDA-SEAT-001
+    tests:
+    - TST-ASA-ACCESS-A-CORE-001
+    - TST-ASA-ACCESS-A-E2E-001
+  - id: CTRL-SEAT-SIGN-IN
+    label: Sign in to one StudentSeat with individual credential
+    change_class: L3_CRITICAL
+    files:
+    - apps/web/src/pages/JoinClassPage.tsx
+    - apps/web/src/api.ts
+    - apps/api/src/classroom-join.controller.ts
+    commands:
+    - student_seat_sign_in
+    invariants:
+    - IDA-AUTH-001
+    - IDA-SEAT-001
+    - IDA-REV-001
+    tests:
+    - TST-ASA-ACCESS-A-CORE-001
+    - TST-ASA-ACCESS-A-E2E-001
+- id: SURF-STUDENT-SEAT-PROFILE
+  routes:
+  - '#/account (StudentSeat session)'
+  implementation:
+    files:
+    - apps/web/src/pages/SeatAccountPage.tsx
+    - apps/web/src/api.ts
+    - apps/api/src/classroom-join.controller.ts
+  invariants:
+  - IDA-SEAT-001
+  - IDA-LINK-001
+  - IDA-PROFILE-001
+  - IDA-REV-001
+  tests:
+  - TST-ASA-ACCESS-A-CORE-001
+  - TST-ASA-ACCESS-A-E2E-001
+  controls:
+  - id: CTRL-SEAT-AVATAR
+    label: Change allowed StudentSeat avatar
+    change_class: L2_DOMAIN_MUTATION
+    files:
+    - apps/web/src/pages/SeatAccountPage.tsx
+    - apps/web/src/api.ts
+    - apps/api/src/classroom-join.controller.ts
+    commands:
+    - student_seat_avatar_update
+    invariants:
+    - IDA-PROFILE-001
+    - IDA-SEAT-001
+    tests:
+    - TST-ASA-ACCESS-A-CORE-001
+    - TST-ASA-ACCESS-A-E2E-001
