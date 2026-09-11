@@ -8,27 +8,13 @@ import {
   type ModuleManifestV1,
   type RegisteredModule,
 } from '@asa-lab/module-sdk';
+import { BLOCKS_MODULE } from './blocks-module.js';
 
 function future(manifest: Omit<ModuleManifestV1, 'availability'>): RegisteredModule {
   return defineFutureModule({ ...manifest, availability: 'coming_soon' });
 }
 
 const FUTURE_MODULES: readonly RegisteredModule[] = [
-  future({
-    moduleKey: 'blocks',
-    moduleVersion: '0.1.0',
-    displayName: 'Блочное программирование',
-    shortDescription: 'Сцена, спрайты, события, переменные и блоки.',
-    defaultProjectTitlePrefix: 'Блочный проект',
-    projectType: 'block-program',
-    schemaVersion: 1,
-    editorRoute: '/projects/:projectId/blocks',
-    viewerRoute: '/view/projects/:versionId/blocks',
-    safeModeSupported: true,
-    previewKind: 'stage',
-    iconKey: 'blocks',
-    categories: ['coding', 'creative'],
-  }),
   future({
     moduleKey: 'robotics',
     moduleVersion: '0.1.0',
@@ -68,6 +54,7 @@ export function createApiModuleRegistry(): ModuleRegistry {
     CHESS_MODULE,
     CHECKERS_MODULE,
     THREE_D_MODULE,
+    BLOCKS_MODULE,
     ...FUTURE_MODULES,
   ]);
 }

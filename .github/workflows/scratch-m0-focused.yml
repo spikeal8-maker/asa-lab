@@ -1,0 +1,147 @@
+name: Scratch M0 Focused
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'apps/api/src/blocks-module.ts'
+      - 'apps/api/src/blocks-module.spec.ts'
+      - 'apps/api/src/module-registry.ts'
+      - 'apps/api/src/modules.controller.spec.ts'
+      - 'infra/scratch-editor/**'
+      - 'docs/architecture/ADR-VSCR-001-SCRATCH-EDITOR-INTEGRATION.md'
+      - 'packages/module-sdk/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/scratch-m0-focused.yml'
+  pull_request:
+    paths:
+      - 'apps/api/src/blocks-module.ts'
+      - 'apps/api/src/blocks-module.spec.ts'
+      - 'apps/api/src/module-registry.ts'
+      - 'apps/api/src/modules.controller.spec.ts'
+      - 'infra/scratch-editor/**'
+      - 'docs/architecture/ADR-VSCR-001-SCRATCH-EDITOR-INTEGRATION.md'
+      - 'packages/module-sdk/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/scratch-m0-focused.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  NX_SKIP_NX_CACHE: 'true'
+
+jobs:
+  contracts:
+    name: Module contract and API typecheck
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      CI: 'true'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install exact dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Format check Scratch foundation files
+        run: >-
+          pnpm exec prettier --check
+          apps/api/src/blocks-module.ts
+          apps/api/src/blocks-module.spec.ts
+          apps/api/src/module-registry.ts
+          .github/workflows/scratch-m0-focused.yml
+          docs/architecture/ADR-VSCR-001-SCRATCH-EDITOR-INTEGRATION.md
+
+      - name: Show Prettier diff on failure
+        if: failure()
+        run: |
+          pnpm exec prettier apps/api/src/blocks-module.ts > /tmp/blocks-module.formatted.ts
+          diff -u apps/api/src/blocks-module.ts /tmp/blocks-module.formatted.ts || true
+          pnpm exec prettier apps/api/src/blocks-module.spec.ts > /tmp/blocks-module.spec.formatted.ts
+          diff -u apps/api/src/blocks-module.spec.ts /tmp/blocks-module.spec.formatted.ts || true
+
+      - name: Lint Scratch module integration
+        run: >-
+          pnpm exec eslint
+          apps/api/src/blocks-module.ts
+          apps/api/src/blocks-module.spec.ts
+          apps/api/src/module-registry.ts
+
+      - name: Build internal module dependencies
+        run: |
+          pnpm nx build module-sdk
+          pnpm nx build electronics
+          pnpm nx build chess
+          pnpm nx build checkers
+          pnpm nx build three-d
+
+      - name: Scratch module contract tests
+        run: >-
+          pnpm vitest run
+          apps/api/src/blocks-module.spec.ts
+          apps/api/src/modules.controller.spec.ts
+
+      - name: API typecheck
+        run: pnpm nx run api:typecheck
+
+  runtime-image:
+    name: Pinned upstream image and health smoke
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    concurrency:
+      group: scratch-runtime-${{ github.event.pull_request.number || github.ref }}
+      cancel-in-progress: true
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Build pinned Scratch Editor image
+        run: docker build -f infra/scratch-editor/Dockerfile -t asa-lab-scratch-editor:m0 .
+
+      - name: Start isolated Scratch Editor
+        run: docker run -d --name asa-lab-scratch-editor -p 127.0.0.1:4613:8080 asa-lab-scratch-editor:m0
+
+      - name: Verify health and editor document
+        run: |
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent --show-error http://127.0.0.1:4613/healthz; then
+              break
+            fi
+            sleep 1
+          done
+          curl --fail --silent --show-error http://127.0.0.1:4613/healthz
+          curl --fail --silent --show-error http://127.0.0.1:4613/ | grep -F 'Scratch 3.0 GUI'
+
+      - name: Show runtime logs
+        if: always()
+        run: docker logs asa-lab-scratch-editor || true
+
+      - name: Remove isolated runtime
+        if: always()
+        run: docker rm -f asa-lab-scratch-editor || true

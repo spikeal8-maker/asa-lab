@@ -64,6 +64,13 @@ git rev-parse HEAD
 force-push, reset --hard, rebase опубликованной истории или tag без отдельного
 поручения владельца.
 
+Если задача выполняется в отдельной feature-ветке, перед изменением общих файлов
+(`package.json`, lockfile, execution/control-plane, shared infrastructure) обязательно
+сравни её с текущим `main`. Если ветка отстаёт или разошлась, сначала выполни
+неразрушающую конвергенцию с `main`, сохрани актуальное состояние `main` и повтори gates.
+Не регенерируй lockfile из устаревшей базы и не откатывай security-fix, уже принятый в
+`main`.
+
 ## 5. Проверь параллельную работу
 
 Проверь `git status`, существующие worktree и затрагиваемые файлы. Не удаляй и
@@ -85,6 +92,57 @@ AGENTS.md
 Прочитай его §0, затем нужный паспорт персонажа §34, permissions §6 и нужный
 экран; не загружай весь архив спецификаций. Логические P/U/R обозначения —
 сценарии, способы входа и scoped обязанности, а не глобальные типы аккаунта.
+
+Для задач `Визуального программирования` / Scratch-compatible runtime основной
+продуктовый источник —
+[`ASA_VISUAL_PROGRAMMING_SCRATCH_MASTER_SPEC.md`](docs/product/ASA_VISUAL_PROGRAMMING_SCRATCH_MASTER_SPEC.md).
+Сначала прочитай его §0–§4, затем только раздел выбранного VSCR task ID и
+[`ADR-VSCR-001`](docs/architecture/ADR-VSCR-001-SCRATCH-EDITOR-INTEGRATION.md).
+
+Перед **любой** coding-задачей Visual Programming сначала открой индекс готовности:
+
+[`docs/product/visual-programming/README.md`](docs/product/visual-programming/README.md).
+
+Если выбранный task помечен там `NO`, coding запрещён, даже если старый task package
+содержит подробные шаги. `NO` означает, что после более свежего аудита остался
+неразрешённый prerequisite и пакет ещё не является разрешением на реализацию.
+
+Для VSCR-задач дополнительно обязательно прочитай соответствующий design contract:
+
+```text
+VSCR-D0-001 — Scratch host / upstream provenance / branding / File / Extensions
+VSCR-D0-002 — Project persistence guard
+VSCR-D0-003 — asset metadata/object storage
+VSCR-D0-004 — runtime capability/CORS/CSP/rate limits
+VSCR-D0-005 — deployment/backup/activation
+VSCR-D0-006 — immutable Gallery publication/player/cross-tenant remix
+VSCR-D0-007 — sb3 canonical formats / legacy import compatibility / ZIP safety boundary
+```
+
+Для coding-задачи обязательно должен существовать точный task package. Текущие
+пакеты и review records лежат в
+[`docs/product/visual-programming/`](docs/product/visual-programming/).
+
+Master/ADR/D0 объясняют архитектуру; readiness index говорит, можно ли вообще
+кодировать выбранный task; task package фиксирует конкретные paths, шаги, тесты,
+запреты и Definition of Done для одного coding slice.
+
+Если выбранного coding task ID нет в актуальном package или readiness index говорит
+`NO`, не восстанавливай реализацию из roadmap, старого PR, комментария или чата — STOP.
+Для M2/M3 это специально обязательное правило: их task packages создаются только после
+принятия реальных интерфейсов предыдущего milestone.
+
+Если master spec требует D0 prerequisite, а соответствующий D0 contract отсутствует,
+противоречит коду или не принят для выбранной границы — STOP. Coding-агенту
+запрещено самостоятельно выбирать альтернативную архитектуру и продолжать M1.
+
+Для Scratch/VSCR отдельная feature-ветка не имеет права начинать новый slice на
+устаревшем shared baseline. Readiness `YES` не отменяет обязательную проверку divergence
+с текущим `main`; если следующий slice затрагивает workspace dependency graph, lockfile,
+execution state или shared infrastructure, repository convergence идёт раньше coding.
+
+Master spec задаёт TARGET, порядок зависимостей и safety gates, но сам по себе
+не разрешает выполнять следующий milestone и не заменяет `current.yaml`.
 
 Этот документ определяет TARGET пользователей. Auth определяет протоколы,
 Learning Master — академическую семантику, ADR — принятую архитектуру,
@@ -112,9 +170,8 @@ pnpm gate:repository             # governance + code + data, нужен PostgreS
 ```
 
 Список доступных gates читается из `package.json` и `current.yaml`. Не подменяй
-gate его частью: `gate:code` без
-PostgreSQL не равен `gate:repository`, а `gate:electronics-m1` не включает
-браузер.
+gate его частью: `gate:code` без PostgreSQL не равен `gate:repository`, а
+focused gate конкретного модуля не заменяет repository gate при изменении shared baseline.
 
 Для owner evidence кэш Nx обязан быть отключён. Значение обязано быть буквально
 `true`: Nx сравнивает строку, поэтому `NX_SKIP_NX_CACHE=1` тихо берёт результат
