@@ -5,6 +5,7 @@ on:
     branches:
       - main
     paths:
+      - 'START_HERE_FOR_AI.md'
       - 'docs/product/ASA_VISUAL_PROGRAMMING_SCRATCH_MASTER_SPEC.md'
       - 'docs/product/visual-programming/**'
       - 'docs/architecture/ADR-VSCR-001-SCRATCH-EDITOR-INTEGRATION.md'
@@ -19,6 +20,7 @@ on:
       - '.github/workflows/scratch-docs-routing.yml'
   pull_request:
     paths:
+      - 'START_HERE_FOR_AI.md'
       - 'docs/product/ASA_VISUAL_PROGRAMMING_SCRATCH_MASTER_SPEC.md'
       - 'docs/product/visual-programming/**'
       - 'docs/architecture/ADR-VSCR-001-SCRATCH-EDITOR-INTEGRATION.md'
@@ -70,6 +72,7 @@ jobs:
       - name: Check Scratch routing format
         run: >-
           pnpm exec prettier --check
+          START_HERE_FOR_AI.md
           docs/product/ASA_VISUAL_PROGRAMMING_SCRATCH_MASTER_SPEC.md
           docs/product/visual-programming
           docs/architecture/ADR-VSCR-001-SCRATCH-EDITOR-INTEGRATION.md
@@ -80,12 +83,14 @@ jobs:
         if: failure()
         run: |
           pnpm exec prettier --write \
+            START_HERE_FOR_AI.md \
             docs/product/ASA_VISUAL_PROGRAMMING_SCRATCH_MASTER_SPEC.md \
             docs/product/visual-programming \
             docs/architecture/ADR-VSCR-001-SCRATCH-EDITOR-INTEGRATION.md \
             tools/validate-blocks-docs.mjs \
             .github/workflows/scratch-docs-routing.yml
           git diff -- \
+            START_HERE_FOR_AI.md \
             docs/product/ASA_VISUAL_PROGRAMMING_SCRATCH_MASTER_SPEC.md \
             docs/product/visual-programming \
             docs/architecture/ADR-VSCR-001-SCRATCH-EDITOR-INTEGRATION.md \
