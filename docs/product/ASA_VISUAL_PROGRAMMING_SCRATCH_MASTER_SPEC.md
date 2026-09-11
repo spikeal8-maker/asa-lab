@@ -9,7 +9,9 @@
 This is the stable product/architecture master. It defines destination, invariants and
 milestone order; it does not select active work.
 
-Execution state lives only in `docs/execution/current.yaml` + explicit owner instruction.
+Execution state lives only in `docs/execution/current.yaml`. An owner instruction may
+authorise selecting/updating an exact Scratch task there, but does not bypass the control
+plane or make roadmap text executable.
 
 Scratch routing:
 
@@ -230,8 +232,8 @@ M3        sovereign media/extensions + network deny + backup/restore/deployment
 M4-001    explicit coming_soon → active activation
 ```
 
-Each task/sub-slice is separately selected, evidenced, self-reviewed and accepted. No bot
-automatically advances.
+Each task/sub-slice is separately selected in `current.yaml`, evidenced, self-reviewed and
+accepted. No bot automatically advances.
 
 ## 11. Task routing stubs
 
@@ -264,7 +266,8 @@ Exact future coding cards are written/refined only after prerequisite interfaces
 accepted. Distant roadmap text must not freeze speculative source paths/tests.
 
 M1-004P/M1-005P/M1-007P are explicit design/dependency-selection gates before their
-security-sensitive implementation tasks.
+security-sensitive implementation tasks. Each design gate requires its own exact bounded
+card before it can be selected in `current.yaml`.
 
 M2/M3/M4 implementation cards remain blocked until prior milestone interfaces/evidence are
 accepted.
@@ -296,6 +299,7 @@ M1 or M2 completion never activates the module.
 For every Scratch implementation/maintenance slice:
 
 ```text
+verify current.yaml selects the exact task/scope
 resolve exact component/task first
 read the smallest mapped context
 state ownership/risk/expected write paths
