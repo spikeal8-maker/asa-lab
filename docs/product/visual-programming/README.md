@@ -87,7 +87,7 @@ backup/restore implementation
 activation
 ```
 
-**PR #177 stops at this boundary. No M1 implementation may be appended to it.**
+PR #177 stopped at this boundary and is now integrated. M1 starts only from a fresh branch/PR.
 
 ---
 
@@ -100,55 +100,28 @@ The inherited public-entry baseline drift was repaired separately by PR #180 and
 74eca75dce44486d473e1db6fa766c382a4fc9cc
 ```
 
-That baseline repair passed Governance, Code, PostgreSQL/RLS/Data and Access A browser
-gates before merge.
-
-Scratch was then reconciled non-destructively with this exact `main` using a true two-parent
-merge:
+Scratch M0/M0.1 was then squash-integrated through PR #177 into `main` as:
 
 ```text
-Scratch pre-merge head: b002051ea98b744c4470113031982c63a80e1d96
-main baseline:          74eca75dce44486d473e1db6fa766c382a4fc9cc
-convergence merge:      2821859ec60775135b4062605a75c7bb2c816c6e
+50d2357f1fc157a9434baebcbd5d8c440202127a
 ```
 
-At the convergence merge:
+Post-merge push evidence on that exact main SHA is green:
 
 ```text
-main is an ancestor of the Scratch branch
-behind_by = 0
-PublicEntryHeroV2.css is not a Scratch-specific diff
-PublicEntryPage.spec.ts is inherited from main
-current.yaml remains the main version and does not select Scratch
-accepted dependency/security fixes remain intact
+Scratch M0 Focused run 34566000421
+  Module contract and API typecheck      PASS
+  Pinned upstream image and health smoke PASS
+
+ASA Lab Governance and Code Gates run 34566000465
+  Governance contracts                   PASS
+  Format/lint/types/contracts/build       PASS
+  PostgreSQL tests and RLS / Data gate    PASS
+  Access A real browser journeys          PASS
 ```
 
----
-
-## M0 closure evidence
-
-After convergence and the M0 design-closure documents, exact-head candidate
-`0b920c5579d53428cf6cfde64f96a33378c4dacf` was verified.
-
-Scratch M0 Focused run `34534364571`:
-
-```text
-Module contract and API typecheck          PASS
-Pinned upstream image and health smoke     PASS
-```
-
-Repository run `34534364603`:
-
-```text
-Governance contracts                       PASS
-Format/lint/types/contracts/build           PASS
-PostgreSQL tests and RLS / Data gate        PASS
-Access A real browser journeys              PASS
-```
-
-Those results are exact evidence for `0b920c55...`. This evidence-bookkeeping change is
-documentation-only; GitHub checks on the latest PR head remain authoritative before the PR
-is marked ready or merged.
+The selected M1-001 branch is created directly from this verified main SHA. If main advances
+before M1-001 integration, convergence must be repeated before integration.
 
 ---
 
@@ -156,10 +129,10 @@ is marked ready or merged.
 
 | Task | Coding-ready now from docs? | Blocker / prerequisite |
 | --- | --- | --- |
-| `VSCR-M0.1-001` | **ACCEPTED AT M0 BOUNDARY** | corrected strict asset contract exists; integration remains subject to latest PR checks |
+| `VSCR-M0.1-001` | **ACCEPTED + INTEGRATED** | merged through PR #177; `blocks` remains `coming_soon` |
 | `VSCR-M0.1-002` | **REVIEW COMPLETE — NO CODE CHANGE** | exact `82c5fea...` retained as reviewed post-release 15.1.1 snapshot |
-| `VSCR-REPO-CONVERGENCE` | **COMPLETE for main `74eca75...`** | repeat if `main` advances before integration/new shared-file work |
-| `VSCR-M1-001` | **NO** | do not add M1 to PR #177; integrate M0 first, then create a fresh branch/PR and explicitly select M1-001 |
+| `VSCR-REPO-CONVERGENCE` | **COMPLETE for main `50d2357...`** | post-merge focused + repository push gates green |
+| `VSCR-M1-001` | **YES — SELECTED** | M0 integrated and green; fresh branch `feat/scratch-visual-programming-m1-001`; owner selected the next bounded slice with the 11 September 2026 instruction `продолжай` |
 | `VSCR-M1-002` | **NO** | accepted M1-001 + amend/accept exact host package against D0-001 |
 | `VSCR-M1-003` | **NO** | depends on accepted M1-002 and must implement D0-004 + D0-004A |
 | `VSCR-M1-004` | **NO** | exact safe content-validation parser/sniffer set not selected/pinned |
@@ -175,31 +148,39 @@ is marked ready or merged.
 
 ---
 
-## Correct next order after M0 closure
+## Selected VSCR-M1-001 boundary
+
+M1-001 is a behaviour-preserving package-boundary extraction only:
 
 ```text
-1. latest PR #177 checks must remain green
-2. inspect #177 as M0/M0.1-only and mark ready for review
-3. merge #177 only through a separate owner-authorised decision
-4. after M0 exists in main, create a NEW branch/PR for VSCR-M1-001
-5. explicitly select and implement one M1 slice at a time
+apps/api local Blocks provider
+→ @asa-lab/blocks bounded context
+→ apps/api composes the package through module-registry
 ```
 
-Do not continue M1 development on PR #177.
+It may move the existing document types, structural validation, module assembly and tests,
+add the workspace dependency/link, and update the focused workflow to follow the moved
+files. It MUST NOT add host/runtime API/storage/persistence/Web functionality or activate
+`blocks`.
+
+The authoritative implementation package is the `VSCR-M1-001` section of
+`VSCR-IMPLEMENTATION-PACKAGES-M0.1-M1.md`. Stop after exact-head focused and repository
+evidence; do not advance to M1-002 in the same branch/PR.
 
 ---
 
-## Current implementation facts
+## Current implementation facts at M1-001 start
 
 ```text
+main baseline = 50d2357f1fc157a9434baebcbd5d8c440202127a
 BlocksAssetReferenceV1 = assetId + dataFormat + sha256 + sizeBytes
 objectKey is server-only future storage metadata
 moduleVersion = 0.1.1
 availability = coming_soon
 upstream.env = exact reviewed 82c5fea... post-release 15.1.1 snapshot
 current Docker image = M0 upstream playground build evidence, not ASA product host
-no contexts/blocks package exists — correct at M0
-no runtime/storage/save-load/sb3 implementation exists — correct at M0
+contexts/blocks does not exist yet — M1-001 owns only this extraction
+no runtime/storage/save-load/sb3 implementation exists
 ```
 
 ---
