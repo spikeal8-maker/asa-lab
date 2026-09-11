@@ -1,0 +1,35 @@
+schema_version: 1.0.0
+area: module-foundation
+components:
+  - id: blocks.module.contract
+    state: implemented
+    risk: medium
+    purpose: "Canonical Blocks envelope, manifest and structural validation."
+    contracts:
+      - path: docs/product/ASA_VISUAL_PROGRAMMING_SCRATCH_MASTER_SPEC.md
+        section: "§4 Canonical project document"
+    sources:
+      - path: apps/api/src/blocks-module.ts
+        symbols: [BlocksProjectDocumentV1, BlocksAssetReferenceV1, BLOCKS_MODULE]
+      - path: apps/api/src/module-registry.ts
+        symbols: [createApiModuleRegistry]
+    tests:
+      - apps/api/src/blocks-module.spec.ts
+      - apps/api/src/modules.controller.spec.ts
+    future_owner: contexts/blocks/**
+    task: VSCR-M1-001
+    avoid_unless_needed: [host, runtime, storage, gallery, learning, sb3]
+
+  - id: blocks.upstream.pin
+    state: implemented
+    risk: high
+    purpose: "Exact reviewed Scratch Editor source/version lock and update provenance."
+    contracts:
+      - path: docs/product/visual-programming/VSCR-D0-001-SCRATCH-HOST-CONTRACT.md
+        section: "Upstream provenance"
+    sources:
+      - infra/scratch-editor/upstream.env
+      - infra/scratch-editor/Dockerfile
+    tests:
+      - .github/workflows/scratch-m0-focused.yml
+    task: null
