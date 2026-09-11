@@ -1,52 +1,53 @@
 # VSCR-M1-001 — Extract `@asa-lab/blocks` bounded context
 
-**Status:** READY FOR OWNER SELECTION  
+**Kind:** executable implementation slice  
 **Risk:** medium  
+**Prerequisite:** M0/M0.1 integrated and this task explicitly selected by owner/current execution flow.  
 **Behavioral goal:** none; structural extraction only.
 
 ## Goal
 
-Move the already accepted Blocks subject contract/provider out of API composition into a
-normal isolated ASA context without changing runtime/product behavior.
+Move the already accepted Blocks subject contract/provider out of API composition into the
+normal isolated `@asa-lab/blocks` context without changing runtime or product behaviour.
 
 ## Components
 
-Resolve in `../COMPONENT_MAP.yaml`:
+Resolve only:
 
 ```text
 blocks.module.contract
 blocks.assets.reference
 ```
 
-Open only the referenced cards:
+Read only:
 
 ```text
-../components/module.yaml
-../components/assets.yaml   # only blocks.assets.reference entry
+../COMPONENT_MAP.yaml
+../components/module.yaml → blocks.module.contract
+../components/assets.yaml → blocks.assets.reference
 ```
 
-Do not read host/runtime/storage/Gallery/Learning/sb3 cards for this task.
+Do not load host/runtime/storage/Gallery/Learning/sb3 cards.
 
 ## Minimal read set
 
 ```text
-AGENTS.md
-START_HERE_FOR_AI.md
 ../README.md
 ../AGENT_GUIDE.md
-../COMPONENT_MAP.yaml compact index
-../components/module.yaml
-../components/assets.yaml → blocks.assets.reference only
+../COMPONENT_MAP.yaml
+../components/module.yaml → blocks.module.contract
+../components/assets.yaml → blocks.assets.reference
 ../../ASA_VISUAL_PROGRAMMING_SCRATCH_MASTER_SPEC.md §§0–4,9–11,13
 ../../../architecture/ADR-VSCR-001-SCRATCH-EDITOR-INTEGRATION.md
-../VSCR-D0-002-PERSISTENCE-CONTRACT.md only for future boundary awareness
-current contexts/three-d package structure as repository convention
+current contexts/three-d package structure only as repository convention
 current apps/api/src/blocks-module.ts
 current apps/api/src/blocks-module.spec.ts
 current apps/api/src/module-registry.ts
 ```
 
-Do not read every D0 contract.
+No D0 storage/persistence/runtime contract is required for this structural move unless the
+current code unexpectedly crosses one of those boundaries; if that happens, STOP before
+widening scope.
 
 ## Expected write paths
 
@@ -61,12 +62,12 @@ contexts/blocks/domain/validation.ts
 contexts/blocks/testing/module.spec.ts
 apps/api/package.json
 apps/api/src/module-registry.ts
-apps/api/src/blocks-module.ts          # delete after migration
-apps/api/src/blocks-module.spec.ts     # delete/move after migration
+apps/api/src/blocks-module.ts          # delete after imports migrate
+apps/api/src/blocks-module.spec.ts     # delete/move after tests migrate
 pnpm-lock.yaml                         # workspace-link update only if generated normally
-.github/workflows/scratch-m0-focused.yml # only if commands/paths must follow moved tests
+.github/workflows/scratch-m0-focused.yml # only if moved build/test paths require it
 ../components/module.yaml
-../components/assets.yaml              # only if asset-reference ownership path changes
+../components/assets.yaml              # blocks.assets.reference entry only
 ```
 
 Any additional path requires a concrete dependency reason before editing.
@@ -84,7 +85,7 @@ schemaVersion 1
 editor/viewer routes
 empty document shape
 asset validation
-preview behavior
+preview behaviour
 ```
 
 No persistence, runtime API, Web editor or host functionality is added.
@@ -108,9 +109,9 @@ contexts/blocks/
     public exports only
 ```
 
-No Nest/Fastify/pg/React/Scratch GUI/VM dependency may enter `contexts/blocks` in this task.
+No Nest/Fastify/pg/React/Scratch GUI/VM dependency enters `contexts/blocks` in this task.
 
-`apps/api/src/module-registry.ts` should import:
+`apps/api/src/module-registry.ts` imports the public package:
 
 ```ts
 import { BLOCKS_MODULE } from '@asa-lab/blocks';
@@ -118,7 +119,7 @@ import { BLOCKS_MODULE } from '@asa-lab/blocks';
 
 ## Tests/gates
 
-At minimum run the exact equivalent of:
+Run the moved/final equivalents of:
 
 ```text
 nx build module-sdk
@@ -129,8 +130,9 @@ Blocks context tests
 existing modules controller tests
 API typecheck
 boundaries:check
-updated focused Scratch workflow
+focused Scratch workflow
 repository-required gate for shared workspace/dependency changes
+node tools/validate-blocks-docs.mjs
 ```
 
 Do not claim PASS from an older SHA.
@@ -144,9 +146,9 @@ no S3/MinIO
 no Project Core guard
 no runtime endpoints
 no Web editor route
-no module activation
-no unrelated refactor
-no M1-002 work in the same slice
+no activation
+no unrelated context refactor
+no M1-002 work
 ```
 
 ## Done
@@ -154,25 +156,29 @@ no M1-002 work in the same slice
 ```text
 @asa-lab/blocks exists and builds
 API composes BLOCKS_MODULE through public context import
-old API-local Blocks provider/spec removed after migration
-behavior remains semantically identical
-components/module.yaml points to actual new source/test paths and symbols
-components/assets.yaml points to actual asset-reference ownership if moved
+old API-local provider/spec are removed after migration
+behaviour is semantically unchanged
+components/module.yaml records actual new source/test paths and symbols
+components/assets.yaml records actual asset-reference ownership if moved
 focused + required repository gates pass on exact final SHA
 ```
 
 ## Bounded self-review
 
-Use `../AGENT_GUIDE.md` checklist against only this task, final diff and test evidence.
+Use `../AGENT_GUIDE.md` against only this card, final diff, the two mapped component entries
+and exact test evidence.
 
-Extra questions:
+Check explicitly:
 
 ```text
-Did any behavior change accidentally?
-Did any Scratch/runtime dependency enter the bounded context?
-Did I alter module availability?
+Did any behaviour change?
+Did a Scratch/runtime dependency enter the bounded context?
+Did availability change?
 Did I start host/storage work?
-Did I update actual component-card paths from API-local to contexts/blocks?
+Did I update actual routing paths after moving the provider?
 ```
 
-Then STOP. M1-002 requires separate owner selection.
+## Stop
+
+STOP after evidence and self-review. M1-002 is a separate milestone and requires separate
+owner selection after M1-001 acceptance.
