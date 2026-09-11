@@ -11,14 +11,21 @@ normal isolated ASA context without changing runtime/product behavior.
 
 ## Components
 
-Read these entries in `../COMPONENT_MAP.yaml`:
+Resolve in `../COMPONENT_MAP.yaml`:
 
 ```text
 blocks.module.contract
 blocks.assets.reference
 ```
 
-Do not read host/storage/Gallery/Learning/sb3 components for this task.
+Open only the referenced cards:
+
+```text
+../components/module.yaml
+../components/assets.yaml   # only blocks.assets.reference entry
+```
+
+Do not read host/runtime/storage/Gallery/Learning/sb3 cards for this task.
 
 ## Minimal read set
 
@@ -27,8 +34,11 @@ AGENTS.md
 START_HERE_FOR_AI.md
 ../README.md
 ../AGENT_GUIDE.md
-../COMPONENT_MAP.yaml entries above
-../../ASA_VISUAL_PROGRAMMING_SCRATCH_MASTER_SPEC.md §§2,4,9,10,12
+../COMPONENT_MAP.yaml compact index
+../components/module.yaml
+../components/assets.yaml → blocks.assets.reference only
+../../ASA_VISUAL_PROGRAMMING_SCRATCH_MASTER_SPEC.md §§0–4,9–11,13
+../../../architecture/ADR-VSCR-001-SCRATCH-EDITOR-INTEGRATION.md
 ../VSCR-D0-002-PERSISTENCE-CONTRACT.md only for future boundary awareness
 current contexts/three-d package structure as repository convention
 current apps/api/src/blocks-module.ts
@@ -55,7 +65,8 @@ apps/api/src/blocks-module.ts          # delete after migration
 apps/api/src/blocks-module.spec.ts     # delete/move after migration
 pnpm-lock.yaml                         # workspace-link update only if generated normally
 .github/workflows/scratch-m0-focused.yml # only if commands/paths must follow moved tests
-../COMPONENT_MAP.yaml                  # replace old actual paths with new actual paths
+../components/module.yaml
+../components/assets.yaml              # only if asset-reference ownership path changes
 ```
 
 Any additional path requires a concrete dependency reason before editing.
@@ -145,7 +156,8 @@ no M1-002 work in the same slice
 API composes BLOCKS_MODULE through public context import
 old API-local Blocks provider/spec removed after migration
 behavior remains semantically identical
-COMPONENT_MAP.yaml points to actual new source/test paths
+components/module.yaml points to actual new source/test paths and symbols
+components/assets.yaml points to actual asset-reference ownership if moved
 focused + required repository gates pass on exact final SHA
 ```
 
@@ -160,7 +172,7 @@ Did any behavior change accidentally?
 Did any Scratch/runtime dependency enter the bounded context?
 Did I alter module availability?
 Did I start host/storage work?
-Did I update component-map paths from API-local to contexts/blocks?
+Did I update actual component-card paths from API-local to contexts/blocks?
 ```
 
 Then STOP. M1-002 requires separate owner selection.
