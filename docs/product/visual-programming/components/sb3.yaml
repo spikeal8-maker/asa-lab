@@ -1,0 +1,25 @@
+schema_version: 1.0.0
+area: sb3-interchange
+components:
+  - id: blocks.sb3.import
+    state: planned
+    risk: high
+    purpose: "Safe ASA-owned sb3 import, ZIP safety and deterministic legacy-media normalisation."
+    contracts:
+      - path: docs/product/visual-programming/VSCR-D0-007-SB3-IMPORT-COMPATIBILITY-CONTRACT.md
+        section: "Import/ZIP/legacy-media boundary"
+    planned_sources: [contexts/blocks/application/import-sb3.ts]
+    planned_tests: [tests/blocks/sb3-import.spec.ts]
+    task: VSCR-M1-007
+    design_gate: VSCR-M1-007P
+
+  - id: blocks.sb3.export
+    state: planned
+    risk: high
+    purpose: "ASA-owned sb3 export from canonical durable project/version state."
+    contracts:
+      - path: docs/product/visual-programming/VSCR-D0-007-SB3-IMPORT-COMPATIBILITY-CONTRACT.md
+        section: "Export/round-trip boundary"
+    planned_sources: [contexts/blocks/application/export-sb3.ts]
+    planned_tests: [tests/blocks/sb3-export.spec.ts]
+    task: VSCR-M1-007
