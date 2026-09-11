@@ -1,448 +1,64 @@
-schema_version: 1.1.0
+schema_version: 2.0.0
 module: blocks
 product: "Визуальное программирование"
-purpose: "Token-efficient routing from a Scratch concern to the smallest canonical docs/source/tests."
+purpose: "Compact index from a stable component ID to one small subsystem card."
 execution_state_source: docs/execution/current.yaml
 router: docs/product/visual-programming/README.md
 agent_guide: docs/product/visual-programming/AGENT_GUIDE.md
-master: docs/product/ASA_VISUAL_PROGRAMMING_SCRATCH_MASTER_SPEC.md
 
 rules:
-  default_read: component_only
+  default_read: "this index + one referenced card only"
   expand: one_dependency_hop_at_a_time
   broad_search: only_if_map_stale_or_cross_cutting
-  update_map_when_source_or_test_ownership_changes: true
+  update_card_when_source_or_test_ownership_changes: true
   component_state_values: [implemented, planned, blocked]
   risk_values: [low, medium, high, critical]
-  contract_reference_format: path_plus_section
+
+areas:
+  module: components/module.yaml
+  host: components/host.yaml
+  runtime: components/runtime.yaml
+  assets: components/assets.yaml
+  project: components/project.yaml
+  sb3: components/sb3.yaml
+  gallery-learning: components/gallery-learning.yaml
+  sovereign-deployment: components/sovereign-deployment.yaml
 
 components:
-  - id: blocks.module.contract
-    state: implemented
-    risk: medium
-    purpose: "Canonical Blocks project envelope, manifest and structural validation."
-    contracts:
-      - path: docs/product/ASA_VISUAL_PROGRAMMING_SCRATCH_MASTER_SPEC.md
-        section: "§4 Canonical project document"
-    sources:
-      - path: apps/api/src/blocks-module.ts
-        symbols: [BlocksProjectDocumentV1, BlocksAssetReferenceV1, BLOCKS_MODULE]
-      - path: apps/api/src/module-registry.ts
-        symbols: [createApiModuleRegistry]
-    tests:
-      - apps/api/src/blocks-module.spec.ts
-      - apps/api/src/modules.controller.spec.ts
-    future_owner: contexts/blocks/**
-    task: VSCR-M1-001
-    avoid_unless_needed: [storage, gallery, learning, sb3]
+  blocks.module.contract: {card: components/module.yaml, state: implemented, risk: medium}
+  blocks.upstream.pin: {card: components/module.yaml, state: implemented, risk: high}
 
-  - id: blocks.upstream.pin
-    state: implemented
-    risk: high
-    purpose: "Exact reviewed Scratch Editor source/version lock and update provenance."
-    contracts:
-      - path: docs/product/visual-programming/VSCR-D0-001-SCRATCH-HOST-CONTRACT.md
-        section: "Upstream provenance"
-    sources:
-      - infra/scratch-editor/upstream.env
-      - infra/scratch-editor/Dockerfile
-    tests:
-      - .github/workflows/scratch-m0-focused.yml
-    task: null
+  blocks.host.build: {card: components/host.yaml, state: planned, risk: medium}
+  blocks.host.branding: {card: components/host.yaml, state: planned, risk: low}
+  blocks.host.file-menu: {card: components/host.yaml, state: planned, risk: low}
+  blocks.host.extensions: {card: components/host.yaml, state: planned, risk: medium}
+  blocks.host.protocol: {card: components/host.yaml, state: planned, risk: high}
+  blocks.host.storage-adapter: {card: components/host.yaml, state: planned, risk: high}
 
-  - id: blocks.host.build
-    state: planned
-    risk: medium
-    purpose: "Build shipping standalone Scratch distribution and package ASA-owned host."
-    contracts:
-      - path: docs/product/visual-programming/VSCR-D0-001-SCRATCH-HOST-CONTRACT.md
-        section: "Host layout"
-    planned_sources:
-      - infra/scratch-editor/Dockerfile
-      - infra/scratch-editor/nginx.conf.template
-      - infra/scratch-editor/host/index.html
-      - infra/scratch-editor/host/main.js
-    planned_tests:
-      - .github/workflows/scratch-m0-focused.yml
-    task: VSCR-M1-002
-    depends_on: [blocks.upstream.pin]
+  blocks.runtime.session: {card: components/runtime.yaml, state: planned, risk: high}
+  blocks.runtime.capability: {card: components/runtime.yaml, state: planned, risk: high}
+  blocks.runtime.origin-security: {card: components/runtime.yaml, state: planned, risk: high}
 
-  - id: blocks.host.branding
-    state: planned
-    risk: low
-    purpose: "ASA Lab product mark and removal of Scratch product logo/navigation."
-    contracts:
-      - path: docs/product/visual-programming/VSCR-D0-001-SCRATCH-HOST-CONTRACT.md
-        section: "Branding"
-    canonical_asset: apps/web/public/asa-lab-mark.svg
-    planned_sources:
-      - infra/scratch-editor/host/branding.js
-      - infra/scratch-editor/patches/0001-host-logo-prop.patch
-    planned_tests:
-      - e2e/blocks-host.spec.ts
-    task: VSCR-M1-002
-    depends_on: [blocks.host.build]
+  blocks.assets.reference: {card: components/assets.yaml, state: implemented, risk: medium}
+  blocks.assets.metadata: {card: components/assets.yaml, state: planned, risk: high}
+  blocks.assets.upload: {card: components/assets.yaml, state: planned, risk: high}
+  blocks.assets.read: {card: components/assets.yaml, state: planned, risk: high}
 
-  - id: blocks.host.file-menu
-    state: planned
-    risk: low
-    purpose: "Disable upstream File/new/save/title paths so ASA owns persistence and sb3 flows."
-    contracts:
-      - path: docs/product/visual-programming/VSCR-D0-001-SCRATCH-HOST-CONTRACT.md
-        section: "Product controls"
-    planned_sources:
-      - infra/scratch-editor/host/editor-config.js
-    planned_tests:
-      - e2e/blocks-host.spec.ts
-    task: VSCR-M1-002
+  blocks.project.persistence-guard: {card: components/project.yaml, state: planned, risk: high}
+  blocks.project.load-save: {card: components/project.yaml, state: planned, risk: high}
+  blocks.project.autosave: {card: components/project.yaml, state: planned, risk: high}
+  blocks.project.recovery: {card: components/project.yaml, state: planned, risk: high}
+  blocks.project.conflict: {card: components/project.yaml, state: planned, risk: high}
 
-  - id: blocks.host.extensions
-    state: planned
-    risk: medium
-    purpose: "Hide upstream Extensions library in core mode; later controlled allowlist only."
-    contracts:
-      - path: docs/product/visual-programming/VSCR-D0-001-SCRATCH-HOST-CONTRACT.md
-        section: "Extensions"
-    planned_sources:
-      - infra/scratch-editor/host/editor-config.js
-      - infra/scratch-editor/patches/0002-extension-button-visibility.patch
-    planned_tests:
-      - e2e/blocks-host.spec.ts
-    task: VSCR-M1-002
+  blocks.sb3.import: {card: components/sb3.yaml, state: planned, risk: high}
+  blocks.sb3.export: {card: components/sb3.yaml, state: planned, risk: high}
 
-  - id: blocks.host.protocol
-    state: planned
-    risk: high
-    purpose: "Exact parent/iframe message protocol and validation."
-    contracts:
-      - path: docs/product/visual-programming/VSCR-D0-001-SCRATCH-HOST-CONTRACT.md
-        section: "Parent/iframe protocol"
-      - path: docs/product/visual-programming/VSCR-D0-004-RUNTIME-SECURITY-CONTRACT.md
-        section: "iframe/origin/CSP semantics required by selected task"
-    planned_sources:
-      - apps/web/src/blocks/**
-      - infra/scratch-editor/host/protocol.js
-      - infra/scratch-editor/host/main.js
-    planned_tests:
-      - e2e/blocks-host.spec.ts
-    task: VSCR-M1-002
+  blocks.gallery.publication: {card: components/gallery-learning.yaml, state: blocked, risk: high}
+  blocks.gallery.player: {card: components/gallery-learning.yaml, state: blocked, risk: high}
+  blocks.gallery.remix: {card: components/gallery-learning.yaml, state: blocked, risk: high}
+  blocks.learning.submission: {card: components/gallery-learning.yaml, state: blocked, risk: medium}
 
-  - id: blocks.host.storage-adapter
-    state: planned
-    risk: high
-    purpose: "ASA ScratchStorage/GUIStorage adapter without Scratch-host fallback."
-    contracts:
-      - path: docs/product/visual-programming/VSCR-D0-001-SCRATCH-HOST-CONTRACT.md
-        section: "Scratch storage adapter"
-    planned_sources:
-      - infra/scratch-editor/host/storage.js
-    planned_tests:
-      - e2e/blocks-host.spec.ts
-    task: VSCR-M1-002
-    depends_on: [blocks.host.protocol]
-
-  - id: blocks.runtime.session
-    state: planned
-    risk: high
-    purpose: "Cookie-authenticated ASA endpoint issuing exact Blocks runtime capabilities."
-    contracts:
-      - path: docs/product/visual-programming/VSCR-D0-004-RUNTIME-SECURITY-CONTRACT.md
-        section: "Runtime-session issuance"
-      - path: docs/product/visual-programming/VSCR-D0-004A-CURRENT-AUTHORIZATION-RECHECK.md
-        section: "Current-authority recheck"
-    planned_sources:
-      - apps/api/src/blocks-runtime-session.controller.ts
-      - apps/api/src/blocks-runtime-token.service.ts
-    planned_tests:
-      - apps/api/src/blocks-runtime-session.controller.spec.ts
-    task: VSCR-M1-003
-
-  - id: blocks.runtime.capability
-    state: planned
-    risk: high
-    purpose: "Short-lived bearer JWT verification, permission/resource binding and current authority recheck."
-    contracts:
-      - path: docs/product/visual-programming/VSCR-D0-004-RUNTIME-SECURITY-CONTRACT.md
-        section: "Capability format and validation"
-      - path: docs/product/visual-programming/VSCR-D0-004A-CURRENT-AUTHORIZATION-RECHECK.md
-        section: "Current-authority recheck"
-    planned_sources:
-      - apps/api/src/blocks-runtime-token.service.ts
-      - apps/api/src/blocks-runtime.controller.ts
-    planned_tests:
-      - tests/blocks/runtime-auth.spec.ts
-    task: VSCR-M1-003
-
-  - id: blocks.runtime.origin-security
-    state: planned
-    risk: high
-    purpose: "Path-scoped exact Origin/CORS/CSP without widening normal ASA cookie trust."
-    contracts:
-      - path: docs/product/visual-programming/VSCR-D0-004-RUNTIME-SECURITY-CONTRACT.md
-        section: "Origin/CORS/CSP boundary"
-    planned_sources:
-      - apps/api/src/app.factory.ts
-      - infra/scratch-editor/nginx.conf.template
-      - apps/web/src/blocks/**
-    planned_tests:
-      - tests/blocks/runtime-origin.spec.ts
-      - e2e/blocks-host.spec.ts
-    task: VSCR-M1-003
-
-  - id: blocks.assets.reference
-    state: implemented
-    risk: medium
-    purpose: "Persistent logical asset reference only; no physical object locator."
-    contracts:
-      - path: docs/product/visual-programming/VSCR-D0-003-ASSET-STORAGE-CONTRACT.md
-        section: "§1–§3 identity and metadata model"
-    sources:
-      - path: apps/api/src/blocks-module.ts
-        symbols: [BlocksAssetReferenceV1, validateAsset]
-    tests:
-      - apps/api/src/blocks-module.spec.ts
-    task: null
-
-  - id: blocks.assets.metadata
-    state: planned
-    risk: high
-    purpose: "Tenant-private immutable blob and Scratch alias metadata."
-    contracts:
-      - path: docs/product/visual-programming/VSCR-D0-003-ASSET-STORAGE-CONTRACT.md
-        section: "§3 Relational model and §4 tenant/RLS"
-    planned_sources:
-      - contexts/blocks/infrastructure/**
-      - migrations/*blocks*.sql
-    planned_tests:
-      - tests/blocks/assets.pg.spec.ts
-    task: VSCR-M1-004
-
-  - id: blocks.assets.upload
-    state: planned
-    risk: high
-    purpose: "Validated streaming asset PUT with identity/integrity/content limits."
-    contracts:
-      - path: docs/product/visual-programming/VSCR-D0-003-ASSET-STORAGE-CONTRACT.md
-        section: "§8 Asset upload endpoint + §9 Content validation"
-    planned_sources:
-      - apps/api/src/blocks-runtime.controller.ts
-      - contexts/blocks/infrastructure/**
-    planned_tests:
-      - tests/blocks/asset-upload.spec.ts
-    task: VSCR-M1-004
-    design_gate: VSCR-M1-004P
-
-  - id: blocks.assets.read
-    state: planned
-    risk: high
-    purpose: "Reference-authorised private asset GET for exact draft/version."
-    contracts:
-      - path: docs/product/visual-programming/VSCR-D0-003-ASSET-STORAGE-CONTRACT.md
-        section: "§13 Asset GET endpoint"
-    planned_sources:
-      - apps/api/src/blocks-runtime.controller.ts
-      - contexts/blocks/infrastructure/**
-    planned_tests:
-      - tests/blocks/asset-read.spec.ts
-    task: VSCR-M1-004
-
-  - id: blocks.project.persistence-guard
-    state: planned
-    risk: high
-    purpose: "Generic Project Core pre-save durability guard plus Blocks implementation."
-    contracts:
-      - path: docs/product/visual-programming/VSCR-D0-002-PERSISTENCE-CONTRACT.md
-        section: "Async durability guard and bypass prevention"
-    planned_sources:
-      - contexts/projects/**
-      - contexts/blocks/**
-    planned_tests:
-      - tests/blocks/persistence-guard.spec.ts
-    task: VSCR-M1-005
-    design_gate: VSCR-M1-005P
-
-  - id: blocks.project.load-save
-    state: planned
-    risk: high
-    purpose: "Durable projectJson load/save with exact durable referenced assets."
-    contracts:
-      - path: docs/product/visual-programming/VSCR-D0-002-PERSISTENCE-CONTRACT.md
-        section: "Blocks save/load persistence"
-      - path: docs/product/visual-programming/VSCR-D0-003-ASSET-STORAGE-CONTRACT.md
-        section: "§17 Project save interaction"
-    planned_sources:
-      - contexts/blocks/**
-      - apps/api/src/blocks-runtime.controller.ts
-      - infra/scratch-editor/host/storage.js
-      - infra/scratch-editor/host/save-orchestrator.js
-    planned_tests:
-      - tests/blocks/durable-save.spec.ts
-      - e2e/blocks-save-reload.spec.ts
-    task: VSCR-M1-005
-
-  - id: blocks.project.autosave
-    state: planned
-    risk: high
-    purpose: "Generation-aware latest-state queue; edits during in-flight save are not lost."
-    contracts:
-      - path: docs/product/visual-programming/VSCR-D0-002-PERSISTENCE-CONTRACT.md
-        section: "Save ordering/revision semantics"
-    planned_sources:
-      - infra/scratch-editor/host/save-orchestrator.js
-    planned_tests:
-      - e2e/blocks-autosave.spec.ts
-    task: VSCR-M1-006
-
-  - id: blocks.project.recovery
-    state: planned
-    risk: high
-    purpose: "Bounded recovery/offline retry without becoming canonical storage."
-    contracts:
-      - path: docs/product/visual-programming/VSCR-D0-002-PERSISTENCE-CONTRACT.md
-        section: "Recovery requirements"
-    planned_sources:
-      - infra/scratch-editor/host/save-orchestrator.js
-    planned_tests:
-      - e2e/blocks-recovery.spec.ts
-    task: VSCR-M1-006
-
-  - id: blocks.project.conflict
-    state: planned
-    risk: high
-    purpose: "Optimistic revision conflict handling with no silent last-write-wins."
-    contracts:
-      - path: docs/product/visual-programming/VSCR-D0-002-PERSISTENCE-CONTRACT.md
-        section: "Revision/conflict semantics"
-    planned_sources:
-      - contexts/blocks/**
-      - infra/scratch-editor/host/save-orchestrator.js
-    planned_tests:
-      - e2e/blocks-conflict.spec.ts
-    task: VSCR-M1-006
-
-  - id: blocks.sb3.import
-    state: planned
-    risk: high
-    purpose: "Safe ASA-owned sb3 import, ZIP safety and deterministic legacy-media normalisation."
-    contracts:
-      - path: docs/product/visual-programming/VSCR-D0-007-SB3-IMPORT-COMPATIBILITY-CONTRACT.md
-        section: "Import/ZIP/legacy-media boundary"
-    planned_sources:
-      - contexts/blocks/application/import-sb3.ts
-    planned_tests:
-      - tests/blocks/sb3-import.spec.ts
-    task: VSCR-M1-007
-    design_gate: VSCR-M1-007P
-
-  - id: blocks.sb3.export
-    state: planned
-    risk: high
-    purpose: "ASA-owned sb3 export from canonical durable project/version state."
-    contracts:
-      - path: docs/product/visual-programming/VSCR-D0-007-SB3-IMPORT-COMPATIBILITY-CONTRACT.md
-        section: "Export/round-trip boundary"
-    planned_sources:
-      - contexts/blocks/application/export-sb3.ts
-    planned_tests:
-      - tests/blocks/sb3-export.spec.ts
-    task: VSCR-M1-007
-
-  - id: blocks.gallery.publication
-    state: blocked
-    risk: high
-    purpose: "Publish exact immutable project_version_id, never mutable current draft."
-    contracts:
-      - path: docs/product/visual-programming/VSCR-D0-006-PUBLICATION-REMIX-CONTRACT.md
-        section: "§2–§4 immutable publication/read semantics"
-    planned_sources:
-      - migrations/*gallery*.sql
-      - contexts/projects/**
-    planned_tests:
-      - tests/blocks/gallery-publication.spec.ts
-    task: VSCR-M2
-
-  - id: blocks.gallery.player
-    state: blocked
-    risk: high
-    purpose: "Read-only player bound to exact immutable published Blocks version."
-    contracts:
-      - path: docs/product/visual-programming/VSCR-D0-006-PUBLICATION-REMIX-CONTRACT.md
-        section: "§4–§5 player/version asset authority"
-    planned_sources:
-      - apps/web/src/blocks/**
-      - apps/api/src/blocks-runtime.controller.ts
-    planned_tests:
-      - e2e/blocks-gallery-player.spec.ts
-    task: VSCR-M2
-
-  - id: blocks.gallery.remix
-    state: blocked
-    risk: high
-    purpose: "Server-side cross-tenant asset re-materialisation from immutable publication."
-    contracts:
-      - path: docs/product/visual-programming/VSCR-D0-006-PUBLICATION-REMIX-CONTRACT.md
-        section: "§6–§9 remix, failure ordering and provenance"
-    planned_sources:
-      - contexts/blocks/**
-      - contexts/projects/**
-    planned_tests:
-      - tests/blocks/gallery-remix.spec.ts
-    task: VSCR-M2
-
-  - id: blocks.learning.submission
-    state: blocked
-    risk: medium
-    purpose: "Reuse existing ASA Learning immutable project_version_id submission semantics."
-    contracts:
-      - path: docs/product/visual-programming/VSCR-D0-006-PUBLICATION-REMIX-CONTRACT.md
-        section: "§10 Learning is separate from Gallery publication"
-    sources:
-      - contexts/learning/**
-    rule: "No Scratch-specific LMS."
-    task: VSCR-M2
-
-  - id: blocks.sovereign.media
-    state: blocked
-    risk: medium
-    purpose: "Rights-cleared local default project/media libraries without Scratch Foundation fallback."
-    contracts:
-      - path: docs/product/visual-programming/VSCR-D0-005-DEPLOYMENT-ACTIVATION-CONTRACT.md
-        section: "Sovereign/local baseline"
-    planned_sources:
-      - infra/scratch-editor/host/**
-      - apps/web/public/assets/**
-    task: VSCR-M3
-
-  - id: blocks.sovereign.extensions
-    state: blocked
-    risk: high
-    purpose: "Approved local extension allowlist; external/hardware extensions classified separately."
-    contracts:
-      - path: docs/product/visual-programming/VSCR-D0-001-SCRATCH-HOST-CONTRACT.md
-        section: "Extensions"
-      - path: docs/product/visual-programming/VSCR-D0-005-DEPLOYMENT-ACTIVATION-CONTRACT.md
-        section: "Sovereign/local baseline"
-    planned_sources:
-      - infra/scratch-editor/host/**
-    task: VSCR-M3
-
-  - id: blocks.deployment.backup-restore
-    state: blocked
-    risk: critical
-    purpose: "Coherent Postgres + object-store backup/restore evidence."
-    contracts:
-      - path: docs/product/visual-programming/VSCR-D0-005-DEPLOYMENT-ACTIVATION-CONTRACT.md
-        section: "Backup/restore acceptance"
-    task: VSCR-M3
-
-  - id: blocks.activation
-    state: blocked
-    risk: critical
-    purpose: "Only authorised coming_soon → active transition after all acceptance gates."
-    contracts:
-      - path: docs/product/visual-programming/VSCR-D0-005-DEPLOYMENT-ACTIVATION-CONTRACT.md
-        section: "Activation gate"
-    planned_sources:
-      - contexts/blocks/**
-      - apps/api/src/module-registry.ts
-    task: VSCR-M4-001
+  blocks.sovereign.media: {card: components/sovereign-deployment.yaml, state: blocked, risk: medium}
+  blocks.sovereign.extensions: {card: components/sovereign-deployment.yaml, state: blocked, risk: high}
+  blocks.deployment.backup-restore: {card: components/sovereign-deployment.yaml, state: blocked, risk: critical}
+  blocks.activation: {card: components/sovereign-deployment.yaml, state: blocked, risk: critical}
