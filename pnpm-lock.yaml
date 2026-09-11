@@ -142,6 +142,9 @@ importers:
       '@asa-lab/authz':
         specifier: workspace:*
         version: link:../../packages/authz
+      '@asa-lab/blocks':
+        specifier: workspace:*
+        version: link:../../contexts/blocks
       '@asa-lab/checkers':
         specifier: workspace:*
         version: link:../../contexts/checkers
@@ -245,6 +248,12 @@ importers:
       '@types/three':
         specifier: 0.185.4
         version: 0.185.4
+
+  contexts/blocks:
+    dependencies:
+      '@asa-lab/module-sdk':
+        specifier: workspace:*
+        version: link:../../packages/module-sdk
 
   contexts/checkers:
     dependencies:

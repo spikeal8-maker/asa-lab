@@ -5,25 +5,25 @@ on:
     branches:
       - main
     paths:
-      - 'apps/api/src/blocks-module.ts'
-      - 'apps/api/src/blocks-module.spec.ts'
+      - 'contexts/blocks/**'
       - 'apps/api/src/module-registry.ts'
       - 'apps/api/src/modules.controller.spec.ts'
       - 'infra/scratch-editor/**'
       - 'docs/architecture/ADR-VSCR-001-SCRATCH-EDITOR-INTEGRATION.md'
       - 'packages/module-sdk/**'
+      - 'apps/api/package.json'
       - 'package.json'
       - 'pnpm-lock.yaml'
       - '.github/workflows/scratch-m0-focused.yml'
   pull_request:
     paths:
-      - 'apps/api/src/blocks-module.ts'
-      - 'apps/api/src/blocks-module.spec.ts'
+      - 'contexts/blocks/**'
       - 'apps/api/src/module-registry.ts'
       - 'apps/api/src/modules.controller.spec.ts'
       - 'infra/scratch-editor/**'
       - 'docs/architecture/ADR-VSCR-001-SCRATCH-EDITOR-INTEGRATION.md'
       - 'packages/module-sdk/**'
+      - 'apps/api/package.json'
       - 'package.json'
       - 'pnpm-lock.yaml'
       - '.github/workflows/scratch-m0-focused.yml'
@@ -68,39 +68,38 @@ jobs:
       - name: Format check Scratch foundation files
         run: >-
           pnpm exec prettier --check
-          apps/api/src/blocks-module.ts
-          apps/api/src/blocks-module.spec.ts
+          contexts/blocks
           apps/api/src/module-registry.ts
           .github/workflows/scratch-m0-focused.yml
           docs/architecture/ADR-VSCR-001-SCRATCH-EDITOR-INTEGRATION.md
 
-      - name: Show Prettier diff on failure
+      - name: Show Prettier diagnostics on failure
         if: failure()
         run: |
-          pnpm exec prettier apps/api/src/blocks-module.ts > /tmp/blocks-module.formatted.ts
-          diff -u apps/api/src/blocks-module.ts /tmp/blocks-module.formatted.ts || true
-          pnpm exec prettier apps/api/src/blocks-module.spec.ts > /tmp/blocks-module.spec.formatted.ts
-          diff -u apps/api/src/blocks-module.spec.ts /tmp/blocks-module.spec.formatted.ts || true
+          pnpm exec prettier --check contexts/blocks || true
+          pnpm exec prettier --check apps/api/src/module-registry.ts || true
 
-      - name: Lint Scratch module integration
-        run: >-
-          pnpm exec eslint
-          apps/api/src/blocks-module.ts
-          apps/api/src/blocks-module.spec.ts
-          apps/api/src/module-registry.ts
+      - name: Lint Blocks bounded context and API composition
+        run: |
+          pnpm nx run blocks:lint
+          pnpm exec eslint apps/api/src/module-registry.ts
 
       - name: Build internal module dependencies
         run: |
           pnpm nx build module-sdk
+          pnpm nx build blocks
           pnpm nx build electronics
           pnpm nx build chess
           pnpm nx build checkers
           pnpm nx build three-d
 
+      - name: Blocks bounded-context typecheck
+        run: pnpm nx run blocks:typecheck
+
       - name: Scratch module contract tests
         run: >-
           pnpm vitest run
-          apps/api/src/blocks-module.spec.ts
+          contexts/blocks/testing/module.spec.ts
           apps/api/src/modules.controller.spec.ts
 
       - name: API typecheck
