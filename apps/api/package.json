@@ -4,6 +4,7 @@
   "private": true,
   "dependencies": {
     "@asa-lab/authz": "workspace:*",
+    "@asa-lab/blocks": "workspace:*",
     "@asa-lab/checkers": "workspace:*",
     "@asa-lab/chess": "workspace:*",
     "@asa-lab/chess-live": "workspace:*",
