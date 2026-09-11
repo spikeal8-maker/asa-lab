@@ -2,7 +2,8 @@
 
 **Kind:** executable implementation slice  
 **Risk:** high  
-**Prerequisite:** VSCR-M1-002B accepted.
+**Prerequisite:** VSCR-M1-002B accepted.  
+**Execution:** coding starts only when `docs/execution/current.yaml.task.id` is exactly `VSCR-M1-002C`.
 
 ## Goal
 
@@ -104,4 +105,5 @@ evidence. Confirm security transport implementation did not leak forward into M1
 
 ## Stop
 
-STOP after evidence. VSCR-M1-002D is separately selected.
+STOP after evidence. VSCR-M1-002D requires separate owner-authorised selection in
+`current.yaml` after C is accepted.
