@@ -1,0 +1,70 @@
+schema_version: 1.0.0
+area: project-persistence
+components:
+  - id: blocks.project.persistence-guard
+    state: planned
+    risk: high
+    purpose: "Generic Project Core pre-save durability guard plus Blocks implementation."
+    contracts:
+      - path: docs/product/visual-programming/VSCR-D0-002-PERSISTENCE-CONTRACT.md
+        section: "Async durability guard and bypass prevention"
+    planned_sources:
+      - contexts/projects/**
+      - contexts/blocks/**
+    planned_tests: [tests/blocks/persistence-guard.spec.ts]
+    task: VSCR-M1-005
+    design_gate: VSCR-M1-005P
+
+  - id: blocks.project.load-save
+    state: planned
+    risk: high
+    purpose: "Durable projectJson load/save with exact durable referenced assets."
+    contracts:
+      - path: docs/product/visual-programming/VSCR-D0-002-PERSISTENCE-CONTRACT.md
+        section: "Blocks save/load persistence"
+      - path: docs/product/visual-programming/VSCR-D0-003-ASSET-STORAGE-CONTRACT.md
+        section: "§17 Project save interaction"
+    planned_sources:
+      - contexts/blocks/**
+      - apps/api/src/blocks-runtime.controller.ts
+      - infra/scratch-editor/host/storage.js
+      - infra/scratch-editor/host/save-orchestrator.js
+    planned_tests:
+      - tests/blocks/durable-save.spec.ts
+      - e2e/blocks-save-reload.spec.ts
+    task: VSCR-M1-005
+
+  - id: blocks.project.autosave
+    state: planned
+    risk: high
+    purpose: "Generation-aware latest-state queue; edits during in-flight save are not lost."
+    contracts:
+      - path: docs/product/visual-programming/VSCR-D0-002-PERSISTENCE-CONTRACT.md
+        section: "Save ordering/revision semantics"
+    planned_sources: [infra/scratch-editor/host/save-orchestrator.js]
+    planned_tests: [e2e/blocks-autosave.spec.ts]
+    task: VSCR-M1-006
+
+  - id: blocks.project.recovery
+    state: planned
+    risk: high
+    purpose: "Bounded recovery/offline retry without becoming canonical storage."
+    contracts:
+      - path: docs/product/visual-programming/VSCR-D0-002-PERSISTENCE-CONTRACT.md
+        section: "Recovery requirements"
+    planned_sources: [infra/scratch-editor/host/save-orchestrator.js]
+    planned_tests: [e2e/blocks-recovery.spec.ts]
+    task: VSCR-M1-006
+
+  - id: blocks.project.conflict
+    state: planned
+    risk: high
+    purpose: "Optimistic revision conflict handling with no silent last-write-wins."
+    contracts:
+      - path: docs/product/visual-programming/VSCR-D0-002-PERSISTENCE-CONTRACT.md
+        section: "Revision/conflict semantics"
+    planned_sources:
+      - contexts/blocks/**
+      - infra/scratch-editor/host/save-orchestrator.js
+    planned_tests: [e2e/blocks-conflict.spec.ts]
+    task: VSCR-M1-006
