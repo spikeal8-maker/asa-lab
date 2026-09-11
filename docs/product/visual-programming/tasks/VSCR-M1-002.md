@@ -15,7 +15,7 @@ persistence.
 
 ## Components
 
-Read only these entries from `../COMPONENT_MAP.yaml`:
+Resolve in `../COMPONENT_MAP.yaml`:
 
 ```text
 blocks.upstream.pin
@@ -27,7 +27,15 @@ blocks.host.protocol
 blocks.host.storage-adapter
 ```
 
-Do not read asset persistence, Gallery, Learning or sb3 components for this task.
+Open only the referenced cards:
+
+```text
+../components/module.yaml → blocks.upstream.pin only
+../components/host.yaml
+```
+
+Do not read runtime/assets/project/Gallery/Learning/sb3 cards for this task except the exact
+D0-004 sections explicitly required for iframe/origin semantics.
 
 ## Minimal read set
 
@@ -36,7 +44,11 @@ AGENTS.md
 START_HERE_FOR_AI.md
 ../README.md
 ../AGENT_GUIDE.md
-../COMPONENT_MAP.yaml entries above
+../COMPONENT_MAP.yaml compact index
+../components/module.yaml → blocks.upstream.pin
+../components/host.yaml
+../../ASA_VISUAL_PROGRAMMING_SCRATCH_MASTER_SPEC.md §§0–5,9–11,13
+../../../architecture/ADR-VSCR-001-SCRATCH-EDITOR-INTEGRATION.md
 ../VSCR-D0-001-SCRATCH-HOST-CONTRACT.md
 ../VSCR-D0-004-RUNTIME-SECURITY-CONTRACT.md only sections required for iframe/origin/CSP semantics
 infra/scratch-editor/upstream.env
@@ -65,7 +77,8 @@ infra/scratch-editor/host/host.css
 apps/web/src/blocks/**                  # minimal parent component/test harness only
 .github/workflows/scratch-m0-focused.yml or one focused successor workflow
 e2e/blocks-host.spec.ts                 # if this is the accepted test placement
-../COMPONENT_MAP.yaml                    # replace planned paths/tests with actual ones
+../components/host.yaml
+../components/module.yaml               # only if upstream/build ownership changed
 ```
 
 Canonical ASA logo source is read/copied, not redrawn:
@@ -203,7 +216,7 @@ host is split into mapped maintainable modules
 canonical logo source is used
 iframe protocol is browser-tested
 no durable write is claimed
-COMPONENT_MAP.yaml contains actual source/test ownership
+components/host.yaml contains actual source/test ownership
 focused + required repository gates pass on exact final SHA
 ```
 
@@ -220,7 +233,7 @@ Did I create a second logo source?
 Did main.js absorb logic that belongs in a smaller mapped module?
 Did I accidentally implement or claim persistence/JWT/storage?
 Did I use more than two upstream patches?
-Did I update actual component-map source/test paths?
+Did I update actual components/host.yaml source/test paths and symbols?
 ```
 
 Then STOP. M1-003 requires separate owner selection and independent review.
