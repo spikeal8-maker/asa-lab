@@ -1,48 +1,37 @@
-schema_version: 1.0.0
+schema_version: 2.0.0
 area: runtime-security
 components:
   - id: blocks.runtime.session
-    state: planned
+    state: blocked
     risk: high
+    ownership: asa
     purpose: "Cookie-authenticated ASA endpoint issuing exact Blocks runtime capabilities."
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-004-RUNTIME-SECURITY-CONTRACT.md
-        section: "Runtime-session issuance"
-      - path: docs/product/visual-programming/VSCR-D0-004A-CURRENT-AUTHORIZATION-RECHECK.md
-        section: "Current-authority recheck"
-    planned_sources:
-      - apps/api/src/blocks-runtime-session.controller.ts
-      - apps/api/src/blocks-runtime-token.service.ts
-    planned_tests: [apps/api/src/blocks-runtime-session.controller.spec.ts]
+        section: "Editor runtime-session issuance"
     task: VSCR-M1-003
+    depends_on: [blocks.host.protocol]
 
   - id: blocks.runtime.capability
-    state: planned
+    state: blocked
     risk: high
-    purpose: "Short-lived bearer JWT verification, exact permission/resource binding and current authority recheck."
+    ownership: asa
+    purpose: "Short-lived bearer capability verification plus current ASA resource-authority recheck."
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-004-RUNTIME-SECURITY-CONTRACT.md
-        section: "Capability format and validation"
-      - path: docs/product/visual-programming/VSCR-D0-004A-CURRENT-AUTHORIZATION-RECHECK.md
-        section: "Current-authority recheck"
-    planned_sources:
-      - apps/api/src/blocks-runtime-token.service.ts
-      - apps/api/src/blocks-runtime.controller.ts
-    planned_tests: [tests/blocks/runtime-auth.spec.ts]
+        section: "Capability validation"
+      - path: docs/product/visual-programming/VSCR-D0-004-RUNTIME-SECURITY-CONTRACT.md
+        section: "Current authority recheck"
     task: VSCR-M1-003
+    depends_on: [blocks.runtime.session]
 
   - id: blocks.runtime.origin-security
-    state: planned
+    state: blocked
     risk: high
+    ownership: cross_boundary
     purpose: "Path-scoped exact Origin/CORS/CSP without widening normal ASA cookie trust."
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-004-RUNTIME-SECURITY-CONTRACT.md
-        section: "Origin/CORS/CSP boundary"
-    planned_sources:
-      - apps/api/src/app.factory.ts
-      - infra/scratch-editor/nginx.conf.template
-      - apps/web/src/blocks/**
-    planned_tests:
-      - tests/blocks/runtime-origin.spec.ts
-      - e2e/blocks-host.spec.ts
+        section: "Origin CORS CSP boundary"
     task: VSCR-M1-003
+    depends_on: [blocks.host.protocol]
