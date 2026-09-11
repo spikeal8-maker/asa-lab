@@ -95,6 +95,7 @@
     "test:three-d:corpus": "vitest run apps/web/src/three-d/testing/geometry-corpus.spec.ts",
     "test:three-d:worker": "vitest run apps/web/src/client-id.spec.ts apps/web/src/three-d/testing/geometry-worker.spec.ts apps/web/src/three-d/testing/geometry-worker-runtime.spec.ts",
     "benchmark:three-d": "node tools/run-three-d-benchmark.mjs",
+    "benchmark:electronics": "node --expose-gc tools/run-electronics-benchmark.mjs",
     "e2e:three-d": "playwright test e2e/three-d-m0.spec.ts",
     "agent:context": "python tools/agent_context.py",
     "test:agent-context": "python tools/test_agent_context.py",
