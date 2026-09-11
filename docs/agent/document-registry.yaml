@@ -1,0 +1,115 @@
+schema_version: 1.0.0
+coverage: partial
+unregistered_documents_allowed: true
+
+status_values:
+  - canonical
+  - supporting
+  - historical
+  - superseded
+  - review_only
+
+documents:
+  - id: POLICY-AGENTS
+    path: AGENTS.md
+    scope: global
+    kind: policy
+    status: canonical
+    authority: engineering_policy
+    read_when: [always]
+
+  - id: ROUTER-AI-ENTRY
+    path: START_HERE_FOR_AI.md
+    scope: global
+    kind: router
+    status: canonical
+    authority: ai_entry_router
+    read_when: [agent_entry]
+  - id: EXECUTION-CURRENT
+    path: docs/execution/current.yaml
+    scope: global
+    kind: live_state
+    status: canonical
+    authority: execution_state
+    read_when: [active_task, checkpoint, gates, blockers]
+
+  - id: DOCSYSTEM-MAINTENANCE
+    path: docs/architecture/AI_MAINTENANCE_DOCUMENTATION_SYSTEM.md
+    scope: global
+    kind: architecture
+    status: canonical
+    authority: agent_documentation_architecture
+    read_when: [documentation_system_change, agent_context_change]
+
+  - id: PRODUCT-INTEGRATED-V13
+    path: docs/product/ASA_INTEGRATED_IMPLEMENTATION_SPEC.md
+    scope: product
+    kind: target
+    status: canonical
+    authority: integrated_product_delivery
+    revision: "1.3"
+    read_when: [cross_context_product_change, learning_delivery_stage]
+  - id: IDENTITY-ACCESS-V20
+    path: docs/product/ASA_USERS_ACCESS_AND_SETTINGS_SPEC.md
+    scope: identity
+    kind: target
+    status: canonical
+    authority: users_access_settings
+    revision: "2.0"
+    read_when: [account, student_seat, access, profile, navigation, settings]
+
+  - id: LEARNING-MASTER-V20
+    path: docs/product/ASA_LEARNING_TECHNICAL_SPEC.md
+    scope: learning
+    kind: domain_master
+    status: canonical
+    authority: learning_semantics
+    revision: "2.0"
+    read_when: [learning_domain_change, attempt, submission, assessment, gradebook]
+
+  - id: LEARNING-REQUIREMENTS-LEDGER
+    path: docs/product/ASA_LEARNING_REQUIREMENTS_LEDGER.yaml
+    scope: learning
+    kind: ledger
+    status: supporting
+    authority: learning_requirement_traceability
+    read_when: [learning_requirement_trace]
+  - id: LEARNING-LEGACY-IMPLEMENTATION-PLAN
+    path: docs/product/COURSES_AND_LEARNING_IMPLEMENTATION_PLAN.md
+    scope: learning
+    kind: historical_plan
+    status: historical
+    authority: none
+    read_when: [historical_learning_context_only]
+    do_not_read_for: [active_learning_implementation]
+
+  - id: ELECTRONICS-MASTER
+    path: docs/product/electronics/README.md
+    scope: electronics
+    kind: domain_master
+    status: canonical
+    authority: electronics_semantics
+    read_when: [electronics_domain_change]
+
+  - id: VSCR-MASTER
+    path: docs/product/ASA_VISUAL_PROGRAMMING_SCRATCH_MASTER_SPEC.md
+    scope: visual_programming
+    kind: domain_master
+    status: canonical
+    authority: visual_programming_target
+    read_when: [visual_programming_change]
+  - id: VSCR-READINESS
+    path: docs/product/visual-programming/README.md
+    scope: visual_programming
+    kind: readiness_index
+    status: canonical
+    authority: visual_programming_readiness
+    read_when: [visual_programming_task_start]
+
+  - id: AGENT-REVIEW-PROTOCOL
+    path: docs/agent/review-protocol.md
+    scope: global
+    kind: process_contract
+    status: canonical
+    authority: agent_review_protocol
+    read_when: [post_step_review, challenge_review, milestone_close, release_candidate]
