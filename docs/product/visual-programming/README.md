@@ -9,8 +9,7 @@
 Active work is selected only through `docs/execution/current.yaml` + explicit owner instruction.
 This directory explains **how** to work on Scratch; it does not authorise a task.
 
-For any Scratch change, do **not** read this whole directory. Start here, then use
-`COMPONENT_MAP.yaml` to resolve the smallest component scope.
+For any Scratch change, do **not** read this whole directory.
 
 Default read path:
 
@@ -20,8 +19,9 @@ AGENTS.md
 → current authorised task
 → this README
 → AGENT_GUIDE.md
-→ one matching COMPONENT_MAP.yaml entry
-→ only the contract/task/source/test files named by that entry
+→ COMPONENT_MAP.yaml compact index
+→ one referenced components/*.yaml card
+→ only the contract/task/source/test files named by that card
 ```
 
 If the component cannot be resolved, expand one dependency hop at a time. Broad repository
@@ -32,22 +32,50 @@ scans and reading all Scratch contracts are a last resort, not the default workf
 | Need | Read |
 | --- | --- |
 | product goal / stable invariants / milestone order | `../ASA_VISUAL_PROGRAMMING_SCRATCH_MASTER_SPEC.md` |
-| token-efficient agent workflow / maintenance rules | `AGENT_GUIDE.md` |
-| exact component → source → contract → test routing | `COMPONENT_MAP.yaml` |
-| Scratch host / branding / File / Extensions / iframe | `VSCR-D0-001-SCRATCH-HOST-CONTRACT.md` |
+| stable architecture decisions | `../../architecture/ADR-VSCR-001-SCRATCH-EDITOR-INTEGRATION.md` |
+| token-efficient agent workflow / review rules | `AGENT_GUIDE.md` |
+| component ID → one small subsystem card | `COMPONENT_MAP.yaml` |
+| host / branding / File / Extensions / iframe | `VSCR-D0-001-SCRATCH-HOST-CONTRACT.md` |
 | Project Core durability guard | `VSCR-D0-002-PERSISTENCE-CONTRACT.md` |
 | asset identity / S3 / MinIO / upload/read | `VSCR-D0-003-ASSET-STORAGE-CONTRACT.md` |
 | runtime JWT / origin / CORS / CSP / rate limits | `VSCR-D0-004-RUNTIME-SECURITY-CONTRACT.md` + `VSCR-D0-004A-CURRENT-AUTHORIZATION-RECHECK.md` |
 | deployment / backup / activation | `VSCR-D0-005-DEPLOYMENT-ACTIVATION-CONTRACT.md` |
 | Gallery publication / player / remix | `VSCR-D0-006-PUBLICATION-REMIX-CONTRACT.md` |
-| `.sb3` compatibility / legacy media / ZIP safety | `VSCR-D0-007-SB3-IMPORT-COMPATIBILITY-CONTRACT.md` |
+| `.sb3` compatibility / ZIP safety | `VSCR-D0-007-SB3-IMPORT-COMPATIBILITY-CONTRACT.md` |
 | current post-M0 milestone plan | `VSCR-M1-FORWARD-PLAN-2026-09-11.md` |
 | one implementation slice | `tasks/<task-id>.md` when present |
 
 Historical audits/addenda are evidence only. They are not part of the default coding read
 path and must never override the canonical documents above.
 
-## 3. Current factual baseline
+## 3. Component routing
+
+`COMPONENT_MAP.yaml` is intentionally small. It does not contain source/test detail.
+It maps a stable component ID to exactly one small card:
+
+```text
+blocks.host.branding
+→ components/host.yaml
+→ branding entry only
+→ mapped D0 section + source + focused test
+```
+
+Subsystem cards:
+
+```text
+components/module.yaml
+components/host.yaml
+components/runtime.yaml
+components/assets.yaml
+components/project.yaml
+components/sb3.yaml
+components/gallery-learning.yaml
+components/sovereign-deployment.yaml
+```
+
+Do not load all subsystem cards.
+
+## 4. Current factual baseline
 
 Integrated M0/M0.1:
 
@@ -76,7 +104,7 @@ sovereign local media/extensions baseline
 activation
 ```
 
-## 4. Readiness
+## 5. Readiness
 
 ```text
 M0/M0.1     COMPLETE / IN MAIN
@@ -97,7 +125,7 @@ M2+         BLOCKED until preceding milestone acceptance and exact task cards
 `READY` means eligible for owner selection. It never means “start automatically”.
 `BLOCKED` means STOP before coding.
 
-## 5. Branding invariant
+## 6. Branding invariant
 
 Canonical product logo source:
 
@@ -109,22 +137,23 @@ Scratch logo must not appear as ASA product chrome. Do not create a second indep
 editable ASA logo for the Scratch host. Factual compatibility wording such as
 “совместимо с проектами Scratch 3 (.sb3)” is allowed where appropriate.
 
-## 6. Maintenance changes after implementation
+## 7. Maintenance changes after implementation
 
-For a future small request such as “change a button”, “adjust a label”, “hide an element”:
+For a future request such as “change a button”, “adjust a label”, “hide an element”:
 
-1. resolve the component ID in `COMPONENT_MAP.yaml`;
-2. read only its `contracts`, `sources`, `tests`, and direct dependency entries;
-3. do not read unrelated persistence/storage/Gallery/Learning documents;
-4. change only the smallest source set;
-5. run the component-focused test/gate;
-6. perform the bounded self-review from `AGENT_GUIDE.md`;
-7. update `COMPONENT_MAP.yaml` if source/test ownership changed.
+1. resolve component ID in `COMPONENT_MAP.yaml`;
+2. open only its referenced `components/*.yaml` card;
+3. read only that component's `contracts`, `sources`, `tests` and direct dependencies;
+4. do not read unrelated persistence/storage/Gallery/Learning documents;
+5. change only the smallest source set;
+6. run the mapped focused test/gate;
+7. perform bounded self-review from `AGENT_GUIDE.md`;
+8. update the subsystem card if source/test ownership changed.
 
-If the map points to a missing/renamed file or cannot identify the component, STOP and repair
-the map before expanding into a broad code search.
+If the index/card points to a missing or renamed source, STOP and repair routing before
+expanding into broad code search.
 
-## 7. Hard boundaries
+## 8. Hard boundaries
 
 ```text
 no automatic next task
@@ -141,12 +170,12 @@ no activation before durability + sovereign + backup/restore gates
 no deploy/restart/live restore without explicit owner instruction
 ```
 
-## 8. Completion rule for every Scratch task
+## 9. Completion rule for every Scratch task
 
-Every accepted implementation slice must leave the documentation usable for the next agent:
+Every accepted implementation slice must leave routing usable for the next agent:
 
 ```text
-actual source paths recorded in COMPONENT_MAP.yaml
+actual source paths recorded in the matching components/*.yaml card
 actual focused test/gate recorded
 obsolete paths removed
 one task only completed
