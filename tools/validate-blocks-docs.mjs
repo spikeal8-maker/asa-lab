@@ -151,7 +151,9 @@ function validateContract(contract, owner) {
 
 for (const retired of retiredActivePaths) {
   if (exists(retired)) {
-    errors.push(`${retired}: retired historical/addendum file must not remain in active Scratch docs`);
+    errors.push(
+      `${retired}: retired historical/addendum file must not remain in active Scratch docs`,
+    );
   }
 }
 
@@ -275,7 +277,8 @@ for (const id of cardComponents.keys()) {
 
 for (const [id, component] of cardComponents) {
   const owner = `${component.cardPath}:${id}`;
-  if (!allowedStates.has(component.state)) errors.push(`${owner}: invalid state ${component.state}`);
+  if (!allowedStates.has(component.state))
+    errors.push(`${owner}: invalid state ${component.state}`);
   if (!allowedRisks.has(component.risk)) errors.push(`${owner}: invalid risk ${component.risk}`);
   if (!allowedOwnership.has(component.ownership)) {
     errors.push(`${owner}: invalid/missing ownership ${component.ownership}`);
