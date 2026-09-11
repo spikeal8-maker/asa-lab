@@ -1,34 +1,40 @@
 # Scratch task cards
 
-This directory contains **small executable cards**, one selected implementation slice per file.
+This directory contains small Scratch implementation/acceptance cards. It is not a work queue.
+Readiness/order lives only in `../VSCR-M1-FORWARD-PLAN-2026-09-11.md`; active execution lives
+only in `docs/execution/current.yaml` + explicit owner instruction.
 
-Rules:
+Default flow:
 
 ```text
-current.yaml + owner instruction selects the task
+selected task
 → read only that task card
 → resolve its component IDs in ../COMPONENT_MAP.yaml
-→ read only mapped canonical contracts/source/tests
-→ implement one slice
+→ open only referenced subsystem card entries
+→ read mapped canonical contract/source/tests
+→ implement/review one slice
 → bounded self-review
 → STOP
 ```
 
-A task card is not a work queue and does not authorise itself.
-
-Current cards:
+Current executable/route cards:
 
 ```text
-VSCR-M1-001.md   bounded-context extraction
-VSCR-M1-002.md   ASA-owned Scratch host and iframe skeleton
+VSCR-M1-001.md    bounded-context extraction
+
+VSCR-M1-002.md    milestone router only; not executable as one slice
+VSCR-M1-002A.md   standalone build + minimal ASA host shell
+VSCR-M1-002B.md   ASA branding + File/Extensions controls
+VSCR-M1-002C.md   parent/iframe protocol boundary
+VSCR-M1-002D.md   ScratchStorage/GUIStorage fixture adapter
+VSCR-M1-002E.md   integrated acceptance + independent review
 ```
 
-Later M1 cards are created/refined only when their prerequisites are accepted. This is
-intentional: do not freeze speculative source paths or APIs before preceding interfaces exist.
+Later M1/M2/M3 coding cards are created only after their prerequisites are accepted and the
+real preceding interfaces are known. Do not reconstruct a future implementation from Git
+history, old PR comments or deleted historical planning files.
 
-The older consolidated `VSCR-IMPLEMENTATION-PACKAGES-M0.1-M1.md` is historical planning
-material for the first wave. When an exact task card exists here, this directory card is the
-default implementation instruction for that task.
+For a bounded post-implementation maintenance request use
+`MAINTENANCE_TASK_TEMPLATE.md` together with the component index/card.
 
-For a post-implementation maintenance change that is not a milestone package, use
-`MAINTENANCE_TASK_TEMPLATE.md` together with the component map.
+No task card stores current readiness status or current SHA/PR state.
