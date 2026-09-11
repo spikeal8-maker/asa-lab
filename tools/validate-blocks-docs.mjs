@@ -8,6 +8,7 @@ const DOC_ROOT = 'docs/product/visual-programming';
 const INDEX_PATH = `${DOC_ROOT}/COMPONENT_MAP.yaml`;
 const TASK_ROOT = `${DOC_ROOT}/tasks`;
 const GLOBAL_ENTRY_PATH = 'START_HERE_FOR_AI.md';
+const UNSCOPED_CODE_SOURCE_MAX_BYTES = 12_000;
 const errors = [];
 
 const allowedStates = new Set(['implemented', 'planned', 'blocked']);
@@ -92,6 +93,10 @@ function sourcePath(entry) {
   if (typeof entry === 'string') return entry;
   if (entry && typeof entry === 'object' && typeof entry.path === 'string') return entry.path;
   return null;
+}
+
+function isCodeSource(relative) {
+  return /\.(?:cjs|mjs|js|jsx|cts|mts|ts|tsx)$/i.test(relative || '');
 }
 
 function requireExactExistingPath(relative, owner) {
@@ -275,6 +280,8 @@ for (const id of cardComponents.keys()) {
   }
 }
 
+const implementedCodeSourceOwners = new Map();
+
 for (const [id, component] of cardComponents) {
   const owner = `${component.cardPath}:${id}`;
   if (!allowedStates.has(component.state))
@@ -309,6 +316,12 @@ for (const [id, component] of cardComponents) {
     }
     for (const entry of component.sources || []) {
       validateSourceEntry(entry, `${owner}.sources`);
+      const relative = sourcePath(entry);
+      if (relative && exists(relative) && isCodeSource(relative)) {
+        const refs = implementedCodeSourceOwners.get(relative) || [];
+        refs.push({ id, entry, owner });
+        implementedCodeSourceOwners.set(relative, refs);
+      }
     }
     for (const test of component.tests || []) requireExactExistingPath(test, `${owner}.tests`);
     if (component.planned_sources || component.planned_tests) {
@@ -339,6 +352,22 @@ for (const [id, component] of cardComponents) {
           errors.push(`${owner}: task ${component.task} does not match task_card ${taskId}`);
         }
       }
+    }
+  }
+}
+
+for (const [relative, refs] of implementedCodeSourceOwners) {
+  const shared = refs.length > 1;
+  const large = fs.statSync(absolute(relative)).size > UNSCOPED_CODE_SOURCE_MAX_BYTES;
+  if (!shared && !large) continue;
+
+  for (const ref of refs) {
+    const symbols = typeof ref.entry === 'object' ? ref.entry.symbols : null;
+    if (!Array.isArray(symbols) || symbols.length === 0) {
+      const reason = shared ? 'shared by multiple mapped components' : 'larger than 12000 bytes';
+      errors.push(
+        `${ref.owner}: code source ${relative} is ${reason}; exact symbols are required for token-efficient routing`,
+      );
     }
   }
 }
@@ -413,4 +442,5 @@ console.log(`- components: ${cardComponents.size}`);
 console.log(`- subsystem cards: ${cardPaths.size}`);
 console.log('- retired competing docs/addenda absent from active tree');
 console.log('- implemented source/test paths, symbols and canonical contract headings verified');
+console.log('- shared/large implemented code sources have symbol-level routing');
 console.log('- executable task cards are bound to exact current.yaml task IDs');
