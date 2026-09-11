@@ -438,7 +438,7 @@ if (fs.existsSync(taskDir)) {
     }
     const taskRisk = riskMatch?.[1]?.toLowerCase();
     const ownedComponents = [...cardComponents.values()].filter(
-      (component) => component.task === taskId,
+      (component) => component.task === taskId || component.design_gate === taskId,
     );
     if (taskRisk && ownedComponents.length) {
       const maximumComponentRisk = ownedComponents.reduce(
@@ -450,7 +450,7 @@ if (fs.existsSync(taskDir)) {
           ([, rank]) => rank === maximumComponentRisk,
         )?.[0];
         errors.push(
-          `${relative}: task risk ${taskRisk} is lower than owned component risk ${requiredRisk}`,
+          `${relative}: task risk ${taskRisk} is lower than owned/design-gated component risk ${requiredRisk}`,
         );
       }
     }
@@ -520,5 +520,5 @@ console.log('- retired competing docs/addenda absent and unreferenced in active 
 console.log('- implemented source/test paths, symbols and canonical contract headings verified');
 console.log('- shared/large implemented code sources have symbol-level routing');
 console.log('- executable/design/review task cards are bounded and bind exact current.yaml task IDs');
-console.log('- task risk cannot understate owned component risk');
+console.log('- task/design-gate risk cannot understate mapped component risk');
 console.log('- HIGH/CRITICAL executable/design/review slices require independent review');
