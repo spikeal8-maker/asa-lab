@@ -117,7 +117,7 @@
     "test:checkers": "vitest run contexts/checkers/testing apps/web/src/checkers/testing apps/api/src/modules.controller.spec.ts",
     "typecheck:checkers": "tsc -p contexts/checkers/tsconfig.json --noEmit",
     "e2e:checkers": "playwright test e2e/checkers-module.spec.ts",
-    "gate:checkers-m1": "corepack pnpm nx build module-sdk && corepack pnpm nx build electronics && corepack pnpm nx build chess && corepack pnpm nx build three-d && corepack pnpm nx build checkers && corepack pnpm test:checkers && corepack pnpm typecheck:checkers && corepack pnpm typecheck && corepack pnpm build",
+    "gate:checkers-m1": "corepack pnpm nx build module-sdk && corepack pnpm nx build electronics && corepack pnpm nx build chess && corepack pnpm nx build three-d && corepack pnpm nx build checkers && corepack pnpm nx build blocks && corepack pnpm test:checkers && corepack pnpm typecheck:checkers && corepack pnpm typecheck && corepack pnpm build",
     "gate:checkers-m1:browser": "corepack pnpm e2e:checkers",
     "assets:check": "python tools/validate_electronics_assets.py",
     "assets:test": "python tools/test_validate_electronics_assets.py"
