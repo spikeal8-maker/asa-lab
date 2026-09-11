@@ -403,7 +403,9 @@ if (fs.existsSync(taskDir)) {
 
       const highRisk = text.includes('**Risk:** high') || text.includes('**Risk:** critical');
       if (highRisk && !text.includes('## Independent review')) {
-        errors.push(`${relative}: HIGH/CRITICAL executable/review card needs ## Independent review`);
+        errors.push(
+          `${relative}: HIGH/CRITICAL executable/review card needs ## Independent review`,
+        );
       }
     }
   }
