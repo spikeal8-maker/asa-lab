@@ -8,7 +8,7 @@ import {
   type ModuleManifestV1,
   type RegisteredModule,
 } from '@asa-lab/module-sdk';
-import { BLOCKS_MODULE } from './blocks-module.js';
+import { BLOCKS_MODULE } from '@asa-lab/blocks';
 
 function future(manifest: Omit<ModuleManifestV1, 'availability'>): RegisteredModule {
   return defineFutureModule({ ...manifest, availability: 'coming_soon' });

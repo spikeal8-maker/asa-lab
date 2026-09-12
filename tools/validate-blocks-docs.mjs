@@ -507,6 +507,35 @@ for (const relative of activeRoutingDocs) {
   }
 }
 
+const blocksBoundarySources = {
+  eslint: readText('eslint.config.mjs'),
+  validator: readText('tools/validate-context-boundaries.mjs'),
+};
+if (!blocksBoundarySources.eslint.includes("sourceTag: 'context:blocks'")) {
+  errors.push('eslint.config.mjs: context:blocks dependency constraint is missing');
+}
+if (
+  !blocksBoundarySources.eslint.includes(
+    "onlyDependOnLibsWithTags: ['context:blocks', 'scope:shared', 'scope:contract']",
+  )
+) {
+  errors.push('eslint.config.mjs: context:blocks dependency allowlist is not fail-closed');
+}
+if (!blocksBoundarySources.validator.includes('blocks: [],')) {
+  errors.push('tools/validate-context-boundaries.mjs: blocks context registration is missing');
+}
+
+const graphPath = 'docs/project-map/nx-project-graph.json';
+try {
+  const graph = JSON.parse(readText(graphPath));
+  const blockTags = graph?.graph?.nodes?.blocks?.data?.tags;
+  if (!Array.isArray(blockTags) || !blockTags.includes('context:blocks')) {
+    errors.push(`${graphPath}: node blocks with context:blocks tag is missing or stale`);
+  }
+} catch (error) {
+  errors.push(`${graphPath}: cannot validate Blocks graph node (${error.message})`);
+}
+
 if (errors.length) {
   console.error('Scratch documentation routing validation: FAIL');
   for (const error of errors) console.error(`- ${error}`);
@@ -524,3 +553,6 @@ console.log(
 );
 console.log('- task/design-gate risk cannot understate mapped component risk');
 console.log('- HIGH/CRITICAL executable/design/review slices require independent review');
+console.log(
+  '- blocks bounded-context enforcement is present in Nx rules, boundary validator and graph',
+);
