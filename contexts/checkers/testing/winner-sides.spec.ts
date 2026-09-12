@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { type CheckersDocument, type CheckersPiece } from '../domain/document';
+import { checkersOutcomeForSide } from '../domain/game';
 import { applyCheckersMove, getCheckersGameStatus } from '../domain/rules';
 
 function terminalCapturePosition(
@@ -38,6 +39,17 @@ describe('Checkers winner-side regression', () => {
       if (!applied.ok) return;
       expect(applied.value.result).toBe(result);
       expect(getCheckersGameStatus(applied.value)).toMatchObject({ state: 'win', winner: side });
+      expect(checkersOutcomeForSide(applied.value.result, side)).toBe('win');
+      expect(
+        checkersOutcomeForSide(applied.value.result, side === 'light' ? 'dark' : 'light'),
+      ).toBe('loss');
     },
   );
+
+  it('maps draw and ongoing results independently of player side', () => {
+    expect(checkersOutcomeForSide('1/2-1/2', 'light')).toBe('draw');
+    expect(checkersOutcomeForSide('1/2-1/2', 'dark')).toBe('draw');
+    expect(checkersOutcomeForSide('*', 'light')).toBe('ongoing');
+    expect(checkersOutcomeForSide('*', 'dark')).toBe('ongoing');
+  });
 });

@@ -2,6 +2,8 @@ import {
   createInitialCheckersDocument,
   type CheckersDocument,
   type CheckersDocumentResult,
+  type CheckersResult,
+  type CheckersSide,
 } from './document.js';
 import {
   advanceCheckersDrawTracker,
@@ -63,4 +65,17 @@ export function applyCheckersGameMove(
   return getCheckersAutomaticDrawReason(advanced, applied.value)
     ? { ok: true, value: { ...applied.value, result: '1/2-1/2' } }
     : applied;
+}
+
+export type CheckersSideOutcome = 'ongoing' | 'win' | 'loss' | 'draw';
+
+/** Interprets a canonical game result from one player's side. */
+export function checkersOutcomeForSide(
+  result: CheckersResult,
+  side: CheckersSide,
+): CheckersSideOutcome {
+  if (result === '*') return 'ongoing';
+  if (result === '1/2-1/2') return 'draw';
+  const winner: CheckersSide = result === '1-0' ? 'light' : 'dark';
+  return winner === side ? 'win' : 'loss';
 }
