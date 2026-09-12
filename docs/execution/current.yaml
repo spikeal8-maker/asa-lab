@@ -11,17 +11,17 @@ development_policy:
 task:
   id: VSCR-M1-002A
   issue: 183
-  branch: codex/vscr-m1-002a-host-shell
+  branch: main
   base_branch: main
-  pr: null
-  pr_draft: true
-  status: in_progress
-  checkpoint: m1_002a_owner_authorized_execution
-  owner_acceptance: pending
+  pr: 194
+  pr_draft: false
+  status: done
+  checkpoint: m1_002a_owner_accepted_merged
+  owner_acceptance: accepted
 
 revisions:
-  convergence_baseline_sha: e82267de2b64170355fd798054a991a96bb820a1
-  head_sha: e82267de2b64170355fd798054a991a96bb820a1
+  convergence_baseline_sha: 58a91b4353471d8312d23fb7cf5d2186e758edff
+  head_sha: b6f0812003f6066ee7de30a9b7a310885d8f86af
 
 execution_lease:
   executor_id: codex-vscr-m1-002a
