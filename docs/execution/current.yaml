@@ -9,22 +9,22 @@ development_policy:
   lane_path_ownership: advisory
 
 task:
-  id: VSCR-M1-002A
+  id: VSCR-M1-002C
   issue: 183
-  branch: main
+  branch: codex/vscr-m1-002c-protocol
   base_branch: main
-  pr: 194
-  pr_draft: false
-  status: done
-  checkpoint: m1_002a_owner_accepted_merged
-  owner_acceptance: accepted
+  pr: null
+  pr_draft: true
+  status: in_progress
+  checkpoint: m1_002c_owner_authorized_execution
+  owner_acceptance: pending
 
 revisions:
-  convergence_baseline_sha: 58a91b4353471d8312d23fb7cf5d2186e758edff
-  head_sha: b6f0812003f6066ee7de30a9b7a310885d8f86af
+  convergence_baseline_sha: 93031316281d61459838783b36e10841b883b3cd
+  head_sha: 93031316281d61459838783b36e10841b883b3cd
 
 execution_lease:
-  executor_id: codex-vscr-m1-002a
+  executor_id: codex-vscr-m1-002c
   holder: unassigned
   acquired_at: null
   expires_at: null
@@ -34,11 +34,11 @@ gates:
   focused:
     workflow: Scratch Focused
     commands:
-      - pnpm gate:blocks-m1-002a
+      - pnpm gate:blocks-m1-002c
   browser:
     workflow: Scratch Focused
     commands:
-      - pnpm test:blocks-m1-002a:browser
+      - pnpm test:blocks-m1-002c:browser
   general:
     workflow: ASA Lab Governance and Code Gates
     commands:
