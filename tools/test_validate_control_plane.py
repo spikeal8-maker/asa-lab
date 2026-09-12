@@ -947,6 +947,24 @@ def scope_state_always_protected(_):
     return branch_scope_case(change, integration_owner=True)
 
 
+@case("a docs/agent repository path is not a product branch", expect="")
+def docs_agent_path_not_branch(_):
+    match = cp.PRODUCT_BRANCH_PATTERN.search("docs/agent/contracts/identity.yaml")
+    return [] if match is None else [f"false product branch: {match.group(0)}"]
+
+
+@case("a standalone agent product branch is still detected", expect="detected product branch")
+def standalone_agent_branch_detected(_):
+    match = cp.PRODUCT_BRANCH_PATTERN.search("use agent/example-feature for this work")
+    return ["detected product branch"] if match and match.group(0) == "agent/example-feature" else []
+
+
+@case("an origin agent product branch is still detected", expect="detected origin product branch")
+def origin_agent_branch_detected(_):
+    match = cp.PRODUCT_BRANCH_PATTERN.search("compare origin/agent/example-feature")
+    return ["detected origin product branch"] if match and match.group(0) == "origin/agent/example-feature" else []
+
+
 def main() -> int:
     failures = 0
     for name, prepare, expect in CASES:
