@@ -14,13 +14,16 @@ task:
   branch: agent/vscr-m1-001
   base_branch: main
   pr: 187
-  pr_draft: true
-  status: in_progress
-  checkpoint: m1_001_bounded_context_extraction
-  owner_acceptance: pending
+  pr_draft: false
+  status: done
+  checkpoint: m1_001_owner_accepted_merged
+  owner_acceptance: accepted
 
 revisions:
   convergence_baseline_sha: 3fe1e298422c225843db7fcda927b27221159a18
+  head_sha: a0e2967dbe7f6ba5ed6e5c4b0622761e2752befc
+  owner_accepted_sha: a0e2967dbe7f6ba5ed6e5c4b0622761e2752befc
+  product_merge_sha: b00044f47324e820498b93e23c027e4e6cc2af6c
 
 execution_lease:
   executor_id: codex-vscr-m1-001
@@ -33,7 +36,7 @@ gates:
   focused:
     workflow: Scratch M0 Focused
     commands:
-      - pnpm gate:code
+      - pnpm gate:blocks-m1-001
   general:
     workflow: ASA Lab Governance and Code Gates
     commands:
