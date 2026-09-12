@@ -131,8 +131,8 @@
     "gate:checkers-m1:browser": "corepack pnpm e2e:checkers",
     "assets:check": "python tools/validate_electronics_assets.py",
     "assets:test": "python tools/test_validate_electronics_assets.py",
-    "gate:blocks-m1-002c": "corepack pnpm gate:blocks-m1-002a && corepack pnpm exec prettier --check apps/web/src/blocks infra/scratch-editor/host/protocol.js infra/scratch-editor/host/status.js infra/scratch-editor/host/main.js e2e/blocks-host-protocol.spec.ts docs/product/visual-programming/components/host.yaml docs/product/visual-programming/tasks/VSCR-M1-002C.md .github/workflows/scratch-focused.yml && node --check infra/scratch-editor/host/protocol.js && node --check infra/scratch-editor/host/status.js && node --check infra/scratch-editor/host/main.js && node tools/validate-blocks-docs.mjs",
-    "test:blocks-m1-002c:browser": "playwright test e2e/blocks-host-protocol.spec.ts"
+    "gate:blocks-m1-002c": "corepack pnpm gate:blocks-m1-002a && corepack pnpm vitest run apps/web/src/blocks/testing/runtime-protocol.spec.ts && corepack pnpm nx run web:typecheck && corepack pnpm exec prettier --check apps/web/src/blocks infra/scratch-editor/host/index.html infra/scratch-editor/host/protocol.js infra/scratch-editor/host/status.js infra/scratch-editor/host/main.js tools/verify-blocks-host-protocol.mjs docs/product/visual-programming/components/host.yaml docs/product/visual-programming/tasks/VSCR-M1-002C.md .github/workflows/scratch-focused.yml && node --check infra/scratch-editor/host/protocol.js && node --check infra/scratch-editor/host/status.js && node --check infra/scratch-editor/host/main.js && node --check tools/verify-blocks-host-protocol.mjs && node tools/validate-blocks-docs.mjs",
+    "test:blocks-m1-002c:browser": "node tools/verify-blocks-host-protocol.mjs"
   },
   "devDependencies": {
     "@apidevtools/swagger-parser": "^10.1.1",
