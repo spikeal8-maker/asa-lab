@@ -1,35 +1,42 @@
 # ASA Lab Electronics E-OPT-0 evidence
 
 This directory records the reproducible before-state for Electronics optimization.
-It contains measurement evidence only; it does not change solver equations, Arduino semantics, production data, Docker, or deployment.
+It contains measurement evidence only; it does not change solver equations, Arduino semantics, production data, Docker, database schema, or deployment.
 
 ## Measured revision
 
-- revision: `fcb1a73859383a5be8405b52358e5246971665a1`
-- working tree before each canonical benchmark: clean
+- revision: `e8e3d45bc286f098d47205d6d7f212a579451bda`
+- working tree before every canonical receipt: clean (`dirtyTree=false`)
 - machine: Windows 11, Intel Core i5-13400, 64 GiB RAM
-- browser: headless Chromium
+- browser: Chromium 140.0.7339.186
+- low-end profile: Chromium CPU throttling x4; this is a controlled proxy, not a claim about one specific school PC
 
 ## Coverage
 
-- 37 domain benchmark cases covering DC, nonlinear devices, sensors, transient models, motors, instruments, unsupported topology, Arduino analysis, and shared Arduino circuit clock.
-- 5 Chromium main-thread stress cases selected from the same corpus.
-- deterministic fingerprint and expected status are checked for every case.
-- production Electronics payload sizes are recorded by the browser receipt.
+- 50 domain cases across linear/nonlinear DC, LED reverse/overcurrent, button/SPDT, NPN, sensors, supplies, RC, motor startup/stall/thermal, instruments, invalid/unsupported/nonconvergent paths, Arduino GPIO/ADC/PWM/tone and multi-board shared clock.
+- committed cross-version golden fingerprints for all 50 cases, in addition to same-run determinism checks.
+- domain protocol: 30 measured iterations x 3 series per case.
+- native and x4-CPU Chromium main-thread measurements, including the production `advanceLiveSimulation` path.
+- 20-sample cold production import measurements for SchematicEditor, ArduinoCodePanel and production manifest adapter plus catalog fetch/parse.
+- 900-second retained-memory soak of the production live motor path with GC-stabilized checkpoints.
+## Main findings
 
-## Main finding
+On the native browser profile, `dc-series-50` is about 4.8 ms p95, while Arduino shared-clock cases approach 40-47 ms p95 and remain the dominant interactive compute hotspot. The production live motor tick is about 4.4 ms p95 on this machine.
 
-The current basic DC path is inexpensive on this machine, while the shared Arduino circuit clock and long motor transients are the primary compute hotspots. The heaviest Chromium case reaches about 48 ms p95 on the main thread, close to the 50 ms Long Task threshold, although no >50 ms Long Task was observed in this receipt.
+Under x4 CPU throttling the risk becomes explicit: capacitor/motor/Arduino stress cases create browser Long Tasks, Arduino shared-clock cases reach roughly 413-554 ms p95 event-loop delay, and the production live motor tick reaches about 52.9 ms p95 with Long Tasks observed.
+
+Cold-load evidence also separates payload cost from solver cost. `ArduinoCodePanel` is about 1.98 MiB minified and its cold import is about 67.7 ms p95 native / 187.6 ms p95 under x4 CPU throttling. The component catalog itself is comparatively cheap to parse.
+
+The 15-minute live-physics soak completed 59,716 iterations with retained heap growth of about 1.40% from the post-warm-up baseline, below the provisional 5% target. This scenario therefore does not show a material retained-memory leak.
 
 ## Interpretation boundary
 
-These numbers are a baseline for this exact machine and SHA, not a universal hardware guarantee. A future optimization is accepted only if it preserves the same deterministic results/statuses while improving the relevant performance metrics.
-
-The first optimization target is therefore execution isolation and scheduling, not a rewrite of the electrical equations. Worker transfer cost and canonical-clock behavior must be measured against this receipt before any old synchronous path is removed.
+These results justify moving simulation work away from the UI main thread before attempting a solver rewrite. They do not establish universal hardware performance or SPICE-equivalent physical accuracy. Any E-OPT-1 change must preserve the committed golden results and fail-closed statuses while reducing main-thread work.
 
 ## Files
 
-- `domain-baseline.json` — machine-readable 37-case domain receipt.
-- `DOMAIN_BASELINE.md` — readable domain summary.
-- `browser-baseline.json` — machine-readable Chromium/main-thread and bundle receipt.
-- `BROWSER_BASELINE.md` — readable browser summary.
+- `domain-baseline.json` / `DOMAIN_BASELINE.md` — 50-case domain receipt.
+- `browser-baseline.json` / `BROWSER_BASELINE.md` — native Chromium main-thread/live-path and bundle receipt.
+- `browser-low-end-4x-cpu.json` / `BROWSER_LOW_END_BASELINE.md` — controlled low-end CPU profile.
+- `load-baseline.json` / `LOAD_BASELINE.md` — production cold-import and catalog load receipt.
+- `memory-baseline.json` / `MEMORY_BASELINE.md` — 900-second retained-heap soak.

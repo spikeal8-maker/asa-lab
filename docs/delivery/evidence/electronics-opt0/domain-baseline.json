@@ -1,10 +1,10 @@
 {
   "receiptVersion": 1,
-  "corpusVersion": "asa-electronics-opt0-v1",
-  "revision": "fcb1a73859383a5be8405b52358e5246971665a1",
+  "corpusVersion": "asa-electronics-opt0-v2",
+  "revision": "e8e3d45bc286f098d47205d6d7f212a579451bda",
   "dirtyTree": false,
-  "startedAt": "2026-09-11T22:35:23.911Z",
-  "completedAt": "2026-09-11T22:35:33.571Z",
+  "startedAt": "2026-09-12T00:05:01.025Z",
+  "completedAt": "2026-09-12T00:05:29.768Z",
   "runtime": "v24.14.1",
   "os": "win32 10.0.26200 x64",
   "cpu": "13th Gen Intel(R) Core(TM) i5-13400",
@@ -12,9 +12,9 @@
   "totalMemoryBytes": 68384935936,
   "memoryMethod": "process.memoryUsage before/after each case with explicit GC",
   "longTaskMethod": "not measured in Node receipt; browser/main-thread receipt is separate",
-  "warmups": 3,
-  "iterations": 10,
-  "seriesCount": 2,
+  "warmups": 5,
+  "iterations": 30,
+  "seriesCount": 3,
   "cases": [
     {
       "caseId": "digest-series-1",
@@ -25,31 +25,42 @@
       "status": "digest",
       "diagnosticCodes": [],
       "fingerprint": "853a23db6bd6ff20c999efb888508bd8031e6a4e40e32af61d986fbe18595cd6",
-      "p50Ms": 0.06119999999987158,
-      "p95Ms": 0.868900000000167,
-      "p99Ms": 0.868900000000167,
-      "maxMs": 0.868900000000167,
-      "heapDeltaBytes": -204824,
-      "rssDeltaBytes": -1196032,
+      "p50Ms": 0.04510000000004766,
+      "p95Ms": 0.16869999999994434,
+      "p99Ms": 0.3242999999999938,
+      "maxMs": 0.3242999999999938,
+      "heapDeltaBytes": -254920,
+      "rssDeltaBytes": -1097728,
       "deterministic": true,
       "series": [
         {
-          "p50Ms": 0.09200000000009823,
-          "p95Ms": 0.868900000000167,
-          "p99Ms": 0.868900000000167,
-          "maxMs": 0.868900000000167,
-          "coefficientOfVariation": 1.0842745620406324,
+          "p50Ms": 0.047499999999899956,
+          "p95Ms": 0.16869999999994434,
+          "p99Ms": 0.3242999999999938,
+          "maxMs": 0.3242999999999938,
+          "coefficientOfVariation": 0.8057015940843044,
           "deterministic": true,
           "statuses": [
             "digest"
           ]
         },
         {
-          "p50Ms": 0.06119999999987158,
-          "p95Ms": 0.1268000000000029,
-          "p99Ms": 0.1268000000000029,
-          "maxMs": 0.1268000000000029,
-          "coefficientOfVariation": 0.3427837512076064,
+          "p50Ms": 0.04510000000004766,
+          "p95Ms": 0.057299999999941065,
+          "p99Ms": 0.058499999999867214,
+          "maxMs": 0.058499999999867214,
+          "coefficientOfVariation": 0.07717800336164678,
+          "deterministic": true,
+          "statuses": [
+            "digest"
+          ]
+        },
+        {
+          "p50Ms": 0.04489999999987049,
+          "p95Ms": 0.05580000000009022,
+          "p99Ms": 0.0726999999999407,
+          "maxMs": 0.0726999999999407,
+          "coefficientOfVariation": 0.11864304432174101,
           "deterministic": true,
           "statuses": [
             "digest"
@@ -66,31 +77,42 @@
       "status": "digest",
       "diagnosticCodes": [],
       "fingerprint": "9cb008ab5cfc3cf999484dc5f80001c819c0e1d932eab2956fcc829acad94755",
-      "p50Ms": 1.0028999999999542,
-      "p95Ms": 3.9021000000000186,
-      "p99Ms": 3.9021000000000186,
-      "maxMs": 3.9021000000000186,
-      "heapDeltaBytes": 66392,
-      "rssDeltaBytes": -684032,
+      "p50Ms": 0.8764000000001033,
+      "p95Ms": 2.506800000000112,
+      "p99Ms": 3.851599999999962,
+      "maxMs": 3.851599999999962,
+      "heapDeltaBytes": 27192,
+      "rssDeltaBytes": 6205440,
       "deterministic": true,
       "series": [
         {
-          "p50Ms": 1.1553999999998723,
-          "p95Ms": 3.9021000000000186,
-          "p99Ms": 3.9021000000000186,
-          "maxMs": 3.9021000000000186,
-          "coefficientOfVariation": 0.5306022274161911,
+          "p50Ms": 0.9694999999999254,
+          "p95Ms": 2.506800000000112,
+          "p99Ms": 3.851599999999962,
+          "maxMs": 3.851599999999962,
+          "coefficientOfVariation": 0.5267400993070545,
           "deterministic": true,
           "statuses": [
             "digest"
           ]
         },
         {
-          "p50Ms": 1.0028999999999542,
-          "p95Ms": 1.1790000000000873,
-          "p99Ms": 1.1790000000000873,
-          "maxMs": 1.1790000000000873,
-          "coefficientOfVariation": 0.07379896668692458,
+          "p50Ms": 0.8764000000001033,
+          "p95Ms": 1.1866999999999734,
+          "p99Ms": 1.2779999999997926,
+          "maxMs": 1.2779999999997926,
+          "coefficientOfVariation": 0.10507353253539559,
+          "deterministic": true,
+          "statuses": [
+            "digest"
+          ]
+        },
+        {
+          "p50Ms": 0.8713999999999942,
+          "p95Ms": 0.9528000000000247,
+          "p99Ms": 0.9903999999999087,
+          "maxMs": 0.9903999999999087,
+          "coefficientOfVariation": 0.042288820901915145,
           "deterministic": true,
           "statuses": [
             "digest"
@@ -109,31 +131,42 @@
         "resistor_overload"
       ],
       "fingerprint": "8c7889fd33854fa3f0ebad5542c3ea2af152a437dd37da175f98a669f0958148",
-      "p50Ms": 0.28559999999993124,
-      "p95Ms": 0.8532999999999902,
-      "p99Ms": 0.8532999999999902,
-      "maxMs": 0.8532999999999902,
-      "heapDeltaBytes": 562160,
-      "rssDeltaBytes": 909312,
+      "p50Ms": 0.2380000000000564,
+      "p95Ms": 0.44240000000013424,
+      "p99Ms": 1.1692000000000462,
+      "maxMs": 1.1692000000000462,
+      "heapDeltaBytes": 143784,
+      "rssDeltaBytes": 1417216,
       "deterministic": true,
       "series": [
         {
-          "p50Ms": 0.34819999999990614,
-          "p95Ms": 0.8532999999999902,
-          "p99Ms": 0.8532999999999902,
-          "maxMs": 0.8532999999999902,
-          "coefficientOfVariation": 0.4675675392558075,
+          "p50Ms": 0.2441999999998643,
+          "p95Ms": 0.44240000000013424,
+          "p99Ms": 1.1692000000000462,
+          "maxMs": 1.1692000000000462,
+          "coefficientOfVariation": 0.5858312248600321,
           "deterministic": true,
           "statuses": [
             "solved"
           ]
         },
         {
-          "p50Ms": 0.28559999999993124,
-          "p95Ms": 0.31719999999995707,
-          "p99Ms": 0.31719999999995707,
-          "maxMs": 0.31719999999995707,
-          "coefficientOfVariation": 0.09784609079441009,
+          "p50Ms": 0.2380000000000564,
+          "p95Ms": 0.2985999999998512,
+          "p99Ms": 0.31090000000017426,
+          "maxMs": 0.31090000000017426,
+          "coefficientOfVariation": 0.12022779719919825,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        },
+        {
+          "p50Ms": 0.22000000000002728,
+          "p95Ms": 0.3309999999999036,
+          "p99Ms": 0.37409999999999854,
+          "maxMs": 0.37409999999999854,
+          "coefficientOfVariation": 0.1771424475264057,
           "deterministic": true,
           "statuses": [
             "solved"
@@ -152,31 +185,42 @@
         "circuit_ok"
       ],
       "fingerprint": "b58552cd79d6fb6026f905ee4c191b007224de0b033627297298466b2fe880c3",
-      "p50Ms": 0.6419999999998254,
-      "p95Ms": 0.9572000000000571,
-      "p99Ms": 0.9572000000000571,
-      "maxMs": 0.9572000000000571,
-      "heapDeltaBytes": 57160,
-      "rssDeltaBytes": 352256,
+      "p50Ms": 0.5388000000000375,
+      "p95Ms": 1.1807000000001153,
+      "p99Ms": 1.568899999999985,
+      "maxMs": 1.568899999999985,
+      "heapDeltaBytes": 129832,
+      "rssDeltaBytes": -8192,
       "deterministic": true,
       "series": [
         {
-          "p50Ms": 0.7070999999998548,
-          "p95Ms": 0.9572000000000571,
-          "p99Ms": 0.9572000000000571,
-          "maxMs": 0.9572000000000571,
-          "coefficientOfVariation": 0.1239678483552345,
+          "p50Ms": 0.5984000000000833,
+          "p95Ms": 1.1807000000001153,
+          "p99Ms": 1.568899999999985,
+          "maxMs": 1.568899999999985,
+          "coefficientOfVariation": 0.3211541037797214,
           "deterministic": true,
           "statuses": [
             "solved"
           ]
         },
         {
-          "p50Ms": 0.6419999999998254,
-          "p95Ms": 0.7263000000000375,
-          "p99Ms": 0.7263000000000375,
-          "maxMs": 0.7263000000000375,
-          "coefficientOfVariation": 0.08308664893834043,
+          "p50Ms": 0.5388000000000375,
+          "p95Ms": 1.0366999999998825,
+          "p99Ms": 1.2675999999999021,
+          "maxMs": 1.2675999999999021,
+          "coefficientOfVariation": 0.31268621936779584,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        },
+        {
+          "p50Ms": 0.5186000000001059,
+          "p95Ms": 0.9132999999999356,
+          "p99Ms": 1.1208000000001448,
+          "maxMs": 1.1208000000001448,
+          "coefficientOfVariation": 0.24569241156180394,
           "deterministic": true,
           "statuses": [
             "solved"
@@ -195,31 +239,42 @@
         "circuit_ok"
       ],
       "fingerprint": "53274b5fc32e7eb69b3f49802d164932c693b42ec02f4d6b663b547880e56433",
-      "p50Ms": 2.1260999999999513,
-      "p95Ms": 3.7094999999999345,
-      "p99Ms": 3.7094999999999345,
-      "maxMs": 3.7094999999999345,
-      "heapDeltaBytes": 208160,
-      "rssDeltaBytes": 4300800,
+      "p50Ms": 2.0452000000000226,
+      "p95Ms": 3.2687999999998283,
+      "p99Ms": 3.85349999999994,
+      "maxMs": 3.85349999999994,
+      "heapDeltaBytes": 168808,
+      "rssDeltaBytes": -765952,
       "deterministic": true,
       "series": [
         {
-          "p50Ms": 2.4815000000000964,
-          "p95Ms": 3.7094999999999345,
-          "p99Ms": 3.7094999999999345,
-          "maxMs": 3.7094999999999345,
-          "coefficientOfVariation": 0.22135915029691833,
+          "p50Ms": 2.1585000000000036,
+          "p95Ms": 3.2687999999998283,
+          "p99Ms": 3.85349999999994,
+          "maxMs": 3.85349999999994,
+          "coefficientOfVariation": 0.1748259520590978,
           "deterministic": true,
           "statuses": [
             "solved"
           ]
         },
         {
-          "p50Ms": 2.1260999999999513,
-          "p95Ms": 2.657699999999977,
-          "p99Ms": 2.657699999999977,
-          "maxMs": 2.657699999999977,
-          "coefficientOfVariation": 0.12185627287438118,
+          "p50Ms": 2.0178000000000793,
+          "p95Ms": 2.432600000000093,
+          "p99Ms": 2.53879999999981,
+          "maxMs": 2.53879999999981,
+          "coefficientOfVariation": 0.08317699109307233,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        },
+        {
+          "p50Ms": 2.0452000000000226,
+          "p95Ms": 2.6032000000000153,
+          "p99Ms": 2.985500000000229,
+          "maxMs": 2.985500000000229,
+          "coefficientOfVariation": 0.12277643991178747,
           "deterministic": true,
           "statuses": [
             "solved"
@@ -238,31 +293,42 @@
         "circuit_ok"
       ],
       "fingerprint": "ffbe35d6ec038ef7b2be74b38de92c17af1c94265191f2f354a7425138f9134d",
-      "p50Ms": 0.32600000000002183,
-      "p95Ms": 0.8033000000000357,
-      "p99Ms": 0.8033000000000357,
-      "maxMs": 0.8033000000000357,
-      "heapDeltaBytes": -60488,
-      "rssDeltaBytes": 98304,
+      "p50Ms": 0.29109999999991487,
+      "p95Ms": 0.5286000000000968,
+      "p99Ms": 1.1059999999997672,
+      "maxMs": 1.1059999999997672,
+      "heapDeltaBytes": 239384,
+      "rssDeltaBytes": -356352,
       "deterministic": true,
       "series": [
         {
-          "p50Ms": 0.33930000000009386,
-          "p95Ms": 0.8033000000000357,
-          "p99Ms": 0.8033000000000357,
-          "maxMs": 0.8033000000000357,
-          "coefficientOfVariation": 0.38810504728381895,
+          "p50Ms": 0.2962999999999738,
+          "p95Ms": 0.3888999999999214,
+          "p99Ms": 0.5223000000000866,
+          "maxMs": 0.5223000000000866,
+          "coefficientOfVariation": 0.16551554935269033,
           "deterministic": true,
           "statuses": [
             "solved"
           ]
         },
         {
-          "p50Ms": 0.32600000000002183,
-          "p95Ms": 0.3830999999997857,
-          "p99Ms": 0.3830999999997857,
-          "maxMs": 0.3830999999997857,
-          "coefficientOfVariation": 0.055992202198860204,
+          "p50Ms": 0.29109999999991487,
+          "p95Ms": 0.5286000000000968,
+          "p99Ms": 1.1059999999997672,
+          "maxMs": 1.1059999999997672,
+          "coefficientOfVariation": 0.46692968695021664,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        },
+        {
+          "p50Ms": 0.25900000000001455,
+          "p95Ms": 0.375999999999749,
+          "p99Ms": 0.823699999999917,
+          "maxMs": 0.823699999999917,
+          "coefficientOfVariation": 0.3659912997350797,
           "deterministic": true,
           "statuses": [
             "solved"
@@ -281,31 +347,42 @@
         "circuit_ok"
       ],
       "fingerprint": "c728597b1ec461de4d77ead21916684d07768cac977b499eb6c6429f16c24e15",
-      "p50Ms": 1.0564999999999145,
-      "p95Ms": 1.4692000000000007,
-      "p99Ms": 1.4692000000000007,
-      "maxMs": 1.4692000000000007,
-      "heapDeltaBytes": 21736,
-      "rssDeltaBytes": -577536,
+      "p50Ms": 0.9027999999998428,
+      "p95Ms": 1.490099999999984,
+      "p99Ms": 1.7254000000002634,
+      "maxMs": 1.7254000000002634,
+      "heapDeltaBytes": -7944,
+      "rssDeltaBytes": 438272,
       "deterministic": true,
       "series": [
         {
-          "p50Ms": 1.0936999999998989,
-          "p95Ms": 1.4692000000000007,
-          "p99Ms": 1.4692000000000007,
-          "maxMs": 1.4692000000000007,
-          "coefficientOfVariation": 0.1051824351261972,
+          "p50Ms": 0.9355999999997948,
+          "p95Ms": 1.409900000000107,
+          "p99Ms": 1.6747000000000298,
+          "maxMs": 1.6747000000000298,
+          "coefficientOfVariation": 0.1646604236751886,
           "deterministic": true,
           "statuses": [
             "solved"
           ]
         },
         {
-          "p50Ms": 1.0564999999999145,
-          "p95Ms": 1.2429999999999382,
-          "p99Ms": 1.2429999999999382,
-          "maxMs": 1.2429999999999382,
-          "coefficientOfVariation": 0.06153592743094913,
+          "p50Ms": 0.9027999999998428,
+          "p95Ms": 1.4375,
+          "p99Ms": 1.534400000000005,
+          "maxMs": 1.534400000000005,
+          "coefficientOfVariation": 0.16433334593934137,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        },
+        {
+          "p50Ms": 0.8980000000001382,
+          "p95Ms": 1.490099999999984,
+          "p99Ms": 1.7254000000002634,
+          "maxMs": 1.7254000000002634,
+          "coefficientOfVariation": 0.20147648813313365,
           "deterministic": true,
           "statuses": [
             "solved"
@@ -324,31 +401,42 @@
         "circuit_ok"
       ],
       "fingerprint": "487207a0302e1a5c83fe72594b5e945fd1aa273775afd386807670c89243a41b",
-      "p50Ms": 0.26720000000000255,
-      "p95Ms": 0.7402999999999338,
-      "p99Ms": 0.7402999999999338,
-      "maxMs": 0.7402999999999338,
-      "heapDeltaBytes": 33320,
-      "rssDeltaBytes": 94208,
+      "p50Ms": 0.23230000000012296,
+      "p95Ms": 0.5249999999996362,
+      "p99Ms": 0.6570999999999003,
+      "maxMs": 0.6570999999999003,
+      "heapDeltaBytes": 98480,
+      "rssDeltaBytes": 831488,
       "deterministic": true,
       "series": [
         {
-          "p50Ms": 0.30480000000011387,
-          "p95Ms": 0.7402999999999338,
-          "p99Ms": 0.7402999999999338,
-          "maxMs": 0.7402999999999338,
-          "coefficientOfVariation": 0.3740856127622864,
+          "p50Ms": 0.2832000000003063,
+          "p95Ms": 0.5249999999996362,
+          "p99Ms": 0.6570999999999003,
+          "maxMs": 0.6570999999999003,
+          "coefficientOfVariation": 0.29860707576929485,
           "deterministic": true,
           "statuses": [
             "solved"
           ]
         },
         {
-          "p50Ms": 0.26720000000000255,
-          "p95Ms": 0.3587999999999738,
-          "p99Ms": 0.3587999999999738,
-          "maxMs": 0.3587999999999738,
-          "coefficientOfVariation": 0.11602945090421118,
+          "p50Ms": 0.23230000000012296,
+          "p95Ms": 0.30250000000023647,
+          "p99Ms": 0.417699999999968,
+          "maxMs": 0.417699999999968,
+          "coefficientOfVariation": 0.15674202909019155,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        },
+        {
+          "p50Ms": 0.22850000000016735,
+          "p95Ms": 0.2842999999998028,
+          "p99Ms": 0.36330000000043583,
+          "maxMs": 0.36330000000043583,
+          "coefficientOfVariation": 0.1262258323324654,
           "deterministic": true,
           "statuses": [
             "solved"
@@ -367,34 +455,423 @@
         "led_overcurrent"
       ],
       "fingerprint": "007bfb16e81097c1f0c15588a1b6666f35f5b7366aa669b3f586e60089d2587a",
-      "p50Ms": 0.22029999999995198,
-      "p95Ms": 0.6357999999997901,
-      "p99Ms": 0.6357999999997901,
-      "maxMs": 0.6357999999997901,
-      "heapDeltaBytes": 25080,
-      "rssDeltaBytes": 32768,
+      "p50Ms": 0.18329999999969004,
+      "p95Ms": 0.3029999999998836,
+      "p99Ms": 0.6455000000000837,
+      "maxMs": 0.6455000000000837,
+      "heapDeltaBytes": -32640,
+      "rssDeltaBytes": 20480,
       "deterministic": true,
       "series": [
         {
-          "p50Ms": 0.22490000000016153,
-          "p95Ms": 0.6357999999997901,
-          "p99Ms": 0.6357999999997901,
-          "maxMs": 0.6357999999997901,
-          "coefficientOfVariation": 0.4506497923547992,
+          "p50Ms": 0.18890000000010332,
+          "p95Ms": 0.2634000000002743,
+          "p99Ms": 0.6455000000000837,
+          "maxMs": 0.6455000000000837,
+          "coefficientOfVariation": 0.39247679157573306,
           "deterministic": true,
           "statuses": [
             "solved"
           ]
         },
         {
-          "p50Ms": 0.22029999999995198,
-          "p95Ms": 0.27320000000008804,
-          "p99Ms": 0.27320000000008804,
-          "maxMs": 0.27320000000008804,
-          "coefficientOfVariation": 0.08400293133752429,
+          "p50Ms": 0.18329999999969004,
+          "p95Ms": 0.3029999999998836,
+          "p99Ms": 0.3174999999996544,
+          "maxMs": 0.3174999999996544,
+          "coefficientOfVariation": 0.2068903547328863,
           "deterministic": true,
           "statuses": [
             "solved"
+          ]
+        },
+        {
+          "p50Ms": 0.17810000000008586,
+          "p95Ms": 0.2197000000001026,
+          "p99Ms": 0.22580000000016298,
+          "maxMs": 0.22580000000016298,
+          "coefficientOfVariation": 0.09360057483638326,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        }
+      ]
+    },
+    {
+      "caseId": "dc-led-reverse",
+      "tier": "micro",
+      "category": "nonlinear-dc",
+      "operation": "analyse",
+      "expectedStatus": "solved",
+      "status": "solved",
+      "diagnosticCodes": [
+        "circuit_ok"
+      ],
+      "fingerprint": "a8a91403285e741300719aade9d1fc08ee8c650b4614f0209829ffd7ba19fd28",
+      "p50Ms": 0.21459999999979118,
+      "p95Ms": 0.38790000000017244,
+      "p99Ms": 0.7507999999997992,
+      "maxMs": 0.7507999999997992,
+      "heapDeltaBytes": 1040,
+      "rssDeltaBytes": 131072,
+      "deterministic": true,
+      "series": [
+        {
+          "p50Ms": 0.21459999999979118,
+          "p95Ms": 0.38790000000017244,
+          "p99Ms": 0.7507999999997992,
+          "maxMs": 0.7507999999997992,
+          "coefficientOfVariation": 0.4132296797528166,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        },
+        {
+          "p50Ms": 0.2110000000002401,
+          "p95Ms": 0.25349999999980355,
+          "p99Ms": 0.2535000000002583,
+          "maxMs": 0.2535000000002583,
+          "coefficientOfVariation": 0.07645542885802242,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        },
+        {
+          "p50Ms": 0.2274000000002161,
+          "p95Ms": 0.29399999999986903,
+          "p99Ms": 0.3014000000002852,
+          "maxMs": 0.3014000000002852,
+          "coefficientOfVariation": 0.10557369797662104,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        }
+      ]
+    },
+    {
+      "caseId": "dc-button-released",
+      "tier": "micro",
+      "category": "switching",
+      "operation": "analyse",
+      "expectedStatus": "solved",
+      "status": "solved",
+      "diagnosticCodes": [
+        "circuit_ok"
+      ],
+      "fingerprint": "1e9667e5a72c8d4dc825c9e7108b7f12aac9933d35b2c73f64c284fa532d6a24",
+      "p50Ms": 0.20690000000013242,
+      "p95Ms": 0.3809999999998581,
+      "p99Ms": 0.5459000000000742,
+      "maxMs": 0.5459000000000742,
+      "heapDeltaBytes": 8808,
+      "rssDeltaBytes": 20480,
+      "deterministic": true,
+      "series": [
+        {
+          "p50Ms": 0.23129999999991924,
+          "p95Ms": 0.33080000000018117,
+          "p99Ms": 0.5459000000000742,
+          "maxMs": 0.5459000000000742,
+          "coefficientOfVariation": 0.2700589224377987,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        },
+        {
+          "p50Ms": 0.20519999999987704,
+          "p95Ms": 0.24290000000019063,
+          "p99Ms": 0.25270000000000437,
+          "maxMs": 0.25270000000000437,
+          "coefficientOfVariation": 0.07870081939988673,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        },
+        {
+          "p50Ms": 0.20690000000013242,
+          "p95Ms": 0.3809999999998581,
+          "p99Ms": 0.3931999999999789,
+          "maxMs": 0.3931999999999789,
+          "coefficientOfVariation": 0.233493575915938,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        }
+      ]
+    },
+    {
+      "caseId": "dc-button-pressed",
+      "tier": "micro",
+      "category": "switching",
+      "operation": "analyse",
+      "expectedStatus": "solved",
+      "status": "solved",
+      "diagnosticCodes": [
+        "circuit_ok"
+      ],
+      "fingerprint": "47e08bc1956d0d3df0a4405f354418096725d34b0c2551bb486d2e0faaa19566",
+      "p50Ms": 0.21480000000019572,
+      "p95Ms": 0.3874000000000706,
+      "p99Ms": 0.6680999999998676,
+      "maxMs": 0.6680999999998676,
+      "heapDeltaBytes": 7112,
+      "rssDeltaBytes": 98304,
+      "deterministic": true,
+      "series": [
+        {
+          "p50Ms": 0.21480000000019572,
+          "p95Ms": 0.32880000000022847,
+          "p99Ms": 0.6680999999998676,
+          "maxMs": 0.6680999999998676,
+          "coefficientOfVariation": 0.3561297607077962,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        },
+        {
+          "p50Ms": 0.2159999999998945,
+          "p95Ms": 0.2501999999999498,
+          "p99Ms": 0.25250000000005457,
+          "maxMs": 0.25250000000005457,
+          "coefficientOfVariation": 0.07497187357718008,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        },
+        {
+          "p50Ms": 0.20710000000008222,
+          "p95Ms": 0.3874000000000706,
+          "p99Ms": 0.5284999999998945,
+          "maxMs": 0.5284999999998945,
+          "coefficientOfVariation": 0.3009962193512153,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        }
+      ]
+    },
+    {
+      "caseId": "dc-spdt-left",
+      "tier": "micro",
+      "category": "switching",
+      "operation": "analyse",
+      "expectedStatus": "solved",
+      "status": "solved",
+      "diagnosticCodes": [
+        "circuit_ok"
+      ],
+      "fingerprint": "8437f47fc791baa2279ca056d02387184dd712676e0885ea1ad264538e84541c",
+      "p50Ms": 0.3158999999996013,
+      "p95Ms": 0.8508999999999105,
+      "p99Ms": 0.9778999999998632,
+      "maxMs": 0.9778999999998632,
+      "heapDeltaBytes": 40952,
+      "rssDeltaBytes": 16384,
+      "deterministic": true,
+      "series": [
+        {
+          "p50Ms": 0.3137000000001535,
+          "p95Ms": 0.8508999999999105,
+          "p99Ms": 0.9778999999998632,
+          "maxMs": 0.9778999999998632,
+          "coefficientOfVariation": 0.43772050137801094,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        },
+        {
+          "p50Ms": 0.3158999999996013,
+          "p95Ms": 0.37689999999975043,
+          "p99Ms": 0.4007000000001426,
+          "maxMs": 0.4007000000001426,
+          "coefficientOfVariation": 0.08291136741588642,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        },
+        {
+          "p50Ms": 0.315900000000056,
+          "p95Ms": 0.5273000000001957,
+          "p99Ms": 0.6496999999999389,
+          "maxMs": 0.6496999999999389,
+          "coefficientOfVariation": 0.23467538121562695,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        }
+      ]
+    },
+    {
+      "caseId": "dc-spdt-right",
+      "tier": "micro",
+      "category": "switching",
+      "operation": "analyse",
+      "expectedStatus": "solved",
+      "status": "solved",
+      "diagnosticCodes": [
+        "circuit_ok"
+      ],
+      "fingerprint": "538ae0022e7d7ed5799c2dc0127a4c8719eef482e423933c5a527b2b4c827845",
+      "p50Ms": 0.30729999999994106,
+      "p95Ms": 0.5661000000000058,
+      "p99Ms": 0.6741000000001804,
+      "maxMs": 0.6741000000001804,
+      "heapDeltaBytes": 72552,
+      "rssDeltaBytes": -172032,
+      "deterministic": true,
+      "series": [
+        {
+          "p50Ms": 0.29539999999997235,
+          "p95Ms": 0.5661000000000058,
+          "p99Ms": 0.6741000000001804,
+          "maxMs": 0.6741000000001804,
+          "coefficientOfVariation": 0.2900279903836427,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        },
+        {
+          "p50Ms": 0.31850000000031287,
+          "p95Ms": 0.5081000000000131,
+          "p99Ms": 0.5720000000001164,
+          "maxMs": 0.5720000000001164,
+          "coefficientOfVariation": 0.2087883565590214,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        },
+        {
+          "p50Ms": 0.30729999999994106,
+          "p95Ms": 0.3951000000001841,
+          "p99Ms": 0.6565000000000509,
+          "maxMs": 0.6565000000000509,
+          "coefficientOfVariation": 0.211978080807391,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        }
+      ]
+    },
+    {
+      "caseId": "dc-transistor-npn-active",
+      "tier": "medium",
+      "category": "nonlinear-dc",
+      "operation": "analyse",
+      "expectedStatus": "solved",
+      "status": "solved",
+      "diagnosticCodes": [
+        "circuit_ok"
+      ],
+      "fingerprint": "2a7256b8aaa85a53e48640a2e119d30792eefb86aabe019eb06ff1f88a595505",
+      "p50Ms": 0.3746000000001004,
+      "p95Ms": 0.9704000000001543,
+      "p99Ms": 1.3672999999998865,
+      "maxMs": 1.3672999999998865,
+      "heapDeltaBytes": 75360,
+      "rssDeltaBytes": 253952,
+      "deterministic": true,
+      "series": [
+        {
+          "p50Ms": 0.5419000000001688,
+          "p95Ms": 0.9704000000001543,
+          "p99Ms": 1.3672999999998865,
+          "maxMs": 1.3672999999998865,
+          "coefficientOfVariation": 0.36507429170143263,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        },
+        {
+          "p50Ms": 0.3746000000001004,
+          "p95Ms": 0.427599999999984,
+          "p99Ms": 0.4386999999996988,
+          "maxMs": 0.4386999999996988,
+          "coefficientOfVariation": 0.0618301068259407,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        },
+        {
+          "p50Ms": 0.3623000000002321,
+          "p95Ms": 0.5770999999999731,
+          "p99Ms": 0.7959000000000742,
+          "maxMs": 0.7959000000000742,
+          "coefficientOfVariation": 0.23008670991899668,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        }
+      ]
+    },
+    {
+      "caseId": "dc-transistor-npn-nonconvergent",
+      "tier": "micro",
+      "category": "safety",
+      "operation": "analyse",
+      "expectedStatus": "nonconvergent",
+      "status": "nonconvergent",
+      "diagnosticCodes": [
+        "nonconvergent_topology"
+      ],
+      "fingerprint": "e3432876271c4d6068eb09ecc2dc2361bdaae46d87c7dd1fb80d68597f99ce22",
+      "p50Ms": 0.1833000000001448,
+      "p95Ms": 0.2998000000002321,
+      "p99Ms": 0.5235999999999876,
+      "maxMs": 0.5235999999999876,
+      "heapDeltaBytes": 28160,
+      "rssDeltaBytes": 618496,
+      "deterministic": true,
+      "series": [
+        {
+          "p50Ms": 0.1833000000001448,
+          "p95Ms": 0.2974999999996726,
+          "p99Ms": 0.5235999999999876,
+          "maxMs": 0.5235999999999876,
+          "coefficientOfVariation": 0.3267434478457967,
+          "deterministic": true,
+          "statuses": [
+            "nonconvergent"
+          ]
+        },
+        {
+          "p50Ms": 0.17640000000028522,
+          "p95Ms": 0.21250000000009095,
+          "p99Ms": 0.21979999999985012,
+          "maxMs": 0.21979999999985012,
+          "coefficientOfVariation": 0.0995389530169445,
+          "deterministic": true,
+          "statuses": [
+            "nonconvergent"
+          ]
+        },
+        {
+          "p50Ms": 0.18820000000005166,
+          "p95Ms": 0.2998000000002321,
+          "p99Ms": 0.35770000000002256,
+          "maxMs": 0.35770000000002256,
+          "coefficientOfVariation": 0.1953521916063736,
+          "deterministic": true,
+          "statuses": [
+            "nonconvergent"
           ]
         }
       ]
@@ -410,31 +887,42 @@
         "circuit_ok"
       ],
       "fingerprint": "5dfe7dd6e5d26c3dae0941bbe17185c86bbafbeedb570a90b57a6404bd01d2ea",
-      "p50Ms": 0.4519000000000233,
-      "p95Ms": 1.1585000000000036,
-      "p99Ms": 1.1585000000000036,
-      "maxMs": 1.1585000000000036,
-      "heapDeltaBytes": 43216,
-      "rssDeltaBytes": 49152,
+      "p50Ms": 0.3975000000000364,
+      "p95Ms": 0.7785000000003492,
+      "p99Ms": 0.86200000000008,
+      "maxMs": 0.86200000000008,
+      "heapDeltaBytes": 35616,
+      "rssDeltaBytes": 1187840,
       "deterministic": true,
       "series": [
         {
-          "p50Ms": 0.47309999999993124,
-          "p95Ms": 1.1585000000000036,
-          "p99Ms": 1.1585000000000036,
-          "maxMs": 1.1585000000000036,
-          "coefficientOfVariation": 0.3820406884005965,
+          "p50Ms": 0.394800000000032,
+          "p95Ms": 0.7785000000003492,
+          "p99Ms": 0.86200000000008,
+          "maxMs": 0.86200000000008,
+          "coefficientOfVariation": 0.2564137577893254,
           "deterministic": true,
           "statuses": [
             "solved"
           ]
         },
         {
-          "p50Ms": 0.4519000000000233,
-          "p95Ms": 0.5129000000001724,
-          "p99Ms": 0.5129000000001724,
-          "maxMs": 0.5129000000001724,
-          "coefficientOfVariation": 0.07004688425507095,
+          "p50Ms": 0.4169999999999163,
+          "p95Ms": 0.4636000000000422,
+          "p99Ms": 0.5071000000002641,
+          "maxMs": 0.5071000000002641,
+          "coefficientOfVariation": 0.05764917904329328,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        },
+        {
+          "p50Ms": 0.3975000000000364,
+          "p95Ms": 0.452900000000227,
+          "p99Ms": 0.4782000000000153,
+          "maxMs": 0.4782000000000153,
+          "coefficientOfVariation": 0.07951406325968989,
           "deterministic": true,
           "statuses": [
             "solved"
@@ -453,31 +941,42 @@
         "circuit_ok"
       ],
       "fingerprint": "ea5c33cde20055bb6ab542313bac7217d2b09a489cfb5cd604afbed8aaf0a971",
-      "p50Ms": 0.799199999999928,
-      "p95Ms": 1.2983000000001539,
-      "p99Ms": 1.2983000000001539,
-      "maxMs": 1.2983000000001539,
-      "heapDeltaBytes": 48384,
-      "rssDeltaBytes": 32768,
+      "p50Ms": 0.7914999999998145,
+      "p95Ms": 1.2647000000001754,
+      "p99Ms": 1.445299999999861,
+      "maxMs": 1.445299999999861,
+      "heapDeltaBytes": 189424,
+      "rssDeltaBytes": 151552,
       "deterministic": true,
       "series": [
         {
-          "p50Ms": 0.8325999999999567,
-          "p95Ms": 1.2983000000001539,
-          "p99Ms": 1.2983000000001539,
-          "maxMs": 1.2983000000001539,
-          "coefficientOfVariation": 0.1648300225998695,
+          "p50Ms": 0.7914999999998145,
+          "p95Ms": 1.0805999999997766,
+          "p99Ms": 1.231199999999717,
+          "maxMs": 1.231199999999717,
+          "coefficientOfVariation": 0.1376257333187826,
           "deterministic": true,
           "statuses": [
             "solved"
           ]
         },
         {
-          "p50Ms": 0.799199999999928,
-          "p95Ms": 0.8427000000001499,
-          "p99Ms": 0.8427000000001499,
-          "maxMs": 0.8427000000001499,
-          "coefficientOfVariation": 0.03477312816371923,
+          "p50Ms": 0.7440000000001419,
+          "p95Ms": 1.1648000000000138,
+          "p99Ms": 1.1772000000000844,
+          "maxMs": 1.1772000000000844,
+          "coefficientOfVariation": 0.21284195975182202,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        },
+        {
+          "p50Ms": 1.0144000000000233,
+          "p95Ms": 1.2647000000001754,
+          "p99Ms": 1.445299999999861,
+          "maxMs": 1.445299999999861,
+          "coefficientOfVariation": 0.17131623310818547,
           "deterministic": true,
           "statuses": [
             "solved"
@@ -496,31 +995,42 @@
         "circuit_ok"
       ],
       "fingerprint": "0eb1e7181225717630b52f2d2ec7a81722ab27e864641ee049ed45f894d637e1",
-      "p50Ms": 0.26510000000007494,
-      "p95Ms": 0.6045999999998912,
-      "p99Ms": 0.6045999999998912,
-      "maxMs": 0.6045999999998912,
-      "heapDeltaBytes": 12368,
-      "rssDeltaBytes": 0,
+      "p50Ms": 0.2545000000000073,
+      "p95Ms": 0.5136999999999716,
+      "p99Ms": 0.8197000000000116,
+      "maxMs": 0.8197000000000116,
+      "heapDeltaBytes": 44352,
+      "rssDeltaBytes": 352256,
       "deterministic": true,
       "series": [
         {
-          "p50Ms": 0.28449999999998,
-          "p95Ms": 0.6045999999998912,
-          "p99Ms": 0.6045999999998912,
-          "maxMs": 0.6045999999998912,
-          "coefficientOfVariation": 0.2992439799774611,
+          "p50Ms": 0.3386000000000422,
+          "p95Ms": 0.5136999999999716,
+          "p99Ms": 0.8197000000000116,
+          "maxMs": 0.8197000000000116,
+          "coefficientOfVariation": 0.27160181533795336,
           "deterministic": true,
           "statuses": [
             "solved"
           ]
         },
         {
-          "p50Ms": 0.26510000000007494,
-          "p95Ms": 0.3061999999999898,
-          "p99Ms": 0.3061999999999898,
-          "maxMs": 0.3061999999999898,
-          "coefficientOfVariation": 0.06304925803377139,
+          "p50Ms": 0.2545000000000073,
+          "p95Ms": 0.4137999999998101,
+          "p99Ms": 0.7793000000001484,
+          "maxMs": 0.7793000000001484,
+          "coefficientOfVariation": 0.37257605803448746,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        },
+        {
+          "p50Ms": 0.22610000000031505,
+          "p95Ms": 0.39239999999972497,
+          "p99Ms": 0.43669999999974607,
+          "maxMs": 0.43669999999974607,
+          "coefficientOfVariation": 0.2290784399043119,
           "deterministic": true,
           "statuses": [
             "solved"
@@ -539,31 +1049,42 @@
         "circuit_ok"
       ],
       "fingerprint": "a3528f752e0d6bb40e0b2413bc5d0bb054c5a5dc27589167e394c31a2311a443",
-      "p50Ms": 0.26510000000007494,
-      "p95Ms": 0.6142999999999574,
-      "p99Ms": 0.6142999999999574,
-      "maxMs": 0.6142999999999574,
-      "heapDeltaBytes": 13560,
-      "rssDeltaBytes": 0,
+      "p50Ms": 0.3364000000001397,
+      "p95Ms": 0.5547999999998865,
+      "p99Ms": 0.810399999999845,
+      "maxMs": 0.810399999999845,
+      "heapDeltaBytes": -31616,
+      "rssDeltaBytes": 12288,
       "deterministic": true,
       "series": [
         {
-          "p50Ms": 0.2725000000000364,
-          "p95Ms": 0.6142999999999574,
-          "p99Ms": 0.6142999999999574,
-          "maxMs": 0.6142999999999574,
-          "coefficientOfVariation": 0.3367257513965903,
+          "p50Ms": 0.3492999999998574,
+          "p95Ms": 0.5547999999998865,
+          "p99Ms": 0.810399999999845,
+          "maxMs": 0.810399999999845,
+          "coefficientOfVariation": 0.2532545307097771,
           "deterministic": true,
           "statuses": [
             "solved"
           ]
         },
         {
-          "p50Ms": 0.26510000000007494,
-          "p95Ms": 0.32560000000012224,
-          "p99Ms": 0.32560000000012224,
-          "maxMs": 0.32560000000012224,
-          "coefficientOfVariation": 0.09139536745853453,
+          "p50Ms": 0.3364000000001397,
+          "p95Ms": 0.3915999999999258,
+          "p99Ms": 0.4741999999996551,
+          "maxMs": 0.4741999999996551,
+          "coefficientOfVariation": 0.09010378932145464,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        },
+        {
+          "p50Ms": 0.21630000000004657,
+          "p95Ms": 0.3427999999998974,
+          "p99Ms": 0.36160000000018044,
+          "maxMs": 0.36160000000018044,
+          "coefficientOfVariation": 0.19822806496472992,
           "deterministic": true,
           "statuses": [
             "solved"
@@ -582,31 +1103,42 @@
         "circuit_ok"
       ],
       "fingerprint": "d7e2889e740e58069ce127e379f3f18fa14598f1c63b0ce3e7c5304056c4a5cc",
-      "p50Ms": 0.2514000000001033,
-      "p95Ms": 0.7846999999997024,
-      "p99Ms": 0.7846999999997024,
-      "maxMs": 0.7846999999997024,
-      "heapDeltaBytes": 21592,
-      "rssDeltaBytes": 0,
+      "p50Ms": 0.20739999999977954,
+      "p95Ms": 0.4683999999997468,
+      "p99Ms": 0.7265999999999622,
+      "maxMs": 0.7265999999999622,
+      "heapDeltaBytes": 4176,
+      "rssDeltaBytes": -266240,
       "deterministic": true,
       "series": [
         {
-          "p50Ms": 0.2638000000001739,
-          "p95Ms": 0.7846999999997024,
-          "p99Ms": 0.7846999999997024,
-          "maxMs": 0.7846999999997024,
-          "coefficientOfVariation": 0.46343227968933376,
+          "p50Ms": 0.29599999999982174,
+          "p95Ms": 0.4683999999997468,
+          "p99Ms": 0.7265999999999622,
+          "maxMs": 0.7265999999999622,
+          "coefficientOfVariation": 0.33293715679624597,
           "deterministic": true,
           "statuses": [
             "solved"
           ]
         },
         {
-          "p50Ms": 0.2514000000001033,
-          "p95Ms": 0.28150000000005093,
-          "p99Ms": 0.28150000000005093,
-          "maxMs": 0.28150000000005093,
-          "coefficientOfVariation": 0.057097131697638394,
+          "p50Ms": 0.2053000000000793,
+          "p95Ms": 0.26860000000033324,
+          "p99Ms": 0.28820000000041546,
+          "maxMs": 0.28820000000041546,
+          "coefficientOfVariation": 0.10944005642305976,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        },
+        {
+          "p50Ms": 0.20739999999977954,
+          "p95Ms": 0.2808999999997468,
+          "p99Ms": 0.2814000000003034,
+          "maxMs": 0.2814000000003034,
+          "coefficientOfVariation": 0.110511304735185,
           "deterministic": true,
           "statuses": [
             "solved"
@@ -625,31 +1157,42 @@
         "circuit_ok"
       ],
       "fingerprint": "775cb626703cd0f783d9466b26127dbd44878b5ca8b3e3faf7cb2d9da6a126a3",
-      "p50Ms": 0.2266999999997097,
-      "p95Ms": 0.6547999999997955,
-      "p99Ms": 0.6547999999997955,
-      "maxMs": 0.6547999999997955,
-      "heapDeltaBytes": 11992,
-      "rssDeltaBytes": 0,
+      "p50Ms": 0.20980000000008658,
+      "p95Ms": 0.45679999999993015,
+      "p99Ms": 0.6811999999999898,
+      "maxMs": 0.6811999999999898,
+      "heapDeltaBytes": 25352,
+      "rssDeltaBytes": 12288,
       "deterministic": true,
       "series": [
         {
-          "p50Ms": 0.2377000000001317,
-          "p95Ms": 0.6547999999997955,
-          "p99Ms": 0.6547999999997955,
-          "maxMs": 0.6547999999997955,
-          "coefficientOfVariation": 0.446830493213139,
+          "p50Ms": 0.2395000000001346,
+          "p95Ms": 0.45679999999993015,
+          "p99Ms": 0.6811999999999898,
+          "maxMs": 0.6811999999999898,
+          "coefficientOfVariation": 0.3494025938640081,
           "deterministic": true,
           "statuses": [
             "solved"
           ]
         },
         {
-          "p50Ms": 0.2266999999997097,
-          "p95Ms": 0.2723000000000866,
-          "p99Ms": 0.2723000000000866,
-          "maxMs": 0.2723000000000866,
-          "coefficientOfVariation": 0.07995351941672343,
+          "p50Ms": 0.20739999999977954,
+          "p95Ms": 0.2935000000002219,
+          "p99Ms": 0.30569999999988795,
+          "maxMs": 0.30569999999988795,
+          "coefficientOfVariation": 0.13443611593632598,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        },
+        {
+          "p50Ms": 0.20980000000008658,
+          "p95Ms": 0.36459999999988213,
+          "p99Ms": 0.40770000000020445,
+          "maxMs": 0.40770000000020445,
+          "coefficientOfVariation": 0.22151995629700538,
           "deterministic": true,
           "statuses": [
             "solved"
@@ -668,31 +1211,42 @@
         "circuit_ok"
       ],
       "fingerprint": "3ecff8faef79fcddce112e0824e9026fca3e9ad50955010bc34cabf9d27ee456",
-      "p50Ms": 0.3166999999998552,
-      "p95Ms": 0.7011999999999716,
-      "p99Ms": 0.7011999999999716,
-      "maxMs": 0.7011999999999716,
-      "heapDeltaBytes": 31864,
-      "rssDeltaBytes": 0,
+      "p50Ms": 0.24470000000019354,
+      "p95Ms": 0.5630999999998494,
+      "p99Ms": 0.9200999999998203,
+      "maxMs": 0.9200999999998203,
+      "heapDeltaBytes": 25672,
+      "rssDeltaBytes": 20480,
       "deterministic": true,
       "series": [
         {
-          "p50Ms": 0.3485000000000582,
-          "p95Ms": 0.7011999999999716,
-          "p99Ms": 0.7011999999999716,
-          "maxMs": 0.7011999999999716,
-          "coefficientOfVariation": 0.307311364451661,
+          "p50Ms": 0.2903000000001157,
+          "p95Ms": 0.5630999999998494,
+          "p99Ms": 0.9200999999998203,
+          "maxMs": 0.9200999999998203,
+          "coefficientOfVariation": 0.40244040787115465,
           "deterministic": true,
           "statuses": [
             "solved"
           ]
         },
         {
-          "p50Ms": 0.3166999999998552,
-          "p95Ms": 0.4244000000003325,
-          "p99Ms": 0.4244000000003325,
-          "maxMs": 0.4244000000003325,
-          "coefficientOfVariation": 0.13694414592720752,
+          "p50Ms": 0.2438999999999396,
+          "p95Ms": 0.3310999999998785,
+          "p99Ms": 0.33150000000023283,
+          "maxMs": 0.33150000000023283,
+          "coefficientOfVariation": 0.11188643321740264,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        },
+        {
+          "p50Ms": 0.24470000000019354,
+          "p95Ms": 0.40330000000039945,
+          "p99Ms": 0.4376999999999498,
+          "maxMs": 0.4376999999999498,
+          "coefficientOfVariation": 0.19344856425392093,
           "deterministic": true,
           "statuses": [
             "solved"
@@ -711,31 +1265,42 @@
         "circuit_ok"
       ],
       "fingerprint": "56d603de2befb76b20daa67b94bac684173c2577e4a924ec87c190e5456ec5f6",
-      "p50Ms": 0.2765999999996893,
-      "p95Ms": 0.753400000000056,
-      "p99Ms": 0.753400000000056,
-      "maxMs": 0.753400000000056,
-      "heapDeltaBytes": 20640,
-      "rssDeltaBytes": 0,
+      "p50Ms": 0.2462999999997919,
+      "p95Ms": 0.5371000000000095,
+      "p99Ms": 0.7550999999998567,
+      "maxMs": 0.7550999999998567,
+      "heapDeltaBytes": 74968,
+      "rssDeltaBytes": -909312,
       "deterministic": true,
       "series": [
         {
-          "p50Ms": 0.2943000000000211,
-          "p95Ms": 0.753400000000056,
-          "p99Ms": 0.753400000000056,
-          "maxMs": 0.753400000000056,
-          "coefficientOfVariation": 0.3890887412977647,
+          "p50Ms": 0.2662000000000262,
+          "p95Ms": 0.5371000000000095,
+          "p99Ms": 0.7550999999998567,
+          "maxMs": 0.7550999999998567,
+          "coefficientOfVariation": 0.3506717294471046,
           "deterministic": true,
           "statuses": [
             "solved"
           ]
         },
         {
-          "p50Ms": 0.2765999999996893,
-          "p95Ms": 0.3317000000001826,
-          "p99Ms": 0.3317000000001826,
-          "maxMs": 0.3317000000001826,
-          "coefficientOfVariation": 0.07306970128787792,
+          "p50Ms": 0.2462999999997919,
+          "p95Ms": 0.3411999999998443,
+          "p99Ms": 0.41049999999995634,
+          "maxMs": 0.41049999999995634,
+          "coefficientOfVariation": 0.1555308506277168,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        },
+        {
+          "p50Ms": 0.2379000000000815,
+          "p95Ms": 0.4256000000000313,
+          "p99Ms": 0.7505999999998494,
+          "maxMs": 0.7505999999998494,
+          "coefficientOfVariation": 0.3748928402235437,
           "deterministic": true,
           "statuses": [
             "solved"
@@ -754,31 +1319,42 @@
         "circuit_ok"
       ],
       "fingerprint": "283edf41a55a05a0fe2e520bafc7e5fb33d93f757a437350aaf031e94febb293",
-      "p50Ms": 0.2680000000000291,
-      "p95Ms": 0.7381000000000313,
-      "p99Ms": 0.7381000000000313,
-      "maxMs": 0.7381000000000313,
-      "heapDeltaBytes": 21744,
-      "rssDeltaBytes": 20480,
+      "p50Ms": 0.23729999999977736,
+      "p95Ms": 0.6485000000002401,
+      "p99Ms": 0.8894999999997708,
+      "maxMs": 0.8894999999997708,
+      "heapDeltaBytes": 31216,
+      "rssDeltaBytes": 36864,
       "deterministic": true,
       "series": [
         {
-          "p50Ms": 0.2680000000000291,
-          "p95Ms": 0.7381000000000313,
-          "p99Ms": 0.7381000000000313,
-          "maxMs": 0.7381000000000313,
-          "coefficientOfVariation": 0.43749021983340025,
+          "p50Ms": 0.31399999999985084,
+          "p95Ms": 0.6485000000002401,
+          "p99Ms": 0.8894999999997708,
+          "maxMs": 0.8894999999997708,
+          "coefficientOfVariation": 0.40919185508637534,
           "deterministic": true,
           "statuses": [
             "solved"
           ]
         },
         {
-          "p50Ms": 0.2817000000000007,
-          "p95Ms": 0.3317000000001826,
-          "p99Ms": 0.3317000000001826,
-          "maxMs": 0.3317000000001826,
-          "coefficientOfVariation": 0.11339270448882584,
+          "p50Ms": 0.23620000000028085,
+          "p95Ms": 0.31439999999975043,
+          "p99Ms": 0.3270999999999731,
+          "maxMs": 0.3270999999999731,
+          "coefficientOfVariation": 0.1208540861541671,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        },
+        {
+          "p50Ms": 0.23729999999977736,
+          "p95Ms": 0.4724999999998545,
+          "p99Ms": 0.5171999999997752,
+          "maxMs": 0.5171999999997752,
+          "coefficientOfVariation": 0.2624892630908028,
           "deterministic": true,
           "statuses": [
             "solved"
@@ -797,31 +1373,42 @@
         "circuit_ok"
       ],
       "fingerprint": "8d5c1832de22a63605d9b528d17c81725627f4363da5dc734a7b84c43ef7d491",
-      "p50Ms": 0.2678000000000793,
-      "p95Ms": 0.7012999999997191,
-      "p99Ms": 0.7012999999997191,
-      "maxMs": 0.7012999999997191,
-      "heapDeltaBytes": 15752,
-      "rssDeltaBytes": 0,
+      "p50Ms": 0.24080000000003565,
+      "p95Ms": 0.6494000000002416,
+      "p99Ms": 0.9596000000001368,
+      "maxMs": 0.9596000000001368,
+      "heapDeltaBytes": 10000,
+      "rssDeltaBytes": 12288,
       "deterministic": true,
       "series": [
         {
-          "p50Ms": 0.2678000000000793,
-          "p95Ms": 0.7012999999997191,
-          "p99Ms": 0.7012999999997191,
-          "maxMs": 0.7012999999997191,
-          "coefficientOfVariation": 0.3993030385285164,
+          "p50Ms": 0.3976999999999862,
+          "p95Ms": 0.6494000000002416,
+          "p99Ms": 0.9596000000001368,
+          "maxMs": 0.9596000000001368,
+          "coefficientOfVariation": 0.2868325968559942,
           "deterministic": true,
           "statuses": [
             "solved"
           ]
         },
         {
-          "p50Ms": 0.2830000000003565,
-          "p95Ms": 0.3141000000000531,
-          "p99Ms": 0.3141000000000531,
-          "maxMs": 0.3141000000000531,
-          "coefficientOfVariation": 0.047126496088177386,
+          "p50Ms": 0.24080000000003565,
+          "p95Ms": 0.34560000000010405,
+          "p99Ms": 0.3965000000002874,
+          "maxMs": 0.3965000000002874,
+          "coefficientOfVariation": 0.1612860644103523,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        },
+        {
+          "p50Ms": 0.23430000000007567,
+          "p95Ms": 0.31750000000010914,
+          "p99Ms": 0.36779999999998836,
+          "maxMs": 0.36779999999998836,
+          "coefficientOfVariation": 0.13945467634283645,
           "deterministic": true,
           "statuses": [
             "solved"
@@ -840,31 +1427,42 @@
         "circuit_ok"
       ],
       "fingerprint": "8e80e0b353d98406faa9cc02a664bacd39ec24e3e0ac4b992f25e39bb8d840bd",
-      "p50Ms": 0.27120000000013533,
-      "p95Ms": 0.6640999999999622,
-      "p99Ms": 0.6640999999999622,
-      "maxMs": 0.6640999999999622,
-      "heapDeltaBytes": 11264,
-      "rssDeltaBytes": 12288,
+      "p50Ms": 0.23980000000028667,
+      "p95Ms": 0.6345999999998639,
+      "p99Ms": 0.8769000000002052,
+      "maxMs": 0.8769000000002052,
+      "heapDeltaBytes": 16368,
+      "rssDeltaBytes": 0,
       "deterministic": true,
       "series": [
         {
-          "p50Ms": 0.27559999999994034,
-          "p95Ms": 0.6640999999999622,
-          "p99Ms": 0.6640999999999622,
-          "maxMs": 0.6640999999999622,
-          "coefficientOfVariation": 0.37487534538288625,
+          "p50Ms": 0.2748999999998887,
+          "p95Ms": 0.6345999999998639,
+          "p99Ms": 0.8769000000002052,
+          "maxMs": 0.8769000000002052,
+          "coefficientOfVariation": 0.39685027797586275,
           "deterministic": true,
           "statuses": [
             "solved"
           ]
         },
         {
-          "p50Ms": 0.27120000000013533,
-          "p95Ms": 0.32580000000007203,
-          "p99Ms": 0.32580000000007203,
-          "maxMs": 0.32580000000007203,
-          "coefficientOfVariation": 0.07048362365778865,
+          "p50Ms": 0.23980000000028667,
+          "p95Ms": 0.35379999999986467,
+          "p99Ms": 0.4226999999996224,
+          "maxMs": 0.4226999999996224,
+          "coefficientOfVariation": 0.17185819322211351,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        },
+        {
+          "p50Ms": 0.2361999999998261,
+          "p95Ms": 0.32920000000012806,
+          "p99Ms": 0.36080000000038126,
+          "maxMs": 0.36080000000038126,
+          "coefficientOfVariation": 0.13216723018743254,
           "deterministic": true,
           "statuses": [
             "solved"
@@ -883,31 +1481,42 @@
         "resistor_near_limit"
       ],
       "fingerprint": "77792b4a9f83db876e59cdd906c6890691cd04e1ccc47556efc5c4b1863fba42",
-      "p50Ms": 0.2341999999998734,
-      "p95Ms": 0.6252999999996973,
-      "p99Ms": 0.6252999999996973,
-      "maxMs": 0.6252999999996973,
-      "heapDeltaBytes": 30848,
+      "p50Ms": 0.19809999999961292,
+      "p95Ms": 0.38679999999976644,
+      "p99Ms": 0.7411999999999352,
+      "maxMs": 0.7411999999999352,
+      "heapDeltaBytes": 16056,
       "rssDeltaBytes": 0,
       "deterministic": true,
       "series": [
         {
-          "p50Ms": 0.24839999999994689,
-          "p95Ms": 0.6252999999996973,
-          "p99Ms": 0.6252999999996973,
-          "maxMs": 0.6252999999996973,
-          "coefficientOfVariation": 0.4243421543239569,
+          "p50Ms": 0.21520000000009532,
+          "p95Ms": 0.38679999999976644,
+          "p99Ms": 0.7411999999999352,
+          "maxMs": 0.7411999999999352,
+          "coefficientOfVariation": 0.4204939938871331,
           "deterministic": true,
           "statuses": [
             "solved"
           ]
         },
         {
-          "p50Ms": 0.2341999999998734,
-          "p95Ms": 0.27599999999983993,
-          "p99Ms": 0.27599999999983993,
-          "maxMs": 0.27599999999983993,
-          "coefficientOfVariation": 0.07133702664739094,
+          "p50Ms": 0.19809999999961292,
+          "p95Ms": 0.3277000000002772,
+          "p99Ms": 0.3742000000002008,
+          "maxMs": 0.3742000000002008,
+          "coefficientOfVariation": 0.19564111502595352,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        },
+        {
+          "p50Ms": 0.1936000000000604,
+          "p95Ms": 0.28119999999989886,
+          "p99Ms": 0.286200000000008,
+          "maxMs": 0.286200000000008,
+          "coefficientOfVariation": 0.13327145733996587,
           "deterministic": true,
           "statuses": [
             "solved"
@@ -926,31 +1535,42 @@
         "circuit_ok"
       ],
       "fingerprint": "d354c41eb749e9f42df37465175c4c878074e1b21d8101c26b29e63d703ce919",
-      "p50Ms": 0.23369999999977153,
-      "p95Ms": 0.7804000000000997,
-      "p99Ms": 0.7804000000000997,
-      "maxMs": 0.7804000000000997,
-      "heapDeltaBytes": 19560,
-      "rssDeltaBytes": 65536,
+      "p50Ms": 0.20220000000017535,
+      "p95Ms": 0.45319999999992433,
+      "p99Ms": 0.6368999999999687,
+      "maxMs": 0.6368999999999687,
+      "heapDeltaBytes": -10576,
+      "rssDeltaBytes": -4096,
       "deterministic": true,
       "series": [
         {
-          "p50Ms": 0.24290000000019063,
-          "p95Ms": 0.7804000000000997,
-          "p99Ms": 0.7804000000000997,
-          "maxMs": 0.7804000000000997,
-          "coefficientOfVariation": 0.5516208490071556,
+          "p50Ms": 0.20679999999993015,
+          "p95Ms": 0.45319999999992433,
+          "p99Ms": 0.6368999999999687,
+          "maxMs": 0.6368999999999687,
+          "coefficientOfVariation": 0.3892661957914987,
           "deterministic": true,
           "statuses": [
             "solved"
           ]
         },
         {
-          "p50Ms": 0.23369999999977153,
-          "p95Ms": 0.2795000000000982,
-          "p99Ms": 0.2795000000000982,
-          "maxMs": 0.2795000000000982,
-          "coefficientOfVariation": 0.10422692158386908,
+          "p50Ms": 0.20220000000017535,
+          "p95Ms": 0.3550000000000182,
+          "p99Ms": 0.49319999999988795,
+          "maxMs": 0.49319999999988795,
+          "coefficientOfVariation": 0.2864027241238596,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        },
+        {
+          "p50Ms": 0.19869999999991705,
+          "p95Ms": 0.24729999999999563,
+          "p99Ms": 0.2880000000000109,
+          "maxMs": 0.2880000000000109,
+          "coefficientOfVariation": 0.10846405286340517,
           "deterministic": true,
           "statuses": [
             "solved"
@@ -969,31 +1589,42 @@
         "circuit_ok"
       ],
       "fingerprint": "9e1cf6412161e826d84b288551d86c4bbc4ffb94d6f641f917ed1f0856cfbd68",
-      "p50Ms": 0.4375,
-      "p95Ms": 0.8924999999999272,
-      "p99Ms": 0.8924999999999272,
-      "maxMs": 0.8924999999999272,
-      "heapDeltaBytes": 36872,
-      "rssDeltaBytes": 221184,
+      "p50Ms": 0.37310000000024957,
+      "p95Ms": 0.798200000000179,
+      "p99Ms": 1.1851000000001477,
+      "maxMs": 1.1851000000001477,
+      "heapDeltaBytes": 68232,
+      "rssDeltaBytes": 139264,
       "deterministic": true,
       "series": [
         {
-          "p50Ms": 0.45180000000027576,
-          "p95Ms": 0.8924999999999272,
-          "p99Ms": 0.8924999999999272,
-          "maxMs": 0.8924999999999272,
-          "coefficientOfVariation": 0.2883022799109583,
+          "p50Ms": 0.43600000000014916,
+          "p95Ms": 0.798200000000179,
+          "p99Ms": 1.1851000000001477,
+          "maxMs": 1.1851000000001477,
+          "coefficientOfVariation": 0.3512675783061351,
           "deterministic": true,
           "statuses": [
             "solved"
           ]
         },
         {
-          "p50Ms": 0.4375,
-          "p95Ms": 0.7899000000002161,
-          "p99Ms": 0.7899000000002161,
-          "maxMs": 0.7899000000002161,
-          "coefficientOfVariation": 0.23698766941395577,
+          "p50Ms": 0.37310000000024957,
+          "p95Ms": 0.5300999999999476,
+          "p99Ms": 0.6293000000000575,
+          "maxMs": 0.6293000000000575,
+          "coefficientOfVariation": 0.16189847077142272,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        },
+        {
+          "p50Ms": 0.37030000000004293,
+          "p95Ms": 0.699500000000171,
+          "p99Ms": 0.9897000000000844,
+          "maxMs": 0.9897000000000844,
+          "coefficientOfVariation": 0.3348575067444995,
           "deterministic": true,
           "statuses": [
             "solved"
@@ -1012,31 +1643,42 @@
         "circuit_ok"
       ],
       "fingerprint": "c785ef0a400555437215ee051c8d472c93ce1477009c53de46d916a9a3f2835c",
-      "p50Ms": 6.66190000000006,
-      "p95Ms": 11.799999999999727,
-      "p99Ms": 11.799999999999727,
-      "maxMs": 11.799999999999727,
-      "heapDeltaBytes": 474368,
-      "rssDeltaBytes": -15765504,
+      "p50Ms": 7.899100000000544,
+      "p95Ms": 13.358299999999872,
+      "p99Ms": 13.621699999999691,
+      "maxMs": 13.621699999999691,
+      "heapDeltaBytes": 507200,
+      "rssDeltaBytes": 30068736,
       "deterministic": true,
       "series": [
         {
-          "p50Ms": 8.479400000000169,
-          "p95Ms": 11.799999999999727,
-          "p99Ms": 11.799999999999727,
-          "maxMs": 11.799999999999727,
-          "coefficientOfVariation": 0.1357727307587481,
+          "p50Ms": 8.772399999999834,
+          "p95Ms": 13.324200000000019,
+          "p99Ms": 13.621699999999691,
+          "maxMs": 13.621699999999691,
+          "coefficientOfVariation": 0.2520035075786071,
           "deterministic": true,
           "statuses": [
             "solved"
           ]
         },
         {
-          "p50Ms": 6.66190000000006,
-          "p95Ms": 7.415599999999813,
-          "p99Ms": 7.415599999999813,
-          "maxMs": 7.415599999999813,
-          "coefficientOfVariation": 0.04713755216323925,
+          "p50Ms": 7.899100000000544,
+          "p95Ms": 10.060500000000502,
+          "p99Ms": 10.070799999999963,
+          "maxMs": 10.070799999999963,
+          "coefficientOfVariation": 0.23129307321906628,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        },
+        {
+          "p50Ms": 6.423899999999776,
+          "p95Ms": 13.358299999999872,
+          "p99Ms": 13.398699999999735,
+          "maxMs": 13.398699999999735,
+          "coefficientOfVariation": 0.322801474008736,
           "deterministic": true,
           "statuses": [
             "solved"
@@ -1055,31 +1697,42 @@
         "circuit_ok"
       ],
       "fingerprint": "b9cd1b9b5485638a7ec1f4cc5369d0c6647e8edd02d2620d494919c6f018af07",
-      "p50Ms": 17.58470000000034,
-      "p95Ms": 23.053100000000086,
-      "p99Ms": 23.053100000000086,
-      "maxMs": 23.053100000000086,
-      "heapDeltaBytes": 27872,
-      "rssDeltaBytes": 41136128,
+      "p50Ms": 20.241100000000188,
+      "p95Ms": 32.041699999999764,
+      "p99Ms": 40.875,
+      "maxMs": 40.875,
+      "heapDeltaBytes": 224528,
+      "rssDeltaBytes": 67678208,
       "deterministic": true,
       "series": [
         {
-          "p50Ms": 20.1554000000001,
-          "p95Ms": 21.017699999999877,
-          "p99Ms": 21.017699999999877,
-          "maxMs": 21.017699999999877,
-          "coefficientOfVariation": 0.10056852447847132,
+          "p50Ms": 20.241100000000188,
+          "p95Ms": 31.75500000000011,
+          "p99Ms": 31.828599999999824,
+          "maxMs": 31.828599999999824,
+          "coefficientOfVariation": 0.2601390485738338,
           "deterministic": true,
           "statuses": [
             "solved"
           ]
         },
         {
-          "p50Ms": 17.58470000000034,
-          "p95Ms": 23.053100000000086,
-          "p99Ms": 23.053100000000086,
-          "maxMs": 23.053100000000086,
-          "coefficientOfVariation": 0.12410683060336075,
+          "p50Ms": 17.6863000000003,
+          "p95Ms": 27.092800000000352,
+          "p99Ms": 27.1858000000002,
+          "maxMs": 27.1858000000002,
+          "coefficientOfVariation": 0.2593793803844698,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        },
+        {
+          "p50Ms": 20.77059999999983,
+          "p95Ms": 32.041699999999764,
+          "p99Ms": 40.875,
+          "maxMs": 40.875,
+          "coefficientOfVariation": 0.25623720978346587,
           "deterministic": true,
           "statuses": [
             "solved"
@@ -1098,31 +1751,42 @@
         "circuit_ok"
       ],
       "fingerprint": "7c70e3e7db1d8d59ea126d2f6e5546fe73b6935d40be25578f7ef09d6f223a59",
-      "p50Ms": 0.9020999999997912,
-      "p95Ms": 1.6485999999999876,
-      "p99Ms": 1.6485999999999876,
-      "maxMs": 1.6485999999999876,
-      "heapDeltaBytes": -448664,
-      "rssDeltaBytes": 995328,
+      "p50Ms": 0.9326000000000931,
+      "p95Ms": 2.327400000000125,
+      "p99Ms": 2.417699999999968,
+      "maxMs": 2.417699999999968,
+      "heapDeltaBytes": 212320,
+      "rssDeltaBytes": 18411520,
       "deterministic": true,
       "series": [
         {
-          "p50Ms": 1.045799999999872,
-          "p95Ms": 1.6485999999999876,
-          "p99Ms": 1.6485999999999876,
-          "maxMs": 1.6485999999999876,
-          "coefficientOfVariation": 0.2065024582868076,
+          "p50Ms": 1.2177999999994427,
+          "p95Ms": 2.327400000000125,
+          "p99Ms": 2.417699999999968,
+          "maxMs": 2.417699999999968,
+          "coefficientOfVariation": 0.3257971320694602,
           "deterministic": true,
           "statuses": [
             "solved"
           ]
         },
         {
-          "p50Ms": 0.9020999999997912,
-          "p95Ms": 1.3618999999998778,
-          "p99Ms": 1.3618999999998778,
-          "maxMs": 1.3618999999998778,
-          "coefficientOfVariation": 0.23783322418957917,
+          "p50Ms": 0.9326000000000931,
+          "p95Ms": 1.6053000000001703,
+          "p99Ms": 1.7999000000008891,
+          "maxMs": 1.7999000000008891,
+          "coefficientOfVariation": 0.32844396796740155,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        },
+        {
+          "p50Ms": 0.8450999999995474,
+          "p95Ms": 1.3015999999997803,
+          "p99Ms": 1.3529000000007727,
+          "maxMs": 1.3529000000007727,
+          "coefficientOfVariation": 0.2594907515342694,
           "deterministic": true,
           "statuses": [
             "solved"
@@ -1141,31 +1805,42 @@
         "circuit_ok"
       ],
       "fingerprint": "7b40a30af812c2d05b5180f9d8a58b37e6a4a4ecd6f05d409e206b0154db858a",
-      "p50Ms": 46.33019999999988,
-      "p95Ms": 58.69270000000006,
-      "p99Ms": 58.69270000000006,
-      "maxMs": 58.69270000000006,
-      "heapDeltaBytes": 32880,
-      "rssDeltaBytes": 5898240,
+      "p50Ms": 29.066600000000108,
+      "p95Ms": 55.64089999999942,
+      "p99Ms": 58.42110000000048,
+      "maxMs": 58.42110000000048,
+      "heapDeltaBytes": -48096,
+      "rssDeltaBytes": -188416,
       "deterministic": true,
       "series": [
         {
-          "p50Ms": 48.42729999999983,
-          "p95Ms": 58.69270000000006,
-          "p99Ms": 58.69270000000006,
-          "maxMs": 58.69270000000006,
-          "coefficientOfVariation": 0.08605820357443053,
+          "p50Ms": 38.40520000000015,
+          "p95Ms": 55.64089999999942,
+          "p99Ms": 58.42110000000048,
+          "maxMs": 58.42110000000048,
+          "coefficientOfVariation": 0.2144425332507975,
           "deterministic": true,
           "statuses": [
             "solved"
           ]
         },
         {
-          "p50Ms": 46.33019999999988,
-          "p95Ms": 57.66139999999996,
-          "p99Ms": 57.66139999999996,
-          "maxMs": 57.66139999999996,
-          "coefficientOfVariation": 0.11614110171291206,
+          "p50Ms": 28.476200000000972,
+          "p95Ms": 40.35150000000067,
+          "p99Ms": 44.95939999999973,
+          "maxMs": 44.95939999999973,
+          "coefficientOfVariation": 0.15600039865007082,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        },
+        {
+          "p50Ms": 29.066600000000108,
+          "p95Ms": 49.598799999999756,
+          "p99Ms": 49.717099999999846,
+          "maxMs": 49.717099999999846,
+          "coefficientOfVariation": 0.24717054780880635,
           "deterministic": true,
           "statuses": [
             "solved"
@@ -1184,31 +1859,42 @@
         "circuit_ok"
       ],
       "fingerprint": "1b66e6a714cd7f798350111fe7362b5d87ab758cce2c13a719124cbd35d15d8f",
-      "p50Ms": 37.13199999999961,
-      "p95Ms": 76.00700000000052,
-      "p99Ms": 76.00700000000052,
-      "maxMs": 76.00700000000052,
-      "heapDeltaBytes": 103064,
-      "rssDeltaBytes": 26193920,
+      "p50Ms": 31.32300000000032,
+      "p95Ms": 60.17269999999917,
+      "p99Ms": 69.67360000000008,
+      "maxMs": 69.67360000000008,
+      "heapDeltaBytes": -67864,
+      "rssDeltaBytes": 262144,
       "deterministic": true,
       "series": [
         {
-          "p50Ms": 51.44560000000001,
-          "p95Ms": 76.00700000000052,
-          "p99Ms": 76.00700000000052,
-          "maxMs": 76.00700000000052,
-          "coefficientOfVariation": 0.23102606455277594,
+          "p50Ms": 34.30240000000049,
+          "p95Ms": 60.17269999999917,
+          "p99Ms": 69.67360000000008,
+          "maxMs": 69.67360000000008,
+          "coefficientOfVariation": 0.2696363109547172,
           "deterministic": true,
           "statuses": [
             "solved"
           ]
         },
         {
-          "p50Ms": 37.13199999999961,
-          "p95Ms": 52.490600000000086,
-          "p99Ms": 52.490600000000086,
-          "maxMs": 52.490600000000086,
-          "coefficientOfVariation": 0.164538433173148,
+          "p50Ms": 31.32300000000032,
+          "p95Ms": 53.114700000000084,
+          "p99Ms": 53.19499999999971,
+          "maxMs": 53.19499999999971,
+          "coefficientOfVariation": 0.25119983823397335,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        },
+        {
+          "p50Ms": 27.65269999999873,
+          "p95Ms": 41.890699999999924,
+          "p99Ms": 52.15859999999884,
+          "maxMs": 52.15859999999884,
+          "coefficientOfVariation": 0.1989685134374691,
           "deterministic": true,
           "statuses": [
             "solved"
@@ -1227,31 +1913,42 @@
         "circuit_ok"
       ],
       "fingerprint": "103032208b30cbf62c3d02fca314774179b27be3fe9113d6eca5b62a547f8c80",
-      "p50Ms": 43.203599999999824,
-      "p95Ms": 62.76470000000063,
-      "p99Ms": 62.76470000000063,
-      "maxMs": 62.76470000000063,
-      "heapDeltaBytes": 305760,
-      "rssDeltaBytes": 3121152,
+      "p50Ms": 31.535499999999956,
+      "p95Ms": 50.044700000000375,
+      "p99Ms": 54.71889999999985,
+      "maxMs": 54.71889999999985,
+      "heapDeltaBytes": 209008,
+      "rssDeltaBytes": -1167360,
       "deterministic": true,
       "series": [
         {
-          "p50Ms": 43.203599999999824,
-          "p95Ms": 56.896600000000035,
-          "p99Ms": 56.896600000000035,
-          "maxMs": 56.896600000000035,
-          "coefficientOfVariation": 0.13049830272194385,
+          "p50Ms": 33.08100000000013,
+          "p95Ms": 49.20730000000003,
+          "p99Ms": 54.71889999999985,
+          "maxMs": 54.71889999999985,
+          "coefficientOfVariation": 0.22933296093485472,
           "deterministic": true,
           "statuses": [
             "solved"
           ]
         },
         {
-          "p50Ms": 48.530400000000554,
-          "p95Ms": 62.76470000000063,
-          "p99Ms": 62.76470000000063,
-          "maxMs": 62.76470000000063,
-          "coefficientOfVariation": 0.14612055383559738,
+          "p50Ms": 31.535499999999956,
+          "p95Ms": 50.044700000000375,
+          "p99Ms": 50.3119999999999,
+          "maxMs": 50.3119999999999,
+          "coefficientOfVariation": 0.23914814276135088,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        },
+        {
+          "p50Ms": 27.57940000000235,
+          "p95Ms": 34.28180000000066,
+          "p99Ms": 36.91979999999967,
+          "maxMs": 36.91979999999967,
+          "coefficientOfVariation": 0.09857508369977398,
           "deterministic": true,
           "statuses": [
             "solved"
@@ -1270,31 +1967,42 @@
         "circuit_ok"
       ],
       "fingerprint": "4298d83fced9b6c648ecb732a43861816cc0f60fb6b0b3f2d31aa405a98d1acf",
-      "p50Ms": 0.34979999999995925,
-      "p95Ms": 1.2226000000000568,
-      "p99Ms": 1.2226000000000568,
-      "maxMs": 1.2226000000000568,
-      "heapDeltaBytes": 10264,
-      "rssDeltaBytes": 233472,
+      "p50Ms": 0.2495999999991909,
+      "p95Ms": 0.634699999998702,
+      "p99Ms": 0.8588000000017928,
+      "maxMs": 0.8588000000017928,
+      "heapDeltaBytes": 3592,
+      "rssDeltaBytes": -253952,
       "deterministic": true,
       "series": [
         {
-          "p50Ms": 0.5769000000000233,
-          "p95Ms": 1.2226000000000568,
-          "p99Ms": 1.2226000000000568,
-          "maxMs": 1.2226000000000568,
-          "coefficientOfVariation": 0.314548915666614,
+          "p50Ms": 0.2985999999982596,
+          "p95Ms": 0.634699999998702,
+          "p99Ms": 0.8588000000017928,
+          "maxMs": 0.8588000000017928,
+          "coefficientOfVariation": 0.3918003450235375,
           "deterministic": true,
           "statuses": [
             "solved"
           ]
         },
         {
-          "p50Ms": 0.34979999999995925,
-          "p95Ms": 0.7191000000002532,
-          "p99Ms": 0.7191000000002532,
-          "maxMs": 0.7191000000002532,
-          "coefficientOfVariation": 0.29891571181729776,
+          "p50Ms": 0.2495999999991909,
+          "p95Ms": 0.45740000000296277,
+          "p99Ms": 0.4602000000013504,
+          "maxMs": 0.4602000000013504,
+          "coefficientOfVariation": 0.23254447225199804,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        },
+        {
+          "p50Ms": 0.2440999999998894,
+          "p95Ms": 0.3901000000005297,
+          "p99Ms": 0.4151000000019849,
+          "maxMs": 0.4151000000019849,
+          "coefficientOfVariation": 0.19955975325125766,
           "deterministic": true,
           "statuses": [
             "solved"
@@ -1313,31 +2021,42 @@
         "circuit_ok"
       ],
       "fingerprint": "77694b225494f91bc61192f290c79d1cbd3d136f151a67d539e9bfe150c6bca5",
-      "p50Ms": 0.4048000000002503,
-      "p95Ms": 1.1760000000003856,
-      "p99Ms": 1.1760000000003856,
-      "maxMs": 1.1760000000003856,
-      "heapDeltaBytes": -7272,
-      "rssDeltaBytes": 131072,
+      "p50Ms": 0.191900000001624,
+      "p95Ms": 0.4356999999981781,
+      "p99Ms": 0.7927999999992608,
+      "maxMs": 0.7927999999992608,
+      "heapDeltaBytes": 10664,
+      "rssDeltaBytes": 1044480,
       "deterministic": true,
       "series": [
         {
-          "p50Ms": 0.5218000000004395,
-          "p95Ms": 1.1760000000003856,
-          "p99Ms": 1.1760000000003856,
-          "maxMs": 1.1760000000003856,
-          "coefficientOfVariation": 0.39116946573408024,
+          "p50Ms": 0.24199999999837019,
+          "p95Ms": 0.4356999999981781,
+          "p99Ms": 0.7927999999992608,
+          "maxMs": 0.7927999999992608,
+          "coefficientOfVariation": 0.4299032979490965,
           "deterministic": true,
           "statuses": [
             "solved"
           ]
         },
         {
-          "p50Ms": 0.4048000000002503,
-          "p95Ms": 0.9328999999997905,
-          "p99Ms": 0.9328999999997905,
-          "maxMs": 0.9328999999997905,
-          "coefficientOfVariation": 0.40029066590715606,
+          "p50Ms": 0.191900000001624,
+          "p95Ms": 0.3551000000006752,
+          "p99Ms": 0.359599999999773,
+          "maxMs": 0.359599999999773,
+          "coefficientOfVariation": 0.24077140179543938,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        },
+        {
+          "p50Ms": 0.19169999999940046,
+          "p95Ms": 0.2985999999982596,
+          "p99Ms": 0.3209000000024389,
+          "maxMs": 0.3209000000024389,
+          "coefficientOfVariation": 0.20602054762964195,
           "deterministic": true,
           "statuses": [
             "solved"
@@ -1356,34 +2075,253 @@
         "unsupported_component"
       ],
       "fingerprint": "b1d870e5d3ab21022b5c30b3972db4614ac689598f50f92c36c9fc3e657b069e",
-      "p50Ms": 0.07949999999982538,
-      "p95Ms": 0.30680000000029395,
-      "p99Ms": 0.30680000000029395,
-      "maxMs": 0.30680000000029395,
-      "heapDeltaBytes": 3096,
-      "rssDeltaBytes": -258048,
+      "p50Ms": 0.03870000000097207,
+      "p95Ms": 0.15630000000237487,
+      "p99Ms": 0.2610999999997148,
+      "maxMs": 0.2610999999997148,
+      "heapDeltaBytes": 4792,
+      "rssDeltaBytes": -45056,
       "deterministic": true,
       "series": [
         {
-          "p50Ms": 0.10739999999987049,
-          "p95Ms": 0.30680000000029395,
-          "p99Ms": 0.30680000000029395,
-          "maxMs": 0.30680000000029395,
-          "coefficientOfVariation": 0.47007248606795016,
+          "p50Ms": 0.058700000001408625,
+          "p95Ms": 0.15630000000237487,
+          "p99Ms": 0.2610999999997148,
+          "maxMs": 0.2610999999997148,
+          "coefficientOfVariation": 0.6004610053390744,
           "deterministic": true,
           "statuses": [
             "unsupported"
           ]
         },
         {
-          "p50Ms": 0.07949999999982538,
-          "p95Ms": 0.09729999999944994,
-          "p99Ms": 0.09729999999944994,
-          "maxMs": 0.09729999999944994,
-          "coefficientOfVariation": 0.08021892712362602,
+          "p50Ms": 0.0352999999995518,
+          "p95Ms": 0.05289999999877182,
+          "p99Ms": 0.08280000000013388,
+          "maxMs": 0.08280000000013388,
+          "coefficientOfVariation": 0.24622970504075872,
           "deterministic": true,
           "statuses": [
             "unsupported"
+          ]
+        },
+        {
+          "p50Ms": 0.03870000000097207,
+          "p95Ms": 0.08410000000003492,
+          "p99Ms": 0.09219999999913853,
+          "maxMs": 0.09219999999913853,
+          "coefficientOfVariation": 0.379988974186807,
+          "deterministic": true,
+          "statuses": [
+            "unsupported"
+          ]
+        }
+      ]
+    },
+    {
+      "caseId": "invalid-nonfinite-component",
+      "tier": "micro",
+      "category": "safety",
+      "operation": "analyse",
+      "expectedStatus": "invalid",
+      "status": "invalid",
+      "diagnosticCodes": [],
+      "fingerprint": "7356d30720ca967f42128dc9925389cd72a2bacbd4341cd078c766e6194c091d",
+      "p50Ms": 0.0013000000035390258,
+      "p95Ms": 0.033900000002176967,
+      "p99Ms": 0.069100000000617,
+      "maxMs": 0.069100000000617,
+      "heapDeltaBytes": 16032,
+      "rssDeltaBytes": 0,
+      "deterministic": true,
+      "series": [
+        {
+          "p50Ms": 0.0015000000021245796,
+          "p95Ms": 0.033900000002176967,
+          "p99Ms": 0.069100000000617,
+          "maxMs": 0.069100000000617,
+          "coefficientOfVariation": 1.8275798335692452,
+          "deterministic": true,
+          "statuses": [
+            "invalid"
+          ]
+        },
+        {
+          "p50Ms": 0.001299999999901047,
+          "p95Ms": 0.0015000000021245796,
+          "p99Ms": 0.003700000001117587,
+          "maxMs": 0.003700000001117587,
+          "coefficientOfVariation": 0.30502141300676083,
+          "deterministic": true,
+          "statuses": [
+            "invalid"
+          ]
+        },
+        {
+          "p50Ms": 0.0013000000035390258,
+          "p95Ms": 0.0017000000007101335,
+          "p99Ms": 0.0026000000034400728,
+          "maxMs": 0.0026000000034400728,
+          "coefficientOfVariation": 0.18142076765125256,
+          "deterministic": true,
+          "statuses": [
+            "invalid"
+          ]
+        }
+      ]
+    },
+    {
+      "caseId": "motor-model-startup",
+      "tier": "medium",
+      "category": "motor-model",
+      "operation": "analyse",
+      "expectedStatus": "model",
+      "status": "model",
+      "diagnosticCodes": [],
+      "fingerprint": "5b90ea50fa77919cd6840cdca12c4fe53b32012d5c9919c217e8e8447e968e48",
+      "p50Ms": 0.245599999998376,
+      "p95Ms": 0.5695999999988999,
+      "p99Ms": 0.6294999999990978,
+      "maxMs": 0.6294999999990978,
+      "heapDeltaBytes": 22080,
+      "rssDeltaBytes": 1220608,
+      "deterministic": true,
+      "series": [
+        {
+          "p50Ms": 0.245599999998376,
+          "p95Ms": 0.5470000000022992,
+          "p99Ms": 0.6294999999990978,
+          "maxMs": 0.6294999999990978,
+          "coefficientOfVariation": 0.326302978012073,
+          "deterministic": true,
+          "statuses": [
+            "model"
+          ]
+        },
+        {
+          "p50Ms": 0.2536000000000058,
+          "p95Ms": 0.5695999999988999,
+          "p99Ms": 0.5842999999986205,
+          "maxMs": 0.5842999999986205,
+          "coefficientOfVariation": 0.3780991163195622,
+          "deterministic": true,
+          "statuses": [
+            "model"
+          ]
+        },
+        {
+          "p50Ms": 0.22249999999985448,
+          "p95Ms": 0.4213000000017928,
+          "p99Ms": 0.5223000000005413,
+          "maxMs": 0.5223000000005413,
+          "coefficientOfVariation": 0.2815752820254644,
+          "deterministic": true,
+          "statuses": [
+            "model"
+          ]
+        }
+      ]
+    },
+    {
+      "caseId": "motor-model-stall",
+      "tier": "medium",
+      "category": "motor-model",
+      "operation": "analyse",
+      "expectedStatus": "model",
+      "status": "model",
+      "diagnosticCodes": [],
+      "fingerprint": "e1783181ad663b70cf5a7bdd23848648a510985d4cc61005738b74d2751bbb2b",
+      "p50Ms": 0.08329999999841675,
+      "p95Ms": 0.202900000000227,
+      "p99Ms": 0.3029999999998836,
+      "maxMs": 0.3029999999998836,
+      "heapDeltaBytes": -31648,
+      "rssDeltaBytes": 8192,
+      "deterministic": true,
+      "series": [
+        {
+          "p50Ms": 0.12010000000009313,
+          "p95Ms": 0.202900000000227,
+          "p99Ms": 0.3029999999998836,
+          "maxMs": 0.3029999999998836,
+          "coefficientOfVariation": 0.3979064716254107,
+          "deterministic": true,
+          "statuses": [
+            "model"
+          ]
+        },
+        {
+          "p50Ms": 0.08329999999841675,
+          "p95Ms": 0.17519999999785796,
+          "p99Ms": 0.20119999999951688,
+          "maxMs": 0.20119999999951688,
+          "coefficientOfVariation": 0.3341597525424258,
+          "deterministic": true,
+          "statuses": [
+            "model"
+          ]
+        },
+        {
+          "p50Ms": 0.08190000000104192,
+          "p95Ms": 0.14149999999790452,
+          "p99Ms": 0.17789999999877182,
+          "maxMs": 0.17789999999877182,
+          "coefficientOfVariation": 0.23686788841270823,
+          "deterministic": true,
+          "statuses": [
+            "model"
+          ]
+        }
+      ]
+    },
+    {
+      "caseId": "motor-model-thermal",
+      "tier": "stress",
+      "category": "motor-model",
+      "operation": "analyse",
+      "expectedStatus": "model",
+      "status": "model",
+      "diagnosticCodes": [],
+      "fingerprint": "e445bae955dfcfa0da1bf3bc8d978af9af655e6ce5b4b31fc1c65ad6e85be1fe",
+      "p50Ms": 0.16500000000087311,
+      "p95Ms": 0.3529000000016822,
+      "p99Ms": 0.36899999999877764,
+      "maxMs": 0.36899999999877764,
+      "heapDeltaBytes": 25688,
+      "rssDeltaBytes": 0,
+      "deterministic": true,
+      "series": [
+        {
+          "p50Ms": 0.16500000000087311,
+          "p95Ms": 0.3271999999997206,
+          "p99Ms": 0.3665000000000873,
+          "maxMs": 0.3665000000000873,
+          "coefficientOfVariation": 0.28628949117992797,
+          "deterministic": true,
+          "statuses": [
+            "model"
+          ]
+        },
+        {
+          "p50Ms": 0.17159999999785214,
+          "p95Ms": 0.3529000000016822,
+          "p99Ms": 0.36899999999877764,
+          "maxMs": 0.36899999999877764,
+          "coefficientOfVariation": 0.3752381678924458,
+          "deterministic": true,
+          "statuses": [
+            "model"
+          ]
+        },
+        {
+          "p50Ms": 0.111799999998766,
+          "p95Ms": 0.15720000000146683,
+          "p99Ms": 0.16460000000006403,
+          "maxMs": 0.16460000000006403,
+          "coefficientOfVariation": 0.10682608564414442,
+          "deterministic": true,
+          "statuses": [
+            "model"
           ]
         }
       ]
@@ -1399,31 +2337,150 @@
         "circuit_ok"
       ],
       "fingerprint": "677797402ed1401c0c3ef5a50c0574be5e4706547a113c96cfb51d9786a67e3f",
-      "p50Ms": 0.907799999999952,
-      "p95Ms": 2.1970000000001164,
-      "p99Ms": 2.1970000000001164,
-      "maxMs": 2.1970000000001164,
-      "heapDeltaBytes": 114600,
-      "rssDeltaBytes": 4096,
+      "p50Ms": 0.5312999999987369,
+      "p95Ms": 1.2937999999994645,
+      "p99Ms": 1.6152000000001863,
+      "maxMs": 1.6152000000001863,
+      "heapDeltaBytes": 161032,
+      "rssDeltaBytes": 69632,
       "deterministic": true,
       "series": [
         {
-          "p50Ms": 1.02599999999984,
-          "p95Ms": 2.1970000000001164,
-          "p99Ms": 2.1970000000001164,
-          "maxMs": 2.1970000000001164,
-          "coefficientOfVariation": 0.3434603751216926,
+          "p50Ms": 0.861799999998766,
+          "p95Ms": 1.2937999999994645,
+          "p99Ms": 1.6152000000001863,
+          "maxMs": 1.6152000000001863,
+          "coefficientOfVariation": 0.26903788965404185,
           "deterministic": true,
           "statuses": [
             "solved"
           ]
         },
         {
-          "p50Ms": 0.907799999999952,
-          "p95Ms": 1.1141999999999825,
-          "p99Ms": 1.1141999999999825,
-          "maxMs": 1.1141999999999825,
-          "coefficientOfVariation": 0.14882150574098052,
+          "p50Ms": 0.5312999999987369,
+          "p95Ms": 0.8955999999998312,
+          "p99Ms": 0.8984999999993306,
+          "maxMs": 0.8984999999993306,
+          "coefficientOfVariation": 0.22798023612155813,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        },
+        {
+          "p50Ms": 0.46789999999964493,
+          "p95Ms": 0.8175000000010186,
+          "p99Ms": 0.941899999997986,
+          "maxMs": 0.941899999997986,
+          "coefficientOfVariation": 0.24901898002659353,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        }
+      ]
+    },
+    {
+      "caseId": "arduino-pwm-analyse-10ms",
+      "tier": "medium",
+      "category": "arduino",
+      "operation": "analyse",
+      "expectedStatus": "solved",
+      "status": "solved",
+      "diagnosticCodes": [
+        "circuit_ok"
+      ],
+      "fingerprint": "fc1c2f0aae00cbe846d3875d77b64491b61bc753a5748a99480bfa97a4b3ebbf",
+      "p50Ms": 0.6412000000018452,
+      "p95Ms": 1.321700000000419,
+      "p99Ms": 1.6463000000003376,
+      "maxMs": 1.6463000000003376,
+      "heapDeltaBytes": 204680,
+      "rssDeltaBytes": 102400,
+      "deterministic": true,
+      "series": [
+        {
+          "p50Ms": 0.6412000000018452,
+          "p95Ms": 1.321700000000419,
+          "p99Ms": 1.6463000000003376,
+          "maxMs": 1.6463000000003376,
+          "coefficientOfVariation": 0.3263638618474566,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        },
+        {
+          "p50Ms": 0.7525999999998021,
+          "p95Ms": 0.9372000000003027,
+          "p99Ms": 0.9540000000015425,
+          "maxMs": 0.9540000000015425,
+          "coefficientOfVariation": 0.08134203006207734,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        },
+        {
+          "p50Ms": 0.6194000000032247,
+          "p95Ms": 0.8747999999977765,
+          "p99Ms": 1.0174999999981083,
+          "maxMs": 1.0174999999981083,
+          "coefficientOfVariation": 0.19737262060138233,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        }
+      ]
+    },
+    {
+      "caseId": "arduino-tone-analyse-10ms",
+      "tier": "medium",
+      "category": "arduino",
+      "operation": "analyse",
+      "expectedStatus": "solved",
+      "status": "solved",
+      "diagnosticCodes": [
+        "circuit_ok"
+      ],
+      "fingerprint": "6275c4c8ceadac0328f25e3498d4885074010a3e8f6938e2d6d6049d04ac1064",
+      "p50Ms": 0.600800000000163,
+      "p95Ms": 1.423399999999674,
+      "p99Ms": 1.4814000000005763,
+      "maxMs": 1.4814000000005763,
+      "heapDeltaBytes": 125024,
+      "rssDeltaBytes": 65536,
+      "deterministic": true,
+      "series": [
+        {
+          "p50Ms": 0.7190000000009604,
+          "p95Ms": 1.423399999999674,
+          "p99Ms": 1.4814000000005763,
+          "maxMs": 1.4814000000005763,
+          "coefficientOfVariation": 0.2899281743641203,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        },
+        {
+          "p50Ms": 0.600800000000163,
+          "p95Ms": 1.0062999999972817,
+          "p99Ms": 1.0388999999995576,
+          "maxMs": 1.0388999999995576,
+          "coefficientOfVariation": 0.2573743513194571,
+          "deterministic": true,
+          "statuses": [
+            "solved"
+          ]
+        },
+        {
+          "p50Ms": 0.5705999999991036,
+          "p95Ms": 0.7590000000018335,
+          "p99Ms": 0.8391000000010536,
+          "maxMs": 0.8391000000010536,
+          "coefficientOfVariation": 0.15604695260740548,
           "deterministic": true,
           "statuses": [
             "solved"
@@ -1440,31 +2497,42 @@
       "status": "ready",
       "diagnosticCodes": [],
       "fingerprint": "f88c818921db33eda874247796fdbd7d1744a353ced3431782c2ebebb64162eb",
-      "p50Ms": 42.96740000000045,
-      "p95Ms": 63.31500000000051,
-      "p99Ms": 63.31500000000051,
-      "maxMs": 63.31500000000051,
-      "heapDeltaBytes": 313592,
-      "rssDeltaBytes": 80265216,
+      "p50Ms": 35.927199999998265,
+      "p95Ms": 54.16420000000289,
+      "p99Ms": 59.553600000002916,
+      "maxMs": 59.553600000002916,
+      "heapDeltaBytes": 353176,
+      "rssDeltaBytes": 62189568,
       "deterministic": true,
       "series": [
         {
-          "p50Ms": 46.41999999999916,
-          "p95Ms": 63.31500000000051,
-          "p99Ms": 63.31500000000051,
-          "maxMs": 63.31500000000051,
-          "coefficientOfVariation": 0.13962384063747066,
+          "p50Ms": 38.18399999999747,
+          "p95Ms": 54.16420000000289,
+          "p99Ms": 59.553600000002916,
+          "maxMs": 59.553600000002916,
+          "coefficientOfVariation": 0.17351045757761183,
           "deterministic": true,
           "statuses": [
             "ready"
           ]
         },
         {
-          "p50Ms": 42.96740000000045,
-          "p95Ms": 46.81620000000021,
-          "p99Ms": 46.81620000000021,
-          "maxMs": 46.81620000000021,
-          "coefficientOfVariation": 0.06816824833208283,
+          "p50Ms": 35.927199999998265,
+          "p95Ms": 47.3234999999986,
+          "p99Ms": 48.37010000000009,
+          "maxMs": 48.37010000000009,
+          "coefficientOfVariation": 0.12963721984914775,
+          "deterministic": true,
+          "statuses": [
+            "ready"
+          ]
+        },
+        {
+          "p50Ms": 29.42899999999645,
+          "p95Ms": 42.050100000000384,
+          "p99Ms": 43.46240000000034,
+          "maxMs": 43.46240000000034,
+          "coefficientOfVariation": 0.13601964178852272,
           "deterministic": true,
           "statuses": [
             "ready"
@@ -1481,31 +2549,42 @@
       "status": "ready",
       "diagnosticCodes": [],
       "fingerprint": "847a6a545835a1c4aba4ce9b0d92ea08d08213ff8c5fb43a75ace02d3f04ea33",
-      "p50Ms": 26.487999999999374,
-      "p95Ms": 42.86200000000099,
-      "p99Ms": 42.86200000000099,
-      "maxMs": 42.86200000000099,
-      "heapDeltaBytes": -244272,
-      "rssDeltaBytes": -2048000,
+      "p50Ms": 16.9887000000017,
+      "p95Ms": 26.455000000001746,
+      "p99Ms": 34.42229999999836,
+      "maxMs": 34.42229999999836,
+      "heapDeltaBytes": -62576,
+      "rssDeltaBytes": 745472,
       "deterministic": true,
       "series": [
         {
-          "p50Ms": 32.84219999999914,
-          "p95Ms": 42.86200000000099,
-          "p99Ms": 42.86200000000099,
-          "maxMs": 42.86200000000099,
-          "coefficientOfVariation": 0.14377061889335319,
+          "p50Ms": 20.046900000001187,
+          "p95Ms": 26.455000000001746,
+          "p99Ms": 34.42229999999836,
+          "maxMs": 34.42229999999836,
+          "coefficientOfVariation": 0.18265041871033513,
           "deterministic": true,
           "statuses": [
             "ready"
           ]
         },
         {
-          "p50Ms": 26.487999999999374,
-          "p95Ms": 35.77770000000055,
-          "p99Ms": 35.77770000000055,
-          "maxMs": 35.77770000000055,
-          "coefficientOfVariation": 0.15106024300687712,
+          "p50Ms": 16.9887000000017,
+          "p95Ms": 21.925199999997858,
+          "p99Ms": 23.710399999999936,
+          "maxMs": 23.710399999999936,
+          "coefficientOfVariation": 0.1015816672948163,
+          "deterministic": true,
+          "statuses": [
+            "ready"
+          ]
+        },
+        {
+          "p50Ms": 16.69470000000001,
+          "p95Ms": 18.82090000000244,
+          "p99Ms": 19.239700000001903,
+          "maxMs": 19.239700000001903,
+          "coefficientOfVariation": 0.052732219811292384,
           "deterministic": true,
           "statuses": [
             "ready"
@@ -1522,31 +2601,42 @@
       "status": "ready",
       "diagnosticCodes": [],
       "fingerprint": "c808ba2e697de79f9ab0f11fef1ec7dfe5f1c04840e77244fce3002e212582ee",
-      "p50Ms": 29.685300000001007,
-      "p95Ms": 46.302700000000186,
-      "p99Ms": 46.302700000000186,
-      "maxMs": 46.302700000000186,
-      "heapDeltaBytes": 60160,
-      "rssDeltaBytes": 2260992,
+      "p50Ms": 24.269000000000233,
+      "p95Ms": 33.23569999999745,
+      "p99Ms": 34.09389999999985,
+      "maxMs": 34.09389999999985,
+      "heapDeltaBytes": 106208,
+      "rssDeltaBytes": 36864,
       "deterministic": true,
       "series": [
         {
-          "p50Ms": 31.02059999999983,
-          "p95Ms": 46.302700000000186,
-          "p99Ms": 46.302700000000186,
-          "maxMs": 46.302700000000186,
-          "coefficientOfVariation": 0.15951153946699514,
+          "p50Ms": 20.472100000002683,
+          "p95Ms": 30.021100000001752,
+          "p99Ms": 33.76619999999821,
+          "maxMs": 33.76619999999821,
+          "coefficientOfVariation": 0.16446232645925016,
           "deterministic": true,
           "statuses": [
             "ready"
           ]
         },
         {
-          "p50Ms": 29.685300000001007,
-          "p95Ms": 43.19920000000093,
-          "p99Ms": 43.19920000000093,
-          "maxMs": 43.19920000000093,
-          "coefficientOfVariation": 0.15535725307256557,
+          "p50Ms": 26.08220000000074,
+          "p95Ms": 33.23569999999745,
+          "p99Ms": 34.09389999999985,
+          "maxMs": 34.09389999999985,
+          "coefficientOfVariation": 0.1825656912708022,
+          "deterministic": true,
+          "statuses": [
+            "ready"
+          ]
+        },
+        {
+          "p50Ms": 24.269000000000233,
+          "p95Ms": 32.89539999999761,
+          "p99Ms": 33.13409999999931,
+          "maxMs": 33.13409999999931,
+          "coefficientOfVariation": 0.1685107435938278,
           "deterministic": true,
           "statuses": [
             "ready"
@@ -1563,31 +2653,42 @@
       "status": "ready",
       "diagnosticCodes": [],
       "fingerprint": "f88c818921db33eda874247796fdbd7d1744a353ced3431782c2ebebb64162eb",
-      "p50Ms": 63.465400000000955,
-      "p95Ms": 76.34120000000075,
-      "p99Ms": 76.34120000000075,
-      "maxMs": 76.34120000000075,
-      "heapDeltaBytes": 467712,
-      "rssDeltaBytes": 10686464,
+      "p50Ms": 49.3122000000003,
+      "p95Ms": 64.58410000000003,
+      "p99Ms": 73.98259999999937,
+      "maxMs": 73.98259999999937,
+      "heapDeltaBytes": 438808,
+      "rssDeltaBytes": 8364032,
       "deterministic": true,
       "series": [
         {
-          "p50Ms": 64.23440000000119,
-          "p95Ms": 76.34120000000075,
-          "p99Ms": 76.34120000000075,
-          "maxMs": 76.34120000000075,
-          "coefficientOfVariation": 0.07930616398929709,
+          "p50Ms": 49.662200000002485,
+          "p95Ms": 61.61419999999998,
+          "p99Ms": 69.80970000000161,
+          "maxMs": 69.80970000000161,
+          "coefficientOfVariation": 0.13927453421193664,
           "deterministic": true,
           "statuses": [
             "ready"
           ]
         },
         {
-          "p50Ms": 63.465400000000955,
-          "p95Ms": 73.34569999999985,
-          "p99Ms": 73.34569999999985,
-          "maxMs": 73.34569999999985,
-          "coefficientOfVariation": 0.10573828582407037,
+          "p50Ms": 49.3122000000003,
+          "p95Ms": 64.58410000000003,
+          "p99Ms": 73.98259999999937,
+          "maxMs": 73.98259999999937,
+          "coefficientOfVariation": 0.15264410604084233,
+          "deterministic": true,
+          "statuses": [
+            "ready"
+          ]
+        },
+        {
+          "p50Ms": 43.0625,
+          "p95Ms": 63.15929999999935,
+          "p99Ms": 65.34629999999743,
+          "maxMs": 65.34629999999743,
+          "coefficientOfVariation": 0.1421487200009888,
           "deterministic": true,
           "statuses": [
             "ready"
