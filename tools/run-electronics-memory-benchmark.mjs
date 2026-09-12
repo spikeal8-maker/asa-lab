@@ -18,6 +18,8 @@ const soakSeconds = quick
   : Number.isInteger(requestedSoakSeconds) && requestedSoakSeconds > 0
     ? requestedSoakSeconds
     : 900;
+const warmupSeconds = quick ? 1 : 30;
+const checkpointCount = quick ? 2 : 5;
 const reportPath = resolve(root, 'reports/electronics-opt0-memory-baseline.json');
 const summaryPath = resolve(root, 'reports/electronics-opt0-memory-baseline.md');
 const livePath = resolve(root, 'apps/web/src/electronics/live-simulation.ts').replaceAll('\\', '/');
@@ -45,21 +47,29 @@ const document = {
   viewport: { x: 0, y: 0, zoom: 1 },
   simulation: { running: true, maxIterations: 64 },
 };
-globalThis.__ASA_MEMORY_SOAK__ = async (milliseconds) => {
-  let previous = calculateSimulationPreflight(document, 0);
-  let simulationTimeMs = 0;
-  let iterations = 0;
-  let maxIterationMs = 0;
+let previous = calculateSimulationPreflight(document, 0);
+let simulationTimeMs = 0;
+let totalIterations = 0;
+let maximumIterationMs = 0;
+globalThis.__ASA_MEMORY_ADVANCE__ = async (milliseconds) => {
+  let intervalIterations = 0;
   const started = performance.now();
   while (performance.now() - started < milliseconds) {
     simulationTimeMs += 100;
     const iterationStarted = performance.now();
     previous = advanceLiveSimulation(document, previous, simulationTimeMs);
-    maxIterationMs = Math.max(maxIterationMs, performance.now() - iterationStarted);
-    iterations += 1;
+    maximumIterationMs = Math.max(maximumIterationMs, performance.now() - iterationStarted);
+    intervalIterations += 1;
+    totalIterations += 1;
     await new Promise((resolve) => setTimeout(resolve, 0));
   }
-  return { iterations, simulationTimeMs, maxIterationMs, finalStatus: previous.status };
+  return {
+    intervalIterations,
+    totalIterations,
+    simulationTimeMs,
+    maximumIterationMs,
+    finalStatus: previous.status,
+  };
 };
 globalThis.__ASA_MEMORY_READY__ = true;
 </script></body></html>`;
@@ -87,28 +97,65 @@ try {
   await page.goto(`http://127.0.0.1:${address.port}/__electronics_memory`);
   await page.waitForFunction(() => globalThis.__ASA_MEMORY_READY__ === true);
   await cdp.send('HeapProfiler.collectGarbage');
-  const before = await page.evaluate(() => globalThis.performance.memory?.usedJSHeapSize ?? null);
-  const result = await page.evaluate(
-    (ms) => globalThis.__ASA_MEMORY_SOAK__(ms),
-    soakSeconds * 1000,
+  const coldHeapBytes = await page.evaluate(
+    () => globalThis.performance.memory?.usedJSHeapSize ?? null,
+  );
+  const warmup = await page.evaluate(
+    (ms) => globalThis.__ASA_MEMORY_ADVANCE__(ms),
+    warmupSeconds * 1000,
   );
   await cdp.send('HeapProfiler.collectGarbage');
-  const after = await page.evaluate(() => globalThis.performance.memory?.usedJSHeapSize ?? null);
-  const delta = before === null || after === null ? null : after - before;
-  const growthPercent = before && delta !== null ? (delta / before) * 100 : null;
+  const warmHeapBytes = await page.evaluate(
+    () => globalThis.performance.memory?.usedJSHeapSize ?? null,
+  );
+  const checkpoints = [];
+  const intervalMilliseconds = (soakSeconds * 1000) / checkpointCount;
+  let latest = warmup;
+  for (let checkpointIndex = 1; checkpointIndex <= checkpointCount; checkpointIndex += 1) {
+    latest = await page.evaluate(
+      (ms) => globalThis.__ASA_MEMORY_ADVANCE__(ms),
+      intervalMilliseconds,
+    );
+    await cdp.send('HeapProfiler.collectGarbage');
+    const heapBytes = await page.evaluate(
+      () => globalThis.performance.memory?.usedJSHeapSize ?? null,
+    );
+    const deltaBytes =
+      warmHeapBytes === null || heapBytes === null ? null : heapBytes - warmHeapBytes;
+    checkpoints.push({
+      elapsedSoakSeconds: (soakSeconds * checkpointIndex) / checkpointCount,
+      heapBytes,
+      retainedDeltaFromWarmBytes: deltaBytes,
+      retainedGrowthFromWarmPercent:
+        warmHeapBytes && deltaBytes !== null ? (deltaBytes / warmHeapBytes) * 100 : null,
+      totalIterations: latest.totalIterations,
+      simulationTimeMs: latest.simulationTimeMs,
+    });
+  }
+  const finalCheckpoint = checkpoints.at(-1);
+  const retainedHeapDeltaBytes = finalCheckpoint?.retainedDeltaFromWarmBytes ?? null;
+  const retainedHeapGrowthPercent = finalCheckpoint?.retainedGrowthFromWarmPercent ?? null;
   const report = {
-    receiptVersion: 1,
+    receiptVersion: 2,
     revision: git('rev-parse', 'HEAD'),
     dirtyTree: git('status', '--porcelain').length > 0,
     browser: `Chromium ${browser.version()}`,
+    warmupSeconds,
     soakSeconds,
+    checkpointCount,
     method:
-      'production advanceLiveSimulation motor path; 100 ms simulation ticks; CDP GC before/after',
-    heapBeforeBytes: before,
-    heapAfterBytes: after,
-    retainedHeapDeltaBytes: delta,
-    retainedHeapGrowthPercent: growthPercent,
-    ...result,
+      'production advanceLiveSimulation motor path; persistent 100 ms simulation ticks; warm-up then CDP GC baseline plus GC-stabilized checkpoints',
+    coldHeapBytes,
+    warmHeapBytes,
+    retainedHeapDeltaBytes,
+    retainedHeapGrowthPercent,
+    provisionalFivePercentTargetPassed:
+      retainedHeapGrowthPercent !== null ? retainedHeapGrowthPercent <= 5 : null,
+    checkpoints,
+    iterations: latest.totalIterations,
+    simulationTimeMs: latest.simulationTimeMs,
+    maxIterationMs: latest.maximumIterationMs,
+    finalStatus: latest.finalStatus,
   };
   writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`, 'utf8');
   const markdown = `# ASA Lab Electronics E-OPT-0 memory baseline
@@ -116,13 +163,26 @@ try {
 - revision: \`${report.revision}\`
 - dirty tree: \`${report.dirtyTree}\`
 - browser: \`${report.browser}\`
-- soak: ${soakSeconds}s, ${report.iterations} live-simulation iterations
+- warm-up: ${warmupSeconds}s before the retained-heap baseline
+- soak: ${soakSeconds}s, ${report.iterations} cumulative live-simulation iterations
 - method: ${report.method}
-- heap before GC-stabilized soak: ${before ?? 'n/a'} bytes
-- heap after GC-stabilized soak: ${after ?? 'n/a'} bytes
-- retained delta: ${delta ?? 'n/a'} bytes
-- retained growth: ${growthPercent === null ? 'n/a' : growthPercent.toFixed(2) + '%'}
+- cold heap before warm-up: ${coldHeapBytes ?? 'n/a'} bytes
+- warm GC-stabilized baseline: ${warmHeapBytes ?? 'n/a'} bytes
+- retained delta from warm baseline: ${retainedHeapDeltaBytes ?? 'n/a'} bytes
+- retained growth from warm baseline: ${retainedHeapGrowthPercent === null ? 'n/a' : retainedHeapGrowthPercent.toFixed(2) + '%'}
+- provisional <=5% target: ${report.provisionalFivePercentTargetPassed === null ? 'n/a' : report.provisionalFivePercentTargetPassed ? 'PASS' : 'FAIL'}
 - maximum single live-simulation iteration: ${report.maxIterationMs.toFixed(3)} ms
+
+## GC-stabilized checkpoints
+
+| Elapsed soak s | Heap bytes | Delta from warm B | Growth from warm % | Total iterations |
+| ---: | ---: | ---: | ---: | ---: |
+${checkpoints
+  .map(
+    (entry) =>
+      `| ${entry.elapsedSoakSeconds.toFixed(0)} | ${entry.heapBytes ?? 'n/a'} | ${entry.retainedDeltaFromWarmBytes ?? 'n/a'} | ${entry.retainedGrowthFromWarmPercent === null ? 'n/a' : entry.retainedGrowthFromWarmPercent.toFixed(2)} | ${entry.totalIterations} |`,
+  )
+  .join('\n')}
 `;
   writeFileSync(summaryPath, markdown, 'utf8');
   console.log(`Wrote ${reportPath}`);
