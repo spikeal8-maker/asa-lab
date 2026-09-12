@@ -9,12 +9,16 @@ import type {
   CheckersPuzzleAttempt,
   CheckersReactionId,
 } from '@asa-lab/checkers';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { CheckersClassGame, CheckersTeacherFeedbackId, PublicUser } from '../api';
 import { newClientId } from '../client-id';
 import { CheckersClassPlay } from './CheckersClassPlay';
 import { CheckersPositionComposer } from './CheckersPositionComposer';
-import { CheckersStudentHome, type CheckersHomeCard } from './CheckersStudentHome';
+import {
+  CheckersLobby,
+  type CheckersLobbyAssignment,
+  type CheckersLobbyResume,
+} from './CheckersLobby';
 import { CheckersTeacherDashboard } from './CheckersTeacherDashboard';
 import { CheckersWorkspace, type CheckersWorkspaceMove } from './CheckersWorkspace';
 import {
@@ -781,13 +785,6 @@ export function CheckersModuleExperience(props: CheckersModuleExperienceProps): 
     return () => window.clearInterval(timer);
   }, [checkers.project?.scope, checkers.refreshClassPlay, surface]);
 
-  const mastery = useMemo(() => {
-    const progress = checkers.document?.education.progress ?? [];
-    return progress.length === 0
-      ? 0
-      : Math.round(progress.reduce((sum, item) => sum + item.mastery, 0) / progress.length);
-  }, [checkers.document]);
-
   if (checkers.loadState === 'loading') {
     return (
       <main className="checkers-loading" role="status" aria-live="polite">
@@ -1322,49 +1319,66 @@ export function CheckersModuleExperience(props: CheckersModuleExperienceProps): 
       />
     );
   } else {
-    const assignmentCards: CheckersHomeCard[] = document.education.assignments.map(
+    const assignmentCards: CheckersLobbyAssignment[] = document.education.assignments.map(
       (assignment) => ({
         id: assignment.id,
-        eyebrow: 'От педагога',
         title: assignment.title,
         description: `${assignmentKindLabel(assignment.kind)} · ${formatDue(assignment.dueAt)}`,
-        actionLabel: 'Открыть',
       }),
     );
+    const resumableClassGame = checkers.classPlay?.games.find(
+      (game) => game.status === 'active' && game.side !== null,
+    );
+    let resume: CheckersLobbyResume | undefined;
+    if (resumableClassGame?.side) {
+      const opponent =
+        resumableClassGame.side === 'light'
+          ? resumableClassGame.darkPlayer.displayName
+          : resumableClassGame.lightPlayer.displayName;
+      resume = {
+        id: `class-game:${resumableClassGame.id}`,
+        title: `Партия с ${opponent}`,
+        detail: `Игра в классе · вы играете ${
+          resumableClassGame.side === 'light' ? 'светлыми' : 'тёмными'
+        } · ${
+          resumableClassGame.document.sideToMove === resumableClassGame.side
+            ? 'ваш ход'
+            : 'ход соперника'
+        }`,
+      };
+    } else if (
+      document.game.mode === 'game' &&
+      document.game.result === '*' &&
+      document.education.lastActivityAt !== null &&
+      checkers.botPlayerSideKnown
+    ) {
+      resume = {
+        id: 'resume-bot-game',
+        title: `Партия с ${selectedBot.displayName}`,
+        detail: `Вы играете ${checkers.botPlayerSide === 'light' ? 'светлыми' : 'тёмными'} · ${
+          document.game.sideToMove === checkers.botPlayerSide ? 'ваш ход' : 'бот думает или ходит'
+        }`,
+      };
+    }
+    const learningProgressPercent = Math.round(
+      (document.education.completedPuzzleIds.length / CHECKERS_PRACTICE_PUZZLES.length) * 100,
+    );
     content = (
-      <CheckersStudentHome
+      <CheckersLobby
         projectTitle={checkers.projectTitle}
         onBack={props.onBack}
         model={{
           studentName: props.user.displayName,
-          recommendation: {
-            id: assignmentCards[0]?.id ?? 'learning-path',
-            eyebrow: assignmentCards.length > 0 ? 'Сначала это' : 'Следующий шаг',
-            title: assignmentCards[0]?.title ?? 'Обязательное взятие',
-            description:
-              assignmentCards[0]?.description ??
-              'Короткая позиция научит видеть главное правило партии.',
-            progressLabel: `${document.education.completedPuzzleIds.length} из ${CHECKERS_PRACTICE_PUZZLES.length} практик`,
-            progressPercent: Math.round(
-              (document.education.completedPuzzleIds.length / CHECKERS_PRACTICE_PUZZLES.length) *
-                100,
-            ),
-            actionLabel: 'Продолжить',
-          },
+          ...(resume ? { resume } : {}),
           assignments: assignmentCards,
-          reviewCount: document.education.progress.filter(
-            (item) => item.nextReviewAt && Date.parse(item.nextReviewAt) <= Date.now(),
-          ).length,
-          learningUnit: Math.min(
-            11,
-            Math.floor(document.education.completedPuzzleIds.length / 2) + 1,
-          ),
-          learningUnitsTotal: 11,
-          masteryPercent: mastery,
+          learningProgressLabel: `${document.education.completedPuzzleIds.length} из ${CHECKERS_PRACTICE_PUZZLES.length} практик`,
+          learningProgressPercent,
           currentBotName: selectedBot.displayName,
-          botRung: document.education.unlockedBotRung,
-          botRungsTotal: CHECKERS_BOTS.length,
           classPlayAvailable: checkers.project.scope === 'classroom',
+          classGameCount:
+            checkers.classPlay?.games.filter(
+              (game) => game.status === 'pending' || game.status === 'active',
+            ).length ?? 0,
           ...(checkers.teacherFeedback[0]
             ? {
                 teacherFeedback: TEACHER_FEEDBACK_LABELS[checkers.teacherFeedback[0].feedbackId],
@@ -1372,27 +1386,22 @@ export function CheckersModuleExperience(props: CheckersModuleExperienceProps): 
             : {}),
         }}
         onOpen={(id) => {
-          if (id === 'bot-ladder') setSurface('bots');
-          else if (id === 'class-play') {
+          if (id === 'bot-play') setSurface('bots');
+          else if (id === 'resume-bot-game') {
+            setActivePuzzle(null);
+            setSurface('play');
+          } else if (id.startsWith('class-game:')) {
+            const gameId = id.slice('class-game:'.length);
+            setActiveClassGameId(gameId);
+            setReviewPly(0);
+            setSurface('class');
+          } else if (id === 'class-play') {
             void checkers.refreshClassPlay();
             setSurface('class');
-          } else if (id === 'review-queue') {
-            const dueConcept = document.education.progress.find(
-              (item) => item.nextReviewAt && Date.parse(item.nextReviewAt) <= Date.now(),
-            )?.conceptId;
-            const reviewPuzzle = dueConcept
-              ? CHECKERS_PRACTICE_PUZZLES.find((puzzle) => puzzle.conceptIds.includes(dueConcept))
-              : null;
-            if (reviewPuzzle) startPuzzle(reviewPuzzle);
-            else {
-              checkers.setNotice(
-                'На сегодня обязательных повторений нет. Можно продолжить учебный путь.',
-              );
-              setSurface('learning');
-            }
-          } else if (document.education.assignments.some((assignment) => assignment.id === id)) {
+          } else if (id === 'learning-path') setSurface('learning');
+          else if (document.education.assignments.some((assignment) => assignment.id === id)) {
             openAssignedWork(id);
-          } else setSurface('learning');
+          }
         }}
       />
     );

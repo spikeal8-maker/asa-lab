@@ -119,9 +119,10 @@ test('learner solves an original Russian-64 task, reloads progress and receives 
   await page.getByRole('button', { name: 'Играть: Шашки', exact: true }).click();
   await expect(page).toHaveURL(new RegExp(`/#/games/checkers/${projectId}$`));
 
-  await expect(page.getByRole('heading', { name: /твой следующий ход/ })).toBeVisible();
-  await expect(page.getByText('Здесь собраны задания, обучение, игры и повторение')).toBeVisible();
-  await page.getByRole('button', { name: 'Продолжить' }).click();
+  await expect(page.getByRole('heading', { name: 'Выберите, как хотите играть' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Играть с ботом' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Задачи и обучение' })).toBeVisible();
+  await page.getByRole('button', { name: 'Открыть задачи' }).click();
   await expect(page.getByRole('heading', { name: 'Путь русских шашек' })).toBeVisible();
   await expect(page.getByText('0 / 22 практик')).toBeVisible();
   await page
@@ -151,9 +152,9 @@ test('learner solves an original Russian-64 task, reloads progress and receives 
   });
 
   await page.reload();
-  await expect(page.getByRole('heading', { name: /твой следующий ход/ })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Выберите, как хотите играть' })).toBeVisible();
   await expect(page.getByText('1 из 22 практик')).toBeVisible();
-  await page.getByRole('button').filter({ hasText: 'Искра' }).click();
+  await page.getByRole('button', { name: 'Выбрать бота' }).click();
   await expect(page.getByRole('heading', { name: /Шесть соперников/ })).toBeVisible();
   await page
     .getByRole('article')

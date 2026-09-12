@@ -8,7 +8,7 @@ import {
   buildCheckersTeacherModel,
   resolveCheckersLandingSurface,
 } from '../CheckersModuleExperience';
-import { CheckersStudentHome } from '../CheckersStudentHome';
+import { CheckersLobby } from '../CheckersLobby';
 import { CheckersTeacherDashboard } from '../CheckersTeacherDashboard';
 import { CheckersWorkspace } from '../CheckersWorkspace';
 import { isRecoverableCheckersChunkError } from '../load-checkers-editor';
@@ -141,42 +141,65 @@ describe('Checkers presentation contract', () => {
     expect(markup).toContain('data-movable="true"');
   });
 
-  it('renders the student aggregate around one clear next action', () => {
+  it('renders a game-first lobby without a generic continue action', () => {
     const markup = renderToStaticMarkup(
-      createElement(CheckersStudentHome, {
+      createElement(CheckersLobby, {
         projectTitle: 'Шашки 5Б',
         onBack: () => undefined,
         model: {
           studentName: 'Маша',
-          recommendation: {
-            id: 'assignment-1',
-            eyebrow: 'Сначала это',
-            title: 'Обязательное взятие',
-            description: 'Задание от педагога до завтра.',
-            progressLabel: '2 из 5 позиций',
-            progressPercent: 40,
-            actionLabel: 'Продолжить',
-          },
           assignments: [],
-          reviewCount: 3,
-          learningUnit: 4,
-          learningUnitsTotal: 11,
-          masteryPercent: 62,
+          learningProgressLabel: '1 из 22 практик',
+          learningProgressPercent: 5,
           currentBotName: 'Следопыт',
-          botRung: 2,
-          botRungsTotal: 6,
           classPlayAvailable: true,
+          classGameCount: 1,
         },
         onOpen: () => undefined,
       }),
     );
 
-    expect(markup).toContain('Маша, твой следующий ход');
-    expect(markup).toContain('Здесь собраны задания, обучение, игры и повторение');
-    expect(markup).toContain('Обязательное взятие');
-    expect(markup).toContain('Вместе — без открытого чата');
+    expect(markup).toContain('Выберите, как хотите играть');
+    expect(markup).toContain('Играть с ботом');
+    expect(markup).toContain('Играть вдвоём');
+    expect(markup).toContain('Играть с другом');
+    expect(markup).toContain('Играть в классе');
+    expect(markup).toContain('Задачи и обучение');
+    expect(markup).toContain('Мои партии');
+    expect(markup).toContain('Будет в CK-103');
+    expect(markup).toContain('Будет в CK-106');
+    expect(markup).not.toContain('>Продолжить<');
   });
 
+  it('shows resume only with explicit match context', () => {
+    const markup = renderToStaticMarkup(
+      createElement(CheckersLobby, {
+        projectTitle: 'Шашки 5Б',
+        onBack: () => undefined,
+        model: {
+          studentName: 'Маша',
+          resume: {
+            id: 'resume-bot-game',
+            title: 'Партия с Искрой',
+            detail: 'Вы играете тёмными · ваш ход',
+          },
+          assignments: [],
+          learningProgressLabel: '4 из 22 практик',
+          learningProgressPercent: 18,
+          currentBotName: 'Искра',
+          classPlayAvailable: false,
+          classGameCount: 0,
+        },
+        onOpen: () => undefined,
+      }),
+    );
+
+    expect(markup).toContain('Незавершённая партия');
+    expect(markup).toContain('Партия с Искрой');
+    expect(markup).toContain('Вы играете тёмными · ваш ход');
+    expect(markup).toContain('Продолжить партию');
+    expect(markup).not.toContain('>Продолжить<');
+  });
   it('keeps the Electronics-like ASA header and removes free-form child chat', () => {
     const markup = renderToStaticMarkup(
       createElement(CheckersWorkspace, {
