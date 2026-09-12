@@ -19,7 +19,13 @@ RUN set -eux; \
     . /tmp/scratch-upstream.env; \
     test "$(node -p "require('./package.json').version")" = "$SCRATCH_EDITOR_VERSION"; \
     HUSKY=0 npm ci --no-audit --no-fund; \
-    npm run build; \
+    npm run build --workspace=@scratch/task-herder; \
+    npm run build --workspace=@scratch/scratch-storage; \
+    npm run build --workspace=@scratch/scratch-svg-renderer; \
+    npm run build --workspace=@scratch/scratch-paint; \
+    npm run build --workspace=@scratch/scratch-render; \
+    npm run build --workspace=@scratch/scratch-vm; \
+    npm run build:dist-standalone --workspace=@scratch/scratch-gui; \
     test -f packages/scratch-gui/dist/scratch-gui-standalone.js
 
 FROM nginx:1.27.5-alpine

@@ -31,7 +31,7 @@ Read only the matching entries in `components/module.yaml` and `components/host.
 ../VSCR-D0-001-SCRATCH-HOST-CONTRACT.md → Upstream provenance + Host layout
 infra/scratch-editor/upstream.env
 current infra/scratch-editor/Dockerfile
-current infra/scratch-editor/nginx.conf
+current infra/scratch-editor/nginx.conf  # M0 config being replaced
 ```
 
 ## Expected write paths
@@ -39,6 +39,7 @@ current infra/scratch-editor/nginx.conf
 ```text
 infra/scratch-editor/Dockerfile
 infra/scratch-editor/nginx.conf.template
+infra/scratch-editor/nginx.conf              # delete after template takeover
 infra/scratch-editor/README.md
 infra/scratch-editor/host/index.html
 infra/scratch-editor/host/main.js

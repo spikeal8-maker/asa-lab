@@ -68,6 +68,11 @@ jobs:
       - name: Focused Blocks boundary gate
         run: pnpm gate:blocks-m1-001
 
+      - name: Validate M1-002A host sources
+        run: |
+          pnpm exec prettier --check infra/scratch-editor/host/index.html infra/scratch-editor/host/main.js infra/scratch-editor/host/host.css infra/scratch-editor/README.md docs/product/visual-programming/components/host.yaml docs/product/visual-programming/tasks/VSCR-M1-002A.md
+          node tools/validate-blocks-docs.mjs
+
   runtime-image:
     name: Standalone host image and health smoke
     runs-on: ubuntu-24.04
