@@ -9,24 +9,22 @@ development_policy:
   lane_path_ownership: advisory
 
 task:
-  id: VSCR-M1-001
+  id: VSCR-M1-002A
   issue: 183
-  branch: agent/vscr-m1-001
+  branch: codex/vscr-m1-002a-host-shell
   base_branch: main
-  pr: 187
-  pr_draft: false
-  status: done
-  checkpoint: m1_001_owner_accepted_merged
-  owner_acceptance: accepted
+  pr: null
+  pr_draft: true
+  status: in_progress
+  checkpoint: m1_002a_owner_authorized_execution
+  owner_acceptance: pending
 
 revisions:
-  convergence_baseline_sha: 3fe1e298422c225843db7fcda927b27221159a18
-  head_sha: a0e2967dbe7f6ba5ed6e5c4b0622761e2752befc
-  owner_accepted_sha: a0e2967dbe7f6ba5ed6e5c4b0622761e2752befc
-  product_merge_sha: b00044f47324e820498b93e23c027e4e6cc2af6c
+  convergence_baseline_sha: e82267de2b64170355fd798054a991a96bb820a1
+  head_sha: e82267de2b64170355fd798054a991a96bb820a1
 
 execution_lease:
-  executor_id: codex-vscr-m1-001
+  executor_id: codex-vscr-m1-002a
   holder: unassigned
   acquired_at: null
   expires_at: null
@@ -45,6 +43,9 @@ gates:
 primary_lane:
   id: visual-programming
   worktree_id: visual-programming-m1
+  milestone:
+    id: VSCR-M1-002
+    owner_authorization: accepted
   owned_paths:
     - contexts/blocks/**
     - infra/scratch-editor/**
