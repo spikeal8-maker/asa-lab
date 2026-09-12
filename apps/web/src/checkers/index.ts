@@ -6,6 +6,11 @@ export {
   type CheckersLobbyViewModel,
 } from './CheckersLobby';
 export {
+  CheckersBotSetup,
+  resolveCheckersBotSideChoice,
+  type CheckersBotSideChoice,
+} from './CheckersBotSetup';
+export {
   CheckersWorkspace,
   type CheckersMoveHistoryItem,
   type CheckersWorkspaceMove,

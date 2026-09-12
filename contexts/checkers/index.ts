@@ -20,6 +20,7 @@ export { CHECKERS_MODULE, type CheckersAnalysisSummary } from './module.js';
 export {
   createInitialCheckersProjectDocument,
   validateCheckersProjectDocument,
+  type CheckersBotGameMode,
   type CheckersEducationState,
   type CheckersProjectDocument,
 } from './domain/project.js';
@@ -113,7 +114,11 @@ export {
   type CheckersReviewInsight,
   type CheckersReviewTheme,
 } from './domain/review.js';
-export { applyCheckersGameMove } from './domain/game.js';
+export {
+  applyCheckersGameMove,
+  checkersOutcomeForSide,
+  type CheckersSideOutcome,
+} from './domain/game.js';
 export {
   createAuthoredCheckersPositionReference,
   isAuthoredCheckersPositionReference,
