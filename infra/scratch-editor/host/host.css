@@ -1,0 +1,37 @@
+:root {
+  font-family:
+    Inter,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    sans-serif;
+  color: #0b3558;
+  background: #f7fafc;
+}
+
+html,
+body,
+.asa-scratch-host {
+  width: 100%;
+  min-height: 100%;
+  margin: 0;
+}
+
+body {
+  min-height: 100vh;
+}
+
+.asa-scratch-host {
+  min-height: 100vh;
+  position: relative;
+}
+
+.asa-scratch-editor-root {
+  min-height: 100vh;
+}
+
+.asa-scratch-runtime-status {
+  margin: 0;
+  padding: 1rem;
+}

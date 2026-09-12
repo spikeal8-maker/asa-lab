@@ -65,11 +65,11 @@ jobs:
       - name: Install exact dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Focused Blocks M1-001 gate
-        run: pnpm gate:blocks-m1-001
+      - name: Focused M1-002A gate
+        run: pnpm gate:blocks-m1-002a
 
   runtime-image:
-    name: Pinned upstream image and health smoke
+    name: Standalone host image and health smoke
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     concurrency:
@@ -83,13 +83,31 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
 
-      - name: Build pinned Scratch Editor image
-        run: docker build -f infra/scratch-editor/Dockerfile -t asa-lab-scratch-editor:m0 .
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+          run_install: false
 
-      - name: Start isolated Scratch Editor
-        run: docker run -d --name asa-lab-scratch-editor -p 127.0.0.1:4613:8080 asa-lab-scratch-editor:m0
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
 
-      - name: Verify health and editor document
+      - name: Install exact dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Chromium for host smoke
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Build pinned Scratch standalone host image
+        run: docker build -f infra/scratch-editor/Dockerfile -t asa-lab-scratch-editor:m1-002a .
+
+      - name: Start isolated Scratch host
+        run: docker run -d --name asa-lab-scratch-editor -p 127.0.0.1:4613:8080 asa-lab-scratch-editor:m1-002a
+
+      - name: Verify host shell, standalone bundle and provenance
         run: |
           for attempt in $(seq 1 30); do
             if curl --fail --silent --show-error http://127.0.0.1:4613/healthz; then
@@ -98,7 +116,21 @@ jobs:
             sleep 1
           done
           curl --fail --silent --show-error http://127.0.0.1:4613/healthz
-          curl --fail --silent --show-error http://127.0.0.1:4613/ | grep -F 'Scratch 3.0 GUI'
+          root_document="$(curl --fail --silent --show-error http://127.0.0.1:4613/)"
+          printf '%s' "$root_document" | grep -F 'data-asa-scratch-host="m1-002a"'
+          if printf '%s' "$root_document" | grep -F 'Scratch 3.0 GUI'; then
+            echo 'Upstream playground root is still being served' >&2
+            exit 1
+          fi
+          docker exec asa-lab-scratch-editor test -f /usr/share/nginx/html/vendor/scratch/scratch-gui-standalone.js
+          docker exec asa-lab-scratch-editor test ! -f /usr/share/nginx/html/standalone.html
+          docker exec asa-lab-scratch-editor grep -F 'SCRATCH_EDITOR_COMMIT=82c5fea6d3e60c781f25c09b375045f9b46a43f7' /usr/share/nginx/html/licenses/scratch-editor-upstream.env
+          curl --fail --silent --show-error --output /dev/null http://127.0.0.1:4613/vendor/scratch/scratch-gui-standalone.js
+
+      - name: Browser smoke ASA host shell
+        env:
+          BLOCKS_RUNTIME_URL: http://127.0.0.1:4613
+        run: pnpm test:blocks-m1-002a:browser
 
       - name: Show runtime logs
         if: always()

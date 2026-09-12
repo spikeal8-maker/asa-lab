@@ -1,16 +1,14 @@
-# ASA Lab Scratch Editor runtime — M0
+# ASA Lab Scratch Editor runtime — M1-002A
 
-This directory builds the official open-source Scratch Editor as an isolated
-runtime for ASA Lab visual programming. It is intentionally not part of the
-main `apps/web` dependency graph.
+This directory builds the pinned open-source Scratch Editor as an isolated runtime for ASA Lab
+visual programming. Scratch GUI/VM remains outside the `apps/web` dependency graph.
 
 ## Upstream lock
 
-`upstream.env` is the source of truth for the exact upstream repository, commit
-and Scratch Editor package version. The Docker build checks both the fetched
-commit and the root package version before it runs `npm ci`.
+`upstream.env` is the source of truth for the exact upstream repository, commit and package
+version. The Docker build verifies the fetched commit and root package version before building.
 
-M0 lock:
+Current reviewed lock:
 
 - repository: `scratchfoundation/scratch-editor`
 - commit: `82c5fea6d3e60c781f25c09b375045f9b46a43f7`
@@ -19,56 +17,66 @@ M0 lock:
 - official `v15.1.1` tag commit for comparison: `99bcc17e0580588f181f8a87577a2f676537a487`
 - upstream license at the ASA pin: `AGPL-3.0-only`
 
-The ASA pin is intentionally nine dependency-maintenance commits after the
-release tag. The reviewed tag→pin compare changes package manifests/lockfile
-only and no Scratch source-code files. The current pin is retained deliberately;
-it must not be described as the official tag commit.
+The ASA pin is intentionally retained. Do not replace it with `develop`, `main`, `latest`, a
+mutable ref or an unpinned npm range.
 
-Do not replace the commit with `develop`, `main`, `latest`, a mutable ref or an
-unpinned npm range. Upstream updates must arrive as reviewed ASA Lab changes
-with exact diff, compatibility, security/license and build/browser evidence.
+## M1-002A runtime shape
 
-## Build and run the isolated runtime
+The upstream build produces the shipping standalone UMD distribution under
+`packages/scratch-gui/dist/`. The runtime image packages that distribution only under:
 
-From the ASA Lab repository root:
-
-```bash
-docker build -f infra/scratch-editor/Dockerfile -t asa-lab-scratch-editor:m0 .
-docker run --rm --name asa-lab-scratch-editor -p 127.0.0.1:4613:8080 asa-lab-scratch-editor:m0
+```text
+/usr/share/nginx/html/vendor/scratch/
 ```
 
-Then open `http://127.0.0.1:4613/`.
+The nginx root is ASA-owned and contains:
 
-The container has no ASA Lab database and no ASA Lab authentication. In M0 it
-only proves that the pinned editor can be built and served behind its own build
-boundary. Port `4613` is the local preview port; the container itself listens on
-`8080`.
+```text
+index.html
+main.js
+host.css
+vendor/scratch/scratch-gui-standalone.js
+licenses/
+```
 
-## Deliberate M0 limits
+`/` therefore serves the ASA host shell, never upstream `packages/scratch-gui/build/index.html`
+or its playground pages.
 
-M0 does **not** claim any of the following:
+The M1-002A `main.js` is composition-only. It verifies that the standalone bundle exposes the
+reviewed integration primitives (`EditorState`, `createStandaloneRoot`, `setAppElement`) and
+marks the shell ready. It deliberately does **not** mount the Scratch editor yet.
 
-- save/load integration with Project Core;
-- object-storage persistence of costumes or sounds;
-- `.sb3` import/export or universal historical `.sb3` compatibility;
-- network independence from Scratch services;
-- cloud variables;
-- hardware extensions through Scratch Link;
-- production reverse-proxy routing.
+## Build and run
 
-Those are acceptance items for later VSCR milestones. Keeping the ASA module
-`coming_soon` prevents a learner from entering an editor that cannot yet persist
-work safely.
+From the repository root:
 
-Historical `.sb3` media compatibility is governed by
-`docs/product/visual-programming/VSCR-D0-007-SB3-IMPORT-COMPATIBILITY-CONTRACT.md`;
-canonical ASA durable media remains `svg/png/jpg/wav/mp3` until a tested import
-normalisation path is accepted.
+```bash
+docker build -f infra/scratch-editor/Dockerfile -t asa-lab-scratch-editor:m1-002a .
+docker run --rm --name asa-lab-scratch-editor -p 127.0.0.1:4613:8080 \
+  asa-lab-scratch-editor:m1-002a
+```
 
-## License and branding
+Health endpoint:
 
-The runtime image copies the upstream Scratch Editor license and exact upstream
-lock into `/licenses/`. Before a public branded release, ASA Lab must also review
-Scratch Foundation trademark requirements and all media-asset licensing. The ASA
-product remains branded as ASA Lab visual programming rather than implying an
-official Scratch Foundation service.
+```text
+http://127.0.0.1:4613/healthz
+```
+
+## Deliberate M1-002A limits
+
+This slice does not implement or claim:
+
+- ASA/Scratch logo patching or removal of upstream product chrome;
+- File/menu/Extensions product-control changes;
+- parent/iframe protocol or runtime capability authentication;
+- `ScratchStorage` adapter or Project Core persistence;
+- autosave, recovery or `.sb3` import/export;
+- public activation or sovereign/offline media libraries.
+
+Those belong to later separately authorised slices. The Blocks module remains `coming_soon`.
+
+## License and provenance
+
+The runtime image preserves the upstream Scratch Editor AGPL license, Scratch GUI trademark
+notice and exact `upstream.env` lock under `/licenses/`. Future pin changes require reviewed
+diff, compatibility, dependency/security/license and build/browser evidence.
