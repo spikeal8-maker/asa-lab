@@ -122,11 +122,26 @@ export function writeStoredCheckersBotPlayerSide(
   storage.setItem(botPlayerSideStorageKey(projectId), side);
 }
 
+export function shouldRunCheckersBotTurn(
+  document: CheckersProjectDocument,
+  playerSideKnown: boolean,
+  playerSide: 'light' | 'dark',
+): boolean {
+  return (
+    playerSideKnown &&
+    document.activeMatch.mode === 'bot' &&
+    document.game.mode === 'game' &&
+    document.game.result === '*' &&
+    document.game.sideToMove !== playerSide
+  );
+}
+
 export function shouldProgressCheckersBotCampaign(
   document: CheckersProjectDocument,
   playerSide: 'light' | 'dark',
 ): boolean {
   return (
+    document.activeMatch.mode === 'bot' &&
     document.education.activeBotMode === 'campaign' &&
     checkersOutcomeForSide(document.game.result, playerSide) === 'win'
   );
@@ -471,7 +486,11 @@ export function useCheckersProject(projectId: string, user: PublicUser) {
         game,
         education: { ...document.education, lastActivityAt: nowIso() },
       };
-      if (document.game.result === '*' && game.result !== '*') {
+      if (
+        document.activeMatch.mode === 'bot' &&
+        document.game.result === '*' &&
+        game.result !== '*'
+      ) {
         next = progressionAfterWin(next, botPlayerSide);
       }
       commit(next, message);
@@ -493,14 +512,7 @@ export function useCheckersProject(projectId: string, user: PublicUser) {
   }
 
   useEffect(() => {
-    if (
-      !document ||
-      !botPlayerSideKnown ||
-      document.game.mode !== 'game' ||
-      document.game.result !== '*' ||
-      document.game.sideToMove === botPlayerSide
-    )
-      return;
+    if (!document || !shouldRunCheckersBotTurn(document, botPlayerSideKnown, botPlayerSide)) return;
     const selected = CHECKERS_BOTS.find((bot) => bot.id === document.education.selectedBotId);
     if (
       !selected ||
@@ -582,6 +594,7 @@ export function useCheckersProject(projectId: string, user: PublicUser) {
       {
         ...document,
         game: createInitialCheckersDocument('game'),
+        activeMatch: { ...document.activeMatch, mode: 'bot' },
         education: {
           ...document.education,
           selectedBotId: botId,
@@ -607,6 +620,49 @@ export function useCheckersProject(projectId: string, user: PublicUser) {
       { ...document.game, result: botPlayerSide === 'light' ? '0-1' : '1-0' },
       'Партия завершена. Можно открыть разбор или начать новую.',
     );
+  }
+
+  function startLocalGame(localAutoFlip = true): boolean {
+    if (!document) return false;
+    botTask.current += 1;
+    setBotThinking(false);
+    commit(
+      {
+        ...document,
+        game: createInitialCheckersDocument('game'),
+        activeMatch: { mode: 'local', localAutoFlip },
+        education: { ...document.education, lastActivityAt: nowIso() },
+      },
+      localAutoFlip
+        ? 'Локальная партия началась. Доска будет поворачиваться к стороне хода.'
+        : 'Локальная партия началась. Доска остаётся со стороны светлых.',
+    );
+    return true;
+  }
+
+  function resignLocalGame(): void {
+    if (
+      !document ||
+      document.activeMatch.mode !== 'local' ||
+      document.game.mode !== 'game' ||
+      document.game.result !== '*'
+    )
+      return;
+    commitGame(
+      { ...document.game, result: document.game.sideToMove === 'light' ? '0-1' : '1-0' },
+      'Локальная партия завершена сдачей текущей стороны.',
+    );
+  }
+
+  function drawLocalGame(): void {
+    if (
+      !document ||
+      document.activeMatch.mode !== 'local' ||
+      document.game.mode !== 'game' ||
+      document.game.result !== '*'
+    )
+      return;
+    commitGame({ ...document.game, result: '1/2-1/2' }, 'Локальная партия завершена вничью.');
   }
 
   function openLesson(game: CheckersProjectDocument['game'], title: string): void {
@@ -916,6 +972,9 @@ export function useCheckersProject(projectId: string, user: PublicUser) {
     playMove,
     startBotGame,
     resignBotGame,
+    startLocalGame,
+    resignLocalGame,
+    drawLocalGame,
     openLesson,
     completePuzzle,
     recordPuzzleFailure,

@@ -20,6 +20,8 @@ export { CHECKERS_MODULE, type CheckersAnalysisSummary } from './module.js';
 export {
   createInitialCheckersProjectDocument,
   validateCheckersProjectDocument,
+  type CheckersActiveMatchMode,
+  type CheckersActiveMatchState,
   type CheckersBotGameMode,
   type CheckersEducationState,
   type CheckersProjectDocument,

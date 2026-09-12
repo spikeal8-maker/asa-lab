@@ -11,6 +11,7 @@ describe('persisted Checkers project document', () => {
     expect(project).toMatchObject({
       kind: 'asa-checkers-project',
       game: { ruleset: 'russian-64', pieces: expect.any(Array) },
+      activeMatch: { mode: 'bot', localAutoFlip: false },
       education: {
         selectedBotId: 'iskra',
         activeBotMode: 'free',
@@ -30,6 +31,16 @@ describe('persisted Checkers project document', () => {
     if (!parsed.ok) return;
     expect(parsed.value.game).toEqual(legacy);
     expect(parsed.value.education.progress).toHaveLength(18);
+  });
+
+  it('upgrades CK-102 project state to a bot match without losing the saved game', () => {
+    const project = createInitialCheckersProjectDocument('student-1');
+    const { activeMatch: _activeMatch, ...legacyProject } = project;
+    const parsed = validateCheckersProjectDocument(legacyProject);
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(parsed.value.activeMatch).toEqual({ mode: 'bot', localAutoFlip: false });
+    expect(parsed.value.game).toEqual(project.game);
   });
 
   it('upgrades CK-101 education state to campaign mode without losing progression', () => {
@@ -59,5 +70,11 @@ describe('persisted Checkers project document', () => {
         },
       }),
     ).toEqual({ ok: false, message: 'education.completedPuzzleIds is invalid' });
+    expect(
+      validateCheckersProjectDocument({
+        ...project,
+        activeMatch: { mode: 'online', localAutoFlip: true },
+      }),
+    ).toEqual({ ok: false, message: 'checkers active match state is invalid' });
   });
 });
