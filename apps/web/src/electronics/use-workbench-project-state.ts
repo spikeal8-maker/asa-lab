@@ -12,7 +12,7 @@ import { defaultProductionType, productionBreadboard } from './production-manife
 import { snapComponentToBreadboard } from './workbench-document';
 import type { HistoryState } from './workbench-model';
 import { autosaveIsDue, draftSaveStatus } from './workbench-autosave';
-import { prepareLiveSimulationStart } from './live-simulation';
+
 import { electronicsDocumentsEqual, mergeElectronicsDocuments } from './electronics-document-merge';
 import type { EditorPersistenceIssue } from '../components/editor-chrome/EditorPersistenceIndicator';
 import {
@@ -586,10 +586,8 @@ export function useWorkbenchProjectState(projectId: string) {
       setNotice(null);
       return;
     }
-    setSimulationStatus('validating');
-    const start = prepareLiveSimulationStart(document);
-    setResult(start.result);
     setSimulationStatus('starting');
+    setResult(null);
     setSimulationRunning(true);
     setSimulationStatus('running');
     // Circuits starts immediately and keeps the stage quiet. Electrical
