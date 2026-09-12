@@ -122,18 +122,18 @@ const initMessage = {
 async function runtimeFrame(page) {
   const iframe = page.locator('#runtime-frame');
   await iframe.waitFor({ state: 'attached' });
-
-  let frame = null;
-  for (let attempt = 0; attempt < 50; attempt += 1) {
-    const handle = await iframe.elementHandle();
-    frame = await handle?.contentFrame();
-    if (frame) break;
-    await page.waitForTimeout(100);
-  }
-
-  if (!frame) throw new Error('runtime iframe is unavailable after waiting');
+  const frame = page.frameLocator('#runtime-frame');
   await frame.locator('[data-asa-host-shell]').waitFor({ state: 'visible' });
   return frame;
+}
+
+async function waitForRuntimeState(frame, expected) {
+  const shell = frame.locator('[data-asa-host-shell]');
+  for (let attempt = 0; attempt < 50; attempt += 1) {
+    if ((await shell.getAttribute('data-runtime-state')) === expected) return;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  throw new Error(`runtime state did not reach ${expected}`);
 }
 
 async function rejectionCount(frame) {
@@ -155,11 +155,7 @@ try {
   const page = await context.newPage();
   await page.goto(`${parentOrigin}/parent`, { waitUntil: 'domcontentloaded' });
   const frame = await runtimeFrame(page);
-  await frame.waitForFunction(
-    () =>
-      document.querySelector('[data-asa-host-shell]')?.getAttribute('data-runtime-state') ===
-      'awaiting-init',
-  );
+  await waitForRuntimeState(frame, 'awaiting-init');
 
   const editorChildren = await frame
     .locator('#scratch-editor-root')
@@ -188,11 +184,7 @@ try {
   if ((await rejectionCount(frame)) !== 3) throw new Error('wrong project INIT was not rejected');
 
   await sendFromParent(page, initMessage);
-  await frame.waitForFunction(
-    () =>
-      document.querySelector('[data-asa-host-shell]')?.getAttribute('data-runtime-state') ===
-      'init-accepted',
-  );
+  await waitForRuntimeState(frame, 'init-accepted');
 
   const receivedAfterInit = await page.evaluate(() => window.__blocksMessages);
   if (
@@ -204,8 +196,8 @@ try {
     throw new Error('parent did not receive bound init-accepted status');
   }
 
-  const persistenceLeak = await frame.evaluate(
-    (token) => ({
+  const persistenceLeak = await frame.locator('html').evaluate(
+    (_node, token) => ({
       url: location.href.includes(token),
       html: document.documentElement.outerHTML.includes(token),
       local: Object.values(localStorage).some((value) => value.includes(token)),
@@ -256,7 +248,7 @@ try {
   if (flushResult?.ok !== false || flushResult?.reason !== 'storage_not_available') {
     throw new Error(`unexpected flush result: ${JSON.stringify(flushResult)}`);
   }
-  await frame.evaluate(() => {
+  await frame.locator('body').evaluate(() => {
     setTimeout(() => {
       throw new Error('protocol-fixture-fatal');
     }, 0);
@@ -267,11 +259,7 @@ try {
   const wrongOriginPage = await context.newPage();
   await wrongOriginPage.goto(`${alternateParentOrigin}/parent`, { waitUntil: 'domcontentloaded' });
   const wrongOriginFrame = await runtimeFrame(wrongOriginPage);
-  await wrongOriginFrame.waitForFunction(
-    () =>
-      document.querySelector('[data-asa-host-shell]')?.getAttribute('data-runtime-state') ===
-      'awaiting-init',
-  );
+  await waitForRuntimeState(wrongOriginFrame, 'awaiting-init');
   await sendFromParent(wrongOriginPage, initMessage);
   await wrongOriginPage.waitForTimeout(50);
   if (
