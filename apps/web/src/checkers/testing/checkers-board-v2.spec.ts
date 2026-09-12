@@ -75,4 +75,24 @@ describe('CK-104 Board V2', () => {
     expect(markup).toContain('checkers-v2-crown');
     expect(markup).toContain('<svg');
   });
+
+  it('shows the complete numbered route for a multi-capture choice', () => {
+    const markup = renderToStaticMarkup(
+      createElement(CheckersBoardV2, {
+        pieces,
+        selectedPieceId: 'light-c3',
+        legalDestinations: ['g7'],
+        captureDestinations: ['g7'],
+        capturePaths: [['c3', 'e5', 'g7']],
+        movablePieceIds: ['light-c3'],
+        forcedCapturePieceIds: ['light-c3'],
+      }),
+    );
+
+    expect(markup).toContain('checkers-v2-capture-routes');
+    expect(markup.match(/checkers-v2-capture-step/g)).toHaveLength(2);
+    expect(markup).toContain('marker-end="url(#checkers-capture-arrow)"');
+    expect(markup).toContain('>1</span>');
+    expect(markup).toContain('>2</span>');
+  });
 });
