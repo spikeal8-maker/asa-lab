@@ -6,12 +6,16 @@ execution state lives only in `docs/execution/current.yaml`.
 
 An owner instruction may authorise selecting/updating a task in the control plane, but does
 not bypass `current.yaml`. Coding/review/design work starts only when the exact task ID is
-selected there.
+selected there **and** `task.status` is `in_progress`.
+
+M1-001 historical note: its post-implementation review-only pass was performed in the same
+authoring agent context, so it is recorded as repeated bounded self-review + owner acceptance,
+not independent review. From M1-002C onward, HIGH/CRITICAL independent review is literal.
 
 Default flow:
 
 ```text
-current.yaml selects exact task
+current.yaml selects exact task with task.status = in_progress
 → read only that task card
 → resolve its component IDs in ../COMPONENT_MAP.yaml
 → open only referenced subsystem card entries

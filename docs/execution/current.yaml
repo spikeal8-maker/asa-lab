@@ -34,7 +34,7 @@ execution_lease:
 
 gates:
   focused:
-    workflow: Scratch M0 Focused
+    workflow: Scratch Focused
     commands:
       - pnpm gate:blocks-m1-001
   general:
@@ -47,10 +47,10 @@ primary_lane:
   worktree_id: visual-programming-m1
   owned_paths:
     - contexts/blocks/**
-    - apps/api/src/blocks-module.ts
-    - apps/api/src/blocks-module.spec.ts
-    - docs/product/visual-programming/components/module.yaml
-    - docs/product/visual-programming/components/assets.yaml
+    - infra/scratch-editor/**
+    - docs/product/visual-programming/**
+    - docs/product/ASA_VISUAL_PROGRAMMING_SCRATCH_MASTER_SPEC.md
+    - docs/architecture/ADR-VSCR-001-SCRATCH-EDITOR-INTEGRATION.md
 
 parallel_lanes:
   - id: admin-auth

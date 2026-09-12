@@ -3,7 +3,7 @@
 **Kind:** executable implementation slice  
 **Risk:** high  
 **Prerequisite:** VSCR-M1-002B accepted.  
-**Execution:** coding starts only when `docs/execution/current.yaml.task.id` is exactly `VSCR-M1-002C`.
+**Execution:** coding starts only when `docs/execution/current.yaml.task.id` is exactly `VSCR-M1-002C` **and** `docs/execution/current.yaml.task.status` is exactly `in_progress`; `docs/execution/current.yaml.primary_lane.milestone.id` must be exactly `VSCR-M1-002` and its `owner_authorization` must be `accepted`.
 
 ## Goal
 

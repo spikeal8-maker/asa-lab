@@ -10,7 +10,7 @@ implement the following product milestone.
 **Kind:** design decision slice
 **Risk:** <low | medium | high | critical>
 **Prerequisite:** <accepted previous interfaces>
-**Execution:** work starts only when docs/execution/current.yaml.task.id is exactly <TASK-ID>.
+**Execution:** work starts only when `docs/execution/current.yaml.task.id` is exactly `<TASK-ID>` **and** `docs/execution/current.yaml.task.status` is exactly `in_progress`.
 ```
 
 ## Goal

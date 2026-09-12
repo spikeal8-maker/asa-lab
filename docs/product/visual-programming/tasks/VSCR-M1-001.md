@@ -3,7 +3,7 @@
 **Kind:** executable implementation slice  
 **Risk:** high
 **Prerequisite:** M0/M0.1 integrated and owner-authorised selection.  
-**Execution:** coding starts only when `docs/execution/current.yaml.task.id` is exactly `VSCR-M1-001`.  
+**Execution:** coding starts only when `docs/execution/current.yaml.task.id` is exactly `VSCR-M1-001` **and** `docs/execution/current.yaml.task.status` is exactly `in_progress`.
 **Behavioral goal:** none; structural extraction only.
 
 ## Goal
@@ -71,7 +71,7 @@ apps/api/src/module-registry.ts
 apps/api/src/blocks-module.ts          # delete after imports migrate
 apps/api/src/blocks-module.spec.ts     # delete/move after tests migrate
 pnpm-lock.yaml                         # workspace-link update only if generated normally
-.github/workflows/scratch-m0-focused.yml # only if moved build/test paths require it
+.github/workflows/scratch-focused.yml # only if moved build/test paths require it
 ../components/module.yaml
 ../components/assets.yaml              # blocks.assets.reference entry only
 ```
@@ -192,11 +192,14 @@ Did I update actual routing paths after moving the provider?
 
 ## Independent review
 
-Because the final slice changes a new bounded-context boundary plus shared build/governance
-integration, acceptance requires a review-only pass after implementation. The reviewer must
-inspect the final diff, boundary enforcement, regenerated Nx graph, exact-SHA CI and the
-forbidden M1-002 scope. A review finding is repaired in a separate bounded commit and then
-reviewed again; the review step does not silently edit product code.
+Current policy for a HIGH slice requires a reviewer that is not the authoring execution context.
+M1-001 was accepted before that distinction was enforced literally; its review-only pass was
+performed by the same authoring agent after implementation was frozen. That pass is classified
+as repeated bounded self-review + owner acceptance, not genuine independent review.
+
+This historical exception is closed with M1-001 and is **not precedent**. Starting with
+M1-002C, every required independent review must be performed by a different agent/context or a
+human reviewer. A same-context second pass cannot satisfy that gate.
 
 ## Stop
 

@@ -106,14 +106,14 @@ AGENTS.md
 
 Не читай весь Scratch-раздел по умолчанию. Сначала определи профиль работы. Scratch coding
 или review начинается только когда `docs/execution/current.yaml` содержит точный выбранный
-Scratch task/scope; readiness или текст запроса сами по себе execution state не заменяют.
+Scratch task/scope; task.status = in_progress; readiness или текст запроса сами по себе execution state не заменяют.
 
 #### Milestone / VSCR implementation
 
 Для выбранного milestone/sub-slice:
 
 ```text
-точный VSCR task ID уже выбран в current.yaml
+точный VSCR task ID уже выбран в current.yaml; task.status = in_progress
 → README router
 → readiness/order из VSCR-M1-FORWARD-PLAN-2026-09-11.md
 → точная tasks/<selected-task>.md
@@ -159,7 +159,7 @@ VSCR-D0-007 — sb3 compatibility / ZIP safety
 Стандартный путь:
 
 ```text
-точный bounded maintenance task/scope уже выбран в current.yaml
+точный bounded maintenance task/scope уже выбран в current.yaml; task.status = in_progress
 → README router
 → COMPONENT_MAP.yaml по human keyword/component ID
 → ровно одна components/*.yaml card

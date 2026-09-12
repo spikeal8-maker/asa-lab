@@ -460,14 +460,34 @@ if (fs.existsSync(taskDir)) {
       text.includes('**Kind:** acceptance/review slice') ||
       text.includes('**Kind:** design decision slice');
     if (requiresExecutionMarker) {
-      if (!text.includes('**Execution:**')) {
+      const executionLine =
+        text.split(/\r?\n/).find((line) => line.startsWith('**Execution:**')) ?? '';
+      if (!executionLine) {
         errors.push(`${relative}: executable/review/design card must declare **Execution:**`);
       }
-      if (!text.includes('docs/execution/current.yaml.task.id')) {
+      if (!executionLine.includes('docs/execution/current.yaml.task.id')) {
         errors.push(`${relative}: execution marker must bind to current.yaml.task.id`);
       }
-      if (!text.includes(taskId)) {
-        errors.push(`${relative}: execution marker/card must name exact task ID ${taskId}`);
+      if (!executionLine.includes('docs/execution/current.yaml.task.status')) {
+        errors.push(`${relative}: execution marker must bind to current.yaml.task.status`);
+      }
+      if (!executionLine.includes('in_progress')) {
+        errors.push(`${relative}: execution marker must require task.status=in_progress`);
+      }
+      if (!executionLine.includes(taskId)) {
+        errors.push(`${relative}: execution marker must name exact task ID ${taskId}`);
+      }
+      if (/^VSCR-M1-002[A-E]$/.test(taskId)) {
+        const milestoneMarkerPresent =
+          executionLine.includes('docs/execution/current.yaml.primary_lane.milestone.id') &&
+          executionLine.includes('VSCR-M1-002') &&
+          executionLine.includes('owner_authorization') &&
+          executionLine.includes('accepted');
+        if (!milestoneMarkerPresent) {
+          errors.push(
+            `${relative}: M1-002 sub-slice execution must bind canonical owner-authorised milestone marker`,
+          );
+        }
       }
 
       const highRisk = taskRisk === 'high' || taskRisk === 'critical';
@@ -477,6 +497,39 @@ if (fs.existsSync(taskDir)) {
         );
       }
     }
+  }
+}
+
+const currentExecution = readYaml('docs/execution/current.yaml');
+const activeScratchTaskId = String(currentExecution?.task?.id ?? '');
+const activeScratchTaskStatus = String(currentExecution?.task?.status ?? '');
+const activeScratchMilestone = currentExecution?.primary_lane?.milestone;
+if (activeScratchMilestone !== undefined) {
+  if (!activeScratchMilestone || typeof activeScratchMilestone !== 'object') {
+    errors.push(
+      'docs/execution/current.yaml: primary_lane.milestone must be a mapping when present',
+    );
+  } else if (
+    activeScratchMilestone.id !== 'VSCR-M1-002' ||
+    activeScratchMilestone.owner_authorization !== 'accepted'
+  ) {
+    errors.push(
+      'docs/execution/current.yaml: Scratch milestone marker must be VSCR-M1-002 with owner_authorization=accepted',
+    );
+  }
+}
+if (
+  /^VSCR-M1-002[A-E]$/.test(activeScratchTaskId) &&
+  ['in_progress', 'in_review'].includes(activeScratchTaskStatus)
+) {
+  if (
+    !activeScratchMilestone ||
+    activeScratchMilestone.id !== 'VSCR-M1-002' ||
+    activeScratchMilestone.owner_authorization !== 'accepted'
+  ) {
+    errors.push(
+      `docs/execution/current.yaml: active ${activeScratchTaskId} requires owner-authorised VSCR-M1-002 milestone marker`,
+    );
   }
 }
 
@@ -549,10 +602,11 @@ console.log('- retired competing docs/addenda absent and unreferenced in active 
 console.log('- implemented source/test paths, symbols and canonical contract headings verified');
 console.log('- shared/large implemented code sources have symbol-level routing');
 console.log(
-  '- executable/design/review task cards are bounded and bind exact current.yaml task IDs',
+  '- executable/design/review task cards bind exact current.yaml task IDs plus task.status=in_progress',
 );
 console.log('- task/design-gate risk cannot understate mapped component risk');
 console.log('- HIGH/CRITICAL executable/design/review slices require independent review');
+console.log('- active M1-002 sub-slices require canonical owner-authorised milestone marker');
 console.log(
   '- blocks bounded-context enforcement is present in Nx rules, boundary validator and graph',
 );
