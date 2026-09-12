@@ -13,6 +13,7 @@ describe('persisted Checkers project document', () => {
       game: { ruleset: 'russian-64', pieces: expect.any(Array) },
       education: {
         selectedBotId: 'iskra',
+        activeBotMode: 'free',
         unlockedBotRung: 1,
         completedPuzzleIds: [],
         assignments: [],
@@ -29,6 +30,16 @@ describe('persisted Checkers project document', () => {
     if (!parsed.ok) return;
     expect(parsed.value.game).toEqual(legacy);
     expect(parsed.value.education.progress).toHaveLength(18);
+  });
+
+  it('upgrades CK-101 education state to campaign mode without losing progression', () => {
+    const project = createInitialCheckersProjectDocument('student-1');
+    const { activeBotMode: _activeBotMode, ...legacyEducation } = project.education;
+    const parsed = validateCheckersProjectDocument({ ...project, education: legacyEducation });
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(parsed.value.education.activeBotMode).toBe('campaign');
+    expect(parsed.value.education.unlockedBotRung).toBe(project.education.unlockedBotRung);
   });
 
   it('rejects tampered bot progression and duplicate puzzle evidence', () => {

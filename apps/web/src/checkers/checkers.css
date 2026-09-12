@@ -2641,3 +2641,102 @@
     min-height: 0;
   }
 }
+
+/* CK-102: standalone free play against bots */
+.checkers-bot-setup {
+  gap: 22px;
+}
+
+.checkers-bot-quick-start,
+.checkers-bot-campaign-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 22px 24px;
+  border: 1px solid #d5e1e6;
+  border-radius: 18px;
+  background: #fff;
+}
+
+.checkers-bot-quick-start h2,
+.checkers-bot-campaign-link h2 {
+  margin: 5px 0 7px;
+}
+
+.checkers-bot-quick-start p,
+.checkers-bot-campaign-link p {
+  margin: 0;
+  color: #50636c;
+}
+
+.checkers-free-side-choice {
+  margin: 0;
+}
+
+.checkers-game-result {
+  margin-top: 16px;
+  padding: 18px 20px;
+  border: 1px solid #c9d9df;
+  border-radius: 16px;
+  background: #fff;
+}
+
+.checkers-game-result > span {
+  display: block;
+  margin-bottom: 4px;
+  color: #63777f;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.checkers-game-result h2,
+.checkers-game-result p {
+  margin: 0;
+}
+
+.checkers-game-result p {
+  margin-top: 5px;
+  color: #50636c;
+}
+
+.checkers-game-result > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 15px;
+}
+
+.checkers-game-result button {
+  min-height: 40px;
+  padding: 0 14px;
+  border: 1px solid #c4d5dc;
+  border-radius: 10px;
+  background: #fff;
+  color: var(--checkers-blue-dark);
+  font: inherit;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.checkers-game-result .checkers-primary-action {
+  border-color: var(--checkers-blue-dark);
+  background: var(--checkers-blue-dark);
+  color: #fff;
+}
+
+@media (max-width: 680px) {
+  .checkers-bot-quick-start,
+  .checkers-bot-campaign-link {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .checkers-bot-quick-start > button,
+  .checkers-bot-campaign-link > button,
+  .checkers-game-result button {
+    width: 100%;
+  }
+}

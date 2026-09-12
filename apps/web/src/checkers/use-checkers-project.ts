@@ -3,6 +3,7 @@ import type {
   CheckersAnalysisSummary,
   CheckersAssignment,
   CheckersAssignmentKind,
+  CheckersBotGameMode,
   CheckersBotId,
   CheckersConceptProgress,
   CheckersDocument,
@@ -34,6 +35,7 @@ const {
   applyCheckersLearningEvidence,
   applyCheckersGameMove,
   chooseCheckersBotMove,
+  checkersOutcomeForSide,
   createInitialCheckersDocument,
   generateLegalCheckersMoves,
   validateCheckersAssignment,
@@ -120,8 +122,21 @@ export function writeStoredCheckersBotPlayerSide(
   storage.setItem(botPlayerSideStorageKey(projectId), side);
 }
 
-function progressionAfterWin(document: CheckersProjectDocument): CheckersProjectDocument {
-  if (document.game.result !== '1-0') return document;
+export function shouldProgressCheckersBotCampaign(
+  document: CheckersProjectDocument,
+  playerSide: 'light' | 'dark',
+): boolean {
+  return (
+    document.education.activeBotMode === 'campaign' &&
+    checkersOutcomeForSide(document.game.result, playerSide) === 'win'
+  );
+}
+
+function progressionAfterWin(
+  document: CheckersProjectDocument,
+  playerSide: 'light' | 'dark',
+): CheckersProjectDocument {
+  if (!shouldProgressCheckersBotCampaign(document, playerSide)) return document;
   const wins = document.education.winsOnCurrentRung + 1;
   const mayUnlock =
     wins >= 2 && document.education.completedPuzzleIds.length >= document.education.unlockedBotRung;
@@ -456,10 +471,12 @@ export function useCheckersProject(projectId: string, user: PublicUser) {
         game,
         education: { ...document.education, lastActivityAt: nowIso() },
       };
-      if (document.game.result === '*' && game.result === '1-0') next = progressionAfterWin(next);
+      if (document.game.result === '*' && game.result !== '*') {
+        next = progressionAfterWin(next, botPlayerSide);
+      }
       commit(next, message);
     },
-    [commit, document],
+    [botPlayerSide, commit, document],
   );
 
   function playMove(move: CheckersLegalMove): void {
@@ -485,7 +502,12 @@ export function useCheckersProject(projectId: string, user: PublicUser) {
     )
       return;
     const selected = CHECKERS_BOTS.find((bot) => bot.id === document.education.selectedBotId);
-    if (!selected || selected.rung > document.education.unlockedBotRung) return;
+    if (
+      !selected ||
+      (document.education.activeBotMode === 'campaign' &&
+        selected.rung > document.education.unlockedBotRung)
+    )
+      return;
     const taskId = botTask.current + 1;
     botTask.current = taskId;
     setBotThinking(true);
@@ -537,15 +559,22 @@ export function useCheckersProject(projectId: string, user: PublicUser) {
 
   function startBotGame(
     botId: CheckersBotId,
-    teacherOverride = false,
     playerSide: 'light' | 'dark' = 'light',
+    mode: CheckersBotGameMode = 'free',
+    allowLockedCampaignBot = false,
   ): boolean {
     if (!document) return false;
     const bot = CHECKERS_BOTS.find((item) => item.id === botId);
-    if (!bot || (!teacherOverride && bot.rung > document.education.unlockedBotRung)) {
-      setNotice('Этот соперник пока закрыт. Пройди задачи и победи предыдущего бота.');
+    const campaignLocked =
+      mode === 'campaign' && bot !== undefined && bot.rung > document.education.unlockedBotRung;
+    if (!bot || (campaignLocked && !allowLockedCampaignBot)) {
+      setNotice(
+        '???? ???????? ???? ?????? ? ??????? ????????. ? ????????? ???? ???????? ??? ????.',
+      );
       return false;
     }
+    botTask.current += 1;
+    setBotThinking(false);
     setBotPlayerSide(playerSide);
     setBotPlayerSideKnown(true);
     writeStoredCheckersBotPlayerSide(window.localStorage, projectId, playerSide);
@@ -556,14 +585,15 @@ export function useCheckersProject(projectId: string, user: PublicUser) {
         education: {
           ...document.education,
           selectedBotId: botId,
-          unlockedBotRung: teacherOverride
+          activeBotMode: mode,
+          unlockedBotRung: allowLockedCampaignBot
             ? Math.max(document.education.unlockedBotRung, bot.rung)
             : document.education.unlockedBotRung,
           lastActivityAt: nowIso(),
         },
       },
-      `Новая партия с ботом «${bot.displayName}». Ты играешь ${
-        playerSide === 'light' ? 'светлыми' : 'тёмными'
+      `????? ${mode === 'free' ? '????????? ' : '??????? '}?????? ? ????? ?${bot.displayName}?. ?? ??????? ${
+        playerSide === 'light' ? '????????' : '???????'
       }.`,
     );
     return true;

@@ -15,8 +15,11 @@ import {
   type CheckersLearningEvidence,
 } from './learning.js';
 
+export type CheckersBotGameMode = 'free' | 'campaign';
+
 export interface CheckersEducationState {
   readonly selectedBotId: CheckersBotId;
+  readonly activeBotMode: CheckersBotGameMode;
   readonly unlockedBotRung: number;
   readonly winsOnCurrentRung: number;
   readonly completedPuzzleIds: readonly string[];
@@ -35,8 +38,20 @@ export interface CheckersProjectDocument {
 }
 
 const PROJECT_KEYS = new Set(['schemaVersion', 'kind', 'game', 'education']);
+const LEGACY_EDUCATION_KEYS = new Set([
+  'selectedBotId',
+  'unlockedBotRung',
+  'winsOnCurrentRung',
+  'completedPuzzleIds',
+  'progress',
+  'evidence',
+  'assignments',
+  'reactionsEnabled',
+  'lastActivityAt',
+]);
 const EDUCATION_KEYS = new Set([
   'selectedBotId',
+  'activeBotMode',
   'unlockedBotRung',
   'winsOnCurrentRung',
   'completedPuzzleIds',
@@ -198,6 +213,7 @@ export function createInitialCheckersProjectDocument(
     game: createInitialCheckersDocument(),
     education: {
       selectedBotId: 'iskra',
+      activeBotMode: 'free',
       unlockedBotRung: 1,
       winsOnCurrentRung: 0,
       completedPuzzleIds: [],
@@ -233,15 +249,20 @@ export function validateCheckersProjectDocument(
   const game = validateCheckersDocument(value['game']);
   if (!game.ok) return game;
   const education = value['education'];
-  if (!isRecord(education) || !hasExactKeys(education, EDUCATION_KEYS)) {
+  if (
+    !isRecord(education) ||
+    (!hasExactKeys(education, EDUCATION_KEYS) && !hasExactKeys(education, LEGACY_EDUCATION_KEYS))
+  ) {
     return { ok: false, message: 'checkers education state has an invalid shape' };
   }
   const selectedBotId = education['selectedBotId'];
+  const activeBotMode = education['activeBotMode'] ?? 'campaign';
   const unlockedBotRung = education['unlockedBotRung'];
   const winsOnCurrentRung = education['winsOnCurrentRung'];
   if (
     typeof selectedBotId !== 'string' ||
     !CHECKERS_BOT_IDS.includes(selectedBotId as CheckersBotId) ||
+    (activeBotMode !== 'free' && activeBotMode !== 'campaign') ||
     typeof unlockedBotRung !== 'number' ||
     !Number.isInteger(unlockedBotRung) ||
     unlockedBotRung < 1 ||
@@ -276,6 +297,7 @@ export function validateCheckersProjectDocument(
       game: game.value,
       education: {
         selectedBotId: selectedBotId as CheckersBotId,
+        activeBotMode: activeBotMode as CheckersBotGameMode,
         unlockedBotRung,
         winsOnCurrentRung,
         completedPuzzleIds,

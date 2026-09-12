@@ -155,11 +155,17 @@ test('learner solves an original Russian-64 task, reloads progress and receives 
   await expect(page.getByRole('heading', { name: 'Выберите, как хотите играть' })).toBeVisible();
   await expect(page.getByText('1 из 22 практик')).toBeVisible();
   await page.getByRole('button', { name: 'Выбрать бота' }).click();
-  await expect(page.getByRole('heading', { name: /Шесть соперников/ })).toBeVisible();
+  await expect(
+    page.getByRole('heading', { name: 'Выберите соперника и начинайте партию' }),
+  ).toBeVisible();
+  await expect(page.getByLabel('Случайно — сторона выбирается при старте')).toBeVisible();
+  const masterCard = page.getByRole('article').filter({ hasText: 'Мастер' });
+  await expect(masterCard.getByRole('button', { name: 'Играть с Мастер' })).toBeEnabled();
+  await page.getByLabel('Светлыми — первый ход ваш').check();
   await page
     .getByRole('article')
     .filter({ hasText: 'Искра' })
-    .getByRole('button', { name: 'Начать партию' })
+    .getByRole('button', { name: 'Играть с Искра' })
     .click();
   await page.locator('[data-square="c3"]').click();
   await page.locator('[data-square="b4"]').click();
