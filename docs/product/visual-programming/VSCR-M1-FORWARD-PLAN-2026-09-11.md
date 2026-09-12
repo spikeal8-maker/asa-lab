@@ -70,17 +70,21 @@ M4-001    explicit coming_soon → active decision
 
 No task or sub-slice automatically advances to the next one.
 
+Historical review classification: M1-001 was accepted after repeated same-context bounded
+self-review plus owner acceptance; that pass was not genuinely independent and is not precedent.
+M1-002C and later HIGH/CRITICAL slices must satisfy literal independent-review policy.
+
 ## Readiness matrix
 
 | Task | Readiness | Unlock condition / exact card |
 | --- | --- | --- |
 | `VSCR-M1-001` | **COMPLETE / OWNER-ACCEPTED** | accepted in PR #187 and merged to `main`; exact historical card `tasks/VSCR-M1-001.md` |
 | `VSCR-M1-002` | **READY FOR OWNER SELECTION** | M1-001 is owner-accepted; use milestone router `tasks/VSCR-M1-002.md`; selection does not itself execute code |
-| `VSCR-M1-002A` | **BLOCKED** | M1-001 accepted + M1-002 milestone selected + `current.yaml` selects exact sub-slice |
-| `VSCR-M1-002B` | **BLOCKED** | M1-002A accepted + `current.yaml` selects exact sub-slice |
-| `VSCR-M1-002C` | **BLOCKED** | M1-002B accepted + `current.yaml` selects exact sub-slice |
-| `VSCR-M1-002D` | **BLOCKED** | M1-002C accepted + `current.yaml` selects exact sub-slice |
-| `VSCR-M1-002E` | **BLOCKED** | M1-002A–D each accepted + `current.yaml` selects exact acceptance slice |
+| `VSCR-M1-002A` | **BLOCKED** | M1-002 owner-authorised in `primary_lane.milestone` + `current.yaml.task.id=VSCR-M1-002A` + `task.status=in_progress` |
+| `VSCR-M1-002B` | **BLOCKED** | M1-002A accepted + milestone marker retained + exact task selected with `task.status=in_progress` |
+| `VSCR-M1-002C` | **BLOCKED** | M1-002B accepted + milestone marker retained + exact task selected with `task.status=in_progress` |
+| `VSCR-M1-002D` | **BLOCKED** | M1-002C accepted + milestone marker retained + exact task selected with `task.status=in_progress` |
+| `VSCR-M1-002E` | **BLOCKED** | M1-002A-D each accepted + milestone marker retained + exact review task selected with `task.status=in_progress` |
 | `VSCR-M1-003` | **BLOCKED** | M1-002E + owner acceptance of M1-002; then write exact M1-003 card against accepted interfaces |
 | `VSCR-M1-004P` | **DESIGN CARD REQUIRED** | create/review exact design-decision card before owner selection; no implementation coding from roadmap |
 | `VSCR-M1-004` | **BLOCKED** | M1-003 + M1-004P accepted |

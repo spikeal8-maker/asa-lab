@@ -1,4 +1,4 @@
-name: Scratch M0 Focused
+name: Scratch Focused
 
 on:
   push:
@@ -14,7 +14,7 @@ on:
       - 'packages/module-sdk/**'
       - 'package.json'
       - 'pnpm-lock.yaml'
-      - '.github/workflows/scratch-m0-focused.yml'
+      - '.github/workflows/scratch-focused.yml'
   pull_request:
     paths:
       - 'contexts/blocks/**'
@@ -26,7 +26,7 @@ on:
       - 'packages/module-sdk/**'
       - 'package.json'
       - 'pnpm-lock.yaml'
-      - '.github/workflows/scratch-m0-focused.yml'
+      - '.github/workflows/scratch-focused.yml'
   workflow_dispatch:
 
 permissions:

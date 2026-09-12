@@ -3,7 +3,7 @@
 **Kind:** executable implementation slice  
 **Risk:** medium  
 **Prerequisite:** VSCR-M1-002A accepted.  
-**Execution:** coding starts only when `docs/execution/current.yaml.task.id` is exactly `VSCR-M1-002B`.
+**Execution:** coding starts only when `docs/execution/current.yaml.task.id` is exactly `VSCR-M1-002B` **and** `docs/execution/current.yaml.task.status` is exactly `in_progress`; `docs/execution/current.yaml.primary_lane.milestone.id` must be exactly `VSCR-M1-002` and its `owner_authorization` must be `accepted`.
 
 ## Goal
 
@@ -44,7 +44,7 @@ infra/scratch-editor/host/main.js             # composition wiring only
 infra/scratch-editor/Dockerfile               # deterministic patch/logo copy only
 infra/scratch-editor/README.md
 e2e/blocks-host-controls.spec.ts
-.github/workflows/scratch-m0-focused.yml       # only if focused command needs it
+.github/workflows/scratch-focused.yml       # only if focused command needs it
 ../components/host.yaml → selected entries only
 ```
 

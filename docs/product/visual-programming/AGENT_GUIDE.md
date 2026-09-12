@@ -77,7 +77,7 @@ small source module owned by one existing component. Update routing in the same 
 ## 3. What each layer owns
 
 ```text
-current.yaml             active execution only
+current.yaml             active execution only; execution requires task.status=in_progress
 forward plan             Scratch readiness/order only
 COMPONENT_MAP.yaml       component ID/keywords → card route only
 components/*.yaml        state/risk/ownership/contracts/source/tests/dependencies
