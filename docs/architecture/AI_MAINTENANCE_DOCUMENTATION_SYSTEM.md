@@ -65,6 +65,19 @@ agent:context --path apps/web/src/components/ClassroomGradebook.tsx
 
 Если dependency обнаружена во время работы, агент расширяет контекст и фиксирует причину. Глобальный аудит репозитория не является стандартным первым шагом локальной правки.
 
+### 4.1. Делегированные maintenance providers
+
+Если bounded context уже имеет более богатую машинно-проверяемую component-карту,
+общий router не копирует её в `docs/agent/surfaces`. Document Registry регистрирует
+один canonical maintenance guide и точные `delegated_roots`; внутренние component/task
+cards остаются единственным источником своей маршрутизации.
+
+Глобальная система по-прежнему владеет authority/status документов, live-task routing,
+context budget и review protocol. Специализированный provider может усиливать проверки
+ownership/risk, но не заменять `POST_STEP_REVIEW` / `CHALLENGE_REVIEW` и не создавать
+второй live-state. Делегированный root валидируется машинно; документы вне объявленного
+root не считаются покрытыми provider автоматически.
+
 ## 5. Классы изменений
 
 - `L0_LOCAL_UI` — текст, layout, локальный visual state;

@@ -343,6 +343,52 @@ class AgentContextTests(unittest.TestCase):
             context["unregistered_contract_documents"],
         )
 
+    def test_delegated_provider_docs_are_not_called_unregistered(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            document = fixture(root)
+            delegated = root / "docs/product/electronics/components/module.yaml"
+            delegated.parent.mkdir(parents=True, exist_ok=True)
+            delegated.write_text("component: test\n", encoding="utf-8")
+            outside = root / "docs/product/electronics/provider-notes.md"
+            outside.write_text("notes\n", encoding="utf-8")
+            document["parallel_lanes"][0]["owned_paths"].extend(
+                [
+                    "docs/product/electronics/components/module.yaml",
+                    "docs/product/electronics/provider-notes.md",
+                ]
+            )
+            registry_path = root / "docs/agent/document-registry.yaml"
+            registry = yaml.safe_load(registry_path.read_text(encoding="utf-8"))
+            registry["documents"].append(
+                {
+                    "id": "ELECTRONICS-GUIDE",
+                    "path": "docs/product/electronics/README.md",
+                    "lanes": ["electronics"],
+                    "status": "canonical",
+                    "context_role": "compact",
+                    "authority": "electronics_maintenance",
+                    "delegated_roots": ["docs/product/electronics/components/**"],
+                }
+            )
+            registry_path.write_text(
+                yaml.safe_dump(registry, sort_keys=False), encoding="utf-8"
+            )
+            context = MODULE.build_context(
+                root, document, lane(document), git_status=available()
+            )
+            rendered = MODULE.render_text(context)
+        self.assertNotIn(
+            "docs/product/electronics/components/module.yaml",
+            context["unregistered_contract_documents"],
+        )
+        self.assertIn(
+            "docs/product/electronics/provider-notes.md",
+            context["unregistered_contract_documents"],
+        )
+        self.assertIn("delegatedDocs:", rendered)
+        self.assertIn("docs/product/electronics/components/**", rendered)
+
     def test_normative_refs_are_visible_in_context(self):
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw)

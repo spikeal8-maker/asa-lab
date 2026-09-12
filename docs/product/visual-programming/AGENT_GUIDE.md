@@ -4,6 +4,12 @@
 **Goal:** change one bounded concern without reading the whole module, repository or all
 Scratch documentation.
 
+**Global review authority:** `docs/agent/review-protocol.md`. Scratch risk labels only refine
+component-specific routing and map to the global review classes: `low -> L0/L1`,
+`medium -> L1/L2`, `high -> L3_CRITICAL`, `critical -> L3_CRITICAL + owner STOP/selection`.
+This guide may add Scratch ownership/routing checks, but it must not weaken or replace the
+global `POST_STEP_REVIEW` / `CHALLENGE_REVIEW` requirements.
+
 ## 1. Progressive disclosure
 
 Start with the smallest safe context:
@@ -172,90 +178,24 @@ STOP without explicit owner selection and exact contract/task card
 bounded self-review + independent review + owner acceptance mandatory
 ```
 
-## 7. Bounded self-review after every implementation slice
+## 7. Review
 
-Use only:
-
-```text
-selected task/maintenance card
-final diff
-mapped component entries + contract sections
-focused test evidence
-```
-
-Do not reread the whole project.
-
-Checklist:
+The global authority is `docs/agent/review-protocol.md`. Every completed Scratch slice runs
+`POST_STEP_REVIEW`; HIGH/CRITICAL work also runs `CHALLENGE_REVIEW`. Scratch cards only add
+component-specific evidence:
 
 ```text
-1. Did I implement exactly the requested outcome?
-2. Are all touched paths justified by mapped ownership/dependencies?
-3. Did I add unrequested behaviour?
-4. Did I preserve neighbour/security/persistence boundaries?
-5. Is acceptance evidenced by tests rather than assumed?
-6. Did I create duplicate/dead code or a second source of truth?
-7. Did actual source/test ownership change, and is the subsystem card updated?
-8. Did I accidentally begin a future task/sub-slice?
-9. What concrete residual risk remains?
+component IDs + ownership
+expected vs actual write paths
+mapped contract sections
+mapped focused tests
+routing card updated when source/test ownership changed
+residual Scratch-specific risk
 ```
 
-Report:
-
-```text
-SELF_REVIEW: PASS | PASS_WITH_RISK | FAIL
-components: ...
-scope: ...
-acceptance: ...
-tests: ...
-unrequested_changes: none | ...
-routing_docs: unchanged | updated
-residual_risk: none | ...
-next_allowed_task: STOP | <owner-selectable task>
-```
-
-`FAIL` means repair the current slice or stop; it never authorises scope expansion.
-
-## 8. Independent review
-
-Do not run a second full-project review after every small UI change.
-
-Independent review is required before acceptance of every HIGH/CRITICAL executable slice and
-for integrated high-risk milestone boundaries, including:
-
-```text
-M1-002C protocol boundary
-M1-002D storage-adapter boundary
-M1-002E integrated host acceptance
-M1-003 runtime security
-M1-004 storage/content validation
-M1-005 persistence/load-save
-M1-006 recovery/conflict
-M1-007 sb3 safety
-M1-008 end-to-end M1 acceptance
-M2 Gallery/remix security-sensitive work
-M3 deployment/backup
-M4 activation
-```
-
-`Independent` means the reviewer is not the authoring execution context for that slice. It may
-be another agent/context or a human reviewer. The reviewer receives only the exact task card,
-final diff, relevant component entries, mapped contract sections and test evidence—not the
-entire repository by default.
-
-Reviewer responsibilities:
-
-```text
-verify scope and acceptance independently
-challenge author assumptions at the mapped boundary
-check evidence belongs to the exact reviewed SHA
-report PASS / PASS_WITH_RISK / FAIL
-never silently edit product code while claiming independent review
-```
-
-A product defect found by an independent reviewer is `FAIL/STOP`. The fix belongs to a
-separately selected bounded repair task owned by the affected component; after repair, review
-runs again. If a genuinely independent reviewer is unavailable, the slice remains
-unaccepted—it does not downgrade itself to self-review.
+Do not reread the whole repository for review. A failed review repairs the current bounded
+slice or stops; it never authorises the next task. Independent review receives the exact task
+card, final diff, mapped component/contract entries and test evidence, not the whole project.
 
 ## 9. Documentation stays with the code
 

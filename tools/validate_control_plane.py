@@ -44,7 +44,7 @@ TASK_SYSTEM_PATH = ROOT / "docs/project-map/TASK_SYSTEM.md"
 TASK_ID_PATTERN = re.compile(
     r"(?:\bTASK-[A-Z0-9]+(?:-[A-Z0-9]+)*-[0-9]{3}\b|\bVSCR-M[0-9]+-[0-9]{3}[A-Z]?\b)"
 )
-PRODUCT_BRANCH_PATTERN = re.compile(r"\b(?:agent|codex)/[a-z0-9][a-z0-9./_-]*", re.IGNORECASE)
+PRODUCT_BRANCH_PATTERN = re.compile(r"(?<![A-Za-z0-9_./-])(?:origin/)?(?:agent|codex)/[a-z0-9][a-z0-9./_-]*", re.IGNORECASE)
 HISTORICAL_IMPERATIVE_PATTERN = re.compile(
     r"^Historical result:\s*(?:implement|build|verify|preserve|stabili[sz]e)\b",
     re.IGNORECASE,

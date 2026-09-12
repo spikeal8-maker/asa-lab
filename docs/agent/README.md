@@ -17,7 +17,9 @@
 
 Для большой задачи остаётся `pnpm agent:context --scope <lane>`. Для сопровождения сначала используйте самый узкий известный адрес: `--control <CTRL-…>`, `--surface <SURF-…>` или `--path <repo-path>`. Targeted context выдаёт только затронутые файлы, compact invariants, исполнимые tests и точные escalation refs; полный Master не читается по умолчанию.
 
-`Surface Map` ?????? ?????? ?????????? bounded context (`identity`, `learning`, ...), ? ?? execution lane. ??????? context ? lane routing ???????????? ??????????????? ????? canonical compact document ? `document-registry.yaml`. ???? ???? path ??????????? ?????????? bounded contexts, `--path` ?????? ???????????? ?????? ???????.
+`Surface Map` хранит только стабильный bounded context (`identity`, `learning`, ...), а не execution lane. Связь context → execution lane определяется централизованно через canonical compact document и его `lanes` в `document-registry.yaml`. Если один path относится к нескольким bounded contexts, `--path` должен остановиться вместо догадки и потребовать `--surface` или `--control`.
+
+Если bounded context имеет зарегистрированный специализированный maintenance provider (например Scratch), общий Registry маршрутизирует к нему и объявляет `delegated_roots`. Внутренние component/task cards не копируются в общий Surface Map и не становятся второй системой authority.
 
 ## Status semantics
 
