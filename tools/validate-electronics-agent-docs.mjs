@@ -16,20 +16,25 @@ function readYaml(repoPath) {
   try {
     return YAML.parse(readFileSync(full, 'utf8'));
   } catch (error) {
-    errors.push(`invalid yaml: ${repoPath}: ${error instanceof Error ? error.message : String(error)}`);
+    errors.push(
+      `invalid yaml: ${repoPath}: ${error instanceof Error ? error.message : String(error)}`,
+    );
     return null;
   }
 }
 
 function isRepositoryPath(value) {
-  return /^(AGENTS\.md|apps\/|contexts\/|docs\/|e2e\/|tools\/|tests\/|docker\/|compose[^/]*\.ya?ml)/.test(value);
+  return /^(AGENTS\.md|apps\/|contexts\/|docs\/|e2e\/|tools\/|tests\/|docker\/|compose[^/]*\.ya?ml)/.test(
+    value,
+  );
 }
 
 function pathExists(value) {
   const withoutAnchor = value.split('#', 1)[0];
   if (!isRepositoryPath(withoutAnchor)) return true;
   const wildcard = withoutAnchor.indexOf('*');
-  const candidate = wildcard >= 0 ? withoutAnchor.slice(0, wildcard).replace(/\/$/, '') : withoutAnchor;
+  const candidate =
+    wildcard >= 0 ? withoutAnchor.slice(0, wildcard).replace(/\/$/, '') : withoutAnchor;
   return existsSync(resolve(root, candidate));
 }
 
@@ -43,7 +48,8 @@ for (const required of [
   `${docsRoot}/tasks/DESIGN_TASK_TEMPLATE.md`,
   `${docsRoot}/tasks/DEPLOYMENT_TASK_TEMPLATE.md`,
 ]) {
-  if (!existsSync(resolve(root, required))) errors.push(`missing required routing document: ${required}`);
+  if (!existsSync(resolve(root, required)))
+    errors.push(`missing required routing document: ${required}`);
 }
 
 const map = readYaml(mapPath);
@@ -75,14 +81,18 @@ if (map) {
   for (const [relativeCard, loaded] of cards) {
     for (const [id, component] of Object.entries(loaded.card.components ?? {})) {
       if (cardComponentOwners.has(id)) {
-        errors.push(`component ${id} duplicated in ${cardComponentOwners.get(id)} and ${relativeCard}`);
+        errors.push(
+          `component ${id} duplicated in ${cardComponentOwners.get(id)} and ${relativeCard}`,
+        );
       } else {
         cardComponentOwners.set(id, relativeCard);
       }
       const mapEntry = map.components?.[id];
       if (!mapEntry) errors.push(`card component ${id} is missing from COMPONENT_MAP.yaml`);
       else if (mapEntry.card !== relativeCard) {
-        errors.push(`card component ${id} maps to ${mapEntry.card}, but is declared in ${relativeCard}`);
+        errors.push(
+          `card component ${id} maps to ${mapEntry.card}, but is declared in ${relativeCard}`,
+        );
       }
 
       for (const field of ['contracts', 'sources', 'tests']) {
