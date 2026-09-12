@@ -10,6 +10,7 @@ interface CaptureGhost {
   readonly key: string;
   readonly piece: CheckersBoardPiece;
   readonly orientation: 'light' | 'dark';
+  readonly delayMs: number;
 }
 
 function isPlayableSquare(square: CheckersBoardSquare): boolean {
@@ -22,6 +23,26 @@ function squarePosition(square: CheckersBoardSquare, orientation: 'light' | 'dar
   const x = orientation === 'light' ? file : 7 - file;
   const y = orientation === 'light' ? 8 - rank : rank - 1;
   return { '--checkers-x': `${x * 100}%`, '--checkers-y': `${y * 100}%` } as CSSProperties;
+}
+
+function squareTransform(square: CheckersBoardSquare, orientation: 'light' | 'dark'): string {
+  const file = FILES.indexOf(square[0] as (typeof FILES)[number]);
+  const rank = Number(square[1]);
+  const x = orientation === 'light' ? file : 7 - file;
+  const y = orientation === 'light' ? 8 - rank : rank - 1;
+  return `translate(${x * 100}%, ${y * 100}%)`;
+}
+
+function squarePoint(
+  square: CheckersBoardSquare,
+  orientation: 'light' | 'dark',
+): { x: number; y: number } {
+  const file = FILES.indexOf(square[0] as (typeof FILES)[number]);
+  const rank = Number(square[1]);
+  return {
+    x: (orientation === 'light' ? file : 7 - file) + 0.5,
+    y: (orientation === 'light' ? 8 - rank : rank - 1) + 0.5,
+  };
 }
 
 function KingMark(): JSX.Element {
@@ -47,9 +68,11 @@ export function CheckersBoardV2({
   selectedPieceId,
   legalDestinations = [],
   captureDestinations = [],
+  capturePaths = [],
   movablePieceIds = [],
   forcedCapturePieceIds = [],
   lastMovePath = [],
+  lastMoveCapturedIds = [],
   disabled = false,
   onSquareClick,
 }: {
@@ -60,9 +83,11 @@ export function CheckersBoardV2({
   selectedPieceId?: string | null;
   legalDestinations?: readonly CheckersBoardSquare[];
   captureDestinations?: readonly CheckersBoardSquare[];
+  capturePaths?: readonly (readonly CheckersBoardSquare[])[];
   movablePieceIds?: readonly string[];
   forcedCapturePieceIds?: readonly string[];
   lastMovePath?: readonly CheckersBoardSquare[];
+  lastMoveCapturedIds?: readonly string[];
   disabled?: boolean;
   onSquareClick?: (square: CheckersBoardSquare) => void;
 }): JSX.Element {
@@ -93,6 +118,10 @@ export function CheckersBoardV2({
     const previousPieces = previousPiecesRef.current;
     const currentById = new Map(pieces.map((piece) => [piece.id, piece] as const));
     const captured = previousPieces.filter((piece) => !currentById.has(piece.id));
+    const moved = pieces.find((piece) => {
+      const previous = previousPieces.find((candidate) => candidate.id === piece.id);
+      return previous !== undefined && previous.square !== piece.square;
+    });
     const promoted = pieces.filter((piece) => {
       const previous = previousPieces.find((candidate) => candidate.id === piece.id);
       return previous?.kind === 'man' && piece.kind === 'king';
@@ -100,14 +129,56 @@ export function CheckersBoardV2({
 
     if (captureTimerRef.current) clearTimeout(captureTimerRef.current);
     if (captured.length > 0) {
+      const captureOrder = new Map(lastMoveCapturedIds.map((id, index) => [id, index] as const));
       setCaptureGhosts(
-        captured.map((piece) => ({
+        captured.map((piece, fallbackIndex) => ({
           key: `${piece.id}-${piece.square}-${Date.now()}`,
           piece,
           orientation: previousOrientationRef.current,
+          delayMs: (captureOrder.get(piece.id) ?? fallbackIndex) * 230 + 120,
         })),
       );
-      captureTimerRef.current = setTimeout(() => setCaptureGhosts([]), 240);
+      captureTimerRef.current = setTimeout(() => setCaptureGhosts([]), captured.length * 230 + 420);
+    }
+
+    const previousMoved = moved
+      ? previousPieces.find((candidate) => candidate.id === moved.id)
+      : undefined;
+    const reduceMotion =
+      typeof window !== 'undefined' &&
+      typeof window.matchMedia === 'function' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (
+      !reduceMotion &&
+      moved &&
+      previousMoved &&
+      lastMovePath.length >= 2 &&
+      lastMovePath[0] === previousMoved.square &&
+      lastMovePath.at(-1) === moved.square
+    ) {
+      const element = boardRef.current?.querySelector<HTMLElement>(`[data-piece-id="${moved.id}"]`);
+      const face = element?.querySelector<HTMLElement>('.checkers-v2-piece');
+      const segments = lastMovePath.length - 1;
+      const duration = Math.max(300, segments * 290);
+      element?.animate(
+        lastMovePath.map((square, index) => ({
+          transform: squareTransform(square, orientation),
+          offset: index / segments,
+          easing: 'cubic-bezier(0.22, 0.72, 0.24, 1)',
+        })),
+        { duration, easing: 'linear' },
+      );
+      const bounceFrames: Keyframe[] = [{ transform: 'translateY(-3%) scale(1)', offset: 0 }];
+      for (let index = 1; index <= segments; index += 1) {
+        bounceFrames.push(
+          {
+            transform: 'translateY(-18%) scale(1.055)',
+            offset: (index - 0.5) / segments,
+          },
+          { transform: 'translateY(-3%) scale(1)', offset: index / segments },
+        );
+      }
+      face?.animate(bounceFrames, { duration, easing: 'linear' });
     }
 
     if (promotionTimerRef.current) clearTimeout(promotionTimerRef.current);
@@ -118,7 +189,7 @@ export function CheckersBoardV2({
 
     previousPiecesRef.current = pieces;
     previousOrientationRef.current = orientation;
-  }, [orientation, pieces]);
+  }, [lastMoveCapturedIds, lastMovePath, orientation, pieces]);
 
   useEffect(
     () => () => {
@@ -140,6 +211,8 @@ export function CheckersBoardV2({
   const orderedSquares = ranks.flatMap((rank) =>
     files.map((file) => `${file}${rank}` as CheckersBoardSquare),
   );
+  const lastMoveDestination = lastMovePath.at(-1);
+  const lastMovePieceId = lastMoveDestination ? bySquare.get(lastMoveDestination)?.id : undefined;
 
   return (
     <div
@@ -159,6 +232,49 @@ export function CheckersBoardV2({
       </div>
 
       <div className="checkers-board-v2-hints" aria-hidden="true">
+        {capturePaths.length > 0 ? (
+          <svg className="checkers-v2-capture-routes" viewBox="0 0 8 8" preserveAspectRatio="none">
+            <defs>
+              <marker
+                id="checkers-capture-arrow"
+                markerWidth="0.7"
+                markerHeight="0.7"
+                refX="0.5"
+                refY="0.35"
+                orient="auto"
+              >
+                <path d="M0,0 L0.7,0.35 L0,0.7 Z" />
+              </marker>
+            </defs>
+            {capturePaths.flatMap((path, pathIndex) =>
+              path.slice(1).map((square, stepIndex) => {
+                const from = squarePoint(path[stepIndex]!, orientation);
+                const to = squarePoint(square, orientation);
+                return (
+                  <line
+                    key={`route-${pathIndex}-${stepIndex}-${square}`}
+                    x1={from.x}
+                    y1={from.y}
+                    x2={to.x}
+                    y2={to.y}
+                    markerEnd="url(#checkers-capture-arrow)"
+                  />
+                );
+              }),
+            )}
+          </svg>
+        ) : null}
+        {capturePaths.flatMap((path, pathIndex) =>
+          path.slice(1).map((square, stepIndex) => (
+            <span
+              key={`capture-step-${pathIndex}-${stepIndex}-${square}`}
+              className="checkers-v2-capture-step"
+              style={squarePosition(square, orientation)}
+            >
+              {stepIndex + 1}
+            </span>
+          )),
+        )}
         {lastMovePath.map((square, index) => (
           <span
             key={`last-${square}-${index}`}
@@ -202,6 +318,10 @@ export function CheckersBoardV2({
               style={squarePosition(piece.square, orientation)}
               data-piece-id={piece.id}
               data-piece-square={piece.square}
+              data-last-move-piece={piece.id === lastMovePieceId ? 'true' : undefined}
+              data-motion-steps={
+                piece.id === lastMovePieceId ? Math.max(0, lastMovePath.length - 1) : undefined
+              }
             >
               <span
                 className={`checkers-v2-piece ${piece.side} ${piece.kind}${
@@ -217,7 +337,12 @@ export function CheckersBoardV2({
           <span
             key={ghost.key}
             className="checkers-v2-piece-slot capture-ghost"
-            style={squarePosition(ghost.piece.square, ghost.orientation)}
+            style={
+              {
+                ...squarePosition(ghost.piece.square, ghost.orientation),
+                '--checkers-capture-delay': `${ghost.delayMs}ms`,
+              } as CSSProperties
+            }
           >
             <span className={`checkers-v2-piece ${ghost.piece.side} ${ghost.piece.kind}`}>
               {ghost.piece.kind === 'king' ? <KingMark /> : null}

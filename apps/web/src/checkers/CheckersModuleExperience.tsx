@@ -1068,7 +1068,10 @@ export function CheckersModuleExperience(props: CheckersModuleExperienceProps): 
           notation: move.path.join(move.capturedIds.length > 0 ? ':' : '-'),
         })),
         ...(workspaceGame.moveHistory.at(-1)?.path
-          ? { lastMovePath: workspaceGame.moveHistory.at(-1)!.path }
+          ? {
+              lastMovePath: workspaceGame.moveHistory.at(-1)!.path,
+              lastMoveCapturedIds: workspaceGame.moveHistory.at(-1)!.capturedIds,
+            }
           : {}),
         instructionTitle:
           activePuzzle?.title ??

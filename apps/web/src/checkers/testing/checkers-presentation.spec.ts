@@ -238,6 +238,46 @@ describe('Checkers presentation contract', () => {
     expect(markup).not.toContain('contenteditable');
   });
 
+  it('explains mandatory backward capture instead of silently blocking quiet moves', () => {
+    const markup = renderToStaticMarkup(
+      createElement(CheckersWorkspace, {
+        model: {
+          projectTitle: 'Правило взятия',
+          saveState: 'saved',
+          userName: 'Маша',
+          mode: 'play',
+          modeLabel: 'Свободная партия',
+          opponentLabel: 'Соперник',
+          sideToMove: 'light',
+          pieces,
+          legalMoves: [
+            {
+              pieceId: 'light-c3',
+              path: ['c3', 'e5'],
+              notation: 'c3:e5',
+              isCapture: true,
+              capturedIds: ['dark-d4'],
+            },
+          ],
+          moveHistory: [],
+          instructionTitle: 'Ваш ход',
+          instruction: 'Сделайте ход по правилам русских шашек.',
+          reactionsEnabled: true,
+        },
+        onBack: () => undefined,
+        onRename: () => undefined,
+        onModeChange: () => undefined,
+        onMove: () => undefined,
+        onReaction: () => undefined,
+      }),
+    );
+
+    expect(markup).toContain('Сейчас нужно бить');
+    expect(markup).toContain('Простая шашка может бить соперника и вперёд');
+    expect(markup).toContain('и назад');
+    expect(markup).toContain('обычный ход не показывается');
+  });
+
   it('renders teacher assignments, concept evidence and observable signals', () => {
     const markup = renderToStaticMarkup(
       createElement(CheckersTeacherDashboard, {
