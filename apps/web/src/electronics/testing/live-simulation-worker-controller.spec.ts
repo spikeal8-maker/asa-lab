@@ -124,6 +124,41 @@ describe('Electronics live simulation Worker controller', () => {
     await flush();
     expect(onResult).toHaveBeenLastCalledWith(result(2));
   });
+  it('ignores only the duplicate initial zero-time snapshot and forwards a changed zero-time document', async () => {
+    const executor = new FakeExecutor();
+    const onResult = vi.fn();
+    const controller = new ElectronicsLiveSimulationWorkerController(executor);
+
+    controller.start('project-a', circuit, { onResult, onFailure: vi.fn() });
+    controller.update(circuit, 0);
+    executor.preflights[0]!.resolve(result(1));
+    await flush();
+    expect(onResult).toHaveBeenCalledWith(result(1));
+    expect(executor.advances).toHaveLength(0);
+
+    const changed = {
+      ...circuit,
+      components: circuit.components.map((component) =>
+        component.id === 'resistor' ? { ...component, value: 470 } : component,
+      ),
+    };
+    controller.start('project-b', circuit, { onResult, onFailure: vi.fn() });
+    controller.update(changed, 0);
+    executor.preflights[1]!.resolve(result(2));
+    await flush();
+    expect(executor.advances).toHaveLength(1);
+    expect(executor.advances[0]).toMatchObject({
+      document: changed,
+      simulationTimeMs: 0,
+      previousResult: result(2),
+    });
+    expect(onResult).toHaveBeenCalledTimes(1);
+
+    executor.advances[0]!.deferred.resolve(result(3));
+    await flush();
+    expect(onResult).toHaveBeenLastCalledWith(result(3));
+  });
+
   it('coalesces updates while advance is in flight and carries the latest result forward', async () => {
     const executor = new FakeExecutor();
     const controller = new ElectronicsLiveSimulationWorkerController(executor);

@@ -168,6 +168,7 @@ export function useElectronicsWorkbench(projectId: string) {
     setNotice,
     simulationRunning,
     simulationStatus,
+    confirmSimulationStarted,
     busy,
     projectTitle,
     setProjectTitle,
@@ -256,7 +257,10 @@ export function useElectronicsWorkbench(projectId: string) {
     if (!initialDocument) return;
     setLiveResult(null);
     controller.start(projectId, initialDocument, {
-      onResult: (nextResult) => setLiveResult(nextResult),
+      onResult: (nextResult) => {
+        setLiveResult(nextResult);
+        confirmSimulationStarted();
+      },
       onFailure: () => {
         resetSimulationRef.current();
         setNotice(
@@ -265,10 +269,10 @@ export function useElectronicsWorkbench(projectId: string) {
       },
     });
     return () => controller.stop();
-  }, [projectId, setNotice, simulationRunning]);
+  }, [confirmSimulationStarted, projectId, setNotice, simulationRunning]);
 
   useEffect(() => {
-    if (!runtimeDocument || !simulationRunning || simulationTimeMs <= 0) return;
+    if (!runtimeDocument || !simulationRunning) return;
     simulationWorkerRef.current?.update(runtimeDocument, simulationTimeMs);
   }, [runtimeDocument, simulationRunning, simulationTimeMs]);
 

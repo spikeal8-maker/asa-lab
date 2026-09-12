@@ -60,6 +60,14 @@ export class ElectronicsLiveSimulationWorkerController {
 
   update(document: SchematicDocument, simulationTimeMs: number): void {
     if (this.generationId === null || !Number.isFinite(simulationTimeMs)) return;
+    if (
+      this.inFlight &&
+      simulationTimeMs === 0 &&
+      document === this.inFlightDocument &&
+      this.latestTarget === null
+    ) {
+      return;
+    }
     this.latestTarget = { document, simulationTimeMs };
     this.pump();
   }

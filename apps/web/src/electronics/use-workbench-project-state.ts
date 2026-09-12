@@ -154,6 +154,8 @@ export function useWorkbenchProjectState(projectId: string) {
   const [notice, setNotice] = useState<string | null>(null);
   const [simulationRunning, setSimulationRunning] = useState(false);
   const [simulationStatus, setSimulationStatus] = useState<SimulationRuntimeStatus>('stopped');
+  const simulationStatusRef = useRef<SimulationRuntimeStatus>('stopped');
+  simulationStatusRef.current = simulationStatus;
   const [busy, setBusy] = useState(false);
   const [projectTitle, setProjectTitle] = useState('');
   const [historyTick, setHistoryTick] = useState(0);
@@ -542,7 +544,7 @@ export function useWorkbenchProjectState(projectId: string) {
   );
 
   useEffect(() => {
-    if (!document) return;
+    if (!document || simulationStatus === 'starting') return;
     if (!autosaveIsDue({ document, savedDocument, savingDocument, failed: saveFailed })) return;
     const timer = window.setTimeout(
       () => {
@@ -551,10 +553,19 @@ export function useWorkbenchProjectState(projectId: string) {
       simulationRunning ? 700 : 1800,
     );
     return () => window.clearTimeout(timer);
-  }, [document, persist, saveFailed, savedDocument, savingDocument, simulationRunning]);
+  }, [
+    document,
+    persist,
+    saveFailed,
+    savedDocument,
+    savingDocument,
+    simulationRunning,
+    simulationStatus,
+  ]);
 
   useEffect(() => {
     const flush = (): void => {
+      if (simulationStatusRef.current === 'starting') return;
       const current = documentRef.current;
       if (current && saveStatusRef.current === 'dirty') void persist(current, true);
     };
@@ -568,6 +579,10 @@ export function useWorkbenchProjectState(projectId: string) {
       window.removeEventListener('pagehide', flush);
     };
   }, [persist]);
+
+  const confirmSimulationStarted = useCallback((): void => {
+    setSimulationStatus((current) => (current === 'starting' ? 'running' : current));
+  }, []);
 
   async function saveNow(): Promise<void> {
     if (!document || busy) return;
@@ -589,7 +604,6 @@ export function useWorkbenchProjectState(projectId: string) {
     setSimulationStatus('starting');
     setResult(null);
     setSimulationRunning(true);
-    setSimulationStatus('running');
     // Circuits starts immediately and keeps the stage quiet. Electrical
     // problems belong to the affected part, not to a global toast.
     setNotice(null);
@@ -653,6 +667,7 @@ export function useWorkbenchProjectState(projectId: string) {
     setNotice,
     simulationRunning,
     simulationStatus,
+    confirmSimulationStarted,
     busy,
     projectTitle,
     setProjectTitle,
