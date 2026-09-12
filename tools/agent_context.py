@@ -104,6 +104,27 @@ def _registry_routes(
     return result
 
 
+def _delegated_roots_for_lane(
+    registry: dict[str, Any], lane_id: str
+) -> list[dict[str, str]]:
+    result: list[dict[str, str]] = []
+    for raw in registry.get("documents") or []:
+        if not isinstance(raw, dict) or raw.get("status") != "canonical":
+            continue
+        lanes = raw.get("lanes") or []
+        if "*" not in lanes and lane_id not in lanes:
+            continue
+        for delegated_root in raw.get("delegated_roots") or []:
+            if isinstance(delegated_root, str) and delegated_root:
+                result.append(
+                    {
+                        "root": delegated_root,
+                        "document": str(raw.get("id") or ""),
+                    }
+                )
+    return result
+
+
 def _load_yaml_directory(root: Path, relative: str) -> list[tuple[str, dict[str, Any]]]:
     directory = root / relative
     if not directory.is_dir():
@@ -469,7 +490,9 @@ def build_context(
     )
     docs = _doc_hints(root, owned_paths)
     registry = load_registry(root)
-    registry_routes = _registry_routes(registry, str(lane.get("id") or ""), task)
+    lane_id = str(lane.get("id") or "")
+    registry_routes = _registry_routes(registry, lane_id, task)
+    delegated_roots = _delegated_roots_for_lane(registry, lane_id)
     registry_paths = {
         str(item.get("path"))
         for item in registry.get("documents") or []
@@ -522,8 +545,14 @@ def build_context(
         "gate_commands": gate_commands,
         "document_registry": DOCUMENT_REGISTRY,
         "document_routes": registry_routes,
+        "delegated_document_roots": delegated_roots,
         "contract_documents": docs,
-        "unregistered_contract_documents": [path for path in docs if path not in registry_paths],
+        "unregistered_contract_documents": [
+            path
+            for path in docs
+            if path not in registry_paths
+            and not any(_matches_scope(path, item["root"]) for item in delegated_roots)
+        ],
         "checkpoint_marker": checkpoint_marker,
         "contract_section_resolution": section_resolution,
         "contract_sections": sections,
@@ -837,6 +866,12 @@ def render_text(context: dict[str, Any]) -> str:
         for item in items:
             revision = f"@{item['revision']}" if item.get("revision") is not None else ""
             lines.append(f"  {item['path']}  # {item['id']}{revision} [{item['role']}]")
+    if context["delegated_document_roots"]:
+        lines.append("delegatedDocs:")
+        lines.extend(
+            f"  {item['root']}  # via {item['document']}"
+            for item in context["delegated_document_roots"]
+        )
     if context["contract_sections"]:
         lines.append("exactContractSections:")
         for section in context["contract_sections"]:

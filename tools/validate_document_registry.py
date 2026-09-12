@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import re
 import sys
 from pathlib import Path, PurePosixPath
 from typing import Any
@@ -17,6 +18,15 @@ ALLOWED_STATUS = {"canonical", "supporting", "historical", "superseded", "review
 CONTEXT_ROLE_VALUES = ["root", "compact", "target", "task", "escalation", "trace", "historical", "review"]
 ALLOWED_CONTEXT_ROLES = set(CONTEXT_ROLE_VALUES)
 SUPPORTED_SCHEMA_VERSIONS = {"1.0.0", "1.1.0"}
+ENCODING_GUARD_PATHS = (
+    "AGENTS.md",
+    "START_HERE_FOR_AI.md",
+    "docs/agent/README.md",
+    "docs/agent/review-protocol.md",
+    "docs/architecture/AI_MAINTENANCE_DOCUMENTATION_SYSTEM.md",
+    "tools/gate-governance.sh",
+)
+
 
 
 def load_registry(root: Path) -> dict[str, Any]:
@@ -35,6 +45,13 @@ def _valid_relative_path(raw: Any) -> bool:
         return False
     path = PurePosixPath(raw)
     return not path.is_absolute() and ".." not in path.parts
+
+
+def _valid_delegated_root(raw: Any) -> bool:
+    if not isinstance(raw, str) or not raw.endswith("/**") or "\\" in raw:
+        return False
+    prefix = raw[:-3].rstrip("/")
+    return prefix.startswith("docs/") and _valid_relative_path(prefix)
 
 
 def validate_registry(root: Path, data: dict[str, Any]) -> list[str]:
@@ -62,6 +79,7 @@ def validate_registry(root: Path, data: dict[str, Any]) -> list[str]:
     ids: set[str] = set()
     paths: set[str] = set()
     canonical_authorities: dict[str, str] = {}
+    delegated_root_owners: dict[str, str] = {}
     by_id: dict[str, dict[str, Any]] = {}
 
     for index, raw in enumerate(documents):
@@ -116,6 +134,36 @@ def validate_registry(root: Path, data: dict[str, Any]) -> list[str]:
         ):
             errors.append(f"{prefix}.read_when must be a non-empty string array")
 
+        delegated_roots = raw.get("delegated_roots")
+        if delegated_roots is not None:
+            if version != "1.1.0":
+                errors.append(f"{prefix}.delegated_roots requires registry schema 1.1.0")
+            if status != "canonical" or context_role != "compact":
+                errors.append(f"{prefix}.delegated_roots requires canonical compact document")
+            if (
+                not isinstance(delegated_roots, list)
+                or not delegated_roots
+                or not all(isinstance(item, str) and item for item in delegated_roots)
+                or len(delegated_roots) != len(set(delegated_roots))
+            ):
+                errors.append(f"{prefix}.delegated_roots must be a unique non-empty string array")
+            else:
+                for delegated_root in delegated_roots:
+                    if not _valid_delegated_root(delegated_root):
+                        errors.append(f"{prefix}.delegated_roots contains unsafe root {delegated_root!r}")
+                        continue
+                    root_prefix = delegated_root[:-3].rstrip("/")
+                    if not (root / PurePosixPath(root_prefix)).is_dir():
+                        errors.append(f"{prefix}.delegated_roots directory does not exist: {root_prefix}")
+                    previous = delegated_root_owners.get(delegated_root)
+                    if previous is not None and previous != doc_id:
+                        errors.append(
+                            f"delegated document root {delegated_root!r} is duplicated by "
+                            f"{previous} and {doc_id}"
+                        )
+                    else:
+                        delegated_root_owners[delegated_root] = str(doc_id)
+
         if status == "canonical":
             if authority == "none":
                 errors.append(f"canonical document {doc_id} cannot have authority 'none'")
@@ -151,6 +199,18 @@ def validate_registry(root: Path, data: dict[str, Any]) -> list[str]:
     live = [raw for raw in documents if isinstance(raw, dict) and raw.get("kind") == "live_state"]
     if len(live) != 1 or live[0].get("path") != "docs/execution/current.yaml":
         errors.append("the only live_state document must be docs/execution/current.yaml")
+
+    for relative in ENCODING_GUARD_PATHS:
+        guarded = root / PurePosixPath(relative)
+        if not guarded.is_file():
+            continue
+        try:
+            payload = guarded.read_text(encoding="utf-8", errors="strict")
+        except UnicodeDecodeError as exc:
+            errors.append(f"encoding guard cannot decode {relative} as UTF-8: {exc}")
+            continue
+        if "\ufffd" in payload or re.search(r"\?{3,}", payload):
+            errors.append(f"encoding guard found replacement/question-mark corruption in {relative}")
 
     return errors
 
