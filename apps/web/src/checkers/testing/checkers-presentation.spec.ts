@@ -231,7 +231,7 @@ describe('Checkers presentation contract', () => {
     expect(markup).toContain('Учусь');
     expect(markup).toContain('Играю');
     expect(markup).toContain('Разбор');
-    expect(markup).toContain('Выберите шашку с мягкой золотой подсветкой.');
+    expect(markup).toContain('Выберите шашку, которой хотите сделать ход.');
     expect(markup).toContain('Ходов: 1');
     expect(markup).toContain('Свободного чата здесь нет');
     expect(markup).not.toContain('<textarea');

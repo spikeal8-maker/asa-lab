@@ -461,6 +461,8 @@ Deliverables:
 
 **Acceptance:** одинаковая позиция и все legal moves совпадают с Board V1; E2E проверяет desktop/tablet/mobile; никаких телепортов фигуры при обычном ходе.
 
+**Checkpoint 2026-09-12:** CK-104 Board V2 реализован без изменения rules engine. Активная доска разделена на grid/hint/piece/coordinate/interaction layers; фигуры имеют стабильный DOM identity и перемещаются через CSS transform, взятие и превращение получают отдельные эффекты, дамка использует SVG marker. Добавлены last move, forced capture и темы Classic/Light/Dark, сохранены keyboard/ARIA/drag-drop и reduced-motion. V1 остаётся parity-эталоном. `test:checkers`: 22 files / 90 tests PASS; `gate:checkers-m1` PASS без Nx cache; repository-wide typecheck/build 26 проектов PASS. На одноразовой `asa_ck104_test` применены 105 миграций и реальный `e2e:checkers` прошёл 4/4, включая desktop/tablet/mobile и classroom.
+
 ### CK-105 — Match Session refactor
 
 **Цель:** убрать смешивание surface state и domain game state.
