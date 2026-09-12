@@ -1,3 +1,4 @@
+export { CheckersLocalSetup } from './CheckersLocalSetup';
 export { CheckersBoard, type CheckersBoardPiece, type CheckersBoardSquare } from './CheckersBoard';
 export {
   CheckersLobby,
@@ -5,6 +6,11 @@ export {
   type CheckersLobbyResume,
   type CheckersLobbyViewModel,
 } from './CheckersLobby';
+export {
+  CheckersBotSetup,
+  resolveCheckersBotSideChoice,
+  type CheckersBotSideChoice,
+} from './CheckersBotSetup';
 export {
   CheckersWorkspace,
   type CheckersMoveHistoryItem,

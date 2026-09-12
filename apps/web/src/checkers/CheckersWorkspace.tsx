@@ -42,6 +42,7 @@ export interface CheckersWorkspaceViewModel {
   readonly reviewTotalPly?: number;
   readonly readOnly?: boolean;
   readonly orientation?: 'light' | 'dark';
+  readonly autoFlipBoard?: boolean;
   readonly lesson?: {
     readonly stage: 'explain' | 'demonstrate' | 'practice' | 'feedback';
     readonly rule: string;
@@ -50,6 +51,12 @@ export interface CheckersWorkspaceViewModel {
   };
   readonly canRestart?: boolean;
   readonly canResign?: boolean;
+  readonly canDraw?: boolean;
+  readonly gameResult?: {
+    readonly tone: 'win' | 'loss' | 'draw';
+    readonly title: string;
+    readonly detail: string;
+  };
 }
 
 const SAVE_LABELS: Readonly<Record<CheckersWorkspaceViewModel['saveState'], string>> = {
@@ -91,6 +98,8 @@ export function CheckersWorkspace({
   onLessonStageChange,
   onRestart,
   onResign,
+  onDraw,
+  onChooseOpponent,
 }: {
   model: CheckersWorkspaceViewModel;
   onBack: () => void;
@@ -105,6 +114,8 @@ export function CheckersWorkspace({
   onLessonStageChange?: (stage: 'explain' | 'demonstrate' | 'practice') => void;
   onRestart?: () => void;
   onResign?: () => void;
+  onDraw?: () => void;
+  onChooseOpponent?: () => void;
 }): JSX.Element {
   const [selectedPieceId, setSelectedPieceId] = useState<string | null>(null);
   const [draftTitle, setDraftTitle] = useState(model.projectTitle);
@@ -113,6 +124,9 @@ export function CheckersWorkspace({
   const [showCoordinates, setShowCoordinates] = useState(true);
   const [boardTheme, setBoardTheme] = useState<'calm' | 'contrast'>('calm');
   useEffect(() => setDraftTitle(model.projectTitle), [model.projectTitle]);
+  useEffect(() => {
+    if (model.autoFlipBoard) setBoardFlipped(false);
+  }, [model.autoFlipBoard, model.sideToMove]);
   const selectedMoves = useMemo(
     () => model.legalMoves.filter((move) => move.pieceId === selectedPieceId),
     [model.legalMoves, selectedPieceId],
@@ -130,19 +144,21 @@ export function CheckersWorkspace({
   const lessonBlocksInput =
     model.lesson !== undefined &&
     (model.lesson.stage === 'explain' || model.lesson.stage === 'demonstrate');
-  const boardHelp = model.readOnly
-    ? {
-        step: 'i',
-        text:
-          model.mode === 'review'
-            ? 'Доска открыта для разбора. Перемещайтесь по ходам в панели справа.'
-            : 'Доска пока доступна только для просмотра. Дождитесь продолжения партии.',
-      }
-    : model.legalMoves.length === 0
-      ? { step: 'i', text: 'Сейчас нет доступных ходов. Проверьте состояние партии.' }
-      : selectedPieceId
-        ? { step: '2', text: 'Теперь выберите подсвеченное поле назначения.' }
-        : { step: '1', text: 'Выберите шашку с мягкой золотой подсветкой.' };
+  const boardHelp = model.gameResult
+    ? { step: '✓', text: model.gameResult.title }
+    : model.readOnly
+      ? {
+          step: 'i',
+          text:
+            model.mode === 'review'
+              ? 'Доска открыта для разбора. Перемещайтесь по ходам в панели справа.'
+              : 'Доска пока доступна только для просмотра. Дождитесь продолжения партии.',
+        }
+      : model.legalMoves.length === 0
+        ? { step: 'i', text: 'Сейчас нет доступных ходов. Проверьте состояние партии.' }
+        : selectedPieceId
+          ? { step: '2', text: 'Теперь выберите подсвеченное поле назначения.' }
+          : { step: '1', text: 'Выберите шашку с мягкой золотой подсветкой.' };
 
   const selectSquare = (square: CheckersBoardSquare): void => {
     const selectedMove = selectedMoves.find((move) => move.path.at(-1) === square);
@@ -270,12 +286,17 @@ export function CheckersWorkspace({
               </button>
               {model.canRestart && onRestart ? (
                 <button type="button" onClick={onRestart}>
-                  Новая партия
+                  {model.gameResult ? 'Реванш' : 'Новая партия'}
                 </button>
               ) : null}
               {model.canResign && onResign ? (
                 <button type="button" className="danger" onClick={onResign}>
                   Сдаться
+                </button>
+              ) : null}
+              {model.canDraw && onDraw ? (
+                <button type="button" onClick={onDraw}>
+                  Ничья
                 </button>
               ) : null}
             </div>
@@ -292,6 +313,28 @@ export function CheckersWorkspace({
               onSquareClick={selectSquare}
             />
 
+            {model.gameResult ? (
+              <section className={`checkers-game-result ${model.gameResult.tone}`} role="status">
+                <span>Партия завершена</span>
+                <h2>{model.gameResult.title}</h2>
+                <p>{model.gameResult.detail}</p>
+                <div>
+                  {onRestart ? (
+                    <button type="button" className="checkers-primary-action" onClick={onRestart}>
+                      Реванш
+                    </button>
+                  ) : null}
+                  {onChooseOpponent ? (
+                    <button type="button" onClick={onChooseOpponent}>
+                      Другой соперник
+                    </button>
+                  ) : null}
+                  <button type="button" onClick={() => onModeChange('review')}>
+                    Разобрать партию
+                  </button>
+                </div>
+              </section>
+            ) : null}
             <div className="checkers-board-help" role="status" aria-live="polite">
               <span aria-hidden="true">{boardHelp.step}</span>
               <p>{boardHelp.text}</p>

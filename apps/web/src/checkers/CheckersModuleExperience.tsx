@@ -12,7 +12,13 @@ import type {
 import { useEffect, useState } from 'react';
 import type { CheckersClassGame, CheckersTeacherFeedbackId, PublicUser } from '../api';
 import { newClientId } from '../client-id';
+import {
+  CheckersBotSetup,
+  resolveCheckersBotSideChoice,
+  type CheckersBotSideChoice,
+} from './CheckersBotSetup';
 import { CheckersClassPlay } from './CheckersClassPlay';
+import { CheckersLocalSetup } from './CheckersLocalSetup';
 import { CheckersPositionComposer } from './CheckersPositionComposer';
 import {
   CheckersLobby,
@@ -36,6 +42,7 @@ const {
   CHECKERS_REACTIONS,
   CHECKERS_STARTER_PUZZLES,
   analyzeCheckersGameReview,
+  checkersOutcomeForSide,
   createCheckersPuzzleAttempt,
   generateLegalCheckersMoves,
   replayCheckersGame,
@@ -50,7 +57,8 @@ interface CheckersModuleExperienceProps {
   user: PublicUser;
 }
 
-type CheckersSurface = 'home' | 'play' | 'learning' | 'bots' | 'review' | 'class' | 'teacher';
+type CheckersSurface =
+  'home' | 'play' | 'learning' | 'bots' | 'bot-campaign' | 'local' | 'review' | 'class' | 'teacher';
 
 export function resolveCheckersLandingSurface(
   projectScope: 'personal' | 'classroom',
@@ -766,7 +774,8 @@ export function CheckersModuleExperience(props: CheckersModuleExperienceProps): 
   const [lessonStage, setLessonStage] = useState<
     'explain' | 'demonstrate' | 'practice' | 'feedback'
   >('explain');
-  const [botSideChoice, setBotSideChoice] = useState<'light' | 'dark'>('light');
+  const [botSideChoice, setBotSideChoice] = useState<CheckersBotSideChoice>('light');
+  const [localAutoFlipChoice, setLocalAutoFlipChoice] = useState(true);
   const [assignmentDialog, setAssignmentDialog] = useState(false);
   const [eventDialog, setEventDialog] = useState(false);
   const [enrolDialog, setEnrolDialog] = useState(false);
@@ -848,7 +857,48 @@ export function CheckersModuleExperience(props: CheckersModuleExperienceProps): 
         : []
       : checkers.legalMoves;
   const reviewInsights = analyzeCheckersGameReview(sourceGame);
-
+  const botOutcome =
+    surface === 'play' &&
+    document.activeMatch.mode === 'bot' &&
+    !activePuzzle &&
+    !activeClassGame &&
+    sourceGame.mode === 'game'
+      ? checkersOutcomeForSide(sourceGame.result, checkers.botPlayerSide)
+      : 'ongoing';
+  const botGameResult =
+    botOutcome === 'ongoing'
+      ? null
+      : ({
+          tone: botOutcome,
+          title:
+            botOutcome === 'win'
+              ? `Вы победили ${selectedBot.displayName}`
+              : botOutcome === 'loss'
+                ? `Победил ${selectedBot.displayName}`
+                : 'Ничья',
+          detail: `${
+            document.education.activeBotMode === 'free' ? 'Свободная игра' : 'Лестница ASA Bot'
+          } · вы играли ${checkers.botPlayerSide === 'light' ? 'светлыми' : 'тёмными'}.`,
+        } as const);
+  const localGameResult =
+    surface === 'play' &&
+    document.activeMatch.mode === 'local' &&
+    !activePuzzle &&
+    !activeClassGame &&
+    sourceGame.result !== '*'
+      ? ({
+          tone: sourceGame.result === '1/2-1/2' ? 'draw' : 'win',
+          title:
+            sourceGame.result === '1-0'
+              ? 'Победили светлые'
+              : sourceGame.result === '0-1'
+                ? 'Победили тёмные'
+                : 'Ничья',
+          detail: 'Локальная партия за одним устройством завершена.',
+        } as const)
+      : null;
+  const personalGameResult =
+    document.activeMatch.mode === 'local' ? localGameResult : botGameResult;
   const startPuzzle = (puzzle: CheckersPuzzle): void => {
     const limitedAssignment = document.education.assignments.find(
       (assignment) =>
@@ -889,7 +939,10 @@ export function CheckersModuleExperience(props: CheckersModuleExperienceProps): 
     }
     if (assignment.kind === 'bot-milestone' && assignment.targetRef.startsWith('bot:')) {
       const botId = assignment.targetRef.slice(4) as CheckersBotId;
-      if (checkers.startBotGame(botId, true, botSideChoice)) setSurface('play');
+      if (
+        checkers.startBotGame(botId, resolveCheckersBotSideChoice(botSideChoice), 'campaign', true)
+      )
+        setSurface('play');
       return;
     }
     if (assignment.kind === 'game') {
@@ -987,7 +1040,7 @@ export function CheckersModuleExperience(props: CheckersModuleExperienceProps): 
                     ? 'Матч педагога'
                     : 'Игра класса'
               } · ${activeClassGame.status === 'finished' ? 'завершена' : 'в процессе'}`
-            : `Игра с ботом · ${selectedBot.displayName}`,
+            : `${document.education.activeBotMode === 'free' ? 'Свободная игра' : 'Лестница ASA Bot'} · ${selectedBot.displayName}`,
         opponentLabel: activeClassGame
           ? activeClassGame.side === 'light'
             ? activeClassGame.darkPlayer.displayName
@@ -1044,7 +1097,8 @@ export function CheckersModuleExperience(props: CheckersModuleExperienceProps): 
         readOnly:
           isReview ||
           Boolean(
-            checkers.botThinking ||
+            (document.activeMatch.mode === 'bot' && checkers.botThinking) ||
+            (!activeClassGame && sourceGame.result !== '*') ||
             (activeClassGame &&
               (activeClassGame.status !== 'active' ||
                 activeClassGame.side !== sourceGame.sideToMove)),
@@ -1053,9 +1107,21 @@ export function CheckersModuleExperience(props: CheckersModuleExperienceProps): 
           ? 'light'
           : activeClassGame
             ? (activeClassGame.side ?? 'light')
-            : checkers.botPlayerSide,
+            : document.activeMatch.mode === 'local'
+              ? document.activeMatch.localAutoFlip
+                ? workspaceGame.sideToMove
+                : 'light'
+              : checkers.botPlayerSide,
+        autoFlipBoard: document.activeMatch.mode === 'local' && document.activeMatch.localAutoFlip,
         canRestart: Boolean(activePuzzle || (!activeClassGame && surface === 'play')),
         canResign: Boolean(!activePuzzle && !activeClassGame && sourceGame.result === '*'),
+        canDraw: Boolean(
+          document.activeMatch.mode === 'local' &&
+          !activePuzzle &&
+          !activeClassGame &&
+          sourceGame.result === '*',
+        ),
+        ...(personalGameResult ? { gameResult: personalGameResult } : {}),
       }}
       onBack={() => {
         if (activeClassGame) {
@@ -1092,10 +1158,28 @@ export function CheckersModuleExperience(props: CheckersModuleExperienceProps): 
           return;
         }
         if (!activeClassGame) {
-          checkers.startBotGame(selectedBot.id as CheckersBotId, false, checkers.botPlayerSide);
+          if (document.activeMatch.mode === 'local') {
+            checkers.startLocalGame(document.activeMatch.localAutoFlip);
+          } else {
+            checkers.startBotGame(
+              selectedBot.id as CheckersBotId,
+              checkers.botPlayerSide,
+              document.education.activeBotMode,
+            );
+          }
         }
       }}
-      onResign={() => checkers.resignBotGame()}
+      onResign={() => {
+        if (document.activeMatch.mode === 'local') checkers.resignLocalGame();
+        else checkers.resignBotGame();
+      }}
+      onDraw={() => checkers.drawLocalGame()}
+      {...(document.activeMatch.mode === 'bot'
+        ? {
+            onChooseOpponent: () =>
+              setSurface(document.education.activeBotMode === 'campaign' ? 'bot-campaign' : 'bots'),
+          }
+        : {})}
       {...(activePuzzle && attempt
         ? {
             onHint: () => {
@@ -1154,7 +1238,33 @@ export function CheckersModuleExperience(props: CheckersModuleExperienceProps): 
         }}
       />
     );
+  } else if (surface === 'local') {
+    content = (
+      <CheckersLocalSetup
+        autoFlip={localAutoFlipChoice}
+        onAutoFlipChange={setLocalAutoFlipChoice}
+        onStart={() => {
+          if (checkers.startLocalGame(localAutoFlipChoice)) setSurface('play');
+        }}
+        onBack={() => setSurface('home')}
+      />
+    );
   } else if (surface === 'bots') {
+    content = (
+      <CheckersBotSetup
+        bots={CHECKERS_BOTS}
+        selectedBotId={selectedBot.id}
+        sideChoice={botSideChoice}
+        onSideChoice={setBotSideChoice}
+        onStart={(botId) => {
+          const side = resolveCheckersBotSideChoice(botSideChoice);
+          if (checkers.startBotGame(botId, side, 'free')) setSurface('play');
+        }}
+        onOpenCampaign={() => setSurface('bot-campaign')}
+        onBack={() => setSurface('home')}
+      />
+    );
+  } else if (surface === 'bot-campaign') {
     content = (
       <main className="checkers-learning-shell" id="main-content" tabIndex={-1}>
         <header className="checkers-surface-heading">
@@ -1162,39 +1272,37 @@ export function CheckersModuleExperience(props: CheckersModuleExperienceProps): 
             <button
               type="button"
               className="checkers-link-button"
-              onClick={() => setSurface('home')}
+              onClick={() => setSurface('bots')}
             >
-              ← На главную шашек
+              ← К свободной игре
             </button>
-            <span className="checkers-kicker">Лестница ASA Bot</span>
-            <h1>Шесть соперников — от первого хода до мастера</h1>
-            <p>Следующий уровень открывается после двух побед и доказанного решения задач.</p>
+            <span className="checkers-kicker">Лестница ASA Bot · учебная кампания</span>
+            <h1>Проходи соперников последовательно</h1>
+            <p>
+              Эта лестница влияет на учебный прогресс. Для обычной партии вернись в свободную игру.
+            </p>
           </div>
         </header>
         <fieldset className="checkers-side-choice">
           <legend>Какими шашками играть?</legend>
-          <label>
-            <input
-              type="radio"
-              name="checkers-side"
-              value="light"
-              checked={botSideChoice === 'light'}
-              onChange={() => setBotSideChoice('light')}
-            />
-            Светлыми — первый ход твой
-          </label>
-          <label>
-            <input
-              type="radio"
-              name="checkers-side"
-              value="dark"
-              checked={botSideChoice === 'dark'}
-              onChange={() => setBotSideChoice('dark')}
-            />
-            Тёмными — сначала ходит бот
-          </label>
+          {(['light', 'dark', 'random'] as const).map((choice) => (
+            <label key={choice}>
+              <input
+                type="radio"
+                name="checkers-campaign-side"
+                value={choice}
+                checked={botSideChoice === choice}
+                onChange={() => setBotSideChoice(choice)}
+              />
+              {choice === 'light'
+                ? 'Светлыми — первый ход ваш'
+                : choice === 'dark'
+                  ? 'Тёмными — первым ходит бот'
+                  : 'Случайно — сторона выбирается при старте'}
+            </label>
+          ))}
         </fieldset>
-        <section className="checkers-bot-grid" aria-label="Соперники ASA Bot">
+        <section className="checkers-bot-grid" aria-label="Учебная лестница ASA Bot">
           {CHECKERS_BOTS.map((bot) => {
             const locked = bot.rung > document.education.unlockedBotRung;
             return (
@@ -1206,21 +1314,19 @@ export function CheckersModuleExperience(props: CheckersModuleExperienceProps): 
                 <h2>{bot.displayName}</h2>
                 <p>{bot.description}</p>
                 <small>
-                  {bot.rung <= 2
-                    ? 'Играет спокойно и оставляет понятные возможности.'
-                    : bot.rung <= 4
-                      ? 'Замечает тактику и помогает готовиться к комбинациям.'
-                      : 'Проверяет план, безопасность и игру в окончаниях.'}
+                  {locked
+                    ? 'Открой уровень победами и практикой в учебной кампании.'
+                    : 'Победа здесь учитывается в прогрессе лестницы.'}
                 </small>
                 <button
                   type="button"
                   disabled={locked}
                   onClick={() => {
-                    if (checkers.startBotGame(bot.id as CheckersBotId, false, botSideChoice))
-                      setSurface('play');
+                    const side = resolveCheckersBotSideChoice(botSideChoice);
+                    if (checkers.startBotGame(bot.id, side, 'campaign')) setSurface('play');
                   }}
                 >
-                  {locked ? 'Сначала предыдущий уровень' : 'Начать партию'}
+                  {locked ? 'Сначала предыдущий уровень' : 'Начать учебную партию'}
                 </button>
               </article>
             );
@@ -1347,6 +1453,20 @@ export function CheckersModuleExperience(props: CheckersModuleExperienceProps): 
         }`,
       };
     } else if (
+      document.activeMatch.mode === 'local' &&
+      document.game.mode === 'game' &&
+      document.game.result === '*' &&
+      document.education.lastActivityAt !== null
+    ) {
+      resume = {
+        id: 'resume-local-game',
+        title: 'Локальная партия',
+        detail: `Игра вдвоём · ход ${
+          document.game.sideToMove === 'light' ? 'светлых' : 'тёмных'
+        } · ${document.activeMatch.localAutoFlip ? 'автоповорот включён' : 'доска не поворачивается'}`,
+      };
+    } else if (
+      document.activeMatch.mode === 'bot' &&
       document.game.mode === 'game' &&
       document.game.result === '*' &&
       document.education.lastActivityAt !== null &&
@@ -1387,7 +1507,13 @@ export function CheckersModuleExperience(props: CheckersModuleExperienceProps): 
         }}
         onOpen={(id) => {
           if (id === 'bot-play') setSurface('bots');
-          else if (id === 'resume-bot-game') {
+          else if (id === 'local-play') {
+            setLocalAutoFlipChoice(document.activeMatch.localAutoFlip);
+            setSurface('local');
+          } else if (id === 'resume-local-game') {
+            setActivePuzzle(null);
+            setSurface('play');
+          } else if (id === 'resume-bot-game') {
             setActivePuzzle(null);
             setSurface('play');
           } else if (id.startsWith('class-game:')) {
