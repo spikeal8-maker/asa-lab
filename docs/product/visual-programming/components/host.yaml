@@ -18,6 +18,7 @@ components:
       - infra/scratch-editor/host/host.css
     tests:
       - .github/workflows/scratch-focused.yml
+      - tools/verify-blocks-host-shell.mjs
     task: VSCR-M1-002A
     task_card: VSCR-M1-002A.md
     depends_on: [blocks.upstream.pin]

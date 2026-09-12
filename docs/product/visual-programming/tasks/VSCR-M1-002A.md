@@ -45,6 +45,8 @@ infra/scratch-editor/host/index.html
 infra/scratch-editor/host/main.js
 infra/scratch-editor/host/host.css
 .github/workflows/scratch-focused.yml
+package.json
+tools/verify-blocks-host-shell.mjs
 ../components/host.yaml → blocks.host.build only
 ```
 
@@ -62,10 +64,13 @@ Scratch GUI/VM is not added to apps/web dependencies
 ## Tests/evidence
 
 ```text
+pnpm gate:blocks-m1-002a
 Docker build exact pin
 container /healthz
 root document has ASA host marker
 standalone vendor bundle exists
+real Chromium reaches standalone-ready with no page/console errors
+editor root remains unmounted before protocol slice
 upstream playground root is not served
 node tools/validate-blocks-docs.mjs
 ```

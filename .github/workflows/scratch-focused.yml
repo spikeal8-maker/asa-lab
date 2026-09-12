@@ -65,13 +65,8 @@ jobs:
       - name: Install exact dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Focused Blocks boundary gate
-        run: pnpm gate:blocks-m1-001
-
-      - name: Validate M1-002A host sources
-        run: |
-          pnpm exec prettier --check infra/scratch-editor/host/index.html infra/scratch-editor/host/main.js infra/scratch-editor/host/host.css infra/scratch-editor/README.md docs/product/visual-programming/components/host.yaml docs/product/visual-programming/tasks/VSCR-M1-002A.md
-          node tools/validate-blocks-docs.mjs
+      - name: Focused M1-002A gate
+        run: pnpm gate:blocks-m1-002a
 
   runtime-image:
     name: Standalone host image and health smoke
@@ -87,6 +82,24 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
           fetch-depth: 0
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install exact dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Chromium for host smoke
+        run: pnpm exec playwright install --with-deps chromium
 
       - name: Build pinned Scratch standalone host image
         run: docker build -f infra/scratch-editor/Dockerfile -t asa-lab-scratch-editor:m1-002a .
@@ -113,6 +126,11 @@ jobs:
           docker exec asa-lab-scratch-editor test ! -f /usr/share/nginx/html/standalone.html
           docker exec asa-lab-scratch-editor grep -F 'SCRATCH_EDITOR_COMMIT=82c5fea6d3e60c781f25c09b375045f9b46a43f7' /usr/share/nginx/html/licenses/scratch-editor-upstream.env
           curl --fail --silent --show-error --output /dev/null http://127.0.0.1:4613/vendor/scratch/scratch-gui-standalone.js
+
+      - name: Browser smoke ASA host shell
+        env:
+          BLOCKS_RUNTIME_URL: http://127.0.0.1:4613
+        run: pnpm test:blocks-m1-002a:browser
 
       - name: Show runtime logs
         if: always()
