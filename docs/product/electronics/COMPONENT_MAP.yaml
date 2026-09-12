@@ -1,0 +1,115 @@
+schema_version: 1.0.0
+module: electronics
+product: "Electronics / Arduino"
+purpose: "Compact lookup: human request/component ID -> one subsystem card."
+execution_state_source: docs/execution/current.yaml
+roadmap_source: docs/product/electronics/ASA_ELECTRONICS_OPTIMIZATION_PLAN_V2.md
+normative_spec: docs/product/electronics/README.md
+agent_router: docs/product/electronics/START_HERE.md
+
+rules:
+  default_read: "router + this index + one referenced card"
+  expand: one_dependency_hop_at_a_time
+  broad_search: only_if_map_stale_or_cross_cutting
+  plan_skip: forbidden
+  automatic_next_task: forbidden
+  index_owns: [component_id, card_route, human_keywords]
+  card_owns: [implementation_state, risk, ownership, contracts, sources, tests, dependencies]
+
+areas:
+  engine-worker-clock: components/engine-worker-clock.yaml
+  arduino-peripherals: components/arduino-peripherals.yaml
+  ui-assets-persistence: components/ui-assets-persistence.yaml
+  delivery-portability: components/delivery-portability.yaml
+
+components:
+  electronics.engine.public-api:
+    card: components/engine-worker-clock.yaml
+    keywords: ["engine api", "portable engine", "ядро электроники", "переносимое ядро"]
+  electronics.engine.document:
+    card: components/engine-worker-clock.yaml
+    keywords: ["circuit document", "схема документа", "schema electronics"]
+  electronics.engine.netlist:
+    card: components/engine-worker-clock.yaml
+    keywords: ["netlist", "сети", "breadboard topology"]
+  electronics.engine.solver:
+    card: components/engine-worker-clock.yaml
+    keywords: ["solver", "математическое ядро", "kcl", "convergence"]
+  electronics.engine.device-model:
+    card: components/engine-worker-clock.yaml
+    keywords: ["device model", "model registry", "электрическая модель"]
+  electronics.worker.protocol:
+    card: components/engine-worker-clock.yaml
+    keywords: ["worker", "simulation worker", "protocol worker"]
+  electronics.worker.live-controller:
+    card: components/engine-worker-clock.yaml
+    keywords: ["live simulation", "worker controller", "running simulation"]
+  electronics.clock.canonical:
+    card: components/engine-worker-clock.yaml
+    keywords: ["canonical clock", "время симуляции", "physics clock", "microseconds"]
+  electronics.transient.runtime:
+    card: components/engine-worker-clock.yaml
+    keywords: ["transient", "motor transient", "capacitor transient", "electrothermal"]
+
+  electronics.arduino.runtime:
+    card: components/arduino-peripherals.yaml
+    keywords: ["arduino runtime", "arduino parser", "setup loop", "uno runtime"]
+  electronics.arduino.scheduler:
+    card: components/arduino-peripherals.yaml
+    keywords: ["arduino scheduler", "instruction clock", "physics barrier"]
+  electronics.arduino.capabilities:
+    card: components/arduino-peripherals.yaml
+    keywords: ["arduino capabilities", "supported api", "unsupported arduino"]
+  electronics.peripheral.servo:
+    card: components/arduino-peripherals.yaml
+    keywords: ["servo", "sg90"]
+  electronics.peripheral.ultrasonic:
+    card: components/arduino-peripherals.yaml
+    keywords: ["hc-sr04", "ultrasonic", "ping", "pulsein"]
+  electronics.peripheral.pir:
+    card: components/arduino-peripherals.yaml
+    keywords: ["pir", "motion sensor"]
+  electronics.peripheral.serial:
+    card: components/arduino-peripherals.yaml
+    keywords: ["serial", "serial monitor"]
+  electronics.peripheral.i2c:
+    card: components/arduino-peripherals.yaml
+    keywords: ["i2c", "wire library", "lcd i2c"]
+  electronics.peripheral.spi:
+    card: components/arduino-peripherals.yaml
+    keywords: ["spi", "shift"]
+  electronics.peripheral.ir:
+    card: components/arduino-peripherals.yaml
+    keywords: ["ir", "infrared"]
+  electronics.peripheral.neopixel:
+    card: components/arduino-peripherals.yaml
+    keywords: ["neopixel", "ws2812", "timing sensitive led"]
+
+  electronics.ui.workbench:
+    card: components/ui-assets-persistence.yaml
+    keywords: ["workbench", "редактор схем", "stage", "canvas"]
+  electronics.ui.catalog:
+    card: components/ui-assets-persistence.yaml
+    keywords: ["component catalog", "каталог компонентов", "library"]
+  electronics.assets.owner-svg:
+    card: components/ui-assets-persistence.yaml
+    keywords: ["owner svg", "svg component", "asset provenance"]
+  electronics.ui.inspector-help:
+    card: components/ui-assets-persistence.yaml
+    keywords: ["inspector", "help", "properties panel"]
+  electronics.persistence.project:
+    card: components/ui-assets-persistence.yaml
+    keywords: ["save electronics", "autosave electronics", "project persistence"]
+
+  electronics.evidence.benchmark:
+    card: components/delivery-portability.yaml
+    keywords: ["benchmark electronics", "golden corpus", "performance baseline"]
+  electronics.portability.standalone:
+    card: components/delivery-portability.yaml
+    keywords: ["standalone electronics", "portability", "перенос электроники"]
+  electronics.delivery.deployment:
+    card: components/delivery-portability.yaml
+    keywords: ["deploy electronics", "развернуть electronics", "production electronics"]
+  electronics.delivery.rollback:
+    card: components/delivery-portability.yaml
+    keywords: ["rollback electronics", "backup deploy", "откат"]

@@ -1,0 +1,89 @@
+schema_version: 1.0.0
+area: ui-assets-persistence
+purpose: "Workbench presentation, component catalog/owner assets, inspector/help and project persistence boundaries."
+
+components:
+  electronics.ui.workbench:
+    implementation_state: implemented
+    ownership: asa
+    risk: medium
+    contracts:
+      - docs/product/electronics/README.md#7-stage-selection-и-rotation
+    sources:
+      - apps/web/src/electronics/use-electronics-workbench.ts
+      - apps/web/src/electronics/SchematicEditor.tsx
+      - apps/web/src/electronics/workbench-geometry.ts
+    tests:
+      - apps/web/src/electronics/testing/**
+      - e2e/electronics-simulation.spec.ts
+    dependencies: [electronics.worker.live-controller]
+    notes: "UI renders committed engine results; it must not compute electrical truth itself."
+
+  electronics.ui.catalog:
+    implementation_state: implemented
+    ownership: asa
+    risk: medium
+    contracts:
+      - docs/product/electronics/README.md#6-component-library
+    sources:
+      - apps/web/src/electronics/component-catalog.ts
+      - apps/web/src/electronics/production-manifest-adapter.ts
+      - apps/web/public/assets/electronics/component-database/**
+    tests:
+      - apps/web/src/electronics/testing/**
+    dependencies: [electronics.assets.owner-svg, electronics.engine.device-model]
+
+  electronics.assets.owner-svg:
+    implementation_state: protected
+    ownership: owner_asset
+    risk: critical
+    contracts:
+      - docs/product/electronics/README.md#6-component-library
+      - AGENTS.md#3-неприкосновенные-данные
+    sources:
+      - apps/web/public/assets/electronics/owner-supplied/**
+      - apps/web/public/assets/electronics/owner-audit/**
+    tests:
+      - tools/validate_electronics_assets.py
+    dependencies: []
+    forbidden:
+      - redraw
+      - png_tracing
+      - generated_runtime_artwork
+      - destructive_owner_asset_edit
+
+  electronics.ui.inspector-help:
+    implementation_state: implemented
+    ownership: asa
+    risk: low
+    contracts:
+      - docs/product/electronics/README.md
+    sources:
+      - apps/web/src/electronics/component-help-content.ts
+      - apps/web/src/electronics/**
+    tests:
+      - apps/web/src/electronics/testing/**
+    dependencies: [electronics.ui.catalog, electronics.engine.device-model]
+
+  electronics.persistence.project:
+    implementation_state: implemented
+    ownership: cross_boundary
+    risk: high
+    contracts:
+      - docs/product/electronics/README.md#5-circuitdocument
+      - AGENTS.md#5-инварианты-симуляции
+    sources:
+      - apps/web/src/electronics/use-workbench-project-state.ts
+      - apps/web/src/electronics/electronics-document-merge.ts
+      - apps/web/src/electronics/workbench-autosave.ts
+    tests:
+      - apps/web/src/electronics/testing/workbench-project-state.spec.ts
+      - apps/web/src/electronics/testing/workbench-autosave.spec.ts
+    dependencies: [electronics.engine.document, electronics.worker.live-controller]
+    notes: "Browser calculation must precede autosave completion; runtime Start/Stop is not collaborative electrical intent."
+
+rules:
+  ui_may_invent_current_voltage_damage: false
+  owner_svg_is_runtime_truth_for_artwork: true
+  runtime_controls_create_project_revision: false
+  deployment_from_ui_task: forbidden
