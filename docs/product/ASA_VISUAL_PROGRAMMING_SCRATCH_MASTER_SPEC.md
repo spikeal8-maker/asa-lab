@@ -1,6 +1,6 @@
 # ASA Lab Visual Programming — Scratch integration master specification
 
-**Version:** 3.1  
+**Version:** 3.2  
 **Module:** `blocks`  
 **Product:** `Визуальное программирование`
 
@@ -203,7 +203,11 @@ Actual implementation ownership lives in
 `docs/product/visual-programming/components/*.yaml`; the compact component index only routes
 to those cards.
 
-## 10. Milestone order
+## 10. Capability-oriented milestone order
+
+The programme advances by meaningful working capability. Internal layers still receive exact
+focused evidence and required security review, but they are not automatically separate owner-visible
+milestones.
 
 ```text
 M0/M0.1  foundation/document contract                         COMPLETE
@@ -212,30 +216,44 @@ M1-001    @asa-lab/blocks bounded context
 
 M1-002    ASA-owned Scratch host milestone
   M1-002A standalone build + minimal ASA host shell
+  M1-002C strict parent/iframe bootstrap boundary
+  M1-002D fixture storage adapter + real editor mount          FIRST VISIBLE SCRATCH
   M1-002B ASA branding + File/Extensions controls
-  M1-002C parent/iframe protocol boundary
-  M1-002D ScratchStorage/GUIStorage fixture adapter
   M1-002E integrated host acceptance + independent review
 
 M1-003    runtime capability + exact Origin/CORS/CSP/current authority
-M1-004P   exact content-validation dependency decision
-M1-004    tenant-private asset metadata + S3/MinIO
-M1-005P   exact Scratch semantic-validation decision
-M1-005    durability guard + durable load/save
+M1-004    content-validated tenant-private assets + S3/MinIO
+M1-005    semantic validation + durability guard + durable load/save
 M1-006    autosave/recovery/conflict/snapshot
-M1-007P   ZIP/legacy-media dependency + corpus decision
 M1-007    safe .sb3 import/export
 M1-008    full M1 durability/security acceptance
 
-M2        product UI + immutable Gallery/player/remix
-M3        sovereign media/extensions + network deny + backup/restore/deployment
+M2        product UI + immutable Gallery/player/remix + Learning integration
+M3        sovereign media/extensions + network deny + backup/restore/deployment/load
 M4-001    explicit coming_soon → active activation
 ```
 
-Each task/sub-slice is separately selected in `current.yaml`, evidenced, self-reviewed and
-accepted. No bot automatically advances.
+M1-002 deliberately uses `A → C → D → B → E`. Branding/control DOM evidence comes after the
+real editor exists. C establishes the trusted bootstrap boundary; D mounts the editor through
+controlled fixture storage and creates the first user-visible Scratch capability.
 
-## 11. Task routing stubs
+Each executable task is separately selected in `current.yaml`, evidenced and self-reviewed. No bot
+automatically advances.
+
+### Conditional design decisions
+
+There are no mandatory pre-created `M1-004P`, `M1-005P` or `M1-007P` milestones.
+
+Before M1-004, M1-005 or M1-007 coding, inspect the accepted prerequisites. If the exact
+content-validation, semantic-validation or ZIP/legacy-media decision is still genuinely unresolved,
+STOP and create/select a bounded design-decision task. If the decision is already sufficiently
+resolved by accepted contracts/interfaces, record it in the implementation card and proceed when
+that card is separately selected.
+
+A design gate exists because a real decision remains open, not because the roadmap mechanically
+requires another ceremony.
+
+## 11. Capability checkpoints and task routing
 
 ### VSCR-M1-001
 
@@ -251,23 +269,49 @@ M1-002 is a milestone router, not one giant coding task:
 
 ```text
 tasks/VSCR-M1-002.md
-→ A → STOP
-→ B → STOP
-→ C → STOP
-→ D → STOP
-→ E independent acceptance/review → STOP
+→ A technical host foundation → STOP
+→ C secure bootstrap boundary → independent review → STOP
+→ D real editor mount → FIRST VISIBLE SCRATCH checkpoint → STOP
+→ B ASA product controls on real DOM → STOP
+→ E integrated acceptance/review → STOP
 ```
 
 M1-003 remains blocked until M1-002E evidence and explicit owner milestone acceptance.
 
+### First visible Scratch
+
+M1-002D acceptance must prove at least:
+
+```text
+valid INIT is required
+real Scratch editor mounts
+workspace/stage are visible
+controlled block programme can run and stop
+fixture/project/library traffic has no Scratch Foundation fallback
+no durable-save success is falsely claimed
+```
+
+This is the first point at which the programme must visibly behave like Scratch inside ASA. Durable
+save/reopen belongs to M1-005.
+
+### Durable ASA Scratch project
+
+M1-005 acceptance establishes:
+
+```text
+open ASA project
+→ edit
+→ save
+→ close/reopen
+→ project JSON and referenced assets restore from ASA
+```
+
+M1-006 adds robust autosave/recovery/conflict semantics; M1-007 adds safe `.sb3` interchange.
+
 ### VSCR-M1-003+
 
-Exact future coding cards are written/refined only after prerequisite interfaces are
-accepted. Distant roadmap text must not freeze speculative source paths/tests.
-
-M1-004P/M1-005P/M1-007P are explicit design/dependency-selection gates before their
-security-sensitive implementation tasks. Each design gate requires its own exact bounded
-card before it can be selected in `current.yaml`.
+Exact future coding cards are written/refined only after prerequisite interfaces are accepted.
+Distant roadmap text must not freeze speculative source paths/tests.
 
 M2/M3/M4 implementation cards remain blocked until prior milestone interfaces/evidence are
 accepted.
@@ -311,8 +355,10 @@ update the owning subsystem card when real source/test ownership changes
 STOP
 ```
 
-A stale/conflicting route is a documentation defect to repair before coding disputed
-behaviour. A bot must not invent architecture merely to keep moving.
+A stale/conflicting route is a documentation defect to repair before coding disputed behaviour.
+A bot must not invent architecture merely to keep moving.
 
-Deployment, restart, live restore and activation always require separate explicit owner
-instruction.
+Owner-visible checkpoints are tied to meaningful capability, not every internal layer. Security
+boundaries still require the review profile declared by their exact task cards.
+
+Deployment, restart, live restore and activation always require separate explicit owner instruction.

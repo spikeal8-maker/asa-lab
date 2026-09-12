@@ -8,8 +8,9 @@
 ## Goal
 
 Replace the M0 playground root with a reproducible ASA-owned static shell around the pinned
-Scratch shipping standalone distribution. Do not add branding patches, iframe protocol or
-storage adapter yet.
+Scratch shipping standalone distribution. This is a technical foundation slice: it does **not**
+need to provide a user-visible editor yet. Do not add branding patches, iframe protocol or storage
+adapter here.
 
 ## Components
 
@@ -94,5 +95,6 @@ contract. Confirm no later M1-002 component was started.
 
 ## Stop
 
-STOP after evidence. VSCR-M1-002B requires separate owner-authorised selection in
-`current.yaml` after A is accepted.
+STOP after evidence. The next planned executable slice is `VSCR-M1-002C`, not branding. C must be
+refreshed against the accepted A interfaces and selected separately in `current.yaml`. Do not start
+C automatically.

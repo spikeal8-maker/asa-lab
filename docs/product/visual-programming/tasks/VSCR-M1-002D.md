@@ -1,4 +1,4 @@
-# VSCR-M1-002D — ScratchStorage/GUIStorage fixture adapter
+# VSCR-M1-002D — ScratchStorage/GUIStorage fixture adapter + first visible editor
 
 **Kind:** executable implementation slice  
 **Risk:** high  
@@ -7,9 +7,9 @@
 
 ## Goal
 
-Mount the pinned standalone editor through ASA-owned ScratchStorage/GUIStorage fixture
-behaviour without introducing real runtime API persistence. The adapter must have no implicit
-Scratch Foundation project/library fallback.
+Mount the pinned standalone editor through ASA-owned ScratchStorage/GUIStorage fixture behaviour
+behind the protocol boundary accepted in C. This is the **first visible Scratch checkpoint**:
+a user/test must be able to see and operate a real editor without claiming durable ASA save yet.
 
 ## Components
 
@@ -17,7 +17,7 @@ Scratch Foundation project/library fallback.
 blocks.host.storage-adapter
 ```
 
-Open only that entry in `components/host.yaml` plus direct protocol dependency when needed.
+Open only that entry in `components/host.yaml` plus the accepted protocol dependency when needed.
 
 ## Minimal read set
 
@@ -27,15 +27,15 @@ Open only that entry in `components/host.yaml` plus direct protocol dependency w
 ../COMPONENT_MAP.yaml
 ../components/host.yaml → blocks.host.storage-adapter
 ../VSCR-D0-001-SCRATCH-HOST-CONTRACT.md → Scratch storage adapter + VM/save boundary
-actual host/protocol accepted in M1-002A–C
+actual host/protocol accepted in M1-002A/C
 ```
 
 ## Expected write paths
 
 ```text
 infra/scratch-editor/host/storage.js
-infra/scratch-editor/host/main.js       # adapter composition only
-infra/scratch-editor/host/status.js     # only adapter status wiring
+infra/scratch-editor/host/main.js       # adapter composition + editor mount only
+infra/scratch-editor/host/status.js     # only adapter/editor status wiring
 tests/blocks/fixtures/**                # bounded local fixture data if needed
 e2e/blocks-host-storage.spec.ts
 ../components/host.yaml → blocks.host.storage-adapter only
@@ -58,7 +58,10 @@ No production runtime project/asset endpoint is introduced here.
 ## Acceptance
 
 ```text
-controlled new fixture mounts and runs
+valid INIT can mount the real Scratch editor
+workspace and stage are visibly rendered
+controlled fixture project loads and runs
+controlled block programme can start and stop
 no project/media request falls back to Scratch Foundation hosts
 saveProject cannot report durable success
 new fixture does not fetch ASA project UUID upstream
@@ -66,9 +69,15 @@ PROJECT_CHANGED reaches ASA host observation after stable load
 player fixture can mount read-only
 ```
 
+This checkpoint is intentionally usable but not yet durable: refresh/reopen may lose unsaved
+fixture changes until M1-005.
+
 ## Tests/evidence
 
 ```text
+real browser visible-editor journey
+workspace/stage presence
+controlled run/stop interaction
 browser network evidence shows no Scratch Foundation fallback
 new fixture + existing controlled fixture load paths
 saveProject defensive-failure test
@@ -80,6 +89,7 @@ node tools/validate-blocks-docs.mjs
 ## Forbidden
 
 ```text
+no product branding/File/Extensions work
 no real /api/blocks/runtime project/asset implementation
 no JWT issuance
 no asset PUT
@@ -91,8 +101,9 @@ no production route exposure
 
 ## Bounded self-review
 
-Review only storage-adapter behaviour, final diff, mapped D0 section and network/browser
-evidence. Confirm no persistence success is claimed and no external fallback remains.
+Review only storage-adapter/editor-mount behaviour, final diff, mapped D0 section and
+network/browser evidence. Confirm no persistence success is claimed and no external fallback
+remains.
 
 ## Independent review
 
@@ -107,12 +118,13 @@ mapped D0-001 sections
 authoritative browser/network evidence on the exact SHA
 ```
 
-The reviewer checks that no Scratch Foundation fallback remains, fixture IDs cannot invoke
-upstream project fetch semantics, `saveProject()` cannot fake durable success and no real
-M1-003/M1-004/M1-005 API was implemented early. A product defect is `FAIL/STOP`; repair it in
-a separately selected bounded component task and rerun the review.
+The reviewer checks that the editor mounts only through the accepted C boundary, no Scratch
+Foundation fallback remains, fixture IDs cannot invoke upstream project fetch semantics,
+`saveProject()` cannot fake durable success and no real M1-003/M1-004/M1-005 API was implemented
+early.
 
 ## Stop
 
-STOP after self-review, independent review and evidence. VSCR-M1-002E requires separate
-owner-authorised selection in `current.yaml` after D is accepted.
+STOP at the **FIRST VISIBLE SCRATCH** checkpoint. The next planned slice is `VSCR-M1-002B`, which
+productises the now-real editor DOM with ASA branding and File/Extensions controls. B requires
+separate selection in `current.yaml`.
