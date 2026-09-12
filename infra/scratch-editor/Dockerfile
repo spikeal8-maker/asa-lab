@@ -20,14 +20,22 @@ RUN set -eux; \
     test "$(node -p "require('./package.json').version")" = "$SCRATCH_EDITOR_VERSION"; \
     HUSKY=0 npm ci --no-audit --no-fund; \
     npm run build; \
-    test -f packages/scratch-gui/build/index.html
+    test -f packages/scratch-gui/dist/scratch-gui-standalone.js
 
 FROM nginx:1.27.5-alpine
 
-COPY infra/scratch-editor/nginx.conf /etc/nginx/conf.d/default.conf
-COPY --from=build /opt/scratch-editor/packages/scratch-gui/build/ /usr/share/nginx/html/
+COPY infra/scratch-editor/nginx.conf.template /etc/nginx/templates/default.conf.template
+COPY infra/scratch-editor/host/ /usr/share/nginx/html/
+COPY --from=build /opt/scratch-editor/packages/scratch-gui/dist/ /usr/share/nginx/html/vendor/scratch/
 COPY --from=build /opt/scratch-editor/LICENSE /usr/share/nginx/html/licenses/SCRATCH-EDITOR-AGPL-3.0.txt
+COPY --from=build /opt/scratch-editor/packages/scratch-gui/TRADEMARK /usr/share/nginx/html/licenses/SCRATCH-GUI-TRADEMARK.txt
 COPY --from=build /tmp/scratch-upstream.env /usr/share/nginx/html/licenses/scratch-editor-upstream.env
+
+RUN set -eux; \
+    test -f /usr/share/nginx/html/index.html; \
+    test -f /usr/share/nginx/html/main.js; \
+    test -f /usr/share/nginx/html/vendor/scratch/scratch-gui-standalone.js; \
+    ! grep -F "Scratch 3.0 GUI" /usr/share/nginx/html/index.html
 
 EXPOSE 8080
 
