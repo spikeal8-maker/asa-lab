@@ -1048,7 +1048,9 @@ export function CheckersModuleExperience(props: CheckersModuleExperienceProps): 
                     ? 'Матч педагога'
                     : 'Игра класса'
               } · ${activeClassGame.status === 'finished' ? 'завершена' : 'в процессе'}`
-            : `${document.education.activeBotMode === 'free' ? 'Свободная игра' : 'Лестница ASA Bot'} · ${selectedBot.displayName}`,
+            : document.activeMatch.mode === 'local'
+              ? 'Игра вдвоём · одно устройство'
+              : `${document.education.activeBotMode === 'free' ? 'Свободная игра' : 'Лестница ASA Bot'} · ${selectedBot.displayName}`,
         opponentLabel: activeClassGame
           ? activeClassGame.side === 'light'
             ? activeClassGame.darkPlayer.displayName
