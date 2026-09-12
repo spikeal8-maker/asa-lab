@@ -34,7 +34,9 @@ describe('persisted Checkers project document', () => {
 
   it('upgrades CK-101 education state to campaign mode without losing progression', () => {
     const project = createInitialCheckersProjectDocument('student-1');
-    const { activeBotMode: _activeBotMode, ...legacyEducation } = project.education;
+    const legacyEducation = Object.fromEntries(
+      Object.entries(project.education).filter(([key]) => key !== 'activeBotMode'),
+    );
     const parsed = validateCheckersProjectDocument({ ...project, education: legacyEducation });
     expect(parsed.ok).toBe(true);
     if (!parsed.ok) return;
