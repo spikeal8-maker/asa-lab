@@ -1055,9 +1055,11 @@ export function CheckersModuleExperience(props: CheckersModuleExperienceProps): 
           ? activeClassGame.side === 'light'
             ? activeClassGame.darkPlayer.displayName
             : activeClassGame.lightPlayer.displayName
-          : checkers.botThinking
-            ? `${selectedBot.displayName} думает…`
-            : selectedBot.displayName,
+          : document.activeMatch.mode === 'local'
+            ? 'Игрок 1 — светлые · Игрок 2 — тёмные'
+            : checkers.botThinking
+              ? `${selectedBot.displayName} думает…`
+              : selectedBot.displayName,
         sideToMove: workspaceGame.sideToMove,
         pieces: workspaceGame.pieces,
         legalMoves: workspaceLegalMoves,
@@ -1065,14 +1067,23 @@ export function CheckersModuleExperience(props: CheckersModuleExperienceProps): 
           ply: move.ply,
           notation: move.path.join(move.capturedIds.length > 0 ? ':' : '-'),
         })),
+        ...(workspaceGame.moveHistory.at(-1)?.path
+          ? { lastMovePath: workspaceGame.moveHistory.at(-1)!.path }
+          : {}),
         instructionTitle:
           activePuzzle?.title ??
-          (activeClassGame ? 'Партия с одноклассником' : 'Сыграй полноценную партию'),
+          (activeClassGame
+            ? 'Партия с одноклассником'
+            : document.activeMatch.mode === 'local'
+              ? `Ход ${workspaceGame.sideToMove === 'light' ? 'светлых' : 'тёмных'}`
+              : 'Сыграй полноценную партию'),
         instruction:
           activePuzzle?.instruction ??
           (activeClassGame
             ? 'Ходы сохраняются на сервере. Доступны только участники этого класса и готовые реакции.'
-            : 'Выбирай шашку и подсвеченное поле. Если взятие возможно, система разрешит только взятие.'),
+            : document.activeMatch.mode === 'local'
+              ? 'После хода передайте устройство второму игроку. Бот в этом режиме не участвует.'
+              : 'Выбирай шашку и подсвеченное поле. Если взятие возможно, система разрешит только взятие.'),
         ...(hint ? { hintText: hint } : {}),
         ...(activePuzzle
           ? {

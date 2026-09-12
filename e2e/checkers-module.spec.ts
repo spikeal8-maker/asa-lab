@@ -132,6 +132,22 @@ test('learner solves an original Russian-64 task, reloads progress and receives 
     .click();
   await expect(page.getByText('Задача · Обязательное взятие')).toBeVisible();
   await expectUniformBoardCells(page);
+  const boardV2 = page.getByLabel('Доска для русских шашек, 8 на 8');
+  await expect(boardV2).toHaveAttribute('data-renderer', 'v2');
+  await expect(boardV2).toHaveAttribute('data-theme', 'classic');
+  await page.getByLabel('Тема доски').selectOption('dark');
+  await expect(boardV2).toHaveAttribute('data-theme', 'dark');
+  await page.getByLabel('Тема доски').selectOption('light');
+  await expect(boardV2).toHaveAttribute('data-theme', 'light');
+  await page.getByLabel('Тема доски').selectOption('classic');
+  const forcedPiece = page.locator('[data-piece-square="c3"]').first();
+  await expect(forcedPiece).toHaveClass(/forced-capture/);
+  const movingPieceId = await forcedPiece.getAttribute('data-piece-id');
+  expect(movingPieceId).toBeTruthy();
+  const movingPiece = page.locator(`[data-piece-id="${movingPieceId}"]`);
+  expect(
+    await movingPiece.evaluate((element) => getComputedStyle(element).transitionProperty),
+  ).toContain('transform');
   await page.getByRole('button', { name: 'Посмотреть пример' }).click();
   await page.getByRole('button', { name: 'Попробовать самому' }).click();
 
@@ -144,6 +160,12 @@ test('learner solves an original Russian-64 task, reloads progress and receives 
   await page.locator('[data-square="c3"]').click();
   await page.locator('[data-square="e5"]').click();
   await puzzleSave;
+  await expect(movingPiece).toHaveAttribute('data-piece-square', 'e5');
+  await expect(page.locator('[data-square="c3"]')).toHaveAttribute('data-last-move', 'true');
+  await expect(page.locator('[data-square="e5"]')).toHaveAttribute('data-last-move', 'true');
+  expect(
+    await movingPiece.evaluate((element) => getComputedStyle(element).transitionDuration),
+  ).not.toBe('0s');
   await expect(
     page.getByText('Задача решена. Доказательство добавлено в учебный прогресс.'),
   ).toBeVisible();
@@ -270,7 +292,11 @@ test('two players share one device, reload the local match and finish with a rem
   await page.getByRole('button', { name: 'Ничья', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Ничья' })).toBeVisible();
   await page.getByRole('button', { name: 'Реванш', exact: true }).first().click();
-  await expect(page.getByText('Ход светлых')).toBeVisible();
+  await expect(
+    page.getByRole('heading', {
+      name: '\u0425\u043e\u0434 \u0441\u0432\u0435\u0442\u043b\u044b\u0445',
+    }),
+  ).toBeVisible();
   failures.assertEmpty();
 });
 

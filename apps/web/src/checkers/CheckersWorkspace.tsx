@@ -1,13 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { CheckersReviewInsight } from '@asa-lab/checkers';
 import { EditorHeader } from '../components/editor-chrome/EditorHeader';
-import { CheckersBoard, type CheckersBoardPiece, type CheckersBoardSquare } from './CheckersBoard';
+import type { CheckersBoardPiece, CheckersBoardSquare } from './CheckersBoard';
+import { CheckersBoardV2, type CheckersBoardTheme } from './CheckersBoardV2';
 import './checkers.css';
 
 export interface CheckersWorkspaceMove {
   readonly pieceId: string;
   readonly path: readonly CheckersBoardSquare[];
   readonly notation: string;
+  readonly isCapture?: boolean;
 }
 
 export interface CheckersMoveHistoryItem {
@@ -27,6 +29,7 @@ export interface CheckersWorkspaceViewModel {
   readonly pieces: readonly CheckersBoardPiece[];
   readonly legalMoves: readonly CheckersWorkspaceMove[];
   readonly moveHistory: readonly CheckersMoveHistoryItem[];
+  readonly lastMovePath?: readonly CheckersBoardSquare[];
   readonly instructionTitle: string;
   readonly instruction: string;
   readonly hintText?: string;
@@ -122,7 +125,7 @@ export function CheckersWorkspace({
   const [panel, setPanel] = useState<'task' | 'moves' | 'reactions'>('task');
   const [boardFlipped, setBoardFlipped] = useState(false);
   const [showCoordinates, setShowCoordinates] = useState(true);
-  const [boardTheme, setBoardTheme] = useState<'calm' | 'contrast'>('calm');
+  const [boardTheme, setBoardTheme] = useState<CheckersBoardTheme>('classic');
   useEffect(() => setDraftTitle(model.projectTitle), [model.projectTitle]);
   useEffect(() => {
     if (model.autoFlipBoard) setBoardFlipped(false);
@@ -136,6 +139,16 @@ export function CheckersWorkspace({
     [model.legalMoves],
   );
   const destinations = selectedMoves.flatMap((move) => move.path.at(-1) ?? []);
+  const captureDestinations = selectedMoves
+    .filter((move) => move.isCapture)
+    .flatMap((move) => move.path.at(-1) ?? []);
+  const forcedCapturePieceIds = useMemo(
+    () => [
+      ...new Set(model.legalMoves.filter((move) => move.isCapture).map((move) => move.pieceId)),
+    ],
+    [model.legalMoves],
+  );
+  const forcedCapture = forcedCapturePieceIds.length > 0;
   const orientation = boardFlipped
     ? model.orientation === 'dark'
       ? 'light'
@@ -158,7 +171,9 @@ export function CheckersWorkspace({
         ? { step: 'i', text: 'Сейчас нет доступных ходов. Проверьте состояние партии.' }
         : selectedPieceId
           ? { step: '2', text: 'Теперь выберите подсвеченное поле назначения.' }
-          : { step: '1', text: 'Выберите шашку с мягкой золотой подсветкой.' };
+          : forcedCapture
+            ? { step: '!', text: 'Взятие обязательно. Выберите шашку с золотым кольцом.' }
+            : { step: '1', text: 'Выберите шашку, которой хотите сделать ход.' };
 
   const selectSquare = (square: CheckersBoardSquare): void => {
     const selectedMove = selectedMoves.find((move) => move.path.at(-1) === square);
@@ -277,13 +292,18 @@ export function CheckersWorkspace({
               <button type="button" onClick={() => setShowCoordinates((value) => !value)}>
                 {showCoordinates ? 'Скрыть координаты' : 'Показать координаты'}
               </button>
-              <button
-                type="button"
-                aria-pressed={boardTheme === 'contrast'}
-                onClick={() => setBoardTheme((value) => (value === 'calm' ? 'contrast' : 'calm'))}
-              >
-                {boardTheme === 'calm' ? 'Высокий контраст' : 'Спокойная тема'}
-              </button>
+              <label className="checkers-theme-control">
+                <span>Тема</span>
+                <select
+                  aria-label="Тема доски"
+                  value={boardTheme}
+                  onChange={(event) => setBoardTheme(event.target.value as CheckersBoardTheme)}
+                >
+                  <option value="classic">Классика</option>
+                  <option value="light">Светлая</option>
+                  <option value="dark">Тёмная</option>
+                </select>
+              </label>
               {model.canRestart && onRestart ? (
                 <button type="button" onClick={onRestart}>
                   {model.gameResult ? 'Реванш' : 'Новая партия'}
@@ -301,14 +321,17 @@ export function CheckersWorkspace({
               ) : null}
             </div>
 
-            <CheckersBoard
+            <CheckersBoardV2
               pieces={model.pieces}
               orientation={orientation}
               theme={boardTheme}
               showCoordinates={showCoordinates}
               selectedPieceId={selectedPieceId}
               legalDestinations={destinations}
+              captureDestinations={captureDestinations}
               movablePieceIds={movablePieceIds}
+              forcedCapturePieceIds={forcedCapturePieceIds}
+              lastMovePath={model.lastMovePath ?? []}
               disabled={Boolean(model.readOnly || lessonBlocksInput)}
               onSquareClick={selectSquare}
             />
