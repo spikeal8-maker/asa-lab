@@ -155,11 +155,17 @@ test('learner solves an original Russian-64 task, reloads progress and receives 
   await expect(page.getByRole('heading', { name: 'Выберите, как хотите играть' })).toBeVisible();
   await expect(page.getByText('1 из 22 практик')).toBeVisible();
   await page.getByRole('button', { name: 'Выбрать бота' }).click();
-  await expect(page.getByRole('heading', { name: /Шесть соперников/ })).toBeVisible();
+  await expect(
+    page.getByRole('heading', { name: 'Выберите соперника и начинайте партию' }),
+  ).toBeVisible();
+  await expect(page.getByLabel('Случайно — сторона выбирается при старте')).toBeVisible();
+  const masterCard = page.getByRole('article').filter({ hasText: 'Мастер' });
+  await expect(masterCard.getByRole('button', { name: 'Играть с Мастер' })).toBeEnabled();
+  await page.getByLabel('Светлыми — первый ход ваш').check();
   await page
     .getByRole('article')
     .filter({ hasText: 'Искра' })
-    .getByRole('button', { name: 'Начать партию' })
+    .getByRole('button', { name: 'Играть с Искра' })
     .click();
   await page.locator('[data-square="c3"]').click();
   await page.locator('[data-square="b4"]').click();
@@ -208,6 +214,63 @@ test('learner solves an original Russian-64 task, reloads progress and receives 
     path: 'e2e/artifacts/checkers/checkers-student-mobile.png',
     fullPage: true,
   });
+  failures.assertEmpty();
+});
+
+test('two players share one device, reload the local match and finish with a rematch', async ({
+  page,
+}) => {
+  const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
+  await login(page);
+  const projectId = await createProject(page, { title: 'Локальная партия вдвоём' });
+  await page.goto('/#/games');
+  await page.getByRole('button', { name: 'Играть: Шашки', exact: true }).click();
+  await expect(page).toHaveURL(new RegExp(`/#/games/checkers/${projectId}$`));
+
+  await page
+    .getByRole('article')
+    .filter({ hasText: 'Играть вдвоём' })
+    .getByRole('button', { name: 'Играть на одном устройстве' })
+    .click();
+  await expect(
+    page.getByRole('heading', { name: 'Два игрока за одним устройством' }),
+  ).toBeVisible();
+  await page.getByRole('button', { name: 'Начать локальную партию' }).click();
+  await expect(page.getByText('Игра вдвоём · одно устройство')).toBeVisible();
+  await expect(page.getByLabel('Доска для русских шашек, 8 на 8')).toHaveAttribute(
+    'data-orientation',
+    'light',
+  );
+
+  await page.locator('[data-square="c3"]').click();
+  await page.locator('[data-square="b4"]').click();
+  await expect(page.getByLabel('Доска для русских шашек, 8 на 8')).toHaveAttribute(
+    'data-orientation',
+    'dark',
+  );
+  await expect(page.locator('.editor-header-status')).toContainText('Сохранено', {
+    timeout: 15_000,
+  });
+
+  await page.reload();
+  await expect(page.getByRole('heading', { name: 'Локальная партия' })).toBeVisible();
+  await expect(page.getByText(/Игра вдвоём · ход тёмных/)).toBeVisible();
+  await page.getByRole('button', { name: 'Продолжить партию' }).click();
+  await expect(page.getByLabel('Доска для русских шашек, 8 на 8')).toHaveAttribute(
+    'data-orientation',
+    'dark',
+  );
+
+  await page.locator('[data-square="f6"]').click();
+  await page.locator('[data-square="g5"]').click();
+  await expect(page.getByLabel('Доска для русских шашек, 8 на 8')).toHaveAttribute(
+    'data-orientation',
+    'light',
+  );
+  await page.getByRole('button', { name: 'Ничья', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Ничья' })).toBeVisible();
+  await page.getByRole('button', { name: 'Реванш', exact: true }).first().click();
+  await expect(page.getByText('Ход светлых')).toBeVisible();
   failures.assertEmpty();
 });
 
