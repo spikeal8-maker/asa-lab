@@ -15,8 +15,17 @@ import {
   type CheckersLearningEvidence,
 } from './learning.js';
 
+export type CheckersBotGameMode = 'free' | 'campaign';
+export type CheckersActiveMatchMode = 'bot' | 'local';
+
+export interface CheckersActiveMatchState {
+  readonly mode: CheckersActiveMatchMode;
+  readonly localAutoFlip: boolean;
+}
+
 export interface CheckersEducationState {
   readonly selectedBotId: CheckersBotId;
+  readonly activeBotMode: CheckersBotGameMode;
   readonly unlockedBotRung: number;
   readonly winsOnCurrentRung: number;
   readonly completedPuzzleIds: readonly string[];
@@ -31,12 +40,27 @@ export interface CheckersProjectDocument {
   readonly schemaVersion: 1;
   readonly kind: 'asa-checkers-project';
   readonly game: CheckersDocument;
+  readonly activeMatch: CheckersActiveMatchState;
   readonly education: CheckersEducationState;
 }
 
-const PROJECT_KEYS = new Set(['schemaVersion', 'kind', 'game', 'education']);
+const LEGACY_PROJECT_KEYS = new Set(['schemaVersion', 'kind', 'game', 'education']);
+const PROJECT_KEYS = new Set(['schemaVersion', 'kind', 'game', 'activeMatch', 'education']);
+const ACTIVE_MATCH_KEYS = new Set(['mode', 'localAutoFlip']);
+const LEGACY_EDUCATION_KEYS = new Set([
+  'selectedBotId',
+  'unlockedBotRung',
+  'winsOnCurrentRung',
+  'completedPuzzleIds',
+  'progress',
+  'evidence',
+  'assignments',
+  'reactionsEnabled',
+  'lastActivityAt',
+]);
 const EDUCATION_KEYS = new Set([
   'selectedBotId',
+  'activeBotMode',
   'unlockedBotRung',
   'winsOnCurrentRung',
   'completedPuzzleIds',
@@ -196,8 +220,10 @@ export function createInitialCheckersProjectDocument(
     schemaVersion: 1,
     kind: 'asa-checkers-project',
     game: createInitialCheckersDocument(),
+    activeMatch: { mode: 'bot', localAutoFlip: false },
     education: {
       selectedBotId: 'iskra',
+      activeBotMode: 'free',
       unlockedBotRung: 1,
       winsOnCurrentRung: 0,
       completedPuzzleIds: [],
@@ -224,7 +250,10 @@ export function validateCheckersProjectDocument(
       value: { ...createInitialCheckersProjectDocument(), game: legacy.value },
     };
   }
-  if (!isRecord(value) || !hasExactKeys(value, PROJECT_KEYS)) {
+  if (
+    !isRecord(value) ||
+    (!hasExactKeys(value, PROJECT_KEYS) && !hasExactKeys(value, LEGACY_PROJECT_KEYS))
+  ) {
     return { ok: false, message: 'checkers project document has an invalid shape' };
   }
   if (value['schemaVersion'] !== 1 || value['kind'] !== 'asa-checkers-project') {
@@ -232,16 +261,38 @@ export function validateCheckersProjectDocument(
   }
   const game = validateCheckersDocument(value['game']);
   if (!game.ok) return game;
+  const activeMatchValue = value['activeMatch'];
+  let activeMatch: CheckersActiveMatchState = { mode: 'bot', localAutoFlip: false };
+  if (activeMatchValue !== undefined) {
+    if (!isRecord(activeMatchValue) || !hasExactKeys(activeMatchValue, ACTIVE_MATCH_KEYS)) {
+      return { ok: false, message: 'checkers active match state has an invalid shape' };
+    }
+    if (
+      (activeMatchValue['mode'] !== 'bot' && activeMatchValue['mode'] !== 'local') ||
+      typeof activeMatchValue['localAutoFlip'] !== 'boolean'
+    ) {
+      return { ok: false, message: 'checkers active match state is invalid' };
+    }
+    activeMatch = {
+      mode: activeMatchValue['mode'] as CheckersActiveMatchMode,
+      localAutoFlip: activeMatchValue['localAutoFlip'],
+    };
+  }
   const education = value['education'];
-  if (!isRecord(education) || !hasExactKeys(education, EDUCATION_KEYS)) {
+  if (
+    !isRecord(education) ||
+    (!hasExactKeys(education, EDUCATION_KEYS) && !hasExactKeys(education, LEGACY_EDUCATION_KEYS))
+  ) {
     return { ok: false, message: 'checkers education state has an invalid shape' };
   }
   const selectedBotId = education['selectedBotId'];
+  const activeBotMode = education['activeBotMode'] ?? 'campaign';
   const unlockedBotRung = education['unlockedBotRung'];
   const winsOnCurrentRung = education['winsOnCurrentRung'];
   if (
     typeof selectedBotId !== 'string' ||
     !CHECKERS_BOT_IDS.includes(selectedBotId as CheckersBotId) ||
+    (activeBotMode !== 'free' && activeBotMode !== 'campaign') ||
     typeof unlockedBotRung !== 'number' ||
     !Number.isInteger(unlockedBotRung) ||
     unlockedBotRung < 1 ||
@@ -274,8 +325,10 @@ export function validateCheckersProjectDocument(
       schemaVersion: 1,
       kind: 'asa-checkers-project',
       game: game.value,
+      activeMatch,
       education: {
         selectedBotId: selectedBotId as CheckersBotId,
+        activeBotMode: activeBotMode as CheckersBotGameMode,
         unlockedBotRung,
         winsOnCurrentRung,
         completedPuzzleIds,

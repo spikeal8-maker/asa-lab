@@ -3,6 +3,7 @@ import type {
   CheckersAnalysisSummary,
   CheckersAssignment,
   CheckersAssignmentKind,
+  CheckersBotGameMode,
   CheckersBotId,
   CheckersConceptProgress,
   CheckersDocument,
@@ -34,6 +35,7 @@ const {
   applyCheckersLearningEvidence,
   applyCheckersGameMove,
   chooseCheckersBotMove,
+  checkersOutcomeForSide,
   createInitialCheckersDocument,
   generateLegalCheckersMoves,
   validateCheckersAssignment,
@@ -120,8 +122,36 @@ export function writeStoredCheckersBotPlayerSide(
   storage.setItem(botPlayerSideStorageKey(projectId), side);
 }
 
-function progressionAfterWin(document: CheckersProjectDocument): CheckersProjectDocument {
-  if (document.game.result !== '1-0') return document;
+export function shouldRunCheckersBotTurn(
+  document: CheckersProjectDocument,
+  playerSideKnown: boolean,
+  playerSide: 'light' | 'dark',
+): boolean {
+  return (
+    playerSideKnown &&
+    document.activeMatch.mode === 'bot' &&
+    document.game.mode === 'game' &&
+    document.game.result === '*' &&
+    document.game.sideToMove !== playerSide
+  );
+}
+
+export function shouldProgressCheckersBotCampaign(
+  document: CheckersProjectDocument,
+  playerSide: 'light' | 'dark',
+): boolean {
+  return (
+    document.activeMatch.mode === 'bot' &&
+    document.education.activeBotMode === 'campaign' &&
+    checkersOutcomeForSide(document.game.result, playerSide) === 'win'
+  );
+}
+
+function progressionAfterWin(
+  document: CheckersProjectDocument,
+  playerSide: 'light' | 'dark',
+): CheckersProjectDocument {
+  if (!shouldProgressCheckersBotCampaign(document, playerSide)) return document;
   const wins = document.education.winsOnCurrentRung + 1;
   const mayUnlock =
     wins >= 2 && document.education.completedPuzzleIds.length >= document.education.unlockedBotRung;
@@ -456,10 +486,16 @@ export function useCheckersProject(projectId: string, user: PublicUser) {
         game,
         education: { ...document.education, lastActivityAt: nowIso() },
       };
-      if (document.game.result === '*' && game.result === '1-0') next = progressionAfterWin(next);
+      if (
+        document.activeMatch.mode === 'bot' &&
+        document.game.result === '*' &&
+        game.result !== '*'
+      ) {
+        next = progressionAfterWin(next, botPlayerSide);
+      }
       commit(next, message);
     },
-    [commit, document],
+    [botPlayerSide, commit, document],
   );
 
   function playMove(move: CheckersLegalMove): void {
@@ -476,16 +512,14 @@ export function useCheckersProject(projectId: string, user: PublicUser) {
   }
 
   useEffect(() => {
+    if (!document || !shouldRunCheckersBotTurn(document, botPlayerSideKnown, botPlayerSide)) return;
+    const selected = CHECKERS_BOTS.find((bot) => bot.id === document.education.selectedBotId);
     if (
-      !document ||
-      !botPlayerSideKnown ||
-      document.game.mode !== 'game' ||
-      document.game.result !== '*' ||
-      document.game.sideToMove === botPlayerSide
+      !selected ||
+      (document.education.activeBotMode === 'campaign' &&
+        selected.rung > document.education.unlockedBotRung)
     )
       return;
-    const selected = CHECKERS_BOTS.find((bot) => bot.id === document.education.selectedBotId);
-    if (!selected || selected.rung > document.education.unlockedBotRung) return;
     const taskId = botTask.current + 1;
     botTask.current = taskId;
     setBotThinking(true);
@@ -537,15 +571,22 @@ export function useCheckersProject(projectId: string, user: PublicUser) {
 
   function startBotGame(
     botId: CheckersBotId,
-    teacherOverride = false,
     playerSide: 'light' | 'dark' = 'light',
+    mode: CheckersBotGameMode = 'free',
+    allowLockedCampaignBot = false,
   ): boolean {
     if (!document) return false;
     const bot = CHECKERS_BOTS.find((item) => item.id === botId);
-    if (!bot || (!teacherOverride && bot.rung > document.education.unlockedBotRung)) {
-      setNotice('Этот соперник пока закрыт. Пройди задачи и победи предыдущего бота.');
+    const campaignLocked =
+      mode === 'campaign' && bot !== undefined && bot.rung > document.education.unlockedBotRung;
+    if (!bot || (campaignLocked && !allowLockedCampaignBot)) {
+      setNotice(
+        '???? ???????? ???? ?????? ? ??????? ????????. ? ????????? ???? ???????? ??? ????.',
+      );
       return false;
     }
+    botTask.current += 1;
+    setBotThinking(false);
     setBotPlayerSide(playerSide);
     setBotPlayerSideKnown(true);
     writeStoredCheckersBotPlayerSide(window.localStorage, projectId, playerSide);
@@ -553,17 +594,19 @@ export function useCheckersProject(projectId: string, user: PublicUser) {
       {
         ...document,
         game: createInitialCheckersDocument('game'),
+        activeMatch: { ...document.activeMatch, mode: 'bot' },
         education: {
           ...document.education,
           selectedBotId: botId,
-          unlockedBotRung: teacherOverride
+          activeBotMode: mode,
+          unlockedBotRung: allowLockedCampaignBot
             ? Math.max(document.education.unlockedBotRung, bot.rung)
             : document.education.unlockedBotRung,
           lastActivityAt: nowIso(),
         },
       },
-      `Новая партия с ботом «${bot.displayName}». Ты играешь ${
-        playerSide === 'light' ? 'светлыми' : 'тёмными'
+      `????? ${mode === 'free' ? '????????? ' : '??????? '}?????? ? ????? ?${bot.displayName}?. ?? ??????? ${
+        playerSide === 'light' ? '????????' : '???????'
       }.`,
     );
     return true;
@@ -577,6 +620,49 @@ export function useCheckersProject(projectId: string, user: PublicUser) {
       { ...document.game, result: botPlayerSide === 'light' ? '0-1' : '1-0' },
       'Партия завершена. Можно открыть разбор или начать новую.',
     );
+  }
+
+  function startLocalGame(localAutoFlip = true): boolean {
+    if (!document) return false;
+    botTask.current += 1;
+    setBotThinking(false);
+    commit(
+      {
+        ...document,
+        game: createInitialCheckersDocument('game'),
+        activeMatch: { mode: 'local', localAutoFlip },
+        education: { ...document.education, lastActivityAt: nowIso() },
+      },
+      localAutoFlip
+        ? 'Локальная партия началась. Доска будет поворачиваться к стороне хода.'
+        : 'Локальная партия началась. Доска остаётся со стороны светлых.',
+    );
+    return true;
+  }
+
+  function resignLocalGame(): void {
+    if (
+      !document ||
+      document.activeMatch.mode !== 'local' ||
+      document.game.mode !== 'game' ||
+      document.game.result !== '*'
+    )
+      return;
+    commitGame(
+      { ...document.game, result: document.game.sideToMove === 'light' ? '0-1' : '1-0' },
+      'Локальная партия завершена сдачей текущей стороны.',
+    );
+  }
+
+  function drawLocalGame(): void {
+    if (
+      !document ||
+      document.activeMatch.mode !== 'local' ||
+      document.game.mode !== 'game' ||
+      document.game.result !== '*'
+    )
+      return;
+    commitGame({ ...document.game, result: '1/2-1/2' }, 'Локальная партия завершена вничью.');
   }
 
   function openLesson(game: CheckersProjectDocument['game'], title: string): void {
@@ -886,6 +972,9 @@ export function useCheckersProject(projectId: string, user: PublicUser) {
     playMove,
     startBotGame,
     resignBotGame,
+    startLocalGame,
+    resignLocalGame,
+    drawLocalGame,
     openLesson,
     completePuzzle,
     recordPuzzleFailure,
