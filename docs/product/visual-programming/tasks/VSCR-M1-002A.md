@@ -8,8 +8,8 @@
 ## Goal
 
 Replace the M0 playground root with a reproducible ASA-owned static shell around the pinned
-Scratch shipping standalone distribution. Do not add branding patches, iframe protocol or
-storage adapter yet.
+Scratch shipping standalone distribution. This is a technical foundation slice: it does **not**
+need to provide a user-visible editor yet.
 
 ## Components
 
@@ -31,7 +31,7 @@ Read only the matching entries in `components/module.yaml` and `components/host.
 ../VSCR-D0-001-SCRATCH-HOST-CONTRACT.md → Upstream provenance + Host layout
 infra/scratch-editor/upstream.env
 current infra/scratch-editor/Dockerfile
-current infra/scratch-editor/nginx.conf
+current infra/scratch-editor/nginx.conf or nginx.conf.template
 ```
 
 ## Expected write paths
@@ -66,6 +66,7 @@ container /healthz
 root document has ASA host marker
 standalone vendor bundle exists
 upstream playground root is not served
+real browser host-shell bootstrap has no fatal page/runtime error
 node tools/validate-blocks-docs.mjs
 ```
 
@@ -88,5 +89,6 @@ contract. Confirm no later M1-002 component was started.
 
 ## Stop
 
-STOP after evidence. VSCR-M1-002B requires separate owner-authorised selection in
-`current.yaml` after A is accepted.
+STOP after evidence. The next planned executable slice is `VSCR-M1-002C`, not branding. C must be
+refreshed against the accepted A interfaces and selected separately in `current.yaml`. Do not start
+C automatically.
