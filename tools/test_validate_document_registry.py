@@ -154,6 +154,57 @@ class DocumentRegistryTests(unittest.TestCase):
                 item["context_role"] = "root"
             self.assertEqual(MODULE.validate_registry(root, data), [])
 
+    def test_delegated_document_root_passes_for_canonical_compact_provider(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            data = registry(root)
+            data["schema_version"] = "1.1.0"
+            data["strict_task_scopes"] = []
+            data["context_role_values"] = MODULE.CONTEXT_ROLE_VALUES
+            for item in data["documents"]:
+                item["lanes"] = ["*"]
+                item["context_role"] = "root"
+            write_file(root, "docs/provider/GUIDE.md")
+            (root / "docs/provider/components").mkdir(parents=True)
+            data["documents"].append(
+                {
+                    "id": "PROVIDER",
+                    "path": "docs/provider/GUIDE.md",
+                    "scope": "provider",
+                    "lanes": ["provider"],
+                    "kind": "maintenance_guide",
+                    "status": "canonical",
+                    "authority": "provider_maintenance",
+                    "context_role": "compact",
+                    "read_when": ["provider_change"],
+                    "delegated_roots": ["docs/provider/components/**"],
+                }
+            )
+            self.assertEqual(MODULE.validate_registry(root, data), [])
+
+    def test_delegated_document_root_rejects_unsafe_or_noncompact_provider(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            data = registry(root)
+            data["schema_version"] = "1.1.0"
+            data["strict_task_scopes"] = []
+            data["context_role_values"] = MODULE.CONTEXT_ROLE_VALUES
+            for item in data["documents"]:
+                item["lanes"] = ["*"]
+                item["context_role"] = "root"
+            data["documents"][0]["delegated_roots"] = ["../outside/**"]
+            errors = MODULE.validate_registry(root, data)
+            self.assertTrue(any("canonical compact" in error for error in errors))
+            self.assertTrue(any("unsafe root" in error for error in errors))
+
+    def test_encoding_guard_rejects_question_mark_corruption(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            data = registry(root)
+            write_file(root, "AGENTS.md", "broken " + ("?" * 3) + " text")
+            errors = MODULE.validate_registry(root, data)
+            self.assertTrue(any("encoding guard" in error for error in errors))
+
 
 if __name__ == "__main__":
     unittest.main()

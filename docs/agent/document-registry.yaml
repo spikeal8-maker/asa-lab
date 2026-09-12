@@ -184,6 +184,30 @@ documents:
     authority: electronics_semantics
     context_role: escalation
     read_when: [electronics_domain_change]
+  - id: VSCR-AGENT-GUIDE
+    path: docs/product/visual-programming/AGENT_GUIDE.md
+    scope: visual_programming
+    lanes: [visual-programming]
+    kind: maintenance_guide
+    status: canonical
+    authority: visual_programming_maintenance_router
+    context_role: compact
+    read_when: [visual_programming_task_start, visual_programming_maintenance]
+    delegated_roots:
+      - docs/product/visual-programming/components/**
+      - docs/product/visual-programming/tasks/**
+
+  - id: VSCR-COMPONENT-MAP
+    path: docs/product/visual-programming/COMPONENT_MAP.yaml
+    scope: visual_programming
+    lanes: [visual-programming]
+    kind: maintenance_index
+    status: canonical
+    authority: visual_programming_component_routing
+    revision: '3.1.0'
+    context_role: trace
+    read_when: [visual_programming_component_lookup, visual_programming_maintenance]
+
   - id: VSCR-MASTER
     path: docs/product/ASA_VISUAL_PROGRAMMING_SCRATCH_MASTER_SPEC.md
     scope: visual_programming
@@ -222,3 +246,12 @@ documents:
     authority: none
     context_role: review
     read_when: [documentation_foundation_review]
+  - id: DOC-M4-ROUTING-CHALLENGE-20260912
+    path: docs/review/DOC_M4_ROUTING_CHALLENGE_2026_09_12.md
+    scope: documentation
+    lanes: [documentation]
+    kind: review_receipt
+    status: review_only
+    authority: none
+    context_role: historical
+    read_when: [documentation_m4_review, delegated_routing_evidence]
