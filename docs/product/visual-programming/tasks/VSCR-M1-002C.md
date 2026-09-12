@@ -40,7 +40,8 @@ infra/scratch-editor/host/protocol.js
 infra/scratch-editor/host/status.js
 infra/scratch-editor/host/main.js       # composition only
 infra/scratch-editor/host/index.html    # only if bootstrap marker/wiring requires it
-e2e/blocks-host-protocol.spec.ts
+apps/web/src/blocks/testing/runtime-protocol.spec.ts
+tools/verify-blocks-host-protocol.mjs
 ../components/host.yaml → blocks.host.protocol only
 ```
 
@@ -81,7 +82,8 @@ no production hidden editor route is exposed
 ## Tests/evidence
 
 ```text
-browser wrong-origin/source/nonce/project negatives
+pnpm gate:blocks-m1-002c
+real Chromium wrong-origin/source/nonce/project negatives
 no postMessage target '*'
 no token in URL/localStorage/sessionStorage/IndexedDB/logs
 parent survives child FATAL/runtime crash
