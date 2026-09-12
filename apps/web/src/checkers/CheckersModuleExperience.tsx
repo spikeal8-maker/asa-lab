@@ -9,7 +9,7 @@ import type {
   CheckersPuzzleAttempt,
   CheckersReactionId,
 } from '@asa-lab/checkers';
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import type { CheckersClassGame, CheckersTeacherFeedbackId, PublicUser } from '../api';
 import { newClientId } from '../client-id';
 import {
@@ -18,14 +18,12 @@ import {
   type CheckersBotSideChoice,
 } from './CheckersBotSetup';
 import { CheckersClassPlay } from './CheckersClassPlay';
-import { CheckersLocalSetup } from './CheckersLocalSetup';
 import { CheckersPositionComposer } from './CheckersPositionComposer';
 import {
   CheckersLobby,
   type CheckersLobbyAssignment,
   type CheckersLobbyResume,
 } from './CheckersLobby';
-import { CheckersTeacherDashboard } from './CheckersTeacherDashboard';
 import { CheckersWorkspace, type CheckersWorkspaceMove } from './CheckersWorkspace';
 import {
   useCheckersProject,
@@ -33,6 +31,16 @@ import {
   type CreateCheckersAssignmentInput,
 } from './use-checkers-project';
 import './checkers.css';
+
+const CheckersLocalSetup = lazy(async () => {
+  const module = await import('./CheckersLocalSetup');
+  return { default: module.CheckersLocalSetup };
+});
+
+const CheckersTeacherDashboard = lazy(async () => {
+  const module = await import('./CheckersTeacherDashboard');
+  return { default: module.CheckersTeacherDashboard };
+});
 
 const {
   CHECKERS_BOTS,
@@ -1240,14 +1248,16 @@ export function CheckersModuleExperience(props: CheckersModuleExperienceProps): 
     );
   } else if (surface === 'local') {
     content = (
-      <CheckersLocalSetup
-        autoFlip={localAutoFlipChoice}
-        onAutoFlipChange={setLocalAutoFlipChoice}
-        onStart={() => {
-          if (checkers.startLocalGame(localAutoFlipChoice)) setSurface('play');
-        }}
-        onBack={() => setSurface('home')}
-      />
+      <Suspense fallback={null}>
+        <CheckersLocalSetup
+          autoFlip={localAutoFlipChoice}
+          onAutoFlipChange={setLocalAutoFlipChoice}
+          onStart={() => {
+            if (checkers.startLocalGame(localAutoFlipChoice)) setSurface('play');
+          }}
+          onBack={() => setSurface('home')}
+        />
+      </Suspense>
     );
   } else if (surface === 'bots') {
     content = (
@@ -1405,24 +1415,26 @@ export function CheckersModuleExperience(props: CheckersModuleExperienceProps): 
       checkers.classPlay?.games ?? [],
     );
     content = (
-      <CheckersTeacherDashboard
-        model={teacherModel}
-        onBack={props.onBack}
-        onCreateAssignment={() => setAssignmentDialog(true)}
-        onCreateEvent={() => setEventDialog(true)}
-        onEnrolStudent={() => setEnrolDialog(true)}
-        onRefresh={() => void checkers.refreshClassroomOverview()}
-        onOpenAssignment={(id) =>
-          checkers.setNotice(`Задание ${id} хранится в черновике проекта класса.`)
-        }
-        onOpenStudent={setFeedbackStudentId}
-        onOpenGame={(gameId) => {
-          const game = checkers.classPlay?.games.find((item) => item.id === gameId);
-          setReviewPly(game?.document.moveHistory.length ?? 0);
-          setActiveClassGameId(gameId);
-          setSurface('review');
-        }}
-      />
+      <Suspense fallback={null}>
+        <CheckersTeacherDashboard
+          model={teacherModel}
+          onBack={props.onBack}
+          onCreateAssignment={() => setAssignmentDialog(true)}
+          onCreateEvent={() => setEventDialog(true)}
+          onEnrolStudent={() => setEnrolDialog(true)}
+          onRefresh={() => void checkers.refreshClassroomOverview()}
+          onOpenAssignment={(id) =>
+            checkers.setNotice(`Задание ${id} хранится в черновике проекта класса.`)
+          }
+          onOpenStudent={setFeedbackStudentId}
+          onOpenGame={(gameId) => {
+            const game = checkers.classPlay?.games.find((item) => item.id === gameId);
+            setReviewPly(game?.document.moveHistory.length ?? 0);
+            setActiveClassGameId(gameId);
+            setSurface('review');
+          }}
+        />
+      </Suspense>
     );
   } else {
     const assignmentCards: CheckersLobbyAssignment[] = document.education.assignments.map(
