@@ -161,6 +161,15 @@ describe('owner-reference Electronics presentation contract', () => {
     );
     expect(headerSource).toContain("aria-label={c.simulationRunning ? 'Остановить моделирование'");
     expect(headerSource).toContain('data-simulation-status={c.simulationStatus}');
+    expect(controllerModuleSource).toContain('new ElectronicsLiveSimulationWorkerController()');
+    expect(controllerModuleSource).toContain(
+      'simulationWorkerRef.current?.update(runtimeDocument, simulationTimeMs)',
+    );
+    expect(controllerModuleSource).not.toContain('advanceLiveSimulation(');
+    expect(controllerModuleSource).not.toContain(
+      'calculateLiveSimulation(runtimeDocument, persistedResult, true',
+    );
+    expect(projectStateSource).not.toContain('prepareLiveSimulationStart(document)');
     expect(controllerModuleSource).toContain('warmProductionAsset(');
     expect(controllerModuleSource).toContain('calculateSimulationPreflight(runningDocument)');
     expect(controllerModuleSource).toContain('applyRuntimeComponentOverrides(');

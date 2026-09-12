@@ -451,6 +451,8 @@ Deliverables:
 
 **Acceptance:** два пользователя могут провести полную партию без classroom и без второго аккаунта.
 
+**Checkpoint 2026-09-12:** Local Two Player реализован как отдельная сохраняемая партия `activeMatch.mode=local`. Lobby запускает отдельный setup без второго аккаунта/classroom. Поддержаны автоповорот к стороне хода, ручной поворот, сдача текущей стороны, ничья, реванш, разбор и contextual resume после reload. Bot effect fail-closed для local mode, а старые CK-102 документы без `activeMatch` мигрируют в `bot`. Focused suite: 21 test files / 85 tests PASS; repository-wide typecheck/build проходят без Nx cache. Browser-сценарий добавлен и обнаруживается Playwright, но свежий E2E run не заявляется без изолированной `*_test` БД.
+
 ### CK-104 — Board V2
 
 **Цель:** заменить визуально слабую доску, не затрагивая правила.

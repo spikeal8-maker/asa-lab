@@ -42,6 +42,7 @@ export interface CheckersWorkspaceViewModel {
   readonly reviewTotalPly?: number;
   readonly readOnly?: boolean;
   readonly orientation?: 'light' | 'dark';
+  readonly autoFlipBoard?: boolean;
   readonly lesson?: {
     readonly stage: 'explain' | 'demonstrate' | 'practice' | 'feedback';
     readonly rule: string;
@@ -50,6 +51,7 @@ export interface CheckersWorkspaceViewModel {
   };
   readonly canRestart?: boolean;
   readonly canResign?: boolean;
+  readonly canDraw?: boolean;
   readonly gameResult?: {
     readonly tone: 'win' | 'loss' | 'draw';
     readonly title: string;
@@ -96,6 +98,7 @@ export function CheckersWorkspace({
   onLessonStageChange,
   onRestart,
   onResign,
+  onDraw,
   onChooseOpponent,
 }: {
   model: CheckersWorkspaceViewModel;
@@ -111,6 +114,7 @@ export function CheckersWorkspace({
   onLessonStageChange?: (stage: 'explain' | 'demonstrate' | 'practice') => void;
   onRestart?: () => void;
   onResign?: () => void;
+  onDraw?: () => void;
   onChooseOpponent?: () => void;
 }): JSX.Element {
   const [selectedPieceId, setSelectedPieceId] = useState<string | null>(null);
@@ -120,6 +124,9 @@ export function CheckersWorkspace({
   const [showCoordinates, setShowCoordinates] = useState(true);
   const [boardTheme, setBoardTheme] = useState<'calm' | 'contrast'>('calm');
   useEffect(() => setDraftTitle(model.projectTitle), [model.projectTitle]);
+  useEffect(() => {
+    if (model.autoFlipBoard) setBoardFlipped(false);
+  }, [model.autoFlipBoard, model.sideToMove]);
   const selectedMoves = useMemo(
     () => model.legalMoves.filter((move) => move.pieceId === selectedPieceId),
     [model.legalMoves, selectedPieceId],
@@ -285,6 +292,11 @@ export function CheckersWorkspace({
               {model.canResign && onResign ? (
                 <button type="button" className="danger" onClick={onResign}>
                   Сдаться
+                </button>
+              ) : null}
+              {model.canDraw && onDraw ? (
+                <button type="button" onClick={onDraw}>
+                  Ничья
                 </button>
               ) : null}
             </div>

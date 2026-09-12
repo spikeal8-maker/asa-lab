@@ -66,4 +66,30 @@ describe('loaded Electronics project migration', () => {
       to: { componentId: 'resistor', terminal: 'lead-2' },
     });
   });
+
+  it('keeps autosave behind the first local Worker result after Start', () => {
+    const projectStateSource = readFileSync(
+      resolve(process.cwd(), 'apps/web/src/electronics/use-workbench-project-state.ts'),
+      'utf8',
+    );
+    const workbenchSource = readFileSync(
+      resolve(process.cwd(), 'apps/web/src/electronics/use-electronics-workbench.ts'),
+      'utf8',
+    );
+
+    expect(projectStateSource).toContain(
+      "if (!document || simulationStatus === 'starting') return;",
+    );
+    expect(projectStateSource).toContain("if (simulationStatusRef.current === 'starting') return;");
+    expect(projectStateSource).toContain(
+      "setSimulationStatus((current) => (current === 'starting' ? 'running' : current));",
+    );
+    const toggleSource = projectStateSource.slice(
+      projectStateSource.indexOf('async function toggleSimulation'),
+      projectStateSource.indexOf('function resetSimulation'),
+    );
+    expect(toggleSource).toContain("setSimulationStatus('starting')");
+    expect(toggleSource).not.toContain("setSimulationStatus('running')");
+    expect(workbenchSource).toContain('confirmSimulationStarted();');
+  });
 });

@@ -1,0 +1,61 @@
+{
+  "receiptVersion": 2,
+  "revision": "e8e3d45bc286f098d47205d6d7f212a579451bda",
+  "dirtyTree": false,
+  "browser": "Chromium 140.0.7339.186",
+  "warmupSeconds": 30,
+  "soakSeconds": 900,
+  "checkpointCount": 5,
+  "method": "production advanceLiveSimulation motor path; persistent 100 ms simulation ticks; warm-up then CDP GC baseline plus GC-stabilized checkpoints",
+  "coldHeapBytes": 5612394,
+  "warmHeapBytes": 6644790,
+  "retainedHeapDeltaBytes": 92743,
+  "retainedHeapGrowthPercent": 1.3957250718231877,
+  "provisionalFivePercentTargetPassed": true,
+  "checkpoints": [
+    {
+      "elapsedSoakSeconds": 180,
+      "heapBytes": 6682310,
+      "retainedDeltaFromWarmBytes": 37520,
+      "retainedGrowthFromWarmPercent": 0.564652908519306,
+      "totalIterations": 13605,
+      "simulationTimeMs": 1360500
+    },
+    {
+      "elapsedSoakSeconds": 360,
+      "heapBytes": 6712333,
+      "retainedDeltaFromWarmBytes": 67543,
+      "retainedGrowthFromWarmPercent": 1.0164805810266389,
+      "totalIterations": 25133,
+      "simulationTimeMs": 2513300
+    },
+    {
+      "elapsedSoakSeconds": 540,
+      "heapBytes": 6726597,
+      "retainedDeltaFromWarmBytes": 81807,
+      "retainedGrowthFromWarmPercent": 1.2311450023251298,
+      "totalIterations": 36653,
+      "simulationTimeMs": 3665300
+    },
+    {
+      "elapsedSoakSeconds": 720,
+      "heapBytes": 6732469,
+      "retainedDeltaFromWarmBytes": 87679,
+      "retainedGrowthFromWarmPercent": 1.319514988434548,
+      "totalIterations": 48183,
+      "simulationTimeMs": 4818300
+    },
+    {
+      "elapsedSoakSeconds": 900,
+      "heapBytes": 6737533,
+      "retainedDeltaFromWarmBytes": 92743,
+      "retainedGrowthFromWarmPercent": 1.3957250718231877,
+      "totalIterations": 59716,
+      "simulationTimeMs": 5971600
+    }
+  ],
+  "iterations": 59716,
+  "simulationTimeMs": 5971600,
+  "maxIterationMs": 10.799999982118607,
+  "finalStatus": "solved"
+}

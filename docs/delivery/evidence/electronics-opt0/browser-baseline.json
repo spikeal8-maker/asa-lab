@@ -1,0 +1,139 @@
+{
+  "receiptVersion": 1,
+  "revision": "e8e3d45bc286f098d47205d6d7f212a579451bda",
+  "dirtyTree": false,
+  "startedAt": "2026-09-12T00:05:41.072Z",
+  "completedAt": "2026-09-12T00:05:48.079Z",
+  "runtime": "v24.14.1",
+  "browser": "Chromium 140.0.7339.186",
+  "os": "win32 10.0.26200 x64",
+  "cpu": "13th Gen Intel(R) Core(TM) i5-13400",
+  "logicalCpuCount": 16,
+  "totalMemoryBytes": 68384935936,
+  "profileId": "native",
+  "cpuThrottleRate": 1,
+  "warmups": 5,
+  "iterations": 30,
+  "isolation": "ephemeral 127.0.0.1 HTTP server + Vite middleware; no API or database",
+  "cases": [
+    {
+      "caseId": "dc-series-50",
+      "status": "solved",
+      "p50Ms": 3,
+      "p95Ms": 4.799999982118607,
+      "p99Ms": 5.0999999940395355,
+      "maxMs": 5.0999999940395355,
+      "eventLoopDelayP95Ms": 6.4000000059604645,
+      "longTaskCount": 0,
+      "longTaskMaxMs": 0,
+      "heapDeltaBytes": 4303974,
+      "deterministic": true,
+      "fingerprint": "53274b5fc32e7eb69b3f49802d164932c693b42ec02f4d6b663b547880e56433"
+    },
+    {
+      "caseId": "transient-capacitor-5000ms",
+      "status": "solved",
+      "p50Ms": 11.5,
+      "p95Ms": 18.700000017881393,
+      "p99Ms": 23.400000005960464,
+      "maxMs": 23.400000005960464,
+      "eventLoopDelayP95Ms": 18.700000017881393,
+      "longTaskCount": 0,
+      "longTaskMaxMs": 0,
+      "heapDeltaBytes": 1954918,
+      "deterministic": true,
+      "fingerprint": "b9cd1b9b5485638a7ec1f4cc5369d0c6647e8edd02d2620d494919c6f018af07"
+    },
+    {
+      "caseId": "transient-dc-motor-1000ms",
+      "status": "solved",
+      "p50Ms": 20,
+      "p95Ms": 23,
+      "p99Ms": 30.599999994039536,
+      "maxMs": 30.599999994039536,
+      "eventLoopDelayP95Ms": 23.099999994039536,
+      "longTaskCount": 0,
+      "longTaskMaxMs": 0,
+      "heapDeltaBytes": 1688556,
+      "deterministic": true,
+      "fingerprint": "7b40a30af812c2d05b5180f9d8a58b37e6a4a4ecd6f05d409e206b0154db858a"
+    },
+    {
+      "caseId": "arduino-gpio-clock-2000us",
+      "status": "ready",
+      "p50Ms": 24.099999994039536,
+      "p95Ms": 39.900000005960464,
+      "p99Ms": 41.5,
+      "maxMs": 41.5,
+      "eventLoopDelayP95Ms": 39.900000005960464,
+      "longTaskCount": 0,
+      "longTaskMaxMs": 0,
+      "heapDeltaBytes": 22134144,
+      "deterministic": true,
+      "fingerprint": "f88c818921db33eda874247796fdbd7d1744a353ced3431782c2ebebb64162eb"
+    },
+    {
+      "caseId": "arduino-gpio-small-budget",
+      "status": "ready",
+      "p50Ms": 35.400000005960464,
+      "p95Ms": 47,
+      "p99Ms": 48.400000005960464,
+      "maxMs": 48.400000005960464,
+      "eventLoopDelayP95Ms": 47,
+      "longTaskCount": 0,
+      "longTaskMaxMs": 0,
+      "heapDeltaBytes": -17260997,
+      "deterministic": true,
+      "fingerprint": "f88c818921db33eda874247796fdbd7d1744a353ced3431782c2ebebb64162eb"
+    }
+  ],
+  "livePath": {
+    "caseId": "production-live-simulation-motor-100ms-ticks",
+    "p50Ms": 3.0999999940395355,
+    "p95Ms": 4.4000000059604645,
+    "p99Ms": 6.4000000059604645,
+    "maxMs": 6.4000000059604645,
+    "eventLoopDelayP95Ms": 16,
+    "longTaskCount": 0,
+    "longTaskMaxMs": 0,
+    "heapDeltaBytes": 10659391,
+    "finalFingerprint": "d4a14445ab44a8a3f56d6247ec359bb2377839cd36ba81c17079d69306b3931c"
+  },
+  "bundle": {
+    "simulationCore": {
+      "fileName": "electronics-simulation-core-dt79V2de.js",
+      "bytes": 216130,
+      "gzipBytes": 59958
+    },
+    "arduinoCodePanel": {
+      "fileName": "ArduinoCodePanel-CNRllZEH.js",
+      "bytes": 1978979,
+      "gzipBytes": 479480
+    },
+    "schematicEditor": {
+      "fileName": "SchematicEditor-BRmkbA-r.js",
+      "bytes": 157930,
+      "gzipBytes": 50859
+    },
+    "schematicEditorCss": {
+      "fileName": "SchematicEditor-0eqg7OIE.css",
+      "bytes": 98098,
+      "gzipBytes": 18820
+    },
+    "workbenchSidebars": {
+      "fileName": "WorkbenchSidebars-DiNxLKBx.js",
+      "bytes": 69694,
+      "gzipBytes": 16207
+    },
+    "productionManifestAdapter": {
+      "fileName": "production-manifest-adapter-BBQr840h.js",
+      "bytes": 51101,
+      "gzipBytes": 17250
+    },
+    "componentCatalog": {
+      "fileName": "catalog.json",
+      "bytes": 1011144,
+      "gzipBytes": 80309
+    }
+  }
+}

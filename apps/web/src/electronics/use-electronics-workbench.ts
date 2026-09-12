@@ -82,11 +82,8 @@ import {
   type TerminalRef,
   type VertexDrag,
 } from './workbench-model';
-import {
-  advanceLiveSimulation,
-  calculateLiveSimulation,
-  calculateSimulationPreflight,
-} from './live-simulation';
+import { calculateLiveSimulation, calculateSimulationPreflight } from './live-simulation';
+import { ElectronicsLiveSimulationWorkerController } from './live-simulation-worker-controller';
 import { warmProductionAsset } from './production-asset-contracts';
 import { unlockPiezoAudio, usePiezoAudio } from './use-piezo-audio';
 import {
@@ -171,6 +168,7 @@ export function useElectronicsWorkbench(projectId: string) {
     setNotice,
     simulationRunning,
     simulationStatus,
+    confirmSimulationStarted,
     busy,
     projectTitle,
     setProjectTitle,
@@ -220,6 +218,14 @@ export function useElectronicsWorkbench(projectId: string) {
   const simulationStartedAtRef = useRef<number | null>(null);
   const [simulationTimeMs, setSimulationTimeMs] = useState(0);
   const [liveResult, setLiveResult] = useState<typeof persistedResult>(null);
+  const simulationWorkerRef = useRef<ElectronicsLiveSimulationWorkerController | null>(null);
+  if (simulationWorkerRef.current === null) {
+    simulationWorkerRef.current = new ElectronicsLiveSimulationWorkerController();
+  }
+  const runtimeDocumentRef = useRef(runtimeDocument);
+  runtimeDocumentRef.current = runtimeDocument;
+  const resetSimulationRef = useRef(resetSimulation);
+  resetSimulationRef.current = resetSimulation;
 
   useEffect(() => {
     if (!simulationRunning) {
@@ -241,17 +247,39 @@ export function useElectronicsWorkbench(projectId: string) {
   }, [simulationRunning]);
 
   useEffect(() => {
+    const controller = simulationWorkerRef.current;
+    if (!controller) return;
+    if (!simulationRunning) {
+      controller.stop();
+      return;
+    }
+    const initialDocument = runtimeDocumentRef.current;
+    if (!initialDocument) return;
+    setLiveResult(null);
+    controller.start(projectId, initialDocument, {
+      onResult: (nextResult) => {
+        setLiveResult(nextResult);
+        confirmSimulationStarted();
+      },
+      onFailure: () => {
+        resetSimulationRef.current();
+        setNotice(
+          'Моделирование остановлено: вычислительный модуль не отвечает. Запустите его ещё раз.',
+        );
+      },
+    });
+    return () => controller.stop();
+  }, [confirmSimulationStarted, projectId, setNotice, simulationRunning]);
+
+  useEffect(() => {
     if (!runtimeDocument || !simulationRunning) return;
-    setLiveResult((previous) =>
-      advanceLiveSimulation(runtimeDocument, previous ?? persistedResult, simulationTimeMs),
-    );
-  }, [persistedResult, runtimeDocument, simulationRunning, simulationTimeMs]);
+    simulationWorkerRef.current?.update(runtimeDocument, simulationTimeMs);
+  }, [runtimeDocument, simulationRunning, simulationTimeMs]);
 
   const result = useMemo(
     () =>
       simulationRunning
-        ? (liveResult ??
-          calculateLiveSimulation(runtimeDocument, persistedResult, true, simulationTimeMs))
+        ? liveResult
         : calculateLiveSimulation(runtimeDocument, persistedResult, false, simulationTimeMs),
     [liveResult, persistedResult, runtimeDocument, simulationRunning, simulationTimeMs],
   );

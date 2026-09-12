@@ -2765,6 +2765,8 @@ test('6 V incandescent lamp warms into the owner glow and explains its fixed pro
 test('direct DC motor shows calculated signed RPM and calm visual direction', async ({ page }) => {
   test.setTimeout(120_000);
   const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
+  const workerUrls: string[] = [];
+  page.on('worker', (worker) => workerUrls.push(worker.url()));
   await page.setViewportSize({ width: 1440, height: 900 });
   await loginWithOrganization(page, teacher);
   const projectId = await createProject(page, 'MATH-5C DC motor runtime');
@@ -2775,6 +2777,9 @@ test('direct DC motor shows calculated signed RPM and calm visual direction', as
   const readout = page.locator('[data-testid="dc-motor-rpm"][data-component-id="motor"]');
   await expect(readout).toHaveText('0 об/мин');
   await page.getByRole('button', { name: 'Начать моделирование' }).click();
+  await expect
+    .poll(() => workerUrls.some((url) => url.includes('simulation.worker')), { timeout: 10_000 })
+    .toBe(true);
   await expect
     .poll(async () => (await readout.textContent())?.trim(), { timeout: 10_000 })
     .not.toBe('0 об/мин');
