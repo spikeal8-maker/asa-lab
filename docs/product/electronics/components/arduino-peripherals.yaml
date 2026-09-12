@@ -1,0 +1,109 @@
+schema_version: 1.0.0
+area: arduino-peripherals
+purpose: "Arduino source-level runtime, scheduler, capability registry and timing-sensitive peripherals."
+
+components:
+  electronics.arduino.runtime:
+    implementation_state: implemented_subset_needs_hardening
+    ownership: asa
+    risk: high
+    contracts:
+      - docs/product/electronics/README.md
+      - docs/product/electronics/ASA_ELECTRONICS_OPTIMIZATION_PLAN_V2.md
+    sources:
+      - contexts/electronics/domain/arduino-program-runtime.ts
+      - contexts/electronics/domain/arduino-values.ts
+      - contexts/electronics/domain/arduino-model.ts
+    tests:
+      - contexts/electronics/testing/**
+    dependencies: [electronics.clock.canonical]
+    notes: "Educational deterministic subset; not arbitrary AVR/Uno emulation."
+
+  electronics.arduino.scheduler:
+    implementation_state: implemented_foundation
+    ownership: asa
+    risk: high
+    contracts:
+      - docs/product/electronics/ASA_ELECTRONICS_OPTIMIZATION_PLAN_V2.md
+    sources:
+      - contexts/electronics/domain/arduino-circuit-scheduler.ts
+    tests:
+      - contexts/electronics/testing/**
+      - contexts/electronics/testing/benchmark-corpus.spec.ts
+    dependencies: [electronics.arduino.runtime, electronics.clock.canonical]
+    notes: "Existing scheduler is the foundation for canonical orchestration; do not create a third scheduler."
+
+  electronics.arduino.capabilities:
+    implementation_state: implemented
+    ownership: asa
+    risk: medium
+    contracts:
+      - docs/product/electronics/README.md
+    sources:
+      - contexts/electronics/domain/arduino-capabilities.ts
+    tests:
+      - contexts/electronics/testing/**
+    dependencies: [electronics.arduino.runtime]
+
+  electronics.peripheral.servo:
+    implementation_state: planned
+    ownership: asa
+    risk: high
+    dependencies: [electronics.clock.canonical, electronics.arduino.runtime]
+    prerequisites: ["canonical time accepted", "microsecond/timed output semantics accepted"]
+    forbidden: ["UI timers as physical truth", "special-case timing outside peripheral runtime"]
+
+  electronics.peripheral.ultrasonic:
+    implementation_state: planned
+    ownership: asa
+    risk: high
+    dependencies: [electronics.clock.canonical, electronics.arduino.runtime]
+    prerequisites: ["trigger/echo event model", "pulseIn/time-of-flight foundation"]
+    forbidden: ["fake distance from UI delay", "browser wall-clock as pulse duration"]
+
+  electronics.peripheral.pir:
+    implementation_state: planned
+    ownership: asa
+    risk: medium
+    dependencies: [electronics.clock.canonical, electronics.arduino.runtime]
+    prerequisites: ["input event clock"]
+
+  electronics.peripheral.serial:
+    implementation_state: planned
+    ownership: asa
+    risk: high
+    dependencies: [electronics.arduino.runtime]
+    prerequisites: ["serial runtime/state contract", "bounded buffer semantics"]
+
+  electronics.peripheral.i2c:
+    implementation_state: planned
+    ownership: asa
+    risk: high
+    dependencies: [electronics.arduino.runtime, electronics.clock.canonical]
+    prerequisites: ["bus model", "addressing/error semantics"]
+
+  electronics.peripheral.spi:
+    implementation_state: planned
+    ownership: asa
+    risk: high
+    dependencies: [electronics.arduino.runtime, electronics.clock.canonical]
+
+  electronics.peripheral.ir:
+    implementation_state: planned
+    ownership: asa
+    risk: high
+    dependencies: [electronics.arduino.runtime, electronics.clock.canonical]
+    prerequisites: ["timed edge/event representation"]
+
+  electronics.peripheral.neopixel:
+    implementation_state: planned
+    ownership: asa
+    risk: high
+    dependencies: [electronics.arduino.runtime, electronics.clock.canonical]
+    prerequisites: ["timing-sensitive output representation"]
+
+rules:
+  add_peripheral_only_when_prerequisites_accepted: true
+  ui_timer_may_define_physics: false
+  unsupported_api_must_fail_before_partial_execution: true
+  next_wave_order: [servo, ultrasonic, pir, serial, i2c, spi, ir, neopixel]

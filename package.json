@@ -114,7 +114,7 @@
     "control-plane:check": "python tools/validate_control_plane.py",
     "gate:governance": "node tools/run-governance-gate.mjs",
     "gate:admin-control-plane": "corepack pnpm nx run api:build && corepack pnpm nx run web:build && corepack pnpm contracts:check && corepack pnpm db:migrate:check && corepack pnpm test:admin-control-plane",
-    "gate:code": "corepack pnpm format:check && corepack pnpm seo:check && corepack pnpm lint && corepack pnpm typecheck && corepack pnpm boundaries:check && corepack pnpm contracts:check && corepack pnpm compose:check && corepack pnpm security:secrets && corepack pnpm license:check && corepack pnpm security:dependencies && corepack pnpm test:release && corepack pnpm build && corepack pnpm bundle:check",
+    "gate:code": "corepack pnpm format:check && corepack pnpm seo:check && corepack pnpm validate:electronics-agent-docs && corepack pnpm lint && corepack pnpm typecheck && corepack pnpm boundaries:check && corepack pnpm contracts:check && corepack pnpm compose:check && corepack pnpm security:secrets && corepack pnpm license:check && corepack pnpm security:dependencies && corepack pnpm test:release && corepack pnpm build && corepack pnpm bundle:check",
     "gate:data": "corepack pnpm db:migrate:check && corepack pnpm test && corepack pnpm test:rls",
     "gate:repository": "corepack pnpm gate:governance && corepack pnpm gate:code && corepack pnpm gate:data",
     "generate:electronics-component-coverage": "node tools/generate-electronics-component-coverage.mjs --write",
@@ -130,7 +130,8 @@
     "gate:checkers-m1": "corepack pnpm nx build module-sdk && corepack pnpm nx build electronics && corepack pnpm nx build chess && corepack pnpm nx build three-d && corepack pnpm nx build checkers && corepack pnpm nx build blocks && corepack pnpm test:checkers && corepack pnpm typecheck:checkers && corepack pnpm typecheck && corepack pnpm build",
     "gate:checkers-m1:browser": "corepack pnpm e2e:checkers",
     "assets:check": "python tools/validate_electronics_assets.py",
-    "assets:test": "python tools/test_validate_electronics_assets.py"
+    "assets:test": "python tools/test_validate_electronics_assets.py",
+    "validate:electronics-agent-docs": "node tools/validate-electronics-agent-docs.mjs"
   },
   "devDependencies": {
     "@apidevtools/swagger-parser": "^10.1.1",

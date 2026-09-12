@@ -1,0 +1,74 @@
+schema_version: 1.0.0
+area: delivery-portability
+purpose: "Evidence, portability proof, deployment and rollback boundaries for Electronics."
+
+components:
+  electronics.evidence.benchmark:
+    implementation_state: implemented
+    ownership: asa
+    risk: medium
+    contracts:
+      - docs/product/electronics/ASA_ELECTRONICS_OPTIMIZATION_PLAN_V2.md
+    sources:
+      - contexts/electronics/testing/benchmark-corpus.ts
+      - contexts/electronics/testing/fixtures/benchmark-golden.v2.json
+      - tools/run-electronics-benchmark.mjs
+      - tools/run-electronics-browser-benchmark.mjs
+      - tools/run-electronics-load-benchmark.mjs
+      - tools/run-electronics-memory-benchmark.mjs
+      - docs/delivery/evidence/electronics-opt0/**
+    tests:
+      - contexts/electronics/testing/benchmark-corpus.spec.ts
+    dependencies: [electronics.engine.solver, electronics.arduino.scheduler]
+    notes: "Golden change requires explicit reviewed regeneration; timing evidence is not a reason to weaken deterministic correctness."
+
+  electronics.portability.standalone:
+    implementation_state: planned
+    ownership: asa
+    risk: high
+    contracts:
+      - docs/product/electronics/ASA_ELECTRONICS_OPTIMIZATION_PLAN_V2.md
+      - docs/product/electronics/DEVELOPMENT_SPEC.md
+    sources: []
+    tests: []
+    dependencies:
+      - electronics.engine.public-api
+      - electronics.worker.protocol
+      - electronics.clock.canonical
+      - electronics.arduino.runtime
+    notes: "Must prove use without React/ASA API/PostgreSQL, not merely describe it."
+
+  electronics.delivery.deployment:
+    implementation_state: established_process
+    ownership: infrastructure
+    risk: critical
+    contracts:
+      - AGENTS.md#4-порты-и-данные
+      - docs/delivery/AGENT_CHANGE_WORKFLOW.md
+      - docs/product/electronics/tasks/DEPLOYMENT_TASK_TEMPLATE.md
+    sources:
+      - compose.yaml
+      - compose.production.yaml
+      - docker/**
+    tests:
+      - health/version/schema checks
+    dependencies: []
+    notes: "Deploy exact gated SHA only. Push/merge is not deployment."
+
+  electronics.delivery.rollback:
+    implementation_state: established_process
+    ownership: infrastructure
+    risk: critical
+    contracts:
+      - docs/product/electronics/tasks/DEPLOYMENT_TASK_TEMPLATE.md
+    sources: []
+    tests: []
+    dependencies: [electronics.delivery.deployment]
+    notes: "Backup/rollback must exist before switching live containers or persistence."
+
+rules:
+  deploy_moving_main: forbidden
+  deploy_unreviewed_sha: forbidden
+  db_destructive_action_without_owner_task: forbidden
+  rollback_prepared_before_switch: true
+  standalone_claim_requires_code_proof: true

@@ -1,0 +1,136 @@
+schema_version: 1.0.0
+area: engine-worker-clock
+purpose: "Pure engine, solver/model boundary, Worker execution and canonical simulation time."
+
+components:
+  electronics.engine.public-api:
+    implementation_state: partial
+    ownership: asa
+    risk: high
+    contracts:
+      - docs/product/electronics/README.md#4-архитектура-продукта
+      - docs/product/electronics/ASA_ELECTRONICS_OPTIMIZATION_PLAN_V2.md
+    sources:
+      - contexts/electronics/index.ts
+      - contexts/electronics/domain/document.ts
+      - contexts/electronics/domain/simulation.ts
+    tests:
+      - contexts/electronics/testing/**
+    dependencies: [electronics.engine.document, electronics.engine.solver]
+    notes: "Next unresolved foundation. Public surface is broader/coupled than target portable engine contract."
+
+  electronics.engine.document:
+    implementation_state: implemented
+    ownership: asa
+    risk: high
+    contracts:
+      - docs/product/electronics/README.md#5-circuitdocument
+    sources:
+      - contexts/electronics/domain/document.ts
+    tests:
+      - contexts/electronics/testing/**
+    dependencies: []
+
+  electronics.engine.netlist:
+    implementation_state: implemented
+    ownership: asa
+    risk: high
+    contracts:
+      - docs/product/electronics/README.md#4-архитектура-продукта
+    sources:
+      - contexts/electronics/domain/netlist.ts
+    tests:
+      - contexts/electronics/testing/**
+    dependencies: [electronics.engine.document]
+
+  electronics.engine.solver:
+    implementation_state: implemented_needs_hardening
+    ownership: asa
+    risk: high
+    contracts:
+      - docs/product/electronics/README.md
+      - docs/product/electronics/ASA_ELECTRONICS_OPTIMIZATION_PLAN_V2.md
+    sources:
+      - contexts/electronics/domain/solver.ts
+      - contexts/electronics/domain/linear-system.ts
+      - contexts/electronics/domain/simulation.ts
+    tests:
+      - contexts/electronics/testing/**
+      - contexts/electronics/testing/benchmark-corpus.spec.ts
+    dependencies: [electronics.engine.netlist, electronics.engine.device-model]
+    notes: "Do not add component-specific branches when DeviceModel/profile can own behaviour."
+
+  electronics.engine.device-model:
+    implementation_state: partial
+    ownership: asa
+    risk: high
+    contracts:
+      - docs/product/electronics/README.md
+    sources:
+      - contexts/electronics/domain/model-identity.ts
+      - contexts/electronics/domain/model-registry.ts
+      - contexts/electronics/domain/models/**
+    tests:
+      - contexts/electronics/testing/**
+    dependencies: [electronics.engine.document]
+
+  electronics.worker.protocol:
+    implementation_state: implemented
+    ownership: asa
+    risk: high
+    contracts:
+      - docs/product/electronics/ASA_ELECTRONICS_OPTIMIZATION_PLAN_V2.md
+    sources:
+      - apps/web/src/electronics/simulation-worker-protocol.ts
+      - apps/web/src/electronics/simulation-worker-client.ts
+      - apps/web/src/electronics/simulation-worker-evaluator.ts
+      - apps/web/src/electronics/simulation.worker.ts
+    tests:
+      - apps/web/src/electronics/testing/simulation-worker.spec.ts
+    dependencies: [electronics.engine.solver]
+    notes: "Execution boundary only; never a second physics implementation."
+
+  electronics.worker.live-controller:
+    implementation_state: implemented
+    ownership: asa
+    risk: high
+    contracts:
+      - docs/product/electronics/ASA_ELECTRONICS_OPTIMIZATION_PLAN_V2.md
+    sources:
+      - apps/web/src/electronics/live-simulation-worker-controller.ts
+      - apps/web/src/electronics/use-electronics-workbench.ts
+      - apps/web/src/electronics/use-workbench-project-state.ts
+    tests:
+      - apps/web/src/electronics/testing/live-simulation-worker-controller.spec.ts
+      - e2e/electronics-simulation.spec.ts
+    dependencies: [electronics.worker.protocol]
+
+  electronics.clock.canonical:
+    implementation_state: planned
+    ownership: asa
+    risk: high
+    contracts:
+      - docs/product/electronics/ASA_ELECTRONICS_OPTIMIZATION_PLAN_V2.md
+    sources:
+      - contexts/electronics/domain/arduino-circuit-scheduler.ts
+      - contexts/electronics/domain/simulation.ts
+      - apps/web/src/electronics/use-electronics-workbench.ts
+    tests:
+      - contexts/electronics/testing/**
+      - apps/web/src/electronics/testing/**
+    dependencies: [electronics.engine.public-api, electronics.worker.protocol]
+    notes: "Must unify physical time; UI cadence may not define simulation truth."
+
+  electronics.transient.runtime:
+    implementation_state: implemented_needs_hardening
+    ownership: asa
+    risk: high
+    contracts:
+      - docs/product/electronics/README.md
+    sources:
+      - contexts/electronics/domain/simulation.ts
+      - contexts/electronics/domain/arduino-circuit-scheduler.ts
+    tests:
+      - contexts/electronics/testing/**
+      - contexts/electronics/testing/benchmark-corpus.spec.ts
+    dependencies: [electronics.engine.solver, electronics.clock.canonical]
