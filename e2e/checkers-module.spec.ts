@@ -153,7 +153,7 @@ test('learner solves an original Russian-64 task, reloads progress and receives 
 
   await page.reload();
   await expect(page.getByRole('heading', { name: 'Выберите, как хотите играть' })).toBeVisible();
-  await expect(page.getByText('1 из 22 практик')).toBeVisible();
+  await expect(page.getByLabel('1 из 22 практик')).toBeVisible();
   await page.getByRole('button', { name: 'Выбрать бота' }).click();
   await expect(
     page.getByRole('heading', { name: 'Выберите соперника и начинайте партию' }),
@@ -392,7 +392,7 @@ test('teacher assigns real class work and sees the learner evidence after comple
   await studentPage.goto(
     `/#/classrooms/${classroom.classroom.id}/projects/${projectId}?title=${encodeURIComponent(classroom.classroom.title)}`,
   );
-  await expect(studentPage.getByRole('heading', { name: /твой следующий ход/ })).toBeVisible();
+  await expect(studentPage.getByRole('heading', { name: 'Назначенные задания' })).toBeVisible();
   await expect(studentPage.getByText('Серии взятий · практика').first()).toBeVisible();
   await studentPage
     .getByRole('article')
