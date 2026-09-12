@@ -175,6 +175,42 @@ surfaces:
     tests:
     - TST-ASA-ACCESS-A-CORE-001
     - TST-ASA-ACCESS-A-E2E-001
+- id: SURF-CLASSROOM-ROSTER
+  routes:
+  - '#/classrooms/:classroomId'
+  implementation:
+    files:
+    - apps/web/src/pages/ClassroomPage.tsx
+    - apps/web/src/api.ts
+    - apps/api/src/classrooms.controller.ts
+  invariants:
+  - IDA-AUTH-001
+  - IDA-SEAT-001
+  - IDA-CRED-001
+  - IDA-REV-001
+  tests:
+  - TST-ASA-ACCESS-A-CORE-001
+  - TST-LRN-COURSE-E1-CORE-001
+  controls:
+  - id: CTRL-CLASSROOM-BATCH-SEATS
+    label: Preview and issue StudentSeats in one idempotent batch
+    change_class: L3_CRITICAL
+    files:
+    - apps/web/src/pages/ClassroomPage.tsx
+    - apps/web/src/api.ts
+    - apps/api/src/classrooms.controller.ts
+    commands:
+    - preview_student_seat_batch
+    - commit_student_seat_batch
+    invariants:
+    - IDA-AUTH-001
+    - IDA-SEAT-001
+    - IDA-CRED-001
+    - IDA-REV-001
+    tests:
+    - TST-ASA-ACCESS-A-CORE-001
+    - TST-LRN-COURSE-E1-CORE-001
+
 - id: SURF-STUDENT-SEAT-ENTRY
   routes:
   - '#/join-class'

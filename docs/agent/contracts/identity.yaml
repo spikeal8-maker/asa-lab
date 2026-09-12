@@ -44,6 +44,14 @@ invariants:
         section: INV-02 / UI-06
     applies_to: [student_seat, class_code, classroom_entry]
     forbid: [account_required_for_seat, class_code_as_personal_credential, child_list_from_class_code]
+  - id: IDA-CRED-001
+    statement: StudentSeat plaintext credentials exist only in the protected response of an issue/reset operation; old plaintext secrets are never readable later, and printable cards are rendered from that one-time response.
+    master_refs:
+      - document: IDENTITY-ACCESS-V20
+        section: '### 9.4.'
+    applies_to: [student_seat, credential_issue, credential_reset, roster_batch]
+    forbid: [plaintext_credential_readback, credential_in_roster, credential_in_logs, silent_reset_on_lost_response]
+
   - id: IDA-LINK-001
     statement: Linking a StudentSeat to an Account preserves the same verified scoped learning history and never creates or silently merges a second history.
     master_refs:
