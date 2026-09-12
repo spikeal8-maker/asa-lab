@@ -19,6 +19,7 @@ const CONTEXT_RULES = {
   identity: [],
   organization: [],
   classroom: [],
+  blocks: [],
   chess: [],
   'chess-live': ['chess'],
   'three-d': [],

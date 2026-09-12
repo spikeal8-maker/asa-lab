@@ -10,10 +10,12 @@ components:
       - path: docs/product/visual-programming/VSCR-D0-003-ASSET-STORAGE-CONTRACT.md
         section: "Separation of identities"
     sources:
-      - path: apps/api/src/blocks-module.ts
-        symbols: [BlocksAssetReferenceV1, validateAsset]
+      - path: contexts/blocks/domain/document.ts
+        symbols: [BlocksAssetReferenceV1]
+      - path: contexts/blocks/domain/validation.ts
+        symbols: [validateBlocksAssetReference]
     tests:
-      - apps/api/src/blocks-module.spec.ts
+      - contexts/blocks/testing/module.spec.ts
     task: VSCR-M1-001
 
   - id: blocks.assets.metadata
