@@ -2,7 +2,7 @@
 
 **Kind:** acceptance/review slice; no new architecture  
 **Risk:** high  
-**Prerequisite:** VSCR-M1-002A, B, C and D each accepted on their own exact evidence.  
+**Prerequisite:** VSCR-M1-002A, C, D and B each accepted on their own exact evidence.  
 **Execution:** review starts only when `docs/execution/current.yaml.task.id` is exactly `VSCR-M1-002E` **and** `docs/execution/current.yaml.task.status` is exactly `in_progress`; `docs/execution/current.yaml.primary_lane.milestone.id` must be exactly `VSCR-M1-002` and its `owner_authorization` must be `accepted`.
 
 ## Goal
@@ -17,15 +17,15 @@ Review the already implemented entries only:
 ```text
 blocks.upstream.pin
 blocks.host.build
+blocks.host.protocol
+blocks.host.storage-adapter
 blocks.host.branding
 blocks.host.file-menu
 blocks.host.extensions
-blocks.host.protocol
-blocks.host.storage-adapter
 ```
 
-Do not load runtime/assets/project/Gallery/sb3 cards unless evidence uncovers a concrete
-boundary defect.
+Do not load runtime/assets/project/Gallery/sb3 cards unless evidence uncovers a concrete boundary
+defect.
 
 ## Minimal read set
 
@@ -36,7 +36,7 @@ boundary defect.
 ../components/module.yaml → blocks.upstream.pin only
 ../components/host.yaml
 ../VSCR-D0-001-SCRATCH-HOST-CONTRACT.md → M1-002 acceptance
-accepted A–D evidence and final host diff
+accepted A/C/D/B evidence and final host diff
 ```
 
 ## Expected write paths
@@ -51,7 +51,7 @@ e2e/blocks-host-acceptance.spec.ts
 ```
 
 If acceptance uncovers a product defect, mark this slice `FAIL` and STOP. Do not repair the
-product inside M1-002E. Create/select a separate bounded repair task for the owning A–D
+product inside M1-002E. Create/select a separate bounded repair task for the owning A/C/D/B
 component, rerun its focused evidence, then rerun M1-002E from a clean acceptance state.
 
 ## Acceptance
@@ -62,11 +62,12 @@ Browser/Docker evidence must prove at least:
 exact configured Scratch pin/version reported
 shipping standalone dist, not upstream playground root
 exactly two authorised patches and no third
+real editor mounts only after valid INIT
+workspace/stage render and controlled programme can run/stop
 canonical ASA logo rendered; no Scratch product logo/navigation
 File menu absent
 Extensions button absent
 no account/share/backpack/cloud/server-save ownership
-editor does not render before valid INIT
 wrong source/origin/project/nonce/protocol rejected
 runtime token absent from URL/persistent browser storage/logs
 no postMessage '*'
@@ -84,7 +85,7 @@ Reviewer receives only:
 
 ```text
 this acceptance card
-A–D task cards
+A/C/D/B task cards
 final integrated diff
 components/host.yaml + blocks.upstream.pin entry
 the M1-002 acceptance section of D0-001
@@ -92,11 +93,10 @@ focused/browser/Docker evidence
 ```
 
 The reviewer checks for scope creep, hidden upstream coupling, token exposure, accidental
-persistence claims and missing component-map updates. Full-repository reread is not the
-default.
+persistence claims and missing component-map updates. Full-repository reread is not the default.
 
-The reviewer must not silently repair product code while reviewing. A product defect is a
-review failure and routes back to the owning bounded component task.
+The reviewer must not silently repair product code while reviewing. A product defect is a review
+failure and routes back to the owning bounded component task.
 
 ## Tests/evidence
 
@@ -104,7 +104,7 @@ review failure and routes back to the owning bounded component task.
 integrated browser acceptance journey
 Docker exact-pin build + health/root smoke
 network log for external fallback
-focused component tests from A–D
+focused component tests from A/C/D/B
 node tools/validate-blocks-docs.mjs
 required repository gate on exact final SHA
 ```
@@ -124,10 +124,10 @@ no activation
 
 ## Bounded self-review
 
-Confirm acceptance/review work changed no product architecture and all host component cards
-already point to actual accepted sources/tests with `state: implemented`. If routing itself is
-wrong, correct only the routing metadata and re-run validation; if product behaviour is wrong,
-FAIL/STOP and route to a separate repair task.
+Confirm acceptance/review work changed no product architecture and all host component cards already
+point to actual accepted sources/tests with `state: implemented`. If routing itself is wrong,
+correct only the routing metadata and re-run validation; if product behaviour is wrong, FAIL/STOP
+and route to a separate repair task.
 
 ## Stop
 

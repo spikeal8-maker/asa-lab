@@ -11,17 +11,17 @@ development_policy:
 task:
   id: VSCR-M1-002A
   issue: 183
-  branch: codex/vscr-m1-002a-host-shell
+  branch: main
   base_branch: main
-  pr: null
-  pr_draft: true
-  status: in_progress
-  checkpoint: m1_002a_owner_authorized_execution
-  owner_acceptance: pending
+  pr: 194
+  pr_draft: false
+  status: done
+  checkpoint: m1_002a_owner_accepted_merged
+  owner_acceptance: accepted
 
 revisions:
-  convergence_baseline_sha: e82267de2b64170355fd798054a991a96bb820a1
-  head_sha: e82267de2b64170355fd798054a991a96bb820a1
+  convergence_baseline_sha: 58a91b4353471d8312d23fb7cf5d2186e758edff
+  head_sha: b6f0812003f6066ee7de30a9b7a310885d8f86af
 
 execution_lease:
   executor_id: codex-vscr-m1-002a
@@ -137,22 +137,22 @@ parallel_lanes:
       - e2e/artifacts/electronics-simulation/**
       - docs/product/electronics/**
       - tools/validate-electronics-component-information.mjs
+      - tools/validate-electronics-agent-docs.mjs
     task:
-      id: TASK-ELECTRONICS-DOCS-001
-      issue: 63
+      id: TASK-ELECTRONICS-GOVERNANCE-002
+      issue: 203
       branch: main
       base_branch: main
-      pr: 170
+      pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: electronics_transactional_drag_and_responsive_browser_verification
+      checkpoint: electronics_governance_plan_v2_correction
       owner_acceptance: pending
     revisions:
-      convergence_baseline_sha: 5b052dc631c7036de9d60f4206c9879fe364e732
-      head_sha: aa0f4b867967636ce0cd3e82250a1d1af94d5a0c
-      owner_accepted_sha: 7334d246da981221a519dcfe0e010fef722dcc8a
+      convergence_baseline_sha: 14c9f047d7d521cf8b771b156b207890d25c58cb
+      head_sha: 14c9f047d7d521cf8b771b156b207890d25c58cb
     execution_lease:
-      executor_id: codex-electronics-docs
+      executor_id: codex-electronics-governance-v2
       holder: unassigned
       acquired_at: null
       expires_at: null

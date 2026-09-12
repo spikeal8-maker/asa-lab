@@ -2,14 +2,14 @@
 
 **Kind:** executable implementation slice  
 **Risk:** medium  
-**Prerequisite:** VSCR-M1-002A accepted.  
+**Prerequisite:** VSCR-M1-002D accepted and the real editor DOM is available through the accepted C/D bootstrap path.  
 **Execution:** coding starts only when `docs/execution/current.yaml.task.id` is exactly `VSCR-M1-002B` **and** `docs/execution/current.yaml.task.status` is exactly `in_progress`; `docs/execution/current.yaml.primary_lane.milestone.id` must be exactly `VSCR-M1-002` and its `owner_authorization` must be `accepted`.
 
 ## Goal
 
-Apply only the accepted ASA product-branding and editor-control boundary to the working host
-shell: canonical ASA logo, no Scratch product logo/navigation, no built-in File ownership and
-no upstream Extensions surface in core mode.
+Productise the already working editor DOM: apply the accepted ASA product-branding and
+editor-control boundary to the real mounted Scratch GUI. Branding is intentionally after C/D so
+browser evidence observes actual controls rather than a not-yet-mounted editor.
 
 ## Components
 
@@ -30,7 +30,7 @@ Open only those entries in `components/host.yaml`.
 ../components/host.yaml → three selected entries
 ../VSCR-D0-001-SCRATCH-HOST-CONTRACT.md → Branding + Product controls + Extensions
 apps/web/public/asa-lab-mark.svg
-actual host shell accepted in M1-002A
+actual host/protocol/editor mount accepted in M1-002A/C/D
 ```
 
 ## Expected write paths
@@ -44,7 +44,7 @@ infra/scratch-editor/host/main.js             # composition wiring only
 infra/scratch-editor/Dockerfile               # deterministic patch/logo copy only
 infra/scratch-editor/README.md
 e2e/blocks-host-controls.spec.ts
-.github/workflows/scratch-focused.yml       # only if focused command needs it
+.github/workflows/scratch-focused.yml          # only if focused command needs it
 ../components/host.yaml → selected entries only
 ```
 
@@ -52,6 +52,7 @@ e2e/blocks-host-controls.spec.ts
 
 ```text
 canonical apps/web/public/asa-lab-mark.svg bytes are the logo source
+ASA logo is rendered in the real mounted editor surface
 Scratch product logo/navigation is absent
 canManageFiles=false and File menu is absent
 extensionsButtonVisible=false and Extensions button is absent
@@ -62,13 +63,14 @@ no second independently editable ASA logo is introduced
 
 ## Tests/evidence
 
-Use actual DOM/browser evidence, not source grep only:
+Use actual mounted-editor DOM/browser evidence, not source grep only:
 
 ```text
 ASA logo rendered
 no Scratch logo/link to scratch.mit.edu
 File menu absent
 Extensions button absent
+no account/share/backpack/cloud product ownership
 no extra upstream patch
 Docker rebuild succeeds on exact pin
 node tools/validate-blocks-docs.mjs
@@ -77,9 +79,9 @@ node tools/validate-blocks-docs.mjs
 ## Forbidden
 
 ```text
-no iframe protocol
-no runtime token
-no ScratchStorage adapter
+no new iframe protocol behaviour beyond accepted C
+no runtime token issuance
+no real ScratchStorage/runtime persistence beyond accepted D fixture boundary
 no save/load
 no S3/MinIO
 no third upstream patch
@@ -93,5 +95,6 @@ absorb branding/control logic and no third patch was added.
 
 ## Stop
 
-STOP after evidence. VSCR-M1-002C requires separate owner-authorised selection in
-`current.yaml` after B is accepted.
+STOP after product-chrome evidence. `VSCR-M1-002E` is the next planned slice and performs the
+integrated host acceptance/review. E requires separate selection in `current.yaml`; do not begin it
+automatically.
