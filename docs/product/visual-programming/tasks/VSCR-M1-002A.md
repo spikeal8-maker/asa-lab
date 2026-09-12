@@ -9,7 +9,8 @@
 
 Replace the M0 playground root with a reproducible ASA-owned static shell around the pinned
 Scratch shipping standalone distribution. This is a technical foundation slice: it does **not**
-need to provide a user-visible editor yet.
+need to provide a user-visible editor yet. Do not add branding patches, iframe protocol or storage
+adapter here.
 
 ## Components
 
@@ -31,7 +32,7 @@ Read only the matching entries in `components/module.yaml` and `components/host.
 ../VSCR-D0-001-SCRATCH-HOST-CONTRACT.md → Upstream provenance + Host layout
 infra/scratch-editor/upstream.env
 current infra/scratch-editor/Dockerfile
-current infra/scratch-editor/nginx.conf or nginx.conf.template
+current infra/scratch-editor/nginx.conf  # M0 config being replaced
 ```
 
 ## Expected write paths
@@ -39,11 +40,14 @@ current infra/scratch-editor/nginx.conf or nginx.conf.template
 ```text
 infra/scratch-editor/Dockerfile
 infra/scratch-editor/nginx.conf.template
+infra/scratch-editor/nginx.conf              # delete after template takeover
 infra/scratch-editor/README.md
 infra/scratch-editor/host/index.html
 infra/scratch-editor/host/main.js
 infra/scratch-editor/host/host.css
 .github/workflows/scratch-focused.yml
+package.json
+tools/verify-blocks-host-shell.mjs
 ../components/host.yaml → blocks.host.build only
 ```
 
@@ -61,12 +65,14 @@ Scratch GUI/VM is not added to apps/web dependencies
 ## Tests/evidence
 
 ```text
+pnpm gate:blocks-m1-002a
 Docker build exact pin
 container /healthz
 root document has ASA host marker
 standalone vendor bundle exists
+real Chromium reaches standalone-ready with no page/console errors
+editor root remains unmounted before protocol slice
 upstream playground root is not served
-real browser host-shell bootstrap has no fatal page/runtime error
 node tools/validate-blocks-docs.mjs
 ```
 

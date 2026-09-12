@@ -11,9 +11,16 @@ server {
         return 200 "ok\n";
     }
 
-    # Scratch GUI's playground build uses relative public paths, so it is safe
-    # to serve as an isolated origin during M0 without rewriting bundle URLs.
+    location /vendor/scratch/ {
+        try_files $uri =404;
+    }
+
     location / {
-        try_files $uri $uri/ /index.html;
+        try_files $uri $uri/ @scratch_vendor;
+    }
+
+    location @scratch_vendor {
+        root /usr/share/nginx/html/vendor/scratch;
+        try_files $uri /index.html;
     }
 }

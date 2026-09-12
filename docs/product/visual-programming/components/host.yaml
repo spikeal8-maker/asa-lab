@@ -2,22 +2,23 @@ schema_version: 2.0.0
 area: scratch-host
 components:
   - id: blocks.host.build
-    state: planned
+    state: implemented
     risk: medium
     ownership: infrastructure
     purpose: "Build the shipping standalone Scratch distribution and package the ASA-owned host shell."
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-001-SCRATCH-HOST-CONTRACT.md
         section: "Host layout"
-    planned_sources:
+    sources:
       - infra/scratch-editor/Dockerfile
       - infra/scratch-editor/nginx.conf.template
       - infra/scratch-editor/README.md
       - infra/scratch-editor/host/index.html
       - infra/scratch-editor/host/main.js
       - infra/scratch-editor/host/host.css
-    planned_tests:
+    tests:
       - .github/workflows/scratch-focused.yml
+      - tools/verify-blocks-host-shell.mjs
     task: VSCR-M1-002A
     task_card: VSCR-M1-002A.md
     depends_on: [blocks.upstream.pin]
