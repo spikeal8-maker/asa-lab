@@ -112,7 +112,17 @@ Git commit/push/merge is **not deployment**.
 Deployment requires its own task card and gate, with exact target SHA, backup/rollback, compose/env audit, schema check and post-deploy verification.
 Never run `git pull && docker compose up` as a continuation of an implementation task.
 
-## 9. Completion rule
+## 9. Mandatory routing validation
+
+Before accepting any change that edits Electronics routing/governance docs, run:
+
+```bash
+node tools/validate-electronics-agent-docs.mjs
+```
+
+If it fails, routing is stale and product coding must not proceed on assumptions.
+
+## 10. Completion rule
 
 After tests/evidence, perform the bounded self-review from `AGENT_GUIDE.md`, report `NEXT_ALLOWED_TASK`, then **STOP**.
 `NEXT_ALLOWED_TASK` is owner-selectable information, not permission to start it.

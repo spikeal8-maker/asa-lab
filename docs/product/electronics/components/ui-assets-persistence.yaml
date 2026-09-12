@@ -11,7 +11,9 @@ components:
       - docs/product/electronics/README.md#7-stage-selection-и-rotation
     sources:
       - apps/web/src/electronics/use-electronics-workbench.ts
-      - apps/web/src/electronics/SchematicEditor.tsx
+      - apps/web/src/pages/SchematicEditor.tsx
+      - apps/web/src/electronics/WorkbenchStage.tsx
+      - apps/web/src/electronics/WorkbenchSidebars.tsx
       - apps/web/src/electronics/workbench-geometry.ts
     tests:
       - apps/web/src/electronics/testing/**
@@ -60,7 +62,7 @@ components:
       - docs/product/electronics/README.md
     sources:
       - apps/web/src/electronics/component-help-content.ts
-      - apps/web/src/electronics/**
+      - apps/web/src/electronics/WorkbenchSidebars.tsx
     tests:
       - apps/web/src/electronics/testing/**
     dependencies: [electronics.ui.catalog, electronics.engine.device-model]
