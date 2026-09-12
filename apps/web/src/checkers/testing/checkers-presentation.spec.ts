@@ -166,7 +166,7 @@ describe('Checkers presentation contract', () => {
     expect(markup).toContain('Играть в классе');
     expect(markup).toContain('Задачи и обучение');
     expect(markup).toContain('Мои партии');
-    expect(markup).toContain('Будет в CK-103');
+    expect(markup).toContain('Играть на одном устройстве');
     expect(markup).toContain('Будет в CK-106');
     expect(markup).not.toContain('>Продолжить<');
   });

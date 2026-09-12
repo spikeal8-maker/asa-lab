@@ -18,6 +18,7 @@ import {
   type CheckersBotSideChoice,
 } from './CheckersBotSetup';
 import { CheckersClassPlay } from './CheckersClassPlay';
+import { CheckersLocalSetup } from './CheckersLocalSetup';
 import { CheckersPositionComposer } from './CheckersPositionComposer';
 import {
   CheckersLobby,
@@ -57,7 +58,7 @@ interface CheckersModuleExperienceProps {
 }
 
 type CheckersSurface =
-  'home' | 'play' | 'learning' | 'bots' | 'bot-campaign' | 'review' | 'class' | 'teacher';
+  'home' | 'play' | 'learning' | 'bots' | 'bot-campaign' | 'local' | 'review' | 'class' | 'teacher';
 
 export function resolveCheckersLandingSurface(
   projectScope: 'personal' | 'classroom',
@@ -774,6 +775,7 @@ export function CheckersModuleExperience(props: CheckersModuleExperienceProps): 
     'explain' | 'demonstrate' | 'practice' | 'feedback'
   >('explain');
   const [botSideChoice, setBotSideChoice] = useState<CheckersBotSideChoice>('light');
+  const [localAutoFlipChoice, setLocalAutoFlipChoice] = useState(true);
   const [assignmentDialog, setAssignmentDialog] = useState(false);
   const [eventDialog, setEventDialog] = useState(false);
   const [enrolDialog, setEnrolDialog] = useState(false);
@@ -856,7 +858,11 @@ export function CheckersModuleExperience(props: CheckersModuleExperienceProps): 
       : checkers.legalMoves;
   const reviewInsights = analyzeCheckersGameReview(sourceGame);
   const botOutcome =
-    surface === 'play' && !activePuzzle && !activeClassGame && sourceGame.mode === 'game'
+    surface === 'play' &&
+    document.activeMatch.mode === 'bot' &&
+    !activePuzzle &&
+    !activeClassGame &&
+    sourceGame.mode === 'game'
       ? checkersOutcomeForSide(sourceGame.result, checkers.botPlayerSide)
       : 'ongoing';
   const botGameResult =
@@ -874,6 +880,25 @@ export function CheckersModuleExperience(props: CheckersModuleExperienceProps): 
             document.education.activeBotMode === 'free' ? 'Свободная игра' : 'Лестница ASA Bot'
           } · вы играли ${checkers.botPlayerSide === 'light' ? 'светлыми' : 'тёмными'}.`,
         } as const);
+  const localGameResult =
+    surface === 'play' &&
+    document.activeMatch.mode === 'local' &&
+    !activePuzzle &&
+    !activeClassGame &&
+    sourceGame.result !== '*'
+      ? ({
+          tone: sourceGame.result === '1/2-1/2' ? 'draw' : 'win',
+          title:
+            sourceGame.result === '1-0'
+              ? 'Победили светлые'
+              : sourceGame.result === '0-1'
+                ? 'Победили тёмные'
+                : 'Ничья',
+          detail: 'Локальная партия за одним устройством завершена.',
+        } as const)
+      : null;
+  const personalGameResult =
+    document.activeMatch.mode === 'local' ? localGameResult : botGameResult;
   const startPuzzle = (puzzle: CheckersPuzzle): void => {
     const limitedAssignment = document.education.assignments.find(
       (assignment) =>
@@ -1072,7 +1097,7 @@ export function CheckersModuleExperience(props: CheckersModuleExperienceProps): 
         readOnly:
           isReview ||
           Boolean(
-            checkers.botThinking ||
+            (document.activeMatch.mode === 'bot' && checkers.botThinking) ||
             (!activeClassGame && sourceGame.result !== '*') ||
             (activeClassGame &&
               (activeClassGame.status !== 'active' ||
@@ -1082,10 +1107,21 @@ export function CheckersModuleExperience(props: CheckersModuleExperienceProps): 
           ? 'light'
           : activeClassGame
             ? (activeClassGame.side ?? 'light')
-            : checkers.botPlayerSide,
+            : document.activeMatch.mode === 'local'
+              ? document.activeMatch.localAutoFlip
+                ? workspaceGame.sideToMove
+                : 'light'
+              : checkers.botPlayerSide,
+        autoFlipBoard: document.activeMatch.mode === 'local' && document.activeMatch.localAutoFlip,
         canRestart: Boolean(activePuzzle || (!activeClassGame && surface === 'play')),
         canResign: Boolean(!activePuzzle && !activeClassGame && sourceGame.result === '*'),
-        ...(botGameResult ? { gameResult: botGameResult } : {}),
+        canDraw: Boolean(
+          document.activeMatch.mode === 'local' &&
+          !activePuzzle &&
+          !activeClassGame &&
+          sourceGame.result === '*',
+        ),
+        ...(personalGameResult ? { gameResult: personalGameResult } : {}),
       }}
       onBack={() => {
         if (activeClassGame) {
@@ -1122,17 +1158,28 @@ export function CheckersModuleExperience(props: CheckersModuleExperienceProps): 
           return;
         }
         if (!activeClassGame) {
-          checkers.startBotGame(
-            selectedBot.id as CheckersBotId,
-            checkers.botPlayerSide,
-            document.education.activeBotMode,
-          );
+          if (document.activeMatch.mode === 'local') {
+            checkers.startLocalGame(document.activeMatch.localAutoFlip);
+          } else {
+            checkers.startBotGame(
+              selectedBot.id as CheckersBotId,
+              checkers.botPlayerSide,
+              document.education.activeBotMode,
+            );
+          }
         }
       }}
-      onResign={() => checkers.resignBotGame()}
-      onChooseOpponent={() => {
-        setSurface(document.education.activeBotMode === 'campaign' ? 'bot-campaign' : 'bots');
+      onResign={() => {
+        if (document.activeMatch.mode === 'local') checkers.resignLocalGame();
+        else checkers.resignBotGame();
       }}
+      onDraw={() => checkers.drawLocalGame()}
+      {...(document.activeMatch.mode === 'bot'
+        ? {
+            onChooseOpponent: () =>
+              setSurface(document.education.activeBotMode === 'campaign' ? 'bot-campaign' : 'bots'),
+          }
+        : {})}
       {...(activePuzzle && attempt
         ? {
             onHint: () => {
@@ -1189,6 +1236,17 @@ export function CheckersModuleExperience(props: CheckersModuleExperienceProps): 
           setReviewPly(game?.status === 'finished' ? game.document.moveHistory.length : 0);
           setActiveClassGameId(gameId);
         }}
+      />
+    );
+  } else if (surface === 'local') {
+    content = (
+      <CheckersLocalSetup
+        autoFlip={localAutoFlipChoice}
+        onAutoFlipChange={setLocalAutoFlipChoice}
+        onStart={() => {
+          if (checkers.startLocalGame(localAutoFlipChoice)) setSurface('play');
+        }}
+        onBack={() => setSurface('home')}
       />
     );
   } else if (surface === 'bots') {
@@ -1395,6 +1453,20 @@ export function CheckersModuleExperience(props: CheckersModuleExperienceProps): 
         }`,
       };
     } else if (
+      document.activeMatch.mode === 'local' &&
+      document.game.mode === 'game' &&
+      document.game.result === '*' &&
+      document.education.lastActivityAt !== null
+    ) {
+      resume = {
+        id: 'resume-local-game',
+        title: 'Локальная партия',
+        detail: `Игра вдвоём · ход ${
+          document.game.sideToMove === 'light' ? 'светлых' : 'тёмных'
+        } · ${document.activeMatch.localAutoFlip ? 'автоповорот включён' : 'доска не поворачивается'}`,
+      };
+    } else if (
+      document.activeMatch.mode === 'bot' &&
       document.game.mode === 'game' &&
       document.game.result === '*' &&
       document.education.lastActivityAt !== null &&
@@ -1435,7 +1507,13 @@ export function CheckersModuleExperience(props: CheckersModuleExperienceProps): 
         }}
         onOpen={(id) => {
           if (id === 'bot-play') setSurface('bots');
-          else if (id === 'resume-bot-game') {
+          else if (id === 'local-play') {
+            setLocalAutoFlipChoice(document.activeMatch.localAutoFlip);
+            setSurface('local');
+          } else if (id === 'resume-local-game') {
+            setActivePuzzle(null);
+            setSurface('play');
+          } else if (id === 'resume-bot-game') {
             setActivePuzzle(null);
             setSurface('play');
           } else if (id.startsWith('class-game:')) {
