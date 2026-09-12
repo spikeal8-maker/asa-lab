@@ -275,6 +275,7 @@ def build_context(
             )
         },
         "blocking": list(document.get("blocking") or []),
+        "milestone": dict(lane.get("milestone") or {}),
         "revisions": dict(lane.get("revisions") or {}),
         "gate_commands": gate_commands,
         "contract_documents": docs,
@@ -322,6 +323,11 @@ def render_text(context: dict[str, Any]) -> str:
         f"branch: {task.get('branch')}",
         f"blocking: {len(context['blocking'])}",
     ]
+    if context["milestone"]:
+        lines.append(f"milestone: {context['milestone'].get('id')}")
+        lines.append(
+            f"milestoneOwnerAuthorization: {context['milestone'].get('owner_authorization')}"
+        )
     if context["revisions"]:
         lines.append("revisions:")
         lines.extend(f"  {key}: {value}" for key, value in context["revisions"].items())

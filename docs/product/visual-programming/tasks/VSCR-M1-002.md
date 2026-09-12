@@ -26,6 +26,24 @@ VSCR-M1-002E  integrated browser/Docker acceptance + independent review
 
 Do not execute this router as one coding task.
 
+## Canonical milestone authorization
+
+`VSCR-M1-002` is a milestone router, never a temporary executable `task.id`. When the owner
+authorises the milestone and the first executable sub-slice is selected, canonical `main` must
+store the authorization beside the visual-programming lane:
+
+```yaml
+primary_lane:
+  milestone:
+    id: VSCR-M1-002
+    owner_authorization: accepted
+```
+
+The executable task remains the exact sub-slice, for example `VSCR-M1-002A`, and its
+`task.status` must be `in_progress`. `tools/validate-blocks-docs.mjs` rejects active M1-002
+sub-slices if this milestone marker is absent or malformed. The marker is inherited by B-E;
+do not fake milestone authorization through a checkpoint, PR body, roadmap row or chat.
+
 ## Components
 
 The milestone covers:

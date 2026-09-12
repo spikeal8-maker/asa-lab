@@ -30,8 +30,8 @@ No M1 implementation is selected by this document.
 ```text
 M0/M0.1  COMPLETE
 
-M1-001    Extract @asa-lab/blocks bounded context
-  ↓ owner acceptance
+M1-001    COMPLETE / OWNER-ACCEPTED — @asa-lab/blocks bounded context
+  ↓ separate owner selection required for M1-002
 
 M1-002    ASA-owned Scratch host milestone
   M1-002A standalone build + minimal ASA host shell
@@ -70,17 +70,21 @@ M4-001    explicit coming_soon → active decision
 
 No task or sub-slice automatically advances to the next one.
 
+Historical review classification: M1-001 was accepted after repeated same-context bounded
+self-review plus owner acceptance; that pass was not genuinely independent and is not precedent.
+M1-002C and later HIGH/CRITICAL slices must satisfy literal independent-review policy.
+
 ## Readiness matrix
 
 | Task | Readiness | Unlock condition / exact card |
 | --- | --- | --- |
-| `VSCR-M1-001` | **READY FOR OWNER SELECTION** | owner authorises selection; then `current.yaml` must select `VSCR-M1-001`; exact card `tasks/VSCR-M1-001.md` |
-| `VSCR-M1-002` | **BLOCKED** | M1-001 owner-accepted; use milestone router `tasks/VSCR-M1-002.md` |
-| `VSCR-M1-002A` | **BLOCKED** | M1-001 accepted + M1-002 milestone selected + `current.yaml` selects exact sub-slice |
-| `VSCR-M1-002B` | **BLOCKED** | M1-002A accepted + `current.yaml` selects exact sub-slice |
-| `VSCR-M1-002C` | **BLOCKED** | M1-002B accepted + `current.yaml` selects exact sub-slice |
-| `VSCR-M1-002D` | **BLOCKED** | M1-002C accepted + `current.yaml` selects exact sub-slice |
-| `VSCR-M1-002E` | **BLOCKED** | M1-002A–D each accepted + `current.yaml` selects exact acceptance slice |
+| `VSCR-M1-001` | **COMPLETE / OWNER-ACCEPTED** | accepted in PR #187 and merged to `main`; exact historical card `tasks/VSCR-M1-001.md` |
+| `VSCR-M1-002` | **READY FOR OWNER SELECTION** | M1-001 is owner-accepted; use milestone router `tasks/VSCR-M1-002.md`; selection does not itself execute code |
+| `VSCR-M1-002A` | **BLOCKED** | M1-002 owner-authorised in `primary_lane.milestone` + `current.yaml.task.id=VSCR-M1-002A` + `task.status=in_progress` |
+| `VSCR-M1-002B` | **BLOCKED** | M1-002A accepted + milestone marker retained + exact task selected with `task.status=in_progress` |
+| `VSCR-M1-002C` | **BLOCKED** | M1-002B accepted + milestone marker retained + exact task selected with `task.status=in_progress` |
+| `VSCR-M1-002D` | **BLOCKED** | M1-002C accepted + milestone marker retained + exact task selected with `task.status=in_progress` |
+| `VSCR-M1-002E` | **BLOCKED** | M1-002A-D each accepted + milestone marker retained + exact review task selected with `task.status=in_progress` |
 | `VSCR-M1-003` | **BLOCKED** | M1-002E + owner acceptance of M1-002; then write exact M1-003 card against accepted interfaces |
 | `VSCR-M1-004P` | **DESIGN CARD REQUIRED** | create/review exact design-decision card before owner selection; no implementation coding from roadmap |
 | `VSCR-M1-004` | **BLOCKED** | M1-003 + M1-004P accepted |
@@ -101,20 +105,24 @@ plane. `BLOCKED` means coding STOP.
 
 ## Immediate next coding slice
 
-Only:
+No new coding slice is active automatically.
+
+The next eligible milestone is:
 
 ```text
-VSCR-M1-001
+VSCR-M1-002
 ```
 
-Exact card:
+Milestone router:
 
 ```text
-tasks/VSCR-M1-001.md
+tasks/VSCR-M1-002.md
 ```
 
-It may start only after `docs/execution/current.yaml` selects that exact task. After its
-evidence and bounded self-review: STOP for owner acceptance.
+M1-002 is a router, not one coding task. After separate owner authorisation of that milestone,
+the first executable sub-slice is `VSCR-M1-002A`; coding starts only after
+`docs/execution/current.yaml` selects exactly `VSCR-M1-002A`. Do not auto-start A from the
+completion of M1-001.
 
 ## Task-card creation rule
 

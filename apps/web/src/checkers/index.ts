@@ -1,9 +1,10 @@
 export { CheckersBoard, type CheckersBoardPiece, type CheckersBoardSquare } from './CheckersBoard';
 export {
-  CheckersStudentHome,
-  type CheckersHomeCard,
-  type CheckersStudentHomeViewModel,
-} from './CheckersStudentHome';
+  CheckersLobby,
+  type CheckersLobbyAssignment,
+  type CheckersLobbyResume,
+  type CheckersLobbyViewModel,
+} from './CheckersLobby';
 export {
   CheckersWorkspace,
   type CheckersMoveHistoryItem,

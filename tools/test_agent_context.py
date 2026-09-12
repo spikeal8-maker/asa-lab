@@ -102,6 +102,25 @@ class AgentContextTests(unittest.TestCase):
                 ["primary", "electronics"],
             )
 
+    def test_primary_lane_milestone_is_exposed_in_compact_context(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            document = fixture(root)
+            document["primary_lane"]["milestone"] = {
+                "id": "VSCR-M1-002",
+                "owner_authorization": "accepted",
+            }
+            context = MODULE.build_context(
+                root, document, lane(document, "primary"), git_status=available()
+            )
+            rendered = MODULE.render_text(context)
+        self.assertEqual(
+            context["milestone"],
+            {"id": "VSCR-M1-002", "owner_authorization": "accepted"},
+        )
+        self.assertIn("milestone: VSCR-M1-002", rendered)
+        self.assertIn("milestoneOwnerAuthorization: accepted", rendered)
+
     def test_delivery_workflow_is_always_in_compact_context(self):
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw)

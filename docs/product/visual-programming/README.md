@@ -11,7 +11,7 @@ Active execution state comes only from `docs/execution/current.yaml`. An owner i
 
 ```text
 AGENTS.md / START_HERE_FOR_AI.md
-→ authorised VSCR task selected in current.yaml
+→ authorised VSCR task selected in current.yaml with task.status = in_progress
 → Master required sections + ADR as required by global entry flow
 → this router
 → exact tasks/<task>.md
@@ -25,7 +25,7 @@ AGENTS.md / START_HERE_FOR_AI.md
 For a request such as “change a button”, “rename a label”, “hide an element”:
 
 ```text
-current.yaml selects the bounded maintenance task/scope
+current.yaml selects the bounded maintenance task/scope with task.status = in_progress
 → this router
 → COMPONENT_MAP.yaml keywords/component ID
 → exactly one referenced components/*.yaml card
@@ -144,7 +144,7 @@ independently editable ASA logo for the runtime host. Factual compatibility word
 For a future local change:
 
 ```text
-1. verify current.yaml selects the exact bounded maintenance task/scope
+1. verify current.yaml selects the exact bounded maintenance task/scope with task.status = in_progress
 2. resolve the component ID by exact ID or COMPONENT_MAP keywords
 3. open one subsystem card and one component entry
 4. inspect its ownership/risk/contracts/sources/tests

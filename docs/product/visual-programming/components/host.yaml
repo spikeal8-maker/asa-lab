@@ -17,7 +17,7 @@ components:
       - infra/scratch-editor/host/main.js
       - infra/scratch-editor/host/host.css
     planned_tests:
-      - .github/workflows/scratch-m0-focused.yml
+      - .github/workflows/scratch-focused.yml
     task: VSCR-M1-002A
     task_card: VSCR-M1-002A.md
     depends_on: [blocks.upstream.pin]

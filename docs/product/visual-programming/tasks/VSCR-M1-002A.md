@@ -3,7 +3,7 @@
 **Kind:** executable implementation slice  
 **Risk:** medium  
 **Prerequisite:** VSCR-M1-001 accepted; M1-002 milestone owner-authorised.  
-**Execution:** coding starts only when `docs/execution/current.yaml.task.id` is exactly `VSCR-M1-002A`.
+**Execution:** coding starts only when `docs/execution/current.yaml.task.id` is exactly `VSCR-M1-002A` **and** `docs/execution/current.yaml.task.status` is exactly `in_progress`; `docs/execution/current.yaml.primary_lane.milestone.id` must be exactly `VSCR-M1-002` and its `owner_authorization` must be `accepted`.
 
 ## Goal
 
@@ -43,7 +43,7 @@ infra/scratch-editor/README.md
 infra/scratch-editor/host/index.html
 infra/scratch-editor/host/main.js
 infra/scratch-editor/host/host.css
-.github/workflows/scratch-m0-focused.yml
+.github/workflows/scratch-focused.yml
 ../components/host.yaml → blocks.host.build only
 ```
 

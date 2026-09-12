@@ -100,6 +100,26 @@ function nowIso(): string {
   return new Date().toISOString();
 }
 
+function botPlayerSideStorageKey(projectId: string): string {
+  return `asa-lab:checkers:${projectId}:bot-player-side`;
+}
+
+export function readStoredCheckersBotPlayerSide(
+  storage: Pick<Storage, 'getItem'>,
+  projectId: string,
+): 'light' | 'dark' | null {
+  const value = storage.getItem(botPlayerSideStorageKey(projectId));
+  return value === 'light' || value === 'dark' ? value : null;
+}
+
+export function writeStoredCheckersBotPlayerSide(
+  storage: Pick<Storage, 'setItem'>,
+  projectId: string,
+  side: 'light' | 'dark',
+): void {
+  storage.setItem(botPlayerSideStorageKey(projectId), side);
+}
+
 function progressionAfterWin(document: CheckersProjectDocument): CheckersProjectDocument {
   if (document.game.result !== '1-0') return document;
   const wins = document.education.winsOnCurrentRung + 1;
@@ -166,6 +186,7 @@ export function useCheckersProject(projectId: string, user: PublicUser) {
   const [notice, setNotice] = useState<string | null>(null);
   const [botThinking, setBotThinking] = useState(false);
   const [botPlayerSide, setBotPlayerSide] = useState<'light' | 'dark'>('light');
+  const [botPlayerSideKnown, setBotPlayerSideKnown] = useState(false);
   const saveTimer = useRef<number | null>(null);
   const botTask = useRef(0);
   const documentVersion = useRef(0);
@@ -238,6 +259,9 @@ export function useCheckersProject(projectId: string, user: PublicUser) {
     setProjectTitle(response.data.project.title);
     documentRef.current = restoredDocument;
     setDocument(restoredDocument);
+    const storedBotPlayerSide = readStoredCheckersBotPlayerSide(window.localStorage, projectId);
+    setBotPlayerSide(storedBotPlayerSide ?? 'light');
+    setBotPlayerSideKnown(storedBotPlayerSide !== null);
     setAnalysis(response.data.result);
     setTeacherFeedback(loadedTeacherFeedback);
     if (response.data.project.scope === 'classroom' && canManage) {
@@ -454,6 +478,7 @@ export function useCheckersProject(projectId: string, user: PublicUser) {
   useEffect(() => {
     if (
       !document ||
+      !botPlayerSideKnown ||
       document.game.mode !== 'game' ||
       document.game.result !== '*' ||
       document.game.sideToMove === botPlayerSide
@@ -508,7 +533,7 @@ export function useCheckersProject(projectId: string, user: PublicUser) {
         setBotThinking(false);
       }
     };
-  }, [botPlayerSide, commitGame, document]);
+  }, [botPlayerSide, botPlayerSideKnown, commitGame, document]);
 
   function startBotGame(
     botId: CheckersBotId,
@@ -522,6 +547,8 @@ export function useCheckersProject(projectId: string, user: PublicUser) {
       return false;
     }
     setBotPlayerSide(playerSide);
+    setBotPlayerSideKnown(true);
+    writeStoredCheckersBotPlayerSide(window.localStorage, projectId, playerSide);
     commit(
       {
         ...document,
@@ -853,6 +880,7 @@ export function useCheckersProject(projectId: string, user: PublicUser) {
     notice,
     botThinking,
     botPlayerSide,
+    botPlayerSideKnown,
     legalMoves,
     setNotice,
     playMove,

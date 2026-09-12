@@ -36,5 +36,5 @@ components:
       - infra/scratch-editor/upstream.env
       - infra/scratch-editor/Dockerfile
     tests:
-      - .github/workflows/scratch-m0-focused.yml
+      - .github/workflows/scratch-focused.yml
     task: null

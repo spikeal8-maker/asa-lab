@@ -9,21 +9,22 @@ development_policy:
   lane_path_ownership: advisory
 
 task:
-  id: VSCR-M1-001
+  id: VSCR-M1-002A
   issue: 183
-  branch: agent/vscr-m1-001
+  branch: codex/vscr-m1-002a-host-shell
   base_branch: main
-  pr: 187
+  pr: null
   pr_draft: true
   status: in_progress
-  checkpoint: m1_001_bounded_context_extraction
+  checkpoint: m1_002a_owner_authorized_execution
   owner_acceptance: pending
 
 revisions:
-  convergence_baseline_sha: 3fe1e298422c225843db7fcda927b27221159a18
+  convergence_baseline_sha: e82267de2b64170355fd798054a991a96bb820a1
+  head_sha: e82267de2b64170355fd798054a991a96bb820a1
 
 execution_lease:
-  executor_id: codex-vscr-m1-001
+  executor_id: codex-vscr-m1-002a
   holder: unassigned
   acquired_at: null
   expires_at: null
@@ -31,9 +32,9 @@ execution_lease:
 
 gates:
   focused:
-    workflow: Scratch M0 Focused
+    workflow: Scratch Focused
     commands:
-      - pnpm gate:code
+      - pnpm gate:blocks-m1-001
   general:
     workflow: ASA Lab Governance and Code Gates
     commands:
@@ -42,12 +43,15 @@ gates:
 primary_lane:
   id: visual-programming
   worktree_id: visual-programming-m1
+  milestone:
+    id: VSCR-M1-002
+    owner_authorization: accepted
   owned_paths:
     - contexts/blocks/**
-    - apps/api/src/blocks-module.ts
-    - apps/api/src/blocks-module.spec.ts
-    - docs/product/visual-programming/components/module.yaml
-    - docs/product/visual-programming/components/assets.yaml
+    - infra/scratch-editor/**
+    - docs/product/visual-programming/**
+    - docs/product/ASA_VISUAL_PROGRAMMING_SCRATCH_MASTER_SPEC.md
+    - docs/architecture/ADR-VSCR-001-SCRATCH-EDITOR-INTEGRATION.md
 
 parallel_lanes:
   - id: admin-auth

@@ -3,7 +3,7 @@
 **Kind:** acceptance/review slice; no new architecture  
 **Risk:** high  
 **Prerequisite:** VSCR-M1-002A, B, C and D each accepted on their own exact evidence.  
-**Execution:** review starts only when `docs/execution/current.yaml.task.id` is exactly `VSCR-M1-002E`.
+**Execution:** review starts only when `docs/execution/current.yaml.task.id` is exactly `VSCR-M1-002E` **and** `docs/execution/current.yaml.task.status` is exactly `in_progress`; `docs/execution/current.yaml.primary_lane.milestone.id` must be exactly `VSCR-M1-002` and its `owner_authorization` must be `accepted`.
 
 ## Goal
 
@@ -46,7 +46,7 @@ acceptance evidence/tests or routing corrections discovered by the review:
 
 ```text
 e2e/blocks-host-acceptance.spec.ts
-.github/workflows/scratch-m0-focused.yml or focused successor
+.github/workflows/scratch-focused.yml or focused successor
 ../components/host.yaml                # evidence/routing correction only; no new implementation ownership
 ```
 
@@ -79,6 +79,7 @@ runtime failure leaves ASA parent alive with controlled error state
 
 ## Independent review
 
+The reviewer must be a different agent/context or a human, never the authoring execution context.
 Reviewer receives only:
 
 ```text
