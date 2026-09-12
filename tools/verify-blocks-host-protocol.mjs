@@ -120,10 +120,18 @@ const initMessage = {
   recoveryNamespace: 'fixture-c',
 };
 async function runtimeFrame(page) {
-  await page.locator('#runtime-frame').waitFor({ state: 'attached' });
-  const handle = await page.locator('#runtime-frame').elementHandle();
-  const frame = await handle?.contentFrame();
-  if (!frame) throw new Error('runtime iframe is unavailable');
+  const iframe = page.locator('#runtime-frame');
+  await iframe.waitFor({ state: 'attached' });
+
+  let frame = null;
+  for (let attempt = 0; attempt < 50; attempt += 1) {
+    const handle = await iframe.elementHandle();
+    frame = await handle?.contentFrame();
+    if (frame) break;
+    await page.waitForTimeout(100);
+  }
+
+  if (!frame) throw new Error('runtime iframe is unavailable after waiting');
   await frame.locator('[data-asa-host-shell]').waitFor({ state: 'visible' });
   return frame;
 }
