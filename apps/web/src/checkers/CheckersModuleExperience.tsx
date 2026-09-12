@@ -1522,7 +1522,9 @@ export function CheckersModuleExperience(props: CheckersModuleExperienceProps): 
         onOpen={(id) => {
           if (id === 'bot-play') setSurface('bots');
           else if (id === 'local-play') {
-            setLocalAutoFlipChoice(document.activeMatch.localAutoFlip);
+            setLocalAutoFlipChoice(
+              document.activeMatch.mode === 'local' ? document.activeMatch.localAutoFlip : true,
+            );
             setSurface('local');
           } else if (id === 'resume-local-game') {
             setActivePuzzle(null);
