@@ -11,6 +11,13 @@ on:
       - 'apps/web/tsconfig.json'
       - 'e2e/electronics-simulation.spec.ts'
       - 'e2e/electronics-interactions.spec.ts'
+      - 'tests/electronics/**'
+      - 'tools/run-electronics-benchmark.mjs'
+      - 'tools/run-electronics-browser-benchmark.mjs'
+      - 'tools/run-electronics-load-benchmark.mjs'
+      - 'tools/run-electronics-memory-benchmark.mjs'
+      - 'tools/update-electronics-benchmark-golden.mjs'
+      - 'docs/delivery/evidence/electronics-opt0/**'
       - 'package.json'
       - 'pnpm-lock.yaml'
       - '.github/workflows/electronics-r4-m1-focused.yml'
@@ -61,6 +68,56 @@ jobs:
       - name: Focused Electronics M1 gate
         run: pnpm gate:electronics-m1
 
+
+  benchmark:
+    name: Electronics E-OPT benchmark integrity
+    needs: focused
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      CI: 'true'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install exact dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Chromium for benchmark probes
+        run: pnpm exec playwright install --with-deps chromium
+
+      # Performance timings are evidence only at E-OPT-0. This gate fails on
+      # execution errors, status drift, golden-result drift or nondeterminism;
+      # it deliberately has no millisecond threshold yet.
+      - name: Electronics E-OPT quick benchmark suite
+        run: pnpm benchmark:electronics:ci
+
+      - name: Upload E-OPT benchmark evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: electronics-e-opt-${{ github.run_id }}
+          path: |
+            reports/electronics-opt0-*.json
+            reports/electronics-opt0-*.md
+          if-no-files-found: ignore
+          retention-days: 14
   browser:
     name: Actual editor live simulation journey
     needs: focused

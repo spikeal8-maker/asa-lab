@@ -35,6 +35,7 @@ seed-teacher-credentials.txt
 # Reports (generated artifacts)
 reports/*.json
 reports/*.txt
+reports/electronics-opt0-*.md
 
 # Logs
 *.log
