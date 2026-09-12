@@ -100,12 +100,12 @@ export function CheckersLobby({
     },
     {
       id: 'local-play',
-      eyebrow: 'Следующий этап',
+      eyebrow: 'Доступно сейчас',
       title: 'Играть вдвоём',
-      description: 'Два игрока за одним устройством без класса и без отдельной комнаты.',
-      actionLabel: 'Будет в CK-103',
+      description:
+        'Два игрока за одним устройством без класса, второго аккаунта и отдельной комнаты.',
+      actionLabel: 'Играть на одном устройстве',
       marker: '2×',
-      disabled: true,
     },
     {
       id: 'friend-play',

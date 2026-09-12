@@ -1,3 +1,4 @@
+export { CheckersLocalSetup } from './CheckersLocalSetup';
 export { CheckersBoard, type CheckersBoardPiece, type CheckersBoardSquare } from './CheckersBoard';
 export {
   CheckersLobby,
