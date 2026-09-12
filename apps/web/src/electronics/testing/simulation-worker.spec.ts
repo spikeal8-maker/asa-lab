@@ -263,6 +263,25 @@ describe('ASA Electronics Worker module message loop', () => {
     vi.resetModules();
   });
 
+  it('does not let a mismatched protocol poison the active generation', async () => {
+    const posted: ElectronicsSimulationWorkerResponse[] = [];
+    const scope = {
+      onmessage: null as ((event: MessageEvent<ElectronicsSimulationWorkerRequest>) => void) | null,
+      postMessage: (message: ElectronicsSimulationWorkerResponse) => posted.push(message),
+    };
+    vi.stubGlobal('self', scope);
+    await import('../simulation.worker');
+
+    const invalid = {
+      ...preflightRequest('invalid-protocol', 99),
+      protocolVersion: 999,
+    } as unknown as ElectronicsSimulationWorkerRequest;
+    scope.onmessage?.({ data: invalid } as MessageEvent<ElectronicsSimulationWorkerRequest>);
+    expect(posted[0]).toMatchObject({ ok: false, code: 'protocol-mismatch' });
+
+    scope.onmessage?.({ data: preflightRequest('still-current', 2) } as MessageEvent);
+    expect(posted[1]).toMatchObject({ ok: true, requestId: 'still-current', generationId: 2 });
+  });
   it('evaluates current messages and drops a cancelled generation', async () => {
     const posted: ElectronicsSimulationWorkerResponse[] = [];
     const scope: {

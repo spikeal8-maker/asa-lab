@@ -1,5 +1,6 @@
 import { evaluateSimulationWorkerRequest } from './simulation-worker-evaluator';
 import {
+  ELECTRONICS_SIMULATION_ENGINE_REVISION,
   ELECTRONICS_SIMULATION_WORKER_PROTOCOL,
   type ElectronicsSimulationWorkerRequest,
   type ElectronicsSimulationWorkerResponse,
@@ -16,14 +17,20 @@ let activeGeneration = 0;
 scope.onmessage = (event): void => {
   const request = event.data;
   try {
+    if (
+      request.protocolVersion !== ELECTRONICS_SIMULATION_WORKER_PROTOCOL ||
+      request.engineRevision !== ELECTRONICS_SIMULATION_ENGINE_REVISION
+    ) {
+      if (request.kind !== 'cancel-generation')
+        scope.postMessage(evaluateSimulationWorkerRequest(request));
+      return;
+    }
     if (request.kind === 'cancel-generation') {
-      if (request.protocolVersion !== ELECTRONICS_SIMULATION_WORKER_PROTOCOL) return;
       activeGeneration = Math.max(activeGeneration, request.generationId + 1);
       return;
     }
-
-    activeGeneration = Math.max(activeGeneration, request.generationId);
     if (request.generationId < activeGeneration) return;
+    activeGeneration = Math.max(activeGeneration, request.generationId);
     const response = evaluateSimulationWorkerRequest(request);
     if (request.generationId < activeGeneration) return;
     scope.postMessage(response);
