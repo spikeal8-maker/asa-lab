@@ -35,7 +35,9 @@ describe('persisted Checkers project document', () => {
 
   it('upgrades CK-102 project state to a bot match without losing the saved game', () => {
     const project = createInitialCheckersProjectDocument('student-1');
-    const { activeMatch: _activeMatch, ...legacyProject } = project;
+    const legacyProject = Object.fromEntries(
+      Object.entries(project).filter(([key]) => key !== 'activeMatch'),
+    );
     const parsed = validateCheckersProjectDocument(legacyProject);
     expect(parsed.ok).toBe(true);
     if (!parsed.ok) return;
