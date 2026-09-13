@@ -10,6 +10,7 @@ export interface CheckersWorkspaceMove {
   readonly path: readonly CheckersBoardSquare[];
   readonly notation: string;
   readonly isCapture?: boolean;
+  readonly capturedIds?: readonly string[];
 }
 
 export interface CheckersMoveHistoryItem {
@@ -30,6 +31,7 @@ export interface CheckersWorkspaceViewModel {
   readonly legalMoves: readonly CheckersWorkspaceMove[];
   readonly moveHistory: readonly CheckersMoveHistoryItem[];
   readonly lastMovePath?: readonly CheckersBoardSquare[];
+  readonly lastMoveCapturedIds?: readonly string[];
   readonly instructionTitle: string;
   readonly instruction: string;
   readonly hintText?: string;
@@ -139,9 +141,13 @@ export function CheckersWorkspace({
     [model.legalMoves],
   );
   const destinations = selectedMoves.flatMap((move) => move.path.at(-1) ?? []);
-  const captureDestinations = selectedMoves
-    .filter((move) => move.isCapture)
-    .flatMap((move) => move.path.at(-1) ?? []);
+  const captureMoves = selectedMoves.filter((move) => move.isCapture);
+  const captureDestinations = captureMoves.flatMap((move) => move.path.at(-1) ?? []);
+  const capturePaths = captureMoves.map((move) => move.path);
+  const selectedCaptureCount = captureMoves.reduce(
+    (maximum, move) => Math.max(maximum, move.capturedIds?.length ?? 1),
+    0,
+  );
   const forcedCapturePieceIds = useMemo(
     () => [
       ...new Set(model.legalMoves.filter((move) => move.isCapture).map((move) => move.pieceId)),
@@ -169,11 +175,22 @@ export function CheckersWorkspace({
         }
       : model.legalMoves.length === 0
         ? { step: 'i', text: 'Сейчас нет доступных ходов. Проверьте состояние партии.' }
-        : selectedPieceId
-          ? { step: '2', text: 'Теперь выберите подсвеченное поле назначения.' }
-          : forcedCapture
-            ? { step: '!', text: 'Взятие обязательно. Выберите шашку с золотым кольцом.' }
-            : { step: '1', text: 'Выберите шашку, которой хотите сделать ход.' };
+        : selectedPieceId && selectedCaptureCount > 1
+          ? {
+              step: `${selectedCaptureCount}×`,
+              text: `Серия взятий: за один ход нужно снять ${selectedCaptureCount} шашки. Нумерованный путь показан на доске.`,
+            }
+          : selectedPieceId
+            ? {
+                step: '2',
+                text: 'Выберите конечное поле. Если это серия взятий, фигура пройдёт весь показанный путь.',
+              }
+            : forcedCapture
+              ? {
+                  step: '!',
+                  text: 'Взятие обязательно. В русских шашках простая шашка может бить и вперёд, и назад — обычный ход сейчас запрещён.',
+                }
+              : { step: '1', text: 'Выберите шашку, которой хотите сделать ход.' };
 
   const selectSquare = (square: CheckersBoardSquare): void => {
     const selectedMove = selectedMoves.find((move) => move.path.at(-1) === square);
@@ -281,6 +298,19 @@ export function CheckersWorkspace({
               </div>
             </div>
 
+            {forcedCapture && !model.readOnly ? (
+              <aside className="checkers-rule-callout" role="note" aria-label="Почему нужно бить">
+                <span aria-hidden="true">!</span>
+                <div>
+                  <strong>Сейчас нужно бить</strong>
+                  <p>
+                    В русских шашках взятие обязательно. Простая шашка может бить соперника и
+                    вперёд, и назад, поэтому обычный ход не показывается, пока есть взятие.
+                  </p>
+                </div>
+              </aside>
+            ) : null}
+
             <div
               className="checkers-game-actions"
               role="group"
@@ -329,9 +359,11 @@ export function CheckersWorkspace({
               selectedPieceId={selectedPieceId}
               legalDestinations={destinations}
               captureDestinations={captureDestinations}
+              capturePaths={capturePaths}
               movablePieceIds={movablePieceIds}
               forcedCapturePieceIds={forcedCapturePieceIds}
               lastMovePath={model.lastMovePath ?? []}
+              lastMoveCapturedIds={model.lastMoveCapturedIds ?? []}
               disabled={Boolean(model.readOnly || lessonBlocksInput)}
               onSquareClick={selectSquare}
             />

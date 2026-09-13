@@ -173,9 +173,53 @@ test('learner solves an original Russian-64 task, reloads progress and receives 
     timeout: 15_000,
   });
 
+  await page.getByRole('button', { name: 'Вернуться в кабинет шашек' }).click();
+  await expect(page.getByRole('heading', { name: 'Выберите, как хотите играть' })).toBeVisible();
+  await page.getByRole('button', { name: 'Открыть задачи' }).click();
+  const seriesCard = page
+    .locator('.checkers-home-card')
+    .filter({ has: page.getByRole('heading', { name: 'Серия взятий', exact: true }) });
+  await seriesCard.getByRole('button', { name: 'Начать' }).click();
+  await expect(page.getByText('Задача · Серия взятий')).toBeVisible();
+  await page.getByRole('button', { name: 'Посмотреть пример' }).click();
+  await page.getByRole('button', { name: 'Попробовать самому' }).click();
+  await expect(page.getByRole('note', { name: 'Почему нужно бить' })).toContainText('и назад');
+  await page.locator('[data-square="c3"]').click();
+  await expect(page.locator('.checkers-v2-capture-routes line')).toHaveCount(2);
+  await expect(page.locator('.checkers-v2-capture-step')).toHaveCount(2);
+  await expect(page.locator('.checkers-board-help')).toContainText(
+    'за один ход нужно снять 2 шашки',
+  );
+  await page.screenshot({
+    path: 'e2e/artifacts/checkers/checkers-capture-series-game-feel.png',
+    fullPage: true,
+  });
+  const seriesSave = page.waitForResponse(
+    (response) =>
+      response.url().endsWith(`/api/projects/${projectId}/draft`) &&
+      response.request().method() === 'PUT' &&
+      response.ok(),
+  );
+  await page.locator('[data-square="g7"]').click();
+  const captureGhosts = page.locator('.checkers-v2-piece-slot.capture-ghost');
+  await expect(captureGhosts).toHaveCount(2);
+  const captureDelays = await captureGhosts.evaluateAll((nodes) =>
+    nodes.map((node) => getComputedStyle(node).animationDelay),
+  );
+  expect(new Set(captureDelays).size).toBe(2);
+  await seriesSave;
+  await expect(page.locator('[data-piece-square="g7"]')).toHaveAttribute('data-motion-steps', '2');
+  await expect(
+    page.getByText('Задача решена. Доказательство добавлено в учебный прогресс.'),
+  ).toBeVisible();
+  await expect(page.locator('.editor-header-status')).toContainText('Сохранено', {
+    timeout: 15_000,
+  });
+  await page.getByRole('button', { name: 'Вернуться в кабинет шашек' }).click();
+
   await page.reload();
   await expect(page.getByRole('heading', { name: 'Выберите, как хотите играть' })).toBeVisible();
-  await expect(page.getByLabel('1 из 22 практик')).toBeVisible();
+  await expect(page.getByLabel('2 из 22 практик')).toBeVisible();
   await page.getByRole('button', { name: 'Выбрать бота' }).click();
   await expect(
     page.getByRole('heading', { name: 'Выберите соперника и начинайте партию' }),
