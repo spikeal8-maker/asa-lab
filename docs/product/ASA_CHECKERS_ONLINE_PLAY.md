@@ -69,7 +69,15 @@ Recommended Elo-style baseline:
 - both rating changes and match finalization occur in one server transaction;
 - a finished match has an idempotency marker so rating cannot be applied twice.
 
-The user profile shows rating, calibration games remaining, played, wins, draws, losses and current streak. Global leaderboard and formal leagues are separate later work.
+The user profile shows rating, calibration games remaining, played, wins, draws, losses and current streak. CK-107C expands this into the full Player Stats surface, class/friends comparison and the public ASA leaderboard. Formal leagues/tournaments remain later work.
+## 4.1 Player statistics surface
+
+Rating is not the whole profile. Online play must feed the shared Player Stats contract in `docs/product/ASA_CHECKERS_PLAYER_STATS.md`.
+
+The Online Lobby exposes a compact summary: current rating, recent form, rated record and a `Моя статистика` entry. The full page separates Rated / Quick / Friends / Classmates / Bots so incompatible result pools are never merged into one misleading win rate.
+
+For a found opponent, the pre-match card may show only game-facing public data: alias/avatar, ASA Rating, calibration state and a small public record. If this is a known classmate/friend, an authorized head-to-head record may also be shown.
+
 ## 5. Notifications and presence
 
 Incoming online actions must be visible without opening a specific classroom:
@@ -128,7 +136,9 @@ Online play is not complete until browser tests prove:
 5. a learner sees classmates from the main Online Lobby and an incoming classmate challenge without opening the classroom first;
 6. reconnect restores the canonical board/version after a transport interruption;
 7. duplicate move submission and duplicate match-finished delivery remain idempotent;
-8. public opponents cannot retrieve classroom/school/learning metadata through online APIs.
+8. public opponents cannot retrieve classroom/school/learning metadata through online APIs;
+9. rated/quick/friend/classmate results update only their intended Player Stats buckets;
+10. class/friend head-to-head and leaderboard totals agree with canonical completed matches.
 
 ## 9. Delivery order
 
