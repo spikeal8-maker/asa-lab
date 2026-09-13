@@ -36,14 +36,26 @@ Do not spend an owner-acceptance cycle merely because another internal layer exi
 boundaries still get focused evidence and required security review, but owner-visible checkpoints
 are reserved for meaningful new capability.
 
+### One-time corrective exception before D
+
+The post-C audit found measurable developer-surface debt created during A/C: Scratch focused gates
+were not sufficiently isolated, root `package.json` accumulated per-slice gate commands, protocol
+browser tooling became monolithic, mandatory bot context duplicated rules, and D risked extending
+already crowded protocol files.
+
+Therefore one bounded corrective task, `VSCR-M1-002R`, is mandatory before D. R is **not** a new
+product capability and must not become a recurring ceremony. Its only purpose is to restore a
+maintainable/isolated development surface before adding the first visible editor.
+
 ## Baseline
 
 Integrated M0/M0.1 provides the Blocks document/provider contract, strict logical asset references,
 `moduleVersion 0.1.1`, `availability coming_soon`, the reviewed exact Scratch pin and accepted D0
 architecture contracts.
 
-M1-001 is complete and owner-accepted. M1-002 is owner-authorised. The currently active sub-slice
-remains whatever exact task is selected in `current.yaml`; this roadmap never advances it.
+M1-001 is complete and owner-accepted. M1-002 is owner-authorised. M1-002A and M1-002C are accepted.
+The next product capability is still FIRST VISIBLE SCRATCH, but D is blocked until the one-time
+maintainability repair R is accepted. This roadmap never selects tasks itself.
 
 ## Revised strict order
 
@@ -56,6 +68,8 @@ M1-002    ASA-owned Scratch host milestone
     ↓ technical acceptance / STOP
   M1-002C strict parent/iframe bootstrap boundary
     ↓ security evidence + independent review / STOP
+  M1-002R one-time Scratch maintainability repair
+    ↓ CI/context/tooling evidence + independent review / STOP
   M1-002D fixture storage adapter + REAL editor mount
     ↓ FIRST VISIBLE SCRATCH checkpoint / STOP
   M1-002B ASA branding + File/Extensions product controls
@@ -75,17 +89,34 @@ M3        sovereign local media/extensions + network deny + backup/restore/deplo
 M4-001    explicit coming_soon → active decision
 ```
 
-The important correction is `A → C → D → B → E`. Branding/control DOM evidence is meaningful only
-after the editor can actually mount. `C → D` creates the first user-visible editor capability;
-`B` then productises that real DOM.
+The product-order correction remains `A → C → D → B → E`; R is a one-time repair inserted between
+accepted C and D because the measured developer surface would otherwise make D slower and riskier.
+Branding/control DOM evidence is meaningful only after the editor can actually mount.
 
 No task or sub-slice automatically advances to the next one.
 
 ## Capability checkpoints
 
+### Checkpoint 0R — Maintainable Scratch development surface
+
+Reached by accepted M1-002R evidence:
+
+```text
+Scratch focused gate no longer builds unrelated subject modules
+→ root package does not grow one Scratch gate command per slice
+→ protocol browser evidence is split into bounded helpers/specs
+→ D cannot extend the protocol bridge with editor/storage responsibilities by convenience
+→ mandatory Scratch bot context is materially smaller and within enforced caps
+→ machine-checkable maintainability budgets exist
+→ accepted C behaviour/security evidence remains green
+```
+
+This checkpoint adds **no user-facing Scratch feature**. It exists only because the audit measured
+technical debt that must be removed before D. Do not generalise it into a recurring milestone type.
+
 ### Checkpoint 1 — First visible Scratch
 
-Reached by accepted M1-002C + M1-002D evidence:
+Reached by accepted M1-002C + M1-002R + M1-002D evidence:
 
 ```text
 ASA parent opens the isolated Scratch host
@@ -151,11 +182,12 @@ requires an extra ceremony.
 | Task | Readiness | Unlock condition |
 | --- | --- | --- |
 | `VSCR-M1-001` | **COMPLETE / OWNER-ACCEPTED** | merged accepted bounded context |
-| `VSCR-M1-002A` | **ACTIVE ONLY IF SELECTED** | exact `current.yaml` task + `status=in_progress` + M1-002 owner marker |
-| `VSCR-M1-002C` | **BLOCKED** | M1-002A accepted; refresh C card against actual A interfaces; separate selection |
-| `VSCR-M1-002D` | **BLOCKED** | M1-002C accepted; refresh D card; separate selection |
+| `VSCR-M1-002A` | **COMPLETE / ACCEPTED** | accepted standalone host foundation |
+| `VSCR-M1-002C` | **COMPLETE / ACCEPTED** | accepted strict parent/iframe boundary |
+| `VSCR-M1-002R` | **READY FOR SELECTION** | C accepted + owner instruction to perform measured maintainability repair |
+| `VSCR-M1-002D` | **BLOCKED** | M1-002R accepted; refresh D card against repaired routing/tooling; separate selection |
 | `VSCR-M1-002B` | **BLOCKED** | M1-002D accepted and real editor DOM available; refresh B card; separate selection |
-| `VSCR-M1-002E` | **BLOCKED** | A+C+D+B accepted; separate review-task selection |
+| `VSCR-M1-002E` | **BLOCKED** | A+C+R+D+B accepted; separate review-task selection |
 | `VSCR-M1-003` | **BLOCKED** | M1-002E + owner acceptance of M1-002 |
 | `VSCR-M1-004` | **BLOCKED** | M1-003 accepted; create a design-decision task only if an exact validation/storage choice remains unresolved |
 | `VSCR-M1-005` | **BLOCKED** | M1-004 accepted; create a semantic-validation design task only if still genuinely unresolved |
@@ -166,8 +198,8 @@ requires an extra ceremony.
 | `VSCR-M3-*` | **BLOCKED** | M2 accepted + rights/network/backup decisions |
 | `VSCR-M4-001` | **BLOCKED** | M3 sovereign/restore/deployment acceptance |
 
-`BLOCKED` means coding STOP. `ACTIVE ONLY IF SELECTED` means the roadmap itself never authorises
-execution.
+`BLOCKED` means coding STOP. `READY FOR SELECTION` means the card exists and prerequisites are met,
+but coding still requires exact `current.yaml` selection with `status=in_progress`.
 
 ## Acceptance granularity
 
@@ -176,12 +208,14 @@ Use the smallest acceptance ceremony that matches risk and capability:
 ```text
 technical foundation (A)       focused evidence + bounded self-review
 security boundary (C)          focused/browser evidence + independent review
+maintainability repair (R)      before/after metrics + focused evidence + independent review
 first visible editor (D)       focused/browser evidence + owner-visible checkpoint
 product controls (B)           focused DOM/browser evidence + bounded self-review
 integrated host (E)            integrated evidence + independent review + owner milestone acceptance
 ```
 
-Do not turn every internal refactor or dependency choice into a new owner checkpoint.
+R has no owner-visible product checkpoint; it is accepted on technical evidence and independent
+review only. Do not turn every internal refactor or dependency choice into a new owner checkpoint.
 
 ## Task-card refresh rule
 
@@ -189,7 +223,7 @@ Before selecting the next sub-slice:
 
 ```text
 prerequisite accepted
-→ inspect actual accepted interfaces
+→ inspect actual accepted interfaces/tooling
 → compare next card planned paths/dependencies with reality
 → update only the next card/routing if stale
 → run node tools/validate-blocks-docs.mjs
