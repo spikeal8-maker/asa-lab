@@ -162,20 +162,35 @@ test('F: author without teaching creates and opens own material, no roster', asy
     .getByLabel('Содержание', { exact: true })
     .fill('Самостоятельный текст без доступа к ученикам.');
   await page.getByRole('button', { name: 'Создать материал' }).click();
-  await expect(page.getByRole('region', { name: 'Открытый материал' })).toContainText(
-    'Самостоятельный текст',
-  );
+  await expect(page.getByText('Черновик сохранён. Публикация — отдельное действие.')).toBeVisible();
+  await page.getByRole('button', { name: 'Как ученик: сохранённый черновик' }).click();
+  await expect(page.getByTestId('learner-preview')).toContainText('Самостоятельный текст');
   expect((await page.request.get(`/api/classrooms/${classId}/roster`)).status()).toBe(403);
   await shot(page, 'F-author-only');
 });
 
 test('G, I, J: Account learner owns learning, forbidden staff link, mixed contexts remain separate', async ({
   page,
+  browser,
 }) => {
   await register(page, 'Ученик и преподаватель');
   await openPortalSection(page, 'Моё обучение');
   await page.getByLabel('Код класса', { exact: true }).fill(classCode);
   await page.getByRole('button', { name: 'Войти в класс', exact: true }).click();
+  await expect(page.getByText(/Заявка в класс.*отправлена/)).toBeVisible();
+  expect((await page.request.get(`/api/classrooms/${classId}/roster`)).status()).toBe(403);
+  const staffContext = await browser.newContext();
+  await staffContext.addCookies([
+    { name: 'asa_session', value: teacherCookie.split('=')[1]!, url: origin },
+  ]);
+  const staff = await staffContext.newPage();
+  await staff.goto(`${origin}/#/classrooms/${classId}`);
+  await staff.getByRole('button', { name: 'Обновить заявки', exact: true }).click();
+  await staff.getByRole('button', { name: 'Принять заявку', exact: true }).click();
+  await expect(staff.locator('.learning-join-requests')).toContainText('Принята');
+  await staffContext.close();
+  await page.reload();
+
   await expect(page.locator('.attended-list')).toContainText('Независимый класс Access A');
   const task = await mutation(
     page.request,
