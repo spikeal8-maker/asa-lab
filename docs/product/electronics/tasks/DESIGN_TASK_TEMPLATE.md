@@ -8,6 +8,7 @@ Use for one prerequisite architectural/technical decision. It chooses/proves a b
 Task ID: <bounded design id>
 Kind: design-decision
 Risk: <low|medium|high|critical>
+Semantic change: <yes|no>
 Prerequisite: <accepted interfaces/evidence>
 Following implementation: <task id, not authorised here>
 ```
@@ -70,10 +71,14 @@ one exact decision exists
 constraints/limits are explicit
 following implementation can be written against an accepted interface
 the following milestone was not started
-required independent review completed for HIGH/CRITICAL
+review required by AGENT_GUIDE §13 completed
 ```
 
 ## Forbidden
+
+Apply [AGENT_GUIDE §13](../AGENT_GUIDE.md#13-independent-review) to the actual decision.
+A normative semantic decision counts as `Semantic change: yes` even in a docs-only diff;
+non-semantic inventory does not require a second agent solely because of area risk.
 
 ```text
 no implementation of the following milestone

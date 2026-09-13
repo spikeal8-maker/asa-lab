@@ -1,14 +1,15 @@
 # E-OPT-1A — current public boundary inventory
 
-**Execution task ID:** `TASK-ELECTRONICS-EOPT-1A-001`  
-**Kind:** design/analysis prerequisite  
-**Risk:** medium (high-risk area, but this slice is read-only for product/runtime code)  
-**Roadmap slice:** `E-OPT-1A`
+- **Execution task ID:** `TASK-ELECTRONICS-EOPT1A-001`
+- **Kind:** design/analysis prerequisite
+- **Risk:** medium (high-risk area, but this slice is read-only for product/runtime code)
+- **Semantic change:** `no`
+- **Roadmap slice:** `E-OPT-1A`
 
 ## Execution lock
 
 This card is executable only when `docs/execution/current.yaml` selects exact task ID
-`TASK-ELECTRONICS-EOPT-1A-001` for the Electronics lane with `status: in_progress`.
+`TASK-ELECTRONICS-EOPT1A-001` for the Electronics lane with `status: in_progress`.
 Roadmap readiness or this file existing is not permission to start.
 
 ## Goal
@@ -92,9 +93,12 @@ no deployment
 
 ## Review
 
-This is an analysis-only prerequisite in a high-risk area, so bounded self-review is sufficient.
-Independent review becomes mandatory for the integrated E-OPT-1 acceptance and any later
-semantic/timing change.
+Under [AGENT_GUIDE §13](../AGENT_GUIDE.md#13-independent-review), this non-semantic
+inventory needs bounded self-review plus the declared routing/governance validation;
+the area's risk does not automatically require a second-agent review.
+If the inventory needs a semantic design decision, record the open question and STOP
+for a separately selected design/implementation task. Integrated E-OPT-1 acceptance
+and later HIGH semantic/timing changes require independent review.
 
 ## Stop
 

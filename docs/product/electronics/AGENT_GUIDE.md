@@ -30,6 +30,7 @@ GOAL
 COMPONENT_IDS
 OWNERSHIP
 RISK
+SEMANTIC_CHANGE: yes | no
 PREREQUISITES
 EXPECTED_WRITE_PATHS
 EXPECTED_TESTS
@@ -107,6 +108,11 @@ Changing the plan is a separate governance/design task. An implementation task m
 
 ## 5. Risk classes
 
+Component/card risk describes the area. Task risk describes the actual proposed change;
+reading a HIGH/CRITICAL area does not itself make a slice HIGH/CRITICAL.
+Every task declares `Semantic change: yes|no`. Changing a normative behavioural contract
+counts as semantic change even when the diff contains only documentation.
+
 ### LOW
 
 Text, local presentation, documentation, isolated refactor with no runtime semantics.
@@ -115,7 +121,8 @@ Required: focused test or documentation validation + bounded self-review.
 
 ### MEDIUM
 
-Worker/controller orchestration, component model plumbing, local Arduino/runtime extension with established interfaces.
+Worker/controller plumbing or model wiring that preserves established timing, runtime,
+persistence and engine-parity contracts. Changes to those semantics are HIGH.
 
 Required: focused tests + type/lint/build evidence + self-review.
 
@@ -123,7 +130,8 @@ Required: focused tests + type/lint/build evidence + self-review.
 
 Solver equations, convergence/tolerance policy, canonical clock, Arduino timing semantics, persistence/autosave, model identity, cross-worker/server parity.
 
-Required: focused + golden/regression gates + independent review before acceptance.
+Required evidence: focused + golden/regression checks as applicable to the changed contract.
+Review is determined by [§13](#13-independent-review), not by the component's area label alone.
 
 ### CRITICAL
 
@@ -234,7 +242,21 @@ NEXT_ALLOWED_TASK: STOP | <owner-selectable task id>
 
 ## 13. Independent review
 
-Independent review is mandatory for HIGH/CRITICAL slices and for integrated milestone boundaries. The reviewer receives the bounded task, diff, mapped contracts and evidence — not the full repository by default.
+Independent review is mandatory for actual CRITICAL operations, HIGH semantic changes,
+and integrated milestone acceptance boundaries. This includes solver equations,
+convergence/tolerance policy, canonical physical time, Arduino timing/runtime,
+persistence/schema/autosave, security/RLS, cross-boundary engine parity, owner-asset
+replacement and production/destructive/irreversible operations.
+
+Read-only inventory, analysis, documentation-only routing and test-only characterization
+with `Semantic change: no` require bounded self-review and applicable routing/governance
+validation; a HIGH/CRITICAL component label alone does not require a second agent.
+This exception does not cover changing normative semantics, weakening assertions or an
+integrated milestone acceptance. If such a decision is discovered during inventory,
+record it and STOP for a separately selected design/implementation task.
+
+When required, the reviewer receives the bounded task, diff, mapped contracts and evidence
+— not the full repository by default.
 
 A defect found in independent review becomes a bounded repair to the current slice. The author does not silently broaden the task or begin the next milestone.
 

@@ -8,6 +8,7 @@ Use for one bounded roadmap slice. Active execution still belongs only to `docs/
 Task ID: <TASK-ELECTRONICS-...-001>
 Kind: implementation
 Risk: <low|medium|high|critical>
+Semantic change: <yes|no>
 Roadmap slice: <E-OPT-XA>
 Prerequisite acceptance: <exact accepted capability/task>
 ```
@@ -92,7 +93,10 @@ no deployment/restart
 
 ## Review
 
-HIGH/CRITICAL slices require independent review against this task, final diff, mapped contracts and exact evidence.
+Record the review requirement and its reason using
+[AGENT_GUIDE §13](../AGENT_GUIDE.md#13-independent-review). Area risk alone does not
+require a second agent for non-semantic work; HIGH semantic changes, actual CRITICAL
+operations and integrated milestone acceptance require independent review.
 
 ## Bounded self-review
 
