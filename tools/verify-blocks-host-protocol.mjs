@@ -73,7 +73,7 @@ const server = http.createServer((request, response) => {
 
 await new Promise((resolve, reject) => {
   server.once('error', reject);
-  server.listen(parentPort, '0.0.0.0', resolve);
+  server.listen(parentPort, '127.0.0.1', resolve);
 });
 const browser = await chromium.launch({ headless: true });
 const context = await browser.newContext();
@@ -267,6 +267,7 @@ try {
   if (flushResult?.ok !== false || flushResult?.reason !== 'storage_not_available') {
     throw new Error(`unexpected flush result: ${JSON.stringify(flushResult)}`);
   }
+
   await frame.locator('body').evaluate(() => {
     setTimeout(() => {
       throw new Error('protocol-fixture-fatal');
@@ -274,6 +275,48 @@ try {
   });
   await page.waitForFunction(() => document.body.dataset.parentState === 'fatal');
   if (page.isClosed()) throw new Error('parent page closed after child fatal');
+
+  await sendFromParent(page, {
+    ...binding,
+    messageType: 'ASA_BLOCKS_STOP',
+  });
+  await waitForRuntimeState(frame, 'stopped');
+  await page.waitForFunction(() =>
+    window.__blocksMessages.some(
+      (message) => message?.messageType === 'ASA_BLOCKS_STATUS' && message?.status === 'stopped',
+    ),
+  );
+
+  const beforePostStopToken = await rejectionCount(frame);
+  await sendFromParent(page, {
+    ...binding,
+    messageType: 'ASA_BLOCKS_TOKEN_UPDATE',
+    runtimeToken: 'must-not-be-accepted-after-stop',
+  });
+  await expectRejectionIncrement(frame, beforePostStopToken, 'token update after STOP');
+
+  const beforePostStopFlush = await rejectionCount(frame);
+  await sendFromParent(page, {
+    ...binding,
+    messageType: 'ASA_BLOCKS_FLUSH_REQUEST',
+    requestId: 'flush-after-stop',
+  });
+  await expectRejectionIncrement(frame, beforePostStopFlush, 'flush after STOP');
+  const postStopFlushResult = await page.evaluate(() =>
+    window.__blocksMessages.find(
+      (message) =>
+        message?.messageType === 'ASA_BLOCKS_FLUSH_RESULT' &&
+        message?.requestId === 'flush-after-stop',
+    ),
+  );
+  if (postStopFlushResult) throw new Error('flush after STOP retained runtime authority');
+
+  const beforePostStopInit = await rejectionCount(frame);
+  await sendFromParent(page, initMessage);
+  await expectRejectionIncrement(frame, beforePostStopInit, 'INIT after STOP');
+  if ((await runtimeState(frame)) !== 'stopped') {
+    throw new Error('message after STOP changed runtime state');
+  }
 
   const wrongOriginPage = await context.newPage();
   await wrongOriginPage.goto(`${alternateParentOrigin}/parent`, { waitUntil: 'domcontentloaded' });
