@@ -1,7 +1,8 @@
 import { afterAll, beforeAll, expect, it, vi } from 'vitest';
 import pg from 'pg';
 import { randomBytes } from 'node:crypto';
-import { applyPlan, planMigrations } from '../../tools/migrate.mjs';
+import { planMigrations } from '../../tools/migrate.mjs';
+import { applyIsolatedTestPlan as applyPlan } from '../migration/isolated-postgres-plan';
 import { buildTestApp, inject, type NestApp } from '../portal/app';
 import { hashSessionToken } from '../../contexts/identity/dist/index.js';
 

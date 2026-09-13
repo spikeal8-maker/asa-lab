@@ -3,7 +3,8 @@ import pg from 'pg';
 import { expect, it, vi } from 'vitest';
 import { buildTestApp, inject, type NestApp } from '../portal/app';
 import { seedMixedMainLearning } from './learning-upgrade-fixtures';
-import { applyPlan, planMigrations } from '../../tools/migrate.mjs';
+import { planMigrations } from '../../tools/migrate.mjs';
+import { applyIsolatedTestPlan as applyPlan } from '../migration/isolated-postgres-plan';
 import { seedTeacher } from '../portal/helpers';
 import {
   analyzeLearningData,

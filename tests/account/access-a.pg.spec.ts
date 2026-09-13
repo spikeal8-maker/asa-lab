@@ -3,7 +3,8 @@ import pg from 'pg';
 import { hashSessionToken } from '../../contexts/identity/dist/index.js';
 import { buildTestApp, inject, type NestApp } from '../portal/app';
 import { testAdminPool } from '../portal/helpers';
-import { applyPlan, planMigrations } from '../../tools/migrate.mjs';
+import { planMigrations } from '../../tools/migrate.mjs';
+import { applyIsolatedTestPlan as applyPlan } from '../migration/isolated-postgres-plan';
 
 let admin: pg.Pool;
 let runtime: pg.Pool;
