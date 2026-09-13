@@ -92,33 +92,33 @@ Must continue to protect:
 
 ### Goal
 
-Expose one intentionally supported Electronics engine contract that can be consumed without React, ASA Lab API, PostgreSQL or portal state.
+Expose one intentionally supported **structural/non-temporal** Electronics engine contract that can be consumed without React, ASA Lab API, PostgreSQL or portal state. Canonical timed advance is deliberately deferred until E-OPT-3 defines what simulation time, horizons and event barriers mean.
 
 ### Required slices
 
-E-OPT-1A — inventory current public exports/dependency graph.
+E-OPT-1A — inventory current public exports/dependency graph. Concrete task card: `tasks/E-OPT-1A.md`.
 
-E-OPT-1B — define stable engine types/facade around existing implementation; no physics rewrite.
+E-OPT-1B — define stable non-temporal engine types/facade around existing implementation; no physics rewrite and no final timed API.
 
 E-OPT-1C — dependency-boundary tests proving pure engine imports do not pull Web/API/DB/UI concerns.
 
-E-OPT-1D — direct Node/browser minimal consumer contract test.
+E-OPT-1D — direct Node/browser minimal consumer contract test for parse/validate/compile/solve/capabilities.
 
-E-OPT-1E — converge Worker evaluator onto the stable engine facade while preserving exact golden parity.
+E-OPT-1E — converge Worker preflight/stateless solve entry points onto the stable facade while preserving exact golden parity. Existing timed advance remains an internal/provisional bridge until E-OPT-3.
 
 ### Target API shape
 
-The exact names are a design decision, but the capability surface must cover:
+The exact names are a design decision, but the E-OPT-1 capability surface must cover only the stable non-temporal boundary:
 
 ```text
 create/describe engine
 parse/validate document
 compile/prepare topology
-solve
-advance to target simulation time
-reset
+solve/analyse a bounded snapshot
 capabilities/version descriptor
 ```
+
+`advanceTo(...)`, event horizons, timed reset/pause/resume and other physical-time semantics are **not** frozen in E-OPT-1. They are added only after E-OPT-3A accepts the canonical clock contract.
 
 ### Acceptance
 
@@ -126,7 +126,8 @@ capabilities/version descriptor
 - no electrical equation or Arduino semantic change is required to pass;
 - E-OPT-0 goldens unchanged;
 - Worker remains parity-equivalent;
-- new engine public surface is smaller and intentional rather than re-exporting internal modules.
+- new engine public surface is smaller and intentional rather than re-exporting internal modules;
+- temporal/advance methods remain explicitly internal/provisional until E-OPT-3 rather than being accidentally stabilised first.
 
 ### Stop
 
@@ -163,15 +164,17 @@ Use the existing Arduino circuit scheduler as the orchestration foundation. Do n
 
 ### Required slices
 
-E-OPT-3A — clock contract/trace model: simulation time, horizons, barriers, input events, display sampling.
+E-OPT-3A — accept the canonical clock/trace contract: simulation time, horizons, barriers, input events and display sampling.
 
-E-OPT-3B — adapt live Worker controller to request horizons rather than defining physics through its ~100 ms presentation timer.
+E-OPT-3B — extend the stable engine facade with canonical timed advance/event-horizon methods defined by E-OPT-3A. This is the first stage allowed to freeze a public timed API.
 
 E-OPT-3C — unify Arduino scheduler/physics barriers with canonical time.
 
-E-OPT-3D — deterministic trace/replay fixtures across different UI refresh cadences.
+E-OPT-3D — converge Worker evaluator/controller onto the canonical timed facade and request horizons rather than defining physics through the ~100 ms presentation timer.
 
-E-OPT-3E — reset/pause/resume/input-event semantics and stale horizon handling.
+E-OPT-3E — deterministic trace/replay fixtures across different UI refresh cadences.
+
+E-OPT-3F — reset/pause/resume/input-event semantics and stale horizon handling.
 
 ### Acceptance
 
@@ -339,12 +342,13 @@ The next owner-selectable implementation sequence is:
 
 ```text
 E-OPT-1A inventory/dependency graph
-→ E-OPT-1B stable engine facade
+→ E-OPT-1B stable non-temporal engine facade
 → E-OPT-1C boundary tests
-→ E-OPT-1D standalone minimal consumer
-→ E-OPT-1E Worker convergence on facade
-→ STOP / independent acceptance
+→ E-OPT-1D standalone non-temporal consumer
+→ E-OPT-1E Worker preflight/stateless convergence
+→ STOP / independent E-OPT-1 acceptance
 → E-OPT-3A canonical clock contract
+→ E-OPT-3B canonical timed facade
 ```
 
 No sensor/peripheral work belongs in this sequence.

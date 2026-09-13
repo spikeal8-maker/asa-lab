@@ -5,10 +5,10 @@ Use for one bounded roadmap slice. Active execution still belongs only to `docs/
 ## Metadata
 
 ```text
-Task ID: <E-OPT-XA or bounded repair id>
+Task ID: <TASK-ELECTRONICS-...-001>
 Kind: implementation
 Risk: <low|medium|high|critical>
-Roadmap stage: <E-OPT-X>
+Roadmap slice: <E-OPT-XA>
 Prerequisite acceptance: <exact accepted capability/task>
 ```
 
