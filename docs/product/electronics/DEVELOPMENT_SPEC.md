@@ -1,25 +1,104 @@
-# ASA Lab Electronics — Development Specification
+# ASA Lab Electronics — Development Specification v2.1
 
-Technical development contract. Behavioural agent policy is owned by [AGENT_GUIDE.md](AGENT_GUIDE.md);
-active execution is owned only by repository `docs/execution/current.yaml`.
+Target architecture and acceptance contract; this document does not claim implementation
+or freeze new API names. Normative product behaviour remains in `README.md` / `contracts/`.
+[AGENT_GUIDE.md](AGENT_GUIDE.md) owns agent procedure, the [roadmap](ASA_ELECTRONICS_OPTIMIZATION_PLAN_V2.md)
+owns delivery order, and only repository `docs/execution/current.yaml` owns active execution.
 
 ## 1. System layers
 
-| Layer | Responsibility |
-| --- | --- |
-| Owner assets / catalog | Artwork provenance, catalog identity and presentation metadata |
-| CircuitDocument | Versioned user intent and model identity; not computed electrical truth |
-| Topology / netlist | Electrical connectivity independent of wire drawing geometry |
-| DeviceModel / solver / transient | Physical models, numerical results and quality diagnostics |
-| Arduino / clock | Deterministic educational runtime and physical-time orchestration |
-| Engine boundary | Pure document/compile/solve/capability contract for consumers |
-| Simulation Worker | Bounded execution of the same engine, protocol/session isolation |
-| Host / React workbench | User intent and rendering of engine results |
-| Persistence / API verification | Durable intent; server verification reuses the same core/models |
+| Subsystem | Responsibility | Input → output | Must not own |
+| --- | --- | --- | --- |
+| Catalog / owner assets | Stable catalog/asset identity, provenance, terminals and presentation metadata | Approved owner identity + metadata → available/disabled catalog entry | Electrical results or replacement artwork |
+| CircuitDocument | Versioned, serializable user intent and model identity | User edits / serialized document → validated document | Computed current, voltage, brightness or temperature as persisted truth |
+| Topology / netlist | Deterministic electrical connectivity, including breadboard groups | Document connections/terminals → stable nets | Wire geometry as connectivity or model equations |
+| DeviceModel / profiles | Model identity, supported parameters, constitutive behaviour | Terminal bindings + profile/state → model contributions/diagnostics | UI, global solver orchestration or ad hoc catalog-type dispatch |
+| Solver | Bounded numerical solution and independent quality diagnostics | Netlist + model contributions → finite result / explicit physics status | React, persistence, scheduling or invented partial success |
+| Transient state | Physical state evolution using the accepted clock contract | Initial state + accepted steps/events → committed physical state | Wall-clock timers or document edits for derived state |
+| Arduino runtime | Declared educational language/device semantics and bounded execution | Program + versioned state + inputs/time → GPIO/events/state/diagnostics | UI cadence, autosave or a separate physics implementation |
+| Canonical clock | Ordering, horizons, event barriers and reset/pause/resume semantics | Initial time/state + ordered event trace → committed horizons/frames | Host render frequency as physical time |
+| Engine boundary | Intentional pure document/compile/solve/capability surface | Explicit inputs/versions → normalized results/descriptors | ASA host imports or hidden mutable global state |
+| Simulation Worker | Execute the same engine with bounded work and isolated requests | Versioned session/generation requests → matched results or transport failures | Second solver, stale commits or silent heavy synchronous fallback |
+| Host / React UI | Capture user intent and display committed results/diagnostics | Host actions + current committed result → document edits / presentation | Electrical calculations or converting errors to fabricated results |
+| Persistence / server verification | Durable intent, revision-safe sync and same-core verification | Valid document + expected revision → durable revision/conflict; document → verification | Derived physics as canonical storage or blocking local solve on autosave |
 
-This is a responsibility model, not a claim that every target boundary is implemented.
 The [roadmap](ASA_ELECTRONICS_OPTIMIZATION_PLAN_V2.md#4-e-opt-1--portable-engine-boundary)
-separates the non-temporal engine boundary from the later canonical timed API.
+separates structural/non-temporal portability from later timed APIs. E-OPT-1A is inventory only.
+
+### 1.1 Engine portability boundary
+
+The same public engine surface must support browser main-thread, Web Worker, Node/test
+and future standalone consumers. Its dependency closure must not require React, Vite-specific
+globals, DOM, ASA auth, API client, database or portal store. Host adapters supply persistence,
+transport and presentation outside that closure; all simulation inputs/state are explicit.
+Dependency tests and direct consumer fixtures prove this property, not successful bundling alone.
+Timed method names and semantics remain provisional until the roadmap's canonical-clock decision.
+
+### 1.2 Independent version domains and capabilities
+
+| Domain | Compatibility decision |
+| --- | --- |
+| CircuitDocument schema/version | Parse, validate and preserve user intent on round-trip; reject incompatible input before destructive rewrite |
+| Engine revision | Identify the executable semantics used for result/replay/parity evidence |
+| Worker protocol version | Negotiate/validate transport envelopes before executing or accepting results |
+| Arduino runtime/state version | Identify execution semantics and serializable state compatibility; explicit migration/rejection for incompatible restore |
+| Model/profile identity and version | Resolve supported component physics/parameters and reference fixtures |
+| Capability descriptor schema | Interpret machine-readable support information independently of the versions it reports |
+
+One `version` field must not stand for several independent contracts. This requirement does
+not introduce fields or migrations now. Compatibility changes require the matching product contract.
+Unknown document fields require a proven preserving parse/edit/serialize path or rejection,
+as defined by [CircuitDocument](README.md#5-circuitdocument).
+
+Engine/runtime capability discovery must expose supported document versions, component/model
+IDs and profiles, Arduino commands/runtime features, timing primitives and engine/runtime versions.
+The Worker adapter additionally exposes its protocol compatibility. Consumers check descriptors
+before activation; absence is unsupported capability, never permission for silent fallback.
+Descriptor support claims must correspond to executable model/runtime and reference coverage.
+
+### 1.3 Determinism and execution failures
+
+Equal canonical document + engine revision + model/profile versions + runtime/state version
++ initial state + ordered input-event trace + requested logical horizon must yield byte-equivalent
+normalized committed simulation results. Normalization excludes transport IDs, wall-clock timings
+and presentation sampling; it must not erase electrical values or failure diagnostics to obtain parity.
+Terminal ordering is character-wise, independent of locale. UI render rate and host stalls may
+delay delivery but must not change simulation truth. Direct, Worker and server consumers use the
+same engine/models; timed replay follows the accepted canonical clock, never independent timers.
+
+| Class | Required observable handling |
+| --- | --- |
+| `unsupported` | Missing model/topology capability; no fabricated electrical result for the remaining circuit |
+| `invalid` | Invalid document/topology/input; explicit diagnostics, no successful physics result |
+| `nonconvergent` | Numerical acceptance failed; expose diagnostics without promoting an unconverged iterate to success |
+| Runtime fault | Execution/budget/state fault; report separately, withhold an uncommitted runtime step |
+| Worker transport failure | Protocol mismatch, crash or timeout; explicit host failure, no invented physics or silent main-thread heavy solve |
+| Stale result | Session/generation/document/horizon mismatch; discard, never commit into current state |
+| Cancelled generation | Discontinued work cannot commit; bounded queue/coalescing prevents obsolete work accumulating |
+
+These classes describe architecture, not a new shared status enum. Preserve the normative
+[`SolveResult.status`](README.md#11-результат-симуляции): `solved|invalid|unsupported|nonconvergent`.
+Runtime/transport/cancellation states remain distinct from physics status and from device health,
+damage and presentation state. A failed device with a supported post-failure model can coexist
+with a solved circuit. The UI may label a retained last committed frame as stale; it cannot
+present it as a new successful result for the failing request.
+
+### 1.4 Component and peripheral extension contract
+
+A supported component requires catalog identity + terminals + DeviceModel/profile identity
++ optional transient/runtime adapter + UI/help + focused tests and analytical/reference fixture.
+Adding only SVG, only an `if (type === ...)` solver branch, UI without model identity or runtime
+behaviour without capability declaration is insufficient. Model registry/profile extension is
+the default; any unavoidable solver change needs its own physical justification and evidence.
+Missing confirmed owner SVG keeps the catalog entry disabled/missing under root asset policy;
+missing electrical model keeps simulation unsupported. Existing owner artwork is never substituted.
+
+Arduino/peripheral support additionally declares electrical identity, runtime API, accepted
+clock/timing dependencies, state serialization where required, machine capability, reference fixture,
+UI/help and owner asset identity where applicable. Each peripheral uses canonical events/barriers;
+it cannot add an independent timer path. Timing-sensitive support remains blocked until its
+roadmap prerequisites are accepted. Reset and replay fixtures must cover runtime/physical state
+without converting runtime controls into collaborative document intent.
 
 ## 2. Sources of truth
 
@@ -31,16 +110,10 @@ and readiness separately; Git push/merge cannot prove them.
 
 ## 3. Development selection
 
-1. Read the selected Electronics task/status from canonical execution state via `agent:context`.
-2. Classify the requested outcome using [START_HERE](START_HERE.md#2-route-one-bounded-concern).
-3. Resolve component IDs and only the required subsystem entries.
-4. Check the exact roadmap prerequisite for new capability; maintenance does not activate a milestone.
-5. Match the selected concrete card/scope: goal, task risk, semantic flag, reads/writes,
-   exclusions, acceptance, evidence, review and STOP.
-6. Read mapped contracts/source/tests. If selection or routing fails, use §13.
-
-A feature branch inherits execution selection accepted on `main`; it cannot select a task
-by editing its own `current.yaml`. Future task cards describe scope, not current authorization.
+Selection is defined by [START_HERE §§1–3](START_HERE.md#1-confirm-the-selected-task)
+and [AGENT_GUIDE §§2–4](AGENT_GUIDE.md#2-one-concern-per-slice), using canonical `current.yaml`.
+A feature branch inherits the selection accepted on `main`; it cannot select a task itself.
+Future cards describe scope, not authorization. Selection/routing failures use §13.
 
 ## 4. Editing rules
 
@@ -68,6 +141,40 @@ A reviewable slice has the requested outcome, preserved mapped invariants, exact
 evidence from all declared gates, current routing and completed required self/independent review.
 Report residual risks and the STOP boundary. Build alone is not acceptance; green CI is
 not owner acceptance, and a red repository gate prevents a release-candidate claim.
+
+### 7.1 Architecture acceptance evidence
+
+| Property | Required proof at the relevant roadmap acceptance boundary |
+| --- | --- |
+| Pure engine and portable adapters | Import-boundary checks plus browser/Node consumer fixtures without forbidden host dependencies (§1.1) |
+| Document and persistence separation | Intent round-trip/version checks, revision/conflict/autosave fixtures; local solve completes independently of save; runtime controls do not create shared intent |
+| Physical/model correctness | Deterministic netlist including breadboards, finite solved values, KCL/ideal-source/power diagnostics, analytical/reference fixtures and fail-closed negative corpus |
+| Clock/runtime determinism | Reset, pause/resume and event-trace replay across varied UI cadence/stalls at identical logical horizons (§1.3) |
+| Worker execution isolation | Direct/Worker parity, version/session/generation rejection, cancellation/crash/timeout fixtures, bounded heavy work (one in-flight by default), and a browser journey proving a real Worker |
+| Capability/extension integrity | Descriptor-to-model/runtime/reference coverage; unsupported capability cannot be activated by UI fallback (§1.4) |
+| UI ownership | UI renders committed engine state and separate fault channels; presentation must not derive electrical truth |
+
+These proofs are stage-dependent targets, not gates for every documentation/maintenance slice.
+Existing evidence cannot establish new semantics merely because an unchanged build passes.
+
+### 7.2 Performance acceptance
+
+Budget categories are main-thread blocking, Worker latency, cold editor load, bundle size,
+retained memory, simulation throughput and event-queue bounds. Thresholds and measurement
+conditions belong to versioned benchmark contracts/tests, not arbitrary numbers in this document.
+Regression acceptance compares the changed candidate with that baseline under the same corpus,
+environment and cold/warm conditions; record versions and actual uncached work. Improving one
+category does not justify unmeasured regression or changed simulation semantics in another.
+
+### 7.3 Executable portability proof
+
+At E-OPT-8 acceptance a standalone consumer must boot, load/validate a document, solve through
+the public engine, run a real Worker, execute one declared Arduino example, use an in-memory
+persistence adapter and expose public capability/version information. It requires no ASA portal
+internals/auth/API/database, and direct/Worker results retain parity. A package import alone
+does not satisfy portability. The runnable example and reproducible commands generate `PORTING.md`
+covering public API, Worker integration, document compatibility, model extension, host adapter and
+supported runtime baseline; the roadmap owns prerequisites and scheduling of this proof.
 
 ## 8. Code review contract
 
@@ -97,7 +204,7 @@ A moving `main` cannot silently replace the selected release.
 | `README.md` / `contracts/` | Normative product behaviour / machine-readable product contracts |
 | `START_HERE.md` | Compact entry route, task kind and next document |
 | `AGENT_GUIDE.md` | Detailed Electronics agent behaviour, budgets, semantic risk, review and STOP |
-| `DEVELOPMENT_SPEC.md` | Layers, development selection, editing/integration/deployment contracts and acceptance |
+| `DEVELOPMENT_SPEC.md` | Architecture boundaries, compatibility, determinism/failures, extension and performance/portability acceptance |
 | `ASA_ELECTRONICS_OPTIMIZATION_PLAN_V2.md` | Roadmap stages, dependencies, prerequisites and milestone boundaries |
 | `COMPONENT_MAP.yaml` / subsystem cards | Stable IDs, keywords, ownership/risk, exact contracts/source/symbol/test routes and dependencies |
 | `tasks/` | One bounded slice per concrete card; templates define required fields |

@@ -96,7 +96,8 @@ components:
     ownership: asa
     risk: high
     contracts:
-    - docs/product/electronics/ASA_ELECTRONICS_OPTIMIZATION_PLAN_V2.md#5-e-opt-2--dedicated-electronics-worker
+    - docs/product/electronics/DEVELOPMENT_SPEC.md#13-determinism-and-execution-failures
+    - docs/product/electronics/DEVELOPMENT_SPEC.md#71-architecture-acceptance-evidence
     sources:
     - apps/web/src/electronics/simulation-worker-protocol.ts
     - apps/web/src/electronics/simulation-worker-client.ts
