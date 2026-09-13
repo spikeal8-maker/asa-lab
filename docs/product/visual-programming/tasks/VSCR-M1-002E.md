@@ -3,7 +3,7 @@
 **Kind:** acceptance/review slice; no new architecture  
 **Risk:** high  
 **Prerequisite:** VSCR-M1-002A, C, D and B each accepted on their own exact evidence.  
-**Execution:** review starts only when `docs/execution/current.yaml.task.id` is exactly `VSCR-M1-002E` and its status is `in_progress`; milestone `VSCR-M1-002` must remain owner-authorised.
+**Execution:** review starts only when `docs/execution/current.yaml.task.id` is exactly `VSCR-M1-002E` **and** `docs/execution/current.yaml.task.status` is exactly `in_progress`; `docs/execution/current.yaml.primary_lane.milestone.id` must be exactly `VSCR-M1-002` and its `owner_authorization` must be `accepted`.
 
 ## Goal
 
