@@ -456,3 +456,35 @@ BEGIN
     RETURN v_id;
 END;
 $$;
+
+-- Legacy course lessons read these assignment fields live. Preserve the old
+-- changed-draft behavior explicitly, including revision/CAS and sample writers.
+CREATE FUNCTION course_legacy_assignment_draft_changed() RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
+DECLARE v_course record;
+BEGIN
+ IF ROW(NEW.title,NEW.goal,NEW.brief,NEW.module_key,NEW.age_band,
+        CASE WHEN NEW.sample_bytes IS NULL THEN NEW.sample_image END,
+        NEW.sample_bytes,NEW.sample_content_type)
+    IS NOT DISTINCT FROM
+    ROW(OLD.title,OLD.goal,OLD.brief,OLD.module_key,OLD.age_band,
+        CASE WHEN OLD.sample_bytes IS NULL THEN OLD.sample_image END,
+        OLD.sample_bytes,OLD.sample_content_type) THEN
+   RETURN NEW;
+ END IF;
+ FOR v_course IN
+   SELECT c.id FROM public.courses c
+   WHERE EXISTS (SELECT 1 FROM public.course_lessons l WHERE l.course_id=c.id AND l.assignment_id=NEW.id)
+   ORDER BY c.id FOR UPDATE OF c
+ LOOP
+   -- The Course trigger owns activation/base/revision and preserves an active
+   -- historical draft's source. Lock shared roots in a deterministic order.
+   UPDATE public.courses SET updated_at=now() WHERE id=v_course.id;
+ END LOOP;
+ RETURN NEW;
+END;
+$$;
+REVOKE ALL ON FUNCTION course_legacy_assignment_draft_changed() FROM PUBLIC;
+CREATE TRIGGER course_legacy_assignment_draft_changed
+AFTER UPDATE OF title,goal,brief,module_key,age_band,sample_image,sample_bytes,sample_content_type
+ON teacher_assignments FOR EACH ROW EXECUTE FUNCTION course_legacy_assignment_draft_changed();

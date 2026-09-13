@@ -227,10 +227,70 @@ describe('explicit author draft from one immutable publication', () => {
         )
       ).rows,
     ).toEqual(index);
-    await publish(id);
-    await admin.query("UPDATE teacher_assignments SET brief='Changed independently' WHERE id=$1", [
+    const historicalDraft = await state(id);
+    const oldHistory = await history(id);
+    const records = await runtime();
+    expect(
+      (
+        await app.query('SELECT teacher_assignment_sample_set($1,$2,$3,$4) AS saved', [
+          principal,
+          assignment,
+          Buffer.from(
+            'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j2ioAAAAASUVORK5CYII=',
+            'base64',
+          ),
+          'image/png',
+        ])
+      ).rows[0].saved,
+    ).toBe(true);
+    expect(await state(id)).toMatchObject({
+      draft_active: true,
+      draft_revision: historicalDraft.draft_revision + 1,
+      draft_base_version_id: v2.version_id,
+      draft_started_revision: historicalDraft.draft_started_revision,
+    });
+    const withSample = await state(id);
+    await admin.query(
+      "UPDATE teacher_assignments SET sample_image='/ignored-with-bytes' WHERE id=$1",
+      [assignment],
+    );
+    expect(await state(id)).toEqual(withSample);
+    await app.query('SELECT teacher_assignment_sample_set($1,$2,NULL,NULL)', [
+      principal,
       assignment,
     ]);
+    expect(await history(id)).toEqual(oldHistory);
+    expect(await runtime()).toEqual(records);
+    const latest = await publish(id);
+    const closed = await state(id);
+    await admin.query("UPDATE teacher_assignments SET visibility='public' WHERE id=$1", [
+      assignment,
+    ]);
+    expect(await state(id)).toEqual(closed);
+    expect(
+      (
+        await app.query(
+          "SELECT teacher_assignment_save($1,$2,'Legacy task','Changed independently','electronics') AS id",
+          [principal, assignment],
+        )
+      ).rows[0].id,
+    ).toBe(assignment);
+    expect(await state(id)).toMatchObject({
+      draft_active: true,
+      draft_revision: closed.draft_revision + 1,
+      draft_base_version_id: latest.version_id,
+      draft_started_revision: closed.draft_revision + 1,
+    });
+    expect(
+      (
+        await app.query('SELECT publication_state FROM course_library_list_v2($1) WHERE id=$2', [
+          principal,
+          id,
+        ])
+      ).rows[0].publication_state,
+    ).toBe('changed');
+    expect((await restore(id, v2.version_id)).result_code).toBe('draft_exists');
+    await publish(id);
     const before = await state(id);
     const content = (await admin.query('SELECT course_snapshot_build($1) AS snapshot', [id]))
       .rows[0].snapshot;
@@ -242,6 +302,7 @@ describe('explicit author draft from one immutable publication', () => {
     expect(
       (await admin.query('SELECT course_snapshot_build($1) AS snapshot', [id])).rows[0].snapshot,
     ).toEqual(content);
+    expect(await runtime()).toEqual(records);
   });
   it('distinguishes an identical active draft, rejects retries and concurrent creation, closes latest dedup and retains provenance', async () => {
     const { id, v1 } = await course();
