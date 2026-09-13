@@ -32,7 +32,10 @@ ASA Lab уже содержит несколько игровых направл
 ### Нормативная точка входа
 
 - `docs/product/games-platform/ASA_GAMES_PLATFORM_TECHNICAL_SPECIFICATION.md` — главное ТЗ: цели, границы, требования с ID, architecture/runtime/publishing/security/privacy/deployment/migration и Definition of Done.
+- `docs/product/games-platform/ASA_GAMES_PLATFORM_VALUE_DELIVERY_PLAN.md` — основной порядок реализации по вертикальным пользовательским результатам; запрещает длинную инфраструктурную разработку без работающего product result.
 - `docs/product/games-platform/ASA_GAMES_PLATFORM_REQUIREMENTS_TRACEABILITY.md` — матрица `требование → компонент → milestone → обязательное evidence`; используется для контроля реализации.
+
+**Порядок реализации определяется `ASA_GAMES_PLATFORM_VALUE_DELIVERY_PLAN.md`.** Master Technical Specification определяет требования и границы, но не означает, что все capabilities строятся одновременно.
 
 ### Архитектура и research
 
@@ -50,8 +53,8 @@ ASA Lab уже содержит несколько игровых направл
 - `docs/product/games-platform/ASA_GAMES_PLATFORM_PRODUCT_SPEC.md` — пользовательская модель: Games Hub, lobby, invites, party, classmates, quick/rated play, profile, stats, leaderboards, tournaments/events.
 - `docs/product/games-platform/ASA_GAMES_PLATFORM_DEVELOPER_INTEGRATION_GUIDE.md` — прикладной контракт разработчика: manifest, adapters, renderer, bots/metrics, trusted и isolated games, forbidden patterns.
 - `docs/product/games-platform/ASA_GAME_PACKAGE_AND_PUBLISHING_SPEC.md` — конкретный package/publishing workflow: `asa-game.yaml`, GitHub connector, isolated build, immutable releases, channels, publication scopes, sandbox client и developer/admin portal.
-- `docs/product/games-platform/ASA_GAMES_PLATFORM_TESTING_AND_CERTIFICATION.md` — обязательные contract/security/reconnect/load/fault-injection gates и две certification games.
-- `docs/product/games-platform/ASA_GAMES_PLATFORM_EXECUTION_PLAN.md` — staged implementation plan и acceptance gates.
+- `docs/product/games-platform/ASA_GAMES_PLATFORM_TESTING_AND_CERTIFICATION.md` — обязательные contract/security/reconnect/load/fault-injection gates и certification games.
+- `docs/product/games-platform/ASA_GAMES_PLATFORM_EXECUTION_PLAN.md` — подробная архитектурная декомпозиция milestone/task; sequencing subordinate to Value Delivery Plan.
 
 ## 4. Что этот пакет НЕ разрешает
 
@@ -84,7 +87,7 @@ ASA Lab уже содержит несколько игровых направл
 10. **Privacy by construction.** В публичный игровой слой не попадают internal account/learner IDs, email, school/class metadata без явной scope policy.
 11. **Version everything.** Match и release фиксируют game/rules/state/protocol/build versions.
 12. **Progressive infrastructure.** Первая версия не требует Kafka/Kubernetes/Redis; контракты позволяют добавить их при доказанной необходимости.
-13. **Certification before migration.** Универсальность доказывают две простые контрольные игры: command-game (`Tic-Tac-Toe`) и realtime-room (`ASA Arena Mini`) до массовой миграции зрелых игр.
+13. **Value before breadth.** Каждый крупный этап заканчивается работающим пользовательским результатом; нельзя строить несколько инфраструктурных слоёв подряд без product proof.
 14. **Private by default for creator content.** Student/community release не становится публичным без соответствующего review.
 
 ## 6. Критерий успеха платформы
@@ -110,3 +113,5 @@ ASA Lab уже содержит несколько игровых направл
 - capability-controlled access to storage/UI/runtime services.
 
 Если для третьей игры приходится заново писать собственные invite, matchmaking, rating, event storage и reconnect, Games Platform спроектирована неправильно. Если student/community game должен получить ASA session cookie, доступ к БД или быть импортирован как доверенный React/NestJS-код, creator platform также спроектирована неправильно.
+
+Практический результат программы проверяется не количеством созданных сервисов, а демонстрируемыми milestones: R1 — сетевая партия в шашки; R2 — Quick Match и повторное использование ядра второй игрой; R3 — рейтинг/статистика шашек; R4 — Chess+Checkers на общем multiplayer core; R6 — realtime Arena; R7 — безопасная ученическая web-игра от source до classroom publication.
