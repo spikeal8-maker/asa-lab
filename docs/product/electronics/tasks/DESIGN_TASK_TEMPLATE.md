@@ -1,6 +1,7 @@
 # Electronics design-decision task template
 
 Use for one prerequisite architectural/technical decision. It chooses/proves a boundary; it does not implement the following product milestone.
+Read-only discovery uses an `analysis/inventory` card under [AGENT_GUIDE](../AGENT_GUIDE.md#analysisinventory), not this decision template.
 
 ## Metadata
 
@@ -84,8 +85,7 @@ review required by AGENT_GUIDE §13 completed
 ## Forbidden
 
 Apply [AGENT_GUIDE §13](../AGENT_GUIDE.md#13-independent-review) to the actual decision.
-A normative semantic decision counts as `Semantic change: yes` even in a docs-only diff;
-non-semantic inventory does not require a second agent solely because of area risk.
+A normative semantic decision counts as `Semantic change: yes` even in a docs-only diff.
 
 ```text
 no implementation of the following milestone

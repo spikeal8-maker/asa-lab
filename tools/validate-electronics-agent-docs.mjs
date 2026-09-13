@@ -14,6 +14,7 @@ const allowedKinds = new Set([
   'implementation',
   'maintenance',
   'repair',
+  'analysis/inventory',
   'design-decision',
   'component/peripheral',
   'deployment',
@@ -175,11 +176,16 @@ function sourceDeclarations(source) {
       ts.ScriptTarget.Latest,
       false,
     );
-    function visit(node) {
+    // Routes name file-level declarations, never locals inside bodies or namespaces.
+    for (const node of ast.statements) {
+      if (ts.isVariableStatement(node)) {
+        for (const declaration of node.declarationList.declarations) {
+          if (ts.isIdentifier(declaration.name)) names.add(declaration.name.text);
+        }
+      }
       if (
         (ts.isFunctionDeclaration(node) ||
           ts.isClassDeclaration(node) ||
-          ts.isVariableDeclaration(node) ||
           ts.isTypeAliasDeclaration(node) ||
           ts.isInterfaceDeclaration(node) ||
           ts.isEnumDeclaration(node)) &&
@@ -187,9 +193,7 @@ function sourceDeclarations(source) {
         ts.isIdentifier(node.name)
       )
         names.add(node.name.text);
-      ts.forEachChild(node, visit);
     }
-    visit(ast);
   }
   declarationCache.set(source, names);
   return names;
@@ -354,6 +358,8 @@ function readTaskCards() {
     if (!allowedRisk.has(metadata.risk)) errors.push(`${name}: invalid task risk`);
     if (!['yes', 'no'].includes(metadata.semantic_change))
       errors.push(`${name}: invalid semantic_change (use yes or no)`);
+    if (metadata.kind === 'analysis/inventory' && metadata.semantic_change !== 'no')
+      errors.push(`${name}: analysis/inventory requires semantic_change=no`);
     if (
       metadata.roadmap_slice !== null &&
       (typeof metadata.roadmap_slice !== 'string' ||

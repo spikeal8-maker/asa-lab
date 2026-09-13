@@ -22,6 +22,7 @@ Choose the task kind and resolve human keywords/component IDs in [COMPONENT_MAP.
 | --- | --- |
 | `maintenance` / `repair` | Selected bounded card using [maintenance template](tasks/MAINTENANCE_TASK_TEMPLATE.md) |
 | `implementation` or `component/peripheral` | Selected concrete card and its exact [roadmap](ASA_ELECTRONICS_OPTIMIZATION_PLAN_V2.md) stage; [implementation template](tasks/IMPLEMENTATION_TASK_TEMPLATE.md) |
+| `analysis/inventory` | Selected concrete inventory card; [read-only contract](AGENT_GUIDE.md#analysisinventory) |
 | `design-decision` | Selected concrete card using [design template](tasks/DESIGN_TASK_TEMPLATE.md) |
 | `deployment` | Separately selected card using [deployment template](tasks/DEPLOYMENT_TASK_TEMPLATE.md) |
 | `plan/governance` | Owner-selected documentation/tooling scope and [document ownership](DEVELOPMENT_SPEC.md#11-documentation-maintenance) |

@@ -1,6 +1,6 @@
 # ASA Lab Electronics — token-efficient agent guide
 
-**Scope:** Electronics/Arduino implementation, maintenance, design decisions and deployment.
+**Scope:** Electronics/Arduino analysis, implementation, maintenance, design decisions and deployment.
 **Primary goal:** complete one bounded concern with the minimum safe context and then stop.
 
 ## 1. Progressive disclosure
@@ -87,6 +87,14 @@ May repair/refine an already implemented capability. Must not begin a future roa
 ### `implementation`
 
 May implement exactly one selected roadmap slice. The task must name its prerequisite acceptance. Completion never authorises the next roadmap slice.
+
+### `analysis/inventory`
+
+Read-only for product/runtime; may create evidence/docs within the selected card's scope.
+Requires `semantic_change: no`: no normative behaviour changes or architecture/API decisions.
+Record any discovered design question and STOP for a separately selected decision task.
+Bounded self-review and declared validation suffice; this kind or an area's risk alone does
+not require independent review. It cannot substitute for integrated milestone acceptance.
 
 ### `design-decision`
 
@@ -200,7 +208,8 @@ If source/test ownership changes, update the matching subsystem card in the same
 Do not copy active task/SHA/CI/deployment status into component cards.
 
 `sources` contains exact readable files only; `symbols` names real TS/TSX/JS/MJS
-declarations (internal declarations are allowed). `asset_roots` separately identifies
+top-level declarations (export is optional); nested/local declarations do not qualify.
+`asset_roots` separately identifies
 protected owner-supplied/owner-audit directories; it is never a preload or edit grant.
 Explicit empty `sources`/`tests` means there is no mapped code/test entry; consult
 the prerequisite contract before selecting implementation. It does not imply readiness.

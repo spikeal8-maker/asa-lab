@@ -13,7 +13,7 @@ const id = 'electronics.engine.example';
 const taskId = 'TASK-ELECTRONICS-EOPT1A-001';
 
 function taskMarkdown(metadata = {}) {
-  return `---\n${YAML.stringify({ task_id: taskId, kind: 'design-decision', risk: 'medium', semantic_change: 'no', roadmap_slice: 'E-OPT-1A', prerequisites: [], acceptance_boundary: 'slice', review: 'self', ...metadata })}---\n# Bounded task\n`;
+  return `---\n${YAML.stringify({ task_id: taskId, kind: 'analysis/inventory', risk: 'medium', semantic_change: 'no', roadmap_slice: 'E-OPT-1A', prerequisites: [], acceptance_boundary: 'slice', review: 'self', ...metadata })}---\n# Bounded task\n`;
 }
 
 // A disposable repository-shaped fixture: never mutate the checkout/current.yaml.
@@ -308,6 +308,7 @@ for (const kind of [
   'implementation',
   'maintenance',
   'repair',
+  'analysis/inventory',
   'design-decision',
   'component/peripheral',
   'deployment',
@@ -343,6 +344,10 @@ for (const [name, source] of [
   ['substring', 'export function runExampleExtra() {}'],
   ['import', 'import {runExample} from "./other";'],
   ['re-export', 'export {runExample} from "./other";'],
+  ['nested function', 'function outer() { function runExample() {} }'],
+  ['nested const', 'function outer() { const runExample = () => {}; }'],
+  ['nested block', 'if (true) { let runExample = 1; }'],
+  ['namespace', 'namespace Outer { export function runExample() {} }'],
 ]) {
   test(`rejects symbol present only in ${name}`, () => {
     const result = check((f) => {
@@ -353,7 +358,7 @@ for (const [name, source] of [
   });
 }
 
-test('accepts exported and internal declarations in TS/TSX/JS/MJS', () => {
+test('accepts top-level exported and internal declarations in TS/TSX/JS/MJS', () => {
   const result = check((f, c) => {
     c.sources = [
       'contexts/electronics/a.ts',
@@ -379,10 +384,43 @@ test('accepts exported and internal declarations in TS/TSX/JS/MJS', () => {
   assert.equal(result.status, 0, result.output);
 });
 
+for (const visibility of ['export ', '']) {
+  test(`accepts top-level ${visibility ? 'exported' : 'internal'} declaration kinds`, () => {
+    const result = check((f, c) => {
+      c.symbols = ['runExample', 'Example', 'fixed', 'mutable', 'legacy', 'Mode', 'Port', 'State'];
+      f.files['contexts/electronics/example.ts'] = [
+        'function runExample() {}',
+        'class Example {}',
+        'const fixed = 1;',
+        'let mutable = 2;',
+        'var legacy = 3;',
+        'type Mode = number;',
+        'interface Port {}',
+        'enum State { Ready }',
+      ]
+        .map((declaration) => visibility + declaration)
+        .join('\n');
+    });
+    assert.equal(result.status, 0, result.output);
+  });
+}
+
+test('accepts HIGH-area inventory with self-review and no semantic change', () => {
+  const result = check((f) => {
+    f.files[`${docs}/tasks/E-OPT-1A.md`] = taskMarkdown({ risk: 'high' });
+  });
+  assert.equal(result.status, 0, result.output);
+});
+
 for (const [name, metadata, expected] of [
   ['wrong semantic flag', { semantic_change: 'maybe' }, /invalid semantic_change/],
   ['boolean semantic flag', { semantic_change: false }, /invalid semantic_change/],
   ['unknown task kind', { kind: 'anything' }, /invalid task kind/],
+  [
+    'semantic inventory even with independent review',
+    { kind: 'analysis/inventory', semantic_change: 'yes', review: 'independent' },
+    /analysis\/inventory requires semantic_change=no/,
+  ],
   ['malformed task ID', { task_id: 'TASK-ELECTRONICS-BROKEN' }, /invalid task_id/],
   [
     'wrong declared Task ID',
@@ -391,7 +429,7 @@ for (const [name, metadata, expected] of [
   ],
   [
     'HIGH semantic change without review',
-    { risk: 'high', semantic_change: 'yes' },
+    { kind: 'design-decision', risk: 'high', semantic_change: 'yes' },
     /independent review is required/,
   ],
   ['CRITICAL operation without review', { risk: 'critical' }, /independent review is required/],
@@ -436,8 +474,8 @@ test('in-review task cannot be started as in-progress', () => {
 test('rejects duplicate YAML metadata keys', () => {
   const result = check((f) => {
     f.files[`${docs}/tasks/E-OPT-1A.md`] = taskMarkdown().replace(
-      'kind: design-decision',
-      'kind: maintenance\nkind: design-decision',
+      'kind: analysis/inventory',
+      'kind: maintenance\nkind: analysis/inventory',
     );
   });
   assert.equal(result.status, 1, result.output);

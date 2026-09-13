@@ -1,6 +1,6 @@
 ---
 task_id: TASK-ELECTRONICS-EOPT1A-001
-kind: design-decision
+kind: analysis/inventory
 risk: medium
 semantic_change: no
 roadmap_slice: E-OPT-1A
