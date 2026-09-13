@@ -10,6 +10,26 @@ component-specific routing and map to the global review classes: `low -> L0/L1`,
 This guide may add Scratch ownership/routing checks, but it must not weaken or replace the
 global `POST_STEP_REVIEW` / `CHALLENGE_REVIEW` requirements.
 
+## 0. Execution model — GitHub first
+
+Before Scratch work, follow [`docs/delivery/GITHUB_FIRST_DEVELOPMENT_PROTOCOL.md`](../../delivery/GITHUB_FIRST_DEVELOPMENT_PROTOCOL.md).
+
+For this lane:
+
+```text
+GitHub = canonical source of truth
+local computer = optional short runner
+GitHub Actions = authoritative production Docker / Chromium evidence
+one selected slice = one authoring context
+HIGH/CRITICAL review = separate reviewer context or human
+```
+
+Do not keep important Scratch state only in a local worktree, unpushed commit, Docker image or terminal session. After any tool/session failure, recover `main SHA → current.yaml task → PR/branch HEAD → divergence → exact-SHA CI` from GitHub before editing.
+
+Use the workstation only for formatting, unit tests, typecheck/lint and short focused checks when it is faster and reliable. Do not spend time reproducing the pinned production Scratch/Terser build locally on a memory-constrained Docker Desktop when GitHub Actions is the authoritative runner.
+
+Prefer reuse of an exact-digest pinned Scratch base build/artifact across protocol/branding/host slices when CI infrastructure supports it. Rebuild the full upstream bundle when the upstream pin or build inputs change.
+
 ## 1. Progressive disclosure
 
 Start with the smallest safe context:
