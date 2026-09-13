@@ -127,10 +127,10 @@ surfaces:
     - apps/web/src/api.ts
     - apps/api/src/courses.controller.ts
     - apps/api/src/learning-activities.controller.ts
-        - migrations/0137_author_draft_from_published_version.sql
-        - tests/courses/author-draft-from-version.pg.spec.ts
-        - tests/courses/author-draft-upgrade.pg.spec.ts
-        - e2e/learning-author-preview.spec.ts
+    - migrations/0137_author_draft_from_published_version.sql
+    - tests/courses/author-draft-from-version.pg.spec.ts
+    - tests/courses/author-draft-upgrade.pg.spec.ts
+    - e2e/learning-author-preview.spec.ts
     invariants:
     - LRN-VER-001
     - LRN-RUN-001
