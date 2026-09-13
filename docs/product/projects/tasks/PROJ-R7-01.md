@@ -3,52 +3,62 @@
 **Статус:** PREPARED / BLOCKED — coding не активирован  
 **Релиз:** R7 — Visibility, publication, public page, Remix  
 **Parent Issue:** #38  
+**Prepared Issue:** #211  
 **Аудит:** `docs/product/ASA_PROJECTS_CURRENT_ARCHITECTURE_AUDIT.md`  
-**Audit baseline:** `main@3498dd2c8c2c4ce33b36d3cafa94b85dcd39009e`  
+**Audit baseline:** `main@b31e113a19f6234a0504ff6bade991294b10d38b`  
 **TARGET:** `docs/product/ASA_PROJECTS_IMPLEMENTATION_TZ.md`
 
 ---
 
-# 0. Почему задача пока BLOCKED
+# 0. Activation gate
 
-Эта card подготовлена для исполнения, но **не разрешает coding сама по себе**.
+Эта task card полностью подготовлена, но **сама по себе не разрешает coding**.
 
-Перед стартом одновременно должны быть выполнены условия:
+Старт возможен только если одновременно:
 
 1. R3 Project Hub/Editor Host принят владельцем;
-2. текущая R3B задача в `docs/execution/current.yaml` завершена/переведена владельцем;
-3. `current.yaml` явно выбирает этот R7 slice или его актуальный task id;
+2. canonical `docs/execution/current.yaml` больше не держит незавершённую R3B как активный projects slice;
+3. владелец явно выбирает PROJ-R7-01 / актуальный task id в `current.yaml`;
 4. `pnpm control-plane:check` PASS;
-5. релевантные изменения `origin/main` после audit baseline проверены по refresh rule.
+5. актуальный `origin/main` сравнен с audit baseline;
+6. при изменении релевантных Project/Gallery/Identity/Learning paths выполнен bounded delta refresh аудита.
 
-На момент подготовки PR #112 остаётся Draft/open и projects lane остаётся `TASK-R3B-PROJECT-LIFECYCLE-001` in progress.
+На проверенном baseline projects lane всё ещё:
+
+- `TASK-R3B-PROJECT-LIFECYCLE-001`;
+- Issue #37;
+- PR #112 Draft/open;
+- status `in_progress`;
+- owner acceptance `pending`.
+
+**Нельзя:** активировать R7 этой card, править `current.yaml` из feature-ветки ради саморазрешения, автоматически переходить к R7-02.
 
 ---
 
-# 1. Пользовательский результат этого среза
+# 1. Пользовательский результат
 
-После PROJ-R7-01 backend и data layer должны иметь честный фундамент публикации:
+После принятого PROJ-R7-01 backend/data layer должен обеспечивать честную основу публикации:
 
 ```text
 Working Project
 → exact immutable ProjectVersion
-→ publication identity
+→ Publication identity
 → immutable PublicationRevision
 → public OR unlisted access
-→ revoke/unpublish без удаления Project/ProjectVersion
+→ revoke/unpublish без удаления Project/ProjectVersion/history
 ```
 
 Пользовательский смысл:
 
-- владелец публикует **конкретную неизменяемую версию** своей работы;
+- владелец публикует конкретную неизменяемую версию;
 - дальнейшее редактирование Working Project не меняет уже опубликованный результат;
-- public publication может быть прочитана anonymous безопасной metadata projection;
-- unlisted publication открывается только по revocable/expiring share link;
-- снятие публикации/revoke не удаляет Project/ProjectVersion/history;
-- существующая «Сделать свою версию»/copy semantics после миграции берёт exact published ProjectVersion, а не текущий mutable draft;
-- legacy Gallery остаётся работоспособной до R7-02/R8 migration.
+- eligible public publication имеет безопасную anonymous metadata projection;
+- unlisted publication открывается только через tokenized revocable/expiring ShareLink;
+- revoke/unpublish не уничтожает Project/ProjectVersion/publication history;
+- copy/remix берёт exact published ProjectVersion, а не текущий mutable draft;
+- legacy Gallery остаётся работоспособной через compatibility path.
 
-Полный красивый Public Project Page не входит в этот срез — это PROJ-R7-02.
+**Не входит:** красивый final Public Project Page, discovery redesign, interactive viewer, media editor, comments. Это отдельные slices.
 
 ---
 
@@ -59,30 +69,29 @@ Working Project
 3. `project_versions` остаётся canonical immutable ProjectVersion store.
 4. Public Projects не создаёт второй Working Project model.
 5. PublicationRevision всегда ссылается на exact `project_versions.id`.
-6. Snapshot — preview, а не замена ProjectVersion.
-7. Public read не получает mutable `project_drafts.document_json`.
-8. Все publish/revoke/share/copy mutations авторизуются server-side.
-9. Collections domain не дублируется.
-10. Provenance текущего copy flow сохраняется.
-11. Legacy `/gallery` не удаляется этим срезом.
-12. Classroom/assignment semantics не переписываются этим срезом.
+6. Snapshot используется как preview/fallback, а не как версия проекта.
+7. Новый anonymous/public contract не отдаёт `project_drafts.document_json`.
+8. Publish/revoke/share/copy mutations авторизуются server-side.
+9. Collections не дублируются bookmarks/favorites storage.
+10. Existing copy provenance сохраняется permanent/immutable.
+11. Legacy `/gallery` не удаляется этим slice.
+12. Classroom/Learning semantics не переписываются «заодно».
 
 ---
 
-# 3. Подтверждённый AS-IS, который переиспользуется
+# 3. Подтверждённый AS-IS
 
 ## REUSE
 
 - `projects.id` — canonical Project identity;
-- `project_versions` + immutable trigger;
-- `PgProjectRepository.createCheckpoint()`;
-- `project_snapshots` как preview/static fallback;
-- provenance `projects.copied_from_*` + immutable trigger;
-- current principal/account/session infrastructure;
-- existing `audit_events` infrastructure;
-- `collections` / `collection_items` domain;
-- existing Gallery rows/reactions as migration input;
-- existing Gallery E2E as regression input.
+- `project_versions` + immutability trigger;
+- existing checkpoint/version creation path;
+- `project_snapshots` как static preview;
+- `projects.copied_from_*` + provenance immutability;
+- current principal/account/session mechanisms;
+- Collections (`collections`, `collection_items`, `/api/collections`);
+- Gallery data/reactions as migration input;
+- `e2e/gallery.spec.ts` as regression input.
 
 ## MODIFY
 
@@ -90,432 +99,394 @@ Working Project
 - `gallery_publish()`;
 - `gallery_unpublish()`;
 - `project_visibility_set()`;
-- `gallery_work()` public boundary;
+- `gallery_work()` / public detail boundary;
 - `gallery_copy_to_projects()` source selection;
-- `GalleryController` read/auth split.
+- `GalleryController` authenticated/pubic read split.
 
 ## BUILD
 
-- immutable PublicationRevision storage;
-- revocable/expiring unlisted ShareLink storage/contract;
+- immutable PublicationRevision state;
+- project-specific tokenized ShareLink;
 - safe anonymous publication metadata projection;
-- migration/convergence for existing publication rows.
+- additive convergence of legacy Gallery publications.
 
 ## DO-NOT-TOUCH
 
 - Working Draft semantics;
 - editor autosave;
 - 3D/Electronics/Blocks editor internals;
-- Collections as a separate storage concept;
+- separate Collections storage concept;
 - classroom grading/review;
 - unrelated Learning flows.
 
+### Important sharing finding
+
+`migrations/0059_courses_and_sharing.sql` has `content_shares`, but its `subject_kind` is `assignment | course`.
+
+It is **Learning content sharing, not Project ShareLink**. Do not extend it into project publication sharing merely because the word `share` exists.
+
 ---
 
-# 4. Data model target
+# 4. Target data model
 
-Exact SQL names can follow current repository naming, but semantics are mandatory.
+Exact names follow repository conventions at implementation time; semantics below are mandatory.
 
-## 4.1. Publication identity
+## 4.1 Publication identity
 
-Existing `project_publications` should be evolved additively or retained as compatibility/current-state projection.
-
-It must identify one publication for one canonical Project without copying Working Project payload.
+Evolve `project_publications` additively or retain it as compatibility/current-state projection.
 
 Required concepts:
 
 - canonical project id;
-- owner/publisher principals;
-- current live revision reference;
-- publication/access state;
+- owner/publisher principal;
+- current live PublicationRevision reference;
+- public/unlisted/revoked state;
 - created/published/revoked timestamps as required;
-- moderation-compatible state foundation from R7 Issue #38.
+- compatibility with existing Gallery data.
 
-## 4.2. PublicationRevision
+No Working Project payload copy.
 
-Add immutable revision storage with at minimum:
+## 4.2 PublicationRevision
 
-- `id`;
+Immutable storage containing at minimum:
+
+- id;
 - publication identity FK;
-- monotonic revision number or equivalent stable ordering;
+- stable revision number/order;
 - **`project_version_id` FK → `project_versions.id`**;
 - public title/summary/description projection;
-- tags;
-- license;
-- cover/static preview reference or deterministic reference to the selected snapshot;
-- created/published actor principal;
-- created/published timestamp;
-- schema/version marker if DTO evolution needs it.
+- public tags/license projection;
+- cover/static preview reference;
+- actor principal;
+- published timestamp;
+- schema/version marker if needed.
 
-PublicationRevision is immutable after publish.
+Revision cannot be mutated after publish.
 
-Author draft/editor for publication metadata is a later slice (`PROJ-R7-05`) and must not be silently implemented here unless required to make the minimal publication transaction coherent.
+Publication-draft editor belongs to later `PROJ-R7-05`; do not silently build it here beyond the minimal transaction needed for publication.
 
-## 4.3. ShareLink
+## 4.3 Project ShareLink
 
-For unlisted access add tokenized link semantics:
+Unlisted access requires:
 
-- opaque high-entropy token returned once or safe equivalent;
-- only hash/digest persisted if repository security conventions support it;
+- opaque high-entropy token;
+- persisted digest/hash when consistent with repository security conventions;
 - publication/revision target;
-- created_by;
-- created_at;
-- optional `expires_at`;
-- `revoked_at`;
-- revocation must immediately deny new reads;
-- token must never grant mutation rights;
-- unlisted content is absent from public discovery/index.
+- created_by / created_at;
+- optional expires_at;
+- revoked_at;
+- immediate revoke effect;
+- no mutation permissions from the token;
+- absence from public discovery/index.
 
 ---
 
-# 5. Legacy publication convergence
+# 5. Legacy convergence
 
-Current `project_publications` knows `snapshot_revision`, but **does not know exact historical `ProjectVersion`**.
+Current `project_publications` knows `snapshot_revision`, but not historical exact `ProjectVersion`.
 
-Therefore exact historical document state of an old publication cannot be reconstructed from current data with certainty.
+Therefore migration must **not** claim that old `snapshot_revision` is a ProjectVersion or that current draft equals the historical publication.
 
-Forbidden migration behavior:
+Required strategy:
 
-- pretend `snapshot_revision` is a `ProjectVersion`;
-- silently claim current draft was historically the published version;
-- delete old publications because they lack version references.
+1. preserve existing publication identity/data/URLs during compatibility period;
+2. freeze a deterministic immutable convergence source for legacy rows using canonical ProjectVersion mechanism, or preserve legacy static read until explicit owner republish if that is the safer accepted strategy;
+3. mark internally that initial revision is legacy convergence, not a historical assertion;
+4. bind new PublicationRevision to an actual ProjectVersion;
+5. preserve available snapshot/preview;
+6. all new publish actions after migration use exact ProjectVersion;
+7. migration is idempotent or has documented deterministic forward-fix.
 
-Required convergence strategy:
-
-1. preserve all existing publication identities and user-visible URLs/data;
-2. for each legacy publication create/freeze an immutable convergence source from the document that is actually available at migration time, using the canonical ProjectVersion mechanism;
-3. mark migration provenance in an internal/audit-safe way such as `legacy_convergence`, not as a historical claim;
-4. bind the initial PublicationRevision to that newly frozen ProjectVersion;
-5. retain current static snapshot/cover where available;
-6. from migration forward all new publish actions use exact ProjectVersion;
-7. migration must be idempotent/re-runnable or have a deterministic forward-fix strategy.
-
-If repository migration policy prefers owner-triggered republish rather than automatic convergence, implementation must preserve legacy static public availability and explicitly document that decision; it may not expose mutable current draft as the new target contract.
+Never delete legacy publications merely because historical exact version cannot be reconstructed.
 
 ---
 
 # 6. Publish transaction
 
-Target publish flow:
+Target flow:
 
 1. resolve actor from server session;
-2. resolve canonical Project and ownership/capability;
+2. resolve canonical Project and object authorization;
 3. enforce publication safety guards;
-4. select an existing ProjectVersion OR atomically create an immutable checkpoint from current draft;
-5. validate module/version compatibility needed for later public artifact;
-6. create immutable PublicationRevision referencing exact ProjectVersion;
-7. atomically move publication current/live pointer to that revision;
-8. update public/unlisted access state;
-9. write audit event;
-10. return sanitized publication state — never raw Working Draft.
+4. select existing ProjectVersion or atomically create immutable checkpoint from current draft;
+5. verify version belongs to Project;
+6. create immutable PublicationRevision;
+7. atomically move publication live/current pointer;
+8. apply public/unlisted access state;
+9. emit existing-compatible audit/log evidence if infrastructure supports it; if exact audit mechanism is not found, create only the minimal scoped auditable record required by R7 rather than inventing a second generic audit system;
+10. return sanitized publication state, never Working Draft.
 
-Failure before commit leaves previous live publication unchanged.
-
-No partial state where publication points to a revision that does not exist.
+Failure before transaction commit leaves previous live publication unchanged.
 
 ---
 
 # 7. Safety guards
 
-Before publish the server must reject at least:
+Publish must reject at least:
 
 - unauthenticated actor;
 - StudentSeat direct public publish;
 - non-owner/non-authorized actor;
 - trashed/deleted/ineligible Project;
-- assignment work when canonical R7 policy forbids publication;
-- account lacking required verification/capability according to current Identity contract;
-- invalid visibility/access mode;
-- ProjectVersion that does not belong to Project;
-- malformed/unsupported version state where publication cannot be represented safely.
+- assignment work when canonical policy forbids publication;
+- account that does not satisfy current verification/publish eligibility;
+- invalid access mode;
+- ProjectVersion belonging to another Project;
+- malformed/unsupported state.
 
-Exact current Identity verification signal must be found in latest main at execution time. **Do not introduce a new global `role`, `verified` boolean or account type just for this task.**
+Exact Identity verification signal is resolved from **then-current main**. Do not add a new global `role`, `verified` boolean or account type for this feature.
 
-Teacher publication of StudentSeat work must be reconciled explicitly with current Gallery behavior and the canonical R7/minor policy before preserving or changing it. Do not silently broaden child publishing rights.
+Current teacher-sharing of StudentSeat work must be reconciled explicitly with R7/minor policy; do not silently widen child publication rights.
 
 ---
 
-# 8. Anonymous read contract
+# 8. Anonymous public read
 
-Do **not** make legacy `GET /api/gallery/:projectId/work` anonymous while it still returns `document_json`.
+Do **not** make legacy `GET /api/gallery/:projectId/work` anonymous while it returns mutable `document_json`.
 
-Create/extend a sanitized read contract that returns only safe publication metadata required before PROJ-R7-03 artifact work.
+Create/extend a sanitized public metadata contract containing only what PROJ-R7-01 needs:
 
-Minimum anonymous public response:
-
-- stable publication/public identity;
-- canonical project/public slug identity as adopted by routing;
+- stable public/publication identity;
 - title;
-- public author projection;
+- safe author projection;
 - module key;
 - published timestamp;
-- revision identity/version metadata safe for client;
+- current publication revision identity;
 - description/summary;
 - tags;
 - license;
-- cover/static preview URL/reference;
-- provenance summary safe for public display;
-- capabilities booleans that are known without raw document, if needed.
+- static preview/cover reference;
+- safe provenance summary;
+- known safe capability flags if needed.
 
-Must NOT include:
+Must not contain:
 
-- `project_drafts.document_json`;
-- tenant/workspace/classroom ids;
-- email/login/private profile data;
-- raw authz fields;
+- Working Draft JSON;
+- tenant/workspace/classroom IDs;
+- private profile/email/login data;
+- authz internals;
 - school/class membership;
-- secrets/share token digest.
+- ShareLink digest/token.
 
-Anonymous request for private/revoked/ineligible content returns the canonical hidden/404 behavior.
+Private/revoked/ineligible returns canonical hidden/404 behavior.
 
 ---
 
-# 9. Unlisted read contract
+# 9. Unlisted read
 
-Unlisted is not merely `visibility='link'` plus a guessable project URL.
+Unlisted is not `visibility='link'` plus a guessable Project URL.
 
 Required flow:
 
 ```text
-owner creates share link
-→ receives opaque URL/token
-→ unauthenticated viewer opens it
-→ server resolves non-revoked/non-expired token
-→ sanitized publication projection returned
-→ item absent from discovery/search
+owner creates ShareLink
+→ gets opaque URL/token
+→ viewer opens tokenized URL
+→ server validates not revoked/not expired
+→ sanitized publication projection
+→ publication remains absent from discovery/search
 ```
 
-Revocation:
-
-- denies subsequent reads through token;
-- does not delete Project;
-- does not delete ProjectVersion;
-- does not rewrite immutable PublicationRevision.
+Revocation does not delete Project, ProjectVersion or immutable PublicationRevision.
 
 ---
 
 # 10. Copy/remix convergence
 
-Existing `gallery_copy_to_projects()` is reused semantically but modified technically.
-
-Current defect: it selects `project_drafts.document_json`.
-
-Target:
+Existing `gallery_copy_to_projects()` semantics are reused:
 
 ```text
 live PublicationRevision
 → exact project_version_id
 → project_versions.document_json
-→ new independent personal Project + initial draft
-→ immutable copied_from provenance
+→ independent private personal Project + draft
+→ permanent provenance
 ```
 
-Copy must fail for:
+Copy fails for revoked/unavailable source and for unlisted source without valid share authorization.
 
-- unpublished/revoked source;
-- unlisted source without valid share authorization;
-- source where copy policy forbids it when that policy is introduced;
-- author copying own source if existing product behavior intentionally keeps that rule.
-
-Original is never mutated.
+Original never mutates.
 
 ---
 
-# 11. Unpublish / revoke semantics
+# 11. Revoke / unpublish
 
-Current `gallery_unpublish()` DELETE + reaction cascade must not remain the target lifecycle by accident.
+Current DELETE + reaction cascade is legacy behavior and not target lifecycle.
 
-R7-01 must define non-destructive publication state transition:
+R7-01 must provide non-destructive state transition:
 
-- public discovery read stops;
-- direct public read stops or follows policy;
-- share links can be separately revoked;
-- Project remains intact;
-- ProjectVersion remains intact;
-- PublicationRevision history remains intact;
-- audit records action/reason/source;
-- restoration/republish creates or activates a valid new state without rewriting past revisions.
+- public/discovery access stops;
+- direct public access follows canonical policy;
+- ShareLinks can be revoked separately;
+- Project remains;
+- ProjectVersion remains;
+- PublicationRevision history remains;
+- action is auditable;
+- republish does not rewrite past revisions.
 
-Reaction retention across unpublish must be an explicit product/data decision. Migration must not lose existing reactions silently.
-
----
-
-# 12. API principles
-
-Do not invent URL names merely to look clean.
-
-Preferred sequence:
-
-1. preserve existing `/api/gallery` compatibility;
-2. introduce publication-specific contract only where semantics genuinely differ;
-3. public anonymous reads must be safe-by-construction;
-4. authenticated mutations resolve principal server-side;
-5. response contracts are additive/versioned as needed;
-6. errors follow repository conventions;
-7. OpenAPI/contracts updated if these endpoints are covered by repository contract tooling.
-
-The task card does not require a specific `/api/public-projects` namespace. Final URL is chosen from actual controller architecture during implementation.
+Reaction retention across revoke/unpublish must be an explicit migration/product decision; do not silently lose existing reactions.
 
 ---
 
-# 13. Likely affected paths
+# 12. API rules
 
-This list is a preparation map, not permission to modify every file.
-
-Expected:
-
-- one new additive migration with current next migration number at execution time;
-- `apps/api/src/gallery.controller.ts` or a narrowly scoped publication controller/service;
-- `apps/api/src/tokens.ts` only if new injectable service is required;
-- `apps/api/src/app.module.ts` only if wiring is required;
-- `contexts/projects/**` only for narrow reusable publication/version access if current ports are insufficient;
-- project/publication API tests;
-- `e2e/gallery.spec.ts` regression adaptation/additions;
-- new focused R7 publication tests;
-- OpenAPI/contract files if repository currently documents the touched API.
-
-Do not touch frontend catalog layout in this slice except the smallest compatibility change required to keep existing Gallery working.
+- preserve `/api/gallery` compatibility during migration;
+- add publication-specific contract only where semantics truly differ;
+- anonymous read is safe-by-construction;
+- mutations derive actor server-side;
+- response changes additive/versioned as needed;
+- errors follow repository conventions;
+- update OpenAPI/contracts if touched API is under contract tooling;
+- no requirement to invent `/api/public-projects` merely for naming aesthetics.
 
 ---
 
-# 14. Tests required
+# 13. Expected affected paths
 
-## Unit/domain
+Preparation map, not permission to edit everything:
 
-- PublicationRevision immutability;
-- project-version ownership/project relation;
-- publication state transitions;
-- share link expiry/revoke validation;
-- public DTO sanitization.
+- one additive migration using then-current migration number;
+- `apps/api/src/gallery.controller.ts` and/or one narrowly scoped publication controller/service;
+- `apps/api/src/tokens.ts` / `app.module.ts` only if service wiring is required;
+- `contexts/projects/**` only for narrow version access if existing ports are insufficient;
+- publication DB/API tests;
+- `e2e/gallery.spec.ts` regression adaptation/addition;
+- a focused R7 publication test suite/gate;
+- OpenAPI/contract files if currently applicable.
+
+Do not redesign catalog UI in this slice.
+
+---
+
+# 14. Required tests
 
 ## DB/integration
 
-- migration on non-empty database with existing publications/reactions/collections;
-- legacy convergence creates valid exact ProjectVersion references;
+- migration on non-empty DB with existing publication/reaction/collection rows;
+- legacy convergence preserves data and binds real ProjectVersion;
 - new publish binds exact ProjectVersion;
-- working draft changes do not change live revision;
-- unpublish/revoke preserves Project/ProjectVersion/history;
-- copy uses published version, not latest draft;
-- invalid cross-project version reference rejected;
+- working draft edits do not affect live revision;
+- revoke preserves Project/ProjectVersion/history;
+- copy uses exact published version;
+- cross-project version reference rejected;
 - StudentSeat/assignment/unauthorized negatives;
-- unlisted token expiry/revocation;
-- public list excludes unlisted/revoked.
+- ShareLink expiry/revoke;
+- unlisted/revoked absent from public discovery.
 
 ## API
 
-- anonymous public metadata read succeeds;
-- anonymous private/unpublished read denied;
-- legacy raw `work.document` is not newly exposed anonymous;
-- owner publish/revoke;
+- anonymous eligible public metadata succeeds;
+- anonymous private/revoked denied;
+- raw mutable draft not exposed;
+- owner publish/revoke succeeds;
 - non-owner publish denied;
-- sanitized DTO contains no tenant/class/private document;
-- share token is not leaked in logs/DTO.
+- public DTO has no tenant/class/private document;
+- share token/digest not leaked.
 
 ## E2E / regression
 
-At minimum preserve/adapt `e2e/gallery.spec.ts` and add a bounded R7 journey:
+Preserve/adapt `e2e/gallery.spec.ts` and add bounded R7 journey:
 
 ```text
 Owner creates Project
-→ creates/saves content
-→ publish exact immutable version
-→ mutate working draft afterwards
-→ anonymous opens publication and still sees original published revision metadata
-→ authenticated B copies publication
-→ B's copy comes from exact published version
+→ freezes/publishes exact ProjectVersion
+→ changes Working Draft afterwards
+→ anonymous reads same live PublicationRevision
+→ B copies publication
+→ B receives version that was actually published
 → owner revokes/unpublishes
 → anonymous read denied
-→ owner Project and versions remain intact
+→ owner Project + ProjectVersions remain
 ```
 
-Where PROJ-R7-03 public artifact is not yet implemented, exact-document comparison may be asserted at DB/API integration level instead of exposing raw document to browser.
+Until PROJ-R7-03 artifact exists, exact document equality may be asserted in DB/API integration tests rather than exposing raw document to browser.
+
+Also keep My Projects regression protection (`e2e/project-hub.spec.ts`).
 
 ---
 
 # 15. Acceptance Criteria
 
-**R7-01-AC01** Publication points to an existing exact immutable `project_versions.id`.  
-**R7-01-AC02** Working draft edits after publish do not mutate live PublicationRevision.  
-**R7-01-AC03** Existing legacy publications converge without deleting Project, provenance, Collections or reactions silently.  
-**R7-01-AC04** Anonymous can read eligible public sanitized publication metadata.  
-**R7-01-AC05** Anonymous cannot read private/revoked/ineligible publication.  
-**R7-01-AC06** Unlisted uses a revocable/expiring tokenized ShareLink and is absent from discovery.  
-**R7-01-AC07** Publish/revoke authorization is server-side.  
-**R7-01-AC08** StudentSeat/assignment/publication-policy negatives are enforced according to canonical current contracts.  
-**R7-01-AC09** `gallery_copy_to_projects` or its successor copies exact published ProjectVersion, not current draft.  
-**R7-01-AC10** Provenance remains permanent on the copied Project.  
-**R7-01-AC11** Unpublish/revoke does not delete Project or ProjectVersion and preserves immutable publication history.  
-**R7-01-AC12** Raw mutable `project_drafts.document_json` is not part of the new anonymous public contract.  
-**R7-01-AC13** Existing My Projects/editor/autosave/checkpoint flows do not regress.  
-**R7-01-AC14** Existing Gallery remains usable through compatibility path during migration.  
-**R7-01-AC15** Required focused + repository gates for the activated task pass on the exact final SHA.  
-**R7-01-AC16** No next R7/R8 slice starts automatically.
+**R7-01-AC01** Publication points to exact immutable `project_versions.id`.  
+**R7-01-AC02** Working Draft edits cannot mutate live PublicationRevision.  
+**R7-01-AC03** Legacy publications converge without silent deletion of Project/provenance/Collections/reactions.  
+**R7-01-AC04** Anonymous reads eligible public sanitized metadata.  
+**R7-01-AC05** Anonymous cannot read private/revoked/ineligible content.  
+**R7-01-AC06** Unlisted uses revocable/expiring tokenized Project ShareLink and is not discoverable.  
+**R7-01-AC07** Publish/revoke/copy authz is server-side.  
+**R7-01-AC08** StudentSeat/assignment/current verification negatives follow canonical current contracts.  
+**R7-01-AC09** Copy uses exact published ProjectVersion, not current draft.  
+**R7-01-AC10** Provenance remains permanent.  
+**R7-01-AC11** Revoke does not delete Project/ProjectVersion/immutable publication history.  
+**R7-01-AC12** Raw mutable draft is absent from new anonymous public contract.  
+**R7-01-AC13** My Projects/editor/autosave/checkpoint flows do not regress.  
+**R7-01-AC14** Legacy Gallery remains usable through compatibility period.  
+**R7-01-AC15** Activated task gates pass on exact final SHA.  
+**R7-01-AC16** Agent stops after this slice; R7-02/R8 do not start automatically.
 
 ---
 
 # 16. Evidence required
 
-Implementation report/PR/commit evidence must include:
+Report/PR/commit evidence:
 
-- baseline `origin/main` SHA;
+- actual origin/main baseline SHA;
 - migration/schema diff;
-- legacy publication convergence count/result;
-- REUSE/MODIFY/BUILD matrix updated from audit;
+- legacy convergence result/count;
+- updated REUSE/MODIFY/BUILD matrix;
 - API contract diff;
 - permission negative matrix;
-- proof that copy source is ProjectVersion;
-- proof that anonymous DTO contains no raw document/private identifiers;
-- tests actually run;
-- cache status where repository gate policy requires it;
-- CI result for exact final SHA if pushed;
-- deployment = `not requested` unless owner explicitly requests deployment;
-- database production action = `not requested` unless explicitly requested;
+- proof copy source is ProjectVersion;
+- proof anonymous DTO excludes raw/private data;
+- exact test commands/results;
+- cache status where governance requires;
+- CI conclusion for exact pushed SHA when applicable;
+- deployment/database production action = `not requested`, unless owner separately authorizes;
 - next allowed task = STOP / owner decision.
 
 ---
 
 # 17. Focused gate preparation
 
-A dedicated focused script should be added when this task is activated, for example repository-convention-equivalent to:
+When activated, implementation should add a repository-convention focused command, e.g. the then-accepted equivalent of:
 
 ```text
 pnpm gate:projects-r7-01
 ```
 
-It should cover only the publication foundation plus required dependent builds/contracts/tests and must be the same command locally and in focused CI.
+The exact command is not written into `current.yaml` before the script/workflow exists.
 
-Do not hardcode this command into `current.yaml` until its script/workflow exists in the implementation slice.
-
-General repository gate remains whatever `current.yaml` requires at execution time.
+General gate remains whatever activated `current.yaml` requires.
 
 ---
 
 # 18. STOP conditions
 
-Stop and return to owner if:
+STOP if:
 
-- R3 has not been accepted/closed for execution transition;
-- current.yaml does not select this slice;
-- current main changed the publication/project-version model materially and audit is stale;
-- exact account verification policy cannot be resolved from current Identity contract;
-- assignment publication eligibility cannot be resolved without changing Learning semantics;
-- migration would require destructive rewrite of existing Project/version/user data;
-- unrelated CI failure would require touching another module;
-- acceptance criteria are met — report and STOP, do not start R7-02.
+- R3 not accepted;
+- `current.yaml` does not select this slice;
+- relevant main changes make audit stale;
+- Identity publish eligibility cannot be resolved from current contract;
+- assignment publication policy would require unapproved Learning redesign;
+- migration would require destructive rewrite of Project/version/user data;
+- unrelated CI failure would require scope expansion;
+- acceptance criteria are complete — report and STOP.
 
 ---
 
-# 19. Activation instruction for owner/control plane
+# 19. Activation handoff
 
-When R3 is accepted and the owner chooses R7-01, the control-plane transition should select a single projects/public-projects slice that references:
+When owner chooses R7-01, control-plane task must reference:
 
 ```text
 docs/product/ASA_PROJECTS_IMPLEMENTATION_TZ.md
 docs/product/ASA_PROJECTS_CURRENT_ARCHITECTURE_AUDIT.md
 docs/product/projects/tasks/PROJ-R7-01.md
-GitHub Issue #38 (parent scope)
+GitHub Issue #211
+Parent R7 Issue #38
 ```
 
-The activated task must use the **then-current `main` SHA**, not the audit baseline blindly.
+Use then-current `main`, not this baseline blindly.
 
-This card is intentionally **PREPARED / BLOCKED** until that owner transition occurs.
+**PREPARATION RESULT:** task card is executable in scope/acceptance terms, but remains intentionally **BLOCKED** until owner/control-plane transition.
