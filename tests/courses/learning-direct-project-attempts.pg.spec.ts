@@ -888,6 +888,14 @@ describe('LRN-VS-002 canonical direct project attempt', () => {
       accepted_attempt_id: started.attempt_id,
       assessment_result_id: accepted.assessment_result_id,
     });
+    expect(
+      (
+        await admin.query('SELECT reason FROM grade_change_events WHERE gradebook_entry_id=$1', [
+          initialGrade.id,
+        ])
+      ).rows,
+    ).toEqual([{ reason: 'Проверка работы' }]);
+
     await admin.query(
       "UPDATE learner_identity_links SET status='inactive',disabled_at=now() WHERE seat_id=$1",
       [seat],

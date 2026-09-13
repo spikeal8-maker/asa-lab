@@ -128,7 +128,7 @@ BEGIN
       tenant_id,gradebook_entry_id,assessment_result_id,actor_principal_id,event_kind,reason,snapshot)
     VALUES(v_scope.tenant_id,v_gradebook_id,v_event_result_id,p_actor_principal_id,
       CASE WHEN v_created THEN 'published' ELSE 'corrected' END,
-      COALESCE(NULLIF(trim(p_reason),''),'????????????? ?????????? ??????????'),
+      COALESCE(NULLIF(trim(p_reason),''),'Синхронизация выбранного результата'),
       jsonb_build_object(
         'participationId',p_participation_id,
         'triggerResultRevisionId',p_trigger_result_id,
@@ -238,7 +238,7 @@ BEGIN
  END IF;
  SELECT public.learning_gradebook_projection_sync_internal(
    v_attempt.activity_participation_id,p_reviewer_principal_id,v_result,
-   COALESCE(NULLIF(trim(p_reason),''),'????????? ????????')
+   COALESCE(NULLIF(trim(p_reason),''),'Проверка работы')
  ) INTO v_gradebook;
  RETURN QUERY SELECT 'ok'::varchar,v_result,v_gradebook,
    'closed'::varchar,v_percentage;
