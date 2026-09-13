@@ -136,6 +136,39 @@ class AgentContextTests(unittest.TestCase):
         self.assertIn("delivery: docs/delivery/AGENT_CHANGE_WORKFLOW.md", rendered)
         self.assertIn("  docs/delivery/AGENT_CHANGE_WORKFLOW.md", rendered)
 
+    def test_doc_hints_prefer_start_here_over_readme(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            document = fixture(root)
+            (root / "docs/product/electronics/START_HERE.md").write_text(
+                "# compact router\n", encoding="utf-8"
+            )
+            context = MODULE.build_context(
+                root, document, lane(document), git_status=available()
+            )
+        self.assertIn("docs/product/electronics/START_HERE.md", context["contract_documents"])
+        self.assertNotIn("docs/product/electronics/README.md", context["contract_documents"])
+
+    def test_dirty_context_requires_recovery(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            document = fixture(root)
+            context = MODULE.build_context(
+                root, document, lane(document), git_status=available("outside.txt")
+            )
+            rendered = MODULE.render_text(context)
+        self.assertTrue(context["recovery"]["required"])
+        self.assertIn("pnpm agent:recover --scope electronics --check", rendered)
+
+    def test_clean_context_does_not_require_recovery(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            document = fixture(root)
+            context = MODULE.build_context(
+                root, document, lane(document), git_status=available()
+            )
+        self.assertFalse(context["recovery"]["required"])
+
     def test_git_status_failure_is_not_a_clean_tree(self):
         with tempfile.TemporaryDirectory() as raw:
             snapshot = MODULE._git_status(Path(raw))

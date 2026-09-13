@@ -1,0 +1,171 @@
+schema_version: 1.0.0
+area: engine-worker-clock
+purpose: Pure engine, solver/model boundary, Worker execution and canonical simulation time.
+components:
+  electronics.engine.public-api:
+    ownership: asa
+    risk: high
+    contracts:
+    - docs/product/electronics/README.md#4-архитектура-продукта
+    - docs/product/electronics/ASA_ELECTRONICS_OPTIMIZATION_PLAN_V2.md#4-e-opt-1--portable-engine-boundary
+    sources:
+    - contexts/electronics/index.ts
+    - contexts/electronics/domain/document.ts
+    - contexts/electronics/domain/simulation.ts
+    tests:
+    - contexts/electronics/testing/simulation-contract.spec.ts
+    - contexts/electronics/testing/solver.spec.ts
+    dependencies:
+    - electronics.engine.document
+    - electronics.engine.solver
+    notes: Route public export and consumer inventory here; target boundary and prerequisites belong to the roadmap.
+    symbols:
+    - parseElectronicsDocument
+    - compileCircuit
+    - analyseCircuit
+  electronics.engine.document:
+    ownership: asa
+    risk: high
+    contracts:
+    - docs/product/electronics/README.md#5-circuitdocument
+    sources:
+    - contexts/electronics/domain/document.ts
+    tests:
+    - contexts/electronics/testing/simulation-contract.spec.ts
+    - contexts/electronics/testing/simulation-input-digest.spec.ts
+    dependencies: []
+    symbols:
+    - parseElectronicsDocument
+  electronics.engine.netlist:
+    ownership: asa
+    risk: high
+    contracts:
+    - docs/product/electronics/README.md#4-архитектура-продукта
+    sources:
+    - contexts/electronics/domain/netlist.ts
+    tests:
+    - contexts/electronics/testing/solver.spec.ts
+    dependencies:
+    - electronics.engine.document
+    symbols:
+    - buildNetlist
+  electronics.engine.solver:
+    ownership: asa
+    risk: high
+    contracts:
+    - docs/product/electronics/README.md#10-электрическая-модель
+    - docs/product/electronics/README.md#12-численная-приёмка
+    - docs/product/electronics/ASA_ELECTRONICS_OPTIMIZATION_PLAN_V2.md#7-e-opt-4--solver-and-devicemodel-hardening
+    sources:
+    - contexts/electronics/domain/solver.ts
+    - contexts/electronics/domain/linear-system.ts
+    - contexts/electronics/domain/simulation.ts
+    tests:
+    - contexts/electronics/testing/solver.spec.ts
+    - contexts/electronics/testing/benchmark-corpus.spec.ts
+    dependencies:
+    - electronics.engine.netlist
+    - electronics.engine.device-model
+    notes: Do not add component-specific branches when DeviceModel/profile can own behaviour.
+    symbols:
+    - solveCircuit
+    - solveCircuitWithHeldArduino
+    - compileCircuit
+    - analyseCircuit
+  electronics.engine.device-model:
+    ownership: asa
+    risk: high
+    contracts:
+    - docs/product/electronics/README.md#10-электрическая-модель
+    - docs/product/electronics/ASA_ELECTRONICS_OPTIMIZATION_PLAN_V2.md#7-e-opt-4--solver-and-devicemodel-hardening
+    sources:
+    - contexts/electronics/domain/model-identity.ts
+    - contexts/electronics/domain/model-registry.ts
+    - contexts/electronics/domain/models/device-model.ts
+    tests:
+    - contexts/electronics/testing/solver.spec.ts
+    - contexts/electronics/testing/linear-dc-models.spec.ts
+    - contexts/electronics/testing/brushed-motor-profiles.spec.ts
+    dependencies:
+    - electronics.engine.document
+    symbols:
+    - electricalModelFor
+    - resolveElectricalModelIdentity
+    notes: Follow electricalModelFor to only the selected model implementation and its focused fixture; do not preload models/.
+  electronics.worker.protocol:
+    ownership: asa
+    risk: high
+    contracts:
+    - docs/product/electronics/DEVELOPMENT_SPEC.md#13-determinism-and-execution-failures
+    - docs/product/electronics/DEVELOPMENT_SPEC.md#71-architecture-acceptance-evidence
+    sources:
+    - apps/web/src/electronics/simulation-worker-protocol.ts
+    - apps/web/src/electronics/simulation-worker-client.ts
+    - apps/web/src/electronics/simulation-worker-evaluator.ts
+    - apps/web/src/electronics/simulation.worker.ts
+    tests:
+    - apps/web/src/electronics/testing/simulation-worker.spec.ts
+    dependencies:
+    - electronics.engine.solver
+    notes: Execution boundary only; never a second physics implementation.
+    symbols:
+    - ELECTRONICS_SIMULATION_WORKER_PROTOCOL
+    - ElectronicsSimulationWorkerClient
+  electronics.worker.live-controller:
+    ownership: asa
+    risk: high
+    contracts:
+    - docs/product/electronics/ASA_ELECTRONICS_OPTIMIZATION_PLAN_V2.md#5-e-opt-2--dedicated-electronics-worker
+    sources:
+    - apps/web/src/electronics/live-simulation-worker-controller.ts
+    - apps/web/src/electronics/use-electronics-workbench.ts
+    - apps/web/src/electronics/use-workbench-project-state.ts
+    tests:
+    - apps/web/src/electronics/testing/live-simulation-worker-controller.spec.ts
+    - e2e/electronics-simulation.spec.ts
+    dependencies:
+    - electronics.worker.protocol
+    symbols:
+    - ElectronicsLiveSimulationWorkerController
+    - useElectronicsWorkbench
+  electronics.clock.canonical:
+    ownership: asa
+    risk: high
+    contracts:
+    - docs/product/electronics/ASA_ELECTRONICS_OPTIMIZATION_PLAN_V2.md#6-e-opt-3--canonical-electronics-clock
+    - docs/product/electronics/README.md#15-arduino-и-программирование
+    sources:
+    - contexts/electronics/domain/arduino-circuit-scheduler.ts
+    - contexts/electronics/domain/simulation.ts
+    - apps/web/src/electronics/use-electronics-workbench.ts
+    tests:
+    - contexts/electronics/testing/arduino-circuit-scheduler.spec.ts
+    - contexts/electronics/testing/arduino-execution-clock.spec.ts
+    - apps/web/src/electronics/testing/live-simulation-worker-controller.spec.ts
+    dependencies:
+    - electronics.engine.public-api
+    - electronics.worker.protocol
+    notes: Must unify physical time; UI cadence may not define simulation truth.
+    symbols:
+    - advanceArduinoCircuitClock
+    - useElectronicsWorkbench
+  electronics.transient.runtime:
+    ownership: asa
+    risk: high
+    contracts:
+    - docs/product/electronics/README.md#10-электрическая-модель
+    - docs/product/electronics/ASA_ELECTRONICS_OPTIMIZATION_PLAN_V2.md#6-e-opt-3--canonical-electronics-clock
+    sources:
+    - contexts/electronics/domain/simulation.ts
+    - contexts/electronics/domain/arduino-circuit-scheduler.ts
+    tests:
+    - contexts/electronics/testing/capacitor-transient-model.spec.ts
+    - contexts/electronics/testing/thermal-transient-model.spec.ts
+    - contexts/electronics/testing/brushed-motor-transient-model.spec.ts
+    - contexts/electronics/testing/benchmark-corpus.spec.ts
+    dependencies:
+    - electronics.engine.solver
+    - electronics.clock.canonical
+    symbols:
+    - analyseCircuit
+    - advanceArduinoCircuitClock
