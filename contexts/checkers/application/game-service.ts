@@ -20,7 +20,10 @@ import {
 } from '../domain/draw.js';
 import { applyCheckersMove } from '../domain/rules.js';
 
-export type CheckersSessionMode = 'bot' | 'class' | 'local' | 'lesson';
+export type CheckersSessionMode =
+  'bot' | 'class' | 'local' | 'lesson' | 'friend' | 'quick' | 'rated';
+
+export type CheckersSessionStatus = 'active' | 'finished';
 
 export type CheckersSessionPlayer =
   | {
@@ -40,6 +43,7 @@ export interface CheckersGameSession {
   readonly projectId: string;
   readonly classroomId: string | null;
   readonly mode: CheckersSessionMode;
+  readonly status: CheckersSessionStatus;
   readonly players: readonly CheckersSessionPlayer[];
   readonly document: CheckersDocument;
   readonly drawTracker: CheckersDrawTracker;
@@ -89,6 +93,10 @@ export interface CheckersGameRepository {
   ): Promise<CheckersDocumentResult<CheckersGameSession>>;
 }
 
+export function getCheckersSessionStatus(document: CheckersDocument): CheckersSessionStatus {
+  return document.result === '*' ? 'active' : 'finished';
+}
+
 function validId(value: string): boolean {
   return /^[a-zA-Z0-9][a-zA-Z0-9:_-]{0,127}$/.test(value);
 }
@@ -121,6 +129,9 @@ function validatePlayers(
   if (mode === 'class' && classroomId === null) {
     return { ok: false, message: 'class mode requires a classroom id' };
   }
+  if ((mode === 'friend' || mode === 'quick' || mode === 'rated') && classroomId !== null) {
+    return { ok: false, message: 'online public/private modes cannot carry a classroom id' };
+  }
   if (players.some((player) => player.kind === 'bot' && !CHECKERS_BOT_IDS.includes(player.botId))) {
     return { ok: false, message: 'session bot id is invalid' };
   }
@@ -135,9 +146,11 @@ function nextSession(
   const drawTracker = advanceCheckersDrawTracker(session.drawTracker, session.document, document);
   const drawReason =
     document.result === '*' ? getCheckersAutomaticDrawReason(drawTracker, document) : null;
+  const finalDocument = drawReason ? { ...document, result: '1/2-1/2' as const } : document;
   return {
     ...session,
-    document: drawReason ? { ...document, result: '1/2-1/2' } : document,
+    status: getCheckersSessionStatus(finalDocument),
+    document: finalDocument,
     drawTracker,
     version: session.version + 1,
     updatedAt: occurredAt,
@@ -176,6 +189,7 @@ export class CheckersGameService {
       projectId: command.projectId,
       classroomId: command.classroomId,
       mode: command.mode,
+      status: getCheckersSessionStatus(document.value),
       players: command.players,
       document: document.value,
       drawTracker: createCheckersDrawTracker(document.value),
@@ -194,6 +208,9 @@ export class CheckersGameService {
     const found = await this.getSession(command.sessionId);
     if (!found.ok) return found;
     const session = found.value;
+    if (session.status !== 'active') {
+      return { ok: false, message: 'Checkers session is already finished' };
+    }
     if (session.version !== command.expectedVersion) {
       return {
         ok: false,
@@ -228,6 +245,9 @@ export class CheckersGameService {
     const found = await this.getSession(command.sessionId);
     if (!found.ok) return found;
     const session = found.value;
+    if (session.status !== 'active') {
+      return { ok: false, message: 'Checkers session is already finished' };
+    }
     if (session.version !== command.expectedVersion) {
       return {
         ok: false,

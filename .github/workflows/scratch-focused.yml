@@ -10,6 +10,8 @@ on:
       - 'apps/api/src/module-registry.ts'
       - 'apps/api/src/modules.controller.spec.ts'
       - 'infra/scratch-editor/**'
+      - 'apps/web/src/blocks/**'
+      - 'tools/verify-blocks-host-protocol.mjs'
       - 'docs/architecture/ADR-VSCR-001-SCRATCH-EDITOR-INTEGRATION.md'
       - 'packages/module-sdk/**'
       - 'package.json'
@@ -22,6 +24,8 @@ on:
       - 'apps/api/src/module-registry.ts'
       - 'apps/api/src/modules.controller.spec.ts'
       - 'infra/scratch-editor/**'
+      - 'apps/web/src/blocks/**'
+      - 'tools/verify-blocks-host-protocol.mjs'
       - 'docs/architecture/ADR-VSCR-001-SCRATCH-EDITOR-INTEGRATION.md'
       - 'packages/module-sdk/**'
       - 'package.json'
@@ -65,8 +69,8 @@ jobs:
       - name: Install exact dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Focused M1-002A gate
-        run: pnpm gate:blocks-m1-002a
+      - name: Focused M1-002C gate
+        run: pnpm gate:blocks-m1-002c
 
   runtime-image:
     name: Standalone host image and health smoke
@@ -102,10 +106,10 @@ jobs:
         run: pnpm exec playwright install --with-deps chromium
 
       - name: Build pinned Scratch standalone host image
-        run: docker build -f infra/scratch-editor/Dockerfile -t asa-lab-scratch-editor:m1-002a .
+        run: docker build -f infra/scratch-editor/Dockerfile -t asa-lab-scratch-editor:m1-002c .
 
       - name: Start isolated Scratch host
-        run: docker run -d --name asa-lab-scratch-editor -p 127.0.0.1:4613:8080 asa-lab-scratch-editor:m1-002a
+        run: docker run -d --name asa-lab-scratch-editor -p 127.0.0.1:4613:8080 asa-lab-scratch-editor:m1-002c
 
       - name: Verify host shell, standalone bundle and provenance
         run: |
@@ -127,10 +131,11 @@ jobs:
           docker exec asa-lab-scratch-editor grep -F 'SCRATCH_EDITOR_COMMIT=82c5fea6d3e60c781f25c09b375045f9b46a43f7' /usr/share/nginx/html/licenses/scratch-editor-upstream.env
           curl --fail --silent --show-error --output /dev/null http://127.0.0.1:4613/vendor/scratch/scratch-gui-standalone.js
 
-      - name: Browser smoke ASA host shell
+      - name: Browser smoke parent/iframe protocol
         env:
           BLOCKS_RUNTIME_URL: http://127.0.0.1:4613
-        run: pnpm test:blocks-m1-002a:browser
+          BLOCKS_PARENT_PORT: 4612
+        run: pnpm test:blocks-m1-002c:browser
 
       - name: Show runtime logs
         if: always()
