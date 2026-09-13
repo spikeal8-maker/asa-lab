@@ -81,11 +81,13 @@ export {
 } from './domain/reactions.js';
 export {
   CheckersGameService,
+  getCheckersSessionStatus,
   type CheckersBotTurn,
   type CheckersGameRepository,
   type CheckersGameSession,
   type CheckersSessionMode,
   type CheckersSessionPlayer,
+  type CheckersSessionStatus,
   type CreateCheckersSessionCommand,
   type PlayCheckersBotMoveCommand,
   type PlayCheckersMoveCommand,
