@@ -77,7 +77,8 @@ export class BlocksRuntimeBridge {
   readonly runtimeOrigin: string;
   readonly projectId: string;
 
-  private runtimeToken: string;
+  private runtimeToken: string | null;
+  private stopped = false;
 
   constructor(private readonly options: BlocksRuntimeInitOptions) {
     this.runtimeOrigin = requireExactHttpOrigin(options.runtimeOrigin);
@@ -86,6 +87,10 @@ export class BlocksRuntimeBridge {
     this.projectId = options.projectId;
     this.runtimeToken = options.runtimeToken;
     this.sessionNonce = createBlocksSessionNonce();
+  }
+
+  private assertActive(): void {
+    if (this.stopped) throw new Error('Blocks runtime bridge is stopped');
   }
 
   private binding(): BlocksRuntimeBinding {
@@ -103,6 +108,7 @@ export class BlocksRuntimeBridge {
   }
 
   sendInit(): void {
+    this.assertActive();
     this.post('ASA_BLOCKS_INIT', {
       mode: this.options.mode,
       versionId: this.options.versionId,
@@ -116,20 +122,29 @@ export class BlocksRuntimeBridge {
   }
 
   updateToken(runtimeToken: string): void {
+    this.assertActive();
     if (!runtimeToken) throw new Error('Blocks runtimeToken is required');
     this.runtimeToken = runtimeToken;
     this.post('ASA_BLOCKS_TOKEN_UPDATE', { runtimeToken });
   }
 
   requestFlush(requestId: string): void {
+    this.assertActive();
     if (!requestId) throw new Error('Blocks flush requestId is required');
     this.post('ASA_BLOCKS_FLUSH_REQUEST', { requestId });
   }
 
   stop(): void {
-    this.post('ASA_BLOCKS_STOP');
+    if (this.stopped) return;
+    try {
+      this.post('ASA_BLOCKS_STOP');
+    } finally {
+      this.runtimeToken = null;
+      this.stopped = true;
+    }
   }
   acceptChildMessage(event: BlocksMessageEventLike): boolean {
+    if (this.stopped) return false;
     if (event.source !== this.options.childWindow || event.origin !== this.runtimeOrigin) {
       return false;
     }
