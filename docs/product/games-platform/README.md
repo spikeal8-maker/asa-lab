@@ -11,7 +11,7 @@ ASA Lab уже содержит несколько игровых направл
 
 Если продолжить добавлять `checkers-online`, `tic-tac-toe-online`, `arena-online` как самостоятельные системы, платформа получит дублирующиеся приглашения, рейтинги, очереди, уведомления, историю, reconnect и сетевые протоколы.
 
-Цель Games Platform — сделать эти возможности платформенными, а конкретной игре оставить только то, что действительно принадлежит игре: правила, game-specific state, renderer, bot logic и специальные метрики.
+Дополнительная цель — не ограничиваться встроенными ASA-играми. Платформа должна иметь безопасный creator/developer contract, чтобы игры учеников, педагогов, ASA-команды и позже внешних разработчиков могли проходить путь `source → isolated build → review → immutable release → publication`, не становясь доверенным кодом ASA автоматически.
 
 ## 2. Какие классы игр обязана поддерживать архитектура
 
@@ -23,8 +23,9 @@ ASA Lab уже содержит несколько игровых направл
 | Active session / low-rate | покер, квизы, пошаговые игры с таймером | authoritative session + realtime delivery |
 | Realtime room | arena, shooter, racing, platformer | in-memory authoritative room, tick loop, snapshot/delta |
 | Event / temporary | школьная арена, игра мероприятия, сезонный квест | любой runtime kind + lifecycle window |
+| Sandboxed creator web game | ученическая HTML/Canvas/Phaser/Three.js игра | isolated web client + ASA Game Client SDK |
 
-Архитектура считается недостаточной, если она хорошо обслуживает только шашки и шахматы.
+Архитектура считается недостаточной, если она хорошо обслуживает только шашки и шахматы или если стороннюю игру можно подключить только путём добавления её исходников в доверенный ASA monorepo.
 
 ## 3. Документы пакета
 
@@ -34,8 +35,11 @@ ASA Lab уже содержит несколько игровых направл
 - `docs/architecture/ASA_GAMES_PLATFORM_DATA_AND_IDENTITY.md` — canonical match model, participants, events, outbox, gaming identity, rating и statistics projections.
 - `docs/architecture/ASA_GAMES_PLATFORM_PROTOCOLS_AND_RUNTIME.md` — API/realtime protocols, room allocation, reconnect, recovery, tick budget, security и observability.
 - `docs/architecture/ASA_GAMES_PLATFORM_TECHNOLOGY_OPTIONS.md` — build-vs-buy и staged technology choices: PostgreSQL, WebSocket/WebTransport, Redis, Colyseus, Nakama, Open Match, GameLift, Agones, runtime languages.
+- `docs/architecture/ASA_GAMES_PLATFORM_CRITICAL_ARCHITECTURE_REVIEW.md` — критический review текущего проекта платформы и вывод о гибридной Steam/Discord/Roblox-модели для ASA.
+- `docs/architecture/ADR-GAME-002-GAME-PACKAGES-PUBLISHING-AND-TRUST.md` — proposed contract для source/build/release/publication, capability grants, trust tiers, client sandbox и server-runtime admission.
 - `docs/product/games-platform/ASA_GAMES_PLATFORM_PRODUCT_SPEC.md` — пользовательская модель: Games Hub, lobby, invites, party, classmates, quick/rated play, profile, stats, leaderboards, tournaments/events.
 - `docs/product/games-platform/ASA_GAMES_PLATFORM_DEVELOPER_INTEGRATION_GUIDE.md` — прикладной контракт разработчика: manifest, adapters, renderer, bots/metrics, trusted и isolated games, forbidden patterns.
+- `docs/product/games-platform/ASA_GAME_PACKAGE_AND_PUBLISHING_SPEC.md` — конкретный package/publishing workflow: `asa-game.yaml`, GitHub connector, isolated build, immutable releases, channels, publication scopes, sandbox client и developer/admin portal.
 - `docs/product/games-platform/ASA_GAMES_PLATFORM_TESTING_AND_CERTIFICATION.md` — обязательные contract/security/reconnect/load/fault-injection gates и две certification games.
 - `docs/product/games-platform/ASA_GAMES_PLATFORM_EXECUTION_PLAN.md` — staged implementation plan и acceptance gates.
 
@@ -49,7 +53,10 @@ ASA Lab уже содержит несколько игровых направл
 - добавлять WebSocket endpoints;
 - продолжать отдельный `checkers invite/matchmaking/rating` backend;
 - подключать Redis/Kafka/Kubernetes/Agones как обязательные зависимости;
-- делать публичные игровые профили детей без согласованной privacy policy.
+- делать публичные игровые профили детей без согласованной privacy policy;
+- клонировать произвольный GitHub-репозиторий и запускать его как production game;
+- запускать произвольный student Docker/container runtime;
+- автоматически публиковать Git push в публичный Games Hub.
 
 Документация сначала фиксирует границы и migration strategy. Реализация идёт только отдельными bounded slices после review.
 
@@ -60,37 +67,36 @@ ASA Lab уже содержит несколько игровых направл
 3. **Две runtime-модели.** Command games и fast realtime rooms не загоняются в один execution loop.
 4. **PostgreSQL остаётся durable source of truth.** Ephemeral realtime state не обязан писаться в SQL каждый tick.
 5. **Transactional outbox вместо dual-write.** Durable change и событие фиксируются атомарно; доставка и projections асинхронны и идемпотентны.
-6. **Game plugin contract.** Новая игра регистрирует capabilities и adapters, а не создаёт свой matchmaking/rating/invite stack.
-7. **Privacy by construction.** В публичный игровой слой не попадают internal account/learner IDs, email, school/class metadata без явной scope policy.
-8. **Version everything.** Match фиксирует game/rules/state/protocol versions.
-9. **Progressive infrastructure.** Первая версия не требует Kafka/Kubernetes/Redis; контракты позволяют добавить их при доказанной необходимости.
-10. **Certification before migration.** Универсальность доказывают две простые контрольные игры: command-game (`Tic-Tac-Toe`) и realtime-room (`ASA Arena Mini`) до массовой миграции зрелых игр.
+6. **Game plugin/package contract.** Новая игра регистрирует capabilities и adapters/artifacts, а не создаёт свой matchmaking/rating/invite stack.
+7. **Source ≠ Build ≠ Release.** GitHub/ZIP/ASA Creator являются source providers; в runtime допускаются только проверенные immutable artifacts.
+8. **Capability request ≠ grant.** Manifest может запросить функцию, но разрешение выдаёт platform policy/reviewer.
+9. **Untrusted client isolation.** Student/community web code не выполняется внутри trusted ASA React/DOM/session boundary.
+10. **Privacy by construction.** В публичный игровой слой не попадают internal account/learner IDs, email, school/class metadata без явной scope policy.
+11. **Version everything.** Match и release фиксируют game/rules/state/protocol/build versions.
+12. **Progressive infrastructure.** Первая версия не требует Kafka/Kubernetes/Redis; контракты позволяют добавить их при доказанной необходимости.
+13. **Certification before migration.** Универсальность доказывают две простые контрольные игры: command-game (`Tic-Tac-Toe`) и realtime-room (`ASA Arena Mini`) до массовой миграции зрелых игр.
+14. **Private by default for creator content.** Student/community release не становится публичным без соответствующего review.
 
 ## 6. Критерий успеха платформы
 
-Новая игра считается подключаемой к ASA Games Platform, если её разработчик реализует преимущественно:
+Для первой-party игры разработчик реализует преимущественно game-specific rules/runtime/renderer. Для внешней/creator игры он предоставляет package manifest + artifacts/source, а ASA сама строит и публикует immutable release через контролируемую pipeline.
 
-- `GameManifest`;
-- game-specific rules/runtime adapter;
-- state/command/input schema;
-- renderer/client;
-- optional bot provider;
-- optional custom metrics;
+Новая игра считается правильно подключённой, если она автоматически получает разрешённые платформенные возможности:
 
-и автоматически получает платформенные возможности, которые разрешены её manifest:
-
-- authenticated player identity;
-- lobby / party;
+- authenticated/public gaming identity;
+- Games Hub/lobby/party;
 - invitations;
 - classmates/recent opponents;
 - matchmaking;
 - reconnect;
 - match history;
 - common statistics;
-- rating/leaderboards;
+- rating/leaderboards для authoritative modes;
 - notifications;
 - moderation/reporting;
 - event/tournament integration;
-- observability and operational lifecycle.
+- observability and operational lifecycle;
+- release channels/rollback;
+- capability-controlled access to storage/UI/runtime services.
 
-Если для третьей игры приходится заново писать собственные invite, matchmaking, rating, event storage и reconnect, Games Platform считается спроектированной неправильно.
+Если для третьей игры приходится заново писать собственные invite, matchmaking, rating, event storage и reconnect, Games Platform спроектирована неправильно. Если student/community game должен получить ASA session cookie, доступ к БД или быть импортирован как доверенный React/NestJS-код, creator platform также спроектирована неправильно.
