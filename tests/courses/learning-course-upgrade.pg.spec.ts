@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import pg from 'pg';
-import { expect, it } from 'vitest';
+import { expect, it, vi } from 'vitest';
+import { buildTestApp, inject, type NestApp } from '../portal/app';
+import { seedMixedMainLearning } from './learning-upgrade-fixtures';
 import { applyPlan, planMigrations } from '../../tools/migrate.mjs';
 import { seedTeacher } from '../portal/helpers';
 
@@ -16,6 +18,7 @@ it('upgrades populated baseline 0106 without rewriting projects, course versions
     throw new Error('Unsafe generated database name');
   let isolated: pg.Pool | null = null,
     app: pg.Pool | null = null;
+  let server: NestApp | null = null;
   await admin.query(`CREATE DATABASE "${name}"`);
   try {
     const connection = new URL(source);
@@ -121,6 +124,35 @@ it('upgrades populated baseline 0106 without rewriting projects, course versions
       (await isolated.query('SELECT * FROM course_publish($1,$2)', [identity.principal_id, course]))
         .rows[0].version_number,
     ).toBe(1);
+    const mixed = await seedMixedMainLearning(isolated, teacher, cls);
+    expect(baseline).toHaveLength(105); // Exact current main 3498dd2c, through 0106.
+    expect(planned.length - baseline.length).toBe(30);
+    const oldResults = (
+      await isolated.query(
+        'SELECT id,attempt_id,raw_points,max_points,percentage_basis_points,outcome FROM assessment_results ORDER BY id',
+      )
+    ).rows;
+    const gradeIds = (await isolated.query('SELECT id FROM gradebook_entries ORDER BY id')).rows;
+    expect(oldResults.length).toBeGreaterThan(0);
+    expect(gradeIds.length).toBeGreaterThan(0);
+    const memberships = async () => ({
+      enrollments: (
+        await isolated!.query(
+          'SELECT id,course_run_id,learner_identity_id,status,withdrawn_at FROM course_enrollments ORDER BY id',
+        )
+      ).rows,
+      participations: (
+        await isolated!.query(
+          'SELECT id,activity_run_id,learner_identity_id,status,withdrawn_at FROM activity_participations ORDER BY id',
+        )
+      ).rows,
+      attempts: (
+        await isolated!.query(
+          'SELECT id,activity_participation_id FROM learning_attempts ORDER BY id',
+        )
+      ).rows,
+    });
+    const beforeMemberships = await memberships();
     const snapshot = async () => {
       const result: Record<string, unknown[]> = {};
       for (const table of [
@@ -131,6 +163,12 @@ it('upgrades populated baseline 0106 without rewriting projects, course versions
         'classroom_assignment_work',
         'course_versions',
         'principals',
+        'accounts',
+        'classroom_student_seats',
+        'classroom_seat_credentials',
+        'learner_identities',
+        'learner_identity_links',
+        'learning_submissions',
       ]) {
         result[table] = (
           await isolated!.query(
@@ -149,14 +187,115 @@ it('upgrades populated baseline 0106 without rewriting projects, course versions
       upgrade.release();
     }
     expect(await snapshot()).toEqual(before);
-    expect((await isolated.query('SELECT id FROM assessment_results')).rows).toHaveLength(0);
-    expect((await isolated.query('SELECT id FROM learning_attempts')).rows).toHaveLength(0);
+    expect(await memberships()).toEqual(beforeMemberships);
+    expect(
+      (
+        await isolated.query(
+          'SELECT id,attempt_id,raw_points,max_points,percentage_basis_points,outcome FROM assessment_results WHERE id=ANY($1::uuid[]) ORDER BY id',
+          [oldResults.map((row) => row.id)],
+        )
+      ).rows,
+    ).toEqual(oldResults);
+    expect((await isolated.query('SELECT id FROM gradebook_entries ORDER BY id')).rows).toEqual(
+      gradeIds,
+    );
+    expect((await isolated.query('SELECT DISTINCT state FROM learning_attempts')).rows).toEqual([
+      { state: 'closed' },
+    ]);
+    const returned = (
+      await isolated.query(
+        'SELECT raw_points,percentage_basis_points,review_decision FROM assessment_results WHERE attempt_id=$1 ORDER BY revision_number DESC LIMIT 1',
+        [mixed.attempts[1].id],
+      )
+    ).rows[0];
+    expect(returned).toMatchObject({
+      raw_points: null,
+      percentage_basis_points: null,
+      review_decision: 'changes_requested',
+    });
+    const selected = (
+      await isolated.query('SELECT * FROM learning_selected_result_internal($1)', [
+        mixed.attempts[0].participation,
+      ])
+    ).rows[0];
+    expect(selected.result_id).toBeTruthy();
+    expect(
+      (
+        await isolated.query(
+          'SELECT assessment_result_id FROM gradebook_entries WHERE classroom_assignment_id=$1 AND seat_id=$2',
+          [mixed.assignment, mixed.seats[0].id],
+        )
+      ).rows[0].assessment_result_id,
+    ).toBe(selected.result_id);
     const runtime = process.env['APP_TEST_DATABASE_URL'];
     if (!runtime || new URL(runtime).pathname !== new URL(source).pathname)
       throw new Error('Matching APP_TEST_DATABASE_URL required');
     const runtimeUrl = new URL(runtime);
     runtimeUrl.pathname = '/' + name;
     app = new pg.Pool({ connectionString: runtimeUrl.toString(), max: 1 });
+    vi.stubEnv('ASA_EXPECTED_SCHEMA_VERSION', planned.at(-1)!.version);
+    server = await buildTestApp(app);
+    const ready = await inject(server, { method: 'GET', url: '/health/ready' });
+    expect(ready.statusCode).toBe(200);
+    expect(ready.json().deployment).toMatchObject({
+      schemaVersion: 136,
+      expectedSchemaVersion: 136,
+      synchronized: true,
+    });
+    for (const actor of [teacher, mixed.account]) {
+      const login = await inject(server, {
+        method: 'POST',
+        url: '/api/auth/login',
+        payload: { workspace: actor.workspace, email: actor.email, password: actor.password },
+      });
+      expect(login.statusCode).toBe(200);
+      const cookie = login.cookies.find((value) => value.name === 'asa_session');
+      expect(cookie).toBeTruthy();
+      const headers = { cookie: 'asa_session=' + cookie!.value };
+      const read = await inject(server, {
+        method: 'GET',
+        url:
+          actor === teacher
+            ? `/api/classrooms/${cls}/gradebook`
+            : '/api/class-join/account/assignments',
+        headers,
+      });
+      expect(read.statusCode).toBe(200);
+      expect(
+        (await inject(server, { method: 'GET', url: '/api/learning/notifications', headers }))
+          .statusCode,
+      ).toBe(200);
+    }
+    // Both actor representations still resolve through the same Seat/LearnerIdentity.
+    expect(
+      (
+        await app.query('SELECT * FROM learning_canonical_evidence_for_seat($1)', [
+          mixed.seats[0].id,
+        ])
+      ).rows.length,
+    ).toBeGreaterThan(0);
+    expect(
+      (
+        await app.query('SELECT * FROM learning_canonical_evidence_for_seat($1)', [
+          mixed.seats[1].id,
+        ])
+      ).rows.length,
+    ).toBeGreaterThan(0);
+    expect(
+      (
+        await isolated.query('SELECT status FROM course_enrollments WHERE id=$1', [
+          mixed.enrollments[1],
+        ])
+      ).rows[0].status,
+    ).toBe('withdrawn');
+    expect(
+      (
+        await isolated.query('SELECT status FROM activity_participations WHERE id=$1', [
+          mixed.attempts[1].participation,
+        ])
+      ).rows[0].status,
+    ).toBe('withdrawn');
+
     expect(
       (
         await app.query('SELECT * FROM project_feedback_list($1,$2)', [
@@ -182,14 +321,16 @@ it('upgrades populated baseline 0106 without rewriting projects, course versions
       ).rows[0].lesson_title,
     ).toBe('Теория');
   } finally {
-    await app?.end();
+    if (server) await server.close();
+    else await app?.end();
+    vi.unstubAllEnvs();
     await isolated?.end();
     await admin.query(`DROP DATABASE "${name}"`); // Only the generated, isolated test fixture database.
     await admin.end();
   }
 }, 60000);
 
-it('preserves legacy review decisions while 0133 converges Attempt lifecycle', async () => {
+it('preserves legacy decisions and notification history through 0132 to integrated HEAD', async () => {
   const source = process.env['TEST_DATABASE_URL'];
   if (!source || !new URL(source).pathname.endsWith('_test')) {
     throw new Error('Isolated TEST_DATABASE_URL is required');
@@ -211,7 +352,7 @@ it('preserves legacy review decisions while 0133 converges Attempt lifecycle', a
       (migration: { version: string }) => migration.version <= '0132',
     );
     const convergence = planned.filter(
-      (migration: { version: string }) => migration.version === '0133',
+      (migration: { version: string }) => migration.version > '0132',
     );
     const client = await isolated.connect();
     try {
@@ -336,20 +477,85 @@ it('preserves legacy review decisions while 0133 converges Attempt lifecycle', a
     expect(accepted.resultId).toBeTruthy();
     expect(returned.resultId).toBeNull();
 
+    // Notifications first existed in 0120, so old/new notification preservation
+    // is rehearsed from 0132 separately from the truthful main 0106 baseline.
+    await isolated.query(
+      `INSERT INTO learning_notification_preferences(principal_id,master_enabled,categories)
+      VALUES($1,true,'{"NC01":true}'::jsonb)`,
+      [identity.principal_id],
+    );
+    for (const key of ['old-read', 'old-unread']) {
+      await isolated.query(
+        "SELECT learning_notification_emit($1,$2,NULL,NULL,NULL,NULL,'teacher','NF02','NC02',$3)",
+        [identity.principal_id, classroomId, key],
+      );
+    }
+    await isolated.query(
+      "UPDATE learning_notifications SET read_at='2026-09-01T12:00:00Z' WHERE event_key='old-read'",
+    );
+    const oldNotifications = (
+      await isolated.query('SELECT to_jsonb(n) AS row FROM learning_notifications n ORDER BY id')
+    ).rows;
+    const oldPreferences = (
+      await isolated.query(
+        'SELECT to_jsonb(p) AS row FROM learning_notification_preferences p ORDER BY principal_id',
+      )
+    ).rows;
+    expect(oldNotifications).toHaveLength(2);
     const upgrade = await isolated.connect();
     try {
-      expect(convergence).toHaveLength(1);
-      expect(await applyPlan(upgrade, convergence)).toBe(1);
-      expect(
-        await applyPlan(
-          upgrade,
-          planned.filter((migration: { version: string }) => migration.version <= '0133'),
-        ),
-      ).toBe(0);
+      expect(convergence).toHaveLength(4);
+      expect(await applyPlan(upgrade, convergence)).toBe(4);
+      expect(await applyPlan(upgrade, planned)).toBe(0);
     } finally {
       upgrade.release();
     }
 
+    expect(
+      (
+        await isolated.query(
+          'SELECT to_jsonb(n) AS row FROM learning_notifications n WHERE id=ANY($1::uuid[]) ORDER BY id',
+          [oldNotifications.map((item) => item.row.id)],
+        )
+      ).rows,
+    ).toEqual(oldNotifications);
+    expect(
+      (
+        await isolated.query(
+          'SELECT to_jsonb(p) AS row FROM learning_notification_preferences p ORDER BY principal_id',
+        )
+      ).rows,
+    ).toEqual(oldPreferences);
+    // The two compatibility Result revisions each emit one event through the
+    // existing Result trigger; a migration rerun must not duplicate them.
+    expect((await isolated.query('SELECT id FROM learning_notifications')).rows).toHaveLength(4);
+    for (const key of ['old-unread', 'new-event', 'new-event']) {
+      await isolated.query(
+        "SELECT learning_notification_emit($1,$2,NULL,NULL,NULL,NULL,'teacher','NF02','NC02',$3)",
+        [identity.principal_id, classroomId, key],
+      );
+    }
+    const inbox = (
+      await isolated.query('SELECT * FROM learning_notifications_list($1)', [identity.principal_id])
+    ).rows;
+    expect(inbox).toHaveLength(3);
+    expect(
+      (
+        await isolated.query('SELECT learning_notifications_unread($1) AS count', [
+          identity.principal_id,
+        ])
+      ).rows[0].count,
+    ).toBe(2);
+    const outsider = await seedTeacher(isolated, 'upgrade-notification-outsider');
+    const outsiderPrincipal = (
+      await isolated.query('SELECT principal_id FROM legacy_user_account_links WHERE user_id=$1', [
+        outsider.teacherId,
+      ])
+    ).rows[0].principal_id;
+    expect(
+      (await isolated.query('SELECT * FROM learning_notifications_list($1)', [outsiderPrincipal]))
+        .rows,
+    ).toHaveLength(0);
     const attempts = (
       await isolated.query(
         `SELECT id,state,evaluated_at FROM learning_attempts WHERE id=ANY($1::uuid[]) ORDER BY id`,
