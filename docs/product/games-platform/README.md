@@ -29,6 +29,13 @@ ASA Lab уже содержит несколько игровых направл
 
 ## 3. Документы пакета
 
+### Нормативная точка входа
+
+- `docs/product/games-platform/ASA_GAMES_PLATFORM_TECHNICAL_SPECIFICATION.md` — главное ТЗ: цели, границы, требования с ID, architecture/runtime/publishing/security/privacy/deployment/migration и Definition of Done.
+- `docs/product/games-platform/ASA_GAMES_PLATFORM_REQUIREMENTS_TRACEABILITY.md` — матрица `требование → компонент → milestone → обязательное evidence`; используется для контроля реализации.
+
+### Архитектура и research
+
 - `docs/architecture/ASA_GAMES_PLATFORM_CURRENT_STATE_AUDIT.md` — фактический аудит текущего репозитория: что уже можно переиспользовать и что нельзя переносить как есть.
 - `docs/architecture/ADR-GAME-001-GAMES-PLATFORM-BOUNDARIES.md` — нормативное решение о Control Plane, Command Runtime, Realtime Gateway и Room Runtime.
 - `docs/architecture/ASA_GAMES_PLATFORM_NETWORKING_RESEARCH.md` — внешний research по Nakama, Colyseus, Agones, GameLift, PlayFab, Open Match, WebSocket/WebTransport и сетевому netcode.
@@ -37,6 +44,9 @@ ASA Lab уже содержит несколько игровых направл
 - `docs/architecture/ASA_GAMES_PLATFORM_TECHNOLOGY_OPTIONS.md` — build-vs-buy и staged technology choices: PostgreSQL, WebSocket/WebTransport, Redis, Colyseus, Nakama, Open Match, GameLift, Agones, runtime languages.
 - `docs/architecture/ASA_GAMES_PLATFORM_CRITICAL_ARCHITECTURE_REVIEW.md` — критический review текущего проекта платформы и вывод о гибридной Steam/Discord/Roblox-модели для ASA.
 - `docs/architecture/ADR-GAME-002-GAME-PACKAGES-PUBLISHING-AND-TRUST.md` — proposed contract для source/build/release/publication, capability grants, trust tiers, client sandbox и server-runtime admission.
+
+### Продукт, developer flow и acceptance
+
 - `docs/product/games-platform/ASA_GAMES_PLATFORM_PRODUCT_SPEC.md` — пользовательская модель: Games Hub, lobby, invites, party, classmates, quick/rated play, profile, stats, leaderboards, tournaments/events.
 - `docs/product/games-platform/ASA_GAMES_PLATFORM_DEVELOPER_INTEGRATION_GUIDE.md` — прикладной контракт разработчика: manifest, adapters, renderer, bots/metrics, trusted и isolated games, forbidden patterns.
 - `docs/product/games-platform/ASA_GAME_PACKAGE_AND_PUBLISHING_SPEC.md` — конкретный package/publishing workflow: `asa-game.yaml`, GitHub connector, isolated build, immutable releases, channels, publication scopes, sandbox client и developer/admin portal.
@@ -45,7 +55,7 @@ ASA Lab уже содержит несколько игровых направл
 
 ## 4. Что этот пакет НЕ разрешает
 
-До принятия ADR пакет не является разрешением:
+До принятия ТЗ и ADR пакет не является разрешением:
 
 - переписывать `chess-live`;
 - создавать новые `games_*` таблицы;
@@ -79,7 +89,7 @@ ASA Lab уже содержит несколько игровых направл
 
 ## 6. Критерий успеха платформы
 
-Для первой-party игры разработчик реализует преимущественно game-specific rules/runtime/renderer. Для внешней/creator игры он предоставляет package manifest + artifacts/source, а ASA сама строит и публикует immutable release через контролируемую pipeline.
+Для first-party игры разработчик реализует преимущественно game-specific rules/runtime/renderer. Для внешней/creator игры он предоставляет package manifest + artifacts/source, а ASA сама строит и публикует immutable release через контролируемую pipeline.
 
 Новая игра считается правильно подключённой, если она автоматически получает разрешённые платформенные возможности:
 
