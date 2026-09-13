@@ -402,10 +402,10 @@ parallel_lanes:
       kind: split_history
       convergence_baseline_sha: b963ef828f0e10042adacba4199bba972526c0df
       head_sha: null
-      observed_at: '2026-09-13T12:24:33.034260+00:00'
+      observed_at: '2026-09-13T12:37:48.400126+00:00'
       main:
         branch: main
-        sha: 982f637709898c9751e81e75f44d2b63f34516e4
+        sha: 48770100f58e0a4383ee0695802c5daaf5204d31
       recovery:
         branch: recovery/e1-learning-20260913
         sha: 8ea7771d902d92f5288685a031b134feb353f4cc

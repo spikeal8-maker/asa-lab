@@ -6,12 +6,16 @@ Historical integration planning receipt for ASA-STABILIZATION-02, not execution 
 
 ## Exact comparison
 
-- Latest fetched main: `982f637709898c9751e81e75f44d2b63f34516e4`.
+- Latest fetched main: `48770100f58e0a4383ee0695802c5daaf5204d31`.
 - Learning recovery: `8ea7771d902d92f5288685a031b134feb353f4cc`.
 - Bounded Preview at observation: `dce140868601b55c9a5449b38012e297c116d8be`; review PR [#210](https://github.com/spikeal8-maker/asa-lab/pull/210), base recovery, never a main merge PR.
 - Historical merge base: `b963ef828f0e10042adacba4199bba972526c0df`.
-- Main has 141 changed paths since the base; E1 recovery has 135. Of these, 131 are E1-only and 4 changed on both sides.
+- Main has 151 changed paths since the base; E1 recovery has 135. Of these, 131 are E1-only and 4 changed on both sides.
 - Diagnostic merge: **3 textual conflicts**; 1 additional shared source file merges textually but requires semantic review. Textual success is not product integration evidence.
+
+## Final main advancement
+
+While documentation CI ran, main advanced from 982f6377 to the SHA above through Scratch M1-002C protocol and Checkers CK-105 work. The 17 newly changed paths do not overlap the stabilization amendment or E1's four shared paths. They add protocol/checkers source and tests, provider documentation and a package script; no dependency lock, Identity, Learning, migration or Electronics input changed. A fresh diagnostic merge against this latest main still reports the same three conflicts. Preserve these newer main additions during future integration. The reviewed docs code remains on its existing baseline; no main merge or product integration was performed just to refresh this observation.
 
 ## Conflicts and semantic strategy
 
