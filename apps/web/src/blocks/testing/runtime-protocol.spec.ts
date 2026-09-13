@@ -166,7 +166,7 @@ describe('BlocksRuntimeBridge', () => {
     ).toBe(false);
   });
 
-  it('accepts each FLUSH_RESULT only for one outstanding requestId', () => {
+  it('accepts each FLUSH_RESULT only for one session-unique requestId', () => {
     vi.stubGlobal('crypto', { randomUUID: () => 'ffffffff-ffff-4fff-8fff-ffffffffffff' });
     const { bridge, target, onMessage } = makeBridge();
     const result = (requestId: string) => ({
@@ -189,7 +189,7 @@ describe('BlocksRuntimeBridge', () => {
 
     bridge.requestFlush('flush-1');
     expect(() => bridge.requestFlush('flush-1')).toThrow(
-      'Blocks flush requestId is already pending: flush-1',
+      'Blocks flush requestId was already issued: flush-1',
     );
     expect(
       bridge.acceptChildMessage({
@@ -199,6 +199,9 @@ describe('BlocksRuntimeBridge', () => {
       }),
     ).toBe(true);
     expect(onMessage).toHaveBeenCalledWith(result('flush-1'));
+    expect(() => bridge.requestFlush('flush-1')).toThrow(
+      'Blocks flush requestId was already issued: flush-1',
+    );
     expect(
       bridge.acceptChildMessage({
         source: target,
