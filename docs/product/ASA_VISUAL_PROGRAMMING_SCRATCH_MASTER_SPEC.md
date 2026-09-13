@@ -1,6 +1,6 @@
 # ASA Lab Visual Programming — Scratch integration master specification
 
-**Version:** 3.4
+**Version:** 3.5
 
 **Module:** `blocks`  
 **Product:** `Визуальное программирование`
@@ -54,6 +54,8 @@ VM execution
 renderer
 paint/sound editor mechanics
 Scratch 3 project compatibility
+built-in Scratch localization mechanics and language menu
+semantic programming-category colour system
 ```
 
 ASA owns:
@@ -66,7 +68,9 @@ Gallery publication/player/remix
 asset durability and object storage
 save/recovery/conflict semantics
 backup/restore/deployment/activation
-product branding
+product branding and product chrome
+initial locale policy / ASA language preference handoff
+ASA account/avatar shell around the Scratch runtime
 ```
 
 There is no second Scratch account system, project backend, classroom/LMS, social backend or
@@ -120,7 +124,7 @@ objectKey  server-only physical locator; never project JSON
 
 A durable Blocks document may not reference missing/unverified assets.
 
-## 5. Product branding and host boundary
+## 5. Product branding, localization and host boundary
 
 User-facing product branding is **ASA Lab — Визуальное программирование**.
 
@@ -130,24 +134,45 @@ Canonical logo source:
 apps/web/public/asa-lab-mark.svg
 ```
 
-Required result:
+Required product result:
 
 ```text
 Scratch product logo/navigation      absent
 ASA Lab canonical logo               present
 Scratch account/community ownership  absent
 Scratch cloud/backpack ownership     absent
+ASA account/avatar shell             parent-owned; not Scratch-origin authority
+Scratch programming UI/runtime       preserved
 ```
 
-A no-op click handler on the Scratch logo is insufficient. Factual compatibility wording
-such as `совместимо с проектами Scratch 3 (.sb3)` is allowed.
+The real Scratch language selector is preserved inside the existing Scratch Settings menu.
+Do not add a separate top-level `Language` / `Язык` button and do not fork Scratch translations.
+Initial locale follows the accepted ASA/browser policy: canonical ASA preference when available,
+otherwise the first supported browser locale, regional normalization where possible, and `ru` as
+the final fallback. A Russian browser therefore opens in Russian by default without custom
+translation patches.
+
+ASA product colour applies to **product chrome only**. The current ASA portal header primary is
+`#0877B3` with darker/border state `#076B98`; canonical tokens remain owned by
+`apps/web/src/brand/brand.css`. Do not globally replace Scratch's `$looks-secondary` or recolour
+semantic block/category colours. Motion, Looks, Sound, Events, Control, Sensing, Operators,
+Variables and My Blocks retain upstream Scratch colour semantics.
+
+The familiar Scratch Settings/File/Edit surfaces remain unless a narrower capability is unsafe in
+the current milestone. File commands that imply durable ASA save/load or `.sb3` support stay
+hidden/disabled until their owning milestones are accepted. The Extensions entry point remains a
+familiar product control but may expose only local/approved sources and must not silently depend on
+Scratch Foundation runtime services.
+
+A no-op click handler on the Scratch logo is insufficient. Factual compatibility wording such as
+`совместимо с проектами Scratch 3 (.sb3)` is allowed.
 
 Upstream default Scratch media is allowed only as a gated, non-user-facing M1 compatibility
 fixture. Production default/library media before activation must be ASA-owned/right-cleared
 or deliberately empty unless separately approved.
 
-Exact host controls and the only two authorised upstream compatibility patches live in
-D0-001.
+Exact host controls and the authorised upstream compatibility patches live in D0-001. New upstream
+patches require an explicit reviewed architecture decision rather than ad-hoc growth of a fork.
 
 ## 6. Security invariants
 
@@ -159,6 +184,8 @@ D0-001.
 6. Runtime tokens remain memory-only and never enter URL/persistent browser storage/logs.
 7. Browser input and asset metadata are untrusted.
 8. Bucket credentials/object keys never reach browser JavaScript.
+9. ASA avatar/account presentation remains parent-owned; adding product identity chrome must not
+   grant Scratch-origin ASA account authority or cookies.
 
 The single canonical runtime-security contract is D0-004.
 
@@ -219,7 +246,7 @@ M1-002    ASA-owned Scratch host milestone
   M1-002A standalone build + minimal ASA host shell
   M1-002C strict parent/iframe bootstrap boundary
   M1-002D fixture storage adapter + real editor mount          FIRST VISIBLE SCRATCH
-  M1-002B ASA branding + File/Extensions controls
+  M1-002B ASA product chrome + localization + identity shell
   M1-002E integrated host acceptance + independent review
 
 M1-003    runtime capability + exact Origin/CORS/CSP/current authority
@@ -235,7 +262,10 @@ M4-001    explicit coming_soon → active activation
 ```
 
 The product capability order is `A → C → D → B → E`. C establishes the trusted bootstrap
-boundary; D mounts the editor through controlled fixture storage. Normalisation of tooling and
+boundary; D mounts the editor through controlled fixture storage. B must productise that real DOM
+without rewriting Scratch: ASA logo/theme/identity shell, correct locale resolution, built-in
+Settings language control preserved, familiar File/Edit/Extensions surfaces constrained by current
+capability truth, and semantic Scratch block colours preserved. Normalisation of tooling and
 documentation is ordinary maintenance, not an additional product prerequisite.
 
 Each executable product task is separately selected in `current.yaml`. No bot automatically
@@ -273,7 +303,7 @@ tasks/VSCR-M1-002.md
 → A technical host foundation → STOP
 → C secure bootstrap boundary → independent review → STOP
 → D real editor mount → FIRST VISIBLE SCRATCH checkpoint → STOP
-→ B ASA product controls on real DOM → STOP
+→ B ASA product chrome/localization/identity on real DOM → STOP
 → E integrated acceptance/review → STOP
 ```
 

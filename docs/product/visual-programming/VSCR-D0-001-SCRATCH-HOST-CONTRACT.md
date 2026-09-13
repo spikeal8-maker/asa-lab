@@ -57,6 +57,7 @@ onProjectLoaded()
 onSetProjectThumbnailer(...)
 projectId
 isPlayerOnly
+EditorState locale detection / Scratch locale reducer
 VM PROJECT_CHANGED
 vm.toJSON()
 vm.assets
@@ -65,8 +66,8 @@ vm.assets
 Removed/renamed behaviour during a future Scratch pin update is a STOP condition until the
 adapter is reviewed.
 
-Prefer supported configuration/export surfaces. Only the two explicitly authorised source
-patches below may cross into upstream implementation.
+Prefer supported configuration/export surfaces. Only the three explicitly authorised source
+patches below may cross into upstream implementation for the pinned revision used by M1-002B.
 
 ## Host layout
 
@@ -80,7 +81,8 @@ infra/scratch-editor/
 ├── README.md
 ├── patches/
 │   ├── 0001-host-logo-prop.patch
-│   └── 0002-extension-button-visibility.patch
+│   ├── 0002-extension-button-visibility.patch
+│   └── 0003-file-menu-policy.patch
 └── host/
     ├── index.html
     ├── main.js
@@ -89,6 +91,7 @@ infra/scratch-editor/
     ├── branding.js
     ├── storage.js
     ├── status.js
+    ├── theme.css
     └── host.css
 ```
 
@@ -103,12 +106,16 @@ Responsibilities remain separated:
 ```text
 main.js          composition/lifecycle wiring only
 protocol.js      parent/iframe message parsing and validation
-editor-config.js Scratch GUI feature flags
+editor-config.js Scratch GUI feature flags, locale and bounded product-control configuration
 branding.js      ASA logo/product-brand configuration
 storage.js       ScratchStorage/GUIStorage adapter
 status.js        child status/error reporting
-host.css         runtime-local presentation
+theme.css        ASA product-chrome styling only
+host.css         runtime-local shell presentation
 ```
+
+ASA account/avatar presentation is parent-owned under `apps/web/src/blocks/**`; it is not a
+Scratch-origin identity implementation.
 
 Do not create a second JS package manager/build graph for the host. It loads the standalone
 vendor distribution produced from the pinned upstream source.
@@ -124,6 +131,7 @@ Runtime image shape:
 ├── branding.js
 ├── storage.js
 ├── status.js
+├── theme.css
 ├── host.css
 ├── assets/asa-lab-mark.svg
 └── vendor/scratch/**
@@ -204,42 +212,173 @@ They are not the production ASA default media set.
 Before M3/public activation, the default project/library uses ASA-owned/right-cleared media or
 a deliberately empty stage unless a separate explicit rights review permits otherwise.
 
-## Product controls
+## Localization
 
-ASA owns project naming, persistence and user-facing `.sb3` product flows.
+Scratch's built-in localization is authoritative. ASA must not fork or manually duplicate
+Scratch translations merely to make the editor Russian.
 
-Core mode explicitly configures:
+The language selector remains exactly where Scratch already places it: inside the existing
+Settings menu. A second top-level `Language` / `Язык` button is forbidden.
+
+Initial locale policy:
 
 ```text
+1. canonical ASA account/user locale, once such a preference exists;
+2. otherwise Scratch's own browser-locale detection against its supported locale registry;
+3. upstream regional normalization where supported (for example ru-RU → ru, en-US → en);
+4. if upstream detection would fall back to English while the browser did not request English,
+   ASA fallback is ru.
+```
+
+The implementation must reuse upstream detection/locale state rather than maintaining a second
+hand-written list of Scratch translations. The current D fixture's hard-coded `locale: 'en'`
+must not survive B.
+
+Acceptance includes at least:
+
+```text
+ru-RU/ru browser → Russian initial UI
+en-US/en browser → English initial UI
+unsupported non-English browser with no requested supported locale → Russian fallback
+Settings → language selector remains present
+Russian → English → Russian switches the normal Scratch UI/block labels
+no language operation depends on scratch.mit.edu
+```
+
+## ASA theme boundary
+
+The product shell adopts the existing ASA Lab visual identity, but Scratch's programming-language
+colour semantics remain upstream.
+
+Canonical current ASA header references:
+
+```text
+primary product/header colour: #0877B3
+darker/border/hover reference: #076B98
+canonical brand tokens: apps/web/src/brand/brand.css
+```
+
+ASA styling may apply to product chrome such as:
+
+```text
+top product bar
+Extensions launcher/button
+sprite/backdrop add controls
+selected sprite/product accent states
+ASA-owned focus/selection chrome
+```
+
+Do not globally replace `$looks-secondary`, Scratch purple or another shared upstream colour token.
+The standard Scratch semantic colours for Motion, Looks, Sound, Events, Control, Sensing,
+Operators, Variables and My Blocks remain unchanged.
+
+If an upstream token is shared by both product chrome and a semantic programming category, isolate
+the product-chrome styling in ASA host CSS or through an already-authorised narrow host prop. Do
+not recolour the language to match ASA branding.
+
+## ASA identity shell
+
+ASA owns the account/avatar control shown at the right edge of the product header.
+
+The Scratch origin never becomes an ASA account surface. Required ownership:
+
+```text
+avatar image / initials / account menu → ASA parent Web
+Scratch iframe                         → editor/runtime only
+ASA account cookies                    → never exposed to Scratch origin
+Scratch account/community system       → absent
+```
+
+Prefer a parent-owned overlay/shell aligned with the Scratch header so the result appears as one
+ASA product bar without weakening the accepted separate-origin iframe boundary.
+
+Reuse the existing ASA avatar/account behaviour from the parent application rather than creating a
+second profile model for Scratch.
+
+## Product controls
+
+ASA owns project naming, durable persistence and user-facing safe `.sb3` policy, but the familiar
+Scratch Settings/File/Edit surfaces remain visible where their behaviour is truthful.
+
+M1-002B core product mode configures the equivalent of:
+
+```text
+canChangeLanguage = true
 canSave = false
-canCreateNew = false
-canEditTitle = false
-canManageFiles = false
-canShare = false
+canCreateCopy = false
 canRemix = false
+canEditTitle = false
+canManageFiles = true
+canShare = false
 backpackVisible = false
 showComingSoon = false
 canUseCloud = false
-extensionsButtonVisible = false
+extensionsButtonVisible = true
+fileNewVisible = true
+fileImportVisible = false
+fileExportVisible = false
 ```
 
-Consequences:
+`fileNewVisible`, `fileImportVisible` and `fileExportVisible` are host-control semantics introduced
+by the authorised File-menu compatibility patch below. The exact upstream-safe names used by the
+patch may differ only if the task/component card is updated first and the behaviour remains exactly
+this bounded policy.
+
+Consequences during B:
 
 ```text
-built-in Scratch File import/export absent
-upstream server save disabled
-Scratch account/share/remix ownership absent
-backpack/cloud ownership absent
+Settings is present and owns language switching
+File menu is present
+Edit menu is present
+New may create/reset the technical local project with honest unsaved-work confirmation
+upstream/server Save now is disabled
+local .sb3 import is unavailable before M1-007
+local .sb3 export is unavailable before M1-007
+Scratch account/share/remix ownership is absent
+backpack/cloud ownership is absent
 ```
 
-ASA `.sb3` import/export arrives only in its later dedicated task.
+ASA durable save arrives in M1-005. Safe `.sb3` import/export arrives in M1-007 and may then enable
+the existing familiar File-menu entries rather than adding duplicate ASA buttons.
+
+### Authorised File-menu patch
+
+At the pinned upstream revision, `canManageFiles` controls the whole File menu while `Load from your
+computer` and `Save to your computer` are unconditional inside upstream `FileMenu`. Therefore the
+accepted requirement “File remains visible, unsafe `.sb3` items remain unavailable until M1-007”
+cannot be implemented truthfully by configuration alone.
+
+A third minimal compatibility patch is explicitly authorised:
+
+```text
+infra/scratch-editor/patches/0003-file-menu-policy.patch
+```
+
+Its only behavioural purpose is to let the host independently control visibility/availability of:
+
+```text
+New
+Load from your computer
+Save to your computer
+```
+
+The patch must have upstream-safe defaults equivalent to current Scratch behaviour. It must not:
+
+```text
+implement ASA persistence
+parse or validate .sb3 itself
+change VM/project semantics
+create a second File menu
+change language handling
+change product colours
+```
 
 ## Extensions
 
-Pinned GUI exposes the upstream extension library by default. Core M1/M2 hides that surface,
-not merely its click handler.
+The familiar Scratch Extensions entry point remains visible in ASA product mode. It is styled as
+ASA product chrome but does not gain permission to reach arbitrary Scratch Foundation services.
 
-The second and only other authorised compatibility patch is:
+The second authorised compatibility patch remains:
 
 ```text
 infra/scratch-editor/patches/0002-extension-button-visibility.patch
@@ -250,13 +389,17 @@ It introduces host-controlled:
 ```text
 extensionsButtonVisible
 upstream-safe default: true
-ASA core mode: false
+ASA B mode: true
 ```
 
-M3 may introduce an approved local extension allowlist. External-service/hardware extensions
-are classified separately.
+The button may expose only locally bundled or explicitly approved extension sources. Any extension
+or library item that would require an unapproved Scratch Foundation/network dependency is
+unavailable rather than silently falling back externally.
 
-A third upstream source patch is a STOP condition requiring an explicit design revision.
+M3 still owns the final sovereign extension allowlist/policy and external-service/hardware
+classification.
+
+A fourth upstream source patch is a STOP condition requiring an explicit design revision.
 
 ## Host startup and authority
 
@@ -471,34 +614,42 @@ Content-Security-Policy using exact frame-ancestors/connect-src rules from D0-00
 
 Runtime sets no cookie and does not require credentialed CORS.
 
-`.sb3` import/export remains an ASA outer product flow, not iframe sandbox download authority.
+`.sb3` import/export remains unavailable until the later M1-007 policy allows the corresponding
+File-menu entries and sandbox/download authority is reviewed explicitly.
 
 ## M1-002 acceptance
 
-M1-002 acceptance occurs in M1-002E after A–D are independently completed/accepted.
+M1-002 acceptance occurs in M1-002E after A/C/D/B are independently completed/accepted.
 
 Integrated browser/Docker evidence proves all of:
 
 ```text
 1. configured Scratch SHA equals reviewed immutable ASA pin and runtime reports exact provenance
 2. runtime uses standalone dist, not upstream playground build/index.html
-3. exactly two authorised compatibility patches apply; no third patch exists
+3. exactly three authorised compatibility patches apply; no fourth patch exists
 4. rendered logo bytes originate from apps/web/public/asa-lab-mark.svg
 5. Scratch product logo/navigation is absent
-6. built-in File menu is absent
-7. Extensions button is absent in core mode
-8. no account/share/backpack/cloud/Scratch-server-save ownership is exposed
-9. editor does not render before valid INIT
-10. wrong parent origin/source/project/nonce/protocol/version is rejected
-11. runtime token is absent from URL/localStorage/sessionStorage/IndexedDB/logs
-12. new technical project uses local internal ID 0 and does not fetch ASA UUID
-13. existing-project fixture/runtime shape requests project JSON only through ASA runtime boundary
-14. asset fixture/runtime requests use Authorization semantics + credentials: omit
-15. token update affects subsequent storage requests without rebuilding storage adapter
-16. no project/library URL falls back to Scratch Foundation
-17. PROJECT_CHANGED reaches ASA host after stable initial load
-18. player mode mounts read-only from same host
-19. runtime failure does not crash ASA Web parent and produces controlled error state
+6. ASA product header uses canonical ASA colour without recolouring semantic Scratch block categories
+7. Settings remains and contains the built-in Scratch language selector
+8. no separate top-level Language/Язык control exists
+9. ru-RU/ru resolves to Russian; en-US/en resolves to English; unsupported non-English fallback is ru
+10. language switching uses upstream Scratch localization and works Russian → English → Russian
+11. File menu remains visible while Save now and .sb3 import/export are unavailable before their owning milestones
+12. Edit menu remains visible
+13. Extensions entry point remains visible, ASA-themed and has no Scratch Foundation fallback
+14. ASA avatar/account control is parent-owned and does not give Scratch-origin ASA account authority
+15. no account/share/backpack/cloud/Scratch-server-save ownership is exposed
+16. editor does not render before valid INIT
+17. wrong parent origin/source/project/nonce/protocol/version is rejected
+18. runtime token is absent from URL/localStorage/sessionStorage/IndexedDB/logs
+19. new technical project uses local internal ID 0 and does not fetch ASA UUID
+20. existing-project fixture/runtime shape requests project JSON only through ASA runtime boundary
+21. asset fixture/runtime requests use Authorization semantics + credentials: omit
+22. token update affects subsequent storage requests without rebuilding storage adapter
+23. no project/library/extension URL falls back to Scratch Foundation
+24. PROJECT_CHANGED reaches ASA host after stable initial load
+25. player mode mounts read-only from same host
+26. runtime failure does not crash ASA Web parent and produces controlled error state
 ```
 
 Actual browser DOM/network inspection is mandatory; source grep is insufficient.
@@ -512,7 +663,7 @@ Every future Scratch pin update rechecks at least:
 
 ```text
 standalone bundle/export global
-EditorState config factory
+EditorState config factory and built-in locale detection
 createStandaloneRoot
 ScratchStorage request hooks
 buildDefaultProject fixture shape
@@ -523,7 +674,8 @@ VM PROJECT_CHANGED
 vm.toJSON/vm.assets
 host-logo patch context
 extension-visibility patch context
+FileMenu structure and file-menu-policy patch context
 ```
 
-If either accepted compatibility patch no longer applies exactly, stop the upstream update
-and check whether upstream now provides a native host control before modifying the patch.
+If any accepted compatibility patch no longer applies exactly, stop the upstream update and check
+whether upstream now provides a native host control before modifying the patch.

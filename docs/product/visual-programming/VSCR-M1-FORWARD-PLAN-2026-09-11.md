@@ -24,7 +24,8 @@ Every step must answer one of these questions:
 ```text
 Can the host be built reproducibly?
 Can a user actually open and run Scratch inside ASA?
-Can ASA control the product chrome?
+Can ASA control the product chrome without rewriting Scratch?
+Can language/default locale behave correctly through Scratch's own localization?
 Can a project survive save/reopen?
 Can it recover safely?
 Can it interchange .sb3 safely?
@@ -59,8 +60,8 @@ M1-002    ASA-owned Scratch host milestone
     ↓ security evidence + independent review / STOP
   M1-002D fixture storage adapter + REAL editor mount
     ↓ FIRST VISIBLE SCRATCH checkpoint / STOP
-  M1-002B ASA branding + File/Extensions product controls
-    ↓ product-chrome evidence / STOP
+  M1-002B ASA product chrome + localization + identity shell
+    ↓ product-chrome/localization evidence / STOP
   M1-002E integrated host acceptance + independent review
     ↓ owner acceptance of M1-002 milestone / STOP
 
@@ -77,7 +78,7 @@ M4-001    explicit coming_soon → active decision
 ```
 
 The product order is `A → C → D → B → E`.
-Branding/control DOM evidence is meaningful only after the editor can actually mount.
+Branding/control/localization DOM evidence is meaningful only after the editor can actually mount.
 
 No task or sub-slice automatically advances to the next one.
 
@@ -100,6 +101,27 @@ ASA parent opens the isolated Scratch host
 Persistence may still be intentionally non-durable here. The point is to prove that Scratch is
 actually usable inside the ASA boundary before spending more work on product chrome.
 
+### Checkpoint 1B — ASA product shell on real Scratch
+
+Reached by accepted M1-002B evidence:
+
+```text
+real upstream Scratch remains the editor/runtime
+→ ASA logo replaces Scratch product logo
+→ ASA product bar uses the existing ASA palette
+→ ASA avatar/account remains parent-owned
+→ Scratch Settings remains
+→ language switching remains inside Settings; no separate Language/Язык button
+→ Russian browser opens Russian; English browser opens English; unsupported non-English falls back to ru
+→ Scratch File/Edit remain familiar surfaces
+→ unsafe .sb3 File items remain unavailable until M1-007
+→ Extensions entry point remains visible but local/approved-only
+→ Scratch programming-category colours remain unchanged
+```
+
+B has exactly three reviewed compatibility patches at the pinned upstream revision: logo prop,
+Extensions visibility and File-menu item policy. A fourth patch is not implicitly authorised.
+
 ### Checkpoint 2 — Durable ASA project
 
 Reached by M1-005:
@@ -118,7 +140,8 @@ Reached by M1-006: autosave, recovery and conflict handling are proven.
 
 ### Checkpoint 4 — Compatible interchange
 
-Reached by M1-007: bounded/safe `.sb3` import/export round-trip is proven.
+Reached by M1-007: bounded/safe `.sb3` import/export round-trip is proven and the existing File-menu
+import/export entries may then be enabled under the accepted policy.
 
 ### Checkpoint 5 — Product integration
 
@@ -177,7 +200,7 @@ Use the smallest acceptance ceremony that matches risk and capability:
 technical foundation (A)       focused evidence + bounded self-review
 security boundary (C)          focused/browser evidence + independent review
 first visible editor (D)       focused/browser evidence + owner-visible checkpoint
-product controls (B)           focused DOM/browser evidence + bounded self-review
+product shell (B)              focused DOM/browser/network evidence + bounded self-review
 integrated host (E)            integrated evidence + independent review + owner milestone acceptance
 ```
 
@@ -201,6 +224,10 @@ Do not pre-write exact source/test paths for distant work.
 ```text
 Scratch logo is not ASA product chrome
 canonical ASA logo is apps/web/public/asa-lab-mark.svg
+language selector remains inside Scratch Settings; no duplicate top-level language button
+Scratch built-in localization remains authoritative; no ASA translation fork
+ASA theme affects product chrome, not Scratch programming-category colours
+ASA avatar/account remains parent-owned, not Scratch-origin identity
 built-in Scratch account/community/cloud/server-save ownership is not ASA product flow
 Gallery publication binds exact immutable project_version_id
 cross-tenant remix re-materialises referenced assets server-side

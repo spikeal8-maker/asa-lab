@@ -7,8 +7,7 @@
 ## Goal
 
 Establish the ASA-owned standalone Scratch host boundary without combining build, trust boundary,
-fixture mount, product controls and integrated acceptance into one uncontrolled
-agent run.
+fixture mount, product shell and integrated acceptance into one uncontrolled agent run.
 
 The milestone is ordered by **working capability**, in product order:
 
@@ -19,8 +18,8 @@ VSCR-M1-002C  strict parent/iframe bootstrap boundary
 → security evidence + independent review / STOP
 VSCR-M1-002D  fixture storage adapter + real editor mount
 → FIRST VISIBLE SCRATCH checkpoint / STOP
-VSCR-M1-002B  ASA branding + File/Extensions controls on the real editor DOM
-→ product-chrome evidence / STOP
+VSCR-M1-002B  ASA product chrome + localization + identity shell on the real editor DOM
+→ product-chrome/localization evidence / STOP
 VSCR-M1-002E  integrated browser/Docker acceptance + independent review
 → owner acceptance of M1-002 milestone / STOP
 ```
@@ -54,6 +53,9 @@ blocks.host.build
 blocks.host.protocol
 blocks.host.storage-adapter
 blocks.host.branding
+blocks.host.localization
+blocks.host.theme
+blocks.host.identity-shell
 blocks.host.file-menu
 blocks.host.extensions
 ```
@@ -73,8 +75,30 @@ ASA parent
 → no Scratch Foundation project/library fallback
 ```
 
-Durable save is intentionally later. Product branding/controls are intentionally after this
-checkpoint so their browser evidence observes a real editor.
+Durable save is intentionally later. Product branding/localization/identity controls are intentionally
+after this checkpoint so their browser evidence observes a real editor.
+
+## B product-shell capability
+
+B does **not** rewrite Scratch. It productises the real mounted upstream editor:
+
+```text
+ASA logo replaces Scratch product logo
+ASA top bar/product chrome uses the existing ASA palette
+ASA avatar/account surface remains parent-owned on the right
+Scratch Settings remains
+language selection remains inside Scratch Settings; no separate Language/Язык button
+initial language uses ASA preference/upstream browser detection with ru fallback
+Scratch File and Edit menus remain familiar surfaces
+File import/export stays unavailable until the safe .sb3 milestone
+Scratch Extensions entry point remains visible, ASA-themed and local/approved-only
+Scratch semantic programming-category colours remain unchanged
+```
+
+The accepted pinned upstream requires a bounded third File-menu compatibility patch because its
+`canManageFiles` flag hides the whole menu while local import/export items are otherwise
+unconditional. B may use exactly the three authorised patches declared by D0-001; no fourth patch is
+implicit.
 
 ## Minimal read set
 
@@ -128,7 +152,7 @@ Not every internal layer needs an owner-visible ceremony:
 A  technical foundation
 C  high-risk security boundary; independent review required
 D  first visible editor capability; owner-visible checkpoint
-B  product controls on accepted real DOM
+B  ASA product chrome/localization/identity on accepted real DOM
 E  integrated high-risk acceptance; owner milestone acceptance
 ```
 
@@ -142,6 +166,8 @@ no one-shot implementation of all M1-002 concerns
 no automatic A → C → D → B → E progression
 no return to branding-before-mount order
 no execution from a stale next-slice card
+no Scratch rewrite / translation fork
+no duplicate top-level language button
 no M1-003 runtime JWT work
 no S3/MinIO
 no Project Core persistence
@@ -155,7 +181,9 @@ At the milestone level, verify only that:
 ```text
 A/C/D/B have separate accepted evidence
 D proves the first visible working editor
-B productises the already mounted editor
+B productises the already mounted editor without replacing Scratch behaviour
+B keeps language selection in Settings and preserves Scratch semantic category colours
+B keeps ASA identity parent-owned
 E reviewed the integrated host boundary
 next cards were refreshed against accepted prior interfaces before selection
 no sub-slice started automatically

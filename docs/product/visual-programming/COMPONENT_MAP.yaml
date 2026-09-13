@@ -28,6 +28,9 @@ components:
 
   blocks.host.build: {card: components/host.yaml, keywords: ["сборка scratch", "scratch host"]}
   blocks.host.branding: {card: components/host.yaml, keywords: ["логотип scratch", "логотип asa"]}
+  blocks.host.localization: {card: components/host.yaml, keywords: ["язык scratch", "русский scratch", "locale scratch", "смена языка"]}
+  blocks.host.theme: {card: components/host.yaml, keywords: ["цвет scratch", "тема scratch", "шапка scratch", "asa theme"]}
+  blocks.host.identity-shell: {card: components/host.yaml, keywords: ["аватар scratch", "аккаунт scratch", "identity shell"]}
   blocks.host.file-menu: {card: components/host.yaml, keywords: ["file menu", "меню файл"]}
   blocks.host.extensions: {card: components/host.yaml, keywords: ["расширения scratch", "кнопка расширений"]}
   blocks.host.protocol: {card: components/host.yaml, keywords: ["iframe", "postmessage"]}
