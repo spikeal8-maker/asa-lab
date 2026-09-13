@@ -10,8 +10,8 @@ THIS IS INTEGRATION BASELINE, NOT E1 COMPLETION.
 - RECOVERY_SHA: `8ea7771d902d92f5288685a031b134feb353f4cc`.
 - DOCS_RECOVERY_SHA: `ea3ad1a8e092e0e7681f9900bc99b3709550783c`.
 - PREVIEW_SHA: `dce140868601b55c9a5449b38012e297c116d8be`, Draft [PR #210](https://github.com/spikeal8-maker/asa-lab/pull/210).
-- INTEGRATION_SHA: `cd3051f17c557b4c7fd82518f47a8d0898f46487` (synchronized integration parent before this documentary receipt).
-- EXECUTABLE_CI_SHA: `3c522194eec686cbb690e76fab88f27fbf523bd9`; the later synchronization changes only Scratch documentation, with no executable/migration delta.
+- INTEGRATION_SHA: `ba71fc1ae13a9eccd4ab18a9ec1597414cbd4a74` (final candidate before this receipt update).
+- PRIOR_GREEN_CI_SHA: `3c522194eec686cbb690e76fab88f27fbf523bd9`. Subsequent changes are Scratch documentation, captured evidence and the test-only migration coordinator below. Product code and migration SQL remain unchanged; the PR body attests final exact-HEAD CI.
 - Independent product/migration review: `0fac1851759e7e76a4027aa0b3408ce1c84f0fed`, followed by both reviewers' bounded PASS attestations at `3c522194eec686cbb690e76fab88f27fbf523bd9`.
 - Branch: `integration/e1-main-convergence-20260913`.
 - Stacked Draft [PR #213](https://github.com/spikeal8-maker/asa-lab/pull/213), base `docs/product-spec-v1.4`.
@@ -52,6 +52,7 @@ Three obsolete, unreferenced synthetic PNG imports were omitted only from the ne
 5. Historical submitted timestamps without exact evidence remain visible as submitted but do not enter the teacher review queue. Real canonical submissions still count. A legacy browser regression verifies zero awaiting items, later changes_requested, resubmit, immutable Result and retained selected grade during a newer Attempt.
 6. Browser fixtures now use actual sidebar links, one-time Seat credentials, batch preview/commit, explicit saved-revision confirmation, current author Preview and teacher-approved Account admission. Production permissions/rate limits were not weakened.
 7. New Learning CI runs the same `test:learning-e1` and `e2e:learning-e1` commands as local evidence. Browser origin 4612 is scoped to the browser step, because injected API tests use 4610. E1 and legacy browser groups use separate test application lifetimes; unrelated classes no longer accumulate one process's IP attempt budget. Database/full-suite and browser runs are sequential because lifecycle tests own 4612. Access A/Preview PostgreSQL tests now create their own UUID-named temporary database: strict no-write triggers and whole-database snapshots retain every original assertion while no longer interfering with concurrent suites. Cleanup validates and drops only the database created by that fixture; the original test database and credentials are unchanged.
+8. The documentary candidate `997a61a1` exposed a second fixture race: simultaneous fresh plans in different databases both execute unchanged migration 0002's cluster-wide `ALTER ROLE`, while the production runner's advisory lock is database-local. [The failed Learning run](https://github.com/spikeal8-maker/asa-lab/actions/runs/34764135179) reported `tuple concurrently updated` before Preview tests; its other 17 checks passed. A test-only helper now holds a session advisory lock on the original `_test` coordinator database around unchanged `applyPlan`. All three real PostgreSQL migration suites use it; PGlite, production migration SQL/runner, all assertions and Preview write guards remain unchanged. The coordinator releases its lock and connection in `finally`, without serializing unrelated test work.
 
 ## Migration mapping and upgrade proof
 
@@ -135,6 +136,7 @@ All owner evidence commands used `NX_SKIP_NX_CACHE=true` and `NX_DAEMON=false`. 
 | `pnpm gate:data` | PASS final isolated-Preview run; 1949/1949 in 245 files, then 15/15 RLS |
 | `pnpm test:learning-e1` | PASS 238/238 in 33 files |
 | `pnpm vitest run tests/courses/learning-course-upgrade.pg.spec.ts` | PASS 4/4, disposable populated upgrades |
+| `pnpm vitest run tests/account/access-a.pg.spec.ts tests/account/access-a-upgrade.pg.spec.ts tests/courses/learning-course-upgrade.pg.spec.ts --maxWorkers=3 --minWorkers=3` | PASS 13/13 in each of three consecutive concurrent runs after the coordinator fix |
 | `pnpm e2e:learning-e1` | PASS 15/15: E1/Preview 10 and legacy 5, separate application lifetimes |
 | `pnpm e2e:access-a` | PASS 5/5, real author Preview and teacher-approved Account admission |
 | Independent probes/tests | 3D race 2/2; canonical/projection 20/20; dry-run 5/5 |
@@ -146,7 +148,7 @@ Real browser evidence covers saved/published Preview with late-response races an
 
 ## GitHub workflow receipts
 
-Executable/test candidate `3c522194eec686cbb690e76fab88f27fbf523bd9` — all 18 check runs completed SUCCESS, including every required data/browser job.
+Earlier executable/test candidate `3c522194eec686cbb690e76fab88f27fbf523bd9` — all 18 check runs completed SUCCESS, including every required data/browser job. Final exact-HEAD CI after the fixture coordinator fix is recorded in the PR body.
 
 | Workflow | Conclusion |
 |---|---|
@@ -176,6 +178,8 @@ Intermediate failures are retained in GitHub history. Only the final PR HEAD's c
 POST_STEP_REVIEW: PASS for this integration scope; L3_CRITICAL. Shared authority remains the existing domain/DB resolver. Server guards, immutable evidence, idempotency, concurrent saves, old/new rollout readiness and negative authorization are covered by the named tests. No canonical state promotion occurred. No project-map nodes changed.
 
 Independent CHALLENGE_REVIEW: PASS at product candidate `0fac1851`, with no remaining actionable findings in the selected migration/shared-product boundaries. Both reviewers then re-attested executable HEAD `3c522194` as PASS: product/migration trees were unchanged; the private Preview fixture retained all write guards (reviewed blob `60ea32c35509c3cd2b6f3d32bc84a828c4d8a97a`). Migration review independently ran five pure classifier probes; shared review independently ran the two 3D races and 20 canonical/projection tests. PostgreSQL/browser/CI results above are the author's separate evidence, not falsely attributed to the reviewers.
+
+The migration reviewer also returned PASS for the final coordinator helper (blob `f4c71d1249e264403865efd63e58060c66634a8f`), confirming one dedicated session holds the common lock across each plan, all three real-PG callers participate, and failure/success cleanup preserves existing guards and assertions. Concurrent PostgreSQL runs and the full post-fix Learning/data reruns are separate author evidence.
 
 Remaining E1 functional acceptance is explicit: draft recovery from a historical published version; Teacher Home attention block; complete class archive/restore integration acceptance; broader reminder/mixed-history acceptance beyond the preserved services and tested cases; and final owner E1 acceptance/release hardening. Existing reminder/notification/legacy behavior is retained. This task does not add archive features, reminder semantics, E2 quizzes, Python runtime, E3 Knowledge UI, self-study or linking functionality.
 
