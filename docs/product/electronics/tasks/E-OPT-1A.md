@@ -1,10 +1,16 @@
-# E-OPT-1A — current public boundary inventory
+---
+task_id: TASK-ELECTRONICS-EOPT1A-001
+kind: design-decision
+risk: medium
+semantic_change: no
+roadmap_slice: E-OPT-1A
+prerequisites:
+  - Owner acceptance of the governance plan and separate canonical task selection
+acceptance_boundary: slice
+review: self
+---
 
-- **Execution task ID:** `TASK-ELECTRONICS-EOPT1A-001`
-- **Kind:** design/analysis prerequisite
-- **Risk:** medium (high-risk area, but this slice is read-only for product/runtime code)
-- **Semantic change:** `no`
-- **Roadmap slice:** `E-OPT-1A`
+# E-OPT-1A — current public boundary inventory
 
 ## Execution lock
 

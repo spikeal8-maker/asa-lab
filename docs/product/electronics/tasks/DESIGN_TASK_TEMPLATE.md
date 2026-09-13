@@ -4,13 +4,20 @@ Use for one prerequisite architectural/technical decision. It chooses/proves a b
 
 ## Metadata
 
-```text
-Task ID: <bounded design id>
-Kind: design-decision
-Risk: <low|medium|high|critical>
-Semantic change: <yes|no>
-Prerequisite: <accepted interfaces/evidence>
-Following implementation: <task id, not authorised here>
+Copy this frontmatter to the very start of the concrete card and replace placeholders.
+Field meanings and validation are owned by [AGENT_GUIDE §2](../AGENT_GUIDE.md#2-one-concern-per-slice).
+
+```yaml
+---
+task_id: <TASK-ELECTRONICS-...-001>
+kind: design-decision
+risk: <low|medium|high|critical>
+semantic_change: <yes|no>
+roadmap_slice: null # exact E-OPT slice for roadmap work
+prerequisites: [] # exact required acceptance/interface references
+acceptance_boundary: slice # milestone only for integrated acceptance
+review: <self|independent>
+---
 ```
 
 ## Question

@@ -40,6 +40,22 @@ STOP_AFTER
 
 If these cannot be stated precisely, do not code yet.
 
+Concrete cards use one YAML frontmatter block at the start of the Markdown file.
+Templates supply its eight fields: `task_id`, `kind`, `risk`, `semantic_change`
+(`yes|no`), `roadmap_slice` (exact E-OPT slice or `null`), `prerequisites` (references,
+not completion status), `acceptance_boundary` (`slice|milestone`) and `review`
+(`self|independent`). Metadata is not duplicated in prose. The validator rejects
+missing/unknown fields, malformed declarations and review weaker than §13 requires.
+
+Every active Electronics task needs exactly one card, independent of its product ID.
+Only `TASK-ELECTRONICS-GOVERNANCE-<nnn>` and `TASK-ELECTRONICS-CONTROL-<nnn>` may use
+an owner-selected governance scope without a product card. All other task IDs use
+`TASK-ELECTRONICS-<UPPERCASE-CONCERN>-<nnn>` and are fail-closed when no card matches.
+Before executable work, `pnpm validate:electronics-agent-docs --task <selected-id>`
+must match canonical `current.yaml` with `status: in_progress`. Default validation
+also checks planned cards; their existence never activates them. Review metadata
+declares a requirement, not proof that review occurred.
+
 ### Default size budget
 
 Maintenance:
@@ -64,7 +80,7 @@ Exceeding a budget is not automatically forbidden, but the task card must explai
 
 ## 3. Task kinds and allowed behaviour
 
-### `maintenance`
+### `maintenance` / `repair`
 
 May repair/refine an already implemented capability. Must not begin a future roadmap capability, change architecture to make the fix easier, or deploy.
 
@@ -185,6 +201,12 @@ Before adding a new file, check whether the mapped component already owns a suit
 If source/test ownership changes, update the matching subsystem card in the same slice. Update `COMPONENT_MAP.yaml` only when stable IDs, routes or human keywords change.
 
 Do not copy active task/SHA/CI/deployment status into component cards.
+
+`sources` contains exact readable files only; `symbols` names real TS/TSX/JS/MJS
+declarations (internal declarations are allowed). `asset_roots` separately identifies
+protected owner-supplied/owner-audit directories; it is never a preload or edit grant.
+Explicit empty `sources`/`tests` means there is no mapped code/test entry; consult
+the prerequisite contract before selecting implementation. It does not imply readiness.
 
 ## 11. Tests and evidence
 

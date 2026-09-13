@@ -12,8 +12,12 @@ const docs = 'docs/product/electronics';
 const id = 'electronics.engine.example';
 const taskId = 'TASK-ELECTRONICS-EOPT1A-001';
 
+function taskMarkdown(metadata = {}) {
+  return `---\n${YAML.stringify({ task_id: taskId, kind: 'design-decision', risk: 'medium', semantic_change: 'no', roadmap_slice: 'E-OPT-1A', prerequisites: [], acceptance_boundary: 'slice', review: 'self', ...metadata })}---\n# Bounded task\n`;
+}
+
 // A disposable repository-shaped fixture: never mutate the checkout/current.yaml.
-function check(mutate = () => {}) {
+function check(mutate = () => {}, args = []) {
   const root = mkdtempSync(join(tmpdir(), 'asa-electronics-routing-test-'));
   const component = {
     risk: 'high',
@@ -33,7 +37,7 @@ function check(mutate = () => {}) {
     current: { primary_lane: { id: 'electronics' }, task: { id: taskId, status: 'in_progress' } },
     files: {
       [`${docs}/README.md`]: '# Actual contract\n\n```md\n# Not a contract\n```\n',
-      [`${docs}/tasks/E-OPT-1A.md`]: `- **Execution task ID:** \`${taskId}\`\n`,
+      [`${docs}/tasks/E-OPT-1A.md`]: taskMarkdown(),
       'contexts/electronics/example.ts': 'export function runExample() {}\n',
       'contexts/electronics/example.spec.ts': 'test fixture\n',
     },
@@ -59,7 +63,7 @@ function check(mutate = () => {}) {
     put(`${docs}/components/example.yaml`, YAML.stringify(fixture.card));
     put('docs/execution/current.yaml', YAML.stringify(fixture.current));
     for (const [path, content] of Object.entries(fixture.files)) put(path, content);
-    const result = spawnSync(process.execPath, [validator], {
+    const result = spawnSync(process.execPath, [validator, ...args], {
       cwd: root,
       encoding: 'utf8',
       timeout: 20_000,
@@ -201,7 +205,7 @@ const rejections = [
     (_, c) => {
       c.symbols = ['notThere'];
     },
-    /symbol is not present/,
+    /symbol declaration is not present/,
   ],
   [
     'large source whose only routed symbol is in another file',
@@ -279,11 +283,179 @@ for (const [name, mutate, expected] of rejections) {
   });
 }
 
-test('preserves read-only owner-asset directory routing', () => {
+test('rejects owner-asset directory in readable sources', () => {
   const result = check((f, c) => {
     c.ownership = 'owner_asset';
     c.sources = ['contexts/electronics/**'];
     c.symbols = [];
   });
+  assert.equal(result.status, 1, result.output);
+  assert.match(result.output, /sources must name exact files/);
+});
+
+test('accepts separate protected asset_roots without preloading sources', () => {
+  const result = check((f, c) => {
+    c.ownership = 'owner_asset';
+    c.sources = [];
+    c.symbols = [];
+    c.asset_roots = ['apps/web/public/assets/electronics/owner-audit'];
+    f.files[`${c.asset_roots[0]}/manifest.json`] = '{}';
+  });
   assert.equal(result.status, 0, result.output);
 });
+
+for (const kind of [
+  'implementation',
+  'maintenance',
+  'repair',
+  'design-decision',
+  'component/peripheral',
+  'deployment',
+]) {
+  const selectedId = `TASK-ELECTRONICS-${kind.replace(/[^a-z]/g, '').toUpperCase()}-001`;
+  test(`rejects active ${kind} without its concrete card`, () => {
+    const result = check((f) => {
+      f.current.task.id = selectedId;
+    });
+    assert.equal(result.status, 1, result.output);
+    assert.match(result.output, /must map to exactly one task card/);
+  });
+  test(`accepts selected ${kind} with matching metadata`, () => {
+    const result = check(
+      (f) => {
+        f.current.task.id = selectedId;
+        f.files[`${docs}/tasks/E-OPT-1A.md`] = taskMarkdown({
+          task_id: selectedId,
+          kind,
+          risk: kind === 'deployment' ? 'critical' : 'medium',
+          review: kind === 'deployment' ? 'independent' : 'self',
+        });
+      },
+      ['--task', selectedId],
+    );
+    assert.equal(result.status, 0, result.output);
+  });
+}
+
+for (const [name, source] of [
+  ['comment', '// export function runExample() {}'],
+  ['string', 'const text = "export function runExample() {}";'],
+  ['substring', 'export function runExampleExtra() {}'],
+  ['import', 'import {runExample} from "./other";'],
+  ['re-export', 'export {runExample} from "./other";'],
+]) {
+  test(`rejects symbol present only in ${name}`, () => {
+    const result = check((f) => {
+      f.files['contexts/electronics/example.ts'] = source;
+    });
+    assert.equal(result.status, 1, result.output);
+    assert.match(result.output, /symbol declaration is not present/);
+  });
+}
+
+test('accepts exported and internal declarations in TS/TSX/JS/MJS', () => {
+  const result = check((f, c) => {
+    c.sources = [
+      'contexts/electronics/a.ts',
+      'contexts/electronics/b.tsx',
+      'contexts/electronics/c.js',
+      'contexts/electronics/d.mjs',
+    ];
+    c.symbols = [
+      'runExample',
+      'Example',
+      'Mode',
+      'Port',
+      'internalValue',
+      'javascriptFn',
+      'workerFn',
+    ];
+    f.files[c.sources[0]] =
+      'function runExample() {} export class Example {} type Mode = number; interface Port {}';
+    f.files[c.sources[1]] = 'const internalValue = <div />;';
+    f.files[c.sources[2]] = 'export const javascriptFn = () => {};';
+    f.files[c.sources[3]] = 'export function workerFn() {}';
+  });
+  assert.equal(result.status, 0, result.output);
+});
+
+for (const [name, metadata, expected] of [
+  ['wrong semantic flag', { semantic_change: 'maybe' }, /invalid semantic_change/],
+  ['boolean semantic flag', { semantic_change: false }, /invalid semantic_change/],
+  ['unknown task kind', { kind: 'anything' }, /invalid task kind/],
+  ['malformed task ID', { task_id: 'TASK-ELECTRONICS-BROKEN' }, /invalid task_id/],
+  [
+    'wrong declared Task ID',
+    { task_id: 'TASK-ELECTRONICS-OTHER-001' },
+    /must map to exactly one task card/,
+  ],
+  [
+    'HIGH semantic change without review',
+    { risk: 'high', semantic_change: 'yes' },
+    /independent review is required/,
+  ],
+  ['CRITICAL operation without review', { risk: 'critical' }, /independent review is required/],
+  [
+    'milestone acceptance without review',
+    { acceptance_boundary: 'milestone' },
+    /independent review is required/,
+  ],
+  ['lowered deployment risk', { kind: 'deployment' }, /deployment risk must be critical/],
+  ['competing progress state', { status: 'in_progress' }, /unknown task metadata status/],
+]) {
+  test(`rejects metadata: ${name}`, () => {
+    const result = check((f) => {
+      f.files[`${docs}/tasks/E-OPT-1A.md`] = taskMarkdown(metadata);
+    });
+    assert.equal(result.status, 1, result.output);
+    assert.match(result.output, expected);
+  });
+}
+
+test('allows planned card during governance but rejects executing that unselected card', () => {
+  const mutate = (f) => {
+    f.current.task.id = 'TASK-ELECTRONICS-GOVERNANCE-002';
+  };
+  assert.equal(check(mutate).status, 0);
+  const result = check(mutate, ['--task', taskId]);
+  assert.equal(result.status, 1, result.output);
+  assert.match(result.output, /is not selected for execution/);
+});
+
+test('in-review task cannot be started as in-progress', () => {
+  const result = check(
+    (f) => {
+      f.current.task.status = 'in_review';
+    },
+    ['--task', taskId],
+  );
+  assert.equal(result.status, 1, result.output);
+  assert.match(result.output, /is not selected for execution/);
+});
+
+test('rejects duplicate YAML metadata keys', () => {
+  const result = check((f) => {
+    f.files[`${docs}/tasks/E-OPT-1A.md`] = taskMarkdown().replace(
+      'kind: design-decision',
+      'kind: maintenance\nkind: design-decision',
+    );
+  });
+  assert.equal(result.status, 1, result.output);
+  assert.match(result.output, /malformed task declaration/);
+});
+
+for (const [name, assetRoot, ownership] of [
+  ['unprotected directory', 'contexts/electronics', 'owner_asset'],
+  ['asset root glob', 'apps/web/public/assets/electronics/owner-audit/**', 'owner_asset'],
+  ['root on non-asset component', 'apps/web/public/assets/electronics/owner-audit', 'asa'],
+  ['missing protected root', 'apps/web/public/assets/electronics/owner-audit', 'owner_asset'],
+]) {
+  test(`rejects ${name}`, () => {
+    const result = check((f, c) => {
+      c.ownership = ownership;
+      c.asset_roots = [assetRoot];
+    });
+    assert.equal(result.status, 1, result.output);
+    assert.match(result.output, /invalid owner asset_root/);
+  });
+}

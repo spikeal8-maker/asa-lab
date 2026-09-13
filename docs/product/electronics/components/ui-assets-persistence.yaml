@@ -50,9 +50,10 @@ components:
     contracts:
     - docs/product/electronics/README.md#6-component-library
     - AGENTS.md#3-неприкосновенные-данные
-    sources:
-    - apps/web/public/assets/electronics/owner-supplied/**
-    - apps/web/public/assets/electronics/owner-audit/**
+    sources: []
+    asset_roots:
+    - apps/web/public/assets/electronics/owner-supplied
+    - apps/web/public/assets/electronics/owner-audit
     tests:
     - tools/test_validate_electronics_assets.py
     - apps/web/src/electronics/testing/owner-runtime-assets.spec.ts

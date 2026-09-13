@@ -4,12 +4,20 @@ Use only for a bounded change to an already implemented Electronics capability. 
 
 ## Goal
 
-```text
-Task ID: <exact selected task id>
-Kind: maintenance
-Area risk / ownership: <from subsystem card>
-Risk: <actual task risk with reason>
-Semantic change: <yes|no>
+Copy this frontmatter to the very start of the concrete card and replace placeholders.
+Field meanings and validation are owned by [AGENT_GUIDE §2](../AGENT_GUIDE.md#2-one-concern-per-slice).
+
+```yaml
+---
+task_id: <TASK-ELECTRONICS-...-001>
+kind: maintenance
+risk: <low|medium|high|critical>
+semantic_change: <yes|no>
+roadmap_slice: null # exact E-OPT slice for roadmap work
+prerequisites: [] # exact required acceptance/interface references
+acceptance_boundary: slice # milestone only for integrated acceptance
+review: <self|independent>
+---
 ```
 
 ```text

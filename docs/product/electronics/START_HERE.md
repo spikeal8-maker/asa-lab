@@ -11,13 +11,16 @@ Follow root `AGENTS.md` and `START_HERE_FOR_AI.md`: fetch/check Git, run
 The Electronics lane in `docs/execution/current.yaml` owns the active task;
 neither this router nor roadmap readiness authorises the next task.
 
+Before executable work, run `pnpm validate:electronics-agent-docs --task <selected-id>`.
+The explicit ID must match canonical `in_progress` selection and a valid concrete card.
+
 ## 2. Route one bounded concern
 
 Choose the task kind and resolve human keywords/component IDs in [COMPONENT_MAP.yaml](COMPONENT_MAP.yaml).
 
 | Task kind | Next document |
 | --- | --- |
-| `maintenance` | Selected bounded card using [maintenance template](tasks/MAINTENANCE_TASK_TEMPLATE.md) |
+| `maintenance` / `repair` | Selected bounded card using [maintenance template](tasks/MAINTENANCE_TASK_TEMPLATE.md) |
 | `implementation` or `component/peripheral` | Selected concrete card and its exact [roadmap](ASA_ELECTRONICS_OPTIMIZATION_PLAN_V2.md) stage; [implementation template](tasks/IMPLEMENTATION_TASK_TEMPLATE.md) |
 | `design-decision` | Selected concrete card using [design template](tasks/DESIGN_TASK_TEMPLATE.md) |
 | `deployment` | Separately selected card using [deployment template](tasks/DEPLOYMENT_TASK_TEMPLATE.md) |
@@ -38,7 +41,7 @@ Read the applicable [AGENT_GUIDE](AGENT_GUIDE.md) sections: [scope/budgets](AGEN
 [self-review](AGENT_GUIDE.md#12-bounded-self-review) and [independent review](AGENT_GUIDE.md#13-independent-review).
 Special engine/clock/Worker rules are §§6–10. These rules are not duplicated here.
 Subsystem dependencies permit one justified additional lookup, not whole-card recursive preload.
-Directory ownership routes are not instructions to read every asset/file.
+`sources` is exact-file context; `asset_roots` is directory ownership, never preload.
 
 ## 4. Stop boundary
 

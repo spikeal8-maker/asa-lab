@@ -21,6 +21,7 @@ rules:
   - ownership
   - contracts
   - sources
+  - asset_roots
   - symbols
   - tests
   - dependencies

@@ -2,15 +2,30 @@
 
 Use only after implementation/integration is accepted. Deployment is never an automatic continuation of coding.
 
+## Metadata
+
+Copy this frontmatter to the very start of the concrete card; see [AGENT_GUIDE §2](../AGENT_GUIDE.md#2-one-concern-per-slice).
+
+```yaml
+---
+task_id: <TASK-ELECTRONICS-DEPLOYMENT-...-001>
+kind: deployment
+risk: critical
+semantic_change: <yes|no>
+roadmap_slice: null
+prerequisites:
+  - <accepted immutable release and owner-selected deployment scope>
+acceptance_boundary: slice
+review: independent
+---
+```
+
+Component IDs: `electronics.delivery.deployment`, `electronics.delivery.rollback`.
+
 ## Target
 
 ```text
 Exact GitHub SHA: <immutable commit>
-Task ID: <exact selected deployment task>
-Kind: deployment
-Risk: critical (live operation)
-Semantic change: <yes|no; no does not waive review for a live operation>
-Component IDs: electronics.delivery.deployment, electronics.delivery.rollback
 Reason for deployment: <accepted milestone/fix>
 Current deployed revision: <read from /api/version>
 ```

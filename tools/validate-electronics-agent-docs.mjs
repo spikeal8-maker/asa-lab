@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { extname, resolve } from 'node:path';
 import YAML from 'yaml';
+import ts from 'typescript';
 
 const root = process.cwd();
 const docsRoot = 'docs/product/electronics';
@@ -9,6 +10,26 @@ const errors = [];
 const allowedRisk = new Set(['low', 'medium', 'high', 'critical']);
 const allowedOwnership = new Set(['asa', 'infrastructure', 'owner_asset', 'cross_boundary']);
 const largeSourceBytes = 50_000;
+const allowedKinds = new Set([
+  'implementation',
+  'maintenance',
+  'repair',
+  'design-decision',
+  'component/peripheral',
+  'deployment',
+  'plan/governance',
+]);
+const taskIdPattern = /^TASK-ELECTRONICS-(?:[A-Z0-9]+-)+\d{3}$/;
+const governanceTaskPattern = /^TASK-ELECTRONICS-(?:GOVERNANCE|CONTROL)-\d{3}$/;
+const allowedAssetRoots = new Set([
+  'apps/web/public/assets/electronics/owner-supplied',
+  'apps/web/public/assets/electronics/owner-audit',
+]);
+const declarationCache = new Map();
+const args = process.argv.slice(2);
+const requestedTask = args.length === 2 && args[0] === '--task' ? args[1] : null;
+if (args.length && !requestedTask)
+  errors.push('usage: validate-electronics-agent-docs.mjs [--task TASK-ELECTRONICS-...]');
 const stateFields = new Set([
   'implementation_state',
   'active_task',
@@ -140,8 +161,38 @@ function asArray(id, component, field) {
 
 function explicitSourceFiles(component) {
   return asArray('component', component, 'sources').filter(
-    (value) => typeof value === 'string' && !value.includes('*') && pathExists(value),
+    (value) => typeof value === 'string' && !/[#?\[\]{}*]/.test(value) && pathExists(value),
   );
+}
+
+function sourceDeclarations(source) {
+  if (declarationCache.has(source)) return declarationCache.get(source);
+  const names = new Set();
+  if (/\.(?:ts|tsx|js|mjs)$/.test(source)) {
+    const ast = ts.createSourceFile(
+      source,
+      readFileSync(resolve(root, source), 'utf8'),
+      ts.ScriptTarget.Latest,
+      false,
+    );
+    function visit(node) {
+      if (
+        (ts.isFunctionDeclaration(node) ||
+          ts.isClassDeclaration(node) ||
+          ts.isVariableDeclaration(node) ||
+          ts.isTypeAliasDeclaration(node) ||
+          ts.isInterfaceDeclaration(node) ||
+          ts.isEnumDeclaration(node)) &&
+        node.name &&
+        ts.isIdentifier(node.name)
+      )
+        names.add(node.name.text);
+      ts.forEachChild(node, visit);
+    }
+    visit(ast);
+  }
+  declarationCache.set(source, names);
+  return names;
 }
 
 function validateSymbols(id, component) {
@@ -156,23 +207,17 @@ function validateSymbols(id, component) {
     }
   });
   for (const source of largeSources) {
-    const content = readFileSync(resolve(root, source), 'utf8');
-    if (
-      !symbols.some(
-        (symbol) => typeof symbol === 'string' && symbol.trim() && content.includes(symbol),
-      )
-    ) {
+    if (!symbols.some((symbol) => sourceDeclarations(source).has(symbol))) {
       errors.push(`${id} maps large source without a matching symbol: ${source}`);
     }
   }
-  const contents = sources.map((source) => readFileSync(resolve(root, source), 'utf8'));
   for (const symbol of symbols) {
     if (typeof symbol !== 'string' || !symbol.trim()) {
       errors.push(`${id} symbols entries must be non-empty strings`);
       continue;
     }
-    if (!contents.some((content) => content.includes(symbol))) {
-      errors.push(`${id} symbol is not present in mapped sources: ${symbol}`);
+    if (!sources.some((source) => sourceDeclarations(source).has(symbol))) {
+      errors.push(`${id} symbol declaration is not present in mapped sources: ${symbol}`);
     }
   }
 }
@@ -189,6 +234,10 @@ function validateComponentFields(id, component) {
   if (!allowedOwnership.has(component.ownership)) {
     errors.push(`${id} ownership invalid: ${component.ownership}`);
   }
+  for (const field of ['sources', 'tests', 'dependencies']) {
+    if (!Array.isArray(component[field]))
+      errors.push(`${id} ${field} must be an explicit array (empty is allowed)`);
+  }
   const contracts = asArray(id, component, 'contracts');
   if (!contracts.length) errors.push(`${id} must name at least one exact contract`);
   for (const contract of contracts) validateContract(id, contract);
@@ -196,12 +245,21 @@ function validateComponentFields(id, component) {
   for (const source of asArray(id, component, 'sources')) {
     if (typeof source !== 'string') {
       errors.push(`${id} sources entry must be a string`);
+    } else if (/[#?\[\]{}*]/.test(source)) {
+      errors.push(`${id} sources must name exact files: ${source}`);
     } else if (!pathExists(source)) {
       errors.push(`${id} sources path does not exist: ${source}`);
-    } else if (source.includes('*') && component.ownership !== 'owner_asset') {
-      errors.push(
-        `${id} sources must name exact files; directory routes are only for owner assets: ${source}`,
-      );
+    }
+  }
+
+  for (const assetRoot of asArray(id, component, 'asset_roots')) {
+    if (
+      component.ownership !== 'owner_asset' ||
+      !allowedAssetRoots.has(assetRoot) ||
+      !existsSync(resolve(root, assetRoot)) ||
+      !statSync(resolve(root, assetRoot)).isDirectory()
+    ) {
+      errors.push(`${id} invalid owner asset_root: ${assetRoot}`);
     }
   }
 
@@ -256,7 +314,82 @@ function validateDependencyCycles(map, cards) {
   for (const id of graph.keys()) visit(id, []);
 }
 
-function validateActiveElectronicsTask() {
+function readTaskCards() {
+  const taskCards = [];
+  const taskDir = resolve(root, docsRoot, 'tasks');
+  if (!existsSync(taskDir)) return taskCards;
+  const fields = [
+    'task_id',
+    'kind',
+    'risk',
+    'semantic_change',
+    'roadmap_slice',
+    'prerequisites',
+    'acceptance_boundary',
+    'review',
+  ];
+  for (const name of readdirSync(taskDir).filter(
+    (item) => item.endsWith('.md') && !item.endsWith('_TEMPLATE.md'),
+  )) {
+    const content = readFileSync(resolve(taskDir, name), 'utf8');
+    const block = content.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/);
+    let metadata;
+    try {
+      if (!block) throw new Error('missing canonical YAML frontmatter');
+      metadata = YAML.parse(block[1]);
+      if (!isMapping(metadata)) throw new Error('metadata must be a mapping');
+    } catch (error) {
+      errors.push(`${name}: malformed task declaration: ${error.message}`);
+      continue;
+    }
+    for (const field of fields) {
+      if (!(field in metadata)) errors.push(`${name}: missing task metadata ${field}`);
+    }
+    for (const field of Object.keys(metadata)) {
+      if (!fields.includes(field)) errors.push(`${name}: unknown task metadata ${field}`);
+    }
+    if (typeof metadata.task_id !== 'string' || !taskIdPattern.test(metadata.task_id))
+      errors.push(`${name}: invalid task_id`);
+    if (!allowedKinds.has(metadata.kind)) errors.push(`${name}: invalid task kind`);
+    if (!allowedRisk.has(metadata.risk)) errors.push(`${name}: invalid task risk`);
+    if (!['yes', 'no'].includes(metadata.semantic_change))
+      errors.push(`${name}: invalid semantic_change (use yes or no)`);
+    if (
+      metadata.roadmap_slice !== null &&
+      (typeof metadata.roadmap_slice !== 'string' ||
+        !/^E-OPT-\d+[A-Z]?$/.test(metadata.roadmap_slice))
+    )
+      errors.push(`${name}: invalid roadmap_slice`);
+    if (
+      !Array.isArray(metadata.prerequisites) ||
+      metadata.prerequisites.some((item) => typeof item !== 'string' || !item.trim())
+    )
+      errors.push(`${name}: prerequisites must be an array of non-empty strings`);
+    if (!['slice', 'milestone'].includes(metadata.acceptance_boundary))
+      errors.push(`${name}: invalid acceptance_boundary`);
+    if (!['self', 'independent'].includes(metadata.review)) errors.push(`${name}: invalid review`);
+    if (metadata.kind === 'deployment' && metadata.risk !== 'critical')
+      errors.push(`${name}: deployment risk must be critical`);
+    const independent =
+      metadata.risk === 'critical' ||
+      (metadata.risk === 'high' && metadata.semantic_change === 'yes') ||
+      metadata.acceptance_boundary === 'milestone';
+    if (independent && metadata.review !== 'independent')
+      errors.push(`${name}: independent review is required`);
+    if (metadata.kind === 'plan/governance' && !governanceTaskPattern.test(metadata.task_id))
+      errors.push(`${name}: governance kind requires the GOVERNANCE/CONTROL ID convention`);
+    if (
+      /^\s*(?:-\s*)?(?:\*\*)?(?:Execution task ID|Task ID):/m.test(content.slice(block[0].length))
+    )
+      errors.push(`${name}: duplicate task declaration outside metadata`);
+    if (taskCards.some((entry) => entry.task_id === metadata.task_id))
+      errors.push(`${name}: duplicate Task ID ${metadata.task_id}`);
+    taskCards.push({ ...metadata, path: `${docsRoot}/tasks/${name}` });
+  }
+  return taskCards;
+}
+
+function validateActiveElectronicsTask(taskCards) {
   const current = readYaml('docs/execution/current.yaml');
   if (!current) return;
   const lanes = [
@@ -265,25 +398,24 @@ function validateActiveElectronicsTask() {
   ];
   const electronics = lanes.find((lane) => lane?.id === 'electronics');
   const task = electronics?.task;
-  if (!task || typeof task !== 'object') return;
+  if (!task || typeof task !== 'object') {
+    errors.push('canonical Electronics lane/task is missing');
+    return;
+  }
   const taskId = String(task.id ?? '');
-  if (!/^TASK-ELECTRONICS-EOPT/.test(taskId)) return;
+  if (!taskIdPattern.test(taskId)) errors.push('canonical Electronics task ID is invalid');
+  if (requestedTask && (requestedTask !== taskId || task.status !== 'in_progress')) {
+    errors.push(
+      `requested task ${requestedTask} is not selected for execution; canonical=${taskId} status=${task.status}`,
+    );
+  }
   if (!['in_progress', 'in_review'].includes(String(task.status))) return;
-
-  const taskDir = resolve(root, docsRoot, 'tasks');
-  if (!existsSync(taskDir)) return; // Required-file errors already explain the missing directory.
-  const matches = readdirSync(taskDir)
-    .filter((name) => name.endsWith('.md') && !name.endsWith('_TEMPLATE.md'))
-    .filter((name) => {
-      const content = readFileSync(resolve(taskDir, name), 'utf8');
-      const declared = content.match(
-        /^\s*(?:-\s*)?(?:\*\*)?(?:Execution task ID|Task ID):(?:\*\*)?\s*`?(TASK-[A-Z0-9-]+)`?\s*$/m,
-      );
-      return declared?.[1] === taskId;
-    });
+  const matches = taskCards.filter((card) => card.task_id === taskId);
+  // Reserved non-product namespaces; no list of current/future product IDs.
+  if (governanceTaskPattern.test(taskId) && matches.length === 0) return;
   if (matches.length !== 1) {
     errors.push(
-      `active Electronics task ${taskId} must map to exactly one task card; matches=${matches.join(', ') || 'none'}`,
+      `active Electronics task ${taskId} must map to exactly one task card; matches=${matches.map((card) => card.path).join(', ') || 'none'}`,
     );
   }
 }
@@ -378,7 +510,8 @@ if (map) {
   validateDependencyCycles(map, cards);
 }
 
-validateActiveElectronicsTask();
+const taskCards = readTaskCards();
+validateActiveElectronicsTask(taskCards);
 
 if (errors.length > 0) {
   console.error('Electronics agent routing validation: FAIL');
@@ -389,3 +522,5 @@ if (errors.length > 0) {
 console.log('Electronics agent routing validation: PASS');
 console.log(`components=${Object.keys(map?.components ?? {}).length}`);
 console.log(`cards=${cards.size}`);
+console.log(`task_cards=${taskCards.length}`);
+if (requestedTask) console.log(`selected_task=${requestedTask}`);
