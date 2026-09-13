@@ -5,6 +5,14 @@ Use only for a bounded change to an already implemented Electronics capability. 
 ## Goal
 
 ```text
+Task ID: <exact selected task id>
+Kind: maintenance
+Area risk / ownership: <from subsystem card>
+Risk: <actual task risk with reason>
+Semantic change: <yes|no>
+```
+
+```text
 <one requested visible/behavioural correction>
 ```
 
@@ -20,7 +28,9 @@ If no route exists, STOP and repair routing first.
 
 ## Risk / ownership
 
-Copy from the subsystem card. Do not invent a lower risk.
+Record area risk/ownership from the card, then classify the actual change using
+[AGENT_GUIDE §5](../AGENT_GUIDE.md#5-risk-classes). A non-semantic task may have lower
+risk than the area; explain the scope instead of downgrading a semantic change.
 
 ## Minimal read set
 
@@ -66,7 +76,8 @@ Run the mapped focused test first, then only risk/shared-path required broader g
 
 ## Self-review
 
-Use `../AGENT_GUIDE.md`. Verify no unrequested behaviour and no second source of truth.
+Use [AGENT_GUIDE §§12–13](../AGENT_GUIDE.md#12-bounded-self-review) for self-review and
+the semantic independent-review decision. Verify no unrequested behaviour or second source of truth.
 
 ## Documentation
 

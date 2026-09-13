@@ -22,6 +22,8 @@ components:
     notes: UI renders committed engine results; it must not compute electrical truth itself.
     symbols:
     - useElectronicsWorkbench
+    - WorkbenchStage
+    - SchematicEditor
     - WorkbenchSidebars
   electronics.ui.catalog:
     ownership: asa
@@ -31,7 +33,7 @@ components:
     sources:
     - apps/web/src/electronics/component-catalog.ts
     - apps/web/src/electronics/production-manifest-adapter.ts
-    - apps/web/public/assets/electronics/component-database/**
+    - apps/web/public/assets/electronics/component-database/catalog.json
     tests:
     - apps/web/src/electronics/testing/production-assets.spec.ts
     - apps/web/src/electronics/testing/production-editor-integration.spec.ts

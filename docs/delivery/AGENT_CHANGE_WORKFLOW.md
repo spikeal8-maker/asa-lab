@@ -8,11 +8,11 @@
 
 ```bash
 pnpm agent:context --list
-pnpm agent:context --scope <lane>
 pnpm agent:recover --scope <lane> --check
+pnpm agent:context --scope <lane>
 pnpm control-plane:check
 git status --short --branch
-git fetch origin main
+git fetch origin refs/heads/main:refs/remotes/origin/main
 ```
 
 Читай только документы и разделы из блока `read`. Не сканируй весь репозиторий,
@@ -45,7 +45,7 @@ git diff --check
 git status --short
 git diff --cached --name-only
 git commit -m "type(scope): coherent result"
-git fetch origin main
+git fetch origin refs/heads/main:refs/remotes/origin/main
 git log --oneline --decorate --max-count=8 --all
 git diff --name-only HEAD...origin/main
 git diff --name-only origin/main...HEAD
@@ -56,6 +56,11 @@ git diff --name-only origin/main...HEAD
 истории.
 
 Если `origin/main` не сдвинулся, отправь обычным `git push origin main`.
+
+Эта команда применяется только для работы в `main`. Для выбранной существующей
+feature-ветки fetch/check выполняется также для её remote ref, а обычный push
+отправляет `HEAD` именно в неё; PR не означает разрешение публиковать в `main`.
+Ограниченный цикл сближения feature-ветки описан в `AGENTS.md` §2.1.
 
 Если он сдвинулся:
 
@@ -80,7 +85,7 @@ git diff --name-only origin/main...HEAD
 1. `edited` — файлы изменены;
 2. `tested locally` — перечисленные команды действительно выполнены;
 3. `committed` — создан локальный коммит;
-4. `pushed` — SHA доступен в `origin/main`;
+4. `pushed` — SHA доступен в выбранной удалённой ветке (`main` либо task branch);
 5. `CI success` — workflow зелёный на том же SHA;
 6. `deployed` — конкретная установка обновлена и readiness подтверждён;
 7. `owner accepted` — владелец принял видимый результат.

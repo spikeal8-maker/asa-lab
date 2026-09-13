@@ -6,7 +6,7 @@ components:
     ownership: asa
     risk: medium
     contracts:
-    - docs/product/electronics/ASA_ELECTRONICS_OPTIMIZATION_PLAN_V2.md#3-e-opt-0-baseline-golden-corpus-and-benchmark-harness
+    - docs/product/electronics/ASA_ELECTRONICS_OPTIMIZATION_PLAN_V2.md#3-e-opt-0--baseline-golden-corpus-and-benchmark-harness
     sources:
     - contexts/electronics/testing/benchmark-corpus.ts
     - contexts/electronics/testing/fixtures/benchmark-golden.v2.json
@@ -14,7 +14,7 @@ components:
     - tools/run-electronics-browser-benchmark.mjs
     - tools/run-electronics-load-benchmark.mjs
     - tools/run-electronics-memory-benchmark.mjs
-    - docs/delivery/evidence/electronics-opt0/**
+    - docs/delivery/evidence/electronics-opt0/README.md
     tests:
     - contexts/electronics/testing/benchmark-corpus.spec.ts
     dependencies:
@@ -26,7 +26,7 @@ components:
     ownership: asa
     risk: high
     contracts:
-    - docs/product/electronics/ASA_ELECTRONICS_OPTIMIZATION_PLAN_V2.md#11-e-opt-8-portability-proof
+    - docs/product/electronics/ASA_ELECTRONICS_OPTIMIZATION_PLAN_V2.md#11-e-opt-8--portability-proof
     - docs/product/electronics/DEVELOPMENT_SPEC.md#1-system-layers
     sources: []
     dependencies:
@@ -45,7 +45,8 @@ components:
     sources:
     - compose.yaml
     - compose.production.yaml
-    - docker/**
+    - docker/api-entrypoint.sh
+    - docker/web/Caddyfile
     dependencies: []
     notes: Deploy exact gated SHA only. Push/merge is not deployment.
   electronics.delivery.rollback:

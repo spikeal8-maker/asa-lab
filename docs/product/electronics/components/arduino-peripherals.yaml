@@ -7,7 +7,7 @@ components:
     risk: high
     contracts:
     - docs/product/electronics/README.md#15-arduino-и-программирование
-    - docs/product/electronics/ASA_ELECTRONICS_OPTIMIZATION_PLAN_V2.md#8-e-opt-5-arduino-runtime-hardening
+    - docs/product/electronics/ASA_ELECTRONICS_OPTIMIZATION_PLAN_V2.md#8-e-opt-5--arduino-runtime-hardening
     sources:
     - contexts/electronics/domain/arduino-program-runtime.ts
     - contexts/electronics/domain/arduino-values.ts
@@ -28,8 +28,8 @@ components:
     ownership: asa
     risk: high
     contracts:
-    - docs/product/electronics/ASA_ELECTRONICS_OPTIMIZATION_PLAN_V2.md#6-e-opt-3-canonical-electronics-clock
-    - docs/product/electronics/ASA_ELECTRONICS_OPTIMIZATION_PLAN_V2.md#8-e-opt-5-arduino-runtime-hardening
+    - docs/product/electronics/ASA_ELECTRONICS_OPTIMIZATION_PLAN_V2.md#6-e-opt-3--canonical-electronics-clock
+    - docs/product/electronics/ASA_ELECTRONICS_OPTIMIZATION_PLAN_V2.md#8-e-opt-5--arduino-runtime-hardening
     sources:
     - contexts/electronics/domain/arduino-circuit-scheduler.ts
     tests:
@@ -70,7 +70,7 @@ components:
     - UI timers as physical truth
     - special-case timing outside peripheral runtime
     contracts:
-    - docs/product/electronics/ASA_ELECTRONICS_OPTIMIZATION_PLAN_V2.md#9-e-opt-6-sensors-and-peripherals
+    - docs/product/electronics/ASA_ELECTRONICS_OPTIMIZATION_PLAN_V2.md#9-e-opt-6--sensors-and-peripherals
   electronics.peripheral.ultrasonic:
     ownership: asa
     risk: high
@@ -84,7 +84,7 @@ components:
     - fake distance from UI delay
     - browser wall-clock as pulse duration
     contracts:
-    - docs/product/electronics/ASA_ELECTRONICS_OPTIMIZATION_PLAN_V2.md#9-e-opt-6-sensors-and-peripherals
+    - docs/product/electronics/ASA_ELECTRONICS_OPTIMIZATION_PLAN_V2.md#9-e-opt-6--sensors-and-peripherals
   electronics.peripheral.pir:
     ownership: asa
     risk: medium
@@ -94,7 +94,7 @@ components:
     prerequisites:
     - input event clock
     contracts:
-    - docs/product/electronics/ASA_ELECTRONICS_OPTIMIZATION_PLAN_V2.md#9-e-opt-6-sensors-and-peripherals
+    - docs/product/electronics/ASA_ELECTRONICS_OPTIMIZATION_PLAN_V2.md#9-e-opt-6--sensors-and-peripherals
   electronics.peripheral.serial:
     ownership: asa
     risk: high
@@ -104,7 +104,7 @@ components:
     - serial runtime/state contract
     - bounded buffer semantics
     contracts:
-    - docs/product/electronics/ASA_ELECTRONICS_OPTIMIZATION_PLAN_V2.md#9-e-opt-6-sensors-and-peripherals
+    - docs/product/electronics/ASA_ELECTRONICS_OPTIMIZATION_PLAN_V2.md#9-e-opt-6--sensors-and-peripherals
   electronics.peripheral.i2c:
     ownership: asa
     risk: high
@@ -115,7 +115,7 @@ components:
     - bus model
     - addressing/error semantics
     contracts:
-    - docs/product/electronics/ASA_ELECTRONICS_OPTIMIZATION_PLAN_V2.md#9-e-opt-6-sensors-and-peripherals
+    - docs/product/electronics/ASA_ELECTRONICS_OPTIMIZATION_PLAN_V2.md#9-e-opt-6--sensors-and-peripherals
   electronics.peripheral.spi:
     ownership: asa
     risk: high
@@ -123,7 +123,7 @@ components:
     - electronics.arduino.runtime
     - electronics.clock.canonical
     contracts:
-    - docs/product/electronics/ASA_ELECTRONICS_OPTIMIZATION_PLAN_V2.md#9-e-opt-6-sensors-and-peripherals
+    - docs/product/electronics/ASA_ELECTRONICS_OPTIMIZATION_PLAN_V2.md#9-e-opt-6--sensors-and-peripherals
   electronics.peripheral.ir:
     ownership: asa
     risk: high
@@ -133,7 +133,7 @@ components:
     prerequisites:
     - timed edge/event representation
     contracts:
-    - docs/product/electronics/ASA_ELECTRONICS_OPTIMIZATION_PLAN_V2.md#9-e-opt-6-sensors-and-peripherals
+    - docs/product/electronics/ASA_ELECTRONICS_OPTIMIZATION_PLAN_V2.md#9-e-opt-6--sensors-and-peripherals
   electronics.peripheral.neopixel:
     ownership: asa
     risk: high
@@ -143,17 +143,9 @@ components:
     prerequisites:
     - timing-sensitive output representation
     contracts:
-    - docs/product/electronics/ASA_ELECTRONICS_OPTIMIZATION_PLAN_V2.md#9-e-opt-6-sensors-and-peripherals
+    - docs/product/electronics/ASA_ELECTRONICS_OPTIMIZATION_PLAN_V2.md#9-e-opt-6--sensors-and-peripherals
 rules:
   add_peripheral_only_when_prerequisites_accepted: true
   ui_timer_may_define_physics: false
   unsupported_api_must_fail_before_partial_execution: true
-  next_wave_order:
-  - servo
-  - ultrasonic
-  - pir
-  - serial
-  - i2c
-  - spi
-  - ir
-  - neopixel
+  peripheral_order_source: docs/product/electronics/ASA_ELECTRONICS_OPTIMIZATION_PLAN_V2.md#9-e-opt-6--sensors-and-peripherals

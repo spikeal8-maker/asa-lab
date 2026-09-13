@@ -14,7 +14,6 @@ Stable facts at v2 creation:
 - reproducible Electronics benchmark/golden baseline exists;
 - dedicated simulation Worker boundary exists and is used by the running workbench;
 - Worker rollout has exact parity/regression/browser evidence;
-- production deployment of that accepted Worker rollout has been proven through a separate deployment gate;
 - portable engine boundary is still incomplete;
 - canonical physical clock is still incomplete;
 - timing-sensitive peripherals remain blocked on clock/runtime prerequisites.
@@ -23,16 +22,10 @@ Do not copy live SHA/CI/checkpoint into this plan. Historical evidence belongs i
 
 ## 1. Non-negotiable execution rules
 
-1. One task implements one bounded concern.
-2. Dependency edges below are hard gates.
-3. A later stage may not start because it looks easier.
-4. If the plan is wrong, perform a separate plan/design repair and stop.
-5. Implementation work may not edit the plan to justify scope already taken.
-6. Completion of one task never starts the next task automatically.
-7. Git merge is not deployment.
-8. Deployment is a separate task against an exact gated SHA.
-9. New sensors/peripherals never invent UI/wall-clock timing to bypass missing canonical-time primitives.
-10. Solver correctness beats benchmark speed; unsupported remains fail-closed.
+Dependency edges below are acceptance prerequisites, never task authorization.
+Behavioural execution rules are owned by [AGENT_GUIDE §§2–4](AGENT_GUIDE.md#2-one-concern-per-slice);
+selection is owned by [DEVELOPMENT_SPEC §3](DEVELOPMENT_SPEC.md#3-development-selection).
+No stage becomes active without its separately selected canonical execution task.
 
 ## 2. Programme dependency graph
 
@@ -56,12 +49,11 @@ Boundary                     execution boundary
                  +-----+------+
                        v
               E-OPT-6 Peripherals
-                       |
-                       v
-              E-OPT-8 Portability Proof
-                       |
-                       v
-              E-OPT-9 v1 Hardening Gate
+
+E-OPT-1 + E-OPT-2 + E-OPT-3 + required E-OPT-5 contracts
+                       → E-OPT-8 Portability Proof
+E-OPT-4 + selected E-OPT-6 coverage + E-OPT-7 evidence + E-OPT-8
+                       → E-OPT-9 v1 Hardening Gate
 
 E-OPT-7 UI/assets/performance is a bounded parallel lane only when explicitly selected;
 it may not redefine engine/clock/runtime semantics.
@@ -96,7 +88,8 @@ Expose one intentionally supported **structural/non-temporal** Electronics engin
 
 ### Required slices
 
-E-OPT-1A — inventory current public exports/dependency graph. Concrete task card: `tasks/E-OPT-1A.md`.
+E-OPT-1A — non-semantic inventory of current public exports/dependency graph.
+Concrete task card: [tasks/E-OPT-1A.md](tasks/E-OPT-1A.md); no facade design/implementation.
 
 E-OPT-1B — define stable non-temporal engine types/facade around existing implementation; no physics rewrite and no final timed API.
 
@@ -164,7 +157,8 @@ Use the existing Arduino circuit scheduler as the orchestration foundation. Do n
 
 ### Required slices
 
-E-OPT-3A — accept the canonical clock/trace contract: simulation time, horizons, barriers, input events and display sampling.
+E-OPT-3A — accept the canonical clock/trace contract: simulation time, horizons, barriers,
+input events, display sampling and the reset/pause/resume foundation before freezing timed APIs.
 
 E-OPT-3B — extend the stable engine facade with canonical timed advance/event-horizon methods defined by E-OPT-3A. This is the first stage allowed to freeze a public timed API.
 
@@ -174,7 +168,7 @@ E-OPT-3D — converge Worker evaluator/controller onto the canonical timed facad
 
 E-OPT-3E — deterministic trace/replay fixtures across different UI refresh cadences.
 
-E-OPT-3F — reset/pause/resume/input-event semantics and stale horizon handling.
+E-OPT-3F — prove reset/pause/resume/input-event conformance to E-OPT-3A and stale horizon handling.
 
 ### Acceptance
 
@@ -303,23 +297,14 @@ Only then may the product be described as a portable Electronics v1 foundation.
 
 Deployment is not an E-OPT implementation stage. It is a separate release action after selected accepted milestones.
 
-Every deployment task must prove exact target SHA, compose/env/schema delta, migration requirement, backup/rollback, candidate build/stack, post-deploy health/version/schema and external user path. Deploying a newer moving `main` merely because it exists is forbidden.
+The deployment contract is owned by [DEVELOPMENT_SPEC §10](DEVELOPMENT_SPEC.md#10-deployment-contract)
+and [DEPLOYMENT_TASK_TEMPLATE](tasks/DEPLOYMENT_TASK_TEMPLATE.md).
 
 ## 14. Task selection algorithm
 
-Before implementation:
-
-1. classify request through `START_HERE.md`;
-2. resolve component IDs in `COMPONENT_MAP.yaml`;
-3. check this plan's prerequisites;
-4. create/select one bounded task card;
-5. ensure active execution state authorises that task/scope;
-6. read only mapped contracts/source/tests;
-7. implement one slice;
-8. run declared gate and bounded review;
-9. STOP.
-
-If step 3 fails, the correct output is `BLOCKED_BY <task>` — not coding around the dependency.
+Follow [DEVELOPMENT_SPEC §3](DEVELOPMENT_SPEC.md#3-development-selection).
+This plan supplies only stage dependencies and acceptance boundaries to that algorithm.
+An unmet prerequisite produces `BLOCKED_BY <task>`.
 
 ## 15. Plan change procedure
 
@@ -338,7 +323,7 @@ Then update this plan and routing before implementation resumes.
 
 ## 16. Immediate next sequence after v2 acceptance
 
-The next owner-selectable implementation sequence is:
+The dependency sequence begins with inventory, then separately selected implementation:
 
 ```text
 E-OPT-1A inventory/dependency graph

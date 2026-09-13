@@ -20,6 +20,7 @@ AGENTS.md
 
 ```bash
 pnpm agent:context --list
+pnpm agent:recover --scope <lane> --check
 pnpm agent:context --scope <lane>
 ```
 
@@ -67,10 +68,14 @@ pnpm control-plane:check
 
 ## 4. Проверь Git
 
+Команды ниже относятся к выбранной работе в `main`. Для существующей feature-ветки
+оставайся в её checkout, получи `origin/main` и удалённую task branch через fetch,
+проверь divergence и пересечения; не переключайся в `main` автоматически.
+
 ```bash
 git remote -v
 git status --short --branch
-git fetch origin main
+git fetch origin refs/heads/main:refs/remotes/origin/main
 git switch main
 git pull --ff-only origin main
 git rev-parse HEAD
@@ -108,6 +113,17 @@ AGENTS.md
 Прочитай его §0, затем нужный паспорт персонажа §34, permissions §6 и нужный
 экран; не загружай весь архив спецификаций. Логические P/U/R обозначения —
 сценарии, способы входа и scoped обязанности, а не глобальные типы аккаунта.
+
+### Electronics / Arduino
+
+`pnpm agent:recover --scope electronics --check` →
+`pnpm agent:context --scope electronics` →
+[`docs/product/electronics/START_HERE.md`](docs/product/electronics/START_HERE.md).
+
+Дальше: component ID → одна subsystem entry → выбранная task card → точные
+contracts/symbols/tests. Полный Electronics README не загружается по умолчанию.
+Review определяется семантикой выбранного изменения по `AGENT_GUIDE.md` §13;
+высокий риск области сам по себе не требует второго агента для inventory.
 
 ### Visual Programming / Scratch
 

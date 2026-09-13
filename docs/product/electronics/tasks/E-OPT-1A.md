@@ -65,7 +65,10 @@ The evidence must identify:
 3. direct consumers/import paths inside ASA Lab;
 4. whether any public-engine path imports React, Web UI, API, PostgreSQL or portal concerns;
 5. current Worker entry points that bypass or duplicate the intended engine boundary;
-6. proposed E-OPT-1B non-temporal facade inputs/outputs, without freezing time semantics.
+6. existing non-temporal input/output types and unresolved facade candidates for E-OPT-1B;
+   no API design decision or time-semantics freeze;
+7. actual package/export configuration, Worker evaluator and server-verification consumers,
+   existing pure boundary and any host/UI coupling, with exact symbols and import edges.
 
 ## Acceptance
 

@@ -6,11 +6,20 @@ Use only after implementation/integration is accepted. Deployment is never an au
 
 ```text
 Exact GitHub SHA: <immutable commit>
+Task ID: <exact selected deployment task>
+Kind: deployment
+Risk: critical (live operation)
+Semantic change: <yes|no; no does not waive review for a live operation>
+Component IDs: electronics.delivery.deployment, electronics.delivery.rollback
 Reason for deployment: <accepted milestone/fix>
 Current deployed revision: <read from /api/version>
 ```
 
 If `main` advances while this task runs, the target SHA does not silently change.
+
+Read only these component entries, their exact contracts and
+[AGENT_GUIDE §§13–14](../AGENT_GUIDE.md#13-independent-review). Record explicit owner
+selection, independent review and exact allowed target/configuration paths before a live action.
 
 ## Preflight audit
 
