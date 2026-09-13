@@ -83,6 +83,7 @@ export class BlocksRuntimeBridge {
   private runtimeToken: string | null;
   private stopped = false;
   private readonly pendingFlushRequestIds = new Set<string>();
+  private readonly issuedFlushRequestIds = new Set<string>();
 
   constructor(options: BlocksRuntimeInitOptions) {
     this.runtimeOrigin = requireExactHttpOrigin(options.runtimeOrigin);
@@ -137,14 +138,16 @@ export class BlocksRuntimeBridge {
   requestFlush(requestId: string): void {
     this.assertActive();
     if (!requestId) throw new Error('Blocks flush requestId is required');
-    if (this.pendingFlushRequestIds.has(requestId)) {
-      throw new Error(`Blocks flush requestId is already pending: ${requestId}`);
+    if (this.issuedFlushRequestIds.has(requestId)) {
+      throw new Error(`Blocks flush requestId was already issued: ${requestId}`);
     }
+    this.issuedFlushRequestIds.add(requestId);
     this.pendingFlushRequestIds.add(requestId);
     try {
       this.post('ASA_BLOCKS_FLUSH_REQUEST', { requestId });
     } catch (error) {
       this.pendingFlushRequestIds.delete(requestId);
+      this.issuedFlushRequestIds.delete(requestId);
       throw error;
     }
   }
@@ -156,6 +159,7 @@ export class BlocksRuntimeBridge {
     } finally {
       this.runtimeToken = null;
       this.pendingFlushRequestIds.clear();
+      this.issuedFlushRequestIds.clear();
       this.stopped = true;
     }
   }
