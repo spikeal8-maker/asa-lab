@@ -486,10 +486,7 @@ export function ClassroomGradebook({ classroomId }: { classroomId: string }): JS
                             }}
                           >
                             <strong>
-                              {score(item) ??
-                                (item.state === 'accepted' || item.state === 'completed'
-                                  ? 'Без оценки'
-                                  : '—')}
+                              {score(item) ?? (item.state === 'completed' ? 'Без оценки' : '—')}
                             </strong>
                             <span>{LABELS[item.state]}</span>
                             {item.attemptNumber ? (
