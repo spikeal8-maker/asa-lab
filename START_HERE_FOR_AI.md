@@ -131,96 +131,17 @@ Review определяется семантикой выбранного изм
 
 ### Visual Programming / Scratch
 
-Для `Визуального программирования` используется отдельный token-efficient router:
+Открой [Scratch router](docs/product/visual-programming/README.md), затем точную
+task card из `pnpm agent:context --scope visual-programming`. Card ведёт прямо к
+одному component entry, нужной секции D0 и source/tests. Master, ADR, roadmap,
+AGENT_GUIDE и остальные cards читаются только для конкретного нерешённого вопроса.
 
-[`docs/product/visual-programming/README.md`](docs/product/visual-programming/README.md).
+Readiness не запускает следующий этап: отдельный product task выбирается владельцем.
+Обычное исправление tooling/docs выполняется в разрешённом владельцем объёме;
+для него не нужен новый продуктовый milestone. Принятые A/C и pin сохраняются.
 
-Не читай весь Scratch-раздел по умолчанию. Сначала определи профиль работы. Scratch coding
-или review начинается только когда `docs/execution/current.yaml` содержит точный выбранный
-Scratch task/scope; task.status = in_progress; readiness или текст запроса сами по себе execution state не заменяют.
-
-#### Milestone / VSCR implementation
-
-Для выбранного milestone/sub-slice:
-
-```text
-точный VSCR task ID уже выбран в current.yaml; task.status = in_progress
-→ README router
-→ readiness/order из VSCR-M1-FORWARD-PLAN-2026-09-11.md
-→ точная tasks/<selected-task>.md
-→ Master §0–§4 + selected task stub
-→ ADR-VSCR-001
-→ COMPONENT_MAP.yaml
-→ только указанные task card subsystem entries
-→ только mapped D0 contract sections/source/tests
-```
-
-Основной стабильный продуктовый источник —
-[`ASA_VISUAL_PROGRAMMING_SCRATCH_MASTER_SPEC.md`](docs/product/ASA_VISUAL_PROGRAMMING_SCRATCH_MASTER_SPEC.md),
-архитектурное решение —
-[`ADR-VSCR-001`](docs/architecture/ADR-VSCR-001-SCRATCH-EDITOR-INTEGRATION.md).
-
-Readiness хранится только в
-[`VSCR-M1-FORWARD-PLAN-2026-09-11.md`](docs/product/visual-programming/VSCR-M1-FORWARD-PLAN-2026-09-11.md).
-Если выбранный task/sub-slice там `BLOCKED`, coding запрещён. `READY` означает только
-возможность отдельного выбора владельцем, а не автоматический старт.
-
-Для executable milestone-среза обязана существовать точная task card. Если её нет, не
-восстанавливай реализацию из roadmap, Git history, старого PR, комментария или чата — STOP.
-Для M1-003+ и M2/M3 это намеренно: точная card создаётся после принятия реальных
-предыдущих интерфейсов.
-
-D0-контракты читаются адресно по task/component mapping, а не все сразу:
-
-```text
-VSCR-D0-001 — host / branding / product controls / iframe / fixture storage
-VSCR-D0-002 — Project durability
-VSCR-D0-003 — asset metadata/object storage
-VSCR-D0-004 — runtime capability/current authority/Origin/CORS/CSP
-VSCR-D0-005 — deployment/backup/activation
-VSCR-D0-006 — immutable Gallery publication/player/remix
-VSCR-D0-007 — sb3 compatibility / ZIP safety
-```
-
-#### Bounded Scratch maintenance
-
-Для уже реализованной локальной правки вроде «изменить кнопку», «переименовать label»,
-«скрыть элемент» Master, ADR и full roadmap **не загружаются автоматически**.
-
-Стандартный путь:
-
-```text
-точный bounded maintenance task/scope уже выбран в current.yaml; task.status = in_progress
-→ README router
-→ COMPONENT_MAP.yaml по human keyword/component ID
-→ ровно одна components/*.yaml card
-→ ровно один component entry
-→ mapped contract section
-→ mapped source file(s) / symbols
-→ mapped focused test(s)
-→ bounded self-review
-```
-
-Если component ownership = `upstream_patch`, новый Scratch source patch не создаётся по
-аналогии: разрешён только уже принятый patch; новый patch — STOP/design review.
-
-Если routing указывает на отсутствующий implemented source/test, symbol или несуществующий
-contract heading, сначала исправь routing defect. Broad repository search допустим только
-после явной фиксации причины.
-
-После Scratch implementation/maintenance обязательно выполни:
-
-```bash
-node tools/validate-blocks-docs.mjs
-```
-
-Для Scratch/VSCR отдельная feature-ветка не имеет права начинать новый slice на
-устаревшем shared baseline. Readiness не отменяет обязательную проверку divergence
-с текущим `main`; если следующий slice затрагивает workspace dependency graph, lockfile,
-execution state или shared infrastructure, repository convergence идёт раньше coding.
-
-Master spec задаёт TARGET, порядок зависимостей и safety gates, но сам по себе
-не разрешает выполнять следующий milestone и не заменяет `current.yaml`.
+Проверка: `pnpm gate:blocks`; браузер против собранного standalone runtime:
+`pnpm gate:blocks --browser`. Общий `gate:repository` остаётся отдельным.
 
 Этот документ определяет TARGET пользователей. Auth определяет протоколы,
 Learning Master — академическую семантику, ADR — принятую архитектуру,

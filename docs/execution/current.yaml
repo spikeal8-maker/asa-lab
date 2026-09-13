@@ -34,11 +34,11 @@ gates:
   focused:
     workflow: Scratch Focused
     commands:
-      - pnpm gate:blocks-m1-002c
+      - pnpm gate:blocks
   browser:
     workflow: Scratch Focused
     commands:
-      - pnpm test:blocks-m1-002c:browser
+      - pnpm gate:blocks --browser
   general:
     workflow: ASA Lab Governance and Code Gates
     commands:

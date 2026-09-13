@@ -1,4 +1,4 @@
-# ASA Lab Scratch Editor runtime — M1-002A
+# ASA Lab Scratch Editor runtime
 
 This directory builds the pinned open-source Scratch Editor as an isolated runtime for ASA Lab
 visual programming. Scratch GUI/VM remains outside the `apps/web` dependency graph.
@@ -34,6 +34,8 @@ The nginx root is ASA-owned and contains:
 ```text
 index.html
 main.js
+protocol.js
+status.js
 host.css
 vendor/scratch/scratch-gui-standalone.js
 licenses/
@@ -42,9 +44,14 @@ licenses/
 `/` therefore serves the ASA host shell, never upstream `packages/scratch-gui/build/index.html`
 or its playground pages.
 
-The M1-002A `main.js` is composition-only. It verifies that the standalone bundle exposes the
-reviewed integration primitives (`EditorState`, `createStandaloneRoot`, `setAppElement`) and
-marks the shell ready. It deliberately does **not** mount the Scratch editor yet.
+`main.js` verifies the standalone integration primitives (`EditorState`, `createStandaloneRoot`,
+`setAppElement`) and composes the accepted C protocol. Without a configured exact parent origin it
+reports `configuration-required`; with one it waits for valid INIT and reports `init-accepted`.
+The editor root remains empty. Storage/editor mount belongs to the separately selected D task.
+
+Use `pnpm gate:blocks` for source checks and `pnpm gate:blocks --browser` against the built runtime.
+Browser setup, message helpers, assertions and scenarios live in `tools/blocks/browser/`.
+The browser fixture injects its exact parent origin only into the test response.
 
 ## Build and run
 
@@ -68,7 +75,7 @@ This slice does not implement or claim:
 
 - ASA/Scratch logo patching or removal of upstream product chrome;
 - File/menu/Extensions product-control changes;
-- parent/iframe protocol or runtime capability authentication;
+- production runtime capability authentication (C only establishes the message boundary);
 - `ScratchStorage` adapter or Project Core persistence;
 - autosave, recovery or `.sb3` import/export;
 - public activation or sovereign/offline media libraries.

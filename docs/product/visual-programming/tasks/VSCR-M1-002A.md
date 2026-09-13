@@ -65,7 +65,7 @@ Scratch GUI/VM is not added to apps/web dependencies
 ## Tests/evidence
 
 ```text
-pnpm gate:blocks-m1-002a
+pnpm gate:blocks
 Docker build exact pin
 container /healthz
 root document has ASA host marker

@@ -53,7 +53,7 @@ widening scope.
 ## Expected write paths
 
 ```text
-package.json                              # exact test:blocks-m1-001 / gate:blocks-m1-001 scripts only
+package.json                              # stable gate:blocks entry only; test commands live in tools/blocks/gate.mjs
 eslint.config.mjs                         # context:blocks dependency rule only
 tools/validate-context-boundaries.mjs    # register blocks as an isolated context only
 tools/validate-blocks-docs.mjs           # assert Blocks boundary registration stays fail-closed
@@ -128,7 +128,7 @@ import { BLOCKS_MODULE } from '@asa-lab/blocks';
 The exact focused local/CI command is:
 
 ```text
-pnpm gate:blocks-m1-001
+pnpm gate:blocks
 ```
 
 It covers the moved/final equivalents of:
