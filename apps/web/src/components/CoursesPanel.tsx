@@ -9,6 +9,7 @@ import {
   type LessonBlock,
   type LibraryAssignment,
 } from '../api';
+import { AuthorVersionHistory } from './AuthorVersionHistory';
 import { Dropdown } from './Dropdown';
 import { LessonBlockEditor, lessonBlocksValid } from './LessonBlockEditor';
 import { LessonBlocks } from './LessonBlocks';
@@ -175,6 +176,7 @@ function LessonEditor({
   lesson,
   assignments,
   onSave,
+  onDirty,
   onDelete,
 }: {
   readonly sections: readonly CourseSection[];
@@ -183,6 +185,7 @@ function LessonEditor({
   readonly assignments: readonly LibraryAssignment[];
   readonly onSave: (input: CourseLessonInput) => Promise<void>;
   readonly onDelete: (() => Promise<void>) | null;
+  readonly onDirty: () => void;
 }): JSX.Element {
   const [targetSection, setTargetSection] = useState(sectionId);
   const [title, setTitle] = useState(lesson?.title ?? '');
@@ -360,7 +363,13 @@ function LessonEditor({
         </label>
       ) : null}
 
-      <LessonBlockEditor blocks={blocks} onChange={setBlocks} />
+      <LessonBlockEditor
+        blocks={blocks}
+        onChange={(value) => {
+          setBlocks(value);
+          onDirty();
+        }}
+      />
 
       <label className="course-field course-duration-field">
         <span>Примерное время, минут</span>
@@ -452,6 +461,16 @@ function CourseEditor({
   readonly onShare: () => void;
   readonly onChanged: () => void;
 }): JSX.Element {
+  const [localDirty, setLocalDirty] = useState(false);
+  const localDirtyRef = useRef(false);
+  const editGeneration = useRef(0);
+  const [restoreBusy, setRestoreBusy] = useState(false);
+  const [editorEpoch, setEditorEpoch] = useState(0);
+  const markDirty = () => {
+    editGeneration.current += 1;
+    localDirtyRef.current = true;
+    setLocalDirty(true);
+  };
   const [sections, setSections] = useState<CourseSection[] | null>(null);
   const [draftRevision, setDraftRevision] = useState(course.draftRevision);
   const [selectedLessonId, setSelectedLessonId] = useState<string | null>(null);
@@ -462,27 +481,35 @@ function CourseEditor({
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const loadOutline = useCallback(async () => {
-    const result = await api.courseOutline(course.id);
-    if (!result.ok) {
-      setSections([]);
-      setError(result.error.message);
-      return;
-    }
-    setSections(result.data.sections);
-    setDraftRevision(result.data.draftRevision);
-    setSelectedLessonId((current) => {
-      if (
-        current &&
-        result.data.sections.some((section) =>
-          section.lessons.some((lesson) => lesson.id === current),
-        )
-      ) {
-        return current;
+  const loadOutline = useCallback(
+    async (force = false) => {
+      if (localDirtyRef.current && !force) return;
+      const generation = editGeneration.current;
+      const result = await api.courseOutline(course.id);
+      if (generation !== editGeneration.current) return;
+      if (!result.ok) {
+        setSections([]);
+        setError(result.error.message);
+        return;
       }
-      return result.data.sections.flatMap((section) => section.lessons)[0]?.id ?? null;
-    });
-  }, [course.id, course.draftRevision]);
+      localDirtyRef.current = false;
+      setLocalDirty(false);
+      setSections(result.data.sections);
+      setDraftRevision(result.data.draftRevision);
+      setSelectedLessonId((current) => {
+        if (
+          current &&
+          result.data.sections.some((section) =>
+            section.lessons.some((lesson) => lesson.id === current),
+          )
+        ) {
+          return current;
+        }
+        return result.data.sections.flatMap((section) => section.lessons)[0]?.id ?? null;
+      });
+    },
+    [course.id, course.draftRevision],
+  );
 
   useEffect(() => {
     void loadOutline();
@@ -523,7 +550,7 @@ function CourseEditor({
     setNotice(lessonId ? 'Урок сохранён.' : 'Урок добавлен.');
     setNewLessonSectionId(null);
     setSelectedLessonId(result.data.id);
-    await loadOutline();
+    await loadOutline(true);
     onChanged();
   }
 
@@ -540,7 +567,7 @@ function CourseEditor({
   const lessonCount = (sections ?? []).reduce((sum, section) => sum + section.lessons.length, 0);
 
   async function publishCourse(): Promise<void> {
-    if (publishing || lessonCount === 0) return;
+    if (publishing || localDirtyRef.current || lessonCount === 0) return;
     setPublishing(true);
     const result = await api.publishCourse(
       course.id,
@@ -559,302 +586,335 @@ function CourseEditor({
         ? `Версия ${result.data.versionNumber} уже актуальна.`
         : `Курс опубликован: версия ${result.data.versionNumber}.`,
     );
+    await loadOutline();
     onChanged();
   }
 
   return (
-    <section className="course-system" data-testid="course-editor">
-      <header className="course-compact-header">
-        <button type="button" className="course-back-button" onClick={onBack}>
-          <span aria-hidden="true">←</span>
-          <span>Курсы</span>
-        </button>
-        <div className="course-compact-title">
-          <div>
-            <h2>{course.title}</h2>
-            <span className={`course-status-pill ${publicationClass(course)}`}>
-              {publicationLabel(course)}
-            </span>
+    <fieldset disabled={restoreBusy} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
+      <section className="course-system" data-testid="course-editor">
+        <header className="course-compact-header">
+          <button type="button" className="course-back-button" onClick={onBack}>
+            <span aria-hidden="true">←</span>
+            <span>Курсы</span>
+          </button>
+          <div className="course-compact-title">
+            <div>
+              <h2>{course.title}</h2>
+              <span className={`course-status-pill ${publicationClass(course)}`}>
+                {publicationLabel(course)}
+              </span>
+            </div>
+            <p>
+              {(sections?.length ?? course.sectionCount) + ' разделов · ' + lessonCount + ' уроков'}
+            </p>
           </div>
-          <p>
-            {(sections?.length ?? course.sectionCount) + ' разделов · ' + lessonCount + ' уроков'}
-          </p>
-        </div>
-        <div className="course-header-actions">
-          <button type="button" className="btn-secondary" onClick={onEditCourse}>
-            Настройки
-          </button>
-          <button type="button" className="btn-secondary" onClick={onShare}>
-            Доступ
-          </button>
-          {course.publicationState !== 'published' ? (
-            <button
-              type="button"
-              className="btn-primary course-publish-button"
-              disabled={publishing || lessonCount === 0}
-              title={lessonCount === 0 ? 'Сначала добавьте хотя бы один урок' : undefined}
-              onClick={() => void publishCourse()}
-            >
-              {publishing
-                ? 'Публикуем…'
-                : course.publicationState === 'changed'
-                  ? `Опубликовать v${(course.publishedVersion ?? 0) + 1}`
-                  : 'Опубликовать'}
+          <div className="course-header-actions">
+            <button type="button" className="btn-secondary" onClick={onEditCourse}>
+              Настройки
             </button>
-          ) : null}
-          <button
-            type="button"
-            className={preview ? 'btn-primary' : 'btn-secondary'}
-            onClick={() => setPreview((value) => !value)}
-          >
-            {preview ? 'Редактировать' : 'Предпросмотр'}
-          </button>
-        </div>
-      </header>
-
-      {course.publicationState === 'draft' && course.visibility !== 'private' ? (
-        <p className="course-publication-note" role="status">
-          Доступ настроен, но коллеги увидят курс в каталоге только после первой публикации.
-        </p>
-      ) : null}
-
-      {notice ? (
-        <p className="notice-success course-inline-notice" role="status">
-          {notice}
-        </p>
-      ) : null}
-      {error ? (
-        <p className="form-error course-inline-notice" role="alert">
-          {error}
-        </p>
-      ) : null}
-
-      {sections === null ? (
-        <p role="status">Загружаем содержание…</p>
-      ) : preview ? (
-        <CoursePreview course={course} sections={sections} />
-      ) : (
-        <div className="course-builder">
-          <aside className="course-outline" aria-label="Содержание курса">
-            <div className="course-outline-head">
-              <div>
-                <span>Содержание</span>
-                <small>{lessonCount} уроков</small>
-              </div>
+            <button type="button" className="btn-secondary" onClick={onShare}>
+              Доступ
+            </button>
+            {course.publicationState !== 'published' ? (
               <button
                 type="button"
-                className="course-icon-button"
-                aria-label="Добавить раздел"
-                title="Добавить раздел"
-                onClick={() => setSectionForm('new')}
+                className="btn-primary course-publish-button"
+                disabled={publishing || localDirty || lessonCount === 0}
+                title={lessonCount === 0 ? 'Сначала добавьте хотя бы один урок' : undefined}
+                onClick={() => void publishCourse()}
               >
-                +
+                {publishing
+                  ? 'Публикуем…'
+                  : course.publicationState === 'changed'
+                    ? `Опубликовать v${(course.publishedVersion ?? 0) + 1}`
+                    : 'Опубликовать'}
               </button>
-            </div>
-            <div className="course-outline-scroll">
-              {sections.map((section, sectionIndex) => (
-                <section key={section.id} className="course-outline-section">
-                  <div className="course-outline-section-head">
-                    <button
-                      type="button"
-                      className="course-section-name"
-                      onClick={() => setSectionForm(section)}
-                    >
-                      <span>{sectionIndex + 1}</span>
-                      <strong>{section.title}</strong>
-                    </button>
-                    <Dropdown
-                      className="course-outline-menu"
-                      ariaLabel={'Действия раздела «' + section.title + '»'}
-                      label={<span aria-hidden="true">•••</span>}
-                    >
-                      {(close) => (
-                        <>
-                          <button
-                            type="button"
-                            disabled={sectionIndex === 0}
-                            onClick={() => {
-                              close();
-                              void act(
-                                () =>
-                                  api.moveCourseSection(course.id, section.id, -1, draftRevision),
-                                'Раздел перемещён.',
-                              );
-                            }}
-                          >
-                            Выше
-                          </button>
-                          <button
-                            type="button"
-                            disabled={sectionIndex === sections.length - 1}
-                            onClick={() => {
-                              close();
-                              void act(
-                                () =>
-                                  api.moveCourseSection(course.id, section.id, 1, draftRevision),
-                                'Раздел перемещён.',
-                              );
-                            }}
-                          >
-                            Ниже
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              close();
-                              setSectionForm(section);
-                            }}
-                          >
-                            Переименовать
-                          </button>
-                          <button
-                            type="button"
-                            className="is-danger"
-                            onClick={() => {
-                              close();
-                              void act(
-                                () => api.deleteCourseSection(course.id, section.id, draftRevision),
-                                'Раздел удалён.',
-                              );
-                            }}
-                          >
-                            Удалить пустой
-                          </button>
-                        </>
-                      )}
-                    </Dropdown>
-                  </div>
-                  <ol>
-                    {section.lessons.map((lesson, lessonIndex) => (
-                      <li key={lesson.id}>
-                        <button
-                          type="button"
-                          className={
-                            selectedLessonId === lesson.id && !newLessonSectionId
-                              ? 'course-lesson-link is-active'
-                              : 'course-lesson-link'
-                          }
-                          onClick={() => {
-                            setSelectedLessonId(lesson.id);
-                            setNewLessonSectionId(null);
-                          }}
-                        >
-                          <span>{lessonIndex + 1}</span>
-                          <span>
-                            <strong>{lesson.title}</strong>
-                            <small>
-                              {lesson.kind === 'assignment' ? 'Задание' : 'Материал'}
-                              {lesson.estimatedMinutes
-                                ? ' · ' + lesson.estimatedMinutes + ' мин'
-                                : ''}
-                            </small>
-                          </span>
-                        </button>
-                        {selectedLessonId === lesson.id && !newLessonSectionId ? (
-                          <div className="course-lesson-order" aria-label="Порядок урока">
-                            <button
-                              type="button"
-                              disabled={lessonIndex === 0}
-                              aria-label={'Выше: ' + lesson.title}
-                              onClick={() =>
-                                void act(
-                                  () =>
-                                    api.moveCourseLesson(course.id, lesson.id, -1, draftRevision),
-                                  'Урок перемещён.',
-                                )
-                              }
-                            >
-                              ↑
-                            </button>
-                            <button
-                              type="button"
-                              disabled={lessonIndex === section.lessons.length - 1}
-                              aria-label={'Ниже: ' + lesson.title}
-                              onClick={() =>
-                                void act(
-                                  () =>
-                                    api.moveCourseLesson(course.id, lesson.id, 1, draftRevision),
-                                  'Урок перемещён.',
-                                )
-                              }
-                            >
-                              ↓
-                            </button>
-                          </div>
-                        ) : null}
-                      </li>
-                    ))}
-                  </ol>
-                  <button
-                    type="button"
-                    className="course-add-lesson"
-                    onClick={() => {
-                      setSelectedLessonId(null);
-                      setNewLessonSectionId(section.id);
-                    }}
-                  >
-                    + Урок
-                  </button>
-                </section>
-              ))}
-            </div>
-          </aside>
-
-          <div className="course-workspace">
-            {newLessonSectionId ? (
-              <LessonEditor
-                key={'new-' + newLessonSectionId}
-                sections={sections}
-                sectionId={newLessonSectionId}
-                lesson={null}
-                assignments={assignments}
-                onSave={saveLesson}
-                onDelete={null}
-              />
-            ) : selected ? (
-              <LessonEditor
-                key={selected.lesson.id + '-' + selected.lesson.position}
-                sections={sections}
-                sectionId={selected.section.id}
-                lesson={selected.lesson}
-                assignments={assignments}
-                onSave={saveLesson}
-                onDelete={deleteLesson}
-              />
-            ) : (
-              <div className="course-workspace-empty">
-                <span aria-hidden="true">＋</span>
-                <h3>Добавьте первый урок</h3>
-                <p>Материал объясняет тему, а задание открывает практику из вашего банка.</p>
-                <button
-                  type="button"
-                  className="btn-primary"
-                  onClick={() => setNewLessonSectionId(sections[0]?.id ?? null)}
-                >
-                  Добавить урок
-                </button>
-              </div>
-            )}
+            ) : null}
+            <button
+              type="button"
+              className={preview ? 'btn-primary' : 'btn-secondary'}
+              onClick={() => setPreview((value) => !value)}
+            >
+              {preview ? 'Редактировать' : 'Предпросмотр'}
+            </button>
           </div>
-        </div>
-      )}
+        </header>
 
-      {sectionForm ? (
-        <SectionFormDialog
-          section={sectionForm === 'new' ? null : sectionForm}
-          onClose={() => setSectionForm(null)}
-          onSave={async (value) => {
-            const id = sectionForm === 'new' ? null : sectionForm.id;
-            const saved = await act(
-              () =>
-                api.saveCourseSection(course.id, id, { ...value, expectedRevision: draftRevision }),
-              id ? 'Раздел сохранён.' : 'Раздел добавлен.',
+        {course.publicationState === 'draft' && course.visibility !== 'private' ? (
+          <p className="course-publication-note" role="status">
+            Доступ настроен, но коллеги увидят курс в каталоге только после первой публикации.
+          </p>
+        ) : null}
+
+        {notice ? (
+          <p className="notice-success course-inline-notice" role="status">
+            {notice}
+          </p>
+        ) : null}
+        {error ? (
+          <p className="form-error course-inline-notice" role="alert">
+            {error}
+          </p>
+        ) : null}
+
+        <AuthorVersionHistory
+          kind="course"
+          rootId={course.id}
+          revision={draftRevision}
+          dirty={localDirty || sectionForm !== null || newLessonSectionId !== null}
+          onBusyChange={setRestoreBusy}
+          onOpenDraft={async (sourceVersionNumber) => {
+            setPreview(false);
+            setSelectedLessonId(null);
+            setNewLessonSectionId(null);
+            setSectionForm(null);
+            await loadOutline(true);
+            setEditorEpoch((value) => value + 1);
+            onChanged();
+            setNotice(
+              sourceVersionNumber
+                ? 'Черновик создан на основе версии ' + sourceVersionNumber
+                : 'Открыт существующий черновик.',
             );
-            if (saved) setSectionForm(null);
           }}
         />
-      ) : null}
-    </section>
+        {course.draftActive && course.draftBaseVersionNumber ? (
+          <p>Черновик на основе версии {course.draftBaseVersionNumber}</p>
+        ) : null}
+        {sections === null ? (
+          <p role="status">Загружаем содержание…</p>
+        ) : preview ? (
+          <CoursePreview course={course} sections={sections} />
+        ) : (
+          <div className="course-builder" onChange={markDirty}>
+            <aside className="course-outline" aria-label="Содержание курса">
+              <div className="course-outline-head">
+                <div>
+                  <span>Содержание</span>
+                  <small>{lessonCount} уроков</small>
+                </div>
+                <button
+                  type="button"
+                  className="course-icon-button"
+                  aria-label="Добавить раздел"
+                  title="Добавить раздел"
+                  onClick={() => setSectionForm('new')}
+                >
+                  +
+                </button>
+              </div>
+              <div className="course-outline-scroll">
+                {sections.map((section, sectionIndex) => (
+                  <section key={section.id} className="course-outline-section">
+                    <div className="course-outline-section-head">
+                      <button
+                        type="button"
+                        className="course-section-name"
+                        onClick={() => setSectionForm(section)}
+                      >
+                        <span>{sectionIndex + 1}</span>
+                        <strong>{section.title}</strong>
+                      </button>
+                      <Dropdown
+                        className="course-outline-menu"
+                        ariaLabel={'Действия раздела «' + section.title + '»'}
+                        label={<span aria-hidden="true">•••</span>}
+                      >
+                        {(close) => (
+                          <>
+                            <button
+                              type="button"
+                              disabled={sectionIndex === 0}
+                              onClick={() => {
+                                close();
+                                void act(
+                                  () =>
+                                    api.moveCourseSection(course.id, section.id, -1, draftRevision),
+                                  'Раздел перемещён.',
+                                );
+                              }}
+                            >
+                              Выше
+                            </button>
+                            <button
+                              type="button"
+                              disabled={sectionIndex === sections.length - 1}
+                              onClick={() => {
+                                close();
+                                void act(
+                                  () =>
+                                    api.moveCourseSection(course.id, section.id, 1, draftRevision),
+                                  'Раздел перемещён.',
+                                );
+                              }}
+                            >
+                              Ниже
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                close();
+                                setSectionForm(section);
+                              }}
+                            >
+                              Переименовать
+                            </button>
+                            <button
+                              type="button"
+                              className="is-danger"
+                              onClick={() => {
+                                close();
+                                void act(
+                                  () =>
+                                    api.deleteCourseSection(course.id, section.id, draftRevision),
+                                  'Раздел удалён.',
+                                );
+                              }}
+                            >
+                              Удалить пустой
+                            </button>
+                          </>
+                        )}
+                      </Dropdown>
+                    </div>
+                    <ol>
+                      {section.lessons.map((lesson, lessonIndex) => (
+                        <li key={lesson.id}>
+                          <button
+                            type="button"
+                            className={
+                              selectedLessonId === lesson.id && !newLessonSectionId
+                                ? 'course-lesson-link is-active'
+                                : 'course-lesson-link'
+                            }
+                            onClick={() => {
+                              setSelectedLessonId(lesson.id);
+                              setNewLessonSectionId(null);
+                            }}
+                          >
+                            <span>{lessonIndex + 1}</span>
+                            <span>
+                              <strong>{lesson.title}</strong>
+                              <small>
+                                {lesson.kind === 'assignment' ? 'Задание' : 'Материал'}
+                                {lesson.estimatedMinutes
+                                  ? ' · ' + lesson.estimatedMinutes + ' мин'
+                                  : ''}
+                              </small>
+                            </span>
+                          </button>
+                          {selectedLessonId === lesson.id && !newLessonSectionId ? (
+                            <div className="course-lesson-order" aria-label="Порядок урока">
+                              <button
+                                type="button"
+                                disabled={lessonIndex === 0}
+                                aria-label={'Выше: ' + lesson.title}
+                                onClick={() =>
+                                  void act(
+                                    () =>
+                                      api.moveCourseLesson(course.id, lesson.id, -1, draftRevision),
+                                    'Урок перемещён.',
+                                  )
+                                }
+                              >
+                                ↑
+                              </button>
+                              <button
+                                type="button"
+                                disabled={lessonIndex === section.lessons.length - 1}
+                                aria-label={'Ниже: ' + lesson.title}
+                                onClick={() =>
+                                  void act(
+                                    () =>
+                                      api.moveCourseLesson(course.id, lesson.id, 1, draftRevision),
+                                    'Урок перемещён.',
+                                  )
+                                }
+                              >
+                                ↓
+                              </button>
+                            </div>
+                          ) : null}
+                        </li>
+                      ))}
+                    </ol>
+                    <button
+                      type="button"
+                      className="course-add-lesson"
+                      onClick={() => {
+                        setSelectedLessonId(null);
+                        setNewLessonSectionId(section.id);
+                      }}
+                    >
+                      + Урок
+                    </button>
+                  </section>
+                ))}
+              </div>
+            </aside>
+
+            <div className="course-workspace">
+              {newLessonSectionId ? (
+                <LessonEditor
+                  key={'new-' + newLessonSectionId}
+                  sections={sections}
+                  sectionId={newLessonSectionId}
+                  lesson={null}
+                  assignments={assignments}
+                  onSave={saveLesson}
+                  onDirty={markDirty}
+                  onDelete={null}
+                />
+              ) : selected ? (
+                <LessonEditor
+                  key={selected.lesson.id + '-' + selected.lesson.position + '-' + editorEpoch}
+                  sections={sections}
+                  sectionId={selected.section.id}
+                  lesson={selected.lesson}
+                  assignments={assignments}
+                  onSave={saveLesson}
+                  onDirty={markDirty}
+                  onDelete={deleteLesson}
+                />
+              ) : (
+                <div className="course-workspace-empty">
+                  <span aria-hidden="true">＋</span>
+                  <h3>Добавьте первый урок</h3>
+                  <p>Материал объясняет тему, а задание открывает практику из вашего банка.</p>
+                  <button
+                    type="button"
+                    className="btn-primary"
+                    onClick={() => setNewLessonSectionId(sections[0]?.id ?? null)}
+                  >
+                    Добавить урок
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {sectionForm ? (
+          <SectionFormDialog
+            section={sectionForm === 'new' ? null : sectionForm}
+            onClose={() => setSectionForm(null)}
+            onSave={async (value) => {
+              const id = sectionForm === 'new' ? null : sectionForm.id;
+              const saved = await act(
+                () =>
+                  api.saveCourseSection(course.id, id, {
+                    ...value,
+                    expectedRevision: draftRevision,
+                  }),
+                id ? 'Раздел сохранён.' : 'Раздел добавлен.',
+              );
+              if (saved) setSectionForm(null);
+            }}
+          />
+        ) : null}
+      </section>
+    </fieldset>
   );
 }
 

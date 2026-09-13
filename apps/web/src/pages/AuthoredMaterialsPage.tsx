@@ -1,3 +1,4 @@
+import { AuthorVersionHistory } from '../components/AuthorVersionHistory';
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { api, type AuthoredActivityDraft, type AuthoredActivityLearnerPreview } from '../api';
 import { AssignmentView } from '../components/AssignmentView';
@@ -148,6 +149,8 @@ export function AuthoredMaterialsPage({
         maxPoints: value.maxPoints,
         moduleKey: value.moduleKey,
         policies: value.policies,
+        quizVersionId: value.quizVersionId ?? null,
+        starterProjectVersionId: value.starterProjectVersionId ?? null,
       };
       setDraft(loaded);
       savedPayload.current = JSON.stringify(loaded);
@@ -200,6 +203,10 @@ export function AuthoredMaterialsPage({
     if (result.ok) {
       setPublishedVersionId(result.data.id);
       setPreview(null);
+      setNotice(
+        'Опубликована версия ' + result.data.versionNumber + '. Материал остаётся закрытым.',
+      );
+      await open(saved.id);
       setNotice(
         'Опубликована версия ' + result.data.versionNumber + '. Материал остаётся закрытым.',
       );
@@ -473,6 +480,21 @@ export function AuthoredMaterialsPage({
             <p className="account-hint">
               Сохраните изменения, чтобы предпросмотр черновика был точным.
             </p>
+          ) : null}
+          {opened ? (
+            <AuthorVersionHistory
+              key={opened.id + '-' + publishedVersionId}
+              kind="activity"
+              onBusyChange={setBusy}
+              rootId={opened.id}
+              revision={opened.revision}
+              dirty={savedPayload.current !== JSON.stringify(draft)}
+              onOpenDraft={async (sourceVersionNumber) => {
+                await open(opened.id);
+                if (sourceVersionNumber)
+                  setNotice('Черновик создан на основе версии ' + sourceVersionNumber);
+              }}
+            />
           ) : null}
           {preview?.kind === 'loading' ? <p role="status">Загружаем точный предпросмотр…</p> : null}
           {preview?.kind === 'error' ? (
