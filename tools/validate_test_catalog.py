@@ -102,10 +102,21 @@ def _remote_branch_exists(branch: str) -> bool:
     return False
 
 
+def _test_source_branch(task: dict[str, Any], policy: dict[str, Any]) -> str:
+    """Direct-main task.branch is advisory; test source follows delivery policy.
+
+    A merged/deleted optional branch must not make tests on main unverifiable.
+    This selects the ref only: ancestry and command checks still prove whether
+    the code is actually present, including on a branch behind main.
+    """
+    return "main" if policy.get("mode") == "direct_main" else str(task["branch"])
+
+
 _CURRENT_TASK = _control_plane_task()
 ACTIVE_TASK = str(_CURRENT_TASK["id"])
 CURRENT_TASK_IDS = _control_plane_task_ids()
-ACTIVE_BRANCH = str(_CURRENT_TASK["branch"])
+_POLICY = yaml.safe_load(CURRENT_PATH.read_text(encoding="utf-8")).get("development_policy") or {}
+ACTIVE_BRANCH = _test_source_branch(_CURRENT_TASK, _POLICY)
 ACTIVE_TASK_IS_DONE = str(_CURRENT_TASK.get("status")) == "done"
 # A completed task is verified from the canonical checkout itself. Its temporary
 # product branch may be deleted after merge; command validation below still
@@ -385,7 +396,7 @@ def main() -> int:
         # The waiver above is only sound while the branch that carries the code
         # actually exists. Without it, nothing anywhere can verify the registry.
         errors.append(
-            f"current.yaml names branch {ACTIVE_BRANCH!r}, which is neither in this "
+            f"current.yaml test source branch {ACTIVE_BRANCH!r} is neither in this "
             "checkout nor on the remote; the active task's tests cannot be verified anywhere"
         )
     project_map = load_yaml(MAP_PATH, errors)
@@ -406,7 +417,7 @@ def main() -> int:
     print(f"currentLaneTasks={len(CURRENT_TASK_IDS)}")
     print(f"executionTests={len(active_ids)}")
     if ACTIVE_CODE_PRESENT:
-        source = "canonical checkout" if ACTIVE_TASK_IS_DONE else "task branch in this checkout"
+        source = "canonical checkout" if ACTIVE_TASK_IS_DONE else "test source branch in this checkout"
         print(f"activeTaskLayer=executable ({source})")
     else:
         # Said out loud rather than passed over: this checkout could not confirm

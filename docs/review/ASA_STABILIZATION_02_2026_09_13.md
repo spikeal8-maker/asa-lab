@@ -68,11 +68,17 @@ Final read-only check found main advanced to `48770100f58e0a4383ee0695802c5daaf5
 
 Exact documentation product/tool tree `5ef08684463576241166c31bc840f10786a91c29` passed [repository workflow 34757087805](https://github.com/spikeal8-maker/asa-lab/actions/runs/34757087805), [all Electronics jobs including browser 34757087803](https://github.com/spikeal8-maker/asa-lab/actions/runs/34757087803), Scratch routing and CLA. The final observation-only commit changes current.yaml values and two review documents; its own GitHub checks remain visible in #208 and are not replaced by this prior-SHA evidence.
 
+### Deleted optional branch exposed by final main advancement
+
+At main 48770100, [governance run 34757399918](https://github.com/spikeal8-maker/asa-lab/actions/runs/34757399918) fails because `codex/vscr-m1-002c-protocol` no longer exists; #208 metadata SHA 09654048 reproduced the same failure in [34757617316](https://github.com/spikeal8-maker/asa-lab/actions/runs/34757617316). No product regression was established: the test catalog still treated advisory task.branch as mandatory despite direct_main. This falls within the requested branch-field semantics correction. The catalog now selects the main test source under direct_main, retains ancestry/executability checks and explicitly reports an active layer unavailable in a checkout behind main. Coordinated mode is unchanged; no Scratch task/status/acceptance is edited. Seven catalog regressions pass, including deleted optional branch routing and the negative behind-main case. Main's separate Scratch routing failure (AGENT_GUIDE 10229 > 9000 bytes) is already absent in #208's compact guide; no additional Scratch product work was done.
+
+Fresh full diff inspection counted **26**, not the previously reported 27, historical Markdown trailing-whitespace warnings in the same three unchanged snapshot files. The review count is corrected; snapshot bytes and SHA256 are untouched. The stabilization amendment has no whitespace errors.
+
 ## F. Actual validation and review
 
 Executed via the same `pnpm gate:governance` script used in CI: `python tools/test_validate_document_registry.py` (12), `test_validate_task_document_refs.py` (6), `test_validate_agent_maintenance_docs.py` (11), `test_agent_targeted_context.py` (8), `test_agent_context.py` (20): **57 tests PASS**. All three corresponding live documentation validators PASS; Registry 27 documents. Control-plane suite **79 cases PASS**, including split schema/head/date/base/authority checks and actual Git fixture proving the observed feature branch cannot edit state. `pnpm control-plane:check` and full governance PASS. Nx cache was disabled; Python validation does not use Nx.
 
-`git diff --check` for this stabilization amendment PASS. Whole #208 comparison retains the previously documented 27 Markdown hard-break warnings in the three byte-preserved historical snapshots; excluding those snapshots passes. Their bytes were not normalized just to hide historical whitespace.
+`git diff --check` for this stabilization amendment PASS. Whole #208 comparison retains the previously documented 26 Markdown hard-break warnings in the three byte-preserved historical snapshots; excluding those snapshots passes. Their bytes were not normalized just to hide historical whitespace.
 
 POST_STEP_REVIEW: documentation and L3 execution semantics change; target requirements remain target, accepted Access pin unchanged, no product selection/acceptance altered. Source-of-truth boundaries made explicit; context budgets preserved. VERDICT: PASS for performed local documentation checks, pending exact final GitHub outcome.
 

@@ -7,6 +7,29 @@ import validate_test_catalog as catalog
 
 
 class BranchPresence(unittest.TestCase):
+    def test_direct_main_deleted_optional_branch_uses_main_ancestry(self):
+        task = {"branch": "codex/deleted-after-merge", "status": "in_progress"}
+        branch = catalog._test_source_branch(task, {"mode": "direct_main"})
+        with patch.object(catalog.subprocess, "run", side_effect=[
+            subprocess.CompletedProcess([], returncode=1, stdout=""),
+            subprocess.CompletedProcess([], returncode=0),
+        ]) as run:
+            self.assertTrue(catalog._checkout_contains_task_branch(branch))
+        self.assertEqual(run.call_args_list[-1].args[0],
+                         ["git", "merge-base", "--is-ancestor", "origin/main", "HEAD"])
+        self.assertEqual(task, {"branch": "codex/deleted-after-merge", "status": "in_progress"})
+
+    def test_direct_main_behind_main_does_not_claim_executable_code(self):
+        branch = catalog._test_source_branch({"branch": "codex/old"}, {"mode": "direct_main"})
+        with patch.object(catalog.subprocess, "run", side_effect=[
+            subprocess.CompletedProcess([], returncode=1, stdout=""),
+            subprocess.CompletedProcess([], returncode=1),
+        ]):
+            self.assertFalse(catalog._checkout_contains_task_branch(branch))
+
+    def test_coordinated_mode_retains_the_selected_task_branch(self):
+        self.assertEqual(catalog._test_source_branch({"branch": "codex/work"}, {}), "codex/work")
+
     def test_current_unpublished_branch_is_verified_locally(self):
         with patch.object(catalog.subprocess, "run", return_value=subprocess.CompletedProcess(
             [], 0, "codex/asa-access-a-result-a\n", ""
