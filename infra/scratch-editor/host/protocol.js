@@ -15,6 +15,7 @@
     const { parentWindow, expectedParentOrigin } = options;
     let session = null;
     let started = false;
+    let stopped = false;
 
     const reject = (reason) => {
       options.onRejected?.(reason);
@@ -62,6 +63,8 @@
       }
       if (message.messageType === 'ASA_BLOCKS_STOP') {
         options.onStop?.();
+        session = null;
+        stopped = true;
         return true;
       }
       return reject('message_type');
@@ -73,6 +76,7 @@
       const message = isRecord(event.data) ? event.data : null;
       if (!message || !PARENT_TYPES.has(message.messageType)) return reject('message_type');
       if (message.protocolVersion !== PROTOCOL_VERSION) return reject('protocol_version');
+      if (stopped) return reject('stopped');
       if (message.messageType === 'ASA_BLOCKS_INIT') return handleInit(message);
       if (!session) return reject('not_initialized');
       return handleBoundMessage(message);
@@ -85,9 +89,12 @@
         started = true;
       },
       dispose() {
-        if (!started) return;
-        window.removeEventListener('message', onMessage);
-        started = false;
+        if (started) {
+          window.removeEventListener('message', onMessage);
+          started = false;
+        }
+        session = null;
+        stopped = true;
       },
       getBinding() {
         if (!session) return null;
