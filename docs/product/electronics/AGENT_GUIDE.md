@@ -174,7 +174,8 @@ If a requested change conflicts with an invariant, stop and escalate the design 
 
 ## 7. Clock and Arduino special rule
 
-There must be one canonical physical-time contract. UI cadence, React render rate and `setInterval` are presentation concerns only.
+Apply the [determinism/clock contract](DEVELOPMENT_SPEC.md#13-determinism-and-execution-failures)
+and [peripheral extension requirements](DEVELOPMENT_SPEC.md#14-component-and-peripheral-extension-contract).
 
 Do not add Servo, ultrasonic, `pulseIn`, interrupts, IR, NeoPixel or another timing-sensitive peripheral by inventing a second/third timer path. Missing timing primitive means the peripheral task is blocked.
 
@@ -186,13 +187,9 @@ Changing solver equations requires analytical/reference fixture or an explicit p
 
 ## 9. Worker special rule
 
-Worker is an execution boundary, not a second physics implementation.
-
-- direct engine and Worker results must preserve parity;
-- one in-flight heavy solve by default;
-- stale generation/session/document results are rejected;
-- failures are visible/fail-closed;
-- no silent synchronous fallback that reintroduces main-thread blocking.
+Worker changes preserve [execution/failure semantics](DEVELOPMENT_SPEC.md#13-determinism-and-execution-failures)
+and require the applicable [isolation/parity evidence](DEVELOPMENT_SPEC.md#71-architecture-acceptance-evidence).
+Use those exact sections when scoping a Worker repair; no full specification preload.
 
 ## 10. Write discipline
 

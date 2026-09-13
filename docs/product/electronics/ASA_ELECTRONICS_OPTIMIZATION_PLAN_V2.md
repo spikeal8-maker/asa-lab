@@ -130,16 +130,10 @@ After E-OPT-1 acceptance, report E-OPT-3 as next available. Do not start clock w
 
 **Capability state:** accepted early and integrated.
 
-Stable requirements that future changes must preserve:
-
-- versioned protocol and engine revision;
-- request/generation/session isolation;
-- bounded in-flight heavy work and coalescing;
-- cancellation/stale-result rejection;
-- crash/timeout failure containment;
-- no silent synchronous heavy-solver fallback;
-- direct-vs-Worker parity;
-- production browser journey proves real Worker creation.
+Preserve the [version domains](DEVELOPMENT_SPEC.md#12-independent-version-domains-and-capabilities),
+[execution/failure contract](DEVELOPMENT_SPEC.md#13-determinism-and-execution-failures) and
+[Worker acceptance evidence](DEVELOPMENT_SPEC.md#71-architecture-acceptance-evidence).
+This stage's acceptance includes direct/Worker parity and a browser journey proving real Worker creation.
 
 No further E-OPT-2 feature expansion is authorised by this plan alone. Worker changes are maintenance unless another stage explicitly requires them.
 
@@ -172,7 +166,8 @@ E-OPT-3F — prove reset/pause/resume/input-event conformance to E-OPT-3A and st
 
 ### Acceptance
 
-Same initial document + same event trace + same versions must produce byte-equivalent committed simulation frames independent of UI cadence or render stalls.
+Prove the [determinism contract](DEVELOPMENT_SPEC.md#13-determinism-and-execution-failures)
+with this stage's canonical-time and replay fixtures across UI cadences/render stalls.
 
 ### Stop
 
@@ -244,7 +239,9 @@ IR
 NeoPixel / timing-sensitive output
 ```
 
-Each peripheral is a separate task and must define owner SVG/provenance, terminals/electrical identity, runtime interface, timing dependencies, inspector/help, capability registry, focused tests, golden/reference fixture and browser evidence.
+Each peripheral is a separate task satisfying the
+[extension contract](DEVELOPMENT_SPEC.md#14-component-and-peripheral-extension-contract),
+with focused/reference tests and browser evidence for that peripheral.
 
 No peripheral task authorises the next peripheral.
 
@@ -268,11 +265,9 @@ Acceptance requires before/after bundle/runtime evidence, not line-count reducti
 
 **Blocked until E-OPT-1, E-OPT-2, E-OPT-3 and required Arduino runtime contracts are accepted.**
 
-Create a standalone example outside ASA portal concerns that can load the engine, create/read a circuit, start the Worker, simulate, run one Arduino example and use in-memory persistence.
-
-Produce `PORTING.md` from the proven example: public API, worker integration, document compatibility, model extension, host adapter and supported runtime baseline.
-
-Claiming “portable” without this code proof is forbidden.
+Deliver the [executable portability proof](DEVELOPMENT_SPEC.md#73-executable-portability-proof):
+the runnable standalone example, reproducible commands and evidence-derived `PORTING.md`.
+That contract defines the minimum proof; this stage owns its prerequisite acceptance boundary.
 
 ## 12. E-OPT-9 — Electronics v1 Hardening Gate
 
