@@ -23,6 +23,17 @@ pnpm agent:context --list
 pnpm agent:context --scope <lane>
 ```
 
+Если вывод содержит `recoveryRequired: true`, до любых новых записей выполни:
+
+```bash
+pnpm agent:recover --scope <lane> --check
+```
+
+Код `2` означает `RECOVERY_REQUIRED`: сначала классифицируй существующий diff и
+активные процессы. Не повторяй прерванную команду автоматически. Продолжение
+разрешено только после `SAFE_TO_START` либо после явного решения сохранить и
+завершить уже начатый bounded slice.
+
 Команда читает [`docs/execution/current.yaml`](docs/execution/current.yaml) и
 выводит только выбранное направление: задачу, checkpoint, gates, относящиеся к
 нему документы и пересекающиеся незавершённые файлы. Это штатный вход агента;

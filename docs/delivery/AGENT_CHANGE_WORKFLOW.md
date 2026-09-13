@@ -9,6 +9,7 @@
 ```bash
 pnpm agent:context --list
 pnpm agent:context --scope <lane>
+pnpm agent:recover --scope <lane> --check
 pnpm control-plane:check
 git status --short --branch
 git fetch origin main
@@ -17,6 +18,12 @@ git fetch origin main
 Читай только документы и разделы из блока `read`. Не сканируй весь репозиторий,
 если точный модуль уже известен. До записи проверь незавершённые файлы и
 последние изменения в `origin/main`.
+
+Если recovery возвращает код `2`, новый срез не начинается. Сначала определяется,
+какие dirty paths и процессы относятся к прерванной работе, что уже было
+committed/pushed/tested и можно ли безопасно завершить текущий срез. Запрещено
+повторять migration, build, push, deployment или другую потенциально повторную
+операцию только потому, что предыдущий tool-call не вернул ответ.
 
 ## 2. Сделай один цельный пакет
 

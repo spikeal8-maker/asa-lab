@@ -72,6 +72,17 @@ CI conclusions именно для текущего HEAD SHA
 только историей. `cancelled` не означает ни PASS, ни продуктовый FAIL. Пока
 snapshot не восстановлен, код, документация и execution state не изменяются.
 
+Штатный read-only preflight после interruption/disconnect/tool failure:
+
+```bash
+pnpm agent:recover --scope <lane> --check
+```
+
+`SAFE_TO_START` разрешает новый bounded slice. `RECOVERY_REQUIRED` запрещает
+новые edits и слепой повтор предыдущей команды: сначала просматриваются diff,
+HEAD/remote divergence и релевантные процессы. Recovery-команда сама ничего не
+stash/revert/commit/push/restart и потому безопасна для повторного запуска.
+
 Один запуск исполнителя обслуживает **ровно один выбранный срез**. После начала
 среза запрещено автоматически переходить к следующей READY-задаче, делать
 «заодно» соседний cleanup или расширять scope ради общего улучшения проекта.
