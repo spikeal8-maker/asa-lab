@@ -189,13 +189,6 @@ try {
   await sendFromParent(page, { ...initMessage, protocolVersion: 2 });
   await expectRejectionIncrement(frame, beforeWrongProtocol, 'wrong protocol version');
 
-  const beforeWrongProject = await rejectionCount(frame);
-  await sendFromParent(page, {
-    ...initMessage,
-    projectId: '22222222-2222-4222-8222-222222222222',
-  });
-  await expectRejectionIncrement(frame, beforeWrongProject, 'wrong project INIT');
-
   await sendFromParent(page, initMessage);
   await waitForRuntimeState(frame, 'init-accepted');
 
@@ -220,6 +213,19 @@ try {
   );
   if (Object.values(persistenceLeak).some(Boolean))
     throw new Error('runtime token leaked to browser persistence/DOM/URL');
+
+  const beforeWrongProject = await rejectionCount(frame);
+  await sendFromParent(page, {
+    ...binding,
+    projectId: '22222222-2222-4222-8222-222222222222',
+    messageType: 'ASA_BLOCKS_TOKEN_UPDATE',
+    runtimeToken: 'ignored-wrong-project-token',
+  });
+  await expectRejectionIncrement(frame, beforeWrongProject, 'wrong project after INIT');
+  if ((await runtimeState(frame)) !== 'init-accepted') {
+    throw new Error('wrong project after INIT changed runtime state');
+  }
+
   const beforeWrongNonce = await rejectionCount(frame);
   await sendFromParent(page, {
     ...binding,
@@ -228,6 +234,9 @@ try {
     runtimeToken: 'ignored-token',
   });
   await expectRejectionIncrement(frame, beforeWrongNonce, 'wrong nonce');
+  if ((await runtimeState(frame)) !== 'init-accepted') {
+    throw new Error('wrong nonce changed runtime state');
+  }
 
   await sendFromParent(page, {
     ...binding,
