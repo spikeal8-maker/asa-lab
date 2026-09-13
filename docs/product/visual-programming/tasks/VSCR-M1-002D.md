@@ -2,14 +2,19 @@
 
 **Kind:** executable implementation slice  
 **Risk:** high  
-**Prerequisite:** VSCR-M1-002C accepted.  
+**Prerequisite:** VSCR-M1-002C **and VSCR-M1-002R** accepted.  
 **Execution:** coding starts only when `docs/execution/current.yaml.task.id` is exactly `VSCR-M1-002D` **and** `docs/execution/current.yaml.task.status` is exactly `in_progress`; `docs/execution/current.yaml.primary_lane.milestone.id` must be exactly `VSCR-M1-002` and its `owner_authorization` must be `accepted`.
 
 ## Goal
 
 Mount the pinned standalone editor through ASA-owned ScratchStorage/GUIStorage fixture behaviour
-behind the protocol boundary accepted in C. This is the **first visible Scratch checkpoint**:
-a user/test must be able to see and operate a real editor without claiming durable ASA save yet.
+behind the protocol boundary accepted in C **and the repaired developer surface accepted in R**.
+This is the **first visible Scratch checkpoint**: a user/test must be able to see and operate a real
+editor without claiming durable ASA save yet.
+
+D must not recreate the debt repaired by R. In particular, it must use the stable Scratch gate,
+keep editor/storage work out of the protocol bridge and add only bounded source/tests routed to the
+storage-adapter component.
 
 ## Components
 
@@ -27,8 +32,12 @@ Open only that entry in `components/host.yaml` plus the accepted protocol depend
 ../COMPONENT_MAP.yaml
 ../components/host.yaml → blocks.host.storage-adapter
 ../VSCR-D0-001-SCRATCH-HOST-CONTRACT.md → Scratch storage adapter + VM/save boundary
-actual host/protocol accepted in M1-002A/C
+accepted host/protocol interfaces from M1-002A/C
+accepted maintainability constraints/evidence from M1-002R
 ```
+
+Do not preload the R implementation diff unless a concrete tooling/routing question requires it;
+use the stable gate/routing result it established.
 
 ## Expected write paths
 
@@ -37,9 +46,12 @@ infra/scratch-editor/host/storage.js
 infra/scratch-editor/host/main.js       # adapter composition + editor mount only
 infra/scratch-editor/host/status.js     # only adapter/editor status wiring
 tests/blocks/fixtures/**                # bounded local fixture data if needed
-e2e/blocks-host-storage.spec.ts
+e2e/blocks-host-storage.spec.ts or the accepted bounded Scratch e2e layout
 ../components/host.yaml → blocks.host.storage-adapter only
 ```
+
+No root `package.json` per-slice gate command is added. Use the stable Scratch gate interface
+accepted by R. No protocol module absorbs editor mount/storage responsibilities.
 
 ## Adapter scope
 
@@ -67,6 +79,8 @@ saveProject cannot report durable success
 new fixture does not fetch ASA project UUID upstream
 PROJECT_CHANGED reaches ASA host observation after stable load
 player fixture can mount read-only
+R maintainability budgets remain green
+Scratch focused gate remains isolated from unrelated subject modules
 ```
 
 This checkpoint is intentionally usable but not yet durable: refresh/reopen may lose unsaved
@@ -83,6 +97,8 @@ new fixture + existing controlled fixture load paths
 saveProject defensive-failure test
 PROJECT_CHANGED observation test
 player fixture read-only test
+stable Scratch focused gate from R
+maintainability-budget check from R
 node tools/validate-blocks-docs.mjs
 ```
 
@@ -97,13 +113,16 @@ no draft PUT
 no autosave orchestrator
 no S3/MinIO
 no production route exposure
+no new root per-slice gate command
+no expansion of protocol bridge with storage/editor-mount concerns
+no disabling/loosening R budgets merely to make D pass
 ```
 
 ## Bounded self-review
 
-Review only storage-adapter/editor-mount behaviour, final diff, mapped D0 section and
-network/browser evidence. Confirm no persistence success is claimed and no external fallback
-remains.
+Review only storage-adapter/editor-mount behaviour, final diff, mapped D0 section,
+network/browser evidence and the R guardrails. Confirm no persistence success is claimed, no
+external fallback remains and no repaired CI/context/tooling debt is reintroduced.
 
 ## Independent review
 
@@ -116,12 +135,13 @@ final diff
 blocks.host.storage-adapter component entry
 mapped D0-001 sections
 authoritative browser/network evidence on the exact SHA
+R maintainability evidence only where needed to verify no regression
 ```
 
 The reviewer checks that the editor mounts only through the accepted C boundary, no Scratch
 Foundation fallback remains, fixture IDs cannot invoke upstream project fetch semantics,
-`saveProject()` cannot fake durable success and no real M1-003/M1-004/M1-005 API was implemented
-early.
+`saveProject()` cannot fake durable success, R guardrails remain intact and no real
+M1-003/M1-004/M1-005 API was implemented early.
 
 ## Stop
 
