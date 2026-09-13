@@ -7,6 +7,7 @@ import {
   Param,
   Post,
   Put,
+  Query,
   Req,
 } from '@nestjs/common';
 import type { FastifyRequest } from 'fastify';
@@ -287,6 +288,79 @@ export class LearningActivitiesController {
         ? String(row['current_published_version_id'])
         : null,
       archivedAt: row['archived_at'] ? iso(row['archived_at'] as Date | string) : null,
+    };
+  }
+
+  @Get(':activityId/preview')
+  async previewAsLearner(
+    @Req() request: FastifyRequest,
+    @Param('activityId') activityId: string,
+    @Query('source') source: string | undefined,
+    @Query('draftRevision') draftRevisionRaw: string | undefined,
+    @Query('versionId') versionIdRaw: string | undefined,
+  ) {
+    const context = await this.requireEducator(request);
+    this.requireUuid(activityId, 'activity');
+    let versionId: string | null = null;
+    let draftRevision: number | null = null;
+    if (source === 'draft') {
+      draftRevision = Number(draftRevisionRaw);
+      if (!Number.isInteger(draftRevision) || draftRevision < 1 || versionIdRaw !== undefined) {
+        throw new HttpException(error('validation_error', 'preview source is invalid'), 400);
+      }
+    } else if (source === 'published') {
+      if (!versionIdRaw || !UUID_PATTERN.test(versionIdRaw) || draftRevisionRaw !== undefined) {
+        throw new HttpException(error('validation_error', 'preview source is invalid'), 400);
+      }
+      versionId = versionIdRaw;
+    } else {
+      throw new HttpException(error('validation_error', 'preview source is invalid'), 400);
+    }
+    const result = await this.requirePool().query(
+      `SELECT result_code,activity_id,source_kind,source_id,draft_revision,version_number,
+              title,instructions,module_key,result_mode,max_points,policy_snapshot,content_digest
+         FROM learning_activity_preview_as_author($1,$2,$3,$4,$5,$6)`,
+      [context.principalId, context.tenantId, activityId, source, versionId, draftRevision],
+    );
+    const row = result.rows[0];
+    const code = row?.['result_code'] as string | undefined;
+    if (code === 'revision_conflict') {
+      throw new HttpException(
+        error('preview_revision_conflict', 'saved draft revision changed'),
+        409,
+      );
+    }
+    if (code === 'activity_not_found' || code === 'version_not_found') {
+      throw new HttpException(error(code, 'preview source is unavailable'), 404);
+    }
+    if (!row || code !== 'ok') {
+      throw new HttpException(error(code ?? 'preview_failed', 'preview source is invalid'), 400);
+    }
+    return {
+      source: {
+        kind: String(row['source_kind']) as 'draft' | 'published',
+        id: row['source_id'] ? String(row['source_id']) : null,
+        draftRevision:
+          row['draft_revision'] === null || row['draft_revision'] === undefined
+            ? null
+            : Number(row['draft_revision']),
+        versionNumber:
+          row['version_number'] === null || row['version_number'] === undefined
+            ? null
+            : Number(row['version_number']),
+        contentDigest: String(row['content_digest']),
+      },
+      assignment: {
+        title: String(row['title']),
+        goal: null,
+        brief: row['instructions'] === null ? null : String(row['instructions']),
+        sampleImage: null,
+      },
+      moduleKey: row['module_key'] === null ? null : String(row['module_key']),
+      resultMode: String(row['result_mode']) as 'ungraded' | 'completion' | 'graded',
+      maxPoints: row['max_points'] === null ? null : Number(row['max_points']),
+      policies: row['policy_snapshot'] as Record<string, unknown>,
+      learnerRuntime: false as const,
     };
   }
 

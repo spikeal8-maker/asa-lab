@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { api, type ClassroomStudentSeat, type LearningAssignableActivity } from '../api';
 import { newClientId } from '../client-id';
+import { assignmentDateTime } from '../learning/assignment-date-time';
 
 export function AssignLearningActivityDialog({
   classroomId,
@@ -17,7 +18,7 @@ export function AssignLearningActivityDialog({
   const [audienceType, setAudienceType] = useState<'whole_class' | 'named_learners'>('whole_class');
   const [selectedSeats, setSelectedSeats] = useState<string[]>([]);
   const [dueAt, setDueAt] = useState('');
-  const [requestId] = useState(() => `assign:${newClientId()}`);
+  const request = useRef<{ payload: string; id: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -28,6 +29,8 @@ export function AssignLearningActivityDialog({
       api.listClassroomRoster(classroomId),
     ]).then(([library, roster]) => {
       if (cancelled) return;
+      if (!library.ok || !roster.ok)
+        setError(!library.ok ? library.error.message : !roster.ok ? roster.error.message : null);
       setActivities(library.ok ? library.data.items : []);
       setStudents(
         roster.ok
@@ -51,14 +54,29 @@ export function AssignLearningActivityDialog({
   async function submit(event: FormEvent): Promise<void> {
     event.preventDefault();
     if (!activity || (audienceType === 'named_learners' && selectedSeats.length === 0)) return;
+    const date = assignmentDateTime(dueAt);
+    if (!date.ok) {
+      setError(date.message);
+      return;
+    }
     setBusy(true);
     setError(null);
+    const payload = JSON.stringify({
+      activityVersionId,
+      audienceType,
+      selectedSeats,
+      dueAt: date.instant,
+      timeZone: date.timeZone,
+    });
+    if (request.current?.payload !== payload)
+      request.current = { payload, id: `assign:${newClientId()}` };
     const result = await api.assignLearningActivity(classroomId, {
       activityVersionId: activity.versionId,
       audienceType,
       seatIds: audienceType === 'named_learners' ? selectedSeats : [],
-      dueAt: dueAt ? new Date(`${dueAt}T23:59:00`).toISOString() : null,
-      requestId,
+      dueAt: date.instant,
+      timeZone: date.timeZone,
+      requestId: request.current.id,
     });
     setBusy(false);
     if (!result.ok) {
@@ -154,7 +172,15 @@ export function AssignLearningActivityDialog({
             ) : null}
             <label className="learning-assign-field">
               <span>Срок</span>
-              <input type="date" value={dueAt} onChange={(event) => setDueAt(event.target.value)} />
+              <input
+                aria-label="Срок"
+                type="datetime-local"
+                value={dueAt}
+                onChange={(event) => setDueAt(event.target.value)}
+              />
+              <small>
+                Дата и время: {Intl.DateTimeFormat().resolvedOptions().timeZone}. Пусто — без срока.
+              </small>
             </label>
             {error ? (
               <p className="form-error" role="alert">

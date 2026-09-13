@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   api,
   type ClassroomAssignment,
@@ -10,8 +10,11 @@ import {
 import { seatAvatar } from '../creator-portal/default-avatars';
 import { AssignmentView } from './AssignmentView';
 import { LessonBlocks } from './LessonBlocks';
+import { LearningAudience } from './LearningAudience';
 import { WorkPreview } from './WorkPreview';
 import { useSchoolTime } from './school-time';
+import { assignmentDateTime } from '../learning/assignment-date-time';
+import { useLearningDestination } from '../learning/use-learning-destination';
 import './classroom-courses.css';
 import {
   canonicalLearningClass,
@@ -55,10 +58,18 @@ export function ClassroomCourses({
   const [courses, setCourses] = useState<Course[]>([]);
   const [courseId, setCourseId] = useState('');
   const [dueAt, setDueAt] = useState('');
+  const [audienceType, setAudienceType] = useState<'whole_class' | 'named_learners'>('whole_class');
+  const [seatIds, setSeatIds] = useState<string[]>([]);
+  const [students, setStudents] = useState<{ id: string; displayLabel: string }[]>([]);
+  const deliveryRequest = useRef<{ payload: string; id: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [openRunId, setOpenRunId] = useState<string | null>(null);
+  const destination = useLearningDestination();
+  useEffect(() => {
+    if (destination.courseRun) setOpenRunId(destination.courseRun);
+  }, [destination.courseRun]);
   const [reviewLessonId, setReviewLessonId] = useState<string | null>(null);
   const [progress, setProgress] = useState<ClassroomAssignmentProgress[] | null>(null);
   const [previewing, setPreviewing] = useState<ClassroomAssignmentProgress | null>(null);
@@ -71,6 +82,13 @@ export function ClassroomCourses({
   }, [classroomId]);
 
   useEffect(() => {
+    void api.listClassroomRoster(classroomId).then((result) => {
+      if (result.ok)
+        setStudents(
+          result.data.items.filter((student) => ['active', 'issued'].includes(student.status)),
+        );
+      else setError(result.error.message);
+    });
     void Promise.all([reload(), api.listCourses()]).then(([, available]) => {
       if (!available.ok) return;
       const published = available.data.items.filter((course) => course.publishedVersion !== null);
@@ -108,22 +126,44 @@ export function ClassroomCourses({
 
   async function assign(): Promise<void> {
     if (!courseId || busy) return;
+    const date = assignmentDateTime(dueAt);
+    if (!date.ok) {
+      setError(date.message);
+      return;
+    }
     setBusy(true);
     setError(null);
-    const result = await api.assignCourseToClassroom(
-      classroomId,
+    const selected = courses.find((course) => course.id === courseId);
+    if (!selected?.publishedVersion || (audienceType === 'named_learners' && !seatIds.length)) {
+      setError('Выберите опубликованный курс и учеников.');
+      setBusy(false);
+      return;
+    }
+    const payload = JSON.stringify({
       courseId,
-      dueAt ? new Date(dueAt).toISOString() : null,
-    );
+      version: selected.publishedVersion,
+      dueAt,
+      audienceType,
+      seatIds: [...seatIds].sort(),
+    });
+    if (deliveryRequest.current?.payload !== payload)
+      deliveryRequest.current = { payload, id: crypto.randomUUID() };
+    const result = await api.assignCourseToClassroom(classroomId, courseId, date.instant, {
+      versionNumber: selected.publishedVersion,
+      audienceType,
+      seatIds: audienceType === 'whole_class' ? [] : seatIds,
+      requestId: deliveryRequest.current.id,
+      timeZone: date.timeZone,
+    });
     setBusy(false);
     if (!result.ok) {
       setError(result.error.message);
       return;
     }
-    const selected = courses.find((course) => course.id === courseId);
+    deliveryRequest.current = null;
     setNotice(
       result.data.reused
-        ? `Срок курса «${selected?.title ?? 'Курс'}» обновлён.`
+        ? `Назначение курса «${selected?.title ?? 'Курс'}» подтверждено.`
         : `Курс «${selected?.title ?? 'Курс'}» · v${result.data.versionNumber} назначен классу.`,
     );
     await reload();
@@ -175,7 +215,11 @@ export function ClassroomCourses({
                   <button
                     type="button"
                     className="btn-secondary"
-                    onClick={() => setPreviewing(row)}
+                    onClick={() => {
+                      if (row.canonicalState?.activityRunId)
+                        window.location.hash = `/classrooms/${classroomId}?assignment=${assignment.id}&learner=${row.seatId}`;
+                      else setPreviewing(row);
+                    }}
                   >
                     Посмотреть работу
                   </button>
@@ -218,6 +262,11 @@ export function ClassroomCourses({
   if (openRun) {
     return (
       <section className="classroom-course-detail" data-testid="classroom-course-run">
+        <LearningAudience
+          classroomId={classroomId}
+          courseRunId={openRun.id}
+          onChanged={() => void reload()}
+        />
         <div className="classroom-course-detail-head">
           <button type="button" className="classroom-back" onClick={() => setOpenRunId(null)}>
             ← Все курсы
@@ -343,6 +392,49 @@ export function ClassroomCourses({
           {busy ? 'Назначаем…' : 'Назначить курс'}
         </button>
       </div>
+      <fieldset disabled={busy || archived} className="learning-assign-field">
+        <legend>Аудитория курса</legend>
+        <label>
+          <input
+            type="radio"
+            name="course-audience"
+            checked={audienceType === 'whole_class'}
+            onChange={() => setAudienceType('whole_class')}
+          />{' '}
+          Весь класс, включая новых учеников
+        </label>
+        <label>
+          <input
+            type="radio"
+            name="course-audience"
+            checked={audienceType === 'named_learners'}
+            onChange={() => setAudienceType('named_learners')}
+          />{' '}
+          Выбранные ученики
+        </label>
+        {audienceType === 'named_learners'
+          ? students.map((student) => (
+              <label key={student.id}>
+                <input
+                  type="checkbox"
+                  checked={seatIds.includes(student.id)}
+                  onChange={(event) =>
+                    setSeatIds((ids) =>
+                      event.target.checked
+                        ? [...ids, student.id]
+                        : ids.filter((id) => id !== student.id),
+                    )
+                  }
+                />
+                {student.displayLabel}
+              </label>
+            ))
+          : null}
+      </fieldset>
+      <p className="classroom-course-hint">
+        Срок — дата и время, {Intl.DateTimeFormat().resolvedOptions().timeZone}. Новое назначение
+        создаёт отдельное проведение.
+      </p>
       {courses.length === 0 ? (
         <p className="classroom-course-hint">
           Сначала опубликуйте курс в разделе «Курсы и задания».

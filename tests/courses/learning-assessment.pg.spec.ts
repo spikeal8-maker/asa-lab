@@ -136,9 +136,17 @@ describe('immutable learning assessment chain', () => {
     );
     expect(reviewed.rows[0]).toMatchObject({
       result_code: 'ok',
-      attempt_state: 'accepted',
+      attempt_state: 'closed',
       percentage_basis_points: 8400,
     });
+
+    const reviewedLifecycle = (
+      await admin.query(
+        'SELECT attempt.state, result.review_decision FROM learning_attempts attempt JOIN assessment_results result ON result.attempt_id=attempt.id WHERE attempt.id=$1',
+        [first.rows[0].attempt_id],
+      )
+    ).rows[0];
+    expect(reviewedLifecycle).toMatchObject({ state: 'closed', review_decision: 'accepted' });
 
     const gradebook = await admin.query(`SELECT * FROM classroom_gradebook_list($1, $2)`, [
       accountId,
@@ -150,7 +158,7 @@ describe('immutable learning assessment chain', () => {
         assignment_id: assignmentId,
         attempt_id: first.rows[0].attempt_id,
         attempt_number: 1,
-        attempt_state: 'accepted',
+        attempt_state: 'closed',
         raw_points: 84,
         max_points: 100,
         percentage_basis_points: 8400,

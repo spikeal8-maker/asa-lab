@@ -97,7 +97,7 @@ describe('learning assessments API', () => {
         assignment_title: 'Первая схема',
         attempt_id: ATTEMPT_ID,
         attempt_number: '2',
-        attempt_state: 'accepted',
+        attempt_state: 'closed',
         submitted_at: '2026-08-22T10:00:00.000Z',
         raw_points: '84',
         max_points: '100',
@@ -114,7 +114,7 @@ describe('learning assessments API', () => {
         expect.objectContaining({
           displayLabel: 'Анна',
           attemptNumber: 2,
-          state: 'accepted',
+          state: 'closed',
           points: 84,
           maxPoints: 100,
           percentage: 84,
@@ -135,7 +135,7 @@ describe('learning assessments API', () => {
         result_code: 'ok',
         assessment_result_id: 'result-id',
         gradebook_entry_id: 'grade-id',
-        attempt_state: 'accepted',
+        attempt_state: 'closed',
         percentage_basis_points: '9100',
       },
     ]);
@@ -148,7 +148,7 @@ describe('learning assessments API', () => {
       }),
     ).resolves.toEqual({
       attemptId: ATTEMPT_ID,
-      state: 'accepted',
+      state: 'closed',
       assessmentResultId: 'result-id',
       gradebookEntryId: 'grade-id',
       percentage: 91,

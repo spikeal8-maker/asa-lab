@@ -13,6 +13,43 @@ export interface PublicUser {
   email: string;
 }
 
+export interface AuthoredActivityDraft {
+  title: string;
+  instructions: string | null;
+  moduleKey: string | null;
+  resultMode: 'ungraded' | 'completion' | 'graded';
+  maxPoints: number | null;
+  policies: {
+    attemptPolicy: Record<string, unknown> | null;
+    resultSelectionPolicy: Record<string, unknown> | null;
+    completionPolicy: Record<string, unknown> | null;
+    latePolicy: Record<string, unknown> | null;
+    assessmentPolicy: Record<string, unknown> | null;
+    feedbackReleasePolicy: Record<string, unknown> | null;
+  };
+}
+
+export interface AuthoredActivityLearnerPreview {
+  source: {
+    kind: 'draft' | 'published';
+    id: string | null;
+    draftRevision: number | null;
+    versionNumber: number | null;
+    contentDigest: string;
+  };
+  assignment: {
+    title: string;
+    goal: string | null;
+    brief: string | null;
+    sampleImage: string | null;
+  };
+  moduleKey: string | null;
+  resultMode: 'ungraded' | 'completion' | 'graded';
+  maxPoints: number | null;
+  policies: Record<string, unknown>;
+  learnerRuntime: false;
+}
+
 export interface CapabilityRef {
   capability: string;
   state: string;
@@ -216,6 +253,7 @@ export function visibilityLabel(value: string): string {
 
 /** Курс — порядок, в котором проходят задания. */
 export interface Course {
+  draftRevision: number;
   id: string;
   title: string;
   summary: string | null;
@@ -261,6 +299,7 @@ export interface CourseLesson {
   blocks: LessonBlock[];
   kind: 'material' | 'assignment';
   assignmentId: string | null;
+  learningActivityVersionId: string | null;
   assignmentTitle: string | null;
   moduleKey: string | null;
   estimatedMinutes: number | null;
@@ -283,6 +322,7 @@ export interface CourseLessonInput {
   blocks: LessonBlock[];
   kind: 'material' | 'assignment';
   assignmentId: string | null;
+  learningActivityVersionId?: string | null;
   estimatedMinutes: number | null;
 }
 
@@ -579,6 +619,8 @@ export interface CanonicalLearningSelectedResult {
 }
 
 export interface CanonicalLearningSurfaceState {
+  activityRunId?: string | null;
+  effectiveDueAt?: string | null;
   workflowState: CanonicalLearningWorkflowState;
   selectedResult: CanonicalLearningSelectedResult | null;
   flags: string[];
@@ -596,18 +638,12 @@ export interface CanonicalLearningCounts {
 }
 
 export type LearningAttemptState =
-  | 'not_started'
-  | 'in_progress'
-  | 'submitted'
-  | 'evaluating'
-  | 'accepted'
-  | 'changes_requested'
-  | 'incomplete'
-  | 'excused'
-  | 'invalidated';
+  'not_started' | 'in_progress' | 'submitted' | 'evaluating' | 'closed' | 'invalidated' | 'expired';
 
 /** One canonical row from immutable attempt through the published result. */
 export interface GradebookEntry {
+  courseRunId?: string | null;
+  courseTitle?: string | null;
   seatId: string;
   displayLabel: string;
   assignmentId: string;
@@ -627,16 +663,89 @@ export interface GradebookEntry {
   compatibilityDiagnostic: string | null;
 }
 
+export interface LearningReviewContext {
+  gradingScheme?: {
+    id: string;
+    title: string;
+    version: number;
+    bands: Array<{ minBasisPoints: number; label: string }>;
+    source: 'run_pin';
+  } | null;
+  participationId: string;
+  activityRunId: string;
+  resultMode: 'graded' | 'completion' | 'ungraded';
+  maxPoints: number | null;
+  title: string;
+  instructions: string | null;
+  moduleKey: string;
+  selectionPolicy: string;
+  teacherSelectedAttemptId: string | null;
+  attempts: Array<{
+    id: string;
+    number: number;
+    state: LearningAttemptState;
+    closedAt: string | null;
+    revisionOfAttemptId: string | null;
+    submissionId: string | null;
+    projectVersionId: string | null;
+    submittedAt: string | null;
+    results: Array<{
+      id: string;
+      revision: number;
+      supersedesId: string | null;
+      decision: string | null;
+      points: number | null;
+      maxPoints: number | null;
+      feedback: string | null;
+      reason: string | null;
+      publishedAt: string;
+    }>;
+  }>;
+}
+
+export interface LearningConditions {
+  impact: {
+    participants: number;
+    activeAttempts: number;
+    submittedAttempts: number;
+    excused: boolean;
+  };
+  runId: string;
+  participationId: string | null;
+  revision: number;
+  overrides: Record<string, string | number | null>;
+  effective: {
+    values: Record<string, string | number | null>;
+    sources: Record<string, string>;
+    extraAttempts: number;
+    teacherUnlocked: boolean;
+    timezone: string | null;
+  };
+}
+export interface LearningAudience {
+  id: string;
+  type: 'whole_class' | 'named_learners';
+  status: 'active' | 'ended';
+  courseRunId: string | null;
+  members: Array<{
+    seatId: string;
+    label: string;
+    status: string;
+    included: boolean;
+    withdrawn: boolean;
+  }>;
+}
+
 export interface LearnerResult {
   classroomTitle: string;
   assignmentId: string;
   assignmentTitle: string;
   attemptNumber: number;
   state: LearningAttemptState;
-  points: number;
-  maxPoints: number;
-  percentage: number;
-  displayGrade: string;
+  points: number | null;
+  maxPoints: number | null;
+  percentage: number | null;
+  displayGrade: string | null;
   outcome: 'passed' | 'failed' | 'incomplete' | 'excused';
   feedback: string | null;
   publishedAt: string;
@@ -755,6 +864,44 @@ export interface ClassroomStudentSeat {
   avatarKey: string | null;
   lastActiveAt: string | null;
   createdAt: string;
+}
+
+export interface ClassroomSeatBatchStudentInput {
+  displayLabel: string;
+  loginHandle?: string;
+  safeMode: boolean;
+}
+
+export type ClassroomSeatBatchPreviewStatus = 'valid' | 'duplicate' | 'conflict' | 'invalid';
+export type ClassroomSeatBatchCommitStatus = 'created' | 'duplicate' | 'conflict' | 'invalid';
+
+export interface ClassroomSeatBatchPreviewRow {
+  index: number;
+  displayLabel: string | null;
+  loginHandle: string | null;
+  safeMode: boolean | null;
+  status: ClassroomSeatBatchPreviewStatus;
+  reasonCode: string;
+}
+
+export interface ClassroomSeatBatchCommitRow {
+  index: number;
+  displayLabel: string | null;
+  loginHandle: string | null;
+  safeMode: boolean | null;
+  status: ClassroomSeatBatchCommitStatus;
+  reasonCode: string;
+  seatId: string | null;
+  credentialVersion: number | null;
+  credential: string | null;
+}
+
+export interface ClassroomSeatBatchCommitResult {
+  requestId: string;
+  reused: boolean;
+  created: number;
+  credentialsAvailable: boolean;
+  results: ClassroomSeatBatchCommitRow[];
 }
 
 export interface ClassroomStudentSession {
@@ -1311,7 +1458,77 @@ export interface CheckersTeacherFeedback {
   createdAt: string;
 }
 
+export type NotificationCategory = 'NC01' | 'NC02' | 'NC03' | 'NC04' | 'NC05' | 'NC06' | 'NC08';
+export interface LearningNotificationPreferences {
+  revision: number;
+  masterEnabled: boolean;
+  categories: Record<NotificationCategory, boolean>;
+  classOverrides: Record<
+    string,
+    {
+      mode: 'off' | 'custom';
+      categories?: Partial<Record<NotificationCategory, 'inherit' | 'on' | 'off'>>;
+    }
+  >;
+  classes: { id: string; title: string }[];
+}
+export interface LearningNotification {
+  id: string;
+  kind: string;
+  category: NotificationCategory;
+  classroomId: string;
+  classroomTitle: string;
+  title: string;
+  assignmentId: string | null;
+  attemptId: string | null;
+  seatId: string | null;
+  courseRunId: string | null;
+  joinRequestId: string | null;
+  recipientKind: 'teacher' | 'learner' | 'requester';
+  createdAt: string;
+  readAt: string | null;
+}
 export const api = {
+  legacyLearningReview: (classroomId: string, assignmentId: string, seatId: string) =>
+    call<{
+      attemptId: string;
+      state: string;
+      maxPoints: number;
+      submission: unknown;
+      feedback: string | null;
+    }>(
+      `/api/classrooms/${classroomId}/assignments/${assignmentId}/learners/${seatId}/legacy-review`,
+    ),
+  learningNotifications: () =>
+    call<{ snapshot: string; unread: number; items: LearningNotification[] }>(
+      '/api/learning/notifications',
+    ),
+  readLearningNotifications: (ids: string[] | null, asOf: string) =>
+    call<{ count: number }>('/api/learning/notifications/read', {
+      method: 'POST',
+      body: JSON.stringify({ ids, asOf }),
+    }),
+  learningNotificationPreferences: () =>
+    call<LearningNotificationPreferences>('/api/learning/notifications/preferences'),
+  saveLearningNotificationPreferences: (
+    input: Omit<LearningNotificationPreferences, 'classes'> & { requestId: string },
+  ) =>
+    call<LearningNotificationPreferences>('/api/learning/notifications/preferences', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  classLearningReminders: (id: string) =>
+    call<{ revision: number; due: boolean; overdue: boolean }>(
+      `/api/learning/notifications/classes/${id}/reminders`,
+    ),
+  saveClassLearningReminders: (
+    id: string,
+    input: { revision: number; due: boolean; overdue: boolean },
+  ) =>
+    call<{ revision: number; due: boolean; overdue: boolean }>(
+      `/api/learning/notifications/classes/${id}/reminders`,
+      { method: 'POST', body: JSON.stringify(input) },
+    ),
   me: () => call<SessionPayload | { authenticated: false }>('/api/auth/me'),
   localPreviewConfig: () => call<LocalPreviewAuthConfig>('/api/auth/local-preview/config'),
   localPreviewSession: () =>
@@ -1440,6 +1657,23 @@ export const api = {
       '/api/capabilities/content-author/self-attest',
       { method: 'POST', body: JSON.stringify({}) },
     ),
+  learningAudience: (
+    classroomId: string,
+    target: { assignmentId?: string; courseRunId?: string },
+  ) =>
+    call<{ audience: LearningAudience | null }>(
+      `/api/classrooms/${classroomId}/learning/audience?${new URLSearchParams(target)}`,
+    ),
+  changeLearningAudienceMember: (
+    classroomId: string,
+    audienceId: string,
+    seatId: string,
+    input: { include: boolean; expectedIncluded: boolean; reason: string; requestId: string },
+  ) =>
+    call<{ ok: true }>(
+      `/api/classrooms/${classroomId}/learning/audiences/${audienceId}/members/${seatId}`,
+      { method: 'POST', body: JSON.stringify(input) },
+    ),
   authoredActivities: () =>
     call<{
       items: {
@@ -1455,8 +1689,41 @@ export const api = {
       id: string;
       title: string;
       draftRevision: number;
-      draft: { instructions: string | null };
+      currentPublishedVersionId: string | null;
+      draft: AuthoredActivityDraft;
     }>(`/api/learning/activities/${encodeURIComponent(id)}`),
+  previewAuthoredActivityDraft: (id: string, draftRevision: number) =>
+    call<AuthoredActivityLearnerPreview>(
+      `/api/learning/activities/${encodeURIComponent(id)}/preview?source=draft&draftRevision=${encodeURIComponent(String(draftRevision))}`,
+    ),
+  previewAuthoredActivityVersion: (id: string, versionId: string) =>
+    call<AuthoredActivityLearnerPreview>(
+      `/api/learning/activities/${encodeURIComponent(id)}/preview?source=published&versionId=${encodeURIComponent(versionId)}`,
+    ),
+  saveAuthoredActivity: (id: string, expectedRevision: number, draft: AuthoredActivityDraft) =>
+    call<{ id: string; draftRevision: number }>(
+      `/api/learning/activities/${encodeURIComponent(id)}/draft`,
+      {
+        method: 'PUT',
+        body: JSON.stringify({ ...draft, expectedRevision }),
+      },
+    ),
+  createActivityDraft: (draft: AuthoredActivityDraft, requestId: string) =>
+    call<{ id: string; draftRevision: number }>('/api/learning/activities', {
+      method: 'POST',
+      body: JSON.stringify({
+        ...draft,
+        kind: 'project',
+        scope: 'personal',
+        visibility: 'private',
+        requestId,
+      }),
+    }),
+  publishAuthoredActivity: (id: string, expectedRevision: number, requestId: string) =>
+    call<{ id: string; versionNumber: number; contentDigest: string; reused: boolean }>(
+      `/api/learning/activities/${encodeURIComponent(id)}/publish`,
+      { method: 'POST', body: JSON.stringify({ expectedRevision, requestId }) },
+    ),
   createAuthoredActivity: (title: string, instructions: string, requestId: string) =>
     call<{ id: string; draftRevision: number }>('/api/learning/activities', {
       method: 'POST',
@@ -1546,14 +1813,21 @@ export const api = {
       } | null;
       items: GradebookEntry[];
     }>(`/api/classrooms/${encodeURIComponent(classroomId)}/gradebook`),
+  classroomGradingScheme: (classroomId: string) =>
+    call<{
+      title: string | null;
+      version: number | null;
+      bands: Array<{ minBasisPoints: number; label: string }>;
+    }>(`/api/classrooms/${classroomId}/grading-scheme`),
   publishGradingScheme: (
     classroomId: string,
     title: string,
     bands: Array<{ minBasisPoints: number; label: string }>,
+    requestId?: string,
   ) =>
     call<{ id: string; version: number }>(
       `/api/classrooms/${encodeURIComponent(classroomId)}/grading-scheme`,
-      { method: 'POST', body: JSON.stringify({ title, bands }) },
+      { method: 'POST', body: JSON.stringify({ title, bands, requestId }) },
     ),
   reviewLearningAttempt: (
     classroomId: string,
@@ -1563,6 +1837,8 @@ export const api = {
       points?: number | null;
       feedback?: string | null;
       reason?: string | null;
+      expectedResultId?: string | null;
+      requestId?: string;
     },
   ) =>
     call<{
@@ -1576,6 +1852,72 @@ export const api = {
       { method: 'POST', body: JSON.stringify(input) },
     ),
   awaitingReviewTotal: () => call<{ total: number }>('/api/classrooms/awaiting-review'),
+  saveLearningAllowance: (
+    classroomId: string,
+    assignmentId: string,
+    seatId: string,
+    input: {
+      expectedRevision: number;
+      extraAttempts: number;
+      teacherUnlocked: boolean;
+      excuse: boolean;
+      reason: string;
+      requestId: string;
+    },
+  ) =>
+    call<{ ok: true }>(
+      `/api/classrooms/${classroomId}/assignments/${assignmentId}/students/${seatId}/allowance`,
+      { method: 'POST', body: JSON.stringify(input) },
+    ),
+  learningConditions: (classroomId: string, assignmentId: string, seatId: string | null) =>
+    call<LearningConditions>(
+      `/api/classrooms/${encodeURIComponent(classroomId)}/assignments/${encodeURIComponent(assignmentId)}/conditions${seatId ? '?seatId=' + encodeURIComponent(seatId) : ''}`,
+    ),
+  saveLearningConditions: (
+    classroomId: string,
+    assignmentId: string,
+    input: {
+      seatId: string | null;
+      expectedRevision: number;
+      overrides: Record<string, string | number | null>;
+      reason: string;
+      requestId: string;
+    },
+  ) =>
+    call<{ ok: true }>(
+      `/api/classrooms/${encodeURIComponent(classroomId)}/assignments/${encodeURIComponent(assignmentId)}/conditions`,
+      { method: 'POST', body: JSON.stringify(input) },
+    ),
+  learningReviewContext: (classroomId: string, assignmentId: string, seatId: string) =>
+    call<LearningReviewContext>(
+      `/api/classrooms/${encodeURIComponent(classroomId)}/assignments/${encodeURIComponent(assignmentId)}/students/${encodeURIComponent(seatId)}/review-context`,
+    ),
+  exactLearningSubmission: (classroomId: string, attemptId: string) =>
+    call<{
+      submissionId: string;
+      projectVersionId: string;
+      sourceRevision: number | null;
+      digest: string;
+      moduleKey: string;
+      document: unknown;
+      preview: import('@asa-lab/module-sdk').ModulePreviewDescriptor | null;
+    }>(
+      `/api/classrooms/${encodeURIComponent(classroomId)}/attempts/${encodeURIComponent(attemptId)}/submission`,
+    ),
+  selectLearningAttempt: (
+    classroomId: string,
+    participationId: string,
+    input: {
+      attemptId: string;
+      expectedAttemptId: string | null;
+      reason: string;
+      requestId: string;
+    },
+  ) =>
+    call<{ ok: true }>(
+      `/api/classrooms/${encodeURIComponent(classroomId)}/participations/${encodeURIComponent(participationId)}/selected-attempt`,
+      { method: 'POST', body: JSON.stringify(input) },
+    ),
   classroomStudent: (classroomId: string, seatId: string) =>
     call<ClassroomStudentDetail>(
       `/api/classrooms/${encodeURIComponent(classroomId)}/students/${encodeURIComponent(seatId)}`,
@@ -1588,22 +1930,20 @@ export const api = {
       `/api/classrooms/${encodeURIComponent(classroomId)}/seats`,
       { method: 'POST', body: JSON.stringify(input) },
     ),
+  previewClassroomSeatsBatch: (classroomId: string, students: ClassroomSeatBatchStudentInput[]) =>
+    call<{ results: ClassroomSeatBatchPreviewRow[] }>(
+      `/api/classrooms/${encodeURIComponent(classroomId)}/seats/batch/preview`,
+      { method: 'POST', body: JSON.stringify({ students }) },
+    ),
   addClassroomSeatsBatch: (
     classroomId: string,
-    students: Array<{ displayLabel: string; loginHandle?: string; safeMode: boolean }>,
+    students: ClassroomSeatBatchStudentInput[],
+    requestId: string,
   ) =>
-    call<{
-      results: Array<{
-        index: number;
-        ok: boolean;
-        student?: ClassroomStudentSeat;
-        message?: string;
-      }>;
-      created: number;
-    }>(`/api/classrooms/${encodeURIComponent(classroomId)}/seats/batch`, {
-      method: 'POST',
-      body: JSON.stringify({ students }),
-    }),
+    call<ClassroomSeatBatchCommitResult>(
+      `/api/classrooms/${encodeURIComponent(classroomId)}/seats/batch`,
+      { method: 'POST', body: JSON.stringify({ students, requestId }) },
+    ),
   updateClassroomSeat: (classroomId: string, seat: ClassroomStudentSeat) =>
     call<{ student: ClassroomStudentSeat }>(
       `/api/classrooms/${encodeURIComponent(classroomId)}/seats/${encodeURIComponent(seat.id)}`,
@@ -1661,11 +2001,38 @@ export const api = {
 
   /** Занять место в классе по коду, будучи собой. */
   joinClassAsAccount: (code: string) =>
-    call<{ classroom: { id: string; title: string }; seatId: string; alreadyMember: boolean }>(
-      '/api/class-join/account',
-      { method: 'POST', body: JSON.stringify({ code }) },
-    ),
+    call<{
+      classroom: { id: string; title: string };
+      seatId: string | null;
+      alreadyMember: boolean;
+      status: 'active' | 'pending';
+      requestId: string | null;
+    }>('/api/class-join/account', { method: 'POST', body: JSON.stringify({ code }) }),
   attendedClasses: () => call<{ items: AttendedClass[] }>('/api/class-join/account/classes'),
+  classroomJoinRequests: (classroomId?: string) =>
+    call<{
+      items: Array<{
+        id: string;
+        classroom_id: string;
+        classroom_title: string;
+        display_label: string;
+        status: 'pending' | 'approved' | 'rejected';
+        reason: string | null;
+      }>;
+    }>(
+      classroomId
+        ? `/api/class-join/requests/${encodeURIComponent(classroomId)}`
+        : '/api/class-join/account/requests',
+    ),
+  decideClassroomJoin: (
+    classroomId: string,
+    requestId: string,
+    decision: 'approved' | 'rejected',
+  ) =>
+    call<{ ok: true }>(
+      `/api/class-join/requests/${encodeURIComponent(classroomId)}/${encodeURIComponent(requestId)}/decision`,
+      { method: 'POST', body: JSON.stringify({ decision }) },
+    ),
   attendedAssignments: () =>
     call<{ items: Array<SeatAssignment & { classroomTitle: string }> }>(
       '/api/class-join/account/assignments',
@@ -1812,13 +2179,15 @@ export const api = {
       summary: string | null;
       ageBand?: string | null;
       visibility?: Visibility | null;
+      expectedRevision?: number;
+      requestId?: string;
     },
   ) =>
     call<{ id: string }>(
       courseId ? `/api/courses/${encodeURIComponent(courseId)}` : '/api/courses',
       {
         method: courseId ? 'PATCH' : 'POST',
-        body: JSON.stringify(input),
+        body: JSON.stringify({ ...input, requestId: input.requestId ?? crypto.randomUUID() }),
       },
     ),
   /** Удаляется курс, а не задания: они остаются в банке. */
@@ -1827,22 +2196,38 @@ export const api = {
   courseItems: (courseId: string) =>
     call<{ items: CourseItem[] }>(`/api/courses/${encodeURIComponent(courseId)}/items`),
   courseOutline: (courseId: string) =>
-    call<{ sections: CourseSection[] }>(`/api/courses/${encodeURIComponent(courseId)}/outline`),
-  publishCourse: (courseId: string) =>
+    call<{ sections: CourseSection[]; draftRevision: number }>(
+      `/api/courses/${encodeURIComponent(courseId)}/outline`,
+    ),
+  publishCourse: (courseId: string, expectedRevision: number, requestId: string) =>
     call<{
       versionId: string;
       versionNumber: number;
       publishedAt: string;
       reused: boolean;
-    }>(`/api/courses/${encodeURIComponent(courseId)}/publish`, { method: 'POST' }),
+    }>(`/api/courses/${encodeURIComponent(courseId)}/publish`, {
+      method: 'POST',
+      body: JSON.stringify({ expectedRevision, requestId }),
+    }),
   listClassroomCourseRuns: (classroomId: string) =>
     call<{ items: ClassroomCourseRun[] }>(
       `/api/classrooms/${encodeURIComponent(classroomId)}/course-runs`,
     ),
-  assignCourseToClassroom: (classroomId: string, courseId: string, dueAt: string | null) =>
+  assignCourseToClassroom: (
+    classroomId: string,
+    courseId: string,
+    dueAt: string | null,
+    delivery?: {
+      versionNumber: number;
+      audienceType: 'whole_class' | 'named_learners';
+      seatIds: string[];
+      requestId: string;
+      timeZone?: string;
+    },
+  ) =>
     call<{ runId: string; versionNumber: number; reused: boolean }>(
       `/api/classrooms/${encodeURIComponent(classroomId)}/course-runs`,
-      { method: 'POST', body: JSON.stringify({ courseId, dueAt }) },
+      { method: 'POST', body: JSON.stringify({ courseId, dueAt, ...delivery }) },
     ),
   setClassroomCourseRunStatus: (classroomId: string, runId: string, status: 'open' | 'closed') =>
     call<{ ok: true }>(
@@ -1852,7 +2237,7 @@ export const api = {
   saveCourseSection: (
     courseId: string,
     sectionId: string | null,
-    input: { title: string; summary: string | null },
+    input: { title: string; summary: string | null; expectedRevision: number },
   ) =>
     call<{ id: string }>(
       sectionId
@@ -1863,17 +2248,26 @@ export const api = {
         body: JSON.stringify(input),
       },
     ),
-  moveCourseSection: (courseId: string, sectionId: string, delta: number) =>
+  moveCourseSection: (
+    courseId: string,
+    sectionId: string,
+    delta: number,
+    expectedRevision: number,
+  ) =>
     call<{ ok: boolean }>(
       `/api/courses/${encodeURIComponent(courseId)}/sections/${encodeURIComponent(sectionId)}/move`,
-      { method: 'POST', body: JSON.stringify({ delta }) },
+      { method: 'POST', body: JSON.stringify({ delta, expectedRevision }) },
     ),
-  deleteCourseSection: (courseId: string, sectionId: string) =>
+  deleteCourseSection: (courseId: string, sectionId: string, expectedRevision: number) =>
     call<{ removed: true }>(
       `/api/courses/${encodeURIComponent(courseId)}/sections/${encodeURIComponent(sectionId)}`,
-      { method: 'DELETE' },
+      { method: 'DELETE', body: JSON.stringify({ expectedRevision }) },
     ),
-  saveCourseLesson: (courseId: string, lessonId: string | null, input: CourseLessonInput) =>
+  saveCourseLesson: (
+    courseId: string,
+    lessonId: string | null,
+    input: CourseLessonInput & { expectedRevision: number },
+  ) =>
     call<{ id: string }>(
       lessonId
         ? `/api/courses/${encodeURIComponent(courseId)}/lessons/${encodeURIComponent(lessonId)}`
@@ -1883,15 +2277,15 @@ export const api = {
         body: JSON.stringify(input),
       },
     ),
-  moveCourseLesson: (courseId: string, lessonId: string, delta: number) =>
+  moveCourseLesson: (courseId: string, lessonId: string, delta: number, expectedRevision: number) =>
     call<{ ok: boolean }>(
       `/api/courses/${encodeURIComponent(courseId)}/lessons/${encodeURIComponent(lessonId)}/move`,
-      { method: 'POST', body: JSON.stringify({ delta }) },
+      { method: 'POST', body: JSON.stringify({ delta, expectedRevision }) },
     ),
-  deleteCourseLesson: (courseId: string, lessonId: string) =>
+  deleteCourseLesson: (courseId: string, lessonId: string, expectedRevision: number) =>
     call<{ removed: true }>(
       `/api/courses/${encodeURIComponent(courseId)}/lessons/${encodeURIComponent(lessonId)}`,
-      { method: 'DELETE' },
+      { method: 'DELETE', body: JSON.stringify({ expectedRevision }) },
     ),
   setCourseItem: (courseId: string, assignmentId: string, included: boolean) =>
     call<{ ok: true }>(
@@ -1982,6 +2376,7 @@ export const api = {
     classroomId: string,
     input: {
       activityVersionId: string;
+      timeZone?: string;
       audienceType: 'whole_class' | 'named_learners';
       seatIds: string[];
       dueAt: string | null;
@@ -2118,7 +2513,12 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ projectId }),
     }),
-  submitSeatAssignment: (assignmentId: string, submitted: boolean) =>
+  submitSeatAssignment: (
+    assignmentId: string,
+    submitted: boolean,
+    expectedRevision?: number,
+    clientRequestId = `submit:${crypto.randomUUID()}`,
+  ) =>
     call<{
       projectId: string;
       projectVersionId: string;
@@ -2134,7 +2534,8 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({
         submitted,
-        clientRequestId: `submit:${crypto.randomUUID()}`,
+        clientRequestId,
+        expectedRevision,
       }),
     }),
   updateClassroom: (

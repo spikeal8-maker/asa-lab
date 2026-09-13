@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useReportProjectSaveEvidence } from '../modules/project-save-evidence';
 import {
   api,
   type Project,
@@ -651,6 +652,10 @@ export function useWorkbenchProjectState(projectId: string) {
     }
   }
 
+  useReportProjectSaveEvidence(
+    serverRevisionRef.current,
+    saveStatus === 'saved' && status === 'ready',
+  );
   return {
     project,
     document,

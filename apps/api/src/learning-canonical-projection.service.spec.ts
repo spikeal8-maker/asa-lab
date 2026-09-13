@@ -100,6 +100,7 @@ describe('LRN-M0-007 canonical projection boundary', () => {
         id: '80000000-0000-4000-8000-000000000002',
         attemptNumber: 2,
         state: 'in_progress',
+        reviewDecision: null,
         startedAt: '2026-08-21T10:00:00.000Z',
         submittedAt: null,
         lateState: null,
@@ -138,7 +139,8 @@ describe('LRN-M0-007 canonical projection boundary', () => {
       attempt: {
         id: '80000000-0000-4000-8000-000000000001',
         attemptNumber: 1,
-        state: 'accepted',
+        state: 'closed',
+        reviewDecision: 'accepted',
         startedAt: '2026-08-20T10:00:00.000Z',
         submittedAt: '2026-08-20T11:00:00.000Z',
         lateState: 'on_time',

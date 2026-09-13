@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useReportProjectSaveEvidence } from '../modules/project-save-evidence';
 import {
   alignDocumentNodes,
   bundleDocumentNodes,
@@ -891,6 +892,7 @@ export function useThreeDProject(projectId: string): ThreeDProjectController {
     [projectId, replaceHistory],
   );
 
+  useReportProjectSaveEvidence(serverRevisionRef.current, saveState === 'saved' && !loading);
   return {
     loading,
     error,

@@ -10,6 +10,114 @@ status_values:
 - deferred
 - blocked
 requirements:
+- id: INT-E1-01
+  milestone: E1
+  status: in_progress
+  summary: "«Курсы и задания → Мои»: единая библиотека автора/преподавателя; create/open/edit/save/publish"
+  evidence: []
+  tests: []
+- id: INT-E1-02
+  milestone: E1
+  status: in_progress
+  summary: "Course builder на существующей структуре: разделы, уроки, теория, повторные project blocks, порядок, свойства"
+  evidence: []
+  tests: []
+- id: INT-E1-03
+  milestone: E1
+  status: in_progress
+  summary: "Связанный выпуск activity+course: ошибки конкретных полей/блоков, предпросмотр без Attempt"
+  evidence: []
+  tests: []
+- id: INT-E1-04
+  milestone: E1
+  status: in_progress
+  summary: "Назначение exact published course и отдельного проекта: whole/named, сроки, режимы"
+  evidence: []
+  tests: []
+- id: INT-E1-05
+  milestone: E1
+  status: in_progress
+  summary: "Законный Account join: «Моё обучение → Войти по коду» + «Класс → Запросы»"
+  evidence: []
+  tests: []
+- id: INT-E1-06
+  milestone: E1
+  status: in_progress
+  summary: "Seat credential выдача/доступ из класса; упрощённый профиль"
+  evidence: []
+  tests: []
+- id: INT-E1-07
+  milestone: E1
+  status: in_progress
+  summary: "Dynamic late join / explicit named changes / leave"
+  evidence: []
+  tests: []
+- id: INT-E1-08
+  milestone: E1
+  status: in_progress
+  summary: "Общие effective settings/UTC, attempt limit/allowance и late policy, краткий inspector у назначения"
+  evidence: []
+  tests: []
+- id: INT-E1-09
+  milestone: E1
+  status: in_progress
+  summary: "Start/resume/save/submit Electronics и 3D"
+  evidence: []
+  tests: []
+- id: INT-E1-10
+  milestone: E1
+  status: in_progress
+  summary: "«Работа → Проверка»: read-only точная Submission, явный переход к draft по отдельному праву"
+  evidence: []
+  tests: []
+- id: INT-E1-11
+  milestone: E1
+  status: in_progress
+  summary: "Review canonical submitted; три resultMode; корректная очередь"
+  evidence: []
+  tests: []
+- id: INT-E1-12
+  milestone: E1
+  status: in_progress
+  summary: "Return/revision, корректировка результата с причиной и expected revision"
+  evidence: []
+  tests: []
+- id: INT-E1-13
+  milestone: E1
+  status: in_progress
+  summary: "Graded selection пяти политик и простая pinned шкала из UI"
+  evidence: []
+  tests: []
+- id: INT-E1-14
+  milestone: E1
+  status: in_progress
+  summary: "«Журнал»: learner × ActivityRun, фильтр курса/поиск, открыть сдачу/историю/correction"
+  evidence: []
+  tests: []
+- id: INT-E1-15
+  milestone: E1
+  status: in_progress
+  summary: "Теория completion + обязательная принятая практика; понятное недостающее"
+  evidence: []
+  tests: []
+- id: INT-E1-16
+  milestone: E1
+  status: in_progress
+  summary: "Отклики, ошибки, маршруты профиля/приглашений; in-app события и минимальные настройки оповещений"
+  evidence: []
+  tests: []
+- id: INT-E1-17
+  milestone: E1
+  status: in_progress
+  summary: "Mixed-data/legacy bridge"
+  evidence: []
+  tests: []
+- id: INT-E1-18
+  milestone: E1
+  status: in_progress
+  summary: "Интегрированный показ и ранняя поставка"
+  evidence: []
+  tests: []
 - id: DB-000
   milestone: M0
   status: proven

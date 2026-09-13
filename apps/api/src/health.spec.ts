@@ -69,6 +69,29 @@ describe('health controller', () => {
     });
   });
 
+  it('stays out of rotation when the image expects a newer schema', async () => {
+    const previous = process.env['ASA_EXPECTED_SCHEMA_VERSION'];
+    process.env['ASA_EXPECTED_SCHEMA_VERSION'] = '134';
+    try {
+      const pool = {
+        query: vi.fn(async () => ({ rows: [{ version: 133 }] })),
+      } as unknown as pg.Pool;
+      const recorder = replyRecorder();
+      const body = await new HealthController(pool, null).ready(recorder.reply);
+      expect(recorder.status()).toBe(503);
+      expect(body.status).toBe('not_ready');
+      expect(body.dependencies).toEqual({ database: 'up' });
+      expect(body.deployment).toMatchObject({
+        schemaVersion: 133,
+        expectedSchemaVersion: 134,
+        synchronized: false,
+      });
+    } finally {
+      if (previous === undefined) delete process.env['ASA_EXPECTED_SCHEMA_VERSION'];
+      else process.env['ASA_EXPECTED_SCHEMA_VERSION'] = previous;
+    }
+  });
+
   it('reports 503 when the database query fails', async () => {
     const pool = {
       query: vi.fn(async () => {

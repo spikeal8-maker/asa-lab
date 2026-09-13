@@ -1,3 +1,4 @@
+import { LearningNotificationPreferences } from '../components/LearningNotificationPreferences';
 import {
   useCallback,
   useEffect,
@@ -907,11 +908,9 @@ export function AccountPage({
           {panel === 'notifications' ? (
             <section className="account-settings-section" aria-label="Уведомления">
               <h2>Уведомления</h2>
-              <p>
-                События классов и аккаунта показываются в меню ASA Lab. Настройка отдельных рассылок
-                пока недоступна.
-              </p>
+              <p>События доступны в меню «Оповещения». Здесь меняется только ваша доставка.</p>
               <p>Подключение MAX для входа само по себе не включает рассылку сообщений.</p>
+              <LearningNotificationPreferences />
             </section>
           ) : null}
 

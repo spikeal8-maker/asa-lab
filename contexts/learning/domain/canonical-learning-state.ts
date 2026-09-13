@@ -38,11 +38,10 @@ export interface AttemptSnapshot {
     | 'in_progress'
     | 'submitted'
     | 'evaluating'
-    | 'accepted'
-    | 'changes_requested'
-    | 'incomplete'
-    | 'excused'
-    | 'invalidated';
+    | 'closed'
+    | 'invalidated'
+    | 'expired';
+  reviewDecision: 'accepted' | 'changes_requested' | 'incomplete' | 'excused' | null;
   startedAt: string;
   submittedAt: string | null;
   lateState: 'on_time' | 'late' | 'excused' | null;
@@ -181,22 +180,20 @@ function parseTimestamp(value: string, code: string): number {
   return result;
 }
 
-function mapAttemptState(state: AttemptSnapshot['state']): CanonicalWorkflowState {
-  switch (state) {
+function mapAttemptState(attempt: AttemptSnapshot): CanonicalWorkflowState {
+  switch (attempt.state) {
     case 'in_progress':
       return 'in_progress';
     case 'submitted':
       return 'submitted';
     case 'evaluating':
       return 'waiting_review';
-    case 'accepted':
-    case 'incomplete':
-    case 'excused':
-      return 'completed';
-    case 'changes_requested':
-      return 'changes_requested';
+    case 'closed':
+      return attempt.reviewDecision === 'changes_requested' ? 'changes_requested' : 'completed';
     case 'invalidated':
       return 'invalidated';
+    case 'expired':
+      throw new CanonicalLearningContractError('expired_attempt_workflow_not_mapped');
   }
 }
 
@@ -279,10 +276,10 @@ export function resolveCanonicalLearningState(
     parseTimestamp(latest.startedAt, 'invalid_attempt_started_at');
     if (latest.submittedAt !== null)
       parseTimestamp(latest.submittedAt, 'invalid_attempt_submitted_at');
-    workflowState = mapAttemptState(latest.state);
+    workflowState = mapAttemptState(latest);
     workflowAuthority = 'latest_attempt';
     if (latest.lateState === 'late') flags.add('late');
-    if (latest.lateState === 'excused' || latest.state === 'excused') flags.add('excused');
+    if (latest.lateState === 'excused' || latest.reviewDecision === 'excused') flags.add('excused');
     if (legacy !== null && legacy.submittedAt !== latest.submittedAt) {
       flags.add('legacy_compatibility');
       conflicts.push('attempt_legacy_submission_mismatch');

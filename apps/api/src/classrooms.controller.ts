@@ -744,8 +744,8 @@ export class ClassroomsController {
     }
   }
 
-  @Post(':classroomId/seats/batch')
-  async addSeatsBatch(
+  @Post(':classroomId/seats/batch/preview')
+  async previewSeatsBatch(
     @Req() request: FastifyRequest,
     @Param('classroomId') classroomId: string,
     @Body() rawBody: unknown,
@@ -757,53 +757,122 @@ export class ClassroomsController {
     if (!Array.isArray(students) || students.length < 1 || students.length > 100) {
       throw new HttpException(error('validation_error', 'Добавьте от 1 до 100 учеников.'), 400);
     }
-    const results: Array<{
-      index: number;
-      ok: boolean;
-      student?: ReturnType<typeof seatView>;
-      message?: string;
-    }> = [];
-    for (const [index, item] of students.entries()) {
-      if (!isPlainObject(item)) {
-        results.push({ index, ok: false, message: 'Строка не распознана.' });
-        continue;
+    try {
+      const rows = (
+        await this.requirePool().query(
+          `SELECT row_index,display_label,login_handle,safe_mode,row_status,reason_code
+             FROM classroom_student_seat_batch_preview($1,$2,$3::jsonb)`,
+          [context.accountId, classroomId, JSON.stringify(students)],
+        )
+      ).rows;
+      return {
+        results: rows.map((row) => ({
+          index: Number(row.row_index),
+          displayLabel: row.display_label as string | null,
+          loginHandle: row.login_handle as string | null,
+          safeMode: row.safe_mode as boolean | null,
+          status: row.row_status as 'valid' | 'duplicate' | 'conflict' | 'invalid',
+          reasonCode: String(row.reason_code),
+        })),
+      };
+    } catch (failure) {
+      const message = failure instanceof Error ? failure.message : '';
+      if (message.includes('classroom unavailable')) {
+        throw new HttpException(error('classroom_not_found', 'Класс не найден.'), 404);
       }
-      const displayLabel = item['displayLabel'];
-      const requested = item['loginHandle'];
-      const safeMode = item['safeMode'] ?? true;
-      const loginHandle =
-        typeof requested === 'string' && requested.trim()
-          ? requested.trim().toLowerCase()
-          : fallbackHandle();
-      if (
-        typeof displayLabel !== 'string' ||
-        displayLabel.trim().length < 1 ||
-        displayLabel.trim().length > 120 ||
-        !HANDLE_PATTERN.test(loginHandle) ||
-        typeof safeMode !== 'boolean'
-      ) {
-        results.push({ index, ok: false, message: 'Проверьте имя и логин.' });
-        continue;
-      }
-      try {
-        const inserted = await this.requirePool().query(
-          `SELECT id, display_label, login_handle, safe_mode, status, avatar_key, last_active_at, created_at
-             FROM classroom_management_add_seat($1, $2, $3, $4, $5)`,
-          [context.accountId, classroomId, displayLabel.trim(), loginHandle, safeMode],
-        );
-        results.push({ index, ok: true, student: seatView(inserted.rows[0] as StudentSeatRow) });
-      } catch (failure) {
-        const message = failure instanceof Error ? failure.message : '';
-        results.push({
-          index,
-          ok: false,
-          message: message.includes('unique')
-            ? 'Имя для входа уже занято.'
-            : 'Не удалось добавить.',
-        });
-      }
+      throw failure;
     }
-    return { results, created: results.filter((item) => item.ok).length };
+  }
+
+  @Post(':classroomId/seats/batch')
+  async addSeatsBatch(
+    @Req() request: FastifyRequest,
+    @Param('classroomId') classroomId: string,
+    @Body() rawBody: unknown,
+  ) {
+    const context = await this.requireEducator(request);
+    this.requireUuid(classroomId, 'classroom');
+    const shape = checkBodyShape(rawBody, ['students', 'requestId']);
+    const students = shape.ok ? shape.body['students'] : null;
+    const requestId = shape.ok ? shape.body['requestId'] : null;
+    if (
+      !Array.isArray(students) ||
+      students.length < 1 ||
+      students.length > 100 ||
+      typeof requestId !== 'string' ||
+      !UUID_PATTERN.test(requestId)
+    ) {
+      throw new HttpException(
+        error('validation_error', 'Нужен список от 1 до 100 учеников и requestId.'),
+        400,
+      );
+    }
+    const credentials = students.map((_, index) => {
+      const credential = randomBytes(18).toString('base64url');
+      return { index, credential, hash: hashSessionToken(credential) };
+    });
+    try {
+      const rows = (
+        await this.requirePool().query(
+          `SELECT result_code,reused,row_index,row_status,reason_code,display_label,
+                  login_handle,safe_mode,seat_id,credential_version
+             FROM classroom_student_seat_batch_commit($1,$2,$3,$4::jsonb,$5::jsonb)`,
+          [
+            context.accountId,
+            classroomId,
+            requestId,
+            JSON.stringify(students),
+            JSON.stringify(credentials.map(({ index, hash }) => ({ index, hash }))),
+          ],
+        )
+      ).rows;
+      const code = rows[0]?.result_code as string | undefined;
+      if (code === 'request_conflict') {
+        throw new HttpException(
+          error('idempotency_conflict', 'Этот requestId уже использован для другого списка.'),
+          409,
+        );
+      }
+      if (code !== 'ok') {
+        throw new HttpException(
+          error('batch_failed', 'Не удалось обработать список учеников.'),
+          409,
+        );
+      }
+      const reused = rows[0]?.reused === true;
+      const results = rows.map((row) => {
+        const index = Number(row.row_index);
+        const created = row.row_status === 'created';
+        return {
+          index,
+          status: row.row_status as 'created' | 'duplicate' | 'conflict' | 'invalid',
+          reasonCode: String(row.reason_code),
+          displayLabel: row.display_label as string | null,
+          loginHandle: row.login_handle as string | null,
+          safeMode: row.safe_mode as boolean | null,
+          seatId: (row.seat_id as string | null) ?? null,
+          credentialVersion:
+            row.credential_version === null || row.credential_version === undefined
+              ? null
+              : Number(row.credential_version),
+          credential: !reused && created ? (credentials[index]?.credential ?? null) : null,
+        };
+      });
+      return {
+        requestId,
+        reused,
+        created: results.filter((item) => item.status === 'created').length,
+        credentialsAvailable: !reused && results.some((item) => item.credential !== null),
+        results,
+      };
+    } catch (failure) {
+      if (failure instanceof HttpException) throw failure;
+      const message = failure instanceof Error ? failure.message : '';
+      if (message.includes('classroom unavailable')) {
+        throw new HttpException(error('classroom_not_found', 'Класс не найден.'), 404);
+      }
+      throw failure;
+    }
   }
 
   @Post(':classroomId/seats/:seatId/credential')

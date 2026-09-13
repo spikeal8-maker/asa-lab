@@ -1,7 +1,8 @@
+import { openAssignmentWork, submitSavedAssignment } from '../learning/submit-saved-assignment';
 import { useCallback, useEffect, useState } from 'react';
 import { api, type SeatAssignment } from '../api';
 import { AssignmentView } from './AssignmentView';
-import { newClientId } from '../client-id';
+import { useLearningDestination } from '../learning/use-learning-destination';
 import { useSchoolTime } from './school-time';
 import './classroom-assignments.css';
 import {
@@ -30,6 +31,10 @@ export function SeatAssignments({
   const [busy, setBusy] = useState<string | null>(null);
   // Which task is being read. One at a time: a learner is doing one thing.
   const [openId, setOpenId] = useState<string | null>(null);
+  const destination = useLearningDestination();
+  useEffect(() => {
+    if (destination.assignment) setOpenId(destination.assignment);
+  }, [destination.assignment]);
   const [error, setError] = useState<string | null>(null);
   const time = useSchoolTime();
 
@@ -49,7 +54,7 @@ export function SeatAssignments({
       scope: 'personal',
       module: assignment.moduleKey,
       title: assignment.title,
-      idempotencyKey: newClientId(),
+      idempotencyKey: assignment.id,
     });
     if (!created.ok) {
       setBusy(null);
@@ -173,8 +178,8 @@ export function SeatAssignments({
                   <button
                     type="button"
                     className="portal-create-button"
-                    onClick={() =>
-                      onOpenProject(assignment.projectId as string, assignment.moduleKey)
+                    onClick={async () =>
+                      setError(await openAssignmentWork(assignment, onOpenProject))
                     }
                   >
                     Открыть работу
@@ -189,15 +194,20 @@ export function SeatAssignments({
                         : assignment.submittedAt !== null)
                     }
                     onClick={async () => {
+                      if (assignment.canonicalState?.workflowState === 'changes_requested') {
+                        setError(await openAssignmentWork(assignment, onOpenProject));
+                        return;
+                      }
                       setBusy(assignment.id);
-                      const result = await api.submitSeatAssignment(assignment.id, true);
+                      const result = await submitSavedAssignment(assignment);
                       setBusy(null);
                       if (result.ok) await reload();
+                      else setError(result.error.message);
                     }}
                   >
                     {assignment.canonicalState
                       ? assignment.canonicalState.workflowState === 'changes_requested'
-                        ? 'Сдать доработку'
+                        ? 'Начать доработку'
                         : canonicalSubmissionLocked(assignment.canonicalState)
                           ? 'Работа сдана'
                           : 'Сдать'
