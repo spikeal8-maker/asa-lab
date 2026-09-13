@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, expect, it } from 'vitest';
+import { afterAll, beforeAll, expect, it, vi } from 'vitest';
 import pg from 'pg';
 import { randomBytes } from 'node:crypto';
 import { applyPlan, planMigrations } from '../../tools/migrate.mjs';
@@ -178,13 +178,24 @@ it('upgrades a populated 0103 account/class/seat/project and immutable learning 
     payload: { projectId: project.json().project.id },
   });
   expect(started.statusCode, started.body).toBe(200);
-  const submitted = await inject(app, {
-    method: 'POST',
-    url: `/api/class-join/me/assignments/${task.id}/submit`,
-    headers: { cookie: seatCookie },
-    payload: { submitted: true, clientRequestId: `upgrade-${unique}` },
-  });
-  expect(submitted.statusCode, submitted.body).toBe(200);
+  // Populate the 0103 fixture with its actual four-argument SQL interface.
+  // The integrated E1 HTTP submit handler requires a later schema and is not
+  // the pre-upgrade application. Full 0106→E1 is covered by the Learning suite.
+  const seatPrincipal = (await admin.query('SELECT id FROM principals WHERE seat_id=$1', [seatId]))
+    .rows[0].id;
+  const submitted = await admin.query(
+    'SELECT * FROM learning_direct_project_submission_create($1,$2,$3,$4)',
+    [seatPrincipal, seatId, task.id, `upgrade-${unique}`],
+  );
+  expect(submitted.rows[0].result_code).toBe('ok');
+  vi.stubEnv('ASA_EXPECTED_SCHEMA_VERSION', planMigrations().at(-1)!.version);
+  try {
+    const readiness = await inject(app, { method: 'GET', url: '/health/ready' });
+    expect(readiness.statusCode).toBe(503);
+    expect(readiness.json().deployment.synchronized).toBe(false);
+  } finally {
+    vi.unstubAllEnvs();
+  }
   // Mixed upgrade: retain a real institution alongside the historical hidden
   // personal school, not only a clean/new independent context.
   const institution = await inject(app, {
@@ -225,8 +236,11 @@ it('upgrades a populated 0103 account/class/seat/project and immutable learning 
   expect((snapshots.get('learning_submissions') as unknown[]).length).toBeGreaterThan(0);
   const client = await admin.connect();
   try {
-    expect(await applyPlan(client, planMigrations())).toBe(3);
-    expect(await applyPlan(client, planMigrations())).toBe(0);
+    const accessAPlan = planMigrations().filter(
+      (m: { version: string }) => Number(m.version) <= 106,
+    );
+    expect(await applyPlan(client, accessAPlan)).toBe(3);
+    expect(await applyPlan(client, accessAPlan)).toBe(0);
   } finally {
     client.release();
   }

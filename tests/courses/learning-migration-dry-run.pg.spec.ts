@@ -40,6 +40,11 @@ describePg('LRN-M0-005 PostgreSQL read-only evidence', () => {
           const first = await analyzeLearningData(tx, options);
           const second = await analyzeLearningData(tx, options);
           expect(second.deterministic).toEqual(first.deterministic);
+          // Result revisions must not multiply the one assignment/Seat analysis unit.
+          const expected = await tx.query(
+            'SELECT count(*)::int AS count FROM classroom_assignments ca JOIN classroom_student_seats seat ON seat.classroom_id=ca.classroom_id',
+          );
+          expect(first.deterministic.totals.learningUnits).toBe(expected.rows[0].count);
           expect(first.metadata.performance.queryCount).toBeLessThanOrEqual(6);
         },
         options.asOf,

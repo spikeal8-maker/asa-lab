@@ -3,14 +3,16 @@
 import { createHash } from 'node:crypto';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { performance } from 'node:perf_hooks';
+import process from 'node:process';
+import { pathToFileURL, URL } from 'node:url';
 import { execFileSync } from 'node:child_process';
 import Ajv from 'ajv';
 import addFormats from 'ajv-formats';
 import pg from 'pg';
 import { planMigrations } from './migrate.mjs';
 
-export const ANALYZER_VERSION = '1.0.0';
+export const ANALYZER_VERSION = '1.1.0';
 export const SCHEMA_ID = 'asa-learning-migration-dry-run/v1';
 export const CLASSIFICATIONS = Object.freeze([
   'identity_unresolved',
@@ -27,6 +29,8 @@ const ATTEMPT_STATES = new Set([
   'in_progress',
   'submitted',
   'evaluating',
+  'closed',
+  'expired',
   'accepted',
   'changes_requested',
   'incomplete',
@@ -45,7 +49,7 @@ WITH latest_attempt AS (
             a.attempt_number DESC, a.id DESC
 ), attempt_rollup AS (
   SELECT a.classroom_assignment_id, a.seat_id,
-         count(*)::int AS attempt_count,
+         count(DISTINCT a.id)::int AS attempt_count,
          count(DISTINCT r.id)::int AS result_count,
          count(DISTINCT s.id)::int AS submission_count,
          count(DISTINCT e.id)::int AS evaluation_count
@@ -91,7 +95,10 @@ SELECT c.tenant_id, c.school_id, c.id AS classroom_id, c.status AS classroom_sta
   LEFT JOIN project_versions pv ON pv.id = sub.project_version_id
   LEFT JOIN attempt_rollup ar
     ON ar.classroom_assignment_id = ca.id AND ar.seat_id = seat.id
-  LEFT JOIN assessment_results result ON result.attempt_id = la.id
+  LEFT JOIN LATERAL (
+    SELECT r.id FROM assessment_results r WHERE r.attempt_id = la.id
+    ORDER BY r.published_at DESC, r.id DESC LIMIT 1
+  ) result ON true
   LEFT JOIN gradebook_entries grade
     ON grade.classroom_assignment_id = ca.id AND grade.seat_id = seat.id
   LEFT JOIN assessment_results selected_result ON selected_result.id = grade.assessment_result_id
@@ -147,7 +154,9 @@ export function normalizeUnit(row) {
     row.mapped_activity_version_id &&
     row.attempt_id &&
     row.attempt_activity_version_id === row.mapped_activity_version_id &&
-    (!['submitted', 'evaluating', 'accepted', 'changes_requested'].includes(row.attempt_state) ||
+    (!['submitted', 'evaluating', 'closed', 'accepted', 'changes_requested'].includes(
+      row.attempt_state,
+    ) ||
       exactSubmission),
   );
   const legacyAuthoritative = legacyClaim || legacyOnlyStart;

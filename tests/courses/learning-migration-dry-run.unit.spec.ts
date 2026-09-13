@@ -74,6 +74,21 @@ function exactProject(overrides: Record<string, unknown> = {}) {
 const fixtures = [
   ['clean project chain', base(), 'clean_canonical'],
   [
+    'closed lifecycle with exact evidence',
+    exactProject({ legacy_submitted_at: null, attempt_state: 'closed' }),
+    'clean_canonical',
+  ],
+  [
+    'closed lifecycle without exact evidence needs reconciliation',
+    base({ attempt_state: 'closed' }),
+    'auto_reconcilable',
+  ],
+  [
+    'expired lifecycle does not invent a grade or completion',
+    base({ attempt_state: 'expired' }),
+    'clean_canonical',
+  ],
+  [
     'legacy submitted without Attempt',
     base({
       attempt_id: null,
