@@ -33,7 +33,10 @@ ASA Lab уже содержит несколько игровых направл
 - `docs/architecture/ASA_GAMES_PLATFORM_NETWORKING_RESEARCH.md` — внешний research по Nakama, Colyseus, Agones, GameLift, PlayFab, Open Match, WebSocket/WebTransport и сетевому netcode.
 - `docs/architecture/ASA_GAMES_PLATFORM_DATA_AND_IDENTITY.md` — canonical match model, participants, events, outbox, gaming identity, rating и statistics projections.
 - `docs/architecture/ASA_GAMES_PLATFORM_PROTOCOLS_AND_RUNTIME.md` — API/realtime protocols, room allocation, reconnect, recovery, tick budget, security и observability.
+- `docs/architecture/ASA_GAMES_PLATFORM_TECHNOLOGY_OPTIONS.md` — build-vs-buy и staged technology choices: PostgreSQL, WebSocket/WebTransport, Redis, Colyseus, Nakama, Open Match, GameLift, Agones, runtime languages.
 - `docs/product/games-platform/ASA_GAMES_PLATFORM_PRODUCT_SPEC.md` — пользовательская модель: Games Hub, lobby, invites, party, classmates, quick/rated play, profile, stats, leaderboards, tournaments/events.
+- `docs/product/games-platform/ASA_GAMES_PLATFORM_DEVELOPER_INTEGRATION_GUIDE.md` — прикладной контракт разработчика: manifest, adapters, renderer, bots/metrics, trusted и isolated games, forbidden patterns.
+- `docs/product/games-platform/ASA_GAMES_PLATFORM_TESTING_AND_CERTIFICATION.md` — обязательные contract/security/reconnect/load/fault-injection gates и две certification games.
 - `docs/product/games-platform/ASA_GAMES_PLATFORM_EXECUTION_PLAN.md` — staged implementation plan и acceptance gates.
 
 ## 4. Что этот пакет НЕ разрешает
