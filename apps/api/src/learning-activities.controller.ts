@@ -64,8 +64,8 @@ export class LearningActivitiesController {
     return this.pool;
   }
 
-  private async requireEducator(request: FastifyRequest): Promise<ActiveContext> {
-    const context = await this.activeContext.resolve(request.cookies[SESSION_COOKIE]);
+  private async requireEducator(request: FastifyRequest, readOnly = false): Promise<ActiveContext> {
+    const context = await this.activeContext.resolve(request.cookies[SESSION_COOKIE], { readOnly });
     if (!context) throw new HttpException(error('unauthorized', 'no active session'), 401);
     const [capabilities, workspaces] = await Promise.all([
       this.accounts.capabilities(context.accountId),
@@ -299,13 +299,18 @@ export class LearningActivitiesController {
     @Query('draftRevision') draftRevisionRaw: string | undefined,
     @Query('versionId') versionIdRaw: string | undefined,
   ) {
-    const context = await this.requireEducator(request);
+    const context = await this.requireEducator(request, true);
     this.requireUuid(activityId, 'activity');
     let versionId: string | null = null;
     let draftRevision: number | null = null;
     if (source === 'draft') {
       draftRevision = Number(draftRevisionRaw);
-      if (!Number.isInteger(draftRevision) || draftRevision < 1 || versionIdRaw !== undefined) {
+      if (
+        !/^[1-9]\d*$/.test(draftRevisionRaw ?? '') ||
+        !Number.isSafeInteger(draftRevision) ||
+        draftRevision > 2147483647 ||
+        versionIdRaw !== undefined
+      ) {
         throw new HttpException(error('validation_error', 'preview source is invalid'), 400);
       }
     } else if (source === 'published') {

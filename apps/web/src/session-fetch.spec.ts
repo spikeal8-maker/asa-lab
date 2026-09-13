@@ -7,6 +7,15 @@ afterEach(() => {
 });
 
 describe('session-aware fetch', () => {
+  it('does not turn read-only learner preview into a session refresh write', async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(new Response(null, { status: 401 }));
+    vi.stubGlobal('fetch', fetchMock);
+    const response = await fetchWithSessionRefresh(
+      '/api/learning/activities/id/preview?source=draft&draftRevision=1',
+    );
+    expect(response.status).toBe(401);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
   it('does not refresh an Account session after a StudentSeat auth failure', async () => {
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(new Response(null, { status: 401 }));
     vi.stubGlobal('fetch', fetchMock);

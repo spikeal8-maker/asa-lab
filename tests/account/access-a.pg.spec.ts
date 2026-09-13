@@ -1,5 +1,6 @@
 import { beforeAll, afterAll, describe, expect, it } from 'vitest';
 import type pg from 'pg';
+import { hashSessionToken } from '../../contexts/identity/dist/index.js';
 import { buildTestApp, inject, type NestApp } from '../portal/app';
 import { testAdminPool, testAppPool } from '../portal/helpers';
 
@@ -617,6 +618,53 @@ describe('Result A: real Account and independent Classroom API', () => {
     }
   });
 
+  it('read-only preview session resolver preserves current authorization and old touch behavior', async () => {
+    const actor = await account();
+    const tokenHash = hashSessionToken(actor.cookie.slice('asa_session='.length));
+    await admin.query(
+      "UPDATE sessions_v2 SET last_seen_at='2000-01-01T00:00:00Z' WHERE token_hash=$1",
+      [tokenHash],
+    );
+    const read = await runtime.query('SELECT * FROM session_v2_context_read_only($1)', [tokenHash]);
+    expect(read.rows).toHaveLength(1);
+    expect(
+      (
+        await admin.query('SELECT last_seen_at FROM sessions_v2 WHERE token_hash=$1', [tokenHash])
+      ).rows[0].last_seen_at.getUTCFullYear(),
+    ).toBe(2000);
+    const normal = await runtime.query('SELECT * FROM session_v2_context($1)', [tokenHash]);
+    expect(read.rows).toEqual(normal.rows);
+    expect(
+      (
+        await admin.query('SELECT last_seen_at FROM sessions_v2 WHERE token_hash=$1', [tokenHash])
+      ).rows[0].last_seen_at.getUTCFullYear(),
+    ).toBeGreaterThan(2000);
+    const client = await admin.connect();
+    try {
+      for (const mutation of [
+        'UPDATE sessions_v2 SET revoked_at=now() WHERE token_hash=$1',
+        "UPDATE sessions_v2 SET expires_at=now()-interval '1 second' WHERE token_hash=$1",
+        "UPDATE accounts SET status='suspended' WHERE id=(SELECT account_id FROM principals WHERE id=(SELECT principal_id FROM sessions_v2 WHERE token_hash=$1))",
+        "UPDATE workspace_memberships SET state='revoked' WHERE workspace_id=(SELECT active_workspace_id FROM sessions_v2 WHERE token_hash=$1)",
+      ]) {
+        await client.query('BEGIN');
+        try {
+          await client.query(mutation, [tokenHash]);
+          const readonly = await client.query('SELECT * FROM session_v2_context_read_only($1)', [
+            tokenHash,
+          ]);
+          const ordinary = await client.query('SELECT * FROM session_v2_context($1)', [tokenHash]);
+          expect(readonly.rows).toEqual([]);
+          expect(ordinary.rows).toEqual([]);
+        } finally {
+          await client.query('ROLLBACK');
+        }
+      }
+    } finally {
+      client.release();
+    }
+  });
+
   it('preview as learner returns exact saved sources with zero runtime writes', async () => {
     const author = await account();
     const grant = await inject(app, {
@@ -698,48 +746,154 @@ describe('Result A: real Account and independent Classroom API', () => {
           (SELECT count(*)::int FROM learning_activities) AS activities,
           (SELECT count(*)::int FROM learning_activity_versions) AS activity_versions`)
       ).rows[0];
+    const foreignAuthor = await account();
+    expect(
+      (
+        await inject(app, {
+          method: 'POST',
+          url: '/api/capabilities/content-author/self-attest',
+          headers: { cookie: foreignAuthor.cookie },
+          payload: {},
+        })
+      ).statusCode,
+    ).toBe(201);
+    const foreignCreated = await inject(app, {
+      method: 'POST',
+      url: '/api/learning/activities',
+      headers: { cookie: foreignAuthor.cookie },
+      payload: {
+        kind: 'project',
+        title: 'Other author private material',
+        instructions: 'Private',
+        resultMode: 'completion',
+        maxPoints: null,
+        policies: basePolicies,
+        moduleKey: 'electronics',
+        scope: 'personal',
+        visibility: 'private',
+        requestId: 'preview:foreign:' + crypto.randomUUID(),
+      },
+    });
+    expect(foreignCreated.statusCode, foreignCreated.body).toBe(201);
+    const foreignId = foreignCreated.json().id as string;
+    const foreignPublished = await inject(app, {
+      method: 'POST',
+      url: `/api/learning/activities/${foreignId}/publish`,
+      headers: { cookie: foreignAuthor.cookie },
+      payload: { expectedRevision: 1, requestId: 'preview:foreign-pub:' + crypto.randomUUID() },
+    });
+    expect(foreignPublished.statusCode, foreignPublished.body).toBe(201);
+
     const before = await counts();
+    // Counts miss UPDATEs and insert/delete pairs. Reject every attempted data write
+    // on this isolated test database while issuing the actual HTTP GET requests.
+    await admin.query(`
+      CREATE FUNCTION public.preview_test_no_write() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN RAISE EXCEPTION 'Preview attempted % on %', TG_OP, TG_TABLE_NAME; END $$;
+      DO $$ DECLARE t record; BEGIN
+        FOR t IN SELECT tablename FROM pg_tables WHERE schemaname='public' LOOP
+          EXECUTE format('CREATE TRIGGER preview_test_no_write BEFORE INSERT OR UPDATE OR DELETE OR TRUNCATE ON public.%I FOR EACH STATEMENT EXECUTE FUNCTION public.preview_test_no_write()', t.tablename);
+        END LOOP;
+      END $$;
+    `);
+    try {
+      const draftPreview = await inject(app, {
+        method: 'GET',
+        url: `/api/learning/activities/${activityId}/preview?source=draft&draftRevision=2`,
+        headers: { cookie: author.cookie },
+      });
+      expect(draftPreview.statusCode, draftPreview.body).toBe(200);
+      expect(draftPreview.json()).toMatchObject({
+        source: { kind: 'draft', id: null, draftRevision: 2, versionNumber: null },
+        assignment: { title: 'Preview saved draft r2', brief: 'Draft instructions r2' },
+        moduleKey: 'three-d',
+        resultMode: 'completion',
+        learnerRuntime: false,
+      });
 
-    const draftPreview = await inject(app, {
-      method: 'GET',
-      url: `/api/learning/activities/${activityId}/preview?source=draft&draftRevision=2`,
-      headers: { cookie: author.cookie },
-    });
-    expect(draftPreview.statusCode, draftPreview.body).toBe(200);
-    expect(draftPreview.json()).toMatchObject({
-      source: { kind: 'draft', id: null, draftRevision: 2, versionNumber: null },
-      assignment: { title: 'Preview saved draft r2', brief: 'Draft instructions r2' },
-      moduleKey: 'three-d',
-      resultMode: 'completion',
-      learnerRuntime: false,
-    });
+      const publishedPreview = await inject(app, {
+        method: 'GET',
+        url: `/api/learning/activities/${activityId}/preview?source=published&versionId=${versionId}`,
+        headers: { cookie: author.cookie },
+      });
+      expect(publishedPreview.statusCode, publishedPreview.body).toBe(200);
+      expect(publishedPreview.json()).toMatchObject({
+        source: { kind: 'published', id: versionId, versionNumber: 1 },
+        assignment: { title: 'Preview published V1', brief: 'Published instructions' },
+        moduleKey: 'electronics',
+        resultMode: 'completion',
+        learnerRuntime: false,
+      });
 
-    const publishedPreview = await inject(app, {
-      method: 'GET',
-      url: `/api/learning/activities/${activityId}/preview?source=published&versionId=${versionId}`,
-      headers: { cookie: author.cookie },
-    });
-    expect(publishedPreview.statusCode, publishedPreview.body).toBe(200);
-    expect(publishedPreview.json()).toMatchObject({
-      source: { kind: 'published', id: versionId, versionNumber: 1 },
-      assignment: { title: 'Preview published V1', brief: 'Published instructions' },
-      moduleKey: 'electronics',
-      resultMode: 'completion',
-      learnerRuntime: false,
-    });
-
-    const stale = await inject(app, {
-      method: 'GET',
-      url: `/api/learning/activities/${activityId}/preview?source=draft&draftRevision=1`,
-      headers: { cookie: author.cookie },
-    });
-    expect(stale.statusCode, stale.body).toBe(409);
-    const foreignVersion = await inject(app, {
-      method: 'GET',
-      url: `/api/learning/activities/${activityId}/preview?source=published&versionId=${crypto.randomUUID()}`,
-      headers: { cookie: author.cookie },
-    });
-    expect(foreignVersion.statusCode, foreignVersion.body).toBe(404);
-    expect(await counts()).toEqual(before);
+      const stale = await inject(app, {
+        method: 'GET',
+        url: `/api/learning/activities/${activityId}/preview?source=draft&draftRevision=1`,
+        headers: { cookie: author.cookie },
+      });
+      expect(stale.statusCode, stale.body).toBe(409);
+      const foreignVersion = await inject(app, {
+        method: 'GET',
+        url: `/api/learning/activities/${activityId}/preview?source=published&versionId=${crypto.randomUUID()}`,
+        headers: { cookie: author.cookie },
+      });
+      expect(foreignVersion.statusCode, foreignVersion.body).toBe(404);
+      for (const [url, cookie, status] of [
+        [
+          `/api/learning/activities/${activityId}/preview?source=draft&draftRevision=2`,
+          foreignAuthor.cookie,
+          404,
+        ],
+        [
+          `/api/learning/activities/${foreignId}/preview?source=published&versionId=${foreignPublished.json().id}`,
+          author.cookie,
+          404,
+        ],
+        [
+          `/api/learning/activities/${activityId}/preview?source=published&versionId=${foreignPublished.json().id}`,
+          author.cookie,
+          404,
+        ],
+        [`/api/learning/activities/${activityId}/preview?source=draft&draftRevision=2`, '', 401],
+        [
+          `/api/learning/activities/${activityId}/preview?source=draft&draftRevision=2147483648`,
+          author.cookie,
+          400,
+        ],
+        [
+          `/api/learning/activities/${activityId}/preview?source=draft&draftRevision=1e0`,
+          author.cookie,
+          400,
+        ],
+        [
+          `/api/learning/activities/${activityId}/preview?source=draft&draftRevision=2&versionId=${versionId}`,
+          author.cookie,
+          400,
+        ],
+      ] as const) {
+        const denied = await inject(app, { method: 'GET', url, headers: { cookie } });
+        expect(denied.statusCode, denied.body).toBe(status);
+      }
+      // Published content stays pinned after the draft edit, including its digest.
+      const repeat = await inject(app, {
+        method: 'GET',
+        url: `/api/learning/activities/${activityId}/preview?source=published&versionId=${versionId}`,
+        headers: { cookie: author.cookie },
+      });
+      expect(repeat.statusCode, repeat.body).toBe(200);
+      expect(repeat.json()).toEqual(publishedPreview.json());
+      expect(draftPreview.json().source.contentDigest).not.toBe(
+        publishedPreview.json().source.contentDigest,
+      );
+      expect(await counts()).toEqual(before);
+    } finally {
+      await admin.query(`
+        DO $$ DECLARE t record; BEGIN
+          FOR t IN SELECT tablename FROM pg_tables WHERE schemaname='public' LOOP
+            EXECUTE format('DROP TRIGGER IF EXISTS preview_test_no_write ON public.%I', t.tablename);
+          END LOOP;
+        END $$;
+        DROP FUNCTION public.preview_test_no_write();
+      `);
+    }
   });
 });

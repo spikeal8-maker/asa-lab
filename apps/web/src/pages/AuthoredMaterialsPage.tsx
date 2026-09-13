@@ -19,13 +19,20 @@ const initial: AuthoredActivityDraft = {
 };
 
 function LearnerPreviewPanel({ preview }: { readonly preview: AuthoredActivityLearnerPreview }) {
-  const maxAttempts = Number(
-    (preview.policies['attemptPolicy'] as Record<string, unknown> | null)?.['maxAttempts'] ?? 1,
-  );
+  const maxAttempts = (preview.policies['attemptPolicy'] as Record<string, unknown> | null)?.[
+    'maxAttempts'
+  ];
   const lateMode = String(
-    (preview.policies['latePolicy'] as Record<string, unknown> | null)?.['mode'] ??
-      'allow_until_close',
+    (preview.policies['latePolicy'] as Record<string, unknown> | null)?.['mode'] ?? '',
   );
+  const lateLabel =
+    lateMode === 'allow_until_close'
+      ? 'Можно сдать до закрытия задания'
+      : lateMode === 'block_at_due'
+        ? 'Сдача после срока запрещена'
+        : lateMode === 'allow_mark_late'
+          ? 'Можно сдать с отметкой опоздания'
+          : 'По правилам задания';
   const sourceLabel =
     preview.source.kind === 'draft'
       ? `Сохранённый черновик r${preview.source.draftRevision ?? '?'}`
@@ -38,32 +45,44 @@ function LearnerPreviewPanel({ preview }: { readonly preview: AuthoredActivityLe
         : 'Без оценки';
   return (
     <article aria-label="Предпросмотр как ученик" data-testid="learner-preview">
-      <p className="account-hint">{sourceLabel} ? только чтение ? сессия ученика не создаётся.</p>
+      <p className="account-hint">{sourceLabel} · только чтение.</p>
       <h3>{preview.assignment.title}</h3>
       <AssignmentView assignment={preview.assignment} />
       <dl>
         <div>
           <dt>Среда</dt>
-          <dd>{preview.moduleKey ?? 'Без редактора проекта'}</dd>
+          <dd>
+            {preview.moduleKey === 'electronics'
+              ? 'Электроника'
+              : preview.moduleKey === 'three-d'
+                ? '3D'
+                : preview.moduleKey === null
+                  ? 'Без редактора проекта'
+                  : 'Среда проекта'}
+          </dd>
         </div>
         <div>
           <dt>Результат</dt>
           <dd>
             {resultLabel}
-            {preview.maxPoints === null ? '' : ` ? макс. ${preview.maxPoints}`}
+            {preview.maxPoints === null ? '' : ` · макс. ${preview.maxPoints}`}
           </dd>
         </div>
         <div>
           <dt>Попыток</dt>
-          <dd>{maxAttempts}</dd>
+          <dd>
+            {typeof maxAttempts === 'number' && Number.isFinite(maxAttempts)
+              ? maxAttempts
+              : 'По правилам задания'}
+          </dd>
         </div>
         <div>
           <dt>После срока</dt>
-          <dd>{lateMode}</dd>
+          <dd>{lateLabel}</dd>
         </div>
       </dl>
       <p className="account-hint">
-        Запуск, сохранение и сдача отключены: это не имперсонация и не реальное прохождение.
+        Здесь можно прочитать задание. Запуск и сдача доступны только при прохождении.
       </p>
     </article>
   );
@@ -96,6 +115,11 @@ export function AuthoredMaterialsPage({
   const [search, setSearch] = useState('');
   const request = useRef<{ payload: string; id: string } | null>(null);
   const savedPayload = useRef<string | null>(null);
+  const previewRequest = useRef(0);
+  useEffect(() => {
+    previewRequest.current += 1;
+    setPreview(null);
+  }, [draft, opened, publishedVersionId]);
   const refresh = useCallback(async () => {
     setLoading(true);
     const result = await api.authoredActivities();
@@ -107,6 +131,8 @@ export function AuthoredMaterialsPage({
     void refresh();
   }, [refresh]);
   async function open(id: string) {
+    previewRequest.current += 1;
+    setPreview(null);
     setBusy(true);
     setError(null);
     setNotice(null);
@@ -199,10 +225,12 @@ export function AuthoredMaterialsPage({
       return;
     }
     setPreview({ kind: 'loading' });
+    const requestId = ++previewRequest.current;
     const result =
       source === 'draft'
         ? await api.previewAuthoredActivityDraft(opened.id, opened.revision)
         : await api.previewAuthoredActivityVersion(opened.id, publishedVersionId!);
+    if (requestId !== previewRequest.current) return;
     if (result.ok) {
       setPreview({ kind: 'ready', data: result.data });
       return;
@@ -212,7 +240,9 @@ export function AuthoredMaterialsPage({
       message:
         result.error.code === 'preview_revision_conflict'
           ? 'Сохранённая ревизия изменилась. Откройте материал заново.'
-          : result.error.message || 'Предпросмотр недоступен.',
+          : result.status === 401
+            ? 'Сессия завершена. Войдите снова, чтобы открыть предпросмотр.'
+            : result.error.message || 'Предпросмотр недоступен.',
     });
   }
 
