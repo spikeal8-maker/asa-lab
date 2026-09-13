@@ -40,5 +40,6 @@ Snapshots: `e2e/artifacts/learning/author-preview/published-v1.png` and `saved-d
 - An initial session timestamp test assumed the local time zone; its fixture now uses explicit UTC.
 - First browser launcher omitted ASA_WEB_PORT=4612 and correctly failed the origin check. The final run used matching E2E port/origin.
 - Web typecheck exposed the inherited obsolete accepted lifecycle comparison noted above. It passes after its bounded removal.
+- GitHub run 34753263859 passed governance but stopped the code gate at Prettier: 11 files, including the changed session store. The session store formatting was fixed and all changed Preview code files pass Prettier. The other 10 formatting failures are inherited from the E1 recovery snapshot; downstream CI PostgreSQL/RLS and Access A browser jobs were skipped. No repository PASS or release candidate is claimed.
 
 Stop here: do not start draft-from-old-version, Teacher Home, archive/restore, mixed-data reminders, E2/E3, programming runner, or deployment without further scope.
