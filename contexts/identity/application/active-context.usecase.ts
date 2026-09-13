@@ -11,13 +11,10 @@ export class ActiveContextUseCase {
     },
   ) {}
 
-  async resolve(
-    token: string | undefined,
-    options?: { readOnly?: boolean },
-  ): Promise<ActiveContext | null> {
+  async resolve(token: string | undefined): Promise<ActiveContext | null> {
     if (!token) return null;
     const hash = hashSessionToken(token);
-    const modern = await this.sessionsV2.resolve(hash, options);
+    const modern = await this.sessionsV2.resolve(hash);
     if (modern !== null) return modern;
     const legacy = await this.legacySessions.resolve(hash);
     return legacy === null ? null : this.fromLegacy(legacy);

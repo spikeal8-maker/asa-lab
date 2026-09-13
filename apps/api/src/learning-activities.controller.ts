@@ -64,8 +64,8 @@ export class LearningActivitiesController {
     return this.pool;
   }
 
-  private async requireEducator(request: FastifyRequest, readOnly = false): Promise<ActiveContext> {
-    const context = await this.activeContext.resolve(request.cookies[SESSION_COOKIE], { readOnly });
+  private async requireEducator(request: FastifyRequest): Promise<ActiveContext> {
+    const context = await this.activeContext.resolve(request.cookies[SESSION_COOKIE]);
     if (!context) throw new HttpException(error('unauthorized', 'no active session'), 401);
     const [capabilities, workspaces] = await Promise.all([
       this.accounts.capabilities(context.accountId),
@@ -299,7 +299,7 @@ export class LearningActivitiesController {
     @Query('draftRevision') draftRevisionRaw: string | undefined,
     @Query('versionId') versionIdRaw: string | undefined,
   ) {
-    const context = await this.requireEducator(request, true);
+    const context = await this.requireEducator(request);
     this.requireUuid(activityId, 'activity');
     let versionId: string | null = null;
     let draftRevision: number | null = null;

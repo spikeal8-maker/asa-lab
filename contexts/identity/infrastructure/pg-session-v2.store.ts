@@ -28,15 +28,11 @@ export class PgSessionV2Store implements SessionV2StorePort {
     ]);
   }
 
-  async resolve(
-    tokenHash: string,
-    options?: { readOnly?: boolean },
-  ): Promise<ActiveContext | null> {
-    const resolver = options?.readOnly ? 'session_v2_context_read_only' : 'session_v2_context';
+  async resolve(tokenHash: string): Promise<ActiveContext | null> {
     const result = await this.pool.query(
       `SELECT principal_id, account_id, workspace_id, tenant_id, workspace_kind,
               user_id, email, display_name, school_id
-         FROM ${resolver}($1)`,
+         FROM session_v2_context($1)`,
       [tokenHash],
     );
     const row = result.rows[0];

@@ -162,7 +162,7 @@ export interface SessionV2StorePort {
     ttlHours: number,
     userAgentSummary?: string,
   ): Promise<void>;
-  resolve(tokenHash: string, options?: { readOnly?: boolean }): Promise<ActiveContext | null>;
+  resolve(tokenHash: string): Promise<ActiveContext | null>;
   revoke(tokenHash: string): Promise<void>;
   switchContext(
     tokenHash: string,
