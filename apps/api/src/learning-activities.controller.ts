@@ -305,7 +305,12 @@ export class LearningActivitiesController {
     let draftRevision: number | null = null;
     if (source === 'draft') {
       draftRevision = Number(draftRevisionRaw);
-      if (!Number.isInteger(draftRevision) || draftRevision < 1 || versionIdRaw !== undefined) {
+      if (
+        !/^[1-9]\d*$/.test(draftRevisionRaw ?? '') ||
+        !Number.isSafeInteger(draftRevision) ||
+        draftRevision > 2147483647 ||
+        versionIdRaw !== undefined
+      ) {
         throw new HttpException(error('validation_error', 'preview source is invalid'), 400);
       }
     } else if (source === 'published') {

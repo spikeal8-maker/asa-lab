@@ -2685,6 +2685,40 @@ paths:
         '401': { description: No active account session }
         '403': { description: Educator capability required }
         '404': { description: Activity is absent or not owned by the educator }
+  /api/learning/activities/{activityId}/preview:
+    get:
+      operationId: previewAuthoredActivityAsLearner
+      summary: Read an exact saved draft or immutable published version through learner presentation
+      description: >-
+        Author-owned content only. No impersonation, learner answers, learner session,
+        or academic/runtime writes. For source=draft provide only draftRevision;
+        for source=published provide only versionId. Revision conflicts return 409.
+      parameters:
+        - { name: activityId, in: path, required: true, schema: { type: string, format: uuid } }
+        - {
+            name: source,
+            in: query,
+            required: true,
+            schema: { type: string, enum: [draft, published] },
+          }
+        - {
+            name: draftRevision,
+            in: query,
+            schema: { type: integer, minimum: 1, maximum: 2147483647 },
+          }
+        - { name: versionId, in: query, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Exact read-only learner presentation
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthoredActivityLearnerPreview' }
+        '400': { description: Missing, invalid, mixed or out-of-range source selector }
+        '401': { description: Active account session required }
+        '403': { description: Author capability required }
+        '404':
+          { description: Activity or version unavailable to this author; no private information }
+        '409': { description: Saved draft revision changed; reopen the activity }
   /api/learning/activities/{activityId}/draft:
     parameters:
       - name: activityId
@@ -4008,6 +4042,35 @@ components:
         provenance: { type: object }
         contentDigest: { type: string, pattern: '^[0-9a-f]{64}$' }
         publishedAt: { type: string, format: date-time }
+    AuthoredActivityLearnerPreview:
+      type: object
+      additionalProperties: false
+      required: [source, assignment, moduleKey, resultMode, maxPoints, policies, learnerRuntime]
+      properties:
+        source:
+          type: object
+          additionalProperties: false
+          required: [kind, id, draftRevision, versionNumber, contentDigest]
+          properties:
+            kind: { type: string, enum: [draft, published] }
+            id: { type: [string, 'null'], format: uuid }
+            draftRevision: { type: [integer, 'null'], minimum: 1 }
+            versionNumber: { type: [integer, 'null'], minimum: 1 }
+            contentDigest: { type: string, pattern: '^[0-9a-f]{64}$' }
+        assignment:
+          type: object
+          additionalProperties: false
+          required: [title, goal, brief, sampleImage]
+          properties:
+            title: { type: string }
+            goal: { type: [string, 'null'] }
+            brief: { type: [string, 'null'] }
+            sampleImage: { type: [string, 'null'] }
+        moduleKey: { type: [string, 'null'] }
+        resultMode: { $ref: '#/components/schemas/LearningActivityResultMode' }
+        maxPoints: { type: [integer, 'null'], minimum: 1 }
+        policies: { $ref: '#/components/schemas/LearningActivityPolicySnapshot' }
+        learnerRuntime: { type: boolean, const: false }
     LearningActivityCollection:
       type: object
       additionalProperties: false
