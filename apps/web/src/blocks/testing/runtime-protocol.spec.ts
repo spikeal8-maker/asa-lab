@@ -180,7 +180,11 @@ describe('BlocksRuntimeBridge', () => {
     });
 
     expect(
-      bridge.acceptChildMessage({ source: target, origin: RUNTIME_ORIGIN, data: result('unknown') }),
+      bridge.acceptChildMessage({
+        source: target,
+        origin: RUNTIME_ORIGIN,
+        data: result('unknown'),
+      }),
     ).toBe(false);
 
     bridge.requestFlush('flush-1');
@@ -188,11 +192,19 @@ describe('BlocksRuntimeBridge', () => {
       'Blocks flush requestId is already pending: flush-1',
     );
     expect(
-      bridge.acceptChildMessage({ source: target, origin: RUNTIME_ORIGIN, data: result('flush-1') }),
+      bridge.acceptChildMessage({
+        source: target,
+        origin: RUNTIME_ORIGIN,
+        data: result('flush-1'),
+      }),
     ).toBe(true);
     expect(onMessage).toHaveBeenCalledWith(result('flush-1'));
     expect(
-      bridge.acceptChildMessage({ source: target, origin: RUNTIME_ORIGIN, data: result('flush-1') }),
+      bridge.acceptChildMessage({
+        source: target,
+        origin: RUNTIME_ORIGIN,
+        data: result('flush-1'),
+      }),
     ).toBe(false);
   });
 });
