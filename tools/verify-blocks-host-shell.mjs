@@ -1,3 +1,6 @@
+/* global document */
+import console from 'node:console';
+import process from 'node:process';
 import { chromium } from '@playwright/test';
 
 const runtimeUrl = process.env.BLOCKS_RUNTIME_URL ?? 'http://127.0.0.1:4613';
@@ -16,16 +19,18 @@ try {
   await shell.waitFor({ state: 'visible' });
   await page.waitForFunction(() => {
     const node = document.querySelector('[data-asa-host-shell]');
-    return node?.getAttribute('data-runtime-state') === 'standalone-ready';
+    return node?.getAttribute('data-runtime-state') === 'configuration-required';
   });
 
   const state = await shell.getAttribute('data-runtime-state');
-  if (state !== 'standalone-ready') throw new Error(`unexpected runtime state: ${state}`);
+  if (state !== 'configuration-required') throw new Error(`unexpected runtime state: ${state}`);
   const editorChildren = await page
     .locator('#scratch-editor-root')
     .evaluate((node) => node.childElementCount);
   if (editorChildren !== 0) {
-    throw new Error(`editor mounted before protocol slice: childElementCount=${editorChildren}`);
+    throw new Error(
+      `editor mounted without configured parent: childElementCount=${editorChildren}`,
+    );
   }
 
   const marker = await page.locator('body').getAttribute('data-asa-scratch-host');

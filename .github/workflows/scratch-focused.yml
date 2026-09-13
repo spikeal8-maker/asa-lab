@@ -11,7 +11,16 @@ on:
       - 'apps/api/src/modules.controller.spec.ts'
       - 'infra/scratch-editor/**'
       - 'apps/web/src/blocks/**'
-      - 'tools/verify-blocks-host-protocol.mjs'
+      - 'e2e/blocks-*.spec.ts'
+      - 'tests/blocks/**'
+      - 'tools/verify-blocks-host-*.mjs'
+      - 'tools/blocks/**'
+      - 'tools/validate-blocks-docs.mjs'
+      - 'nx.json'
+      - 'tsconfig.base.json'
+      - 'eslint*.mjs'
+      - 'vitest.config.ts'
+      - 'pnpm-workspace.yaml'
       - 'docs/architecture/ADR-VSCR-001-SCRATCH-EDITOR-INTEGRATION.md'
       - 'packages/module-sdk/**'
       - 'package.json'
@@ -25,7 +34,16 @@ on:
       - 'apps/api/src/modules.controller.spec.ts'
       - 'infra/scratch-editor/**'
       - 'apps/web/src/blocks/**'
-      - 'tools/verify-blocks-host-protocol.mjs'
+      - 'e2e/blocks-*.spec.ts'
+      - 'tests/blocks/**'
+      - 'tools/verify-blocks-host-*.mjs'
+      - 'tools/blocks/**'
+      - 'tools/validate-blocks-docs.mjs'
+      - 'nx.json'
+      - 'tsconfig.base.json'
+      - 'eslint*.mjs'
+      - 'vitest.config.ts'
+      - 'pnpm-workspace.yaml'
       - 'docs/architecture/ADR-VSCR-001-SCRATCH-EDITOR-INTEGRATION.md'
       - 'packages/module-sdk/**'
       - 'package.json'
@@ -41,7 +59,7 @@ env:
 
 jobs:
   contracts:
-    name: Module contract and API typecheck
+    name: Scratch contracts, protocol, types and routing
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     env:
@@ -69,8 +87,8 @@ jobs:
       - name: Install exact dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Focused M1-002C gate
-        run: pnpm gate:blocks-m1-002c
+      - name: Focused Scratch gate
+        run: pnpm gate:blocks
 
   runtime-image:
     name: Standalone host image and health smoke
@@ -106,10 +124,10 @@ jobs:
         run: pnpm exec playwright install --with-deps chromium
 
       - name: Build pinned Scratch standalone host image
-        run: docker build -f infra/scratch-editor/Dockerfile -t asa-lab-scratch-editor:m1-002c .
+        run: docker build -f infra/scratch-editor/Dockerfile -t asa-lab-scratch-editor:ci .
 
       - name: Start isolated Scratch host
-        run: docker run -d --name asa-lab-scratch-editor -p 127.0.0.1:4613:8080 asa-lab-scratch-editor:m1-002c
+        run: docker run -d --name asa-lab-scratch-editor -p 127.0.0.1:4613:8080 asa-lab-scratch-editor:ci
 
       - name: Verify host shell, standalone bundle and provenance
         run: |
@@ -135,7 +153,7 @@ jobs:
         env:
           BLOCKS_RUNTIME_URL: http://127.0.0.1:4613
           BLOCKS_PARENT_PORT: 4612
-        run: pnpm test:blocks-m1-002c:browser
+        run: pnpm gate:blocks --browser
 
       - name: Show runtime logs
         if: always()

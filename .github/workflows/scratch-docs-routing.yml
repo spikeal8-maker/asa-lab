@@ -4,7 +4,43 @@ on:
   push:
     branches:
       - main
+    paths:
+      - 'START_HERE_FOR_AI.md'
+      - 'docs/execution/current.yaml'
+      - 'docs/product/visual-programming/**'
+      - 'docs/product/ASA_VISUAL_PROGRAMMING_SCRATCH_MASTER_SPEC.md'
+      - 'docs/architecture/ADR-VSCR-001-SCRATCH-EDITOR-INTEGRATION.md'
+      - 'contexts/blocks/**'
+      - 'apps/web/src/blocks/**'
+      - 'infra/scratch-editor/**'
+      - 'tools/blocks/**'
+      - 'tools/verify-blocks-host-*.mjs'
+      - 'tools/validate-blocks-docs.mjs'
+      - 'tools/validate-context-boundaries.mjs'
+      - 'docs/project-map/nx-project-graph.json'
+      - 'eslint.config.mjs'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/scratch-*.yml'
   pull_request:
+    paths:
+      - 'START_HERE_FOR_AI.md'
+      - 'docs/execution/current.yaml'
+      - 'docs/product/visual-programming/**'
+      - 'docs/product/ASA_VISUAL_PROGRAMMING_SCRATCH_MASTER_SPEC.md'
+      - 'docs/architecture/ADR-VSCR-001-SCRATCH-EDITOR-INTEGRATION.md'
+      - 'contexts/blocks/**'
+      - 'apps/web/src/blocks/**'
+      - 'infra/scratch-editor/**'
+      - 'tools/blocks/**'
+      - 'tools/verify-blocks-host-*.mjs'
+      - 'tools/validate-blocks-docs.mjs'
+      - 'tools/validate-context-boundaries.mjs'
+      - 'docs/project-map/nx-project-graph.json'
+      - 'eslint.config.mjs'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/scratch-*.yml'
   workflow_dispatch:
 
 permissions:
@@ -38,33 +74,5 @@ jobs:
       - name: Install exact dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Validate routing contracts
-        run: node tools/validate-blocks-docs.mjs
-
-      - name: Check Scratch routing format
-        run: >-
-          pnpm exec prettier --check
-          START_HERE_FOR_AI.md
-          docs/product/ASA_VISUAL_PROGRAMMING_SCRATCH_MASTER_SPEC.md
-          docs/product/visual-programming
-          docs/architecture/ADR-VSCR-001-SCRATCH-EDITOR-INTEGRATION.md
-          tools/validate-blocks-docs.mjs
-          .github/workflows/scratch-docs-routing.yml
-
-      - name: Show required formatting diff
-        if: failure()
-        run: |
-          pnpm exec prettier --write \
-            START_HERE_FOR_AI.md \
-            docs/product/ASA_VISUAL_PROGRAMMING_SCRATCH_MASTER_SPEC.md \
-            docs/product/visual-programming \
-            docs/architecture/ADR-VSCR-001-SCRATCH-EDITOR-INTEGRATION.md \
-            tools/validate-blocks-docs.mjs \
-            .github/workflows/scratch-docs-routing.yml
-          git diff -- \
-            START_HERE_FOR_AI.md \
-            docs/product/ASA_VISUAL_PROGRAMMING_SCRATCH_MASTER_SPEC.md \
-            docs/product/visual-programming \
-            docs/architecture/ADR-VSCR-001-SCRATCH-EDITOR-INTEGRATION.md \
-            tools/validate-blocks-docs.mjs \
-            .github/workflows/scratch-docs-routing.yml
+      - name: Scratch routing gate
+        run: pnpm gate:blocks --docs

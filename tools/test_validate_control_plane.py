@@ -1056,6 +1056,27 @@ def split_branch_state_edited(_):
             cp.bind_root(previous)
 
 
+@case("stable gate accepts mode arguments")
+def gate_mode_arguments(_):
+    errors = []
+    cp.check_gate_scripts({"gates": {"browser": {"commands": ["pnpm gate:blocks --browser"]}}}, errors)
+    return errors
+
+
+@case("unknown parameterized gate is rejected", expect="not a package.json script")
+def gate_unknown_script(_):
+    errors = []
+    cp.check_gate_scripts({"gates": {"browser": {"commands": ["pnpm nonexistent-gate --browser"]}}}, errors)
+    return errors
+
+
+@case("gate mode cannot hide a shell chain", expect="not a package.json script")
+def gate_shell_chain(_):
+    errors = []
+    cp.check_gate_scripts({"gates": {"browser": {"commands": ["pnpm gate:blocks && arbitrary-command"]}}}, errors)
+    return errors
+
+
 def main() -> int:
     failures = 0
     for name, prepare, expect in CASES:

@@ -7,18 +7,16 @@
 ## Goal
 
 Establish the ASA-owned standalone Scratch host boundary without combining build, trust boundary,
-maintenance repair, fixture mount, product controls and integrated acceptance into one uncontrolled
+fixture mount, product controls and integrated acceptance into one uncontrolled
 agent run.
 
-The milestone is ordered by **working capability**, with one measured corrective gate before D:
+The milestone is ordered by **working capability**, in product order:
 
 ```text
 VSCR-M1-002A  standalone build + minimal ASA host shell
 → technical evidence / STOP
 VSCR-M1-002C  strict parent/iframe bootstrap boundary
 → security evidence + independent review / STOP
-VSCR-M1-002R  one-time Scratch maintainability repair
-→ CI/context/tooling evidence + independent review / STOP
 VSCR-M1-002D  fixture storage adapter + real editor mount
 → FIRST VISIBLE SCRATCH checkpoint / STOP
 VSCR-M1-002B  ASA branding + File/Extensions controls on the real editor DOM
@@ -28,12 +26,7 @@ VSCR-M1-002E  integrated browser/Docker acceptance + independent review
 ```
 
 Do not execute this router as one coding task. Do not restore the historical `A → B → C → D`
-order: B needs a real mounted editor DOM, which only exists after C/R/D.
-
-`R` is deliberately exceptional. It exists because the post-C audit measured excessive CI fan-out,
-root gate proliferation, oversized protocol test tooling and excessive mandatory bot context. It is
-not a product milestone and must not become a template for inserting maintenance between every
-future slice.
+order: B needs a real mounted editor DOM, which only exists after C/D.
 
 ## Canonical milestone authorization
 
@@ -65,18 +58,14 @@ blocks.host.file-menu
 blocks.host.extensions
 ```
 
-`VSCR-M1-002R` is cross-cutting Scratch developer-surface maintenance rather than a product
-component. It may move tooling/test/doc ownership paths but must not invent a new product component.
-
 ## First visible Scratch capability
 
-Accepted M1-002C + M1-002R + M1-002D create the first meaningful user-visible result:
+Accepted M1-002C + M1-002D create the first meaningful user-visible result:
 
 ```text
 ASA parent
 → valid INIT
 → isolated Scratch host
-→ focused/maintainable Scratch developer surface
 → ASA-controlled fixture storage
 → real Scratch editor mounts
 → workspace/stage visible
@@ -97,7 +86,7 @@ For milestone planning only:
 this router
 ```
 
-For coding, read only the selected A/C/R/D/B/E card. Do not preload all cards.
+For coding, read only the selected A/C/D/B/E card. Do not preload all cards.
 
 ## Expected write paths
 
@@ -108,7 +97,6 @@ None. This file routes work only.
 ```text
 VSCR-M1-002A.md
 VSCR-M1-002C.md
-VSCR-M1-002R.md
 VSCR-M1-002D.md
 VSCR-M1-002B.md
 VSCR-M1-002E.md
@@ -139,7 +127,6 @@ Not every internal layer needs an owner-visible ceremony:
 ```text
 A  technical foundation
 C  high-risk security boundary; independent review required
-R  one-time developer-surface repair; no owner-visible product checkpoint
 D  first visible editor capability; owner-visible checkpoint
 B  product controls on accepted real DOM
 E  integrated high-risk acceptance; owner milestone acceptance
@@ -152,9 +139,8 @@ product checkpoints are tied to meaningful capability, not to every internal lay
 
 ```text
 no one-shot implementation of all M1-002 concerns
-no automatic A → C → R → D → B → E progression
+no automatic A → C → D → B → E progression
 no return to branding-before-mount order
-no skipping R after the measured post-C maintainability audit
 no execution from a stale next-slice card
 no M1-003 runtime JWT work
 no S3/MinIO
@@ -167,8 +153,7 @@ no activation
 At the milestone level, verify only that:
 
 ```text
-A/C/R/D/B have separate accepted evidence
-R repaired the measured developer-surface debt without adding product behaviour
+A/C/D/B have separate accepted evidence
 D proves the first visible working editor
 B productises the already mounted editor
 E reviewed the integrated host boundary

@@ -501,6 +501,15 @@ def build_context(
     recovery_required = dirty is None or bool(dirty)
     recovery_command = f"pnpm agent:recover --scope {lane.get('id')} --check"
     docs = _doc_hints(root, owned_paths)
+    if lane.get("id") == "visual-programming":
+        # Scratch task cards already map exact components/contracts. Listing the
+        # whole master and ADR here made every coding task preload both.
+        docs = ["docs/product/visual-programming/README.md"]
+        task_id = str(task.get("id") or "")
+        if re.fullmatch(r"VSCR-[A-Z0-9-]+", task_id):
+            card = f"docs/product/visual-programming/tasks/{task_id}.md"
+            if (root / card).is_file():
+                docs.append(card)
     registry = load_registry(root)
     lane_id = str(lane.get("id") or "")
     registry_routes = _registry_routes(registry, lane_id, task)

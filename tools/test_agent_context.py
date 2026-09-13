@@ -114,6 +114,26 @@ def run_cli(root: Path, *arguments: str, env: dict[str, str] | None = None):
 
 
 class AgentContextTests(unittest.TestCase):
+    def test_scratch_routes_to_selected_card_without_preloading_master(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            document = fixture(root)
+            document["task"]["id"] = "VSCR-M1-002D"
+            document["primary_lane"] = {
+                "id": "visual-programming",
+                "owned_paths": [
+                    "docs/product/visual-programming/**",
+                    "docs/product/ASA_VISUAL_PROGRAMMING_SCRATCH_MASTER_SPEC.md",
+                ],
+            }
+            card = "docs/product/visual-programming/tasks/VSCR-M1-002D.md"
+            (root / card).parent.mkdir(parents=True)
+            (root / card).write_text("# D task", encoding="utf-8")
+            context = MODULE.build_context(root, document, lane(document, "visual-programming"), git_status=available())
+            self.assertEqual(context["contract_documents"], [
+                "docs/product/visual-programming/README.md", card,
+            ])
+
     def test_collects_primary_and_parallel_lanes(self):
         with tempfile.TemporaryDirectory() as raw:
             document = fixture(Path(raw))

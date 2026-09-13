@@ -785,7 +785,11 @@ def check_gate_scripts(
                 )
                 continue
             for command in commands:
-                script = str(command).removeprefix("pnpm ").strip()
+                # Gate arguments select modes of one stable script; they are
+                # not part of the package.json script name. Keep shell chains
+                # invalid so a second unchecked command cannot hide here.
+                match = re.fullmatch(r"pnpm ([\w:-]+)(?: [\w./:=+-]+)*", str(command))
+                script = match.group(1) if match else ""
                 if not script or script not in scripts:
                     errors.append(
                         f"current.yaml {gate_label}.{name} references {command!r}, "

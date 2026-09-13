@@ -1,6 +1,7 @@
 # ASA Lab Visual Programming — Scratch integration master specification
 
-**Version:** 3.3  
+**Version:** 3.4
+
 **Module:** `blocks`  
 **Product:** `Визуальное программирование`
 
@@ -23,8 +24,8 @@ docs/product/visual-programming/README.md
 → mapped canonical contract/source/test
 ```
 
-Global Scratch entry may read §§0–4 plus the selected task stub. Ordinary post-implementation
-maintenance should use component routing and not preload the full programme roadmap.
+This master is reference material. Coding starts with the selected task card and its mapped
+component/contract; read a master section only to resolve a specific product question.
 
 ## 1. Product goal
 
@@ -209,11 +210,6 @@ The programme advances by meaningful working capability. Internal layers still r
 focused evidence and required security review, but they are not automatically separate owner-visible
 milestones.
 
-A one-time corrective exception exists between C and D. The post-C maintainability audit measured
-CI fan-out, root gate proliferation, oversized protocol test tooling and excessive mandatory agent
-context. `VSCR-M1-002R` repairs that developer surface before more product code is added. R is not a
-new product capability and must not become a recurring milestone pattern.
-
 ```text
 M0/M0.1  foundation/document contract                         COMPLETE
 
@@ -222,7 +218,6 @@ M1-001    @asa-lab/blocks bounded context
 M1-002    ASA-owned Scratch host milestone
   M1-002A standalone build + minimal ASA host shell
   M1-002C strict parent/iframe bootstrap boundary
-  M1-002R one-time maintainability repair                     PRE-D CORRECTIVE GATE
   M1-002D fixture storage adapter + real editor mount          FIRST VISIBLE SCRATCH
   M1-002B ASA branding + File/Extensions controls
   M1-002E integrated host acceptance + independent review
@@ -239,32 +234,12 @@ M3        sovereign media/extensions + network deny + backup/restore/deployment/
 M4-001    explicit coming_soon → active activation
 ```
 
-The product capability order remains `A → C → D → B → E`; R is a corrective insertion because D
-must not be built on the measured A/C developer-surface debt. C establishes the trusted bootstrap
-boundary; R restores focused/maintainable development guardrails; D then mounts the editor through
-controlled fixture storage and creates the first user-visible Scratch capability.
+The product capability order is `A → C → D → B → E`. C establishes the trusted bootstrap
+boundary; D mounts the editor through controlled fixture storage. Normalisation of tooling and
+documentation is ordinary maintenance, not an additional product prerequisite.
 
-Each executable task is separately selected in `current.yaml`, evidenced and self-reviewed. No bot
-automatically advances.
-
-### M1-002R maintainability invariants
-
-Before D is selectable, R must prove at least:
-
-```text
-Scratch focused gate does not build/test unrelated subject modules
-root package does not accumulate one gate command per Scratch slice
-Scratch-only D work can use a stable gate without editing root package.json
-protocol browser evidence is split into bounded helpers/specs
-D storage/editor mount cannot be added to the accepted protocol bridge by convenience
-mandatory Scratch agent context is materially reduced and within enforced caps
-machine-checkable maintainability budgets protect new/changed Scratch files
-accepted C behaviour/security evidence remains green
-```
-
-R must not mount the editor, implement storage, add branding, add runtime APIs or modify unrelated ASA
-modules. It is accepted on technical evidence and independent review; there is no owner-visible
-product checkpoint for R.
+Each executable product task is separately selected in `current.yaml`. No bot automatically
+advances. Use `pnpm gate:blocks`; keep storage/editor composition outside the protocol bridge.
 
 ### Conditional design decisions
 
@@ -297,7 +272,6 @@ M1-002 is a milestone router, not one giant coding task:
 tasks/VSCR-M1-002.md
 → A technical host foundation → STOP
 → C secure bootstrap boundary → independent review → STOP
-→ R one-time maintainability repair → independent review → STOP
 → D real editor mount → FIRST VISIBLE SCRATCH checkpoint → STOP
 → B ASA product controls on real DOM → STOP
 → E integrated acceptance/review → STOP
@@ -307,7 +281,7 @@ M1-003 remains blocked until M1-002E evidence and explicit owner milestone accep
 
 ### First visible Scratch
 
-M1-002D may start only after C and R are accepted. D acceptance must prove at least:
+M1-002D may start after A/C acceptance and separate owner selection. D acceptance must prove at least:
 
 ```text
 valid INIT is required
@@ -316,7 +290,7 @@ workspace/stage are visible
 controlled block programme can run and stop
 fixture/project/library traffic has no Scratch Foundation fallback
 no durable-save success is falsely claimed
-R maintainability budgets and isolated Scratch gate remain green
+accepted C security cases and isolated Scratch gate remain green
 ```
 
 This is the first point at which the programme must visibly behave like Scratch inside ASA. Durable
@@ -383,9 +357,8 @@ update the owning subsystem card when real source/test ownership changes
 STOP
 ```
 
-For work after M1-002R, the stable Scratch gate and maintainability budgets accepted in R are part of
-the execution invariant. A later task may not bypass them by adding another root per-slice command,
-expanding a protocol monolith or disabling the budget to make a change pass.
+Use the stable Scratch gate. Extend its Scratch-owned runner for new tests instead of adding
+per-slice root scripts. Route to the relevant component and contract rather than loading history.
 
 A stale/conflicting route is a documentation defect to repair before coding disputed behaviour.
 A bot must not invent architecture merely to keep moving.

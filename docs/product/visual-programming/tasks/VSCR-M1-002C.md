@@ -82,7 +82,7 @@ no production hidden editor route is exposed
 ## Tests/evidence
 
 ```text
-pnpm gate:blocks-m1-002c
+pnpm gate:blocks
 real Chromium wrong-origin/source/nonce/project negatives
 no postMessage target '*'
 no token in URL/localStorage/sessionStorage/IndexedDB/logs

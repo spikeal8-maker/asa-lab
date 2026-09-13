@@ -5,10 +5,10 @@ components:
     state: implemented
     risk: medium
     ownership: infrastructure
-    purpose: "Build the shipping standalone Scratch distribution and package the ASA-owned host shell."
+    purpose: 'Build the shipping standalone Scratch distribution and package the ASA-owned host shell.'
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-001-SCRATCH-HOST-CONTRACT.md
-        section: "Host layout"
+        section: 'Host layout'
     sources:
       - infra/scratch-editor/Dockerfile
       - infra/scratch-editor/nginx.conf.template
@@ -28,10 +28,10 @@ components:
     state: planned
     risk: medium
     ownership: upstream_patch
-    purpose: "Render the canonical ASA Lab mark and remove Scratch product logo/navigation."
+    purpose: 'Render the canonical ASA Lab mark and remove Scratch product logo/navigation.'
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-001-SCRATCH-HOST-CONTRACT.md
-        section: "Branding"
+        section: 'Branding'
     canonical_asset: apps/web/public/asa-lab-mark.svg
     planned_sources:
       - infra/scratch-editor/host/branding.js
@@ -46,10 +46,10 @@ components:
     state: planned
     risk: low
     ownership: upstream_config
-    purpose: "Disable upstream File/new/save/title paths so ASA owns persistence and sb3 flows."
+    purpose: 'Disable upstream File/new/save/title paths so ASA owns persistence and sb3 flows.'
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-001-SCRATCH-HOST-CONTRACT.md
-        section: "Product controls"
+        section: 'Product controls'
     planned_sources:
       - infra/scratch-editor/host/editor-config.js
     planned_tests:
@@ -62,10 +62,10 @@ components:
     state: planned
     risk: medium
     ownership: upstream_patch
-    purpose: "Hide the upstream Extensions library in core mode; later controlled allowlist only."
+    purpose: 'Hide the upstream Extensions library in core mode; later controlled allowlist only.'
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-001-SCRATCH-HOST-CONTRACT.md
-        section: "Extensions"
+        section: 'Extensions'
     planned_sources:
       - infra/scratch-editor/host/editor-config.js
       - infra/scratch-editor/patches/0002-extension-button-visibility.patch
@@ -79,12 +79,12 @@ components:
     state: implemented
     risk: high
     ownership: asa
-    purpose: "Exact parent/iframe message protocol and validation boundary."
+    purpose: 'Exact parent/iframe message protocol and validation boundary.'
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-001-SCRATCH-HOST-CONTRACT.md
-        section: "Parent/iframe protocol"
+        section: 'Parent/iframe protocol'
       - path: docs/product/visual-programming/VSCR-D0-004-RUNTIME-SECURITY-CONTRACT.md
-        section: "Origin CORS CSP boundary"
+        section: 'Origin CORS CSP boundary'
     sources:
       - apps/web/src/blocks/runtime-protocol.ts
       - infra/scratch-editor/host/protocol.js
@@ -93,6 +93,8 @@ components:
         symbols: [protocolApi, expectedParentOrigin, reportFatal]
     tests:
       - apps/web/src/blocks/testing/runtime-protocol.spec.ts
+      - apps/web/src/blocks/testing/teardown.spec.ts
+      - tools/blocks/browser/scenarios.mjs
       - tools/verify-blocks-host-protocol.mjs
     task: VSCR-M1-002C
     task_card: VSCR-M1-002C.md
@@ -102,10 +104,10 @@ components:
     state: planned
     risk: high
     ownership: asa
-    purpose: "ASA ScratchStorage/GUIStorage fixture adapter without Scratch-host fallback or durable writes."
+    purpose: 'ASA ScratchStorage/GUIStorage fixture adapter without Scratch-host fallback or durable writes.'
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-001-SCRATCH-HOST-CONTRACT.md
-        section: "Scratch storage adapter"
+        section: 'Scratch storage adapter'
     planned_sources:
       - infra/scratch-editor/host/storage.js
       - infra/scratch-editor/host/main.js
