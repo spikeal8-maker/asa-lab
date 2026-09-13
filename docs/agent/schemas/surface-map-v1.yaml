@@ -1,0 +1,40 @@
+schema_id: ASA-AGENT-SURFACE-MAP-V1
+schema_version: 1.0.0
+purpose: Route/control to implementation and tests map.
+
+required_top_level:
+  - schema_version
+  - context
+  - surfaces
+
+forbidden_top_level:
+  - lane
+  - active_task
+  - checkpoint
+  - head_sha
+
+id_rules:
+  surface_id: '^SURF-[A-Z0-9]+(?:-[A-Z0-9]+)*$'
+  control_id: '^CTRL-[A-Z0-9]+(?:-[A-Z0-9]+)*$'
+  invariant_id: '^[A-Z][A-Z0-9]*-[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*-[0-9]{3}$'
+  test_id: '^TST-[A-Z0-9]+(?:-[A-Z0-9]+)*$'
+
+surface_required_fields:
+  - id
+  - routes
+  - implementation
+  - invariants
+  - tests
+
+control_required_fields:
+  - id
+  - change_class
+  - files
+  - invariants
+  - tests
+
+allowed_change_classes:
+  - L0_LOCAL_UI
+  - L1_UI_BEHAVIOR
+  - L2_DOMAIN_MUTATION
+  - L3_CRITICAL

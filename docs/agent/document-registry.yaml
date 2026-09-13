@@ -1,0 +1,309 @@
+schema_version: 1.1.0
+coverage: partial
+unregistered_documents_allowed: true
+strict_task_scopes: [admin-auth, learning]
+
+status_values:
+  - canonical
+  - supporting
+  - historical
+  - superseded
+  - review_only
+
+context_role_values:
+  - root
+  - compact
+  - target
+  - task
+  - escalation
+  - trace
+  - historical
+  - review
+
+documents:
+  - id: POLICY-AGENTS
+    path: AGENTS.md
+    scope: global
+    lanes: ['*']
+    kind: policy
+    status: canonical
+    authority: engineering_policy
+    context_role: root
+    read_when: [always]
+  - id: ROUTER-AI-ENTRY
+    path: START_HERE_FOR_AI.md
+    scope: global
+    lanes: ['*']
+    kind: router
+    status: canonical
+    authority: ai_entry_router
+    context_role: root
+    read_when: [agent_entry]
+
+  - id: EXECUTION-CURRENT
+    path: docs/execution/current.yaml
+    scope: global
+    lanes: ['*']
+    kind: live_state
+    status: canonical
+    authority: execution_state
+    context_role: root
+    read_when: [active_task, checkpoint, gates, blockers]
+
+  - id: EXECUTION-REVISION-CONTRACT
+    path: docs/execution/REVISION_STATE_CONTRACT.md
+    scope: global
+    lanes: ['*']
+    kind: contract
+    status: canonical
+    authority: execution_revision_semantics
+    context_role: escalation
+    read_when: [execution_state_change, revision_observation]
+
+  - id: DOCSYSTEM-MAINTENANCE
+    path: docs/architecture/AI_MAINTENANCE_DOCUMENTATION_SYSTEM.md
+    scope: global
+    lanes: ['*']
+    kind: architecture
+    status: canonical
+    authority: agent_documentation_architecture
+    context_role: escalation
+    read_when: [documentation_system_change, agent_context_change]
+  - id: PRODUCT-INTEGRATED-V14
+    path: docs/product/ASA_INTEGRATED_IMPLEMENTATION_SPEC.md
+    scope: product
+    lanes: [learning]
+    kind: target
+    status: canonical
+    authority: integrated_product_delivery
+    revision: '1.4'
+    context_role: target
+    read_when: [cross_context_product_change, learning_delivery_stage]
+
+  - id: PRODUCT-INTEGRATED-V13
+    path: docs/product/ASA_INTEGRATED_IMPLEMENTATION_SPEC_V1_3.md
+    scope: product
+    lanes: [learning]
+    kind: target
+    status: superseded
+    authority: none
+    revision: '1.3'
+    context_role: historical
+    read_when: [accepted_result_history_only]
+    superseded_by: PRODUCT-INTEGRATED-V14
+    snapshot_sha256: 155b419eb68f400eb74c39c2d77eb08493237d7ee28a938612974fdd34e99545
+    do_not_read_for: [new_implementation]
+
+  - id: IDENTITY-ACCESS-V21
+    path: docs/product/ASA_USERS_ACCESS_AND_SETTINGS_SPEC.md
+    scope: identity
+    lanes: [admin-auth, learning]
+    kind: target
+    status: canonical
+    authority: users_access_settings
+    revision: '2.1'
+    context_role: escalation
+    read_when: [account, student_seat, access, profile, navigation, settings]
+
+  - id: IDENTITY-ACCESS-V20
+    path: docs/product/ASA_USERS_ACCESS_AND_SETTINGS_SPEC_V2_0.md
+    scope: identity
+    lanes: [admin-auth, learning]
+    kind: target
+    status: superseded
+    authority: none
+    revision: '2.0'
+    context_role: historical
+    read_when: [accepted_result_history_only]
+    superseded_by: IDENTITY-ACCESS-V21
+    snapshot_sha256: 1121d062ba8b99f4ba77eaf241a5213d90838d8245755f2d6bc92ffe5ac59ae6
+    do_not_read_for: [new_implementation]
+
+  - id: IDENTITY-DOMAIN-CONTRACT
+    path: docs/agent/contracts/identity.yaml
+    scope: identity
+    lanes: [admin-auth]
+    kind: domain_contract
+    status: canonical
+    authority: identity_core_invariants
+    revision: '1.0'
+    context_role: compact
+    read_when: [identity_any_change, account, auth, student_seat, access, profile, session]
+
+  - id: ADMIN-AUTH-MAX-BLUEPRINT
+    path: docs/execution/ADMIN_AUTH_MAX_EXECUTION_PLAN.md
+    scope: identity
+    lanes: [admin-auth]
+    kind: execution_blueprint
+    status: supporting
+    authority: none
+    context_role: trace
+    read_when: [admin_session_max_change, production_auth_recovery]
+
+  - id: ACCESS-A-REVIEW-RECEIPT
+    path: docs/execution/ASA_ACCESS_A.md
+    scope: identity
+    lanes: [admin-auth]
+    kind: accepted_result_receipt
+    status: review_only
+    authority: none
+    context_role: historical
+    read_when: [access_a_history, accepted_result_evidence]
+    do_not_read_for: [new_identity_implementation]
+
+  - id: LEARNING-DOMAIN-CONTRACT
+    path: docs/agent/contracts/learning.yaml
+    scope: learning
+    lanes: [learning]
+    kind: domain_contract
+    status: canonical
+    authority: learning_core_invariants
+    revision: '1.0'
+    context_role: compact
+    read_when: [learning_any_change]
+
+  - id: LEARNING-MASTER-V21
+    path: docs/product/ASA_LEARNING_TECHNICAL_SPEC.md
+    scope: learning
+    lanes: [learning]
+    kind: domain_master
+    status: canonical
+    authority: learning_semantics
+    revision: '2.1'
+    context_role: escalation
+    read_when: [learning_domain_change, attempt, submission, assessment, gradebook]
+  - id: LEARNING-MASTER-V20
+    path: docs/product/ASA_LEARNING_TECHNICAL_SPEC_V2_0.md
+    scope: learning
+    lanes: [learning]
+    kind: domain_master
+    status: superseded
+    authority: none
+    revision: '2.0'
+    context_role: historical
+    read_when: [accepted_result_history_only]
+    superseded_by: LEARNING-MASTER-V21
+    snapshot_sha256: cb4eb424c0dfb497eba2440be35d5119542443dd563ed1c2359592fab6f81ee5
+    do_not_read_for: [new_implementation]
+
+  - id: LEARNING-E1-TASK-PACKAGE
+    path: docs/execution/LRN_COURSE_01.md
+    scope: learning
+    lanes: [learning]
+    kind: task_package
+    status: supporting
+    authority: learning_e1_execution_guidance
+    context_role: task
+    read_when: [learning_e1_active]
+
+  - id: ADR-LEARNER-IDENTITY-001
+    path: docs/architecture/ADR-LEARNER-IDENTITY-001.md
+    scope: learning
+    lanes: [learning]
+    kind: adr
+    status: canonical
+    authority: learner_identity_architecture
+    context_role: escalation
+    read_when: [learner_identity_change, student_seat_linking, learning_identity_migration]
+
+  - id: LEARNING-REQUIREMENTS-LEDGER
+    path: docs/product/ASA_LEARNING_REQUIREMENTS_LEDGER.yaml
+    scope: learning
+    lanes: [learning]
+    kind: ledger
+    status: supporting
+    authority: learning_requirement_traceability
+    context_role: trace
+    read_when: [learning_requirement_trace]
+
+  - id: LEARNING-LEGACY-IMPLEMENTATION-PLAN
+    path: docs/product/COURSES_AND_LEARNING_IMPLEMENTATION_PLAN.md
+    scope: learning
+    lanes: [learning]
+    kind: historical_plan
+    status: historical
+    authority: none
+    context_role: historical
+    read_when: [historical_learning_context_only]
+    do_not_read_for: [active_learning_implementation]
+
+  - id: ELECTRONICS-MASTER
+    path: docs/product/electronics/README.md
+    scope: electronics
+    lanes: [electronics]
+    kind: domain_master
+    status: canonical
+    authority: electronics_semantics
+    context_role: escalation
+    read_when: [electronics_domain_change]
+  - id: VSCR-AGENT-GUIDE
+    path: docs/product/visual-programming/AGENT_GUIDE.md
+    scope: visual_programming
+    lanes: [visual-programming]
+    kind: maintenance_guide
+    status: canonical
+    authority: visual_programming_maintenance_router
+    context_role: compact
+    read_when: [visual_programming_task_start, visual_programming_maintenance]
+    delegated_roots:
+      - docs/product/visual-programming/components/**
+      - docs/product/visual-programming/tasks/**
+
+  - id: VSCR-COMPONENT-MAP
+    path: docs/product/visual-programming/COMPONENT_MAP.yaml
+    scope: visual_programming
+    lanes: [visual-programming]
+    kind: maintenance_index
+    status: canonical
+    authority: visual_programming_component_routing
+    revision: '3.1.0'
+    context_role: trace
+    read_when: [visual_programming_component_lookup, visual_programming_maintenance]
+
+  - id: VSCR-MASTER
+    path: docs/product/ASA_VISUAL_PROGRAMMING_SCRATCH_MASTER_SPEC.md
+    scope: visual_programming
+    lanes: [visual-programming]
+    kind: domain_master
+    status: canonical
+    authority: visual_programming_target
+    context_role: escalation
+    read_when: [visual_programming_change]
+
+  - id: VSCR-READINESS
+    path: docs/product/visual-programming/README.md
+    scope: visual_programming
+    lanes: [visual-programming]
+    kind: readiness_index
+    status: canonical
+    authority: visual_programming_readiness
+    context_role: target
+    read_when: [visual_programming_task_start]
+
+  - id: AGENT-REVIEW-PROTOCOL
+    path: docs/agent/review-protocol.md
+    scope: global
+    lanes: ['*']
+    kind: process_contract
+    status: canonical
+    authority: agent_review_protocol
+    context_role: review
+    read_when: [post_step_review, challenge_review, milestone_close, release_candidate]
+  - id: DOC-FOUNDATION-CHALLENGE-20260911
+    path: docs/review/DOC_FOUNDATION_CHALLENGE_2026_09_11.md
+    scope: documentation
+    lanes: [documentation]
+    kind: review_receipt
+    status: review_only
+    authority: none
+    context_role: review
+    read_when: [documentation_foundation_review]
+  - id: DOC-M4-ROUTING-CHALLENGE-20260912
+    path: docs/review/DOC_M4_ROUTING_CHALLENGE_2026_09_12.md
+    scope: documentation
+    lanes: [documentation]
+    kind: review_receipt
+    status: review_only
+    authority: none
+    context_role: historical
+    read_when: [documentation_m4_review, delegated_routing_evidence]

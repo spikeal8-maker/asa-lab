@@ -28,6 +28,16 @@ pnpm agent:recover --scope <lane> --check
 pnpm agent:context --scope <lane>
 ```
 
+Если задача локальная и известен адрес изменения, начинай с более узкого контекста:
+
+```bash
+pnpm agent:context --path <repo-path>
+pnpm agent:context --surface <SURF-ID>
+pnpm agent:context --control <CTRL-ID>
+```
+
+Targeted context берёт Domain Contract и Surface Map из `docs/agent/`, показывает только связанные implementation paths, invariant IDs и исполнимые tests, а полный Master оставляет как точечную escalation-ссылку. Если path ещё не картирован, команда останавливается вместо догадки — тогда используй `--scope` и добавь отсутствующую карту вместе с изменением.
+
 Если вывод содержит `recoveryRequired: true`, до любых новых записей выполни:
 
 ```bash
@@ -44,6 +54,8 @@ pnpm agent:recover --scope <lane> --check
 нему документы и пересекающиеся незавершённые файлы. Это штатный вход агента;
 полный `current.yaml` нужен только при изменении состояния или диагностике
 control plane.
+
+Значения branch/revisions определены в [контракте revision state](docs/execution/REVISION_STATE_CONTRACT.md). `split_history` показывает датированный snapshot отдельных main/recovery/review refs, а не единый интегрированный HEAD; перед записью обнови GitHub snapshot. Наблюдение не выбирает задачу и не даёт owner acceptance.
 
 Поле `development_policy` определяет способ работы. При `mode: direct_main`
 единая актуальная версия разрабатывается непосредственно в `main`. Исторические
@@ -107,16 +119,16 @@ force-push, reset --hard, rebase опубликованной истории и�
 ```text
 AGENTS.md
 → pnpm agent:context --scope <lane>
-→ документы и точные разделы из блока read
-→ GitHub Issue из результата команды, если нужен полный scope
+→ документы и точные разделы из вывода
+→ GitHub Issue только если нужен полный scope
 ```
 
-Для задач о пользователях, доступах, профилях, меню и кабинетах основной
-продуктовый источник —
-[`ASA_USERS_ACCESS_AND_SETTINGS_SPEC.md`](docs/product/ASA_USERS_ACCESS_AND_SETTINGS_SPEC.md).
-Прочитай его §0, затем нужный паспорт персонажа §34, permissions §6 и нужный
-экран; не загружай весь архив спецификаций. Логические P/U/R обозначения —
-сценарии, способы входа и scoped обязанности, а не глобальные типы аккаунта.
+Для локальных изменений Account/Auth/Profile/StudentSeat сначала используй самый узкий
+`agent:context --path/--surface/--control`. Он автоматически подаёт компактный
+`docs/agent/contracts/identity.yaml`; полный `ASA_USERS_ACCESS_AND_SETTINGS_SPEC.md` читается
+только по указанным escalation-разделам. P/U/R обозначения — сценарии, способы входа и
+scoped обязанности, а не глобальные типы аккаунта. Личный Account не требует школы, а
+StudentSeat не требует предварительной регистрации Account.
 
 ### Electronics / Arduino
 
@@ -131,9 +143,15 @@ Review определяется семантикой выбранного изм
 
 ### Visual Programming / Scratch
 
-Для `Визуального программирования` используется отдельный token-efficient router:
+Scratch подключён к общему Document Registry как делегированный maintenance provider.
+Большой срез начинает с `pnpm agent:context --scope visual-programming`, затем следует
+`docs/product/visual-programming/AGENT_GUIDE.md`, readiness и точной task card выбранного в
+`current.yaml` task.
 
-[`docs/product/visual-programming/README.md`](docs/product/visual-programming/README.md).
+Локальная Scratch-правка идёт через `COMPONENT_MAP.yaml` к одной `components/*.yaml` card,
+mapped contract section, source/symbol и focused test. Внутренние Scratch component/task
+cards не копируются в глобальный Surface Map. Если route устарел или отсутствует, сначала
+исправляется routing defect; broad repository search не становится стандартным обходом.
 
 Не читай весь Scratch-раздел по умолчанию. Сначала определи профиль работы. Scratch coding
 или review начинается только когда `docs/execution/current.yaml` содержит точный выбранный
@@ -235,7 +253,16 @@ project map и test catalogs являются справочниками про�
 Планируемые, ещё не исполнимые тесты лежат отдельно в
 [`docs/testing/planned-test-catalog.yaml`](docs/testing/planned-test-catalog.yaml)
 и не являются gate.
+`current.yaml` остаётся единственным источником выбранной задачи. Readiness, Master, ADR,
+roadmap или текст запроса сами по себе не разрешают следующий Scratch slice. Глобальный
+`docs/agent/review-protocol.md` остаётся authority review; Scratch provider может только
+усиливать component-specific ownership/risk checks.
 
+Продуктовые TARGET/master документы не являются разрешением на tenant/RLS redesign,
+destructive migration, deployment или автоматический старт следующего milestone.
+`EXECUTION_MANIFEST.yaml`, project map и test catalogs читаются только когда этого требует
+конкретная работа и не используются для восстановления active task/checkpoint. Planned tests
+не являются gate.
 ## 7. Работай и проверяй одним gate
 
 У каждого результата — один скрипт. Локальный агент, focused CI и owner evidence

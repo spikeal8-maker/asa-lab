@@ -44,7 +44,7 @@ TASK_SYSTEM_PATH = ROOT / "docs/project-map/TASK_SYSTEM.md"
 TASK_ID_PATTERN = re.compile(
     r"(?:\bTASK-[A-Z0-9]+(?:-[A-Z0-9]+)*-[0-9]{3}\b|\bVSCR-M[0-9]+-[0-9]{3}[A-Z]?\b)"
 )
-PRODUCT_BRANCH_PATTERN = re.compile(r"\b(?:agent|codex)/[a-z0-9][a-z0-9./_-]*", re.IGNORECASE)
+PRODUCT_BRANCH_PATTERN = re.compile(r"(?<![A-Za-z0-9_./-])(?:origin/)?(?:agent|codex)/[a-z0-9][a-z0-9./_-]*", re.IGNORECASE)
 HISTORICAL_IMPERATIVE_PATTERN = re.compile(
     r"^Historical result:\s*(?:implement|build|verify|preserve|stabili[sz]e)\b",
     re.IGNORECASE,
@@ -80,7 +80,7 @@ ISO_TIMESTAMP = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|
 FULL_SHA = re.compile(r"^[0-9a-f]{40}$")
 LANE_ID = re.compile(r"^[a-z][a-z0-9-]*$")
 PORTABLE_SEGMENT = re.compile(r"^[A-Za-z0-9._-]+$")
-SUPPORTED_SCHEMA_VERSIONS = {"1.0.0", "1.1.0"}
+SUPPORTED_SCHEMA_VERSIONS = {"1.0.0", "1.1.0", "1.2.0"}
 DIRECT_MAIN_MODE = "direct_main"
 
 # Engineering invariants AGENTS.md states as already in force. A policy claim
@@ -136,6 +136,7 @@ STRUCTURED_DOCUMENTS = (
     "docs/testing/test-catalog.yaml",
     "docs/testing/planned-test-catalog.yaml",
     "docs/testing/active-task-tests.yaml",
+    "docs/agent/document-registry.yaml",
 )
 
 
@@ -386,6 +387,42 @@ def path_in_scope(path: str, pattern: str) -> bool:
     )
 
 
+def check_split_revisions(current: dict[str, Any], task: dict[str, Any],
+                          revisions: dict[str, Any], errors: list[str], label: str) -> None:
+    """Versioned observations are not a single task HEAD or execution authority."""
+    prefix = f"{label}.revisions"
+    if str(current.get("schema_version")) != "1.2.0" or development_mode(current) != DIRECT_MAIN_MODE:
+        errors.append(f"{prefix}: split_history requires schema 1.2.0 direct_main")
+    if task.get("branch") != "main" or revisions.get("head_sha") is not None:
+        errors.append(f"{prefix}: split_history requires task.branch main and head_sha null")
+    expected = {"kind", "convergence_baseline_sha", "head_sha", "observed_at", "main", "recovery", "bounded_review"}
+    if set(revisions) != expected:
+        errors.append(f"{prefix}: split_history must contain exactly {sorted(expected)}")
+    timestamp = revisions.get("observed_at")
+    try:
+        if not isinstance(timestamp, str) or not ISO_TIMESTAMP.fullmatch(timestamp):
+            raise ValueError()
+        datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+    except ValueError:
+        errors.append(f"{prefix}.observed_at must be an ISO timestamp with timezone")
+    for role in ("main", "recovery", "bounded_review"):
+        ref = revisions.get(role)
+        fields = {"branch", "sha"} | ({"base_branch", "base_sha"} if role == "bounded_review" else set())
+        if not isinstance(ref, dict) or set(ref) != fields:
+            errors.append(f"{prefix}.{role} must contain exactly {sorted(fields)}")
+            continue
+        branch = ref.get("branch")
+        pattern = r"main" if role == "main" else (r"recovery/[a-z0-9][a-z0-9/_-]*" if role == "recovery" else r"(?:codex|agent)/[a-z0-9][a-z0-9/_-]*")
+        if not isinstance(branch, str) or not re.fullmatch(pattern, branch):
+            errors.append(f"{prefix}.{role}.branch has invalid role or branch")
+        if not isinstance(ref.get("sha"), str) or not FULL_SHA.fullmatch(ref["sha"]):
+            errors.append(f"{prefix}.{role}.sha must be a full SHA")
+    review, recovery = revisions.get("bounded_review"), revisions.get("recovery")
+    if isinstance(review, dict) and isinstance(recovery, dict):
+        if review.get("base_branch") != recovery.get("branch") or review.get("base_sha") != recovery.get("sha"):
+            errors.append(f"{prefix}: bounded_review base must equal pinned recovery")
+
+
 def collect_lanes(
     current: dict[str, Any], primary_task: dict[str, Any], errors: list[str]
 ) -> list[dict[str, Any]]:
@@ -477,7 +514,13 @@ def collect_lanes(
         if not isinstance(revisions, dict):
             errors.append(f"current.yaml {label}.revisions must be a mapping")
             revisions = {}
-        required_sha_fields = ("convergence_baseline_sha", "head_sha") if not is_primary else ()
+        split_history = revisions.get("kind") == "split_history"
+        if "kind" in revisions and not split_history:
+            errors.append(f"current.yaml {label}.revisions.kind must be split_history when declared")
+        if split_history:
+            check_split_revisions(current, task, revisions, errors, label)
+        required_sha_fields = (("convergence_baseline_sha",) if split_history else
+                               (("convergence_baseline_sha", "head_sha") if not is_primary else ()))
         for sha_field in ("convergence_baseline_sha", "head_sha"):
             value = revisions.get(sha_field)
             if sha_field in required_sha_fields and value is None:
@@ -1101,7 +1144,13 @@ def check_execution_branch_policy(
     require_remote: bool = False,
 ) -> None:
     """Protect canonical execution state even when feature branches are optional."""
-    check_state_file_is_canonical(lane_tasks, errors, notes)
+    # Observed product refs never get to authorize themselves by editing state.
+    protected_tasks = list(lane_tasks)
+    for lane in lanes:
+        revisions = lane.get("revisions") or {}
+        if revisions.get("kind") == "split_history":
+            protected_tasks.extend(revisions[role] for role in ("recovery", "bounded_review"))
+    check_state_file_is_canonical(protected_tasks, errors, notes)
     if direct_main:
         notes.append(
             "direct_main mode: leases, lane path ownership, product branches and PRs "

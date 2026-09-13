@@ -1,4 +1,4 @@
-schema_version: 1.1.0
+schema_version: 1.2.0
 
 development_policy:
   mode: direct_main
@@ -87,6 +87,9 @@ parallel_lanes:
       status: done
       checkpoint: owner_accepted_result_a_merged_without_deployment
       owner_acceptance: accepted
+      normative_refs:
+        - document: IDENTITY-ACCESS-V20
+          revision: '2.0'
     accepted_result:
       id: ASA-ACCESS-A
       status: OWNER_ACCEPTED
@@ -388,9 +391,29 @@ parallel_lanes:
       status: in_progress
       checkpoint: e1_authorized_spec_integrated_delta_review
       owner_acceptance: pending
+      normative_refs:
+        - document: PRODUCT-INTEGRATED-V14
+          revision: '1.4'
+        - document: LEARNING-MASTER-V21
+          revision: '2.1'
+        - document: IDENTITY-ACCESS-V21
+          revision: '2.1'
     revisions:
+      kind: split_history
       convergence_baseline_sha: b963ef828f0e10042adacba4199bba972526c0df
-      head_sha: b963ef828f0e10042adacba4199bba972526c0df
+      head_sha: null
+      observed_at: '2026-09-13T12:37:48.400126+00:00'
+      main:
+        branch: main
+        sha: 48770100f58e0a4383ee0695802c5daaf5204d31
+      recovery:
+        branch: recovery/e1-learning-20260913
+        sha: 8ea7771d902d92f5288685a031b134feb353f4cc
+      bounded_review:
+        branch: codex/e1-preview-stabilized-20260913
+        sha: dce140868601b55c9a5449b38012e297c116d8be
+        base_branch: recovery/e1-learning-20260913
+        base_sha: 8ea7771d902d92f5288685a031b134feb353f4cc
     execution_lease:
       executor_id: codex-learning-course-01
       holder: unassigned

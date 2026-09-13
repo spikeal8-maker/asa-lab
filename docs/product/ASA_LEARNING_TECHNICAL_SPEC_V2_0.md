@@ -1,9 +1,9 @@
 # ASA Lab Learning — техническое задание на реализацию учебной системы
 
-**Документ:** `LEARNING-MASTER-V21` / Master Technical Specification
-**Версия:** 2.1
-**Дата:** 13 сентября 2026
-**Целевой продукт:** ASA Lab
+**Документ:** Master Technical Specification / общее техническое задание  
+**Версия:** 2.0  
+**Дата:** 23 августа 2026  
+**Целевой продукт:** ASA Lab  
 **Целевая область:** курсы, задания, тесты, STEM-проекты, попытки, сдача, оценивание, журнал, multi-school  
 **Рекомендуемое место в репозитории:** `docs/product/ASA_LEARNING_TECHNICAL_SPEC.md`
 
@@ -2392,7 +2392,7 @@ Tabs:
 Каталог
 ```
 
-В едином library UX «Курсы и задания» курсный filter сохраняет возможности «Мои курсы»; полный набор filters и маршрутизация определены в §88.1 и Integrated V1.4 §21.1.
+`Мои курсы` MUST быть первой/default вкладкой educator.
 
 ## UX-COURSE-002 — toolbar
 
@@ -4866,111 +4866,3 @@ OPTIONAL OFFICIAL PERIOD GRADE
 ```
 
 После выполнения настоящего ТЗ ASA Learning должна обеспечивать единый, воспроизводимый и безопасный учебный цикл для курса и любой отдельной учебной активности, без параллельных систем сдачи/оценивания и без расхождения результатов между преподавателем, учеником и журналом.
-
-
-# 88. Learning Master 2.1 — reuse, programming and controlled assessment
-
-Редакция по поручению владельца от 2026-09-13. Добавленные требования имеют TARGET
-status, не означают готовность E1/E2/E3 или разрешение runner/tenant/RLS разработки.
-Предыдущие байты сохранены в ASA_LEARNING_TECHNICAL_SPEC_V2_0.md; принятые результаты
-сохраняют прежние нормативные ссылки. Live task/checkpoint — только current.yaml.
-
-## 88.1 Единые content roots
-
-Integrated V1.4 §21.1–21.4 задаёт четыре области и library filters: Все, Курсы,
-Материалы, Задания, Тесты, Программирование, Банк вопросов, Архив. Старые UI-01
-«Мои курсы / Банк заданий / Банк вопросов / Тесты / Каталог» сохраняют возможности
-через эти filters и Knowledge discovery. Задание — самостоятельный versioned object,
-включая созданное из Class → Learning; прямое назначение, named learner, повторное
-использование в курсах/классах и публичное discovery ссылаются на тот же content root.
-Knowledge включает assignments/quizzes/programming tasks; question bank/answer keys
-закрыты по умолчанию. Publication и access policy различаются; paid access — будущая
-политика, не новый Course type и не разрешение реализации платежей.
-
-Class teaching history сохраняет факты CourseRuns, direct/named assignments, tests,
-programming tasks с period/date. «Собрать курс» из выбранных реальных выдач создаёт
-НОВЫЙ Course draft с provenance и exact version pins. Старые Run/Enrollment/Attempt/
-Submission/Result не изменяются. Edit for future создаёт новую версию; добавить
-материал текущему классу означает отдельную direct delivery, не правку pinned Run.
-
-## 88.2 ProgrammingTaskVersion и evidence
-
-PRG-001: Reusable ProgrammingTaskVersion использует общий Learning runtime. Python 3 —
-первый required language; архитектура language-agnostic. Определение версии включает
-title, statement, language/runtime version, starter code, examples, public/hidden tests,
-CPU/memory/output limits, grading definition, feedback/reveal policy. Published version
-immutable; private hidden tests/answer keys никогда не входят в learner DTO.
-
-PRG-002: Run («Запустить») выполняет код без Submission. Check («Проверить») выполняет
-разрешённые проверки без official Submission. Submit («Сдать») фиксирует exact accepted
-code version в immutable Submission. Reload/retry не должны подменить код этой сдачи.
-Submission содержит code/artifact version reference, runtime/task version, accepted-at и
-provenance; evidence привязано к точной Submission и grader definition/runtime version.
-
-Autograder job принимает immutable submission reference, сохраняет bounded immutable
-execution evidence (outcome, разрешённые diagnostics, consumed resources, grader version)
-и через общий assessment command создаёт AssessmentResultRevision. Повтор job/доставка
-не создаёт дубликат официального результата. Correction/regrade создаёт новую revision,
-не меняет Submission и остаётся scoped к exact runtime. Infrastructure failure явно
-отличается от неверного решения и не выдумывает accepted/zero score.
-
-PRG-003: Runner изолирован, без сети по умолчанию, с CPU/memory/output limits, без
-секретов и утечки hidden tests. Raw hidden input/expected output и внутренние grader
-данные не возвращаются в learner feedback. Sandbox implementation требует отдельной
-инженерной задачи и разрешения владельца после стабилизации.
-
-Цепочка неизменна: Account/StudentSeat или разрешённый temporary-access principal →
-LearnerIdentity → LearningActivityVersion → ActivityRun → ActivityParticipation → Attempt
-→ immutable Submission → Autograder job/evidence или manual review → AssessmentResultRevision
-→ Selected Result → Gradebook projection / CourseCompletion. Отдельных Python grades нет.
-
-## 88.3 Controlled assessment access
-
-ACC-ASM-001: Shared URL/class code — навигация, не идентичность ученика. Account и
-persistent StudentSeat сохраняются. TemporaryLearningAccess/AssessmentSeat — ограниченный
-semantic access concept в тех же Auth/LearnerIdentity контрактах, не пятая auth система.
-Users/Access 2.1 §40 задаёт индивидуальную активацию, print cards/QR, отсутствие PII
-только ради карточки и proof-based later linking. Физическую модель нельзя выводить
-из этого TARGET вопреки принятым ADR/tenant/RLS ограничениям.
-
-ACC-ASM-002: Scope — exact ActivityRun/CourseRun или explicit small target set, без roster,
-других learners, несвязанных courses/class content и author data. Server checks выполняются
-на read/start/save/submit/resume; клиентский target не является authority.
-
-ACC-ASM-003: Credential/session expiry прекращает будущий доступ, но не удаляет принятые
-Submission, Result, audit/evidence. Не происходит silent Account creation или смены
-LearnerIdentity. Linking требует proof обеих identities и применимого reconciliation;
-имя, IP, device, похожий login/email alone не подходят. History IDs сохраняются, где возможно.
-
-## 88.4 Время, Attempt и strict assessment
-
-ACC-ASM-004: credential expiry, session expiry, opensAt, dueAt, closesAt, Attempt.startedAt
-и Attempt.expiresAt — разные поля/смыслы. opensAt разрешает первый Start; dueAt — учебный
-deadline; closesAt блокирует new start/submit по явной политике. Explicit Start получает
-serverNow и запускает timeLimit. Окно 10:00–12:00 с лимитом 45 минут означает
-expiresAt=startedAt+45m; effective policy отдельно определяет ограничение closesAt.
-Browser clock не является authority. Refresh/disconnect возобновляет ту же Attempt.
-
-Strict assessment preset: 1 attempt, opens 10:00, closes 11:00, timeLimit 40m, late
-submission blocked, answer reveal delayed, explicit Start, server timer; допускаются
-question/option shuffle и random pool. Expiry behavior явно auto_submit либо
-expire_without_submission; server path идемпотентен. Ни истечение credential, ни reconnect
-не создают новую Attempt и не продлевают timeLimit. Разрешённая server auto-submit policy
-оперирует exact saved answer/code version, а не несуществующим текущим browser draft.
-
-Attempt lifecycle: in_progress, submitted, evaluating, closed, invalidated, expired.
-Педагогические решения accepted, changes_requested, incomplete, excused живут в
-AssessmentResultRevision, никогда в Attempt.state. Changes requested закрывает Attempt #1;
-пересдача создаёт Attempt #2 с revisionOfAttemptId=#1. Selected-result resolver остаётся
-единственной академической истиной; Gradebook — compatibility projection. Correction,
-включая selection=NULL, синхронно очищает stale selected pointers, сохраняя audit anchor.
-
-## 88.5 TARGET acceptance
-
-Проверить run/check/submit separation, exact code/version evidence, job retry и scoped
-regrade, sandbox resource/network/secret boundaries; повторное content reuse без новых
-roots; immutable class history при сборке нового курса. Временная карточка доступа
-работает только на exact assessment; shared URL не impersonates; activation replay/expiry
-отклоняется; roster запрещён; closing блокирует Start; reconnect даёт ту же Attempt;
-expiry сохраняет Submission/Result; linking по имени/устройству без proof отклоняется.
-Executable evidence добавляется только при реальной проверке, не при редактировании ТЗ.

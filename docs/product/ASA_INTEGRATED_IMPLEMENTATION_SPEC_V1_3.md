@@ -1,14 +1,14 @@
-# ASA Lab — Integrated Implementation Specification V1.4
+# ASA Lab — Integrated Implementation Specification V1.3
 
-**Document:** `PRODUCT-INTEGRATED-V14` · **Revision:** 1.4
-**Status:** NORMATIVE TARGET + DELIVERY CONTRACT
-**Revision basis:** Owner-requested amendment of 2026-09-13. The previous V1.3 roadmap acceptance of 2026-09-10 remains pinned to its historical snapshot; this revision does not accept any implementation or authorize production.
-**Canonical path:** `docs/product/ASA_INTEGRATED_IMPLEMENTATION_SPEC.md`
+**Document:** `ASA-INTEGRATED-IMPLEMENTATION`  
+**Status:** NORMATIVE TARGET + DELIVERY CONTRACT  
+**Accepted by owner:** 2026-09-10 for use as the integrated roadmap; acceptance does not authorize production.  
+**Canonical path:** `docs/product/ASA_INTEGRATED_IMPLEMENTATION_SPEC.md`  
 **Current execution state:** only `docs/execution/current.yaml`.  
 **Academic semantics:** `ASA_LEARNING_TECHNICAL_SPEC.md`.  
 **Users/access/settings:** `ASA_USERS_ACCESS_AND_SETTINGS_SPEC.md`.
 
-This document is the canonical V1.4 edition, extending the accepted V1.3 plan. It deliberately does not duplicate SQL, OpenAPI or every historical ledger row. Those live in executable migrations/OpenAPI and the existing Requirements Ledger. The purpose here is to make the target product, delivery order, page boundaries, user actions and acceptance gates unambiguous without forcing agents to reread the historical planning archive.
+This document is the compact canonical edition of the accepted V1.3 plan. It deliberately does not duplicate SQL, OpenAPI or every historical ledger row. Those live in executable migrations/OpenAPI and the existing Requirements Ledger. The purpose here is to make the target product, delivery order, page boundaries, user actions and acceptance gates unambiguous without forcing agents to reread the historical planning archive.
 
 ## 0. Non-negotiable product model
 
@@ -81,8 +81,8 @@ Attempt lifecycle, pedagogical decision and selected result are separate concept
 | Stage | Task | User-visible result | Must not be postponed |
 |---|---|---|---|
 | E1 | `LRN-COURSE-01` | first complete theory + project course from authoring to review/revision and 30×10 gradebook | unified library, Account+Seat, exact submission, review, notification, class settings, batch Seats, preview-as-learner, version recovery |
-| E2 | `LRN-COURSE-02` | TARGET: reusable assignment bank, Question Bank, Quiz library, reusable programming tasks (Python 3 first), plus essay/file/manual/rubric, prerequisites/course result and 30×100 gradebook/export | autograder contract/foundation, controlled/temporary assessment access, server-controlled assessment window/timer, durable answers, all 8 quiz types, mixed/manual/rubric, canonical result consistency (§5, §21) |
-| E3 | `ASA-SELF-01` | TARGET: Knowledge discovery for article, video/material, lesson, course, assignment, quiz, programming task and collection over the same library; real self-study, teacher-led enrollment and StudentSeat→Account linking | public read, unlisted/by link, enrollment and authorization remain distinct; personal scope/RLS, bilateral proof, preserved history; commerce is future, not an E3 blocker (§6, §21) |
+| E2 | `LRN-COURSE-02` | durable quizzes + essay/file/manual/rubric + prerequisites/course result + 30×100 gradebook/export | server answer persistence/timer, all 8 quiz types, mixed/manual, rubric, result consistency |
+| E3 | `ASA-SELF-01` | public Knowledge + real self-study without fake school + StudentSeat→Account linking | public read != enrollment, personal scope/RLS, bilateral proof, preserved history |
 | E4 | `ASA-COLLAB-01` | scoped coauthor/publisher/teacher/reviewer/mentor/coordinator work | invitations/grants, cross-owner safe materialization, help/discussion, run capacity |
 | E5 | `ASA-ORG-01` | organization/team, groups/bulk, adaptation/copy, learning summary/detail | no capture of personal content, distinct runs, scoped aggregates, ownership transfer |
 | E6 | `ASA-EXPERIENCE-01` | remaining settings/preferences/data requests/moderation/support/platform operations | no fake toggles/placeholders for required functions |
@@ -137,10 +137,10 @@ It must not create or mutate:
 - Account/Seat;
 - Enrollment/Participation;
 - Attempt/Submission;
-- Completion/AssessmentResult/Gradebook/LearningNotification;
+- Completion/Result;
 - a real learner session.
 
-It is not impersonation and never reveals a real learner's private answer/draft. The ordinary `last_seen_at` heartbeat of the existing authenticated author's Account session is permitted. This exception cannot create/refresh credentials, change session scope/expiry, or touch a real learner session; it does not require a separate Identity resolver. Zero academic/learner-runtime writes is the contract, not a blanket ban on this author heartbeat.
+It is not impersonation and never reveals a real learner's private answer/draft.
 
 ### 4.5 Class and learners
 
@@ -318,42 +318,26 @@ Production remains a separate exact-candidate authorization.
 
 ## 5. E2 — durable assessment
 
-E2 extends E1, not a parallel engine. Everything in this section is TARGET E2, not an assertion of implementation or permission to start it. §21 remains the detailed content/access/programming contract.
+E2 extends E1, not a parallel engine.
 
-### 5.1 Assignment library
-Reusable assignments live in the same author library, with type/topic/search filters and `add from library` into a lesson, course or class delivery. Removing an occurrence does not delete the bank item. Delivery pins the exact published content version; it does not copy learner evidence into author content (§21.1–§21.3).
+Mandatory quiz types:
+`single_choice`, `multiple_choice`, `boolean`, `numeric`, `short_text`, `matching`, `ordering`, `long_text_manual`.
 
-### 5.2 Quiz library and Question Bank
-Question Bank items and reusable quizzes are content in that library. QuizVersion owns question content/order/grading definition. LearningActivityVersion owns attempts/time/pass threshold/feedback release/result selection. Mandatory quiz types: `single_choice`, `multiple_choice`, `boolean`, `numeric`, `short_text`, `matching`, `ordering`, `long_text_manual`.
+QuizVersion owns question content/order/grading definition. LearningActivityVersion owns attempts/time/pass threshold/feedback release/result selection.
 
-### 5.3 ProgrammingTaskVersion
-Reusable programming tasks start with Python 3. The immutable ProgrammingTaskVersion pins the statement, starter files, input/output contract, visible examples, protected tests, limits and checker configuration. It is adapted to the same LearningActivityVersion/ActivityRun model; publishing a version does not start a runner or publish hidden tests (§21.5).
-
-### 5.4 Autograder contract and foundation
-`Run` is a non-final visible-example execution, `Check` checks the current draft under policy, and `Submit` freezes exact source/evidence/digest. Neither Run nor Check alone publishes an official grade. Server evaluation uses the pinned task/checker/runtime configuration, finite resource limits and isolated execution; hidden tests and secrets never enter learner/public payloads. Evaluation evidence feeds append-only result revisions through the canonical chain, including later correction/regrade (§21.5).
-
-There are no separate Python grades, Quiz grades or Electronics grades:
-
-```text
-ActivityParticipation → Attempt → immutable Submission
-→ AssessmentResultRevision → Selected Result → Gradebook
-```
-
-### 5.5 Controlled assessment and temporary participant
-Controlled delivery may issue temporary assessment access cards for an exact ActivityRun, CourseRun or small explicitly enumerated target set. `TemporaryLearningAccess` / `AssessmentSeat` is a TARGET semantic concept, not a new Account type, Auth system, Personal Workspace or automatic roster membership. StudentSeat remains persistent. Access cannot reveal roster, other learners, unrelated materials or author data; later linking requires proof of both sides (§21.6; Users/Access §40).
-
-### 5.6 Assessment window and timer
-`opensAt`, `dueAt`, `closesAt` and `timeLimit` have distinct meanings. The server owns absolute UTC boundaries and effective overrides; Account display timezone never moves them. Attempt expiry is server start + time limit; the explicit effective policy separately defines how closesAt bounds permitted start/submit. Browser clocks and reconnect cannot extend access (§21.7).
-
-### 5.7 Reconnect and durable answers
-Selected questions/options freeze at Attempt start. Answers persist on the server with optimistic versioning. Reload, reconnect and two tabs resume the same Attempt or return an explicit conflict; they do not spend another attempt or reset the timer.
-
-### 5.8 Expiry and official results
-Expiry executes even with the browser closed: `auto_submit` freezes the latest server-confirmed work, or `expire_without_submission` expires the Attempt without inventing a Submission/result, according to pinned policy. Manual/mixed results stay provisional until required review. Regrade targets an exact ActivityRun and appends revisions; selected result, Gradebook and learner view resolve the same canonical result.
+Server requirements:
+- selected questions/options frozen at attempt start;
+- answers persisted server-side with optimistic version;
+- reload/two tabs recover or conflict explicitly;
+- server-authoritative timer;
+- expiry works with browser closed;
+- `auto_submit` or `expire_without_submission` according to policy;
+- manual/mixed result stays provisional until required review;
+- regrade scoped to exact ActivityRun and appends revisions.
 
 Also E2:
 - essay immutable text/hash;
-- file immutable attachment/version/hash;
+- file via immutable AssetVersion and safe upload gate;
 - teacher observation with real staff actor;
 - RubricVersion;
 - prerequisite/unlock rules;
@@ -364,21 +348,28 @@ Also E2:
 ## 6. E3 — Knowledge, self-study, linking
 
 ### Knowledge
-Knowledge is the public discovery surface over the **same content library**, not a second public content database. TARGET E3 discovery covers `article`, `video_resource` / material, `lesson`, `course`, `assignment`, `quiz`, `programming_task` and `collection` (§21.4). These are content/presentation kinds, not automatically new LearningActivity kinds. Community projects remain separate from Knowledge.
+Public user-facing content kinds:
+- `article`;
+- `video_resource`;
+- `lesson`;
+- `course`.
 
-Minimum metadata where applicable: title, summary, system topic/category, tags, level, age band, estimated duration, language, exact published version, author/owner display and immutable cover asset. Filters include search, kind, topic, level, age and language. Public payloads exclude answer keys, hidden tests and private learner/author data.
+These are content/presentation kinds, **not** new LearningActivity kinds.
+
+Minimum public metadata where applicable:
+title, summary, system topic/category, tags, level, age band, estimated duration, language, exact published version, author/owner display, immutable cover asset.
+
+Filters: search, kind, topic, level, age, language. Community projects remain separate from Knowledge.
+
+Public read does not create Enrollment/Participation. Publish does not automatically mean public.
 
 ### Access/enrollment presets
 - private — assigned only;
-- public read-only discovery;
-- unlisted/by link — outside public listings, with the same server authorization checks;
-- permitted self-study;
-- teacher-led enrollment/application;
-- future paid access — commerce is not an E3 blocker.
+- public read only;
+- public self-study;
+- public teacher-led enrollment/application.
 
-Publish version != make public. URL != authorization. Reading, discovery, permission and enrollment are independent: a public or unlisted card cannot itself grant learning access. Public read creates no Enrollment/Participation. The server resolves access for the exact content/version/run and permitted action.
-
-Self-study uses the common academic runtime without fake school/class/teacher. A course with mandatory human review is only startable when a real permitted reviewer path exists; otherwise show the limitation and allow only permitted reading.
+Self-study must use the common academic runtime without fake school/class/teacher. A self-study course that requires mandatory human review is only startable when a real permitted reviewer path exists; otherwise show the limitation and allow only permitted reading.
 
 ### StudentSeat -> Account
 Linking requires proof of the exact Seat and authenticated/re-authenticated Account plus required classroom approval/safety checks. Never merge by name/email/device/IP. Preserve learner identity, enrollments, participations, attempts, submissions, results and historical actors.
@@ -460,17 +451,6 @@ There are 17 **templates**, not 17 pages for every user and not 17 new domains.
 16. Profile/settings.
 17. Notifications.
 
-The following are variations/tabs of these templates, not additional pages:
-
-| Content or operation | Existing template and placement | Delivery scope |
-|---|---|---|
-| Author library; assignment bank/filter; Question Bank; reusable Quiz/programming tasks | 3: one Courses & assignments library, kind filters and bank tabs | E1 existing theory/project; extended banks TARGET E2 |
-| Quiz builder; programming-task editor | 4: type-specific author workspace editor, common draft/version controls | TARGET E2 |
-| Controlled assessment participants/access and cards | 7: exact delivery workspace access tab; 6: entry from class learning | TARGET E2; no automatic roster membership |
-| Class learning history; build course from history | 6: Learning/history tab → 4: course draft with reusable content references | Content/history contract §21.2–§21.3; never import learner evidence |
-| Public and unlisted content discovery/card | 1–2: catalog and exact material card with permission-aware actions | TARGET E3 |
-| Temporary assessment participation | Existing class-code/access entry → 11: scoped learner player | TARGET E2; no new Auth or general learner cabinet |
-
 Registration/login/class-code entry, Home, personal projects, Community, games, subject editors and existing platform admin remain existing surfaces.
 
 Page budget:
@@ -483,18 +463,17 @@ Page budget:
 
 ## 11. Main action catalog
 
-These are action semantics, not simultaneously visible buttons. E2/E3 actions remain TARGET for their stage and must not be exposed as fake E1 controls.
+These are action semantics, not 47 simultaneously visible buttons.
 
-- Content: create reusable assignment, add from library, create quiz, create programming task, build course from class history (content references/provenance only), save draft, preview, publish version, access/enrollment settings, assign, adapt/copy, archive.
-- Class: create, add learner, batch add, issue/reset credential, print current cards, settings, individual conditions, extra attempt, excused, archive/restore; assign course/task/quiz/programming task as exact version + audience + conditions; create temporary assessment access for explicit delivery targets.
-- Assessment: open/close assessment under server-owned window policy, issue temporary access cards; Run visible examples, Check the current programming draft, Submit immutable source/evidence through the canonical chain. Run/Check do not create an official grade (§5.4–§5.8).
-- Learner: start/resume, save, submit, complete theory, ask for help when a recipient exists.
-- Review: publish decision, return/revision, correct result, select attempt when policy allows.
-- Delivery: audience/rules, close/cancel run, capacity.
-- Collaboration: invite/revoke staff, transfer responsibility, message/announcement.
-- Public/self: self-start/enroll/application, close enrollment.
-- Account: author/teacher capability, own notification/preferences, read notifications.
-- Organization: create, manage team/settings, transfer ownership, summary/detail/export.
+Content: create, save draft, preview, publish version, access/enrollment settings, assign, adapt/copy, archive.  
+Class: create, add learner, batch add, issue/reset credential, print current cards, class settings, individual conditions, extra attempt, excused, archive/restore.  
+Learner: start/resume, save, submit, complete theory, ask for help when a recipient exists.  
+Review: publish decision, return/revision, correct result, select attempt when policy allows.  
+Delivery: audience/rules, close/cancel run, capacity.  
+Collaboration: invite/revoke staff, transfer responsibility, message/announcement.  
+Public/self: self-start/enroll/application, close enrollment.  
+Account: author/teacher capability, own notification/preferences, read notifications.  
+Organization: create, manage team/settings, transfer ownership, summary/detail/export.
 
 Every mutation has pending/error/conflict/success and safe retry semantics. A button must not change unrelated objects.
 
@@ -637,143 +616,3 @@ For the active stage:
 7. run the required candidate gate once, demonstrate, and stop for owner acceptance/release decision.
 
 Do not restart a general architecture audit, create a second queue, or advance to the next stage automatically.
-
-
-## 21. V1.4 content library and delivery contract
-
-This section adds TARGET requirements. It does not authorize implementation of later stages,
-the Python runner, commerce, tenant/RLS redesign, or deployment. Existing E1 boundaries and
-the canonical academic chain remain in force. Current task/checkpoint exists only in
-`docs/execution/current.yaml`. Prior editions are byte-preserved historical snapshots in
-the Document Registry; accepted results retain their original normative revisions.
-
-### 21.1 Four user areas, one content library
-
-| Area | User purpose |
-| --- | --- |
-| Знания | Public discovery, reading and policy-permitted self-study |
-| Курсы и задания | One personal author content library |
-| Классы | Organized teaching of actual people |
-| Моё обучение | One learner view across permitted delivery sources |
-
-Library filters: Все, Курсы, Материалы, Задания, Тесты, Программирование, Банк вопросов,
-Архив. Existing «Мои курсы / Банк заданий / Банк вопросов / Тесты / Каталог» functionality
-maps to these filters and Knowledge discovery; it is not discarded or given separate stores.
-One published content version can be delivered directly, to a named learner, in multiple
-courses/classes, or surfaced in Knowledge under explicit access policy.
-
-Assignment is an independent versioned library object. «Класс → Обучение → Новое задание»
-saves into the same author library and may deliver that saved version to this class. A task
-can later be reused in another course/class or published for discovery. No hidden disposable
-assignment store, separate public-content root, or programming-content database is allowed.
-
-### 21.2 Class history and teaching-time edits
-
-Class → Learning exposes Сейчас, История, Программа класса. History groups actual CourseRuns,
-direct and learner-specific assignments, quizzes and programming tasks by academic period/date.
-Past delivery facts are preserved. Selecting actual delivered tasks and choosing «Собрать курс»
-creates a NEW Course draft with provenance and exact version references; it does not edit any
-old Run, Enrollment, Attempt, Submission or Result.
-
-For a running CourseRun v2, distinguish «Редактировать для будущих» (v2 → new draft → v3;
-existing Run still pins v2) from «Добавить материал этому классу» (separate direct delivery).
-Those additional tasks may be incorporated into a future draft/version explicitly.
-
-### 21.3 Rich course builder and reusable quiz bank
-
-Course structure is Section → Lesson → blocks. Information blocks include heading, text,
-image, video, link, file/asset and note/callout. Learning blocks reference reusable assignment,
-quiz, programming task, Electronics, 3D, Visual Programming or future module activities.
-«Добавить задание/тест» supports choosing from the library or creating a new library object.
-Published referenced versions and accepted evidence stay immutable.
-
-Preserve the common Quiz Engine: single_choice, multiple_choice, boolean, numeric, short_text,
-matching, ordering, long_text_manual; versioned question refs/pools, shuffle, server-saved
-answers, server timer, hidden answer key, mixed auto/manual assessment, selected result and
-regrade scoped to the exact runtime. There is no second quiz grading system.
-
-### 21.4 Knowledge and publication policy
-
-Knowledge discovers the SAME published content roots: article, video resource, lesson/material,
-course, assignment, quiz, programming task, collection. Question bank and answer keys are not
-public by default. Metadata: title, summary, subject/topic/category, tags, level, age/grade band,
-estimated duration, language, tool/module, assessment mode, exact published version, author,
-cover and access badge. Search/filters use type, subject/topic, tags, level, age/grade, duration,
-language, tool and assessment mode. Price/access badges and free/paid filters are future scope.
-
-Publishing an immutable version and making it public are separate actions. Policies include
-private/assigned only; unlisted/by link (not in catalog); public read only; public self-study;
-public teacher-led enrollment/application; and future paid access. A URL never supplies private
-authorization. Commerce is a later access policy over the same content, not a Course type.
-
-### 21.5 Reusable programming tasks
-
-ProgrammingTaskVersion uses the common Learning runtime. First required language is Python 3;
-the architecture remains language-agnostic. Versioned definition includes title, statement,
-language, runtime version, starter code, examples, public tests, hidden tests, CPU/memory/output
-limits, grading definition and feedback/reveal policy.
-
-| Action | Meaning |
-| --- | --- |
-| Запустить | Execute code; creates no Submission |
-| Проверить | Run permitted checks; creates no official Submission |
-| Сдать | Accept an exact code version into immutable Submission and common assessment |
-
-Attempt → Submission → Autograder job → evidence → AssessmentResultRevision → selected result
-→ Gradebook. Execution jobs and immutable evidence belong to the existing assessment pipeline;
-there is no separate «Python grades». Runner isolation, no network by default, resource limits,
-no secrets and no hidden-test disclosure are mandatory. Implementing the runner needs separate
-owner authorization after stabilization.
-
-### 21.6 Entry methods and temporary assessment access
-
-| Entry | Identity and authorization |
-| --- | --- |
-| Account | Normal authenticated participation with server-derived scope |
-| Persistent StudentSeat | Class code + individual login/pseudonym + secret/card; class code alone never authenticates |
-| Exact invitation/deep link | Resource navigation still requiring valid identity and authorization |
-| Public Knowledge link | Read/start from publication/enrollment policy; no private-class access |
-| Temporary assessment access | Restricted individual learner access within existing identity/auth/Learning contracts |
-
-AssessmentSeat / TemporaryLearningAccess names a TARGET semantic concept for a контрольная,
-диагностика, олимпиада, пробное занятие or one-off participant. It is not a fifth identity system,
-a Personal Account, or a redefinition of persistent StudentSeat. Scope is one exact ActivityRun,
-CourseRun or explicit small target set. It grants no roster, unrelated class/course, other learner
-or author-data access. Physical representation requires an architectural decision under existing
-tenant/RLS constraints; this specification alone authorizes no schema redesign.
-
-«Контрольная → Участники → Создать временные доступы» accepts count or pseudonym list and issues
-individual print cards/QR: assessment title, pseudonym, opaque individual credential, validity
-window. Real PII is not required solely to create a temporary profile/card. Shared public URL or
-class code is never an individual identity. Individual one-time activation token may establish a
-scoped session and become unusable, or an explicit policy may use short-lived individual credentials.
-Credential and session are distinct from stable learner identity and retained academic evidence.
-
-Expiry removes future access while retaining accepted Submission, Result, audit and evidence.
-Later Account/Seat linking requires proof of both identities plus applicable approval/reconciliation;
-name, IP, device, similar login or email alone never suffice. History IDs stay stable where the
-architecture permits, without silent reassignment of another person's history.
-
-### 21.7 Server-owned assessment time
-
-Distinguish credential expiry, session expiry, opensAt, dueAt, closesAt, Attempt.startedAt and
-Attempt.expiresAt. opensAt is earliest permitted start; dueAt is a pedagogical deadline; closesAt
-blocks new start/submit according to explicit policy. timeLimit begins with an explicit Start,
-using server time. For availability 10:00–12:00 and 45 minutes per Attempt, startedAt=serverNow
-and expiresAt=startedAt+45 minutes; the policy explicitly defines interaction with closesAt.
-Browser time is display only. Credential expiry never silently extends an Attempt timer.
-
-Strict preset example: one attempt, opens 10:00, closes 11:00, timeLimit 40 minutes, late submission
-blocked, delayed answer reveal, explicit Start, server timer; optional question/option shuffle or
-random pool. Reload or network disconnect resumes the SAME Attempt and spends no extra attempt.
-Expiry policy explicitly selects auto_submit or expire_without_submission, with idempotent server
-handling and no rewrite of accepted immutable evidence.
-
-### 21.8 Acceptance boundaries
-
-Prove library reuse across direct/class/course/discovery without duplicate roots; history-to-course
-creates a new draft; v3 publication cannot alter a v2 Run; run/check create no official Submission;
-runner limits and hidden tests remain protected. Temporary card accesses only its exact target;
-shared links cannot impersonate, expired/replayed activation fails, roster/unrelated content is denied,
-closing blocks new start, reconnect resumes the same Attempt, expiry preserves Submission/Result,
-and linking by name/device alone fails. These are TARGET acceptance cases, not implementation evidence.
