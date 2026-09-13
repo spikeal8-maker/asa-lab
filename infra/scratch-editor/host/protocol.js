@@ -62,10 +62,13 @@
         return true;
       }
       if (message.messageType === 'ASA_BLOCKS_STOP') {
-        options.onStop?.();
-        session = null;
-        stopped = true;
-        return true;
+        try {
+          options.onStop?.();
+          return true;
+        } finally {
+          session = null;
+          stopped = true;
+        }
       }
       return reject('message_type');
     };
