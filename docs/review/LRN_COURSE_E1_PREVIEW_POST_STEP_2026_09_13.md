@@ -1,5 +1,8 @@
 # Preview-as-Learner — POST_STEP_REVIEW
 
+Historical first-stage receipt. The total-SQL-read-only interpretation and 0137 below were superseded by [stabilization 02](LRN_PREVIEW_STABILIZATION_02_2026_09_13.md), which is the current bounded technical review. These earlier test results are preserved as history, not a statement about the final branch.
+
+
 - STEP: complete the already-open E1 author preview against exact saved draft and immutable published activity version.
 - CHANGE_CLASS: L3_CRITICAL (read-only authorization and migration boundary).
 - CHANGED: existing author endpoint/AssignmentView integration, explicit OpenAPI preview contract, additive read-only session resolver (0137), HTTP and browser regressions. A pre-existing unreachable `Attempt.state === accepted` branch in ClassroomGradebook was removed to restore typecheck after lifecycle convergence; pedagogical acceptance stays in Result.

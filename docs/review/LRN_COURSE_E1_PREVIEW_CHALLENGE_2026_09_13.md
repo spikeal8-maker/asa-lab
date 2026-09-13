@@ -1,5 +1,8 @@
 # Preview-as-Learner — CHALLENGE_REVIEW
 
+Historical first-stage receipt. The total-SQL-read-only interpretation and 0137 below were superseded by [stabilization 02](LRN_PREVIEW_STABILIZATION_02_2026_09_13.md), which is the current bounded technical review. These earlier test results are preserved as history, not a statement about the final branch.
+
+
 Separate critical self-review after the implementation pass. This is not an independent reviewer verdict or owner acceptance.
 
 | Challenge | Evidence and result |

@@ -21,3 +21,35 @@ Restoring the recovery Gradebook file reproduces exactly one Web type error, TS2
 ## Remaining evidence
 
 Final focused unit/type/build/browser, lint/contracts/governance evidence and exact GitHub status are recorded below when performed. This decision alone is not a full PASS, independent review, owner acceptance, release candidate, integration or deployment.
+
+## Final focused evidence and critical review
+
+Product/test revision: `68fbc3a2ec7334a8134c88025cd60bdcfd5d87cf` (variant B commit `6285f19a`, separate lifecycle commit `68fbc3a2`). Subsequent receipt/screenshot commit changes no source, migration, configuration or executable test.
+
+All applicable local commands used `NX_SKIP_NX_CACHE=true`, `NX_DAEMON=false`. Nx reported `Cache: Skipped (--skip-nx-cache)`:
+
+| Actual command | Result |
+|---|---|
+| `pnpm nx run api:build` | PASS, 15 tasks rerun |
+| `pnpm nx run web:typecheck` | PASS after isolated lifecycle fix, 6 tasks rerun |
+| `pnpm nx run web:build` | PASS, 6 tasks rerun |
+| `pnpm vitest run contexts/identity/testing apps/api/src/learning-activities.controller.spec.ts apps/web/src/session-fetch.spec.ts` | PASS, 43 tests in 5 suites; Vitest no Nx cache |
+| `node tools/migrate.mjs --apply` with exact `_test` confirmation | PASS, 135 files through 0136 on a newly created isolated database |
+| `pnpm vitest run tests/account/access-a.pg.spec.ts -t 'ordinary author session|preview as learner'` | PASS, 2 tests, 6 unrelated tests skipped |
+| `pnpm playwright test e2e/learning-author-preview.spec.ts --workers=1` | PASS, 1 real browser journey, exact published/draft and delayed response; no Preview mutation requests |
+| `pnpm exec eslint` on all bounded changed TS/TSX files | PASS |
+| `pnpm exec prettier --check` on those files and `schemas/openapi.yaml` | PASS |
+| `pnpm contracts:check` | PASS, 95 OpenAPI paths |
+| `pnpm db:migrate:check` | PASS, 135 files; no production connection |
+| `git diff --check recovery/e1-learning-20260913...HEAD` | PASS |
+| `pnpm gate:governance` | PASS, executed validators; no cache |
+
+Screenshots `e2e/artifacts/learning/author-preview/published-v1.png` and `saved-draft-r2.png` were refreshed by the browser run and visually inspected. They show the exact source and existing AssignmentView with readable instructions and no start/submit action. They are synthetic test evidence, not an owner UI/design acceptance or a full E1 journey.
+
+GitHub PR #210 uses the normal unmodified workflow on recovery base. Run [34756583238](https://github.com/spikeal8-maker/asa-lab/actions/runs/34756583238), exact product SHA `68fbc3a2`, has governance PASS; code gate FAIL at Prettier on 10 files whose blobs equal recovery; PostgreSQL and browser jobs SKIPPED. The duplicate push run was cancelled by PR-run concurrency and is not a product failure. Those formatting paths are AssignmentBrief.tsx, ClassroomAssignments.tsx, LearningConditions.tsx, LearningNotificationPreferences.tsx, SeatCourses.tsx, assignment-date-time.spec.ts, course-completion.spec.ts, canonical-learning-state.ts, learning-course-01.spec.ts, course-canonical-delivery.pg.spec.ts. They are deferred to the explicitly planned E1 baseline convergence, not silently repaired here. The final receipt commit's exact CI is reported on the PR; no green full repository gate is claimed.
+
+POST_STEP_REVIEW: L3_CRITICAL boundary cleanup. Promised Preview behavior preserved, Identity extension removed, exact source/version and learner-data denials proved, no academic mutation or new authority. DOC_DRIFT: earlier receipts labelled historical; proposed V1.4 compact clarification matches the academic boundary. VERDICT: PASS for bounded local technical checks, not full GitHub integration or owner acceptance.
+
+CHALLENGE_REVIEW (separate critical self-review, not independent acceptance): normal author heartbeat cannot change Account/Seat, credentials, expiry or session scope under the guard. Real learner sessions and academic tables reject all writes. Revoked/expired/suspended/membership-denied sessions remain denied by the unchanged resolver. Foreign versions/authors cannot reveal private sources; stale drafts conflict; late responses cannot select a stale source. Version/digest repeatability and no auto-refresh mutation are tested. No duplicate Identity source of truth or DB-first requirement remains beyond inherited Preview function 0136. Historical data and the already-created 0137 test DB remain intact.
+
+UNVERIFIED: full GitHub data/browser gate on final integrated E1/main; mixed-data upgrade; all remaining E1 flows; independent reviewer and owner acceptance. PR #210 stays Draft; no merge into recovery/main, no new feature slice, E1 DONE: NO, DEPLOYED: NO, E2/E3 STARTED: NO. STOP after this bounded review.
