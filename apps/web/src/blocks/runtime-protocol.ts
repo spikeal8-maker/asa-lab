@@ -43,6 +43,8 @@ export interface BlocksRuntimeInitOptions {
   onFatal?: (message: Record<string, unknown>) => void;
 }
 
+type BlocksRuntimeNonSecretOptions = Omit<BlocksRuntimeInitOptions, 'runtimeToken'>;
+
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -77,15 +79,19 @@ export class BlocksRuntimeBridge {
   readonly runtimeOrigin: string;
   readonly projectId: string;
 
+  private readonly options: BlocksRuntimeNonSecretOptions;
   private runtimeToken: string | null;
   private stopped = false;
+  private readonly pendingFlushRequestIds = new Set<string>();
 
-  constructor(private readonly options: BlocksRuntimeInitOptions) {
+  constructor(options: BlocksRuntimeInitOptions) {
     this.runtimeOrigin = requireExactHttpOrigin(options.runtimeOrigin);
     if (!UUID_RE.test(options.projectId)) throw new Error('Blocks projectId must be a UUID');
     if (!options.runtimeToken) throw new Error('Blocks runtimeToken is required');
+    const { runtimeToken, ...nonSecretOptions } = options;
+    this.options = nonSecretOptions;
     this.projectId = options.projectId;
-    this.runtimeToken = options.runtimeToken;
+    this.runtimeToken = runtimeToken;
     this.sessionNonce = createBlocksSessionNonce();
   }
 
@@ -131,7 +137,16 @@ export class BlocksRuntimeBridge {
   requestFlush(requestId: string): void {
     this.assertActive();
     if (!requestId) throw new Error('Blocks flush requestId is required');
-    this.post('ASA_BLOCKS_FLUSH_REQUEST', { requestId });
+    if (this.pendingFlushRequestIds.has(requestId)) {
+      throw new Error(`Blocks flush requestId is already pending: ${requestId}`);
+    }
+    this.pendingFlushRequestIds.add(requestId);
+    try {
+      this.post('ASA_BLOCKS_FLUSH_REQUEST', { requestId });
+    } catch (error) {
+      this.pendingFlushRequestIds.delete(requestId);
+      throw error;
+    }
   }
 
   stop(): void {
@@ -140,6 +155,7 @@ export class BlocksRuntimeBridge {
       this.post('ASA_BLOCKS_STOP');
     } finally {
       this.runtimeToken = null;
+      this.pendingFlushRequestIds.clear();
       this.stopped = true;
     }
   }
@@ -156,6 +172,13 @@ export class BlocksRuntimeBridge {
       message['sessionNonce'] !== this.sessionNonce
     ) {
       return false;
+    }
+    if (message['messageType'] === 'ASA_BLOCKS_FLUSH_RESULT') {
+      const requestId = message['requestId'];
+      if (typeof requestId !== 'string' || !this.pendingFlushRequestIds.has(requestId)) {
+        return false;
+      }
+      this.pendingFlushRequestIds.delete(requestId);
     }
 
     this.options.onMessage?.(message);
