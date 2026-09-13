@@ -1,338 +1,230 @@
-# ASA Games Platform — Requirements Traceability Matrix
+# ASA Games Platform — Requirements Traceability Matrix V2
 
-**Статус:** Draft  
-**Источник требований:** `ASA_GAMES_PLATFORM_TECHNICAL_SPECIFICATION.md`  
-**Назначение:** связать нормативные требования с компонентами, milestone и способом доказательства выполнения.
+**Статус:** Proposed  
+**Нормативное ТЗ:** `ASA_GAMES_PLATFORM_TECHNICAL_SPECIFICATION_V2.md`  
+**Порядок:** `ASA_GAMES_PLATFORM_VALUE_DELIVERY_PLAN.md`
 
 ---
 
-## 1. Правила использования
+# 1. Правила
 
-Каждая implementation task должна ссылаться минимум на один requirement ID из Master Technical Specification.
+Каждая implementation task обязана ссылаться минимум на один requirement ID V2 и один R-stage.
 
-Каждый requirement перед переводом в `DONE` должен иметь evidence:
+Requirement не переводится в `DONE` без evidence, соответствующего его природе:
 
-- automated test;
+- architecture decision/ADR;
 - schema/contract test;
-- browser/integration test;
-- security negative test;
-- load/fault test;
-- documentation/review evidence — только там, где требование архитектурное, а не runtime.
+- restricted-role security/RLS test;
+- integration/browser multi-client E2E;
+- retry/concurrency/reconnect evidence;
+- fault/load/soak test;
+- migration parity evidence.
 
 `Implemented` без evidence не считается выполнением.
 
----
-
-## 2. Traceability
-
-| Requirement | Область | Основной компонент | Milestone | Обязательное evidence |
-|---|---|---|---|---|
-| GP-SEC-001..005 | Trust model | Game Registry / Policy | GP-M1 | contract tests + policy matrix |
-| GP-FR-001..005 | Game Package / manifest | `@asa-lab/game-sdk`, Registry | GP-M1 | manifest schema + conformance tests |
-| GP-FR-010 | Source connection | Creator Platform | GP-M6 | GitHub/ZIP integration tests |
-| GP-FR-011 | Immutable Build | Build Service | GP-M6 | build fixture + digest repeatability test |
-| GP-SEC-010 | Build isolation | Build Service | GP-M6 | sandbox negative tests |
-| GP-NFR-010 | Build resource limits | Build Service | GP-M6 | CPU/RAM/PID/time limit tests |
-| GP-FR-012..015 | Release/channels/publication | Release Service | GP-M6 | lifecycle + rollback integration tests |
-| GP-FR-020..023 | Game Registry | Game Registry | GP-M1 | registry contract tests + disable/archive tests |
-| GP-FR-030..031 | Client SDK | Game Client SDK | GP-M6 | SDK conformance + sandbox demo game |
-| GP-SEC-020..023 | Client isolation | GameShell / SDK bridge | GP-M6 | cross-origin/message validation negative tests |
-| GP-FR-040..042 | Gaming identity | Games Identity Adapter | GP-M2 | migration/identity mapping tests |
-| GP-SEC-030 | Public DTO privacy | Identity/Profile API | GP-M2 | PII/internal-ID negative tests |
-| GP-FR-050..054 | Match Core | Match Core | GP-M2 | domain/schema tests + outcome authority tests |
-| GP-FR-060..063 | Command Runtime | Command Runtime | GP-M3 | idempotency/version/reconnect tests |
-| GP-SEC-040 | Adapter isolation | Command Runtime | GP-M3 | forbidden dependency/boundary tests |
-| GP-FR-070..074 | Realtime Room Runtime | Game Runtime | GP-M8 | Arena Mini certification |
-| GP-NFR-020..021 | Tick/input limits | Game Runtime | GP-M8 | load + tick-budget tests |
-| GP-FR-080..081 | Realtime Gateway | Gateway | GP-M7 | protocol/integration tests |
-| GP-NFR-030..031 | Backpressure/transport | Gateway | GP-M7 | slow-consumer + reconnect storm tests |
-| GP-FR-090..092 | Room allocation | Room Allocator | GP-M8 | allocation/capacity/health tests |
-| GP-SEC-050 | Room credentials | Auth/Gateway/Runtime | GP-M8 | expiry/scope/replay negative tests |
-| GP-FR-100..103 | Matchmaking | Matchmaker | GP-M4 | pairing/window/scope/block tests |
-| GP-FR-110..113 | Invites/Party/Social | Social Multiplayer | GP-M4 | invite/party/classmate integration tests |
-| GP-SEC-060 | Classmate privacy | Social Directory | GP-M4 | classroom-scope negative tests |
-| GP-FR-120..124 | Ratings | Rating Service | GP-M5 | deterministic policy + idempotency tests |
-| GP-SEC-070 | Rating authority | Rating/Match Core | GP-M5 | forged result/score negative tests |
-| GP-FR-130..133 | Stats/Leaderboards | Stats Projector | GP-M5 | rebuild/projection/visibility tests |
-| GP-FR-140..143 | History/Replay/Audit | History Service | GP-M5/M8 | command replay + realtime artifact tests |
-| GP-FR-150 | Achievements | Achievement Adapter | GP-M5/M6 | catalog/version tests |
-| GP-SEC-080 | Achievement authority | Achievement Adapter | GP-M5/M6 | forged unlock negative tests |
-| GP-FR-160..162 | Events/Tournaments | Event/Tournament Service | GP-M10 | lifecycle/bracket/event-scope tests |
-| GP-FR-170..171 | Developer Portal | Creator UI | GP-M6 | browser flows |
-| GP-FR-180 | Admin/Moderation | Games Admin | GP-M6/M10 | browser + permission tests |
-| GP-SEC-090 | Emergency disable | Registry/Admin | GP-M6 | disable-with-history-retained test |
-| GP-DATA-001..003 | Data model/RLS | PostgreSQL repositories | GP-M2 | migration + runtime-role RLS matrix |
-| GP-NFR-040..042 | Transactional outbox | Match Core/Outbox | GP-M2/M5 | atomicity + duplicate delivery tests |
-| GP-SEC-100..107 | Untrusted code/runtime security | Build/Sandbox/Runtime | GP-M6/M8 | security certification suite |
-| GP-PRIV-001..005 | Child privacy | Registry/Publishing/Analytics | GP-M6 | privacy policy tests + moderation review |
-| GP-FR-190..192 | Version compatibility | Registry/Match/Runtime | GP-M1/M2/M8 | compatibility/draining tests |
-| GP-API-001 | Generic API boundary | API | all | architecture test/review + endpoint inventory |
-| GP-RT-001..002 | Realtime schemas/reconnect | Gateway | GP-M7 | protocol schema + reconnect integration |
-| GP-NFR-050 | Observability labels | Observability | GP-M7/M8 | metrics snapshot test |
-| GP-NFR-060..063 | Deployment/scaling boundaries | Infra | GP-M7/M8/M10 | compose/deploy tests + provider-independent allocator contract |
-| GP-MIG-001 | Chess migration | Chess adapter | GP-M9 | parity + migration + compatibility E2E |
-| GP-MIG-002 | Checkers migration | Checkers adapter | GP-M9 | parity + migration + compatibility E2E |
-| GP-MIG-003..004 | Compatibility/additive migration | API/Data | GP-M9 | dual-read/cutover/rollback evidence |
+Если требование относится к более позднему stage, оно не должно становиться причиной speculative implementation в текущем stage.
 
 ---
 
-## 3. Milestone acceptance matrix
+# 2. R0 — Architecture Freeze
 
-### GP-M0 — Architecture acceptance
-
-Must have:
-
-- current-state audit accepted;
-- ADR-GAME-001 reviewed;
-- ADR-GAME-002 reviewed;
-- Master Technical Specification reviewed;
-- open questions recorded explicitly;
-- no runtime code required.
-
-### GP-M1 — SDK + Registry
-
-Must prove:
-
-```text
-manifest validation
-capability request/grant distinction
-integration mode
-trust level
-version compatibility metadata
-game enable/disable/archive
-```
-
-Exit condition:
-
-A fake game can register without importing API/DB infrastructure.
-
-### GP-M2 — Identity + Match Core
-
-Must prove:
-
-```text
-stable game player projection
-no duplicate auth system
-canonical GameMatch
-participants/outcomes
-events/receipts
-RLS
-outbox atomicity
-public DTO privacy
-```
-
-Exit condition:
-
-Generic match can be created/finished and projected without Chess/Checkers-specific columns.
-
-### GP-M3 — Command Runtime
-
-Certification game: **Tic-Tac-Toe**.
-
-Must prove:
-
-```text
-generic command endpoint
-server rule authority
-idempotency
-optimistic concurrency
-reconnect
-history
-no game-specific networking service
-```
-
-Exit condition:
-
-Tic-Tac-Toe multiplayer works entirely through shared Games infrastructure.
-
-### GP-M4 — Social Multiplayer
-
-Must prove:
-
-```text
-private invite
-classmate invite
-party
-quick queue
-scope restrictions
-blocked-player policy
-```
-
-Exit condition:
-
-At least two registered games use the same invite/matchmaker stack.
-
-### GP-M5 — Competitive Services
-
-Must prove:
-
-```text
-rating ledger
-projection rebuild
-profile stats
-head-to-head
-leaderboard scopes
-bot separation
-```
-
-Exit condition:
-
-Deleting/rebuilding derived stats reproduces the same results from authoritative data.
-
-### GP-M6 — Creator/Publishing MVP
-
-Must prove:
-
-```text
-GitHub or ZIP source
-isolated build
-immutable GameBuild
-GameRelease
-channels
-rollback
-sandbox-web
-SDK capabilities
-private publication
-classroom publication
-admin review
-```
-
-Exit condition:
-
-A student web game can be imported, built, previewed and published to a class without gaining ASA cookies/internal API access.
-
-### GP-M7 — Realtime Gateway
-
-Must prove:
-
-```text
-authenticated websocket
-subscriptions
-presence
-match events
-bounded queues
-slow consumer handling
-reconnect storms
-graceful shutdown
-```
-
-Exit condition:
-
-Gateway failure/restart does not corrupt durable match truth.
-
-### GP-M8 — Room Runtime
-
-Certification game: **ASA Arena Mini**.
-
-Must prove:
-
-```text
-allocator
-room token
-server authority
-input sequencing
-30Hz-class tick loop or justified equivalent
-snapshot/delta
-resync
-room crash policy
-graceful drain
-no per-tick DB dependency
-```
-
-Exit condition:
-
-Arena Mini runs 4–8 players through generic room runtime and produces authoritative final result consumed by Games Core.
-
-### GP-M9 — Existing Game Migration
-
-Must prove independently for Chess and Checkers:
-
-```text
-feature parity
-history compatibility
-no data loss
-no rating double-application
-existing classroom flows preserved or deliberately converged
-rollback path
-```
-
-Exit condition:
-
-Legacy game-specific online infrastructure is no longer required for new matches.
-
-### GP-M10 — Events / Scale Hardening
-
-Must prove:
-
-```text
-event lifecycle
-season/tournament
-runtime scale-out
-cross-instance presence if needed
-capacity evidence
-operational runbooks
-```
-
-Infrastructure such as Redis/Agones/Kafka is introduced only when evidence justifies it.
-
----
-
-## 4. Security certification matrix
-
-| Threat | Required control | Evidence |
+| Requirement | Компонент/решение | Evidence |
 |---|---|---|
-| forged match result | server-authoritative outcome | negative API/runtime test |
-| duplicate command | command receipt/idempotency | retry test |
-| internal ID leakage | public DTO mapping | snapshot/negative test |
-| hidden-state leakage | viewer-specific projection | adversarial viewer test |
-| malicious iframe | isolated origin + message validation | browser security test |
-| malicious build | isolated build + resource limits | sandbox test |
-| malicious runtime | non-root/no-secrets/no-DB | container policy test |
-| cross-tenant access | RLS + application authz | runtime-role matrix |
-| room token theft/replay | short TTL + scope + replay policy | security test |
-| websocket flood | rate/size/backpressure limits | load/abuse test |
-| leaderboard forgery | authoritative source only | forged score test |
-| double rating | unique/idempotent rating event | retry/concurrency test |
+| GP-R0-001 | Gaming Identity ADR | Account/StudentSeat/Principal lifecycle matrix + public DTO contract |
+| GP-R0-002 | Games Security Domain ADR | storage/security placement diagrams + cross-workspace authz model + negative-test plan |
+| GP-R0-003 | Canonical Match dimensions | typed domain model review; no overloaded `mode` |
+| GP-R0-004 | Match state machine | transition table + termination reason matrix |
+| GP-R0-005 | Teams first-class | duel/FFA/team fixtures representable without game-specific columns |
+| GP-R0-006 | Minimal capability vocabulary | approved R1–R4 capability list |
+| GP-VALUE-001..005 | Delivery governance | accepted Value Delivery Plan + Delivery Brief template |
+| error/idempotency minimum | API contract | version/idempotency/error taxonomy accepted before R1 |
+
+**R0 Gate:** no shared Games migration/API implementation before all rows are accepted.
 
 ---
 
-## 5. Privacy certification matrix
+# 3. R1 — Checkers Online: Private Match
 
-Before any public/community rollout verify:
+| Requirement | Компонент | Evidence |
+|---|---|---|
+| GP-FR-001..004 | Minimal Game Registry | registry contract tests; Checkers registered/disableable |
+| GP-FR-040..042 | Gaming Identity | stable resolver tests + privacy redaction |
+| GP-SEC-030 | Public identity privacy | no internal IDs/email/class metadata snapshots |
+| GP-FR-050..054 | Match Core | schema/domain tests + authoritative outcome negative test |
+| GP-FR-060..063 | Command Runtime | duplicate command/version conflict/reconnect integration |
+| GP-SEC-040 | Adapter boundary | Checkers adapter has no rating/notification/DB direct write |
+| GP-NFR-040..041 | atomic finish/outbox | transaction rollback + duplicate consumer tests |
+| GP-FR-140 | history | finished Checkers appears identically to both participants |
+| GP-QA-001..004 | evidence | 2-browser real match with reconnect and exact SHA |
+| GP-GOV-001..005 | bounded changes | Delivery Brief, no unrelated rewrite, separate deploy/enable |
 
-- student game starts private;
-- classroom publication visible only permitted audience;
-- public alias does not expose school/class/internal learner mapping;
-- analytics fields are allowlisted;
-- logs contain no secrets/child-sensitive payload;
-- classmate relationship is not globally enumerable;
-- moderation can suspend game/release/player interaction without deleting evidence/history.
-
----
-
-## 6. Documentation consistency gate
-
-Before milestone close:
-
-1. implementation matches Master Technical Specification;
-2. traceability row has evidence;
-3. ADR status reflects accepted/rejected decisions;
-4. Developer Integration Guide matches actual SDK;
-5. Package/Publishing spec matches actual build/release model;
-6. Testing/Certification document matches CI suites;
-7. no documentation claims a capability that is not implemented.
+**R1 Product evidence:** two users complete one authoritative network Checkers match.
 
 ---
 
-## 7. Definition of traceability complete
+# 4. R2 — Quick Match + Generic Command Proof
 
-Traceability is complete when every normative requirement in the Master Technical Specification is either:
+| Requirement | Компонент | Evidence |
+|---|---|---|
+| GP-FR-100..103 | Matchmaker duel V1 | pair/cancel/expiry/race/version compatibility tests |
+| GP-FR-050..063 reuse | Tic-Tac-Toe adapter | no bespoke network repo/controller; generic reconnect/history |
+| GP-VALUE-003 | abstraction reuse | Checkers + XO use same Match Core/command/matcher contracts |
+
+**R2 Product evidence:** Checkers Quick Match works between two users; XO works on same core.
+
+---
+
+# 5. R3 — Competitive Checkers
+
+| Requirement | Компонент | Evidence |
+|---|---|---|
+| GP-FR-120..123 | Rating Service/Policy | deterministic fixtures + unique match/player/pool application |
+| GP-FR-130 | Stats projector | delete/rebuild projection → identical totals |
+| GP-FR-133 | Leaderboard | per-game/pool privacy-aware ranking tests |
+| GP-SEC-105 | server authority | forged client result/score cannot alter rating |
+| GP-NFR-041 | projector idempotency | duplicate outbox event harmless |
+
+**R3 Product evidence:** rated Checkers match produces one correct rating delta, profile/stats/history/leaderboard.
+
+---
+
+# 6. R4 — Chess Convergence
+
+| Requirement | Компонент | Evidence |
+|---|---|---|
+| GP-MIG-001 | Chess donor decomposition | generic vs chess-owned mapping review |
+| GP-MIG-002 | shadow projection | representative results/events/rating deltas parity |
+| GP-MIG-003 | compatibility API | old API contract suite against delegated new path |
+| GP-MIG-004 | additive migration | no destructive cleanup in cutover release |
+| GP-VALUE-003 | abstraction reuse | mature Chess + Checkers consume same generic services |
+
+**R4 Product evidence:** new Chess match runs through Games Core/compatibility delegation with no semantic regression.
+
+---
+
+# 7. R5 — Classroom Social Play
+
+| Requirement | Компонент | Evidence |
+|---|---|---|
+| GP-FR-110 | Invite Service | generic invite works for Checkers/Chess |
+| GP-FR-112 | Party minimal contract | lifecycle tests only where required for next realtime/team stage |
+| GP-FR-113 | Social Directory | Classroom + Recent Opponents providers |
+| GP-SEC-060 | classroom privacy | cross-class/cross-tenant/global negative tests |
+| GP-SEC-030 | public DTO privacy | class/school metadata absent from global views |
+
+**R5 Product evidence:** permitted classmates can invite/play; classroom leaderboard/H2H restricted correctly.
+
+---
+
+# 8. R6 — Realtime Platform + Arena Mini
+
+| Requirement | Компонент | Evidence |
+|---|---|---|
+| GP-FR-080..081 | Realtime Gateway | auth/subscription/fanout tests; no game physics imports |
+| GP-NFR-030..031 | Gateway backpressure/transport | slow-consumer + reconnect-storm load tests |
+| GP-FR-070 | server-authoritative room | malicious set-position/score claims rejected |
+| GP-FR-072 | Room Protocol | schema/version/reconnect/resync tests |
+| GP-FR-090..092 | Allocator/token | capacity/version/token isolation tests |
+| GP-RT-LEASE-001 | fencing | stale runtime callback/allocation generation rejected |
+| GP-NFR-020..021 | tick/hot path | p95/p99/overrun + no per-tick blocking SQL proof |
+| GP-FR-052 | teams | Arena 2v2 uses canonical team outcome path |
+| GP-QA-001..004 | realtime evidence | 4-client FFA + 2v2 + crash/reconnect/load artifacts |
+
+**R6 Product evidence:** Arena Mini FFA and 2v2 work end-to-end.
+
+---
+
+# 9. R7 — Creator Web Games MVP
+
+| Requirement | Компонент | Evidence |
+|---|---|---|
+| GP-CREATOR-001..002 | Build/Release model | exact source revision → immutable build; rollback without rebuild |
+| GP-SEC-010 | Build sandbox | secrets/DB/socket/privilege negative tests |
+| GP-SEC-101 | Client sandbox | cookie/DOM/cross-origin escape negative tests |
+| GP-CAP-001..002 | capability grants | request cannot self-grant; release/audience-scoped enforcement |
+| GP-NET-001 | external network policy | deny-by-default `connect-src`/gateway tests |
+| GP-OWN-001 | ownership | principal/workspace/platform ownership + reviewer authority tests |
+| GP-QUOTA-001 | quotas | build/storage/log limits enforced |
+| Game Storage Contract | storage SDK | quota/version/visibility/delete tests |
+| GP-PRIV-001..004 | student privacy | private-by-default + classroom approval + analytics allowlist |
+| GP-QA creator proof | Creator Sample | GitHub→build→preview→approval→classroom→save→upgrade→rollback |
+
+**R7 Product evidence:** student web game launches safely for a classroom without ASA cookies/DB/internal APIs.
+
+---
+
+# 10. R8 — Creator Multiplayer Rules — conditional
+
+No requirements become implementation commitments until owner approves R8 Delivery Brief.
+
+Mandatory evidence before production:
+
+- managed-command sandbox ADR;
+- threat model;
+- feasibility benchmark;
+- CPU/memory/time/network/filesystem limits;
+- deterministic/retry behavior;
+- hidden-information fixture;
+- creator multiplayer certification.
+
+WASM/WASI is candidate only until ADR acceptance.
+
+---
+
+# 11. R9 — Events/Tournaments/Scale — demand-driven
+
+No speculative commitments.
+
+Any of the following requires a separate Delivery Brief + measured justification:
 
 ```text
-IMPLEMENTED + evidence
-DEFERRED + approved reason/milestone
-REJECTED + ADR/review rationale
-NOT_APPLICABLE + justified scope
+Redis
+Kafka/NATS
+Kubernetes/Agones
+WebTransport
+regional runtime fleet
+community creator publication
+advanced tournament formats
+verified external room runtimes
 ```
 
-Requirements must not silently disappear during implementation.
+---
+
+# 12. Cross-cutting requirement mapping
+
+| Requirement group | Earliest stage | Rule |
+|---|---:|---|
+| GP-ARCH-001..006 | R0/R1 | logical boundaries first; physical split only by need |
+| GP-NFR-040..042 | R1 | durable match consistency before ratings/stats |
+| GP-FR-140..142 | R1/R6 | command history now; realtime replay only when required |
+| GP-SEC-100..106 | R1/R6/R7 | enforce at first surface that exposes corresponding risk |
+| GP-PRIV-* | R1/R5/R7 | privacy tests expand with discovery/publication surfaces |
+| GP-API rules | every stage | exact DTO/errors/limits defined immediately before endpoint implementation |
+| resource limits | R1/R6/R7 | command → realtime → creator quotas progressively |
+| GP-GOV-* | all | bots/agents cannot silently widen scope |
+
+---
+
+# 13. Product completion gates
+
+## Games Core Alpha — R3
+
+Must have PASS evidence for R1–R3. Later Realtime/Creator requirements do not block this release.
+
+## Games Core V1 — R4
+
+Must have mature Chess+Checkers convergence evidence.
+
+## School Games V1 — R5
+
+Must have classroom privacy/social evidence.
+
+## Realtime Games V1 — R6
+
+Must have Arena FFA + teams + allocator fencing/load evidence.
+
+## Creator Web Games V1 — R7
+
+Must have Creator Sample publishing/security evidence.
+
+R8/R9 are optional future capabilities and do not retroactively prevent declaring earlier product checkpoints complete.
