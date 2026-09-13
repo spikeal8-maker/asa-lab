@@ -1,0 +1,214 @@
+schema_version: 1.0.0
+context: learning
+surfaces:
+- id: SURF-CLASSROOM-GRADEBOOK
+  routes:
+  - '#/classrooms/:classroomId'
+  implementation:
+    files:
+    - apps/web/src/pages/ClassroomPage.tsx
+    - apps/web/src/components/ClassroomGradebook.tsx
+    - apps/web/src/api.ts
+    - apps/api/src/learning-assessments.controller.ts
+    - apps/api/src/learning-canonical-projection.service.ts
+  invariants:
+  - LRN-ATT-001
+  - LRN-ATT-002
+  - LRN-SUB-001
+  - LRN-ASM-001
+  - LRN-SEL-001
+  - LRN-GRD-001
+  - LRN-AUTH-001
+  - LRN-FBK-001
+  tests:
+  - TST-LRN-COURSE-E1-CORE-001
+  - TST-LRN-COURSE-E1-E2E-001
+  controls:
+  - id: CTRL-GRADEBOOK-REVIEW
+    label: Review or return a learner submission
+    change_class: L3_CRITICAL
+    files:
+    - apps/web/src/components/ClassroomGradebook.tsx
+    - apps/web/src/api.ts
+    - apps/api/src/learning-assessments.controller.ts
+    - apps/api/src/learning-canonical-projection.service.ts
+    invariants:
+    - LRN-ATT-001
+    - LRN-ATT-002
+    - LRN-SUB-001
+    - LRN-ASM-001
+    - LRN-SEL-001
+    - LRN-GRD-001
+    - LRN-AUTH-001
+    tests:
+    - TST-LRN-COURSE-E1-CORE-001
+    - TST-LRN-COURSE-E1-E2E-001
+    commands:
+    - review_attempt
+    - return_for_revision
+  - id: CTRL-GRADEBOOK-SCHEME
+    label: Change grading scheme for future work
+    change_class: L2_DOMAIN_MUTATION
+    files:
+    - apps/web/src/components/ClassroomGradebook.tsx
+    - apps/web/src/api.ts
+    - apps/api/src/learning-assessments.controller.ts
+    invariants:
+    - LRN-GRD-001
+    - LRN-SEL-001
+    - LRN-AUTH-001
+    tests:
+    - TST-LRN-COURSE-E1-CORE-001
+    commands:
+    - publish_grading_scheme
+- id: SURF-AUTHOR-LEARNING-LIBRARY
+  routes:
+  - '#/challenges'
+  implementation:
+    files:
+    - apps/web/src/App.tsx
+    - apps/web/src/pages/AssignmentLibraryPage.tsx
+    - apps/web/src/pages/AuthoredMaterialsPage.tsx
+    - apps/web/src/components/CoursesPanel.tsx
+    - apps/web/src/api.ts
+    - apps/api/src/learning-activities.controller.ts
+    - apps/api/src/courses.controller.ts
+  invariants:
+  - LRN-ARCH-001
+  - LRN-VER-001
+  - LRN-RUN-001
+  - LRN-AUTH-001
+  - LRN-PRV-001
+  tests:
+  - TST-LRN-COURSE-E1-CORE-001
+  - TST-LRN-COURSE-E1-E2E-001
+  controls:
+  - id: CTRL-AUTHOR-CREATE-MATERIAL
+    label: Create a private authored learning material
+    change_class: L2_DOMAIN_MUTATION
+    files:
+    - apps/web/src/pages/AuthoredMaterialsPage.tsx
+    - apps/web/src/api.ts
+    - apps/api/src/learning-activities.controller.ts
+    invariants:
+    - LRN-VER-001
+    - LRN-AUTH-001
+    tests:
+    - TST-LRN-COURSE-E1-CORE-001
+    commands:
+    - create_authored_activity
+  - id: CTRL-AUTHOR-COURSE-BUILDER
+    label: Edit and publish course content
+    change_class: L2_DOMAIN_MUTATION
+    files:
+    - apps/web/src/pages/AssignmentLibraryPage.tsx
+    - apps/web/src/components/CoursesPanel.tsx
+    - apps/web/src/api.ts
+    - apps/api/src/courses.controller.ts
+    invariants:
+    - LRN-ARCH-001
+    - LRN-VER-001
+    - LRN-RUN-001
+    - LRN-AUTH-001
+    tests:
+    - TST-LRN-COURSE-E1-CORE-001
+    - TST-LRN-COURSE-E1-E2E-001
+    commands:
+    - course_save
+    - course_publish
+    - course_assign
+  - id: CTRL-AUTHOR-PREVIEW-AS-LEARNER
+    label: Preview one exact authored activity as a learner without creating learner runtime state
+    change_class: L3_CRITICAL
+    files:
+    - apps/web/src/pages/AuthoredMaterialsPage.tsx
+    - apps/web/src/components/AssignmentView.tsx
+    - apps/web/src/api.ts
+    - apps/api/src/learning-activities.controller.ts
+    invariants:
+    - LRN-VER-001
+    - LRN-PRV-001
+    - LRN-AUTH-001
+    tests:
+    - TST-LRN-COURSE-E1-CORE-001
+    - TST-LRN-COURSE-E1-E2E-001
+    commands:
+    - preview_authored_activity_as_learner
+- id: SURF-LEARNER-LEARNING
+  routes:
+  - '#/learning'
+  implementation:
+    files:
+    - apps/web/src/pages/LearningPage.tsx
+    - apps/web/src/pages/AttendedClassesPage.tsx
+    - apps/web/src/components/SeatCourses.tsx
+    - apps/web/src/components/SeatAssignments.tsx
+    - apps/web/src/components/SeatResults.tsx
+    - apps/web/src/api.ts
+    - apps/api/src/classroom-join.controller.ts
+    - apps/api/src/courses.controller.ts
+    - apps/api/src/learning-canonical-projection.service.ts
+  invariants:
+  - LRN-ARCH-001
+  - LRN-IDN-001
+  - LRN-RUN-001
+  - LRN-AUD-001
+  - LRN-ATT-001
+  - LRN-ATT-002
+  - LRN-SUB-001
+  - LRN-SEL-001
+  - LRN-CMP-001
+  - LRN-AUTH-001
+  tests:
+  - TST-LRN-COURSE-E1-CORE-001
+  - TST-LRN-COURSE-E1-E2E-001
+  controls:
+  - id: CTRL-LEARNER-OPEN-PROJECT
+    label: Open or resume assigned project work
+    change_class: L1_UI_BEHAVIOR
+    files:
+    - apps/web/src/pages/LearningPage.tsx
+    - apps/web/src/components/SeatCourses.tsx
+    - apps/web/src/components/SeatAssignments.tsx
+    invariants:
+    - LRN-ARCH-001
+    - LRN-ATT-002
+    - LRN-AUTH-001
+    tests:
+    - TST-LRN-COURSE-E1-E2E-001
+    commands:
+    - open_or_resume_project
+  - id: CTRL-LEARNER-SUBMIT-WORK
+    label: Submit exact project evidence
+    change_class: L3_CRITICAL
+    files:
+    - apps/web/src/components/SeatAssignments.tsx
+    - apps/web/src/api.ts
+    - apps/api/src/classroom-join.controller.ts
+    - apps/api/src/learning-canonical-projection.service.ts
+    invariants:
+    - LRN-ATT-001
+    - LRN-ATT-002
+    - LRN-SUB-001
+    - LRN-SEL-001
+    - LRN-AUTH-001
+    tests:
+    - TST-LRN-COURSE-E1-CORE-001
+    - TST-LRN-COURSE-E1-E2E-001
+    commands:
+    - submit_project_evidence
+  - id: CTRL-LEARNER-VIEW-RESULT
+    label: View canonical selected result
+    change_class: L1_UI_BEHAVIOR
+    files:
+    - apps/web/src/components/SeatResults.tsx
+    - apps/web/src/api.ts
+    - apps/api/src/learning-canonical-projection.service.ts
+    invariants:
+    - LRN-SEL-001
+    - LRN-GRD-001
+    - LRN-FBK-001
+    tests:
+    - TST-LRN-COURSE-E1-CORE-001
+    commands:
+    - read_selected_result

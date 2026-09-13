@@ -632,3 +632,51 @@ requirements:
   evidence: []
   tests:
   - SEC-NEGATIVE-MATRIX
+- id: PRG-001
+  milestone: TARGET
+  status: target
+  summary: Reusable programming task uses the common Learning runtime and versioned submission evidence
+  evidence: []
+  tests: []
+- id: PRG-002
+  milestone: TARGET
+  status: target
+  summary: Run and check create no official Submission; submit accepts an exact immutable code version
+  evidence: []
+  tests: []
+- id: PRG-003
+  milestone: TARGET
+  status: target
+  summary: Runner is isolated, resource-limited, has no network by default, secrets or hidden-test disclosure
+  evidence: []
+  tests: []
+- id: ACC-ASM-001
+  milestone: TARGET
+  status: target
+  summary: Shared URL or class code alone never authenticates a temporary assessment learner
+  evidence: []
+  tests: []
+- id: ACC-ASM-002
+  milestone: TARGET
+  status: target
+  summary: Temporary access is scoped to exact runtime targets and grants no roster or unrelated content
+  evidence: []
+  tests: []
+- id: ACC-ASM-003
+  milestone: TARGET
+  status: target
+  summary: Credential and session expiry preserve accepted Submission, Result, audit and evidence
+  evidence: []
+  tests: []
+- id: ACC-ASM-004
+  milestone: TARGET
+  status: target
+  summary: Server owns assessment windows and timeLimit; reconnect resumes the same Attempt
+  evidence: []
+  tests: []
+- id: CAT-PRG-001
+  milestone: TARGET
+  status: target
+  summary: Knowledge discovery reuses published content roots including assignments, quizzes and programming tasks
+  evidence: []
+  tests: []

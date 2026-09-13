@@ -59,14 +59,12 @@ Reuse correct components. Record only concrete gaps relative to E1 and start wit
 - no general redesign of Electronics/3D;
 - no production update.
 
-## Progress note format
+## Execution-state boundary
 
-Keep this file short. Update only:
-- current checkpoint;
-- concrete changed files/migrations;
-- exact tests actually run;
-- owner-visible demo/evidence;
-- remaining E1 MUSTs;
-- blocker, if one is real.
+This file is a static scope/task package. Do **not** update current checkpoint,
+status, head SHA, gate outcomes or blockers here. Those values live only in
+`docs/execution/current.yaml` and executable CI/evidence.
 
-Do not paste long logs into the note.
+Implementation details that become durable product rules belong in the canonical
+product/domain contracts. Temporary progress belongs in Git/CI or explicit review
+evidence, not in this package.

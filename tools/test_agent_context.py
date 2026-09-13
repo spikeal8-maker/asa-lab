@@ -34,6 +34,26 @@ def fixture(root: Path, checkpoint: str = "math_10a3_meter") -> dict:
         encoding="utf-8",
     )
     (root / "AGENTS.md").write_text("policy", encoding="utf-8")
+    registry_path = root / "docs/agent/document-registry.yaml"
+    registry_path.parent.mkdir(parents=True, exist_ok=True)
+    registry_path.write_text(
+        yaml.safe_dump(
+            {
+                "documents": [
+                    {
+                        "id": "ELECTRONICS-MASTER",
+                        "path": "docs/product/electronics/README.md",
+                        "lanes": ["electronics"],
+                        "status": "canonical",
+                        "context_role": "escalation",
+                        "authority": "electronics_semantics",
+                    }
+                ]
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
     document = {
         "development_policy": {"mode": "direct_main"},
         "task": {
@@ -294,6 +314,112 @@ class AgentContextTests(unittest.TestCase):
         output = result.stdout.decode("utf-8", errors="strict")
         self.assertIn("gitStatus: unavailable", output)
         self.assertIn("git executable unavailable", output)
+
+    def test_registry_routes_master_as_read_if_needed(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            document = fixture(root)
+            context = MODULE.build_context(
+                root, document, lane(document), git_status=available()
+            )
+            rendered = MODULE.render_text(context)
+        self.assertEqual(
+            context["document_routes"]["read_if_needed"][0]["id"],
+            "ELECTRONICS-MASTER",
+        )
+        self.assertIn("readIfNeeded:", rendered)
+        self.assertIn("ELECTRONICS-MASTER", rendered)
+
+    def test_registered_but_not_routed_doc_is_not_called_unregistered(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            document = fixture(root)
+            extra = root / "docs/product/electronics/ADR.md"
+            extra.write_text("# ADR\n", encoding="utf-8")
+            document["parallel_lanes"][0]["owned_paths"].append(
+                "docs/product/electronics/ADR.md"
+            )
+            registry_path = root / "docs/agent/document-registry.yaml"
+            registry = yaml.safe_load(registry_path.read_text(encoding="utf-8"))
+            registry["documents"].append(
+                {
+                    "id": "OTHER-ADR",
+                    "path": "docs/product/electronics/ADR.md",
+                    "lanes": ["other"],
+                    "status": "canonical",
+                    "context_role": "escalation",
+                    "authority": "other_architecture",
+                }
+            )
+            registry_path.write_text(
+                yaml.safe_dump(registry, sort_keys=False), encoding="utf-8"
+            )
+            context = MODULE.build_context(
+                root, document, lane(document), git_status=available()
+            )
+        self.assertNotIn(
+            "docs/product/electronics/ADR.md",
+            context["unregistered_contract_documents"],
+        )
+
+    def test_delegated_provider_docs_are_not_called_unregistered(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            document = fixture(root)
+            delegated = root / "docs/product/electronics/components/module.yaml"
+            delegated.parent.mkdir(parents=True, exist_ok=True)
+            delegated.write_text("component: test\n", encoding="utf-8")
+            outside = root / "docs/product/electronics/provider-notes.md"
+            outside.write_text("notes\n", encoding="utf-8")
+            document["parallel_lanes"][0]["owned_paths"].extend(
+                [
+                    "docs/product/electronics/components/module.yaml",
+                    "docs/product/electronics/provider-notes.md",
+                ]
+            )
+            registry_path = root / "docs/agent/document-registry.yaml"
+            registry = yaml.safe_load(registry_path.read_text(encoding="utf-8"))
+            registry["documents"].append(
+                {
+                    "id": "ELECTRONICS-GUIDE",
+                    "path": "docs/product/electronics/README.md",
+                    "lanes": ["electronics"],
+                    "status": "canonical",
+                    "context_role": "compact",
+                    "authority": "electronics_maintenance",
+                    "delegated_roots": ["docs/product/electronics/components/**"],
+                }
+            )
+            registry_path.write_text(
+                yaml.safe_dump(registry, sort_keys=False), encoding="utf-8"
+            )
+            context = MODULE.build_context(
+                root, document, lane(document), git_status=available()
+            )
+            rendered = MODULE.render_text(context)
+        self.assertNotIn(
+            "docs/product/electronics/components/module.yaml",
+            context["unregistered_contract_documents"],
+        )
+        self.assertIn(
+            "docs/product/electronics/provider-notes.md",
+            context["unregistered_contract_documents"],
+        )
+        self.assertIn("delegatedDocs:", rendered)
+        self.assertIn("docs/product/electronics/components/**", rendered)
+
+    def test_normative_refs_are_visible_in_context(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            document = fixture(root)
+            target = lane(document)
+            target["task"]["normative_refs"] = [
+                {"document": "ELECTRONICS-MASTER", "revision": "1.0"}
+            ]
+            context = MODULE.build_context(root, document, target, git_status=available())
+            rendered = MODULE.render_text(context)
+        self.assertIn("normativeRefs:", rendered)
+        self.assertIn("ELECTRONICS-MASTER@1.0", rendered)
 
 
 if __name__ == "__main__":

@@ -1,14 +1,14 @@
-# ASA Lab — Integrated Implementation Specification V1.4
+# ASA Lab — Integrated Implementation Specification V1.3
 
-**Document:** `PRODUCT-INTEGRATED-V14` · **Revision:** 1.4
-**Status:** NORMATIVE TARGET + DELIVERY CONTRACT
-**Revision basis:** Owner-requested amendment of 2026-09-13. The previous V1.3 roadmap acceptance of 2026-09-10 remains pinned to its historical snapshot; this revision does not accept any implementation or authorize production.
-**Canonical path:** `docs/product/ASA_INTEGRATED_IMPLEMENTATION_SPEC.md`
+**Document:** `ASA-INTEGRATED-IMPLEMENTATION`  
+**Status:** NORMATIVE TARGET + DELIVERY CONTRACT  
+**Accepted by owner:** 2026-09-10 for use as the integrated roadmap; acceptance does not authorize production.  
+**Canonical path:** `docs/product/ASA_INTEGRATED_IMPLEMENTATION_SPEC.md`  
 **Current execution state:** only `docs/execution/current.yaml`.  
 **Academic semantics:** `ASA_LEARNING_TECHNICAL_SPEC.md`.  
 **Users/access/settings:** `ASA_USERS_ACCESS_AND_SETTINGS_SPEC.md`.
 
-This document is the canonical V1.4 edition, extending the accepted V1.3 plan. It deliberately does not duplicate SQL, OpenAPI or every historical ledger row. Those live in executable migrations/OpenAPI and the existing Requirements Ledger. The purpose here is to make the target product, delivery order, page boundaries, user actions and acceptance gates unambiguous without forcing agents to reread the historical planning archive.
+This document is the compact canonical edition of the accepted V1.3 plan. It deliberately does not duplicate SQL, OpenAPI or every historical ledger row. Those live in executable migrations/OpenAPI and the existing Requirements Ledger. The purpose here is to make the target product, delivery order, page boundaries, user actions and acceptance gates unambiguous without forcing agents to reread the historical planning archive.
 
 ## 0. Non-negotiable product model
 
@@ -137,7 +137,7 @@ It must not create or mutate:
 - Account/Seat;
 - Enrollment/Participation;
 - Attempt/Submission;
-- Completion/AssessmentResult/Gradebook/LearningNotification;
+- Completion/Result;
 - a real learner session.
 
 It is not impersonation and never reveals a real learner's private answer/draft.
@@ -616,143 +616,3 @@ For the active stage:
 7. run the required candidate gate once, demonstrate, and stop for owner acceptance/release decision.
 
 Do not restart a general architecture audit, create a second queue, or advance to the next stage automatically.
-
-
-## 21. V1.4 content library and delivery contract
-
-This section adds TARGET requirements. It does not authorize implementation of later stages,
-the Python runner, commerce, tenant/RLS redesign, or deployment. Existing E1 boundaries and
-the canonical academic chain remain in force. Current task/checkpoint exists only in
-`docs/execution/current.yaml`. Prior editions are byte-preserved historical snapshots in
-the Document Registry; accepted results retain their original normative revisions.
-
-### 21.1 Four user areas, one content library
-
-| Area | User purpose |
-| --- | --- |
-| Знания | Public discovery, reading and policy-permitted self-study |
-| Курсы и задания | One personal author content library |
-| Классы | Organized teaching of actual people |
-| Моё обучение | One learner view across permitted delivery sources |
-
-Library filters: Все, Курсы, Материалы, Задания, Тесты, Программирование, Банк вопросов,
-Архив. Existing «Мои курсы / Банк заданий / Банк вопросов / Тесты / Каталог» functionality
-maps to these filters and Knowledge discovery; it is not discarded or given separate stores.
-One published content version can be delivered directly, to a named learner, in multiple
-courses/classes, or surfaced in Knowledge under explicit access policy.
-
-Assignment is an independent versioned library object. «Класс → Обучение → Новое задание»
-saves into the same author library and may deliver that saved version to this class. A task
-can later be reused in another course/class or published for discovery. No hidden disposable
-assignment store, separate public-content root, or programming-content database is allowed.
-
-### 21.2 Class history and teaching-time edits
-
-Class → Learning exposes Сейчас, История, Программа класса. History groups actual CourseRuns,
-direct and learner-specific assignments, quizzes and programming tasks by academic period/date.
-Past delivery facts are preserved. Selecting actual delivered tasks and choosing «Собрать курс»
-creates a NEW Course draft with provenance and exact version references; it does not edit any
-old Run, Enrollment, Attempt, Submission or Result.
-
-For a running CourseRun v2, distinguish «Редактировать для будущих» (v2 → new draft → v3;
-existing Run still pins v2) from «Добавить материал этому классу» (separate direct delivery).
-Those additional tasks may be incorporated into a future draft/version explicitly.
-
-### 21.3 Rich course builder and reusable quiz bank
-
-Course structure is Section → Lesson → blocks. Information blocks include heading, text,
-image, video, link, file/asset and note/callout. Learning blocks reference reusable assignment,
-quiz, programming task, Electronics, 3D, Visual Programming or future module activities.
-«Добавить задание/тест» supports choosing from the library or creating a new library object.
-Published referenced versions and accepted evidence stay immutable.
-
-Preserve the common Quiz Engine: single_choice, multiple_choice, boolean, numeric, short_text,
-matching, ordering, long_text_manual; versioned question refs/pools, shuffle, server-saved
-answers, server timer, hidden answer key, mixed auto/manual assessment, selected result and
-regrade scoped to the exact runtime. There is no second quiz grading system.
-
-### 21.4 Knowledge and publication policy
-
-Knowledge discovers the SAME published content roots: article, video resource, lesson/material,
-course, assignment, quiz, programming task, collection. Question bank and answer keys are not
-public by default. Metadata: title, summary, subject/topic/category, tags, level, age/grade band,
-estimated duration, language, tool/module, assessment mode, exact published version, author,
-cover and access badge. Search/filters use type, subject/topic, tags, level, age/grade, duration,
-language, tool and assessment mode. Price/access badges and free/paid filters are future scope.
-
-Publishing an immutable version and making it public are separate actions. Policies include
-private/assigned only; unlisted/by link (not in catalog); public read only; public self-study;
-public teacher-led enrollment/application; and future paid access. A URL never supplies private
-authorization. Commerce is a later access policy over the same content, not a Course type.
-
-### 21.5 Reusable programming tasks
-
-ProgrammingTaskVersion uses the common Learning runtime. First required language is Python 3;
-the architecture remains language-agnostic. Versioned definition includes title, statement,
-language, runtime version, starter code, examples, public tests, hidden tests, CPU/memory/output
-limits, grading definition and feedback/reveal policy.
-
-| Action | Meaning |
-| --- | --- |
-| Запустить | Execute code; creates no Submission |
-| Проверить | Run permitted checks; creates no official Submission |
-| Сдать | Accept an exact code version into immutable Submission and common assessment |
-
-Attempt → Submission → Autograder job → evidence → AssessmentResultRevision → selected result
-→ Gradebook. Execution jobs and immutable evidence belong to the existing assessment pipeline;
-there is no separate «Python grades». Runner isolation, no network by default, resource limits,
-no secrets and no hidden-test disclosure are mandatory. Implementing the runner needs separate
-owner authorization after stabilization.
-
-### 21.6 Entry methods and temporary assessment access
-
-| Entry | Identity and authorization |
-| --- | --- |
-| Account | Normal authenticated participation with server-derived scope |
-| Persistent StudentSeat | Class code + individual login/pseudonym + secret/card; class code alone never authenticates |
-| Exact invitation/deep link | Resource navigation still requiring valid identity and authorization |
-| Public Knowledge link | Read/start from publication/enrollment policy; no private-class access |
-| Temporary assessment access | Restricted individual learner access within existing identity/auth/Learning contracts |
-
-AssessmentSeat / TemporaryLearningAccess names a TARGET semantic concept for a контрольная,
-диагностика, олимпиада, пробное занятие or one-off participant. It is not a fifth identity system,
-a Personal Account, or a redefinition of persistent StudentSeat. Scope is one exact ActivityRun,
-CourseRun or explicit small target set. It grants no roster, unrelated class/course, other learner
-or author-data access. Physical representation requires an architectural decision under existing
-tenant/RLS constraints; this specification alone authorizes no schema redesign.
-
-«Контрольная → Участники → Создать временные доступы» accepts count or pseudonym list and issues
-individual print cards/QR: assessment title, pseudonym, opaque individual credential, validity
-window. Real PII is not required solely to create a temporary profile/card. Shared public URL or
-class code is never an individual identity. Individual one-time activation token may establish a
-scoped session and become unusable, or an explicit policy may use short-lived individual credentials.
-Credential and session are distinct from stable learner identity and retained academic evidence.
-
-Expiry removes future access while retaining accepted Submission, Result, audit and evidence.
-Later Account/Seat linking requires proof of both identities plus applicable approval/reconciliation;
-name, IP, device, similar login or email alone never suffice. History IDs stay stable where the
-architecture permits, without silent reassignment of another person's history.
-
-### 21.7 Server-owned assessment time
-
-Distinguish credential expiry, session expiry, opensAt, dueAt, closesAt, Attempt.startedAt and
-Attempt.expiresAt. opensAt is earliest permitted start; dueAt is a pedagogical deadline; closesAt
-blocks new start/submit according to explicit policy. timeLimit begins with an explicit Start,
-using server time. For availability 10:00–12:00 and 45 minutes per Attempt, startedAt=serverNow
-and expiresAt=startedAt+45 minutes; the policy explicitly defines interaction with closesAt.
-Browser time is display only. Credential expiry never silently extends an Attempt timer.
-
-Strict preset example: one attempt, opens 10:00, closes 11:00, timeLimit 40 minutes, late submission
-blocked, delayed answer reveal, explicit Start, server timer; optional question/option shuffle or
-random pool. Reload or network disconnect resumes the SAME Attempt and spends no extra attempt.
-Expiry policy explicitly selects auto_submit or expire_without_submission, with idempotent server
-handling and no rewrite of accepted immutable evidence.
-
-### 21.8 Acceptance boundaries
-
-Prove library reuse across direct/class/course/discovery without duplicate roots; history-to-course
-creates a new draft; v3 publication cannot alter a v2 Run; run/check create no official Submission;
-runner limits and hidden tests remain protected. Temporary card accesses only its exact target;
-shared links cannot impersonate, expired/replayed activation fails, roster/unrelated content is denied,
-closing blocks new start, reconnect resumes the same Attempt, expiry preserves Submission/Result,
-and linking by name/device alone fails. These are TARGET acceptance cases, not implementation evidence.
