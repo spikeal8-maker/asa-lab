@@ -72,6 +72,47 @@ function exactProject(overrides: Record<string, unknown> = {}) {
 }
 
 const fixtures = [
+  [
+    'canonical returned result needs no selected grade',
+    exactProject({
+      activity_run_id: id('20'),
+      attempt_state: 'closed',
+      legacy_submitted_at: null,
+      result_count: 1,
+      latest_result_id: id('13'),
+    }),
+    'clean_canonical',
+  ],
+  [
+    'canonical cleared gradebook audit anchor is legal',
+    exactProject({
+      activity_run_id: id('20'),
+      attempt_state: 'closed',
+      legacy_submitted_at: null,
+      result_count: 1,
+      gradebook_entry_id: id('14'),
+    }),
+    'clean_canonical',
+  ],
+  [
+    'canonical expected selection without gradebook remains a conflict',
+    exactProject({
+      activity_run_id: id('20'),
+      canonical_selected_attempt_id: id('9'),
+      canonical_selected_result_id: id('13'),
+      result_count: 1,
+    }),
+    'selection_conflict',
+  ],
+  [
+    'canonical dangling explicit selection remains a conflict',
+    exactProject({
+      activity_run_id: id('20'),
+      teacher_selected_attempt_id: id('9'),
+    }),
+    'selection_conflict',
+  ],
+
   ['clean project chain', base(), 'clean_canonical'],
   [
     'closed lifecycle with exact evidence',
@@ -289,4 +330,18 @@ describe('LRN-M0-005 pure migration classifier', () => {
     expect(report.totals.totalLegacyAssignments).toBe(100);
     expect(performance.now() - started).toBeLessThan(2000);
   });
+});
+
+it('does not report a cleared canonical audit anchor as a broken pointer', () => {
+  const report = buildDeterministicReport([
+    exactProject({
+      activity_run_id: id('20'),
+      attempt_state: 'closed',
+      legacy_submitted_at: null,
+      result_count: 1,
+      gradebook_entry_id: id('14'),
+    }),
+  ]);
+  expect(report.classifications.selection_conflict).toBe(0);
+  expect(report.selection.brokenPointer).toBe(0);
 });

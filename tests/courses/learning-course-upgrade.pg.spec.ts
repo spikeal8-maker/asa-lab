@@ -5,6 +5,10 @@ import { buildTestApp, inject, type NestApp } from '../portal/app';
 import { seedMixedMainLearning } from './learning-upgrade-fixtures';
 import { applyPlan, planMigrations } from '../../tools/migrate.mjs';
 import { seedTeacher } from '../portal/helpers';
+import {
+  analyzeLearningData,
+  withReadOnlyTransaction,
+} from '../../tools/learning-migration-dry-run.mjs';
 
 it('upgrades populated baseline 0106 without rewriting projects, course versions, feedback or submitted history', async () => {
   const source = process.env['TEST_DATABASE_URL'];
@@ -129,9 +133,16 @@ it('upgrades populated baseline 0106 without rewriting projects, course versions
     expect(planned.length - baseline.length).toBe(30);
     const oldResults = (
       await isolated.query(
-        'SELECT id,attempt_id,raw_points,max_points,percentage_basis_points,outcome FROM assessment_results ORDER BY id',
+        'SELECT to_jsonb(result) AS record FROM assessment_results result ORDER BY id',
       )
     ).rows;
+    const beforeAudit: Record<string, Array<{ record: Record<string, unknown> }>> = {};
+    for (const table of ['learning_evaluations', 'grade_change_events']) {
+      beforeAudit[table] = (
+        await isolated.query(`SELECT to_jsonb(row) AS record FROM ${table} row ORDER BY id`)
+      ).rows;
+      expect(beforeAudit[table].length).toBeGreaterThan(0);
+    }
     const gradeIds = (await isolated.query('SELECT id FROM gradebook_entries ORDER BY id')).rows;
     expect(oldResults.length).toBeGreaterThan(0);
     expect(gradeIds.length).toBeGreaterThan(0);
@@ -188,14 +199,56 @@ it('upgrades populated baseline 0106 without rewriting projects, course versions
     }
     expect(await snapshot()).toEqual(before);
     expect(await memberships()).toEqual(beforeMemberships);
-    expect(
-      (
+    for (const { record } of oldResults) {
+      const persisted = (
         await isolated.query(
-          'SELECT id,attempt_id,raw_points,max_points,percentage_basis_points,outcome FROM assessment_results WHERE id=ANY($1::uuid[]) ORDER BY id',
-          [oldResults.map((row) => row.id)],
+          'SELECT to_jsonb(result) AS record FROM assessment_results result WHERE id=$1',
+          [record.id],
         )
-      ).rows,
-    ).toEqual(oldResults);
+      ).rows[0].record;
+      expect(persisted).toMatchObject(record); // Additive E1 columns are allowed; old evidence is immutable.
+    }
+    for (const table of ['learning_evaluations', 'grade_change_events']) {
+      for (const { record } of beforeAudit[table]) {
+        expect(
+          (
+            await isolated.query(`SELECT to_jsonb(row) AS record FROM ${table} row WHERE id=$1`, [
+              record.id,
+            ])
+          ).rows[0].record,
+        ).toEqual(record);
+      }
+    }
+    const analysisClient = await isolated.connect();
+    try {
+      await withReadOnlyTransaction(analysisClient, async (tx: pg.PoolClient) => {
+        const report = await analyzeLearningData(tx, {
+          asOf: '2026-09-13T12:00:00Z',
+          environmentKind: 'test',
+          repositorySha: '0'.repeat(40),
+          analyzerSha256: '0'.repeat(64),
+        });
+        const expectedUnits = (
+          await tx.query(
+            'SELECT count(*)::int AS n FROM classroom_assignments ca JOIN classroom_student_seats seat ON seat.classroom_id=ca.classroom_id',
+          )
+        ).rows[0].n;
+        // Populated legacy Results gain E1 revisions: this cannot pass on an empty database.
+        expect(
+          (
+            await tx.query(
+              'SELECT count(*)::int AS n FROM assessment_results WHERE attempt_id=$1',
+              [mixed.attempts[0].id],
+            )
+          ).rows[0].n,
+        ).toBeGreaterThan(1);
+        expect(report.deterministic.totals.learningUnits).toBe(expectedUnits);
+        expect(report.deterministic.selection.conflicts).toBe(0);
+        expect(report.deterministic.selection.brokenPointer).toBe(0);
+      });
+    } finally {
+      analysisClient.release();
+    }
     expect((await isolated.query('SELECT id FROM gradebook_entries ORDER BY id')).rows).toEqual(
       gradeIds,
     );
@@ -261,6 +314,23 @@ it('upgrades populated baseline 0106 without rewriting projects, course versions
         headers,
       });
       expect(read.statusCode).toBe(200);
+      if (actor === teacher) {
+        expect(read.json().items).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              assignmentId: mixed.assignment,
+              seatId: mixed.seats[0].id,
+              points: 84,
+              maxPoints: 100,
+            }),
+          ]),
+        );
+      } else {
+        expect(read.json().items.some((item: { id: string }) => item.id === mixed.assignment)).toBe(
+          false,
+        );
+      }
+
       expect(
         (await inject(server, { method: 'GET', url: '/api/learning/notifications', headers }))
           .statusCode,

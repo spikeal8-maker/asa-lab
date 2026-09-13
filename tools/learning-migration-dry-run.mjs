@@ -105,6 +105,33 @@ SELECT c.tenant_id, c.school_id, c.id AS classroom_id, c.status AS classroom_sta
   LEFT JOIN learning_attempts selected_attempt ON selected_attempt.id = grade.accepted_attempt_id
  ORDER BY c.school_id, ca.id, seat.id`;
 
+// The analyzer still supports 0085-era databases. E1 delegates selection to the
+// same canonical resolver used by application reads; it does not invent a grade.
+const E1_UNIT_QUERY = UNIT_QUERY.replace(
+  'cav.learning_activity_version_id AS mapped_activity_version_id',
+  'COALESCE(run.learning_activity_version_id,cav.learning_activity_version_id) AS mapped_activity_version_id',
+)
+  .replace(
+    'grade.id AS gradebook_entry_id,',
+    `run.id AS activity_run_id,
+       part.teacher_selected_attempt_id,
+       resolved.attempt_id AS canonical_selected_attempt_id,
+       resolved.result_id AS canonical_selected_result_id,
+       grade.id AS gradebook_entry_id,`,
+  )
+  .replace(
+    ' ORDER BY c.school_id, ca.id, seat.id',
+    `
+  LEFT JOIN activity_runs run ON run.source_classroom_assignment_id=ca.id
+  LEFT JOIN learner_identity_links link
+    ON link.seat_id=seat.id AND link.tenant_id=c.tenant_id
+   AND link.school_id=c.school_id AND link.link_kind='student_seat'
+  LEFT JOIN activity_participations part
+    ON part.activity_run_id=run.id AND part.learner_identity_id=link.learner_identity_id
+  LEFT JOIN LATERAL learning_selected_result_internal(part.id) resolved ON true
+ ORDER BY c.school_id, ca.id, seat.id`,
+  );
+
 function sha256(value) {
   return createHash('sha256').update(value).digest('hex');
 }
@@ -136,7 +163,7 @@ export function normalizeUnit(row) {
         row.version_project_id === row.submission_project_id &&
         (!row.legacy_project_id || row.legacy_project_id === row.submission_project_id))),
   );
-  const selectionConflict =
+  const legacySelectionConflict =
     (Number(row.result_count || 0) > 0 && !row.gradebook_entry_id) ||
     (Boolean(row.gradebook_entry_id) &&
       (!row.selected_result_id ||
@@ -144,6 +171,12 @@ export function normalizeUnit(row) {
         row.selected_result_attempt_id !== row.accepted_attempt_id ||
         row.selected_attempt_assignment_id !== row.assignment_id ||
         row.selected_attempt_seat_id !== row.seat_id));
+  const canonicalSelection = Boolean(row.activity_run_id);
+  const selectionConflict = canonicalSelection
+    ? Boolean(row.teacher_selected_attempt_id && !row.canonical_selected_result_id) ||
+      (row.accepted_attempt_id ?? null) !== (row.canonical_selected_attempt_id ?? null) ||
+      (row.selected_result_id ?? null) !== (row.canonical_selected_result_id ?? null)
+    : legacySelectionConflict;
   const lifecycleRestricted =
     row.seat_status !== 'active' ||
     row.classroom_status !== 'active' ||
@@ -167,6 +200,7 @@ export function normalizeUnit(row) {
     identityUnresolved,
     exactSubmission,
     selectionConflict,
+    canonicalSelection,
     lifecycleRestricted,
     legacyClaim,
     legacyOnlyStart,
@@ -250,6 +284,7 @@ export function buildDeterministicReport(rows, feedbackRows = []) {
     }
     if (
       unit.gradebook_entry_id &&
+      unit.accepted_attempt_id &&
       unit.attempt_count > 1 &&
       unit.accepted_attempt_id !== unit.attempt_id
     ) {
@@ -270,7 +305,11 @@ export function buildDeterministicReport(rows, feedbackRows = []) {
     if (Number(unit.result_count || 0) > 0 && !unit.gradebook_entry_id) {
       selectionFacts.resultExistsNoPointer += 1;
     }
-    if (unit.gradebook_entry_id && !pointerLineageValid) selectionFacts.brokenPointer += 1;
+    if (
+      unit.gradebook_entry_id &&
+      (unit.canonicalSelection ? unit.selectionConflict : !pointerLineageValid)
+    )
+      selectionFacts.brokenPointer += 1;
     if (pointerLineageValid && unit.accepted_attempt_id !== unit.attempt_id) {
       selectionFacts.pointerToOlderValidAttempt += 1;
       if (unit.attempt_state === 'in_progress') {
@@ -439,7 +478,9 @@ export async function analyzeLearningData(
   const db = (
     await query("SELECT current_database() AS name, current_setting('server_version') AS version")
   ).rows[0];
-  const units = (await query(UNIT_QUERY)).rows;
+  const units = (
+    await query(Number.parseInt(migrationVersion, 10) >= 133 ? E1_UNIT_QUERY : UNIT_QUERY)
+  ).rows;
   const feedback = (
     await query(`
     SELECT pf.badge, count(*)::int AS count,
