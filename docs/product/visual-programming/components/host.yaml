@@ -5,7 +5,7 @@ components:
     state: implemented
     risk: medium
     ownership: infrastructure
-    purpose: 'Build the shipping standalone Scratch distribution and package the ASA-owned host shell.'
+    purpose: 'Build the shipping standalone Scratch distribution and ASA host shell.'
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-001-SCRATCH-HOST-CONTRACT.md
         section: 'Host layout'
@@ -28,17 +28,15 @@ components:
     state: planned
     risk: medium
     ownership: upstream_patch
-    purpose: 'Render the canonical ASA Lab mark, remove Scratch product logo/navigation and apply ASA product branding without rewriting Scratch.'
+    purpose: 'Replace Scratch product logo/navigation with canonical ASA product branding.'
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-001-SCRATCH-HOST-CONTRACT.md
         section: 'Branding'
     canonical_asset: apps/web/public/asa-lab-mark.svg
     planned_sources:
       - infra/scratch-editor/host/branding.js
-      - infra/scratch-editor/host/editor-config.js
       - infra/scratch-editor/patches/0001-host-logo-prop.patch
-    planned_tests:
-      - e2e/blocks-host-controls.spec.ts
+    planned_tests: [e2e/blocks-host-controls.spec.ts]
     task: VSCR-M1-002B
     task_card: VSCR-M1-002B.md
     depends_on: [blocks.host.storage-adapter]
@@ -47,23 +45,12 @@ components:
     state: planned
     risk: medium
     ownership: upstream_config
-    purpose: 'Use Scratch built-in localization, resolve the initial locale from ASA/browser policy and keep language switching inside the existing Settings menu.'
+    purpose: 'Keep Scratch language selection inside Settings; browser/ASA locale with ru fallback.'
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-001-SCRATCH-HOST-CONTRACT.md
         section: 'Localization'
-    policy:
-      selector_location: scratch_settings_menu
-      duplicate_top_level_language_control: forbidden
-      translation_source: upstream_scratch_l10n
-      locale_resolution:
-        - asa_user_preference_when_canonical
-        - upstream_browser_locale_detection
-        - upstream_regional_normalization
-        - fallback_ru_when_no_requested_supported_locale
-    planned_sources:
-      - infra/scratch-editor/host/editor-config.js
-    planned_tests:
-      - e2e/blocks-host-controls.spec.ts
+    planned_sources: [infra/scratch-editor/host/editor-config.js]
+    planned_tests: [e2e/blocks-host-controls.spec.ts]
     task: VSCR-M1-002B
     task_card: VSCR-M1-002B.md
     depends_on: [blocks.host.storage-adapter]
@@ -72,23 +59,12 @@ components:
     state: planned
     risk: medium
     ownership: asa
-    purpose: 'Apply ASA colours to product chrome only while preserving Scratch semantic programming-category colours.'
+    purpose: 'Apply ASA colour to product chrome only; preserve Scratch category colours.'
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-001-SCRATCH-HOST-CONTRACT.md
         section: 'ASA theme boundary'
-    policy:
-      header_primary: '#0877B3'
-      header_darker: '#076B98'
-      product_chrome_only: true
-      preserve_scratch_semantic_category_colours: true
-    references:
-      - apps/web/src/brand/brand.css
-      - apps/web/src/creator-portal/creator-portal.css
-    planned_sources:
-      - infra/scratch-editor/host/theme.css
-      - infra/scratch-editor/host/editor-config.js
-    planned_tests:
-      - e2e/blocks-host-controls.spec.ts
+    planned_sources: [infra/scratch-editor/host/theme.css]
+    planned_tests: [e2e/blocks-host-controls.spec.ts]
     task: VSCR-M1-002B
     task_card: VSCR-M1-002B.md
     depends_on: [blocks.host.storage-adapter]
@@ -97,23 +73,11 @@ components:
     state: planned
     risk: high
     ownership: cross_boundary
-    purpose: 'Show the ASA-owned avatar/account surface on the right while keeping account authority and cookies in the ASA parent, not the Scratch origin.'
+    purpose: 'Show ASA parent-owned avatar/account chrome without Scratch-origin account authority.'
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-001-SCRATCH-HOST-CONTRACT.md
         section: 'ASA identity shell'
-    policy:
-      avatar_owner: parent_asa_web
-      scratch_account_system: forbidden
-      asa_cookies_inside_scratch_origin: forbidden
-      preferred_rendering: parent_owned_overlay_or_shell
-    references:
-      - apps/web/src/components/PortalHeader.tsx
-      - apps/web/src/creator-portal/default-avatars.ts
-    planned_sources:
-      - apps/web/src/blocks/**
-      - infra/scratch-editor/host/editor-config.js
-    planned_tests:
-      - e2e/blocks-host-controls.spec.ts
+    planned_tests: [e2e/blocks-host-controls.spec.ts]
     task: VSCR-M1-002B
     task_card: VSCR-M1-002B.md
     depends_on: [blocks.host.protocol, blocks.host.storage-adapter]
@@ -122,22 +86,14 @@ components:
     state: planned
     risk: medium
     ownership: upstream_patch
-    purpose: 'Keep familiar Scratch File/Edit menus while independently gating commands that would falsely imply ASA durable persistence or premature .sb3 support.'
+    purpose: 'Keep File/Edit visible while gating Save and .sb3 items until their owning milestones.'
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-001-SCRATCH-HOST-CONTRACT.md
         section: 'Product controls'
-    policy:
-      file_menu_visible: true
-      edit_menu_visible: true
-      save_now: disabled_until_m1_005
-      local_sb3_import: disabled_until_m1_007
-      local_sb3_export: disabled_until_m1_007
-      fake_durable_save: forbidden
     planned_sources:
       - infra/scratch-editor/host/editor-config.js
       - infra/scratch-editor/patches/0003-file-menu-policy.patch
-    planned_tests:
-      - e2e/blocks-host-controls.spec.ts
+    planned_tests: [e2e/blocks-host-controls.spec.ts]
     task: VSCR-M1-002B
     task_card: VSCR-M1-002B.md
     depends_on: [blocks.host.storage-adapter]
@@ -146,21 +102,14 @@ components:
     state: planned
     risk: medium
     ownership: upstream_patch
-    purpose: 'Keep the familiar Extensions entry point, ASA-theme its chrome and permit only local/explicitly approved sources without Scratch Foundation fallback.'
+    purpose: 'Keep Extensions visible and ASA-themed; local/approved sources only.'
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-001-SCRATCH-HOST-CONTRACT.md
         section: 'Extensions'
-    policy:
-      entry_point_visible: true
-      asa_product_chrome: true
-      scratch_foundation_runtime_fallback: forbidden
-      allowed_sources: local_or_explicitly_approved
     planned_sources:
       - infra/scratch-editor/host/editor-config.js
-      - infra/scratch-editor/host/theme.css
       - infra/scratch-editor/patches/0002-extension-button-visibility.patch
-    planned_tests:
-      - e2e/blocks-host-controls.spec.ts
+    planned_tests: [e2e/blocks-host-controls.spec.ts]
     task: VSCR-M1-002B
     task_card: VSCR-M1-002B.md
     depends_on: [blocks.host.storage-adapter]
@@ -194,7 +143,7 @@ components:
     state: planned
     risk: high
     ownership: asa
-    purpose: 'ASA ScratchStorage/GUIStorage fixture adapter without Scratch-host fallback or durable writes.'
+    purpose: 'Fixture ScratchStorage/GUIStorage adapter without external fallback or durable writes.'
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-001-SCRATCH-HOST-CONTRACT.md
         section: 'Scratch storage adapter'
@@ -202,8 +151,7 @@ components:
       - infra/scratch-editor/host/storage.js
       - infra/scratch-editor/host/editor.js
       - infra/scratch-editor/host/main.js
-    planned_tests:
-      - e2e/blocks-host-storage.spec.ts
+    planned_tests: [e2e/blocks-host-storage.spec.ts]
     task: VSCR-M1-002D
     task_card: VSCR-M1-002D.md
     depends_on: [blocks.host.protocol]
