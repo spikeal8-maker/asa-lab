@@ -10,6 +10,7 @@ import { portalNavigation, type CreatorPortalSection } from '../creator-portal/n
 import { QuickCreateMenu } from '../creator-portal/QuickProjectCreation';
 import { classAttention } from '../creator-portal/attention';
 import { PortalLink } from './PortalLink';
+import { LearningInbox } from './LearningInbox';
 import {
   ChevronIcon,
   CloseIcon,
@@ -323,6 +324,7 @@ export function PortalHeader({
           </PortalLink>
         </nav>
         <QuickCreateMenu />
+        <LearningInbox seat={seatLearner} />
         <details
           ref={accountMenu}
           className={active === 'account' ? 'portal-account active' : 'portal-account'}

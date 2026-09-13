@@ -6,10 +6,18 @@ import {
   type ClassroomTeacher,
   type ClassroomActivityEntry,
   type ClassroomTeacherInvitation,
+  type ClassroomSeatBatchCommitResult,
+  type ClassroomSeatBatchPreviewRow,
+  type ClassroomSeatBatchStudentInput,
 } from '../api';
 import { ClassesIcon, PlusIcon } from '../electronics/workbench-icons';
 import { ClassroomActivityList } from '../components/ClassroomActivityList';
 import { ClassroomLearning } from '../components/ClassroomLearning';
+import {
+  LearningNotificationPreferences,
+  ClassroomLearningReminders,
+} from '../components/LearningNotificationPreferences';
+import { useLearningDestination } from '../learning/use-learning-destination';
 import { ClassroomGradebook } from '../components/ClassroomGradebook';
 import { ClassroomStudentPage } from './ClassroomStudentPage';
 import { ClassShareScreen } from '../components/ClassShareScreen';
@@ -175,92 +183,249 @@ function StudentDialog({
 }
 
 function BatchDialog({
+  classroomId,
+  classroomTitle,
+  joinCode,
   onClose,
-  onCreate,
+  onCommitted,
 }: {
+  classroomId: string;
+  classroomTitle: string;
+  joinCode: string | null;
   onClose: () => void;
-  onCreate: (
-    students: Array<{ displayLabel: string; loginHandle?: string; safeMode: boolean }>,
-  ) => Promise<string | null>;
+  onCommitted: (created: number) => Promise<void>;
 }): JSX.Element {
   const [text, setText] = useState('');
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<'preview' | 'commit' | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const students = useMemo(
+  const [preview, setPreview] = useState<ClassroomSeatBatchPreviewRow[] | null>(null);
+  const [committed, setCommitted] = useState<ClassroomSeatBatchCommitResult | null>(null);
+  const requestId = useRef<string | null>(null);
+  const students = useMemo<ClassroomSeatBatchStudentInput[]>(
     () =>
       text
         .split(/\r?\n/)
         .map((line) => line.trim())
         .filter(Boolean)
-        .slice(0, 100)
         .map((line) => {
           const [displayLabel = '', requestedHandle = ''] = line
-            .split(',')
+            .split(',', 2)
             .map((value) => value.trim());
-          const generated = handleFromLabel(displayLabel);
           return {
             displayLabel,
-            ...(requestedHandle || generated ? { loginHandle: requestedHandle || generated } : {}),
+            ...(requestedHandle ? { loginHandle: requestedHandle.toLowerCase() } : {}),
             safeMode: true,
           };
         }),
     [text],
   );
+  const counts = useMemo(
+    () => ({
+      valid: preview?.filter((row) => row.status === 'valid').length ?? 0,
+      duplicate: preview?.filter((row) => row.status === 'duplicate').length ?? 0,
+      conflict: preview?.filter((row) => row.status === 'conflict').length ?? 0,
+      invalid: preview?.filter((row) => row.status === 'invalid').length ?? 0,
+    }),
+    [preview],
+  );
+  const credentialRows =
+    committed?.results.filter((row) => row.status === 'created' && row.credential) ?? [];
 
-  async function submit(event: FormEvent): Promise<void> {
-    event.preventDefault();
+  function resetPreview(nextText: string): void {
+    setText(nextText);
+    setPreview(null);
+    setCommitted(null);
+    requestId.current = null;
+    setError(null);
+  }
+
+  async function previewList(): Promise<void> {
     if (students.length === 0) {
       setError('Добавьте хотя бы одного ученика.');
       return;
     }
-    setBusy(true);
-    const message = await onCreate(students);
-    setBusy(false);
-    if (message) setError(message);
+    if (students.length > 100) {
+      setError('Не более 100 учеников за один раз.');
+      return;
+    }
+    setBusy('preview');
+    setError(null);
+    const result = await api.previewClassroomSeatsBatch(classroomId, students);
+    setBusy(null);
+    if (!result.ok) {
+      setError(result.error.message || 'Не удалось проверить список.');
+      return;
+    }
+    setPreview(result.data.results);
+    requestId.current = crypto.randomUUID();
+  }
+
+  async function commitList(): Promise<void> {
+    if (!preview || !requestId.current) {
+      setError('Проверьте список перед добавлением.');
+      return;
+    }
+    if (counts.valid === 0) {
+      setError('Сервер не подтвердил ни одной строки для создания.');
+      return;
+    }
+    setBusy('commit');
+    setError(null);
+    const result = await api.addClassroomSeatsBatch(classroomId, students, requestId.current);
+    setBusy(null);
+    if (!result.ok) {
+      setError(result.error.message || 'Не удалось добавить учеников.');
+      return;
+    }
+    setCommitted(result.data);
+    await onCommitted(result.data.created);
+  }
+
+  function printCards(): void {
+    if (credentialRows.length === 0) return;
+    const className = 'seat-batch-printing';
+    const cleanup = () => document.body.classList.remove(className);
+    document.body.classList.add(className);
+    window.addEventListener('afterprint', cleanup, { once: true });
+    window.print();
+    window.setTimeout(cleanup, 1000);
   }
 
   return (
     <div className="modal-backdrop" role="presentation">
       <div className="modal classroom-batch-dialog" role="dialog" aria-modal="true">
         <h2>Добавить список учеников</h2>
-        <p>Один ученик на строку. При желании после запятой укажите имя для входа.</p>
-        <form onSubmit={(event) => void submit(event)}>
-          <label htmlFor="seat-batch">Ученики</label>
-          <textarea
-            id="seat-batch"
-            autoFocus
-            rows={8}
-            value={text}
-            disabled={busy}
-            placeholder={'Алина К., alina-k\nМаксим П., maxim-p\nСофия М.'}
-            onChange={(event) => setText(event.target.value)}
-          />
-          {students.length > 0 ? (
-            <div className="classroom-batch-preview" aria-label="Предварительный просмотр">
-              <strong>Будет добавлено: {students.length}</strong>
-              {students.slice(0, 5).map((student, index) => (
-                <span key={`${student.displayLabel}-${index}`}>
-                  {student.displayLabel}{' '}
-                  <small>{student.loginHandle || 'логин создастся автоматически'}</small>
-                </span>
-              ))}
-              {students.length > 5 ? <span>И ещё {students.length - 5}</span> : null}
-            </div>
-          ) : null}
-          {error ? (
-            <p className="form-error" role="alert">
-              {error}
+        {!committed ? (
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              void (preview ? commitList() : previewList());
+            }}
+          >
+            <p>
+              Один ученик на строку. После запятой можно указать логин; если его нет, сервер создаст
+              безопасный логин.
             </p>
-          ) : null}
-          <div className="modal-actions">
-            <button type="button" className="btn-secondary" disabled={busy} onClick={onClose}>
-              Отмена
-            </button>
-            <button type="submit" className="btn-primary" disabled={busy}>
-              {busy ? 'Добавляем…' : 'Добавить учеников'}
-            </button>
+            <label htmlFor="seat-batch">Ученики</label>
+            <textarea
+              id="seat-batch"
+              autoFocus
+              rows={8}
+              value={text}
+              disabled={busy !== null}
+              placeholder={'Алина К., alina-k\nМаксим П., maxim-p\nСофия М.'}
+              onChange={(event) => resetPreview(event.target.value)}
+            />
+            {students.length > 100 ? (
+              <p className="form-error" role="alert">
+                Не более 100 учеников за один раз.
+              </p>
+            ) : null}
+            {preview ? (
+              <div className="classroom-batch-preview" aria-label="Предварительный просмотр">
+                <strong>Список проверен сервером</strong>
+                <div className="classroom-batch-summary">
+                  <span>Можно добавить: {counts.valid}</span>
+                  <span>Повторы: {counts.duplicate}</span>
+                  <span>Конфликты: {counts.conflict}</span>
+                  <span>Ошибки: {counts.invalid}</span>
+                </div>
+                <div className="classroom-batch-rows">
+                  {preview.map((row) => (
+                    <div className="classroom-batch-row" data-status={row.status} key={row.index}>
+                      <span>{row.index + 1}</span>
+                      <span>
+                        <strong>{row.displayLabel || '—'}</strong>
+                        <small>{row.loginHandle || '—'}</small>
+                      </span>
+                      <span>
+                        {row.status === 'valid'
+                          ? 'Готово к добавлению'
+                          : row.status === 'duplicate'
+                            ? 'Уже существует'
+                            : row.status === 'conflict'
+                              ? 'Конфликт логина'
+                              : 'Некорректная строка'}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+            {error ? (
+              <p className="form-error" role="alert">
+                {error}
+              </p>
+            ) : null}
+            <div className="modal-actions">
+              <button
+                type="button"
+                className="btn-secondary"
+                disabled={busy !== null}
+                onClick={onClose}
+              >
+                Отмена
+              </button>
+              <button
+                type="button"
+                className="btn-secondary"
+                disabled={busy !== null || students.length === 0 || students.length > 100}
+                onClick={() => void previewList()}
+              >
+                {busy === 'preview' ? 'Проверяем…' : 'Проверить список'}
+              </button>
+              {preview ? (
+                <button
+                  type="submit"
+                  className="btn-primary"
+                  disabled={busy !== null || counts.valid === 0}
+                >
+                  {busy === 'commit' ? 'Добавляем…' : `Добавить учеников (${counts.valid})`}
+                </button>
+              ) : null}
+            </div>
+          </form>
+        ) : (
+          <div className="classroom-batch-result">
+            <h3>Ученики добавлены: {committed.created}</h3>
+            {credentialRows.length > 0 ? (
+              <>
+                <p>Эти секреты показаны один раз. Распечатайте или раздайте карточки сейчас.</p>
+                <div className="classroom-batch-print-sheet">
+                  {credentialRows.map((row) => (
+                    <article className="classroom-batch-card" key={row.index}>
+                      <h4>{row.displayLabel}</h4>
+                      <p>{classroomTitle}</p>
+                      <dl>
+                        <dt>Код класса</dt>
+                        <dd>{joinCode || '—'}</dd>
+                        <dt>Логин</dt>
+                        <dd>{row.loginHandle}</dd>
+                        <dt>Секрет</dt>
+                        <dd className="classroom-batch-secret">{row.credential}</dd>
+                      </dl>
+                    </article>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <p className="form-error">
+                Повторный запрос не возвращает старые секреты. Если карточка потеряна, сбросьте
+                доступ конкретного ученика.
+              </p>
+            )}
+            <div className="modal-actions no-print">
+              {credentialRows.length > 0 ? (
+                <button type="button" className="btn-primary" onClick={printCards}>
+                  Распечатать карточки
+                </button>
+              ) : null}
+              <button type="button" className="btn-secondary" onClick={onClose}>
+                Закрыть
+              </button>
+            </div>
           </div>
-        </form>
+        )}
       </div>
     </div>
   );
@@ -299,6 +464,19 @@ export function ClassroomPage({
   // Which learner is being looked at. A class page and a learner's page are the
   // same place at two depths, so this is state rather than another route.
   const [openStudent, setOpenStudent] = useState<string | null>(openSeatId ?? null);
+  const destination = useLearningDestination();
+  useEffect(() => {
+    if (destination.assignment) {
+      setTab('gradebook');
+      setOpenStudent(null);
+    } else if (destination.joinRequest) {
+      setTab('students');
+      setOpenStudent(null);
+    } else if (destination.courseRun) {
+      setTab('activities');
+      setOpenStudent(null);
+    }
+  }, [destination.assignment, destination.joinRequest, destination.courseRun]);
   /**
    * Сводка по классу: выдано, сдано, ждут ответа, кто отстаёт.
    *
@@ -626,6 +804,11 @@ export function ClassroomPage({
           <i aria-hidden="true" />
         </label>
       </div>
+      <details className="classroom-tab-panel">
+        <summary>Настройки учебных оповещений</summary>
+        <LearningNotificationPreferences classroomId={classroomId} />
+        <ClassroomLearningReminders classroomId={classroomId} />
+      </details>
       {notice ? (
         <p className="notice-success" role="status">
           {notice}
@@ -634,6 +817,7 @@ export function ClassroomPage({
 
       {tab === 'students' ? (
         <section className="classroom-roster-panel">
+          <ClassroomJoinRequests classroomId={classroom.id} onChanged={() => void reload()} />
           {/* Actions on the left, finding on the right: the two things a
               teacher does to a register, in the order they do them. */}
           <div className="classroom-roster-toolbar">
@@ -1219,17 +1403,13 @@ export function ClassroomPage({
       ) : null}
       {dialog === 'batch' ? (
         <BatchDialog
+          classroomId={classroomId}
+          classroomTitle={page.classroom.title}
+          joinCode={page.classroom.joinCode}
           onClose={() => setDialog(null)}
-          onCreate={async (items) => {
-            const result = await api.addClassroomSeatsBatch(classroomId, items);
-            if (!result.ok) return result.error.message || 'Не удалось добавить список.';
-            const failed = result.data.results.length - result.data.created;
-            setDialog(null);
-            setNotice(
-              `Добавлено учеников: ${result.data.created}${failed ? `. Не добавлено: ${failed}.` : '.'}`,
-            );
+          onCommitted={async (created) => {
+            setNotice(`Добавлено учеников: ${created}.`);
             await reload();
-            return null;
           }}
         />
       ) : null}
@@ -1249,3 +1429,4 @@ export function ClassroomPage({
     </main>
   );
 }
+import { ClassroomJoinRequests } from '../components/ClassroomJoinRequests';

@@ -30,7 +30,10 @@ interface EvidenceRow {
   courseProgressPresent: boolean;
   attempt: CanonicalAdapterInput['attempts']['latest'];
   selectedAttemptExists: boolean;
-  resultSelectionSource: 'gradebook_pointer' | 'none';
+  activityRunId?: string | null;
+  participation?: CanonicalAdapterInput['participation'];
+  selectedRevision?: CanonicalAdapterInput['resultSelection']['selectedRevision'];
+  resultSelectionSource: 'canonical' | 'gradebook_pointer' | 'none';
   selectedAttemptId: string | null;
   selectedResult: CanonicalAdapterInput['resultSelection']['selectedCompatibilityResult'];
   selectionConflict: CanonicalAdapterInput['resultSelection']['conflict'];
@@ -40,6 +43,8 @@ interface EvidenceRow {
 }
 
 export interface CanonicalLearningSurfaceState {
+  activityRunId?: string | null;
+  effectiveDueAt?: string | null;
   workflowState: CanonicalLearningState['workflowState'];
   selectedResult: CanonicalLearningState['selectedResult'];
   flags: CanonicalLearningFlag[];
@@ -80,7 +85,7 @@ function adapterInput(row: EvidenceRow, asOf: string): CanonicalAdapterInput {
       schoolId: row.schoolId,
       classroomId: row.classroomId,
       classroomAssignmentId: row.classroomAssignmentId,
-      activityRunId: null,
+      activityRunId: row.activityRunId ?? null,
     },
     identity: {
       learnerId: row.learnerId,
@@ -89,7 +94,7 @@ function adapterInput(row: EvidenceRow, asOf: string): CanonicalAdapterInput {
       principalId: row.principalId,
       resolution: row.identityResolution,
     },
-    participation: null,
+    participation: row.participation ?? null,
     compatibilityAssignment: {
       applicableToSeat: true,
       legacyWork: row.legacyWork,
@@ -102,7 +107,7 @@ function adapterInput(row: EvidenceRow, asOf: string): CanonicalAdapterInput {
     resultSelection: {
       source: row.resultSelectionSource,
       selectedAttemptId: row.selectedAttemptId,
-      selectedRevision: null,
+      selectedRevision: row.selectedRevision ?? null,
       selectedCompatibilityResult: row.selectedResult,
       validUnselectedResultCount: row.validUnselectedResultCount,
       conflict: row.selectionConflict,
@@ -214,7 +219,11 @@ export class LearningCanonicalProjectionService {
           {
             key,
             state,
-            surface: surfaceState(state, audience),
+            surface: {
+              ...surfaceState(state, audience),
+              effectiveDueAt: evidence.dueAt,
+              activityRunId: evidence.activityRunId ?? null,
+            },
             compatibilityGradingUnknown: evidence.compatibilityGradingUnknown,
             reusableAuthoredContent: evidence.reusableAuthoredContent,
             projectId: evidence.legacyWork?.projectId ?? null,

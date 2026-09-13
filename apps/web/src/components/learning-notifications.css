@@ -1,0 +1,134 @@
+.learning-notification-settings {
+  display: grid;
+  gap: 12px;
+  max-width: 760px;
+  text-align: left;
+  color: var(--text, #263248);
+}
+.learning-notification-settings h3,
+.learning-notification-settings p {
+  margin: 0;
+}
+details.learning-notification-settings:not([open]) > :not(summary) {
+  display: none;
+}
+.learning-notification-settings button {
+  max-width: 100%;
+  white-space: normal;
+}
+.learning-notification-settings label {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  font-size: 14px;
+}
+.learning-category-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  padding: 12px 0;
+}
+.learning-notification-settings fieldset {
+  border: 1px solid #dbe3ed;
+  border-radius: 8px;
+  padding: 12px;
+  margin: 12px 0;
+  min-width: 0;
+}
+.learning-notification-settings select {
+  max-width: 100%;
+  padding: 6px;
+  font: inherit;
+}
+.learning-notification-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.learning-inbox-dialog {
+  width: min(820px, calc(100vw - 24px));
+  max-height: 85dvh;
+  border: 1px solid #dbe3ed;
+  border-radius: 12px;
+  padding: 20px;
+  color: #263248;
+  background: #fff;
+}
+.learning-inbox-dialog::backdrop {
+  background: #14233b66;
+}
+.learning-inbox-dialog > header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.learning-inbox-list {
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 8px;
+}
+.learning-inbox-list li {
+  border: 1px solid #dbe3ed;
+  border-radius: 8px;
+  padding: 12px;
+  display: grid;
+  gap: 6px;
+}
+.learning-inbox-list li[data-unread='true'] {
+  border-left: 3px solid #3571d9;
+}
+.learning-inbox-list p {
+  margin: 0;
+}
+.learning-inbox-list small {
+  color: #5b6679;
+}
+.learning-inbox-button {
+  white-space: nowrap;
+  font: inherit;
+  font-size: 13px;
+}
+.learning-inbox-icon {
+  display: none;
+}
+.learning-inbox-badge {
+  font-size: 11px;
+  margin-left: 3px;
+}
+@media (max-width: 600px) {
+  .learning-inbox-label {
+    display: none;
+  }
+  .learning-inbox-icon {
+    display: inline;
+  }
+  .learning-inbox-button {
+    padding: 5px;
+    min-width: 32px;
+    position: relative;
+  }
+  .learning-inbox-badge {
+    position: absolute;
+    right: -2px;
+    top: -3px;
+    border-radius: 8px;
+    background: #173565;
+    color: white;
+    padding: 0 3px;
+  }
+}
+@media (max-width: 600px) {
+  .learning-category-grid {
+    grid-template-columns: 1fr;
+  }
+  .learning-inbox-dialog {
+    padding: 12px;
+  }
+  .learning-inbox-button {
+    font-size: 11px;
+  }
+}

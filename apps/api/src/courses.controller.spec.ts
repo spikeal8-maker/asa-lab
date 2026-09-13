@@ -19,19 +19,31 @@ function request(): FastifyRequest {
 
 function controller(rows: unknown[] = []) {
   const query = vi.fn(async (sql: string) => ({
-    rows: sql.includes('learning_canonical_evidence') ? [] : rows,
+    rows: sql.includes('learning_canonical_evidence')
+      ? []
+      : sql.includes('course_draft_lock')
+        ? [{ ok: true }]
+        : rows,
   }));
   const activeContext = {
     resolve: vi.fn(async () => ({
       principalId: 'principal-id',
       accountId: 'account-id',
       tenantId: 'tenant-id',
+      workspaceId: 'workspace-id',
+      workspaceKind: 'personal',
     })),
   } as unknown as ActiveContextUseCase;
   const accounts = {
     capabilities: vi.fn(async () => [{ capability: 'educator', state: 'verified' }]),
+    workspaces: vi.fn(async () => [
+      { workspaceId: 'workspace-id', kind: 'personal', role: 'owner' },
+    ]),
   } as unknown as AccountDirectoryPort;
-  const pool = { query } as unknown as pg.Pool;
+  const pool = {
+    query,
+    connect: vi.fn(async () => ({ query, release: vi.fn() })),
+  } as unknown as pg.Pool;
   return { value: new CoursesController(activeContext, accounts, pool), query };
 }
 
@@ -87,7 +99,12 @@ describe('course outline API', () => {
       },
     ]);
 
-    await expect(target.value.publish(request(), COURSE_ID)).resolves.toEqual({
+    await expect(
+      target.value.publish(request(), COURSE_ID, {
+        expectedRevision: 1,
+        requestId: 'publish:test:001',
+      }),
+    ).resolves.toEqual({
       versionId: VERSION_ID,
       versionNumber: 1,
       publishedAt: '2026-08-21T12:00:00.000Z',
@@ -96,6 +113,8 @@ describe('course outline API', () => {
     expect(target.query).toHaveBeenCalledWith(expect.stringContaining('course_publish'), [
       'principal-id',
       COURSE_ID,
+      1,
+      'publish:test:001',
     ]);
   });
 
@@ -129,7 +148,12 @@ describe('course outline API', () => {
       },
     ]);
 
-    await expect(target.value.publish(request(), COURSE_ID)).rejects.toMatchObject({ status: 409 });
+    await expect(
+      target.value.publish(request(), COURSE_ID, {
+        expectedRevision: 1,
+        requestId: 'publish:test:002',
+      }),
+    ).rejects.toMatchObject({ status: 409 });
   });
 
   it('groups the frozen classroom course into sections and lessons', async () => {
@@ -314,6 +338,7 @@ describe('course outline API', () => {
         kind: 'assignment',
         assignmentId: ASSIGNMENT_ID,
         estimatedMinutes: 25,
+        expectedRevision: 1,
       }),
     ).resolves.toEqual({ id: LESSON_ID });
     expect(target.query).toHaveBeenCalledWith(expect.stringContaining('course_lesson_save'), [
@@ -327,6 +352,7 @@ describe('course outline API', () => {
       'assignment',
       ASSIGNMENT_ID,
       25,
+      null,
     ]);
   });
 
@@ -354,9 +380,10 @@ describe('course outline API', () => {
         kind: 'material',
         assignmentId: null,
         estimatedMinutes: 12,
+        expectedRevision: 1,
       }),
     ).resolves.toEqual({ id: LESSON_ID });
-    expect(target.query).toHaveBeenCalledWith(expect.stringContaining('course_lesson_save_v2'), [
+    expect(target.query).toHaveBeenCalledWith(expect.stringContaining('course_lesson_save_v3'), [
       'principal-id',
       COURSE_ID,
       SECTION_ID,
@@ -367,6 +394,7 @@ describe('course outline API', () => {
       'material',
       null,
       12,
+      null,
     ]);
 
     const unsafe = controller();

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent, type JSX } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type JSX } from 'react';
 import {
   api,
   visibilityLabel,
@@ -193,7 +193,26 @@ function LessonEditor({
     return lesson ? [] : [{ id: 'intro', type: 'paragraph', text: '' }];
   });
   const [kind, setKind] = useState<'material' | 'assignment'>(lesson?.kind ?? 'material');
-  const [assignmentId, setAssignmentId] = useState(lesson?.assignmentId ?? '');
+  const [assignmentId, setAssignmentId] = useState(
+    lesson?.learningActivityVersionId
+      ? 'lav:' + lesson.learningActivityVersionId
+      : (lesson?.assignmentId ?? ''),
+  );
+  const [materials, setMaterials] = useState<
+    { id: string; title: string; currentPublishedVersionId: string | null }[]
+  >([]);
+  const [materialError, setMaterialError] = useState<string | null>(null);
+  useEffect(() => {
+    let disposed = false;
+    void api.authoredActivities().then((result) => {
+      if (disposed) return;
+      if (result.ok) setMaterials(result.data.items);
+      else setMaterialError(result.error.message);
+    });
+    return () => {
+      disposed = true;
+    };
+  }, []);
   const [minutes, setMinutes] = useState(
     lesson?.estimatedMinutes === null || lesson?.estimatedMinutes === undefined
       ? ''
@@ -219,7 +238,10 @@ function LessonEditor({
         content: null,
         blocks,
         kind,
-        assignmentId: kind === 'assignment' ? assignmentId : null,
+        assignmentId:
+          kind === 'assignment' && !assignmentId.startsWith('lav:') ? assignmentId : null,
+        learningActivityVersionId:
+          kind === 'assignment' && assignmentId.startsWith('lav:') ? assignmentId.slice(4) : null,
         estimatedMinutes: minutes ? Number(minutes) : null,
       });
     } finally {
@@ -259,7 +281,7 @@ function LessonEditor({
             onChange={(event) => setKind(event.target.value as 'material' | 'assignment')}
           >
             <option value="material">Материал</option>
-            <option value="assignment">Задание из банка</option>
+            <option value="assignment">Практическое задание</option>
           </select>
         </label>
       </div>
@@ -286,7 +308,7 @@ function LessonEditor({
 
       {kind === 'assignment' ? (
         <label className="course-field">
-          <span>Задание из банка</span>
+          <span>Опубликованный материал</span>
           <select
             aria-label="Задание из банка"
             value={assignmentId}
@@ -294,18 +316,47 @@ function LessonEditor({
               setAssignmentId(event.target.value);
               if (!title.trim()) {
                 setTitle(
-                  activeAssignments.find((entry) => entry.id === event.target.value)?.title ?? '',
+                  materials.find(
+                    (entry) => 'lav:' + entry.currentPublishedVersionId === event.target.value,
+                  )?.title ??
+                    activeAssignments.find((entry) => entry.id === event.target.value)?.title ??
+                    '',
                 );
               }
             }}
           >
             <option value="">Выберите задание…</option>
+            {materials.map((entry) => (
+              <option
+                key={entry.id}
+                value={
+                  entry.currentPublishedVersionId
+                    ? 'lav:' + entry.currentPublishedVersionId
+                    : 'draft:' + entry.id
+                }
+                disabled={!entry.currentPublishedVersionId}
+              >
+                {entry.title} ·{' '}
+                {entry.currentPublishedVersionId
+                  ? 'опубликованная версия'
+                  : 'черновик — сначала опубликуйте материал'}
+              </option>
+            ))}
+            {lesson?.learningActivityVersionId &&
+            !materials.some(
+              (entry) => entry.currentPublishedVersionId === lesson.learningActivityVersionId,
+            ) ? (
+              <option value={'lav:' + lesson.learningActivityVersionId}>
+                {lesson.assignmentTitle} · закреплённая версия
+              </option>
+            ) : null}
             {activeAssignments.map((entry) => (
               <option key={entry.id} value={entry.id}>
                 {entry.title}
               </option>
             ))}
           </select>
+          {materialError ? <span role="alert">{materialError}</span> : null}
         </label>
       ) : null}
 
@@ -402,6 +453,7 @@ function CourseEditor({
   readonly onChanged: () => void;
 }): JSX.Element {
   const [sections, setSections] = useState<CourseSection[] | null>(null);
+  const [draftRevision, setDraftRevision] = useState(course.draftRevision);
   const [selectedLessonId, setSelectedLessonId] = useState<string | null>(null);
   const [newLessonSectionId, setNewLessonSectionId] = useState<string | null>(null);
   const [sectionForm, setSectionForm] = useState<CourseSection | null | 'new'>(null);
@@ -418,6 +470,7 @@ function CourseEditor({
       return;
     }
     setSections(result.data.sections);
+    setDraftRevision(result.data.draftRevision);
     setSelectedLessonId((current) => {
       if (
         current &&
@@ -429,7 +482,7 @@ function CourseEditor({
       }
       return result.data.sections.flatMap((section) => section.lessons)[0]?.id ?? null;
     });
-  }, [course.id]);
+  }, [course.id, course.draftRevision]);
 
   useEffect(() => {
     void loadOutline();
@@ -458,7 +511,10 @@ function CourseEditor({
 
   async function saveLesson(input: CourseLessonInput): Promise<void> {
     const lessonId = selected?.lesson.id ?? null;
-    const result = await api.saveCourseLesson(course.id, lessonId, input);
+    const result = await api.saveCourseLesson(course.id, lessonId, {
+      ...input,
+      expectedRevision: draftRevision,
+    });
     if (!result.ok) {
       setError(result.error.message);
       return;
@@ -475,7 +531,7 @@ function CourseEditor({
     if (!selected) return;
     if (!window.confirm('Удалить урок «' + selected.lesson.title + '»?')) return;
     const removed = await act(
-      () => api.deleteCourseLesson(course.id, selected.lesson.id),
+      () => api.deleteCourseLesson(course.id, selected.lesson.id, draftRevision),
       'Урок удалён.',
     );
     if (removed) setSelectedLessonId(null);
@@ -486,7 +542,11 @@ function CourseEditor({
   async function publishCourse(): Promise<void> {
     if (publishing || lessonCount === 0) return;
     setPublishing(true);
-    const result = await api.publishCourse(course.id);
+    const result = await api.publishCourse(
+      course.id,
+      draftRevision,
+      `course-publish:${course.id}:${draftRevision}`,
+    );
     setPublishing(false);
     if (!result.ok) {
       setNotice(null);
@@ -616,7 +676,8 @@ function CourseEditor({
                             onClick={() => {
                               close();
                               void act(
-                                () => api.moveCourseSection(course.id, section.id, -1),
+                                () =>
+                                  api.moveCourseSection(course.id, section.id, -1, draftRevision),
                                 'Раздел перемещён.',
                               );
                             }}
@@ -629,7 +690,8 @@ function CourseEditor({
                             onClick={() => {
                               close();
                               void act(
-                                () => api.moveCourseSection(course.id, section.id, 1),
+                                () =>
+                                  api.moveCourseSection(course.id, section.id, 1, draftRevision),
                                 'Раздел перемещён.',
                               );
                             }}
@@ -651,7 +713,7 @@ function CourseEditor({
                             onClick={() => {
                               close();
                               void act(
-                                () => api.deleteCourseSection(course.id, section.id),
+                                () => api.deleteCourseSection(course.id, section.id, draftRevision),
                                 'Раздел удалён.',
                               );
                             }}
@@ -696,7 +758,8 @@ function CourseEditor({
                               aria-label={'Выше: ' + lesson.title}
                               onClick={() =>
                                 void act(
-                                  () => api.moveCourseLesson(course.id, lesson.id, -1),
+                                  () =>
+                                    api.moveCourseLesson(course.id, lesson.id, -1, draftRevision),
                                   'Урок перемещён.',
                                 )
                               }
@@ -709,7 +772,8 @@ function CourseEditor({
                               aria-label={'Ниже: ' + lesson.title}
                               onClick={() =>
                                 void act(
-                                  () => api.moveCourseLesson(course.id, lesson.id, 1),
+                                  () =>
+                                    api.moveCourseLesson(course.id, lesson.id, 1, draftRevision),
                                   'Урок перемещён.',
                                 )
                               }
@@ -782,7 +846,8 @@ function CourseEditor({
           onSave={async (value) => {
             const id = sectionForm === 'new' ? null : sectionForm.id;
             const saved = await act(
-              () => api.saveCourseSection(course.id, id, value),
+              () =>
+                api.saveCourseSection(course.id, id, { ...value, expectedRevision: draftRevision }),
               id ? 'Раздел сохранён.' : 'Раздел добавлен.',
             );
             if (saved) setSectionForm(null);
@@ -814,6 +879,7 @@ export function CoursesPanel({
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [creatingDemo, setCreatingDemo] = useState(false);
+  const creationRequest = useRef<{ payload: string; id: string } | null>(null);
 
   const reload = useCallback(async () => {
     const result = await api.listCourses();
@@ -882,7 +948,12 @@ export function CoursesPanel({
             onClose={() => setCourseForm(null)}
             onSave={async (value) => {
               const saved = await act(
-                () => api.saveCourse(open.id, value),
+                () =>
+                  api.saveCourse(open.id, {
+                    ...value,
+                    expectedRevision:
+                      courseForm === 'new' ? open.draftRevision : courseForm.draftRevision,
+                  }),
                 'Настройки курса сохранены.',
               );
               if (saved) setCourseForm(null);
@@ -1057,7 +1128,14 @@ export function CoursesPanel({
           onClose={() => setCourseForm(null)}
           onSave={async (value) => {
             const existing = courseForm === 'new' ? null : courseForm;
-            const result = await api.saveCourse(existing?.id ?? null, value);
+            const payload = JSON.stringify(value);
+            if (creationRequest.current?.payload !== payload)
+              creationRequest.current = { payload, id: crypto.randomUUID() };
+            const result = await api.saveCourse(existing?.id ?? null, {
+              ...value,
+              ...(existing ? { expectedRevision: existing.draftRevision } : {}),
+              requestId: creationRequest.current.id,
+            });
             if (!result.ok) {
               setError(result.error.message);
               return;
@@ -1065,6 +1143,7 @@ export function CoursesPanel({
             setError(null);
             setNotice(existing ? 'Настройки курса сохранены.' : 'Курс создан.');
             setCourseForm(null);
+            creationRequest.current = null;
             await reload();
             if (!existing) setOpenId(result.data.id);
             onChanged();

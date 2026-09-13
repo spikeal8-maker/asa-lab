@@ -1,8 +1,11 @@
+import { openAssignmentWork, submitSavedAssignment } from '../learning/submit-saved-assignment';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { api, type AttendedClass, type SeatAssignment } from '../api';
 import { AssignmentView } from '../components/AssignmentView';
-import { newClientId } from '../client-id';
 import { SeatCourses } from '../components/SeatCourses';
+import { ClassroomJoinRequests } from '../components/ClassroomJoinRequests';
+import { LearningNotificationPreferences } from '../components/LearningNotificationPreferences';
+import { useLearningDestination } from '../learning/use-learning-destination';
 import { useSchoolTime } from '../components/school-time';
 import '../components/classroom-assignments.css';
 import './attended-classes.css';
@@ -38,6 +41,10 @@ export function AttendedClassesPage({
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
+  const destination = useLearningDestination();
+  useEffect(() => {
+    if (destination.assignment) setOpenId(destination.assignment);
+  }, [destination.assignment]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const time = useSchoolTime();
 
@@ -69,7 +76,7 @@ export function AttendedClassesPage({
     setNotice(
       result.data.alreadyMember
         ? `Вы уже учитесь в классе «${result.data.classroom.title}».`
-        : `Вы в классе «${result.data.classroom.title}».`,
+        : `Заявка в класс «${result.data.classroom.title}» отправлена. Дождитесь подтверждения преподавателя.`,
     );
     await load();
   }
@@ -81,7 +88,7 @@ export function AttendedClassesPage({
       scope: 'personal',
       module: assignment.moduleKey,
       title: assignment.title,
-      idempotencyKey: newClientId(),
+      idempotencyKey: assignment.id,
     });
     if (!created.ok) {
       setBusy(false);
@@ -154,6 +161,8 @@ export function AttendedClassesPage({
             ) : null}
           </form>
 
+          <ClassroomJoinRequests onChanged={() => void load()} />
+
           {classes === null ? (
             !loadError ? (
               <p role="status">Загружаем…</p>
@@ -170,6 +179,10 @@ export function AttendedClassesPage({
                   <div>
                     <strong>{entry.classroomTitle}</strong>
                     <span>Преподаватель: {entry.teacherDisplayName}</span>
+                    <details>
+                      <summary>Мои оповещения об этом классе</summary>
+                      <LearningNotificationPreferences classroomId={entry.classroomId} />
+                    </details>
                   </div>
                   {entry.unfinishedCount > 0 ? (
                     <span className="attended-owed">Не сдано: {entry.unfinishedCount}</span>
@@ -287,9 +300,10 @@ export function AttendedClassesPage({
                         <button
                           type="button"
                           className="portal-create-button"
-                          onClick={() =>
-                            onOpenProject(assignment.projectId as string, assignment.moduleKey)
-                          }
+                          onClick={async () => {
+                            const message = await openAssignmentWork(assignment, onOpenProject);
+                            if (message) window.alert(message);
+                          }}
                         >
                           Открыть работу
                         </button>
@@ -303,15 +317,20 @@ export function AttendedClassesPage({
                               : assignment.submittedAt !== null)
                           }
                           onClick={async () => {
+                            if (assignment.canonicalState?.workflowState === 'changes_requested') {
+                              setError(await openAssignmentWork(assignment, onOpenProject));
+                              return;
+                            }
                             setBusy(true);
-                            const result = await api.submitSeatAssignment(assignment.id, true);
+                            const result = await submitSavedAssignment(assignment);
                             setBusy(false);
                             if (result.ok) await load();
+                            else setError(result.error.message);
                           }}
                         >
                           {assignment.canonicalState
                             ? assignment.canonicalState.workflowState === 'changes_requested'
-                              ? 'Сдать доработку'
+                              ? 'Начать доработку'
                               : canonicalSubmissionLocked(assignment.canonicalState)
                                 ? 'Работа сдана'
                                 : 'Сдать'

@@ -14,6 +14,7 @@ import {
 import type { FastifyRequest } from 'fastify';
 import type pg from 'pg';
 import type { AccountDirectoryPort, ActiveContext, ActiveContextUseCase } from '@asa-lab/identity';
+import { effectiveAccountActions } from '@asa-lab/identity';
 import { SESSION_COOKIE, TOKENS } from './tokens.js';
 import { cataloguePreview, type CataloguePreviewRow } from './course-preview.js';
 import { checkBodyShape } from './validation.js';
@@ -151,6 +152,7 @@ interface CourseRow {
   published_at: Date | string | null;
   created_at: Date | string;
   updated_at: Date | string;
+  draft_revision: number;
 }
 
 interface CoursePublishRow {
@@ -338,6 +340,7 @@ function classroomCourseRuns(
 }
 
 interface CourseOutlineRow {
+  draft_revision: number;
   section_id: string;
   section_title: string;
   section_summary: string | null;
@@ -349,6 +352,7 @@ interface CourseOutlineRow {
   lesson_blocks: LessonBlock[] | null;
   lesson_kind: 'material' | 'assignment' | null;
   lesson_assignment_id: string | null;
+  learning_activity_version_id: string | null;
   assignment_title: string | null;
   module_key: string | null;
   estimated_minutes: number | string | null;
@@ -388,6 +392,21 @@ export class CoursesController {
     return new LearningCanonicalProjectionService(this.requirePool());
   }
 
+  private async requireAuthor(request: FastifyRequest): Promise<ActiveContext> {
+    const context = await this.activeContext.resolve(request.cookies[SESSION_COOKIE]);
+    if (!context) throw new HttpException(error('unauthorized', 'no active session'), 401);
+    const [capabilities, workspaces] = await Promise.all([
+      this.accounts.capabilities(context.accountId),
+      this.accounts.workspaces(context.accountId),
+    ]);
+    if (!effectiveAccountActions(context, capabilities, workspaces).includes('content.create.own'))
+      throw new HttpException(
+        error('author_required', 'Подключите создание материалов в разделе «Возможности».'),
+        403,
+      );
+    return context;
+  }
+
   private async requireEducator(request: FastifyRequest): Promise<ActiveContext> {
     const context = await this.activeContext.resolve(request.cookies[SESSION_COOKIE]);
     if (!context) throw new HttpException(error('unauthorized', 'no active session'), 401);
@@ -405,16 +424,56 @@ export class CoursesController {
     }
   }
 
+  private async draftMutation(
+    context: ActiveContext,
+    courseId: string,
+    expected: unknown,
+    sql: string,
+    values: unknown[],
+  ) {
+    if (typeof expected !== 'number' || !Number.isInteger(expected) || expected < 1) {
+      throw new HttpException(
+        error('draft_revision_required', 'Обновите курс перед изменением.'),
+        409,
+      );
+    }
+    const client = await this.requirePool().connect();
+    try {
+      await client.query('BEGIN');
+      const locked = await client.query('SELECT course_draft_lock($1,$2,$3) AS ok', [
+        context.principalId,
+        courseId,
+        expected,
+      ]);
+      if (locked.rows[0]?.ok !== true)
+        throw new HttpException(
+          error(
+            'draft_conflict',
+            'Курс изменён в другом окне. Обновите содержание перед сохранением.',
+          ),
+          409,
+        );
+      const result = await client.query(sql, values);
+      await client.query('COMMIT');
+      return result;
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
+  }
+
   // Свои курсы.
 
   @Get('courses')
   async list(@Req() request: FastifyRequest) {
-    const context = await this.requireEducator(request);
+    const context = await this.requireAuthor(request);
     const result = await this.requirePool().query(
       `SELECT id, title, summary, visibility, age_band, section_count, lesson_count,
               assignment_count, shared_with, copied_from_course_id,
-              publication_state, published_version, published_at, created_at, updated_at
-         FROM course_library_list($1)`,
+              publication_state, published_version, published_at, created_at, updated_at, draft_revision
+         FROM course_library_list_v2($1)`,
       [context.principalId],
     );
     return {
@@ -435,6 +494,7 @@ export class CoursesController {
         publishedAt: row.published_at === null ? null : iso(row.published_at),
         createdAt: iso(row.created_at),
         updatedAt: iso(row.updated_at),
+        draftRevision: Number(row.draft_revision),
       })),
     };
   }
@@ -485,8 +545,15 @@ export class CoursesController {
     courseId: string | null,
     rawBody: unknown,
   ): Promise<string> {
-    const context = await this.requireEducator(request);
-    const shape = checkBodyShape(rawBody, ['title', 'summary', 'ageBand', 'visibility']);
+    const context = await this.requireAuthor(request);
+    const shape = checkBodyShape(rawBody, [
+      'title',
+      'summary',
+      'ageBand',
+      'visibility',
+      'expectedRevision',
+      'requestId',
+    ]);
     if (!shape.ok) throw new HttpException(error('validation_error', shape.message), 400);
     const title = String(shape.body['title'] ?? '').trim();
     const summary = shape.body['summary'] ?? null;
@@ -502,11 +569,28 @@ export class CoursesController {
       throw new HttpException(error('validation_error', 'Неизвестный уровень доступа.'), 400);
     }
     const result = await this.requirePool().query(
-      `SELECT course_save($1, $2, $3, $4, $5, $6) AS id`,
-      [context.principalId, courseId, title, summary, ageBand, visibility],
+      `SELECT * FROM course_save_v2($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+      [
+        context.principalId,
+        context.tenantId,
+        courseId,
+        title,
+        summary,
+        ageBand,
+        visibility,
+        shape.body['expectedRevision'] ?? null,
+        shape.body['requestId'] ?? null,
+      ],
     );
     const id = (result.rows[0] as { id: string | null } | undefined)?.id ?? null;
-    if (!id) throw new HttpException(error('course_not_found', 'Курс не найден.'), 404);
+    if (!id)
+      throw new HttpException(
+        error(
+          String(result.rows[0]?.result_code ?? 'course_not_found'),
+          'Не удалось сохранить курс. Проверьте доступ и актуальность редакции.',
+        ),
+        409,
+      );
     return id;
   }
 
@@ -517,13 +601,27 @@ export class CoursesController {
    * surface can never rewrite material that learners have already received.
    */
   @Post('courses/:courseId/publish')
-  async publish(@Req() request: FastifyRequest, @Param('courseId') courseId: string) {
-    const context = await this.requireEducator(request);
+  async publish(
+    @Req() request: FastifyRequest,
+    @Param('courseId') courseId: string,
+    @Body() rawBody: unknown,
+  ) {
+    const context = await this.requireAuthor(request);
     this.requireUuid(courseId, 'course');
+    const shape = checkBodyShape(rawBody, ['expectedRevision', 'requestId']);
+    if (
+      !shape.ok ||
+      typeof shape.body['expectedRevision'] !== 'number' ||
+      typeof shape.body['requestId'] !== 'string'
+    )
+      throw new HttpException(
+        error('validation_error', 'Укажите редакцию курса и идентификатор публикации.'),
+        400,
+      );
     const result = await this.requirePool().query(
       `SELECT result_code, version_id, version_number, published_at, reused
-         FROM course_publish($1, $2)`,
-      [context.principalId, courseId],
+         FROM course_publish_v2($1, $2,$3,$4)`,
+      [context.principalId, courseId, shape.body['expectedRevision'], shape.body['requestId']],
     );
     const row = result.rows[0] as CoursePublishRow | undefined;
     if (!row || row.result_code === 'course_not_found') {
@@ -536,7 +634,10 @@ export class CoursesController {
       );
     }
     if (!row.version_id || row.version_number === null || row.published_at === null) {
-      throw new HttpException(error('publish_failed', 'Не получилось опубликовать курс.'), 500);
+      throw new HttpException(
+        error(row.result_code, 'Курс изменён или публикация отклонена. Обновите содержание.'),
+        409,
+      );
     }
     return {
       versionId: row.version_id,
@@ -578,7 +679,15 @@ export class CoursesController {
   ) {
     const context = await this.requireEducator(request);
     this.requireUuid(classroomId, 'classroom');
-    const shape = checkBodyShape(rawBody, ['courseId', 'dueAt']);
+    const shape = checkBodyShape(rawBody, [
+      'courseId',
+      'dueAt',
+      'versionNumber',
+      'audienceType',
+      'seatIds',
+      'requestId',
+      'timeZone',
+    ]);
     if (!shape.ok) throw new HttpException(error('validation_error', shape.message), 400);
     const courseId = shape.body['courseId'];
     const dueAt = shape.body['dueAt'] ?? null;
@@ -589,14 +698,54 @@ export class CoursesController {
     if (dueAt !== null && (typeof dueAt !== 'string' || Number.isNaN(Date.parse(dueAt)))) {
       throw new HttpException(error('validation_error', 'Неверный срок курса.'), 400);
     }
-    const result = await this.requirePool().query(
-      `SELECT result_code, run_id, version_number, reused
+    const canonical = shape.body['requestId'] !== undefined;
+    const timeZone = shape.body['timeZone'];
+    if (timeZone !== undefined && (typeof timeZone !== 'string' || timeZone.length > 80))
+      throw new HttpException(error('validation_error', 'Некорректный часовой пояс.'), 400);
+    const versionNumber = shape.body['versionNumber'];
+    const audienceType = shape.body['audienceType'];
+    const seatIds = shape.body['seatIds'];
+    const requestId = shape.body['requestId'];
+    if (
+      canonical &&
+      (typeof versionNumber !== 'number' ||
+        !Number.isInteger(versionNumber) ||
+        versionNumber < 1 ||
+        (audienceType !== 'whole_class' && audienceType !== 'named_learners') ||
+        !Array.isArray(seatIds) ||
+        seatIds.some((id) => typeof id !== 'string' || !UUID_PATTERN.test(id)) ||
+        typeof requestId !== 'string' ||
+        !/^[A-Za-z0-9._:-]{8,80}$/.test(requestId))
+    )
+      throw new HttpException(
+        error('validation_error', 'Проверьте версию курса и аудиторию.'),
+        400,
+      );
+    const result = canonical
+      ? await this.requirePool().query(
+          timeZone === undefined
+            ? 'SELECT * FROM classroom_course_run_assign_v3($1,$2,$3,$4,$5,$6,$7::uuid[],$8)'
+            : 'SELECT * FROM classroom_course_run_assign_v4($1,$2,$3,$4,$5,$6,$7::uuid[],$8,$9)',
+          [
+            context.principalId,
+            classroomId,
+            courseId,
+            dueAt,
+            versionNumber,
+            audienceType,
+            seatIds,
+            requestId,
+            ...(timeZone === undefined ? [] : [timeZone]),
+          ],
+        )
+      : await this.requirePool().query(
+          `SELECT result_code, run_id, version_number, reused
          FROM classroom_course_run_assign_v2($1, $2, $3, $4)`,
-      [context.principalId, classroomId, courseId, dueAt],
-    );
+          [context.principalId, classroomId, courseId, dueAt],
+        );
     const row = result.rows[0] as
       | {
-          result_code: 'ok' | 'classroom_not_found' | 'course_not_published';
+          result_code: string;
           run_id: string | null;
           version_number: number | string | null;
           reused: boolean;
@@ -608,6 +757,16 @@ export class CoursesController {
     if (row.result_code === 'course_not_published') {
       throw new HttpException(error('course_not_published', 'Сначала опубликуйте курс.'), 409);
     }
+    if (row.result_code !== 'ok')
+      throw new HttpException(
+        error(
+          row.result_code,
+          row.result_code === 'canonical_material_required'
+            ? 'В практических уроках выберите опубликованные материалы из своей библиотеки в текущем рабочем пространстве.'
+            : 'Назначение курса отклонено. Обновите данные и проверьте аудиторию.',
+        ),
+        409,
+      );
     return {
       runId: row.run_id as string,
       versionNumber: Number(row.version_number),
@@ -658,7 +817,7 @@ export class CoursesController {
   /** Состав курса — то, что видно и чужому, если курс ему открыт. */
   @Get('courses/:courseId/items')
   async items(@Req() request: FastifyRequest, @Param('courseId') courseId: string) {
-    const context = await this.requireEducator(request);
+    const context = await this.requireAuthor(request);
     this.requireUuid(courseId, 'course');
     const result = await this.requirePool().query(
       `SELECT id, title, goal, module_key, sample_image, step_number
@@ -693,7 +852,7 @@ export class CoursesController {
     @Param('assignmentId') assignmentId: string,
     @Body() rawBody: unknown,
   ) {
-    const context = await this.requireEducator(request);
+    const context = await this.requireAuthor(request);
     this.requireUuid(courseId, 'course');
     this.requireUuid(assignmentId, 'assignment');
     const shape = checkBodyShape(rawBody, ['included']);
@@ -718,7 +877,7 @@ export class CoursesController {
     @Param('assignmentId') assignmentId: string,
     @Body() rawBody: unknown,
   ) {
-    const context = await this.requireEducator(request);
+    const context = await this.requireAuthor(request);
     this.requireUuid(courseId, 'course');
     this.requireUuid(assignmentId, 'assignment');
     const shape = checkBodyShape(rawBody, ['delta']);
@@ -736,13 +895,13 @@ export class CoursesController {
 
   @Get('courses/:courseId/outline')
   async outline(@Req() request: FastifyRequest, @Param('courseId') courseId: string) {
-    const context = await this.requireEducator(request);
+    const context = await this.requireAuthor(request);
     this.requireUuid(courseId, 'course');
     const result = await this.requirePool().query(
       'SELECT section_id, section_title, section_summary, section_position, ' +
         'lesson_id, lesson_title, lesson_summary, lesson_content, lesson_blocks, lesson_kind, ' +
-        'lesson_assignment_id, assignment_title, module_key, estimated_minutes, ' +
-        'lesson_position FROM course_outline_v2($1, $2, $3, $4)',
+        'lesson_assignment_id, learning_activity_version_id, assignment_title, module_key, estimated_minutes, ' +
+        'lesson_position, course_draft_revision($2,$1) AS draft_revision FROM course_outline_v3($1, $2, $3, $4)',
       [courseId, context.principalId, context.accountId, context.tenantId],
     );
     const rows = result.rows as CourseOutlineRow[];
@@ -763,6 +922,7 @@ export class CoursesController {
         blocks: LessonBlock[];
         kind: 'material' | 'assignment';
         assignmentId: string | null;
+        learningActivityVersionId: string | null;
         assignmentTitle: string | null;
         moduleKey: string | null;
         estimatedMinutes: number | null;
@@ -790,6 +950,7 @@ export class CoursesController {
           blocks: row.lesson_blocks ?? [],
           kind: row.lesson_kind,
           assignmentId: row.lesson_assignment_id,
+          learningActivityVersionId: row.learning_activity_version_id,
           assignmentTitle: row.assignment_title,
           moduleKey: row.module_key,
           estimatedMinutes: row.estimated_minutes === null ? null : Number(row.estimated_minutes),
@@ -797,7 +958,7 @@ export class CoursesController {
         });
       }
     }
-    return { sections };
+    return { sections, draftRevision: Number(rows[0]?.draft_revision) };
   }
 
   @Post('courses/:courseId/sections')
@@ -826,9 +987,9 @@ export class CoursesController {
     sectionId: string | null,
     rawBody: unknown,
   ): Promise<string> {
-    const context = await this.requireEducator(request);
+    const context = await this.requireAuthor(request);
     this.requireUuid(courseId, 'course');
-    const shape = checkBodyShape(rawBody, ['title', 'summary']);
+    const shape = checkBodyShape(rawBody, ['title', 'summary', 'expectedRevision']);
     if (!shape.ok) throw new HttpException(error('validation_error', shape.message), 400);
     const title = String(shape.body['title'] ?? '').trim();
     const summary = shape.body['summary'] ?? null;
@@ -838,7 +999,10 @@ export class CoursesController {
     if (summary !== null && (typeof summary !== 'string' || summary.length > 600)) {
       throw new HttpException(error('validation_error', 'Описание раздела слишком длинное.'), 400);
     }
-    const result = await this.requirePool().query(
+    const result = await this.draftMutation(
+      context,
+      courseId,
+      shape.body['expectedRevision'],
       'SELECT course_section_save($1, $2, $3, $4, $5) AS id',
       [context.principalId, courseId, sectionId, title, summary],
     );
@@ -854,12 +1018,16 @@ export class CoursesController {
     @Param('sectionId') sectionId: string,
     @Body() rawBody: unknown,
   ) {
-    const context = await this.requireEducator(request);
+    const context = await this.requireAuthor(request);
     this.requireUuid(courseId, 'course');
     this.requireUuid(sectionId, 'section');
-    const shape = checkBodyShape(rawBody, ['delta']);
+    const shape = checkBodyShape(rawBody, ['delta', 'expectedRevision']);
+    if (!shape.ok) throw new HttpException(error('validation_error', shape.message), 400);
     const delta = shape.ok && Number(shape.body['delta']) < 0 ? -1 : 1;
-    const result = await this.requirePool().query(
+    const result = await this.draftMutation(
+      context,
+      courseId,
+      shape.body['expectedRevision'],
       'SELECT course_section_move($1, $2, $3, $4) AS ok',
       [context.principalId, courseId, sectionId, delta],
     );
@@ -871,11 +1039,17 @@ export class CoursesController {
     @Req() request: FastifyRequest,
     @Param('courseId') courseId: string,
     @Param('sectionId') sectionId: string,
+    @Body() rawBody: unknown,
   ) {
-    const context = await this.requireEducator(request);
+    const context = await this.requireAuthor(request);
     this.requireUuid(courseId, 'course');
     this.requireUuid(sectionId, 'section');
-    const result = await this.requirePool().query(
+    const shape = checkBodyShape(rawBody, ['expectedRevision']);
+    if (!shape.ok) throw new HttpException(error('validation_error', shape.message), 400);
+    const result = await this.draftMutation(
+      context,
+      courseId,
+      shape.body['expectedRevision'],
       'SELECT course_section_delete($1, $2, $3) AS ok',
       [context.principalId, courseId, sectionId],
     );
@@ -914,7 +1088,7 @@ export class CoursesController {
     lessonId: string | null,
     rawBody: unknown,
   ): Promise<string> {
-    const context = await this.requireEducator(request);
+    const context = await this.requireAuthor(request);
     this.requireUuid(courseId, 'course');
     const shape = checkBodyShape(rawBody, [
       'sectionId',
@@ -924,7 +1098,9 @@ export class CoursesController {
       'blocks',
       'kind',
       'assignmentId',
+      'learningActivityVersionId',
       'estimatedMinutes',
+      'expectedRevision',
     ]);
     if (!shape.ok) throw new HttpException(error('validation_error', shape.message), 400);
     const sectionId = String(shape.body['sectionId'] ?? '');
@@ -934,6 +1110,7 @@ export class CoursesController {
     const blocks = lessonBlocks(shape.body['blocks'], typeof content === 'string' ? content : null);
     const kind = String(shape.body['kind'] ?? 'material');
     const assignmentId = shape.body['assignmentId'] ?? null;
+    const activityVersionId = shape.body['learningActivityVersionId'] ?? null;
     const rawMinutes = shape.body['estimatedMinutes'] ?? null;
     const estimatedMinutes = rawMinutes === null ? null : Number(rawMinutes);
     this.requireUuid(sectionId, 'section');
@@ -956,11 +1133,11 @@ export class CoursesController {
       throw new HttpException(error('validation_error', 'Неизвестный тип урока.'), 400);
     }
     if (kind === 'assignment') {
-      if (typeof assignmentId !== 'string') {
+      if ((assignmentId === null) === (activityVersionId === null)) {
         throw new HttpException(error('validation_error', 'Выберите задание.'), 400);
       }
-      this.requireUuid(assignmentId, 'assignment');
-    } else if (assignmentId !== null) {
+      this.requireUuid(String(activityVersionId ?? assignmentId), 'assignment');
+    } else if (assignmentId !== null || activityVersionId !== null) {
       throw new HttpException(
         error('validation_error', 'Материал не должен ссылаться на задание.'),
         400,
@@ -973,8 +1150,11 @@ export class CoursesController {
       throw new HttpException(error('validation_error', 'Укажите время от 1 до 600 минут.'), 400);
     }
 
-    const result = await this.requirePool().query(
-      'SELECT course_lesson_save_v2($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) AS id',
+    const result = await this.draftMutation(
+      context,
+      courseId,
+      shape.body['expectedRevision'],
+      'SELECT course_lesson_save_v3($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) AS id',
       [
         context.principalId,
         courseId,
@@ -986,6 +1166,7 @@ export class CoursesController {
         kind,
         kind === 'assignment' ? assignmentId : null,
         estimatedMinutes,
+        activityVersionId,
       ],
     );
     const id = (result.rows[0] as { id: string | null } | undefined)?.id ?? null;
@@ -1002,12 +1183,16 @@ export class CoursesController {
     @Param('lessonId') lessonId: string,
     @Body() rawBody: unknown,
   ) {
-    const context = await this.requireEducator(request);
+    const context = await this.requireAuthor(request);
     this.requireUuid(courseId, 'course');
     this.requireUuid(lessonId, 'lesson');
-    const shape = checkBodyShape(rawBody, ['delta']);
+    const shape = checkBodyShape(rawBody, ['delta', 'expectedRevision']);
+    if (!shape.ok) throw new HttpException(error('validation_error', shape.message), 400);
     const delta = shape.ok && Number(shape.body['delta']) < 0 ? -1 : 1;
-    const result = await this.requirePool().query(
+    const result = await this.draftMutation(
+      context,
+      courseId,
+      shape.body['expectedRevision'],
       'SELECT course_lesson_move($1, $2, $3, $4) AS ok',
       [context.principalId, courseId, lessonId, delta],
     );
@@ -1019,15 +1204,20 @@ export class CoursesController {
     @Req() request: FastifyRequest,
     @Param('courseId') courseId: string,
     @Param('lessonId') lessonId: string,
+    @Body() rawBody: unknown,
   ) {
-    const context = await this.requireEducator(request);
+    const context = await this.requireAuthor(request);
     this.requireUuid(courseId, 'course');
     this.requireUuid(lessonId, 'lesson');
-    const result = await this.requirePool().query('SELECT course_lesson_delete($1, $2, $3) AS ok', [
-      context.principalId,
+    const shape = checkBodyShape(rawBody, ['expectedRevision']);
+    if (!shape.ok) throw new HttpException(error('validation_error', shape.message), 400);
+    const result = await this.draftMutation(
+      context,
       courseId,
-      lessonId,
-    ]);
+      shape.body['expectedRevision'],
+      'SELECT course_lesson_delete($1, $2, $3) AS ok',
+      [context.principalId, courseId, lessonId],
+    );
     if ((result.rows[0] as { ok: boolean } | undefined)?.ok !== true) {
       throw new HttpException(error('lesson_not_found', 'Урок не найден.'), 404);
     }

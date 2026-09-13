@@ -259,14 +259,17 @@ describe('LRN-VS-001 canonical direct assignment', () => {
           client.query(`SELECT * FROM classroom_seat_assignment_counts($1)`, [seatId]),
         )
       ).rows[0] as { open_count: number; unfinished_count: number };
-    await expect(counts(first)).resolves.toMatchObject({ open_count: 1, unfinished_count: 1 });
-    await expect(counts(third)).resolves.toMatchObject({ open_count: 0, unfinished_count: 0 });
+    // A new canonical delivery must not retroactively narrow the earlier
+    // legacy handout or confiscate its third learner's historical work.
+    expect(result['classroom_assignment_id']).not.toBe(handout.rows[0].id);
+    await expect(counts(first)).resolves.toMatchObject({ open_count: 2, unfinished_count: 2 });
+    await expect(counts(third)).resolves.toMatchObject({ open_count: 1, unfinished_count: 1 });
     await expect(
       inTenant((client) =>
-        client.query(`SELECT * FROM learning_project_submission_create($1,$2,$3)`, [
+        client.query(`SELECT * FROM classroom_assignment_work_start($1,$2,$3)`, [
           third,
-          handout.rows[0].id,
-          `vs:excluded-submit:${++sequence}`,
+          result['classroom_assignment_id'],
+          project.rows[0].id,
         ]),
       ),
     ).rejects.toThrow(/learning direct assignment unavailable/);
@@ -275,7 +278,7 @@ describe('LRN-VS-001 canonical direct assignment', () => {
         await admin.query(
           `SELECT count(*)::int AS count FROM learning_attempts
             WHERE classroom_assignment_id=$1 AND seat_id=$2`,
-          [handout.rows[0].id, third],
+          [result['classroom_assignment_id'], third],
         )
       ).rows[0].count,
     ).toBe(0);

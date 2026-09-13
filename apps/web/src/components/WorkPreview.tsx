@@ -182,7 +182,11 @@ export function WorkPreview({
           ) : null}
 
           <form className="work-preview-form" onSubmit={(event) => void save(event)}>
-            <span className="work-preview-label">Оценка</span>
+            <span className="work-preview-label">Отклик на проект</span>
+            <p>
+              Значок и комментарий не являются официальной оценкой. Учебная сдача проверяется в
+              журнале класса.
+            </p>
             <div className="feedback-badges" role="group" aria-label="Значок">
               {BADGES.map((option) => (
                 <button

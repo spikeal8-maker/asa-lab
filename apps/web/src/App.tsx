@@ -48,11 +48,6 @@ const AssignmentLibraryPage = lazy(() =>
     default: module.AssignmentLibraryPage,
   })),
 );
-const AuthoredMaterialsPage = lazy(() =>
-  import('./pages/AuthoredMaterialsPage').then((module) => ({
-    default: module.AuthoredMaterialsPage,
-  })),
-);
 const GalleryPage = lazy(() =>
   import('./pages/GalleryPage').then((module) => ({ default: module.GalleryPage })),
 );
@@ -822,11 +817,8 @@ export function App(): JSX.Element {
               {/* "Задачи" is a teacher's own library of work now, not a leaflet. A
             learner has no library — the tasks they were given live in their
             class — so they still get the informational page. */}
-              {view.kind === 'challenges' && canAuthor && canManageClasses ? (
-                <AssignmentLibraryPage />
-              ) : null}
-              {view.kind === 'challenges' && canAuthor && !canManageClasses ? (
-                <AuthoredMaterialsPage />
+              {view.kind === 'challenges' && canAuthor ? (
+                <AssignmentLibraryPage canTeach={canManageClasses} />
               ) : null}
               {/* The gallery is the one place people see each other's work, and that
             is the whole point of it: inside a class nobody sees a classmate's

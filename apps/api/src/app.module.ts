@@ -57,6 +57,8 @@ import { CoursesController } from './courses.controller.js';
 import { LearningAssessmentsController } from './learning-assessments.controller.js';
 import { LearningActivitiesController } from './learning-activities.controller.js';
 import { LearningDirectAssignmentController } from './learning-direct-assignment.controller.js';
+import { LearningNotificationsController } from './learning-notifications.controller.js';
+import { LearningRemindersService } from './learning-reminders.service.js';
 import { GalleryController } from './gallery.controller.js';
 import { CollectionsController } from './collections.controller.js';
 import { ClassroomsController } from './classrooms.controller.js';
@@ -169,6 +171,7 @@ export class AppModule {
         LearningAssessmentsController,
         LearningActivitiesController,
         LearningDirectAssignmentController,
+        LearningNotificationsController,
         GalleryController,
         CollectionsController,
         ClassroomsController,
@@ -183,6 +186,7 @@ export class AppModule {
         ProductAnalyticsController,
       ],
       providers: [
+        LearningRemindersService,
         { provide: TOKENS.pool, useValue: pool },
         { provide: TOKENS.runtimeMetrics, useValue: runtimeMetrics },
         { provide: TOKENS.botChallengeService, useFactory: () => new BotChallengeService() },

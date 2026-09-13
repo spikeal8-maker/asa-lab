@@ -323,11 +323,10 @@ parallel_lanes:
         commands:
           - pnpm gate:repository
 
-  # Owner-accepted ASA Learning M0, LRN-M1-001 through LRN-M1-005 and
-  # LRN-VS-001 lane. Only the product-first LRN-VS-002 slice is active;
-  # M1-006 onward and M2-M7 remain outside activation.
+  # Owner authorized the complete integrated E1 under V1.2 on 2026-09-10.
+  # Internal checkpoints do not activate E2-E6 or authorize deployment.
   - id: learning
-    worktree_id: learning-vs-002
+    worktree_id: learning-course-01-v12
     owned_paths:
       - docs/product/ASA_LEARNING_TECHNICAL_SPEC.md
       - docs/product/ASA_LEARNING_REQUIREMENTS_LEDGER.yaml
@@ -375,22 +374,22 @@ parallel_lanes:
       - tools/learning-additive-backfill.mjs
       - tests/courses/**
     task:
-      id: TASK-LEARNING-VS-002
-      issue: 167
+      id: TASK-LRN-COURSE-01-001
+      issue: 178
       branch: main
       base_branch: main
       pr: null
       pr_draft: false
-      status: done
-      checkpoint: merged_to_main
+      status: in_progress
+      checkpoint: integrated_v12_documentation_and_authoring
       owner_acceptance: pending
     revisions:
-      convergence_baseline_sha: b18cd9ba6092708c3961cdfd017c9c1e15191de3
+      convergence_baseline_sha: b963ef828f0e10042adacba4199bba972526c0df
       head_sha: c05d87ae59c7ffe5c216d8beffaf403130e8ab41
       owner_accepted_sha: 793a537ea731ebeec10c2e4ff06322f11c2896d6
       product_merge_sha: c05d87ae59c7ffe5c216d8beffaf403130e8ab41
     execution_lease:
-      executor_id: codex-learning-vs-002
+      executor_id: codex-learning-course-01-v12
       holder: unassigned
       acquired_at: null
       expires_at: null

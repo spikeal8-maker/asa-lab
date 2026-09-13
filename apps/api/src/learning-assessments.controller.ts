@@ -1,6 +1,18 @@
-import { Body, Controller, Get, HttpException, Inject, Param, Post, Req } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpException,
+  Inject,
+  Param,
+  Post,
+  Query,
+  Req,
+} from '@nestjs/common';
 import type { FastifyRequest } from 'fastify';
 import type pg from 'pg';
+import { randomUUID } from 'node:crypto';
+import type { ModuleRegistry } from '@asa-lab/module-sdk';
 import type { AccountDirectoryPort, ActiveContext, ActiveContextUseCase } from '@asa-lab/identity';
 import { SESSION_COOKIE, TOKENS } from './tokens.js';
 import { checkBodyShape } from './validation.js';
@@ -33,6 +45,7 @@ export class LearningAssessmentsController {
     @Inject(TOKENS.activeContextUseCase) private readonly activeContext: ActiveContextUseCase,
     @Inject(TOKENS.accountDirectory) private readonly accounts: AccountDirectoryPort,
     @Inject(TOKENS.pool) private readonly pool: pg.Pool | null,
+    @Inject(TOKENS.moduleRegistry) private readonly modules: ModuleRegistry,
   ) {}
 
   private requirePool(): pg.Pool {
@@ -397,7 +410,7 @@ export class LearningAssessmentsController {
   async gradebook(@Req() request: FastifyRequest, @Param('classroomId') classroomId: string) {
     const context = await this.requireEducator(request);
     this.requireUuid(classroomId, 'classroom');
-    const [result, scheme, projections] = await Promise.all([
+    const [result, scheme, projections, courses] = await Promise.all([
       this.requirePool().query(
         `SELECT seat_id, display_label, assignment_id, assignment_title,
               attempt_id, attempt_number, attempt_state, submitted_at,
@@ -412,6 +425,10 @@ export class LearningAssessmentsController {
         [context.accountId, classroomId],
       ),
       this.canonical().forTeacher(context.accountId, classroomId),
+      this.requirePool().query('SELECT * FROM learning_gradebook_course_columns($1,$2)', [
+        context.accountId,
+        classroomId,
+      ]),
     ]);
     const schemeRow = scheme.rows[0] as
       | {
@@ -435,6 +452,14 @@ export class LearningAssessmentsController {
           displayLabel: String(row['display_label']),
           assignmentId: String(row['assignment_id']),
           assignmentTitle: String(row['assignment_title']),
+          courseRunId:
+            courses.rows.find((course) => course['assignment_id'] === row['assignment_id'])?.[
+              'course_run_id'
+            ] ?? null,
+          courseTitle:
+            courses.rows.find((course) => course['assignment_id'] === row['assignment_id'])?.[
+              'course_title'
+            ] ?? null,
           attemptId: row['attempt_id'] ? String(row['attempt_id']) : null,
           attemptNumber: row['attempt_number'] === null ? null : Number(row['attempt_number']),
           state:
@@ -513,11 +538,14 @@ export class LearningAssessmentsController {
   ) {
     const context = await this.requireEducator(request);
     this.requireUuid(classroomId, 'classroom');
-    const shape = checkBodyShape(rawBody, ['title', 'bands']);
+    const shape = checkBodyShape(rawBody, ['title', 'bands', 'requestId']);
     const title = shape.ok ? shape.body['title'] : null;
     const bands = shape.ok ? shape.body['bands'] : null;
+    const requestId = shape.ok ? (shape.body['requestId'] ?? randomUUID()) : null;
     if (
       typeof title !== 'string' ||
+      typeof requestId !== 'string' ||
+      !/^[A-Za-z0-9._:-]{8,128}$/.test(requestId) ||
       !title.trim() ||
       title.length > 120 ||
       !Array.isArray(bands) ||
@@ -534,8 +562,15 @@ export class LearningAssessmentsController {
       throw new HttpException(error('validation_error', 'Проверьте шкалу оценок.'), 400);
     const result = await this.requirePool().query(
       `SELECT result_code, grading_scheme_version_id, version_number
-         FROM grading_scheme_publish($1, $2, $3, $4, $5::jsonb)`,
-      [context.accountId, context.principalId, classroomId, title.trim(), JSON.stringify(bands)],
+         FROM grading_scheme_publish_v2($1, $2, $3, $4, $5::jsonb,$6)`,
+      [
+        context.accountId,
+        context.principalId,
+        classroomId,
+        title.trim(),
+        JSON.stringify(bands),
+        requestId,
+      ],
     );
     const row = result.rows[0] as
       | {
@@ -582,6 +617,245 @@ export class LearningAssessmentsController {
   }
 
   /** Review exactly one immutable attempt and publish its canonical result. */
+  @Get(':classroomId/assignments/:assignmentId/learners/:seatId/legacy-review')
+  async legacyReview(
+    @Req() request: FastifyRequest,
+    @Param('classroomId') classroomId: string,
+    @Param('assignmentId') assignmentId: string,
+    @Param('seatId') seatId: string,
+  ) {
+    const context = await this.requireEducator(request);
+    for (const id of [classroomId, assignmentId, seatId]) this.requireUuid(id, 'id');
+    const result = await this.requirePool().query(
+      'SELECT learning_teacher_legacy_review_context($1,$2,$3,$4) AS detail',
+      [context.accountId, classroomId, assignmentId, seatId],
+    );
+    if (!result.rows[0]?.['detail'])
+      throw new HttpException(
+        error(
+          'legacy_evidence_missing',
+          'Нет подтверждённой сдачи с достоверными правилами оценки. Исторические отклики сохранены отдельно.',
+        ),
+        404,
+      );
+    return result.rows[0]['detail'];
+  }
+
+  @Get(':classroomId/assignments/:assignmentId/conditions')
+  async conditions(
+    @Req() request: FastifyRequest,
+    @Param('classroomId') classroomId: string,
+    @Param('assignmentId') assignmentId: string,
+    @Query('seatId') seatId?: string,
+  ) {
+    const context = await this.requireEducator(request);
+    for (const id of [classroomId, assignmentId, ...(seatId ? [seatId] : [])])
+      this.requireUuid(id, 'id');
+    const result = await this.requirePool().query(
+      "SELECT learning_conditions_for_teacher($1,$2,$3,$4) || jsonb_build_object('impact',learning_conditions_impact($1,$2,$3,$4)) AS detail",
+      [context.accountId, classroomId, assignmentId, seatId ?? null],
+    );
+    if (!result.rows[0]?.['detail'])
+      throw new HttpException(error('conditions_not_found', 'Назначение не найдено.'), 404);
+    return result.rows[0]['detail'];
+  }
+
+  @Post(':classroomId/assignments/:assignmentId/conditions')
+  async saveConditions(
+    @Req() request: FastifyRequest,
+    @Param('classroomId') classroomId: string,
+    @Param('assignmentId') assignmentId: string,
+    @Body() rawBody: unknown,
+  ) {
+    const context = await this.requireEducator(request);
+    const shape = checkBodyShape(rawBody, [
+      'seatId',
+      'expectedRevision',
+      'overrides',
+      'reason',
+      'requestId',
+    ]);
+    if (!shape.ok) throw new HttpException(error('validation_error', shape.message), 400);
+    const seatId = shape.body['seatId'] ?? null;
+    for (const id of [classroomId, assignmentId, ...(seatId ? [String(seatId)] : [])])
+      this.requireUuid(id, 'id');
+    if (
+      !Number.isInteger(shape.body['expectedRevision']) ||
+      typeof shape.body['reason'] !== 'string' ||
+      typeof shape.body['requestId'] !== 'string'
+    )
+      throw new HttpException(
+        error('validation_error', 'Нужны версия, причина и идентификатор изменения.'),
+        400,
+      );
+    const result = await this.requirePool().query(
+      'SELECT learning_conditions_save($1,$2,$3,$4,$5,$6,$7::jsonb,$8,$9) AS code',
+      [
+        context.accountId,
+        context.principalId,
+        classroomId,
+        assignmentId,
+        seatId,
+        shape.body['expectedRevision'],
+        JSON.stringify(shape.body['overrides']),
+        shape.body['reason'],
+        shape.body['requestId'],
+      ],
+    );
+    if (result.rows[0]?.['code'] !== 'ok')
+      throw new HttpException(
+        error(
+          String(result.rows[0]?.['code']),
+          'Условия не сохранены. Проверьте даты или обновите версию.',
+        ),
+        409,
+      );
+    return { ok: true };
+  }
+
+  @Post(':classroomId/assignments/:assignmentId/students/:seatId/allowance')
+  async saveAllowance(
+    @Req() request: FastifyRequest,
+    @Param('classroomId') classroomId: string,
+    @Param('assignmentId') assignmentId: string,
+    @Param('seatId') seatId: string,
+    @Body() rawBody: unknown,
+  ) {
+    const context = await this.requireEducator(request);
+    for (const id of [classroomId, assignmentId, seatId]) this.requireUuid(id, 'id');
+    const shape = checkBodyShape(rawBody, [
+      'expectedRevision',
+      'extraAttempts',
+      'teacherUnlocked',
+      'excuse',
+      'reason',
+      'requestId',
+    ]);
+    if (!shape.ok) throw new HttpException(error('validation_error', shape.message), 400);
+    const b = shape.body;
+    if (
+      !Number.isInteger(b['expectedRevision']) ||
+      !Number.isInteger(b['extraAttempts']) ||
+      typeof b['teacherUnlocked'] !== 'boolean' ||
+      typeof b['excuse'] !== 'boolean' ||
+      typeof b['reason'] !== 'string' ||
+      typeof b['requestId'] !== 'string'
+    )
+      throw new HttpException(
+        error('validation_error', 'Проверьте условия, версию и причину.'),
+        400,
+      );
+    const result = await this.requirePool().query(
+      'SELECT learning_participation_conditions_save($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) AS code',
+      [
+        context.accountId,
+        context.principalId,
+        classroomId,
+        assignmentId,
+        seatId,
+        b['expectedRevision'],
+        b['extraAttempts'],
+        b['teacherUnlocked'],
+        b['excuse'],
+        b['reason'],
+        b['requestId'],
+      ],
+    );
+    if (result.rows[0]?.['code'] !== 'ok')
+      throw new HttpException(
+        error(String(result.rows[0]?.['code']), 'Изменение не применено. Обновите условия.'),
+        409,
+      );
+    return { ok: true };
+  }
+
+  @Get(':classroomId/assignments/:assignmentId/students/:seatId/review-context')
+  async reviewContext(
+    @Req() request: FastifyRequest,
+    @Param('classroomId') classroomId: string,
+    @Param('assignmentId') assignmentId: string,
+    @Param('seatId') seatId: string,
+  ) {
+    const context = await this.requireEducator(request);
+    for (const id of [classroomId, assignmentId, seatId]) this.requireUuid(id, 'id');
+    const result = await this.requirePool().query(
+      'SELECT detail FROM learning_teacher_review_context($1,$2,$3,$4)',
+      [context.accountId, classroomId, seatId, assignmentId],
+    );
+    if (!result.rows[0])
+      throw new HttpException(error('review_not_found', 'Каноническая работа не найдена.'), 404);
+    return result.rows[0]['detail'];
+  }
+
+  @Get(':classroomId/attempts/:attemptId/submission')
+  async exactSubmission(
+    @Req() request: FastifyRequest,
+    @Param('classroomId') classroomId: string,
+    @Param('attemptId') attemptId: string,
+  ) {
+    const context = await this.requireEducator(request);
+    this.requireUuid(classroomId, 'classroom');
+    this.requireUuid(attemptId, 'attempt');
+    const result = await this.requirePool().query(
+      'SELECT * FROM learning_teacher_exact_submission($1,$2,$3)',
+      [context.accountId, classroomId, attemptId],
+    );
+    const row = result.rows[0];
+    if (!row) throw new HttpException(error('submission_not_found', 'Сдача не найдена.'), 404);
+    const provider = this.modules.get(String(row['module_key']))?.provider;
+    const validated = provider?.validate(row['document_json']);
+    return {
+      submissionId: row['submission_id'],
+      projectVersionId: row['project_version_id'],
+      digest: row['payload_digest'],
+      sourceRevision: row['source_revision'],
+      moduleKey: row['module_key'],
+      document: row['document_json'],
+      preview: validated?.ok ? (provider?.createPreview(validated.payload) ?? null) : null,
+    };
+  }
+
+  @Post(':classroomId/participations/:participationId/selected-attempt')
+  async selectAttempt(
+    @Req() request: FastifyRequest,
+    @Param('classroomId') classroomId: string,
+    @Param('participationId') participationId: string,
+    @Body() rawBody: unknown,
+  ) {
+    const context = await this.requireEducator(request);
+    this.requireUuid(classroomId, 'classroom');
+    this.requireUuid(participationId, 'participation');
+    const shape = checkBodyShape(rawBody, [
+      'attemptId',
+      'expectedAttemptId',
+      'reason',
+      'requestId',
+    ]);
+    if (!shape.ok) throw new HttpException(error('validation_error', shape.message), 400);
+    this.requireUuid(String(shape.body['attemptId']), 'attempt');
+    if (shape.body['expectedAttemptId'] != null)
+      this.requireUuid(String(shape.body['expectedAttemptId']), 'expectedAttempt');
+    const result = await this.requirePool().query(
+      'SELECT learning_teacher_select_attempt($1,$2,$3,$4,$5,$6,$7,$8) AS code',
+      [
+        context.accountId,
+        context.principalId,
+        classroomId,
+        participationId,
+        shape.body['attemptId'],
+        shape.body['expectedAttemptId'] ?? null,
+        shape.body['reason'],
+        shape.body['requestId'],
+      ],
+    );
+    if (result.rows[0]?.['code'] !== 'ok')
+      throw new HttpException(
+        error(String(result.rows[0]?.['code']), 'Не удалось выбрать попытку. Обновите историю.'),
+        409,
+      );
+    return { ok: true };
+  }
+
   @Post(':classroomId/attempts/:attemptId/review')
   async review(
     @Req() request: FastifyRequest,
@@ -592,12 +866,30 @@ export class LearningAssessmentsController {
     const context = await this.requireEducator(request);
     this.requireUuid(classroomId, 'classroom');
     this.requireUuid(attemptId, 'attempt');
-    const shape = checkBodyShape(rawBody, ['decision', 'points', 'feedback', 'reason']);
+    const shape = checkBodyShape(rawBody, [
+      'decision',
+      'points',
+      'feedback',
+      'reason',
+      'expectedResultId',
+      'requestId',
+    ]);
     if (!shape.ok) throw new HttpException(error('validation_error', shape.message), 400);
     const decision = shape.body['decision'];
     const points = shape.body['points'] ?? null;
     const feedback = shape.body['feedback'] ?? null;
     const reason = shape.body['reason'] ?? null;
+    const requestId = shape.body['requestId'];
+    const expected = shape.body['expectedResultId'] ?? null;
+    if (expected !== null) this.requireUuid(String(expected), 'expectedResult');
+    if (
+      requestId !== undefined &&
+      (typeof requestId !== 'string' || !/^[A-Za-z0-9._:-]{8,128}$/.test(requestId))
+    )
+      throw new HttpException(
+        error('validation_error', 'Некорректный идентификатор проверки.'),
+        400,
+      );
     if (
       typeof decision !== 'string' ||
       !DECISIONS.includes(decision as (typeof DECISIONS)[number])
@@ -619,7 +911,7 @@ export class LearningAssessmentsController {
     const result = await this.requirePool().query(
       `SELECT result_code, assessment_result_id, gradebook_entry_id,
               attempt_state, percentage_basis_points
-         FROM learning_attempt_review($1, $2, $3, $4, $5, $6, $7, $8)`,
+         FROM ${requestId ? 'learning_attempt_review_v2($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)' : 'learning_attempt_review($1,$2,$3,$4,$5,$6,$7,$8)'}`,
       [
         context.accountId,
         context.principalId,
@@ -629,6 +921,7 @@ export class LearningAssessmentsController {
         points,
         feedback,
         reason,
+        ...(requestId ? [expected, requestId] : []),
       ],
     );
     const row = result.rows[0] as

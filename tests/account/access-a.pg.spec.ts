@@ -228,6 +228,170 @@ describe('Result A: real Account and independent Classroom API', () => {
     }
   });
 
+  it('previews and commits StudentSeat batches idempotently with one-time credentials', async () => {
+    const teacher = await account();
+    await teach(teacher.cookie);
+    const classId = await classroom(teacher.cookie);
+    const classroomView = await inject(app, {
+      method: 'GET',
+      url: `/api/classrooms/${classId}`,
+      headers: { cookie: teacher.cookie },
+    });
+    expect(classroomView.statusCode, classroomView.body).toBe(200);
+    const code = classroomView.json().classroom.joinCode as string;
+    expect(code).toBeTruthy();
+
+    const addExisting = async (displayLabel: string, loginHandle: string) => {
+      const response = await inject(app, {
+        method: 'POST',
+        url: `/api/classrooms/${classId}/seats`,
+        headers: { cookie: teacher.cookie },
+        payload: { displayLabel, loginHandle, safeMode: true },
+      });
+      expect(response.statusCode, response.body).toBe(201);
+    };
+    await addExisting('Taken Person', 'taken-one');
+    await addExisting('Existing Same', 'same-one');
+
+    const students = [
+      { displayLabel: 'Fresh Learner', safeMode: true },
+      { displayLabel: 'Twin One', loginHandle: 'batch-dup', safeMode: true },
+      { displayLabel: 'Twin Two', loginHandle: 'batch-dup', safeMode: true },
+      { displayLabel: 'Different Person', loginHandle: 'taken-one', safeMode: true },
+      { displayLabel: 'Existing Same', loginHandle: 'same-one', safeMode: true },
+      { displayLabel: '', loginHandle: 'bad', safeMode: true },
+    ];
+    const preview = await inject(app, {
+      method: 'POST',
+      url: `/api/classrooms/${classId}/seats/batch/preview`,
+      headers: { cookie: teacher.cookie },
+      payload: { students },
+    });
+    expect(preview.statusCode, preview.body).toBe(201);
+    const previewRows = preview.json().results as Array<{
+      status: string;
+      loginHandle: string | null;
+    }>;
+    expect(previewRows.map((row) => row.status)).toEqual([
+      'valid',
+      'valid',
+      'duplicate',
+      'conflict',
+      'duplicate',
+      'invalid',
+    ]);
+    expect(previewRows[0]?.loginHandle).toMatch(/^seat-[0-9a-f]{12}$/);
+
+    const requestId = crypto.randomUUID();
+    const committed = await inject(app, {
+      method: 'POST',
+      url: `/api/classrooms/${classId}/seats/batch`,
+      headers: { cookie: teacher.cookie },
+      payload: { students, requestId },
+    });
+    expect(committed.statusCode, committed.body).toBe(201);
+    const result = committed.json();
+    expect(result).toMatchObject({
+      requestId,
+      reused: false,
+      created: 2,
+      credentialsAvailable: true,
+    });
+    const created = result.results.filter((row: { status: string }) => row.status === 'created');
+    expect(created).toHaveLength(2);
+    for (const row of created) {
+      expect(row.credential).toMatch(/^[A-Za-z0-9_-]{24}$/);
+      expect(row.credentialVersion).toBe(1);
+      expect(row.seatId).toMatch(/^[0-9a-f-]{36}$/i);
+    }
+
+    const first = created[0];
+    const signedIn = await inject(app, {
+      method: 'POST',
+      url: '/api/class-join/studentseat',
+      payload: { code, loginHandle: first.loginHandle, credential: first.credential },
+    });
+    expect(signedIn.statusCode, signedIn.body).toBe(200);
+
+    const stored = await admin.query(
+      `SELECT row_to_json(row_data)::text AS payload
+         FROM classroom_student_seat_batch_rows row_data
+        WHERE request_id=$1 ORDER BY row_index`,
+      [requestId],
+    );
+    const audit = await admin.query(
+      `SELECT payload_json FROM audit_events
+        WHERE entity_id=$1 AND action='classroom.student_seat_batch_committed'`,
+      [classId],
+    );
+    for (const row of created) {
+      expect(JSON.stringify(stored.rows)).not.toContain(row.credential);
+      expect(JSON.stringify(audit.rows)).not.toContain(row.credential);
+    }
+
+    const retry = await inject(app, {
+      method: 'POST',
+      url: `/api/classrooms/${classId}/seats/batch`,
+      headers: { cookie: teacher.cookie },
+      payload: { students, requestId },
+    });
+    expect(retry.statusCode, retry.body).toBe(201);
+    expect(retry.json()).toMatchObject({
+      requestId,
+      reused: true,
+      created: 2,
+      credentialsAvailable: false,
+    });
+    expect(
+      retry.json().results.every((row: { credential: string | null }) => row.credential === null),
+    ).toBe(true);
+
+    const conflict = await inject(app, {
+      method: 'POST',
+      url: `/api/classrooms/${classId}/seats/batch`,
+      headers: { cookie: teacher.cookie },
+      payload: { students: [{ ...students[0], safeMode: false }], requestId },
+    });
+    expect(conflict.statusCode, conflict.body).toBe(409);
+    expect(conflict.body).toContain('idempotency_conflict');
+
+    const ordinary = await account();
+    for (const url of [
+      `/api/classrooms/${classId}/seats/batch/preview`,
+      `/api/classrooms/${classId}/seats/batch`,
+    ]) {
+      const denied = await inject(app, {
+        method: 'POST',
+        url,
+        headers: { cookie: ordinary.cookie },
+        payload: url.endsWith('/preview')
+          ? { students }
+          : { students, requestId: crypto.randomUUID() },
+      });
+      expect(denied.statusCode, denied.body).toBe(403);
+    }
+
+    const tooMany = await inject(app, {
+      method: 'POST',
+      url: `/api/classrooms/${classId}/seats/batch/preview`,
+      headers: { cookie: teacher.cookie },
+      payload: {
+        students: Array.from({ length: 101 }, (_, index) => ({
+          displayLabel: `Seat ${index}`,
+          safeMode: true,
+        })),
+      },
+    });
+    expect(tooMany.statusCode, tooMany.body).toBe(400);
+
+    await expect(
+      runtime.query('SELECT * FROM classroom_student_seat_batches'),
+    ).rejects.toMatchObject({ code: '42501' });
+    await expect(
+      runtime.query('SELECT * FROM classroom_student_seat_batch_rows'),
+    ).rejects.toMatchObject({ code: '42501' });
+  });
+
   it('author-only creates private content, not classes, rosters or foreign content; revoke is effective', async () => {
     const author = await account();
     const draft = {
@@ -451,5 +615,131 @@ describe('Result A: real Account and independent Classroom API', () => {
       await client.query('ROLLBACK');
       client.release();
     }
+  });
+
+  it('preview as learner returns exact saved sources with zero runtime writes', async () => {
+    const author = await account();
+    const grant = await inject(app, {
+      method: 'POST',
+      url: '/api/capabilities/content-author/self-attest',
+      headers: { cookie: author.cookie },
+      payload: {},
+    });
+    expect(grant.statusCode, grant.body).toBe(201);
+    const basePolicies = {
+      attemptPolicy: { maxAttempts: 2 },
+      resultSelectionPolicy: { mode: 'latest_accepted' },
+      completionPolicy: { mode: 'accepted' },
+      latePolicy: { mode: 'allow_until_close' },
+      assessmentPolicy: { mode: 'manual' },
+      feedbackReleasePolicy: { mode: 'immediate' },
+    };
+    const created = await inject(app, {
+      method: 'POST',
+      url: '/api/learning/activities',
+      headers: { cookie: author.cookie },
+      payload: {
+        kind: 'project',
+        title: 'Preview published V1',
+        instructions: 'Published instructions',
+        resultMode: 'completion',
+        maxPoints: null,
+        policies: basePolicies,
+        moduleKey: 'electronics',
+        scope: 'personal',
+        visibility: 'private',
+        requestId: 'preview:create:' + crypto.randomUUID(),
+      },
+    });
+    expect(created.statusCode, created.body).toBe(201);
+    const activityId = created.json().id as string;
+    const published = await inject(app, {
+      method: 'POST',
+      url: `/api/learning/activities/${activityId}/publish`,
+      headers: { cookie: author.cookie },
+      payload: { expectedRevision: 1, requestId: 'preview:publish:' + crypto.randomUUID() },
+    });
+    expect(published.statusCode, published.body).toBe(201);
+    const versionId = published.json().id as string;
+    const updated = await inject(app, {
+      method: 'PUT',
+      url: `/api/learning/activities/${activityId}/draft`,
+      headers: { cookie: author.cookie },
+      payload: {
+        title: 'Preview saved draft r2',
+        instructions: 'Draft instructions r2',
+        resultMode: 'completion',
+        maxPoints: null,
+        policies: basePolicies,
+        moduleKey: 'three-d',
+        quizVersionId: null,
+        starterProjectVersionId: null,
+        expectedRevision: 1,
+      },
+    });
+    expect(updated.statusCode, updated.body).toBe(200);
+    expect(updated.json().draftRevision).toBe(2);
+
+    const counts = async () =>
+      (
+        await admin.query(`SELECT
+          (SELECT count(*)::int FROM accounts) AS accounts,
+          (SELECT count(*)::int FROM principals) AS principals,
+          (SELECT count(*)::int FROM classroom_student_seats) AS seats,
+          (SELECT count(*)::int FROM course_enrollments) AS enrollments,
+          (SELECT count(*)::int FROM activity_participations) AS participations,
+          (SELECT count(*)::int FROM learning_attempts) AS attempts,
+          (SELECT count(*)::int FROM learning_submissions) AS submissions,
+          (SELECT count(*)::int FROM assessment_results) AS results,
+          (SELECT count(*)::int FROM classroom_student_sessions) AS learner_sessions,
+          (SELECT count(*)::int FROM gradebook_entries) AS gradebook,
+          (SELECT count(*)::int FROM learning_notifications) AS notifications,
+          (SELECT count(*)::int FROM audit_events) AS audit_events,
+          (SELECT count(*)::int FROM learning_activities) AS activities,
+          (SELECT count(*)::int FROM learning_activity_versions) AS activity_versions`)
+      ).rows[0];
+    const before = await counts();
+
+    const draftPreview = await inject(app, {
+      method: 'GET',
+      url: `/api/learning/activities/${activityId}/preview?source=draft&draftRevision=2`,
+      headers: { cookie: author.cookie },
+    });
+    expect(draftPreview.statusCode, draftPreview.body).toBe(200);
+    expect(draftPreview.json()).toMatchObject({
+      source: { kind: 'draft', id: null, draftRevision: 2, versionNumber: null },
+      assignment: { title: 'Preview saved draft r2', brief: 'Draft instructions r2' },
+      moduleKey: 'three-d',
+      resultMode: 'completion',
+      learnerRuntime: false,
+    });
+
+    const publishedPreview = await inject(app, {
+      method: 'GET',
+      url: `/api/learning/activities/${activityId}/preview?source=published&versionId=${versionId}`,
+      headers: { cookie: author.cookie },
+    });
+    expect(publishedPreview.statusCode, publishedPreview.body).toBe(200);
+    expect(publishedPreview.json()).toMatchObject({
+      source: { kind: 'published', id: versionId, versionNumber: 1 },
+      assignment: { title: 'Preview published V1', brief: 'Published instructions' },
+      moduleKey: 'electronics',
+      resultMode: 'completion',
+      learnerRuntime: false,
+    });
+
+    const stale = await inject(app, {
+      method: 'GET',
+      url: `/api/learning/activities/${activityId}/preview?source=draft&draftRevision=1`,
+      headers: { cookie: author.cookie },
+    });
+    expect(stale.statusCode, stale.body).toBe(409);
+    const foreignVersion = await inject(app, {
+      method: 'GET',
+      url: `/api/learning/activities/${activityId}/preview?source=published&versionId=${crypto.randomUUID()}`,
+      headers: { cookie: author.cookie },
+    });
+    expect(foreignVersion.statusCode, foreignVersion.body).toBe(404);
+    expect(await counts()).toEqual(before);
   });
 });

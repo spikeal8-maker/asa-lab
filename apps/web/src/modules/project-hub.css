@@ -246,3 +246,112 @@ button.classroom-student-name:hover strong {
   background: #e9f5fa;
   color: #0878a9;
 }
+
+/* StudentSeat batch preview and one-time credential cards. */
+.classroom-batch-dialog {
+  width: min(760px, calc(100vw - 32px));
+  max-height: min(90vh, 860px);
+  overflow: auto;
+}
+.classroom-batch-dialog textarea {
+  width: 100%;
+  min-height: 180px;
+  resize: vertical;
+}
+.classroom-batch-preview,
+.classroom-batch-result {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+}
+.classroom-batch-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+}
+.classroom-batch-rows {
+  display: grid;
+  gap: 6px;
+  max-height: 300px;
+  overflow: auto;
+}
+.classroom-batch-row {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) minmax(140px, auto);
+  gap: 10px;
+  align-items: center;
+  padding: 8px 10px;
+  border: 1px solid var(--border-color, #d7dde5);
+  border-radius: 10px;
+}
+.classroom-batch-row > span:nth-child(2) {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.classroom-batch-row small {
+  overflow-wrap: anywhere;
+}
+.classroom-batch-print-sheet {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.classroom-batch-card {
+  break-inside: avoid;
+  padding: 14px;
+  border: 1px solid var(--border-color, #d7dde5);
+  border-radius: 12px;
+}
+.classroom-batch-card h4,
+.classroom-batch-card p {
+  margin: 0 0 8px;
+}
+.classroom-batch-card dl {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 5px 12px;
+  margin: 0;
+}
+.classroom-batch-card dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.classroom-batch-secret {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+@media (max-width: 640px) {
+  .classroom-batch-row {
+    grid-template-columns: 28px minmax(0, 1fr);
+  }
+  .classroom-batch-row > span:last-child {
+    grid-column: 2;
+  }
+  .classroom-batch-print-sheet {
+    grid-template-columns: 1fr;
+  }
+}
+@media print {
+  body.seat-batch-printing * {
+    visibility: hidden !important;
+  }
+  body.seat-batch-printing .classroom-batch-print-sheet,
+  body.seat-batch-printing .classroom-batch-print-sheet * {
+    visibility: visible !important;
+  }
+  body.seat-batch-printing .classroom-batch-print-sheet {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10mm;
+  }
+  body.seat-batch-printing .classroom-batch-card {
+    border: 1px solid #000;
+    border-radius: 0;
+    color: #000;
+    background: #fff;
+  }
+}
