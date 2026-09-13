@@ -1,133 +1,177 @@
-# ASA Games Platform — Testing and Certification Strategy
+# ASA Games Platform — Testing and Certification Strategy V2
 
-**Status:** Draft quality contract  
-**Purpose:** определить доказательства, необходимые до подключения игры или сетевого capability к production.
+**Статус:** Proposed quality contract  
+**Нормативное ТЗ:** `ASA_GAMES_PLATFORM_TECHNICAL_SPECIFICATION_V2.md`  
+**Порядок:** `ASA_GAMES_PLATFORM_VALUE_DELIVERY_PLAN.md`
 
-## 1. Why certification is separate from game tests
+---
 
-Обычные unit tests отвечают: «правильно ли игра считает свои правила?»
+# 1. Принцип
 
-Games Platform certification отвечает на другой вопрос:
+Unit tests игры отвечают на вопрос «правильно ли работают её правила?». Platform certification отвечает на вопрос:
 
-> может ли эта игра безопасно и корректно жить внутри общей сетевой платформы без bespoke infrastructure?
+> может ли эта игра/интеграция безопасно и корректно жить в общей ASA Games Platform без bespoke shared infrastructure?
 
-Поэтому сертификация обязательна даже если rules engine уже имеет 100% собственных тестов.
+Ни один пользовательский R-stage не закрывается только unit tests.
 
-## 2. Test pyramid
+---
+
+# 2. Три обязательных proof paths
+
+## A. Command proof — Tic-Tac-Toe
+
+Доказывает generic Match Core/Command Runtime/Quick Match/reconnect/history.
+
+## B. Realtime proof — ASA Arena Mini
+
+Доказывает Gateway/Matchmaker/Allocator/Room Runtime/server authority/teams/failure handling.
+
+Обязательные режимы:
 
 ```text
-Game domain tests
-        ↓
-Game SDK contract tests
-        ↓
-Match Core integration tests
-        ↓
-Persistence / RLS tests
-        ↓
-Gateway / protocol tests
-        ↓
-Browser multi-client journeys
-        ↓
-Fault injection / reconnect
-        ↓
-Load / soak / capacity
+FFA: 4 players
+Teams: 2v2
 ```
 
-Realtime-room games additionally require runtime simulation/performance certification.
+## C. Creator proof — Creator Sample Game
 
-## 3. Universal manifest certification
+Доказывает GitHub/ZIP source → isolated build → immutable release → sandbox Client SDK → private preview → teacher approval → classroom publication → upgrade/rollback.
 
-Every registered game must prove:
+Chess/Checkers migration не заменяет эти proofs: mature games проверяют compatibility, а certification games проверяют универсальность платформы.
 
-- unique valid `gameKey`;
-- semantic versions valid;
-- runtime kind known;
-- topology compatible with min/max players;
-- rated capability has rating policy;
-- reconnect/lateJoin/recovery combinations allowed;
-- event lifecycle dates/config valid;
-- runtime resource limits bounded;
-- unsupported capability cannot be invoked through API/UI.
+---
 
-## 4. Command game adapter certification
+# 3. Test pyramid
 
-Required fixtures:
+```text
+game/domain unit tests
+↓
+SDK/manifest/adapter contract tests
+↓
+Match Core integration
+↓
+persistence/security/RLS
+↓
+multi-client browser E2E
+↓
+fault/reconnect/concurrency
+↓
+load/soak where applicable
+↓
+creator sandbox/build security where applicable
+```
 
-### Determinism / authoritative transition
+---
 
-For same state + participant + command, adapter produces valid expected transition unless explicitly documented randomness is injected by server-owned deterministic/random port.
+# 4. Evidence policy
 
-### Seat/turn authorization
+Каждый accepted stage фиксирует:
 
-Player cannot command another seat or move when game rules forbid it.
+- exact commit SHA;
+- exact schema/protocol/game/release versions;
+- команды/workflows, которые реально запускались;
+- isolated test DB/runtime identity;
+- PASS/FAIL/BLOCKED без подмены;
+- benchmark environment для performance evidence;
+- known limitations;
+- rollback/disable procedure.
 
-### Illegal command
+Skipped/discovered-only test никогда не называется PASS.
 
-Returns stable domain rejection; canonical state/version unchanged.
+---
 
-### Finished match
+# 5. R0 architecture verification
 
-No further gameplay commands accepted.
+R0 требует не runtime tests, а проверяемых решений:
 
-### Public state
+- identity lifecycle matrix;
+- cross-workspace security placement model;
+- canonical match dimensions;
+- match state transition table;
+- first-class team model;
+- minimal capability vocabulary;
+- idempotency/error contract.
 
-Each participant/spectator sees only permitted fields.
+R0 не считается закрытым, если ключевой вопрос оставлен как implementation default.
 
-### Outcome
+---
 
-Native game result converts to generic participant outcomes correctly.
+# 6. Universal Registry/Manifest tests
 
-## 5. Idempotency tests
+Для каждой registered game:
 
-For every externally retriable mutation:
+- unique gameKey;
+- required versions;
+- known runtime kind/topology;
+- min/max player consistency;
+- capabilities supported by current trust/product stage;
+- invalid combination rejected;
+- disabled/suspended game cannot admit new match;
+- public catalog contains no implementation secrets.
 
-1. send command A with commandId X;
-2. simulate timeout after server commit;
-3. resend same command A/X;
-4. assert replayed receipt and exactly one domain effect;
-5. send different command B with X;
-6. assert idempotency conflict.
+---
 
-Applies to:
+# 7. Command adapter certification
 
-- game commands;
-- invite creation/accept;
-- matchmaking join/cancel;
-- party actions;
-- match control actions;
-- rating/outbox consumers where appropriate.
+Обязательные fixtures:
 
-## 6. Optimistic concurrency tests
+- deterministic transition where game semantics permit;
+- invalid command leaves state/version unchanged;
+- seat/turn authorization;
+- finished match rejects gameplay command;
+- authoritative outcome conversion;
+- viewer-specific public projection;
+- hidden state never serialized to unauthorized viewer.
 
-Two clients load version 10.
+Adapter не должен:
 
-Both issue valid but incompatible command with `expectedVersion=10`.
+- authenticate user;
+- write DB directly;
+- change rating/stats;
+- send WebSocket directly.
 
-Expected:
+---
 
-- exactly one commits version 11;
-- loser gets conflict/resync response;
-- no duplicated sequence/event;
-- client can recover with authoritative snapshot.
+# 8. Idempotency/concurrency
 
-## 7. Persistence and RLS certification
+Для retry-safe mutation:
 
-Under actual restricted runtime DB role:
+1. command/action X commits;
+2. response is synthetically lost;
+3. identical retry returns original effect/receipt;
+4. domain effect count remains 1;
+5. same idempotency key with different fingerprint returns conflict.
 
-- own authorized rows readable/writable;
-- cross-tenant unauthorized read rejected/empty;
-- cross-tenant write rejected;
-- composite parent/child tenant mismatch impossible;
-- append-only event/rating tables reject update/delete;
+ExpectedVersion race:
+
+- two clients start from V10;
+- one commits V11;
+- second gets conflict/resync;
+- no duplicate event/sequence.
+
+Applies progressively to commands, invites, matchmaking, parties and projectors as stages add them.
+
+---
+
+# 9. Persistence/security tests
+
+Under real restricted runtime DB role:
+
+- authorized row works;
+- unauthorized tenant/workspace/class relation denied;
+- append-only critical event/rating ledger rejects mutation;
+- parent/child security placement mismatch impossible;
+- match finish + event + outbox atomic;
 - command receipt uniqueness enforced;
-- match/participant/event transaction rollback leaves no partial state;
-- outbox insert is atomic with aggregate change.
+- rollback leaves no partial finished match.
 
-Global/cross-tenant Games storage, when introduced, requires a dedicated authorization suite rather than disabling RLS casually.
+If Games Global security domain uses authorization separate from normal tenant RLS, it gets its own negative matrix; disabling RLS is not an acceptable shortcut.
 
-## 8. Public identity leak suite
+---
 
-Fixtures deliberately include sensitive-looking values:
+# 10. Public identity privacy suite
+
+Fixtures deliberately include:
 
 ```text
 account id
@@ -139,403 +183,349 @@ classroom id
 real name
 ```
 
-Public DTO/snapshot/profile/leaderboard/spectator responses are snapshot-tested to ensure only approved `PublicGameIdentity` fields survive.
+Public profile, match, leaderboard, spectator and social DTOs must expose only policy-approved PublicGameIdentity data.
 
-Alias lookup failure MUST return safe generic label or policy-defined alias, never raw internal ID.
+Alias lookup failure never falls back to internal ID.
 
-## 9. Invite certification
+---
 
-Test:
+# 11. R1 Checkers Private Online certification
 
-- directed invite;
-- public code/link invite;
-- expired invite;
-- cancelled invite;
-- declined invite;
-- simultaneous accepts;
-- accept retry;
-- unsupported game/mode;
-- blocked relation;
-- classroom scope policy;
-- wrong user redemption;
-- match created once.
-
-## 10. Matchmaker certification
-
-### Compatibility
-
-Never pair incompatible:
-
-- game/version;
-- mode;
-- player count/topology;
-- rating pool;
-- scope policy;
-- party size;
-- blocked relation;
-- runtime compatibility.
-
-### Fairness/window
-
-Given deterministic tickets/time, widening policy produces expected candidate window.
-
-### Concurrency
-
-Same ticket/player cannot be paired into two matches under parallel matcher runs.
-
-### Cancellation race
-
-Cancel and pair race results in one valid terminal state.
-
-### Queue expiry
-
-Expired tickets never create new match.
-
-## 11. Rating certification
-
-For each rating policy:
-
-- deterministic fixture vectors;
-- win/loss/draw or placement/team fixtures;
-- provisional behavior;
-- bounds/uncertainty behavior;
-- retry idempotency;
-- unique match/player/pool application;
-- no rating for bot/local/unrated modes;
-- aborted/void match behavior;
-- historical policy version remains interpretable.
-
-Do not approve a new rating algorithm using only UI examples.
-
-## 12. Statistics projection certification
-
-Test process:
-
-1. create authoritative match history fixtures;
-2. build projection;
-3. record result;
-4. delete/rebuild projection cache;
-5. compare exact totals;
-6. replay duplicate outbox events;
-7. assert totals unchanged.
-
-Include:
-
-- WDL;
-- streaks;
-- seat split;
-- head-to-head;
-- FFA placement;
-- team outcomes;
-- bot results;
-- custom metric aggregation.
-
-## 13. Gateway protocol certification
-
-### Authentication/authorization
-
-- unauthenticated handshake rejected;
-- expired token/session rejected;
-- unauthorized resource subscription rejected;
-- player topic bound to authenticated player;
-- spectator permissions separate from participant permissions.
-
-### Message validation
-
-- malformed JSON/binary frame;
-- unknown message type;
-- oversized payload;
-- invalid resource id;
-- rate flood;
-- replayed nonce/sequence where applicable.
-
-### Backpressure
-
-Synthetic slow client:
-
-- outbound queue never grows unbounded;
-- replaceable messages coalesce/drop by policy;
-- critical durable stream causes resync/disconnect rather than silent loss;
-- gateway process remains healthy.
-
-### Restart
-
-After gateway restart:
-
-- durable match truth unchanged;
-- client reconnect/resubscribe restores current sequence;
-- missed invite/match notification can be obtained from durable API/state.
-
-## 14. Command-game browser certification
-
-Run at least two real browser contexts/accounts against isolated test DB.
-
-Journey:
+Two independent real browser contexts/accounts:
 
 ```text
-login A / login B
-A creates invite or both queue
-match created
-both open same match
-A command
-B sees authoritative update without reload
-B command
+login A/B
+A invite B
+B accepts
+same match opens
+A moves
+B receives authoritative state
+B moves
+simulate duplicate command
+simulate version conflict
 simulate A disconnect
-B continues/policy applied
-A reconnects
+A reconnects from authoritative snapshot
 finish match
-both see same result
-history/stat projection converges
+both see same outcome/history
 ```
 
-Assertions include sequence/version and public identity privacy.
+Additionally:
 
-## 15. Realtime room certification
+- Russian-64 forced/backward/multi-capture rules unchanged;
+- bot/local behavior not accidentally converted to network/rated;
+- unauthorized participant cannot command seat.
 
-### Authority test
+R1 PASS only when this journey works end-to-end.
+
+---
+
+# 12. R2 Matchmaker + Tic-Tac-Toe certification
+
+Matchmaker tests:
+
+- compatible pair;
+- incompatible game/version/scope not paired;
+- one player/ticket not double-paired;
+- cancel/pair race deterministic;
+- expiry;
+- no game rule imports.
+
+Tic-Tac-Toe proof:
+
+- no bespoke online persistence/controller;
+- generic Match Core;
+- generic command path;
+- Quick Match;
+- reconnect;
+- history;
+- public DTO/privacy.
+
+If XO needs duplicate shared networking infrastructure, architecture fails review before R3.
+
+---
+
+# 13. R3 Rating/stats certification
+
+For active Checkers policy:
+
+- deterministic fixture vectors;
+- win/loss/draw semantics;
+- provisional behavior if enabled;
+- server-authoritative source only;
+- unique `(match, player, pool)` application;
+- projector retry harmless;
+- aborted/unrated/bot/local/private-casual excluded according to policy;
+- current/peak/history reproducible.
+
+Stats:
+
+1. create authoritative match history;
+2. build projection;
+3. delete projection;
+4. rebuild;
+5. compare exact totals;
+6. replay duplicate outbox;
+7. totals unchanged.
+
+---
+
+# 14. R4 Chess migration certification
+
+Before new-match cutover:
+
+- shadow-map representative legacy games;
+- participants/result/termination parity;
+- event/version ordering parity;
+- rating delta parity;
+- old API contract suite passes through compatibility layer;
+- active legacy matches not orphaned;
+- rollback new admission proven;
+- destructive old-table cleanup absent from cutover release.
+
+---
+
+# 15. R5 classroom/social certification
+
+Test matrix:
+
+- same classroom;
+- different classroom same workspace;
+- different workspace;
+- teacher/student;
+- recent opponent;
+- global public view.
+
+Verify:
+
+- only permitted relation appears;
+- invite authorization correct;
+- class leaderboard restricted;
+- class/school metadata absent globally;
+- block/report policy hook works where introduced.
+
+---
+
+# 16. Gateway certification
+
+Authentication/authorization:
+
+- unauthenticated rejected;
+- expired credential rejected;
+- unauthorized subscription rejected;
+- player personal topic bound to player;
+- wildcard resource subscription unavailable.
+
+Message safety:
+
+- malformed schema;
+- unknown message;
+- oversized payload;
+- rate flood;
+- replay/invalid resource id.
+
+Backpressure:
+
+- bounded memory;
+- replaceable state coalesces;
+- durable stream forces resync/disconnect rather than silent corruption;
+- reconnect storm does not collapse process.
+
+Restart:
+
+- durable Match truth unchanged;
+- client resubscribe restores current state/sequence.
+
+---
+
+# 17. R6 Arena authority certification
 
 Malicious client attempts:
 
 ```text
-set x/y directly
+set position
 set health
 set score
-claim hit
+claim hit/result
 skip cooldown
-replay old input sequence
-send impossible input rate
+replay input sequence
+flood inputs
 ```
 
-None can directly mutate authoritative state outside game rules.
+None directly changes authoritative state outside game rules.
 
-### Tick test
-
-Measure:
+Tick/load measurement:
 
 ```text
-average tick
-p95 tick
-p99 tick
-overrun %
+avg/p95/p99 tick
+% overrun
 CPU/memory per room
+rooms per process
+snapshot bytes
+input rate
 ```
 
-Certified player count is the highest configuration meeting explicit threshold with safety margin.
+Certified room size is based on measurement with safety margin.
 
-### Network impairment
+---
+
+# 18. R6 allocator/fencing tests
+
+Required:
+
+```text
+allocate → ready → connect → active → finish → close
+```
+
+Failures:
+
+- allocation timeout;
+- runtime unhealthy;
+- room never ready;
+- runtime dies;
+- lease expires;
+- stale old runtime callback after reallocation;
+- duplicate final callback;
+- deployment drain.
+
+A stale `allocationGeneration`/fencing token cannot finish or mutate current match allocation.
+
+---
+
+# 19. R6 network impairment/reconnect
 
 Simulate:
 
-- 50/100/200 ms latency;
+- 50/100/200ms latency;
 - jitter;
-- packet/message delay;
-- reconnect;
+- backlog/slow consumer;
+- browser background/resume;
 - short disconnect;
-- slow consumer;
-- browser background/resume.
+- reconnect;
+- runtime resync.
 
-With WebSocket reliable transport, test application coalescing/backlog behavior. If WebTransport is later used, add datagram loss/reordering scenarios.
+Arena certification includes both FFA and 2v2 to prove canonical team outcomes.
 
-### Client smoothing
+---
 
-Verify visible behavior for:
+# 20. R7 Build/Sandbox threat certification
 
-- local prediction;
-- server reconciliation;
-- remote interpolation;
-- large correction;
-- resync.
+Build threat cases minimum:
 
-Numerical server state remains authoritative even if rendering is smoothed.
+- malicious package install script;
+- CPU miner / infinite loop;
+- fork/PID exhaustion;
+- oversized archive/artifact;
+- zip/path traversal/symlink escape;
+- SSRF/external network attempt;
+- attempt to read production secrets/DB/socket/host filesystem;
+- webhook/re-import retry;
+- dependency/build failure isolation.
 
-## 16. Room lifecycle certification
+Expected: bounded failure/quarantine, no platform escape.
 
-Test:
+---
 
-```text
-allocate
-ready
-players connect
-start
-active
-finish
-close
-```
+# 21. R7 client sandbox certification
 
-Failure paths:
+Creator Sample must fail attempts to:
 
-```text
-allocation timeout
-runtime unhealthy
-room never ready
-player no-show
-runtime crash
-room lease loss
-control-plane callback retry
-shutdown/drain during deployment
-```
+- read ASA cookies;
+- reach parent DOM;
+- navigate top window without grant;
+- access disallowed popup/forms/download/device APIs;
+- contact arbitrary external domain by default;
+- spoof Client SDK message from wrong origin/source;
+- send oversized/flooded bridge messages;
+- invoke ungranted capability.
 
-Final Match status must be deterministic (`finished`, `aborted`, etc.).
+Exact CSP/Permissions Policy/origin model must be tested against real browser, not only static review.
 
-## 17. Runtime token isolation tests
+---
 
-A token for:
+# 22. R7 publishing certification — Creator Sample
+
+Full journey:
 
 ```text
-match A / player X / seat light
+connect GitHub/ZIP exact source
+build in isolation
+record digest/SBOM/status
+launch private preview
+Client SDK public-profile/storage works
+teacher approves classroom publication
+class opens game
+publish compatible next release
+switch classroom channel
+rollback to previous release without rebuild
+suspend new admission
+history/release metadata remain readable
 ```
 
-must fail for:
+This is the Creator Platform equivalent of Tic-Tac-Toe/Arena certification.
 
-```text
-match B
-another player
-another seat if seat-bound
-after expiry
-wrong runtime protocol/audience
-```
+---
 
-Runtime never receives account password/session cookie.
+# 23. Fault injection matrix
 
-## 18. Fault injection matrix
-
-| Failure | Expected behavior |
+| Failure | Expected |
 |---|---|
-| API restarts after command commit before response | retry returns idempotent receipt |
-| Gateway down | command game remains correct; push delayed |
-| Outbox consumer down | backlog grows; catches up later |
-| Rating projector down | match finished; rating eventually converges |
-| Statistics projector down | history truth preserved; projection rebuilds |
-| PostgreSQL unavailable | durable command not acknowledged as success |
-| Realtime room dies | recover/checkpoint or authoritative abort policy |
-| Client disconnects | grace/reconnect/forfeit policy, not instant fabricated loss |
-| Allocator unavailable | no room claimed ready; ticket/match reports recoverable failure |
+| API dies after command commit before response | retry replays one receipt/effect |
+| Gateway down | durable command correctness preserved |
+| Outbox consumer down | backlog catches up idempotently |
+| Rating/stats projector down | finished match truth remains |
+| PostgreSQL unavailable | durable success not acknowledged |
+| Realtime room dies | recover/abort according to policy, never fabricated result |
+| Allocator reassigns room | stale generation fenced |
+| Creator build fails maliciously | isolated failure/quarantine |
+| Creator release disabled | no new admission; historical metadata retained |
 
-## 19. Load profiles
+---
 
-### Command L1
+# 24. Load/soak policy
 
-Align with ASA L1 target and add game bursts:
+R1/R2 command path: representative concurrent matches and retry/reconnect bursts.
 
-- 500 concurrent connected users;
-- representative number of simultaneous matches;
-- move/command bursts around classroom event start;
-- reconnect storm;
-- invitation/queue fanout.
+Gateway: at least 2x initial expected concurrency before production enablement.
 
-### Gateway
+Room Runtime: per-room and aggregate CPU/memory/tick safety margin.
 
-At minimum test 2x expected initial concurrency before production enablement.
+Creator Build: concurrent builds, queue starvation prevention, quota enforcement, repeated create/destroy and storage/log limits.
 
-### Room runtime
+Realtime/build services entering production require multi-hour soak appropriate to expected operation.
 
-Test per-room and aggregate:
+---
 
-```text
-1 room certified load
-N rooms per process
-CPU saturation
-memory ceiling
-GC/event-loop lag where applicable
-```
+# 25. Release gate per stage
 
-Scale assumptions must be measurements, not estimates copied from another framework.
-
-## 20. Soak test
-
-For any realtime service entering production:
-
-- multi-hour connection/room lifecycle;
-- repeated create/close;
-- memory trend;
-- orphan subscriptions/rooms;
-- DB pool behavior;
-- reconnect churn;
-- log volume;
-- graceful rolling restart.
-
-## 21. Certification games
-
-### Tic-Tac-Toe
-
-Required proof:
-
-- no bespoke network repository/controller;
-- uses generic Match Core;
-- invite + quick match;
-- idempotent commands;
-- realtime delivery;
-- reconnect;
-- history/stats/rematch.
-
-### ASA Arena Mini
-
-Required proof:
-
-- party or multiplayer queue;
-- Matchmaker -> Allocator -> Room;
-- 4–8 clients;
-- authoritative movement/score;
-- fixed tick;
-- snapshot/update transport;
-- reconnect;
-- runtime crash policy;
-- outcome persistence;
-- event leaderboard/history/stats;
-- production-like resource/health metrics.
-
-## 22. Migration certification — Chess
-
-Before switching writes:
-
-- shadow-map representative live games to generic model;
-- compare result/players/moves/version/events;
-- compare rating ledger events;
-- run old and compatibility API contract suites;
-- prove existing history counts;
-- verify active legacy games are not orphaned during cutover;
-- rollback new-game admission without data loss.
-
-## 23. Migration certification — Checkers
-
-Before online enablement:
-
-- Russian-64 rules remain authoritative unchanged;
-- Match adapter parity with existing engine;
-- bot/local behavior not accidentally rated;
-- classroom scope policy preserved;
-- quick/rated/invite all use generic Games services;
-- no second checkers-specific matchmaking/rating persistence exists.
-
-## 24. Release gates
-
-A Games capability is production-ready only when:
+A stage requiring runtime behavior is production-ready only when applicable evidence is PASS:
 
 ```text
-contract tests PASS
-security/privacy negative tests PASS
-migration tests PASS (if schema)
-real multi-client browser E2E PASS
-fault/reconnect scenarios PASS
-load target PASS
-observability dashboard/alerts ready
-rollback/admission kill switch proven
+contract/unit
+security/privacy negative
+schema/migration
+multi-client browser E2E
+retry/concurrency/reconnect
+fault injection
+load/soak
+observability/alerts
+rollback/admission kill switch
 documentation matches implementation
 ```
 
-A green unit suite alone is insufficient for networking/realtime release.
+Green unit tests alone are insufficient.
 
-## 25. Evidence policy
+---
 
-Each milestone records:
+# 26. Completion proof mapping
 
-- exact commit SHA;
-- exact game/protocol/schema versions;
-- test commands/workflows;
-- isolated database/runtime identity;
-- pass/fail/blocked honestly;
-- benchmark hardware/environment;
-- artifacts/screenshots only where they prove behavior;
-- known limitations.
+```text
+R1 → real Checkers private network match
+R2 → Checkers Quick + Tic-Tac-Toe generic command proof
+R3 → rated/stats Checkers
+R4 → Chess convergence parity
+R5 → classroom social privacy
+R6 → Arena FFA + 2v2 realtime proof
+R7 → Creator Sample secure publishing proof
+```
 
-Never report a browser/load test as PASS if it was only discovered/listed or skipped due missing environment.
+R8/R9 get dedicated certification only if those conditional stages are explicitly started.
