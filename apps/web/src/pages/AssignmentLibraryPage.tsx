@@ -11,6 +11,7 @@ import { AssignmentEditorDialog } from '../components/AssignmentEditor';
 import { CataloguePanel } from '../components/CataloguePanel';
 import { CoursesPanel } from '../components/CoursesPanel';
 import { ShareDialog } from '../components/ShareDialog';
+import { AuthoredMaterialsPage } from './AuthoredMaterialsPage';
 import { CLASSROOM_AGE_OPTIONS } from '../components/ClassroomFields';
 import { Dropdown } from '../components/Dropdown';
 import { useSchoolTime } from '../components/school-time';
@@ -152,7 +153,11 @@ function descendantsOf(folders: readonly AssignmentFolder[], id: string): Set<st
   return result;
 }
 
-export function AssignmentLibraryPage(): JSX.Element {
+export function AssignmentLibraryPage({
+  canTeach = true,
+}: {
+  readonly canTeach?: boolean;
+}): JSX.Element {
   const [items, setItems] = useState<LibraryAssignment[] | null>(null);
   const [folders, setFolders] = useState<AssignmentFolder[]>([]);
   const [modules, setModules] = useState<readonly ModuleSummary[]>([]);
@@ -168,15 +173,26 @@ export function AssignmentLibraryPage(): JSX.Element {
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   /** Курсы — основной рабочий экран; банк заданий остаётся строительным материалом. */
-  const [tab, setTab] = useState<'bank' | 'courses' | 'catalogue'>('courses');
+  const [tab, setTab] = useState<'materials' | 'bank' | 'courses' | 'catalogue'>('materials');
   const [sharing, setSharing] = useState<LibraryAssignment | null>(null);
   const time = useSchoolTime();
 
   const reload = useCallback(async () => {
+    if (!canTeach) {
+      setItems([]);
+      setFolders([]);
+      return;
+    }
     const [list, tree] = await Promise.all([api.listAssignmentLibrary(), api.assignmentFolders()]);
+    if (!list.ok || !tree.ok) {
+      setError(
+        !list.ok ? list.error.message : !tree.ok ? tree.error.message : 'Библиотека недоступна.',
+      );
+      return;
+    }
     setItems(list.ok ? list.data.items : []);
     setFolders(tree.ok ? tree.data.items : []);
-  }, []);
+  }, [canTeach]);
 
   useEffect(() => {
     void reload();
@@ -264,7 +280,7 @@ export function AssignmentLibraryPage(): JSX.Element {
     await reload();
   }
 
-  function selectTab(next: 'bank' | 'courses' | 'catalogue'): void {
+  function selectTab(next: 'materials' | 'bank' | 'courses' | 'catalogue'): void {
     setTab(next);
     setNotice(null);
     setError(null);
@@ -304,12 +320,22 @@ export function AssignmentLibraryPage(): JSX.Element {
       <nav className="library-tabs" aria-label="Разделы курсов и заданий">
         <button
           type="button"
-          className={tab === 'bank' ? 'is-active' : undefined}
-          aria-current={tab === 'bank' ? 'page' : undefined}
-          onClick={() => selectTab('bank')}
+          className={tab === 'materials' ? 'is-active' : undefined}
+          aria-current={tab === 'materials' ? 'page' : undefined}
+          onClick={() => selectTab('materials')}
         >
-          Банк заданий
+          Мои материалы
         </button>
+        {canTeach ? (
+          <button
+            type="button"
+            className={tab === 'bank' ? 'is-active' : undefined}
+            aria-current={tab === 'bank' ? 'page' : undefined}
+            onClick={() => selectTab('bank')}
+          >
+            Ранее созданные задания
+          </button>
+        ) : null}
         <button
           type="button"
           className={tab === 'courses' ? 'is-active' : undefined}
@@ -318,14 +344,16 @@ export function AssignmentLibraryPage(): JSX.Element {
         >
           Мои курсы
         </button>
-        <button
-          type="button"
-          className={tab === 'catalogue' ? 'is-active' : undefined}
-          aria-current={tab === 'catalogue' ? 'page' : undefined}
-          onClick={() => selectTab('catalogue')}
-        >
-          Каталог
-        </button>
+        {canTeach ? (
+          <button
+            type="button"
+            className={tab === 'catalogue' ? 'is-active' : undefined}
+            aria-current={tab === 'catalogue' ? 'page' : undefined}
+            onClick={() => selectTab('catalogue')}
+          >
+            Каталог
+          </button>
+        ) : null}
       </nav>
 
       {notice ? (
@@ -339,6 +367,9 @@ export function AssignmentLibraryPage(): JSX.Element {
         </p>
       ) : null}
 
+      {tab === 'materials' ? (
+        <AuthoredMaterialsPage embedded onChanged={() => void reload()} />
+      ) : null}
       {tab === 'courses' ? (
         <CoursesPanel assignments={all} onChanged={() => void reload()} />
       ) : null}

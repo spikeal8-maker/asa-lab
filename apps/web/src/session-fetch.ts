@@ -5,6 +5,8 @@ const LOCAL_LOGOUT_EVENT = 'asa-session-logout';
 let refreshInFlight: Promise<boolean> | null = null;
 
 function canRefresh(path: string): boolean {
+  // Preview must not refresh or rotate authentication state after a 401.
+  if (/^\/api\/learning\/activities\/[^/]+\/preview(?:\?|$)/.test(path)) return false;
   // A StudentSeat has its own session, never an Account refresh credential.
   if (path.startsWith('/api/class-join/')) return false;
   return ![

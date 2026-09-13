@@ -7,6 +7,7 @@ import { threeDEditorHash, type CreatorPortalReturnView } from '../creator-porta
 import { loadSchematicEditor } from '../electronics/load-schematic-editor';
 import { EditorErrorBoundary } from './EditorErrorBoundary';
 import { AssignmentBrief } from '../components/AssignmentBrief';
+import { ProjectSaveEvidence } from './project-save-evidence';
 import { AppBootShell } from '../components/AppBootShell';
 import { newClientId } from '../client-id';
 import { isGameModule } from '../games/game-catalog';
@@ -215,17 +216,19 @@ export function ModuleEditorHost(props: ModuleEditorHostProps): JSX.Element {
 
   return (
     <EditorErrorBoundary onBack={props.onBack} backLabel={backLabel}>
-      {/* What to make, while you are making it. Renders nothing for anyone
+      <ProjectSaveEvidence key={props.projectId}>
+        {/* What to make, while you are making it. Renders nothing for anyone
           whose project is not work a teacher set. */}
-      {props.seatLearner ? <AssignmentBrief projectId={props.projectId} /> : null}
-      <Suspense fallback={<AppBootShell label="Открываем рабочую среду" />}>
-        <Editor
-          projectId={props.projectId}
-          onBack={props.onBack}
-          user={props.user}
-          seatLearner={props.seatLearner ?? false}
-        />
-      </Suspense>
+        <AssignmentBrief projectId={props.projectId} seatLearner={props.seatLearner ?? false} />
+        <Suspense fallback={<AppBootShell label="Открываем рабочую среду" />}>
+          <Editor
+            projectId={props.projectId}
+            onBack={props.onBack}
+            user={props.user}
+            seatLearner={props.seatLearner ?? false}
+          />
+        </Suspense>
+      </ProjectSaveEvidence>
     </EditorErrorBoundary>
   );
 }

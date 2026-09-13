@@ -3,6 +3,7 @@ import { mkdirSync } from 'node:fs';
 import type pg from 'pg';
 import { collectBrowserFailures } from './browser-failures';
 import { loginWithOrganization } from './organization-login';
+import { openPortalSection } from './portal-navigation';
 import { e2eAdminPool, seedTeacher, type SeededTeacher } from './seed';
 
 const evidenceDir = 'e2e/artifacts/learning/vs-002';
@@ -18,6 +19,8 @@ const policies = {
 let admin: pg.Pool;
 let teacher: SeededTeacher;
 let sequence = 0;
+const keys = new Map<string, string>();
+test.use({ actionTimeout: 12000 });
 
 test.beforeAll(async () => {
   admin = e2eAdminPool();
@@ -81,7 +84,7 @@ async function createClassWithStudents(
   students: ReadonlyArray<{ label: string; handle: string }>,
 ): Promise<string> {
   await loginWithOrganization(page, teacher);
-  await page.getByRole('button', { name: 'Классы', exact: true }).click();
+  await openPortalSection(page, 'Классы');
   await page
     .getByRole('button', { name: /^Создать(?: новый)? класс$/ })
     .first()
@@ -102,6 +105,17 @@ async function createClassWithStudents(
     await dialog.getByLabel('Имя для входа').fill(student.handle);
     await dialog.getByRole('button', { name: 'Добавить', exact: true }).click();
     await expect(dialog).toBeHidden();
+    await page.getByRole('button', { name: 'Действия: ' + student.label, exact: true }).click();
+    page.once('dialog', (dialog) => dialog.accept());
+    const issued = page.waitForResponse(
+      (response) =>
+        response.url().endsWith('/credential') && response.request().method() === 'POST',
+    );
+    await page.getByRole('button', { name: 'Выдать личный ключ', exact: true }).click();
+    const response = await issued;
+    expect(response.ok()).toBeTruthy();
+    keys.set(student.handle, (await response.json()).credential);
+    await page.getByRole('button', { name: 'Скрыть', exact: true }).click();
   }
   return joinCode;
 }
@@ -129,18 +143,16 @@ async function assignFromUi(
     await dialog.getByLabel('Выбранные ученики').check();
     for (const student of input.students) await dialog.getByLabel(student).check();
   }
-  await dialog.getByLabel('Срок').fill(input.due);
+  await dialog.getByLabel('Срок', { exact: true }).fill(input.due + 'T18:00');
+  const assigned = page.waitForResponse(
+    (response) =>
+      response.url().endsWith('/learning/activity-runs') && response.request().method() === 'POST',
+  );
   await dialog.getByRole('button', { name: 'Назначить', exact: true }).click();
   await expect(dialog).toBeHidden();
-  const assignment = await admin.query(
-    `SELECT assignment.id
-       FROM classroom_assignments assignment
-       JOIN teacher_assignments authored ON authored.id=assignment.assignment_id
-      WHERE assignment.tenant_id=$1 AND authored.title=$2
-      ORDER BY assignment.created_at DESC LIMIT 1`,
-    [teacher.tenantId, input.title],
-  );
-  return assignment.rows[0].id as string;
+  const response = await assigned;
+  expect(response.ok()).toBeTruthy();
+  return (await response.json()).assignmentId as string;
 }
 
 async function learnerAssignments(
@@ -153,12 +165,10 @@ async function learnerAssignments(
   await page.goto(`/#/join-class?code=${encodeURIComponent(joinCode)}`);
   await page.getByRole('button', { name: 'Продолжить' }).click();
   await page.getByLabel('Имя для входа').fill(handle);
+  await page.getByLabel('Личный ключ', { exact: true }).fill(keys.get(handle)!);
   await page.getByRole('checkbox', { name: 'Я не робот' }).press('Space');
   await page.getByRole('button', { name: 'Войти в класс' }).click();
-  await page
-    .getByLabel('Основная навигация')
-    .getByRole('button', { name: 'Обучение', exact: true })
-    .click();
+  await openPortalSection(page, 'Моё обучение');
   return { context, page };
 }
 
@@ -196,7 +206,23 @@ test('learner starts the real project editor and submits one immutable attempt',
   await expect(learner.page.locator('.workbench-shell')).toBeVisible({ timeout: 60_000 });
   await learner.page.screenshot({ path: `${evidenceDir}/real-project-editor.png` });
   await expect(learner.page.getByTestId('assignment-brief')).toBeVisible();
-  await learner.page.getByRole('button', { name: 'ASA Lab' }).click();
+  const resistor = learner.page.getByRole('button', { name: 'Резистор', exact: true });
+  const card = (await resistor.boundingBox())!;
+  const canvas = (await learner.page.locator('.workbench-canvas').boundingBox())!;
+  await learner.page.mouse.move(card.x + card.width / 2, card.y + card.height / 2);
+  await learner.page.mouse.down();
+  await learner.page.mouse.move(canvas.x + canvas.width / 2, canvas.y + canvas.height * 0.65, {
+    steps: 20,
+  });
+  await learner.page.mouse.up();
+  await expect(learner.page.getByTestId('schematic-component')).toHaveCount(1);
+  await expect(
+    learner.page.getByText(
+      /К проверке будет закреплена сохранённая редакция №|Черновик сохранён: редакция №/,
+    ),
+  ).toBeVisible();
+  await learner.page.goto('/#/learning');
+  await openPortalSection(learner.page, 'Моё обучение');
 
   row = assignmentRow(learner.page, title);
   await expect(row).toContainText('В работе');
@@ -204,20 +230,21 @@ test('learner starts the real project editor and submits one immutable attempt',
   await expect(row.getByRole('button', { name: 'Сдать', exact: true })).toBeVisible();
   await row.screenshot({ path: `${evidenceDir}/learner-in-progress.png` });
 
+  learner.page.once('dialog', async (dialog) => {
+    expect(dialog.message()).toContain('Сдать сохранённую редакцию №');
+    await dialog.accept();
+  });
   await row.getByRole('button', { name: 'Сдать', exact: true }).click();
   await expect(row).toContainText('Сдано');
   await expect(row.getByRole('button', { name: 'Работа сдана' })).toBeDisabled();
   await row.screenshot({ path: `${evidenceDir}/learner-submitted.png` });
 
   await learner.page.reload();
-  await learner.page
-    .getByLabel('Основная навигация')
-    .getByRole('button', { name: 'Обучение', exact: true })
-    .click();
+  await openPortalSection(learner.page, 'Моё обучение');
   await expect(assignmentRow(learner.page, title)).toContainText('Сдано');
 
   await page.reload();
-  await page.getByRole('button', { name: 'Классы', exact: true }).click();
+  await openPortalSection(page, 'Классы');
   await page
     .getByTestId('classroom-card')
     .filter({ hasText: className })

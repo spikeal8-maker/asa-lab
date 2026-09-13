@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useReportProjectSaveEvidence } from '../modules/project-save-evidence';
 import {
   alignDocumentNodes,
   bundleDocumentNodes,
@@ -781,9 +782,16 @@ export function useThreeDProject(projectId: string): ThreeDProjectController {
       setNotice(null);
       return;
     }
-    lastSavedRef.current = JSON.stringify(document);
+    const signature = JSON.stringify(document);
+    lastSavedRef.current = signature;
     serverRevisionRef.current = save.data.draft.revision;
-    clearLocalThreeDDraft(window.localStorage, projectId);
+    const currentDocument = historyRef.current?.present;
+    if (currentDocument && JSON.stringify(currentDocument) !== signature) {
+      writeLocalThreeDDraft(window.localStorage, projectId, currentDocument, signature);
+      setSaveRetry((current) => current + 1);
+    } else {
+      clearLocalThreeDDraft(window.localStorage, projectId);
+    }
     setSaveError(null);
     setRequiresSignIn(false);
     const response = await api.createCheckpoint(projectId, 'Версия из ASA 3D');
@@ -796,7 +804,11 @@ export function useThreeDProject(projectId: string): ThreeDProjectController {
       return;
     }
     setVersions((current) => [response.data.version, ...current]);
-    setSaveState('saved');
+    // Checkpoint completion may arrive after a newer edit. Only the current
+    // confirmed document can enable the Learning exact-revision submission.
+    setSaveState(
+      JSON.stringify(historyRef.current?.present) === lastSavedRef.current ? 'saved' : 'dirty',
+    );
     setNotice(`Создана неизменяемая версия №${response.data.version.versionNo}.`);
   }, [projectId]);
 
@@ -891,6 +903,7 @@ export function useThreeDProject(projectId: string): ThreeDProjectController {
     [projectId, replaceHistory],
   );
 
+  useReportProjectSaveEvidence(serverRevisionRef.current, saveState === 'saved' && !loading);
   return {
     loading,
     error,

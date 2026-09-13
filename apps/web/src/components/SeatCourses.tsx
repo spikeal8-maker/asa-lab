@@ -1,6 +1,8 @@
+import { openAssignmentWork, submitSavedAssignment } from '../learning/submit-saved-assignment';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api, type SeatAssignment, type SeatCourseRun, type SeatCourseRunLesson } from '../api';
-import { newClientId } from '../client-id';
+import { useLearningDestination } from '../learning/use-learning-destination';
+import { courseCompletion, lessonComplete, lessonExcused } from '../learning/course-completion';
 import { AssignmentView } from './AssignmentView';
 import { LessonBlocks } from './LessonBlocks';
 import { useSchoolTime } from './school-time';
@@ -10,14 +12,20 @@ import {
   canonicalSubmissionLocked,
 } from '../learning/canonical-learning-presentation';
 
-function assignmentShape(run: SeatCourseRun, lesson: SeatCourseRunLesson): SeatAssignment {
+export function courseAssignmentShape(
+  run: SeatCourseRun,
+  lesson: SeatCourseRunLesson,
+): SeatAssignment {
   return {
     id: lesson.classroomAssignmentId ?? lesson.id,
     title: lesson.assignmentTitle ?? lesson.title,
     brief: lesson.assignmentBrief ?? lesson.content,
     goal: lesson.assignmentGoal,
     moduleKey: lesson.moduleKey ?? 'unknown',
-    dueAt: run.dueAt,
+    dueAt:
+      lesson.canonicalState?.effectiveDueAt === undefined
+        ? run.dueAt
+        : lesson.canonicalState.effectiveDueAt,
     status: run.status,
     sampleImage: lesson.sampleImage,
     projectId: lesson.projectId,
@@ -26,14 +34,6 @@ function assignmentShape(run: SeatCourseRun, lesson: SeatCourseRunLesson): SeatA
     updatedAt: lesson.updatedAt,
     canonicalState: lesson.canonicalState,
   };
-}
-
-function lessonComplete(lesson: SeatCourseRunLesson): boolean {
-  return lesson.kind === 'material'
-    ? lesson.completedAt !== null
-    : lesson.canonicalState
-      ? ['submitted', 'waiting_review', 'completed'].includes(lesson.canonicalState.workflowState)
-      : lesson.submittedAt !== null;
 }
 
 export function SeatCourses({
@@ -48,6 +48,25 @@ export function SeatCourses({
   const [runs, setRuns] = useState<SeatCourseRun[] | null>(null);
   const [openRunId, setOpenRunId] = useState<string | null>(null);
   const [openLessonId, setOpenLessonId] = useState<string | null>(null);
+  const destination = useLearningDestination();
+  useEffect(() => {
+    if (!destination.assignment && !destination.courseRun) return;
+    const run = runs?.find(
+      (r) =>
+        r.id === destination.courseRun ||
+        r.sections.some((s) =>
+          s.lessons.some((l) => l.classroomAssignmentId === destination.assignment),
+        ),
+    );
+    if (run) {
+      setOpenRunId(run.id);
+      setOpenLessonId(
+        run.sections
+          .flatMap((s) => s.lessons)
+          .find((l) => l.classroomAssignmentId === destination.assignment)?.id ?? null,
+      );
+    }
+  }, [runs, destination.courseRun, destination.assignment]);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const time = useSchoolTime();
@@ -67,14 +86,7 @@ export function SeatCourses({
   const visibleRuns = runs?.filter(
     (run) =>
       !completedOnly ||
-      (run.sections.some((section) => section.lessons.length > 0) &&
-        run.sections.every((section) =>
-          section.lessons.every((lesson) =>
-            lesson.kind === 'material'
-              ? lesson.completedAt !== null
-              : lesson.canonicalState?.workflowState === 'completed',
-          ),
-        )),
+      courseCompletion(run.sections.flatMap((section) => section.lessons)).complete,
   );
   const openRun = visibleRuns?.find((run) => run.id === openRunId) ?? null;
   const lessons = useMemo(
@@ -85,7 +97,8 @@ export function SeatCourses({
   const openLessonIndex = openLesson
     ? lessons.findIndex((lesson) => lesson.id === openLesson.id)
     : -1;
-  const completedLessonCount = lessons.filter(lessonComplete).length;
+  const completion = courseCompletion(lessons);
+  const completedLessonCount = completion.completed;
 
   async function start(lesson: SeatCourseRunLesson): Promise<void> {
     if (!lesson.classroomAssignmentId || !lesson.moduleKey) return;
@@ -95,7 +108,7 @@ export function SeatCourses({
       scope: 'personal',
       module: lesson.moduleKey,
       title: lesson.assignmentTitle ?? lesson.title,
-      idempotencyKey: newClientId(),
+      idempotencyKey: lesson.classroomAssignmentId,
     });
     if (!created.ok) {
       setBusy(null);
@@ -148,7 +161,7 @@ export function SeatCourses({
 
   if (openRun && openLesson) {
     const assignment =
-      openLesson.kind === 'assignment' ? assignmentShape(openRun, openLesson) : null;
+      openLesson.kind === 'assignment' ? courseAssignmentShape(openRun, openLesson) : null;
     return (
       <section className="seat-course-player" data-testid="seat-course-player">
         <header className="seat-course-player-head">
@@ -159,7 +172,9 @@ export function SeatCourses({
             <span className="course-eyebrow">Курс · v{openRun.versionNumber}</span>
             <h2>{openRun.title}</h2>
             <p>
-              Пройдено {completedLessonCount} из {lessons.length}
+              Пройдено {completedLessonCount} из {completion.total}
+              {completion.excused > 0 ? ` · освобождено: ${completion.excused}` : ''}
+              {completion.total === 0 ? ' · нет обязательных уроков для расчёта' : ''}
               {openRun.dueAt ? ` · до ${time.date(openRun.dueAt)}` : ' · без общего срока'}
             </p>
             <div
@@ -167,12 +182,12 @@ export function SeatCourses({
               role="progressbar"
               aria-label="Прогресс курса"
               aria-valuemin={0}
-              aria-valuemax={lessons.length}
+              aria-valuemax={completion.total || 1}
               aria-valuenow={completedLessonCount}
             >
               <span
                 style={{
-                  width: `${lessons.length ? (completedLessonCount / lessons.length) * 100 : 0}%`,
+                  width: `${completion.total ? (completedLessonCount / completion.total) * 100 : 0}%`,
                 }}
               />
             </div>
@@ -259,8 +274,8 @@ export function SeatCourses({
                       <button
                         type="button"
                         className="portal-create-button"
-                        onClick={() =>
-                          onOpenProject(assignment.projectId as string, assignment.moduleKey)
+                        onClick={async () =>
+                          setError(await openAssignmentWork(assignment, onOpenProject))
                         }
                       >
                         Открыть работу
@@ -275,15 +290,20 @@ export function SeatCourses({
                             : assignment.submittedAt !== null)
                         }
                         onClick={async () => {
+                          if (assignment.canonicalState?.workflowState === 'changes_requested') {
+                            setError(await openAssignmentWork(assignment, onOpenProject));
+                            return;
+                          }
                           setBusy(openLesson.id);
-                          const result = await api.submitSeatAssignment(assignment.id, true);
+                          const result = await submitSavedAssignment(assignment);
                           setBusy(null);
                           if (result.ok) await reload();
+                          else setError(result.error.message);
                         }}
                       >
                         {assignment.canonicalState
                           ? assignment.canonicalState.workflowState === 'changes_requested'
-                            ? 'Сдать доработку'
+                            ? 'Начать доработку'
                             : canonicalSubmissionLocked(assignment.canonicalState)
                               ? 'Работа сдана'
                               : 'Сдать'
@@ -363,7 +383,8 @@ export function SeatCourses({
         {visibleRuns.map((run) => {
           const lessons = run.sections.flatMap((section) => section.lessons);
           const assignments = lessons.filter((lesson) => lesson.kind === 'assignment');
-          const completed = lessons.filter(lessonComplete).length;
+          const completion = courseCompletion(lessons);
+          const completed = completion.completed;
           return (
             <li key={run.id}>
               <button
@@ -371,7 +392,10 @@ export function SeatCourses({
                 onClick={() => {
                   setOpenRunId(run.id);
                   setOpenLessonId(
-                    lessons.find((lesson) => !lessonComplete(lesson))?.id ?? lessons[0]?.id ?? null,
+                    lessons.find((lesson) => !lessonExcused(lesson) && !lessonComplete(lesson))
+                      ?.id ??
+                      lessons[0]?.id ??
+                      null,
                   );
                 }}
               >
@@ -379,7 +403,9 @@ export function SeatCourses({
                 <span>
                   <strong>{run.title}</strong>
                   <small>
-                    Пройдено {completed} из {lessons.length}
+                    Пройдено {completed} из {completion.total}
+                    {completion.excused > 0 ? ` · освобождено: ${completion.excused}` : ''}
+                    {completion.total === 0 ? ' · нет обязательных уроков для расчёта' : ''}
                     {assignments.length > 0 ? ` · практика ${assignments.length}` : ''}
                   </small>
                 </span>

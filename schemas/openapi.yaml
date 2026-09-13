@@ -11,6 +11,1835 @@ servers:
   - url: http://127.0.0.1:4611
     description: Local development
 paths:
+  '/api/classrooms/{classroomId}/assignments/{assignmentId}/students/{seatId}/review-context':
+    {
+      'parameters':
+        [
+          {
+            'name': 'classroomId',
+            'in': 'path',
+            'required': true,
+            'schema': { 'type': 'string', 'format': 'uuid' },
+          },
+          {
+            'name': 'assignmentId',
+            'in': 'path',
+            'required': true,
+            'schema': { 'type': 'string', 'format': 'uuid' },
+          },
+          {
+            'name': 'seatId',
+            'in': 'path',
+            'required': true,
+            'schema': { 'type': 'string', 'format': 'uuid' },
+          },
+        ],
+      'get':
+        {
+          'operationId': 'getTeacherLearningReviewContext',
+          'summary': 'Exact Participation attempt history and immutable grading scale pin',
+          'responses':
+            {
+              '200':
+                {
+                  'description': 'Scoped success',
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema': { '$ref': '#/components/schemas/LearningTeacherReviewContext' },
+                        },
+                    },
+                },
+              '400': { 'description': 'Invalid request' },
+              '401': { 'description': 'Current session required' },
+              '403': { 'description': 'Capability or workspace denied' },
+              '404': { 'description': 'Resource unavailable' },
+              '409':
+                { 'description': 'Version, state or request conflict; no partial publication' },
+            },
+        },
+    }
+  '/api/classrooms/{classroomId}/assignments/{assignmentId}/learners/{seatId}/legacy-review':
+    {
+      'parameters':
+        [
+          {
+            'name': 'classroomId',
+            'in': 'path',
+            'required': true,
+            'schema': { 'type': 'string', 'format': 'uuid' },
+          },
+          {
+            'name': 'assignmentId',
+            'in': 'path',
+            'required': true,
+            'schema': { 'type': 'string', 'format': 'uuid' },
+          },
+          {
+            'name': 'seatId',
+            'in': 'path',
+            'required': true,
+            'schema': { 'type': 'string', 'format': 'uuid' },
+          },
+        ],
+      'get':
+        {
+          'operationId': 'getLegacyReviewContext',
+          'summary': 'Only confirmed legacy evidence; unknown compatibility grading is never treated as a real scale',
+          'responses':
+            {
+              '200':
+                {
+                  'description': 'Scoped success',
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              'type': 'object',
+                              'additionalProperties': false,
+                              'properties':
+                                {
+                                  'attemptId': { 'type': 'string', 'format': 'uuid' },
+                                  'state': { 'type': 'string' },
+                                  'maxPoints': { 'type': ['integer', 'null'] },
+                                  'submission':
+                                    { 'type': ['object', 'null'], 'additionalProperties': true },
+                                  'feedback': { 'type': ['string', 'null'] },
+                                },
+                              'required':
+                                ['attemptId', 'state', 'maxPoints', 'submission', 'feedback'],
+                            },
+                        },
+                    },
+                },
+              '400': { 'description': 'Invalid request' },
+              '401': { 'description': 'Current session required' },
+              '403': { 'description': 'Capability or workspace denied' },
+              '404': { 'description': 'Resource unavailable' },
+              '409':
+                { 'description': 'Version, state or request conflict; no partial publication' },
+            },
+        },
+    }
+  '/api/classrooms/{classroomId}/grading-scheme':
+    {
+      'parameters':
+        [
+          {
+            'name': 'classroomId',
+            'in': 'path',
+            'required': true,
+            'schema': { 'type': 'string', 'format': 'uuid' },
+          },
+        ],
+      'get':
+        {
+          'operationId': 'getLearningGradingScheme',
+          'summary': 'Class default for future assignments; existing runs retain their pin',
+          'responses':
+            {
+              '200':
+                {
+                  'description': 'Scoped success',
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              'type': 'object',
+                              'additionalProperties': false,
+                              'properties':
+                                {
+                                  'title': { 'type': ['string', 'null'] },
+                                  'version': { 'type': ['integer', 'null'] },
+                                  'bands':
+                                    {
+                                      'type': 'array',
+                                      'items':
+                                        {
+                                          'type': 'object',
+                                          'additionalProperties': false,
+                                          'properties':
+                                            {
+                                              'minBasisPoints':
+                                                {
+                                                  'type': 'integer',
+                                                  'minimum': 0,
+                                                  'maximum': 10000,
+                                                },
+                                              'label':
+                                                {
+                                                  'type': 'string',
+                                                  'minLength': 1,
+                                                  'maxLength': 24,
+                                                },
+                                            },
+                                          'required': ['minBasisPoints', 'label'],
+                                        },
+                                    },
+                                  'publishedAt': { 'type': 'string', 'format': 'date-time' },
+                                },
+                              'required': ['title', 'version', 'bands'],
+                            },
+                        },
+                    },
+                },
+              '400': { 'description': 'Invalid request' },
+              '401': { 'description': 'Current session required' },
+              '403': { 'description': 'Capability or workspace denied' },
+              '404': { 'description': 'Resource unavailable' },
+              '409':
+                { 'description': 'Version, state or request conflict; no partial publication' },
+            },
+        },
+      'post':
+        {
+          'operationId': 'publishLearningGradingScheme',
+          'summary': 'Publish immutable grade scale version with request replay',
+          'requestBody':
+            {
+              'required': true,
+              'content':
+                {
+                  'application/json':
+                    {
+                      'schema':
+                        {
+                          'type': 'object',
+                          'additionalProperties': false,
+                          'properties':
+                            {
+                              'title': { 'type': 'string', 'minLength': 1, 'maxLength': 120 },
+                              'bands':
+                                {
+                                  'type': 'array',
+                                  'minItems': 2,
+                                  'maxItems': 10,
+                                  'items':
+                                    {
+                                      'type': 'object',
+                                      'additionalProperties': false,
+                                      'properties':
+                                        {
+                                          'minBasisPoints':
+                                            { 'type': 'integer', 'minimum': 0, 'maximum': 10000 },
+                                          'label':
+                                            { 'type': 'string', 'minLength': 1, 'maxLength': 24 },
+                                        },
+                                      'required': ['minBasisPoints', 'label'],
+                                    },
+                                },
+                              'requestId':
+                                { 'type': 'string', 'pattern': '^[A-Za-z0-9._:-]{8,128}$' },
+                            },
+                          'required': ['title', 'bands'],
+                        },
+                    },
+                },
+            },
+          'responses':
+            {
+              '201':
+                {
+                  'description': 'Scoped success',
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              'type': 'object',
+                              'additionalProperties': false,
+                              'properties':
+                                {
+                                  'id': { 'type': 'string', 'format': 'uuid' },
+                                  'version': { 'type': 'integer', 'minimum': 1 },
+                                },
+                              'required': ['id', 'version'],
+                            },
+                        },
+                    },
+                },
+              '400': { 'description': 'Invalid request' },
+              '401': { 'description': 'Current session required' },
+              '403': { 'description': 'Capability or workspace denied' },
+              '404': { 'description': 'Resource unavailable' },
+              '409':
+                { 'description': 'Version, state or request conflict; no partial publication' },
+            },
+        },
+    }
+  '/api/classrooms/{classroomId}/learning/audience':
+    {
+      'parameters':
+        [
+          {
+            'name': 'classroomId',
+            'in': 'path',
+            'required': true,
+            'schema': { 'type': 'string', 'format': 'uuid' },
+          },
+        ],
+      'get':
+        {
+          'operationId': 'getLearningAssignmentAudience',
+          'summary': 'Exactly one direct assignmentId or courseRunId; course audience governs all children',
+          'responses':
+            {
+              '200':
+                {
+                  'description': 'Scoped success',
+                  'content':
+                    {
+                      'application/json':
+                        { 'schema': { '$ref': '#/components/schemas/LearningAudienceReceipt' } },
+                    },
+                },
+              '400': { 'description': 'Invalid request' },
+              '401': { 'description': 'Current session required' },
+              '403': { 'description': 'Capability or workspace denied' },
+              '404': { 'description': 'Resource unavailable' },
+              '409':
+                { 'description': 'Version, state or request conflict; no partial publication' },
+            },
+          'parameters':
+            [
+              {
+                'name': 'assignmentId',
+                'in': 'query',
+                'schema': { 'type': 'string', 'format': 'uuid' },
+              },
+              {
+                'name': 'courseRunId',
+                'in': 'query',
+                'schema': { 'type': 'string', 'format': 'uuid' },
+              },
+            ],
+        },
+    }
+  '/api/classrooms/{classroomId}/learning/audiences/{audienceId}/members/{seatId}':
+    {
+      'parameters':
+        [
+          {
+            'name': 'classroomId',
+            'in': 'path',
+            'required': true,
+            'schema': { 'type': 'string', 'format': 'uuid' },
+          },
+          {
+            'name': 'audienceId',
+            'in': 'path',
+            'required': true,
+            'schema': { 'type': 'string', 'format': 'uuid' },
+          },
+          {
+            'name': 'seatId',
+            'in': 'path',
+            'required': true,
+            'schema': { 'type': 'string', 'format': 'uuid' },
+          },
+        ],
+      'post':
+        {
+          'operationId': 'changeLearningNamedAudience',
+          'summary': 'Add/remove through existing Audience with expected membership and reason; withdrawn history is not revived',
+          'requestBody':
+            {
+              'required': true,
+              'content':
+                {
+                  'application/json':
+                    { 'schema': { '$ref': '#/components/schemas/LearningAudienceMemberChange' } },
+                },
+            },
+          'responses':
+            {
+              '201':
+                {
+                  'description': 'Scoped success',
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              'type': 'object',
+                              'additionalProperties': false,
+                              'properties': { 'ok': { 'type': 'boolean' } },
+                              'required': ['ok'],
+                            },
+                        },
+                    },
+                },
+              '400': { 'description': 'Invalid request' },
+              '401': { 'description': 'Current session required' },
+              '403': { 'description': 'Capability or workspace denied' },
+              '404': { 'description': 'Resource unavailable' },
+              '409':
+                { 'description': 'Version, state or request conflict; no partial publication' },
+            },
+        },
+    }
+  '/api/class-join/account':
+    {
+      'post':
+        {
+          'operationId': 'requestAccountClassAdmission',
+          'summary': 'Pending request is not admission; already active membership is reused',
+          'requestBody':
+            {
+              'required': true,
+              'content':
+                {
+                  'application/json':
+                    {
+                      'schema':
+                        {
+                          'type': 'object',
+                          'additionalProperties': false,
+                          'properties': { 'code': { 'type': 'string' } },
+                          'required': ['code'],
+                        },
+                    },
+                },
+            },
+          'responses':
+            {
+              '200':
+                {
+                  'description': 'Scoped success',
+                  'content':
+                    {
+                      'application/json':
+                        { 'schema': { '$ref': '#/components/schemas/LearningJoinReceipt' } },
+                    },
+                },
+              '400': { 'description': 'Invalid request' },
+              '401': { 'description': 'Current session required' },
+              '403': { 'description': 'Capability or workspace denied' },
+              '404': { 'description': 'Resource unavailable' },
+              '409':
+                { 'description': 'Version, state or request conflict; no partial publication' },
+            },
+        },
+    }
+  '/api/courses':
+    {
+      'get':
+        {
+          'operationId': 'getAuthorCourses',
+          'summary': 'One owner library regardless of teaching capability',
+          'responses':
+            {
+              '200':
+                {
+                  'description': 'Scoped success',
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              'type': 'object',
+                              'additionalProperties': false,
+                              'properties':
+                                {
+                                  'items':
+                                    {
+                                      'type': 'array',
+                                      'items': { 'type': 'object', 'additionalProperties': true },
+                                    },
+                                },
+                              'required': ['items'],
+                            },
+                        },
+                    },
+                },
+              '400': { 'description': 'Invalid request' },
+              '401': { 'description': 'Current session required' },
+              '403': { 'description': 'Capability or workspace denied' },
+              '404': { 'description': 'Resource unavailable' },
+              '409':
+                { 'description': 'Version, state or request conflict; no partial publication' },
+            },
+        },
+      'post':
+        {
+          'operationId': 'createAuthorCourse',
+          'summary': 'Private by default; requestId required for new authoring workflow',
+          'requestBody':
+            {
+              'required': true,
+              'content':
+                {
+                  'application/json':
+                    { 'schema': { '$ref': '#/components/schemas/LearningCourseDraftRequest' } },
+                },
+            },
+          'responses':
+            {
+              '201':
+                {
+                  'description': 'Scoped success',
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              'type': 'object',
+                              'additionalProperties': false,
+                              'properties': { 'id': { 'type': 'string', 'format': 'uuid' } },
+                              'required': ['id'],
+                            },
+                        },
+                    },
+                },
+              '400': { 'description': 'Invalid request' },
+              '401': { 'description': 'Current session required' },
+              '403': { 'description': 'Capability or workspace denied' },
+              '404': { 'description': 'Resource unavailable' },
+              '409':
+                { 'description': 'Version, state or request conflict; no partial publication' },
+            },
+        },
+    }
+  '/api/courses/{courseId}':
+    {
+      'parameters':
+        [
+          {
+            'name': 'courseId',
+            'in': 'path',
+            'required': true,
+            'schema': { 'type': 'string', 'format': 'uuid' },
+          },
+        ],
+      'patch':
+        {
+          'operationId': 'updateAuthorCourse',
+          'summary': 'CAS draft changes do not affect published course or existing runs',
+          'requestBody':
+            {
+              'required': true,
+              'content':
+                {
+                  'application/json':
+                    { 'schema': { '$ref': '#/components/schemas/LearningCourseDraftRequest' } },
+                },
+            },
+          'responses':
+            {
+              '200':
+                {
+                  'description': 'Scoped success',
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              'type': 'object',
+                              'additionalProperties': false,
+                              'properties': { 'id': { 'type': 'string', 'format': 'uuid' } },
+                              'required': ['id'],
+                            },
+                        },
+                    },
+                },
+              '400': { 'description': 'Invalid request' },
+              '401': { 'description': 'Current session required' },
+              '403': { 'description': 'Capability or workspace denied' },
+              '404': { 'description': 'Resource unavailable' },
+              '409':
+                { 'description': 'Version, state or request conflict; no partial publication' },
+            },
+        },
+    }
+  '/api/courses/{courseId}/publish':
+    {
+      'parameters':
+        [
+          {
+            'name': 'courseId',
+            'in': 'path',
+            'required': true,
+            'schema': { 'type': 'string', 'format': 'uuid' },
+          },
+        ],
+      'post':
+        {
+          'operationId': 'publishAuthorCourse',
+          'summary': 'Pin exact published dependencies, reject empty or invalid course, idempotent request',
+          'requestBody':
+            {
+              'required': true,
+              'content':
+                {
+                  'application/json':
+                    {
+                      'schema':
+                        {
+                          'type': 'object',
+                          'additionalProperties': false,
+                          'properties':
+                            {
+                              'expectedRevision': { 'type': 'integer', 'minimum': 1 },
+                              'requestId':
+                                { 'type': 'string', 'pattern': '^[A-Za-z0-9._:-]{8,128}$' },
+                            },
+                          'required': ['expectedRevision', 'requestId'],
+                        },
+                    },
+                },
+            },
+          'responses':
+            {
+              '201':
+                {
+                  'description': 'Scoped success',
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              'type': 'object',
+                              'additionalProperties': false,
+                              'properties':
+                                {
+                                  'versionId': { 'type': 'string', 'format': 'uuid' },
+                                  'versionNumber': { 'type': 'integer', 'minimum': 1 },
+                                  'publishedAt': { 'type': 'string', 'format': 'date-time' },
+                                  'reused': { 'type': 'boolean' },
+                                },
+                              'required': ['versionId', 'versionNumber', 'publishedAt', 'reused'],
+                            },
+                        },
+                    },
+                },
+              '400': { 'description': 'Invalid request' },
+              '401': { 'description': 'Current session required' },
+              '403': { 'description': 'Capability or workspace denied' },
+              '404': { 'description': 'Resource unavailable' },
+              '409':
+                { 'description': 'Version, state or request conflict; no partial publication' },
+            },
+        },
+    }
+  '/api/courses/{courseId}/outline':
+    {
+      'parameters':
+        [
+          {
+            'name': 'courseId',
+            'in': 'path',
+            'required': true,
+            'schema': { 'type': 'string', 'format': 'uuid' },
+          },
+        ],
+      'get':
+        {
+          'operationId': 'getAuthorCourseOutline',
+          'summary': 'Current author outline and draft revision; preview creates no Attempt',
+          'responses':
+            {
+              '200':
+                {
+                  'description': 'Scoped success',
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              'type': 'object',
+                              'additionalProperties': false,
+                              'properties':
+                                {
+                                  'draftRevision': { 'type': 'integer', 'minimum': 1 },
+                                  'sections':
+                                    {
+                                      'type': 'array',
+                                      'items': { 'type': 'object', 'additionalProperties': true },
+                                    },
+                                },
+                              'required': ['draftRevision', 'sections'],
+                            },
+                        },
+                    },
+                },
+              '400': { 'description': 'Invalid request' },
+              '401': { 'description': 'Current session required' },
+              '403': { 'description': 'Capability or workspace denied' },
+              '404': { 'description': 'Resource unavailable' },
+              '409':
+                { 'description': 'Version, state or request conflict; no partial publication' },
+            },
+        },
+    }
+  '/api/courses/{courseId}/sections':
+    {
+      'parameters':
+        [
+          {
+            'name': 'courseId',
+            'in': 'path',
+            'required': true,
+            'schema': { 'type': 'string', 'format': 'uuid' },
+          },
+        ],
+      'post':
+        {
+          'operationId': 'createLearningCoursesections',
+          'summary': 'Add to existing course outline under expected draft revision',
+          'requestBody':
+            {
+              'required': true,
+              'content':
+                {
+                  'application/json':
+                    { 'schema': { '$ref': '#/components/schemas/LearningCourseSectionRequest' } },
+                },
+            },
+          'responses':
+            {
+              '201':
+                {
+                  'description': 'Scoped success',
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              'type': 'object',
+                              'additionalProperties': false,
+                              'properties': { 'id': { 'type': 'string', 'format': 'uuid' } },
+                              'required': ['id'],
+                            },
+                        },
+                    },
+                },
+              '400': { 'description': 'Invalid request' },
+              '401': { 'description': 'Current session required' },
+              '403': { 'description': 'Capability or workspace denied' },
+              '404': { 'description': 'Resource unavailable' },
+              '409':
+                { 'description': 'Version, state or request conflict; no partial publication' },
+            },
+        },
+    }
+  '/api/courses/{courseId}/sections/{sectionId}':
+    {
+      'parameters':
+        [
+          {
+            'name': 'courseId',
+            'in': 'path',
+            'required': true,
+            'schema': { 'type': 'string', 'format': 'uuid' },
+          },
+          {
+            'name': 'sectionId',
+            'in': 'path',
+            'required': true,
+            'schema': { 'type': 'string', 'format': 'uuid' },
+          },
+        ],
+      'patch':
+        {
+          'operationId': 'updateLearningCoursesections',
+          'summary': 'Update draft only under expected revision',
+          'requestBody':
+            {
+              'required': true,
+              'content':
+                {
+                  'application/json':
+                    { 'schema': { '$ref': '#/components/schemas/LearningCourseSectionRequest' } },
+                },
+            },
+          'responses':
+            {
+              '200':
+                {
+                  'description': 'Scoped success',
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              'type': 'object',
+                              'additionalProperties': false,
+                              'properties': { 'id': { 'type': 'string', 'format': 'uuid' } },
+                              'required': ['id'],
+                            },
+                        },
+                    },
+                },
+              '400': { 'description': 'Invalid request' },
+              '401': { 'description': 'Current session required' },
+              '403': { 'description': 'Capability or workspace denied' },
+              '404': { 'description': 'Resource unavailable' },
+              '409':
+                { 'description': 'Version, state or request conflict; no partial publication' },
+            },
+        },
+      'delete':
+        {
+          'operationId': 'removeLearningCoursesections',
+          'summary': 'Remove draft item only; published snapshots retained',
+          'requestBody':
+            {
+              'required': true,
+              'content':
+                {
+                  'application/json':
+                    {
+                      'schema':
+                        {
+                          'type': 'object',
+                          'additionalProperties': false,
+                          'properties': { 'expectedRevision': { 'type': 'integer', 'minimum': 1 } },
+                          'required': ['expectedRevision'],
+                        },
+                    },
+                },
+            },
+          'responses':
+            {
+              '200':
+                {
+                  'description': 'Scoped success',
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              'type': 'object',
+                              'additionalProperties': false,
+                              'properties': { 'removed': { 'type': 'boolean' } },
+                              'required': ['removed'],
+                            },
+                        },
+                    },
+                },
+              '400': { 'description': 'Invalid request' },
+              '401': { 'description': 'Current session required' },
+              '403': { 'description': 'Capability or workspace denied' },
+              '404': { 'description': 'Resource unavailable' },
+              '409':
+                { 'description': 'Version, state or request conflict; no partial publication' },
+            },
+        },
+    }
+  '/api/courses/{courseId}/sections/{sectionId}/move':
+    {
+      'parameters':
+        [
+          {
+            'name': 'courseId',
+            'in': 'path',
+            'required': true,
+            'schema': { 'type': 'string', 'format': 'uuid' },
+          },
+          {
+            'name': 'sectionId',
+            'in': 'path',
+            'required': true,
+            'schema': { 'type': 'string', 'format': 'uuid' },
+          },
+        ],
+      'post':
+        {
+          'operationId': 'moveLearningCoursesections',
+          'summary': 'Reorder existing draft outline under expected revision',
+          'requestBody':
+            {
+              'required': true,
+              'content':
+                {
+                  'application/json':
+                    {
+                      'schema':
+                        {
+                          'type': 'object',
+                          'additionalProperties': false,
+                          'properties':
+                            {
+                              'expectedRevision': { 'type': 'integer', 'minimum': 1 },
+                              'delta': { 'type': 'integer', 'enum': [-1, 1] },
+                            },
+                          'required': ['expectedRevision', 'delta'],
+                        },
+                    },
+                },
+            },
+          'responses':
+            {
+              '201':
+                {
+                  'description': 'Scoped success',
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              'type': 'object',
+                              'additionalProperties': false,
+                              'properties': { 'ok': { 'type': 'boolean' } },
+                              'required': ['ok'],
+                            },
+                        },
+                    },
+                },
+              '400': { 'description': 'Invalid request' },
+              '401': { 'description': 'Current session required' },
+              '403': { 'description': 'Capability or workspace denied' },
+              '404': { 'description': 'Resource unavailable' },
+              '409':
+                { 'description': 'Version, state or request conflict; no partial publication' },
+            },
+        },
+    }
+  '/api/courses/{courseId}/lessons':
+    {
+      'parameters':
+        [
+          {
+            'name': 'courseId',
+            'in': 'path',
+            'required': true,
+            'schema': { 'type': 'string', 'format': 'uuid' },
+          },
+        ],
+      'post':
+        {
+          'operationId': 'createLearningCourselessons',
+          'summary': 'Add to existing course outline under expected draft revision',
+          'requestBody':
+            {
+              'required': true,
+              'content':
+                {
+                  'application/json':
+                    { 'schema': { '$ref': '#/components/schemas/LearningCourseLessonRequest' } },
+                },
+            },
+          'responses':
+            {
+              '201':
+                {
+                  'description': 'Scoped success',
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              'type': 'object',
+                              'additionalProperties': false,
+                              'properties': { 'id': { 'type': 'string', 'format': 'uuid' } },
+                              'required': ['id'],
+                            },
+                        },
+                    },
+                },
+              '400': { 'description': 'Invalid request' },
+              '401': { 'description': 'Current session required' },
+              '403': { 'description': 'Capability or workspace denied' },
+              '404': { 'description': 'Resource unavailable' },
+              '409':
+                { 'description': 'Version, state or request conflict; no partial publication' },
+            },
+        },
+    }
+  '/api/courses/{courseId}/lessons/{lessonId}':
+    {
+      'parameters':
+        [
+          {
+            'name': 'courseId',
+            'in': 'path',
+            'required': true,
+            'schema': { 'type': 'string', 'format': 'uuid' },
+          },
+          {
+            'name': 'lessonId',
+            'in': 'path',
+            'required': true,
+            'schema': { 'type': 'string', 'format': 'uuid' },
+          },
+        ],
+      'patch':
+        {
+          'operationId': 'updateLearningCourselessons',
+          'summary': 'Update draft only under expected revision',
+          'requestBody':
+            {
+              'required': true,
+              'content':
+                {
+                  'application/json':
+                    { 'schema': { '$ref': '#/components/schemas/LearningCourseLessonRequest' } },
+                },
+            },
+          'responses':
+            {
+              '200':
+                {
+                  'description': 'Scoped success',
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              'type': 'object',
+                              'additionalProperties': false,
+                              'properties': { 'id': { 'type': 'string', 'format': 'uuid' } },
+                              'required': ['id'],
+                            },
+                        },
+                    },
+                },
+              '400': { 'description': 'Invalid request' },
+              '401': { 'description': 'Current session required' },
+              '403': { 'description': 'Capability or workspace denied' },
+              '404': { 'description': 'Resource unavailable' },
+              '409':
+                { 'description': 'Version, state or request conflict; no partial publication' },
+            },
+        },
+      'delete':
+        {
+          'operationId': 'removeLearningCourselessons',
+          'summary': 'Remove draft item only; published snapshots retained',
+          'requestBody':
+            {
+              'required': true,
+              'content':
+                {
+                  'application/json':
+                    {
+                      'schema':
+                        {
+                          'type': 'object',
+                          'additionalProperties': false,
+                          'properties': { 'expectedRevision': { 'type': 'integer', 'minimum': 1 } },
+                          'required': ['expectedRevision'],
+                        },
+                    },
+                },
+            },
+          'responses':
+            {
+              '200':
+                {
+                  'description': 'Scoped success',
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              'type': 'object',
+                              'additionalProperties': false,
+                              'properties': { 'removed': { 'type': 'boolean' } },
+                              'required': ['removed'],
+                            },
+                        },
+                    },
+                },
+              '400': { 'description': 'Invalid request' },
+              '401': { 'description': 'Current session required' },
+              '403': { 'description': 'Capability or workspace denied' },
+              '404': { 'description': 'Resource unavailable' },
+              '409':
+                { 'description': 'Version, state or request conflict; no partial publication' },
+            },
+        },
+    }
+  '/api/courses/{courseId}/lessons/{lessonId}/move':
+    {
+      'parameters':
+        [
+          {
+            'name': 'courseId',
+            'in': 'path',
+            'required': true,
+            'schema': { 'type': 'string', 'format': 'uuid' },
+          },
+          {
+            'name': 'lessonId',
+            'in': 'path',
+            'required': true,
+            'schema': { 'type': 'string', 'format': 'uuid' },
+          },
+        ],
+      'post':
+        {
+          'operationId': 'moveLearningCourselessons',
+          'summary': 'Reorder existing draft outline under expected revision',
+          'requestBody':
+            {
+              'required': true,
+              'content':
+                {
+                  'application/json':
+                    {
+                      'schema':
+                        {
+                          'type': 'object',
+                          'additionalProperties': false,
+                          'properties':
+                            {
+                              'expectedRevision': { 'type': 'integer', 'minimum': 1 },
+                              'delta': { 'type': 'integer', 'enum': [-1, 1] },
+                            },
+                          'required': ['expectedRevision', 'delta'],
+                        },
+                    },
+                },
+            },
+          'responses':
+            {
+              '201':
+                {
+                  'description': 'Scoped success',
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              'type': 'object',
+                              'additionalProperties': false,
+                              'properties': { 'ok': { 'type': 'boolean' } },
+                              'required': ['ok'],
+                            },
+                        },
+                    },
+                },
+              '400': { 'description': 'Invalid request' },
+              '401': { 'description': 'Current session required' },
+              '403': { 'description': 'Capability or workspace denied' },
+              '404': { 'description': 'Resource unavailable' },
+              '409':
+                { 'description': 'Version, state or request conflict; no partial publication' },
+            },
+        },
+    }
+  '/api/classrooms/{classroomId}/assignments/{assignmentId}/conditions':
+    {
+      'parameters':
+        [
+          {
+            'name': 'classroomId',
+            'in': 'path',
+            'required': true,
+            'schema': { 'type': 'string', 'format': 'uuid' },
+          },
+          {
+            'name': 'assignmentId',
+            'in': 'path',
+            'required': true,
+            'schema': { 'type': 'string', 'format': 'uuid' },
+          },
+        ],
+      'get':
+        {
+          'operationId': 'getLearningConditions',
+          'summary': 'Effective values, sources and impact; exact-class staff only',
+          'responses':
+            {
+              '200':
+                {
+                  'description': 'Successful scoped operation',
+                  'content':
+                    {
+                      'application/json':
+                        { 'schema': { '$ref': '#/components/schemas/LearningConditionsReceipt' } },
+                    },
+                },
+              '400': { 'description': 'Invalid request' },
+              '401': { 'description': 'Current session required' },
+              '403': { 'description': 'Capability or scope unavailable' },
+              '404': { 'description': 'Resource unavailable' },
+              '409':
+                {
+                  'description': 'State, permission, revision or idempotency conflict; no partial result',
+                },
+              '503': { 'description': 'Database unavailable' },
+            },
+          'parameters':
+            [{ 'name': 'seatId', 'in': 'query', 'schema': { 'type': 'string', 'format': 'uuid' } }],
+        },
+      'post':
+        {
+          'operationId': 'saveLearningConditions',
+          'summary': 'CAS operational override, reason and idempotent request; immutable snapshots untouched',
+          'requestBody':
+            {
+              'required': true,
+              'content':
+                {
+                  'application/json':
+                    { 'schema': { '$ref': '#/components/schemas/LearningConditionsChange' } },
+                },
+            },
+          'responses':
+            {
+              '201':
+                {
+                  'description': 'Successful scoped operation',
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              'type': 'object',
+                              'additionalProperties': false,
+                              'required': ['ok'],
+                              'properties': { 'ok': { 'type': 'boolean' } },
+                            },
+                        },
+                    },
+                },
+              '400': { 'description': 'Invalid request' },
+              '401': { 'description': 'Current session required' },
+              '403': { 'description': 'Capability or scope unavailable' },
+              '404': { 'description': 'Resource unavailable' },
+              '409':
+                {
+                  'description': 'State, permission, revision or idempotency conflict; no partial result',
+                },
+              '503': { 'description': 'Database unavailable' },
+            },
+        },
+    }
+  '/api/classrooms/{classroomId}/assignments/{assignmentId}/students/{seatId}/allowance':
+    {
+      'parameters':
+        [
+          {
+            'name': 'classroomId',
+            'in': 'path',
+            'required': true,
+            'schema': { 'type': 'string', 'format': 'uuid' },
+          },
+          {
+            'name': 'assignmentId',
+            'in': 'path',
+            'required': true,
+            'schema': { 'type': 'string', 'format': 'uuid' },
+          },
+          {
+            'name': 'seatId',
+            'in': 'path',
+            'required': true,
+            'schema': { 'type': 'string', 'format': 'uuid' },
+          },
+        ],
+      'post':
+        {
+          'operationId': 'saveLearningAllowance',
+          'summary': 'Reuse Participation allowance, unlock and excuse commands; never erase granted allowance',
+          'requestBody':
+            {
+              'required': true,
+              'content':
+                {
+                  'application/json':
+                    { 'schema': { '$ref': '#/components/schemas/LearningAllowanceChange' } },
+                },
+            },
+          'responses':
+            {
+              '201':
+                {
+                  'description': 'Successful scoped operation',
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              'type': 'object',
+                              'additionalProperties': false,
+                              'required': ['ok'],
+                              'properties': { 'ok': { 'type': 'boolean' } },
+                            },
+                        },
+                    },
+                },
+              '400': { 'description': 'Invalid request' },
+              '401': { 'description': 'Current session required' },
+              '403': { 'description': 'Capability or scope unavailable' },
+              '404': { 'description': 'Resource unavailable' },
+              '409':
+                {
+                  'description': 'State, permission, revision or idempotency conflict; no partial result',
+                },
+              '503': { 'description': 'Database unavailable' },
+            },
+        },
+    }
+  '/api/classrooms/{classroomId}/attempts/{attemptId}/submission':
+    {
+      'parameters':
+        [
+          {
+            'name': 'classroomId',
+            'in': 'path',
+            'required': true,
+            'schema': { 'type': 'string', 'format': 'uuid' },
+          },
+          {
+            'name': 'attemptId',
+            'in': 'path',
+            'required': true,
+            'schema': { 'type': 'string', 'format': 'uuid' },
+          },
+        ],
+      'get':
+        {
+          'operationId': 'getExactLearningSubmission',
+          'summary': 'Immutable submitted ProjectVersion, not current draft',
+          'responses':
+            {
+              '200':
+                {
+                  'description': 'Successful scoped operation',
+                  'content':
+                    {
+                      'application/json':
+                        { 'schema': { '$ref': '#/components/schemas/LearningExactSubmission' } },
+                    },
+                },
+              '400': { 'description': 'Invalid request' },
+              '401': { 'description': 'Current session required' },
+              '403': { 'description': 'Capability or scope unavailable' },
+              '404': { 'description': 'Resource unavailable' },
+              '409':
+                {
+                  'description': 'State, permission, revision or idempotency conflict; no partial result',
+                },
+              '503': { 'description': 'Database unavailable' },
+            },
+        },
+    }
+  '/api/classrooms/{classroomId}/attempts/{attemptId}/review':
+    {
+      'parameters':
+        [
+          {
+            'name': 'classroomId',
+            'in': 'path',
+            'required': true,
+            'schema': { 'type': 'string', 'format': 'uuid' },
+          },
+          {
+            'name': 'attemptId',
+            'in': 'path',
+            'required': true,
+            'schema': { 'type': 'string', 'format': 'uuid' },
+          },
+        ],
+      'post':
+        {
+          'operationId': 'reviewExactLearningSubmission',
+          'summary': 'Canonical review requires requestId and expectedResultId. Without requestId only existing legacy review is permitted.',
+          'requestBody':
+            {
+              'required': true,
+              'content':
+                {
+                  'application/json':
+                    { 'schema': { '$ref': '#/components/schemas/LearningManualReviewRequest' } },
+                },
+            },
+          'responses':
+            {
+              '201':
+                {
+                  'description': 'Successful scoped operation',
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema': { '$ref': '#/components/schemas/LearningManualReviewReceipt' },
+                        },
+                    },
+                },
+              '400': { 'description': 'Invalid request' },
+              '401': { 'description': 'Current session required' },
+              '403': { 'description': 'Capability or scope unavailable' },
+              '404': { 'description': 'Resource unavailable' },
+              '409':
+                {
+                  'description': 'State, permission, revision or idempotency conflict; no partial result',
+                },
+              '503': { 'description': 'Database unavailable' },
+            },
+        },
+    }
+  '/api/classrooms/{classroomId}/participations/{participationId}/selected-attempt':
+    {
+      'parameters':
+        [
+          {
+            'name': 'classroomId',
+            'in': 'path',
+            'required': true,
+            'schema': { 'type': 'string', 'format': 'uuid' },
+          },
+          {
+            'name': 'participationId',
+            'in': 'path',
+            'required': true,
+            'schema': { 'type': 'string', 'format': 'uuid' },
+          },
+        ],
+      'post':
+        {
+          'operationId': 'selectLearningResultAttempt',
+          'summary': 'Audited teacher_selected pointer; expected pointer prevents lost updates',
+          'requestBody':
+            {
+              'required': true,
+              'content':
+                {
+                  'application/json':
+                    { 'schema': { '$ref': '#/components/schemas/LearningSelectionChange' } },
+                },
+            },
+          'responses':
+            {
+              '201':
+                {
+                  'description': 'Successful scoped operation',
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              'type': 'object',
+                              'additionalProperties': false,
+                              'required': ['ok'],
+                              'properties': { 'ok': { 'type': 'boolean' } },
+                            },
+                        },
+                    },
+                },
+              '400': { 'description': 'Invalid request' },
+              '401': { 'description': 'Current session required' },
+              '403': { 'description': 'Capability or scope unavailable' },
+              '404': { 'description': 'Resource unavailable' },
+              '409':
+                {
+                  'description': 'State, permission, revision or idempotency conflict; no partial result',
+                },
+              '503': { 'description': 'Database unavailable' },
+            },
+        },
+    }
+  '/api/learning/notifications':
+    {
+      'get':
+        {
+          'operationId': 'getLearningNotifications',
+          'summary': 'Own persisted delivered events; authorization rechecked and unread is not teacher queue',
+          'responses':
+            {
+              '200':
+                {
+                  'description': 'Successful scoped operation',
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema': { '$ref': '#/components/schemas/LearningNotificationReceipt' },
+                        },
+                    },
+                },
+              '400': { 'description': 'Invalid request' },
+              '401': { 'description': 'Current session required' },
+              '403': { 'description': 'Capability or scope unavailable' },
+              '404': { 'description': 'Resource unavailable' },
+              '409':
+                {
+                  'description': 'State, permission, revision or idempotency conflict; no partial result',
+                },
+              '503': { 'description': 'Database unavailable' },
+            },
+        },
+    }
+  '/api/learning/notifications/read':
+    {
+      'post':
+        {
+          'operationId': 'readLearningNotifications',
+          'summary': 'Read only own delivered events through server snapshot; null ids marks all',
+          'requestBody':
+            {
+              'required': true,
+              'content':
+                {
+                  'application/json':
+                    { 'schema': { '$ref': '#/components/schemas/LearningNotificationRead' } },
+                },
+            },
+          'responses':
+            {
+              '201':
+                {
+                  'description': 'Successful scoped operation',
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              'type': 'object',
+                              'additionalProperties': false,
+                              'required': ['count'],
+                              'properties': { 'count': { 'type': 'integer', 'minimum': 0 } },
+                            },
+                        },
+                    },
+                },
+              '400': { 'description': 'Invalid request' },
+              '401': { 'description': 'Current session required' },
+              '403': { 'description': 'Capability or scope unavailable' },
+              '404': { 'description': 'Resource unavailable' },
+              '409':
+                {
+                  'description': 'State, permission, revision or idempotency conflict; no partial result',
+                },
+              '503': { 'description': 'Database unavailable' },
+            },
+        },
+    }
+  '/api/learning/notifications/preferences':
+    {
+      'get':
+        {
+          'operationId': 'getLearningNotificationPreferences',
+          'summary': 'Own master, categories and accessible class exceptions',
+          'responses':
+            {
+              '200':
+                {
+                  'description': 'Successful scoped operation',
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': '#/components/schemas/LearningNotificationPreferencesReceipt',
+                            },
+                        },
+                    },
+                },
+              '400': { 'description': 'Invalid request' },
+              '401': { 'description': 'Current session required' },
+              '403': { 'description': 'Capability or scope unavailable' },
+              '404': { 'description': 'Resource unavailable' },
+              '409':
+                {
+                  'description': 'State, permission, revision or idempotency conflict; no partial result',
+                },
+              '503': { 'description': 'Database unavailable' },
+            },
+        },
+      'post':
+        {
+          'operationId': 'saveLearningNotificationPreferences',
+          'summary': 'Master off dominates class rules; suppressed historical delivery is never replayed',
+          'requestBody':
+            {
+              'required': true,
+              'content':
+                {
+                  'application/json':
+                    {
+                      'schema':
+                        { '$ref': '#/components/schemas/LearningNotificationPreferencesChange' },
+                    },
+                },
+            },
+          'responses':
+            {
+              '201':
+                {
+                  'description': 'Successful scoped operation',
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': '#/components/schemas/LearningNotificationPreferencesReceipt',
+                            },
+                        },
+                    },
+                },
+              '400': { 'description': 'Invalid request' },
+              '401': { 'description': 'Current session required' },
+              '403': { 'description': 'Capability or scope unavailable' },
+              '404': { 'description': 'Resource unavailable' },
+              '409':
+                {
+                  'description': 'State, permission, revision or idempotency conflict; no partial result',
+                },
+              '503': { 'description': 'Database unavailable' },
+            },
+        },
+    }
+  '/api/learning/notifications/classes/{classroomId}/reminders':
+    {
+      'parameters':
+        [
+          {
+            'name': 'classroomId',
+            'in': 'path',
+            'required': true,
+            'schema': { 'type': 'string', 'format': 'uuid' },
+          },
+        ],
+      'get':
+        {
+          'operationId': 'getClassLearningReminders',
+          'summary': 'Teacher policy separate from personal delivery preferences',
+          'responses':
+            {
+              '200':
+                {
+                  'description': 'Successful scoped operation',
+                  'content':
+                    {
+                      'application/json':
+                        { 'schema': { '$ref': '#/components/schemas/LearningReminderPolicy' } },
+                    },
+                },
+              '400': { 'description': 'Invalid request' },
+              '401': { 'description': 'Current session required' },
+              '403': { 'description': 'Capability or scope unavailable' },
+              '404': { 'description': 'Resource unavailable' },
+              '409':
+                {
+                  'description': 'State, permission, revision or idempotency conflict; no partial result',
+                },
+              '503': { 'description': 'Database unavailable' },
+            },
+        },
+      'post':
+        {
+          'operationId': 'saveClassLearningReminders',
+          'summary': 'Class learner reminder controls with expected revision',
+          'requestBody':
+            {
+              'required': true,
+              'content':
+                {
+                  'application/json':
+                    { 'schema': { '$ref': '#/components/schemas/LearningReminderPolicy' } },
+                },
+            },
+          'responses':
+            {
+              '201':
+                {
+                  'description': 'Successful scoped operation',
+                  'content':
+                    {
+                      'application/json':
+                        { 'schema': { '$ref': '#/components/schemas/LearningReminderPolicy' } },
+                    },
+                },
+              '400': { 'description': 'Invalid request' },
+              '401': { 'description': 'Current session required' },
+              '403': { 'description': 'Capability or scope unavailable' },
+              '404': { 'description': 'Resource unavailable' },
+              '409':
+                {
+                  'description': 'State, permission, revision or idempotency conflict; no partial result',
+                },
+              '503': { 'description': 'Database unavailable' },
+            },
+        },
+    }
+  '/api/class-join/account/requests':
+    {
+      'get':
+        {
+          'operationId': 'getOwnClassJoinRequests',
+          'summary': 'Only authenticated account requests',
+          'responses':
+            {
+              '200':
+                {
+                  'description': 'Successful scoped operation',
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              'type': 'object',
+                              'additionalProperties': false,
+                              'required': ['items'],
+                              'properties':
+                                {
+                                  'items':
+                                    {
+                                      'type': 'array',
+                                      'items': { 'type': 'object', 'additionalProperties': true },
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+              '400': { 'description': 'Invalid request' },
+              '401': { 'description': 'Current session required' },
+              '403': { 'description': 'Capability or scope unavailable' },
+              '404': { 'description': 'Resource unavailable' },
+              '409':
+                {
+                  'description': 'State, permission, revision or idempotency conflict; no partial result',
+                },
+              '503': { 'description': 'Database unavailable' },
+            },
+        },
+    }
+  '/api/class-join/requests/{classroomId}':
+    {
+      'parameters':
+        [
+          {
+            'name': 'classroomId',
+            'in': 'path',
+            'required': true,
+            'schema': { 'type': 'string', 'format': 'uuid' },
+          },
+        ],
+      'get':
+        {
+          'operationId': 'getClassJoinRequests',
+          'summary': 'Exact-class staff read requests; no role inferred from account login',
+          'responses':
+            {
+              '200':
+                {
+                  'description': 'Successful scoped operation',
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              'type': 'object',
+                              'additionalProperties': false,
+                              'required': ['items'],
+                              'properties':
+                                {
+                                  'items':
+                                    {
+                                      'type': 'array',
+                                      'items': { 'type': 'object', 'additionalProperties': true },
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+              '400': { 'description': 'Invalid request' },
+              '401': { 'description': 'Current session required' },
+              '403': { 'description': 'Capability or scope unavailable' },
+              '404': { 'description': 'Resource unavailable' },
+              '409':
+                {
+                  'description': 'State, permission, revision or idempotency conflict; no partial result',
+                },
+              '503': { 'description': 'Database unavailable' },
+            },
+        },
+    }
+  '/api/class-join/requests/{classroomId}/{requestId}/decision':
+    {
+      'parameters':
+        [
+          {
+            'name': 'classroomId',
+            'in': 'path',
+            'required': true,
+            'schema': { 'type': 'string', 'format': 'uuid' },
+          },
+          {
+            'name': 'requestId',
+            'in': 'path',
+            'required': true,
+            'schema': { 'type': 'string', 'format': 'uuid' },
+          },
+        ],
+      'post':
+        {
+          'operationId': 'decideClassJoinRequest',
+          'summary': 'Approve/reject once; pending grants no roster or learning access',
+          'requestBody':
+            {
+              'required': true,
+              'content':
+                {
+                  'application/json':
+                    { 'schema': { '$ref': '#/components/schemas/LearningJoinDecision' } },
+                },
+            },
+          'responses':
+            {
+              '201':
+                {
+                  'description': 'Successful scoped operation',
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              'type': 'object',
+                              'additionalProperties': false,
+                              'required': ['ok'],
+                              'properties': { 'ok': { 'type': 'boolean' } },
+                            },
+                        },
+                    },
+                },
+              '400': { 'description': 'Invalid request' },
+              '401': { 'description': 'Current session required' },
+              '403': { 'description': 'Capability or scope unavailable' },
+              '404': { 'description': 'Resource unavailable' },
+              '409':
+                {
+                  'description': 'State, permission, revision or idempotency conflict; no partial result',
+                },
+              '503': { 'description': 'Database unavailable' },
+            },
+        },
+    }
   /api/capabilities/content-author/self-attest:
     post:
       operationId: selfAttestContentAuthor
@@ -608,6 +2437,28 @@ paths:
       responses:
         '201':
           description: StudentSeat created and its assigned handle returned
+  /api/classrooms/{classroomId}/seats/batch/preview:
+    parameters:
+      - name: classroomId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      operationId: previewClassroomStudentSeatsBatch
+      summary: Authoritatively preview 1 to 100 StudentSeat rows without creating seats
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/StudentSeatBatchPreviewRequest' }
+      responses:
+        '201':
+          description: Per-row server preview
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StudentSeatBatchPreviewResponse' }
+        '400': { description: Invalid batch size or shape }
+        '403': { description: Classroom roster management is not allowed }
   /api/classrooms/{classroomId}/seats/batch:
     parameters:
       - name: classroomId
@@ -616,9 +2467,21 @@ paths:
         schema: { type: string, format: uuid }
     post:
       operationId: postClassroomStudentSeatsBatch
-      summary: Create 1 to 100 StudentSeats with deterministic per-row results
+      summary: Commit one idempotent StudentSeat batch and return new credentials once
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/StudentSeatBatchCommitRequest' }
       responses:
-        '200': { description: Batch result }
+        '201':
+          description: Stored logical batch result; plaintext credentials exist only on the first successful response
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StudentSeatBatchCommitResponse' }
+        '400': { description: Invalid batch size, shape or requestId }
+        '403': { description: Classroom roster management is not allowed }
+        '409': { description: requestId was already used with different payload or scope }
   /api/classrooms/{classroomId}/seats/{seatId}:
     parameters:
       - name: classroomId
@@ -822,6 +2685,40 @@ paths:
         '401': { description: No active account session }
         '403': { description: Educator capability required }
         '404': { description: Activity is absent or not owned by the educator }
+  /api/learning/activities/{activityId}/preview:
+    get:
+      operationId: previewAuthoredActivityAsLearner
+      summary: Read an exact saved draft or immutable published version through learner presentation
+      description: >-
+        Author-owned content only. No impersonation, learner answers, learner session,
+        or academic/runtime writes. For source=draft provide only draftRevision;
+        for source=published provide only versionId. Revision conflicts return 409.
+      parameters:
+        - { name: activityId, in: path, required: true, schema: { type: string, format: uuid } }
+        - {
+            name: source,
+            in: query,
+            required: true,
+            schema: { type: string, enum: [draft, published] },
+          }
+        - {
+            name: draftRevision,
+            in: query,
+            schema: { type: integer, minimum: 1, maximum: 2147483647 },
+          }
+        - { name: versionId, in: query, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Exact read-only learner presentation
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthoredActivityLearnerPreview' }
+        '400': { description: Missing, invalid, mixed or out-of-range source selector }
+        '401': { description: Active account session required }
+        '403': { description: Author capability required }
+        '404':
+          { description: Activity or version unavailable to this author; no private information }
+        '409': { description: Saved draft revision changed; reopen the activity }
   /api/learning/activities/{activityId}/draft:
     parameters:
       - name: activityId
@@ -1215,13 +3112,45 @@ paths:
           description: Teacher gradebook projection with compatibility diagnostics
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/CanonicalLearningProjectionEnvelope' }
+              schema: { $ref: '#/components/schemas/LearningGradebookReceipt' }
   /api/classrooms/{classroomId}/course-runs:
     parameters:
       - name: classroomId
         in: path
         required: true
         schema: { type: string, format: uuid }
+    post:
+      operationId: assignCanonicalCourse
+      summary: Assign an immutable published course version through the existing Learning runtime
+      description: New authoring clients use the canonical request below. Legacy requests without requestId use the retained legacy adapter and do not create canonical content.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LearningCourseAssign' }
+      responses:
+        '201':
+          description: Assigned or identical request replay
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [runId, versionNumber, reused]
+                properties:
+                  runId: { type: string, format: uuid }
+                  versionNumber: { type: integer, minimum: 1 }
+                  reused: { type: boolean }
+        '400':
+          description: Invalid version, audience, deadline or time zone
+        '401':
+          description: Active Account session required
+        '403':
+          description: Teaching capability or classroom access denied
+        '404':
+          description: Classroom unavailable
+        '409':
+          description: Publication, audience or request conflict; no partial assignment
     get:
       operationId: getClassroomCanonicalCourseRuns
       summary: List assigned courses with canonical lesson-state aggregates
@@ -1617,6 +3546,336 @@ components:
         maxLength: 128
         pattern: '^[A-Za-z0-9._:-]+$'
   schemas:
+    LearningTeacherReviewContext:
+      {
+        'type': 'object',
+        'additionalProperties': false,
+        'properties':
+          {
+            'participationId': { 'type': 'string', 'format': 'uuid' },
+            'activityRunId': { 'type': 'string', 'format': 'uuid' },
+            'resultMode': { 'type': 'string', 'enum': ['ungraded', 'completion', 'graded'] },
+            'maxPoints': { 'type': ['integer', 'null'] },
+            'title': { 'type': 'string' },
+            'instructions': { 'type': ['string', 'null'] },
+            'moduleKey': { 'type': 'string' },
+            'selectionPolicy':
+              {
+                'type': 'string',
+                'enum': ['first', 'latest', 'best', 'latest_accepted', 'teacher_selected'],
+              },
+            'teacherSelectedAttemptId': { 'type': ['string', 'null'], 'format': 'uuid' },
+            'attempts':
+              {
+                'type': 'array',
+                'items':
+                  {
+                    'type': 'object',
+                    'additionalProperties': false,
+                    'properties':
+                      {
+                        'id': { 'type': 'string', 'format': 'uuid' },
+                        'number': { 'type': 'integer', 'minimum': 1 },
+                        'state': { '$ref': '#/components/schemas/LearningAttemptState' },
+                        'closedAt': { 'type': ['string', 'null'], 'format': 'date-time' },
+                        'revisionOfAttemptId': { 'type': ['string', 'null'], 'format': 'uuid' },
+                        'submissionId': { 'type': ['string', 'null'], 'format': 'uuid' },
+                        'projectVersionId': { 'type': ['string', 'null'], 'format': 'uuid' },
+                        'submittedAt': { 'type': ['string', 'null'], 'format': 'date-time' },
+                        'results':
+                          {
+                            'type': 'array',
+                            'items':
+                              {
+                                'type': 'object',
+                                'additionalProperties': false,
+                                'properties':
+                                  {
+                                    'id': { 'type': 'string', 'format': 'uuid' },
+                                    'revision': { 'type': 'integer', 'minimum': 1 },
+                                    'supersedesId':
+                                      { 'type': ['string', 'null'], 'format': 'uuid' },
+                                    'decision': { 'type': ['string', 'null'] },
+                                    'points': { 'type': ['integer', 'null'] },
+                                    'maxPoints': { 'type': ['integer', 'null'] },
+                                    'feedback': { 'type': ['string', 'null'] },
+                                    'reason': { 'type': ['string', 'null'] },
+                                    'publishedAt': { 'type': 'string', 'format': 'date-time' },
+                                  },
+                                'required':
+                                  [
+                                    'id',
+                                    'revision',
+                                    'supersedesId',
+                                    'decision',
+                                    'points',
+                                    'maxPoints',
+                                    'feedback',
+                                    'reason',
+                                    'publishedAt',
+                                  ],
+                              },
+                          },
+                      },
+                    'required':
+                      [
+                        'id',
+                        'number',
+                        'state',
+                        'closedAt',
+                        'revisionOfAttemptId',
+                        'submissionId',
+                        'projectVersionId',
+                        'submittedAt',
+                        'results',
+                      ],
+                  },
+              },
+            'gradingScheme':
+              {
+                'type': ['object', 'null'],
+                'properties':
+                  {
+                    'id': { 'type': 'string', 'format': 'uuid' },
+                    'title': { 'type': 'string' },
+                    'version': { 'type': 'integer', 'minimum': 1 },
+                    'bands':
+                      {
+                        'type': 'array',
+                        'items':
+                          {
+                            'type': 'object',
+                            'additionalProperties': false,
+                            'properties':
+                              {
+                                'minBasisPoints':
+                                  { 'type': 'integer', 'minimum': 0, 'maximum': 10000 },
+                                'label': { 'type': 'string', 'minLength': 1, 'maxLength': 24 },
+                              },
+                            'required': ['minBasisPoints', 'label'],
+                          },
+                      },
+                    'source': { 'const': 'run_pin' },
+                  },
+              },
+          },
+        'required':
+          [
+            'participationId',
+            'activityRunId',
+            'resultMode',
+            'maxPoints',
+            'title',
+            'instructions',
+            'moduleKey',
+            'selectionPolicy',
+            'teacherSelectedAttemptId',
+            'attempts',
+            'gradingScheme',
+          ],
+      }
+    LearningCourseDraftRequest:
+      {
+        'type': 'object',
+        'additionalProperties': false,
+        'properties':
+          {
+            'title': { 'type': 'string', 'minLength': 1, 'maxLength': 160 },
+            'summary': { 'type': ['string', 'null'], 'maxLength': 600 },
+            'ageBand': { 'type': ['string', 'null'] },
+            'visibility': { 'type': 'string', 'enum': ['private', 'school', 'teachers', 'public'] },
+            'expectedRevision': { 'type': 'integer', 'minimum': 1 },
+            'requestId': { 'type': 'string', 'pattern': '^[A-Za-z0-9._:-]{8,128}$' },
+          },
+        'required': ['title'],
+      }
+    LearningCourseSectionRequest:
+      {
+        'type': 'object',
+        'additionalProperties': false,
+        'properties':
+          {
+            'title': { 'type': 'string', 'minLength': 1, 'maxLength': 160 },
+            'summary': { 'type': ['string', 'null'], 'maxLength': 600 },
+            'expectedRevision': { 'type': 'integer', 'minimum': 1 },
+          },
+        'required': ['title', 'expectedRevision'],
+      }
+    LearningCourseLessonRequest:
+      {
+        'type': 'object',
+        'additionalProperties': false,
+        'properties':
+          {
+            'sectionId': { 'type': 'string', 'format': 'uuid' },
+            'title': { 'type': 'string', 'minLength': 1, 'maxLength': 160 },
+            'summary': { 'type': ['string', 'null'], 'maxLength': 600 },
+            'content': { 'type': ['string', 'null'], 'maxLength': 12000 },
+            'blocks':
+              {
+                'type': 'array',
+                'items':
+                  {
+                    'type': 'object',
+                    'additionalProperties': false,
+                    'properties':
+                      {
+                        'id': { 'type': 'string' },
+                        'type':
+                          {
+                            'type': 'string',
+                            'enum':
+                              [
+                                'paragraph',
+                                'heading',
+                                'callout',
+                                'image',
+                                'video',
+                                'audio',
+                                'file',
+                              ],
+                          },
+                        'text': { 'type': 'string' },
+                        'url': { 'type': 'string' },
+                        'level': { 'type': 'integer', 'enum': [2, 3] },
+                        'tone': { 'type': 'string', 'enum': ['note', 'tip', 'warning'] },
+                        'alt': { 'type': 'string' },
+                        'caption': { 'type': 'string' },
+                        'title': { 'type': 'string' },
+                        'label': { 'type': 'string' },
+                      },
+                    'required': ['id', 'type'],
+                  },
+              },
+            'kind': { 'type': 'string', 'enum': ['material', 'assignment'] },
+            'assignmentId': { 'type': ['string', 'null'], 'format': 'uuid' },
+            'learningActivityVersionId': { 'type': ['string', 'null'], 'format': 'uuid' },
+            'estimatedMinutes': { 'type': ['integer', 'null'], 'minimum': 1, 'maximum': 600 },
+            'expectedRevision': { 'type': 'integer', 'minimum': 1 },
+          },
+        'required': ['sectionId', 'title', 'kind', 'expectedRevision'],
+      }
+    LearningAudienceReceipt:
+      {
+        'type': 'object',
+        'additionalProperties': false,
+        'properties':
+          {
+            'audience':
+              {
+                'type': ['object', 'null'],
+                'properties':
+                  {
+                    'id': { 'type': 'string', 'format': 'uuid' },
+                    'type': { 'type': 'string', 'enum': ['whole_class', 'named_learners'] },
+                    'status': { 'type': 'string', 'enum': ['active', 'ended'] },
+                    'courseRunId': { 'type': ['string', 'null'], 'format': 'uuid' },
+                    'members':
+                      {
+                        'type': 'array',
+                        'items':
+                          {
+                            'type': 'object',
+                            'additionalProperties': false,
+                            'properties':
+                              {
+                                'seatId': { 'type': 'string', 'format': 'uuid' },
+                                'label': { 'type': 'string' },
+                                'status': { 'type': 'string' },
+                                'included': { 'type': 'boolean' },
+                                'withdrawn': { 'type': 'boolean' },
+                              },
+                            'required': ['seatId', 'label', 'status', 'included', 'withdrawn'],
+                          },
+                      },
+                  },
+              },
+          },
+        'required': ['audience'],
+      }
+    LearningAudienceMemberChange:
+      {
+        'type': 'object',
+        'additionalProperties': false,
+        'properties':
+          {
+            'include': { 'type': 'boolean' },
+            'expectedIncluded': { 'type': 'boolean' },
+            'reason': { 'type': 'string', 'minLength': 1, 'maxLength': 1000 },
+            'requestId': { 'type': 'string', 'pattern': '^[A-Za-z0-9._:-]{8,128}$' },
+          },
+        'required': ['include', 'expectedIncluded', 'reason', 'requestId'],
+      }
+    LearningGradebookReceipt:
+      {
+        'type': 'object',
+        'additionalProperties': false,
+        'properties':
+          {
+            'scheme': { 'type': ['object', 'null'], 'additionalProperties': true },
+            'items':
+              {
+                'type': 'array',
+                'items':
+                  {
+                    'type': 'object',
+                    'additionalProperties': false,
+                    'properties':
+                      {
+                        'seatId': { 'type': 'string', 'format': 'uuid' },
+                        'displayLabel': { 'type': 'string' },
+                        'assignmentId': { 'type': 'string', 'format': 'uuid' },
+                        'assignmentTitle': { 'type': 'string' },
+                        'courseRunId': { 'type': ['string', 'null'], 'format': 'uuid' },
+                        'courseTitle': { 'type': ['string', 'null'] },
+                        'attemptId': { 'type': ['string', 'null'], 'format': 'uuid' },
+                        'attemptNumber': { 'type': ['integer', 'null'] },
+                        'state': { 'type': 'string' },
+                        'submittedAt': { 'type': ['string', 'null'], 'format': 'date-time' },
+                        'points': { 'type': ['number', 'null'] },
+                        'maxPoints': { 'type': ['number', 'null'] },
+                        'percentage': { 'type': ['number', 'null'] },
+                        'displayGrade': { 'type': ['string', 'null'] },
+                        'outcome': { 'type': ['string', 'null'] },
+                        'feedback': { 'type': ['string', 'null'] },
+                        'publishedAt': { 'type': ['string', 'null'], 'format': 'date-time' },
+                        'canonicalState':
+                          {
+                            'anyOf':
+                              [
+                                { '$ref': '#/components/schemas/CanonicalLearningSurfaceState' },
+                                { 'type': 'null' },
+                              ],
+                          },
+                        'compatibilityDiagnostic': { 'type': ['string', 'null'] },
+                      },
+                    'required':
+                      [
+                        'seatId',
+                        'displayLabel',
+                        'assignmentId',
+                        'assignmentTitle',
+                        'courseRunId',
+                        'courseTitle',
+                        'attemptId',
+                        'attemptNumber',
+                        'state',
+                        'submittedAt',
+                        'points',
+                        'maxPoints',
+                        'percentage',
+                        'displayGrade',
+                        'outcome',
+                        'feedback',
+                        'publishedAt',
+                        'canonicalState',
+                        'compatibilityDiagnostic',
+                      ],
+                  },
+              },
+          },
+        'required': ['scheme', 'items'],
+      }
     LearningActivityKind:
       type: string
       enum: [quiz, project, essay, file, manual]
@@ -1783,6 +4042,35 @@ components:
         provenance: { type: object }
         contentDigest: { type: string, pattern: '^[0-9a-f]{64}$' }
         publishedAt: { type: string, format: date-time }
+    AuthoredActivityLearnerPreview:
+      type: object
+      additionalProperties: false
+      required: [source, assignment, moduleKey, resultMode, maxPoints, policies, learnerRuntime]
+      properties:
+        source:
+          type: object
+          additionalProperties: false
+          required: [kind, id, draftRevision, versionNumber, contentDigest]
+          properties:
+            kind: { type: string, enum: [draft, published] }
+            id: { type: [string, 'null'], format: uuid }
+            draftRevision: { type: [integer, 'null'], minimum: 1 }
+            versionNumber: { type: [integer, 'null'], minimum: 1 }
+            contentDigest: { type: string, pattern: '^[0-9a-f]{64}$' }
+        assignment:
+          type: object
+          additionalProperties: false
+          required: [title, goal, brief, sampleImage]
+          properties:
+            title: { type: string }
+            goal: { type: [string, 'null'] }
+            brief: { type: [string, 'null'] }
+            sampleImage: { type: [string, 'null'] }
+        moduleKey: { type: [string, 'null'] }
+        resultMode: { $ref: '#/components/schemas/LearningActivityResultMode' }
+        maxPoints: { type: [integer, 'null'], minimum: 1 }
+        policies: { $ref: '#/components/schemas/LearningActivityPolicySnapshot' }
+        learnerRuntime: { type: boolean, const: false }
     LearningActivityCollection:
       type: object
       additionalProperties: false
@@ -1818,6 +4106,480 @@ components:
         items:
           type: array
           items: { $ref: '#/components/schemas/LearningAssignableActivity' }
+    LearningConditionsReceipt:
+      {
+        'type': 'object',
+        'additionalProperties': false,
+        'required': ['runId', 'participationId', 'revision', 'overrides', 'impact', 'effective'],
+        'properties':
+          {
+            'runId': { 'type': 'string', 'format': 'uuid' },
+            'participationId': { 'type': ['string', 'null'], 'format': 'uuid' },
+            'revision': { 'type': 'integer', 'minimum': 1 },
+            'overrides':
+              {
+                'type': 'object',
+                'additionalProperties': false,
+                'required': [],
+                'properties':
+                  {
+                    'opensAt': { 'type': ['string', 'null'], 'format': 'date-time' },
+                    'dueAt': { 'type': ['string', 'null'], 'format': 'date-time' },
+                    'closesAt': { 'type': ['string', 'null'], 'format': 'date-time' },
+                    'attemptLimit': { 'type': ['integer', 'null'], 'minimum': 1, 'maximum': 100 },
+                    'latePolicy':
+                      {
+                        'type': 'string',
+                        'enum': ['allow_until_close', 'allow_mark_late', 'block_at_due'],
+                      },
+                  },
+              },
+            'impact':
+              {
+                'type': 'object',
+                'additionalProperties': false,
+                'required': ['participants', 'activeAttempts', 'submittedAttempts', 'excused'],
+                'properties':
+                  {
+                    'participants': { 'type': 'integer', 'minimum': 0 },
+                    'activeAttempts': { 'type': 'integer', 'minimum': 0 },
+                    'submittedAttempts': { 'type': 'integer', 'minimum': 0 },
+                    'excused': { 'type': 'boolean' },
+                  },
+              },
+            'effective':
+              {
+                'type': 'object',
+                'additionalProperties': false,
+                'required': ['values', 'sources', 'extraAttempts', 'teacherUnlocked', 'timezone'],
+                'properties':
+                  {
+                    'values':
+                      {
+                        'type': 'object',
+                        'additionalProperties': false,
+                        'required': [],
+                        'properties':
+                          {
+                            'opensAt': { 'type': ['string', 'null'], 'format': 'date-time' },
+                            'dueAt': { 'type': ['string', 'null'], 'format': 'date-time' },
+                            'closesAt': { 'type': ['string', 'null'], 'format': 'date-time' },
+                            'attemptLimit':
+                              { 'type': ['integer', 'null'], 'minimum': 1, 'maximum': 100 },
+                            'latePolicy':
+                              {
+                                'type': 'string',
+                                'enum': ['allow_until_close', 'allow_mark_late', 'block_at_due'],
+                              },
+                          },
+                      },
+                    'sources':
+                      {
+                        'type': 'object',
+                        'additionalProperties':
+                          {
+                            'type': 'string',
+                            'enum':
+                              [
+                                'participation_override',
+                                'run_override',
+                                'run_pin',
+                                'activity_version',
+                              ],
+                          },
+                      },
+                    'extraAttempts': { 'type': 'integer', 'minimum': 0 },
+                    'teacherUnlocked': { 'type': 'boolean' },
+                    'timezone': { 'type': ['string', 'null'] },
+                  },
+              },
+          },
+      }
+    LearningConditionsChange:
+      {
+        'type': 'object',
+        'additionalProperties': false,
+        'required': ['seatId', 'expectedRevision', 'overrides', 'reason', 'requestId'],
+        'properties':
+          {
+            'seatId': { 'type': ['string', 'null'], 'format': 'uuid' },
+            'expectedRevision': { 'type': 'integer', 'minimum': 1 },
+            'overrides':
+              {
+                'type': 'object',
+                'additionalProperties': false,
+                'required': [],
+                'properties':
+                  {
+                    'opensAt': { 'type': ['string', 'null'], 'format': 'date-time' },
+                    'dueAt': { 'type': ['string', 'null'], 'format': 'date-time' },
+                    'closesAt': { 'type': ['string', 'null'], 'format': 'date-time' },
+                    'attemptLimit': { 'type': ['integer', 'null'], 'minimum': 1, 'maximum': 100 },
+                    'latePolicy':
+                      {
+                        'type': 'string',
+                        'enum': ['allow_until_close', 'allow_mark_late', 'block_at_due'],
+                      },
+                  },
+              },
+            'reason': { 'type': 'string', 'minLength': 1, 'maxLength': 1000 },
+            'requestId': { 'type': 'string', 'pattern': '^[A-Za-z0-9._:-]{8,128}$' },
+          },
+      }
+    LearningAllowanceChange:
+      {
+        'type': 'object',
+        'additionalProperties': false,
+        'required':
+          ['expectedRevision', 'extraAttempts', 'teacherUnlocked', 'excuse', 'reason', 'requestId'],
+        'properties':
+          {
+            'expectedRevision': { 'type': 'integer', 'minimum': 1 },
+            'extraAttempts': { 'type': 'integer', 'minimum': 0, 'maximum': 100 },
+            'teacherUnlocked': { 'type': 'boolean' },
+            'excuse': { 'type': 'boolean' },
+            'reason': { 'type': 'string', 'minLength': 1, 'maxLength': 1000 },
+            'requestId': { 'type': 'string', 'pattern': '^[A-Za-z0-9._:-]{8,128}$' },
+          },
+      }
+    LearningExactSubmission:
+      {
+        'type': 'object',
+        'additionalProperties': false,
+        'required':
+          [
+            'submissionId',
+            'projectVersionId',
+            'digest',
+            'sourceRevision',
+            'moduleKey',
+            'document',
+            'preview',
+          ],
+        'properties':
+          {
+            'submissionId': { 'type': 'string', 'format': 'uuid' },
+            'projectVersionId': { 'type': 'string', 'format': 'uuid' },
+            'digest': { 'type': 'string' },
+            'sourceRevision': { 'type': ['integer', 'null'] },
+            'moduleKey': { 'type': 'string', 'enum': ['electronics', 'three-d'] },
+            'document': { 'type': 'object', 'additionalProperties': true },
+            'preview': { 'type': ['object', 'null'], 'additionalProperties': true },
+          },
+      }
+    LearningManualReviewRequest:
+      {
+        'type': 'object',
+        'additionalProperties': false,
+        'required': ['decision'],
+        'properties':
+          {
+            'decision':
+              {
+                'type': 'string',
+                'enum': ['accepted', 'changes_requested', 'incomplete', 'excused'],
+              },
+            'points': { 'type': ['integer', 'null'], 'minimum': 0 },
+            'feedback': { 'type': ['string', 'null'], 'maxLength': 8000 },
+            'reason': { 'type': ['string', 'null'], 'maxLength': 1000 },
+            'expectedResultId': { 'type': ['string', 'null'], 'format': 'uuid' },
+            'requestId': { 'type': 'string', 'pattern': '^[A-Za-z0-9._:-]{8,128}$' },
+          },
+      }
+    LearningManualReviewReceipt:
+      {
+        'type': 'object',
+        'additionalProperties': false,
+        'required': ['attemptId', 'state', 'assessmentResultId', 'gradebookEntryId', 'percentage'],
+        'properties':
+          {
+            'attemptId': { 'type': 'string', 'format': 'uuid' },
+            'state': { '$ref': '#/components/schemas/LearningAttemptState' },
+            'assessmentResultId': { 'type': ['string', 'null'], 'format': 'uuid' },
+            'gradebookEntryId': { 'type': ['string', 'null'], 'format': 'uuid' },
+            'percentage': { 'type': ['number', 'null'] },
+          },
+      }
+    LearningSelectionChange:
+      {
+        'type': 'object',
+        'additionalProperties': false,
+        'required': ['attemptId', 'expectedAttemptId', 'reason', 'requestId'],
+        'properties':
+          {
+            'attemptId': { 'type': 'string', 'format': 'uuid' },
+            'expectedAttemptId': { 'type': ['string', 'null'], 'format': 'uuid' },
+            'reason': { 'type': 'string', 'minLength': 1, 'maxLength': 1000 },
+            'requestId': { 'type': 'string', 'pattern': '^[A-Za-z0-9._:-]{8,128}$' },
+          },
+      }
+    LearningNotificationPreferencesChange:
+      {
+        'type': 'object',
+        'additionalProperties': false,
+        'required': ['revision', 'masterEnabled', 'categories', 'classOverrides', 'requestId'],
+        'properties':
+          {
+            'revision': { 'type': 'integer', 'minimum': 1 },
+            'masterEnabled': { 'type': 'boolean' },
+            'categories':
+              {
+                'type': 'object',
+                'additionalProperties': false,
+                'required': ['NC01', 'NC02', 'NC03', 'NC04', 'NC05', 'NC06', 'NC08'],
+                'properties':
+                  {
+                    'NC01': { 'type': 'boolean' },
+                    'NC02': { 'type': 'boolean' },
+                    'NC03': { 'type': 'boolean' },
+                    'NC04': { 'type': 'boolean' },
+                    'NC05': { 'type': 'boolean' },
+                    'NC06': { 'type': 'boolean' },
+                    'NC08': { 'type': 'boolean' },
+                  },
+              },
+            'classOverrides':
+              {
+                'type': 'object',
+                'additionalProperties':
+                  {
+                    'type': 'object',
+                    'additionalProperties': false,
+                    'required': ['mode'],
+                    'properties':
+                      {
+                        'mode': { 'type': 'string', 'enum': ['off', 'custom'] },
+                        'categories':
+                          {
+                            'type': 'object',
+                            'additionalProperties':
+                              { 'type': 'string', 'enum': ['inherit', 'on', 'off'] },
+                          },
+                      },
+                  },
+              },
+            'requestId': { 'type': 'string', 'pattern': '^[A-Za-z0-9._:-]{8,128}$' },
+          },
+      }
+    LearningNotificationPreferencesReceipt:
+      {
+        'type': 'object',
+        'additionalProperties': false,
+        'required': ['revision', 'masterEnabled', 'categories', 'classOverrides', 'classes'],
+        'properties':
+          {
+            'revision': { 'type': 'integer', 'minimum': 1 },
+            'masterEnabled': { 'type': 'boolean' },
+            'categories':
+              {
+                'type': 'object',
+                'additionalProperties': false,
+                'required': ['NC01', 'NC02', 'NC03', 'NC04', 'NC05', 'NC06', 'NC08'],
+                'properties':
+                  {
+                    'NC01': { 'type': 'boolean' },
+                    'NC02': { 'type': 'boolean' },
+                    'NC03': { 'type': 'boolean' },
+                    'NC04': { 'type': 'boolean' },
+                    'NC05': { 'type': 'boolean' },
+                    'NC06': { 'type': 'boolean' },
+                    'NC08': { 'type': 'boolean' },
+                  },
+              },
+            'classOverrides':
+              {
+                'type': 'object',
+                'additionalProperties':
+                  {
+                    'type': 'object',
+                    'additionalProperties': false,
+                    'required': ['mode'],
+                    'properties':
+                      {
+                        'mode': { 'type': 'string', 'enum': ['off', 'custom'] },
+                        'categories':
+                          {
+                            'type': 'object',
+                            'additionalProperties':
+                              { 'type': 'string', 'enum': ['inherit', 'on', 'off'] },
+                          },
+                      },
+                  },
+              },
+            'classes':
+              {
+                'type': 'array',
+                'items':
+                  {
+                    'type': 'object',
+                    'additionalProperties': true,
+                    'required': ['id', 'title'],
+                    'properties':
+                      {
+                        'id': { 'type': 'string', 'format': 'uuid' },
+                        'title': { 'type': 'string' },
+                      },
+                  },
+              },
+          },
+      }
+    LearningNotificationReceipt:
+      {
+        'type': 'object',
+        'additionalProperties': false,
+        'required': ['snapshot', 'unread', 'items'],
+        'properties':
+          {
+            'snapshot': { 'type': 'string', 'format': 'date-time' },
+            'unread': { 'type': 'integer', 'minimum': 0 },
+            'items':
+              {
+                'type': 'array',
+                'items':
+                  {
+                    'type': 'object',
+                    'additionalProperties': false,
+                    'required':
+                      [
+                        'id',
+                        'kind',
+                        'category',
+                        'classroomId',
+                        'classroomTitle',
+                        'title',
+                        'assignmentId',
+                        'attemptId',
+                        'seatId',
+                        'courseRunId',
+                        'joinRequestId',
+                        'recipientKind',
+                        'createdAt',
+                        'readAt',
+                      ],
+                    'properties':
+                      {
+                        'id': { 'type': 'string', 'format': 'uuid' },
+                        'kind':
+                          {
+                            'type': 'string',
+                            'enum':
+                              [
+                                'NF01',
+                                'NF02',
+                                'NF03',
+                                'NF04',
+                                'NF05',
+                                'NF06',
+                                'NF07',
+                                'NF08',
+                                'NF13',
+                                'NF14',
+                                'NF15',
+                              ],
+                          },
+                        'category':
+                          {
+                            'type': 'string',
+                            'enum': ['NC01', 'NC02', 'NC03', 'NC04', 'NC05', 'NC06', 'NC08'],
+                          },
+                        'classroomId': { 'type': 'string', 'format': 'uuid' },
+                        'classroomTitle': { 'type': 'string' },
+                        'title': { 'type': 'string' },
+                        'assignmentId': { 'type': ['string', 'null'], 'format': 'uuid' },
+                        'attemptId': { 'type': ['string', 'null'], 'format': 'uuid' },
+                        'seatId': { 'type': ['string', 'null'], 'format': 'uuid' },
+                        'courseRunId': { 'type': ['string', 'null'], 'format': 'uuid' },
+                        'joinRequestId': { 'type': ['string', 'null'], 'format': 'uuid' },
+                        'recipientKind':
+                          { 'type': 'string', 'enum': ['teacher', 'learner', 'requester'] },
+                        'createdAt': { 'type': 'string', 'format': 'date-time' },
+                        'readAt': { 'type': ['string', 'null'], 'format': 'date-time' },
+                      },
+                  },
+              },
+          },
+      }
+    LearningNotificationRead:
+      {
+        'type': 'object',
+        'additionalProperties': false,
+        'required': ['ids', 'asOf'],
+        'properties':
+          {
+            'ids':
+              {
+                'type': ['array', 'null'],
+                'maxItems': 100,
+                'items': { 'type': 'string', 'format': 'uuid' },
+              },
+            'asOf': { 'type': 'string', 'format': 'date-time' },
+          },
+      }
+    LearningReminderPolicy:
+      {
+        'type': 'object',
+        'additionalProperties': false,
+        'required': ['revision', 'due', 'overdue'],
+        'properties':
+          {
+            'revision': { 'type': 'integer', 'minimum': 1 },
+            'due': { 'type': 'boolean' },
+            'overdue': { 'type': 'boolean' },
+          },
+      }
+    LearningCourseAssign:
+      {
+        'type': 'object',
+        'additionalProperties': false,
+        'required': ['courseId', 'versionNumber', 'audienceType', 'seatIds', 'requestId'],
+        'properties':
+          {
+            'courseId': { 'type': 'string', 'format': 'uuid' },
+            'dueAt': { 'type': ['string', 'null'], 'format': 'date-time' },
+            'versionNumber': { 'type': 'integer', 'minimum': 1 },
+            'audienceType': { 'type': 'string', 'enum': ['whole_class', 'named_learners'] },
+            'seatIds':
+              {
+                'type': 'array',
+                'uniqueItems': true,
+                'items': { 'type': 'string', 'format': 'uuid' },
+              },
+            'requestId': { 'type': 'string', 'pattern': '^[A-Za-z0-9._:-]{8,80}$' },
+            'timeZone': { 'type': 'string', 'maxLength': 80 },
+          },
+      }
+    LearningJoinDecision:
+      {
+        'type': 'object',
+        'additionalProperties': false,
+        'required': ['decision'],
+        'properties':
+          {
+            'decision': { 'type': 'string', 'enum': ['approved', 'rejected'] },
+            'reason': { 'type': ['string', 'null'], 'maxLength': 1000 },
+          },
+      }
+    LearningJoinReceipt:
+      {
+        'type': 'object',
+        'additionalProperties': false,
+        'required': ['classroom', 'seatId', 'alreadyMember', 'requestId', 'status'],
+        'properties':
+          {
+            'classroom':
+              {
+                'type': 'object',
+                'additionalProperties': false,
+                'required': ['id', 'title'],
+                'properties':
+                  { 'id': { 'type': 'string', 'format': 'uuid' }, 'title': { 'type': 'string' } },
+              },
+            'seatId': { 'type': ['string', 'null'], 'format': 'uuid' },
+            'alreadyMember': { 'type': 'boolean' },
+            'requestId': { 'type': ['string', 'null'], 'format': 'uuid' },
+            'status': { 'type': 'string', 'enum': ['active', 'pending'] },
+          },
+      }
     LearningDirectAssignmentRequest:
       type: object
       additionalProperties: false
@@ -1832,6 +4594,12 @@ components:
           uniqueItems: true
           items: { type: string, format: uuid }
         dueAt: { type: [string, 'null'], format: date-time }
+        timeZone:
+          {
+            type: string,
+            maxLength: 80,
+            description: Original IANA assignment timezone. New UI always supplies it.,
+          }
         requestId:
           type: string
           minLength: 8
@@ -1878,8 +4646,14 @@ components:
     LearningProjectSubmissionRequest:
       type: object
       additionalProperties: false
-      required: [submitted, clientRequestId]
+      required: [submitted, clientRequestId, expectedRevision]
       properties:
+        expectedRevision:
+          {
+            type: integer,
+            minimum: 1,
+            description: Exact server-confirmed Project draft revision; conflicts do not create a Submission.,
+          }
         submitted: { type: boolean, const: true }
         clientRequestId:
           type: string
@@ -2610,6 +5384,99 @@ components:
           type: string
           pattern: '^[a-z0-9._-]{3,32}$'
         safeMode: { type: boolean }
+    StudentSeatBatchInput:
+      type: object
+      additionalProperties: false
+      required: [displayLabel]
+      properties:
+        displayLabel: { type: string, minLength: 1, maxLength: 120 }
+        loginHandle:
+          type: string
+          pattern: '^[a-z0-9._-]{3,32}$'
+        safeMode: { type: boolean, default: true }
+    StudentSeatBatchPreviewRequest:
+      type: object
+      additionalProperties: false
+      required: [students]
+      properties:
+        students:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items: { $ref: '#/components/schemas/StudentSeatBatchInput' }
+    StudentSeatBatchPreviewRow:
+      type: object
+      additionalProperties: false
+      required: [index, displayLabel, loginHandle, safeMode, status, reasonCode]
+      properties:
+        index: { type: integer, minimum: 0, maximum: 99 }
+        displayLabel: { type: [string, 'null'] }
+        loginHandle: { type: [string, 'null'] }
+        safeMode: { type: [boolean, 'null'] }
+        status:
+          type: string
+          enum: [valid, duplicate, conflict, invalid]
+        reasonCode: { type: string }
+    StudentSeatBatchPreviewResponse:
+      type: object
+      additionalProperties: false
+      required: [results]
+      properties:
+        results:
+          type: array
+          items: { $ref: '#/components/schemas/StudentSeatBatchPreviewRow' }
+    StudentSeatBatchCommitRequest:
+      type: object
+      additionalProperties: false
+      required: [students, requestId]
+      properties:
+        students:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items: { $ref: '#/components/schemas/StudentSeatBatchInput' }
+        requestId: { type: string, format: uuid }
+    StudentSeatBatchCommitRow:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          index,
+          status,
+          reasonCode,
+          displayLabel,
+          loginHandle,
+          safeMode,
+          seatId,
+          credentialVersion,
+          credential,
+        ]
+      properties:
+        index: { type: integer, minimum: 0, maximum: 99 }
+        status:
+          type: string
+          enum: [created, duplicate, conflict, invalid]
+        reasonCode: { type: string }
+        displayLabel: { type: [string, 'null'] }
+        loginHandle: { type: [string, 'null'] }
+        safeMode: { type: [boolean, 'null'] }
+        seatId: { type: [string, 'null'], format: uuid }
+        credentialVersion: { type: [integer, 'null'], minimum: 1 }
+        credential:
+          type: [string, 'null']
+          description: One-time plaintext credential. Null for retries and rows that were not newly created.
+    StudentSeatBatchCommitResponse:
+      type: object
+      additionalProperties: false
+      required: [requestId, reused, created, credentialsAvailable, results]
+      properties:
+        requestId: { type: string, format: uuid }
+        reused: { type: boolean }
+        created: { type: integer, minimum: 0, maximum: 100 }
+        credentialsAvailable: { type: boolean }
+        results:
+          type: array
+          items: { $ref: '#/components/schemas/StudentSeatBatchCommitRow' }
     ClassroomStudentSeat:
       type: object
       additionalProperties: false

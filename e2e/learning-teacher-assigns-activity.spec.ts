@@ -3,6 +3,7 @@ import { mkdirSync } from 'node:fs';
 import type pg from 'pg';
 import { collectBrowserFailures } from './browser-failures';
 import { loginWithOrganization } from './organization-login';
+import { openPortalSection } from './portal-navigation';
 import { e2eAdminPool, seedTeacher, type SeededTeacher } from './seed';
 
 const evidenceDir = 'e2e/artifacts/learning/vs-001';
@@ -18,6 +19,8 @@ const policies = {
 let admin: pg.Pool;
 let teacher: SeededTeacher;
 let sequence = 0;
+const keys = new Map<string, string>();
+test.use({ actionTimeout: 12000 });
 
 test.beforeAll(async () => {
   admin = e2eAdminPool();
@@ -81,7 +84,7 @@ async function createClassWithStudents(
   students: ReadonlyArray<{ label: string; handle: string }>,
 ): Promise<string> {
   await loginWithOrganization(page, teacher);
-  await page.getByRole('button', { name: 'Классы', exact: true }).click();
+  await openPortalSection(page, 'Классы');
   await page
     .getByRole('button', { name: /^Создать(?: новый)? класс$/ })
     .first()
@@ -102,6 +105,17 @@ async function createClassWithStudents(
     await dialog.getByLabel('Имя для входа').fill(student.handle);
     await dialog.getByRole('button', { name: 'Добавить', exact: true }).click();
     await expect(dialog).toBeHidden();
+    await page.getByRole('button', { name: 'Действия: ' + student.label, exact: true }).click();
+    page.once('dialog', (dialog) => dialog.accept());
+    const issued = page.waitForResponse(
+      (response) =>
+        response.url().endsWith('/credential') && response.request().method() === 'POST',
+    );
+    await page.getByRole('button', { name: 'Выдать личный ключ', exact: true }).click();
+    const response = await issued;
+    expect(response.ok()).toBeTruthy();
+    keys.set(student.handle, (await response.json()).credential);
+    await page.getByRole('button', { name: 'Скрыть', exact: true }).click();
   }
   return joinCode;
 }
@@ -129,7 +143,7 @@ async function assignFromUi(
     await dialog.getByLabel('Выбранные ученики').check();
     for (const student of input.students) await dialog.getByLabel(student).check();
   }
-  await dialog.getByLabel('Срок').fill(input.due);
+  await dialog.getByLabel('Срок', { exact: true }).fill(input.due + 'T18:00');
   await dialog.screenshot({
     path: `${evidenceDir}/${input.students ? 'dialog-two-learners' : 'dialog-whole-class'}.png`,
   });
@@ -147,12 +161,10 @@ async function learnerAssignments(
   await page.goto(`/#/join-class?code=${encodeURIComponent(joinCode)}`);
   await page.getByRole('button', { name: 'Продолжить' }).click();
   await page.getByLabel('Имя для входа').fill(handle);
+  await page.getByLabel('Личный ключ', { exact: true }).fill(keys.get(handle)!);
   await page.getByRole('checkbox', { name: 'Я не робот' }).press('Space');
   await page.getByRole('button', { name: 'Войти в класс' }).click();
-  await page
-    .getByLabel('Основная навигация')
-    .getByRole('button', { name: 'Обучение', exact: true })
-    .click();
+  await openPortalSection(page, 'Моё обучение');
   return { context, page };
 }
 

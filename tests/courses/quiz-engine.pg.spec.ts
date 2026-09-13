@@ -113,6 +113,14 @@ describe('versioned quiz engine', () => {
       outcome: 'passed',
       reused: false,
     });
+    const quizLifecycle = (
+      await admin.query(
+        'SELECT attempt.state, result.review_decision FROM learning_attempts attempt JOIN assessment_results result ON result.attempt_id=attempt.id WHERE attempt.id=$1',
+        [submission.rows[0].attempt_id],
+      )
+    ).rows[0];
+    expect(quizLifecycle).toMatchObject({ state: 'closed', review_decision: 'accepted' });
+
     expect(submission.rows[0].question_results).toEqual([
       expect.objectContaining({ correct: true, points: 2 }),
       expect.objectContaining({ correct: false, points: 0 }),

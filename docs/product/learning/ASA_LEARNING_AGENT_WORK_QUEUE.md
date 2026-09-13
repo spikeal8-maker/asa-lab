@@ -1,7 +1,7 @@
 # ASA Lab Learning — единая очередь реализации
 
 **Статус:** канонический delivery-index.  
-**Источник подробной интеграции:** `../ASA_INTEGRATED_IMPLEMENTATION_SPEC.md` V1.3.  
+**Источник подробной интеграции:** `../ASA_INTEGRATED_IMPLEMENTATION_SPEC.md` V1.4.
 **Академическая семантика:** `../ASA_LEARNING_TECHNICAL_SPEC.md`.  
 **Пользователи/доступы:** `../ASA_USERS_ACCESS_AND_SETTINGS_SPEC.md`.  
 **Execution state:** только `../../execution/current.yaml`.
@@ -54,7 +54,7 @@ Account
 - notification categories/master OFF/per-class overrides без изменения академического state;
 - batch StudentSeat + одноразовые print-friendly credentials;
 - archive/restore class без hard-delete;
-- preview as learner без impersonation/writes;
+- preview as learner без impersonation и academic/learner-runtime writes; author heartbeat разрешён;
 - new draft from historical published version;
 - compact teacher-attention block на существующей Home;
 - mixed-data/legacy preservation.

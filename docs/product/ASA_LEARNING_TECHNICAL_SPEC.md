@@ -47,7 +47,8 @@
 Это ТЗ определяет **семантику, инварианты, доменную модель, UX-контракты и обязательные acceptance criteria**.
 
 Оно НЕ заменяет компактный implementation package разрешённого крупного результата.
-Delivery-порядок определяет [принятая очередь V3.1](learning/ASA_LEARNING_AGENT_WORK_QUEUE.md).
+Delivery-порядок определяет [единая очередь](learning/ASA_LEARNING_AGENT_WORK_QUEUE.md)
+по принятому [интегрированному ТЗ V1.4](ASA_INTEGRATED_IMPLEMENTATION_SPEC.md).
 `M0…M7` сохраняются как классификация архитектурных требований и evidence;
 переход между ними внутри одного разрешённого результата не требует нового owner-gate.
 
@@ -648,6 +649,23 @@ resolveSelectedAttempt(participation, policy)
 → selected Attempt
 → latest non-superseded AssessmentResultRevision of that Attempt
 ```
+
+Принятое уточнение V1.4 §4.12: `first` выбирает минимальный
+`(closedAt, attemptNumber)`, `latest_accepted` — максимальный среди terminal
+Attempt с актуальным решением accepted. Invalidated исключается из автоматического
+выбора. Best не использует отсутствующий/нефинальный процент как ноль.
+First/latest без допустимого финального балла показывают неполноту; неверный
+teacher_selected pointer показывает отсутствие выбора без fallback.
+Correction не меняет closedAt/attemptNumber и не переоткрывает Attempt.
+Ungraded/completion не получают числовой selector. Новый active Attempt сохраняет
+выбранный старый результат с явно отдельным текущим workflow.
+
+Принятые интеграционные границы V1.4: physical personal scope и bilateral linking
+поставляются в Э3 в том же ядре; до human-review self-start нужен действительный
+reviewer (Э4). Cross-context use в Э4 требует разрешённой immutable target-safe
+materialization по MLT-008/009; независимая editable adaptation остаётся Э5.
+Нулевой знаменатель course result не даёт числа; category с положительным весом
+и нулевым denominator не перераспределяет веса молча. Completion остаётся отдельным.
 
 ---
 

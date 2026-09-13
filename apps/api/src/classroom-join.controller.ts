@@ -334,10 +334,11 @@ function learningResults(
     assignmentTitle: String(row['assignment_title']),
     attemptNumber: Number(row['attempt_number']),
     state: String(row['state']),
-    points: Number(row['raw_points']),
-    maxPoints: Number(row['max_points']),
-    percentage: Number(row['percentage_basis_points']) / 100,
-    displayGrade: String(row['display_grade']),
+    points: row['raw_points'] == null ? null : Number(row['raw_points']),
+    maxPoints: row['max_points'] == null ? null : Number(row['max_points']),
+    percentage:
+      row['percentage_basis_points'] == null ? null : Number(row['percentage_basis_points']) / 100,
+    displayGrade: row['display_grade'] == null ? null : String(row['display_grade']),
     outcome: String(row['outcome']),
     feedback: row['feedback'] ? String(row['feedback']) : null,
     publishedAt: isoDate(row['published_at'] as Date | string),
@@ -657,8 +658,8 @@ export class ClassroomJoinController {
     if (!context) throw new HttpException(error('unauthorized', 'Сначала войдите в аккаунт.'), 401);
     const code = this.codeFromBody(rawBody);
     const result = await this.requirePool().query(
-      `SELECT seat_id, classroom_id, classroom_title, already_member
-         FROM classroom_join_with_account($1, $2)`,
+      `SELECT request_id,seat_id,classroom_id,classroom_title,status
+         FROM classroom_account_request_join($1,$2)`,
       [context.accountId, classroomCodeHash(code)],
     );
     const row = result.rows[0] as
@@ -666,7 +667,8 @@ export class ClassroomJoinController {
           seat_id: string;
           classroom_id: string;
           classroom_title: string;
-          already_member: boolean;
+          request_id: string | null;
+          status: 'active' | 'pending';
         }
       | undefined;
     if (!row) {
@@ -681,8 +683,71 @@ export class ClassroomJoinController {
     return {
       classroom: { id: row.classroom_id, title: row.classroom_title },
       seatId: row.seat_id,
-      alreadyMember: row.already_member === true,
+      alreadyMember: row.status === 'active',
+      requestId: row.request_id,
+      status: row.status,
     };
+  }
+
+  @Get('account/requests')
+  async ownJoinRequests(@Req() request: FastifyRequest) {
+    const context = await this.activeContext.resolve(request.cookies[SESSION_COOKIE]);
+    if (!context) throw new HttpException(error('unauthorized', 'Войдите в аккаунт.'), 401);
+    return {
+      items: (
+        await this.requirePool().query(
+          'SELECT * FROM classroom_account_join_requests_for_actor($1,NULL)',
+          [context.accountId],
+        )
+      ).rows,
+    };
+  }
+
+  @Get('requests/:classroomId')
+  async joinRequests(@Req() request: FastifyRequest, @Param('classroomId') classroomId: string) {
+    const context = await this.activeContext.resolve(request.cookies[SESSION_COOKIE]);
+    if (!context) throw new HttpException(error('unauthorized', 'Войдите в аккаунт.'), 401);
+    if (!UUID_PATTERN.test(classroomId))
+      throw new HttpException(error('validation_error', 'Некорректный класс.'), 400);
+    return {
+      items: (
+        await this.requirePool().query(
+          'SELECT * FROM classroom_account_join_requests_for_actor($1,$2)',
+          [context.accountId, classroomId],
+        )
+      ).rows,
+    };
+  }
+
+  @Post('requests/:classroomId/:requestId/decision')
+  async decideJoin(
+    @Req() request: FastifyRequest,
+    @Param('classroomId') classroomId: string,
+    @Param('requestId') requestId: string,
+    @Body() rawBody: unknown,
+  ) {
+    const context = await this.activeContext.resolve(request.cookies[SESSION_COOKIE]);
+    if (!context) throw new HttpException(error('unauthorized', 'Войдите в аккаунт.'), 401);
+    const shape = checkBodyShape(rawBody, ['decision', 'reason']);
+    if (!UUID_PATTERN.test(classroomId) || !UUID_PATTERN.test(requestId) || !shape.ok)
+      throw new HttpException(error('validation_error', 'Некорректная заявка.'), 400);
+    const result = await this.requirePool().query(
+      'SELECT classroom_account_join_decide($1,$2,$3,$4,$5,$6) AS code',
+      [
+        context.accountId,
+        context.principalId,
+        classroomId,
+        requestId,
+        shape.body['decision'],
+        shape.body['reason'] ?? null,
+      ],
+    );
+    if (result.rows[0]?.['code'] !== 'ok')
+      throw new HttpException(
+        error(String(result.rows[0]?.['code']), 'Решение не сохранено. Обновите заявки.'),
+        409,
+      );
+    return { ok: true };
   }
 
   /** Классы, в которых этот аккаунт учится. */
@@ -757,7 +822,12 @@ export class ClassroomJoinController {
           brief: row.brief,
           goal: row.goal,
           moduleKey: row.module_key,
-          dueAt: row.due_at ? isoDate(row.due_at) : null,
+          dueAt:
+            canonicalFor(projections, row.id, row.seat_id)?.effectiveDueAt === undefined
+              ? row.due_at
+                ? isoDate(row.due_at)
+                : null
+              : canonicalFor(projections, row.id, row.seat_id)?.effectiveDueAt,
           status: row.status,
           sampleImage: row.sample_image,
           projectId: row.project_id,
@@ -887,7 +957,12 @@ export class ClassroomJoinController {
           brief: row.brief,
           goal: row.goal,
           moduleKey: row.module_key,
-          dueAt: row.due_at ? isoDate(row.due_at) : null,
+          dueAt:
+            canonicalFor(projections, row.id, seat.seat_id)?.effectiveDueAt === undefined
+              ? row.due_at
+                ? isoDate(row.due_at)
+                : null
+              : canonicalFor(projections, row.id, seat.seat_id)?.effectiveDueAt,
           status: row.status,
           sampleImage: row.sample_image,
           projectId: row.project_id,
@@ -1261,9 +1336,18 @@ export class ClassroomJoinController {
     @Param('assignmentId') assignmentId: string,
     @Body() rawBody: unknown,
   ) {
-    const shape = checkBodyShape(rawBody, ['submitted', 'clientRequestId']);
+    const shape = checkBodyShape(rawBody, ['submitted', 'clientRequestId', 'expectedRevision']);
     const submitted = shape.ok ? shape.body['submitted'] : null;
     const clientRequestId = shape.ok ? shape.body['clientRequestId'] : null;
+    const expectedRevision = shape.ok ? (shape.body['expectedRevision'] ?? null) : null;
+    if (
+      expectedRevision !== null &&
+      (typeof expectedRevision !== 'number' ||
+        !Number.isInteger(expectedRevision) ||
+        expectedRevision < 0)
+    ) {
+      throw new HttpException(error('validation_error', 'Неверная редакция проекта.'), 400);
+    }
     if (typeof submitted !== 'boolean' || !UUID_PATTERN.test(assignmentId)) {
       throw new HttpException(error('validation_error', 'submitted must be boolean'), 400);
     }
@@ -1290,8 +1374,8 @@ export class ClassroomJoinController {
       `SELECT result_code, participation_id, attempt_id, submission_id,
               attempt_number, attempt_state, project_id, project_version_id,
               submitted_at, late_state, reused
-         FROM learning_direct_project_submission_create($1,$2,$3,$4)`,
-      [learner.principalId, seatId, assignmentId, requestId],
+         FROM learning_direct_project_submission_create($1,$2,$3,$4,$5)`,
+      [learner.principalId, seatId, assignmentId, requestId, expectedRevision],
     );
     type SubmissionRow =
       | {
@@ -1331,6 +1415,18 @@ export class ClassroomJoinController {
     if (row.result_code === 'request_conflict') {
       throw new HttpException(
         error('idempotency_conflict', 'Этот идентификатор уже использован другой сдачей.'),
+        409,
+      );
+    }
+    if (
+      row.result_code === 'project_revision_conflict' ||
+      row.result_code === 'expected_revision_required'
+    ) {
+      throw new HttpException(
+        error(
+          row.result_code,
+          'Проект изменён или ещё не сохранён. Откройте его, проверьте редакцию и повторите сдачу.',
+        ),
         409,
       );
     }

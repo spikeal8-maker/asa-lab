@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api, type ClassroomStudentSession, type SeatAward } from '../api';
 import { SeatAvatarPicker } from '../components/SeatAvatarPicker';
+import { LearningNotificationPreferences } from '../components/LearningNotificationPreferences';
 import { awardOf } from '../components/SeatAwards';
 import '../components/seat-awards.css';
 
@@ -67,6 +68,10 @@ export function SeatAccountPage({
         </aside>
 
         <div className="account-settings-content">
+          <details>
+            <summary>Уведомления</summary>
+            <LearningNotificationPreferences seat />
+          </details>
           {error ? (
             <p className="account-message error" role="alert">
               {error}

@@ -1,7 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, type SeatAssignment } from '../api';
 import { AssignmentView } from './AssignmentView';
 import './assignment-brief.css';
+import { useConfirmedProjectRevision } from '../modules/project-save-evidence';
+import { courseAssignmentShape } from './SeatCourses';
 import {
   canonicalLearningLabel,
   canonicalSubmissionLocked,
@@ -24,24 +26,48 @@ import {
 
 const OPEN_KEY = 'asa-assignment-brief-open';
 
-export function AssignmentBrief({ projectId }: { readonly projectId: string }): JSX.Element | null {
+export function AssignmentBrief({
+  projectId,
+  seatLearner,
+}: {
+  readonly projectId: string;
+  readonly seatLearner: boolean;
+}): JSX.Element | null {
   const [assignment, setAssignment] = useState<SeatAssignment | null>(null);
   const [open, setOpen] = useState(() => window.localStorage.getItem(OPEN_KEY) !== 'closed');
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const revision = useConfirmedProjectRevision();
+  const submissionRequest = useRef<{ revision: number; id: string } | null>(null);
+  const load = useCallback(async () => {
+    const [direct, courses] = await Promise.all([
+      seatLearner ? api.seatAssignments() : api.attendedAssignments(),
+      seatLearner ? api.seatCourseRuns() : api.accountCourseRuns(),
+    ]);
+    const items: SeatAssignment[] = direct.ok ? direct.data.items : [];
+    if (courses.ok)
+      for (const run of courses.data.items)
+        for (const section of run.sections) {
+          items.push(
+            ...section.lessons
+              .filter((lesson) => lesson.kind === 'assignment')
+              .map((lesson) => courseAssignmentShape(run, lesson)),
+          );
+        }
+    return items.find((item) => item.projectId === projectId) ?? null;
+  }, [projectId, seatLearner]);
 
   useEffect(() => {
     let cancelled = false;
-    // Only a class seat can have work set for them, and the seat endpoint is the
-    // one that knows which project belongs to which task. For anybody else this
-    // answers 401 and the strip never appears.
-    void api.seatAssignments().then((result) => {
-      if (cancelled || !result.ok) return;
-      setAssignment(result.data.items.find((entry) => entry.projectId === projectId) ?? null);
+    // Resolve the same delivery through the authenticated Account or Seat reader.
+    void load().then((result) => {
+      if (cancelled) return;
+      setAssignment(result);
     });
     return () => {
       cancelled = true;
     };
-  }, [projectId]);
+  }, [load]);
 
   if (!assignment) return null;
 
@@ -53,18 +79,29 @@ export function AssignmentBrief({ projectId }: { readonly projectId: string }): 
   }
 
   async function submit(): Promise<void> {
-    if (!assignment) return;
+    if (!assignment || revision === null) return;
     setBusy(true);
-    const result = await api.submitSeatAssignment(assignment.id, true);
+    setError(null);
+    if (assignment.canonicalState?.workflowState === 'changes_requested') {
+      const started = await api.startSeatAssignment(assignment.id, projectId);
+      setBusy(false);
+      if (started.ok) setAssignment(await load());
+      else setError(started.error.message);
+      return;
+    }
+    if (submissionRequest.current?.revision !== revision)
+      submissionRequest.current = { revision, id: crypto.randomUUID() };
+    const result = await api.submitSeatAssignment(
+      assignment.id,
+      true,
+      revision,
+      submissionRequest.current.id,
+    );
     setBusy(false);
     if (result.ok) {
-      const refreshed = await api.seatAssignments();
-      setAssignment(
-        refreshed.ok
-          ? (refreshed.data.items.find((entry) => entry.projectId === projectId) ?? null)
-          : { ...assignment, submittedAt: result.data.submittedAt },
-      );
-    }
+      setAssignment((await load()) ?? { ...assignment, submittedAt: result.data.submittedAt });
+      submissionRequest.current = null;
+    } else setError(result.error.message);
   }
 
   return (
@@ -88,6 +125,7 @@ export function AssignmentBrief({ projectId }: { readonly projectId: string }): 
           className="assignment-brief-submit"
           disabled={
             busy ||
+            revision === null ||
             (assignment.canonicalState
               ? canonicalSubmissionLocked(assignment.canonicalState)
               : assignment.submittedAt !== null)
@@ -96,7 +134,7 @@ export function AssignmentBrief({ projectId }: { readonly projectId: string }): 
         >
           {assignment.canonicalState
             ? assignment.canonicalState.workflowState === 'changes_requested'
-              ? 'Сдать доработку'
+              ? 'Начать доработку'
               : canonicalSubmissionLocked(assignment.canonicalState)
                 ? 'Работа сдана'
                 : 'Сдать работу'
@@ -105,9 +143,27 @@ export function AssignmentBrief({ projectId }: { readonly projectId: string }): 
               : 'Сдать работу'}
         </button>
       </div>
+      {assignment.canonicalState && canonicalSubmissionLocked(assignment.canonicalState) ? (
+        <small>
+          Работа сдана. Изменения черновика не меняют закреплённую сдачу.
+          {revision !== null
+            ? ` Черновик сохранён: редакция №${revision}.`
+            : ' Дождитесь сохранения изменений черновика.'}
+        </small>
+      ) : revision === null ? (
+        <p role="status">Перед сдачей дождитесь сохранения проекта.</p>
+      ) : (
+        <small>К проверке будет закреплена сохранённая редакция №{revision}.</small>
+      )}
+      {error ? <p role="alert">{error}</p> : null}
 
       {open ? (
         <div className="assignment-brief-body">
+          <p>
+            {assignment.dueAt
+              ? `Срок: ${new Date(assignment.dueAt).toLocaleString()}`
+              : 'Без срока'}
+          </p>
           <AssignmentView assignment={assignment} />
         </div>
       ) : null}

@@ -1,4 +1,14 @@
-import { Body, Controller, Get, HttpException, Inject, Param, Post, Req } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpException,
+  Inject,
+  Param,
+  Post,
+  Query,
+  Req,
+} from '@nestjs/common';
 import type { FastifyRequest } from 'fastify';
 import type pg from 'pg';
 import type { AccountDirectoryPort, ActiveContext, ActiveContextUseCase } from '@asa-lab/identity';
@@ -38,6 +48,73 @@ export class LearningDirectAssignmentController {
     return context;
   }
 
+  @Get(':classroomId/learning/audience')
+  async audience(
+    @Req() request: FastifyRequest,
+    @Param('classroomId') classroomId: string,
+    @Query('assignmentId') assignmentId?: string,
+    @Query('courseRunId') courseRunId?: string,
+  ) {
+    const actor = await this.requireEducator(request);
+    if (
+      !UUID_PATTERN.test(classroomId) ||
+      !!assignmentId === !!courseRunId ||
+      ![assignmentId, courseRunId].every((id) => !id || UUID_PATTERN.test(id))
+    )
+      throw new HttpException(error('validation_error', 'Укажите ровно одно назначение.'), 400);
+    const result = await this.requirePool().query(
+      'SELECT learning_audience_for_teacher($1,$2,$3,$4) AS value',
+      [actor.accountId, classroomId, assignmentId ?? null, courseRunId ?? null],
+    );
+    return { audience: result.rows[0]?.['value'] ?? null };
+  }
+  @Post(':classroomId/learning/audiences/:audienceId/members/:seatId')
+  async changeMember(
+    @Req() request: FastifyRequest,
+    @Param('classroomId') classroomId: string,
+    @Param('audienceId') audienceId: string,
+    @Param('seatId') seatId: string,
+    @Body() raw: unknown,
+  ) {
+    const actor = await this.requireEducator(request),
+      shape = checkBodyShape(raw, ['include', 'expectedIncluded', 'reason', 'requestId']);
+    if (!shape.ok || ![classroomId, audienceId, seatId].every((id) => UUID_PATTERN.test(id)))
+      throw new HttpException(error('validation_error', 'Некорректная аудитория.'), 400);
+    const b = shape.body;
+    if (
+      typeof b['include'] !== 'boolean' ||
+      typeof b['expectedIncluded'] !== 'boolean' ||
+      typeof b['reason'] !== 'string' ||
+      typeof b['requestId'] !== 'string'
+    )
+      throw new HttpException(
+        error('validation_error', 'Укажите действие, исходное состояние и причину.'),
+        400,
+      );
+    const result = await this.requirePool().query(
+      'SELECT learning_audience_member_change($1,$2,$3,$4,$5,$6,$7,$8,$9) AS code',
+      [
+        actor.accountId,
+        actor.principalId,
+        classroomId,
+        audienceId,
+        seatId,
+        b['include'],
+        b['expectedIncluded'],
+        b['reason'],
+        b['requestId'],
+      ],
+    );
+    if (result.rows[0]?.['code'] !== 'ok')
+      throw new HttpException(
+        error(
+          String(result.rows[0]?.['code']),
+          'Аудитория не изменена. Обновите список; для повторной выдачи исключённому ученику создайте новое назначение.',
+        ),
+        409,
+      );
+    return { ok: true };
+  }
   @Get(':classroomId/learning/activities')
   async activities(@Req() request: FastifyRequest, @Param('classroomId') classroomId: string) {
     if (!UUID_PATTERN.test(classroomId)) {
@@ -76,6 +153,7 @@ export class LearningDirectAssignmentController {
       'seatIds',
       'dueAt',
       'requestId',
+      'timeZone',
     ]);
     if (!shape.ok) throw new HttpException(error('validation_error', shape.message), 400);
     const activityVersionId = shape.body['activityVersionId'];
@@ -83,6 +161,9 @@ export class LearningDirectAssignmentController {
     const seatIds = shape.body['seatIds'];
     const dueAt = shape.body['dueAt'] ?? null;
     const requestId = shape.body['requestId'];
+    const timeZone = shape.body['timeZone'];
+    if (timeZone !== undefined && (typeof timeZone !== 'string' || timeZone.length > 80))
+      throw new HttpException(error('validation_error', 'Некорректный часовой пояс.'), 400);
     if (
       typeof activityVersionId !== 'string' ||
       !UUID_PATTERN.test(activityVersionId) ||
@@ -102,7 +183,7 @@ export class LearningDirectAssignmentController {
       const result = await this.requirePool().query(
         `SELECT result_code,classroom_assignment_id,activity_run_id,audience_id,
                 assigned_count,reused
-           FROM learning_direct_assignment_create($1,$2,$3,$4,$5,$6,$7::uuid[],$8)`,
+           FROM ${timeZone === undefined ? 'learning_direct_assignment_create($1,$2,$3,$4,$5,$6,$7::uuid[],$8)' : 'learning_direct_assignment_create_v2($1,$2,$3,$4,$5,$6,$7::uuid[],$8,$9)'}`,
         [
           context.principalId,
           context.tenantId,
@@ -112,6 +193,7 @@ export class LearningDirectAssignmentController {
           audienceType,
           seatIds,
           requestId,
+          ...(timeZone === undefined ? [] : [timeZone]),
         ],
       );
       const row = result.rows[0];

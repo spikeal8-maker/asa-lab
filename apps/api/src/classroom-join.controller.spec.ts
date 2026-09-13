@@ -240,6 +240,7 @@ describe('immutable classroom submissions', () => {
       controller.submitAssignment(seatRequest(), assignmentId, {
         submitted: true,
         clientRequestId: 'submit:test:0001',
+        expectedRevision: 1,
       }),
     ).resolves.toEqual({
       projectId: 'project-id',
@@ -255,7 +256,7 @@ describe('immutable classroom submissions', () => {
     });
     expect(query).toHaveBeenLastCalledWith(
       expect.stringContaining('learning_direct_project_submission_create'),
-      ['learner-principal-id', 'seat-id', assignmentId, 'submit:test:0001'],
+      ['learner-principal-id', 'seat-id', assignmentId, 'submit:test:0001', 1],
     );
   });
 

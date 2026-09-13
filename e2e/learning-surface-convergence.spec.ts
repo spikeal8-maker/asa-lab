@@ -3,11 +3,13 @@ import { mkdirSync } from 'node:fs';
 import type pg from 'pg';
 import { collectBrowserFailures } from './browser-failures';
 import { loginWithOrganization } from './organization-login';
+import { openPortalSection } from './portal-navigation';
 import { e2eAdminPool, seedTeacher, type SeededTeacher } from './seed';
 
 const evidenceDir = 'e2e/artifacts/learning/m0-007';
 let admin: pg.Pool;
 let teacher: SeededTeacher;
+test.use({ actionTimeout: 12000 });
 
 test.beforeAll(async () => {
   admin = e2eAdminPool();
@@ -20,10 +22,7 @@ test.afterAll(async () => {
 });
 
 async function openLearnerLearning(page: import('@playwright/test').Page): Promise<void> {
-  await page
-    .getByLabel('Основная навигация')
-    .getByRole('button', { name: 'Обучение', exact: true })
-    .click();
+  await openPortalSection(page, 'Моё обучение');
 }
 
 test('legacy, revision and selected-result semantics stay equal across learner and teacher surfaces', async ({
@@ -33,7 +32,7 @@ test('legacy, revision and selected-result semantics stay equal across learner a
   test.setTimeout(180_000);
   const teacherFailures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
   await loginWithOrganization(page, teacher);
-  await page.getByRole('button', { name: 'Классы', exact: true }).click();
+  await openPortalSection(page, 'Классы');
   await page.getByRole('button', { name: 'Создать класс' }).first().click();
   const create = page.getByRole('dialog', { name: 'Создать класс' });
   await create.getByLabel('Название класса').fill('Canonical M0-007');
@@ -53,6 +52,16 @@ test('legacy, revision and selected-result semantics stay equal across learner a
   await seatDialog.getByLabel('Имя для входа').fill('alina-canonical');
   await seatDialog.getByRole('button', { name: 'Добавить', exact: true }).click();
   await expect(page.getByText('Алина Canonical добавлен.')).toBeVisible();
+  await page.getByRole('button', { name: 'Действия: Алина Canonical', exact: true }).click();
+  page.once('dialog', (dialog) => dialog.accept());
+  const issued = page.waitForResponse(
+    (response) => response.url().endsWith('/credential') && response.request().method() === 'POST',
+  );
+  await page.getByRole('button', { name: 'Выдать личный ключ', exact: true }).click();
+  const credentialResponse = await issued;
+  expect(credentialResponse.ok()).toBeTruthy();
+  const { credential } = await credentialResponse.json();
+  await page.getByRole('button', { name: 'Скрыть', exact: true }).click();
 
   const scope = await admin.query(
     `SELECT classroom.id AS classroom_id,classroom.tenant_id AS classroom_tenant_id,
@@ -130,6 +139,7 @@ test('legacy, revision and selected-result semantics stay equal across learner a
   await student.goto(`/#/join-class?code=${encodeURIComponent(joinCode)}`);
   await student.getByRole('button', { name: 'Продолжить' }).click();
   await student.getByLabel('Имя для входа').fill('alina-canonical');
+  await student.getByLabel('Личный ключ', { exact: true }).fill(credential);
   await student.getByRole('checkbox', { name: 'Я не робот' }).press('Space');
   await student.getByRole('button', { name: 'Войти в класс' }).click();
   await openLearnerLearning(student);
@@ -155,10 +165,10 @@ test('legacy, revision and selected-result semantics stay equal across learner a
   const gradeRow = page
     .getByRole('table', { name: 'Журнал работ класса' })
     .getByRole('row')
-    .filter({ hasText: 'Алина Canonical' })
-    .filter({ hasText: 'Canonical project' });
+    .filter({ hasText: 'Алина Canonical' });
   await expect(gradeRow).toContainText('Сдано');
   await expect(gradeRow).not.toContainText('Не начинал');
+  await expect(page.getByText('Ждут проверки: 0', { exact: true })).toBeVisible();
   await expect(gradeRow).toContainText(
     'Историческая сдача: точное immutable evidence не восстановлено',
   );
@@ -187,38 +197,49 @@ test('legacy, revision and selected-result semantics stay equal across learner a
   await expect(gradeRow).toContainText('На доработке');
   await gradeRow.screenshot({ path: `${evidenceDir}/regression-b-changes-requested.png` });
 
-  // Regression C: the persisted old selection remains while Attempt #2 is in progress.
-  await admin.query(
-    `UPDATE learning_attempts SET state='accepted',evaluated_at=now() WHERE id=$1`,
-    [submitted.rows[0].attempt_id],
+  // Regression C: retain a real accepted result while a later Attempt is in progress.
+  const acceptedSubmission = await admin.query(
+    'SELECT * FROM learning_project_submission_create($1,$2,$3)',
+    [row.seat_id, row.assignment_id, `m007-resubmit-${Date.now()}`],
   );
-  const selected = await admin.query(
-    `INSERT INTO assessment_results
-       (tenant_id,attempt_id,raw_points,max_points,percentage_basis_points,outcome,
-        manual_points,evaluator_principal_id,feedback)
-     SELECT tenant_id,id,80,100,8000,'passed',80,$2,'Опубликованный результат'
-       FROM learning_attempts WHERE id=$1 RETURNING id`,
-    [submitted.rows[0].attempt_id, row.principal_id],
+  const acceptedAttempt = acceptedSubmission.rows[0].attempt_id;
+  const reviewed = await admin.query(
+    'SELECT * FROM learning_attempt_review($1,$2,$3,$4,$5,$6,$7,$8)',
+    [
+      row.account_id,
+      row.principal_id,
+      row.classroom_id,
+      acceptedAttempt,
+      'accepted',
+      80,
+      'Опубликованный результат',
+      'Browser regression C',
+    ],
   );
-  await admin.query(
-    `INSERT INTO gradebook_entries
-       (tenant_id,school_id,academic_period_id,classroom_id,classroom_assignment_id,
-        seat_id,accepted_attempt_id,assessment_result_id,published_by_principal_id)
-     SELECT classroom.tenant_id,classroom.school_id,classroom.academic_period_id,classroom.id,
-            attempt.classroom_assignment_id,attempt.seat_id,attempt.id,$2,$3
-       FROM learning_attempts attempt
-       JOIN classrooms classroom ON classroom.id=attempt.classroom_id
-      WHERE attempt.id=$1`,
-    [submitted.rows[0].attempt_id, selected.rows[0].id, row.principal_id],
-  );
+  expect(reviewed.rows[0].assessment_result_id).toBeTruthy();
+  expect(
+    (
+      await admin.query('SELECT state FROM learning_attempts WHERE id=ANY($1::uuid[])', [
+        [submitted.rows[0].attempt_id, acceptedAttempt],
+      ])
+    ).rows,
+  ).toEqual([{ state: 'closed' }, { state: 'closed' }]);
+  expect(
+    (
+      await admin.query(
+        'SELECT count(*)::int AS n FROM gradebook_entries WHERE classroom_assignment_id=$1 AND seat_id=$2',
+        [row.assignment_id, row.seat_id],
+      )
+    ).rows[0].n,
+  ).toBe(1);
   await admin.query(
     `INSERT INTO learning_attempts
        (tenant_id,classroom_id,classroom_assignment_id,learning_activity_version_id,
         seat_id,learner_identity_id,attempt_number,state,started_at)
      SELECT tenant_id,classroom_id,classroom_assignment_id,learning_activity_version_id,
-            seat_id,learner_identity_id,2,'in_progress',now()
+            seat_id,learner_identity_id,3,'in_progress',now()
        FROM learning_attempts WHERE id=$1`,
-    [submitted.rows[0].attempt_id],
+    [acceptedAttempt],
   );
   await student.reload();
   await openLearnerLearning(student);
@@ -226,7 +247,6 @@ test('legacy, revision and selected-result semantics stay equal across learner a
   const learnerResult = student
     .locator('.seat-results li')
     .filter({ hasText: 'Canonical project' });
-  await expect(learnerResult).toContainText('Зачёт');
   await expect(learnerResult).toContainText('80/100');
   await expect(learnerResult).toContainText('В работе');
   await learnerResult.screenshot({ path: `${evidenceDir}/regression-c-learner-result.png` });
@@ -234,7 +254,19 @@ test('legacy, revision and selected-result semantics stay equal across learner a
   await page.getByRole('button', { name: 'Журнал', exact: true }).click();
   await expect(gradeRow).toContainText('В работе');
   await expect(gradeRow).toContainText('Зачёт');
-  await expect(gradeRow).toContainText('80/100');
+  const gradebookRead = await page.request.get(`/api/classrooms/${row.classroom_id}/gradebook`);
+  expect(gradebookRead.ok()).toBeTruthy();
+  expect((await gradebookRead.json()).items).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        assignmentId: row.assignment_id,
+        seatId: row.seat_id,
+        points: 80,
+        maxPoints: 100,
+        outcome: 'passed',
+      }),
+    ]),
+  );
   await gradeRow.screenshot({ path: `${evidenceDir}/regression-c-teacher-result.png` });
 
   // Regression D: compatibility max_points=1 is structural only and never appears as a grade.

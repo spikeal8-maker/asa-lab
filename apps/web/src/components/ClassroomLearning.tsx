@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useLearningDestination } from '../learning/use-learning-destination';
 import { ClassroomAssignments } from './ClassroomAssignments';
 import { ClassroomCourses } from './ClassroomCourses';
 import { ClassroomQuizzes } from './ClassroomQuizzes';
@@ -13,6 +14,10 @@ export function ClassroomLearning({
   readonly onOpenProject: (projectId: string, moduleKey: string) => void;
 }): JSX.Element {
   const [tab, setTab] = useState<'courses' | 'assignments' | 'quizzes'>('courses');
+  const destination = useLearningDestination();
+  useEffect(() => {
+    if (destination.courseRun && !destination.assignment) setTab('courses');
+  }, [destination.courseRun, destination.assignment]);
   return (
     <section className="classroom-tab-panel classroom-learning-panel">
       <nav className="classroom-learning-tabs" aria-label="Материалы класса">

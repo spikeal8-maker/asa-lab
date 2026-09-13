@@ -9,6 +9,8 @@ import {
 import { AssignmentEditorDialog } from './AssignmentEditor';
 import { AssignmentView } from './AssignmentView';
 import { AssignLearningActivityDialog } from './AssignLearningActivityDialog';
+import { LearningConditions } from './LearningConditions';
+import { LearningAudience } from './LearningAudience';
 import { useSchoolTime } from './school-time';
 import { seatAvatar } from '../creator-portal/default-avatars';
 import { WorkPreview } from './WorkPreview';
@@ -177,17 +179,24 @@ export function ClassroomAssignments({
         </button>
         <div className="assignment-detail-heading">
           <h2>{open.title}</h2>
-          <button
-            type="button"
-            className="btn-secondary"
-            disabled={archived}
-            onClick={() => {
-              setEditing(libraryShape(open));
-              setCreating(true);
-            }}
-          >
-            Изменить задание
-          </button>
+          {!open.audienceType ? (
+            <button
+              type="button"
+              className="btn-secondary"
+              disabled={archived}
+              onClick={() => {
+                setEditing(libraryShape(open));
+                setCreating(true);
+              }}
+            >
+              Изменить задание
+            </button>
+          ) : (
+            <p>
+              Опубликованный материал закреплён. Условия и аудитория этого назначения — ниже;
+              содержание редактируется отдельной версией в библиотеке.
+            </p>
+          )}
           <p>
             {moduleName(open.moduleKey)}
             {open.dueAt ? ` · срок ${time.date(open.dueAt)}` : ''}
@@ -197,6 +206,16 @@ export function ClassroomAssignments({
         {/* Тот же вид, что видит ученик: преподаватель проверяет по тому же
             тексту, который читал ребёнок, а не по своей версии вёрстки. */}
         <AssignmentView assignment={open} />
+        {open.audienceType ? (
+          <LearningConditions classroomId={classroomId} assignmentId={open.id} />
+        ) : null}
+        {open.audienceType ? (
+          <LearningAudience
+            classroomId={classroomId}
+            assignmentId={open.id}
+            onChanged={() => void reload()}
+          />
+        ) : null}
 
         {progress === null ? (
           <p role="status">Загружаем…</p>
@@ -233,7 +252,11 @@ export function ClassroomAssignments({
                   <button
                     type="button"
                     className="btn-secondary"
-                    onClick={() => setPreviewing(row)}
+                    onClick={() => {
+                      if (row.canonicalState?.activityRunId)
+                        window.location.hash = `/classrooms/${classroomId}?assignment=${open.id}&learner=${row.seatId}`;
+                      else setPreviewing(row);
+                    }}
                   >
                     Посмотреть работу
                   </button>
@@ -363,11 +386,15 @@ export function ClassroomAssignments({
                   className="btn-secondary"
                   disabled={archived}
                   onClick={() => {
+                    if (assignment.audienceType) {
+                      setOpen(assignment);
+                      return;
+                    }
                     setEditing(libraryShape(assignment));
                     setCreating(true);
                   }}
                 >
-                  Изменить
+                  {assignment.audienceType ? 'Условия' : 'Изменить'}
                 </button>
                 <button
                   type="button"
