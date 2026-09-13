@@ -1,15 +1,16 @@
 import { test, expect, type Page } from '@playwright/test';
 import fs from 'node:fs';
 import { execFileSync } from 'node:child_process';
-import { createProtocolFixture } from '../tools/blocks/browser/fixture.mjs';
-import { runtimeFrame, waitForRuntimeState } from '../tools/blocks/browser/assertions.mjs';
-import {
-  initMessage,
-  binding,
-  parentOrigin,
-  runtimeUrl,
-  sendFromParent,
-} from '../tools/blocks/browser/protocol.mjs';
+// Native dynamic imports keep the shared C harness in ESM under Playwright's
+// CommonJS TypeScript test loader.
+let createProtocolFixture: typeof import('../tools/blocks/browser/fixture.mjs').createProtocolFixture;
+let runtimeFrame: typeof import('../tools/blocks/browser/assertions.mjs').runtimeFrame;
+let waitForRuntimeState: typeof import('../tools/blocks/browser/assertions.mjs').waitForRuntimeState;
+let initMessage: typeof import('../tools/blocks/browser/protocol.mjs').initMessage;
+let binding: typeof import('../tools/blocks/browser/protocol.mjs').binding;
+let parentOrigin: string;
+let runtimeUrl: string;
+let sendFromParent: typeof import('../tools/blocks/browser/protocol.mjs').sendFromParent;
 
 type FixtureStorage = {
   scratchStorage: {
@@ -33,8 +34,13 @@ let page: Page;
 const requests: { url: string; method: string; type: string }[] = [];
 const external: string[] = [];
 const failed: string[] = [];
+const responses: { url: string; status: number }[] = [];
 
 test.beforeAll(async () => {
+  ({ createProtocolFixture } = await import('../tools/blocks/browser/fixture.mjs'));
+  ({ runtimeFrame, waitForRuntimeState } = await import('../tools/blocks/browser/assertions.mjs'));
+  ({ initMessage, binding, parentOrigin, runtimeUrl, sendFromParent } =
+    await import('../tools/blocks/browser/protocol.mjs'));
   fs.mkdirSync(evidenceDir, { recursive: true });
   fixture = await createProtocolFixture();
   fixture.context.on('request', (request) => {
@@ -45,6 +51,9 @@ test.beforeAll(async () => {
     }
   });
   fixture.context.on('requestfailed', (request) => failed.push(request.url()));
+  fixture.context.on('response', (response) => {
+    responses.push({ url: response.url(), status: response.status() });
+  });
 });
 
 test.beforeEach(async () => {
@@ -59,7 +68,13 @@ test.afterEach(async ({ browserName }, info) => {
       path: `${evidenceDir}/failure-${browserName}-${info.testId.replace(/[^a-z0-9]/gi, '')}.png`,
     });
   }
-  await page.close();
+  try {
+    expect(external).toEqual([]);
+    expect(failed).toEqual([]);
+    expect(responses.filter((response) => response.status >= 400)).toEqual([]);
+  } finally {
+    await page.close();
+  }
 });
 
 test.afterAll(async () => {
@@ -73,6 +88,7 @@ test.afterAll(async () => {
         external,
         failed,
         requests,
+        responses,
         browserErrors: fixture.pageErrors,
       },
       null,
@@ -101,10 +117,12 @@ async function mount(hasProjectJson: boolean, player = false) {
     'data-fixture-kind',
     hasProjectJson ? 'existing' : 'new',
   );
-  await expect(frame.locator('canvas[class*="stage_stage"]')).toBeVisible();
-  await expect(
-    frame.locator('[class*="monitor_label"]').filter({ hasText: 'Ticks' }),
-  ).toBeVisible();
+  await expect(frame.locator('[class*="stage_stage_"] canvas').first()).toBeVisible();
+  if (!player) {
+    await expect(
+      frame.locator('[class*="monitor_label"]').filter({ hasText: 'Ticks' }),
+    ).toBeVisible();
+  }
   return frame;
 }
 
@@ -113,7 +131,7 @@ test('real editor, new fixture, block execution, stop, changes and defensive sto
   const shell = frame.locator('[data-asa-host-shell]');
   await expect(frame.locator('.blocklySvg').first()).toBeVisible();
   await expect(frame.locator('.blocklyBlockCanvas .blocklyDraggable').first()).toBeVisible();
-  await expect(frame.locator('.blocklyToolboxDiv')).toBeVisible();
+  await expect(frame.locator('.blocklyToolbox')).toBeVisible();
   await expect(shell).toHaveAttribute('data-project-changes', '0');
   await page.screenshot({ path: `${evidenceDir}/01-editor-in-asa-host.png` });
   await frame
@@ -128,6 +146,8 @@ test('real editor, new fixture, block execution, stop, changes and defensive sto
   await page.screenshot({ path: `${evidenceDir}/03-running-programme.png` });
   await frame.getByRole('button', { name: 'Stop project', exact: true }).click();
   await expect(shell).toHaveAttribute('data-project-running', 'false');
+  // Allow the final pre-stop VM tick to reach the monitor's rendered value.
+  await page.waitForTimeout(150);
   const stoppedValue = await counter.textContent();
   await page.waitForTimeout(400);
   await expect(counter).toHaveText(stoppedValue ?? '');
@@ -187,7 +207,16 @@ test('player fixture is read-only and still runs and stops the actual VM', async
   const counter = frame.locator('[class*="monitor_value"]').first();
   await frame.getByRole('button', { name: 'Start project', exact: true }).click();
   await expect.poll(async () => Number(await counter.textContent())).toBeGreaterThan(2);
+  await expect(frame.locator('[data-asa-host-shell]')).toHaveAttribute(
+    'data-project-running',
+    'true',
+  );
   await frame.getByRole('button', { name: 'Stop project', exact: true }).click();
+  await expect(frame.locator('[data-asa-host-shell]')).toHaveAttribute(
+    'data-project-running',
+    'false',
+  );
+  await page.waitForTimeout(150);
   const stoppedValue = await counter.textContent();
   await page.waitForTimeout(400);
   await expect(counter).toHaveText(stoppedValue ?? '');

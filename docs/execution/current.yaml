@@ -16,7 +16,7 @@ task:
   pr: null
   pr_draft: false
   status: in_progress
-  checkpoint: m1_002d_first_visible_scratch_selected
+  checkpoint: m1_002d_first_visible_scratch_implemented_pending_owner_review
   owner_acceptance: pending
 
 revisions:

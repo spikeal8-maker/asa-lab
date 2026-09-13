@@ -4,7 +4,6 @@
     const state = new standalone.EditorState(
       {
         isPlayerOnly: session.mode === 'player',
-        isEmbedded: true,
         showTelemetryModal: false,
         locale: 'en',
       },
@@ -74,6 +73,9 @@
           onReady();
         },
       });
+      // The standalone export does not start the default-project fetch itself.
+      // Trigger its supported reducer only after ProjectFetcher has mounted.
+      if (!hasProjectJson) state.dispatch(standalone.setProjectId('0'));
     } catch (error) {
       dispose();
       throw error;

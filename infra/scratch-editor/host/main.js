@@ -10,6 +10,7 @@
     'setAppElement',
     'ScratchStorage',
     'buildDefaultProject',
+    'setProjectId',
   ];
 
   if (!shell || !status) {

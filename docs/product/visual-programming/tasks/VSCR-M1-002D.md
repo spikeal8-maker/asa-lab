@@ -40,6 +40,9 @@ Fixture adapter: `infra/scratch-editor/host/storage.js`. Browser test:
 The adapter reuses stock asset bytes already embedded in the pinned bundle. New
 projects omit GUI projectId (technical ID `0`); existing fixtures use only the
 internal `asa-controlled-fixture` ID. Unknown library assets fail explicitly.
+The standalone new-project bootstrap dispatches exported `setProjectId('0')`
+after render. Player uses `isPlayerOnly`; `isEmbedded` is omitted because the
+pinned helper would force every session into a fullscreen player.
 The existing protocol scenarios remain in `tools/blocks/browser/scenarios.mjs`;
 do not insert the editor journey into those security scenarios.
 

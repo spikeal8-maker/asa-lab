@@ -63,6 +63,7 @@ function editorFixture(hasProjectJson = false, mode = 'editor') {
   let ready = 0;
   let props;
   let params;
+  let requestedId;
   const storage = {};
   machine.stopAll = () => {
     stops++;
@@ -76,7 +77,11 @@ function editorFixture(hasProjectJson = false, mode = 'editor') {
         params = options;
         assert.equal(factory().storage, storage);
       }
+      dispatch(action) {
+        requestedId = action.projectId;
+      }
     },
+    setProjectId: (projectId) => ({ projectId }),
     setAppElement() {},
     createStandaloneRoot: () => ({
       render(value) {
@@ -111,6 +116,7 @@ function editorFixture(hasProjectJson = false, mode = 'editor') {
     editor,
     props,
     params,
+    requestedId,
     counts: () => ({ stops, quits, unmounts, ready }),
   };
 }
@@ -119,6 +125,8 @@ test('mount omits new project ID, ignores load changes and observes later real V
   const fixture = editorFixture();
   assert.equal('projectId' in fixture.props, false);
   assert.equal(fixture.props.canSave, false);
+  assert.equal(fixture.requestedId, '0');
+  assert.equal(fixture.params.isEmbedded, undefined);
   fixture.machine.emit('PROJECT_CHANGED');
   assert.equal(fixture.shell.dataset.projectChanges, '0');
   fixture.props.onProjectLoaded();
