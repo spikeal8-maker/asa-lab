@@ -47,10 +47,7 @@ test('exact saved and published learner preview ignores late responses and creat
   await expect(preview.getByRole('heading', { name: 'Published V1' })).toBeVisible();
   await expect(preview.getByTestId('assignment-view')).toContainText('Published instructions V1');
   mkdirSync('e2e/artifacts/learning/author-preview', { recursive: true });
-  await page.screenshot({
-    path: 'e2e/artifacts/learning/author-preview/published-v1.png',
-    fullPage: true,
-  });
+  await preview.screenshot({ path: 'e2e/artifacts/learning/author-preview/published-v1.png' });
   let release!: () => void;
   const delayed = new Promise<void>((resolve) => {
     release = resolve;
@@ -89,8 +86,5 @@ test('exact saved and published learner preview ignores late responses and creat
   );
   await expect(preview.getByRole('heading', { name: 'Saved draft r2' })).toBeVisible();
   expect(mutations).toEqual([]);
-  await page.screenshot({
-    path: 'e2e/artifacts/learning/author-preview/saved-draft-r2.png',
-    fullPage: true,
-  });
+  await preview.screenshot({ path: 'e2e/artifacts/learning/author-preview/saved-draft-r2.png' });
 });
