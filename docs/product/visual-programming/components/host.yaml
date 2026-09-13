@@ -57,9 +57,9 @@ components:
       translation_source: upstream_scratch_l10n
       locale_resolution:
         - asa_user_preference_when_canonical
-        - first_supported_browser_locale
-        - normalize_regional_tag
-        - fallback_ru
+        - upstream_browser_locale_detection
+        - upstream_regional_normalization
+        - fallback_ru_when_no_requested_supported_locale
     planned_sources:
       - infra/scratch-editor/host/editor-config.js
     planned_tests:
@@ -121,20 +121,21 @@ components:
   - id: blocks.host.file-menu
     state: planned
     risk: medium
-    ownership: upstream_config
-    purpose: 'Keep familiar Scratch File/Edit menus while hiding or disabling commands that would falsely imply ASA durable persistence or premature .sb3 support.'
+    ownership: upstream_patch
+    purpose: 'Keep familiar Scratch File/Edit menus while independently gating commands that would falsely imply ASA durable persistence or premature .sb3 support.'
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-001-SCRATCH-HOST-CONTRACT.md
         section: 'Product controls'
     policy:
       file_menu_visible: true
       edit_menu_visible: true
+      save_now: disabled_until_m1_005
+      local_sb3_import: disabled_until_m1_007
+      local_sb3_export: disabled_until_m1_007
       fake_durable_save: forbidden
-      durable_save_before_m1_005: forbidden
-      sb3_before_m1_007: forbidden
-      unsupported_commands: hidden_or_disabled_honestly
     planned_sources:
       - infra/scratch-editor/host/editor-config.js
+      - infra/scratch-editor/patches/0003-file-menu-policy.patch
     planned_tests:
       - e2e/blocks-host-controls.spec.ts
     task: VSCR-M1-002B
