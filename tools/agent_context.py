@@ -75,8 +75,18 @@ def _doc_hints(root: Path, owned_paths: list[Any]) -> list[str]:
         candidate = root / PurePosixPath(clean)
         if candidate.is_file():
             relative = candidate.relative_to(root).as_posix()
-        elif candidate.is_dir() and (candidate / "README.md").is_file():
-            relative = (candidate / "README.md").relative_to(root).as_posix()
+        elif candidate.is_dir():
+            selected = next(
+                (
+                    candidate / name
+                    for name in ("START_HERE.md", "README.md")
+                    if (candidate / name).is_file()
+                ),
+                None,
+            )
+            if selected is None:
+                continue
+            relative = selected.relative_to(root).as_posix()
         else:
             continue
         if relative not in hints:
@@ -237,6 +247,8 @@ def build_context(
         if dirty is not None
         else None
     )
+    recovery_required = dirty is None or bool(dirty)
+    recovery_command = f"pnpm agent:recover --scope {lane.get('id')} --check"
     docs = _doc_hints(root, owned_paths)
     checkpoint_marker = _checkpoint_hint(task.get("checkpoint"))
     sections = _section_hints(root, docs, task.get("checkpoint"))
@@ -283,6 +295,10 @@ def build_context(
         "contract_section_resolution": section_resolution,
         "contract_sections": sections,
         "owned_paths": list(owned_paths),
+        "recovery": {
+            "required": recovery_required,
+            "command": recovery_command,
+        },
         "dirty": {
             "known": dirty is not None,
             "total_count": len(dirty) if dirty is not None else None,
@@ -322,7 +338,10 @@ def render_text(context: dict[str, Any]) -> str:
         f"ownerAcceptance: {task.get('owner_acceptance')}",
         f"branch: {task.get('branch')}",
         f"blocking: {len(context['blocking'])}",
+        f"recoveryRequired: {'true' if context['recovery']['required'] else 'false'}",
     ]
+    if context["recovery"]["required"]:
+        lines.append(f"recoveryCommand: {context['recovery']['command']}")
     if context["milestone"]:
         lines.append(f"milestone: {context['milestone'].get('id')}")
         lines.append(
