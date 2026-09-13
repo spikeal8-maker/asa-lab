@@ -129,4 +129,38 @@ describe('BlocksRuntimeBridge', () => {
     ).toBe(true);
     expect(onFatal).toHaveBeenCalledWith(message);
   });
+
+  it('becomes terminal after STOP and cannot restore authority on the same bridge', () => {
+    vi.stubGlobal('crypto', { randomUUID: () => 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee' });
+    const { bridge, target } = makeBridge();
+    bridge.sendInit();
+    bridge.stop();
+
+    expect(target.postMessage).toHaveBeenCalledTimes(2);
+    expect(target.postMessage.mock.calls[1][0]).toMatchObject({
+      messageType: 'ASA_BLOCKS_STOP',
+      projectId: PROJECT_ID,
+      sessionNonce: bridge.sessionNonce,
+    });
+
+    expect(() => bridge.sendInit()).toThrow('Blocks runtime bridge is stopped');
+    expect(() => bridge.updateToken('stale-token')).toThrow('Blocks runtime bridge is stopped');
+    expect(() => bridge.requestFlush('stale-flush')).toThrow('Blocks runtime bridge is stopped');
+    bridge.stop();
+    expect(target.postMessage).toHaveBeenCalledTimes(2);
+
+    expect(
+      bridge.acceptChildMessage({
+        source: target,
+        origin: RUNTIME_ORIGIN,
+        data: {
+          protocolVersion: BLOCKS_PROTOCOL_VERSION,
+          messageType: 'ASA_BLOCKS_STATUS',
+          projectId: PROJECT_ID,
+          sessionNonce: bridge.sessionNonce,
+          status: 'ready-after-reload',
+        },
+      }),
+    ).toBe(false);
+  });
 });
