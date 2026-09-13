@@ -11,10 +11,11 @@ function makeTarget() {
   };
 }
 
-function makeBridge(target = makeTarget(), onFatal = vi.fn()) {
+function makeBridge(target = makeTarget(), onFatal = vi.fn(), onMessage = vi.fn()) {
   return {
     target,
     onFatal,
+    onMessage,
     bridge: new BlocksRuntimeBridge({
       childWindow: target,
       runtimeOrigin: RUNTIME_ORIGIN,
@@ -27,6 +28,7 @@ function makeBridge(target = makeTarget(), onFatal = vi.fn()) {
       hasProjectJson: true,
       assets: [],
       recoveryNamespace: 'fixture-recovery',
+      onMessage,
       onFatal,
     }),
   };
@@ -130,24 +132,24 @@ describe('BlocksRuntimeBridge', () => {
     expect(onFatal).toHaveBeenCalledWith(message);
   });
 
-  it('becomes terminal after STOP and cannot restore authority on the same bridge', () => {
+  it('becomes terminal after STOP and cannot restore retained authority', () => {
     vi.stubGlobal('crypto', { randomUUID: () => 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee' });
     const { bridge, target } = makeBridge();
-    bridge.sendInit();
     bridge.stop();
 
-    expect(target.postMessage).toHaveBeenCalledTimes(2);
-    expect(target.postMessage.mock.calls[1][0]).toMatchObject({
+    expect(target.postMessage).toHaveBeenCalledTimes(1);
+    expect(target.postMessage.mock.calls[0][0]).toMatchObject({
       messageType: 'ASA_BLOCKS_STOP',
       projectId: PROJECT_ID,
       sessionNonce: bridge.sessionNonce,
     });
+    expect(JSON.stringify(bridge)).not.toContain('fixture-token');
 
     expect(() => bridge.sendInit()).toThrow('Blocks runtime bridge is stopped');
     expect(() => bridge.updateToken('stale-token')).toThrow('Blocks runtime bridge is stopped');
     expect(() => bridge.requestFlush('stale-flush')).toThrow('Blocks runtime bridge is stopped');
     bridge.stop();
-    expect(target.postMessage).toHaveBeenCalledTimes(2);
+    expect(target.postMessage).toHaveBeenCalledTimes(1);
 
     expect(
       bridge.acceptChildMessage({
@@ -161,6 +163,36 @@ describe('BlocksRuntimeBridge', () => {
           status: 'ready-after-reload',
         },
       }),
+    ).toBe(false);
+  });
+
+  it('accepts each FLUSH_RESULT only for one outstanding requestId', () => {
+    vi.stubGlobal('crypto', { randomUUID: () => 'ffffffff-ffff-4fff-8fff-ffffffffffff' });
+    const { bridge, target, onMessage } = makeBridge();
+    const result = (requestId: string) => ({
+      protocolVersion: BLOCKS_PROTOCOL_VERSION,
+      messageType: 'ASA_BLOCKS_FLUSH_RESULT',
+      projectId: PROJECT_ID,
+      sessionNonce: bridge.sessionNonce,
+      requestId,
+      ok: false,
+      reason: 'storage_not_available',
+    });
+
+    expect(
+      bridge.acceptChildMessage({ source: target, origin: RUNTIME_ORIGIN, data: result('unknown') }),
+    ).toBe(false);
+
+    bridge.requestFlush('flush-1');
+    expect(() => bridge.requestFlush('flush-1')).toThrow(
+      'Blocks flush requestId is already pending: flush-1',
+    );
+    expect(
+      bridge.acceptChildMessage({ source: target, origin: RUNTIME_ORIGIN, data: result('flush-1') }),
+    ).toBe(true);
+    expect(onMessage).toHaveBeenCalledWith(result('flush-1'));
+    expect(
+      bridge.acceptChildMessage({ source: target, origin: RUNTIME_ORIGIN, data: result('flush-1') }),
     ).toBe(false);
   });
 });
