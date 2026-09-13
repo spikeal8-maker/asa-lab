@@ -29,6 +29,9 @@ const POLICIES: Record<string, string> = {
   latest_accepted: 'последняя принятая',
   teacher_selected: 'выбор преподавателя',
 };
+function stateLabel(item: GradebookEntry) {
+  return item.canonicalState?.flags.includes('legacy_unresolved') ? 'Сдано' : LABELS[item.state];
+}
 function score(item: GradebookEntry) {
   if (item.displayGrade) return item.displayGrade;
   if (item.points !== null && item.maxPoints !== null) return `${item.points}/${item.maxPoints}`;
@@ -408,8 +411,10 @@ export function ClassroomGradebook({ classroomId }: { classroomId: string }): JS
     () => new Map((items ?? []).map((item) => [`${item.seatId}:${item.assignmentId}`, item])),
     [items],
   );
-  const awaiting = (items ?? []).filter((item) =>
-    ['submitted', 'waiting_review', 'evaluating'].includes(item.state),
+  const awaiting = (items ?? []).filter(
+    (item) =>
+      !item.canonicalState?.flags.includes('legacy_unresolved') &&
+      ['submitted', 'waiting_review', 'evaluating'].includes(item.state),
   ).length;
   return (
     <section className="classroom-tab-panel gradebook-panel">
@@ -477,7 +482,7 @@ export function ClassroomGradebook({ classroomId }: { classroomId: string }): JS
                         {item ? (
                           <button
                             className="gradebook-cell"
-                            aria-label={`${label} · ${title} · ${LABELS[item.state]}`}
+                            aria-label={`${label} · ${title} · ${stateLabel(item)}`}
                             disabled={item.state === 'not_applicable'}
                             onClick={() => {
                               setOpened(item);
@@ -488,7 +493,12 @@ export function ClassroomGradebook({ classroomId }: { classroomId: string }): JS
                             <strong>
                               {score(item) ?? (item.state === 'completed' ? 'Без оценки' : '—')}
                             </strong>
-                            <span>{LABELS[item.state]}</span>
+                            <span>{stateLabel(item)}</span>
+                            {item.canonicalState?.flags.includes('legacy_unresolved') ? (
+                              <small>
+                                Историческая сдача: точное immutable evidence не восстановлено
+                              </small>
+                            ) : null}
                             {item.attemptNumber ? (
                               <small>Попытка {item.attemptNumber}</small>
                             ) : null}
