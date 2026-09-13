@@ -129,6 +129,40 @@ async function history(id: string) {
     )
   ).rows;
 }
+async function authoringReceipt(id: string) {
+  const tree: Record<string, unknown> = {};
+  for (const table of ['course_sections', 'course_lessons', 'course_items']) {
+    tree[table] = (
+      await admin.query(
+        'SELECT row_to_json(t)::text AS bytes FROM ' +
+          table +
+          ' t WHERE course_id=$1 ORDER BY row_to_json(t)::text',
+        [id],
+      )
+    ).rows;
+  }
+  return { course: await state(id), tree, versions: await history(id) };
+}
+async function pinRun(id: string, versionNumber = 1) {
+  const classId = (
+    await admin.query(
+      "INSERT INTO classrooms(tenant_id,school_id,academic_period_id,title,created_by) VALUES($1,$2,$3,'Pinned class',$4) RETURNING id",
+      [teacher.tenantId, teacher.schoolId, teacher.periodId, teacher.teacherId],
+    )
+  ).rows[0].id;
+  await admin.query(
+    "INSERT INTO classroom_memberships(tenant_id,classroom_id,user_id,account_id,member_role) VALUES($1,$2,$3,$4,'owner')",
+    [teacher.tenantId, classId, teacher.teacherId, account],
+  );
+  const run = (
+    await app.query(
+      "SELECT * FROM classroom_course_run_assign_v3($1,$2,$3,NULL,$4,'whole_class',NULL,$5)",
+      [principal, classId, id, versionNumber, 'draft:run:' + ++sequence],
+    )
+  ).rows[0];
+  expect(run.result_code).toBe('ok');
+  return run;
+}
 async function runtime() {
   const result: Record<string, unknown> = {};
   for (const table of [
@@ -190,7 +224,8 @@ describe('explicit author draft from one immutable publication', () => {
     ).toBe('heading');
   });
   it('restores legacy assignment index and refuses changed mutable legacy content without any partial write', async () => {
-    const { id } = await course();
+    const { id, v1 } = await course();
+    const run = await pinRun(id);
     const assignment = (
       await admin.query(
         "INSERT INTO teacher_assignments(tenant_id,owner_principal_id,title,brief,module_key,visibility) VALUES($1,$2,'Legacy task','Original brief','electronics','private') RETURNING id",
@@ -289,20 +324,29 @@ describe('explicit author draft from one immutable publication', () => {
         ])
       ).rows[0].publication_state,
     ).toBe('changed');
+    const activeDraft = await authoringReceipt(id);
     expect((await restore(id, v2.version_id)).result_code).toBe('draft_exists');
+    expect(await authoringReceipt(id)).toEqual(activeDraft);
     await publish(id);
-    const before = await state(id);
+    const before = await authoringReceipt(id);
     const content = (await admin.query('SELECT course_snapshot_build($1) AS snapshot', [id]))
       .rows[0].snapshot;
     expect(await restore(id, v2.version_id)).toMatchObject({
       result_code: 'source_not_restorable',
-      draft_revision: before.draft_revision,
+      draft_revision: before.course.draft_revision,
     });
-    expect(await state(id)).toEqual(before);
+    expect(await authoringReceipt(id)).toEqual(before);
     expect(
       (await admin.query('SELECT course_snapshot_build($1) AS snapshot', [id])).rows[0].snapshot,
     ).toEqual(content);
     expect(await runtime()).toEqual(records);
+    expect(
+      (
+        await admin.query('SELECT course_version_id FROM classroom_course_runs WHERE id=$1', [
+          run.run_id,
+        ])
+      ).rows[0].course_version_id,
+    ).toBe(v1.version_id);
   });
   it('distinguishes an identical active draft, rejects retries and concurrent creation, closes latest dedup and retains provenance', async () => {
     const { id, v1 } = await course();
@@ -358,23 +402,7 @@ describe('explicit author draft from one immutable publication', () => {
     'restores historical V1, publishes V4 (edit=%s), preserves all versions and a real V1 run without runtime writes',
     async (edit) => {
       const { id, v1 } = await course();
-      const classId = (
-        await admin.query(
-          "INSERT INTO classrooms(tenant_id,school_id,academic_period_id,title,created_by) VALUES($1,$2,$3,'Pinned class',$4) RETURNING id",
-          [teacher.tenantId, teacher.schoolId, teacher.periodId, teacher.teacherId],
-        )
-      ).rows[0].id;
-      await admin.query(
-        "INSERT INTO classroom_memberships(tenant_id,classroom_id,user_id,account_id,member_role) VALUES($1,$2,$3,$4,'owner')",
-        [teacher.tenantId, classId, teacher.teacherId, account],
-      );
-      const run = (
-        await app.query(
-          "SELECT * FROM classroom_course_run_assign_v3($1,$2,$3,NULL,1,'whole_class',NULL,$4)",
-          [principal, classId, id, 'draft:run:' + ++sequence],
-        )
-      ).rows[0];
-      expect(run.result_code).toBe('ok');
+      const run = await pinRun(id);
       await title(id, 'V2');
       expect((await publish(id)).version_number).toBe(2);
       await title(id, 'V3');
