@@ -1,9 +1,9 @@
 # VSCR-M1-002B — ASA product chrome, localization and identity shell
 
 **Kind:** executable implementation slice  
-**Risk:** medium  
+**Risk:** high  
 **Prerequisite:** accepted VSCR-M1-002D and real editor DOM.  
-**Execution:** coding starts only when `docs/execution/current.yaml.task.id` is `VSCR-M1-002B`, its status is `in_progress`, and milestone `VSCR-M1-002` remains owner-authorised.
+**Execution:** coding starts only when `docs/execution/current.yaml.task.id` is exactly `VSCR-M1-002B` **and** `docs/execution/current.yaml.task.status` is exactly `in_progress`; `docs/execution/current.yaml.primary_lane.milestone.id` must be exactly `VSCR-M1-002` and its `owner_authorization` must be `accepted`.
 
 ## Goal
 
@@ -223,8 +223,10 @@ no hidden Scratch Foundation dependency
 no fourth upstream patch without explicit reviewed decision
 ```
 
-## Review and STOP
+## Bounded self-review
 
 Self-review the exact B diff and browser/network evidence. Confirm language stays in Settings, ASA identity stays parent-owned, category colours stay upstream, File/Extensions behaviour is truthful, `0003` only gates File items, and C/D security/fixture boundaries remain intact.
+
+## Stop
 
 STOP after B evidence. `VSCR-M1-002E` requires separate selection.
