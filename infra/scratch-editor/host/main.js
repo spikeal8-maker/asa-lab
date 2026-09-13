@@ -4,7 +4,13 @@
   const standalone = globalThis.GUI;
   const protocolApi = globalThis.AsaBlocksProtocol;
   const statusApi = globalThis.AsaBlocksStatus;
-  const requiredExports = ['EditorState', 'createStandaloneRoot', 'setAppElement'];
+  const requiredExports = [
+    'EditorState',
+    'createStandaloneRoot',
+    'setAppElement',
+    'ScratchStorage',
+    'buildDefaultProject',
+  ];
 
   if (!shell || !status) {
     throw new Error('ASA Scratch host shell is incomplete');
@@ -50,6 +56,7 @@
   }
 
   let reporter = null;
+  let editor = null;
   const incrementRejections = () => {
     const current = Number.parseInt(shell.dataset.protocolRejections ?? '0', 10) || 0;
     shell.dataset.protocolRejections = String(current + 1);
@@ -58,15 +65,30 @@
   const protocol = protocolApi.createChildProtocol({
     parentWindow: window.parent,
     expectedParentOrigin,
-    onInit() {
+    onInit(session, { hasProjectJson }) {
       reporter = statusApi.createStatusReporter({
         parentWindow: window.parent,
         targetOrigin: expectedParentOrigin,
         getBinding: () => protocol.getBinding(),
       });
       shell.dataset.runtimeState = 'init-accepted';
-      status.textContent = 'Приложение ASA Lab подключено. Редактор ещё не смонтирован.';
+      status.textContent = 'Загрузка учебного проекта… Изменения не сохраняются.';
       reporter.status('init-accepted');
+      try {
+        editor = globalThis.AsaBlocksEditor.mountEditor({
+          standalone,
+          container: document.getElementById('scratch-editor-root'),
+          shell,
+          session,
+          hasProjectJson,
+          onReady() {
+            status.textContent = 'Учебный проект готов. Изменения не сохраняются.';
+            reporter.status('editor-ready');
+          },
+        });
+      } catch {
+        reportFatal('editor_mount_failed');
+      }
     },
     onTokenUpdate() {
       reporter?.status('token-updated');
@@ -76,6 +98,7 @@
     },
     onStop() {
       reporter?.status('stopped');
+      editor?.dispose();
       shell.dataset.runtimeState = 'stopped';
       status.textContent = 'Среда остановлена приложением ASA Lab.';
     },
@@ -87,10 +110,15 @@
     shell.dataset.runtimeState = 'error';
     status.textContent = 'Среда визуального программирования завершилась с ошибкой.';
     reporter.fatal(code);
+    editor?.dispose();
   };
 
   window.addEventListener('error', () => reportFatal('runtime_error'));
   window.addEventListener('unhandledrejection', () => reportFatal('runtime_unhandled_rejection'));
+  window.addEventListener('pagehide', () => {
+    editor?.dispose();
+    protocol.dispose();
+  });
 
   protocol.start();
   shell.dataset.runtimeState = 'awaiting-init';

@@ -22,8 +22,8 @@ Master, ADR, roadmap, component index or previous task cards.
 Actual accepted interfaces:
 
 - `infra/scratch-editor/host/main.js`: `requiredExports` checks the pinned standalone
-  `GUI` API; `onInit` is the composition point after validated INIT. The editor root
-  is currently empty. Put editor composition here or in its own ASA-owned module.
+  `GUI` API; `onInit` is the composition point after validated INIT. It calls
+  `infra/scratch-editor/host/editor.js` to mount the real GUI through fixture storage.
 - `infra/scratch-editor/host/protocol.js`: `createChildProtocol` owns exact source,
   Origin, version, project, nonce, memory-only capability and terminal teardown.
   Its `onInit` callback deliberately receives no token. Read only the relevant
@@ -34,9 +34,12 @@ Actual accepted interfaces:
   binding and session-unique flush pairing. Extend it only if the mapped contract
   actually requires it; storage/editor logic belongs outside protocol modules.
 
-Expected new source: `infra/scratch-editor/host/storage.js`. Expected browser test:
+Fixture adapter: `infra/scratch-editor/host/storage.js`. Browser test:
 `e2e/blocks-host-storage.spec.ts`, with setup/helpers reusable from
 `tools/blocks/browser/`. Update only the storage-adapter entry when paths become real.
+The adapter reuses stock asset bytes already embedded in the pinned bundle. New
+projects omit GUI projectId (technical ID `0`); existing fixtures use only the
+internal `asa-controlled-fixture` ID. Unknown library assets fail explicitly.
 The existing protocol scenarios remain in `tools/blocks/browser/scenarios.mjs`;
 do not insert the editor journey into those security scenarios.
 

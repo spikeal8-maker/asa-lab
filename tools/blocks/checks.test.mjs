@@ -85,6 +85,14 @@ test('stable gate has bounded build/type dependencies and includes the C unit an
   assert.deepEqual(plan.browser, [
     ['node', 'tools/verify-blocks-host-shell.mjs'],
     ['node', 'tools/verify-blocks-host-protocol.mjs'],
+    [
+      'pnpm',
+      'exec',
+      'playwright',
+      'test',
+      '--config',
+      'tools/blocks/browser/playwright.config.mjs',
+    ],
   ]);
   const graph = JSON.parse(read('docs/project-map/nx-project-graph.json')).graph;
   const visited = new Set();

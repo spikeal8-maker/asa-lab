@@ -155,6 +155,21 @@ jobs:
           BLOCKS_PARENT_PORT: 4612
         run: pnpm gate:blocks --browser
 
+      - name: Export built standalone for exact-SHA inspection
+        if: always()
+        run: |
+          mkdir -p reports/blocks
+          docker cp asa-lab-scratch-editor:/usr/share/nginx/html reports/blocks/standalone
+          printf '%s\n' "${{ github.event.pull_request.head.sha || github.sha }}" > reports/blocks/standalone/asa-commit.txt
+
+      - name: Upload standalone and browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: scratch-first-visible-${{ github.event.pull_request.head.sha || github.sha }}
+          path: reports/blocks/
+          retention-days: 14
+
       - name: Show runtime logs
         if: always()
         run: docker logs asa-lab-scratch-editor || true
