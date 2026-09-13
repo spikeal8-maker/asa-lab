@@ -227,6 +227,10 @@ no fourth upstream patch without explicit reviewed decision
 
 Self-review the exact B diff and browser/network evidence. Confirm language stays in Settings, ASA identity stays parent-owned, category colours stay upstream, File/Extensions behaviour is truthful, `0003` only gates File items, and C/D security/fixture boundaries remain intact.
 
+## Independent review
+
+Because B touches the accepted cross-origin identity shell and upstream compatibility patch budget, a reviewer outside the authoring context checks the exact final diff and evidence. Verify that no new language control or translation fork exists, ASA avatar/account authority remains parent-owned, semantic Scratch category colours are unchanged, exactly three approved patches exist, and File/Extensions controls do not claim capabilities owned by later milestones. The reviewer does not edit reviewed product code.
+
 ## Stop
 
-STOP after B evidence. `VSCR-M1-002E` requires separate selection.
+STOP after B evidence and independent review. `VSCR-M1-002E` requires separate selection.
