@@ -227,4 +227,3 @@ E1-only means no same-path edit in main since the merge base. It does not mean i
 - `tests/courses/learning-direct-assignment.pg.spec.ts`
 - `tests/courses/learning-direct-project-attempts.pg.spec.ts`
 - `tests/courses/quiz-engine.pg.spec.ts`
-
