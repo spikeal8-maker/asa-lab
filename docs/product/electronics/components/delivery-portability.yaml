@@ -1,71 +1,63 @@
 schema_version: 1.0.0
 area: delivery-portability
-purpose: "Evidence, portability proof, deployment and rollback boundaries for Electronics."
-
+purpose: Evidence, portability proof, deployment and rollback boundaries for Electronics.
 components:
   electronics.evidence.benchmark:
-    implementation_state: implemented
     ownership: asa
     risk: medium
     contracts:
-      - docs/product/electronics/ASA_ELECTRONICS_OPTIMIZATION_PLAN_V2.md
+    - docs/product/electronics/ASA_ELECTRONICS_OPTIMIZATION_PLAN_V2.md#3-e-opt-0-baseline-golden-corpus-and-benchmark-harness
     sources:
-      - contexts/electronics/testing/benchmark-corpus.ts
-      - contexts/electronics/testing/fixtures/benchmark-golden.v2.json
-      - tools/run-electronics-benchmark.mjs
-      - tools/run-electronics-browser-benchmark.mjs
-      - tools/run-electronics-load-benchmark.mjs
-      - tools/run-electronics-memory-benchmark.mjs
-      - docs/delivery/evidence/electronics-opt0/**
+    - contexts/electronics/testing/benchmark-corpus.ts
+    - contexts/electronics/testing/fixtures/benchmark-golden.v2.json
+    - tools/run-electronics-benchmark.mjs
+    - tools/run-electronics-browser-benchmark.mjs
+    - tools/run-electronics-load-benchmark.mjs
+    - tools/run-electronics-memory-benchmark.mjs
+    - docs/delivery/evidence/electronics-opt0/**
     tests:
-      - contexts/electronics/testing/benchmark-corpus.spec.ts
-    dependencies: [electronics.engine.solver, electronics.arduino.scheduler]
-    notes: "Golden change requires explicit reviewed regeneration; timing evidence is not a reason to weaken deterministic correctness."
-
+    - contexts/electronics/testing/benchmark-corpus.spec.ts
+    dependencies:
+    - electronics.engine.solver
+    - electronics.arduino.scheduler
+    notes: Golden change requires explicit reviewed regeneration; timing evidence is not a reason to weaken deterministic
+      correctness.
   electronics.portability.standalone:
-    implementation_state: planned
     ownership: asa
     risk: high
     contracts:
-      - docs/product/electronics/ASA_ELECTRONICS_OPTIMIZATION_PLAN_V2.md
-      - docs/product/electronics/DEVELOPMENT_SPEC.md
+    - docs/product/electronics/ASA_ELECTRONICS_OPTIMIZATION_PLAN_V2.md#11-e-opt-8-portability-proof
+    - docs/product/electronics/DEVELOPMENT_SPEC.md#1-system-layers
     sources: []
-    tests: []
     dependencies:
-      - electronics.engine.public-api
-      - electronics.worker.protocol
-      - electronics.clock.canonical
-      - electronics.arduino.runtime
-    notes: "Must prove use without React/ASA API/PostgreSQL, not merely describe it."
-
+    - electronics.engine.public-api
+    - electronics.worker.protocol
+    - electronics.clock.canonical
+    - electronics.arduino.runtime
+    notes: Must prove use without React/ASA API/PostgreSQL, not merely describe it.
   electronics.delivery.deployment:
-    implementation_state: established_process
     ownership: infrastructure
     risk: critical
     contracts:
-      - AGENTS.md#4-порты-и-данные
-      - docs/delivery/AGENT_CHANGE_WORKFLOW.md
-      - docs/product/electronics/tasks/DEPLOYMENT_TASK_TEMPLATE.md
+    - AGENTS.md#4-порты-и-данные
+    - docs/delivery/AGENT_CHANGE_WORKFLOW.md#5-обнови-существующую-docker-установку
+    - docs/product/electronics/tasks/DEPLOYMENT_TASK_TEMPLATE.md#target
     sources:
-      - compose.yaml
-      - compose.production.yaml
-      - docker/**
-    tests:
-      - health/version/schema checks
+    - compose.yaml
+    - compose.production.yaml
+    - docker/**
     dependencies: []
-    notes: "Deploy exact gated SHA only. Push/merge is not deployment."
-
+    notes: Deploy exact gated SHA only. Push/merge is not deployment.
   electronics.delivery.rollback:
-    implementation_state: established_process
     ownership: infrastructure
     risk: critical
     contracts:
-      - docs/product/electronics/tasks/DEPLOYMENT_TASK_TEMPLATE.md
+    - docs/product/electronics/tasks/DEPLOYMENT_TASK_TEMPLATE.md#rollback-prepared-before-switch
+    - docs/delivery/AGENT_CHANGE_WORKFLOW.md#7-резервная-копия-и-восстановление
     sources: []
-    tests: []
-    dependencies: [electronics.delivery.deployment]
-    notes: "Backup/rollback must exist before switching live containers or persistence."
-
+    dependencies:
+    - electronics.delivery.deployment
+    notes: Backup/rollback must exist before switching live containers or persistence.
 rules:
   deploy_moving_main: forbidden
   deploy_unreviewed_sha: forbidden

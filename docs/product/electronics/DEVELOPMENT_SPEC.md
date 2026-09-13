@@ -189,7 +189,7 @@ If `main` advances while the deployment gate runs, deploy the already-gated SHA;
 
 ## 11. Documentation maintenance
 
-`COMPONENT_MAP.yaml` stays compact. Subsystem cards hold implementation state/risk/ownership/source/test/dependencies. The normative README holds product behaviour. The roadmap holds dependency order. Task cards hold one executable slice.
+`COMPONENT_MAP.yaml` stays compact. Subsystem cards hold stable risk/ownership/contracts/source/symbol/test/dependency routing only. They do **not** hold readiness or implementation status; the roadmap/capability evidence owns that changing state. The normative README holds product behaviour. The roadmap holds dependency order. Task cards hold one executable slice.
 
 If two documents disagree about the same responsibility, STOP and repair the canonical source instead of making the coding agent choose.
 

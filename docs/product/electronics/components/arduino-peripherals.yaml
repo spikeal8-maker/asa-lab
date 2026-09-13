@@ -1,109 +1,159 @@
 schema_version: 1.0.0
 area: arduino-peripherals
-purpose: "Arduino source-level runtime, scheduler, capability registry and timing-sensitive peripherals."
-
+purpose: Arduino source-level runtime, scheduler, capability registry and timing-sensitive peripherals.
 components:
   electronics.arduino.runtime:
-    implementation_state: implemented_subset_needs_hardening
     ownership: asa
     risk: high
     contracts:
-      - docs/product/electronics/README.md
-      - docs/product/electronics/ASA_ELECTRONICS_OPTIMIZATION_PLAN_V2.md
+    - docs/product/electronics/README.md#15-arduino-и-программирование
+    - docs/product/electronics/ASA_ELECTRONICS_OPTIMIZATION_PLAN_V2.md#8-e-opt-5-arduino-runtime-hardening
     sources:
-      - contexts/electronics/domain/arduino-program-runtime.ts
-      - contexts/electronics/domain/arduino-values.ts
-      - contexts/electronics/domain/arduino-model.ts
+    - contexts/electronics/domain/arduino-program-runtime.ts
+    - contexts/electronics/domain/arduino-values.ts
+    - contexts/electronics/domain/arduino-model.ts
     tests:
-      - contexts/electronics/testing/**
-    dependencies: [electronics.clock.canonical]
-    notes: "Educational deterministic subset; not arbitrary AVR/Uno emulation."
-
+    - contexts/electronics/testing/arduino-correctness.spec.ts
+    - contexts/electronics/testing/arduino-runtime-state.spec.ts
+    - contexts/electronics/testing/arduino-values.spec.ts
+    dependencies:
+    - electronics.clock.canonical
+    notes: Educational deterministic subset; not arbitrary AVR/Uno emulation.
+    symbols:
+    - analyseArduinoProgramSyntax
+    - advanceArduinoRuntime
+    - advanceClockedArduinoRuntime
+    - resetArduinoRuntime
   electronics.arduino.scheduler:
-    implementation_state: implemented_foundation
     ownership: asa
     risk: high
     contracts:
-      - docs/product/electronics/ASA_ELECTRONICS_OPTIMIZATION_PLAN_V2.md
+    - docs/product/electronics/ASA_ELECTRONICS_OPTIMIZATION_PLAN_V2.md#6-e-opt-3-canonical-electronics-clock
+    - docs/product/electronics/ASA_ELECTRONICS_OPTIMIZATION_PLAN_V2.md#8-e-opt-5-arduino-runtime-hardening
     sources:
-      - contexts/electronics/domain/arduino-circuit-scheduler.ts
+    - contexts/electronics/domain/arduino-circuit-scheduler.ts
     tests:
-      - contexts/electronics/testing/**
-      - contexts/electronics/testing/benchmark-corpus.spec.ts
-    dependencies: [electronics.arduino.runtime, electronics.clock.canonical]
-    notes: "Existing scheduler is the foundation for canonical orchestration; do not create a third scheduler."
-
+    - contexts/electronics/testing/arduino-circuit-scheduler.spec.ts
+    - contexts/electronics/testing/arduino-execution-clock.spec.ts
+    - contexts/electronics/testing/arduino-rc-clock.spec.ts
+    dependencies:
+    - electronics.arduino.runtime
+    - electronics.clock.canonical
+    notes: Existing scheduler is the foundation for canonical orchestration; do not create a third scheduler.
+    symbols:
+    - advanceArduinoCircuitClock
   electronics.arduino.capabilities:
-    implementation_state: implemented
     ownership: asa
     risk: medium
     contracts:
-      - docs/product/electronics/README.md
+    - docs/product/electronics/README.md#15-arduino-и-программирование
     sources:
-      - contexts/electronics/domain/arduino-capabilities.ts
+    - contexts/electronics/domain/arduino-capabilities.ts
     tests:
-      - contexts/electronics/testing/**
-    dependencies: [electronics.arduino.runtime]
-
+    - contexts/electronics/testing/arduino-capabilities.spec.ts
+    - apps/web/src/electronics/testing/arduino-code-contract.spec.ts
+    dependencies:
+    - electronics.arduino.runtime
+    symbols:
+    - ARDUINO_BLOCK_SUPPORT
+    - analyseArduinoSourceSupport
   electronics.peripheral.servo:
-    implementation_state: planned
     ownership: asa
     risk: high
-    dependencies: [electronics.clock.canonical, electronics.arduino.runtime]
-    prerequisites: ["canonical time accepted", "microsecond/timed output semantics accepted"]
-    forbidden: ["UI timers as physical truth", "special-case timing outside peripheral runtime"]
-
+    dependencies:
+    - electronics.clock.canonical
+    - electronics.arduino.runtime
+    prerequisites:
+    - canonical time accepted
+    - microsecond/timed output semantics accepted
+    forbidden:
+    - UI timers as physical truth
+    - special-case timing outside peripheral runtime
+    contracts:
+    - docs/product/electronics/ASA_ELECTRONICS_OPTIMIZATION_PLAN_V2.md#9-e-opt-6-sensors-and-peripherals
   electronics.peripheral.ultrasonic:
-    implementation_state: planned
     ownership: asa
     risk: high
-    dependencies: [electronics.clock.canonical, electronics.arduino.runtime]
-    prerequisites: ["trigger/echo event model", "pulseIn/time-of-flight foundation"]
-    forbidden: ["fake distance from UI delay", "browser wall-clock as pulse duration"]
-
+    dependencies:
+    - electronics.clock.canonical
+    - electronics.arduino.runtime
+    prerequisites:
+    - trigger/echo event model
+    - pulseIn/time-of-flight foundation
+    forbidden:
+    - fake distance from UI delay
+    - browser wall-clock as pulse duration
+    contracts:
+    - docs/product/electronics/ASA_ELECTRONICS_OPTIMIZATION_PLAN_V2.md#9-e-opt-6-sensors-and-peripherals
   electronics.peripheral.pir:
-    implementation_state: planned
     ownership: asa
     risk: medium
-    dependencies: [electronics.clock.canonical, electronics.arduino.runtime]
-    prerequisites: ["input event clock"]
-
+    dependencies:
+    - electronics.clock.canonical
+    - electronics.arduino.runtime
+    prerequisites:
+    - input event clock
+    contracts:
+    - docs/product/electronics/ASA_ELECTRONICS_OPTIMIZATION_PLAN_V2.md#9-e-opt-6-sensors-and-peripherals
   electronics.peripheral.serial:
-    implementation_state: planned
     ownership: asa
     risk: high
-    dependencies: [electronics.arduino.runtime]
-    prerequisites: ["serial runtime/state contract", "bounded buffer semantics"]
-
+    dependencies:
+    - electronics.arduino.runtime
+    prerequisites:
+    - serial runtime/state contract
+    - bounded buffer semantics
+    contracts:
+    - docs/product/electronics/ASA_ELECTRONICS_OPTIMIZATION_PLAN_V2.md#9-e-opt-6-sensors-and-peripherals
   electronics.peripheral.i2c:
-    implementation_state: planned
     ownership: asa
     risk: high
-    dependencies: [electronics.arduino.runtime, electronics.clock.canonical]
-    prerequisites: ["bus model", "addressing/error semantics"]
-
+    dependencies:
+    - electronics.arduino.runtime
+    - electronics.clock.canonical
+    prerequisites:
+    - bus model
+    - addressing/error semantics
+    contracts:
+    - docs/product/electronics/ASA_ELECTRONICS_OPTIMIZATION_PLAN_V2.md#9-e-opt-6-sensors-and-peripherals
   electronics.peripheral.spi:
-    implementation_state: planned
     ownership: asa
     risk: high
-    dependencies: [electronics.arduino.runtime, electronics.clock.canonical]
-
+    dependencies:
+    - electronics.arduino.runtime
+    - electronics.clock.canonical
+    contracts:
+    - docs/product/electronics/ASA_ELECTRONICS_OPTIMIZATION_PLAN_V2.md#9-e-opt-6-sensors-and-peripherals
   electronics.peripheral.ir:
-    implementation_state: planned
     ownership: asa
     risk: high
-    dependencies: [electronics.arduino.runtime, electronics.clock.canonical]
-    prerequisites: ["timed edge/event representation"]
-
+    dependencies:
+    - electronics.arduino.runtime
+    - electronics.clock.canonical
+    prerequisites:
+    - timed edge/event representation
+    contracts:
+    - docs/product/electronics/ASA_ELECTRONICS_OPTIMIZATION_PLAN_V2.md#9-e-opt-6-sensors-and-peripherals
   electronics.peripheral.neopixel:
-    implementation_state: planned
     ownership: asa
     risk: high
-    dependencies: [electronics.arduino.runtime, electronics.clock.canonical]
-    prerequisites: ["timing-sensitive output representation"]
-
+    dependencies:
+    - electronics.arduino.runtime
+    - electronics.clock.canonical
+    prerequisites:
+    - timing-sensitive output representation
+    contracts:
+    - docs/product/electronics/ASA_ELECTRONICS_OPTIMIZATION_PLAN_V2.md#9-e-opt-6-sensors-and-peripherals
 rules:
   add_peripheral_only_when_prerequisites_accepted: true
   ui_timer_may_define_physics: false
   unsupported_api_must_fail_before_partial_execution: true
-  next_wave_order: [servo, ultrasonic, pir, serial, i2c, spi, ir, neopixel]
+  next_wave_order:
+  - servo
+  - ultrasonic
+  - pir
+  - serial
+  - i2c
+  - spi
+  - ir
+  - neopixel
