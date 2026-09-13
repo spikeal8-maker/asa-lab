@@ -1,614 +1,638 @@
-# ASA Games Platform — Execution Plan
+# ASA Games Platform — Execution Plan V2
 
-**Status:** Draft planning contract  
-**Rule:** no production migration or new game-specific online backend before architecture gates are accepted  
-**Base:** documentation branch only
+**Статус:** Proposed execution decomposition  
+**Нормативный порядок:** `ASA_GAMES_PLATFORM_VALUE_DELIVERY_PLAN.md`  
+**Главное ТЗ:** `ASA_GAMES_PLATFORM_TECHNICAL_SPECIFICATION_V2.md`
 
-## 1. Delivery strategy
+Этот документ НЕ задаёт отдельный roadmap. Он только разбивает `R0–R9` на bounded implementation tasks.
 
-Games Platform is delivered in small, reversible slices. Logical boundaries are introduced before physical services. Existing Chess/Checkers remain operational until certification and compatibility gates prove the generic path.
+---
 
-Key rules:
+# 1. Правила выполнения
 
-1. No destructive chess/checkers migration in the same release that introduces generic tables/contracts.
-2. No force migration of current users/identity into a new Games auth model.
-3. No Kubernetes/Redis/Kafka dependency unless a later task contains measured justification.
-4. Every new shared contract has a fake/in-memory test implementation before production wiring.
-5. Every runtime path has explicit privacy/cross-tenant negative tests.
-6. Command and realtime-room paths are certified separately.
-7. Mature chess/checkers migrate only after third-game certification proves abstraction quality.
-8. All public DTOs are reviewed for internal identity leakage.
-9. Ratings/stats are never trusted from client-supplied result.
-10. Existing API paths remain compatibility surfaces until their replacement is evidence-backed.
+1. Выполняется только текущий R-stage.
+2. Каждый task ссылается на конкретные требования V2.
+3. Один task не расширяет scope соседних stages.
+4. Existing Checkers/Chess rules/bots/UI не переписываются без необходимости.
+5. Merge != migration != feature enablement != production deploy.
+6. Не больше одного инфраструктурного prerequisite подряд без пользовательского результата.
+7. Любая новая shared abstraction должна получить повторное использование/сертификацию до дальнейшего расширения.
+8. Redis/Kafka/Kubernetes/Agones/WebTransport запрещены как baseline dependency без отдельного measured justification.
+9. Реальный multiplayer stage не считается завершённым без multi-client evidence.
+10. Если найдено противоречие с R0 boundary, работа останавливается и возвращается на architecture review.
 
-## 2. Milestones
+---
 
-```text
-GP-M0  Architecture and current-state acceptance
-GP-M1  Game SDK and Registry
-GP-M2  Identity + Match Core persistence
-GP-M3  Command runtime certification
-GP-M4  Social/invite/party + Matchmaker
-GP-M5  Rating + Statistics + History
-GP-M6  Realtime Gateway
-GP-M7  Realtime Room Runtime certification
-GP-M8  Chess migration
-GP-M9  Checkers migration
-GP-M10 Events/Tournaments/scale-out hardening
-```
+# 2. R0 — Architecture Freeze
 
-## 3. GP-M0 — Architecture and current-state acceptance
+## R0-001 Gaming Identity ADR
 
-### GP-000 Current-state audit
+Закрыть `GP-R0-001`:
 
-**Goal:** verify reuse/migration boundaries against repository reality.
+- principal → GamePlayerProfile mapping;
+- Account/StudentSeat behavior;
+- migration/merge;
+- suspend/delete/anonymize;
+- public-safe DTO;
+- no second login system.
 
-Deliverables:
+**Exit:** identity contract accepted; schema implementation ещё не требуется.
 
-- Chess Live decomposition;
-- Checkers online/classroom/session decomposition;
-- identity/classroom mapping;
-- PostgreSQL/RLS baseline;
-- deployment baseline;
-- realtime gateway baseline;
-- security/capacity inheritance;
-- risk register.
+## R0-002 Games Security Domain ADR
 
-Acceptance:
+Закрыть `GP-R0-002`:
 
-- no claim contradicts current code/migrations;
-- generic vs game-specific chess concepts explicitly separated;
-- deployment document reflects actual Compose topology;
-- unresolved cross-tenant global matchmaking is called out, not hidden.
+- global/cross-workspace match placement;
+- rating/ticket/profile storage boundary;
+- classroom/tenant authorization bridge;
+- RLS/global authorization model;
+- negative-test strategy.
 
-### GP-001 Boundary ADR
+**Exit:** запрещено оставлять решение «возьмём tenant одного игрока».
 
-**Goal:** accept Control Plane / Command Runtime / Gateway / Room Runtime boundaries.
+## R0-003 Canonical Match ADR
 
-Acceptance:
+Закрыть `GP-R0-003..005`:
 
-- architecture represents Checkers, Chess, Tic-Tac-Toe, 8-player FFA and 4v4 Arena;
-- command and realtime runtime contracts differ intentionally;
-- server authority mandatory;
-- no mandatory new infrastructure product;
-- migration/certification order accepted.
+- independent dimensions admission/competition/scope/runtime/topology;
+- state machine;
+- termination reasons;
+- first-class teams;
+- participant model;
+- no game-specific columns.
 
-**Blocker:** no GP-M1 implementation until ADR accepted.
+## R0-004 Minimal Capability Vocabulary
 
-## 4. GP-M1 — Game SDK and Registry
+Закрыть `GP-R0-006` только для R1–R4.
 
-### GP-002 `@asa-lab/game-sdk` foundation
+Не проектировать весь creator/device/network permission catalog заранее.
 
-Implement framework-independent types only:
+## R0-005 Error and idempotency contract
 
-- `GameManifestV1`;
-- capabilities;
-- topology;
-- runtime kind;
-- lifecycle;
-- recovery policy;
-- common outcome/participant contracts;
-- Command adapter interfaces;
-- Realtime adapter interfaces;
-- optional bot/custom metrics descriptors;
-- version fields.
+До R1 определить:
 
-Acceptance tests:
+- request idempotency key convention;
+- commandId semantics;
+- machine-readable error taxonomy;
+- version conflict behavior;
+- rate/payload baseline.
 
-- manifests for checkers/chess/XO/Arena validate without game-name branches;
-- impossible combinations rejected (e.g. `rated=true` with no rating policy);
-- version fields required;
-- SDK imports no React/NestJS/PostgreSQL/Redis/Agones.
+## R0 Acceptance
 
-### GP-003 Game Registry
+- 4 решения выше review-accepted;
+- Master V2 + Value Plan + Traceability согласованы;
+- ни одной общей Games SQL migration ещё не создано на предположениях;
+- следующий Delivery Brief — R1.
 
-Add `GameRegistry` analogous in discipline to ModuleRegistry.
+---
 
-Responsibilities:
+# 3. R1 — Checkers Online: Private Match
 
-- unique gameKey;
-- manifest validation;
-- provider/adapter availability;
-- feature capability lookup;
-- game/version compatibility lookup;
-- public catalog projection.
+**Пользовательский результат:** A приглашает B и оба завершают сетевую партию шашек.
 
-Acceptance:
+## R1-001 Minimal Game Registry
 
-- no game-specific switch in registry core;
-- inactive/event-expired games cannot admit new matches;
-- registry can expose public capability summary without implementation secrets.
+Только необходимые функции:
 
-### GP-004 Developer conformance harness
+- register `checkers`;
+- pinned versions;
+- command runtime capability;
+- enable/disable admission.
 
-Create reusable tests/helpers for game authors:
+Не строить creator registry/release channels.
 
-- manifest contract;
-- deterministic command adapter tests;
-- public-state privacy tests;
-- outcome schema tests;
-- bot provider contract;
-- custom metrics validation.
+## R1-002 GamePlayerProfile persistence/resolver
 
-## 5. GP-M2 — Gaming identity and Match Core
+Реализовать только принятый R0 identity contract.
 
-### GP-005 Game player identity projection
+Tests:
 
-Create public-safe gaming identity linked to existing Principal/Account direction.
+- same principal resolves stable profile;
+- class change does not change profile;
+- public DTO redaction;
+- suspend path.
 
-Before schema implementation, resolve open policy:
+## R1-003 Minimal Match persistence
 
-- Account vs StudentSeat principal path;
-- default alias/visibility for minors;
-- whether cross-tenant public identity is enabled at all in first release.
+Additive schema:
 
-Acceptance:
+- game_matches;
+- game_match_participants;
+- game_match_teams if topology teams support is required by canonical schema;
+- command state;
+- game events;
+- command receipts;
+- outbox.
 
-- changing classroom membership does not change game player identity;
-- public DTO never contains account/principal/learner/email IDs;
-- suspended/deleted identity behavior defined;
-- current ASA session remains authentication source.
+Tests:
 
-### GP-006 Generic Match schema
+- clean/existing DB migration;
+- restricted-role authorization/RLS;
+- append-only events;
+- expectedVersion race;
+- atomic finish+outbox.
 
-Additive migration only:
+## R1-004 Match application service
 
-- `game_matches`;
-- `game_match_participants`;
-- command-game state storage;
-- `game_events`;
-- `game_command_receipts`;
-- `outbox_events` if shared platform outbox not yet materialized;
-- game-specific metrics table.
-
-Acceptance:
-
-- RLS/authorization design approved;
-- duel/FFA/team/co-op fixtures persist;
-- optimistic version conflict tested;
-- durable events append-only;
-- no `white_player_id`, `black_player_id` platform columns;
-- migration works from clean DB and existing DB.
-
-### GP-007 Generic Match application service
-
-Implement lifecycle:
+Minimal lifecycle needed by private duel:
 
 ```text
-create/reserve
-ready
+create/wait
 start
-apply command (command runtime)
+apply command
 finish
-abort/cancel
-get/reconnect/history
+cancel/abort
+reconnect
+history
 ```
 
-Acceptance:
+## R1-005 Checkers CommandGameAdapter
 
-- authoritative outcome only from adapter/runtime;
-- finish and outbox atomic;
-- duplicate command idempotent;
-- unauthorized seat rejected;
-- game/version pinned.
+Reuse current Russian-64 rules and CK-105 session foundation where useful.
 
-## 6. GP-M3 — Command runtime certification
+Forbidden:
 
-### GP-008 Command Runtime V1
+- rules rewrite;
+- second rules engine;
+- rating logic;
+- quick queue.
 
-Connect registered `CommandGameAdapter` to Match Core.
+## R1-006 Generic private invite
 
-Acceptance:
+Directed invite only.
 
-- command envelope uses `commandId + expectedVersion`;
-- canonical state stored durably;
-- viewer-aware public state supported;
-- hidden-information test fixture supported;
-- HTTP correctness independent of WebSocket.
+Need:
 
-### GP-009 Tic-Tac-Toe certification game
+- create;
+- accept;
+- decline/cancel/expiry;
+- accept creates one match;
+- retry safe.
 
-Implement deliberately small game:
+Link/public-code invite can wait unless required by agreed R1 UX.
 
-- X/O rules;
+## R1-007 Checkers online UI
+
+First screen should make `Играть с другом` discoverable.
+
+User journey:
+
+```text
+A invite
+B receives/opens
+same match
+moves synchronize
+finish
+history
+```
+
+## R1-008 Delivery/reconnect
+
+Use smallest safe delivery mechanism.
+
+Correctness remains HTTP/snapshot authoritative. If minimal WebSocket push is introduced, do not build full Gateway features not required by R1.
+
+## R1-009 Browser acceptance
+
+Two isolated accounts/browser contexts:
+
+- invite;
+- accept;
+- move A/B;
+- forced capture/multi-capture preserved;
+- duplicate request;
+- version conflict;
+- disconnect/reconnect;
+- finish;
+- history same result both sides.
+
+## R1 Exit
+
+User result demonstrated. No claim of Quick/Rating/Creator/Realtimes.
+
+---
+
+# 4. R2 — Quick Match + Generic Command Proof
+
+**Пользовательский результат:** Checkers Quick Match + Tic-Tac-Toe on same core.
+
+## R2-001 Generic Matchmaking Duel V1
+
+Only duel/casual first:
+
+- join;
+- cancel;
+- expiry;
+- pair;
+- version/scope compatibility;
+- one active compatible ticket;
+- pair race protection.
+
+No team/region complexity unless test fixture requires representability only.
+
+## R2-002 Checkers Quick Match
+
+Wire existing Checkers adapter into generic matcher.
+
+## R2-003 Tic-Tac-Toe certification
+
+Implement minimal:
+
+- rules;
+- adapter;
 - renderer;
-- optional perfect/simple bot;
-- no custom online backend.
+- no bespoke network repository/controller.
 
-It MUST receive from platform:
+Must reuse:
 
-- match lifecycle;
-- command idempotency;
+- Registry;
+- Match Core;
+- commands;
 - reconnect;
 - history;
-- common stats source;
-- later invites/matchmaking automatically.
+- Quick Match.
 
-Acceptance gate:
+## R2-004 Abstraction review
 
-> If Tic-Tac-Toe requires a bespoke controller/repository for match lifecycle, GP-M2/M3 architecture is rejected and redesigned before Chess/Checkers migration.
+If XO requires game-name branches or duplicate services, stop and simplify architecture before R3.
 
-## 7. GP-M4 — Invites, Party, social directory and Matchmaker
+## R2 Exit
 
-### GP-010 Invite service
+Quick Match demonstrated in Checkers and generic command core proven by second game.
 
-Generic directed and code/link invites.
+---
 
-Acceptance:
+# 5. R3 — Competitive Checkers
 
-- idempotent create/accept/cancel;
-- expiry;
-- game capability validation;
-- block/privacy policy hook;
-- accept creates exactly one Match;
-- public identity only.
+**Пользовательский результат:** Rated Checkers + profile/stats/leaderboard.
 
-### GP-011 Game social directory
+## R3-001 Rating policy interface
 
-Adapters/providers:
+Implement generic pinned policy contract.
 
-- Classroom relationships;
-- recent opponents;
-- future friends;
-- event participants.
+Only production policy needed now: Checkers standard rated duel.
 
-Acceptance:
+Do not implement multiple speculative algorithms.
 
-- Games Core does not own classroom membership;
-- classroom-only view cannot leak to global public view;
-- aggregated classmates work from Games Hub.
+## R3-002 Immutable rating events/current state
 
-### GP-012 Party V1
+- server-authoritative finished match only;
+- unique match/player/pool application;
+- current/peak/provisional as needed;
+- retry safe.
 
-Required for team/co-op future games.
+## R3-003 Stats projections
 
-Acceptance:
+Minimum Checkers product:
 
-- leader/member lifecycle;
-- invite/join/leave;
-- party admission policy;
-- party cannot queue conflicting matches simultaneously;
-- duel games may bypass party.
-
-### GP-013 Matchmaker V1
-
-Generic tickets/pools/policy.
-
-Initial supported grouping:
-
-- duel quick;
-- duel rated;
-- party/team-size compatible test fixture.
-
-Acceptance:
-
-- tickets scoped by game/version/mode;
-- widening skill window policy testable;
-- blocked/incompatible players not paired;
-- same player cannot hold conflicting active tickets;
-- pairing transaction creates one match;
-- matchmaker has no game rule imports.
-
-## 8. GP-M5 — Rating, stats, profile, history
-
-### GP-014 Rating policy framework
-
-Define generic policy interface and immutable rating events.
-
-Acceptance:
-
-- policy selected by pinned game/pool version;
-- duel policy fixture passes;
-- team/placement interface representable even if not production enabled;
-- retry cannot double-rate match;
-- bot/local/unrated modes excluded by policy.
-
-### GP-015 Existing Chess rating compatibility study
-
-Before replacing ASA Elo:
-
-- compare existing chess calculations;
-- decide keep-as-policy `chess-asa-elo-v1` vs migration to another algorithm;
-- no silent historical recomputation under a new algorithm.
-
-### GP-016 Common stats projectors
-
-Implement rebuildable projections:
-
-- games/WDL/win rate;
-- streak;
+- games;
+- W/D/L;
+- win rate;
+- current/best streak;
 - recent form;
-- seat split;
-- placement;
-- head-to-head;
-- bots;
-- rating history/peak.
+- light/dark split;
+- current/peak rating;
+- H2H where allowed.
 
-Acceptance:
+## R3-004 Checkers Rated Match
 
-- rebuild from source produces same result;
-- duplicate outbox delivery harmless;
-- custom metrics schema isolation;
-- no stats source exists only as mutable counter.
+Generic matcher uses competition_kind=rated and rating pool.
 
-### GP-017 Games Profile / History / Leaderboards API
+## R3-005 Profile/History/Leaderboard UI
 
-Privacy-aware endpoints and DTOs.
+Deliver usable Checkers profile.
 
-Acceptance:
+## R3-006 Competitive E2E
 
-- self/private/public/classroom scopes tested;
-- no internal IDs;
-- leaderboards per game/pool, not universal rating;
-- classroom leaderboard requires relationship/access policy.
+- rated pairing;
+- authoritative result;
+- delta shown;
+- projector retry;
+- no double rate;
+- bot/local/private casual excluded;
+- leaderboard converges.
 
-## 9. GP-M6 — Realtime Gateway
+## R3 Exit — Games Core Alpha
 
-### GP-018 Control realtime protocol V1
+Checkers online is independently useful even if later stages are never built.
 
-Specify and implement:
+---
 
-- HELLO/auth;
-- subscriptions;
-- player personal topic;
-- party/match topics;
-- invite/match-found/match-event/rating messages;
-- sequence/resync semantics.
+# 6. R4 — Chess Convergence
 
-### GP-019 Gateway security/backpressure
+**Пользовательский результат:** Chess and Checkers share platform services.
 
-Acceptance:
+## R4-001 Chess mapping/parity study
 
-- origin/auth validation;
-- per-subscription authorization;
-- strict schemas;
-- max payload/rate/connection limits;
-- heartbeat/idle timeout;
-- bounded outbound queues;
-- slow consumer handling;
-- no PII logs.
+Map existing `chess-live` concepts:
 
-### GP-020 Gateway deployment
+Generic donor:
 
-Add service to dev/test before production.
+- receipts;
+- versions;
+- event sequence;
+- matchmaking patterns;
+- rating ledger;
+- reconnect.
 
-Load gates at minimum:
+Chess-owned:
 
-- 500 connections L1 with safety margin;
-- reconnect storm;
-- event fanout;
-- slow consumer memory behavior;
-- graceful drain/restart.
+- white/black semantics;
+- FEN/SAN/UCI;
+- chess clock/rating pool semantics.
 
-Only then add to production Compose.
+## R4-002 Chess Command adapter
 
-## 10. GP-M7 — Realtime Room Runtime
+Wrap mature chess logic without rewriting behavior.
 
-### GP-021 Room Runtime Protocol V1
+## R4-003 Shadow projection
 
-Implement language-neutral envelopes/contracts:
+Representative existing games/events/ratings → generic model.
 
-- room token;
-- input sequence;
-- server tick;
-- snapshots/deltas;
-- input acknowledgement;
-- resync;
-- final outcome;
-- room health/lifecycle.
+Must compare:
 
-### GP-022 GameRoomAllocator V1
+- participants;
+- result/termination;
+- command/event ordering;
+- rating deltas;
+- history counts.
 
-First adapter may target one configured runtime.
+## R4-004 Compatibility delegation
 
-Acceptance:
+New chess matches may use Games Core behind existing API contract.
 
-- compatibility/version/capacity checked;
-- room allocation idempotent;
-- lost/expired room detected;
-- match status transitions correctly;
-- allocator contract has no Docker/Kubernetes-specific API.
+## R4-005 Cutover/rollback evidence
 
-### GP-023 `game-runtime` initial service
+No destructive legacy cleanup.
 
-One isolated Docker runtime process.
+## R4 Exit — Games Core V1
 
-Rules:
+Two mature games use the platform without duplicate new generic services.
 
-- no direct account DB access;
-- short-lived room tokens;
-- resource limits;
-- health/readiness;
-- room lifecycle;
-- metrics.
+---
 
-### GP-024 ASA Arena Mini certification
+# 7. R5 — Classroom Social Play
 
-Minimal gameplay, not product polish:
+**Пользовательский результат:** classmates/recent opponents discovery + invites + classroom leaderboard/H2H.
 
-- 4–8 players;
-- move around small 2D map;
-- collect/hold objectives or points;
-- 60 second round;
-- authoritative score/position;
-- 30 Hz target (subject to measurement).
+## R5-001 Social Directory providers
 
-Certification proves:
+- Classroom provider;
+- Recent Opponents provider.
 
-- matchmaking→allocation→room;
-- token isolation;
-- server-authoritative input;
-- snapshots;
-- interpolation/prediction basics;
+No hidden friend graph.
+
+## R5-002 Privacy policy matrix
+
+Test:
+
+- same class;
+- different class;
+- different tenant/workspace;
+- teacher/student;
+- global public projection.
+
+## R5-003 Incoming challenge notifications
+
+Use platform delivery path; no game-specific polling loops.
+
+## R5-004 Classroom leaderboard/H2H
+
+Restricted scope only.
+
+## R5 Exit — School Games V1
+
+Checkers and Chess both gain the same classroom social layer.
+
+---
+
+# 8. R6 — Realtime Platform + Arena Mini
+
+**Пользовательский результат:** 4-player FFA and 2v2 Arena sessions work online.
+
+## R6-001 Realtime Gateway V1
+
+Implement only required control-plane realtime:
+
+- auth;
+- typed subscriptions;
+- match/invite notifications;
+- presence where product uses it;
+- bounded queues;
+- reconnect/resubscribe;
+- health/metrics.
+
+## R6-002 Room Runtime Protocol V1
+
+Language-neutral logical protocol:
+
+- HELLO/WELCOME;
+- INPUT/ACK;
+- SNAPSHOT/DELTA;
+- RESYNC;
+- GAME_EVENT;
+- MATCH_END;
+- PING/PONG.
+
+## R6-003 Room credentials
+
+Short-lived signed scoped token.
+
+## R6-004 Allocator V1 + fencing
+
+First implementation may use one runtime, but contract includes:
+
+- allocationGeneration;
+- lease/fencing token;
+- version/capacity/health checks;
+- authoritative callback validation;
+- release/lost/timeout behavior.
+
+## R6-005 `game-runtime` initial service
+
+No account DB/session secrets; resource limits; health; metrics.
+
+## R6-006 Arena Mini FFA
+
+4 players, simple movement/objective/60-second round.
+
+## R6-007 Arena Mini 2v2
+
+Prove first-class team semantics and party/team outcome path.
+
+## R6-008 Failure/load certification
+
+- malicious position/score claim rejected;
 - reconnect;
-- disconnect grace;
-- outcome→Match Core;
-- stats/history;
-- room crash policy;
-- tick SLO/metrics.
+- slow consumer;
+- room crash;
+- stale allocator callback fenced;
+- tick budget/load;
+- outcome to Match Core.
 
-Hard gate:
+## R6 Exit — Realtime Games V1
 
-> Chess/Checkers are not migrated merely because command path works. GP-024 proves platform is not board-game-shaped.
+Platform is proven beyond board games.
 
-## 11. GP-M8 — Chess migration
+---
 
-### GP-025 Chess generic adapter
+# 9. R7 — Creator Web Games MVP
 
-Wrap existing chess rules/state behind CommandGameAdapter without changing user-visible online API yet.
+**Пользовательский результат:** student web game safely published to classroom.
 
-### GP-026 Shadow projection
+## R7-001 Creator ownership model
 
-Map current `chess_live_*` games/events/ratings into generic model in tests/reporting.
-
-Acceptance:
-
-- counts/results/rating deltas match historical fixtures;
-- no privacy regressions;
-- current chess E2E unchanged.
-
-### GP-027 Compatibility API delegation
-
-`/api/chess/live` may delegate new matches to Games Core while preserving old response contract.
-
-### GP-028 Backfill and read parity
-
-Add historical generic records or stable compatibility read layer.
-
-### GP-029 Stop legacy writes
-
-Only after evidence, make legacy persistence non-primary/read-only. Destructive cleanup deferred.
-
-## 12. GP-M9 — Checkers migration
-
-### GP-030 Checkers CommandGameAdapter
-
-Reuse Russian-64 rules; no rewrite.
-
-### GP-031 Replace checkers-specific online/classroom lifecycle with Games Core
-
-Keep educational/classroom policy adapters but use generic Match/Invite infrastructure.
-
-### GP-032 Online product modes
-
-Enable through shared platform:
-
-- invite friend/classmate;
-- quick;
-- rated;
-- realtime push;
-- reconnect;
-- history/stats/rating.
-
-### GP-033 Checkers bot/stat integration
-
-Bots remain game-owned; platform consumes descriptors/outcomes.
-
-## 13. GP-M10 — Events, tournaments, isolated games and scale
-
-### GP-034 Event Campaign model
-
-- active windows;
-- audience scope;
-- pinned game version;
-- event leaderboard;
-- admission cap;
-- archive behavior.
-
-### GP-035 Tournament Core
-
-Start only with formats required by real product use case.
-
-### GP-036 Isolated game package protocol
-
-Define supply-chain and runtime/client sandbox contracts for event games.
-
-Acceptance:
-
-- runtime has no direct internal DB/auth access;
-- signed/pinned artifacts;
-- resource/capability limits;
-- protocol compatibility gate;
-- kill switch/admission pause.
-
-### GP-037 Scale-out experiments
-
-Only based on measured bottlenecks:
-
-- Redis/shared presence/pub-sub;
-- static runtime pool;
-- Kubernetes/Agones allocator;
-- binary room protocol;
-- WebTransport;
-- regional placement.
-
-Each adoption requires benchmark + rollback plan.
-
-## 14. Cross-cutting security gates
-
-Every relevant milestone checks:
-
-- no cross-tenant unauthorized access;
-- no internal identity exposure;
-- child privacy defaults;
-- block/report policy;
-- strict schemas;
-- rate limits;
-- idempotency/replay;
-- runtime sandbox boundary;
-- no client-authoritative result;
-- secret/token redaction;
-- dependency/image supply chain.
-
-## 15. Cross-cutting observability gates
-
-Before enabling a capability in production, dashboards/alerts must exist for its critical path.
-
-Examples:
-
-- match creation/finish failures;
-- queue wait;
-- command conflicts/latency;
-- outbox backlog;
-- gateway connection/backpressure;
-- room allocation failures;
-- tick overruns/crashes;
-- rating projector backlog.
-
-## 16. Documentation required before each code milestone
-
-Every GP task should have:
+Owner:
 
 ```text
-Problem / scope
-Owner boundary
-Contract changes
-Data/security impact
-Compatibility impact
-Failure modes
-Tests
-Metrics
-Rollback
-Explicit non-goals
+principal | workspace | platform
 ```
 
-Bots/agents must read this Games Platform package before touching shared game networking.
+Define contributor/reviewer authority and account/class change behavior.
 
-## 17. Definition of platform-ready
+## R7-002 Capability catalog V1
 
-ASA Games Platform v1 is considered real only when all are true:
+Minimum only:
 
-1. Tic-Tac-Toe has no bespoke online stack.
-2. ASA Arena Mini has no bespoke lobby/matchmaking/profile stack.
-3. Both use common player identity, Match Core, history and stats.
-4. Command path survives retry/reconnect safely.
-5. Room path is server-authoritative and meets certified tick/load target.
-6. Gateway failure does not corrupt durable match truth.
-7. Rating is immutable/replay-safe and per game/pool.
-8. Public identity layer passes child/privacy review.
-9. Chess can be compatibility-mapped without semantic data loss.
-10. Checkers can consume the platform without rewriting Russian-64 rules.
-11. A new trusted game can be scaffolded primarily by manifest + adapter + renderer.
-12. An isolated event game can be admitted/disabled without gaining internal DB/auth access.
+- public profile read;
+- private storage read/write;
+- UI exit/lifecycle;
+- error telemetry.
 
-Until these gates are met, product language should say games are being converged onto Games Platform, not claim arbitrary plug-and-play game hosting.
+Network/device access deny by default.
+
+## R7-003 GitHub/ZIP source connectors
+
+Least privilege; exact revision/digest.
+
+## R7-004 Isolated Build Service
+
+Threat model + controls:
+
+- no prod secrets;
+- no DB;
+- no Docker socket;
+- non-privileged;
+- CPU/RAM/PID/time/disk/output limits;
+- network deny/restricted mirror;
+- manifest/tests/SBOM/digest.
+
+## R7-005 Build/Release/Channel/Publication
+
+Immutable artifacts; private/classroom channels; rollback without rebuild.
+
+## R7-006 Sandbox web origin
+
+Decide exact origin model and sandbox/CSP/Permissions Policy/storage/service-worker rules.
+
+## R7-007 Client SDK/bridge V1
+
+Strict origin/source/schema/rate/capability checks.
+
+## R7-008 Game Storage Contract V1
+
+Define:
+
+- private-player namespace;
+- quotas;
+- creator read policy;
+- schema/version behavior;
+- deletion/retention.
+
+## R7-009 Teacher/Admin review flow
+
+Private → classroom only for MVP.
+
+Community/public store remains out of scope.
+
+## R7-010 Creator Sample certification
+
+GitHub import → build → preview → approval → classroom launch → save → new release → rollback.
+
+## R7 Exit — Creator Web Games V1
+
+A student game works without trusted ASA source import/cookies/DB access.
+
+---
+
+# 10. R8 — Creator Multiplayer Rules — conditional
+
+No implementation until owner confirms product demand.
+
+If started:
+
+1. threat model;
+2. managed-command sandbox ADR;
+3. feasibility prototype (WASM/WASI candidate);
+4. deterministic resource-limited host contract;
+5. hidden-state certification fixture;
+6. only then user-authored network rules.
+
+---
+
+# 11. R9 — Events/Tournaments/Scale — demand-driven
+
+Implement only real product needs.
+
+Potential tasks are not backlog commitments:
+
+- campaigns;
+- tournament formats;
+- Redis scale coordination;
+- runtime pool/Agones adapter;
+- WebTransport;
+- regional placement;
+- verified external room runtime;
+- community creator publication.
+
+Each requires new Delivery Brief and measured justification.
+
+---
+
+# 12. Cross-cutting gates
+
+Every relevant task checks:
+
+```text
+identity/privacy
+scope authorization
+idempotency/concurrency
+server authority
+compatibility/versioning
+resource bounds
+observability
+rollback/disable
+```
+
+No task may claim a capability whose end-to-end acceptance stage is incomplete.
+
+---
+
+# 13. Evidence policy
+
+For each R-stage record:
+
+- exact branch/commit SHA;
+- exact migration/schema/protocol/game versions;
+- tests actually executed;
+- isolated DB/runtime identities;
+- screenshots/artifacts only when they prove user behavior;
+- load environment for benchmarks;
+- blocked/skipped honestly;
+- known limitations;
+- rollback/feature-off procedure.
+
+---
+
+# 14. Product completion checkpoints
+
+```text
+R1  Working private network Checkers
+R3  Games Core Alpha
+R4  Games Core V1
+R5  School Games V1
+R6  Realtime Games V1
+R7  Creator Web Games V1
+```
+
+R8/R9 are optional extensions and must not delay recognition/use of earlier completed products.
