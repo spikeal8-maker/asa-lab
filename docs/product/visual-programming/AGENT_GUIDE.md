@@ -12,23 +12,12 @@ global `POST_STEP_REVIEW` / `CHALLENGE_REVIEW` requirements.
 
 ## 0. Execution model — GitHub first
 
-Before Scratch work, follow [`docs/delivery/GITHUB_FIRST_DEVELOPMENT_PROTOCOL.md`](../../delivery/GITHUB_FIRST_DEVELOPMENT_PROTOCOL.md).
-
-For this lane:
-
-```text
-GitHub = canonical source of truth
-local computer = optional short runner
-GitHub Actions = authoritative production Docker / Chromium evidence
-one selected slice = one authoring context
-HIGH/CRITICAL review = separate reviewer context or human
-```
-
-Do not keep important Scratch state only in a local worktree, unpushed commit, Docker image or terminal session. After any tool/session failure, recover `main SHA → current.yaml task → PR/branch HEAD → divergence → exact-SHA CI` from GitHub before editing.
-
-Use the workstation only for formatting, unit tests, typecheck/lint and short focused checks when it is faster and reliable. Do not spend time reproducing the pinned production Scratch/Terser build locally on a memory-constrained Docker Desktop when GitHub Actions is the authoritative runner.
-
-Prefer reuse of an exact-digest pinned Scratch base build/artifact across protocol/branding/host slices when CI infrastructure supports it. Rebuild the full upstream bundle when the upstream pin or build inputs change.
+Follow root [policy](../../../AGENTS.md), [entry flow](../../../START_HERE_FOR_AI.md),
+[GitHub-first protocol](../../delivery/GITHUB_FIRST_DEVELOPMENT_PROTOCOL.md) and
+[change workflow](../../delivery/AGENT_CHANGE_WORKFLOW.md). They own execution selection,
+recovery, authoring contexts, publication and CI evidence; this guide adds Scratch-specific rules.
+Pinned artifact reuse and rebuild requirements belong to
+[Scratch build optimisation](../../delivery/GITHUB_FIRST_DEVELOPMENT_PROTOCOL.md#scratch-build-optimisation).
 
 ## 1. Progressive disclosure
 
@@ -69,16 +58,6 @@ mapped component or global entry policy requires them.
 Resolve a human request through `COMPONENT_MAP.yaml` by stable component ID or keywords.
 Then open only its one `components/*.yaml` card and the matching entry.
 
-Examples:
-
-```text
-"кнопка расширений" → blocks.host.extensions
-"логотип Scratch"   → blocks.host.branding
-"CORS Scratch"      → blocks.runtime.origin-security
-"автосохранение"    → blocks.project.autosave
-"импорт sb3"        → blocks.sb3.import
-```
-
 If one request genuinely spans multiple components, list those IDs before editing and load
 only their cards/direct dependencies.
 
@@ -86,19 +65,14 @@ If no component matches, STOP and repair routing before broad code search.
 
 ### Routing granularity
 
-The map is a maintenance map, not a DOM inventory. Create a distinct stable component ID when
-a concern can be independently requested/owned/tested or has a different contract/risk
-boundary. Do not create IDs for incidental wrappers or styling-only markup that is wholly
-owned by one existing component.
+Create a stable component ID for an independently requested/owned/tested concern or a distinct
+contract/risk boundary, not incidental wrappers/styling already owned by one component.
+Independently maintained ASA UI controls normally get their own ID or a dedicated small source
+module owned by an existing component.
 
-When implemented source is shared by multiple mapped components, each component entry must
-name the exact relevant `symbols`. A large code source must also expose symbols even when only
-one component currently owns it. If a source has no stable bounded symbol and keeps growing,
-split the code before accepting the slice rather than making future agents reread a monolith.
-
-For newly implemented ASA UI, independently maintained controls such as a toolbar action,
-status indicator or dialog normally either get their own component ID or live in a dedicated
-small source module owned by one existing component. Update routing in the same slice.
+Every component sharing implemented source must name its exact relevant `symbols`; large
+sources require symbols even with one owner. Split a growing source without a stable bounded
+symbol before accepting the slice. Update routing in the same slice.
 
 ## 3. What each layer owns
 
