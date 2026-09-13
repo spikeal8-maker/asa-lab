@@ -34,13 +34,7 @@ const FLAG_ORDER: readonly CanonicalLearningFlag[] = [
 export interface AttemptSnapshot {
   id: string;
   attemptNumber: number;
-  state:
-    | 'in_progress'
-    | 'submitted'
-    | 'evaluating'
-    | 'closed'
-    | 'invalidated'
-    | 'expired';
+  state: 'in_progress' | 'submitted' | 'evaluating' | 'closed' | 'invalidated' | 'expired';
   reviewDecision: 'accepted' | 'changes_requested' | 'incomplete' | 'excused' | null;
   startedAt: string;
   submittedAt: string | null;

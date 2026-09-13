@@ -140,19 +140,56 @@ async function assign(courseId: string, classId: string, seats: string[], reques
   );
 }
 describe('Э1 existing course → exact versions → runs → inherited participation', () => {
-  it('excused changes the required denominator without generating academic results',async()=>{
-    const authored=await material(),published=await course(authored.version),cls=await classroom(),student=await seat(cls);
-    const delivery=await assign(published.id,cls,[student],'course01:denominator:'+ ++seq);
-    const parts=(await admin.query('SELECT part.id,part.source_course_enrollment_id AS enrollment FROM activity_participations part JOIN activity_runs run ON run.id=part.activity_run_id WHERE run.source_course_run_id=$1',[delivery.run_id])).rows;
-    const completion=async()=>(await admin.query('SELECT learning_course_completion_internal($1) AS value',[parts[0].enrollment])).rows[0].value;
-    expect(await completion()).toMatchObject({total:2,completedCount:0,completed:false,excusedCount:0,resultPolicy:'no_course_grade'});
-    for(let i=0;i<parts.length;i++){
-      const result=(await tx(c=>c.query("SELECT * FROM activity_participation_excuse($1,$2,'Индивидуальное освобождение')",[principal,parts[i].id]))).rows[0];
+  it('excused changes the required denominator without generating academic results', async () => {
+    const authored = await material(),
+      published = await course(authored.version),
+      cls = await classroom(),
+      student = await seat(cls);
+    const delivery = await assign(published.id, cls, [student], 'course01:denominator:' + ++seq);
+    const parts = (
+      await admin.query(
+        'SELECT part.id,part.source_course_enrollment_id AS enrollment FROM activity_participations part JOIN activity_runs run ON run.id=part.activity_run_id WHERE run.source_course_run_id=$1',
+        [delivery.run_id],
+      )
+    ).rows;
+    const completion = async () =>
+      (
+        await admin.query('SELECT learning_course_completion_internal($1) AS value', [
+          parts[0].enrollment,
+        ])
+      ).rows[0].value;
+    expect(await completion()).toMatchObject({
+      total: 2,
+      completedCount: 0,
+      completed: false,
+      excusedCount: 0,
+      resultPolicy: 'no_course_grade',
+    });
+    for (let i = 0; i < parts.length; i++) {
+      const result = (
+        await tx((c) =>
+          c.query(
+            "SELECT * FROM activity_participation_excuse($1,$2,'Индивидуальное освобождение')",
+            [principal, parts[i].id],
+          ),
+        )
+      ).rows[0];
       expect(result.result_code).toBe('ok');
-      expect(await completion()).toMatchObject({total:1-i,excusedCount:i+1,completed:false});
+      expect(await completion()).toMatchObject({
+        total: 1 - i,
+        excusedCount: i + 1,
+        completed: false,
+      });
     }
-    expect(await completion()).toMatchObject({reason:'no_required_lessons',basisIds:[]});
-    expect((await admin.query('SELECT id FROM learning_attempts WHERE activity_participation_id=ANY($1::uuid[])',[parts.map(p=>p.id)])).rows).toHaveLength(0);
+    expect(await completion()).toMatchObject({ reason: 'no_required_lessons', basisIds: [] });
+    expect(
+      (
+        await admin.query(
+          'SELECT id FROM learning_attempts WHERE activity_participation_id=ANY($1::uuid[])',
+          [parts.map((p) => p.id)],
+        )
+      ).rows,
+    ).toHaveLength(0);
   });
   it('pins canonical material without a legacy root, materializes repeated blocks, retries and explicit repeat delivery', async () => {
     const authored = await material('three-d');
@@ -215,9 +252,16 @@ describe('Э1 existing course → exact versions → runs → inherited particip
     const addKey = 'course01:named-add:' + ++seq;
     expect(await change(excluded, true, false, addKey)).toBe('ok');
     expect(await change(excluded, true, false, addKey)).toBe('ok');
-    const addedActor=(await admin.query('SELECT principal_id FROM student_seat_principal($1)',[excluded])).rows[0].principal_id;
-    const notifications=async()=>(await app.query('SELECT item FROM learning_notifications_list($1)',[addedActor])).rows.map(row=>row.item);
-    const delivered=(await notifications()).filter(item=>item.courseRunId===delivery.run_id);
+    const addedActor = (
+      await admin.query('SELECT principal_id FROM student_seat_principal($1)', [excluded])
+    ).rows[0].principal_id;
+    const notifications = async () =>
+      (await app.query('SELECT item FROM learning_notifications_list($1)', [addedActor])).rows.map(
+        (row) => row.item,
+      );
+    const delivered = (await notifications()).filter(
+      (item) => item.courseRunId === delivery.run_id,
+    );
     expect(delivered).toHaveLength(2);
     expect(
       (await tx((c) => c.query('SELECT * FROM classroom_course_runs_for_seat_v2($1)', [excluded])))
@@ -232,9 +276,24 @@ describe('Э1 existing course → exact versions → runs → inherited particip
       'membership_conflict',
     );
     expect(await change(excluded, false, true, 'course01:named-remove:' + ++seq)).toBe('ok');
-    expect((await notifications()).filter(item=>item.courseRunId===delivery.run_id)).toHaveLength(0);
-    expect((await app.query('SELECT learning_notifications_mark_read($1,$2::uuid[],now()) AS n',[addedActor,delivered.map(item=>item.id)])).rows[0].n).toBe(0);
-    expect((await admin.query('SELECT id FROM learning_notifications WHERE id=ANY($1::uuid[])',[delivered.map(item=>item.id)])).rows).toHaveLength(2);
+    expect(
+      (await notifications()).filter((item) => item.courseRunId === delivery.run_id),
+    ).toHaveLength(0);
+    expect(
+      (
+        await app.query('SELECT learning_notifications_mark_read($1,$2::uuid[],now()) AS n', [
+          addedActor,
+          delivered.map((item) => item.id),
+        ])
+      ).rows[0].n,
+    ).toBe(0);
+    expect(
+      (
+        await admin.query('SELECT id FROM learning_notifications WHERE id=ANY($1::uuid[])', [
+          delivered.map((item) => item.id),
+        ])
+      ).rows,
+    ).toHaveLength(2);
     expect(
       (await tx((c) => c.query('SELECT * FROM classroom_course_runs_for_seat_v2($1)', [excluded])))
         .rows,

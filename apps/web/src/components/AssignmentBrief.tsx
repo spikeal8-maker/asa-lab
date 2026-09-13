@@ -144,8 +144,11 @@ export function AssignmentBrief({
         </button>
       </div>
       {assignment.canonicalState && canonicalSubmissionLocked(assignment.canonicalState) ? (
-        <small>Работа сдана. Изменения черновика не меняют закреплённую сдачу.
-          {revision !== null ? ` Черновик сохранён: редакция №${revision}.` : ' Дождитесь сохранения изменений черновика.'}
+        <small>
+          Работа сдана. Изменения черновика не меняют закреплённую сдачу.
+          {revision !== null
+            ? ` Черновик сохранён: редакция №${revision}.`
+            : ' Дождитесь сохранения изменений черновика.'}
         </small>
       ) : revision === null ? (
         <p role="status">Перед сдачей дождитесь сохранения проекта.</p>

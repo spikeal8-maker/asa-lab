@@ -179,17 +179,24 @@ export function ClassroomAssignments({
         </button>
         <div className="assignment-detail-heading">
           <h2>{open.title}</h2>
-          {!open.audienceType ? <button
-            type="button"
-            className="btn-secondary"
-            disabled={archived}
-            onClick={() => {
-              setEditing(libraryShape(open));
-              setCreating(true);
-            }}
-          >
-            Изменить задание
-          </button> : <p>Опубликованный материал закреплён. Условия и аудитория этого назначения — ниже; содержание редактируется отдельной версией в библиотеке.</p>}
+          {!open.audienceType ? (
+            <button
+              type="button"
+              className="btn-secondary"
+              disabled={archived}
+              onClick={() => {
+                setEditing(libraryShape(open));
+                setCreating(true);
+              }}
+            >
+              Изменить задание
+            </button>
+          ) : (
+            <p>
+              Опубликованный материал закреплён. Условия и аудитория этого назначения — ниже;
+              содержание редактируется отдельной версией в библиотеке.
+            </p>
+          )}
           <p>
             {moduleName(open.moduleKey)}
             {open.dueAt ? ` · срок ${time.date(open.dueAt)}` : ''}
@@ -379,7 +386,10 @@ export function ClassroomAssignments({
                   className="btn-secondary"
                   disabled={archived}
                   onClick={() => {
-                    if (assignment.audienceType) {setOpen(assignment);return;}
+                    if (assignment.audienceType) {
+                      setOpen(assignment);
+                      return;
+                    }
                     setEditing(libraryShape(assignment));
                     setCreating(true);
                   }}

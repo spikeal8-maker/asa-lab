@@ -30,7 +30,11 @@ async function editRealProject(page: Page, module: string) {
     await page.mouse.up();
     await expect(page.getByTestId('schematic-component')).toHaveCount(count + 1);
   }
-  await expect(page.getByText(/К проверке будет закреплена сохранённая редакция №|Черновик сохранён: редакция №/)).toBeVisible();
+  await expect(
+    page.getByText(
+      /К проверке будет закреплена сохранённая редакция №|Черновик сохранён: редакция №/,
+    ),
+  ).toBeVisible();
   await page.reload();
   if (module === 'electronics')
     await expect(page.getByTestId('schematic-component').first()).toBeVisible();
@@ -148,26 +152,33 @@ test('author-only content keeps exact ID and versions after teaching activation;
   await inbox.screenshot({ path: evidenceDir + '/muted-inbox-queue-independent.png' });
   await learner.page.goto('/#/learning');
   await expect(learner.page.getByText('Освоено', { exact: true })).toBeVisible();
-  await inbox.getByRole('button',{name:'Закрыть',exact:true}).click();
+  await inbox.getByRole('button', { name: 'Закрыть', exact: true }).click();
   const stale = await page.context().newPage();
   await stale.goto(page.url());
-  await stale.getByRole('navigation',{name:'Разделы класса'}).getByRole('button',{name:'Журнал',exact:true}).click();
-  await stale.getByRole('button',{name:/^Маша · Оцениваемая/}).click();
-  const staleDetail = stale.getByRole('region',{name:'Проверка сдачи'});
-  await expect(staleDetail.getByLabel('Баллы из 10',{exact:true})).toHaveValue('8');
-  await detail.getByLabel('Баллы из 10',{exact:true}).fill('6');
+  await stale
+    .getByRole('navigation', { name: 'Разделы класса' })
+    .getByRole('button', { name: 'Журнал', exact: true })
+    .click();
+  await stale.getByRole('button', { name: /^Маша · Оцениваемая/ }).click();
+  const staleDetail = stale.getByRole('region', { name: 'Проверка сдачи' });
+  await expect(staleDetail.getByLabel('Баллы из 10', { exact: true })).toHaveValue('8');
+  await detail.getByLabel('Баллы из 10', { exact: true }).fill('6');
   await detail.getByLabel('Причина возврата или исправления').fill('Уточнение по критериям');
-  await detail.getByRole('button',{name:'Исправить результат',exact:true}).click();
-  await expect(detail.getByText('Ревизия 2 · Принято',{exact:true})).toBeVisible();
-  await staleDetail.getByLabel('Баллы из 10',{exact:true}).fill('9');
-  await staleDetail.getByLabel('Причина возврата или исправления').fill('Конкурирующая устаревшая редакция');
-  await staleDetail.getByRole('button',{name:'Исправить результат',exact:true}).click();
+  await detail.getByRole('button', { name: 'Исправить результат', exact: true }).click();
+  await expect(detail.getByText('Ревизия 2 · Принято', { exact: true })).toBeVisible();
+  await staleDetail.getByLabel('Баллы из 10', { exact: true }).fill('9');
+  await staleDetail
+    .getByLabel('Причина возврата или исправления')
+    .fill('Конкурирующая устаревшая редакция');
+  await staleDetail.getByRole('button', { name: 'Исправить результат', exact: true }).click();
   await expect(staleDetail.getByRole('alert')).toBeVisible();
-  await expect(page.getByRole('button',{name:/^Маша · Оцениваемая/})).toContainText('Нужна практика');
+  await expect(page.getByRole('button', { name: /^Маша · Оцениваемая/ })).toContainText(
+    'Нужна практика',
+  );
   await learner.page.reload();
-  await expect(learner.page.getByText('Нужна практика',{exact:true})).toBeVisible();
-  await detail.screenshot({path:evidenceDir + '/graded-correction-history.png'});
-  await staleDetail.screenshot({path:evidenceDir + '/graded-stale-correction-denied.png'});
+  await expect(learner.page.getByText('Нужна практика', { exact: true })).toBeVisible();
+  await detail.screenshot({ path: evidenceDir + '/graded-correction-history.png' });
+  await staleDetail.screenshot({ path: evidenceDir + '/graded-stale-correction-denied.png' });
   await stale.close();
   await learner.context.close();
 });
@@ -300,7 +311,7 @@ async function createPublishedProjectActivity(
     .getByLabel('Содержание', { exact: true })
     .fill('Соберите цепь, сохраните проект и сдайте точную редакцию.');
   await page.getByLabel('Среда проекта').selectOption(module);
-  await page.getByRole('combobox', {name:'Результат',exact:true}).selectOption(resultMode);
+  await page.getByRole('combobox', { name: 'Результат', exact: true }).selectOption(resultMode);
   await page.getByRole('button', { name: 'Создать материал', exact: true }).click();
   await expect(page.getByText('Черновик сохранён. Публикация — отдельное действие.')).toBeVisible();
   await page.getByRole('button', { name: 'Опубликовать', exact: true }).click();
@@ -308,32 +319,48 @@ async function createPublishedProjectActivity(
   await page.screenshot({ path: evidenceDir + '/authored-material-published.png', fullPage: true });
 }
 
-test('ungraded real submission has an official acceptance but no manufactured points or grade',async({page,browser})=>{
+test('ungraded real submission has an official acceptance but no manufactured points or grade', async ({
+  page,
+  browser,
+}) => {
   test.setTimeout(120000);
-  const title='Без оценки '+ ++sequence;
-  await createPublishedProjectActivity(page,title,'three-d','ungraded');
-  const code=await createClassWithStudents(page,'Без числовой оценки',[{label:'Лена',handle:'ungraded-lena'}]);
-  await openAssignments(page); await assignFromUi(page,{title,due:'2026-12-31'});
-  const learner=await learnerAssignments(browser,code,'ungraded-lena');
-  await learner.page.getByTestId('seat-assignments').getByRole('button',{name:'Открыть',exact:true}).click();
-  await editRealProject(learner.page,'three-d');
-  await learner.page.getByRole('button',{name:'Сдать работу',exact:true}).click();
-  await expect(learner.page.getByRole('button',{name:'Работа сдана',exact:true})).toBeDisabled();
-  await page.getByRole('navigation',{name:'Разделы класса'}).getByRole('button',{name:'Журнал',exact:true}).click();
-  const cell=page.getByRole('button',{name:new RegExp('Лена · '+title)});
+  const title = 'Без оценки ' + ++sequence;
+  await createPublishedProjectActivity(page, title, 'three-d', 'ungraded');
+  const code = await createClassWithStudents(page, 'Без числовой оценки', [
+    { label: 'Лена', handle: 'ungraded-lena' },
+  ]);
+  await openAssignments(page);
+  await assignFromUi(page, { title, due: '2026-12-31' });
+  const learner = await learnerAssignments(browser, code, 'ungraded-lena');
+  await learner.page
+    .getByTestId('seat-assignments')
+    .getByRole('button', { name: 'Открыть', exact: true })
+    .click();
+  await editRealProject(learner.page, 'three-d');
+  await learner.page.getByRole('button', { name: 'Сдать работу', exact: true }).click();
+  await expect(
+    learner.page.getByRole('button', { name: 'Работа сдана', exact: true }),
+  ).toBeDisabled();
+  await page
+    .getByRole('navigation', { name: 'Разделы класса' })
+    .getByRole('button', { name: 'Журнал', exact: true })
+    .click();
+  const cell = page.getByRole('button', { name: new RegExp('Лена · ' + title) });
   await cell.click();
-  const detail=page.getByRole('region',{name:'Проверка сдачи'});
-  await expect(detail.getByText('Сданная версия',{exact:true})).toBeVisible();
+  const detail = page.getByRole('region', { name: 'Проверка сдачи' });
+  await expect(detail.getByText('Сданная версия', { exact: true })).toBeVisible();
   await expect(detail.getByLabel(/Баллы из/)).toHaveCount(0);
-  await detail.getByLabel('Отзыв',{exact:true}).fill('Отлично — это отзыв, не балл.');
-  await detail.getByRole('button',{name:'Принять выполнение',exact:true}).click();
+  await detail.getByLabel('Отзыв', { exact: true }).fill('Отлично — это отзыв, не балл.');
+  await detail.getByRole('button', { name: 'Принять выполнение', exact: true }).click();
   await expect(cell).toContainText('Выполнено');
-  await detail.screenshot({path:evidenceDir+'/ungraded-official-review.png'});
+  await detail.screenshot({ path: evidenceDir + '/ungraded-official-review.png' });
   await learner.page.goto('/#/learning');
-  const response=await learner.page.request.get('/api/class-join/me/assignments');
+  const response = await learner.page.request.get('/api/class-join/me/assignments');
   expect(response.ok()).toBe(true);
-  const items=(await response.json()).items;
-  expect(items.find((item:{title:string})=>item.title===title).canonicalState.selectedResult).toMatchObject({rawPoints:null,maxPoints:null,completionValue:true});
+  const items = (await response.json()).items;
+  expect(
+    items.find((item: { title: string }) => item.title === title).canonicalState.selectedResult,
+  ).toMatchObject({ rawPoints: null, maxPoints: null, completionValue: true });
   await learner.context.close();
 });
 
@@ -502,18 +529,24 @@ test('teacher authors and selects two learners and the third learner cannot see 
   });
   await teacherRow.getByRole('button', { name: title, exact: true }).click();
   await page.getByText('Аудитория назначения', { exact: true }).click();
-  const audience = page.locator('details').filter({ has: page.locator('summary', { hasText: 'Аудитория назначения' }) });
+  const audience = page
+    .locator('details')
+    .filter({ has: page.locator('summary', { hasText: 'Аудитория назначения' }) });
   await audience.getByLabel('Причина изменения аудитории').fill('Добавляем ученика к этой работе');
   await audience.getByRole('button', { name: 'Добавить Егор', exact: true }).click();
   await expect(audience.getByRole('button', { name: 'Исключить Егор', exact: true })).toBeVisible();
   await excluded.page.reload();
-  await expect(excluded.page.getByTestId('seat-assignments').locator('li').filter({hasText:title})).toBeVisible();
-  await audience.getByLabel('Причина изменения аудитории').fill('Отзываем назначение, историю сохраняем');
+  await expect(
+    excluded.page.getByTestId('seat-assignments').locator('li').filter({ hasText: title }),
+  ).toBeVisible();
+  await audience
+    .getByLabel('Причина изменения аудитории')
+    .fill('Отзываем назначение, историю сохраняем');
   await audience.getByRole('button', { name: 'Исключить Егор', exact: true }).click();
   await expect(audience.getByRole('button', { name: 'Добавить Егор', exact: true })).toBeDisabled();
   await excluded.page.reload();
-  await expect(excluded.page.getByText(title, {exact:true})).toHaveCount(0);
-  await audience.screenshot({path: evidenceDir + '/named-audience-withdrawn.png'});
+  await expect(excluded.page.getByText(title, { exact: true })).toHaveCount(0);
+  await audience.screenshot({ path: evidenceDir + '/named-audience-withdrawn.png' });
   await excluded.context.close();
 
   failures.assertEmpty();

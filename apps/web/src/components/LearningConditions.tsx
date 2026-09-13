@@ -215,7 +215,9 @@ export function LearningConditions({
               </label>
             );
           })}
-          <small>Дополнительных попыток с учётом возвратов: {current.effective.extraAttempts}.</small>
+          <small>
+            Дополнительных попыток с учётом возвратов: {current.effective.extraAttempts}.
+          </small>
           <label>
             Причина изменения условий
             <input value={reason} maxLength={1000} onChange={(e) => setReason(e.target.value)} />

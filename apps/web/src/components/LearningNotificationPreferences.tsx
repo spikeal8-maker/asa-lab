@@ -46,8 +46,12 @@ export function LearningNotificationPreferences({
   );
   async function save() {
     if (!draft || busy) return;
-    const input = {revision:draft.revision,masterEnabled:draft.masterEnabled,
-      categories:draft.categories,classOverrides:draft.classOverrides};
+    const input = {
+      revision: draft.revision,
+      masterEnabled: draft.masterEnabled,
+      categories: draft.categories,
+      classOverrides: draft.classOverrides,
+    };
     const payload = JSON.stringify(input);
     if (request.current?.payload !== payload)
       request.current = { payload, id: crypto.randomUUID() };

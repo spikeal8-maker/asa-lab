@@ -392,7 +392,10 @@ export function SeatCourses({
                 onClick={() => {
                   setOpenRunId(run.id);
                   setOpenLessonId(
-                    lessons.find((lesson) => !lessonExcused(lesson) && !lessonComplete(lesson))?.id ?? lessons[0]?.id ?? null,
+                    lessons.find((lesson) => !lessonExcused(lesson) && !lessonComplete(lesson))
+                      ?.id ??
+                      lessons[0]?.id ??
+                      null,
                   );
                 }}
               >
