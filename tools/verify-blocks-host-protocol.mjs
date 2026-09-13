@@ -147,6 +147,19 @@ async function runtimeState(frame) {
   return frame.locator('[data-asa-host-shell]').getAttribute('data-runtime-state');
 }
 
+async function expectRejectionIncrement(frame, before, label) {
+  for (let attempt = 0; attempt < 50; attempt += 1) {
+    const after = await rejectionCount(frame);
+    if (after > before) return after;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  const after = await rejectionCount(frame);
+  const state = await runtimeState(frame);
+  throw new Error(
+    `${label} did not increment rejection counter: before=${before}, after=${after}, state=${state}`,
+  );
+}
+
 async function sendFromParent(page, message) {
   await page.evaluate((payload) => window.sendToRuntime(payload), message);
 }
@@ -165,23 +178,23 @@ try {
     const attacker = document.getElementById('attacker-frame');
     return attacker?.contentDocument?.readyState === 'complete';
   });
+  const beforeWrongSource = await rejectionCount(frame);
   await page.evaluate((payload) => window.sendFromAttacker(payload), initMessage);
-  await page.waitForTimeout(50);
-  if ((await rejectionCount(frame)) !== 1 || (await runtimeState(frame)) !== 'awaiting-init') {
-    throw new Error('wrong-source INIT was not rejected');
+  await expectRejectionIncrement(frame, beforeWrongSource, 'wrong-source INIT');
+  if ((await runtimeState(frame)) !== 'awaiting-init') {
+    throw new Error('wrong-source INIT changed runtime state');
   }
 
+  const beforeWrongProtocol = await rejectionCount(frame);
   await sendFromParent(page, { ...initMessage, protocolVersion: 2 });
-  await page.waitForTimeout(50);
-  if ((await rejectionCount(frame)) !== 2)
-    throw new Error('wrong protocol version was not rejected');
+  await expectRejectionIncrement(frame, beforeWrongProtocol, 'wrong protocol version');
 
+  const beforeWrongProject = await rejectionCount(frame);
   await sendFromParent(page, {
     ...initMessage,
     projectId: '22222222-2222-4222-8222-222222222222',
   });
-  await page.waitForTimeout(50);
-  if ((await rejectionCount(frame)) !== 3) throw new Error('wrong project INIT was not rejected');
+  await expectRejectionIncrement(frame, beforeWrongProject, 'wrong project INIT');
 
   await sendFromParent(page, initMessage);
   await waitForRuntimeState(frame, 'init-accepted');
@@ -214,10 +227,7 @@ try {
     messageType: 'ASA_BLOCKS_TOKEN_UPDATE',
     runtimeToken: 'ignored-token',
   });
-  await page.waitForTimeout(50);
-  if ((await rejectionCount(frame)) !== beforeWrongNonce + 1) {
-    throw new Error('wrong nonce was not rejected');
-  }
+  await expectRejectionIncrement(frame, beforeWrongNonce, 'wrong nonce');
 
   await sendFromParent(page, {
     ...binding,
@@ -260,13 +270,11 @@ try {
   await wrongOriginPage.goto(`${alternateParentOrigin}/parent`, { waitUntil: 'domcontentloaded' });
   const wrongOriginFrame = await runtimeFrame(wrongOriginPage);
   await waitForRuntimeState(wrongOriginFrame, 'awaiting-init');
+  const beforeWrongOrigin = await rejectionCount(wrongOriginFrame);
   await sendFromParent(wrongOriginPage, initMessage);
-  await wrongOriginPage.waitForTimeout(50);
-  if (
-    (await rejectionCount(wrongOriginFrame)) !== 1 ||
-    (await runtimeState(wrongOriginFrame)) !== 'awaiting-init'
-  ) {
-    throw new Error('wrong-origin INIT was not rejected');
+  await expectRejectionIncrement(wrongOriginFrame, beforeWrongOrigin, 'wrong-origin INIT');
+  if ((await runtimeState(wrongOriginFrame)) !== 'awaiting-init') {
+    throw new Error('wrong-origin INIT changed runtime state');
   }
 
   if (pageErrors.length > 0)
