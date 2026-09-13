@@ -1,7 +1,7 @@
 # CK-105 — Match Session foundation
 
 **Status:** first GitHub-only implementation slice
-**Base:** `982f637709898c9751e81e75f44d2b63f34516e4`
+**Base:** `3a2715c8389fc8b26362b049a4efb55e62b40a60`
 
 ## What this slice changes
 
@@ -39,6 +39,8 @@ This is intentionally additive. The large React experience is not rewritten in t
 - Legacy bot play stays fail-closed when the human side is unknown.
 - Classroom authority remains on the classroom server object; the adapter is presentation-only.
 - Public/private online modes reject classroom ids so public matchmaking cannot accidentally inherit education scope.
+- Missing public opponent aliases fall back to `Соперник`; internal participant ids are never rendered.
+- Declined classroom challenges project as `отклонена`, not as an active/pending match.
 
 ## Acceptance for this slice
 
@@ -50,4 +52,6 @@ The focused tests must prove:
 4. online friend/quick/rated sessions cannot carry classroom scope;
 5. finished sessions reject further moves;
 6. bot/local/classroom/future rated sessions project through one presentation contract;
-7. result/resume/history views derive from that contract rather than separate mode-specific logic.
+7. result/resume/history views derive from that contract rather than separate mode-specific logic;
+8. online projection never leaks an internal participant id when an approved public alias is absent;
+9. declined classroom challenges remain visibly declined after projection.
