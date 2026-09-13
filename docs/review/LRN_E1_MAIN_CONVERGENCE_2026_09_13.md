@@ -4,25 +4,25 @@ THIS IS INTEGRATION BASELINE, NOT E1 COMPLETION.
 
 ## Revision receipt
 
-- BASE_MAIN_SHA: `7cf5572359db9e90a57cf7281379954f1f53037a`.
+- BASE_MAIN_SHA: `b31e113a19f6234a0504ff6bade991294b10d38b`.
 - INITIAL_MAIN_SHA: `3498dd2c8c2c4ce33b36d3cafa94b85dcd39009e`.
-- DOCS_BASE_SHA: `9c500ceb4c888ab0e761192523fee803fb3065f0`, Draft [PR #208](https://github.com/spikeal8-maker/asa-lab/pull/208).
+- DOCS_BASE_SHA: `d71e8610d1b014a3981560678dd33118b233edc4`, Draft [PR #208](https://github.com/spikeal8-maker/asa-lab/pull/208).
 - RECOVERY_SHA: `8ea7771d902d92f5288685a031b134feb353f4cc`.
 - DOCS_RECOVERY_SHA: `ea3ad1a8e092e0e7681f9900bc99b3709550783c`.
 - PREVIEW_SHA: `dce140868601b55c9a5449b38012e297c116d8be`, Draft [PR #210](https://github.com/spikeal8-maker/asa-lab/pull/210).
-- INTEGRATION_SHA: `ba71fc1ae13a9eccd4ab18a9ec1597414cbd4a74` (final candidate before this receipt update).
-- PRIOR_GREEN_CI_SHA: `3c522194eec686cbb690e76fab88f27fbf523bd9`. Subsequent changes are Scratch documentation, captured evidence and the test-only migration coordinator below. Product code and migration SQL remain unchanged; the PR body attests final exact-HEAD CI.
+- INTEGRATION_SHA: `f126442223a51abe170e7008a8e85b046b5187eb` (final candidate before this receipt update).
+- PRIOR_GREEN_CI_SHA: `dee32701d47f4742a4083c1aa26e8a18358cb5f6`, including the migration coordinator fix. Subsequent changes import accepted main governance and update this receipt. Product code, migration SQL and Learning tests remain unchanged; the PR body attests final exact-HEAD CI.
 - Independent product/migration review: `0fac1851759e7e76a4027aa0b3408ce1c84f0fed`, followed by both reviewers' bounded PASS attestations at `3c522194eec686cbb690e76fab88f27fbf523bd9`.
 - Branch: `integration/e1-main-convergence-20260913`.
 - Stacked Draft [PR #213](https://github.com/spikeal8-maker/asa-lab/pull/213), base `docs/product-spec-v1.4`.
 
 A commit cannot embed its own SHA. The final documentary descendant and exact-HEAD workflow conclusions are attested in the PR body and the local final REPORT. This receipt pins the reviewed executable source and the recorded runs; it does not assign the candidate to canonical live state.
 
-The docs branch first merged main at `6ca683029404013b1004a2dbe2650d3f2bb6fbb0`. All nine checks passed before E1 integration began. A final fetch then found only Scratch guide commit #212. The second docs merge `50be97ce` retains main's compact execution routing and V1.4's global review authority. Its nine checks passed too. A final pre-receipt remote check found six additional Scratch documentation commits through `7cf55723`; docs merge `9c500ceb` includes their mandatory pre-editor maintainability repair. It merged without conflict and passed governance and exact-HEAD CI before integration. No main code, migration or current.yaml changed across these later observations. The main SHA above is the synchronization cutoff for this candidate.
+The docs branch first merged main at `6ca683029404013b1004a2dbe2650d3f2bb6fbb0`. All nine checks passed before E1 integration began. A final fetch then found only Scratch guide commit #212. The second docs merge `50be97ce` retains main's compact execution routing and V1.4's global review authority. Its nine checks passed too. A final pre-receipt remote check found six additional Scratch documentation commits through `7cf55723`; docs merge `9c500ceb` includes their mandatory pre-editor maintainability repair. It merged without conflict and passed governance and exact-HEAD CI before integration. No main code, migration or current.yaml changed across these later observations. After candidate `dee32701` passed all 18 checks, main merged Electronics governance PR #203 at `b31e113a`. Its shared package/governance changes warranted one controlled repeat convergence under AGENTS.md section 2.1. Docs merge `d71e8610` preserves both V1.4 targeted routing and recovery instructions in START_HERE, and both the document-registry/targeted/maintenance validators and the new recovery tests in gate-governance. The new Electronics validator is retained in gate:code. No runtime code, migration or canonical current.yaml changed. The main SHA above is the final synchronization cutoff; this receipt does not create an endless main-moved/CI loop.
 
 ## Import and semantic decisions
 
-The common base was `b963ef828f0e10042adacba4199bba972526c0df`. The initial main inventory had 151 paths; the final synchronized main has 152. Recovery has 135 paths and final Preview 13. Four main/recovery paths overlap: three textual conflicts and one shared Electronics auto-merge. The later Scratch guide update adds one separate docs-only merge conflict, resolved before importing its docs merge into integration.
+The common base was `b963ef828f0e10042adacba4199bba972526c0df`. The initial main inventory had 151 paths; the final synchronized main has 175. Recovery has 135 paths and final Preview 13. Four main/recovery paths overlap: three textual conflicts and one shared Electronics auto-merge. The later Scratch guide update adds one separate docs-only merge conflict. Final Electronics governance adds two more docs/governance conflicts (START_HERE_FOR_AI.md and tools/gate-governance.sh), resolved by preserving both instruction sets and all validators. Thus three initial text conflicts and three later docs/governance conflicts were resolved.
 
 Recovery classification: 64 E1 code/test paths; one shared Electronics hook; seven documentation/state paths; 30 migrations; 33 historical evidence paths (five text, 28 PNG). Every recovery path is accounted for in the appendix. No new E2/E3 functionality was imported from another source.
 
@@ -131,7 +131,8 @@ All owner evidence commands used `NX_SKIP_NX_CACHE=true` and `NX_DAEMON=false`. 
 | `pnpm nx run web:typecheck` | PASS; 6 fresh tasks |
 | `pnpm contracts:check` | PASS |
 | `pnpm db:migrate:check` | PASS; 135 valid files |
-| `pnpm gate:governance` | PASS, including remote checks |
+| `pnpm gate:governance` | PASS, including remote checks and final imported recovery tests |
+| `pnpm validate:electronics-agent-docs` | PASS after final main import; 74 tests, routing validator with 29 components / 4 cards / 1 task card |
 | `pnpm gate:code` | PASS; format/lint/types/boundaries/contracts/compose/security/license/dependencies/release/build/bundle |
 | `pnpm gate:data` | PASS final isolated-Preview run; 1949/1949 in 245 files, then 15/15 RLS |
 | `pnpm test:learning-e1` | PASS 238/238 in 33 files |
@@ -148,28 +149,28 @@ Real browser evidence covers saved/published Preview with late-response races an
 
 ## GitHub workflow receipts
 
-Earlier executable/test candidate `3c522194eec686cbb690e76fab88f27fbf523bd9` — all 18 check runs completed SUCCESS, including every required data/browser job. Final exact-HEAD CI after the fixture coordinator fix is recorded in the PR body.
+Executable/test candidate `dee32701d47f4742a4083c1aa26e8a18358cb5f6` — all 18 required checks completed SUCCESS, including the coordinator fix and every required data/browser job. Final exact-HEAD CI after importing accepted governance is recorded in the PR body.
 
 | Workflow | Conclusion |
 |---|---|
-| [3D Core Focused](https://github.com/spikeal8-maker/asa-lab/actions/runs/34763326987) | PASS |
-| [ASA Lab Governance and Code Gates](https://github.com/spikeal8-maker/asa-lab/actions/runs/34763327102) | PASS |
-| [Checkers M1 Focused](https://github.com/spikeal8-maker/asa-lab/actions/runs/34763326944) | PASS |
-| [Chess R1 Focused](https://github.com/spikeal8-maker/asa-lab/actions/runs/34763327063) | PASS |
-| [Contribution License Agreement](https://github.com/spikeal8-maker/asa-lab/actions/runs/34763325582) | PASS |
-| [Electronics R4-M1 Focused](https://github.com/spikeal8-maker/asa-lab/actions/runs/34763326984) | PASS |
-| [Learning E1 Convergence](https://github.com/spikeal8-maker/asa-lab/actions/runs/34763326973) | PASS |
-| [Scratch Documentation Routing](https://github.com/spikeal8-maker/asa-lab/actions/runs/34763326970) | PASS |
-| [Scratch Focused](https://github.com/spikeal8-maker/asa-lab/actions/runs/34763327007) | PASS |
+| [3D Core Focused](https://github.com/spikeal8-maker/asa-lab/actions/runs/34764657083) | PASS |
+| [ASA Lab Governance and Code Gates](https://github.com/spikeal8-maker/asa-lab/actions/runs/34764657127) | PASS |
+| [Checkers M1 Focused](https://github.com/spikeal8-maker/asa-lab/actions/runs/34764657133) | PASS |
+| [Chess R1 Focused](https://github.com/spikeal8-maker/asa-lab/actions/runs/34764657102) | PASS |
+| [Contribution License Agreement](https://github.com/spikeal8-maker/asa-lab/actions/runs/34764655644) | PASS |
+| [Electronics R4-M1 Focused](https://github.com/spikeal8-maker/asa-lab/actions/runs/34764657165) | PASS |
+| [Learning E1 Convergence](https://github.com/spikeal8-maker/asa-lab/actions/runs/34764657121) | PASS |
+| [Scratch Documentation Routing](https://github.com/spikeal8-maker/asa-lab/actions/runs/34764657112) | PASS |
+| [Scratch Focused](https://github.com/spikeal8-maker/asa-lab/actions/runs/34764657099) | PASS |
 
-Updated docs `9c500ceb4c888ab0e761192523fee803fb3065f0` — every exact-HEAD check completed SUCCESS.
+Final docs `d71e8610d1b014a3981560678dd33118b233edc4` — every exact-HEAD check completed SUCCESS.
 
 | Workflow | Conclusion |
 |---|---|
-| [ASA Lab Governance and Code Gates](https://github.com/spikeal8-maker/asa-lab/actions/runs/34763646601) | PASS |
-| [Contribution License Agreement](https://github.com/spikeal8-maker/asa-lab/actions/runs/34763645213) | PASS |
-| [Electronics R4-M1 Focused](https://github.com/spikeal8-maker/asa-lab/actions/runs/34763646739) | PASS |
-| [Scratch Documentation Routing](https://github.com/spikeal8-maker/asa-lab/actions/runs/34763646645) | PASS |
+| [ASA Lab Governance and Code Gates](https://github.com/spikeal8-maker/asa-lab/actions/runs/34765228744) | PASS |
+| [Contribution License Agreement](https://github.com/spikeal8-maker/asa-lab/actions/runs/34765227811) | PASS |
+| [Electronics R4-M1 Focused](https://github.com/spikeal8-maker/asa-lab/actions/runs/34765228760) | PASS |
+| [Scratch Documentation Routing](https://github.com/spikeal8-maker/asa-lab/actions/runs/34765228726) | PASS |
 
 Intermediate failures are retained in GitHub history. Only the final PR HEAD's completed conclusions count toward integration readiness; the PR body includes the final SHA and all exact-HEAD workflow URLs. Automatic green CI is not owner acceptance.
 
@@ -180,6 +181,8 @@ POST_STEP_REVIEW: PASS for this integration scope; L3_CRITICAL. Shared authority
 Independent CHALLENGE_REVIEW: PASS at product candidate `0fac1851`, with no remaining actionable findings in the selected migration/shared-product boundaries. Both reviewers then re-attested executable HEAD `3c522194` as PASS: product/migration trees were unchanged; the private Preview fixture retained all write guards (reviewed blob `60ea32c35509c3cd2b6f3d32bc84a828c4d8a97a`). Migration review independently ran five pure classifier probes; shared review independently ran the two 3D races and 20 canonical/projection tests. PostgreSQL/browser/CI results above are the author's separate evidence, not falsely attributed to the reviewers.
 
 The migration reviewer also returned PASS for the final coordinator helper (blob `f4c71d1249e264403865efd63e58060c66634a8f`), confirming one dedicated session holds the common lock across each plan, all three real-PG callers participate, and failure/success cleanup preserves existing guards and assertions. Concurrent PostgreSQL runs and the full post-fix Learning/data reruns are separate author evidence.
+
+Independent final docs review: PASS at `d71e8610`. Both conflict resolutions preserve V1.4 authority, all pre-existing validators, current.yaml, canonical specifications, registry and snapshots. The helper and Learning product/tests remain unchanged from the green `dee32701` candidate.
 
 Remaining E1 functional acceptance is explicit: draft recovery from a historical published version; Teacher Home attention block; complete class archive/restore integration acceptance; broader reminder/mixed-history acceptance beyond the preserved services and tested cases; and final owner E1 acceptance/release hardening. Existing reminder/notification/legacy behavior is retained. This task does not add archive features, reminder semantics, E2 quizzes, Python runtime, E3 Knowledge UI, self-study or linking functionality.
 
