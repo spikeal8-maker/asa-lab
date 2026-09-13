@@ -696,6 +696,7 @@ def build_targeted_context(
         "scope": base["scope"],
         "bounded_context": target["context"],
         "task": base["task"],
+        "revisions": base["revisions"],
         "selector": selector,
         "surfaces": [
             {"id": item.get("id"), "routes": item.get("routes"), "source": item.get("source")}
@@ -745,6 +746,7 @@ def render_targeted_text(context: dict[str, Any]) -> str:
         f"policy: {context['policy']}",
         "readMode: targeted; do not read whole master specifications unless an escalationRef is needed",
     ]
+    _render_split_revisions(lines, context.get("revisions") or {})
     lines.append("surfaces:")
     lines.extend(f"  {item['id']}  # {', '.join(item.get('routes') or [])}" for item in context["surfaces"])
     if context["controls"]:
@@ -818,6 +820,19 @@ def _render_paths(lines: list[str], label: str, paths: list[str]) -> None:
         lines.append(f"  ... and {remaining} more")
 
 
+def _render_split_revisions(lines: list[str], revisions: dict[str, Any]) -> bool:
+    if revisions.get("kind") != "split_history":
+        return False
+    lines.append("revisionState: split_history; no integrated Learning HEAD; task.branch is delivery target")
+    lines.append(f"observedAt: {revisions.get('observed_at')} (recorded snapshot, not live remote HEADs)")
+    lines.append(f"historicalMergeBase: {revisions.get('convergence_baseline_sha')}")
+    for role in ("main", "recovery", "bounded_review"):
+        ref = revisions.get(role) or {}
+        lines.append(f"  {role}: {ref.get('branch')} @ {ref.get('sha')}")
+    lines.append("refresh: fetch main + recorded refs and read exact-SHA CI before writes; observations grant no authority")
+    return True
+
+
 def render_text(context: dict[str, Any]) -> str:
     task = context["task"]
     lines = [
@@ -842,7 +857,7 @@ def render_text(context: dict[str, Any]) -> str:
         lines.append(
             f"milestoneOwnerAuthorization: {context['milestone'].get('owner_authorization')}"
         )
-    if context["revisions"]:
+    if context["revisions"] and not _render_split_revisions(lines, context["revisions"]):
         lines.append("revisions:")
         lines.extend(f"  {key}: {value}" for key, value in context["revisions"].items())
     lines.append("gates:")

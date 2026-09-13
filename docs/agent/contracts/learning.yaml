@@ -273,7 +273,9 @@ invariants:
   - restore_reactivates_withdrawn
 - id: LRN-PRV-001
   statement: Preview as learner renders one exact saved draft or published version with learner presentation semantics and
-    causes zero academic/runtime writes; it is never impersonation and never reads a real learner private draft or answer.
+    causes zero academic/learner-runtime writes; the existing author Account session last_seen_at heartbeat is allowed,
+    but no session creation, credential/expiry/scope change or real learner-session write; it is never impersonation and
+    never reads a real learner private draft or answer.
   master_refs:
   - document: PRODUCT-INTEGRATED-V14
     section: '### 4.4 Preview as learner'

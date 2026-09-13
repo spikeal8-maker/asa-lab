@@ -43,6 +43,8 @@ Targeted context берёт Domain Contract и Surface Map из `docs/agent/`, �
 полный `current.yaml` нужен только при изменении состояния или диагностике
 control plane.
 
+Значения branch/revisions определены в [контракте revision state](docs/execution/REVISION_STATE_CONTRACT.md). `split_history` показывает датированный snapshot отдельных main/recovery/review refs, а не единый интегрированный HEAD; перед записью обнови GitHub snapshot. Наблюдение не выбирает задачу и не даёт owner acceptance.
+
 Поле `development_policy` определяет способ работы. При `mode: direct_main`
 единая актуальная версия разрабатывается непосредственно в `main`. Исторические
 `execution_lease`, branch, PR и `owned_paths` не являются разрешениями и не

@@ -965,6 +965,97 @@ def origin_agent_branch_detected(_):
     return ["detected origin product branch"] if match and match.group(0) == "origin/agent/example-feature" else []
 
 
+def split_document():
+    document = multilane_document(schema_version="1.2.0")
+    document["development_policy"] = {
+        "mode": "direct_main", "branch": "main", "feature_branches": "optional",
+        "pull_requests": "optional", "execution_leases": "disabled", "lane_path_ownership": "advisory",
+    }
+    lane = document["parallel_lanes"][0]
+    lane["task"].update(branch="main", pr=None)
+    lane["revisions"] = {
+        "kind": "split_history", "convergence_baseline_sha": "a" * 40, "head_sha": None,
+        "observed_at": "2026-09-13T12:00:00Z",
+        "main": {"branch": "main", "sha": "b" * 40},
+        "recovery": {"branch": "recovery/example", "sha": "c" * 40},
+        "bounded_review": {"branch": "codex/preview", "sha": "d" * 40,
+                           "base_branch": "recovery/example", "base_sha": "c" * 40},
+    }
+    return document
+
+
+@case("split history records multiple refs without inventing one HEAD", expect="")
+def split_valid(_):
+    return collect_errors(split_document())
+
+
+@case("split history rejects the historical baseline as current HEAD", expect="head_sha null")
+def split_false_head(_):
+    document = split_document()
+    document["parallel_lanes"][0]["revisions"]["head_sha"] = "a" * 40
+    return collect_errors(document)
+
+
+@case("split history cannot silently use older schema", expect="requires schema 1.2.0")
+def split_old_schema(_):
+    document = split_document()
+    document["schema_version"] = "1.1.0"
+    return collect_errors(document)
+
+
+@case("split review must be bounded to the pinned recovery", expect="base must equal pinned recovery")
+def split_wrong_base(_):
+    document = split_document()
+    document["parallel_lanes"][0]["revisions"]["bounded_review"]["base_sha"] = "b" * 40
+    return collect_errors(document)
+
+
+@case("split history requires a dated observation", expect="observed_at must be")
+def split_bad_date(_):
+    document = split_document()
+    document["parallel_lanes"][0]["revisions"]["observed_at"] = "2026-99-13T12:00:00Z"
+    return collect_errors(document)
+
+
+@case("split observation is not an acceptance record", expect="must contain exactly")
+def split_authority_field(_):
+    document = split_document()
+    document["parallel_lanes"][0]["revisions"]["bounded_review"]["owner_acceptance"] = "accepted"
+    return collect_errors(document)
+
+
+@case("split history needs full observed SHA", expect="sha must be a full SHA")
+def split_short_sha(_):
+    document = split_document()
+    document["parallel_lanes"][0]["revisions"]["main"]["sha"] = "b963ef8"
+    return collect_errors(document)
+
+
+@case("split history keeps main as delivery target", expect="task.branch main")
+def split_feature_self_selection(_):
+    document = split_document()
+    document["parallel_lanes"][0]["task"]["branch"] = "codex/preview"
+    return collect_errors(document)
+
+
+@case("bounded observation branch cannot edit execution state", expect="modifies docs/execution/current.yaml")
+def split_branch_state_edited(_):
+    with tempfile.TemporaryDirectory() as raw:
+        root = Path(raw)
+        build_repo(root, main_state=BASE_STATE, branch_state=BASE_STATE + "  pr: 72\n")
+        previous = cp.ROOT
+        try:
+            cp.bind_root(root)
+            errors, notes = [], []
+            revisions = split_document()["parallel_lanes"][0]["revisions"]
+            revisions["bounded_review"]["branch"] = "agent/r4-electronics-m1"
+            cp.check_execution_branch_policy(True, [{"branch": "main"}],
+                [{"revisions": revisions}], errors, notes)
+            return errors
+        finally:
+            cp.bind_root(previous)
+
+
 def main() -> int:
     failures = 0
     for name, prepare, expect in CASES:

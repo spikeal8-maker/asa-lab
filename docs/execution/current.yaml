@@ -1,4 +1,4 @@
-schema_version: 1.1.0
+schema_version: 1.2.0
 
 development_policy:
   mode: direct_main
@@ -399,8 +399,21 @@ parallel_lanes:
         - document: IDENTITY-ACCESS-V21
           revision: '2.1'
     revisions:
+      kind: split_history
       convergence_baseline_sha: b963ef828f0e10042adacba4199bba972526c0df
-      head_sha: b963ef828f0e10042adacba4199bba972526c0df
+      head_sha: null
+      observed_at: '2026-09-13T12:24:33.034260+00:00'
+      main:
+        branch: main
+        sha: 982f637709898c9751e81e75f44d2b63f34516e4
+      recovery:
+        branch: recovery/e1-learning-20260913
+        sha: 8ea7771d902d92f5288685a031b134feb353f4cc
+      bounded_review:
+        branch: codex/e1-preview-stabilized-20260913
+        sha: dce140868601b55c9a5449b38012e297c116d8be
+        base_branch: recovery/e1-learning-20260913
+        base_sha: 8ea7771d902d92f5288685a031b134feb353f4cc
     execution_lease:
       executor_id: codex-learning-course-01
       holder: unassigned

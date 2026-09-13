@@ -422,5 +422,27 @@ class AgentContextTests(unittest.TestCase):
         self.assertIn("ELECTRONICS-MASTER@1.0", rendered)
 
 
+    def test_split_history_is_labelled_snapshot_not_current_learning_head(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            document = fixture(root)
+            target = lane(document)
+            target["revisions"] = {
+                "kind": "split_history", "head_sha": None, "convergence_baseline_sha": "a" * 40,
+                "observed_at": "2026-09-13T12:00:00Z",
+                "main": {"branch": "main", "sha": "b" * 40},
+                "recovery": {"branch": "recovery/example", "sha": "c" * 40},
+                "bounded_review": {"branch": "codex/preview", "sha": "d" * 40},
+            }
+            context = MODULE.build_context(root, document, target, git_status=available())
+            rendered = MODULE.render_text(context)
+        self.assertIn("no integrated Learning HEAD", rendered)
+        self.assertIn("recorded snapshot, not live remote HEADs", rendered)
+        self.assertIn("historicalMergeBase: " + "a" * 40, rendered)
+        self.assertIn("bounded_review: codex/preview @ " + "d" * 40, rendered)
+        self.assertNotIn("head_sha: " + "a" * 40, rendered)
+        self.assertIn("observations grant no authority", rendered)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

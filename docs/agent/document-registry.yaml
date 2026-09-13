@@ -50,6 +50,16 @@ documents:
     context_role: root
     read_when: [active_task, checkpoint, gates, blockers]
 
+  - id: EXECUTION-REVISION-CONTRACT
+    path: docs/execution/REVISION_STATE_CONTRACT.md
+    scope: global
+    lanes: ['*']
+    kind: contract
+    status: canonical
+    authority: execution_revision_semantics
+    context_role: escalation
+    read_when: [execution_state_change, revision_observation]
+
   - id: DOCSYSTEM-MAINTENANCE
     path: docs/architecture/AI_MAINTENANCE_DOCUMENTATION_SYSTEM.md
     scope: global
