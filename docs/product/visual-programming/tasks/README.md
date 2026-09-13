@@ -17,7 +17,7 @@ Default flow:
 ```text
 current.yaml selects exact task with task.status = in_progress
 → read only that task card
-→ resolve its component IDs in ../COMPONENT_MAP.yaml
+→ resolve mapped components when the card names them
 → open only referenced subsystem card entries
 → read mapped canonical contract/source/tests/evidence
 → implement/review/decide one slice
@@ -35,9 +35,15 @@ VSCR-M1-002.md    milestone router only; not executable as one slice
 VSCR-M1-002A.md   standalone build + minimal ASA host shell
 VSCR-M1-002B.md   ASA branding + File/Extensions controls
 VSCR-M1-002C.md   parent/iframe protocol boundary
-VSCR-M1-002D.md   ScratchStorage/GUIStorage fixture adapter
+VSCR-M1-002R.md   one-time maintainability repair before first visible editor
+VSCR-M1-002D.md   ScratchStorage/GUIStorage fixture adapter + real editor mount
 VSCR-M1-002E.md   integrated acceptance + independent review
 ```
+
+`VSCR-M1-002R` is a corrective maintenance gate inserted after accepted C because a measured audit
+found CI fan-out, per-slice root gate proliferation, oversized protocol test tooling and excessive
+mandatory agent context. It is not a new product capability and must not become a recurring ceremony.
+D stays blocked until R is accepted.
 
 Templates:
 
