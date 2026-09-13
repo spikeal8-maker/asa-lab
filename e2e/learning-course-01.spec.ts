@@ -213,7 +213,12 @@ test('matrix 30 × 10, named exclusions, course filter, individual allowance and
         (_, i) => `Ученик ${String(i + 1).padStart(2, '0')}, matrix-e1-${i + 1}`,
       ).join('\n'),
     );
-  await roster.getByRole('button', { name: 'Добавить учеников', exact: true }).click();
+  await roster.getByRole('button', { name: 'Проверить список', exact: true }).click();
+  await expect(roster.getByText('Список проверен сервером')).toBeVisible();
+  await roster.getByRole('button', { name: 'Добавить учеников (30)', exact: true }).click();
+  await expect(roster.getByRole('heading', { name: 'Ученики добавлены: 30' })).toBeVisible();
+  await expect(roster.locator('.classroom-batch-card')).toHaveCount(30);
+  await roster.getByRole('button', { name: 'Закрыть', exact: true }).click();
   await expect(roster).toBeHidden();
   await openAssignments(page);
   for (const [index, title] of titles.entries())
