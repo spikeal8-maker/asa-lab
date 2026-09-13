@@ -1,20 +1,48 @@
 import { beforeAll, afterAll, describe, expect, it } from 'vitest';
-import type pg from 'pg';
+import pg from 'pg';
 import { hashSessionToken } from '../../contexts/identity/dist/index.js';
 import { buildTestApp, inject, type NestApp } from '../portal/app';
-import { testAdminPool, testAppPool } from '../portal/helpers';
+import { testAdminPool } from '../portal/helpers';
+import { applyPlan, planMigrations } from '../../tools/migrate.mjs';
 
 let admin: pg.Pool;
 let runtime: pg.Pool;
 let app: NestApp;
+let databaseOwner: pg.Pool;
+let databaseCreated = false;
+const databaseName = `asa_access_isolated_${crypto.randomUUID().replaceAll('-', '')}_test`;
 beforeAll(async () => {
-  admin = testAdminPool();
-  runtime = testAppPool();
+  // Preview installs statement-level write guards on every application table.
+  // Its proof must own the entire database, not interfere with parallel suites.
+  if (!/^asa_access_isolated_[a-f0-9]{32}_test$/.test(databaseName))
+    throw new Error('Unsafe generated test database name');
+  const adminUrl = new URL(process.env['TEST_DATABASE_URL']!);
+  const runtimeUrl = new URL(process.env['APP_TEST_DATABASE_URL']!);
+  if (!adminUrl.pathname.endsWith('_test') || runtimeUrl.pathname !== adminUrl.pathname)
+    throw new Error('Matching isolated admin/runtime test databases required');
+  databaseOwner = testAdminPool();
+  await databaseOwner.query(`CREATE DATABASE "${databaseName}"`);
+  databaseCreated = true;
+  adminUrl.pathname = runtimeUrl.pathname = '/' + databaseName;
+  admin = new pg.Pool({ connectionString: adminUrl.toString(), max: 3 });
+  const migrationClient = await admin.connect();
+  try {
+    await applyPlan(migrationClient, planMigrations());
+  } finally {
+    migrationClient.release();
+  }
+  runtime = new pg.Pool({ connectionString: runtimeUrl.toString(), max: 3 });
   app = await buildTestApp(runtime);
-});
+}, 30000);
 afterAll(async () => {
-  await app?.close();
-  await admin?.end();
+  try {
+    if (app) await app.close();
+    else await runtime?.end();
+    await admin?.end();
+    if (databaseCreated) await databaseOwner.query(`DROP DATABASE "${databaseName}"`);
+  } finally {
+    await databaseOwner?.end();
+  }
 });
 
 async function account() {
