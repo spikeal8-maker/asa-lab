@@ -432,7 +432,7 @@
 }
 @media (max-width: 820px) {
   .portal-shell .portal-header {
-    grid-template-columns: 44px auto minmax(0, 1fr) 44px;
+    grid-template-columns: 44px auto minmax(0, 1fr) auto 44px;
     gap: 4px;
     padding: 0 8px;
     height: 56px;
