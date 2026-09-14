@@ -36,7 +36,8 @@ components:
     sources:
       - apps/web/public/asa-lab-mark.svg
       - infra/scratch-editor/patches/0001-host-logo-prop.patch
-      - infra/scratch-editor/host/editor.js
+      - path: infra/scratch-editor/host/editor.js
+        symbols: [mountEditor, logo]
       - infra/scratch-editor/Dockerfile
     tests: [e2e/blocks-host-controls.spec.ts]
     task: VSCR-M1-002B
@@ -51,7 +52,9 @@ components:
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-001-SCRATCH-HOST-CONTRACT.md
         section: 'Localization'
-    sources: [infra/scratch-editor/host/editor.js]
+    sources:
+      - path: infra/scratch-editor/host/editor.js
+        symbols: [mountEditor]
     tests: [e2e/blocks-host-controls.spec.ts]
     task: VSCR-M1-002B
     task_card: VSCR-M1-002B.md
@@ -95,7 +98,9 @@ components:
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-001-SCRATCH-HOST-CONTRACT.md
         section: 'Product controls'
-    sources: [infra/scratch-editor/host/editor.js]
+    sources:
+      - path: infra/scratch-editor/host/editor.js
+        symbols: [mountEditor, canSave]
     tests: [e2e/blocks-host-controls.spec.ts]
     task: VSCR-M1-002B
     task_card: VSCR-M1-002B.md
@@ -109,7 +114,9 @@ components:
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-001-SCRATCH-HOST-CONTRACT.md
         section: 'Extensions'
-    sources: [infra/scratch-editor/host/editor.js]
+    sources:
+      - path: infra/scratch-editor/host/editor.js
+        symbols: [mountEditor, createStandaloneRoot]
     tests: [e2e/blocks-host-controls.spec.ts]
     task: VSCR-M1-002B
     task_card: VSCR-M1-002B.md
@@ -150,7 +157,8 @@ components:
         section: 'Scratch storage adapter'
     sources:
       - infra/scratch-editor/host/storage.js
-      - infra/scratch-editor/host/editor.js
+      - path: infra/scratch-editor/host/editor.js
+        symbols: [mountEditor, createFixtureStorage, EditorState, setProjectId]
       - path: infra/scratch-editor/host/main.js
         symbols: [editor]
     tests:
