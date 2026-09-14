@@ -257,6 +257,16 @@ documents:
     context_role: target
     read_when: [games_r0_decision, games_shared_contract_change]
 
+  - id: GAMES-ENGINEERING-HYGIENE
+    path: docs/product/games-platform/ENGINEERING_HYGIENE.md
+    scope: games
+    lanes: [games]
+    kind: process_contract
+    status: canonical
+    authority: games_engineering_hygiene
+    context_role: escalation
+    read_when: [games_stage_entry, games_stage_close, games_file_growth, games_cleanup]
+
   - id: VSCR-AGENT-GUIDE
     path: docs/product/visual-programming/AGENT_GUIDE.md
     scope: visual_programming
