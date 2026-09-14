@@ -64,13 +64,14 @@ requirements:
 
   - id: GP-R0-006
     title: Minimum capability vocabulary
-    evidence: [docs/product/ASA_CHECKERS_ONLINE_PLAY.md, docs/product/ASA_CHECKERS_PLAYER_STATS.md]
+    observed_main_sha: 583be6e207bf30807202ecc16245af2d49330919
+    evidence: [R0_006_MINIMUM_CAPABILITIES.md, R0_006_MINIMUM_CAPABILITIES_REVIEW.md, docs/product/ASA_CHECKERS_ONLINE_PLAY.md, docs/product/ASA_CHECKERS_PLAYER_STATS.md]
     acceptance: [R1-R4 only, enable-disable admission, no creator/device/network overdesign]
-    decision: null
-    negative_case: null
-    compatibility: null
-    review_verdict: NOT_REVIEWED
-    state: open
+    decision: Six orthogonal R1-R4 capability keys with separate game support, ASA policy grant, eligibility decision and admission state.
+    negative_case: Client/game cannot self-grant; disabled new admission cannot block authorized reconnect/history.
+    compatibility: Checkers consumes capabilities by R1-R3; Chess maps to the same keys in R4.
+    review_verdict: PASS
+    state: accepted
 
   - id: GP-R0-007
     title: Error and idempotency contract
