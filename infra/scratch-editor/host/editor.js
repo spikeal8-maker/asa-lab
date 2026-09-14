@@ -52,6 +52,7 @@
       root.render({
         ...(hasProjectJson ? { projectId: globalThis.AsaBlocksStorage.EXISTING_FIXTURE_ID } : {}),
         canSave: false,
+        logo: '/asa-lab-mark.svg',
         onVmInit(instance) {
           vm = instance;
           if (disposed) {
