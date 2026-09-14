@@ -44,7 +44,14 @@
         versionId: message.versionId ?? null,
         runtimeToken: message.runtimeToken,
       };
-      options.onInit?.({ ...session, runtimeToken: undefined });
+      // Forward only the fixture selector after C has accepted the session.
+      // Storage URLs/assets and the memory-only capability stay out of the mount API.
+      options.onInit?.(
+        { ...session, runtimeToken: undefined },
+        {
+          hasProjectJson: message.hasProjectJson === true,
+        },
+      );
       return true;
     };
 
