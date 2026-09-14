@@ -5,7 +5,6 @@
       {
         isPlayerOnly: session.mode === 'player',
         showTelemetryModal: false,
-        locale: 'en',
       },
       () => ({ storage }),
     );
