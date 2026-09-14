@@ -2,6 +2,8 @@
 
 Этот протокол определяет проверку законченного изменения. Он не заменяет focused tests, repository gate или owner acceptance.
 
+Для любого пользовательского интерфейса дополнительно обязателен `docs/product/ASA_UI_LAYOUT_ACCEPTANCE_SPEC.md`. Он задаёт layout-impact, обязательные viewport, visual evidence и запрет объявлять UI готовым при известном визуальном дефекте.
+
 ## 1. POST_STEP_REVIEW
 
 Выполняется тем же исполнителем после каждого логически завершённого шага до объявления шага завершённым.
@@ -15,12 +17,18 @@ CHANGE_CLASS: L0_LOCAL_UI | L1_UI_BEHAVIOR | L2_DOMAIN_MUTATION | L3_CRITICAL
 CHANGED: <коротко: файлы/контракты/поведение>
 USER_RESULT: <что теперь реально может пользователь>
 INVARIANTS_TOUCHED: <stable IDs или none>
+LAYOUT_IMPACT: none | <изменённые classes/components + consumers>
+VIEWPORTS: n/a | <фактически проверенные 1440/1024/390/320>
+VISUAL_EVIDENCE: n/a | <screenshots/browser assertions>
 TESTS: <фактически запущенные focused checks>
 NEGATIVE_CHECKS: <что проверено на запрет/конфликт/ошибку>
 DOC_DRIFT: none | <точное расхождение>
 UNVERIFIED: <что не проверено>
 VERDICT: PASS | NEEDS_FIX | BLOCKED
 ```
+
+Для `L0_LOCAL_UI` и `L1_UI_BEHAVIOR` поля `LAYOUT_IMPACT`, `VIEWPORTS`, `VISUAL_EVIDENCE` обязательны и не могут быть пропущены словом `n/a`, если реально менялись пользовательские DOM/CSS/text/layout.
+
 ## 2. Обязательные вопросы self-review
 
 Исполнитель обязан ответить по коду, а не по намерению:
@@ -33,10 +41,30 @@ VERDICT: PASS | NEEDS_FIX | BLOCKED
 6. Совместимы ли migration/API/rollback boundaries, если менялся persistence contract?
 7. Не использует ли код superseded/historical document как нормативный?
 8. Соответствуют ли тесты реальному failure mode, а не только happy path?
+9. Если менялся UI: найдены ли все consumers изменённого shared CSS/компонента и проверены ли затронутые surfaces?
+10. Если менялся UI: нет ли text squeeze, page-level overflow, overlap, пустой grid-колонки, обрезанного primary CTA или дублированного empty-state?
+11. Если менялся UI: проверены ли 1440/1024/390/320 и применимые populated/empty/loading/error/disabled/long-content состояния?
 
 `NEEDS_FIX` означает: исполнитель исправляет найденную проблему и повторяет review. `BLOCKED` означает реальную зависимость/решение владельца; это не способ остановиться вместо исправления своей ошибки.
 
-## 3. CHALLENGE_REVIEW
+## 3. UI_LAYOUT_REVIEW
+
+Для каждого L0/L1 изменения пользовательского интерфейса до `PASS` обязательно применяется `ASA_UI_LAYOUT_ACCEPTANCE_SPEC.md`.
+
+Минимальный порядок:
+
+1. определить изменённые selectors/components/text и их impact radius;
+2. найти все consumers shared selector/component;
+3. проверить desktop 1440, compact 1024, mobile 390 и narrow mobile 320;
+4. проверить long-content и все применимые UI states;
+5. подтвердить отсутствие неразрешённого horizontal page scroll;
+6. сделать browser evidence для 1440 и 390; для milestone/release — для всех четырёх viewport;
+7. если пользователь или screenshot уже показал дефект, добавить regression check именно по причине дефекта;
+8. если хотя бы одна затронутая surface визуально сломана, `VERDICT = NEEDS_FIX`, даже если unit/e2e/CI функционально зелёные.
+
+Нельзя чинить только один screenshot, если изменённый shared selector используется ещё на других страницах.
+
+## 4. CHALLENGE_REVIEW
 
 Отдельный критический проход обязателен, если выполнено хотя бы одно условие:
 
@@ -47,6 +75,7 @@ VERDICT: PASS | NEEDS_FIX | BLOCKED
 - изменены Submission/Result/Gradebook semantics;
 - закрывается milestone;
 - формируется release candidate.
+
 Challenge review должен пытаться опровергнуть готовность шага. Минимум проверяется:
 
 - конфликт с canonical domain contract;
@@ -55,16 +84,19 @@ Challenge review должен пытаться опровергнуть гото
 - old-client/new-schema и new-client/old-schema compatibility для rollout;
 - negative authorization;
 - сохранность исторических данных;
-- отсутствие скрытого fallback к legacy writer/read path.
+- отсутствие скрытого fallback к legacy writer/read path;
+- для release candidate с UI: отсутствие известных layout regressions на изменённых основных surfaces.
 
-## 4. Стоимость проверки
+## 5. Стоимость проверки
 
 Нельзя заменять этот протокол глобальным аудитом после каждой мелкой правки.
 
-- L0: component/surface self-review + focused UI test;
-- L1: self-review + affected behavior tests;
-- L2: self-review + domain contract + command/read-model tests;
-- L3: self-review + challenge review + compatibility/security tests;
-- milestone/candidate: independent critical review + declared full gates.
+- L0: component/surface self-review + layout-impact review + focused UI test;
+- L1: self-review + layout-impact review + affected behavior tests;
+- L2: self-review + domain contract + command/read-model tests; если L2 меняет UI, также применяется UI layout contract;
+- L3: self-review + challenge review + compatibility/security tests; если L3 меняет UI, также применяется UI layout contract;
+- milestone/candidate: independent critical review + declared full gates + visual acceptance изменённых основных surfaces.
 
-Цель review — раннее обнаружение смысловой ошибки при минимальном контексте, а не производство длинного отчёта.
+Проверяется не весь проект после каждого пикселя, а **изменённая surface плюс все реальные consumers затронутого shared CSS/компонента**. Это сохраняет малый контекст и одновременно предотвращает регрессии соседних страниц.
+
+Цель review — раннее обнаружение смысловой и визуальной ошибки при минимальном контексте, а не производство длинного отчёта.
