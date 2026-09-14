@@ -49,7 +49,7 @@ apps/web/package.json
 ## Expected write paths
 
 ```text
-contexts/electronics/testing/engine-consumer-contract.spec.ts
+apps/api/src/electronics-engine-consumer.spec.ts
 apps/web/src/electronics/testing/engine-browser-consumer.spec.ts
 ```
 
@@ -70,8 +70,8 @@ relative modules, and prove:
 ## Acceptance
 
 ```text
-1. Node-facing consumer test imports @asa-lab/electronics/engine directly.
-2. Browser-facing consumer test imports the same package subpath directly.
+1. Node-facing consumer test imports @asa-lab/electronics/engine directly from apps/api.
+2. Browser-facing consumer test imports the same package subpath directly from apps/web.
 3. Both exercise the same stable non-temporal contract.
 4. Existing public-api and dependency-boundary tests remain green.
 5. Existing Electronics focused/browser gates remain green.
@@ -81,7 +81,7 @@ relative modules, and prove:
 ## Tests / gates
 
 ```text
-pnpm exec vitest run contexts/electronics/testing/engine-consumer-contract.spec.ts
+pnpm exec vitest run apps/api/src/electronics-engine-consumer.spec.ts
 pnpm exec vitest run apps/web/src/electronics/testing/engine-browser-consumer.spec.ts
 pnpm validate:electronics-agent-docs --task TASK-ELECTRONICS-EOPT1D-001
 pnpm gate:electronics-m1
