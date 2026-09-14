@@ -11,6 +11,7 @@
     },
     "./engine": {
       "types": "./dist/engine.d.ts",
+      "browser": "./engine.ts",
       "default": "./dist/engine.js"
     },
     "./simulation": {
