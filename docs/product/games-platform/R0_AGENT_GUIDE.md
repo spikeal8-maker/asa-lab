@@ -18,7 +18,7 @@ Read:
 
 For `GP-R0-001`, also read `docs/agent/contracts/identity.yaml` and the current identity migrations/services cited by the audit.
 
-Do not preload the old Games research branch.
+Do not preload the old Games research branch. Do not preload `ENGINEERING_HYGIENE.md` unless the assigned work concerns file growth, cleanup or a stage gate; its short rules are routed through the Games README.
 
 ## Hard stop
 
@@ -44,6 +44,8 @@ The corresponding traceability row must contain:
 - `review_verdict`.
 
 `state: accepted` is invalid unless `review_verdict: PASS` and those fields are non-null.
+
+Before closing a documentation slice, check the changed Games documents against the size budgets in the Games README/`ENGINEERING_HYGIENE.md`; split supporting detail instead of inflating the router/decision file.
 
 ## Review
 
