@@ -1,9 +1,34 @@
 # Visual Programming / Scratch — agent router
 
-Execution state: `pnpm agent:context --scope visual-programming` reads
-`docs/execution/current.yaml`. Product work starts only after the owner selects it.
-Maintenance of existing code/tooling follows the owner's bounded request; it does
-not require an extra product milestone. Stop when that request is complete.
+Execution state: `pnpm agent:context --scope visual-programming` reads `docs/execution/current.yaml`.
+Product work starts only after the owner selects it. Stop when the selected bounded request is complete.
+
+## Canonical precedence — защита от старого ТЗ
+
+Если старый issue, ветка, комментарий, архивный отчёт или task snapshot противоречит актуальному `main`, бот **не имеет права** брать старое требование как product truth.
+
+Порядок источников:
+
+```text
+1. docs/execution/current.yaml                    # что выполняется сейчас
+2. tasks/<selected-task>.md                       # точное ТЗ выбранного шага
+3. components/*.yaml + mapped D0 heading          # контракт компонента
+4. ASA_VISUAL_PROGRAMMING_SCRATCH_MASTER_SPEC.md  # стабильные invariants
+5. forward plan                                   # readiness/order only
+6. GitHub issue / старые ветки / исторические отчёты = только история
+```
+
+При конфликте STOP → исправить routing/docs → только потом кодировать.
+
+Для текущего product-shell решения действует простой invariant:
+
+```text
+Scratch остаётся настоящим Scratch
+Settings/File/Edit/Extensions не переписываются ради брендинга
+встроенный язык остаётся внутри Scratch Settings
+штатные внешние service/hardware integrations не удаляются blanket-фильтром
+ASA меняет product logo, product colour и parent-owned avatar/account
+```
 
 ## Read only the selected concern
 
@@ -11,41 +36,32 @@ not require an extra product milestone. Stop when that request is complete.
 START_HERE_FOR_AI.md
 → this router
 → tasks/<selected-task>.md
-→ the named component entry in components/*.yaml
-→ the mapped D0 heading
+→ named component in components/*.yaml
+→ mapped D0 heading
 → source + tests
 ```
 
-Task cards link directly to their components. `COMPONENT_MAP.yaml` is a lookup by
-keyword when the component is unknown, not another mandatory read. Load one direct
-dependency only when the task needs its interface. Master, ADR, AGENT_GUIDE, roadmap,
-all D0 and all component cards are reference material, never a default reading list.
+`COMPONENT_MAP.yaml` используется только когда компонент неизвестен. Не загружать master/ADR/all D0/all tasks по умолчанию.
 
 ## Checks
 
 ```bash
-pnpm gate:blocks             # Scratch source, protocol, types, boundaries and docs
-pnpm gate:blocks --browser   # existing standalone runtime on 127.0.0.1:4613
-pnpm gate:blocks --docs      # routing and document format only
-pnpm gate:blocks --list      # inspect the complete command list
+pnpm gate:blocks
+pnpm gate:blocks --browser
+pnpm gate:blocks --docs
+pnpm gate:blocks --list
 ```
 
-The cumulative runner is `tools/blocks/gate.mjs`. Extend it when a slice adds tests;
-do not add task-specific root scripts. Full API/Web integration stays in
-`pnpm gate:repository`. Shared package/lockfile changes still trigger other affected
-focused workflows. Scratch-only source/tooling changes do not need those files.
+Cumulative runner: `tools/blocks/gate.mjs`. Extend existing Scratch gate instead of adding per-slice root scripts. Full API/Web integration remains in `pnpm gate:repository`.
 
 ## References when needed
 
-| Question                          | Source                                                          |
-| --------------------------------- | --------------------------------------------------------------- |
-| Next product capability/readiness | `VSCR-M1-FORWARD-PLAN-2026-09-11.md`                            |
-| Ownership/review guidance         | `AGENT_GUIDE.md`                                                |
-| Unknown component                 | `COMPONENT_MAP.yaml`                                            |
-| Product goal                      | `../ASA_VISUAL_PROGRAMMING_SCRATCH_MASTER_SPEC.md`              |
-| Architecture decision             | `../../architecture/ADR-VSCR-001-SCRATCH-EDITOR-INTEGRATION.md` |
+| Question                  | Source                                                          |
+| ------------------------- | --------------------------------------------------------------- |
+| Next capability/readiness | `VSCR-M1-FORWARD-PLAN-2026-09-11.md`                            |
+| Ownership/review guidance | `AGENT_GUIDE.md`                                                |
+| Unknown component         | `COMPONENT_MAP.yaml`                                            |
+| Product goal/invariants   | `../ASA_VISUAL_PROGRAMMING_SCRATCH_MASTER_SPEC.md`              |
+| Architecture decision     | `../../architecture/ADR-VSCR-001-SCRATCH-EDITOR-INTEGRATION.md` |
 
-Preserve the exact upstream pin and accepted parent/iframe boundary. Scratch GUI/VM
-stays outside `apps/web` dependencies. New upstream patches require an explicit
-reviewed decision. Source/test moves update the owning component entry in the same
-change. Deployment and activation require separate owner instruction.
+Preserve exact upstream pin and accepted parent/iframe boundary. Scratch GUI/VM stays outside `apps/web` dependencies. New upstream patches require explicit reviewed need. Deployment/activation require separate owner instruction.

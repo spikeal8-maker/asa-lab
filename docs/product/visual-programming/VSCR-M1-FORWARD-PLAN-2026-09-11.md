@@ -1,243 +1,214 @@
 # ASA Lab Visual Programming — post-M0 readiness and order
 
 **Programme:** `blocks` / `Визуальное программирование`  
-**Status:** the single Scratch readiness/order source; never execution authorisation.
-
-This file answers only:
-
-```text
-what capability comes next?
-what is eligible vs blocked?
-what prerequisite unlocks it?
-```
-
-It does not contain live execution state. Live task selection lives only in
-`docs/execution/current.yaml`.
+**Status:** single Scratch readiness/order source; execution lives only in `docs/execution/current.yaml`.
 
 ## Planning principle
 
-The programme is ordered by **working product capability**, not by the number of internal
-technical layers completed.
+Двигаемся по работающим возможностям продукта, а не по количеству внутренних слоёв.
 
-Every step must answer one of these questions:
+Главные вопросы этапов:
 
 ```text
-Can the host be built reproducibly?
-Can a user actually open and run Scratch inside ASA?
-Can ASA control the product chrome without rewriting Scratch?
-Can language/default locale behave correctly through Scratch's own localization?
-Can a project survive save/reopen?
-Can it recover safely?
-Can it interchange .sb3 safely?
-Can Gallery/Learning use immutable versions?
-Can the whole system run sovereignly and restore from backup?
+можно ли собрать Scratch воспроизводимо?
+можно ли реально открыть/запустить его в ASA?
+можно ли аккуратно наложить ASA branding, не ломая Scratch?
+может ли ASA-проект сохраняться/открываться?
+есть ли recovery/conflict handling?
+есть ли безопасная ASA-интеграция .sb3?
+можно ли использовать версии в Gallery/Learning?
+готовы ли deployment/backup/restore?
 ```
-
-Do not spend an owner-acceptance cycle merely because another internal layer exists. Technical
-boundaries still get focused evidence and required security review, but owner-visible checkpoints
-are reserved for meaningful new capability.
 
 ## Baseline
 
-Integrated M0/M0.1 provides the Blocks document/provider contract, strict logical asset references,
-`moduleVersion 0.1.1`, `availability coming_soon`, the reviewed exact Scratch pin and accepted D0
-architecture contracts.
+M0/M0.1 и M1-001 дали Blocks contract/context. M1-002A/C приняты. D реализован отдельно и проходит owner acceptance/integration. `blocks` остаётся `coming_soon`.
 
-M1-001 is complete and owner-accepted. M1-002 is owner-authorised. M1-002A and M1-002C are accepted.
-The next product capability is FIRST VISIBLE SCRATCH (D). Tooling/documentation normalisation
-is ordinary maintenance and adds no product milestone. This roadmap never selects tasks itself.
-
-## Revised strict order
+## Strict order
 
 ```text
 M0/M0.1  COMPLETE
-M1-001    COMPLETE / OWNER-ACCEPTED — @asa-lab/blocks bounded context
+M1-001    COMPLETE / OWNER-ACCEPTED
 
-M1-002    ASA-owned Scratch host milestone
-  M1-002A standalone build + minimal ASA host shell
-    ↓ technical acceptance / STOP
-  M1-002C strict parent/iframe bootstrap boundary
-    ↓ security evidence + independent review / STOP
-  M1-002D fixture storage adapter + REAL editor mount
-    ↓ FIRST VISIBLE SCRATCH checkpoint / STOP
-  M1-002B ASA product chrome + localization + identity shell
-    ↓ product-chrome/localization evidence / STOP
-  M1-002E integrated host acceptance + independent review
-    ↓ owner acceptance of M1-002 milestone / STOP
+M1-002
+  A standalone build
+  → STOP
+  C parent/iframe security boundary
+  → STOP
+  D real editor + fixture storage
+  → FIRST VISIBLE SCRATCH / STOP
+  B preserve Scratch shell + ASA logo/colour/avatar
+  → product-shell evidence / STOP
+  E integrated acceptance
+  → owner acceptance / STOP
 
-M1-003    runtime capability auth + exact Origin/CORS/CSP + current-authority recheck
-M1-004    validated tenant-private assets + S3/MinIO
-M1-005    semantic validation + Project Core durable Scratch load/save
-M1-006    generation-aware autosave/recovery/conflict + snapshot
-M1-007    safe .sb3 import/export
-M1-008    end-to-end M1 durability/security acceptance
-
-M2        ASA product UI + immutable Gallery/player/remix + Learning integration
-M3        sovereign local media/extensions + network deny + backup/restore/deployment/load
-M4-001    explicit coming_soon → active decision
+M1-003 runtime capability/auth/origin security
+M1-004 durable assets + S3/MinIO
+M1-005 ASA durable Scratch load/save
+M1-006 autosave/recovery/conflicts/snapshot
+M1-007 safe ASA .sb3 validation/import/export integration
+M1-008 end-to-end M1 acceptance
+M2 product UI + Gallery/player/remix + Learning
+M3 deployment/backup/restore + optional local/offline alternatives
+M4-001 explicit activation
 ```
 
-The product order is `A → C → D → B → E`.
-Branding/control/localization DOM evidence is meaningful only after the editor can actually mount.
+Order: `A → C → D → B → E`. No automatic progression.
 
-No task or sub-slice automatically advances to the next one.
+## Checkpoint 1 — First visible Scratch
 
-## Capability checkpoints
-
-### Checkpoint 1 — First visible Scratch
-
-Reached by accepted M1-002C + M1-002D evidence:
+Reached by accepted C+D:
 
 ```text
-ASA parent opens the isolated Scratch host
-→ valid INIT is required
-→ controlled fixture storage is used
-→ the real Scratch editor mounts
-→ workspace/stage are visible
-→ a controlled block programme can run and stop
-→ no Scratch Foundation project/library fallback occurs
+ASA parent
+→ valid INIT
+→ isolated real Scratch
+→ fixture storage
+→ workspace/stage
+→ run/stop
+→ no fake durable save
 ```
 
-Persistence may still be intentionally non-durable here. The point is to prove that Scratch is
-actually usable inside the ASA boundary before spending more work on product chrome.
+## Checkpoint 1B — ASA shell without rewriting Scratch
 
-### Checkpoint 1B — ASA product shell on real Scratch
-
-Reached by accepted M1-002B evidence:
+Reached by B:
 
 ```text
-real upstream Scratch remains the editor/runtime
-→ ASA logo replaces Scratch product logo
-→ ASA product bar uses the existing ASA palette
+upstream Scratch remains the editor/runtime
+→ Scratch product logo replaced with ASA logo
+→ top product bar uses ASA palette
 → ASA avatar/account remains parent-owned
-→ Scratch Settings remains
-→ language switching remains inside Settings; no separate Language/Язык button
-→ Russian browser opens Russian; English browser opens English; unsupported non-English falls back to ru
-→ Scratch File/Edit remain familiar surfaces
-→ unsafe .sb3 File items remain unavailable until M1-007
-→ Extensions entry point remains visible but local/approved-only
-→ Scratch programming-category colours remain unchanged
+→ D hard-coded locale='en' removed
+→ Settings remains native Scratch
+→ language selector remains inside Settings
+→ browser locale handled by Scratch itself
+→ File/Edit remain native Scratch
+→ Load/Save to computer remain native Scratch local functions
+→ Extensions entry point/catalogue remain native Scratch
+→ existing external-service/hardware integrations are not globally removed
+→ semantic block/category colours remain unchanged
 ```
 
-B has exactly three reviewed compatibility patches at the pinned upstream revision: logo prop,
-Extensions visibility and File-menu item policy. A fourth patch is not implicitly authorised.
+B does **not** add an ASA language system, ASA extension allowlist or replacement File menu.
 
-### Checkpoint 2 — Durable ASA project
+Core project/asset/editor loading must not secretly depend on Scratch project/asset backend. Explicit external traffic from a user-selected extension is a separate, legitimate dependency of that extension.
 
-Reached by M1-005:
+## Checkpoint 2 — Durable ASA project
+
+M1-005:
 
 ```text
 open ASA Scratch project
 → edit
-→ save
+→ save to ASA
 → close/reopen
-→ project JSON + referenced assets are restored from ASA
+→ project JSON + referenced assets restored from ASA
 ```
 
-### Checkpoint 3 — Robust editing
+Native `Save to your computer` may already exist because it is upstream Scratch local export; it is not evidence of ASA durable save.
 
-Reached by M1-006: autosave, recovery and conflict handling are proven.
+## Checkpoint 3 — Robust editing
 
-### Checkpoint 4 — Compatible interchange
+M1-006: autosave/recovery/conflict handling.
 
-Reached by M1-007: bounded/safe `.sb3` import/export round-trip is proven and the existing File-menu
-import/export entries may then be enabled under the accepted policy.
+## Checkpoint 4 — Safe ASA .sb3 integration
 
-### Checkpoint 5 — Product integration
+M1-007 proves bounded ZIP/content validation, compatibility and ASA import/export flows. It does not justify hiding native Scratch local File UI during B.
 
-Reached by M2: immutable player/publication/remix and Learning submission use existing ASA project
-version semantics.
+## Checkpoint 5 — Product integration
 
-### Checkpoint 6 — Sovereign production readiness
+M2: immutable player/publication/remix and Learning submission through ASA version semantics.
 
-Reached by M3: network-deny, rights-cleared/local media policy, backup/restore, deployment and load
-are proven.
+## Checkpoint 6 — Deployment readiness
 
-## Conditional design-decision rule
-
-`M1-004P`, `M1-005P` and `M1-007P` are no longer mandatory pre-created milestones.
-
-Before M1-004, M1-005 or M1-007 implementation:
+M3 proves:
 
 ```text
-inspect accepted prerequisite interfaces
-→ is the exact dependency/security/compatibility choice already sufficiently resolved?
-  yes → record the decision in the implementation card and proceed when selected
-  no  → STOP and create/select a separate bounded design-decision task
+backup/restore
+deployment topology
+LAN/load evidence
+local/right-cleared core media where required
+core operation without hidden Scratch Foundation project/asset dependency
+clear degradation when an optional external extension's own service/device is unavailable
 ```
 
-A design task exists because a real decision is unresolved, not because the roadmap mechanically
-requires an extra ceremony.
+M3 does not globally delete/block native Scratch network-backed or hardware extensions.
 
 ## Readiness matrix
 
-| Task           | Readiness                     | Unlock condition                                                                                             |
-| -------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `VSCR-M1-001`  | **COMPLETE / OWNER-ACCEPTED** | merged accepted bounded context                                                                              |
-| `VSCR-M1-002A` | **COMPLETE / ACCEPTED**       | accepted standalone host foundation                                                                          |
-| `VSCR-M1-002C` | **COMPLETE / ACCEPTED**       | accepted strict parent/iframe boundary                                                                       |
-| `VSCR-M1-002D` | **READY FOR SELECTION**       | A/C accepted; D card maps the current host/protocol interfaces; separate owner selection                     |
-| `VSCR-M1-002B` | **BLOCKED**                   | M1-002D accepted and real editor DOM available; refresh B card; separate selection                           |
-| `VSCR-M1-002E` | **BLOCKED**                   | A+C+D+B accepted; separate review-task selection                                                             |
-| `VSCR-M1-003`  | **BLOCKED**                   | M1-002E + owner acceptance of M1-002                                                                         |
-| `VSCR-M1-004`  | **BLOCKED**                   | M1-003 accepted; create a design-decision task only if an exact validation/storage choice remains unresolved |
-| `VSCR-M1-005`  | **BLOCKED**                   | M1-004 accepted; create a semantic-validation design task only if still genuinely unresolved                 |
-| `VSCR-M1-006`  | **BLOCKED**                   | M1-005 durable interfaces accepted                                                                           |
-| `VSCR-M1-007`  | **BLOCKED**                   | durable load/save accepted; create a ZIP/compatibility design task only if still genuinely unresolved        |
-| `VSCR-M1-008`  | **BLOCKED**                   | M1-006 + M1-007 accepted                                                                                     |
-| `VSCR-M2-*`    | **BLOCKED**                   | M1-008 accepted                                                                                              |
-| `VSCR-M3-*`    | **BLOCKED**                   | M2 accepted + rights/network/backup decisions                                                                |
-| `VSCR-M4-001`  | **BLOCKED**                   | M3 sovereign/restore/deployment acceptance                                                                   |
+| Task           | Readiness                  | Unlock condition                                                  |
+| -------------- | -------------------------- | ----------------------------------------------------------------- |
+| `VSCR-M1-001`  | COMPLETE / OWNER-ACCEPTED  | integrated                                                        |
+| `VSCR-M1-002A` | COMPLETE / ACCEPTED        | accepted host foundation                                          |
+| `VSCR-M1-002C` | COMPLETE / ACCEPTED        | accepted security boundary                                        |
+| `VSCR-M1-002D` | IMPLEMENTED / OWNER REVIEW | integrate exact D implementation without overwriting newer B docs |
+| `VSCR-M1-002B` | BLOCKED                    | D owner-accepted + integrated; B card selected separately         |
+| `VSCR-M1-002E` | BLOCKED                    | A+C+D+B accepted                                                  |
+| `VSCR-M1-003`  | BLOCKED                    | E + owner acceptance of M1-002                                    |
+| `VSCR-M1-004`  | BLOCKED                    | M1-003                                                            |
+| `VSCR-M1-005`  | BLOCKED                    | M1-004                                                            |
+| `VSCR-M1-006`  | BLOCKED                    | M1-005                                                            |
+| `VSCR-M1-007`  | BLOCKED                    | durable project path accepted                                     |
+| `VSCR-M1-008`  | BLOCKED                    | M1-006 + M1-007                                                   |
+| `VSCR-M2-*`    | BLOCKED                    | M1-008                                                            |
+| `VSCR-M3-*`    | BLOCKED                    | M2                                                                |
+| `VSCR-M4-001`  | BLOCKED                    | M3 deployment/restore acceptance                                  |
 
-`BLOCKED` means coding STOP. `READY FOR SELECTION` means the card exists and prerequisites are met,
-but coding still requires exact `current.yaml` selection with `status=in_progress`.
+`BLOCKED` means coding STOP.
 
-## Acceptance granularity
+## D integration rule
 
-Use the smallest acceptance ceremony that matches risk and capability:
+D branch predates the latest B product decisions. Never merge stale D documentation over current `main`.
 
 ```text
-technical foundation (A)       focused evidence + bounded self-review
-security boundary (C)          focused/browser evidence + independent review
-first visible editor (D)       focused/browser evidence + owner-visible checkpoint
-product shell (B)              focused DOM/browser/network evidence + bounded self-review
-integrated host (E)            integrated evidence + independent review + owner milestone acceptance
+current main docs/specs = authority
++
+D implementation/tests = integrate carefully
+-
+stale D copies of B policy
+```
+
+After D integration update `current.yaml`, `components/host.yaml` and runtime README to actual integrated state before selecting B.
+
+## B execution rule
+
+B is intentionally small:
+
+```text
+1. remove forced English locale
+2. replace Scratch product logo with ASA logo
+3. apply ASA colour only to product chrome
+4. add parent-owned ASA avatar/account presentation
+5. verify native Settings/File/Edit/Extensions were not accidentally removed or redesigned
+6. verify external extension integrations were not blanket-blocked
+7. STOP
 ```
 
 ## Task-card refresh rule
 
-Before selecting the next sub-slice:
+Before selecting next slice:
 
 ```text
 prerequisite accepted
-→ inspect actual accepted interfaces/tooling
-→ compare next card planned paths/dependencies with reality
-→ update only the next card/routing if stale
-→ run node tools/validate-blocks-docs.mjs
-→ select the exact task separately in current.yaml
+→ inspect actual interfaces
+→ compare next card with reality
+→ fix stale routing/docs first
+→ validate docs
+→ select exact task
 ```
 
-Do not pre-write exact source/test paths for distant work.
-
-## Stable cross-milestone invariants
+## Stable invariants
 
 ```text
-Scratch logo is not ASA product chrome
-canonical ASA logo is apps/web/public/asa-lab-mark.svg
-language selector remains inside Scratch Settings; no duplicate top-level language button
-Scratch built-in localization remains authoritative; no ASA translation fork
-ASA theme affects product chrome, not Scratch programming-category colours
-ASA avatar/account remains parent-owned, not Scratch-origin identity
-built-in Scratch account/community/cloud/server-save ownership is not ASA product flow
-Gallery publication binds exact immutable project_version_id
-cross-tenant remix re-materialises referenced assets server-side
-Learning reuses immutable project_version_id submission semantics
-school baseline has no implicit Scratch Foundation dependency
-only M4-001 may activate blocks
+Scratch remains Scratch
+ASA branding does not justify rebuilding Scratch UI
+language selector remains in Scratch Settings
+no forced ASA locale in B
+File/Edit remain native Scratch
+Extensions catalogue and existing external integrations remain
+semantic category colours remain upstream
+ASA avatar/account remains parent-owned
+ASA durable save is separate from native local File export
+core ASA project/assets do not silently rely on Scratch project/asset backend
+only M4-001 activates blocks
 ```
-
-## Planning vs maintenance
-
-Milestone planning may read this file. Bounded maintenance after implementation does not read the
-roadmap by default; it routes through `README.md → COMPONENT_MAP.yaml → one component card → mapped
-source/test/contract → bounded self-review`.
