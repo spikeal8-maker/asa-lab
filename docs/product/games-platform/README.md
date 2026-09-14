@@ -20,6 +20,8 @@ When Games R0 work is explicitly assigned, read only:
 
 Escalate to identity, Chess, Checkers, `ENGINEERING_HYGIENE.md` or older Games research only when the assigned requirement/change requires it. Do not preload the entire old Games documentation set.
 
+For Chess/R4 work or hygiene touching Chess, additionally read `CHESS_HYGIENE_AUDIT.md`; it is supporting evidence, while `ENGINEERING_HYGIENE.md` remains the process authority.
+
 ## Prepared stage
 
 `R0 — Architecture Freeze` is prepared but is not activated as a live implementation lane by this branch.
