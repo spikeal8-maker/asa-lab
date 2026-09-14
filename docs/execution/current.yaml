@@ -9,24 +9,22 @@ development_policy:
   lane_path_ownership: advisory
 
 task:
-  id: VSCR-M1-002D
+  id: VSCR-M1-002B
   issue: 183
   branch: main
   base_branch: main
-  pr: 225
+  pr: null
   pr_draft: false
-  status: done
-  checkpoint: m1_002d_first_visible_scratch_owner_accepted_integrated
-  owner_acceptance: accepted
+  status: in_progress
+  checkpoint: m1_002b_asa_product_chrome_selected
+  owner_acceptance: pending
 
 revisions:
-  convergence_baseline_sha: 982f637709898c9751e81e75f44d2b63f34516e4
-  head_sha: 143e280510e64dd93026298bc7713eecaac52124
-  owner_accepted_sha: a2d0cd6d8fd2c39945b91e289cbdb02e43924675
-  product_merge_sha: 143e280510e64dd93026298bc7713eecaac52124
+  convergence_baseline_sha: 1d101b699b7db34efa838a143a93f9b19940e5c9
+  head_sha: 1d101b699b7db34efa838a143a93f9b19940e5c9
 
 execution_lease:
-  executor_id: codex-vscr-m1-002d
+  executor_id: codex-vscr-m1-002b
   holder: unassigned
   acquired_at: null
   expires_at: null
