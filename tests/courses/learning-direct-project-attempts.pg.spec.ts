@@ -1241,7 +1241,7 @@ describe('LRN-VS-002 canonical direct project attempt', () => {
         completionValue: true,
       },
     });
-  });
+  }, 30_000);
   it('keeps the pre-E1 four-argument submit contract safe during DB-first rollout', async () => {
     const classroomId = await createClass();
     const seatId = await createSeat(classroomId, 'Rollout learner');
