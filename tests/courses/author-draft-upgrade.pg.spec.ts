@@ -92,7 +92,7 @@ it('upgrades populated 0136: unchanged publications stay closed, changed/unpubli
     ).rows;
     const upgrade = await pool.connect();
     try {
-      expect(await applyIsolatedTestPlan(upgrade, planned)).toBe(1);
+      expect(await applyIsolatedTestPlan(upgrade, planned)).toBe(2);
     } finally {
       upgrade.release();
     }
