@@ -101,7 +101,9 @@ test(
       await expect(frame.getByText('Translate', { exact: true })).toBeVisible();
       await expect(frame.getByText('Text to Speech', { exact: true })).toBeVisible();
       await expect(frame.getByRole('button', { name: /^micro:bit\b/ })).toBeVisible();
-      await expect(frame.getByRole('button', { name: /^LEGO MINDSTORMS EV3\b/ })).toBeVisible();
+      await expect(
+        frame.getByRole('button', { name: /^LEGO MINDSTORMS EV3\b/ }),
+      ).toBeVisible();
 
       await page.screenshot({
         path: `${evidenceDir}/01-asa-chrome-and-account.png`,
