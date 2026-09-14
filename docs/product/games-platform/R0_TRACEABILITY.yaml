@@ -1,0 +1,80 @@
+schema_version: 1.0.0
+stage: R0
+baseline_sha: c9fbb773bc4b2c4e19c181ef586ee6300a9cfed6
+status: proposed
+source_of_truth: docs/product/games-platform/R0_ARCHITECTURE_FREEZE.md
+
+requirements:
+  - id: GP-R0-001
+    title: Gaming identity
+    evidence:
+      - migrations/0026_student_seat_principal.sql
+      - migrations/0047_seat_principal_lookup.sql
+      - migrations/0050_account_learners.sql
+      - migrations/0062_principal_home_tenant.sql
+      - migrations/0086_learning_identity_foundation.sql
+      - docs/agent/contracts/identity.yaml
+    acceptance:
+      - one stable gaming-subject resolution contract
+      - no second auth system
+      - no raw internal id in public fallback
+      - account plus seat principal case covered
+    state: open
+
+  - id: GP-R0-002
+    title: Games security and storage domain
+    evidence:
+      - docs/architecture/DATA_SECURITY_AND_TENANCY.md
+      - contexts/chess-live/application/ports.ts
+    acceptance:
+      - cross-workspace placement decided
+      - authorization and RLS negative-test model defined
+      - no participant tenant chosen by convenience
+    state: open
+
+  - id: GP-R0-003
+    title: Canonical Match dimensions
+    acceptance:
+      - independent admission competition scope runtime topology dimensions
+      - no game-specific state columns in generic Match
+    state: open
+
+  - id: GP-R0-004
+    title: Match state machine and termination
+    acceptance:
+      - transition table with allowed actors
+      - termination reason matrix
+      - invalid transition semantics
+    state: open
+
+  - id: GP-R0-005
+    title: First-class teams
+    acceptance:
+      - duel FFA teams coop representable
+      - team result independent from participant result
+    state: open
+
+  - id: GP-R0-006
+    title: Minimum capability vocabulary
+    acceptance:
+      - only R1-R4 capabilities included
+      - enable disable admission semantics
+      - no creator device network overdesign
+    state: open
+
+  - id: GP-R0-007
+    title: Error and idempotency contract
+    evidence:
+      - contexts/chess-live/application/ports.ts
+      - contexts/checkers/application/game-service.ts
+    acceptance:
+      - retry fingerprint rule
+      - expectedVersion rule
+      - machine-readable error taxonomy
+      - payload rate pagination baselines
+    state: open
+
+r0_gate:
+  rule: all requirements must be accepted before R1 shared SQL or API implementation
+  accepted_count: 0
+  required_count: 7
