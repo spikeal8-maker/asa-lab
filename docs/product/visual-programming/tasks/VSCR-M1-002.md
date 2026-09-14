@@ -6,10 +6,9 @@
 
 ## Goal
 
-Establish the ASA-owned standalone Scratch host boundary without combining build, trust boundary,
-fixture mount, product shell and integrated acceptance into one uncontrolled agent run.
+Establish the ASA-owned standalone Scratch host boundary without combining build, trust boundary, real-editor mount, product shell and integrated acceptance into one uncontrolled agent run.
 
-The milestone is ordered by **working capability**, in product order:
+Product order:
 
 ```text
 VSCR-M1-002A  standalone build + minimal ASA host shell
@@ -17,20 +16,20 @@ VSCR-M1-002A  standalone build + minimal ASA host shell
 VSCR-M1-002C  strict parent/iframe bootstrap boundary
 → security evidence + independent review / STOP
 VSCR-M1-002D  fixture storage adapter + real editor mount
-→ FIRST VISIBLE SCRATCH checkpoint / STOP
-VSCR-M1-002B  ASA product chrome + localization + identity shell on the real editor DOM
-→ product-chrome/localization evidence / STOP
+→ FIRST VISIBLE SCRATCH / STOP
+VSCR-M1-002B  preserve native Scratch shell + ASA logo/colour/avatar
+→ product-shell evidence + independent review / STOP
 VSCR-M1-002E  integrated browser/Docker acceptance + independent review
-→ owner acceptance of M1-002 milestone / STOP
+→ owner acceptance of M1-002 / STOP
 ```
 
-Do not execute this router as one coding task. Do not restore the historical `A → B → C → D`
-order: B needs a real mounted editor DOM, which only exists after C/D.
+Do not execute this router as one coding task. B only happens after real DOM exists through C+D.
 
 ## Canonical milestone authorization
 
-`VSCR-M1-002` is a milestone router, never a temporary executable `task.id`. When the owner
-authorises the milestone and an executable sub-slice is selected, canonical `main` stores:
+`VSCR-M1-002` is a router, never a temporary executable `task.id`.
+
+Selected implementation slice requires:
 
 ```yaml
 primary_lane:
@@ -39,13 +38,9 @@ primary_lane:
     owner_authorization: accepted
 ```
 
-The executable task remains the exact sub-slice and its `task.status` must be `in_progress`.
-`tools/validate-blocks-docs.mjs` rejects active M1-002 implementation sub-slices when required
-control-plane markers are absent or malformed.
+and exact selected `task.id` with `task.status: in_progress` in `docs/execution/current.yaml`.
 
 ## Components
-
-The product milestone covers:
 
 ```text
 blocks.upstream.pin
@@ -62,47 +57,50 @@ blocks.host.extensions
 
 ## First visible Scratch capability
 
-Accepted M1-002C + M1-002D create the first meaningful user-visible result:
+C+D prove:
 
 ```text
 ASA parent
 → valid INIT
 → isolated Scratch host
-→ ASA-controlled fixture storage
-→ real Scratch editor mounts
-→ workspace/stage visible
-→ controlled block programme runs/stops
-→ no Scratch Foundation project/library fallback
+→ controlled fixture storage
+→ real Scratch editor
+→ workspace/stage
+→ run/stop
+→ honest non-durable fixture behaviour
 ```
-
-Durable save is intentionally later. Product branding/localization/identity controls are intentionally
-after this checkpoint so their browser evidence observes a real editor.
 
 ## B product-shell capability
 
-B does **not** rewrite Scratch. It productises the real mounted upstream editor:
+B does **not** redesign Scratch.
 
 ```text
-ASA logo replaces Scratch product logo
-ASA top bar/product chrome uses the existing ASA palette
-ASA avatar/account surface remains parent-owned on the right
-Scratch Settings remains
-language selection remains inside Scratch Settings; no separate Language/Язык button
-initial language uses ASA preference/upstream browser detection with ru fallback
-Scratch File and Edit menus remain familiar surfaces
-File import/export stays unavailable until the safe .sb3 milestone
-Scratch Extensions entry point remains visible, ASA-themed and local/approved-only
-Scratch semantic programming-category colours remain unchanged
+Scratch product logo → ASA logo
+верхняя product bar → ASA colour
+правый account/avatar area → ASA parent-owned avatar/account
+D forced locale='en' → removed
 ```
 
-The accepted pinned upstream requires a bounded third File-menu compatibility patch because its
-`canManageFiles` flag hides the whole menu while local import/export items are otherwise
-unconditional. B may use exactly the three authorised patches declared by D0-001; no fourth patch is
-implicit.
+Everything else stays native Scratch unless a separately reviewed technical/security defect proves otherwise:
+
+```text
+Settings stays Scratch
+language selector stays inside Settings
+browser locale stays upstream Scratch behaviour
+File/Edit stay Scratch
+New / Load from computer / Save to computer stay Scratch local functions
+Extensions catalogue stays Scratch
+native external-service/hardware integrations stay available
+semantic category colours stay Scratch
+```
+
+No ASA `ru` fallback, no second language UI, no B extension allowlist, no blanket network deny, no File-menu patch merely to simplify the host.
+
+Core ASA project/asset/editor loading must not secretly depend on Scratch project/asset backends. Explicit traffic from an extension the user intentionally selects is a different and legitimate case.
 
 ## Minimal read set
 
-For milestone planning only:
+For planning:
 
 ```text
 ../README.md
@@ -110,7 +108,7 @@ For milestone planning only:
 this router
 ```
 
-For coding, read only the selected A/C/D/B/E card. Do not preload all cards.
+For coding, read only the selected A/C/D/B/E card and mapped component/contract.
 
 ## Expected write paths
 
@@ -128,69 +126,49 @@ VSCR-M1-002E.md
 
 ## Pre-selection card refresh
 
-Task cards are bounded design snapshots, not permission to ignore interfaces accepted by an earlier
-sub-slice.
-
-Before selecting the next sub-slice in `current.yaml`:
+Before selecting the next slice:
 
 ```text
-read the accepted previous slice component/tooling evidence
-→ compare the next card's planned paths/dependencies with actual accepted interfaces
-→ if still exact, select the next task normally
-→ if stale, update only that next task/component routing first
-→ run node tools/validate-blocks-docs.mjs
-→ then select the refined exact task separately
+prerequisite accepted
+→ inspect actual accepted interfaces
+→ compare next card with reality
+→ if stale, fix the card/routing first
+→ validate docs
+→ select exact task separately
 ```
 
-Do not expand a stale card during coding.
+Do not let an old branch/issue overwrite newer canonical B policy.
 
 ## Acceptance granularity
 
-Not every internal layer needs an owner-visible ceremony:
-
 ```text
 A  technical foundation
-C  high-risk security boundary; independent review required
-D  first visible editor capability; owner-visible checkpoint
-B  ASA product chrome/localization/identity on accepted real DOM
-E  integrated high-risk acceptance; owner milestone acceptance
+C  security boundary + independent review
+D  first visible real editor
+B  ASA product chrome while preserving native Scratch shell
+E  integrated acceptance + owner milestone acceptance
 ```
-
-Each task still has its own exact evidence and STOP boundary. The distinction is that owner-visible
-product checkpoints are tied to meaningful capability, not to every internal layer or refactor.
 
 ## Forbidden
 
 ```text
-no one-shot implementation of all M1-002 concerns
-no automatic A → C → D → B → E progression
-no return to branding-before-mount order
-no execution from a stale next-slice card
-no Scratch rewrite / translation fork
-no duplicate top-level language button
-no M1-003 runtime JWT work
-no S3/MinIO
-no Project Core persistence
+no one-shot A/C/D/B/E implementation
+no automatic next-task progression
+no stale branch/document policy overwrite
+no Scratch rewrite
+no Settings redesign
+no second language button/translation fork
+no blanket filtering of native Extensions/external integrations
+no File/Edit replacement in B
+no M1-003 JWT work
+no S3/MinIO in B
 no activation
 ```
 
 ## Bounded self-review
 
-At the milestone level, verify only that:
-
-```text
-A/C/D/B have separate accepted evidence
-D proves the first visible working editor
-B productises the already mounted editor without replacing Scratch behaviour
-B keeps language selection in Settings and preserves Scratch semantic category colours
-B keeps ASA identity parent-owned
-E reviewed the integrated host boundary
-next cards were refreshed against accepted prior interfaces before selection
-no sub-slice started automatically
-M1-003 was not started
-```
+Verify D proves a working real editor, B changes only ASA product chrome/identity plus removes forced English, E verifies the integrated boundary, and no old restrictive File/Extensions/language policy was reintroduced.
 
 ## Stop
 
-After each selected sub-slice STOP. After M1-002E STOP again for owner milestone acceptance. Only
-then may M1-003 become selectable.
+STOP after each selected sub-slice. M1-003 becomes selectable only after M1-002E and explicit owner acceptance of M1-002.

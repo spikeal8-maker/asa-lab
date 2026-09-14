@@ -1,80 +1,73 @@
 # ASA Lab Visual Programming — Scratch integration master specification
 
-**Version:** 3.5
-
+**Version:** 3.6  
 **Module:** `blocks`  
 **Product:** `Визуальное программирование`
 
 ## 0. How to use this master
 
-This is the stable product/architecture master. It defines destination, invariants and
-milestone order; it does not select active work.
+Это стабильный продуктовый и архитектурный master. Он не выбирает активную задачу. Текущее исполнение живёт только в `docs/execution/current.yaml`.
 
-Execution state lives only in `docs/execution/current.yaml`. An owner instruction may
-authorise selecting/updating an exact Scratch task there, but does not bypass the control
-plane or make roadmap text executable.
-
-Scratch routing:
+Маршрут для агента:
 
 ```text
 docs/product/visual-programming/README.md
 → COMPONENT_MAP.yaml
-→ one subsystem card
-→ exact task card when milestone coding is selected
-→ mapped canonical contract/source/test
+→ одна карточка компонента
+→ выбранная task card
+→ mapped contract/source/test
 ```
 
-This master is reference material. Coding starts with the selected task card and its mapped
-component/contract; read a master section only to resolve a specific product question.
+Старые issue/ветки не имеют права переопределять этот master и текущую task card.
 
 ## 1. Product goal
 
-ASA Lab provides a self-hostable Scratch-3-compatible visual-programming environment while
-ASA remains the system of record.
+ASA Lab предоставляет настоящий Scratch-3-compatible редактор внутри ASA Lab, а ASA остаётся system of record для аккаунтов, проектов, версий, обучения, публикации и долговременного хранения.
 
 ```text
-create ASA Visual Programming project
-→ open ASA-branded editor
-→ edit/run blocks, sprites, costumes and sounds
-→ durable autosave to ASA
-→ close/reopen same project
-→ immutable version/checkpoint
-→ submit / publish / remix / .sb3 interchange when applicable
+создать проект ASA Visual Programming
+→ открыть настоящий Scratch внутри ASA
+→ редактировать/запускать блоки, спрайты, костюмы и звук
+→ сохранять проект в ASA
+→ закрыть/открыть без потери состояния
+→ версионировать / сдавать / публиковать / remix
 ```
 
-The supported school baseline must not depend on `scratch.mit.edu` availability.
+Ключевое решение: **Scratch не переписывается.** ASA не строит свой клон Scratch GUI.
 
 ## 2. Ownership boundary
 
-Scratch owns editor/runtime mechanics:
+Scratch owns:
 
 ```text
-block editor
+блочный редактор
 VM execution
 renderer
-paint/sound editor mechanics
-Scratch 3 project compatibility
-built-in Scratch localization mechanics and language menu
-semantic programming-category colour system
+paint/sound mechanics
+Scratch 3 compatibility
+Settings
+built-in localization and language menu
+File/Edit local UI
+Extensions catalogue and extension mechanics
+existing upstream external-service and hardware integrations
+semantic programming-category colours
 ```
 
 ASA owns:
 
 ```text
-identity and authorisation
-projects/drafts/immutable versions
-classrooms and Learning submissions
-Gallery publication/player/remix
-asset durability and object storage
-save/recovery/conflict semantics
-backup/restore/deployment/activation
-product branding and product chrome
-initial locale policy / ASA language preference handoff
-ASA account/avatar shell around the Scratch runtime
+identity/authorisation
+projects/drafts/versions
+Learning/Gallery product flows
+ASA durable save/recovery/conflicts
+ASA object storage
+product branding around Scratch
+ASA logo and ASA colours in product chrome
+parent-owned ASA avatar/account shell
+runtime security/deployment/backup/activation
 ```
 
-There is no second Scratch account system, project backend, classroom/LMS, social backend or
-gradebook inside ASA.
+Нет второго Scratch account backend, второго Scratch LMS или второго собственного block editor.
 
 ## 3. Stable architecture
 
@@ -82,20 +75,15 @@ gradebook inside ASA.
 ASA Lab Web
 └── separate-origin iframe
     └── ASA Scratch Host
-        ├── pinned Scratch GUI standalone distribution
-        ├── ASA bootstrap/config/protocol
-        ├── ASA Scratch storage adapter
+        ├── pinned official Scratch Editor standalone
+        ├── ASA bootstrap/protocol
+        ├── ASA project/storage adapter
         └── later ASA save/recovery orchestrator
              ↓ short-lived capability
         ASA Blocks Runtime API
-        ├── Project Core use cases
-        ├── Blocks durability guard
-        ├── tenant-private asset metadata
-        ├── private S3-compatible blob store
-        └── existing snapshot/version systems
 ```
 
-Scratch GUI/VM dependencies remain outside the main ASA Web dependency graph.
+Scratch GUI/VM packages остаются вне основной dependency graph ASA Web.
 
 ## 4. Canonical project document
 
@@ -115,286 +103,211 @@ interface BlocksAssetReferenceV1 {
 }
 ```
 
-```text
-assetId    Scratch compatibility identity; v1 lowercase 32-hex MD5
-sha256     ASA server-computed integrity digest
-objectKey  server-only physical locator; never project JSON
-.sb3       interchange only; never autosave persistence
-```
+`.sb3` — interchange format, а не внутренний ASA autosave format.
 
-A durable Blocks document may not reference missing/unverified assets.
+## 5. Product branding and preserved Scratch shell
 
-## 5. Product branding, localization and host boundary
+Пользователь видит **ASA Lab — Визуальное программирование**, но внутри остаётся настоящий Scratch.
 
-User-facing product branding is **ASA Lab — Визуальное программирование**.
-
-Canonical logo source:
+Canonical ASA logo:
 
 ```text
 apps/web/public/asa-lab-mark.svg
 ```
 
-Required product result:
+B изменяет только:
 
 ```text
-Scratch product logo/navigation      absent
-ASA Lab canonical logo               present
-Scratch account/community ownership  absent
-Scratch cloud/backpack ownership     absent
-ASA account/avatar shell             parent-owned; not Scratch-origin authority
-Scratch programming UI/runtime       preserved
+Scratch product logo → ASA Lab logo
+верхний product-bar colour → ASA Lab colour
+правый account/avatar area → ASA parent-owned avatar/account
 ```
 
-The real Scratch language selector is preserved inside the existing Scratch Settings menu.
-Do not add a separate top-level `Language` / `Язык` button and do not fork Scratch translations.
-Initial locale follows the accepted ASA/browser policy: canonical ASA preference when available,
-otherwise the first supported browser locale, regional normalization where possible, and `ru` as
-the final fallback. A Russian browser therefore opens in Russian by default without custom
-translation patches.
+B **не переделывает**:
 
-ASA product colour applies to **product chrome only**. The current ASA portal header primary is
-`#0877B3` with darker/border state `#076B98`; canonical tokens remain owned by
-`apps/web/src/brand/brand.css`. Do not globally replace Scratch's `$looks-secondary` or recolour
-semantic block/category colours. Motion, Looks, Sound, Events, Control, Sensing, Operators,
-Variables and My Blocks retain upstream Scratch colour semantics.
+```text
+Scratch Settings
+Scratch language selector
+Scratch File/Edit
+native Load/Save to computer
+Scratch Extensions catalogue
+existing external-service integrations
+existing hardware integrations
+Scratch semantic block colours
+```
 
-The familiar Scratch Settings/File/Edit surfaces remain unless a narrower capability is unsafe in
-the current milestone. File commands that imply durable ASA save/load or `.sb3` support stay
-hidden/disabled until their owning milestones are accepted. The Extensions entry point remains a
-familiar product control but may expose only local/approved sources and must not silently depend on
-Scratch Foundation runtime services.
+### Language
 
-A no-op click handler on the Scratch logo is insufficient. Factual compatibility wording such as
-`совместимо с проектами Scratch 3 (.sb3)` is allowed.
+В D был технический `locale: 'en'`. B должен **только удалить этот forced-English override**.
 
-Upstream default Scratch media is allowed only as a gated, non-user-facing M1 compatibility
-fixture. Production default/library media before activation must be ASA-owned/right-cleared
-or deliberately empty unless separately approved.
+Не ставить `locale: 'ru'`. Не создавать отдельную кнопку «Язык». Не копировать переводы.
 
-Exact host controls and the authorised upstream compatibility patches live in D0-001. New upstream
-patches require an explicit reviewed architecture decision rather than ad-hoc growth of a fork.
+Если host не задаёт locale, pinned Scratch сам определяет язык браузера. Выбор языка остаётся внутри штатного Settings.
+
+### File/Edit
+
+File/Edit остаются штатными. Native `Load from your computer` / `Save to your computer` — нормальная локальная функция Scratch и не равна ASA durable server-save.
+
+`canSave=false` используется только чтобы не включать upstream Scratch server-save как будто это ASA save.
+
+M1-007 отвечает за безопасную **ASA-интеграцию** `.sb3` (validation, ZIP limits, compatibility, ASA import/export flows), а не за скрытие native local File UI.
+
+### Extensions and external services
+
+Штатная кнопка Extensions, каталог и внешние/hardware integrations остаются.
+
+```text
+core ASA project/assets/editor loading
+→ не должен скрытно зависеть от Scratch project/asset backend
+
+user explicitly chooses an extension requiring external service/device
+→ intended external integration is allowed
+```
+
+ASA позже может добавить собственные extensions/альтернативы. Это не причина заранее фильтровать upstream catalogue.
+
+Если отдельному расширению нужны особые CSP/sandbox/device permissions, это отдельная bounded integration task; расширение не удаляется просто потому, что такой task ещё не выполнен.
+
+### Colour boundary
+
+ASA primary header reference:
+
+```text
+#0877B3
+#076B98 darker/border reference
+```
+
+Меняем только product chrome. Нельзя глобально перекрашивать Motion/Looks/Sound/Events/Control/Sensing/Operators/Variables/My Blocks.
 
 ## 6. Security invariants
 
-1. Scratch iframe authority is a short-lived bearer capability, not an ASA account cookie.
-2. Runtime routes have exact path-scoped Origin/CORS/CSP handling.
-3. Runtime origin never becomes generic cookie-authenticated mutation trust.
-4. A valid capability is not frozen authority: current ASA resource authority is rechecked.
-5. Editor/player authority is distinct; player is read-only and immutable-version-bound.
-6. Runtime tokens remain memory-only and never enter URL/persistent browser storage/logs.
-7. Browser input and asset metadata are untrusted.
-8. Bucket credentials/object keys never reach browser JavaScript.
-9. ASA avatar/account presentation remains parent-owned; adding product identity chrome must not
-   grant Scratch-origin ASA account authority or cookies.
+1. Scratch iframe получает короткоживущую capability, не ASA cookie.
+2. Origin/CORS/CSP проверяются точно.
+3. Runtime token memory-only; не URL/localStorage/sessionStorage/logs.
+4. Player read-only и version-bound.
+5. Object-store credentials не попадают в browser.
+6. ASA avatar/account остаётся parent-owned.
+7. Расширение, явно выбранное пользователем, может иметь свою внешнюю сеть; это не делает Scratch origin ASA account authority.
+8. Не расширять sandbox/CSP глобально ради одного расширения — интегрировать его отдельно и минимально.
 
-The single canonical runtime-security contract is D0-004.
+## 7. Persistence and assets
 
-## 7. Persistence and asset invariants
-
-1. `projectJson` is Project Core JSON state; binary assets are separate durable objects.
-2. Scratch compatibility identity (MD5/assetId) and ASA integrity (SHA-256) are distinct.
-3. Asset aliases/blobs are tenant-private and immutable.
-4. Asset GET requires reference by the authorised draft/version, not tenant-wide existence.
-5. No silent last-write-wins on revision conflict.
-6. Blocks storage/runtime failure must not take down unrelated ASA modules.
-7. Binary GC remains off until historical-reference safety is designed/proven.
-8. `.sb3` import/export requires bounded ZIP and compatibility rules.
-
-Exact rules live in D0-002, D0-003 and D0-007.
-
-## 8. Gallery and Learning invariants
-
-A Blocks publication pins an exact immutable `project_version_id` (or genuinely equivalent
-immutable version). Player never substitutes the author's mutable current draft.
-
-Cross-tenant remix re-materialises referenced assets into destination tenant ownership before
-committing the destination project; JSON-only cross-tenant copy is invalid.
-
-Learning reuses ASA's existing immutable `project_version_id` submission lineage. Do not
-create a Scratch-specific LMS/submission system.
-
-Exact publication/remix rules live in D0-006.
-
-## 9. Code-placement invariants
+ASA project JSON и assets долговечны независимо от upstream Scratch project backend.
 
 ```text
-contexts/blocks/**              subject/domain/application/infrastructure
-apps/api/**                     transport and composition
-apps/web/src/blocks/**          ASA parent UI / iframe shell
-infra/scratch-editor/**         isolated Scratch host/runtime image
+projectJson → Project Core state
+binary assets → separate durable objects
+assetId → Scratch compatibility identity
+sha256 → ASA integrity
 ```
 
-Core contexts do not import Scratch GUI/VM packages for convenience. Blocks-specific policy
-enters generic Project Core only through accepted generic additive ports/contracts.
+No silent last-write-wins. GC выключен до отдельного доказанного дизайна исторических ссылок.
 
-Actual implementation ownership lives in
-`docs/product/visual-programming/components/*.yaml`; the compact component index only routes
-to those cards.
+## 8. Gallery and Learning
+
+Gallery/player/submission используют immutable ASA project versions. Cross-tenant remix re-materialises assets into destination ownership. Не создаётся Scratch-specific LMS.
+
+## 9. Code placement
+
+```text
+contexts/blocks/**      domain/application/infrastructure
+apps/api/**             transport/composition
+apps/web/src/blocks/**  ASA parent UI / iframe shell
+infra/scratch-editor/** isolated Scratch runtime image
+```
 
 ## 10. Capability-oriented milestone order
 
-The programme advances by meaningful working capability. Internal layers still receive exact
-focused evidence and required security review, but they are not automatically separate owner-visible
-milestones.
-
 ```text
-M0/M0.1  foundation/document contract                         COMPLETE
+M0/M0.1  foundation/document contract                      COMPLETE
+M1-001    @asa-lab/blocks bounded context                   COMPLETE
 
-M1-001    @asa-lab/blocks bounded context
-
-M1-002    ASA-owned Scratch host milestone
-  M1-002A standalone build + minimal ASA host shell
-  M1-002C strict parent/iframe bootstrap boundary
-  M1-002D fixture storage adapter + real editor mount          FIRST VISIBLE SCRATCH
-  M1-002B ASA product chrome + localization + identity shell
-  M1-002E integrated host acceptance + independent review
+M1-002    ASA-owned Scratch host
+  M1-002A standalone build                                 accepted
+  M1-002C strict parent/iframe bootstrap                   accepted
+  M1-002D real editor + fixture storage                    FIRST VISIBLE SCRATCH
+  M1-002B ASA logo/colour/avatar + restore native shell
+  M1-002E integrated host acceptance
 
 M1-003    runtime capability + exact Origin/CORS/CSP/current authority
-M1-004    content-validated tenant-private assets + S3/MinIO
-M1-005    semantic validation + durability guard + durable load/save
+M1-004    durable tenant-private assets + S3/MinIO
+M1-005    ASA durable project load/save
 M1-006    autosave/recovery/conflict/snapshot
-M1-007    safe .sb3 import/export
+M1-007    safe ASA .sb3 validation/import/export integration
 M1-008    full M1 durability/security acceptance
 
-M2        product UI + immutable Gallery/player/remix + Learning integration
-M3        sovereign media/extensions + network deny + backup/restore/deployment/load
-M4-001    explicit coming_soon → active activation
+M2        product UI + Gallery/player/remix + Learning
+M3        deployment/backup/restore + local/offline alternatives where needed
+M4-001    explicit coming_soon → active
 ```
 
-The product capability order is `A → C → D → B → E`. C establishes the trusted bootstrap
-boundary; D mounts the editor through controlled fixture storage. B must productise that real DOM
-without rewriting Scratch: ASA logo/theme/identity shell, correct locale resolution, built-in
-Settings language control preserved, familiar File/Edit/Extensions surfaces constrained by current
-capability truth, and semantic Scratch block colours preserved. Normalisation of tooling and
-documentation is ordinary maintenance, not an additional product prerequisite.
+M3 **не означает blanket network deny для штатных Scratch extensions**. M3 доказывает, что core ASA/Scratch работает без скрытой зависимости от Scratch project/asset services, а внешние extensions имеют явно описанное available/degraded поведение.
 
-Each executable product task is separately selected in `current.yaml`. No bot automatically
-advances. Use `pnpm gate:blocks`; keep storage/editor composition outside the protocol bridge.
+No task auto-advances.
 
-### Conditional design decisions
+## 11. M1-002 checkpoints
 
-There are no mandatory pre-created `M1-004P`, `M1-005P` or `M1-007P` milestones.
-
-Before M1-004, M1-005 or M1-007 coding, inspect the accepted prerequisites. If the exact
-content-validation, semantic-validation or ZIP/legacy-media decision is still genuinely unresolved,
-STOP and create/select a bounded design-decision task. If the decision is already sufficiently
-resolved by accepted contracts/interfaces, record it in the implementation card and proceed when
-that card is separately selected.
-
-A design gate exists because a real decision remains open, not because the roadmap mechanically
-requires another ceremony.
-
-## 11. Capability checkpoints and task routing
-
-### VSCR-M1-001
-
-Exact executable card:
+### First visible Scratch — D
 
 ```text
-docs/product/visual-programming/tasks/VSCR-M1-001.md
+valid INIT
+→ real Scratch mounts
+→ workspace/stage visible
+→ controlled programme runs/stops
+→ fixture save is honestly non-durable
 ```
 
-### VSCR-M1-002
-
-M1-002 is a milestone router, not one giant coding task:
+### ASA shell — B
 
 ```text
-tasks/VSCR-M1-002.md
-→ A technical host foundation → STOP
-→ C secure bootstrap boundary → independent review → STOP
-→ D real editor mount → FIRST VISIBLE SCRATCH checkpoint → STOP
-→ B ASA product chrome/localization/identity on real DOM → STOP
-→ E integrated acceptance/review → STOP
+real Scratch stays intact
+→ ASA logo
+→ ASA top-bar colour
+→ ASA parent-owned avatar/account
+→ remove D forced-English locale
+→ Settings/language/File/Edit/Extensions remain native Scratch
+→ semantic category colours unchanged
 ```
 
-M1-003 remains blocked until M1-002E evidence and explicit owner milestone acceptance.
+### Integrated host — E
 
-### First visible Scratch
-
-M1-002D may start after A/C acceptance and separate owner selection. D acceptance must prove at least:
-
-```text
-valid INIT is required
-real Scratch editor mounts
-workspace/stage are visible
-controlled block programme can run and stop
-fixture/project/library traffic has no Scratch Foundation fallback
-no durable-save success is falsely claimed
-accepted C security cases and isolated Scratch gate remain green
-```
-
-This is the first point at which the programme must visibly behave like Scratch inside ASA. Durable
-save/reopen belongs to M1-005.
-
-### Durable ASA Scratch project
-
-M1-005 acceptance establishes:
-
-```text
-open ASA project
-→ edit
-→ save
-→ close/reopen
-→ project JSON and referenced assets restore from ASA
-```
-
-M1-006 adds robust autosave/recovery/conflict semantics; M1-007 adds safe `.sb3` interchange.
-
-### VSCR-M1-003+
-
-Exact future coding cards are written/refined only after prerequisite interfaces are accepted.
-Distant roadmap text must not freeze speculative source paths/tests.
-
-M2/M3/M4 implementation cards remain blocked until prior milestone interfaces/evidence are
-accepted.
+E verifies D+B+C together and does not invent new architecture.
 
 ## 12. Activation gate
 
-`blocks` remains `coming_soon` until explicit M4-001 owner acceptance.
+`blocks` remains `coming_soon` until explicit M4-001.
 
 Before activation prove at least:
 
 ```text
-durable save/load/reopen
-safe autosave/recovery/conflict handling
-supported sb3 round-trip
+durable ASA save/load/reopen
+autosave/recovery/conflict
+safe ASA .sb3 flows
 immutable Gallery/player/remix
 Learning immutable submission
-rights-cleared local default/library media
-controlled extension policy
-no implicit Scratch Foundation dependency
-PostgreSQL + object-store backup/restore
-failure isolation
-school LAN/NAT load evidence
+backup/restore
+deployment topology and LAN load
+core editor/project/assets operate without hidden Scratch Foundation project/asset dependency
+explicit external extensions degrade clearly when their own service/device is unavailable
 ```
 
-M1 or M2 completion never activates the module.
+Do **not** require every optional third-party extension to work offline. Offline school mode may provide local alternatives later without deleting upstream integrations globally.
 
 ## 13. Agent execution invariant
 
-For every Scratch implementation/maintenance slice:
+For every Scratch slice:
 
 ```text
-verify current.yaml selects the exact task/scope
-resolve exact component/task first
-read the smallest mapped context
-state ownership/risk/expected write paths
-implement one bounded slice
-run mapped focused evidence
-run node tools/validate-blocks-docs.mjs
-perform bounded self-review
-update the owning subsystem card when real source/test ownership changes
-STOP
+check current.yaml
+→ read one selected task/component
+→ state exact allowed paths
+→ implement one bounded change
+→ run focused evidence
+→ run docs validation
+→ independent review when required
+→ STOP
 ```
 
-Use the stable Scratch gate. Extend its Scratch-owned runner for new tests instead of adding
-per-slice root scripts. Route to the relevant component and contract rather than loading history.
+If an old issue/branch/document conflicts with this master or the currently selected task card, treat it as stale and repair routing/docs before coding disputed behaviour.
 
-A stale/conflicting route is a documentation defect to repair before coding disputed behaviour.
-A bot must not invent architecture merely to keep moving.
-
-Owner-visible checkpoints are tied to meaningful capability, not every internal layer. Security
-boundaries and shared CI/tooling changes still require the review profile declared by their exact
-task cards.
-
-Deployment, restart, live restore and activation always require separate explicit owner instruction.
+Deployment/restart/activation always require separate owner instruction.

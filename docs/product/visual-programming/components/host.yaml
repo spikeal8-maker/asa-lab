@@ -5,7 +5,7 @@ components:
     state: implemented
     risk: medium
     ownership: infrastructure
-    purpose: 'Build the shipping standalone Scratch distribution and ASA host shell.'
+    purpose: 'Build the pinned standalone Scratch distribution and ASA-owned host shell.'
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-001-SCRATCH-HOST-CONTRACT.md
         section: 'Host layout'
@@ -28,7 +28,7 @@ components:
     state: planned
     risk: medium
     ownership: upstream_patch
-    purpose: 'Replace Scratch product logo/navigation with canonical ASA product branding.'
+    purpose: 'Replace only the Scratch product logo with the canonical ASA mark; keep the real Scratch UI.'
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-001-SCRATCH-HOST-CONTRACT.md
         section: 'Branding'
@@ -43,9 +43,9 @@ components:
 
   - id: blocks.host.localization
     state: planned
-    risk: medium
+    risk: low
     ownership: upstream_config
-    purpose: 'Keep Scratch language selection inside Settings; browser/ASA locale with ru fallback.'
+    purpose: 'Remove the D forced-English override and otherwise preserve native Scratch Settings/browser localization unchanged.'
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-001-SCRATCH-HOST-CONTRACT.md
         section: 'Localization'
@@ -59,7 +59,7 @@ components:
     state: planned
     risk: medium
     ownership: asa
-    purpose: 'Apply ASA colour to product chrome only; preserve Scratch category colours.'
+    purpose: 'Apply ASA colour only to product chrome while preserving Scratch semantic category colours.'
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-001-SCRATCH-HOST-CONTRACT.md
         section: 'ASA theme boundary'
@@ -73,7 +73,7 @@ components:
     state: planned
     risk: high
     ownership: cross_boundary
-    purpose: 'Show ASA parent-owned avatar/account chrome without Scratch-origin account authority.'
+    purpose: 'Show ASA parent-owned avatar/account chrome without giving Scratch-origin ASA account authority.'
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-001-SCRATCH-HOST-CONTRACT.md
         section: 'ASA identity shell'
@@ -84,15 +84,13 @@ components:
 
   - id: blocks.host.file-menu
     state: planned
-    risk: medium
-    ownership: upstream_patch
-    purpose: 'Keep File/Edit visible while gating Save and .sb3 items until their owning milestones.'
+    risk: low
+    ownership: upstream_config
+    purpose: 'Preserve native Scratch File/Edit and local file commands; keep upstream server-save disabled as ASA persistence is separate.'
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-001-SCRATCH-HOST-CONTRACT.md
         section: 'Product controls'
-    planned_sources:
-      - infra/scratch-editor/host/editor-config.js
-      - infra/scratch-editor/patches/0003-file-menu-policy.patch
+    planned_sources: [infra/scratch-editor/host/editor-config.js]
     planned_tests: [e2e/blocks-host-controls.spec.ts]
     task: VSCR-M1-002B
     task_card: VSCR-M1-002B.md
@@ -101,14 +99,12 @@ components:
   - id: blocks.host.extensions
     state: planned
     risk: medium
-    ownership: upstream_patch
-    purpose: 'Keep Extensions visible and ASA-themed; local/approved sources only.'
+    ownership: upstream_config
+    purpose: 'Preserve native Scratch Extensions catalogue, external-service integrations and hardware integrations; do not add a B allowlist.'
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-001-SCRATCH-HOST-CONTRACT.md
         section: 'Extensions'
-    planned_sources:
-      - infra/scratch-editor/host/editor-config.js
-      - infra/scratch-editor/patches/0002-extension-button-visibility.patch
+    planned_sources: [infra/scratch-editor/host/editor-config.js]
     planned_tests: [e2e/blocks-host-controls.spec.ts]
     task: VSCR-M1-002B
     task_card: VSCR-M1-002B.md
@@ -143,7 +139,7 @@ components:
     state: planned
     risk: high
     ownership: asa
-    purpose: 'Fixture ScratchStorage/GUIStorage adapter without external fallback or durable writes.'
+    purpose: 'Fixture ScratchStorage/GUIStorage adapter for ASA project/assets without fake durable writes.'
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-001-SCRATCH-HOST-CONTRACT.md
         section: 'Scratch storage adapter'

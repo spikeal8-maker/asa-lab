@@ -3,15 +3,13 @@
 **Kind:** acceptance/review slice; no new architecture  
 **Risk:** high  
 **Prerequisite:** VSCR-M1-002A, C, D and B each accepted on their own exact evidence.  
-**Execution:** review starts only when `docs/execution/current.yaml.task.id` is exactly `VSCR-M1-002E` **and** `docs/execution/current.yaml.task.status` is exactly `in_progress`; `docs/execution/current.yaml.primary_lane.milestone.id` must be exactly `VSCR-M1-002` and its `owner_authorization` must be `accepted`.
+**Execution:** review starts only when `docs/execution/current.yaml.task.id` is exactly `VSCR-M1-002E` and `docs/execution/current.yaml.task.status` is exactly `in_progress`; milestone `VSCR-M1-002` must remain owner-authorised.
 
 ## Goal
 
-Prove that the complete M1-002 Scratch host works as one coherent ASA-owned product surface after the accepted A/C/D/B slices, then perform independent review before owner acceptance of the M1-002 milestone.
+Доказать, что полный M1-002 host работает как единая ASA-owned поверхность, при этом настоящий Scratch не был переписан или урезан ради брендинга.
 
 ## Components
-
-Review only the already implemented entries:
 
 ```text
 blocks.upstream.pin
@@ -26,8 +24,6 @@ blocks.host.file-menu
 blocks.host.extensions
 ```
 
-Do not load runtime/assets/project/Gallery/sb3 cards unless evidence exposes a concrete boundary defect.
-
 ## Minimal read set
 
 ```text
@@ -37,106 +33,113 @@ Do not load runtime/assets/project/Gallery/sb3 cards unless evidence exposes a c
 ../components/module.yaml → blocks.upstream.pin only
 ../components/host.yaml
 ../VSCR-D0-001-SCRATCH-HOST-CONTRACT.md → M1-002 acceptance
-accepted A/C/D/B evidence and final host diff
+accepted A/C/D/B evidence and final diff
 ```
 
 ## Expected write paths
 
-Acceptance normally changes no product implementation. Allowed writes are limited to evidence/tests or routing corrections:
+Acceptance normally changes no product implementation. Allowed writes are limited to acceptance evidence/tests or routing corrections:
 
 ```text
 e2e/blocks-host-acceptance.spec.ts
 .github/workflows/scratch-focused.yml or focused successor
-../components/host.yaml                # evidence/routing correction only
+../components/host.yaml
 ```
 
-If acceptance exposes a product defect, mark E `FAIL` and STOP. Repair it in a separately selected bounded task owned by A/C/D/B, rerun that evidence, then restart E from a clean acceptance state.
+Product defect → FAIL/STOP → separate repair task. E does not silently fix product code.
 
 ## Integrated acceptance
 
 Browser/Docker/network evidence must prove at least:
 
 ```text
-exact configured Scratch pin/version is reported
-shipping standalone dist is used, not upstream playground
-exactly three authorised upstream patches apply; no fourth exists
+exact pinned Scratch version/commit reported
+shipping standalone dist used
 real editor mounts only after valid INIT
 workspace/stage render; controlled programme runs/stops
-canonical ASA logo rendered; Scratch product logo/navigation absent
-ASA product header uses canonical ASA colour
-Scratch semantic programming-category colours remain unchanged
-ASA avatar/account surface is parent-owned and does not grant Scratch-origin ASA account authority
-Settings remains and contains the built-in Scratch language selector
-no separate top-level Language/Язык control exists
-ru-RU/ru opens Russian; en-US/en opens English; unsupported non-English locale falls back to ru
-Russian → English → Russian switching uses upstream Scratch localization
-File menu remains visible
-Edit menu remains visible
-Save now remains unavailable before M1-005
-Load/Save .sb3 items remain unavailable before M1-007
-Extensions entry point remains visible, ASA-themed and local/approved-only
-no Scratch account/share/remix/backpack/cloud/server-save ownership is exposed
-wrong source/origin/project/nonce/protocol is rejected
-runtime token is absent from URL/persistent browser storage/logs
+canonical ASA logo rendered instead of Scratch product logo
+ASA top product bar uses ASA colour
+Scratch semantic programming-category colours unchanged
+ASA avatar/account is parent-owned; Scratch origin has no ASA cookie/account authority
+Scratch Settings remains structurally native
+built-in language selector remains inside Settings
+no separate Language/Язык button exists
+D hard-coded locale='en' is gone
+ru-RU and en-US initial locale follow upstream Scratch detection
+Russian → English → Russian works through normal Scratch Settings
+File remains native Scratch
+Edit remains native Scratch
+native local New / Load from computer / Save to computer were not removed by B
+upstream Scratch server-save is not presented as ASA durable save
+Extensions entry point and upstream catalogue remain
+existing external-service/hardware integrations were not blanket-filtered by B
+explicit extension traffic is distinguished from hidden core project/asset fallback
+core ASA project/asset loading does not silently use Scratch Foundation project/asset backend
+wrong source/origin/project/nonce/protocol rejected
+runtime token absent from URL/persistent browser storage/logs
 no postMessage '*'
-new fixture does not fetch ASA UUID upstream
-no project/library/extension request falls back to Scratch Foundation
 PROJECT_CHANGED reaches ASA host after stable load
-player fixture mounts read-only
+player fixture read-only
 runtime failure leaves ASA parent alive with controlled error state
 ```
 
-## Independent review
-
-Reviewer must be a different agent/context or a human, never the authoring execution context. Reviewer receives only:
-
-```text
-this acceptance card
-A/C/D/B task cards
-final integrated diff
-components/host.yaml + blocks.upstream.pin entry
-M1-002 acceptance section of D0-001
-focused/browser/Docker/network evidence
-```
-
-Reviewer checks scope creep, hidden upstream coupling, token exposure, accidental persistence claims, duplicate language UI, accidental recolouring of Scratch semantic categories, identity-boundary weakening, unapproved patch growth and stale component routing.
-
-Reviewer must not silently repair product code. A product defect is a review failure and routes back to the owning bounded task.
+E must not require all optional third-party/network-backed extensions to work offline. If a selected extension's own service/device is unavailable, that is extension-specific degradation, not proof that the core editor is broken.
 
 ## Tests/evidence
 
 ```text
 integrated browser acceptance journey
 Docker exact-pin build + health/root smoke
-network log proving no Scratch Foundation fallback
-localization cases: ru-RU, en-US, unsupported non-English, Russian→English→Russian
-product-chrome checks: ASA logo/header/avatar, no duplicate language control
-File/Edit/Extensions policy checks
-semantic block/category colour baseline check
-focused component tests from A/C/D/B
+core project/asset network log
+ru-RU and en-US locale cases
+Russian → English → Russian through Settings
+ASA logo/header/avatar checks
+native Settings/File/Edit/Extensions presence checks
+representative upstream extension catalogue entries still present
+semantic category colour baseline
+focused A/C/D/B gates
 node tools/validate-blocks-docs.mjs
 required repository gate on exact final SHA
 ```
 
+## Independent review
+
+Reviewer is a different agent/context or a human. Reviewer checks:
+
+```text
+no Scratch rewrite hidden in B
+no Settings redesign
+no second language control/translation fork
+no blanket filtering of Extensions/external integrations
+no accidental semantic-colour replacement
+ASA avatar authority still parent-owned
+no new unreviewed upstream patch
+no hidden Scratch project/asset backend dependency for core ASA flow
+no accidental ASA durable-save claim
+```
+
+Reviewer does not edit reviewed product code.
+
 ## Forbidden
 
 ```text
-no new M1-002 feature invented during acceptance
-no product-code repair hidden inside E
-no fourth upstream patch
-no new language control or translation fork
-no runtime JWT issuance
+no new M1-002 feature invented during E
+no product-code repair hidden inside review
+no forced locale
+no language UI replacement
+no blanket network deny for native extensions
+no File/Edit replacement
+no new upstream patch
+no runtime JWT work
 no S3/MinIO
-no Project Core persistence
-no autosave
-no premature .sb3 support
+no ASA durable save/autosave implementation
 no M1-003 work
 no activation
 ```
 
 ## Bounded self-review
 
-Confirm E changed no product architecture and all accepted host component cards point to actual accepted sources/tests with `state: implemented`. Routing defects may be corrected and revalidated; product-behaviour defects require FAIL/STOP and a separate repair task.
+Confirm E changed no product architecture, accepted component cards point to real sources/tests and the final evidence distinguishes core ASA independence from explicit extension dependencies.
 
 ## Stop
 

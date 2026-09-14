@@ -1,15 +1,15 @@
-# VSCR-M1-002B — ASA product chrome without rewriting Scratch
+# VSCR-M1-002B — Оболочка ASA поверх настоящего Scratch
 
 **Kind:** executable implementation slice  
 **Risk:** high  
 **Prerequisite:** accepted VSCR-M1-002D and real editor DOM.  
-**Execution:** coding starts only when `docs/execution/current.yaml.task.id` is exactly `VSCR-M1-002B` **and** `docs/execution/current.yaml.task.status` is exactly `in_progress`; `docs/execution/current.yaml.primary_lane.milestone.id` must be exactly `VSCR-M1-002` and its `owner_authorization` must be `accepted`.
+**Execution:** coding starts only when `docs/execution/current.yaml.task.id` is exactly `VSCR-M1-002B` and `docs/execution/current.yaml.task.status` is exactly `in_progress`; milestone `VSCR-M1-002` must remain owner-authorised.
 
 ## Goal
 
-Keep the real upstream Scratch editor and its familiar behaviour. ASA changes only product chrome and ASA-owned identity presentation: ASA logo, ASA colours around the editor and parent-owned ASA avatar/account surface.
+Не переделывать Scratch. Сохранить штатный Scratch Editor, его меню, настройки, локализацию, File/Edit, каталог Extensions, внешние сервисы и аппаратные интеграции. ASA меняет только продуктовую оболочку там, где это действительно нужно: логотип, фирменный цвет верхней панели и ASA-owned аватар/аккаунт справа.
 
-Do not redesign Scratch Settings, do not create a second language control, do not replace Scratch localization and do not remove the normal Scratch Extensions ecosystem or its external integrations.
+Отдельно убрать техническую ошибку D: принудительный `locale: 'en'`.
 
 ## Components
 
@@ -22,17 +22,15 @@ blocks.host.file-menu
 blocks.host.extensions
 ```
 
-Read only those entries in `components/host.yaml` and their mapped D0-001 sections.
-
 ## Minimal read set
 
 ```text
 ../README.md
-../components/host.yaml → selected entries
+../components/host.yaml → только перечисленные компоненты
 ../VSCR-D0-001-SCRATCH-HOST-CONTRACT.md → Branding / Localization / ASA theme boundary / ASA identity shell / Product controls / Extensions
 apps/web/public/asa-lab-mark.svg
-apps/web/src/components/PortalHeader.tsx          # avatar/account behaviour reference
-apps/web/src/brand/brand.css                     # ASA palette reference
+apps/web/src/components/PortalHeader.tsx
+apps/web/src/brand/brand.css
 accepted C/D host/editor interfaces
 ```
 
@@ -40,64 +38,57 @@ accepted C/D host/editor interfaces
 
 ```text
 infra/scratch-editor/patches/0001-host-logo-prop.patch
-infra/scratch-editor/patches/0003-file-menu-policy.patch
 infra/scratch-editor/host/branding.js
 infra/scratch-editor/host/editor-config.js
 infra/scratch-editor/host/theme.css
-infra/scratch-editor/host/main.js                 # composition only
+infra/scratch-editor/host/main.js                 # только композиция
 infra/scratch-editor/Dockerfile
 infra/scratch-editor/README.md
-apps/web/src/blocks/**                            # parent avatar/account shell only when needed
+apps/web/src/blocks/**                            # parent-owned ASA avatar/account shell
 e2e/blocks-host-controls.spec.ts
 ../components/host.yaml
 ```
 
-A separate Extensions-visibility patch is not part of B unless a later concrete defect proves it necessary and the architecture is reviewed first. The pinned upstream already renders the Extensions entry point normally.
+Не добавлять patch для скрытия Extensions или урезания File. Новый upstream patch допускается только после отдельного доказанного дефекта и архитектурного решения.
 
-## Localization and Settings — preserve upstream Scratch
+## Localization and Settings — штатный Scratch не трогать
 
-Scratch's own Settings and localization are authoritative.
+В pinned Scratch уже есть Settings и встроенный выбор языка. `canChangeLanguage` по умолчанию включён. Если host не навязывает `locale`, Scratch сам определяет язык браузера и использует собственную систему переводов.
 
-At the pinned upstream revision:
+B делает только это:
 
 ```text
-canChangeLanguage default = true
-Settings already contains the built-in Scratch language selector
-EditorState detects browser locale when host does not force a locale
-regional browser locale is normalized by Scratch when supported (for example ru-RU → ru)
+удалить hard-coded locale: 'en' из D
+не ставить вместо него locale: 'ru'
+не добавлять кнопку «Язык»
+не создавать ASA-переводы Scratch
+не создавать второй список языков
+не переделывать Settings
 ```
 
-Therefore B must **not implement a new language system at all**.
+После удаления принудительного английского язык выбирает сам Scratch. `ru-RU` штатно приводит к `ru`, `en-US` — к `en`, другие языки и fallback работают так, как определено upstream Scratch.
 
-The only correction from the D fixture is:
-
-```text
-remove the hard-coded locale: 'en'
-do not replace it with another hard-coded locale
-do not add a top-level Language/Язык button
-do not create an ASA copy of Scratch translations
-do not create a second locale registry
-```
-
-After the hard-coded English override is removed, the pinned Scratch editor itself chooses its initial language from the browser using its existing detection logic. A Russian browser therefore opens Russian because upstream Scratch supports `ru`; an English browser opens English; other languages follow normal upstream Scratch behaviour, including Scratch's own fallback when a browser language is unsupported.
-
-The existing Scratch Settings menu remains intact. Language switching stays inside Settings exactly as in normal Scratch. Other normal Settings options are not removed merely for ASA branding.
-
-Required evidence:
+Нормальная структура остаётся такой:
 
 ```text
-D's hard-coded locale='en' is absent
-ru-RU/ru browser opens Russian through upstream Scratch detection
-en-US/en browser opens English through upstream Scratch detection
-Settings remains visible and contains the existing language selector
-no duplicate Language/Язык control exists anywhere else
-Russian → English → Russian works through the existing Scratch Settings menu
-no ASA translation files/fork were added
+Настройки Scratch
+├── Язык
+├── цветовой режим
+├── тема
+└── другие штатные настройки текущей версии Scratch
 ```
 
 ## ASA product chrome
 
-Canonical sources:
+Меняем только продуктовый внешний слой:
+
+```text
+Scratch logo → канонический ASA Lab logo
+верхняя фиолетовая продуктовая панель → основной цвет ASA Lab
+правый account/avatar участок → parent-owned ASA avatar/account
+```
+
+Канонические источники:
 
 ```text
 logo: apps/web/public/asa-lab-mark.svg
@@ -106,131 +97,111 @@ header darker/border: #076B98
 brand tokens: apps/web/src/brand/brand.css
 ```
 
-Required header:
-
-```text
-ASA logo replaces Scratch product logo
-no product-navigation click through the ASA logo to scratch.mit.edu
-existing Scratch Settings remains
-existing Scratch File remains
-existing Scratch Edit remains
-ASA avatar/account appears on the right as parent-owned ASA UI
-Scratch account/community/share/remix/backpack/cloud ownership remains absent
-```
-
-Reuse existing ASA avatar/account behaviour. Do not pass ASA cookies to the Scratch origin and do not create a Scratch account system. Prefer a parent-owned overlay/shell visually aligned with the Scratch header.
+ASA logo не ведёт на `scratch.mit.edu`. ASA avatar/account остаётся в parent Web; Scratch origin не получает ASA cookies и не становится второй системой аккаунтов.
 
 ## Theme boundary
 
-Apply ASA colour to **product chrome only**:
+Можно менять фирменный цвет только у продуктовой оболочки, например:
 
 ```text
-top product bar
-Extensions launcher chrome
-sprite/backdrop add controls where technically isolated
-selected sprite/product accent states
-ASA-owned focus/selection chrome
+верхняя продуктовая панель
+служебные product-chrome акценты
+кнопки добавления спрайта/фона, если их цвет технически отделён от языка блоков
+ASA-owned selection/focus chrome
 ```
 
-Do not globally replace Scratch purple or `$looks-secondary`. Preserve standard semantic colours of Motion, Looks, Sound, Events, Control, Sensing, Operators, Variables and My Blocks.
+Нельзя глобально заменять `$looks-secondary` или другие общие переменные, если этим меняются смысловые цвета категорий Scratch. Motion, Looks, Sound, Events, Control, Sensing, Operators, Variables и My Blocks сохраняют штатные цвета Scratch.
 
-## File / Edit policy
+## File / Edit — сохранить штатный Scratch
 
-Keep familiar Scratch File and Edit menus. Do not expose false ASA save or premature `.sb3` support.
-
-At the pinned upstream, `canManageFiles` hides the whole File menu while local import/export items are unconditional inside `FileMenu`; configuration alone cannot keep File visible while independently gating those items. Therefore B authorises:
+B не урезает и не переписывает File/Edit.
 
 ```text
-infra/scratch-editor/patches/0003-file-menu-policy.patch
+Settings остаётся
+File остаётся
+Edit остаётся
+New / Load from computer / Save to computer остаются штатными функциями Scratch
 ```
 
-Its only purpose is independent host control of **New / Load from computer / Save to computer**. It must not implement persistence or parse `.sb3`.
+`canSave=false` сохраняется только для того, чтобы не включать чужой Scratch-server save как будто это ASA durable save. Локальный File import/export не является ASA server-save и не должен скрываться B.
 
-B policy:
+M1-007 по-прежнему отвечает за безопасную ASA-интеграцию `.sb3`: серверную проверку, границы ZIP/контента, совместимость и использование `.sb3` в ASA-потоках. Он не является причиной ломать или скрывать штатное локальное меню Scratch на этапе B.
+
+## Extensions and external integrations — сохранить штатный Scratch
+
+Нормальная кнопка Extensions, штатный каталог и существующие upstream-интеграции остаются.
+
+Не вводить в B:
 
 ```text
-File visible
-Edit visible
-New may remain with honest unsaved-work confirmation
-Save now disabled until M1-005
-Load from computer disabled/hidden until M1-007
-Save to computer disabled/hidden until M1-007
+ASA allowlist, которая вырезает штатные расширения
+глобальный запрет внешних сервисов
+удаление Text to Speech / Translate / micro:bit / EV3 / Makey Makey / Vernier и подобных интеграций только потому, что они внешние
+отдельный ASA Extensions UI вместо Scratch
 ```
 
-M1-007 may later enable the same familiar File-menu import/export entries; do not add duplicate ASA buttons.
-
-## Extensions and external integrations — preserve upstream Scratch
-
-The normal Scratch Extensions entry point and the normal upstream extension catalogue remain available.
-
-B must **not** introduce an ASA allowlist that removes existing Scratch integrations merely because they use external services or hardware. Existing Scratch integrations such as network-backed services and peripheral integrations remain part of the Scratch experience. ASA may later add its own extensions or improve individual integrations in separately selected work.
-
-Important distinction:
+Важно разделять два вида сети:
 
 ```text
-core editor startup / ASA project loading / ASA asset loading
-→ must not silently depend on scratch.mit.edu project or asset backends
+ядро ASA/Scratch: загрузка ASA-проекта, ASA-assets, запуск editor
+→ не должно скрытно зависеть от Scratch project/asset backend
 
-user explicitly opens or uses a Scratch extension which normally needs an external service/device
-→ its expected upstream external integration may operate normally
+пользователь сам выбирает штатное расширение, которому нужен интернет/устройство
+→ его нормальный внешний сервис или аппаратная интеграция разрешены по логике самого расширения
 ```
 
-Therefore network acceptance must distinguish accidental hidden dependency from explicit extension behaviour. A test must not fail merely because a user-selected upstream Scratch extension legitimately calls the external service it was designed to use.
+Если конкретному расширению позже нужны дополнительные CSP/sandbox/permission настройки, это отдельная интеграционная задача. Расширение не удаляется из продукта лишь из-за того, что эта задача ещё не выполнена.
 
-B does not redesign the extension catalogue, block external services globally, replace Scratch hardware flows, or create a new extensions subsystem.
+ASA позже может добавлять собственные расширения и альтернативные сервисы, не ломая upstream-каталог.
 
 ## Authorised upstream patches
 
-For B, prefer native upstream behaviour and host CSS/configuration. The currently required compatibility patches are:
+На B нужен только подтверждённый минимальный patch для ASA logo:
 
 ```text
-0001-host-logo-prop.patch   # ASA logo
-0003-file-menu-policy.patch # File visible, premature file actions gated
+0001-host-logo-prop.patch
 ```
 
-Extensions use native upstream behaviour and need no visibility patch while the product requirement is to keep them available.
-
-A new upstream patch requires a concrete demonstrated need and explicit architecture review before implementation.
+File/Edit/Settings/Extensions должны по возможности работать штатным upstream-кодом. Второй patch не добавлять «на всякий случай».
 
 ## Acceptance
 
 ```text
-real editor remains upstream Scratch
-ASA canonical logo rendered; Scratch product logo/navigation absent
-header uses ASA primary colour
-ASA avatar/account visible on right and remains parent-owned
-Scratch Settings remains structurally intact
-built-in language selector remains inside Settings
-no separate Language/Язык control exists
-no host-forced English or host-forced Russian locale exists
-browser language is handled by the existing Scratch locale mechanism
-File and Edit remain visible
-Save now and .sb3 import/export remain unavailable before owning milestones
-Extensions entry point remains visible
-normal upstream Scratch extension catalogue/integrations are not removed by B
-expected external traffic caused by an explicitly used extension is allowed
-core project/asset loading does not silently fall back to Scratch Foundation backends
-Scratch semantic block/category colours remain unchanged
-no Scratch account/share/remix/backpack/cloud ownership
-only reviewed compatibility patches exist
+настоящий upstream Scratch остаётся редактором
+ASA logo заменяет Scratch product logo
+верхняя продуктовая панель использует цвет ASA
+ASA avatar/account виден справа и остаётся parent-owned
+Scratch Settings остаётся штатным
+встроенный выбор языка остаётся внутри Settings
+нет отдельной кнопки Language/Язык
+нет host-forced locale='en' или locale='ru'
+ru-RU открывает русский через штатный Scratch detection
+en-US открывает английский через штатный Scratch detection
+File/Edit и штатные локальные File-команды не удалены
+Extensions и штатный каталог не отфильтрованы B
+внешние upstream-интеграции не удалены только из-за сетевой/аппаратной природы
+ожидаемый трафик явно выбранного расширения не считается скрытым core fallback
+core project/asset loading не уходит незаметно в Scratch Foundation backend
+смысловые цвета категорий блоков не изменены
+Scratch account/community ownership не подменяет ASA identity
+нет лишних upstream patches
 ```
 
 ## Browser/network evidence
 
 ```text
-ASA logo and ASA header colour visible
-parent-owned avatar/account visible
-Settings remains normal Scratch Settings
-Settings → built-in language selector
-no duplicate language button
-ru-RU and en-US initial locale cases pass using upstream detection
-Russian → English → Russian passes through Settings
-File/Edit visible; premature Save/.sb3 actions absent
-Extensions visible and normal upstream entries remain available
-explicit extension external traffic is distinguished from hidden core dependency
-semantic Scratch category colours match upstream baseline
-core Scratch host does not fetch project/assets from Scratch Foundation unexpectedly
-Docker rebuild on exact pin
+ASA logo/header/avatar визуально присутствуют
+Settings выглядит как штатный Scratch Settings
+Settings → встроенный выбор языка
+нет второй кнопки языка
+ru-RU и en-US используют upstream detection
+Russian → English → Russian работает через Settings
+File/Edit и локальные File items видимы
+Extensions и representative upstream entries видимы
+core host не получает project/assets неожиданно от Scratch Foundation
+явно запущенное внешнее расширение не блокируется тестом только за факт внешнего обращения
+semantic category colours совпадают с upstream baseline
+Docker exact-pin rebuild
 node tools/validate-blocks-docs.mjs
 pnpm gate:blocks
 pnpm gate:blocks --browser
@@ -239,31 +210,28 @@ pnpm gate:blocks --browser
 ## Forbidden
 
 ```text
-no top-level language button
-no ASA translation fork / duplicate locale registry
-no hard-coded locale='en'
-no hard-coded locale='ru'
+no Scratch rewrite
 no redesign/removal of Scratch Settings
-no blanket removal of existing Scratch extensions or external integrations
-no ASA extension allowlist in B
-no Scratch rewrite or mass string rebrand
+no new language button
+no ASA translation fork
+no hard-coded locale='en' or locale='ru'
+no blanket removal/filtering of native Scratch Extensions
+no blanket ban on intended external extension services/hardware
+no File/Edit replacement
 no global semantic-colour replacement
-no ASA cookie/account authority inside Scratch origin
-no new iframe authority beyond C
-no durable save before M1-005
-no .sb3 support before M1-007
-no S3/MinIO
-no hidden core dependency on Scratch project/asset backends
-no new upstream patch without explicit reviewed need
+no ASA cookies/account authority inside Scratch origin
+no durable ASA save invented inside B
+no S3/MinIO work
+no upstream patch without concrete reviewed need
 ```
 
 ## Bounded self-review
 
-Self-review the exact B diff and browser/network evidence. Confirm Settings and its built-in language control were preserved rather than reimplemented; only D's forced English locale was removed; normal Scratch Extensions and their intended integrations remain; ASA identity remains parent-owned; category colours remain upstream; File behaviour is truthful; and C/D boundaries remain intact.
+Проверить только B diff. Подтвердить, что Settings/File/Edit/Extensions сохранены как Scratch, язык не переизобретён, D forced-English удалён, ASA меняет только product chrome/identity presentation, category colours не затронуты и C/D boundary не ослаблена.
 
 ## Independent review
 
-A reviewer outside the authoring context checks the exact final diff and evidence. Verify that no new language control or translation fork exists, Scratch Settings was not redesigned, existing Extensions were not arbitrarily filtered, ASA avatar/account authority remains parent-owned, semantic Scratch category colours are unchanged, and File controls do not claim later capabilities. The reviewer does not edit reviewed product code.
+Другой агент/контекст или человек проверяет exact diff и browser/network evidence. Особое внимание: отсутствие скрытого урезания Scratch, отсутствие нового языка/переводов, сохранность внешних интеграций, parent-owned avatar и отсутствие лишних upstream patches.
 
 ## Stop
 
