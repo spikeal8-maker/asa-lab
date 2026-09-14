@@ -1,57 +1,49 @@
-# Games R0 — agent guide
+# Games R0 — closed architecture guide
 
-**Applies only when:** the owner explicitly assigns a Games R0 architecture task.  
-**Prepared baseline:** `main@c9fbb773bc4b2c4e19c181ef586ee6300a9cfed6`  
-**Runtime changes allowed by this guide:** no
+**Status:** R0 accepted and closed  
+**Runtime changes authorized by this file:** none
 
-This file is a compact task router, not live execution state. `docs/execution/current.yaml` remains the only source of active lane/task state.
+This file remains only as a compact router for the accepted R0 architecture. Live work is declared only by `docs/execution/current.yaml`.
 
-## Work rule
+## Rule for agents
 
-Work on **one** `GP-R0-*` requirement only. Before editing, name the requirement ID and exact files you will inspect. Re-check GitHub `main` for facts that affect the decision.
+Do not create a new `GP-R0-*` requirement.
 
-Read:
+If implementation discovers that an accepted R0 decision is wrong or incomplete:
 
-- `R0_CURRENT_STATE_AUDIT.md`;
-- the assigned section of `R0_ARCHITECTURE_FREEZE.md`;
-- the matching row in `R0_TRACEABILITY.yaml`.
+1. stop the affected implementation slice;
+2. name the conflicting decision id;
+3. create a bounded architecture amendment;
+4. update the decision, challenge review and `R0_TRACEABILITY.yaml`;
+5. resume implementation only after the amendment is accepted.
 
-For `GP-R0-001`, also read `docs/agent/contracts/identity.yaml` and the current identity migrations/services cited by the audit.
+Never silently change Games identity, tenancy/RLS, Match dimensions, lifecycle, teams, capability semantics or idempotency behavior inside an implementation PR/commit.
 
-Do not preload the old Games research branch. Do not preload `ENGINEERING_HYGIENE.md` unless the assigned work concerns file growth, cleanup or a stage gate; its short rules are routed through the Games README.
+## Accepted authority
 
-## Hard stop
+Read `R0_ARCHITECTURE_FREEZE.md` first, then only the exact decision needed:
 
-R0 does not permit creating/modifying:
+- `R0_001_GAMING_IDENTITY.md`;
+- `R0_002_GAMES_SECURITY_DOMAIN.md`;
+- `R0_003_CANONICAL_MATCH_MODEL.md`;
+- `R0_004_MATCH_STATE_MACHINE.md` + `R0_004_TERMINATION_FINALIZATION.md`;
+- `R0_005_TEAMS_AND_OUTCOMES.md`;
+- `R0_006_MINIMUM_CAPABILITIES.md`;
+- `R0_007_ERROR_IDEMPOTENCY.md` + `R0_007_ERROR_CATALOG_LIMITS.md`.
 
-- `games_*` SQL/runtime schema;
-- generic Games controllers/services;
-- WebSocket/realtime runtime;
-- Checkers/Chess runtime behavior;
-- production Compose/deployment;
-- Redis/Kafka/Kubernetes/Agones dependencies.
+`R0_TRACEABILITY.yaml` is the acceptance ledger.
 
-If the decision appears to require implementation, document the future evidence needed and stop at the contract.
+## Next-stage guard
 
-## Required evidence for one R0 item
+R0 acceptance does not itself start coding. Before R1 runtime/schema work:
 
-The corresponding traceability row must contain:
+- create and accept `R1_DELIVERY_BRIEF.md`;
+- activate an explicit R1 task in `docs/execution/current.yaml`;
+- record exact in-scope/out-of-scope surfaces and evidence;
+- run the initial Games hygiene baseline.
 
-- `decision`;
-- evidence/source refs from current `main`;
-- `negative_case`;
-- `compatibility` consequence for existing games;
-- `review_verdict`.
+R1 target is private online Checkers only.
 
-`state: accepted` is invalid unless `review_verdict: PASS` and those fields are non-null.
+## Hygiene
 
-Before closing a documentation slice, check the changed Games documents against the size budgets in the Games README/`ENGINEERING_HYGIENE.md`; split supporting detail instead of inflating the router/decision file.
-
-## Review
-
-After a logically complete decision use `docs/agent/review-protocol.md`:
-
-- architecture-only decision: `POST_STEP_REVIEW`;
-- identity/RLS/security/state-machine boundary: also `CHALLENGE_REVIEW`.
-
-Do not claim R0 complete until all seven `GP-R0-001..007` rows are accepted. Do not edit `docs/execution/current.yaml` merely to make this prepared package look active.
+Follow `ENGINEERING_HYGIENE.md`. Do not expand hard-threshold Checkers files with new responsibilities. Split focused seams only when the R1 user journey actually touches them.
