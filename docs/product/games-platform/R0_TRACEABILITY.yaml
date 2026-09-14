@@ -43,18 +43,34 @@ requirements:
 
   - id: GP-R0-002
     title: Games security and storage domain
+    observed_main_sha: 5f5ee6aab8e2981300ff25c698ac6e4f1e4987ce
     evidence:
+      - docs/product/games-platform/R0_002_GAMES_SECURITY_DOMAIN.md
+      - docs/product/games-platform/R0_002_GAMES_SECURITY_DOMAIN_REVIEW.md
       - docs/architecture/DATA_SECURITY_AND_TENANCY.md
+      - packages/database/src/index.ts
+      - migrations/0006_chess_live.sql
       - contexts/chess-live/application/ports.ts
     acceptance:
       - cross-workspace placement decided
       - authorization and RLS negative-test model defined
       - no participant tenant chosen by convenience
-    decision: null
-    negative_case: null
-    compatibility: null
-    review_verdict: NOT_REVIEWED
-    state: open
+    decision: >-
+      Store global/cross-workspace Games state in an explicit platform-scoped Games security
+      domain, initially in the same PostgreSQL database behind a dedicated Games schema and
+      repositories. Do not use a participant tenant or synthetic Games tenant. Resolve a
+      server-derived game_player_id transaction context; keep FORCE RLS for private Games rows
+      and narrow audited transactional boundaries for legitimate cross-player operations.
+    negative_case: >-
+      A player cannot gain access by supplying another playerId, changing tenantId, knowing a
+      private match UUID, or setting only tenant context. Missing Games actor context fails
+      closed, and class outsiders cannot access class-scoped matches.
+    compatibility: >-
+      R1 Checkers may become the first platform-Games persistence consumer without rewriting
+      bot/local/classroom saves. Existing Chess Live remains tenant-scoped until additive R4
+      shadow mapping/parity; chess_live tables are not renamed or repurposed in R0.
+    review_verdict: PASS
+    state: accepted
 
   - id: GP-R0-003
     title: Canonical Match dimensions
