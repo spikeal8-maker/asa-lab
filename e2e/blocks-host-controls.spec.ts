@@ -112,16 +112,38 @@ async function assertCoreCategoryColours(frame: Frame) {
     ['Sensing', 'rgb(92, 177, 214)'],
     ['Operators', 'rgb(89, 192, 89)'],
   ] as const;
+  const flyout = frame.locator('.blocklyFlyout').first();
 
   for (const [label, expectedFill] of categories) {
     const category = toolboxCategory(frame, label);
     await expect(category).toHaveCount(1);
     await category.click();
-    const firstBlock = frame.locator('.blocklyFlyout .blocklyDraggable .blocklyPath').first();
-    await expect(firstBlock).toBeVisible();
+    await expect(category).toHaveAttribute('aria-selected', 'true');
+
     await expect
-      .poll(() => firstBlock.evaluate((element) => getComputedStyle(element).fill))
-      .toBe(expectedFill);
+      .poll(() =>
+        flyout.evaluate((root, expected) => {
+          const blocks = root.querySelectorAll('.blocklyDraggable');
+          for (const block of blocks) {
+            const path = block.querySelector('.blocklyPath');
+            if (!path) continue;
+
+            const rect = block.getBoundingClientRect();
+            if (rect.width <= 0 || rect.height <= 0) continue;
+
+            const x = rect.left + rect.width / 2;
+            const y = rect.top + rect.height / 2;
+            if (x < 0 || y < 0 || x >= window.innerWidth || y >= window.innerHeight) continue;
+
+            const hit = document.elementFromPoint(x, y);
+            if (!hit || !block.contains(hit)) continue;
+
+            if (getComputedStyle(path).fill === expected) return true;
+          }
+          return false;
+        }, expectedFill),
+      )
+      .toBe(true);
   }
 }
 
