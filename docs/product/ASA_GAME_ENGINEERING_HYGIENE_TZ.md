@@ -1,30 +1,54 @@
 # ASA Lab — игровые модули
-## Нормативное ТЗ по технической гигиене, большим файлам и периодической оптимизации
+## Нормативное ТЗ по технической гигиене, большим файлам и итерационной оптимизации
 
-**Статус:** обязательное нормативное приложение для разработки игровых модулей ASA Lab.  
-**Применяется к:** Checkers, Chess и будущим game-модулям.  
+**Статус:** обязательное нормативное приложение для Checkers, Chess и будущих game-модулей ASA Lab.  
 **Общая политика:** [`docs/delivery/REPOSITORY_HYGIENE_AND_OPTIMIZATION_POLICY.md`](../delivery/REPOSITORY_HYGIENE_AND_OPTIMIZATION_POLICY.md).  
 **Форма evidence:** [`docs/review/HYGIENE_AUDIT_TEMPLATE.md`](../review/HYGIENE_AUDIT_TEMPLATE.md).
 
-Этот документ не заменяет конкретный execution plan игры. Он добавляет обязательные технические условия, которые должны выполняться на каждом крупном игровом milestone.
+Этот документ не заменяет execution plan конкретной игры. Он задаёт обязательные технические границы и ритм очистки.
 
 ---
 
-# 1. Цель
+# 1. Главный принцип
 
-Игровой модуль должен развиваться так, чтобы:
+Игровой код очищается **по итерациям разработки, а не по времени**.
 
-- игровое ядро оставалось изолированным от UI;
-- правила не дублировались в клиенте, боте и multiplayer;
-- крупные файлы не становились «центром всего»;
-- временные test/debug/media artifacts не накапливались в Git;
-- game route оставался lazy и не раздувал unrelated routes;
-- тяжёлые assets загружались осознанно;
-- после каждого крупного этапа оставался обслуживаемый код, а не только работающий feature.
+```text
+каждый bounded game change → L0
+каждый законченный feature slice → L1
+каждые 2 принятые игровые итерации → L2
+крупный milestone раньше порога → L2
+release / owner acceptance → L3
+```
+
+Игровой lane относится к high-risk/runtime-heavy, поэтому его L2 threshold = **2 принятых bounded slices** после предыдущего L2.
+
+Если milestone заканчивается после первой итерации, L2 выполняется сразу на milestone boundary — ждать второй итерации не надо.
 
 ---
 
-# 2. Обязательная архитектурная граница игры
+# 2. Что считается игровой итерацией
+
+Отдельной итерацией считается законченный проверяемый результат, например:
+
+- rules/engine slice;
+- board/input slice;
+- local playable flow;
+- bot slice;
+- multiplayer/session slice;
+- persistence/replay slice;
+- rating/stats slice;
+- puzzles/learning slice;
+- audio/animation slice;
+- substantial bug-fix, если он меняет отдельный контракт и имеет собственный acceptance.
+
+Несколько таких результатов внутри одного большого PR считаются несколькими итерациями hygiene counter.
+
+Черновые коммиты, временные попытки и незавершённые ветки counter не увеличивают.
+
+---
+
+# 3. Обязательная архитектурная граница
 
 Целевая зависимость:
 
@@ -50,111 +74,124 @@ Persistence
 Versioned Game State / Events
 ```
 
-## Запрещено
+Запрещено:
 
 - правила хода внутри React-компонента;
 - отдельная копия правил у bot;
 - отдельная копия правил в multiplayer server;
-- вычисление легальности хода только на клиенте;
+- legality только на клиенте;
 - persistence, зависящий от DOM/UI state;
-- giant component, который одновременно рисует доску, хранит правила, сеть, AI, таймер, историю и persistence.
+- giant component, который одновременно рисует доску, хранит rules/network/AI/timer/history/persistence.
 
-Если временный prototype нарушает границу, до acceptance milestone он либо исправляется, либо получает явный WARNING/BLOCK с delete condition.
+Временный prototype с нарушением границы должен иметь явный delete condition и не переживать milestone acceptance без `WARNING/BLOCK`.
 
 ---
 
-# 3. Периодичность аудита
+# 4. L0 — каждое изменение
 
-Аудит привязан не только ко времени, а к завершённым продуктовым срезам.
-
-## L0 — каждый срез
-
-Выполняется перед merge/acceptance каждой игровой задачи.
-
-Проверяются:
+Перед merge/acceptance каждого bounded game change проверить:
 
 - неожиданные large files;
 - generated artifacts;
 - новые binaries;
 - новые dependencies;
-- duplicate `V2/New/Fixed/Final` реализации;
-- случайные debug leftovers.
-
-## L1 — после законченного feature
-
-Например:
-
-- правила игры;
-- доска и input;
-- bot;
-- multiplayer;
-- рейтинг;
-- puzzles/обучение;
-- история партии;
-- статистика.
-
-После feature убираются временные обходы, debug controls и obsolete code этого feature.
-
-## L2 — после milestone
-
-Выполняется после каждого крупного вертикального milestone, **но не реже одного раза на 10 рабочих дней активной разработки конкретной игры**.
-
-Рекомендуемые естественные точки:
-
-1. engine/rules готовы;
-2. playable local game готова;
-3. bot готов;
-4. persistence/history готовы;
-5. multiplayer готов;
-6. player stats/rating готовы;
-7. learning/puzzles готовы;
-8. release candidate готов.
-
-Это не означает, что каждая игра обязана иметь именно такой roadmap. Audit ставится на фактическую границу крупного законченного результата.
-
-## L3 — перед release
-
-Полный аудит обязателен перед production/owner acceptance крупной версии game-модуля.
+- `V2/New/Fixed/Final/Copy/Old` дубли;
+- debug leftovers;
+- случайные test videos/traces/screenshots;
+- сохранение lazy route isolation.
 
 ---
 
-# 4. Почему не надо делать глубокую оптимизацию после каждого коммита
+# 5. L1 — каждый законченный feature slice
 
-Постоянная декомпозиция незаконченного кода создаёт churn и повышает риск регрессий.
+Перед acceptance итерации удалить или оформить:
 
-Правильная последовательность:
+- временные debug controls;
+- обходы, ставшие ненужными;
+- obsolete branches;
+- duplicate UI/service/engine code;
+- temporary assets;
+- unused imports/dependencies;
+- transitional implementation без owner/delete condition;
+- feature flags без следующего gate.
 
-```text
-bounded implementation
-→ feature complete
-→ focused tests
-→ L1 cleanup
-→ milestone complete
-→ L2 audit
-→ targeted optimization
-→ regression tests
-→ acceptance
-```
-
-Глубокая оптимизация в середине незавершённого feature выполняется только при явном blocker:
-
-- файл стал неконтролируемым;
-- performance уже мешает разработке;
-- архитектурное дублирование начало распространяться;
-- bundle/runtime regression критичен;
-- новый код невозможно безопасно тестировать без декомпозиции.
+После cleanup повторить focused/regression tests среза.
 
 ---
 
-# 5. Размеры игровых source-файлов
+# 6. L2 — каждые 2 принятые игровые итерации
+
+L2 выполняется, когда `accepted_since_last_l2 == 2`, либо раньше на milestone boundary/trigger.
+
+Обязательные проверки:
+
+- top large source files;
+- responsibilities файлов >500 LOC;
+- duplicate/dead code;
+- generated artifacts;
+- game assets;
+- dependency graph;
+- route/chunk delta;
+- lazy loading;
+- canonical rules-engine boundary;
+- bot/multiplayer reuse rules;
+- persistence/replay size;
+- technical-debt findings;
+- cleanup и повторные tests.
+
+Verdict: `PASS / WARNING / BLOCK`.
+
+При `BLOCK` следующая игровая итерация не начинается.
+
+После `PASS`/accepted `WARNING` game hygiene counter обнуляется.
+
+---
+
+# 7. L2 раньше двух итераций
+
+Немедленный L2 нужен, если:
+
+- handwritten runtime file >1000 LOC;
+- один файл одновременно держит UI + rules + network + persistence;
+- появился второй rules engine;
+- тяжёлая dependency добавилась в game route;
+- game route перестал быть lazy;
+- bundle/chunk вырос существенно;
+- добавлен большой audio/video/3D asset;
+- debug/test artifacts массово попали в Git;
+- bot или multiplayer начали копировать legality;
+- один баг пришлось исправлять в нескольких копиях правил;
+- replay/state storage начал быстро расти.
+
+---
+
+# 8. L3 — release / owner acceptance
+
+Полный аудит включает:
+
+- актуальный L2;
+- repository/Git-object delta;
+- production bundle/chunk;
+- lazy isolation от Home/3D/Electronics/Scratch;
+- dependency audit;
+- dead/duplicate assets;
+- generated artifacts;
+- performance evidence;
+- unresolved hygiene debt с owner decision.
+
+Release запрещён при `BLOCK`.
+
+---
+
+# 9. Размеры игровых source-файлов
 
 Применяются общие thresholds:
 
-- >500 строк — structural review;
-- >800 строк — обязательное решение о декомпозиции;
-- >1000 строк handwritten runtime-кода — BLOCK без обоснованного исключения.
+- >500 LOC — structural review;
+- >800 LOC — обязательное решение `decompose / documented exception`;
+- >1000 LOC handwritten runtime — `BLOCK` без обоснованного исключения.
 
-## Для игр особенно подозрительны
+Особенно проверять:
 
 - `*Board.tsx`;
 - `*Game.tsx`;
@@ -164,57 +201,11 @@ bounded implementation
 - `*Bot.ts`;
 - `*Service.ts`.
 
-Большой файл должен быть проверен на смешение:
-
-- rendering;
-- game rules;
-- input mapping;
-- persistence;
-- network;
-- AI;
-- timers;
-- analytics;
-- audio;
-- animation;
-- result handling.
-
-Если в одном файле присутствуют 4+ независимых ответственности, это сильный сигнал для декомпозиции независимо от LOC.
+Если в файле смешаны 4+ независимых ответственности из rendering, rules, input, persistence, network, AI, timers, analytics, audio, animation, result handling — decomposition review обязателен независимо от LOC.
 
 ---
 
-# 6. Каноническая декомпозиция game UI
-
-Это не обязательные конкретные имена файлов, а границы ответственности.
-
-Пример:
-
-```text
-GamePage
-├── GameBoardView
-├── GameToolbar
-├── GameStatus
-├── MoveHistory
-├── ResultDialog
-└── useGameController
-
-GameApplication
-├── game-controller
-├── game-session
-└── commands/events
-
-GameDomain
-├── rules
-├── move-generator
-├── state-transition
-├── notation/replay
-└── result-evaluator
-```
-
-Bot, multiplayer и persistence используют domain/application contracts, а не импортируют UI.
-
----
-
-# 7. Правило единственного игрового ядра
+# 10. Единственное игровое ядро
 
 Для одной ruleset/version должен существовать один canonical rules engine.
 
@@ -227,148 +218,138 @@ online-rules.ts
 ui-rules.ts
 ```
 
-с разной логикой одного и того же хода.
+с различающейся логикой одного и того же хода.
 
-Допустимо:
+Правильная модель:
 
 ```text
-rules-engine
-  ↑        ↑        ↑
-UI       Bot      Server
+          UI
+           ↑
+Bot ← Game Engine → Server
+           ↓
+        Rules
 ```
 
-Если server обязан повторно валидировать ход, он использует тот же versioned domain contract либо серверную реализацию, доказанно совместимую общими fixtures/property tests.
+Если client и server используют разные реализации, совместимость доказывается общими fixtures/property tests и versioned rules contract.
 
 ---
 
-# 8. Bot/AI hygiene
+# 11. Bot / AI hygiene
 
-Bot не должен становиться вторым владельцем правил.
+Bot не владеет правилами.
 
-Проверять:
+Проверить:
 
-- legal moves берутся из canonical engine;
+- legal moves приходят из canonical engine;
 - evaluation/strategy отделены от legality;
 - search state не мутирует production game state;
-- debug tree/search dumps не коммитятся;
-- benchmark positions являются canonical fixtures только если реально используются;
-- model/weights, если появятся, не кладутся в обычный Git без отдельного storage decision.
-
-Для deterministic bot фиксируется seed/config, необходимый для воспроизводимых тестов.
+- debug search trees/dumps не коммитятся;
+- benchmark positions остаются только при реальном consumer;
+- model/weights не попадают в обычный Git без storage decision;
+- deterministic config/seed фиксируется там, где нужен воспроизводимый тест.
 
 ---
 
-# 9. Multiplayer hygiene
+# 12. Multiplayer hygiene
 
-Multiplayer особенно легко порождает большие controller/service файлы.
-
-Проверять раздельность:
+Разделять:
 
 - transport;
 - session lifecycle;
-- authorization;
-- authoritative game validation;
-- reconnection;
+- authz;
+- authoritative validation;
+- reconnect;
 - clocks;
 - persistence;
 - presence/reactions.
 
-WebSocket/controller не должен содержать полную реализацию rules engine.
+WebSocket/controller не содержит полный rules engine.
 
-Generated network logs, packet dumps и load-test output не хранятся в Git как обычные source files.
+Network/load-test logs — runtime artifacts, не исходный код.
 
 ---
 
-# 10. Persistence и replay
+# 13. Persistence / replay
 
-Состояние игры должно иметь versioned schema.
+Game state должен иметь versioned schema.
 
-Аудит проверяет:
+Проверить:
 
-- отсутствие огромного неограниченного JSON без необходимости;
-- отделение snapshot от event/replay history;
-- отсутствие дублирования одного и того же history в нескольких полях;
-- fixture size;
+- отсутствие бесконтрольного giant JSON;
+- snapshot отделён от replay/event history;
+- одна история не дублируется в нескольких полях;
+- fixtures ограничены;
 - deterministic replay;
-- backward compatibility для поддерживаемых версий.
-
-Если replay/analysis data начинают быстро расти, storage policy рассматривается до того, как большие blobs становятся production default.
+- backward compatibility поддерживаемых версий;
+- storage growth имеет измеримый budget.
 
 ---
 
-# 11. Game assets
+# 14. Assets
 
-## Изображения
+## Images
 
-Фигуры, доски, backgrounds, avatars:
-
-- нет дублей;
-- размер соответствует display usage;
-- тяжёлые backgrounds не входят в initial route без причины;
-- variants/retina осмысленны.
+- no duplicates;
+- размер соответствует display use;
+- heavy backgrounds не грузятся в initial route;
+- retina variants осмысленны.
 
 ## Audio
 
 - lazy/deferred load;
 - короткие эффекты оптимизированы;
-- длинные аудиофайлы не импортируются как JS payload;
+- длинный audio не импортируется как JS payload;
 - unused sounds удаляются.
 
-## Animation
+## Animation / video / 3D
 
-- sprite/video/Lottie/3D asset проверяется по размеру;
-- decorative asset не должен ухудшать time-to-play.
+- размер измерен;
+- poster/thumbnail существует при необходимости;
+- decorative asset не ухудшает time-to-play;
+- 3D textures/materials проверены на дубли и compression.
 
 ---
 
-# 12. Bundle isolation
+# 15. Bundle isolation
 
-Каждая игра — отдельный lazy-loaded product module, если архитектура ASA Lab не требует иного.
+Game route должен быть lazy-loaded, если нет отдельного архитектурного решения.
 
 Acceptance-инвариант:
 
-> Открытие главной страницы ASA Lab, электроники, 3D или Scratch не должно тянуть тяжёлый runtime конкретной игры только потому, что игра существует в репозитории.
+> Открытие Home, Electronics, 3D или Scratch не должно тянуть тяжёлый runtime конкретной игры только потому, что игра присутствует в репозитории.
 
 L2/L3 фиксирует:
 
 - route chunk baseline;
-- delta;
+- target chunk;
+- delta %;
 - shared chunk impact;
+- unrelated route impact;
 - new dependency impact.
 
-+10% — WARNING.  
-+20% — BLOCK без обоснования/профилирования/решения.
+Ориентиры: +10% = `WARNING`, +20% = `BLOCK` без профилирования/решения.
 
 ---
 
-# 13. Test artifacts
+# 16. Test artifacts
 
-Для игровых E2E особенно часто генерируются:
+По умолчанию CI/runtime artifacts:
 
 - screenshots;
-- video;
+- videos;
 - Playwright traces;
 - network logs;
-- game replay dumps;
+- replay dumps;
 - AI search dumps;
-- benchmark results.
+- benchmark output.
 
-По умолчанию это CI/runtime artifacts, а не source.
-
-В Git допускаются только:
-
-- утверждённые visual snapshots;
-- small deterministic fixtures;
-- compatibility replay fixtures;
-- manually reviewed puzzle/position catalogs.
-
-Каждый такой файл должен иметь реального потребителя в tests/runtime.
+В Git допускаются только canonical visual snapshots, small deterministic fixtures, compatibility replays и reviewed puzzle/position catalogs с реальным consumer.
 
 ---
 
-# 14. Паттерн временных файлов от агентов
+# 17. Transitional files от агентов
 
-В игровых модулях запрещено оставлять после acceptance:
+После acceptance не должны оставаться:
 
 ```text
 BoardOld.tsx
@@ -383,184 +364,61 @@ bot-debug.json
 positions-temp.json
 ```
 
-Если новая реализация нужна для безопасной миграции, требуется:
+Если coexistence нужна для migration:
 
-- canonical source of truth;
-- transitional file marker;
-- причина существования;
+- определить source of truth;
+- причину;
 - delete condition;
-- milestone, после которого файл исчезает.
+- bounded slice, который удалит transitional path.
 
 ---
 
-# 15. Что считается мусорным контентом
+# 18. Что нельзя удалять автоматически
 
-Мусор — не только временный файл.
+Не удалять без доказанного ownership/consumer анализа:
 
-К нему относятся:
-
-- неиспользуемый component;
-- неиспользуемый asset;
-- дубль texture/image;
-- старый engine после перехода на новый;
-- debug button;
-- fake fixture, больше не используемый тестом;
-- скриншоты ручной проверки;
-- отчёты локального профилирования;
-- export игры для разовой диагностики;
-- закомментированные большие блоки старого кода;
-- dependency без import/consumer;
-- feature flag без owner/delete condition.
-
----
-
-# 16. Что нельзя удалять автоматически
-
-Аудит не является командой `rm -rf`.
-
-Запрещено автоматически удалять:
-
-- owner-supplied assets;
-- backups;
-- credentials;
-- production DB dumps, если они защищены политикой;
-- canonical visual snapshots;
+- user/owner assets;
 - compatibility fixtures;
-- migration evidence;
-- чужие незавершённые артефакты параллельной работы.
+- migration data;
+- vendor/upstream artifacts;
+- production replay data;
+- visual golden snapshots;
+- protected backups по общим правилам репозитория.
 
-Сначала классификация, потом действие.
-
----
-
-# 17. Метрики L2 для игрового milestone
-
-Каждый L2 report должен по возможности содержать:
-
-1. top-20 largest files в game scope;
-2. все source >500 LOC;
-3. все новые binary >2 MB;
-4. repository delta от baseline milestone;
-5. route/shared bundle delta;
-6. список added/removed dependencies;
-7. generated artifacts count;
-8. duplicate/transitional files;
-9. dead code findings;
-10. boundary violations;
-11. cleanup actions;
-12. unresolved debt.
+Audit сначала фиксирует evidence, потом выполняется разрешённый cleanup.
 
 ---
 
-# 18. Когда нужен отдельный optimization milestone
+# 19. Game hygiene evidence
 
-Отдельный milestone создаётся, если обычный L1/L2 cleanup уже недостаточен.
-
-Триггеры:
-
-- несколько critical files >1000 LOC;
-- bundle значительно превысил baseline;
-- startup/time-to-play деградировал;
-- engine/rules дублируются;
-- game module начал влиять на unrelated ASA Lab routes;
-- Git/assets выросли на десятки MB без продуктовой необходимости;
-- test suite стала нестабильной из-за архитектурной связанности;
-- feature development систематически требует править один giant file;
-- один и тот же domain bug исправляется в нескольких слоях.
-
-Optimization milestone должен иметь измеримый baseline и target, а не цель «сделать код красивее».
-
----
-
-# 19. Что не является оптимизацией
-
-Не считать улучшением само по себе:
-
-- перенос 900 строк в три файла без разделения ответственности;
-- минификация source в Git;
-- удаление полезных tests ради скорости;
-- снижение качества изображений до заметных артефактов;
-- объединение domain и UI ради меньшего числа файлов;
-- добавление abstraction layers без реального потребителя;
-- массовый unrelated refactor во время feature-задачи;
-- перенос мусора из одного каталога в другой.
-
----
-
-# 20. Gate между игровыми milestone
-
-Перед переходом к следующему крупному игровому этапу:
+Каждый игровой slice указывает:
 
 ```text
-functional milestone complete
-→ focused tests PASS
-→ browser journey PASS, если применимо
-→ L1 cleanup complete
-→ L2 hygiene audit
-→ BLOCK findings = 0
-→ regression tests after cleanup
-→ milestone acceptance
-→ only then next major milestone
+hygiene_iteration:
+  lane: chess | checkers | <game>
+  accepted_since_last_l2: <N>
+  l2_threshold: 2
+  l2_required_now: yes | no
+  last_l2_target_sha: <sha | none>
 ```
 
-Если прошло 10 рабочих дней активной разработки, а milestone ещё не завершён, L2 выполняется как промежуточный safety audit.
+L2/L3 оформляется по `docs/review/HYGIENE_AUDIT_TEMPLATE.md`.
 
 ---
 
-# 21. Связь с конкретными игровыми ТЗ
+# 20. Definition of Done игрового slice
 
-Эта политика применяется к:
+Игровая итерация не завершена, пока:
 
-- `docs/product/ASA_CHECKERS_EXECUTION_PLAN.md`;
-- `docs/delivery/CHECKERS_EXECUTION_PLAN.md`;
-- `docs/product/ASA_CHESS_EXECUTION_PLAN.md`;
-- `docs/product/ASA_CHESS_PLATFORM_SPEC.md`;
-- будущим game execution plans.
+- [ ] focused behavior tests PASS;
+- [ ] L0 PASS;
+- [ ] L1 cleanup выполнен;
+- [ ] hygiene counter обновлён;
+- [ ] если counter достиг 2 — L2 выполнен;
+- [ ] BLOCK отсутствуют;
+- [ ] canonical rules engine не продублирован;
+- [ ] route isolation не ухудшена;
+- [ ] временные test/debug artifacts не оставлены;
+- [ ] exact final SHA зафиксирован в evidence.
 
-Если конкретное игровое ТЗ задаёт более строгий threshold — действует более строгий threshold.
-
-Если конкретное ТЗ конфликтует с этим документом, конфликт должен быть явно разрешён архитектурным решением; агент не выбирает удобную версию молча.
-
----
-
-# 22. Требование к будущим task cards
-
-Каждая крупная game task card должна иметь раздел:
-
-```text
-Hygiene / Optimization impact
-- expected large files/assets:
-- expected bundle impact:
-- temporary artifacts:
-- cleanup required at feature end:
-- L2 required: YES/NO
-- baseline SHA:
-```
-
-Для мелкого bounded fix достаточно L0/L1. Для нового вертикального feature или milestone — L2 обязателен.
-
----
-
-# 23. Definition of Done игрового milestone
-
-Milestone не является DONE, если хотя бы одно условие не выполнено:
-
-- пользовательский сценарий работает;
-- правила доказаны tests/fixtures;
-- persistence/replay соответствует контракту;
-- temporary/debug artifacts очищены;
-- нет неразрешённого duplicate production engine;
-- новый critical large file не оставлен без решения;
-- game route isolation сохранена;
-- bundle regression классифицирована;
-- L2 report создан;
-- `BLOCK findings = 0`;
-- cleanup не сломал functional regression suite.
-
----
-
-# 24. Итоговое правило
-
-> После каждого крупного законченного игрового результата кодовая база должна быть не только функционально богаче, но и не менее понятной, изолированной и управляемой, чем до начала этапа.
-
-Если feature увеличил возможности, но оставил giant files, дубли rules engine, десятки временных screenshots и необъяснимый bundle growth, такой milestone технически не завершён.
+Так очистка происходит в естественном ритме разработки и не зависит от календаря.
