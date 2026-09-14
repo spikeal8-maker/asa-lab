@@ -78,20 +78,18 @@ test('English browser keeps native Scratch controls, ASA chrome and unfiltered e
     await expect(frame.getByText('Edit', { exact: true })).toBeVisible();
 
     await frame.getByRole('button', { name: 'Settings menu' }).click();
-    await expect(frame.getByText('Language', { exact: true })).toBeVisible();
+    await expect(frame.getByText('Language', { exact: true })).toHaveCount(1);
     await frame.getByText('Language', { exact: true }).click();
     await expect(frame.getByText('Русский', { exact: true })).toBeVisible();
     await expect(frame.getByText('English', { exact: true })).toBeVisible();
 
-    // Language stays inside Settings. There must not be another top-level Language button.
-    const topLevelLanguageButtons = await frame.locator('header[role="banner"] > button').filter({
-      hasText: /Language|Язык/,
-    });
-    await expect(topLevelLanguageButtons).toHaveCount(0);
+    // Language exists only in native Settings; there is no second ASA language control.
+    await expect(frame.getByText('Language', { exact: true })).toHaveCount(1);
 
-    // Close Settings before opening the native Extensions library.
-    await frame.keyboard.press('Escape');
-    const extensionButton = frame.getByRole('button', { name: /Add Extension/i });
+    // Close the nested language/settings menus before opening Extensions.
+    await page.keyboard.press('Escape');
+    await page.keyboard.press('Escape');
+    const extensionButton = frame.getByRole('button', { name: 'Add Extension' });
     await expect(extensionButton).toBeVisible();
     await extensionButton.click();
     await expect(frame.getByText('Music', { exact: true })).toBeVisible();
@@ -118,11 +116,13 @@ test('ru-RU browser starts in native Russian Scratch and changes language only t
     await expect(frame.getByText('Правка', { exact: true })).toBeVisible();
 
     await frame.getByText('Настройки', { exact: true }).click();
-    await expect(frame.getByText('Язык', { exact: true })).toBeVisible();
+    await expect(frame.getByText('Язык', { exact: true })).toHaveCount(1);
     await frame.getByText('Язык', { exact: true }).click();
     await frame.getByText('English', { exact: true }).click();
     await expect(frame.getByText('Settings', { exact: true })).toBeVisible();
 
+    await page.keyboard.press('Escape');
+    await page.keyboard.press('Escape');
     await frame.getByText('Settings', { exact: true }).click();
     await frame.getByText('Language', { exact: true }).click();
     await frame.getByText('Русский', { exact: true }).click();
