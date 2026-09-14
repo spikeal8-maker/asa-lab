@@ -4,7 +4,7 @@ import { URL } from 'node:url';
 import { chromium } from '@playwright/test';
 import { runtimeUrl, parentPort, parentOrigin } from './protocol.mjs';
 
-export async function createProtocolFixture() {
+export async function createProtocolFixture(options = {}) {
   const repoRoot = new URL('../../../', import.meta.url);
   const checkedSources = [
     'infra/scratch-editor/host/protocol.js',
@@ -28,14 +28,25 @@ export async function createProtocolFixture() {
     }
   }
 
+  const blocksShellCss = fs.readFileSync(
+    new URL('apps/web/src/blocks/blocks-editor-shell.css', repoRoot),
+    'utf8',
+  );
   const parentHtml = `<!doctype html><html><head><style>
-body { margin: 0; height: 100vh; display: flex; flex-direction: column; font: 14px system-ui; }
-header { padding: 10px 16px; background: #f7fafc; }
-#runtime-frame { border: 0; flex: 1; width: 100%; }
+html, body { margin: 0; width: 100%; height: 100%; font: 14px system-ui; }
+body { overflow: hidden; }
+${blocksShellCss}
+#runtime-frame { border: 0; width: 100%; height: 100%; }
 #attacker-frame { display: none; }
 </style></head><body data-parent-state="alive">
-<header>ASA Lab · Scratch integration fixture</header>
-<iframe id="runtime-frame" src="${runtimeUrl}/"></iframe>
+<section class="blocks-editor-shell" data-asa-blocks-editor-shell>
+  <div class="blocks-editor-runtime" data-asa-blocks-runtime-slot>
+    <iframe id="runtime-frame" title="Scratch runtime" src="${runtimeUrl}/"></iframe>
+  </div>
+  <button type="button" class="blocks-editor-account" aria-label="Открыть аккаунт: Пользователь ASA Lab" data-asa-blocks-account-overlay>
+    <span class="blocks-editor-account-initials" aria-hidden="true">АС</span>
+  </button>
+</section>
 <iframe id="attacker-frame" src="/attacker"></iframe>
 <script>
 window.__blocksMessages = [];
@@ -82,7 +93,7 @@ window.addEventListener('message', (event) => {
   let context;
   try {
     browser = await chromium.launch({ headless: true });
-    context = await browser.newContext();
+    context = await browser.newContext(options.locale ? { locale: options.locale } : undefined);
     const pageErrors = [];
 
     context.on('page', (page) => {
