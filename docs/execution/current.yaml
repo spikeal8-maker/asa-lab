@@ -389,7 +389,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: e1_baseline_integrated_owner_acceptance_pending
+      checkpoint: e1_historical_version_draft_integrated
       owner_acceptance: pending
       normative_refs:
         - document: PRODUCT-INTEGRATED-V14
@@ -398,15 +398,15 @@ parallel_lanes:
           revision: '2.1'
         - document: IDENTITY-ACCESS-V21
           revision: '2.1'
-    # Historical integration/ref receipt: docs/review/LRN_E1_BASELINE_ACCEPT_2026_09_13.md
+    # Integrated main: PR #214; historical refs: docs/review/LRN_E1_BASELINE_ACCEPT_2026_09_13.md
     revisions:
       convergence_baseline_sha: b963ef828f0e10042adacba4199bba972526c0df
-      head_sha: 9b3f72ec00aeb1664c2a032f0ab269b822f0e362
-      product_merge_sha: 9b3f72ec00aeb1664c2a032f0ab269b822f0e362
-      observed_at: '2026-09-13T17:33:24+00:00'
+      head_sha: a2512a36a017d5b034a1df9a743ba76a7aa7f767
+      product_merge_sha: a2512a36a017d5b034a1df9a743ba76a7aa7f767
+      observed_at: '2026-09-14T06:48:29+00:00'
       main:
         branch: main
-        sha: 9b3f72ec00aeb1664c2a032f0ab269b822f0e362
+        sha: a2512a36a017d5b034a1df9a743ba76a7aa7f767
       recovery:
         branch: recovery/e1-learning-20260913
         sha: 8ea7771d902d92f5288685a031b134feb353f4cc
