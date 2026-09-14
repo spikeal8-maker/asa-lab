@@ -389,7 +389,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: e1_historical_version_draft_integrated
+      checkpoint: e1_teacher_home_attention_integrated
       owner_acceptance: pending
       normative_refs:
         - document: PRODUCT-INTEGRATED-V14
@@ -398,15 +398,15 @@ parallel_lanes:
           revision: '2.1'
         - document: IDENTITY-ACCESS-V21
           revision: '2.1'
-    # Integrated main: PR #214; historical refs: docs/review/LRN_E1_BASELINE_ACCEPT_2026_09_13.md
+    # Integrated main: PR #215; historical refs: docs/review/LRN_E1_BASELINE_ACCEPT_2026_09_13.md
     revisions:
       convergence_baseline_sha: b963ef828f0e10042adacba4199bba972526c0df
-      head_sha: a2512a36a017d5b034a1df9a743ba76a7aa7f767
-      product_merge_sha: a2512a36a017d5b034a1df9a743ba76a7aa7f767
-      observed_at: '2026-09-14T06:48:29+00:00'
+      head_sha: 74eb0fe1c7f0b688fed9234859871e3a154d324b
+      product_merge_sha: 74eb0fe1c7f0b688fed9234859871e3a154d324b
+      observed_at: '2026-09-14T08:07:51+00:00'
       main:
         branch: main
-        sha: a2512a36a017d5b034a1df9a743ba76a7aa7f767
+        sha: 74eb0fe1c7f0b688fed9234859871e3a154d324b
       recovery:
         branch: recovery/e1-learning-20260913
         sha: 8ea7771d902d92f5288685a031b134feb353f4cc
