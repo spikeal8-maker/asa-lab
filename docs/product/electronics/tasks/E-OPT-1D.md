@@ -20,8 +20,8 @@ Executable only when `docs/execution/current.yaml` selects exact task ID
 ## Goal
 
 Prove the published `@asa-lab/electronics/engine` subpath can be consumed directly from
-minimal Node and browser-facing test consumers for parse/validate, topology preparation,
-snapshot analysis and capability/version discovery. No production behavior changes are allowed.
+minimal Node and browser-facing consumers for parse/validate, topology preparation,
+snapshot analysis and capability/version discovery. No solver/runtime behavior changes are allowed.
 
 ## Component IDs
 
@@ -49,40 +49,42 @@ apps/web/package.json
 ## Expected write paths
 
 ```text
-apps/api/src/electronics-engine-consumer.spec.ts
-apps/web/src/electronics/testing/engine-browser-consumer.spec.ts
+contexts/electronics/package.json
+contexts/electronics/testing/engine-consumer-contract.spec.ts
+contexts/electronics/testing/engine-boundary.spec.ts
+apps/web/testing/engine-browser-consumer.ts
 ```
 
-Do not edit production `.ts/.tsx` files in this slice.
+Do not edit solver, Arduino, Worker, component or UI production source in this slice.
 
 ## Required result
 
-The tests must consume the real package subpath `@asa-lab/electronics/engine`, not internal
+The contract must exercise the real package subpath `@asa-lab/electronics/engine`, not internal
 relative modules, and prove:
 
+- Node/default resolution consumes the built `dist/engine.js` package entry;
+- browser bundling consumes the explicit `browser` condition for the same engine contract;
 - descriptor/capabilities/version are readable;
 - a valid document parses successfully;
 - topology preparation succeeds;
 - bounded snapshot analysis solves a small deterministic DC fixture;
-- the same public surface is importable from a browser-facing consumer test;
 - no timed advance, Worker host, clock or continuation-state API is introduced.
 
 ## Acceptance
 
 ```text
-1. Node-facing consumer test imports @asa-lab/electronics/engine directly from apps/api.
-2. Browser-facing consumer test imports the same package subpath directly from apps/web.
-3. Both exercise the same stable non-temporal contract.
+1. Node-facing consumer resolves @asa-lab/electronics/engine from apps/api to the built package entry.
+2. Browser-facing Vite consumer resolves the same subpath through its browser export.
+3. Both execute the same stable non-temporal parse/prepare/analyse contract.
 4. Existing public-api and dependency-boundary tests remain green.
-5. Existing Electronics focused/browser gates remain green.
-6. No production source or benchmark golden changes.
+5. Existing Electronics focused/browser gates and benchmark integrity remain green.
+6. No solver/Arduino/Worker/component behavior or benchmark golden changes.
 ```
 
 ## Tests / gates
 
 ```text
-pnpm exec vitest run apps/api/src/electronics-engine-consumer.spec.ts
-pnpm exec vitest run apps/web/src/electronics/testing/engine-browser-consumer.spec.ts
+pnpm exec vitest run contexts/electronics/testing/engine-consumer-contract.spec.ts
 pnpm validate:electronics-agent-docs --task TASK-ELECTRONICS-EOPT1D-001
 pnpm gate:electronics-m1
 pnpm gate:governance
