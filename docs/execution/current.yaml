@@ -304,10 +304,11 @@ parallel_lanes:
           - pnpm gate:repository
 
   - id: projects
-    worktree_id: r3-project-lifecycle
+    worktree_id: projects-r7-01
     owned_paths:
       - contexts/projects/**
       - apps/api/src/projects.controller.ts
+      - apps/api/src/gallery.controller.ts
       - apps/api/src/tokens.ts
       - apps/web/src/api.ts
       - apps/web/src/App.tsx
@@ -319,26 +320,28 @@ parallel_lanes:
       - apps/web/src/pages/MyProjectsPage.tsx
       - apps/web/src/pages/ProjectsPage.tsx
       - apps/web/src/styles.css
-      - migrations/0013_project_lifecycle.sql
+      - migrations/0139_project_publication_revisions.sql
       - tests/portal/**
       - e2e/project-hub.spec.ts
       - e2e/artifacts/project-hub/**
-      - docs/review/TASK_R3B_PROJECT_LIFECYCLE_001/**
+      - docs/product/projects/**
+      - docs/review/PROJ_R7_01/**
     task:
-      id: TASK-R3B-PROJECT-LIFECYCLE-001
-      issue: 37
-      branch: agent/r3-project-lifecycle
+      id: TASK-PROJ-R7-01A-001
+      issue: 211
+      branch: codex/projects-r7-01a-publication-revision-schema
       base_branch: main
-      pr: 112
+      pr: null
       pr_draft: true
       status: in_progress
-      checkpoint: project_lifecycle_foundation
+      checkpoint: r7_01a_publication_revision_schema_selected
       owner_acceptance: pending
     revisions:
-      convergence_baseline_sha: 4d0d6948e22d26793289bf8175e549d1fc094050
-      head_sha: 4d0d6948e22d26793289bf8175e549d1fc094050
+      convergence_baseline_sha: ff38013987cb34848fccc8f8976feba91219a142
+      head_sha: ff38013987cb34848fccc8f8976feba91219a142
+      accepted_r3_merge_sha: 5fa616045b16d2720418eb7945f7bef968dd9389
     execution_lease:
-      executor_id: codex-r3-project-lifecycle
+      executor_id: codex-projects-r7-01
       holder: unassigned
       acquired_at: null
       expires_at: null
