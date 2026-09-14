@@ -1,61 +1,115 @@
 # Public Projects — execution router
 
-Этот каталог не хранит активное execution state. Активная задача определяется только `docs/execution/current.yaml` согласно `AGENTS.md`.
+**Документационный статус:** `IMPLEMENTATION-READY / EXECUTION NOT ACTIVATED`.
 
-## Нормативные документы
+Этот каталог не хранит и не подменяет активное execution state. Активная задача определяется только `docs/execution/current.yaml` согласно `AGENTS.md`.
 
-1. `../ASA_PROJECTS_IMPLEMENTATION_TZ.md` — целевая подсистема и execution contract.
-2. `../ASA_PROJECTS_IMPLEMENTATION_SPEC.md` — глубокая техническая спецификация.
-3. `../ASA_PROJECTS_UI_UX_SPEC.md` — продуктовый/UI/UX контракт.
-4. `../ASA_PROJECTS_CURRENT_ARCHITECTURE_AUDIT.md` — полный AS-IS аудит.
-5. `PROJ-A0-DELTA-2026-09-14.md` — bounded validation полного аудита против `main@247e4a96f317dd0693629b0a61f90f1414a524b1` и документированная коррекция старой AS-IS формулировки Implementation Spec.
+---
 
-При конфликте AS-IS утверждений фактический current `main` и Current Architecture Audit + последний delta имеют приоритет над старыми описательными формулировками Implementation Spec. TARGET/acceptance по-прежнему определяет `ASA_PROJECTS_IMPLEMENTATION_TZ.md`.
+## 1. Читать сначала
 
-## Подготовленные срезы
+1. `PROJECTS_EXECUTION_READINESS.md` — что считается готовым после каждого accepted slice и полный dependency graph.
+2. `../ASA_PROJECTS_IMPLEMENTATION_TZ.md` — canonical TARGET/execution contract.
+3. `DECISION_LEDGER.md` — resolved и slice-specific unresolved decisions.
+4. `../ASA_PROJECTS_CURRENT_ARCHITECTURE_AUDIT.md` + latest `PROJ-A0-DELTA-*.md` — фактический AS-IS.
+5. `IMPLEMENTATION_SPEC_ERRATA.md` — обязательная коррекция stale AS-IS assertions глубокой Implementation Spec.
+6. Active task card из `tasks/`.
+7. Только нужные sections `../ASA_PROJECTS_IMPLEMENTATION_SPEC.md` и `../ASA_PROJECTS_UI_UX_SPEC.md`.
+8. `../../delivery/REPOSITORY_HYGIENE_AND_OPTIMIZATION_POLICY.md` + `../../review/HYGIENE_AUDIT_TEMPLATE.md`.
 
-| Slice | Статус | Task card | GitHub Issue | Gate до старта |
-|---|---|---|---|---|
-| PROJ-A0 Current Architecture Audit | **DONE + DELTA VERIFIED** through `main@247e4a96f317dd0693629b0a61f90f1414a524b1` | audit + delta document | — | bounded refresh only if relevant main paths change |
-| PROJ-R7-01 Publication Foundation | **PREPARED / BLOCKED** | `tasks/PROJ-R7-01.md` | #211 | R3 accepted + owner transition in `current.yaml` |
-| PROJ-R7-02 Public Project Page | NOT ACTIVATED | described in ТЗ | parent #38 | PROJ-R7-01 accepted + separate owner transition |
-| PROJ-R7-03 Public Artifact Contract | NOT ACTIVATED | described in ТЗ | parent #38 | accepted prior dependency + separate transition |
-| PROJ-R7-04 Module Viewers | NOT ACTIVATED | described in ТЗ | parent #38 | separate bounded slice per module |
-| PROJ-R7-05 Publication Editor/Media/Revisions | NOT ACTIVATED | described in ТЗ | parent #38 | separate owner transition |
-| PROJ-R8-* Discovery/Interactions/Moderation/Comments | BLOCKED BY R7 | described in ТЗ | parent #39 | accepted R7 |
+При конфликте AS-IS утверждений фактический current code + Current Architecture Audit + latest delta + errata имеют приоритет над старым описательным текстом Implementation Spec. TARGET/acceptance определяет executable TZ + active task card.
 
-## PROJ-A0 результат
+---
 
-Аудит подтверждает:
+## 2. Готовые task cards
 
-- Project Core / Working Draft / immutable ProjectVersion уже есть и не дублируются;
-- Gallery/publication, copy/remix, reactions и Collections уже существуют и должны эволюционно переиспользоваться;
-- текущая publication привязана к snapshot/current draft, поэтому R7 должен перейти на exact immutable ProjectVersion;
-- current public detail отдаёт mutable `document_json`, поэтому anonymous public contract строится отдельно и безопасно;
-- project-specific revocable/expiring ShareLink отсутствует в проверенном Project/Gallery contract;
-- Learning `content_shares` из migration 0059 — другая сущность и не подменяет Project ShareLink;
-- R8 discovery/search/moderation/comments не должны попадать в первый R7 slice.
+| Slice | Статус документации | Card | Activation gate |
+|---|---|---|---|
+| PROJ-A0 Current Architecture Audit | DONE + DELTA VERIFIED | audit docs | refresh if relevant current main changed |
+| PROJ-R7-01 Publication Foundation | PREPARED / BLOCKED | `tasks/PROJ-R7-01.md` | R3 accepted + owner/control-plane transition |
+| PROJ-R7-02 Public Project Page | PREPARED / NOT ACTIVATED | `tasks/PROJ-R7-02.md` | R7-01 accepted + route decision |
+| PROJ-R7-03 Public Artifact Contract | PREPARED / NOT ACTIVATED | `tasks/PROJ-R7-03.md` | R7-01 accepted + explicit transition |
+| PROJ-R7-04A 3D Viewer | PREPARED / NOT ACTIVATED | `tasks/PROJ-R7-04A-3D.md` | R7-03 + stable 3D boundary |
+| PROJ-R7-04B Electronics Viewer | PREPARED / NOT ACTIVATED | `tasks/PROJ-R7-04B-ELECTRONICS.md` | R7-03 + safe Electronics boundary |
+| PROJ-R7-04C Blocks Viewer | PREPARED / NOT ACTIVATED | `tasks/PROJ-R7-04C-BLOCKS.md` | R7-03 + safe Blocks runtime boundary |
+| PROJ-R7-04D Games Runner | PREPARED / NOT ACTIVATED | `tasks/PROJ-R7-04D-GAMES.md` | R7-03 + per-game stable runtime |
+| PROJ-R7-05 Publication Editor/Media/Revisions | PREPARED / NOT ACTIVATED | `tasks/PROJ-R7-05.md` | R7-01/R7-02 + relevant decisions |
+| PROJ-R8-01 Discovery Catalog | PREPARED / BLOCKED BY R7 | `tasks/PROJ-R8-01.md` | accepted R7 release gate + owner transition |
+| PROJ-R8-02 Interactions/Public Author | PREPARED / NOT ACTIVATED | `tasks/PROJ-R8-02.md` | R8-01 + privacy/social decisions |
+| PROJ-R8-03 Moderation Foundation | PREPARED / NOT ACTIVATED | `tasks/PROJ-R8-03.md` | stable publication/media + R8 activation |
+| PROJ-R8-04 Comments | PREPARED / BLOCKED BY R8-03 | `tasks/PROJ-R8-04.md` | R8-03 accepted + commenter policy |
+| PROJ-R8-05 Metrics/Related/Refinement | PREPARED / NOT ACTIVATED | `tasks/PROJ-R8-05.md` | core R8 + real metrics/ranking decision |
 
-### Delta 2026-09-14
+The existence of a task card does **not** authorize coding.
 
-С `main@b31e113...` до `main@247e4a96...` прошло 59 commits. Production semantics Gallery/Collections/Public Project persistence не изменились: релевантные controller/page/migration/E2E paths остались прежними. Из shared integration paths двигались `App.tsx`, `api.ts`, `PortalHeader.tsx` и `project-hub.css`; повторная проверка не выявила нового PublicationRevision/public artifact/moderation/comments contract.
+---
 
-Отдельно зафиксировано: старая фраза в Implementation Spec о том, что Gallery не отдаёт raw project JSON, неверна для current main. Реальный `gallery_work()` читает `project_drafts.document_json`, `GalleryController` возвращает его как `work.document`, а `GalleryWorkPage` интерпретирует на клиенте. Current Architecture Audit, delta и ТЗ уже исходят из правильной семантики.
+## 3. Execution sequence
 
-## Текущий blocker
+```text
+R3 Project lifecycle owner acceptance
+→ PROJ-R7-01
+→ PROJ-R7-02
+→ PROJ-R7-03
+→ selected R7-04 module viewers
+→ PROJ-R7-05
+→ R7 release gate acceptance
+→ PROJ-R8-01
+→ PROJ-R8-02
+→ PROJ-R8-03
+→ PROJ-R8-04
+→ PROJ-R8-05
+```
 
-На повторно проверенном current state:
+R7-03/viewer work and R7-05 may be scheduled as bounded branches of accepted R7 foundation only through explicit control-plane selection; no agent starts the next card automatically.
 
-- projects lane = `TASK-R3B-PROJECT-LIFECYCLE-001`;
-- status = `in_progress`;
-- owner acceptance = `pending`;
-- PR #112 = Draft/open;
-- Prepared Issue #211 = `PREPARED / BLOCKED`;
-- R7 требует accepted R3 Project Hub/Editor Host gate и отдельного owner/control-plane transition.
+Graphics/static-only project types use R7-02 safe static fallback until a real interactive viewer is justified.
 
-Поэтому подготовка и аудит ТЗ завершены, но **R7 product coding не активирован**.
+---
 
-## Порядок входа после owner activation
+## 4. Current architecture facts that must not be forgotten
+
+Verified AS-IS:
+
+- canonical Project Core / Working Draft / immutable ProjectVersion already exist;
+- Gallery/publication, copy/remix, reactions and Collections already exist and should evolve, not be duplicated;
+- current publication is not bound to exact `project_versions.id`;
+- current Gallery detail reads mutable `project_drafts.document_json` and exposes it as legacy work document;
+- current copy source is also mutable draft;
+- current Gallery requires a viewer session; target anonymous read must use a new sanitized immutable projection;
+- project-specific revocable/expiring ShareLink is not provided by Learning `content_shares`;
+- comments remain downstream of moderation.
+
+Do not restore the stale claim that current Gallery is already a safe raw-document-free public boundary.
+
+---
+
+## 5. Hygiene cadence
+
+No calendar cadence.
+
+```text
+each change → L0
+each accepted bounded slice → L1
+3 accepted ordinary slices → L2
+2 accepted runtime/media/high-risk slices → L2
+milestone/event trigger → L2 earlier
+release/owner acceptance → L3
+```
+
+`BLOCK` prevents the next slice until fixed or owner-approved.
+
+---
+
+## 6. Current execution blocker
+
+The last verified canonical execution snapshot still had projects lane on unfinished R3 Project Lifecycle with owner acceptance pending. Therefore R7 is prepared but not self-activated.
+
+At actual start, **re-read current `docs/execution/current.yaml`**; historical status in documentation is never an authorization source.
+
+---
+
+## 7. Activation handoff pattern
 
 ```text
 AGENTS.md
@@ -63,14 +117,13 @@ AGENTS.md
 → pnpm agent:recover --scope <activated lane> --check
 → pnpm agent:context --scope <activated lane>
 → docs/execution/current.yaml
-→ activated Issue/task card
+→ active Issue/task card
+→ PROJECTS_EXECUTION_READINESS.md
 → ASA_PROJECTS_IMPLEMENTATION_TZ.md
-→ ASA_PROJECTS_CURRENT_ARCHITECTURE_AUDIT.md
-→ projects/PROJ-A0-DELTA-2026-09-14.md
-→ только нужные sections Implementation Spec / UI/UX Spec
-→ релевантный код/tests
+→ Current Architecture Audit + latest delta + errata
+→ DECISION_LEDGER.md
+→ only needed Implementation/UI sections
+→ relevant code/tests
 ```
 
-Перед coding сравнить актуальный `origin/main` с последним delta baseline. Если изменились Project/Gallery/Collections/Identity/Learning publication paths — обновить только затронутые выводы аудита.
-
-Один запуск = один bounded slice. После acceptance/evidence — **STOP**.
+One run = one bounded slice. After acceptance/evidence: **STOP**.
