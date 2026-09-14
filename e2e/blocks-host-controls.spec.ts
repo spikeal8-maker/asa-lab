@@ -70,6 +70,35 @@ async function assertAsaChrome(page: Page, frame: Frame) {
   await expect(frame.locator('[data-asa-blocks-account-overlay]')).toHaveCount(0);
 }
 
+async function assertNativeFileMenu(page: Page, frame: Frame) {
+  await frame.getByText('File', { exact: true }).click();
+  await expect(frame.getByText('New', { exact: true })).toBeVisible();
+  await expect(frame.getByText('Load from your computer', { exact: true })).toBeVisible();
+  await expect(frame.getByText('Save to your computer', { exact: true })).toBeVisible();
+  await page.keyboard.press('Escape');
+}
+
+async function assertCoreCategoryColours(frame: Frame) {
+  const categories = [
+    ['Motion', 'rgb(76, 151, 255)'],
+    ['Looks', 'rgb(153, 102, 255)'],
+    ['Sound', 'rgb(207, 99, 207)'],
+    ['Events', 'rgb(255, 191, 0)'],
+    ['Control', 'rgb(255, 171, 25)'],
+    ['Sensing', 'rgb(92, 177, 214)'],
+    ['Operators', 'rgb(89, 192, 89)'],
+  ] as const;
+
+  for (const [label, expectedFill] of categories) {
+    await frame.getByText(label, { exact: true }).click();
+    const firstBlock = frame.locator('.blocklyFlyout .blocklyDraggable .blocklyPath').first();
+    await expect(firstBlock).toBeVisible();
+    await expect
+      .poll(() => firstBlock.evaluate((element) => getComputedStyle(element).fill))
+      .toBe(expectedFill);
+  }
+}
+
 test('English browser keeps native Scratch controls, ASA chrome and unfiltered extension catalogue', async () => {
   const { fixture, page, frame, external } = await openEditor('en-US');
   try {
@@ -78,6 +107,8 @@ test('English browser keeps native Scratch controls, ASA chrome and unfiltered e
     await expect(frame.getByRole('button', { name: 'Settings menu' })).toBeVisible();
     await expect(frame.getByText('File', { exact: true })).toBeVisible();
     await expect(frame.getByText('Edit', { exact: true })).toBeVisible();
+    await assertNativeFileMenu(page, frame);
+    await assertCoreCategoryColours(frame);
 
     await frame.getByRole('button', { name: 'Settings menu' }).click();
     await expect(frame.getByText('Language', { exact: true })).toHaveCount(1);
