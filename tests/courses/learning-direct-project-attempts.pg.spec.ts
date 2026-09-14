@@ -401,7 +401,41 @@ describe('LRN-VS-002 canonical direct project attempt', () => {
     expect(
       (await inbox(learner)).filter((n) => n.kind === 'NF13' && n.assignmentId === assignment),
     ).toHaveLength(0); // class OFF
+    const conditionsBeforeReminderPolicy = (
+      await app.query('SELECT learning_conditions_for_teacher($1,$2,$3,NULL) AS x', [
+        teacherAccount,
+        cls,
+        assignment,
+      ])
+    ).rows[0].x;
+    const gradebookBeforeReminderPolicy = (
+      await app.query(
+        'SELECT assignment_id,seat_id,attempt_state FROM classroom_gradebook_list($1,$2) WHERE assignment_id=$3 AND seat_id=$4',
+        [teacherAccount, cls, assignment, seat],
+      )
+    ).rows;
+    const learnerPrefsBeforeReminderPolicy = await preferences(learner);
+    const teacherPrefsBeforeReminderPolicy = await preferences(teacherPrincipal);
     await app.query('SELECT learning_class_reminders($1,$2,1,true,true)', [teacherPrincipal, cls]);
+    expect(
+      (
+        await app.query('SELECT learning_conditions_for_teacher($1,$2,$3,NULL) AS x', [
+          teacherAccount,
+          cls,
+          assignment,
+        ])
+      ).rows[0].x,
+    ).toEqual(conditionsBeforeReminderPolicy);
+    expect(
+      (
+        await app.query(
+          'SELECT assignment_id,seat_id,attempt_state FROM classroom_gradebook_list($1,$2) WHERE assignment_id=$3 AND seat_id=$4',
+          [teacherAccount, cls, assignment, seat],
+        )
+      ).rows,
+    ).toEqual(gradebookBeforeReminderPolicy);
+    expect(await preferences(learner)).toEqual(learnerPrefsBeforeReminderPolicy);
+    expect(await preferences(teacherPrincipal)).toEqual(teacherPrefsBeforeReminderPolicy);
     // This suppressed deadline episode is not replayed. An actual changed deadline is a new episode.
     await setDue(new Date(Date.now() + 7200000).toISOString());
     await Promise.all([
