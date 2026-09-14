@@ -1,12 +1,13 @@
-# GP-R0-004 — Match State Machine and Termination
+# GP-R0-004 — Match State Machine
 
 **Status:** accepted architecture decision  
 **Issue:** #230  
+**Termination contract:** `R0_004_TERMINATION_FINALIZATION.md`  
 **Runtime/schema changes:** none
 
 ## Decision
 
-ASA Games uses one server-owned lifecycle for every canonical `GameMatch`:
+Every canonical `GameMatch` uses one server-owned lifecycle:
 
 ```text
 waiting -> ready -> active -> finishing -> finished
@@ -18,41 +19,21 @@ waiting -> ready -> active -> finishing -> finished
 
 `cancelled`, `aborted` and `finished` are terminal.
 
-`* finishing -> aborted` is allowed only for an explicit integrity/admin invalidation before the result is finalized. Ordinary downstream failure must retry finalization and must not turn a valid result into an abort.
+`* finishing -> aborted` is exceptional and allowed only for an audited integrity/admin invalidation before finalization. Ordinary downstream failure must retry; it must not invalidate a valid result.
 
-There is deliberately no generic `allocating`, `connected`, `disconnected`, `paused`, `draw_offered` or `reconnecting` status. Those belong to room allocation, participant presence, or game-owned state.
+There is deliberately no generic `allocating`, `connected`, `disconnected`, `reconnecting`, `paused` or `draw_offered` status. Those belong to runtime/presence/game-owned state.
 
 ## Status semantics
 
-### `waiting`
+- **waiting** — Match exists and immutable game/version/admission metadata is pinned, but start preconditions are not complete.
+- **ready** — participants, configuration and required runtime binding are valid enough to start authoritative play.
+- **active** — official authoritative play has started.
+- **finishing** — authoritative terminal outcome is durable; platform core finalization is still completing/retrying.
+- **finished** — canonical result and core finalization/outbox boundary are durable. Derived projections may still process asynchronously.
+- **cancelled** — play never started and no official result exists.
+- **aborted** — no trustworthy official result can be retained/produced because of integrity, security, admin or unrecoverable runtime failure.
 
-A Match exists and its immutable game/version/admission metadata is pinned, but start preconditions are not yet satisfied. Typical examples: invite accepted but opponent/session not fully ready, matchmaking pairing created while runtime/config checks complete.
-
-### `ready`
-
-Participants, immutable configuration and required runtime binding are valid enough to start authoritative play. A command game may pass through `ready` in the same request that creates/starts it; realtime games may remain `ready` until the authoritative room begins.
-
-### `active`
-
-Official authoritative play has started. Player commands/inputs may change game-owned state. Disconnect/reconnect does not leave this status by itself.
-
-### `finishing`
-
-An authoritative terminal outcome has been decided and made durable, but platform finalization is not yet complete. The canonical outcome/reason cannot be replaced by a client retry. Required outbox/finalization work must be retryable.
-
-For command games this state may be transient inside one transaction. For realtime games it can cover the accepted fenced room result before platform finalization.
-
-### `finished`
-
-The canonical terminal outcome is accepted and the platform has durably recorded the core finalization/outbox boundary. Rating, stats and leaderboard projections may still process asynchronously; their temporary failure does not reopen the Match or erase the result.
-
-### `cancelled`
-
-The Match ended before authoritative play started and no official game result exists. Cancellation is not a loss/win/draw.
-
-### `aborted`
-
-The Match cannot safely produce or retain an official result because of an integrity, security, administrative or unrecoverable runtime failure. An abort is not silently converted to a normal loss/win/draw.
+Command games may traverse `ready` and `finishing` within one transaction. Realtime games may remain in those states while start/result handoff is completed.
 
 ## Allowed transitions
 
@@ -60,156 +41,103 @@ The Match cannot safely produce or retain an official result because of an integ
 | --- | --- | --- | --- |
 | create | `waiting` | Games platform | accepted admission creates Match |
 | `waiting` | `ready` | Games platform | start preconditions satisfied |
-| `waiting` | `cancelled` | admission/platform authority | decline, expiry, pre-start cancel |
-| `waiting` | `aborted` | platform integrity/admin | invalid setup/security failure |
+| `waiting` | `cancelled` | admission/platform | decline, expiry, pre-start cancel |
+| `waiting` | `aborted` | integrity/admin | invalid setup/security failure |
 | `ready` | `active` | game/runtime authority | authoritative start |
-| `ready` | `finishing` | platform/game authority | official pre-play forfeit/no-show result |
-| `ready` | `cancelled` | admission/platform authority | valid pre-start cancellation |
-| `ready` | `aborted` | platform integrity/admin | unrecoverable start/runtime failure |
-| `active` | `finishing` | game/runtime authority | rules outcome, resign, timeout, forfeit, agreed draw |
-| `active` | `aborted` | platform integrity/admin | unrecoverable/integrity failure |
-| `finishing` | `finished` | Games finalizer | canonical outcome + durable finalization boundary |
-| `finishing` | `aborted` | audited integrity/admin only | outcome invalidated before finalization |
+| `ready` | `finishing` | platform/game authority | official pre-play forfeit/no-show |
+| `ready` | `cancelled` | admission/platform | valid pre-start cancellation |
+| `ready` | `aborted` | integrity/admin | unrecoverable start failure |
+| `active` | `finishing` | game/runtime authority | rules result, resign, timeout, forfeit, draw |
+| `active` | `aborted` | integrity/admin | unrecoverable/integrity failure |
+| `finishing` | `finished` | Games finalizer | durable core finalization boundary |
+| `finishing` | `aborted` | integrity/admin only | result invalidated before finalization |
 
 All other transitions are invalid in V1.
 
-Terminal states are immutable. A later moderation/rating correction is an additive correction/audit event; it does not rewrite `finished -> active` or `finished -> aborted`.
+Terminal states never reopen. Later moderation/rating corrections are additive audit/correction events.
 
 ## Transition authority
 
-A participant never writes canonical `status` directly.
-
-Participant actions are intentions:
+A participant never writes canonical lifecycle fields directly.
 
 ```text
-resign / accept draw / make move / ready / cancel request
-                 ↓
-authorized command handler / game authority
-                 ↓
-validated lifecycle transition
+player intent
+(move / resign / accept draw / cancel request)
+          ↓
+authorized command or game/runtime authority
+          ↓
+validated Match transition
 ```
 
-Authorities are intentionally narrow:
+Authorities are narrow:
 
-- **Games platform/admission authority** — creates Match, validates readiness and pre-start cancellation;
+- **Games platform/admission authority** — create, readiness, valid pre-start cancellation;
 - **game authority** — command adapter/service for command games;
-- **room authority** — the currently authoritative fenced room generation for realtime games;
-- **Games finalizer** — moves `finishing -> finished` after durable core finalization;
+- **room authority** — currently authoritative fenced room generation for realtime games;
+- **Games finalizer** — `finishing -> finished`;
 - **platform integrity/admin** — audited exceptional abort/invalidation only.
 
-A browser-supplied `status`, terminal reason or winner is never authoritative.
+Browser-supplied `status`, winner or terminal reason is never authoritative.
 
-Every accepted transition increments `lifecycleVersion`. Stale/concurrent transition attempts fail rather than silently overwrite a newer state. Exact error/idempotency representation is GP-R0-007.
+Every accepted lifecycle transition increments `lifecycleVersion`. Stale/concurrent transition attempts fail rather than overwrite newer state. Exact error/idempotency representation is GP-R0-007.
 
-## Termination reasons
+## Presence and runtime separation
 
-Reason is separate from lifecycle status.
-
-### Normal official finish
-
-Valid with `finishing/finished`:
-
-- `rules_outcome` — checkmate, no legal move, board/rules victory, normal draw, score/objective result;
-- `resignation`;
-- `draw_agreement`;
-- `timeout`;
-- `forfeit`;
-- `disconnect_forfeit` — only when a game/policy explicitly converts prolonged disconnect into an official forfeit;
-- `no_show_forfeit` — only when competition policy awards an official result without play.
-
-Game-specific details may exist in game-owned outcome metadata, but cannot invent new generic lifecycle transitions.
-
-### Cancellation before play
-
-Valid only with `cancelled`:
-
-- `participant_cancelled`;
-- `participant_declined`;
-- `admission_expired`;
-- `matchmaking_cancelled`;
-- `no_show_cancelled`;
-- `policy_rejected`;
-- `admin_cancelled`.
-
-### Abort / invalid official result
-
-Valid only with `aborted`:
-
-- `runtime_lost`;
-- `unrecoverable_state`;
-- `integrity_failure`;
-- `security_abort`;
-- `version_incompatible`;
-- `admin_abort`.
-
-A recoverable room crash does **not** immediately mean `runtime_lost`; the Match remains `active` while recovery/reallocation policy still permits recovery.
-
-## Reconnect and presence
-
-Connectivity is participant/runtime state, not Match lifecycle.
+Connectivity and room allocation are separate state machines.
 
 Examples:
 
-- player loses network for 10 seconds: Match remains `active`;
-- command game client reconnects and obtains snapshot/events: Match remains `active`;
-- room instance restarts and recovery succeeds: Match remains `active`;
-- disconnect timer expires and policy awards loss: game authority records `active -> finishing` with `disconnect_forfeit`;
-- rated realtime room is irrecoverably lost and policy forbids a synthetic result: `active -> aborted` with `runtime_lost`.
+- player loses network briefly: Match remains `active`;
+- reconnect succeeds: Match remains `active`;
+- room allocation is still searching: Match remains `waiting`;
+- recoverable room crash/reallocation succeeds: Match may remain `active`;
+- policy converts prolonged disconnect to official loss: `active -> finishing`;
+- unrecoverable room loss with no valid result: `active -> aborted`.
 
-This avoids coupling lifecycle to WebSocket implementation details.
+This keeps command games independent from WebSocket/room mechanics.
 
-## Finalization invariant
+## Termination and finalization
 
-The system must never repeat the current Chess risk where a game can be durably finished while a required rating/finalization effect is neither durable nor retryable.
+Canonical reason families and the durable finalization invariant are normative in `R0_004_TERMINATION_FINALIZATION.md`.
 
-The target invariant is:
-
-1. authoritative game/runtime decides terminal outcome;
-2. `active/ready -> finishing` persists canonical outcome + reason;
-3. the same durable boundary records/enqueues the platform finalization event/outbox;
-4. retries are idempotent;
-5. `finishing -> finished` happens only after that core durability boundary exists;
-6. derived rating/stats consumers may retry independently.
-
-A failed rating consumer does not roll the Match back to `active` and does not erase the result.
+Key rule: an official game result cannot be considered safely finalized unless the core finalization/outbox boundary is durable and retryable. Rating/stats failures must not erase the result or reopen the Match.
 
 ## Checkers compatibility
 
-Current Checkers service `active|finished` maps directly after migration:
+Current Checkers maps without changing Russian-64 rules or existing saves:
 
 - newly created bot/local/service games may traverse `waiting -> ready -> active` immediately;
-- `document.result !== '*'` causes authoritative `active -> finishing -> finished`;
-- classroom `pending` maps to `waiting`;
-- classroom `declined` maps to `cancelled/participant_declined`;
-- classroom `active` maps to `active`;
-- classroom `finished` maps to `finished` after canonical finalization.
+- `document.result !== '*'` drives authoritative `active -> finishing -> finished`;
+- classroom `pending` -> `waiting`;
+- classroom `declined` -> `cancelled`;
+- classroom `active` -> `active`;
+- classroom `finished` -> `finished` after canonical finalization.
 
-Existing presentation label `abandoned` is not carried into the canonical model; source evidence decides `cancelled` vs `aborted`.
+The presentation label `abandoned` does not become a canonical state; source evidence determines `cancelled` vs `aborted`.
 
 ## Chess compatibility
 
-Chess challenge lifecycle remains admission-owned and is not duplicated as Match lifecycle.
+Chess challenge lifecycle remains admission-owned rather than duplicated as Match lifecycle.
 
-When a Chess game is created today it is immediately `active`; R4 may model this as transactional `waiting -> ready -> active` without changing chess rules. Checkmate/stalemate/rules outcomes, resignation, timeout and draw agreement transition through `finishing`.
+A current Chess Live game starts as `active`; R4 can represent creation as transactional `waiting -> ready -> active`. Rules outcome, resignation, timeout and accepted draw move through `finishing`. `drawOffer`, clocks, FEN and reconnect remain Chess/runtime state.
 
-`drawOffer` remains Chess-owned state. Reconnect remains snapshot/events, not a Match status.
-
-Before Chess R4 cutover, the known rated-finalization consistency risk must be eliminated using the canonical finalization/outbox invariant above.
+Existing Chess tables remain unchanged during R0. Before R4 cutover, rated finalization must satisfy the shared durable finalization invariant.
 
 ## Negative cases
 
-1. Client sends `{status:'finished'}`: ignored/rejected; only authority may transition.
-2. Player disconnects: Match stays `active` unless policy later produces forfeit/abort.
-3. Rating service is down after a win: canonical result survives; finalization retries asynchronously.
-4. Finished match receives duplicate resign command: no reopen/new result.
-5. Room allocator is searching for a host: Match remains `waiting`; allocation state is external.
-6. Draw is offered: Match remains `active`; Chess/game state owns the offer.
-7. Tournament opponent never appears: policy chooses `cancelled/no_show_cancelled` or official `finishing/no_show_forfeit`; it is not guessed by the client.
+1. Client submits `{status:'finished'}` — rejected/ignored; authority owns lifecycle.
+2. Player disconnects — Match remains `active` unless policy later produces official forfeit/abort.
+3. Rating service fails after a win — canonical result survives and projection retries.
+4. Duplicate resign reaches a finished Match — no reopen and no second result.
+5. Allocator is finding a room — allocation state stays outside Match lifecycle.
+6. Chess draw is offered — Match remains `active`.
+7. Tournament no-show — server policy chooses pre-start cancellation or official `ready -> finishing` forfeit; client does not guess.
 
 ## Deferred deliberately
 
-- exact team/placement outcome shape -> GP-R0-005;
+- exact terminal reason list/finalization details -> `R0_004_TERMINATION_FINALIZATION.md`;
+- team/placement outcome shape -> GP-R0-005;
 - admission/capability eligibility -> GP-R0-006;
-- error codes, idempotency keys and conflict payloads -> GP-R0-007;
+- error codes/idempotency payloads -> GP-R0-007;
 - room lease/fencing implementation -> realtime delivery stage;
-- physical tables/triggers/outbox implementation -> R1 after R0 acceptance.
+- physical SQL/triggers/outbox -> R1 after R0 closes.
