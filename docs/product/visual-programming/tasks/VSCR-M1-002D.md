@@ -3,10 +3,11 @@
 **Kind:** executable implementation slice  
 **Risk:** high  
 **Prerequisite:** accepted M1-002A standalone host and M1-002C protocol boundary.  
-**Status:** accepted and integrated into `main`  
 **Integration PR:** #225  
 **Accepted source SHA:** `a2d0cd6d8fd2c39945b91e289cbdb02e43924675`  
 **Integrated merge SHA:** `143e280510e64dd93026298bc7713eecaac52124`
+
+**Execution:** coding starts only when `docs/execution/current.yaml.task.id` is exactly `VSCR-M1-002D` and `docs/execution/current.yaml.task.status` is `in_progress`; `docs/execution/current.yaml.primary_lane.milestone.id` must be `VSCR-M1-002` with `owner_authorization` = `accepted`.
 
 ## Goal
 
@@ -16,7 +17,7 @@ This checkpoint makes no durable-save claim.
 
 ## Accepted implementation
 
-The accepted implementation is now part of `main` through PR #225. It keeps the
+The accepted implementation is part of `main` through PR #225. It keeps the
 M1-002C protocol/security boundary intact and adds only the D runtime/storage slice.
 The older D branch was not merged wholesale; newer canonical product documents for
 Settings, language, File/Edit, Extensions, theme and ASA identity remain authoritative.
@@ -85,6 +86,22 @@ No branding/File/Extensions implementation, JWT, real runtime project/asset API,
 asset/draft PUT, S3/MinIO, autosave, `.sb3`, production exposure or public module
 activation is claimed by this checkpoint. The `blocks` module remains governed by
 its existing activation state.
+
+## Bounded self-review
+
+Review the integrated D source against the mapped storage-adapter contract and PR
+#225 diff. Confirm the mount occurs only after the accepted C boundary, fixture IDs
+never leak an ASA UUID into ProjectFetcher, save failure is defensive rather than
+false success, no Scratch Foundation project/asset fallback exists, and the browser
+journey remains isolated from the C security scenarios.
+
+## Independent review
+
+A reviewer outside the authoring context checks this card, PR #225, the mapped
+`blocks.host.storage-adapter` entry and exact-SHA CI evidence. Verify real Scratch
+workspace/stage visibility, fixture load/run/stop/player behavior, PROJECT_CHANGED,
+defensive save failure, no premature durable APIs and preservation of the newer B
+product decisions.
 
 ## Stop
 
