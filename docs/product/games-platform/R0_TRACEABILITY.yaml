@@ -57,6 +57,7 @@ requirements:
     observed_main_sha: 9ff66b6efcf765c021fb3c74fddf91585f856713
     evidence:
       - docs/product/games-platform/R0_004_MATCH_STATE_MACHINE.md
+      - docs/product/games-platform/R0_004_TERMINATION_FINALIZATION.md
       - docs/product/games-platform/R0_004_MATCH_STATE_MACHINE_REVIEW.md
       - contexts/checkers/application/game-service.ts
       - apps/web/src/checkers/checkers-match-session.ts
