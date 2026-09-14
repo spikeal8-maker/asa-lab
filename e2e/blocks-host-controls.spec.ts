@@ -99,7 +99,7 @@ function exactTextPattern(value: string): RegExp {
 }
 
 function toolboxCategory(frame: Frame, label: string) {
-  return frame.locator('.blocklyToolboxCategoryLabel').filter({ hasText: exactTextPattern(label) });
+  return frame.getByRole('treeitem', { name: exactTextPattern(label) });
 }
 
 async function assertCoreCategoryColours(frame: Frame) {
