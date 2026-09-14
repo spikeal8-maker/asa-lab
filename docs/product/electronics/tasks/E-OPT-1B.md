@@ -40,6 +40,7 @@ contexts/electronics/domain/simulation.ts
 ```text
 contexts/electronics/engine.ts
 contexts/electronics/package.json
+contexts/electronics/tsconfig.json
 contexts/electronics/testing/engine-public-api.spec.ts
 docs/product/electronics/components/engine-worker-clock.yaml
 ```
