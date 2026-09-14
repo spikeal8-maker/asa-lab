@@ -9,23 +9,36 @@ source_of_truth: docs/product/games-platform/R0_ARCHITECTURE_FREEZE.md
 requirements:
   - id: GP-R0-001
     title: Gaming identity
+    observed_main_sha: c3c1c10d7e37782de58ec84d31ed3336971150f5
     evidence:
+      - docs/product/games-platform/R0_001_GAMING_IDENTITY.md
       - migrations/0026_student_seat_principal.sql
       - migrations/0047_seat_principal_lookup.sql
       - migrations/0050_account_learners.sql
       - migrations/0062_principal_home_tenant.sql
       - migrations/0086_learning_identity_foundation.sql
+      - contexts/identity/application/active-context.usecase.ts
+      - contexts/identity/application/account.ports.ts
       - docs/agent/contracts/identity.yaml
     acceptance:
       - one stable gaming-subject resolution contract
       - no second auth system
       - no raw internal id in public fallback
       - account plus seat principal case covered
-    decision: null
-    negative_case: null
-    compatibility: null
-    review_verdict: NOT_REVIEWED
-    state: open
+    decision: >-
+      Use an opaque platform-owned game_player_id resolved from verified Account or StudentSeat
+      sources. Account-owned seats resolve to the Account-backed player. Distinct verified
+      subjects merge only through explicit audited canonical aliasing; principal_id,
+      learner_identity.id, email and display names are not gaming keys.
+    negative_case: >-
+      Two unlinked StudentSeats with the same display name remain separate; a client-claimed
+      playerId never grants authority; class/workspace revocation does not delete match history.
+    compatibility: >-
+      R1 Checkers maps authenticated humans at the Games adapter boundary without rewriting
+      legacy bot/local/classroom saves. Chess Live remains unchanged until R4 shadow mapping and
+      parity; existing chess participant/history identifiers are not renamed in place.
+    review_verdict: PASS
+    state: accepted
 
   - id: GP-R0-002
     title: Games security and storage domain
