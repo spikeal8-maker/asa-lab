@@ -44,6 +44,23 @@ Immutable tables не обязаны иметь `updated_at`, но имеют di
 - runtime role не владеет таблицами и не имеет `BYPASSRLS`;
 - cross-tenant read/write покрыты negative tests.
 
+### 2.1. Platform-scoped cross-tenant domains
+
+Правило `tenant_id` выше является default для **tenant-owned** данных. Исключение допускается только для bounded context, который по принятому ADR действительно принадлежит платформе и должен связывать субъектов из разных tenants.
+
+Для такого домена обязательны одновременно:
+
+- явный platform ownership вместо выбора tenant одного из участников;
+- запрет synthetic tenant, маскирующего глобальные данные под tenant-owned;
+- отдельная schema/repository boundary и server-derived actor context;
+- `ENABLE` + `FORCE ROW LEVEL SECURITY` для приватных platform rows;
+- runtime role без table ownership и без `BYPASSRLS`;
+- tenant-owned classroom/workspace references хранятся как проверенные scope bindings с tenant lineage, а не как ownership platform row;
+- cross-player/system mutations имеют узкую транзакционную границу и не получают generic bypass flag;
+- negative tests проверяют отсутствие context, чужого игрока, чужой scope и forged tenant/player ids.
+
+Первое принятое исключение — ASA Games Platform по `GP-R0-002`: глобальные player/match/rating сущности platform-scoped, при этом образовательные classroom/workspace данные сохраняют обычную tenant-модель.
+
 ## 3. PostgreSQL RLS
 
 RLS — второй рубеж, а не замена application authorization.

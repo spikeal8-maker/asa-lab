@@ -22,39 +22,49 @@ requirements:
       - contexts/identity/application/account.ports.ts
       - docs/agent/contracts/identity.yaml
     acceptance:
-      - one stable gaming-subject resolution contract
+      - stable gaming-subject resolver
       - no second auth system
-      - no raw internal id in public fallback
-      - account plus seat principal case covered
+      - no raw internal public id
+      - account plus seat case covered
     decision: >-
-      Use an opaque platform-owned game_player_id resolved from verified Account or StudentSeat
-      sources. Account-owned seats resolve to the Account-backed player. Distinct verified
-      subjects merge only through explicit audited canonical aliasing; principal_id,
-      learner_identity.id, email and display names are not gaming keys.
+      Use opaque game_player_id from verified Account/StudentSeat sources. Account-owned seats
+      resolve to the Account player. Merge only through audited canonical aliasing; principal,
+      learner, email and display names are not gaming keys.
     negative_case: >-
-      Two unlinked StudentSeats with the same display name remain separate; a client-claimed
-      playerId never grants authority; class/workspace revocation does not delete match history.
+      Same-name unlinked seats stay separate; client playerId never grants authority; revoked
+      class/workspace access does not delete match history.
     compatibility: >-
-      R1 Checkers maps authenticated humans at the Games adapter boundary without rewriting
-      legacy bot/local/classroom saves. Chess Live remains unchanged until R4 shadow mapping and
-      parity; existing chess participant/history identifiers are not renamed in place.
+      R1 Checkers maps humans at the Games adapter without rewriting legacy saves. Chess Live
+      stays unchanged until R4 shadow mapping/parity.
     review_verdict: PASS
     state: accepted
 
   - id: GP-R0-002
     title: Games security and storage domain
+    observed_main_sha: 5f5ee6aab8e2981300ff25c698ac6e4f1e4987ce
     evidence:
+      - docs/product/games-platform/R0_002_GAMES_SECURITY_DOMAIN.md
+      - docs/product/games-platform/R0_002_GAMES_SECURITY_DOMAIN_REVIEW.md
       - docs/architecture/DATA_SECURITY_AND_TENANCY.md
+      - packages/database/src/index.ts
+      - migrations/0006_chess_live.sql
       - contexts/chess-live/application/ports.ts
     acceptance:
       - cross-workspace placement decided
       - authorization and RLS negative-test model defined
-      - no participant tenant chosen by convenience
-    decision: null
-    negative_case: null
-    compatibility: null
-    review_verdict: NOT_REVIEWED
-    state: open
+      - no participant tenant ownership shortcut
+    decision: >-
+      Global Games state is platform-scoped, initially in the same PostgreSQL behind a dedicated
+      Games schema/repository boundary. No participant/synthetic tenant. Use server-derived
+      game_player_id context, FORCE RLS for private rows and narrow cross-player transactions.
+    negative_case: >-
+      Supplied playerId/tenantId, private match UUID or tenant context alone grants no access;
+      missing Games actor context fails closed; class outsiders are denied.
+    compatibility: >-
+      R1 Checkers can use platform Games persistence without rewriting bot/local/classroom saves.
+      Chess Live remains tenant-scoped until additive R4 parity/cutover.
+    review_verdict: PASS
+    state: accepted
 
   - id: GP-R0-003
     title: Canonical Match dimensions
@@ -131,11 +141,4 @@ requirements:
 
 r0_gate:
   rule: all seven requirements must be accepted before R1 shared SQL or API implementation
-  required_ids:
-    - GP-R0-001
-    - GP-R0-002
-    - GP-R0-003
-    - GP-R0-004
-    - GP-R0-005
-    - GP-R0-006
-    - GP-R0-007
+  required_ids: [GP-R0-001, GP-R0-002, GP-R0-003, GP-R0-004, GP-R0-005, GP-R0-006, GP-R0-007]

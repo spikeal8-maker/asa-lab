@@ -10,9 +10,11 @@ components:
     - docs/product/electronics/ASA_ELECTRONICS_OPTIMIZATION_PLAN_V2.md#4-e-opt-1--portable-engine-boundary
     sources:
     - contexts/electronics/index.ts
+    - contexts/electronics/engine.ts
     - contexts/electronics/domain/document.ts
     - contexts/electronics/domain/simulation.ts
     tests:
+    - contexts/electronics/testing/engine-public-api.spec.ts
     - contexts/electronics/testing/simulation-contract.spec.ts
     - contexts/electronics/testing/solver.spec.ts
     dependencies:
@@ -20,6 +22,10 @@ components:
     - electronics.engine.solver
     notes: Route public export and consumer inventory here; target boundary and prerequisites belong to the roadmap.
     symbols:
+    - ELECTRONICS_ENGINE_DESCRIPTOR
+    - parseElectronicsEngineDocument
+    - prepareElectronicsSnapshot
+    - analyseElectronicsSnapshot
     - parseElectronicsDocument
     - compileCircuit
     - analyseCircuit
