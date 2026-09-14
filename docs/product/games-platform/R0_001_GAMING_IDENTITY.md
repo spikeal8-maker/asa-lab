@@ -4,7 +4,8 @@
 **Issue:** #222  
 **Observed `main`:** `c3c1c10d7e37782de58ec84d31ed3336971150f5`  
 **Change class:** L3_CRITICAL architecture/canonical resolver  
-**Runtime/schema changes:** none
+**Runtime/schema changes:** none  
+**Review:** `R0_001_GAMING_IDENTITY_REVIEW.md`
 
 ## Decision
 
@@ -98,18 +99,15 @@ The minimum public projection is conceptually:
 
 ```ts
 interface GamePlayerPublicV1 {
-  playerId: string;        // opaque Games id only
-  displayAlias: string;    // Games-owned/safety-filtered presentation
+  playerId: string;
+  displayAlias: string;
   avatarRef: string | null;
 }
 ```
 
 It must never expose or use as fallback:
 
-- `account_id`;
-- `principal_id`;
-- `seat_id`;
-- `learner_identity_id`;
+- `account_id`, `principal_id`, `seat_id` or `learner_identity_id`;
 - email/login credentials;
 - tenant/workspace/school/classroom ids;
 - age/birth date;
@@ -119,9 +117,7 @@ A Games alias may be initialized from an existing safe profile/seat label under 
 
 ## Authorization boundary
 
-`game_player_id` answers **who the stable player is**, not **what they may do**.
-
-Every invite, matchmaking, classroom, rated or tournament action still derives permission from the current authenticated ASA context plus Games policy/scope. Possessing or knowing a `playerId` grants no access.
+`game_player_id` answers **who the stable player is**, not **what they may do**. Every invite, matchmaking, classroom, rated or tournament action still derives permission from the current authenticated ASA context plus Games policy/scope. Possessing or knowing a `playerId` grants no access.
 
 ## Compatibility
 
@@ -138,10 +134,10 @@ Current Chess Live uses tenant/user identifiers and remains unchanged before R4.
 1. Same Account enters two schools/classes: **one** Gaming Subject, multiple authorization relations.
 2. Two unlinked StudentSeats both named `Алексей`: **two** Gaming Subjects; no heuristic merge.
 3. One Account plus its classroom seat principal: **one** Account-backed Gaming Subject, not two profiles.
-4. `learner_identity.id` exists for a school learner: it remains Learning-owned and is **not** copied into public Games identity.
+4. `learner_identity.id` remains Learning-owned and is not copied into public Games identity.
 5. Teacher leaves one workspace: Games history survives; only that workspace relationship is revoked.
 6. Deleted player appears in old match history: opaque historical identity remains, public PII does not.
-7. Client submits another player's `playerId`: server authorization ignores the claim and resolves actor from authenticated ASA context.
+7. Client submits another player's `playerId`: server resolves actor from authenticated ASA context and ignores it as authority.
 
 ## Deferred by design
 
@@ -154,24 +150,3 @@ This decision does not define:
 - creator identity/ownership (`R7`).
 
 Those decisions must consume this identity contract rather than redefine it.
-
-## Review receipt
-
-**POST_STEP_REVIEW**
-
-- STEP: define stable Games player identity over Account/StudentSeat without second auth system.
-- CHANGE_CLASS: L3_CRITICAL.
-- CHANGED: architecture decision only; no runtime/schema.
-- USER_RESULT: future Games features have one stable player identity contract before persistence is created.
-- INVARIANTS_TOUCHED: `IDA-SCOPE-001`, `IDA-AUTH-001`, `IDA-SEAT-001`, `IDA-LINK-001`, `IDA-REV-001`, `IDA-PROFILE-001`.
-- TESTS: no runtime tests run; documentation/evidence review only.
-- NEGATIVE_CHECKS: principal split, learner-identity misuse, heuristic seat merge, client-claimed player id, revoke/delete history loss.
-- DOC_DRIFT: none found against current identity contract/evidence.
-- UNVERIFIED: physical storage/RLS and rating merge policy are intentionally deferred.
-- VERDICT: PASS.
-
-**CHALLENGE_REVIEW**
-
-The decision was challenged against multiple principals per human, account-owned seats, school-scoped learner identity, revocation, deletion and legacy Chess/Checkers compatibility. Direct `principal_id`, `learner_identity.id` and name/email heuristic designs fail these cases. The separate Gaming Subject + verified source-link + canonical alias model preserves scoped auth and immutable history without creating a second login system.
-
-**VERDICT: PASS.**
