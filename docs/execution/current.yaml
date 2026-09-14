@@ -232,18 +232,18 @@ parallel_lanes:
     owned_paths:
       - docs/product/games-platform/**
     task:
-      id: TASK-GAMES-R0-001
-      issue: 222
+      id: TASK-GAMES-R0-002
+      issue: 223
       branch: main
       base_branch: main
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: r0_001_gaming_identity_selected
+      checkpoint: r0_002_security_storage_selected
       owner_acceptance: pending
     revisions:
-      convergence_baseline_sha: 885d8d25a73d0bbb4ca90786c6ac7f41754d83ff
-      head_sha: 885d8d25a73d0bbb4ca90786c6ac7f41754d83ff
+      convergence_baseline_sha: d042c631007e8412333f2f0e2345990d3fa96833
+      head_sha: d042c631007e8412333f2f0e2345990d3fa96833
     execution_lease:
       executor_id: codex-games-r0
       holder: unassigned
