@@ -42,17 +42,20 @@ const DOCUMENT = {
   simulation: { running: true, maxIterations: 24 },
 };
 
-beforeAll(() => {
-  const corepack = process.platform === 'win32' ? 'corepack.cmd' : 'corepack';
-  execFileSync(
-    corepack,
-    ['pnpm', 'nx', 'run', 'electronics:build', '--skip-nx-cache'],
-    {
-      cwd: REPO_ROOT,
-      stdio: 'pipe',
-    },
-  );
-}, 60_000);
+beforeAll(
+  () => {
+    const corepack = process.platform === 'win32' ? 'corepack.cmd' : 'corepack';
+    execFileSync(
+      corepack,
+      ['pnpm', 'nx', 'run', 'electronics:build', '--skip-nx-cache'],
+      {
+        cwd: REPO_ROOT,
+        stdio: 'pipe',
+      },
+    );
+  },
+  60_000,
+);
 
 describe('Electronics built-package consumer contract', () => {
   it('resolves and executes the public engine subpath from the API package', async () => {
@@ -105,7 +108,9 @@ describe('Electronics built-package consumer contract', () => {
     expect(entry?.type).toBe('chunk');
     if (!entry || entry.type !== 'chunk') return;
 
-    const bundleUrl = `data:text/javascript;base64,${Buffer.from(entry.code).toString('base64')}`;
+    const bundleUrl = `data:text/javascript;base64,${Buffer.from(entry.code).toString(
+      'base64',
+    )}`;
     const browserConsumer = await import(bundleUrl);
     const receipt = browserConsumer.runEngineBrowserConsumerContract();
 
