@@ -136,23 +136,23 @@ M3 does not globally delete/block native Scratch network-backed or hardware exte
 
 ## Readiness matrix
 
-| Task | Readiness | Unlock condition |
-|---|---|---|
-| `VSCR-M1-001` | COMPLETE / OWNER-ACCEPTED | integrated |
-| `VSCR-M1-002A` | COMPLETE / ACCEPTED | accepted host foundation |
-| `VSCR-M1-002C` | COMPLETE / ACCEPTED | accepted security boundary |
+| Task           | Readiness                  | Unlock condition                                                  |
+| -------------- | -------------------------- | ----------------------------------------------------------------- |
+| `VSCR-M1-001`  | COMPLETE / OWNER-ACCEPTED  | integrated                                                        |
+| `VSCR-M1-002A` | COMPLETE / ACCEPTED        | accepted host foundation                                          |
+| `VSCR-M1-002C` | COMPLETE / ACCEPTED        | accepted security boundary                                        |
 | `VSCR-M1-002D` | IMPLEMENTED / OWNER REVIEW | integrate exact D implementation without overwriting newer B docs |
-| `VSCR-M1-002B` | BLOCKED | D owner-accepted + integrated; B card selected separately |
-| `VSCR-M1-002E` | BLOCKED | A+C+D+B accepted |
-| `VSCR-M1-003` | BLOCKED | E + owner acceptance of M1-002 |
-| `VSCR-M1-004` | BLOCKED | M1-003 |
-| `VSCR-M1-005` | BLOCKED | M1-004 |
-| `VSCR-M1-006` | BLOCKED | M1-005 |
-| `VSCR-M1-007` | BLOCKED | durable project path accepted |
-| `VSCR-M1-008` | BLOCKED | M1-006 + M1-007 |
-| `VSCR-M2-*` | BLOCKED | M1-008 |
-| `VSCR-M3-*` | BLOCKED | M2 |
-| `VSCR-M4-001` | BLOCKED | M3 deployment/restore acceptance |
+| `VSCR-M1-002B` | BLOCKED                    | D owner-accepted + integrated; B card selected separately         |
+| `VSCR-M1-002E` | BLOCKED                    | A+C+D+B accepted                                                  |
+| `VSCR-M1-003`  | BLOCKED                    | E + owner acceptance of M1-002                                    |
+| `VSCR-M1-004`  | BLOCKED                    | M1-003                                                            |
+| `VSCR-M1-005`  | BLOCKED                    | M1-004                                                            |
+| `VSCR-M1-006`  | BLOCKED                    | M1-005                                                            |
+| `VSCR-M1-007`  | BLOCKED                    | durable project path accepted                                     |
+| `VSCR-M1-008`  | BLOCKED                    | M1-006 + M1-007                                                   |
+| `VSCR-M2-*`    | BLOCKED                    | M1-008                                                            |
+| `VSCR-M3-*`    | BLOCKED                    | M2                                                                |
+| `VSCR-M4-001`  | BLOCKED                    | M3 deployment/restore acceptance                                  |
 
 `BLOCKED` means coding STOP.
 
