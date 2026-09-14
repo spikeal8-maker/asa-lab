@@ -1,19 +1,9 @@
-import {
-  test,
-  expect,
-  type BrowserContext,
-  type Frame,
-  type Page,
-} from '@playwright/test';
+import { test, expect, type BrowserContext, type Frame, type Page } from '@playwright/test';
 import fs from 'node:fs';
 
-let createProtocolFixture: typeof import(
-  '../tools/blocks/browser/fixture.mjs'
-).createProtocolFixture;
+let createProtocolFixture: typeof import('../tools/blocks/browser/fixture.mjs').createProtocolFixture;
 let runtimeFrame: typeof import('../tools/blocks/browser/assertions.mjs').runtimeFrame;
-let waitForRuntimeState: typeof import(
-  '../tools/blocks/browser/assertions.mjs'
-).waitForRuntimeState;
+let waitForRuntimeState: typeof import('../tools/blocks/browser/assertions.mjs').waitForRuntimeState;
 let initMessage: typeof import('../tools/blocks/browser/protocol.mjs').initMessage;
 let parentOrigin: string;
 let runtimeUrl: string;
