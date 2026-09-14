@@ -238,12 +238,12 @@ parallel_lanes:
       base_branch: main
       pr: null
       pr_draft: false
-      status: in_progress
-      checkpoint: r0_003_canonical_match_selected
+      status: in_review
+      checkpoint: r0_003_canonical_match_review_ready
       owner_acceptance: pending
     revisions:
       convergence_baseline_sha: 24d349c54072d79dd6e1207b237a820b65a65304
-      head_sha: 24d349c54072d79dd6e1207b237a820b65a65304
+      head_sha: 43bb1039adb4b377ed4f38cc912af0f749521d51
     execution_lease:
       executor_id: codex-games-r0
       holder: unassigned
