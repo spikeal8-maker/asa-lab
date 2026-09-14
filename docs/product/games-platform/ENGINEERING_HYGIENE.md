@@ -40,10 +40,13 @@ Initial current-main baseline already contains debt that must be managed rather 
 - `apps/web/src/checkers/CheckersModuleExperience.tsx` ≈64 KB — above runtime hard threshold;
 - `apps/web/src/checkers/checkers.css` ≈62 KB — above style hard threshold;
 - `apps/web/src/checkers/CheckersWorkspace.tsx` ≈25 KB — above target, below review threshold;
-- `apps/web/src/chess/ChessEditor.tsx` ≈29 KB — near runtime review threshold;
-- `apps/web/src/chess/ChessOnlineLobby.tsx` ≈23.5 KB — near target.
+- `apps/web/src/chess/ChessEditor.tsx` ≈29 KB — above target;
+- `apps/web/src/chess/ChessOnlineLobby.tsx` ≈23.5 KB — near target;
+- `contexts/chess/application/chess-analysis-job-service.ts` ≈40.6 KB — above source review threshold.
 
 R1 must not implement online Checkers by growing `CheckersModuleExperience.tsx` or `checkers.css`. If those surfaces must change, extract only the seam required for the R1 user journey; do not rewrite unrelated learning/classroom/bot behavior.
+
+Detailed Chess classification and R4 constraints live in `CHESS_HYGIENE_AUDIT.md`. Chess rules/document/profile files around 28 KB are review candidates, not automatic split targets: cohesive mature domain code is not rewritten merely to hit a byte number. Chess-specific cleanup before R4 is allowed only for a defect or a touched hotspot that would otherwise become worse.
 
 ## 4. Audit cadence
 
@@ -86,7 +89,7 @@ Existing unrelated debt may remain, but it must not become worse silently.
 
 Run a deliberate structural audit before stages that widen the architecture:
 
-- before **R4 Chess convergence** — verify Checkers/XO genericization did not overfit shared code;
+- before **R4 Chess convergence** — read `CHESS_HYGIENE_AUDIT.md`, re-measure Chess hotspots, verify Checkers/XO genericization did not overfit shared code, and do not permit cutover while `CHESS-CORR-001` is unresolved;
 - before **R6 realtime** — verify command-game code is not being reused as a realtime room abstraction;
 - before **R7 creator platform** — verify trusted first-party assumptions are not leaking into untrusted creator execution.
 
