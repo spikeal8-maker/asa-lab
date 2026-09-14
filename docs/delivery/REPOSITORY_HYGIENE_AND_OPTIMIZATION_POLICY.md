@@ -3,299 +3,271 @@
 ## 0. Статус и назначение
 
 **Статус:** обязательная инженерная политика для активной разработки.  
-**Область:** весь репозиторий ASA Lab; особенно обязательна для игровых, 3D, electronics, Scratch/Blocks и media-heavy модулей.  
+**Область:** весь репозиторий ASA Lab; особенно обязательна для игр, 3D, Electronics, Scratch/Blocks, Public Projects и media-heavy модулей.  
 **Цель:** не допускать накопления больших неоптимальных файлов, generated-мусора, дублированных реализаций, мёртвого кода, необоснованного роста bundle/dependency graph и Git history.
 
-Эта политика не разрешает самовольный глобальный refactor. Она определяет, **когда и что надо проверить**, а найденный дефект исправляется только в рамках разрешённого scope или регистрируется отдельным technical-debt item.
+Эта политика не разрешает самовольный глобальный refactor. Найденный дефект исправляется только в разрешённом scope либо регистрируется отдельным technical-debt item.
 
 Главный принцип:
 
-> Качество репозитория поддерживается непрерывно маленькими проверками и обязательными milestone-аудитами, а не редкой «генеральной уборкой» после нескольких месяцев разработки.
+> Гигиена репозитория привязана к завершённым итерациям разработки, а не к календарю. Мы чистим систему после определённого количества законченных срезов и на границах milestones, а не «раз в N дней».
 
 ---
 
-# 1. Почему это обязательная часть разработки
+# 1. Базовые термины
 
-В ASA Lab одновременно развиваются сложные интерактивные подсистемы. При такой разработке особенно быстро накапливаются:
+## 1.1. Bounded slice / итерация
 
-- крупные `ts/tsx/js` файлы, смешивающие несколько обязанностей;
-- временные screenshots, videos, traces, coverage, dumps и debug-данные;
-- дублированные PNG/WebP/SVG/3D assets;
-- тестовые fixture, которые перестали использоваться;
-- старые компоненты после появления `V2`, `New`, `Fixed`, `Final`-версий;
-- новые зависимости ради одной маленькой функции;
-- большие JSON и встроенные data blobs;
-- маршруты, которые тянут код чужих модулей;
-- тяжёлые game/3D/WebGL runtime chunks;
-- удалённые из working tree, но оставшиеся в Git history большие бинарные объекты.
+Законченная ограниченная разработческая единица с собственным scope, acceptance criteria, тестами и evidence. Это может быть feature slice, migration slice, viewer slice, API slice, UI slice или исправление, если оно завершает отдельный проверяемый результат.
 
-Работающий feature не считается качественным, если его цена — систематическое ухудшение обслуживаемости и веса репозитория.
+Один большой PR с несколькими независимыми результатами считается несколькими итерациями для целей hygiene counter.
 
----
+## 1.2. Hygiene counter
 
-# 2. Термины
+Для каждого активного lane ведётся количество **принятых bounded slices после последнего L2-аудита**.
 
-## 2.1. Production asset
+Counter увеличивается только после acceptance завершённой итерации. Черновые коммиты и незавершённые попытки counter не увеличивают.
 
-Файл, реально необходимый продукту в runtime: изображение, модель, аудио, локализованный контент, fixture совместимости, обязательный vendor artifact и т. п.
+После L2 с verdict `PASS` или принятого `WARNING` counter обнуляется.
 
-## 2.2. Generated development artifact
+## 1.3. Production asset
 
-Файл, созданный инструментом разработки и не являющийся исходником продукта:
+Файл, реально необходимый продукту в runtime: изображение, модель, аудио, локализованный контент, compatibility fixture, обязательный vendor artifact и т. п.
 
-- test screenshot/video;
-- trace;
-- report;
-- coverage;
-- build output;
-- temporary export;
-- debug dump;
-- local database dump;
-- profiling capture;
-- generated cache.
+## 1.4. Generated development artifact
 
-## 2.3. Canonical test evidence
+Файл, созданный инструментами разработки и не являющийся исходником продукта: screenshots, videos, traces, coverage, reports, build outputs, dumps, profiling captures, caches, temporary exports.
 
-Generated-файл, который намеренно хранится как часть regression contract: например утверждённый visual snapshot или compatibility fixture. Такой файл должен находиться в явно определённом каталоге и иметь понятного владельца/назначение.
+## 1.5. Canonical test evidence
 
-## 2.4. Large file
+Generated-файл, который намеренно хранится как часть regression contract, например утверждённый visual snapshot или compatibility fixture. Он должен находиться в явно определённом каталоге и иметь реального потребителя.
 
-Файл, который пересёк soft/hard threshold этой политики либо заметно увеличил repository/bundle footprint относительно baseline.
+## 1.6. Hygiene debt
 
-## 2.5. Hygiene debt
-
-Найденная проблема, которая не должна исправляться в текущем scope, но обязана быть явно зарегистрирована с путём, причиной, риском и предлагаемым следующим действием.
+Найденная проблема, которую нельзя безопасно исправить в текущем scope. Она обязана быть зарегистрирована с путём, причиной, риском, severity и требуемым gate.
 
 ---
 
-# 3. Четыре уровня контроля
+# 2. Четыре уровня контроля
 
-## L0 — Continuous Hygiene
+## L0 — Change Hygiene
 
-**Когда:** на каждом рабочем срезе/PR/merge-кандидате.  
-**Стоимость:** минуты.  
-**Цель:** поймать очевидный мусор до попадания в историю.
+**Когда:** на каждом bounded change / PR / merge-кандидате.  
+**Цель:** не пустить очевидный мусор в историю.
 
-Проверяется:
+Проверить:
 
 - неожиданные большие файлы в diff;
 - generated artifacts;
 - новые binaries;
-- случайные `*.tmp`, `*.bak`, `*.old`, logs;
+- `*.tmp`, `*.bak`, `*.old`, logs, dumps;
 - новые зависимости;
-- рост route/bundle там, где метрика доступна;
-- появление подозрительных `V2/New/Fixed/Final/Copy` файлов;
-- случайно закоммиченные build/cache outputs.
+- появление `V2/New/Fixed/Final/Copy/Old` реализаций;
+- случайные build/cache outputs;
+- заметный route/bundle growth, если метрика доступна.
 
-L0 должен стать автоматизированным CI/gate. Пока automation не реализована, проверка выполняется явно в review и фиксируется в evidence.
+L0 должен быть автоматизирован CI/gate настолько, насколько это технически возможно.
 
-## L1 — Feature Cleanup
+## L1 — Slice Cleanup
 
-**Когда:** завершён пользовательский feature или вертикальный slice до его acceptance.  
-**Цель:** убрать мусор и временные обходы, появившиеся непосредственно в этом feature.
+**Когда:** перед acceptance каждой законченной пользовательской или технической итерации.  
+**Цель:** убрать мусор и обходы, созданные именно этой итерацией.
 
-Проверяется:
+Проверить:
 
-- временные debug hooks;
-- мёртвые ветви кода;
+- debug hooks/controls/logging;
+- dead branches;
 - временные assets;
-- дублированные компоненты;
-- неиспользуемые imports/dependencies;
-- файлы, резко выросшие в ходе среза;
-- совпадение final architecture с заявленными module boundaries.
+- дублированные компоненты/сервисы;
+- unused imports/dependencies;
+- transitional files и их delete condition;
+- резко выросшие source-файлы;
+- соблюдение заявленных module boundaries;
+- корректность feature flags и rollback path.
 
-L1 не является разрешением чистить весь репозиторий.
+L1 не разрешает «заодно» чистить весь репозиторий.
 
-## L2 — Milestone Audit
+## L2 — Iteration Hygiene Gate
 
-**Когда:** после каждого законченного milestone/крупного вертикального среза, но **не реже одного раза на 10 рабочих дней активной разработки данного направления**.  
-**Цель:** не позволить локальным компромиссам нескольких feature превратиться в новую архитектуру по умолчанию.
+**Когда:** не по времени, а по счётчику законченных итераций.
 
-Проверяется:
+### Стандартный lane
 
-- топ крупных source-файлов активного модуля;
-- топ крупных repository assets активного модуля;
-- duplicated/dead code;
-- dependency graph;
-- bundle/lazy-loading regression;
+L2 обязателен:
+
+- после **каждых 3 принятых bounded slices** после предыдущего L2;
+- либо на границе крупного milestone раньше этого порога;
+- либо раньше по событийным триггерам из §3.
+
+### Высокорисковые / тяжёлые lane
+
+Для игр, 3D/WebGL, Electronics simulation, Scratch runtime, Public Projects viewers/media и других media-heavy/runtime-heavy участков L2 обязателен:
+
+- после **каждых 2 принятых bounded slices**;
+- либо на границе milestone раньше этого порога;
+- либо раньше по событийным триггерам.
+
+### Что считается завершением L2
+
+Нужны:
+
+- baseline SHA и target SHA;
+- перечень итераций, вошедших в audit window;
+- largest source/assets inventory;
 - generated artifact inventory;
-- architecture boundary violations;
-- Git delta за milestone;
-- накопившийся hygiene debt;
-- необходимость декомпозиции файлов/сервисов.
+- duplicate/dead code review;
+- dependency/bundle/lazy-load delta, где применимо;
+- architecture boundary review;
+- findings ledger;
+- cleanup действий текущего scope;
+- повторные regression tests;
+- verdict `PASS / WARNING / BLOCK`.
 
-Следующий крупный milestone не должен начинаться при наличии незакрытого **BLOCK** из L2.
+При `BLOCK` следующий bounded slice этого lane не начинается до устранения finding либо отдельного owner-approved решения.
 
-## L3 — Release Audit
+## L3 — Release / Owner-Acceptance Audit
 
-**Когда:** перед production/release/owner acceptance крупного игрового или media-heavy направления.  
-**Цель:** проверить не только feature, но и его стоимость для всей системы.
+**Когда:** перед production/release/owner acceptance крупной версии направления.  
+**Цель:** проверить стоимость всего результата для системы.
 
 Обязательно:
 
-- L0 + L1 + L2;
+- L0 + L1 + актуальный L2;
 - repository-size delta;
-- проверка крупных Git objects/history;
-- production bundle baseline/regression;
+- крупные Git objects/history;
+- production bundle/chunk baseline;
 - lazy-load isolation;
 - dependency audit;
-- dead/duplicate asset audit;
+- dead/duplicate assets;
 - cleanup generated artifacts;
 - performance evidence;
-- unresolved hygiene debt с явным owner decision.
+- unresolved hygiene debt с owner decision.
 
-Release запрещён при незакрытом P0/BLOCK hygiene finding.
-
----
-
-# 4. Событийные триггеры вне расписания
-
-Глубокий аудит запускается раньше L2, если произошло хотя бы одно событие:
-
-- один source-файл резко вырос и превысил hard threshold;
-- PR/diff добавляет большой объём бинарных данных;
-- добавлена новая тяжёлая runtime-зависимость;
-- игровой маршрут перестал быть lazy;
-- общий bundle заметно вырос;
-- появляется второй параллельный engine/service/component с тем же назначением;
-- для feature создано много новых screenshots/videos/traces;
-- добавлены 3D/audio/video assets;
-- временный workaround стал использоваться несколькими компонентами;
-- build/test начал заметно замедляться;
-- один и тот же баг приходится исправлять в нескольких копиях логики.
+Release запрещён при незакрытом `BLOCK`.
 
 ---
 
-# 5. Source-файлы: размер как сигнал, а не самоцель
+# 3. Событийные триггеры: L2 раньше счётчика
 
-Количество строк не является абсолютной метрикой качества, но используется как ранний индикатор смешения обязанностей.
+L2 запускается немедленно, не ожидая 2/3 итерации, если:
 
-## Soft threshold
+- source-файл пересёк critical threshold;
+- diff добавляет значительный binary/media объём;
+- добавлена тяжёлая runtime dependency;
+- route потерял lazy isolation;
+- bundle/chunk заметно вырос;
+- появился второй параллельный engine/service/domain с тем же назначением;
+- одна логика исправляется в нескольких копиях;
+- feature породил большое число screenshots/videos/traces;
+- добавлены существенные 3D/audio/video assets;
+- workaround начал использоваться несколькими компонентами;
+- build/test заметно замедлился;
+- архитектурное исключение стало нормой для следующего кода.
 
-**> 500 строк** для обычного `ts/tsx/js` source-файла:
+---
 
-- обязательный review структуры;
-- ответить, сколько независимых обязанностей находится в файле;
-- проверить возможность вынести engine/service/hooks/components/types/tests.
+# 4. Учёт hygiene counter
 
-## Hard review threshold
+Каждый bounded slice в отчёте/PR/evidence указывает:
 
-**> 800 строк**:
+```text
+hygiene_iteration:
+  lane: <lane>
+  accepted_since_last_l2: <N>
+  l2_threshold: 2 | 3
+  l2_required_now: yes | no
+  last_l2_target_sha: <sha | none>
+```
 
-- требуется явное решение: декомпозиция либо документированное исключение;
-- новый feature не должен механически продолжать раздувать такой файл.
+Не требуется менять schema `docs/execution/current.yaml`, пока это отдельно не утверждено. Counter можно хранить в lane review/evidence или специальном hygiene ledger.
 
-## Critical threshold
+Если невозможно доказать предыдущий counter, считать состояние консервативно и выполнить L2 перед следующей крупной итерацией.
 
-**> 1000 строк** обычной handwritten runtime-логики:
+---
 
-- считается BLOCK для следующего крупного milestone, если нет технически обоснованного исключения;
-- исключение должно объяснять, почему разделение ухудшит контракт, генерацию или проверяемость.
+# 5. Source-файлы: thresholds
 
-### Допустимые исключения
+Количество строк — сигнал, а не самоцель.
 
-Порог не применяется механически к:
+- **>500 строк** обычного handwritten `ts/tsx/js`: structural review.
+- **>800 строк:** обязательное решение «decompose / documented exception».
+- **>1000 строк:** `BLOCK` для следующей крупной итерации без технически обоснованного исключения.
 
-- generated source;
-- schema/data catalog;
-- migration snapshot;
-- явно утверждённому compatibility fixture;
-- vendor/upstream artifact;
-- большим declarative tables, если они не смешивают runtime responsibilities.
+Исключения возможны для generated source, schema/data catalog, migration snapshot, vendor/upstream artifact, compatibility fixture и больших декларативных таблиц, если они не смешивают runtime responsibilities.
 
-Большой файл нельзя бессмысленно делить только ради количества строк.
+Для файла >500 строк review отвечает минимум:
+
+1. сколько независимых обязанностей внутри;
+2. есть ли UI + domain + IO + persistence/analytics в одном месте;
+3. где canonical source of truth;
+4. нужно ли вынести service/hooks/components/types/tests;
+5. почему файл можно безопасно оставить большим, если decomposition не нужна.
 
 ---
 
 # 6. Текстовые data-файлы
 
-## JSON/YAML/fixtures
+JSON/YAML/fixtures:
 
-- >250 KB — обязательная проверка необходимости хранения в Git;
-- >1 MB — запрещено добавлять без явного documented exception;
-- повторяющиеся данные должны нормализоваться/генерироваться, если это не ухудшает reproducibility;
-- production runtime не должен загружать огромный JSON целиком, если пользователю нужна малая его часть.
-
-Fixtures совместимости допускаются, если они доказуемо нужны тесту и имеют owner/назначение.
+- >250 KB — обязательный review необходимости Git-хранения;
+- >1 MB — не добавлять без documented exception;
+- повторяющиеся данные нормализовать или генерировать, если это не ухудшает reproducibility;
+- runtime не должен грузить огромный JSON целиком ради небольшой части данных.
 
 ---
 
 # 7. Binary/media/3D assets
 
-## Soft threshold
+- Новый binary >2 MB — обязательный review.
+- Новый binary >10 MB — `BLOCK` для обычного Git без отдельного storage decision.
 
-Любой новый binary >2 MB требует review:
+Проверить:
 
-- действительно ли он нужен продукту;
-- существует ли оптимизированная версия;
-- можно ли хранить его в object storage/CDN вместо Git;
-- есть ли дубликат;
-- соответствует ли качество реальному CSS/runtime размеру.
+- реальную необходимость;
+- optimized runtime variant;
+- duplicate/hash match;
+- object storage/CDN/Git LFS suitability;
+- lazy/deferred load;
+- thumbnail/poster;
+- delete/update lifecycle.
 
-## Hard threshold
-
-Новый binary >10 MB не должен попадать в обычный Git без явного архитектурного решения. Рассматриваются:
-
-- object storage;
-- CDN;
-- Git LFS, если инфраструктура проекта его сознательно поддерживает;
-- build-time download для vendor artifacts;
-- более компактный формат.
-
-### Защищённые owner assets
-
-Эта политика **не разрешает** автоматически удалять, перекодировать или заменять owner-supplied assets, backups и другие защищённые данные из `AGENTS.md`. Если такой файл велик, он фиксируется в отчёте как исключение или отдельная задача владельца.
+Owner-supplied/protected assets не удаляются и не перекодируются автоматически.
 
 ---
 
 # 8. Изображения
 
-Проверять:
-
-- фактические dimensions;
-- format;
-- размер файла;
-- дубли;
-- наличие responsive variants;
-- соответствует ли исходное разрешение месту показа.
+Проверить dimensions, format, file size, duplicates, responsive variants и фактический CSS display size.
 
 Правила:
 
-- не отправлять 4K-изображение в карточку 180 CSS px без причины;
-- использовать WebP/AVIF там, где это не нарушает продуктовый контракт;
-- HiDPI asset обычно достаточно держать около 1.5–2× от CSS display size;
-- thumbnails должны генерироваться отдельно от оригинала, если оригинал нужен для viewer/download.
+- не грузить 4K source в 180 CSS px карточку без причины;
+- thumbnails отделять от оригинала, когда оригинал нужен viewer/download;
+- использовать modern formats там, где это не ломает контракт;
+- HiDPI preview обычно достаточно 1.5–2× от реального display size.
 
 ---
 
-# 9. Видео, аудио, 3D и game assets
+# 9. Видео, аудио, 3D и runtime assets
 
-Для каждого тяжёлого asset должно быть ясно:
+Для каждого тяжёлого asset должно быть известно:
 
-- кто его владелец;
-- где canonical source;
-- где optimized runtime variant;
-- есть ли poster/thumbnail;
-- нужен ли он при первом открытии route;
-- можно ли lazy-load;
-- как он удаляется/обновляется.
+- canonical source;
+- optimized runtime variant;
+- owner;
+- загрузка eager/lazy;
+- poster/thumbnail;
+- lifecycle удаления/обновления.
 
-3D-модели проверяются на:
+3D дополнительно: geometry complexity, texture dimensions, duplicate materials/textures, compression, LOD/deferred load.
 
-- poly/triangle count;
-- texture dimensions;
-- duplicate textures/materials;
-- compression;
-- необходимость LOD;
-- возможность deferred load.
-
-Аудио/video не должны автоматически импортироваться в initial game bundle.
+Audio/video не импортируются автоматически в initial JS bundle.
 
 ---
 
 # 10. Generated development artifacts
 
-В source tree не должны бесконтрольно попадать:
+По умолчанию в source tree не хранятся:
 
 ```text
 playwright-report/
@@ -317,256 +289,175 @@ database-dumps/
 generated-test-data/
 ```
 
-Конкретный каталог с таким названием может быть разрешён, если он является canonical product/test data и это явно документировано.
-
-### E2E screenshots/videos
-
-- runtime evidence предпочтительно хранить как CI artifact, а не постоянно в Git;
-- visual-regression golden snapshots допускаются только в canonical snapshot directory;
-- debug screenshot после завершения задачи удаляется/не коммитится;
-- видео браузерного теста не считается исходным кодом продукта.
+E2E screenshots/videos — CI/runtime artifacts. В Git допускаются только canonical visual snapshots/fixtures с понятным владельцем и тестовым потребителем.
 
 ---
 
-# 11. Git history
+# 11. Dependencies
 
-Удаление большого файла из рабочей ветки не означает, что Git стал маленьким.
+Каждая новая runtime dependency отвечает на вопросы:
 
-L3 включает:
+- какую конкретную возможность добавляет;
+- нельзя ли решить существующим package/API;
+- browser/server impact;
+- tree-shaking/lazy-load;
+- transitive weight;
+- security/maintenance risk.
 
-- поиск самых больших Git objects;
-- выявление случайно закоммиченных media/dumps;
-- поиск повторяющихся бинарных версий;
-- оценку repository clone size.
-
-**Запрещено** самостоятельно переписывать опубликованную историю (`filter-repo`, force push и т. п.). Если очистка history действительно нужна, создаётся отдельный owner-approved maintenance plan.
-
----
-
-# 12. Контроль размера diff/repository delta
-
-Для каждого крупного feature/milestone фиксируется delta.
-
-Начальные ориентиры:
-
-- +5 MB к обычному feature diff — WARNING и обязательное объяснение;
-- +20 MB — BLOCK до классификации файлов и owner/architecture decision;
-- production assets могут быть обоснованным исключением, generated artifacts — нет.
-
-Цель — не запретить нужные media, а сделать их появление сознательным.
+Dependency без реального consumer удаляется на L1.
 
 ---
 
-# 13. Bundle и runtime footprint
+# 12. Duplicate/transitional implementations
 
-Для frontend/module route требуется baseline.
-
-Минимальные правила:
-
-- тяжёлый модуль должен загружаться лениво, если он не нужен всему ASA Lab;
-- game/3D/editor runtime не должен попадать на unrelated routes;
-- +10% к контролируемому route chunk — WARNING;
-- +20% — BLOCK до объяснения, профилирования и owner/architecture decision;
-- новый heavy dependency требует сравнения alternative/benefit/cost;
-- изменение, уменьшающее source lines, но увеличивающее initial bundle без причины, не считается оптимизацией.
-
-Проценты применяются к зафиксированному baseline. До появления автоматического bundle reporter baseline фиксируется в milestone audit вручную.
-
----
-
-# 14. Dependencies
-
-Каждый новый package должен отвечать на вопросы:
-
-1. Какая пользовательская или инженерная потребность без него не решается разумно?
-2. Не существует ли уже dependency с той же функцией?
-3. Попадает ли package в browser bundle?
-4. Есть ли side effects/tree-shaking проблемы?
-5. Кто будет обновлять его и какие security риски он добавляет?
-
-Неиспользуемая dependency удаляется в L1 текущего feature, если это безопасно и относится к его scope.
-
----
-
-# 15. Дублированные реализации
-
-Запрещён шаблон накопления:
+Подозрительные паттерны:
 
 ```text
-GameBoard.tsx
-GameBoardNew.tsx
-GameBoardV2.tsx
-GameBoardFixed.tsx
-GameBoardFinal.tsx
+ComponentV2
+ComponentNew
+ComponentFixed
+ComponentFinal
+service-copy
+engine-old
 ```
 
-или:
+Если параллельная реализация действительно нужна для миграции, обязательно указать:
 
-```text
-game.service.ts
-game-service-new.ts
-game.service.v2.ts
-```
+- canonical source of truth;
+- причину coexistence;
+- migration gate;
+- delete condition;
+- какой bounded slice обязан удалить transitional path.
 
-Перед созданием нового engine/service/component/hook/utility разработчик обязан найти существующий аналог.
-
-Если новая реализация заменяет старую:
-
-- старая удаляется в том же milestone; либо
-- получает явный transitional status, owner, reason и delete condition.
-
-«Оставим старую на всякий случай» без delete condition запрещено.
+Без этого L2 verdict не может быть `PASS`.
 
 ---
 
-# 16. Dead code
+# 13. Dead code и debug leftovers
 
-Dead code нельзя сохранять комментариями или `if (false)` «для истории». Историей владеет Git.
+Проверить:
 
-Удаляются в рамках L1:
+- unused imports/exports;
+- unreachable branches;
+- obsolete feature flags;
+- debug controls;
+- console/debug logging;
+- unused assets;
+- commented-out old implementations;
+- no-longer-used fixtures.
 
-- неиспользуемые imports;
-- недостижимые ветви текущего feature;
-- старые feature flags без владельца/срока;
-- временные debug controls;
-- console/debug logging, не являющийся observability contract.
-
-Удаление чужого dead code вне scope регистрируется как debt, а не выполняется автоматически.
-
----
-
-# 17. Scope safety: аудит не равен праву на глобальный refactor
-
-Если audit обнаружил проблему в соседнем модуле:
-
-1. записать finding;
-2. указать путь, размер/симптом и риск;
-3. определить severity;
-4. создать/предложить отдельную maintenance-задачу;
-5. **не расширять текущий scope**, если дефект не блокирует текущий пользовательский контракт.
-
-Это правило сохраняет принцип bounded execution из `AGENTS.md`.
+Нельзя сохранять старую реализацию «на всякий случай», если source of truth уже сменился.
 
 ---
 
-# 18. Severity
+# 14. Bundle и lazy loading
+
+Для browser-heavy модулей L2/L3 фиксирует:
+
+- baseline route/chunk;
+- target route/chunk;
+- delta %;
+- shared chunk impact;
+- unrelated route impact;
+- new heavy dependencies;
+- lazy-load preserved `YES/NO`.
+
+Ориентиры:
+
+- +10% — `WARNING`, требуется объяснение;
+- +20% — `BLOCK` без профилирования и принятого решения.
+
+Проценты не заменяют абсолютные метрики и user-perceived performance.
+
+---
+
+# 15. Git history
+
+L3 проверяет крупнейшие Git objects и случайно попавшие media/dumps.
+
+History rewrite:
+
+- никогда не выполняется автоматически;
+- требует отдельного owner-approved решения;
+- не является обычной частью feature cleanup.
+
+---
+
+# 16. Архитектурные границы
+
+Hygiene-аудит проверяет не только размеры файлов, но и ownership.
+
+Примеры `BLOCK`:
+
+- второй Project Core;
+- duplicate rules engine;
+- browser-only authorization;
+- UI-компонент, ставший владельцем domain/persistence logic;
+- shared route, который начал импортировать тяжёлый модульный runtime;
+- public API, начавший отдавать private mutable document ради удобства UI.
+
+---
+
+# 17. Findings и severity
 
 ## PASS
 
-Нарушений нет либо всё исправлено в разрешённом scope.
+BLOCK отсутствуют; cleanup текущего scope выполнен.
 
 ## WARNING
 
-Проблема существует, но:
-
-- не ухудшает критический runtime;
-- имеет явного владельца;
-- зарегистрирована;
-- не должна блокировать текущий milestone.
+Проблема зарегистрирована, не создаёт немедленного архитектурного/безопасностного риска и имеет конкретный следующий gate.
 
 ## BLOCK
 
-Хотя бы одно:
+Следующая итерация lane запрещена до исправления либо owner-approved решения.
 
-- generated/secrets/dump попадает в release/history;
-- тяжёлый модуль протёк в unrelated initial route;
-- новый большой binary не классифицирован;
-- critical source-file threshold превышен без решения;
-- старый и новый engine одновременно считаются production source of truth;
-- bundle regression >20% без одобрения/объяснения;
-- обнаружена неконтролируемая утечка временных артефактов;
-- hygiene finding создаёт риск безопасности, данных или воспроизводимости.
+Любой finding содержит:
 
-BLOCK закрывается до следующего крупного milestone/release.
+- ID;
+- path/subsystem;
+- evidence;
+- impact;
+- required action;
+- required-before slice/gate;
+- owner/decision status.
 
----
-
-# 19. Обязательный audit evidence
-
-Каждый L2/L3 аудит создаёт короткий воспроизводимый отчёт по шаблону:
-
-[`docs/review/HYGIENE_AUDIT_TEMPLATE.md`](../review/HYGIENE_AUDIT_TEMPLATE.md)
-
-Отчёт должен содержать числа, а не фразу «проверено»:
-
-- baseline commit;
-- target commit;
-- scope;
-- крупные source-файлы;
-- крупные assets;
-- generated artifacts;
-- repository delta;
-- bundle delta, если применимо;
-- dependency changes;
-- duplicate/dead code findings;
-- architecture findings;
-- исправления;
-- deferred debt;
-- итог `PASS / WARNING / BLOCK`.
+Календарный deadline не является заменой development gate.
 
 ---
 
-# 20. Автоматизация
+# 18. Cleanup не расширяет scope автоматически
 
-Целевой набор команд должен быть реализован отдельной инженерной задачей, а не притворяться существующим заранее.
+Если L2 нашёл дефект соседнего домена:
 
-Рекомендуемая целевая форма:
+- зафиксировать finding;
+- оценить severity;
+- создать отдельную задачу при необходимости;
+- не переписывать соседний модуль без разрешения.
 
-```bash
-pnpm audit:hygiene
-pnpm audit:hygiene --scope checkers
-pnpm audit:hygiene --scope chess
-pnpm audit:hygiene --scope games
-pnpm audit:hygiene --since <baseline-sha>
-```
-
-Автоматизация должна уметь как минимум:
-
-- показать top-N крупных файлов;
-- классифицировать tracked generated artifacts;
-- найти новые binaries;
-- сравнить repository delta;
-- вывести подозрительные duplicate naming patterns;
-- проверить ignore rules;
-- интегрироваться с bundle stats, когда они доступны.
-
-До появления инструмента audit выполняется вручную и фиксируется отчётом.
+Исключение: security/data-loss blocker, который делает текущий acceptance небезопасным — тогда текущий slice останавливается.
 
 ---
 
-# 21. Definition of Done для milestone
+# 19. Обязательная форма evidence
 
-Milestone нельзя считать технически завершённым только потому, что feature работает.
+Для L2/L3 используется:
 
-Для media-heavy/game/3D/editor направлений требуется:
+`docs/review/HYGIENE_AUDIT_TEMPLATE.md`
 
-- functional acceptance — PASS;
-- focused tests — PASS;
-- L1 cleanup — PASS;
-- L2 audit — PASS или документированный WARNING без blocker;
-- generated artifacts очищены;
-- новый large-file debt отсутствует либо принят явно;
-- module/bundle isolation не ухудшена;
-- следующий milestone не зависит от временного workaround без owner.
+Без baseline/target SHA, списка вошедших итераций, измерений и findings формулировка «всё проверено» не считается аудитом.
 
 ---
 
-# 22. Инвариант
-
-> Оптимизация — не финальный косметический этап. Это периодический gate между законченными кусками продукта.
-
-Правильный цикл:
+# 20. Короткая формула
 
 ```text
-bounded feature development
-→ functional tests
-→ L1 cleanup
-→ milestone boundary
-→ L2 hygiene audit
-→ исправление findings текущего scope
-→ regression tests
-→ milestone acceptance
-→ следующий milestone
+каждое изменение → L0
+каждый законченный slice → L1
+2 тяжёлых или 3 обычных принятых slice → L2
+milestone boundary → L2 раньше счётчика
+release / owner acceptance → L3
+BLOCK → следующий slice не стартует
 ```
 
-Для длинной непрерывной разработки L2 всё равно проводится максимум через 10 рабочих дней активной работы по направлению.
+Таким образом очистка происходит по ритму реальной разработки, а не по календарю.
