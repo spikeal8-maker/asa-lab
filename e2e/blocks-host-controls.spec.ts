@@ -98,8 +98,10 @@ test('English browser keeps native Scratch controls, ASA chrome and unfiltered e
     await expect(frame.getByText('Pen', { exact: true })).toBeVisible();
     await expect(frame.getByText('Translate', { exact: true })).toBeVisible();
     await expect(frame.getByText('Text to Speech', { exact: true })).toBeVisible();
-    await expect(frame.getByText('micro:bit', { exact: true })).toBeVisible();
-    await expect(frame.getByText('LEGO MINDSTORMS EV3', { exact: true })).toBeVisible();
+    await expect(frame.getByRole('button', { name: /^micro:bit\b/ })).toBeVisible();
+    await expect(
+      frame.getByRole('button', { name: /^LEGO MINDSTORMS EV3\b/ }),
+    ).toBeVisible();
 
     await page.screenshot({
       path: `${evidenceDir}/01-asa-chrome-and-account.png`,
@@ -118,7 +120,7 @@ test('ru-RU browser starts in native Russian Scratch and changes language only t
     await assertAsaChrome(page, frame);
     await expect(frame.getByText('Настройки', { exact: true })).toBeVisible();
     await expect(frame.getByText('Файл', { exact: true })).toBeVisible();
-    await expect(frame.getByText('Правка', { exact: true })).toBeVisible();
+    await expect(frame.getByText('Редактировать', { exact: true })).toBeVisible();
 
     await frame.getByText('Настройки', { exact: true }).click();
     await expect(frame.getByText('Язык', { exact: true })).toHaveCount(1);
