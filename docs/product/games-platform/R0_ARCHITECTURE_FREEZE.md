@@ -66,6 +66,14 @@ Before R1 define:
 
 Retry after a lost response must never create a second domain effect.
 
+## Cross-stage engineering hygiene guard
+
+`ENGINEERING_HYGIENE.md` is normative for Games implementation from R1 onward and for Games documentation sizing during R0. It is a quality/process contract, **not an eighth R0 architecture decision**.
+
+Before the R1 Delivery Brief is accepted, record the initial Games hotspot baseline. R1 online Checkers must not add a new responsibility to hard-threshold legacy files such as `CheckersModuleExperience.tsx` or `checkers.css`; extract only the seam needed for the R1 user journey when those surfaces must change.
+
+Every later stage follows the audit cadence and garbage policy in that contract. Hygiene findings may create bounded optimization work only under its explicit cost/risk rules; they do not authorize unrelated cleanup.
+
 ## R0 exit gate
 
 R0 closes only when **all seven** IDs have:
