@@ -3,7 +3,7 @@
 **Kind:** acceptance/review slice; no new architecture  
 **Risk:** high  
 **Prerequisite:** VSCR-M1-002A, C, D and B each accepted on their own exact evidence.  
-**Execution:** review starts only when `docs/execution/current.yaml.task.id` is exactly `VSCR-M1-002E` and `docs/execution/current.yaml.task.status` is exactly `in_progress`; milestone `VSCR-M1-002` must remain owner-authorised.
+**Execution:** review starts only when `docs/execution/current.yaml.task.id` is exactly `VSCR-M1-002E`, `docs/execution/current.yaml.task.status` is exactly `in_progress`, `docs/execution/current.yaml.primary_lane.milestone.id` is exactly `VSCR-M1-002`, and `docs/execution/current.yaml.primary_lane.milestone.owner_authorization` is exactly `accepted`.
 
 ## Goal
 
@@ -38,7 +38,7 @@ accepted A/C/D/B evidence and final diff
 
 ## Expected write paths
 
-Acceptance normally changes no product implementation. Allowed writes are limited to acceptance evidence/tests or routing corrections:
+Acceptance normally changes no product implementation. Allowed writes are limited to evidence/tests or routing corrections:
 
 ```text
 e2e/blocks-host-acceptance.spec.ts
