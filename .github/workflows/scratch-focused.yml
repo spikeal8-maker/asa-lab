@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - diag/scratch-b-prettier-current
     paths:
       - 'contexts/blocks/**'
       - 'apps/api/package.json'
