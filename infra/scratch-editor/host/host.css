@@ -23,15 +23,26 @@ body {
 }
 
 .asa-scratch-host {
-  min-height: 100vh;
+  height: 100vh;
   position: relative;
+  display: flex;
+  flex-direction: column;
 }
 
 .asa-scratch-editor-root {
-  min-height: 100vh;
+  flex: 1;
+  min-height: 0;
+  position: relative;
+}
+
+/* ASA product chrome only. Do not recolor Scratch block/category semantics. */
+.asa-scratch-editor-root header[role='banner'] {
+  background-color: #0877b3 !important;
+  box-shadow: inset 0 -1px 0 #076b98;
 }
 
 .asa-scratch-runtime-status {
   margin: 0;
-  padding: 1rem;
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
 }

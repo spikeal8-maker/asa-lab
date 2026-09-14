@@ -45,8 +45,10 @@ const focused = [
     'tools/blocks',
     'tools/verify-blocks-host-protocol.mjs',
     'tools/verify-blocks-host-shell.mjs',
+    'e2e/blocks-host-storage.spec.ts',
+    'e2e/blocks-host-controls.spec.ts',
   ],
-  ['node', '--test', 'tools/blocks/checks.test.mjs'],
+  ['node', '--test', 'tools/blocks/checks.test.mjs', 'tools/blocks/host.test.mjs'],
   ['pnpm', 'nx', 'build', 'blocks'],
   ['pnpm', 'nx', 'run', 'blocks:typecheck'],
   ['pnpm', 'exec', 'tsc', '-p', 'apps/web/src/blocks/tsconfig.json'],
@@ -56,6 +58,8 @@ const focused = [
     'exec',
     'eslint',
     'tools/blocks',
+    'e2e/blocks-host-storage.spec.ts',
+    'e2e/blocks-host-controls.spec.ts',
     'tools/verify-blocks-host-protocol.mjs',
     'tools/verify-blocks-host-shell.mjs',
   ],
@@ -69,7 +73,7 @@ const focused = [
     'apps/web/src/blocks',
   ],
   ['pnpm', 'vitest', 'run', 'contexts/blocks/testing', 'apps/web/src/blocks/testing'],
-  ...['main', 'protocol', 'status'].map((name) => [
+  ...['main', 'protocol', 'status', 'storage', 'editor'].map((name) => [
     'node',
     '--check',
     `infra/scratch-editor/host/${name}.js`,
@@ -79,6 +83,7 @@ const focused = [
 const browser = [
   ['node', 'tools/verify-blocks-host-shell.mjs'],
   ['node', 'tools/verify-blocks-host-protocol.mjs'],
+  ['pnpm', 'exec', 'playwright', 'test', '--config', 'tools/blocks/browser/playwright.config.mjs'],
 ];
 const commands = args[0] === '--browser' ? browser : args[0] === '--docs' ? docs : focused;
 if (args[0] === '--list') {

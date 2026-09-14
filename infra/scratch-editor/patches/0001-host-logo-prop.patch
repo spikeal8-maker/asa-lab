@@ -1,0 +1,35 @@
+diff --git a/packages/scratch-gui/src/components/menu-bar/menu-bar.jsx b/packages/scratch-gui/src/components/menu-bar/menu-bar.jsx
+--- a/packages/scratch-gui/src/components/menu-bar/menu-bar.jsx
++++ b/packages/scratch-gui/src/components/menu-bar/menu-bar.jsx
+@@ -231,7 +231,7 @@ class MenuBar extends React.Component {
+             } else if (mode === '220022BC') {
+                 document.getElementById('logo_img').src = prehistoricLogo;
+             } else {
+-                document.getElementById('logo_img').src = getScratchLogo(this.props.platform);
++                document.getElementById('logo_img').src = this.props.logo || getScratchLogo(this.props.platform);
+             }
+ 
+             this.props.onSetTimeTravelMode(mode);
+@@ -341,12 +341,12 @@ class MenuBar extends React.Component {
+                         >
+                             <img
+                                 id="logo_img"
+-                                alt="Scratch"
++                                alt={this.props.logo ? '' : 'Scratch'}
+                                 className={classNames(styles.scratchLogo, {
+                                     [styles.clickable]: typeof this.props.onClickLogo !== 'undefined'
+                                 })}
+                                 draggable={false}
+-                                src={getScratchLogo(this.props.platform)}
++                                src={this.props.logo || getScratchLogo(this.props.platform)}
+                             />
+                         </button>
+                         {(this.props.canChangeColorMode || this.props.canChangeLanguage || this.props.canChangeTheme) &&
+@@ -698,7 +698,6 @@ MenuBar.propTypes = {
+ };
+ 
+ MenuBar.defaultProps = {
+-    logo: scratchLogo,
+     onShare: () => {}
+ };
+ 

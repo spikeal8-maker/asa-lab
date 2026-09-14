@@ -136,18 +136,21 @@ components:
     depends_on: [blocks.host.build]
 
   - id: blocks.host.storage-adapter
-    state: planned
+    state: implemented
     risk: high
     ownership: asa
-    purpose: 'Fixture ScratchStorage/GUIStorage adapter without fake durable writes.'
+    purpose: 'ASA ScratchStorage/GUIStorage fixture adapter without Scratch-host fallback or durable writes.'
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-001-SCRATCH-HOST-CONTRACT.md
         section: 'Scratch storage adapter'
-    planned_sources:
+    sources:
       - infra/scratch-editor/host/storage.js
       - infra/scratch-editor/host/editor.js
-      - infra/scratch-editor/host/main.js
-    planned_tests: [e2e/blocks-host-storage.spec.ts]
+      - path: infra/scratch-editor/host/main.js
+        symbols: [editor]
+    tests:
+      - e2e/blocks-host-storage.spec.ts
+      - tools/blocks/host.test.mjs
     task: VSCR-M1-002D
     task_card: VSCR-M1-002D.md
     depends_on: [blocks.host.protocol]

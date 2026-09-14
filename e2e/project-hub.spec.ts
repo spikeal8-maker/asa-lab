@@ -35,7 +35,7 @@ test('project hub supports duplicate, archive, trash and restore journeys', asyn
 
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto('/#/');
-  await page.getByTestId('entry-sign-up').click();
+  await page.locator('.public-home-header-actions .public-home-button-primary').click();
   await page.getByLabel('Email').fill(`project_${unique}@r3b-e2e.test`);
   await page.getByLabel('Имя пользователя').fill(`project_${unique}`.slice(0, 36));
   await page.getByLabel('Отображаемое имя', { exact: true }).fill('Анна Проектова');
