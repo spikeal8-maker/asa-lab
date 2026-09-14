@@ -290,13 +290,14 @@ it('upgrades populated baseline 0106 without rewriting projects, course versions
     const runtimeUrl = new URL(runtime);
     runtimeUrl.pathname = '/' + name;
     app = new pg.Pool({ connectionString: runtimeUrl.toString(), max: 1 });
-    vi.stubEnv('ASA_EXPECTED_SCHEMA_VERSION', planned.at(-1)!.version);
+    const expectedSchemaVersion = Number(planned.at(-1)!.version);
+    vi.stubEnv('ASA_EXPECTED_SCHEMA_VERSION', String(expectedSchemaVersion));
     server = await buildTestApp(app);
     const ready = await inject(server, { method: 'GET', url: '/health/ready' });
     expect(ready.statusCode).toBe(200);
     expect(ready.json().deployment).toMatchObject({
-      schemaVersion: 138,
-      expectedSchemaVersion: 138,
+      schemaVersion: expectedSchemaVersion,
+      expectedSchemaVersion,
       synchronized: true,
     });
     for (const actor of [teacher, mixed.account]) {
