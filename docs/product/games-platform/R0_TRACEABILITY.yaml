@@ -10,11 +10,7 @@ requirements:
   - id: GP-R0-001
     title: Gaming identity
     observed_main_sha: c3c1c10d7e37782de58ec84d31ed3336971150f5
-    evidence:
-      - docs/product/games-platform/R0_001_GAMING_IDENTITY.md
-      - docs/product/games-platform/R0_001_GAMING_IDENTITY_REVIEW.md
-      - migrations/0026_student_seat_principal.sql
-      - migrations/0086_learning_identity_foundation.sql
+    evidence: [R0_001_GAMING_IDENTITY.md, R0_001_GAMING_IDENTITY_REVIEW.md, migrations/0026_student_seat_principal.sql, migrations/0086_learning_identity_foundation.sql]
     acceptance: [stable gaming subject, no second auth, no raw public internal id]
     decision: Opaque game_player_id from verified Account/StudentSeat sources; merge only by audited canonical aliasing.
     negative_case: Same-name unlinked seats stay separate; client playerId never grants authority.
@@ -25,11 +21,7 @@ requirements:
   - id: GP-R0-002
     title: Games security and storage domain
     observed_main_sha: 5f5ee6aab8e2981300ff25c698ac6e4f1e4987ce
-    evidence:
-      - docs/product/games-platform/R0_002_GAMES_SECURITY_DOMAIN.md
-      - docs/product/games-platform/R0_002_GAMES_SECURITY_DOMAIN_REVIEW.md
-      - docs/architecture/DATA_SECURITY_AND_TENANCY.md
-      - migrations/0006_chess_live.sql
+    evidence: [R0_002_GAMES_SECURITY_DOMAIN.md, R0_002_GAMES_SECURITY_DOMAIN_REVIEW.md, docs/architecture/DATA_SECURITY_AND_TENANCY.md, migrations/0006_chess_live.sql]
     acceptance: [cross-workspace placement, authorization/RLS negative model, no participant-tenant ownership]
     decision: Platform-scoped Games data in existing PostgreSQL initially, behind dedicated repository/schema boundary and FORCE RLS.
     negative_case: Supplied playerId/tenantId or private match UUID alone grants no access.
@@ -40,13 +32,9 @@ requirements:
   - id: GP-R0-003
     title: Canonical Match dimensions
     observed_main_sha: 55ea4df254786fd5067b31da78e70a8ae8f99250
-    evidence:
-      - docs/product/games-platform/R0_003_CANONICAL_MATCH_MODEL.md
-      - docs/product/games-platform/R0_003_CANONICAL_MATCH_MODEL_REVIEW.md
-      - contexts/checkers/application/game-service.ts
-      - contexts/chess-live/domain/model.ts
+    evidence: [R0_003_CANONICAL_MATCH_MODEL.md, R0_003_CANONICAL_MATCH_MODEL_REVIEW.md, contexts/checkers/application/game-service.ts, contexts/chess-live/domain/model.ts]
     acceptance: [orthogonal admission/competition/scope/runtime/topology, no game-state columns]
-    decision: One GameMatch envelope with five independent dimensions; participant seatKey is opaque and game state remains game-owned.
+    decision: One GameMatch envelope with five independent dimensions; seatKey opaque; game state game-owned.
     negative_case: Rated is not admission; classroom is not competition; colors/sides are not Match columns.
     compatibility: Checkers modes decompose; Chess challenge/rated/colors map additively.
     review_verdict: PASS
@@ -55,29 +43,24 @@ requirements:
   - id: GP-R0-004
     title: Match state machine and termination
     observed_main_sha: 9ff66b6efcf765c021fb3c74fddf91585f856713
-    evidence:
-      - docs/product/games-platform/R0_004_MATCH_STATE_MACHINE.md
-      - docs/product/games-platform/R0_004_TERMINATION_FINALIZATION.md
-      - docs/product/games-platform/R0_004_MATCH_STATE_MACHINE_REVIEW.md
-      - contexts/checkers/application/game-service.ts
-      - apps/web/src/checkers/checkers-match-session.ts
-      - contexts/chess-live/domain/model.ts
+    evidence: [R0_004_MATCH_STATE_MACHINE.md, R0_004_TERMINATION_FINALIZATION.md, R0_004_MATCH_STATE_MACHINE_REVIEW.md, contexts/checkers/application/game-service.ts, contexts/chess-live/domain/model.ts]
     acceptance: [transition table with actors, termination matrix, invalid-transition semantics]
-    decision: waiting -> ready -> active -> finishing -> finished; cancelled/aborted terminal; lifecycle mutations are server-authoritative.
+    decision: waiting -> ready -> active -> finishing -> finished; cancelled/aborted terminal; lifecycle server-authoritative.
     negative_case: Disconnect/allocation/draw-offer are not Match states; terminal rows never silently reopen.
-    compatibility: Checkers classroom/service and Chess Live map without changing game rules/state.
+    compatibility: Checkers and Chess map without changing game rules/state.
     review_verdict: PASS
     state: accepted
 
   - id: GP-R0-005
-    title: First-class teams
-    evidence: [docs/product/games-platform/R0_CURRENT_STATE_AUDIT.md]
+    title: First-class teams and outcomes
+    observed_main_sha: 599981488846951989de3c0e7d7a3b90536ceb5b
+    evidence: [R0_005_TEAMS_AND_OUTCOMES.md, R0_005_TEAMS_AND_OUTCOMES_REVIEW.md, R0_003_CANONICAL_MATCH_MODEL.md, contexts/checkers/application/game-service.ts, contexts/chess-live/domain/model.ts]
     acceptance: [duel/FFA/teams/coop representable, team result independent of participant result]
-    decision: null
-    negative_case: null
-    compatibility: null
-    review_verdict: NOT_REVIEWED
-    state: open
+    decision: Teams/coop use match-scoped team rows; duel/FFA use none; topology decides authoritative team vs participant outcomes.
+    negative_case: No synthetic one-person teams; Party/classroom groups are not Match Teams; team win/loss is not duplicated as mutable participant truth.
+    compatibility: Checkers/Chess stay duel with zero teams; Arena 2v2/4v4 uses two team rows without Match redesign.
+    review_verdict: PASS
+    state: accepted
 
   - id: GP-R0-006
     title: Minimum capability vocabulary
@@ -100,5 +83,5 @@ requirements:
     state: open
 
 r0_gate:
-  rule: all seven requirements accepted before R1 shared SQL/API implementation
+  rule: all seven requirements accepted before R1 shared SQL or API implementation
   required_ids: [GP-R0-001, GP-R0-002, GP-R0-003, GP-R0-004, GP-R0-005, GP-R0-006, GP-R0-007]

@@ -6,21 +6,21 @@
 
 ## GP-R0-001 — Gaming identity — ACCEPTED
 
-Decision authority: `R0_001_GAMING_IDENTITY.md`.
+Authority: `R0_001_GAMING_IDENTITY.md`.
 
-ASA Games uses a stable platform-owned `game_player_id` resolved from verified ASA identity sources. Account and StudentSeat remain authentication/scoped-authorization concepts; raw `principals.id` and school-scoped `learner_identity.id` are not public/global gaming keys.
+Games uses platform-owned `game_player_id` resolved from verified ASA identity. Account/StudentSeat remain authentication or scoped-authorization concepts; raw `principals.id` and school-scoped `learner_identity.id` are not global/public gaming keys.
 
-The accepted decision covers Account, standalone StudentSeat, Account-owned seat, class/workspace changes, verified link/merge aliasing, suspend/revoke/delete/anonymize behavior, public-safe projection and Checkers/Chess compatibility. Storage/RLS placement remains `GP-R0-002`.
+## GP-R0-002 — Games security/storage domain — ACCEPTED
 
-## GP-R0-002 — Games security/storage domain
+Authority: `R0_002_GAMES_SECURITY_DOMAIN.md`.
 
-Decide where private/global cross-workspace `GamePlayerProfile`, `GameMatch`, matchmaking tickets, ratings and rating events live and how authorization works.
+Cross-workspace Games data is platform-scoped in the existing PostgreSQL initially, behind a dedicated Games repository/schema boundary and authorization model. A match is not owned by one participant tenant by convenience; runtime roles must not bypass RLS.
 
-Hard constraint: a cross-workspace match is not assigned to one participant's tenant by convenience. Existing tenant/RLS discipline remains defense-in-depth; any platform-global Games tables require an explicit authorization model and negative tests.
+## GP-R0-003 — Canonical Match dimensions — ACCEPTED
 
-## GP-R0-003 — Canonical Match dimensions
+Authority: `R0_003_CANONICAL_MATCH_MODEL.md`.
 
-Use independent dimensions, not one overloaded `mode`:
+Match uses independent dimensions:
 
 - `admission_kind`: direct/invite/matchmaking/tournament/event/bot/local;
 - `competition_kind`: casual/rated;
@@ -28,23 +28,19 @@ Use independent dimensions, not one overloaded `mode`:
 - `runtime_kind`: command/realtime_room;
 - `topology`: duel/free_for_all/teams/coop.
 
-Game-specific state remains outside generic Match metadata.
+Game-specific state remains game-owned.
 
-## GP-R0-004 — Match state machine
+## GP-R0-004 — Match state machine — ACCEPTED
 
-Define allowed transitions and authority for:
+Authorities: `R0_004_MATCH_STATE_MACHINE.md`, `R0_004_TERMINATION_FINALIZATION.md`.
 
-`waiting → allocating/ready/active → finishing → finished`, plus `cancelled` and `aborted`.
+Canonical lifecycle is `waiting → ready → active → finishing → finished` with terminal `cancelled` and `aborted` paths. Lifecycle mutation is server-authoritative; disconnect, draw offer, room allocation and presence are not generic match states.
 
-Define termination reasons separately, including normal/rules outcome/resignation/draw/timeout/forfeit/disconnect/no-show/admin-abort/runtime-lost.
+## GP-R0-005 — First-class teams — ACCEPTED
 
-Invalid transitions must be machine-rejectable.
+Authority: `R0_005_TEAMS_AND_OUTCOMES.md`.
 
-## GP-R0-005 — Teams first-class
-
-Canonical persistence must represent a team independently from participants for team topology. Duel/FFA matches may have zero team rows.
-
-A later Arena 2v2 must not require redesigning Match identity/outcome storage.
+`teams`/`coop` use first-class match-scoped team rows. Duel/FFA use zero team rows. Participant seat and team membership are separate. Team competitive/objective outcome and participant-specific outcome are separate sources with topology-aware authority; team win/loss is not duplicated as another mutable participant truth.
 
 ## GP-R0-006 — Minimum capability vocabulary
 
@@ -68,11 +64,11 @@ Retry after a lost response must never create a second domain effect.
 
 ## Cross-stage engineering hygiene guard
 
-`ENGINEERING_HYGIENE.md` is normative for Games implementation from R1 onward and for Games documentation sizing during R0. It is a quality/process contract, **not an eighth R0 architecture decision**.
+`ENGINEERING_HYGIENE.md` is normative for Games implementation from R1 onward and for Games documentation sizing during R0. It is a quality/process contract, not an eighth R0 architecture decision.
 
-Before the R1 Delivery Brief is accepted, record the initial Games hotspot baseline. R1 online Checkers must not add a new responsibility to hard-threshold legacy files such as `CheckersModuleExperience.tsx` or `checkers.css`; extract only the seam needed for the R1 user journey when those surfaces must change.
+R1 online Checkers must not add a new responsibility to hard-threshold legacy files such as `CheckersModuleExperience.tsx` or `checkers.css`; extract only the seam needed for the R1 user journey.
 
-Every later stage follows the audit cadence and garbage policy in that contract. Hygiene findings may create bounded optimization work only under its explicit cost/risk rules; they do not authorize unrelated cleanup.
+Every later stage follows the audit cadence and garbage policy in that contract. Hygiene findings create bounded optimization work only under explicit cost/risk rules.
 
 ## R0 exit gate
 
