@@ -1,5 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type pg from 'pg';
+import { PgClassroomRepository } from '../../contexts/classroom/index';
+import { teacherHomeAttention } from '../../apps/api/src/teacher-home-attention';
 import { seedTeacher, testAdminPool, testAppPool, type SeededTeacher } from '../portal/helpers';
 
 const policies = {
@@ -17,6 +19,14 @@ let owner: SeededTeacher;
 let teacherPrincipal: string;
 let teacherAccount: string;
 let sequence = 0;
+
+async function attention() {
+  return teacherHomeAttention(
+    app,
+    teacherAccount,
+    await new PgClassroomRepository(app).listForAccount(teacherAccount),
+  );
+}
 
 async function inTenant<T>(callback: (client: pg.PoolClient) => Promise<T>) {
   const client = await app.connect();
@@ -216,6 +226,12 @@ describe('LRN-VS-002 canonical direct project attempt', () => {
       ])
     ).rows[0];
     expect(request).toMatchObject({ seat_id: null, status: 'pending', classroom_id: cls });
+    expect((await attention()).joinRequests).toContainEqual({
+      id: request.request_id,
+      classroomId: cls,
+      classroomTitle: expect.any(String),
+      learnerName: expect.any(String),
+    });
     expect(
       (
         await app.query('SELECT * FROM classroom_account_request_join($1,$2)', [
@@ -243,6 +259,7 @@ describe('LRN-VS-002 canonical direct project attempt', () => {
         request.request_id,
       ]);
     expect((await approve()).rows[0].code).toBe('ok');
+    expect((await attention()).joinRequests.some((r) => r.id === request.request_id)).toBe(false);
     expect((await approve()).rows[0].code).toBe('ok');
     const seat = (
       await app.query('SELECT * FROM classroom_account_seats($1)', [identity.account_id])
@@ -1005,7 +1022,7 @@ describe('LRN-VS-002 canonical direct project attempt', () => {
     ).toBe(3);
   });
 
-  it('reviews completion without invented points, returns once, links revision Attempt and keeps correction history', async () => {
+  it('Teacher Home follows exact review and resubmission independently of notification read/OFF, preserving correction history', async () => {
     const cls = await createClass();
     const seat = await createSeat(cls, 'Доработка');
     const version = await createActivity('Без числовой оценки');
@@ -1059,7 +1076,64 @@ describe('LRN-VS-002 canonical direct project attempt', () => {
       ).rows[0];
     const a = await start();
     expect(a.result_code).toBe('ok');
+    const preferences = (
+      await app.query('SELECT learning_notification_preferences_get($1) AS x', [teacherPrincipal])
+    ).rows[0].x;
+    expect(
+      (
+        await app.query(
+          'SELECT learning_notification_preferences_save($1,$2,true,$3::jsonb,$4::jsonb,$5) AS code',
+          [
+            teacherPrincipal,
+            preferences.revision,
+            JSON.stringify({ ...preferences.categories, NC02: true }),
+            '{}',
+            'home:enable:' + ++sequence,
+          ],
+        )
+      ).rows[0].code,
+    ).toBe('ok');
     expect((await submit()).result_code).toBe('ok');
+    const reviewItems = async () =>
+      (await attention()).reviews.filter((r) => r.assignmentId === assignment);
+    expect(await reviewItems()).toMatchObject([
+      { attemptId: a.attempt_id, seatId: seat, classroomId: cls },
+    ]);
+    // A compatibility row and canonical attempt represent one work, not two.
+    await admin.query(
+      'INSERT INTO classroom_assignment_work(tenant_id,assignment_id,seat_id,project_id,started_at,submitted_at) VALUES($1,$2,$3,$4,now(),now()) ON CONFLICT DO NOTHING',
+      [owner.tenantId, assignment, seat, project],
+    );
+    expect(await reviewItems()).toHaveLength(1);
+    const notifications = (
+      await app.query('SELECT item FROM learning_notifications_list($1)', [teacherPrincipal])
+    ).rows
+      .map((r) => r.item)
+      .filter((n) => n.attemptId === a.attempt_id);
+    expect(notifications).toHaveLength(1);
+    await app.query('SELECT learning_notifications_mark_read($1,$2::uuid[],now())', [
+      teacherPrincipal,
+      notifications.map((n) => n.id),
+    ]);
+    expect(await reviewItems()).toHaveLength(1);
+    const currentPrefs = (
+      await app.query('SELECT learning_notification_preferences_get($1) AS x', [teacherPrincipal])
+    ).rows[0].x;
+    expect(
+      (
+        await app.query(
+          'SELECT learning_notification_preferences_save($1,$2,false,$3::jsonb,$4::jsonb,$5) AS code',
+          [
+            teacherPrincipal,
+            currentPrefs.revision,
+            JSON.stringify({ ...currentPrefs.categories, NC02: false }),
+            '{}',
+            'home:off:' + ++sequence,
+          ],
+        )
+      ).rows[0].code,
+    ).toBe('ok');
+    expect(await reviewItems()).toHaveLength(1);
     const returned = await review(
       a.attempt_id,
       'changes_requested',
@@ -1070,6 +1144,7 @@ describe('LRN-VS-002 canonical direct project attempt', () => {
       attempt_state: 'closed',
       percentage_basis_points: null,
     });
+    expect(await reviewItems()).toHaveLength(0);
     const retry = await review(a.attempt_id, 'changes_requested', 'course01:review:' + sequence);
     expect(retry.assessment_result_id).toBe(returned.assessment_result_id);
     const returnedLifecycle = (
@@ -1091,6 +1166,7 @@ describe('LRN-VS-002 canonical direct project attempt', () => {
     ).toBe(1);
     const b = await start();
     expect(b).toMatchObject({ result_code: 'ok', attempt_number: 2 });
+    expect(await reviewItems()).toHaveLength(0);
     expect(b.attempt_id).not.toBe(a.attempt_id);
     expect(
       (
@@ -1100,12 +1176,14 @@ describe('LRN-VS-002 canonical direct project attempt', () => {
       ).rows[0].revision_of_attempt_id,
     ).toBe(a.attempt_id);
     expect((await submit()).result_code).toBe('ok');
+    expect(await reviewItems()).toMatchObject([{ attemptId: b.attempt_id }]);
     expect(
       (await review(b.attempt_id, 'accepted', 'course01:bad-points:' + ++sequence, null, 100))
         .result_code,
     ).toBe('invalid_points');
     const accepted = await review(b.attempt_id, 'accepted', 'course01:accepted:' + ++sequence);
     expect(accepted.result_code).toBe('ok');
+    expect(await reviewItems()).toHaveLength(0);
     const closed = (
       await admin.query('SELECT evaluated_at FROM learning_attempts WHERE id=$1', [b.attempt_id])
     ).rows[0].evaluated_at;

@@ -308,8 +308,9 @@ async function createPublishedProjectActivity(
   title: string,
   module = 'electronics',
   resultMode = 'completion',
+  actor = teacher,
 ): Promise<void> {
-  await loginWithOrganization(page, teacher);
+  await loginWithOrganization(page, actor);
   await page.goto('/#/challenges');
   await page.getByLabel('Название материала', { exact: true }).fill(title);
   await page
@@ -323,6 +324,126 @@ async function createPublishedProjectActivity(
   await expect(page.getByText(/Опубликована версия 1/)).toBeVisible();
   await page.screenshot({ path: evidenceDir + '/authored-material-published.png', fullPage: true });
 }
+
+test('Teacher Home: empty, exact review, read/OFF, return/resubmit, accept and exact join approval', async ({
+  page,
+  browser,
+}) => {
+  test.setTimeout(180000);
+  const homeTeacher = await seedTeacher(admin, 'teacher-home');
+  const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
+  const title = 'Практика с Главной';
+  await createPublishedProjectActivity(page, title, 'three-d', 'completion', homeTeacher);
+  await page.goto('/#/');
+  const home = page.getByRole('region', { name: 'Требует внимания', exact: true });
+  await expect(
+    home.getByText('Сейчас нет работ и заявок, ожидающих вашего решения.'),
+  ).toBeVisible();
+  const code = await createClassWithStudents(page, 'Класс Главной', [
+    { label: 'Лена Главная', handle: 'home-lena' },
+  ]);
+  const classId = page.url().split('/classrooms/')[1]!.split('?')[0]!;
+  await openAssignments(page);
+  await assignFromUi(page, { title, due: '2026-12-31' });
+  const learner = await learnerAssignments(browser, code, 'home-lena');
+  const work = learner.page
+    .getByTestId('seat-assignments')
+    .locator('li')
+    .filter({ hasText: title });
+  await work.getByRole('button', { name: 'Открыть', exact: true }).click();
+  await editRealProject(learner.page, 'three-d');
+  const submit = async () => {
+    await learner.page.getByRole('button', { name: 'Сдать работу', exact: true }).click();
+    await expect(
+      learner.page.getByRole('button', { name: 'Работа сдана', exact: true }),
+    ).toBeDisabled();
+  };
+  await submit();
+  await page.goto('/#/');
+  const link = home.getByRole('link', { name: 'Лена Главная · ' + title, exact: true });
+  await expect(link).toBeVisible();
+  const firstHref = (await link.getAttribute('href'))!;
+  expect(firstHref).toContain('/classrooms/' + classId + '?assignment=');
+  expect(firstHref).toMatch(/&learner=.+&attempt=/);
+  await home.getByText('Активные классы (1)', { exact: true }).click();
+  await expect(home.getByRole('link', { name: 'Класс Главной', exact: true })).toHaveAttribute(
+    'href',
+    '#/classrooms/' + classId,
+  );
+  await page.getByRole('button', { name: /^Оповещения/ }).click();
+  const inbox = page.getByRole('dialog', { name: 'Учебные оповещения' });
+  await inbox.getByRole('button', { name: 'Отметить прочитанными', exact: true }).click();
+  await inbox.getByRole('button', { name: 'Настроить', exact: true }).click();
+  await inbox.getByLabel('Работы на проверку', { exact: true }).uncheck();
+  await inbox.getByLabel('Получать учебные оповещения', { exact: true }).uncheck();
+  await inbox.getByRole('button', { name: 'Сохранить оповещения', exact: true }).click();
+  await expect(inbox.getByText('Настройки сохранены.', { exact: true })).toBeVisible();
+  await inbox.getByRole('button', { name: 'Закрыть', exact: true }).click();
+  await home.getByRole('button', { name: 'Обновить', exact: true }).click();
+  await expect(link).toBeVisible();
+  await home.screenshot({ path: evidenceDir + '/teacher-home-attention.png' });
+  await link.click();
+  const detail = page.getByRole('region', { name: 'Проверка сдачи' });
+  await expect(detail.getByRole('heading', { name: 'Лена Главная · ' + title })).toBeVisible();
+  await expect(detail.getByText('Сданная версия', { exact: true })).toBeVisible();
+  await detail.getByLabel('Причина возврата или исправления').fill('Проверьте форму.');
+  await detail.getByRole('button', { name: 'Вернуть на доработку', exact: true }).click();
+  await expect(detail.getByText('Ревизия 1 · На доработке')).toBeVisible();
+  await page.goto('/#/');
+  await expect(home).toContainText('Работы на проверке: 0');
+  await expect(link).toHaveCount(0);
+  await learner.page.goto('/#/learning');
+  await work.getByRole('button', { name: 'Открыть работу', exact: true }).click();
+  await editRealProject(learner.page, 'three-d');
+  await submit();
+  await home.getByRole('button', { name: 'Обновить', exact: true }).click();
+  await expect(link).toBeVisible();
+  await expect(link).not.toHaveAttribute('href', firstHref);
+  await link.click();
+  await expect(detail.getByText('Сданная версия', { exact: true })).toBeVisible();
+  await detail.getByRole('button', { name: 'Принять выполнение', exact: true }).click();
+  await expect(detail.getByText('Ревизия 1 · Принято')).toBeVisible();
+  await page.goto('/#/');
+  await expect(home).toContainText('Работы на проверке: 0');
+  await expect(link).toHaveCount(0);
+  const applicant = await browser.newContext();
+  const applicantPage = await applicant.newPage();
+  await loginWithOrganization(applicantPage, await seedTeacher(admin, 'home-applicant'));
+  await applicantPage.goto('/#/attending');
+  await applicantPage.getByLabel('Код класса', { exact: true }).fill(code);
+  const joining = applicantPage.waitForResponse(
+    (response) =>
+      response.url().endsWith('/api/class-join/account') && response.request().method() === 'POST',
+  );
+  await applicantPage.getByRole('button', { name: 'Войти в класс', exact: true }).click();
+  const joined = await joining;
+  expect(joined.ok(), await joined.text()).toBe(true);
+  const requestId = (await joined.json()).requestId;
+  await home.getByRole('button', { name: 'Обновить', exact: true }).click();
+  const requestLink = home.locator('a[href*="joinRequest="]');
+  await expect(requestLink).toHaveAttribute(
+    'href',
+    '#/classrooms/' + classId + '?joinRequest=' + requestId,
+  );
+  await requestLink.click();
+  const target = page.locator('#join-request-' + requestId);
+  await expect(target).toBeFocused();
+  await target.getByRole('button', { name: 'Принять заявку', exact: true }).click();
+  await expect(target).toContainText('Принята');
+  await page.goto('/#/');
+  await expect(home).toContainText('Заявки: 0');
+  await expect(
+    home.getByText('Сейчас нет работ и заявок, ожидающих вашего решения.'),
+  ).toBeVisible();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await home.screenshot({ path: evidenceDir + '/teacher-home-empty-mobile.png' });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
+    true,
+  );
+  failures.assertEmpty();
+  await learner.context.close();
+  await applicant.close();
+});
 
 test('ungraded real submission has an official acceptance but no manufactured points or grade', async ({
   page,

@@ -33,6 +33,7 @@ import {
   type ListClassroomsUseCase,
 } from '@asa-lab/classroom';
 import { classroomCodeSecret } from './classroom-code-secret.js';
+import { teacherHomeAttention } from './teacher-home-attention.js';
 import { SESSION_COOKIE, TOKENS } from './tokens.js';
 import { checkBodyShape, checkIdempotencyKey, isPlainObject } from './validation.js';
 import {
@@ -395,6 +396,22 @@ export class ClassroomsController {
         learningContext: { id: context.id, kind: context.kind, schoolId: context.school_id },
       },
     };
+  }
+
+  @Get('teacher-home-attention')
+  async homeAttention(@Req() request: FastifyRequest) {
+    const context = await this.requireEducator(request);
+    if (!this.canonical().enabled()) {
+      throw new HttpException(
+        error('canonical_projection_unavailable', 'Список ожидающих действий временно недоступен.'),
+        503,
+      );
+    }
+    return teacherHomeAttention(
+      this.requirePool(),
+      context.accountId,
+      await this.listUseCase.execute(context.accountId),
+    );
   }
 
   @Post()

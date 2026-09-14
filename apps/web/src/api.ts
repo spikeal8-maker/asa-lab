@@ -57,6 +57,27 @@ export interface CapabilityRef {
   state: string;
 }
 
+export interface TeacherHomeAttention {
+  reviews: Array<{
+    key: string;
+    classroomId: string;
+    classroomTitle: string;
+    assignmentId: string;
+    assignmentTitle: string;
+    seatId: string;
+    learnerName: string;
+    attemptId: string | null;
+  }>;
+  joinRequests: Array<{
+    id: string;
+    classroomId: string;
+    classroomTitle: string;
+    learnerName: string;
+  }>;
+  classrooms: Array<{ id: string; title: string }>;
+  joinRequestsMayBeLimited: boolean;
+}
+
 export interface WorkspaceRef {
   workspaceId: string;
   kind: string;
@@ -1810,6 +1831,7 @@ export const api = {
       keepalive,
     }),
   listClassrooms: () => call<{ items: Classroom[]; meta: { total: number } }>('/api/classrooms'),
+  teacherHomeAttention: () => call<TeacherHomeAttention>('/api/classrooms/teacher-home-attention'),
   getClassroom: (classroomId: string) =>
     call<{ classroom: Classroom }>(`/api/classrooms/${encodeURIComponent(classroomId)}`),
   listClassroomRoster: (classroomId: string) =>

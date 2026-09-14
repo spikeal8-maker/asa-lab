@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { api, type Project, type SessionPayload } from '../api';
 import { PortalLink } from '../components/PortalLink';
+import { TeacherHomeAttention } from '../components/TeacherHomeAttention';
 import {
   HOME_MODULES,
   QuickCreateMenu,
@@ -71,6 +72,13 @@ export function CreatorHomePage({
           <QuickCreateMenu />
         </div>
       </div>
+      {session.navigation.classroomManagement &&
+      session.capabilities.some(
+        (item) =>
+          item.capability === 'educator' && ['verified', 'provisional'].includes(item.state),
+      ) ? (
+        <TeacherHomeAttention key={`${session.user.id}:${session.activeWorkspace.workspaceId}`} />
+      ) : null}
       {projects?.length === 0 ? (
         <section className="access-personal-start" aria-label="Начать работу">
           <QuickCreateMenu />

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../api';
+import { useLearningDestination } from '../learning/use-learning-destination';
 
 export function ClassroomJoinRequests({
   classroomId,
@@ -8,6 +9,7 @@ export function ClassroomJoinRequests({
   classroomId?: string;
   onChanged?: () => void;
 }) {
+  const destination = useLearningDestination();
   const [items, setItems] = useState<
     Array<{
       id: string;
@@ -18,6 +20,10 @@ export function ClassroomJoinRequests({
       reason: string | null;
     }>
   >([]);
+  const targetPresent = items.some((item) => item.id === destination.joinRequest);
+  useEffect(() => {
+    if (targetPresent) document.getElementById(`join-request-${destination.joinRequest}`)?.focus();
+  }, [targetPresent, destination.joinRequest]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const load = useCallback(async () => {
@@ -58,7 +64,12 @@ export function ClassroomJoinRequests({
       </button>
       <ul>
         {items.map((item) => (
-          <li key={item.id}>
+          <li
+            key={item.id}
+            id={`join-request-${item.id}`}
+            tabIndex={-1}
+            aria-current={item.id === destination.joinRequest ? 'true' : undefined}
+          >
             <strong>{classroomId ? item.display_label : item.classroom_title}</strong>
             {' · '}
             {item.status === 'pending'
