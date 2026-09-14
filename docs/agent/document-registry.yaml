@@ -267,6 +267,16 @@ documents:
     context_role: escalation
     read_when: [games_stage_entry, games_stage_close, games_file_growth, games_cleanup]
 
+  - id: GAMES-CHESS-HYGIENE-AUDIT
+    path: docs/product/games-platform/CHESS_HYGIENE_AUDIT.md
+    scope: games
+    lanes: [games]
+    kind: audit
+    status: supporting
+    authority: none
+    context_role: trace
+    read_when: [games_chess_change, games_r4_entry, games_hygiene_audit]
+
   - id: VSCR-AGENT-GUIDE
     path: docs/product/visual-programming/AGENT_GUIDE.md
     scope: visual_programming
