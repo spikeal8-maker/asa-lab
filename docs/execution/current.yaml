@@ -245,7 +245,7 @@ parallel_lanes:
       owner_acceptance: pending
     revisions:
       convergence_baseline_sha: 9ff66b6efcf765c021fb3c74fddf91585f856713
-      head_sha: 967390906bc39f302103954c024164ea6541330f
+      head_sha: 43ca27335c08090f9de6e61762317a848296895a
     execution_lease:
       executor_id: codex-games-r0
       holder: unassigned
