@@ -13,18 +13,8 @@ const WEB_ENTRY = resolve(WEB_ROOT, 'testing/engine-browser-consumer.ts');
 const DOCUMENT = {
   schemaVersion: 4 as const,
   components: [
-    {
-      id: 'source',
-      kind: 'source' as const,
-      position: { x: 0, y: 0 },
-      value: 5,
-    },
-    {
-      id: 'resistor',
-      kind: 'resistor' as const,
-      position: { x: 100, y: 0 },
-      value: 1000,
-    },
+    { id: 'source', kind: 'source' as const, position: { x: 0, y: 0 }, value: 5 },
+    { id: 'resistor', kind: 'resistor' as const, position: { x: 100, y: 0 }, value: 1000 },
   ],
   connections: [
     {
@@ -44,14 +34,10 @@ const DOCUMENT = {
 
 beforeAll(() => {
   const corepack = process.platform === 'win32' ? 'corepack.cmd' : 'corepack';
-  execFileSync(
-    corepack,
-    ['pnpm', 'nx', 'run', 'electronics:build', '--skip-nx-cache'],
-    {
-      cwd: REPO_ROOT,
-      stdio: 'pipe',
-    },
-  );
+  execFileSync(corepack, ['pnpm', 'nx', 'run', 'electronics:build', '--skip-nx-cache'], {
+    cwd: REPO_ROOT,
+    stdio: 'pipe',
+  });
 }, 60_000);
 
 describe('Electronics built-package consumer contract', () => {
@@ -87,11 +73,7 @@ describe('Electronics built-package consumer contract', () => {
       build: {
         write: false,
         target: 'es2022',
-        lib: {
-          entry: WEB_ENTRY,
-          formats: ['es'],
-          fileName: 'engine-browser-consumer',
-        },
+        lib: { entry: WEB_ENTRY, formats: ['es'], fileName: 'engine-browser-consumer' },
         rollupOptions: { output: { inlineDynamicImports: true } },
       },
     });
