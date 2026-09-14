@@ -1,7 +1,9 @@
-schema_version: 1.0.0
+schema_version: 1.1.0
 stage: R0
 baseline_sha: c9fbb773bc4b2c4e19c181ef586ee6300a9cfed6
 status: proposed
+state_values: [open, accepted, blocked]
+review_values: [NOT_REVIEWED, PASS, NEEDS_FIX, BLOCKED]
 source_of_truth: docs/product/games-platform/R0_ARCHITECTURE_FREEZE.md
 
 requirements:
@@ -19,6 +21,10 @@ requirements:
       - no second auth system
       - no raw internal id in public fallback
       - account plus seat principal case covered
+    decision: null
+    negative_case: null
+    compatibility: null
+    review_verdict: NOT_REVIEWED
     state: open
 
   - id: GP-R0-002
@@ -30,36 +36,67 @@ requirements:
       - cross-workspace placement decided
       - authorization and RLS negative-test model defined
       - no participant tenant chosen by convenience
+    decision: null
+    negative_case: null
+    compatibility: null
+    review_verdict: NOT_REVIEWED
     state: open
 
   - id: GP-R0-003
     title: Canonical Match dimensions
+    evidence:
+      - contexts/checkers/application/game-service.ts
+      - contexts/chess-live/domain/model.ts
     acceptance:
       - independent admission competition scope runtime topology dimensions
       - no game-specific state columns in generic Match
+    decision: null
+    negative_case: null
+    compatibility: null
+    review_verdict: NOT_REVIEWED
     state: open
 
   - id: GP-R0-004
     title: Match state machine and termination
+    evidence:
+      - contexts/checkers/application/game-service.ts
+      - contexts/chess-live/domain/model.ts
     acceptance:
       - transition table with allowed actors
       - termination reason matrix
       - invalid transition semantics
+    decision: null
+    negative_case: null
+    compatibility: null
+    review_verdict: NOT_REVIEWED
     state: open
 
   - id: GP-R0-005
     title: First-class teams
+    evidence:
+      - docs/product/games-platform/R0_CURRENT_STATE_AUDIT.md
     acceptance:
       - duel FFA teams coop representable
       - team result independent from participant result
+    decision: null
+    negative_case: null
+    compatibility: null
+    review_verdict: NOT_REVIEWED
     state: open
 
   - id: GP-R0-006
     title: Minimum capability vocabulary
+    evidence:
+      - docs/product/ASA_CHECKERS_ONLINE_PLAY.md
+      - docs/product/ASA_CHECKERS_PLAYER_STATS.md
     acceptance:
       - only R1-R4 capabilities included
       - enable disable admission semantics
       - no creator device network overdesign
+    decision: null
+    negative_case: null
+    compatibility: null
+    review_verdict: NOT_REVIEWED
     state: open
 
   - id: GP-R0-007
@@ -72,9 +109,19 @@ requirements:
       - expectedVersion rule
       - machine-readable error taxonomy
       - payload rate pagination baselines
+    decision: null
+    negative_case: null
+    compatibility: null
+    review_verdict: NOT_REVIEWED
     state: open
 
 r0_gate:
-  rule: all requirements must be accepted before R1 shared SQL or API implementation
-  accepted_count: 0
-  required_count: 7
+  rule: all seven requirements must be accepted before R1 shared SQL or API implementation
+  required_ids:
+    - GP-R0-001
+    - GP-R0-002
+    - GP-R0-003
+    - GP-R0-004
+    - GP-R0-005
+    - GP-R0-006
+    - GP-R0-007
