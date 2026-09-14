@@ -18,7 +18,7 @@ When Games R0 work is explicitly assigned, read only:
 4. `R0_CURRENT_STATE_AUDIT.md`;
 5. the exact R0 decision section in `R0_ARCHITECTURE_FREEZE.md` plus its row in `R0_TRACEABILITY.yaml`.
 
-Escalate to identity, Chess, Checkers or older Games research only when the assigned requirement explicitly requires it. Do not preload the entire old Games documentation set.
+Escalate to identity, Chess, Checkers, `ENGINEERING_HYGIENE.md` or older Games research only when the assigned requirement/change requires it. Do not preload the entire old Games documentation set.
 
 ## Prepared stage
 
@@ -45,6 +45,10 @@ The delivery order remains value-driven:
 `R0 → R1 private online Checkers → R2 Quick Match + XO proof → R3 rated/stats Checkers → R4 Chess convergence → R5 classroom social → R6 realtime Arena → R7 creator web games`.
 
 Later stages cannot pull infrastructure into an earlier stage without explicit architecture review.
+
+## Engineering hygiene
+
+`ENGINEERING_HYGIENE.md` is the cross-stage file-size/garbage contract. Every bounded implementation slice performs a changed-file delta check; every R-stage exit performs a scoped full audit; structural audits are mandatory before R4, R6 and R7. Hygiene is bounded and may not become unrelated repository-wide refactoring.
 
 ## Documentation size rule
 
