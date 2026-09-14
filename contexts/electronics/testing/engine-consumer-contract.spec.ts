@@ -8,10 +8,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 const API_PACKAGE = resolve(REPO_ROOT, 'apps/api/package.json');
 const WEB_ROOT = resolve(REPO_ROOT, 'apps/web');
-const WEB_ENTRY = resolve(
-  WEB_ROOT,
-  'src/electronics/testing/fixtures/engine-browser-consumer.ts',
-);
+const WEB_ENTRY = resolve(WEB_ROOT, 'testing/engine-browser-consumer.ts');
 
 const DOCUMENT = {
   schemaVersion: 4 as const,
