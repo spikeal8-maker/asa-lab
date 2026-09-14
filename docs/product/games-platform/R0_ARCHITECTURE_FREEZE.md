@@ -4,13 +4,13 @@
 **Baseline evidence:** `R0_CURRENT_STATE_AUDIT.md`  
 **Rule:** no shared Games schema/API implementation before all seven items below are accepted.
 
-## GP-R0-001 — Gaming identity
+## GP-R0-001 — Gaming identity — ACCEPTED
 
-Decide the stable **gaming subject** that resolves from existing ASA authentication without adding a second login/session system.
+Decision authority: `R0_001_GAMING_IDENTITY.md`.
 
-The decision must cover Account principal, StudentSeat principal, Account-owned classroom seat, class/workspace changes, linking/merge, suspend/delete/anonymize and a public-safe player DTO.
+ASA Games uses a stable platform-owned `game_player_id` resolved from verified ASA identity sources. Account and StudentSeat remain authentication/scoped-authorization concepts; raw `principals.id` and school-scoped `learner_identity.id` are not public/global gaming keys.
 
-Hard constraint: do not equate a human gaming identity with raw `principals.id`; current ASA can represent one human through account and seat principals. Do not use school-scoped `learner_identity.id` as a silent global key.
+The accepted decision covers Account, standalone StudentSeat, Account-owned seat, class/workspace changes, verified link/merge aliasing, suspend/revoke/delete/anonymize behavior, public-safe projection and Checkers/Chess compatibility. Storage/RLS placement remains `GP-R0-002`.
 
 ## GP-R0-002 — Games security/storage domain
 
