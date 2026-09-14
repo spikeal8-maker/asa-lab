@@ -21,7 +21,6 @@ components:
       - .github/workflows/scratch-focused.yml
       - tools/verify-blocks-host-shell.mjs
     task: VSCR-M1-002A
-    task_card: VSCR-M1-002A.md
     depends_on: [blocks.upstream.pin]
 
   - id: blocks.host.branding
@@ -41,7 +40,6 @@ components:
       - infra/scratch-editor/Dockerfile
     tests: [e2e/blocks-host-controls.spec.ts]
     task: VSCR-M1-002B
-    task_card: VSCR-M1-002B.md
     depends_on: [blocks.host.storage-adapter]
 
   - id: blocks.host.localization
@@ -57,7 +55,6 @@ components:
         symbols: [mountEditor]
     tests: [e2e/blocks-host-controls.spec.ts]
     task: VSCR-M1-002B
-    task_card: VSCR-M1-002B.md
     depends_on: [blocks.host.storage-adapter]
 
   - id: blocks.host.theme
@@ -71,7 +68,6 @@ components:
     sources: [infra/scratch-editor/host/host.css]
     tests: [e2e/blocks-host-controls.spec.ts]
     task: VSCR-M1-002B
-    task_card: VSCR-M1-002B.md
     depends_on: [blocks.host.storage-adapter]
 
   - id: blocks.host.identity-shell
@@ -87,7 +83,6 @@ components:
       - apps/web/src/blocks/blocks-editor-shell.css
     tests: [e2e/blocks-host-controls.spec.ts]
     task: VSCR-M1-002B
-    task_card: VSCR-M1-002B.md
     depends_on: [blocks.host.protocol, blocks.host.storage-adapter]
 
   - id: blocks.host.file-menu
@@ -103,7 +98,6 @@ components:
         symbols: [mountEditor, canSave]
     tests: [e2e/blocks-host-controls.spec.ts]
     task: VSCR-M1-002B
-    task_card: VSCR-M1-002B.md
     depends_on: [blocks.host.storage-adapter]
 
   - id: blocks.host.extensions
@@ -119,7 +113,6 @@ components:
         symbols: [mountEditor, createStandaloneRoot]
     tests: [e2e/blocks-host-controls.spec.ts]
     task: VSCR-M1-002B
-    task_card: VSCR-M1-002B.md
     depends_on: [blocks.host.storage-adapter]
 
   - id: blocks.host.protocol
@@ -144,7 +137,6 @@ components:
       - tools/blocks/browser/scenarios.mjs
       - tools/verify-blocks-host-protocol.mjs
     task: VSCR-M1-002C
-    task_card: VSCR-M1-002C.md
     depends_on: [blocks.host.build]
 
   - id: blocks.host.storage-adapter
@@ -165,5 +157,4 @@ components:
       - e2e/blocks-host-storage.spec.ts
       - tools/blocks/host.test.mjs
     task: VSCR-M1-002D
-    task_card: VSCR-M1-002D.md
     depends_on: [blocks.host.protocol]
