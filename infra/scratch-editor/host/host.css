@@ -23,15 +23,20 @@ body {
 }
 
 .asa-scratch-host {
-  min-height: 100vh;
+  height: 100vh;
   position: relative;
+  display: flex;
+  flex-direction: column;
 }
 
 .asa-scratch-editor-root {
-  min-height: 100vh;
+  flex: 1;
+  min-height: 0;
+  position: relative;
 }
 
 .asa-scratch-runtime-status {
   margin: 0;
-  padding: 1rem;
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
 }

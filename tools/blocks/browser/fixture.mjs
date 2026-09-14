@@ -10,6 +10,8 @@ export async function createProtocolFixture() {
     'infra/scratch-editor/host/protocol.js',
     'infra/scratch-editor/host/status.js',
     'infra/scratch-editor/host/main.js',
+    'infra/scratch-editor/host/storage.js',
+    'infra/scratch-editor/host/editor.js',
     'apps/web/src/blocks/runtime-protocol.ts',
   ];
   for (const relative of checkedSources) {
@@ -26,7 +28,13 @@ export async function createProtocolFixture() {
     }
   }
 
-  const parentHtml = `<!doctype html><html><body data-parent-state="alive">
+  const parentHtml = `<!doctype html><html><head><style>
+body { margin: 0; height: 100vh; display: flex; flex-direction: column; font: 14px system-ui; }
+header { padding: 10px 16px; background: #f7fafc; }
+#runtime-frame { border: 0; flex: 1; width: 100%; }
+#attacker-frame { display: none; }
+</style></head><body data-parent-state="alive">
+<header>ASA Lab · Scratch integration fixture</header>
 <iframe id="runtime-frame" src="${runtimeUrl}/"></iframe>
 <iframe id="attacker-frame" src="/attacker"></iframe>
 <script>
