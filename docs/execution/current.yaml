@@ -325,18 +325,20 @@ parallel_lanes:
       - e2e/artifacts/project-hub/**
       - docs/review/TASK_R3B_PROJECT_LIFECYCLE_001/**
     task:
-      id: TASK-R3B-PROJECT-LIFECYCLE-001
+      id: TASK-R3C1-PROJECT-CONVERGENCE-001
       issue: 37
-      branch: agent/r3-project-lifecycle
+      branch: main
       base_branch: main
-      pr: 112
-      pr_draft: true
-      status: in_progress
-      checkpoint: project_lifecycle_foundation
-      owner_acceptance: pending
+      pr: 227
+      pr_draft: false
+      status: done
+      checkpoint: r3_converged_owner_accepted_integrated
+      owner_acceptance: accepted
     revisions:
-      convergence_baseline_sha: 4d0d6948e22d26793289bf8175e549d1fc094050
-      head_sha: 4d0d6948e22d26793289bf8175e549d1fc094050
+      convergence_baseline_sha: 41821db47855949dca37df3b79cd7c372e2a99c2
+      head_sha: 5fa616045b16d2720418eb7945f7bef968dd9389
+      owner_accepted_sha: 5fa616045b16d2720418eb7945f7bef968dd9389
+      product_merge_sha: 5fa616045b16d2720418eb7945f7bef968dd9389
     execution_lease:
       executor_id: codex-r3-project-lifecycle
       holder: unassigned
