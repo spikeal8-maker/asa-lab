@@ -142,20 +142,20 @@ parallel_lanes:
       - tools/validate-electronics-component-information.mjs
       - tools/validate-electronics-agent-docs.mjs
     task:
-      id: TASK-ELECTRONICS-EOPT1B-001
-      issue: 218
-      branch: codex/electronics-eopt1b-facade
+      id: TASK-ELECTRONICS-EOPT1C-001
+      issue: 229
+      branch: codex/electronics-eopt1c-boundary-tests
       base_branch: main
       pr: null
-      pr_draft: false
+      pr_draft: true
       status: in_progress
-      checkpoint: eopt1b_non_temporal_engine_facade_selected
+      checkpoint: eopt1c_dependency_boundary_tests_selected
       owner_acceptance: pending
     revisions:
-      convergence_baseline_sha: c0bdb3c3c9b774d3eb2599e24217e3aa6d1792ce
-      head_sha: c0bdb3c3c9b774d3eb2599e24217e3aa6d1792ce
+      convergence_baseline_sha: 9ff66b6efcf765c021fb3c74fddf91585f856713
+      head_sha: 9ff66b6efcf765c021fb3c74fddf91585f856713
     execution_lease:
-      executor_id: codex-electronics-eopt1b
+      executor_id: codex-electronics-eopt1c
       holder: unassigned
       acquired_at: null
       expires_at: null
