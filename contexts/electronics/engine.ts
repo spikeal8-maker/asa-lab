@@ -62,7 +62,9 @@ export interface ElectronicsSnapshotAnalysis {
   readonly analysis: SimulationResult['analysis'];
 }
 
-export function parseElectronicsEngineDocument(value: unknown): ElectronicsEngineDocumentParseResult {
+export function parseElectronicsEngineDocument(
+  value: unknown,
+): ElectronicsEngineDocumentParseResult {
   return parseElectronicsDocument(value);
 }
 
