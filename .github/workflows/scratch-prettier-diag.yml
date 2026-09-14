@@ -1,0 +1,33 @@
+name: Scratch Prettier Diagnostic
+
+on:
+  pull_request:
+    paths:
+      - 'e2e/blocks-host-controls.spec.ts'
+      - '.github/workflows/scratch-prettier-diag.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  format:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Show exact Prettier diff
+        run: |
+          pnpm exec prettier --write e2e/blocks-host-controls.spec.ts
+          git diff -- e2e/blocks-host-controls.spec.ts
+          test -z "$(git status --porcelain -- e2e/blocks-host-controls.spec.ts)"
