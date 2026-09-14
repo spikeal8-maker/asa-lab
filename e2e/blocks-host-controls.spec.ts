@@ -128,7 +128,8 @@ async function assertCoreCategoryColours(frame: Frame) {
 }
 
 test('English browser keeps native Scratch controls, ASA chrome and unfiltered extension catalogue', async () => {
-  const { fixture, page, frame, external, beginExplicitExtensionPhase } = await openEditor('en-US');
+  const { fixture, page, frame, external, beginExplicitExtensionPhase } =
+    await openEditor('en-US');
   try {
     await assertAsaChrome(page, frame);
 
