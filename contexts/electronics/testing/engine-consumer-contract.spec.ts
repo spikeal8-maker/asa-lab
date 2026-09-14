@@ -34,14 +34,10 @@ const DOCUMENT = {
 
 beforeAll(() => {
   const corepack = process.platform === 'win32' ? 'corepack.cmd' : 'corepack';
-  execFileSync(
-    corepack,
-    ['pnpm', 'nx', 'run', 'electronics:build', '--skip-nx-cache'],
-    {
-      cwd: REPO_ROOT,
-      stdio: 'pipe',
-    },
-  );
+  execFileSync(corepack, ['pnpm', 'nx', 'run', 'electronics:build', '--skip-nx-cache'], {
+    cwd: REPO_ROOT,
+    stdio: 'pipe',
+  });
 }, 60_000);
 
 describe('Electronics built-package consumer contract', () => {
