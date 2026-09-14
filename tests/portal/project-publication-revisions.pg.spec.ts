@@ -143,11 +143,17 @@ describe('R7-01A publication revision schema on real PostgreSQL', () => {
   });
 
   it('does not grant the runtime role direct access to publication storage', async () => {
-    const stateRead = runtime.query('SELECT id FROM project_publication_state LIMIT 1');
-    await expect(stateRead).rejects.toMatchObject({ code: '42501' });
-
-    const revisionRead = runtime.query('SELECT id FROM project_publication_revisions LIMIT 1');
-    await expect(revisionRead).rejects.toMatchObject({ code: '42501' });
+    const privileges = await admin.query(
+      `SELECT
+         has_table_privilege('asalab_app','public.project_publication_state','SELECT')
+           AS state_select,
+         has_table_privilege('asalab_app','public.project_publication_revisions','SELECT')
+           AS revision_select`,
+    );
+    expect(privileges.rows[0]).toMatchObject({
+      state_select: false,
+      revision_select: false,
+    });
   });
 
   it('keeps the legacy Gallery publish and unpublish path operational', async () => {
@@ -163,10 +169,10 @@ describe('R7-01A publication revision schema on real PostgreSQL', () => {
       actor: base.actor,
       projectId: created.project.id,
       image: {
-        bytes: new Uint8Array([137, 80, 78, 71]),
+        bytes: new Uint8Array(64),
         contentType: 'image/png',
-        width: 1,
-        height: 1,
+        width: 16,
+        height: 16,
       },
       sourceRevision: 1,
     });
