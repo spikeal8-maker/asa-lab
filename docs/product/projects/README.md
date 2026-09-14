@@ -9,13 +9,14 @@
 ## 1. Читать сначала
 
 1. `PROJECTS_EXECUTION_READINESS.md` — что считается готовым после каждого accepted slice и полный dependency graph.
-2. `../ASA_PROJECTS_IMPLEMENTATION_TZ.md` — canonical TARGET/execution contract.
-3. `DECISION_LEDGER.md` — resolved и slice-specific unresolved decisions.
-4. `../ASA_PROJECTS_CURRENT_ARCHITECTURE_AUDIT.md` + latest `PROJ-A0-DELTA-*.md` — фактический AS-IS.
-5. `IMPLEMENTATION_SPEC_ERRATA.md` — обязательная коррекция stale AS-IS assertions глубокой Implementation Spec.
-6. Active task card из `tasks/`.
-7. Только нужные sections `../ASA_PROJECTS_IMPLEMENTATION_SPEC.md` и `../ASA_PROJECTS_UI_UX_SPEC.md`.
-8. `../../delivery/REPOSITORY_HYGIENE_AND_OPTIMIZATION_POLICY.md` + `../../review/HYGIENE_AUDIT_TEMPLATE.md`.
+2. `IMPLEMENTATION_MICRO_ITERATIONS.md` — как разработчик дробит R7/R8 на маленькие GitHub PR, тесты, cleanup и STOP-точки.
+3. `../ASA_PROJECTS_IMPLEMENTATION_TZ.md` — canonical TARGET/execution contract.
+4. `DECISION_LEDGER.md` — resolved и slice-specific unresolved decisions.
+5. `../ASA_PROJECTS_CURRENT_ARCHITECTURE_AUDIT.md` + latest `PROJ-A0-DELTA-*.md` — фактический AS-IS.
+6. `IMPLEMENTATION_SPEC_ERRATA.md` — обязательная коррекция stale AS-IS assertions глубокой Implementation Spec.
+7. Active task card из `tasks/`.
+8. Только нужные sections `../ASA_PROJECTS_IMPLEMENTATION_SPEC.md` и `../ASA_PROJECTS_UI_UX_SPEC.md`.
+9. `../../delivery/REPOSITORY_HYGIENE_AND_OPTIMIZATION_POLICY.md` + `../../review/HYGIENE_AUDIT_TEMPLATE.md`.
 
 При конфликте AS-IS утверждений фактический current code + Current Architecture Audit + latest delta + errata имеют приоритет над старым описательным текстом Implementation Spec. TARGET/acceptance определяет executable TZ + active task card.
 
@@ -119,6 +120,7 @@ AGENTS.md
 → docs/execution/current.yaml
 → active Issue/task card
 → PROJECTS_EXECUTION_READINESS.md
+→ IMPLEMENTATION_MICRO_ITERATIONS.md
 → ASA_PROJECTS_IMPLEMENTATION_TZ.md
 → Current Architecture Audit + latest delta + errata
 → DECISION_LEDGER.md
