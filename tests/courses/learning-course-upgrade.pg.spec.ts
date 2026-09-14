@@ -131,7 +131,7 @@ it('upgrades populated baseline 0106 without rewriting projects, course versions
     ).toBe(1);
     const mixed = await seedMixedMainLearning(isolated, teacher, cls);
     expect(baseline).toHaveLength(105); // Exact current main 3498dd2c, through 0106.
-    expect(planned.length - baseline.length).toBe(30);
+    expect(planned.length - baseline.length).toBe(31); // 0107–0137, including explicit author drafts.
     const oldResults = (
       await isolated.query(
         'SELECT to_jsonb(result) AS record FROM assessment_results result ORDER BY id',
@@ -292,8 +292,8 @@ it('upgrades populated baseline 0106 without rewriting projects, course versions
     const ready = await inject(server, { method: 'GET', url: '/health/ready' });
     expect(ready.statusCode).toBe(200);
     expect(ready.json().deployment).toMatchObject({
-      schemaVersion: 136,
-      expectedSchemaVersion: 136,
+      schemaVersion: 137,
+      expectedSchemaVersion: 137,
       synchronized: true,
     });
     for (const actor of [teacher, mixed.account]) {
@@ -575,8 +575,8 @@ it('preserves legacy decisions and notification history through 0132 to integrat
     expect(oldNotifications).toHaveLength(2);
     const upgrade = await isolated.connect();
     try {
-      expect(convergence).toHaveLength(4);
-      expect(await applyPlan(upgrade, convergence)).toBe(4);
+      expect(convergence).toHaveLength(5);
+      expect(await applyPlan(upgrade, convergence)).toBe(5);
       expect(await applyPlan(upgrade, planned)).toBe(0);
     } finally {
       upgrade.release();

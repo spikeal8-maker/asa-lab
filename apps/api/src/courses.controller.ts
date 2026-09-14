@@ -153,6 +153,9 @@ interface CourseRow {
   created_at: Date | string;
   updated_at: Date | string;
   draft_revision: number;
+  draft_active: boolean;
+  draft_base_version_id: string | null;
+  draft_base_version_number: number | null;
 }
 
 interface CoursePublishRow {
@@ -472,8 +475,9 @@ export class CoursesController {
     const result = await this.requirePool().query(
       `SELECT id, title, summary, visibility, age_band, section_count, lesson_count,
               assignment_count, shared_with, copied_from_course_id,
-              publication_state, published_version, published_at, created_at, updated_at, draft_revision
-         FROM course_library_list_v2($1)`,
+              publication_state, published_version, published_at, created_at, updated_at, draft_revision, state.draft_active, state.draft_base_version_id, state.draft_base_version_number
+         FROM course_library_list_v2($1) course
+         CROSS JOIN LATERAL course_authoring_state($1,course.id) state`,
       [context.principalId],
     );
     return {
@@ -495,6 +499,9 @@ export class CoursesController {
         createdAt: iso(row.created_at),
         updatedAt: iso(row.updated_at),
         draftRevision: Number(row.draft_revision),
+        draftActive: row.draft_active,
+        draftBaseVersionId: row.draft_base_version_id,
+        draftBaseVersionNumber: row.draft_base_version_number,
       })),
     };
   }
@@ -600,6 +607,66 @@ export class CoursesController {
    * Future classroom runs refer to this version, so an edit in the authoring
    * surface can never rewrite material that learners have already received.
    */
+  @Get('courses/:courseId/versions')
+  async versions(@Req() request: FastifyRequest, @Param('courseId') courseId: string) {
+    const context = await this.requireAuthor(request);
+    this.requireUuid(courseId, 'course');
+    const result = await this.requirePool().query('SELECT * FROM course_author_versions($1,$2)', [
+      context.principalId,
+      courseId,
+    ]);
+    return {
+      items: result.rows.map((row) => ({
+        id: row['id'],
+        versionNumber: Number(row['version_number']),
+        outline: row['outline'],
+        publishedAt: iso(row['published_at']),
+      })),
+    };
+  }
+
+  @Post('courses/:courseId/versions/:versionId/draft')
+  async draftFromVersion(
+    @Req() request: FastifyRequest,
+    @Param('courseId') courseId: string,
+    @Param('versionId') versionId: string,
+    @Body() rawBody: unknown,
+  ) {
+    const context = await this.requireAuthor(request);
+    this.requireUuid(courseId, 'course');
+    this.requireUuid(versionId, 'version');
+    const shape = checkBodyShape(rawBody, ['expectedRevision']);
+    if (
+      !shape.ok ||
+      !Number.isSafeInteger(shape.body['expectedRevision']) ||
+      Number(shape.body['expectedRevision']) < 1 ||
+      Number(shape.body['expectedRevision']) > 2147483647
+    )
+      throw new HttpException(error('validation_error', 'Укажите текущую редакцию.'), 400);
+    const result = await this.requirePool().query(
+      'SELECT * FROM course_draft_from_version($1,$2,$3,$4)',
+      [context.principalId, courseId, versionId, shape.body['expectedRevision']],
+    );
+    const row = result.rows[0];
+    if (row?.['result_code'] !== 'ok')
+      throw new HttpException(
+        error(
+          row?.['result_code'] ?? 'draft_failed',
+          row?.['result_code'] === 'draft_exists'
+            ? 'Уже существует черновик. Откройте его для продолжения.'
+            : row?.['result_code'] === 'source_not_restorable'
+              ? 'Эта старая версия использует задание, историческое содержимое которого не было сохранено отдельно. Точно восстановить черновик невозможно. Курс, текущий черновик и опубликованные версии не изменены.'
+              : 'Черновик не создан. Обновите курс; исходная версия должна быть доступна без подмены содержимого.',
+        ),
+        row?.['result_code']?.endsWith('_not_found') ? 404 : 409,
+      );
+    return {
+      id: courseId,
+      draftRevision: Number(row['draft_revision']),
+      sourceVersionNumber: Number(row['source_version_number']),
+    };
+  }
+
   @Post('courses/:courseId/publish')
   async publish(
     @Req() request: FastifyRequest,

@@ -413,6 +413,52 @@ export class LearningActivitiesController {
     return { id: activityId, draftRevision: Number(row['draft_revision']) };
   }
 
+  @Post(':activityId/versions/:versionId/draft')
+  async draftFromVersion(
+    @Req() request: FastifyRequest,
+    @Param('activityId') activityId: string,
+    @Param('versionId') versionId: string,
+    @Body() rawBody: unknown,
+  ) {
+    const context = await this.requireEducator(request);
+    this.requireUuid(activityId, 'activity');
+    this.requireUuid(versionId, 'version');
+    const shape = checkBodyShape(rawBody, ['expectedRevision']);
+    if (
+      !shape.ok ||
+      !Number.isSafeInteger(shape.body['expectedRevision']) ||
+      Number(shape.body['expectedRevision']) < 1 ||
+      Number(shape.body['expectedRevision']) > 2147483647
+    )
+      throw new HttpException(error('validation_error', 'Укажите текущую редакцию.'), 400);
+    const result = await this.requirePool().query(
+      'SELECT * FROM learning_activity_draft_from_version($1,$2,$3,$4,$5)',
+      [
+        context.principalId,
+        context.tenantId,
+        activityId,
+        versionId,
+        shape.body['expectedRevision'],
+      ],
+    );
+    const row = result.rows[0];
+    if (row?.['result_code'] !== 'ok')
+      throw new HttpException(
+        error(
+          row?.['result_code'] ?? 'draft_failed',
+          row?.['result_code'] === 'draft_exists'
+            ? 'Уже существует черновик. Откройте его для продолжения.'
+            : 'Черновик не создан. Обновите материал.',
+        ),
+        row?.['result_code']?.endsWith('_not_found') ? 404 : 409,
+      );
+    return {
+      id: activityId,
+      draftRevision: Number(row['draft_revision']),
+      sourceVersionNumber: Number(row['source_version_number']),
+    };
+  }
+
   @Post(':activityId/publish')
   async publish(
     @Req() request: FastifyRequest,
@@ -457,16 +503,18 @@ export class LearningActivitiesController {
     const context = await this.requireEducator(request);
     this.requireUuid(activityId, 'activity');
     const result = await this.requirePool().query(
-      `SELECT activity_version_id, version_number, kind, result_mode, max_points,
-              policy_snapshot, quiz_version_id, starter_project_version_id,
-              provenance, content_digest, published_at
-         FROM learning_activity_version_list($1,$2,$3)`,
+      `SELECT versions.*, preview.title, preview.instructions, preview.module_key
+         FROM learning_activity_version_list($1,$2,$3) versions
+         CROSS JOIN LATERAL learning_activity_preview_as_author($1,$2,$3,'published',versions.activity_version_id,NULL) preview`,
       [context.principalId, context.tenantId, activityId],
     );
     return {
       items: result.rows.map((row) => ({
         id: String(row['activity_version_id']),
         versionNumber: Number(row['version_number']),
+        title: row['title'],
+        instructions: row['instructions'],
+        moduleKey: row['module_key'],
         kind: String(row['kind']),
         resultMode: String(row['result_mode']),
         maxPoints: row['max_points'] === null ? null : Number(row['max_points']),

@@ -117,6 +117,30 @@ surfaces:
     - course_save
     - course_publish
     - course_assign
+  - id: CTRL-AUTHOR-DRAFT-FROM-PUBLISHED-VERSION
+    label: Create an editable draft of the same root from one exact published version
+    change_class: L3_CRITICAL
+    files:
+    - apps/web/src/components/AuthorVersionHistory.tsx
+    - apps/web/src/components/CoursesPanel.tsx
+    - apps/web/src/pages/AuthoredMaterialsPage.tsx
+    - apps/web/src/api.ts
+    - apps/api/src/courses.controller.ts
+    - apps/api/src/learning-activities.controller.ts
+    - migrations/0137_author_draft_from_published_version.sql
+    - tests/courses/author-draft-from-version.pg.spec.ts
+    - tests/courses/author-draft-upgrade.pg.spec.ts
+    - e2e/learning-author-preview.spec.ts
+    invariants:
+    - LRN-VER-001
+    - LRN-RUN-001
+    - LRN-AUTH-001
+    tests:
+    - TST-LRN-COURSE-E1-CORE-001
+    - TST-LRN-COURSE-E1-E2E-001
+    commands:
+    - course_save
+    - course_publish
   - id: CTRL-AUTHOR-PREVIEW-AS-LEARNER
     label: Preview one exact authored activity as a learner without creating learner runtime state
     change_class: L3_CRITICAL

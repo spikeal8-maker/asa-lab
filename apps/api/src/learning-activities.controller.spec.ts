@@ -49,6 +49,41 @@ function target(options: { educator?: boolean; rows?: unknown[] } = {}) {
 }
 
 describe('canonical learning activity API', () => {
+  it('draft-from-version uses authenticated scope and exact selected version, and reports existing drafts', async () => {
+    const api = target({ rows: [{ result_code: 'draft_exists', draft_revision: 4 }] });
+    await expect(
+      api.value.draftFromVersion(request(), ACTIVITY_ID, VERSION_ID, { expectedRevision: 3 }),
+    ).rejects.toMatchObject({ status: 409, response: { error: { code: 'draft_exists' } } });
+    expect(api.query).toHaveBeenCalledWith(
+      expect.stringContaining('learning_activity_draft_from_version'),
+      [PRINCIPAL_ID, TENANT_ID, ACTIVITY_ID, VERSION_ID, 3],
+    );
+  });
+  it('draft-from-version denies missing author capability without a database mutation', async () => {
+    const api = target({ educator: false });
+    await expect(
+      api.value.draftFromVersion(request(), ACTIVITY_ID, VERSION_ID, { expectedRevision: 1 }),
+    ).rejects.toMatchObject({ status: 403 });
+    expect(api.query).not.toHaveBeenCalled();
+  });
+  it('draft-from-version rejects invalid versions and body scope injection', async () => {
+    const api = target();
+    await expect(
+      api.value.draftFromVersion(request(), ACTIVITY_ID, VERSION_ID, {
+        expectedRevision: 2147483648,
+      }),
+    ).rejects.toMatchObject({ status: 400 });
+    await expect(
+      api.value.draftFromVersion(request(), ACTIVITY_ID, 'latest', { expectedRevision: 1 }),
+    ).rejects.toMatchObject({ status: 400 });
+    await expect(
+      api.value.draftFromVersion(request(), ACTIVITY_ID, VERSION_ID, {
+        expectedRevision: 1,
+        principalId: PRINCIPAL_ID,
+      }),
+    ).rejects.toMatchObject({ status: 400 });
+    expect(api.query).not.toHaveBeenCalled();
+  });
   it.each(['project', 'quiz', 'essay', 'file', 'manual'])(
     'accepts %s domain authoring',
     async (kind) => {

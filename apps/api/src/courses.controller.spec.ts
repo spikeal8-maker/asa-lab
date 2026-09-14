@@ -48,6 +48,26 @@ function controller(rows: unknown[] = []) {
 }
 
 describe('course outline API', () => {
+  it('returns a distinct safe legacy refusal message for the existing author history UI', async () => {
+    const target = controller([{ result_code: 'source_not_restorable', draft_revision: 7 }]);
+    await expect(
+      target.value.draftFromVersion(request(), COURSE_ID, VERSION_ID, { expectedRevision: 7 }),
+    ).rejects.toMatchObject({
+      status: 409,
+      response: {
+        error: {
+          code: 'source_not_restorable',
+          message:
+            'Эта старая версия использует задание, историческое содержимое которого не было сохранено отдельно. Точно восстановить черновик невозможно. Курс, текущий черновик и опубликованные версии не изменены.',
+        },
+      },
+    });
+    expect(target.query).toHaveBeenCalledTimes(1);
+    expect(target.query).toHaveBeenCalledWith(
+      'SELECT * FROM course_draft_from_version($1,$2,$3,$4)',
+      ['principal-id', COURSE_ID, VERSION_ID, 7],
+    );
+  });
   it('returns compact course counters from the outline library query', async () => {
     const target = controller([
       {

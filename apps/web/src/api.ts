@@ -14,6 +14,8 @@ export interface PublicUser {
 }
 
 export interface AuthoredActivityDraft {
+  quizVersionId?: string | null;
+  starterProjectVersionId?: string | null;
   title: string;
   instructions: string | null;
   moduleKey: string | null;
@@ -252,8 +254,32 @@ export function visibilityLabel(value: string): string {
 }
 
 /** Курс — порядок, в котором проходят задания. */
+export interface PublishedAuthorVersion {
+  id: string;
+  versionNumber: number;
+  title?: string;
+  instructions?: string | null;
+  outline?: {
+    course: { title: string; summary: string | null };
+    sections: Array<{
+      sourceSectionId: string;
+      title: string;
+      summary: string | null;
+      lessons: Array<{
+        sourceLessonId: string;
+        title: string;
+        content: string | null;
+        blocks: LessonBlock[];
+      }>;
+    }>;
+  };
+}
+
 export interface Course {
   draftRevision: number;
+  draftActive?: boolean;
+  draftBaseVersionId?: string | null;
+  draftBaseVersionNumber?: number | null;
   id: string;
   title: string;
   summary: string | null;
@@ -2167,6 +2193,20 @@ export const api = {
       body: JSON.stringify({ title: title ?? null }),
     }),
   // Курсы.
+  authorVersions: (kind: 'course' | 'activity', id: string) =>
+    call<{ items: PublishedAuthorVersion[] }>(
+      `${kind === 'course' ? '/api/courses' : '/api/learning/activities'}/${encodeURIComponent(id)}/versions`,
+    ),
+  draftFromPublishedVersion: (
+    kind: 'course' | 'activity',
+    id: string,
+    versionId: string,
+    expectedRevision: number,
+  ) =>
+    call<{ id: string; draftRevision: number; sourceVersionNumber: number }>(
+      `${kind === 'course' ? '/api/courses' : '/api/learning/activities'}/${encodeURIComponent(id)}/versions/${encodeURIComponent(versionId)}/draft`,
+      { method: 'POST', body: JSON.stringify({ expectedRevision }) },
+    ),
   listCourses: () => call<{ items: Course[] }>('/api/courses'),
   ensureDemoCourse: () =>
     call<{ id: string; created: boolean; publishedVersion: number }>('/api/courses/demo', {
