@@ -58,9 +58,7 @@ describe('Electronics built-package consumer contract', () => {
   it('resolves and executes the public engine subpath from the API package', async () => {
     const apiRequire = createRequire(pathToFileURL(API_PACKAGE));
     const engineEntry = apiRequire.resolve('@asa-lab/electronics/engine');
-    expect(engineEntry.replaceAll('\\', '/')).toContain(
-      '/contexts/electronics/dist/engine.js',
-    );
+    expect(engineEntry.replaceAll('\\', '/')).toContain('/contexts/electronics/dist/engine.js');
 
     const engine = await import(pathToFileURL(engineEntry).href);
     expect(engine.ELECTRONICS_ENGINE_DESCRIPTOR.contractVersion).toBe(1);
@@ -99,9 +97,7 @@ describe('Electronics built-package consumer contract', () => {
     });
 
     const output = (Array.isArray(built) ? built[0] : built) as RollupOutput;
-    const entry = output.output.find(
-      (item) => item.type === 'chunk' && item.isEntry,
-    );
+    const entry = output.output.find((item) => item.type === 'chunk' && item.isEntry);
     expect(entry?.type).toBe('chunk');
     if (!entry || entry.type !== 'chunk') return;
 
