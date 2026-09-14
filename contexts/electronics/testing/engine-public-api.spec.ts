@@ -5,6 +5,7 @@ import {
   ELECTRONICS_ENGINE_CAPABILITIES,
   ELECTRONICS_ENGINE_CONTRACT_VERSION,
   ELECTRONICS_ENGINE_DESCRIPTOR,
+  type ElectronicsEngineDocument,
   analyseElectronicsSnapshot,
   parseElectronicsEngineDocument,
   prepareElectronicsSnapshot,
@@ -16,6 +17,28 @@ const TIMED_KEYS = [
   'controllerState',
   'transientAnalysis',
 ] as const;
+
+const SIMPLE_OHM_LAW: ElectronicsEngineDocument = {
+  schemaVersion: 4,
+  components: [
+    { id: 'source', kind: 'source', position: { x: 0, y: 0 }, value: 5 },
+    { id: 'resistor', kind: 'resistor', position: { x: 100, y: 0 }, value: 1000 },
+  ],
+  connections: [
+    {
+      id: 'positive',
+      from: { componentId: 'source', terminal: 'a' },
+      to: { componentId: 'resistor', terminal: 'a' },
+    },
+    {
+      id: 'negative',
+      from: { componentId: 'resistor', terminal: 'b' },
+      to: { componentId: 'source', terminal: 'b' },
+    },
+  ],
+  viewport: { x: 0, y: 0, zoom: 1 },
+  simulation: { running: true, maxIterations: 24 },
+};
 
 describe('Electronics non-temporal engine facade', () => {
   it('publishes a small versioned capability descriptor', () => {
@@ -33,8 +56,8 @@ describe('Electronics non-temporal engine facade', () => {
   });
 
   it('projects compile output into a structural topology summary', () => {
-    const compiled = compileCircuit(EMPTY_DOCUMENT);
-    expect(prepareElectronicsSnapshot(EMPTY_DOCUMENT)).toEqual({
+    const compiled = compileCircuit(SIMPLE_OHM_LAW);
+    expect(prepareElectronicsSnapshot(SIMPLE_OHM_LAW)).toEqual({
       topologySignature: compiled.topologySignature,
       componentIds: compiled.componentIds,
       sourceIds: compiled.sourceIds,
@@ -43,9 +66,10 @@ describe('Electronics non-temporal engine facade', () => {
     });
   });
 
-  it('preserves snapshot analysis while withholding continuation state', () => {
-    const direct = analyseCircuit(EMPTY_DOCUMENT);
-    const snapshot = analyseElectronicsSnapshot(EMPTY_DOCUMENT);
+  it('preserves solved snapshot analysis while withholding continuation state', () => {
+    const direct = analyseCircuit(SIMPLE_OHM_LAW);
+    const snapshot = analyseElectronicsSnapshot(SIMPLE_OHM_LAW);
+    expect(direct.status).toBe('solved');
     expect(snapshot).toEqual({
       solved: direct.solved,
       status: direct.status,
