@@ -35,6 +35,12 @@ body {
   position: relative;
 }
 
+/* ASA product chrome only. Do not recolor Scratch block/category semantics. */
+.asa-scratch-editor-root header[role='banner'] {
+  background-color: #0877b3 !important;
+  box-shadow: inset 0 -1px 0 #076b98;
+}
+
 .asa-scratch-runtime-status {
   margin: 0;
   padding: 0.5rem 1rem;
