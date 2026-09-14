@@ -36,16 +36,18 @@ accepted C/D host/editor interfaces
 
 ```text
 infra/scratch-editor/patches/0001-host-logo-prop.patch
-infra/scratch-editor/host/branding.js
-infra/scratch-editor/host/editor-config.js
-infra/scratch-editor/host/theme.css
+infra/scratch-editor/host/editor.js
+infra/scratch-editor/host/host.css
 infra/scratch-editor/host/main.js
 infra/scratch-editor/Dockerfile
 infra/scratch-editor/README.md
-apps/web/src/blocks/**
+apps/web/src/blocks/BlocksEditorShell.tsx
+apps/web/src/blocks/blocks-editor-shell.css
 e2e/blocks-host-controls.spec.ts
 ../components/host.yaml
 ```
+
+Реализация B консолидируется в существующих host/editor и parent-shell поверхностях. Не создавать отдельные `branding.js`, `editor-config.js` или `theme.css` только ради исторического плана файлов.
 
 Не добавлять patch для скрытия Extensions или урезания File. Новый upstream patch — только после доказанного дефекта и отдельного review.
 

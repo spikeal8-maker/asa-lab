@@ -19,19 +19,26 @@ test.beforeAll(async () => {
   fs.mkdirSync(evidenceDir, { recursive: true });
 });
 
+interface ExternalNetworkEvidence {
+  core: string[];
+  explicitExtension: string[];
+}
+
 async function openEditor(locale: string): Promise<{
   fixture: Awaited<ReturnType<typeof createProtocolFixture>>;
   context: BrowserContext;
   page: Page;
   frame: Frame;
-  external: string[];
+  external: ExternalNetworkEvidence;
+  beginExplicitExtensionPhase: () => void;
 }> {
   const fixture = await createProtocolFixture({ locale });
-  const external: string[] = [];
+  const external: ExternalNetworkEvidence = { core: [], explicitExtension: [] };
+  let networkPhase: keyof ExternalNetworkEvidence = 'core';
   fixture.context.on('request', (request) => {
     const url = request.url();
     if (/^https?:/.test(url) && ![runtimeUrl, parentOrigin].includes(new URL(url).origin)) {
-      external.push(url);
+      external[networkPhase].push(url);
     }
   });
   const page = await fixture.context.newPage();
@@ -46,7 +53,16 @@ async function openEditor(locale: string): Promise<{
     { timeout: 45000 },
   );
   await expect(frame.locator('.blocklySvg').first()).toBeVisible();
-  return { fixture, context: fixture.context, page, frame, external };
+  return {
+    fixture,
+    context: fixture.context,
+    page,
+    frame,
+    external,
+    beginExplicitExtensionPhase: () => {
+      networkPhase = 'explicitExtension';
+    },
+  };
 }
 
 async function closeFixture(fixture: Awaited<ReturnType<typeof createProtocolFixture>>) {
@@ -78,6 +94,16 @@ async function assertNativeFileMenu(page: Page, frame: Frame) {
   await page.keyboard.press('Escape');
 }
 
+function exactTextPattern(value: string): RegExp {
+  return new RegExp(`^${value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`);
+}
+
+function toolboxCategory(frame: Frame, label: string) {
+  return frame
+    .locator('.blocklyToolboxCategoryLabel')
+    .filter({ hasText: exactTextPattern(label) });
+}
+
 async function assertCoreCategoryColours(frame: Frame) {
   const categories = [
     ['Motion', 'rgb(76, 151, 255)'],
@@ -90,7 +116,9 @@ async function assertCoreCategoryColours(frame: Frame) {
   ] as const;
 
   for (const [label, expectedFill] of categories) {
-    await frame.getByText(label, { exact: true }).click();
+    const category = toolboxCategory(frame, label);
+    await expect(category).toHaveCount(1);
+    await category.click();
     const firstBlock = frame.locator('.blocklyFlyout .blocklyDraggable .blocklyPath').first();
     await expect(firstBlock).toBeVisible();
     await expect
@@ -100,7 +128,7 @@ async function assertCoreCategoryColours(frame: Frame) {
 }
 
 test('English browser keeps native Scratch controls, ASA chrome and unfiltered extension catalogue', async () => {
-  const { fixture, page, frame, external } = await openEditor('en-US');
+  const { fixture, page, frame, external, beginExplicitExtensionPhase } = await openEditor('en-US');
   try {
     await assertAsaChrome(page, frame);
 
@@ -136,7 +164,24 @@ test('English browser keeps native Scratch controls, ASA chrome and unfiltered e
       path: `${evidenceDir}/01-asa-chrome-and-account.png`,
       fullPage: true,
     });
-    expect(external).toEqual([]);
+
+    // Everything through core editor/project boot and catalogue display is still core evidence.
+    // Hidden Scratch Foundation fallback must not be reclassified as extension traffic.
+    expect(external.core).toEqual([]);
+
+    // Only after an explicit user selection do external requests belong to extension behaviour.
+    beginExplicitExtensionPhase();
+    await frame.getByText('Text to Speech', { exact: true }).click();
+    const textToSpeechCategory = toolboxCategory(frame, 'Text to Speech');
+    await expect(textToSpeechCategory).toHaveCount(1);
+    await expect(textToSpeechCategory).toBeVisible();
+    await page.screenshot({
+      path: `${evidenceDir}/03-explicit-extension-selected.png`,
+      fullPage: true,
+    });
+
+    // Core remains clean even if the selected extension later talks to its intended service.
+    expect(external.core).toEqual([]);
     expect(fixture.pageErrors).toEqual([]);
   } finally {
     await closeFixture(fixture);
@@ -168,7 +213,8 @@ test('ru-RU browser starts in native Russian Scratch and changes language only t
       path: `${evidenceDir}/02-native-russian-settings.png`,
       fullPage: true,
     });
-    expect(external).toEqual([]);
+    expect(external.core).toEqual([]);
+    expect(external.explicitExtension).toEqual([]);
     expect(fixture.pageErrors).toEqual([]);
   } finally {
     await closeFixture(fixture);

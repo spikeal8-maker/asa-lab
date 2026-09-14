@@ -25,7 +25,7 @@ components:
     depends_on: [blocks.upstream.pin]
 
   - id: blocks.host.branding
-    state: planned
+    state: implemented
     risk: medium
     ownership: upstream_patch
     purpose: 'Replace Scratch product logo with canonical ASA mark; keep Scratch UI.'
@@ -33,79 +33,84 @@ components:
       - path: docs/product/visual-programming/VSCR-D0-001-SCRATCH-HOST-CONTRACT.md
         section: 'Branding'
     canonical_asset: apps/web/public/asa-lab-mark.svg
-    planned_sources:
-      - infra/scratch-editor/host/branding.js
+    sources:
+      - apps/web/public/asa-lab-mark.svg
       - infra/scratch-editor/patches/0001-host-logo-prop.patch
-    planned_tests: [e2e/blocks-host-controls.spec.ts]
+      - infra/scratch-editor/host/editor.js
+      - infra/scratch-editor/Dockerfile
+    tests: [e2e/blocks-host-controls.spec.ts]
     task: VSCR-M1-002B
     task_card: VSCR-M1-002B.md
     depends_on: [blocks.host.storage-adapter]
 
   - id: blocks.host.localization
-    state: planned
+    state: implemented
     risk: low
     ownership: upstream_config
     purpose: 'Remove forced English; preserve native Scratch Settings/browser locale.'
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-001-SCRATCH-HOST-CONTRACT.md
         section: 'Localization'
-    planned_sources: [infra/scratch-editor/host/editor-config.js]
-    planned_tests: [e2e/blocks-host-controls.spec.ts]
+    sources: [infra/scratch-editor/host/editor.js]
+    tests: [e2e/blocks-host-controls.spec.ts]
     task: VSCR-M1-002B
     task_card: VSCR-M1-002B.md
     depends_on: [blocks.host.storage-adapter]
 
   - id: blocks.host.theme
-    state: planned
+    state: implemented
     risk: medium
     ownership: asa
     purpose: 'ASA product-chrome colours only; preserve Scratch category colours.'
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-001-SCRATCH-HOST-CONTRACT.md
         section: 'ASA theme boundary'
-    planned_sources: [infra/scratch-editor/host/theme.css]
-    planned_tests: [e2e/blocks-host-controls.spec.ts]
+    sources: [infra/scratch-editor/host/host.css]
+    tests: [e2e/blocks-host-controls.spec.ts]
     task: VSCR-M1-002B
     task_card: VSCR-M1-002B.md
     depends_on: [blocks.host.storage-adapter]
 
   - id: blocks.host.identity-shell
-    state: planned
+    state: implemented
     risk: high
     ownership: cross_boundary
     purpose: 'Parent-owned ASA avatar/account; no Scratch-origin ASA authority.'
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-001-SCRATCH-HOST-CONTRACT.md
         section: 'ASA identity shell'
-    planned_tests: [e2e/blocks-host-controls.spec.ts]
+    sources:
+      - apps/web/src/blocks/BlocksEditorShell.tsx
+      - apps/web/src/blocks/blocks-editor-shell.css
+    tests: [e2e/blocks-host-controls.spec.ts]
     task: VSCR-M1-002B
     task_card: VSCR-M1-002B.md
     depends_on: [blocks.host.protocol, blocks.host.storage-adapter]
 
   - id: blocks.host.file-menu
-    state: planned
+    state: implemented
     risk: low
     ownership: upstream_config
     purpose: 'Preserve native File/Edit/local file commands; ASA persistence stays separate.'
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-001-SCRATCH-HOST-CONTRACT.md
         section: 'Product controls'
-    planned_sources: [infra/scratch-editor/host/editor-config.js]
-    planned_tests: [e2e/blocks-host-controls.spec.ts]
+    sources: [infra/scratch-editor/host/editor.js]
+    tests: [e2e/blocks-host-controls.spec.ts]
     task: VSCR-M1-002B
     task_card: VSCR-M1-002B.md
     depends_on: [blocks.host.storage-adapter]
 
   - id: blocks.host.extensions
-    state: planned
+    state: implemented
     risk: medium
     ownership: upstream_config
     purpose: 'Preserve native Extensions, external services and hardware integrations.'
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-001-SCRATCH-HOST-CONTRACT.md
         section: 'Extensions'
-    planned_sources: [infra/scratch-editor/host/editor-config.js]
-    planned_tests: [e2e/blocks-host-controls.spec.ts]
+    sources: [infra/scratch-editor/host/editor.js]
+    tests: [e2e/blocks-host-controls.spec.ts]
     task: VSCR-M1-002B
     task_card: VSCR-M1-002B.md
     depends_on: [blocks.host.storage-adapter]
