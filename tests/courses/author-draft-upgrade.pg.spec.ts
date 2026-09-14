@@ -18,6 +18,8 @@ it('upgrades populated 0136: unchanged publications stay closed, changed/unpubli
   const pool = new pg.Pool({ connectionString: url.toString() });
   try {
     const planned = planMigrations('migrations');
+    const pending = planned.filter((entry: { version: string }) => entry.version > '0136');
+    expect(pending[0]?.version).toBe('0137');
     const client = await pool.connect();
     try {
       await applyIsolatedTestPlan(
@@ -92,7 +94,7 @@ it('upgrades populated 0136: unchanged publications stay closed, changed/unpubli
     ).rows;
     const upgrade = await pool.connect();
     try {
-      expect(await applyIsolatedTestPlan(upgrade, planned)).toBe(2);
+      expect(await applyIsolatedTestPlan(upgrade, planned)).toBe(pending.length);
     } finally {
       upgrade.release();
     }
