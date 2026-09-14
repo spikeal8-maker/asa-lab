@@ -18,9 +18,7 @@ it('upgrades populated 0136: unchanged publications stay closed, changed/unpubli
   const pool = new pg.Pool({ connectionString: url.toString() });
   try {
     const planned = planMigrations('migrations');
-    const pending = planned.filter(
-      (entry: { version: string }) => entry.version > '0136',
-    );
+    const pending = planned.filter((entry: { version: string }) => entry.version > '0136');
     expect(pending[0]?.version).toBe('0137');
     const client = await pool.connect();
     try {
