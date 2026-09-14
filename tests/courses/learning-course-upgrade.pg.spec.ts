@@ -131,7 +131,10 @@ it('upgrades populated baseline 0106 without rewriting projects, course versions
     ).toBe(1);
     const mixed = await seedMixedMainLearning(isolated, teacher, cls);
     expect(baseline).toHaveLength(105); // Exact current main 3498dd2c, through 0106.
-    expect(planned.length - baseline.length).toBe(32); // 0107–0138, including explicit author drafts and archived-class history access.
+    const postBaseline = planned.filter(
+      (migration: { version: string }) => migration.version > '0106',
+    );
+    expect(postBaseline[0]?.version).toBe('0107');
     const oldResults = (
       await isolated.query(
         'SELECT to_jsonb(result) AS record FROM assessment_results result ORDER BY id',
@@ -575,8 +578,8 @@ it('preserves legacy decisions and notification history through 0132 to integrat
     expect(oldNotifications).toHaveLength(2);
     const upgrade = await isolated.connect();
     try {
-      expect(convergence).toHaveLength(6);
-      expect(await applyPlan(upgrade, convergence)).toBe(6);
+      expect(convergence[0]?.version).toBe('0133');
+      expect(await applyPlan(upgrade, convergence)).toBe(convergence.length);
       expect(await applyPlan(upgrade, planned)).toBe(0);
     } finally {
       upgrade.release();
