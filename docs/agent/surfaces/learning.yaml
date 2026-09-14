@@ -1,6 +1,44 @@
 schema_version: 1.0.0
 context: learning
 surfaces:
+- id: SURF-TEACHER-HOME
+  routes:
+  - '#/'
+  implementation:
+    files:
+    - apps/web/src/pages/CreatorHomePage.tsx
+    - apps/web/src/components/TeacherHomeAttention.tsx
+    - apps/web/src/api.ts
+    - apps/api/src/classrooms.controller.ts
+    - apps/api/src/teacher-home-attention.ts
+  invariants:
+  - LRN-GRD-001
+  - LRN-NOT-001
+  - LRN-AUTH-001
+  tests:
+  - TST-LRN-COURSE-E1-CORE-001
+  - TST-LRN-COURSE-E1-E2E-001
+  controls:
+  - id: CTRL-TEACHER-HOME-ATTENTION
+    label: Open pending academic review or class admission from Teacher Home
+    change_class: L1_UI_BEHAVIOR
+    files:
+    - apps/web/src/components/TeacherHomeAttention.tsx
+    - apps/web/src/components/ClassroomJoinRequests.tsx
+    - apps/api/src/teacher-home-attention.ts
+    - tests/courses/teacher-home-attention.spec.ts
+    - tests/courses/learning-direct-project-attempts.pg.spec.ts
+    - tests/courses/learning-surface-convergence.pg.spec.ts
+    - e2e/learning-course-01.spec.ts
+    invariants:
+    - LRN-GRD-001
+    - LRN-NOT-001
+    - LRN-AUTH-001
+    tests:
+    - TST-LRN-COURSE-E1-CORE-001
+    - TST-LRN-COURSE-E1-E2E-001
+    commands:
+    - read_teacher_home_attention
 - id: SURF-CLASSROOM-GRADEBOOK
   routes:
   - '#/classrooms/:classroomId'

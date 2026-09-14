@@ -1,5 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type pg from 'pg';
+import { PgClassroomRepository } from '../../contexts/classroom/index';
+import { teacherHomeAttention } from '../../apps/api/src/teacher-home-attention';
 import { seedTeacher, testAdminPool, testAppPool, type SeededTeacher } from '../portal/helpers';
 
 let admin: pg.Pool;
@@ -79,6 +81,32 @@ afterAll(async () => {
 });
 
 describe('LRN-M0-007 canonical read projection', () => {
+  it('Teacher Home excludes non-actionable legacy evidence, archived classes and foreign accounts', async () => {
+    const home = async (actor: string) =>
+      teacherHomeAttention(app, actor, await new PgClassroomRepository(app).listForAccount(actor));
+    // History without an immutable Attempt has no executable review action.
+    expect((await home(accountId)).reviews).toHaveLength(0);
+    expect((await home(accountId)).classrooms).toHaveLength(1);
+    expect(await home(crypto.randomUUID())).toMatchObject({
+      reviews: [],
+      classrooms: [],
+      joinRequests: [],
+    });
+    await admin.query("UPDATE classrooms SET status='archived', archived_at=now() WHERE id=$1", [
+      classroomId,
+    ]);
+    try {
+      expect(await home(accountId)).toMatchObject({
+        reviews: [],
+        classrooms: [],
+        joinRequests: [],
+      });
+    } finally {
+      await admin.query("UPDATE classrooms SET status='active', archived_at=NULL WHERE id=$1", [
+        classroomId,
+      ]);
+    }
+  });
   it('returns identical legacy-submitted evidence to learner and authorized teacher in one query each', async () => {
     const learner = await app.query(
       `SELECT evidence FROM learning_canonical_evidence_for_seat($1)`,

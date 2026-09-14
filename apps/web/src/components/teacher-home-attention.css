@@ -1,0 +1,31 @@
+.teacher-home-attention {
+  margin: 16px 0 24px;
+  padding: 16px;
+  border: 1px solid var(--border, #d9dee8);
+  border-radius: 12px;
+}
+
+.teacher-home-attention header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.teacher-home-attention h2 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.teacher-home-attention li {
+  margin: 8px 0;
+  overflow-wrap: anywhere;
+}
+
+.teacher-home-attention small {
+  display: block;
+}
+
+.teacher-home-attention summary {
+  cursor: pointer;
+}
