@@ -77,7 +77,9 @@ export function CreatorHomePage({
         (item) =>
           item.capability === 'educator' && ['verified', 'provisional'].includes(item.state),
       ) ? (
-        <TeacherHomeAttention key={`${session.user.id}:${session.activeWorkspace.workspaceId}`} />
+        <TeacherHomeAttention
+          key={`attention:${session.user.id}:${session.activeWorkspace.workspaceId}`}
+        />
       ) : null}
       {projects?.length === 0 ? (
         <section className="access-personal-start" aria-label="Начать работу">
