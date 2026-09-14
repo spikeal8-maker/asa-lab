@@ -227,6 +227,39 @@ parallel_lanes:
         commands:
           - pnpm gate:repository
 
+  - id: games
+    worktree_id: games-r0
+    owned_paths:
+      - docs/product/games-platform/**
+    task:
+      id: TASK-GAMES-R0-001
+      issue: 222
+      branch: main
+      base_branch: main
+      pr: null
+      pr_draft: false
+      status: in_progress
+      checkpoint: r0_001_gaming_identity_selected
+      owner_acceptance: pending
+    revisions:
+      convergence_baseline_sha: 885d8d25a73d0bbb4ca90786c6ac7f41754d83ff
+      head_sha: 885d8d25a73d0bbb4ca90786c6ac7f41754d83ff
+    execution_lease:
+      executor_id: codex-games-r0
+      holder: unassigned
+      acquired_at: null
+      expires_at: null
+      reviewer_role_requires_lease: false
+    gates:
+      focused:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:governance
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
+
   - id: three-d
     worktree_id: three-d-opt-1-main
     owned_paths:
