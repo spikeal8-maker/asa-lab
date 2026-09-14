@@ -359,4 +359,80 @@ describe('Э1 existing course → exact versions → runs → inherited particip
         .rows,
     ).toHaveLength(0);
   });
+  it('class archive/restore preserves history and never reopens a closed run', async () => {
+    const authored = await material();
+    const published = await course(authored.version);
+    const cls = await classroom();
+    const student = await seat(cls);
+    const delivery = await assign(published.id, cls, [student], 'course01:archive:' + ++seq);
+    expect(delivery.result_code).toBe('ok');
+    const enrollment = (
+      await admin.query(
+        'SELECT enrollment.id FROM course_enrollments enrollment JOIN learner_identity_links link ON link.learner_identity_id=enrollment.learner_identity_id WHERE enrollment.course_run_id=$1 AND link.seat_id=$2',
+        [delivery.run_id, student],
+      )
+    ).rows[0].id as string;
+    const withdrawn = (
+      await tx((c) =>
+        c.query('SELECT * FROM course_enrollment_withdraw($1,$2)', [principal, enrollment]),
+      )
+    ).rows[0];
+    expect(withdrawn).toMatchObject({ result_code: 'ok', enrollment_status: 'withdrawn' });
+    expect(
+      (
+        await tx((c) =>
+          c.query('SELECT classroom_course_run_set_status($1,$2,$3,$4) AS ok', [
+            principal,
+            cls,
+            delivery.run_id,
+            'closed',
+          ]),
+        )
+      ).rows[0].ok,
+    ).toBe(true);
+    const evidence = async () =>
+      (
+        await admin.query(
+          `SELECT
+             (SELECT status FROM classrooms WHERE id=$1) AS classroom_status,
+             (SELECT status FROM classroom_course_runs WHERE id=$2) AS run_status,
+             (SELECT status FROM course_enrollments WHERE id=$3) AS enrollment_status,
+             (SELECT count(*)::integer FROM activity_runs WHERE source_course_run_id=$2) AS activity_runs,
+             (SELECT count(*)::integer FROM activity_participations WHERE source_course_enrollment_id=$3) AS participations,
+             (SELECT count(*)::integer FROM learning_attempts attempt JOIN activity_participations participation ON participation.id=attempt.activity_participation_id WHERE participation.source_course_enrollment_id=$3) AS attempts,
+             (SELECT count(*)::integer FROM classroom_seat_credentials WHERE seat_id=$4) AS credentials`,
+          [cls, delivery.run_id, enrollment, student],
+        )
+      ).rows[0];
+    const before = await evidence();
+    expect(before).toMatchObject({
+      classroom_status: 'active',
+      run_status: 'closed',
+      enrollment_status: 'withdrawn',
+      activity_runs: 2,
+      participations: 2,
+      attempts: 0,
+      credentials: 0,
+    });
+    expect(
+      (
+        await app.query('SELECT classroom_management_set_status($1,$2,$3) AS ok', [
+          account,
+          cls,
+          'archived',
+        ])
+      ).rows[0].ok,
+    ).toBe(true);
+    expect(await evidence()).toMatchObject({ ...before, classroom_status: 'archived' });
+    expect(
+      (
+        await app.query('SELECT classroom_management_set_status($1,$2,$3) AS ok', [
+          account,
+          cls,
+          'active',
+        ])
+      ).rows[0].ok,
+    ).toBe(true);
+    expect(await evidence()).toEqual(before);
+  });
 });

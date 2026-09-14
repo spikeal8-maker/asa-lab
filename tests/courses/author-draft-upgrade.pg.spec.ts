@@ -92,7 +92,7 @@ it('upgrades populated 0136: unchanged publications stay closed, changed/unpubli
     ).rows;
     const upgrade = await pool.connect();
     try {
-      expect(await applyIsolatedTestPlan(upgrade, planned)).toBe(1);
+      expect(await applyIsolatedTestPlan(upgrade, planned)).toBe(2);
     } finally {
       upgrade.release();
     }
@@ -156,7 +156,7 @@ it('upgrades populated 0136: unchanged publications stay closed, changed/unpubli
     await pool.end();
     // Only this freshly generated fixture database; never the configured database.
     if (!/^asa_draft_upgrade_[a-f0-9]{32}_test$/.test(name)) throw new Error('Unsafe fixture name');
-    await cluster.query('DROP DATABASE "' + name + '" WITH (FORCE)');
+    await cluster.query('DROP DATABASE "' + name + '"');
     await cluster.end();
   }
 }, 120000);

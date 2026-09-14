@@ -20,7 +20,7 @@ let admin: pg.Pool;
 let teacher: SeededTeacher;
 
 async function openClassrooms(page: Page): Promise<void> {
-  await page.getByRole('button', { name: 'Классы', exact: true }).click();
+  await page.getByRole('link', { name: 'Классы', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Мои классы' })).toBeVisible();
 }
 
@@ -197,7 +197,7 @@ test('classroom dates are read in the teacher’s own time zone', async ({ page 
 
   // The setting survives a reload and is what the register formats with.
   await page.reload();
-  await page.getByRole('button', { name: 'Классы', exact: true }).click();
+  await page.getByRole('link', { name: 'Классы', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Мои классы' })).toBeVisible();
   const shown = await page.locator('.classroom-row-date').first().innerText();
   const expected = new Intl.DateTimeFormat('ru-RU', {
