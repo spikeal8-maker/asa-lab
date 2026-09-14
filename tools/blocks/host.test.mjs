@@ -121,10 +121,11 @@ function editorFixture(hasProjectJson = false, mode = 'editor') {
   };
 }
 
-test('mount omits new project ID, leaves locale to Scratch, ignores load changes and observes later real VM events', () => {
+test('mount omits new project ID, leaves locale to Scratch, applies ASA logo, ignores load changes and observes later real VM events', () => {
   const fixture = editorFixture();
   assert.equal('projectId' in fixture.props, false);
   assert.equal(fixture.props.canSave, false);
+  assert.equal(fixture.props.logo, '/asa-lab-mark.svg');
   assert.equal(fixture.requestedId, '0');
   assert.equal(fixture.params.isEmbedded, undefined);
   assert.equal(fixture.params.locale, undefined);
