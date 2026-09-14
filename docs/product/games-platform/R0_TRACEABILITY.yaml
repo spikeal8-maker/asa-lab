@@ -12,6 +12,7 @@ requirements:
     observed_main_sha: c3c1c10d7e37782de58ec84d31ed3336971150f5
     evidence:
       - docs/product/games-platform/R0_001_GAMING_IDENTITY.md
+      - docs/product/games-platform/R0_001_GAMING_IDENTITY_REVIEW.md
       - migrations/0026_student_seat_principal.sql
       - migrations/0047_seat_principal_lookup.sql
       - migrations/0050_account_learners.sql
