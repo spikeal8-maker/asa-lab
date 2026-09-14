@@ -236,6 +236,27 @@ documents:
     authority: electronics_semantics
     context_role: escalation
     read_when: [electronics_domain_change]
+
+  - id: GAMES-R0-ROUTER
+    path: docs/product/games-platform/README.md
+    scope: games
+    lanes: [games]
+    kind: maintenance_guide
+    status: canonical
+    authority: games_r0_routing
+    context_role: compact
+    read_when: [games_r0_task_start, games_maintenance]
+
+  - id: GAMES-R0-FREEZE
+    path: docs/product/games-platform/R0_ARCHITECTURE_FREEZE.md
+    scope: games
+    lanes: [games]
+    kind: domain_master
+    status: canonical
+    authority: games_r0_architecture
+    context_role: target
+    read_when: [games_r0_decision, games_shared_contract_change]
+
   - id: VSCR-AGENT-GUIDE
     path: docs/product/visual-programming/AGENT_GUIDE.md
     scope: visual_programming
