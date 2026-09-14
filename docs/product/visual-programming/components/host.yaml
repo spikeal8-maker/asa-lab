@@ -5,7 +5,7 @@ components:
     state: implemented
     risk: medium
     ownership: infrastructure
-    purpose: 'Build the pinned standalone Scratch distribution and ASA-owned host shell.'
+    purpose: 'Build pinned standalone Scratch and ASA host shell.'
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-001-SCRATCH-HOST-CONTRACT.md
         section: 'Host layout'
@@ -28,7 +28,7 @@ components:
     state: planned
     risk: medium
     ownership: upstream_patch
-    purpose: 'Replace only the Scratch product logo with the canonical ASA mark; keep the real Scratch UI.'
+    purpose: 'Replace Scratch product logo with canonical ASA mark; keep Scratch UI.'
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-001-SCRATCH-HOST-CONTRACT.md
         section: 'Branding'
@@ -45,7 +45,7 @@ components:
     state: planned
     risk: low
     ownership: upstream_config
-    purpose: 'Remove the D forced-English override and otherwise preserve native Scratch Settings/browser localization unchanged.'
+    purpose: 'Remove forced English; preserve native Scratch Settings/browser locale.'
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-001-SCRATCH-HOST-CONTRACT.md
         section: 'Localization'
@@ -59,7 +59,7 @@ components:
     state: planned
     risk: medium
     ownership: asa
-    purpose: 'Apply ASA colour only to product chrome while preserving Scratch semantic category colours.'
+    purpose: 'ASA product-chrome colours only; preserve Scratch category colours.'
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-001-SCRATCH-HOST-CONTRACT.md
         section: 'ASA theme boundary'
@@ -73,7 +73,7 @@ components:
     state: planned
     risk: high
     ownership: cross_boundary
-    purpose: 'Show ASA parent-owned avatar/account chrome without giving Scratch-origin ASA account authority.'
+    purpose: 'Parent-owned ASA avatar/account; no Scratch-origin ASA authority.'
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-001-SCRATCH-HOST-CONTRACT.md
         section: 'ASA identity shell'
@@ -86,7 +86,7 @@ components:
     state: planned
     risk: low
     ownership: upstream_config
-    purpose: 'Preserve native Scratch File/Edit and local file commands; keep upstream server-save disabled as ASA persistence is separate.'
+    purpose: 'Preserve native File/Edit/local file commands; ASA persistence stays separate.'
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-001-SCRATCH-HOST-CONTRACT.md
         section: 'Product controls'
@@ -100,7 +100,7 @@ components:
     state: planned
     risk: medium
     ownership: upstream_config
-    purpose: 'Preserve native Scratch Extensions catalogue, external-service integrations and hardware integrations; do not add a B allowlist.'
+    purpose: 'Preserve native Extensions, external services and hardware integrations.'
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-001-SCRATCH-HOST-CONTRACT.md
         section: 'Extensions'
@@ -139,7 +139,7 @@ components:
     state: planned
     risk: high
     ownership: asa
-    purpose: 'Fixture ScratchStorage/GUIStorage adapter for ASA project/assets without fake durable writes.'
+    purpose: 'Fixture ScratchStorage/GUIStorage adapter without fake durable writes.'
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-001-SCRATCH-HOST-CONTRACT.md
         section: 'Scratch storage adapter'
