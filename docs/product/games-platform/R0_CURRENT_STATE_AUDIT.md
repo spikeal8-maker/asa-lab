@@ -73,13 +73,29 @@ It is still tenant-scoped and chess-specific (`white/black`, chess rating pools,
 
 **Consequence:** no large realtime implementation is needed for R0/R1. Command correctness can remain HTTP/snapshot-authoritative; the full Gateway/Room Runtime belongs to R6.
 
-## 6. Deployment/concurrency
+## 6. Engineering hygiene baseline
+
+Current Games code already contains structural hotspots, so file hygiene must be measured from a baseline rather than pretending the repository starts clean:
+
+- `apps/web/src/checkers/CheckersModuleExperience.tsx` — 63,965 B;
+- `apps/web/src/checkers/checkers.css` — 61,879 B;
+- `apps/web/src/checkers/CheckersWorkspace.tsx` — 25,376 B;
+- `apps/web/src/chess/ChessEditor.tsx` — 29,428 B;
+- `apps/web/src/chess/ChessOnlineLobby.tsx` — 23,514 B.
+
+The first two exceed the Games hard thresholds in `ENGINEERING_HYGIENE.md` and are grandfathered debt. R1 must not add online-match responsibility by continuing to grow them; any necessary change uses a bounded extraction seam instead of a whole-module rewrite.
+
+Repository `.gitignore` already excludes normal build/cache/test/transient output including `dist/`, `build/`, `out-tsc/`, `tmp/`, `coverage/`, `playwright-report/`, `test-results/` and `reports/games/`. Games tooling should keep temporary reports there rather than committing them.
+
+Tracked `e2e/artifacts/checkers/*.png` currently contain review/acceptance evidence. They are not automatically classified as garbage merely because they are binary/large; future hygiene audits remove or replace tracked evidence only when ownership/receipt semantics permit it. Owner/protected evidence is never bulk-deleted by cleanup automation.
+
+## 7. Deployment/concurrency
 
 The repository is actively changing in parallel. Any R0 decision that depends on identity, tenancy, Checkers or Chess must record the exact observed `main` SHA and re-check if that area changes before acceptance.
 
 Do not modify `docs/execution/current.yaml` merely to make Games appear active during this docs-only preflight.
 
-## 7. Audit verdict
+## 8. Audit verdict
 
 The value-driven Games direction remains viable, but R0 identity must be redesigned around current identity reality:
 
@@ -88,5 +104,7 @@ The value-driven Games direction remains viable, but R0 identity must be redesig
 rather than:
 
 `principal_id → GamePlayerProfile` by direct assumption.
+
+Engineering hygiene is now a cross-stage guard: it protects value delivery from accumulating monoliths and generated garbage without turning cleanup into an open-ended project.
 
 No shared Games SQL/API implementation is authorized by this audit.
