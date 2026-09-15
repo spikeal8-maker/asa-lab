@@ -142,20 +142,20 @@ parallel_lanes:
       - tools/validate-electronics-component-information.mjs
       - tools/validate-electronics-agent-docs.mjs
     task:
-      id: TASK-ELECTRONICS-EOPT1E-001
-      issue: 244
-      branch: codex/electronics-eopt1e-worker-facade
+      id: TASK-ELECTRONICS-EOPT3A-001
+      issue: 252
+      branch: codex/electronics-eopt3a-clock-contract
       base_branch: main
       pr: null
       pr_draft: true
       status: in_progress
-      checkpoint: eopt1e_worker_facade_convergence_selected
+      checkpoint: eopt3a_canonical_clock_contract_selected
       owner_acceptance: pending
     revisions:
-      convergence_baseline_sha: db33e66b120030d6abcebb999c7ce7550a78af7d
-      head_sha: db33e66b120030d6abcebb999c7ce7550a78af7d
+      convergence_baseline_sha: d0d63cfd5ae3b322831ed122669a3dcbcbe22734
+      head_sha: d0d63cfd5ae3b322831ed122669a3dcbcbe22734
     execution_lease:
-      executor_id: codex-electronics-eopt1e
+      executor_id: codex-electronics-eopt3a
       holder: unassigned
       acquired_at: null
       expires_at: null
@@ -173,7 +173,6 @@ parallel_lanes:
         workflow: ASA Lab Governance and Code Gates
         commands:
           - pnpm gate:repository
-
   - id: chess
     worktree_id: chess-r2-puzzles-learning
     owned_paths:
