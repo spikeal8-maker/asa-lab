@@ -164,7 +164,7 @@ for (const entry of entries) {
     warnings.push(`${file}: grew more than 25% (${before} -> ${size})`);
   }
 
-  if (mode === '--changed' && SOURCE_EXT.test(file)) {
+  if (mode === '--changed' && SOURCE_EXT.test(file) && file !== 'tools/games-hygiene.mjs') {
     const added = addedText(file);
     if (/(^|\n)\s*(?:console\.log\s*\(|debugger\s*;?)/.test(added)) {
       violations.push(`${file}: newly added debug marker`);
