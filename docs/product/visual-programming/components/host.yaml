@@ -63,7 +63,7 @@ components:
     state: implemented
     risk: medium
     ownership: asa
-    purpose: 'ASA product-chrome colours only; preserve Scratch category colours.'
+    purpose: 'ASA chrome only; preserve Scratch category colours.'
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-001-SCRATCH-HOST-CONTRACT.md
         section: 'ASA theme boundary'
@@ -124,7 +124,7 @@ components:
     state: implemented
     risk: high
     ownership: asa
-    purpose: 'Exact parent/iframe message protocol and validation boundary.'
+    purpose: 'Strict parent/iframe protocol.'
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-001-SCRATCH-HOST-CONTRACT.md
         section: 'Parent/iframe protocol'
@@ -148,7 +148,7 @@ components:
     state: implemented
     risk: high
     ownership: asa
-    purpose: 'ASA ScratchStorage/GUIStorage fixture adapter without Scratch-host fallback or durable writes.'
+    purpose: 'Fixture storage; no Scratch-host fallback or durable writes.'
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-001-SCRATCH-HOST-CONTRACT.md
         section: 'Scratch storage adapter'
