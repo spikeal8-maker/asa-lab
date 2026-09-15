@@ -1,7 +1,10 @@
 # ASA Checkers — Online Play product contract
 
-**Status:** planned after CK-104A / CK-105
+**Status:** long-term Checkers online product contract; staged by Games Platform
+**R1 authority:** `docs/product/games-platform/R1_DELIVERY_BRIEF.md`
 **Purpose:** make human-v-human Checkers visible and usable from the main Checkers product, not only from a specific classroom project.
+
+For **R1**, the Games Delivery Brief is normative: only private invite play is implemented. Quick/rated/classmate flows remain later stages. R1 may use bounded polling or long-polling behind `GameUpdateDeliveryPort`; this document's realtime-push goal applies only when the later realtime capability is introduced.
 
 ## 1. Online Lobby
 
@@ -124,8 +127,11 @@ rating-applied marker where applicable
 
 Each move validates participant, turn, expected version and legality through the existing Russian-64 domain engine before the state is committed. Realtime transports confirmed state; it never decides whether a move is legal.
 
-Polling may remain for discovery lists or degraded fallback, but an active online game must use realtime push plus canonical reconnect recovery.
+Update delivery is transport-independent. R1 may use bounded polling or long-polling behind `GameUpdateDeliveryPort`; a later realtime transport may replace it without changing match semantics. Reconnect always restores canonical server state.
+
 ## 8. Acceptance gates
+
+These are full online-platform gates. R1 uses the narrower acceptance contract in `games-platform/R1_DELIVERY_BRIEF.md`.
 
 Online play is not complete until browser tests prove:
 
@@ -144,6 +150,6 @@ Online play is not complete until browser tests prove:
 
 Do not build separate engines for friend, classroom and public play. Delivery order is:
 
-`CK-105 Match Session → CK-106 friend/private → CK-107 realtime → CK-107A matchmaking → CK-107B rating → CK-108 classroom convergence`.
+`R1 private invite → R2 Quick Match → R3 rated/stats → R4 Chess convergence → R5 classroom social → R6 realtime`.
 
-This keeps one authoritative human-v-human runtime and prevents another set of parallel game flows.
+This keeps one authoritative match runtime, avoids building realtime infrastructure before it is needed, and prevents another set of parallel game flows.

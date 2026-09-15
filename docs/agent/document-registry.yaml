@@ -117,7 +117,7 @@ documents:
     read_when: [accepted_result_history_only]
     superseded_by: IDENTITY-ACCESS-V21
     snapshot_sha256: 1121d062ba8b99f4ba77eaf241a5213d90838d8245755f2d6bc92ffe5ac59ae6
-    do_not_read_for: [new_implementation]
+    do_not_read_for: [new_identity_implementation]
 
   - id: IDENTITY-DOMAIN-CONTRACT
     path: docs/agent/contracts/identity.yaml
@@ -237,15 +237,26 @@ documents:
     context_role: escalation
     read_when: [electronics_domain_change]
 
-  - id: GAMES-R0-ROUTER
+  - id: GAMES-ROUTER
     path: docs/product/games-platform/README.md
     scope: games
     lanes: [games]
     kind: maintenance_guide
     status: canonical
-    authority: games_r0_routing
+    authority: games_platform_routing
     context_role: compact
-    read_when: [games_r0_task_start, games_maintenance]
+    read_when: [games_task_start, games_maintenance]
+
+  - id: GAMES-R1-DELIVERY-BRIEF
+    path: docs/product/games-platform/R1_DELIVERY_BRIEF.md
+    scope: games
+    lanes: [games]
+    kind: task_package
+    status: canonical
+    authority: games_r1_delivery
+    revision: '1.0'
+    context_role: target
+    read_when: [games_r1_task_start, games_private_online_checkers]
 
   - id: GAMES-R0-FREEZE
     path: docs/product/games-platform/R0_ARCHITECTURE_FREEZE.md
