@@ -203,3 +203,173 @@ describe('R7-01A publication revision schema on real PostgreSQL', () => {
     expect(afterUnpublish.rows[0].n).toBe(0);
   });
 });
+
+describe('R7-01B exact-version publish on real PostgreSQL', () => {
+  it('keeps the live revision pinned until an explicit republish and does not duplicate retries', async () => {
+    const base = await teacherProjectInput('publish-pin');
+    const repo = new PgProjectRepository(runtime);
+    const created = await repo.createWithDraft(base);
+    if (created.kind !== 'created') {
+      throw new Error('publish-pin fixture project was not created');
+    }
+
+    const firstSnapshot = await repo.saveSnapshot({
+      tenantId: base.tenantId,
+      actor: base.actor,
+      projectId: created.project.id,
+      image: {
+        bytes: new Uint8Array(64),
+        contentType: 'image/png',
+        width: 16,
+        height: 16,
+      },
+      sourceRevision: 1,
+    });
+    expect(firstSnapshot).not.toBeNull();
+
+    const firstPublish = await runtime.query('SELECT gallery_publish($1,$2) AS ok', [
+      base.actor.principalId,
+      created.project.id,
+    ]);
+    expect(firstPublish.rows[0].ok).toBe(true);
+
+    const firstLive = await admin.query(
+      `SELECT state.current_revision_id, revision.revision_no,
+              revision.project_version_id, revision.preview_snapshot_revision,
+              version.version_no, version.document_json
+         FROM project_publication_state state
+         JOIN project_publication_revisions revision
+           ON revision.id = state.current_revision_id
+         JOIN project_versions version ON version.id = revision.project_version_id
+        WHERE state.tenant_id=$1 AND state.project_id=$2`,
+      [base.tenantId, created.project.id],
+    );
+    expect(firstLive.rows[0]).toMatchObject({
+      revision_no: 1,
+      preview_snapshot_revision: 1,
+      version_no: 1,
+      document_json: base.initialDocument,
+    });
+    const firstRevisionId = firstLive.rows[0].current_revision_id as string;
+    const firstVersionId = firstLive.rows[0].project_version_id as string;
+
+    const firstCounts = await admin.query(
+      `SELECT
+         (SELECT count(*)::integer FROM project_versions
+           WHERE tenant_id=$1 AND project_id=$2) AS versions,
+         (SELECT count(*)::integer FROM project_publication_revisions
+           WHERE tenant_id=$1 AND project_id=$2) AS revisions`,
+      [base.tenantId, created.project.id],
+    );
+    expect(firstCounts.rows[0]).toMatchObject({ versions: 1, revisions: 1 });
+
+    const changedDocument = {
+      schemaVersion: 1,
+      components: [],
+      connections: [],
+      publicationMarker: 'changed',
+    };
+    const saved = await repo.saveDraft({
+      tenantId: base.tenantId,
+      projectId: created.project.id,
+      actor: base.actor,
+      document: changedDocument,
+      preview: null,
+      baseRevision: 1,
+      mutationId: crypto.randomUUID(),
+    });
+    expect(saved?.revision).toBe(2);
+
+    const stillFirstLive = await admin.query(
+      `SELECT state.current_revision_id, revision.project_version_id,
+              revision.revision_no, version.version_no, version.document_json
+         FROM project_publication_state state
+         JOIN project_publication_revisions revision
+           ON revision.id = state.current_revision_id
+         JOIN project_versions version ON version.id = revision.project_version_id
+        WHERE state.tenant_id=$1 AND state.project_id=$2`,
+      [base.tenantId, created.project.id],
+    );
+    expect(stillFirstLive.rows[0]).toMatchObject({
+      current_revision_id: firstRevisionId,
+      project_version_id: firstVersionId,
+      revision_no: 1,
+      version_no: 1,
+      document_json: base.initialDocument,
+    });
+
+    const secondSnapshot = await repo.saveSnapshot({
+      tenantId: base.tenantId,
+      actor: base.actor,
+      projectId: created.project.id,
+      image: {
+        bytes: new Uint8Array(64),
+        contentType: 'image/png',
+        width: 16,
+        height: 16,
+      },
+      sourceRevision: 2,
+    });
+    expect(secondSnapshot).not.toBeNull();
+
+    const secondPublish = await runtime.query('SELECT gallery_publish($1,$2) AS ok', [
+      base.actor.principalId,
+      created.project.id,
+    ]);
+    expect(secondPublish.rows[0].ok).toBe(true);
+
+    const secondLive = await admin.query(
+      `SELECT state.current_revision_id, revision.revision_no,
+              revision.project_version_id, revision.preview_snapshot_revision,
+              version.version_no, version.document_json
+         FROM project_publication_state state
+         JOIN project_publication_revisions revision
+           ON revision.id = state.current_revision_id
+         JOIN project_versions version ON version.id = revision.project_version_id
+        WHERE state.tenant_id=$1 AND state.project_id=$2`,
+      [base.tenantId, created.project.id],
+    );
+    expect(secondLive.rows[0]).toMatchObject({
+      revision_no: 2,
+      preview_snapshot_revision: 2,
+      version_no: 2,
+      document_json: changedDocument,
+    });
+    expect(secondLive.rows[0].current_revision_id).not.toBe(firstRevisionId);
+    expect(secondLive.rows[0].project_version_id).not.toBe(firstVersionId);
+    const secondRevisionId = secondLive.rows[0].current_revision_id as string;
+
+    const secondCounts = await admin.query(
+      `SELECT
+         (SELECT count(*)::integer FROM project_versions
+           WHERE tenant_id=$1 AND project_id=$2) AS versions,
+         (SELECT count(*)::integer FROM project_publication_revisions
+           WHERE tenant_id=$1 AND project_id=$2) AS revisions`,
+      [base.tenantId, created.project.id],
+    );
+    expect(secondCounts.rows[0]).toMatchObject({ versions: 2, revisions: 2 });
+
+    const retryPublish = await runtime.query('SELECT gallery_publish($1,$2) AS ok', [
+      base.actor.principalId,
+      created.project.id,
+    ]);
+    expect(retryPublish.rows[0].ok).toBe(true);
+
+    const afterRetry = await admin.query(
+      `SELECT state.current_revision_id,
+              (SELECT count(*)::integer FROM project_versions version
+                WHERE version.tenant_id=state.tenant_id
+                  AND version.project_id=state.project_id) AS versions,
+              (SELECT count(*)::integer FROM project_publication_revisions revision
+                WHERE revision.publication_id=state.id) AS revisions
+         FROM project_publication_state state
+        WHERE state.tenant_id=$1 AND state.project_id=$2`,
+      [base.tenantId, created.project.id],
+    );
+    expect(afterRetry.rows[0]).toMatchObject({
+      current_revision_id: secondRevisionId,
+      versions: 2,
+      revisions: 2,
+    });
+  });
+});
