@@ -77,10 +77,11 @@ async function createSession(
 }
 
 async function transition(sessionId: string, status: 'live' | 'completed') {
-  const result = await app.query(
-    'SELECT class_session_transition($1,$2,$3) AS code',
-    [teacherAccount, sessionId, status],
-  );
+  const result = await app.query('SELECT class_session_transition($1,$2,$3) AS code', [
+    teacherAccount,
+    sessionId,
+    status,
+  ]);
   return result.rows[0].code as string;
 }
 
@@ -90,10 +91,13 @@ async function markAttendance(
   state: 'present' | 'absent',
   note: string | null,
 ) {
-  const result = await app.query(
-    'SELECT class_session_attendance_mark($1,$2,$3,$4,$5) AS code',
-    [teacherAccount, sessionId, learnerId, state, note],
-  );
+  const result = await app.query('SELECT class_session_attendance_mark($1,$2,$3,$4,$5) AS code', [
+    teacherAccount,
+    sessionId,
+    learnerId,
+    state,
+    note,
+  ]);
   return result.rows[0].code as string;
 }
 
@@ -132,18 +136,18 @@ describe('LRN-A6-01 class session and attendance foundation', () => {
     });
 
     expect(await transition(first.class_session_id, 'live')).toBe('ok');
-    expect(
-      await markAttendance(first.class_session_id, learnerId, 'present', 'В классе'),
-    ).toBe('ok');
-    expect(
-      await markAttendance(first.class_session_id, foreignId, 'absent', null),
-    ).toBe('learner_not_in_class');
+    expect(await markAttendance(first.class_session_id, learnerId, 'present', 'В классе')).toBe(
+      'ok',
+    );
+    expect(await markAttendance(first.class_session_id, foreignId, 'absent', null)).toBe(
+      'learner_not_in_class',
+    );
     expect(await transition(first.class_session_id, 'completed')).toBe('ok');
 
-    const history = await app.query(
-      'SELECT * FROM class_sessions_for_teacher($1,$2)',
-      [teacherAccount, classroomId],
-    );
+    const history = await app.query('SELECT * FROM class_sessions_for_teacher($1,$2)', [
+      teacherAccount,
+      classroomId,
+    ]);
     expect(history.rows).toContainEqual(
       expect.objectContaining({
         id: first.class_session_id,
@@ -179,10 +183,10 @@ describe('LRN-A6-01 class session and attendance foundation', () => {
       [other.tenantId, other.teacherId],
     );
     const otherAccount = identity.rows[0].account_id as string;
-    const result = await app.query(
-      `SELECT class_session_transition($1,$2,'live') AS code`,
-      [otherAccount, session.class_session_id],
-    );
+    const result = await app.query(`SELECT class_session_transition($1,$2,'live') AS code`, [
+      otherAccount,
+      session.class_session_id,
+    ]);
     expect(result.rows[0].code).toBe('not_found');
   });
 });
