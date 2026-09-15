@@ -13,6 +13,7 @@ interface BlocksEditorProps {
 }
 
 function configuredRuntimeOrigin(): string | null {
+  if (typeof window === 'undefined') return null;
   if (!__ASA_BLOCKS_PREVIEW__ || !__ASA_BLOCKS_RUNTIME_ORIGIN__) return null;
   try {
     const origin = requireExactHttpOrigin(__ASA_BLOCKS_RUNTIME_ORIGIN__);

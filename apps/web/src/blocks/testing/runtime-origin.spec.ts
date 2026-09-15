@@ -66,4 +66,20 @@ describe('BlocksEditor runtime origin isolation', () => {
   it('keeps preview disabled when the feature flag is off', () => {
     expectBlocked(renderPreview(RUNTIME_ORIGIN, PARENT_ORIGIN, false));
   });
+
+  it('fails closed outside the browser without preview globals', () => {
+    vi.stubGlobal('window', undefined);
+    // No Vite preview constants exist in this non-browser environment.
+    expect(typeof window).toBe('undefined');
+    const html = renderToStaticMarkup(
+      createElement(BlocksEditor, {
+        projectId: '11111111-1111-4111-8111-111111111111',
+        onBack: vi.fn(),
+        accountLabel: 'ASA test user',
+        accountInitials: 'AT',
+        onAccountClick: vi.fn(),
+      }),
+    );
+    expectBlocked(html);
+  });
 });
