@@ -81,9 +81,12 @@ components:
       - path: docs/product/visual-programming/VSCR-D0-001-SCRATCH-HOST-CONTRACT.md
         section: 'ASA identity shell'
     sources:
+      - apps/web/src/blocks/BlocksEditor.tsx
       - apps/web/src/blocks/BlocksEditorShell.tsx
       - apps/web/src/blocks/blocks-editor-shell.css
-    tests: [e2e/blocks-host-controls.spec.ts]
+    tests:
+      - e2e/blocks-host-controls.spec.ts
+      - apps/web/src/blocks/testing/runtime-origin.spec.ts
     task: VSCR-M1-002B
     depends_on: [blocks.host.protocol, blocks.host.storage-adapter]
 
