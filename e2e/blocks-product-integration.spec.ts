@@ -1,10 +1,12 @@
 import { test, expect } from '@playwright/test';
 import fs from 'node:fs';
+import { createHash } from 'node:crypto';
 
 let createProtocolFixture: typeof import('../tools/blocks/browser/fixture.mjs').createProtocolFixture;
 let parentOrigin: string;
 let runtimeUrl: string;
 const evidenceDir = 'reports/blocks/product-integration';
+const barkAssetId = 'cd8fa8390b0efdd281882533fbfcfcfb';
 
 test.beforeAll(async () => {
   ({ createProtocolFixture } = await import('../tools/blocks/browser/fixture.mjs'));
@@ -97,6 +99,17 @@ test('missing library files return HTTP 404 instead of a successful SPA document
     expect(response.status()).toBe(404);
     expect(await response.text()).not.toContain('data-asa-scratch-host');
   }
+});
+
+// A successful HTTP response is insufficient: the storage adapter checks MIME.
+test('stock WAV is served as audio and retains the pinned sound bytes', async ({ request }) => {
+  const response = await request.get(`${runtimeUrl}/library-assets/${barkAssetId}.wav`);
+  expect(response.status()).toBe(200);
+  expect(response.headers()['content-type']).toBe('audio/wav');
+  const bytes = await response.body();
+  expect(bytes.subarray(0, 4).toString()).toBe('RIFF');
+  expect(bytes.subarray(8, 12).toString()).toBe('WAVE');
+  expect(createHash('md5').update(bytes).digest('hex')).toBe(barkAssetId);
 });
 
 // Regression #256: text presence alone missed two overlapping live regions.
@@ -347,6 +360,24 @@ test('native File saves an edited sb3 and restores code and media in a fresh edi
       .click();
     await expect(restored.getByRole('textbox', { name: 'Sound', exact: true })).toHaveValue('Bark');
     await reopened.screenshot({ path: `${directory}/04-restored-sound.png` });
+    // Native export proves the restored sound is Bark, not a silent fallback
+    // retaining its label. Never read or alter the VM to make this assertion.
+    await restored
+      .getByRole('tabpanel', { name: 'Sounds', exact: true })
+      .getByText('Bark', { exact: true })
+      .click({ button: 'right' });
+    const [soundDownload] = await Promise.all([
+      reopened.waitForEvent('download'),
+      restored.getByRole('menuitem', { name: 'export', exact: true }).click(),
+    ]);
+    expect(soundDownload.suggestedFilename()).toBe('Bark.wav');
+    const restoredSoundPath = `${directory}/restored-Bark.wav`;
+    await soundDownload.saveAs(restoredSoundPath);
+    expect(await soundDownload.failure()).toBeNull();
+    expect(createHash('md5').update(fs.readFileSync(restoredSoundPath)).digest('hex')).toBe(
+      barkAssetId,
+    );
+
     await restored.getByRole('tab', { name: 'Code', exact: true }).click();
     await restored.getByRole('button', { name: 'Fixture Cat', exact: true }).click();
     await expect(
@@ -392,11 +423,28 @@ test('native File saves an edited sb3 and restores code and media in a fresh edi
     ).toEqual([]);
     expect(badResponses).toEqual([]);
     expect(fixture.pageErrors).toEqual([]);
+  } catch (error) {
+    const lastPage = fixture?.context.pages().at(-1);
+    if (lastPage && !lastPage.isClosed()) {
+      await Promise.allSettled([
+        lastPage.screenshot({ path: `${directory}/failure.png` }),
+        lastPage
+          .frameLocator('iframe[title="Scratch runtime"]')
+          .locator('body')
+          .innerHTML()
+          .then((html) => fs.writeFileSync(`${directory}/failure.html`, html)),
+      ]);
+    }
+    throw error;
   } finally {
     try {
       fs.writeFileSync(
         `${directory}/network.json`,
-        JSON.stringify({ requests, failed, badResponses }, null, 2),
+        JSON.stringify(
+          { requests, failed, badResponses, pageErrors: fixture?.pageErrors ?? [] },
+          null,
+          2,
+        ),
       );
     } finally {
       await fixture?.close();

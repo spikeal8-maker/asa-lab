@@ -13,6 +13,17 @@ server {
 
     # Stock media must never fall through to the SPA or vendor index.
     location ^~ /library-assets/ {
+        # Pinned nginx has no WAV mapping; Scratch rejects octet-stream media.
+        # A location types block replaces inherited mappings, so retain all
+        # formats in the local stock-library contract, including sprite JSON.
+        types {
+            application/json json;
+            image/svg+xml svg;
+            image/png png;
+            image/jpeg jpg jpeg;
+            audio/wav wav;
+            audio/mpeg mp3;
+        }
         try_files $uri =404;
     }
 
