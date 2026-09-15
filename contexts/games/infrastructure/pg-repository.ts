@@ -130,7 +130,9 @@ class PgGamesRepositoryTransaction implements GamesRepositoryTransactionPort {
       teams: input.teams,
     });
     if (issues.length > 0) {
-      throw new Error(`Invalid GameMatch foundation: ${issues.map((issue) => issue.code).join(', ')}`);
+      throw new Error(
+        `Invalid GameMatch foundation: ${issues.map((issue) => issue.code).join(', ')}`,
+      );
     }
     if (
       !input.participants.some(
@@ -296,7 +298,9 @@ export class PgGamesRepository implements GamesRepositoryPort {
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
-      await client.query(`SELECT set_config('app.game_player_id', $1, true)`, [context.gamePlayerId]);
+      await client.query(`SELECT set_config('app.game_player_id', $1, true)`, [
+        context.gamePlayerId,
+      ]);
       await client.query(`SELECT set_config('app.games_audit_id', $1, true)`, [context.auditId]);
       const result = await operation(new PgGamesRepositoryTransaction(client, context));
       await client.query('COMMIT');

@@ -45,7 +45,12 @@ function match(id: string): GameMatchV1 {
   };
 }
 
-function receipt(actorKey: string, commandId: string, matchId: string, expectedVersion: number | null) {
+function receipt(
+  actorKey: string,
+  commandId: string,
+  matchId: string,
+  expectedVersion: number | null,
+) {
   return {
     actorKey,
     commandId,
@@ -219,7 +224,11 @@ describe('PgGamesRepository R1A2 foundation', () => {
     await expect(
       repository.withRequestContext(
         { gamePlayerId: playerB, auditId: `test:${randomUUID()}` },
-        async () => runtime.query(`INSERT INTO games.match_access (match_id, game_player_id) VALUES ($1, $2)`, [matchId, playerB]),
+        async () =>
+          runtime.query(
+            `INSERT INTO games.match_access (match_id, game_player_id) VALUES ($1, $2)`,
+            [matchId, playerB],
+          ),
       ),
     ).rejects.toThrow();
   });
