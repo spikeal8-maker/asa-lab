@@ -142,20 +142,20 @@ parallel_lanes:
       - tools/validate-electronics-component-information.mjs
       - tools/validate-electronics-agent-docs.mjs
     task:
-      id: TASK-ELECTRONICS-EOPT1D-001
-      issue: 235
-      branch: codex/electronics-eopt1d-consumer-contract
+      id: TASK-ELECTRONICS-EOPT1E-001
+      issue: 244
+      branch: codex/electronics-eopt1e-worker-facade
       base_branch: main
       pr: null
-      pr_draft: false
+      pr_draft: true
       status: in_progress
-      checkpoint: eopt1d_direct_engine_consumer_contract_selected
+      checkpoint: eopt1e_worker_facade_convergence_selected
       owner_acceptance: pending
     revisions:
-      convergence_baseline_sha: 7d83b2faae7f999da957938f2a82b2684b772360
-      head_sha: 7d83b2faae7f999da957938f2a82b2684b772360
+      convergence_baseline_sha: db33e66b120030d6abcebb999c7ce7550a78af7d
+      head_sha: db33e66b120030d6abcebb999c7ce7550a78af7d
     execution_lease:
-      executor_id: codex-electronics-eopt1d
+      executor_id: codex-electronics-eopt1e
       holder: unassigned
       acquired_at: null
       expires_at: null
