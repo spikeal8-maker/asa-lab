@@ -13,9 +13,12 @@ interface BlocksEditorProps {
 }
 
 function configuredRuntimeOrigin(): string | null {
+  if (typeof window === 'undefined') return null;
   if (!__ASA_BLOCKS_PREVIEW__ || !__ASA_BLOCKS_RUNTIME_ORIGIN__) return null;
   try {
-    return requireExactHttpOrigin(__ASA_BLOCKS_RUNTIME_ORIGIN__);
+    const origin = requireExactHttpOrigin(__ASA_BLOCKS_RUNTIME_ORIGIN__);
+    // A preview must not give Scratch the portal's same-origin privileges.
+    return origin === window.location.origin ? null : origin;
   } catch {
     return null;
   }
