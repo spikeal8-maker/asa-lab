@@ -11,8 +11,8 @@ services:
     user: '101:101'
     read_only: true
     tmpfs:
-      - /var/cache/nginx
-      - /var/run
+      - /var/cache/nginx:uid=101,gid=101,mode=0700,size=64m
+      - /var/run:uid=101,gid=101,mode=0700,size=8m
     ports:
       - '127.0.0.1:${ASA_BLOCKS_PORT:-4613}:8080'
     security_opt:

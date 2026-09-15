@@ -128,3 +128,20 @@ test('root keeps one Scratch command and repository checks still compose governa
     ),
   );
 });
+
+test('non-root Scratch has bounded writable tmpfs in CI and preview', () => {
+  const scratch = YAML.parse(read('compose.blocks-preview.yaml')).services.scratch;
+  assert.equal(scratch.user, '101:101');
+  assert.equal(scratch.read_only, true);
+  assert.deepEqual(scratch.cap_drop, ['ALL']);
+  const start = workflow('scratch-focused').jobs['runtime-image'].steps.find(
+    (step) => step.name === 'Start isolated Scratch host',
+  ).run;
+  for (const entry of [
+    '/var/cache/nginx:uid=101,gid=101,mode=0700,size=64m',
+    '/var/run:uid=101,gid=101,mode=0700,size=8m',
+  ]) {
+    assert.ok(scratch.tmpfs.includes(entry));
+    assert.ok(start.includes(`--tmpfs ${entry}`));
+  }
+});

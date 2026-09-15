@@ -130,7 +130,8 @@ jobs:
         run: >-
           docker run -d --name asa-lab-scratch-editor
           --user 101:101 --read-only
-          --tmpfs /var/cache/nginx --tmpfs /var/run
+          --tmpfs /var/cache/nginx:uid=101,gid=101,mode=0700,size=64m
+          --tmpfs /var/run:uid=101,gid=101,mode=0700,size=8m
           --cap-drop ALL --security-opt no-new-privileges:true
           -p 127.0.0.1:4613:8080 asa-lab-scratch-editor:ci
 
