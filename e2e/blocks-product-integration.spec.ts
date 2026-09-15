@@ -229,8 +229,10 @@ test('native File saves an edited sb3 and restores code and media in a fresh edi
     );
     const program = frame.locator('.blocklyBlockCanvas').first();
     await program.getByText('8', { exact: true }).dblclick();
-    await frame.locator('.blocklyHtmlInput').fill('37');
-    await frame.locator('.blocklyHtmlInput').press('Enter');
+    const numberField = frame.locator('.blocklyHtmlInput:focus');
+    await expect(numberField).toHaveValue('8');
+    await numberField.fill('37');
+    await numberField.press('Enter');
     await expect(program.getByText('37', { exact: true })).toBeVisible();
     phase = 'sprite-library';
     await frame.getByRole('button', { name: 'Choose a Sprite' }).first().click();
