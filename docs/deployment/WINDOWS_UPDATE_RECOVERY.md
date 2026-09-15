@@ -168,7 +168,9 @@ Custom-format dump, успешный `pg_restore --list` и SHA256 подтве�
 
 ```powershell
 $payload = Invoke-RestMethod http://127.0.0.1:4610/api/modules
-$payload.items | Where-Object { $_.key -eq 'blocks' } | Select-Object key, title, availability, creatable, hidden
+$blocks = @($payload.items | Where-Object { $_.moduleKey -eq 'blocks' })
+if ($blocks.Count -ne 1) { throw 'Scratch не найден: проверьте endpoint и форму ответа API.' }
+$blocks | Select-Object moduleKey, displayName, availability, creatable
 ```
 
 Форму ответа сверять с `apps/api/src/modules.controller.ts`; этот пример использует
