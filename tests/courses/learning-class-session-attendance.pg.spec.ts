@@ -1,6 +1,11 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type pg from 'pg';
-import { seedTeacher, testAdminPool, testAppPool, type SeededTeacher } from '../portal/helpers';
+import {
+  seedTeacher,
+  testAdminPool,
+  testAppPool,
+  type SeededTeacher,
+} from '../portal/helpers';
 
 let admin: pg.Pool;
 let app: pg.Pool;
@@ -12,7 +17,13 @@ async function createClass(): Promise<string> {
   const result = await admin.query(
     `INSERT INTO classrooms (tenant_id,school_id,academic_period_id,title,created_by)
      VALUES ($1,$2,$3,$4,$5) RETURNING id`,
-    [owner.tenantId, owner.schoolId, owner.periodId, `A6 session ${++sequence}`, owner.teacherId],
+    [
+      owner.tenantId,
+      owner.schoolId,
+      owner.periodId,
+      `A6 session ${++sequence}`,
+      owner.teacherId,
+    ],
   );
   const classroomId = result.rows[0].id as string;
   await admin.query(
@@ -43,7 +54,10 @@ async function createLearner(classroomId: string, label: string) {
      ) VALUES(gen_random_uuid(),$1,$2,$3,'student_seat',$4,'active')`,
     [owner.tenantId, owner.schoolId, learner.rows[0].id, seat.rows[0].id],
   );
-  return { seatId: seat.rows[0].id as string, learnerId: learner.rows[0].id as string };
+  return {
+    seatId: seat.rows[0].id as string,
+    learnerId: learner.rows[0].id as string,
+  };
 }
 
 beforeAll(async () => {
@@ -113,8 +127,12 @@ describe('LRN-A6-01 class session and attendance foundation', () => {
     });
 
     expect(
-      (await app.query(`SELECT class_session_transition($1,$2,'live') AS code`, [teacherAccount, first.class_session_id]))
-        .rows[0].code,
+      (
+        await app.query(`SELECT class_session_transition($1,$2,'live') AS code`, [
+          teacherAccount,
+          first.class_session_id,
+        ])
+      ).rows[0].code,
     ).toBe('ok');
     expect(
       (
@@ -134,8 +152,12 @@ describe('LRN-A6-01 class session and attendance foundation', () => {
     ).toBe('learner_not_in_class');
 
     expect(
-      (await app.query(`SELECT class_session_transition($1,$2,'completed') AS code`, [teacherAccount, first.class_session_id]))
-        .rows[0].code,
+      (
+        await app.query(`SELECT class_session_transition($1,$2,'completed') AS code`, [
+          teacherAccount,
+          first.class_session_id,
+        ])
+      ).rows[0].code,
     ).toBe('ok');
 
     const history = await app.query(`SELECT * FROM class_sessions_for_teacher($1,$2)`, [
