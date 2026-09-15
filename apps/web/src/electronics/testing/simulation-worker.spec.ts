@@ -1,3 +1,4 @@
+import { analyseElectronicsSnapshot } from '@asa-lab/electronics/engine';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { SchematicDocument } from '../../api';
 import { advanceLiveSimulation, calculateSimulationPreflight } from '../live-simulation';
@@ -111,6 +112,7 @@ describe('ASA Electronics E-OPT-1 Worker boundary', () => {
   afterEach(() => vi.useRealTimers());
 
   it('matches the synchronous preflight result exactly', () => {
+    const stable = analyseElectronicsSnapshot(circuit);
     const expected = calculateSimulationPreflight(circuit, 0);
     const response = evaluateSimulationWorkerRequest(preflightRequest());
 
@@ -119,9 +121,31 @@ describe('ASA Electronics E-OPT-1 Worker boundary', () => {
     expect(response.result).toEqual(expected);
     expect(structuredClone(response.result)).toEqual(expected);
     expect(response.metrics).toMatchObject({
-      solverRevision: ELECTRONICS_SIMULATION_ENGINE_REVISION,
-      simulationInputDigest: expected.simulationInputDigest,
-      topologySignature: expected.topologySignature,
+      solverRevision: stable.solverRevision,
+      simulationInputDigest: stable.simulationInputDigest,
+      topologySignature: stable.topologySignature,
+      status: expected.status,
+    });
+  });
+
+  it('preserves zero-time Arduino continuation state while converging facade identity', () => {
+    const stable = analyseElectronicsSnapshot(arduinoCircuit);
+    const expected = calculateSimulationPreflight(arduinoCircuit, 0);
+    const response = evaluateSimulationWorkerRequest({
+      ...preflightRequest('arduino-preflight'),
+      document: arduinoCircuit,
+    });
+
+    expect(expected.controllerState).toBeDefined();
+    expect(response.ok).toBe(true);
+    if (!response.ok) return;
+    expect(response.result).toEqual(expected);
+    expect(response.result.controllerState).toEqual(expected.controllerState);
+    expect(response.result.transientState).toEqual(expected.transientState);
+    expect(response.metrics).toMatchObject({
+      solverRevision: stable.solverRevision,
+      simulationInputDigest: stable.simulationInputDigest,
+      topologySignature: stable.topologySignature,
       status: expected.status,
     });
   });

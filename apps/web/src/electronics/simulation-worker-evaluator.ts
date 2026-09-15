@@ -1,3 +1,4 @@
+import { analyseElectronicsSnapshot } from '@asa-lab/electronics/engine';
 import { advanceLiveSimulation, calculateSimulationPreflight } from './live-simulation';
 import {
   ELECTRONICS_SIMULATION_ENGINE_REVISION,
@@ -44,6 +45,12 @@ export function evaluateSimulationWorkerRequest(
 
   const startedAt = globalThis.performance.now();
   try {
+    // Production preflight starts at zero. Execute the stable non-temporal facade
+    // there, while preserving the legacy timed result until E-OPT-3 owns clock semantics.
+    const stableSnapshot =
+      request.kind === 'preflight' && request.simulationTimeMs === 0
+        ? analyseElectronicsSnapshot(request.document)
+        : null;
     const result =
       request.kind === 'preflight'
         ? calculateSimulationPreflight(request.document, request.simulationTimeMs)
@@ -61,6 +68,20 @@ export function evaluateSimulationWorkerRequest(
       );
     }
 
+    if (
+      stableSnapshot &&
+      (stableSnapshot.solverRevision !== result.solverRevision ||
+        stableSnapshot.modelSetDigest !== result.modelSetDigest ||
+        stableSnapshot.topologySignature !== result.topologySignature ||
+        stableSnapshot.simulationInputDigest !== result.simulationInputDigest)
+    ) {
+      return failure(
+        request,
+        'internal',
+        'Electronics engine facade diverged from Worker preflight identity.',
+      );
+    }
+
     return {
       protocolVersion: ELECTRONICS_SIMULATION_WORKER_PROTOCOL,
       requestId: request.requestId,
@@ -70,9 +91,10 @@ export function evaluateSimulationWorkerRequest(
       result,
       metrics: {
         computeMs: globalThis.performance.now() - startedAt,
-        solverRevision: result.solverRevision,
-        simulationInputDigest: result.simulationInputDigest,
-        topologySignature: result.topologySignature,
+        solverRevision: stableSnapshot?.solverRevision ?? result.solverRevision,
+        simulationInputDigest:
+          stableSnapshot?.simulationInputDigest ?? result.simulationInputDigest,
+        topologySignature: stableSnapshot?.topologySignature ?? result.topologySignature,
         status: result.status,
       },
     };
