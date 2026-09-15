@@ -1,0 +1,35 @@
+name: Games R1A Verify
+
+on:
+  push:
+    branches:
+      - diag/games-r1a-verify
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Games Core focused tests
+        run: pnpm test:games-core
+      - name: Games Core typecheck
+        run: pnpm typecheck:games-core
+      - name: R1A changed-file hygiene
+        run: pnpm games:hygiene --changed 9f2cb4cf02155e7c37e4e2d87fd82cedd12b2ee3
+      - name: Games full hygiene report
+        continue-on-error: true
+        run: pnpm games:hygiene --full
