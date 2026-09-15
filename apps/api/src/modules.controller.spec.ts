@@ -62,4 +62,21 @@ describe('ModulesController', () => {
       ]),
     );
   });
+
+  it('activates Blocks only for the explicit preview environment', () => {
+    const previous = process.env['ASA_BLOCKS_PREVIEW'];
+    process.env['ASA_BLOCKS_PREVIEW'] = '1';
+    try {
+      const controller = new ModulesController(createApiModuleRegistry());
+      expect(controller.list().items.find((module) => module.moduleKey === 'blocks')).toMatchObject(
+        {
+          availability: 'active',
+          creatable: true,
+        },
+      );
+    } finally {
+      if (previous === undefined) delete process.env['ASA_BLOCKS_PREVIEW'];
+      else process.env['ASA_BLOCKS_PREVIEW'] = previous;
+    }
+  });
 });

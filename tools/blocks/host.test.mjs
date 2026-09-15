@@ -15,7 +15,7 @@ function loadHost(name, globals = {}) {
   return context;
 }
 
-test('storage exposes only bounded fixtures and never reports a durable write', async () => {
+test('storage keeps project fixtures bounded, serves stock library assets locally and never reports a durable write', async () => {
   class Storage {
     AssetType = { Project: { name: 'Project' }, ImageVector: { name: 'ImageVector' } };
     DataFormat = { JSON: 'json', SVG: 'svg' };
@@ -49,7 +49,7 @@ test('storage exposes only bounded fixtures and never reports a durable write', 
   }
   assert.equal(await read('11111111-1111-4111-8111-111111111111'), null);
   assert.equal(storage.getLibraryAssetUrl('bundled', 'svg'), 'data:fixture');
-  assert.throws(() => storage.getLibraryAssetUrl('unknown', 'svg'), /fixture_asset_unavailable/);
+  assert.equal(storage.getLibraryAssetUrl('unknown', 'svg'), '/library-assets/unknown.svg');
   await assert.rejects(storage.saveProject(), /fixture_storage_read_only/);
   assert.equal(storage.cloudVariables, undefined);
   assert.equal(storage.backpackStorage, undefined);
@@ -125,7 +125,7 @@ test('mount omits new project ID, leaves locale to Scratch, applies ASA logo, ig
   const fixture = editorFixture();
   assert.equal('projectId' in fixture.props, false);
   assert.equal(fixture.props.canSave, false);
-  assert.equal(fixture.props.logo, '/asa-lab-mark.svg');
+  assert.equal(fixture.props.logo, '/asa-lab-scratch-wordmark.svg');
   assert.equal(fixture.requestedId, '0');
   assert.equal(fixture.params.isEmbedded, undefined);
   assert.equal(fixture.params.locale, undefined);

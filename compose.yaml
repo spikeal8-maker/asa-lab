@@ -81,6 +81,7 @@ services:
       APP_DATABASE_URL: ${APP_DATABASE_URL:-postgres://asalab_app:asa-local-runtime-change-me@postgres:5432/asalab}
       ASA_SETTINGS_ENCRYPTION_KEY: ${ASA_SETTINGS_ENCRYPTION_KEY:-}
       ASA_TRUSTED_PROXY_CIDRS: ${ASA_TRUSTED_PROXY_CIDRS:-172.16.0.0/12}
+      ASA_BLOCKS_PREVIEW: ${ASA_BLOCKS_PREVIEW:-0}
     expose:
       - '4611'
     tmpfs:
@@ -102,6 +103,8 @@ services:
       target: runtime
       args:
         ASA_BUILD_REVISION: ${ASA_BUILD_REVISION:-unknown}
+        ASA_BLOCKS_PREVIEW: ${ASA_BLOCKS_PREVIEW:-0}
+        ASA_BLOCKS_RUNTIME_ORIGIN: ${ASA_BLOCKS_RUNTIME_ORIGIN:-}
     image: asa-lab-web:${ASA_IMAGE_TAG:-local}
     restart: unless-stopped
     init: true

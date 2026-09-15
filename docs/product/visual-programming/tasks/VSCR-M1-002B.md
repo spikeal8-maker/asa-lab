@@ -207,3 +207,20 @@ no unreviewed upstream patch
 ## Stop
 
 STOP after B evidence and independent review. `VSCR-M1-002E` requires separate selection.
+
+## Owner review correction — 2026-09-15
+
+Owner rejected the inset/portal-wrapped Scratch presentation observed on the temporary acceptance stand. Canonical product behavior is now explicit:
+
+```text
+Scratch project editor uses the full ASA application viewport
+no outer PortalHeader/PortalSidebar around the Scratch editor
+Scratch product bar shows ASA Lab wordmark, not an icon-only mark
+right account control uses the current ASA user's real parent-owned avatar/model
+main contains the integration; acceptance stands must not carry unique product patches
+home/create surfaces know the blocks module, but visibility still follows module availability
+stock sprite/backdrop/costume/sound libraries are served locally at runtime
+no hidden runtime fallback to Scratch Foundation asset CDN for those stock libraries
+```
+
+This correction does not authorize durable save or general product activation. `blocks` remains gated by the canonical milestone state until later persistence/recovery acceptance is complete.

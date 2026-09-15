@@ -1,0 +1,21 @@
+services:
+  scratch:
+    build:
+      context: .
+      dockerfile: infra/scratch-editor/Dockerfile
+      args:
+        ASA_BLOCKS_PARENT_ORIGIN: ${ASA_BLOCKS_PARENT_ORIGIN:-}
+    image: asa-lab-scratch:${ASA_IMAGE_TAG:-local}
+    restart: unless-stopped
+    init: true
+    user: '101:101'
+    read_only: true
+    tmpfs:
+      - /var/cache/nginx
+      - /var/run
+    ports:
+      - '127.0.0.1:${ASA_BLOCKS_PORT:-4621}:8080'
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL

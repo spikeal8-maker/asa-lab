@@ -72,7 +72,7 @@ async function closeFixture(fixture: Awaited<ReturnType<typeof createProtocolFix
 async function assertAsaChrome(page: Page, frame: Frame) {
   const logo = frame.locator('#logo_img');
   await expect(logo).toBeVisible();
-  await expect(logo).toHaveAttribute('src', /asa-lab-mark\.svg$/);
+  await expect(logo).toHaveAttribute('src', /asa-lab-scratch-wordmark\.svg$/);
 
   const header = frame.locator('header[role="banner"]');
   await expect(header).toBeVisible();
@@ -235,6 +235,47 @@ test('ru-RU browser starts in native Russian Scratch and changes language only t
     });
     expect(external.core).toEqual([]);
     expect(external.explicitExtension).toEqual([]);
+    expect(fixture.pageErrors).toEqual([]);
+  } finally {
+    await closeFixture(fixture);
+  }
+});
+
+test('stock sprite and backdrop libraries stay local and selectable', async () => {
+  const { fixture, frame, external } = await openEditor('en-US');
+  const libraryResponses: Array<{ url: string; status: number }> = [];
+  fixture.context.on('response', (response) => {
+    if (response.url().startsWith(`${runtimeUrl}/library-assets/`)) {
+      libraryResponses.push({ url: response.url(), status: response.status() });
+    }
+  });
+
+  try {
+    await frame.getByRole('button', { name: 'Choose a Sprite' }).first().click();
+    await expect(frame.getByText('Abby', { exact: true })).toBeVisible();
+    await frame.getByText('Abby', { exact: true }).click();
+    await expect(frame.getByText('Abby', { exact: true })).toBeVisible();
+    await expect(frame.locator('[data-asa-host-shell]')).not.toHaveAttribute(
+      'data-runtime-state',
+      'fatal',
+    );
+
+    await frame.getByRole('button', { name: 'Choose a Backdrop' }).first().click();
+    await expect(frame.getByText('Blue Sky', { exact: true })).toBeVisible();
+    await frame.getByText('Blue Sky', { exact: true }).click();
+    await expect(frame.locator('[data-asa-host-shell]')).not.toHaveAttribute(
+      'data-runtime-state',
+      'fatal',
+    );
+
+    await expect.poll(() => libraryResponses.length).toBeGreaterThan(0);
+    expect(libraryResponses.every((response) => response.status === 200)).toBe(true);
+    expect(external.core).toEqual([]);
+    expect(
+      libraryResponses.some((response) =>
+        /(?:assets|cdn\.assets)\.scratch\.mit\.edu/.test(response.url),
+      ),
+    ).toBe(false);
     expect(fixture.pageErrors).toEqual([]);
   } finally {
     await closeFixture(fixture);

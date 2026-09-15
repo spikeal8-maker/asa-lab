@@ -14,6 +14,13 @@ function future(manifest: Omit<ModuleManifestV1, 'availability'>): RegisteredMod
   return defineFutureModule({ ...manifest, availability: 'coming_soon' });
 }
 
+function blocksModuleForRuntime(): RegisteredModule {
+  if (process.env['ASA_BLOCKS_PREVIEW'] !== '1') return BLOCKS_MODULE;
+  return {
+    ...BLOCKS_MODULE,
+    manifest: { ...BLOCKS_MODULE.manifest, availability: 'active' },
+  };
+}
 const FUTURE_MODULES: readonly RegisteredModule[] = [
   future({
     moduleKey: 'robotics',
@@ -54,7 +61,7 @@ export function createApiModuleRegistry(): ModuleRegistry {
     CHESS_MODULE,
     CHECKERS_MODULE,
     THREE_D_MODULE,
-    BLOCKS_MODULE,
+    blocksModuleForRuntime(),
     ...FUTURE_MODULES,
   ]);
 }

@@ -45,6 +45,8 @@ const apiPort = resolvePort('ASA_API_PORT', 4611);
 export default defineConfig(({ command }) => {
   const buildRevision = process.env['VITE_ASA_BUILD_REVISION']?.trim() || gitRevision();
   const builtAt = process.env['VITE_ASA_BUILT_AT']?.trim() || new Date().toISOString();
+  const blocksPreview = process.env['VITE_ASA_BLOCKS_PREVIEW'] === '1';
+  const blocksRuntimeOrigin = process.env['VITE_ASA_BLOCKS_RUNTIME_ORIGIN']?.trim() || '';
   const metadata = JSON.stringify({ revision: buildRevision, builtAt });
 
   return {
@@ -99,6 +101,8 @@ export default defineConfig(({ command }) => {
     define: {
       __ASA_BUILD_REVISION__: JSON.stringify(buildRevision),
       __ASA_BUILT_AT__: JSON.stringify(builtAt),
+      __ASA_BLOCKS_PREVIEW__: JSON.stringify(blocksPreview),
+      __ASA_BLOCKS_RUNTIME_ORIGIN__: JSON.stringify(blocksRuntimeOrigin),
     },
     build: {
       manifest: true,

@@ -1,6 +1,5 @@
 (() => {
   const EXISTING_FIXTURE_ID = 'asa-controlled-fixture';
-  const unavailable = () => new Error('fixture_asset_unavailable');
 
   // Only the stock bytes embedded in the pinned standalone bundle are reused.
   // No upstream web stores, ASA project IDs, tokens or runtime endpoints enter here.
@@ -81,7 +80,20 @@
     }
     scratchStorage.addHelper(
       {
-        load: (type, id, format) => Promise.resolve(assets.get(key(type, id, format)) ?? null),
+        load: async (type, id, format) => {
+          const cached = assets.get(key(type, id, format));
+          if (cached) return cached;
+          try {
+            const response = await fetch(`/library-assets/${id}.${format}`, {
+              credentials: 'omit',
+            });
+            if (!response.ok) return null;
+            const bytes = new Uint8Array(await response.arrayBuffer());
+            return cache(type, format, bytes, id);
+          } catch {
+            return null;
+          }
+        },
       },
       200,
     );
@@ -97,8 +109,7 @@
             item.assetId === id &&
             item.dataFormat === format,
         );
-        if (!asset) throw unavailable();
-        return asset.encodeDataURI();
+        return asset ? asset.encodeDataURI() : `/library-assets/${id}.${format}`;
       },
     };
   }

@@ -17,7 +17,7 @@ import { ModuleGlyph } from '../modules/ModuleGlyph';
 import { ProjectCard } from '../modules/ProjectCard';
 
 const PROJECTS_PER_MODULE = 10;
-const ORDER: readonly HomeModule[] = ['three-d', 'electronics'];
+const ORDER: readonly HomeModule[] = ['three-d', 'electronics', 'blocks'];
 
 export function CreatorHomePage({
   session,
@@ -127,7 +127,13 @@ export function CreatorHomePage({
                     <button
                       type="button"
                       className="home-module-all"
-                      aria-label={key === 'three-d' ? 'Все модели' : 'Все схемы'}
+                      aria-label={
+                        key === 'three-d'
+                          ? 'Все модели'
+                          : key === 'electronics'
+                            ? 'Все схемы'
+                            : 'Все программы'
+                      }
                       onClick={() => {
                         rememberScroll();
                         onAllProjects(key);
@@ -146,7 +152,13 @@ export function CreatorHomePage({
                     onClick={() => create(key)}
                   >
                     <span aria-hidden="true">＋</span>
-                    <span>{key === 'three-d' ? 'Создать модель' : 'Создать цепь'}</span>
+                    <span>
+                      {key === 'three-d'
+                        ? 'Создать модель'
+                        : key === 'electronics'
+                          ? 'Создать цепь'
+                          : 'Создать программу'}
+                    </span>
                   </button>
                 </div>
                 {items.length ? (
@@ -187,7 +199,9 @@ export function CreatorHomePage({
                     <span>
                       {key === 'three-d'
                         ? 'Ваша первая 3D модель'
-                        : 'Ваша первая электрическая цепь'}
+                        : key === 'electronics'
+                          ? 'Ваша первая электрическая цепь'
+                          : 'Ваша первая программа'}
                     </span>
                   </button>
                 )}

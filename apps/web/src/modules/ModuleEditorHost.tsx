@@ -11,6 +11,7 @@ import { ProjectSaveEvidence } from './project-save-evidence';
 import { AppBootShell } from '../components/AppBootShell';
 import { newClientId } from '../client-id';
 import { isGameModule } from '../games/game-catalog';
+import { BlocksEditor } from '../blocks/BlocksEditor';
 
 interface ModuleEditorProps {
   projectId: string;
@@ -30,6 +31,7 @@ interface ModuleEditorHostProps extends ModuleEditorProps {
 }
 
 const EDITORS: Readonly<Record<string, ComponentType<ModuleEditorProps>>> = {
+  blocks: BlocksEditor,
   electronics: lazy(loadSchematicEditor),
   chess: lazy(loadChessEditor),
   checkers: lazy(loadCheckersEditor),
@@ -113,7 +115,12 @@ export function ModuleEditorHost(props: ModuleEditorHostProps): JSX.Element {
   }, [state]);
 
   useEffect(() => {
-    if (state.kind !== 'ready' || !Object.hasOwn(EDITORS, state.moduleKey)) return;
+    if (
+      state.kind !== 'ready' ||
+      state.moduleKey === 'blocks' ||
+      !Object.hasOwn(EDITORS, state.moduleKey)
+    )
+      return;
     const key = `${props.projectId}:${state.moduleKey}`;
     if (recordedOpen.current === key) return;
     recordedOpen.current = key;
