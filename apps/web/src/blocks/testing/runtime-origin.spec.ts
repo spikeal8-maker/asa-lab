@@ -43,7 +43,7 @@ describe('BlocksEditor runtime origin isolation', () => {
     ['https://portal.example.test', 'https://scratch.example.test'],
   ])('preserves the separate-origin preview from %s to %s', (parent, runtime) => {
     const html = renderPreview(runtime, parent);
-    expect(html).toContain(`<iframe title="Scratch runtime" src="${runtime}/"`);
+    expect(html).toContain(`<iframe title="Scratch runtime" src="${runtime}/?asaStatus=parent"`);
     expect(html).toContain('изменения пока не сохраняются');
     expect(html).not.toContain('role="alert"');
   });

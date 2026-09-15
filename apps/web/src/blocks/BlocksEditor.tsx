@@ -109,7 +109,11 @@ export function BlocksEditor({
         avatarUrl={avatarUrl}
         onAccountClick={onAccountClick}
       >
-        <iframe ref={iframeRef} title="Scratch runtime" src={`${runtimeOrigin}/`} />
+        <iframe
+          ref={iframeRef}
+          title="Scratch runtime"
+          src={`${runtimeOrigin}/?asaStatus=parent`}
+        />
       </BlocksEditorShell>
       <div className="blocks-editor-preview-status" role="status">
         TEST · {status} · изменения пока не сохраняются

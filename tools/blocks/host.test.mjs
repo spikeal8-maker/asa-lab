@@ -192,3 +192,64 @@ test('accepted bridge passes only a boolean fixture selector after trust checks,
   protocol.dispose();
   assert.equal(protocol.getRuntimeToken(), null);
 });
+
+for (const [query, mode, delegated] of [
+  ['?asaStatus=parent', 'editor', true],
+  ['', 'editor', false],
+  ['?asaStatus=unknown', 'editor', false],
+  ['?asaStatus=parent', 'player', false],
+]) {
+  test(`status delegation is opt-in after trusted INIT: ${query} / ${mode}`, () => {
+    const shell = { dataset: {} };
+    const status = { hidden: false, textContent: '' };
+    let handlers;
+    const root = {};
+    loadHost('main', {
+      URL,
+      window: {
+        parent: {},
+        location: { href: `https://scratch.example/${query}` },
+        addEventListener() {},
+      },
+      document: {
+        querySelector: (selector) =>
+          selector === '[data-asa-host-shell]'
+            ? shell
+            : { getAttribute: () => 'https://asa.example' },
+        getElementById: (id) => (id === 'runtime-status' ? status : root),
+      },
+      GUI: Object.fromEntries(
+        [
+          'EditorState',
+          'createStandaloneRoot',
+          'setAppElement',
+          'ScratchStorage',
+          'buildDefaultProject',
+          'setProjectId',
+        ].map((name) => [name, () => {}]),
+      ),
+      AsaBlocksProtocol: {
+        createChildProtocol: (options) => {
+          handlers = options;
+          return {
+            start() {},
+            getBinding() {
+              return {};
+            },
+          };
+        },
+      },
+      AsaBlocksStatus: { createStatusReporter: () => ({ status() {} }) },
+      AsaBlocksEditor: {
+        mountEditor: ({ onReady }) => {
+          onReady();
+          return { dispose() {} };
+        },
+      },
+    });
+    assert.equal(status.hidden, false, 'URL alone must not hide setup/error messages');
+    handlers.onInit({ mode }, { hasProjectJson: false });
+    assert.equal(status.hidden, delegated);
+    assert.match(status.textContent, /Изменения не сохраняются/);
+  });
+}

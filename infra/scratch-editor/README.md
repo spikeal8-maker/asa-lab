@@ -115,3 +115,16 @@ Preview Web/API must use this same revision and the explicit preview flag. The
 portal header shows TEST only in the configured Blocks preview, while the editor
 continues to show the existing no-save preview warning. Keep the normal installation
 and its data separate; changing a test address is configuration, not a product fork.
+
+## Embedded preview status ownership
+
+The shipping `BlocksEditor` reserves a normal-flow footer below its iframe for one
+parent-owned status and the persistent no-save warning. It does not cover the
+Scratch workspace or controls. The iframe uses `?asaStatus=parent`, a presentation
+opt-in only: it carries no token, permission or project authority. The child hides
+its redundant local live region only after an accepted editor INIT; before INIT,
+in player mode, and for parents without the opt-in, local host messages remain.
+Parent runtime-failure reporting is unchanged. No upstream UI or protocol payload
+is modified. `e2e/blocks-product-integration.spec.ts` checks a non-overlapping,
+unclipped footer and the retained warning in ready/error states at
+1440/1024/390/320; these checks do not certify all upstream mobile editor controls.
