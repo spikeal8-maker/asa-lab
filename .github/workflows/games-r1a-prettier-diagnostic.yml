@@ -6,7 +6,7 @@ on:
       - diag/games-r1a-prettier
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   format:
@@ -34,3 +34,14 @@ jobs:
           contexts/games/application/command.ts
           contexts/games/domain/model.ts
           tools/games-hygiene.mjs
+      - name: Commit exact formatter output on diagnostic branch
+        shell: bash
+        run: |
+          if git diff --quiet -- contexts/games/application/command.ts contexts/games/domain/model.ts tools/games-hygiene.mjs; then
+            exit 0
+          fi
+          git config user.name "games-r1a-diagnostic"
+          git config user.email "games-r1a-diagnostic@users.noreply.github.com"
+          git add contexts/games/application/command.ts contexts/games/domain/model.ts tools/games-hygiene.mjs
+          git commit -m "chore(diag): capture Games R1A prettier output"
+          git push
