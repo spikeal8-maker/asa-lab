@@ -12,7 +12,7 @@ export function productBundle() {
     logLevel: 'error',
     esbuild: { jsx: 'automatic' },
     define: {
-      __ASA_BLOCKS_PREVIEW__: 'true',
+      __ASA_BLOCKS_PREVIEW__: 'false',
       __ASA_BLOCKS_RUNTIME_ORIGIN__: JSON.stringify(runtimeUrl),
       'process.env.NODE_ENV': JSON.stringify('production'),
     },

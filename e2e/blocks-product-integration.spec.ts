@@ -58,6 +58,8 @@ test('shipping fullscreen host loads the account avatar in ASA only and survives
         .toEqual({ x: 0, y: 0, width: size.width, height: size.height - footer!.height });
     }
     await expect(page.getByRole('status')).toContainText('изменения пока не сохраняются');
+    await expect(page.getByRole('status')).not.toContainText('TEST ·');
+    await expect(page.getByRole('status')).toContainText('(.sb3)');
     await page.screenshot({ path: `${evidenceDir}/01-shipping-host-account.png` });
     await account.click();
     await expect(page).toHaveURL(`${parentOrigin}/product#/account`);
@@ -449,5 +451,32 @@ test('native File saves an edited sb3 and restores code and media in a fresh edi
     } finally {
       await fixture?.close();
     }
+  }
+});
+
+// A missing runtime must leave an actionable portal-owned state, not an endless spinner.
+test('unreachable Scratch times out and can reconnect without hiding the editor', async () => {
+  test.setTimeout(100000);
+  const fixture = await createProtocolFixture({ product: true, locale: 'ru-RU' });
+  const page = await fixture.context.newPage();
+  const blockRuntime = (route: import('@playwright/test').Route) => route.abort();
+  try {
+    await page.route(`${runtimeUrl}/**`, blockRuntime);
+    await page.goto(`${parentOrigin}/product`, { waitUntil: 'domcontentloaded' });
+    await expect(page.getByRole('status')).toContainText('Ошибка Scratch runtime', {
+      timeout: 55000,
+    });
+    await expect(page.getByRole('status')).toContainText('не сохраняются в аккаунте');
+    await expect(page.locator('[data-asa-blocks-account-overlay]')).toBeVisible();
+    await page.unroute(`${runtimeUrl}/**`, blockRuntime);
+    await page.getByRole('button', { name: 'Повторить подключение' }).click();
+    await expect(
+      page.frameLocator('iframe[title="Scratch runtime"]').locator('[data-asa-host-shell]'),
+    ).toHaveAttribute('data-editor-state', 'ready', { timeout: 45000 });
+    await expect(page.getByRole('button', { name: 'Повторить подключение' })).toHaveCount(0);
+    await expect(page.getByRole('status')).not.toContainText('TEST ·');
+    expect(fixture.pageErrors).toEqual([]);
+  } finally {
+    await fixture.close();
   }
 });

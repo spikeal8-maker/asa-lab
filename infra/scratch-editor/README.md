@@ -48,7 +48,19 @@ that is not a hidden dependency of core project/media loading.
 
 ## Preview configuration
 
-Blocks remains milestone-gated by default. An explicitly configured preview uses
+Owner change 2026-09-16: Scratch is now an active, local-file editor for all
+users. `ASA_BLOCKS_PREVIEW` no longer controls module visibility, creation or
+editor mounting. A valid isolated `ASA_BLOCKS_RUNTIME_ORIGIN` and a reachable
+runtime are still required. The legacy preview flag is only a TEST presentation
+setting; never use it as an access-control switch. School/class controls are deferred.
+Missing configuration or a runtime timeout does not hide the module. Keep the
+no-account-save warning and native `.sb3` instructions. A timed-out or failed
+runtime can be reconnected from the parent-owned status row.
+
+The historical preview recipe below describes the existing packaging mechanism,
+not a requirement to hide ordinary user access.
+
+A legacy explicitly configured TEST stand uses
 `ASA_BLOCKS_PREVIEW=1`, `ASA_BLOCKS_RUNTIME_ORIGIN` for the browser-visible exact
 Scratch origin and `ASA_BLOCKS_PARENT_ORIGIN` for the exact ASA parent origin.
 Web/API must agree on the preview flag. `compose.blocks-preview.yaml` supplies the

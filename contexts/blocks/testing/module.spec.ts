@@ -37,7 +37,7 @@ function expectAssetDiagnostic(document: unknown, code: string) {
 }
 
 describe('BLOCKS_MODULE', () => {
-  it('keeps the Scratch-backed environment gated with the corrected pre-release provider version', () => {
+  it('makes the Scratch local-file editor available by default without claiming server persistence', () => {
     expect(BLOCKS_MODULE.manifest).toMatchObject({
       moduleKey: 'blocks',
       moduleVersion: '0.1.1',
@@ -45,7 +45,7 @@ describe('BLOCKS_MODULE', () => {
       schemaVersion: 1,
       editorRoute: '/projects/:projectId/blocks',
       viewerRoute: '/view/projects/:versionId/blocks',
-      availability: 'coming_soon',
+      availability: 'active',
       previewKind: 'stage',
     });
   });

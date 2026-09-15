@@ -6,7 +6,7 @@ import { BlocksEditor } from '../BlocksEditor';
 const PARENT_ORIGIN = 'http://127.0.0.1:4612';
 const RUNTIME_ORIGIN = 'http://127.0.0.1:4613';
 
-function renderPreview(runtimeOrigin: string, parentOrigin = PARENT_ORIGIN, enabled = true) {
+function renderEditor(runtimeOrigin: string, parentOrigin = PARENT_ORIGIN, enabled = true) {
   vi.stubGlobal('__ASA_BLOCKS_PREVIEW__', enabled);
   vi.stubGlobal('__ASA_BLOCKS_RUNTIME_ORIGIN__', runtimeOrigin);
   vi.stubGlobal('window', { location: { origin: parentOrigin } });
@@ -34,7 +34,7 @@ describe('BlocksEditor runtime origin isolation', () => {
   it.each([PARENT_ORIGIN, 'https://portal.example.test'])(
     'rejects the portal origin %s before creating an iframe',
     (origin) => {
-      expectBlocked(renderPreview(origin, origin));
+      expectBlocked(renderEditor(origin, origin));
     },
   );
 
@@ -42,7 +42,7 @@ describe('BlocksEditor runtime origin isolation', () => {
     [PARENT_ORIGIN, RUNTIME_ORIGIN],
     ['https://portal.example.test', 'https://scratch.example.test'],
   ])('preserves the separate-origin preview from %s to %s', (parent, runtime) => {
-    const html = renderPreview(runtime, parent);
+    const html = renderEditor(runtime, parent);
     expect(html).toContain(`<iframe title="Scratch runtime" src="${runtime}/?asaStatus=parent"`);
     expect(html).toContain('изменения пока не сохраняются');
     expect(html).not.toContain('role="alert"');
@@ -60,11 +60,19 @@ describe('BlocksEditor runtime origin isolation', () => {
     'http://127.0.0.1:4613#fragment',
     'https://portal.example.test:443',
   ])('continues to reject non-canonical runtime configuration %s', (runtime) => {
-    expectBlocked(renderPreview(runtime, 'https://portal.example.test'));
+    expectBlocked(renderEditor(runtime, 'https://portal.example.test'));
   });
 
-  it('keeps preview disabled when the feature flag is off', () => {
-    expectBlocked(renderPreview(RUNTIME_ORIGIN, PARENT_ORIGIN, false));
+  it('opens the editor even when the legacy preview flag is off', () => {
+    const html = renderEditor(RUNTIME_ORIGIN, PARENT_ORIGIN, false);
+    expect(html).toContain('<iframe');
+    expect(html).not.toContain('TEST ·');
+    expect(html).toContain('не сохраняются в аккаунте');
+    expect(html).toContain('(.sb3)');
+  });
+
+  it('rejects an HTTP runtime inside an HTTPS portal', () => {
+    expectBlocked(renderEditor(RUNTIME_ORIGIN, 'https://portal.example.test'));
   });
 
   it('fails closed outside the browser without preview globals', () => {

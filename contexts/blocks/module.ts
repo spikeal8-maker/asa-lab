@@ -28,7 +28,7 @@ export const BLOCKS_MODULE = defineModule<BlocksProjectDocumentV1>(
   {
     moduleKey: 'blocks',
     moduleVersion: '0.1.1',
-    displayName: 'Визуальное программирование',
+    displayName: 'Scratch',
     shortDescription: 'Блочное программирование, совместимое с проектами Scratch 3.',
     defaultProjectTitlePrefix: 'Визуальный проект',
     projectType: 'scratch-3',
@@ -36,8 +36,8 @@ export const BLOCKS_MODULE = defineModule<BlocksProjectDocumentV1>(
     editorRoute: '/projects/:projectId/blocks',
     viewerRoute: '/view/projects/:versionId/blocks',
     safeModeSupported: true,
-    // M1-001 is structural only. Durable save/load arrives in later M1 slices.
-    availability: 'coming_soon',
+    // Owner-selected local-file access. ASA durable persistence remains separate.
+    availability: 'active',
     previewKind: 'stage',
     iconKey: 'blocks',
     categories: ['coding', 'creative'],

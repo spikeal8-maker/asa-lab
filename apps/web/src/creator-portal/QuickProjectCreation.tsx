@@ -10,7 +10,7 @@ export const homeModuleTitle = (key: string): string =>
     : key === 'electronics'
       ? 'Электроника'
       : key === 'blocks'
-        ? 'Программирование'
+        ? 'Программирование · Scratch'
         : 'Проект';
 
 type Intent = { module: HomeModule; key: string };

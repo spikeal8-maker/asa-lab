@@ -46,7 +46,7 @@ describe('ModulesController', () => {
   it('keeps unimplemented environments visible but not creatable', () => {
     const controller = new ModulesController(createApiModuleRegistry());
     const modules = controller.list().items;
-    expect(modules.find((module) => module.moduleKey === 'blocks')).toMatchObject({
+    expect(modules.find((module) => module.moduleKey === 'drawing')).toMatchObject({
       availability: 'coming_soon',
       creatable: false,
     });
@@ -63,13 +63,15 @@ describe('ModulesController', () => {
     );
   });
 
-  it('activates Blocks only for the explicit preview environment', () => {
+  it.each([undefined, '0', '1'])('keeps Scratch creatable with legacy preview flag %s', (flag) => {
     const previous = process.env['ASA_BLOCKS_PREVIEW'];
-    process.env['ASA_BLOCKS_PREVIEW'] = '1';
+    if (flag === undefined) delete process.env['ASA_BLOCKS_PREVIEW'];
+    else process.env['ASA_BLOCKS_PREVIEW'] = flag;
     try {
       const controller = new ModulesController(createApiModuleRegistry());
       expect(controller.list().items.find((module) => module.moduleKey === 'blocks')).toMatchObject(
         {
+          displayName: 'Scratch',
           availability: 'active',
           creatable: true,
         },
