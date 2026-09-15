@@ -1,11 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type pg from 'pg';
-import {
-  seedTeacher,
-  testAdminPool,
-  testAppPool,
-  type SeededTeacher,
-} from '../portal/helpers';
+import { seedTeacher, testAdminPool, testAppPool, type SeededTeacher } from '../portal/helpers';
 
 type SessionRow = {
   result_code: string;
@@ -23,13 +18,7 @@ async function createClass(): Promise<string> {
   const result = await admin.query(
     `INSERT INTO classrooms (tenant_id,school_id,academic_period_id,title,created_by)
      VALUES ($1,$2,$3,$4,$5) RETURNING id`,
-    [
-      owner.tenantId,
-      owner.schoolId,
-      owner.periodId,
-      `A6 session ${++sequence}`,
-      owner.teacherId,
-    ],
+    [owner.tenantId, owner.schoolId, owner.periodId, `A6 session ${++sequence}`, owner.teacherId],
   );
   const classroomId = result.rows[0].id as string;
   await admin.query(
