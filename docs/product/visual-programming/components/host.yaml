@@ -5,13 +5,15 @@ components:
     state: implemented
     risk: medium
     ownership: infrastructure
-    purpose: 'Build pinned standalone Scratch and ASA host shell.'
+    purpose: 'Build pinned Scratch and ASA host.'
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-001-SCRATCH-HOST-CONTRACT.md
         section: 'Host layout'
     sources:
       - infra/scratch-editor/Dockerfile
       - infra/scratch-editor/nginx.conf.template
+      - infra/scratch-editor/Dockerfile.artifact
+      - infra/scratch-editor/configure-artifact.mjs
       - infra/scratch-editor/README.md
       - infra/scratch-editor/host/index.html
       - path: infra/scratch-editor/host/main.js
@@ -27,7 +29,7 @@ components:
     state: implemented
     risk: medium
     ownership: upstream_patch
-    purpose: 'Replace Scratch product logo with canonical ASA mark; keep Scratch UI.'
+    purpose: 'ASA mark; retain native Scratch UI.'
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-001-SCRATCH-HOST-CONTRACT.md
         section: 'Branding'
@@ -46,7 +48,7 @@ components:
     state: implemented
     risk: low
     ownership: upstream_config
-    purpose: 'Remove forced English; preserve native Scratch Settings/browser locale.'
+    purpose: 'Native Settings and browser locale.'
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-001-SCRATCH-HOST-CONTRACT.md
         section: 'Localization'

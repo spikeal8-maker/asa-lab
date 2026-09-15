@@ -312,6 +312,9 @@ export function PortalHeader({
           onClick={() => onNavigate('home')}
         >
           <AsaLabWordmark />
+          {typeof __ASA_BLOCKS_PREVIEW__ !== 'undefined' && __ASA_BLOCKS_PREVIEW__ ? (
+            <span className="portal-test-mark">TEST</span>
+          ) : null}
         </button>
         <nav className="portal-global-nav" aria-label="Разделы ASA Lab">
           <PortalLink href={sectionHref('gallery')} onNavigate={() => onNavigate('gallery')}>

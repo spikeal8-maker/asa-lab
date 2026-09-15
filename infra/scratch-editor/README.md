@@ -93,3 +93,25 @@ activation. Those require their separately selected canonical milestones.
 The image preserves the upstream AGPL license, Scratch GUI trademark notice and
 exact lock under `/licenses/`. Pin changes require reviewed compatibility,
 dependency/security/license and reproducible build/browser evidence.
+
+## Exact-SHA artifact packaging for a manual TEST stand
+
+A small packaging recipe, `Dockerfile.artifact`, reuses the completed GitHub Actions
+standalone artifact without rerunning the heavy upstream compiler on Docker Desktop.
+Use only an artifact from a successful exact-SHA Scratch workflow; verify the archive
+SHA-256 against the Actions artifact digest before extracting it. Do not edit product files.
+Prepare a dedicated build context containing the artifact's `standalone/` directory,
+`configure-artifact.mjs`, and `nginx.conf.template` copied as `nginx.conf` from the same
+repository SHA. Build with `Dockerfile.artifact`, `ASA_BUILD_REVISION` set to that full
+SHA, and `ASA_BLOCKS_PARENT_ORIGIN` set to the exact TEST Web origin.
+
+The recipe rejects a mismatched `asa-commit.txt`, incomplete payload and non-origin
+URLs. It configures only the deployment parent origin, just like the normal source
+Dockerfile. Run it with the same non-root/read-only/bounded tmpfs restrictions as
+`compose.blocks-preview.yaml`. Source compilation in CI remains the authoritative
+reproducible build; artifact packaging does not replace or weaken that gate.
+
+Preview Web/API must use this same revision and the explicit preview flag. The
+portal header shows TEST only in the configured Blocks preview, while the editor
+continues to show the existing no-save preview warning. Keep the normal installation
+and its data separate; changing a test address is configuration, not a product fork.

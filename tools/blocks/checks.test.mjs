@@ -145,3 +145,18 @@ test('non-root Scratch has bounded writable tmpfs in CI and preview', () => {
     assert.ok(start.includes(`--tmpfs ${entry}`));
   }
 });
+
+test('prebuilt delivery rejects another SHA and unsafe parent origins', async () => {
+  const { configureArtifact } = await import('../../infra/scratch-editor/configure-artifact.mjs');
+  assert.throws(() => configureArtifact('.', 'main', 'http://127.0.0.1:4628'), /Exact Git SHA/);
+  for (const origin of [
+    'javascript:alert(1)',
+    'https://example.test/path',
+    'https://x.test/?x="',
+  ]) {
+    assert.throws(() => configureArtifact('.', 'a'.repeat(40), origin), /exact HTTP/);
+  }
+  const recipe = read('infra/scratch-editor/Dockerfile.artifact');
+  assert.ok(recipe.includes('node configure-artifact.mjs'));
+  assert.ok(recipe.includes('USER 101:101'));
+});
