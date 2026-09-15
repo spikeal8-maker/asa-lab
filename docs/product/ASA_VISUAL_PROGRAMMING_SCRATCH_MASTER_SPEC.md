@@ -238,7 +238,7 @@ M1-008    full M1 durability/security acceptance
 
 M2        product UI + Gallery/player/remix + Learning
 M3        deployment/backup/restore + local/offline alternatives where needed
-M4-001    explicit coming_soon → active
+M4-001    managed-persistence production acceptance (local-file access is separate)
 ```
 
 M3 **не означает blanket network deny для штатных Scratch extensions**. M3 доказывает, что core ASA/Scratch работает без скрытой зависимости от Scratch project/asset services, а внешние extensions имеют явно описанное available/degraded поведение.
@@ -275,7 +275,10 @@ E verifies D+B+C together and does not invent new architecture.
 
 ## 12. Activation gate
 
-`blocks` remains `coming_soon` until explicit M4-001.
+Owner correction 2026-09-16: `blocks` is accessible by default in local-file mode.
+`VSCR-M4-002` removes preview/coming_soon hiding; M4-001 still requires the
+managed persistence/security/operational evidence, not a second visibility switch.
+This does not mark B/E or M1/M2/M3 accepted. School/class controls are deferred.
 
 Before activation prove at least:
 

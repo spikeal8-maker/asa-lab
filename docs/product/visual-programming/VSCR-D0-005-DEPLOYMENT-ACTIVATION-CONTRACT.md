@@ -95,11 +95,14 @@ API — единственный компонент с long-lived object-store c
 ## Availability lifecycle
 
 ```text
-M0/M0.1/M1/M2/M3: coming_soon
-M4-001 only:         active
+Owner-selected VSCR-M4-002: active local-file editor for all users
+M1/M2/M3: managed persistence/security/product work continues separately
+M4-001: managed-persistence production acceptance, not basic visibility
 ```
 
-Не активировать после одного только save/load.
+Решение владельца 16.09.2026 заменяет запрет ранней видимости: локальный редактор
+доступен без preview-флага. Готовность server save/restore и полной эксплуатации
+по-прежнему нельзя заявлять по одному save/load или изменению availability.
 
 ## Backup consistency invariant
 
@@ -209,7 +212,7 @@ Activation is a separate narrow change:
 
 ```text
 BLOCKS_MODULE.manifest.availability
-coming_soon → active
+local-file editor → verified managed-persistence rollout
 ```
 
 Activation must not simultaneously invent storage, auth, library replacement, backup tooling or upstream update.
@@ -278,7 +281,7 @@ isolated restore opens historical work
 core independence passes without Scratch project/asset backend
 optional external extension failure is isolated; explicit extension traffic is allowed
 30-session LAN/NAT workload passes
-module remains coming_soon until all gates accepted
+module remains visible; managed persistence claims require their accepted gates
 activation diff is narrow
 rollback preserves data
 ```

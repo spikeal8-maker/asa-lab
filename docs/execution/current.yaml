@@ -9,19 +9,19 @@ development_policy:
   lane_path_ownership: advisory
 
 task:
-  id: VSCR-M1-002B
-  issue: 183
+  id: VSCR-M4-002
+  issue: 260
   branch: main
   base_branch: main
   pr: null
   pr_draft: false
   status: in_progress
-  checkpoint: m1_002b_asa_product_chrome_selected
+  checkpoint: owner_selected_default_access_local_file_mode
   owner_acceptance: pending
 
 revisions:
   convergence_baseline_sha: 1d101b699b7db34efa838a143a93f9b19940e5c9
-  head_sha: 1d101b699b7db34efa838a143a93f9b19940e5c9
+  head_sha: 829ceb5748d2e5e557f5d45a778ed9017cc00ea2
 
 execution_lease:
   executor_id: codex-vscr-m1-002b

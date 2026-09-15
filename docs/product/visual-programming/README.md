@@ -3,6 +3,13 @@
 Execution state: `pnpm agent:context --scope visual-programming` reads `docs/execution/current.yaml`.
 Product work starts only after the owner selects it. Stop when the selected bounded request is complete.
 
+## Owner change: default access, 2026-09-16
+
+Владелец выбрал [VSCR-M4-002](tasks/VSCR-M4-002.md): настоящий Scratch
+доступен всем в режиме локальных файлов, без preview-скрытия. Порядок разработки
+серверного хранения и проверки B/E не отменён и не объявлен завершённым.
+Старые требования скрывать весь редактор до M4-001 заменены этим решением.
+
 ## Canonical precedence — защита от старого ТЗ
 
 Если старый issue, ветка, комментарий, архивный отчёт или task snapshot противоречит актуальному `main`, бот **не имеет права** брать старое требование как product truth.
