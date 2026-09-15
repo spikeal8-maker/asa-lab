@@ -320,26 +320,27 @@ parallel_lanes:
       - apps/web/src/pages/MyProjectsPage.tsx
       - apps/web/src/pages/ProjectsPage.tsx
       - apps/web/src/styles.css
-      - migrations/0139_project_publication_revisions.sql
+      - migrations/0140_project_publish_exact_version.sql
       - tests/portal/**
       - e2e/project-hub.spec.ts
       - e2e/artifacts/project-hub/**
       - docs/product/projects/**
       - docs/review/PROJ_R7_01/**
     task:
-      id: TASK-PROJ-R7-01A-001
+      id: TASK-PROJ-R7-01B-001
       issue: 211
-      branch: codex/projects-r7-01a-publication-revision-schema
+      branch: codex/projects-r7-01b-publish-exact-version
       base_branch: main
       pr: null
       pr_draft: true
       status: in_progress
-      checkpoint: r7_01a_publication_revision_schema_selected
+      checkpoint: r7_01b_publish_exact_project_version_selected
       owner_acceptance: pending
     revisions:
-      convergence_baseline_sha: ff38013987cb34848fccc8f8976feba91219a142
-      head_sha: ff38013987cb34848fccc8f8976feba91219a142
+      convergence_baseline_sha: f40c0289c3c4e4ec1d960baddd2428c82d92c1cc
+      head_sha: f40c0289c3c4e4ec1d960baddd2428c82d92c1cc
       accepted_r3_merge_sha: 5fa616045b16d2720418eb7945f7bef968dd9389
+      accepted_r7_01a_merge_sha: 92e7926fb4cf51b8fcb5d57741e01c812a26f2dc
     execution_lease:
       executor_id: codex-projects-r7-01
       holder: unassigned
