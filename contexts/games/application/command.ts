@@ -42,7 +42,9 @@ function normalize(value: unknown): unknown {
   return value;
 }
 
-export function createGamesCommandFingerprint<TPayload>(command: Omit<GamesCommandEnvelope<TPayload>, 'commandId'>): string {
+export function createGamesCommandFingerprint<TPayload>(
+  command: Omit<GamesCommandEnvelope<TPayload>, 'commandId'>,
+): string {
   const canonical = JSON.stringify(
     normalize({
       commandKind: command.commandKind,
@@ -54,7 +56,9 @@ export function createGamesCommandFingerprint<TPayload>(command: Omit<GamesComma
   return createHash('sha256').update(canonical, 'utf8').digest('hex');
 }
 
-export function validateGamesCommandEnvelope<TPayload>(command: GamesCommandEnvelope<TPayload>): readonly string[] {
+export function validateGamesCommandEnvelope<TPayload>(
+  command: GamesCommandEnvelope<TPayload>,
+): readonly string[] {
   const issues: string[] = [];
   if (!isValidGamesCommandId(command.commandId)) issues.push('INVALID_COMMAND_ID');
   if (!command.commandKind.trim()) issues.push('INVALID_COMMAND_KIND');
