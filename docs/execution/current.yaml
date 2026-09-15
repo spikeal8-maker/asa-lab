@@ -228,24 +228,28 @@ parallel_lanes:
           - pnpm gate:repository
 
   - id: games
-    worktree_id: games-r0
+    worktree_id: games-r1
     owned_paths:
       - docs/product/games-platform/**
+      - docs/product/ASA_CHECKERS_ONLINE_PLAY.md
     task:
-      id: TASK-GAMES-R0-004
-      issue: 230
+      id: TASK-GAMES-R1-BRIEF-001
+      issue: 250
       branch: main
       base_branch: main
       pr: null
       pr_draft: false
       status: in_review
-      checkpoint: r0_004_match_state_machine_review_ready
+      checkpoint: r1_delivery_brief_review_ready
       owner_acceptance: pending
+      normative_refs:
+        - document: GAMES-R1-DELIVERY-BRIEF
+          revision: '1.0'
     revisions:
-      convergence_baseline_sha: 9ff66b6efcf765c021fb3c74fddf91585f856713
-      head_sha: 43ca27335c08090f9de6e61762317a848296895a
+      convergence_baseline_sha: 47c3fcaa180a673fb938f0509da25ff0f090eadf
+      head_sha: f1a6276a9dd29fc25073209247dc87d9ace0f466
     execution_lease:
-      executor_id: codex-games-r0
+      executor_id: codex-games-r1
       holder: unassigned
       acquired_at: null
       expires_at: null
