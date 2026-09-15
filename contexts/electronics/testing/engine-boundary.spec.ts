@@ -125,11 +125,15 @@ function collectEngineDependencyClosure(): {
 describe('Electronics engine dependency boundary', () => {
   it('keeps the package engine export explicit', () => {
     const manifest = JSON.parse(readFileSync(PACKAGE_JSON, 'utf8')) as {
-      exports?: Record<string, { readonly types?: string; readonly default?: string }>;
+      exports?: Record<
+        string,
+        { readonly types?: string; readonly browser?: string; readonly default?: string }
+      >;
     };
 
     expect(manifest.exports?.['./engine']).toEqual({
       types: './dist/engine.d.ts',
+      browser: './engine.ts',
       default: './dist/engine.js',
     });
   });
