@@ -102,7 +102,7 @@ components:
     sources:
       - path: infra/scratch-editor/host/editor.js
         symbols: [mountEditor, canSave]
-    tests: [e2e/blocks-host-controls.spec.ts]
+    tests: [e2e/blocks-host-controls.spec.ts, e2e/blocks-product-integration.spec.ts]
     task: VSCR-M1-002B
     depends_on: [blocks.host.storage-adapter]
 
@@ -110,7 +110,7 @@ components:
     state: implemented
     risk: medium
     ownership: upstream_config
-    purpose: 'Preserve native Extensions, external services and hardware integrations.'
+    purpose: 'Native Extensions, services and devices.'
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-001-SCRATCH-HOST-CONTRACT.md
         section: 'Extensions'

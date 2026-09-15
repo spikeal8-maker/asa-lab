@@ -183,3 +183,208 @@ test('status presentation opt-in cannot hide local errors before accepted INIT',
     await fixture.close();
   }
 });
+
+// Native Scratch File commands are not ASA durable save or the M1-007 import API.
+// Reopen in a fresh browser so an in-memory VM/storage cache cannot fake restoration.
+test('native File saves an edited sb3 and restores code and media in a fresh editor', async () => {
+  const directory = `${evidenceDir}/native-file-roundtrip`;
+  fs.mkdirSync(directory, { recursive: true });
+  const savedPath = `${directory}/edited-project.sb3`;
+  const marker = 'ASA File Sprite';
+  const variable = 'ASA_File_Proof';
+  const requests: Array<{ phase: string; url: string; method: string }> = [];
+  const failed: Array<{ phase: string; url: string; error: string; type: string }> = [];
+  const requestPhases = new WeakMap<object, string>();
+  const badResponses: string[] = [];
+  let phase = 'edit';
+  let fixture: Awaited<ReturnType<typeof createProtocolFixture>> | undefined;
+  const observe = (current: NonNullable<typeof fixture>) => {
+    current.context.on('request', (request) => {
+      requestPhases.set(request, phase);
+      requests.push({ phase, url: request.url(), method: request.method() });
+    });
+    current.context.on('requestfailed', (request) => {
+      failed.push({
+        phase: requestPhases.get(request) ?? 'unknown',
+        url: request.url(),
+        error: request.failure()?.errorText ?? 'unknown',
+        type: request.resourceType(),
+      });
+    });
+    current.context.on('response', (response) => {
+      if (response.status() >= 400) badResponses.push(`${response.status()} ${response.url()}`);
+    });
+  };
+  try {
+    fixture = await createProtocolFixture({ product: true, locale: 'en-US' });
+    observe(fixture);
+    const page = await fixture.context.newPage();
+    await page.setViewportSize({ width: 1440, height: 960 });
+    await page.goto(`${parentOrigin}/product`, { waitUntil: 'domcontentloaded' });
+    const frame = page.frameLocator('iframe[title="Scratch runtime"]');
+    await expect(frame.locator('[data-asa-host-shell]')).toHaveAttribute(
+      'data-editor-state',
+      'ready',
+      { timeout: 45000 },
+    );
+    const program = frame.locator('.blocklyBlockCanvas').first();
+    await program.getByText('8', { exact: true }).dblclick();
+    await frame.locator('.blocklyHtmlInput').fill('37');
+    await frame.locator('.blocklyHtmlInput').press('Enter');
+    await expect(program.getByText('37', { exact: true })).toBeVisible();
+    phase = 'sprite-library';
+    await frame.getByRole('button', { name: 'Choose a Sprite' }).first().click();
+    await frame.getByText('Abby', { exact: true }).click();
+    await expect(frame.getByPlaceholder('Name', { exact: true })).toHaveValue('Abby');
+    await frame.getByPlaceholder('Name', { exact: true }).fill(marker);
+    await frame.getByPlaceholder('Name', { exact: true }).press('Enter');
+    await frame.getByPlaceholder('x', { exact: true }).fill('137');
+    await frame.getByPlaceholder('x', { exact: true }).press('Enter');
+    await frame.getByRole('treeitem', { name: 'Variables', exact: true }).click();
+    await frame.getByText('Make a Variable', { exact: true }).click();
+    const dialog = frame.getByRole('dialog', { name: 'New Variable' });
+    await dialog.getByRole('textbox').fill(variable);
+    await dialog.getByRole('button', { name: 'OK', exact: true }).click();
+    await frame.getByRole('tab', { name: 'Sounds', exact: true }).click();
+    phase = 'sound-library';
+    await frame.getByRole('button', { name: 'Choose a Sound', exact: true }).first().click();
+    await frame.getByText('Bark', { exact: true }).click();
+    await expect(frame.getByRole('textbox', { name: 'Sound', exact: true })).toHaveValue('Bark');
+    await frame.getByRole('tab', { name: 'Code', exact: true }).click();
+    await expect(frame.getByRole('button', { name: marker, exact: true })).toBeVisible();
+    await expect(page.getByRole('status')).toContainText('изменения пока не сохраняются');
+    await page.screenshot({ path: `${directory}/01-before-save.png` });
+    await frame.getByText('File', { exact: true }).click();
+    const downloadPromise = page.waitForEvent('download');
+    await frame.getByText('Save to your computer', { exact: true }).click();
+    const download = await downloadPromise;
+    expect(download.suggestedFilename()).toMatch(/\.sb3$/i);
+    await download.saveAs(savedPath);
+    expect(await download.failure()).toBeNull();
+    const savedBytes = fs.readFileSync(savedPath);
+    expect(savedBytes.length).toBeGreaterThan(1024);
+    expect(savedBytes.readUInt32LE(0)).toBe(0x04034b50);
+    phase = 'new';
+    page.once('dialog', async (confirmation) => {
+      expect(confirmation.type()).toBe('confirm');
+      expect(confirmation.message()).toBe('Replace contents of the current project?');
+      await confirmation.accept();
+    });
+    await frame.getByText('File', { exact: true }).click();
+    await frame.getByText('New', { exact: true }).click();
+    await expect(frame.getByRole('button', { name: marker, exact: true })).toHaveCount(0);
+    await expect(frame.getByRole('button', { name: 'Fixture Cat', exact: true })).toBeVisible();
+    await expect(program.getByText('37', { exact: true })).toHaveCount(0);
+    await expect(program.getByText('8', { exact: true })).toBeVisible();
+    await expect(
+      frame.locator('[class*="monitor_label"]').filter({ hasText: variable }),
+    ).toHaveCount(0);
+    await page.screenshot({ path: `${directory}/02-new-project.png` });
+    expect(fixture.pageErrors).toEqual([]);
+    await fixture.close();
+    fixture = undefined;
+    phase = 'fresh-boot';
+    fixture = await createProtocolFixture({ product: true, locale: 'en-US' });
+    observe(fixture);
+    const reopened = await fixture.context.newPage();
+    await reopened.setViewportSize({ width: 1440, height: 960 });
+    await reopened.goto(`${parentOrigin}/product`, { waitUntil: 'domcontentloaded' });
+    const restored = reopened.frameLocator('iframe[title="Scratch runtime"]');
+    await expect(restored.locator('[data-asa-host-shell]')).toHaveAttribute(
+      'data-editor-state',
+      'ready',
+      { timeout: 45000 },
+    );
+    await expect(restored.getByRole('button', { name: marker, exact: true })).toHaveCount(0);
+    phase = 'restore';
+    await restored.getByText('File', { exact: true }).click();
+    const chooserPromise = reopened.waitForEvent('filechooser');
+    await restored.getByText('Load from your computer', { exact: true }).click();
+    await (await chooserPromise).setFiles(savedPath);
+    const importedSprite = restored.getByRole('button', { name: marker, exact: true });
+    await expect(importedSprite).toBeVisible();
+    await importedSprite.click();
+    await expect(restored.getByPlaceholder('Name', { exact: true })).toHaveValue(marker);
+    await expect(restored.getByPlaceholder('x', { exact: true })).toHaveValue('137');
+    await expect(
+      restored.locator('[class*="monitor_label"]').filter({ hasText: variable }),
+    ).toBeVisible();
+    await restored.getByRole('tab', { name: 'Costumes', exact: true }).click();
+    await expect(
+      restored
+        .getByRole('tabpanel', { name: 'Costumes', exact: true })
+        .getByText('Abby-a', { exact: true }),
+    ).toBeVisible();
+    await expect(
+      restored
+        .getByRole('tabpanel', { name: 'Costumes', exact: true })
+        .getByText('Abby-d', { exact: true }),
+    ).toBeVisible();
+    const costumeImage = importedSprite.locator('img').first();
+    await expect
+      .poll(() => costumeImage.evaluate((image) => (image as HTMLImageElement).naturalWidth))
+      .toBeGreaterThan(0);
+    await reopened.screenshot({ path: `${directory}/03-restored-costumes.png` });
+    await restored.getByRole('tab', { name: 'Sounds', exact: true }).click();
+    await restored
+      .getByRole('tabpanel', { name: 'Sounds', exact: true })
+      .getByText('Bark', { exact: true })
+      .click();
+    await expect(restored.getByRole('textbox', { name: 'Sound', exact: true })).toHaveValue('Bark');
+    await reopened.screenshot({ path: `${directory}/04-restored-sound.png` });
+    await restored.getByRole('tab', { name: 'Code', exact: true }).click();
+    await restored.getByRole('button', { name: 'Fixture Cat', exact: true }).click();
+    await expect(
+      restored.locator('.blocklyBlockCanvas').first().getByText('37', { exact: true }),
+    ).toBeVisible();
+    await restored.getByRole('button', { name: 'Start project', exact: true }).click();
+    const shell = restored.locator('[data-asa-host-shell]');
+    await expect(shell).toHaveAttribute('data-project-running', 'true');
+    const ticks = restored
+      .locator('[class*="monitor_monitor-container"]')
+      .filter({ hasText: 'Ticks' })
+      .locator('[class*="monitor_value"]');
+    await expect.poll(async () => Number(await ticks.textContent())).toBeGreaterThan(2);
+    await restored.getByRole('button', { name: 'Stop project', exact: true }).click();
+    await expect(shell).toHaveAttribute('data-project-running', 'false');
+    await expect(reopened.getByRole('status')).toContainText('изменения пока не сохраняются');
+    await expect(reopened.locator('[data-asa-blocks-account-overlay]')).toBeVisible();
+    await reopened.screenshot({ path: `${directory}/05-restored-program.png` });
+    const httpRequests = requests.filter(({ url }) => /^https?:/.test(url));
+    expect(
+      httpRequests.filter(({ url }) => ![parentOrigin, runtimeUrl].includes(new URL(url).origin)),
+    ).toEqual([]);
+    expect(httpRequests.filter(({ method }) => !['GET', 'HEAD'].includes(method))).toEqual([]);
+    expect(
+      httpRequests.filter(
+        ({ phase: step, url }) =>
+          step === 'restore' && new URL(url).pathname.startsWith('/library-assets/'),
+      ),
+    ).toEqual([]);
+    // Closing a stock picker may cancel an unused thumbnail. Keep that evidence,
+    // but do not confuse it with failed project/media reads during file restoration.
+    expect(
+      failed.filter(
+        (failure) =>
+          !(
+            failure.phase === 'sprite-library' &&
+            failure.type === 'image' &&
+            failure.error === 'net::ERR_ABORTED' &&
+            new URL(failure.url).origin === runtimeUrl &&
+            /^\/library-assets\/[a-f0-9]{32}\.(svg|png|jpg)$/.test(new URL(failure.url).pathname)
+          ),
+      ),
+    ).toEqual([]);
+    expect(badResponses).toEqual([]);
+    expect(fixture.pageErrors).toEqual([]);
+  } finally {
+    try {
+      fs.writeFileSync(
+        `${directory}/network.json`,
+        JSON.stringify({ requests, failed, badResponses }, null, 2),
+      );
+    } finally {
+      await fixture?.close();
+    }
+  }
+});

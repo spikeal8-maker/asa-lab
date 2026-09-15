@@ -128,3 +128,17 @@ Parent runtime-failure reporting is unchanged. No upstream UI or protocol payloa
 is modified. `e2e/blocks-product-integration.spec.ts` checks a non-overlapping,
 unclipped footer and the retained warning in ready/error states at
 1440/1024/390/320; these checks do not certify all upstream mobile editor controls.
+
+## Native File round-trip evidence
+
+The shipping-parent browser suite edits a real program, adds a stock sprite and
+sound plus a named variable, then uses native File > Save to your computer.
+It checks File > New clears those changes, closes that browser, and imports the
+actual downloaded `.sb3` through File > Load from your computer in a fresh editor.
+The restored program runs/stops, sprite position, costumes and sound are checked,
+and restoration must not fetch stock-library resources or issue a server write.
+The no-save warning and parent-owned account remain visible. Evidence includes the
+synthetic `.sb3`, screenshots and phase-labelled network requests in
+`reports/blocks/product-integration/native-file-roundtrip/`.
+This verifies preserved upstream local File behavior, not ASA durable save/reopen,
+untrusted archive validation, or completion of the separate M1-007 import/export API.
