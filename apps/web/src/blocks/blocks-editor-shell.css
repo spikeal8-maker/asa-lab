@@ -57,3 +57,29 @@
   line-height: 1;
   font-size: 0.82rem;
 }
+
+.blocks-editor-fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: #fff;
+}
+
+.blocks-editor-preview-status {
+  position: absolute;
+  left: 0.75rem;
+  bottom: 0.5rem;
+  z-index: 12;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.35rem;
+  background: rgb(11 53 88 / 88%);
+  color: #fff;
+  font-size: 0.75rem;
+  pointer-events: none;
+}

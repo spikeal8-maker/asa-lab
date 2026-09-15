@@ -75,7 +75,17 @@ window.addEventListener('message', (event) => {
 });
 </script></body></html>`;
 
+  const product = options.product
+    ? await (await import('./product-bundle.mjs')).productFiles()
+    : null;
   const server = http.createServer((request, response) => {
+    const productFile = product?.files.get(request.url);
+    if (productFile) {
+      response.setHeader('Content-Type', productFile.type);
+      response.setHeader('Cache-Control', 'no-store');
+      response.end(productFile.body);
+      return;
+    }
     response.setHeader('Content-Type', 'text/html; charset=utf-8');
     response.setHeader('Cache-Control', 'no-store');
     if (request.url === '/attacker') {
@@ -120,6 +130,8 @@ window.addEventListener('message', (event) => {
     });
 
     return {
+      avatarDataUrl: product?.avatarDataUrl,
+      updatedAvatarDataUrl: product?.updatedAvatarDataUrl,
       context,
       pageErrors,
       async close() {

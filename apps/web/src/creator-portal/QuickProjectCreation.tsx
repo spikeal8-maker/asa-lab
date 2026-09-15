@@ -2,10 +2,16 @@ import { createContext, useContext, useEffect, useRef, useState, type ReactNode 
 import { api, type ModuleSummary, type Project } from '../api';
 import { newClientId } from '../client-id';
 
-export const HOME_MODULES = ['three-d', 'electronics'] as const;
+export const HOME_MODULES = ['three-d', 'electronics', 'blocks'] as const;
 export type HomeModule = (typeof HOME_MODULES)[number];
 export const homeModuleTitle = (key: string): string =>
-  key === 'three-d' ? '3D-моделирование' : key === 'electronics' ? 'Электроника' : 'Проект';
+  key === 'three-d'
+    ? '3D-моделирование'
+    : key === 'electronics'
+      ? 'Электроника'
+      : key === 'blocks'
+        ? 'Программирование'
+        : 'Проект';
 
 type Intent = { module: HomeModule; key: string };
 interface CreationContext {
@@ -233,11 +239,19 @@ export function QuickCreateMenu(): JSX.Element {
                   create(key);
                 }}
               >
-                <strong>{key === 'three-d' ? '3D модель' : 'Электрическая цепь'}</strong>
+                <strong>
+                  {key === 'three-d'
+                    ? '3D модель'
+                    : key === 'electronics'
+                      ? 'Электрическая цепь'
+                      : 'Программа Scratch'}
+                </strong>
                 <small>
                   {key === 'three-d'
                     ? 'Моделирование из объёмных фигур'
-                    : 'Сборка и проверка электронных схем'}
+                    : key === 'electronics'
+                      ? 'Сборка и проверка электронных схем'
+                      : 'Визуальное программирование Scratch 3'}
                 </small>
               </button>
             ) : null,

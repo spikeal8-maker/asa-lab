@@ -1,9 +1,27 @@
 (() => {
   const EXISTING_FIXTURE_ID = 'asa-controlled-fixture';
   const unavailable = () => new Error('fixture_asset_unavailable');
+  const formatsByType = {
+    ImageVector: ['svg'],
+    ImageBitmap: ['png', 'jpg', 'jpeg'],
+    Sound: ['wav', 'mp3'],
+  };
+  const mediaTypes = {
+    svg: ['image/svg+xml'],
+    png: ['image/png'],
+    jpg: ['image/jpeg'],
+    jpeg: ['image/jpeg'],
+    wav: ['audio/wav', 'audio/x-wav', 'audio/wave'],
+    mp3: ['audio/mpeg'],
+  };
+  const validLibraryAsset = (id, format) =>
+    typeof id === 'string' &&
+    /^[a-f0-9]{32}$/.test(id) &&
+    typeof format === 'string' &&
+    Object.hasOwn(mediaTypes, format);
 
-  // Only the stock bytes embedded in the pinned standalone bundle are reused.
-  // No upstream web stores, ASA project IDs, tokens or runtime endpoints enter here.
+  // Projects remain read-only fixtures. Only stock media may use the local library.
+  // No project ID, arbitrary path, credentials or upstream web store enters that route.
   function createFixtureStorage(standalone) {
     const scratchStorage = new standalone.ScratchStorage();
     const assets = new Map();
@@ -81,7 +99,31 @@
     }
     scratchStorage.addHelper(
       {
-        load: (type, id, format) => Promise.resolve(assets.get(key(type, id, format)) ?? null),
+        load: async (type, id, format) => {
+          const cached = assets.get(key(type, id, format));
+          if (cached) return cached;
+          // Project/JSON requests and arbitrary paths must never reach the media store.
+          if (
+            !validLibraryAsset(id, format) ||
+            !Object.hasOwn(formatsByType, type?.name) ||
+            scratchStorage.AssetType[type.name] !== type ||
+            !formatsByType[type.name].includes(format)
+          )
+            return null;
+          try {
+            const response = await fetch(`/library-assets/${id}.${format}`, {
+              credentials: 'omit',
+              redirect: 'error',
+            });
+            if (!response.ok) return null;
+            const contentType = response.headers.get('content-type')?.split(';')[0].trim();
+            if (!mediaTypes[format].includes(contentType)) return null;
+            const bytes = new Uint8Array(await response.arrayBuffer());
+            return cache(type, format, bytes, id);
+          } catch {
+            return null;
+          }
+        },
       },
       200,
     );
@@ -97,8 +139,9 @@
             item.assetId === id &&
             item.dataFormat === format,
         );
-        if (!asset) throw unavailable();
-        return asset.encodeDataURI();
+        if (asset) return asset.encodeDataURI();
+        if (!validLibraryAsset(id, format)) throw unavailable();
+        return `/library-assets/${id}.${format}`;
       },
     };
   }

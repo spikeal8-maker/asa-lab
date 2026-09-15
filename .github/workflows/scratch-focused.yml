@@ -127,7 +127,12 @@ jobs:
         run: docker build -f infra/scratch-editor/Dockerfile -t asa-lab-scratch-editor:ci .
 
       - name: Start isolated Scratch host
-        run: docker run -d --name asa-lab-scratch-editor -p 127.0.0.1:4613:8080 asa-lab-scratch-editor:ci
+        run: >-
+          docker run -d --name asa-lab-scratch-editor
+          --user 101:101 --read-only
+          --tmpfs /var/cache/nginx --tmpfs /var/run
+          --cap-drop ALL --security-opt no-new-privileges:true
+          -p 127.0.0.1:4613:8080 asa-lab-scratch-editor:ci
 
       - name: Verify host shell, standalone bundle and provenance
         run: |

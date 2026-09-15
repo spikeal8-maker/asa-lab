@@ -11,6 +11,11 @@ server {
         return 200 "ok\n";
     }
 
+    # Stock media must never fall through to the SPA or vendor index.
+    location ^~ /library-assets/ {
+        try_files $uri =404;
+    }
+
     location /vendor/scratch/ {
         try_files $uri =404;
     }

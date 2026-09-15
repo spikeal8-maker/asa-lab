@@ -1,89 +1,95 @@
 # ASA Lab Scratch Editor runtime
 
-This directory builds the pinned open-source Scratch Editor as an isolated runtime for ASA Lab
-visual programming. Scratch GUI/VM remains outside the `apps/web` dependency graph.
+This directory builds the pinned upstream Scratch Editor as an isolated ASA runtime.
+Scratch GUI/VM stays outside the ASA Web dependency graph. Execution state and owner
+acceptance live only in `docs/execution/current.yaml`.
 
-## Upstream lock
+## Upstream lock and product boundary
 
-`upstream.env` is the source of truth for the exact upstream repository, commit and package
-version. The Docker build verifies the fetched commit and root package version before building.
+`upstream.env` is authoritative. The retained lock is
+`scratchfoundation/scratch-editor` commit `82c5fea6d3e60c781f25c09b375045f9b46a43f7`,
+package version `15.1.1` (reviewed post-release snapshot, not a floating tag).
+The Docker build verifies both commit and package version. Its sole upstream patch
+is `patches/0001-host-logo-prop.patch`; native Settings, language detection,
+File/Edit, local file import/export, Extensions and semantic block colours remain upstream.
+ASA changes the wordmark, top product-bar colour and parent-owned account presentation.
 
-Current reviewed lock:
+## Shipping host
 
-- repository: `scratchfoundation/scratch-editor`
-- commit: `82c5fea6d3e60c781f25c09b375045f9b46a43f7`
-- package version: `15.1.1`
-- provenance: reviewed post-release `15.1.1` snapshot
-- official `v15.1.1` tag commit for comparison: `99bcc17e0580588f181f8a87577a2f676537a487`
-- upstream license at the ASA pin: `AGPL-3.0-only`
+`/` serves the ASA host, never an upstream playground. The shipping standalone UMD
+bundle lives under `/vendor/scratch/`; static/chunk requests use the pinned dist.
+The host validates the exact configured parent origin and the accepted C protocol
+before mounting the real editor. Invalid source/origin/project/nonce is rejected.
+The runtime capability is memory-only and does not carry ASA account authority.
 
-The ASA pin is intentionally retained. Do not replace it with `develop`, `main`, `latest`, a
-mutable ref or an unpinned npm range.
+`apps/web/src/blocks/BlocksEditor.tsx` is the normal editor-route adapter. Its
+fullscreen shell covers the viewport without a portal sidebar or a second ASA
+header. The native Scratch product bar contains the ASA Lab wordmark and native
+menus; the parent renders the account overlay at the right. `ModuleEditorHost`
+uses the existing `useEditorAvatar` hook, including uploaded images and profile
+changes. No avatar, account cookie or profile callback is forwarded into Scratch.
 
-## M1-002A runtime shape
+## Local stock media, not a project fallback
 
-The upstream build produces the shipping standalone UMD distribution under
-`packages/scratch-gui/dist/`. The runtime image packages that distribution only under:
+`fetch-library-assets.mjs` extracts sprite/backdrop/costume/sound references from
+the exact pinned source. The build downloads bounded-concurrency stock media,
+checks safe hash-based filenames and verifies each file's MD5 identity before
+writing `library-assets-manifest.json`. Network timeouts and retries are bounded;
+missing or corrupt media fails the build. Binary stock libraries are not checked into Git.
 
-```text
-/usr/share/nginx/html/vendor/scratch/
-```
+At runtime, media loads only from same-origin `/library-assets/<hash>.<extension>`
+without credentials or redirects. The storage helper accepts supported media types
+and matching formats only. Project/JSON IDs, arbitrary URLs and traversal paths
+never become media requests. HTML responses are rejected, and nginx returns a real
+404 for absent library files rather than falling through to a successful SPA page.
+There is no runtime fallback to Scratch Foundation project/asset servers.
+Explicitly selected native extensions may still use their own services/devices;
+that is not a hidden dependency of core project/media loading.
 
-The nginx root is ASA-owned and contains:
+## Preview configuration
 
-```text
-index.html
-main.js
-protocol.js
-status.js
-host.css
-vendor/scratch/scratch-gui-standalone.js
-licenses/
-```
+Blocks remains milestone-gated by default. An explicitly configured preview uses
+`ASA_BLOCKS_PREVIEW=1`, `ASA_BLOCKS_RUNTIME_ORIGIN` for the browser-visible exact
+Scratch origin and `ASA_BLOCKS_PARENT_ORIGIN` for the exact ASA parent origin.
+Web/API must agree on the preview flag. `compose.blocks-preview.yaml` supplies the
+isolated Scratch service; the base Compose stack has no mandatory Scratch service.
+The default preview port is `127.0.0.1:4613`.
 
-`/` therefore serves the ASA host shell, never upstream `packages/scratch-gui/build/index.html`
-or its playground pages.
+The preview service runs as uid/gid `101:101`, read-only, without capabilities,
+with temporary writable nginx cache/run directories. The static nginx config is
+baked into `/etc/nginx/conf.d/default.conf`; no entrypoint write to a read-only
+configuration directory is required. CI exercises these same restrictions.
 
-`main.js` verifies the standalone integration primitives (`EditorState`, `createStandaloneRoot`,
-`setAppElement`) and composes the accepted C protocol. Without a configured exact parent origin it
-reports `configuration-required`; with one it waits for valid INIT and reports `init-accepted`.
-The editor root remains empty. Storage/editor mount belongs to the separately selected D task.
+## Verification
 
-Use `pnpm gate:blocks` for source checks and `pnpm gate:blocks --browser` against the built runtime.
-Browser setup, message helpers, assertions and scenarios live in `tools/blocks/browser/`.
-The browser fixture injects its exact parent origin only into the test response.
+Run `pnpm gate:blocks` for focused source checks and
+`pnpm gate:blocks --browser` against the production-built isolated runtime.
+GitHub Actions owns the heavy pinned Docker build and exact-SHA browser evidence.
+The general repository gate remains separate.
 
-## Build and run
+Browser evidence includes the trusted protocol, real VM run/stop, read-only player,
+native Russian/English Settings and Extensions, local stock library selection,
+defensive storage and missing-media HTTP 404s. The product integration harness
+bundles the shipping `BlocksEditor` and `useEditorAvatar`; only its account HTTP
+response is deterministic fixture data. It checks the actual image, parent-only
+identity, fullscreen geometry, account updates and survival of runtime failure.
+It does not claim a production account or production database was exercised.
 
-From the repository root:
+All product code lives in the repository. TEST may only rebuild an accepted SHA;
+local or acceptance-only product patches are not a delivery mechanism. Updating a
+running installation is a separate explicitly authorised guarded deployment.
 
-```bash
-docker build -f infra/scratch-editor/Dockerfile -t asa-lab-scratch-editor:m1-002a .
-docker run --rm --name asa-lab-scratch-editor -p 127.0.0.1:4613:8080 \
-  asa-lab-scratch-editor:m1-002a
-```
+## Deliberate limits
 
-Health endpoint:
-
-```text
-http://127.0.0.1:4613/healthz
-```
-
-## Deliberate M1-002A limits
-
-This slice does not implement or claim:
-
-- ASA/Scratch logo patching or removal of upstream product chrome;
-- File/menu/Extensions product-control changes;
-- production runtime capability authentication (C only establishes the message boundary);
-- `ScratchStorage` adapter or Project Core persistence;
-- autosave, recovery or `.sb3` import/export;
-- public activation or sovereign/offline media libraries.
-
-Those belong to later separately authorised slices. The Blocks module remains `coming_soon`.
+The current runtime uses read-only controlled project fixtures. The visible
+preview warning states that changes are not saved. Native Save to your computer
+is upstream local export, not ASA durable persistence. This integration does not
+claim runtime JWT endpoints, durable asset storage, ASA save/reopen, autosave,
+recovery/conflicts, publication, Learning submission, backup/restore or public
+activation. Those require their separately selected canonical milestones.
 
 ## License and provenance
 
-The runtime image preserves the upstream Scratch Editor AGPL license, Scratch GUI trademark
-notice and exact `upstream.env` lock under `/licenses/`. Future pin changes require reviewed
-diff, compatibility, dependency/security/license and build/browser evidence.
+The image preserves the upstream AGPL license, Scratch GUI trademark notice and
+exact lock under `/licenses/`. Pin changes require reviewed compatibility,
+dependency/security/license and reproducible build/browser evidence.
