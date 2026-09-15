@@ -61,6 +61,10 @@ export default defineConfig(({ command }) => {
     resolve: {
       alias: [
         {
+          find: '@asa-lab/electronics/engine',
+          replacement: resolve(repositoryRoot, 'contexts/electronics/engine.ts'),
+        },
+        {
           find: '@asa-lab/electronics/simulation',
           replacement: resolve(repositoryRoot, 'contexts/electronics/simulation.ts'),
         },
