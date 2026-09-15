@@ -104,6 +104,7 @@ components:
     contracts:
     - docs/product/electronics/DEVELOPMENT_SPEC.md#13-determinism-and-execution-failures
     - docs/product/electronics/DEVELOPMENT_SPEC.md#71-architecture-acceptance-evidence
+    - docs/product/electronics/contracts/CANONICAL_CLOCK_CONTRACT.md
     sources:
     - apps/web/src/electronics/simulation-worker-protocol.ts
     - apps/web/src/electronics/simulation-worker-client.ts
@@ -138,6 +139,7 @@ components:
     ownership: asa
     risk: high
     contracts:
+    - docs/product/electronics/contracts/CANONICAL_CLOCK_CONTRACT.md
     - docs/product/electronics/ASA_ELECTRONICS_OPTIMIZATION_PLAN_V2.md#6-e-opt-3--canonical-electronics-clock
     - docs/product/electronics/README.md#15-arduino-и-программирование
     sources:
@@ -159,6 +161,7 @@ components:
     ownership: asa
     risk: high
     contracts:
+    - docs/product/electronics/contracts/CANONICAL_CLOCK_CONTRACT.md
     - docs/product/electronics/README.md#10-электрическая-модель
     - docs/product/electronics/ASA_ELECTRONICS_OPTIMIZATION_PLAN_V2.md#6-e-opt-3--canonical-electronics-clock
     sources:
