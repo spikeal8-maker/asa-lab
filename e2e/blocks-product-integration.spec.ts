@@ -300,9 +300,22 @@ test('native File saves an edited sb3 and restores code and media in a fresh edi
     await expect(restored.getByRole('button', { name: marker, exact: true })).toHaveCount(0);
     phase = 'restore';
     await restored.getByText('File', { exact: true }).click();
-    const chooserPromise = reopened.waitForEvent('filechooser');
-    await restored.getByText('Load from your computer', { exact: true }).click();
-    await (await chooserPromise).setFiles(savedPath);
+    fs.writeFileSync(`${directory}/fresh-menu.html`, await restored.locator('body').innerHTML());
+    try {
+      await expect(restored.getByText('Load from your computer', { exact: true })).toBeVisible();
+    } catch (error) {
+      await reopened.screenshot({ path: `${directory}/fresh-menu-failure.png` });
+      fs.writeFileSync(
+        `${directory}/fresh-menu-failure.html`,
+        await restored.locator('body').innerHTML(),
+      );
+      throw error;
+    }
+    const [chooser] = await Promise.all([
+      reopened.waitForEvent('filechooser'),
+      restored.getByText('Load from your computer', { exact: true }).click(),
+    ]);
+    await chooser.setFiles(savedPath);
     const importedSprite = restored.getByRole('button', { name: marker, exact: true });
     await expect(importedSprite).toBeVisible();
     await importedSprite.click();
