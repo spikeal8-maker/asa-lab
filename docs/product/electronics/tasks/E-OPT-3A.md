@@ -79,6 +79,7 @@ Expand only when one unresolved semantic question cannot be answered from this s
 
 ```text
 docs/product/electronics/contracts/CANONICAL_CLOCK_CONTRACT.md
+docs/product/electronics/components/engine-worker-clock.yaml
 ```
 
 Optional bounded proof fixtures are allowed only if they characterize current behaviour and do not
