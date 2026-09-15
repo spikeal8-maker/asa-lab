@@ -5,6 +5,10 @@ export default defineConfig({
   resolve: {
     alias: [
       {
+        find: '@asa-lab/electronics/engine',
+        replacement: fileURLToPath(new URL('./contexts/electronics/engine.ts', import.meta.url)),
+      },
+      {
         find: '@asa-lab/electronics/simulation',
         replacement: fileURLToPath(
           new URL('./contexts/electronics/simulation.ts', import.meta.url),
