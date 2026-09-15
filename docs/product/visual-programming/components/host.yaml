@@ -76,7 +76,7 @@ components:
     state: implemented
     risk: high
     ownership: cross_boundary
-    purpose: 'Parent-owned ASA avatar/account; no Scratch-origin ASA authority.'
+    purpose: 'ASA-owned account/status; no child account authority.'
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-001-SCRATCH-HOST-CONTRACT.md
         section: 'ASA identity shell'
@@ -86,6 +86,7 @@ components:
       - apps/web/src/blocks/blocks-editor-shell.css
     tests:
       - e2e/blocks-host-controls.spec.ts
+      - e2e/blocks-product-integration.spec.ts
       - apps/web/src/blocks/testing/runtime-origin.spec.ts
     task: VSCR-M1-002B
     depends_on: [blocks.host.protocol, blocks.host.storage-adapter]
@@ -94,7 +95,7 @@ components:
     state: implemented
     risk: low
     ownership: upstream_config
-    purpose: 'Preserve native File/Edit/local file commands; ASA persistence stays separate.'
+    purpose: 'Native File/Edit; ASA persistence separate.'
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-001-SCRATCH-HOST-CONTRACT.md
         section: 'Product controls'

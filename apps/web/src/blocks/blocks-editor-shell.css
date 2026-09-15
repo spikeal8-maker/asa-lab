@@ -59,6 +59,8 @@
 }
 
 .blocks-editor-fullscreen {
+  display: flex;
+  flex-direction: column;
   position: fixed;
   inset: 0;
   z-index: 1000;
@@ -71,15 +73,21 @@
   background: #fff;
 }
 
+.blocks-editor-fullscreen > .blocks-editor-shell {
+  flex: 1;
+  height: auto;
+}
+
+/* One normal-flow footer: never cover the editor or its controls. */
 .blocks-editor-preview-status {
-  position: absolute;
-  left: 0.75rem;
-  bottom: 0.5rem;
-  z-index: 12;
-  padding: 0.25rem 0.5rem;
-  border-radius: 0.35rem;
-  background: rgb(11 53 88 / 88%);
-  color: #fff;
+  flex: 0 0 auto;
+  box-sizing: border-box;
+  padding: 0.5rem 0.75rem;
+  border-top: 1px solid #d8e0ea;
+  background: #f7fafc;
+  color: #0b3558;
+  font-family: system-ui, sans-serif;
   font-size: 0.75rem;
-  pointer-events: none;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
 }

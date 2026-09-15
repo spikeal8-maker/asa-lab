@@ -67,6 +67,10 @@
     parentWindow: window.parent,
     expectedParentOrigin,
     onInit(session, { hasProjectJson }) {
+      // Presentation only, after accepted INIT. Other parents keep the local status.
+      status.hidden =
+        session.mode === 'editor' &&
+        new URL(window.location.href).searchParams.get('asaStatus') === 'parent';
       reporter = statusApi.createStatusReporter({
         parentWindow: window.parent,
         targetOrigin: expectedParentOrigin,

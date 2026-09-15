@@ -117,17 +117,20 @@ window.addEventListener('message', (event) => {
       });
     });
 
-    await context.route(`${runtimeUrl}/`, async (route) => {
-      const upstream = await route.fetch();
-      const body = (await upstream.text()).replace(
-        '<meta name="asa-parent-origin" content="" />',
-        `<meta name="asa-parent-origin" content="${parentOrigin}" />`,
-      );
-      if (!body.includes(`content="${parentOrigin}"`)) {
-        throw new Error('failed to inject deterministic parent-origin fixture');
-      }
-      await route.fulfill({ response: upstream, body });
-    });
+    await context.route(
+      (url) => url.origin === runtimeUrl && url.pathname === '/',
+      async (route) => {
+        const upstream = await route.fetch();
+        const body = (await upstream.text()).replace(
+          '<meta name="asa-parent-origin" content="" />',
+          `<meta name="asa-parent-origin" content="${parentOrigin}" />`,
+        );
+        if (!body.includes(`content="${parentOrigin}"`)) {
+          throw new Error('failed to inject deterministic parent-origin fixture');
+        }
+        await route.fulfill({ response: upstream, body });
+      },
+    );
 
     return {
       avatarDataUrl: product?.avatarDataUrl,
