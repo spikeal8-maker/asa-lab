@@ -4,6 +4,19 @@ Quick-start installations should begin with `tools/asa-lab.ps1 status` / `logs`
 on Windows or `./tools/asa-lab.sh status` / `logs` on Linux and WSL2. The
 lower-level commands below are for detailed operator diagnostics.
 
+## Existing Windows production installation
+
+For unauthenticated GitHub CLI, HTTP 403, npm DNS/timeouts, build-memory pressure,
+Unicode logging failures, or a missing Scratch entry after an update, use
+[Windows update recovery](WINDOWS_UPDATE_RECOVERY.md). Start from the running
+PostgreSQL container's Compose working directory and retain its project name,
+volumes and local overlays. Do not mistake a new Git checkout for a new running version.
+
+Scratch stays hidden on the home page when its module is not creatable. A normal
+base-stack update neither enables the installation-wide preview flag nor adds the
+separate runtime. Confirm API capabilities and Web build configuration rather than
+rerunning migrations or clearing the browser cache.
+
 ## Start with current state
 
 ```bash
@@ -30,10 +43,14 @@ Confirm PostgreSQL is healthy, then inspect only the migration job:
 ```bash
 docker compose ps -a
 docker compose logs --tail=200 postgres migration
-docker compose run --rm migration
 ```
 
-The second migration run must apply zero migrations. Do not bypass the
+For an existing production installation, first establish whether the previous
+migration ran and which revision is deployed. Correct the verified cause, then
+resume through the [guarded updater](GUARDED_UPDATE.md) after its preflight;
+do not retry a live migration manually merely because a previous tool call failed.
+Use the original overlays for diagnostics. On a disposable test installation an
+idempotency rerun should apply zero already-applied migrations. Do not bypass the
 migration dependency or edit the database manually to make API start.
 
 ## Web or API is unhealthy
@@ -75,6 +92,10 @@ Run browser and PostgreSQL tests from `test-runner`; the database intentionally
 has no host port.
 
 ## WSL2 and Docker Desktop
+
+On a shared production computer, restarting WSL or Docker Desktop interrupts all
+its containers. These actions require a separate authorized maintenance window;
+they are not automatic recovery steps for one failed ASA Lab build.
 
 - Ensure Docker Desktop is running with the Linux engine.
 - Ensure integration is enabled for Ubuntu 24.04.
