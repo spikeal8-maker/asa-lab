@@ -128,3 +128,38 @@ Parent runtime-failure reporting is unchanged. No upstream UI or protocol payloa
 is modified. `e2e/blocks-product-integration.spec.ts` checks a non-overlapping,
 unclipped footer and the retained warning in ready/error states at
 1440/1024/390/320; these checks do not certify all upstream mobile editor controls.
+
+## Native File round-trip evidence
+
+The shipping-parent browser suite edits a real program, adds a stock sprite and
+sound plus a named variable, then uses native File > Save to your computer.
+It checks File > New clears those changes, closes that browser, and imports the
+actual downloaded `.sb3` through File > Load from your computer in a fresh editor.
+The restored program runs/stops, sprite position, costumes and sound are checked,
+and restoration must not fetch stock-library resources or issue a server write.
+The no-save warning and parent-owned account remain visible. Evidence includes the
+synthetic `.sb3`, screenshots and phase-labelled network requests in
+`reports/blocks/product-integration/native-file-roundtrip/`.
+This verifies preserved upstream local File behavior, not ASA durable save/reopen,
+untrusted archive validation, or completion of the separate M1-007 import/export API.
+
+### Stock WAV transport regression
+
+The pinned Nginx image does not map `.wav` in its default MIME table. Returning
+`application/octet-stream` makes the host's deliberately strict media loader reject
+stock WAV bytes. Scratch may retain the sound name with fallback data; the resulting
+local `.sb3` can reference `undefined.wav` and fail to reopen correctly.
+
+The stock-library location explicitly maps WAV to `audio/wav` and retains the SVG,
+PNG, JPEG, MP3 and JSON mappings. The media loader's allowlist is not relaxed.
+The browser suite checks the real runtime HTTP MIME, RIFF/WAVE signature and pinned
+Bark content hash. After the native File round trip it also exports Bark through
+Scratch's native sound context menu and checks the downloaded bytes against that
+same stock hash. A visible label alone no longer proves sound preservation.
+
+Failure evidence includes the last editor screenshot/DOM and browser errors as well
+as the downloaded project and phase-labelled network log. A supplementary fixture
+using Nginx's former WAV header reproduced an invalid archive/import failure; the
+new MIME assertion rejects that header. Only the exact-SHA Docker/browser CI can
+accept the actual Nginx configuration. This correction does not deploy the runtime,
+change Scratch's interface, enable server saving, or accept the whole B milestone.

@@ -112,10 +112,29 @@ for (const failure of ['missing', 'html-fallback', 'network', 'redirect']) {
   });
 }
 
-test('nginx stock library misses are genuine 404s, not the host SPA', () => {
+test('nginx stock library maps media types and returns genuine 404s', () => {
   const config = fs.readFileSync(
     new URL('../../infra/scratch-editor/nginx.conf.template', import.meta.url),
     'utf8',
   );
-  assert.match(config, /location \^~ \/library-assets\/\s*\{\s*try_files \$uri =404;\s*\}/);
+  const location = config
+    .replace(/#[^\n]*/g, '')
+    .match(
+      /location \^~ \/library-assets\/\s*\{\s*types\s*\{([^}]+)\}\s*try_files \$uri =404;\s*\}/,
+    );
+  assert.ok(location, 'stock location must contain only MIME mappings and a terminal 404');
+  assert.deepEqual(
+    location[1]
+      .split(';')
+      .map((entry) => entry.trim().split(/\s+/))
+      .filter(([type]) => type),
+    [
+      ['application/json', 'json'],
+      ['image/svg+xml', 'svg'],
+      ['image/png', 'png'],
+      ['image/jpeg', 'jpg', 'jpeg'],
+      ['audio/wav', 'wav'],
+      ['audio/mpeg', 'mp3'],
+    ],
+  );
 });
