@@ -1,0 +1,36 @@
+name: Games R1A Prettier Diagnostic
+
+on:
+  push:
+    branches:
+      - diag/games-r1a-prettier
+
+permissions:
+  contents: read
+
+jobs:
+  format:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Format Games R1A files
+        run: >-
+          pnpm exec prettier --write
+          contexts/games/application/command.ts
+          contexts/games/domain/model.ts
+          tools/games-hygiene.mjs
+      - name: Print exact formatter diff
+        run: >-
+          git diff --no-color --
+          contexts/games/application/command.ts
+          contexts/games/domain/model.ts
+          tools/games-hygiene.mjs
