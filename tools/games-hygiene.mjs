@@ -30,7 +30,8 @@ const GRANDFATHERED_HARD = new Set([
   'apps/web/src/checkers/checkers.css',
 ]);
 
-const TRANSIENT_PATH = /(^|\/)(dist|build|out-tsc|tmp|coverage|playwright-report|test-results|reports\/games)(\/|$)|(^|\/)([^/]+\.(bak|old|orig|tmp|log)|[^/]+~)$/i;
+const TRANSIENT_PATH =
+  /(^|\/)(dist|build|out-tsc|tmp|coverage|playwright-report|test-results|reports\/games)(\/|$)|(^|\/)([^/]+\.(bak|old|orig|tmp|log)|[^/]+~)$/i;
 const SOURCE_EXT = /\.(?:ts|tsx|js|mjs|cjs|py)$/;
 const STYLE_EXT = /\.(?:css|scss)$/;
 const TEST_PATH = /(^|\/)(testing|tests|e2e)(\/|$)|\.(?:spec|test)\.[cm]?[jt]sx?$/;
@@ -49,7 +50,8 @@ function inScope(file) {
 }
 
 function classify(file) {
-  if (file.endsWith('.sql')) return { kind: 'sql', target: 32 * 1024, review: 32 * 1024, hard: null };
+  if (file.endsWith('.sql'))
+    return { kind: 'sql', target: 32 * 1024, review: 32 * 1024, hard: null };
   if (TEST_PATH.test(file) && SOURCE_EXT.test(file)) {
     return { kind: 'test', target: 32 * 1024, review: 48 * 1024, hard: 64 * 1024 };
   }
@@ -114,10 +116,15 @@ function changedFiles() {
 function fullFiles() {
   const rows = git(['ls-files']).trim();
   if (!rows) return [];
-  return rows.split('\n').filter(inScope).map((file) => ({ status: 'T', file }));
+  return rows
+    .split('\n')
+    .filter(inScope)
+    .map((file) => ({ status: 'T', file }));
 }
 
-const entries = (mode === '--changed' ? changedFiles() : fullFiles()).sort((a, b) => a.file.localeCompare(b.file));
+const entries = (mode === '--changed' ? changedFiles() : fullFiles()).sort((a, b) =>
+  a.file.localeCompare(b.file),
+);
 const violations = [];
 const warnings = [];
 const garbage = [];
@@ -173,7 +180,13 @@ for (const entry of entries) {
 
 measurements.sort((a, b) => b.size - a.size || a.file.localeCompare(b.file));
 const baseline = base ?? 'HEAD';
-const openDebt = warnings.length + (mode === '--full' ? measurements.filter((m) => GRANDFATHERED_HARD.has(m.file) && m.budget?.hard && m.size > m.budget.hard).length : 0);
+const openDebt =
+  warnings.length +
+  (mode === '--full'
+    ? measurements.filter(
+        (m) => GRANDFATHERED_HARD.has(m.file) && m.budget?.hard && m.size > m.budget.hard,
+      ).length
+    : 0);
 
 console.log(`BASE_SHA=${baseline}`);
 console.log(`FILES_SCANNED=${entries.length}`);
@@ -181,7 +194,9 @@ console.log(`NEW_HARD_VIOLATIONS=${violations.length}`);
 console.log(`LEGACY_HOTSPOTS_TOUCHED=${legacyTouched.length ? legacyTouched.join(' | ') : 'none'}`);
 console.log(`GARBAGE_FOUND=${garbage.length ? garbage.join(' | ') : 'none'}`);
 console.log('EXTRACTIONS_DONE=0');
-console.log(`OPEN_DEBT_WITH_REASON=${openDebt ? `${openDebt} review/baseline finding(s); see details` : 'none'}`);
+console.log(
+  `OPEN_DEBT_WITH_REASON=${openDebt ? `${openDebt} review/baseline finding(s); see details` : 'none'}`,
+);
 
 for (const item of violations) console.log(`ERROR ${item}`);
 for (const item of warnings) console.log(`WARN ${item}`);
