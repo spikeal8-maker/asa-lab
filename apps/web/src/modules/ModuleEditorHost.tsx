@@ -12,6 +12,7 @@ import { AppBootShell } from '../components/AppBootShell';
 import { newClientId } from '../client-id';
 import { isGameModule } from '../games/game-catalog';
 import { BlocksEditor } from '../blocks/BlocksEditor';
+import { useEditorAvatar } from '../components/editor-chrome/EditorAvatar';
 
 interface ModuleEditorProps {
   projectId: string;
@@ -30,8 +31,24 @@ interface ModuleEditorHostProps extends ModuleEditorProps {
   returnTo: CreatorPortalReturnView;
 }
 
+function BlocksEditorAdapter(props: ModuleEditorProps): JSX.Element {
+  const avatar = useEditorAvatar(props.user);
+  return (
+    <BlocksEditor
+      projectId={props.projectId}
+      onBack={props.onBack}
+      accountLabel={props.user.displayName}
+      accountInitials={avatar.text}
+      avatarUrl={avatar.src}
+      onAccountClick={() => {
+        window.location.hash = '/account';
+      }}
+    />
+  );
+}
+
 const EDITORS: Readonly<Record<string, ComponentType<ModuleEditorProps>>> = {
-  blocks: BlocksEditor,
+  blocks: BlocksEditorAdapter,
   electronics: lazy(loadSchematicEditor),
   chess: lazy(loadChessEditor),
   checkers: lazy(loadCheckersEditor),

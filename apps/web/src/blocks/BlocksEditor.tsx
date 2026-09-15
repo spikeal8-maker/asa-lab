@@ -1,15 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { PublicUser } from '../api';
 import { newClientId } from '../client-id';
-import { useEditorAvatar } from '../components/editor-chrome/EditorAvatar';
 import { BlocksEditorShell } from './BlocksEditorShell';
 import { BlocksRuntimeBridge, requireExactHttpOrigin } from './runtime-protocol';
 
 interface BlocksEditorProps {
   projectId: string;
   onBack: () => void;
-  user: PublicUser;
-  readonly seatLearner?: boolean;
+  accountLabel: string;
+  accountInitials: string;
+  avatarUrl?: string | null;
+  onAccountClick: () => void;
 }
 
 function configuredRuntimeOrigin(): string | null {
@@ -21,9 +21,15 @@ function configuredRuntimeOrigin(): string | null {
   }
 }
 
-export function BlocksEditor({ projectId, onBack, user }: BlocksEditorProps): JSX.Element {
+export function BlocksEditor({
+  projectId,
+  onBack,
+  accountLabel,
+  accountInitials,
+  avatarUrl = null,
+  onAccountClick,
+}: BlocksEditorProps): JSX.Element {
   const runtimeOrigin = useMemo(configuredRuntimeOrigin, []);
-  const avatar = useEditorAvatar(user);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const bridgeRef = useRef<BlocksRuntimeBridge | null>(null);
   const [status, setStatus] = useState('Подключение Scratch…');
@@ -95,12 +101,10 @@ export function BlocksEditor({ projectId, onBack, user }: BlocksEditorProps): JS
   return (
     <div className="blocks-editor-fullscreen" data-asa-blocks-fullscreen>
       <BlocksEditorShell
-        accountLabel={user.displayName}
-        accountInitials={avatar.text}
-        avatarUrl={avatar.src}
-        onAccountClick={() => {
-          window.location.hash = '/account';
-        }}
+        accountLabel={accountLabel}
+        accountInitials={accountInitials}
+        avatarUrl={avatarUrl}
+        onAccountClick={onAccountClick}
       >
         <iframe ref={iframeRef} title="Scratch runtime" src={`${runtimeOrigin}/`} />
       </BlocksEditorShell>
