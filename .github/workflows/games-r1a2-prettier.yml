@@ -1,0 +1,40 @@
+name: Games R1A2 Prettier
+
+on:
+  push:
+    branches:
+      - diag/games-r1a2-prettier
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Format A2 TypeScript
+        run: >-
+          pnpm exec prettier --write
+          contexts/games/infrastructure/pg-repository.ts
+          tests/games/pg-repository.spec.ts
+      - name: Persist formatter output
+        shell: bash
+        run: |
+          if git diff --quiet -- contexts/games/infrastructure/pg-repository.ts tests/games/pg-repository.spec.ts; then
+            exit 0
+          fi
+          git config user.name "games-r1a2-diagnostic"
+          git config user.email "games-r1a2-diagnostic@users.noreply.github.com"
+          git add contexts/games/infrastructure/pg-repository.ts tests/games/pg-repository.spec.ts
+          git commit -m "chore(diag): format Games R1A2 TypeScript"
+          git push
