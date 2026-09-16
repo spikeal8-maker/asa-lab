@@ -90,3 +90,24 @@ Web/API/Scratch readiness checks must agree on the revision; a healthy portal wi
 missing Scratch is not installation success. Preserve secrets/volumes on repeated
 startup and updates. Normal source builds retain the existing GitHub CI/backup checks. Actual production deployment
 is requested, with local-port verification; no domain/FRP modifications.
+
+## Owner follow-up: executable installation identity
+
+The owner asks to fix the remaining gap after the documentation audit. Add a
+read-only identity guard shared by standard startup and guarded update on
+Windows/POSIX. Detect existing ASA services before writing a new environment,
+building images or replacing containers. Reject second-checkout/project attempts,
+duplicate core services, missing/mismatched deployment metadata and lost overlays;
+do not silently choose a spare port or bypass a failure by another installation.
+Preserve existing unrelated TEST databases and all primary credentials/data.
+
+Test the same inventory cases on both shells and exercise startup failure before
+`.env` creation with fake Docker. Existing exact-SHA portable-install checks must
+still prove fresh startup and a repeat from the same root. Keep CI/backup checks.
+A preflight is not a Docker-daemon permission barrier or a transaction lock:
+report limits against arbitrary external commands and concurrent operators.
+
+The known stale stateless local diagnostic may be retired only after exact
+identity, mounts/data, image and lack of production routing are checked and a
+rollback record is retained. Do not remove old TEST installations or volumes.
+No domain, origin, UI or persistence redesign is part of this repair.

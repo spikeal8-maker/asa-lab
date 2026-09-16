@@ -81,12 +81,17 @@ components:
         symbols: [New-PrivateEnvironment, Test-Ready, Wait-Ready]
       - path: tools/asa-lab.sh
         symbols: [create_environment, ready, wait_for_ready]
+      - path: tools/installation-identity.ps1
+        symbols: [Assert-AsaInstallationIdentity, Assert-AsaIdentityInventory]
+      - path: tools/installation-identity.sh
+        symbols: [asa_assert_installation_identity, asa_validate_identity_inventory]
       - path: tools/docker-update.ps1
         symbols: [Wait-ExactReadiness, Invoke-GuardedUpdate]
       - path: tools/docker-update.sh
         symbols: [wait_exact_readiness, main]
     tests:
       - tools/blocks/deployment.test.mjs
+      - tools/blocks/installation-identity.test.mjs
       - tools/blocks/portable-smoke.mjs
       - .github/workflows/scratch-focused.yml
     task: VSCR-M4-002

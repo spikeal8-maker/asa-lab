@@ -6,6 +6,7 @@ profile=${ASA_COMPOSE_PROFILE:-dev}
 script_dir=$(CDPATH= cd -- "$(dirname "$0")" && pwd)
 repo_root=$(CDPATH= cd -- "$script_dir/.." && pwd)
 cd "$repo_root"
+. "$script_dir/installation-identity.sh"
 
 case "$profile" in
   base|dev|test|staging|production) ;;
@@ -58,6 +59,17 @@ random_hex() {
   bytes=${1:-24}
   od -An -N"$bytes" -tx1 /dev/urandom | tr -d ' \n'
 }
+
+assert_startup_identity() (
+  case "$profile" in
+    production) default_project=asa-lab-production ;;
+    staging) default_project=asa-lab-staging ;;
+    *) default_project=asa-lab-dev ;;
+  esac
+  set -- -f compose.yaml
+  if [ "$profile" != base ]; then set -- "$@" -f "compose.$profile.yaml"; fi
+  asa_assert_installation_identity "$repo_root" "$default_project" false "$@"
+)
 
 create_environment() {
   case "$profile" in
@@ -181,6 +193,7 @@ show_access() {
 case "$action" in
   doctor)
     require_docker
+    assert_startup_identity
     create_environment
     compose config --quiet
     echo "Deployment doctor PASS: Docker, Compose and private configuration are ready."
@@ -190,9 +203,11 @@ case "$action" in
     ;;
   up)
     require_docker
+    assert_startup_identity
     create_environment
     compose config --quiet
     for service in scratch api web; do compose build "$service"; done
+    assert_startup_identity
     compose up -d --no-build
     wait_for_ready
     compose ps
@@ -217,6 +232,7 @@ case "$action" in
     ;;
   down)
     require_docker
+    assert_startup_identity
     compose down --remove-orphans
     echo "ASA Lab stopped; PostgreSQL data volume was preserved."
     ;;

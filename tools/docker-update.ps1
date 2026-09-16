@@ -14,6 +14,7 @@ Set-StrictMode -Version Latest
 
 $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 Set-Location $RepoRoot
+. (Join-Path $PSScriptRoot 'installation-identity.ps1')
 
 function Invoke-Native {
   param(
@@ -357,6 +358,7 @@ function Invoke-GuardedUpdate {
   }
 
   $script:ComposeArguments = Get-ComposeArguments
+  Assert-AsaInstallationIdentity -Root $RepoRoot -DefaultProject $projectName -ComposeArguments $script:ComposeArguments -RequireExisting
   Invoke-Compose -Arguments @('config', '--quiet')
   $postgresContainerId = Assert-ContainerRunning 'postgres'
   Assert-CanonicalDatabaseOrigin $postgresContainerId
@@ -429,6 +431,7 @@ function Invoke-GuardedUpdate {
   try {
     Invoke-Compose -Arguments @('config', '--quiet')
     foreach ($service in @('scratch', 'api', 'web')) { Invoke-Compose -Arguments @('build', $service) }
+    Assert-AsaInstallationIdentity -Root $RepoRoot -DefaultProject $projectName -ComposeArguments $script:ComposeArguments -RequireExisting
     Invoke-Compose -Arguments @('up', '-d', '--no-build')
     [void](Wait-ExactReadiness -Revision $newRevision -SchemaVersion $schemaVersion)
     $remainingOriginDrift = @(Get-MixedOriginServices)

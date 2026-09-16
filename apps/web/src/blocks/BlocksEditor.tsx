@@ -19,9 +19,16 @@ function configuredRuntimeOrigin(): string | null {
     return null;
   try {
     const configured = new URL(requireExactHttpOrigin(__ASA_BLOCKS_RUNTIME_ORIGIN__));
-    // `localhost` is the local-deployment template: keep the configured protocol/port,
-    // but follow the hostname the user actually used for the ASA Lab portal.
-    if (configured.hostname === 'localhost') configured.hostname = window.location.hostname;
+    // Preserve the default localhost runtime beside the 127.0.0.1 portal.
+    // Different ports alone do not isolate host cookies. Keep the existing
+    // non-loopback LAN template behavior; explicit production origins stay exact.
+    const parentHostname = window.location.hostname;
+    const loopbackParent =
+      parentHostname === 'localhost' ||
+      parentHostname === '[::1]' ||
+      /^127(?:\.\d{1,3}){3}$/.test(parentHostname);
+    if (configured.hostname === 'localhost' && !loopbackParent)
+      configured.hostname = parentHostname;
     const origin = configured.origin;
     // Visibility never grants the runtime portal authority or permits mixed content.
     if (window.location.origin.startsWith('https:') && origin.startsWith('http:')) return null;

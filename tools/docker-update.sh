@@ -3,6 +3,7 @@ set -eu
 
 repo_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 cd "$repo_root"
+. "$repo_root/tools/installation-identity.sh"
 
 profile=${ASA_COMPOSE_PROFILE:-production}
 transport=${ASA_COMPOSE_TRANSPORT:-auto}
@@ -33,6 +34,13 @@ compose() {
     *) die "unsupported ASA_COMPOSE_PROFILE: $profile" ;;
   esac
 }
+
+assert_update_identity() (
+  set -- -f compose.yaml
+  if [ "$profile" != base ]; then set -- "$@" -f "compose.$profile.yaml"; fi
+  if [ "$include_frp" = true ]; then set -- "$@" -f compose.frp.yaml; fi
+  asa_assert_installation_identity "$repo_root" "$project_name" true "$@"
+)
 
 env_value() {
   name=$1
@@ -252,6 +260,7 @@ main() {
     *) die "unsupported ASA_COMPOSE_TRANSPORT: $transport" ;;
   esac
 
+  assert_update_identity
   compose config --quiet
   postgres_container_id=$(assert_container_running postgres)
   database_origin=$(container_working_directory "$postgres_container_id")
@@ -317,7 +326,7 @@ main() {
   for service in scratch api web; do
     if ! compose build "$service"; then build_ok=false; break; fi
   done
-  if [ "$build_ok" = true ] && compose config --quiet && compose up -d --no-build && wait_exact_readiness &&
+  if [ "$build_ok" = true ] && compose config --quiet && assert_update_identity && compose up -d --no-build && wait_exact_readiness &&
     [ -z "$(mixed_origin_services)" ]; then
     write_receipt "$receipt_path" \
       'status=success' "updated_at_utc=$stamp" "compose_project=$project_name" \

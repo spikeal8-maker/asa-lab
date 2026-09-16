@@ -52,6 +52,17 @@ describe('BlocksEditor runtime origin isolation', () => {
     expect(html).not.toContain('role="alert"');
   });
 
+  it.each(['http://127.0.0.1:4610', 'http://127.0.0.2:4610', 'http://[::1]:4610'])(
+    'keeps the configured localhost runtime separate from loopback portal %s',
+    (parent) => {
+      const html = renderEditor('http://localhost:4613', parent);
+      expect(html).toContain(
+        '<iframe title="Scratch runtime" src="http://localhost:4613/?asaStatus=parent"',
+      );
+      expect(html).not.toContain('role="alert"');
+    },
+  );
+
   it.each([
     'http://100.105.67.69:4610',
     'http://desktop-i07qije.tail605710.ts.net:4610',

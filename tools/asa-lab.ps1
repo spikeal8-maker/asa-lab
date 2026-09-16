@@ -18,6 +18,7 @@ if ($Profile -ne 'base') {
   $ComposeFiles += @('-f', "compose.$Profile.yaml")
 }
 Set-Location $RepoRoot
+. (Join-Path $PSScriptRoot 'installation-identity.ps1')
 
 if (-not $env:ASA_BUILD_REVISION) {
   $env:ASA_BUILD_REVISION = 'unknown'
@@ -75,6 +76,11 @@ function New-RandomHex {
     $generator.Dispose()
   }
   return -join ($bytes | ForEach-Object { $_.ToString('x2') })
+}
+
+function Assert-StartupIdentity {
+  $defaultProject = if ($Profile -eq 'production') { 'asa-lab-production' } elseif ($Profile -eq 'staging') { 'asa-lab-staging' } else { 'asa-lab-dev' }
+  Assert-AsaInstallationIdentity -Root $RepoRoot -DefaultProject $defaultProject -ComposeArguments $ComposeFiles
 }
 
 function New-PrivateEnvironment {
@@ -201,6 +207,7 @@ function Show-Access {
 switch ($Action) {
   'doctor' {
     Assert-Docker
+    Assert-StartupIdentity
     New-PrivateEnvironment
     Invoke-Compose @('config', '--quiet')
     Write-Host 'Deployment doctor PASS: Docker, Compose and private configuration are ready.'
@@ -210,10 +217,12 @@ switch ($Action) {
   }
   'up' {
     Assert-Docker
+    Assert-StartupIdentity
     New-PrivateEnvironment
     Invoke-Compose @('config', '--quiet')
     # Build sequentially: a failed build never replaces healthy running containers.
     foreach ($service in @('scratch', 'api', 'web')) { Invoke-Compose @('build', $service) }
+    Assert-StartupIdentity
     Invoke-Compose @('up', '-d', '--no-build')
     Wait-Ready
     Invoke-Compose @('ps')
@@ -234,6 +243,7 @@ switch ($Action) {
   }
   'down' {
     Assert-Docker
+    Assert-StartupIdentity
     Invoke-Compose @('down', '--remove-orphans')
     Write-Host 'ASA Lab stopped; PostgreSQL data volume was preserved.'
   }

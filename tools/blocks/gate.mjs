@@ -57,6 +57,7 @@ const focused = [
     'tools/blocks/local-origin.test.mjs',
     'tools/blocks/storage-library.test.mjs',
     'tools/blocks/deployment.test.mjs',
+    'tools/blocks/installation-identity.test.mjs',
   ],
   ['pnpm', 'nx', 'build', 'blocks'],
   ['pnpm', 'nx', 'run', 'blocks:typecheck'],

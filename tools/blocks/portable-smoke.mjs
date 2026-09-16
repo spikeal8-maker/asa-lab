@@ -30,6 +30,19 @@ const context = await browser.newContext({
   locale: 'en-US',
   acceptDownloads: true,
 });
+// A non-secret HttpOnly marker proves the iframe does not receive portal cookies.
+const cookieProbe = 'asa_portable_host_cookie';
+await context.addCookies([
+  { name: cookieProbe, value: 'isolation-test', domain: '127.0.0.1', path: '/', httpOnly: true },
+]);
+let runtimeRequests = 0;
+let portalCookieLeaked = false;
+await context.route(/^http:\/\/(?:localhost|127\.0\.0\.1):4613\//, async (route) => {
+  const headers = await route.request().allHeaders();
+  runtimeRequests += 1;
+  portalCookieLeaked ||= (headers['cookie'] ?? '').includes(`${cookieProbe}=`);
+  await route.continue();
+});
 const page = await context.newPage();
 const errors = [];
 let phase = 'readiness';
@@ -76,6 +89,8 @@ try {
     'src',
     'http://localhost:4613/?asaStatus=parent',
   );
+  expect(runtimeRequests).toBeGreaterThan(0);
+  expect(portalCookieLeaked, 'Scratch must not receive the portal host cookie').toBe(false);
   await expect(page.getByRole('status')).toHaveCount(0);
   await expect(frame.locator('#runtime-status')).toBeHidden();
   const box = await page.locator('iframe').boundingBox();
@@ -107,6 +122,8 @@ try {
       {
         revision: metadata.revision,
         result: 'PASS',
+        portalCookieLeaked,
+        runtimeRequests,
         scenario:
           'archive → standard up twice → seeded login → home → create → real editor → native download → home',
         errors,
