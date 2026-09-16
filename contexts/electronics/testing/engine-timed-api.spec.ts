@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest';
 import {
   advanceElectronicsToHorizon,
   parseElectronicsEngineDocument,
+  pauseElectronicsTimedState,
+  resetElectronicsTimedState,
+  resumeElectronicsTimedState,
   type ElectronicsEngineDocument,
 } from '../engine';
 
@@ -49,12 +52,12 @@ describe('Electronics canonical timed engine facade', () => {
     expect(result.executionStatus).toBe('ready');
     if (result.executionStatus !== 'ready') return;
     expect(result.committedHorizonMicroseconds).toBe(10);
-    expect(result.continuation.committedHorizonMicroseconds).toBe(10);
-    expect(result.continuation.clockContractVersion).toBe(1);
+    expect(result.state.continuation!.committedHorizonMicroseconds).toBe(10);
+    expect(result.state.continuation!.clockContractVersion).toBe(1);
     expect(result.observation.solved).toBe(true);
     expect(result.observation.quality.passed).toBe(true);
-    expect(() => JSON.parse(result.continuation.serializedState)).not.toThrow();
-    expect(JSON.parse(JSON.stringify(result.continuation))).toEqual(result.continuation);
+    expect(() => JSON.parse(result.state.continuation!.serializedState)).not.toThrow();
+    expect(JSON.parse(JSON.stringify(result.state))).toEqual(result.state);
   });
 
   it('distinguishes yielded progress from a completed horizon and resumes deterministically', () => {
@@ -75,7 +78,7 @@ describe('Electronics canonical timed engine facade', () => {
     for (let iteration = 0; iteration < 8 && current.executionStatus === 'yielded'; iteration++) {
       current = advanceElectronicsToHorizon(document, {
         requestedHorizonMicroseconds: 2000,
-        continuation: current.continuation,
+        state: current.state,
         maxEvents: 1024,
       });
     }
@@ -96,7 +99,7 @@ describe('Electronics canonical timed engine facade', () => {
 
     const fault = advanceElectronicsToHorizon(document, {
       requestedHorizonMicroseconds: 20,
-      continuation: ready.continuation,
+      state: ready.state,
       inputEvents: [
         {
           atMicroseconds: 15,
@@ -109,9 +112,43 @@ describe('Electronics canonical timed engine facade', () => {
     expect(fault).toMatchObject({
       executionStatus: 'fault',
       committedHorizonMicroseconds: 10,
-      continuation: ready.continuation,
+      state: ready.state,
       observation: null,
       diagnostics: [{ code: 'unsupported_timed_input' }],
+    });
+  });
+
+  it('freezes canonical time while paused, resumes from the same state and resets to time zero', () => {
+    const document = circuit(`void setup(){pinMode(13,OUTPUT);digitalWrite(13,HIGH);}${IDLE}`);
+    const ready = advanceElectronicsToHorizon(document, { requestedHorizonMicroseconds: 10 });
+    expect(ready.executionStatus).toBe('ready');
+    if (ready.executionStatus !== 'ready') return;
+
+    const paused = pauseElectronicsTimedState(ready.state);
+    expect(paused.lifecycle).toBe('paused');
+    expect(paused.continuation).toEqual(ready.state.continuation);
+    const blocked = advanceElectronicsToHorizon(document, {
+      requestedHorizonMicroseconds: 20,
+      state: paused,
+    });
+    expect(blocked).toMatchObject({
+      executionStatus: 'fault',
+      committedHorizonMicroseconds: 10,
+      state: paused,
+      diagnostics: [{ code: 'timed_state_paused' }],
+    });
+
+    const resumed = resumeElectronicsTimedState(paused);
+    const advanced = advanceElectronicsToHorizon(document, {
+      requestedHorizonMicroseconds: 20,
+      state: resumed,
+    });
+    expect(advanced.executionStatus).toBe('ready');
+    expect(advanced.committedHorizonMicroseconds).toBe(20);
+    expect(resetElectronicsTimedState()).toEqual({
+      version: 1,
+      lifecycle: 'running',
+      continuation: null,
     });
   });
 
@@ -130,7 +167,7 @@ describe('Electronics canonical timed engine facade', () => {
       requestedHorizonMicroseconds: 1000,
     });
     expect(result.executionStatus).toBe('fault');
-    expect(result.continuation).toBeNull();
+    expect(result.state.continuation).toBeNull();
     expect(result.diagnostics[0]?.code).toBe('invalid_board_count');
   });
 });
