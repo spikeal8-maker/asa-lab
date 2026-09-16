@@ -1,0 +1,83 @@
+schema_version: 1.0.0
+module: electronics
+contract: docs/product/electronics/contracts/ENGINEERING_HYGIENE_CONTRACT.md
+large_source_bytes: 50000
+growth_review_percent: 20
+checkpoint_policy:
+  max_counted_slices_between_checkpoints: 3
+  counted_task_kinds:
+    - implementation
+    - component/peripheral
+    - maintenance:production-source-change
+    - repair:production-source-change
+
+large_sources:
+  - path: contexts/electronics/domain/solver.ts
+    class: decomposition-candidate
+    reviewed_bytes: 179752
+    rationale: Solver orchestration remains active but combines many physical/model responsibilities; decompose only under E-OPT-4 with parity/reference evidence.
+  - path: apps/web/src/electronics/workbench.css
+    class: decomposition-candidate
+    reviewed_bytes: 120669
+    rationale: Active workbench styling spans several editor surfaces; split only with visual/browser evidence and stable ownership boundaries.
+  - path: apps/web/src/electronics/WorkbenchSidebars.tsx
+    class: decomposition-candidate
+    reviewed_bytes: 103985
+    rationale: Active sidebar surface contains multiple inspector/library responsibilities and needs bounded responsibility review before further growth.
+  - path: apps/web/src/electronics/use-electronics-workbench.ts
+    class: decomposition-candidate
+    reviewed_bytes: 84505
+    rationale: Active workbench controller coordinates interaction and simulation concerns; E-OPT-3D must retire legacy timing concerns before structural extraction.
+  - path: contexts/electronics/domain/arduino-program-runtime.ts
+    class: decomposition-candidate
+    reviewed_bytes: 68170
+    rationale: Active source-level Arduino runtime owns several logical subsystems; decomposition/design belongs to E-OPT-5 rather than cleanup-by-size.
+  - path: apps/web/src/electronics/ArduinoCodePanel.tsx
+    class: decomposition-candidate
+    reviewed_bytes: 63884
+    rationale: Active code-editor surface is above the review threshold; future extraction must preserve command/editor behavior and tests.
+  - path: apps/web/src/electronics/ProductionComponentVisual.tsx
+    class: decomposition-candidate
+    reviewed_bytes: 60089
+    rationale: Active visual renderer spans many component families; split by stable visual responsibility, never by arbitrary line count.
+  - path: apps/web/src/electronics/WorkbenchStage.tsx
+    class: decomposition-candidate
+    reviewed_bytes: 54879
+    rationale: Active stage rendering/interaction surface is above the threshold and requires browser evidence for any structural split.
+
+legacy_concerns:
+  - path: apps/web/src/electronics/live-simulation.ts
+    class: active-legacy-bridge
+    concern: simulationTimeMs transient advance bridge remains in the production Worker path.
+    retirement_condition: E-OPT-3D canonical Worker horizons are integrated and E-OPT-3F timing/control conformance no longer requires this provisional advance path.
+  - path: apps/web/src/electronics/live-simulation-worker-controller.ts
+    class: active-legacy-bridge
+    concern: Controller targets are still expressed as host-provided simulationTimeMs rather than canonical requested horizons.
+    retirement_condition: E-OPT-3D canonical horizon requests are integrated with direct/Worker parity and stale-horizon rejection.
+  - path: apps/web/src/electronics/simulation-worker-evaluator.ts
+    class: active-legacy-bridge
+    concern: Worker evaluator still delegates timed work to legacy calculate/advance live-simulation functions using simulationTimeMs.
+    retirement_condition: E-OPT-3D moves Worker timed evaluation to the accepted canonical timed engine facade and preserves protocol/parity evidence.
+  - path: apps/web/src/electronics/use-electronics-workbench.ts
+    class: active-legacy-bridge
+    concern: Workbench derives requested simulationTimeMs from performance.now on a 100 ms presentation interval.
+    retirement_condition: E-OPT-3D removes presentation cadence as the requested physical horizon and E-OPT-3E proves replay invariance across UI cadence.
+
+documentation_hotspots:
+  - path: docs/product/electronics/README.md
+    class: decomposition-candidate
+    rationale: Large normative specification is intentionally routed by exact headings; any future extraction must preserve stable contracts/anchors or migrate every route atomically.
+
+preserved_classes:
+  - path: docs/product/electronics/tasks/**
+    class: historical-evidence
+    rationale: Completed task cards remain provenance and are not cleanup candidates.
+  - path: docs/product/electronics/generated/component-coverage.json
+    class: generated
+    rationale: Rebuilt by tools/generate-electronics-component-coverage.mjs and stale output is validated.
+  - path: apps/web/public/assets/electronics/owner-supplied/**
+    class: protected-owner-asset
+    rationale: Owner-supplied artwork is protected by repository asset policy.
+  - path: apps/web/public/assets/electronics/owner-audit/**
+    class: protected-owner-asset
+    rationale: Owner-audit artwork is protected by repository asset policy.

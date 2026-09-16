@@ -11,6 +11,15 @@ const validator = fileURLToPath(new URL('./validate-electronics-agent-docs.mjs',
 const docs = 'docs/product/electronics';
 const id = 'electronics.engine.example';
 const taskId = 'TASK-ELECTRONICS-EOPT1A-001';
+const hygieneCheckpointPolicy = {
+  max_counted_slices_between_checkpoints: 3,
+  counted_task_kinds: [
+    'implementation',
+    'component/peripheral',
+    'maintenance:production-source-change',
+    'repair:production-source-change',
+  ],
+};
 
 function taskMarkdown(metadata = {}) {
   return `---\n${YAML.stringify({ task_id: taskId, kind: 'analysis/inventory', risk: 'medium', semantic_change: 'no', roadmap_slice: 'E-OPT-1A', prerequisites: [], acceptance_boundary: 'slice', review: 'self', ...metadata })}---\n# Bounded task\n`;
@@ -55,6 +64,19 @@ function check(mutate = () => {}, args = []) {
     ]) {
       fixture.files[`${docs}/${name}.md`] = '# Fixture\n';
     }
+    fixture.files[`${docs}/contracts/ENGINEERING_HYGIENE_CONTRACT.md`] = '# Hygiene contract\n';
+    fixture.files[`${docs}/evidence/hygiene-baseline.yaml`] = YAML.stringify({
+      schema_version: '1.0.0',
+      module: 'electronics',
+      contract: `${docs}/contracts/ENGINEERING_HYGIENE_CONTRACT.md`,
+      large_source_bytes: 50_000,
+      growth_review_percent: 20,
+      checkpoint_policy: hygieneCheckpointPolicy,
+      large_sources: [],
+      legacy_concerns: [],
+      documentation_hotspots: [],
+      preserved_classes: [],
+    });
     for (const kind of ['IMPLEMENTATION', 'MAINTENANCE', 'DESIGN', 'DEPLOYMENT']) {
       fixture.files[`${docs}/tasks/${kind}_TASK_TEMPLATE.md`] = '# Template\n';
     }
@@ -497,3 +519,109 @@ for (const [name, assetRoot, ownership] of [
     assert.match(result.output, /invalid owner asset_root/);
   });
 }
+
+test('rejects unreviewed production source above the hygiene threshold', () => {
+  const result = check((f) => {
+    f.files['contexts/electronics/domain/large.ts'] =
+      `export const reviewedLarge = 1;\n${'x'.repeat(51_000)}`;
+  });
+  assert.equal(result.status, 1, result.output);
+  assert.match(result.output, /unreviewed hygiene large source/);
+});
+
+test('accepts a reviewed production large source within the growth allowance', () => {
+  const result = check((f) => {
+    const path = 'contexts/electronics/domain/large.ts';
+    const source = `export const reviewedLarge = 1;\n${'x'.repeat(51_000)}`;
+    f.files[path] = source;
+    f.files[`${docs}/evidence/hygiene-baseline.yaml`] = YAML.stringify({
+      schema_version: '1.0.0',
+      module: 'electronics',
+      contract: `${docs}/contracts/ENGINEERING_HYGIENE_CONTRACT.md`,
+      large_source_bytes: 50_000,
+      growth_review_percent: 20,
+      checkpoint_policy: hygieneCheckpointPolicy,
+      large_sources: [
+        {
+          path,
+          class: 'decomposition-candidate',
+          reviewed_bytes: source.length,
+          rationale: 'reviewed fixture',
+        },
+      ],
+      legacy_concerns: [],
+      documentation_hotspots: [],
+      preserved_classes: [],
+    });
+  });
+  assert.equal(result.status, 0, result.output);
+});
+
+test('rejects large-source growth above twenty percent since review', () => {
+  const result = check((f) => {
+    const path = 'contexts/electronics/domain/large.ts';
+    f.files[path] = `export const reviewedLarge = 1;\n${'x'.repeat(65_000)}`;
+    f.files[`${docs}/evidence/hygiene-baseline.yaml`] = YAML.stringify({
+      schema_version: '1.0.0',
+      module: 'electronics',
+      contract: `${docs}/contracts/ENGINEERING_HYGIENE_CONTRACT.md`,
+      large_source_bytes: 50_000,
+      growth_review_percent: 20,
+      checkpoint_policy: hygieneCheckpointPolicy,
+      large_sources: [
+        { path, class: 'decomposition-candidate', reviewed_bytes: 51_000, rationale: 'old review' },
+      ],
+      legacy_concerns: [],
+      documentation_hotspots: [],
+      preserved_classes: [],
+    });
+  });
+  assert.equal(result.status, 1, result.output);
+  assert.match(result.output, /grew more than 20%/);
+});
+
+test('rejects an active legacy concern without a retirement condition', () => {
+  const result = check((f) => {
+    f.files[`${docs}/evidence/hygiene-baseline.yaml`] = YAML.stringify({
+      schema_version: '1.0.0',
+      module: 'electronics',
+      contract: `${docs}/contracts/ENGINEERING_HYGIENE_CONTRACT.md`,
+      large_source_bytes: 50_000,
+      growth_review_percent: 20,
+      checkpoint_policy: hygieneCheckpointPolicy,
+      large_sources: [],
+      legacy_concerns: [
+        {
+          path: 'contexts/electronics/example.ts',
+          class: 'active-legacy-bridge',
+          concern: 'fixture bridge',
+        },
+      ],
+      documentation_hotspots: [],
+      preserved_classes: [],
+    });
+  });
+  assert.equal(result.status, 1, result.output);
+  assert.match(result.output, /retirement condition missing/);
+});
+test('rejects a hygiene checkpoint interval above three counted slices', () => {
+  const result = check((f) => {
+    const path = `${docs}/evidence/hygiene-baseline.yaml`;
+    const baseline = YAML.parse(f.files[path]);
+    baseline.checkpoint_policy.max_counted_slices_between_checkpoints = 4;
+    f.files[path] = YAML.stringify(baseline);
+  });
+  assert.equal(result.status, 1, result.output);
+  assert.match(result.output, /max_counted_slices_between_checkpoints must be 3/);
+});
+
+test('rejects hygiene policy that omits production-changing maintenance and repair', () => {
+  const result = check((f) => {
+    const path = `${docs}/evidence/hygiene-baseline.yaml`;
+    const baseline = YAML.parse(f.files[path]);
+    baseline.checkpoint_policy.counted_task_kinds = ['implementation', 'component/peripheral'];
+    f.files[path] = YAML.stringify(baseline);
+  });
+  assert.equal(result.status, 1, result.output);
+  assert.match(result.output, /counted_task_kinds must be/);
+});
