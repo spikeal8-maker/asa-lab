@@ -295,8 +295,9 @@ test('a teacher builds a course, shares it by name, and a colleague takes a copy
     allowAdminAccessProbe: true,
   });
   await studentPage.goto(`/#/join-class?code=${encodeURIComponent(joinCode)}`);
-  await studentPage.getByRole('button', { name: 'Продолжить' }).click();
-  await studentPage.getByLabel('Код ученика').fill(studentCode);
+  await expect(studentPage.getByLabel('Код ученика', { exact: true })).toBeVisible();
+  await expect(studentPage.getByRole('button', { name: 'Продолжить', exact: true })).toHaveCount(0);
+  await studentPage.getByLabel('Код ученика', { exact: true }).fill(studentCode);
   await expect(studentPage.getByRole('button', { name: 'Войти', exact: true })).toBeEnabled();
   await studentPage.getByRole('button', { name: 'Войти', exact: true }).click();
   await sidebar(studentPage, 'Обучение').click();
