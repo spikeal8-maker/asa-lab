@@ -57,7 +57,7 @@
 | DEC-PROJ-101 | Canonical public URL и redirect policy | до route activation в PROJ-R7-02 | можно строить backend foundation без переименования legacy URLs |
 | DEC-PROJ-102 | Public author projection для minor/StudentSeat | до завершения PROJ-R7-01 | публичный StudentSeat publish запрещён; использовать минимальную safe projection |
 | DEC-PROJ-103 | Assignment/student work publication policy | до завершения PROJ-R7-01 | fail closed; assignment work не становится public |
-| DEC-PROJ-104 | Retention existing reactions при legacy convergence/revoke | в PROJ-R7-01 | не удалять silently; migration обязана сохранить/явно перенести state |
+| DEC-PROJ-104 | Retention existing reactions при legacy convergence/revoke | **RESOLVED** в R7-01C | сохранять legacy `project_publications.project_id` как compatibility anchor; не delete/rekey в convergence |
 | DEC-PROJ-105 | Можно ли полностью запретить remix/copy | до PROJ-R7-05 publication settings | R7-02 использует текущую безопасную copy semantics без нового toggle |
 | DEC-PROJ-106 | Default license для новых publication | до PROJ-R7-05 | migrated/current license сохраняется; не придумывать новый default в UI |
 | DEC-PROJ-107 | Download formats / 3D export policy | до включения download в viewer/detail | скрывать действие, если contract не доказан |
@@ -103,14 +103,20 @@ Target contract уже предполагает:
 
 ## 5. DEC-PROJ-104 — existing reactions
 
-Legacy `gallery_unpublish()` удаляет publication row и может каскадно удалить reaction state. Target R7 не должен повторить это как норму.
+**Статус:** RESOLVED для R7-01C/R7-01D.
 
-До migration необходимо выбрать additive strategy:
+Фактическая legacy-схема связывает и `project_reactions`, и `collection_items` с `project_publications(project_id)` через `ON DELETE CASCADE`. Поэтому удаление либо rekey compatibility row в convergence уничтожило бы уже существующие реакции и сохранения.
 
-1. перенести reaction binding к сохраняемой publication identity; или
-2. сохранить compatibility projection так, чтобы revoke не уничтожал исторические реакции.
+Принятое additive-решение:
 
-Любой вариант требует migration test на непустой базе.
+1. `project_publications.project_id` остаётся стабильным compatibility anchor на всём R7-01C;
+2. R7-01C создаёт/достраивает canonical `project_publication_state` и `PublicationRevision` **рядом** с legacy row, не удаляя и не меняя его primary key;
+3. существующие `project_reactions` и `collection_items` не мигрируются и не пересоздаются в C — их FK остаются валидными, а строки и счётчики сохраняются физически;
+4. legacy publication не выдаётся за исторически exact ProjectVersion: convergence revision обязана быть явно помечена как `legacy_convergence` либо эквивалентным доказуемым provenance marker;
+5. R7-01D заменяет destructive `gallery_unpublish()` на non-destructive state transition / compatibility hiding до любого возможного удаления legacy row;
+6. физическое удаление compatibility row запрещено, пока реакции/Collections всё ещё зависят от него.
+
+Acceptance R7-01C на непустой БД обязан доказать: publication count сохранён, reaction rows/counts сохранены, collection links сохранены, Project/provenance сохранены, повторный convergence не создаёт дубликаты. R7-01D отдельно доказывает, что revoke/unpublish больше не вызывает cascade-loss.
 
 ---
 
