@@ -32,6 +32,7 @@ const context = await browser.newContext({
 });
 const page = await context.newPage();
 const errors = [];
+let phase = 'readiness';
 page.on('pageerror', (error) => errors.push(error.message));
 try {
   const ready = await (await context.request.get('/health/ready')).json();
@@ -39,11 +40,19 @@ try {
   expect(ready.deployment.revision).toBe(process.env.ASA_BUILD_REVISION);
   expect(metadata.revision).toBe(process.env.ASA_BUILD_REVISION);
   expect(ready.deployment.synchronized).toBe(true);
+  phase = 'organization-login';
   const login = await context.request.post('/api/auth/login', {
     headers: { origin },
-    data: { identifier: values.ASA_SEED_TEACHER_EMAIL, password: values.ASA_SEED_TEACHER_PASSWORD },
+    // The standard seed creates an organization membership, not a personal workspace.
+    // Exercise the existing school-login contract; do not change product authorization.
+    data: {
+      workspace: values.ASA_SEED_WORKSPACE,
+      email: values.ASA_SEED_TEACHER_EMAIL,
+      password: values.ASA_SEED_TEACHER_PASSWORD,
+    },
   });
-  expect(login.status()).toBe(200);
+  expect(login.status(), 'seeded organization login').toBe(200);
+  phase = 'home-create-editor';
   await page.goto('/#/home', { waitUntil: 'domcontentloaded' });
   await expect(
     page.getByRole('heading', { name: 'Программирование · Scratch', exact: true }),
@@ -100,6 +109,10 @@ try {
     ),
   );
 } catch (error) {
+  fs.writeFileSync(
+    path.join(out, 'failure.json'),
+    JSON.stringify({ phase, error: String(error), pageErrors: errors }, null, 2),
+  );
   await page.screenshot({ path: path.join(out, 'failure.png') }).catch(() => {});
   throw error;
 } finally {
