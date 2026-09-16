@@ -223,8 +223,8 @@ export function advanceArduinoCircuitClock(
   const boards = document.components
     .filter(isArduinoUno)
     .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
-  if (boards.length === 0 || boards.length > MAX_BOARDS)
-    return fault('invalid_board_count', 'Профиль требует от 1 до 8 плат Arduino.');
+  if (boards.length > MAX_BOARDS)
+    return fault('invalid_board_count', 'Профиль поддерживает не более 8 плат Arduino.');
   let digest: string;
   try {
     digest = simulationInputDigest(document, 0);

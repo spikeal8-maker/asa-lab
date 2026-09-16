@@ -152,22 +152,105 @@ describe('Electronics canonical timed engine facade', () => {
     });
   });
 
-  it('fails closed for timed profiles that remain owned by E-OPT-3C convergence', () => {
+  it('advances a circuit-only profile without requiring an Arduino board', () => {
     const parsed = parseElectronicsEngineDocument({
-      schemaVersion: 2,
+      schemaVersion: 4,
       components: [
         { id: 'source', kind: 'source', value: 5, position: { x: 0, y: 0 } },
         { id: 'r', kind: 'resistor', value: 1000, position: { x: 100, y: 0 } },
       ],
-      connections: [],
+      connections: [
+        {
+          id: 'positive',
+          from: { componentId: 'source', terminal: 'a' },
+          to: { componentId: 'r', terminal: 'a' },
+        },
+        {
+          id: 'negative',
+          from: { componentId: 'r', terminal: 'b' },
+          to: { componentId: 'source', terminal: 'b' },
+        },
+      ],
     });
     if (!parsed.ok) throw new Error(parsed.message);
 
     const result = advanceElectronicsToHorizon(parsed.document, {
       requestedHorizonMicroseconds: 1000,
     });
-    expect(result.executionStatus).toBe('fault');
-    expect(result.state.continuation).toBeNull();
-    expect(result.diagnostics[0]?.code).toBe('invalid_board_count');
+    expect(result.executionStatus).toBe('ready');
+    if (result.executionStatus !== 'ready') return;
+    expect(result.committedHorizonMicroseconds).toBe(1000);
+    expect(result.observation.solved).toBe(true);
+    expect(result.observation.quality.passed).toBe(true);
+    expect(JSON.parse(result.state.continuation!.serializedState).boards).toEqual([]);
+  });
+
+  it('advances circuit-only RC physics through canonical barriers and resumes deterministically', () => {
+    const parsed = parseElectronicsEngineDocument({
+      schemaVersion: 4,
+      components: [
+        { id: 'source', kind: 'source', value: 5, position: { x: 0, y: 0 } },
+        { id: 'r1', kind: 'resistor', value: 1000, position: { x: 100, y: 0 } },
+        {
+          id: 'c1',
+          kind: 'visual',
+          value: 100,
+          position: { x: 200, y: 0 },
+          componentTypeId: 'electrolytic-capacitor',
+          pinIds: ['negative', 'positive'],
+          stateProperties: { initialVoltageVolt: 0, voltageRatingVolt: 25 },
+        },
+      ],
+      connections: [
+        {
+          id: 'w1',
+          from: { componentId: 'source', terminal: 'a' },
+          to: { componentId: 'r1', terminal: 'a' },
+        },
+        {
+          id: 'w2',
+          from: { componentId: 'r1', terminal: 'b' },
+          to: { componentId: 'c1', terminal: 'positive' },
+        },
+        {
+          id: 'w3',
+          from: { componentId: 'c1', terminal: 'negative' },
+          to: { componentId: 'source', terminal: 'b' },
+        },
+      ],
+    });
+    if (!parsed.ok) throw new Error(parsed.message);
+
+    const pending = advanceElectronicsToHorizon(parsed.document, {
+      requestedHorizonMicroseconds: 100_000,
+      maxEvents: 8,
+    });
+    expect(pending.executionStatus).toBe('yielded');
+    if (pending.executionStatus !== 'yielded') return;
+    expect(pending.observation).toBeNull();
+    expect(pending.committedHorizonMicroseconds).toBeLessThan(100_000);
+
+    const resumed = advanceElectronicsToHorizon(parsed.document, {
+      requestedHorizonMicroseconds: 100_000,
+      state: pending.state,
+      maxEvents: 1024,
+    });
+    const direct = advanceElectronicsToHorizon(parsed.document, {
+      requestedHorizonMicroseconds: 100_000,
+      maxEvents: 1024,
+    });
+    expect(resumed.executionStatus).toBe('ready');
+    expect(direct.executionStatus).toBe('ready');
+    if (resumed.executionStatus !== 'ready' || direct.executionStatus !== 'ready') return;
+
+    const capacitorVoltage =
+      resumed.observation.components.find((entry) => entry.componentId === 'c1')?.voltageDrop ?? 0;
+    expect(capacitorVoltage).toBeCloseTo(5 * (1 - Math.exp(-1)), 1);
+    expect(resumed.observation).toEqual(direct.observation);
+    expect(resumed.state).toEqual(direct.state);
+    expect(JSON.parse(resumed.state.continuation!.serializedState)).toMatchObject({
+      profile: 'rc-inputs-v2',
+      boards: [],
+    });
   });
 });
