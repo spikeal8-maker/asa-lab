@@ -343,8 +343,9 @@ Remaining E1 functional closure before final visual polish:
 3. **Course archive semantics:** normal course-library removal must be archive/restore, not destructive DELETE for ordinary user flow. Historical/published/run-linked course evidence must remain intact.
 4. **Version comparison:** published-version UI must provide the E1 structural comparison required by §4.3 at section/lesson/block/activity/policy level.
 5. **Prepublish validation:** Course publication must identify the exact invalid lesson/block/activity/setting and give a usable correction path; generic `course_empty`/generic conflict is insufficient for malformed content.
-6. **Capability-aware course controls:** author-only users must not be shown teacher-only actions that deterministically fail with 403. Enabling teaching adds delivery/class actions without replacing the author library.
-7. **Truthful closure:** repeat the owner-visible E1 journey and align ledger/evidence with actual implementation before declaring E1 done. Final visual redesign is a separate pass after items 1–6 work.
+6. **Draft editing safety:** unsaved lesson/block changes cannot disappear when the author switches lessons, opens Preview, goes Back, or starts another structural mutation. A dirty editor must require save/discard/cancel (or an equivalent safe autosave contract). Structural mutations must not advance the server draft revision while the local editor silently keeps a stale expected revision.
+7. **Capability-aware course controls:** author-only users must not be shown teacher-only actions that deterministically fail with 403. Enabling teaching adds delivery/class actions without replacing the author library.
+8. **Truthful closure:** repeat the owner-visible E1 journey and align ledger/evidence with actual implementation before declaring E1 done. Final visual redesign is a separate pass after items 1–7 work.
 
 Not implemented in E1 **by design** and therefore not to be pulled into an E1 visual cleanup:
 - E2: full reusable Question Bank/Quiz library, all eight quiz types, Python programming-task/autograder runtime, essay/file/manual/rubric assessment, controlled assessment/timer/reconnect/durable answers, 30×100 gradebook and export;

@@ -19,7 +19,7 @@ requirements:
 - id: INT-E1-02
   milestone: E1
   status: in_progress
-  summary: "Course builder: разделы, уроки, теория, project blocks, порядок/свойства + structural published-version comparison; final re-layout after functional completion"
+  summary: "Course builder: разделы, уроки, теория, project blocks, порядок/свойства + dirty-navigation/revision safety + structural published-version comparison; final re-layout after functional completion"
   evidence: []
   tests: []
 - id: INT-E1-03
