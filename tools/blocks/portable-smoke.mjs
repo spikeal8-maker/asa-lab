@@ -40,6 +40,13 @@ try {
   expect(ready.deployment.revision).toBe(process.env.ASA_BUILD_REVISION);
   expect(metadata.revision).toBe(process.env.ASA_BUILD_REVISION);
   expect(ready.deployment.synchronized).toBe(true);
+  phase = 'host-runtime-port';
+  for (const host of ['localhost', '127.0.0.1']) {
+    const health = await context.request.get(`http://${host}:4613/healthz`, { timeout: 10000 });
+    expect(health.status(), 'runtime must be reachable from the host, not only docker exec').toBe(
+      200,
+    );
+  }
   phase = 'organization-login';
   const login = await context.request.post('/api/auth/login', {
     headers: { origin },

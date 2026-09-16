@@ -13,7 +13,11 @@ test('default distribution contains an isolated source-built Scratch without mac
   assert.equal(scratch.read_only, true);
   assert.equal(scratch.user, '101:101');
   assert.deepEqual(scratch.networks, ['scratch-runtime']);
-  assert.equal(config.networks['scratch-runtime'].internal, true);
+  assert.notEqual(
+    config.networks['scratch-runtime']?.internal,
+    true,
+    'internal-only runtime networks suppress Docker published ports',
+  );
   assert.equal(scratch.environment, undefined);
   assert.equal(scratch.volumes, undefined);
   assert.equal(scratch.profiles, undefined);

@@ -151,8 +151,8 @@ services:
       - scratch-runtime
 
 networks:
+  # Dedicated bridge: no API/DB membership. It must permit the loopback published port.
   scratch-runtime:
-    internal: true
   application:
   database:
     internal: true
