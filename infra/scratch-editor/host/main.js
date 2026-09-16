@@ -44,7 +44,14 @@
     try {
       const parsed = new URL(rawParentOrigin);
       if (['http:', 'https:'].includes(parsed.protocol) && parsed.origin === rawParentOrigin) {
-        expectedParentOrigin = rawParentOrigin;
+        // `localhost` is a local-deployment template. The runtime still accepts only
+        // the exact configured protocol/port and the same hostname it was loaded from.
+        if (parsed.hostname === 'localhost') {
+          parsed.hostname = new URL(window.location.href).hostname;
+          expectedParentOrigin = parsed.origin;
+        } else {
+          expectedParentOrigin = rawParentOrigin;
+        }
       }
     } catch {
       expectedParentOrigin = null;
