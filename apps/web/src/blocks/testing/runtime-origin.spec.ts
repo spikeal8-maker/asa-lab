@@ -9,7 +9,9 @@ const RUNTIME_ORIGIN = 'http://127.0.0.1:4613';
 function renderEditor(runtimeOrigin: string, parentOrigin = PARENT_ORIGIN, enabled = true) {
   vi.stubGlobal('__ASA_BLOCKS_PREVIEW__', enabled);
   vi.stubGlobal('__ASA_BLOCKS_RUNTIME_ORIGIN__', runtimeOrigin);
-  vi.stubGlobal('window', { location: { origin: parentOrigin } });
+  vi.stubGlobal('window', {
+    location: { origin: parentOrigin, hostname: new URL(parentOrigin).hostname },
+  });
   return renderToStaticMarkup(
     createElement(BlocksEditor, {
       projectId: '11111111-1111-4111-8111-111111111111',
@@ -47,6 +49,17 @@ describe('BlocksEditor runtime origin isolation', () => {
     expect(html).toContain(`<iframe title="Scratch runtime" src="${runtime}/?asaStatus=parent"`);
     expect(html).toContain('Подключение Scratch');
     expect(html).not.toContain('Сохранить на компьютер');
+    expect(html).not.toContain('role="alert"');
+  });
+
+  it.each([
+    'http://100.105.67.69:4610',
+    'http://desktop-i07qije.tail605710.ts.net:4610',
+    'http://desktop-i07qije:4610',
+  ])('maps the localhost runtime template onto the portal hostname for %s', (parent) => {
+    const expected = `http://${new URL(parent).hostname}:4614`;
+    const html = renderEditor('http://localhost:4614', parent);
+    expect(html).toContain(`<iframe title="Scratch runtime" src="${expected}/?asaStatus=parent"`);
     expect(html).not.toContain('role="alert"');
   });
 
