@@ -146,14 +146,14 @@ parallel_lanes:
       issue: 261
       branch: codex/electronics-eopt3b-timed-engine
       base_branch: main
-      pr: null
+      pr: 264
       pr_draft: true
       status: in_progress
       checkpoint: eopt3b_canonical_timed_engine_selected
       owner_acceptance: pending
     revisions:
       convergence_baseline_sha: 34db96e57a898c844fccc8efa19087a82b000b20
-      head_sha: 34db96e57a898c844fccc8efa19087a82b000b20
+      head_sha: 3437b1f35ce0e841845640543e04893275df7f4b
     execution_lease:
       executor_id: codex-electronics-eopt3b
       holder: unassigned
