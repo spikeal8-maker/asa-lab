@@ -93,7 +93,7 @@ describe('Electronics non-temporal engine facade', () => {
     for (const key of TIMED_KEYS) expect(key in snapshot).toBe(false);
   });
 
-  it('defines a serializable canonical timed contract shape without runtime clock operations', () => {
+  it('defines a serializable canonical timed contract shape before exposing host controls', () => {
     const continuation: ElectronicsTimedContinuation = {
       version: 1,
       clockContractVersion: 1,
@@ -128,9 +128,10 @@ describe('Electronics non-temporal engine facade', () => {
     expect(JSON.parse(JSON.stringify({ request, result }))).toEqual({ request, result });
   });
 
-  it('does not expose timed control operations', async () => {
+  it('exposes only the canonical timed advance operation, not host lifecycle controls', async () => {
     const facade = await import('../engine');
     const exported = Object.keys(facade);
-    expect(exported.some((name) => /advance|clock|pause|resume|reset/i.test(name))).toBe(false);
+    expect(exported).toContain('advanceElectronicsToHorizon');
+    expect(exported.some((name) => /pause|resume|reset|clock/i.test(name))).toBe(false);
   });
 });
