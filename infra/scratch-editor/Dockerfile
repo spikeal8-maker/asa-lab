@@ -34,6 +34,10 @@ RUN set -eux; \
     npm run build:dist-standalone --workspace=@scratch/scratch-gui; \
     test -f packages/scratch-gui/dist/scratch-gui-standalone.js
 
+# Reuse pinned build outputs; compression does not modify source media or GUI.
+COPY infra/scratch-editor/configure-artifact.mjs /tmp/configure-artifact.mjs
+RUN node --input-type=module -e "import { precompressStaticAssets as pack } from '/tmp/configure-artifact.mjs'; console.log(pack('/opt/scratch-library-assets'), pack('/opt/scratch-editor/packages/scratch-gui/dist'));"
+
 FROM nginx:1.27.5-alpine
 
 ARG ASA_BLOCKS_PARENT_ORIGIN=

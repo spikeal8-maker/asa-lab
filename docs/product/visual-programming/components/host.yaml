@@ -5,7 +5,7 @@ components:
     state: implemented
     risk: medium
     ownership: infrastructure
-    purpose: 'Build pinned Scratch and ASA host.'
+    purpose: 'Host/static delivery.'
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-001-SCRATCH-HOST-CONTRACT.md
         section: 'Host layout'
@@ -22,6 +22,9 @@ components:
     tests:
       - .github/workflows/scratch-focused.yml
       - tools/verify-blocks-host-shell.mjs
+      - tools/blocks/checks.test.mjs
+      - tools/blocks/storage-library.test.mjs
+      - e2e/blocks-product-integration.spec.ts
     task: VSCR-M1-002A
     depends_on: [blocks.upstream.pin]
 
@@ -29,7 +32,7 @@ components:
     state: implemented
     risk: medium
     ownership: upstream_patch
-    purpose: 'ASA mark; retain native Scratch UI.'
+    purpose: 'ASA mark; native UI.'
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-001-SCRATCH-HOST-CONTRACT.md
         section: 'Branding'
@@ -48,7 +51,7 @@ components:
     state: implemented
     risk: low
     ownership: upstream_config
-    purpose: 'Native Settings and browser locale.'
+    purpose: 'Native locale.'
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-001-SCRATCH-HOST-CONTRACT.md
         section: 'Localization'
@@ -63,7 +66,7 @@ components:
     state: implemented
     risk: medium
     ownership: asa
-    purpose: 'ASA chrome only; preserve Scratch category colours.'
+    purpose: 'ASA chrome; native block colours.'
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-001-SCRATCH-HOST-CONTRACT.md
         section: 'ASA theme boundary'
@@ -76,7 +79,7 @@ components:
     state: implemented
     risk: high
     ownership: cross_boundary
-    purpose: 'ASA-owned account/status; no child account authority.'
+    purpose: 'Parent home/account/status.'
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-001-SCRATCH-HOST-CONTRACT.md
         section: 'ASA identity shell'
@@ -88,6 +91,7 @@ components:
       - e2e/blocks-host-controls.spec.ts
       - e2e/blocks-product-integration.spec.ts
       - apps/web/src/blocks/testing/runtime-origin.spec.ts
+      - apps/web/src/blocks/testing/editor-shell.spec.ts
     task: VSCR-M1-002B
     depends_on: [blocks.host.protocol, blocks.host.storage-adapter]
 
@@ -95,7 +99,7 @@ components:
     state: implemented
     risk: low
     ownership: upstream_config
-    purpose: 'Native File/Edit; ASA persistence separate.'
+    purpose: 'Native File/Edit.'
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-001-SCRATCH-HOST-CONTRACT.md
         section: 'Product controls'
@@ -110,7 +114,7 @@ components:
     state: implemented
     risk: medium
     ownership: upstream_config
-    purpose: 'Native Extensions, services and devices.'
+    purpose: 'Native Extensions.'
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-001-SCRATCH-HOST-CONTRACT.md
         section: 'Extensions'
@@ -125,7 +129,7 @@ components:
     state: implemented
     risk: high
     ownership: asa
-    purpose: 'Strict parent/iframe protocol.'
+    purpose: 'Strict iframe protocol.'
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-001-SCRATCH-HOST-CONTRACT.md
         section: 'Parent/iframe protocol'
@@ -149,7 +153,7 @@ components:
     state: implemented
     risk: high
     ownership: asa
-    purpose: 'Fixture storage; no Scratch-host fallback or durable writes.'
+    purpose: 'Fixtures; no fallback/writes.'
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-001-SCRATCH-HOST-CONTRACT.md
         section: 'Scratch storage adapter'

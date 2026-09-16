@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { Buffer } from 'node:buffer';
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import process from 'node:process';
@@ -159,4 +160,33 @@ test('prebuilt delivery rejects another SHA and unsafe parent origins', async ()
   const recipe = read('infra/scratch-editor/Dockerfile.artifact');
   assert.ok(recipe.includes('node configure-artifact.mjs'));
   assert.ok(recipe.includes('USER 101:101'));
+});
+
+test('static precompression preserves bytes and excludes HTML and binary media', async () => {
+  const { precompressStaticAssets } =
+    await import('../../infra/scratch-editor/configure-artifact.mjs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const { gunzipSync } = await import('node:zlib');
+  const directory = fs.mkdtempSync(join(tmpdir(), 'asa-static-gzip-'));
+  try {
+    fs.mkdirSync(join(directory, 'vendor'));
+    const javascript = Buffer.from('export const sample = "static";\n'.repeat(2000));
+    fs.writeFileSync(join(directory, 'vendor', 'gui.js'), javascript);
+    fs.writeFileSync(join(directory, 'image.svg'), '<svg>'.repeat(1000));
+    for (const name of ['index.html', 'sound.wav', 'image.png'])
+      fs.writeFileSync(join(directory, name), 'unchanged'.repeat(2000));
+    fs.writeFileSync(join(directory, 'small.json'), '{}');
+    assert.deepEqual(precompressStaticAssets(directory), { files: 2 });
+    const encoded = fs.readFileSync(join(directory, 'vendor', 'gui.js.gz'));
+    assert.deepEqual(gunzipSync(encoded), javascript);
+    assert.deepEqual(fs.readFileSync(join(directory, 'vendor', 'gui.js')), javascript);
+    assert.ok(encoded.length < javascript.length / 2);
+    precompressStaticAssets(directory);
+    assert.deepEqual(fs.readFileSync(join(directory, 'vendor', 'gui.js.gz')), encoded);
+    for (const name of ['index.html', 'sound.wav', 'image.png', 'small.json'])
+      assert.equal(fs.existsSync(join(directory, `${name}.gz`)), false);
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
 });

@@ -5,6 +5,21 @@ server {
     root /usr/share/nginx/html;
     index index.html;
 
+    # Static public editor bytes only; no account/API response is served here.
+    gzip_static on;
+    gzip on;
+    gzip_vary on;
+    gzip_comp_level 5;
+    gzip_min_length 1024;
+    gzip_proxied any;
+    gzip_types application/javascript text/javascript text/css application/json image/svg+xml;
+    # Non-hashed scripts and deployment metadata must revalidate after updates.
+    add_header Cache-Control "no-cache";
+
+    location = /library-assets/library-assets-manifest.json {
+        try_files $uri =404;
+    }
+
     location = /healthz {
         access_log off;
         default_type text/plain;
@@ -13,6 +28,7 @@ server {
 
     # Stock media must never fall through to the SPA or vendor index.
     location ^~ /library-assets/ {
+        add_header Cache-Control "public, max-age=31536000, immutable";
         # Pinned nginx has no WAV mapping; Scratch rejects octet-stream media.
         # A location types block replaces inherited mappings, so retain all
         # formats in the local stock-library contract, including sprite JSON.

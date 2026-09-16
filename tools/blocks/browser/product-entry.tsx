@@ -17,6 +17,9 @@ function ProductFixture() {
       onBack={() => {
         window.location.hash = '/projects';
       }}
+      onHomeClick={() => {
+        window.location.hash = '/home';
+      }}
       accountLabel={user.displayName}
       accountInitials={avatar.text}
       avatarUrl={avatar.src}

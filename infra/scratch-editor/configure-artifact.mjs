@@ -1,6 +1,29 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { gzipSync } from 'node:zlib';
+
+// Precompress public static text once at build time, never on each editor start.
+// HTML is deliberately excluded: its parent-origin configuration may still change.
+export function precompressStaticAssets(directory) {
+  let files = 0;
+  function visit(folder) {
+    for (const entry of fs.readdirSync(folder, { withFileTypes: true })) {
+      const filename = path.join(folder, entry.name);
+      if (entry.isDirectory()) visit(filename);
+      else if (entry.isFile() && /\.(js|css|json|svg)$/.test(entry.name)) {
+        const bytes = fs.readFileSync(filename);
+        if (bytes.length < 1024) continue;
+        const gzip = gzipSync(bytes, { level: 5 });
+        if (gzip.length >= bytes.length) continue;
+        fs.writeFileSync(`${filename}.gz`, gzip);
+        files += 1;
+      }
+    }
+  }
+  visit(path.resolve(directory));
+  return { files };
+}
 
 export function configureArtifact(directory, revision, parentOrigin) {
   if (!/^[a-f0-9]{40}$/.test(revision ?? '')) throw new Error('Exact Git SHA is required');
@@ -32,6 +55,7 @@ export function configureArtifact(directory, revision, parentOrigin) {
     index,
     html.replace(marker, `<meta name="asa-parent-origin" content="${parentOrigin}" />`),
   );
+  precompressStaticAssets(root);
   return { revision, parentOrigin };
 }
 

@@ -37,6 +37,9 @@ function BlocksEditorAdapter(props: ModuleEditorProps): JSX.Element {
     <BlocksEditor
       projectId={props.projectId}
       onBack={props.onBack}
+      onHomeClick={() => {
+        window.location.hash = '/home';
+      }}
       accountLabel={props.user.displayName}
       accountInitials={avatar.text}
       avatarUrl={avatar.src}

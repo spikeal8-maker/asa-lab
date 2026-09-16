@@ -120,9 +120,12 @@ test('nginx stock library maps media types and returns genuine 404s', () => {
   const location = config
     .replace(/#[^\n]*/g, '')
     .match(
-      /location \^~ \/library-assets\/\s*\{\s*types\s*\{([^}]+)\}\s*try_files \$uri =404;\s*\}/,
+      /location \^~ \/library-assets\/\s*\{\s*add_header Cache-Control "public, max-age=31536000, immutable";\s*types\s*\{([^}]+)\}\s*try_files \$uri =404;\s*\}/,
     );
-  assert.ok(location, 'stock location must contain only MIME mappings and a terminal 404');
+  assert.ok(
+    location,
+    'stock location must retain immutable cache, MIME mappings and a terminal 404',
+  );
   assert.deepEqual(
     location[1]
       .split(';')

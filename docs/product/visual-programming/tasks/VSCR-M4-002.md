@@ -58,3 +58,19 @@ it must not edit the reviewed implementation or substitute review for tests.
 No S3, JWT, autosave, school controls, arbitrary-archive safety claim or automatic
 B/E/M1 acceptance. Preserve prior B evidence; resume its unclosed technical review
 separately. Complete this owner-selected access slice, report evidence and stop.
+
+## Owner follow-up: local navigation and loading
+
+The owner has observed the deployed editor working. The next bounded repair uses
+loopback ports on D2-R2-X; do not diagnose or change DNS, TLS, domains or FRP.
+Make the ASA wordmark at the upper left an obvious, keyboard-accessible return to
+ASA home, with a warning before leaving unsaved local-file work. The independent
+Scratch Home/icon must not navigate out; the right-hand avatar still opens account.
+Keep navigation callbacks in the parent, not inside the iframe protocol.
+
+Measure cold and warm editor/library startup separately, including transferred
+bytes and image completion. Preserve native libraries and exact pinned content.
+Compress public static text and cache content-addressed media without caching
+mutable entry/host/metadata files as immutable. Require negative-before/fixed-after
+browser checks, local port measurements and exact-candidate CI. Do not equate
+transport optimisation or this repair with ASA durable save or full B/E acceptance.

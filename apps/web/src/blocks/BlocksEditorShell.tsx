@@ -7,6 +7,7 @@ export interface BlocksEditorShellProps {
   accountInitials: string;
   avatarUrl?: string | null;
   onAccountClick: () => void;
+  onHomeClick: () => void;
 }
 
 /**
@@ -22,12 +23,21 @@ export function BlocksEditorShell({
   accountInitials,
   avatarUrl = null,
   onAccountClick,
+  onHomeClick,
 }: BlocksEditorShellProps): JSX.Element {
   return (
     <section className="blocks-editor-shell" data-asa-blocks-editor-shell>
       <div className="blocks-editor-runtime" data-asa-blocks-runtime-slot>
         {children}
       </div>
+      <button
+        type="button"
+        className="blocks-editor-home"
+        aria-label="ASA Lab — на главную"
+        title="ASA Lab — на главную"
+        data-asa-blocks-home-overlay
+        onClick={onHomeClick}
+      />
       <button
         type="button"
         className="blocks-editor-account"

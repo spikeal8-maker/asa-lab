@@ -10,6 +10,7 @@ interface BlocksEditorProps {
   accountInitials: string;
   avatarUrl?: string | null;
   onAccountClick: () => void;
+  onHomeClick: () => void;
 }
 
 function configuredRuntimeOrigin(): string | null {
@@ -33,6 +34,7 @@ export function BlocksEditor({
   accountInitials,
   avatarUrl = null,
   onAccountClick,
+  onHomeClick,
 }: BlocksEditorProps): JSX.Element {
   const runtimeOrigin = useMemo(configuredRuntimeOrigin, []);
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -114,6 +116,14 @@ export function BlocksEditor({
         accountInitials={accountInitials}
         avatarUrl={avatarUrl}
         onAccountClick={onAccountClick}
+        onHomeClick={() => {
+          if (
+            window.confirm(
+              'Изменения Scratch не сохраняются в аккаунте. Сначала сохраните работу через Файл → Сохранить на компьютер (.sb3). Выйти на главную?',
+            )
+          )
+            onHomeClick();
+        }}
       >
         <iframe
           key={attempt}

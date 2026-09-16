@@ -480,3 +480,119 @@ test('unreachable Scratch times out and can reconnect without hiding the editor'
     await fixture.close();
   }
 });
+
+// The parent ASA wordmark navigates; Scratch's own Home action stays inert.
+test('ASA wordmark confirms leaving, supports keyboard, and returns to home', async () => {
+  const fixture = await createProtocolFixture({ product: true, locale: 'en-US' });
+  const page = await fixture.context.newPage();
+  try {
+    await page.goto(`${parentOrigin}/product`, { waitUntil: 'domcontentloaded' });
+    const frame = page.frameLocator('iframe[title="Scratch runtime"]');
+    await expect(frame.locator('[data-asa-host-shell]')).toHaveAttribute(
+      'data-editor-state',
+      'ready',
+      { timeout: 45000 },
+    );
+    const home = page.getByRole('button', { name: 'ASA Lab — на главную', exact: true });
+    await expect(home).toBeVisible();
+    for (const width of [1440, 1024, 390, 320]) {
+      await page.setViewportSize({ width, height: 960 });
+      const hit = await home.boundingBox();
+      const logo = await frame.locator('#logo_img').boundingBox();
+      const settings = await frame
+        .getByRole('button', { name: 'Settings menu', exact: true })
+        .boundingBox();
+      expect(hit).not.toBeNull();
+      expect(logo).not.toBeNull();
+      expect(settings).not.toBeNull();
+      expect(hit!.x).toBeLessThanOrEqual(logo!.x);
+      expect(hit!.x + hit!.width).toBeGreaterThanOrEqual(logo!.x + logo!.width);
+      expect(hit!.y).toBeLessThanOrEqual(logo!.y);
+      expect(hit!.y + hit!.height).toBeGreaterThanOrEqual(logo!.y + logo!.height);
+      expect(hit!.x + hit!.width).toBeLessThanOrEqual(settings!.x);
+      await home.hover();
+      expect(await home.evaluate((el) => getComputedStyle(el).cursor)).toBe('pointer');
+      await page.screenshot({ path: `${evidenceDir}/home-wordmark-${width}.png` });
+    }
+    const childUrl = await frame.locator('body').evaluate(() => window.location.href);
+    await frame
+      .getByRole('button', { name: 'Home', exact: true })
+      .evaluate((button) => (button as HTMLButtonElement).click());
+    await expect(page).toHaveURL(`${parentOrigin}/product`);
+    expect(await frame.locator('body').evaluate(() => window.location.href)).toBe(childUrl);
+    await expect(frame.locator('[data-asa-host-shell]')).toHaveAttribute(
+      'data-editor-state',
+      'ready',
+    );
+    expect(fixture.context.pages()).toHaveLength(1);
+    page.once('dialog', async (dialog) => {
+      expect(dialog.type()).toBe('confirm');
+      expect(dialog.message()).toContain('Сохранить на компьютер (.sb3)');
+      await dialog.dismiss();
+    });
+    await home.click();
+    await expect(page).toHaveURL(`${parentOrigin}/product`);
+    await expect(frame.locator('[data-asa-host-shell]')).toHaveAttribute(
+      'data-editor-state',
+      'ready',
+    );
+    page.once('dialog', async (dialog) => {
+      await dialog.accept();
+    });
+    await home.focus();
+    await home.press('Enter');
+    await expect(page).toHaveURL(`${parentOrigin}/product#/home`);
+    await page.locator('[data-asa-blocks-account-overlay]').click();
+    await expect(page).toHaveURL(`${parentOrigin}/product#/account`);
+    expect(fixture.pageErrors).toEqual([]);
+  } finally {
+    await fixture.close();
+  }
+});
+
+test('runtime compresses scripts and safely separates stock and entry caching', async ({
+  request,
+}) => {
+  const script = await request.get(`${runtimeUrl}/vendor/scratch/scratch-gui-standalone.js`, {
+    headers: { 'Accept-Encoding': 'gzip', Via: '1.1 asa-local-test' },
+  });
+  expect(script.status()).toBe(200);
+  expect(script.headers()['content-encoding']).toBe('gzip');
+  expect(script.headers()['vary']).toContain('Accept-Encoding');
+  expect(script.headers()['cache-control']).toBe('no-cache');
+  const identity = await request.get(`${runtimeUrl}/vendor/scratch/scratch-gui-standalone.js`, {
+    headers: { 'Accept-Encoding': 'identity' },
+  });
+  expect(identity.headers()['content-encoding']).toBeUndefined();
+  expect(Number(script.headers()['content-length'])).toBeGreaterThan(0);
+  expect(Number(script.headers()['content-length'])).toBeLessThan(
+    Number(identity.headers()['content-length']) * 0.5,
+  );
+  expect(
+    createHash('sha256')
+      .update(await script.body())
+      .digest('hex'),
+  ).toBe(
+    createHash('sha256')
+      .update(await identity.body())
+      .digest('hex'),
+  );
+  const sound = await request.get(`${runtimeUrl}/library-assets/${barkAssetId}.wav`);
+  expect(sound.headers()['cache-control']).toBe('public, max-age=31536000, immutable');
+  for (const pathname of [
+    '/',
+    '/index.html',
+    '/editor.js',
+    '/asa-commit.txt',
+    '/library-assets/library-assets-manifest.json',
+  ]) {
+    const response = await request.get(`${runtimeUrl}${pathname}`);
+    expect(response.status()).toBe(200);
+    expect(response.headers()['cache-control']).toBe('no-cache');
+  }
+  const missing = await request.get(
+    `${runtimeUrl}/library-assets/00000000000000000000000000000000.svg`,
+  );
+  expect(missing.status()).toBe(404);
+  expect(missing.headers()['cache-control'] ?? '').not.toContain('immutable');
+});

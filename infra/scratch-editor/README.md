@@ -175,3 +175,35 @@ using Nginx's former WAV header reproduced an invalid archive/import failure; th
 new MIME assertion rejects that header. Only the exact-SHA Docker/browser CI can
 accept the actual Nginx configuration. This correction does not deploy the runtime,
 change Scratch's interface, enable server saving, or accept the whole B milestone.
+
+## ASA home navigation and local loading checks
+
+The top-left ASA wordmark has a parent-owned button, hover/focus feedback and a
+keyboard-accessible name. `ModuleEditorHost` supplies the home callback; the parent
+asks for confirmation with the local `.sb3` warning before invoking it. Cancel
+keeps the same editor alive. Account navigation stays on the right-hand avatar.
+The native Scratch Home/icon does not acquire portal navigation authority; neither
+an account callback nor a navigation message is added to the child protocol.
+
+The build precompresses JavaScript, CSS, JSON and SVG without changing original
+bytes. Nginx prefers these static gzip files, avoiding per-request compression of
+the large GUI bundle; dynamic gzip remains a fallback for small host files. This includes
+requests arriving through a proxy (`gzip_proxied any`, `Vary: Accept-Encoding`).
+It serves no authenticated account/API responses. Only hash-addressed stock files
+get year-long immutable caching. The stock manifest, unversioned host/scripts,
+HTML and revision metadata revalidate with `Cache-Control: no-cache`. Missing
+media still returns a genuine 404 without an immutable-cache header; WAV types
+and bytes remain unchanged. Do not infer gzip from a HEAD request without
+`Accept-Encoding`, or compare a decoded response size with wire bytes.
+
+The cumulative browser suite checks gzip/plain payload equality, cache boundaries,
+native file restoration, the wordmark hit area without covering Settings, hover,
+keyboard confirmation/cancellation and the unchanged avatar. Ready/error layout
+checks remain in force. Local performance diagnostics must distinguish cold from
+warm loads, first usable library content from all preview images, and loopback
+from simulated network limits. Do not claim a measured domain bottleneck from
+local tests. A local runtime may reuse the exact released image with only its
+parent-origin configuration changed; label that fixture, keep the working stack
+untouched, and remove only the temporary diagnostic container afterwards.
+
+Dated local measurements and limits: [local UX report](../../docs/review/VSCR_M4_002_LOCAL_UX_2026-09-16.md).

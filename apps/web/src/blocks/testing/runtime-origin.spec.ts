@@ -14,6 +14,7 @@ function renderEditor(runtimeOrigin: string, parentOrigin = PARENT_ORIGIN, enabl
     createElement(BlocksEditor, {
       projectId: '11111111-1111-4111-8111-111111111111',
       onBack: vi.fn(),
+      onHomeClick: vi.fn(),
       accountLabel: 'ASA test user',
       accountInitials: 'AT',
       onAccountClick: vi.fn(),
@@ -83,6 +84,7 @@ describe('BlocksEditor runtime origin isolation', () => {
       createElement(BlocksEditor, {
         projectId: '11111111-1111-4111-8111-111111111111',
         onBack: vi.fn(),
+        onHomeClick: vi.fn(),
         accountLabel: 'ASA test user',
         accountInitials: 'AT',
         onAccountClick: vi.fn(),
