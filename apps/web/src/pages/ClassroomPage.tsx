@@ -27,6 +27,8 @@ import { SeatAvatarPicker } from '../components/SeatAvatarPicker';
 import { SeatAwardRow } from '../components/SeatAwards';
 import { useSchoolTime } from '../components/school-time';
 import { defaultAvatarForAccount, seatAvatar } from '../creator-portal/default-avatars';
+import { StudentAccessCards } from '../components/StudentAccessCards';
+import { StudentCodeDialog } from '../components/StudentCodeDialog';
 
 type ClassroomTab =
   'students' | 'activities' | 'gradebook' | 'projects' | 'moderation' | 'teachers';
@@ -54,16 +56,6 @@ const TABS: ReadonlyArray<{ id: ClassroomTab; label: string }> = [
 
 /** 1 ученик, 2 ученика, 5 учеников — a class page that says "1 учеников" reads
  * as a machine, and this one is read by teachers every day. */
-function handleFromLabel(label: string): string {
-  const latin = label
-    .toLocaleLowerCase('ru-RU')
-    .normalize('NFKD')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 24);
-  return latin.length >= 3 ? latin : '';
-}
-
 function StudentDialog({
   student,
   onClose,
@@ -73,13 +65,11 @@ function StudentDialog({
   onClose: () => void;
   onSaved: (input: {
     displayLabel: string;
-    loginHandle: string;
     safeMode: boolean;
     avatarKey: string | null;
   }) => Promise<string | null>;
 }): JSX.Element {
   const [displayLabel, setDisplayLabel] = useState(student?.displayLabel ?? '');
-  const [loginHandle, setLoginHandle] = useState(student?.loginHandle ?? '');
   const [safeMode, setSafeMode] = useState(student?.safeMode ?? true);
   const [avatarKey, setAvatarKey] = useState<string | null>(student?.avatarKey ?? null);
   const [busy, setBusy] = useState(false);
@@ -88,22 +78,12 @@ function StudentDialog({
   async function submit(event: FormEvent): Promise<void> {
     event.preventDefault();
     const label = displayLabel.trim();
-    const handle = loginHandle.trim().toLowerCase();
     if (!label) {
       setError('Введите имя ученика для списка класса.');
       return;
     }
-    if (handle && !/^[a-z0-9._-]{3,32}$/.test(handle)) {
-      setError('Имя для входа: 3–32 латинских символа, цифры, точка, дефис или подчёркивание.');
-      return;
-    }
     setBusy(true);
-    const message = await onSaved({
-      displayLabel: label,
-      loginHandle: handle,
-      safeMode,
-      avatarKey,
-    });
+    const message = await onSaved({ displayLabel: label, safeMode, avatarKey });
     setBusy(false);
     if (message) setError(message);
   }
@@ -112,7 +92,10 @@ function StudentDialog({
     <div className="modal-backdrop" role="presentation">
       <div className="modal classroom-student-dialog" role="dialog" aria-modal="true">
         <h2>{student ? 'Настройки ученика' : 'Добавить ученика'}</h2>
-        <p>Ученик войдёт без почты: по коду класса и имени, которое вы ему выдадите.</p>
+        <p>
+          Здесь хранится имя для журнала. Короткий код ученика создаётся отдельно и не зависит от
+          имени.
+        </p>
         <form onSubmit={(event) => void submit(event)}>
           <label htmlFor="seat-display-label">Имя в списке класса</label>
           <input
@@ -122,24 +105,8 @@ function StudentDialog({
             value={displayLabel}
             disabled={busy}
             placeholder="Алина К."
-            onChange={(event) => {
-              const next = event.target.value;
-              setDisplayLabel(next);
-              if (!student && !loginHandle) setLoginHandle(handleFromLabel(next));
-            }}
+            onChange={(event) => setDisplayLabel(event.target.value)}
           />
-          <label htmlFor="seat-login-handle">Имя для входа</label>
-          <input
-            id="seat-login-handle"
-            maxLength={32}
-            value={loginHandle}
-            disabled={busy}
-            placeholder="Можно оставить пустым — создадим автоматически"
-            onChange={(event) => setLoginHandle(event.target.value.toLowerCase())}
-          />
-          {/* A picture only exists once the seat does: a learner being added has
-              no id to key one from yet, and gets theirs the moment they appear
-              in the register. */}
           {student ? (
             <>
               <span className="classroom-seat-avatar-label">Аватар</span>
@@ -184,16 +151,14 @@ function StudentDialog({
 
 function BatchDialog({
   classroomId,
-  classroomTitle,
-  joinCode,
   onClose,
   onCommitted,
+  onOpenCards,
 }: {
   classroomId: string;
-  classroomTitle: string;
-  joinCode: string | null;
   onClose: () => void;
   onCommitted: (created: number) => Promise<void>;
+  onOpenCards: (seatIds: string[]) => void;
 }): JSX.Element {
   const [text, setText] = useState('');
   const [busy, setBusy] = useState<'preview' | 'commit' | null>(null);
@@ -207,16 +172,7 @@ function BatchDialog({
         .split(/\r?\n/)
         .map((line) => line.trim())
         .filter(Boolean)
-        .map((line) => {
-          const [displayLabel = '', requestedHandle = ''] = line
-            .split(',', 2)
-            .map((value) => value.trim());
-          return {
-            displayLabel,
-            ...(requestedHandle ? { loginHandle: requestedHandle.toLowerCase() } : {}),
-            safeMode: true,
-          };
-        }),
+        .map((displayLabel) => ({ displayLabel, safeMode: true })),
     [text],
   );
   const counts = useMemo(
@@ -228,8 +184,8 @@ function BatchDialog({
     }),
     [preview],
   );
-  const credentialRows =
-    committed?.results.filter((row) => row.status === 'created' && row.credential) ?? [];
+  const createdRows =
+    committed?.results.filter((row) => row.status === 'created' && row.seatId) ?? [];
 
   function resetPreview(nextText: string): void {
     setText(nextText);
@@ -281,16 +237,6 @@ function BatchDialog({
     await onCommitted(result.data.created);
   }
 
-  function printCards(): void {
-    if (credentialRows.length === 0) return;
-    const className = 'seat-batch-printing';
-    const cleanup = () => document.body.classList.remove(className);
-    document.body.classList.add(className);
-    window.addEventListener('afterprint', cleanup, { once: true });
-    window.print();
-    window.setTimeout(cleanup, 1000);
-  }
-
   return (
     <div className="modal-backdrop" role="presentation">
       <div className="modal classroom-batch-dialog" role="dialog" aria-modal="true">
@@ -303,8 +249,8 @@ function BatchDialog({
             }}
           >
             <p>
-              Один ученик на строку. После запятой можно указать логин; если его нет, сервер создаст
-              безопасный логин.
+              Один ученик на строку. Вставьте один столбец из таблицы — короткие коды учеников
+              создаст сервер.
             </p>
             <label htmlFor="seat-batch">Ученики</label>
             <textarea
@@ -313,7 +259,7 @@ function BatchDialog({
               rows={8}
               value={text}
               disabled={busy !== null}
-              placeholder={'Алина К., alina-k\nМаксим П., maxim-p\nСофия М.'}
+              placeholder={'Алина К.\\nМаксим П.\\nСофия М.'}
               onChange={(event) => resetPreview(event.target.value)}
             />
             {students.length > 100 ? (
@@ -336,7 +282,7 @@ function BatchDialog({
                       <span>{row.index + 1}</span>
                       <span>
                         <strong>{row.displayLabel || '—'}</strong>
-                        <small>{row.loginHandle || '—'}</small>
+                        <small>Код ученика: {row.studentCode || '—'}</small>
                       </span>
                       <span>
                         {row.status === 'valid'
@@ -344,7 +290,7 @@ function BatchDialog({
                           : row.status === 'duplicate'
                             ? 'Уже существует'
                             : row.status === 'conflict'
-                              ? 'Конфликт логина'
+                              ? 'Конфликт кода'
                               : 'Некорректная строка'}
                       </span>
                     </div>
@@ -388,36 +334,31 @@ function BatchDialog({
         ) : (
           <div className="classroom-batch-result">
             <h3>Ученики добавлены: {committed.created}</h3>
-            {credentialRows.length > 0 ? (
-              <>
-                <p>Эти секреты показаны один раз. Распечатайте или раздайте карточки сейчас.</p>
-                <div className="classroom-batch-print-sheet">
-                  {credentialRows.map((row) => (
-                    <article className="classroom-batch-card" key={row.index}>
-                      <h4>{row.displayLabel}</h4>
-                      <p>{classroomTitle}</p>
-                      <dl>
-                        <dt>Код класса</dt>
-                        <dd>{joinCode || '—'}</dd>
-                        <dt>Логин</dt>
-                        <dd>{row.loginHandle}</dd>
-                        <dt>Секрет</dt>
-                        <dd className="classroom-batch-secret">{row.credential}</dd>
-                      </dl>
-                    </article>
-                  ))}
-                </div>
-              </>
-            ) : (
-              <p className="form-error">
-                Повторный запрос не возвращает старые секреты. Если карточка потеряна, сбросьте
-                доступ конкретного ученика.
-              </p>
-            )}
-            <div className="modal-actions no-print">
-              {credentialRows.length > 0 ? (
-                <button type="button" className="btn-primary" onClick={printCards}>
-                  Распечатать карточки
+            <p>Коды сохранены в списке класса. Карточки можно распечатать сейчас или позже.</p>
+            {createdRows.length > 0 ? (
+              <div className="classroom-batch-rows" aria-label="Созданные ученики">
+                {createdRows.map((row) => (
+                  <div className="classroom-batch-row" key={row.index}>
+                    <span>{row.index + 1}</span>
+                    <span>
+                      <strong>{row.displayLabel}</strong>
+                      <small>Код ученика: {row.studentCode}</small>
+                    </span>
+                    <span>Добавлен</span>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+            <div className="modal-actions">
+              {createdRows.length > 0 ? (
+                <button
+                  type="button"
+                  className="btn-primary"
+                  onClick={() =>
+                    onOpenCards(createdRows.flatMap((row) => (row.seatId ? [row.seatId] : [])))
+                  }
+                >
+                  Карточки новых учеников
                 </button>
               ) : null}
               <button type="button" className="btn-secondary" onClick={onClose}>
@@ -451,12 +392,9 @@ export function ClassroomPage({
   const [editing, setEditing] = useState<ClassroomStudentSeat | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [personalKey, setPersonalKey] = useState<{
-    name: string;
-    loginHandle: string;
-    value: string;
-  } | null>(null);
-  const credentialRequests = useRef(new Map<string, string>());
+  // null = closed; [] = all active learners; non-empty = selected learner cards.
+  const [accessCardIds, setAccessCardIds] = useState<string[] | null>(null);
+  const [codeEditor, setCodeEditor] = useState<ClassroomStudentSeat | null>(null);
   const [teacherTeam, setTeacherTeam] = useState<TeacherTeamState>({ kind: 'idle' });
   const [teacherInviteLink, setTeacherInviteLink] = useState<string | null>(null);
   const [activityKind, setActivityKind] = useState<'all' | 'projects'>('all');
@@ -616,7 +554,7 @@ export function ClassroomPage({
       : students.filter(
           (student) =>
             student.displayLabel.toLocaleLowerCase('ru-RU').includes(needle) ||
-            student.loginHandle.includes(needle),
+            student.studentCode.toLocaleLowerCase('en-US').includes(needle),
         );
 
   /**
@@ -743,28 +681,6 @@ export function ClassroomPage({
         </p>
       ) : null}
 
-      {personalKey ? (
-        <section className="classroom-archived-note" aria-label="Личный ключ ученика">
-          <strong>
-            {personalKey.name} · {personalKey.loginHandle}
-          </strong>
-          <p>
-            Передайте ключ только этому ученику. Он показывается один раз; старые входы завершены.
-          </p>
-          <code>{personalKey.value}</code>{' '}
-          <button
-            type="button"
-            className="btn-secondary"
-            onClick={() => void copy(personalKey.value, 'Личный ключ скопирован.')}
-          >
-            Скопировать ключ
-          </button>{' '}
-          <button type="button" className="btn-secondary" onClick={() => setPersonalKey(null)}>
-            Скрыть
-          </button>
-        </section>
-      ) : null}
-
       {/* The tabs and the one switch that applies to every learner share a row:
           both are about the class as a whole, and the switch used to be a
           banner of its own that pushed the register below the fold. */}
@@ -838,6 +754,14 @@ export function ClassroomPage({
               >
                 Добавить списком
               </button>
+              <button
+                type="button"
+                className="btn-secondary"
+                disabled={students.length === 0 || !classroom.joinCode}
+                onClick={() => setAccessCardIds([])}
+              >
+                Карточки доступа
+              </button>
             </div>
             <label className="classroom-roster-search">
               <span className="sr-only">Поиск учащихся</span>
@@ -890,7 +814,7 @@ export function ClassroomPage({
                   >
                     Учащийся
                   </button>
-                  <span>Имя для входа</span>
+                  <span>Код ученика</span>
                   {/* Две сортировки на одну колонку: «кто сделал больше» и
                     «кто ждёт ответа» — разные вопросы к одним и тем же числам. */}
                   <span className="classroom-roster-sortgroup">
@@ -952,10 +876,10 @@ export function ClassroomPage({
                       type="button"
                       className="classroom-login-handle"
                       onClick={() =>
-                        void copy(student.loginHandle, `Имя «${student.loginHandle}» скопировано.`)
+                        void copy(student.studentCode, `Код «${student.studentCode}» скопирован.`)
                       }
                     >
-                      {student.loginHandle}
+                      {student.studentCode}
                     </button>
                     {/* Сколько сдано из выданного и ждёт ли что-то ответа.
                       Преподаватель видел «ждут проверки» в списке классов,
@@ -1017,48 +941,22 @@ export function ClassroomPage({
                           </button>
                           <button
                             type="button"
-                            disabled={archived || Boolean(busy)}
-                            onClick={async () => {
+                            onClick={() => {
                               close();
-                              if (
-                                !window.confirm(
-                                  `Выдать новый личный ключ для ${student.displayLabel}? Старый ключ и все входы этого ученика будут закрыты.`,
-                                )
-                              )
-                                return;
-                              setPersonalKey(null);
-                              setBusy(`credential:${student.id}`);
-                              const requestId =
-                                credentialRequests.current.get(student.id) ?? crypto.randomUUID();
-                              credentialRequests.current.set(student.id, requestId);
-                              try {
-                                const result = await api.issueSeatCredential(
-                                  classroomId,
-                                  student.id,
-                                  requestId,
-                                );
-                                if (result.ok) {
-                                  credentialRequests.current.delete(student.id);
-                                  setPersonalKey({
-                                    name: student.displayLabel,
-                                    loginHandle: student.loginHandle,
-                                    value: result.data.credential,
-                                  });
-                                } else {
-                                  if (result.status === 409)
-                                    credentialRequests.current.delete(student.id);
-                                  setNotice(
-                                    result.status === 409
-                                      ? 'Предыдущая выдача уже завершена. Ключ повторно не показывается. Для нового ключа повторите выдачу.'
-                                      : 'Не удалось подтвердить выдачу ключа. Повторите попытку.',
-                                  );
-                                }
-                              } finally {
-                                setBusy(null);
-                              }
+                              setAccessCardIds([student.id]);
                             }}
                           >
-                            Выдать личный ключ
+                            Карточка доступа
+                          </button>
+                          <button
+                            type="button"
+                            disabled={archived || Boolean(busy)}
+                            onClick={() => {
+                              close();
+                              setCodeEditor(student);
+                            }}
+                          >
+                            Изменить код ученика
                           </button>
                           <button
                             type="button"
@@ -1364,8 +1262,11 @@ export function ClassroomPage({
             const result = await api.rotateClassroomJoinCode(classroomId);
             setBusy(null);
             if (result.ok) {
-              setNotice('Код класса обновлён. Старый код больше не работает.');
+              setNotice(
+                'Код класса обновлён. Старые карточки больше не подходят — распечатайте новые.',
+              );
               await reload();
+              setAccessCardIds([]);
             }
           }}
           onRevoke={async () => {
@@ -1388,13 +1289,12 @@ export function ClassroomPage({
           onSaved={async (input) => {
             const result = await api.addClassroomSeat(classroomId, {
               displayLabel: input.displayLabel,
-              ...(input.loginHandle ? { loginHandle: input.loginHandle } : {}),
               safeMode: input.safeMode,
             });
             if (!result.ok) return result.error.message || 'Не удалось добавить ученика.';
             setDialog(null);
             setNotice(
-              `${result.data.student.displayLabel} добавлен. Имя для входа: ${result.data.student.loginHandle}`,
+              `${result.data.student.displayLabel} добавлен. Код ученика: ${result.data.student.studentCode}`,
             );
             await reload();
             return null;
@@ -1404,12 +1304,14 @@ export function ClassroomPage({
       {dialog === 'batch' ? (
         <BatchDialog
           classroomId={classroomId}
-          classroomTitle={page.classroom.title}
-          joinCode={page.classroom.joinCode}
           onClose={() => setDialog(null)}
           onCommitted={async (created) => {
             setNotice(`Добавлено учеников: ${created}.`);
             await reload();
+          }}
+          onOpenCards={(seatIds) => {
+            setDialog(null);
+            setAccessCardIds(seatIds);
           }}
         />
       ) : null}
@@ -1417,13 +1319,27 @@ export function ClassroomPage({
         <StudentDialog
           student={editing}
           onClose={() => setEditing(null)}
-          onSaved={(input) =>
-            updateStudent({
-              ...editing,
-              ...input,
-              loginHandle: input.loginHandle || editing.loginHandle,
-            })
-          }
+          onSaved={(input) => updateStudent({ ...editing, ...input })}
+        />
+      ) : null}
+      {accessCardIds !== null ? (
+        <StudentAccessCards
+          classroomTitle={classroom.title}
+          classCode={classroom.joinCode}
+          students={students}
+          initialStudentIds={accessCardIds}
+          onClose={() => setAccessCardIds(null)}
+        />
+      ) : null}
+      {codeEditor ? (
+        <StudentCodeDialog
+          classroomId={classroomId}
+          student={codeEditor}
+          onClose={() => setCodeEditor(null)}
+          onSaved={async (studentCode) => {
+            setNotice(`Код ученика ${codeEditor.displayLabel} изменён: ${studentCode}.`);
+            await reload();
+          }}
         />
       ) : null}
     </main>

@@ -174,7 +174,9 @@ Flow:
 
 CSV/XLSX ETL is not required in E1; copy/paste from a spreadsheet is sufficient.
 
-After issue/reset, plaintext StudentSeat secret is available only in the protected response of that operation. A print-friendly card sheet may be produced from that one-time response. There is no endpoint to read an old plaintext credential later. Lost card -> reset that Seat -> new card.
+StudentSeat basic access is deliberately short: `Class Code → six-character Student Code`. The Student Code is the individual credential; learner display name is not an authentication field and there is no second login/long secret in the basic flow. The code uses a non-ambiguous alphabet and case-insensitive input; server-side rate limiting remains mandatory.
+
+The authorized teacher can see the current Student Code in the roster and open `Карточки доступа` at any time. A printable card contains learner display name, ASA Lab address, current class code and current Student Code. Cards are repeat-printable and printing is read-only: it does not rotate credentials or change sessions/history. Lost but uncompromised card -> reprint. Suspected compromise -> explicit Student Code rotation; old code and active Seat sessions are revoked while the same StudentSeat/LearnerIdentity/history remain. Rotating the class code makes old cards stale and the UI offers reprint.
 
 ### 4.7 Class lifecycle
 
@@ -307,7 +309,7 @@ E1 cannot be declared done unless all are true:
 10. 30×10 matrix distinguishes missing states correctly;
 11. mixed-data upgrade preserves historical projects/courses/feedback/results;
 12. notification off/category/class overrides do not alter academic state;
-13. batch 30 StudentSeats + one-time print cards are repeat-safe;
+13. batch 30 StudentSeats + repeat-printable current access cards are idempotent and repeat-safe;
 14. class archive/restore preserves history;
 15. preview-as-learner creates zero academic records;
 16. draft from old version creates a new future version, never destructive rollback;

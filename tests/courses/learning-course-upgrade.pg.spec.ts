@@ -179,8 +179,6 @@ it('upgrades populated baseline 0106 without rewriting projects, course versions
         'course_versions',
         'principals',
         'accounts',
-        'classroom_student_seats',
-        'classroom_seat_credentials',
         'learner_identities',
         'learner_identity_links',
         'learning_submissions',
@@ -194,6 +192,18 @@ it('upgrades populated baseline 0106 without rewriting projects, course versions
       return result;
     };
     const before = await snapshot();
+    const beforeSeatAccess = {
+      seats: (
+        await isolated.query(
+          `SELECT id,classroom_id,display_label,status FROM classroom_student_seats ORDER BY id`,
+        )
+      ).rows,
+      credentials: (
+        await isolated.query(
+          `SELECT seat_id,version FROM classroom_seat_credentials ORDER BY seat_id`,
+        )
+      ).rows,
+    };
     const upgrade = await isolated.connect();
     try {
       expect(await applyPlan(upgrade, planned)).toBe(planned.length - baseline.length);
@@ -203,6 +213,32 @@ it('upgrades populated baseline 0106 without rewriting projects, course versions
     }
     expect(await snapshot()).toEqual(before);
     expect(await memberships()).toEqual(beforeMemberships);
+    const afterSeats = (
+      await isolated.query(
+        `SELECT id,classroom_id,display_label,status,login_handle,normalized_login_handle
+           FROM classroom_student_seats ORDER BY id`,
+      )
+    ).rows;
+    expect(
+      afterSeats.map(
+        ({ login_handle: _login, normalized_login_handle: _normalized, ...stable }) => stable,
+      ),
+    ).toEqual(beforeSeatAccess.seats);
+    for (const row of afterSeats) {
+      expect(row.login_handle).toMatch(/^[2346789acdefghjkmnpqrtuvwxy]{6}$/);
+      expect(row.normalized_login_handle).toBe(row.login_handle);
+    }
+    const afterCredentials = (
+      await isolated.query(
+        `SELECT seat_id,credential_hash,version FROM classroom_seat_credentials ORDER BY seat_id`,
+      )
+    ).rows;
+    expect(afterCredentials.map((row) => row.seat_id)).toEqual(afterSeats.map((row) => row.id));
+    for (const row of afterCredentials) {
+      expect(row.credential_hash).toMatch(/^[0-9a-f]{64}$/);
+      const previous = beforeSeatAccess.credentials.find((item) => item.seat_id === row.seat_id);
+      expect(Number(row.version)).toBe(previous ? Number(previous.version) + 1 : 1);
+    }
     for (const { record } of oldResults) {
       const persisted = (
         await isolated.query(

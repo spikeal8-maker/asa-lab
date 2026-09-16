@@ -263,8 +263,15 @@ test('a teacher builds a course, shares it by name, and a colleague takes a copy
   await authorPage.getByRole('button', { name: 'Добавить ученика' }).click();
   const studentDialog = authorPage.getByRole('dialog');
   await studentDialog.getByLabel('Имя в списке класса').fill('Алина');
-  await studentDialog.getByLabel('Имя для входа').fill('alina-course');
   await studentDialog.getByRole('button', { name: 'Добавить', exact: true }).click();
+  const studentCode = (
+    await authorPage
+      .getByRole('row')
+      .filter({ hasText: 'Алина' })
+      .locator('.classroom-login-handle')
+      .innerText()
+  ).trim();
+  expect(studentCode).toMatch(/^[2346789ACDEFGHJKMNPQRTUVWXY]{6}$/);
 
   await authorPage
     .locator('.classroom-workspace-tabs')
@@ -289,10 +296,9 @@ test('a teacher builds a course, shares it by name, and a colleague takes a copy
   });
   await studentPage.goto(`/#/join-class?code=${encodeURIComponent(joinCode)}`);
   await studentPage.getByRole('button', { name: 'Продолжить' }).click();
-  await studentPage.getByLabel('Имя для входа').fill('alina-course');
-  await studentPage.getByRole('checkbox', { name: 'Я не робот' }).press('Space');
-  await expect(studentPage.getByRole('button', { name: 'Войти в класс' })).toBeEnabled();
-  await studentPage.getByRole('button', { name: 'Войти в класс' }).click();
+  await studentPage.getByLabel('Код ученика').fill(studentCode);
+  await expect(studentPage.getByRole('button', { name: 'Войти', exact: true })).toBeEnabled();
+  await studentPage.getByRole('button', { name: 'Войти', exact: true }).click();
   await sidebar(studentPage, 'Обучение').click();
   await expect(studentPage.getByRole('heading', { name: 'Обучение', exact: true })).toBeVisible();
   const studentCourses = studentPage.getByTestId('seat-courses');

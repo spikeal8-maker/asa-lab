@@ -3,7 +3,6 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
 import type pg from 'pg';
 import type { ActiveContextUseCase } from '@asa-lab/identity';
 import { ClassroomJoinController } from './classroom-join.controller.js';
-import { BotChallengeService } from './bot-challenge.js';
 
 function request(address: string): FastifyRequest {
   return {
@@ -27,12 +26,8 @@ describe('classroom seat sign-in abuse limits', () => {
   it('limits one guessed class credential even when source addresses rotate', async () => {
     const pool = { query: vi.fn(async () => ({ rows: [] })) } as unknown as pg.Pool;
     const activeContext = {} as ActiveContextUseCase;
-    const controller = new ClassroomJoinController(
-      pool,
-      activeContext,
-      new BotChallengeService({ required: false }),
-    );
-    const body = { code: 'ABC DEF 234', loginHandle: 'student-one', credential: 'A'.repeat(24) };
+    const controller = new ClassroomJoinController(pool, activeContext);
+    const body = { code: 'ABC DEF 234', studentCode: 'ACD234' };
 
     for (let attempt = 0; attempt < 10; attempt += 1) {
       await expect(
@@ -73,7 +68,6 @@ describe('classroom course progress', () => {
     const controller = new ClassroomJoinController(
       { query } as unknown as pg.Pool,
       {} as ActiveContextUseCase,
-      new BotChallengeService({ required: false }),
     );
 
     await expect(
@@ -96,11 +90,7 @@ describe('classroom course progress', () => {
     const activeContext = {
       resolve: vi.fn(async () => ({ accountId: 'account-id' })),
     } as unknown as ActiveContextUseCase;
-    const controller = new ClassroomJoinController(
-      { query } as unknown as pg.Pool,
-      activeContext,
-      new BotChallengeService({ required: false }),
-    );
+    const controller = new ClassroomJoinController({ query } as unknown as pg.Pool, activeContext);
     const accountRequest = request('203.0.113.20');
     accountRequest.cookies['asa_session'] = 'account-session';
 
@@ -165,7 +155,6 @@ describe('immutable classroom submissions', () => {
     const controller = new ClassroomJoinController(
       { query } as unknown as pg.Pool,
       {} as ActiveContextUseCase,
-      new BotChallengeService({ required: false }),
     );
     await expect(
       controller.submitQuiz(seatRequest(), assignmentId, {
@@ -233,7 +222,6 @@ describe('immutable classroom submissions', () => {
     const controller = new ClassroomJoinController(
       { query } as unknown as pg.Pool,
       {} as ActiveContextUseCase,
-      new BotChallengeService({ required: false }),
     );
 
     await expect(
@@ -303,7 +291,6 @@ describe('immutable classroom submissions', () => {
     const controller = new ClassroomJoinController(
       { query } as unknown as pg.Pool,
       {} as ActiveContextUseCase,
-      new BotChallengeService({ required: false }),
     );
 
     await expect(
@@ -327,7 +314,6 @@ describe('immutable classroom submissions', () => {
     const controller = new ClassroomJoinController(
       { query: vi.fn() } as unknown as pg.Pool,
       {} as ActiveContextUseCase,
-      new BotChallengeService({ required: false }),
     );
     await expect(
       controller.submitAssignment(seatRequest(), '123e4567-e89b-42d3-a456-426614174020', {

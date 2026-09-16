@@ -102,20 +102,12 @@ async function createClassWithStudents(
     await page.getByRole('button', { name: 'Добавить ученика' }).click();
     const dialog = page.getByRole('dialog');
     await dialog.getByLabel('Имя в списке класса').fill(student.label);
-    await dialog.getByLabel('Имя для входа').fill(student.handle);
     await dialog.getByRole('button', { name: 'Добавить', exact: true }).click();
     await expect(dialog).toBeHidden();
-    await page.getByRole('button', { name: 'Действия: ' + student.label, exact: true }).click();
-    page.once('dialog', (dialog) => dialog.accept());
-    const issued = page.waitForResponse(
-      (response) =>
-        response.url().endsWith('/credential') && response.request().method() === 'POST',
-    );
-    await page.getByRole('button', { name: 'Выдать личный ключ', exact: true }).click();
-    const response = await issued;
-    expect(response.ok()).toBeTruthy();
-    keys.set(student.handle, (await response.json()).credential);
-    await page.getByRole('button', { name: 'Скрыть', exact: true }).click();
+    const rosterRow = page.getByRole('row').filter({ hasText: student.label });
+    const studentCode = (await rosterRow.locator('.classroom-login-handle').innerText()).trim();
+    expect(studentCode).toMatch(/^[2346789ACDEFGHJKMNPQRTUVWXY]{6}$/);
+    keys.set(student.handle, studentCode);
   }
   return joinCode;
 }
@@ -164,10 +156,8 @@ async function learnerAssignments(
   const page = await context.newPage();
   await page.goto(`/#/join-class?code=${encodeURIComponent(joinCode)}`);
   await page.getByRole('button', { name: 'Продолжить' }).click();
-  await page.getByLabel('Имя для входа').fill(handle);
-  await page.getByLabel('Личный ключ', { exact: true }).fill(keys.get(handle)!);
-  await page.getByRole('checkbox', { name: 'Я не робот' }).press('Space');
-  await page.getByRole('button', { name: 'Войти в класс' }).click();
+  await page.getByLabel('Код ученика', { exact: true }).fill(keys.get(handle)!);
+  await page.getByRole('button', { name: 'Войти', exact: true }).click();
   await openPortalSection(page, 'Моё обучение');
   return { context, page };
 }

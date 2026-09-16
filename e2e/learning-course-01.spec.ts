@@ -204,22 +204,24 @@ test('matrix 30 × 10, named exclusions, course filter, individual allowance and
   }
   await createClassWithStudents(page, 'Большой класс', []);
   await page.getByRole('button', { name: 'Добавить списком', exact: true }).click();
-  const roster = page.getByRole('dialog');
+  const roster = page.getByRole('dialog').filter({
+    has: page.getByRole('heading', { name: 'Добавить список учеников', exact: true }),
+  });
   await roster
     .getByLabel('Ученики', { exact: true })
     .fill(
-      Array.from(
-        { length: 30 },
-        (_, i) => `Ученик ${String(i + 1).padStart(2, '0')}, matrix-e1-${i + 1}`,
-      ).join('\n'),
+      Array.from({ length: 30 }, (_, i) => `Ученик ${String(i + 1).padStart(2, '0')}`).join('\n'),
     );
   await roster.getByRole('button', { name: 'Проверить список', exact: true }).click();
   await expect(roster.getByText('Список проверен сервером')).toBeVisible();
   await roster.getByRole('button', { name: 'Добавить учеников (30)', exact: true }).click();
   await expect(roster.getByRole('heading', { name: 'Ученики добавлены: 30' })).toBeVisible();
-  await expect(roster.locator('.classroom-batch-card')).toHaveCount(30);
-  await roster.getByRole('button', { name: 'Закрыть', exact: true }).click();
+  await roster.getByRole('button', { name: 'Карточки новых учеников', exact: true }).click();
   await expect(roster).toBeHidden();
+  const accessCards = page.getByRole('dialog', { name: 'Карточки доступа' });
+  await expect(accessCards.locator('.student-access-card')).toHaveCount(30);
+  await accessCards.getByRole('button', { name: 'Закрыть', exact: true }).last().click();
+  await expect(accessCards).toBeHidden();
   await openAssignments(page);
   for (const [index, title] of titles.entries())
     await assignFromUi(page, {
@@ -437,9 +439,31 @@ test('Teacher Home: empty, exact review, read/OFF, return/resubmit, accept and e
   ).toBeVisible();
   await page.setViewportSize({ width: 390, height: 844 });
   await home.screenshot({ path: evidenceDir + '/teacher-home-empty-mobile.png' });
-  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
-    true,
-  );
+  const mobileOverflow = await page.evaluate(() => {
+    const viewport = window.innerWidth;
+    const documentWidth = document.documentElement.scrollWidth;
+    const offenders = [...document.querySelectorAll<HTMLElement>('body *')]
+      .map((node) => {
+        const rect = node.getBoundingClientRect();
+        return {
+          node: `${node.tagName.toLowerCase()}${node.id ? `#${node.id}` : ''}${
+            typeof node.className === 'string' && node.className
+              ? `.${node.className.trim().replace(/\s+/g, '.')}`
+              : ''
+          }`,
+          left: Math.round(rect.left),
+          right: Math.round(rect.right),
+          width: Math.round(rect.width),
+        };
+      })
+      .filter((item) => item.right > viewport + 1 || item.left < -1)
+      .slice(0, 12);
+    return { viewport, documentWidth, offenders };
+  });
+  expect(
+    mobileOverflow.documentWidth,
+    `mobile overflow: ${JSON.stringify(mobileOverflow)}`,
+  ).toBeLessThanOrEqual(mobileOverflow.viewport);
   failures.assertEmpty();
   await learner.context.close();
   await applicant.close();
@@ -513,20 +537,12 @@ async function createClassWithStudents(
     await page.getByRole('button', { name: 'Добавить ученика' }).click();
     const dialog = page.getByRole('dialog');
     await dialog.getByLabel('Имя в списке класса').fill(student.label);
-    await dialog.getByLabel('Имя для входа').fill(student.handle);
     await dialog.getByRole('button', { name: 'Добавить', exact: true }).click();
     await expect(dialog).toBeHidden();
-    await page.getByRole('button', { name: 'Действия: ' + student.label, exact: true }).click();
-    page.once('dialog', (dialog) => dialog.accept());
-    const issued = page.waitForResponse(
-      (response) =>
-        response.url().endsWith('/credential') && response.request().method() === 'POST',
-    );
-    await page.getByRole('button', { name: 'Выдать личный ключ', exact: true }).click();
-    const response = await issued;
-    expect(response.ok()).toBeTruthy();
-    keys.set(student.handle, (await response.json()).credential);
-    await page.getByRole('button', { name: 'Скрыть', exact: true }).click();
+    const rosterRow = page.getByRole('row').filter({ hasText: student.label });
+    const studentCode = (await rosterRow.locator('.classroom-login-handle').innerText()).trim();
+    expect(studentCode).toMatch(/^[2346789ACDEFGHJKMNPQRTUVWXY]{6}$/);
+    keys.set(student.handle, studentCode);
   }
   return joinCode;
 }
@@ -571,10 +587,8 @@ async function learnerAssignments(
   const page = await context.newPage();
   await page.goto(`/#/join-class?code=${encodeURIComponent(joinCode)}`);
   await page.getByRole('button', { name: 'Продолжить' }).click();
-  await page.getByLabel('Имя для входа').fill(handle);
-  await page.getByLabel('Личный ключ', { exact: true }).fill(keys.get(handle)!);
-  await page.getByRole('checkbox', { name: 'Я не робот' }).press('Space');
-  await page.getByRole('button', { name: 'Войти в класс' }).click();
+  await page.getByLabel('Код ученика', { exact: true }).fill(keys.get(handle)!);
+  await page.getByRole('button', { name: 'Войти', exact: true }).click();
   await openPortalSection(page, 'Моё обучение');
   return { context, page };
 }
@@ -718,7 +732,6 @@ for (const module of ['three-d', 'electronics'])
     const firstVersion = await detail.getByTestId('submission-version-id').innerText();
     await detail.getByText('Содержимое и контрольная сумма сдачи', { exact: true }).click();
     const submittedDocument = await detail.locator('pre').innerText();
-    // A later draft edit must not mutate the already submitted evidence A.
     await editRealProject(learner.page, module);
     await learner.page.reload();
     await page.getByRole('button', { name: 'Закрыть проверку', exact: true }).click();

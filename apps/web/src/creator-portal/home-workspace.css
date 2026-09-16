@@ -560,6 +560,29 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+@media (max-width: 480px) {
+  .portal-header .asa-brand-copy {
+    display: none;
+  }
+  .portal-global-nav a {
+    padding: 0 4px;
+    font-size: 12px;
+  }
+  .creator-home .creator-module-heading {
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 4px 8px;
+  }
+  .creator-home .creator-module-heading h2 {
+    flex: 1 1 100%;
+  }
+  .creator-home .creator-module-heading .home-create-button {
+    width: auto;
+    max-width: 100%;
+    margin-left: auto;
+  }
+}
+
 @media (max-width: 349px) {
   .creator-home .creator-module-heading .home-module-all > span:last-child {
     display: none;
