@@ -1,21 +1,6 @@
+# Compatibility overlay. Scratch is included in compose.yaml for every normal installation.
 services:
   scratch:
     build:
-      context: .
-      dockerfile: infra/scratch-editor/Dockerfile
       args:
-        ASA_BLOCKS_PARENT_ORIGIN: ${ASA_BLOCKS_PARENT_ORIGIN:-}
-    image: asa-lab-scratch:${ASA_IMAGE_TAG:-local}
-    restart: unless-stopped
-    init: true
-    user: '101:101'
-    read_only: true
-    tmpfs:
-      - /var/cache/nginx:uid=101,gid=101,mode=0700,size=64m
-      - /var/run:uid=101,gid=101,mode=0700,size=8m
-    ports:
-      - '127.0.0.1:${ASA_BLOCKS_PORT:-4613}:8080'
-    security_opt:
-      - no-new-privileges:true
-    cap_drop:
-      - ALL
+        ASA_BLOCKS_PARENT_ORIGIN: ${ASA_BLOCKS_PARENT_ORIGIN:-http://127.0.0.1:${ASA_WEB_PORT:-4610}}

@@ -21,7 +21,7 @@ Set-Location $RepoRoot
 
 if (-not $env:ASA_BUILD_REVISION) {
   $env:ASA_BUILD_REVISION = 'unknown'
-  if (Get-Command git -ErrorAction SilentlyContinue) {
+  if ((Test-Path (Join-Path $RepoRoot '.git')) -and (Get-Command git -ErrorAction SilentlyContinue)) {
     $candidate = (& git rev-parse HEAD 2>$null)
     if ($LASTEXITCODE -eq 0 -and $candidate) {
       $env:ASA_BUILD_REVISION = $candidate.Trim()
@@ -155,7 +155,17 @@ function Test-Ready {
   $output = & docker compose @ComposeFiles exec -T web wget -q -O - http://127.0.0.1:8080/health/ready 2>$null
   if ($LASTEXITCODE -ne 0 -or -not $output) { return $false }
   try {
-    return (($output | Out-String | ConvertFrom-Json).status -eq 'ready')
+    $ready = $output | Out-String | ConvertFrom-Json
+    $metadata = & docker compose @ComposeFiles exec -T web wget -q -O - http://127.0.0.1:8080/build-metadata.json 2>$null
+    if ($LASTEXITCODE -ne 0 -or -not $metadata) { return $false }
+    $scratchRevision = & docker compose @ComposeFiles exec -T scratch wget -q -O - http://127.0.0.1:8080/asa-commit.txt 2>$null
+    if ($LASTEXITCODE -ne 0 -or -not $scratchRevision) { return $false }
+    & docker compose @ComposeFiles exec -T scratch wget -q -O - http://127.0.0.1:8080/healthz *> $null
+    return ($LASTEXITCODE -eq 0 -and $ready.status -eq 'ready' -and
+      $ready.deployment.revision -eq $env:ASA_BUILD_REVISION -and
+      $ready.deployment.synchronized -eq $true -and
+      ($metadata | Out-String | ConvertFrom-Json).revision -eq $env:ASA_BUILD_REVISION -and
+      ($scratchRevision | Out-String).Trim() -eq $env:ASA_BUILD_REVISION)
   } catch {
     return $false
   }
@@ -170,13 +180,15 @@ function Wait-Ready {
 
   Write-Error 'ASA Lab did not become ready within 5 minutes.' -ErrorAction Continue
   & docker compose @ComposeFiles ps -a
-  & docker compose @ComposeFiles logs --tail=120 postgres migration api web
+  & docker compose @ComposeFiles logs --tail=120 postgres migration api web scratch
   throw 'Deployment health check failed.'
 }
 
 function Show-Access {
   Write-Host ''
-  Write-Host 'ASA Lab is ready: http://127.0.0.1:4610'
+  $parentOrigin = Get-EnvironmentValue 'ASA_BLOCKS_PARENT_ORIGIN'
+  if (-not $parentOrigin) { $parentOrigin = 'http://127.0.0.1:4610' }
+  Write-Host "ASA Lab with Scratch is ready: $parentOrigin"
   Write-Host "Revision: $env:ASA_BUILD_REVISION"
   Write-Host "Schema: $env:ASA_EXPECTED_SCHEMA_VERSION"
   if ((Get-EnvironmentValue 'ASA_SEED_DEV') -eq 'true') {
@@ -200,7 +212,9 @@ switch ($Action) {
     Assert-Docker
     New-PrivateEnvironment
     Invoke-Compose @('config', '--quiet')
-    Invoke-Compose @('up', '-d', '--build')
+    # Build sequentially: a failed build never replaces healthy running containers.
+    foreach ($service in @('scratch', 'api', 'web')) { Invoke-Compose @('build', $service) }
+    Invoke-Compose @('up', '-d', '--no-build')
     Wait-Ready
     Invoke-Compose @('ps')
     Show-Access
@@ -216,7 +230,7 @@ switch ($Action) {
   }
   'logs' {
     Assert-Docker
-    Invoke-Compose @('logs', '--tail=200', 'postgres', 'migration', 'api', 'web')
+    Invoke-Compose @('logs', '--tail=200', 'postgres', 'migration', 'api', 'web', 'scratch')
   }
   'down' {
     Assert-Docker

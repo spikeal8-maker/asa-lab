@@ -78,8 +78,8 @@
   height: auto;
 }
 
-/* One normal-flow footer: never cover the editor or its controls. */
-.blocks-editor-preview-status {
+/* Connection/error only. Removed from the DOM once the editor is ready. */
+.blocks-editor-connection-status {
   flex: 0 0 auto;
   box-sizing: border-box;
   padding: 0.5rem 0.75rem;

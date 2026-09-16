@@ -131,7 +131,7 @@ test('root keeps one Scratch command and repository checks still compose governa
 });
 
 test('non-root Scratch has bounded writable tmpfs in CI and preview', () => {
-  const scratch = YAML.parse(read('compose.blocks-preview.yaml')).services.scratch;
+  const scratch = YAML.parse(read('compose.yaml')).services.scratch;
   assert.equal(scratch.user, '101:101');
   assert.equal(scratch.read_only, true);
   assert.deepEqual(scratch.cap_drop, ['ALL']);

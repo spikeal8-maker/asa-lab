@@ -132,22 +132,23 @@ export function BlocksEditor({
           src={`${runtimeOrigin}/?asaStatus=parent`}
         />
       </BlocksEditorShell>
-      <div className="blocks-editor-preview-status" role="status">
-        {status} · изменения пока не сохраняются в аккаунте. Сохраняйте работу на компьютер: Файл →
-        Сохранить на компьютер (.sb3).
-        {status === 'Ошибка Scratch runtime' ? (
-          <button
-            type="button"
-            className="blocks-editor-retry"
-            onClick={() => {
-              setStatus('Подключение Scratch…');
-              setAttempt((value) => value + 1);
-            }}
-          >
-            Повторить подключение
-          </button>
-        ) : null}
-      </div>
+      {status !== 'editor-ready' ? (
+        <div className="blocks-editor-connection-status" role="status">
+          {status}
+          {status === 'Ошибка Scratch runtime' ? (
+            <button
+              type="button"
+              className="blocks-editor-retry"
+              onClick={() => {
+                setStatus('Подключение Scratch…');
+                setAttempt((value) => value + 1);
+              }}
+            >
+              Повторить подключение
+            </button>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }

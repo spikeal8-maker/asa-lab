@@ -51,15 +51,13 @@ test('shipping fullscreen host loads the account avatar in ASA only and survives
       await expect
         .poll(async () => page.locator('[data-asa-blocks-fullscreen]').boundingBox())
         .toEqual({ x: 0, y: 0, ...size });
-      const footer = await page.getByRole('status').boundingBox();
-      expect(footer).not.toBeNull();
+      await expect(page.getByRole('status')).toHaveCount(0);
       await expect
         .poll(async () => page.locator('iframe').boundingBox())
-        .toEqual({ x: 0, y: 0, width: size.width, height: size.height - footer!.height });
+        .toEqual({ x: 0, y: 0, width: size.width, height: size.height });
     }
-    await expect(page.getByRole('status')).toContainText('изменения пока не сохраняются');
-    await expect(page.getByRole('status')).not.toContainText('TEST ·');
-    await expect(page.getByRole('status')).toContainText('(.sb3)');
+    await expect(page.getByRole('status')).toHaveCount(0);
+    await expect(page.locator('.blocks-editor-connection-status')).toHaveCount(0);
     await page.screenshot({ path: `${evidenceDir}/01-shipping-host-account.png` });
     await account.click();
     await expect(page).toHaveURL(`${parentOrigin}/product#/account`);
@@ -115,7 +113,7 @@ test('stock WAV is served as audio and retains the pinned sound bytes', async ({
 });
 
 // Regression #256: text presence alone missed two overlapping live regions.
-test('one parent status row stays outside the real editor in ready and fatal states', async () => {
+test('ready editor has no footer; connection error stays actionable outside the frame', async () => {
   const fixture = await createProtocolFixture({ product: true, locale: 'ru-RU' });
   const page = await fixture.context.newPage();
   const directory = `${evidenceDir}/status-layout`;
@@ -143,30 +141,32 @@ test('one parent status row stays outside the real editor in ready and fatal sta
       ]) {
         await page.setViewportSize(size);
         const status = page.getByRole('status');
-        await expect(status).toHaveCount(1);
-        await expect(status).toBeVisible();
-        await expect(status).toContainText('изменения пока не сохраняются');
-        await expect(frame.locator('#runtime-status')).toBeHidden();
-        const footer = await status.boundingBox();
         const iframe = await page.locator('iframe[title="Scratch runtime"]').boundingBox();
-        expect(footer).not.toBeNull();
         expect(iframe).not.toBeNull();
-        expect(footer!.x).toBe(0);
-        expect(footer!.width).toBe(size.width);
-        expect(footer!.y + footer!.height).toBeCloseTo(size.height, 1);
         expect(iframe!.x).toBe(0);
         expect(iframe!.y).toBe(0);
         expect(iframe!.width).toBe(size.width);
-        expect(iframe!.height).toBeGreaterThan(0);
-        expect(iframe!.y + iframe!.height).toBeLessThanOrEqual(footer!.y);
-        expect(iframe!.height + footer!.height).toBeCloseTo(size.height, 1);
-        expect(
-          await status.evaluate(
-            (element) =>
-              element.scrollWidth <= element.clientWidth &&
-              element.scrollHeight <= element.clientHeight,
-          ),
-        ).toBe(true);
+        await expect(frame.locator('#runtime-status')).toBeHidden();
+        if (state === 'ready') {
+          await expect(status).toHaveCount(0);
+          expect(iframe!.height).toBeCloseTo(size.height, 1);
+          await expect(page.locator('.blocks-editor-connection-status')).toHaveCount(0);
+        } else {
+          await expect(status).toHaveCount(1);
+          await expect(status).toContainText('Ошибка Scratch runtime');
+          await expect(page.getByRole('button', { name: 'Повторить подключение' })).toBeVisible();
+          const footer = await status.boundingBox();
+          expect(footer).not.toBeNull();
+          expect(iframe!.y + iframe!.height).toBeLessThanOrEqual(footer!.y);
+          expect(iframe!.height + footer!.height).toBeCloseTo(size.height, 1);
+          expect(
+            await status.evaluate(
+              (element) =>
+                element.scrollWidth <= element.clientWidth &&
+                element.scrollHeight <= element.clientHeight,
+            ),
+          ).toBe(true);
+        }
         expect(
           await page.evaluate(
             () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
@@ -269,7 +269,7 @@ test('native File saves an edited sb3 and restores code and media in a fresh edi
     await expect(frame.getByRole('textbox', { name: 'Sound', exact: true })).toHaveValue('Bark');
     await frame.getByRole('tab', { name: 'Code', exact: true }).click();
     await expect(frame.getByRole('button', { name: marker, exact: true })).toBeVisible();
-    await expect(page.getByRole('status')).toContainText('изменения пока не сохраняются');
+    await expect(page.getByRole('status')).toHaveCount(0);
     await page.screenshot({ path: `${directory}/01-before-save.png` });
     await frame.getByText('File', { exact: true }).click();
     const downloadPromise = page.waitForEvent('download');
@@ -395,7 +395,7 @@ test('native File saves an edited sb3 and restores code and media in a fresh edi
     await expect.poll(async () => Number(await ticks.textContent())).toBeGreaterThan(2);
     await restored.getByRole('button', { name: 'Stop project', exact: true }).click();
     await expect(shell).toHaveAttribute('data-project-running', 'false');
-    await expect(reopened.getByRole('status')).toContainText('изменения пока не сохраняются');
+    await expect(reopened.getByRole('status')).toHaveCount(0);
     await expect(reopened.locator('[data-asa-blocks-account-overlay]')).toBeVisible();
     await reopened.screenshot({ path: `${directory}/05-restored-program.png` });
     const httpRequests = requests.filter(({ url }) => /^https?:/.test(url));
@@ -466,7 +466,7 @@ test('unreachable Scratch times out and can reconnect without hiding the editor'
     await expect(page.getByRole('status')).toContainText('Ошибка Scratch runtime', {
       timeout: 55000,
     });
-    await expect(page.getByRole('status')).toContainText('не сохраняются в аккаунте');
+    await expect(page.getByRole('status')).toContainText('Ошибка Scratch runtime');
     await expect(page.locator('[data-asa-blocks-account-overlay]')).toBeVisible();
     await page.unroute(`${runtimeUrl}/**`, blockRuntime);
     await page.getByRole('button', { name: 'Повторить подключение' }).click();
@@ -474,7 +474,7 @@ test('unreachable Scratch times out and can reconnect without hiding the editor'
       page.frameLocator('iframe[title="Scratch runtime"]').locator('[data-asa-host-shell]'),
     ).toHaveAttribute('data-editor-state', 'ready', { timeout: 45000 });
     await expect(page.getByRole('button', { name: 'Повторить подключение' })).toHaveCount(0);
-    await expect(page.getByRole('status')).not.toContainText('TEST ·');
+    await expect(page.getByRole('status')).toHaveCount(0);
     expect(fixture.pageErrors).toEqual([]);
   } finally {
     await fixture.close();

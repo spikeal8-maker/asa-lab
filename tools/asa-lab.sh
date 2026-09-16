@@ -16,7 +16,10 @@ case "$profile" in
 esac
 
 if [ -z "${ASA_BUILD_REVISION:-}" ]; then
-  ASA_BUILD_REVISION=$(git -c safe.directory="$repo_root" rev-parse HEAD 2>/dev/null || printf unknown)
+  ASA_BUILD_REVISION=unknown
+  if [ -e .git ]; then
+    ASA_BUILD_REVISION=$(git -c safe.directory="$repo_root" rev-parse HEAD 2>/dev/null || printf unknown)
+  fi
   export ASA_BUILD_REVISION
 fi
 
@@ -135,7 +138,14 @@ environment_value() {
 ready() {
   output=$(compose exec -T web wget -q -O - http://127.0.0.1:8080/health/ready 2>/dev/null || true)
   case "$output" in
-    *'"status":"ready"'*|*'"status": "ready"'*) return 0 ;;
+    *'"status":"ready"'*|*'"status": "ready"'*)
+      printf '%s' "$output" | grep -F "$ASA_BUILD_REVISION" >/dev/null || return 1
+      printf '%s' "$output" | grep -Eq '"synchronized"[[:space:]]*:[[:space:]]*true' || return 1
+      web=$(compose exec -T web wget -q -O - http://127.0.0.1:8080/build-metadata.json 2>/dev/null) || return 1
+      printf '%s' "$web" | grep -F "$ASA_BUILD_REVISION" >/dev/null || return 1
+      scratch=$(compose exec -T scratch wget -q -O - http://127.0.0.1:8080/asa-commit.txt 2>/dev/null) || return 1
+      [ "$scratch" = "$ASA_BUILD_REVISION" ] || return 1
+      compose exec -T scratch wget -q -O - http://127.0.0.1:8080/healthz >/dev/null 2>&1 ;;
     *) return 1 ;;
   esac
 }
@@ -152,13 +162,13 @@ wait_for_ready() {
 
   echo "ASA Lab did not become ready within 5 minutes." >&2
   compose ps -a >&2 || true
-  compose logs --tail=120 postgres migration api web >&2 || true
+  compose logs --tail=120 postgres migration api web scratch >&2 || true
   return 1
 }
 
 show_access() {
   echo
-  echo "ASA Lab is ready: http://127.0.0.1:4610"
+  echo "ASA Lab with Scratch is ready: ${ASA_BLOCKS_PARENT_ORIGIN:-http://127.0.0.1:4610}"
   echo "Revision: $ASA_BUILD_REVISION"
   echo "Schema: $ASA_EXPECTED_SCHEMA_VERSION"
   if [ "$(environment_value ASA_SEED_DEV)" = "true" ]; then
@@ -182,7 +192,8 @@ case "$action" in
     require_docker
     create_environment
     compose config --quiet
-    compose up -d --build
+    for service in scratch api web; do compose build "$service"; done
+    compose up -d --no-build
     wait_for_ready
     compose ps
     show_access
@@ -202,7 +213,7 @@ case "$action" in
     ;;
   logs)
     require_docker
-    compose logs --tail=200 postgres migration api web
+    compose logs --tail=200 postgres migration api web scratch
     ;;
   down)
     require_docker

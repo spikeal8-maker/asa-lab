@@ -79,7 +79,7 @@ function Get-LatestSchemaVersion {
 function Assert-ContainerRunning {
   param([Parameter(Mandatory = $true)][string]$Service)
 
-  $containerId = (& docker @script:ComposeArguments ps -q $Service).Trim()
+  $containerId = (& docker @script:ComposeArguments ps -q $Service | Out-String).Trim()
   if ($LASTEXITCODE -ne 0 -or -not $containerId) {
     throw "Service $Service is absent from the selected Compose project; guarded update is not a bootstrap command."
   }
@@ -118,11 +118,11 @@ function Test-SamePath {
 }
 
 function Get-MixedOriginServices {
-  param([string[]]$Services = @('postgres', 'api', 'web'))
+  param([string[]]$Services = @('postgres', 'api', 'web', 'scratch'))
 
   $drift = @()
   foreach ($service in $Services) {
-    $containerId = (& docker @script:ComposeArguments ps -q $service).Trim()
+    $containerId = (& docker @script:ComposeArguments ps -q $service | Out-String).Trim()
     if ($LASTEXITCODE -ne 0 -or -not $containerId) { continue }
     $workingDirectory = Get-ContainerWorkingDirectory $containerId
     if (-not $workingDirectory -or -not (Test-SamePath $workingDirectory $RepoRoot)) {
@@ -175,7 +175,7 @@ function Save-RollbackImage {
     [Parameter(Mandatory = $true)][string]$Revision
   )
 
-  $containerId = (& docker @script:ComposeArguments ps -q $Service).Trim()
+  $containerId = (& docker @script:ComposeArguments ps -q $Service | Out-String).Trim()
   if ($LASTEXITCODE -ne 0 -or -not $containerId) { return $null }
   $imageId = (& docker inspect --format '{{.Image}}' $containerId).Trim()
   if ($LASTEXITCODE -ne 0 -or -not $imageId) { return $null }
@@ -297,7 +297,10 @@ function Wait-ExactReadiness {
         [int]$ready.deployment.expectedSchemaVersion -eq $SchemaVersion -and
         $ready.deployment.synchronized -eq $true
       ) {
-        return $ready
+        $scratchRevision = & docker @script:ComposeArguments exec -T scratch wget -q -O - http://127.0.0.1:8080/asa-commit.txt 2>$null
+        if ($LASTEXITCODE -ne 0 -or ($scratchRevision | Out-String).Trim() -ne $Revision) { Start-Sleep -Seconds 3; continue }
+        & docker @script:ComposeArguments exec -T scratch wget -q -O - http://127.0.0.1:8080/healthz *> $null
+        if ($LASTEXITCODE -eq 0) { return $ready }
       }
     }
     catch {
@@ -403,11 +406,12 @@ function Invoke-GuardedUpdate {
 
   $rollbackApi = Save-RollbackImage 'api' $oldRevision
   $rollbackWeb = Save-RollbackImage 'web' $oldRevision
+  $rollbackScratch = Save-RollbackImage 'scratch' $oldRevision
 
   Invoke-Native git pull --ff-only origin main
   $newRevision = (& git rev-parse HEAD).Trim()
   $remoteRevision = (& git rev-parse origin/main).Trim()
-  if ($newRevision -ne $remoteRevision) {
+  if ($newRevision -ne $remoteRevision -or $newRevision -ne $targetRevision) {
     throw "Local SHA $newRevision does not match origin/main $remoteRevision after pull."
   }
   $finalStatus = @(& git status --porcelain)
@@ -424,7 +428,8 @@ function Invoke-GuardedUpdate {
   $receiptPath = Join-Path $backupRoot "update-$stamp-$($newRevision.Substring(0, 8)).receipt.txt"
   try {
     Invoke-Compose -Arguments @('config', '--quiet')
-    Invoke-Compose -Arguments @('up', '-d', '--build')
+    foreach ($service in @('scratch', 'api', 'web')) { Invoke-Compose -Arguments @('build', $service) }
+    Invoke-Compose -Arguments @('up', '-d', '--no-build')
     [void](Wait-ExactReadiness -Revision $newRevision -SchemaVersion $schemaVersion)
     $remainingOriginDrift = @(Get-MixedOriginServices)
     if ($remainingOriginDrift.Count -gt 0) {
@@ -443,6 +448,8 @@ function Invoke-GuardedUpdate {
       backup_sha256 = $backupSha256
       rollback_api_image = $rollbackApi
       rollback_web_image = $rollbackWeb
+      rollback_scratch_image = $rollbackScratch
+      scratch_revision = $newRevision
     })
   }
   catch {

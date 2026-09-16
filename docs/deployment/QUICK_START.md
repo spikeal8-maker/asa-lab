@@ -4,7 +4,7 @@
 
 - Git;
 - Docker Desktop для Windows либо Docker Engine с Compose для Linux/WSL2;
-- рекомендуется 8 ГБ оперативной памяти и не менее 10 ГБ свободного места для
+- для сборки рекомендуется 16 ГБ оперативной памяти и не менее 20 ГБ свободного места для
   Docker-образов и первой сборки.
 
 Node.js, pnpm и локальная PostgreSQL для Docker-запуска не требуются: они уже
@@ -34,8 +34,8 @@ cd asa-lab
 2. создаёт игнорируемый Git файл `.env` с криптографически случайными
    URL-safe паролями;
 3. проверяет итоговую Compose-конфигурацию;
-4. собирает и запускает PostgreSQL, миграции, API и Web;
-5. ждёт готовности приложения и печатает локальный адрес и данные тестового
+4. последовательно собирает Scratch, API и Web, затем запускает их с PostgreSQL и миграциями;
+5. сверяет готовность и ревизии Web, API и Scratch и печатает локальный адрес и данные тестового
    педагога.
 
 Первая сборка занимает заметно больше времени, чем повторные запуски: Docker
@@ -48,20 +48,21 @@ cd asa-lab
 
 ## Управление
 
-| Действие | Windows | Linux/WSL2 |
-| --- | --- | --- |
-| Проверить компьютер без запуска | `powershell -ExecutionPolicy Bypass -File .\tools\asa-lab.ps1 doctor` | `./tools/asa-lab.sh doctor` |
-| Собрать или запустить текущий checkout | `powershell -ExecutionPolicy Bypass -File .\tools\asa-lab.ps1 up` | `./tools/asa-lab.sh up` |
-| Проверить готовность | `powershell -ExecutionPolicy Bypass -File .\tools\asa-lab.ps1 health` | `./tools/asa-lab.sh health` |
-| Показать состояние | `powershell -ExecutionPolicy Bypass -File .\tools\asa-lab.ps1 status` | `./tools/asa-lab.sh status` |
-| Показать последние логи | `powershell -ExecutionPolicy Bypass -File .\tools\asa-lab.ps1 logs` | `./tools/asa-lab.sh logs` |
-| Остановить без удаления данных | `powershell -ExecutionPolicy Bypass -File .\tools\asa-lab.ps1 down` | `./tools/asa-lab.sh down` |
+| Действие                               | Windows                                                               | Linux/WSL2                  |
+| -------------------------------------- | --------------------------------------------------------------------- | --------------------------- |
+| Проверить компьютер без запуска        | `powershell -ExecutionPolicy Bypass -File .\tools\asa-lab.ps1 doctor` | `./tools/asa-lab.sh doctor` |
+| Собрать или запустить текущий checkout | `powershell -ExecutionPolicy Bypass -File .\tools\asa-lab.ps1 up`     | `./tools/asa-lab.sh up`     |
+| Проверить готовность                   | `powershell -ExecutionPolicy Bypass -File .\tools\asa-lab.ps1 health` | `./tools/asa-lab.sh health` |
+| Показать состояние                     | `powershell -ExecutionPolicy Bypass -File .\tools\asa-lab.ps1 status` | `./tools/asa-lab.sh status` |
+| Показать последние логи                | `powershell -ExecutionPolicy Bypass -File .\tools\asa-lab.ps1 logs`   | `./tools/asa-lab.sh logs`   |
+| Остановить без удаления данных         | `powershell -ExecutionPolicy Bypass -File .\tools\asa-lab.ps1 down`   | `./tools/asa-lab.sh down`   |
 
 Повторный `up` не пересоздаёт `.env` и не удаляет данные. Команда `down`
 останавливает только Compose-проект `asa-lab-dev` и сохраняет PostgreSQL volume.
 
 Для production используется отдельный профиль. Он включает `NODE_ENV=production`,
-запрещает тестовое наполнение БД и оставляет наружу только Web на `127.0.0.1:4610`:
+запрещает тестовое наполнение БД. Наружу опубликованы только loopback-порты Web
+`127.0.0.1:4610` и Scratch `127.0.0.1:4613`, не API или PostgreSQL:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\tools\asa-lab.ps1 -Action up -Profile production
@@ -94,7 +95,7 @@ powershell -ExecutionPolicy Bypass -File .\tools\docker-update.ps1 -Profile prod
 
 Команда требует чистый `main`, допускает только fast-forward, создаёт и проверяет
 backup до изменения checkout, сохраняет rollback-образы с SHA, затем сверяет
-точную revision API и Web, обе версии схемы и `synchronized: true`. Команда
+точную revision API, Web и Scratch, обе версии схемы и `synchronized: true`. Команда
 также требует запуск из каталога работающей PostgreSQL и блокирует смешение
 контейнеров, созданных из разных копий репозитория. При ошибке она не
 удаляет volume и не восстанавливает дамп автоматически. Полный контракт и
@@ -110,3 +111,17 @@ proxy и собственные production-секреты; подробност�
 
 Если запуск не прошёл, выполните команду `logs`, затем используйте
 [`DOCKER_TROUBLESHOOTING.md`](DOCKER_TROUBLESHOOTING.md).
+
+## Scratch входит в обычную установку
+
+Раздел «Программирование · Scratch» доступен после стандартного `up` без preview.
+Локальный вход: `http://127.0.0.1:4610`, встроенный редактор:
+`http://localhost:4613`. Разные имена узла нужны для изоляции; не заменяйте
+их одним origin и не подставляйте loopback-адреса внешним пользователям.
+Порты и внешние origin настраиваются до сборки. Подробности и миграция старого
+артефактного override: [SCRATCH_INSTALLATION.md](SCRATCH_INSTALLATION.md).
+
+Загрузка исходников через ZIP поддерживает первичный локальный запуск, но без
+`.git` ревизия отображается как `unknown`, а guarded update недоступен. Для
+обновляемой установки используйте `git clone` и сохраняйте каталог установки.
+Повторный `up` не меняет существующие пароли и не удаляет работы.

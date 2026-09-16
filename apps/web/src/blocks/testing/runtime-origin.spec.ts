@@ -45,7 +45,8 @@ describe('BlocksEditor runtime origin isolation', () => {
   ])('preserves the separate-origin preview from %s to %s', (parent, runtime) => {
     const html = renderEditor(runtime, parent);
     expect(html).toContain(`<iframe title="Scratch runtime" src="${runtime}/?asaStatus=parent"`);
-    expect(html).toContain('изменения пока не сохраняются');
+    expect(html).toContain('Подключение Scratch');
+    expect(html).not.toContain('Сохранить на компьютер');
     expect(html).not.toContain('role="alert"');
   });
 
@@ -68,8 +69,8 @@ describe('BlocksEditor runtime origin isolation', () => {
     const html = renderEditor(RUNTIME_ORIGIN, PARENT_ORIGIN, false);
     expect(html).toContain('<iframe');
     expect(html).not.toContain('TEST ·');
-    expect(html).toContain('не сохраняются в аккаунте');
-    expect(html).toContain('(.sb3)');
+    expect(html).not.toContain('не сохраняются в аккаунте');
+    expect(html).not.toContain('(.sb3)');
   });
 
   it('rejects an HTTP runtime inside an HTTPS portal', () => {

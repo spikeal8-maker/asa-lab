@@ -55,6 +55,7 @@ const focused = [
     'tools/blocks/checks.test.mjs',
     'tools/blocks/host.test.mjs',
     'tools/blocks/storage-library.test.mjs',
+    'tools/blocks/deployment.test.mjs',
   ],
   ['pnpm', 'nx', 'build', 'blocks'],
   ['pnpm', 'nx', 'run', 'blocks:typecheck'],

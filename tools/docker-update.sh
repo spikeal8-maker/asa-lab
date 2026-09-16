@@ -67,7 +67,7 @@ container_working_directory() {
 
 mixed_origin_services() {
   drift=''
-  for service in postgres api web; do
+  for service in postgres api web scratch; do
     container_id=$(compose ps -q "$service")
     [ -n "$container_id" ] || continue
     working_directory=$(container_working_directory "$container_id")
@@ -190,7 +190,7 @@ wait_exact_readiness() {
       Promise.all([
         fetch("http://127.0.0.1:4611/health/ready")
           .then((response) => response.ok ? response.json() : Promise.reject(new Error(String(response.status)))),
-        fetch("http://web:4610/build-metadata.json")
+        fetch("http://web:8080/build-metadata.json")
           .then((response) => response.ok ? response.json() : Promise.reject(new Error(String(response.status)))),
       ]).then(([ready, webMetadata]) => {
           const deployment = ready.deployment || {};
@@ -202,7 +202,11 @@ wait_exact_readiness() {
         })
         .catch(() => process.exit(1));
     ' >/dev/null 2>&1; then
-      return 0
+      scratch_revision=$(compose exec -T scratch wget -q -O - http://127.0.0.1:8080/asa-commit.txt 2>/dev/null || true)
+      if [ "$scratch_revision" = "$ASA_BUILD_REVISION" ] &&
+        compose exec -T scratch wget -q -O - http://127.0.0.1:8080/healthz >/dev/null 2>&1; then
+        return 0
+      fi
     fi
     attempts=$((attempts + 1))
     sleep 5
@@ -292,10 +296,12 @@ main() {
 
   rollback_api=$(save_rollback_image api "$old_revision" || true)
   rollback_web=$(save_rollback_image web "$old_revision" || true)
+  rollback_scratch=$(save_rollback_image scratch "$old_revision" || true)
 
   git pull --ff-only origin main
   new_revision=$(git rev-parse HEAD)
   remote_revision=$(git rev-parse origin/main)
+  [ "$new_revision" = "$target_revision" ] || die 'main moved after the exact-SHA CI check; retry preflight'
   [ "$new_revision" = "$remote_revision" ] || die 'local main does not match origin/main after fast-forward'
   [ -z "$(git status --porcelain)" ] || die 'working tree became dirty after fast-forward'
 
@@ -306,14 +312,20 @@ main() {
   export ASA_BUILD_REVISION ASA_IMAGE_TAG ASA_EXPECTED_SCHEMA_VERSION
   receipt_path="$backup_root/update-$stamp-$(printf '%.8s' "$new_revision").receipt.txt"
 
-  if compose config --quiet && compose up -d --build && wait_exact_readiness &&
+  # Build first; retain a failure receipt without replacing running services.
+  build_ok=true
+  for service in scratch api web; do
+    if ! compose build "$service"; then build_ok=false; break; fi
+  done
+  if [ "$build_ok" = true ] && compose config --quiet && compose up -d --no-build && wait_exact_readiness &&
     [ -z "$(mixed_origin_services)" ]; then
     write_receipt "$receipt_path" \
       'status=success' "updated_at_utc=$stamp" "compose_project=$project_name" \
       "profile=$profile" "transport=$transport_label" "previous_revision=$old_revision" \
       "deployed_revision=$new_revision" "schema_version=$schema_version" \
       "backup_path=$backup_path" "backup_sha256=$backup_sha256" \
-      "rollback_api_image=$rollback_api" "rollback_web_image=$rollback_web"
+      "rollback_api_image=$rollback_api" "rollback_web_image=$rollback_web" \
+      "rollback_scratch_image=$rollback_scratch" "scratch_revision=$new_revision"
   else
     write_receipt "$receipt_path" \
       'status=failed_after_backup' "updated_at_utc=$stamp" "compose_project=$project_name" \

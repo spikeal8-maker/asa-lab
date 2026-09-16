@@ -63,3 +63,4 @@ components:
   blocks.sovereign.extensions: {card: components/sovereign-deployment.yaml, keywords: ["локальные расширения", "extension allowlist"]}
   blocks.deployment.backup-restore: {card: components/sovereign-deployment.yaml, keywords: ["backup scratch", "restore scratch"]}
   blocks.activation: {card: components/sovereign-deployment.yaml, keywords: ["активировать scratch", "включить blocks"]}
+  blocks.deployment.local-file: {card: components/sovereign-deployment.yaml, keywords: ["установка scratch", "переносимая сборка", "scratch deployment"]}

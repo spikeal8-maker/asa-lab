@@ -285,3 +285,23 @@ module remains visible; managed persistence claims require their accepted gates
 activation diff is narrow
 rollback preserves data
 ```
+
+## Portable local-file installation
+
+Owner follow-up for VSCR-M4-002 requires Scratch in the normal tracked Compose
+stack and removes the permanent ready-state footer. This replaces earlier
+preview-only delivery and always-visible no-save notice requirements, not the
+unimplemented server-storage or full activation/backup milestones.
+
+Fresh Windows/Linux startup must build the pinned runtime from tracked sources,
+without machine-specific artifact paths. Standard local origins use different
+hostnames and ports. Existing environments/credentials are preserved. Health
+requires coherent Web/API/Scratch revisions. Errors remain explicit; a missing
+runtime must never be reported as a complete successful installation.
+
+CI exports tracked sources into a new directory, creates its private environment,
+uses a disposable `_test` database, runs POSIX and PowerShell startup, checks
+unchanged credentials and the real home/create/editor/native-file/home path.
+The same source-build path is used for normal deployment; GitHub CI, backup,
+origin checks and deployment receipts are not waived.
+No working-site domain or tunnel changes are part of this local-port repair.

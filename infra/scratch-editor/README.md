@@ -51,10 +51,9 @@ that is not a hidden dependency of core project/media loading.
 Owner change 2026-09-16: Scratch is now an active, local-file editor for all
 users. `ASA_BLOCKS_PREVIEW` no longer controls module visibility, creation or
 editor mounting. A valid isolated `ASA_BLOCKS_RUNTIME_ORIGIN` and a reachable
-runtime are still required. The legacy preview flag is only a TEST presentation
-setting; never use it as an access-control switch. School/class controls are deferred.
+runtime are still required. Never use the legacy preview flag as an access-control switch. School/class controls are deferred.
 Missing configuration or a runtime timeout does not hide the module. Keep the
-no-account-save warning and native `.sb3` instructions. A timed-out or failed
+native `.sb3` controls; the ready editor has no persistent footer. A timed-out or failed
 runtime can be reconnected from the parent-owned status row.
 
 The historical preview recipe below describes the existing packaging mechanism,
@@ -63,8 +62,8 @@ not a requirement to hide ordinary user access.
 A legacy explicitly configured TEST stand uses
 `ASA_BLOCKS_PREVIEW=1`, `ASA_BLOCKS_RUNTIME_ORIGIN` for the browser-visible exact
 Scratch origin and `ASA_BLOCKS_PARENT_ORIGIN` for the exact ASA parent origin.
-Web/API must agree on the preview flag. `compose.blocks-preview.yaml` supplies the
-isolated Scratch service; the base Compose stack has no mandatory Scratch service.
+`compose.blocks-preview.yaml` is retained for compatibility only; the base Compose
+stack supplies the isolated Scratch service for normal startup.
 The default preview port is `127.0.0.1:4613`.
 
 The preview service runs as uid/gid `101:101`, read-only, without capabilities,
@@ -87,18 +86,22 @@ response is deterministic fixture data. It checks the actual image, parent-only
 identity, fullscreen geometry, account updates and survival of runtime failure.
 It does not claim a production account or production database was exercised.
 
+Portable installation instructions: [SCRATCH_INSTALLATION.md](../../docs/deployment/SCRATCH_INSTALLATION.md).
+
 All product code lives in the repository. TEST may only rebuild an accepted SHA;
 local or acceptance-only product patches are not a delivery mechanism. Updating a
 running installation is a separate explicitly authorised guarded deployment.
 
 ## Deliberate limits
 
-The current runtime uses read-only controlled project fixtures. The visible
-preview warning states that changes are not saved. Native Save to your computer
+The current runtime uses read-only controlled project fixtures. The ready editor
+has no permanent notice; local-file limitations remain in docs and leave confirmation.
+Native Save to your computer
 is upstream local export, not ASA durable persistence. This integration does not
 claim runtime JWT endpoints, durable asset storage, ASA save/reopen, autosave,
-recovery/conflicts, publication, Learning submission, backup/restore or public
-activation. Those require their separately selected canonical milestones.
+recovery/conflicts, publication, Learning submission or coherent managed-storage
+backup/restore. Those require their separately selected canonical milestones.
+Basic local-file access is already active by the owner decision.
 
 ## License and provenance
 
@@ -123,23 +126,20 @@ Dockerfile. Run it with the same non-root/read-only/bounded tmpfs restrictions a
 `compose.blocks-preview.yaml`. Source compilation in CI remains the authoritative
 reproducible build; artifact packaging does not replace or weaken that gate.
 
-Preview Web/API must use this same revision and the explicit preview flag. The
-portal header shows TEST only in the configured Blocks preview, while the editor
-continues to show the existing no-save preview warning. Keep the normal installation
-and its data separate; changing a test address is configuration, not a product fork.
+A manual TEST stand must keep Web/API/runtime on the same revision. The legacy
+preview flag does not restore a permanent editor footer or gate access. Keep TEST
+data separate; changing a test address is configuration, not a product fork.
+Normal installation uses source builds and does not require this artifact recipe.
 
-## Embedded preview status ownership
+## Connection status ownership
 
-The shipping `BlocksEditor` reserves a normal-flow footer below its iframe for one
-parent-owned status and the persistent no-save warning. It does not cover the
-Scratch workspace or controls. The iframe uses `?asaStatus=parent`, a presentation
-opt-in only: it carries no token, permission or project authority. The child hides
-its redundant local live region only after an accepted editor INIT; before INIT,
-in player mode, and for parents without the opt-in, local host messages remain.
-Parent runtime-failure reporting is unchanged. No upstream UI or protocol payload
-is modified. `e2e/blocks-product-integration.spec.ts` checks a non-overlapping,
-unclipped footer and the retained warning in ready/error states at
-1440/1024/390/320; these checks do not certify all upstream mobile editor controls.
+The shipping `BlocksEditor` removes its status row entirely once `editor-ready`
+is received. The iframe fills the available viewport. Connecting/error/retry states
+remain actionable but are not permanent footnotes. `?asaStatus=parent` hides the
+child's redundant status only after accepted INIT; it never grants authority.
+Owner follow-up supersedes the previous always-visible save notice requirement.
+The explicit home-leave confirmation remains. Tests cover full-height ready state,
+error/retry, origins, account and native File behavior at 1440/1024/390/320.
 
 ## Native File round-trip evidence
 
@@ -149,7 +149,7 @@ It checks File > New clears those changes, closes that browser, and imports the
 actual downloaded `.sb3` through File > Load from your computer in a fresh editor.
 The restored program runs/stops, sprite position, costumes and sound are checked,
 and restoration must not fetch stock-library resources or issue a server write.
-The no-save warning and parent-owned account remain visible. Evidence includes the
+The parent-owned account remains visible; the ready status row is absent. Evidence includes the
 synthetic `.sb3`, screenshots and phase-labelled network requests in
 `reports/blocks/product-integration/native-file-roundtrip/`.
 This verifies preserved upstream local File behavior, not ASA durable save/reopen,

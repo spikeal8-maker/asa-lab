@@ -38,11 +38,11 @@ const REQUIRED_FILES = [
 ];
 const FORBIDDEN_PORTS = new Set([3000, 3100, 5173]);
 const EXPECTED_PORTS = {
-  base: [4610],
-  dev: [4610, 4611],
-  test: [4612],
-  staging: [4610],
-  production: [4610],
+  base: [4610, 4613],
+  dev: [4610, 4611, 4613],
+  test: [4612, 4613],
+  staging: [4610, 4613],
+  production: [4610, 4613],
 };
 const errors = [];
 
@@ -136,7 +136,8 @@ const guardedUpdaterSources = [
       'backup_database "$backup_path"',
       'git pull --ff-only origin main',
       'ASA_BUILD_REVISION=$new_revision',
-      'compose up -d --build',
+      'for service in scratch api web',
+      'compose up -d --no-build',
       '&& wait_exact_readiness',
     ],
   },
@@ -152,7 +153,8 @@ const guardedUpdaterSources = [
       'New-DatabaseBackup $backupPath',
       'Invoke-Native git pull --ff-only origin main',
       '$env:ASA_BUILD_REVISION = $newRevision',
-      "Invoke-Compose -Arguments @('up', '-d', '--build')",
+      "foreach ($service in @('scratch', 'api', 'web'))",
+      "Invoke-Compose -Arguments @('up', '-d', '--no-build')",
       '[void](Wait-ExactReadiness',
     ],
   },
@@ -277,7 +279,14 @@ if (!existsSync(BASE_PATH)) {
 const base = parseYaml(readFileSync(BASE_PATH, 'utf8'));
 const baseServices = base.services ?? {};
 const serviceNames = Object.keys(baseServices).sort();
-const expectedServices = ['api', 'migration', 'postgres', 'web'];
+if (
+  baseServices.scratch?.networks?.includes('database') ||
+  baseServices.scratch?.networks?.includes('application')
+)
+  errors.push('Scratch runtime must not share API/database networks');
+if (baseServices.web?.depends_on?.scratch?.condition !== 'service_healthy')
+  errors.push('Web startup must wait for healthy Scratch');
+const expectedServices = ['api', 'migration', 'postgres', 'scratch', 'web'];
 if (JSON.stringify(serviceNames) !== JSON.stringify(expectedServices)) {
   errors.push(
     `base services must be exactly ${expectedServices.join(', ')}, got ${serviceNames.join(', ')}`,

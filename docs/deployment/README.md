@@ -24,11 +24,11 @@ Operator references:
 Historical infrastructure task state remains in the delivery/governance
 documents. Deployment instructions always target the current `main` branch.
 
-Updating the base application does not enable Scratch preview. Confirm the expected
-visible modules with the owner before deploying: the API feature flag, Web build flags
-and separate runtime must agree. Preview is installation-wide, not administrator-only;
-public activation and ASA server persistence are separate acceptance milestones.
-See the Windows recovery guide for the existing-installation diagnostic path.
+Scratch is included in the base Compose stack, not hidden behind a preview flag.
+The standard startup checks Web/API and the matching Scratch runtime. Read
+[`SCRATCH_INSTALLATION.md`](SCRATCH_INSTALLATION.md) for local origins, reproducible
+source builds, existing-overlay migration and error recovery. Server persistence
+is still a separate milestone; the ready editor has no permanent lower notice.
 
 Production uses the tracked `compose.production.yaml` overlay. Host-specific
 credentials, database dumps and optional transport overlays such as

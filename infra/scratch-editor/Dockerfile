@@ -40,6 +40,8 @@ RUN node --input-type=module -e "import { precompressStaticAssets as pack } from
 
 FROM nginx:1.27.5-alpine
 
+ARG ASA_BUILD_REVISION=unknown
+LABEL org.opencontainers.image.revision="${ASA_BUILD_REVISION}"
 ARG ASA_BLOCKS_PARENT_ORIGIN=
 
 # Bake the static config: the preview runtime is non-root with a read-only rootfs.
@@ -54,6 +56,7 @@ COPY --from=build /opt/scratch-editor/packages/scratch-gui/TRADEMARK /usr/share/
 COPY --from=build /tmp/scratch-upstream.env /usr/share/nginx/html/licenses/scratch-editor-upstream.env
 
 RUN set -eux; \
+    printf '%s\n' "$ASA_BUILD_REVISION" > /usr/share/nginx/html/asa-commit.txt; \
     if [ -n "$ASA_BLOCKS_PARENT_ORIGIN" ]; then \
       sed -i "s#<meta name=\"asa-parent-origin\" content=\"\" />#<meta name=\"asa-parent-origin\" content=\"${ASA_BLOCKS_PARENT_ORIGIN}\" />#" /usr/share/nginx/html/index.html; \
     fi; \

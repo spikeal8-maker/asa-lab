@@ -74,3 +74,19 @@ Compress public static text and cache content-addressed media without caching
 mutable entry/host/metadata files as immutable. Require negative-before/fixed-after
 browser checks, local port measurements and exact-candidate CI. Do not equate
 transport optimisation or this repair with ASA durable save or full B/E acceptance.
+
+## Owner follow-up: clean editor and portable installation
+
+The owner now explicitly requires no persistent lower strip while editing: remove
+its DOM node at editor-ready; keep connection/error/retry only until recovered.
+No visible no-save footnote remains in the ready editor. Local-file limitations
+remain documented and the existing explicit leave confirmation is preserved.
+This supersedes prior ready-state footer requirements, not the storage roadmap.
+
+Scratch must be in the default Compose stack and standard Windows/Linux startup.
+A fresh clone/ZIP must not depend on a D2-R2-X path, downloaded CI artifact, local
+preview overlay or expired Actions URL. Pinned source build is the portable default.
+Web/API/Scratch readiness checks must agree on the revision; a healthy portal with
+missing Scratch is not installation success. Preserve secrets/volumes on repeated
+startup and updates. Normal source builds retain the existing GitHub CI/backup checks. Actual production deployment
+is requested, with local-port verification; no domain/FRP modifications.

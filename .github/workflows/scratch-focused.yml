@@ -5,6 +5,9 @@ on:
     branches:
       - main
     paths:
+      - 'compose*.yaml'
+      - 'tools/asa-lab.*'
+      - 'tools/docker-update.*'
       - 'contexts/blocks/**'
       - 'apps/api/package.json'
       - 'apps/api/src/module-registry.ts'
@@ -28,6 +31,9 @@ on:
       - '.github/workflows/scratch-focused.yml'
   pull_request:
     paths:
+      - 'compose*.yaml'
+      - 'tools/asa-lab.*'
+      - 'tools/docker-update.*'
       - 'contexts/blocks/**'
       - 'apps/api/package.json'
       - 'apps/api/src/module-registry.ts'
@@ -61,7 +67,7 @@ jobs:
   contracts:
     name: Scratch contracts, protocol, types and routing
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 35
     env:
       CI: 'true'
     steps:
@@ -124,7 +130,7 @@ jobs:
         run: pnpm exec playwright install --with-deps chromium
 
       - name: Build pinned Scratch standalone host image
-        run: docker build -f infra/scratch-editor/Dockerfile -t asa-lab-scratch-editor:ci .
+        run: docker build -f infra/scratch-editor/Dockerfile --build-arg ASA_BUILD_REVISION=${{ github.event.pull_request.head.sha || github.sha }} -t asa-lab-scratch-editor:ci .
 
       - name: Start isolated Scratch host
         run: >-
@@ -166,7 +172,7 @@ jobs:
         run: |
           mkdir -p reports/blocks
           docker cp asa-lab-scratch-editor:/usr/share/nginx/html reports/blocks/standalone
-          printf '%s\n' "${{ github.event.pull_request.head.sha || github.sha }}" > reports/blocks/standalone/asa-commit.txt
+          test "$(cat reports/blocks/standalone/asa-commit.txt)" = "${{ github.event.pull_request.head.sha || github.sha }}"
 
       - name: Upload standalone and browser evidence
         if: always()
@@ -183,3 +189,49 @@ jobs:
       - name: Remove isolated runtime
         if: always()
         run: docker rm -f asa-lab-scratch-editor || true
+
+      - name: Fresh exported-source installation with standard defaults
+        env:
+          ASA_BUILD_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          portable=$(mktemp -d "$RUNNER_TEMP/asa-portable-XXXXXX")
+          echo "ASA_PORTABLE_ROOT=$portable" >> "$GITHUB_ENV"
+          git archive "$ASA_BUILD_REVISION" | tar -x -C "$portable"
+          cd "$portable"
+          ./tools/asa-lab.sh doctor
+          sed -i 's|/asalab$|/asalab_portable_test|;s|=asalab$|=asalab_portable_test|;s|APPLY:asalab$|APPLY:asalab_portable_test|' .env
+          sha256sum .env > .env.sha256
+          ./tools/asa-lab.sh up
+          sha256sum --check .env.sha256
+
+      - name: PowerShell repeat startup preserves configuration and data
+        shell: pwsh
+        env:
+          ASA_BUILD_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          Set-Location $env:ASA_PORTABLE_ROOT
+          $before = (Get-FileHash .env).Hash
+          ./tools/asa-lab.ps1 -Action up -Profile dev
+          if ($before -ne (Get-FileHash .env).Hash) { throw 'Repeated startup changed credentials' }
+          ./tools/docker-update.ps1 -SelfTest
+
+      - name: Real default-port Scratch journey from fresh install
+        env:
+          ASA_BUILD_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: node tools/blocks/portable-smoke.mjs
+
+      - name: Preserve fresh-install evidence without environment or credentials
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: scratch-portable-${{ github.event.pull_request.head.sha || github.sha }}
+          path: reports/blocks/portable-install/
+          retention-days: 14
+
+      - name: Stop only the disposable installation
+        if: always()
+        run: |
+          if [ -n "${ASA_PORTABLE_ROOT:-}" ] && [ -f "$ASA_PORTABLE_ROOT/.env" ]; then
+            cd "$ASA_PORTABLE_ROOT"
+            ./tools/asa-lab.sh down
+          fi
