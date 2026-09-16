@@ -384,4 +384,100 @@ describe('Blocks runtime capability core (not HTTP/session wiring)', () => {
         }),
     ).toThrow('Invalid Blocks capability configuration');
   });
+  it('keeps the original signing key after the caller changes its buffer', async () => {
+    const f = fixture();
+    const originalKey = Uint8Array.from(f.key);
+    f.key.fill(0);
+    const token = await f.issue();
+    const { jwtVerify } = await import('jose');
+    const result = await jwtVerify(token, originalKey, {
+      algorithms: ['HS256'],
+      issuer: 'asa-lab',
+      audience: 'asa-blocks-runtime',
+      currentDate: new Date(START * 1000),
+    });
+    expect(result.payload.sub).toBe(f.binding.principalId);
+  });
+  it('keeps the verification key after the caller changes its buffer', async () => {
+    const f = fixture();
+    const token = await f.issue();
+    f.key.fill(0);
+    expect((await f.verify(token)).ok).toBe(true);
+  });
+  it.each([
+    'iss',
+    'aud',
+    'sub',
+    'tenantId',
+    'projectId',
+    'moduleKey',
+    'mode',
+    'versionId',
+    'permissions',
+    'iat',
+    'nbf',
+    'exp',
+    'jti',
+  ])('requires the signed %s claim before consulting authority', async (claim) => {
+    const f = fixture();
+    const payload = decodeJwt<Record<string, unknown>>(await f.issue());
+    delete payload[claim];
+    const token = await new SignJWT(payload)
+      .setProtectedHeader({ alg: 'HS256', typ: 'asa-blocks-runtime+jwt' })
+      .sign(f.key);
+    f.allows.mockClear();
+    expect(await f.verify(token)).toEqual({ ok: false, code: 'invalid_token' });
+    expect(f.allows).not.toHaveBeenCalled();
+  });
+  it('snapshots every verification field before asynchronous work', async () => {
+    const f = fixture();
+    const token = await f.issue();
+    f.allows.mockClear();
+    const input = {
+      token,
+      origin: ORIGIN,
+      binding: { ...f.binding },
+      permission: 'project:read' as BlocksRuntimePermission,
+    };
+    const pending = f.service.verify(input);
+    input.token = 'not-a-token';
+    input.origin = 'https://other.example';
+    input.binding.projectId = randomUUID();
+    input.permission = 'draft:write';
+    expect(await pending).toMatchObject({ ok: true, value: { ...f.binding } });
+    expect(f.allows).toHaveBeenCalledExactlyOnceWith({
+      ...f.binding,
+      permissions: ['project:read'],
+    });
+  });
+  it('keeps independent rejection responsive while an authority check is pending', async () => {
+    const f = fixture();
+    const token = await f.issue();
+    let finishAuthority!: (value: boolean) => void;
+    let markEntered!: () => void;
+    const entered = new Promise<void>((resolve) => {
+      markEntered = resolve;
+    });
+    f.allows.mockImplementation(
+      () =>
+        new Promise<boolean>((resolve) => {
+          finishAuthority = resolve;
+          markEntered();
+        }),
+    );
+    const pending = f.verify(token);
+    await entered;
+    try {
+      const other = await f.service.verify({
+        token,
+        binding: f.binding,
+        permission: 'project:read',
+        origin: 'https://other.example',
+      });
+      expect(other).toEqual({ ok: false, code: 'forbidden_origin' });
+    } finally {
+      finishAuthority(false);
+    }
+    expect(await pending).toEqual({ ok: false, code: 'authority_denied' });
+  });
 });
