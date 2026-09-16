@@ -9,9 +9,13 @@ import {
   type ElectronicsTimedAdvanceRequest,
   type ElectronicsTimedAdvanceResult,
   type ElectronicsTimedContinuation,
+  type ElectronicsTimedState,
   analyseElectronicsSnapshot,
+  pauseElectronicsTimedState,
   parseElectronicsEngineDocument,
   prepareElectronicsSnapshot,
+  resetElectronicsTimedState,
+  resumeElectronicsTimedState,
 } from '../engine';
 
 const TIMED_KEYS = [
@@ -104,9 +108,10 @@ describe('Electronics non-temporal engine facade', () => {
       committedHorizonMicroseconds: 1250,
       serializedState: '{"version":1}',
     };
+    const state: ElectronicsTimedState = { version: 1, lifecycle: 'running', continuation };
     const request: ElectronicsTimedAdvanceRequest = {
       requestedHorizonMicroseconds: 2000,
-      continuation,
+      state,
       inputEvents: [
         {
           atMicroseconds: 1500,
@@ -121,17 +126,29 @@ describe('Electronics non-temporal engine facade', () => {
       executionStatus: 'yielded',
       requestedHorizonMicroseconds: 2000,
       committedHorizonMicroseconds: 1250,
-      continuation,
+      state,
       observation: null,
       diagnostics: [],
     };
     expect(JSON.parse(JSON.stringify({ request, result }))).toEqual({ request, result });
   });
 
-  it('exposes only the canonical timed advance operation, not host lifecycle controls', async () => {
+  it('exposes canonical advance and pure lifecycle state operations without a second clock', async () => {
     const facade = await import('../engine');
     const exported = Object.keys(facade);
-    expect(exported).toContain('advanceElectronicsToHorizon');
-    expect(exported.some((name) => /pause|resume|reset|clock/i.test(name))).toBe(false);
+    expect(exported).toEqual(
+      expect.arrayContaining([
+        'advanceElectronicsToHorizon',
+        'pauseElectronicsTimedState',
+        'resetElectronicsTimedState',
+        'resumeElectronicsTimedState',
+      ]),
+    );
+    expect(exported.some((name) => /clock/i.test(name))).toBe(false);
+    expect(pauseElectronicsTimedState(resetElectronicsTimedState()).lifecycle).toBe('paused');
+    expect(
+      resumeElectronicsTimedState(pauseElectronicsTimedState(resetElectronicsTimedState()))
+        .lifecycle,
+    ).toBe('running');
   });
 });
