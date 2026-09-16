@@ -238,23 +238,25 @@ export function advanceElectronicsToHorizon(
   request: ElectronicsTimedAdvanceRequest,
 ): ElectronicsTimedAdvanceResult {
   const modelSetDigest = analyseCircuit(document).modelSetDigest;
-  const previous = request.continuation
-    ? decodeTimedContinuation(request.continuation, modelSetDigest)
-    : undefined;
-  if (request.continuation && !previous) {
-    return {
-      executionStatus: 'fault',
-      requestedHorizonMicroseconds: request.requestedHorizonMicroseconds,
-      committedHorizonMicroseconds: 0,
-      continuation: null,
-      observation: null,
-      diagnostics: [
-        {
-          code: 'invalid_timed_continuation',
-          message: 'Timed continuation is incompatible with this engine, document or model set.',
-        },
-      ],
-    };
+  let previous: ArduinoCircuitClockState | undefined;
+  if (request.continuation) {
+    const decoded = decodeTimedContinuation(request.continuation, modelSetDigest);
+    if (!decoded) {
+      return {
+        executionStatus: 'fault',
+        requestedHorizonMicroseconds: request.requestedHorizonMicroseconds,
+        committedHorizonMicroseconds: 0,
+        continuation: null,
+        observation: null,
+        diagnostics: [
+          {
+            code: 'invalid_timed_continuation',
+            message: 'Timed continuation is incompatible with this engine, document or model set.',
+          },
+        ],
+      };
+    }
+    previous = decoded;
   }
 
   const appendedInputs: ArduinoCircuitInputEvent[] = [];
@@ -320,7 +322,10 @@ export function advanceElectronicsToHorizon(
       continuation: request.continuation ?? null,
       observation: null,
       diagnostics: [
-        { code: 'missing_timed_observation', message: 'Ready timed advance omitted its observation.' },
+        {
+          code: 'missing_timed_observation',
+          message: 'Ready timed advance omitted its observation.',
+        },
       ],
     };
   }
