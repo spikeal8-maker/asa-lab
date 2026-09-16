@@ -23,7 +23,9 @@ function controller(rows: unknown[] = []) {
       ? []
       : sql.includes('course_draft_lock')
         ? [{ ok: true }]
-        : rows,
+        : sql.includes('course_library_list_v3($1) WHERE id=$2')
+          ? [{ archived_at: null }]
+          : rows,
   }));
   const activeContext = {
     resolve: vi.fn(async () => ({
