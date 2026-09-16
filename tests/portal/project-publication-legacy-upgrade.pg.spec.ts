@@ -5,11 +5,7 @@ import { planMigrations } from '../../tools/migrate.mjs';
 import { applyIsolatedTestPlan } from '../migration/isolated-postgres-plan';
 import { seedTeacher } from './helpers';
 
-async function principalId(
-  pool: pg.Pool,
-  tenantId: string,
-  userId: string,
-): Promise<string> {
+async function principalId(pool: pg.Pool, tenantId: string, userId: string): Promise<string> {
   const result = await pool.query(
     `SELECT principal_id
        FROM legacy_user_account_links
