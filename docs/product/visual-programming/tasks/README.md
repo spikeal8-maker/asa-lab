@@ -62,3 +62,7 @@ For a readiness row marked `DESIGN CARD REQUIRED`, instantiate a concrete VSCR c
 `current.yaml`. Never perform design-gate work directly from the roadmap.
 
 No task card stores current readiness status or current SHA/PR state.
+
+M1-003A is an explicitly bounded, non-exposed capability-core preparation for the
+owner-selected persistence goal. It does not waive B/E acceptance for HTTP/DI
+integration or activate any new service. See its exact card before coding.

@@ -9,14 +9,14 @@ development_policy:
   lane_path_ownership: advisory
 
 task:
-  id: VSCR-M4-002
-  issue: 260
+  id: VSCR-M1-003A
+  issue: 273
   branch: main
   base_branch: main
   pr: null
   pr_draft: false
   status: in_progress
-  checkpoint: owner_selected_default_access_local_file_mode
+  checkpoint: owner_selected_runtime_capability_core_before_persistence
   owner_acceptance: pending
 
 revisions:

@@ -34,6 +34,15 @@ ASA installation; use [SCRATCH_INSTALLATION.md](../../deployment/SCRATCH_INSTALL
 Do not create a second deployment or choose a new port from this roadmap.
 M1 managed-storage/security acceptance below is not automatically completed.
 
+## First bounded step toward ASA persistence
+
+Owner request to start persistence now selects [M1-003A](tasks/VSCR-M1-003A.md):
+a non-exposed capability core only. It can be tested without changing the delivered
+editor or introducing cookie/API trust. This is not acceptance of B/E or the whole
+M1-003. Complete remaining host acceptance before wiring HTTP runtime sessions,
+new protected endpoints and deployment. Assets/load-save/autosave retain the order below.
+Do not reimplement the already delivered local-file installation while doing this work.
+
 ## Strict order
 
 ```text
