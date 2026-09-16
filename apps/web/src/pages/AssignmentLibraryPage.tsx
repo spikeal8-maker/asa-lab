@@ -371,7 +371,7 @@ export function AssignmentLibraryPage({
         <AuthoredMaterialsPage embedded onChanged={() => void reload()} />
       ) : null}
       {tab === 'courses' ? (
-        <CoursesPanel assignments={all} onChanged={() => void reload()} />
+        <CoursesPanel assignments={all} canTeach={canTeach} onChanged={() => void reload()} />
       ) : null}
       {tab === 'catalogue' ? (
         <CataloguePanel modules={modules} onTaken={() => void reload()} />

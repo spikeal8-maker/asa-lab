@@ -453,6 +453,7 @@ function CourseEditor({
   onEditCourse,
   onShare,
   onChanged,
+  canTeach,
 }: {
   readonly course: Course;
   readonly assignments: readonly LibraryAssignment[];
@@ -460,6 +461,7 @@ function CourseEditor({
   readonly onEditCourse: () => void;
   readonly onShare: () => void;
   readonly onChanged: () => void;
+  readonly canTeach: boolean;
 }): JSX.Element {
   const [localDirty, setLocalDirty] = useState(false);
   const localDirtyRef = useRef(false);
@@ -522,8 +524,21 @@ function CourseEditor({
     }
     return null;
   }, [sections, selectedLessonId]);
+  function withSavedDraft(action: () => void): void {
+    if (localDirtyRef.current) {
+      setNotice(null);
+      setError('Сначала сохраните изменения урока. Переход не выполнен, данные не потеряны.');
+      return;
+    }
+    action();
+  }
 
   async function act(run: () => MutationResult, done: string): Promise<boolean> {
+    if (localDirtyRef.current) {
+      setNotice(null);
+      setError('Сначала сохраните изменения урока. Структура курса не изменена.');
+      return false;
+    }
     const result = await run();
     if (!result.ok) {
       setError(result.error?.message ?? 'Не получилось.');
@@ -594,7 +609,11 @@ function CourseEditor({
     <fieldset disabled={restoreBusy} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
       <section className="course-system" data-testid="course-editor">
         <header className="course-compact-header">
-          <button type="button" className="course-back-button" onClick={onBack}>
+          <button
+            type="button"
+            className="course-back-button"
+            onClick={() => withSavedDraft(onBack)}
+          >
             <span aria-hidden="true">←</span>
             <span>Курсы</span>
           </button>
@@ -610,12 +629,22 @@ function CourseEditor({
             </p>
           </div>
           <div className="course-header-actions">
-            <button type="button" className="btn-secondary" onClick={onEditCourse}>
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => withSavedDraft(onEditCourse)}
+            >
               Настройки
             </button>
-            <button type="button" className="btn-secondary" onClick={onShare}>
-              Доступ
-            </button>
+            {canTeach ? (
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => withSavedDraft(onShare)}
+              >
+                Доступ
+              </button>
+            ) : null}
             {course.publicationState !== 'published' ? (
               <button
                 type="button"
@@ -634,7 +663,7 @@ function CourseEditor({
             <button
               type="button"
               className={preview ? 'btn-primary' : 'btn-secondary'}
-              onClick={() => setPreview((value) => !value)}
+              onClick={() => withSavedDraft(() => setPreview((value) => !value))}
             >
               {preview ? 'Редактировать' : 'Предпросмотр'}
             </button>
@@ -699,7 +728,7 @@ function CourseEditor({
                   className="course-icon-button"
                   aria-label="Добавить раздел"
                   title="Добавить раздел"
-                  onClick={() => setSectionForm('new')}
+                  onClick={() => withSavedDraft(() => setSectionForm('new'))}
                 >
                   +
                 </button>
@@ -711,7 +740,7 @@ function CourseEditor({
                       <button
                         type="button"
                         className="course-section-name"
-                        onClick={() => setSectionForm(section)}
+                        onClick={() => withSavedDraft(() => setSectionForm(section))}
                       >
                         <span>{sectionIndex + 1}</span>
                         <strong>{section.title}</strong>
@@ -755,7 +784,7 @@ function CourseEditor({
                               type="button"
                               onClick={() => {
                                 close();
-                                setSectionForm(section);
+                                withSavedDraft(() => setSectionForm(section));
                               }}
                             >
                               Переименовать
@@ -788,10 +817,12 @@ function CourseEditor({
                                 ? 'course-lesson-link is-active'
                                 : 'course-lesson-link'
                             }
-                            onClick={() => {
-                              setSelectedLessonId(lesson.id);
-                              setNewLessonSectionId(null);
-                            }}
+                            onClick={() =>
+                              withSavedDraft(() => {
+                                setSelectedLessonId(lesson.id);
+                                setNewLessonSectionId(null);
+                              })
+                            }
                           >
                             <span>{lessonIndex + 1}</span>
                             <span>
@@ -842,10 +873,12 @@ function CourseEditor({
                     <button
                       type="button"
                       className="course-add-lesson"
-                      onClick={() => {
-                        setSelectedLessonId(null);
-                        setNewLessonSectionId(section.id);
-                      }}
+                      onClick={() =>
+                        withSavedDraft(() => {
+                          setSelectedLessonId(null);
+                          setNewLessonSectionId(section.id);
+                        })
+                      }
                     >
                       + Урок
                     </button>
@@ -885,7 +918,9 @@ function CourseEditor({
                   <button
                     type="button"
                     className="btn-primary"
-                    onClick={() => setNewLessonSectionId(sections[0]?.id ?? null)}
+                    onClick={() =>
+                      withSavedDraft(() => setNewLessonSectionId(sections[0]?.id ?? null))
+                    }
                   >
                     Добавить урок
                   </button>
@@ -927,9 +962,11 @@ function CourseEditor({
  */
 export function CoursesPanel({
   assignments,
+  canTeach,
   onChanged,
 }: {
   readonly assignments: readonly LibraryAssignment[];
+  readonly canTeach: boolean;
   readonly onChanged: () => void;
 }): JSX.Element {
   const [courses, setCourses] = useState<Course[] | null>(null);
@@ -939,6 +976,7 @@ export function CoursesPanel({
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [creatingDemo, setCreatingDemo] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
   const creationRequest = useRef<{ payload: string; id: string } | null>(null);
 
   const reload = useCallback(async () => {
@@ -990,7 +1028,11 @@ export function CoursesPanel({
     onChanged();
   }
 
-  const open = courses?.find((course) => course.id === openId) ?? null;
+  const visibleCourses = (courses ?? []).filter(
+    (course) => (course.archivedAt !== null) === showArchived,
+  );
+  const open =
+    courses?.find((course) => course.id === openId && course.archivedAt === null) ?? null;
   if (open) {
     return (
       <>
@@ -1001,6 +1043,7 @@ export function CoursesPanel({
           onEditCourse={() => setCourseForm(open)}
           onShare={() => setSharing(open)}
           onChanged={() => void reload()}
+          canTeach={canTeach}
         />
         {courseForm ? (
           <CourseFormDialog
@@ -1044,19 +1087,39 @@ export function CoursesPanel({
         <div className="courses-toolbar-actions">
           <button
             type="button"
-            className="btn-secondary"
-            disabled={creatingDemo}
-            onClick={() => void ensureDemoCourse()}
+            className={!showArchived ? 'btn-primary' : 'btn-secondary'}
+            aria-pressed={!showArchived}
+            onClick={() => setShowArchived(false)}
           >
-            {creatingDemo ? 'Добавляем…' : 'Добавить демо-курс'}
+            Активные
           </button>
           <button
             type="button"
-            className="portal-create-button"
-            onClick={() => setCourseForm('new')}
+            className={showArchived ? 'btn-primary' : 'btn-secondary'}
+            aria-pressed={showArchived}
+            onClick={() => setShowArchived(true)}
           >
-            Создать курс
+            Архив
           </button>
+          {canTeach && !showArchived ? (
+            <button
+              type="button"
+              className="btn-secondary"
+              disabled={creatingDemo}
+              onClick={() => void ensureDemoCourse()}
+            >
+              {creatingDemo ? 'Добавляем…' : 'Добавить демо-курс'}
+            </button>
+          ) : null}
+          {!showArchived ? (
+            <button
+              type="button"
+              className="portal-create-button"
+              onClick={() => setCourseForm('new')}
+            >
+              Создать курс
+            </button>
+          ) : null}
         </div>
       </div>
 
@@ -1073,34 +1136,43 @@ export function CoursesPanel({
 
       {courses === null ? (
         <p role="status">Загружаем курсы…</p>
-      ) : courses.length === 0 ? (
+      ) : visibleCourses.length === 0 ? (
         <div className="course-list-empty">
           <span aria-hidden="true">＋</span>
           <div>
-            <h3>Создайте первый курс</h3>
-            <p>Разделы задают порядок, уроки объединяют объяснение и практику.</p>
+            <h3>{showArchived ? 'Архив пуст' : 'Создайте первый курс'}</h3>
+            <p>
+              {showArchived
+                ? 'Архивированные курсы появятся здесь.'
+                : 'Разделы задают порядок, уроки объединяют объяснение и практику.'}
+            </p>
           </div>
-          <div className="course-list-empty-actions">
-            <button
-              type="button"
-              className="btn-secondary"
-              disabled={creatingDemo}
-              onClick={() => void ensureDemoCourse()}
-            >
-              {creatingDemo ? 'Добавляем…' : 'Посмотреть готовый пример'}
-            </button>
-            <button type="button" className="btn-primary" onClick={() => setCourseForm('new')}>
-              Создать свой курс
-            </button>
-          </div>
+          {!showArchived ? (
+            <div className="course-list-empty-actions">
+              {canTeach ? (
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  disabled={creatingDemo}
+                  onClick={() => void ensureDemoCourse()}
+                >
+                  {creatingDemo ? 'Добавляем…' : 'Посмотреть готовый пример'}
+                </button>
+              ) : null}
+              <button type="button" className="btn-primary" onClick={() => setCourseForm('new')}>
+                Создать свой курс
+              </button>
+            </div>
+          ) : null}
         </div>
       ) : (
         <ul className="courses-list" data-testid="courses-list">
-          {courses.map((course) => (
+          {visibleCourses.map((course) => (
             <li key={course.id}>
               <button
                 type="button"
                 className="course-row-main"
+                disabled={showArchived}
                 onClick={() => setOpenId(course.id)}
               >
                 <span className="course-row-mark" aria-hidden="true">
@@ -1128,55 +1200,75 @@ export function CoursesPanel({
                   </span>
                 </span>
               </button>
-              <button
-                type="button"
-                className="btn-secondary course-open-button"
-                onClick={() => setOpenId(course.id)}
-              >
-                Открыть
-              </button>
-              <Dropdown
-                className="course-row-menu"
-                ariaLabel={'Ещё: ' + course.title}
-                label={<span aria-hidden="true">•••</span>}
-              >
-                {(close) => (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        close();
-                        setCourseForm(course);
-                      }}
-                    >
-                      Настройки
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        close();
-                        setSharing(course);
-                      }}
-                    >
-                      Кому видно
-                    </button>
-                    <button
-                      type="button"
-                      className="is-danger"
-                      onClick={() => {
-                        close();
-                        if (!window.confirm('Удалить курс «' + course.title + '»?')) return;
-                        void act(
-                          () => api.deleteCourse(course.id),
-                          'Курс «' + course.title + '» удалён.',
-                        );
-                      }}
-                    >
-                      Удалить
-                    </button>
-                  </>
-                )}
-              </Dropdown>
+              {showArchived ? (
+                <button
+                  type="button"
+                  className="btn-secondary course-open-button"
+                  onClick={() =>
+                    void act(
+                      () => api.archiveCourse(course.id, false, course.draftRevision),
+                      'Курс «' + course.title + '» восстановлен.',
+                    )
+                  }
+                >
+                  Восстановить
+                </button>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    className="btn-secondary course-open-button"
+                    onClick={() => setOpenId(course.id)}
+                  >
+                    Открыть
+                  </button>
+                  <Dropdown
+                    className="course-row-menu"
+                    ariaLabel={'Ещё: ' + course.title}
+                    label={<span aria-hidden="true">•••</span>}
+                  >
+                    {(close) => (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            close();
+                            setCourseForm(course);
+                          }}
+                        >
+                          Настройки
+                        </button>
+                        {canTeach ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              close();
+                              setSharing(course);
+                            }}
+                          >
+                            Кому видно
+                          </button>
+                        ) : null}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            close();
+                            if (!window.confirm('Архивировать курс «' + course.title + '»?'))
+                              return;
+
+                            void act(
+                              () => api.archiveCourse(course.id, true, course.draftRevision),
+                              'Курс «' + course.title + '» перемещён в архив.',
+                            );
+                          }}
+                        >
+                          Архивировать
+                        </button>
+                      </>
+                    )}
+                  </Dropdown>
+                </>
+              )}
             </li>
           ))}
         </ul>

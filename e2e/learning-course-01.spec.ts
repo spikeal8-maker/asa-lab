@@ -586,7 +586,8 @@ async function learnerAssignments(
   const context = await browser.newContext();
   const page = await context.newPage();
   await page.goto(`/#/join-class?code=${encodeURIComponent(joinCode)}`);
-  await page.getByRole('button', { name: 'Продолжить' }).click();
+  await expect(page.getByLabel('Код ученика', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Продолжить', exact: true })).toHaveCount(0);
   await page.getByLabel('Код ученика', { exact: true }).fill(keys.get(handle)!);
   await page.getByRole('button', { name: 'Войти', exact: true }).click();
   await openPortalSection(page, 'Моё обучение');
@@ -789,6 +790,18 @@ for (const module of ['electronics', 'three-d'])
     await editor
       .getByLabel('Текст блока', { exact: true })
       .fill('Резистор ограничивает ток. Затем соберите свою схему.');
+    await editor.getByRole('button', { name: 'Курсы', exact: true }).click();
+    await expect(
+      editor.getByText(
+        'Сначала сохраните изменения урока. Переход не выполнен, данные не потеряны.',
+        {
+          exact: true,
+        },
+      ),
+    ).toBeVisible();
+    await expect(editor.getByLabel('Название урока')).toHaveValue('Знакомство с резистором');
+    await editor.getByRole('button', { name: 'Добавить раздел', exact: true }).click();
+    await expect(page.getByRole('dialog', { name: /раздел/i })).toHaveCount(0);
     await editor.getByRole('button', { name: 'Добавить урок', exact: true }).click();
     await expect(page.getByText('Урок добавлен.', { exact: true })).toBeVisible();
     await editor

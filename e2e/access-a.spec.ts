@@ -167,6 +167,40 @@ test('F: author without teaching creates and opens own material, no roster', asy
   await expect(page.getByText('Черновик сохранён. Публикация — отдельное действие.')).toBeVisible();
   await page.getByRole('button', { name: 'Как ученик: сохранённый черновик' }).click();
   await expect(page.getByTestId('learner-preview')).toContainText('Самостоятельный текст');
+  await page.getByRole('button', { name: 'Мои курсы', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Добавить демо-курс', exact: true })).toHaveCount(
+    0,
+  );
+  await page.getByRole('button', { name: 'Создать курс', exact: true }).click();
+  const courseForm = page.getByRole('dialog', { name: 'Новый курс' });
+  await courseForm.getByLabel('Название', { exact: true }).fill('Курс только автора');
+  await courseForm.getByRole('button', { name: 'Создать курс', exact: true }).click();
+  const courseEditor = page.getByTestId('course-editor');
+  await expect(courseEditor).toBeVisible();
+  await expect(courseEditor.getByRole('button', { name: 'Доступ', exact: true })).toHaveCount(0);
+  expect((await page.request.post('/api/courses/demo')).status()).toBe(403);
+  await courseEditor.getByRole('button', { name: 'Курсы', exact: true }).click();
+  const courseRow = page
+    .getByTestId('courses-list')
+    .locator('li')
+    .filter({ hasText: 'Курс только автора' });
+  await courseRow.getByRole('button', { name: 'Ещё: Курс только автора', exact: true }).click();
+  page.once('dialog', (dialog) => void dialog.accept());
+  await page.getByRole('button', { name: 'Архивировать', exact: true }).click();
+  await expect(
+    page.getByTestId('courses-list').filter({ hasText: 'Курс только автора' }),
+  ).toHaveCount(0);
+  await page.getByRole('button', { name: 'Архив', exact: true }).click();
+  const archivedRow = page
+    .getByTestId('courses-list')
+    .locator('li')
+    .filter({ hasText: 'Курс только автора' });
+  await expect(archivedRow).toBeVisible();
+  await archivedRow.getByRole('button', { name: 'Восстановить', exact: true }).click();
+  await page.getByRole('button', { name: 'Активные', exact: true }).click();
+  await expect(
+    page.getByTestId('courses-list').locator('li').filter({ hasText: 'Курс только автора' }),
+  ).toBeVisible();
   expect((await page.request.get(`/api/classrooms/${classId}/roster`)).status()).toBe(403);
   await shot(page, 'F-author-only');
 });

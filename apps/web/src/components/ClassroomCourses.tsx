@@ -91,7 +91,9 @@ export function ClassroomCourses({
     });
     void Promise.all([reload(), api.listCourses()]).then(([, available]) => {
       if (!available.ok) return;
-      const published = available.data.items.filter((course) => course.publishedVersion !== null);
+      const published = available.data.items.filter(
+        (course) => course.publishedVersion !== null && course.archivedAt === null,
+      );
       setCourses(published);
       setCourseId((current) => current || published[0]?.id || '');
     });

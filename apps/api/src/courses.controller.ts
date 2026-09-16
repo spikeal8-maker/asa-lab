@@ -156,14 +156,19 @@ interface CourseRow {
   draft_active: boolean;
   draft_base_version_id: string | null;
   draft_base_version_number: number | null;
+  archived_at: Date | string | null;
 }
 
 interface CoursePublishRow {
-  result_code: 'ok' | 'course_not_found' | 'course_empty';
+  result_code: 'ok' | 'course_not_found' | 'course_empty' | 'draft_conflict' | 'prepublish_invalid';
   version_id: string | null;
   version_number: number | string | null;
   published_at: Date | string | null;
   reused: boolean;
+  problem_kind: string | null;
+  problem_id: string | null;
+  problem_path: string | null;
+  problem_message: string | null;
 }
 
 interface ClassroomCourseRunRow {
@@ -475,8 +480,8 @@ export class CoursesController {
     const result = await this.requirePool().query(
       `SELECT id, title, summary, visibility, age_band, section_count, lesson_count,
               assignment_count, shared_with, copied_from_course_id,
-              publication_state, published_version, published_at, created_at, updated_at, draft_revision, state.draft_active, state.draft_base_version_id, state.draft_base_version_number
-         FROM course_library_list_v2($1) course
+              publication_state, published_version, published_at, created_at, updated_at, draft_revision, archived_at, state.draft_active, state.draft_base_version_id, state.draft_base_version_number
+         FROM course_library_list_v3($1) course
          CROSS JOIN LATERAL course_authoring_state($1,course.id) state`,
       [context.principalId],
     );
@@ -502,6 +507,7 @@ export class CoursesController {
         draftActive: row.draft_active,
         draftBaseVersionId: row.draft_base_version_id,
         draftBaseVersionNumber: row.draft_base_version_number,
+        archivedAt: row.archived_at === null ? null : iso(row.archived_at),
       })),
     };
   }
@@ -686,8 +692,9 @@ export class CoursesController {
         400,
       );
     const result = await this.requirePool().query(
-      `SELECT result_code, version_id, version_number, published_at, reused
-         FROM course_publish_v2($1, $2,$3,$4)`,
+      `SELECT result_code, version_id, version_number, published_at, reused,
+              problem_kind, problem_id, problem_path, problem_message
+         FROM course_publish_v3($1, $2,$3,$4)`,
       [context.principalId, courseId, shape.body['expectedRevision'], shape.body['requestId']],
     );
     const row = result.rows[0] as CoursePublishRow | undefined;
@@ -697,6 +704,13 @@ export class CoursesController {
     if (row.result_code === 'course_empty') {
       throw new HttpException(
         error('course_empty', 'Добавьте хотя бы один урок перед публикацией.'),
+        409,
+      );
+    }
+    if (row.result_code === 'prepublish_invalid') {
+      const path = row.problem_path ? `${row.problem_path}: ` : '';
+      throw new HttpException(
+        error('prepublish_invalid', path + (row.problem_message ?? 'Исправьте содержание курса.')),
         409,
       );
     }
@@ -788,6 +802,19 @@ export class CoursesController {
         error('validation_error', 'Проверьте версию курса и аудиторию.'),
         400,
       );
+    const courseState = await this.requirePool().query(
+      'SELECT archived_at FROM course_library_list_v3($1) WHERE id=$2',
+      [context.principalId, courseId],
+    );
+    if (courseState.rows.length === 0) {
+      throw new HttpException(error('course_not_found', 'Курс не найден.'), 404);
+    }
+    if (courseState.rows[0]?.['archived_at'] !== null) {
+      throw new HttpException(
+        error('course_archived', 'Восстановите курс из архива перед назначением.'),
+        409,
+      );
+    }
     const result = canonical
       ? await this.requirePool().query(
           timeZone === undefined
@@ -866,21 +893,69 @@ export class CoursesController {
     return { ok: true as const };
   }
 
-  /** Удаляется курс, а не задания: они остаются в банке. */
+  /** Backward-compatible safe removal: ordinary UI/API removal archives, never deletes history. */
   @Delete('courses/:courseId')
   async remove(@Req() request: FastifyRequest, @Param('courseId') courseId: string) {
-    const context = await this.requireEducator(request);
+    const context = await this.requireAuthor(request);
     this.requireUuid(courseId, 'course');
-    const result = await this.requirePool().query(`SELECT course_delete($1, $2) AS ok`, [
-      context.principalId,
-      courseId,
-    ]);
-    if ((result.rows[0] as { ok: boolean } | undefined)?.ok !== true) {
+    const result = await this.requirePool().query(
+      `SELECT * FROM course_archive_set($1,$2,true,course_draft_revision($1,$2))`,
+      [context.principalId, courseId],
+    );
+    const row = result.rows[0];
+    if (!row || row.result_code === 'course_not_found') {
       throw new HttpException(error('course_not_found', 'Курс не найден.'), 404);
     }
-    return { removed: true as const };
+    if (row.result_code !== 'ok') {
+      throw new HttpException(
+        error('draft_conflict', 'Курс изменён в другом окне. Обновите список и повторите.'),
+        409,
+      );
+    }
+    return { removed: true as const, archived: true as const };
   }
 
+  @Post('courses/:courseId/archive')
+  async archive(
+    @Req() request: FastifyRequest,
+    @Param('courseId') courseId: string,
+    @Body() rawBody: unknown,
+  ) {
+    const context = await this.requireAuthor(request);
+    this.requireUuid(courseId, 'course');
+    const shape = checkBodyShape(rawBody, ['archived', 'expectedRevision']);
+    if (
+      !shape.ok ||
+      typeof shape.body['archived'] !== 'boolean' ||
+      !Number.isSafeInteger(shape.body['expectedRevision'])
+    ) {
+      throw new HttpException(
+        error('validation_error', 'Укажите состояние архива и текущую редакцию.'),
+        400,
+      );
+    }
+    const result = await this.requirePool().query(`SELECT * FROM course_archive_set($1,$2,$3,$4)`, [
+      context.principalId,
+      courseId,
+      shape.body['archived'],
+      shape.body['expectedRevision'],
+    ]);
+    const row = result.rows[0];
+    if (!row || row.result_code === 'course_not_found') {
+      throw new HttpException(error('course_not_found', 'Курс не найден.'), 404);
+    }
+    if (row.result_code !== 'ok') {
+      throw new HttpException(
+        error('draft_conflict', 'Курс изменён в другом окне. Обновите список и повторите.'),
+        409,
+      );
+    }
+    return {
+      archived: row.archived_at !== null,
+      archivedAt: row.archived_at === null ? null : iso(row.archived_at),
+      draftRevision: Number(row.draft_revision),
+    };
+  }
   /** Состав курса — то, что видно и чужому, если курс ему открыт. */
   @Get('courses/:courseId/items')
   async items(@Req() request: FastifyRequest, @Param('courseId') courseId: string) {
