@@ -45,7 +45,13 @@ function resolvedParentOrigin(configuredParentOrigin, runtimeHref) {
     AsaBlocksProtocol: {
       createChildProtocol(options) {
         captured = options.expectedParentOrigin;
-        return { start() {}, dispose() {}, getBinding() { return {}; } };
+        return {
+          start() {},
+          dispose() {},
+          getBinding() {
+            return {};
+          },
+        };
       },
     },
   };
