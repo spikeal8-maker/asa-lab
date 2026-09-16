@@ -37,6 +37,76 @@ export const ELECTRONICS_ENGINE_DESCRIPTOR: ElectronicsEngineDescriptor = Object
 export type ElectronicsEngineDocument = ElectronicsDocument;
 export type ElectronicsEngineDocumentParseResult = DocumentParseResult;
 
+/** Canonical logical simulation time. Values are non-negative integer microseconds. */
+export type ElectronicsCanonicalMicroseconds = number;
+
+/**
+ * One accepted append-only input event. Same-time events are ordered by their accepted array order,
+ * never by host arrival timing.
+ */
+export interface ElectronicsTimedInputEvent {
+  readonly atMicroseconds: ElectronicsCanonicalMicroseconds;
+  readonly targetId: string;
+  readonly operation: string;
+  readonly payload: unknown;
+}
+
+/**
+ * Stable serializable continuation envelope. The serialized state is engine-owned and opaque to
+ * consumers so later scheduler convergence can preserve this public boundary.
+ */
+export interface ElectronicsTimedContinuation {
+  readonly version: 1;
+  readonly clockContractVersion: 1;
+  readonly engineContractVersion: typeof ELECTRONICS_ENGINE_CONTRACT_VERSION;
+  readonly clockProfileId: string;
+  readonly documentDigest: string;
+  readonly modelSetDigest: string;
+  readonly committedHorizonMicroseconds: ElectronicsCanonicalMicroseconds;
+  readonly serializedState: string;
+}
+
+export interface ElectronicsTimedAdvanceRequest {
+  readonly requestedHorizonMicroseconds: ElectronicsCanonicalMicroseconds;
+  readonly continuation?: ElectronicsTimedContinuation;
+  /** Newly appended canonical events only; past events live inside the continuation. */
+  readonly inputEvents?: readonly ElectronicsTimedInputEvent[];
+  /** Optional bounded-work budget. It never changes the requested logical horizon. */
+  readonly maxEvents?: number;
+}
+
+export interface ElectronicsTimedDiagnostic {
+  readonly code: string;
+  readonly message: string;
+}
+
+export type ElectronicsTimedAdvanceResult =
+  | {
+      readonly executionStatus: 'ready';
+      readonly requestedHorizonMicroseconds: ElectronicsCanonicalMicroseconds;
+      readonly committedHorizonMicroseconds: ElectronicsCanonicalMicroseconds;
+      readonly continuation: ElectronicsTimedContinuation;
+      readonly observation: ElectronicsSnapshotAnalysis;
+      readonly diagnostics: readonly ElectronicsTimedDiagnostic[];
+    }
+  | {
+      readonly executionStatus: 'yielded';
+      readonly requestedHorizonMicroseconds: ElectronicsCanonicalMicroseconds;
+      readonly committedHorizonMicroseconds: ElectronicsCanonicalMicroseconds;
+      readonly continuation: ElectronicsTimedContinuation;
+      readonly observation: null;
+      readonly diagnostics: readonly ElectronicsTimedDiagnostic[];
+    }
+  | {
+      readonly executionStatus: 'fault';
+      readonly requestedHorizonMicroseconds: ElectronicsCanonicalMicroseconds;
+      readonly committedHorizonMicroseconds: ElectronicsCanonicalMicroseconds;
+      /** Last accepted continuation remains authoritative when a future advance faults. */
+      readonly continuation: ElectronicsTimedContinuation | null;
+      readonly observation: null;
+      readonly diagnostics: readonly ElectronicsTimedDiagnostic[];
+    };
+
 export interface ElectronicsPreparedSnapshot {
   readonly topologySignature: string;
   readonly componentIds: readonly string[];
