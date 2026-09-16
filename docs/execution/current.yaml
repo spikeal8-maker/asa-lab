@@ -141,21 +141,22 @@ parallel_lanes:
       - docs/product/electronics/**
       - tools/validate-electronics-component-information.mjs
       - tools/validate-electronics-agent-docs.mjs
+      - tools/test_validate_electronics_agent_docs.mjs
     task:
-      id: TASK-ELECTRONICS-EOPT3C-001
-      issue: 265
-      branch: codex/electronics-eopt3c-scheduler-barrier
+      id: TASK-ELECTRONICS-GOVERNANCE-001
+      issue: 270
+      branch: codex/electronics-governance-hygiene
       base_branch: main
       pr: null
       pr_draft: true
       status: in_progress
-      checkpoint: eopt3c_scheduler_barrier_selected
+      checkpoint: governance_hygiene_selected
       owner_acceptance: pending
     revisions:
-      convergence_baseline_sha: 70f77ee139e525ceb26f0634d92b9214ec294b7e
-      head_sha: 70f77ee139e525ceb26f0634d92b9214ec294b7e
+      convergence_baseline_sha: bcf3cd4f1edd305639415ea3ea61bf23b4625c7e
+      head_sha: bcf3cd4f1edd305639415ea3ea61bf23b4625c7e
     execution_lease:
-      executor_id: codex-electronics-eopt3c
+      executor_id: codex-electronics-governance-hygiene
       holder: unassigned
       acquired_at: null
       expires_at: null
