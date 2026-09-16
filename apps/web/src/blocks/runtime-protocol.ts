@@ -1,3 +1,5 @@
+import { newClientId } from '../client-id';
+
 export const BLOCKS_PROTOCOL_VERSION = 1 as const;
 
 export type BlocksRuntimeMode = 'editor' | 'player';
@@ -54,7 +56,7 @@ function asRecord(value: unknown): Record<string, unknown> | null {
 }
 
 export function createBlocksSessionNonce(): string {
-  return crypto.randomUUID();
+  return newClientId();
 }
 
 export function requireExactHttpOrigin(value: string): string {
