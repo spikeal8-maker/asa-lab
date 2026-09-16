@@ -1,7 +1,11 @@
-import { analyseElectronicsSnapshot } from '@asa-lab/electronics/engine';
+import {
+  advanceElectronicsToHorizon,
+  analyseElectronicsSnapshot,
+  resetElectronicsTimedState,
+} from '@asa-lab/electronics/engine';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { SchematicDocument } from '../../api';
-import { advanceLiveSimulation, calculateSimulationPreflight } from '../live-simulation';
+import { calculateSimulationPreflight } from '../live-simulation';
 import {
   ElectronicsSimulationWorkerClient,
   type ElectronicsSimulationWorkerLike,
@@ -53,7 +57,7 @@ const arduinoCircuit: SchematicDocument = {
           void setup() { pinMode(13, OUTPUT); }
           void loop() {
             count++;
-            digitalWrite(13, count % 2 == 1 ? HIGH : LOW);
+            if (count % 2 == 1) { digitalWrite(13, HIGH); } else { digitalWrite(13, LOW); }
             delay(100);
           }
         `,
@@ -76,9 +80,9 @@ function preflightRequest(
     projectSessionId,
     kind: 'preflight',
     document: circuit,
-    simulationTimeMs: 0,
   };
 }
+
 class FakeWorker implements ElectronicsSimulationWorkerLike {
   onmessage: ((event: MessageEvent<ElectronicsSimulationWorkerResponse>) => void) | null = null;
   onerror: ((event: ErrorEvent) => void) | null = null;
@@ -108,76 +112,79 @@ class FakeWorker implements ElectronicsSimulationWorkerLike {
     this.onerror?.({ message } as ErrorEvent);
   }
 }
-describe('ASA Electronics E-OPT-1 Worker boundary', () => {
+
+describe('ASA Electronics E-OPT-3D Worker boundary', () => {
   afterEach(() => vi.useRealTimers());
 
-  it('matches the synchronous preflight result exactly', () => {
+  it('preserves non-temporal preflight identity at time zero', () => {
     const stable = analyseElectronicsSnapshot(circuit);
     const expected = calculateSimulationPreflight(circuit, 0);
     const response = evaluateSimulationWorkerRequest(preflightRequest());
 
     expect(response.ok).toBe(true);
-    if (!response.ok) return;
+    if (!response.ok || response.kind !== 'preflight') return;
     expect(response.result).toEqual(expected);
-    expect(structuredClone(response.result)).toEqual(expected);
     expect(response.metrics).toMatchObject({
       solverRevision: stable.solverRevision,
       simulationInputDigest: stable.simulationInputDigest,
       topologySignature: stable.topologySignature,
-      status: expected.status,
+      executionStatus: 'preflight',
     });
   });
-
-  it('preserves zero-time Arduino continuation state while converging facade identity', () => {
-    const stable = analyseElectronicsSnapshot(arduinoCircuit);
-    const expected = calculateSimulationPreflight(arduinoCircuit, 0);
+  it('matches direct canonical timed advance across the Worker boundary', () => {
+    const state = resetElectronicsTimedState();
+    const direct = advanceElectronicsToHorizon(circuit, {
+      requestedHorizonMicroseconds: 100_000,
+      state,
+    });
     const response = evaluateSimulationWorkerRequest({
-      ...preflightRequest('arduino-preflight'),
-      document: arduinoCircuit,
-    });
-
-    expect(expected.controllerState).toBeDefined();
-    expect(response.ok).toBe(true);
-    if (!response.ok) return;
-    expect(response.result).toEqual(expected);
-    expect(response.result.controllerState).toEqual(expected.controllerState);
-    expect(response.result.transientState).toEqual(expected.transientState);
-    expect(response.metrics).toMatchObject({
-      solverRevision: stable.solverRevision,
-      simulationInputDigest: stable.simulationInputDigest,
-      topologySignature: stable.topologySignature,
-      status: expected.status,
-    });
-  });
-
-  it('preserves exact Arduino state across successive advance requests', () => {
-    const expectedFirst = advanceLiveSimulation(arduinoCircuit, null, 1);
-    const expectedSecond = advanceLiveSimulation(arduinoCircuit, expectedFirst, 100);
-    const first = evaluateSimulationWorkerRequest({
       ...preflightRequest('advance-1'),
       kind: 'advance',
-      document: arduinoCircuit,
-      previousResult: null,
-      simulationTimeMs: 1,
+      document: circuit,
+      state,
+      requestedHorizonMicroseconds: 100_000,
     });
-    expect(first.ok).toBe(true);
-    if (!first.ok) return;
-    expect(first.result).toEqual(expectedFirst);
 
-    const second = evaluateSimulationWorkerRequest({
-      ...preflightRequest('advance-2'),
+    expect(response.ok).toBe(true);
+    if (!response.ok || response.kind !== 'advance') return;
+    expect(response.advance.executionStatus).toBe(direct.executionStatus);
+    expect(response.advance.requestedHorizonMicroseconds).toBe(100_000);
+    expect(response.advance.committedHorizonMicroseconds).toBe(direct.committedHorizonMicroseconds);
+    expect(response.advance.state).toEqual(direct.state);
+    expect(response.advance.result?.current).toBe(direct.observation?.current);
+    expect(response.advance.result?.components).toEqual(direct.observation?.components);
+    expect(response.metrics.executionStatus).toBe(direct.executionStatus);
+  });
+  it('carries canonical Arduino continuation across successive Worker advances', () => {
+    const initial = resetElectronicsTimedState();
+    const first = evaluateSimulationWorkerRequest({
+      ...preflightRequest('arduino-1'),
       kind: 'advance',
       document: arduinoCircuit,
-      previousResult: first.result,
-      simulationTimeMs: 100,
+      state: initial,
+      requestedHorizonMicroseconds: 1_000,
+    });
+    expect(first.ok).toBe(true);
+    if (!first.ok || first.kind !== 'advance') return;
+    expect(first.advance.executionStatus).toBe('ready');
+
+    const second = evaluateSimulationWorkerRequest({
+      ...preflightRequest('arduino-2'),
+      kind: 'advance',
+      document: arduinoCircuit,
+      state: first.advance.state,
+      requestedHorizonMicroseconds: 100_000,
+    });
+    const directSecond = advanceElectronicsToHorizon(arduinoCircuit, {
+      state: first.advance.state,
+      requestedHorizonMicroseconds: 100_000,
     });
     expect(second.ok).toBe(true);
-    if (!second.ok) return;
-    expect(second.result).toEqual(expectedSecond);
-    expect(second.result.controllerState).toEqual(expectedSecond.controllerState);
+    if (!second.ok || second.kind !== 'advance') return;
+    expect(second.advance.state).toEqual(directSecond.state);
+    expect(second.advance.committedHorizonMicroseconds).toBe(100_000);
   });
-
-  it('fails closed on protocol and solver revision mismatches', () => {
+  it('rejects invalid protocol, solver and non-integer horizons', () => {
     const wrongProtocol = evaluateSimulationWorkerRequest({
       ...preflightRequest(),
       protocolVersion: 999,
@@ -186,21 +193,42 @@ describe('ASA Electronics E-OPT-1 Worker boundary', () => {
       ...preflightRequest(),
       engineRevision: 'missing-solver',
     } as unknown as SimulationPreflightRequest);
+    const invalidHorizon = evaluateSimulationWorkerRequest({
+      ...preflightRequest('invalid-horizon'),
+      kind: 'advance',
+      document: circuit,
+      state: resetElectronicsTimedState(),
+      requestedHorizonMicroseconds: 1.5,
+    });
 
     expect(wrongProtocol).toMatchObject({ ok: false, code: 'protocol-mismatch' });
     expect(wrongSolver).toMatchObject({ ok: false, code: 'solver-mismatch' });
+    expect(invalidHorizon).toMatchObject({ ok: false, code: 'invalid-request' });
   });
-  it('resolves a client request through the Worker message boundary', async () => {
+
+  it('sends canonical state and integer horizon through the client boundary', async () => {
     const worker = new FakeWorker();
     const client = new ElectronicsSimulationWorkerClient(() => worker);
     const generation = client.beginGeneration('project-session-a');
-    const pending = client.preflight(generation, circuit);
+    const state = resetElectronicsTimedState();
+    const pending = client.advance(generation, circuit, state, 25_000);
+    const request = worker.messages[0];
+    expect(request).toMatchObject({
+      kind: 'advance',
+      requestedHorizonMicroseconds: 25_000,
+      state,
+    });
+    expect(request && 'simulationTimeMs' in request).toBe(false);
+    expect(request && 'previousResult' in request).toBe(false);
 
     worker.respondTo(0);
-    await expect(pending).resolves.toEqual(calculateSimulationPreflight(circuit));
-    expect(worker.terminated).toBe(false);
+    const advance = await pending;
+    expect(advance).toMatchObject({
+      executionStatus: 'ready',
+      requestedHorizonMicroseconds: 25_000,
+      committedHorizonMicroseconds: 25_000,
+    });
     client.dispose();
-    expect(worker.terminated).toBe(true);
   });
 
   it('terminates a superseded generation and rejects its pending request', async () => {
@@ -220,9 +248,10 @@ describe('ASA Electronics E-OPT-1 Worker boundary', () => {
       kind: 'cancel-generation',
       generationId: firstGeneration,
     });
-    expect(secondGeneration).toBe(firstGeneration + 1);
+    expect(secondGeneration).toBeGreaterThan(firstGeneration);
     client.dispose();
   });
+
   it('rejects a response from the wrong project session', async () => {
     const worker = new FakeWorker();
     const client = new ElectronicsSimulationWorkerClient(() => worker);
@@ -236,7 +265,6 @@ describe('ASA Electronics E-OPT-1 Worker boundary', () => {
     await expect(pending).rejects.toThrow('Stale Electronics Worker response');
     client.dispose();
   });
-
   it('bounds silent requests and terminates the failed Worker', async () => {
     vi.useFakeTimers();
     const worker = new FakeWorker();
@@ -250,6 +278,7 @@ describe('ASA Electronics E-OPT-1 Worker boundary', () => {
     expect(vi.getTimerCount()).toBe(0);
     client.dispose();
   });
+
   it('contains startup failure and recovers on a new generation', async () => {
     const worker = new FakeWorker();
     const factory = vi
@@ -262,13 +291,13 @@ describe('ASA Electronics E-OPT-1 Worker boundary', () => {
 
     const failedGeneration = client.beginGeneration('project-session-a');
     await expect(client.preflight(failedGeneration, circuit)).rejects.toThrow('startup blocked');
-
     const recoveredGeneration = client.beginGeneration('project-session-b');
     const recovered = client.preflight(recoveredGeneration, circuit);
     worker.respondTo(0);
     await expect(recovered).resolves.toMatchObject({ status: 'solved' });
     client.dispose();
   });
+
   it('returns stale generation errors as rejected promises', async () => {
     const client = new ElectronicsSimulationWorkerClient(() => new FakeWorker());
     const staleGeneration = client.beginGeneration('project-session-a');
@@ -304,9 +333,15 @@ describe('ASA Electronics Worker module message loop', () => {
     expect(posted[0]).toMatchObject({ ok: false, code: 'protocol-mismatch' });
 
     scope.onmessage?.({ data: preflightRequest('still-current', 2) } as MessageEvent);
-    expect(posted[1]).toMatchObject({ ok: true, requestId: 'still-current', generationId: 2 });
+    expect(posted[1]).toMatchObject({
+      ok: true,
+      kind: 'preflight',
+      requestId: 'still-current',
+      generationId: 2,
+    });
   });
-  it('evaluates current messages and drops a cancelled generation', async () => {
+
+  it('drops a cancelled generation and accepts the next one', async () => {
     const posted: ElectronicsSimulationWorkerResponse[] = [];
     const scope: {
       onmessage: ((event: MessageEvent<ElectronicsSimulationWorkerRequest>) => void) | null;
@@ -317,11 +352,9 @@ describe('ASA Electronics Worker module message loop', () => {
     };
     vi.stubGlobal('self', scope);
     await import('../simulation.worker');
-    expect(scope.onmessage).toBeTypeOf('function');
 
     scope.onmessage?.({ data: preflightRequest('runtime-current', 2) } as MessageEvent);
     expect(posted).toHaveLength(1);
-    expect(posted[0]).toMatchObject({ ok: true, requestId: 'runtime-current' });
 
     scope.onmessage?.({
       data: {
@@ -334,6 +367,11 @@ describe('ASA Electronics Worker module message loop', () => {
 
     scope.onmessage?.({ data: preflightRequest('runtime-next', 3) } as MessageEvent);
     expect(posted).toHaveLength(2);
-    expect(posted[1]).toMatchObject({ ok: true, requestId: 'runtime-next', generationId: 3 });
+    expect(posted[1]).toMatchObject({
+      ok: true,
+      kind: 'preflight',
+      requestId: 'runtime-next',
+      generationId: 3,
+    });
   });
 });

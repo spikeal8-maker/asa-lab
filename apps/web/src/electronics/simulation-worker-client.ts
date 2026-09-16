@@ -1,3 +1,7 @@
+import type {
+  ElectronicsTimedInputEvent,
+  ElectronicsTimedState,
+} from '@asa-lab/electronics/engine';
 import type { SchematicDocument, SolveResult } from '../api';
 import {
   ELECTRONICS_SIMULATION_ENGINE_REVISION,
@@ -6,6 +10,8 @@ import {
   type ElectronicsSimulationWorkerResponse,
   type SimulationAdvanceRequest,
   type SimulationPreflightRequest,
+  type SimulationTimedAdvancePayload,
+  type SimulationWorkerSuccessResponse,
 } from './simulation-worker-protocol';
 
 export interface ElectronicsSimulationWorkerLike {
@@ -21,7 +27,7 @@ export type ElectronicsSimulationWorkerFactory = () => ElectronicsSimulationWork
 interface PendingSimulation {
   readonly generationId: number;
   readonly projectSessionId: string;
-  readonly resolve: (value: SolveResult) => void;
+  readonly resolve: (value: SimulationWorkerSuccessResponse) => void;
   readonly reject: (reason: Error) => void;
   readonly timeout: ReturnType<typeof setTimeout>;
 }
@@ -79,17 +85,17 @@ export class ElectronicsSimulationWorkerClient {
     return this.generationId;
   }
 
-  preflight(
-    generationId: number,
-    document: SchematicDocument,
-    simulationTimeMs = 0,
-  ): Promise<SolveResult> {
+  preflight(generationId: number, document: SchematicDocument): Promise<SolveResult> {
     try {
       return this.send({
         ...this.requestBase(generationId),
         kind: 'preflight',
         document,
-        simulationTimeMs,
+      }).then((response) => {
+        if (response.kind !== 'preflight') {
+          throw new Error('Electronics Worker returned the wrong response kind.');
+        }
+        return response.result;
       });
     } catch (error) {
       return Promise.reject(
@@ -101,16 +107,23 @@ export class ElectronicsSimulationWorkerClient {
   advance(
     generationId: number,
     document: SchematicDocument,
-    previousResult: SolveResult | null,
-    simulationTimeMs: number,
-  ): Promise<SolveResult> {
+    state: ElectronicsTimedState,
+    requestedHorizonMicroseconds: number,
+    inputEvents: readonly ElectronicsTimedInputEvent[] = [],
+  ): Promise<SimulationTimedAdvancePayload> {
     try {
       return this.send({
         ...this.requestBase(generationId),
         kind: 'advance',
         document,
-        previousResult,
-        simulationTimeMs,
+        state,
+        requestedHorizonMicroseconds,
+        ...(inputEvents.length > 0 ? { inputEvents } : {}),
+      }).then((response) => {
+        if (response.kind !== 'advance') {
+          throw new Error('Electronics Worker returned the wrong response kind.');
+        }
+        return response.advance;
       });
     } catch (error) {
       return Promise.reject(
@@ -153,7 +166,7 @@ export class ElectronicsSimulationWorkerClient {
     };
   }
 
-  private send(request: EvaluationRequest): Promise<SolveResult> {
+  private send(request: EvaluationRequest): Promise<SimulationWorkerSuccessResponse> {
     if (!this.worker) {
       return Promise.reject(
         new Error(this.workerFailure ?? 'Electronics simulation generation is no longer active.'),
@@ -246,11 +259,7 @@ export class ElectronicsSimulationWorkerClient {
       pending.reject(new Error(`${response.code}: ${response.message}`));
       return;
     }
-    if (response.result.solverRevision !== ELECTRONICS_SIMULATION_ENGINE_REVISION) {
-      pending.reject(new Error('Electronics Worker returned an unexpected solver revision.'));
-      return;
-    }
-    pending.resolve(response.result);
+    pending.resolve(response);
   }
 
   private rejectPending(message: string): void {
