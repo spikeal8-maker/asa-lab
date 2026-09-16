@@ -6,9 +6,16 @@ import {
   ELECTRONICS_ENGINE_CONTRACT_VERSION,
   ELECTRONICS_ENGINE_DESCRIPTOR,
   type ElectronicsEngineDocument,
+  type ElectronicsTimedAdvanceRequest,
+  type ElectronicsTimedAdvanceResult,
+  type ElectronicsTimedContinuation,
+  type ElectronicsTimedState,
   analyseElectronicsSnapshot,
+  pauseElectronicsTimedState,
   parseElectronicsEngineDocument,
   prepareElectronicsSnapshot,
+  resetElectronicsTimedState,
+  resumeElectronicsTimedState,
 } from '../engine';
 
 const TIMED_KEYS = [
@@ -90,9 +97,58 @@ describe('Electronics non-temporal engine facade', () => {
     for (const key of TIMED_KEYS) expect(key in snapshot).toBe(false);
   });
 
-  it('does not expose timed control operations', async () => {
+  it('defines a serializable canonical timed contract shape before exposing host controls', () => {
+    const continuation: ElectronicsTimedContinuation = {
+      version: 1,
+      clockContractVersion: 1,
+      engineContractVersion: 1,
+      clockProfileId: 'canonical-us-v1',
+      documentDigest: 'sha256:document',
+      modelSetDigest: 'sha256:models',
+      committedHorizonMicroseconds: 1250,
+      serializedState: '{"version":1}',
+    };
+    const state: ElectronicsTimedState = { version: 1, lifecycle: 'running', continuation };
+    const request: ElectronicsTimedAdvanceRequest = {
+      requestedHorizonMicroseconds: 2000,
+      state,
+      inputEvents: [
+        {
+          atMicroseconds: 1500,
+          targetId: 'switch-1',
+          operation: 'state',
+          payload: true,
+        },
+      ],
+      maxEvents: 32,
+    };
+    const result: ElectronicsTimedAdvanceResult = {
+      executionStatus: 'yielded',
+      requestedHorizonMicroseconds: 2000,
+      committedHorizonMicroseconds: 1250,
+      state,
+      observation: null,
+      diagnostics: [],
+    };
+    expect(JSON.parse(JSON.stringify({ request, result }))).toEqual({ request, result });
+  });
+
+  it('exposes canonical advance and pure lifecycle state operations without a second clock', async () => {
     const facade = await import('../engine');
     const exported = Object.keys(facade);
-    expect(exported.some((name) => /advance|clock|pause|resume|reset/i.test(name))).toBe(false);
+    expect(exported).toEqual(
+      expect.arrayContaining([
+        'advanceElectronicsToHorizon',
+        'pauseElectronicsTimedState',
+        'resetElectronicsTimedState',
+        'resumeElectronicsTimedState',
+      ]),
+    );
+    expect(exported.some((name) => /clock/i.test(name))).toBe(false);
+    expect(pauseElectronicsTimedState(resetElectronicsTimedState()).lifecycle).toBe('paused');
+    expect(
+      resumeElectronicsTimedState(pauseElectronicsTimedState(resetElectronicsTimedState()))
+        .lifecycle,
+    ).toBe('running');
   });
 });
