@@ -27,6 +27,7 @@ export const ELECTRONICS_ENGINE_CAPABILITIES = [
   'prepare-topology',
   'analyse-snapshot',
   'advance-timed',
+  'manage-timed-state',
 ] as const;
 
 export type ElectronicsEngineCapability = (typeof ELECTRONICS_ENGINE_CAPABILITIES)[number];
@@ -74,9 +75,17 @@ export interface ElectronicsTimedContinuation {
   readonly serializedState: string;
 }
 
+export type ElectronicsTimedLifecycle = 'running' | 'paused';
+
+export interface ElectronicsTimedState {
+  readonly version: typeof ELECTRONICS_TIMED_ENGINE_CONTRACT_VERSION;
+  readonly lifecycle: ElectronicsTimedLifecycle;
+  readonly continuation: ElectronicsTimedContinuation | null;
+}
+
 export interface ElectronicsTimedAdvanceRequest {
   readonly requestedHorizonMicroseconds: ElectronicsCanonicalMicroseconds;
-  readonly continuation?: ElectronicsTimedContinuation;
+  readonly state?: ElectronicsTimedState;
   /** Newly appended canonical events only; past events live inside the continuation. */
   readonly inputEvents?: readonly ElectronicsTimedInputEvent[];
   /** Optional bounded-work budget. It never changes the requested logical horizon. */
@@ -105,7 +114,7 @@ export type ElectronicsTimedAdvanceResult =
       readonly executionStatus: 'ready';
       readonly requestedHorizonMicroseconds: ElectronicsCanonicalMicroseconds;
       readonly committedHorizonMicroseconds: ElectronicsCanonicalMicroseconds;
-      readonly continuation: ElectronicsTimedContinuation;
+      readonly state: ElectronicsTimedState;
       readonly observation: ElectronicsTimedObservation;
       readonly diagnostics: readonly ElectronicsTimedDiagnostic[];
     }
@@ -113,7 +122,7 @@ export type ElectronicsTimedAdvanceResult =
       readonly executionStatus: 'yielded';
       readonly requestedHorizonMicroseconds: ElectronicsCanonicalMicroseconds;
       readonly committedHorizonMicroseconds: ElectronicsCanonicalMicroseconds;
-      readonly continuation: ElectronicsTimedContinuation;
+      readonly state: ElectronicsTimedState;
       readonly observation: null;
       readonly diagnostics: readonly ElectronicsTimedDiagnostic[];
     }
@@ -121,8 +130,8 @@ export type ElectronicsTimedAdvanceResult =
       readonly executionStatus: 'fault';
       readonly requestedHorizonMicroseconds: ElectronicsCanonicalMicroseconds;
       readonly committedHorizonMicroseconds: ElectronicsCanonicalMicroseconds;
-      /** Last accepted continuation remains authoritative when a future advance faults. */
-      readonly continuation: ElectronicsTimedContinuation | null;
+      /** Last accepted timed state remains authoritative when a future advance faults. */
+      readonly state: ElectronicsTimedState;
       readonly observation: null;
       readonly diagnostics: readonly ElectronicsTimedDiagnostic[];
     };
@@ -233,20 +242,52 @@ function timedObservation(
   };
 }
 
+export function resetElectronicsTimedState(): ElectronicsTimedState {
+  return {
+    version: ELECTRONICS_TIMED_ENGINE_CONTRACT_VERSION,
+    lifecycle: 'running',
+    continuation: null,
+  };
+}
+
+export function pauseElectronicsTimedState(state: ElectronicsTimedState): ElectronicsTimedState {
+  return state.lifecycle === 'paused' ? state : { ...state, lifecycle: 'paused' };
+}
+
+export function resumeElectronicsTimedState(state: ElectronicsTimedState): ElectronicsTimedState {
+  return state.lifecycle === 'running' ? state : { ...state, lifecycle: 'running' };
+}
+
 export function advanceElectronicsToHorizon(
   document: ElectronicsEngineDocument,
   request: ElectronicsTimedAdvanceRequest,
 ): ElectronicsTimedAdvanceResult {
+  const state = request.state ?? resetElectronicsTimedState();
+  const previousContinuation = state.continuation;
+  const previousCommitted = previousContinuation?.committedHorizonMicroseconds ?? 0;
+  if (state.lifecycle === 'paused') {
+    return {
+      executionStatus: 'fault',
+      requestedHorizonMicroseconds: request.requestedHorizonMicroseconds,
+      committedHorizonMicroseconds: previousCommitted,
+      state,
+      observation: null,
+      diagnostics: [
+        { code: 'timed_state_paused', message: 'Resume the timed state before advancing.' },
+      ],
+    };
+  }
+
   const modelSetDigest = analyseCircuit(document).modelSetDigest;
   let previous: ArduinoCircuitClockState | undefined;
-  if (request.continuation) {
-    const decoded = decodeTimedContinuation(request.continuation, modelSetDigest);
+  if (previousContinuation) {
+    const decoded = decodeTimedContinuation(previousContinuation, modelSetDigest);
     if (!decoded) {
       return {
         executionStatus: 'fault',
         requestedHorizonMicroseconds: request.requestedHorizonMicroseconds,
-        committedHorizonMicroseconds: 0,
-        continuation: null,
+        committedHorizonMicroseconds: previousCommitted,
+        state,
         observation: null,
         diagnostics: [
           {
@@ -266,8 +307,8 @@ export function advanceElectronicsToHorizon(
       return {
         executionStatus: 'fault',
         requestedHorizonMicroseconds: request.requestedHorizonMicroseconds,
-        committedHorizonMicroseconds: request.continuation?.committedHorizonMicroseconds ?? 0,
-        continuation: request.continuation ?? null,
+        committedHorizonMicroseconds: previousCommitted,
+        state,
         observation: null,
         diagnostics: [
           {
@@ -295,20 +336,25 @@ export function advanceElectronicsToHorizon(
     return {
       executionStatus: 'fault',
       requestedHorizonMicroseconds: request.requestedHorizonMicroseconds,
-      committedHorizonMicroseconds: request.continuation?.committedHorizonMicroseconds ?? 0,
-      continuation: request.continuation ?? null,
+      committedHorizonMicroseconds: previousCommitted,
+      state,
       observation: null,
       diagnostics: advanced.diagnostics,
     };
   }
 
   const continuation = timedContinuation(advanced.state, modelSetDigest);
+  const nextState: ElectronicsTimedState = {
+    version: ELECTRONICS_TIMED_ENGINE_CONTRACT_VERSION,
+    lifecycle: 'running',
+    continuation,
+  };
   if (advanced.executionStatus === 'yielded') {
     return {
       executionStatus: 'yielded',
       requestedHorizonMicroseconds: request.requestedHorizonMicroseconds,
       committedHorizonMicroseconds: advanced.state.reachedMicroseconds,
-      continuation,
+      state: nextState,
       observation: null,
       diagnostics: advanced.diagnostics,
     };
@@ -318,8 +364,8 @@ export function advanceElectronicsToHorizon(
     return {
       executionStatus: 'fault',
       requestedHorizonMicroseconds: request.requestedHorizonMicroseconds,
-      committedHorizonMicroseconds: request.continuation?.committedHorizonMicroseconds ?? 0,
-      continuation: request.continuation ?? null,
+      committedHorizonMicroseconds: previousCommitted,
+      state,
       observation: null,
       diagnostics: [
         {
@@ -334,12 +380,11 @@ export function advanceElectronicsToHorizon(
     executionStatus: 'ready',
     requestedHorizonMicroseconds: request.requestedHorizonMicroseconds,
     committedHorizonMicroseconds: advanced.state.reachedMicroseconds,
-    continuation,
+    state: nextState,
     observation: timedObservation(advanced.result),
     diagnostics: advanced.diagnostics,
   };
 }
-
 export function parseElectronicsEngineDocument(
   value: unknown,
 ): ElectronicsEngineDocumentParseResult {
