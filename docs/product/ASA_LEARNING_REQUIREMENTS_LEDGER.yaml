@@ -13,19 +13,19 @@ requirements:
 - id: INT-E1-01
   milestone: E1
   status: in_progress
-  summary: "«Курсы и задания → Мои»: единая библиотека автора/преподавателя; create/open/edit/save/publish"
+  summary: "Единая библиотека автора/преподавателя: create/open/edit/save/publish + normal archive/restore + capability-aware actions; final visual layout is deferred until functional closure"
   evidence: []
   tests: []
 - id: INT-E1-02
   milestone: E1
   status: in_progress
-  summary: "Course builder на существующей структуре: разделы, уроки, теория, повторные project blocks, порядок, свойства"
+  summary: "Course builder: разделы, уроки, теория, project blocks, порядок/свойства + structural published-version comparison; final re-layout after functional completion"
   evidence: []
   tests: []
 - id: INT-E1-03
   milestone: E1
   status: in_progress
-  summary: "Связанный выпуск activity+course: ошибки конкретных полей/блоков, предпросмотр без Attempt"
+  summary: "Связанный выпуск activity+course: exact prepublish errors for concrete lesson/block/activity/setting + preview without Attempt"
   evidence: []
   tests: []
 - id: INT-E1-04
@@ -42,8 +42,8 @@ requirements:
   tests: []
 - id: INT-E1-06
   milestone: E1
-  status: implemented
-  summary: "StudentSeat: код класса + 6-символьный Код ученика; повторно печатаемые карточки доступа; ротация без потери истории"
+  status: in_progress
+  summary: "StudentSeat core implemented (Class Code + 6-char Student Code, repeat-print, rotation/history); E1 closure still requires #271 public-safe join/Home UX and #272 compact Asolab.ru card + class QR deep-link"
   evidence:
   - migrations/0142_student_seat_short_codes.sql
   - apps/api/src/classroom-join.controller.ts

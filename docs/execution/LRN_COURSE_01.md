@@ -39,12 +39,15 @@ Reuse correct components. Record only concrete gaps relative to E1 and start wit
 
 ## Recommended implementation order
 
-1. **Authoring convergence:** same content root survives author→teacher; edit/save/publish; historical-version-to-new-draft; learner preview without writes.
-2. **Direct project complete:** exact version → audience → save → immutable submit → review/return → resubmit → selected result/correction.
-3. **Class operations:** Account join + StudentSeat; batch Seat preview/commit; one-time cards; archive/restore; individual conditions; notification prefs/reminders.
-4. **Course convergence:** exact CourseVersion → CourseRun → child ActivityRuns/Participations; repeated blocks; late join; same direct runtime.
-5. **Gradebook:** learner×ActivityRun 30×10; exact submission/history/correction; teacher Home/queue.
-6. **Candidate:** mixed-data upgrade, negative access tests, browser journeys, required repository gate.
+Owner amendment 2026-09-16: **functional completeness first, final course/layout polish second**. Do not spend the next slice broadly re-laying out Course Builder while a required action is absent.
+
+1. **Student entry closure:** Issue #271 — public teacher name/no email, compact second join step, StudentSeat `Главная`; Issue #272 — compact `Asolab.ru` cards and class QR deep-link straight to `Код ученика`.
+2. **Course authoring closure:** normal course archive/restore instead of user-facing hard delete; structural published-version comparison; exact prepublish error pointing to the broken lesson/block/activity/setting; capability-aware actions for author-only vs teacher.
+3. **Preserve the integrated academic path:** exact CourseVersion → CourseRun → Participation → save → immutable submit → review/return → resubmit → selected result/correction; whole/named/late-join and 30×10 gradebook are existing baseline and must not be rewritten.
+4. **Final E1 acceptance:** mixed-data/upgrade, negative access, 320/390 desktop-mobile browser journey, owner-visible walkthrough, ledger/evidence alignment.
+5. **Visual convergence pass:** only after steps 1–4 are functionally green, bring `Курсы и задания`, Course Builder and Class workspace to the final visual hierarchy/tabs/spacing. This pass must not invent missing backend behavior.
+
+E2–E6 remain separate later stages; this E1 authorization does not automatically start Question Bank/Quiz/autograder/self-study/collaboration/organization work.
 
 ## Do not do
 

@@ -176,7 +176,11 @@ CSV/XLSX ETL is not required in E1; copy/paste from a spreadsheet is sufficient.
 
 StudentSeat basic access is deliberately short: `Class Code → six-character Student Code`. The Student Code is the individual credential; learner display name is not an authentication field and there is no second login/long secret in the basic flow. The code uses a non-ambiguous alphabet and case-insensitive input; server-side rate limiting remains mandatory.
 
-The authorized teacher can see the current Student Code in the roster and open `Карточки доступа` at any time. A printable card contains learner display name, ASA Lab address, current class code and current Student Code. Cards are repeat-printable and printing is read-only: it does not rotate credentials or change sessions/history. Lost but uncompromised card -> reprint. Suspected compromise -> explicit Student Code rotation; old code and active Seat sessions are revoked while the same StudentSeat/LearnerIdentity/history remain. Rotating the class code makes old cards stale and the UI offers reprint.
+The authorized teacher can see the current Student Code in the roster and open `Карточки доступа` at any time. The printable card is a compact horizontal cut-out, not a large decorative panel. Its human-readable site address is `Asolab.ru`; internal hash routes, query strings and technical navigation fragments are never printed as text. The card contains learner display name, class title where useful, current class code and current Student Code, with the Student Code visually dominant.
+
+The right side of the card contains a QR code for the **current class context only**. The QR payload may contain the canonical join deep-link with the current Class Code, but it never contains the Student Code or another personal credential. Scanning a valid class QR opens ASA Lab with that class already resolved and lands directly on the `Код ученика` step; the learner does not re-enter the Class Code and does not press a redundant `Продолжить`. The manual path remains `Asolab.ru → Class Code → Student Code`. Cards are repeat-printable and printing is read-only: it does not rotate credentials or change sessions/history. Lost but uncompromised card -> reprint. Suspected compromise -> explicit Student Code rotation; old code and active Seat sessions are revoked while the same StudentSeat/LearnerIdentity/history remain. Rotating the Class Code makes old cards/QRs stale and the UI offers reprint.
+
+The public class-code preview may show the class title and the teacher's **canonical public display name** only. Email, username, Account id and other private/technical identifiers are never returned or rendered there. If no valid public teacher name is available, use the neutral fallback `Преподаватель`, never an email fallback.
 
 ### 4.7 Class lifecycle
 
@@ -317,6 +321,37 @@ E1 cannot be declared done unless all are true:
 18. owner receives a real browser-visible demonstration and exact candidate.
 
 Production remains a separate exact-candidate authorization.
+
+
+### 4.16 Functional completion before visual convergence
+
+**Owner sequencing amendment — 2026-09-16.** E1 is finished functionally first. Final visual convergence of `Курсы и задания`, Course Builder and Class workspace happens only after the required actions, states and controls exist and work end-to-end. During the functional phase, layout changes are limited to what is necessary to expose an action, remove overflow, preserve accessibility or prevent user error. The exact final tab/three-pane composition in §4.1–§4.2 remains the visual target, but agents must not spend the next slice on broad re-layout while a required function is still absent.
+
+Already integrated baseline — **reuse; do not rebuild**:
+- canonical direct/course runtime after ActivityRun, whole-class dynamic and named audiences;
+- exact immutable project Submission, review, return → new Attempt → resubmit, result correction/selection;
+- real Electronics path plus separately proven 3D path;
+- 30×10 learner × ActivityRun gradebook and Teacher Home attention links;
+- class archive/restore history safety and reminder-state separation;
+- preview-as-learner with zero academic writes;
+- draft from an exact old published version without destructive rollback;
+- short StudentSeat access (`Class Code + Student Code`) and repeat-printable current credentials.
+
+Remaining E1 functional closure before final visual polish:
+1. **Student entry UX — #271:** public join preview uses public teacher name and never email; StudentSeat primary navigation includes `Главная`; second join step is compact and credential-only.
+2. **Access card/QR — #272:** compact `Asolab.ru` card; QR opens the exact class context and skips redundant Class Code confirmation; QR contains no Student Code.
+3. **Course archive semantics:** normal course-library removal must be archive/restore, not destructive DELETE for ordinary user flow. Historical/published/run-linked course evidence must remain intact.
+4. **Version comparison:** published-version UI must provide the E1 structural comparison required by §4.3 at section/lesson/block/activity/policy level.
+5. **Prepublish validation:** Course publication must identify the exact invalid lesson/block/activity/setting and give a usable correction path; generic `course_empty`/generic conflict is insufficient for malformed content.
+6. **Capability-aware course controls:** author-only users must not be shown teacher-only actions that deterministically fail with 403. Enabling teaching adds delivery/class actions without replacing the author library.
+7. **Truthful closure:** repeat the owner-visible E1 journey and align ledger/evidence with actual implementation before declaring E1 done. Final visual redesign is a separate pass after items 1–6 work.
+
+Not implemented in E1 **by design** and therefore not to be pulled into an E1 visual cleanup:
+- E2: full reusable Question Bank/Quiz library, all eight quiz types, Python programming-task/autograder runtime, essay/file/manual/rubric assessment, controlled assessment/timer/reconnect/durable answers, 30×100 gradebook and export;
+- E3: full Knowledge discovery/self-study runtime and bilateral StudentSeat → Account linking;
+- E4: scoped coauthor/publisher/reviewer/mentor/coordinator collaboration;
+- E5: organization groups/bulk delivery/adaptation/aggregate management;
+- E6: remaining operations/preferences/data-request/moderation/support completion.
 
 ## 5. E2 — durable assessment
 
@@ -511,7 +546,7 @@ Menu is derived from server entitlements:
 - organizations only for actual membership/ownership;
 - platform administration only for platform grants.
 
-Seat menu is reduced to learning, learning work, help, learning profile and logout.
+Seat menu is reduced to `Главная`, learning, learning work, help, learning profile and logout. `Главная` opens the existing StudentSeat home; it does not create a second dashboard runtime.
 
 Unknown private UUID returns safe not-found without owner metadata. Known but blocked action may show a precise reason and legal next step.
 
