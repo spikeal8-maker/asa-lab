@@ -1,16 +1,18 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { api } from '../api';
 import { AuthHomeBrand } from '../components/AuthHomeBrand';
 
 type JoinState =
   | { kind: 'code' }
+  | { kind: 'resolving' }
   | {
       kind: 'student-code';
       classroom: { id: string; title: string; teacherDisplayName: string; safeMode: boolean };
     };
 
 function initialCode(): string {
-  const query = window.location.hash.split('?')[1] ?? '';
+  const hashQuery = window.location.hash.split('?')[1] ?? '';
+  const query = hashQuery || window.location.search.replace(/^\?/, '');
   return new URLSearchParams(query).get('code') ?? '';
 }
 
@@ -28,11 +30,32 @@ export function JoinClassPage({
   onHome: () => void;
   onSignedIn: () => void;
 }): JSX.Element {
-  const [state, setState] = useState<JoinState>({ kind: 'code' });
-  const [code, setCode] = useState(initialCode);
+  const [initialClassCode] = useState(initialCode);
+  const [state, setState] = useState<JoinState>(() =>
+    initialClassCode ? { kind: 'resolving' } : { kind: 'code' },
+  );
+  const [code, setCode] = useState(initialClassCode);
   const [studentCode, setStudentCode] = useState('');
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState(initialClassCode.length > 0);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!initialClassCode) return;
+    let cancelled = false;
+    void api.resolveClassroomCode(initialClassCode).then((result) => {
+      if (cancelled) return;
+      setBusy(false);
+      if (result.ok) {
+        setState({ kind: 'student-code', classroom: result.data.classroom });
+        return;
+      }
+      setState({ kind: 'code' });
+      setError(result.error.message || 'Не удалось открыть класс по ссылке.');
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [initialClassCode]);
 
   async function resolve(event: FormEvent): Promise<void> {
     event.preventDefault();
@@ -83,6 +106,12 @@ export function JoinClassPage({
           ← Назад
         </button>
         <AuthHomeBrand onHome={onHome} />
+        {state.kind === 'resolving' ? (
+          <div className="join-class-resolving" role="status" aria-live="polite">
+            <strong>Открываем класс…</strong>
+            <span>Код класса уже получен из QR-ссылки.</span>
+          </div>
+        ) : null}
         {state.kind === 'code' ? (
           <form onSubmit={(event) => void resolve(event)}>
             <h2>Введите код класса</h2>
@@ -106,13 +135,17 @@ export function JoinClassPage({
               {busy ? 'Ищем класс…' : 'Продолжить'}
             </button>
           </form>
-        ) : (
+        ) : null}
+        {state.kind === 'student-code' ? (
           <form onSubmit={(event) => void signIn(event)}>
             <div className="join-class-preview">
-              <span>Класс</span>
-              <strong>{state.classroom.title}</strong>
-              <small>Преподаватель: {state.classroom.teacherDisplayName}</small>
-              {state.classroom.safeMode ? <em>Безопасный режим</em> : null}
+              <div>
+                <strong>{state.classroom.title}</strong>
+                <small>Преподаватель: {state.classroom.teacherDisplayName}</small>
+              </div>
+              {state.classroom.safeMode ? (
+                <small className="join-class-safe-mode">Безопасный режим класса</small>
+              ) : null}
             </div>
             <h2>Введите код ученика</h2>
             <p className="subtitle">Шесть символов с вашей личной карточки доступа.</p>
@@ -145,7 +178,7 @@ export function JoinClassPage({
               {busy ? 'Входим…' : 'Войти'}
             </button>
           </form>
-        )}
+        ) : null}
       </main>
     </div>
   );

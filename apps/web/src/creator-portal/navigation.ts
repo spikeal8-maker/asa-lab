@@ -137,6 +137,7 @@ export function portalNavigation(
   void canTeach;
   if (options.seat)
     return [
+      { section: 'home', label: 'Главная' },
       { section: 'learning', label: 'Моё обучение' },
       { section: 'projects', label: 'Мои учебные работы' },
       { section: 'help', label: 'Помощь' },

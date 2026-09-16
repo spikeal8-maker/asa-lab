@@ -267,3 +267,160 @@
     font-size: 6.5pt;
   }
 }
+
+/* E1 access-card closure: dense horizontal card with a class-only QR. */
+.student-access-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 112px;
+  gap: 12px;
+  min-height: 150px;
+  padding: 12px;
+}
+
+.student-access-card-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.student-access-card-copy > header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding-bottom: 5px;
+  border-bottom: 1px solid #d6d9de;
+}
+
+.student-access-card-copy > header span {
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+.student-access-card h3 {
+  margin: 7px 0 1px;
+  font-size: 1rem;
+}
+
+.student-access-class {
+  margin: 0 0 7px;
+  color: #4b5159;
+  font-size: 0.75rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.student-access-card .student-access-codes {
+  margin-top: auto;
+  gap: 8px;
+}
+
+.student-access-card .student-access-codes code {
+  font-size: 1rem;
+}
+
+.student-access-card .student-access-student-code code {
+  font-size: 1.2rem;
+}
+
+.student-access-card .student-access-instruction {
+  margin-top: 6px;
+}
+
+.student-access-qr {
+  min-width: 0;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 5px;
+  padding-left: 10px;
+  border-left: 1px solid #d6d9de;
+  text-align: center;
+}
+
+.student-access-qr .class-qr {
+  display: block;
+  width: 100%;
+  max-width: 104px;
+  height: auto;
+}
+
+.student-access-qr strong {
+  font-size: 0.7rem;
+  line-height: 1.2;
+}
+
+.student-access-qr .class-qr-loading,
+.student-access-qr .class-qr-failed {
+  margin: 0;
+  font-size: 0.68rem;
+}
+
+@media (max-width: 700px) {
+  .student-access-card {
+    grid-template-columns: minmax(0, 1fr) 96px;
+  }
+
+  .student-access-qr {
+    padding-left: 8px;
+  }
+}
+
+@media print {
+  body.student-access-printing .student-access-print-sheet {
+    grid-auto-rows: 44mm;
+  }
+
+  body.student-access-printing .student-access-card {
+    min-height: 44mm;
+    height: 44mm;
+    grid-template-columns: minmax(0, 1fr) 31mm;
+    gap: 3mm;
+    padding: 3mm;
+  }
+
+  body.student-access-printing .student-access-card-copy > header {
+    padding-bottom: 1mm;
+  }
+
+  body.student-access-printing .student-access-card h3 {
+    margin: 1.5mm 0 0.5mm;
+    font-size: 10.5pt;
+  }
+
+  body.student-access-printing .student-access-class {
+    margin-bottom: 1.5mm;
+    font-size: 6.5pt;
+  }
+
+  body.student-access-printing .student-access-card .student-access-codes {
+    gap: 2mm;
+  }
+
+  body.student-access-printing .student-access-card .student-access-codes code {
+    font-size: 11pt;
+  }
+
+  body.student-access-printing .student-access-card .student-access-student-code code {
+    font-size: 13pt;
+  }
+
+  body.student-access-printing .student-access-card .student-access-instruction {
+    margin-top: 1mm;
+    font-size: 5.8pt;
+  }
+
+  body.student-access-printing .student-access-qr {
+    gap: 1mm;
+    padding-left: 2.5mm;
+  }
+
+  body.student-access-printing .student-access-qr .class-qr {
+    width: 27mm;
+    max-width: 27mm;
+  }
+
+  body.student-access-printing .student-access-qr strong {
+    font-size: 5.8pt;
+  }
+}
