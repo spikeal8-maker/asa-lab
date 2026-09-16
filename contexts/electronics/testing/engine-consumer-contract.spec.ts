@@ -56,6 +56,7 @@ describe('Electronics built-package consumer contract', () => {
       'parse-document',
       'prepare-topology',
       'analyse-snapshot',
+      'advance-timed',
     ]);
 
     const parsed = engine.parseElectronicsEngineDocument(DOCUMENT);
@@ -96,6 +97,7 @@ describe('Electronics built-package consumer contract', () => {
       'parse-document',
       'prepare-topology',
       'analyse-snapshot',
+      'advance-timed',
     ]);
     expect(receipt.netCount).toBeGreaterThan(0);
     expect(receipt.status).toBe('solved');
