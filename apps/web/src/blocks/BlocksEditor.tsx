@@ -18,7 +18,11 @@ function configuredRuntimeOrigin(): string | null {
   if (typeof __ASA_BLOCKS_RUNTIME_ORIGIN__ === 'undefined' || !__ASA_BLOCKS_RUNTIME_ORIGIN__)
     return null;
   try {
-    const origin = requireExactHttpOrigin(__ASA_BLOCKS_RUNTIME_ORIGIN__);
+    const configured = new URL(requireExactHttpOrigin(__ASA_BLOCKS_RUNTIME_ORIGIN__));
+    // `localhost` is the local-deployment template: keep the configured protocol/port,
+    // but follow the hostname the user actually used for the ASA Lab portal.
+    if (configured.hostname === 'localhost') configured.hostname = window.location.hostname;
+    const origin = configured.origin;
     // Visibility never grants the runtime portal authority or permits mixed content.
     if (window.location.origin.startsWith('https:') && origin.startsWith('http:')) return null;
     return origin === window.location.origin ? null : origin;
