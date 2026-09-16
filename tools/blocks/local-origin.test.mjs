@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import test from 'node:test';
+import { URL } from 'node:url';
 import vm from 'node:vm';
 
 const source = fs.readFileSync(
