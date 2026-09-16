@@ -143,20 +143,20 @@ parallel_lanes:
       - tools/validate-electronics-agent-docs.mjs
       - tools/test_validate_electronics_agent_docs.mjs
     task:
-      id: TASK-ELECTRONICS-GOVERNANCE-001
-      issue: 270
-      branch: codex/electronics-governance-hygiene
+      id: TASK-ELECTRONICS-EOPT3D-001
+      issue: 279
+      branch: codex/electronics-eopt3d-worker-horizons
       base_branch: main
       pr: null
       pr_draft: true
       status: in_progress
-      checkpoint: governance_hygiene_selected
+      checkpoint: eopt3d_worker_horizons_selected
       owner_acceptance: pending
     revisions:
-      convergence_baseline_sha: bcf3cd4f1edd305639415ea3ea61bf23b4625c7e
-      head_sha: bcf3cd4f1edd305639415ea3ea61bf23b4625c7e
+      convergence_baseline_sha: b3ff14bf3e0282915ef1fb83ce0d5a020ae67d11
+      head_sha: b3ff14bf3e0282915ef1fb83ce0d5a020ae67d11
     execution_lease:
-      executor_id: codex-electronics-governance-hygiene
+      executor_id: codex-electronics-eopt3d
       holder: unassigned
       acquired_at: null
       expires_at: null
@@ -324,26 +324,25 @@ parallel_lanes:
       - apps/web/src/pages/MyProjectsPage.tsx
       - apps/web/src/pages/ProjectsPage.tsx
       - apps/web/src/styles.css
-      - migrations/0141_project_publish_exact_version.sql
+      - migrations/0143_project_legacy_publication_convergence.sql
       - tests/portal/**
       - e2e/project-hub.spec.ts
       - e2e/artifacts/project-hub/**
       - docs/product/projects/**
       - docs/review/PROJ_R7_01/**
     task:
-      id: TASK-PROJ-R7-01B-001
+      id: TASK-PROJ-R7-01C-001
       issue: 211
-      branch: codex/projects-r7-01b-publish-exact-version
+      branch: codex/projects-r7-01c-legacy-convergence
       base_branch: main
-      pr: 249
-      pr_draft: false
-      status: done
-      checkpoint: r7_01b_merged_to_main
-      owner_acceptance: accepted
+      pr: null
+      pr_draft: true
+      status: in_progress
+      checkpoint: r7_01c_legacy_publication_convergence_selected
+      owner_acceptance: pending
     revisions:
-      convergence_baseline_sha: 11aa392ad52abd8d86f9fafeacb88fc970c4d223
-      head_sha: c56e5ff2c0baca76e993ff7ef0b63370f1c95db9
-      product_merge_sha: 65316c50873e28a5effd7b6e603b5289e37e2fac
+      convergence_baseline_sha: b07203df33d2a3f0d95c719efe9ab8e5ef3541bd
+      head_sha: b07203df33d2a3f0d95c719efe9ab8e5ef3541bd
       accepted_r7_01b_merge_sha: 65316c50873e28a5effd7b6e603b5289e37e2fac
       accepted_r3_merge_sha: 5fa616045b16d2720418eb7945f7bef968dd9389
       accepted_r7_01a_merge_sha: 92e7926fb4cf51b8fcb5d57741e01c812a26f2dc

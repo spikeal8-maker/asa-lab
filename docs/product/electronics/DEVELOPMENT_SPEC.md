@@ -208,11 +208,25 @@ A moving `main` cannot silently replace the selected release.
 | `ASA_ELECTRONICS_OPTIMIZATION_PLAN_V2.md` | Roadmap stages, dependencies, prerequisites and milestone boundaries |
 | `COMPONENT_MAP.yaml` / subsystem cards | Stable IDs, keywords, ownership/risk, exact contracts/source/symbol/test routes and dependencies |
 | `tasks/` | One bounded slice per concrete card; templates define required fields |
+| `contracts/ENGINEERING_HYGIENE_CONTRACT.md` | Mandatory hygiene cadence, lifecycle classes, deletion proof and large-source review rules |
+| `evidence/hygiene-baseline.yaml` | Machine-readable reviewed large-source/legacy/documentation debt baseline; never live execution state |
 
 Cards never store programme progress, live task/SHA/CI/deployment state or `implementation_state`.
 Readiness is assessed from roadmap prerequisites and acceptance evidence, not inferred from
 source filenames. When ownership changes, update the affected routes in the same slice and
 run `pnpm validate:electronics-agent-docs`. Repair contradictions at their canonical owner.
+
+### 11.1 Engineering hygiene and legacy retirement
+
+Apply the [Engineering Hygiene and Legacy Retirement Contract](contracts/ENGINEERING_HYGIENE_CONTRACT.md). A checkpoint becomes due after every three accepted production-changing slices (`implementation`, `component/peripheral`, plus `maintenance`/`repair` that changed tracked production source) or before transition between major E-OPT stages, whichever occurs first; canonical replacement of a provisional path can force an earlier checkpoint.
+
+A due checkpoint is fail-closed for another production-changing slice except a bounded repair required to restore governance/gates. The checkpoint classifies active legacy bridges, compatibility shims, generated/history/protected material, dead-orphan candidates and decomposition candidates.
+
+Deletion requires evidence that runtime/import/export/persistence/contract dependencies are absent or migrated, protected ownership does not apply, replacement coverage exists when needed and required tests/gates pass after removal. File age, naming or a local absence of imports is never sufficient proof.
+
+Production sources above the contract threshold are review triggers, not automatic split targets. Growth beyond the reviewed baseline threshold requires a new selected hygiene review; decomposition follows cohesive responsibility and must not manufacture arbitrary helper fragments.
+
+The machine baseline is `evidence/hygiene-baseline.yaml`. It records debt/classification only and must not duplicate active task, SHA, CI or deployment state.
 
 ## 12. Token-efficiency rules
 

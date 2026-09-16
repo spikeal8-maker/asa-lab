@@ -10,6 +10,28 @@ const errors = [];
 const allowedRisk = new Set(['low', 'medium', 'high', 'critical']);
 const allowedOwnership = new Set(['asa', 'infrastructure', 'owner_asset', 'cross_boundary']);
 const largeSourceBytes = 50_000;
+const largeSourceGrowthPercent = 20;
+const hygieneMaxCountedSlices = 3;
+const hygieneCountedTaskKinds = [
+  'implementation',
+  'component/peripheral',
+  'maintenance:production-source-change',
+  'repair:production-source-change',
+];
+const hygieneContractPath = `${docsRoot}/contracts/ENGINEERING_HYGIENE_CONTRACT.md`;
+const hygieneBaselinePath = `${docsRoot}/evidence/hygiene-baseline.yaml`;
+const hygieneSourceRoots = ['contexts/electronics/domain', 'apps/web/src/electronics'];
+const hygieneSourceExtensions = new Set(['.ts', '.tsx', '.js', '.mjs', '.css']);
+const hygieneLifecycleClasses = new Set([
+  'canonical-active',
+  'active-legacy-bridge',
+  'compatibility-shim',
+  'generated',
+  'historical-evidence',
+  'protected-owner-asset',
+  'dead-orphan-candidate',
+  'decomposition-candidate',
+]);
 const allowedKinds = new Set([
   'implementation',
   'maintenance',
@@ -318,6 +340,151 @@ function validateDependencyCycles(map, cards) {
   for (const id of graph.keys()) visit(id, []);
 }
 
+function collectHygieneProductionSources(repoDir) {
+  const full = resolve(root, repoDir);
+  if (!existsSync(full) || !statSync(full).isDirectory()) return [];
+  const files = [];
+  for (const entry of readdirSync(full, { withFileTypes: true })) {
+    if (entry.name === 'testing' || entry.name === 'dist') continue;
+    const repoPath = `${repoDir}/${entry.name}`;
+    if (entry.isDirectory()) files.push(...collectHygieneProductionSources(repoPath));
+    else if (entry.isFile() && hygieneSourceExtensions.has(extname(entry.name).toLowerCase())) {
+      files.push(repoPath);
+    }
+  }
+  return files;
+}
+
+function nonEmptyString(value) {
+  return typeof value === 'string' && value.trim().length > 0;
+}
+
+function validateHygieneBaseline() {
+  const baseline = readYaml(hygieneBaselinePath);
+  if (!baseline) return;
+  if (baseline.module !== 'electronics') errors.push('hygiene baseline module must be electronics');
+  if (baseline.contract !== hygieneContractPath) {
+    errors.push(`hygiene baseline contract must be ${hygieneContractPath}`);
+  }
+  if (baseline.large_source_bytes !== largeSourceBytes) {
+    errors.push(`hygiene baseline large_source_bytes must be ${largeSourceBytes}`);
+  }
+  if (baseline.growth_review_percent !== largeSourceGrowthPercent) {
+    errors.push(`hygiene baseline growth_review_percent must be ${largeSourceGrowthPercent}`);
+  }
+  const checkpointPolicy = baseline.checkpoint_policy;
+  if (!isMapping(checkpointPolicy)) {
+    errors.push('hygiene baseline checkpoint_policy must be a mapping');
+  } else {
+    if (checkpointPolicy.max_counted_slices_between_checkpoints !== hygieneMaxCountedSlices) {
+      errors.push(
+        `hygiene checkpoint max_counted_slices_between_checkpoints must be ${hygieneMaxCountedSlices}`,
+      );
+    }
+    const countedKinds = checkpointPolicy.counted_task_kinds;
+    if (
+      !Array.isArray(countedKinds) ||
+      countedKinds.length !== hygieneCountedTaskKinds.length ||
+      hygieneCountedTaskKinds.some((kind, index) => countedKinds[index] !== kind)
+    ) {
+      errors.push(
+        `hygiene checkpoint counted_task_kinds must be ${hygieneCountedTaskKinds.join(', ')}`,
+      );
+    }
+  }
+
+  const largeEntries = Array.isArray(baseline.large_sources) ? baseline.large_sources : [];
+  if (!Array.isArray(baseline.large_sources))
+    errors.push('hygiene baseline large_sources must be an array');
+  const largeByPath = new Map();
+  for (const entry of largeEntries) {
+    if (!isMapping(entry) || !isRepositoryPath(entry.path)) {
+      errors.push('hygiene large source entry needs an exact repository path');
+      continue;
+    }
+    if (largeByPath.has(entry.path)) errors.push(`duplicate hygiene large source: ${entry.path}`);
+    largeByPath.set(entry.path, entry);
+    if (!hygieneLifecycleClasses.has(entry.class)) {
+      errors.push(`hygiene large source class invalid: ${entry.path}`);
+    }
+    if (entry.class !== 'decomposition-candidate' && entry.class !== 'canonical-active') {
+      errors.push(
+        `hygiene large source must be canonical-active or decomposition-candidate: ${entry.path}`,
+      );
+    }
+    if (!Number.isInteger(entry.reviewed_bytes) || entry.reviewed_bytes <= largeSourceBytes) {
+      errors.push(`hygiene large source reviewed_bytes invalid: ${entry.path}`);
+    }
+    if (!nonEmptyString(entry.rationale))
+      errors.push(`hygiene large source rationale missing: ${entry.path}`);
+    if (!pathExists(entry.path)) {
+      errors.push(`hygiene large source path does not exist: ${entry.path}`);
+      continue;
+    }
+    const currentBytes = statSync(resolve(root, entry.path)).size;
+    if (currentBytes <= largeSourceBytes) {
+      errors.push(`hygiene large source is stale below threshold: ${entry.path}`);
+    }
+    if (
+      Number.isInteger(entry.reviewed_bytes) &&
+      currentBytes > entry.reviewed_bytes * (1 + largeSourceGrowthPercent / 100)
+    ) {
+      errors.push(
+        `hygiene large source grew more than ${largeSourceGrowthPercent}% since review: ${entry.path}`,
+      );
+    }
+  }
+
+  const actualLargeSources = hygieneSourceRoots
+    .flatMap((repoDir) => collectHygieneProductionSources(repoDir))
+    .filter((repoPath) => statSync(resolve(root, repoPath)).size > largeSourceBytes);
+  for (const repoPath of actualLargeSources) {
+    if (!largeByPath.has(repoPath)) errors.push(`unreviewed hygiene large source: ${repoPath}`);
+  }
+
+  const legacyEntries = Array.isArray(baseline.legacy_concerns) ? baseline.legacy_concerns : [];
+  if (!Array.isArray(baseline.legacy_concerns))
+    errors.push('hygiene baseline legacy_concerns must be an array');
+  for (const entry of legacyEntries) {
+    if (!isMapping(entry) || !isRepositoryPath(entry.path) || !pathExists(entry.path)) {
+      errors.push(`hygiene legacy concern path invalid: ${String(entry?.path)}`);
+      continue;
+    }
+    if (!['active-legacy-bridge', 'compatibility-shim'].includes(entry.class)) {
+      errors.push(`hygiene legacy concern class invalid: ${entry.path}`);
+    }
+    if (!nonEmptyString(entry.concern))
+      errors.push(`hygiene legacy concern description missing: ${entry.path}`);
+    if (!nonEmptyString(entry.retirement_condition)) {
+      errors.push(`hygiene legacy retirement condition missing: ${entry.path}`);
+    }
+  }
+
+  for (const entry of Array.isArray(baseline.documentation_hotspots)
+    ? baseline.documentation_hotspots
+    : []) {
+    if (!isMapping(entry) || !isRepositoryPath(entry.path) || !pathExists(entry.path)) {
+      errors.push(`hygiene documentation hotspot path invalid: ${String(entry?.path)}`);
+      continue;
+    }
+    if (entry.class !== 'decomposition-candidate' || !nonEmptyString(entry.rationale)) {
+      errors.push(`hygiene documentation hotspot metadata invalid: ${entry.path}`);
+    }
+  }
+
+  for (const entry of Array.isArray(baseline.preserved_classes) ? baseline.preserved_classes : []) {
+    if (!isMapping(entry) || !isRepositoryPath(entry.path) || !pathExists(entry.path)) {
+      errors.push(`hygiene preserved path invalid: ${String(entry?.path)}`);
+      continue;
+    }
+    if (!['generated', 'historical-evidence', 'protected-owner-asset'].includes(entry.class)) {
+      errors.push(`hygiene preserved class invalid: ${entry.path}`);
+    }
+    if (!nonEmptyString(entry.rationale))
+      errors.push(`hygiene preserved rationale missing: ${entry.path}`);
+  }
+}
+
 function readTaskCards() {
   const taskCards = [];
   const taskDir = resolve(root, docsRoot, 'tasks');
@@ -436,6 +603,8 @@ for (const required of [
   `${docsRoot}/tasks/DESIGN_TASK_TEMPLATE.md`,
   `${docsRoot}/tasks/DEPLOYMENT_TASK_TEMPLATE.md`,
   `${docsRoot}/tasks/E-OPT-1A.md`,
+  hygieneContractPath,
+  hygieneBaselinePath,
 ]) {
   if (!existsSync(resolve(root, required))) {
     errors.push(`missing required routing document: ${required}`);
@@ -515,6 +684,8 @@ if (map) {
 
   validateDependencyCycles(map, cards);
 }
+
+validateHygieneBaseline();
 
 const taskCards = readTaskCards();
 validateActiveElectronicsTask(taskCards);

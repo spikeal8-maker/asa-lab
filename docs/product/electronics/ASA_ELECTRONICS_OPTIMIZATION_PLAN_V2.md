@@ -9,14 +9,21 @@ The first plan had the right architecture but was not integrated into `main` bef
 
 Plan v2 reconciles reality without pretending missing prerequisites are complete.
 
-Stable facts at v2 creation:
+Historical facts at v2 creation (retained only to explain why v2 was needed):
 
-- reproducible Electronics benchmark/golden baseline exists;
-- dedicated simulation Worker boundary exists and is used by the running workbench;
-- Worker rollout has exact parity/regression/browser evidence;
-- portable engine boundary is still incomplete;
-- canonical physical clock is still incomplete;
-- timing-sensitive peripherals remain blocked on clock/runtime prerequisites.
+- reproducible Electronics benchmark/golden baseline existed;
+- dedicated simulation Worker boundary existed and was used by the running workbench;
+- Worker rollout already had parity/regression/browser evidence;
+- portable engine and canonical physical clock were incomplete at that time.
+
+Reconciled capability baseline for this plan revision:
+
+- E-OPT-0 baseline/golden/benchmark is accepted;
+- E-OPT-1A..1E portable engine boundary is accepted and integrated;
+- E-OPT-2 dedicated Worker boundary is accepted and integrated;
+- E-OPT-3A canonical clock contract, E-OPT-3B public timed facade and E-OPT-3C scheduler/physics barrier convergence are accepted and integrated;
+- E-OPT-3D..3F remain before E-OPT-3 is complete;
+- timing-sensitive peripherals remain blocked on the remaining clock/runtime prerequisites.
 
 Do not copy live SHA/CI/checkpoint into this plan. Historical evidence belongs in delivery evidence, Git history and issues.
 
@@ -61,6 +68,12 @@ it may not redefine engine/clock/runtime semantics.
 DPL-* deployment gates are cross-cutting and occur only after accepted integration points.
 ```
 
+### 2.1 Cross-cutting engineering hygiene checkpoints
+
+The [Engineering Hygiene and Legacy Retirement Contract](contracts/ENGINEERING_HYGIENE_CONTRACT.md) is cross-cutting. A hygiene checkpoint is mandatory after every three accepted production-changing slices (`implementation`, `component/peripheral`, plus `maintenance`/`repair` that changed tracked production source) or before transition between major E-OPT stages, whichever occurs first. Canonical replacement of a provisional/legacy path may force an earlier checkpoint.
+
+A due hygiene checkpoint blocks another production-changing slice until accepted, except for a bounded repair required to restore a broken governance/gate condition. Hygiene does not alter roadmap dependencies and never authorizes the next feature by itself.
+
 ## 3. E-OPT-0 — Baseline, golden corpus and benchmark harness
 
 **Capability state:** accepted foundation.
@@ -80,7 +93,7 @@ Must continue to protect:
 
 ## 4. E-OPT-1 — Portable Engine Boundary
 
-**This is the next missing foundation.**
+**Capability state:** accepted and integrated through E-OPT-1E.
 
 ### Goal
 
@@ -124,7 +137,7 @@ capabilities/version descriptor
 
 ### Stop
 
-After E-OPT-1 acceptance, report E-OPT-3 as next available. Do not start clock work in the same task/context.
+This stop boundary has been satisfied. E-OPT-1 is retained as an accepted foundation; further changes require a separately selected maintenance or dependent roadmap task.
 
 ## 5. E-OPT-2 — Dedicated Electronics Worker
 
@@ -139,7 +152,7 @@ No further E-OPT-2 feature expansion is authorised by this plan alone. Worker ch
 
 ## 6. E-OPT-3 — Canonical Electronics Clock
 
-**Blocked until E-OPT-1 is accepted.**
+**Capability state:** E-OPT-3A, E-OPT-3B and E-OPT-3C are accepted and integrated; E-OPT-3D, E-OPT-3E and E-OPT-3F remain.
 
 ### Goal
 
@@ -316,19 +329,25 @@ how existing acceptance evidence remains valid or must be rerun
 
 Then update this plan and routing before implementation resumes.
 
-## 16. Immediate next sequence after v2 acceptance
+## 16. Current dependency sequence after E-OPT-3C
 
-The dependency sequence begins with inventory, then separately selected implementation:
+Accepted foundations E-OPT-0, E-OPT-1, E-OPT-2 and E-OPT-3A..3C are not repeated as future work. The next dependency sequence is:
 
 ```text
-E-OPT-1A inventory/dependency graph
-→ E-OPT-1B stable non-temporal engine facade
-→ E-OPT-1C boundary tests
-→ E-OPT-1D standalone non-temporal consumer
-→ E-OPT-1E Worker preflight/stateless convergence
-→ STOP / independent E-OPT-1 acceptance
-→ E-OPT-3A canonical clock contract
-→ E-OPT-3B canonical timed facade
+mandatory hygiene checkpoint after the accepted 3A/3B/3C sequence
+→ STOP / owner selection
+→ E-OPT-3D Worker/controller canonical horizons
+→ E-OPT-3E trace/replay determinism across presentation cadence
+→ E-OPT-3F reset/pause/resume/input/stale-horizon conformance
+→ mandatory hygiene checkpoint before leaving major E-OPT-3
+→ E-OPT-4 Solver/DeviceModel hardening
+→ E-OPT-5 Arduino runtime hardening
+→ E-OPT-6 peripherals, one selected vertical slice at a time
+→ E-OPT-7 UI/assets/performance evidence as separately selected work
+→ E-OPT-8 standalone portability proof
+→ E-OPT-9 v1 hardening gate
 ```
 
-No sensor/peripheral work belongs in this sequence.
+E-OPT-4 and E-OPT-5 may be decomposed into bounded slices and may only overlap where their accepted contracts permit it. Each major-stage transition is subject to the cross-cutting hygiene rule in §2.1.
+
+No sensor/peripheral work is authorized before its E-OPT-3/E-OPT-5 prerequisites are accepted.
