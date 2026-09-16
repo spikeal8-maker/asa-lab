@@ -148,6 +148,12 @@ task card из `pnpm agent:context --scope visual-programming`. Card ведёт 
 одному component entry, нужной секции D0 и source/tests. Master, ADR, roadmap,
 AGENT_GUIDE и остальные cards читаются только для конкретного нерешённого вопроса.
 
+Для install/update/repair сначала прочитай
+[единый порядок развёртывания Scratch в ASA](docs/deployment/SCRATCH_INSTALLATION.md).
+Не начинай с standalone/preview-рецепта: `scratch` уже входит в основной Compose.
+Сначала установи, где работает существующая ASA Lab; новый порт или второй
+Compose project не являются способом повторного развёртывания её модуля.
+
 Readiness не запускает следующий этап: отдельный product task выбирается владельцем.
 Обычное исправление tooling/docs выполняется в разрешённом владельцем объёме;
 для него не нужен новый продуктовый milestone. Принятые A/C и pin сохраняются.

@@ -4,6 +4,20 @@ This directory builds the pinned upstream Scratch Editor as an isolated ASA runt
 Scratch GUI/VM stays outside the ASA Web dependency graph. Execution state and owner
 acceptance live only in `docs/execution/current.yaml`.
 
+## Install/update routing — read before any runtime command
+
+This is a component directory, not a separately deployed application. The service
+key is `scratch` in the root ASA `compose.yaml`; it shares the installation
+lifecycle and revision with Web/API. `standalone` below names the compiled GUI/VM
+bundle, not a new Compose project, account service or database.
+
+For normal installation and every existing-server repair/update, follow
+[SCRATCH_INSTALLATION.md](../../docs/deployment/SCRATCH_INSTALLATION.md), not the
+manual artifact recipe. Reuse the selected installation root, project name,
+volume, host ports and origins. Never invent a spare port, loopback alias,
+standalone `docker run` or second Compose project to repair the working editor.
+Find an occupied port's owner and stop on ambiguous installation identity.
+
 ## Upstream lock and product boundary
 
 `upstream.env` is authoritative. The retained lock is
@@ -46,30 +60,28 @@ There is no runtime fallback to Scratch Foundation project/asset servers.
 Explicitly selected native extensions may still use their own services/devices;
 that is not a hidden dependency of core project/media loading.
 
-## Preview configuration
+## Standard integrated configuration
 
-Owner change 2026-09-16: Scratch is now an active, local-file editor for all
-users. `ASA_BLOCKS_PREVIEW` no longer controls module visibility, creation or
-editor mounting. A valid isolated `ASA_BLOCKS_RUNTIME_ORIGIN` and a reachable
-runtime are still required. Never use the legacy preview flag as an access-control switch. School/class controls are deferred.
-Missing configuration or a runtime timeout does not hide the module. Keep the
-native `.sb3` controls; the ready editor has no persistent footer. A timed-out or failed
-runtime can be reconnected from the parent-owned status row.
+Scratch is an active local-file editor for all ASA users. `ASA_BLOCKS_PREVIEW`
+does not control visibility, creation or mounting. The root Compose supplies the
+`scratch` service. `compose.blocks-preview.yaml` is a compatibility overlay only,
+not an additional application or a required second startup step.
 
-The historical preview recipe below describes the existing packaging mechanism,
-not a requirement to hide ordinary user access.
+`ASA_BLOCKS_RUNTIME_ORIGIN` is the exact browser-visible editor origin;
+`ASA_BLOCKS_PARENT_ORIGIN` is the exact ASA parent origin. Preserve approved
+values on update. The normal runtime host port is `ASA_BLOCKS_PORT=4613`, bound
+to loopback; 8080 is internal to the container. Distinct origin is required for
+isolation, not a request for a distinct product. Cookie isolation also needs
+the documented host separation, not merely another port on the same host.
 
-A legacy explicitly configured TEST stand uses
-`ASA_BLOCKS_PREVIEW=1`, `ASA_BLOCKS_RUNTIME_ORIGIN` for the browser-visible exact
-Scratch origin and `ASA_BLOCKS_PARENT_ORIGIN` for the exact ASA parent origin.
-`compose.blocks-preview.yaml` is retained for compatibility only; the base Compose
-stack supplies the isolated Scratch service for normal startup.
-The default preview port is `127.0.0.1:4613`.
+Missing configuration or timeout must not hide the module. Native `.sb3` controls
+remain; the ready editor has no persistent footer. Failure/retry stays parent-owned.
+School/class controls and server persistence are separate future capabilities.
 
-The preview service runs as uid/gid `101:101`, read-only, without capabilities,
-with temporary writable nginx cache/run directories. The static nginx config is
-baked into `/etc/nginx/conf.d/default.conf`; no entrypoint write to a read-only
-configuration directory is required. CI exercises these same restrictions.
+The service runs as uid/gid `101:101`, read-only, without capabilities, with
+temporary writable nginx cache/run directories. The static nginx config is baked
+into `/etc/nginx/conf.d/default.conf`; no entrypoint write to that directory is
+required. CI exercises these same restrictions.
 
 ## Verification
 
@@ -109,7 +121,12 @@ The image preserves the upstream AGPL license, Scratch GUI trademark notice and
 exact lock under `/licenses/`. Pin changes require reviewed compatibility,
 dependency/security/license and reproducible build/browser evidence.
 
-## Exact-SHA artifact packaging for a manual TEST stand
+## Historical/test-only artifact packaging — not a deployment path
+
+Do not use this recipe for a normal install, redeploy or repair of the main site.
+It neither authorizes a local test stack nor changes its ports. A separately
+approved disposable TEST must have an explicit owner, target and cleanup plan;
+the default test location is isolated CI, not the working server.
 
 A small packaging recipe, `Dockerfile.artifact`, reuses the completed GitHub Actions
 standalone artifact without rerunning the heavy upstream compiler on Docker Desktop.
@@ -123,7 +140,7 @@ SHA, and `ASA_BLOCKS_PARENT_ORIGIN` set to the exact TEST Web origin.
 The recipe rejects a mismatched `asa-commit.txt`, incomplete payload and non-origin
 URLs. It configures only the deployment parent origin, just like the normal source
 Dockerfile. Run it with the same non-root/read-only/bounded tmpfs restrictions as
-`compose.blocks-preview.yaml`. Source compilation in CI remains the authoritative
+the root `compose.yaml` scratch service. Source compilation in CI remains the authoritative
 reproducible build; artifact packaging does not replace or weaken that gate.
 
 A manual TEST stand must keep Web/API/runtime on the same revision. The legacy

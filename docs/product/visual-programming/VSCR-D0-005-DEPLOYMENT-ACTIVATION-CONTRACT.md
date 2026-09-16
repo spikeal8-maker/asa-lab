@@ -17,19 +17,28 @@ student browser
 server/install
 ├── ASA Web/API/PostgreSQL
 ├── Scratch runtime container
-└── private S3-compatible object storage
+└── private S3-compatible object storage (planned managed persistence, not current local-file prerequisite)
 ```
 
-Separate origin не означает отдельный аккаунт, БД или второй продукт.
+Separate origin не означает отдельный аккаунт, БД, Compose project или второй продукт.
+Для первого запуска и обновления действует один
+[deployment runbook](../../deployment/SCRATCH_INSTALLATION.md). `standalone` —
+формат GUI/VM bundle, не разрешение разворачивать редактор отдельно от ASA.
 
 ## Required configuration
 
 ```text
-ASA_WEB_ORIGIN
-ASA_BLOCKS_RUNTIME_ORIGIN
-ASA_BLOCKS_RUNTIME_PORT
-ASA_BLOCKS_RUNTIME_BIND_ADDRESS
+ASA_WEB_PORT                 # default 4610
+ASA_BLOCKS_PORT              # default 4613, existing installation keeps its value
+ASA_BLOCKS_PARENT_ORIGIN     # exact ASA browser origin
+ASA_BLOCKS_RUNTIME_ORIGIN    # exact editor browser origin
 ```
+
+`ASA_WEB_ORIGIN`, `ASA_BLOCKS_RUNTIME_PORT` и `ASA_BLOCKS_RUNTIME_BIND_ADDRESS`
+из раннего проектного описания не являются настройками текущего startup.
+Не создавать эти переменные или новый порт по устаревшему примеру. Текущий
+source — root `compose.yaml`, `.env.docker.example` и штатные startup/update tools.
+Обновление не меняет согласованную портовую пару или origins.
 
 Object storage/security configuration определяются профильными контрактами. Все origins валидируются как абсолютные origins.
 
@@ -54,7 +63,7 @@ public/reverse-proxy HTTPS
 Scratch runtime входит в существующий ASA Compose project:
 
 ```text
-scratch-editor
+scratch
   build: infra/scratch-editor/Dockerfile
   internal port: 8080
   health: /healthz
@@ -63,7 +72,12 @@ scratch-editor
   no object-store credentials
 ```
 
-Не создавать отдельный обязательный docker-compose для Scratch.
+Root `compose.yaml` содержит `scratch` вместе с `web`, `api`, `migration` и
+`postgres`. Не создавать отдельный обязательный docker-compose, постоянный
+контейнер через `docker run` или второй Compose project для Scratch.
+Не переиспользовать диагностические контейнеры как рабочую установку.
+При занятом порте сначала определить владельца; подбор нового порта или
+loopback-адреса запрещён как обход. Сохранять каталог и volume выбранной ASA.
 
 ## Runtime networking principle
 

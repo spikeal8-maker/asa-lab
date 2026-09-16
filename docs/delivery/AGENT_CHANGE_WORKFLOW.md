@@ -98,6 +98,11 @@ Push в GitHub не обновляет Docker и не означает deploymen
 
 ## 5. Обнови существующую Docker-установку
 
+Scratch — сервис того же Compose project, не отдельная установка. До любых
+команд найди каталог работающей PostgreSQL, проверь Web/API/Scratch, существующие
+порты и overlays по [единому deployment-маршруту](../deployment/SCRATCH_INSTALLATION.md).
+Занятый порт не разрешает создать новую установку или новый endpoint.
+
 Сначала только проверка, без изменения runtime:
 
 ```powershell
@@ -113,7 +118,8 @@ ASA_COMPOSE_PROFILE=production bash tools/docker-update.sh --check
 fast-forward, зелёный CI точного SHA, создаёт проверенный backup, обновляет
 Compose и ждёт `/health/ready`. Дополнительно он привязывает запуск к каталогу
 работающей PostgreSQL, запрещает смешение контейнеров из разных checkout и
-требует одинаковый точный SHA от API и Web `build-metadata.json`. Подробности:
+требует одинаковый точный SHA от API, Web `build-metadata.json` и Scratch
+`asa-commit.txt`. Host-порт и пользовательский путь проверяются дополнительно. Подробности:
 [`../deployment/GUARDED_UPDATE.md`](../deployment/GUARDED_UPDATE.md).
 
 Не меняй `COMPOSE_PROJECT_NAME`: другое имя подключит другой PostgreSQL volume
@@ -122,13 +128,16 @@ Compose и ждёт `/health/ready`. Дополнительно он привя�
 Не обновляй эту установку из другой копии репозитория. Если preflight сообщает
 `CHECK BLOCKED` и перечисляет разные working directories, перейди в каталог,
 которому принадлежит контейнер PostgreSQL, и только оттуда выполни полный
-защищённый updater. Он пересоберёт Web и API из одного `origin/main`.
+защищённый updater. Он пересоберёт Scratch, API и Web из одного `origin/main`.
 
 ## 6. Разверни на новом компьютере
 
-Новая установка начинается с чистого клона `main`, приватного `.env` и
+Только на действительно новом целевом компьютере без выбранной ASA-установки
+новая установка начинается с чистого клона `main`, приватного `.env` и
 [`../deployment/QUICK_START.md`](../deployment/QUICK_START.md). Git содержит код
 и миграции, но не содержит пользователей, токены, `.env` или дамп базы.
+Общий startup включает Scratch автоматически. Не создавай для него второй
+Compose project, отдельный backend или новый набор пользователей.
 
 Если нужна история пользователей, сначала перенеси проверенный внешний backup,
 а восстановление проверь в отдельной базе. Не копируй старую рабочую директорию

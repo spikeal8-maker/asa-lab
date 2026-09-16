@@ -9,15 +9,20 @@
 Записать конкретный компьютер, Compose-проект и каталог работающей PostgreSQL.
 Обновление main переносит все уже объединённые изменения выбранного SHA, а не
 только последний PR. Незавершённые ветки не объединяются командой обновления.
-До работы записать отдельно Git SHA checkout и фактические Web/API revision,
+До работы записать отдельно Git SHA checkout и фактические Web/API/Scratch revision,
 схему БД, используемые overlays и ожидаемые пользователем доступные модули.
 
-«Обновить платформу», «подключить существующий Scratch preview» и «публично
-активировать Scratch» — разные результаты. Стандартный updater сохраняет
-конфигурацию установки, не добавляет `compose.blocks-preview.yaml` и не включает
-флаг preview. Этот флаг не ограничен одним администратором. Нельзя обещать
-появление Scratch на основной главной только по факту зелёного CI или merge.
-Проверить `/api/modules` и сценарий пользователя в выбранной установке.
+Scratch уже входит в основной `compose.yaml` как сервис `scratch`. Updater
+обновляет его вместе с Web/API в существующем Compose project; ни preview-флаг,
+ни дополнительное развёртывание редактора не требуются. Сохранить прежние
+`ASA_BLOCKS_PORT`, parent/runtime origins, `.env` и transport overlays.
+Порт 4613 — предусмотренный endpoint компонента, не новый портал. Не выбирать
+новый порт или вторую установку при ошибке.
+
+[Обязательная проверка идентичности установки](SCRATCH_INSTALLATION.md) выполняется
+до изменения. Зелёный CI/merge не заменяет deployment и проверку пути пользователя
+«главная → программа → Scratch». Внешние DNS/TLS/FRP меняются только по отдельному
+разрешению; приоритет локальных проверок не разрешает обход origin-защиты.
 
 Ошибки GitHub/DNS/памяти, безопасный повтор сборки и причины отсутствия Scratch:
 [Windows: восстановление обновления и видимость Scratch](WINDOWS_UPDATE_RECOVERY.md).
@@ -35,20 +40,25 @@
   PostgreSQL volume;
 - PostgreSQL выбранного Compose-проекта уже запущен;
 - текущий checkout совпадает с Compose working directory работающей PostgreSQL;
-- Web, API и PostgreSQL не принадлежат разным checkout;
+- имеющиеся Web, API, Scratch и PostgreSQL не принадлежат разным checkout;
 - для production отключено тестовое наполнение: `ASA_SEED_DEV=false`;
 - итоговая Compose-конфигурация корректна.
 
 После этого updater создаёт и проверяет custom-format дамп PostgreSQL, сохраняет
-текущие API/Web-образы с rollback-тегами, выполняет `git pull --ff-only`, собирает
-образы с тегом точного Git SHA и запускает одноразовую миграцию через Compose.
+текущие API/Web/Scratch-образы с rollback-тегами, выполняет `git pull --ff-only`, собирает
+Scratch, API и Web последовательно с тегом точного Git SHA; только после успешной
+сборки всех трёх заменяет сервисы и запускает одноразовую миграцию через Compose.
 Успех объявляется только если `/health/ready` и Web
-`/build-metadata.json` подтвердили одновременно:
+`/build-metadata.json`, а также runtime `/asa-commit.txt` и `/healthz` подтвердили:
 
 - точный новый `revision`;
-- одинаковый точный `revision` API и Web;
+- одинаковый точный `revision` API, Web и Scratch;
 - фактическую и ожидаемую версии схемы;
 - `synchronized: true`.
+
+Проверка runtime внутри контейнера не заменяет доступ через опубликованный порт.
+До приёмки дополнительно проверить host-порт Scratch и редактор через ASA;
+сохранить точные адреса и ограничения проведённого теста.
 
 В каталоге `backups/` остаются дамп и текстовая квитанция с SHA256. Они
 игнорируются Git. Updater никогда не выполняет `reset --hard`, не удаляет volume
@@ -61,7 +71,7 @@
 проверяет CI точного SHA через GitHub API и рендерит Compose, но не создаёт
 backup, не делает pull и не перезапускает контейнеры.
 
-Если preflight обнаруживает Web/API/PostgreSQL из разных checkout, он выводит
+Если preflight обнаруживает Web/API/Scratch/PostgreSQL из разных checkout, он выводит
 `CHECK BLOCKED`. Это не повод запускать Compose из случайного каталога. Полный
 updater разрешён только из каталога, записанного в метке работающей PostgreSQL;
 после пересборки он повторно проверяет, что смешения больше нет.
@@ -123,18 +133,20 @@ checkout уже может совпадать с target, а контейнеры
 
 ```powershell
 docker compose -f compose.yaml -f compose.production.yaml ps
-docker compose -f compose.yaml -f compose.production.yaml logs --tail 200 api migration web
+docker compose -f compose.yaml -f compose.production.yaml logs --tail 200 api migration web scratch
 ```
 
 Если использовался FRP overlay, добавьте к обеим командам
 `-f compose.frp.yaml`. Rollback-образы сохраняются как
-`asa-lab-api:rollback-<SHA>` и `asa-lab-web:rollback-<SHA>`, но переключать их
+`asa-lab-api:rollback-<SHA>`, `asa-lab-web:rollback-<SHA>` и
+`asa-lab-scratch:rollback-<SHA>`, но переключать их
 до проверки совместимости новой схемы со старым API нельзя.
 
 ## Перенос на другой компьютер
 
-Обычное обновление и перенос данных — разные операции. На другом компьютере
-сначала клонируется чистый `main`. Для переноса реальных пользователей отдельно
+Обычное обновление и перенос данных — разные операции. На действительно новом компьютере
+сначала клонируется чистый `main` и устанавливается весь состав ASA со Scratch.
+Отдельный репозиторий/Compose project редактору не нужен. Для переноса реальных пользователей отдельно
 нужны проверенный дамп PostgreSQL, исходный `.env` (особенно прежний
 `ASA_SETTINGS_ENCRYPTION_KEY`) и локальный transport overlay. Эти файлы нельзя
 коммитить в GitHub. После восстановления данных первый запуск также принимается

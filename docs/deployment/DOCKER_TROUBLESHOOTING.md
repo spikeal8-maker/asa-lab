@@ -12,10 +12,11 @@ Unicode logging failures, or a missing Scratch entry after an update, use
 PostgreSQL container's Compose working directory and retain its project name,
 volumes and local overlays. Do not mistake a new Git checkout for a new running version.
 
-Scratch stays hidden on the home page when its module is not creatable. A normal
-base-stack update neither enables the installation-wide preview flag nor adds the
-separate runtime. Confirm API capabilities and Web build configuration rather than
-rerunning migrations or clearing the browser cache.
+Scratch is part of the base Compose stack and is active without a preview flag.
+Use the [single-installation route](SCRATCH_INSTALLATION.md) for all install/update/repair
+work. Check actual Web/API/Scratch revisions, configured origins and host-port ingress.
+A missing module or failed runtime is not permission to deploy another Scratch,
+choose another port, reset the database or follow a historical TEST recipe.
 
 ## Start with current state
 
@@ -24,7 +25,7 @@ docker version
 docker compose version
 docker compose config --quiet
 docker compose ps -a
-docker compose logs --tail=200 postgres migration api web
+docker compose logs --tail=200 postgres migration api web scratch
 ```
 
 For an overlay, include the same files used to start it:
@@ -68,12 +69,18 @@ database as `up`.
 
 ## Port conflict
 
-This stack may publish only 4610, 4611 in dev, and 4612 in test. Identify an
-owner before stopping any process:
+Default host ports are 4610 (ASA Web), 4613 (the same installation's Scratch),
+4611 in dev and 4612 in isolated tests. Preserve explicitly approved existing
+values. A port conflict requires identifying the owner, not selecting a spare
+port/loopback alias or adding a second Compose project:
 
 ```bash
-ss -ltnp | grep -E ':(4610|4611|4612)\b'
+ss -ltnp | grep -E ':(4610|4611|4612|4613)\b'
 ```
+
+If the owner is the selected primary `scratch` service, reuse the existing
+installation. If it is TEST, diagnostic or ambiguous, stop the repair and report
+its exact identity; do not stop/delete it automatically.
 
 Do not use or stop services on ports 3000, 3100 or 5173 for this task. Do not
 stop containers belonging to another Compose project.
@@ -85,7 +92,7 @@ The test database must end in `_test`. Inspect the normalized configuration:
 ```bash
 docker compose -f compose.yaml -f compose.test.yaml config
 docker compose -f compose.yaml -f compose.test.yaml ps -a
-docker compose -f compose.yaml -f compose.test.yaml logs --tail=200 postgres migration api web
+docker compose -f compose.yaml -f compose.test.yaml logs --tail=200 postgres migration api web scratch
 ```
 
 Run browser and PostgreSQL tests from `test-runner`; the database intentionally

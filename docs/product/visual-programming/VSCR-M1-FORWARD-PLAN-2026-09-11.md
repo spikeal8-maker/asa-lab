@@ -22,9 +22,17 @@
 
 ## Baseline
 
-M0/M0.1 и M1-001 дали Blocks contract/context. M1-002A/C приняты. D и B интегрированы в main; повторная интеграция старой D-ветки не требуется. B ещё не закрыт: требуется исправить наложение служебных статусов (#256), затем завершить приёмку. `blocks` остаётся `coming_soon`.
+M0/M0.1 и M1-001 дали Blocks contract/context. M1-002A/C приняты. D и B интегрированы в main; повторная интеграция старой D-ветки не требуется. Исправления B интегрированы, но полная приёмка B/E не объявлена завершённой. Владелец отдельно выбрал VSCR-M4-002: локальный Scratch активен для всех и входит в стандартную установку. Не повторять исправленный #256 и не возвращать coming_soon/preview-скрытие.
 
-Проверенный baseline, CI, артефакт и границы согласования владельца: [датированный review](../../review/VSCR_M1_002B_READINESS_2026-09-15.md). Текущая задача по-прежнему определяется только `current.yaml`.
+Исторический baseline, CI, артефакт и границы прежнего согласования владельца: [датированный review](../../review/VSCR_M1_002B_READINESS_2026-09-15.md). Текущая задача по-прежнему определяется только `current.yaml`.
+
+## Owner-selected local-file deployment exception
+
+[VSCR-M4-002](tasks/VSCR-M4-002.md) supersedes the old all-or-nothing activation
+rule for local-file editing. Scratch ships as the `scratch` service of the same
+ASA installation; use [SCRATCH_INSTALLATION.md](../../deployment/SCRATCH_INSTALLATION.md).
+Do not create a second deployment or choose a new port from this roadmap.
+M1 managed-storage/security acceptance below is not automatically completed.
 
 ## Strict order
 
@@ -52,7 +60,7 @@ M1-007 safe ASA .sb3 validation/import/export integration
 M1-008 end-to-end M1 acceptance
 M2 product UI + Gallery/player/remix + Learning
 M3 deployment/backup/restore + optional local/offline alternatives
-M4-001 explicit activation
+M4-001 managed-persistence activation acceptance (basic local-file access is M4-002)
 ```
 
 Order: `A → C → D → B → E`. No automatic progression.
@@ -138,23 +146,23 @@ M3 does not globally delete/block native Scratch network-backed or hardware exte
 
 ## Readiness matrix
 
-| Task           | Readiness                     | Unlock condition                                                           |
-| -------------- | ----------------------------- | -------------------------------------------------------------------------- |
-| `VSCR-M1-001`  | COMPLETE / OWNER-ACCEPTED     | integrated                                                                 |
-| `VSCR-M1-002A` | COMPLETE / ACCEPTED           | accepted host foundation                                                   |
-| `VSCR-M1-002C` | COMPLETE / ACCEPTED           | accepted security boundary                                                 |
-| `VSCR-M1-002D` | IMPLEMENTED / INTEGRATED      | real editor and fixture path are in main; preserve accepted C/D boundaries |
-| `VSCR-M1-002B` | IMPLEMENTED / REPAIR REQUIRED | #256 status overlap fixed; B evidence and acceptance closed before E       |
-| `VSCR-M1-002E` | BLOCKED                       | A+C+D+B accepted                                                           |
-| `VSCR-M1-003`  | BLOCKED                       | E + owner acceptance of M1-002                                             |
-| `VSCR-M1-004`  | BLOCKED                       | M1-003                                                                     |
-| `VSCR-M1-005`  | BLOCKED                       | M1-004                                                                     |
-| `VSCR-M1-006`  | BLOCKED                       | M1-005                                                                     |
-| `VSCR-M1-007`  | BLOCKED                       | durable project path accepted                                              |
-| `VSCR-M1-008`  | BLOCKED                       | M1-006 + M1-007                                                            |
-| `VSCR-M2-*`    | BLOCKED                       | M1-008                                                                     |
-| `VSCR-M3-*`    | BLOCKED                       | M2                                                                         |
-| `VSCR-M4-001`  | BLOCKED                       | M3 deployment/restore acceptance                                           |
+| Task           | Readiness                        | Unlock condition                                                           |
+| -------------- | -------------------------------- | -------------------------------------------------------------------------- |
+| `VSCR-M1-001`  | COMPLETE / OWNER-ACCEPTED        | integrated                                                                 |
+| `VSCR-M1-002A` | COMPLETE / ACCEPTED              | accepted host foundation                                                   |
+| `VSCR-M1-002C` | COMPLETE / ACCEPTED              | accepted security boundary                                                 |
+| `VSCR-M1-002D` | IMPLEMENTED / INTEGRATED         | real editor and fixture path are in main; preserve accepted C/D boundaries |
+| `VSCR-M1-002B` | IMPLEMENTED / ACCEPTANCE PENDING | integrated repairs; B evidence and acceptance closed before E              |
+| `VSCR-M1-002E` | BLOCKED                          | A+C+D+B accepted                                                           |
+| `VSCR-M1-003`  | BLOCKED                          | E + owner acceptance of M1-002                                             |
+| `VSCR-M1-004`  | BLOCKED                          | M1-003                                                                     |
+| `VSCR-M1-005`  | BLOCKED                          | M1-004                                                                     |
+| `VSCR-M1-006`  | BLOCKED                          | M1-005                                                                     |
+| `VSCR-M1-007`  | BLOCKED                          | durable project path accepted                                              |
+| `VSCR-M1-008`  | BLOCKED                          | M1-006 + M1-007                                                            |
+| `VSCR-M2-*`    | BLOCKED                          | M1-008                                                                     |
+| `VSCR-M3-*`    | BLOCKED                          | M2                                                                         |
+| `VSCR-M4-001`  | BLOCKED                          | M3 deployment/restore acceptance                                           |
 
 `BLOCKED` means coding STOP.
 
@@ -212,5 +220,6 @@ semantic category colours remain upstream
 ASA avatar/account remains parent-owned
 ASA durable save is separate from native local File export
 core ASA project/assets do not silently rely on Scratch project/asset backend
-only M4-001 activates blocks
+basic local-file access stays active under owner-selected M4-002
+M4-001 remains managed-persistence acceptance, not a reason to hide or redeploy the module
 ```
