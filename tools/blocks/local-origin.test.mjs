@@ -60,11 +60,7 @@ function resolvedParentOrigin(configuredParentOrigin, runtimeHref) {
 }
 
 test('localhost parent template follows the hostname used for the runtime', () => {
-  for (const host of [
-    '100.105.67.69',
-    'desktop-i07qije.tail605710.ts.net',
-    'desktop-i07qije',
-  ]) {
+  for (const host of ['100.105.67.69', 'desktop-i07qije.tail605710.ts.net', 'desktop-i07qije']) {
     assert.equal(
       resolvedParentOrigin('http://localhost:4610', `http://${host}:4614/?asaStatus=parent`),
       `http://${host}:4610`,
