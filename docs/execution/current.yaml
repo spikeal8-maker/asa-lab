@@ -142,20 +142,20 @@ parallel_lanes:
       - tools/validate-electronics-component-information.mjs
       - tools/validate-electronics-agent-docs.mjs
     task:
-      id: TASK-ELECTRONICS-EOPT3A-001
-      issue: 252
-      branch: codex/electronics-eopt3a-clock-contract
+      id: TASK-ELECTRONICS-EOPT3B-001
+      issue: 261
+      branch: codex/electronics-eopt3b-timed-engine
       base_branch: main
       pr: null
       pr_draft: true
       status: in_progress
-      checkpoint: eopt3a_canonical_clock_contract_selected
+      checkpoint: eopt3b_canonical_timed_engine_selected
       owner_acceptance: pending
     revisions:
-      convergence_baseline_sha: d0d63cfd5ae3b322831ed122669a3dcbcbe22734
-      head_sha: d0d63cfd5ae3b322831ed122669a3dcbcbe22734
+      convergence_baseline_sha: 34db96e57a898c844fccc8efa19087a82b000b20
+      head_sha: 34db96e57a898c844fccc8efa19087a82b000b20
     execution_lease:
-      executor_id: codex-electronics-eopt3a
+      executor_id: codex-electronics-eopt3b
       holder: unassigned
       acquired_at: null
       expires_at: null
