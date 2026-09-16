@@ -6,6 +6,9 @@ import {
   ELECTRONICS_ENGINE_CONTRACT_VERSION,
   ELECTRONICS_ENGINE_DESCRIPTOR,
   type ElectronicsEngineDocument,
+  type ElectronicsTimedAdvanceRequest,
+  type ElectronicsTimedAdvanceResult,
+  type ElectronicsTimedContinuation,
   analyseElectronicsSnapshot,
   parseElectronicsEngineDocument,
   prepareElectronicsSnapshot,
@@ -88,6 +91,41 @@ describe('Electronics non-temporal engine facade', () => {
       analysis: direct.analysis,
     });
     for (const key of TIMED_KEYS) expect(key in snapshot).toBe(false);
+  });
+
+  it('defines a serializable canonical timed contract shape without runtime clock operations', () => {
+    const continuation: ElectronicsTimedContinuation = {
+      version: 1,
+      clockContractVersion: 1,
+      engineContractVersion: 1,
+      clockProfileId: 'canonical-us-v1',
+      documentDigest: 'sha256:document',
+      modelSetDigest: 'sha256:models',
+      committedHorizonMicroseconds: 1250,
+      serializedState: '{"version":1}',
+    };
+    const request: ElectronicsTimedAdvanceRequest = {
+      requestedHorizonMicroseconds: 2000,
+      continuation,
+      inputEvents: [
+        {
+          atMicroseconds: 1500,
+          targetId: 'switch-1',
+          operation: 'state',
+          payload: true,
+        },
+      ],
+      maxEvents: 32,
+    };
+    const result: ElectronicsTimedAdvanceResult = {
+      executionStatus: 'yielded',
+      requestedHorizonMicroseconds: 2000,
+      committedHorizonMicroseconds: 1250,
+      continuation,
+      observation: null,
+      diagnostics: [],
+    };
+    expect(JSON.parse(JSON.stringify({ request, result }))).toEqual({ request, result });
   });
 
   it('does not expose timed control operations', async () => {
