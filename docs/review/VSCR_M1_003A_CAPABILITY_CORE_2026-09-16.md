@@ -60,3 +60,19 @@
 POST_STEP_REVIEW: отдельное API-ядро, UI/layout impact none; действующий runtime
 не импортирует новый сервис. Нет server-save claims. High-risk challenge review
 проверяет точный implementation commit и эти ограничения, не всю платформу.
+
+## Фактически выполнено в этом проходе
+
+`pnpm gate:blocks` завершился exit 0 с отключённым Nx cache: 31 Node-проверка,
+52 существующих Vitest-теста и 82 новых теста capability; новые исходники и
+тесты также прошли строгую проверку TypeScript и ESLint. Исправлены тестовые
+TypeScript-типы и запись пути теста в карте компонентов; валидаторы не ослаблялись.
+`pnpm security:dependencies` прошёл: critical=0, high=0, moderate=4, low=0.
+Это отсутствие high/critical по политике, не утверждение об отсутствии всех advisories.
+`pnpm license:check` прошёл. Jose добавлен только в зависимости API.
+
+Независимый Codex review запущен в read-only/ephemeral режиме на implementation
+candidate, но не завершён из-за лимита использования. Никакого independent PASS
+не получено. Код не объединяется в main до независимой проверки и необходимых
+финальных CI. Выбор задачи в main уже опубликован; код — отдельный review candidate.
+Рабочий сервер, .env, контейнеры, база и порты этим проходом не изменялись.

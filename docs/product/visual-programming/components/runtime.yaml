@@ -29,8 +29,7 @@ components:
       - path: apps/api/src/blocks-runtime-capability.ts
         symbols: [BlocksRuntimeCapabilityService, BlocksRuntimeAuthorityPort]
     tests:
-      - path: apps/api/src/blocks-runtime-capability.spec.ts
-        symbols: [BlocksRuntimeCapabilityService]
+      - apps/api/src/blocks-runtime-capability.spec.ts
 
   - id: blocks.runtime.origin-security
     state: blocked
