@@ -181,8 +181,14 @@ try {
 
 test('startup guards precede environment mutation and both updaters recheck before replacement', () => {
   for (const extension of ['ps1', 'sh']) {
-    const startup = fs.readFileSync(path.join(root, `tools/asa-lab.${extension}`), 'utf8');
-    const update = fs.readFileSync(path.join(root, `tools/docker-update.${extension}`), 'utf8');
+    // Git checks out PowerShell as CRLF on Linux too; compare command order,
+    // not platform-dependent line-ending bytes.
+    const startup = fs
+      .readFileSync(path.join(root, `tools/asa-lab.${extension}`), 'utf8')
+      .replaceAll('\r\n', '\n');
+    const update = fs
+      .readFileSync(path.join(root, `tools/docker-update.${extension}`), 'utf8')
+      .replaceAll('\r\n', '\n');
     const guard = extension === 'ps1' ? 'Assert-StartupIdentity' : 'assert_startup_identity';
     const prepare = extension === 'ps1' ? '    New-PrivateEnvironment' : '    create_environment';
     assert.ok(startup.includes(`${guard}\n${prepare}`));
