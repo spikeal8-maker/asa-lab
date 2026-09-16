@@ -114,10 +114,10 @@ test('teacher creates a class, issues a StudentSeat and controls learner access'
     allowAnonymousSessionProbe: true,
   });
   await studentPage.goto(`/#/join-class?code=${encodeURIComponent(joinCode)}`);
-  await expect(studentPage.getByRole('heading', { name: 'Введите код класса' })).toBeVisible();
-  await studentPage.getByRole('button', { name: 'Продолжить' }).click();
+  await expect(studentPage.getByLabel('Код ученика', { exact: true })).toBeVisible();
+  await expect(studentPage.getByRole('button', { name: 'Продолжить', exact: true })).toHaveCount(0);
   await expect(studentPage.getByText('5Б Makers', { exact: true })).toBeVisible();
-  await studentPage.getByLabel('Код ученика').fill(studentCode);
+  await studentPage.getByLabel('Код ученика', { exact: true }).fill(studentCode);
   await studentPage.getByRole('button', { name: 'Войти', exact: true }).click();
 
   /**

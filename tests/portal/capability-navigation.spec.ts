@@ -51,6 +51,6 @@ describe('capability-aware Portal navigation', () => {
       portalNavigation(true, { seat: true, classes: true, contentAuthoring: true }).map(
         (item) => item.section,
       ),
-    ).toEqual(['learning', 'projects', 'help', 'account']);
+    ).toEqual(['home', 'learning', 'projects', 'help', 'account']);
   });
 });

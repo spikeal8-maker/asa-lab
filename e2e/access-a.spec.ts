@@ -12,6 +12,7 @@ const evidence = 'e2e/artifacts/owner-preview/access-a';
 const origin = 'http://127.0.0.1:4612';
 const admin = e2eAdminPool();
 let teacherCookie = '';
+let teacherEmail = '';
 let classId = '';
 let classCode = '';
 test.describe.configure({ mode: 'serial' });
@@ -73,6 +74,7 @@ test('A–E: register, personal project, profile/avatar, explicit teaching, inde
   ).toBeVisible();
   await shot(page, 'A-public');
   const session = await register(page, 'Преподаватель Access A');
+  teacherEmail = session.user.email as string;
   expect(session.activeWorkspace.kind).toBe('personal');
   expect(session.workspaces.every((w: { kind: string }) => w.kind === 'personal')).toBe(true);
   await expect(portalSection(page, 'Классы')).toHaveCount(0);
@@ -165,6 +167,40 @@ test('F: author without teaching creates and opens own material, no roster', asy
   await expect(page.getByText('Черновик сохранён. Публикация — отдельное действие.')).toBeVisible();
   await page.getByRole('button', { name: 'Как ученик: сохранённый черновик' }).click();
   await expect(page.getByTestId('learner-preview')).toContainText('Самостоятельный текст');
+  await page.getByRole('button', { name: 'Мои курсы', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Добавить демо-курс', exact: true })).toHaveCount(
+    0,
+  );
+  await page.getByRole('button', { name: 'Создать курс', exact: true }).click();
+  const courseForm = page.getByRole('dialog', { name: 'Новый курс' });
+  await courseForm.getByLabel('Название', { exact: true }).fill('Курс только автора');
+  await courseForm.getByRole('button', { name: 'Создать курс', exact: true }).click();
+  const courseEditor = page.getByTestId('course-editor');
+  await expect(courseEditor).toBeVisible();
+  await expect(courseEditor.getByRole('button', { name: 'Доступ', exact: true })).toHaveCount(0);
+  expect((await page.request.post('/api/courses/demo')).status()).toBe(403);
+  await courseEditor.getByRole('button', { name: 'Курсы', exact: true }).click();
+  const courseRow = page
+    .getByTestId('courses-list')
+    .locator('li')
+    .filter({ hasText: 'Курс только автора' });
+  await courseRow.getByRole('button', { name: 'Ещё: Курс только автора', exact: true }).click();
+  page.once('dialog', (dialog) => void dialog.accept());
+  await page.getByRole('button', { name: 'Архивировать', exact: true }).click();
+  await expect(
+    page.getByTestId('courses-list').filter({ hasText: 'Курс только автора' }),
+  ).toHaveCount(0);
+  await page.getByRole('button', { name: 'Архив', exact: true }).click();
+  const archivedRow = page
+    .getByTestId('courses-list')
+    .locator('li')
+    .filter({ hasText: 'Курс только автора' });
+  await expect(archivedRow).toBeVisible();
+  await archivedRow.getByRole('button', { name: 'Восстановить', exact: true }).click();
+  await page.getByRole('button', { name: 'Активные', exact: true }).click();
+  await expect(
+    page.getByTestId('courses-list').locator('li').filter({ hasText: 'Курс только автора' }),
+  ).toBeVisible();
   expect((await page.request.get(`/api/classrooms/${classId}/roster`)).status()).toBe(403);
   await shot(page, 'F-author-only');
 });
@@ -314,7 +350,21 @@ test('H: short Student Code, reusable access cards, profile, logout and learner 
   await expect(cards).toContainText(first.student.studentCode);
   await expect(cards).toContainText(second.student.studentCode);
   await expect(cards).toContainText(classCode);
-  await expect(cards.getByRole('button', { name: /Распечатать/ })).toBeVisible();
+  await expect(cards).toContainText('Asolab.ru');
+  await expect(cards.getByText('/#/join-class', { exact: false })).toHaveCount(0);
+  const firstCard = cards
+    .locator('.student-access-card')
+    .filter({ hasText: first.student.studentCode });
+  const secondCard = cards
+    .locator('.student-access-card')
+    .filter({ hasText: second.student.studentCode });
+  for (const card of [firstCard, secondCard]) {
+    await expect(card.getByTestId('class-join-qr')).toHaveCount(1);
+    const qrUrl = (await card.getAttribute('data-qr-url')) ?? '';
+    expect(qrUrl).toContain('https://asolab.ru/#/join-class?code=');
+    expect(qrUrl).not.toContain(first.student.studentCode);
+    expect(qrUrl).not.toContain(second.student.studentCode);
+  }
   await shot(teacherPage, 'H-reusable-access-cards');
   await cards.getByRole('button', { name: 'Закрыть', exact: true }).last().click();
   await expect(
@@ -331,15 +381,31 @@ test('H: short Student Code, reusable access cards, profile, logout and learner 
     .click();
   await teacherContext.close();
 
-  async function enter(studentCode: string) {
-    await page.goto('/#/join-class');
-    await page.getByLabel('Код класса', { exact: true }).fill(classCode);
-    await page.getByRole('button', { name: 'Продолжить', exact: true }).click();
+  async function enter(studentCode: string, width: 390 | 320) {
+    await page.setViewportSize({ width, height: width === 320 ? 720 : 844 });
+    await page.goto(`/#/join-class?code=${encodeURIComponent(classCode)}`);
+    await expect(page.getByLabel('Код ученика', { exact: true })).toBeVisible();
+    await expect(page.getByLabel('Код класса', { exact: true })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Продолжить', exact: true })).toHaveCount(0);
+    await expect(
+      page.getByText('Преподаватель: Имя без смены прав', { exact: true }),
+    ).toBeVisible();
+    await expect(page.getByText(teacherEmail, { exact: true })).toHaveCount(0);
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      ),
+    ).toBeLessThanOrEqual(0);
+    if (width === 390) await shot(page, 'H-qr-join-390');
     await page.getByLabel('Код ученика', { exact: true }).fill(studentCode.toLowerCase());
     await page.getByRole('button', { name: 'Войти', exact: true }).click();
+    await page.setViewportSize({ width: 1366, height: 900 });
+    await expect(portalSection(page, 'Главная')).toBeVisible();
     await expect(portalSection(page, 'Мой учебный профиль')).toBeVisible();
   }
-  await enter(first.student.studentCode);
+  await enter(first.student.studentCode, 390);
+  await openPortalSection(page, 'Главная');
+  await expect(page.getByRole('heading', { name: 'Главная', exact: true })).toBeVisible();
   // First real sign-in creates the Seat principal. Give this active learner
   // a real teacher note; do not manufacture principal rows in the fixture.
   const award = await page.request.put(
@@ -389,7 +455,7 @@ test('H: short Student Code, reusable access cards, profile, logout and learner 
       })
     ).status(),
   ).toBe(401);
-  await enter(second.student.studentCode);
+  await enter(second.student.studentCode, 320);
   await openPortalSection(page, 'Мои учебные работы');
   await expect(page.getByText('Секретная работа первого', { exact: true })).toHaveCount(0);
   expect([403, 404]).toContain(

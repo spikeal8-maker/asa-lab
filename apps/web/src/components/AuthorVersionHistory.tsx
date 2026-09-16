@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { api, type PublishedAuthorVersion } from '../api';
 import { LessonBlocks } from './LessonBlocks';
+import { courseVersionStructuralDiff } from './course-version-diff';
 
 /** Author-only history; the server owns source selection and conflict checks. */
 export function AuthorVersionHistory({
@@ -20,6 +21,7 @@ export function AuthorVersionHistory({
 }) {
   const [items, setItems] = useState<PublishedAuthorVersion[]>([]);
   const [selected, setSelected] = useState<string>('');
+  const [compareId, setCompareId] = useState<string>('');
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [conflict, setConflict] = useState(false);
@@ -29,6 +31,7 @@ export function AuthorVersionHistory({
     let live = true;
     setItems([]);
     setSelected('');
+    setCompareId('');
     setMessage(null);
     setConflict(false);
     void api.authorVersions(kind, rootId).then((result) => {
@@ -42,6 +45,11 @@ export function AuthorVersionHistory({
     };
   }, [kind, rootId, revision]);
   const version = items.find((entry) => entry.id === selected);
+  const comparison = items.find((entry) => entry.id === compareId);
+  const structuralDiff =
+    kind === 'course' && version && comparison
+      ? courseVersionStructuralDiff(comparison, version)
+      : [];
   async function create() {
     if (!version || busy || dirty) return;
     setBusy(true);
@@ -73,7 +81,17 @@ export function AuthorVersionHistory({
           value={selected}
           disabled={busy}
           onChange={(event) => {
-            setSelected(event.target.value);
+            const nextId = event.target.value;
+            setSelected(nextId);
+            if (kind === 'course') {
+              const nextVersion = items.find((entry) => entry.id === nextId);
+              const previous = nextVersion
+                ? items
+                    .filter((entry) => entry.versionNumber < nextVersion.versionNumber)
+                    .sort((a, b) => b.versionNumber - a.versionNumber)[0]
+                : undefined;
+              setCompareId(previous?.id ?? '');
+            }
             setMessage(null);
             setConflict(false);
           }}
@@ -90,6 +108,34 @@ export function AuthorVersionHistory({
         <article aria-label={'Опубликованная версия ' + version.versionNumber}>
           <h3>{version.outline?.course.title ?? version.title}</h3>
           <p>{version.outline?.course.summary ?? version.instructions}</p>
+          {kind === 'course' && items.length > 1 ? (
+            <div className="author-version-diff" data-testid="author-version-diff">
+              <label>
+                Сравнить с
+                <select
+                  aria-label="Сравнить с версией"
+                  value={compareId}
+                  onChange={(event) => setCompareId(event.target.value)}
+                >
+                  <option value="">Выберите версию</option>
+                  {items
+                    .filter((entry) => entry.id !== version.id)
+                    .map((entry) => (
+                      <option key={entry.id} value={entry.id}>
+                        Версия {entry.versionNumber}
+                      </option>
+                    ))}
+                </select>
+              </label>
+              {comparison ? (
+                <p data-testid="version-structural-diff">
+                  {structuralDiff.length > 0
+                    ? 'Изменено: ' + structuralDiff.join(', ')
+                    : 'Структурных изменений нет.'}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
           {version.outline?.sections.map((section) => (
             <section key={section.sourceSectionId}>
               <h4>{section.title}</h4>

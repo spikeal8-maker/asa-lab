@@ -1691,3 +1691,64 @@ button.classroom-code-chip:hover {
   align-items: baseline;
   min-width: 0;
 }
+
+/* E1 StudentSeat join closure: compact confirmation, primary focus stays on Student Code. */
+.join-class-preview {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 8px 0 2px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface);
+}
+
+.join-class-preview > div {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.join-class-preview strong {
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 16px;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.join-class-preview small {
+  color: var(--ink-muted);
+  line-height: 1.3;
+}
+
+.join-class-safe-mode {
+  flex: 0 0 auto;
+  color: var(--ink-muted) !important;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.join-class-resolving {
+  display: grid;
+  gap: 3px;
+  padding: 18px 0 8px;
+  text-align: center;
+}
+
+.join-class-resolving span {
+  color: var(--ink-muted);
+  font-size: 13px;
+}
+
+@media (max-width: 420px) {
+  .join-class-preview {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
+  }
+}

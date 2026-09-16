@@ -151,7 +151,8 @@ async function learnerAssignments(
   const context = await browser.newContext();
   const page = await context.newPage();
   await page.goto(`/#/join-class?code=${encodeURIComponent(joinCode)}`);
-  await page.getByRole('button', { name: 'Продолжить' }).click();
+  await expect(page.getByLabel('Код ученика', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Продолжить', exact: true })).toHaveCount(0);
   await page.getByLabel('Код ученика', { exact: true }).fill(keys.get(handle)!);
   await page.getByRole('button', { name: 'Войти', exact: true }).click();
   await openPortalSection(page, 'Моё обучение');

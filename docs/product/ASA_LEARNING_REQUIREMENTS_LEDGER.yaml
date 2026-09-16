@@ -12,45 +12,73 @@ status_values:
 requirements:
 - id: INT-E1-01
   milestone: E1
-  status: in_progress
-  summary: "Единая библиотека автора/преподавателя: create/open/edit/save/publish + normal archive/restore + capability-aware actions; final visual layout is deferred until functional closure"
-  evidence: []
-  tests: []
+  status: implemented
+  summary: "Единая библиотека автора/преподавателя: create/open/edit/save/publish + normal archive/restore + capability-aware actions; final visual layout remains a separate pass"
+  evidence:
+  - migrations/0145_course_authoring_closure.sql
+  - apps/api/src/courses.controller.ts
+  - apps/web/src/components/CoursesPanel.tsx
+  - apps/web/src/components/ClassroomCourses.tsx
+  tests:
+  - tests/courses/course-authoring-closure.pg.spec.ts
+  - e2e/access-a.spec.ts
+  - e2e/learning-course-01.spec.ts
 - id: INT-E1-02
   milestone: E1
-  status: in_progress
-  summary: "Course builder: разделы, уроки, теория, project blocks, порядок/свойства + dirty-navigation/revision safety + structural published-version comparison; final re-layout after functional completion"
-  evidence: []
-  tests: []
+  status: implemented
+  summary: "Course builder: разделы, уроки, теория, project blocks, порядок/свойства + dirty-navigation/revision safety + structural published-version comparison; final re-layout remains deferred"
+  evidence:
+  - apps/web/src/components/CoursesPanel.tsx
+  - apps/web/src/components/AuthorVersionHistory.tsx
+  - apps/web/src/components/course-version-diff.ts
+  tests:
+  - tests/courses/course-version-diff.spec.ts
+  - e2e/learning-course-01.spec.ts
 - id: INT-E1-03
   milestone: E1
-  status: in_progress
-  summary: "Связанный выпуск activity+course: exact prepublish errors for concrete lesson/block/activity/setting + preview without Attempt"
-  evidence: []
-  tests: []
+  status: implemented
+  summary: "Связанный выпуск activity+course: exact prepublish errors for concrete section/lesson/block/activity source + preview without Attempt"
+  evidence:
+  - migrations/0145_course_authoring_closure.sql
+  - apps/api/src/courses.controller.ts
+  tests:
+  - tests/courses/course-authoring-closure.pg.spec.ts
+  - e2e/learning-course-01.spec.ts
+  - e2e/learning-author-preview.spec.ts
 - id: INT-E1-04
   milestone: E1
-  status: in_progress
+  status: implemented
   summary: "Назначение exact published course и отдельного проекта: whole/named, сроки, режимы"
-  evidence: []
-  tests: []
+  evidence:
+  - migrations/0108_direct_canonical_material_assignment.sql
+  - migrations/0109_course_runtime_materialization.sql
+  - migrations/0131_learning_named_audience_controls.sql
+  - apps/api/src/courses.controller.ts
+  tests:
+  - tests/courses/learning-direct-project-attempts.pg.spec.ts
+  - e2e/learning-course-01.spec.ts
 - id: INT-E1-05
   milestone: E1
-  status: in_progress
+  status: implemented
   summary: "Законный Account join: «Моё обучение → Войти по коду» + «Класс → Запросы»"
-  evidence: []
-  tests: []
+  evidence:
+  - migrations/0119_classroom_account_join_approval.sql
+  tests:
+  - tests/courses/learning-direct-project-attempts.pg.spec.ts
+  - e2e/learning-course-01.spec.ts
 - id: INT-E1-06
   milestone: E1
-  status: in_progress
-  summary: "StudentSeat core implemented (Class Code + 6-char Student Code, repeat-print, rotation/history); E1 closure still requires #271 public-safe join/Home UX and #272 compact Asolab.ru card + class QR deep-link"
+  status: implemented
+  summary: "StudentSeat access complete for E1: Class Code + 6-char Student Code, repeat-print/rotation/history, public-safe teacher name, Главная navigation and compact Asolab.ru class-QR cards"
   evidence:
   - migrations/0142_student_seat_short_codes.sql
+  - migrations/0143_student_seat_public_teacher_name.sql
   - apps/api/src/classroom-join.controller.ts
   - apps/api/src/classrooms.controller.ts
   - apps/web/src/pages/JoinClassPage.tsx
   - apps/web/src/components/StudentAccessCards.tsx
   - apps/web/src/components/StudentCodeDialog.tsx
+  - apps/web/src/creator-portal/navigation.ts
   tests:
   - tests/account/access-a.pg.spec.ts
   - tests/account/access-a-upgrade.pg.spec.ts
@@ -59,76 +87,125 @@ requirements:
   - e2e/classroom-management.spec.ts
 - id: INT-E1-07
   milestone: E1
-  status: in_progress
+  status: implemented
   summary: "Dynamic late join / explicit named changes / leave"
-  evidence: []
-  tests: []
+  evidence:
+  - migrations/0095_learning_audiences.sql
+  - migrations/0131_learning_named_audience_controls.sql
+  tests:
+  - tests/courses/learning-audiences.pg.spec.ts
+  - e2e/learning-course-01.spec.ts
 - id: INT-E1-08
   milestone: E1
-  status: in_progress
-  summary: "Общие effective settings/UTC, attempt limit/allowance и late policy, краткий inspector у назначения"
-  evidence: []
-  tests: []
+  status: implemented
+  summary: "Общие effective settings/UTC, attempt limit/allowance и late policy"
+  evidence:
+  - migrations/0114_learning_revision_attempt_budget.sql
+  - migrations/0118_learning_effective_conditions_commands.sql
+  - migrations/0127_learning_assignment_timezone.sql
+  tests:
+  - tests/courses/learning-direct-project-attempts.pg.spec.ts
+  - e2e/learning-course-01.spec.ts
 - id: INT-E1-09
   milestone: E1
-  status: in_progress
+  status: implemented
   summary: "Start/resume/save/submit Electronics и 3D"
-  evidence: []
-  tests: []
+  evidence:
+  - migrations/0110_learning_exact_project_submission.sql
+  tests:
+  - tests/courses/learning-direct-project-attempts.pg.spec.ts
+  - e2e/learning-course-01.spec.ts
 - id: INT-E1-10
   milestone: E1
-  status: in_progress
-  summary: "«Работа → Проверка»: read-only точная Submission, явный переход к draft по отдельному праву"
-  evidence: []
-  tests: []
+  status: implemented
+  summary: "«Работа → Проверка»: read-only точная Submission и pinned evidence"
+  evidence:
+  - migrations/0110_learning_exact_project_submission.sql
+  - migrations/0115_learning_teacher_review_context.sql
+  tests:
+  - tests/courses/learning-direct-project-attempts.pg.spec.ts
+  - e2e/learning-course-01.spec.ts
 - id: INT-E1-11
   milestone: E1
-  status: in_progress
-  summary: "Review canonical submitted; три resultMode; корректная очередь"
-  evidence: []
-  tests: []
+  status: implemented
+  summary: "Review canonical submitted; resultMode semantics; корректная очередь"
+  evidence:
+  - migrations/0124_learning_review_command_boundary.sql
+  - migrations/0125_learning_results_and_grade_scale.sql
+  tests:
+  - tests/courses/learning-direct-project-attempts.pg.spec.ts
+  - e2e/learning-course-01.spec.ts
 - id: INT-E1-12
   milestone: E1
-  status: in_progress
+  status: implemented
   summary: "Return/revision, корректировка результата с причиной и expected revision"
-  evidence: []
-  tests: []
+  evidence:
+  - migrations/0112_learning_result_revisions.sql
+  - migrations/0133_learning_attempt_lifecycle_convergence.sql
+  tests:
+  - tests/courses/learning-direct-project-attempts.pg.spec.ts
+  - e2e/learning-course-01.spec.ts
 - id: INT-E1-13
   milestone: E1
-  status: in_progress
-  summary: "Graded selection пяти политик и простая pinned шкала из UI"
-  evidence: []
-  tests: []
+  status: implemented
+  summary: "Graded selection и pinned шкала без скрытого 100/60"
+  evidence:
+  - migrations/0084_grade_scales_and_learner_results.sql
+  - migrations/0113_learning_selected_result_projection.sql
+  - migrations/0125_learning_results_and_grade_scale.sql
+  tests:
+  - tests/courses/learning-direct-project-attempts.pg.spec.ts
+  - e2e/learning-course-01.spec.ts
 - id: INT-E1-14
   milestone: E1
-  status: in_progress
+  status: implemented
   summary: "«Журнал»: learner × ActivityRun, фильтр курса/поиск, открыть сдачу/историю/correction"
-  evidence: []
-  tests: []
+  evidence:
+  - migrations/0134_learning_gradebook_projection_sync.sql
+  - apps/web/src/components/ClassroomGradebook.tsx
+  tests:
+  - tests/courses/learning-surface-convergence.pg.spec.ts
+  - e2e/learning-course-01.spec.ts
 - id: INT-E1-15
   milestone: E1
-  status: in_progress
+  status: implemented
   summary: "Теория completion + обязательная принятая практика; понятное недостающее"
-  evidence: []
-  tests: []
+  evidence:
+  - migrations/0132_learning_course_completion_denominator.sql
+  tests:
+  - e2e/learning-course-01.spec.ts
 - id: INT-E1-16
   milestone: E1
-  status: in_progress
-  summary: "Отклики, ошибки, маршруты профиля/приглашений; in-app события и минимальные настройки оповещений"
-  evidence: []
-  tests: []
+  status: implemented
+  summary: "In-app события, минимальные настройки оповещений и reminder separation"
+  evidence:
+  - migrations/0120_learning_in_app_notifications.sql
+  - migrations/0121_learning_notification_preferences.sql
+  - migrations/0122_learning_reminders_and_completion.sql
+  tests:
+  - tests/courses/learning-direct-project-attempts.pg.spec.ts
+  - e2e/learning-course-01.spec.ts
 - id: INT-E1-17
   milestone: E1
-  status: in_progress
-  summary: "Mixed-data/legacy bridge"
-  evidence: []
-  tests: []
+  status: implemented
+  summary: "Mixed-data/legacy bridge preserves historical projects/courses/results through additive upgrades"
+  evidence:
+  - migrations/0087_learning_additive_backfill.sql
+  - migrations/0134_learning_gradebook_projection_sync.sql
+  - migrations/0145_course_authoring_closure.sql
+  tests:
+  - tests/courses/learning-course-upgrade.pg.spec.ts
+  - tests/account/access-a-upgrade.pg.spec.ts
+  - tests/courses/author-draft-upgrade.pg.spec.ts
 - id: INT-E1-18
   milestone: E1
   status: in_progress
-  summary: "Интегрированный показ и ранняя поставка"
-  evidence: []
-  tests: []
+  summary: "Функциональный E1 candidate локально зелёный; остаются exact-head CI, owner-visible walkthrough/acceptance и отдельное решение о deployment. Финальный visual convergence выполняется отдельным последующим pass."
+  evidence:
+  - docs/execution/LRN_COURSE_01.md
+  tests:
+  - e2e/access-a.spec.ts
+  - e2e/learning-course-01.spec.ts
 - id: DB-000
   milestone: M0
   status: proven

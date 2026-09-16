@@ -134,7 +134,8 @@ test('legacy, revision and selected-result semantics stay equal across learner a
     allowAdminAccessProbe: true,
   });
   await student.goto(`/#/join-class?code=${encodeURIComponent(joinCode)}`);
-  await student.getByRole('button', { name: 'Продолжить' }).click();
+  await expect(student.getByLabel('Код ученика', { exact: true })).toBeVisible();
+  await expect(student.getByRole('button', { name: 'Продолжить', exact: true })).toHaveCount(0);
   await student.getByLabel('Код ученика', { exact: true }).fill(studentCode);
   await student.getByRole('button', { name: 'Войти', exact: true }).click();
   await openLearnerLearning(student);

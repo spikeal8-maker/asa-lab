@@ -113,6 +113,31 @@ describe('Result A: real Account and independent Classroom API', () => {
       headers: { cookie: teacher.cookie },
     });
     const code = classResponse.json().classroom.joinCode as string;
+    const teacherEmail = teacher.session.user.email as string;
+    const resolved = await inject(app, {
+      method: 'POST',
+      url: '/api/class-join/resolve',
+      payload: { code },
+    });
+    expect(resolved.statusCode, resolved.body).toBe(200);
+    expect(resolved.json().classroom.teacherDisplayName).toBe('Synthetic Access A');
+    expect(resolved.body).not.toContain(teacherEmail);
+
+    await admin.query(`UPDATE profiles SET display_name=$2 WHERE account_id=$1`, [
+      teacher.id,
+      teacherEmail,
+    ]);
+    const fallback = await inject(app, {
+      method: 'POST',
+      url: '/api/class-join/resolve',
+      payload: { code },
+    });
+    expect(fallback.statusCode, fallback.body).toBe(200);
+    expect(fallback.json().classroom.teacherDisplayName).toBe('Преподаватель');
+    expect(fallback.body).not.toContain(teacherEmail);
+    await admin.query(`UPDATE profiles SET display_name='Synthetic Access A' WHERE account_id=$1`, [
+      teacher.id,
+    ]);
 
     const add = async (name: string, studentCode: string) => {
       const response = await inject(app, {

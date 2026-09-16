@@ -289,8 +289,20 @@ export interface PublishedAuthorVersion {
       lessons: Array<{
         sourceLessonId: string;
         title: string;
+        summary?: string | null;
         content: string | null;
         blocks: LessonBlock[];
+        kind?: 'material' | 'assignment';
+        estimatedMinutes?: number | null;
+        learningActivityVersionId?: string | null;
+        assignment?: {
+          learningActivityVersionId?: string;
+          sourceAssignmentId?: string;
+          title?: string;
+          moduleKey?: string;
+          resultMode?: string;
+          maxPoints?: number | null;
+        } | null;
       }>;
     }>;
   };
@@ -318,6 +330,7 @@ export interface Course {
   publishedAt: string | null;
   createdAt: string;
   updatedAt: string;
+  archivedAt: string | null;
 }
 
 export interface CourseItem {
@@ -2257,9 +2270,16 @@ export const api = {
         body: JSON.stringify({ ...input, requestId: input.requestId ?? crypto.randomUUID() }),
       },
     ),
-  /** Удаляется курс, а не задания: они остаются в банке. */
+  /** Compatibility removal is non-destructive: the server archives the course. */
   deleteCourse: (courseId: string) =>
-    call<{ removed: true }>(`/api/courses/${encodeURIComponent(courseId)}`, { method: 'DELETE' }),
+    call<{ removed: true; archived: true }>(`/api/courses/${encodeURIComponent(courseId)}`, {
+      method: 'DELETE',
+    }),
+  archiveCourse: (courseId: string, archived: boolean, expectedRevision: number) =>
+    call<{ archived: boolean; archivedAt: string | null; draftRevision: number }>(
+      `/api/courses/${encodeURIComponent(courseId)}/archive`,
+      { method: 'POST', body: JSON.stringify({ archived, expectedRevision }) },
+    ),
   courseItems: (courseId: string) =>
     call<{ items: CourseItem[] }>(`/api/courses/${encodeURIComponent(courseId)}/items`),
   courseOutline: (courseId: string) =>

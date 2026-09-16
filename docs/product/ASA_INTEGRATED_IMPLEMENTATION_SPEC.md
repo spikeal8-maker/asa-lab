@@ -337,15 +337,17 @@ Already integrated baseline — **reuse; do not rebuild**:
 - draft from an exact old published version without destructive rollback;
 - short StudentSeat access (`Class Code + Student Code`) and repeat-printable current credentials.
 
-Remaining E1 functional closure before final visual polish:
-1. **Student entry UX — #271:** public join preview uses public teacher name and never email; StudentSeat primary navigation includes `Главная`; second join step is compact and credential-only.
-2. **Access card/QR — #272:** compact `Asolab.ru` card; QR opens the exact class context and skips redundant Class Code confirmation; QR contains no Student Code.
-3. **Course archive semantics:** normal course-library removal must be archive/restore, not destructive DELETE for ordinary user flow. Historical/published/run-linked course evidence must remain intact.
-4. **Version comparison:** published-version UI must provide the E1 structural comparison required by §4.3 at section/lesson/block/activity/policy level.
-5. **Prepublish validation:** Course publication must identify the exact invalid lesson/block/activity/setting and give a usable correction path; generic `course_empty`/generic conflict is insufficient for malformed content.
-6. **Draft editing safety:** unsaved lesson/block changes cannot disappear when the author switches lessons, opens Preview, goes Back, or starts another structural mutation. A dirty editor must require save/discard/cancel (or an equivalent safe autosave contract). Structural mutations must not advance the server draft revision while the local editor silently keeps a stale expected revision.
-7. **Capability-aware course controls:** author-only users must not be shown teacher-only actions that deterministically fail with 403. Enabling teaching adds delivery/class actions without replacing the author library.
-8. **Truthful closure:** repeat the owner-visible E1 journey and align ledger/evidence with actual implementation before declaring E1 done. Final visual redesign is a separate pass after items 1–7 work.
+Functional closure implemented in the 2026-09-16 candidate — **reuse; do not reopen as missing work**:
+1. **Student entry UX — #271:** public join preview uses the canonical public teacher name with neutral fallback and never email; StudentSeat navigation includes `Главная`; QR/deep-link entry lands directly on `Код ученика`.
+2. **Access card/QR — #272:** compact `Asolab.ru` cards use the available right side for a class-context QR; the visible technical hash route was removed and the QR never contains the Student Code.
+3. **Course archive semantics:** ordinary Course library removal is archive/restore with optimistic revision checking; published versions and learning history are preserved, archived courses are excluded from assignment and external catalogue use.
+4. **Version comparison:** published-version history provides structural comparison at course/section/lesson/block/activity/policy level; character diff remains intentionally out of E1.
+5. **Prepublish validation:** Course publication resolves an exact blocking section/lesson and issue code for empty material, invalid blocks, missing activity pins and legacy assignment sources before immutable publication.
+6. **Draft editing safety:** dirty lesson edits block Back, Preview, lesson/section switching and structural mutations until the current lesson is saved; no structural mutation silently advances the server revision behind a dirty local editor.
+7. **Capability-aware course controls:** author-only users keep authoring but no longer see educator-only demo/sharing controls; teaching capability adds those actions without replacing the author library.
+
+Remaining before E1 can be called owner-accepted/deployed:
+8. **Truthful candidate closure:** exact-head CI/repository gates, final owner-visible E1 walkthrough and ledger/evidence alignment. Owner acceptance and deployment are explicit later states. The broad Course/Class visual convergence pass remains deliberately separate and follows functional closure.
 
 Not implemented in E1 **by design** and therefore not to be pulled into an E1 visual cleanup:
 - E2: full reusable Question Bank/Quiz library, all eight quiz types, Python programming-task/autograder runtime, essay/file/manual/rubric assessment, controlled assessment/timer/reconnect/durable answers, 30×100 gradebook and export;
@@ -768,7 +770,7 @@ owner authorization after stabilization.
 | Entry | Identity and authorization |
 | --- | --- |
 | Account | Normal authenticated participation with server-derived scope |
-| Persistent StudentSeat | Class code + individual login/pseudonym + secret/card; class code alone never authenticates |
+| Persistent StudentSeat | Class Code + six-character Student Code/card; class code alone never authenticates and learner display name is not a credential |
 | Exact invitation/deep link | Resource navigation still requiring valid identity and authorization |
 | Public Knowledge link | Read/start from publication/enrollment policy; no private-class access |
 | Temporary assessment access | Restricted individual learner access within existing identity/auth/Learning contracts |

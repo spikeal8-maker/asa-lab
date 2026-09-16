@@ -1,6 +1,10 @@
 import { useMemo, useState } from 'react';
 import type { ClassroomStudentSeat } from '../api';
+import { ClassJoinQr } from './ClassJoinQr';
 import './student-access.css';
+
+const PUBLIC_SITE_LABEL = 'Asolab.ru';
+const PUBLIC_SITE_ORIGIN = 'https://asolab.ru';
 
 export function StudentAccessCards({
   classroomTitle,
@@ -28,7 +32,9 @@ export function StudentAccessCards({
       ),
   );
   const selectedStudents = available.filter((student) => selected.has(student.id));
-  const joinAddress = `${window.location.origin}/#/join-class`;
+  const classJoinUrl = classCode
+    ? `${PUBLIC_SITE_ORIGIN}/#/join-class?code=${encodeURIComponent(classCode)}`
+    : `${PUBLIC_SITE_ORIGIN}/#/join-class`;
 
   function printCards(): void {
     if (!classCode || selectedStudents.length === 0) return;
@@ -105,26 +111,32 @@ export function StudentAccessCards({
 
         <div className="student-access-print-sheet" aria-label="Карточки доступа для печати">
           {selectedStudents.map((student) => (
-            <article className="student-access-card" key={student.id}>
-              <header>
-                <strong>ASA Lab</strong>
-                <span>{classroomTitle}</span>
-              </header>
-              <h3>{student.displayLabel}</h3>
-              <p className="student-access-site">{joinAddress}</p>
-              <div className="student-access-codes">
-                <div>
-                  <span>Код класса</span>
-                  <code>{classCode ?? '—'}</code>
+            <article className="student-access-card" key={student.id} data-qr-url={classJoinUrl}>
+              <div className="student-access-card-copy">
+                <header>
+                  <strong>ASA Lab</strong>
+                  <span>{PUBLIC_SITE_LABEL}</span>
+                </header>
+                <h3>{student.displayLabel}</h3>
+                <p className="student-access-class">{classroomTitle}</p>
+                <div className="student-access-codes">
+                  <div>
+                    <span>Код класса</span>
+                    <code>{classCode ?? '—'}</code>
+                  </div>
+                  <div className="student-access-student-code">
+                    <span>Код ученика</span>
+                    <code>{student.studentCode}</code>
+                  </div>
                 </div>
-                <div>
-                  <span>Код ученика</span>
-                  <code>{student.studentCode}</code>
-                </div>
+                <p className="student-access-instruction">
+                  Вручную: {PUBLIC_SITE_LABEL} → код класса → код ученика.
+                </p>
               </div>
-              <p className="student-access-instruction">
-                Откройте сайт → введите код класса → введите код ученика.
-              </p>
+              <aside className="student-access-qr" aria-label="QR для входа в класс">
+                <ClassJoinQr url={classJoinUrl} label={`Войти в класс ${classroomTitle}`} />
+                <strong>Войти в класс</strong>
+              </aside>
             </article>
           ))}
         </div>

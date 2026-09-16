@@ -561,6 +561,53 @@ paths:
             },
         },
     }
+  '/api/courses/{courseId}/archive':
+    {
+      'parameters':
+        [
+          {
+            'name': 'courseId',
+            'in': 'path',
+            'required': true,
+            'schema': { 'type': 'string', 'format': 'uuid' },
+          },
+        ],
+      'post':
+        {
+          'operationId': 'setAuthorCourseArchived',
+          'summary': 'Archive or restore an owned course without deleting published or learning history',
+          'requestBody':
+            {
+              'required': true,
+              'content':
+                {
+                  'application/json':
+                    {
+                      'schema':
+                        {
+                          'type': 'object',
+                          'additionalProperties': false,
+                          'properties':
+                            {
+                              'archived': { 'type': 'boolean' },
+                              'expectedRevision': { 'type': 'integer', 'minimum': 1 },
+                            },
+                          'required': ['archived', 'expectedRevision'],
+                        },
+                    },
+                },
+            },
+          'responses':
+            {
+              '200': { 'description': 'Course archived/restored; immutable history preserved' },
+              '400': { 'description': 'Invalid request' },
+              '401': { 'description': 'Current session required' },
+              '403': { 'description': 'Author capability denied' },
+              '404': { 'description': 'Course unavailable' },
+              '409': { 'description': 'Draft revision conflict' },
+            },
+        },
+    }
   '/api/courses/{courseId}/publish':
     {
       'parameters':

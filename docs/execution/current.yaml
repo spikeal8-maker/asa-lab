@@ -143,21 +143,20 @@ parallel_lanes:
       - tools/validate-electronics-agent-docs.mjs
       - tools/test_validate_electronics_agent_docs.mjs
     task:
-      id: TASK-ELECTRONICS-GOVERNANCE-001
-      issue: 270
-      branch: codex/electronics-governance-hygiene
+      id: TASK-ELECTRONICS-EOPT3D-001
+      issue: 279
+      branch: codex/electronics-eopt3d-worker-horizons
       base_branch: main
-      pr: 276
-      pr_draft: false
-      status: done
-      checkpoint: governance_hygiene_merged
-      owner_acceptance: accepted
+      pr: null
+      pr_draft: true
+      status: in_progress
+      checkpoint: eopt3d_worker_horizons_selected
+      owner_acceptance: pending
     revisions:
-      convergence_baseline_sha: bcf3cd4f1edd305639415ea3ea61bf23b4625c7e
-      head_sha: f0919000d50a766111ab087becd988fbf33048c5
-      product_merge_sha: 28029651b3062316e725d17d28ce4660382a27b6
+      convergence_baseline_sha: b3ff14bf3e0282915ef1fb83ce0d5a020ae67d11
+      head_sha: b3ff14bf3e0282915ef1fb83ce0d5a020ae67d11
     execution_lease:
-      executor_id: codex-electronics-governance-hygiene
+      executor_id: codex-electronics-eopt3d
       holder: unassigned
       acquired_at: null
       expires_at: null
@@ -325,7 +324,7 @@ parallel_lanes:
       - apps/web/src/pages/MyProjectsPage.tsx
       - apps/web/src/pages/ProjectsPage.tsx
       - apps/web/src/styles.css
-      - migrations/0143_project_legacy_publication_convergence.sql
+      - migrations/0144_project_legacy_publication_convergence.sql
       - tests/portal/**
       - e2e/project-hub.spec.ts
       - e2e/artifacts/project-hub/**

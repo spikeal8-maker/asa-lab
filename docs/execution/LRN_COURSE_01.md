@@ -41,11 +41,11 @@ Reuse correct components. Record only concrete gaps relative to E1 and start wit
 
 Owner amendment 2026-09-16: **functional completeness first, final course/layout polish second**. Do not spend the next slice broadly re-laying out Course Builder while a required action is absent.
 
-1. **Student entry closure:** Issue #271 — public teacher name/no email, compact second join step, StudentSeat `Главная`; Issue #272 — compact `Asolab.ru` cards and class QR deep-link straight to `Код ученика`.
-2. **Course authoring closure:** normal course archive/restore instead of user-facing hard delete; structural published-version comparison; exact prepublish error pointing to the broken lesson/block/activity/setting; dirty-navigation/revision safety so unsaved lesson edits cannot be discarded or left on a stale draft revision; capability-aware actions for author-only vs teacher.
-3. **Preserve the integrated academic path:** exact CourseVersion → CourseRun → Participation → save → immutable submit → review/return → resubmit → selected result/correction; whole/named/late-join and 30×10 gradebook are existing baseline and must not be rewritten.
-4. **Final E1 acceptance:** mixed-data/upgrade, negative access, 320/390 desktop-mobile browser journey, owner-visible walkthrough, ledger/evidence alignment.
-5. **Visual convergence pass:** only after steps 1–4 are functionally green, bring `Курсы и задания`, Course Builder and Class workspace to the final visual hierarchy/tabs/spacing. This pass must not invent missing backend behavior.
+1. **Student entry closure — IMPLEMENTED:** #271 public teacher name/no email, compact QR/deep-link second step and StudentSeat `Главная`; #272 compact `Asolab.ru` access cards with class-only QR straight to `Код ученика`. Evidence: migrations `0142`/`0143`, Access-A DB/browser acceptance.
+2. **Course authoring closure — IMPLEMENTED:** `0145` replaces ordinary hard delete with archive/restore, adds exact prepublish diagnostics, structural published-version comparison, dirty-navigation/revision safety and capability-aware author/teacher controls. Archived courses cannot be selected for new class delivery.
+3. **Integrated academic path — PRESERVED/LOCALLY VERIFIED:** exact CourseVersion → CourseRun → Participation → save → immutable submit → review/return → resubmit → selected result/correction; whole/named/late-join and 30×10 gradebook remain the existing runtime rather than a new implementation.
+4. **Final E1 candidate acceptance — CURRENT:** mixed-data/upgrade, negative access and browser journeys are locally green; exact-head repository/CI gate, owner-visible walkthrough and final ledger/evidence alignment remain before owner acceptance.
+5. **Visual convergence pass — NEXT ONLY AFTER ACCEPTANCE:** bring `Курсы и задания`, Course Builder and Class workspace to the final visual hierarchy/tabs/spacing without inventing backend behavior or reopening completed functional slices.
 
 E2–E6 remain separate later stages; this E1 authorization does not automatically start Question Bank/Quiz/autograder/self-study/collaboration/organization work.
 
