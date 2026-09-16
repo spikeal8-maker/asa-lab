@@ -147,14 +147,15 @@ parallel_lanes:
       issue: 270
       branch: codex/electronics-governance-hygiene
       base_branch: main
-      pr: null
-      pr_draft: true
-      status: in_progress
-      checkpoint: governance_hygiene_selected
-      owner_acceptance: pending
+      pr: 276
+      pr_draft: false
+      status: done
+      checkpoint: governance_hygiene_merged
+      owner_acceptance: accepted
     revisions:
       convergence_baseline_sha: bcf3cd4f1edd305639415ea3ea61bf23b4625c7e
-      head_sha: bcf3cd4f1edd305639415ea3ea61bf23b4625c7e
+      head_sha: f0919000d50a766111ab087becd988fbf33048c5
+      product_merge_sha: 28029651b3062316e725d17d28ce4660382a27b6
     execution_lease:
       executor_id: codex-electronics-governance-hygiene
       holder: unassigned
