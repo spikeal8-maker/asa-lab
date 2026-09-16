@@ -54,6 +54,7 @@ const focused = [
     '--test',
     'tools/blocks/checks.test.mjs',
     'tools/blocks/host.test.mjs',
+    'tools/blocks/local-origin.test.mjs',
     'tools/blocks/storage-library.test.mjs',
     'tools/blocks/deployment.test.mjs',
   ],
