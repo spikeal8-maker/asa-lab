@@ -142,20 +142,20 @@ parallel_lanes:
       - tools/validate-electronics-component-information.mjs
       - tools/validate-electronics-agent-docs.mjs
     task:
-      id: TASK-ELECTRONICS-EOPT3B-001
-      issue: 261
-      branch: codex/electronics-eopt3b-timed-engine
+      id: TASK-ELECTRONICS-EOPT3C-001
+      issue: 265
+      branch: codex/electronics-eopt3c-scheduler-barrier
       base_branch: main
-      pr: 264
+      pr: null
       pr_draft: true
       status: in_progress
-      checkpoint: eopt3b_canonical_timed_engine_selected
+      checkpoint: eopt3c_scheduler_barrier_selected
       owner_acceptance: pending
     revisions:
-      convergence_baseline_sha: 34db96e57a898c844fccc8efa19087a82b000b20
-      head_sha: b7ce18f5b3f7a20d8a18c5289c3f365caf936a5e
+      convergence_baseline_sha: 70f77ee139e525ceb26f0634d92b9214ec294b7e
+      head_sha: 70f77ee139e525ceb26f0634d92b9214ec294b7e
     execution_lease:
-      executor_id: codex-electronics-eopt3b
+      executor_id: codex-electronics-eopt3c
       holder: unassigned
       acquired_at: null
       expires_at: null
