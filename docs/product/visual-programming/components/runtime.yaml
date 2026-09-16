@@ -13,17 +13,24 @@ components:
     depends_on: [blocks.host.protocol]
 
   - id: blocks.runtime.capability
-    state: blocked
+    state: implemented
     risk: high
     ownership: asa
-    purpose: "Short-lived bearer capability verification plus current ASA resource-authority recheck."
+    purpose: "Non-exposed HS256 core with mandatory authority port; no HTTP route, DB adapter or session wiring yet."
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-004-RUNTIME-SECURITY-CONTRACT.md
         section: "Capability validation"
       - path: docs/product/visual-programming/VSCR-D0-004-RUNTIME-SECURITY-CONTRACT.md
         section: "Current authority recheck"
-    task: VSCR-M1-003
-    depends_on: [blocks.runtime.session]
+    task: VSCR-M1-003A
+    depends_on: [blocks.host.protocol]
+
+    sources:
+      - path: apps/api/src/blocks-runtime-capability.ts
+        symbols: [BlocksRuntimeCapabilityService, BlocksRuntimeAuthorityPort]
+    tests:
+      - path: apps/api/src/blocks-runtime-capability.spec.ts
+        symbols: [BlocksRuntimeCapabilityService]
 
   - id: blocks.runtime.origin-security
     state: blocked
