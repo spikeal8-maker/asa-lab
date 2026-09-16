@@ -20,12 +20,12 @@ Choose the task kind and resolve human keywords/component IDs in [COMPONENT_MAP.
 
 | Task kind | Next document |
 | --- | --- |
-| `maintenance` / `repair` | Selected bounded card using [maintenance template](tasks/MAINTENANCE_TASK_TEMPLATE.md) |
+| `maintenance` / `repair` | Selected bounded card using [maintenance template](tasks/MAINTENANCE_TASK_TEMPLATE.md); cleanup/decomposition also reads the [hygiene contract](contracts/ENGINEERING_HYGIENE_CONTRACT.md) |
 | `implementation` or `component/peripheral` | Selected concrete card and its exact [roadmap](ASA_ELECTRONICS_OPTIMIZATION_PLAN_V2.md) stage; [implementation template](tasks/IMPLEMENTATION_TASK_TEMPLATE.md) |
 | `analysis/inventory` | Selected concrete inventory card; [read-only contract](AGENT_GUIDE.md#analysisinventory) |
 | `design-decision` | Selected concrete card using [design template](tasks/DESIGN_TASK_TEMPLATE.md) |
 | `deployment` | Separately selected card using [deployment template](tasks/DEPLOYMENT_TASK_TEMPLATE.md) |
-| `plan/governance` | Owner-selected documentation/tooling scope and [document ownership](DEVELOPMENT_SPEC.md#11-documentation-maintenance) |
+| `plan/governance` | Owner-selected documentation/tooling scope and [document ownership](DEVELOPMENT_SPEC.md#11-documentation-maintenance); hygiene-policy/baseline work reads the [hygiene contract](contracts/ENGINEERING_HYGIENE_CONTRACT.md) |
 
 Governance work audits named routing documents directly; it need not invent a runtime
 component ID. Every product task needs an exact selected scope/card before coding.

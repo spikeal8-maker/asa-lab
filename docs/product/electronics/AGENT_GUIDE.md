@@ -82,7 +82,7 @@ Exceeding a budget is not automatically forbidden, but the task card must explai
 
 ### `maintenance` / `repair`
 
-May repair/refine an already implemented capability. Must not begin a future roadmap capability, change architecture to make the fix easier, or deploy.
+May repair/refine an already implemented capability. Must not begin a future roadmap capability, change architecture to make the fix easier, or deploy. Cleanup/decomposition work also follows the [engineering hygiene contract](contracts/ENGINEERING_HYGIENE_CONTRACT.md): never delete by appearance, record deletion proof, and treat large-file thresholds as review triggers rather than automatic split orders.
 
 ### `implementation`
 
@@ -129,6 +129,12 @@ available    != authorised to start
 If a later capability has already been implemented out of order, record that fact but do not pretend its missing prerequisite is complete. Close the prerequisite explicitly before building further dependencies on it.
 
 Changing the plan is a separate governance/design task. An implementation task may not rewrite dependencies to legitimise its own scope.
+
+### 4.1 Hygiene checkpoint rule
+
+Before selecting any production-changing `implementation`, `component/peripheral`, `maintenance` or `repair` slice, check the [engineering hygiene contract](contracts/ENGINEERING_HYGIENE_CONTRACT.md) and `evidence/hygiene-baseline.yaml`. A checkpoint is due after three accepted production-changing slices (`implementation`, `component/peripheral`, plus `maintenance`/`repair` that changed tracked production source), before a major E-OPT stage transition, or earlier when canonical replacement makes a legacy path retireable.
+
+When hygiene is due, report `BLOCKED_BY HYGIENE_CHECKPOINT` for another production-changing slice until a selected governance/maintenance task accepts the checkpoint. A bounded repair required to restore a broken governance/gate condition is allowed. Hygiene completion still ends at STOP and does not auto-select the next roadmap task.
 
 ## 5. Risk classes
 
@@ -214,6 +220,14 @@ protected owner-supplied/owner-audit directories; it is never a preload or edit 
 Explicit empty `sources`/`tests` means there is no mapped code/test entry; consult
 the prerequisite contract before selecting implementation. It does not imply readiness.
 
+### Hygiene write discipline
+
+For cleanup/decomposition, first classify the artifact/concern using the hygiene contract. `active-legacy-bridge` and `compatibility-shim` require explicit retirement conditions. `generated`, `historical-evidence` and `protected-owner-asset` are not dead-code candidates.
+
+A production source above 50,000 bytes must appear in the reviewed hygiene baseline. Growth beyond 20% of its `reviewed_bytes` requires selected re-review before more growth is accepted. Do not split cohesive code merely to satisfy a size number.
+
+Actual deletion must include the contract's runtime/export/persistence/contract/ownership/replacement/test proof. Unknown evidence means classify and STOP, not delete.
+
 ## 11. Tests and evidence
 
 Use the smallest gate that proves the acceptance contract, then any repository-mandated broader gate for the touched risk/shared paths.
@@ -251,6 +265,8 @@ Questions:
 6. Are tests proving acceptance rather than only compilation?
 7. Did source/test ownership change and routing stay current?
 8. Is residual risk explicit?
+9. If cleanup/deletion occurred, is deletion proof complete rather than inferred?
+10. If a large/legacy concern changed, is the hygiene baseline and retirement condition still current?
 
 Report:
 

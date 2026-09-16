@@ -59,6 +59,16 @@ risk than the area; explain the scope instead of downgrading a semantic change.
 
 Default budget: one component, ≤5 production files, ≤2 focused test files.
 
+## Cleanup / decomposition additions
+
+If this maintenance task removes legacy/dead code or decomposes a hotspot, also read [ENGINEERING_HYGIENE_CONTRACT](../contracts/ENGINEERING_HYGIENE_CONTRACT.md) and the current `../evidence/hygiene-baseline.yaml`.
+
+Before deletion, record the required runtime/import/export/persistence/contract/ownership/replacement/test evidence. Unknown evidence means classify the artifact and STOP deletion.
+
+For a source above 50,000 bytes, the size is a review trigger rather than an automatic split order. If the file grew beyond 20% of its reviewed baseline, update the baseline only after a selected bounded responsibility review.
+
+If this `maintenance`/`repair` task changes tracked production source, it counts as one production-changing slice toward the mandatory three-slice hygiene checkpoint interval. Docs/evidence-only maintenance does not consume that interval.
+
 ## Acceptance
 
 ```text
