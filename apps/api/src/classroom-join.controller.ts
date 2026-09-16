@@ -27,7 +27,6 @@ import { REFRESH_COOKIE, SESSION_COOKIE, TOKENS } from './tokens.js';
 import { RefreshSessionService } from './refresh-session.service.js';
 import { checkBodyShape } from './validation.js';
 import { clientAddress, clientConnection } from './client-address.js';
-import { BotChallengeService } from './bot-challenge.js';
 import { ProductAnalyticsService } from './product-analytics.service.js';
 import { SeatContextUseCase } from './seat-context.js';
 import { FixedWindowRateLimiter } from './rate-limit.js';
@@ -384,7 +383,6 @@ export class ClassroomJoinController {
     // Взрослый входит в класс своим аккаунтом, а не выданным логином, поэтому
     // здесь нужна и обычная сессия тоже.
     @Inject(TOKENS.activeContextUseCase) private readonly activeContext: ActiveContextUseCase,
-    @Inject(TOKENS.botChallengeService) private readonly botChallenges: BotChallengeService,
     @Optional()
     @Inject(TOKENS.productAnalytics)
     private readonly analytics?: ProductAnalyticsService,
@@ -465,47 +463,30 @@ export class ClassroomJoinController {
     @Body() rawBody: unknown,
   ) {
     this.checkRateLimit(request);
-    const shape = checkBodyShape(rawBody, ['code', 'loginHandle', 'credential', 'botProof']);
+    const shape = checkBodyShape(rawBody, ['code', 'studentCode']);
     const code = shape.ok ? shape.body['code'] : null;
-    const loginHandle = shape.ok ? shape.body['loginHandle'] : null;
-    const credential = shape.ok ? shape.body['credential'] : null;
+    const rawStudentCode = shape.ok ? shape.body['studentCode'] : null;
+    const studentCode =
+      typeof rawStudentCode === 'string' ? rawStudentCode.trim().toLowerCase() : '';
     if (
       !shape.ok ||
       typeof code !== 'string' ||
       normalizeClassroomCode(code).length !== 9 ||
-      typeof loginHandle !== 'string' ||
-      typeof credential !== 'string' ||
-      !/^[A-Za-z0-9_-]{24}$/.test(credential) ||
-      !/^[a-zA-Z0-9._-]{3,32}$/.test(loginHandle.trim())
+      !/^[2346789acdefghjkmnpqrtuvwxy]{6}$/.test(studentCode)
     ) {
       throw new HttpException(
-        error(
-          'validation_error',
-          'Введите код класса, имя и личный ключ, выданный преподавателем.',
-        ),
+        error('validation_error', 'Введите код класса и шестизначный код ученика.'),
         400,
       );
     }
-    this.enforceRateLimit(
-      this.attemptsByCredential,
-      `${classroomCodeHash(code)}:${loginHandle.trim().toLowerCase()}`,
-    );
-    if (
-      !this.botChallenges.verify(
-        'class_join',
-        shape.body['botProof'],
-        request.headers['user-agent'],
-      )
-    ) {
-      throw new HttpException(error('bot_check_required', 'Подтвердите, что вы не робот.'), 403);
-    }
+    this.enforceRateLimit(this.attemptsByCredential, `${classroomCodeHash(code)}:${studentCode}`);
     const token = createSessionToken();
     const result = await this.requirePool().query(
       `SELECT ${SEAT_SESSION_COLUMNS} FROM classroom_student_seat_sign_in($1, $2, $3, $4, $5)`,
       [
         classroomCodeHash(code),
-        loginHandle.trim().toLowerCase(),
-        hashSessionToken(credential),
+        studentCode,
+        hashSessionToken(studentCode),
         hashSessionToken(token),
         STUDENT_SESSION_HOURS,
       ],
@@ -513,10 +494,7 @@ export class ClassroomJoinController {
     const row = result.rows[0] as StudentSessionRow | undefined;
     if (!row) {
       throw new HttpException(
-        error(
-          'invalid_class_credentials',
-          'Данные для входа не подошли. Попросите преподавателя проверить имя и личный ключ.',
-        ),
+        error('invalid_class_credentials', 'Код класса или код ученика не подошёл.'),
         401,
       );
     }

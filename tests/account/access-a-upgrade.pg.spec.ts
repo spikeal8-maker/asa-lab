@@ -75,18 +75,17 @@ it('upgrades a populated 0103 account/class/seat/project and immutable learning 
   });
   expect(created.statusCode, created.body).toBe(201);
   const classId = created.json().classroom.id;
-  const added = await inject(app, {
-    method: 'POST',
-    url: `/api/classrooms/${classId}/seats`,
-    headers: { cookie },
-    payload: {
-      displayLabel: 'Исторический ученик',
-      loginHandle: 'existing-learner',
-      safeMode: true,
-    },
-  });
-  expect(added.statusCode, added.body).toBe(201);
-  const seatId = added.json().student.id;
+  // Baseline 0103 predates versioned Seat credentials. Seed the historical Seat
+  // through the DB contract that existed at that revision; exercising today's
+  // controller here would require migrations that intentionally are not present yet.
+  const added = await admin.query(`SELECT id FROM classroom_management_add_seat($1,$2,$3,$4,$5)`, [
+    account,
+    classId,
+    'Исторический ученик',
+    'acd234',
+    true,
+  ]);
+  const seatId = added.rows[0].id as string;
   const token = randomBytes(32).toString('hex');
   const code = await admin.query(
     "SELECT token_hash FROM classroom_join_codes WHERE classroom_id=$1 AND status='active'",
@@ -94,7 +93,7 @@ it('upgrades a populated 0103 account/class/seat/project and immutable learning 
   );
   await admin.query(
     'SELECT * FROM classroom_student_seat_sign_in($1::varchar,$2::varchar,$3::varchar,8)',
-    [code.rows[0].token_hash, 'existing-learner', hashSessionToken(token)],
+    [code.rows[0].token_hash, 'acd234', hashSessionToken(token)],
   );
   const seatCookie = `asa_student_session=${token}`;
   const project = await inject(app, {

@@ -904,6 +904,9 @@ export interface ClassroomStudentSeat {
   awaitingReview?: number;
   id: string;
   displayLabel: string;
+  /** Six-character classroom credential shown to the teacher and entered by the learner. */
+  studentCode: string;
+  /** @deprecated compatibility alias; use studentCode in new UI. */
   loginHandle: string;
   safeMode: boolean;
   status: 'issued' | 'active' | 'suspended';
@@ -925,6 +928,7 @@ export type ClassroomSeatBatchCommitStatus = 'created' | 'duplicate' | 'conflict
 export interface ClassroomSeatBatchPreviewRow {
   index: number;
   displayLabel: string | null;
+  studentCode: string | null;
   loginHandle: string | null;
   safeMode: boolean | null;
   status: ClassroomSeatBatchPreviewStatus;
@@ -934,6 +938,7 @@ export interface ClassroomSeatBatchPreviewRow {
 export interface ClassroomSeatBatchCommitRow {
   index: number;
   displayLabel: string | null;
+  studentCode: string | null;
   loginHandle: string | null;
   safeMode: boolean | null;
   status: ClassroomSeatBatchCommitStatus;
@@ -2669,16 +2674,20 @@ export const api = {
     call<{
       classroom: { id: string; title: string; teacherDisplayName: string; safeMode: boolean };
     }>('/api/class-join/resolve', { method: 'POST', body: JSON.stringify({ code }) }),
-  signInClassroomSeat: (
-    code: string,
-    loginHandle: string,
-    botProof: BotProof,
-    credential: string,
-  ) =>
+  signInClassroomSeat: (code: string, studentCode: string) =>
     call<ClassroomStudentSession>('/api/class-join/studentseat', {
       method: 'POST',
-      body: JSON.stringify({ code, loginHandle, botProof, credential }),
+      body: JSON.stringify({ code, studentCode }),
     }),
+  setStudentCode: (
+    classroomId: string,
+    seatId: string,
+    input: { studentCode?: string; requestId: string },
+  ) =>
+    call<{ studentCode: string; version: number; reused: boolean }>(
+      `/api/classrooms/${encodeURIComponent(classroomId)}/seats/${encodeURIComponent(seatId)}/code`,
+      { method: 'POST', body: JSON.stringify(input) },
+    ),
   issueSeatCredential: (classroomId: string, seatId: string, requestId: string) =>
     call<{ credential: string; version: number }>(
       `/api/classrooms/${encodeURIComponent(classroomId)}/seats/${encodeURIComponent(seatId)}/credential`,

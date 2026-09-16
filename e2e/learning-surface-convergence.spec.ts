@@ -49,19 +49,16 @@ test('legacy, revision and selected-result semantics stay equal across learner a
   await page.getByRole('button', { name: 'Добавить ученика' }).click();
   const seatDialog = page.getByRole('dialog');
   await seatDialog.getByLabel('Имя в списке класса').fill('Алина Canonical');
-  await seatDialog.getByLabel('Имя для входа').fill('alina-canonical');
   await seatDialog.getByRole('button', { name: 'Добавить', exact: true }).click();
-  await expect(page.getByText('Алина Canonical добавлен.')).toBeVisible();
-  await page.getByRole('button', { name: 'Действия: Алина Canonical', exact: true }).click();
-  page.once('dialog', (dialog) => dialog.accept());
-  const issued = page.waitForResponse(
-    (response) => response.url().endsWith('/credential') && response.request().method() === 'POST',
-  );
-  await page.getByRole('button', { name: 'Выдать личный ключ', exact: true }).click();
-  const credentialResponse = await issued;
-  expect(credentialResponse.ok()).toBeTruthy();
-  const { credential } = await credentialResponse.json();
-  await page.getByRole('button', { name: 'Скрыть', exact: true }).click();
+  await expect(page.getByText(/Алина Canonical добавлен/)).toBeVisible();
+  const studentCode = (
+    await page
+      .getByRole('row')
+      .filter({ hasText: 'Алина Canonical' })
+      .locator('.classroom-login-handle')
+      .innerText()
+  ).trim();
+  expect(studentCode).toMatch(/^[2346789ACDEFGHJKMNPQRTUVWXY]{6}$/);
 
   const scope = await admin.query(
     `SELECT classroom.id AS classroom_id,classroom.tenant_id AS classroom_tenant_id,
@@ -138,10 +135,8 @@ test('legacy, revision and selected-result semantics stay equal across learner a
   });
   await student.goto(`/#/join-class?code=${encodeURIComponent(joinCode)}`);
   await student.getByRole('button', { name: 'Продолжить' }).click();
-  await student.getByLabel('Имя для входа').fill('alina-canonical');
-  await student.getByLabel('Личный ключ', { exact: true }).fill(credential);
-  await student.getByRole('checkbox', { name: 'Я не робот' }).press('Space');
-  await student.getByRole('button', { name: 'Войти в класс' }).click();
+  await student.getByLabel('Код ученика', { exact: true }).fill(studentCode);
+  await student.getByRole('button', { name: 'Войти', exact: true }).click();
   await openLearnerLearning(student);
   const assignment = student
     .getByTestId('seat-assignments')

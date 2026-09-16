@@ -42,10 +42,21 @@ requirements:
   tests: []
 - id: INT-E1-06
   milestone: E1
-  status: in_progress
-  summary: "Seat credential выдача/доступ из класса; упрощённый профиль"
-  evidence: []
-  tests: []
+  status: implemented
+  summary: "StudentSeat: код класса + 6-символьный Код ученика; повторно печатаемые карточки доступа; ротация без потери истории"
+  evidence:
+  - migrations/0142_student_seat_short_codes.sql
+  - apps/api/src/classroom-join.controller.ts
+  - apps/api/src/classrooms.controller.ts
+  - apps/web/src/pages/JoinClassPage.tsx
+  - apps/web/src/components/StudentAccessCards.tsx
+  - apps/web/src/components/StudentCodeDialog.tsx
+  tests:
+  - tests/account/access-a.pg.spec.ts
+  - tests/account/access-a-upgrade.pg.spec.ts
+  - tests/portal/portal-api.spec.ts
+  - e2e/access-a.spec.ts
+  - e2e/classroom-management.spec.ts
 - id: INT-E1-07
   milestone: E1
   status: in_progress

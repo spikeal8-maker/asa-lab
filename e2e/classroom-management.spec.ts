@@ -71,11 +71,12 @@ test('teacher creates a class, issues a StudentSeat and controls learner access'
   await page.getByRole('button', { name: 'Добавить ученика' }).click();
   const studentDialog = page.getByRole('dialog');
   await studentDialog.getByLabel('Имя в списке класса').fill('Алина К.');
-  await studentDialog.getByLabel('Имя для входа').fill('alina-k');
   await studentDialog.getByRole('button', { name: 'Добавить', exact: true }).click();
 
   const studentRow = page.getByRole('row').filter({ hasText: 'Алина К.' });
-  await expect(studentRow).toContainText('alina-k');
+  const studentCode = (await studentRow.locator('.classroom-login-handle').innerText()).trim();
+  expect(studentCode).toMatch(/^[2346789ACDEFGHJKMNPQRTUVWXY]{6}$/);
+  await expect(studentRow).toContainText(studentCode);
   await expect(studentRow).toContainText('Ещё не входил');
   await page.screenshot({ path: `${evidenceDir}/teacher-roster.png`, fullPage: true });
 
@@ -116,8 +117,8 @@ test('teacher creates a class, issues a StudentSeat and controls learner access'
   await expect(studentPage.getByRole('heading', { name: 'Введите код класса' })).toBeVisible();
   await studentPage.getByRole('button', { name: 'Продолжить' }).click();
   await expect(studentPage.getByText('5Б Makers', { exact: true })).toBeVisible();
-  await studentPage.getByLabel('Имя для входа').fill('alina-k');
-  await studentPage.getByRole('button', { name: 'Войти в класс' }).click();
+  await studentPage.getByLabel('Код ученика').fill(studentCode);
+  await studentPage.getByRole('button', { name: 'Войти', exact: true }).click();
 
   /**
    * A learner lands in the same portal a teacher uses — same header, same

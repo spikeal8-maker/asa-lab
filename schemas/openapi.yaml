@@ -1855,13 +1855,57 @@ paths:
         '403':
           { description: Account or capability unavailable; revoked grants are not resurrected }
         '409': { description: Conflicting Account and StudentSeat cookies; logout required }
+  /api/classrooms/{classroomId}/seats/{seatId}/code:
+    parameters:
+      - { name: classroomId, in: path, required: true, schema: { type: string, format: uuid } }
+      - { name: seatId, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      operationId: setClassroomStudentCode
+      summary: Set or generate the six-character Student Code and revoke prior Seat sessions
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [requestId]
+              properties:
+                studentCode:
+                  type: string
+                  minLength: 6
+                  maxLength: 6
+                  pattern: '^[2346789ACDEFGHJKMNPQRTUVWXYacdefghjkmnpqrtuvwxy]{6}$'
+                  description: Optional explicit Student Code; omit to generate a new one.
+                requestId: { type: string, format: uuid }
+      responses:
+        '201':
+          description: Student Code is current; same requestId and payload replay the same logical result
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [studentCode, version, reused]
+                properties:
+                  studentCode:
+                    type: string
+                    pattern: '^[2346789ACDEFGHJKMNPQRTUVWXY]{6}$'
+                  version: { type: integer, minimum: 1 }
+                  reused: { type: boolean }
+        '400': { description: Invalid code or requestId }
+        '401': { description: Account session required }
+        '403': { description: Active teacher capability required }
+        '404': { description: Seat unavailable to this teacher }
+        '409': { description: Student Code already in use or requestId conflict }
   /api/classrooms/{classroomId}/seats/{seatId}/credential:
     parameters:
       - { name: classroomId, in: path, required: true, schema: { type: string, format: uuid } }
       - { name: seatId, in: path, required: true, schema: { type: string, format: uuid } }
     post:
       operationId: issueClassroomSeatCredential
-      summary: Authorized teacher issues a private key once and revokes previous Seat sessions
+      deprecated: true
+      summary: Legacy long-key issuance for transitional clients; new clients use the Student Code endpoint
       requestBody:
         required: true
         content:
@@ -2467,7 +2511,7 @@ paths:
         schema: { type: string, format: uuid }
     post:
       operationId: postClassroomStudentSeatsBatch
-      summary: Commit one idempotent StudentSeat batch and return new credentials once
+      summary: Commit one idempotent StudentSeat batch with stable six-character Student Codes
       requestBody:
         required: true
         content:
@@ -2475,7 +2519,7 @@ paths:
             schema: { $ref: '#/components/schemas/StudentSeatBatchCommitRequest' }
       responses:
         '201':
-          description: Stored logical batch result; plaintext credentials exist only on the first successful response
+          description: Stored logical batch result; Student Codes remain available through the authorized roster/card flow
           content:
             application/json:
               schema: { $ref: '#/components/schemas/StudentSeatBatchCommitResponse' }
@@ -2796,7 +2840,7 @@ paths:
   /api/class-join/studentseat:
     post:
       operationId: signInClassroomStudentSeat
-      summary: Sign in with class code, teacher-assigned handle and private 144-bit credential, without email
+      summary: Sign in with class code and the learner's six-character Student Code, without email
       requestBody:
         required: true
         content:
@@ -2804,12 +2848,15 @@ paths:
             schema:
               type: object
               additionalProperties: false
-              required: [code, loginHandle, credential]
+              required: [code, studentCode]
               properties:
                 code: { type: string }
-                loginHandle: { type: string, minLength: 3, maxLength: 32 }
-                credential: { type: string, pattern: '^[A-Za-z0-9_-]{24}$', writeOnly: true }
-                botProof: { type: object }
+                studentCode:
+                  type: string
+                  minLength: 6
+                  maxLength: 6
+                  pattern: '^[2346789ACDEFGHJKMNPQRTUVWXYacdefghjkmnpqrtuvwxy]{6}$'
+                  writeOnly: true
       responses:
         '200': { description: HttpOnly StudentSeat session created }
         '401': { description: Generic invalid class credentials response }
@@ -5382,7 +5429,9 @@ components:
         displayLabel: { type: string, minLength: 1, maxLength: 120 }
         loginHandle:
           type: string
-          pattern: '^[a-z0-9._-]{3,32}$'
+          pattern: '^[2346789acdefghjkmnpqrtuvwxy]{6}$'
+          deprecated: true
+          description: Compatibility alias for Student Code; omit to let the server generate one.
         safeMode: { type: boolean }
     StudentSeatBatchInput:
       type: object
@@ -5392,7 +5441,9 @@ components:
         displayLabel: { type: string, minLength: 1, maxLength: 120 }
         loginHandle:
           type: string
-          pattern: '^[a-z0-9._-]{3,32}$'
+          pattern: '^[2346789acdefghjkmnpqrtuvwxy]{6}$'
+          deprecated: true
+          description: Compatibility alias for Student Code; omit for server-generated code.
         safeMode: { type: boolean, default: true }
     StudentSeatBatchPreviewRequest:
       type: object
@@ -5407,11 +5458,17 @@ components:
     StudentSeatBatchPreviewRow:
       type: object
       additionalProperties: false
-      required: [index, displayLabel, loginHandle, safeMode, status, reasonCode]
+      required: [index, displayLabel, studentCode, loginHandle, safeMode, status, reasonCode]
       properties:
         index: { type: integer, minimum: 0, maximum: 99 }
         displayLabel: { type: [string, 'null'] }
-        loginHandle: { type: [string, 'null'] }
+        studentCode:
+          type: [string, 'null']
+          pattern: '^[2346789ACDEFGHJKMNPQRTUVWXY]{6}$'
+        loginHandle:
+          type: [string, 'null']
+          deprecated: true
+          description: Lowercase compatibility alias for studentCode.
         safeMode: { type: [boolean, 'null'] }
         status:
           type: string
@@ -5445,6 +5502,7 @@ components:
           status,
           reasonCode,
           displayLabel,
+          studentCode,
           loginHandle,
           safeMode,
           seatId,
@@ -5458,13 +5516,19 @@ components:
           enum: [created, duplicate, conflict, invalid]
         reasonCode: { type: string }
         displayLabel: { type: [string, 'null'] }
-        loginHandle: { type: [string, 'null'] }
+        studentCode:
+          type: [string, 'null']
+          pattern: '^[2346789ACDEFGHJKMNPQRTUVWXY]{6}$'
+        loginHandle:
+          type: [string, 'null']
+          deprecated: true
+          description: Lowercase compatibility alias for studentCode.
         safeMode: { type: [boolean, 'null'] }
         seatId: { type: [string, 'null'], format: uuid }
         credentialVersion: { type: [integer, 'null'], minimum: 1 }
         credential:
           type: [string, 'null']
-          description: One-time plaintext credential. Null for retries and rows that were not newly created.
+          description: Legacy compatibility field; null in the Student Code flow.
     StudentSeatBatchCommitResponse:
       type: object
       additionalProperties: false
@@ -5473,7 +5537,9 @@ components:
         requestId: { type: string, format: uuid }
         reused: { type: boolean }
         created: { type: integer, minimum: 0, maximum: 100 }
-        credentialsAvailable: { type: boolean }
+        credentialsAvailable:
+          type: boolean
+          description: Legacy compatibility flag; false in the Student Code flow.
         results:
           type: array
           items: { $ref: '#/components/schemas/StudentSeatBatchCommitRow' }
@@ -5484,6 +5550,7 @@ components:
         [
           id,
           displayLabel,
+          studentCode,
           loginHandle,
           safeMode,
           status,
@@ -5496,7 +5563,14 @@ components:
       properties:
         id: { type: string, format: uuid }
         displayLabel: { type: string }
-        loginHandle: { type: string }
+        studentCode:
+          type: string
+          pattern: '^[2346789ACDEFGHJKMNPQRTUVWXY]{6}$'
+          description: Current teacher-visible Student Code used with the class code.
+        loginHandle:
+          type: string
+          deprecated: true
+          description: Lowercase storage compatibility alias for studentCode.
         safeMode: { type: boolean }
         status:
           type: string

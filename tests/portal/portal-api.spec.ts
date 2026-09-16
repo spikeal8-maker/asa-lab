@@ -95,12 +95,12 @@ describe('classrooms', () => {
       method: 'POST',
       url: `/api/classrooms/${classroomId}/seats`,
       cookies: { asa_session: token },
-      payload: { displayLabel: 'Алина К.', loginHandle: 'alina-k', safeMode: true },
+      payload: { displayLabel: 'Алина К.', safeMode: true },
     });
     expect(added.statusCode).toBe(201);
     expect(added.json().student).toMatchObject({
       displayLabel: 'Алина К.',
-      loginHandle: 'alina-k',
+      studentCode: expect.stringMatching(/^[2346789ACDEFGHJKMNPQRTUVWXY]{6}$/),
       status: 'issued',
       safeMode: true,
     });
@@ -126,17 +126,10 @@ describe('classrooms', () => {
       safeMode: true,
     });
 
-    const issued = await inject(app, {
-      method: 'POST',
-      url: `/api/classrooms/${classroomId}/seats/${seatId}/credential`,
-      cookies: { asa_session: token },
-      payload: { requestId: crypto.randomUUID() },
-    });
-    expect(issued.statusCode, issued.body).toBe(201);
     const signedIn = await inject(app, {
       method: 'POST',
       url: '/api/class-join/studentseat',
-      payload: { code, loginHandle: 'alina-k', credential: issued.json().credential },
+      payload: { code, studentCode: added.json().student.studentCode },
     });
     expect(signedIn.statusCode).toBe(200);
     expect(signedIn.json()).toMatchObject({
@@ -341,7 +334,7 @@ describe('classrooms', () => {
       cookies: { asa_session: token },
       payload: {
         displayLabel: 'Алина К.',
-        loginHandle: 'alina-k',
+        loginHandle: added.json().student.loginHandle,
         safeMode: true,
         status: 'suspended',
       },

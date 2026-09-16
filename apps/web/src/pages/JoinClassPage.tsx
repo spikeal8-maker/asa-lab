@@ -1,12 +1,11 @@
 import { useState, type FormEvent } from 'react';
-import { api, type BotProof } from '../api';
+import { api } from '../api';
 import { AuthHomeBrand } from '../components/AuthHomeBrand';
-import { BotCheck } from '../components/BotCheck';
 
 type JoinState =
   | { kind: 'code' }
   | {
-      kind: 'handle';
+      kind: 'student-code';
       classroom: { id: string; title: string; teacherDisplayName: string; safeMode: boolean };
     };
 
@@ -15,11 +14,11 @@ function initialCode(): string {
   return new URLSearchParams(query).get('code') ?? '';
 }
 
-/**
- * Signing in to a class. An existing seat session is not this page's business —
- * the application resolves that before routing here, so a learner who is
- * already signed in never sees a code field again.
- */
+function normalizeStudentCode(value: string): string {
+  return value.replace(/\s+/g, '').toUpperCase().slice(0, 6);
+}
+
+/** StudentSeat sign-in deliberately has only two human inputs: class code, then student code. */
 export function JoinClassPage({
   onBack,
   onHome,
@@ -31,12 +30,9 @@ export function JoinClassPage({
 }): JSX.Element {
   const [state, setState] = useState<JoinState>({ kind: 'code' });
   const [code, setCode] = useState(initialCode);
-  const [loginHandle, setLoginHandle] = useState('');
-  const [credential, setCredential] = useState('');
+  const [studentCode, setStudentCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [botProof, setBotProof] = useState<BotProof | null>(null);
-  const [botReset, setBotReset] = useState(0);
 
   async function resolve(event: FormEvent): Promise<void> {
     event.preventDefault();
@@ -45,7 +41,7 @@ export function JoinClassPage({
     const result = await api.resolveClassroomCode(code);
     setBusy(false);
     if (result.ok) {
-      setState({ kind: 'handle', classroom: result.data.classroom });
+      setState({ kind: 'student-code', classroom: result.data.classroom });
       return;
     }
     setError(result.error.message || 'Не удалось найти класс.');
@@ -54,20 +50,18 @@ export function JoinClassPage({
   async function signIn(event: FormEvent): Promise<void> {
     event.preventDefault();
     setError(null);
-    if (!botProof) {
-      setError('Поставьте галочку «Я не робот» и дождитесь проверки.');
+    if (studentCode.length !== 6) {
+      setError('Введите шестизначный код ученика с карточки.');
       return;
     }
     setBusy(true);
-    const result = await api.signInClassroomSeat(code, loginHandle, botProof, credential.trim());
+    const result = await api.signInClassroomSeat(code, studentCode);
     setBusy(false);
     if (result.ok) {
       onSignedIn();
       return;
     }
-    setBotProof(null);
-    setBotReset((value) => value + 1);
-    setError(result.error.message || 'Не удалось войти в класс.');
+    setError(result.error.message || 'Код класса или код ученика не подошёл.');
   }
 
   return (
@@ -77,11 +71,10 @@ export function JoinClassPage({
           type="button"
           className="btn-ghost entry-back"
           onClick={
-            state.kind === 'handle'
+            state.kind === 'student-code'
               ? () => {
                   setError(null);
-                  setBotProof(null);
-                  setBotReset((value) => value + 1);
+                  setStudentCode('');
                   setState({ kind: 'code' });
                 }
               : onBack
@@ -93,7 +86,7 @@ export function JoinClassPage({
         {state.kind === 'code' ? (
           <form onSubmit={(event) => void resolve(event)}>
             <h2>Введите код класса</h2>
-            <p className="subtitle">Код выдаёт педагог. Аккаунт и электронная почта не нужны.</p>
+            <p className="subtitle">Код класса написан на карточке, которую выдал преподаватель.</p>
             <label htmlFor="class-code">Код класса</label>
             <input
               id="class-code"
@@ -118,49 +111,38 @@ export function JoinClassPage({
             <div className="join-class-preview">
               <span>Класс</span>
               <strong>{state.classroom.title}</strong>
-              <small>Педагог: {state.classroom.teacherDisplayName}</small>
+              <small>Преподаватель: {state.classroom.teacherDisplayName}</small>
               {state.classroom.safeMode ? <em>Безопасный режим</em> : null}
             </div>
-            <h2>Личный вход ученика</h2>
-            <p className="subtitle">Имя и личный ключ выдаёт преподаватель.</p>
-            <label htmlFor="class-login-handle">Имя для входа</label>
+            <h2>Введите код ученика</h2>
+            <p className="subtitle">Шесть символов с вашей личной карточки доступа.</p>
+            <label htmlFor="class-student-code">Код ученика</label>
             <input
-              id="class-login-handle"
+              id="class-student-code"
               autoFocus
-              autoCapitalize="none"
+              autoComplete="one-time-code"
+              autoCapitalize="characters"
               autoCorrect="off"
-              value={loginHandle}
-              disabled={busy}
-              placeholder="alina-k"
-              onChange={(event) => setLoginHandle(event.target.value.toLowerCase())}
-            />
-            <label htmlFor="class-personal-credential">Личный ключ</label>
-            <input
-              id="class-personal-credential"
-              type="password"
-              autoComplete="current-password"
-              autoCapitalize="none"
               spellCheck={false}
-              value={credential}
+              inputMode="text"
+              value={studentCode}
               disabled={busy}
-              required
-              minLength={24}
-              maxLength={24}
-              onChange={(event) => setCredential(event.target.value.trim())}
-            />
-            <BotCheck
-              key={`class-join-${botReset}`}
-              action="class_join"
-              disabled={busy}
-              onVerified={setBotProof}
+              minLength={6}
+              maxLength={6}
+              placeholder="K7M4Q2"
+              onChange={(event) => setStudentCode(normalizeStudentCode(event.target.value))}
             />
             {error ? (
               <p className="form-error" role="alert">
                 {error}
               </p>
             ) : null}
-            <button type="submit" className="btn-primary" disabled={busy || !botProof}>
-              {busy ? 'Входим…' : 'Войти в класс'}
+            <button
+              type="submit"
+              className="btn-primary"
+              disabled={busy || studentCode.length !== 6}
+            >
+              {busy ? 'Входим…' : 'Войти'}
             </button>
           </form>
         )}

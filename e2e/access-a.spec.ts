@@ -277,71 +277,69 @@ test('G, I, J: Account learner owns learning, forbidden staff link, mixed contex
   await shot(page, 'J-mixed-account-scopes');
 });
 
-test('H: private StudentSeat key, profile, logout, next learner does not see first work', async ({
+test('H: short Student Code, reusable access cards, profile, logout and learner isolation', async ({
   page,
   browser,
 }) => {
   const first = await mutation(
     page.request,
     `/api/classrooms/${classId}/seats`,
-    { displayLabel: 'Первый ученик', loginHandle: 'browser-first', safeMode: true },
+    { displayLabel: 'Первый ученик', safeMode: true },
     teacherCookie,
   );
   const second = await mutation(
     page.request,
     `/api/classrooms/${classId}/seats`,
-    { displayLabel: 'Второй ученик', loginHandle: 'browser-second', safeMode: true },
+    { displayLabel: 'Второй ученик', safeMode: true },
     teacherCookie,
   );
+  expect(first.student.studentCode).toMatch(/^[2346789ACDEFGHJKMNPQRTUVWXY]{6}$/);
+  expect(second.student.studentCode).toMatch(/^[2346789ACDEFGHJKMNPQRTUVWXY]{6}$/);
+  expect(second.student.studentCode).not.toBe(first.student.studentCode);
   const privateTeacherNote = 'Личное замечание преподавателя только первому ученику';
-  const keys: string[] = [];
-  for (const seat of [first, second]) {
-    keys.push(
-      (
-        await mutation(
-          page.request,
-          `/api/classrooms/${classId}/seats/${seat.student.id}/credential`,
-          { requestId: crypto.randomUUID() },
-          teacherCookie,
-        )
-      ).credential,
-    );
-  }
-  // Verify the actual teacher action and use the key returned by that UI.
+
+  // Teacher can reopen the same printable cards later; printing is not tied to creation response.
   const teacherContext = await browser.newContext();
   await teacherContext.addCookies([
     { name: 'asa_session', value: teacherCookie.slice('asa_session='.length), url: origin },
   ]);
   const teacherPage = await teacherContext.newPage();
   await teacherPage.goto(`${origin}/#/classrooms/${classId}`);
-  await teacherPage.getByRole('button', { name: 'Действия: Первый ученик', exact: true }).click();
-  teacherPage.once('dialog', (dialog) => dialog.accept());
-  const issuance = teacherPage.waitForResponse(
-    (response) =>
-      response.url().endsWith(`/seats/${first.student.id}/credential`) &&
-      response.request().method() === 'POST',
-  );
-  await teacherPage.getByRole('button', { name: 'Выдать личный ключ', exact: true }).click();
-  const issued = await issuance;
-  expect(issued.ok()).toBeTruthy();
-  keys[0] = (await issued.json()).credential;
-  await expect(teacherPage.getByText(keys[0]!, { exact: true })).toBeVisible();
-  await teacherPage.getByRole('button', { name: 'Скрыть', exact: true }).click();
-  await expect(teacherPage.getByText(keys[0]!, { exact: true })).toHaveCount(0);
-  await shot(teacherPage, 'H-teacher-issued-key-hidden');
+  await teacherPage.getByRole('button', { name: 'Карточки доступа', exact: true }).click();
+  const cards = teacherPage.getByRole('dialog').filter({
+    has: teacherPage.getByRole('heading', { name: 'Карточки доступа', exact: true }),
+  });
+  await expect(cards).toContainText('Первый ученик');
+  await expect(cards).toContainText('Второй ученик');
+  await expect(cards).toContainText(first.student.studentCode);
+  await expect(cards).toContainText(second.student.studentCode);
+  await expect(cards).toContainText(classCode);
+  await expect(cards.getByRole('button', { name: /Распечатать/ })).toBeVisible();
+  await shot(teacherPage, 'H-reusable-access-cards');
+  await cards.getByRole('button', { name: 'Закрыть', exact: true }).last().click();
+  await expect(
+    teacherPage.getByRole('heading', { name: 'Карточки доступа', exact: true }),
+  ).toHaveCount(0);
+  await teacherPage.getByRole('button', { name: 'Карточки доступа', exact: true }).click();
+  await expect(
+    teacherPage.getByRole('heading', { name: 'Карточки доступа', exact: true }),
+  ).toBeVisible();
+  await teacherPage
+    .getByRole('dialog')
+    .getByRole('button', { name: 'Закрыть', exact: true })
+    .last()
+    .click();
   await teacherContext.close();
-  async function enter(handle: string, credential: string) {
+
+  async function enter(studentCode: string) {
     await page.goto('/#/join-class');
     await page.getByLabel('Код класса', { exact: true }).fill(classCode);
     await page.getByRole('button', { name: 'Продолжить', exact: true }).click();
-    await page.getByLabel('Имя для входа', { exact: true }).fill(handle);
-    await page.getByLabel('Личный ключ', { exact: true }).fill(credential);
-    await page.getByRole('checkbox', { name: 'Я не робот' }).press('Space');
-    await expect(page.getByRole('checkbox', { name: 'Я не робот' })).toBeChecked();
-    await page.getByRole('button', { name: 'Войти в класс', exact: true }).click();
+    await page.getByLabel('Код ученика', { exact: true }).fill(studentCode.toLowerCase());
+    await page.getByRole('button', { name: 'Войти', exact: true }).click();
     await expect(portalSection(page, 'Мой учебный профиль')).toBeVisible();
   }
-  await enter('browser-first', keys[0]!);
+  await enter(first.student.studentCode);
   // First real sign-in creates the Seat principal. Give this active learner
   // a real teacher note; do not manufacture principal rows in the fixture.
   const award = await page.request.put(
@@ -391,7 +389,7 @@ test('H: private StudentSeat key, profile, logout, next learner does not see fir
       })
     ).status(),
   ).toBe(401);
-  await enter('browser-second', keys[1]!);
+  await enter(second.student.studentCode);
   await openPortalSection(page, 'Мои учебные работы');
   await expect(page.getByText('Секретная работа первого', { exact: true })).toHaveCount(0);
   expect([403, 404]).toContain(

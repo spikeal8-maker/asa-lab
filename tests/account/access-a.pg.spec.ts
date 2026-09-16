@@ -103,7 +103,7 @@ async function classroom(cookie: string) {
 }
 
 describe('Result A: real Account and independent Classroom API', () => {
-  it('requires a private Seat key; replacement revokes sessions, retries do not rotate, cookies cannot union', async () => {
+  it('uses short Student Codes; rotation revokes sessions, retries are stable, cookies cannot union', async () => {
     const teacher = await account();
     await teach(teacher.cookie);
     const classId = await classroom(teacher.cookie);
@@ -112,45 +112,36 @@ describe('Result A: real Account and independent Classroom API', () => {
       url: `/api/classrooms/${classId}`,
       headers: { cookie: teacher.cookie },
     });
-    const code = classResponse.json().classroom.joinCode;
-    const add = async (name: string) => {
+    const code = classResponse.json().classroom.joinCode as string;
+
+    const add = async (name: string, studentCode: string) => {
       const response = await inject(app, {
         method: 'POST',
         url: `/api/classrooms/${classId}/seats`,
         headers: { cookie: teacher.cookie },
-        payload: { displayLabel: name, loginHandle: name, safeMode: true },
+        payload: { displayLabel: name, loginHandle: studentCode, safeMode: true },
       });
       expect(response.statusCode, response.body).toBe(201);
-      return response.json().student.id as string;
+      expect(response.json().student.studentCode).toBe(studentCode.toUpperCase());
+      return response.json().student as { id: string; studentCode: string };
     };
-    const seatId = await add('first-seat');
-    const otherId = await add('second-seat');
-    const issue = (id: string, requestId = crypto.randomUUID(), cookie = teacher.cookie) =>
-      inject(app, {
-        method: 'POST',
-        url: `/api/classrooms/${classId}/seats/${id}/credential`,
-        headers: { cookie },
-        payload: { requestId },
-      });
-    const requestId = crypto.randomUUID();
-    const issued = await issue(seatId, requestId);
-    expect(issued.statusCode, issued.body).toBe(201);
-    const credential = issued.json().credential;
-    expect(credential).toMatch(/^[A-Za-z0-9_-]{24}$/);
-    const otherKey = (await issue(otherId)).json().credential;
-    const signIn = (loginHandle: string, key?: string) =>
+    const first = await add('Первый ученик', 'acd234');
+    const second = await add('Второй ученик', 'efg678');
+
+    const signIn = (studentCode?: string) =>
       inject(app, {
         method: 'POST',
         url: '/api/class-join/studentseat',
-        payload: { code, loginHandle, ...(key ? { credential: key } : {}) },
+        payload: { code, ...(studentCode ? { studentCode } : {}) },
       });
-    expect((await signIn('first-seat')).statusCode).toBe(400);
-    expect((await signIn('first-seat', otherKey)).statusCode).toBe(401);
-    const login = await signIn('first-seat', credential);
+    expect((await signIn()).statusCode).toBe(400);
+    expect((await signIn('HJK234')).statusCode).toBe(401);
+    const login = await signIn(first.studentCode.toLowerCase());
     expect(login.statusCode, login.body).toBe(200);
     const cookie = `asa_student_session=${login.cookies.find((c) => c.name === 'asa_student_session')?.value}`;
     const me = await inject(app, { method: 'GET', url: '/api/class-join/me', headers: { cookie } });
-    expect(me.json().student.seatId).toBe(seatId);
+    expect(me.json().student.seatId).toBe(first.id);
+
     for (const url of ['/api/auth/me', `/api/classrooms/${classId}/roster`, '/api/class-join/me']) {
       const conflict = await inject(app, {
         method: 'GET',
@@ -158,7 +149,7 @@ describe('Result A: real Account and independent Classroom API', () => {
         headers: { cookie: `${teacher.cookie}; ${cookie}` },
       });
       expect(conflict.statusCode, conflict.body).toBe(409);
-      expect(conflict.body).not.toContain(seatId);
+      expect(conflict.body).not.toContain(first.id);
     }
     const forbidden = await inject(app, {
       method: 'GET',
@@ -166,46 +157,81 @@ describe('Result A: real Account and independent Classroom API', () => {
       headers: { cookie },
     });
     expect([401, 403]).toContain(forbidden.statusCode);
+
     const ordinary = await account();
-    expect((await issue(otherId, crypto.randomUUID(), ordinary.cookie)).statusCode).toBe(403);
-    expect((await issue(seatId, requestId)).statusCode).toBe(409);
-    const replaced = await issue(seatId);
-    expect(replaced.statusCode, replaced.body).toBe(201);
-    expect(replaced.json().version).toBe(2);
-    expect((await issue(seatId, requestId)).statusCode).toBe(409);
-    expect(
-      (
-        await admin.query('SELECT version FROM classroom_seat_credentials WHERE seat_id=$1', [
-          seatId,
-        ])
-      ).rows[0].version,
-    ).toBe(2);
-    expect((await signIn('first-seat', credential)).statusCode).toBe(401);
+    const deniedRotation = await inject(app, {
+      method: 'POST',
+      url: `/api/classrooms/${classId}/seats/${second.id}/code`,
+      headers: { cookie: ordinary.cookie },
+      payload: { studentCode: 'QRT234', requestId: crypto.randomUUID() },
+    });
+    expect(deniedRotation.statusCode, deniedRotation.body).toBe(403);
+
+    const requestId = crypto.randomUUID();
+    const rotated = await inject(app, {
+      method: 'POST',
+      url: `/api/classrooms/${classId}/seats/${first.id}/code`,
+      headers: { cookie: teacher.cookie },
+      payload: { studentCode: 'MNP234', requestId },
+    });
+    expect(rotated.statusCode, rotated.body).toBe(201);
+    expect(rotated.json()).toMatchObject({ studentCode: 'MNP234', version: 2, reused: false });
+
+    const retry = await inject(app, {
+      method: 'POST',
+      url: `/api/classrooms/${classId}/seats/${first.id}/code`,
+      headers: { cookie: teacher.cookie },
+      payload: { studentCode: 'MNP234', requestId },
+    });
+    expect(retry.statusCode, retry.body).toBe(201);
+    expect(retry.json()).toMatchObject({ studentCode: 'MNP234', version: 2, reused: true });
+
+    const requestConflict = await inject(app, {
+      method: 'POST',
+      url: `/api/classrooms/${classId}/seats/${first.id}/code`,
+      headers: { cookie: teacher.cookie },
+      payload: { studentCode: 'QRT234', requestId },
+    });
+    expect(requestConflict.statusCode, requestConflict.body).toBe(409);
+    expect(requestConflict.body).toContain('idempotency_conflict');
+
+    expect((await signIn('ACD234')).statusCode).toBe(401);
     const revoked = await inject(app, {
       method: 'GET',
       url: '/api/class-join/me',
       headers: { cookie },
     });
     expect(revoked.json().authenticated).toBe(false);
+
+    const roster = await inject(app, {
+      method: 'GET',
+      url: `/api/classrooms/${classId}/roster`,
+      headers: { cookie: teacher.cookie },
+    });
+    expect(roster.statusCode, roster.body).toBe(200);
+    const firstRow = roster.json().items.find((row: { id: string }) => row.id === first.id);
+    expect(firstRow.studentCode).toBe('MNP234');
+
     await expect(
       runtime.query(
         'SELECT * FROM classroom_student_seat_sign_in($1::varchar,$2::varchar,$3::varchar,$4::integer)',
-        ['x', 'first-seat', 'x', 8],
+        ['x', 'acd234', 'x', 8],
       ),
     ).rejects.toMatchObject({ code: '42501' });
     await expect(
       runtime.query('SELECT credential_hash FROM classroom_seat_credentials'),
     ).rejects.toMatchObject({ code: '42501' });
     const audit = await admin.query('SELECT payload_json FROM audit_events WHERE entity_id=$1', [
-      seatId,
+      first.id,
     ]);
-    expect(JSON.stringify(audit.rows)).not.toContain(credential);
-    const newKey = replaced.json().credential;
-    const idle = await signIn('first-seat', newKey);
-    const idleCookie = `asa_student_session=${idle.cookies.find((c) => c.name === 'asa_student_session')!.value}`;
+    expect(JSON.stringify(audit.rows)).not.toContain('MNP234');
+
+    const active = await signIn('MNP234');
+    expect(active.statusCode, active.body).toBe(200);
+    const idleCookie = `asa_student_session=${active.cookies.find((c) => c.name === 'asa_student_session')!.value}`;
     await admin.query(
       "UPDATE classroom_student_sessions SET last_seen_at=now()-interval '61 minutes' WHERE seat_id=$1 AND revoked_at IS NULL",
-      [seatId],
+      [first.id],
     );
     expect(
       (
@@ -216,10 +242,10 @@ describe('Result A: real Account and independent Classroom API', () => {
         })
       ).json().authenticated,
     ).toBe(false);
-    // Either logout endpoint must revoke both principals, not merely discard cookies.
+
     for (const url of ['/api/auth/logout', '/api/class-join/logout']) {
       const owner = await account();
-      const entered = await signIn('first-seat', newKey);
+      const entered = await signIn('MNP234');
       expect(entered.statusCode, entered.body).toBe(200);
       const seatCookie = `asa_student_session=${entered.cookies.find((c) => c.name === 'asa_student_session')!.value}`;
       const logout = await inject(app, {
@@ -258,7 +284,7 @@ describe('Result A: real Account and independent Classroom API', () => {
     }
   });
 
-  it('previews and commits StudentSeat batches idempotently with one-time credentials', async () => {
+  it('previews and commits StudentSeat batches idempotently with reusable short codes', async () => {
     const teacher = await account();
     await teach(teacher.cookie);
     const classId = await classroom(teacher.cookie);
@@ -271,25 +297,25 @@ describe('Result A: real Account and independent Classroom API', () => {
     const code = classroomView.json().classroom.joinCode as string;
     expect(code).toBeTruthy();
 
-    const addExisting = async (displayLabel: string, loginHandle: string) => {
+    const addExisting = async (displayLabel: string, studentCode: string) => {
       const response = await inject(app, {
         method: 'POST',
         url: `/api/classrooms/${classId}/seats`,
         headers: { cookie: teacher.cookie },
-        payload: { displayLabel, loginHandle, safeMode: true },
+        payload: { displayLabel, loginHandle: studentCode, safeMode: true },
       });
       expect(response.statusCode, response.body).toBe(201);
     };
-    await addExisting('Taken Person', 'taken-one');
-    await addExisting('Existing Same', 'same-one');
+    await addExisting('Taken Person', 'acd234');
+    await addExisting('Existing Same', 'efg678');
 
     const students = [
       { displayLabel: 'Fresh Learner', safeMode: true },
-      { displayLabel: 'Twin One', loginHandle: 'batch-dup', safeMode: true },
-      { displayLabel: 'Twin Two', loginHandle: 'batch-dup', safeMode: true },
-      { displayLabel: 'Different Person', loginHandle: 'taken-one', safeMode: true },
-      { displayLabel: 'Existing Same', loginHandle: 'same-one', safeMode: true },
-      { displayLabel: '', loginHandle: 'bad', safeMode: true },
+      { displayLabel: 'Twin One', loginHandle: 'hjk234', safeMode: true },
+      { displayLabel: 'Twin Two', loginHandle: 'hjk234', safeMode: true },
+      { displayLabel: 'Different Person', loginHandle: 'acd234', safeMode: true },
+      { displayLabel: 'Existing Same', loginHandle: 'efg678', safeMode: true },
+      { displayLabel: '', loginHandle: 'mnp234', safeMode: true },
     ];
     const preview = await inject(app, {
       method: 'POST',
@@ -300,7 +326,7 @@ describe('Result A: real Account and independent Classroom API', () => {
     expect(preview.statusCode, preview.body).toBe(201);
     const previewRows = preview.json().results as Array<{
       status: string;
-      loginHandle: string | null;
+      studentCode: string | null;
     }>;
     expect(previewRows.map((row) => row.status)).toEqual([
       'valid',
@@ -310,7 +336,7 @@ describe('Result A: real Account and independent Classroom API', () => {
       'duplicate',
       'invalid',
     ]);
-    expect(previewRows[0]?.loginHandle).toMatch(/^seat-[0-9a-f]{12}$/);
+    expect(previewRows[0]?.studentCode).toMatch(/^[2346789ACDEFGHJKMNPQRTUVWXY]{6}$/);
 
     const requestId = crypto.randomUUID();
     const committed = await inject(app, {
@@ -325,12 +351,13 @@ describe('Result A: real Account and independent Classroom API', () => {
       requestId,
       reused: false,
       created: 2,
-      credentialsAvailable: true,
+      credentialsAvailable: false,
     });
     const created = result.results.filter((row: { status: string }) => row.status === 'created');
     expect(created).toHaveLength(2);
     for (const row of created) {
-      expect(row.credential).toMatch(/^[A-Za-z0-9_-]{24}$/);
+      expect(row.studentCode).toMatch(/^[2346789ACDEFGHJKMNPQRTUVWXY]{6}$/);
+      expect(row.credential).toBeNull();
       expect(row.credentialVersion).toBe(1);
       expect(row.seatId).toMatch(/^[0-9a-f-]{36}$/i);
     }
@@ -339,24 +366,17 @@ describe('Result A: real Account and independent Classroom API', () => {
     const signedIn = await inject(app, {
       method: 'POST',
       url: '/api/class-join/studentseat',
-      payload: { code, loginHandle: first.loginHandle, credential: first.credential },
+      payload: { code, studentCode: first.studentCode },
     });
     expect(signedIn.statusCode, signedIn.body).toBe(200);
 
-    const stored = await admin.query(
-      `SELECT row_to_json(row_data)::text AS payload
-         FROM classroom_student_seat_batch_rows row_data
-        WHERE request_id=$1 ORDER BY row_index`,
-      [requestId],
-    );
     const audit = await admin.query(
       `SELECT payload_json FROM audit_events
         WHERE entity_id=$1 AND action='classroom.student_seat_batch_committed'`,
       [classId],
     );
     for (const row of created) {
-      expect(JSON.stringify(stored.rows)).not.toContain(row.credential);
-      expect(JSON.stringify(audit.rows)).not.toContain(row.credential);
+      expect(JSON.stringify(audit.rows)).not.toContain(row.studentCode);
     }
 
     const retry = await inject(app, {
@@ -372,6 +392,9 @@ describe('Result A: real Account and independent Classroom API', () => {
       created: 2,
       credentialsAvailable: false,
     });
+    expect(
+      retry.json().results.map((row: { studentCode: string | null }) => row.studentCode),
+    ).toEqual(result.results.map((row: { studentCode: string | null }) => row.studentCode));
     expect(
       retry.json().results.every((row: { credential: string | null }) => row.credential === null),
     ).toBe(true);
