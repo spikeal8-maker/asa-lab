@@ -49,6 +49,25 @@ def _run(
     return result.returncode, output
 
 
+def _refresh_origin_main(root: Path) -> dict[str, Any]:
+    code, output = _run(
+        root,
+        [
+            "git",
+            "fetch",
+            "--quiet",
+            "origin",
+            "refs/heads/main:refs/remotes/origin/main",
+        ],
+        timeout=60,
+    )
+    return {
+        "status": "PASS" if code == 0 else "FAIL",
+        "exit_code": code,
+        "output": output,
+    }
+
+
 def _resolve_context(
     root: Path,
     *,
@@ -200,6 +219,7 @@ def build_preflight(
     skip_control_plane: bool = False,
 ) -> dict[str, Any]:
     root = root.resolve()
+    remote_refresh = _refresh_origin_main(root)
     document, context = _resolve_context(
         root,
         scope=scope,
@@ -219,7 +239,10 @@ def build_preflight(
     execution_blockers = _execution_blockers(blockers)
     control_plane = _control_plane(root, skip=skip_control_plane)
 
-    if control_plane["status"] == "FAIL":
+    if remote_refresh["status"] == "FAIL":
+        mode = "BLOCKED_GIT_FRESHNESS"
+        safe_action = "Refresh origin/main successfully before writing; GitHub is canonical."
+    elif control_plane["status"] == "FAIL":
         mode = "BLOCKED_CONTROL_PLANE"
         safe_action = "Repair the control-plane failure before writing."
     elif execution_blockers:
@@ -242,6 +265,7 @@ def build_preflight(
         "task": context.get("task"),
         "selector": context.get("selector"),
         "git": recovery.get("git"),
+        "remote_refresh": remote_refresh,
         "dirty": context.get("dirty"),
         "blocking": blockers,
         "execution_blocking": execution_blockers,
@@ -268,6 +292,7 @@ def render_text(preflight: dict[str, Any]) -> str:
         f"BLOCKERS: {len(preflight.get('blocking') or [])}",
         f"EXECUTION_BLOCKERS: {len(preflight.get('execution_blocking') or [])}",
         f"WORKTREE_OVERLAPS: {len(preflight.get('worktree_overlaps') or [])}",
+        f"REMOTE_REFRESH: {(preflight.get('remote_refresh') or {}).get('status')}",
         f"CONTROL_PLANE: {(preflight.get('control_plane') or {}).get('status')}",
     ]
     for overlap in preflight.get("worktree_overlaps") or []:
