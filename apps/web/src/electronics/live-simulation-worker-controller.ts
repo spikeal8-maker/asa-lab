@@ -33,7 +33,8 @@ interface SimulationTarget {
 const TIMED_STATE_PROPERTIES = ['temperatureCelsius', 'moisturePercent'] as const;
 
 function stripTimedRuntimeInputs(document: SchematicDocument): unknown {
-  const { viewport: _viewport, ...withoutViewport } = document;
+  const withoutViewport = { ...document } as Partial<SchematicDocument>;
+  delete withoutViewport.viewport;
   return {
     ...withoutViewport,
     simulation: { ...document.simulation, running: false },

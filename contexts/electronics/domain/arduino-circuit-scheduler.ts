@@ -249,18 +249,19 @@ export function advanceArduinoCircuitClock(
       !integerTime(previous.reachedMicroseconds) ||
       previous.reachedMicroseconds > targetMicroseconds ||
       (hasPhysics
-        ? !previous.physicalState ||
-          !(
-            profile === 'electrothermal-v1'
-              ? clockedPhysicalStateIsCompatible
-              : clockedRcStateIsCompatible
-          )(document, previous.physicalState, previous.reachedMicroseconds / 1000) ||
-          !integerTime(Math.round(previous.physicalState.simulationTimeMs * 1000)) ||
-          Math.round(previous.physicalState.simulationTimeMs * 1000) / 1000 !==
-            previous.physicalState.simulationTimeMs ||
-          previous.reachedMicroseconds -
-            Math.round(previous.physicalState.simulationTimeMs * 1000) >=
-            PHYSICS_QUANTUM_US
+        ? previous.physicalState
+          ? !(
+              profile === 'electrothermal-v1'
+                ? clockedPhysicalStateIsCompatible
+                : clockedRcStateIsCompatible
+            )(document, previous.physicalState, previous.reachedMicroseconds / 1000) ||
+            !integerTime(Math.round(previous.physicalState.simulationTimeMs * 1000)) ||
+            Math.round(previous.physicalState.simulationTimeMs * 1000) / 1000 !==
+              previous.physicalState.simulationTimeMs ||
+            previous.reachedMicroseconds -
+              Math.round(previous.physicalState.simulationTimeMs * 1000) >=
+              PHYSICS_QUANTUM_US
+          : previous.reachedMicroseconds >= PHYSICS_QUANTUM_US
         : previous.physicalState !== undefined) ||
       !validInputs(document, previous.inputs) ||
       !Number.isInteger(previous.nextInputIndex) ||
