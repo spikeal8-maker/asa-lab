@@ -74,11 +74,13 @@ authorize itself is a governance failure.
 `EXECUTION_MANIFEST.yaml`, `project-map.yaml`, `QUALITY_MAP.md`, тело PR или
 комментарий в чате противоречат `current.yaml` — прав `current.yaml`, а
 расхождение является ошибкой, которую нужно устранить, а не обойти.
+
 ## 3. Control plane уже входит в preflight
 
 Отдельный `pnpm control-plane:check` нужен только для диагностики самого control
 plane. Стандартный preflight уже запускает эту проверку и не возвращает
 `SAFE_TO_START`, если она красная.
+
 ## 4. Проверь Git
 
 Команды ниже относятся к выбранной работе в `main`. Для существующей feature-ветки
