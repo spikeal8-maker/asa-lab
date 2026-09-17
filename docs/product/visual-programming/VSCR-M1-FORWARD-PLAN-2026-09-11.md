@@ -157,6 +157,21 @@ Every accepted Scratch slice runs L0/L1 optimisation evidence; because this lane
 runtime/media-heavy, L2 is mandatory after every 2 accepted bounded slices or earlier
 when the repository policy triggers it.
 
+Before M1-006 coding starts, its task card must pin from D0-008:
+
+```text
+autosave debounce/cadence + classroom jitter distribution
+retry/backoff caps and Retry-After behaviour
+structured local-recovery store
+finite recovery TTL/quota + logout/account-switch cleanup
+save-state UI placement (no permanent bottom bar)
+preview capture source, encoded format and derived card dimensions
+benchmark fixtures/profile for P0/P2 comparison
+```
+
+These values are implementation configuration, but leaving them undefined until coding
+is not allowed.
+
 ## Checkpoint 4 — Safe ASA .sb3 integration
 
 M1-007 proves bounded ZIP/content validation, compatibility and ASA import/export flows. It does not justify hiding native Scratch local File UI during B.
