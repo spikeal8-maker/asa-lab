@@ -81,3 +81,24 @@ before merge/release. Author tests and green CI do not substitute that review.
 
 Stop after exact-candidate evidence. Do not auto-start M1-006 and do not deploy
 until the owner separately authorises integration/deployment.
+
+
+## Bounded self-review
+
+Проверить, что этот срез не создаёт второй Project Core, отдельный Scratch backend,
+новые порты или публичный bucket; production storage остаётся tenant-private.
+
+По сохранению и оптимизации обязательно проверить:
+
+- asset bytes durable до metadata и draft commit;
+- unchanged document fingerprint не создаёт лишнюю ревизию;
+- unchanged assets создают 0 новых unique bytes/blob/alias rows;
+- одинаковые bytes в одном tenant переиспользуют один blob;
+- canonical Scratch bytes не перекодируются ради оптимизации;
+- upload/read остаются streaming/bounded и не превращают file limit в постоянный RAM buffer;
+- object-store/network failure не превращается в `not found` или ложное `saved`;
+- browser save→close→open восстанавливает exact project JSON и exact asset bytes;
+- P0/P1/P2/P3 evidence и hygiene counter записаны честно;
+- autosave/preview/M2 card work не начинается внутри 005B.
+
+Если хотя бы один пункт не доказан, verdict не может быть PASS.
