@@ -27,6 +27,8 @@ export type {
   CreateProjectResult,
   ModuleCatalogPort,
   ProjectDocumentValidation,
+  ProjectDraftPersistenceGuardPort,
+  ProjectPersistenceGuardResult,
   ProjectActor,
   ProjectListFilter,
   ProjectModule,

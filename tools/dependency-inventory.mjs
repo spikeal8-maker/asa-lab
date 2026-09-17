@@ -6,6 +6,7 @@
 // 3) Enforces a license allowlist over every installed package (transitive
 //    included); forbidden or unknown licenses fail the gate.
 import { spawnSync } from 'node:child_process';
+import { approvedPinnedScratchLicense } from './dependency-license-choice.mjs';
 import { mkdirSync, writeFileSync, readFileSync } from 'node:fs';
 
 const ALLOWED_LICENSES = new Set([
@@ -130,12 +131,14 @@ if ((vulns.critical ?? 0) > 0 || (vulns.high ?? 0) > 0) {
 // --- 3. license policy over every installed package ---
 const badLicenses = [];
 for (const [license, packages] of Object.entries(byLicense)) {
-  if (!ALLOWED_LICENSES.has(license)) {
+  if (ALLOWED_LICENSES.has(license)) continue;
+  const rejected = packages.filter((entry) => !approvedPinnedScratchLicense(license, entry));
+  if (rejected.length > 0) {
     badLicenses.push(
-      `${license}: ${packages
+      `${license}: ${rejected
         .slice(0, 5)
         .map((p) => p.name)
-        .join(', ')}${packages.length > 5 ? ', ...' : ''}`,
+        .join(', ')}${rejected.length > 5 ? ', ...' : ''}`,
     );
   }
 }

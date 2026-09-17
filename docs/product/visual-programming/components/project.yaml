@@ -2,62 +2,100 @@ schema_version: 2.0.0
 area: project-persistence
 components:
   - id: blocks.project.persistence-guard
-    state: blocked
+    state: implemented
     risk: high
     ownership: cross_boundary
-    purpose: "Generic Project Core pre-save durability guard plus Blocks-specific implementation."
+    purpose: Generic pre-save guard plus Blocks validation; no production composition yet.
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-002-PERSISTENCE-CONTRACT.md
-        section: "Decision: generic async pre-save persistence guard"
+        section: 'Decision: generic async pre-save persistence guard'
       - path: docs/product/visual-programming/VSCR-D0-002-PERSISTENCE-CONTRACT.md
-        section: "Generic project-draft API must not bypass durability"
-    task: VSCR-M1-005
-    design_gate: VSCR-M1-005P
-    depends_on: [blocks.assets.metadata]
-
+        section: Generic project-draft API must not bypass durability
+    task: VSCR-M1-005A
+    depends_on:
+      - blocks.assets.metadata
+    sources:
+      - path: contexts/projects/application/ports.ts
+        symbols:
+          - ProjectDraftPersistenceGuardPort
+          - ProjectPersistenceGuardResult
+      - path: contexts/projects/application/project.usecases.ts
+        symbols:
+          - SaveDraftUseCase
+      - path: apps/api/src/blocks-persistence.guard.ts
+        symbols:
+          - BlocksDraftPersistenceGuard
+          - BlocksAssetMetadataPort
+      - path: apps/api/src/blocks-durable-document.ts
+        symbols:
+          - inspectBlocksDocument
+          - inspectScratchProject
+          - snapshotJson
+    tests:
+      - apps/api/src/blocks-project-persistence.spec.ts
+      - contexts/projects/testing/projects.spec.ts
   - id: blocks.project.load-save
-    state: blocked
+    state: implemented
     risk: high
     ownership: cross_boundary
-    purpose: "Durable projectJson load/save with exact already-durable referenced assets."
+    purpose:
+      Explicit save/open pipeline through common Project Core and mandatory asset ports; deployed adapters
+      and UI pending.
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-002-PERSISTENCE-CONTRACT.md
-        section: "Asset-before-document invariant"
+        section: Asset-before-document invariant
       - path: docs/product/visual-programming/VSCR-D0-003-ASSET-STORAGE-CONTRACT.md
-        section: "Project save interaction"
-    task: VSCR-M1-005
-    depends_on: [blocks.project.persistence-guard, blocks.assets.upload, blocks.assets.read]
-
+        section: Project save interaction
+    task: VSCR-M1-005A
+    depends_on:
+      - blocks.project.persistence-guard
+      - blocks.assets.upload
+      - blocks.assets.read
+    sources:
+      - path: apps/api/src/blocks-project-persistence.ts
+        symbols:
+          - BlocksProjectPersistence
+          - BlocksDurableAssetPort
+          - BlocksAssetSourcePort
+      - path: apps/api/src/blocks-durable-document.ts
+        symbols:
+          - inspectBlocksDocument
+          - inspectScratchProject
+    tests:
+      - apps/api/src/blocks-project-persistence.spec.ts
   - id: blocks.project.autosave
     state: blocked
     risk: high
     ownership: asa
-    purpose: "Generation-aware latest-state queue; edits during an in-flight save are not lost."
+    purpose: Generation-aware latest-state queue; edits during an in-flight save are not lost.
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-002-PERSISTENCE-CONTRACT.md
-        section: "Autosave transaction identity"
+        section: Autosave transaction identity
     task: VSCR-M1-006
-    depends_on: [blocks.project.load-save]
-
+    depends_on:
+      - blocks.project.load-save
   - id: blocks.project.recovery
     state: blocked
     risk: high
     ownership: asa
-    purpose: "Bounded recovery/offline retry without becoming canonical project storage."
+    purpose: Bounded recovery/offline retry without becoming canonical project storage.
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-002-PERSISTENCE-CONTRACT.md
-        section: "Conflict behaviour"
+        section: Conflict behaviour
     task: VSCR-M1-006
-    depends_on: [blocks.project.load-save]
-    design_gap: "The exact browser recovery store, TTL/quota, logout cleanup and user/tenant/project isolation must be fixed in the M1-006 task card before coding."
-
+    depends_on:
+      - blocks.project.load-save
+    design_gap:
+      The exact browser recovery store, TTL/quota, logout cleanup and user/tenant/project isolation must
+      be fixed in the M1-006 task card before coding.
   - id: blocks.project.conflict
     state: blocked
     risk: high
     ownership: asa
-    purpose: "Optimistic revision conflict handling with no silent last-write-wins."
+    purpose: Optimistic revision conflict handling with no silent last-write-wins.
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-002-PERSISTENCE-CONTRACT.md
-        section: "Conflict behaviour"
+        section: Conflict behaviour
     task: VSCR-M1-006
-    depends_on: [blocks.project.load-save]
+    depends_on:
+      - blocks.project.load-save

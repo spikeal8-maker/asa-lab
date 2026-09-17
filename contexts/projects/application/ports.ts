@@ -166,3 +166,22 @@ export interface ProjectRepositoryPort {
     actor: ProjectActor,
   ): Promise<ProjectSnapshotBytes | null>;
 }
+
+/** Optional subject-neutral policy, supplied by composition before a draft is committed. */
+export type ProjectPersistenceGuardResult =
+  | { readonly ok: true }
+  | {
+      readonly ok: false;
+      readonly code: 'validation_error' | 'dependency_unavailable';
+      readonly message: string;
+    };
+
+export interface ProjectDraftPersistenceGuardPort {
+  validate(input: {
+    readonly tenantId: string;
+    readonly projectId: string;
+    readonly actor: ProjectActor;
+    readonly moduleKey: string;
+    readonly document: unknown;
+  }): Promise<ProjectPersistenceGuardResult>;
+}
