@@ -19,30 +19,26 @@ const candidates = [
 ];
 
 function works(candidate) {
-  if (
-    candidate.command.includes('\\') &&
-    !existsSync(candidate.command)
-  ) {
+  if (candidate.command.includes('\\') && !existsSync(candidate.command)) {
     return false;
   }
-  const result = spawnSync(
-    candidate.command,
-    [...candidate.prefix, '--version'],
-    { stdio: 'ignore' },
-  );
+  const result = spawnSync(candidate.command, [...candidate.prefix, '--version'], {
+    stdio: 'ignore',
+  });
   return result.error === undefined && result.status === 0;
 }
 
 const python = candidates.find(works);
 if (!python) {
   console.error('Не найден Python для ASA Lab agent preflight.');
-  console.error('Укажите интерпретатор через ASA_PYTHON или установите python/python3.');
+  console.error(
+    'Укажите интерпретатор через ASA_PYTHON или установите python/python3.',
+  );
   process.exit(78);
 }
 
-const result = spawnSync(
-  python.command,
-  [...python.prefix, script, ...process.argv.slice(2)],
-  { cwd: root, stdio: 'inherit' },
-);
+const result = spawnSync(python.command, [...python.prefix, script, ...process.argv.slice(2)], {
+  cwd: root,
+  stdio: 'inherit',
+});
 process.exit(result.status ?? 1);
