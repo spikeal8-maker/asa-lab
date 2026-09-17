@@ -370,59 +370,59 @@ parallel_lanes:
   - id: learning
     worktree_id: learning-course-01
     owned_paths:
-      - docs/product/ASA_INTEGRATED_IMPLEMENTATION_SPEC.md
-      - docs/product/ASA_LEARNING_TECHNICAL_SPEC.md
-      - docs/product/ASA_LEARNING_REQUIREMENTS_LEDGER.yaml
-      - docs/product/learning/**
-      - docs/execution/LRN_COURSE_01.md
-      - docs/architecture/ADR-LEARNER-IDENTITY-001.md
-      - contexts/learning/**
-      - apps/api/src/learning-canonical-projection.service.ts
-      - apps/api/src/learning-canonical-projection.service.spec.ts
-      - apps/api/src/classroom-join.controller.ts
-      - apps/api/src/classrooms.controller.ts
-      - apps/api/src/courses.controller.ts
-      - apps/api/src/learning-assessments.controller.ts
-      - apps/api/src/learning-activities.controller.ts
-      - apps/api/src/learning-activities.controller.spec.ts
-      - apps/api/src/app.module.ts
-      - apps/web/src/components/AssignmentBrief.tsx
-      - apps/web/src/components/ClassroomAssignments.tsx
-      - apps/web/src/components/ClassroomCourses.tsx
-      - apps/web/src/components/ClassroomGradebook.tsx
-      - apps/web/src/components/CoursesPanel.tsx
-      - apps/web/src/components/SeatAssignments.tsx
-      - apps/web/src/components/SeatCourses.tsx
-      - apps/web/src/components/SeatResults.tsx
-      - apps/web/src/components/WorkPreview.tsx
-      - apps/web/src/pages/AssignmentLibraryPage.tsx
-      - apps/web/src/pages/AuthoredMaterialsPage.tsx
-      - apps/web/src/pages/AttendedClassesPage.tsx
-      - apps/web/src/pages/ClassroomPage.tsx
-      - apps/web/src/pages/ClassroomStudentPage.tsx
-      - apps/web/src/pages/LearningPage.tsx
-      - e2e/learning-surface-convergence.spec.ts
-      - e2e/artifacts/learning/**
-      - migrations/0086_learning_identity_foundation.sql
-      - migrations/0087_learning_additive_backfill.sql
-      - migrations/0088_learning_m0_006_acceptance_corrections.sql
-      - migrations/0089_learning_canonical_read_projection.sql
-      - migrations/0091_learning_activity_version_convergence.sql
-      - migrations/0092_course_enrollments.sql
-      - migrations/0093_activity_runs.sql
-      - migrations/0094_activity_participations.sql
-      - migrations/0095_learning_audiences.sql
-      - migrations/0096_learning_direct_assignment.sql
-      - migrations/0097_learning_direct_project_attempts.sql
-      - apps/api/src/classroom-join.controller.spec.ts
-      - e2e/learning-learner-submits-project-assignment.spec.ts
-      - schemas/openapi.yaml
-      - tools/migrate.mjs
-      - tools/provision-test-db.mjs
-      - tools/learning-migration-dry-run.mjs
-      - tools/learning-migration-dry-run-v1.schema.json
-      - tools/learning-additive-backfill.mjs
-      - tests/courses/**
+    - docs/product/ASA_INTEGRATED_IMPLEMENTATION_SPEC.md
+    - docs/product/ASA_LEARNING_TECHNICAL_SPEC.md
+    - docs/product/ASA_LEARNING_REQUIREMENTS_LEDGER.yaml
+    - docs/product/learning/**
+    - docs/execution/LRN_COURSE_01.md
+    - docs/architecture/ADR-LEARNER-IDENTITY-001.md
+    - contexts/learning/**
+    - apps/api/src/learning-canonical-projection.service.ts
+    - apps/api/src/learning-canonical-projection.service.spec.ts
+    - apps/api/src/classroom-join.controller.ts
+    - apps/api/src/classrooms.controller.ts
+    - apps/api/src/courses.controller.ts
+    - apps/api/src/learning-assessments.controller.ts
+    - apps/api/src/learning-activities.controller.ts
+    - apps/api/src/learning-activities.controller.spec.ts
+    - apps/api/src/app.module.ts
+    - apps/web/src/components/AssignmentBrief.tsx
+    - apps/web/src/components/ClassroomAssignments.tsx
+    - apps/web/src/components/ClassroomCourses.tsx
+    - apps/web/src/components/ClassroomGradebook.tsx
+    - apps/web/src/components/CoursesPanel.tsx
+    - apps/web/src/components/SeatAssignments.tsx
+    - apps/web/src/components/SeatCourses.tsx
+    - apps/web/src/components/SeatResults.tsx
+    - apps/web/src/components/WorkPreview.tsx
+    - apps/web/src/pages/AssignmentLibraryPage.tsx
+    - apps/web/src/pages/AuthoredMaterialsPage.tsx
+    - apps/web/src/pages/AttendedClassesPage.tsx
+    - apps/web/src/pages/ClassroomPage.tsx
+    - apps/web/src/pages/ClassroomStudentPage.tsx
+    - apps/web/src/pages/LearningPage.tsx
+    - e2e/learning-surface-convergence.spec.ts
+    - e2e/artifacts/learning/**
+    - migrations/0086_learning_identity_foundation.sql
+    - migrations/0087_learning_additive_backfill.sql
+    - migrations/0088_learning_m0_006_acceptance_corrections.sql
+    - migrations/0089_learning_canonical_read_projection.sql
+    - migrations/0091_learning_activity_version_convergence.sql
+    - migrations/0092_course_enrollments.sql
+    - migrations/0093_activity_runs.sql
+    - migrations/0094_activity_participations.sql
+    - migrations/0095_learning_audiences.sql
+    - migrations/0096_learning_direct_assignment.sql
+    - migrations/0097_learning_direct_project_attempts.sql
+    - apps/api/src/classroom-join.controller.spec.ts
+    - e2e/learning-learner-submits-project-assignment.spec.ts
+    - schemas/openapi.yaml
+    - tools/migrate.mjs
+    - tools/provision-test-db.mjs
+    - tools/learning-migration-dry-run.mjs
+    - tools/learning-migration-dry-run-v1.schema.json
+    - tools/learning-additive-backfill.mjs
+    - tests/courses/**
     task:
       id: TASK-LRN-COURSE-001
       issue: 179
@@ -431,32 +431,24 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: e1_archive_restore_reminders_integrated
+      checkpoint: e1_spec_rebaseline_corrections_open
       owner_acceptance: pending
       normative_refs:
-        - document: PRODUCT-INTEGRATED-V14
-          revision: '1.4'
-        - document: LEARNING-MASTER-V21
-          revision: '2.1'
-        - document: IDENTITY-ACCESS-V21
-          revision: '2.1'
-    # Integrated main: PR #224; prior visible slice PR #215; historical refs: docs/review/LRN_E1_BASELINE_ACCEPT_2026_09_13.md
+      - document: PRODUCT-INTEGRATED-V15
+        revision: '1.5'
+      - document: LEARNING-MASTER-V22
+        revision: '2.2'
+      - document: IDENTITY-ACCESS-V22
+        revision: '2.2'
     revisions:
-      convergence_baseline_sha: b963ef828f0e10042adacba4199bba972526c0df
-      head_sha: 220d203c0929cc53a9c88786983a20c8b53227c6
-      product_merge_sha: 220d203c0929cc53a9c88786983a20c8b53227c6
-      observed_at: '2026-09-14T16:34:13+00:00'
+      convergence_baseline_sha: 3a54a9edf58633331fd466b5f46cb2a8c4f5d390
+      head_sha: 3a54a9edf58633331fd466b5f46cb2a8c4f5d390
+      observed_at: '2026-09-17T07:29:57.825Z'
       main:
         branch: main
-        sha: 220d203c0929cc53a9c88786983a20c8b53227c6
-      recovery:
-        branch: recovery/e1-learning-20260913
-        sha: 8ea7771d902d92f5288685a031b134feb353f4cc
-      bounded_review:
-        branch: codex/e1-preview-stabilized-20260913
-        sha: dce140868601b55c9a5449b38012e297c116d8be
-        base_branch: recovery/e1-learning-20260913
-        base_sha: 8ea7771d902d92f5288685a031b134feb353f4cc
+        sha: 3a54a9edf58633331fd466b5f46cb2a8c4f5d390
+      observation_note: Source baseline of documentation rebaseline, not a verified product candidate or installed revision.
+        Previous observations remain in Git history.
     execution_lease:
       executor_id: codex-learning-course-01
       holder: unassigned
@@ -465,17 +457,17 @@ parallel_lanes:
       reviewer_role_requires_lease: false
     gates:
       focused:
-        workflow: ASA Lab Governance and Code Gates
+        workflow: Learning E1 Convergence
         commands:
-          - pnpm test:learning-vs-002
+        - pnpm test:learning-e1
       browser:
-        workflow: ASA Lab Governance and Code Gates
+        workflow: Learning E1 Convergence
         commands:
-          - pnpm e2e:learning-vs-002
+        - pnpm e2e:learning-e1
       general:
         workflow: ASA Lab Governance and Code Gates
         commands:
-          - pnpm gate:repository
+        - pnpm gate:repository
 
 integration:
   owner_lane: visual-programming
@@ -497,5 +489,11 @@ integration:
     - docs/project-map/**
     - docs/testing/**
 
-blocking: []
+blocking:
+  - id: LRN-E1-CORRECTIONS
+    lane: learning
+    task_id: TASK-LRN-COURSE-001
+    blocks: E1 product acceptance and release claim, not unrelated lanes or this documentation update
+    reason: Known E1-FIX-01 through E1-FIX-10 correction/verification requirements remain open
+    evidence: docs/product/ASA_LEARNING_REQUIREMENTS_LEDGER.yaml
 next_task: null

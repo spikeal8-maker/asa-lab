@@ -69,16 +69,36 @@ documents:
     authority: agent_documentation_architecture
     context_role: escalation
     read_when: [documentation_system_change, agent_context_change]
-  - id: PRODUCT-INTEGRATED-V14
+  - id: PRODUCT-INTEGRATED-V15
     path: docs/product/ASA_INTEGRATED_IMPLEMENTATION_SPEC.md
     scope: product
-    lanes: [learning]
+    lanes:
+    - learning
     kind: target
     status: canonical
     authority: integrated_product_delivery
-    revision: '1.4'
+    revision: '1.5'
     context_role: target
-    read_when: [cross_context_product_change, learning_delivery_stage]
+    read_when:
+    - cross_context_product_change
+    - learning_delivery_stage
+
+  - id: PRODUCT-INTEGRATED-V14
+    path: docs/product/ASA_INTEGRATED_IMPLEMENTATION_SPEC_V1_4.md
+    scope: product
+    lanes:
+    - learning
+    kind: target
+    status: superseded
+    authority: none
+    revision: '1.4'
+    context_role: historical
+    read_when:
+    - accepted_result_history_only
+    superseded_by: PRODUCT-INTEGRATED-V15
+    snapshot_sha256: 6a8007ade77e2a58058fe90768f3d7746315b24c5eacd098d22448d01e0b1a02
+    do_not_read_for:
+    - new_implementation
 
   - id: PRODUCT-INTEGRATED-V13
     path: docs/product/ASA_INTEGRATED_IMPLEMENTATION_SPEC_V1_3.md
@@ -90,20 +110,46 @@ documents:
     revision: '1.3'
     context_role: historical
     read_when: [accepted_result_history_only]
-    superseded_by: PRODUCT-INTEGRATED-V14
+    superseded_by: PRODUCT-INTEGRATED-V15
     snapshot_sha256: 155b419eb68f400eb74c39c2d77eb08493237d7ee28a938612974fdd34e99545
     do_not_read_for: [new_implementation]
 
-  - id: IDENTITY-ACCESS-V21
+  - id: IDENTITY-ACCESS-V22
     path: docs/product/ASA_USERS_ACCESS_AND_SETTINGS_SPEC.md
     scope: identity
-    lanes: [admin-auth, learning]
+    lanes:
+    - admin-auth
+    - learning
     kind: target
     status: canonical
     authority: users_access_settings
-    revision: '2.1'
+    revision: '2.2'
     context_role: escalation
-    read_when: [account, student_seat, access, profile, navigation, settings]
+    read_when:
+    - account
+    - student_seat
+    - access
+    - profile
+    - navigation
+    - settings
+
+  - id: IDENTITY-ACCESS-V21
+    path: docs/product/ASA_USERS_ACCESS_AND_SETTINGS_SPEC_V2_1.md
+    scope: identity
+    lanes:
+    - admin-auth
+    - learning
+    kind: target
+    status: superseded
+    authority: none
+    revision: '2.1'
+    context_role: historical
+    read_when:
+    - accepted_result_history_only
+    superseded_by: IDENTITY-ACCESS-V22
+    snapshot_sha256: 0d577ef2eaac0accb02b0ce76e02d2664828ce1708f1480e308729e5ac930ba1
+    do_not_read_for:
+    - new_implementation
 
   - id: IDENTITY-ACCESS-V20
     path: docs/product/ASA_USERS_ACCESS_AND_SETTINGS_SPEC_V2_0.md
@@ -115,7 +161,7 @@ documents:
     revision: '2.0'
     context_role: historical
     read_when: [accepted_result_history_only]
-    superseded_by: IDENTITY-ACCESS-V21
+    superseded_by: IDENTITY-ACCESS-V22
     snapshot_sha256: 1121d062ba8b99f4ba77eaf241a5213d90838d8245755f2d6bc92ffe5ac59ae6
     do_not_read_for: [new_identity_implementation]
 
@@ -162,16 +208,40 @@ documents:
     context_role: compact
     read_when: [learning_any_change]
 
-  - id: LEARNING-MASTER-V21
+  - id: LEARNING-MASTER-V22
     path: docs/product/ASA_LEARNING_TECHNICAL_SPEC.md
     scope: learning
-    lanes: [learning]
+    lanes:
+    - learning
     kind: domain_master
     status: canonical
     authority: learning_semantics
-    revision: '2.1'
+    revision: '2.2'
     context_role: escalation
-    read_when: [learning_domain_change, attempt, submission, assessment, gradebook]
+    read_when:
+    - learning_domain_change
+    - attempt
+    - submission
+    - assessment
+    - gradebook
+
+  - id: LEARNING-MASTER-V21
+    path: docs/product/ASA_LEARNING_TECHNICAL_SPEC_V2_1.md
+    scope: learning
+    lanes:
+    - learning
+    kind: domain_master
+    status: superseded
+    authority: none
+    revision: '2.1'
+    context_role: historical
+    read_when:
+    - accepted_result_history_only
+    superseded_by: LEARNING-MASTER-V22
+    snapshot_sha256: 1c31095aff853452cc31bbcce85d5142e79700e8f147612ed6bae6aa3ef739aa
+    do_not_read_for:
+    - new_implementation
+
   - id: LEARNING-MASTER-V20
     path: docs/product/ASA_LEARNING_TECHNICAL_SPEC_V2_0.md
     scope: learning
@@ -182,7 +252,7 @@ documents:
     revision: '2.0'
     context_role: historical
     read_when: [accepted_result_history_only]
-    superseded_by: LEARNING-MASTER-V21
+    superseded_by: LEARNING-MASTER-V22
     snapshot_sha256: cb4eb424c0dfb497eba2440be35d5119542443dd563ed1c2359592fab6f81ee5
     do_not_read_for: [new_implementation]
 
@@ -359,3 +429,19 @@ documents:
     authority: none
     context_role: historical
     read_when: [documentation_m4_review, delegated_routing_evidence]
+
+  - id: STUDENT-EXPERIENCE-V10
+    path: docs/product/ASA_STUDENT_EXPERIENCE_SPEC.md
+    scope: learning
+    lanes:
+    - learning
+    - admin-auth
+    kind: ui_contract
+    status: supporting
+    authority: none
+    revision: '1.0'
+    context_role: escalation
+    read_when:
+    - student_seat
+    - learner_ui
+    - access_card

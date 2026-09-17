@@ -3,6 +3,8 @@ catalog_id: asa-complete-product-surfaces
 status: normative_candidate
 source_scope: docs/product/ASA_TINKERCAD_100_PERCENT_SCOPE.yaml
 source_blueprint: docs/product/ASA_TARGET_PLATFORM_BLUEPRINT.md
+# StudentSeat actions follow Access 2.2 section 9 and Integrated V1.5;
+# this TARGET atlas and historical R labels are not deployment or test evidence.
 
 actors:
   - anonymous
@@ -99,33 +101,33 @@ surfaces:
     actors: [anonymous, account_creator, registered_student]
     release: R5
     template: PUBLIC
-    implementation: absent
+    implementation: partial
     purpose: Resolve a class code without exposing roster data.
-    primary_actions: [enter_code, open_join_link, continue_to_identity_choice]
+    primary_actions: [enter_code, open_join_link, continue_to_student_code]
     required_states: [loading, populated, validation_error, authorization_denied, server_error]
     screenshot_ids: [join-class-code]
 
   - id: PUB-006
-    name: Join identity choice
+    name: Class preview with separate Account link
     route: /join-class/:joinToken
     actors: [anonymous, account_creator, registered_student]
     release: R5
     template: PUBLIC
-    implementation: absent
-    purpose: Choose assigned StudentSeat handle or registered Account.
+    implementation: partial
+    purpose: Show safe class preview and Student Code input; Account join is a separate link, not a mandatory identity-choice step.
     primary_actions: [studentseat_login, account_login, cancel]
     required_states: [loading, populated, authorization_denied, server_error]
     screenshot_ids: [join-class-choice]
 
   - id: PUB-007
-    name: StudentSeat handle sign-in
+    name: StudentSeat code sign-in
     route: /join-class/:joinToken/student
     actors: [student_seat]
     release: R5
     template: PUBLIC
-    implementation: absent
+    implementation: partial
     purpose: Sign in a learner without email using class-scoped credentials.
-    primary_actions: [submit_handle_credential, show_help]
+    primary_actions: [submit_student_code, show_help]
     required_states: [loading, populated, validation_error, authorization_denied, server_error, success_feedback]
     screenshot_ids: [studentseat-sign-in]
 
@@ -399,9 +401,9 @@ surfaces:
     actors: [educator, co_teacher, school_admin]
     release: R5
     template: CLASSROOM
-    implementation: absent
+    implementation: partial
     purpose: Manage StudentSeats, registered students, Safe Mode, credentials and badges.
-    primary_actions: [add_student, bulk_add, reset_credential, suspend, reactivate, assign_badge, remove_membership]
+    primary_actions: [add_student, bulk_add, access_cards, print_selected_cards, rotate_student_code, suspend, reactivate, assign_badge, remove_membership]
     required_states: [loading, empty, populated, validation_error, authorization_denied, server_error, success_feedback]
     screenshot_ids: [class-roster]
 
@@ -411,11 +413,11 @@ surfaces:
     actors: [educator, co_teacher]
     release: R5
     template: CLASSROOM
-    implementation: absent
-    purpose: Issue one no-email StudentSeat and reveal credentials once.
-    primary_actions: [validate_handle, issue_seat, print_card, show_qr]
+    implementation: partial
+    purpose: Issue one no-email StudentSeat with a six-character Student Code; current cards remain repeat-readable by authorized credential managers.
+    primary_actions: [validate_student_code, issue_seat, reopen_current_card, print_card, show_class_only_qr]
     required_states: [loading, populated, validation_error, authorization_denied, server_error, success_feedback]
-    screenshot_ids: [studentseat-create, studentseat-credential-once]
+    screenshot_ids: [studentseat-create, studentseat-current-access-card]
 
   - id: EDU-007
     name: Bulk StudentSeat issuance
@@ -423,7 +425,7 @@ surfaces:
     actors: [educator, co_teacher]
     release: R5
     template: CLASSROOM
-    implementation: absent
+    implementation: partial
     purpose: Parse, preview and idempotently issue multiple StudentSeats with per-row results.
     primary_actions: [paste_or_import, validate_batch, preview, commit, print_cards]
     required_states: [loading, empty, populated, validation_error, authorization_denied, server_error, success_feedback]
