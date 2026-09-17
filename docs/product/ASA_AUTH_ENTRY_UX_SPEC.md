@@ -253,26 +253,11 @@ Principal/Project ownership не переписываются автоматич
 
 Код нормализуется без учёта пробелов, дефисов и регистра.
 
-### Экран 2 — подтверждение класса
+### Экран 2 — код ученика
 
-После безопасного разрешения кода:
+По Access 2.2 §9: компактные название класса и canonical public имя преподавателя, поле «Код ученика», кнопка «Войти». Email преподавателя не показывается, fallback — «Преподаватель». Отдельный выбор роли/способа на пути StudentSeat не обязателен. Account join доступен отдельной ссылкой.
 
-```text
-Класс: 7Б Робототехника
-Педагог: отображаемое имя
-Организация: если policy разрешает показывать
-
-Как вы будете входить?
-
-[ У меня есть аккаунт ASA Lab ]
-Войти в аккаунт и запросить присоединение к этому классу.
-
-[ У меня данные от преподавателя ]
-Войти без email по своей карточке или запросить подтверждение входа.
-```
-
-До подтверждения membership не создаётся. Общий код не выдаёт список учеников,
-чужие профили, приватные работы или staff permissions.
+QR текущего класса ведёт на https://asa-lab.ru/ и сразу показывает этот второй шаг, без повторного «Продолжить». QR не содержит Student Code. Ручной путь по прежнему содержит только Class Code и Student Code. Общий код не выдаёт roster/чужие работы/staff permissions.
 
 ### Ветвь Account
 
@@ -286,25 +271,9 @@ universal sign-in
 
 ### Ветвь StudentSeat
 
-```text
-login handle + individual secret
-OR
-short-lived browser-bound challenge → teacher approves this exact login
-→ StudentSeat session
-→ собственное обучение и разрешённые учебные работы
-```
+Class Code → индивидуальный шестисимвольный Student Code → scoped session → собственное обучение. Никакого отдельного login handle + secret, email или видимой CAPTCHA. RNG, массовый вход 30 учеников с одного адреса, repeated readback/print и ротация определяются Access 2.2 §9 и Integrated V1.5 §4.6. Teacher-approved login — отдельно выбираемый будущий preset, не обязательный шаг базового входа.
 
-Режим подтверждения входа не показывается как «без пароля», пока защищённый flow
-не реализован. Общий код с угадываемым именем или один пароль на весь класс не
-являются целевым индивидуальным входом. Параметры credentials определяет принятый
-security profile. Переход со старого способа выполняется совместимо, с выдачей
-новых карточек/восстановлением, а не внезапной блокировкой детей.
-
-Ошибки не раскрывают, существует ли конкретный login handle в roster. Успешная
-аутентификация профиля не означает создание Attempt или активацию всех его
-Enrollment/Participation. Режим оценивания задаётся назначением, не наличием
-личного Account. При последующем linking отзыв старого credential не является
-выводом ученика из класса.
+Имя ребёнка не credential. Ошибка не раскрывает существование конкретного Seat. Login не создаёт Attempt и не активирует все Participation. Смена credential не выводит ребёнка из обучения и не переписывает его историю.
 
 ---
 
@@ -484,7 +453,7 @@ tenant/RLS или создание фиктивной публичной шко�
 A. adult visitor → sign-up route
 B. existing creator → universal sign-in
 C. existing educator → same universal sign-in → Classes visible from server grant
-D. student with class code → class preview → individual credential/approved challenge login
+D. student with class code → class preview → six-character Student Code login (Access 2.2 §9)
 E. registered student → same universal sign-in → confirmed learner join from code route
 F. underage sign-up → student-account/class-code options
 G. legacy organization account → separate compatibility link

@@ -52,6 +52,8 @@ run "$PYTHON" tools/test_validate_document_registry.py
 run "$PYTHON" tools/validate_document_registry.py
 run "$PYTHON" tools/test_validate_task_document_refs.py
 run "$PYTHON" tools/validate_task_document_refs.py
+run "$PYTHON" tools/test_validate_learning_spec_rebaseline.py
+run "$PYTHON" tools/validate_learning_spec_rebaseline.py
 run "$PYTHON" tools/test_validate_agent_maintenance_docs.py
 run "$PYTHON" tools/validate_agent_maintenance_docs.py
 run "$PYTHON" tools/test_agent_recover.py

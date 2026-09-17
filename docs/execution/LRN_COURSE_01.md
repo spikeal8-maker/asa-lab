@@ -1,73 +1,34 @@
-# LRN-COURSE-01 — execution note
+# LRN-COURSE-01 — исполнение и исправления E1
 
-**Product result:** `LRN-COURSE-01`  
-**Execution task:** `TASK-LRN-COURSE-001`  
-**Issue:** #179  
-**Policy:** direct development in `main`; production is not authorized by this task.  
-**Baseline at activation:** `b963ef828f0e10042adacba4199bba972526c0df`.
+Этот файл — постоянный пакет выполнения, не источник status/checkpoint/SHA. Выбранная работа находится только в `current.yaml`, lane learning; продуктовый scope связан с Issue #179. Doc rebaseline не является приёмкой кода и не разрешает deployment.
 
-## Owner authorization
+## Прочитать
 
-Owner accepted Integrated Implementation Spec V1.3 and authorized the next development step: the full E1 result. This authorizes related DB/API/OpenAPI/UI/test/documentation changes inside E1 under repository policy. It does not authorize E2–E6, production deployment, destructive persistence changes, a new tenant/RLS model, or new subject kernels.
+`AGENTS.md` → `agent:recover --scope learning --check` → `agent:context --scope learning` → выбранный E1-FIX-ID в Requirements Ledger → Integrated V1.5 §4 и точные разделы Learning/Access 2.2. Архив не загружается без конкретного исторического вопроса.
 
-## Read first
+## Цель
 
-1. `AGENTS.md`
-2. `START_HERE_FOR_AI.md`
-3. `pnpm agent:context --scope learning`
-4. `docs/product/ASA_INTEGRATED_IMPLEMENTATION_SPEC.md` — especially §§0–4, 10–18, 20
-5. relevant sections of `ASA_LEARNING_TECHNICAL_SPEC.md`
-6. relevant actor/permission/UI sections of `ASA_USERS_ACCESS_AND_SETTINGS_SPEC.md`
-7. Issue #179
+Один законченный курс от автора и законной выдачи доступа до exact project Submission, review/revision и canonical Gradebook. Существующие identity/runtime/projections переиспользуются, но факт их существования не освобождает от negative/retry/concurrent тестов. Успешный старый CI не отменяет найденные дефекты.
 
-Do not reread the entire historical V3/M0/M1 archive unless a concrete compatibility question requires it.
+## Порядок ограниченных срезов
 
-## Starting checkpoint
+1. E1-FIX-01…03: массовый StudentSeat-вход с одного IP, непредсказуемые короткие коды и защищённый repeated readback, правильный class-only QR/публичный host.
+2. E1-FIX-04…05: защита всей навигации и inflight editor input, idempotent publish после lost response.
+3. E1-FIX-06…08: concrete structural/policy diff, точные prepublish errors и корректный legacy-picker, atomic archive/assign.
+4. E1-FIX-09: согласованность active docs и реально запускаемых regression cases; выполняется вместе с соответствующим срезом, без второго отчётного состояния.
+5. E1-FIX-10: exact product candidate, независимый review по policy, полные требуемые gates, owner-visible synthetic journey; deployment и smoke asa-lab.ru отдельно разрешаются и фиксируются.
+6. После функциональной приёмки — отдельный visual convergence библиотеки/курса/класса. Читаемость, доступность CTA и сохранность не считаются отложенной косметикой.
 
-`e1_authorized_spec_integrated_delta_review`
+Порядок — не разрешение исполнителю автоматически проходить все пункты за один запуск. Выбирается один законченный user transition. Product code, docs-only correction и server update не смешиваются в отчёте.
 
-The first implementation action is not another global audit. Address-check the current delta around:
-- authored material/library and course builder;
-- current course assignment/run endpoints;
-- learner Account/StudentSeat paths;
-- project save/submit;
-- review/result/gradebook;
-- current class/credential lifecycle;
-- current notification/event infrastructure and Home attention projections.
+## Приёмка среза
 
-Reuse correct components. Record only concrete gaps relative to E1 and start with a whole user transition.
+Сначала воспроизвести проблему на baseline либо записать source-only hypothesis. Regression должен падать по требуемой причине до исправления. После repair: happy path, соседний forbidden scope, retry/lost response, concurrent/stale state, сохранение истории. E1-FIX-08 не объявляется фактически проявившимся инцидентом без воспроизведения.
 
-## Recommended implementation order
+Использовать существующие `pnpm test:learning-e1`, `pnpm e2e:learning-e1` и Access-A по затронутому пути. Полный `pnpm gate:repository` требует настоящей изолированной БД; отсутствие БД нельзя назвать PASS. Doc-only проверка использует governance и свой semantic-doc validator. Планируемые случаи в ledger не выдаются за выполненные тесты.
 
-Owner amendment 2026-09-16: **functional completeness first, final course/layout polish second**. Do not spend the next slice broadly re-laying out Course Builder while a required action is absent.
+## Финальная граница
 
-1. **Student entry closure — IMPLEMENTED:** #271 public teacher name/no email, compact QR/deep-link second step and StudentSeat `Главная`; #272 compact `Asolab.ru` access cards with class-only QR straight to `Код ученика`. Evidence: migrations `0142`/`0143`, Access-A DB/browser acceptance.
-2. **Course authoring closure — IMPLEMENTED:** `0145` replaces ordinary hard delete with archive/restore, adds exact prepublish diagnostics, structural published-version comparison, dirty-navigation/revision safety and capability-aware author/teacher controls. Archived courses cannot be selected for new class delivery.
-3. **Integrated academic path — PRESERVED/LOCALLY VERIFIED:** exact CourseVersion → CourseRun → Participation → save → immutable submit → review/return → resubmit → selected result/correction; whole/named/late-join and 30×10 gradebook remain the existing runtime rather than a new implementation.
-4. **Final E1 candidate acceptance — CURRENT:** mixed-data/upgrade, negative access and browser journeys are locally green; exact-head repository/CI gate, owner-visible walkthrough and final ledger/evidence alignment remain before owner acceptance.
-5. **Visual convergence pass — NEXT ONLY AFTER ACCEPTANCE:** bring `Курсы и задания`, Course Builder and Class workspace to the final visual hierarchy/tabs/spacing without inventing backend behavior or reopening completed functional slices.
+Все критерии Integrated §4.15 плюс применимые E1-FIX scenarios должны иметь exact evidence. Без правильного домена, работающего NAT-входа, защищённого draft и достоверного retry кандидат не принят. Владелец отдельно принимает демонстрацию; сервер обновляется только по прямому поручению. После deployment проверяются Web/API SHA, схема и разрешённый полный user journey именно на https://asa-lab.ru/.
 
-E2–E6 remain separate later stages; this E1 authorization does not automatically start Question Bank/Quiz/autograder/self-study/collaboration/organization work.
-
-## Do not do
-
-- no second Auth/RBAC/Learning/Gradebook engine;
-- no hidden `100/60`;
-- no hard-delete academic history;
-- no SQL fixture for the exact user action being accepted;
-- no full Quiz Engine/essay/file/rubric;
-- no self-study/linking;
-- no new collaboration/org dashboards;
-- no waitlist;
-- no general redesign of Electronics/3D;
-- no production update.
-
-## Execution-state boundary
-
-This file is a static scope/task package. Do **not** update current checkpoint,
-status, head SHA, gate outcomes or blockers here. Those values live only in
-`docs/execution/current.yaml` and executable CI/evidence.
-
-Implementation details that become durable product rules belong in the canonical
-product/domain contracts. Temporary progress belongs in Git/CI or explicit review
-evidence, not in this package.
+E2–E6, посещаемость, новая RLS/tenant модель, предметные ядра и массовая очистка старых миграций не входят в этот пакет исправлений. ТЗ по следующим стадиям сохраняется; следующее разрешение не выводится из зелёного предыдущего теста.

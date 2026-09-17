@@ -115,8 +115,7 @@ Minimum fields:
 id
 classroomId
 displayLabel
-loginHandle
-normalizedLoginHandle
+studentCode (six characters; legacy loginHandle is a storage compatibility slot)
 credentialVersion
 safeMode
 status
@@ -125,7 +124,7 @@ createdBy
 createdAt
 ```
 
-No email is required. Plain credentials are shown only at issuance/print time and are not stored recoverably.
+No email is required. Access 2.2 §9 supersedes the former one-time card design: the current six-character Student Code is repeat-readable/printable only by the authorized class credential manager, using protected recoverable storage. Printing does not rotate codes or sessions. Codes must not be derived from public names/UUIDs.
 
 ### 5.1 Bulk provisioning
 
@@ -137,7 +136,7 @@ Bulk provisioning must include:
 - preview before commit;
 - deterministic per-row errors/results;
 - idempotent retry behaviour;
-- printable/QR credential output.
+- repeat-printable cards with asa-lab.ru label and class-only QR on https://asa-lab.ru, never Student Code in QR.
 
 ## 6. Class code and join
 
@@ -158,17 +157,16 @@ Flow:
 enter link/code
 → resolve class
 → show class identity
-→ choose:
-   - assigned StudentSeat handle
-   - existing registered account
-→ confirm
-→ create membership/session
+→ enter Student Code
+→ create scoped StudentSeat session
+
+Account join remains a separate authenticated/approved path, not an extra mandatory Seat step.
 ```
 
 Requirements:
 
 - accept equivalent formatting with spaces/dashes/case normalization;
-- store only a hash of the secret token;
+- class join tokens retain their own protected storage; current Student Code readback follows Access 2.2 §9;
 - support rotation and revocation;
 - rate-limit attempts;
 - avoid roster enumeration;
@@ -181,7 +179,7 @@ Required columns:
 ```text
 learner
 principal type
-login handle
+Student Code (credential managers only)
 last active
 badges
 Safe Mode

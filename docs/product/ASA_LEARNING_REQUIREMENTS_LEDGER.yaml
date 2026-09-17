@@ -1,7 +1,7 @@
 schema_version: '1.0'
 document: docs/product/ASA_LEARNING_TECHNICAL_SPEC.md
-purpose: Machine-readable ledger of critical ASA Learning requirements. Full MUST
-  set remains in master spec; milestone execution specs extend this ledger.
+purpose: 'Critical requirement ledger. Normative target: Integrated V1.5, Learning/Access 2.2. This is coverage,
+  not automatic proof of implementation or live acceptance.'
 status_values:
 - target
 - in_progress
@@ -9,67 +9,97 @@ status_values:
 - proven
 - deferred
 - blocked
+verification_policy:
+  listed_test_files_are_not_execution_receipts: true
+  planned_scenarios_are_not_executed_tests: true
+  implementation_and_verification_are_separate: true
+  live_origin: https://asa-lab.ru
+  scope_of_this_revision: documentation_only; runtime defects remain open
 requirements:
 - id: INT-E1-01
   milestone: E1
-  status: implemented
-  summary: "Единая библиотека автора/преподавателя: create/open/edit/save/publish + normal archive/restore + capability-aware actions; final visual layout remains a separate pass"
+  status: in_progress
+  summary: 'Единая библиотека автора/преподавателя: create/open/edit/save/publish + normal archive/restore + capability-aware
+    actions; final visual layout remains a separate pass'
   evidence:
   - migrations/0145_course_authoring_closure.sql
   - apps/api/src/courses.controller.ts
   - apps/web/src/components/CoursesPanel.tsx
   - apps/web/src/components/ClassroomCourses.tsx
+  - docs/review/LRN_E1_SPEC_REBASELINE_2026_09_17.md
   tests:
   - tests/courses/course-authoring-closure.pg.spec.ts
   - e2e/access-a.spec.ts
   - e2e/learning-course-01.spec.ts
+  verification_scope: Implementation entry only; listed files are not proof that every acceptance scenario ran.
+  open_corrections:
+  - E1-FIX-07
+  - E1-FIX-08
 - id: INT-E1-02
   milestone: E1
-  status: implemented
-  summary: "Course builder: разделы, уроки, теория, project blocks, порядок/свойства + dirty-navigation/revision safety + structural published-version comparison; final re-layout remains deferred"
+  status: in_progress
+  summary: 'Course builder: разделы, уроки, теория, project blocks, порядок/свойства + dirty-navigation/revision
+    safety + structural published-version comparison; final re-layout remains deferred'
   evidence:
   - apps/web/src/components/CoursesPanel.tsx
   - apps/web/src/components/AuthorVersionHistory.tsx
   - apps/web/src/components/course-version-diff.ts
+  - docs/review/LRN_E1_SPEC_REBASELINE_2026_09_17.md
   tests:
   - tests/courses/course-version-diff.spec.ts
   - e2e/learning-course-01.spec.ts
+  verification_scope: Implementation entry only; listed files are not proof that every acceptance scenario ran.
+  open_corrections:
+  - E1-FIX-04
+  - E1-FIX-06
 - id: INT-E1-03
   milestone: E1
-  status: implemented
-  summary: "Связанный выпуск activity+course: exact prepublish errors for concrete section/lesson/block/activity source + preview without Attempt"
+  status: in_progress
+  summary: 'Связанный выпуск activity+course: exact prepublish errors for concrete section/lesson/block/activity
+    source + preview without Attempt'
   evidence:
   - migrations/0145_course_authoring_closure.sql
   - apps/api/src/courses.controller.ts
+  - docs/review/LRN_E1_SPEC_REBASELINE_2026_09_17.md
   tests:
   - tests/courses/course-authoring-closure.pg.spec.ts
   - e2e/learning-course-01.spec.ts
   - e2e/learning-author-preview.spec.ts
+  verification_scope: Implementation entry only; listed files are not proof that every acceptance scenario ran.
+  open_corrections:
+  - E1-FIX-05
+  - E1-FIX-07
 - id: INT-E1-04
   milestone: E1
-  status: implemented
-  summary: "Назначение exact published course и отдельного проекта: whole/named, сроки, режимы"
+  status: in_progress
+  summary: 'Назначение exact published course и отдельного проекта: whole/named, сроки, режимы'
   evidence:
   - migrations/0108_direct_canonical_material_assignment.sql
   - migrations/0109_course_runtime_materialization.sql
   - migrations/0131_learning_named_audience_controls.sql
   - apps/api/src/courses.controller.ts
+  - docs/review/LRN_E1_SPEC_REBASELINE_2026_09_17.md
   tests:
   - tests/courses/learning-direct-project-attempts.pg.spec.ts
   - e2e/learning-course-01.spec.ts
+  verification_scope: Implementation entry only; listed files are not proof that every acceptance scenario ran.
+  open_corrections:
+  - E1-FIX-08
 - id: INT-E1-05
   milestone: E1
   status: implemented
-  summary: "Законный Account join: «Моё обучение → Войти по коду» + «Класс → Запросы»"
+  summary: 'Законный Account join: «Моё обучение → Войти по коду» + «Класс → Запросы»'
   evidence:
   - migrations/0119_classroom_account_join_approval.sql
   tests:
   - tests/courses/learning-direct-project-attempts.pg.spec.ts
   - e2e/learning-course-01.spec.ts
+  verification_scope: Implementation entry only; listed files are not proof that every acceptance scenario ran.
 - id: INT-E1-06
   milestone: E1
-  status: implemented
-  summary: "StudentSeat access complete for E1: Class Code + 6-char Student Code, repeat-print/rotation/history, public-safe teacher name, Главная navigation and compact Asolab.ru class-QR cards"
+  status: in_progress
+  summary: Short-code flow, repeat cards and home exist; NAT admission, unpredictable credentials/readback and correct
+    public QR remain open acceptance corrections.
   evidence:
   - migrations/0142_student_seat_short_codes.sql
   - migrations/0143_student_seat_public_teacher_name.sql
@@ -79,26 +109,34 @@ requirements:
   - apps/web/src/components/StudentAccessCards.tsx
   - apps/web/src/components/StudentCodeDialog.tsx
   - apps/web/src/creator-portal/navigation.ts
+  - docs/review/LRN_E1_SPEC_REBASELINE_2026_09_17.md
   tests:
   - tests/account/access-a.pg.spec.ts
   - tests/account/access-a-upgrade.pg.spec.ts
   - tests/portal/portal-api.spec.ts
   - e2e/access-a.spec.ts
-  - e2e/classroom-management.spec.ts
+  verification_scope: Implementation entry only; listed files are not proof that every acceptance scenario ran.
+  open_corrections:
+  - E1-FIX-01
+  - E1-FIX-02
+  - E1-FIX-03
+  legacy_test_references:
+  - 'e2e/classroom-management.spec.ts: outdated navigation; not proof of current StudentSeat acceptance'
 - id: INT-E1-07
   milestone: E1
   status: implemented
-  summary: "Dynamic late join / explicit named changes / leave"
+  summary: Dynamic late join / explicit named changes / leave
   evidence:
   - migrations/0095_learning_audiences.sql
   - migrations/0131_learning_named_audience_controls.sql
   tests:
   - tests/courses/learning-audiences.pg.spec.ts
   - e2e/learning-course-01.spec.ts
+  verification_scope: Implementation entry only; listed files are not proof that every acceptance scenario ran.
 - id: INT-E1-08
   milestone: E1
   status: implemented
-  summary: "Общие effective settings/UTC, attempt limit/allowance и late policy"
+  summary: Общие effective settings/UTC, attempt limit/allowance и late policy
   evidence:
   - migrations/0114_learning_revision_attempt_budget.sql
   - migrations/0118_learning_effective_conditions_commands.sql
@@ -106,49 +144,54 @@ requirements:
   tests:
   - tests/courses/learning-direct-project-attempts.pg.spec.ts
   - e2e/learning-course-01.spec.ts
+  verification_scope: Implementation entry only; listed files are not proof that every acceptance scenario ran.
 - id: INT-E1-09
   milestone: E1
   status: implemented
-  summary: "Start/resume/save/submit Electronics и 3D"
+  summary: Start/resume/save/submit Electronics и 3D
   evidence:
   - migrations/0110_learning_exact_project_submission.sql
   tests:
   - tests/courses/learning-direct-project-attempts.pg.spec.ts
   - e2e/learning-course-01.spec.ts
+  verification_scope: Implementation entry only; listed files are not proof that every acceptance scenario ran.
 - id: INT-E1-10
   milestone: E1
   status: implemented
-  summary: "«Работа → Проверка»: read-only точная Submission и pinned evidence"
+  summary: '«Работа → Проверка»: read-only точная Submission и pinned evidence'
   evidence:
   - migrations/0110_learning_exact_project_submission.sql
   - migrations/0115_learning_teacher_review_context.sql
   tests:
   - tests/courses/learning-direct-project-attempts.pg.spec.ts
   - e2e/learning-course-01.spec.ts
+  verification_scope: Implementation entry only; listed files are not proof that every acceptance scenario ran.
 - id: INT-E1-11
   milestone: E1
   status: implemented
-  summary: "Review canonical submitted; resultMode semantics; корректная очередь"
+  summary: Review canonical submitted; resultMode semantics; корректная очередь
   evidence:
   - migrations/0124_learning_review_command_boundary.sql
   - migrations/0125_learning_results_and_grade_scale.sql
   tests:
   - tests/courses/learning-direct-project-attempts.pg.spec.ts
   - e2e/learning-course-01.spec.ts
+  verification_scope: Implementation entry only; listed files are not proof that every acceptance scenario ran.
 - id: INT-E1-12
   milestone: E1
   status: implemented
-  summary: "Return/revision, корректировка результата с причиной и expected revision"
+  summary: Return/revision, корректировка результата с причиной и expected revision
   evidence:
   - migrations/0112_learning_result_revisions.sql
   - migrations/0133_learning_attempt_lifecycle_convergence.sql
   tests:
   - tests/courses/learning-direct-project-attempts.pg.spec.ts
   - e2e/learning-course-01.spec.ts
+  verification_scope: Implementation entry only; listed files are not proof that every acceptance scenario ran.
 - id: INT-E1-13
   milestone: E1
   status: implemented
-  summary: "Graded selection и pinned шкала без скрытого 100/60"
+  summary: Graded selection и pinned шкала без скрытого 100/60
   evidence:
   - migrations/0084_grade_scales_and_learner_results.sql
   - migrations/0113_learning_selected_result_projection.sql
@@ -156,28 +199,31 @@ requirements:
   tests:
   - tests/courses/learning-direct-project-attempts.pg.spec.ts
   - e2e/learning-course-01.spec.ts
+  verification_scope: Implementation entry only; listed files are not proof that every acceptance scenario ran.
 - id: INT-E1-14
   milestone: E1
   status: implemented
-  summary: "«Журнал»: learner × ActivityRun, фильтр курса/поиск, открыть сдачу/историю/correction"
+  summary: '«Журнал»: learner × ActivityRun, фильтр курса/поиск, открыть сдачу/историю/correction'
   evidence:
   - migrations/0134_learning_gradebook_projection_sync.sql
   - apps/web/src/components/ClassroomGradebook.tsx
   tests:
   - tests/courses/learning-surface-convergence.pg.spec.ts
   - e2e/learning-course-01.spec.ts
+  verification_scope: Implementation entry only; listed files are not proof that every acceptance scenario ran.
 - id: INT-E1-15
   milestone: E1
   status: implemented
-  summary: "Теория completion + обязательная принятая практика; понятное недостающее"
+  summary: Теория completion + обязательная принятая практика; понятное недостающее
   evidence:
   - migrations/0132_learning_course_completion_denominator.sql
   tests:
   - e2e/learning-course-01.spec.ts
+  verification_scope: Implementation entry only; listed files are not proof that every acceptance scenario ran.
 - id: INT-E1-16
   milestone: E1
   status: implemented
-  summary: "In-app события, минимальные настройки оповещений и reminder separation"
+  summary: In-app события, минимальные настройки оповещений и reminder separation
   evidence:
   - migrations/0120_learning_in_app_notifications.sql
   - migrations/0121_learning_notification_preferences.sql
@@ -185,27 +231,319 @@ requirements:
   tests:
   - tests/courses/learning-direct-project-attempts.pg.spec.ts
   - e2e/learning-course-01.spec.ts
+  verification_scope: Implementation entry only; listed files are not proof that every acceptance scenario ran.
 - id: INT-E1-17
   milestone: E1
-  status: implemented
-  summary: "Mixed-data/legacy bridge preserves historical projects/courses/results through additive upgrades"
+  status: in_progress
+  summary: Mixed-data/legacy bridge preserves historical projects/courses/results through additive upgrades
   evidence:
   - migrations/0087_learning_additive_backfill.sql
   - migrations/0134_learning_gradebook_projection_sync.sql
   - migrations/0145_course_authoring_closure.sql
+  - docs/review/LRN_E1_SPEC_REBASELINE_2026_09_17.md
   tests:
   - tests/courses/learning-course-upgrade.pg.spec.ts
   - tests/account/access-a-upgrade.pg.spec.ts
   - tests/courses/author-draft-upgrade.pg.spec.ts
+  verification_scope: Implementation entry only; listed files are not proof that every acceptance scenario ran.
+  open_corrections:
+  - E1-FIX-02
 - id: INT-E1-18
   milestone: E1
   status: in_progress
-  summary: "Функциональный E1 candidate локально зелёный; остаются exact-head CI, owner-visible walkthrough/acceptance и отдельное решение о deployment. Финальный visual convergence выполняется отдельным последующим pass."
+  summary: 'E1 acceptance remains open: correction regressions, exact candidate review, owner demonstration and
+    separately authorized live deployment verification. Historical green CI is not defect closure.'
   evidence:
   - docs/execution/LRN_COURSE_01.md
+  - docs/review/LRN_E1_SPEC_REBASELINE_2026_09_17.md
   tests:
   - e2e/access-a.spec.ts
   - e2e/learning-course-01.spec.ts
+  verification_scope: Implementation entry only; listed files are not proof that every acceptance scenario ran.
+  open_corrections:
+  - E1-FIX-01
+  - E1-FIX-02
+  - E1-FIX-03
+  - E1-FIX-04
+  - E1-FIX-05
+  - E1-FIX-06
+  - E1-FIX-07
+  - E1-FIX-08
+  - E1-FIX-09
+  - E1-FIX-10
+- id: E1-FIX-01
+  milestone: E1
+  status: in_progress
+  priority: P1
+  summary: Mass StudentSeat entry and anti-abuse
+  normative_ref: PRODUCT-INTEGRATED-V15 §4.16
+  source_paths:
+  - apps/api/src/classroom-join.controller.ts
+  - apps/api/src/rate-limit.ts
+  evidence:
+  - docs/review/LRN_E1_SPEC_REBASELINE_2026_09_17.md
+  tests:
+  - tests/security/auth-rate-limit.spec.ts
+  - apps/api/src/classroom-join.controller.spec.ts
+  verification:
+    source_sha: 3a54a9edf58633331fd466b5f46cb2a8c4f5d390
+    method: component_reproduced
+    observed_result: 15/30 sequential two-step entries; 30 resolves then 0 logins with current limiter.
+    product_fix_verified: false
+    authenticated_live_journey: not_run
+  planned_scenarios:
+  - NAT-SEQ-30
+  - NAT-PARALLEL-30
+  - NAT-QR-30
+  - NAT-TYPOS-RECOVERY
+  - ABUSE-BOUNDED-NO-CLASS-DOS
+- id: E1-FIX-02
+  milestone: E1
+  status: in_progress
+  priority: P1
+  summary: Cryptographically random codes, authorized protected readback and controlled legacy rotation
+  normative_ref: PRODUCT-INTEGRATED-V15 §4.16
+  source_paths:
+  - migrations/0142_student_seat_short_codes.sql
+  - apps/api/src/classrooms.controller.ts
+  evidence:
+  - docs/review/LRN_E1_SPEC_REBASELINE_2026_09_17.md
+  tests:
+  - tests/account/access-a.pg.spec.ts
+  - tests/account/access-a-upgrade.pg.spec.ts
+  verification:
+    source_sha: 3a54a9edf58633331fd466b5f46cb2a8c4f5d390
+    method: source_review
+    observed_result: 0142 derives codes from public/identifying seed and retains raw code in login_handle; no exploitation
+      or rotation attempted.
+    product_fix_verified: false
+    authenticated_live_journey: not_run
+  planned_scenarios:
+  - RNG-SOURCE
+  - SINGLE-BATCH-PARITY
+  - BATCH-REPLAY-STABLE
+  - BATCH-CONCURRENT-UNIQUE
+  - CODE-READBACK-AUTHZ
+  - ROTATION-HISTORY-UNCHANGED
+  - PREDICTABLE-CODE-UPGRADE
+- id: E1-FIX-03
+  milestone: E1
+  status: in_progress
+  priority: P1
+  summary: Correct public hostname and actual class-only QR
+  normative_ref: PRODUCT-INTEGRATED-V15 §4.16
+  source_paths:
+  - apps/web/src/components/StudentAccessCards.tsx
+  - apps/web/src/components/ClassJoinQr.tsx
+  - apps/web/src/pages/JoinClassPage.tsx
+  evidence:
+  - docs/review/LRN_E1_SPEC_REBASELINE_2026_09_17.md
+  tests:
+  - e2e/access-a.spec.ts
+  verification:
+    source_sha: 3a54a9edf58633331fd466b5f46cb2a8c4f5d390
+    method: source_review
+    observed_result: Card source and test expect wrong host; actual independent QR decoding and physical print/scan
+      not run.
+    product_fix_verified: false
+    authenticated_live_journey: not_run
+  planned_scenarios:
+  - QR-INDEPENDENT-DECODE-ORIGIN
+  - QR-NO-STUDENT-CODE
+  - QR-ROTATED-CLASS
+  - MANUAL-JOIN
+  - A4-30-CARDS
+  - CAMERA-SCAN-MANUAL
+- id: E1-FIX-04
+  milestone: E1
+  status: in_progress
+  priority: P1
+  summary: Draft safety across parent navigation and asynchronous save
+  normative_ref: PRODUCT-INTEGRATED-V15 §4.16
+  source_paths:
+  - apps/web/src/components/CoursesPanel.tsx
+  - apps/web/src/pages/AssignmentLibraryPage.tsx
+  evidence:
+  - docs/review/LRN_E1_SPEC_REBASELINE_2026_09_17.md
+  tests:
+  - e2e/learning-course-01.spec.ts
+  verification:
+    source_sha: 3a54a9edf58633331fd466b5f46cb2a8c4f5d390
+    method: source_review
+    observed_result: Parent selectTab unmounts editor; save acknowledgment generation needs delayed-input regression.
+    product_fix_verified: false
+    authenticated_live_journey: not_run
+  planned_scenarios:
+  - DIRTY-PARENT-TAB
+  - DIRTY-GLOBAL-ROUTE
+  - DIRTY-BROWSER-BACK-RELOAD
+  - SAVE-DISCARD-CANCEL
+  - SAVE-A-TYPE-B-ACK-A
+  - SAVE-FAILURE
+  - STRUCTURE-DIRTY-CONFLICT
+- id: E1-FIX-05
+  milestone: E1
+  status: in_progress
+  priority: P1
+  summary: Replay publication after successful commit and lost response
+  normative_ref: PRODUCT-INTEGRATED-V15 §4.16
+  source_paths:
+  - migrations/0145_course_authoring_closure.sql
+  - migrations/0111_course_authoring_revision.sql
+  - migrations/0137_author_draft_from_published_version.sql
+  - apps/api/src/courses.controller.ts
+  evidence:
+  - docs/review/LRN_E1_SPEC_REBASELINE_2026_09_17.md
+  tests:
+  - tests/courses/course-authoring-closure.pg.spec.ts
+  - apps/api/src/courses.controller.spec.ts
+  verification:
+    source_sha: 3a54a9edf58633331fd466b5f46cb2a8c4f5d390
+    method: source_review
+    observed_result: v3 revision precheck precedes v2 receipt lookup; publication updates revision. DB reproduction
+      not run in doc slice.
+    product_fix_verified: false
+    authenticated_live_journey: not_run
+  planned_scenarios:
+  - PUBLISH-LOST-RESPONSE-REPLAY
+  - PUBLISH-KEY-PAYLOAD-CONFLICT
+  - PUBLISH-CONCURRENT-SAME-KEY
+  - PUBLISH-REVOKED-ACTOR
+- id: E1-FIX-06
+  milestone: E1
+  status: in_progress
+  priority: P2
+  summary: Exact structural and pinned-policy comparison
+  normative_ref: PRODUCT-INTEGRATED-V15 §4.16
+  source_paths:
+  - apps/web/src/components/course-version-diff.ts
+  - apps/web/src/components/AuthorVersionHistory.tsx
+  - migrations/0107_course_canonical_material_pins.sql
+  evidence:
+  - docs/review/LRN_E1_SPEC_REBASELINE_2026_09_17.md
+  tests:
+  - tests/courses/course-version-diff.spec.ts
+  verification:
+    source_sha: 3a54a9edf58633331fd466b5f46cb2a8c4f5d390
+    method: component_reproduced
+    observed_result: Synthetic maxAttempts change with changed pin yields only assignment category; historical API
+      pair not exercised.
+    product_fix_verified: false
+    authenticated_live_journey: not_run
+  planned_scenarios:
+  - DIFF-POLICY-ONLY
+  - DIFF-BLOCK-ADD-REMOVE-MOVE
+  - DIFF-EXACT-BEFORE-AFTER
+  - DIFF-MISSING-HISTORICAL-POLICY
+- id: E1-FIX-07
+  milestone: E1
+  status: in_progress
+  priority: P2
+  summary: Structured prepublish diagnostics and legacy selection consistency
+  normative_ref: PRODUCT-INTEGRATED-V15 §4.16
+  source_paths:
+  - migrations/0145_course_authoring_closure.sql
+  - apps/api/src/courses.controller.ts
+  - apps/web/src/components/CoursesPanel.tsx
+  evidence:
+  - docs/review/LRN_E1_SPEC_REBASELINE_2026_09_17.md
+  tests:
+  - tests/courses/course-authoring-closure.pg.spec.ts
+  - e2e/learning-course-01.spec.ts
+  verification:
+    source_sha: 3a54a9edf58633331fd466b5f46cb2a8c4f5d390
+    method: source_review
+    observed_result: SQL identifies lesson; API flattens structured issue; legacy options still available.
+    product_fix_verified: false
+    authenticated_live_journey: not_run
+  planned_scenarios:
+  - VALIDATE-SECOND-BLOCK-PATH
+  - VALIDATE-FOCUS-FIELD
+  - VALIDATE-PIN-ASSET-MODULE
+  - LEGACY-PICKER-EXPLAINS-REFUSAL
+- id: E1-FIX-08
+  milestone: E1
+  status: in_progress
+  priority: P1
+  summary: Atomic archive and delivery concurrency contract
+  normative_ref: PRODUCT-INTEGRATED-V15 §4.16
+  source_paths:
+  - apps/api/src/courses.controller.ts
+  - migrations/0145_course_authoring_closure.sql
+  evidence:
+  - docs/review/LRN_E1_SPEC_REBASELINE_2026_09_17.md
+  tests:
+  - tests/courses/course-authoring-closure.pg.spec.ts
+  - tests/courses/course-canonical-delivery.pg.spec.ts
+  verification:
+    source_sha: 3a54a9edf58633331fd466b5f46cb2a8c4f5d390
+    method: concurrency_risk_from_source
+    observed_result: Separate controller read then assign is a race candidate, not an observed production incident.
+    product_fix_verified: false
+    authenticated_live_journey: not_run
+  planned_scenarios:
+  - ARCHIVE-ASSIGN-INTERLEAVING
+  - ARCHIVE-RESTORE-OLD-RUN-READ
+  - ASSIGN-REPLAY-AFTER-ARCHIVE
+  - FOREIGN-COURSE-DENIED
+- id: E1-FIX-09
+  milestone: E1
+  status: in_progress
+  priority: P2
+  summary: Active documentation and real test coverage reconciliation
+  normative_ref: PRODUCT-INTEGRATED-V15 §4.16
+  source_paths:
+  - docs/agent/contracts/identity.yaml
+  - docs/agent/document-registry.yaml
+  - docs/product/ASA_STUDENT_EXPERIENCE_SPEC.md
+  - docs/execution/current.yaml
+  evidence:
+  - docs/review/LRN_E1_SPEC_REBASELINE_2026_09_17.md
+  tests: []
+  verification:
+    source_sha: 3a54a9edf58633331fd466b5f46cb2a8c4f5d390
+    method: documentation_reconciliation
+    observed_result: New editions, compact contracts and traceability are being validated; doc checks do not prove
+      product repairs.
+    product_fix_verified: false
+    authenticated_live_journey: not_run
+  planned_scenarios:
+  - DOC-REVISIONS-ALIGNED
+  - DOC-NO-STALE-SEAT-SECRET
+  - DOC-PRESERVE-IDS
+  - COVERAGE-COMMAND-INCLUDES-CASE
+  - LEGACY-TESTS-NOT-PROOF
+- id: E1-FIX-10
+  milestone: E1
+  status: in_progress
+  priority: P1
+  summary: Separate source CI from actual installed site and owner acceptance
+  normative_ref: PRODUCT-INTEGRATED-V15 §4.16
+  source_paths:
+  - docs/execution/LRN_COURSE_01.md
+  evidence:
+  - docs/review/LRN_E1_SPEC_REBASELINE_2026_09_17.md
+  tests: []
+  verification:
+    source_sha: 3a54a9edf58633331fd466b5f46cb2a8c4f5d390
+    method: live_readonly_metadata
+    observed_result: 'Read-only 2026-09-17T07:29:57.825Z: live Web/API 1ae93cbb, schema142; authenticated journey
+      not_run.'
+    product_fix_verified: false
+    authenticated_live_journey: not_run
+  planned_scenarios:
+  - LIVE-WEB-API-SCHEMA-MATCH
+  - LIVE-AUTHORIZED-SYNTHETIC-JOURNEY
+  - OWNER-ACCEPTANCE-EXPLICIT
+- id: INT-REUSE-HISTORY
+  milestone: unassigned
+  status: target
+  summary: Собрать новый курс из истории фактических выдач, exact content refs/provenance без ответов учеников;
+    требование сохранено, stage_assignment_pending.
+  evidence:
+  - docs/product/ASA_INTEGRATED_IMPLEMENTATION_SPEC.md
+  tests: []
+  stage_assignment: pending_owner_decision
 - id: DB-000
   milestone: M0
   status: proven

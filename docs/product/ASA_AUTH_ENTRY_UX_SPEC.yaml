@@ -119,10 +119,8 @@ student_seat:
   global_profile: false
   credentials:
     - class_code
-    - assigned_login_handle
-    - individual_secret_or_teacher_approved_browser_challenge
-  # Compatibility field: no additional optional PIN by default.
-  # This does NOT disable mandatory individual verification in credentials above.
+    - six_character_student_code
+  # Access 2.2: Student Code is the single personal credential, no extra login/secret.
   optional_pin_default: off
   safe_mode_default: true
 
@@ -130,7 +128,7 @@ join_class_flow:
   steps:
     - enter_class_code
     - resolve_and_preview_class
-    - choose_identity_path
+    - enter_student_code_or_use_separate_account_link
   identity_paths:
     - id: existing_account
       label: У меня есть аккаунт ASA Lab
@@ -139,15 +137,16 @@ join_class_flow:
         - confirm_current_account_and_class
         - teacher_approval_or_exact_preapproved_invitation
         - create_classroom_membership
-    - id: assigned_handle
+    - id: student_code
       label: У меня данные от преподавателя
       flow:
-        - enter_login_handle
-        - individual_secret_or_teacher_approved_browser_challenge
+        - enter_six_character_student_code
         - create_student_seat_session
   security:
     - normalize_spaces_dashes_case
-    - rate_limit
+    - rate_limit_with_thirty_learner_nat_acceptance
+    - class_qr_origin_https_asa_lab_ru
+    - class_qr_never_contains_student_code
     - no_roster_enumeration
     - no_membership_before_confirmation
     - class_code_is_not_individual_authentication

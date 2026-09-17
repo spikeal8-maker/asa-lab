@@ -1,819 +1,380 @@
-# ASA Lab — Integrated Implementation Specification V1.4
+# ASA Lab — интеграционное ТЗ V1.5
 
-**Document:** `PRODUCT-INTEGRATED-V14` · **Revision:** 1.4
-**Status:** NORMATIVE TARGET + DELIVERY CONTRACT
-**Revision basis:** Owner-requested amendment of 2026-09-13. The previous V1.3 roadmap acceptance of 2026-09-10 remains pinned to its historical snapshot; this revision does not accept any implementation or authorize production.
-**Canonical path:** `docs/product/ASA_INTEGRATED_IMPLEMENTATION_SPEC.md`
-**Current execution state:** only `docs/execution/current.yaml`.  
-**Academic semantics:** `ASA_LEARNING_TECHNICAL_SPEC.md`.  
-**Users/access/settings:** `ASA_USERS_ACCESS_AND_SETTINGS_SPEC.md`.
+**Документ:** `PRODUCT-INTEGRATED-V15` · **Редакция:** 1.5 · **Дата:** 17 сентября 2026 года.
+**Статус:** NORMATIVE TARGET / договор поставки, не подтверждение реализации.
+**Канонический путь:** `docs/product/ASA_INTEGRATED_IMPLEMENTATION_SPEC.md`.
+**Публичный ресурс:** `https://asa-lab.ru/`. Человекочитаемый адрес: `asa-lab.ru`.
 
-This document is the canonical V1.4 edition, extending the accepted V1.3 plan. It deliberately does not duplicate SQL, OpenAPI or every historical ledger row. Those live in executable migrations/OpenAPI and the existing Requirements Ledger. The purpose here is to make the target product, delivery order, page boundaries, user actions and acceptance gates unambiguous without forcing agents to reread the historical planning archive.
+Редакция подготовлена по поручению владельца полностью актуализировать ТЗ после критической проверки. Она заменяет V1.4 для новой работы. Условия прежних приёмок сохраняются в неизменяемых исторических срезах; им нельзя задним числом присваивать эту редакцию. Изменение ТЗ не является исправлением продукта, разрешением deployment или приёмкой владельцем.
 
-## 0. Non-negotiable product model
+## 0. Область, приоритет и источники истины
 
-1. ASA Lab is a platform first. A school or organization is an optional context, not the parent of every Account.
-2. One Account may simultaneously be a maker, learner, author, teacher, reviewer and organization member in different scopes.
-3. Roles/personae do not authorize. Authorization is server-derived from the authenticated principal, current resource, scope, grant/capability, state and policy.
-4. `StudentSeat` is a persistent learning profile with an individual credential; class code alone never proves control of a child profile.
-5. Course content, delivery and people are different objects:
-   - `Course/CourseVersion` — content;
-   - `Classroom/Group` — people;
-   - `CourseRun` — one delivery of one version;
-   - `CourseEnrollment/ActivityParticipation` — learner participation.
-6. Direct assignment and course activity converge on one runtime after `ActivityRun`.
-7. Published content, Submission and published result revisions are immutable. Correction means a new version/revision with provenance.
-8. A UI button is not authority. Every sensitive mutation rechecks server-side.
-9. Existing Result A, Learning M0/M1/VS foundations, school contexts, projects and subject editors are reused. Do not start a second Auth/RBAC/Learning/Gradebook system.
-10. A finished stage means a person can complete the promised action through the product, not that a table/enum/API exists.
+ASA Lab — платформа личных проектов и обучения. Школа и организация необязательны для Account и личного творчества. Эта редакция определяет совместную работу курсов, классов, авторства, ученического доступа, оценивания и их экранов. Предметные ядра Electronics, 3D/CAD, Scratch, шахмат и шашек не переписываются этим документом.
 
-## 1. End-state
-
-The target system must allow these complete journeys:
-
-### Personal user
-Register -> Personal Workspace -> create projects -> read Knowledge -> optionally self-study -> keep personal work independent of any school.
-
-### Author
-Enable authoring -> create material -> edit draft -> preview -> publish immutable version -> later create a new draft/version -> keep the same material after enabling teaching.
-
-### Independent teacher
-Enable teaching -> create class without organization -> prepare learners -> create/publish course -> assign -> receive submissions -> review/return/correct -> see canonical result in gradebook.
-
-### Learner
-Enter through Account participation or StudentSeat credential -> see next step -> use real Electronics/3D editor -> server-confirm save -> submit exact evidence -> receive review -> revise if allowed -> see the same selected result as the teacher.
-
-### Team/organization
-Invite editor/publisher/teacher/reviewer/mentor/coordinator -> each receives only scoped actions -> run one course in multiple groups -> create an independent adaptation when allowed -> management sees permitted learning aggregates without automatic access to all learner details.
-
-## 2. Canonical academic chain
-
-For executable learning activity:
-
-```text
-LearningActivityVersion
-→ ActivityRun
-→ ActivityParticipation
-→ Attempt
-→ Submission
-→ AssessmentResultRevision
-→ ResultSelection
-→ GradebookProjection / LearnerResultProjection
-```
-
-For course delivery:
-
-```text
-CourseVersion
-→ CourseRun
-→ CourseEnrollment
-→ child ActivityRun(s)
-→ ActivityParticipation
-→ Attempt
-→ Submission
-→ AssessmentResultRevision
-```
-
-Attempt lifecycle, pedagogical decision and selected result are separate concepts. `changes_requested` closes the current attempt and, when policy permits, opens a new attempt linked by `revisionOfAttemptId`.
-
-## 3. Delivery order
-
-| Stage | Task | User-visible result | Must not be postponed |
-|---|---|---|---|
-| E1 | `LRN-COURSE-01` | first complete theory + project course from authoring to review/revision and 30×10 gradebook | unified library, Account+Seat, exact submission, review, notification, class settings, batch Seats, preview-as-learner, version recovery |
-| E2 | `LRN-COURSE-02` | TARGET: reusable assignment bank, Question Bank, Quiz library, reusable programming tasks (Python 3 first), plus essay/file/manual/rubric, prerequisites/course result and 30×100 gradebook/export | autograder contract/foundation, controlled/temporary assessment access, server-controlled assessment window/timer, durable answers, all 8 quiz types, mixed/manual/rubric, canonical result consistency (§5, §21) |
-| E3 | `ASA-SELF-01` | TARGET: Knowledge discovery for article, video/material, lesson, course, assignment, quiz, programming task and collection over the same library; real self-study, teacher-led enrollment and StudentSeat→Account linking | public read, unlisted/by link, enrollment and authorization remain distinct; personal scope/RLS, bilateral proof, preserved history; commerce is future, not an E3 blocker (§6, §21) |
-| E4 | `ASA-COLLAB-01` | scoped coauthor/publisher/teacher/reviewer/mentor/coordinator work | invitations/grants, cross-owner safe materialization, help/discussion, run capacity |
-| E5 | `ASA-ORG-01` | organization/team, groups/bulk, adaptation/copy, learning summary/detail | no capture of personal content, distinct runs, scoped aggregates, ownership transfer |
-| E6 | `ASA-EXPERIENCE-01` | remaining settings/preferences/data requests/moderation/support/platform operations | no fake toggles/placeholders for required functions |
-
-Default priority is E1→E2→E3→E4→E5→E6. Owner may reorder independent E3/E4 work after E1. No stage starts automatically.
-
-## 4. E1 — `LRN-COURSE-01`
-
-E1 is the active next product result.
-
-### 4.1 Authoring and one library
-
-`Курсы и задания` is one library, not two role-dependent systems.
-
-Tabs:
-- `Мои`;
-- `Предоставленные` (becomes populated in E4);
-- `Архив`.
-
-Author-only can create/open/edit/save/preview/publish own content but cannot see roster or class management. Enabling teaching adds deliver/class actions; it never hides or replaces existing author content.
-
-A new material is private by default. `Publish version` freezes a version; it does **not** make it public to the internet.
-
-### 4.2 Course builder
-
-Course workspace:
-- Overview;
-- Content;
-- Usage;
-- Versions;
-- Settings.
-
-Desktop content layout: outline left, current lesson/block editor center, selected block properties right. Mobile uses sequential panels, not three compressed columns.
-
-E1 supports theory content plus project activity using existing Electronics and 3D modules. One published activity reused twice in a CourseVersion means two executable occurrences and therefore two child ActivityRuns in the CourseRun.
-
-Prepublish validation shows the exact invalid block/setting. Dirty/saving/saved/failed states are real and reload-safe.
-
-### 4.3 Version recovery
-
-Published versions are read-only.
-
-`Создать черновик из этой версии` creates a new draft from an exact historical snapshot and records the base version. Publishing it creates the next monotonic version number. It never rewrites the old version or old CourseRuns.
-
-E1 requires a structural comparison at least at section/lesson/block/activity/policy level. Character-by-character diff is not an E1 blocker.
-
-### 4.4 Preview as learner
-
-`Предпросмотр как ученик` renders the exact draft/published version and, for a Run preview, its effective generic rules.
-
-It must not create or mutate:
-- Account/Seat;
-- Enrollment/Participation;
-- Attempt/Submission;
-- Completion/AssessmentResult/Gradebook/LearningNotification;
-- a real learner session.
-
-It is not impersonation and never reveals a real learner's private answer/draft. The ordinary `last_seen_at` heartbeat of the existing authenticated author's Account session is permitted. This exception cannot create/refresh credentials, change session scope/expiry, or touch a real learner session; it does not require a separate Identity resolver. Zero academic/learner-runtime writes is the contract, not a blanket ban on this author heartbeat.
-
-### 4.5 Class and learners
-
-Class workspace:
-- Overview;
-- Learners;
-- Learning;
-- Gradebook;
-- Team;
-- Settings.
-
-E1 class settings groups:
-1. basic — title, supported description, current context read-only, timezone for deadline input;
-2. joining/access — Account join approval, class code, individual StudentSeat credentials, shared-device mode;
-3. learning-tool access — only settings supported by current safety caps;
-4. notifications/safety — own class notification shortcut + two learner reminder controls.
-
-Class code does not list children and does not authenticate an arbitrary Seat.
-
-### 4.6 Batch StudentSeat
-
-`Добавить несколько` supports pasted rows, with one pseudonym per row as the minimum input.
-
-Flow:
-1. client format precheck;
-2. authoritative server preview;
-3. per-row `valid/duplicate/conflict/invalid`;
-4. one idempotent batch commit;
-5. per-row result;
-6. retry with same key+payload returns the same logical result.
-
-CSV/XLSX ETL is not required in E1; copy/paste from a spreadsheet is sufficient.
-
-StudentSeat basic access is deliberately short: `Class Code → six-character Student Code`. The Student Code is the individual credential; learner display name is not an authentication field and there is no second login/long secret in the basic flow. The code uses a non-ambiguous alphabet and case-insensitive input; server-side rate limiting remains mandatory.
-
-The authorized teacher can see the current Student Code in the roster and open `Карточки доступа` at any time. The printable card is a compact horizontal cut-out, not a large decorative panel. Its human-readable site address is `Asolab.ru`; internal hash routes, query strings and technical navigation fragments are never printed as text. The card contains learner display name, class title where useful, current class code and current Student Code, with the Student Code visually dominant.
-
-The right side of the card contains a QR code for the **current class context only**. The QR payload may contain the canonical join deep-link with the current Class Code, but it never contains the Student Code or another personal credential. Scanning a valid class QR opens ASA Lab with that class already resolved and lands directly on the `Код ученика` step; the learner does not re-enter the Class Code and does not press a redundant `Продолжить`. The manual path remains `Asolab.ru → Class Code → Student Code`. Cards are repeat-printable and printing is read-only: it does not rotate credentials or change sessions/history. Lost but uncompromised card -> reprint. Suspected compromise -> explicit Student Code rotation; old code and active Seat sessions are revoked while the same StudentSeat/LearnerIdentity/history remain. Rotating the Class Code makes old cards/QRs stale and the UI offers reprint.
-
-The public class-code preview may show the class title and the teacher's **canonical public display name** only. Email, username, Account id and other private/technical identifiers are never returned or rendered there. If no valid public teacher name is available, use the neutral fallback `Преподаватель`, never an email fallback.
-
-### 4.7 Class lifecycle
-
-Normal class UI uses archive, not destructive deletion of academic history.
-
-Archive preserves roster history, runs, enrollments, attempts, submissions, results and audit. Restore does not reopen closed/cancelled runs, reactivate withdrawn learners or create credentials/attempts.
-
-Transfer of teacher responsibility is an E4/E5 staff action. It is not a hidden transfer of tenant/learning context/personal workspace.
-
-### 4.8 Assignment and audience
-
-Assignment form has at most three meaningful steps:
-1. material/exact version;
-2. audience;
-3. conditions/result preview.
-
-E1 audience:
-- whole class = dynamic;
-- named learners = snapshot.
-
-Late join must converge exactly once regardless of ordering between enrollment and child activity materialization. Leaving preserves history and prevents new starts according to policy. Retrying a command cannot duplicate Run/Participation.
-
-### 4.9 Dates and individual conditions
-
-Store instants in UTC; show/input with an explicit source timezone. Changing Account display timezone does not move the deadline.
-
-Effective precedence for supported values:
-
-```text
-ActivityParticipation override
-> ActivityRun explicit/pinned setting
-> course block template
-> LearningActivityVersion default
-```
-
-Individual conditions always target an exact learner + exact run/activity occurrence. Supported E1 controls include deadline/open/close override, extra attempts, late policy where allowed, excused status and history. They never change learner identity, credentials, staff role, content version or grade outside the correction flow.
-
-### 4.10 Work and Submission
-
-Start/resume/save/submit use the real Electronics/3D editor.
-
-Rules:
-- one active Attempt per ActivityParticipation;
-- normal resume does not spend a new attempt;
-- submit uses the latest server-confirmed saved revision;
-- Submission pins immutable ProjectVersion/evidence/digest;
-- a later mutable draft cannot change the submitted object;
-- lost response is resolved with operation status/idempotent retry, not a blind second Attempt/Submission.
-
-### 4.11 Review and revision
-
-Submitted manual project appears in a real work queue. The reviewer opens exact Submission plus pinned task/version.
-
-Supported result modes must not be faked:
-- ungraded: no artificial score;
-- completion: no artificial score;
-- graded: use real maxPoints and pinned grading basis.
-
-Accept/return are pedagogical decisions. Return creates the allowed new attempt/revision path while preserving the previous Submission. Result correction is append-only, requires reason and optimistic expected revision.
-
-`ProjectFeedback`/badges remain feedback, not official grade.
-
-### 4.12 Gradebook
-
-Primary gradebook is a matrix:
-- rows = learners;
-- columns = concrete ActivityRuns;
-- cells = canonical state + selected result.
-
-Repeated delivery of the same content creates separate columns. Distinguish:
-- not assigned;
-- not started;
-- in progress;
-- submitted/waiting review;
-- changes requested;
-- completed/result;
-- no grade.
-
-Cell opens exact work/history/review. E1 acceptance dataset = 30 learners × 10 assignments. Mobile may switch to `by learners` / `by work`; E2 scales to 30×100 and adds export.
-
-### 4.13 Notifications in E1
-
-Academic truth, work queue and notifications are separate.
-
-Required in-app event categories:
-- assignments/conditions;
-- work awaiting review;
-- review/results;
-- deadline soon;
-- overdue work;
-- completion;
-- questions/announcements when supported;
-- requests/invitations.
-
-A user can:
-- disable all ordinary learning notifications for themselves;
-- toggle categories;
-- override categories for a specific class.
-
-A teacher may separately configure only supported learner reminders for a class (minimum: deadline-soon and overdue). This does not change due dates, submissions, grades, queue state or another teacher's preferences.
-
-`unread` is notification state. `awaiting review` and `unfinished` are work counts and must not be derived from unread.
-
-Submit must commit academic state even if notification delivery fails. Delivery is retry/deduplicated from persisted event/outbox-equivalent evidence.
-
-### 4.14 Teacher attention on existing Home
-
-Do not create a new teacher dashboard engine.
-
-Existing Home may show a compact `Требует внимания` block for an Account with teaching duties:
-- awaiting review -> work queue;
-- active classes -> class list;
-- pending learner requests -> request/class page;
-- nearest relevant actions/deadlines -> existing target page.
-
-Counts use existing canonical/read projections. Error in one source is unavailable/retry, not zero. These counts are not unread messages.
-
-### 4.15 E1 hard acceptance
-
-E1 cannot be declared done unless all are true:
-1. author-only creates, edits, reopens and publishes through UI; roster denied;
-2. enabling teaching preserves same content IDs/versions;
-3. course is built and assigned through product UI, not pre-created by SQL;
-4. whole-class/named and late-join rules are correct;
-5. Account learner + StudentSeat use real Electronics; 3D path separately proven;
-6. exact submitted version remains visible after learner edits the draft;
-7. submitted work can be officially reviewed; no hidden 100/60;
-8. return -> new Attempt -> resubmit -> decision preserves history;
-9. learner/work view/gradebook resolve the same selected result; correction conflict works;
-10. 30×10 matrix distinguishes missing states correctly;
-11. mixed-data upgrade preserves historical projects/courses/feedback/results;
-12. notification off/category/class overrides do not alter academic state;
-13. batch 30 StudentSeats + repeat-printable current access cards are idempotent and repeat-safe;
-14. class archive/restore preserves history;
-15. preview-as-learner creates zero academic records;
-16. draft from old version creates a new future version, never destructive rollback;
-17. teacher Home links to existing queues without new source of truth;
-18. owner receives a real browser-visible demonstration and exact candidate.
-
-Production remains a separate exact-candidate authorization.
-
-
-### 4.16 Functional completion before visual convergence
-
-**Owner sequencing amendment — 2026-09-16.** E1 is finished functionally first. Final visual convergence of `Курсы и задания`, Course Builder and Class workspace happens only after the required actions, states and controls exist and work end-to-end. During the functional phase, layout changes are limited to what is necessary to expose an action, remove overflow, preserve accessibility or prevent user error. The exact final tab/three-pane composition in §4.1–§4.2 remains the visual target, but agents must not spend the next slice on broad re-layout while a required function is still absent.
-
-Already integrated baseline — **reuse; do not rebuild**:
-- canonical direct/course runtime after ActivityRun, whole-class dynamic and named audiences;
-- exact immutable project Submission, review, return → new Attempt → resubmit, result correction/selection;
-- real Electronics path plus separately proven 3D path;
-- 30×10 learner × ActivityRun gradebook and Teacher Home attention links;
-- class archive/restore history safety and reminder-state separation;
-- preview-as-learner with zero academic writes;
-- draft from an exact old published version without destructive rollback;
-- short StudentSeat access (`Class Code + Student Code`) and repeat-printable current credentials.
-
-Functional closure implemented in the 2026-09-16 candidate — **reuse; do not reopen as missing work**:
-1. **Student entry UX — #271:** public join preview uses the canonical public teacher name with neutral fallback and never email; StudentSeat navigation includes `Главная`; QR/deep-link entry lands directly on `Код ученика`.
-2. **Access card/QR — #272:** compact `Asolab.ru` cards use the available right side for a class-context QR; the visible technical hash route was removed and the QR never contains the Student Code.
-3. **Course archive semantics:** ordinary Course library removal is archive/restore with optimistic revision checking; published versions and learning history are preserved, archived courses are excluded from assignment and external catalogue use.
-4. **Version comparison:** published-version history provides structural comparison at course/section/lesson/block/activity/policy level; character diff remains intentionally out of E1.
-5. **Prepublish validation:** Course publication resolves an exact blocking section/lesson and issue code for empty material, invalid blocks, missing activity pins and legacy assignment sources before immutable publication.
-6. **Draft editing safety:** dirty lesson edits block Back, Preview, lesson/section switching and structural mutations until the current lesson is saved; no structural mutation silently advances the server revision behind a dirty local editor.
-7. **Capability-aware course controls:** author-only users keep authoring but no longer see educator-only demo/sharing controls; teaching capability adds those actions without replacing the author library.
-
-Remaining before E1 can be called owner-accepted/deployed:
-8. **Truthful candidate closure:** exact-head CI/repository gates, final owner-visible E1 walkthrough and ledger/evidence alignment. Owner acceptance and deployment are explicit later states. The broad Course/Class visual convergence pass remains deliberately separate and follows functional closure.
-
-Not implemented in E1 **by design** and therefore not to be pulled into an E1 visual cleanup:
-- E2: full reusable Question Bank/Quiz library, all eight quiz types, Python programming-task/autograder runtime, essay/file/manual/rubric assessment, controlled assessment/timer/reconnect/durable answers, 30×100 gradebook and export;
-- E3: full Knowledge discovery/self-study runtime and bilateral StudentSeat → Account linking;
-- E4: scoped coauthor/publisher/reviewer/mentor/coordinator collaboration;
-- E5: organization groups/bulk delivery/adaptation/aggregate management;
-- E6: remaining operations/preferences/data-request/moderation/support completion.
-
-## 5. E2 — durable assessment
-
-E2 extends E1, not a parallel engine. Everything in this section is TARGET E2, not an assertion of implementation or permission to start it. §21 remains the detailed content/access/programming contract.
-
-### 5.1 Assignment library
-Reusable assignments live in the same author library, with type/topic/search filters and `add from library` into a lesson, course or class delivery. Removing an occurrence does not delete the bank item. Delivery pins the exact published content version; it does not copy learner evidence into author content (§21.1–§21.3).
-
-### 5.2 Quiz library and Question Bank
-Question Bank items and reusable quizzes are content in that library. QuizVersion owns question content/order/grading definition. LearningActivityVersion owns attempts/time/pass threshold/feedback release/result selection. Mandatory quiz types: `single_choice`, `multiple_choice`, `boolean`, `numeric`, `short_text`, `matching`, `ordering`, `long_text_manual`.
-
-### 5.3 ProgrammingTaskVersion
-Reusable programming tasks start with Python 3. The immutable ProgrammingTaskVersion pins the statement, starter files, input/output contract, visible examples, protected tests, limits and checker configuration. It is adapted to the same LearningActivityVersion/ActivityRun model; publishing a version does not start a runner or publish hidden tests (§21.5).
-
-### 5.4 Autograder contract and foundation
-`Run` is a non-final visible-example execution, `Check` checks the current draft under policy, and `Submit` freezes exact source/evidence/digest. Neither Run nor Check alone publishes an official grade. Server evaluation uses the pinned task/checker/runtime configuration, finite resource limits and isolated execution; hidden tests and secrets never enter learner/public payloads. Evaluation evidence feeds append-only result revisions through the canonical chain, including later correction/regrade (§21.5).
-
-There are no separate Python grades, Quiz grades or Electronics grades:
-
-```text
-ActivityParticipation → Attempt → immutable Submission
-→ AssessmentResultRevision → Selected Result → Gradebook
-```
-
-### 5.5 Controlled assessment and temporary participant
-Controlled delivery may issue temporary assessment access cards for an exact ActivityRun, CourseRun or small explicitly enumerated target set. `TemporaryLearningAccess` / `AssessmentSeat` is a TARGET semantic concept, not a new Account type, Auth system, Personal Workspace or automatic roster membership. StudentSeat remains persistent. Access cannot reveal roster, other learners, unrelated materials or author data; later linking requires proof of both sides (§21.6; Users/Access §40).
-
-### 5.6 Assessment window and timer
-`opensAt`, `dueAt`, `closesAt` and `timeLimit` have distinct meanings. The server owns absolute UTC boundaries and effective overrides; Account display timezone never moves them. Attempt expiry is server start + time limit; the explicit effective policy separately defines how closesAt bounds permitted start/submit. Browser clocks and reconnect cannot extend access (§21.7).
-
-### 5.7 Reconnect and durable answers
-Selected questions/options freeze at Attempt start. Answers persist on the server with optimistic versioning. Reload, reconnect and two tabs resume the same Attempt or return an explicit conflict; they do not spend another attempt or reset the timer.
-
-### 5.8 Expiry and official results
-Expiry executes even with the browser closed: `auto_submit` freezes the latest server-confirmed work, or `expire_without_submission` expires the Attempt without inventing a Submission/result, according to pinned policy. Manual/mixed results stay provisional until required review. Regrade targets an exact ActivityRun and appends revisions; selected result, Gradebook and learner view resolve the same canonical result.
-
-Also E2:
-- essay immutable text/hash;
-- file immutable attachment/version/hash;
-- teacher observation with real staff actor;
-- RubricVersion;
-- prerequisite/unlock rules;
-- CourseCompletion separate from CourseResult;
-- course result modes `no_course_grade`, `points_sum`, `weighted_categories`;
-- gradebook 30×100, mobile modes, scoped CSV/XLSX export.
-
-## 6. E3 — Knowledge, self-study, linking
-
-### Knowledge
-Knowledge is the public discovery surface over the **same content library**, not a second public content database. TARGET E3 discovery covers `article`, `video_resource` / material, `lesson`, `course`, `assignment`, `quiz`, `programming_task` and `collection` (§21.4). These are content/presentation kinds, not automatically new LearningActivity kinds. Community projects remain separate from Knowledge.
-
-Minimum metadata where applicable: title, summary, system topic/category, tags, level, age band, estimated duration, language, exact published version, author/owner display and immutable cover asset. Filters include search, kind, topic, level, age and language. Public payloads exclude answer keys, hidden tests and private learner/author data.
-
-### Access/enrollment presets
-- private — assigned only;
-- public read-only discovery;
-- unlisted/by link — outside public listings, with the same server authorization checks;
-- permitted self-study;
-- teacher-led enrollment/application;
-- future paid access — commerce is not an E3 blocker.
-
-Publish version != make public. URL != authorization. Reading, discovery, permission and enrollment are independent: a public or unlisted card cannot itself grant learning access. Public read creates no Enrollment/Participation. The server resolves access for the exact content/version/run and permitted action.
-
-Self-study uses the common academic runtime without fake school/class/teacher. A course with mandatory human review is only startable when a real permitted reviewer path exists; otherwise show the limitation and allow only permitted reading.
-
-### StudentSeat -> Account
-Linking requires proof of the exact Seat and authenticated/re-authenticated Account plus required classroom approval/safety checks. Never merge by name/email/device/IP. Preserve learner identity, enrollments, participations, attempts, submissions, results and historical actors.
-
-## 7. E4 — collaboration
-
-One invitation/grant mechanism with exact recipient, action/template, scope, issuer, expiry, state and audit.
-
-Required duties:
-- editor/coauthor;
-- publisher;
-- teacher/co-teacher;
-- reviewer;
-- mentor;
-- coordinator.
-
-Editor does not get publish/roster. Publisher does not automatically get edit. Reviewer sees assigned Submission, not all learner data. Mentor cannot publish grade. Coordinator manages permitted participants/announcements without answer keys.
-
-Cross-owner use must create/pin a runtime-safe materialization in the target context before the first external delivery. Full independent adaptation/copy UI belongs to E5.
-
-Open teacher-led CourseRun may use:
-
-```text
-maxParticipants: null | positive integer
-```
-
-Admission is server-atomic. Two concurrent users cannot both take the last seat. Pending application does not reserve a seat unless a future explicit policy says so. Waitlist is out of scope.
-
-## 8. E5 — organization
-
-Organization is an optional team scope.
-
-E5 provides:
-- team/staff management and delegation ceiling;
-- groups/subgroups;
-- multi-class/bulk delivery with per-target outcome;
-- permitted course adaptation/copy with provenance;
-- distinct CourseRuns for distinct deliveries;
-- summary vs detail vs export permissions;
-- ownership/responsibility transfer with acceptance;
-- organization defaults applied to new pins, not historical grades.
-
-Organization membership never makes all personal content organization-owned. Leaving an organization removes dependent future access, not personal work or historical academic evidence.
-
-Learning summary is built from Programs/CourseRuns/Enrollments/Participations/Submissions/canonical results. Login/click metrics are not learning progress.
-
-## 9. E6 — completion of account/operations surfaces
-
-Finish only the bounded remainder:
-- supported account preferences;
-- notification channel preferences for actually connected providers;
-- full own invitation/request inbox;
-- own data/export/closure process under adopted retention policy;
-- moderation cases;
-- ticket-bound SupportSession;
-- platform admin/operations/security flows.
-
-No fake switches or placeholder pages count as done. Support never uses a universal user password/impersonation and does not bypass academic correction by direct DB update.
-
-## 10. Page atlas
-
-There are 17 **templates**, not 17 pages for every user and not 17 new domains.
-
-1. Knowledge catalog.
-2. Knowledge/material public card.
-3. Courses & assignments library.
-4. Material/course author workspace.
-5. Class list.
-6. Class workspace.
-7. CourseRun/assignment delivery workspace.
-8. Teaching work queue.
-9. Exact submission review.
-10. My learning list.
-11. Course/activity learner player.
-12. Gradebook.
-13. Invitations/requests.
-14. My organizations.
-15. Organization workspace.
-16. Profile/settings.
-17. Notifications.
-
-The following are variations/tabs of these templates, not additional pages:
-
-| Content or operation | Existing template and placement | Delivery scope |
-|---|---|---|
-| Author library; assignment bank/filter; Question Bank; reusable Quiz/programming tasks | 3: one Courses & assignments library, kind filters and bank tabs | E1 existing theory/project; extended banks TARGET E2 |
-| Quiz builder; programming-task editor | 4: type-specific author workspace editor, common draft/version controls | TARGET E2 |
-| Controlled assessment participants/access and cards | 7: exact delivery workspace access tab; 6: entry from class learning | TARGET E2; no automatic roster membership |
-| Class learning history; build course from history | 6: Learning/history tab → 4: course draft with reusable content references | Content/history contract §21.2–§21.3; never import learner evidence |
-| Public and unlisted content discovery/card | 1–2: catalog and exact material card with permission-aware actions | TARGET E3 |
-| Temporary assessment participation | Existing class-code/access entry → 11: scoped learner player | TARGET E2; no new Auth or general learner cabinet |
-
-Registration/login/class-code entry, Home, personal projects, Community, games, subject editors and existing platform admin remain existing surfaces.
-
-Page budget:
-- top bar: max one primary mutation and two secondary actions;
-- one row/card: open + one menu for rare actions;
-- complex recurrent object -> page/tab;
-- one confirmation -> dialog;
-- no modal-on-modal;
-- mobile uses sequential panels, not tiny desktop layouts.
-
-## 11. Main action catalog
-
-These are action semantics, not simultaneously visible buttons. E2/E3 actions remain TARGET for their stage and must not be exposed as fake E1 controls.
-
-- Content: create reusable assignment, add from library, create quiz, create programming task, build course from class history (content references/provenance only), save draft, preview, publish version, access/enrollment settings, assign, adapt/copy, archive.
-- Class: create, add learner, batch add, issue/reset credential, print current cards, settings, individual conditions, extra attempt, excused, archive/restore; assign course/task/quiz/programming task as exact version + audience + conditions; create temporary assessment access for explicit delivery targets.
-- Assessment: open/close assessment under server-owned window policy, issue temporary access cards; Run visible examples, Check the current programming draft, Submit immutable source/evidence through the canonical chain. Run/Check do not create an official grade (§5.4–§5.8).
-- Learner: start/resume, save, submit, complete theory, ask for help when a recipient exists.
-- Review: publish decision, return/revision, correct result, select attempt when policy allows.
-- Delivery: audience/rules, close/cancel run, capacity.
-- Collaboration: invite/revoke staff, transfer responsibility, message/announcement.
-- Public/self: self-start/enroll/application, close enrollment.
-- Account: author/teacher capability, own notification/preferences, read notifications.
-- Organization: create, manage team/settings, transfer ownership, summary/detail/export.
-
-Every mutation has pending/error/conflict/success and safe retry semantics. A button must not change unrelated objects.
-
-## 12. Access and UI rules
-
-Menu is derived from server entitlements:
-- personal Account always keeps personal projects/learning;
-- `Курсы и задания` only with a content action;
-- `Классы` only with class.create/staff class read;
-- learner classes live under `Моё обучение`, not staff shell;
-- `Преподавание` appears for assigned teaching/review/help/coordination work;
-- organizations only for actual membership/ownership;
-- platform administration only for platform grants.
-
-Seat menu is reduced to `Главная`, learning, learning work, help, learning profile and logout. `Главная` opens the existing StudentSeat home; it does not create a second dashboard runtime.
-
-Unknown private UUID returns safe not-found without owner metadata. Known but blocked action may show a precise reason and legal next step.
-
-## 13. Notification rules
-
-Academic state is never driven by read/unread.
-
-Key events:
-- learning assigned;
-- work submitted;
-- changes requested;
-- result published/corrected;
-- join request/decision;
-- meaningful condition change;
-- staff invitation;
-- question/reply;
-- linking/recovery state;
-- access/security change;
-- deadline soon;
-- overdue;
-- course/work completion.
-
-Recipients are determined from current scoped authority, then personal delivery preferences are applied. Optional external channels do not become mandatory merely because MAX/email login exists.
-
-Security-critical events are not disabled as marketing notifications.
-
-## 14. Versioning, errors, concurrency
-
-- idempotency key + request digest on create/publish/assign/start/submit/invite/batch operations;
-- expected revision for conflicting draft/review/result changes;
-- retry same key+same payload -> same logical result;
-- same key+different payload -> conflict;
-- no silent overwrite from two tabs;
-- one active Attempt per participation;
-- no duplicate child materialization;
-- no null->zero in gradebook;
-- error/partial failure is not an empty list or false success;
-- asynchronous projections expose current/pending/asOf semantics where needed.
-
-## 15. Security/data boundaries
-
-Mandatory negative tests cover:
-- foreign content/class/learner UUID;
-- author without roster;
-- publisher without edit;
-- reviewer without correction;
-- mentor without grade;
-- coordinator without answer keys;
-- summary-only without detail/export;
-- org admin without platform admin;
-- pending/expired invite without grant;
-- Account + Seat cookie conflict;
-- revoke during open page/job;
-- shared-device leakage after logout.
-
-No plaintext secrets in logs/screenshots/evidence. No real child accounts in acceptance. Forced RLS/guarded functions and immutable history are preserved.
-
-Personal self-study or any cross-context DDL that changes protected tenant/RLS semantics requires the one exact architectural authorization demanded by repository policy; it does not justify a general rewrite.
-
-## 16. Non-functional requirements
-
-Learning flows target WCAG 2.1 AA and must support keyboard, focus, labels, semantic errors/status, reduced motion and non-color-only state.
-
-Layout checkpoints: 320, 390, 768, 1024, 1366, 1440, 1920. Full lifecycle need not run at every width.
-
-Targets from Learning Master:
-- useful 30×100 gradebook render SHOULD be <=2s in documented production-like conditions;
-- ordinary learning API SHOULD target p95 <=500ms excluding large assets/regrade;
-- course editor SHOULD handle 20 sections / 200 lessons / 1000 blocks without full expensive rerender per keystroke.
-
-These are measured targets, not assumed PASS.
-
-## 17. Evidence and Definition of Done
-
-During development: focused checks for changed behavior.  
-Ready candidate: one required repository/CI gate plus exact browser journeys and migration/upgrade evidence.  
-Deployment: exact candidate identity + schema/readiness + short real-domain smoke. Do not rerun the same entire suite only because report wording changed.
-
-Fixtures may create synthetic users/load, but may not perform the user action being accepted. If course creation is accepted, the course is created through UI. If invite acceptance is accepted, the grant is not preinserted by SQL. If grade correction is accepted, the new result is written through the product command.
-
-Meaningful statuses:
-`SPECIFIED → IMPLEMENTED → LOCALLY_VERIFIED → CI_VERIFIED → DEMONSTRATED → OWNER_ACCEPTED → DEPLOYED`.
-
-Only owner decides OWNER_ACCEPTED. Only installed exact candidate may be DEPLOYED.
-
-## 18. Release rule
-
-Each completed accepted stage/checkpoint may be released independently. Future E2–E6 work is never a prerequisite for publishing a ready E1 candidate.
-
-Before production:
-- exact code/image identity;
-- supported migration path;
-- current backup point when DB changes;
-- known failure/recovery behavior.
-
-Do not create a new database, tenant, domain, deployment platform or `latest`-based update in order to ship a feature. Returning an old app image is not automatically a database rollback.
-
-## 19. Deliberate exclusions from this target
-
-Not required unless separately authorized later:
-- waitlist;
-- school timetable/attendance/quarter grades;
-- parent dashboard;
-- certificates;
-- payments;
-- SCORM/LTI;
-- video conferencing;
-- global personal messenger;
-- mass marketing email/SMS/MAX campaign builder;
-- separate analytics warehouse;
-- large-media hosting/transcoding;
-- offline multi-node synchronization;
-- new STEM kernels;
-- cross-tenant class transfer by one ordinary button.
-
-## 20. Agent operating rule
-
-For the active stage:
-1. read `AGENTS.md`, `START_HERE_FOR_AI.md`, `pnpm agent:context --scope learning`;
-2. read only the stage section here plus the relevant Master/Access sections and current code delta;
-3. reuse already-correct implementation instead of rebuilding it;
-4. implement one whole user transition across the necessary DB/API/UI layers;
-5. run focused checks and save a usable checkpoint;
-6. finish all MUSTs of the stage;
-7. run the required candidate gate once, demonstrate, and stop for owner acceptance/release decision.
-
-Do not restart a general architecture audit, create a second queue, or advance to the next stage automatically.
-
-
-## 21. V1.4 content library and delivery contract
-
-This section adds TARGET requirements. It does not authorize implementation of later stages,
-the Python runner, commerce, tenant/RLS redesign, or deployment. Existing E1 boundaries and
-the canonical academic chain remain in force. Current task/checkpoint exists only in
-`docs/execution/current.yaml`. Prior editions are byte-preserved historical snapshots in
-the Document Registry; accepted results retain their original normative revisions.
-
-### 21.1 Four user areas, one content library
-
-| Area | User purpose |
+| Вопрос | Единственный основной источник |
 | --- | --- |
-| Знания | Public discovery, reading and policy-permitted self-study |
-| Курсы и задания | One personal author content library |
-| Классы | Organized teaching of actual people |
-| Моё обучение | One learner view across permitted delivery sources |
+| Порядок поставки, пользовательские действия, границы E1–E6 | Это ТЗ |
+| Академическая семантика, неизменяемая история, формулы результата | `ASA_LEARNING_TECHNICAL_SPEC.md`, редакция 2.2; принятые ADR |
+| Account/StudentSeat, разрешения, сессии, настройки | `ASA_USERS_ACCESS_AND_SETTINGS_SPEC.md`, редакция 2.2 |
+| Активная задача и наблюдаемые ревизии | `../execution/current.yaml`, выбранная запись learning |
+| Покрытие требований и дефектов | `ASA_LEARNING_REQUIREMENTS_LEDGER.yaml`; факт запуска хранится с evidence |
+| Точные HTTP/DDL-контракты | `../../schemas/openapi.yaml`, применимые миграции и код на указанном SHA |
+| Что работает на сайте | Датированное наблюдение `asa-lab.ru`: frontend SHA, backend SHA, схема, конкретный сценарий |
+| Разрешение изменения/публикации/обновления сервера | Поручение владельца и `AGENTS.md`; это разные действия |
 
-Library filters: Все, Курсы, Материалы, Задания, Тесты, Программирование, Банк вопросов,
-Архив. Existing «Мои курсы / Банк заданий / Банк вопросов / Тесты / Каталог» functionality
-maps to these filters and Knowledge discovery; it is not discarded or given separate stores.
-One published content version can be delivered directly, to a named learner, in multiple
-courses/classes, or surfaced in Knowledge under explicit access policy.
+MUST / ОБЯЗАН означает обязательное требование; SHOULD — измеримую рекомендацию с обоснованием отклонения; TARGET — ещё не доказанную возможность. Старая очередь M0–M7 классифицирует архитектуру и историю, но не запускает работу параллельно E1–E6. Комментарий Issue, зелёный CI и наличие файла не заменяют каноническое состояние и evidence.
 
-Assignment is an independent versioned library object. «Класс → Обучение → Новое задание»
-saves into the same author library and may deliver that saved version to this class. A task
-can later be reused in another course/class or published for discovery. No hidden disposable
-assignment store, separate public-content root, or programming-content database is allowed.
+Неприкосновенны: стабильная LearnerIdentity, существующие Seat, проекты, опубликованные версии, Submission, ResultRevision и audit. Запрещены новый общий Auth/RBAC/Learning/Gradebook-движок, скрытые оценки 100/60 и подмена учебного прогресса посещением страницы. Смена кода входа не создаёт нового ученика.
 
-### 21.2 Class history and teaching-time edits
+## 1. Целевые пользовательские пути
 
-Class → Learning exposes Сейчас, История, Программа класса. History groups actual CourseRuns,
-direct and learner-specific assignments, quizzes and programming tasks by academic period/date.
-Past delivery facts are preserved. Selecting actual delivered tasks and choosing «Собрать курс»
-creates a NEW Course draft with provenance and exact version references; it does not edit any
-old Run, Enrollment, Attempt, Submission or Result.
-
-For a running CourseRun v2, distinguish «Редактировать для будущих» (v2 → new draft → v3;
-existing Run still pins v2) from «Добавить материал этому классу» (separate direct delivery).
-Those additional tasks may be incorporated into a future draft/version explicitly.
-
-### 21.3 Rich course builder and reusable quiz bank
-
-Course structure is Section → Lesson → blocks. Information blocks include heading, text,
-image, video, link, file/asset and note/callout. Learning blocks reference reusable assignment,
-quiz, programming task, Electronics, 3D, Visual Programming or future module activities.
-«Добавить задание/тест» supports choosing from the library or creating a new library object.
-Published referenced versions and accepted evidence stay immutable.
-
-Preserve the common Quiz Engine: single_choice, multiple_choice, boolean, numeric, short_text,
-matching, ordering, long_text_manual; versioned question refs/pools, shuffle, server-saved
-answers, server timer, hidden answer key, mixed auto/manual assessment, selected result and
-regrade scoped to the exact runtime. There is no second quiz grading system.
-
-### 21.4 Knowledge and publication policy
-
-Knowledge discovers the SAME published content roots: article, video resource, lesson/material,
-course, assignment, quiz, programming task, collection. Question bank and answer keys are not
-public by default. Metadata: title, summary, subject/topic/category, tags, level, age/grade band,
-estimated duration, language, tool/module, assessment mode, exact published version, author,
-cover and access badge. Search/filters use type, subject/topic, tags, level, age/grade, duration,
-language, tool and assessment mode. Price/access badges and free/paid filters are future scope.
-
-Publishing an immutable version and making it public are separate actions. Policies include
-private/assigned only; unlisted/by link (not in catalog); public read only; public self-study;
-public teacher-led enrollment/application; and future paid access. A URL never supplies private
-authorization. Commerce is a later access policy over the same content, not a Course type.
-
-### 21.5 Reusable programming tasks
-
-ProgrammingTaskVersion uses the common Learning runtime. First required language is Python 3;
-the architecture remains language-agnostic. Versioned definition includes title, statement,
-language, runtime version, starter code, examples, public tests, hidden tests, CPU/memory/output
-limits, grading definition and feedback/reveal policy.
-
-| Action | Meaning |
+| Пользователь | Законченный результат |
 | --- | --- |
-| Запустить | Execute code; creates no Submission |
-| Проверить | Run permitted checks; creates no official Submission |
-| Сдать | Accept an exact code version into immutable Submission and common assessment |
+| Личный создатель | Зарегистрироваться без школы, создать и сохранить проект, вернуться к нему |
+| Автор | Подключить авторство, создать материал/курс, сохранить, проверить, опубликовать версию, безопасно изменить будущую версию |
+| Независимый преподаватель | Подключить преподавание, создать класс без организации, выдать доступы, назначить exact version, проверить сдачи и увидеть журнал |
+| StudentSeat | Получить карточку, ввести код класса и код ученика либо сканировать QR класса и ввести только код ученика; работать только в своём профиле |
+| Account-ученик | Законно вступить/получить назначение, выполнить работу в том же учебном runtime, сохранить личные проекты отдельно |
+| Команда/организация | Делегировать только конкретные действия и контексты; личные данные участников не становятся собственностью организации |
 
-Attempt → Submission → Autograder job → evidence → AssessmentResultRevision → selected result
-→ Gradebook. Execution jobs and immutable evidence belong to the existing assessment pipeline;
-there is no separate «Python grades». Runner isolation, no network by default, resource limits,
-no secrets and no hidden-test disclosure are mandatory. Implementing the runner needs separate
-owner authorization after stabilization.
+Один Account может сочетать эти занятия. Персона, вкладка, название школы и клиентский флаг роли не выдают серверных прав. «Подключить преподавание» добавляет разрешённые действия, а не заменяет авторскую библиотеку.
 
-### 21.6 Entry methods and temporary assessment access
+## 2. Каноническая академическая цепочка
 
-| Entry | Identity and authorization |
-| --- | --- |
-| Account | Normal authenticated participation with server-derived scope |
-| Persistent StudentSeat | Class Code + six-character Student Code/card; class code alone never authenticates and learner display name is not a credential |
-| Exact invitation/deep link | Resource navigation still requiring valid identity and authorization |
-| Public Knowledge link | Read/start from publication/enrollment policy; no private-class access |
-| Temporary assessment access | Restricted individual learner access within existing identity/auth/Learning contracts |
+Контент и его проведение различаются:
 
-AssessmentSeat / TemporaryLearningAccess names a TARGET semantic concept for a контрольная,
-диагностика, олимпиада, пробное занятие or one-off participant. It is not a fifth identity system,
-a Personal Account, or a redefinition of persistent StudentSeat. Scope is one exact ActivityRun,
-CourseRun or explicit small target set. It grants no roster, unrelated class/course, other learner
-or author-data access. Physical representation requires an architectural decision under existing
-tenant/RLS constraints; this specification alone authorizes no schema redesign.
+`Course → CourseVersion → CourseRun → CourseEnrollment`.
 
-«Контрольная → Участники → Создать временные доступы» accepts count or pseudonym list and issues
-individual print cards/QR: assessment title, pseudonym, opaque individual credential, validity
-window. Real PII is not required solely to create a temporary profile/card. Shared public URL or
-class code is never an individual identity. Individual one-time activation token may establish a
-scoped session and become unusable, or an explicit policy may use short-lived individual credentials.
-Credential and session are distinct from stable learner identity and retained academic evidence.
+Исполняемая учебная работа использует:
 
-Expiry removes future access while retaining accepted Submission, Result, audit and evidence.
-Later Account/Seat linking requires proof of both identities plus applicable approval/reconciliation;
-name, IP, device, similar login or email alone never suffice. History IDs stay stable where the
-architecture permits, without silent reassignment of another person's history.
+`LearningActivityVersion → ActivityRun → ActivityParticipation → Attempt → Submission → AssessmentResultRevision → ResultSelection → GradebookProjection / LearnerResultProjection`.
 
-### 21.7 Server-owned assessment time
+Курс создаёт дочерние ActivityRuns для каждого вхождения activity; прямое назначение использует тот же runtime. Повторное использование одной версии activity в двух уроках означает два вхождения, а не общий прогресс. Classroom — люди, CourseVersion — неизменяемое содержание, CourseRun — конкретное проведение. Workflow, педагогическое решение, выбранный результат и уведомление — независимые состояния.
 
-Distinguish credential expiry, session expiry, opensAt, dueAt, closesAt, Attempt.startedAt and
-Attempt.expiresAt. opensAt is earliest permitted start; dueAt is a pedagogical deadline; closesAt
-blocks new start/submit according to explicit policy. timeLimit begins with an explicit Start,
-using server time. For availability 10:00–12:00 and 45 minutes per Attempt, startedAt=serverNow
-and expiresAt=startedAt+45 minutes; the policy explicitly defines interaction with closesAt.
-Browser time is display only. Credential expiry never silently extends an Attempt timer.
+## 3. Порядок поставки и границы
 
-Strict preset example: one attempt, opens 10:00, closes 11:00, timeLimit 40 minutes, late submission
-blocked, delayed answer reveal, explicit Start, server timer; optional question/option shuffle or
-random pool. Reload or network disconnect resumes the SAME Attempt and spends no extra attempt.
-Expiry policy explicitly selects auto_submit or expire_without_submission, with idempotent server
-handling and no rewrite of accepted immutable evidence.
+| Этап | Обязательный пользовательский результат | Граница |
+| --- | --- | --- |
+| E1 / LRN-COURSE-01 | Теория + реальный STEM-проект: авторство, класс, безопасный вход, назначение, сдача, проверка, пересдача, журнал 30×10 | Исправления E1 из §4.16 обязательны; декоративная перевёрстка следует после функциональной приёмки |
+| E2 / LRN-COURSE-02 | Переиспользуемые задания, Question Bank/Quiz, Python 3/autograder, essay/file/rubric, контролируемое оценивание, prerequisites, результаты курса, журнал 30×100/export | Тот же runtime; временный контрольный доступ не заменяет постоянный Seat |
+| E3 / ASA-SELF-01 | «Знания», discovery, self-study, enrollment/application и доказанное Seat→Account linking | Публичность, разрешение чтения и учебное участие не смешиваются |
+| E4 / ASA-COLLAB-01 | Соавтор, издатель, преподаватель, проверяющий, наставник, координатор с точным scope | Без неограниченного доступа к чужим ученикам |
+| E5 / ASA-ORG-01 | Команды, группы, массовые назначения, адаптация и передача ответственности, учебные агрегаты | Без захвата личных проектов и скрытого переноса tenant |
+| E6 / ASA-EXPERIENCE-01 | Оставшиеся настройки, запросы данных, модерация, support и операции | Только реальные подключённые возможности, без фиктивных переключателей |
 
-### 21.8 Acceptance boundaries
+После E1 следующая стадия не начинается автоматически. Изолированное наличие E2-фундамента не означает готовность E2. Посещаемость/ClassSession, расписание, периоды и итоговые четвертные оценки — отдельно выбираемый будущий объём, не условие окончания E1. Перенос косметики не разрешает откладывать безопасность, сохранность текста, читаемость кодов или доступность основных действий.
 
-Prove library reuse across direct/class/course/discovery without duplicate roots; history-to-course
-creates a new draft; v3 publication cannot alter a v2 Run; run/check create no official Submission;
-runner limits and hidden tests remain protected. Temporary card accesses only its exact target;
-shared links cannot impersonate, expired/replayed activation fails, roster/unrelated content is denied,
-closing blocks new start, reconnect resumes the same Attempt, expiry preserves Submission/Result,
-and linking by name/device alone fails. These are TARGET acceptance cases, not implementation evidence.
+## 4. E1 — первый законченный курс
+
+### 4.1 Авторство и единая библиотека
+
+«Курсы и задания» — одна библиотека версионируемого авторского контента. Целевые разделы: «Мои», «Предоставленные» (полный совместный сценарий E4), «Архив»; типы контента выбираются фильтрами. Существующая временная композиция вкладок допустима до visual pass, но не другая модель данных.
+
+Обязательные действия E1: создать, открыть, изменить, сохранить, проверить, посмотреть как ученик, опубликовать версию, открыть версии, архивировать и восстановить своё. Автор без преподавания не получает roster. Teacher-only кнопки скрыты или недоступны с конкретным объяснением, а сервер независимо проверяет право.
+
+Новый материал закрыт. Публикация версии не делает его публичным. Legacy-задания доступны для законной истории, но новый курс не должен предлагать заведомо непубликуемый legacy-источник как обычный пригодный вариант. Нужны объяснение и переход к созданию/выбору canonical published material без переписывания старых сдач.
+
+### 4.2 Course Builder и безопасное редактирование
+
+Рабочие области курса: Overview, Content, Usage, Versions, Settings. Окончательная desktop-композиция Content: структура слева, редактор в центре, свойства выбранного элемента справа; properties drawer допустим на компактном экране. Mobile — последовательные панели. Расположение панелей доводится на visual pass; сами действия и сохранность обязательны раньше.
+
+Структура: раздел → урок → блоки. В E1 — теория и project activity Electronics/3D, изменение порядка, содержания и свойств. Видимый неподдерживаемый блок не выдаётся за работающий. Все принимаемые публикации ссылаются на exact published версии.
+
+Редактор различает `clean`, `dirty`, `saving`, `save_failed`, `conflict`. «Сохранено» означает подтверждение сервером именно отправленной редакции. Новый ввод во время запроса остаётся dirty. Допустимы либо безопасный autosave, либо явное сохранение с единым Save/Discard/Cancel guard. Простая блокировка всех переходов без возможности отказаться от заведомо невалидного черновика не считается полным решением.
+
+Guard охватывает смену урока, раздела, Preview, настроек, истории версий, родительской вкладки библиотеки, основного меню, маршрута, браузерной истории и закрытие/перезагрузку вкладки в пределах возможностей браузера. При Discard уничтожается только явно подтверждённый локальный ввод. При ошибке Save переход не выполняется и текст сохраняется.
+
+Структурная mutation не выполняется поверх несохранённого ввода без его согласованного сохранения/отмены. Операции сериализуются либо используют generation/revision fences. Поздний ответ не заменяет более свежий ввод. Conflict предлагает перезагрузить серверную версию после сохранения/экспорта собственного текста, а не молча выбрасывает работу. E1 не обещает полноценную offline-синхронизацию между узлами.
+
+### 4.3 Версии, восстановление и сравнение
+
+Published version доступна только для чтения. «Создать черновик из этой версии» создаёт новый draft из точного снимка с provenance. Существующий draft нельзя затереть. Следующая публикация получает монотонный номер и не меняет прежние CourseRuns.
+
+Сравнение показывает конкретные добавленные, удалённые, перемещённые и изменённые разделы/уроки/блоки/activity, а не только список категорий. У каждого изменения — путь к элементу и значения «было/стало», когда они безопасны для данного пользователя. Изменение одной policy отмечается как policy-change даже при неизменных title/resultMode/maxPoints. Сравниваются все поддержанные pinned правила: attempts, сроки/окна, late, completion, grading/result selection, feedback release. Данные берутся из exact immutable snapshots/ссылок, не текущего mutable root. Если исторической информации нет, показывается «нельзя точно сравнить», а не «изменений нет». Посимвольный diff не обязателен.
+
+### 4.4 Предпросмотр как ученик
+
+Preview отображает точный draft/published snapshot и применимые общие правила проведения. Он не создаёт/меняет Account/Seat, Enrollment/Participation, Attempt/Submission, Completion/Result/Gradebook/учебные уведомления, не читает ответы реального ребёнка и не impersonate его.
+
+Допускается обычный last_seen heartbeat существующей авторской сессии; он не продлевает credential/scope и не затрагивает сессии учеников. Проверка должна наблюдать API/БД, а не только наличие слова «Предпросмотр».
+
+### 4.5 Класс, профиль ученика и навигация
+
+Класс создаётся преподавателем без обязательной организации. E1: название и поддержанные основные сведения; roster; Account join requests/approval; StudentSeat; индивидуальные условия; назначения; журнал; существующая команда преподавателей; archive/restore. Целевая композиция Overview/Learners/Learning/Gradebook/Team/Settings доводится отдельно, без второго backend.
+
+StudentSeat меню: «Главная», «Моё обучение», «Мои учебные работы», «Помощь», «Мой учебный профиль»; видимый выход. «Главная» открывает существующий learner home. Ученику не показывается staff-roster или управление чужими доступами. Публичный preview класса показывает только название и canonical public display name преподавателя; email/username/account ID не используются как fallback. При отсутствии пригодного имени: «Преподаватель».
+
+### 4.6 Короткий вход, массовая выдача и карточки
+
+**Ручной вход: код класса → код ученика → вход. QR-вход: QR класса → код ученика → вход.** Никаких дополнительных имени для входа, длинного пароля, email, явной CAPTCHA или выбора роли. Отображаемое имя не credential. Account-вход остаётся самостоятельной ветвью, не дополнительным шагом StudentSeat.
+
+Student Code — ровно шесть символов из безопасного алфавита `2346789ACDEFGHJKMNPQRTUVWXY`. Отображение заглавными, регистр ввода незначим, пробелы нормализуются одинаково на клиенте и сервере. Сервер проверяет полную длину; он не должен молча аутентифицировать усечённый произвольный длинный код.
+
+Коды генерируются криптографически случайно сервером и уникальны внутри класса. Запрещено получать credential из имени, UUID класса/Seat, порядкового номера строки или timestamp без серверного секрета. Предпочтительна независимая случайная генерация, а не новая схема вычисления паролей. Уникальность и конкурентная выдача обеспечиваются транзакцией/constraint. Идемпотентность обеспечивается receipt уже сгенерированных значений, не детерминированностью по общедоступным данным. Учитель может вручную задать другой допустимый уникальный шестисимвольный код; это явная ротация с той же проверкой формата/прав и отзывом старого доступа. Ручной выбор не объявляется криптографически случайным. Требование RNG относится к автоматической генерации.
+
+Массовая выдача: один псевдоним/имя на строку → client precheck → server preview → per-row valid/duplicate/conflict/invalid → явное подтверждение → один идемпотентный commit → per-row результат. Минимум 30 строк, предусмотренный сервером предел сообщается до отправки. Повтор того же requestId+payload не создаёт Seat, не меняет коды и не повторяет аудит. Иной payload с тем же ключом конфликтует. Preview не обязан заранее раскрывать постоянный секрет; после commit печатаются фактически выданные значения. CSV/XLSX ETL не обязателен, вставка из таблицы достаточна.
+
+Одиночная и массовая выдача используют один credential contract. Учитель с отдельным правом управления доступами видит имя и текущий код в roster, может скопировать, изменить/перегенерировать, распечатать одного/выбранных/весь класс в любой момент. Повторная печать — read-only; не отзывает сессии, не меняет credentials и историю. Закрытие окна после создания не лишает повторной печати.
+
+Карточка — компактный горизонтальный вырезаемый блок: ASA Lab и `asa-lab.ru` сверху; имя ученика; класс вторично; код класса; хорошо различимый код ученика; QR справа. Технический маршрут/query не печатается текстом. QR содержит только текущий Class Code и origin **ровно `https://asa-lab.ru`**, без Student Code. Переход автоматически разрешает класс и показывает поле «Код ученика», без повторного «Продолжить».
+
+Основная печать: A4, 2×5 карточек, 10 на лист; длинное имя переносится внутри карточки без наложений и разрыва карточки между страницами. Для 30 учеников проверяются три листа. Чёрно-белая печать, пунктирные линии реза, quiet zone QR не меньше четырёх модулей; фактическое сканирование обычной камерой входит в manual acceptance. Сохранение в PDF через печать допустимо. Размер карточки и QR измеряется по print-preview, не по desktop screenshot.
+
+При потере некомпрометированной карточки печатается та же. При компрометации выполняется явная атомарная ротация: старый код недействителен, его активные сессии отозваны, новый код доступен учителю, Seat/LearnerIdentity/все работы и оценки сохранены. Смена общего кода класса делает старые class QR недействительными и предлагает перепечатать карточки; не ротирует Student Codes автоматически.
+
+Читаемость преподавателем не означает открытость credential всем. Current-code endpoints требуют точного class scope и права управления доступом, исключаются из логов/analytics/cache; ответы `no-store`. Ученику не выдаётся список кодов. Целевое хранение обратимо только для разрешённого readback (защищённый encryption envelope), с keyed lookup/verification и отдельным управлением ключами. Старый plaintext login_handle не считается выполнением этого требования. Миграция существующих предсказуемых кодов требует preview затронутых профилей, контролируемой ротации и повторной выдачи карточек, без пересоздания учеников.
+
+Rate limit проверяет именно `/api/class-join/resolve` и `/api/class-join/studentseat`. Успешное разрешение класса не расходует общий маленький бюджет входа аудитории. Обязательны 30 учеников с одного IP: последовательный и одновременный вход, QR и ручной путь, повтор при потере ответа, до четырёх обычных опечаток на ученика. Законные входы не получают 429 из-за соседей. Одновременно перебор неверных кодов ограничен по источнику и целевому контексту; смена угадываемого кода не должна бесконечно обходить контроль. Отказ не перечисляет детей; корректный Retry-After и recovery доступны. Нельзя бессрочно блокировать весь класс из-за атакующего или отменять защиту ради теста. Несколько API-инстансов требуют общего согласованного лимитера либо явного ограничения поддерживаемой конфигурации. Proxy/IP учитываются только из доверенного ingress.
+
+### 4.7 Архивирование класса и курса
+
+Обычное удаление используемого/опубликованного курса и класса означает archive, не destructive DELETE. Сохраняются версии, выдачи, memberships/enrollments, attempts, submissions, results и audit. Восстановление не открывает закрытые Run и не реактивирует withdrawn учащихся. Архивный курс не назначается заново и не появляется во внешнем каталоге; ранее законно выданные immutable версии остаются доступны по праву своего Run.
+
+Проверка архивного состояния и создание нового назначения находятся в одной согласованной транзакции/блокировке. Конкурентное archive/assign имеет определённый порядок, не окно между отдельными проверками. Teacher responsibility transfer — отдельная scoped операция E4/E5.
+
+### 4.8 Назначение и аудитория
+
+Не более трёх содержательных шагов: exact material/version → аудитория → условия и preview. Whole-class аудитория динамическая; named-learners — snapshot. Late join создаёт участие ровно один раз независимо от порядка materialization. Named audience меняется явно для этого назначения. Выход/исключение сохраняет историю и запрещает новые действия по policy. Повтор запроса не дублирует Run/Participation. Указанный клиентом UUID не заменяет проверку владельца/класса.
+
+### 4.9 Время и индивидуальные условия
+
+Хранение instants в UTC; ввод/показ со своим явным timezone. Смена display timezone не сдвигает deadline. Precedence: Participation override > ActivityRun explicit/pin > course-block template > ActivityVersion default. Grading scheme отдельно фиксируется версией при выдаче.
+
+E1 поддерживает действующие opensAt/dueAt/closesAt, extra attempts, late policy, unlock/excused и историю изменений для точного learner+occurrence. Неизвестное/неподдержанное поле запрещено или явно объяснено, не тихо игнорируется. Override не меняет чужой Run, identity, credential, content pin или опубликованный результат.
+
+### 4.10 Работа и неизменяемая сдача
+
+Открыть → Start/Resume → реальный Electronics/3D → server-confirmed save → reload → Submit. Не более одной активной Attempt на Participation; Resume не тратит новую. Submission фиксирует exact ProjectVersion/source revision/digest. Позднее изменение draft не меняет уже сданный объект. Сбой ответа разрешается безопасным повтором/получением receipt, без второй Attempt/Submission. Unsaved/failed данные не называются сохранёнными и не подменяют сдачу.
+
+### 4.11 Проверка, пересдача и исправление результата
+
+Проверяющий открывает exact Submission и pinned задание/условия. Ungraded и completion не получают выдуманных баллов; graded использует реальные maxPoints и шкалу. «Принять» и «Вернуть» — педагогические решения, не новый набор состояний Attempt. Возврат при допустимой policy открывает новый связанный путь Attempt; старая сдача не перезаписывается.
+
+Исправление опубликованного результата — append-only revision с причиной, actor, expected result revision и безопасным повтором. Две вкладки не перезаписывают результат молча. ProjectFeedback/значки не являются официальной оценкой. ResultSelection общий для журнала, ученика и сводки курса.
+
+### 4.12 Журнал
+
+Матрица learner × конкретный ActivityRun; repeated delivery имеет отдельные колонки. Ячейка разделяет workflowState, selectedResult и flags. «Не назначено», «Не начато», «В работе», «Ждёт проверки», «На доработке», «Завершено» и «Без оценки» различаются. Null не равен нулю. Действие ячейки открывает exact сдачу/историю/разрешённую проверку.
+
+E1: 30×10, поиск ученика, фильтр курса, переход к работе; mobile по учащимся/работам либо локальная прокрутка самой матрицы. Page-level horizontal overflow запрещён. E2: 30×100 и scoped export. Произвольное среднее не считается оценкой курса.
+
+### 4.13 Уведомления и завершение
+
+In-app события E1: назначение/условия, сдача на проверку, решение/исправление, срок скоро, просрочка, завершение, join request/decision. Вопросы/объявления появляются только при реально поддержанном адресате/сценарии. Личный OFF, категории и исключения класса меняют доставку, не академическое состояние. Преподаватель настраивает поддержанные напоминания ученикам отдельно от своих уведомлений.
+
+Сдача коммитится при ошибке доставки уведомления; persisted event/outbox-equivalent повторяется с дедупликацией. Unread не является queue count. Completion — серверная проекция обязательной теории и требуемой принятой практики; отсутствие обязательной работы объясняется ученику. CourseCompletion не тождествен CourseResult.
+
+### 4.14 Главная преподавателя
+
+Используется существующая Главная и её canonical projections. «Требует внимания»: работы на проверке, активные классы, заявки, ближайшие релевантные действия; ссылки ведут к существующей работе/классу. Ошибка источника — «недоступно/повторить», не ноль. Отключённые уведомления не убирают реальную очередь. Новый dashboard engine запрещён.
+
+### 4.15 Обязательная функциональная приёмка E1
+
+Все пункты обязательны на одном product candidate; planned-тесты не считаются пройденными.
+
+1. Author-only создаёт/меняет/публикует через UI, roster запрещён.
+2. Подключение преподавания сохраняет те же ID, drafts и versions.
+3. Курс с теорией и проектом создаётся и назначается через UI, не SQL fixture.
+4. Whole/named/late join/leave сохраняют точный scope и историю.
+5. Account и StudentSeat проходят реальный Electronics; 3D доказан отдельно.
+6. Поздний draft не меняет exact submitted version.
+7. Submitted работу официально проверяют, без скрытого 100/60.
+8. Возврат → новая Attempt → повторная сдача → решение сохраняют прошлые факты.
+9. Все экраны дают одинаковый selected result; stale correction конфликтует.
+10. Матрица 30×10 различает отсутствие назначения, начала и оценки.
+11. Fresh и populated upgrade сохраняют исторические данные; старые SQL не переписываются.
+12. OFF/категории/class overrides не меняют academic truth.
+13. Batch 30, повторная печать, ротация, QR правильного origin и массовый вход с общего IP проходят отдельные проверки.
+14. Class/course archive+restore сохраняют историю; archive/assign проверяется конкурентно.
+15. Preview не создаёт академические/learner-session записи.
+16. Exact old version → новый draft; structural diff и prepublish диагностика информативны; lost-response publish повторяем.
+17. Teacher Home использует настоящую очередь; редактирование защищено на всех выходах и при медленном сохранении.
+18. Владелец получает воспроизводимую демонстрацию exact candidate с известными ограничениями; его приёмка и deployment отмечаются отдельно.
+
+### 4.16 Исправления, без которых нельзя закрывать E1
+
+Это нормативные результаты исправления, не отчёт о том, что они уже сделаны. Статусы и наблюдения находятся в ledger и `current.yaml`; все перечисленные сценарии должны стать исполнимыми regression tests.
+
+| ID | Исправляемый результат | Обязательная опровергающая проверка |
+| --- | --- | --- |
+| E1-FIX-01 | Вход полного класса без общей блокировки | 30 клиентов/один IP: sequential resolve+login и all-resolve-then-login; отдельно QR, опечатки, rate-limit attack/recovery |
+| E1-FIX-02 | Непредсказуемый короткий credential и защищённый повторный readback | Аудит RNG/entropy source; same-name/different request не предсказывает код; replay стабилен; foreign/read-only staff denied; controlled upgrade+rotation сохраняют историю |
+| E1-FIX-03 | Домен карточки и настоящий QR | Декодировать изображение QR независимым decoder; origin `https://asa-lab.ru`, актуальный class code, отсутствие Student Code; не заменять проверяемый origin на localhost |
+| E1-FIX-04 | Безопасный dirty editor | Parent tabs/menu/route/reload; Save/Discard/Cancel; Save A → type B → delayed ack A оставляет B dirty; ошибка не уничтожает ввод |
+| E1-FIX-05 | Идемпотентная публикация | Успех на сервере + потеря ответа + exact retry после роста revision возвращает ту же version; иной payload конфликтует |
+| E1-FIX-06 | Полное structural/policy сравнение | Изменить только maxAttempts/late/feedback: видны точные before/after и путь; reorder не выдаётся за замену всех элементов |
+| E1-FIX-07 | Точная предпубликационная диагностика | Ошибка второго блока: sectionId/lessonId/blockId/field/reason + перейти к исправлению; неподдержанный legacy нельзя незаметно вставить как пригодный |
+| E1-FIX-08 | Архивирование и назначение атомарны | Конкурентные archive/assign и повтор уже успешного назначения; чужой UUID и прежний Run не получают лишнего доступа |
+| E1-FIX-09 | Нет противоречивого контекста и фиктивного test evidence | Compact/master/registry/ledger согласованы; каждый объявленный тест существует и его команда действительно включает; исторический secret-flow не нормативен |
+| E1-FIX-10 | Проверяемая граница репозитория и сайта | Отдельные code SHA, CI SHA, installed Web/API/schema, время наблюдения и выполненный live journey; отсутствие доступа записано как not_run |
+
+E1-FIX-01…05 — первоочередные функциональные/безопасностные исправления. E1-FIX-06…08 закрывают полноту и гонки. E1-FIX-09/10 обеспечивают достоверность всей работы. Существующие исправные части сохраняются; статус всего E1 не выводится из количества зелёных тестов или произвольного процента.
+
+После функциональной приёмки следует отдельный visual convergence библиотеки, Course Builder и Class workspace. Он не подменяет исправления выше. Независимый review требуется для security/academic candidate по протоколу репозитория; self-review не называется независимым.
+
+## 5. E2 — надёжное оценивание
+
+E2 расширяет E1, а не создаёт второй runtime. Задания, вопросы, Quiz и programming tasks — переиспользуемые версионируемые объекты общей библиотеки. Удаление вхождения из курса не удаляет исходный материал. «Новое задание» из класса сохраняет материал в эту же библиотеку и отдельно назначает выбранную версию.
+
+Обязательные восемь типов Quiz: `single_choice`, `multiple_choice`, `boolean`, `numeric`, `short_text`, `matching`, `ordering`, `long_text_manual`. QuizVersion владеет составом/порядком/оценочной структурой вопросов; ActivityVersion — попытками, временем, порогом, feedback release и result selection. QuestionVersion/пулы/перемешивание фиксируются на Start. Answer keys не поступают ученику до разрешённой policy.
+
+Ответы сохраняются на сервере с optimistic revision. Reload, reconnect и две вкладки возвращают ту же Attempt или явный conflict, не новую попытку и не новый таймер. Незавершённая ручная часть даёт provisional score, не окончательную оценку. Regrade ограничен exact ActivityRun и создаёт новые ResultRevision; старые доказательства не меняются.
+
+Python 3 — первый обязательный язык программных задач; архитектура не привязана только к нему. ProgrammingTaskVersion фиксирует условие, starter files/code, runtime/checker version, вход/выход, примеры, публичные и скрытые тесты, CPU/memory/output limits и feedback policy. `Запустить` выполняет видимые примеры; `Проверить` — разрешённые проверки draft; `Сдать` фиксирует exact source/evidence/digest. Run/Check не создают официальную сдачу/оценку. Изолированный runner не имеет сети по умолчанию, credentials и скрытые тесты не выходят в learner payload. Autograder job/evidence идут в общий assessment/result pipeline. Запуск runner — отдельный разрешённый этап, не побочный эффект публикации.
+
+Essay фиксирует exact text/hash, file — immutable asset/version/hash, наблюдение преподавателя — реального staff actor. RubricVersion, её criteria/levels/max и GradingSchemeVersion неизменяемы после использования. Required manual review не обходится автоматическим provisional result.
+
+Контролируемая работа использует отдельный scoped temporary access для exact ActivityRun/CourseRun или явно перечисленного малого набора. TemporaryLearningAccess/AssessmentSeat — TARGET, не новый тип Account, не Personal Workspace и не автоматическое включение в roster. Постоянный StudentSeat остаётся постоянным. Временный доступ не даёт чужие работы/классы/материалы; возможное linking требует двух proofs и принятой reconciliation policy.
+
+`credentialExpiresAt`, session expiry, `opensAt`, `dueAt`, `closesAt`, `Attempt.startedAt` и `Attempt.expiresAt` различаются. Серверный Start запускает timeLimit. DueAt — педагогический срок; closesAt ограничивает start/submit по явной policy, а не по часам браузера. Expiry работает при закрытом браузере: `auto_submit` фиксирует последнюю подтверждённую работу либо `expire_without_submission` завершает попытку без выдуманной сдачи/оценки. Оба пути идемпотентны. Истечение доступа не удаляет принятую историю.
+
+E2 также включает prerequisites/unlock с acyclic graph, индивидуальные overrides, CourseCompletion отдельно от CourseResult, режимы `no_course_grade`, `points_sum`, `weighted_categories`, журнал 30×100, mobile modes и scoped CSV/XLSX export. Формулы, tie-break, округление, null/missing/excused semantics сохраняются из Learning Master, не из UI. Сборка нового курса из фактически проведённых заданий относится к расширению общей библиотеки: exact content refs и provenance без копирования ответов детей; требование сохранено в §21.
+
+## 6. E3 — «Знания», самостоятельное обучение и связывание
+
+«Знания» — discovery тех же published roots: article, video resource/material, lesson, course, assignment, quiz, programming task, collection. Это не вторая БД авторства. «Сообщество» с проектами — отдельная пользовательская область, не дубликат учебного контента.
+
+Метаданные по применимости: title, summary, subject/topic/category, tags, level, age/grade band, duration, language, module, assessment mode, exact version, author/owner display, immutable cover и access badge. Поиск и фильтры используют эти поля; paid/free filters и commerce не входят автоматически в E3. Answer keys, скрытые тесты и данные учащихся не публичны.
+
+Политики: private/assigned only; public read-only; unlisted/by link без выдачи приватных прав; разрешённое self-study; teacher-led enrollment/application; будущий платный доступ. Публикация версии, видимость в каталоге, право чтения, enrollment и право Submit — разные операции. Public read не создаёт Participation/Attempt.
+
+Самообучение использует общее ядро без фиктивной школы/учителя. При обязательной ручной проверке необходим реальный разрешённый reviewer; иначе доступно только допустимое чтение с понятным ограничением.
+
+Seat→Account linking требует контроля точного Seat, authenticated/re-authenticated Account и применимого approval/safety. Имя, email, IP и устройство не proofs. Не меняются LearnerIdentity, Enrollment/Participation, Attempt, Submission, Result и исторические actors; несовместимые истории требуют отдельного разрешённого reconciliation. Suspended не активируется linking; pending не закрывает законное обучение. Реализация нового personal learning context не разрешает самовольный tenant/RLS redesign.
+
+## 7. E4 — совместная работа
+
+Единый invitation/grant: recipient, scope, actions/template, issuer, срок, состояние, audit и отзыв. Editor/coauthor не получает publish/roster; publisher не автоматически editor; reviewer видит назначенные сдачи; mentor не выставляет официальную оценку; coordinator не читает answer keys. Teacher/co-teacher права ограничены конкретным классом/проведением. Обязанности совмещаются без глобального user.role.
+
+Для cross-owner delivery заранее создаётся/закрепляется runtime-safe materialization по принятому контракту, не произвольный доступ к чужому tenant. Независимая адаптация/copy UI полностью завершается в E5. Помощь/обсуждение требуют реального адресата и текущего права; отключённое уведомление не выдаёт и не отзывает это право.
+
+Open teacher-led Run может иметь `maxParticipants: null | positive integer`; admission атомарен, два пользователя не занимают последнее место одновременно. Pending application не резервирует место без отдельной policy. Waitlist исключён.
+
+## 8. E5 — организация
+
+Добровольная команда: staff management и ceiling делегирования, группы/подгруппы, multi-class/bulk с per-target outcome, адаптация/copy с provenance, разные CourseRuns на разные проведения. Summary/detail/export — отдельные разрешения. Передача владения/ответственности требует подтверждения сторон; обычная смена роли не переносит данные между tenant.
+
+Выход из организации отзывает зависимые будущие права, не личные проекты/Account и не академические факты. Organization defaults используются для новых pins, не для изменения старых оценок. Учебные агрегаты строятся из подтверждённых Runs/участий/сдач/результатов, не из login/click events.
+
+## 9. E6 — оставшиеся настройки и операции
+
+Закончить поддержанные preferences, реальные каналы уведомлений, inbox запросов/приглашений, data/export/account closure под принятой retention policy, moderation cases, ticket-bound SupportSession и platform operations. SET-01–SET-58, U/R/P/UI/AC-каталоги сохраняются в Access Master; наличие пункта не означает готовность endpoint.
+
+Нельзя добавлять фиктивные switches или universal impersonation. Support не использует чужой пароль и не исправляет академический результат прямым UPDATE. Административные полномочия не выводятся из названия организации.
+
+## 10. Атлас экранов
+
+Это 17 переиспользуемых шаблонов, а не обязательство создать 17 кабинетов для каждой роли:
+
+| № | Шаблон | Размещение функции |
+| --- | --- | --- |
+| 1 | Каталог «Знания» | Discovery, E3 |
+| 2 | Публичная карточка материала | Exact published content и разрешённые CTA, E3 |
+| 3 | «Курсы и задания» | Единая библиотека, архив; E2 filters/Question Bank |
+| 4 | Авторский workspace | Course/material editor, версии/валидация; E2 Quiz/programming |
+| 5 | Список классов | Законные class create/open/archive |
+| 6 | Workspace класса | Учащиеся/доступы/обучение/история/журнал/team/settings |
+| 7 | Проведение/назначение | Version pin, аудитория, условия, закрытие; E2 temporary access |
+| 8 | Очередь преподавателя | Реальные сдачи, не unread |
+| 9 | Проверка сдачи | Read-only exact Submission и разрешённый review/correction |
+| 10 | «Моё обучение» | Все доступные learner назначения |
+| 11 | Learner player | Курс/activity, Start/Resume/Save/Submit |
+| 12 | Журнал | Canonical matrix и detail |
+| 13 | Приглашения/запросы | Раздельные proofs join/login/link/staff |
+| 14 | Мои организации | Только фактическое membership |
+| 15 | Организация | Staff/groups/summary/detail/export по scope |
+| 16 | Профиль/настройки | Account и Seat variation, без role picker |
+| 17 | Уведомления | Настройки/лента, отдельно от work state |
+
+Home, public entry, class-code entry, проекты, сообщество, игры, subject editors и platform admin переиспользуются. Постоянные карточки доступны из roster и отдельного ученика; одно короткое подтверждение — dialog, сложный повторяемый workspace — page/tab, без modal-on-modal. Верхняя панель не должна одновременно превращать каждое действие в primary CTA. Финальные размеры/плотность определяет visual pass, не новый домен.
+
+## 11. Каталог действий и состояний
+
+| Группа | Действия | Обязательные состояния |
+| --- | --- | --- |
+| Контент | Create/Open/Edit/Save/Preview/Validate/Publish/Versions/Compare/Archive/Restore | Empty, loading, dirty, saving, saved, failed, conflict, permission denied |
+| Доступ ученика | Create one/batch, current card, print selected/all, rotate/revoke/suspend | Preview, committing, partial outcome, retry receipt, revoked/expired, no class code |
+| Выдача | Exact version, whole/named, conditions, close/cancel | Not assigned, pending, assigned, conflict, closed, archived |
+| Учебная работа | Start/Resume/Save/Submit/theory completion | Not started, in progress, save pending/failed, submitted, revision allowed |
+| Проверка | Accept/Return/Correct/Select attempt | Waiting review, stale conflict, decision published, reason required |
+| Поздние этапы | Quiz/Run/Check/autograder, self-start/enroll, invite/adapt/bulk/support | Только после реализации своей стадии и server-derived permissions |
+
+Каждая mutation показывает pending/success/error/conflict и безопасный retry. Нельзя сообщать success, когда обновилось только клиентское состояние. Offline, denied и реальный empty-state различаются. Старый unread/result не подменяет новый серверный факт.
+
+## 12. Доступ и UI
+
+Меню выводится из server-issued entitlements; скрытая кнопка не заменяет backend authz. «Классы» — staff scope, ученические классы — внутри «Моего обучения». «Курсы и задания» доступны при реальном content action. Личный Account сохраняет свои проекты независимо от организации и совмещённых обязанностей. Seat получает только меню §4.5.
+
+Unknown private UUID — безопасный not-found без чужой метаинформации; известное разрешённое чтение с запрещённым действием может дать точную причину и законный следующий шаг. Отозванные grants проверяются заново при sensitive mutation и не сохраняются благодаря старому UI/token cache.
+
+## 13. Уведомления, обращения и аудит
+
+Получатели определяются по текущим scoped permissions, затем личным delivery preferences. Security-critical уведомления не отключаются как маркетинг. MAX/email login не означает обязательной внешней доставки. Назначения, сдачи, correction, join/approval, изменения условий, staff invitations, вопросы/ответы, linking/recovery и сроки сохраняют свои категории по поддержанному этапу.
+
+Audit фиксирует actor, action, resource, requestId, outcome/reason и время без самого Student Code/пароля/session token. Логи — диагностика, audit — история изменения; они не взаимозаменяемы. Реальные credentials и данные детей не попадают в опубликованные screenshots/evidence. На карточках в evidence используются только синтетические профили.
+
+## 14. Версии, повтор команд и гонки
+
+Create/publish/assign/start/submit/invite/batch имеют идемпотентный ключ, digest семантического payload, scope/actor и сохранённый результат. Exact retry возвращает тот же логический результат в объявленном retention window; иной payload — `idempotency_conflict`.
+
+После authentication/authorization lookup receipt выполняется до проверки stale expectedRevision для уже завершённой той же команды. При отзыве текущего права replay не обходит authz и не раскрывает результат постороннему. Новая команда со старой revision конфликтует. Повтор публикации после роста revision самой публикацией не считается новой mutation. Одновременные одинаковые ключи создают один результат.
+
+Server acknowledgment содержит revision/receipt, достаточные для согласования редактора. UI не делает blind retry create/start/rotate, когда неизвестен результат предыдущего запроса. Частичный bulk outcome показывает каждую цель; ошибка не превращается в пустой список. Мутации не закрывают/открывают соседние Run скрытым побочным эффектом.
+
+## 15. Безопасность и данные
+
+Обязательны проверки: foreign content/class/Seat UUID; author без roster; publisher без edit; reviewer без неделегированной correction; mentor без grade; coordinator без keys; summary-only без detail/export; org admin без platform grants; pending/expired invite без прав; смешанные Account/Seat cookies; отзыв доступа при открытой странице/задании; общий компьютер после logout. В поздних стадиях новые роли проходят те же отрицательные проверки до включения.
+
+Сохраняются RLS/guarded functions, stable learner mapping и immutable history. Физическая миграция — отдельный version-controlled SQL, старые checksum не меняются. Без отдельно разрешённого решения нельзя создавать новый tenant, Auth store или копировать учебную историю. Поддерживаемый credential readback не даёт права публиковать секреты в аналитике или URL.
+
+## 16. Нефункциональные требования
+
+Поддерживаются keyboard/focus/labels, semantic error/status, reduced motion и состояние не только цветом; целевой уровень WCAG 2.1 AA. Контрольные ширины: 320, 390, 768, 1024, 1366, 1440, 1920. Не требуется полный жизненный цикл на каждой ширине, но затронутые состояния проверяются на узком и desktop экране. Прочтение screenshot обязательно для visual evidence; `scrollWidth == innerWidth` не доказывает нормальную ширину текста.
+
+Сохраняются измеримые SHOULD-цели Learning Master: полезный 30×100 журнал до 2 s, обычный API p95 до 500 ms вне тяжёлых assets/regrade; editor 20 разделов/200 уроков/1000 блоков без полного дорогого rerender на каждую клавишу. Результат сообщает dataset, hardware, build и метод; неподтверждённая цель не PASS. E1 массовый вход имеет отдельный тест §4.6 и не подменяется производительностью обычного Account login.
+
+## 17. Evidence и готовность
+
+У каждого требования отдельно фиксируются: implementation status; уровень проверки (`source_review`, `component_reproduced`, `local_integration`, `ci_browser`, `live_smoke`, `owner_accepted`); exact SHA; команда/test case; результат; ограничения/непроверенное. Эти измерения не являются одной линейной галочкой. `implemented` не подразумевает `verified` или `deployed`.
+
+Связь evidence: requirement ID → конкретный сценарий → существующий исполнимый тест → команда, которая его реально включает → run/artifact на exact SHA. Planned tests перечисляются как planned и не включаются в пройденное покрытие. Ссылки на весь файл недостаточно, когда нужный сценарий там не выполняется.
+
+Focused tests — во время изменения. На готовом product candidate — требуемые repository/DB/RLS/upgrade и browser gates, без маскировки unrelated failure. Документальная проверка не запускает production Docker и не считается повторной проверкой самого продукта. Независимый review не заменяется отчётом автора.
+
+Fixtures готовят synthetic users/нагрузку; принимаемое действие выполняется через штатный UI/API. Тест карточки декодирует реальный QR, проверяет полный origin и выполняет локальный путь отдельно; localhost test не доказывает существование публичного host. Physical scan/print и реальный домен имеют отдельную отметку manual/live. Снимки старого запуска не доказывают новую ревизию.
+
+## 18. Поставка и реальный сайт
+
+GitHub push, CI success, deployment и приёмка — разные факты. Перед разрешённым обновлением фиксируются exact candidate/image identity, поддержанный migration path, проверенный backup при изменении БД и recovery plan. Updater не создаёт новый постоянный Compose/volume/DB и не выбирает случайную копию checkout.
+
+После обновления на `https://asa-lab.ru/` проверяются `/build-metadata.json`, `/health/ready`, совпадение Web/API SHA, фактическая и ожидаемая схема, затем разрешённый synthetic class journey. Ready подтверждает liveness/schema конкретной сборки, а не полноту E1. `artifactIntegrity: unknown` не называется verified integrity. Без тестового авторизованного доступа фиксируется `authenticated_journey: not_run`, а не общий PASS.
+
+Успешный E1 может выпускаться независимо от E2–E6. Откат app image не является автоматическим откатом схемы. Эта редакция разрешения на обновление рабочего сервера не даёт.
+
+## 19. Исключения и аккуратная очистка
+
+Не включаются автоматически: attendance/timetable/period grades, parent dashboard, certificates, payments, SCORM/LTI, видеоконференции, общий мессенджер, marketing campaigns, отдельный warehouse, hosting/transcoding больших медиа, offline multi-node sync, новое STEM-ядро и cross-tenant перенос класса одной кнопкой.
+
+Очистка касается противоречивого active context, не удаления истории. Старые версии ТЗ — явно historical/superseded со ссылкой на замену и checksum. Они исключены из обычного маршрута агента. Migration files, accepted evidence, backups, owner artwork и учебные данные не удаляются как мусор. Legacy runtime выводится только после инвентаризации реальных потребителей, replacement и upgrade/replay доказательств.
+
+CI-артефакты, documentation screenshots и утверждённые visual baselines различаются. Обычный screenshot() не visual regression. Одинаковые картинки под двумя именами можно консолидировать только после проверки входящих ссылок. Секреты/owner evidence не копируются в публичный репозиторий. Очистка отдельного модуля не добавляется попутно в срез Learning.
+
+## 20. Работа исполнителя и повторная проверка
+
+Начать с AGENTS, `agent:recover`, `agent:context --scope learning`, фактического HEAD и рабочего дерева. Затем прочитать выбранный FIX-ID из ledger, его секцию здесь и точные domain/access sections. Прочие мастера и архив читаются только по конкретной зависимости. Не запускать ещё один глобальный аудит после каждой кнопки.
+
+Цикл: воспроизвести или явно квалифицировать гипотезу → regression, падающий на старом продукте → исправить один целый переход → positive/negative/retry/concurrent checks → self-review → независимый review при требовании policy → exact candidate gate → отдельный отчёт и STOP. Изменение теста допустимо только при изменении истинного контракта, не ради зелёного CI. Повтор проверки без новой гипотезы/изменения не доказывает больше.
+
+Вывод отчёта разделяет CODE, TESTS, DOCS, LIVE, DEPLOYMENT, OWNER_ACCEPTANCE и UNVERIFIED. Закрывать дефект только по существованию документа или закрытому Issue запрещено.
+
+## 21. Сохранение требований V1.4 и границы уточнения
+
+Четыре области сохраняются: «Знания», «Курсы и задания», «Классы», «Моё обучение». Общая library имеет filters «Все/Курсы/Материалы/Задания/Тесты/Программирование/Банк вопросов/Архив» по реально реализованной стадии. Отдельная disposable assignment DB или programming-grade store запрещены.
+
+Class Learning сохраняет целевые «Сейчас/История/Программа класса». История строится из настоящих выдач по дате/периоду; «Собрать курс» создаёт NEW draft с exact references/provenance, без ответов, оценок и переписывания старого Run. Это сохранённое расширение reusable library, а не уже доказанное E1-действие. До выбора этапа для этой функции в ledger используется `stage_assignment_pending`; её нельзя молча удалить, автоматически считать выполненной или требовать ради исправления входа. Редактирование для будущих даёт v3 при прежнем Run v2; добавление классу материала — отдельное direct delivery.
+
+Rich blocks сохраняются как TARGET: heading/text/image/video/link/file/asset/note; practice/quiz/programming и subject activities — по отдельному поддержанному module contract. E1 принимает Electronics/3D, а наличие Scratch/CAD на главной не означает готовность их учебного grading adapter. Новые банк/quiz/programming редакторы принадлежат общей authoring surface.
+
+Временная assessment-карточка E2 может иметь отдельный индивидуальный activation credential по своей policy. Это не разрешение возвращать personal credential в общий class QR постоянного StudentSeat. Constant class QR из E1 никогда не аутентифицирует ребёнка сам.
+
+Наследование требований: V1.4 §0–4 → §§0–4 этой редакции; §5 и §21.3/5/6/7 → §5; §6 и §21.4 → §6; §§7–20 → одноимённые разделы; §21.1/2/8 → §§1/10/11/17/21. Старые numbered acceptance, SET/U/R/P/INV/UI/AC и Learning requirement IDs не удаляются из специализированных контрактов. Изменения E1-FIX-01…10 уточняют безопасность, полноту и evidence; не объявляют продукт исправленным. Точность DDL/OpenAPI и семантика неизменённых detail contracts сохраняются.

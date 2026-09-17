@@ -3,13 +3,13 @@ contract_id: IDA-DOMAIN
 domain: identity
 registry_document_id: IDENTITY-DOMAIN-CONTRACT
 master_documents:
-  - IDENTITY-ACCESS-V21
+  - IDENTITY-ACCESS-V22
 
 invariants:
   - id: IDA-ACC-001
     statement: A personal Account and Personal Workspace do not require a school or organization.
     master_refs:
-      - document: IDENTITY-ACCESS-V21
+      - document: IDENTITY-ACCESS-V22
         section: INV-01
     applies_to: [account, personal_workspace, registration]
     forbid: [school_required_for_account, organization_as_account_parent]
@@ -17,14 +17,14 @@ invariants:
   - id: IDA-SCOPE-001
     statement: One Account may combine activities, but every privileged responsibility is scoped; personae and UI modes are never global authorization roles.
     master_refs:
-      - document: IDENTITY-ACCESS-V21
+      - document: IDENTITY-ACCESS-V22
         section: INV-03 / INV-04 / INV-05
     applies_to: [account, grants, capabilities, navigation]
     forbid: [global_user_role, persona_as_authority, ui_mode_as_grant]
   - id: IDA-AUTH-001
     statement: Sensitive access is decided server-side from the authenticated actor, trusted resource lineage, active grants, safety policy and current resource state; client IDs and hidden buttons are not authority.
     master_refs:
-      - document: IDENTITY-ACCESS-V21
+      - document: IDENTITY-ACCESS-V22
         section: INV-11 / INV-12
     applies_to: [authorization, resource_access, mutation, navigation]
     forbid: [client_claimed_scope, client_claimed_role, hidden_button_as_authorization]
@@ -32,7 +32,7 @@ invariants:
   - id: IDA-CAP-001
     statement: Content authoring and teaching are separate capabilities; enabling either preserves the same Account and personal work and does not grant unrelated roster or content rights.
     master_refs:
-      - document: IDENTITY-ACCESS-V21
+      - document: IDENTITY-ACCESS-V22
         section: INV-04 / INV-05
     applies_to: [content_author, educator, account_capability]
     forbid: [author_implies_teacher, teacher_implies_author, capability_switch_replaces_account]
@@ -40,22 +40,22 @@ invariants:
   - id: IDA-SEAT-001
     statement: StudentSeat access works without prior Account registration; a class code locates a class but does not by itself authenticate an arbitrary learner profile.
     master_refs:
-      - document: IDENTITY-ACCESS-V21
+      - document: IDENTITY-ACCESS-V22
         section: INV-02 / UI-06
     applies_to: [student_seat, class_code, classroom_entry]
     forbid: [account_required_for_seat, class_code_as_personal_credential, child_list_from_class_code]
   - id: IDA-CRED-001
-    statement: StudentSeat plaintext credentials exist only in the protected response of an issue/reset operation; old plaintext secrets are never readable later, and printable cards are rendered from that one-time response.
+    statement: The current Student Code is repeat-readable and printable only by the authorized credential manager of the exact class; readback and printing never rotate credentials or alter sessions/history. Account passwords and temporary activation tokens remain separate mechanisms.
     master_refs:
-      - document: IDENTITY-ACCESS-V21
+      - document: IDENTITY-ACCESS-V22
         section: '### 9.4.'
     applies_to: [student_seat, credential_issue, credential_reset, roster_batch]
-    forbid: [plaintext_credential_readback, credential_in_roster, credential_in_logs, silent_reset_on_lost_response]
+    forbid: [unauthorized_code_readback, credential_in_logs, student_code_in_class_qr, silent_reset_on_lost_response, print_rotates_code]
 
   - id: IDA-LINK-001
     statement: Linking a StudentSeat to an Account preserves the same verified scoped learning history and never creates or silently merges a second history.
     master_refs:
-      - document: IDENTITY-ACCESS-V21
+      - document: IDENTITY-ACCESS-V22
         section: INV-07
     applies_to: [student_seat, account_link, learner_history]
     forbid: [merge_by_name, merge_by_email_guess, duplicate_history_on_link]
@@ -63,7 +63,7 @@ invariants:
   - id: IDA-REV-001
     statement: Revoking one scoped access path does not delete the Account, independent grants or historical records; stale sessions, caches or UI state cannot continue the revoked authority.
     master_refs:
-      - document: IDENTITY-ACCESS-V21
+      - document: IDENTITY-ACCESS-V22
         section: INV-08 / INV-11
     applies_to: [grant, membership, session, revocation]
     forbid: [revoke_deletes_history, stale_token_bypasses_revoke, cross_scope_revoke]
@@ -71,14 +71,14 @@ invariants:
   - id: IDA-CTX-001
     statement: Workspace and context navigation is derived from server-issued scopes; delayed responses from an old context must not populate a newly selected context.
     master_refs:
-      - document: IDENTITY-ACCESS-V21
+      - document: IDENTITY-ACCESS-V22
         section: '§31'
     applies_to: [workspace_switch, context_switch, navigation_cache]
     forbid: [client_invented_workspace, stale_context_response, organization_required_for_teaching]
   - id: IDA-PROFILE-001
     statement: Profile data, avatar, presentation preferences and access capabilities are separate operations; the profile form has no role picker and must not grant permissions.
     master_refs:
-      - document: IDENTITY-ACCESS-V21
+      - document: IDENTITY-ACCESS-V22
         section: UI-01 / §36
     applies_to: [account_profile, avatar, preferences, capabilities]
     forbid: [profile_role_picker, profile_save_grants_access, avatar_update_overwrites_profile]
@@ -86,7 +86,7 @@ invariants:
   - id: IDA-SESSION-001
     statement: Authentication methods and active sessions use server state; disconnect/revoke is explicit and must not silently remove the last usable login/recovery path.
     master_refs:
-      - document: IDENTITY-ACCESS-V21
+      - document: IDENTITY-ACCESS-V22
         section: UI-02
     applies_to: [login_method, account_session, password, max_provider]
     forbid: [provider_guess_as_state, revoke_wrong_session, disconnect_last_login_silently]
@@ -94,7 +94,36 @@ invariants:
   - id: IDA-ORG-001
     statement: Organization membership is optional and scoped; organization administration never inherits employees' personal projects or all learner detail automatically.
     master_refs:
-      - document: IDENTITY-ACCESS-V21
+      - document: IDENTITY-ACCESS-V22
         section: INV-09
     applies_to: [organization, organization_membership, personal_workspace]
     forbid: [organization_owns_personal_projects, org_admin_reads_all_learning, school_name_grants_rights]
+  - id: IDA-CRED-002
+    statement: Automatically generated six-character Student Codes use cryptographic randomness, not learner names, UUIDs
+      or row indexes; idempotency replays a stored result. Explicit teacher-selected replacements use the same
+      format, uniqueness and rotation rules, without claiming that the chosen value is randomly generated.
+    master_refs:
+    - document: IDENTITY-ACCESS-V22
+      section: §9.2 / §9.4
+    applies_to:
+    - student_code
+    - roster_batch
+    - credential_rotation
+    forbid:
+    - public_seed_credential
+    - plaintext_log
+    - rotation_changes_learner_identity
+  - id: IDA-SEAT-002
+    statement: The class-only QR uses https://asa-lab.ru and never embeds Student Code; thirty learners behind one
+      IP can complete resolve and sign-in without exhausting a shared success budget while abuse remains limited.
+    master_refs:
+    - document: IDENTITY-ACCESS-V22
+      section: §9.2 / §9.3
+    applies_to:
+    - class_qr
+    - student_seat_sign_in
+    - rate_limit
+    forbid:
+    - wrong_public_origin
+    - qr_contains_student_code
+    - normal_class_batch_lockout

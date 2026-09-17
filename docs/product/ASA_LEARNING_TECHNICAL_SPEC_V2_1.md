@@ -1,8 +1,8 @@
 # ASA Lab Learning — техническое задание на реализацию учебной системы
 
-**Документ:** `LEARNING-MASTER-V22` / Master Technical Specification
-**Версия:** 2.2
-**Дата:** 17 сентября 2026
+**Документ:** `LEARNING-MASTER-V21` / Master Technical Specification
+**Версия:** 2.1
+**Дата:** 13 сентября 2026
 **Целевой продукт:** ASA Lab
 **Целевая область:** курсы, задания, тесты, STEM-проекты, попытки, сдача, оценивание, журнал, multi-school  
 **Рекомендуемое место в репозитории:** `docs/product/ASA_LEARNING_TECHNICAL_SPEC.md`
@@ -47,8 +47,8 @@
 Это ТЗ определяет **семантику, инварианты, доменную модель, UX-контракты и обязательные acceptance criteria**.
 
 Оно НЕ заменяет компактный implementation package разрешённого крупного результата.
-Delivery-порядок определяет [интегрированное ТЗ V1.5](ASA_INTEGRATED_IMPLEMENTATION_SPEC.md).
-[Старая очередь](learning/ASA_LEARNING_AGENT_WORK_QUEUE.md) остаётся указателем истории, не источником текущего checkpoint.
+Delivery-порядок определяет [единая очередь](learning/ASA_LEARNING_AGENT_WORK_QUEUE.md)
+по принятому [интегрированному ТЗ V1.4](ASA_INTEGRATED_IMPLEMENTATION_SPEC.md).
 `M0…M7` сохраняются как классификация архитектурных требований и evidence;
 переход между ними внутри одного разрешённого результата не требует нового owner-gate.
 
@@ -71,12 +71,6 @@ owner-visible acceptance evidence
 
 ---
 
-## 0.0.2. Уточнения редакции 2.2
-
-Редакция согласует E1 с Integrated V1.5: короткий StudentSeat-доступ определяется Access 2.2; защита dirty draft охватывает родительскую навигацию и inflight edits; публикация сохраняет идемпотентность после собственного изменения revision; prepublish возвращает конкретные проблемные элементы; structural diff сравнивает pinned policy. Новое §89 уточняет существующие IDs, не меняет смысл старых Submission/Result и не принимает реализацию.
-
-Доменные требования, формулы и прежние IDs сохраняются. MVP этого большого master не тождествен E1: Quiz/Python/manual/rubric/prerequisites относятся к E2, self-study/linking к E3, collaboration/groups/bulk к E4/E5 по Integrated. Старые M0–M7 — классификация, не вторая активная очередь. Финальный layout по owner amendment выполняется после функциональной приёмки; сохранность/доступность не откладываются.
-
 ## 0.1. Нормативные слова
 
 - **MUST / ОБЯЗАН** — обязательное требование.
@@ -95,8 +89,7 @@ owner-visible acceptance evidence
 | Что необходимо построить | это ТЗ |
 | Что выполняется сейчас | `docs/execution/current.yaml` |
 | Что реально существует | код + миграции |
-| Что проверено в коде/стенде | Exact-SHA CI, integration и browser evidence только выполненного сценария |
-| Что работает на публичном ресурсе | Датированный live smoke именно https://asa-lab.ru/; Web/API SHA, schema и разрешённый journey |
+| Что реально работает | CI + integration + browser evidence |
 | Что принято владельцем | owner acceptance |
 | Что было раньше | старые docs/issues/screenshots только как история |
 
@@ -772,8 +765,6 @@ Publish MUST блокироваться при:
 - cyclic unlock dependency;
 - missing required metadata.
 
-Ошибки передаются структурированно: reasonCode, problemKind, sectionId, lessonId, blockId/activityVersionId по применимости, field и безопасное сообщение. Идентификаторы относятся только к доступному автору дереву. Ошибка конкретного блока не сводится к общей фразе про весь урок. UI позволяет перейти к месту исправления и сохраняет dirty draft; недоступный исторический источник объясняется без подмены текущим. Проверки Quiz/rubric/unlock включаются для поддержанного этапа, а не требуют запуска E2 ради E1.
-
 ## CRS-007 — unlock cycle
 
 Dependency graph MUST быть acyclic.
@@ -789,7 +780,7 @@ archived
 
 ## CRS-009 — delete/archive
 
-Published/used Course MUST NOT hard-delete через обычный UI. Используется archive/restore. Архивирование не удаляет и не переоткрывает CourseRun/Enrollment/Attempt/Submission/Result. Новое назначение архивного курса запрещено атомарно с проверкой состояния в transaction boundary. Прежние законные Run pins остаются читаемыми по своему scope. Exact replay ранее выполненной команды не создаёт повторную выдачу и не обходит актуальный authz.
+Published/used Course MUST NOT hard-delete через обычный UI. Используется archive.
 
 ---
 
@@ -2545,15 +2536,18 @@ delete
 insert above/below
 ```
 
-## UX-BLD-004 — сохранение и выход из редактора
+## UX-BLD-004 — autosave
 
-Допустим надёжный autosave либо явный Save с единым Save/Discard/Cancel guard. Состояния: clean, dirty, saving, failed, conflict; «Сохранено» только после server acknowledgment точной отправленной generation/revision.
+States:
 
-Guard интегрирован с редактором, родительскими вкладками библиотеки, глобальным меню/route, Preview/Versions/settings, browser back/forward и beforeunload в пределах browser API. При невозможности сохранить можно явно отменить только локальные изменения; пользователь не заперт навсегда невалидным полем. При неуспешном Save переход не происходит.
+```text
+Сохраняем…
+Сохранено
+Ошибка сохранения
+Конфликт версии
+```
 
-Save(A) → новый ввод B → ack(A) оставляет B dirty. Ответ с прежней generation не сбрасывает актуальный draft. Структурные mutations сериализованы с сохранением и не оставляют client expectedRevision старым после успешного server update. Late fetch не размонтирует/перезаписывает более свежий редактор. При конфликте есть безопасный путь сохранить/экспортировать свой текст до загрузки серверного.
-
-Проверки: parent tab/unmount; route/reload; отмена; network error; delayed save; повтор; two tabs; структура поверх dirty. Offline unsent не считается server saved. Это функциональная приёмка E1, не отложенная косметика.
+`Сохранено` only after server acknowledgment.
 
 ## UX-BLD-005 — activity insertion
 
@@ -3013,11 +3007,15 @@ OpenAPI MUST enumerate endpoint-specific codes.
 
 ## API-005 — idempotency
 
-Create/publish/assign/start/submit/invite/batch/credential rotation используют idempotency key, actor+scope, digest семантического payload и persisted receipt. Точный wire carrier (requestId/header) задаёт OpenAPI; новый альтернативный протокол ради этой редакции не создаётся.
+Create/submit/publish commands MUST accept idempotency key, e.g.:
 
-Порядок для повторной завершённой команды: актуальная authentication/authorization → поиск своего receipt по key/scope и сравнение payload → replay результата → только для новой команды проверка expectedRevision и mutation. Потерянный успешный ответ publish не должен превращаться в draft_conflict только потому, что публикация сама увеличила revision.
+```text
+Idempotency-Key: <uuid>
+```
 
-Same key + different semantic payload → idempotency_conflict. Concurrent same key → одна mutation и один логический результат. Отзыв прав не обходится replay. Retention window объявлен; после его истечения UI не выполняет blind destructive retry. Новый запрос со stale revision должен конфликтовать. Negative tests должны проверять эти различия, а не только два happy-path вызова до изменения состояния.
+Server stores command result for safe retry within configured retention window.
+
+Same key + different semantic payload MUST return `idempotency_conflict`.
 
 ## API-006 — pagination
 
@@ -4994,27 +4992,3 @@ roots; immutable class history при сборке нового курса. Вр
 отклоняется; roster запрещён; closing блокирует Start; reconnect даёт ту же Attempt;
 expiry сохраняет Submission/Result; linking по имени/устройству без proof отклоняется.
 Executable evidence добавляется только при реальной проверке, не при редактировании ТЗ.
-
-# 89. Редакция 2.2 — уточнение корректирующей приёмки E1
-
-## 89.1. Соответствие без потери требований
-
-Все ARCH/IDN/VER/CRS/RUN/AUD/ATT/QUIZ/ASM/GRD/CAT/MED/MLT/SEC/DB/API/NFR/MIG/EXEC/REL/TST/E2E IDs прежней редакции сохраняются. Физические endpoints/SQL из примеров — не разрешение создать вторые таблицы или без теста удалить compatibility. Старые M0–M7 и release A/B/C не являются альтернативной очередью Integrated E1–E6.
-
-## 89.2. Сравнение версий — CRS-002, VER-002 и UX-BLD-006
-
-Сравнение двух exact CourseVersions разворачивает доступные immutable activity/policy refs. Оно возвращает конкретные add/remove/move/change с source IDs и before/after по доступным полям. Изменение maxAttempts, resultSelection, completion, late, feedback release, даты/окна и grading basis обнаруживается даже при неизменных title/maxPoints/resultMode. Отсутствие старого snapshot означает unknown/unavailable, не равенство. Список категорий без конкретных различий не закрывает весь контракт.
-
-## 89.3. Предпубликационная диагностика — CRS-006
-
-Structured problem сохраняется через SQL/API/UI до фокуса на конкретном поле. Generic legacy refusal не заменяет проверку второго/третьего блока, asset/pin, unsupported module и несовместимой policy. Автор не получает ответов учеников и hidden keys. Новый выбор старого непригодного источника блокируется/объясняется до поздней публикации; законная история не уничтожается.
-
-## 89.4. Сохранность и гонки — UX-BLD-004, API-005
-
-Нужны отдельные regression scenarios для global/parent navigation, inflight typing, save failure, Save/Discard/Cancel, delayed reads, retry publish после commit и archive/assign interleaving. Устранение одного кнопочного перехода не закрывает весь editor state contract. Приёмка не требует нового autosave engine, но требует доказанных инвариантов.
-
-## 89.5. Готовность и evidence — EXEC-004, REL-003
-
-Дефекты E1-FIX-01…10 определены в Integrated V1.5 §4.16 и отражены в единственном Requirements Ledger. Наличие реализации/зелёного suite не означает, что проверены все MUST. Verification method, exact source/test SHA, command, scenario, result и unverified фиксируются отдельно. Source review, component reproduction, DB/browser run и real-domain smoke не взаимозаменяемы. Сайт https://asa-lab.ru/ проверяется отдельно от GitHub и локальных bundles; без авторизованного synthetic access private journey остаётся not_run.
-
-Финальный visual convergence следует после функционального закрытия. Безопасность, отсутствие потери данных, корректные ошибки и доступность действия не относятся к отложенной косметике. Кандидат не принимается самим автором документа или по старому закрытому Issue.

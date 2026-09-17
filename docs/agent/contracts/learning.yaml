@@ -3,16 +3,16 @@ contract_id: LRN-DOMAIN
 domain: learning
 registry_document_id: LEARNING-DOMAIN-CONTRACT
 master_documents:
-- LEARNING-MASTER-V21
-- PRODUCT-INTEGRATED-V14
+- LEARNING-MASTER-V22
+- PRODUCT-INTEGRATED-V15
 - ADR-LEARNER-IDENTITY-001
 invariants:
 - id: LRN-ARCH-001
   statement: Direct and course delivery converge on one ActivityRun to Attempt to Submission to Result runtime.
   master_refs:
-  - document: LEARNING-MASTER-V21
+  - document: LEARNING-MASTER-V22
     section: ARCH-001
-  - document: PRODUCT-INTEGRATED-V14
+  - document: PRODUCT-INTEGRATED-V15
     section: §2 Canonical academic chain
   applies_to:
   - activity_run
@@ -25,9 +25,9 @@ invariants:
 - id: LRN-VER-001
   statement: Published content versions are immutable; later change creates a new version with provenance.
   master_refs:
-  - document: LEARNING-MASTER-V21
+  - document: LEARNING-MASTER-V22
     section: ARCH-006 / CRS-002
-  - document: PRODUCT-INTEGRATED-V14
+  - document: PRODUCT-INTEGRATED-V15
     section: §0 / §4.3
   applies_to:
   - learning_activity_version
@@ -40,7 +40,7 @@ invariants:
   statement: Academic history resolves through the stable school-scoped LearnerIdentity selected by the accepted ADR, not
     a transient login principal.
   master_refs:
-  - document: LEARNING-MASTER-V21
+  - document: LEARNING-MASTER-V22
     section: IDN-001 / IDN-003
   - document: ADR-LEARNER-IDENTITY-001
     section: Stable learner key
@@ -57,9 +57,9 @@ invariants:
   statement: CourseRun pins an exact CourseVersion and materializes persistent child ActivityRuns; content, people and delivery
     remain different objects.
   master_refs:
-  - document: LEARNING-MASTER-V21
+  - document: LEARNING-MASTER-V22
     section: RUN-001 / RUN-005
-  - document: PRODUCT-INTEGRATED-V14
+  - document: PRODUCT-INTEGRATED-V15
     section: §0 / §2
   applies_to:
   - course_version
@@ -72,9 +72,9 @@ invariants:
   statement: Whole-class audience is dynamic, named-learners audience is a snapshot, and audience changes preserve historical
     evidence.
   master_refs:
-  - document: LEARNING-MASTER-V21
+  - document: LEARNING-MASTER-V22
     section: AUD-201 through AUD-206
-  - document: PRODUCT-INTEGRATED-V14
+  - document: PRODUCT-INTEGRATED-V15
     section: §4.8
   applies_to:
   - audience_definition
@@ -87,9 +87,9 @@ invariants:
   statement: Attempt.status stores only lifecycle state; accepted, changes_requested, incomplete and excused are pedagogical
     decisions, never Attempt states.
   master_refs:
-  - document: LEARNING-MASTER-V21
+  - document: LEARNING-MASTER-V22
     section: ATT-002 / ATT-003 / ASM-003
-  - document: PRODUCT-INTEGRATED-V14
+  - document: PRODUCT-INTEGRATED-V15
     section: §2 / §4.11
   applies_to:
   - learning_attempt
@@ -104,9 +104,9 @@ invariants:
   statement: At most one non-terminal Attempt exists per ActivityParticipation; resubmission creates a new linked Attempt
     instead of mutating the old one.
   master_refs:
-  - document: LEARNING-MASTER-V21
+  - document: LEARNING-MASTER-V22
     section: ATT-004 / ATT-006 / ASM-004
-  - document: PRODUCT-INTEGRATED-V14
+  - document: PRODUCT-INTEGRATED-V15
     section: §4.10 / §4.11
   applies_to:
   - activity_participation
@@ -118,9 +118,9 @@ invariants:
 - id: LRN-SUB-001
   statement: Submission is immutable and pins the exact server-confirmed project evidence submitted by the learner.
   master_refs:
-  - document: LEARNING-MASTER-V21
+  - document: LEARNING-MASTER-V22
     section: ATT-101 / ATT-102
-  - document: PRODUCT-INTEGRATED-V14
+  - document: PRODUCT-INTEGRATED-V15
     section: §4.10
   applies_to:
   - submission
@@ -132,9 +132,9 @@ invariants:
 - id: LRN-ASM-001
   statement: Published assessment corrections are append-only revisions with reason and optimistic expected revision.
   master_refs:
-  - document: LEARNING-MASTER-V21
+  - document: LEARNING-MASTER-V22
     section: ASM-005 through ASM-007
-  - document: PRODUCT-INTEGRATED-V14
+  - document: PRODUCT-INTEGRATED-V15
     section: §4.11
   applies_to:
   - assessment_result_revision
@@ -146,9 +146,9 @@ invariants:
   statement: Gradebook, learner results and course aggregation use one server-side selected-result resolver over the selected
     Attempt and its latest valid result revision.
   master_refs:
-  - document: LEARNING-MASTER-V21
+  - document: LEARNING-MASTER-V22
     section: ASM-SEL-007 / ASM-008
-  - document: PRODUCT-INTEGRATED-V14
+  - document: PRODUCT-INTEGRATED-V15
     section: §2 / §4.12
   applies_to:
   - result_selection
@@ -161,9 +161,9 @@ invariants:
   statement: Gradebook is a projection, never an independent grade store; its cell keeps workflowState, selectedResult and
     flags as orthogonal semantics.
   master_refs:
-  - document: LEARNING-MASTER-V21
+  - document: LEARNING-MASTER-V22
     section: ARCH-003 / GRD-002 / GRD-005
-  - document: PRODUCT-INTEGRATED-V14
+  - document: PRODUCT-INTEGRATED-V15
     section: §4.12
   applies_to:
   - gradebook_projection
@@ -177,9 +177,9 @@ invariants:
   statement: Course completion is a server-derived projection separate from course result or grade; the client cannot declare
     completion truth.
   master_refs:
-  - document: LEARNING-MASTER-V21
+  - document: LEARNING-MASTER-V22
     section: CRS-CMP-003 / CRS-CMP-004
-  - document: PRODUCT-INTEGRATED-V14
+  - document: PRODUCT-INTEGRATED-V15
     section: §4.13 / E1 completion behavior
   applies_to:
   - course_enrollment
@@ -193,9 +193,9 @@ invariants:
   statement: Effective learner conditions resolve by participation override, then run pin, then course block template, then
     activity-version default; existing evidence is never rewritten by a later override.
   master_refs:
-  - document: LEARNING-MASTER-V21
+  - document: LEARNING-MASTER-V22
     section: RUN-106 / RUN-107
-  - document: PRODUCT-INTEGRATED-V14
+  - document: PRODUCT-INTEGRATED-V15
     section: §4.9
   applies_to:
   - activity_participation
@@ -209,7 +209,7 @@ invariants:
 - id: LRN-NOT-001
   statement: Academic truth and work queues are independent from notification delivery, preferences and unread state.
   master_refs:
-  - document: PRODUCT-INTEGRATED-V14
+  - document: PRODUCT-INTEGRATED-V15
     section: §4.13 Notifications in E1
   applies_to:
   - submission
@@ -224,9 +224,9 @@ invariants:
   statement: Sensitive learning mutations are authorized server-side from the authenticated principal, scope, resource and
     current state; UI visibility is never authority.
   master_refs:
-  - document: LEARNING-MASTER-V21
+  - document: LEARNING-MASTER-V22
     section: ARCH-010
-  - document: PRODUCT-INTEGRATED-V14
+  - document: PRODUCT-INTEGRATED-V15
     section: §0
   applies_to:
   - learning_command
@@ -241,9 +241,9 @@ invariants:
   statement: ProjectFeedback, badges and module evidence are feedback/evidence only and never become an official grade by
     themselves.
   master_refs:
-  - document: LEARNING-MASTER-V21
+  - document: LEARNING-MASTER-V22
     section: ASM-EVD-004
-  - document: PRODUCT-INTEGRATED-V14
+  - document: PRODUCT-INTEGRATED-V15
     section: §4.11
   applies_to:
   - project_feedback
@@ -256,9 +256,9 @@ invariants:
   statement: Archiving a class or run preserves enrollments, attempts, submissions, results and audit; restore never reopens
     closed or cancelled runs or withdrawn participation.
   master_refs:
-  - document: LEARNING-MASTER-V21
+  - document: LEARNING-MASTER-V22
     section: RUN-001 through RUN-004 / AUD-003
-  - document: PRODUCT-INTEGRATED-V14
+  - document: PRODUCT-INTEGRATED-V15
     section: §4.7
   applies_to:
   - classroom
@@ -277,8 +277,8 @@ invariants:
     but no session creation, credential/expiry/scope change or real learner-session write; it is never impersonation and
     never reads a real learner private draft or answer.
   master_refs:
-  - document: PRODUCT-INTEGRATED-V14
-    section: '### 4.4 Preview as learner'
+  - document: PRODUCT-INTEGRATED-V15
+    section: '### 4.4 Предпросмотр как ученик'
   applies_to:
   - author_preview
   - learning_activity_draft
@@ -293,3 +293,29 @@ invariants:
   - preview_creates_result
   - preview_impersonates_learner
   - preview_reads_real_learner_private_data
+- id: LRN-EDIT-001
+  statement: Unsaved author input is protected across local, parent and global navigation; acknowledgment of save
+    A cannot mark later input B saved; structural commands cannot create silent revision drift.
+  master_refs:
+  - document: LEARNING-MASTER-V22
+    section: UX-BLD-004
+  applies_to:
+  - course_editor
+  - draft_save
+  - navigation
+  forbid:
+  - unmount_loses_dirty_draft
+  - late_ack_clears_new_edits
+- id: LRN-RETRY-001
+  statement: After current authorization, an exact completed command replay resolves its persisted receipt before
+    stale-revision checks for a new mutation; publication cannot break its own safe retry.
+  master_refs:
+  - document: LEARNING-MASTER-V22
+    section: API-005
+  applies_to:
+  - course_publish
+  - request_receipt
+  - course_assign
+  forbid:
+  - successful_replay_rejected_by_own_revision
+  - receipt_bypasses_revocation

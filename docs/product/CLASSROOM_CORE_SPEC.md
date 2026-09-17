@@ -224,16 +224,16 @@ StudentSeat — учительски управляемое ученическо
 - `createdAt`;
 - `lastLoginAt`.
 
-Открытый credential показывается только при выпуске или перевыпуске.
+Текущий шестисимвольный Student Code доступен уполномоченному credential manager повторно в roster и карточке; он не выводится из имени/UUID. Protected readback/storage, rate limit и rotation следуют Access 2.2 §9. Обычный пароль Account не становится читаемым.
 
 ### 5.3. Карточка доступа
 
 Содержит:
 
-- название ASA Lab;
+- название ASA Lab и человекочитаемый адрес asa-lab.ru;
 - workspace/class code;
 - псевдоним;
-- индивидуальный код или QR;
+- индивидуальный Student Code и отдельный class-only QR на https://asa-lab.ru/;
 - краткую инструкцию;
 - срок действия optional.
 
@@ -247,7 +247,7 @@ Teacher requests reset
 → old credential invalidated
 → all old sessions revoked
 → AuditEvent
-→ new card available once
+→ current card available for repeat print without another reset
 ```
 
 ## 6. Кабинет класса

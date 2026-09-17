@@ -1,7 +1,7 @@
-# ASA Lab Learning — единая очередь реализации
+# ASA Lab Learning — указатель этапов реализации
 
-**Статус:** канонический delivery-index.  
-**Источник подробной интеграции:** `../ASA_INTEGRATED_IMPLEMENTATION_SPEC.md` V1.4.
+**Статус:** supporting delivery-index; единственный нормативный порядок задаёт Integrated V1.5.
+**Источник подробной интеграции:** `../ASA_INTEGRATED_IMPLEMENTATION_SPEC.md` V1.5.
 **Академическая семантика:** `../ASA_LEARNING_TECHNICAL_SPEC.md`.  
 **Пользователи/доступы:** `../ASA_USERS_ACCESS_AND_SETTINGS_SPEC.md`.  
 **Execution state:** только `../../execution/current.yaml`.
@@ -21,7 +21,7 @@
 
 Обычно выполняется 1→2→3→4→5→6. После E1 владелец может поменять приоритет E3/E4; это не меняет обязательный scope соответствующего этапа. Следующий этап никогда не начинается автоматически.
 
-## Активный ближайший результат — LRN-COURSE-01
+## Результат LRN-COURSE-01 — описание, не текущий статус
 
 Целевой пользовательский сценарий:
 
@@ -52,7 +52,7 @@ Account
 - append-only correction;
 - 30×10 matrix;
 - notification categories/master OFF/per-class overrides без изменения академического state;
-- batch StudentSeat + одноразовые print-friendly credentials;
+- batch StudentSeat + короткие случайные Student Codes и повторно печатаемые карточки; class-only QR на https://asa-lab.ru/;
 - archive/restore class без hard-delete;
 - preview as learner без impersonation и academic/learner-runtime writes; author heartbeat разрешён;
 - new draft from historical published version;
@@ -73,9 +73,9 @@ Account
 - archive удаляет историю;
 - уведомления считаются из unread/count вместо реальных событий.
 
-## Внутренние checkpoints E1
+## Исторические названия checkpoints E1
 
-Они не требуют нового owner-ticket:
+Это имена прежней детализации; они не подтверждают текущую готовность и не выбирают задачу:
 
 1. `authoring_converged` — одна библиотека, edit/publish/version recovery/preview.
 2. `direct_project_complete` — direct project от назначения до review/revision/result.
@@ -100,3 +100,7 @@ Fixtures допустимы для synthetic users/load, но не выполн�
 M0, M1, VS и V3.1 не удаляются и не переименовываются задним числом. Их доказанные результаты остаются foundation/ledger evidence. Эта очередь не объявляет старые требования невыполненными и не маркирует новые требования proven.
 
 Трассировка требований и фактические PASS/partial/pending живут в существующем `ASA_LEARNING_REQUIREMENTS_LEDGER.yaml`; при реализации stage исполнитель добавляет к нему mapping текущего stage/evidence, не создавая второй ledger.
+
+## Исправления и проверка
+
+E1-FIX-01…10 заданы в Integrated V1.5 §4.16; наблюдения/покрытие находятся в Requirements Ledger, активная работа только в current.yaml. До закрытия нужны массовый NAT-вход, непредсказуемые коды/readback, правильный QR origin, полная dirty-navigation безопасность, publish replay, concrete diff/diagnostics и archive concurrency. Финальная перевёрстка — после функциональной приёмки. Старое зелёное CI или название checkpoint не отменяет открытые дефекты.
