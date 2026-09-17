@@ -365,7 +365,7 @@ main() {
 
   # Build first; retain a failure receipt without replacing running services.
   build_ok=true
-  for service in scratch api web; do
+  for service in minio scratch api web; do
     if ! compose build "$service"; then build_ok=false; break; fi
   done
   if [ "$build_ok" = true ] && compose config --quiet && assert_update_identity && compose up -d --no-build && wait_exact_readiness &&

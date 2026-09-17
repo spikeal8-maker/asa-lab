@@ -128,10 +128,16 @@ test('ready editor omits the footer instead of visually obscuring it', () => {
   assert.match(editor, /Повторить подключение/);
 });
 
-test('guarded updates build all three images before replacing containers', () => {
-  for (const file of ['tools/docker-update.ps1', 'tools/docker-update.sh']) {
+test('startup and guarded updates build every local image before no-build replacement', () => {
+  for (const file of ['tools/asa-lab.ps1', 'tools/docker-update.ps1']) {
     const source = read(file);
-    assert.ok(source.indexOf('scratch') < source.indexOf('--no-build'));
+    assert.match(source, /foreach \(\$service in @\('minio', 'scratch', 'api', 'web'\)\)/);
+    assert.ok(source.indexOf("'minio', 'scratch', 'api', 'web'") < source.indexOf("'--no-build'"));
+  }
+  for (const file of ['tools/asa-lab.sh', 'tools/docker-update.sh']) {
+    const source = read(file);
+    assert.match(source, /for service in minio scratch api web; do/);
+    assert.ok(source.indexOf('minio scratch api web') < source.indexOf('--no-build'));
     assert.doesNotMatch(source, /up.*--build/);
   }
   assert.match(read('tools/asa-lab.sh'), /if \[ -e \.git \]/);

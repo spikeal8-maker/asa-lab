@@ -466,7 +466,7 @@ function Invoke-GuardedUpdate {
   $receiptPath = Join-Path $backupRoot "update-$stamp-$($newRevision.Substring(0, 8)).receipt.txt"
   try {
     Invoke-Compose -Arguments @('config', '--quiet')
-    foreach ($service in @('scratch', 'api', 'web')) { Invoke-Compose -Arguments @('build', $service) }
+    foreach ($service in @('minio', 'scratch', 'api', 'web')) { Invoke-Compose -Arguments @('build', $service) }
     Assert-AsaInstallationIdentity -Root $RepoRoot -DefaultProject $projectName -ComposeArguments $script:ComposeArguments -RequireExisting
     Invoke-Compose -Arguments @('up', '-d', '--no-build')
     [void](Wait-ExactReadiness -Revision $newRevision -SchemaVersion $schemaVersion)

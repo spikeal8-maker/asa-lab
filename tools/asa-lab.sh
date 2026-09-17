@@ -233,7 +233,7 @@ case "$action" in
     assert_startup_identity
     create_environment
     compose config --quiet
-    for service in scratch api web; do compose build "$service"; done
+    for service in minio scratch api web; do compose build "$service"; done
     assert_startup_identity
     compose up -d --no-build
     wait_for_ready

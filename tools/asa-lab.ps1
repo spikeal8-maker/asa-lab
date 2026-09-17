@@ -245,7 +245,7 @@ switch ($Action) {
     New-PrivateEnvironment
     Invoke-Compose @('config', '--quiet')
     # Build sequentially: a failed build never replaces healthy running containers.
-    foreach ($service in @('scratch', 'api', 'web')) { Invoke-Compose @('build', $service) }
+    foreach ($service in @('minio', 'scratch', 'api', 'web')) { Invoke-Compose @('build', $service) }
     Assert-StartupIdentity
     Invoke-Compose @('up', '-d', '--no-build')
     Wait-Ready
