@@ -81,6 +81,8 @@ import { RefreshSessionService } from './refresh-session.service.js';
 import { TOKENS } from './tokens.js';
 import { ProductAnalyticsController } from './product-analytics.controller.js';
 import { ProductAnalyticsService } from './product-analytics.service.js';
+import { BlocksDraftPersistenceGuard } from './blocks-persistence.guard.js';
+import { PgBlocksAssetMetadataStore } from './blocks-asset-storage.js';
 
 function validationMessage(
   entry: RegisteredModule,
@@ -293,7 +295,12 @@ export class AppModule {
         },
         {
           provide: TOKENS.saveDraftUseCase,
-          useFactory: () => new SaveDraftUseCase(projectRepository(), projectModules),
+          useFactory: () =>
+            new SaveDraftUseCase(
+              projectRepository(),
+              projectModules,
+              new BlocksDraftPersistenceGuard(new PgBlocksAssetMetadataStore(requirePool())),
+            ),
         },
         {
           provide: TOKENS.restoreVersionUseCase,
