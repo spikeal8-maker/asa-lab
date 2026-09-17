@@ -51,6 +51,58 @@ A Blocks player never loads `project_drafts.document_json` for Gallery/publicati
 
 ---
 
+## 2.1. Draft preview and publication cover are different objects
+
+ASA keeps two explicit image semantics:
+
+```text
+draft_preview
+  automatic derived image
+  source = latest confirmed durable draft/checkpoint revision
+  may advance as the owner edits
+  used by owner-facing project cards
+
+publication_cover
+  owner-selected publication metadata
+  source revision/version evidence is recorded
+  autosave never replaces it
+  used by Gallery/public player cards
+```
+
+After a confirmed durable save/checkpoint, preview generation may capture the Scratch
+stage and update the owner card asynchronously. Preview failure does not roll back a
+valid project save; the previous confirmed preview remains usable.
+
+If a project is first published without a manually selected cover, M2 may initialise
+the cover once from the confirmed preview for the exact published version. Later draft
+autosaves MUST NOT change that cover.
+
+Changing cover/description/instructions/notes is publication metadata editing; it does
+not silently change the immutable executable `project_version_id`.
+
+## 2.2. Publication card metadata and engagement
+
+The M2 implementation package must support at least:
+
+```text
+title
+description / instructions
+notes / credits
+publication cover
+author label allowed by privacy policy
+published_at
+exact immutable project_version_id
+aggregate like count
+aggregate view count
+aggregate remix count
+```
+
+Likes are authenticated idempotent reactions: one active like per principal/publication.
+Views are aggregate analytics/projection and never an auth, billing or project-state
+source of truth. Remix count is derived from immutable remix/provenance relationships.
+Metadata/counter updates never mutate the published programme or assets. Reuse existing
+ASA publication/analytics primitives instead of creating a Scratch-specific social backend.
+
 ## 3. General Gallery convergence direction
 
 The preferred platform fix is additive and subject-neutral:
@@ -274,6 +326,12 @@ Future M2 publication/remix work is not accepted until tests prove:
 12. DB failure after object materialisation may orphan bytes but creates no partial project
 13. provenance points to exact source publication/version and is immutable
 14. existing non-Blocks Gallery behaviour has explicit regression coverage
+15. draft autosave cannot overwrite a manually selected publication cover
+16. automatic draft preview is tied to a confirmed source revision/checkpoint
+17. cover/description/instructions/notes changes do not mutate executable project_version_id
+18. likes are idempotent per principal/publication and views remain non-authoritative analytics
+19. remix count is coherent with immutable remix/provenance records
+20. card/thumbnail media passes D0-008 optimisation evidence and repository image hygiene
 ```
 
 Any proposal to make the Blocks bucket public or to copy current draft JSON as a shortcut
