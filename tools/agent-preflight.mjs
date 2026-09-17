@@ -31,9 +31,7 @@ function works(candidate) {
 const python = candidates.find(works);
 if (!python) {
   console.error('Не найден Python для ASA Lab agent preflight.');
-  console.error(
-    'Укажите интерпретатор через ASA_PYTHON или установите python/python3.',
-  );
+  console.error('Укажите интерпретатор через ASA_PYTHON или установите python/python3.');
   process.exit(78);
 }
 
