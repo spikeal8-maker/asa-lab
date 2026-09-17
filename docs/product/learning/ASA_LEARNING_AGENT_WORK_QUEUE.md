@@ -103,4 +103,4 @@ M0, M1, VS и V3.1 не удаляются и не переименовываю�
 
 ## Исправления и проверка
 
-E1-FIX-01…10 заданы в Integrated V1.5 §4.16; наблюдения/покрытие находятся в Requirements Ledger, активная работа только в current.yaml. До закрытия нужны массовый NAT-вход, непредсказуемые коды/readback, правильный QR origin, полная dirty-navigation безопасность, publish replay, concrete diff/diagnostics и archive concurrency. Финальная перевёрстка — после функциональной приёмки. Старое зелёное CI или название checkpoint не отменяет открытые дефекты.
+E1-FIX-01…11 заданы в Integrated V1.5 §4.16; наблюдения/покрытие находятся в Requirements Ledger, активная работа только в current.yaml. До закрытия нужны массовый NAT-вход, непредсказуемые коды/readback, правильный QR origin, полная dirty-navigation безопасность, publish replay, concrete diff/diagnostics и archive concurrency. Финальная перевёрстка — после функциональной приёмки. Старое зелёное CI или название checkpoint не отменяет открытые дефекты.

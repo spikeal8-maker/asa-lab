@@ -319,3 +319,20 @@ invariants:
   forbid:
   - successful_replay_rejected_by_own_revision
   - receipt_bypasses_revocation
+- id: LRN-BLD-001
+  statement: E1 Course Builder functional acceptance covers every informational MVP block and the section/lesson/block
+    create-edit-reorder-duplicate-hide-delete controls; duplicate/hide/delete never mutate published history or learner
+    evidence. Final visual composition is a later VISUAL_ACCEPTANCE.
+  master_refs:
+  - document: PRODUCT-INTEGRATED-V15
+    section: Course Builder E1
+  applies_to:
+  - course_builder
+  - course_section
+  - course_lesson
+  - course_block
+  forbid:
+  - button_without_persistence_counts_done
+  - duplicate_copies_learner_evidence
+  - hide_mutates_published_run
+  - visual_polish_substitutes_function

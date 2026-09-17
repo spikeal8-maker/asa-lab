@@ -8,7 +8,7 @@ import unittest
 import yaml
 
 from validate_learning_spec_rebaseline import (
-    ACCESS, CURRENT, IDENTITY_CONTRACT, INTEGRATED, LEARNING,
+    ACCESS, CAPABILITY_MAP, CURRENT, IDENTITY_CONTRACT, INTEGRATED, LEARNING,
     LEDGER, REGISTRY, ROOT, validate,
 )
 
@@ -71,7 +71,120 @@ class LearningSpecGateTests(unittest.TestCase):
         def corrupt(doc):
             row = next(r for r in doc["requirements"] if r["id"] == "E1-FIX-05")
             row["verification"]["product_fix_verified"] = True
-        self.assertRejected(changed_yaml(LEDGER, corrupt), "product proof without actual")
+        self.assertRejected(changed_yaml(LEDGER, corrupt), "product proof does not cover every planned scenario")
+
+    def test_rejects_missing_required_security_clause(self):
+        self.assertRejected({ACCESS: text(ACCESS).replace("class.credentials.read_current", "class.credentials.removed")}, "required semantic clause missing")
+
+    def test_rejects_acceptance_blocker_that_blocks_repair(self):
+        def corrupt(doc):
+            block = next(b for b in doc["blocking"] if b["id"] == "LRN-E1-CORRECTIONS")
+            block["kind"] = "execution_blocker"
+            block["allows"] = []
+        self.assertRejected(changed_yaml(CURRENT, corrupt), "must be acceptance_blocker")
+
+    def test_rejects_proof_that_covers_only_one_scenario(self):
+        def corrupt(doc):
+            row = next(r for r in doc["requirements"] if r["id"] == "E1-FIX-01")
+            row["status"] = "proven"
+            row["verification"]["product_fix_verified"] = True
+            row["verification"]["remote_verification_required"] = True
+            row["verification"]["execution_records"] = [{
+                "scenario": row["planned_scenarios"][0],
+                "command": "pnpm test:placeholder",
+                "result": "pass",
+                "sha": "1" * 40,
+                "runner": "local_isolated",
+                "evidence": "docs/review/LRN_E1_SPEC_REBASELINE_2026_09_17.md",
+                "evidence_sha256": "0" * 64,
+            }]
+        self.assertRejected(changed_yaml(LEDGER, corrupt), "does not cover every planned scenario")
+
+    def test_rejects_zero_sha_or_bad_evidence_digest(self):
+        def corrupt(doc):
+            row = next(r for r in doc["requirements"] if r["id"] == "E1-FIX-03")
+            row["status"] = "proven"
+            row["verification"]["product_fix_verified"] = True
+            row["verification"]["remote_verification_required"] = True
+            row["verification"]["execution_records"] = [{
+                "scenario": scenario,
+                "command": "pnpm e2e:placeholder",
+                "result": "pass",
+                "sha": "0" * 40,
+                "runner": "local_isolated",
+                "evidence": "docs/review/LRN_E1_SPEC_REBASELINE_2026_09_17.md",
+                "evidence_sha256": "0" * 64,
+            } for scenario in row["planned_scenarios"]]
+        self.assertRejected(changed_yaml(LEDGER, corrupt), "complete execution record")
+
+    def test_rejects_missing_course_builder_fix(self):
+        def corrupt(doc):
+            doc["requirements"] = [r for r in doc["requirements"] if r["id"] != "E1-FIX-11"]
+        self.assertRejected(changed_yaml(LEDGER, corrupt), "missing correction IDs")
+
+    def test_rejects_rate_limit_contract_drift(self):
+        def corrupt(doc):
+            row = next(r for r in doc["requirements"] if r["id"] == "E1-FIX-01")
+            row["implementation_contract"]["invalid_source_class_per_10m"] = 999
+        self.assertRejected(changed_yaml(LEDGER, corrupt), "numeric admission contract drift")
+
+    def test_rejects_unknown_planned_test_id(self):
+        def corrupt(doc):
+            row = next(r for r in doc["requirements"] if r["id"] == "E1-FIX-04")
+            row["planned_test_ids"] = ["TST-DOES-NOT-EXIST"]
+        self.assertRejected(changed_yaml(LEDGER, corrupt), "unknown planned/active test id")
+
+    def test_rejects_incomplete_builder_matrix(self):
+        def corrupt(doc):
+            row = next(r for r in doc["requirements"] if r["id"] == "E1-FIX-11")
+            row["planned_scenarios"] = ["SECTION-CREATE-RENAME-REORDER-DUPLICATE-HIDE-DELETE"]
+        self.assertRejected(changed_yaml(LEDGER, corrupt), "Course Builder acceptance matrix incomplete")
+
+    def test_rejects_stale_capability_storage_contract(self):
+        self.assertRejected(
+            {CAPABILITY_MAP: text(CAPABILITY_MAP).replace("AES-256-GCM protected readback", "Argon2id hash")},
+            "required semantic clause missing",
+        )
+
+    def test_rejects_nonexistent_execution_commit(self):
+        import hashlib
+        def corrupt(doc):
+            row = next(r for r in doc["requirements"] if r["id"] == "E1-FIX-05")
+            evidence = "docs/review/LRN_E1_SPEC_REBASELINE_2026_09_17.md"
+            digest = hashlib.sha256((ROOT / evidence).read_bytes()).hexdigest()
+            row["status"] = "proven"
+            row["verification"]["product_fix_verified"] = True
+            row["verification"]["remote_verification_required"] = True
+            row["verification"]["execution_records"] = [{
+                "scenario": scenario,
+                "command": "pnpm test:synthetic",
+                "result": "pass",
+                "sha": "1" * 40,
+                "runner": "local_isolated",
+                "evidence": evidence,
+                "evidence_sha256": digest,
+            } for scenario in row["planned_scenarios"]]
+        self.assertRejected(changed_yaml(LEDGER, corrupt), "SHA is not a local Git commit")
+
+    def test_rejects_arbitrary_command_for_active_test_id(self):
+        import hashlib
+        import subprocess
+        def corrupt(doc):
+            active = yaml.safe_load(text("docs/testing/test-catalog.yaml"))["tests"][0]
+            sha = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
+            evidence = "docs/review/LRN_E1_SPEC_REBASELINE_2026_09_17.md"
+            digest = hashlib.sha256((ROOT / evidence).read_bytes()).hexdigest()
+            row = next(r for r in doc["requirements"] if r["id"] == "E1-FIX-05")
+            row["status"] = "proven"
+            row["verification"]["product_fix_verified"] = True
+            row["verification"]["remote_verification_required"] = True
+            row["verification"]["execution_records"] = [{
+                "scenario": scenario, "test_id": active["id"],
+                "command": "echo fake-pass", "result": "pass", "sha": sha,
+                "runner": "local_isolated", "evidence": evidence,
+                "evidence_sha256": digest,
+            } for scenario in row["planned_scenarios"]]
+        self.assertRejected(changed_yaml(LEDGER, corrupt), "execution command does not match active test catalog")
 
     def test_rejects_live_claim_without_authenticated_evidence(self):
         def corrupt(doc):

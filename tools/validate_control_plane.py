@@ -82,6 +82,7 @@ LANE_ID = re.compile(r"^[a-z][a-z0-9-]*$")
 PORTABLE_SEGMENT = re.compile(r"^[A-Za-z0-9._-]+$")
 SUPPORTED_SCHEMA_VERSIONS = {"1.0.0", "1.1.0", "1.2.0"}
 DIRECT_MAIN_MODE = "direct_main"
+ALLOWED_BLOCKER_KINDS = {"execution_blocker", "acceptance_blocker", "deployment_blocker"}
 
 # Engineering invariants AGENTS.md states as already in force. A policy claim
 # that nothing checks is how the documents drifted apart in the first place, so
@@ -251,7 +252,45 @@ def check_current(current: Any, errors: list[str]) -> dict[str, Any]:
     if mode != DIRECT_MAIN_MODE:
         check_lease(current.get("execution_lease"), errors)
     check_gate_shape(current.get("gates"), errors)
+    check_blocking(current.get("blocking"), errors)
     return task
+
+
+def check_blocking(blocking: Any, errors: list[str]) -> None:
+    if blocking is None:
+        return
+    if not isinstance(blocking, list):
+        errors.append("current.yaml blocking must be an array")
+        return
+    for index, entry in enumerate(blocking):
+        label = f"current.yaml blocking[{index}]"
+        if not isinstance(entry, dict):
+            errors.append(f"{label} must be a mapping")
+            continue
+        for field in ("id", "reason", "evidence"):
+            if not isinstance(entry.get(field), str) or not entry[field].strip():
+                errors.append(f"{label}.{field} must be a non-empty string")
+        kind = entry.get("kind")
+        if kind is None:
+            # Legacy blockers are fail-closed execution blockers by AGENTS.md.
+            continue
+        if kind not in ALLOWED_BLOCKER_KINDS:
+            errors.append(f"{label}.kind invalid: {kind!r}")
+        blocks = entry.get("blocks")
+        if not isinstance(blocks, list) or not blocks or not all(isinstance(x, str) and x.strip() for x in blocks):
+            errors.append(f"{label}.blocks must be a non-empty string array")
+            blocks = []
+        allows = entry.get("allows") or []
+        if not isinstance(allows, list) or not all(isinstance(x, str) and x.strip() for x in allows):
+            errors.append(f"{label}.allows must be a string array")
+            allows = []
+        if len(blocks) != len(set(blocks)):
+            errors.append(f"{label}.blocks contains duplicates")
+        if len(allows) != len(set(allows)):
+            errors.append(f"{label}.allows contains duplicates")
+        overlap = set(blocks) & set(allows)
+        if overlap:
+            errors.append(f"{label} cannot both block and allow: {sorted(overlap)}")
 
 
 def check_lease(lease: Any, errors: list[str]) -> None:

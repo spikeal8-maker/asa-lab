@@ -417,3 +417,47 @@ tests:
     timeout_seconds: 7200
     owner: platform-operations
     artifacts: [restore-report]
+
+  - id: TST-LEARNING-E1-STUDENTSEAT-HARDENING-001
+    title: StudentSeat NAT admission, protected codes and rotation regressions
+    suite: integration
+    level: system
+    phase_available: E1-CORRECTION
+    required_for: [TASK-LRN-COURSE-001]
+    command: pnpm test:studentseat-access-hardening
+    timeout_seconds: 1200
+    owner: learning-identity
+    artifacts: [junit, rate-limit-matrix, credential-migration-report]
+
+  - id: TST-E2E-LEARNING-E1-STUDENTSEAT-HARDENING-001
+    title: StudentSeat manual and QR entry, repeated cards and shared-device browser journey
+    suite: e2e
+    level: system
+    phase_available: E1-CORRECTION
+    required_for: [TASK-LRN-COURSE-001]
+    command: pnpm e2e:studentseat-access-hardening
+    timeout_seconds: 1800
+    owner: learning-identity
+    artifacts: [playwright-report, decoded-qr-report, print-preview-evidence]
+
+  - id: TST-LEARNING-E1-COURSE-AUTHORING-CORRECTNESS-001
+    title: Course authoring retry, archive concurrency, policy diff and block completeness
+    suite: integration
+    level: system
+    phase_available: E1-CORRECTION
+    required_for: [TASK-LRN-COURSE-001]
+    command: pnpm test:course-authoring-correctness
+    timeout_seconds: 1500
+    owner: learning-authoring
+    artifacts: [junit, concurrency-report, version-diff-fixtures]
+
+  - id: TST-E2E-LEARNING-E1-COURSE-AUTHORING-HARDENING-001
+    title: Course Builder actions, dirty navigation and prepublish browser acceptance
+    suite: e2e
+    level: system
+    phase_available: E1-CORRECTION
+    required_for: [TASK-LRN-COURSE-001]
+    command: pnpm e2e:course-authoring-hardening
+    timeout_seconds: 2400
+    owner: learning-authoring
+    artifacts: [playwright-report, screenshots, functional-acceptance-report]

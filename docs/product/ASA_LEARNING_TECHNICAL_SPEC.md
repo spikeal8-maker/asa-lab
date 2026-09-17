@@ -711,7 +711,7 @@ publishedAt
 
 ## CRS-003 — blocks
 
-MVP:
+MVP block kinds сохраняются без второго content engine:
 
 ```text
 heading
@@ -727,6 +727,8 @@ code
 activity
 divider
 ```
+
+**Stage mapping после Integrated V1.5:** все перечисленные informational kinds (`heading`…`code`, `divider`) относятся к функциональной полноте E1 Course Builder. `activity` также E1, но только для реально поддержанных canonical published project activities Electronics/3D. Quiz и Programming используют тот же `activity` contract, однако их builders/runtime относятся к E2. Наличие enum/string в schema не считается реализацией блока: нужен author edit/save/reload/preview/publish/learner render path. Unsupported future activity kind fail-closed и объясняется до publish.
 
 ## CRS-004 — activity block config
 
@@ -2519,31 +2521,34 @@ Persistent right properties panel MAY be used on very wide desktop.
 
 ## UX-BLD-002 — structure tree
 
-Must support:
+Must support в E1 FUNCTIONAL_ACCEPTANCE:
 
-- sections;
-- lessons;
-- drag-and-drop;
-- keyboard reorder;
-- duplicate;
-- hide/archive;
-- delete safe draft node;
-- clear selected state.
+- sections и lessons: create/rename/select;
+- drag-and-drop reorder **и** keyboard reorder;
+- duplicate с новыми draft IDs и без learner evidence;
+- hide/show для будущей draft/version, не для уже опубликованного Run;
+- delete safe draft node/occurrence без удаления reusable published root/version;
+- clear selected state;
+- parent navigation guard по UX-BLD-004.
+
+Для каждого действия обязателен reload-after-save и negative permission test. Существование кнопки без persistence/semantic effect не закрывает требование.
 
 ## UX-BLD-003 — blocks
 
 Must support all MVP block types from CRS-003.
 
-Each block controls:
+Each block controls в E1:
 
 ```text
-move
+move / keyboard reorder
 duplicate
 settings
 hide/show
-delete
+delete safe draft occurrence
 insert above/below
 ```
+
+Duplicate создаёт новый block/source ID; для `activity` копируется exact published ref/config, но не Attempt/Submission/Result. Hide/delete не мутируют уже опубликованные CourseVersion и CourseRun. Для media/file broken/unavailable asset даёт явный validation/learner error, а не пустой успешный блок.
 
 ## UX-BLD-004 — сохранение и выход из редактора
 
@@ -2555,17 +2560,17 @@ Save(A) → новый ввод B → ack(A) оставляет B dirty. Отв�
 
 Проверки: parent tab/unmount; route/reload; отмена; network error; delayed save; повтор; two tabs; структура поверх dirty. Offline unsent не считается server saved. Это функциональная приёмка E1, не отложенная косметика.
 
-## UX-BLD-005 — activity insertion
+## UX-BLD-005 ? activity insertion
 
-`+ Добавить блок → Практика/Тест` MUST allow:
+????? activity insertion contract ???????????????? ?? ???????. ? **E1** UI MUST allow:
 
 ```text
-выбрать существующую LearningActivityVersion
-создать новое задание
-создать новый тест
+??????? ???????????? canonical published project LearningActivityVersion
+??????? ????? project-??????? ? ????? ??????????
+???????? Electronics/3D project activity exact version
 ```
 
-New content is saved to library, then referenced by draft.
+?????? ???????? ?????, Question Bank ? Quiz Builder ????????? ? **E2** ? ?? ???????????? ? E1 ??? ?????????? ????????. ????? E2 ??? ?? insertion control ??????????? `???????/??????? quiz`, ??? ??????? Course block engine. New content is saved to the common library first, then the exact published version is referenced by the course draft.
 
 ## UX-BLD-006 — publish
 
@@ -5015,6 +5020,13 @@ Structured problem сохраняется через SQL/API/UI до фокус�
 
 ## 89.5. Готовность и evidence — EXEC-004, REL-003
 
-Дефекты E1-FIX-01…10 определены в Integrated V1.5 §4.16 и отражены в единственном Requirements Ledger. Наличие реализации/зелёного suite не означает, что проверены все MUST. Verification method, exact source/test SHA, command, scenario, result и unverified фиксируются отдельно. Source review, component reproduction, DB/browser run и real-domain smoke не взаимозаменяемы. Сайт https://asa-lab.ru/ проверяется отдельно от GitHub и локальных bundles; без авторизованного synthetic access private journey остаётся not_run.
+Дефекты E1-FIX-01…11 определены в Integrated V1.5 §4.16 и отражены в единственном Requirements Ledger. Наличие реализации/зелёного suite не означает, что проверены все MUST. Verification method, exact source/test SHA, command, scenario, result и unverified фиксируются отдельно. Source review, component reproduction, DB/browser run и real-domain smoke не взаимозаменяемы. Сайт https://asa-lab.ru/ проверяется отдельно от GitHub и локальных bundles; без авторизованного synthetic access private journey остаётся not_run.
 
 Финальный visual convergence следует после функционального закрытия. Безопасность, отсутствие потери данных, корректные ошибки и доступность действия не относятся к отложенной косметике. Кандидат не принимается самим автором документа или по старому закрытому Issue.
+## 89.6. E1 permissions, credential storage and Course Builder completeness
+
+Access 2.2 является authority для `class.credentials.issue`, `class.credentials.read_current`, `class.credentials.rotate` и `class.sessions.revoke`; `class.roster.manage`/`class.read` не расширяются молча до credential readback. Логическое permission добавляется в существующий authorization mapping, а не создаёт второй RBAC.
+
+Student Code storage target: AES-256-GCM envelope + HMAC-SHA-256 class-scoped lookup, secret keyring вне БД, retired digest/tombstone, staged legacy transition без пересоздания LearnerIdentity. Алгоритм/ключи/rotation semantics считаются security contract и не заменяются plaintext `loginHandle` только ради совместимости.
+
+Integrated V1.5 §4.2.1 является stage-acceptance mapping для Course Builder: все informational MVP blocks и structural controls из CRS-003/UX-BLD-002/003 входят в E1 functional completeness; Quiz/Programming activity implementations остаются E2. FUNCTIONAL_ACCEPTANCE не требует финального визуального расположения, но требует usable layout без blocking overflow/overlap; VISUAL_ACCEPTANCE выполняется отдельно до owner-facing visual completion.

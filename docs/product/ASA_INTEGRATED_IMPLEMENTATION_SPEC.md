@@ -86,6 +86,24 @@ Guard охватывает смену урока, раздела, Preview, на�
 
 Структурная mutation не выполняется поверх несохранённого ввода без его согласованного сохранения/отмены. Операции сериализуются либо используют generation/revision fences. Поздний ответ не заменяет более свежий ввод. Conflict предлагает перезагрузить серверную версию после сохранения/экспорта собственного текста, а не молча выбрасывает работу. E1 не обещает полноценную offline-синхронизацию между узлами.
 
+#### 4.2.1. Обязательная функциональная матрица Course Builder E1
+
+E1 считается функционально полным только когда следующие действия реально исполнимы через продуктовый UI/API и имеют failure/permission/retry поведение. Финальное расположение панелей может быть временным до visual convergence.
+
+| Объект | Обязательные действия E1 | Семантика |
+|---|---|---|
+| Course draft | создать, переименовать, изменить summary/basic metadata, сохранить, preview, validate, publish, archive/restore | published version immutable; draft state не переписывает Run |
+| Section | добавить, переименовать, reorder mouse + keyboard, duplicate, hide/show, удалить безопасный draft section | duplicate создаёт новые source IDs; hide влияет только на будущую публикацию |
+| Lesson | добавить, переименовать, выбрать kind, reorder mouse + keyboard, duplicate, hide/show, удалить безопасный draft lesson | duplicate не копирует learner evidence; hidden lesson не создаёт activity occurrence в новой версии |
+| Informational block | add/move/reorder/duplicate/settings/hide-show/delete/insert above-below | E1 поддерживает `heading`, `paragraph`, `callout`, `image`, `video`, `audio`, `file`, `table`, `formula`, `code`, `divider` |
+| Activity block | add/move/duplicate/settings/hide-show/delete; выбрать exact published activity version | E1 разрешает canonical project activity Electronics/3D; Quiz/Programming UI появляются только на E2 |
+| Usage | увидеть реальные CourseRuns/классы, status/version/audience и перейти в Class → Learning | не дублирует gradebook и не показывает чужие классы |
+| Versions | список immutable versions, открыть read-only, compare, создать новый draft из старой | не destructive rollback |
+
+`duplicate` всегда создаёт новые draft IDs и копирует только author content/config/provenance. Оно никогда не копирует Enrollment, Participation, Attempt, Submission, Result или learner progress. `hide/show` — свойство будущего draft/version: оно не удаляет объект из уже опубликованной версии и не закрывает существующий Run. `delete safe draft node` разрешён только если удаляется draft-only узел/вхождение; ссылка на переиспользуемую activity удаляет только occurrence из курса, не библиотечный root/version.
+
+Если тип informational block ещё не имеет полноценного редактора, он не может быть помечен `implemented` только потому, что JSON schema допускает поле. Минимальная E1 приёмка каждого типа: create → edit → save/reload → preview → publish → learner render; для media/file отдельно broken/unavailable asset error.
+
 ### 4.3 Версии, восстановление и сравнение
 
 Published version доступна только для чтения. «Создать черновик из этой версии» создаёт новый draft из точного снимка с provenance. Существующий draft нельзя затереть. Следующая публикация получает монотонный номер и не меняет прежние CourseRuns.
@@ -122,9 +140,9 @@ Student Code — ровно шесть символов из безопасно�
 
 При потере некомпрометированной карточки печатается та же. При компрометации выполняется явная атомарная ротация: старый код недействителен, его активные сессии отозваны, новый код доступен учителю, Seat/LearnerIdentity/все работы и оценки сохранены. Смена общего кода класса делает старые class QR недействительными и предлагает перепечатать карточки; не ротирует Student Codes автоматически.
 
-Читаемость преподавателем не означает открытость credential всем. Current-code endpoints требуют точного class scope и права управления доступом, исключаются из логов/analytics/cache; ответы `no-store`. Ученику не выдаётся список кодов. Целевое хранение обратимо только для разрешённого readback (защищённый encryption envelope), с keyed lookup/verification и отдельным управлением ключами. Старый plaintext login_handle не считается выполнением этого требования. Миграция существующих предсказуемых кодов требует preview затронутых профилей, контролируемой ротации и повторной выдачи карточек, без пересоздания учеников.
+Читаемость преподавателем не означает открытость credential всем. Permissions `class.credentials.issue`, `class.credentials.read_current`, `class.credentials.rotate` и `class.sessions.revoke`, actor matrix, AES-256-GCM envelope + HMAC-SHA-256 lookup, keyring, retired-code tombstones, staged legacy migration и stale-replay rules определены в Access 2.2 §6/§9.4 и обязательны для E1-FIX-02. Старый plaintext login_handle не считается выполнением этого target; migration не пересоздаёт Seat/LearnerIdentity и не блокирует всех детей одним schema apply.
 
-Rate limit проверяет именно `/api/class-join/resolve` и `/api/class-join/studentseat`. Успешное разрешение класса не расходует общий маленький бюджет входа аудитории. Обязательны 30 учеников с одного IP: последовательный и одновременный вход, QR и ручной путь, повтор при потере ответа, до четырёх обычных опечаток на ученика. Законные входы не получают 429 из-за соседей. Одновременно перебор неверных кодов ограничен по источнику и целевому контексту; смена угадываемого кода не должна бесконечно обходить контроль. Отказ не перечисляет детей; корректный Retry-After и recovery доступны. Нельзя бессрочно блокировать весь класс из-за атакующего или отменять защиту ради теста. Несколько API-инстансов требуют общего согласованного лимитера либо явного ограничения поддерживаемой конфигурации. Proxy/IP учитываются только из доверенного ingress.
+Rate limit проверяет именно `/api/class-join/resolve` и `/api/class-join/studentseat` по числовому E1 profile из Access 2.2 §9.3. Успешные запросы не расходуют failure budgets; корректный credential не блокируется ошибками соседей. Обязательны 30 учеников с одного trusted NAT/IP, включая до четырёх опечаток на каждого, параллельный старт, QR/ручной путь, abuse threshold/recovery и доверенный proxy. Multi-instance не объявляется поддержанным без shared limiter. Любое изменение числового профиля — security-contract change с повтором acceptance, а не локальная настройка «чтобы тест прошёл».
 
 ### 4.7 Архивирование класса и курса
 
@@ -207,10 +225,21 @@ In-app события E1: назначение/условия, сдача на �
 | E1-FIX-08 | Архивирование и назначение атомарны | Конкурентные archive/assign и повтор уже успешного назначения; чужой UUID и прежний Run не получают лишнего доступа |
 | E1-FIX-09 | Нет противоречивого контекста и фиктивного test evidence | Compact/master/registry/ledger согласованы; каждый объявленный тест существует и его команда действительно включает; исторический secret-flow не нормативен |
 | E1-FIX-10 | Проверяемая граница репозитория и сайта | Отдельные code SHA, CI SHA, installed Web/API/schema, время наблюдения и выполненный live journey; отсутствие доступа записано как not_run |
+| E1-FIX-11 | Полная функциональная матрица Course Builder | Каждое действие §4.2.1 имеет create/edit/save-reload/permission/error/retry evidence; каждый E1 informational block реально проходит preview/publish/learner render; duplicate/hide/delete не меняют историю |
 
-E1-FIX-01…05 — первоочередные функциональные/безопасностные исправления. E1-FIX-06…08 закрывают полноту и гонки. E1-FIX-09/10 обеспечивают достоверность всей работы. Существующие исправные части сохраняются; статус всего E1 не выводится из количества зелёных тестов или произвольного процента.
+E1-FIX-01…05 — первоочередные функциональные/безопасностные исправления. E1-FIX-06…08 и E1-FIX-11 закрывают функциональную полноту/гонки Course Builder. E1-FIX-09/10 обеспечивают достоверность и границу реального сайта. Существующие исправные части сохраняются; статус всего E1 не выводится из количества зелёных тестов или произвольного процента.
 
 После функциональной приёмки следует отдельный visual convergence библиотеки, Course Builder и Class workspace. Он не подменяет исправления выше. Независимый review требуется для security/academic candidate по протоколу репозитория; self-review не называется независимым.
+
+### 4.17. Три разных уровня приёмки
+
+Чтобы правило «сначала функции, потом финальная вёрстка» не конфликтовало с UI quality gate, используются три независимых результата:
+
+1. **FUNCTIONAL_ACCEPTANCE** — пользовательское действие существует end-to-end, данные/permissions/retry/concurrency безопасны, primary CTA доступен, нет overlap/page overflow/text squeeze, мешающих выполнению. Допускаются временные spacing/theme/composition и ещё не финальная трёхпанельная геометрия. Это не `DEMONSTRATED` и не release.
+2. **VISUAL_ACCEPTANCE** — после функционального закрытия выполняется полный `ASA_UI_LAYOUT_ACCEPTANCE_SPEC`: impact radius, 1440/1024/390/320, long-content/states, финальная иерархия Course/Class surfaces. Только после этого UI-срез может быть `DEMONSTRATED`/предложен владельцу как визуально готовый.
+3. **INSTALLED_ACCEPTANCE** — отдельно разрешённый exact candidate развернут, Web/API/schema идентичность подтверждена, разрешённые live journeys выполнены на `https://asa-lab.ru/`. Ни FUNCTIONAL, ни VISUAL не означают deployment.
+
+Известный дефект, который блокирует CTA, теряет данные, нарушает доступность или создаёт неверную семантику, **не** считается «косметикой» и запрещает FUNCTIONAL_ACCEPTANCE. Разница уровней касается только финальной композиции/стиля, а не работоспособности.
 
 ## 5. E2 — надёжное оценивание
 
@@ -337,7 +366,7 @@ Server acknowledgment содержит revision/receipt, достаточные 
 
 У каждого требования отдельно фиксируются: implementation status; уровень проверки (`source_review`, `component_reproduced`, `local_integration`, `ci_browser`, `live_smoke`, `owner_accepted`); exact SHA; команда/test case; результат; ограничения/непроверенное. Эти измерения не являются одной линейной галочкой. `implemented` не подразумевает `verified` или `deployed`.
 
-Связь evidence: requirement ID → конкретный сценарий → существующий исполнимый тест → команда, которая его реально включает → run/artifact на exact SHA. Planned tests перечисляются как planned и не включаются в пройденное покрытие. Ссылки на весь файл недостаточно, когда нужный сценарий там не выполняется.
+Evidence chain: requirement ID -> exact scenario -> **active test ID** from `docs/testing/test-catalog.yaml` -> the exact registered command -> run/artifact on the exact SHA. Planned tests live only in `planned-test-catalog.yaml`, cannot prove `proven`, and move to the active catalog only after their command/spec really exists. An execution record with an arbitrary command that does not match the active catalog is not evidence. Referencing a whole test file is insufficient when the required scenario is not actually executed.
 
 Focused tests — во время изменения. На готовом product candidate — требуемые repository/DB/RLS/upgrade и browser gates, без маскировки unrelated failure. Документальная проверка не запускает production Docker и не считается повторной проверкой самого продукта. Независимый review не заменяется отчётом автора.
 
@@ -377,4 +406,4 @@ Rich blocks сохраняются как TARGET: heading/text/image/video/link/
 
 Временная assessment-карточка E2 может иметь отдельный индивидуальный activation credential по своей policy. Это не разрешение возвращать personal credential в общий class QR постоянного StudentSeat. Constant class QR из E1 никогда не аутентифицирует ребёнка сам.
 
-Наследование требований: V1.4 §0–4 → §§0–4 этой редакции; §5 и §21.3/5/6/7 → §5; §6 и §21.4 → §6; §§7–20 → одноимённые разделы; §21.1/2/8 → §§1/10/11/17/21. Старые numbered acceptance, SET/U/R/P/INV/UI/AC и Learning requirement IDs не удаляются из специализированных контрактов. Изменения E1-FIX-01…10 уточняют безопасность, полноту и evidence; не объявляют продукт исправленным. Точность DDL/OpenAPI и семантика неизменённых detail contracts сохраняются.
+Наследование требований: V1.4 §0–4 → §§0–4 этой редакции; §5 и §21.3/5/6/7 → §5; §6 и §21.4 → §6; §§7–20 → одноимённые разделы; §21.1/2/8 → §§1/10/11/17/21. Старые numbered acceptance, SET/U/R/P/INV/UI/AC и Learning requirement IDs не удаляются из специализированных контрактов. Изменения E1-FIX-01…11 уточняют безопасность, полноту и evidence; не объявляют продукт исправленным. Точность DDL/OpenAPI и семантика неизменённых detail contracts сохраняются.

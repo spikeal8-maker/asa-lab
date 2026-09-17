@@ -150,6 +150,16 @@ workflow conclusion
 и **STOP**. Наличие следующего READY milestone не является разрешением его
 начать.
 
+### 2.2. Семантика blockers
+
+`current.yaml.blocking` не является одной глобальной кнопкой STOP. Каждый новый blocker ОБЯЗАН иметь `kind` и список `blocks`:
+
+- `execution_blocker` — запрещает начинать/продолжать перечисленные mutation/actions выбранного scope; неизвестный legacy blocker без `kind` трактуется как `execution_blocker` fail-closed;
+- `acceptance_blocker` — разрешает явно выбранный bounded repair/regression/doc work, но запрещает `owner_acceptance`, `release_claim` и иные перечисленные closure-actions до закрытия причины;
+- `deployment_blocker` — не мешает разработке/проверке кандидата, но запрещает deployment/update/restore-action, перечисленный в `blocks`.
+
+Исполнитель сопоставляет предполагаемое действие с `blocks`, `lane` и `task_id`. Поле `allows` может только явно перечислять безопасные действия внутри того же scope и никогда не отменяет `execution_blocker` другого источника. Blocker не закрывается самим изменением текста: требуется evidence, указанное его контрактом.
+
 ## 3. Неприкосновенные данные
 
 Запрещено удалять или изменять:
@@ -279,7 +289,7 @@ pnpm control-plane:check         # только согласованность �
 
 - `pnpm control-plane:check` обнаруживает повреждение структуры или реальное
   противоречие данных; устаревшие lease, branch и PR-записи работу не блокируют;
-- в `current.yaml` есть незакрытый пункт `blocking`;
+- в `current.yaml` есть применимый к предполагаемому действию `execution_blocker` либо legacy blocker без `kind`; `acceptance_blocker` останавливает только перечисленные closure/release действия, а `deployment_blocker` — только перечисленные операции установки;
 - обнаружены пересекающиеся незавершённые изменения другого исполнителя;
 - для продолжения нужно удалить или необратимо изменить защищённые данные из
   разделов 3–4;

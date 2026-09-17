@@ -475,6 +475,48 @@ class AgentContextTests(unittest.TestCase):
         self.assertIn("ELECTRONICS-MASTER@1.0", rendered)
 
 
+    def test_blockers_are_scoped_to_selected_lane_and_render_semantics(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            document = fixture(root)
+            document["blocking"] = [
+                {
+                    "id": "ELECTRONICS-ACCEPTANCE",
+                    "kind": "acceptance_blocker",
+                    "lane": "electronics",
+                    "task_id": "TASK-ELECTRONICS-DOCS-001",
+                    "blocks": ["owner_acceptance", "release_claim"],
+                    "allows": ["bounded_repair", "focused_verification"],
+                    "reason": "open correction",
+                    "evidence": "docs/evidence.md",
+                },
+                {
+                    "id": "PRIMARY-ONLY",
+                    "kind": "execution_blocker",
+                    "lane": "primary",
+                    "task_id": "TASK-PRIMARY-001",
+                    "blocks": ["bounded_repair"],
+                    "reason": "other lane",
+                    "evidence": "docs/other.md",
+                },
+            ]
+            context = MODULE.build_context(root, document, lane(document), git_status=available())
+            rendered = MODULE.render_text(context)
+        self.assertEqual([item["id"] for item in context["blocking"]], ["ELECTRONICS-ACCEPTANCE"])
+        self.assertIn("ELECTRONICS-ACCEPTANCE: acceptance_blocker", rendered)
+        self.assertIn("blocks: owner_acceptance, release_claim", rendered)
+        self.assertIn("allows: bounded_repair, focused_verification", rendered)
+        self.assertNotIn("PRIMARY-ONLY", rendered)
+
+    def test_legacy_global_blocker_remains_visible_fail_closed(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            document = fixture(root)
+            document["blocking"] = [{"id": "LEGACY", "reason": "old blocker", "evidence": "docs/evidence.md"}]
+            context = MODULE.build_context(root, document, lane(document), git_status=available())
+            rendered = MODULE.render_text(context)
+        self.assertIn("LEGACY: execution_blocker (legacy default)", rendered)
+
     def test_split_history_is_labelled_snapshot_not_current_learning_head(self):
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw)

@@ -64,6 +64,12 @@ VERDICT: PASS | NEEDS_FIX | BLOCKED
 
 Нельзя чинить только один screenshot, если изменённый shared selector используется ещё на других страницах.
 
+### 3.1. Functional-first UI review
+
+Если владелец явно зафиксировал functional-first sequencing, L0/L1 шаг может завершиться с `FUNCTIONAL_ACCEPTANCE=PASS` и `VISUAL_STATE=provisional`, но только если выполнен минимальный usability gate из `ASA_UI_LAYOUT_ACCEPTANCE_SPEC.md` §10A. Такой PASS означает «действие безопасно и доступно», а не «экран окончательно сверстан».
+
+Перед `DEMONSTRATED`, owner visual acceptance или release-candidate UI выполняется отдельный полный `VISUAL_ACCEPTANCE`. Запрещено использовать provisional layout как основание не проверять overflow/overlap/CTA/focus уже на функциональном шаге.
+
 ## 4. CHALLENGE_REVIEW
 
 Отдельный критический проход обязателен, если выполнено хотя бы одно условие:

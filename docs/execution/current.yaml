@@ -423,6 +423,12 @@ parallel_lanes:
     - tools/learning-migration-dry-run-v1.schema.json
     - tools/learning-additive-backfill.mjs
     - tests/courses/**
+    - migrations/0146_student_seat_protected_codes.sql
+    - migrations/0147_course_authoring_correctness.sql
+    - tools/student-seat-protected-code-backfill.mjs
+    - tests/security/student-seat-rate-limit.spec.ts
+    - e2e/student-seat-access-hardening.spec.ts
+    - e2e/learning-course-authoring-hardening.spec.ts
     task:
       id: TASK-LRN-COURSE-001
       issue: 179
@@ -431,7 +437,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: e1_spec_rebaseline_corrections_open
+      checkpoint: e1_spec_clarified_corrections_open
       owner_acceptance: pending
       normative_refs:
       - document: PRODUCT-INTEGRATED-V15
@@ -441,14 +447,14 @@ parallel_lanes:
       - document: IDENTITY-ACCESS-V22
         revision: '2.2'
     revisions:
-      convergence_baseline_sha: 3a54a9edf58633331fd466b5f46cb2a8c4f5d390
-      head_sha: 3a54a9edf58633331fd466b5f46cb2a8c4f5d390
-      observed_at: '2026-09-17T07:29:57.825Z'
+      convergence_baseline_sha: 0a4b50742b6e127320c01ed81060ae8e51c6eabe
+      head_sha: 0a4b50742b6e127320c01ed81060ae8e51c6eabe
+      observed_at: '2026-09-17T10:03:00+00:00'
       main:
         branch: main
-        sha: 3a54a9edf58633331fd466b5f46cb2a8c4f5d390
-      observation_note: Source baseline of documentation rebaseline, not a verified product candidate or installed revision.
-        Previous observations remain in Git history.
+        sha: 0a4b50742b6e127320c01ed81060ae8e51c6eabe
+      observation_note: Pre-edit baseline for E1 specification clarification; not a product candidate, proof of repairs,
+        or installed revision.
     execution_lease:
       executor_id: codex-learning-course-01
       holder: unassigned
@@ -491,9 +497,18 @@ integration:
 
 blocking:
   - id: LRN-E1-CORRECTIONS
+    kind: acceptance_blocker
     lane: learning
     task_id: TASK-LRN-COURSE-001
-    blocks: E1 product acceptance and release claim, not unrelated lanes or this documentation update
-    reason: Known E1-FIX-01 through E1-FIX-10 correction/verification requirements remain open
+    blocks:
+      - owner_acceptance
+      - release_claim
+      - deployment_authorization
+    allows:
+      - bounded_repair
+      - regression_authoring
+      - documentation_update
+      - focused_verification
+    reason: Known E1-FIX-01 through E1-FIX-11 correction/verification requirements remain open
     evidence: docs/product/ASA_LEARNING_REQUIREMENTS_LEDGER.yaml
 next_task: null

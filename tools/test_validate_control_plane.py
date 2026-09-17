@@ -153,6 +153,48 @@ def gate_healthy(_):
 # ── the task record ──────────────────────────────────────────────────────────
 
 
+@case("typed acceptance blocker allows bounded repair", expect="")
+def blocker_acceptance_healthy(_):
+    errors: list[str] = []
+    cp.check_blocking([{
+        "id": "B-1", "kind": "acceptance_blocker",
+        "blocks": ["owner_acceptance", "release_claim"],
+        "allows": ["bounded_repair"],
+        "reason": "open defects", "evidence": "docs/evidence.md",
+    }], errors)
+    return errors
+
+
+@case("unknown blocker kind is rejected", expect="kind invalid")
+def blocker_unknown_kind(_):
+    errors: list[str] = []
+    cp.check_blocking([{
+        "id": "B-1", "kind": "magic_blocker", "blocks": ["release_claim"],
+        "reason": "open defects", "evidence": "docs/evidence.md",
+    }], errors)
+    return errors
+
+
+@case("blocker cannot allow what it blocks", expect="cannot both block and allow")
+def blocker_overlap(_):
+    errors: list[str] = []
+    cp.check_blocking([{
+        "id": "B-1", "kind": "acceptance_blocker",
+        "blocks": ["owner_acceptance"], "allows": ["owner_acceptance"],
+        "reason": "open defects", "evidence": "docs/evidence.md",
+    }], errors)
+    return errors
+
+
+@case("legacy untyped blocker stays fail-closed compatible", expect="")
+def blocker_legacy(_):
+    errors: list[str] = []
+    cp.check_blocking([{
+        "id": "LEGACY", "reason": "old state", "evidence": "docs/evidence.md",
+    }], errors)
+    return errors
+
+
 def task_document(**overrides) -> dict:
     task = {
         "id": "TASK-ELECTRONICS-M1-001",

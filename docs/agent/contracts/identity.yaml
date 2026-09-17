@@ -114,8 +114,9 @@ invariants:
     - plaintext_log
     - rotation_changes_learner_identity
   - id: IDA-SEAT-002
-    statement: The class-only QR uses https://asa-lab.ru and never embeds Student Code; thirty learners behind one
-      IP can complete resolve and sign-in without exhausting a shared success budget while abuse remains limited.
+    statement: StudentSeat admission uses failure-only rate budgets of 60 invalid resolve/source/10m, 5 invalid
+      candidate/class/10m, 180 invalid source+class/10m and 300 invalid source/10m; valid requests do not consume those
+      budgets, and the class-only QR uses https://asa-lab.ru without Student Code.
     master_refs:
     - document: IDENTITY-ACCESS-V22
       section: §9.2 / §9.3
@@ -127,3 +128,20 @@ invariants:
     - wrong_public_origin
     - qr_contains_student_code
     - normal_class_batch_lockout
+  - id: IDA-CRED-003
+    statement: Current Student Code readback, rotation and session revocation are separate class-scoped permissions.
+      Protected storage is AES-256-GCM plus separate HMAC-SHA-256 lookup keys outside the database; retired codes
+      cannot be reused in the same class and replaying an older rotation never reveals stale plaintext as current.
+    master_refs:
+    - document: IDENTITY-ACCESS-V22
+      section: AES-256-GCM
+    applies_to:
+    - student_code_storage
+    - credential_readback
+    - credential_rotation
+    - seat_session_revocation
+    forbid:
+    - roster_read_implies_code_read
+    - encryption_key_in_database
+    - retired_code_reuse
+    - stale_rotation_reactivates_code

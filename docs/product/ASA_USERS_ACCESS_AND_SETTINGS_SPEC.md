@@ -230,7 +230,10 @@ Allow объединяются по конкретному ресурсу, не 
 | `class.create` | Создание в явно разрешённом teaching context |
 | `class.read` | Staff-контекст конкретного класса, не ученический доступ |
 | `class.roster.manage` | Ученическое участие класса; не глобальный Account ребёнка |
-| `class.credentials.issue` | Первичная выдача/сброс своего scoped профиля; не чтение старого секрета |
+| `class.credentials.issue` | Первичная выдача StudentSeat/Student Code в exact class scope; не даёт повторное чтение само по себе |
+| `class.credentials.read_current` | Просмотреть/скопировать/распечатать **текущий** Student Code exact StudentSeat; не даёт rotate/revoke |
+| `class.credentials.rotate` | Явно изменить/перегенерировать Student Code; отзывает старый код и активные Seat-сессии атомарно; не меняет LearnerIdentity/history |
+| `class.sessions.revoke` | Завершить StudentSeat-сессии exact class/Seat без смены текущего Student Code |
 | `class.settings.manage` | Настройки в пределах parent-policy |
 | `class.staff.manage` | Делегируемые staff шаблоны данного класса |
 | `run.create` | Проведение с проверкой content.deliver и target scope |
@@ -262,6 +265,19 @@ Allow объединяются по конкретному ресурсу, не 
 | `support.session.use` | Только согласованные actions/resources/time |
 
 Ученику для собственного результата не нужен `gradebook.read`. Простое наличие `organization.read` не позволяет приглашать staff. Любой нужный новый технический permission фиксируется в mapping и тестах; нельзя подменить отсутствие права соседним широким admin.
+
+**Матрица управления Student Code (TARGET E1):**
+
+| Исполнитель | read current / print | rotate | revoke sessions | Основание |
+|---|---:|---:|---:|---|
+| Ответственный преподаватель класса | да | да | да | точные class-scoped permissions выше |
+| Co-teacher | только при явном grant | только при явном grant | только при явном grant | `class.read` само по себе недостаточно |
+| Reviewer / mentor / coordinator без credential grant | нет | нет | нет | доступ к работе/обучению не раскрывает credential |
+| Organization admin | нет по одному названию роли | нет | нет | нужен отдельный exact class grant |
+| Platform/support | нет через обычный пользовательский API | нет через обычный пользовательский API | только отдельная audited security/operations procedure, если она вообще разрешена | support не impersonate ребёнка |
+| Сам StudentSeat / другой learner | нет | нет | только собственный logout для своей сессии | не видит roster и чужие коды |
+
+`class.roster.manage` ?? ????????????? ????????????? `class.credentials.read_current`. ??? ?????????????? ????????????? exact ?????? E1 default class grant MUST ???????? `class.credentials.issue`, `class.credentials.read_current`, `class.credentials.rotate` ? `class.sessions.revoke`; co-teacher ???????? ?????? ?? ??? ?????? ????? grant. ?????? ????????? permissions ??????????. UI ????????/disable ??????????? ????????, ?????? backend authorization ???????? ?????????? ??????.
 
 <a id="section-07"></a>
 
@@ -319,7 +335,7 @@ Legacy ученическая ссылка класса переходит в с
 
 Код класса только разрешает контекст; Student Code выбирает и аутентифицирует профиль. Безопасный алфавит `2346789ACDEFGHJKMNPQRTUVWXY`, ровно 6 знаков, регистр неважен. Пробелы нормализуются согласованно, сервер не принимает произвольные длинные значения путём молчаливого усечения. Общая ошибка не раскрывает наличие ребёнка; roster и чужие коды публично недоступны.
 
-Коды генерируются серверным cryptographic RNG, не выводятся из displayLabel, UUID, индекса строки или другого несекретного seed. Конкурентная уникальность внутри класса обеспечивается БД. Идемпотентный batch возвращает сохранённые случайные результаты: новый requestId не должен воспроизводить credential из имени. Изменение генератора не даёт права пересоздать пользователей. Разрешённая ручная замена учителем принимает допустимый уникальный код того же формата и выполняется как явная ротация; вручную выбранное значение не объявляется случайно сгенерированным.
+Коды генерируются серверным cryptographic RNG, не выводятся из displayLabel, UUID, индекса строки или другого несекретного seed. Конкурентная уникальность внутри класса обеспечивается БД. Идемпотентный batch возвращает сохранённые случайные результаты: новый requestId не должен воспроизводить credential из имени. Изменение генератора не даёт права пересоздать пользователей. Разрешённая ручная замена учителем принимает допустимый уникальный код того же формата и выполняется как явная ротация; вручную выбранное значение не объявляется случайно сгенерированным. Manual replacement MUST contain at least four distinct symbols from the allowed alphabet; otherwise the server returns `weak_student_code`. `Generate new code` remains the primary UI action and manual entry warns that it reduces unpredictability.
 
 Preview класса показывает название и пригодное canonical public display name преподавателя из профиля; email/username/account ID исключены и из ответа, и из DOM. Fallback — «Преподаватель». Safe Mode вторичен, не доминирующая декоративная бирка.
 
@@ -327,7 +343,13 @@ Preview класса показывает название и пригодное
 
 ### 9.3. Ограничение злоупотреблений и учебный scope
 
-Limiter учитывает оба StudentSeat endpoint и общую школьную сеть, не только обычный Account login. Проверяются 30 клиентов за одним NAT/IP: последовательный и одновременный ручной/QR-вход, до четырёх исправляемых ошибок на ученика, lost-response retry. Успешный resolve не должен израсходовать весь бюджет класса перед login. При этом перебор неверных Student Codes ограничен по источнику/контексту; меняющийся guess не обходит все ограничения. Не допускаются отключение защиты ради теста, постоянная блокировка всего класса и доверие поддельному forwarded IP. 429 даёт Retry-After и понятное восстановление. Multi-instance требует общего rate-limit state либо явного ограничения конфигурации до его проверки.
+Limiter учитывает оба StudentSeat endpoint и общую школьную сеть, не только обычный Account login. **Поддержанный E1 профиль обязателен и не оставляется на усмотрение реализации:** успешные `resolve` и успешные StudentSeat sign-in не расходуют failure budgets. Invalid class-code resolve: не более 60 ошибок на trusted client source за 10 минут. Invalid Student Code: 5 ошибок на exact `(class, candidate-code)` за 10 минут, 180 ошибок на `(trusted source, class)` за 10 минут и 300 ошибок на trusted source суммарно за 10 минут. Счётчики растут только после фактически неверной проверки; корректный Class Code/Student Code не блокируется агрегатным failure budget соседей. `429` применяется к следующему неверному запросу соответствующего bucket и возвращает `Retry-After` до его восстановления.
+
+Server-side verification order is fixed: after resolving a valid Class Code, normalize Student Code, compute keyed HMAC for the available lookup keys, and perform indexed lookup. An active digest proceeds to session creation without consuming failure budgets. A missing active digest consumes the applicable failure buckets and returns generic 401 or 429. General transport/connection protection MAY limit resource floods independently, but MUST NOT change the E1 credential-failure acceptance numbers.
+
+Acceptance: 30 синтетических учеников за одним trusted NAT/IP входят последовательно в одном 10-минутном окне и параллельно (старт всех 30 в пределах 60 секунд) без `429` на корректных запросах. Дополнительно каждый из 30 делает до четырёх неверных Student Code попыток и затем корректный вход; правильный вход остаётся разрешён. Отдельный abuse-тест превышает 180 неверных попыток в одном class/source и подтверждает `429`, отсутствие roster enumeration и автоматическое восстановление после окна. Lost-response retry не создаёт новую сессию/Seat side effect сверх контрактного.
+
+Trusted source берётся только из непосредственно подключённого адреса либо заголовка доверенного ingress; произвольный `X-Forwarded-For` из интернета не меняет bucket. Поддержанный E1 production profile — один API instance. Если развернуто больше одного API instance, shared rate-limit state (например, согласованное внешнее хранилище) обязателен до объявления этой конфигурации поддержанной. Нельзя увеличивать лимит «до бесконечности» ради зелёного теста или вводить class-wide lockout, который может использовать атакующий как отказ в обслуживании.
 
 После входа видны свои назначения, учебные проекты, feedback и опубликованные результаты. Нет чужого roster, сдач, кодов, личных проектов преподавателя. Свободная практика возможна в поддержанных safe modules своего профиля. ResultMode задаёт activity, не тип входа; ungraded/completion без искусственных баллов, graded с настоящими max/scale/result revisions.
 
@@ -339,9 +361,24 @@ Seat меню: «Главная», «Моё обучение», «Мои уче�
 
 Печать/readback не создают credential и не закрывают сессию. Закрытие batch-диалога не теряет доступ к текущим карточкам. Потерянная некомпрометированная карточка перепечатывается той же. Компрометация требует явной ротации: версия credential растёт, прежний код и сессии отзываются атомарно, новый код доступен преподавателю, вся история сохраняется. Повтор того же rotation requestId возвращает тот же логический результат. Обновление Class Code не меняет персональные коды автоматически, но требует новых class QR.
 
-Current-code readback доступен только разрешённому credential manager точного класса; read-only/summary/reviewer/learner не получают его по факту доступа к имени. Ответы no-store, коды отсутствуют в logs/audit/analytics/public screenshots и URL. Для целевого защищённого хранения используется обратимый encrypted envelope с управлением ключами и keyed lookup/verification; открытый legacy login_handle не объявляется соответствующим этому security target. Физическая additive migration и rollout выбираются отдельно, не новая Auth/RLS-система.
+Current-code readback доступен только при `class.credentials.read_current` exact класса; read-only/summary/reviewer/learner не получают его по факту доступа к имени. Ответы `Cache-Control: no-store`, коды отсутствуют в logs/audit/analytics/public screenshots и URL.
 
-Существующие предсказуемые коды требуют контролируемого плана ротации с preview затронутых профилей, сохранением ID/works/results и перевыдачей карточек. Не скрывать фактическое состояние хранения/миграции. Account passwords и временные одноразовые токены остаются отдельными механизмами; повторная StudentSeat-печать не разрешает их чтение.
+**Физический TARGET E1 хранения Student Code выбран однозначно:**
+- Student Code is encrypted with `AES-256-GCM`; the encryption key is exactly 32 random bytes. Each row uses a random 96-bit nonce/IV, authentication tag and `encryption_key_id`. AAD is versioned UTF-8 `v1|tenant_id|class_id|seat_id|credential_version`, preventing an envelope from being moved between Seat/version contexts without detection.
+- Lookup/uniqueness uses `HMAC-SHA-256(lookup_key, "v1|" || tenant_id || "|" || class_id || "|" || normalized_code)`. The lookup key is at least 32 random bytes, has `lookup_key_id`, and is distinct from the encryption key.
+- Active keys come from an API secret/env mount and are not stored in PostgreSQL. The keyring contains current encryption/lookup keys plus only the retiring keys still required for decrypt/dual-lookup.
+- E1 secret contract uses `ASA_STUDENT_CODE_ENCRYPTION_KEYS_JSON`, `ASA_STUDENT_CODE_ENCRYPTION_ACTIVE_KEY_ID`, `ASA_STUDENT_CODE_LOOKUP_KEYS_JSON` and `ASA_STUDENT_CODE_LOOKUP_ACTIVE_KEY_ID`. JSON maps non-secret key IDs to base64 key bytes; encryption keys decode to exactly 32 bytes and lookup keys to at least 32 bytes. Secrets never appear in Git, DB, health payloads, logs or analytics. Startup/readiness fail closed when an active key is malformed/missing or a DB row references a key ID absent from the loaded keyring.
+- Encryption-key rotation re-encrypts the same Student Code without changing credential version/session. Lookup-key rotation uses dual-read: candidate HMACs are computed for current+retiring lookup keys, active and retired digests are migrated to the new `lookup_key_id`, and the retiring lookup key is removed only after verification. Student-Code rotation is separate: it creates a new credential version and revokes the old code/sessions.
+- backup БД содержит только ciphertext/HMAC metadata. Проверочное restore, которому нужен readback/login, запускается только с отдельной тестовой копией того же keyring. При отсутствии/неизвестном ключе API fail-closed с `credential_storage_unavailable`, не возвращает ciphertext как код и не генерирует молча новый credential;
+- старый Student Code после ротации остаётся в class-scoped retired digest/tombstone history и **никогда повторно не назначается другому StudentSeat того же класса**, включая ручную замену; генератор/ручной set проверяют active + retired digests атомарно.
+
+**Переход существующих кодов:** additive migration добавляет envelope/digest/state без пересоздания Seat. Текущий legacy код сначала переносится в защищённый envelope и помечается `legacy_predictable`; это сохраняет уже выданную бумажную карточку на период контролируемого перехода. Учитель получает preview количества затронутых Seat и явную команду «Обновить коды класса/выбранных». Эта операция генерирует случайные коды, повышает credential version, отзывает Seat-сессии, оставляет LearnerIdentity/works/Attempts/Submissions/Results неизменными и сразу делает новые карточки повторно доступными. После подтверждённой ротации legacy plaintext/loginHandle очищается; автоматическое массовое отключение детей одним schema migration запрещено. Production release обязан явно показать число `legacy_predictable` и выбранное окно их ротации.
+
+Protected-code rollout order is mandatory: (1) provision/test the keyring on the API host; (2) apply additive migration `0146`, which adds envelope/digest/state/retired-history structures **without key material and without encrypting plaintext inside SQL**; (3) run the idempotent application-layer tool `tools/student-seat-protected-code-backfill.mjs` with a restricted runtime/admin DB connection and the API keyring; it reads legacy code, writes envelope/HMAC/key IDs and row state, logs only counts/IDs safe for audit, and is resumable after interruption; (4) verify zero unmigrated active rows and key-ID coverage; (5) expose teacher preview/explicit rotation of `legacy_predictable` codes; (6) after each successful rotation clear that Seat's legacy plaintext compatibility value. The tool MUST never print Student Code, ciphertext key material or derived HMAC. A schema rollback before plaintext cleanup can use the old app; after plaintext cleanup, app downgrade is unsupported without a separately tested recovery procedure.
+
+**Idempotency rotation/readback:** receipt хранит request metadata/result version, а не вечную копию plaintext. Replay того же rotation requestId пока выданная версия остаётся текущей может вернуть тот же current code через разрешённый readback. Если после неё уже была следующая ротация R2, replay старой R1 возвращает `superseded: true`, historical credentialVersion и currentCredentialVersion, **не** показывает старый plaintext и не делает его снова действующим. Печать всегда перечитывает current version непосредственно перед render/print; stale dialog/tab получает `credential_version_conflict` и обновляет карточку. Отзыв permission между первым ответом и replay запрещает readback.
+
+Account passwords и временные одноразовые assessment tokens остаются отдельными механизмами; повторная StudentSeat-печать не разрешает их чтение.
 
 ### 9.5. Приёмка и границы доказательства
 
@@ -676,6 +713,15 @@ School-scoped ADR остаётся действующим physical constraint. P
 | Summary-only | «Доступна сводка. Детализация требует отдельного разрешения» |
 | Submit outcome неизвестен | «Отправка не подтверждена» → проверить статус / безопасно повторить |
 | Withdrawn rejoin | «Требуется новое назначение» → ответственный |
+
+E1 StudentSeat machine error contract:
+
+| Code | HTTP | Meaning / UI action |
+|---|---:|---|
+| `weak_student_code` | 422 | Manual replacement violates the deterministic weak-code rule; keep current credential and offer Generate |
+| `credential_storage_unavailable` | 503 | Required encryption/lookup key is unavailable or unknown; fail closed, retry after operator recovery, never rotate silently |
+| `credential_version_conflict` | 409 | Card/dialog was opened for an older credential version; reload current card before print/copy/rotation |
+| `too_many_attempts` | 429 | Applicable failure bucket is exhausted; include `Retry-After`; do not reveal Seat existence |
 
 Коды: 401 session; 403 известное запрещённое действие; 404 hidden/unknown; 409 conflict; 422 policy/state; 429 retry-after; 503 dependency. Существующие API codes сохраняются/мигрируются явно, не подменяются неожиданно ради текста.
 

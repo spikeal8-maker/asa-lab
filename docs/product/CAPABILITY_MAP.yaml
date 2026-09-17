@@ -96,8 +96,8 @@ capabilities:
     name: StudentSeat access without email
     domain: classroom
     target: mvp
-    outcome: A teacher issues, imports, resets and revokes child access without requiring email.
-    includes: [alias, class code, individual credential, QR card, Argon2id hash, lockout, session revocation, printable card]
+    outcome: A teacher issues, repeat-reads/prints, rotates and revokes class-scoped child access without requiring email.
+    includes: [alias, class code, six-character Student Code, AES-256-GCM protected readback, HMAC-SHA-256 lookup, failure-only admission limits, class-only QR, repeat-printable card, credential rotation, session revocation]
     depends_on: [CAP-IDENTITY, CAP-CLASSROOM]
 
   - id: CAP-STUDENT-DASHBOARD

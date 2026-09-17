@@ -10,11 +10,33 @@
 
 Один законченный курс от автора и законной выдачи доступа до exact project Submission, review/revision и canonical Gradebook. Существующие identity/runtime/projections переиспользуются, но факт их существования не освобождает от negative/retry/concurrent тестов. Успешный старый CI не отменяет найденные дефекты.
 
+## Зафиксированные технические решения ближайших исправлений
+
+Эти решения снимают необходимость проектировать security/concurrency «по ходу». Если реализация требует отступления, сначала меняется канонический контракт и regression, а не код молча.
+
+### E1-FIX-01 — admission/rate limit
+
+Изменяемые runtime paths: `apps/api/src/classroom-join.controller.ts`, `apps/api/src/rate-limit.ts` либо небольшой shared limiter в том же Auth/API context; новый Auth service не создаётся. Числовой профиль — Access 2.2 §9.3: 60 invalid resolve/source/10m; 5 invalid exact candidate/class/10m; 180 invalid source+class/10m; 300 invalid source total/10m; successes не расходуют failure budgets. Supported production E1 — один API instance; multi-instance только после shared state. Planned regression files: `tests/security/student-seat-rate-limit.spec.ts` и `e2e/student-seat-access-hardening.spec.ts`; тесты проверяют настоящий `/resolve` + `/studentseat`, а не `/auth/login`.
+
+### E1-FIX-02/03 — credential storage, cards and rollout
+
+Зарезервированная additive migration: `migrations/0146_student_seat_protected_codes.sql`. API paths: `apps/api/src/classrooms.controller.ts`, `apps/api/src/classroom-join.controller.ts`; Web: `StudentAccessCards`, `StudentCodeDialog`, `JoinClassPage`. OpenAPI меняется в `schemas/openapi.yaml` до/в том же срезе. Storage: AES-256-GCM + separate HMAC-SHA-256 lookup key, key IDs/keyring outside DB, active+retired digest uniqueness. Permissions: issue/read_current/rotate/sessions.revoke по Access §6.
+
+Rollout: keyring preflight -> additive `0146` schema only -> idempotent `tools/student-seat-protected-code-backfill.mjs` application-layer envelope/HMAC backfill -> verify zero unmigrated active rows and key-ID coverage -> teacher-visible `legacy_predictable` preview -> explicit class/selected rotation -> clear each rotated legacy plaintext compatibility value. Encryption/lookup keys MUST NOT enter SQL migration arguments, DB rows, logs or Git. Schema apply alone does not disable children. Before plaintext cleanup, old-app rollback remains possible; after cleanup, downgrade is unsupported without a separately tested recovery procedure. Backup restore requiring login/readback receives a separate test copy of the same keyring. Planned DB test: `tests/account/student-seat-access-hardening.pg.spec.ts`; browser: `e2e/student-seat-access-hardening.spec.ts`.
+
+### E1-FIX-04…08/11 — Course Builder correctness
+
+Зарезервированная additive migration для необходимых SQL corrections: `migrations/0147_course_authoring_correctness.sql`; если конкретный FIX не требует DDL, migration остаётся ограниченной фактическими DB changes, старые `0145` bytes не меняются. API: `courses.controller.ts`; UI: `CoursesPanel`, `AuthorVersionHistory`, `course-version-diff`, `AssignmentLibraryPage`; точный affected subset определяется срезом. OpenAPI error/payload changes — `schemas/openapi.yaml`.
+
+`0147` обязана сохранять existing CourseVersion/Run IDs. Transaction boundaries: archive-check+assign в одной DB command/transaction; publish receipt lookup after authz but before stale revision for an exact completed request. Draft navigation fencing остаётся client/server revision contract, не новой таблицей состояния. Planned DB test: `tests/courses/course-authoring-correctness.pg.spec.ts`; unit diff: `tests/courses/course-version-diff.spec.ts`; browser: `e2e/learning-course-authoring-hardening.spec.ts`.
+
+Course Builder FUNCTIONAL_ACCEPTANCE определяется Integrated §4.2.1; все informational MVP blocks и structural controls проходят save/reload/preview/publish/learner render. Quiz/Programming activity UI не подтягиваются в E1.
+
 ## Порядок ограниченных срезов
 
 1. E1-FIX-01…03: массовый StudentSeat-вход с одного IP, непредсказуемые короткие коды и защищённый repeated readback, правильный class-only QR/публичный host.
 2. E1-FIX-04…05: защита всей навигации и inflight editor input, idempotent publish после lost response.
-3. E1-FIX-06…08: concrete structural/policy diff, точные prepublish errors и корректный legacy-picker, atomic archive/assign.
+3. E1-FIX-06…08 и E1-FIX-11: concrete structural/policy diff, точные prepublish errors и корректный legacy-picker, atomic archive/assign.
 4. E1-FIX-09: согласованность active docs и реально запускаемых regression cases; выполняется вместе с соответствующим срезом, без второго отчётного состояния.
 5. E1-FIX-10: exact product candidate, независимый review по policy, полные требуемые gates, owner-visible synthetic journey; deployment и smoke asa-lab.ru отдельно разрешаются и фиксируются.
 6. После функциональной приёмки — отдельный visual convergence библиотеки/курса/класса. Читаемость, доступность CTA и сохранность не считаются отложенной косметикой.
