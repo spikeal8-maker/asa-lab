@@ -31,6 +31,20 @@ interface SimulationTarget {
 }
 
 const TIMED_STATE_PROPERTIES = ['temperatureCelsius', 'moisturePercent'] as const;
+const RUNTIME_INPUT_OBSERVATION_WINDOW_MICROSECONDS = 100_000;
+
+function boundedInputObservationHorizon(
+  eventAtMicroseconds: number,
+  ceilingMicroseconds: number,
+): number {
+  return Math.max(
+    eventAtMicroseconds,
+    Math.min(
+      Math.max(eventAtMicroseconds, ceilingMicroseconds),
+      eventAtMicroseconds + RUNTIME_INPUT_OBSERVATION_WINDOW_MICROSECONDS,
+    ),
+  );
+}
 
 function stripTimedRuntimeInputs(document: SchematicDocument): unknown {
   const withoutViewport = { ...document } as Partial<SchematicDocument>;
@@ -120,6 +134,8 @@ export class ElectronicsLiveSimulationWorkerController {
   private lastRuntimeDocument: SchematicDocument | null = null;
   private timedState: ElectronicsTimedState = resetElectronicsTimedState();
   private latestTarget: SimulationTarget | null = null;
+  private continuationTarget: SimulationTarget | null = null;
+  private inputTarget: SimulationTarget | null = null;
   private pendingInputEvents: ElectronicsTimedInputEvent[] = [];
   private lastInputEventAtMicroseconds = -1;
   private horizonOffsetMicroseconds = 0;
@@ -158,17 +174,19 @@ export class ElectronicsLiveSimulationWorkerController {
     }
 
     const committed = this.timedState.continuation?.committedHorizonMicroseconds ?? 0;
-    const eventAtMicroseconds = Math.max(
-      canonicalHorizon,
-      committed + 1,
-      this.lastInputEventAtMicroseconds + 1,
-    );
+    const eventAtMicroseconds = Math.max(committed + 1, this.lastInputEventAtMicroseconds + 1);
     const events = timedRuntimeEvents(previousDocument, document, eventAtMicroseconds);
     this.lastRuntimeDocument = document;
     let requestedHorizonMicroseconds = canonicalHorizon;
     if (events.length > 0) {
       this.pendingInputEvents.push(...events);
       this.lastInputEventAtMicroseconds = eventAtMicroseconds;
+      this.inputTarget = {
+        requestedHorizonMicroseconds: boundedInputObservationHorizon(
+          eventAtMicroseconds,
+          canonicalHorizon,
+        ),
+      };
       requestedHorizonMicroseconds = Math.max(requestedHorizonMicroseconds, eventAtMicroseconds);
     }
     if (
@@ -207,6 +225,8 @@ export class ElectronicsLiveSimulationWorkerController {
     this.lastRuntimeDocument = document;
     this.timedState = resetElectronicsTimedState();
     this.latestTarget = { requestedHorizonMicroseconds: canonicalHorizonMicroseconds };
+    this.continuationTarget = null;
+    this.inputTarget = null;
     this.pendingInputEvents = [];
     this.lastInputEventAtMicroseconds = -1;
     const generationId = this.executor.beginGeneration(projectSessionId);
@@ -227,6 +247,8 @@ export class ElectronicsLiveSimulationWorkerController {
     this.lastRuntimeDocument = null;
     this.timedState = resetElectronicsTimedState();
     this.latestTarget = null;
+    this.continuationTarget = null;
+    this.inputTarget = null;
     this.pendingInputEvents = [];
     this.lastInputEventAtMicroseconds = -1;
     this.horizonOffsetMicroseconds = 0;
@@ -234,7 +256,10 @@ export class ElectronicsLiveSimulationWorkerController {
     this.inFlightKind = null;
   }
 
-  private retimePendingInputsAfterCommitted(committedMicroseconds: number): void {
+  private retimePendingInputsAfterCommitted(
+    committedMicroseconds: number,
+    currentTargetMicroseconds: number,
+  ): void {
     if (this.pendingInputEvents.length === 0) return;
     let nextAvailableMicrosecond = committedMicroseconds + 1;
     let changed = false;
@@ -252,6 +277,18 @@ export class ElectronicsLiveSimulationWorkerController {
       this.lastInputEventAtMicroseconds,
       lastEventMicrosecond,
     );
+    const observationCeiling = Math.max(
+      lastEventMicrosecond,
+      currentTargetMicroseconds,
+      this.latestTarget?.requestedHorizonMicroseconds ?? 0,
+      this.continuationTarget?.requestedHorizonMicroseconds ?? 0,
+    );
+    this.inputTarget = {
+      requestedHorizonMicroseconds: boundedInputObservationHorizon(
+        lastEventMicrosecond,
+        observationCeiling,
+      ),
+    };
     if (this.latestTarget) {
       this.latestTarget = {
         requestedHorizonMicroseconds: Math.max(
@@ -265,9 +302,11 @@ export class ElectronicsLiveSimulationWorkerController {
   private pump(): void {
     const generationId = this.generationId;
     const document = this.canonicalDocument;
-    if (generationId === null || !document || this.inFlight || !this.latestTarget) return;
-    const target = this.latestTarget;
-    this.latestTarget = null;
+    const target = this.inputTarget ?? this.continuationTarget ?? this.latestTarget;
+    if (generationId === null || !document || this.inFlight || !target) return;
+    if (this.inputTarget) this.inputTarget = null;
+    else if (this.continuationTarget) this.continuationTarget = null;
+    else this.latestTarget = null;
     const inputEvents = this.pendingInputEvents;
     this.pendingInputEvents = [];
     this.inFlight = true;
@@ -310,16 +349,26 @@ export class ElectronicsLiveSimulationWorkerController {
       this.fail(generationId, new Error(message));
       return;
     }
-    this.retimePendingInputsAfterCommitted(advance.committedHorizonMicroseconds);
+    this.retimePendingInputsAfterCommitted(
+      advance.committedHorizonMicroseconds,
+      target.requestedHorizonMicroseconds,
+    );
     if (advance.executionStatus === 'yielded') {
-      this.latestTarget = {
-        requestedHorizonMicroseconds: Math.max(
-          target.requestedHorizonMicroseconds,
-          this.latestTarget?.requestedHorizonMicroseconds ?? 0,
-        ),
-      };
+      this.continuationTarget = target;
       this.pump();
       return;
+    }
+    if (
+      this.latestTarget &&
+      this.latestTarget.requestedHorizonMicroseconds <= advance.committedHorizonMicroseconds
+    ) {
+      this.latestTarget = null;
+    }
+    if (
+      this.continuationTarget &&
+      this.continuationTarget.requestedHorizonMicroseconds <= advance.committedHorizonMicroseconds
+    ) {
+      this.continuationTarget = null;
     }
     if (!advance.result) {
       this.fail(generationId, new Error('Ready Electronics timed advance omitted its result.'));

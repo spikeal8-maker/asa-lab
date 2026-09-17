@@ -41,6 +41,50 @@ const circuit: SchematicDocument = {
   simulation: { running: true, maxIterations: 24 },
 };
 
+const resistanceCircuit: SchematicDocument = {
+  schemaVersion: 4,
+  components: [
+    {
+      id: 'load',
+      kind: 'resistor',
+      componentTypeId: 'resistor-axial',
+      variantId: 'resistor-axial',
+      name: 'R1',
+      position: { x: 0, y: 0 },
+      rotation: 0,
+      value: 1_000,
+      pinIds: ['lead-1', 'lead-2'],
+      stateProperties: { powerRatingWatt: 0.25 },
+    },
+    {
+      id: 'meter',
+      kind: 'visual',
+      componentTypeId: 'multimeter',
+      variantId: 'multimeter',
+      name: 'Meter',
+      position: { x: 20, y: 0 },
+      rotation: 0,
+      value: 0,
+      pinIds: ['com', 'v-ohm-ma'],
+      stateProperties: { measurementMode: 'resistance', meterRange: 'auto' },
+    },
+  ],
+  connections: [
+    {
+      id: 'red',
+      from: { componentId: 'meter', terminal: 'v-ohm-ma' },
+      to: { componentId: 'load', terminal: 'lead-1' },
+    },
+    {
+      id: 'black',
+      from: { componentId: 'meter', terminal: 'com' },
+      to: { componentId: 'load', terminal: 'lead-2' },
+    },
+  ],
+  viewport: { x: 0, y: 0, zoom: 1 },
+  simulation: { running: true, maxIterations: 24 },
+};
+
 const arduinoCircuit: SchematicDocument = {
   ...circuit,
   components: [
@@ -155,6 +199,57 @@ describe('ASA Electronics E-OPT-3D Worker boundary', () => {
     expect(response.advance.result?.components).toEqual(direct.observation?.components);
     expect(response.metrics.executionStatus).toBe(direct.executionStatus);
   });
+  it('returns passive no-source diagnostics as a ready Worker observation', () => {
+    const document = {
+      ...resistanceCircuit,
+      components: resistanceCircuit.components.map((component) =>
+        component.id === 'meter'
+          ? {
+              ...component,
+              stateProperties: { ...component.stateProperties, measurementMode: 'dc-voltage' },
+            }
+          : component,
+      ),
+    };
+    const response = evaluateSimulationWorkerRequest({
+      ...preflightRequest('meter-passive'),
+      kind: 'advance',
+      document,
+      state: resetElectronicsTimedState(),
+      requestedHorizonMicroseconds: 0,
+    });
+    expect(response.ok).toBe(true);
+    if (!response.ok || response.kind !== 'advance') return;
+    expect(response.advance.executionStatus).toBe('ready');
+    expect(response.advance.result?.solved).toBe(false);
+    expect(response.advance.result?.diagnostics.map((entry) => entry.code)).toContain('no_source');
+  });
+
+  it('keeps unpowered resistance measurement valid across the Worker boundary', () => {
+    const state = resetElectronicsTimedState();
+    const response = evaluateSimulationWorkerRequest({
+      ...preflightRequest('meter-resistance'),
+      kind: 'advance',
+      document: resistanceCircuit,
+      state,
+      requestedHorizonMicroseconds: 0,
+    });
+    expect(response.ok).toBe(true);
+    if (!response.ok || response.kind !== 'advance') return;
+    expect(response.advance.executionStatus, JSON.stringify(response.advance.diagnostics)).toBe(
+      'ready',
+    );
+    const meter = response.advance.result?.components.find(
+      (entry) => entry.componentId === 'meter',
+    );
+    expect(meter).toMatchObject({
+      measurementMode: 'resistance',
+      meterOpenCircuit: false,
+      meterExternalPowerPresent: false,
+    });
+    expect(meter?.measuredValue).toBeCloseTo(1_000, 3);
+  });
+
   it('carries canonical Arduino continuation across successive Worker advances', () => {
     const initial = resetElectronicsTimedState();
     const first = evaluateSimulationWorkerRequest({

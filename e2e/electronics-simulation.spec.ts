@@ -1999,14 +1999,15 @@ for (const scenario of [
         .click();
       const slider = page.getByRole('slider', { name: 'Положение движка' });
       await slider.press('Home');
+      await expect.poll(() => brightnessValue(page)).toBeGreaterThan(0);
       const first = await brightnessValue(page);
       await slider.press('End');
-      await expect.poll(() => brightnessValue(page)).not.toBe(first);
+      await expect.poll(() => brightnessValue(page)).toBe(0);
       const second = await brightnessValue(page);
       await slider.press('Home');
       await expect.poll(() => brightnessValue(page)).toBe(first);
-      expect(Math.max(first, second)).toBeGreaterThan(0);
-      expect(Math.min(first, second)).toBe(0);
+      expect(first).toBeGreaterThan(0);
+      expect(second).toBe(0);
     } else {
       await expect.poll(() => brightnessValue(page)).toBe(0);
       const buttons = component(page, 'button-tactile-6mm');

@@ -244,6 +244,55 @@ describe('Electronics canonical Worker controller', () => {
     expect(onResult).toHaveBeenCalledWith(result(3));
   });
 
+  it('timestamps live inputs immediately after committed canonical time, not host wall time', async () => {
+    const executor = new FakeExecutor();
+    const controller = new ElectronicsLiveSimulationWorkerController(executor);
+    controller.start('project-a', circuit, { onResult: vi.fn(), onFailure: vi.fn() });
+    await completeCanonicalStart(executor, 1);
+
+    controller.update(circuit, 100_000);
+    executor.advances[1]!.deferred.resolve(timedAdvance('ready', 100_000, 100_000, 2));
+    await flush();
+
+    const pressed = {
+      ...circuit,
+      components: circuit.components.map((component) =>
+        component.id === 'button' ? { ...component, state: true } : component,
+      ),
+    };
+    controller.update(pressed, 1_000_000);
+    expect(executor.advances[2]!.inputEvents).toEqual([
+      { atMicroseconds: 100_001, targetId: 'button', operation: 'state', payload: true },
+    ]);
+    expect(executor.advances[2]).toMatchObject({ requestedHorizonMicroseconds: 200_001 });
+    executor.advances[2]!.deferred.resolve(timedAdvance('ready', 200_001, 200_001, 3));
+    await flush();
+    expect(executor.advances[3]).toMatchObject({ requestedHorizonMicroseconds: 1_000_000 });
+  });
+
+  it('finishes a yielded target before chasing newer host horizons', async () => {
+    const executor = new FakeExecutor();
+    const onResult = vi.fn();
+    const controller = new ElectronicsLiveSimulationWorkerController(executor);
+    controller.start('project-a', circuit, { onResult, onFailure: vi.fn() });
+    await completeCanonicalStart(executor, 1);
+    onResult.mockClear();
+
+    controller.update(circuit, 300_000);
+    controller.update(circuit, 500_000);
+    executor.advances[1]!.deferred.resolve(timedAdvance('yielded', 300_000, 160_000));
+    await flush();
+
+    expect(executor.advances).toHaveLength(3);
+    expect(executor.advances[2]).toMatchObject({ requestedHorizonMicroseconds: 300_000 });
+    executor.advances[2]!.deferred.resolve(timedAdvance('ready', 300_000, 300_000, 3));
+    await flush();
+
+    expect(onResult).toHaveBeenCalledWith(result(3));
+    expect(executor.advances).toHaveLength(4);
+    expect(executor.advances[3]).toMatchObject({ requestedHorizonMicroseconds: 500_000 });
+  });
+
   it('retimes unsent input events beyond progress committed by an in-flight advance', async () => {
     const executor = new FakeExecutor();
     const controller = new ElectronicsLiveSimulationWorkerController(executor);
@@ -268,6 +317,9 @@ describe('Electronics canonical Worker controller', () => {
     expect(executor.advances[2]!.inputEvents).toEqual([
       { atMicroseconds: 256_001, targetId: 'button', operation: 'state', payload: true },
     ]);
+    executor.advances[2]!.deferred.resolve(timedAdvance('ready', 300_000, 300_000, 3));
+    await flush();
+    expect(executor.advances).toHaveLength(3);
   });
 
   it('coalesces newer horizons while an advance is in flight', async () => {

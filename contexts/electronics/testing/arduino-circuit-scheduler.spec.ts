@@ -19,7 +19,7 @@ function board(id: string, source: string): SchematicComponent {
     value: 5,
     position: { x: 0, y: 0 },
     componentTypeId: 'arduino-uno',
-    pinIds: ['d2', 'd3', 'd8', 'd13', 'a0', 'power-5v', 'power-3v3', 'power-gnd-1'],
+    pinIds: ['d2', 'd3', 'd8', 'd9', 'd13', 'a0', 'power-5v', 'power-3v3', 'power-gnd-1'],
     stateProperties: { arduinoSource: source },
   };
 }
@@ -331,6 +331,135 @@ describe('Arduino shared dc-inputs-v1 circuit clock', () => {
     const late = through(doc, 30, early.state!);
     expect(runtime(late).variables.reading).toBeGreaterThanOrEqual(254);
     expect(runtime(late).variables.reading).toBeLessThanOrEqual(256);
+  });
+
+  it('publishes PWM electrical output after a timed potentiometer input', () => {
+    const doc = circuit(
+      [
+        board(
+          'uno',
+          'void setup(){pinMode(9,OUTPUT);}void loop(){analogWrite(9,map(analogRead(A0),0,1023,0,255));delay(10);}',
+        ),
+        { ...part('pot', 'potentiometer', 10_000), wiperPosition: 0 },
+        part('load', 'resistor', 330),
+      ],
+      [
+        ['uno', 'power-5v', 'pot', 'a'],
+        ['uno', 'power-gnd-1', 'pot', 'b'],
+        ['pot', 'wiper', 'uno', 'a0'],
+        ['uno', 'd9', 'load', 'a'],
+        ['load', 'b', 'uno', 'power-gnd-1'],
+      ],
+    );
+    const initial = through(doc, 100_000);
+    expect(initial.executionStatus).toBe('ready');
+    const initialOutput = initial.result!.components.find((entry) => entry.componentId === 'uno')!
+      .terminalVoltages.d9!;
+    const event: ArduinoCircuitInputEvent = {
+      atMicroseconds: 100_001,
+      componentId: 'pot',
+      property: 'wiperPosition',
+      value: 1,
+    };
+    const changed = through(doc, 200_000, initial.state!, [event]);
+    expect(changed.executionStatus).toBe('ready');
+    const changedOutput = changed.result!.components.find((entry) => entry.componentId === 'uno')!
+      .terminalVoltages.d9!;
+    expect(initialOutput).toBeGreaterThan(4.8);
+    expect(changedOutput).toBeLessThan(0.1);
+  });
+
+  it('keeps a passive no-source circuit observable for runtime mode changes', () => {
+    const doc = circuit(
+      [
+        part('load', 'resistor', 1_000),
+        {
+          id: 'meter',
+          kind: 'visual',
+          value: 0,
+          position: { x: 0, y: 0 },
+          componentTypeId: 'multimeter',
+          pinIds: ['com', 'v-ohm-ma'],
+          stateProperties: { measurementMode: 'dc-voltage', meterRange: 'auto' },
+        },
+      ],
+      [
+        ['meter', 'v-ohm-ma', 'load', 'a'],
+        ['meter', 'com', 'load', 'b'],
+      ],
+    );
+    const observed = through(doc, 0);
+    expect(observed.executionStatus).toBe('ready');
+    expect(observed.state?.profile).toBe('dc-inputs-v1');
+    expect(observed.result?.solved).toBe(false);
+    expect(observed.result?.diagnostics.map((entry) => entry.code)).toContain('no_source');
+  });
+
+  it('keeps unpowered resistance measurement on the algebraic meter source', () => {
+    const doc = circuit(
+      [
+        {
+          id: 'load',
+          kind: 'resistor',
+          value: 1_000,
+          position: { x: 0, y: 0 },
+          componentTypeId: 'resistor-axial',
+          pinIds: ['lead-1', 'lead-2'],
+          stateProperties: { powerRatingWatt: 0.25 },
+        },
+        {
+          id: 'meter',
+          kind: 'visual',
+          value: 0,
+          position: { x: 0, y: 0 },
+          componentTypeId: 'multimeter',
+          pinIds: ['com', 'v-ohm-ma'],
+          stateProperties: { measurementMode: 'resistance', meterRange: 'auto' },
+        },
+      ],
+      [
+        ['meter', 'v-ohm-ma', 'load', 'lead-1'],
+        ['meter', 'com', 'load', 'lead-2'],
+      ],
+    );
+    const measured = through(doc, 0);
+    expect(measured.executionStatus, JSON.stringify(measured.diagnostics)).toBe('ready');
+    expect(measured.state?.profile).toBe('dc-inputs-v1');
+    const meter = measured.result!.components.find((entry) => entry.componentId === 'meter');
+    expect(meter).toMatchObject({
+      measurementMode: 'resistance',
+      meterOpenCircuit: false,
+      meterExternalPowerPresent: false,
+    });
+    expect(meter?.measuredValue).toBeCloseTo(1_000, 3);
+  });
+
+  it('carries source thermal damage to a persistent failed state', () => {
+    const doc = circuit(
+      [
+        {
+          ...part('source', 'source', 3),
+          componentTypeId: 'battery-holder-aa-2',
+          pinIds: ['BAT-', 'BAT+'],
+        },
+      ],
+      [['source', 'BAT+', 'source', 'BAT-']],
+    );
+    const early = through(doc, 100_000);
+    expect(early.executionStatus).toBe('ready');
+    expect(
+      early.result!.components.find((entry) => entry.componentId === 'source')?.presentationState,
+    ).not.toBe('failed');
+    const failed = through(doc, 2_500_000, early.state!);
+    expect(failed.executionStatus).toBe('ready');
+    expect(failed.result!.components.find((entry) => entry.componentId === 'source')).toMatchObject(
+      {
+        deviceHealth: 'failed_open',
+        damageState: 'failed',
+        presentationState: 'failed',
+      },
+    );
+    expect(failed.result!.diagnostics.map((entry) => entry.code)).toContain('component_failed');
   });
 
   it('rejects malformed continuation before any carried GPIO is used as a source', () => {
