@@ -83,7 +83,8 @@ def build_repo(root: Path) -> None:
 
     git(root, "add", "-A")
     git(root, "commit", "-q", "-m", "baseline")
-    git(root, "update-ref", "refs/remotes/origin/main", "HEAD")
+    git(root, "remote", "add", "origin", ".")
+    git(root, "fetch", "-q", "origin", "refs/heads/main:refs/remotes/origin/main")
 
 
 class AgentPreflightTests(unittest.TestCase):
@@ -109,6 +110,16 @@ class AgentPreflightTests(unittest.TestCase):
         self.assertEqual(result["git"]["dirty_paths"], [])
         self.assertEqual(result["gates"]["focused"], ["pnpm test:electronics"])
         self.assertEqual(before, after)
+
+    def test_missing_origin_blocks_freshness_instead_of_guessing(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            build_repo(root)
+            git(root, "remote", "remove", "origin")
+            result = self.build(root)
+
+        self.assertEqual(result["mode"], "BLOCKED_GIT_FRESHNESS")
+        self.assertEqual(result["remote_refresh"]["status"], "FAIL")
 
     def test_dirty_checkout_requires_recovery(self):
         with tempfile.TemporaryDirectory() as raw:
