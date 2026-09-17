@@ -1,10 +1,13 @@
 schema_version: 1.0.0
 catalog_id: asa-complete-product-surfaces
-status: normative_candidate
+status: supporting_target_atlas
 source_scope: docs/product/ASA_TINKERCAD_100_PERCENT_SCOPE.yaml
 source_blueprint: docs/product/ASA_TARGET_PLATFORM_BLUEPRINT.md
-# StudentSeat actions follow Access 2.2 section 9 and Integrated V1.5;
-# this TARGET atlas and historical R labels are not deployment or test evidence.
+authority: docs/product/ASA_INTEGRATED_IMPLEMENTATION_SPEC.md + docs/product/ASA_USERS_ACCESS_AND_SETTINGS_SPEC.md
+# StudentSeat actions follow Access 2.2 section 9 and Integrated V1.5.
+# Historical R labels are traceability only; current delivery is E1..E6.
+# Actor names below are scenario/context tags, NOT persisted Account types or authorization roles.
+# Except anonymous and student_seat, every human actor is the same Account resolved with scoped capabilities/grants.
 
 actors:
   - anonymous
@@ -15,9 +18,23 @@ actors:
   - guardian
   - co_teacher
   - school_admin
+  - organization_owner
   - moderator
   - platform_admin
   - support_operator
+
+actor_semantics:
+  account_creator: account_with_personal_workspace
+  educator: account_with_scoped_educator_capability
+  registered_student: account_in_learner_context
+  student_seat: distinct_scoped_learner_principal_without_required_account
+  co_teacher: account_with_scoped_class_or_run_grant
+  school_admin: account_with_scoped_organization_admin_grant
+  organization_owner: account_with_scoped_organization_owner_responsibility
+  guardian: future_account_context_tag
+  moderator: account_with_scoped_moderation_grant
+  platform_admin: account_with_scoped_platform_grant
+  support_operator: account_with_scoped_support_grant
 
 implementation_states: [absent, partial, in_review, parity_pass, approved_deviation]
 required_ui_states:
@@ -39,6 +56,9 @@ layout_templates:
     regions: [global_header, class_header, class_navigation, class_context, content, audit_or_help]
   STUDENT:
     regions: [safe_header, class_context, task_navigation, content, feedback, safe_mode_indicator]
+    semantics: Learner resource layout, not a second Account identity or global Account shell.
+    student_seat_shell: safe_student_shell
+    registered_student_shell: ordinary_PORTAL_shell_with_My_Learning
   EDITOR_HOST:
     regions: [context_return, project_title, save_state, version_actions, share_actions, module_toolbar, stage, library, inspector, diagnostics]
   ADMIN:
@@ -198,8 +218,8 @@ surfaces:
     release: R3
     template: PORTAL
     implementation: partial
-    purpose: Choose an enabled ModuleDefinition, template or empty project.
-    primary_actions: [choose_module, choose_template, create_empty, cancel]
+    purpose: Choose an enabled ModuleDefinition, template or empty project. Account writes to an allowed Personal/explicit workspace; StudentSeat may create only into an exact assignment, class-scoped learner project or explicitly allowed safe-practice scope and never invents a Personal Workspace.
+    primary_actions: [choose_module, choose_template, create_in_resolved_scope, cancel]
     required_states: [loading, empty, populated, authorization_denied, server_error]
     screenshot_ids: [module-chooser-desktop, module-chooser-mobile]
 
@@ -210,8 +230,8 @@ surfaces:
     release: R3
     template: PORTAL
     implementation: partial
-    purpose: List immutable versions, open exact version and restore as a new draft copy.
-    primary_actions: [open_version, compare_metadata, create_checkpoint, restore_to_copy]
+    purpose: List immutable versions, open exact version and restore as a new draft copy inside the same authorized ownership/scope. StudentSeat restore never creates an Account Personal Workspace.
+    primary_actions: [open_version, compare_metadata, create_checkpoint, restore_to_same_authorized_scope]
     required_states: [loading, empty, populated, authorization_denied, server_error]
     screenshot_ids: [project-version-journal]
 
@@ -338,7 +358,7 @@ surfaces:
   - id: CRT-015
     name: Workspace switcher and management
     route: /workspaces
-    actors: [account_creator, educator, registered_student, school_admin]
+    actors: [account_creator, educator, registered_student, school_admin, organization_owner]
     release: R1
     template: PORTAL
     implementation: absent
@@ -350,8 +370,8 @@ surfaces:
   - id: ORG-001
     name: Organization overview
     route: /organizations/:organizationId/overview
-    actors: [school_admin]
-    release: R10
+    actors: [organization_owner, school_admin]
+    release: R9
     template: PORTAL
     implementation: absent
     purpose: "Show scoped organization health: classes, active/completed runs, learner-profile counts, pending review and management tasks without exposing unrelated personal Account data."
@@ -362,8 +382,8 @@ surfaces:
   - id: ORG-002
     name: Organization people
     route: /organizations/:organizationId/people
-    actors: [school_admin]
-    release: R10
+    actors: [organization_owner, school_admin]
+    release: R9
     template: PORTAL
     implementation: absent
     purpose: Manage scoped staff and learner profiles in separate views; never expose a global directory of members' personal Accounts.
@@ -374,8 +394,8 @@ surfaces:
   - id: ORG-003
     name: Organization classes
     route: /organizations/:organizationId/classrooms
-    actors: [school_admin]
-    release: R10
+    actors: [organization_owner, school_admin]
+    release: R9
     template: PORTAL
     implementation: absent
     purpose: List organization-scoped classes, responsible staff and active learning runs, then open the canonical Classroom surface.
@@ -386,8 +406,8 @@ surfaces:
   - id: ORG-004
     name: Organization courses and materials
     route: /organizations/:organizationId/content
-    actors: [school_admin]
-    release: R10
+    actors: [organization_owner, school_admin]
+    release: R9
     template: PORTAL
     implementation: absent
     purpose: Distinguish organization-owned content, granted-use content and staff personal content without silently transferring ownership.
@@ -398,8 +418,8 @@ surfaces:
   - id: ORG-005
     name: Organization learning and analytics
     route: /organizations/:organizationId/learning
-    actors: [school_admin]
-    release: R10
+    actors: [organization_owner, school_admin]
+    release: R9
     template: PORTAL
     implementation: absent
     purpose: Show scoped CourseRuns, assigned/started/completed counts, pending review and course usage from canonical projections with explicit basis and asOf.
@@ -410,8 +430,8 @@ surfaces:
   - id: ORG-006
     name: Organization settings and history
     route: /organizations/:organizationId/settings
-    actors: [school_admin]
-    release: R10
+    actors: [organization_owner, school_admin]
+    release: R9
     template: PORTAL
     implementation: absent
     purpose: Manage organization defaults and scoped structure while keeping audit/history/export separate from personal Account settings.
@@ -695,6 +715,9 @@ surfaces:
     required_states: [loading, populated, validation_error, authorization_denied, server_error, success_feedback]
     screenshot_ids: [class-settings]
 
+  # STU-* describe learner resource views. StudentSeat renders them in the safe StudentSeat shell.
+  # An Account in learner context keeps the ordinary PORTAL shell and reaches equivalent resources through My Learning;
+  # /student/* may remain a safe alias/deep link but MUST NOT replace the Account identity or global navigation.
   - id: STU-001
     name: Learner Home
     route: /student/home
@@ -786,8 +809,8 @@ surfaces:
     release: R5
     template: STUDENT
     implementation: absent
-    purpose: Show only projects permitted by principal, class, assignment and Safe Mode.
-    primary_actions: [create_if_allowed, open, rename_if_allowed, archive_if_allowed]
+    purpose: Show only projects permitted by principal, class, assignment and Safe Mode. StudentSeat project creation/rename/archive stays inside exact learner/class/assignment/safe-practice scope; it never creates or mutates an Account Personal Workspace.
+    primary_actions: [create_in_resolved_scope_if_allowed, open, rename_if_allowed, archive_if_allowed]
     required_states: [loading, empty, populated, authorization_denied, server_error]
     screenshot_ids: [student-projects]
 
@@ -834,8 +857,8 @@ surfaces:
     release: R3
     template: EDITOR_HOST
     implementation: partial
-    purpose: Provide common project chrome and mount a registry-selected module editor.
-    primary_actions: [return_to_context, rename, save, versions, duplicate, share_if_allowed]
+    purpose: Provide common project chrome and mount a registry-selected module editor. Every mutation resolves exact project ownership/scope; StudentSeat duplicate/restore/save remains learner-scoped and never implies Personal Workspace or public identity.
+    primary_actions: [return_to_context, rename_if_allowed, save, versions, duplicate_in_resolved_scope_if_allowed, share_if_allowed]
     required_states: [loading, populated, validation_error, authorization_denied, server_error, offline_or_reconnecting, success_feedback]
     screenshot_ids: [shared-editor-host]
 

@@ -53,6 +53,14 @@ invariants:
     applies_to: [student_seat, public_knowledge, public_projects, account_link]
     forbid: [registration_required_for_public_read, seat_publication_as_account, seat_global_personal_storage_by_default]
 
+  - id: IDA-SEAT-PROJECT-001
+    statement: StudentSeat project create, duplicate, restore and save operations always resolve to an exact assignment, class-scoped learner project or explicitly allowed safe-practice scope; they never create an Account Personal Workspace or public Account identity implicitly.
+    master_refs:
+      - document: IDENTITY-ACCESS-V22
+        section: §7 / §12 / §33
+    applies_to: [student_seat, project_create, project_duplicate, project_restore, editor_host]
+    forbid: [seat_creates_personal_workspace, seat_project_action_implies_public_identity, implicit_cross_scope_project_copy]
+
   - id: IDA-SEAT-001
     statement: StudentSeat access works without prior Account registration; a class code locates a class but does not by itself authenticate an arbitrary learner profile.
     master_refs:

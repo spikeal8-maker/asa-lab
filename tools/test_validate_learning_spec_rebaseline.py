@@ -8,8 +8,8 @@ import unittest
 import yaml
 
 from validate_learning_spec_rebaseline import (
-    ACCESS, CAPABILITY_MAP, CURRENT, IDENTITY_CONTRACT, INTEGRATED, LEARNING,
-    LEDGER, REGISTRY, ROOT, validate,
+    ACCESS, BLUEPRINT, CAPABILITY_MAP, CURRENT, IDENTITY_CONTRACT, INTEGRATED, LEARNING,
+    LEDGER, REGISTRY, ROOT, SURFACE_CATALOG, validate,
 )
 
 
@@ -260,7 +260,7 @@ class LearningSpecGateTests(unittest.TestCase):
         path = "docs/product/ASA_PRODUCT_SURFACE_CATALOG.yaml"
         self.assertRejected(
             {path: text(path).replace("ORG-001", "ORG-REMOVED", 1)},
-            "required semantic clause missing",
+            "ORG-001 must include owner and scoped organization admin",
         )
 
     def test_rejects_organization_login_becoming_separate_identity(self):
@@ -269,6 +269,45 @@ class LearningSpecGateTests(unittest.TestCase):
             {path: text(path).replace("тот же личный Account", "отдельный школьный Account", 1)},
             "required semantic clause missing",
         )
+
+    def test_rejects_identity_dependency_on_organization(self):
+        def corrupt(doc):
+            row = next(item for item in doc["capabilities"] if item["id"] == "CAP-IDENTITY")
+            row["depends_on"] = ["CAP-ORG"]
+        self.assertRejected(changed_yaml(CAPABILITY_MAP, corrupt), "CAP-IDENTITY must not depend on Organization")
+
+    def test_rejects_registered_student_as_separate_shell(self):
+        def corrupt(doc):
+            doc["layout_templates"]["STUDENT"]["registered_student_shell"] = "separate_student_shell"
+        self.assertRejected(changed_yaml(SURFACE_CATALOG, corrupt), "Account learner must keep ordinary Account PORTAL shell")
+
+    def test_rejects_org_surface_without_owner_or_wrong_release(self):
+        def corrupt(doc):
+            row = next(item for item in doc["surfaces"] if item["id"] == "ORG-001")
+            row["actors"] = ["school_admin"]
+            row["release"] = "R10"
+        errors = validate(ROOT, changed_yaml(SURFACE_CATALOG, corrupt))
+        self.assertTrue(any("ORG-001 must include owner" in error for error in errors), errors)
+        self.assertTrue(any("ORG-001 must follow historical organization/admin slice R9" in error for error in errors), errors)
+
+    def test_rejects_blueprint_reclaiming_top_authority(self):
+        self.assertRejected(
+            {BLUEPRINT: text(BLUEPRINT).replace("supporting architecture/reference", "нормативный целевой контракт", 1)},
+            "required semantic clause missing",
+        )
+
+    def test_rejects_supporting_map_becoming_authoritative(self):
+        def corrupt(doc):
+            row = next(item for item in doc["documents"] if item["id"] == "PRODUCT-CAPABILITY-MAP")
+            row["status"] = "canonical"
+            row["authority"] = "product_root"
+        self.assertRejected(changed_yaml(REGISTRY, corrupt), "supporting product reference has unexpected authority")
+
+    def test_rejects_studentseat_project_without_scoped_destination(self):
+        def corrupt(doc):
+            row = next(item for item in doc["surfaces"] if item["id"] == "CRT-003")
+            row["purpose"] = "Choose any module and create a personal project."
+        self.assertRejected(changed_yaml(SURFACE_CATALOG, corrupt), "StudentSeat project chooser lacks scoped destination boundary")
 
 
 if __name__ == "__main__":

@@ -19,6 +19,8 @@ LEDGER = "docs/product/ASA_LEARNING_REQUIREMENTS_LEDGER.yaml"
 PLANNED_TESTS = "docs/testing/planned-test-catalog.yaml"
 ACTIVE_TESTS = "docs/testing/test-catalog.yaml"
 CAPABILITY_MAP = "docs/product/CAPABILITY_MAP.yaml"
+BLUEPRINT = "docs/product/ASA_TARGET_PLATFORM_BLUEPRINT.md"
+SURFACE_CATALOG = "docs/product/ASA_PRODUCT_SURFACE_CATALOG.yaml"
 CURRENT = "docs/execution/current.yaml"
 REGISTRY = "docs/agent/document-registry.yaml"
 IDENTITY_CONTRACT = "docs/agent/contracts/identity.yaml"
@@ -29,7 +31,8 @@ ACTIVE_TEXTS = (
     "docs/product/ASA_UI_LAYOUT_ACCEPTANCE_SPEC.md",
     CAPABILITY_MAP,
     INTEGRATED, LEARNING, ACCESS, LEDGER,
-    "docs/product/ASA_PRODUCT_SURFACE_CATALOG.yaml",
+    SURFACE_CATALOG,
+    BLUEPRINT,
     "docs/product/learning/ASA_LEARNING_AGENT_WORK_QUEUE.md",
     "docs/product/ASA_STUDENT_EXPERIENCE_SPEC.md",
     "docs/product/ASA_AUTH_ENTRY_UX_SPEC.md",
@@ -56,10 +59,11 @@ REQUIRED_CLAUSES = {
     ACCESS: ["class.credentials.read_current", "class.credentials.rotate", "class.sessions.revoke", "AES-256-GCM", "HMAC-SHA-256", "Retry-After", "shared rate-limit state", "weak_student_code", "credential_storage_unavailable", "credential_version_conflict", "v1|tenant_id|class_id|seat_id|credential_version", "lookup_key_id", "classroom_credential_manager_access", "CLASSROOM_CODE_SECRET", "ASA_STUDENT_CODE_PROTECTION_MODE=compat", "legacy_predictable_active=0", "Один Account — одна личная оболочка", "публичные read-only «Сообщество» и «Знания»", "UX после успешного linking", "MAX/другие внешние providers привязываются к Account", "Organization Workspace — отдельный рабочий контекст", "UI-37"],
     LEARNING: ["## 89.6.", "FUNCTIONAL_ACCEPTANCE", "CRS-003/UX-BLD-002/003"],
     "docs/product/ASA_UI_LAYOUT_ACCEPTANCE_SPEC.md": ["FUNCTIONAL_ACCEPTANCE", "VISUAL_ACCEPTANCE", "visual_state: provisional"],
-    CAPABILITY_MAP: ["AES-256-GCM protected readback", "HMAC-SHA-256 lookup", "repeat-printable card"],
-    IDENTITY_CONTRACT: ["IDA-PRODUCT-001", "IDA-SEAT-PUBLIC-001", "IDA-ORG-002", "IDA-MAX-001"],
+    CAPABILITY_MAP: ["AES-256-GCM protected readback", "HMAC-SHA-256 lookup", "repeat-printable card", "Personal Workspace", "current_stage_source", "historical_delivery_classification"],
+    BLUEPRINT: ["supporting architecture/reference", "Document Registry", "не назначает собственную нормативную лестницу"],
+    IDENTITY_CONTRACT: ["IDA-PRODUCT-001", "IDA-SEAT-PUBLIC-001", "IDA-SEAT-PROJECT-001", "IDA-ORG-002", "IDA-MAX-001"],
     LEARNING_CONTRACT: ["LRN-SURFACE-001"],
-    "docs/product/ASA_PRODUCT_SURFACE_CATALOG.yaml": ["ORG-001", "ORG-006", "student_seat", "account_only_start_self_study", "never expose a global directory"],
+    SURFACE_CATALOG: ["supporting_target_atlas", "actor_semantics", "organization_owner", "registered_student_shell: ordinary_PORTAL_shell_with_My_Learning", "never invents a Personal Workspace"],
     "docs/product/ASA_AUTH_ENTRY_UX_SPEC.md": ["тот же личный Account", "Новый UI не должен копировать этот legacy-flow"],
     "docs/execution/LRN_COURSE_01.md": ["student-seat-protected-code-backfill.mjs", "keyring preflight", "0146", "E1-FIX-12", "CLASSROOM_CODE_SECRET", "ASA_STUDENT_CODE_PROTECTION_MODE=compat", "legacy_predictable_active=0"],
 }
@@ -115,6 +119,64 @@ def validate(root: Path, overrides: Mapping[str, str] | None = None) -> list[str
         for clause in clauses:
             if clause not in texts[path]:
                 errors.append(f"required semantic clause missing from {path}: {clause}")
+
+    try:
+        capability_map = yaml.safe_load(texts[CAPABILITY_MAP]) or {}
+        capability_index = {
+            item.get("id"): item
+            for item in capability_map.get("capabilities", [])
+            if isinstance(item, dict) and item.get("id")
+        }
+        surface_catalog = yaml.safe_load(texts[SURFACE_CATALOG]) or {}
+        surface_index = {
+            item.get("id"): item
+            for item in surface_catalog.get("surfaces", [])
+            if isinstance(item, dict) and item.get("id")
+        }
+    except yaml.YAMLError as exc:
+        errors.append(f"cannot parse supporting product atlas: {exc}")
+        capability_map, capability_index, surface_catalog, surface_index = {}, {}, {}, {}
+
+    if capability_index.get("CAP-IDENTITY", {}).get("depends_on") not in ([], None):
+        errors.append("CAP-IDENTITY must not depend on Organization")
+    if "CAP-ORG" in (capability_index.get("CAP-CLASSROOM", {}).get("depends_on") or []):
+        errors.append("independent Classroom must not require Organization")
+    if "CAP-ORG" in (capability_index.get("CAP-MODULE-REGISTRY", {}).get("depends_on") or []):
+        errors.append("personal module/project use must not require Organization")
+    delivery_semantics = capability_map.get("delivery_semantics") or {}
+    if delivery_semantics.get("current_stage_source") != INTEGRATED:
+        errors.append("Capability Map must delegate current delivery order to Integrated V1.5")
+    if delivery_semantics.get("release_slices_role") != "historical_delivery_classification":
+        errors.append("Capability Map legacy releases must be marked historical")
+
+    actor_semantics = surface_catalog.get("actor_semantics") or {}
+    expected_actor_semantics = {
+        "registered_student": "account_in_learner_context",
+        "educator": "account_with_scoped_educator_capability",
+        "school_admin": "account_with_scoped_organization_admin_grant",
+        "student_seat": "distinct_scoped_learner_principal_without_required_account",
+    }
+    for actor, expected in expected_actor_semantics.items():
+        if actor_semantics.get(actor) != expected:
+            errors.append(f"Surface Catalog actor semantics drift: {actor}")
+    student_layout = (surface_catalog.get("layout_templates") or {}).get("STUDENT") or {}
+    if student_layout.get("registered_student_shell") != "ordinary_PORTAL_shell_with_My_Learning":
+        errors.append("Account learner must keep ordinary Account PORTAL shell")
+    for surface_id in ("ORG-001", "ORG-002", "ORG-003", "ORG-004", "ORG-005", "ORG-006"):
+        surface = surface_index.get(surface_id, {})
+        actors = set(surface.get("actors") or [])
+        if not {"organization_owner", "school_admin"}.issubset(actors):
+            errors.append(f"{surface_id} must include owner and scoped organization admin")
+        if surface.get("release") != "R9":
+            errors.append(f"{surface_id} must follow historical organization/admin slice R9")
+    chooser = surface_index.get("CRT-003", {})
+    if "never invents a Personal Workspace" not in str(chooser.get("purpose", "")):
+        errors.append("StudentSeat project chooser lacks scoped destination boundary")
+
+    for doc_id in ("PRODUCT-TARGET-BLUEPRINT", "PRODUCT-CAPABILITY-MAP", "PRODUCT-SURFACE-CATALOG"):
+        item = docs.get(doc_id, {})
+        if item.get("status") != "supporting" or item.get("authority") not in (None, "none"):
+            errors.append(f"supporting product reference has unexpected authority: {doc_id}")
 
     blockers = current.get("blocking") or []
     correction_blocker = next((b for b in blockers if isinstance(b, dict) and b.get("id") == "LRN-E1-CORRECTIONS"), None)

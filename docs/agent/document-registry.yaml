@@ -69,6 +69,39 @@ documents:
     authority: agent_documentation_architecture
     context_role: escalation
     read_when: [documentation_system_change, agent_context_change]
+  - id: PRODUCT-TARGET-BLUEPRINT
+    path: docs/product/ASA_TARGET_PLATFORM_BLUEPRINT.md
+    scope: product
+    lanes: ['*']
+    kind: architecture_reference
+    status: supporting
+    authority: none
+    context_role: trace
+    read_when: [historical_product_architecture, tinkercad_reference, cross_context_background]
+    do_not_read_for: [override_canonical_product_contract]
+
+  - id: PRODUCT-CAPABILITY-MAP
+    path: docs/product/CAPABILITY_MAP.yaml
+    scope: product
+    lanes: ['*']
+    kind: capability_reference
+    status: supporting
+    authority: none
+    context_role: trace
+    read_when: [capability_dependency_lookup, historical_release_trace]
+    do_not_read_for: [override_e1_e6_delivery_order, make_organization_mandatory]
+
+  - id: PRODUCT-SURFACE-CATALOG
+    path: docs/product/ASA_PRODUCT_SURFACE_CATALOG.yaml
+    scope: product
+    lanes: ['*']
+    kind: surface_reference
+    status: supporting
+    authority: none
+    context_role: trace
+    read_when: [surface_inventory, ui_route_trace, product_surface_lookup]
+    do_not_read_for: [invent_account_types, override_integrated_or_access_contract]
+
   - id: PRODUCT-INTEGRATED-V15
     path: docs/product/ASA_INTEGRATED_IMPLEMENTATION_SPEC.md
     scope: product
