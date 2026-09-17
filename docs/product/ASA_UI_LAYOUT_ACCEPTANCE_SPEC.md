@@ -134,9 +134,18 @@ Layout-review обязателен, если изменение затронул
 
 Настройки оповещений являются secondary control и не должны визуально заслонять основной контент вкладки `Обучение`.
 
+## 10A. Функциональная и финальная визуальная приёмка
+
+Этот контракт не отменяет owner sequencing «сначала функции, потом финальная вёрстка». Для Course/Class/Learning используются два уровня UI-проверки:
+
+- **FUNCTIONAL_ACCEPTANCE:** обязательны доступный primary CTA, отсутствие overlap/page-level overflow/text squeeze, читаемые ошибки/состояния, keyboard/focus для затронутого действия и проверка минимум 1440/390 + boundary 320 при изменении mobile. Финальная spacing/theme/three-pane composition может оставаться provisional, если она не мешает действию.
+- **VISUAL_ACCEPTANCE:** после функционального закрытия обязательны полный impact radius, 1440/1024/390/320, long-content и все применимые states, окончательная hierarchy/spacing/composition. Только этот уровень позволяет считать экран визуально `DEMONSTRATED`/готовым к owner visual acceptance.
+
+Известный layout-дефект, который перекрывает CTA, ломает keyboard/focus, обрезает важный текст, создаёт page scroll или делает ошибку/данные непонятными, блокирует уже FUNCTIONAL_ACCEPTANCE и не может быть отложен как косметика. Дефекты только финальной плотности, декоративной иерархии и размещения вторичных controls могут быть перенесены в visual convergence с явным `visual_state: provisional`.
+
 ## 11. Definition of done для UI-правки
 
-UI-изменение нельзя объявлять `DONE`, `CI_VERIFIED`, `DEMONSTRATED` или `OWNER_ACCEPTED`, если:
+UI-изменение нельзя объявлять визуально `DEMONSTRATED` или `OWNER_ACCEPTED`, а release candidate — визуально готовым, если:
 
 - не перечислен impact radius;
 - не проверены обязательные viewport;

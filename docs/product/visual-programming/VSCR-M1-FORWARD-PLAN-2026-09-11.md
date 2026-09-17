@@ -137,7 +137,40 @@ Native `Save to your computer` may already exist because it is upstream Scratch 
 
 ## Checkpoint 3 — Robust editing
 
-M1-006: autosave/recovery/conflict handling.
+M1-006: autosave/recovery/conflict handling plus automatic draft preview tied to a
+confirmed durable revision/checkpoint.
+
+Autosave follows D0-008 and the platform capacity model:
+
+```text
+no full snapshot per editor action
+→ batch/debounce
+→ one save in flight
+→ coalesce to newest generation
+→ no-op unchanged fingerprint
+→ unchanged assets are not uploaded again
+→ confirmed durable revision
+→ async draft preview update
+```
+
+Every accepted Scratch slice runs L0/L1 optimisation evidence; because this lane is
+runtime/media-heavy, L2 is mandatory after every 2 accepted bounded slices or earlier
+when the repository policy triggers it.
+
+Before M1-006 coding starts, its task card must pin from D0-008:
+
+```text
+autosave debounce/cadence + classroom jitter distribution
+retry/backoff caps and Retry-After behaviour
+structured local-recovery store
+finite recovery TTL/quota + logout/account-switch cleanup
+save-state UI placement (no permanent bottom bar)
+preview capture source, encoded format and derived card dimensions
+benchmark fixtures/profile for P0/P2 comparison
+```
+
+These values are implementation configuration, but leaving them undefined until coding
+is not allowed.
 
 ## Checkpoint 4 — Safe ASA .sb3 integration
 
@@ -145,7 +178,12 @@ M1-007 proves bounded ZIP/content validation, compatibility and ASA import/expor
 
 ## Checkpoint 5 — Product integration
 
-M2: immutable player/publication/remix and Learning submission through ASA version semantics.
+M2: project cards + immutable player/publication/remix and Learning submission through
+ASA version semantics.
+
+Required card behaviour includes automatic owner-facing draft preview, separate
+user-selected publication cover, title, description/instructions, notes/credits,
+likes, views and remix count. Autosave never overwrites a manually selected cover.
 
 ## Checkpoint 6 — Deployment readiness
 
@@ -237,6 +275,12 @@ Extensions catalogue and existing external integrations remain
 semantic category colours remain upstream
 ASA avatar/account remains parent-owned
 ASA durable save is separate from native local File export
+autosave does not send a full project snapshot on every editor action
+unchanged save does not create redundant revision/blob/alias data
+automatic draft preview and manual publication cover are distinct
+manual publication cover is never overwritten by autosave
+canonical Scratch asset bytes are not destructively recompressed for optimisation
+Scratch follows repository L0/L1/L2/L3 optimisation policy
 core ASA project/assets do not silently rely on Scratch project/asset backend
 basic local-file access stays active under owner-selected M4-002
 M4-001 remains managed-persistence acceptance, not a reason to hide or redeploy the module

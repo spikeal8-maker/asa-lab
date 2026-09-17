@@ -445,6 +445,65 @@ Only one draft PUT is in flight per editor; the client queues the newest generat
 
 ---
 
+## 13.1. Autosave optimisation and coalescing
+
+Autosave MUST obey `ARCH-025` and the capacity model: full project snapshots are
+not sent for every editor action.
+
+Initial behaviour contract:
+
+```text
+VM changes → new local dirty generation
+→ debounce/batch changes inside the platform 5–15 s active-editing window
+→ serialise only when a save/checkpoint is due
+→ skip remote save when the canonical document fingerprint is unchanged
+→ ensure only changed/unknown assets are durable
+→ issue one draft PUT
+→ while PUT is in flight keep only the newest pending generation
+→ on success advance confirmed revision/fingerprint
+→ if a newer generation exists schedule the next save
+```
+
+Page hide/route exit may request an immediate best-effort flush, but browser shutdown
+is not itself a durability guarantee. Local recovery protects the newest unconfirmed state.
+
+Retry rules remain:
+
+```text
+same serialised generation + lost response → same mutationId
+new VM generation → new mutationId
+one draft PUT in flight per editor
+409 → stop remote autosave; never guess a new baseRevision
+```
+
+### 13.2. Save optimisation evidence
+
+Every save/autosave slice records at least:
+
+```text
+draft PUT count
+asset PUT count
+new unique asset bytes
+reused asset count/bytes
+serialised projectJson bytes
+save latency for the tested fixture/load profile
+number of committed revisions
+```
+
+Required assertions:
+
+```text
+unchanged second save → 0 new asset bytes
+unchanged fingerprint → 0 new draft revision
+same asset reused multiple times → one tenant blob
+storage/network failure → no false saved state
+optimisation never changes exact canonical asset bytes
+```
+
+Preview generation is not part of the critical draft transaction. It runs after a
+confirmed durable revision/checkpoint and follows D0-008; preview failure must not
+turn a successful project save into data loss.
+
 ## 14. Conflict behaviour
 
 `project_revision_conflict` preserves current Project Core meaning.
@@ -510,6 +569,9 @@ Must prove:
 13. checkpoint/restore of accepted document keeps asset refs intact
 14. dependency failure never commits a revision
 15. focused tests plus Project Core regression tests pass
+16. unchanged document does not create a redundant revision
+17. unchanged assets are not uploaded again
+18. measured save/storage evidence satisfies the D0-008 optimisation gate
 ```
 
 The implementation is not allowed to activate `blocks`.

@@ -37,6 +37,7 @@ components:
       - apps/api/src/blocks-project-persistence.spec.ts
       - contexts/projects/testing/projects.spec.ts
       - apps/api/src/projects-save-status.spec.ts
+
   - id: blocks.project.load-save
     state: implemented
     risk: high
@@ -66,39 +67,56 @@ components:
           - inspectScratchProject
     tests:
       - apps/api/src/blocks-project-persistence.spec.ts
+
   - id: blocks.project.autosave
     state: blocked
     risk: high
     ownership: asa
-    purpose: Generation-aware latest-state queue; edits during an in-flight save are not lost.
+    purpose: "Generation-aware latest-state queue; edits during an in-flight save are not lost."
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-002-PERSISTENCE-CONTRACT.md
-        section: Autosave transaction identity
+        section: "Autosave transaction identity"
+      - path: docs/product/visual-programming/VSCR-D0-008-AUTOSAVE-PREVIEW-OPTIMIZATION-CONTRACT.md
+        section: "Autosave execution contract"
+      - path: docs/product/visual-programming/VSCR-D0-008-AUTOSAVE-PREVIEW-OPTIMIZATION-CONTRACT.md
+        section: "Classroom load shaping"
     task: VSCR-M1-006
-    depends_on:
-      - blocks.project.load-save
+    depends_on: [blocks.project.load-save]
+
+  - id: blocks.project.preview
+    state: blocked
+    risk: medium
+    ownership: asa
+    purpose: "Automatic owner-facing stage preview bound to an exact confirmed durable revision/fingerprint."
+    contracts:
+      - path: docs/product/visual-programming/VSCR-D0-008-AUTOSAVE-PREVIEW-OPTIMIZATION-CONTRACT.md
+        section: "Automatic draft preview"
+      - path: docs/product/visual-programming/VSCR-D0-008-AUTOSAVE-PREVIEW-OPTIMIZATION-CONTRACT.md
+        section: "Preview must match one durable generation"
+    task: VSCR-M1-006
+    depends_on: [blocks.project.load-save, blocks.project.autosave]
+
   - id: blocks.project.recovery
     state: blocked
     risk: high
     ownership: asa
-    purpose: Bounded recovery/offline retry without becoming canonical project storage.
+    purpose: "Bounded recovery/offline retry without becoming canonical project storage."
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-002-PERSISTENCE-CONTRACT.md
-        section: Conflict behaviour
+        section: "Conflict behaviour"
+      - path: docs/product/visual-programming/VSCR-D0-008-AUTOSAVE-PREVIEW-OPTIMIZATION-CONTRACT.md
+        section: "Recovery-store minimum contract"
     task: VSCR-M1-006
-    depends_on:
-      - blocks.project.load-save
-    design_gap:
-      The exact browser recovery store, TTL/quota, logout cleanup and user/tenant/project isolation must
-      be fixed in the M1-006 task card before coding.
+    depends_on: [blocks.project.load-save]
+    design_gap: "M1-006 must choose explicit finite recovery TTL/quota values and logout/account-switch cleanup policy before coding acceptance; payload storage is structured browser storage, never localStorage/sessionStorage."
+
   - id: blocks.project.conflict
     state: blocked
     risk: high
     ownership: asa
-    purpose: Optimistic revision conflict handling with no silent last-write-wins.
+    purpose: "Optimistic revision conflict handling with no silent last-write-wins."
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-002-PERSISTENCE-CONTRACT.md
-        section: Conflict behaviour
+        section: "Conflict behaviour"
     task: VSCR-M1-006
-    depends_on:
-      - blocks.project.load-save
+    depends_on: [blocks.project.load-save]

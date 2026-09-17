@@ -455,6 +455,25 @@ def _matches_scope(path: str, scope: Any) -> bool:
     return path == scope
 
 
+def blockers_for_lane(document: dict[str, Any], lane: dict[str, Any]) -> list[Any]:
+    lane_id = lane.get("id")
+    task_id = (lane.get("task") or {}).get("id")
+    result: list[Any] = []
+    for blocker in document.get("blocking") or []:
+        if not isinstance(blocker, dict):
+            # Legacy malformed/untyped entries stay visible fail-closed.
+            result.append(blocker)
+            continue
+        blocker_lane = blocker.get("lane")
+        blocker_task = blocker.get("task_id")
+        if blocker_lane is not None and blocker_lane != lane_id:
+            continue
+        if blocker_task is not None and blocker_task != task_id:
+            continue
+        result.append(blocker)
+    return result
+
+
 def build_context(
     root: Path,
     document: dict[str, Any],
@@ -561,7 +580,7 @@ def build_context(
                 "normative_refs",
             )
         },
-        "blocking": list(document.get("blocking") or []),
+        "blocking": blockers_for_lane(document, lane),
         "milestone": dict(lane.get("milestone") or {}),
         "revisions": dict(lane.get("revisions") or {}),
         "gate_commands": gate_commands,
@@ -858,6 +877,21 @@ def _render_split_revisions(lines: list[str], revisions: dict[str, Any]) -> bool
     return True
 
 
+def _render_observed_snapshot(lines: list[str], revisions: dict[str, Any]) -> bool:
+    if revisions.get("kind") != "observed_snapshot":
+        return False
+    lines.append("revisionState: observed_snapshot; no static field claims the live current HEAD")
+    lines.append(f"observedAt: {revisions.get('observed_at')} (recorded snapshot, not live remote HEAD)")
+    lines.append(f"historicalMergeBase: {revisions.get('convergence_baseline_sha')}")
+    ref = revisions.get("main") or {}
+    lines.append(f"observedMain: {ref.get('branch')} @ {ref.get('sha')}")
+    note = revisions.get("observation_note")
+    if note:
+        lines.append(f"observationNote: {note}")
+    lines.append("refresh: fetch main and read exact-SHA CI before writes; observation grants no authority")
+    return True
+
+
 def render_text(context: dict[str, Any]) -> str:
     task = context["task"]
     lines = [
@@ -878,6 +912,22 @@ def render_text(context: dict[str, Any]) -> str:
         f"blocking: {len(context['blocking'])}",
         f"recoveryRequired: {'true' if context['recovery']['required'] else 'false'}",
     ]
+    if context["blocking"]:
+        lines.append("blockers:")
+        for blocker in context["blocking"]:
+            if not isinstance(blocker, dict):
+                lines.append(f"  legacy: {blocker}")
+                continue
+            kind = blocker.get("kind") or "execution_blocker (legacy default)"
+            lines.append(f"  {blocker.get('id')}: {kind}")
+            blocks = blocker.get("blocks")
+            if isinstance(blocks, list):
+                lines.append(f"    blocks: {', '.join(str(item) for item in blocks)}")
+            elif blocks:
+                lines.append(f"    blocks: {blocks}")
+            allows = blocker.get("allows") or []
+            if isinstance(allows, list) and allows:
+                lines.append(f"    allows: {', '.join(str(item) for item in allows)}")
     if context["recovery"]["required"]:
         lines.append(f"recoveryCommand: {context['recovery']['command']}")
     if context["milestone"]:
@@ -885,9 +935,11 @@ def render_text(context: dict[str, Any]) -> str:
         lines.append(
             f"milestoneOwnerAuthorization: {context['milestone'].get('owner_authorization')}"
         )
-    if context["revisions"] and not _render_split_revisions(lines, context["revisions"]):
-        lines.append("revisions:")
-        lines.extend(f"  {key}: {value}" for key, value in context["revisions"].items())
+    if context["revisions"]:
+        revisions = context["revisions"]
+        if not _render_split_revisions(lines, revisions) and not _render_observed_snapshot(lines, revisions):
+            lines.append("revisions:")
+            lines.extend(f"  {key}: {value}" for key, value in revisions.items())
     lines.append("gates:")
     for name, commands in context["gate_commands"].items():
         lines.append(f"  {name}: {' && '.join(commands)}")

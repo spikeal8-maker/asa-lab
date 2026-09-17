@@ -153,6 +153,48 @@ def gate_healthy(_):
 # ── the task record ──────────────────────────────────────────────────────────
 
 
+@case("typed acceptance blocker allows bounded repair", expect="")
+def blocker_acceptance_healthy(_):
+    errors: list[str] = []
+    cp.check_blocking([{
+        "id": "B-1", "kind": "acceptance_blocker",
+        "blocks": ["owner_acceptance", "release_claim"],
+        "allows": ["bounded_repair"],
+        "reason": "open defects", "evidence": "docs/evidence.md",
+    }], errors)
+    return errors
+
+
+@case("unknown blocker kind is rejected", expect="kind invalid")
+def blocker_unknown_kind(_):
+    errors: list[str] = []
+    cp.check_blocking([{
+        "id": "B-1", "kind": "magic_blocker", "blocks": ["release_claim"],
+        "reason": "open defects", "evidence": "docs/evidence.md",
+    }], errors)
+    return errors
+
+
+@case("blocker cannot allow what it blocks", expect="cannot both block and allow")
+def blocker_overlap(_):
+    errors: list[str] = []
+    cp.check_blocking([{
+        "id": "B-1", "kind": "acceptance_blocker",
+        "blocks": ["owner_acceptance"], "allows": ["owner_acceptance"],
+        "reason": "open defects", "evidence": "docs/evidence.md",
+    }], errors)
+    return errors
+
+
+@case("legacy untyped blocker stays fail-closed compatible", expect="")
+def blocker_legacy(_):
+    errors: list[str] = []
+    cp.check_blocking([{
+        "id": "LEGACY", "reason": "old state", "evidence": "docs/evidence.md",
+    }], errors)
+    return errors
+
+
 def task_document(**overrides) -> dict:
     task = {
         "id": "TASK-ELECTRONICS-M1-001",
@@ -1054,6 +1096,51 @@ def split_branch_state_edited(_):
             return errors
         finally:
             cp.bind_root(previous)
+
+
+def observed_document():
+    document = multilane_document(schema_version="1.2.0")
+    document["development_policy"] = {
+        "mode": "direct_main", "branch": "main", "feature_branches": "optional",
+        "pull_requests": "optional", "execution_leases": "disabled", "lane_path_ownership": "advisory",
+    }
+    lane = document["parallel_lanes"][0]
+    lane["task"].update(branch="main", pr=None)
+    lane["revisions"] = {
+        "kind": "observed_snapshot",
+        "convergence_baseline_sha": "a" * 40,
+        "head_sha": None,
+        "observed_at": "2026-09-17T12:00:00Z",
+        "main": {"branch": "main", "sha": "b" * 40},
+        "observation_note": "Recorded observation; fetch main before writes.",
+    }
+    return document
+
+
+@case("observed snapshot is a dated main observation without a static HEAD", expect="")
+def observed_valid(_):
+    return collect_errors(observed_document())
+
+
+@case("observed snapshot rejects a fake static HEAD", expect="head_sha null")
+def observed_false_head(_):
+    document = observed_document()
+    document["parallel_lanes"][0]["revisions"]["head_sha"] = "b" * 40
+    return collect_errors(document)
+
+
+@case("observed snapshot requires a fresh-fetch note", expect="fresh fetch main")
+def observed_missing_fetch_note(_):
+    document = observed_document()
+    document["parallel_lanes"][0]["revisions"]["observation_note"] = "This looks current forever."
+    return collect_errors(document)
+
+
+@case("observed snapshot requires observed main branch", expect="main.branch must be main")
+def observed_wrong_main_branch(_):
+    document = observed_document()
+    document["parallel_lanes"][0]["revisions"]["main"]["branch"] = "feature/example"
+    return collect_errors(document)
 
 
 @case("stable gate accepts mode arguments")

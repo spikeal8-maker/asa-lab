@@ -173,6 +173,21 @@ invariants:
   - gradebook_as_source_of_truth
   - unread_as_work_state
   - invented_generic_average
+- id: LRN-SURFACE-001
+  statement: Course Usage, Classroom learning/gradebook and Organization learning/analytics are different scoped views over the same canonical runs, participations, submissions, completion and selected-result projections; none may create a second progress or grade store.
+  master_refs:
+  - document: PRODUCT-INTEGRATED-V15
+    section: §1.2 / §8
+  applies_to:
+  - course_usage
+  - classroom_learning
+  - organization_analytics
+  - gradebook_projection
+  forbid:
+  - author_usage_progress_store
+  - organization_grade_engine
+  - login_clicks_as_learning_progress
+  - cross_scope_unique_person_guess
 - id: LRN-CMP-001
   statement: Course completion is a server-derived projection separate from course result or grade; the client cannot declare
     completion truth.
@@ -319,3 +334,20 @@ invariants:
   forbid:
   - successful_replay_rejected_by_own_revision
   - receipt_bypasses_revocation
+- id: LRN-BLD-001
+  statement: E1 Course Builder functional acceptance covers every informational MVP block and the section/lesson/block
+    create-edit-reorder-duplicate-hide-delete controls; duplicate/hide/delete never mutate published history or learner
+    evidence. Final visual composition is a later VISUAL_ACCEPTANCE.
+  master_refs:
+  - document: PRODUCT-INTEGRATED-V15
+    section: Course Builder E1
+  applies_to:
+  - course_builder
+  - course_section
+  - course_lesson
+  - course_block
+  forbid:
+  - button_without_persistence_counts_done
+  - duplicate_copies_learner_evidence
+  - hide_mutates_published_run
+  - visual_polish_substitutes_function

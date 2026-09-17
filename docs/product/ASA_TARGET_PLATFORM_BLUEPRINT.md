@@ -1,23 +1,17 @@
 # ASA Lab — целевой системный blueprint
 
-**Статус:** нормативный целевой контракт продукта и платформы.  
-**Приоритет:** выше отдельных вертикальных срезов, локальных UI-решений и временных migration shortcuts.  
-**Основание:** архитектурный baseline ASA Lab, три owner-video Tinkercad reference-пакета, Tinkercad parity specification, Visual Product System и фактически созданные основы Teacher Portal, Project/Draft/Version, Module Registry и Electronics Workbench.  
-**Цель:** воспроизвести целостную продуктовую модель Tinkercad, не уничтожая уже реализованные безопасные основы ASA Lab, а переводя их в более сильную глобальную модель идентичности, рабочих пространств, проектов, классов и модулей.
+**Статус:** supporting architecture/reference; не самостоятельный источник актуального продуктового приоритета.
+**Приоритет:** текущий Document Registry, Integrated V1.5, Access 2.2 и доменные канонические контракты имеют приоритет для новой реализации; этот blueprint сохраняет архитектурную историю и reference-решения.
+**Основание:** архитектурный baseline ASA Lab, три owner-video Tinkercad reference-пакета, Tinkercad parity specification, Visual Product System и фактически созданные основы Teacher Portal, Project/Draft/Version, Module Registry и Electronics Workbench.
+**Цель:** сохранять полезные архитектурные решения и reference-модель, не переопределяя account-first продуктовую модель, актуальные E1–E6 границы или scoped authorization.
 
 ---
 
-## 0. Нормативная иерархия
+## 0. Актуальная иерархия
 
-При конфликте документов применяется следующий порядок:
+Этот файл больше не назначает собственную нормативную лестницу. Для новой работы authority определяется `docs/agent/document-registry.yaml`, активной записью `docs/execution/current.yaml` и каноническими доменными документами. Для Learning/product integration это Integrated V1.5 + Learning Master 2.2 + Access 2.2; для других lane — их зарегистрированные canonical contracts.
 
-1. этот blueprint;
-2. датированное owner-video evidence;
-3. `TINKERCAD_PARITY_SPEC.md` и parity matrix;
-4. `ASA_VISUAL_PRODUCT_SYSTEM.md`;
-5. архитектурный baseline;
-6. конкретная Issue/PR;
-7. локальное решение coding-агента.
+Owner-video evidence, Tinkercad parity, Visual Product System и этот blueprint используются как supporting/reference material только там, где не противоречат более свежему каноническому контракту. Issue/PR и локальное решение агента не могут молча повысить этот файл обратно до высшего authority.
 
 Owner-video evidence уточняет ранее сделанные предположения. В частности:
 

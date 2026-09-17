@@ -37,6 +37,30 @@ invariants:
     applies_to: [content_author, educator, account_capability]
     forbid: [author_implies_teacher, teacher_implies_author, capability_switch_replaces_account]
 
+  - id: IDA-PRODUCT-001
+    statement: ASA Lab starts from one personal Account shell; learner, author, educator and organization duties are additive contexts, never replacement account types or a registration-time role choice. After proven Seat-to-Account linking, school learning appears inside the ordinary Account shell and personal projects/community/knowledge remain independent.
+    master_refs:
+      - document: IDENTITY-ACCESS-V22
+        section: §7 / §10
+    applies_to: [account, navigation, student_seat, account_link, capabilities]
+    forbid: [registration_role_picker, student_account_type, teacher_account_type, linked_seat_replaces_personal_account]
+
+  - id: IDA-SEAT-PUBLIC-001
+    statement: A StudentSeat without Account may read public Community and Knowledge content when safety/publication policy allows; long-lived personal actions outside school scope require an Account or an explicitly approved Seat policy, while school assignments remain available through the learner context.
+    master_refs:
+      - document: IDENTITY-ACCESS-V22
+        section: §7 / §11
+    applies_to: [student_seat, public_knowledge, public_projects, account_link]
+    forbid: [registration_required_for_public_read, seat_publication_as_account, seat_global_personal_storage_by_default]
+
+  - id: IDA-SEAT-PROJECT-001
+    statement: StudentSeat project create, duplicate, restore and save operations always resolve to an exact assignment, class-scoped learner project or explicitly allowed safe-practice scope; they never create an Account Personal Workspace or public Account identity implicitly.
+    master_refs:
+      - document: IDENTITY-ACCESS-V22
+        section: §7 / §12 / §33
+    applies_to: [student_seat, project_create, project_duplicate, project_restore, editor_host]
+    forbid: [seat_creates_personal_workspace, seat_project_action_implies_public_identity, implicit_cross_scope_project_copy]
+
   - id: IDA-SEAT-001
     statement: StudentSeat access works without prior Account registration; a class code locates a class but does not by itself authenticate an arbitrary learner profile.
     master_refs:
@@ -98,6 +122,22 @@ invariants:
         section: INV-09
     applies_to: [organization, organization_membership, personal_workspace]
     forbid: [organization_owns_personal_projects, org_admin_reads_all_learning, school_name_grants_rights]
+
+  - id: IDA-ORG-002
+    statement: Organization is a workspace opened by the same Account, never a separate account type. Its People view separates staff from scoped learner profiles, and its classes/courses/learning/analytics pages are scoped views of canonical resources rather than a second learning backend.
+    master_refs:
+      - document: IDENTITY-ACCESS-V22
+        section: §14 / §17 / UI-33–UI-37
+    applies_to: [organization, navigation, organization_analytics, classroom, course_run]
+    forbid: [organization_account_type, global_school_user_directory, duplicate_org_grade_engine, organization_workspace_in_personal_profile_only]
+
+  - id: IDA-MAX-001
+    statement: MAX is an Account authentication or delivery provider, not a StudentSeat credential or school role. Seat-to-Account linking never binds MAX automatically, and login through MAX never opts the Account into all external notifications.
+    master_refs:
+      - document: IDENTITY-ACCESS-V22
+        section: §10 / §16
+    applies_to: [account, max_provider, student_seat, notifications]
+    forbid: [max_required_for_student_seat, max_as_school_identity, max_login_implies_all_notifications]
   - id: IDA-CRED-002
     statement: Automatically generated six-character Student Codes use cryptographic randomness, not learner names, UUIDs
       or row indexes; idempotency replays a stored result. Explicit teacher-selected replacements use the same
@@ -114,8 +154,9 @@ invariants:
     - plaintext_log
     - rotation_changes_learner_identity
   - id: IDA-SEAT-002
-    statement: The class-only QR uses https://asa-lab.ru and never embeds Student Code; thirty learners behind one
-      IP can complete resolve and sign-in without exhausting a shared success budget while abuse remains limited.
+    statement: StudentSeat admission uses failure-only rate budgets of 60 invalid resolve/source/10m, 5 invalid
+      candidate/class/10m, 180 invalid source+class/10m and 300 invalid source/10m; valid requests do not consume those
+      budgets, and the class-only QR uses https://asa-lab.ru without Student Code.
     master_refs:
     - document: IDENTITY-ACCESS-V22
       section: §9.2 / §9.3
@@ -127,3 +168,38 @@ invariants:
     - wrong_public_origin
     - qr_contains_student_code
     - normal_class_batch_lockout
+  - id: IDA-CRED-003
+    statement: Current Student Code readback, rotation and session revocation are separate class-scoped permissions.
+      Protected storage is AES-256-GCM plus separate HMAC-SHA-256 lookup keys outside the database; retired codes
+      cannot be reused in the same class and replaying an older rotation never reveals stale plaintext as current.
+    master_refs:
+    - document: IDENTITY-ACCESS-V22
+      section: AES-256-GCM
+    applies_to:
+    - student_code_storage
+    - credential_readback
+    - credential_rotation
+    - seat_session_revocation
+    forbid:
+    - roster_read_implies_code_read
+    - encryption_key_in_database
+    - retired_code_reuse
+    - stale_rotation_reactivates_code
+  - id: IDA-CRED-004
+    statement: In E1, sensitive Student Code issue/readback/rotation/session-revocation authority maps only to the active exact-class owner membership through one credential-manager guard; co-teacher delegation is deferred to the explicit E4 scoped-grant model. Production Class Code secret is explicit, stable, independent from DB credentials, and protected-code rollout fences legacy writers and reaches zero active predictable legacy codes before installed acceptance.
+    master_refs:
+    - document: IDENTITY-ACCESS-V22
+      section: 'Матрица управления Student Code (TARGET E1)'
+    - document: IDENTITY-ACCESS-V22
+      section: '#### 9.4.1. Class Code secret and deployment secret boundary'
+    applies_to:
+    - classroom_owner
+    - classroom_co_teacher
+    - student_code_storage
+    - class_code_secret
+    - deployment_recovery
+    forbid:
+    - co_teacher_implicit_credential_readback
+    - database_password_as_production_class_code_secret
+    - old_writer_during_protected_code_backfill
+    - installed_acceptance_with_legacy_predictable_codes

@@ -120,9 +120,9 @@ ActiveContext
 Вход для ранее подключённой организации
 ```
 
-Он открывает отдельную форму `workspace code + email + password` и не является частью основного входа.
+Он открывает отдельную форму `workspace code + email + password` и не является частью основного входа. Даже на этом legacy-path пользователь аутентифицирует **тот же личный Account**; workspace code только выбирает/проверяет разрешённый organization context. Отдельный Organization Account, отдельный школьный пароль-профиль или новая identity не создаются. После успешного входа доступные organization workspaces берутся из server memberships/grants, а не из введённого названия/кода.
 
-После завершения migration cutover ссылка удаляется отдельным owner-approved этапом.
+После завершения migration cutover ссылка удаляется отдельным owner-approved этапом. Новый UI не должен копировать этот legacy-flow как основной способ входа школы.
 
 ---
 
@@ -222,12 +222,14 @@ Classroom memberships optional
 
 ```text
 class code
-login handle
-individual secret OR approved browser-bound teacher login
+six-character Student Code
+no separate login handle / long secret
 no email required
 no public profile
 Safe Mode by default
 ```
+
+Student Code является единственным персональным credential базового StudentSeat-flow. Class-only QR содержит только class context/Class Code и никогда Student Code. Teacher-approved browser challenge остаётся отдельным будущим preset и не добавляет обязательный шаг в E1-вход.
 
 Registered student Account и StudentSeat не сливаются в один auth-subject.
 Доказанная связь Account с существующим учебным профилем разрешена по §10

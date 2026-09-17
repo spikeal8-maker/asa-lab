@@ -57,6 +57,7 @@ run "$PYTHON" tools/validate_learning_spec_rebaseline.py
 run "$PYTHON" tools/test_validate_agent_maintenance_docs.py
 run "$PYTHON" tools/validate_agent_maintenance_docs.py
 run "$PYTHON" tools/test_agent_recover.py
+run "$PYTHON" tools/test_agent_preflight.py
 run "$PYTHON" tools/validate_agent_workflow.py
 run "$PYTHON" tools/validate_control_plane.py "${CONTROL_PLANE_ARGS[@]}"
 

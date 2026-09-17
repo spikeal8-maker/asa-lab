@@ -35,6 +35,7 @@ requirements:
   open_corrections:
   - E1-FIX-07
   - E1-FIX-08
+  - E1-FIX-11
 - id: INT-E1-02
   milestone: E1
   status: in_progress
@@ -52,6 +53,7 @@ requirements:
   open_corrections:
   - E1-FIX-04
   - E1-FIX-06
+  - E1-FIX-11
 - id: INT-E1-03
   milestone: E1
   status: in_progress
@@ -120,6 +122,7 @@ requirements:
   - E1-FIX-01
   - E1-FIX-02
   - E1-FIX-03
+  - E1-FIX-12
   legacy_test_references:
   - 'e2e/classroom-management.spec.ts: outdated navigation; not proof of current StudentSeat acceptance'
 - id: INT-E1-07
@@ -271,6 +274,8 @@ requirements:
   - E1-FIX-08
   - E1-FIX-09
   - E1-FIX-10
+  - E1-FIX-11
+  - E1-FIX-12
 - id: E1-FIX-01
   milestone: E1
   status: in_progress
@@ -295,8 +300,23 @@ requirements:
   - NAT-SEQ-30
   - NAT-PARALLEL-30
   - NAT-QR-30
-  - NAT-TYPOS-RECOVERY
-  - ABUSE-BOUNDED-NO-CLASS-DOS
+  - NAT-30x4-TYPOS-THEN-SUCCESS
+  - INVALID-RESOLVE-60-PER-10M
+  - INVALID-CLASS-SOURCE-180-PER-10M
+  - INVALID-SOURCE-300-PER-10M
+  - ABUSE-RECOVERY-RETRY-AFTER
+  - TRUSTED-PROXY-SOURCE
+  - HMAC-LOOKUP-BEFORE-FAILURE-BUCKET
+  implementation_contract:
+    invalid_resolve_per_source_per_10m: 60
+    invalid_candidate_per_class_per_10m: 5
+    invalid_source_class_per_10m: 180
+    invalid_source_total_per_10m: 300
+    successful_requests_consume_failure_budget: false
+    supported_e1_api_instances: 1
+  planned_test_ids: &id001
+  - TST-LEARNING-E1-STUDENTSEAT-HARDENING-001
+  - TST-E2E-LEARNING-E1-STUDENTSEAT-HARDENING-001
 - id: E1-FIX-02
   milestone: E1
   status: in_progress
@@ -326,6 +346,60 @@ requirements:
   - CODE-READBACK-AUTHZ
   - ROTATION-HISTORY-UNCHANGED
   - PREDICTABLE-CODE-UPGRADE
+  - AES-GCM-ROUNDTRIP-AND-TAMPER
+  - KEY-ID-UNKNOWN-FAIL-CLOSED
+  - BACKUP-RESTORE-WITH-TEST-KEYRING
+  - RETIRED-CODE-NOT-REUSED
+  - R1-REPLAY-AFTER-R2-SUPERSEDED
+  - STALE-PRINT-VERSION-CONFLICT
+  - PERMISSION-REVOKED-BEFORE-REPLAY
+  - AAD-SEAT-VERSION-SWAP-TAMPER
+  - LOOKUP-KEY-DUAL-READ-ROTATION
+  - MANUAL-WEAK-CODE-REJECT
+  - KEYRING-MISSING-READINESS-FAIL
+  - BACKFILL-INTERRUPT-RESUME
+  - BACKFILL-NO-SECRETS-IN-LOGS
+  - BACKFILL-ZERO-UNMIGRATED-COVERAGE
+  - OLD-APP-ROLLBACK-BEFORE-PLAINTEXT-CLEANUP
+  - OWNER-CREDENTIAL-MANAGER-ALLOW
+  - CO-TEACHER-CREDENTIAL-DENY
+  - COMPAT-DUAL-WRITE-NO-UNPROTECTED-RACE
+  - LEGACY-PREDICTABLE-ZERO-BEFORE-INSTALLED-ACCEPTANCE
+  implementation_contract:
+    encryption: AES-256-GCM
+    lookup: HMAC-SHA-256
+    key_storage: outside_database_secret_keyring
+    retired_code_reuse: forbidden_within_class
+    legacy_transition: envelope_then_explicit_rotation
+    permissions:
+    - class.credentials.issue
+    - class.credentials.read_current
+    - class.credentials.rotate
+    - class.sessions.revoke
+    aad: v1|tenant_id|class_id|seat_id|credential_version
+    encryption_key_bytes: 32
+    lookup_key_min_bytes: 32
+    lookup_key_rotation: dual_read_then_rehash_then_retire
+    manual_min_distinct_symbols: 4
+    migration: migrations/0146_student_seat_protected_codes.sql
+    backfill_tool: tools/student-seat-protected-code-backfill.mjs
+    keyring_env:
+    - ASA_STUDENT_CODE_ENCRYPTION_KEYS_JSON
+    - ASA_STUDENT_CODE_ENCRYPTION_ACTIVE_KEY_ID
+    - ASA_STUDENT_CODE_LOOKUP_KEYS_JSON
+    - ASA_STUDENT_CODE_LOOKUP_ACTIVE_KEY_ID
+    sql_contains_key_material: false
+    schema_apply_rotates_student_codes: false
+    e1_permission_mapping: active_class_owner_only
+    credential_manager_guard: classroom_credential_manager_access
+    co_teacher_credential_delegation_stage: E4
+    rollout_mode_initial: compat
+    old_api_concurrent_with_backfill: false
+    compat_new_writes_protected_and_legacy: true
+    installed_acceptance_requires_unprotected_active: 0
+    installed_acceptance_requires_legacy_predictable_active: 0
+    final_mode: enforced
+  planned_test_ids: *id001
 - id: E1-FIX-03
   milestone: E1
   status: in_progress
@@ -354,6 +428,7 @@ requirements:
   - MANUAL-JOIN
   - A4-30-CARDS
   - CAMERA-SCAN-MANUAL
+  planned_test_ids: *id001
 - id: E1-FIX-04
   milestone: E1
   status: in_progress
@@ -381,6 +456,14 @@ requirements:
   - SAVE-A-TYPE-B-ACK-A
   - SAVE-FAILURE
   - STRUCTURE-DIRTY-CONFLICT
+  - DIRTY-PARENT-LIBRARY-TAB
+  - DIRTY-GLOBAL-NAV
+  - DIRTY-BROWSER-HISTORY
+  - DIRTY-RELOAD-BEFOREUNLOAD
+  - DISCARD-ONLY-LOCAL-GENERATION
+  planned_test_ids: &id002
+  - TST-LEARNING-E1-COURSE-AUTHORING-CORRECTNESS-001
+  - TST-E2E-LEARNING-E1-COURSE-AUTHORING-HARDENING-001
 - id: E1-FIX-05
   milestone: E1
   status: in_progress
@@ -409,6 +492,7 @@ requirements:
   - PUBLISH-KEY-PAYLOAD-CONFLICT
   - PUBLISH-CONCURRENT-SAME-KEY
   - PUBLISH-REVOKED-ACTOR
+  planned_test_ids: *id002
 - id: E1-FIX-06
   milestone: E1
   status: in_progress
@@ -435,6 +519,7 @@ requirements:
   - DIFF-BLOCK-ADD-REMOVE-MOVE
   - DIFF-EXACT-BEFORE-AFTER
   - DIFF-MISSING-HISTORICAL-POLICY
+  planned_test_ids: *id002
 - id: E1-FIX-07
   milestone: E1
   status: in_progress
@@ -461,6 +546,7 @@ requirements:
   - VALIDATE-FOCUS-FIELD
   - VALIDATE-PIN-ASSET-MODULE
   - LEGACY-PICKER-EXPLAINS-REFUSAL
+  planned_test_ids: *id002
 - id: E1-FIX-08
   milestone: E1
   status: in_progress
@@ -486,6 +572,7 @@ requirements:
   - ARCHIVE-RESTORE-OLD-RUN-READ
   - ASSIGN-REPLAY-AFTER-ARCHIVE
   - FOREIGN-COURSE-DENIED
+  planned_test_ids: *id002
 - id: E1-FIX-09
   milestone: E1
   status: in_progress
@@ -513,6 +600,9 @@ requirements:
   - DOC-PRESERVE-IDS
   - COVERAGE-COMMAND-INCLUDES-CASE
   - LEGACY-TESTS-NOT-PROOF
+  - BLOCKER-ACCEPTANCE-ALLOWS-REPAIR
+  - PROVEN-COVERS-ALL-PLANNED-SCENARIOS
+  - PROVEN-EVIDENCE-DIGEST-MATCH
 - id: E1-FIX-10
   milestone: E1
   status: in_progress
@@ -535,6 +625,94 @@ requirements:
   - LIVE-WEB-API-SCHEMA-MATCH
   - LIVE-AUTHORIZED-SYNTHETIC-JOURNEY
   - OWNER-ACCEPTANCE-EXPLICIT
+  - FUNCTIONAL-ACCEPTANCE-EXPLICIT
+  - VISUAL-ACCEPTANCE-EXPLICIT
+  - INSTALLED-ACCEPTANCE-EXPLICIT
+- id: E1-FIX-11
+  milestone: E1
+  status: in_progress
+  priority: P1
+  summary: Complete Course Builder functional action and informational-block matrix before final visual convergence
+  normative_ref: PRODUCT-INTEGRATED-V15 §4.2.1 / §4.16
+  source_paths:
+  - apps/web/src/components/CoursesPanel.tsx
+  - apps/web/src/components/AuthorVersionHistory.tsx
+  - apps/web/src/pages/AssignmentLibraryPage.tsx
+  - apps/api/src/courses.controller.ts
+  evidence:
+  - docs/product/ASA_INTEGRATED_IMPLEMENTATION_SPEC.md
+  tests:
+  - e2e/learning-course-01.spec.ts
+  - tests/courses/course-version-diff.spec.ts
+  verification:
+    source_sha: 0a4b50742b6e127320c01ed81060ae8e51c6eabe
+    method: spec_gap_identified
+    observed_result: Master required structure/block controls were not mapped one-by-one to E1 acceptance; V1.5
+      refinement now makes the functional matrix explicit.
+    product_fix_verified: false
+    authenticated_live_journey: not_run
+  planned_scenarios:
+  - SECTION-CREATE-RENAME-REORDER-DUPLICATE-HIDE-DELETE
+  - LESSON-CREATE-RENAME-REORDER-DUPLICATE-HIDE-DELETE
+  - BLOCK-EACH-INFORMATIONAL-KIND-SAVE-RELOAD
+  - BLOCK-MOVE-KEYBOARD-REORDER-DUPLICATE-SETTINGS-HIDE-DELETE-INSERT
+  - ACTIVITY-ELECTRONICS-3D-EXACT-VERSION
+  - DUPLICATE-DOES-NOT-COPY-LEARNER-EVIDENCE
+  - HIDE-DELETE-DOES-NOT-MUTATE-PUBLISHED-RUN
+  - USAGE-REAL-RUNS-AND-NAVIGATION
+  - MEDIA-BROKEN-ASSET-ERROR
+  - FUNCTIONAL-LAYOUT-1440-390-320
+  planned_test_ids: *id002
+- id: E1-FIX-12
+  milestone: E1
+  status: in_progress
+  priority: P1
+  summary: Production secret integrity, Class Code recovery and race-free protected credential rollout
+  normative_ref: PRODUCT-INTEGRATED-V15 §4.6 / §4.16 / §18
+  source_paths:
+  - apps/api/src/classroom-code-secret.ts
+  - apps/api/src/health.controller.ts
+  - compose.yaml
+  - tools/docker-update.ps1
+  - tools/docker-update.sh
+  - tools/production.mjs
+  - docs/execution/LRN_COURSE_01.md
+  evidence:
+  - docs/review/LRN_E1_SPEC_REBASELINE_2026_09_17.md
+  - docs/product/ASA_USERS_ACCESS_AND_SETTINGS_SPEC.md
+  tests:
+  - contexts/classroom/testing/classroom.spec.ts
+  - apps/api/src/health.spec.ts
+  verification:
+    source_sha: 2c26781c83c247863ddb607b2988dceb95905aaf
+    method: source_review
+    observed_result: Production Class Code secret currently falls back to DB credential material when explicit secret is absent; Student Code keyring is not yet wired through compose/updater. No production secret mutation was attempted.
+    product_fix_verified: false
+    authenticated_live_journey: not_run
+  planned_scenarios:
+  - CLASS-CODE-SECRET-REQUIRED-IN-PROD
+  - DB-PASSWORD-ROTATION-PRESERVES-CLASS-CODE
+  - CLASS-CODE-SECRET-BACKUP-RESTORE
+  - CLASS-CODE-SECRET-EMERGENCY-REISSUE
+  - STUDENT-KEYRING-COMPOSE-WIRING
+  - STUDENT-KEYRING-UPDATER-PREFLIGHT
+  - GLOBAL-KEYRING-MISSING-BLOCKS-DEPLOYMENT
+  - UNKNOWN-HISTORICAL-ROW-KEY-DEGRADES-CREDENTIAL-ONLY
+  - OLD-WRITER-FENCE-DURING-0146-CUTOVER
+  - COMPAT-API-SOLE-WRITER-DURING-BACKFILL
+  implementation_contract:
+    production_class_code_secret_required: true
+    class_code_secret_min_bytes: 32
+    class_code_secret_independent_from_db_password: true
+    production_db_url_secret_fallback: forbidden
+    class_code_secret_rotation: maintenance_reissue_all_active_classes
+    student_code_global_keyring_missing: deployment_blocker
+    unknown_row_key_id: credential_specific_503_and_degraded_diagnostics
+    old_writer_during_backfill: forbidden
+    installed_acceptance_legacy_predictable_active: 0
+  planned_test_ids:
+  - TST-RECOVERY-LEARNING-E1-CREDENTIAL-SECRETS-001
+
 - id: INT-REUSE-HISTORY
   milestone: unassigned
   status: target
@@ -613,7 +791,8 @@ requirements:
 - id: MIG-005
   milestone: M0
   status: proven
-  summary: After accepted migration derive runtime status from Participation, Attempt and Result rather than parallel legacy flags
+  summary: After accepted migration derive runtime status from Participation, Attempt and Result rather than parallel
+    legacy flags
   evidence:
   - docs/product/learning/current/LRN_M0_STATUS_DIVERGENCE_REPORT.md
   - docs/product/learning/current/LRN_M0_CANONICAL_STATE_RESULT_RESOLVER.md
@@ -642,8 +821,7 @@ requirements:
 - id: IDN-002
   milestone: M0
   status: proven
-  summary: Audit existing Identity/Classroom model before creating a new learner identity
-    table
+  summary: Audit existing Identity/Classroom model before creating a new learner identity table
   evidence:
   - docs/product/learning/current/LRN_M0_CURRENT_ARCHITECTURE.md
   - docs/architecture/ADR-LEARNER-IDENTITY-001.md
@@ -652,7 +830,8 @@ requirements:
 - id: IDN-003
   milestone: M1
   status: in_progress
-  summary: CourseEnrollment and ActivityParticipation now use learner_identities.id with physical school lineage; overall remains incomplete until Attempt and Result ownership converge
+  summary: CourseEnrollment and ActivityParticipation now use learner_identities.id with physical school lineage;
+    overall remains incomplete until Attempt and Result ownership converge
   evidence:
   - docs/architecture/ADR-LEARNER-IDENTITY-001.md
   - docs/product/learning/current/LRN_M0_CANONICAL_STATE_RESULT_RESOLVER.md
@@ -727,7 +906,9 @@ requirements:
 - id: ARCH-001
   milestone: M1
   status: in_progress
-  summary: Direct and course definitions share LearningActivityVersion, ActivityRun and stable-learner ActivityParticipation storage; direct project Attempts now belong to ActivityParticipation, while course/quiz Attempt convergence remains later scope
+  summary: Direct and course definitions share LearningActivityVersion, ActivityRun and stable-learner ActivityParticipation
+    storage; direct project Attempts now belong to ActivityParticipation, while course/quiz Attempt convergence
+    remains later scope
   evidence:
   - docs/product/learning/execution/LRN-M1-001_EXECUTION_SPEC.md
   - docs/product/learning/current/LRN_M1_ACTIVITY_VERSION_CONVERGENCE_REPORT.md
@@ -746,7 +927,8 @@ requirements:
 - id: ARCH-006
   milestone: M1
   status: proven
-  summary: Published canonical LearningActivityVersion content and policy snapshots are immutable at the database boundary
+  summary: Published canonical LearningActivityVersion content and policy snapshots are immutable at the database
+    boundary
   evidence:
   - migrations/0077_learning_assessment_foundation.sql
   - migrations/0091_learning_activity_version_convergence.sql
@@ -757,7 +939,8 @@ requirements:
 - id: VER-001
   milestone: M1
   status: in_progress
-  summary: Reusable versioned entities include canonical LearningActivityVersion; other listed entity families retain their own milestone status
+  summary: Reusable versioned entities include canonical LearningActivityVersion; other listed entity families retain
+    their own milestone status
   evidence:
   - docs/product/learning/execution/LRN-M1-001_EXECUTION_SPEC.md
   - docs/product/learning/current/LRN_M1_ACTIVITY_VERSION_CONVERGENCE_REPORT.md
@@ -767,7 +950,8 @@ requirements:
 - id: VER-002
   milestone: M1
   status: in_progress
-  summary: LearningActivityVersion policy snapshot is immutable; unlock and future run-level policy portions remain later M1 scope
+  summary: LearningActivityVersion policy snapshot is immutable; unlock and future run-level policy portions remain
+    later M1 scope
   evidence:
   - docs/product/learning/execution/LRN-M1-001_EXECUTION_SPEC.md
   - docs/product/learning/current/LRN_M1_ACTIVITY_VERSION_CONVERGENCE_REPORT.md
@@ -777,7 +961,8 @@ requirements:
 - id: VER-003
   milestone: M1
   status: in_progress
-  summary: New canonical ActivityRuns pin an exact immutable LearningActivityVersion and existing CourseRuns pin CourseVersion; universal materialization remains future scope
+  summary: New canonical ActivityRuns pin an exact immutable LearningActivityVersion and existing CourseRuns pin
+    CourseVersion; universal materialization remains future scope
   evidence:
   - migrations/0067_course_versions.sql
   - migrations/0068_classroom_course_runs.sql
@@ -788,7 +973,8 @@ requirements:
 - id: VER-004
   milestone: M1
   status: in_progress
-  summary: Publishing a later canonical activity draft does not retarget an existing ActivityRun; existing compatibility paths remain outside the new runtime cutover
+  summary: Publishing a later canonical activity draft does not retarget an existing ActivityRun; existing compatibility
+    paths remain outside the new runtime cutover
   evidence:
   - migrations/0091_learning_activity_version_convergence.sql
   - migrations/0093_activity_runs.sql
@@ -798,7 +984,8 @@ requirements:
 - id: ARCH-002
   milestone: M1
   status: in_progress
-  summary: Persistent ActivityRun and ActivityParticipation primitives plus whole-class/named audience materialization exist; ClassroomGroup, course-child materialization and executable-path cutover remain incomplete
+  summary: Persistent ActivityRun and ActivityParticipation primitives plus whole-class/named audience materialization
+    exist; ClassroomGroup, course-child materialization and executable-path cutover remain incomplete
   evidence:
   - docs/product/learning/execution/LRN-M1-003_EXECUTION_SPEC.md
   - migrations/0093_activity_runs.sql
@@ -836,7 +1023,8 @@ requirements:
 - id: RUN-101
   milestone: M1
   status: proven
-  summary: Canonical ActivityRun persists exact classroom/school/LAV/source provenance, dates, policy pins, creator and lifecycle evidence
+  summary: Canonical ActivityRun persists exact classroom/school/LAV/source provenance, dates, policy pins, creator
+    and lifecycle evidence
   evidence:
   - migrations/0093_activity_runs.sql
   - docs/product/learning/current/LRN_M1_ACTIVITY_RUN_REPORT.md
@@ -845,7 +1033,8 @@ requirements:
 - id: RUN-102
   milestone: M1
   status: proven
-  summary: Stored ActivityRun lifecycle is exactly active, closed, cancelled or archived with guarded monotonic transitions
+  summary: Stored ActivityRun lifecycle is exactly active, closed, cancelled or archived with guarded monotonic
+    transitions
   evidence:
   - migrations/0093_activity_runs.sql
   - docs/product/learning/current/LRN_M1_ACTIVITY_RUN_REPORT.md
@@ -854,7 +1043,8 @@ requirements:
 - id: RUN-103
   milestone: M1
   status: in_progress
-  summary: Run-level base availability is derived from explicit as-of time, stored lifecycle, dates and compatibility parent limits; learner overrides remain future
+  summary: Run-level base availability is derived from explicit as-of time, stored lifecycle, dates and compatibility
+    parent limits; learner overrides remain future
   evidence:
   - migrations/0093_activity_runs.sql
   - docs/product/learning/current/LRN_M1_ACTIVITY_RUN_REPORT.md
@@ -863,7 +1053,8 @@ requirements:
 - id: RUN-104
   milestone: M1
   status: in_progress
-  summary: ActivityRun stores nullable explicit canonical late policy and derives late as a flag; fallback/effective override semantics remain M1-007
+  summary: ActivityRun stores nullable explicit canonical late policy and derives late as a flag; fallback/effective
+    override semantics remain M1-007
   evidence:
   - migrations/0093_activity_runs.sql
   - docs/product/learning/current/LRN_M1_ACTIVITY_RUN_REPORT.md
@@ -872,7 +1063,8 @@ requirements:
 - id: RUN-105
   milestone: M1
   status: in_progress
-  summary: Direct and course delivery share one ActivityRun storage/domain primitive; common Attempt APIs remain future scope
+  summary: Direct and course delivery share one ActivityRun storage/domain primitive; common Attempt APIs remain
+    future scope
   evidence:
   - migrations/0093_activity_runs.sql
   - docs/product/learning/current/LRN_M1_ACTIVITY_RUN_REPORT.md
@@ -881,7 +1073,8 @@ requirements:
 - id: RUN-106
   milestone: M1
   status: in_progress
-  summary: Run-explicit values retain source provenance without flattening LAV defaults; complete participation > run > course block > LAV resolution remains M1-007
+  summary: Run-explicit values retain source provenance without flattening LAV defaults; complete participation
+    > run > course block > LAV resolution remains M1-007
   evidence:
   - migrations/0093_activity_runs.sql
   - docs/product/learning/current/LRN_M1_ACTIVITY_RUN_REPORT.md
@@ -891,7 +1084,8 @@ requirements:
 - id: RUN-107
   milestone: M1
   status: in_progress
-  summary: ActivityRun stores inspectable policy source evidence, but teacher effective-settings inspector and learner-specific explanation remain future scope
+  summary: ActivityRun stores inspectable policy source evidence, but teacher effective-settings inspector and learner-specific
+    explanation remain future scope
   evidence:
   - migrations/0093_activity_runs.sql
   - docs/product/learning/current/LRN_M1_ACTIVITY_RUN_REPORT.md
@@ -900,7 +1094,8 @@ requirements:
 - id: AUD-101
   milestone: M1
   status: proven
-  summary: ActivityParticipation lifecycle is physically constrained to assigned, active or withdrawn with guarded transitions and append-preserved withdrawal
+  summary: ActivityParticipation lifecycle is physically constrained to assigned, active or withdrawn with guarded
+    transitions and append-preserved withdrawal
   evidence:
   - docs/product/ASA_LEARNING_TECHNICAL_SPEC.md
   - docs/product/learning/execution/LRN-M1-004_EXECUTION_SPEC.md
@@ -911,7 +1106,8 @@ requirements:
 - id: AUD-102
   milestone: M1
   status: in_progress
-  summary: Completion must be projected from immutable policy plus Attempt/Result history; canonical Attempt/Result integration is not implemented
+  summary: Completion must be projected from immutable policy plus Attempt/Result history; canonical Attempt/Result
+    integration is not implemented
   evidence:
   - docs/product/ASA_LEARNING_TECHNICAL_SPEC.md
   - docs/product/learning/execution/LRN-M1-004_EXECUTION_SPEC.md
@@ -922,7 +1118,8 @@ requirements:
 - id: AUD-103
   milestone: M1
   status: proven
-  summary: Excused is an orthogonal one-way Participation override with actor/time/reason evidence, authorization and append-only audit
+  summary: Excused is an orthogonal one-way Participation override with actor/time/reason evidence, authorization
+    and append-only audit
   evidence:
   - docs/product/ASA_LEARNING_TECHNICAL_SPEC.md
   - docs/product/learning/execution/LRN-M1-004_EXECUTION_SPEC.md
@@ -933,7 +1130,8 @@ requirements:
 - id: AUD-104
   milestone: M1
   status: proven
-  summary: Canonical school-safe learner-specific Participation fields and nullable override storage are implemented with guarded commands and RLS
+  summary: Canonical school-safe learner-specific Participation fields and nullable override storage are implemented
+    with guarded commands and RLS
   evidence:
   - docs/product/ASA_LEARNING_TECHNICAL_SPEC.md
   - docs/product/learning/execution/LRN-M1-004_EXECUTION_SPEC.md
@@ -944,7 +1142,8 @@ requirements:
 - id: AUD-105
   milestone: M1
   status: in_progress
-  summary: Participation time-limit override storage is M1-004 scope; audited active-Attempt expiry extension remains M2 because Attempt ownership is not cut over
+  summary: Participation time-limit override storage is M1-004 scope; audited active-Attempt expiry extension remains
+    M2 because Attempt ownership is not cut over
   evidence:
   - docs/product/ASA_LEARNING_TECHNICAL_SPEC.md
   - docs/product/learning/execution/LRN-M1-004_EXECUTION_SPEC.md
@@ -955,7 +1154,8 @@ requirements:
 - id: AUD-201
   milestone: M1
   status: in_progress
-  summary: Canonical whole-class and named-learner audience types are implemented; classroom_group remains LRN-M1-006 scope
+  summary: Canonical whole-class and named-learner audience types are implemented; classroom_group remains LRN-M1-006
+    scope
   evidence:
   - docs/product/ASA_LEARNING_TECHNICAL_SPEC.md
   - docs/product/learning/execution/LRN-M1-005_EXECUTION_SPEC.md
@@ -966,7 +1166,8 @@ requirements:
 - id: AUD-202
   milestone: M1
   status: in_progress
-  summary: Whole-class dynamic and named-learner snapshot mode constraints are physically enforced; group dynamic mode remains LRN-M1-006 scope
+  summary: Whole-class dynamic and named-learner snapshot mode constraints are physically enforced; group dynamic
+    mode remains LRN-M1-006 scope
   evidence:
   - docs/product/ASA_LEARNING_TECHNICAL_SPEC.md
   - docs/product/learning/execution/LRN-M1-005_EXECUTION_SPEC.md
@@ -977,7 +1178,8 @@ requirements:
 - id: AUD-203
   milestone: M1
   status: proven
-  summary: Durable seat lifecycle integration materializes a newly eligible logical learner exactly once across active whole-class dynamic CourseRun and direct ActivityRun audiences
+  summary: Durable seat lifecycle integration materializes a newly eligible logical learner exactly once across
+    active whole-class dynamic CourseRun and direct ActivityRun audiences
   evidence:
   - docs/product/learning/execution/LRN-M1-005_EXECUTION_SPEC.md
   - migrations/0095_learning_audiences.sql
@@ -989,7 +1191,8 @@ requirements:
 - id: AUD-204
   milestone: M1
   status: in_progress
-  summary: Classroom membership end withdraws audience-owned membership and preserves history; direct project starts now have participation-owned Attempts, while general post-membership Attempt continuation policy remains unresolved
+  summary: Classroom membership end withdraws audience-owned membership and preserves history; direct project starts
+    now have participation-owned Attempts, while general post-membership Attempt continuation policy remains unresolved
   evidence:
   - docs/product/ASA_LEARNING_TECHNICAL_SPEC.md
   - docs/product/learning/execution/LRN-M1-005_EXECUTION_SPEC.md
@@ -1003,7 +1206,8 @@ requirements:
 - id: AUD-205
   milestone: M1
   status: in_progress
-  summary: Audience claim withdrawal preserves independent assignment and history; group removal and active Attempt semantics remain future scope
+  summary: Audience claim withdrawal preserves independent assignment and history; group removal and active Attempt
+    semantics remain future scope
   evidence:
   - docs/product/ASA_LEARNING_TECHNICAL_SPEC.md
   - docs/product/learning/execution/LRN-M1-005_EXECUTION_SPEC.md
@@ -1014,7 +1218,8 @@ requirements:
 - id: AUD-206
   milestone: M1
   status: proven
-  summary: Named snapshot membership changes are explicit, end-dated, audited, idempotent and deterministically reject silent re-add after withdrawal
+  summary: Named snapshot membership changes are explicit, end-dated, audited, idempotent and deterministically
+    reject silent re-add after withdrawal
   evidence:
   - docs/product/ASA_LEARNING_TECHNICAL_SPEC.md
   - docs/product/learning/execution/LRN-M1-005_EXECUTION_SPEC.md
@@ -1032,7 +1237,8 @@ requirements:
 - id: ATT-004
   milestone: M2
   status: proven
-  summary: A database partial unique index enforces at most one non-terminal Attempt per canonical ActivityParticipation; historical compatibility Attempts remain explicitly unlinked
+  summary: A database partial unique index enforces at most one non-terminal Attempt per canonical ActivityParticipation;
+    historical compatibility Attempts remain explicitly unlinked
   evidence:
   - migrations/0097_learning_direct_project_attempts.sql
   - docs/product/learning/execution/LRN-VS-002_EXECUTION_SPEC.md
@@ -1139,8 +1345,7 @@ requirements:
 - id: MED-002
   milestone: M4
   status: target
-  summary: Base MVP distinguishes immutable embedded image from external mutable media
-    links
+  summary: Base MVP distinguishes immutable embedded image from external mutable media links
   evidence: []
   tests:
   - E2E-018
