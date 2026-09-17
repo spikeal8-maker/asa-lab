@@ -109,6 +109,16 @@ function New-PrivateEnvironment {
       Add-Content -LiteralPath $EnvPath -Value "`nASA_BLOCKS_RUNTIME_SIGNING_KEY=$(New-RandomHex -ByteCount 32)"
       Write-Host 'Added a private Blocks runtime signing key to .env.'
     }
+    $storageNames = @('ASA_OBJECT_STORAGE_ENDPOINT','ASA_OBJECT_STORAGE_REGION','ASA_OBJECT_STORAGE_BUCKET','ASA_OBJECT_STORAGE_ACCESS_KEY','ASA_OBJECT_STORAGE_SECRET_KEY','ASA_OBJECT_STORAGE_FORCE_PATH_STYLE')
+    $storagePresent = @($storageNames | Where-Object { $existing -match "(?m)^$([regex]::Escape($_))=\S" })
+    if ($storagePresent.Count -eq 0) {
+      $storageAccess = New-RandomHex -ByteCount 16
+      $storageSecret = New-RandomHex -ByteCount 32
+      Add-Content -LiteralPath $EnvPath -Value "`nASA_OBJECT_STORAGE_ENDPOINT=http://minio:9000`nASA_OBJECT_STORAGE_REGION=us-east-1`nASA_OBJECT_STORAGE_BUCKET=asa-blocks`nASA_OBJECT_STORAGE_ACCESS_KEY=$storageAccess`nASA_OBJECT_STORAGE_SECRET_KEY=$storageSecret`nASA_OBJECT_STORAGE_FORCE_PATH_STYLE=true"
+      Write-Host 'Added private self-hosted Blocks object-storage configuration to .env.'
+    } elseif ($storagePresent.Count -ne $storageNames.Count) {
+      throw 'Existing .env has an incomplete ASA_OBJECT_STORAGE_* configuration; complete or remove the whole set before continuing.'
+    }
     if ($productionLike -and $existing -notmatch '(?m)^ASA_SEED_DEV=false\s*$') {
       throw "$Profile requires ASA_SEED_DEV=false in .env. Refusing to seed development accounts into a production-like database."
     }
@@ -120,6 +130,8 @@ function New-PrivateEnvironment {
   $teacherPassword = New-RandomHex
   $settingsEncryptionKey = New-RandomHex -ByteCount 32
   $blocksRuntimeSigningKey = New-RandomHex -ByteCount 32
+  $objectStorageAccessKey = New-RandomHex -ByteCount 16
+  $objectStorageSecretKey = New-RandomHex -ByteCount 32
   $projectName = if ($Profile -eq 'production') { 'asa-lab-production' } elseif ($Profile -eq 'staging') { 'asa-lab-staging' } else { 'asa-lab-dev' }
   $seedDev = if ($productionLike) { 'false' } else { 'true' }
   $content = @"
@@ -139,6 +151,12 @@ MIGRATION_CONFIRM=APPLY:asalab
 APP_DATABASE_URL=postgres://asalab_app:$runtimePassword@postgres:5432/asalab
 ASA_SETTINGS_ENCRYPTION_KEY=$settingsEncryptionKey
 ASA_BLOCKS_RUNTIME_SIGNING_KEY=$blocksRuntimeSigningKey
+ASA_OBJECT_STORAGE_ENDPOINT=http://minio:9000
+ASA_OBJECT_STORAGE_REGION=us-east-1
+ASA_OBJECT_STORAGE_BUCKET=asa-blocks
+ASA_OBJECT_STORAGE_ACCESS_KEY=$objectStorageAccessKey
+ASA_OBJECT_STORAGE_SECRET_KEY=$objectStorageSecretKey
+ASA_OBJECT_STORAGE_FORCE_PATH_STYLE=true
 
 ASA_WEB_PORT=4610
 ASA_API_PORT=4611
@@ -192,7 +210,7 @@ function Wait-Ready {
 
   Write-Error 'ASA Lab did not become ready within 5 minutes.' -ErrorAction Continue
   & docker compose @ComposeFiles ps -a
-  & docker compose @ComposeFiles logs --tail=120 postgres migration api web scratch
+  & docker compose @ComposeFiles logs --tail=120 postgres migration minio minio-init api web scratch
   throw 'Deployment health check failed.'
 }
 
@@ -245,12 +263,12 @@ switch ($Action) {
   }
   'logs' {
     Assert-Docker
-    Invoke-Compose @('logs', '--tail=200', 'postgres', 'migration', 'api', 'web', 'scratch')
+    Invoke-Compose @('logs', '--tail=200', 'postgres', 'migration', 'minio', 'minio-init', 'api', 'web', 'scratch')
   }
   'down' {
     Assert-Docker
     Assert-StartupIdentity
     Invoke-Compose @('down', '--remove-orphans')
-    Write-Host 'ASA Lab stopped; PostgreSQL data volume was preserved.'
+    Write-Host 'ASA Lab stopped; PostgreSQL and Blocks object-storage data volumes were preserved.'
   }
 }

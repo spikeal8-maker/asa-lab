@@ -54,6 +54,44 @@ test('runtime signing material is generated once and exposed only to the API', (
   }
 });
 
+test('private Blocks object storage stays inside the canonical Compose project', () => {
+  const config = YAML.parse(read('compose.yaml'));
+  const minio = config.services.minio;
+  const init = config.services['minio-init'];
+  const api = config.services.api;
+  const web = config.services.web;
+  const scratch = config.services.scratch;
+  assert.equal(minio.image, 'minio/minio:RELEASE.2024-09-13T20-26-02Z');
+  assert.equal(init.image, 'minio/mc:RELEASE.2024-09-16T17-43-14Z');
+  assert.equal(minio.ports, undefined);
+  assert.equal(init.ports, undefined);
+  assert.deepEqual(minio.networks, ['application']);
+  assert.deepEqual(init.networks, ['application']);
+  assert.deepEqual(minio.volumes, ['blocks-object-data:/data']);
+  assert.equal(Object.hasOwn(config.volumes, 'blocks-object-data'), true);
+  assert.equal(api.depends_on['minio-init'].condition, 'service_completed_successfully');
+  assert.match(String(init.entrypoint.join(' ')), /anonymous set none/);
+  assert.doesNotMatch(String(minio.command), /console-address/);
+  for (const name of ['ASA_OBJECT_STORAGE_ACCESS_KEY', 'ASA_OBJECT_STORAGE_SECRET_KEY']) {
+    assert.match(String(api.environment[name]), new RegExp(name));
+    assert.equal(web.environment?.[name], undefined);
+    assert.equal(web.build.args[name], undefined);
+    assert.equal(scratch.environment?.[name], undefined);
+    assert.equal(scratch.build.args[name], undefined);
+  }
+  for (const file of ['tools/asa-lab.ps1', 'tools/asa-lab.sh']) {
+    const source = read(file);
+    assert.match(source, /ASA_OBJECT_STORAGE_ENDPOINT/);
+    assert.match(source, /ASA_OBJECT_STORAGE_ACCESS_KEY/);
+    assert.match(source, /ASA_OBJECT_STORAGE_SECRET_KEY/);
+  }
+  for (const file of ['tools/docker-update.ps1', 'tools/docker-update.sh']) {
+    const source = read(file);
+    assert.match(source, /incomplete ASA_OBJECT_STORAGE_/i);
+    assert.match(source, /self-hosted Blocks object-storage configuration/);
+  }
+});
+
 test('normal install and guarded update include Scratch in successful readiness', () => {
   for (const file of [
     'tools/asa-lab.ps1',

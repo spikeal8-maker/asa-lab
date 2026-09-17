@@ -126,7 +126,7 @@ function Test-SamePath {
 }
 
 function Get-MixedOriginServices {
-  param([string[]]$Services = @('postgres', 'api', 'web', 'scratch'))
+  param([string[]]$Services = @('postgres', 'api', 'web', 'scratch', 'minio'))
 
   $drift = @()
   foreach ($service in $Services) {
@@ -351,6 +351,16 @@ function Invoke-GuardedUpdate {
   }
   $blocksRuntimeKey = Get-EnvValue 'ASA_BLOCKS_RUNTIME_SIGNING_KEY'
   $needsBlocksRuntimeKey = -not ($blocksRuntimeKey -match '^[a-fA-F0-9]{64}$')
+  $storageNames = @('ASA_OBJECT_STORAGE_ENDPOINT','ASA_OBJECT_STORAGE_REGION','ASA_OBJECT_STORAGE_BUCKET','ASA_OBJECT_STORAGE_ACCESS_KEY','ASA_OBJECT_STORAGE_SECRET_KEY','ASA_OBJECT_STORAGE_FORCE_PATH_STYLE')
+  $storageValues = @($storageNames | ForEach-Object { Get-EnvValue $_ })
+  $storagePresent = @($storageValues | Where-Object { $_ })
+  if ($storagePresent.Count -eq 0) {
+    $needsObjectStorage = $true
+  } elseif ($storagePresent.Count -ne $storageNames.Count) {
+    throw 'Existing .env has an incomplete ASA_OBJECT_STORAGE_* configuration; complete or remove the whole set before updating.'
+  } else {
+    $needsObjectStorage = $false
+  }
   if ($env:COMPOSE_PROJECT_NAME -and $env:COMPOSE_PROJECT_NAME -ne $projectName) {
     throw 'The process COMPOSE_PROJECT_NAME differs from .env; refusing to select an ambiguous PostgreSQL volume.'
   }
@@ -401,6 +411,9 @@ function Invoke-GuardedUpdate {
     if ($needsBlocksRuntimeKey) {
       Write-Host 'CHECK NOTE: full update will generate the missing private Blocks runtime signing key.'
     }
+    if ($needsObjectStorage) {
+      Write-Host 'CHECK NOTE: full update will generate the missing private self-hosted Blocks object-storage configuration.'
+    }
     Write-Host 'CHECK OK: no code, container or database changes were made.'
     return
   }
@@ -437,6 +450,12 @@ function Invoke-GuardedUpdate {
   if ($needsBlocksRuntimeKey) {
     Add-Content -LiteralPath '.env' -Value "`nASA_BLOCKS_RUNTIME_SIGNING_KEY=$(New-UpdateRandomHex -ByteCount 32)"
     Write-Host 'Added a private Blocks runtime signing key to the existing .env.'
+  }
+  if ($needsObjectStorage) {
+    $storageAccess = New-UpdateRandomHex -ByteCount 16
+    $storageSecret = New-UpdateRandomHex -ByteCount 32
+    Add-Content -LiteralPath '.env' -Value "`nASA_OBJECT_STORAGE_ENDPOINT=http://minio:9000`nASA_OBJECT_STORAGE_REGION=us-east-1`nASA_OBJECT_STORAGE_BUCKET=asa-blocks`nASA_OBJECT_STORAGE_ACCESS_KEY=$storageAccess`nASA_OBJECT_STORAGE_SECRET_KEY=$storageSecret`nASA_OBJECT_STORAGE_FORCE_PATH_STYLE=true"
+    Write-Host 'Added private self-hosted Blocks object-storage configuration to the existing .env.'
   }
 
   $schemaVersion = Get-LatestSchemaVersion
@@ -488,7 +507,7 @@ function Invoke-GuardedUpdate {
     Write-Warning 'Update stopped. The volume/database were NOT removed and no automatic restore was attempted.'
     Write-Warning "Diagnostics: docker $($script:ComposeArguments -join ' ') ps"
     & docker @script:ComposeArguments ps
-    & docker @script:ComposeArguments logs --tail 120 api migration web
+    & docker @script:ComposeArguments logs --tail 120 minio minio-init api migration web scratch
     throw
   }
 

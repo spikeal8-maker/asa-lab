@@ -80,7 +80,7 @@ container_working_directory() {
 
 mixed_origin_services() {
   drift=''
-  for service in postgres api web scratch; do
+  for service in postgres api web scratch minio; do
     container_id=$(compose ps -q "$service")
     [ -n "$container_id" ] || continue
     working_directory=$(container_working_directory "$container_id")
@@ -255,6 +255,18 @@ main() {
     ????????????????????????????????????????????????????????????????) needs_blocks_runtime_key=false ;;
     *) needs_blocks_runtime_key=true ;;
   esac
+  storage_present=0
+  for name in ASA_OBJECT_STORAGE_ENDPOINT ASA_OBJECT_STORAGE_REGION ASA_OBJECT_STORAGE_BUCKET ASA_OBJECT_STORAGE_ACCESS_KEY ASA_OBJECT_STORAGE_SECRET_KEY ASA_OBJECT_STORAGE_FORCE_PATH_STYLE; do
+    value=$(env_value "$name" || true)
+    if [ -n "$value" ]; then storage_present=$((storage_present + 1)); fi
+  done
+  if [ "$storage_present" -eq 0 ]; then
+    needs_object_storage=true
+  elif [ "$storage_present" -ne 6 ]; then
+    die 'existing .env has an incomplete ASA_OBJECT_STORAGE_* configuration; complete or remove the whole set before updating'
+  else
+    needs_object_storage=false
+  fi
   if [ -n "${COMPOSE_PROJECT_NAME:-}" ] && [ "$COMPOSE_PROJECT_NAME" != "$project_name" ]; then
     die 'process COMPOSE_PROJECT_NAME differs from .env; PostgreSQL volume selection is ambiguous'
   fi
@@ -301,6 +313,9 @@ main() {
     if [ "$needs_blocks_runtime_key" = true ]; then
       printf 'CHECK NOTE: full update will generate the missing private Blocks runtime signing key.\n'
     fi
+    if [ "$needs_object_storage" = true ]; then
+      printf 'CHECK NOTE: full update will generate the missing private self-hosted Blocks object-storage configuration.\n'
+    fi
     printf 'CHECK OK: no code, container or database changes were made.\n'
     exit 0
   fi
@@ -333,6 +348,13 @@ main() {
     printf '\nASA_BLOCKS_RUNTIME_SIGNING_KEY=%s\n' "$(random_hex 32)" >>.env
     printf 'Added a private Blocks runtime signing key to the existing .env.\n'
   fi
+  if [ "$needs_object_storage" = true ]; then
+    umask 077
+    storage_access=$(random_hex 16)
+    storage_secret=$(random_hex 32)
+    printf '\nASA_OBJECT_STORAGE_ENDPOINT=http://minio:9000\nASA_OBJECT_STORAGE_REGION=us-east-1\nASA_OBJECT_STORAGE_BUCKET=asa-blocks\nASA_OBJECT_STORAGE_ACCESS_KEY=%s\nASA_OBJECT_STORAGE_SECRET_KEY=%s\nASA_OBJECT_STORAGE_FORCE_PATH_STYLE=true\n' "$storage_access" "$storage_secret" >>.env
+    printf 'Added private self-hosted Blocks object-storage configuration to the existing .env.\n'
+  fi
 
   schema_version=$(latest_schema_version)
   ASA_BUILD_REVISION=$new_revision
@@ -363,7 +385,7 @@ main() {
       "backup_sha256=$backup_sha256" 'automatic_database_restore=forbidden'
     printf '%s\n' 'UPDATE STOPPED: volume was not removed and database restore was not attempted.' >&2
     compose ps >&2 || true
-    compose logs --tail 120 api migration web >&2 || true
+    compose logs --tail 120 minio minio-init api migration web scratch >&2 || true
     exit 1
   fi
 

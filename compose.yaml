@@ -57,6 +57,55 @@ services:
     cap_drop:
       - ALL
 
+  minio:
+    image: minio/minio:RELEASE.2024-09-13T20-26-02Z
+    restart: unless-stopped
+    command: server /data
+    environment:
+      MINIO_ROOT_USER: ${ASA_OBJECT_STORAGE_ACCESS_KEY:-asa-local-blocks}
+      MINIO_ROOT_PASSWORD: ${ASA_OBJECT_STORAGE_SECRET_KEY:-asa-local-blocks-secret-change-me}
+    volumes:
+      - blocks-object-data:/data
+    healthcheck:
+      test: ['CMD', 'mc', 'ready', 'local']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks:
+      - application
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+  minio-init:
+    image: minio/mc:RELEASE.2024-09-16T17-43-14Z
+    restart: 'no'
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      ASA_OBJECT_STORAGE_ACCESS_KEY: ${ASA_OBJECT_STORAGE_ACCESS_KEY:-asa-local-blocks}
+      ASA_OBJECT_STORAGE_SECRET_KEY: ${ASA_OBJECT_STORAGE_SECRET_KEY:-asa-local-blocks-secret-change-me}
+      ASA_OBJECT_STORAGE_BUCKET: ${ASA_OBJECT_STORAGE_BUCKET:-asa-blocks}
+    entrypoint:
+      - /bin/sh
+      - -eu
+      - -c
+      - >-
+        mc alias set local http://minio:9000 "$$ASA_OBJECT_STORAGE_ACCESS_KEY" "$$ASA_OBJECT_STORAGE_SECRET_KEY";
+        mc mb --ignore-existing "local/$$ASA_OBJECT_STORAGE_BUCKET";
+        mc anonymous set none "local/$$ASA_OBJECT_STORAGE_BUCKET"
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m
+    networks:
+      - application
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
   api:
     build:
       context: .
@@ -72,6 +121,8 @@ services:
         condition: service_healthy
       migration:
         condition: service_completed_successfully
+      minio-init:
+        condition: service_completed_successfully
     environment:
       NODE_ENV: development
       API_HOST: 0.0.0.0
@@ -82,6 +133,12 @@ services:
       ASA_SETTINGS_ENCRYPTION_KEY: ${ASA_SETTINGS_ENCRYPTION_KEY:-}
       ASA_BLOCKS_RUNTIME_SIGNING_KEY: ${ASA_BLOCKS_RUNTIME_SIGNING_KEY:-}
       ASA_BLOCKS_RUNTIME_ORIGIN: ${ASA_BLOCKS_RUNTIME_ORIGIN:-http://localhost:${ASA_BLOCKS_PORT:-4613}}
+      ASA_OBJECT_STORAGE_ENDPOINT: ${ASA_OBJECT_STORAGE_ENDPOINT:-http://minio:9000}
+      ASA_OBJECT_STORAGE_REGION: ${ASA_OBJECT_STORAGE_REGION:-us-east-1}
+      ASA_OBJECT_STORAGE_BUCKET: ${ASA_OBJECT_STORAGE_BUCKET:-asa-blocks}
+      ASA_OBJECT_STORAGE_ACCESS_KEY: ${ASA_OBJECT_STORAGE_ACCESS_KEY:-asa-local-blocks}
+      ASA_OBJECT_STORAGE_SECRET_KEY: ${ASA_OBJECT_STORAGE_SECRET_KEY:-asa-local-blocks-secret-change-me}
+      ASA_OBJECT_STORAGE_FORCE_PATH_STYLE: ${ASA_OBJECT_STORAGE_FORCE_PATH_STYLE:-true}
       ASA_TRUSTED_PROXY_CIDRS: ${ASA_TRUSTED_PROXY_CIDRS:-172.16.0.0/12}
       ASA_BLOCKS_PREVIEW: ${ASA_BLOCKS_PREVIEW:-0}
     expose:
@@ -161,3 +218,4 @@ networks:
 
 volumes:
   postgres-data:
+  blocks-object-data:
