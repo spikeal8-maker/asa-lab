@@ -94,6 +94,7 @@ const focused = [
     'run',
     'contexts/projects/testing',
     'apps/api/src/blocks-project-persistence.spec.ts',
+    'apps/api/src/blocks-asset-storage.spec.ts',
     'apps/api/src/projects-save-status.spec.ts',
   ],
   [
@@ -103,7 +104,9 @@ const focused = [
     'apps/api/src/blocks-durable-document.ts',
     'apps/api/src/blocks-persistence.guard.ts',
     'apps/api/src/blocks-project-persistence.ts',
+    'apps/api/src/blocks-asset-storage.ts',
     'apps/api/src/blocks-project-persistence.spec.ts',
+    'apps/api/src/blocks-asset-storage.spec.ts',
     'apps/api/src/projects-save-status.spec.ts',
     'apps/api/src/projects.controller.ts',
     'contexts/projects',
@@ -130,6 +133,7 @@ const focused = [
     '--skipLibCheck',
     'apps/api/src/scratch-parser.d.ts',
     'apps/api/src/blocks-project-persistence.spec.ts',
+    'apps/api/src/blocks-asset-storage.spec.ts',
     'apps/api/src/projects-save-status.spec.ts',
   ],
   ...['main', 'protocol', 'status', 'storage', 'editor'].map((name) => [

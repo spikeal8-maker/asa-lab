@@ -11,6 +11,8 @@ let runtime: pg.Pool;
 let teacherA: SeededTeacher;
 let teacherB: SeededTeacher;
 let classroomA: string;
+const blocksAssetId = 'b'.repeat(32);
+const blocksSha256 = 'a'.repeat(64);
 
 beforeAll(async () => {
   admin = testAdminPool();
@@ -32,6 +34,20 @@ beforeAll(async () => {
     `INSERT INTO audit_events (tenant_id, actor_user_id, entity_type, entity_id, action)
      VALUES ($1, $2, 'classroom', $3, 'classroom.created')`,
     [teacherA.tenantId, teacherA.teacherId, classroomA],
+  );
+  await admin.query(
+    `INSERT INTO blocks_blobs (tenant_id, sha256, data_format, size_bytes, object_key)
+     VALUES ($1, $2, 'png', 3, $3)`,
+    [
+      teacherA.tenantId,
+      blocksSha256,
+      `tenants/${teacherA.tenantId}/blocks/assets/aa/${blocksSha256}.png`,
+    ],
+  );
+  await admin.query(
+    `INSERT INTO blocks_asset_aliases (tenant_id, asset_id, data_format, sha256)
+     VALUES ($1, $2, 'png', $3)`,
+    [teacherA.tenantId, blocksAssetId, blocksSha256],
   );
 });
 
@@ -109,6 +125,10 @@ describe('runtime role hardening', () => {
       'assignment_folders:SELECT',
       'audit_events:INSERT',
       'audit_events:SELECT',
+      'blocks_asset_aliases:INSERT',
+      'blocks_asset_aliases:SELECT',
+      'blocks_blobs:INSERT',
+      'blocks_blobs:SELECT',
       'checkers_class_games:INSERT',
       'checkers_class_games:SELECT',
       'checkers_class_games:UPDATE',
@@ -276,6 +296,8 @@ describe('runtime role hardening', () => {
 describe('row level security', () => {
   it('without a tenant context the runtime role sees no classroom or chess-live rows', async () => {
     for (const table of [
+      'blocks_asset_aliases',
+      'blocks_blobs',
       'classrooms',
       'checkers_class_games',
       'checkers_reaction_events',
@@ -321,6 +343,32 @@ describe('row level security', () => {
       return (result.rows as Array<{ id: string }>).map((r) => r.id);
     });
     expect(visible).toContain(classroomA);
+  });
+
+  it('Blocks asset metadata is tenant-private and append-only for the runtime role', async () => {
+    const hidden = await withTenantContext(runtime, teacherB.tenantId, async (client) => {
+      const aliases = await client.query(`SELECT count(*)::int AS n FROM blocks_asset_aliases`);
+      const blobs = await client.query(`SELECT count(*)::int AS n FROM blocks_blobs`);
+      return [aliases.rows[0].n, blobs.rows[0].n];
+    });
+    expect(hidden).toEqual([0, 0]);
+    const own = await withTenantContext(runtime, teacherA.tenantId, (client) =>
+      client.query(`SELECT asset_id FROM blocks_asset_aliases WHERE asset_id=$1`, [blocksAssetId]),
+    );
+    expect(own.rows[0].asset_id).toBe(blocksAssetId);
+    await expect(
+      withTenantContext(runtime, teacherB.tenantId, (client) =>
+        client.query(
+          `INSERT INTO blocks_blobs(tenant_id,sha256,data_format,size_bytes,object_key) VALUES($1,$2,'png',3,$3)`,
+          [teacherA.tenantId, 'c'.repeat(64), 'forbidden'],
+        ),
+      ),
+    ).rejects.toMatchObject({ code: '42501' });
+    await expect(
+      withTenantContext(runtime, teacherA.tenantId, (client) =>
+        client.query(`DELETE FROM blocks_asset_aliases WHERE asset_id=$1`, [blocksAssetId]),
+      ),
+    ).rejects.toMatchObject({ code: '42501' });
   });
 
   it('WITH CHECK blocks writing a row for another tenant (SQLSTATE 42501)', async () => {

@@ -17,6 +17,7 @@ Exact M1-005A candidate: PR #286, `576bb086fc2daaa3a1c0d6445b6274e71d7a0388`.
 005B разрабатывается поверх этого кандидата, но не объявляет 005A, PR #278,
 B/E или M1-005 в целом принятыми. До merge/release обязательна общая независимая
 проверка накопленной связки.
+
 ## Scope
 
 - Production `BlocksDurableAssetPort`: private S3-compatible blob store plus
@@ -38,6 +39,7 @@ B/E или M1-005 в целом принятыми. До merge/release обяз�
 Use D0-003: `@aws-sdk/client-s3`, configured private S3-compatible storage and
 MinIO for self-hosted/test when introduced. MinIO joins the existing ASA Compose
 project; no public console, new permanent Compose project or silently invented bucket.
+
 ## Acceptance
 
 - Real blob bytes are persisted before relational metadata and before draft commit.
@@ -55,6 +57,14 @@ project; no public console, new permanent Compose project or silently invented b
 No autosave/recovery/conflict UI (M1-006), Gallery/Learning, arbitrary `.sb3`
 import, public bucket, second backend/project DB, editor redesign or working-server
 deployment. Do not change ports 4610/4613 or domain/FRP in this slice.
+
+## Bounded self-review
+
+Verify migration/RLS and exact runtime-role grants, immutable alias/object-key rules,
+S3 failure ordering, configuration fail-fast behaviour and no credential leakage.
+Exercise Account/StudentSeat ownership, generic PUT-draft guard parity, upload/read
+limits and negative storage cases before the browser journey. Confirm no second
+Compose project/port, no autosave and no working-server changes in this slice.
 
 ## Independent review
 

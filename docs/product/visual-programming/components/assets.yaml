@@ -19,7 +19,7 @@ components:
     task: VSCR-M1-001
 
   - id: blocks.assets.metadata
-    state: blocked
+    state: implemented
     risk: high
     ownership: infrastructure
     purpose: "Tenant-private immutable blob metadata and Scratch asset-alias metadata."
@@ -28,9 +28,17 @@ components:
         section: "Relational model"
       - path: docs/product/visual-programming/VSCR-D0-003-ASSET-STORAGE-CONTRACT.md
         section: "Tenant and RLS policy"
-    task: VSCR-M1-004
-    design_gate: VSCR-M1-004P
+    task: VSCR-M1-005B
     depends_on: [blocks.runtime.capability]
+    sources:
+      - path: migrations/0146_blocks_asset_storage.sql
+        symbols: [blocks_blobs, blocks_asset_aliases]
+      - path: apps/api/src/blocks-asset-storage.ts
+        symbols: [PgBlocksAssetMetadataStore, S3BlocksBlobStore, blocksObjectKey, readBlocksObjectStorageConfig]
+    tests:
+      - apps/api/src/blocks-asset-storage.spec.ts
+      - tests/blocks/asset-storage.pg.spec.ts
+      - tests/portal/rls.spec.ts
 
   - id: blocks.assets.upload
     state: blocked
