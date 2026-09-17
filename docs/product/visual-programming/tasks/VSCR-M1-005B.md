@@ -38,6 +38,21 @@ B/E или M1-005 в целом принятыми. До merge/release обяз�
 Use D0-003: `@aws-sdk/client-s3`, configured private S3-compatible storage and
 MinIO for self-hosted/test when introduced. MinIO joins the existing ASA Compose
 project; no public console, new permanent Compose project or silently invented bucket.
+## Optimisation evidence
+
+This high-risk storage slice also follows D0-008 and the repository-wide hygiene policy.
+
+Before acceptance record P0/P2 evidence for the representative browser save fixture:
+
+- first save asset PUT count, bytes, blob rows and alias rows;
+- repeated unchanged save MUST create 0 new unique asset bytes and 0 new blob/alias rows;
+- repeated unchanged document fingerprint MUST create no redundant draft revision;
+- same bytes reused by multiple Scratch references reuse one tenant blob;
+- upload is streaming/bounded; a 25 MiB audio limit must not imply a permanent 25 MiB application buffer;
+- canonical Scratch bytes remain exact; preview/thumbnail optimisation is separate;
+- save/open latency and object-store request count are reported as measurements, not guesses;
+- L1 cleanup is completed before acceptance; count this slice toward the Scratch heavy-lane L2 threshold of 2 accepted slices.
+
 ## Acceptance
 
 - Real blob bytes are persisted before relational metadata and before draft commit.
@@ -49,6 +64,7 @@ project; no public console, new permanent Compose project or silently invented b
 - Account and StudentSeat paths preserve current Project Core authorization.
 - Runtime bearer/Origin checks fail closed; account cookies are not accepted by iframe routes.
 - Focused/repository/browser gates run on the exact candidate SHA.
+- Optimisation evidence proves no redundant unchanged asset/document writes and records storage/network measurements.
 
 ## Out of scope
 
