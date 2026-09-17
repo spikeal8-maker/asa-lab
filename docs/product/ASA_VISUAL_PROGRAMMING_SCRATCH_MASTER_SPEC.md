@@ -1,6 +1,6 @@
 # ASA Lab Visual Programming — Scratch integration master specification
 
-**Version:** 3.7  
+**Version:** 3.8  
 **Module:** `blocks`  
 **Product:** `Визуальное программирование`
 
@@ -244,6 +244,9 @@ canonical Scratch asset bytes are never destructively recompressed
 preview/thumbnail is a derived object, not a canonical Scratch asset
 automatic draft preview follows confirmed durable state
 manual publication cover is never overwritten by autosave
+autosave retry uses bounded jitter/backoff; reconnect does not replay historical generations
+local recovery is identity/project scoped and never stores runtime secrets
+failed/unconfirmed work cannot become the durable preview
 ```
 
 Performance evidence is compared to `docs/architecture/CAPACITY_AND_SLO.md`.
@@ -290,7 +293,7 @@ M1-002    ASA-owned Scratch host
 M1-003    runtime capability + exact Origin/CORS/CSP/current authority
 M1-004    durable tenant-private assets + S3/MinIO
 M1-005    ASA durable project load/save
-M1-006    autosave/recovery/conflict + automatic durable draft preview
+M1-006    autosave/recovery/conflict + exact-revision durable draft preview + load shaping
 M1-007    safe ASA .sb3 validation/import/export integration
 M1-008    full M1 durability/security acceptance
 
