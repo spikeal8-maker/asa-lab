@@ -4,10 +4,15 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { BlocksAssetFormat } from '@asa-lab/blocks';
-import { BlocksAssetUploadPipeline, captureBlocksAssetUpload } from './blocks-asset-upload.js';
+import {
+  BlocksAssetUploadBudgetError,
+  BlocksAssetUploadPipeline,
+  captureBlocksAssetUpload,
+} from './blocks-asset-upload.js';
 import {
   BlocksAssetIdentityConflictError,
   BlocksAssetStorageIntegrityError,
+  BlocksAssetWriteMayHavePersistedError,
   type BlocksBlobStorePort,
 } from './blocks-asset-storage.js';
 import type { BlocksAssetMetadataCommitPort } from './blocks-asset-upload.js';
@@ -152,7 +157,7 @@ function fakes(root: string, bytes: Uint8Array) {
     putImmutable: vi.fn(async (input) => {
       order.push('blob');
       expect(readFileSync(input.sourcePath)).toEqual(Buffer.from(bytes));
-      return { objectKey: `server/${input.sha256}.${input.dataFormat}` };
+      return { objectKey: `server/${input.sha256}.${input.dataFormat}`, created: true };
     }),
   };
   const metadata: BlocksAssetMetadataCommitPort = {
@@ -290,5 +295,137 @@ describe('Blocks asset-before-metadata upload pipeline', () => {
       }),
     ).rejects.toBeInstanceOf(BlocksAssetStorageIntegrityError);
     expectUploadDirectoryEmpty(root);
+  });
+});
+
+function uniqueBudget() {
+  const commit = vi.fn();
+  const release = vi.fn();
+  const reserve = vi.fn(() => ({ ok: true as const, value: { commit, release } }));
+  return { port: { reserve }, reserve, commit, release };
+}
+
+describe('Blocks unique-byte budget handoff', () => {
+  it('commits a new-byte reservation immediately after durable blob persistence', async () => {
+    const root = tempRoot();
+    const h = fakes(root, PNG);
+    const budget = uniqueBudget();
+    await h.pipeline.upload({
+      tenantId: TENANT_ID,
+      assetId: md5(PNG),
+      dataFormat: 'png',
+      source: chunks(PNG),
+      uniqueByteBudget: budget.port,
+    });
+    expect(budget.reserve).toHaveBeenCalledWith(PNG.byteLength);
+    expect(budget.commit).toHaveBeenCalledOnce();
+    expect(budget.release).not.toHaveBeenCalled();
+  });
+  it('does not charge an exact replay when the immutable blob already exists', async () => {
+    const root = tempRoot();
+    const h = fakes(root, PNG);
+    vi.mocked(h.blobs.exists).mockResolvedValueOnce(true);
+    const budget = uniqueBudget();
+    await h.pipeline.upload({
+      tenantId: TENANT_ID,
+      assetId: md5(PNG),
+      dataFormat: 'png',
+      source: chunks(PNG),
+      uniqueByteBudget: budget.port,
+    });
+    expect(budget.reserve).not.toHaveBeenCalled();
+  });
+
+  it('releases reserved bytes when S3 persistence fails before acceptance', async () => {
+    const root = tempRoot();
+    const h = fakes(root, PNG);
+    const budget = uniqueBudget();
+    vi.mocked(h.blobs.putImmutable).mockRejectedValueOnce(new Error('s3 unavailable'));
+    await expect(
+      h.pipeline.upload({
+        tenantId: TENANT_ID,
+        assetId: md5(PNG),
+        dataFormat: 'png',
+        source: chunks(PNG),
+        uniqueByteBudget: budget.port,
+      }),
+    ).rejects.toThrow('s3 unavailable');
+    expect(budget.commit).not.toHaveBeenCalled();
+    expect(budget.release).toHaveBeenCalledOnce();
+  });
+  it('keeps bytes charged when object persistence becomes uncertain after write attempt', async () => {
+    const root = tempRoot();
+    const h = fakes(root, PNG);
+    const budget = uniqueBudget();
+    vi.mocked(h.blobs.putImmutable).mockRejectedValueOnce(
+      new BlocksAssetWriteMayHavePersistedError(),
+    );
+    await expect(
+      h.pipeline.upload({
+        tenantId: TENANT_ID,
+        assetId: md5(PNG),
+        dataFormat: 'png',
+        source: chunks(PNG),
+        uniqueByteBudget: budget.port,
+      }),
+    ).rejects.toBeInstanceOf(BlocksAssetWriteMayHavePersistedError);
+    expect(budget.commit).toHaveBeenCalledOnce();
+    expect(budget.release).not.toHaveBeenCalled();
+    expect(h.metadata.commit).not.toHaveBeenCalled();
+  });
+
+  it('keeps bytes charged when metadata fails after the object was persisted', async () => {
+    const root = tempRoot();
+    const h = fakes(root, PNG);
+    const budget = uniqueBudget();
+    vi.mocked(h.metadata.commit).mockRejectedValueOnce(new Error('database unavailable'));
+    await expect(
+      h.pipeline.upload({
+        tenantId: TENANT_ID,
+        assetId: md5(PNG),
+        dataFormat: 'png',
+        source: chunks(PNG),
+        uniqueByteBudget: budget.port,
+      }),
+    ).rejects.toThrow('database unavailable');
+    expect(budget.commit).toHaveBeenCalledOnce();
+    expect(budget.release).not.toHaveBeenCalled();
+  });
+
+  it('releases a reservation when a concurrent exact upload wins conditional object creation', async () => {
+    const root = tempRoot();
+    const h = fakes(root, PNG);
+    vi.mocked(h.blobs.putImmutable).mockResolvedValueOnce({
+      objectKey: `server/${sha256(PNG)}.png`,
+      created: false,
+    });
+    const budget = uniqueBudget();
+    await h.pipeline.upload({
+      tenantId: TENANT_ID,
+      assetId: md5(PNG),
+      dataFormat: 'png',
+      source: chunks(PNG),
+      uniqueByteBudget: budget.port,
+    });
+    expect(budget.reserve).toHaveBeenCalledWith(PNG.byteLength);
+    expect(budget.release).toHaveBeenCalledOnce();
+    expect(budget.commit).not.toHaveBeenCalled();
+  });
+
+  it('stops before object storage when the unique-byte budget refuses the upload', async () => {
+    const root = tempRoot();
+    const h = fakes(root, PNG);
+    const reserve = vi.fn(() => ({ ok: false as const, code: 'capability_byte_budget' }));
+    await expect(
+      h.pipeline.upload({
+        tenantId: TENANT_ID,
+        assetId: md5(PNG),
+        dataFormat: 'png',
+        source: chunks(PNG),
+        uniqueByteBudget: { reserve },
+      }),
+    ).rejects.toBeInstanceOf(BlocksAssetUploadBudgetError);
+    expect(h.blobs.putImmutable).not.toHaveBeenCalled();
+    expect(h.metadata.commit).not.toHaveBeenCalled();
   });
 });

@@ -16,6 +16,7 @@ import type {
 import {
   BlocksAssetIdentityConflictError,
   BlocksAssetStorageIntegrityError,
+  BlocksAssetWriteMayHavePersistedError,
   type BlocksBlobStorePort,
 } from './blocks-asset-storage.js';
 
@@ -36,6 +37,20 @@ export type BlocksAssetUploadReason =
 export class BlocksAssetUploadValidationError extends Error {
   constructor(readonly reason: BlocksAssetUploadReason) {
     super(reason);
+  }
+}
+
+export interface BlocksAssetUniqueByteBudgetPort {
+  reserve(
+    sizeBytes: number,
+  ):
+    | { readonly ok: true; readonly value: { commit(): void; release(): void } }
+    | { readonly ok: false; readonly code: string };
+}
+
+export class BlocksAssetUploadBudgetError extends Error {
+  constructor(readonly code: string) {
+    super(code);
   }
 }
 
@@ -216,6 +231,7 @@ export class BlocksAssetUploadPipeline {
     readonly assetId: string;
     readonly dataFormat: BlocksAssetFormat;
     readonly source: AsyncIterable<Uint8Array>;
+    readonly uniqueByteBudget?: BlocksAssetUniqueByteBudgetPort;
   }): Promise<BlocksAssetReferenceV1> {
     if (!ASSET_ID.test(input.assetId) || !FORMATS.has(input.dataFormat)) {
       reject('blocks_asset_identity_mismatch');
@@ -230,29 +246,54 @@ export class BlocksAssetUploadPipeline {
         sha256: captured.sha256,
         sizeBytes: captured.sizeBytes,
       };
-      const stored = await this.blobs.putImmutable({
+      const alreadyDurable = await this.blobs.exists({
         tenantId: input.tenantId,
         sha256: reference.sha256,
         dataFormat: reference.dataFormat,
-        sizeBytes: reference.sizeBytes,
-        sourcePath: captured.path,
       });
-      const committed = await this.metadata.commit({
-        tenantId: input.tenantId,
-        reference,
-        objectKey: stored.objectKey,
-      });
-      if (
-        committed.tenantId !== input.tenantId ||
-        committed.assetId !== reference.assetId ||
-        committed.dataFormat !== reference.dataFormat ||
-        committed.sha256 !== reference.sha256 ||
-        committed.sizeBytes !== reference.sizeBytes ||
-        committed.blobCommitted !== true
-      ) {
-        throw new BlocksAssetStorageIntegrityError();
+      let reservation: { commit(): void; release(): void } | null = null;
+      if (!alreadyDurable && input.uniqueByteBudget) {
+        const reserved = input.uniqueByteBudget.reserve(reference.sizeBytes);
+        if (!reserved.ok) throw new BlocksAssetUploadBudgetError(reserved.code);
+        reservation = reserved.value;
       }
-      return reference;
+      try {
+        const stored = await this.blobs.putImmutable({
+          tenantId: input.tenantId,
+          sha256: reference.sha256,
+          dataFormat: reference.dataFormat,
+          sizeBytes: reference.sizeBytes,
+          sourcePath: captured.path,
+        });
+        if (reservation) {
+          if (stored.created) reservation.commit();
+          else reservation.release();
+          reservation = null;
+        }
+        const committed = await this.metadata.commit({
+          tenantId: input.tenantId,
+          reference,
+          objectKey: stored.objectKey,
+        });
+        if (
+          committed.tenantId !== input.tenantId ||
+          committed.assetId !== reference.assetId ||
+          committed.dataFormat !== reference.dataFormat ||
+          committed.sha256 !== reference.sha256 ||
+          committed.sizeBytes !== reference.sizeBytes ||
+          committed.blobCommitted !== true
+        ) {
+          throw new BlocksAssetStorageIntegrityError();
+        }
+        return reference;
+      } catch (problem) {
+        if (reservation) {
+          if (problem instanceof BlocksAssetWriteMayHavePersistedError) reservation.commit();
+          else reservation.release();
+          reservation = null;
+        }
+        throw problem;
+      }
     } finally {
       if (captured) await unlink(captured.path).catch(() => undefined);
     }

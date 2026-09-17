@@ -34,7 +34,7 @@ export interface BlocksBlobStorePort {
     readonly dataFormat: BlocksAssetFormat;
     readonly sizeBytes: number;
     readonly sourcePath: string;
-  }): Promise<{ readonly objectKey: string }>;
+  }): Promise<{ readonly objectKey: string; readonly created: boolean }>;
   open(input: {
     readonly tenantId: string;
     readonly sha256: string;
@@ -90,6 +90,12 @@ export function blocksObjectKey(input: {
   if (!SHA256.test(input.sha256)) throw new Error('Invalid Blocks SHA-256.');
   if (!FORMATS.has(input.dataFormat)) throw new Error('Invalid Blocks asset format.');
   return `tenants/${input.tenantId}/blocks/assets/${input.sha256.slice(0, 2)}/${input.sha256}.${input.dataFormat}`;
+}
+
+function isPreconditionFailed(problem: unknown): boolean {
+  if (typeof problem !== 'object' || problem === null) return false;
+  const value = problem as { name?: unknown; $metadata?: { httpStatusCode?: unknown } };
+  return value.name === 'PreconditionFailed' || value.$metadata?.httpStatusCode === 412;
 }
 
 function isNotFound(problem: unknown): boolean {
@@ -161,7 +167,7 @@ export class S3BlocksBlobStore implements BlocksBlobStorePort {
     dataFormat: BlocksAssetFormat;
     sizeBytes: number;
     sourcePath: string;
-  }): Promise<{ objectKey: string }> {
+  }): Promise<{ objectKey: string; created: boolean }> {
     const objectKey = blocksObjectKey(input);
     if (!Number.isSafeInteger(input.sizeBytes) || input.sizeBytes < 1) {
       throw new Error('Invalid Blocks object size.');
@@ -172,23 +178,42 @@ export class S3BlocksBlobStore implements BlocksBlobStorePort {
     const existingSize = await this.headSize(input);
     if (existingSize !== null) {
       if (existingSize !== input.sizeBytes) throw new BlocksAssetStorageIntegrityError();
-      return { objectKey };
+      return { objectKey, created: false };
     }
-    await this.client.send(
-      new PutObjectCommand({
-        Bucket: this.config.bucket,
-        Key: objectKey,
-        Body: createReadStream(input.sourcePath),
-        ContentLength: input.sizeBytes,
-      }),
-    );
-    const verified = (await this.client.send(
-      new HeadObjectCommand({ Bucket: this.config.bucket, Key: objectKey }),
-    )) as { ContentLength?: unknown };
-    if (verified.ContentLength !== input.sizeBytes) {
-      throw new Error('Blocks object store did not persist the expected byte count.');
+    try {
+      await this.client.send(
+        new PutObjectCommand({
+          Bucket: this.config.bucket,
+          Key: objectKey,
+          Body: createReadStream(input.sourcePath),
+          ContentLength: input.sizeBytes,
+          IfNoneMatch: '*',
+        }),
+      );
+    } catch (problem) {
+      if (isPreconditionFailed(problem)) {
+        const racedSize = await this.headSize(input);
+        if (racedSize !== input.sizeBytes) throw new BlocksAssetStorageIntegrityError();
+        return { objectKey, created: false };
+      }
+      let reconciledSize: number | null;
+      try {
+        reconciledSize = await this.headSize(input);
+      } catch {
+        throw new BlocksAssetWriteMayHavePersistedError();
+      }
+      if (reconciledSize === null) throw problem;
+      if (reconciledSize !== input.sizeBytes) throw new BlocksAssetWriteMayHavePersistedError();
+      return { objectKey, created: true };
     }
-    return { objectKey };
+    let verifiedSize: number | null;
+    try {
+      verifiedSize = await this.headSize(input);
+    } catch {
+      throw new BlocksAssetWriteMayHavePersistedError();
+    }
+    if (verifiedSize !== input.sizeBytes) throw new BlocksAssetWriteMayHavePersistedError();
+    return { objectKey, created: true };
   }
   async open(input: {
     tenantId: string;
@@ -220,6 +245,11 @@ export class BlocksAssetIdentityConflictError extends Error {
 export class BlocksAssetStorageIntegrityError extends Error {
   constructor() {
     super('blocks_asset_storage_integrity');
+  }
+}
+export class BlocksAssetWriteMayHavePersistedError extends Error {
+  constructor() {
+    super('blocks_asset_write_may_have_persisted');
   }
 }
 interface BlocksAssetRow {

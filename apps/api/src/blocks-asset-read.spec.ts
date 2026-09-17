@@ -69,7 +69,7 @@ function harness(loaded: ReturnType<typeof project> | null = project()) {
   };
   const blobs: BlocksBlobStorePort = {
     exists: vi.fn(async () => true),
-    putImmutable: vi.fn(async () => ({ objectKey: 'unused' })),
+    putImmutable: vi.fn(async () => ({ objectKey: 'unused', created: false })),
     open: vi.fn(async () => Readable.from([Buffer.from([1, 2, 3])])),
   };
   return {

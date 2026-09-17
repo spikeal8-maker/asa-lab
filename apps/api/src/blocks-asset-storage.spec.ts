@@ -6,6 +6,7 @@ import { Readable } from 'node:stream';
 import { GetObjectCommand, HeadObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
 import {
   BlocksAssetStorageIntegrityError,
+  BlocksAssetWriteMayHavePersistedError,
   S3BlocksBlobStore,
   blocksObjectKey,
   readBlocksObjectStorageConfig,
@@ -113,6 +114,7 @@ describe('S3BlocksBlobStore immutable persistence', () => {
     });
     expect(result).toEqual({
       objectKey: `tenants/${tenantId}/blocks/assets/aa/${sha256}.png`,
+      created: true,
     });
     expect(calls.filter((item) => item instanceof HeadObjectCommand)).toHaveLength(2);
     const put = calls.find((item): item is PutObjectCommand => item instanceof PutObjectCommand);
@@ -120,6 +122,7 @@ describe('S3BlocksBlobStore immutable persistence', () => {
       Bucket: 'asa-blocks',
       Key: result.objectKey,
       ContentLength: 3,
+      IfNoneMatch: '*',
     });
   });
 
@@ -141,6 +144,100 @@ describe('S3BlocksBlobStore immutable persistence', () => {
     });
     expect(calls).toHaveLength(1);
     expect(calls[0]).toBeInstanceOf(HeadObjectCommand);
+  });
+
+  it('treats a conditional PUT race as an idempotent replay after size verification', async () => {
+    let heads = 0;
+    const client = {
+      async send(command: HeadObjectCommand | PutObjectCommand | GetObjectCommand) {
+        if (command instanceof HeadObjectCommand) {
+          heads += 1;
+          if (heads === 1)
+            throw Object.assign(new Error('missing'), { $metadata: { httpStatusCode: 404 } });
+          return { ContentLength: 3 };
+        }
+        if (command instanceof PutObjectCommand) {
+          const body = command.input.Body as AsyncIterable<Uint8Array>;
+          for await (const _chunk of body) void _chunk;
+          throw Object.assign(new Error('race'), {
+            name: 'PreconditionFailed',
+            $metadata: { httpStatusCode: 412 },
+          });
+        }
+        throw new Error('unexpected command');
+      },
+    };
+    const store = new S3BlocksBlobStore(config, client);
+    const result = await store.putImmutable({
+      tenantId,
+      sha256,
+      dataFormat: 'png',
+      sizeBytes: 3,
+      sourcePath: tempFile(Uint8Array.of(1, 2, 3)),
+    });
+    expect(result).toEqual({
+      objectKey: `tenants/${tenantId}/blocks/assets/aa/${sha256}.png`,
+      created: false,
+    });
+    expect(heads).toBe(2);
+  });
+
+  it('reconciles a lost PUT response when the exact object is durably present', async () => {
+    let heads = 0;
+    const store = new S3BlocksBlobStore(config, {
+      async send(command: HeadObjectCommand | PutObjectCommand | GetObjectCommand) {
+        if (command instanceof HeadObjectCommand) {
+          heads += 1;
+          if (heads === 1)
+            throw Object.assign(new Error('missing'), { $metadata: { httpStatusCode: 404 } });
+          return { ContentLength: 3 };
+        }
+        if (command instanceof PutObjectCommand) {
+          const body = command.input.Body as AsyncIterable<Uint8Array>;
+          for await (const _chunk of body) void _chunk;
+          throw new Error('response lost after put');
+        }
+        throw new Error('unexpected command');
+      },
+    });
+    await expect(
+      store.putImmutable({
+        tenantId,
+        sha256,
+        dataFormat: 'png',
+        sizeBytes: 3,
+        sourcePath: tempFile(Uint8Array.of(1, 2, 3)),
+      }),
+    ).resolves.toMatchObject({ created: true });
+  });
+
+  it('marks post-write verification failure as possibly persisted', async () => {
+    let heads = 0;
+    const store = new S3BlocksBlobStore(config, {
+      async send(command: HeadObjectCommand | PutObjectCommand | GetObjectCommand) {
+        if (command instanceof HeadObjectCommand) {
+          heads += 1;
+          if (heads === 1)
+            throw Object.assign(new Error('missing'), { $metadata: { httpStatusCode: 404 } });
+          throw new Error('verification unavailable');
+        }
+        if (command instanceof PutObjectCommand) {
+          const body = command.input.Body as AsyncIterable<Uint8Array>;
+          for await (const _chunk of body) void _chunk;
+          return {};
+        }
+        throw new Error('unexpected command');
+      },
+    });
+    await expect(
+      store.putImmutable({
+        tenantId,
+        sha256,
+        dataFormat: 'png',
+        sizeBytes: 3,
+        sourcePath: tempFile(Uint8Array.of(1, 2, 3)),
+      }),
+    ).rejects.toBeInstanceOf(BlocksAssetWriteMayHavePersistedError);
   });
 
   it('rejects an existing object whose byte count contradicts the canonical reference', async () => {
