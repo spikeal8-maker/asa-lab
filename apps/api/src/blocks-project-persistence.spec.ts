@@ -1,4 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { HttpException } from '@nestjs/common';
+import type { FastifyRequest } from 'fastify';
+import { ProjectsController } from './projects.controller.js';
+import { SESSION_COOKIE } from './tokens.js';
+import { STUDENT_SESSION_COOKIE } from './seat-context.js';
 import { createHash, randomUUID } from 'node:crypto';
 import { mkdtempSync, readFileSync, writeFileSync, rmSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -773,4 +778,73 @@ describe('save/open cancellation and shared writer regressions', () => {
     });
     expect(h.saveDraft).not.toHaveBeenCalled();
   });
+});
+
+// Real controller method + common writer + Blocks guard; session/storage adapters are TEST only.
+describe('Scratch storage failure through the existing project controller', () => {
+  it.each(['account', 'seat'] as const)(
+    'preserves the draft on a dependency failure and permits an identical retry for %s',
+    async (sessionKind) => {
+      const h = harness();
+      const saved = await h.service.save(h.input(), h.source);
+      if (!saved.ok) throw new Error('initial test save failed');
+      const previous = readFileSync(h.statePath, 'utf8');
+      const guard = new BlocksDraftPersistenceGuard(h.assets);
+      const writer = new SaveDraftUseCase(h.projects, h.modules, guard);
+      const reader = new OpenProjectUseCase(h.projects);
+      const opened = vi.spyOn(reader, 'execute');
+      const controller = Object.create(ProjectsController.prototype) as ProjectsController;
+      const context = { tenantId, ...actor };
+      const account = vi.fn(async () => (sessionKind === 'account' ? context : null));
+      const seat = vi.fn(async () => (sessionKind === 'seat' ? context : null));
+      Object.assign(controller, {
+        activeContext: { resolve: account },
+        seatContext: { resolve: seat },
+        saveUseCase: writer,
+        openUseCase: reader,
+        moduleRegistry: { get: () => BLOCKS_MODULE },
+      });
+      const request = {
+        cookies: {
+          [SESSION_COOKIE]: 'synthetic-account-session',
+          [STUDENT_SESSION_COOKIE]: 'synthetic-seat-session',
+        },
+      } as unknown as FastifyRequest;
+      const body = {
+        document: structuredClone(saved.value.document),
+        baseRevision: saved.value.revision,
+        mutationId: randomUUID(),
+      };
+      const capturedBody = structuredClone(body);
+      h.saveDraft.mockClear();
+      vi.mocked(h.assets.resolve).mockRejectedValueOnce(new Error('private-storage-detail'));
+      const failed = controller.saveDraft(request, projectId, body);
+      await expect(failed).rejects.toBeInstanceOf(HttpException);
+      await expect(failed).rejects.toMatchObject({
+        status: 503,
+        response: { error: { code: 'dependency_unavailable' } },
+      });
+      await failed.catch((problem: HttpException) => {
+        expect(JSON.stringify(problem.getResponse())).not.toContain('private-storage-detail');
+      });
+      expect(h.saveDraft).not.toHaveBeenCalled();
+      expect(opened).not.toHaveBeenCalled();
+      expect(readFileSync(h.statePath, 'utf8')).toBe(previous);
+      expect(body).toEqual(capturedBody);
+      const retry = await controller.saveDraft(request, projectId, body);
+      expect(retry.draft).toMatchObject({ revision: 3, document: body.document });
+      expect(h.saveDraft).toHaveBeenCalledTimes(1);
+      expect(h.saveDraft).toHaveBeenCalledWith(
+        expect.objectContaining({
+          baseRevision: capturedBody.baseRevision,
+          mutationId: capturedBody.mutationId,
+          actor,
+        }),
+      );
+      expect(opened).toHaveBeenCalledTimes(1);
+      expect(account).toHaveBeenCalledWith('synthetic-account-session');
+      if (sessionKind === 'seat') expect(seat).toHaveBeenCalledWith('synthetic-seat-session');
+      else expect(seat).not.toHaveBeenCalled();
+    },
+  );
 });

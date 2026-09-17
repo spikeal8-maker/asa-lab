@@ -62,6 +62,8 @@ const focused = [
   ],
   ['pnpm', 'nx', 'build', 'blocks'],
   ['pnpm', 'nx', 'build', 'projects'],
+  // Existing ProjectsController imports SeatContext; use its real identity dependency.
+  ['pnpm', 'nx', 'build', 'identity'],
   ['pnpm', 'nx', 'run', 'blocks:typecheck'],
   ['pnpm', 'exec', 'tsc', '-p', 'apps/web/src/blocks/tsconfig.json'],
   ['pnpm', 'exec', 'eslint', 'contexts/blocks', 'apps/web/src/blocks'],
@@ -92,6 +94,7 @@ const focused = [
     'run',
     'contexts/projects/testing',
     'apps/api/src/blocks-project-persistence.spec.ts',
+    'apps/api/src/projects-save-status.spec.ts',
   ],
   [
     'pnpm',
@@ -101,6 +104,8 @@ const focused = [
     'apps/api/src/blocks-persistence.guard.ts',
     'apps/api/src/blocks-project-persistence.ts',
     'apps/api/src/blocks-project-persistence.spec.ts',
+    'apps/api/src/projects-save-status.spec.ts',
+    'apps/api/src/projects.controller.ts',
     'contexts/projects',
   ],
   [
@@ -120,9 +125,12 @@ const focused = [
     '--noUnusedParameters',
     '--noImplicitReturns',
     '--esModuleInterop',
+    '--experimentalDecorators',
+    '--emitDecoratorMetadata',
     '--skipLibCheck',
     'apps/api/src/scratch-parser.d.ts',
     'apps/api/src/blocks-project-persistence.spec.ts',
+    'apps/api/src/projects-save-status.spec.ts',
   ],
   ...['main', 'protocol', 'status', 'storage', 'editor'].map((name) => [
     'node',

@@ -31,9 +31,12 @@ components:
           - inspectBlocksDocument
           - inspectScratchProject
           - snapshotJson
+      - path: apps/api/src/projects.controller.ts
+        symbols: [STATUS_BY_CODE, ProjectsController]
     tests:
       - apps/api/src/blocks-project-persistence.spec.ts
       - contexts/projects/testing/projects.spec.ts
+      - apps/api/src/projects-save-status.spec.ts
   - id: blocks.project.load-save
     state: implemented
     risk: high
