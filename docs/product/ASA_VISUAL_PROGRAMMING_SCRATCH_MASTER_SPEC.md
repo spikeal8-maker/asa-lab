@@ -1,6 +1,6 @@
 # ASA Lab Visual Programming — Scratch integration master specification
 
-**Version:** 3.6  
+**Version:** 3.7  
 **Module:** `blocks`  
 **Product:** `Визуальное программирование`
 
@@ -203,9 +203,67 @@ sha256 → ASA integrity
 
 No silent last-write-wins. GC выключен до отдельного доказанного дизайна исторических ссылок.
 
+### 7.1. Autosave, preview and optimisation
+
+Normative details live in
+[`VSCR-D0-008-AUTOSAVE-PREVIEW-OPTIMIZATION-CONTRACT.md`](visual-programming/VSCR-D0-008-AUTOSAVE-PREVIEW-OPTIMIZATION-CONTRACT.md).
+
+Scratch follows the repository-wide
+[`REPOSITORY_HYGIENE_AND_OPTIMIZATION_POLICY.md`](../delivery/REPOSITORY_HYGIENE_AND_OPTIMIZATION_POLICY.md)
+instead of inventing a second optimisation process.
+
+Mandatory cadence:
+
+```text
+every bounded change → L0 Change Hygiene
+every accepted Scratch slice → L1 Slice Cleanup
+every 2 accepted Scratch slices → L2 Iteration Hygiene Gate
+milestone/release/owner acceptance → L3 Release Audit
+```
+
+For save/autosave/preview work every bounded slice additionally records four evidence passes:
+
+```text
+P0 baseline     → requests/bytes/latency/storage growth before change
+P1 correctness  → durability/retry/conflict/negative paths
+P2 optimisation → batching/dedup/cache/streaming/no-op behaviour
+P3 regression   → focused tests + hygiene + before/after evidence
+```
+
+P0–P3 are evidence passes inside L0/L1; they do not replace the repository hygiene counter.
+
+Stable rules:
+
+```text
+no full project snapshot on every editor action
+one remote draft save in flight per editor
+new edits coalesce to the newest pending generation
+unchanged project fingerprint does not create a redundant save
+unchanged assets are not uploaded again
+canonical Scratch asset bytes are never destructively recompressed
+preview/thumbnail is a derived object, not a canonical Scratch asset
+automatic draft preview follows confirmed durable state
+manual publication cover is never overwritten by autosave
+```
+
+Performance evidence is compared to `docs/architecture/CAPACITY_AND_SLO.md`.
+A performance claim without measured before/after evidence is not acceptance.
+
 ## 8. Gallery and Learning
 
 Gallery/player/submission используют immutable ASA project versions. Cross-tenant remix re-materialises assets into destination ownership. Не создаётся Scratch-specific LMS.
+
+Product cards distinguish two image concepts:
+
+```text
+draft preview → automatic, derived from the latest confirmed durable draft/checkpoint
+publication cover → owner-selected publication metadata; autosave never replaces it
+```
+
+Future M2 card metadata includes title, description/instructions, notes/credits,
+publication cover, published version, privacy-safe author label and aggregate
+likes/views/remix counts. Engagement counters are projections/metadata; they never
+mutate the immutable executable project version or become an authorisation source.
 
 ## 9. Code placement
 
@@ -232,11 +290,11 @@ M1-002    ASA-owned Scratch host
 M1-003    runtime capability + exact Origin/CORS/CSP/current authority
 M1-004    durable tenant-private assets + S3/MinIO
 M1-005    ASA durable project load/save
-M1-006    autosave/recovery/conflict/snapshot
+M1-006    autosave/recovery/conflict + automatic durable draft preview
 M1-007    safe ASA .sb3 validation/import/export integration
 M1-008    full M1 durability/security acceptance
 
-M2        product UI + Gallery/player/remix + Learning
+M2        project cards + manual publication cover + Gallery/player/remix + Learning
 M3        deployment/backup/restore + local/offline alternatives where needed
 M4-001    managed-persistence production acceptance (local-file access is separate)
 ```
