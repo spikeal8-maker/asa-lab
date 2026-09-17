@@ -72,12 +72,14 @@ Cumulative runner: `tools/blocks/gate.mjs`. Extend existing Scratch gate instead
 
 ## References when needed
 
-| Question                  | Source                                                          |
-| ------------------------- | --------------------------------------------------------------- |
-| Next capability/readiness | `VSCR-M1-FORWARD-PLAN-2026-09-11.md`                            |
-| Ownership/review guidance | `AGENT_GUIDE.md`                                                |
-| Unknown component         | `COMPONENT_MAP.yaml`                                            |
-| Product goal/invariants   | `../ASA_VISUAL_PROGRAMMING_SCRATCH_MASTER_SPEC.md`              |
-| Architecture decision     | `../../architecture/ADR-VSCR-001-SCRATCH-EDITOR-INTEGRATION.md` |
+| Question                       | Source                                                          |
+| ------------------------------ | --------------------------------------------------------------- |
+| Next capability/readiness      | `VSCR-M1-FORWARD-PLAN-2026-09-11.md`                            |
+| Ownership/review guidance      | `AGENT_GUIDE.md`                                                |
+| Unknown component              | `COMPONENT_MAP.yaml`                                            |
+| Product goal/invariants        | `../ASA_VISUAL_PROGRAMMING_SCRATCH_MASTER_SPEC.md`              |
+| Autosave/preview/optimisation  | `VSCR-D0-008-AUTOSAVE-PREVIEW-OPTIMIZATION-CONTRACT.md`         |
+| Repository optimisation policy | `../../delivery/REPOSITORY_HYGIENE_AND_OPTIMIZATION_POLICY.md`  |
+| Architecture decision          | `../../architecture/ADR-VSCR-001-SCRATCH-EDITOR-INTEGRATION.md` |
 
 Preserve exact upstream pin and accepted parent/iframe boundary. Scratch GUI/VM stays outside `apps/web` dependencies. New upstream patches require explicit reviewed need. Deployment/activation require separate owner instruction.

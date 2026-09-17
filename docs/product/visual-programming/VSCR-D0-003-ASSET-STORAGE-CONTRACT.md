@@ -575,6 +575,35 @@ exists.
 
 ---
 
+## 19.1. Storage optimisation without changing Scratch bytes
+
+Canonical Scratch project assets are compatibility objects. The system MUST NOT
+silently recompress, resize, transcode or otherwise rewrite those bytes in the name
+of optimisation because that changes `assetId`/MD5 identity and can break Scratch compatibility.
+
+Storage optimisation happens around immutable bytes:
+
+```text
+tenant-local content-addressed dedup
+reuse exact blob/alias when bytes are unchanged
+stream upload/download instead of whole-file buffering
+avoid repeated object-store HEAD on autosave when authoritative DB metadata proves durability
+private immutable browser caching only with tested tenant/project authorisation semantics
+collect orphan/new-unique-byte growth evidence
+```
+
+Derived UI media such as project-card preview/thumbnail is a separate object and MUST
+NOT be stored as a canonical Scratch asset. Preview files follow repository image hygiene:
+generate dimensions appropriate to actual card display, normally no more than 1.5–2×
+the rendered size, and do not retain a large source solely for a small card.
+
+For every storage slice, D0-008 evidence records at least input bytes, network bytes,
+new blob/alias rows, dedup hits, duplicate bytes avoided, temporary-file usage and
+object-store request count.
+
+A repeated save of an unchanged project MUST demonstrate zero new unique asset bytes
+and zero new blob/alias rows.
+
 ## 20. No GC in core programme
 
 No task through activation may delete a blob/alias merely because the current draft no
@@ -622,6 +651,9 @@ Implementation must prove:
 20. exact bytes reload through authorised asset GET
 21. MinIO/test backend joins the existing Compose project when selected
 22. object-store outage degrades Blocks without taking down unrelated modules
+23. unchanged repeated save creates zero new unique asset bytes and metadata rows
+24. canonical Scratch asset bytes are never destructively optimised
+25. storage optimisation evidence records request/byte/dedup deltas for the candidate
 ```
 
 The storage task MUST NOT activate `blocks` and MUST NOT implement GC.
