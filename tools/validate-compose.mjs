@@ -286,7 +286,7 @@ if (
   errors.push('Scratch runtime must not share API/database networks');
 if (baseServices.web?.depends_on?.scratch?.condition !== 'service_healthy')
   errors.push('Web startup must wait for healthy Scratch');
-const expectedServices = ['api', 'migration', 'postgres', 'scratch', 'web'];
+const expectedServices = ['api', 'migration', 'minio', 'minio-init', 'postgres', 'scratch', 'web'];
 if (JSON.stringify(serviceNames) !== JSON.stringify(expectedServices)) {
   errors.push(
     `base services must be exactly ${expectedServices.join(', ')}, got ${serviceNames.join(', ')}`,

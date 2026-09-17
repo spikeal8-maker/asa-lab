@@ -61,8 +61,14 @@ test('private Blocks object storage stays inside the canonical Compose project',
   const api = config.services.api;
   const web = config.services.web;
   const scratch = config.services.scratch;
-  assert.equal(minio.image, 'minio/minio:RELEASE.2024-09-13T20-26-02Z');
-  assert.equal(init.image, 'minio/mc:RELEASE.2024-09-16T17-43-14Z');
+  assert.equal(minio.image, 'asa-lab-minio:${ASA_IMAGE_TAG:-local}');
+  assert.equal(minio.build.context, '.');
+  assert.equal(minio.build.dockerfile, 'infra/minio/Dockerfile');
+  assert.equal(init.image, 'quay.io/minio/mc:RELEASE.2024-09-16T17-43-14Z');
+  assert.equal(minio.user, '1000:1000');
+  assert.equal(init.user, '1000:1000');
+  assert.equal(minio.read_only, true);
+  assert.equal(init.read_only, true);
   assert.equal(minio.ports, undefined);
   assert.equal(init.ports, undefined);
   assert.deepEqual(minio.networks, ['application']);
@@ -72,6 +78,10 @@ test('private Blocks object storage stays inside the canonical Compose project',
   assert.equal(api.depends_on['minio-init'].condition, 'service_completed_successfully');
   assert.match(String(init.entrypoint.join(' ')), /anonymous set none/);
   assert.doesNotMatch(String(minio.command), /console-address/);
+  const recipe = read('infra/minio/Dockerfile');
+  assert.match(recipe, /FROM quay\.io\/minio\/minio:RELEASE\.2024-09-13T20-26-02Z/);
+  assert.match(recipe, /USER 1000:1000/);
+  assert.doesNotMatch(recipe, /:latest/);
   for (const name of ['ASA_OBJECT_STORAGE_ACCESS_KEY', 'ASA_OBJECT_STORAGE_SECRET_KEY']) {
     assert.match(String(api.environment[name]), new RegExp(name));
     assert.equal(web.environment?.[name], undefined);
