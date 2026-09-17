@@ -22,7 +22,13 @@
 
 Зарезервированная additive migration: `migrations/0146_student_seat_protected_codes.sql`. API paths: `apps/api/src/classrooms.controller.ts`, `apps/api/src/classroom-join.controller.ts`; Web: `StudentAccessCards`, `StudentCodeDialog`, `JoinClassPage`. OpenAPI меняется в `schemas/openapi.yaml` до/в том же срезе. Storage: AES-256-GCM + separate HMAC-SHA-256 lookup key, key IDs/keyring outside DB, active+retired digest uniqueness. Permissions: issue/read_current/rotate/sessions.revoke по Access §6.
 
-Rollout: keyring preflight -> additive `0146` schema only -> idempotent `tools/student-seat-protected-code-backfill.mjs` application-layer envelope/HMAC backfill -> verify zero unmigrated active rows and key-ID coverage -> teacher-visible `legacy_predictable` preview -> explicit class/selected rotation -> clear each rotated legacy plaintext compatibility value. Encryption/lookup keys MUST NOT enter SQL migration arguments, DB rows, logs or Git. Schema apply alone does not disable children. Before plaintext cleanup, old-app rollback remains possible; after cleanup, downgrade is unsupported without a separately tested recovery procedure. Backup restore requiring login/readback receives a separate test copy of the same keyring. Planned DB test: `tests/account/student-seat-access-hardening.pg.spec.ts`; browser: `e2e/student-seat-access-hardening.spec.ts`.
+Rollout: production keyring + independent `CLASSROOM_CODE_SECRET` preflight → stop old credential writer/maintenance fence → schema-only `0146` → new API `ASA_STUDENT_CODE_PROTECTION_MODE=compat` dual-writes protected+legacy → release fence → resumable application backfill via `tools/student-seat-protected-code-backfill.mjs` while compat API is sole writer → verify `unprotected_active=0` → rotate all `legacy_predictable` and reprint cards → require `legacy_predictable_active=0` → switch `enforced` → remove legacy fallback/plaintext. Old API MUST NOT run concurrently with backfill. Planned DB test: `tests/account/student-seat-access-hardening.pg.spec.ts`; browser: `e2e/student-seat-access-hardening.spec.ts`.
+
+### E1-FIX-12 — production secret/recovery integration
+
+Runtime/deployment paths: `apps/api/src/classroom-code-secret.ts`, `apps/api/src/health.controller.ts`, `compose.yaml`, `tools/docker-update.ps1`, `tools/docker-update.sh`, `tools/production.mjs`. Production keyring preflight is mandatory. Production has no DATABASE_URL-derived Class Code fallback. `CLASSROOM_CODE_SECRET` is a separate stable >=32-byte secret; Student Code keyring remains separate. Updater preflight checks both before migration/deploy. Emergency Class Code secret rotation is a maintenance operation that reissues every active class code/version and invalidates old QR; DB password rotation alone MUST NOT change Class Codes.
+
+This shared/infrastructure touch is part of E1-FIX-12 and requires fresh-main race check. Planned recovery test ID: `TST-RECOVERY-LEARNING-E1-CREDENTIAL-SECRETS-001`. Missing global secrets block deployment; a row-specific unknown historical key returns credential-specific 503/degraded diagnostics rather than taking unrelated platform APIs down.
 
 ### E1-FIX-04…08/11 — Course Builder correctness
 
@@ -34,7 +40,7 @@ Course Builder FUNCTIONAL_ACCEPTANCE определяется Integrated §4.2.1
 
 ## Порядок ограниченных срезов
 
-1. E1-FIX-01…03: массовый StudentSeat-вход с одного IP, непредсказуемые короткие коды и защищённый repeated readback, правильный class-only QR/публичный host.
+1. E1-FIX-01…03 и E1-FIX-12: массовый StudentSeat-вход с одного IP, непредсказуемые короткие коды и защищённый repeated readback, правильный class-only QR/публичный host.
 2. E1-FIX-04…05: защита всей навигации и inflight editor input, idempotent publish после lost response.
 3. E1-FIX-06…08 и E1-FIX-11: concrete structural/policy diff, точные prepublish errors и корректный legacy-picker, atomic archive/assign.
 4. E1-FIX-09: согласованность active docs и реально запускаемых regression cases; выполняется вместе с соответствующим срезом, без второго отчётного состояния.

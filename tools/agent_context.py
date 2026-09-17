@@ -877,6 +877,21 @@ def _render_split_revisions(lines: list[str], revisions: dict[str, Any]) -> bool
     return True
 
 
+def _render_observed_snapshot(lines: list[str], revisions: dict[str, Any]) -> bool:
+    if revisions.get("kind") != "observed_snapshot":
+        return False
+    lines.append("revisionState: observed_snapshot; no static field claims the live current HEAD")
+    lines.append(f"observedAt: {revisions.get('observed_at')} (recorded snapshot, not live remote HEAD)")
+    lines.append(f"historicalMergeBase: {revisions.get('convergence_baseline_sha')}")
+    ref = revisions.get("main") or {}
+    lines.append(f"observedMain: {ref.get('branch')} @ {ref.get('sha')}")
+    note = revisions.get("observation_note")
+    if note:
+        lines.append(f"observationNote: {note}")
+    lines.append("refresh: fetch main and read exact-SHA CI before writes; observation grants no authority")
+    return True
+
+
 def render_text(context: dict[str, Any]) -> str:
     task = context["task"]
     lines = [
@@ -920,9 +935,11 @@ def render_text(context: dict[str, Any]) -> str:
         lines.append(
             f"milestoneOwnerAuthorization: {context['milestone'].get('owner_authorization')}"
         )
-    if context["revisions"] and not _render_split_revisions(lines, context["revisions"]):
-        lines.append("revisions:")
-        lines.extend(f"  {key}: {value}" for key, value in context["revisions"].items())
+    if context["revisions"]:
+        revisions = context["revisions"]
+        if not _render_split_revisions(lines, revisions) and not _render_observed_snapshot(lines, revisions):
+            lines.append("revisions:")
+            lines.extend(f"  {key}: {value}" for key, value in revisions.items())
     lines.append("gates:")
     for name, commands in context["gate_commands"].items():
         lines.append(f"  {name}: {' && '.join(commands)}")

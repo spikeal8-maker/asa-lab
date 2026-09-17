@@ -461,3 +461,14 @@ tests:
     timeout_seconds: 2400
     owner: learning-authoring
     artifacts: [playwright-report, screenshots, functional-acceptance-report]
+
+  - id: TST-RECOVERY-LEARNING-E1-CREDENTIAL-SECRETS-001
+    title: StudentSeat and Class Code production secret preflight, recovery and cutover
+    suite: recovery
+    level: system
+    phase_available: E1-CORRECTION
+    required_for: [TASK-LRN-COURSE-001]
+    command: pnpm test:studentseat-secret-deployment
+    timeout_seconds: 1800
+    owner: learning-identity
+    artifacts: [preflight-report, secret-recovery-report, cutover-report]

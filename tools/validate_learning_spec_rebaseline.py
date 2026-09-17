@@ -43,7 +43,7 @@ EDITIONS = {
     "LEARNING-MASTER-V22": ("2.2", LEARNING),
     "IDENTITY-ACCESS-V22": ("2.2", ACCESS),
 }
-FIX_IDS = {f"E1-FIX-{number:02}" for number in range(1, 12)}
+FIX_IDS = {f"E1-FIX-{number:02}" for number in range(1, 13)}
 ID_PATTERNS = (
     (LEARNING, "docs/product/ASA_LEARNING_TECHNICAL_SPEC_V2_1.md",
      r"\b(?:ARCH|IDN|VER|CRS|RUN|AUD|ATT|QUIZ|ASM|GRD|CAT|MED|MLT|SEC|DB|API|NFR|MIG|EXEC|REL|TST|E2E|UX)(?:-[A-Z]+)*-\d{3}\b"),
@@ -52,12 +52,12 @@ ID_PATTERNS = (
 )
 REQUIRED_CLAUSES = {
     "AGENTS.md": ["acceptance_blocker", "execution_blocker", "deployment_blocker"],
-    INTEGRATED: ["E1-FIX-11", "FUNCTIONAL_ACCEPTANCE", "VISUAL_ACCEPTANCE", "INSTALLED_ACCEPTANCE", "Course Builder E1"],
-    ACCESS: ["class.credentials.read_current", "class.credentials.rotate", "class.sessions.revoke", "AES-256-GCM", "HMAC-SHA-256", "Retry-After", "shared rate-limit state", "weak_student_code", "credential_storage_unavailable", "credential_version_conflict", "v1|tenant_id|class_id|seat_id|credential_version", "lookup_key_id"],
+    INTEGRATED: ["E1-FIX-11", "E1-FIX-12", "FUNCTIONAL_ACCEPTANCE", "VISUAL_ACCEPTANCE", "INSTALLED_ACCEPTANCE", "Course Builder E1", "CLASSROOM_CODE_SECRET", "legacy_predictable_active=0"],
+    ACCESS: ["class.credentials.read_current", "class.credentials.rotate", "class.sessions.revoke", "AES-256-GCM", "HMAC-SHA-256", "Retry-After", "shared rate-limit state", "weak_student_code", "credential_storage_unavailable", "credential_version_conflict", "v1|tenant_id|class_id|seat_id|credential_version", "lookup_key_id", "classroom_credential_manager_access", "CLASSROOM_CODE_SECRET", "ASA_STUDENT_CODE_PROTECTION_MODE=compat", "legacy_predictable_active=0"],
     LEARNING: ["## 89.6.", "FUNCTIONAL_ACCEPTANCE", "CRS-003/UX-BLD-002/003"],
     "docs/product/ASA_UI_LAYOUT_ACCEPTANCE_SPEC.md": ["FUNCTIONAL_ACCEPTANCE", "VISUAL_ACCEPTANCE", "visual_state: provisional"],
     CAPABILITY_MAP: ["AES-256-GCM protected readback", "HMAC-SHA-256 lookup", "repeat-printable card"],
-    "docs/execution/LRN_COURSE_01.md": ["student-seat-protected-code-backfill.mjs", "keyring preflight", "0146"],
+    "docs/execution/LRN_COURSE_01.md": ["student-seat-protected-code-backfill.mjs", "keyring preflight", "0146", "E1-FIX-12", "CLASSROOM_CODE_SECRET", "ASA_STUDENT_CODE_PROTECTION_MODE=compat", "legacy_predictable_active=0"],
 }
 
 
@@ -101,6 +101,11 @@ def validate(root: Path, overrides: Mapping[str, str] | None = None) -> list[str
             errors.append(f"wrong public origin in active document: {path}")
         if "\ufffd" in text:
             errors.append(f"replacement character in UTF-8 document: {path}")
+        if re.search(r"\?{3,}", text):
+            errors.append(f"question-mark corruption in active document: {path}")
+        bad_controls = sorted({ord(ch) for ch in text if ord(ch) < 32 and ch not in "\n\r\t"})
+        if bad_controls:
+            errors.append(f"control-character corruption in active document: {path}: {bad_controls}")
 
     for path, clauses in REQUIRED_CLAUSES.items():
         for clause in clauses:
@@ -197,6 +202,15 @@ def validate(root: Path, overrides: Mapping[str, str] | None = None) -> list[str
         ],
         "sql_contains_key_material": False,
         "schema_apply_rotates_student_codes": False,
+        "e1_permission_mapping": "active_class_owner_only",
+        "credential_manager_guard": "classroom_credential_manager_access",
+        "co_teacher_credential_delegation_stage": "E4",
+        "rollout_mode_initial": "compat",
+        "old_api_concurrent_with_backfill": False,
+        "compat_new_writes_protected_and_legacy": True,
+        "installed_acceptance_requires_unprotected_active": 0,
+        "installed_acceptance_requires_legacy_predictable_active": 0,
+        "final_mode": "enforced",
     }
     for key, value in expected_storage.items():
         if storage.get(key) != value:
@@ -204,6 +218,24 @@ def validate(root: Path, overrides: Mapping[str, str] | None = None) -> list[str
     required_permissions = {"class.credentials.issue", "class.credentials.read_current", "class.credentials.rotate", "class.sessions.revoke"}
     if set(storage.get("permissions") or []) != required_permissions:
         errors.append("E1-FIX-02 credential permission matrix drift")
+    fix12 = by_id.get("E1-FIX-12", {}).get("implementation_contract") or {}
+    expected_fix12 = {
+        "production_class_code_secret_required": True,
+        "class_code_secret_min_bytes": 32,
+        "class_code_secret_independent_from_db_password": True,
+        "production_db_url_secret_fallback": "forbidden",
+        "class_code_secret_rotation": "maintenance_reissue_all_active_classes",
+        "student_code_global_keyring_missing": "deployment_blocker",
+        "unknown_row_key_id": "credential_specific_503_and_degraded_diagnostics",
+        "old_writer_during_backfill": "forbidden",
+        "installed_acceptance_legacy_predictable_active": 0,
+    }
+    if fix12 != expected_fix12:
+        errors.append("E1-FIX-12 production secret/recovery contract drift")
+    for rid in FIX_IDS & set(by_id):
+        ref = str(by_id[rid].get("normative_ref") or "")
+        if "?" in ref or "\u00a7" not in ref:
+            errors.append(f"corrupted or incomplete normative ref: {rid}: {ref}")
     builder_required = {
         "SECTION-CREATE-RENAME-REORDER-DUPLICATE-HIDE-DELETE",
         "LESSON-CREATE-RENAME-REORDER-DUPLICATE-HIDE-DELETE",

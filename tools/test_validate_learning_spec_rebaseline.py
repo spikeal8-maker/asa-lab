@@ -34,6 +34,31 @@ class LearningSpecGateTests(unittest.TestCase):
     def test_rejects_wrong_public_host(self):
         self.assertRejected({INTEGRATED: text(INTEGRATED).replace("https://asa-lab.ru", "https://asolab.ru")}, "wrong public origin")
 
+    def test_rejects_question_mark_corruption(self):
+        self.assertRejected({ACCESS: text(ACCESS) + "\n????? damaged contract\n"}, "question-mark corruption")
+
+    def test_rejects_corrupted_normative_ref(self):
+        def corrupt(doc):
+            next(r for r in doc["requirements"] if r["id"] == "E1-FIX-11")["normative_ref"] = "PRODUCT-INTEGRATED-V15 ?4.2.1"
+        self.assertRejected(changed_yaml(LEDGER, corrupt), "corrupted or incomplete normative ref")
+
+    def test_rejects_missing_secret_recovery_fix(self):
+        def corrupt(doc):
+            doc["requirements"] = [r for r in doc["requirements"] if r["id"] != "E1-FIX-12"]
+        self.assertRejected(changed_yaml(LEDGER, corrupt), "missing correction IDs")
+
+    def test_rejects_student_code_rollout_race(self):
+        def corrupt(doc):
+            row = next(r for r in doc["requirements"] if r["id"] == "E1-FIX-02")
+            row["implementation_contract"]["old_api_concurrent_with_backfill"] = True
+        self.assertRejected(changed_yaml(LEDGER, corrupt), "protected storage contract drift")
+
+    def test_rejects_class_code_secret_fallback(self):
+        def corrupt(doc):
+            row = next(r for r in doc["requirements"] if r["id"] == "E1-FIX-12")
+            row["implementation_contract"]["production_db_url_secret_fallback"] = "allowed"
+        self.assertRejected(changed_yaml(LEDGER, corrupt), "production secret/recovery contract drift")
+
     def test_rejects_wrong_registry_revision(self):
         def corrupt(doc):
             next(d for d in doc["documents"] if d["id"] == "PRODUCT-INTEGRATED-V15")["revision"] = "1.4"

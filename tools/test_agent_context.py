@@ -517,6 +517,27 @@ class AgentContextTests(unittest.TestCase):
             rendered = MODULE.render_text(context)
         self.assertIn("LEGACY: execution_blocker (legacy default)", rendered)
 
+    def test_observed_snapshot_is_labelled_historical_and_requires_refresh(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            document = fixture(root)
+            target = lane(document)
+            target["revisions"] = {
+                "kind": "observed_snapshot",
+                "head_sha": None,
+                "convergence_baseline_sha": "a" * 40,
+                "observed_at": "2026-09-17T12:00:00Z",
+                "main": {"branch": "main", "sha": "b" * 40},
+                "observation_note": "Recorded observation; fetch main before writes.",
+            }
+            context = MODULE.build_context(root, document, target, git_status=available())
+            rendered = MODULE.render_text(context)
+        self.assertIn("revisionState: observed_snapshot", rendered)
+        self.assertIn("no static field claims the live current HEAD", rendered)
+        self.assertIn("observedMain: main @ " + "b" * 40, rendered)
+        self.assertIn("fetch main and read exact-SHA CI before writes", rendered)
+        self.assertNotIn("head_sha: " + "b" * 40, rendered)
+
     def test_split_history_is_labelled_snapshot_not_current_learning_head(self):
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw)

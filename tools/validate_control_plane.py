@@ -462,6 +462,37 @@ def check_split_revisions(current: dict[str, Any], task: dict[str, Any],
             errors.append(f"{prefix}: bounded_review base must equal pinned recovery")
 
 
+def check_observed_snapshot(current: dict[str, Any], task: dict[str, Any],
+                            revisions: dict[str, Any], errors: list[str], label: str) -> None:
+    """A dated main observation is historical metadata, never a live HEAD claim."""
+    prefix = f"{label}.revisions"
+    if str(current.get("schema_version")) != "1.2.0" or development_mode(current) != DIRECT_MAIN_MODE:
+        errors.append(f"{prefix}: observed_snapshot requires schema 1.2.0 direct_main")
+    if task.get("branch") != "main" or revisions.get("head_sha") is not None:
+        errors.append(f"{prefix}: observed_snapshot requires task.branch main and head_sha null")
+    expected = {"kind", "convergence_baseline_sha", "head_sha", "observed_at", "main", "observation_note"}
+    if set(revisions) != expected:
+        errors.append(f"{prefix}: observed_snapshot must contain exactly {sorted(expected)}")
+    timestamp = revisions.get("observed_at")
+    try:
+        if not isinstance(timestamp, str) or not ISO_TIMESTAMP.fullmatch(timestamp):
+            raise ValueError()
+        datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+    except ValueError:
+        errors.append(f"{prefix}.observed_at must be an ISO timestamp with timezone")
+    ref = revisions.get("main")
+    if not isinstance(ref, dict) or set(ref) != {"branch", "sha"}:
+        errors.append(f"{prefix}.main must contain exactly ['branch', 'sha']")
+    else:
+        if ref.get("branch") != "main":
+            errors.append(f"{prefix}.main.branch must be main")
+        if not isinstance(ref.get("sha"), str) or not FULL_SHA.fullmatch(ref["sha"]):
+            errors.append(f"{prefix}.main.sha must be a full SHA")
+    note = revisions.get("observation_note")
+    if not isinstance(note, str) or "fetch main" not in note.lower():
+        errors.append(f"{prefix}.observation_note must require a fresh fetch main")
+
+
 def collect_lanes(
     current: dict[str, Any], primary_task: dict[str, Any], errors: list[str]
 ) -> list[dict[str, Any]]:
@@ -553,12 +584,16 @@ def collect_lanes(
         if not isinstance(revisions, dict):
             errors.append(f"current.yaml {label}.revisions must be a mapping")
             revisions = {}
-        split_history = revisions.get("kind") == "split_history"
-        if "kind" in revisions and not split_history:
-            errors.append(f"current.yaml {label}.revisions.kind must be split_history when declared")
+        revision_kind = revisions.get("kind")
+        split_history = revision_kind == "split_history"
+        observed_snapshot = revision_kind == "observed_snapshot"
+        if revision_kind is not None and not (split_history or observed_snapshot):
+            errors.append(f"current.yaml {label}.revisions.kind must be split_history or observed_snapshot when declared")
         if split_history:
             check_split_revisions(current, task, revisions, errors, label)
-        required_sha_fields = (("convergence_baseline_sha",) if split_history else
+        elif observed_snapshot:
+            check_observed_snapshot(current, task, revisions, errors, label)
+        required_sha_fields = (("convergence_baseline_sha",) if (split_history or observed_snapshot) else
                                (("convergence_baseline_sha", "head_sha") if not is_primary else ()))
         for sha_field in ("convergence_baseline_sha", "head_sha"):
             value = revisions.get(sha_field)

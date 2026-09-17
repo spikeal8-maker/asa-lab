@@ -78,32 +78,37 @@ Final command results доступны в exact-SHA CI/итоговом отчё
 
 Самопроверка: DOCS PASS; PRODUCT CORRECTIONS OPEN; DEPLOYMENT NOT_PERFORMED; AUTHENTICATED LIVE JOURNEY NOT_RUN; INDEPENDENT REVIEW NOT_RUN. Общий продуктовый suite этим локальным doc-check не объявляется повторно пройденным. CI после публикации имеет собственный exact SHA и conclusion.
 
-## 7. Second critical review ? specification clarification
+## 7. Второй критический review — уточнение спецификации
 
-????? ????????? ???????? V1.5 ???????? ? ??????? ??????? ?????? ??????????????? ??, ?? ??????? runtime:
+Повторный аудит V1.5 выявил и устранил неоднозначности самого ТЗ без утверждения, что runtime уже исправлен:
 
-1. Student Code permissions ????????? ?? issue/read_current/rotate/session revoke; roster/read ?? ????????????? readback, ??? co-teacher ????? ????? class grant.
-2. `blocking` ???????? ?? execution/acceptance/deployment semantics. Learning corrections ? `acceptance_blocker`: ?? ????????? owner acceptance/release/deployment authorization, ?? ????????? bounded repair/regression/docs/focused verification.
-3. E1 rate-limit profile ???????????? ????????: failure-only 60 resolve/source, 5 candidate/class, 180 source+class, 300 source per 10m; valid requests failure budgets ?? ?????????. Supported E1 production profile ? ???? API instance.
-4. Student Code storage target ??????: AES-256-GCM + separate HMAC-SHA-256 lookup, external keyring, retired-code tombstones, staged legacy envelope/rotation, stale rotation replay ?? ?????????? ?????? plaintext ??? current.
-5. Course Builder ??????? ???????????? E1 action matrix: section/lesson/block create/edit/reorder/duplicate/hide/delete, Usage/Versions, ??? informational MVP blocks ? exact Electronics/3D activity. Quiz/Programming ???????? E2.
-6. FUNCTIONAL_ACCEPTANCE, VISUAL_ACCEPTANCE ? INSTALLED_ACCEPTANCE ?????????. ????????? ?????????? ????? ???? ????? ???????, ?? overlap/overflow/blocked CTA/data-loss ??? ????????? ?????????????? ???????.
+1. Student Code permissions разделены на issue/read_current/rotate/session revoke. Для E1 credential-manager физически привязан только к активному owner exact класса; co-teacher credential delegation отложен в E4 scoped-grant model.
+2. `blocking` разделён на execution/acceptance/deployment semantics. Learning corrections — `acceptance_blocker`: он запрещает owner acceptance/release/deployment authorization, но разрешает bounded repair/regression/docs/focused verification.
+3. E1 rate-limit profile зафиксирован численно: failure-only 60 invalid resolve/source, 5 invalid candidate/class, 180 invalid source+class и 300 invalid source за 10 минут; корректные запросы failure budgets не расходуют. Supported E1 production profile — один API instance до shared limiter state.
+4. Student Code storage target выбран: AES-256-GCM + отдельный HMAC-SHA-256 lookup, внешний keyring, retired-code tombstones, controlled compat/backfill/rotation и stale-replay rules.
+5. Course Builder получил обязательную E1 action matrix: section/lesson/block create/edit/reorder/duplicate/hide/delete, Usage/Versions, informational MVP blocks и exact Electronics/3D activity. Quiz/Programming остаются E2.
+6. FUNCTIONAL_ACCEPTANCE, VISUAL_ACCEPTANCE и INSTALLED_ACCEPTANCE разделены. Финальная композиция может идти позже функций, но overlap/overflow/blocked CTA/data-loss не относятся к косметике.
+7. Обнаруженные буквальные `последовательности вопросительных знаков` в активных Learning/Access/Auth UX документах восстановлены; semantic validator теперь запрещает длинные question-mark runs, Unicode replacement characters и управляющие символы в активных документах.
+8. Статический `head_sha` в long-running direct-main Learning lane заменён на `revisions.kind: observed_snapshot` с `head_sha: null`; recorded main SHA явно считается историческим наблюдением и требует fresh fetch перед writes.
+9. Добавлен E1-FIX-12: production `CLASSROOM_CODE_SECRET` отделён от DB password; Student Code keyring входит в deploy/updater preflight; `0146` rollout запрещает старый writer во время backfill и требует `legacy_predictable_active=0` перед INSTALLED_ACCEPTANCE.
 
-??? ????? regression-?????? ????????? ?????? ? `planned-test-catalog.yaml`; ?? ????????? ???????? scripts/specs ??? ???????? planned ? ?? ???????? PASS. Static documentation validator ?????? required clauses, exact rate/storage contract ? ?????? coverage planned scenarios ??? ???????? `proven`, ?? ??-???????? ?? ??????????? ??????????????? ?????????? ????????.
+Новые regression-проверки остаются в `planned-test-catalog.yaml`, пока не существуют реальные scripts/specs. Planned entry не является PASS и не может подтвердить `proven`.
 
-???? clarification slice ?? ?????? `apps/**`, `migrations/**`, ??????? PostgreSQL ??? `asa-lab.ru`; ????????? migration slots 0146/0147 ? planned test paths ???????? implementation contract ??? ????????? bounded repairs, ? ?? ??? ????????????? ???????.
+## 8. Проверка clarification/freeze-hardening среза
 
-## 8. Specification-clarification validation
+Локальная документационная/governance проверка на рабочем дереве после follow-up hardening:
 
-Final local documentation/governance evidence for the clarification slice based on `0a4b50742b6e127320c01ed81060ae8e51c6eabe`:
-
-- Learning semantic spec tests: 25/25 PASS.
-- `validate_learning_spec_rebaseline.py`: PASS; includes exact admission/storage contracts, blocker semantics, Capability Map alignment, active-vs-planned test evidence rules and E1-FIX-11 coverage.
-- Agent context tests: 26/26 PASS; selected-lane blockers now render `kind`, `blocks` and `allows`, while unrelated lane blockers are filtered out.
-- Control-plane tests: 86/86 PASS; typed blocker schema is validated and legacy untyped blockers remain fail-closed.
+- Learning semantic spec tests: 30/30 PASS.
+- `validate_learning_spec_rebaseline.py`: PASS; проверяет E1-FIX-01…12, corruption markers, numeric admission profile, protected storage/rollout, Class Code secret boundary и planned-vs-executed evidence.
+- Agent context tests: 27/27 PASS; `observed_snapshot` отображается как историческое наблюдение и требует fresh fetch.
+- Control-plane tests: 90/90 PASS; typed blockers и observed/split revision states проверяются отдельно.
 - Document Registry/task refs/agent maintenance docs/test catalog/Capability Map: PASS.
 - Full `node tools/run-governance-gate.mjs`: PASS.
 - `git diff --check`: PASS.
-- Product implementation paths `apps/`, `contexts/`, `migrations/`, `packages/`, `schemas/`: unchanged by this clarification slice.
+- Product/runtime implementation paths не менялись этим documentation/governance slice.
 
-This is documentation/governance evidence only. E1-FIX product regressions remain planned/open, production deployment was not performed, and no authenticated `asa-lab.ru` journey is claimed by this slice. Self-review is not independent product/security acceptance.
+Это доказательство согласованности ТЗ и управляющего контура, а не исправления продукта. E1-FIX runtime regressions остаются planned/open; production deployment не выполнялся; authenticated `asa-lab.ru` journey не заявляется. Self-review не является независимой product/security acceptance.
+
+## 9. Freeze boundary
+
+После публикации этого follow-up дальнейшие изменения master-ТЗ допускаются только при найденном противоречии, security/data-loss requirement либо явном owner decision. Обычный дефект реализации должен оформляться как regression + bounded repair внутри E1-FIX, а не как очередное переписывание всей архитектуры. Перед началом программного среза исполнитель обязан fetch current main и выбрать один FIX-ID.

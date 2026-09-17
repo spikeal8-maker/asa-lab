@@ -145,3 +145,21 @@ invariants:
     - encryption_key_in_database
     - retired_code_reuse
     - stale_rotation_reactivates_code
+  - id: IDA-CRED-004
+    statement: In E1, sensitive Student Code issue/readback/rotation/session-revocation authority maps only to the active exact-class owner membership through one credential-manager guard; co-teacher delegation is deferred to the explicit E4 scoped-grant model. Production Class Code secret is explicit, stable, independent from DB credentials, and protected-code rollout fences legacy writers and reaches zero active predictable legacy codes before installed acceptance.
+    master_refs:
+    - document: IDENTITY-ACCESS-V22
+      section: 'Матрица управления Student Code (TARGET E1)'
+    - document: IDENTITY-ACCESS-V22
+      section: '#### 9.4.1. Class Code secret and deployment secret boundary'
+    applies_to:
+    - classroom_owner
+    - classroom_co_teacher
+    - student_code_storage
+    - class_code_secret
+    - deployment_recovery
+    forbid:
+    - co_teacher_implicit_credential_readback
+    - database_password_as_production_class_code_secret
+    - old_writer_during_protected_code_backfill
+    - installed_acceptance_with_legacy_predictable_codes

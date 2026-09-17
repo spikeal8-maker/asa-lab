@@ -144,6 +144,8 @@ Student Code — ровно шесть символов из безопасно�
 
 Rate limit проверяет именно `/api/class-join/resolve` и `/api/class-join/studentseat` по числовому E1 profile из Access 2.2 §9.3. Успешные запросы не расходуют failure budgets; корректный credential не блокируется ошибками соседей. Обязательны 30 учеников с одного trusted NAT/IP, включая до четырёх опечаток на каждого, параллельный старт, QR/ручной путь, abuse threshold/recovery и доверенный proxy. Multi-instance не объявляется поддержанным без shared limiter. Любое изменение числового профиля — security-contract change с повтором acceptance, а не локальная настройка «чтобы тест прошёл».
 
+Production secret boundary is part of E1 acceptance, not an infrastructure afterthought. `CLASSROOM_CODE_SECRET` MUST be explicit, stable, at least 32 random bytes and independent from DB credentials and Student Code keyrings. Student Code keyring variables and protection mode MUST be wired through compose/updater/production preflight. Missing global secrets block deployment; an unknown historical row key degrades only the affected credential operation. The protected-code rollout fences old writers, uses compat dual-write plus resumable backfill, and requires `unprotected_active=0` and `legacy_predictable_active=0` before installed acceptance.
+
 ### 4.7 Архивирование класса и курса
 
 Обычное удаление используемого/опубликованного курса и класса означает archive, не destructive DELETE. Сохраняются версии, выдачи, memberships/enrollments, attempts, submissions, results и audit. Восстановление не открывает закрытые Run и не реактивирует withdrawn учащихся. Архивный курс не назначается заново и не появляется во внешнем каталоге; ранее законно выданные immutable версии остаются доступны по праву своего Run.
@@ -226,8 +228,9 @@ In-app события E1: назначение/условия, сдача на �
 | E1-FIX-09 | Нет противоречивого контекста и фиктивного test evidence | Compact/master/registry/ledger согласованы; каждый объявленный тест существует и его команда действительно включает; исторический secret-flow не нормативен |
 | E1-FIX-10 | Проверяемая граница репозитория и сайта | Отдельные code SHA, CI SHA, installed Web/API/schema, время наблюдения и выполненный live journey; отсутствие доступа записано как not_run |
 | E1-FIX-11 | Полная функциональная матрица Course Builder | Каждое действие §4.2.1 имеет create/edit/save-reload/permission/error/retry evidence; каждый E1 informational block реально проходит preview/publish/learner render; duplicate/hide/delete не меняют историю |
+| E1-FIX-12 | Production secret integrity, Class Code recovery and race-free credential rollout | Production requires independent `CLASSROOM_CODE_SECRET`; Student Code keyring is wired through deploy/update; old writers are fenced during 0146/backfill; installed acceptance has zero active predictable legacy codes |
 
-E1-FIX-01…05 — первоочередные функциональные/безопасностные исправления. E1-FIX-06…08 и E1-FIX-11 закрывают функциональную полноту/гонки Course Builder. E1-FIX-09/10 обеспечивают достоверность и границу реального сайта. Существующие исправные части сохраняются; статус всего E1 не выводится из количества зелёных тестов или произвольного процента.
+E1-FIX-01..05 and E1-FIX-12 are primary functional/security corrections. E1-FIX-06..08 and E1-FIX-11 close Course Builder completeness/concurrency. E1-FIX-09/10 protect evidence and the installed-site boundary. Existing correct parts remain; E1 status is never inferred from a raw count of green tests.
 
 После функциональной приёмки следует отдельный visual convergence библиотеки, Course Builder и Class workspace. Он не подменяет исправления выше. Независимый review требуется для security/academic candidate по протоколу репозитория; self-review не называется независимым.
 
@@ -406,4 +409,4 @@ Rich blocks сохраняются как TARGET: heading/text/image/video/link/
 
 Временная assessment-карточка E2 может иметь отдельный индивидуальный activation credential по своей policy. Это не разрешение возвращать personal credential в общий class QR постоянного StudentSeat. Constant class QR из E1 никогда не аутентифицирует ребёнка сам.
 
-Наследование требований: V1.4 §0–4 → §§0–4 этой редакции; §5 и §21.3/5/6/7 → §5; §6 и §21.4 → §6; §§7–20 → одноимённые разделы; §21.1/2/8 → §§1/10/11/17/21. Старые numbered acceptance, SET/U/R/P/INV/UI/AC и Learning requirement IDs не удаляются из специализированных контрактов. Изменения E1-FIX-01…11 уточняют безопасность, полноту и evidence; не объявляют продукт исправленным. Точность DDL/OpenAPI и семантика неизменённых detail contracts сохраняются.
+Наследование требований: V1.4 §0–4 → §§0–4 этой редакции; §5 и §21.3/5/6/7 → §5; §6 и §21.4 → §6; §§7–20 → одноимённые разделы; §21.1/2/8 → §§1/10/11/17/21. Старые numbered acceptance, SET/U/R/P/INV/UI/AC и Learning requirement IDs не удаляются из специализированных контрактов. Изменения E1-FIX-01..12 уточняют безопасность, полноту и evidence; не объявляют продукт исправленным. Точность DDL/OpenAPI и семантика неизменённых detail contracts сохраняются.

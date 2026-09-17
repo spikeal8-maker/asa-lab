@@ -10,6 +10,21 @@ For legacy records, `revisions.convergence_baseline_sha` is the historical integ
 
 The validator previously checked full-SHA shape, and coordinated mode checked PR ancestry. `direct_main` skipped remote PR checks. Consequently a stale but well-formed task revision could be rendered as a current HEAD. It must not be used to infer current GitHub branch state.
 
+## Schema 1.2: observed snapshot
+
+A long-running direct-main lane that has no single static candidate MUST NOT store a stale commit under a field that looks like the current HEAD. It may use `revisions.kind: observed_snapshot`:
+
+| Field | Meaning |
+|---|---|
+| `task.branch` | Delivery target remains `main` |
+| `convergence_baseline_sha` | Historical baseline for the lane, never a freshness claim |
+| `head_sha: null` | No static file field claims to be the current Git HEAD |
+| `observed_at` | Timestamp of the GitHub observation |
+| `main.branch/sha` | Main **at that observation**, not the current remote tip |
+| `observation_note` | Must explicitly say a fresh fetch is required |
+
+`observed_snapshot` is for status/documentation continuity only. It carries no acceptance, CI or deployment authority. `agent:context` must render it as a dated observation and tell the executor to fetch main before writes. A new main commit does not make the record invalid; it makes the recorded `main.sha` historical by definition.
+
 ## Schema 1.2: split history
 
 When a direct-main task has an unintegrated recovery and a bounded review branch, its `revisions.kind` is `split_history`:

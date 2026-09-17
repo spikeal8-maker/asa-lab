@@ -447,14 +447,15 @@ parallel_lanes:
       - document: IDENTITY-ACCESS-V22
         revision: '2.2'
     revisions:
+      kind: observed_snapshot
       convergence_baseline_sha: 0a4b50742b6e127320c01ed81060ae8e51c6eabe
-      head_sha: 0a4b50742b6e127320c01ed81060ae8e51c6eabe
-      observed_at: '2026-09-17T10:03:00+00:00'
+      head_sha: null
+      observed_at: '2026-09-17T11:25:00+00:00'
       main:
         branch: main
-        sha: 0a4b50742b6e127320c01ed81060ae8e51c6eabe
-      observation_note: Pre-edit baseline for E1 specification clarification; not a product candidate, proof of repairs,
-        or installed revision.
+        sha: 2c26781c83c247863ddb607b2988dceb95905aaf
+      observation_note: Dated main observation before the follow-up specification correction. It is not a live remote HEAD,
+        product candidate, proof of repairs or installed revision; agents must fetch main before writes.
     execution_lease:
       executor_id: codex-learning-course-01
       holder: unassigned
@@ -509,6 +510,6 @@ blocking:
       - regression_authoring
       - documentation_update
       - focused_verification
-    reason: Known E1-FIX-01 through E1-FIX-11 correction/verification requirements remain open
+    reason: Known E1-FIX-01 through E1-FIX-12 correction/verification requirements remain open
     evidence: docs/product/ASA_LEARNING_REQUIREMENTS_LEDGER.yaml
 next_task: null
