@@ -43,6 +43,15 @@ M1-003. Complete remaining host acceptance before wiring HTTP runtime sessions,
 new protected endpoints and deployment. Assets/load-save/autosave retain the order below.
 Do not reimplement the already delivered local-file installation while doing this work.
 
+## Owner-selected persistence development, 17.09.2026
+
+[M1-005A](tasks/VSCR-M1-005A.md) develops the save/document/asset coordination in
+a Draft branch without waiting for a reviewer provider. PR278 remains unaccepted.
+This is an explicit development-only exception to the serial prerequisites below,
+not permission to merge or expose unreviewed writes. Preserve D0-002/003 semantics,
+existing Project Core and all release/security/storage acceptance requirements.
+No further model/provider loop is part of this work.
+
 ## Strict order
 
 ```text

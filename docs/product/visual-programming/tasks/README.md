@@ -66,3 +66,8 @@ No task card stores current readiness status or current SHA/PR state.
 M1-003A is an explicitly bounded, non-exposed capability-core preparation for the
 owner-selected persistence goal. It does not waive B/E acceptance for HTTP/DI
 integration or activate any new service. See its exact card before coding.
+
+## Owner-selected save development
+
+[VSCR-M1-005A](VSCR-M1-005A.md): one manual save/open pipeline in Draft;
+independent review deferred to integrated release, never marked complete.
