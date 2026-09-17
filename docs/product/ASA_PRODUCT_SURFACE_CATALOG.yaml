@@ -146,12 +146,12 @@ surfaces:
   - id: PUB-009
     name: Public project page
     route: /projects/:publicSlug
-    actors: [anonymous, account_creator, educator, registered_student]
+    actors: [anonymous, account_creator, educator, registered_student, student_seat]
     release: R7
     template: PUBLICATION
     implementation: absent
-    purpose: View one immutable published ProjectVersion and attribution.
-    primary_actions: [play_or_simulate, copy_or_remix, share, like, bookmark, report]
+    purpose: View one immutable published ProjectVersion and attribution. StudentSeat may read/play public content; persistent personal actions such as bookmark/like/remix require Account or an explicitly approved Seat policy.
+    primary_actions: [play_or_simulate, share, report, account_only_copy_or_remix, account_only_like, account_only_bookmark]
     required_states: [loading, populated, authorization_denied, server_error]
     screenshot_ids: [public-project-desktop, public-project-mobile]
 
@@ -254,12 +254,12 @@ surfaces:
   - id: CRT-008
     name: Explore
     route: /explore
-    actors: [anonymous, account_creator, educator, registered_student]
+    actors: [anonymous, account_creator, educator, registered_student, student_seat]
     release: R8
     template: PORTAL
     implementation: absent
-    purpose: Discover eligible public projects by module, search and curated feeds.
-    primary_actions: [search, filter_module, open_project, like, bookmark]
+    purpose: Discover eligible public projects by module, search and curated feeds. StudentSeat can browse/open public projects; like/bookmark are Account-only unless a separate Seat policy is approved.
+    primary_actions: [search, filter_module, open_project, account_only_like, account_only_bookmark]
     required_states: [loading, empty, populated, server_error]
     screenshot_ids: [explore-desktop, explore-mobile]
 
@@ -270,8 +270,8 @@ surfaces:
     release: R8
     template: PORTAL
     implementation: absent
-    purpose: Browse tutorials, curriculum, classroom projects and guided activities.
-    primary_actions: [search_learning, filter_module, start_tutorial, assign_to_class]
+    purpose: Browse tutorials, curriculum, classroom projects and guided activities. StudentSeat may read public learning content; starting durable personal self-study requires Account unless the activity is already available through the school learner context.
+    primary_actions: [search_learning, filter_module, open_public_learning, account_only_start_self_study, staff_only_assign_to_class]
     required_states: [loading, empty, populated, authorization_denied, server_error]
     screenshot_ids: [learning-center]
 
@@ -346,6 +346,78 @@ surfaces:
     primary_actions: [activate_workspace, open_workspace_settings, leave_workspace]
     required_states: [loading, empty, populated, authorization_denied, server_error]
     screenshot_ids: [workspace-switcher]
+
+  - id: ORG-001
+    name: Organization overview
+    route: /organizations/:organizationId/overview
+    actors: [school_admin]
+    release: R10
+    template: PORTAL
+    implementation: absent
+    purpose: "Show scoped organization health: classes, active/completed runs, learner-profile counts, pending review and management tasks without exposing unrelated personal Account data."
+    primary_actions: [open_people, open_classes, open_courses, open_learning, open_analytics]
+    required_states: [loading, empty, populated, authorization_denied, server_error]
+    screenshot_ids: [organization-overview-desktop, organization-overview-mobile]
+
+  - id: ORG-002
+    name: Organization people
+    route: /organizations/:organizationId/people
+    actors: [school_admin]
+    release: R10
+    template: PORTAL
+    implementation: absent
+    purpose: Manage scoped staff and learner profiles in separate views; never expose a global directory of members' personal Accounts.
+    primary_actions: [open_staff, open_learners, invite_staff, open_scoped_profile]
+    required_states: [loading, empty, populated, validation_error, authorization_denied, server_error]
+    screenshot_ids: [organization-people]
+
+  - id: ORG-003
+    name: Organization classes
+    route: /organizations/:organizationId/classrooms
+    actors: [school_admin]
+    release: R10
+    template: PORTAL
+    implementation: absent
+    purpose: List organization-scoped classes, responsible staff and active learning runs, then open the canonical Classroom surface.
+    primary_actions: [open_class, filter_status, filter_staff]
+    required_states: [loading, empty, populated, authorization_denied, server_error]
+    screenshot_ids: [organization-classes]
+
+  - id: ORG-004
+    name: Organization courses and materials
+    route: /organizations/:organizationId/content
+    actors: [school_admin]
+    release: R10
+    template: PORTAL
+    implementation: absent
+    purpose: Distinguish organization-owned content, granted-use content and staff personal content without silently transferring ownership.
+    primary_actions: [open_material, filter_ownership, filter_usage, request_use]
+    required_states: [loading, empty, populated, authorization_denied, server_error]
+    screenshot_ids: [organization-content]
+
+  - id: ORG-005
+    name: Organization learning and analytics
+    route: /organizations/:organizationId/learning
+    actors: [school_admin]
+    release: R10
+    template: PORTAL
+    implementation: absent
+    purpose: Show scoped CourseRuns, assigned/started/completed counts, pending review and course usage from canonical projections with explicit basis and asOf.
+    primary_actions: [filter_class, filter_course, filter_run_status, open_run, open_aggregate]
+    required_states: [loading, empty, populated, authorization_denied, server_error]
+    screenshot_ids: [organization-learning]
+
+  - id: ORG-006
+    name: Organization settings and history
+    route: /organizations/:organizationId/settings
+    actors: [school_admin]
+    release: R10
+    template: PORTAL
+    implementation: absent
+    purpose: Manage organization defaults and scoped structure while keeping audit/history/export separate from personal Account settings.
+    primary_actions: [edit_settings, open_history, request_export]
+    required_states: [loading, populated, validation_error, authorization_denied, server_error, success_feedback]
+    screenshot_ids: [organization-settings]
 
   - id: EDU-001
     name: Educator capability onboarding

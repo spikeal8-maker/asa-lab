@@ -52,11 +52,15 @@ ID_PATTERNS = (
 )
 REQUIRED_CLAUSES = {
     "AGENTS.md": ["acceptance_blocker", "execution_blocker", "deployment_blocker"],
-    INTEGRATED: ["E1-FIX-11", "E1-FIX-12", "FUNCTIONAL_ACCEPTANCE", "VISUAL_ACCEPTANCE", "INSTALLED_ACCEPTANCE", "Course Builder E1", "CLASSROOM_CODE_SECRET", "legacy_predictable_active=0"],
-    ACCESS: ["class.credentials.read_current", "class.credentials.rotate", "class.sessions.revoke", "AES-256-GCM", "HMAC-SHA-256", "Retry-After", "shared rate-limit state", "weak_student_code", "credential_storage_unavailable", "credential_version_conflict", "v1|tenant_id|class_id|seat_id|credential_version", "lookup_key_id", "classroom_credential_manager_access", "CLASSROOM_CODE_SECRET", "ASA_STUDENT_CODE_PROTECTION_MODE=compat", "legacy_predictable_active=0"],
+    INTEGRATED: ["E1-FIX-11", "E1-FIX-12", "FUNCTIONAL_ACCEPTANCE", "VISUAL_ACCEPTANCE", "INSTALLED_ACCEPTANCE", "Course Builder E1", "CLASSROOM_CODE_SECRET", "legacy_predictable_active=0", "ASA Lab начинается с обычного личного Account", "StudentSeat — способ войти", "Organization/школа — отдельный рабочий workspace", "Organization Workspace имеет одну понятную IA", "Запрещённые продуктовые анти-паттерны"],
+    ACCESS: ["class.credentials.read_current", "class.credentials.rotate", "class.sessions.revoke", "AES-256-GCM", "HMAC-SHA-256", "Retry-After", "shared rate-limit state", "weak_student_code", "credential_storage_unavailable", "credential_version_conflict", "v1|tenant_id|class_id|seat_id|credential_version", "lookup_key_id", "classroom_credential_manager_access", "CLASSROOM_CODE_SECRET", "ASA_STUDENT_CODE_PROTECTION_MODE=compat", "legacy_predictable_active=0", "Один Account — одна личная оболочка", "публичные read-only «Сообщество» и «Знания»", "UX после успешного linking", "MAX/другие внешние providers привязываются к Account", "Organization Workspace — отдельный рабочий контекст", "UI-37"],
     LEARNING: ["## 89.6.", "FUNCTIONAL_ACCEPTANCE", "CRS-003/UX-BLD-002/003"],
     "docs/product/ASA_UI_LAYOUT_ACCEPTANCE_SPEC.md": ["FUNCTIONAL_ACCEPTANCE", "VISUAL_ACCEPTANCE", "visual_state: provisional"],
     CAPABILITY_MAP: ["AES-256-GCM protected readback", "HMAC-SHA-256 lookup", "repeat-printable card"],
+    IDENTITY_CONTRACT: ["IDA-PRODUCT-001", "IDA-SEAT-PUBLIC-001", "IDA-ORG-002", "IDA-MAX-001"],
+    LEARNING_CONTRACT: ["LRN-SURFACE-001"],
+    "docs/product/ASA_PRODUCT_SURFACE_CATALOG.yaml": ["ORG-001", "ORG-006", "student_seat", "account_only_start_self_study", "never expose a global directory"],
+    "docs/product/ASA_AUTH_ENTRY_UX_SPEC.md": ["тот же личный Account", "Новый UI не должен копировать этот legacy-flow"],
     "docs/execution/LRN_COURSE_01.md": ["student-seat-protected-code-backfill.mjs", "keyring preflight", "0146", "E1-FIX-12", "CLASSROOM_CODE_SECRET", "ASA_STUDENT_CODE_PROTECTION_MODE=compat", "legacy_predictable_active=0"],
 }
 

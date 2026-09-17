@@ -232,5 +232,44 @@ class LearningSpecGateTests(unittest.TestCase):
         self.assertRejected(changed_yaml(LEDGER, corrupt), "missing evidence boundary")
 
 
+    def test_rejects_loss_of_account_first_product_model(self):
+        self.assertRejected(
+            {INTEGRATED: text(INTEGRATED).replace("ASA Lab начинается с обычного личного Account", "ASA Lab starts from a role")},
+            "required semantic clause missing",
+        )
+
+    def test_rejects_loss_of_studentseat_public_read_boundary(self):
+        self.assertRejected(
+            {ACCESS: text(ACCESS).replace("публичные read-only «Сообщество» и «Знания»", "закрытая школьная оболочка")},
+            "required semantic clause missing",
+        )
+
+    def test_rejects_loss_of_organization_workspace_boundary(self):
+        self.assertRejected(
+            {ACCESS: text(ACCESS).replace("Organization Workspace — отдельный рабочий контекст", "Организация живёт в профиле")},
+            "required semantic clause missing",
+        )
+
+    def test_rejects_loss_of_account_max_boundary(self):
+        self.assertRejected(
+            {ACCESS: text(ACCESS).replace("MAX/другие внешние providers привязываются к Account", "MAX привязывается к StudentSeat")},
+            "required semantic clause missing",
+        )
+
+    def test_rejects_loss_of_organization_surface_model(self):
+        path = "docs/product/ASA_PRODUCT_SURFACE_CATALOG.yaml"
+        self.assertRejected(
+            {path: text(path).replace("ORG-001", "ORG-REMOVED", 1)},
+            "required semantic clause missing",
+        )
+
+    def test_rejects_organization_login_becoming_separate_identity(self):
+        path = "docs/product/ASA_AUTH_ENTRY_UX_SPEC.md"
+        self.assertRejected(
+            {path: text(path).replace("тот же личный Account", "отдельный школьный Account", 1)},
+            "required semantic clause missing",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
