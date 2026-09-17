@@ -2,28 +2,53 @@ schema_version: 2.0.0
 area: runtime-security
 components:
   - id: blocks.runtime.session
-    state: blocked
+    state: implemented
     risk: high
     ownership: asa
-    purpose: "Cookie-authenticated ASA endpoint issuing exact Blocks runtime capabilities."
+    purpose: "Cookie-authenticated parent endpoint issuing exact editor capability plus durable Blocks bootstrap."
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-004-RUNTIME-SECURITY-CONTRACT.md
         section: "Editor runtime-session issuance"
-    task: VSCR-M1-003
-    depends_on: [blocks.host.protocol]
+    task: VSCR-M1-005B
+    depends_on: [blocks.host.protocol, blocks.runtime.capability]
+    sources:
+      - path: apps/api/src/blocks-runtime-session.controller.ts
+        symbols: [BlocksRuntimeSessionController]
+      - path: apps/api/src/blocks-runtime-session.ts
+        symbols: [BlocksRuntimeSessionService]
+      - path: apps/api/src/blocks-runtime-session-issuer.ts
+        symbols: [BlocksRuntimeSessionIssuer]
+      - path: apps/api/src/blocks-runtime-config.ts
+        symbols: [readBlocksRuntimeServerConfig]
+    tests:
+      - apps/api/src/blocks-runtime-session.controller.spec.ts
+      - apps/api/src/blocks-runtime-session.spec.ts
+      - apps/api/src/blocks-runtime-config.spec.ts
 
   - id: blocks.runtime.capability
-    state: blocked
+    state: implemented
     risk: high
     ownership: asa
-    purpose: "Short-lived bearer capability verification plus current ASA resource-authority recheck."
+    purpose: "Non-exposed HS256 core with mandatory authority port; no HTTP route, DB adapter or session wiring yet."
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-004-RUNTIME-SECURITY-CONTRACT.md
         section: "Capability validation"
       - path: docs/product/visual-programming/VSCR-D0-004-RUNTIME-SECURITY-CONTRACT.md
         section: "Current authority recheck"
-    task: VSCR-M1-003
-    depends_on: [blocks.runtime.session]
+    task: VSCR-M1-003A
+    depends_on: [blocks.host.protocol]
+
+    sources:
+      - path: apps/api/src/blocks-runtime-capability.ts
+        symbols: [BlocksRuntimeCapabilityService, BlocksRuntimeAuthorityPort]
+      - path: apps/api/src/blocks-runtime-authority.ts
+        symbols: [BlocksProjectRuntimeAuthority]
+      - path: contexts/projects/infrastructure/pg-project.repository.ts
+        symbols: [PgProjectRepository]
+    tests:
+      - apps/api/src/blocks-runtime-capability.spec.ts
+      - apps/api/src/blocks-runtime-authority.spec.ts
+      - contexts/projects/testing/projects.spec.ts
 
   - id: blocks.runtime.origin-security
     state: blocked

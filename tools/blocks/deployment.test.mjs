@@ -27,6 +27,33 @@ test('default distribution contains an isolated source-built Scratch without mac
   assert.doesNotMatch(read('compose.yaml'), /C:\\|runtime-context|Dockerfile\.artifact|backups\//);
 });
 
+test('runtime signing material is generated once and exposed only to the API', () => {
+  const config = YAML.parse(read('compose.yaml'));
+  const api = config.services.api;
+  const web = config.services.web;
+  const scratch = config.services.scratch;
+  assert.match(
+    String(api.environment.ASA_BLOCKS_RUNTIME_SIGNING_KEY),
+    /ASA_BLOCKS_RUNTIME_SIGNING_KEY/,
+  );
+  assert.match(String(api.environment.ASA_BLOCKS_RUNTIME_ORIGIN), /ASA_BLOCKS_RUNTIME_ORIGIN/);
+  assert.equal(web.environment?.ASA_BLOCKS_RUNTIME_SIGNING_KEY, undefined);
+  assert.equal(web.build.args.ASA_BLOCKS_RUNTIME_SIGNING_KEY, undefined);
+  assert.equal(scratch.environment?.ASA_BLOCKS_RUNTIME_SIGNING_KEY, undefined);
+  assert.equal(scratch.build.args.ASA_BLOCKS_RUNTIME_SIGNING_KEY, undefined);
+  for (const file of ['tools/asa-lab.ps1', 'tools/asa-lab.sh']) {
+    const source = read(file);
+    assert.match(source, /ASA_BLOCKS_RUNTIME_SIGNING_KEY/);
+    assert.match(source, /32/);
+  }
+  for (const file of ['tools/docker-update.ps1', 'tools/docker-update.sh']) {
+    const source = read(file);
+    assert.match(source, /ASA_BLOCKS_RUNTIME_SIGNING_KEY/);
+    assert.match(source, /CHECK NOTE: full update will generate/);
+    assert.match(source, /32/);
+  }
+});
+
 test('normal install and guarded update include Scratch in successful readiness', () => {
   for (const file of [
     'tools/asa-lab.ps1',

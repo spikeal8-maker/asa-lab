@@ -30,6 +30,8 @@ export type {
   ProjectDraftPersistenceGuardPort,
   ProjectPersistenceGuardResult,
   ProjectActor,
+  ProjectAccessMode,
+  ProjectAuthorization,
   ProjectListFilter,
   ProjectModule,
   ProjectRepositoryPort,

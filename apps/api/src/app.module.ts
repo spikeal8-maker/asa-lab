@@ -71,6 +71,8 @@ import { createRuntimeMetrics } from '@asa-lab/observability';
 import { HealthController } from './health.controller.js';
 import { ModulesController } from './modules.controller.js';
 import { ProjectsController } from './projects.controller.js';
+import { BlocksRuntimeSessionController } from './blocks-runtime-session.controller.js';
+import { BlocksRuntimeSessionIssuer } from './blocks-runtime-session-issuer.js';
 import { VersionController } from './version.controller.js';
 import { createApiModuleRegistry } from './module-registry.js';
 import { SeatContextUseCase } from './seat-context.js';
@@ -181,6 +183,7 @@ export class AppModule {
         ClassroomTeacherInvitationsController,
         ModulesController,
         ProjectsController,
+        BlocksRuntimeSessionController,
         CheckersClassroomController,
         ChessLiveController,
         VersionController,
@@ -324,6 +327,10 @@ export class AppModule {
         {
           provide: TOKENS.seatContextUseCase,
           useFactory: () => new SeatContextUseCase(pool),
+        },
+        {
+          provide: TOKENS.blocksRuntimeSessionIssuer,
+          useFactory: () => new BlocksRuntimeSessionIssuer(pool),
         },
         {
           provide: TOKENS.projectFeedbackService,

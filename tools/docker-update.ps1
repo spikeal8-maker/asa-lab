@@ -38,6 +38,13 @@ function Get-EnvValue {
   return ($line -split '=', 2)[1].Trim()
 }
 
+function New-UpdateRandomHex {
+  param([int]$ByteCount = 32)
+  $bytes = New-Object byte[] $ByteCount
+  [System.Security.Cryptography.RandomNumberGenerator]::Fill($bytes)
+  return -join ($bytes | ForEach-Object { $_.ToString('x2') })
+}
+
 function Get-ComposeArguments {
   $arguments = @('compose', '-f', 'compose.yaml')
   if ($Profile -ne 'base') {
@@ -342,6 +349,8 @@ function Invoke-GuardedUpdate {
   if ($Profile -eq 'production' -and (Get-EnvValue 'ASA_SEED_DEV') -ne 'false') {
     throw 'Production update requires ASA_SEED_DEV=false in .env.'
   }
+  $blocksRuntimeKey = Get-EnvValue 'ASA_BLOCKS_RUNTIME_SIGNING_KEY'
+  $needsBlocksRuntimeKey = -not ($blocksRuntimeKey -match '^[a-fA-F0-9]{64}$')
   if ($env:COMPOSE_PROJECT_NAME -and $env:COMPOSE_PROJECT_NAME -ne $projectName) {
     throw 'The process COMPOSE_PROJECT_NAME differs from .env; refusing to select an ambiguous PostgreSQL volume.'
   }
@@ -389,6 +398,9 @@ function Invoke-GuardedUpdate {
     if ($originDrift.Count -gt 0) {
       throw 'CHECK BLOCKED: the installation mixes containers from different checkouts. Run the full guarded updater from the PostgreSQL deployment root to reconcile it.'
     }
+    if ($needsBlocksRuntimeKey) {
+      Write-Host 'CHECK NOTE: full update will generate the missing private Blocks runtime signing key.'
+    }
     Write-Host 'CHECK OK: no code, container or database changes were made.'
     return
   }
@@ -420,6 +432,11 @@ function Invoke-GuardedUpdate {
   if ($LASTEXITCODE -ne 0) { throw 'Cannot re-check the Git working tree.' }
   if ($finalStatus.Count -gt 0) {
     throw 'Working tree became dirty after fast-forward; build stopped.'
+  }
+
+  if ($needsBlocksRuntimeKey) {
+    Add-Content -LiteralPath '.env' -Value "`nASA_BLOCKS_RUNTIME_SIGNING_KEY=$(New-UpdateRandomHex -ByteCount 32)"
+    Write-Host 'Added a private Blocks runtime signing key to the existing .env.'
   }
 
   $schemaVersion = Get-LatestSchemaVersion

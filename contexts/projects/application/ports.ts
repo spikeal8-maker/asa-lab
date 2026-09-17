@@ -14,6 +14,15 @@ export interface ProjectActor {
   readonly userId: string | null;
 }
 
+export type ProjectAccessMode = 'read' | 'edit';
+export interface ProjectAuthorization {
+  readonly tenantId: string;
+  readonly userId: string | null;
+  readonly projectId: string;
+  readonly moduleKey: string;
+  readonly status: ProjectStatus;
+}
+
 export interface CreateProjectInput {
   readonly tenantId: string;
   readonly scope: ProjectScope;
@@ -113,6 +122,12 @@ export interface ProjectRepositoryPort {
     actor: ProjectActor,
     filter: ProjectListFilter,
   ): Promise<Project[]>;
+  authorize(
+    tenantId: string,
+    projectId: string,
+    principalId: string,
+    access: ProjectAccessMode,
+  ): Promise<ProjectAuthorization | null>;
   load(
     tenantId: string,
     projectId: string,

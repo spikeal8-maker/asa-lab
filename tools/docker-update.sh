@@ -47,6 +47,11 @@ env_value() {
   sed -n "s/^${name}=//p" .env | tail -n 1
 }
 
+random_hex() {
+  bytes=${1:-32}
+  od -An -N"$bytes" -tx1 /dev/urandom | tr -d ' \n'
+}
+
 latest_schema_version() {
   latest=''
   for migration in migrations/[0-9]*_*.sql; do
@@ -244,6 +249,12 @@ main() {
   if [ "$profile" = production ]; then
     [ "$(env_value ASA_SEED_DEV)" = false ] || die 'production requires ASA_SEED_DEV=false in .env'
   fi
+  blocks_runtime_key=$(env_value ASA_BLOCKS_RUNTIME_SIGNING_KEY || true)
+  case "$blocks_runtime_key" in
+    ''|*[!0-9a-fA-F]*) needs_blocks_runtime_key=true ;;
+    ????????????????????????????????????????????????????????????????) needs_blocks_runtime_key=false ;;
+    *) needs_blocks_runtime_key=true ;;
+  esac
   if [ -n "${COMPOSE_PROJECT_NAME:-}" ] && [ "$COMPOSE_PROJECT_NAME" != "$project_name" ]; then
     die 'process COMPOSE_PROJECT_NAME differs from .env; PostgreSQL volume selection is ambiguous'
   fi
@@ -287,6 +298,9 @@ main() {
   if [ "$check_only" = true ]; then
     [ -z "$origin_drift" ] ||
       die 'CHECK BLOCKED: installation mixes containers from different checkouts; run the full guarded updater from the PostgreSQL deployment root'
+    if [ "$needs_blocks_runtime_key" = true ]; then
+      printf 'CHECK NOTE: full update will generate the missing private Blocks runtime signing key.\n'
+    fi
     printf 'CHECK OK: no code, container or database changes were made.\n'
     exit 0
   fi
@@ -313,6 +327,12 @@ main() {
   [ "$new_revision" = "$target_revision" ] || die 'main moved after the exact-SHA CI check; retry preflight'
   [ "$new_revision" = "$remote_revision" ] || die 'local main does not match origin/main after fast-forward'
   [ -z "$(git status --porcelain)" ] || die 'working tree became dirty after fast-forward'
+
+  if [ "$needs_blocks_runtime_key" = true ]; then
+    umask 077
+    printf '\nASA_BLOCKS_RUNTIME_SIGNING_KEY=%s\n' "$(random_hex 32)" >>.env
+    printf 'Added a private Blocks runtime signing key to the existing .env.\n'
+  fi
 
   schema_version=$(latest_schema_version)
   ASA_BUILD_REVISION=$new_revision

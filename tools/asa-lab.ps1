@@ -105,6 +105,10 @@ function New-PrivateEnvironment {
       Add-Content -LiteralPath $EnvPath -Value "`nASA_SETTINGS_ENCRYPTION_KEY=$(New-RandomHex -ByteCount 32)"
       Write-Host 'Added a private runtime settings encryption key to .env.'
     }
+    if ($existing -notmatch '(?m)^ASA_BLOCKS_RUNTIME_SIGNING_KEY=[a-fA-F0-9]{64}\s*$') {
+      Add-Content -LiteralPath $EnvPath -Value "`nASA_BLOCKS_RUNTIME_SIGNING_KEY=$(New-RandomHex -ByteCount 32)"
+      Write-Host 'Added a private Blocks runtime signing key to .env.'
+    }
     if ($productionLike -and $existing -notmatch '(?m)^ASA_SEED_DEV=false\s*$') {
       throw "$Profile requires ASA_SEED_DEV=false in .env. Refusing to seed development accounts into a production-like database."
     }
@@ -115,6 +119,7 @@ function New-PrivateEnvironment {
   $runtimePassword = New-RandomHex
   $teacherPassword = New-RandomHex
   $settingsEncryptionKey = New-RandomHex -ByteCount 32
+  $blocksRuntimeSigningKey = New-RandomHex -ByteCount 32
   $projectName = if ($Profile -eq 'production') { 'asa-lab-production' } elseif ($Profile -eq 'staging') { 'asa-lab-staging' } else { 'asa-lab-dev' }
   $seedDev = if ($productionLike) { 'false' } else { 'true' }
   $content = @"
@@ -133,6 +138,7 @@ MIGRATION_EXPECT_DATABASE=asalab
 MIGRATION_CONFIRM=APPLY:asalab
 APP_DATABASE_URL=postgres://asalab_app:$runtimePassword@postgres:5432/asalab
 ASA_SETTINGS_ENCRYPTION_KEY=$settingsEncryptionKey
+ASA_BLOCKS_RUNTIME_SIGNING_KEY=$blocksRuntimeSigningKey
 
 ASA_WEB_PORT=4610
 ASA_API_PORT=4611

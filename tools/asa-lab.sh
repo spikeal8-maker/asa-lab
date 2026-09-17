@@ -92,6 +92,10 @@ create_environment() {
       printf '\nASA_SETTINGS_ENCRYPTION_KEY=%s\n' "$(random_hex 32)" >>.env
       echo "Added a private runtime settings encryption key to .env."
     fi
+    if ! grep -Eq '^ASA_BLOCKS_RUNTIME_SIGNING_KEY=[a-fA-F0-9]{64}[[:space:]]*$' .env; then
+      printf '\nASA_BLOCKS_RUNTIME_SIGNING_KEY=%s\n' "$(random_hex 32)" >>.env
+      echo "Added a private Blocks runtime signing key to .env."
+    fi
     if [ "$production_like" = true ] && ! grep -Eq '^ASA_SEED_DEV=false[[:space:]]*$' .env; then
       echo "$profile requires ASA_SEED_DEV=false in .env." >&2
       echo "Refusing to seed development accounts into a production-like database." >&2
@@ -104,6 +108,7 @@ create_environment() {
   runtime_password=$(random_hex)
   teacher_password=$(random_hex)
   settings_encryption_key=$(random_hex 32)
+  blocks_runtime_signing_key=$(random_hex 32)
   uid=$(id -u 2>/dev/null || printf 1000)
   gid=$(id -g 2>/dev/null || printf 1000)
   case "$profile" in
@@ -130,6 +135,7 @@ MIGRATION_EXPECT_DATABASE=asalab
 MIGRATION_CONFIRM=APPLY:asalab
 APP_DATABASE_URL=postgres://asalab_app:$runtime_password@postgres:5432/asalab
 ASA_SETTINGS_ENCRYPTION_KEY=$settings_encryption_key
+ASA_BLOCKS_RUNTIME_SIGNING_KEY=$blocks_runtime_signing_key
 
 ASA_WEB_PORT=4610
 ASA_API_PORT=4611
