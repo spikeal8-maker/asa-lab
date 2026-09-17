@@ -99,8 +99,9 @@ invariants:
     applies_to: [organization, organization_membership, personal_workspace]
     forbid: [organization_owns_personal_projects, org_admin_reads_all_learning, school_name_grants_rights]
   - id: IDA-CRED-002
-    statement: A six-character Student Code is cryptographically random, not derived from learner names, UUIDs or
-      row indexes; idempotency replays a stored result, not a predictable public seed.
+    statement: Automatically generated six-character Student Codes use cryptographic randomness, not learner names, UUIDs
+      or row indexes; idempotency replays a stored result. Explicit teacher-selected replacements use the same
+      format, uniqueness and rotation rules, without claiming that the chosen value is randomly generated.
     master_refs:
     - document: IDENTITY-ACCESS-V22
       section: §9.2 / §9.4
