@@ -234,6 +234,34 @@ export class ElectronicsLiveSimulationWorkerController {
     this.inFlightKind = null;
   }
 
+  private retimePendingInputsAfterCommitted(committedMicroseconds: number): void {
+    if (this.pendingInputEvents.length === 0) return;
+    let nextAvailableMicrosecond = committedMicroseconds + 1;
+    let changed = false;
+    const retimed = this.pendingInputEvents.map((event) => {
+      const atMicroseconds = Math.max(event.atMicroseconds, nextAvailableMicrosecond);
+      nextAvailableMicrosecond = atMicroseconds + 1;
+      if (atMicroseconds === event.atMicroseconds) return event;
+      changed = true;
+      return { ...event, atMicroseconds };
+    });
+    if (!changed) return;
+    this.pendingInputEvents = retimed;
+    const lastEventMicrosecond = retimed[retimed.length - 1]!.atMicroseconds;
+    this.lastInputEventAtMicroseconds = Math.max(
+      this.lastInputEventAtMicroseconds,
+      lastEventMicrosecond,
+    );
+    if (this.latestTarget) {
+      this.latestTarget = {
+        requestedHorizonMicroseconds: Math.max(
+          this.latestTarget.requestedHorizonMicroseconds,
+          lastEventMicrosecond,
+        ),
+      };
+    }
+  }
+
   private pump(): void {
     const generationId = this.generationId;
     const document = this.canonicalDocument;
@@ -282,6 +310,7 @@ export class ElectronicsLiveSimulationWorkerController {
       this.fail(generationId, new Error(message));
       return;
     }
+    this.retimePendingInputsAfterCommitted(advance.committedHorizonMicroseconds);
     if (advance.executionStatus === 'yielded') {
       this.latestTarget = {
         requestedHorizonMicroseconds: Math.max(

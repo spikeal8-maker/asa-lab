@@ -244,6 +244,32 @@ describe('Electronics canonical Worker controller', () => {
     expect(onResult).toHaveBeenCalledWith(result(3));
   });
 
+  it('retimes unsent input events beyond progress committed by an in-flight advance', async () => {
+    const executor = new FakeExecutor();
+    const controller = new ElectronicsLiveSimulationWorkerController(executor);
+    controller.start('project-a', circuit, { onResult: vi.fn(), onFailure: vi.fn() });
+    await completeCanonicalStart(executor, 1);
+
+    controller.update(circuit, 300_000);
+    const pressed = {
+      ...circuit,
+      components: circuit.components.map((component) =>
+        component.id === 'button' ? { ...component, state: true } : component,
+      ),
+    };
+    controller.update(pressed, 100_000);
+
+    executor.advances[1]!.deferred.resolve(timedAdvance('yielded', 300_000, 256_000));
+    await flush();
+
+    expect(executor.advances).toHaveLength(3);
+    expect(executor.advances[2]).toMatchObject({ requestedHorizonMicroseconds: 300_000 });
+    expect(executor.advances[2]!.state.continuation?.committedHorizonMicroseconds).toBe(256_000);
+    expect(executor.advances[2]!.inputEvents).toEqual([
+      { atMicroseconds: 256_001, targetId: 'button', operation: 'state', payload: true },
+    ]);
+  });
+
   it('coalesces newer horizons while an advance is in flight', async () => {
     const executor = new FakeExecutor();
     const controller = new ElectronicsLiveSimulationWorkerController(executor);
