@@ -28,6 +28,7 @@ BEGIN
            pub.title,
            pub.snapshot_revision,
            pub.published_at,
+           pub.visibility,
            project.description,
            project.tags,
            project.license,
@@ -58,11 +59,21 @@ BEGIN
            state, created_at, published_at, revoked_at)
       VALUES
           (legacy.tenant_id, legacy.project_id, legacy.owner_principal_id,
-           legacy.published_by_principal_id, 'public', legacy.published_at,
-           legacy.published_at, NULL)
+           legacy.published_by_principal_id,
+           CASE WHEN legacy.visibility = 'link' THEN 'unlisted' ELSE 'public' END,
+           legacy.published_at, legacy.published_at, NULL)
       RETURNING id, current_revision_id
            INTO v_publication_id, v_current_revision_id;
     END IF;
+
+    -- Legacy link visibility is the compatibility signal for unlisted access.
+    -- Reconcile it even when R7-01B already created an exact immutable revision;
+    -- the revision stays untouched, only the current access state is corrected.
+    UPDATE public.project_publication_state
+       SET state = CASE WHEN legacy.visibility = 'link' THEN 'unlisted' ELSE 'public' END,
+           published_at = COALESCE(published_at, legacy.published_at),
+           revoked_at = NULL
+     WHERE id = v_publication_id;
 
     -- R7-01B already wrote an exact immutable revision for republished work.
     -- Never replace that stronger evidence with a convergence approximation.
@@ -115,10 +126,7 @@ BEGIN
     RETURNING id INTO v_current_revision_id;
 
     UPDATE public.project_publication_state
-       SET current_revision_id = v_current_revision_id,
-           state = 'public',
-           published_at = COALESCE(published_at, legacy.published_at),
-           revoked_at = NULL
+       SET current_revision_id = v_current_revision_id
      WHERE id = v_publication_id;
   END LOOP;
 END;
