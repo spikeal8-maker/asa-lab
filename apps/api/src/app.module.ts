@@ -81,8 +81,7 @@ import { RefreshSessionService } from './refresh-session.service.js';
 import { TOKENS } from './tokens.js';
 import { ProductAnalyticsController } from './product-analytics.controller.js';
 import { ProductAnalyticsService } from './product-analytics.service.js';
-import { BlocksDraftPersistenceGuard } from './blocks-persistence.guard.js';
-import { PgBlocksAssetMetadataStore } from './blocks-asset-storage.js';
+import { createBlocksDraftPersistenceGuard } from './blocks-draft-composition.js';
 
 function validationMessage(
   entry: RegisteredModule,
@@ -299,7 +298,7 @@ export class AppModule {
             new SaveDraftUseCase(
               projectRepository(),
               projectModules,
-              new BlocksDraftPersistenceGuard(new PgBlocksAssetMetadataStore(requirePool())),
+              createBlocksDraftPersistenceGuard(requirePool()),
             ),
         },
         {
