@@ -9,19 +9,19 @@ development_policy:
   lane_path_ownership: advisory
 
 task:
-  id: VSCR-M1-005A
-  issue: 285
+  id: VSCR-M1-005B
+  issue: 287
   branch: main
   base_branch: main
   pr: null
   pr_draft: false
   status: in_progress
-  checkpoint: owner_selected_draft_save_pipeline_before_release_review
+  checkpoint: owner_selected_real_storage_browser_save
   owner_acceptance: pending
 
 revisions:
   convergence_baseline_sha: 1d101b699b7db34efa838a143a93f9b19940e5c9
-  head_sha: 829ceb5748d2e5e557f5d45a778ed9017cc00ea2
+  head_sha: e25cc05b70b95c95d8afaec9136b8c1e665e9803
 
 execution_lease:
   executor_id: codex-vscr-m1-002b
