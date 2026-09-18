@@ -78,10 +78,7 @@ function loadStorage(fetchMock, randomUUID) {
     crypto: { subtle: webcrypto.subtle, randomUUID },
   });
   vm.runInContext(
-    fs.readFileSync(
-      new URL('../../infra/scratch-editor/host/storage.js', import.meta.url),
-      'utf8',
-    ),
+    fs.readFileSync(new URL('../../infra/scratch-editor/host/storage.js', import.meta.url), 'utf8'),
     context,
   );
   return context.AsaBlocksStorage.createReadOnlyStorage;
@@ -90,13 +87,16 @@ function loadStorage(fetchMock, randomUUID) {
 test('canonical fingerprint ignores object-key and asset ordering and unchanged FLUSH writes nothing', async () => {
   let uuidCalls = 0;
   const calls = [];
-  const create = loadStorage(async (...args) => {
-    calls.push(args);
-    throw new Error('unexpected remote write');
-  }, () => {
-    uuidCalls += 1;
-    return 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
-  });
+  const create = loadStorage(
+    async (...args) => {
+      calls.push(args);
+      throw new Error('unexpected remote write');
+    },
+    () => {
+      uuidCalls += 1;
+      return 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    },
+  );
   const bytesA = Uint8Array.from([1, 2]);
   const bytesB = Uint8Array.from([3, 4]);
   const a = asset('a'.repeat(32), 'png', bytesA);
@@ -141,51 +141,51 @@ test('lost response reuses mutation identity, durable assets and commits one rev
   let assetPuts = 0;
   const mutations = new Map();
   const seenDrafts = [];
-  const create = loadStorage(async (url, init) => {
-    const href = String(url);
-    if (href.includes('/assets/')) {
-      assetPuts += 1;
-      const bytes = new Uint8Array(init.body);
-      const match = /\/([a-f0-9]{32})\.(png|wav|svg|jpg|mp3)$/.exec(href);
-      const ref = {
-        assetId: match[1],
-        dataFormat: match[2],
-        sha256: sha256(bytes),
-        sizeBytes: bytes.byteLength,
-      };
-      return new Response(JSON.stringify({ status: 'ok', asset: ref }), {
+  const create = loadStorage(
+    async (url, init) => {
+      const href = String(url);
+      if (href.includes('/assets/')) {
+        assetPuts += 1;
+        const bytes = new Uint8Array(init.body);
+        const match = /\/([a-f0-9]{32})\.(png|wav|svg|jpg|mp3)$/.exec(href);
+        const ref = {
+          assetId: match[1],
+          dataFormat: match[2],
+          sha256: sha256(bytes),
+          sizeBytes: bytes.byteLength,
+        };
+        return new Response(JSON.stringify({ status: 'ok', asset: ref }), {
           status: 200,
           headers: { 'content-type': 'application/json' },
-        },
-      );
-    }
-    draftAttempts += 1;
-    const body = JSON.parse(init.body);
-    seenDrafts.push(body);
-    const previous = mutations.get(body.mutationId);
-    if (previous) {
-      assert.equal(body.baseRevision, previous.baseRevision);
-      assert.deepEqual(body.document, previous.document);
-      return new Response(
-        JSON.stringify({ status: 'ok', revision: previous.revision }),
-        {
+        });
+      }
+      draftAttempts += 1;
+      const body = JSON.parse(init.body);
+      seenDrafts.push(body);
+      const previous = mutations.get(body.mutationId);
+      if (previous) {
+        assert.equal(body.baseRevision, previous.baseRevision);
+        assert.deepEqual(body.document, previous.document);
+        return new Response(JSON.stringify({ status: 'ok', revision: previous.revision }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
+      }
+      assert.equal(body.baseRevision, serverRevision);
+      serverRevision += 1;
+      mutations.set(body.mutationId, {
+        baseRevision: body.baseRevision,
+        document: body.document,
+        revision: serverRevision,
+      });
+      if (draftAttempts === 1) throw new TypeError('lost response after commit');
+      return new Response(JSON.stringify({ status: 'ok', revision: serverRevision }), {
         status: 200,
         headers: { 'content-type': 'application/json' },
       });
-    }
-    assert.equal(body.baseRevision, serverRevision);
-    serverRevision += 1;
-    mutations.set(body.mutationId, {
-      baseRevision: body.baseRevision,
-      document: body.document,
-      revision: serverRevision,
-    });
-    if (draftAttempts === 1) throw new TypeError('lost response after commit');
-    return new Response(JSON.stringify({ status: 'ok', revision: serverRevision }), {
-      status: 200,
-      headers: { 'content-type': 'application/json' },
-    });
-  }, () => mutationIds[uuidIndex++]);
+    },
+    () => mutationIds[uuidIndex++],
+  );
 
   const storage = create(standalone, {
     projectId: PROJECT_ID,
@@ -228,15 +228,18 @@ test('lost response reuses mutation identity, durable assets and commits one rev
 
 test('project revision conflict is explicit and never mutates confirmed revision', async () => {
   const calls = [];
-  const create = loadStorage(async (url, init) => {
-    calls.push({ url: String(url), init });
-    return new Response(
-      JSON.stringify({
-        error: { code: 'project_revision_conflict', message: 'conflict' },
-      }),
-      { status: 409, headers: { 'content-type': 'application/json' } },
-    );
-  }, () => 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
+  const create = loadStorage(
+    async (url, init) => {
+      calls.push({ url: String(url), init });
+      return new Response(
+        JSON.stringify({
+          error: { code: 'project_revision_conflict', message: 'conflict' },
+        }),
+        { status: 409, headers: { 'content-type': 'application/json' } },
+      );
+    },
+    () => 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+  );
   const storage = create(standalone, {
     projectId: PROJECT_ID,
     projectJson: null,

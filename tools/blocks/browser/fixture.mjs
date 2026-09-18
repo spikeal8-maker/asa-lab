@@ -104,9 +104,7 @@ window.addEventListener('message', (event) => {
     externalRevisionAdvances: 0,
   };
   const durableBlobKeys = new Set(
-    (runtimeSession.assets ?? []).map(
-      (reference) => `${reference.sha256}.${reference.dataFormat}`,
-    ),
+    (runtimeSession.assets ?? []).map((reference) => `${reference.sha256}.${reference.dataFormat}`),
   );
   const durableAliasKeys = new Set(
     (runtimeSession.assets ?? []).map(
@@ -115,8 +113,7 @@ window.addEventListener('message', (event) => {
   );
   const committedMutations = new Map();
   let serverRevision = Number(runtimeSession.draftRevision ?? 0);
-  let dropDraftResponseRemaining =
-    options.dropFirstDraftResponseAfterCommit === true ? 1 : 0;
+  let dropDraftResponseRemaining = options.dropFirstDraftResponseAfterCommit === true ? 1 : 0;
   let runtimeSessionSequence = 0;
   const runtimeSessionPath = `/api/projects/${projectId}/blocks/runtime-session`;
   const runtimeAssetPrefix = `/api/blocks/runtime/projects/${projectId}/assets/`;

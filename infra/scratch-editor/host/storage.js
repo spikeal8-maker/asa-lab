@@ -327,9 +327,7 @@
             sha256: asset.sha256,
             sizeBytes: asset.sizeBytes,
           };
-          const durable = durableAssets.get(
-            runtimeKey(asset.assetId, asset.dataFormat),
-          );
+          const durable = durableAssets.get(runtimeKey(asset.assetId, asset.dataFormat));
           if (!sameReference(durable, expected)) await uploadSnapshotAsset(asset);
         }
 
