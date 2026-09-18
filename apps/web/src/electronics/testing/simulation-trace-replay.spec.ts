@@ -152,13 +152,13 @@ function arduinoFixture(): WorkerFixture {
 const CANONICAL_TRACE: readonly ElectronicsTimedInputEvent[] = Object.freeze([
   Object.freeze({
     atMicroseconds: 50_000,
-    targetId: 'one',
+    targetId: 'two',
     operation: 'state',
     payload: true,
   }),
   Object.freeze({
     atMicroseconds: 50_000,
-    targetId: 'two',
+    targetId: 'one',
     operation: 'state',
     payload: true,
   }),
@@ -402,11 +402,17 @@ describe('E-OPT-3E Worker trace/replay equivalence', () => {
 
   it('Worker input replay preserves the canonical same-time trace exactly once', () => {
     const fixture = inputTraceFixture();
+    const sameTimeTargets = fixture.trace
+      .filter((event) => event.atMicroseconds === 50_000)
+      .map((event) => event.targetId);
+    expect(sameTimeTargets).toEqual(['two', 'one']);
+    expect([...sameTimeTargets].sort()).not.toEqual(sameTimeTargets);
+
     const done = workerReplay(fixture, profiles(fixture)['irregular-stalled']).final;
     const continuation = JSON.parse(done.state.continuation!.serializedState);
     expect(continuation.inputs).toEqual([
-      { atMicroseconds: 50_000, componentId: 'one', property: 'state', value: true },
       { atMicroseconds: 50_000, componentId: 'two', property: 'state', value: true },
+      { atMicroseconds: 50_000, componentId: 'one', property: 'state', value: true },
       { atMicroseconds: 125_000, componentId: 'one', property: 'state', value: false },
     ]);
     expect(continuation.nextInputIndex).toBe(3);

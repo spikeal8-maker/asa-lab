@@ -142,13 +142,13 @@ function arduinoFixture(): ReplayFixture {
 const CANONICAL_TRACE: readonly ElectronicsTimedInputEvent[] = Object.freeze([
   Object.freeze({
     atMicroseconds: 50_000,
-    targetId: 'one',
+    targetId: 'two',
     operation: 'state',
     payload: true,
   }),
   Object.freeze({
     atMicroseconds: 50_000,
-    targetId: 'two',
+    targetId: 'one',
     operation: 'state',
     payload: true,
   }),
@@ -355,11 +355,17 @@ describe('E-OPT-3E canonical trace/replay equivalence', () => {
 
   it('input fixture preserves identical same-time order and append-only history', () => {
     const fixture = inputTraceFixture();
+    const sameTimeTargets = fixture.trace
+      .filter((event) => event.atMicroseconds === 50_000)
+      .map((event) => event.targetId);
+    expect(sameTimeTargets).toEqual(['two', 'one']);
+    expect([...sameTimeTargets].sort()).not.toEqual(sameTimeTargets);
+
     const done = replay(fixture, profileTargets(fixture)['16ms-partition'], 2);
     const continuation = JSON.parse(done.final.state.continuation!.serializedState);
     expect(continuation.inputs).toEqual([
-      { atMicroseconds: 50_000, componentId: 'one', property: 'state', value: true },
       { atMicroseconds: 50_000, componentId: 'two', property: 'state', value: true },
+      { atMicroseconds: 50_000, componentId: 'one', property: 'state', value: true },
       { atMicroseconds: 125_000, componentId: 'one', property: 'state', value: false },
     ]);
     expect(continuation.nextInputIndex).toBe(3);
