@@ -1,0 +1,99 @@
+schema: asa-lab.electronics-eopt3d-automated-acceptance.v1
+task_id: TASK-ELECTRONICS-EOPT3D-001
+issue: 279
+pr: 281
+candidate_sha: 938904fe1657fe04b710a76d67344764d1a609dc
+reviewed_product_sha: 8f7a563bf7f1f66c88bde3cfd30e94b2c1bd6885
+product_base_sha: 21d286364d99d37b730e1954d2cbae776c41b3e1
+production_diff_since_reviewed_sha: unchanged
+test_evidence_delta:
+  - e2e/electronics-simulation.spec.ts
+  - docs/product/electronics/generated/component-coverage.json
+
+manual_owner_preview_required: false
+owner_acceptance_basis: delegated_automated_behavioral_evidence
+
+runs:
+  electronics:
+    workflow: Electronics R4-M1 Focused
+    run_id: 35383951809
+    conclusion: success
+    focused_job_id: 105726342819
+    benchmark_job_id: 105727055802
+    browser_job_id: 105727055834
+  governance:
+    workflow: ASA Lab Governance and Code Gates
+    run_id: 35383951894
+    conclusion: success
+
+checks:
+  arduino_reset_after_progress:
+    status: pass
+    scenario: "E-OPT-3D acceptance: Arduino Reset restarts an already progressed canonical run"
+    evidence_run_id: 35383951809
+    evidence_job_id: 105727055834
+  arduino_live_inputs:
+    status: pass
+    scenarios:
+      - "Arduino correctness: button 2"
+      - "Arduino correctness: buttons 2"
+      - "Arduino correctness: pot A0"
+    evidence_run_id: 35383951809
+    evidence_job_id: 105727055834
+  multimeter_behavior:
+    status: pass
+    scenario: "MATH-10A3 multimeter measures resistance from the owner R button and blocks powered circuits"
+    evidence_run_id: 35383951809
+    evidence_job_id: 105727055834
+  passive_no_source_semantics:
+    status: pass
+    test: "returns passive no-source diagnostics as a ready Worker observation"
+    assertions:
+      executionStatus: ready
+      solved: false
+      status: invalid
+      diagnostic: no_source
+    evidence_run_id: 35383951809
+    evidence_job_id: 105726342819
+  persistent_failure:
+    status: pass
+    scenario: "23 V motor shows local overvoltage, accumulated damage and open failure"
+    evidence_run_id: 35383951809
+    evidence_job_id: 105727055834
+  same_timestamp_retiming:
+    status: pass
+    test: "retimes pending input groups with one shared offset"
+    evidence_run_id: 35383951809
+    evidence_job_id: 105726342819
+  electronics_focused:
+    status: pass
+    evidence_run_id: 35383951809
+    evidence_job_id: 105726342819
+  electronics_browser:
+    status: pass
+    evidence_run_id: 35383951809
+    evidence_job_id: 105727055834
+  governance:
+    status: pass
+    evidence_run_id: 35383951894
+
+semantic_review:
+  reviewed_product_sha: 8f7a563bf7f1f66c88bde3cfd30e94b2c1bd6885
+  production_review: pass
+  final_candidate_rereview: pending
+  final_candidate_rereview_requirement:
+    - production diff unchanged since reviewed product SHA
+    - final changes are tests/evidence only
+    - Reset-after-progress acceptance test is semantically correct
+    - unresolved BLOCKING findings remain zero
+  github_copilot_review_request:
+    status: unavailable
+    note: Manual REST reviewer requests produced no requested reviewer, review submission, or review thread while PR remained Draft.
+
+blocking_findings:
+  known_unresolved_count: 0
+  final_exact_sha_review_pending: true
+
+automated_behavioral_acceptance: pending
+acceptance_pending_on:
+  - exact_final_sha_independent_rereview

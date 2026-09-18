@@ -150,11 +150,11 @@ parallel_lanes:
       pr: 281
       pr_draft: true
       status: in_review
-      checkpoint: eopt3d_review_repair_candidate_green_rereview_pending
+      checkpoint: eopt3d_automated_behavioral_acceptance_green_rereview_pending
       owner_acceptance: pending
     revisions:
       convergence_baseline_sha: 21d286364d99d37b730e1954d2cbae776c41b3e1
-      head_sha: 8f7a563bf7f1f66c88bde3cfd30e94b2c1bd6885
+      head_sha: 938904fe1657fe04b710a76d67344764d1a609dc
     execution_lease:
       executor_id: codex-electronics-eopt3d
       holder: unassigned
@@ -524,6 +524,7 @@ blocking:
       - focused_verification
       - independent_review
       - bounded_repair
-    reason: Repaired E-OPT-3D candidate passed exact-head CI after the first independent semantic review found three blocking defects. Acceptance remains blocked until an independent semantic rereview of the repaired exact HEAD passes with no unresolved blocker.
-    evidence: docs/product/electronics/tasks/E-OPT-3D.md
+      - regression_authoring
+    reason: Automated E-OPT-3D behavioural evidence and required exact-head CI are green on candidate 938904fe1657fe04b710a76d67344764d1a609dc, with production source unchanged from independently reviewed 8f7a563bf7f1f66c88bde3cfd30e94b2c1bd6885. Manual owner preview is waived. Acceptance remains blocked only until an independent exact-final-SHA rereview confirms the test/evidence-only delta with zero unresolved BLOCKING findings.
+    evidence: docs/product/electronics/evidence/eopt3d-automated-behavioral-acceptance.yaml
 next_task: null
