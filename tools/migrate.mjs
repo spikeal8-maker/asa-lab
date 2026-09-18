@@ -109,6 +109,23 @@ export function reconcile(applied, planned) {
   return { pending, modified };
 }
 
+/**
+ * Pending migrations must extend the already-applied history, never backfill
+ * below it. Otherwise two databases can reach different final schemas from the
+ * same repository depending on when a late lower-numbered file appeared.
+ */
+export function findOutOfOrderPending(applied, pending) {
+  if (applied.size === 0 || pending.length === 0) {
+    return { maxAppliedVersion: null, outOfOrder: [] };
+  }
+  const appliedVersions = [...applied.keys()].map((version) => Number.parseInt(version, 10));
+  const maxAppliedVersion = Math.max(...appliedVersions);
+  const outOfOrder = pending.filter(
+    (migration) => Number.parseInt(migration.version, 10) < maxAppliedVersion,
+  );
+  return { maxAppliedVersion, outOfOrder };
+}
+
 async function withClient(databaseUrl, fn) {
   const pg = (await import('pg')).default;
   const client = new pg.Client({ connectionString: databaseUrl });
@@ -157,6 +174,18 @@ export async function applyPlan(client, planned) {
     if (modified.length > 0) {
       const versions = modified.map((migration) => migration.version).join(', ');
       throw new Error(`Applied migration(s) were modified after apply: ${versions}`);
+    }
+    const { maxAppliedVersion, outOfOrder } = findOutOfOrderPending(applied, pending);
+    if (outOfOrder.length > 0) {
+      const versions = outOfOrder.map((migration) => migration.version).join(', ');
+      throw new Error(
+        `Forbidden out-of-order pending migration(s): ${versions}; maximum applied migration version is ${String(
+          maxAppliedVersion,
+        ).padStart(
+          4,
+          '0',
+        )}. New additive migrations must use a version greater than every applied migration.`,
+      );
     }
     for (const migration of pending) {
       await client.query('BEGIN');

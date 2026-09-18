@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { describe, it, expect } from 'vitest';
 import { PGlite } from '@electric-sql/pglite';
 import { planMigrations, applyPlan } from '../../tools/migrate.mjs';
@@ -26,6 +27,18 @@ interface MigrationRow {
   checksum: string;
 }
 
+function syntheticMigration(version: string, sql: string) {
+  const checksum = createHash('sha256').update(sql).digest('hex');
+  return {
+    version,
+    name: `synthetic_${version}`,
+    file: `${version}_synthetic_${version}.sql`,
+    sql,
+    checksum,
+    compatibleChecksums: new Set([checksum]),
+  };
+}
+
 describe('migration runner apply (embedded PostgreSQL via PGlite)', () => {
   it('applies pending migrations, records them, and is idempotent', async () => {
     const db = new PGlite();
@@ -44,6 +57,75 @@ describe('migration runner apply (embedded PostgreSQL via PGlite)', () => {
 
       const secondPass = await applyPlan(client, planned);
       expect(secondPass).toBe(0);
+    } finally {
+      await db.close();
+    }
+  }, 30_000);
+
+  it('rejects a late lower-numbered pending migration before executing its SQL', async () => {
+    const db = new PGlite();
+    try {
+      const client = pgliteClient(db);
+      const migration0146 = syntheticMigration(
+        '0146',
+        'CREATE TABLE forbidden_late_0146 (id integer);',
+      );
+      const migration0148 = syntheticMigration('0148', 'CREATE TABLE baseline_0148 (id integer);');
+      const migration0149 = syntheticMigration('0149', 'CREATE TABLE baseline_0149 (id integer);');
+
+      expect(await applyPlan(client, [migration0148, migration0149])).toBe(2);
+
+      await expect(
+        applyPlan(client, [migration0146, migration0148, migration0149]),
+      ).rejects.toThrow(/Forbidden out-of-order pending migration\(s\): 0146.*0149/);
+
+      const relation = await db.query<{ relation: string | null }>(
+        "SELECT to_regclass('public.forbidden_late_0146')::text AS relation",
+      );
+      expect(relation.rows[0].relation).toBeNull();
+
+      const record = await db.query<{ count: number }>(
+        "SELECT count(*)::int AS count FROM schema_migrations WHERE version='0146'",
+      );
+      expect(record.rows[0].count).toBe(0);
+    } finally {
+      await db.close();
+    }
+  }, 30_000);
+
+  it('allows a normal next-higher migration and remains idempotent', async () => {
+    const db = new PGlite();
+    try {
+      const client = pgliteClient(db);
+      const migration0149 = syntheticMigration('0149', 'CREATE TABLE normal_0149 (id integer);');
+      const migration0150 = syntheticMigration('0150', 'CREATE TABLE allowed_0150 (id integer);');
+
+      expect(await applyPlan(client, [migration0149])).toBe(1);
+      expect(await applyPlan(client, [migration0149, migration0150])).toBe(1);
+
+      const relation = await db.query<{ relation: string | null }>(
+        "SELECT to_regclass('public.allowed_0150')::text AS relation",
+      );
+      expect(relation.rows[0].relation).toBe('allowed_0150');
+      expect(await applyPlan(client, [migration0149, migration0150])).toBe(0);
+    } finally {
+      await db.close();
+    }
+  }, 30_000);
+
+  it('allows a fresh database to apply an ordered primitive plan from its first migration', async () => {
+    const db = new PGlite();
+    try {
+      const client = pgliteClient(db);
+      const planned = ['0146', '0147', '0148', '0149'].map((version) =>
+        syntheticMigration(version, `CREATE TABLE fresh_${version} (id integer);`),
+      );
+
+      expect(await applyPlan(client, planned)).toBe(4);
+      const recorded = await db.query<{ version: string }>(
+        'SELECT version FROM schema_migrations ORDER BY version',
+      );
+      expect(recorded.rows.map((row) => row.version)).toEqual(['0146', '0147', '0148', '0149']);
     } finally {
       await db.close();
     }
