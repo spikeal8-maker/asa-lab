@@ -64,7 +64,28 @@ async function realRuntimeBootstrapFixture() {
         variables: {},
         lists: {},
         broadcasts: {},
-        blocks: {},
+        blocks: {
+          flag: {
+            opcode: 'event_whenflagclicked',
+            next: 'move',
+            parent: null,
+            inputs: {},
+            fields: {},
+            shadow: false,
+            topLevel: true,
+            x: 70,
+            y: 60,
+          },
+          move: {
+            opcode: 'motion_movesteps',
+            next: null,
+            parent: 'flag',
+            inputs: { STEPS: [1, [4, '8']] },
+            fields: {},
+            shadow: false,
+            topLevel: false,
+          },
+        },
         currentCostume: 0,
         costumes: [costume('Server Bootstrap Costume')],
         sounds: [
@@ -109,6 +130,152 @@ test.beforeAll(async () => {
   ({ parentOrigin, runtimeUrl } = await import('../tools/blocks/browser/protocol.mjs'));
   fs.mkdirSync(evidenceDir, { recursive: true });
 });
+
+type CapturedBlocksMessage = {
+  messageType?: string;
+  protocolVersion?: number;
+  projectId?: string;
+  sessionNonce?: string;
+  requestId?: string;
+  ok?: boolean;
+  reason?: string | null;
+  revision?: number;
+};
+
+async function installBlocksMessageCapture(page: import('@playwright/test').Page) {
+  await page.addInitScript(() => {
+    const state = window as unknown as { __asaBlocksTestMessages?: unknown[] };
+    state.__asaBlocksTestMessages = [];
+    window.addEventListener('message', (event) => {
+      const message = event.data as { messageType?: unknown } | null;
+      if (
+        typeof message?.messageType === 'string' &&
+        message.messageType.startsWith('ASA_BLOCKS_')
+      ) {
+        state.__asaBlocksTestMessages?.push(message);
+      }
+    });
+  });
+}
+
+async function explicitFlush(
+  page: import('@playwright/test').Page,
+  requestId: string,
+): Promise<CapturedBlocksMessage> {
+  await expect
+    .poll(async () =>
+      page.evaluate(() => {
+        const messages =
+          (window as unknown as { __asaBlocksTestMessages?: CapturedBlocksMessage[] })
+            .__asaBlocksTestMessages ?? [];
+        return messages.some(
+          (message) =>
+            message.messageType === 'ASA_BLOCKS_STATUS' &&
+            (message as CapturedBlocksMessage & { status?: string }).status === 'editor-ready',
+        );
+      }),
+    )
+    .toBe(true);
+
+  const binding = await page.evaluate(() => {
+    const messages =
+      (window as unknown as { __asaBlocksTestMessages?: CapturedBlocksMessage[] })
+        .__asaBlocksTestMessages ?? [];
+    const message = [...messages]
+      .reverse()
+      .find(
+        (candidate) =>
+          candidate.messageType === 'ASA_BLOCKS_STATUS' &&
+          (candidate as CapturedBlocksMessage & { status?: string }).status === 'editor-ready',
+      );
+    if (
+      !message ||
+      typeof message.protocolVersion !== 'number' ||
+      typeof message.projectId !== 'string' ||
+      typeof message.sessionNonce !== 'string'
+    ) {
+      return null;
+    }
+    return {
+      protocolVersion: message.protocolVersion,
+      projectId: message.projectId,
+      sessionNonce: message.sessionNonce,
+    };
+  });
+  if (!binding) throw new Error('accepted child binding was not observed');
+
+  await page.evaluate(
+    ({ binding: activeBinding, requestId: activeRequestId, targetOrigin }) => {
+      const frame = document.querySelector<HTMLIFrameElement>('iframe[title="Scratch runtime"]');
+      if (!frame?.contentWindow) throw new Error('Scratch runtime iframe unavailable');
+      frame.contentWindow.postMessage(
+        {
+          ...activeBinding,
+          messageType: 'ASA_BLOCKS_FLUSH_REQUEST',
+          requestId: activeRequestId,
+        },
+        targetOrigin,
+      );
+    },
+    { binding, requestId, targetOrigin: runtimeUrl },
+  );
+
+  await expect
+    .poll(async () =>
+      page.evaluate((targetRequestId) => {
+        const messages =
+          (window as unknown as { __asaBlocksTestMessages?: CapturedBlocksMessage[] })
+            .__asaBlocksTestMessages ?? [];
+        return messages.some(
+          (message) =>
+            message.messageType === 'ASA_BLOCKS_FLUSH_RESULT' &&
+            message.requestId === targetRequestId,
+        );
+      }, requestId),
+    )
+    .toBe(true);
+
+  return await page.evaluate((targetRequestId) => {
+    const messages =
+      (window as unknown as { __asaBlocksTestMessages?: CapturedBlocksMessage[] })
+        .__asaBlocksTestMessages ?? [];
+    return (
+      [...messages]
+        .reverse()
+        .find(
+          (message) =>
+            message.messageType === 'ASA_BLOCKS_FLUSH_RESULT' &&
+            message.requestId === targetRequestId,
+        ) ?? {}
+    );
+  }, requestId);
+}
+
+async function editLiveServerProjectAndAddMedia(
+  frame: import('@playwright/test').FrameLocator,
+): Promise<void> {
+  const serverSprite = frame.getByRole('button', {
+    name: 'Server Bootstrap Sprite',
+    exact: true,
+  });
+  await serverSprite.click();
+  const program = frame.locator('.blocklyBlockCanvas').first();
+  await program.getByText('8', { exact: true }).dblclick();
+  const numberField = frame.locator('.blocklyHtmlInput:focus');
+  await expect(numberField).toHaveValue('8');
+  await numberField.fill('37');
+  await numberField.press('Enter');
+  await expect(program.getByText('37', { exact: true })).toBeVisible();
+
+  await frame.getByRole('button', { name: 'Choose a Sprite' }).first().click();
+  await frame.getByText('Abby', { exact: true }).click();
+  await expect(frame.getByPlaceholder('Name', { exact: true })).toHaveValue('Abby');
+
+  await frame.getByRole('tab', { name: 'Sounds', exact: true }).click();
+  await frame.getByRole('button', { name: 'Choose a Sound', exact: true }).first().click();
+  await frame.getByText('Bark', { exact: true }).click();
+  await expect(frame.getByRole('textbox', { name: 'Sound', exact: true })).toHaveValue('Bark');
+}
 
 test('shipping fullscreen host loads the account avatar in ASA only and survives runtime failure', async () => {
   const fixture = await createProtocolFixture({ product: true, locale: 'en-US' });
@@ -302,6 +469,235 @@ test('runtime-session opens the real server project and reads declared costume a
     expect(requests.some((url) => url.includes('fixture.1.signature'))).toBe(false);
     expect(fixture.pageErrors).toEqual([]);
     await page.screenshot({ path: `${evidenceDir}/real-runtime-bootstrap.png` });
+  } finally {
+    await fixture.close();
+  }
+});
+
+test('explicit FLUSH persists the live VM, new media, then canonical draft with confirmed revision', async () => {
+  const serverProject = await realRuntimeBootstrapFixture();
+  const fixture = await createProtocolFixture({
+    product: true,
+    locale: 'en-US',
+    runtimeSession: {
+      draftRevision: 23,
+      projectJson: serverProject.projectJson,
+      assets: serverProject.assets,
+    },
+    runtimeAssets: serverProject.runtimeAssets,
+    confirmedRevision: 24,
+  });
+  const page = await fixture.context.newPage();
+  await installBlocksMessageCapture(page);
+  try {
+    await page.setViewportSize({ width: 1440, height: 960 });
+    await page.goto(`${parentOrigin}/product`, { waitUntil: 'domcontentloaded' });
+    const frame = page.frameLocator('iframe[title="Scratch runtime"]');
+    const shell = frame.locator('[data-asa-host-shell]');
+    await expect(shell).toHaveAttribute('data-editor-state', 'ready', { timeout: 45000 });
+
+    expect(fixture.runtimeAssetPutEvidence).toEqual([]);
+    expect(fixture.runtimeDraftEvidence).toEqual([]);
+    expect(fixture.runtimeWriteEvents).toEqual([]);
+
+    await editLiveServerProjectAndAddMedia(frame);
+
+    expect(fixture.runtimeAssetPutEvidence).toEqual([]);
+    expect(fixture.runtimeDraftEvidence).toEqual([]);
+    expect(fixture.runtimeWriteEvents).toEqual([]);
+
+    const result = await explicitFlush(page, 'browser-save-success');
+    expect(result).toMatchObject({
+      messageType: 'ASA_BLOCKS_FLUSH_RESULT',
+      requestId: 'browser-save-success',
+      ok: true,
+      revision: 24,
+      reason: null,
+    });
+    await expect(shell).toHaveAttribute('data-draft-revision', '24');
+
+    expect(fixture.runtimeAssetPutEvidence.length).toBeGreaterThan(0);
+    expect(fixture.runtimeDraftEvidence).toHaveLength(1);
+    expect(fixture.runtimeWriteEvents.at(-1)).toEqual({ kind: 'draft-put' });
+    expect(
+      fixture.runtimeWriteEvents.slice(0, -1).every((event) => event.kind === 'asset-put'),
+    ).toBe(true);
+    expect(
+      fixture.runtimeAssetPutEvidence.every(
+        (item) =>
+          item.authorizationOk &&
+          !item.cookiePresent &&
+          !item.urlHasCapability &&
+          item.originOk &&
+          item.identityOk &&
+          item.contentTypeOk,
+      ),
+    ).toBe(true);
+    expect(
+      fixture.runtimeAssetPutEvidence.some(
+        (item) =>
+          item.assetFile === `${serverProject.imageAssetId}.svg` ||
+          item.assetFile === `${serverProject.soundAssetId}.wav`,
+      ),
+    ).toBe(false);
+    expect(
+      fixture.runtimeAssetPutEvidence.some((item) => item.assetFile === `${barkAssetId}.wav`),
+    ).toBe(true);
+
+    const draft = fixture.runtimeDraftEvidence[0];
+    expect(draft).toMatchObject({
+      authorizationOk: true,
+      cookiePresent: false,
+      urlHasCapability: false,
+      originOk: true,
+      contentTypeOk: true,
+    });
+    expect(draft.body.baseRevision).toBe(23);
+    expect(draft.body.mutationId).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+    );
+    expect(draft.body.document.schemaVersion).toBe(1);
+    expect(draft.body.document.format).toBe('scratch-3');
+    const savedServerSprite = draft.body.document.projectJson.targets.find(
+      (target: { name?: string }) => target.name === 'Server Bootstrap Sprite',
+    );
+    expect(savedServerSprite).toBeTruthy();
+    expect(savedServerSprite.blocks.move.inputs.STEPS[1][1]).toBe('37');
+    expect(
+      draft.body.document.projectJson.targets.some(
+        (target: { name?: string }) => target.name === 'Abby',
+      ),
+    ).toBe(true);
+    expect(
+      draft.body.document.projectJson.targets.some((target: { sounds?: { name?: string }[] }) =>
+        target.sounds?.some((sound) => sound.name === 'Bark'),
+      ),
+    ).toBe(true);
+
+    const draftRefs = draft.body.document.assets as Array<{
+      assetId: string;
+      dataFormat: string;
+      sha256: string;
+      sizeBytes: number;
+    }>;
+    expect(
+      new Set(draftRefs.map((reference) => `${reference.assetId}.${reference.dataFormat}`)).size,
+    ).toBe(draftRefs.length);
+    expect(draftRefs).toEqual(
+      expect.arrayContaining([
+        serverProject.assets[0],
+        serverProject.assets[1],
+        expect.objectContaining({ assetId: barkAssetId, dataFormat: 'wav' }),
+      ]),
+    );
+    expect(
+      fixture.runtimeAssetPutEvidence.every((item) =>
+        draftRefs.some(
+          (reference) =>
+            `${reference.assetId}.${reference.dataFormat}` === item.assetFile &&
+            reference.sha256 === item.sha256 &&
+            reference.sizeBytes === item.sizeBytes,
+        ),
+      ),
+    ).toBe(true);
+
+    fs.writeFileSync(
+      `${evidenceDir}/explicit-flush.json`,
+      JSON.stringify(
+        {
+          assetPutCount: fixture.runtimeAssetPutEvidence.length,
+          writeEvents: fixture.runtimeWriteEvents,
+          draftPutCount: fixture.runtimeDraftEvidence.length,
+          confirmedRevision: result.revision,
+          bootstrapAssetsReuploaded: false,
+          liveBlockSteps: savedServerSprite.blocks.move.inputs.STEPS[1][1],
+        },
+        null,
+        2,
+      ),
+    );
+  } finally {
+    await fixture.close();
+  }
+});
+
+test('asset PUT failure returns failed FLUSH and does not issue draft PUT', async () => {
+  const serverProject = await realRuntimeBootstrapFixture();
+  const fixture = await createProtocolFixture({
+    product: true,
+    locale: 'en-US',
+    runtimeSession: {
+      draftRevision: 23,
+      projectJson: serverProject.projectJson,
+      assets: serverProject.assets,
+    },
+    runtimeAssets: serverProject.runtimeAssets,
+    assetWriteStatus: 503,
+  });
+  const page = await fixture.context.newPage();
+  await installBlocksMessageCapture(page);
+  try {
+    await page.goto(`${parentOrigin}/product`, { waitUntil: 'domcontentloaded' });
+    const frame = page.frameLocator('iframe[title="Scratch runtime"]');
+    const shell = frame.locator('[data-asa-host-shell]');
+    await expect(shell).toHaveAttribute('data-editor-state', 'ready', { timeout: 45000 });
+    await editLiveServerProjectAndAddMedia(frame);
+    expect(fixture.runtimeWriteEvents).toEqual([]);
+
+    const result = await explicitFlush(page, 'browser-asset-failure');
+    expect(result).toMatchObject({
+      requestId: 'browser-asset-failure',
+      ok: false,
+      reason: 'asset_write_failed',
+    });
+    expect(result.revision).toBeUndefined();
+    expect(fixture.runtimeAssetPutEvidence).toHaveLength(1);
+    expect(fixture.runtimeDraftEvidence).toHaveLength(0);
+    expect(fixture.runtimeWriteEvents).toHaveLength(1);
+    expect(fixture.runtimeWriteEvents[0]?.kind).toBe('asset-put');
+    await expect(shell).toHaveAttribute('data-draft-revision', '23');
+  } finally {
+    await fixture.close();
+  }
+});
+
+test('draft PUT failure never produces false save success or advances confirmed revision', async () => {
+  const serverProject = await realRuntimeBootstrapFixture();
+  const fixture = await createProtocolFixture({
+    product: true,
+    locale: 'en-US',
+    runtimeSession: {
+      draftRevision: 23,
+      projectJson: serverProject.projectJson,
+      assets: serverProject.assets,
+    },
+    runtimeAssets: serverProject.runtimeAssets,
+    draftWriteStatus: 409,
+  });
+  const page = await fixture.context.newPage();
+  await installBlocksMessageCapture(page);
+  try {
+    await page.goto(`${parentOrigin}/product`, { waitUntil: 'domcontentloaded' });
+    const frame = page.frameLocator('iframe[title="Scratch runtime"]');
+    const shell = frame.locator('[data-asa-host-shell]');
+    await expect(shell).toHaveAttribute('data-editor-state', 'ready', { timeout: 45000 });
+    await editLiveServerProjectAndAddMedia(frame);
+    expect(fixture.runtimeWriteEvents).toEqual([]);
+
+    const result = await explicitFlush(page, 'browser-draft-failure');
+    expect(result).toMatchObject({
+      requestId: 'browser-draft-failure',
+      ok: false,
+      reason: 'draft_write_failed',
+    });
+    expect(result.revision).toBeUndefined();
+    expect(fixture.runtimeAssetPutEvidence.length).toBeGreaterThan(0);
+    expect(fixture.runtimeDraftEvidence).toHaveLength(1);
+    expect(fixture.runtimeWriteEvents.at(-1)).toEqual({ kind: 'draft-put' });
+    expect(
+      fixture.runtimeWriteEvents.slice(0, -1).every((event) => event.kind === 'asset-put'),
+    ).toBe(true);
+    await expect(shell).toHaveAttribute('data-draft-revision', '23');
   } finally {
     await fixture.close();
   }

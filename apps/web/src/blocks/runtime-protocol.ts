@@ -186,6 +186,25 @@ export class BlocksRuntimeBridge {
       if (typeof requestId !== 'string' || !this.pendingFlushRequestIds.has(requestId)) {
         return false;
       }
+      if (message['ok'] === true) {
+        if (
+          !Number.isSafeInteger(message['revision']) ||
+          Number(message['revision']) < 0 ||
+          (message['reason'] !== null && typeof message['reason'] !== 'undefined')
+        ) {
+          return false;
+        }
+      } else if (message['ok'] === false) {
+        if (
+          typeof message['reason'] !== 'string' ||
+          message['reason'].length === 0 ||
+          typeof message['revision'] !== 'undefined'
+        ) {
+          return false;
+        }
+      } else {
+        return false;
+      }
       this.pendingFlushRequestIds.delete(requestId);
     }
 

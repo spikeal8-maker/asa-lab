@@ -214,4 +214,57 @@ describe('BlocksRuntimeBridge', () => {
       }),
     ).toBe(false);
   });
+
+  it('accepts successful FLUSH_RESULT only with a confirmed revision', () => {
+    vi.stubGlobal('crypto', { randomUUID: () => 'ffffffff-ffff-4fff-8fff-ffffffffffff' });
+    const { bridge, target, onMessage } = makeBridge();
+    bridge.requestFlush('save-1');
+    const success = {
+      protocolVersion: BLOCKS_PROTOCOL_VERSION,
+      messageType: 'ASA_BLOCKS_FLUSH_RESULT',
+      projectId: PROJECT_ID,
+      sessionNonce: bridge.sessionNonce,
+      requestId: 'save-1',
+      ok: true,
+      reason: null,
+      revision: 12,
+    };
+    expect(
+      bridge.acceptChildMessage({ source: target, origin: RUNTIME_ORIGIN, data: success }),
+    ).toBe(true);
+    expect(onMessage).toHaveBeenCalledWith(success);
+  });
+
+  it.each([
+    { ok: true, reason: null },
+    { ok: true, reason: null, revision: -1 },
+    { ok: true, reason: 'wrong', revision: 2 },
+    { ok: false, reason: '' },
+    { ok: false, reason: 'failed', revision: 2 },
+  ])('rejects malformed FLUSH_RESULT %# without consuming the request', (extra) => {
+    vi.stubGlobal('crypto', { randomUUID: () => 'ffffffff-ffff-4fff-8fff-ffffffffffff' });
+    const { bridge, target } = makeBridge();
+    bridge.requestFlush('save-malformed');
+    const base = {
+      protocolVersion: BLOCKS_PROTOCOL_VERSION,
+      messageType: 'ASA_BLOCKS_FLUSH_RESULT',
+      projectId: PROJECT_ID,
+      sessionNonce: bridge.sessionNonce,
+      requestId: 'save-malformed',
+    };
+    expect(
+      bridge.acceptChildMessage({
+        source: target,
+        origin: RUNTIME_ORIGIN,
+        data: { ...base, ...extra },
+      }),
+    ).toBe(false);
+    expect(
+      bridge.acceptChildMessage({
+        source: target,
+        origin: RUNTIME_ORIGIN,
+        data: { ...base, ok: false, reason: 'save_failed' },
+      }),
+    ).toBe(true);
+  });
 });

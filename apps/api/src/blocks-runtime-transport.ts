@@ -5,6 +5,13 @@ import { FixedWindowRateLimiter, type RateLimitDecision } from './rate-limit.js'
 
 export const BLOCKS_DRAFT_CONTENT_TYPE = 'application/vnd.asa.blocks-draft+json';
 export const BLOCKS_ASSET_CONTENT_TYPE = 'application/octet-stream';
+export const BLOCKS_ASSET_CANONICAL_CONTENT_TYPES = [
+  'image/svg+xml',
+  'image/png',
+  'image/jpeg',
+  'audio/wav',
+  'audio/mpeg',
+] as const;
 export const BLOCKS_DRAFT_BODY_LIMIT = BLOCKS_JSON_LIMIT + 2 * 1024 * 1024;
 export const BLOCKS_RUNTIME_ADDRESS_LIMIT = 60_000;
 export const BLOCKS_RUNTIME_ADDRESS_WINDOW_MS = 5 * 60 * 1000;
@@ -87,10 +94,18 @@ export function registerBlocksRuntimeTransport(
   fastify: FastifyInstance,
   runtimeOrigin: string | null,
 ): void {
-  fastify.addContentTypeParser(BLOCKS_ASSET_CONTENT_TYPE, (request, payload, done) => {
+  const assetParser = (
+    request: FastifyRequest,
+    payload: NodeJS.ReadableStream,
+    done: (error: Error | null, value?: unknown) => void,
+  ) => {
     void request;
     done(null, payload);
-  });
+  };
+  fastify.addContentTypeParser(BLOCKS_ASSET_CONTENT_TYPE, assetParser);
+  for (const contentType of BLOCKS_ASSET_CANONICAL_CONTENT_TYPES) {
+    fastify.addContentTypeParser(contentType, assetParser);
+  }
   fastify.addContentTypeParser(
     BLOCKS_DRAFT_CONTENT_TYPE,
     { parseAs: 'string', bodyLimit: BLOCKS_DRAFT_BODY_LIMIT },

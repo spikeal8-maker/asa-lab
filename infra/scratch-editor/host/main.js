@@ -84,7 +84,7 @@
         getBinding: () => protocol.getBinding(),
       });
       shell.dataset.runtimeState = 'init-accepted';
-      status.textContent = 'Загрузка учебного проекта… Изменения не сохраняются.';
+      status.textContent = 'Загрузка учебного проекта…';
       reporter.status('init-accepted');
       try {
         editor = globalThis.AsaBlocksEditor.mountEditor({
@@ -95,7 +95,7 @@
           bootstrap,
           getRuntimeToken: () => protocol.getRuntimeToken(),
           onReady() {
-            status.textContent = 'Учебный проект готов. Изменения не сохраняются.';
+            status.textContent = 'Учебный проект готов.';
             reporter.status('editor-ready');
           },
         });
@@ -108,7 +108,17 @@
       reporter?.status('token-updated');
     },
     onFlushRequest(requestId) {
-      reporter?.flushResult(requestId, false, 'storage_not_available');
+      if (!editor) {
+        reporter?.flushResult(requestId, false, 'editor_not_ready');
+        return;
+      }
+      void editor.flush().then((result) => {
+        if (result.ok) {
+          reporter?.flushResult(requestId, true, null, result.revision);
+          return;
+        }
+        reporter?.flushResult(requestId, false, result.reason);
+      });
     },
     onStop() {
       reporter?.status('stopped');

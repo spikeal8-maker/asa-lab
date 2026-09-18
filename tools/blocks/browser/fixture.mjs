@@ -1,9 +1,10 @@
 import fs from 'node:fs';
 import http from 'node:http';
 import { Buffer } from 'node:buffer';
+import { createHash } from 'node:crypto';
 import { URL } from 'node:url';
 import { chromium } from '@playwright/test';
-import { runtimeUrl, parentPort, parentOrigin, projectId } from './protocol.mjs';
+import { runtimeUrl, parentPort, parentOrigin, projectId, runtimeToken } from './protocol.mjs';
 
 export async function createProtocolFixture(options = {}) {
   const repoRoot = new URL('../../../', import.meta.url);
@@ -88,18 +89,46 @@ window.addEventListener('message', (event) => {
   };
   const runtimeAssets = options.runtimeAssets ?? new Map();
   const runtimeAssetEvidence = [];
+  const runtimeAssetPutEvidence = [];
+  const runtimeDraftEvidence = [];
+  const runtimeWriteEvents = [];
   let runtimeSessionSequence = 0;
   const runtimeSessionPath = `/api/projects/${projectId}/blocks/runtime-session`;
   const runtimeAssetPrefix = `/api/blocks/runtime/projects/${projectId}/assets/`;
+  const runtimeDraftPath = `/api/blocks/runtime/projects/${projectId}/draft`;
+  const canonicalTypes = {
+    svg: 'image/svg+xml',
+    png: 'image/png',
+    jpg: 'image/jpeg',
+    wav: 'audio/wav',
+    mp3: 'audio/mpeg',
+  };
 
+  const expectedRuntimeToken = () =>
+    product ? `fixture.${runtimeSessionSequence}.signature` : runtimeToken;
+  const runtimeAuthorizationOk = (authorization) => {
+    if (authorization === `Bearer ${expectedRuntimeToken()}`) return true;
+    return !product && authorization === 'Bearer rotated.runtime.token';
+  };
+  const urlHasCapability = (requestUrl) =>
+    requestUrl.includes('fixture.') ||
+    requestUrl.includes(runtimeToken) ||
+    requestUrl.includes('rotated.runtime.token');
   const applyRuntimeCors = (request, response) => {
     if (request.headers.origin !== runtimeUrl) return false;
     response.setHeader('Access-Control-Allow-Origin', runtimeUrl);
     response.setHeader('Vary', 'Origin');
+    response.setHeader('Access-Control-Allow-Methods', 'GET, PUT, OPTIONS');
+    response.setHeader('Access-Control-Allow-Headers', 'authorization, accept, content-type');
     return true;
   };
+  const requestBody = async (request) => {
+    const chunks = [];
+    for await (const chunk of request) chunks.push(Buffer.from(chunk));
+    return Buffer.concat(chunks);
+  };
 
-  const server = http.createServer((request, response) => {
+  const server = http.createServer(async (request, response) => {
     const requestUrl = request.url ?? '/';
 
     if (product && request.method === 'POST' && requestUrl === runtimeSessionPath) {
@@ -118,9 +147,8 @@ window.addEventListener('message', (event) => {
     }
 
     if (
-      product &&
       requestUrl.startsWith(runtimeAssetPrefix) &&
-      (request.method === 'OPTIONS' || request.method === 'GET')
+      ['OPTIONS', 'GET', 'PUT'].includes(request.method ?? '')
     ) {
       if (!applyRuntimeCors(request, response)) {
         response.statusCode = 403;
@@ -129,44 +157,159 @@ window.addEventListener('message', (event) => {
       }
       if (request.method === 'OPTIONS') {
         response.statusCode = 204;
-        response.setHeader('Access-Control-Allow-Methods', 'GET');
-        response.setHeader('Access-Control-Allow-Headers', 'authorization, accept');
         response.end();
         return;
       }
 
       const assetFile = requestUrl.slice(runtimeAssetPrefix.length);
-      const expectedAuthorization = `Bearer fixture.${runtimeSessionSequence}.signature`;
-      const authorizationOk = request.headers.authorization === expectedAuthorization;
-      runtimeAssetEvidence.push({
+      const authorizationOk = runtimeAuthorizationOk(request.headers.authorization);
+      if (request.method === 'GET') {
+        runtimeAssetEvidence.push({
+          assetFile,
+          authorizationOk,
+          cookiePresent: Boolean(request.headers.cookie),
+          urlHasCapability: urlHasCapability(requestUrl),
+          originOk: request.headers.origin === runtimeUrl,
+        });
+        if (!authorizationOk) {
+          response.statusCode = 401;
+          response.end();
+          return;
+        }
+        const configured = runtimeAssets.get(assetFile);
+        if (!configured) {
+          response.statusCode = 404;
+          response.end();
+          return;
+        }
+        response.statusCode = configured.status ?? 200;
+        response.setHeader('Cache-Control', 'no-store');
+        if (configured.contentType) response.setHeader('Content-Type', configured.contentType);
+        if ((configured.status ?? 200) >= 400) {
+          response.end();
+          return;
+        }
+        const body = Buffer.from(configured.body);
+        response.setHeader('Content-Length', String(body.byteLength));
+        response.end(body);
+        return;
+      }
+
+      const body = await requestBody(request);
+      const match = /^([a-f0-9]{32})\.(svg|png|jpg|wav|mp3)$/.exec(assetFile);
+      const dataFormat = match?.[2] ?? null;
+      const canonicalReference = match
+        ? {
+            assetId: match[1],
+            dataFormat,
+            sha256: createHash('sha256').update(body).digest('hex'),
+            sizeBytes: body.byteLength,
+          }
+        : null;
+      const identityOk =
+        Boolean(match) && createHash('md5').update(body).digest('hex') === match?.[1];
+      const contentTypeOk =
+        Boolean(dataFormat) && request.headers['content-type'] === canonicalTypes[dataFormat];
+      const evidence = {
         assetFile,
         authorizationOk,
         cookiePresent: Boolean(request.headers.cookie),
-        urlHasCapability: requestUrl.includes('fixture.'),
+        urlHasCapability: urlHasCapability(requestUrl),
         originOk: request.headers.origin === runtimeUrl,
-      });
+        identityOk,
+        contentTypeOk,
+        sizeBytes: body.byteLength,
+        sha256: canonicalReference?.sha256 ?? null,
+      };
+      runtimeAssetPutEvidence.push(evidence);
+      runtimeWriteEvents.push({ kind: 'asset-put', assetFile });
       if (!authorizationOk) {
         response.statusCode = 401;
         response.end();
         return;
       }
-
-      const configured = runtimeAssets.get(assetFile);
-      if (!configured) {
-        response.statusCode = 404;
+      const assetWriteStatus = options.assetWriteStatus ?? 200;
+      if (assetWriteStatus >= 400) {
+        response.statusCode = assetWriteStatus;
         response.end();
         return;
       }
-      response.statusCode = configured.status ?? 200;
+      if (!canonicalReference || !identityOk || !contentTypeOk) {
+        response.statusCode = 400;
+        response.end();
+        return;
+      }
+      runtimeAssets.set(assetFile, {
+        body,
+        contentType: canonicalTypes[dataFormat],
+      });
+      const payload =
+        typeof options.assetWriteResponse === 'function'
+          ? options.assetWriteResponse(canonicalReference)
+          : (options.assetWriteResponse ?? { status: 'ok', asset: canonicalReference });
+      response.statusCode = 200;
+      response.setHeader('Content-Type', 'application/json; charset=utf-8');
       response.setHeader('Cache-Control', 'no-store');
-      if (configured.contentType) response.setHeader('Content-Type', configured.contentType);
-      if ((configured.status ?? 200) >= 400) {
+      response.end(JSON.stringify(payload));
+      return;
+    }
+
+    if (
+      requestUrl === runtimeDraftPath &&
+      (request.method === 'OPTIONS' || request.method === 'PUT')
+    ) {
+      if (!applyRuntimeCors(request, response)) {
+        response.statusCode = 403;
         response.end();
         return;
       }
-      const body = Buffer.from(configured.body);
-      response.setHeader('Content-Length', String(body.byteLength));
-      response.end(body);
+      if (request.method === 'OPTIONS') {
+        response.statusCode = 204;
+        response.end();
+        return;
+      }
+      const body = await requestBody(request);
+      let parsed;
+      try {
+        parsed = JSON.parse(body.toString('utf8'));
+      } catch {
+        parsed = null;
+      }
+      const evidence = {
+        authorizationOk: runtimeAuthorizationOk(request.headers.authorization),
+        cookiePresent: Boolean(request.headers.cookie),
+        urlHasCapability: urlHasCapability(requestUrl),
+        originOk: request.headers.origin === runtimeUrl,
+        contentTypeOk: request.headers['content-type'] === 'application/vnd.asa.blocks-draft+json',
+        body: parsed,
+      };
+      runtimeDraftEvidence.push(evidence);
+      runtimeWriteEvents.push({ kind: 'draft-put' });
+      if (!evidence.authorizationOk) {
+        response.statusCode = 401;
+        response.end();
+        return;
+      }
+      const draftWriteStatus = options.draftWriteStatus ?? 200;
+      if (draftWriteStatus >= 400) {
+        response.statusCode = draftWriteStatus;
+        response.end();
+        return;
+      }
+      if (!parsed || !evidence.contentTypeOk) {
+        response.statusCode = 400;
+        response.end();
+        return;
+      }
+      const revision = options.confirmedRevision ?? Number(runtimeSession.draftRevision ?? 0) + 1;
+      const payload =
+        typeof options.draftWriteResponse === 'function'
+          ? options.draftWriteResponse(parsed, revision)
+          : (options.draftWriteResponse ?? { status: 'ok', revision });
+      response.statusCode = 200;
+      response.setHeader('Content-Type', 'application/json; charset=utf-8');
+      response.setHeader('Cache-Control', 'no-store');
+      response.end(JSON.stringify(payload));
       return;
     }
 
@@ -229,6 +372,9 @@ window.addEventListener('message', (event) => {
       context,
       pageErrors,
       runtimeAssetEvidence,
+      runtimeAssetPutEvidence,
+      runtimeDraftEvidence,
+      runtimeWriteEvents,
       async close() {
         try {
           await context.close();

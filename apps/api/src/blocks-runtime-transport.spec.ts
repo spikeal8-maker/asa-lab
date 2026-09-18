@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import Fastify, { type FastifyInstance } from 'fastify';
 import {
+  BLOCKS_ASSET_CANONICAL_CONTENT_TYPES,
   BLOCKS_ASSET_CONTENT_TYPE,
   BLOCKS_DRAFT_CONTENT_TYPE,
   BlocksRuntimeAddressBudget,
@@ -49,29 +50,32 @@ describe('Blocks runtime transport', () => {
     expect(bad.statusCode).toBe(403);
     expect(bad.headers['access-control-allow-origin']).toBeUndefined();
   });
-  it('keeps binary asset bodies as streams for bounded capture', async () => {
-    app = Fastify();
-    registerBlocksRuntimeTransport(app, ORIGIN);
-    app.put('/api/blocks/runtime/test-asset', async (request) => {
-      let bytes = 0;
-      for await (const chunk of request.body as AsyncIterable<Uint8Array>) {
-        bytes += chunk.byteLength;
-      }
-      return { bytes };
-    });
+  it.each([BLOCKS_ASSET_CONTENT_TYPE, ...BLOCKS_ASSET_CANONICAL_CONTENT_TYPES])(
+    'keeps %s asset bodies as streams for bounded capture',
+    async (contentType) => {
+      app = Fastify();
+      registerBlocksRuntimeTransport(app, ORIGIN);
+      app.put('/api/blocks/runtime/test-asset', async (request) => {
+        let bytes = 0;
+        for await (const chunk of request.body as AsyncIterable<Uint8Array>) {
+          bytes += chunk.byteLength;
+        }
+        return { bytes };
+      });
 
-    const response = await app.inject({
-      method: 'PUT',
-      url: '/api/blocks/runtime/test-asset',
-      headers: {
-        origin: ORIGIN,
-        'content-type': BLOCKS_ASSET_CONTENT_TYPE,
-      },
-      payload: Buffer.alloc(4096, 7),
-    });
-    expect(response.statusCode).toBe(200);
-    expect(response.json()).toEqual({ bytes: 4096 });
-  });
+      const response = await app.inject({
+        method: 'PUT',
+        url: '/api/blocks/runtime/test-asset',
+        headers: {
+          origin: ORIGIN,
+          'content-type': contentType,
+        },
+        payload: Buffer.alloc(4096, 7),
+      });
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toEqual({ bytes: 4096 });
+    },
+  );
   it('allows bounded large draft JSON without raising the global JSON limit', async () => {
     app = Fastify({ bodyLimit: 1024 * 1024 });
     registerBlocksRuntimeTransport(app, ORIGIN);

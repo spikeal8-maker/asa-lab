@@ -20,8 +20,13 @@
       tokenRefreshRequired() {
         return post('ASA_BLOCKS_TOKEN_REFRESH_REQUIRED');
       },
-      flushResult(requestId, ok, reason = null) {
-        return post('ASA_BLOCKS_FLUSH_RESULT', { requestId, ok, reason });
+      flushResult(requestId, ok, reason = null, revision = null) {
+        return post('ASA_BLOCKS_FLUSH_RESULT', {
+          requestId,
+          ok,
+          reason,
+          ...(Number.isSafeInteger(revision) ? { revision } : {}),
+        });
       },
       fatal(code) {
         return post('ASA_BLOCKS_FATAL', { code });

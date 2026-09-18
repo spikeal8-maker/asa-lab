@@ -370,6 +370,386 @@ test('existing project mount preloads runtime assets and uses the real ASA proje
   });
 });
 
+function snapshotAsset(assetId, dataFormat, bytes) {
+  return {
+    assetId,
+    dataFormat,
+    bytes,
+    sha256: createHash('sha256').update(bytes).digest('hex'),
+    sizeBytes: bytes.byteLength,
+  };
+}
+
+function createPersistenceStorage({
+  bootstrapAssets = [],
+  assetStatus = 200,
+  draftStatus = 200,
+  assetPayload,
+  draftPayload,
+  assetNetworkFailure = false,
+  draftNetworkFailure = false,
+} = {}) {
+  const calls = [];
+  const fetchMock = async (url, init) => {
+    const href = String(url);
+    if (href.endsWith('/draft')) {
+      calls.push({ kind: 'draft', url: href, init, body: JSON.parse(init.body) });
+      if (draftNetworkFailure) throw new TypeError('draft network');
+      const responseBody =
+        typeof draftPayload === 'function'
+          ? draftPayload(calls.at(-1))
+          : (draftPayload ?? { status: 'ok', revision: 8 });
+      return new globalThis.Response(JSON.stringify(responseBody), {
+        status: draftStatus,
+        headers: { 'content-type': 'application/json' },
+      });
+    }
+    calls.push({ kind: 'asset', url: href, init });
+    if (assetNetworkFailure) throw new TypeError('asset network');
+    const match = /\/assets\/([a-f0-9]{32})\.(svg|png|jpg|wav|mp3)$/.exec(href);
+    const bytes = new Uint8Array(init.body);
+    const reference = {
+      assetId: match?.[1],
+      dataFormat: match?.[2],
+      sha256: createHash('sha256').update(bytes).digest('hex'),
+      sizeBytes: bytes.byteLength,
+    };
+    const responseBody =
+      typeof assetPayload === 'function'
+        ? assetPayload(reference)
+        : (assetPayload ?? { status: 'ok', asset: reference });
+    return new globalThis.Response(JSON.stringify(responseBody), {
+      status: assetStatus,
+      headers: { 'content-type': 'application/json' },
+    });
+  };
+  const api = loadHost('storage', {
+    fetch: fetchMock,
+    crypto: webcrypto,
+    AbortController: globalThis.AbortController,
+  }).AsaBlocksStorage;
+  const storage = api.createReadOnlyStorage(standaloneFixture(), {
+    projectId: PROJECT_ID,
+    projectJson: null,
+    assets: bootstrapAssets,
+    draftRevision: 7,
+    apiOrigin: API_ORIGIN,
+    getRuntimeToken: () => RUNTIME_TOKEN,
+  });
+  return { storage, calls };
+}
+
+test('explicit persistence uploads only changed assets before canonical draft and confirms revision', async () => {
+  const unchangedBytes = Uint8Array.from([1, 2, 3]);
+  const newBytes = Uint8Array.from([4, 5, 6, 7]);
+  const staleBytes = Uint8Array.from([8, 9]);
+  const unchanged = snapshotAsset('a'.repeat(32), 'png', unchangedBytes);
+  const added = snapshotAsset('b'.repeat(32), 'wav', newBytes);
+  const stale = snapshotAsset('c'.repeat(32), 'svg', staleBytes);
+  const { storage, calls } = createPersistenceStorage({
+    bootstrapAssets: [
+      {
+        assetId: unchanged.assetId,
+        dataFormat: unchanged.dataFormat,
+        sha256: unchanged.sha256,
+        sizeBytes: unchanged.sizeBytes,
+      },
+      {
+        assetId: stale.assetId,
+        dataFormat: stale.dataFormat,
+        sha256: stale.sha256,
+        sizeBytes: stale.sizeBytes,
+      },
+    ],
+  });
+  const projectJson = {
+    targets: [{ name: 'Live VM', costumes: [], sounds: [] }],
+    monitors: [],
+    extensions: [],
+  };
+
+  const revision = await storage.persistSnapshot({
+    projectJson,
+    assets: [unchanged, added],
+  });
+
+  assert.equal(revision, 8);
+  assert.equal(storage.getConfirmedRevision(), 8);
+  assert.deepEqual(
+    calls.map((call) => call.kind),
+    ['asset', 'draft'],
+    'all required assets must be durable before draft PUT',
+  );
+  const assetCall = calls[0];
+  assert.match(assetCall.url, new RegExp(`/${added.assetId}\\.wav$`));
+  assert.equal(assetCall.init.credentials, 'omit');
+  assert.equal(assetCall.init.redirect, 'error');
+  assert.equal(assetCall.init.headers.authorization, `Bearer ${RUNTIME_TOKEN}`);
+  assert.equal(assetCall.init.headers['content-type'], 'audio/wav');
+  assert.equal(assetCall.url.includes(RUNTIME_TOKEN), false);
+  assert.equal('cookie' in assetCall.init.headers, false);
+  assert.deepEqual(Buffer.from(assetCall.init.body), Buffer.from(newBytes));
+
+  const draftCall = calls[1];
+  assert.equal(draftCall.init.credentials, 'omit');
+  assert.equal(draftCall.init.redirect, 'error');
+  assert.equal(draftCall.init.headers.authorization, `Bearer ${RUNTIME_TOKEN}`);
+  assert.equal(draftCall.init.headers['content-type'], 'application/vnd.asa.blocks-draft+json');
+  assert.equal(draftCall.url.includes(RUNTIME_TOKEN), false);
+  assert.equal(draftCall.body.baseRevision, 7);
+  assert.match(draftCall.body.mutationId, /^[0-9a-f-]{36}$/i);
+  assert.deepEqual(draftCall.body.document.projectJson, projectJson);
+  assert.deepEqual(draftCall.body.document.assets, [
+    {
+      assetId: unchanged.assetId,
+      dataFormat: unchanged.dataFormat,
+      sha256: unchanged.sha256,
+      sizeBytes: unchanged.sizeBytes,
+    },
+    {
+      assetId: added.assetId,
+      dataFormat: added.dataFormat,
+      sha256: added.sha256,
+      sizeBytes: added.sizeBytes,
+    },
+  ]);
+  assert.equal(
+    draftCall.body.document.assets.some((reference) => reference.assetId === stale.assetId),
+    false,
+    'bootstrap assets no longer referenced by live JSON must not survive the draft',
+  );
+});
+
+for (const status of [400, 401, 403, 409, 429, 503]) {
+  test(`asset PUT HTTP ${status} fails closed before draft PUT`, async () => {
+    const asset = snapshotAsset('d'.repeat(32), 'png', Uint8Array.from([10, 11, 12]));
+    const { storage, calls } = createPersistenceStorage({ assetStatus: status });
+    await assert.rejects(
+      storage.persistSnapshot({ projectJson: { targets: [] }, assets: [asset] }),
+      /asset_write_failed/,
+    );
+    assert.equal(calls.filter((call) => call.kind === 'draft').length, 0);
+    assert.equal(storage.getConfirmedRevision(), 7);
+  });
+}
+
+test('asset PUT network and canonical-reference mismatch fail closed before draft PUT', async () => {
+  const asset = snapshotAsset('e'.repeat(32), 'svg', new TextEncoder().encode('<svg/>'));
+  for (const options of [
+    { assetNetworkFailure: true },
+    {
+      assetPayload: (reference) => ({
+        status: 'ok',
+        asset: { ...reference, sha256: '0'.repeat(64) },
+      }),
+    },
+    { assetPayload: { status: 'ok' } },
+  ]) {
+    const { storage, calls } = createPersistenceStorage(options);
+    await assert.rejects(
+      storage.persistSnapshot({ projectJson: { targets: [] }, assets: [asset] }),
+      /asset_write_failed|asset_reference_mismatch/,
+    );
+    assert.equal(calls.filter((call) => call.kind === 'draft').length, 0);
+    assert.equal(storage.getConfirmedRevision(), 7);
+  }
+});
+
+for (const status of [400, 401, 403, 409, 429, 503]) {
+  test(`draft PUT HTTP ${status} never advances confirmed revision`, async () => {
+    const asset = snapshotAsset('f'.repeat(32), 'png', Uint8Array.from([13, 14, 15]));
+    const { storage, calls } = createPersistenceStorage({ draftStatus: status });
+    await assert.rejects(
+      storage.persistSnapshot({ projectJson: { targets: [] }, assets: [asset] }),
+      /draft_write_failed/,
+    );
+    assert.equal(calls.filter((call) => call.kind === 'asset').length, 1);
+    assert.equal(calls.filter((call) => call.kind === 'draft').length, 1);
+    assert.equal(storage.getConfirmedRevision(), 7);
+  });
+}
+
+test('draft network and malformed success never advance confirmed revision', async () => {
+  const asset = snapshotAsset('1'.repeat(32), 'png', Uint8Array.from([16, 17, 18]));
+  for (const options of [
+    { draftNetworkFailure: true },
+    { draftPayload: { status: 'ok' } },
+    { draftPayload: { status: 'ok', revision: 7 } },
+    { draftPayload: { status: 'nope', revision: 8 } },
+  ]) {
+    const { storage } = createPersistenceStorage(options);
+    await assert.rejects(
+      storage.persistSnapshot({ projectJson: { targets: [] }, assets: [asset] }),
+      /draft_write_failed|draft_revision_invalid/,
+    );
+    assert.equal(storage.getConfirmedRevision(), 7);
+  }
+});
+
+test('editor FLUSH captures current vm.toJSON and exact referenced vm asset bytes', async () => {
+  const bytes = new TextEncoder().encode(
+    '<svg xmlns="http://www.w3.org/2000/svg"><circle r="4"/></svg>',
+  );
+  const assetId = '2'.repeat(32);
+  let props;
+  let captured;
+  let resolveSave;
+  const saveResult = new Promise((resolve) => {
+    resolveSave = resolve;
+  });
+  const storage = {
+    async prepareProjectAssets() {},
+    async persistSnapshot(snapshot) {
+      captured = snapshot;
+      return saveResult;
+    },
+    dispose() {},
+  };
+  const machine = new EventEmitter();
+  machine.assets = [{ assetId, dataFormat: 'svg', data: bytes }];
+  machine.toJSON = () =>
+    JSON.stringify({
+      targets: [
+        {
+          name: 'Live Changed Sprite',
+          costumes: [
+            {
+              assetId,
+              dataFormat: 'svg',
+              md5ext: `${assetId}.svg`,
+            },
+          ],
+          sounds: [],
+        },
+      ],
+      monitors: [],
+      extensions: [],
+    });
+  machine.stopAll = () => {};
+  machine.quit = () => {};
+  const standalone = {
+    EditorState: class {
+      dispatch() {}
+    },
+    setProjectId: (projectId) => ({ projectId }),
+    setAppElement() {},
+    createStandaloneRoot: () => ({
+      render(value) {
+        props = value;
+        value.onVmInit(machine);
+      },
+      unmount() {},
+    }),
+  };
+  const shell = { dataset: {} };
+  const api = loadHost('editor', {
+    crypto: webcrypto,
+    AsaBlocksStorage: { createReadOnlyStorage: () => storage },
+  }).AsaBlocksEditor;
+  const editor = api.mountEditor({
+    standalone,
+    container: {},
+    shell,
+    session: { mode: 'editor', projectId: PROJECT_ID },
+    bootstrap: {
+      apiOrigin: API_ORIGIN,
+      draftRevision: 7,
+      projectJson: null,
+      hasProjectJson: false,
+      assets: [],
+    },
+    getRuntimeToken: () => RUNTIME_TOKEN,
+    onReady() {},
+  });
+  await editor.startup;
+  props.onProjectLoaded();
+
+  const first = editor.flush();
+  const concurrent = await editor.flush();
+  assert.equal(concurrent.ok, false);
+  assert.equal(concurrent.reason, 'save_in_progress');
+  resolveSave(8);
+  const saved = await first;
+  assert.equal(saved.ok, true);
+  assert.equal(saved.revision, 8);
+  assert.equal(shell.dataset.draftRevision, '8');
+  assert.equal(captured.projectJson.targets[0].name, 'Live Changed Sprite');
+  assert.equal(captured.assets.length, 1);
+  assert.equal(captured.assets[0].assetId, assetId);
+  assert.equal(captured.assets[0].dataFormat, 'svg');
+  assert.deepEqual(Buffer.from(captured.assets[0].bytes), Buffer.from(bytes));
+  assert.equal(captured.assets[0].sizeBytes, bytes.byteLength);
+  assert.equal(captured.assets[0].sha256, createHash('sha256').update(bytes).digest('hex'));
+});
+
+test('editor FLUSH fails when live project references bytes unavailable from the VM', async () => {
+  const assetId = '3'.repeat(32);
+  let props;
+  let persisted = false;
+  const machine = new EventEmitter();
+  machine.assets = [];
+  machine.toJSON = () =>
+    JSON.stringify({
+      targets: [
+        {
+          costumes: [{ assetId, dataFormat: 'png', md5ext: `${assetId}.png` }],
+          sounds: [],
+        },
+      ],
+      monitors: [],
+      extensions: [],
+    });
+  machine.stopAll = () => {};
+  machine.quit = () => {};
+  const api = loadHost('editor', {
+    crypto: webcrypto,
+    AsaBlocksStorage: {
+      createReadOnlyStorage: () => ({
+        async prepareProjectAssets() {},
+        async persistSnapshot() {
+          persisted = true;
+          return 8;
+        },
+        dispose() {},
+      }),
+    },
+  }).AsaBlocksEditor;
+  const editor = api.mountEditor({
+    standalone: {
+      EditorState: class {
+        dispatch() {}
+      },
+      setProjectId: (projectId) => ({ projectId }),
+      setAppElement() {},
+      createStandaloneRoot: () => ({
+        render(value) {
+          props = value;
+          value.onVmInit(machine);
+        },
+        unmount() {},
+      }),
+    },
+    container: {},
+    shell: { dataset: {} },
+    session: { mode: 'editor', projectId: PROJECT_ID },
+    bootstrap: {
+      apiOrigin: API_ORIGIN,
+      draftRevision: 7,
+      projectJson: null,
+      hasProjectJson: false,
+      assets: [],
+    },
+    getRuntimeToken: () => RUNTIME_TOKEN,
+    onReady() {},
+  });
+  await editor.startup;
+  props.onProjectLoaded();
+  const failed = await editor.flush();
+  assert.equal(failed.ok, false);
+  assert.equal(failed.reason, 'asset_capture_failed');
+  assert.equal(persisted, false);
+});
+
 function protocolHarness() {
   const handlers = new Map();
   const parent = {};
@@ -551,6 +931,6 @@ for (const [query, mode, delegated] of [
     );
     await Promise.resolve();
     assert.equal(status.hidden, delegated);
-    assert.match(status.textContent, /Изменения не сохраняются/);
+    assert.match(status.textContent, /Учебный проект готов/);
   });
 }
