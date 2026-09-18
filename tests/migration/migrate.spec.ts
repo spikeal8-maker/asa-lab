@@ -1,8 +1,11 @@
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, it, expect } from 'vitest';
 // The migration runner exposes its pure planning/reconciliation logic so it can
 // be verified without a live database. Applying migrations is covered by the
 // smoke mode against real PostgreSQL.
-import { planMigrations, reconcile } from '../../tools/migrate.mjs';
+import { findOutOfOrderPending, planMigrations, reconcile } from '../../tools/migrate.mjs';
 
 describe('migration runner planning', () => {
   it('plans the repository migrations in order with checksums', () => {
@@ -19,6 +22,36 @@ describe('migration runner planning', () => {
     const { pending, modified } = reconcile(new Map(), planned);
     expect(pending.length).toBe(planned.length);
     expect(modified.length).toBe(0);
+  });
+
+  it('identifies a late lower-numbered pending migration below the applied maximum', () => {
+    const applied = new Map([
+      ['0148', { checksum: 'a'.repeat(64) }],
+      ['0149', { checksum: 'b'.repeat(64) }],
+    ]);
+    const pending = [
+      { version: '0146', checksum: 'c'.repeat(64) },
+      { version: '0150', checksum: 'd'.repeat(64) },
+    ];
+
+    const result = findOutOfOrderPending(applied, pending);
+
+    expect(result.maxAppliedVersion).toBe(149);
+    expect(result.outOfOrder.map((migration) => migration.version)).toEqual(['0146']);
+  });
+
+  it('allows fresh history and a next higher pending migration', () => {
+    const fresh = findOutOfOrderPending(new Map(), [
+      { version: '0146', checksum: 'a'.repeat(64) },
+      { version: '0147', checksum: 'b'.repeat(64) },
+    ]);
+    expect(fresh).toEqual({ maxAppliedVersion: null, outOfOrder: [] });
+
+    const upgraded = findOutOfOrderPending(new Map([['0149', { checksum: 'c'.repeat(64) }]]), [
+      { version: '0150', checksum: 'd'.repeat(64) },
+    ]);
+    expect(upgraded.maxAppliedVersion).toBe(149);
+    expect(upgraded.outOfOrder).toEqual([]);
   });
 
   it('detects a modified already-applied migration', () => {
@@ -68,5 +101,26 @@ describe('migration runner planning', () => {
     const { pending, modified } = reconcile(applied, planned);
     expect(pending.map((m) => m.version)).not.toContain(planned[0].version);
     expect(modified.length).toBe(0);
+  });
+
+  it('still rejects duplicate migration versions', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'asa-migrate-duplicate-'));
+    try {
+      writeFileSync(join(dir, '0150_first.sql'), 'SELECT 1;\n');
+      writeFileSync(join(dir, '0150_second.sql'), 'SELECT 2;\n');
+      expect(() => planMigrations(dir)).toThrow(/Duplicate migration version: 0150/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('still rejects invalid migration filenames', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'asa-migrate-name-'));
+    try {
+      writeFileSync(join(dir, '0150-valid.sql'), 'SELECT 1;\n');
+      expect(() => planMigrations(dir)).toThrow(/invalid name/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
