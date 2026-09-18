@@ -148,10 +148,10 @@ parallel_lanes:
       branch: codex/electronics-eopt3d-worker-horizons
       base_branch: main
       pr: 281
-      pr_draft: true
+      pr_draft: false
       status: in_review
-      checkpoint: eopt3d_automated_behavioral_acceptance_green_rereview_pending
-      owner_acceptance: pending
+      checkpoint: eopt3d_automated_acceptance_pass_merge_authorized
+      owner_acceptance: accepted
     revisions:
       convergence_baseline_sha: 21d286364d99d37b730e1954d2cbae776c41b3e1
       head_sha: 938904fe1657fe04b710a76d67344764d1a609dc
@@ -510,21 +510,4 @@ blocking:
       - focused_verification
     reason: Known E1-FIX-01 through E1-FIX-12 correction/verification requirements remain open
     evidence: docs/product/ASA_LEARNING_REQUIREMENTS_LEDGER.yaml
-  - id: ELECTRONICS-EOPT3D-ACCEPTANCE
-    kind: acceptance_blocker
-    lane: electronics
-    task_id: TASK-ELECTRONICS-EOPT3D-001
-    blocks:
-      - owner_acceptance
-      - merge_claim
-      - next_electronics_slice
-    allows:
-      - documentation_update
-      - branch_convergence
-      - focused_verification
-      - independent_review
-      - bounded_repair
-      - regression_authoring
-    reason: Automated E-OPT-3D behavioural evidence and required exact-head CI are green on candidate 938904fe1657fe04b710a76d67344764d1a609dc, with production source unchanged from independently reviewed 8f7a563bf7f1f66c88bde3cfd30e94b2c1bd6885. Manual owner preview is waived. Acceptance remains blocked only until an independent exact-final-SHA rereview confirms the test/evidence-only delta with zero unresolved BLOCKING findings.
-    evidence: docs/product/electronics/evidence/eopt3d-automated-behavioral-acceptance.yaml
 next_task: null
