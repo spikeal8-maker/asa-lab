@@ -67,7 +67,7 @@ CREATE OR REPLACE FUNCTION public.classroom_student_code_legacy_current(
 RETURNS TABLE(
   tenant_id uuid,seat_id uuid,student_code varchar,credential_version integer
 )
-LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
 BEGIN
   RETURN QUERY
   SELECT seat.tenant_id,seat.id,seat.login_handle,cred.version
@@ -81,7 +81,7 @@ BEGIN
     AND access.tenant_id=seat.tenant_id
   FOR UPDATE OF seat,cred;
 END;
-$;
+$$;
 REVOKE ALL ON FUNCTION public.classroom_student_code_legacy_current(uuid,uuid,uuid)
   FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.classroom_student_code_legacy_current(uuid,uuid,uuid)

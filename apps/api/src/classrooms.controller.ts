@@ -1305,12 +1305,7 @@ export class ClassroomsController {
     const client = await this.requirePool().connect();
     try {
       await client.query('BEGIN');
-      await this.protectLegacyCurrentStudentCode(
-        client,
-        context.accountId,
-        classroomId,
-        seatId,
-      );
+      await this.protectLegacyCurrentStudentCode(client, context.accountId, classroomId, seatId);
       const result = present((await execute(client)).rows[0]);
       await this.storeProtectedStudentCode(
         client,
