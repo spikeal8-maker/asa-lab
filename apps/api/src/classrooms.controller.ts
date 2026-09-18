@@ -357,6 +357,7 @@ export class ClassroomsController {
     credentialVersion: number,
     tenantId?: string,
     onlyIfMissing = false,
+    credentialState: 'protected' | 'legacy_predictable' = 'protected',
   ): Promise<void> {
     const config = this.studentCodeProtection();
     if (!config) return;
@@ -387,7 +388,7 @@ export class ClassroomsController {
         classroomId,
         seatId,
         credentialVersion,
-        'protected',
+        credentialState,
         envelope.encryptionKeyId,
         envelope.encryptionNonce,
         envelope.encryptionCiphertext,
@@ -417,6 +418,48 @@ export class ClassroomsController {
     throw new HttpException(
       error('credential_storage_unavailable', 'Хранилище кодов учеников временно недоступно.'),
       503,
+    );
+  }
+
+  private async protectLegacyCurrentStudentCode(
+    client: pg.PoolClient,
+    accountId: string,
+    classroomId: string,
+    seatId: string,
+  ): Promise<void> {
+    const existing = await client.query(
+      `SELECT credential_version
+         FROM classroom_student_code_protected_read($1,$2)
+        WHERE seat_id=$3`,
+      [accountId, classroomId, seatId],
+    );
+    if (existing.rows[0]) return;
+
+    const legacy = await client.query(
+      `SELECT tenant_id,student_code,credential_version
+         FROM classroom_student_code_legacy_current($1,$2,$3)`,
+      [accountId, classroomId, seatId],
+    );
+    const row = legacy.rows[0] as
+      | { tenant_id?: string; student_code?: string; credential_version?: number | string }
+      | undefined;
+    if (
+      !row?.tenant_id ||
+      typeof row.student_code !== 'string' ||
+      row.credential_version === undefined
+    ) {
+      throw new HttpException(error('seat_not_found', 'Ученик не найден.'), 404);
+    }
+    await this.storeProtectedStudentCode(
+      client,
+      accountId,
+      classroomId,
+      seatId,
+      row.student_code,
+      Number(row.credential_version),
+      row.tenant_id,
+      false,
+      'legacy_predictable',
     );
   }
 
@@ -1262,6 +1305,12 @@ export class ClassroomsController {
     const client = await this.requirePool().connect();
     try {
       await client.query('BEGIN');
+      await this.protectLegacyCurrentStudentCode(
+        client,
+        context.accountId,
+        classroomId,
+        seatId,
+      );
       const result = present((await execute(client)).rows[0]);
       await this.storeProtectedStudentCode(
         client,
