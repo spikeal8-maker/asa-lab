@@ -21,7 +21,7 @@ task:
 
 revisions:
   convergence_baseline_sha: 1d101b699b7db34efa838a143a93f9b19940e5c9
-  head_sha: a20283ac3af1f0212e99f0a0499895201e7ea2cd
+  head_sha: d7b64e29b9728557d528fea960465e732fd4559f
 
 execution_lease:
   executor_id: codex-scratch-real-storage-005b
@@ -48,8 +48,8 @@ primary_lane:
   id: visual-programming
   worktree_id: visual-programming-m1
   milestone:
-    id: VSCR-M1-005
-    owner_authorization: development_only
+    id: VSCR-M1-002
+    owner_authorization: accepted
   owned_paths:
     - contexts/blocks/**
     - infra/scratch-editor/**
