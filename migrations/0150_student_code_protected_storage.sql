@@ -125,6 +125,25 @@ BEGIN
   IF v_tenant IS NULL THEN RETURN 'not_found'; END IF;
   IF v_current_version<>p_credential_version THEN RETURN 'version_conflict'; END IF;
 
+  -- Same-version rewrites are allowed only when the candidate still represents
+  -- the same code under at least one loaded lookup key. This permits future
+  -- encryption/lookup-key rotation without allowing a code change to bypass the
+  -- credential-version contract.
+  IF EXISTS (
+    SELECT 1
+    FROM public.classroom_student_code_protected current
+    WHERE current.seat_id=p_seat
+      AND current.credential_version=p_credential_version
+      AND NOT EXISTS (
+        SELECT 1
+        FROM jsonb_array_elements(p_lookup_candidates) candidate
+        WHERE candidate->>'keyId'=current.lookup_key_id
+          AND candidate->>'digest'=current.lookup_digest
+      )
+  ) THEN
+    RETURN 'version_conflict';
+  END IF;
+
   IF EXISTS (
     SELECT 1
     FROM jsonb_array_elements(p_lookup_candidates) candidate
