@@ -29,6 +29,7 @@ const SESSION_KEYS = new Set([
 
 const ASSET_KEYS = new Set(['assetId', 'dataFormat', 'sha256', 'sizeBytes']);
 const ASSET_FORMATS = new Set<BlocksRuntimeAssetFormat>(['svg', 'png', 'jpg', 'wav', 'mp3']);
+const COMPACT_JWS_RE = /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -85,7 +86,8 @@ export function parseBlocksRuntimeSession(
   if (
     typeof value.runtimeToken !== 'string' ||
     value.runtimeToken.length < 1 ||
-    value.runtimeToken.length > 4096
+    value.runtimeToken.length > 4096 ||
+    !COMPACT_JWS_RE.test(value.runtimeToken)
   )
     return null;
   if (

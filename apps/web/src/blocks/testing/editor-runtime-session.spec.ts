@@ -9,7 +9,7 @@ const PROJECT_ID = '11111111-1111-4111-8111-111111111111';
 const RUNTIME_ORIGIN = 'http://127.0.0.1:4613';
 const reactTestGlobal = globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean };
 
-function session(runtimeToken = 'real-runtime-token') {
+function session(runtimeToken = 'real.runtime.token') {
   return {
     runtimeOrigin: RUNTIME_ORIGIN,
     runtimeToken,
@@ -128,7 +128,7 @@ describe('BlocksEditor runtime session bootstrap', () => {
     expect(initCalls(postMessage)[0]?.[0]).toMatchObject({
       messageType: 'ASA_BLOCKS_INIT',
       projectId: PROJECT_ID,
-      runtimeToken: 'real-runtime-token',
+      runtimeToken: 'real.runtime.token',
       draftRevision: 17,
       hasProjectJson: true,
       assets: session().assets,
@@ -152,13 +152,29 @@ describe('BlocksEditor runtime session bootstrap', () => {
     expect(container?.textContent).toContain('Ошибка Scratch runtime');
   });
 
+  it('does not INIT when the runtime-session request fails', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        throw new Error('network unavailable');
+      }),
+    );
+    const iframe = await renderEditor();
+    const postMessage = spyOnPostMessage(iframe);
+
+    await fireLoad(iframe);
+
+    expect(initCalls(postMessage)).toHaveLength(0);
+    expect(container?.textContent).toContain('Ошибка Scratch runtime');
+  });
+
   it('fails closed when a successful response is malformed', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async () =>
         jsonResponse({
           ...session(),
-          runtimeToken: '',
+          runtimeToken: 'not-a-compact-jwt',
         }),
       ),
     );
@@ -195,7 +211,7 @@ describe('BlocksEditor runtime session bootstrap', () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(jsonResponse({}, 503))
-      .mockResolvedValueOnce(jsonResponse(session('fresh-runtime-token')));
+      .mockResolvedValueOnce(jsonResponse(session('fresh.runtime.token')));
     vi.stubGlobal('fetch', fetchMock);
     const firstIframe = await renderEditor();
     const firstPostMessage = spyOnPostMessage(firstIframe);
@@ -222,7 +238,7 @@ describe('BlocksEditor runtime session bootstrap', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(initCalls(secondPostMessage)).toHaveLength(1);
     expect(initCalls(secondPostMessage)[0]?.[0]).toMatchObject({
-      runtimeToken: 'fresh-runtime-token',
+      runtimeToken: 'fresh.runtime.token',
     });
   });
 
@@ -247,18 +263,18 @@ describe('BlocksEditor runtime session bootstrap', () => {
       await flushAsync();
     });
     await act(async () => {
-      resolveSecond(jsonResponse(session('newer-runtime-token')));
+      resolveSecond(jsonResponse(session('newer.runtime.token')));
       await flushAsync();
     });
     await act(async () => {
-      resolveFirst(jsonResponse(session('stale-runtime-token')));
+      resolveFirst(jsonResponse(session('stale.runtime.token')));
       await flushAsync();
     });
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(initCalls(postMessage)).toHaveLength(1);
     expect(initCalls(postMessage)[0]?.[0]).toMatchObject({
-      runtimeToken: 'newer-runtime-token',
+      runtimeToken: 'newer.runtime.token',
     });
   });
 });

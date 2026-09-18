@@ -402,7 +402,24 @@ test('native File saves an edited sb3 and restores code and media in a fresh edi
     expect(
       httpRequests.filter(({ url }) => ![parentOrigin, runtimeUrl].includes(new URL(url).origin)),
     ).toEqual([]);
-    expect(httpRequests.filter(({ method }) => !['GET', 'HEAD'].includes(method))).toEqual([]);
+    const runtimeSessionRequests = httpRequests.filter(
+      ({ method, url }) =>
+        method === 'POST' &&
+        new URL(url).origin === parentOrigin &&
+        new URL(url).pathname ===
+          '/api/projects/11111111-1111-4111-8111-111111111111/blocks/runtime-session',
+    );
+    expect(runtimeSessionRequests.length).toBeGreaterThanOrEqual(2);
+    expect(
+      httpRequests.filter(
+        ({ method, url }) =>
+          !['GET', 'HEAD'].includes(method) &&
+          !runtimeSessionRequests.some(
+            (runtimeSessionRequest) =>
+              runtimeSessionRequest.method === method && runtimeSessionRequest.url === url,
+          ),
+      ),
+    ).toEqual([]);
     expect(
       httpRequests.filter(
         ({ phase: step, url }) =>

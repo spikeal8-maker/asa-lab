@@ -13,6 +13,8 @@ export async function createProtocolFixture(options = {}) {
     'infra/scratch-editor/host/storage.js',
     'infra/scratch-editor/host/editor.js',
     'apps/web/src/blocks/runtime-protocol.ts',
+    'apps/web/src/blocks/runtime-session.ts',
+    'apps/web/src/blocks/BlocksEditor.tsx',
   ];
   for (const relative of checkedSources) {
     const text = fs.readFileSync(new URL(relative, repoRoot), 'utf8');
@@ -78,7 +80,26 @@ window.addEventListener('message', (event) => {
   const product = options.product
     ? await (await import('./product-bundle.mjs')).productFiles()
     : null;
+  let runtimeSessionSequence = 0;
+  const runtimeSessionPath =
+    '/api/projects/11111111-1111-4111-8111-111111111111/blocks/runtime-session';
   const server = http.createServer((request, response) => {
+    if (product && request.method === 'POST' && request.url === runtimeSessionPath) {
+      runtimeSessionSequence += 1;
+      response.setHeader('Content-Type', 'application/json; charset=utf-8');
+      response.setHeader('Cache-Control', 'no-store');
+      response.end(
+        JSON.stringify({
+          runtimeOrigin: runtimeUrl,
+          runtimeToken: `fixture.${runtimeSessionSequence}.signature`,
+          expiresAt: 4_000_000_000,
+          draftRevision: 0,
+          projectJson: null,
+          assets: [],
+        }),
+      );
+      return;
+    }
     const productFile = product?.files.get(request.url);
     if (productFile) {
       response.setHeader('Content-Type', productFile.type);
