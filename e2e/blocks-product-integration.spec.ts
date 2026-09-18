@@ -8,36 +8,23 @@ let runtimeUrl: string;
 const evidenceDir = 'reports/blocks/product-integration';
 const barkAssetId = 'cd8fa8390b0efdd281882533fbfcfcfb';
 
-function makeFixtureWav(): Buffer {
-  const sampleRate = 22050;
-  const sampleCount = 2205;
-  const bytes = Buffer.alloc(44 + sampleCount * 2);
-  bytes.write('RIFF', 0);
-  bytes.writeUInt32LE(bytes.length - 8, 4);
-  bytes.write('WAVE', 8);
-  bytes.write('fmt ', 12);
-  bytes.writeUInt32LE(16, 16);
-  bytes.writeUInt16LE(1, 20);
-  bytes.writeUInt16LE(1, 22);
-  bytes.writeUInt32LE(sampleRate, 24);
-  bytes.writeUInt32LE(sampleRate * 2, 28);
-  bytes.writeUInt16LE(2, 32);
-  bytes.writeUInt16LE(16, 34);
-  bytes.write('data', 36);
-  bytes.writeUInt32LE(sampleCount * 2, 40);
-  for (let index = 0; index < sampleCount; index += 1) {
-    const value = Math.round(Math.sin((2 * Math.PI * 440 * index) / sampleRate) * 9000);
-    bytes.writeInt16LE(value, 44 + index * 2);
-  }
-  return bytes;
-}
-
-function realRuntimeBootstrapFixture() {
+async function realRuntimeBootstrapFixture() {
   const imageBytes = Buffer.from(
-    '<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100"><rect width="100" height="100" fill="#ff5f57"/><circle cx="50" cy="50" r="24" fill="#0877b3"/></svg>',
+    '<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96"><rect width="96" height="96" rx="16" fill="#ff5f57"/><circle cx="48" cy="48" r="23" fill="#0877b3"/></svg>',
     'utf8',
   );
-  const soundBytes = makeFixtureWav();
+  const stockSoundId = '83c36d806dc92327b9e7049a565c6bff';
+  const soundResponse = await fetch(`${runtimeUrl}/library-assets/${stockSoundId}.wav`);
+  if (!soundResponse.ok) throw new Error('pinned Scratch bootstrap sound unavailable');
+  const soundBytes = Buffer.from(await soundResponse.arrayBuffer());
+  if (
+    soundBytes.length <= 44 ||
+    soundBytes.subarray(0, 4).toString() !== 'RIFF' ||
+    soundBytes.subarray(8, 12).toString() !== 'WAVE'
+  ) {
+    throw new Error('pinned Scratch bootstrap sound is not canonical WAV');
+  }
+  soundBytes[44] = soundBytes[44]! ^ 1;
   const imageAssetId = createHash('md5').update(imageBytes).digest('hex');
   const soundAssetId = createHash('md5').update(soundBytes).digest('hex');
   const asset = (assetId: string, dataFormat: 'svg' | 'wav', bytes: Buffer) => ({
@@ -87,7 +74,7 @@ function realRuntimeBootstrapFixture() {
             dataFormat: 'wav',
             format: '',
             rate: 22050,
-            sampleCount: 2205,
+            sampleCount: 18688,
             md5ext: `${soundAssetId}.wav`,
           },
         ],
@@ -222,7 +209,7 @@ test('stock WAV is served as audio and retains the pinned sound bytes', async ({
 });
 
 test('runtime-session opens the real server project and reads declared costume and sound assets', async () => {
-  const serverProject = realRuntimeBootstrapFixture();
+  const serverProject = await realRuntimeBootstrapFixture();
   const fixture = await createProtocolFixture({
     product: true,
     locale: 'en-US',
