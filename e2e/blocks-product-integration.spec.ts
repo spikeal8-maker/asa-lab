@@ -696,11 +696,10 @@ test('lost draft response retries the same mutation once without duplicate asset
     },
     runtimeAssets: serverProject.runtimeAssets,
   });
+  const runtimeDraftPath = `/api/blocks/runtime/projects/${projectId}/draft`;
   let loseFirstDraftResponse = true;
   await fixture.context.route(
-    (url) =>
-      loseFirstDraftResponse &&
-      url.pathname === `/api/blocks/runtime/projects/${projectId}/draft`,
+    (url) => loseFirstDraftResponse && url.pathname === runtimeDraftPath,
     async (route, request) => {
       if (request.method() !== 'PUT') {
         await route.continue();
