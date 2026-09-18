@@ -11,20 +11,20 @@ development_policy:
 task:
   id: VSCR-M1-005B
   issue: 287
-  branch: main
+  branch: codex/scratch-real-storage-005b
   base_branch: main
-  pr: null
-  pr_draft: false
+  pr: 288
+  pr_draft: true
   status: in_progress
   checkpoint: owner_selected_real_storage_browser_save
   owner_acceptance: pending
 
 revisions:
   convergence_baseline_sha: 1d101b699b7db34efa838a143a93f9b19940e5c9
-  head_sha: e25cc05b70b95c95d8afaec9136b8c1e665e9803
+  head_sha: b1a0b4392721379016055c9ebc169d441dfe0822
 
 execution_lease:
-  executor_id: codex-vscr-m1-002b
+  executor_id: codex-scratch-real-storage-005b
   holder: unassigned
   acquired_at: null
   expires_at: null
@@ -48,8 +48,8 @@ primary_lane:
   id: visual-programming
   worktree_id: visual-programming-m1
   milestone:
-    id: VSCR-M1-002
-    owner_authorization: accepted
+    id: VSCR-M1-005
+    owner_authorization: development_only
   owned_paths:
     - contexts/blocks/**
     - infra/scratch-editor/**
