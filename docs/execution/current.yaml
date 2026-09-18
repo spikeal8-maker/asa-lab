@@ -149,8 +149,8 @@ parallel_lanes:
       base_branch: main
       pr: 300
       pr_draft: true
-      status: in_review
-      checkpoint: eopt3e_replay_matrix_green_independent_review_pending
+      status: in_progress
+      checkpoint: eopt3e_same_time_order_characterization_repair
       owner_acceptance: pending
     revisions:
       convergence_baseline_sha: 8e5620c8759ace58f6d748724f381d86d3bd3dc9
