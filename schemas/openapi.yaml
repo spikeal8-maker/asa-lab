@@ -1908,7 +1908,7 @@ paths:
       - { name: seatId, in: path, required: true, schema: { type: string, format: uuid } }
     post:
       operationId: setClassroomStudentCode
-      summary: Set or generate the six-character Student Code and revoke prior Seat sessions
+      summary: Set or generate the Student Code and revoke prior Seat sessions
       requestBody:
         required: true
         content:
@@ -1920,10 +1920,10 @@ paths:
               properties:
                 studentCode:
                   type: string
-                  minLength: 6
-                  maxLength: 6
-                  pattern: '^[2346789ACDEFGHJKMNPQRTUVWXYacdefghjkmnpqrtuvwxy]{6}$'
-                  description: Optional explicit Student Code; omit to generate a new one.
+                  minLength: 4
+                  maxLength: 10
+                  pattern: '^[A-Za-z0-9]{4,10}$'
+                  description: Optional explicit case-sensitive Student Code; omit to generate a six-character code from the safe mixed-case alphabet.
                 requestId: { type: string, format: uuid }
       responses:
         '201':
@@ -1937,7 +1937,7 @@ paths:
                 properties:
                   studentCode:
                     type: string
-                    pattern: '^[2346789ACDEFGHJKMNPQRTUVWXY]{6}$'
+                    pattern: '^[A-Za-z0-9]{4,10}$'
                   version: { type: integer, minimum: 1 }
                   reused: { type: boolean }
         '400': { description: Invalid code or requestId }
@@ -2887,7 +2887,7 @@ paths:
   /api/class-join/studentseat:
     post:
       operationId: signInClassroomStudentSeat
-      summary: Sign in with class code and the learner's six-character Student Code, without email
+      summary: Sign in with class code and the learner's case-sensitive Student Code, without email
       requestBody:
         required: true
         content:
@@ -2900,9 +2900,9 @@ paths:
                 code: { type: string }
                 studentCode:
                   type: string
-                  minLength: 6
-                  maxLength: 6
-                  pattern: '^[2346789ACDEFGHJKMNPQRTUVWXYacdefghjkmnpqrtuvwxy]{6}$'
+                  minLength: 4
+                  maxLength: 10
+                  pattern: '^[A-Za-z0-9]{4,10}$'
                   writeOnly: true
       responses:
         '200': { description: HttpOnly StudentSeat session created }
@@ -5476,9 +5476,9 @@ components:
         displayLabel: { type: string, minLength: 1, maxLength: 120 }
         loginHandle:
           type: string
-          pattern: '^[2346789acdefghjkmnpqrtuvwxy]{6}$'
+          pattern: '^[A-Za-z0-9]{4,10}$'
           deprecated: true
-          description: Compatibility alias for Student Code; omit to let the server generate one.
+          description: Compatibility alias for an explicit case-sensitive Student Code; omit to let the server generate a safe six-character code.
         safeMode: { type: boolean }
     StudentSeatBatchInput:
       type: object
@@ -5488,9 +5488,9 @@ components:
         displayLabel: { type: string, minLength: 1, maxLength: 120 }
         loginHandle:
           type: string
-          pattern: '^[2346789acdefghjkmnpqrtuvwxy]{6}$'
+          pattern: '^[A-Za-z0-9]{4,10}$'
           deprecated: true
-          description: Compatibility alias for Student Code; omit for server-generated code.
+          description: Compatibility alias for an explicit case-sensitive Student Code; omit for a server-generated safe six-character code.
         safeMode: { type: boolean, default: true }
     StudentSeatBatchPreviewRequest:
       type: object
@@ -5511,11 +5511,11 @@ components:
         displayLabel: { type: [string, 'null'] }
         studentCode:
           type: [string, 'null']
-          pattern: '^[2346789ACDEFGHJKMNPQRTUVWXY]{6}$'
+          pattern: '^[A-Za-z0-9]{4,10}$'
         loginHandle:
           type: [string, 'null']
           deprecated: true
-          description: Lowercase compatibility alias for studentCode.
+          description: Case-preserving compatibility alias for studentCode.
         safeMode: { type: [boolean, 'null'] }
         status:
           type: string
@@ -5565,11 +5565,11 @@ components:
         displayLabel: { type: [string, 'null'] }
         studentCode:
           type: [string, 'null']
-          pattern: '^[2346789ACDEFGHJKMNPQRTUVWXY]{6}$'
+          pattern: '^[A-Za-z0-9]{4,10}$'
         loginHandle:
           type: [string, 'null']
           deprecated: true
-          description: Lowercase compatibility alias for studentCode.
+          description: Case-preserving compatibility alias for studentCode.
         safeMode: { type: [boolean, 'null'] }
         seatId: { type: [string, 'null'], format: uuid }
         credentialVersion: { type: [integer, 'null'], minimum: 1 }
@@ -5612,12 +5612,12 @@ components:
         displayLabel: { type: string }
         studentCode:
           type: string
-          pattern: '^[2346789ACDEFGHJKMNPQRTUVWXY]{6}$'
+          pattern: '^[A-Za-z0-9]{4,10}$'
           description: Current teacher-visible Student Code used with the class code.
         loginHandle:
           type: string
           deprecated: true
-          description: Lowercase storage compatibility alias for studentCode.
+          description: Case-preserving storage compatibility alias for studentCode.
         safeMode: { type: boolean }
         status:
           type: string

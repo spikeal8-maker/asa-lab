@@ -139,19 +139,28 @@ describe('Result A: real Account and independent Classroom API', () => {
       teacher.id,
     ]);
 
-    const add = async (name: string, studentCode: string) => {
+    const autoPattern = /^[2346789ACDEFGHJKMNPQRTUVWXYacdefghjkmnpqrtuvwxy]{6}$/;
+    const add = async (name: string, studentCode?: string) => {
       const response = await inject(app, {
         method: 'POST',
         url: `/api/classrooms/${classId}/seats`,
         headers: { cookie: teacher.cookie },
-        payload: { displayLabel: name, loginHandle: studentCode, safeMode: true },
+        payload: {
+          displayLabel: name,
+          ...(studentCode ? { loginHandle: studentCode } : {}),
+          safeMode: true,
+        },
       });
       expect(response.statusCode, response.body).toBe(201);
-      expect(response.json().student.studentCode).toBe(studentCode.toUpperCase());
-      return response.json().student as { id: string; studentCode: string };
+      const student = response.json().student as { id: string; studentCode: string };
+      if (studentCode) expect(student.studentCode).toBe(studentCode);
+      else expect(student.studentCode).toMatch(autoPattern);
+      return student;
     };
-    const first = await add('Первый ученик', 'acd234');
-    const second = await add('Второй ученик', 'efg678');
+    const first = await add('Одинаковое имя');
+    const second = await add('Одинаковое имя');
+    expect(first.studentCode).not.toBe(second.studentCode);
+    const originalFirstCode = first.studentCode;
 
     const signIn = (studentCode?: string) =>
       inject(app, {
@@ -161,7 +170,7 @@ describe('Result A: real Account and independent Classroom API', () => {
       });
     expect((await signIn()).statusCode).toBe(400);
     expect((await signIn('HJK234')).statusCode).toBe(401);
-    const login = await signIn(first.studentCode.toLowerCase());
+    const login = await signIn(first.studentCode);
     expect(login.statusCode, login.body).toBe(200);
     const cookie = `asa_student_session=${login.cookies.find((c) => c.name === 'asa_student_session')?.value}`;
     const me = await inject(app, { method: 'GET', url: '/api/class-join/me', headers: { cookie } });
@@ -183,50 +192,119 @@ describe('Result A: real Account and independent Classroom API', () => {
     });
     expect([401, 403]).toContain(forbidden.statusCode);
 
-    const ordinary = await account();
+    const identityBefore = await admin.query(
+      'SELECT learning_audience_ensure_seat_identity($1) AS learner_identity_id',
+      [first.id],
+    );
+    const learnerIdentityId = identityBefore.rows[0]?.learner_identity_id as string;
+    expect(learnerIdentityId).toMatch(/^[0-9a-f-]{36}$/i);
+
+    const foreignTeacher = await account();
+    await teach(foreignTeacher.cookie);
     const deniedRotation = await inject(app, {
       method: 'POST',
       url: `/api/classrooms/${classId}/seats/${second.id}/code`,
-      headers: { cookie: ordinary.cookie },
+      headers: { cookie: foreignTeacher.cookie },
       payload: { studentCode: 'QRT234', requestId: crypto.randomUUID() },
     });
-    expect(deniedRotation.statusCode, deniedRotation.body).toBe(403);
+    expect([403, 404]).toContain(deniedRotation.statusCode);
 
     const requestId = crypto.randomUUID();
     const rotated = await inject(app, {
       method: 'POST',
       url: `/api/classrooms/${classId}/seats/${first.id}/code`,
       headers: { cookie: teacher.cookie },
-      payload: { studentCode: 'MNP234', requestId },
+      payload: { studentCode: 'Ab7k', requestId },
     });
     expect(rotated.statusCode, rotated.body).toBe(201);
-    expect(rotated.json()).toMatchObject({ studentCode: 'MNP234', version: 2, reused: false });
+    expect(rotated.json()).toMatchObject({ studentCode: 'Ab7k', version: 2, reused: false });
 
     const retry = await inject(app, {
       method: 'POST',
       url: `/api/classrooms/${classId}/seats/${first.id}/code`,
       headers: { cookie: teacher.cookie },
-      payload: { studentCode: 'MNP234', requestId },
+      payload: { studentCode: 'Ab7k', requestId },
     });
     expect(retry.statusCode, retry.body).toBe(201);
-    expect(retry.json()).toMatchObject({ studentCode: 'MNP234', version: 2, reused: true });
+    expect(retry.json()).toMatchObject({ studentCode: 'Ab7k', version: 2, reused: true });
 
     const requestConflict = await inject(app, {
       method: 'POST',
       url: `/api/classrooms/${classId}/seats/${first.id}/code`,
       headers: { cookie: teacher.cookie },
-      payload: { studentCode: 'QRT234', requestId },
+      payload: { studentCode: 'ab7k', requestId },
     });
     expect(requestConflict.statusCode, requestConflict.body).toBe(409);
     expect(requestConflict.body).toContain('idempotency_conflict');
 
-    expect((await signIn('ACD234')).statusCode).toBe(401);
+    expect((await signIn(originalFirstCode)).statusCode).toBe(401);
+    expect((await signIn('ab7k')).statusCode).toBe(401);
     const revoked = await inject(app, {
       method: 'GET',
       url: '/api/class-join/me',
       headers: { cookie },
     });
     expect(revoked.json().authenticated).toBe(false);
+
+    const identityAfter = await admin.query(
+      'SELECT learner_identity_id FROM learner_identity_links WHERE seat_id=$1 AND status=$2',
+      [first.id, 'active'],
+    );
+    expect(identityAfter.rows).toHaveLength(1);
+    expect(identityAfter.rows[0]?.learner_identity_id).toBe(learnerIdentityId);
+
+    const colleague = await account();
+    await teach(colleague.cookie);
+    const invitation = await inject(app, {
+      method: 'POST',
+      url: `/api/classrooms/${classId}/teacher-invitations`,
+      headers: { cookie: teacher.cookie },
+      payload: {},
+    });
+    expect(invitation.statusCode, invitation.body).toBe(201);
+    const invitationToken = String(invitation.json().invitation.invitePath).split('/').at(-1)!;
+    const accepted = await inject(app, {
+      method: 'POST',
+      url: `/api/classroom-teacher-invitations/${invitationToken}/accept`,
+      headers: { cookie: colleague.cookie },
+      payload: {},
+    });
+    expect(accepted.statusCode, accepted.body).toBe(200);
+    expect(accepted.json().classroom.role).toBe('co_teacher');
+
+    const colleagueRotation = await inject(app, {
+      method: 'POST',
+      url: `/api/classrooms/${classId}/seats/${second.id}/code`,
+      headers: { cookie: colleague.cookie },
+      payload: { studentCode: 'ab7k', requestId: crypto.randomUUID() },
+    });
+    expect(colleagueRotation.statusCode, colleagueRotation.body).toBe(201);
+    expect(colleagueRotation.json().studentCode).toBe('ab7k');
+
+    const upperCaseSeatLogin = await signIn('Ab7k');
+    const lowerCaseSeatLogin = await signIn('ab7k');
+    expect(upperCaseSeatLogin.statusCode, upperCaseSeatLogin.body).toBe(200);
+    expect(lowerCaseSeatLogin.statusCode, lowerCaseSeatLogin.body).toBe(200);
+    expect(upperCaseSeatLogin.json().student.seatId).toBe(first.id);
+    expect(lowerCaseSeatLogin.json().student.seatId).toBe(second.id);
+
+    const boundarySeat = await add('Границы ручного кода');
+    const rotateBoundary = async (studentCode: string) =>
+      inject(app, {
+        method: 'POST',
+        url: `/api/classrooms/${classId}/seats/${boundarySeat.id}/code`,
+        headers: { cookie: teacher.cookie },
+        payload: { studentCode, requestId: crypto.randomUUID() },
+      });
+    const four = await rotateBoundary('1234');
+    expect(four.statusCode, four.body).toBe(201);
+    expect(four.json().studentCode).toBe('1234');
+    const ten = await rotateBoundary('Aa2Bb3Cc4D');
+    expect(ten.statusCode, ten.body).toBe(201);
+    expect(ten.json().studentCode).toBe('Aa2Bb3Cc4D');
+    expect((await rotateBoundary('A23')).statusCode).toBe(400);
+    expect((await rotateBoundary('Abc12345678')).statusCode).toBe(400);
+    expect((await rotateBoundary('Ab_12')).statusCode).toBe(400);
 
     const roster = await inject(app, {
       method: 'GET',
@@ -235,7 +313,9 @@ describe('Result A: real Account and independent Classroom API', () => {
     });
     expect(roster.statusCode, roster.body).toBe(200);
     const firstRow = roster.json().items.find((row: { id: string }) => row.id === first.id);
-    expect(firstRow.studentCode).toBe('MNP234');
+    const secondRow = roster.json().items.find((row: { id: string }) => row.id === second.id);
+    expect(firstRow.studentCode).toBe('Ab7k');
+    expect(secondRow.studentCode).toBe('ab7k');
 
     await expect(
       runtime.query(
@@ -249,9 +329,9 @@ describe('Result A: real Account and independent Classroom API', () => {
     const audit = await admin.query('SELECT payload_json FROM audit_events WHERE entity_id=$1', [
       first.id,
     ]);
-    expect(JSON.stringify(audit.rows)).not.toContain('MNP234');
+    expect(JSON.stringify(audit.rows)).not.toContain('Ab7k');
 
-    const active = await signIn('MNP234');
+    const active = await signIn('Ab7k');
     expect(active.statusCode, active.body).toBe(200);
     const idleCookie = `asa_student_session=${active.cookies.find((c) => c.name === 'asa_student_session')!.value}`;
     await admin.query(
@@ -270,7 +350,7 @@ describe('Result A: real Account and independent Classroom API', () => {
 
     for (const url of ['/api/auth/logout', '/api/class-join/logout']) {
       const owner = await account();
-      const entered = await signIn('MNP234');
+      const entered = await signIn('Ab7k');
       expect(entered.statusCode, entered.body).toBe(200);
       const seatCookie = `asa_student_session=${entered.cookies.find((c) => c.name === 'asa_student_session')!.value}`;
       const logout = await inject(app, {
@@ -361,7 +441,32 @@ describe('Result A: real Account and independent Classroom API', () => {
       'duplicate',
       'invalid',
     ]);
-    expect(previewRows[0]?.studentCode).toMatch(/^[2346789ACDEFGHJKMNPQRTUVWXY]{6}$/);
+    expect(previewRows[0]?.studentCode).toMatch(
+      /^[2346789ACDEFGHJKMNPQRTUVWXYacdefghjkmnpqrtuvwxy]{6}$/,
+    );
+    const secondPreview = await inject(app, {
+      method: 'POST',
+      url: `/api/classrooms/${classId}/seats/batch/preview`,
+      headers: { cookie: teacher.cookie },
+      payload: { students },
+    });
+    expect(secondPreview.statusCode, secondPreview.body).toBe(201);
+    expect(secondPreview.json().results[0].studentCode).not.toBe(previewRows[0]?.studentCode);
+
+    const generatorDefinition = await admin.query(
+      `SELECT pg_get_functiondef('public.classroom_student_code_random()'::regprocedure) AS definition`,
+    );
+    expect(generatorDefinition.rows[0]?.definition).toContain('gen_random_uuid');
+    const batchDefinition = await admin.query(
+      `SELECT pg_get_functiondef('public.classroom_student_seat_batch_preview(uuid,uuid,jsonb)'::regprocedure) AS definition`,
+    );
+    expect(batchDefinition.rows[0]?.definition).toContain('classroom_student_code_random');
+    expect(batchDefinition.rows[0]?.definition).not.toContain('p_classroom::text');
+    expect(batchDefinition.rows[0]?.definition).not.toContain('v_index::text');
+    expect(batchDefinition.rows[0]?.definition).not.toContain('classroom_student_code_candidate');
+    expect(batchDefinition.rows[0]?.definition).toContain(
+      'v_handle:=public.classroom_student_code_random()',
+    );
 
     const requestId = crypto.randomUUID();
     const committed = await inject(app, {
@@ -381,7 +486,7 @@ describe('Result A: real Account and independent Classroom API', () => {
     const created = result.results.filter((row: { status: string }) => row.status === 'created');
     expect(created).toHaveLength(2);
     for (const row of created) {
-      expect(row.studentCode).toMatch(/^[2346789ACDEFGHJKMNPQRTUVWXY]{6}$/);
+      expect(row.studentCode).toMatch(/^[2346789ACDEFGHJKMNPQRTUVWXYacdefghjkmnpqrtuvwxy]{6}$/);
       expect(row.credential).toBeNull();
       expect(row.credentialVersion).toBe(1);
       expect(row.seatId).toMatch(/^[0-9a-f-]{36}$/i);
