@@ -1945,6 +1945,7 @@ paths:
         '403': { description: Active teacher capability required }
         '404': { description: Seat unavailable to this teacher }
         '409': { description: Student Code already in use or requestId conflict }
+        '503': { description: Protected Student Code keyring or storage unavailable }
   /api/classrooms/{classroomId}/seats/{seatId}/credential:
     parameters:
       - { name: classroomId, in: path, required: true, schema: { type: string, format: uuid } }
@@ -2576,6 +2577,7 @@ paths:
         '400': { description: Invalid batch size, shape or requestId }
         '403': { description: Classroom roster management is not allowed }
         '409': { description: requestId was already used with different payload or scope }
+        '503': { description: Protected Student Code keyring or storage unavailable }
   /api/classrooms/{classroomId}/seats/{seatId}:
     parameters:
       - name: classroomId
