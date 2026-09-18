@@ -25,6 +25,7 @@ function makeBridge(target = makeTarget(), onFatal = vi.fn(), onMessage = vi.fn(
       apiOrigin: API_ORIGIN,
       runtimeToken: 'fixture-token',
       draftRevision: 12,
+      projectJson: { targets: [], monitors: [], extensions: [] },
       hasProjectJson: true,
       assets: [],
       recoveryNamespace: 'fixture-recovery',
@@ -54,6 +55,9 @@ describe('BlocksRuntimeBridge', () => {
       projectId: PROJECT_ID,
       sessionNonce: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
       runtimeToken: 'fixture-token',
+      draftRevision: 12,
+      projectJson: { targets: [], monitors: [], extensions: [] },
+      hasProjectJson: true,
     });
   });
 

@@ -1,8 +1,9 @@
 import fs from 'node:fs';
 import http from 'node:http';
+import { Buffer } from 'node:buffer';
 import { URL } from 'node:url';
 import { chromium } from '@playwright/test';
-import { runtimeUrl, parentPort, parentOrigin } from './protocol.mjs';
+import { runtimeUrl, parentPort, parentOrigin, projectId } from './protocol.mjs';
 
 export async function createProtocolFixture(options = {}) {
   const repoRoot = new URL('../../../', import.meta.url);
@@ -80,27 +81,96 @@ window.addEventListener('message', (event) => {
   const product = options.product
     ? await (await import('./product-bundle.mjs')).productFiles()
     : null;
+  const runtimeSession = options.runtimeSession ?? {
+    draftRevision: 0,
+    projectJson: null,
+    assets: [],
+  };
+  const runtimeAssets = options.runtimeAssets ?? new Map();
+  const runtimeAssetEvidence = [];
   let runtimeSessionSequence = 0;
-  const runtimeSessionPath =
-    '/api/projects/11111111-1111-4111-8111-111111111111/blocks/runtime-session';
+  const runtimeSessionPath = `/api/projects/${projectId}/blocks/runtime-session`;
+  const runtimeAssetPrefix = `/api/blocks/runtime/projects/${projectId}/assets/`;
+
+  const applyRuntimeCors = (request, response) => {
+    if (request.headers.origin !== runtimeUrl) return false;
+    response.setHeader('Access-Control-Allow-Origin', runtimeUrl);
+    response.setHeader('Vary', 'Origin');
+    return true;
+  };
+
   const server = http.createServer((request, response) => {
-    if (product && request.method === 'POST' && request.url === runtimeSessionPath) {
+    const requestUrl = request.url ?? '/';
+
+    if (product && request.method === 'POST' && requestUrl === runtimeSessionPath) {
       runtimeSessionSequence += 1;
       response.setHeader('Content-Type', 'application/json; charset=utf-8');
       response.setHeader('Cache-Control', 'no-store');
       response.end(
         JSON.stringify({
+          ...runtimeSession,
           runtimeOrigin: runtimeUrl,
           runtimeToken: `fixture.${runtimeSessionSequence}.signature`,
           expiresAt: 4_000_000_000,
-          draftRevision: 0,
-          projectJson: null,
-          assets: [],
         }),
       );
       return;
     }
-    const productFile = product?.files.get(request.url);
+
+    if (
+      product &&
+      requestUrl.startsWith(runtimeAssetPrefix) &&
+      (request.method === 'OPTIONS' || request.method === 'GET')
+    ) {
+      if (!applyRuntimeCors(request, response)) {
+        response.statusCode = 403;
+        response.end();
+        return;
+      }
+      if (request.method === 'OPTIONS') {
+        response.statusCode = 204;
+        response.setHeader('Access-Control-Allow-Methods', 'GET');
+        response.setHeader('Access-Control-Allow-Headers', 'authorization, accept');
+        response.end();
+        return;
+      }
+
+      const assetFile = requestUrl.slice(runtimeAssetPrefix.length);
+      const expectedAuthorization = `Bearer fixture.${runtimeSessionSequence}.signature`;
+      const authorizationOk = request.headers.authorization === expectedAuthorization;
+      runtimeAssetEvidence.push({
+        assetFile,
+        authorizationOk,
+        cookiePresent: Boolean(request.headers.cookie),
+        urlHasCapability: requestUrl.includes('fixture.'),
+        originOk: request.headers.origin === runtimeUrl,
+      });
+      if (!authorizationOk) {
+        response.statusCode = 401;
+        response.end();
+        return;
+      }
+
+      const configured = runtimeAssets.get(assetFile);
+      if (!configured) {
+        response.statusCode = 404;
+        response.end();
+        return;
+      }
+      response.statusCode = configured.status ?? 200;
+      response.setHeader('Cache-Control', 'no-store');
+      if (configured.contentType) response.setHeader('Content-Type', configured.contentType);
+      if ((configured.status ?? 200) >= 400) {
+        response.end();
+        return;
+      }
+      const body = Buffer.from(configured.body);
+      response.setHeader('Content-Length', String(body.byteLength));
+      response.end(body);
+      return;
+    }
+
+    const productFile = product?.files.get(requestUrl);
     if (productFile) {
       response.setHeader('Content-Type', productFile.type);
       response.setHeader('Cache-Control', 'no-store');
@@ -109,7 +179,7 @@ window.addEventListener('message', (event) => {
     }
     response.setHeader('Content-Type', 'text/html; charset=utf-8');
     response.setHeader('Cache-Control', 'no-store');
-    if (request.url === '/attacker') {
+    if (requestUrl === '/attacker') {
       response.end(attackerHtml);
       return;
     }
@@ -158,6 +228,7 @@ window.addEventListener('message', (event) => {
       updatedAvatarDataUrl: product?.updatedAvatarDataUrl,
       context,
       pageErrors,
+      runtimeAssetEvidence,
       async close() {
         try {
           await context.close();

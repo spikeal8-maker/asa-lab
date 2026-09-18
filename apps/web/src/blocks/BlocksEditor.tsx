@@ -105,6 +105,7 @@ export function BlocksEditor({
           apiOrigin: window.location.origin,
           runtimeToken: session.runtimeToken,
           draftRevision: session.draftRevision,
+          projectJson: session.projectJson,
           hasProjectJson: session.projectJson !== null,
           assets: session.assets,
           recoveryNamespace: `asa-blocks-preview-${projectId}`,

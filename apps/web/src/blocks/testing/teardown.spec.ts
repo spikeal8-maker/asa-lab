@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { URL } from 'node:url';
 import vm from 'node:vm';
 import { describe, expect, it, vi } from 'vitest';
 import { BlocksRuntimeBridge } from '../runtime-protocol';
@@ -21,6 +22,7 @@ describe('accepted protocol teardown under exceptions', () => {
       apiOrigin: origin,
       runtimeToken: 'teardown-fixture-token',
       draftRevision: 0,
+      projectJson: null,
       hasProjectJson: false,
       assets: [],
       recoveryNamespace: 'test',
@@ -39,7 +41,7 @@ describe('accepted protocol teardown under exceptions', () => {
       }),
       removeEventListener: vi.fn(),
     };
-    const sandbox = vm.createContext({ window });
+    const sandbox = vm.createContext({ window, URL });
     vm.runInContext(
       fs.readFileSync(
         new URL('../../../../../infra/scratch-editor/host/protocol.js', import.meta.url),
@@ -62,9 +64,14 @@ describe('accepted protocol teardown under exceptions', () => {
       ...binding,
       messageType: 'ASA_BLOCKS_INIT',
       mode: 'editor',
-      runtimeToken: 'fixture-token',
+      runtimeToken: 'fixture.runtime.token',
+      apiOrigin: origin,
+      draftRevision: 0,
+      projectJson: null,
+      hasProjectJson: false,
+      assets: [],
     });
-    expect(protocol.getRuntimeToken()).toBe('fixture-token');
+    expect(protocol.getRuntimeToken()).toBe('fixture.runtime.token');
     expect(() => send({ ...binding, messageType: 'ASA_BLOCKS_STOP' })).toThrow(
       'stop callback failed',
     );

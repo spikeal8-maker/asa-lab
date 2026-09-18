@@ -73,7 +73,7 @@
   const protocol = protocolApi.createChildProtocol({
     parentWindow: window.parent,
     expectedParentOrigin,
-    onInit(session, { hasProjectJson }) {
+    onInit(session, bootstrap) {
       // Presentation only, after accepted INIT. Other parents keep the local status.
       status.hidden =
         session.mode === 'editor' &&
@@ -92,12 +92,14 @@
           container: document.getElementById('scratch-editor-root'),
           shell,
           session,
-          hasProjectJson,
+          bootstrap,
+          getRuntimeToken: () => protocol.getRuntimeToken(),
           onReady() {
             status.textContent = 'Учебный проект готов. Изменения не сохраняются.';
             reporter.status('editor-ready');
           },
         });
+        void editor.startup.catch(() => reportFatal('editor_mount_failed'));
       } catch {
         reportFatal('editor_mount_failed');
       }

@@ -38,6 +38,7 @@ export interface BlocksRuntimeInitOptions {
   apiOrigin: string;
   runtimeToken: string;
   draftRevision: number;
+  projectJson: Record<string, unknown> | null;
   hasProjectJson: boolean;
   assets: readonly unknown[];
   recoveryNamespace: string;
@@ -124,6 +125,7 @@ export class BlocksRuntimeBridge {
       apiOrigin: requireExactHttpOrigin(this.options.apiOrigin),
       runtimeToken: this.runtimeToken,
       draftRevision: this.options.draftRevision,
+      projectJson: this.options.projectJson,
       hasProjectJson: this.options.hasProjectJson,
       assets: this.options.assets,
       recoveryNamespace: this.options.recoveryNamespace,

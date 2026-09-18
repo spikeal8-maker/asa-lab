@@ -100,7 +100,7 @@ export async function verifyHostProtocol() {
     await sendFromParent(page, {
       ...binding,
       messageType: 'ASA_BLOCKS_TOKEN_UPDATE',
-      runtimeToken: 'rotated-runtime-token-c',
+      runtimeToken: 'rotated.runtime.token',
     });
     await page.waitForFunction(() =>
       window.__blocksMessages.some(

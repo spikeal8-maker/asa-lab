@@ -130,6 +130,7 @@ describe('BlocksEditor runtime session bootstrap', () => {
       projectId: PROJECT_ID,
       runtimeToken: 'real.runtime.token',
       draftRevision: 17,
+      projectJson: session().projectJson,
       hasProjectJson: true,
       assets: session().assets,
       apiOrigin: window.location.origin,

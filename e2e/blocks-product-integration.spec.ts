@@ -8,6 +8,115 @@ let runtimeUrl: string;
 const evidenceDir = 'reports/blocks/product-integration';
 const barkAssetId = 'cd8fa8390b0efdd281882533fbfcfcfb';
 
+function makeFixtureWav(): Buffer {
+  const sampleRate = 22050;
+  const sampleCount = 2205;
+  const bytes = Buffer.alloc(44 + sampleCount * 2);
+  bytes.write('RIFF', 0);
+  bytes.writeUInt32LE(bytes.length - 8, 4);
+  bytes.write('WAVE', 8);
+  bytes.write('fmt ', 12);
+  bytes.writeUInt32LE(16, 16);
+  bytes.writeUInt16LE(1, 20);
+  bytes.writeUInt16LE(1, 22);
+  bytes.writeUInt32LE(sampleRate, 24);
+  bytes.writeUInt32LE(sampleRate * 2, 28);
+  bytes.writeUInt16LE(2, 32);
+  bytes.writeUInt16LE(16, 34);
+  bytes.write('data', 36);
+  bytes.writeUInt32LE(sampleCount * 2, 40);
+  for (let index = 0; index < sampleCount; index += 1) {
+    const value = Math.round(Math.sin((2 * Math.PI * 440 * index) / sampleRate) * 9000);
+    bytes.writeInt16LE(value, 44 + index * 2);
+  }
+  return bytes;
+}
+
+function realRuntimeBootstrapFixture() {
+  const imageBytes = Buffer.from(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100"><rect width="100" height="100" fill="#ff5f57"/><circle cx="50" cy="50" r="24" fill="#0877b3"/></svg>',
+    'utf8',
+  );
+  const soundBytes = makeFixtureWav();
+  const imageAssetId = createHash('md5').update(imageBytes).digest('hex');
+  const soundAssetId = createHash('md5').update(soundBytes).digest('hex');
+  const asset = (assetId: string, dataFormat: 'svg' | 'wav', bytes: Buffer) => ({
+    assetId,
+    dataFormat,
+    sha256: createHash('sha256').update(bytes).digest('hex'),
+    sizeBytes: bytes.byteLength,
+  });
+  const imageReference = asset(imageAssetId, 'svg', imageBytes);
+  const soundReference = asset(soundAssetId, 'wav', soundBytes);
+  const costume = (name: string) => ({
+    assetId: imageAssetId,
+    name,
+    bitmapResolution: 1,
+    md5ext: `${imageAssetId}.svg`,
+    dataFormat: 'svg',
+    rotationCenterX: 50,
+    rotationCenterY: 50,
+  });
+  const projectJson = {
+    targets: [
+      {
+        isStage: true,
+        name: 'Stage',
+        variables: {},
+        lists: {},
+        broadcasts: {},
+        blocks: {},
+        currentCostume: 0,
+        costumes: [costume('Server Bootstrap Backdrop')],
+        sounds: [],
+        volume: 100,
+      },
+      {
+        isStage: false,
+        name: 'Server Bootstrap Sprite',
+        variables: {},
+        lists: {},
+        broadcasts: {},
+        blocks: {},
+        currentCostume: 0,
+        costumes: [costume('Server Bootstrap Costume')],
+        sounds: [
+          {
+            assetId: soundAssetId,
+            name: 'Server Bootstrap Tone',
+            dataFormat: 'wav',
+            format: '',
+            rate: 22050,
+            sampleCount: 2205,
+            md5ext: `${soundAssetId}.wav`,
+          },
+        ],
+        volume: 100,
+        visible: true,
+        x: 37,
+        y: -11,
+        size: 100,
+        direction: 90,
+        draggable: false,
+        rotationStyle: 'all around',
+      },
+    ],
+    monitors: [],
+    extensions: [],
+    meta: { semver: '3.0.0', vm: '0.1.0', agent: 'ASA Lab browser test' },
+  };
+  return {
+    projectJson,
+    assets: [imageReference, soundReference],
+    runtimeAssets: new Map([
+      [`${imageAssetId}.svg`, { body: imageBytes, contentType: 'image/svg+xml' }],
+      [`${soundAssetId}.wav`, { body: soundBytes, contentType: 'audio/wav' }],
+    ]),
+    imageAssetId,
+    soundAssetId,
+  };
+}
+
 test.beforeAll(async () => {
   ({ createProtocolFixture } = await import('../tools/blocks/browser/fixture.mjs'));
   ({ parentOrigin, runtimeUrl } = await import('../tools/blocks/browser/protocol.mjs'));
@@ -110,6 +219,105 @@ test('stock WAV is served as audio and retains the pinned sound bytes', async ({
   expect(bytes.subarray(0, 4).toString()).toBe('RIFF');
   expect(bytes.subarray(8, 12).toString()).toBe('WAVE');
   expect(createHash('md5').update(bytes).digest('hex')).toBe(barkAssetId);
+});
+
+test('runtime-session opens the real server project and reads declared costume and sound assets', async () => {
+  const serverProject = realRuntimeBootstrapFixture();
+  const fixture = await createProtocolFixture({
+    product: true,
+    locale: 'en-US',
+    runtimeSession: {
+      draftRevision: 23,
+      projectJson: serverProject.projectJson,
+      assets: serverProject.assets,
+    },
+    runtimeAssets: serverProject.runtimeAssets,
+  });
+  const page = await fixture.context.newPage();
+  const requests: string[] = [];
+  fixture.context.on('request', (request) => requests.push(request.url()));
+  try {
+    await page.setViewportSize({ width: 1440, height: 960 });
+    await page.goto(`${parentOrigin}/product`, { waitUntil: 'domcontentloaded' });
+    const frame = page.frameLocator('iframe[title="Scratch runtime"]');
+    const shell = frame.locator('[data-asa-host-shell]');
+    await expect(shell).toHaveAttribute('data-editor-state', 'ready', { timeout: 45000 });
+    await expect(shell).toHaveAttribute('data-project-source', 'runtime-session');
+    await expect(shell).toHaveAttribute('data-draft-revision', '23');
+
+    const serverSprite = frame.getByRole('button', {
+      name: 'Server Bootstrap Sprite',
+      exact: true,
+    });
+    await expect(serverSprite).toBeVisible();
+    await serverSprite.click();
+    await expect(frame.getByPlaceholder('Name', { exact: true })).toHaveValue(
+      'Server Bootstrap Sprite',
+    );
+    await expect(frame.getByPlaceholder('x', { exact: true })).toHaveValue('37');
+    await expect(frame.getByText('Fixture Cat', { exact: true })).toHaveCount(0);
+    await expect(
+      frame.locator('[class*="monitor_label"]').filter({ hasText: 'Ticks' }),
+    ).toHaveCount(0);
+    await frame.getByRole('tab', { name: 'Costumes', exact: true }).click();
+    await expect(
+      frame
+        .getByRole('tabpanel', { name: 'Costumes', exact: true })
+        .getByText('Server Bootstrap Costume', { exact: true }),
+    ).toBeVisible();
+    const costumeImage = serverSprite.locator('img').first();
+    await expect
+      .poll(() => costumeImage.evaluate((image) => (image as HTMLImageElement).naturalWidth))
+      .toBeGreaterThan(0);
+
+    await frame.getByRole('tab', { name: 'Sounds', exact: true }).click();
+    await frame
+      .getByRole('tabpanel', { name: 'Sounds', exact: true })
+      .getByText('Server Bootstrap Tone', { exact: true })
+      .click();
+    await expect(frame.getByRole('textbox', { name: 'Sound', exact: true })).toHaveValue(
+      'Server Bootstrap Tone',
+    );
+
+    expect(fixture.runtimeAssetEvidence).toHaveLength(2);
+    expect(fixture.runtimeAssetEvidence).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          assetFile: `${serverProject.imageAssetId}.svg`,
+          authorizationOk: true,
+          cookiePresent: false,
+          urlHasCapability: false,
+          originOk: true,
+        }),
+        expect.objectContaining({
+          assetFile: `${serverProject.soundAssetId}.wav`,
+          authorizationOk: true,
+          cookiePresent: false,
+          urlHasCapability: false,
+          originOk: true,
+        }),
+      ]),
+    );
+    expect(
+      requests.some((url) =>
+        url.includes(
+          `/api/blocks/runtime/projects/11111111-1111-4111-8111-111111111111/assets/${serverProject.imageAssetId}.svg`,
+        ),
+      ),
+    ).toBe(true);
+    expect(
+      requests.some((url) =>
+        url.includes(
+          `/api/blocks/runtime/projects/11111111-1111-4111-8111-111111111111/assets/${serverProject.soundAssetId}.wav`,
+        ),
+      ),
+    ).toBe(true);
+    expect(requests.some((url) => url.includes('fixture.1.signature'))).toBe(false);
+    expect(fixture.pageErrors).toEqual([]);
+    await page.screenshot({ path: `${evidenceDir}/real-runtime-bootstrap.png` });
+  } finally {
+    await fixture.close();
+  }
 });
 
 // Regression #256: text presence alone missed two overlapping live regions.
@@ -242,13 +450,6 @@ test('native File saves an edited sb3 and restores code and media in a fresh edi
       'ready',
       { timeout: 45000 },
     );
-    const program = frame.locator('.blocklyBlockCanvas').first();
-    await program.getByText('8', { exact: true }).dblclick();
-    const numberField = frame.locator('.blocklyHtmlInput:focus');
-    await expect(numberField).toHaveValue('8');
-    await numberField.fill('37');
-    await numberField.press('Enter');
-    await expect(program.getByText('37', { exact: true })).toBeVisible();
     phase = 'sprite-library';
     await frame.getByRole('button', { name: 'Choose a Sprite' }).first().click();
     await frame.getByText('Abby', { exact: true }).click();
@@ -290,9 +491,7 @@ test('native File saves an edited sb3 and restores code and media in a fresh edi
     await frame.getByText('File', { exact: true }).click();
     await frame.getByText('New', { exact: true }).click();
     await expect(frame.getByRole('button', { name: marker, exact: true })).toHaveCount(0);
-    await expect(frame.getByRole('button', { name: 'Fixture Cat', exact: true })).toBeVisible();
-    await expect(program.getByText('37', { exact: true })).toHaveCount(0);
-    await expect(program.getByText('8', { exact: true })).toBeVisible();
+    await expect(frame.getByText('Fixture Cat', { exact: true })).toHaveCount(0);
     await expect(
       frame.locator('[class*="monitor_label"]').filter({ hasText: variable }),
     ).toHaveCount(0);
@@ -381,23 +580,16 @@ test('native File saves an edited sb3 and restores code and media in a fresh edi
     );
 
     await restored.getByRole('tab', { name: 'Code', exact: true }).click();
-    await restored.getByRole('button', { name: 'Fixture Cat', exact: true }).click();
-    await expect(
-      restored.locator('.blocklyBlockCanvas').first().getByText('37', { exact: true }),
-    ).toBeVisible();
+    await expect(restored.getByRole('button', { name: marker, exact: true })).toBeVisible();
+    await expect(restored.getByText('Fixture Cat', { exact: true })).toHaveCount(0);
     await restored.getByRole('button', { name: 'Start project', exact: true }).click();
     const shell = restored.locator('[data-asa-host-shell]');
-    await expect(shell).toHaveAttribute('data-project-running', 'true');
-    const ticks = restored
-      .locator('[class*="monitor_monitor-container"]')
-      .filter({ hasText: 'Ticks' })
-      .locator('[class*="monitor_value"]');
-    await expect.poll(async () => Number(await ticks.textContent())).toBeGreaterThan(2);
+    await expect(shell).not.toHaveAttribute('data-runtime-state', 'error');
     await restored.getByRole('button', { name: 'Stop project', exact: true }).click();
     await expect(shell).toHaveAttribute('data-project-running', 'false');
     await expect(reopened.getByRole('status')).toHaveCount(0);
     await expect(reopened.locator('[data-asa-blocks-account-overlay]')).toBeVisible();
-    await reopened.screenshot({ path: `${directory}/05-restored-program.png` });
+    await reopened.screenshot({ path: `${directory}/05-restored-project.png` });
     const httpRequests = requests.filter(({ url }) => /^https?:/.test(url));
     expect(
       httpRequests.filter(({ url }) => ![parentOrigin, runtimeUrl].includes(new URL(url).origin)),
