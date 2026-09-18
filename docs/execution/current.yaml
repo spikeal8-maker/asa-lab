@@ -21,7 +21,7 @@ task:
 
 revisions:
   convergence_baseline_sha: 1d101b699b7db34efa838a143a93f9b19940e5c9
-  head_sha: b1a0b4392721379016055c9ebc169d441dfe0822
+  head_sha: a20283ac3af1f0212e99f0a0499895201e7ea2cd
 
 execution_lease:
   executor_id: codex-scratch-real-storage-005b
