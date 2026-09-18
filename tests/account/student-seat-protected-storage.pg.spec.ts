@@ -319,6 +319,77 @@ describe('E1-FIX-02B protected Student Code storage foundation', () => {
     expect(afterRejectedReuse.rows[0]).toEqual(activeBeforeRejectedReuse);
   });
 
+  it('lazily protects a legacy-only Seat before rotation and tombstones its old code', async () => {
+    process.env['ASA_STUDENT_CODE_PROTECTION_MODE'] = 'off';
+    let teacher: { cookie: string };
+    let classroomId: string;
+    let legacySeat: { id: string; studentCode: string };
+    try {
+      const created = await teacherClass();
+      teacher = created.teacher;
+      classroomId = created.classroomId;
+      legacySeat = await addSeat(teacher.cookie, classroomId, 'Legacy compat learner');
+    } finally {
+      process.env['ASA_STUDENT_CODE_PROTECTION_MODE'] = 'compat';
+    }
+
+    const before = await admin.query(
+      'SELECT count(*)::int AS count FROM classroom_student_code_protected WHERE seat_id=$1',
+      [legacySeat!.id],
+    );
+    expect(before.rows[0]?.count).toBe(0);
+
+    const oldCode = legacySeat!.studentCode;
+    const rotated = await inject(app, {
+      method: 'POST',
+      url: `/api/classrooms/${classroomId!}/seats/${legacySeat!.id}/code`,
+      headers: { cookie: teacher!.cookie },
+      payload: { studentCode: 'Ab7k', requestId: crypto.randomUUID() },
+    });
+    expect(rotated.statusCode, rotated.body).toBe(201);
+    expect(rotated.json()).toMatchObject({ studentCode: 'Ab7k', version: 2 });
+
+    const protectedCurrent = await admin.query(
+      `SELECT credential_version,credential_state
+         FROM classroom_student_code_protected WHERE seat_id=$1`,
+      [legacySeat!.id],
+    );
+    expect(protectedCurrent.rows[0]).toEqual({
+      credential_version: 2,
+      credential_state: 'protected',
+    });
+
+    const retired = await admin.query(
+      `SELECT credential_version,lookup_key_id,lookup_digest
+         FROM classroom_student_code_retired_digests WHERE seat_id=$1`,
+      [legacySeat!.id],
+    );
+    expect(retired.rows).toHaveLength(1);
+    expect(retired.rows[0].credential_version).toBe(1);
+    expect(retired.rows[0].lookup_key_id).toBe('lookup1');
+    expect(retired.rows[0].lookup_digest).toMatch(/^[0-9a-f]{64}$/);
+
+    const other = await addSeat(teacher!.cookie, classroomId!, 'Retired reuse target');
+    const rejectedReuse = await inject(app, {
+      method: 'POST',
+      url: `/api/classrooms/${classroomId!}/seats/${other.id}/code`,
+      headers: { cookie: teacher!.cookie },
+      payload: { studentCode: oldCode, requestId: crypto.randomUUID() },
+    });
+    expect(rejectedReuse.statusCode, rejectedReuse.body).toBe(409);
+    expect(rejectedReuse.body).toContain('student_code_taken');
+
+    const roster = await inject(app, {
+      method: 'GET',
+      url: `/api/classrooms/${classroomId!}/roster`,
+      headers: { cookie: teacher!.cookie },
+    });
+    expect(roster.statusCode, roster.body).toBe(200);
+    expect(
+      roster.json().items.find((item: { id: string }) => item.id === other.id).studentCode,
+    ).toBe(other.studentCode);
+  });
+
   it('batch commit and exact replay keep one protected version per created StudentSeat', async () => {
     const { teacher, classroomId } = await teacherClass();
     const students = [
