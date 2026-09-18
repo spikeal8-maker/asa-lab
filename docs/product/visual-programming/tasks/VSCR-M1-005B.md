@@ -18,6 +18,59 @@ Exact M1-005A candidate: PR #286, `576bb086fc2daaa3a1c0d6445b6274e71d7a0388`.
 B/E или M1-005 в целом принятыми. До merge/release обязательна общая независимая
 проверка накопленной связки.
 
+## Current execution routing
+
+Текущий bounded implementation продолжается в существующем **Draft PR #288**:
+
+```text
+branch: codex/scratch-real-storage-005b
+base: main
+issue: #287
+execution authority: docs/execution/current.yaml
+```
+
+Не создавать параллельную ветку или второй storage implementation. Перед любыми
+тестами, review или merge получить **actual PR HEAD** из GitHub. SHA из старого
+комментария, handoff или описания PR является только историческим наблюдением.
+
+VSCR-M4-002 уже разрешает пользователям работать в настоящем Scratch через native
+local File. Это отдельный режим доступности и **не является доказательством**
+сохранения проекта в аккаунт ASA.
+
+## Current implementation checkpoint
+
+В PR #288 уже существует backend candidate:
+
+- runtime capability/current-authority/session и exact Origin/CORS boundary;
+- private S3-compatible blob storage + PostgreSQL metadata/aliases;
+- MinIO в существующем ASA Compose;
+- runtime asset PUT/GET и canonical draft PUT;
+- общий Project Core save/open pipeline и production persistence guard;
+- request/upload budgets, OpenAPI, migrations/RLS и focused tests.
+
+Текущий незавершённый участок — **real browser wiring**. Пока Parent Web использует
+preview/bootstrap path, а child Scratch Host остаётся на fixture/local storage,
+нельзя писать «Scratch сохраняется в аккаунте ASA».
+
+Канонический следующий путь:
+
+```text
+Parent Web
+→ POST /api/projects/{projectId}/blocks/runtime-session
+→ child Scratch Host real bootstrap
+→ Scratch VM snapshot
+→ project JSON + exact assets
+→ detect missing/changed assets
+→ PUT only missing/changed assets
+→ PUT canonical draft
+→ receive confirmed revision
+→ close editor/browser
+→ new browser session
+→ open same ASA project
+→ restore exact JSON + costume/image/sound bytes
+→ run project
+```
+
 ## Scope
 
 - Production `BlocksDurableAssetPort`: private S3-compatible blob store plus
@@ -80,6 +133,33 @@ Before acceptance record P0/P2 evidence for the representative browser save fixt
 - Runtime bearer/Origin checks fail closed; account cookies are not accepted by iframe routes.
 - Focused/repository/browser gates run on the exact candidate SHA.
 - Optimisation evidence proves no redundant unchanged asset/document writes and records storage/network measurements.
+
+### Definition of Done
+
+M1-005B остаётся `in_progress`, пока не доказано всё:
+
+- [ ] Parent Web получает настоящий runtime-session, а не preview token.
+- [ ] Child Scratch Host больше не использует fixture/local save path для ASA save/open.
+- [ ] Project JSON сохраняется через существующий Project Core.
+- [ ] Costume/image bytes сохраняются в private object storage и открываются byte-exact.
+- [ ] Sound bytes сохраняются в private object storage и открываются byte-exact.
+- [ ] Explicit save возвращает только подтверждённую сервером revision.
+- [ ] Close → reopen того же проекта восстанавливает точное состояние.
+- [ ] New browser session → reopen восстанавливает точное состояние.
+- [ ] Foreign user/tenant access denied.
+- [ ] Revoked access denied.
+- [ ] Invalid Origin / expired capability / player write denied.
+- [ ] Storage failure не возвращает Saved и не создаёт revision.
+- [ ] Missing referenced asset не превращается в successful draft.
+- [ ] Conflict не превращается в silent overwrite.
+- [ ] Retry одной mutation не создаёт вторую revision.
+- [ ] Repeated unchanged save создаёт 0 новых asset bytes/blob/alias rows.
+- [ ] Unchanged canonical fingerprint создаёт 0 redundant revisions.
+- [ ] P0/P1/P2/P3 evidence записано для exact candidate.
+- [ ] `pnpm gate:blocks`, browser gate и repository gate прошли на candidate SHA.
+- [ ] Независимый critical review выполнен до merge/release.
+
+Только после этого допустима формулировка **«M1-005 durable ASA save/load готов»**.
 
 ## Out of scope
 
