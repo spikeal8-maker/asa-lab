@@ -11,20 +11,20 @@ development_policy:
 task:
   id: VSCR-M1-005B
   issue: 287
-  branch: main
+  branch: codex/scratch-real-storage-005b
   base_branch: main
-  pr: null
-  pr_draft: false
+  pr: 288
+  pr_draft: true
   status: in_progress
   checkpoint: owner_selected_real_storage_browser_save
   owner_acceptance: pending
 
 revisions:
   convergence_baseline_sha: 1d101b699b7db34efa838a143a93f9b19940e5c9
-  head_sha: e25cc05b70b95c95d8afaec9136b8c1e665e9803
+  head_sha: fa64bb97c394b730d815d9103580ae07d5bb4fab
 
 execution_lease:
-  executor_id: codex-vscr-m1-002b
+  executor_id: codex-scratch-real-storage-005b
   holder: unassigned
   acquired_at: null
   expires_at: null
@@ -147,14 +147,14 @@ parallel_lanes:
       issue: 279
       branch: codex/electronics-eopt3d-worker-horizons
       base_branch: main
-      pr: null
+      pr: 281
       pr_draft: true
       status: in_progress
-      checkpoint: eopt3d_worker_horizons_selected
+      checkpoint: eopt3d_candidate_green_main_convergence_and_review_pending
       owner_acceptance: pending
     revisions:
-      convergence_baseline_sha: b3ff14bf3e0282915ef1fb83ce0d5a020ae67d11
-      head_sha: b3ff14bf3e0282915ef1fb83ce0d5a020ae67d11
+      convergence_baseline_sha: 54d2a96ef86baeb00feafbb327ca348e99512698
+      head_sha: b0f294fe027f145ee987f532b642e92357c1d9a8
     execution_lease:
       executor_id: codex-electronics-eopt3d
       holder: unassigned
@@ -512,4 +512,20 @@ blocking:
       - focused_verification
     reason: Known E1-FIX-01 through E1-FIX-12 correction/verification requirements remain open
     evidence: docs/product/ASA_LEARNING_REQUIREMENTS_LEDGER.yaml
+  - id: ELECTRONICS-EOPT3D-ACCEPTANCE
+    kind: acceptance_blocker
+    lane: electronics
+    task_id: TASK-ELECTRONICS-EOPT3D-001
+    blocks:
+      - owner_acceptance
+      - merge_claim
+      - next_electronics_slice
+    allows:
+      - documentation_update
+      - branch_convergence
+      - focused_verification
+      - independent_review
+      - bounded_repair
+    reason: E-OPT-3D must converge with current main and pass independent semantic review before acceptance; green CI alone does not accept the slice
+    evidence: docs/product/electronics/tasks/E-OPT-3D.md
 next_task: null

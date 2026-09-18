@@ -8,8 +8,8 @@ import unittest
 import yaml
 
 from validate_learning_spec_rebaseline import (
-    ACCESS, CAPABILITY_MAP, CURRENT, IDENTITY_CONTRACT, INTEGRATED, LEARNING,
-    LEDGER, REGISTRY, ROOT, validate,
+    ACCESS, BLUEPRINT, CAPABILITY_MAP, CURRENT, IDENTITY_CONTRACT, INTEGRATED, LEARNING,
+    LEDGER, REGISTRY, ROOT, SURFACE_CATALOG, validate,
 )
 
 
@@ -52,6 +52,30 @@ class LearningSpecGateTests(unittest.TestCase):
             row = next(r for r in doc["requirements"] if r["id"] == "E1-FIX-02")
             row["implementation_contract"]["old_api_concurrent_with_backfill"] = True
         self.assertRejected(changed_yaml(LEDGER, corrupt), "protected storage contract drift")
+
+    def test_rejects_student_code_case_insensitive_contract(self):
+        def corrupt(doc):
+            row = next(r for r in doc["requirements"] if r["id"] == "E1-FIX-02")
+            row["implementation_contract"]["code_case_sensitive"] = False
+        self.assertRejected(changed_yaml(LEDGER, corrupt), "protected storage contract drift: code_case_sensitive")
+
+    def test_rejects_student_code_fixed_manual_six_contract(self):
+        def corrupt(doc):
+            row = next(r for r in doc["requirements"] if r["id"] == "E1-FIX-02")
+            row["implementation_contract"]["manual_code_pattern"] = "^[A-Z0-9]{6}$"
+        self.assertRejected(changed_yaml(LEDGER, corrupt), "protected storage contract drift: manual_code_pattern")
+
+    def test_rejects_student_code_owner_only_contract(self):
+        def corrupt(doc):
+            row = next(r for r in doc["requirements"] if r["id"] == "E1-FIX-02")
+            row["implementation_contract"]["e1_permission_mapping"] = "active_class_owner_only"
+        self.assertRejected(changed_yaml(LEDGER, corrupt), "protected storage contract drift: e1_permission_mapping")
+
+    def test_rejects_temporary_substitute_without_expiry_revoke_contract(self):
+        def corrupt(doc):
+            row = next(r for r in doc["requirements"] if r["id"] == "E1-FIX-02")
+            row["implementation_contract"]["temporary_substitute_access"] = "unbounded"
+        self.assertRejected(changed_yaml(LEDGER, corrupt), "protected storage contract drift: temporary_substitute_access")
 
     def test_rejects_class_code_secret_fallback(self):
         def corrupt(doc):
@@ -230,6 +254,84 @@ class LearningSpecGateTests(unittest.TestCase):
         def corrupt(doc):
             doc["verification_policy"]["planned_scenarios_are_not_executed_tests"] = False
         self.assertRejected(changed_yaml(LEDGER, corrupt), "missing evidence boundary")
+
+
+    def test_rejects_loss_of_account_first_product_model(self):
+        self.assertRejected(
+            {INTEGRATED: text(INTEGRATED).replace("ASA Lab начинается с обычного личного Account", "ASA Lab starts from a role")},
+            "required semantic clause missing",
+        )
+
+    def test_rejects_loss_of_studentseat_public_read_boundary(self):
+        self.assertRejected(
+            {ACCESS: text(ACCESS).replace("публичные read-only «Сообщество» и «Знания»", "закрытая школьная оболочка")},
+            "required semantic clause missing",
+        )
+
+    def test_rejects_loss_of_organization_workspace_boundary(self):
+        self.assertRejected(
+            {ACCESS: text(ACCESS).replace("Organization Workspace — отдельный рабочий контекст", "Организация живёт в профиле")},
+            "required semantic clause missing",
+        )
+
+    def test_rejects_loss_of_account_max_boundary(self):
+        self.assertRejected(
+            {ACCESS: text(ACCESS).replace("MAX/другие внешние providers привязываются к Account", "MAX привязывается к StudentSeat")},
+            "required semantic clause missing",
+        )
+
+    def test_rejects_loss_of_organization_surface_model(self):
+        path = "docs/product/ASA_PRODUCT_SURFACE_CATALOG.yaml"
+        self.assertRejected(
+            {path: text(path).replace("ORG-001", "ORG-REMOVED", 1)},
+            "ORG-001 must include owner and scoped organization admin",
+        )
+
+    def test_rejects_organization_login_becoming_separate_identity(self):
+        path = "docs/product/ASA_AUTH_ENTRY_UX_SPEC.md"
+        self.assertRejected(
+            {path: text(path).replace("тот же личный Account", "отдельный школьный Account", 1)},
+            "required semantic clause missing",
+        )
+
+    def test_rejects_identity_dependency_on_organization(self):
+        def corrupt(doc):
+            row = next(item for item in doc["capabilities"] if item["id"] == "CAP-IDENTITY")
+            row["depends_on"] = ["CAP-ORG"]
+        self.assertRejected(changed_yaml(CAPABILITY_MAP, corrupt), "CAP-IDENTITY must not depend on Organization")
+
+    def test_rejects_registered_student_as_separate_shell(self):
+        def corrupt(doc):
+            doc["layout_templates"]["STUDENT"]["registered_student_shell"] = "separate_student_shell"
+        self.assertRejected(changed_yaml(SURFACE_CATALOG, corrupt), "Account learner must keep ordinary Account PORTAL shell")
+
+    def test_rejects_org_surface_without_owner_or_wrong_release(self):
+        def corrupt(doc):
+            row = next(item for item in doc["surfaces"] if item["id"] == "ORG-001")
+            row["actors"] = ["school_admin"]
+            row["release"] = "R10"
+        errors = validate(ROOT, changed_yaml(SURFACE_CATALOG, corrupt))
+        self.assertTrue(any("ORG-001 must include owner" in error for error in errors), errors)
+        self.assertTrue(any("ORG-001 must follow historical organization/admin slice R9" in error for error in errors), errors)
+
+    def test_rejects_blueprint_reclaiming_top_authority(self):
+        self.assertRejected(
+            {BLUEPRINT: text(BLUEPRINT).replace("supporting architecture/reference", "нормативный целевой контракт", 1)},
+            "required semantic clause missing",
+        )
+
+    def test_rejects_supporting_map_becoming_authoritative(self):
+        def corrupt(doc):
+            row = next(item for item in doc["documents"] if item["id"] == "PRODUCT-CAPABILITY-MAP")
+            row["status"] = "canonical"
+            row["authority"] = "product_root"
+        self.assertRejected(changed_yaml(REGISTRY, corrupt), "supporting product reference has unexpected authority")
+
+    def test_rejects_studentseat_project_without_scoped_destination(self):
+        def corrupt(doc):
+            row = next(item for item in doc["surfaces"] if item["id"] == "CRT-003")
+            row["purpose"] = "Choose any module and create a personal project."
+        self.assertRejected(changed_yaml(SURFACE_CATALOG, corrupt), "StudentSeat project chooser lacks scoped destination boundary")
 
 
 if __name__ == "__main__":

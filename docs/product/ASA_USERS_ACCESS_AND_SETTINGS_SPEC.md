@@ -55,7 +55,7 @@
 - D02: «Классы» — staff-раздел; ученические классы находятся в «Моём обучении».
 - D03: авторство, публикация, преподавание, проверка, помощь и управление независимы.
 - D04: Seat — устойчивый учебный профиль по коду, не временный/полностью анонимный гость.
-- D05: общий код класса и отображаемое/угадываемое имя не аутентифицируют ученика. Базовый StudentSeat-вход использует отдельный индивидуальный шестизначный `Код ученика`; он является credential, а имя учащегося credential не является. Альтернатива — отдельно утверждённое защищённое подтверждение конкретного входа.
+- D05: общий код класса и отображаемое/угадываемое имя не аутентифицируют ученика. Базовый StudentSeat-вход использует отдельный индивидуальный `Код ученика`; автоматически выданный код по умолчанию имеет 6 символов, а уполномоченный staff exact класса может позднее заменить его на case-sensitive буквенно-цифровое значение длиной 4–10 символов. Код ученика является credential, а имя учащегося credential не является. Альтернатива — отдельно утверждённое защищённое подтверждение конкретного входа.
 - D06: способ входа не задаёт resultMode; регистрация не превращает тренировку в оценку.
 - D07: публичное чтение, самообучение и обучение с преподавателем различны.
 - D08: личный learning context не маскируется школьным классом; физическое расширение требует отдельно разрешённого решения.
@@ -183,6 +183,8 @@ U02/U04/U06/U07 не взаимоисключающие виды людей. Н�
 
 Grant: `active|suspended|revoked|expired`. Pending относится к приглашению или заявке. Организационное членство не даёт все ресурсы организации. Один grant на run не поднимается автоматически до всего класса.
 
+Временная подмена преподавателя не создаёт новую глобальную роль. Она оформляется тем же staff-доступом к **конкретному классу** с явным сроком действия. Пока exact-class grant активен, подменяющий педагог получает разрешённые этому class-staff scope действия; после окончания срока он становится `expired`, а досрочный отзыв переводит его в `revoked`. После expiry/revoke новые credential/roster/learning mutations запрещены, а stale session/cache/UI не продолжают прежнее право. История действий и учебные данные сохраняются.
+
 ### 5.2. Решение каждой операции
 
 Сервер разрешает actor из проверенной сессии; ресурс и lineage — из доверенного хранения; затем проверяет account/session safety, действующие основания на этот ресурс, caps, состояние ресурса, feature support и учебные preconditions. Возвращает только разрешённые поля. Client-supplied IDs — запрос, не доказательство права.
@@ -268,18 +270,20 @@ Allow объединяются по конкретному ресурсу, не 
 
 **Матрица управления Student Code (TARGET E1):**
 
-| Исполнитель | read current / print | rotate | revoke sessions | Основание |
+| Исполнитель / основание | read current / print | rotate | revoke sessions | Правило |
 |---|---:|---:|---:|---|
-| Ответственный преподаватель класса | да | да | да | точные class-scoped permissions выше |
-| Co-teacher | нет в E1 | нет в E1 | нет в E1 | credential delegation для co-teacher — отдельный E4 scoped-grant slice |
-| Reviewer / mentor / coordinator без credential grant | нет | нет | нет | доступ к работе/обучению не раскрывает credential |
-| Organization admin | нет по одному названию роли | нет | нет | нужен отдельный exact class grant |
+| Owner / ответственный преподаватель exact класса | да | да | да | действующий staff-доступ к этому классу |
+| Co-teacher exact класса | да | да | да | тот же active exact-class staff scope |
+| Координатор / куратор / учебный руководитель / директор / управляющий / org-school admin | да, если есть доступ к exact классу | да, если есть доступ к exact классу | да, если есть доступ к exact классу | название должности само по себе не даёт право; нужен действующий class-scoped grant/membership |
+| Временно подменяющий педагог | да только в активный срок | да только в активный срок | да только в активный срок | exact-class staff grant с expiry; может быть отозван досрочно |
+| Staff организации/школы без доступа к этому классу | нет | нет | нет | membership организации или должность без class scope недостаточны |
+| Reviewer / mentor / run-only actor без доступа к самому классу | нет | нет | нет | доступ к Submission/Run/вопросу не расширяется до credential управления классом |
 | Platform/support | нет через обычный пользовательский API | нет через обычный пользовательский API | только отдельная audited security/operations procedure, если она вообще разрешена | support не impersonate ребёнка |
 | Сам StudentSeat / другой learner | нет | нет | только собственный logout для своей сессии | не видит roster и чужие коды |
 
-`class.roster.manage` не подразумевает `class.credentials.read_current`. В E1 sensitive credential operations физически привязаны только к активному `classroom_memberships.member_role = owner` exact класса через единый server-side credential-manager guard. Owner получает `class.credentials.issue`, `class.credentials.read_current`, `class.credentials.rotate` и `class.sessions.revoke`; co-teacher в E1 этих четырёх permissions не получает. Будущие делегируемые class-scoped grants для co-teacher относятся к E4 и не реализуются скрытым расширением `class.roster.manage`. UI скрывает/disable недоступное действие, но backend authorization остаётся источником истины.
+Student Code management следует **effective exact-class staff scope**, а не одному имени роли. Действующий staff-доступ к конкретному Classroom включает операции `class.credentials.issue`, `class.credentials.read_current`, `class.credentials.rotate` и `class.sessions.revoke` в пределах этого класса. Для текущей legacy membership-модели это как минимум `owner` и `co_teacher`; организационные роли получают те же операции только когда их реальный grant/membership включает этот класс. Run-only, review-only, mentor-only, summary-only или одно лишь `organization.read` этого права не создают. Expired/revoked temporary grant прекращает эти операции без удаления истории.
 
-**Физический mapping E1:** новый общий RBAC/permission store не создаётся. Migration `0146` добавляет SECURITY DEFINER guard `classroom_credential_manager_access(account_id, classroom_id)`, который возвращает доступ только для активного `classroom_memberships.member_role='owner'` exact класса. Credential endpoints/readback/print/rotation/session-revoke обязаны использовать этот guard (или одну эквивалентную общую функцию), а не общий `educator` capability и не `classroom_teacher_access`, который включает co-teacher. В audit логируется логическое permission name, но authority в E1 — owner membership. Удалённый/архивный класс и бывший owner fail-closed. Передача owner responsibility относится к отдельной существующей/будущей class lifecycle операции; она не копирует Student Codes.
+**Физический mapping E1:** credential authority проверяется одним server-side exact-class staff guard/equivalent, который вычисляет действующий scope из trusted memberships/grants и срока действия. Реализация **не должна** сужать уже существующий `owner + co_teacher` classroom access до `owner-only`. Будущие директор/координатор/admin/substitute сценарии используют ту же class-scoped permission-модель, а не отдельный bypass по названию должности. Удалённый/архивный класс, отсутствующий class scope и expired/revoked grant fail-closed. В audit фиксируются actor, exact class, logical permission и срок/основание, но не сам Student Code.
 
 <a id="section-07"></a>
 
@@ -301,7 +305,11 @@ Allow объединяются по конкретному ресурсу, не 
 
 Навигация может указывать другие доступные контексты, но их открытие требует server switch. Внутри страницы нет union приватных данных разных организаций. Фильтр браузера не authority. Глобальное «Моё обучение» объединяет только собственные доступные участия, не staff данные.
 
-Для U05: Моё обучение, Мои учебные работы, Помощь; optional сообщения, материалы, свободная практика по policy. Шапка: псевдоним, группа, помощь, явный выход; организация лишь допустимая подпись, не dropdown всех организаций.
+**Один Account — одна личная оболочка.** Подключение authoring, teaching или organization membership не переводит человека в отдельный «режим преподавателя/ученика/администратора» и не скрывает базовые личные разделы. Рабочие пункты меню добавляются по server-issued entitlements. Если entitlement исчез, исчезает рабочий пункт и доступ к его данным, но личный Account, проекты, Сообщество, Знания, Игры, Сохранённое и собственное обучение остаются.
+
+Для U05 / StudentSeat без Account: «Главная», «Моё обучение», «Мои учебные работы», «Помощь», «Мой учебный профиль», явный выход. В целевой оболочке дополнительно разрешены публичные read-only «Сообщество» и «Знания», если это допускают safety/publication policy; они не дают roster, private content или персональные возможности Account. Поставка этой public-discovery поверхности относится к соответствующему Knowledge/Community этапу и **не добавляется как новый блокер E1**; E1 только обязан не закрепить несовместимую постоянную «ученическую платформу». Действия, создающие долгоживущую личную историю вне school scope — самостоятельная запись на публичный курс, Сохранённое, подписка, публикация от своего имени, публичный профиль, персональные delivery preferences — требуют «Создать/связать личный Account» либо отдельно утверждённой Seat-policy. Простое чтение публичного материала не блокируется регистрацией. Организация в Seat-шапке может быть подписью контекста, но не выбором всех организаций.
+
+После Seat→Account linking тот же человек использует обычную Account-навигацию, а школьные участия и история появляются внутри «Моего обучения». Не создаётся второй «ученический кабинет» поверх Account и не требуется переключаться между «личным пользователем» и «учеником» как между двумя identity.
 
 Legacy ученическая ссылка класса переходит в соответствующий learner view после auth. Не создавать 19 меню/аккаунтов. Скрытие рабочих разделов — preference, а не отзыв права; lawful deep link может открыть рабочую область.
 
@@ -329,15 +337,15 @@ Legacy ученическая ссылка класса переходит в с
 
 Классы → Учащиеся → Добавить/Добавить списком. Нужны текущие scoped permissions roster/access manager. Имя/псевдоним используется в roster/журнале/карточке; email, телефон и дата рождения не нужны только ради доступа. StudentSeat постоянный, не Account и не временный assessment participant.
 
-При создании сервер назначает ровно один шестисимвольный Student Code. Одиночное создание и batch имеют одинаковый контракт. ID StudentSeat/LearnerIdentity не меняются при ротации. Seat status, credential version, session expiry и Enrollment/Participation status независимы; login не означает начало учебной попытки.
+При создании класса система автоматически создаёт Class Code. При добавлении одного ученика или добавлении учеников списком система автоматически создаёт для каждого нового StudentSeat один Student Code длиной **6 символов по умолчанию**. Одиночное создание и batch имеют одинаковую случайную модель генерации; код не выводится из имени, индекса строки, UUID или другого публичного/предсказуемого seed. ID StudentSeat/LearnerIdentity не меняются при ротации. Seat status, credential version, session expiry и Enrollment/Participation status независимы; login не означает начало учебной попытки.
 
 ### 9.2. Ровно два человеческих ввода
 
 Ручной путь: `Код класса → Код ученика → Войти`. По class QR: `Код ученика → Войти`. Отдельного loginHandle, имени, длинного секрета, email, CAPTCHA или выбора роли в StudentSeat-входе нет. Отдельная Account-ветвь остаётся самостоятельным способом войти, а не обязательным шагом ученика.
 
-Код класса только разрешает контекст; Student Code выбирает и аутентифицирует профиль. Безопасный алфавит `2346789ACDEFGHJKMNPQRTUVWXY`, ровно 6 знаков, регистр неважен. Пробелы нормализуются согласованно, сервер не принимает произвольные длинные значения путём молчаливого усечения. Общая ошибка не раскрывает наличие ребёнка; roster и чужие коды публично недоступны.
+Код класса только разрешает контекст; Student Code выбирает и аутентифицирует профиль. **Регистр значим:** `Ab7k` и `ab7k` — разные коды, и uniqueness/lookup обязаны сохранять этот смысл. Для автоматически создаваемого шестисимвольного кода используется существующий строгий безопасный набор, расширенный на оба регистра: `2346789ACDEFGHJKMNPQRTUVWXYacdefghjkmnpqrtuvwxy`. Он исключает визуально неоднозначные символы вроде `0/O/o`, `1/I/i/l` и другие уже исключённые пары строгого набора. Генератор использует цифры, заглавные и строчные латинские буквы как общий алфавит; **каждый отдельный код не обязан содержать все три категории одновременно**. Общая ошибка не раскрывает наличие ребёнка; roster и чужие коды публично недоступны.
 
-Коды генерируются серверным cryptographic RNG, не выводятся из displayLabel, UUID, индекса строки или другого несекретного seed. Конкурентная уникальность внутри класса обеспечивается БД. Идемпотентный batch возвращает сохранённые случайные результаты: новый requestId не должен воспроизводить credential из имени. Изменение генератора не даёт права пересоздать пользователей. Разрешённая ручная замена учителем принимает допустимый уникальный код того же формата и выполняется как явная ротация; вручную выбранное значение не объявляется случайно сгенерированным. Manual replacement MUST contain at least four distinct symbols from the allowed alphabet; otherwise the server returns `weak_student_code`. `Generate new code` remains the primary UI action and manual entry warns that it reduces unpredictability.
+Автоматические коды генерируются серверным cryptographic RNG, не выводятся из displayLabel, UUID, индекса строки или другого несекретного seed. Конкурентная case-sensitive уникальность внутри класса обеспечивается БД. Идемпотентный batch возвращает сохранённые случайные результаты: новый requestId не должен воспроизводить credential из имени. Изменение генератора не даёт права пересоздать пользователей. Уполномоченный staff exact класса может явно заменить Student Code на выбранное значение из `A–Z`, `a–z`, `0–9` длиной **от 4 до 10 символов**; для такого выбранного staff значения безопасный алфавит автоматического генератора не навязывается, поэтому `1234` допустим. Сервер не изменяет регистр и не усекает значение молча. Ротация отзывает прежний код и активные Seat-сессии, но сохраняет StudentSeat/LearnerIdentity, работы, курсы, оценки и историю. Действие «Сгенерировать новый код» создаёт новый случайный шестисимвольный код по автоматическим правилам.
 
 Preview класса показывает название и пригодное canonical public display name преподавателя из профиля; email/username/account ID исключены и из ответа, и из DOM. Fallback — «Преподаватель». Safe Mode вторичен, не доминирующая декоративная бирка.
 
@@ -363,11 +371,11 @@ Seat меню: «Главная», «Моё обучение», «Мои уче�
 
 Печать/readback не создают credential и не закрывают сессию. Закрытие batch-диалога не теряет доступ к текущим карточкам. Потерянная некомпрометированная карточка перепечатывается той же. Компрометация требует явной ротации: версия credential растёт, прежний код и сессии отзываются атомарно, новый код доступен преподавателю, вся история сохраняется. Повтор того же rotation requestId возвращает тот же логический результат. Обновление Class Code не меняет персональные коды автоматически, но требует новых class QR.
 
-Current-code readback доступен только при `class.credentials.read_current` exact класса; read-only/summary/reviewer/learner не получают его по факту доступа к имени. Ответы `Cache-Control: no-store`, коды отсутствуют в logs/audit/analytics/public screenshots и URL.
+Current-code readback доступен только actor с действующим exact-class staff scope, который даёт `class.credentials.read_current`; одно лишь organization membership, run-only/review-only/summary-only основание или learner access этого права не создаёт. Временный class-staff grant даёт readback только в активный срок и прекращает его при expiry/revoke. Ответы `Cache-Control: no-store`, коды отсутствуют в logs/audit/analytics/public screenshots и URL.
 
 **Физический TARGET E1 хранения Student Code выбран однозначно:**
 - Student Code is encrypted with `AES-256-GCM`; the encryption key is exactly 32 random bytes. Each row uses a random 96-bit nonce/IV, authentication tag and `encryption_key_id`. AAD is versioned UTF-8 `v1|tenant_id|class_id|seat_id|credential_version`, preventing an envelope from being moved between Seat/version contexts without detection.
-- Lookup/uniqueness uses `HMAC-SHA-256(lookup_key, "v1|" || tenant_id || "|" || class_id || "|" || normalized_code)`. The lookup key is at least 32 random bytes, has `lookup_key_id`, and is distinct from the encryption key.
+- Lookup/uniqueness uses `HMAC-SHA-256(lookup_key, "v1|" || tenant_id || "|" || class_id || "|" || normalized_code)`. Для Student Code `normalized_code` сохраняет исходный регистр; допустима только согласованная transport-normalization вроде внешнего trim, но не lower/upper-case folding. The lookup key is at least 32 random bytes, has `lookup_key_id`, and is distinct from the encryption key.
 - Active keys come from an API secret/env mount and are not stored in PostgreSQL. The keyring contains current encryption/lookup keys plus only the retiring keys still required for decrypt/dual-lookup.
 - E1 secret contract uses `ASA_STUDENT_CODE_ENCRYPTION_KEYS_JSON`, `ASA_STUDENT_CODE_ENCRYPTION_ACTIVE_KEY_ID`, `ASA_STUDENT_CODE_LOOKUP_KEYS_JSON` and `ASA_STUDENT_CODE_LOOKUP_ACTIVE_KEY_ID`. JSON maps non-secret key IDs to base64 key bytes; encryption keys decode to exactly 32 bytes and lookup keys to at least 32 bytes. Secrets never appear in Git, DB, health payloads, logs or analytics. Startup/readiness fail closed when an active key is malformed/missing or a DB row references a key ID absent from the loaded keyring.
 - Encryption-key rotation re-encrypts the same Student Code without changing credential version/session. Lookup-key rotation uses dual-read: candidate HMACs are computed for current+retiring lookup keys, active and retired digests are migrated to the new `lookup_key_id`, and the retiring lookup key is removed only after verification. Student-Code rotation is separate: it creates a new credential version and revokes the old code/sessions.
@@ -379,7 +387,7 @@ Current-code readback доступен только при `class.credentials.re
 Protected-code rollout order is mandatory and race-free:
 1. Provision and validate the Student Code keyring plus an independent production `CLASSROOM_CODE_SECRET` before touching the database.
 2. Stop the old API, or enforce an equivalent credential-write maintenance fence. No legacy writer may create or rotate a Student Code during schema cutover/backfill.
-3. Apply additive migration `0146`. It adds envelope/digest/state/retired-history structures and `classroom_credential_manager_access(account_id,classroom_id)`; SQL contains no key material and performs no encryption.
+3. Apply additive migration `0146`. It adds envelope/digest/state/retired-history structures; SQL contains no key material and performs no encryption. Credential authorization must preserve effective exact-class staff access and must not introduce an owner-only regression.
 4. Start the new API in `ASA_STUDENT_CODE_PROTECTION_MODE=compat`. The compat API is now the only credential writer and every new/rotated code is written to protected envelope/HMAC and temporary legacy compatibility storage atomically.
 5. Pass the release fence, then run resumable `tools/student-seat-protected-code-backfill.mjs` while the compat API is the sole writer. The tool never logs Student Code, ciphertext key material or derived HMAC.
 6. Verify `unprotected_active=0` and complete key-ID coverage. Old API concurrency at this point is forbidden.
@@ -420,6 +428,10 @@ E1-FIX-01/02/03 из Integrated V1.5 проверяются как отдель�
 7. Применить явно показанную credential policy: по умолчанию старый reusable Seat-secret отзывается после успешного перехода. Это не удаляет Seat, не withdraw учебное участие и не помечает learner suspended. Дополнительный школьный credential возможен только как отдельная управляемая policy.
 
 Pending/expired/rejected запрос не закрывает законное текущее обучение. Повтор успешной команды возвращает существующую связь без второго audit. При linked-to-other-Account, двух learner identities в одном school/context или утраченном proof — conflict/recovery, не автоматическое слияние. School histories не объединяются; suspension не снимается linking.
+
+**UX после успешного linking:** Account остаётся тем же личным Account и открывает обычную ASA Lab shell. Связанный learner context появляется внутри «Моего обучения» и «Учебных профилей»; личные проекты, Сообщество, Знания, Игры, Сохранённое, профиль, авторство и другие независимые возможности не мигрируют в школу и не исчезают. Если Seat credential отозван по policy, это меняет способ школьного входа, а не ownership личного Account. Школьный staff не получает доступ к личным проектам/публичной активности только из факта linking.
+
+MAX/другие внешние providers привязываются к Account, а не к StudentSeat. Linking Seat→Account не подключает MAX автоматически. После linking пользователь может подключить MAX в «Вход и безопасность» по действующей Auth/safety policy; использование MAX для уведомлений требует отдельной поддержанной delivery-настройки и не становится обязательным школьным требованием.
 
 Reconciliation — отдельная уполномоченная операция с evidence/preview, не обычное «Одобрить». Безопасное историческое linking removed профиля, если нужно, рассматривается отдельно от восстановления текущего доступа.
 
@@ -477,6 +489,21 @@ Draft edit использует expected version; stale overwrite даёт confl
 ## 14. Организация и ответственность
 
 Организация добровольна: школа, центр, кружок, онлайн-команда; возможен один человек на этапе подготовки. Organization и конкретное school unit не считаются равными без physical mapping. Subset доступа явный. Подтверждение учреждения не следует из названия/domain.
+
+**Organization Workspace — отдельный рабочий контекст, а не расширенная вкладка профиля.** Он появляется только при действующем organization membership/ownership и открывается тем же Account. Минимальная информационная архитектура:
+
+- **Обзор** — scoped counters и ближайшие управленческие задачи;
+- **Люди** — отдельно `Сотрудники` и `Учащиеся/учебные профили`; нельзя смешивать staff, StudentSeat и глобальные Account в один список «пользователи школы»;
+- **Классы** — разрешённые классы организации, состав/ответственные/активные проведения;
+- **Курсы и материалы** — organization-owned и разрешённые к использованию материалы; личные материалы staff не становятся organization-owned автоматически;
+- **Обучение** — активные/завершённые CourseRuns и другие разрешённые проведения;
+- **Аналитика** — scoped aggregate по классам/courses/runs с явной basis/asOf; detail только при отдельном праве;
+- **Настройки** — структура, defaults/caps, а не личные настройки участников;
+- **История** — audit, exports и ответственность.
+
+Эта IA не означает, что все страницы обязаны быть реализованы в E1. Она определяет конечную продуктовую границу, чтобы управление школой не расползалось по «Профилю», «Классам» и Course Builder. До E5 могут существовать bounded ранние представления, но они обязаны ссылаться на те же сущности и не создавать второй backend/gradebook.
+
+Organization sign-in/entry-point не создаёт отдельный вид пользователя: он аутентифицирует тот же Account и затем предлагает разрешённый workspace. У обычного Account без membership Organization Workspace не виден и не предлагается как обязательная настройка.
 
 Создатель получает owner только новой команды. Owner не имеет текущего скрытого доступа ко всем сдачам; может назначить себе разрешённый дополнительный учебный профиль отдельной audited командой. Это контролируемая управленческая возможность, не обещание технической невозможности чтения владельцем при последующем законном self-grant. Запрет self-review и safety caps не снимаются.
 
@@ -542,6 +569,14 @@ Subscriptions и каждое read/send авторизуются; отзыв з�
 
 Личный кабинет показывает свои проекты/обучения; ученический — следующий шаг/срок/feedback; teacher — свои работы и журнал; reviewer — порученную очередь; mentor — вопросы; руководитель — scoped aggregates; org admin — staff/структуру/audit; platform — health/jobs/security. Это представления одного источника, не новые grade engines.
 
+Метрики разделяются по пользовательской задаче и не дублируют друг друга:
+
+- **Course → Usage** отвечает автору/владельцу материала, где и какой exact CourseVersion используется: runs/classes, status, audience, aggregate completion/pending review в пределах разрешённого scope. Авторство само по себе не даёт имена учеников или submissions.
+- **Classroom → Overview/Learning/Gradebook** отвечает преподавателю, что происходит в конкретной группе: назначенные courses/activities, сколько назначено/начало/завершило/ждёт проверки, персональные строки только при class permission.
+- **Organization → Overview/Обучение/Аналитика** отвечает руководителю, что происходит в разрешённой части организации: классы, активные runs, learner profiles in scope, completion/pending review и использование courses. Aggregate не превращается в detail без отдельного permission.
+
+Одинаковая цифра в трёх местах имеет одну canonical basis/projection и одинаковый `asOf`; нельзя вести отдельные счётчики «для автора», «для класса» и «для школы». Login, просмотр страницы и число Account не считаются прохождением курса. Если нельзя доказать уникального физического человека между контекстами, метрика называется «учебные профили/участия», а не «уникальные ученики платформы».
+
 Внутри одного доказанного learner context уникальные ученики считаются по stable LearnerIdentity. При двух школах один Account может иметь две identities: без отдельно разрешённого межконтекстного mapping показатель называется «учебные профили по областям», а не число уникальных физических людей. Нельзя merge по Account/имени ради красивой метрики. Два курса в одном контексте: один learner и два участия.
 
 Programs — content roots; versions отдельно; deliveries — runs. Submitted требует реальной canonical semantics; legacy-only помечается для authorized staff. Waiting review — реально проверяемая сдача; completed — pinned policy. Last login не освоение темы. Фильтр, область, `asOf` и basis видны. Не усреднять несопоставимые шкалы и не выводить качество преподавателя из кликов.
@@ -590,6 +625,11 @@ Export — отдельное действие с requester/scope/filter/фор�
 | UI-30 | Моё обучение → Учебные профили | Own links и их история |
 | UI-31 | Преподавание | Один work hub для P09–P13 |
 | UI-32 | Центр уведомлений | Scoped собственные события |
+| UI-33 | Организация → Обзор | Scoped classes/runs/learner-profile counts и управленческие задачи; не learner detail без права |
+| UI-34 | Организация → Люди | Раздельно staff и learners/StudentSeat; не глобальные личные Account-профили |
+| UI-35 | Организация → Классы | Классы организации, ответственные, activity/run status; переход в конкретный Classroom |
+| UI-36 | Организация → Курсы и материалы | Organization-owned и granted-use content; личные материалы staff не захватываются |
+| UI-37 | Организация → Обучение и аналитика | Scoped CourseRuns/completion/pending review с basis/asOf; detail permission отдельно |
 
 <a id="section-19"></a>
 

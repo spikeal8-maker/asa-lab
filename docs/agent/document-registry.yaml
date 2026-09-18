@@ -69,6 +69,39 @@ documents:
     authority: agent_documentation_architecture
     context_role: escalation
     read_when: [documentation_system_change, agent_context_change]
+  - id: PRODUCT-TARGET-BLUEPRINT
+    path: docs/product/ASA_TARGET_PLATFORM_BLUEPRINT.md
+    scope: product
+    lanes: ['*']
+    kind: architecture_reference
+    status: supporting
+    authority: none
+    context_role: trace
+    read_when: [historical_product_architecture, tinkercad_reference, cross_context_background]
+    do_not_read_for: [override_canonical_product_contract]
+
+  - id: PRODUCT-CAPABILITY-MAP
+    path: docs/product/CAPABILITY_MAP.yaml
+    scope: product
+    lanes: ['*']
+    kind: capability_reference
+    status: supporting
+    authority: none
+    context_role: trace
+    read_when: [capability_dependency_lookup, historical_release_trace]
+    do_not_read_for: [override_e1_e6_delivery_order, make_organization_mandatory]
+
+  - id: PRODUCT-SURFACE-CATALOG
+    path: docs/product/ASA_PRODUCT_SURFACE_CATALOG.yaml
+    scope: product
+    lanes: ['*']
+    kind: surface_reference
+    status: supporting
+    authority: none
+    context_role: trace
+    read_when: [surface_inventory, ui_route_trace, product_surface_lookup]
+    do_not_read_for: [invent_account_types, override_integrated_or_access_contract]
+
   - id: PRODUCT-INTEGRATED-V15
     path: docs/product/ASA_INTEGRATED_IMPLEMENTATION_SPEC.md
     scope: product
@@ -296,6 +329,42 @@ documents:
     context_role: historical
     read_when: [historical_learning_context_only]
     do_not_read_for: [active_learning_implementation]
+
+  - id: ELECTRONICS-ROUTER
+    path: docs/product/electronics/START_HERE.md
+    scope: electronics
+    lanes: [electronics]
+    kind: maintenance_guide
+    status: canonical
+    authority: electronics_routing
+    context_role: compact
+    read_when: [electronics_task_start, electronics_maintenance]
+    delegated_roots:
+      - docs/product/electronics/components/**
+      - docs/product/electronics/tasks/**
+      - docs/product/electronics/contracts/**
+      - docs/product/electronics/evidence/**
+      - docs/product/electronics/generated/**
+
+  - id: ELECTRONICS-COMPONENT-MAP
+    path: docs/product/electronics/COMPONENT_MAP.yaml
+    scope: electronics
+    lanes: [electronics]
+    kind: maintenance_index
+    status: canonical
+    authority: electronics_component_routing
+    context_role: trace
+    read_when: [electronics_component_lookup, electronics_maintenance]
+
+  - id: ELECTRONICS-AGENT-GUIDE
+    path: docs/product/electronics/AGENT_GUIDE.md
+    scope: electronics
+    lanes: [electronics]
+    kind: maintenance_guide
+    status: canonical
+    authority: electronics_agent_process
+    context_role: trace
+    read_when: [electronics_task_start, electronics_review, electronics_maintenance]
 
   - id: ELECTRONICS-MASTER
     path: docs/product/electronics/README.md

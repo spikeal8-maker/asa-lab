@@ -52,6 +52,24 @@ not permission to merge or expose unreviewed writes. Preserve D0-002/003 semanti
 existing Project Core and all release/security/storage acceptance requirements.
 No further model/provider loop is part of this work.
 
+### Active bounded persistence candidate — M1-005B, 18.09.2026
+
+`docs/execution/current.yaml` selects **VSCR-M1-005B / Issue #287**. The bounded
+implementation continues in **Draft PR #288**, branch
+`codex/scratch-real-storage-005b`. This is the one active persistence candidate;
+do not start a parallel runtime/storage implementation.
+
+The candidate already contains runtime capability/session, Project Core guard,
+private S3-compatible storage, PostgreSQL blob/alias metadata, MinIO in the existing
+Compose and protected runtime asset/draft API. The browser path is still incomplete:
+Parent Web/child Scratch must be wired to the real runtime and prove
+`save → close → new session → open` against PostgreSQL + object storage.
+
+This owner-selected development exception permits the selected 005B work despite
+the normal serial readiness gates below. It does **not** mark M1-003/M1-004/M1-005
+as accepted, merged or production-ready. Before work or claims, fetch the actual
+PR #288 HEAD; static SHA text is never execution authority.
+
 ## Strict order
 
 ```text
@@ -137,7 +155,40 @@ Native `Save to your computer` may already exist because it is upstream Scratch 
 
 ## Checkpoint 3 — Robust editing
 
-M1-006: autosave/recovery/conflict handling.
+M1-006: autosave/recovery/conflict handling plus automatic draft preview tied to a
+confirmed durable revision/checkpoint.
+
+Autosave follows D0-008 and the platform capacity model:
+
+```text
+no full snapshot per editor action
+→ batch/debounce
+→ one save in flight
+→ coalesce to newest generation
+→ no-op unchanged fingerprint
+→ unchanged assets are not uploaded again
+→ confirmed durable revision
+→ async draft preview update
+```
+
+Every accepted Scratch slice runs L0/L1 optimisation evidence; because this lane is
+runtime/media-heavy, L2 is mandatory after every 2 accepted bounded slices or earlier
+when the repository policy triggers it.
+
+Before M1-006 coding starts, its task card must pin from D0-008:
+
+```text
+autosave debounce/cadence + classroom jitter distribution
+retry/backoff caps and Retry-After behaviour
+structured local-recovery store
+finite recovery TTL/quota + logout/account-switch cleanup
+save-state UI placement (no permanent bottom bar)
+preview capture source, encoded format and derived card dimensions
+benchmark fixtures/profile for P0/P2 comparison
+```
+
+These values are implementation configuration, but leaving them undefined until coding
+is not allowed.
 
 ## Checkpoint 4 — Safe ASA .sb3 integration
 
@@ -145,7 +196,12 @@ M1-007 proves bounded ZIP/content validation, compatibility and ASA import/expor
 
 ## Checkpoint 5 — Product integration
 
-M2: immutable player/publication/remix and Learning submission through ASA version semantics.
+M2: project cards + immutable player/publication/remix and Learning submission through
+ASA version semantics.
+
+Required card behaviour includes automatic owner-facing draft preview, separate
+user-selected publication cover, title, description/instructions, notes/credits,
+likes, views and remix count. Autosave never overwrites a manually selected cover.
 
 ## Checkpoint 6 — Deployment readiness
 
@@ -164,25 +220,25 @@ M3 does not globally delete/block native Scratch network-backed or hardware exte
 
 ## Readiness matrix
 
-| Task           | Readiness                        | Unlock condition                                                           |
-| -------------- | -------------------------------- | -------------------------------------------------------------------------- |
-| `VSCR-M1-001`  | COMPLETE / OWNER-ACCEPTED        | integrated                                                                 |
-| `VSCR-M1-002A` | COMPLETE / ACCEPTED              | accepted host foundation                                                   |
-| `VSCR-M1-002C` | COMPLETE / ACCEPTED              | accepted security boundary                                                 |
-| `VSCR-M1-002D` | IMPLEMENTED / INTEGRATED         | real editor and fixture path are in main; preserve accepted C/D boundaries |
-| `VSCR-M1-002B` | IMPLEMENTED / ACCEPTANCE PENDING | integrated repairs; B evidence and acceptance closed before E              |
-| `VSCR-M1-002E` | BLOCKED                          | A+C+D+B accepted                                                           |
-| `VSCR-M1-003`  | BLOCKED                          | E + owner acceptance of M1-002                                             |
-| `VSCR-M1-004`  | BLOCKED                          | M1-003                                                                     |
-| `VSCR-M1-005`  | BLOCKED                          | M1-004                                                                     |
-| `VSCR-M1-006`  | BLOCKED                          | M1-005                                                                     |
-| `VSCR-M1-007`  | BLOCKED                          | durable project path accepted                                              |
-| `VSCR-M1-008`  | BLOCKED                          | M1-006 + M1-007                                                            |
-| `VSCR-M2-*`    | BLOCKED                          | M1-008                                                                     |
-| `VSCR-M3-*`    | BLOCKED                          | M2                                                                         |
-| `VSCR-M4-001`  | BLOCKED                          | M3 deployment/restore acceptance                                           |
+| Task           | Readiness                                  | Unlock condition                                                                    |
+| -------------- | ------------------------------------------ | ----------------------------------------------------------------------------------- |
+| `VSCR-M1-001`  | COMPLETE / OWNER-ACCEPTED                  | integrated                                                                          |
+| `VSCR-M1-002A` | COMPLETE / ACCEPTED                        | accepted host foundation                                                            |
+| `VSCR-M1-002C` | COMPLETE / ACCEPTED                        | accepted security boundary                                                          |
+| `VSCR-M1-002D` | IMPLEMENTED / INTEGRATED                   | real editor and fixture path are in main; preserve accepted C/D boundaries          |
+| `VSCR-M1-002B` | IMPLEMENTED / ACCEPTANCE PENDING           | integrated repairs; B evidence and acceptance closed before E                       |
+| `VSCR-M1-002E` | BLOCKED                                    | A+C+D+B accepted                                                                    |
+| `VSCR-M1-003`  | DEVELOPMENT CANDIDATE / ACCEPTANCE PENDING | runtime security candidate is part of PR #288; normal acceptance chain remains open |
+| `VSCR-M1-004`  | DEVELOPMENT CANDIDATE / ACCEPTANCE PENDING | durable asset candidate is part of PR #288; not accepted/merged by this label       |
+| `VSCR-M1-005`  | IN PROGRESS — `VSCR-M1-005B`               | finish real browser wiring, exact save/open evidence and independent review         |
+| `VSCR-M1-006`  | BLOCKED                                    | M1-005                                                                              |
+| `VSCR-M1-007`  | BLOCKED                                    | durable project path accepted                                                       |
+| `VSCR-M1-008`  | BLOCKED                                    | M1-006 + M1-007                                                                     |
+| `VSCR-M2-*`    | BLOCKED                                    | M1-008                                                                              |
+| `VSCR-M3-*`    | BLOCKED                                    | M2                                                                                  |
+| `VSCR-M4-001`  | BLOCKED                                    | M3 deployment/restore acceptance                                                    |
 
-`BLOCKED` means coding STOP.
+`BLOCKED` means coding STOP **unless `current.yaml` explicitly selects an owner-authorized bounded exception**. Such an exception permits only the selected task; it never implies prerequisite acceptance.
 
 ## Historical D integration rule
 
@@ -237,6 +293,12 @@ Extensions catalogue and existing external integrations remain
 semantic category colours remain upstream
 ASA avatar/account remains parent-owned
 ASA durable save is separate from native local File export
+autosave does not send a full project snapshot on every editor action
+unchanged save does not create redundant revision/blob/alias data
+automatic draft preview and manual publication cover are distinct
+manual publication cover is never overwritten by autosave
+canonical Scratch asset bytes are not destructively recompressed for optimisation
+Scratch follows repository L0/L1/L2/L3 optimisation policy
 core ASA project/assets do not silently rely on Scratch project/asset backend
 basic local-file access stays active under owner-selected M4-002
 M4-001 remains managed-persistence acceptance, not a reason to hide or redeploy the module

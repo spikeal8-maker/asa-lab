@@ -11,8 +11,25 @@ components:
         section: "Publication identity"
       - path: docs/product/visual-programming/VSCR-D0-006-PUBLICATION-REMIX-CONTRACT.md
         section: "Gallery work/read semantics"
+      - path: docs/product/visual-programming/VSCR-D0-008-AUTOSAVE-PREVIEW-OPTIMIZATION-CONTRACT.md
+        section: "Publication cover is not draft preview"
     task: VSCR-M2
     depends_on: [blocks.project.load-save]
+
+  - id: blocks.gallery.card
+    state: blocked
+    risk: medium
+    ownership: cross_boundary
+    purpose: "Project/publication card metadata, manual cover and aggregate engagement without mutating the published executable version."
+    contracts:
+      - path: docs/product/visual-programming/VSCR-D0-006-PUBLICATION-REMIX-CONTRACT.md
+        section: "Draft preview and publication cover are different objects"
+      - path: docs/product/visual-programming/VSCR-D0-006-PUBLICATION-REMIX-CONTRACT.md
+        section: "Publication card metadata and engagement"
+      - path: docs/product/visual-programming/VSCR-D0-008-AUTOSAVE-PREVIEW-OPTIMIZATION-CONTRACT.md
+        section: "Publication card metadata and engagement boundary"
+    task: VSCR-M2
+    depends_on: [blocks.gallery.publication, blocks.project.preview]
 
   - id: blocks.gallery.player
     state: blocked

@@ -1,40 +1,45 @@
 schema_version: 1.0.0
-map_version: 2026.07.19-2
+map_version: 2026.09.18-1
 product:
   id: asa-lab
   name: ASA Lab
-  definition: Modular educational workspace platform with one Classroom Core, one Project lifecycle and multiple subject modules.
-  primary_outcome: A school can manage classes, child access, projects, assignments, immutable submissions, feedback, grades and rewards across several learning environments.
+  definition: Modular creative and educational platform with one personal Account shell, optional Organization workspaces, one Project lifecycle, one Learning runtime and multiple subject modules.
+  primary_outcome: A person can create projects and use ASA Lab without a school; learning, teaching and organization management are additive scoped capabilities over the same Account and canonical project/learning models.
 status_definitions:
-  foundation: Required platform foundation.
-  mvp: Required for the first useful school pilot.
-  next: Product expansion after the first pilot.
-  scale: Required for multi-school or commercial scale.
+  foundation: Required platform foundation for personal and scoped workspaces.
+  mvp: Required for the first useful personal/project and classroom pilot.
+  next: Product expansion after the first usable learning cycle.
+  scale: Required for multi-organization or commercial scale.
   future: Planned subject or platform expansion.
+
+delivery_semantics:
+  current_stage_source: docs/product/ASA_INTEGRATED_IMPLEMENTATION_SPEC.md
+  release_slices_role: historical_delivery_classification
+  rule: RELEASE-0..11 preserve old capability traceability and MUST NOT override current E1..E6 delivery order or make Organization membership a prerequisite for personal Account/project use.
 capabilities:
   - id: CAP-ORG
-    name: Organization and tenancy
+    name: Workspace and organization boundaries
     domain: platform
     target: foundation
-    outcome: Schools and organizations are isolated configurable tenants.
-    includes: [tenant, organization, school, building, academic period, tenant placement]
+    outcome: Every Account has an independent Personal Workspace; optional organizations add isolated scoped workspaces without becoming parents of personal Accounts.
+    includes: [personal workspace boundary, tenant placement, optional organization, school unit, building, academic period]
     depends_on: []
 
   - id: CAP-IDENTITY
-    name: Adult identity and sessions
+    name: Account identity and sessions
     domain: platform
     target: foundation
-    outcome: Adults authenticate safely and tenant context is derived server-side.
-    includes: [adult account, workspace login, session, role, grant, credential reset, future SSO adapter]
-    depends_on: [CAP-ORG]
+    outcome: A person authenticates safely into one personal Account without requiring a school or organization; active workspace and scoped grants are resolved server-side.
+    includes: [personal account, session, workspace context, scoped grant, credential reset, future SSO adapter]
+    depends_on: []
 
   - id: CAP-SAFETY
-    name: Child safety and audit foundation
+    name: Safety and audit foundation
     domain: platform
     target: foundation
-    outcome: Data is private by default, administrative mutations are audited and unsafe communication is excluded.
+    outcome: Personal and learner data are private by default, administrative mutations are audited and child safety restrictions apply only where relevant.
     includes: [private projects, safe mode baseline, no direct child messaging, immutable audit, retention, support access]
-    depends_on: [CAP-ORG, CAP-IDENTITY]
+    depends_on: [CAP-IDENTITY]
 
   - id: CAP-OPERATIONS
     name: Reliability and local delivery foundation
@@ -48,25 +53,25 @@ capabilities:
     name: Classroom lifecycle
     domain: classroom
     target: mvp
-    outcome: A teacher owns reusable educational workspaces with memberships and an active academic period.
-    includes: [create, list, rename later, archive later, owner membership, roster foundation, safe mode]
-    depends_on: [CAP-ORG, CAP-IDENTITY]
+    outcome: An authorized educator can own or manage reusable educational groups independently or inside an Organization workspace.
+    includes: [create, list, rename later, archive later, owner membership, roster foundation, safe mode, optional organization scope]
+    depends_on: [CAP-IDENTITY]
 
   - id: CAP-PORTAL-BASIC
-    name: Teacher Portal Basic
+    name: Account Portal Basic
     domain: experience
     target: mvp
-    outcome: A teacher logs in, sees classes and creates the first classroom.
-    includes: [login page, dashboard shell, classroom empty state, classroom cards, create classroom, logout]
+    outcome: A person logs into the ordinary Account shell; teaching shortcuts/classes appear only when educator/class entitlements exist.
+    includes: [login page, personal home shell, project shortcuts, conditional classroom cards, create classroom when allowed, logout]
     depends_on: [CAP-IDENTITY, CAP-CLASSROOM]
 
   - id: CAP-MODULE-REGISTRY
     name: Module Registry v0.1
     domain: modules
     target: mvp
-    outcome: Subject editors are registered through a stable manifest and provider contract.
+    outcome: Subject editors are registered through a stable manifest and provider contract and remain usable from a Personal Workspace without Organization membership.
     includes: [module manifest, project schema reference, editor route, viewer route, validator, preview provider]
-    depends_on: [CAP-ORG, CAP-IDENTITY]
+    depends_on: [CAP-IDENTITY]
 
   - id: CAP-PROJECT-SHELL
     name: Universal Project Shell
@@ -101,20 +106,20 @@ capabilities:
     depends_on: [CAP-IDENTITY, CAP-CLASSROOM]
 
   - id: CAP-STUDENT-DASHBOARD
-    name: Child Dashboard
+    name: Learner access surfaces
     domain: experience
     target: mvp
-    outcome: A child sees assigned classes and own module projects through a safe limited interface.
-    includes: [child login, own classes, own projects, safe profile, logout, credential state]
+    outcome: StudentSeat uses a safe scoped learner shell; an Account that learns keeps the ordinary Account shell and sees school/self-study history inside My Learning.
+    includes: [StudentSeat learner shell, Account My Learning, own classes, own scoped projects, safe profile, logout, credential state]
     depends_on: [CAP-STUDENT-SEAT, CAP-PROJECT-SHELL]
 
   - id: CAP-CONTENT-LITE
     name: Activity Content Lite
     domain: learning
     target: mvp
-    outcome: Teachers publish a minimal immutable activity version without requiring a full course-authoring platform.
+    outcome: Authorized authors publish a minimal immutable activity version without requiring an Organization or a full course-authoring platform.
     includes: [activity template, immutable activity version, instructions, learning goal, module requirements, starter checkpoint, public criteria]
-    depends_on: [CAP-ORG, CAP-MODULE-REGISTRY]
+    depends_on: [CAP-IDENTITY, CAP-MODULE-REGISTRY]
 
   - id: CAP-ASSIGNMENTS
     name: Classroom assignments
@@ -280,9 +285,9 @@ capabilities:
     name: Entitlements quotas and billing readiness
     domain: commercial
     target: scale
-    outcome: Paid capabilities are introduced without changing subject code or deleting learning data.
+    outcome: Personal or organization paid capabilities are introduced without making Organization membership mandatory and without changing subject code or deleting learning data.
     includes: [plan version, entitlement, quota, usage ledger, billing adapter, grace period, read-only mode]
-    depends_on: [CAP-ORG, CAP-MODULE-REGISTRY]
+    depends_on: [CAP-IDENTITY, CAP-MODULE-REGISTRY]
 
 release_slices:
   - id: RELEASE-0

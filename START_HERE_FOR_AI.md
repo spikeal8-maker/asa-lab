@@ -20,40 +20,43 @@ GitHub-first protocol задаёт рабочую модель: GitHub хран�
 production Docker/browser/data evidence выполняются в GitHub Actions. Политика не
 зависит от того, какая задача активна.
 
-## 2. Получи короткий контекст направления
+## 2. Выполни один preflight
+
+Обычный вход нового coding-агента — одна команда:
 
 ```bash
-pnpm agent:context --list
-pnpm agent:recover --scope <lane> --check
-pnpm agent:context --scope <lane>
+pnpm agent:preflight --check
 ```
 
-Если задача локальная и известен адрес изменения, начинай с более узкого контекста:
+Для известного направления или локальной правки сразу сузь контекст:
 
 ```bash
-pnpm agent:context --path <repo-path>
-pnpm agent:context --surface <SURF-ID>
-pnpm agent:context --control <CTRL-ID>
+pnpm agent:preflight --scope <lane> --check
+pnpm agent:preflight --path <repo-path> --check
+pnpm agent:preflight --surface <SURF-ID> --check
+pnpm agent:preflight --control <CTRL-ID> --check
 ```
 
-Targeted context берёт Domain Contract и Surface Map из `docs/agent/`, показывает только связанные implementation paths, invariant IDs и исполнимые tests, а полный Master оставляет как точечную escalation-ссылку. Если path ещё не картирован, команда останавливается вместо догадки — тогда используй `--scope` и добавь отсутствующую карту вместе с изменением.
+Preflight безопасно обновляет только remote-tracking `origin/main`, затем одним
+пакетом показывает branch/HEAD/divergence, dirty paths, blockers, gates,
+пересечения с грязными worktree, результат control-plane check и тот же scoped
+context, который раньше приходилось получать отдельной командой. Он не делает
+checkout/reset/clean/kill, не редактирует продукт и не создаёт вторую копию
+execution state.
 
-Если вывод содержит `recoveryRequired: true`, до любых новых записей выполни:
+Код `0` при `--check` означает `SAFE_TO_START`. Код `2` означает, что
+писать пока нельзя: результат точно различает `RECOVERY_REQUIRED`,
+`WAITING_HANDOFF`, execution blocker, неактуальный Git snapshot или повреждение
+control plane. Сначала выполни указанное `SAFE_ACTION`; не повторяй прерванную
+команду автоматически.
 
-```bash
-pnpm agent:recover --scope <lane> --check
-```
-
-Код `2` означает `RECOVERY_REQUIRED`: сначала классифицируй существующий diff и
-активные процессы. Не повторяй прерванную команду автоматически. Продолжение
-разрешено только после `SAFE_TO_START` либо после явного решения сохранить и
-завершить уже начатый bounded slice.
-
-Команда читает [`docs/execution/current.yaml`](docs/execution/current.yaml) и
-выводит только выбранное направление: задачу, checkpoint, gates, относящиеся к
-нему документы и пересекающиеся незавершённые файлы. Это штатный вход агента;
-полный `current.yaml` нужен только при изменении состояния или диагностике
-control plane.
+Низкоуровневые `pnpm agent:context` и `pnpm agent:recover` остаются для
+диагностики и повторного запроса, но больше не являются обязательной цепочкой
+старта. Targeted context берёт Domain Contract и Surface Map из `docs/agent/`,
+показывает только связанные implementation paths, invariant IDs и исполнимые
+tests, а полный Master оставляет как точечную escalation-ссылку. Если path ещё не
+картирован, команда останавливается вместо догадки — используй `--scope` и
+добавь отсутствующую карту вместе с изменением.
 
 Значения branch/revisions определены в [контракте revision state](docs/execution/REVISION_STATE_CONTRACT.md). `split_history` показывает датированный snapshot отдельных main/recovery/review refs, а не единый интегрированный HEAD; перед записью обнови GitHub snapshot. Наблюдение не выбирает задачу и не даёт owner acceptance.
 
@@ -72,15 +75,11 @@ authorize itself is a governance failure.
 комментарий в чате противоречат `current.yaml` — прав `current.yaml`, а
 расхождение является ошибкой, которую нужно устранить, а не обойти.
 
-## 3. Проверь, что состояние не разъехалось
+## 3. Control plane уже входит в preflight
 
-```bash
-pnpm control-plane:check
-```
-
-Проверка подтверждает целостность YAML, обязательных gates и инженерных
-инвариантов. В режиме `direct_main` устаревшие lease, branch и PR не проверяются.
-Реальное повреждение структуры исправляется до продуктовой работы.
+Отдельный `pnpm control-plane:check` нужен только для диагностики самого control
+plane. Стандартный preflight уже запускает эту проверку и не возвращает
+`SAFE_TO_START`, если она красная.
 
 ## 4. Проверь Git
 
@@ -132,9 +131,13 @@ StudentSeat не требует предварительной регистра�
 
 ### Electronics / Arduino
 
-`pnpm agent:recover --scope electronics --check` →
-`pnpm agent:context --scope electronics` →
+`pnpm agent:preflight --scope electronics --check` →
 [`docs/product/electronics/START_HERE.md`](docs/product/electronics/START_HERE.md).
+
+Preflight является единственным обычным стартом. Если он возвращает
+`RECOVERY_REQUIRED`, `WAITING_HANDOFF`, blocker или targeted follow-up, выполни
+указанный `SAFE_ACTION`; низкоуровневые `agent:recover` и `agent:context`
+используются только для такой диагностики, а не как параллельный порядок старта.
 
 Дальше: component ID → одна subsystem entry → выбранная task card → точные
 contracts/symbols/tests. Полный Electronics README не загружается по умолчанию.

@@ -12,6 +12,12 @@ components:
       - path: docs/product/visual-programming/VSCR-D0-002-PERSISTENCE-CONTRACT.md
         section: "Generic project-draft API must not bypass durability"
     task: VSCR-M1-005
+    active_candidate:
+      task: VSCR-M1-005B
+      pr: 288
+      branch: codex/scratch-real-storage-005b
+      status: implemented_in_draft_pr
+      acceptance: pending
     design_gate: VSCR-M1-005P
     depends_on: [blocks.assets.metadata]
 
@@ -26,6 +32,12 @@ components:
       - path: docs/product/visual-programming/VSCR-D0-003-ASSET-STORAGE-CONTRACT.md
         section: "Project save interaction"
     task: VSCR-M1-005
+    active_candidate:
+      task: VSCR-M1-005B
+      pr: 288
+      branch: codex/scratch-real-storage-005b
+      status: backend_pipeline_present_browser_wiring_pending
+      acceptance: pending
     depends_on: [blocks.project.persistence-guard, blocks.assets.upload, blocks.assets.read]
 
   - id: blocks.project.autosave
@@ -36,8 +48,25 @@ components:
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-002-PERSISTENCE-CONTRACT.md
         section: "Autosave transaction identity"
+      - path: docs/product/visual-programming/VSCR-D0-008-AUTOSAVE-PREVIEW-OPTIMIZATION-CONTRACT.md
+        section: "Autosave execution contract"
+      - path: docs/product/visual-programming/VSCR-D0-008-AUTOSAVE-PREVIEW-OPTIMIZATION-CONTRACT.md
+        section: "Classroom load shaping"
     task: VSCR-M1-006
     depends_on: [blocks.project.load-save]
+
+  - id: blocks.project.preview
+    state: blocked
+    risk: medium
+    ownership: asa
+    purpose: "Automatic owner-facing stage preview bound to an exact confirmed durable revision/fingerprint."
+    contracts:
+      - path: docs/product/visual-programming/VSCR-D0-008-AUTOSAVE-PREVIEW-OPTIMIZATION-CONTRACT.md
+        section: "Automatic draft preview"
+      - path: docs/product/visual-programming/VSCR-D0-008-AUTOSAVE-PREVIEW-OPTIMIZATION-CONTRACT.md
+        section: "Preview must match one durable generation"
+    task: VSCR-M1-006
+    depends_on: [blocks.project.load-save, blocks.project.autosave]
 
   - id: blocks.project.recovery
     state: blocked
@@ -47,9 +76,11 @@ components:
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-002-PERSISTENCE-CONTRACT.md
         section: "Conflict behaviour"
+      - path: docs/product/visual-programming/VSCR-D0-008-AUTOSAVE-PREVIEW-OPTIMIZATION-CONTRACT.md
+        section: "Recovery-store minimum contract"
     task: VSCR-M1-006
     depends_on: [blocks.project.load-save]
-    design_gap: "The exact browser recovery store, TTL/quota, logout cleanup and user/tenant/project isolation must be fixed in the M1-006 task card before coding."
+    design_gap: "M1-006 must choose explicit finite recovery TTL/quota values and logout/account-switch cleanup policy before coding acceptance; payload storage is structured browser storage, never localStorage/sessionStorage."
 
   - id: blocks.project.conflict
     state: blocked

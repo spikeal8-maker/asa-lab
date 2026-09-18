@@ -32,7 +32,7 @@ and future standalone consumers. Its dependency closure must not require React, 
 globals, DOM, ASA auth, API client, database or portal store. Host adapters supply persistence,
 transport and presentation outside that closure; all simulation inputs/state are explicit.
 Dependency tests and direct consumer fixtures prove this property, not successful bundling alone.
-Timed method names and semantics remain provisional until the roadmap's canonical-clock decision.
+Canonical timed semantics are fixed by the accepted `contracts/CANONICAL_CLOCK_CONTRACT.md`. The version-1 public timed engine surface was frozen by E-OPT-3B; an incompatible method or semantic change requires an explicit versioned contract/API revision and compatibility plan.
 
 ### 1.2 Independent version domains and capabilities
 
@@ -210,6 +210,18 @@ A moving `main` cannot silently replace the selected release.
 | `tasks/` | One bounded slice per concrete card; templates define required fields |
 | `contracts/ENGINEERING_HYGIENE_CONTRACT.md` | Mandatory hygiene cadence, lifecycle classes, deletion proof and large-source review rules |
 | `evidence/hygiene-baseline.yaml` | Machine-readable reviewed large-source/legacy/documentation debt baseline; never live execution state |
+
+Arbitrary new human-readable Electronics sources of truth are forbidden. A new Electronics
+document is allowed only when it belongs to a registered class — bounded task card, versioned
+contract, evidence, or governance/maintenance routing — and its authority is owned by this table
+or by the repository document registry. The same change must update routing when needed.
+A new document may not duplicate product semantics, execution state, roadmap order or component
+ownership already assigned above.
+
+`ARD-*` identifiers inside `README.md` are requirement/capability anchors only. They do not own
+execution order, do not select work and do not replace E-OPT task cards. Long-term dependency
+order remains owned by `ASA_ELECTRONICS_OPTIMIZATION_PLAN_V2.md`; active selection remains owned
+by `docs/execution/current.yaml`.
 
 Cards never store programme progress, live task/SHA/CI/deployment state or `implementation_state`.
 Readiness is assessed from roadmap prerequisites and acceptance evidence, not inferred from
