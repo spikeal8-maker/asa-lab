@@ -270,9 +270,7 @@ function workerReplay(fixture: WorkerFixture, targets: readonly number[]): Worke
     }
     const nextUnsent = fixture.trace[sent];
     if (nextUnsent && nextUnsent.atMicroseconds < target) {
-      throw new Error(
-        `Worker profile committed past unsent input at ${nextUnsent.atMicroseconds}`,
-      );
+      throw new Error(`Worker profile committed past unsent input at ${nextUnsent.atMicroseconds}`);
     }
 
     const evaluate = (inputEvents: readonly ElectronicsTimedInputEvent[] | undefined) => {
@@ -303,9 +301,7 @@ function workerReplay(fixture: WorkerFixture, targets: readonly number[]): Worke
     }
     if (result.executionStatus === 'fault') {
       throw new Error(
-        `${fixture.name} Worker fault at target ${target}: ${JSON.stringify(
-          result.diagnostics,
-        )}`,
+        `${fixture.name} Worker fault at target ${target}: ${JSON.stringify(result.diagnostics)}`,
       );
     }
     expect(result.committedHorizonMicroseconds).toBe(target);
