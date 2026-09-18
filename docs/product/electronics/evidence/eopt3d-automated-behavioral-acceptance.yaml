@@ -80,20 +80,15 @@ checks:
 semantic_review:
   reviewed_product_sha: 8f7a563bf7f1f66c88bde3cfd30e94b2c1bd6885
   production_review: pass
-  final_candidate_rereview: pending
-  final_candidate_rereview_requirement:
-    - production diff unchanged since reviewed product SHA
-    - final changes are tests/evidence only
-    - Reset-after-progress acceptance test is semantically correct
-    - unresolved BLOCKING findings remain zero
+  final_candidate_rereview: pass
+  final_candidate_rereview_sha: 938904fe1657fe04b710a76d67344764d1a609dc
+  final_candidate_reviewer_kind: independent_machine_controller
   github_copilot_review_request:
     status: unavailable
-    note: Manual REST reviewer requests produced no requested reviewer, review submission, or review thread while PR remained Draft.
+    note: GitHub Copilot review did not occur and is not used as acceptance evidence.
 
 blocking_findings:
-  known_unresolved_count: 0
-  final_exact_sha_review_pending: true
+  unresolved_blocking_findings: 0
+  final_exact_sha_review_pending: false
 
-automated_behavioral_acceptance: pending
-acceptance_pending_on:
-  - exact_final_sha_independent_rereview
+automated_behavioral_acceptance: pass
