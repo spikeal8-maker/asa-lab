@@ -21,8 +21,8 @@ Reconciled capability baseline for this plan revision:
 - E-OPT-0 baseline/golden/benchmark is accepted;
 - E-OPT-1A..1E portable engine boundary is accepted and integrated;
 - E-OPT-2 dedicated Worker boundary is accepted and integrated;
-- E-OPT-3A canonical clock contract, E-OPT-3B public timed facade and E-OPT-3C scheduler/physics barrier convergence are accepted and integrated;
-- E-OPT-3D..3F remain before E-OPT-3 is complete;
+- E-OPT-3A..3D canonical clock, timed facade, scheduler/physics barriers and Worker/controller canonical horizons are accepted and integrated;
+- E-OPT-3E and E-OPT-3F remain before E-OPT-3 is complete;
 - timing-sensitive peripherals remain blocked on the remaining clock/runtime prerequisites.
 
 Do not copy live SHA/CI/checkpoint into this plan. Historical evidence belongs in delivery evidence, Git history and issues.
@@ -152,7 +152,7 @@ No further E-OPT-2 feature expansion is authorised by this plan alone. Worker ch
 
 ## 6. E-OPT-3 — Canonical Electronics Clock
 
-**Capability state:** E-OPT-3A, E-OPT-3B and E-OPT-3C are accepted and integrated; E-OPT-3D, E-OPT-3E and E-OPT-3F remain.
+**Capability state:** E-OPT-3A..3D are accepted and integrated; E-OPT-3E and E-OPT-3F remain.
 
 ### Goal
 
@@ -329,20 +329,17 @@ how existing acceptance evidence remains valid or must be rerun
 
 Then update this plan and routing before implementation resumes.
 
-## 16. Current dependency shape after E-OPT-3C
+## 16. Current dependency shape after E-OPT-3D
 
-Accepted foundations E-OPT-0, E-OPT-1, E-OPT-2 and E-OPT-3A..3C are not repeated as
+Accepted foundations E-OPT-0, E-OPT-1, E-OPT-2 and E-OPT-3A..3D are not repeated as
 future work. This is a dependency shape, not an execution queue: every arrow still ends at
 STOP / owner selection, and only `docs/execution/current.yaml` activates a concrete task.
 
 ```text
-mandatory hygiene checkpoint after accepted 3A/3B/3C
+accepted E-OPT-3A..3D
         |
         v
 STOP / owner selection
-        |
-        v
-E-OPT-3D Worker/controller canonical horizons
         |
         v
 E-OPT-3E trace/replay determinism across presentation cadence
