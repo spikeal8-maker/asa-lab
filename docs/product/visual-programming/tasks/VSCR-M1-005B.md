@@ -39,36 +39,35 @@ local File. Это отдельный режим доступности и **н�
 
 ## Current implementation checkpoint
 
-В PR #288 уже существует backend candidate:
+PR #288 now carries an **implemented candidate** for the bounded runtime path:
 
-- runtime capability/current-authority/session и exact Origin/CORS boundary;
-- private S3-compatible blob storage + PostgreSQL metadata/aliases;
-- MinIO в существующем ASA Compose;
-- runtime asset PUT/GET и canonical draft PUT;
-- общий Project Core save/open pipeline и production persistence guard;
-- request/upload budgets, OpenAPI, migrations/RLS и focused tests.
+- real Parent Web runtime-session bootstrap;
+- real read-only existing-project open from runtime-session project JSON and assets;
+- explicit FLUSH using the live Scratch VM snapshot and exact current media bytes;
+- asset PUT before canonical draft PUT with confirmed revision;
+- deterministic canonical-document fingerprint and unchanged-FLUSH zero-write semantics;
+- memory-only durable-asset knowledge across failed draft attempts;
+- stable mutationId/baseRevision replay after ambiguous lost/5xx/malformed draft responses;
+- explicit `revision_conflict` for `project_revision_conflict`;
+- focused/browser evidence for first save, unchanged no-op, lost-response replay,
+  a subsequent edit and conflict.
 
-Текущий незавершённый участок — **real browser wiring**. Пока Parent Web использует
-preview/bootstrap path, а child Scratch Host остаётся на fixture/local storage,
-нельзя писать «Scratch сохраняется в аккаунте ASA».
+This remains a **candidate, not M1-005B acceptance**. The still-open acceptance boundary is
+full save → close → fresh browser/session → reopen against the real PostgreSQL/object-storage
+stack, plus the remaining authorization/storage acceptance and independent critical review.
 
-Канонический следующий путь:
+Current bounded persistence semantics:
 
 ```text
-Parent Web
-→ POST /api/projects/{projectId}/blocks/runtime-session
-→ child Scratch Host real bootstrap
-→ Scratch VM snapshot
-→ project JSON + exact assets
-→ detect missing/changed assets
-→ PUT only missing/changed assets
-→ PUT canonical draft
-→ receive confirmed revision
-→ close editor/browser
-→ new browser session
-→ open same ASA project
-→ restore exact JSON + costume/image/sound bytes
-→ run project
+runtime-session → real bootstrap/open
+→ explicit FLUSH
+→ live VM canonical fingerprint
+→ unchanged: confirmed revision, zero writes
+→ changed: missing durable asset PUTs
+→ stable pending mutationId + canonical draft PUT
+→ confirmed revision
+→ ambiguous lost response: same mutationId/baseRevision replay
+→ revision conflict: explicit fail-closed reason
 ```
 
 ## Scope

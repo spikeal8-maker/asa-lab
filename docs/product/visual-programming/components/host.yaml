@@ -153,7 +153,7 @@ components:
     state: implemented
     risk: high
     ownership: asa
-    purpose: 'Runtime/default storage; explicit FLUSH.'
+    purpose: 'Runtime storage; FLUSH fingerprint/no-op/replay.'
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-001-SCRATCH-HOST-CONTRACT.md
         section: 'Scratch storage adapter'

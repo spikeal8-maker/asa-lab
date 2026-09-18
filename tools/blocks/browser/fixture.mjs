@@ -92,6 +92,30 @@ window.addEventListener('message', (event) => {
   const runtimeAssetPutEvidence = [];
   const runtimeDraftEvidence = [];
   const runtimeWriteEvents = [];
+  const runtimePersistenceMetrics = {
+    assetRequests: 0,
+    uploadedBytes: 0,
+    uniqueAssetBytes: 0,
+    blobRows: 0,
+    aliasRows: 0,
+    draftRequests: 0,
+    revisionCommits: 0,
+    idempotentReplays: 0,
+    externalRevisionAdvances: 0,
+  };
+  const durableBlobKeys = new Set(
+    (runtimeSession.assets ?? []).map(
+      (reference) => `${reference.sha256}.${reference.dataFormat}`,
+    ),
+  );
+  const durableAliasKeys = new Set(
+    (runtimeSession.assets ?? []).map(
+      (reference) => `${reference.assetId}.${reference.dataFormat}`,
+    ),
+  );
+  const committedMutations = new Map();
+  let serverRevision = Number(runtimeSession.draftRevision ?? 0);
+  let dropDraftResponseRemaining = options.dropFirstDraftResponseAfterCommit === true ? 1 : 0;
   let runtimeSessionSequence = 0;
   const runtimeSessionPath = `/api/projects/${projectId}/blocks/runtime-session`;
   const runtimeAssetPrefix = `/api/blocks/runtime/projects/${projectId}/assets/`;
@@ -223,6 +247,8 @@ window.addEventListener('message', (event) => {
       };
       runtimeAssetPutEvidence.push(evidence);
       runtimeWriteEvents.push({ kind: 'asset-put', assetFile });
+      runtimePersistenceMetrics.assetRequests += 1;
+      runtimePersistenceMetrics.uploadedBytes += body.byteLength;
       if (!authorizationOk) {
         response.statusCode = 401;
         response.end();
@@ -238,6 +264,17 @@ window.addEventListener('message', (event) => {
         response.statusCode = 400;
         response.end();
         return;
+      }
+      const blobKey = `${canonicalReference.sha256}.${canonicalReference.dataFormat}`;
+      if (!durableBlobKeys.has(blobKey)) {
+        durableBlobKeys.add(blobKey);
+        runtimePersistenceMetrics.uniqueAssetBytes += body.byteLength;
+        runtimePersistenceMetrics.blobRows += 1;
+      }
+      const aliasKey = `${canonicalReference.assetId}.${canonicalReference.dataFormat}`;
+      if (!durableAliasKeys.has(aliasKey)) {
+        durableAliasKeys.add(aliasKey);
+        runtimePersistenceMetrics.aliasRows += 1;
       }
       runtimeAssets.set(assetFile, {
         body,
@@ -283,8 +320,12 @@ window.addEventListener('message', (event) => {
         contentTypeOk: request.headers['content-type'] === 'application/vnd.asa.blocks-draft+json',
         body: parsed,
       };
-      runtimeDraftEvidence.push(evidence);
+      runtimeDraftEvidence.push({
+        ...evidence,
+        serverRevisionBefore: serverRevision,
+      });
       runtimeWriteEvents.push({ kind: 'draft-put' });
+      runtimePersistenceMetrics.draftRequests += 1;
       if (!evidence.authorizationOk) {
         response.statusCode = 401;
         response.end();
@@ -301,7 +342,52 @@ window.addEventListener('message', (event) => {
         response.end();
         return;
       }
-      const revision = options.confirmedRevision ?? Number(runtimeSession.draftRevision ?? 0) + 1;
+
+      const mutationId = parsed.mutationId;
+      const previous = committedMutations.get(mutationId);
+      let revision;
+      if (previous) {
+        if (
+          previous.baseRevision !== parsed.baseRevision ||
+          JSON.stringify(previous.document) !== JSON.stringify(parsed.document)
+        ) {
+          response.statusCode = 409;
+          response.setHeader('Content-Type', 'application/json; charset=utf-8');
+          response.end(
+            JSON.stringify({
+              error: { code: 'idempotency_conflict', message: 'mutation payload changed' },
+            }),
+          );
+          return;
+        }
+        runtimePersistenceMetrics.idempotentReplays += 1;
+        revision = previous.revision;
+      } else {
+        if (parsed.baseRevision !== serverRevision) {
+          response.statusCode = 409;
+          response.setHeader('Content-Type', 'application/json; charset=utf-8');
+          response.end(
+            JSON.stringify({
+              error: { code: 'project_revision_conflict', message: 'server revision moved' },
+            }),
+          );
+          return;
+        }
+        serverRevision += 1;
+        revision = serverRevision;
+        committedMutations.set(mutationId, {
+          baseRevision: parsed.baseRevision,
+          document: parsed.document,
+          revision,
+        });
+        runtimePersistenceMetrics.revisionCommits += 1;
+        if (dropDraftResponseRemaining > 0) {
+          dropDraftResponseRemaining -= 1;
+          response.destroy();
+          return;
+        }
+      }
+
       const payload =
         typeof options.draftWriteResponse === 'function'
           ? options.draftWriteResponse(parsed, revision)
@@ -375,6 +461,15 @@ window.addEventListener('message', (event) => {
       runtimeAssetPutEvidence,
       runtimeDraftEvidence,
       runtimeWriteEvents,
+      runtimePersistenceMetrics,
+      getServerRevision() {
+        return serverRevision;
+      },
+      advanceServerRevision() {
+        serverRevision += 1;
+        runtimePersistenceMetrics.externalRevisionAdvances += 1;
+        return serverRevision;
+      },
       async close() {
         try {
           await context.close();

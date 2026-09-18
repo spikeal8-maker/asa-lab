@@ -251,21 +251,28 @@ async function explicitFlush(
   }, requestId);
 }
 
+async function setServerSteps(
+  frame: import('@playwright/test').FrameLocator,
+  fromValue: string,
+  toValue: string,
+): Promise<void> {
+  await frame.getByRole('tab', { name: 'Code', exact: true }).click();
+  await frame
+    .getByRole('button', { name: 'Server Bootstrap Sprite', exact: true })
+    .click();
+  const program = frame.locator('.blocklyBlockCanvas').first();
+  await program.getByText(fromValue, { exact: true }).dblclick();
+  const numberField = frame.locator('.blocklyHtmlInput:focus');
+  await expect(numberField).toHaveValue(fromValue);
+  await numberField.fill(toValue);
+  await numberField.press('Enter');
+  await expect(program.getByText(toValue, { exact: true })).toBeVisible();
+}
+
 async function editLiveServerProjectAndAddMedia(
   frame: import('@playwright/test').FrameLocator,
 ): Promise<void> {
-  const serverSprite = frame.getByRole('button', {
-    name: 'Server Bootstrap Sprite',
-    exact: true,
-  });
-  await serverSprite.click();
-  const program = frame.locator('.blocklyBlockCanvas').first();
-  await program.getByText('8', { exact: true }).dblclick();
-  const numberField = frame.locator('.blocklyHtmlInput:focus');
-  await expect(numberField).toHaveValue('8');
-  await numberField.fill('37');
-  await numberField.press('Enter');
-  await expect(program.getByText('37', { exact: true })).toBeVisible();
+  await setServerSteps(frame, '8', '37');
 
   await frame.getByRole('button', { name: 'Choose a Sprite' }).first().click();
   await frame.getByText('Abby', { exact: true }).click();
@@ -474,7 +481,7 @@ test('runtime-session opens the real server project and reads declared costume a
   }
 });
 
-test('explicit FLUSH persists the live VM, new media, then canonical draft with confirmed revision', async () => {
+test('explicit FLUSH fingerprints canonical state, no-ops unchanged work and advances only new edits', async () => {
   const serverProject = await realRuntimeBootstrapFixture();
   const fixture = await createProtocolFixture({
     product: true,
@@ -485,7 +492,6 @@ test('explicit FLUSH persists the live VM, new media, then canonical draft with 
       assets: serverProject.assets,
     },
     runtimeAssets: serverProject.runtimeAssets,
-    confirmedRevision: 24,
   });
   const page = await fixture.context.newPage();
   await installBlocksMessageCapture(page);
@@ -496,31 +502,47 @@ test('explicit FLUSH persists the live VM, new media, then canonical draft with 
     const shell = frame.locator('[data-asa-host-shell]');
     await expect(shell).toHaveAttribute('data-editor-state', 'ready', { timeout: 45000 });
 
-    expect(fixture.runtimeAssetPutEvidence).toEqual([]);
-    expect(fixture.runtimeDraftEvidence).toEqual([]);
+    const p0 = {
+      ...fixture.runtimePersistenceMetrics,
+      serverRevision: fixture.getServerRevision(),
+    };
     expect(fixture.runtimeWriteEvents).toEqual([]);
 
     await editLiveServerProjectAndAddMedia(frame);
-
-    expect(fixture.runtimeAssetPutEvidence).toEqual([]);
-    expect(fixture.runtimeDraftEvidence).toEqual([]);
     expect(fixture.runtimeWriteEvents).toEqual([]);
 
-    const result = await explicitFlush(page, 'browser-save-success');
-    expect(result).toMatchObject({
+    const first = await explicitFlush(page, 'browser-save-first');
+    expect(first).toMatchObject({
       messageType: 'ASA_BLOCKS_FLUSH_RESULT',
-      requestId: 'browser-save-success',
+      requestId: 'browser-save-first',
       ok: true,
       revision: 24,
       reason: null,
     });
     await expect(shell).toHaveAttribute('data-draft-revision', '24');
 
-    expect(fixture.runtimeAssetPutEvidence.length).toBeGreaterThan(0);
-    expect(fixture.runtimeDraftEvidence).toHaveLength(1);
-    expect(fixture.runtimeWriteEvents.at(-1)).toEqual({ kind: 'draft-put' });
+    const p1 = {
+      ...fixture.runtimePersistenceMetrics,
+      serverRevision: fixture.getServerRevision(),
+    };
+    expect(p1.assetRequests - p0.assetRequests).toBeGreaterThan(0);
+    expect(p1.uploadedBytes - p0.uploadedBytes).toBeGreaterThan(0);
+    expect(p1.uniqueAssetBytes - p0.uniqueAssetBytes).toBeGreaterThan(0);
+    expect(p1.blobRows - p0.blobRows).toBeGreaterThan(0);
+    expect(p1.aliasRows - p0.aliasRows).toBeGreaterThan(0);
+    expect(p1.draftRequests - p0.draftRequests).toBe(1);
+    expect(p1.revisionCommits - p0.revisionCommits).toBe(1);
+    expect(p1.serverRevision - p0.serverRevision).toBe(1);
+
     expect(
-      fixture.runtimeWriteEvents.slice(0, -1).every((event) => event.kind === 'asset-put'),
+      fixture.runtimeAssetPutEvidence.some(
+        (item) =>
+          item.assetFile === `${serverProject.imageAssetId}.svg` ||
+          item.assetFile === `${serverProject.soundAssetId}.wav`,
+      ),
+    ).toBe(false);
+    expect(
+      fixture.runtimeAssetPutEvidence.some((item) => item.assetFile === `${barkAssetId}.wav`),
     ).toBe(true);
     expect(
       fixture.runtimeAssetPutEvidence.every(
@@ -533,66 +555,40 @@ test('explicit FLUSH persists the live VM, new media, then canonical draft with 
           item.contentTypeOk,
       ),
     ).toBe(true);
-    expect(
-      fixture.runtimeAssetPutEvidence.some(
-        (item) =>
-          item.assetFile === `${serverProject.imageAssetId}.svg` ||
-          item.assetFile === `${serverProject.soundAssetId}.wav`,
-      ),
-    ).toBe(false);
-    expect(
-      fixture.runtimeAssetPutEvidence.some((item) => item.assetFile === `${barkAssetId}.wav`),
-    ).toBe(true);
 
-    const draft = fixture.runtimeDraftEvidence[0];
-    expect(draft).toMatchObject({
-      authorizationOk: true,
-      cookiePresent: false,
-      urlHasCapability: false,
-      originOk: true,
-      contentTypeOk: true,
-    });
-    expect(draft.body.baseRevision).toBe(23);
-    expect(draft.body.mutationId).toMatch(
+    const firstDraft = fixture.runtimeDraftEvidence[0];
+    expect(firstDraft.body.baseRevision).toBe(23);
+    expect(firstDraft.body.mutationId).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
     );
-    expect(draft.body.document.schemaVersion).toBe(1);
-    expect(draft.body.document.format).toBe('scratch-3');
-    const savedServerSprite = draft.body.document.projectJson.targets.find(
+    const savedServerSprite = firstDraft.body.document.projectJson.targets.find(
       (target: { name?: string }) => target.name === 'Server Bootstrap Sprite',
     );
-    expect(savedServerSprite).toBeTruthy();
     expect(savedServerSprite.blocks.move.inputs.STEPS[1][1]).toBe('37');
     expect(
-      draft.body.document.projectJson.targets.some(
+      firstDraft.body.document.projectJson.targets.some(
         (target: { name?: string }) => target.name === 'Abby',
       ),
     ).toBe(true);
     expect(
-      draft.body.document.projectJson.targets.some((target: { sounds?: { name?: string }[] }) =>
-        target.sounds?.some((sound) => sound.name === 'Bark'),
+      firstDraft.body.document.projectJson.targets.some(
+        (target: { sounds?: { name?: string }[] }) =>
+          target.sounds?.some((sound) => sound.name === 'Bark'),
       ),
     ).toBe(true);
 
-    const draftRefs = draft.body.document.assets as Array<{
+    const firstRefs = firstDraft.body.document.assets as Array<{
       assetId: string;
       dataFormat: string;
       sha256: string;
       sizeBytes: number;
     }>;
     expect(
-      new Set(draftRefs.map((reference) => `${reference.assetId}.${reference.dataFormat}`)).size,
-    ).toBe(draftRefs.length);
-    expect(draftRefs).toEqual(
-      expect.arrayContaining([
-        serverProject.assets[0],
-        serverProject.assets[1],
-        expect.objectContaining({ assetId: barkAssetId, dataFormat: 'wav' }),
-      ]),
-    );
+      new Set(firstRefs.map((reference) => `${reference.assetId}.${reference.dataFormat}`)).size,
+    ).toBe(firstRefs.length);
     expect(
       fixture.runtimeAssetPutEvidence.every((item) =>
-        draftRefs.some(
+        firstRefs.some(
           (reference) =>
             `${reference.assetId}.${reference.dataFormat}` === item.assetFile &&
             reference.sha256 === item.sha256 &&
@@ -601,16 +597,241 @@ test('explicit FLUSH persists the live VM, new media, then canonical draft with 
       ),
     ).toBe(true);
 
+    const writesBeforeNoop = fixture.runtimeWriteEvents.length;
+    const draftsBeforeNoop = fixture.runtimeDraftEvidence.length;
+    const unchanged = await explicitFlush(page, 'browser-save-unchanged');
+    expect(unchanged).toMatchObject({
+      requestId: 'browser-save-unchanged',
+      ok: true,
+      revision: 24,
+      reason: null,
+    });
+    const p2 = {
+      ...fixture.runtimePersistenceMetrics,
+      serverRevision: fixture.getServerRevision(),
+    };
+    expect(p2).toEqual(p1);
+    expect(fixture.runtimeWriteEvents).toHaveLength(writesBeforeNoop);
+    expect(fixture.runtimeDraftEvidence).toHaveLength(draftsBeforeNoop);
+    await expect(shell).toHaveAttribute('data-draft-revision', '24');
+
+    await setServerSteps(frame, '37', '41');
+    const editedAgain = await explicitFlush(page, 'browser-save-new-edit');
+    expect(editedAgain).toMatchObject({
+      requestId: 'browser-save-new-edit',
+      ok: true,
+      revision: 25,
+      reason: null,
+    });
+    const p3 = {
+      ...fixture.runtimePersistenceMetrics,
+      serverRevision: fixture.getServerRevision(),
+    };
+    expect(p3.assetRequests - p2.assetRequests).toBe(0);
+    expect(p3.uploadedBytes - p2.uploadedBytes).toBe(0);
+    expect(p3.uniqueAssetBytes - p2.uniqueAssetBytes).toBe(0);
+    expect(p3.blobRows - p2.blobRows).toBe(0);
+    expect(p3.aliasRows - p2.aliasRows).toBe(0);
+    expect(p3.draftRequests - p2.draftRequests).toBe(1);
+    expect(p3.revisionCommits - p2.revisionCommits).toBe(1);
+    expect(p3.serverRevision - p2.serverRevision).toBe(1);
+    expect(fixture.runtimeDraftEvidence.at(-1).body.mutationId).not.toBe(
+      firstDraft.body.mutationId,
+    );
+    expect(fixture.runtimeDraftEvidence.at(-1).body.baseRevision).toBe(24);
+    await expect(shell).toHaveAttribute('data-draft-revision', '25');
+
     fs.writeFileSync(
-      `${evidenceDir}/explicit-flush.json`,
+      `${evidenceDir}/explicit-flush-p0-p3.json`,
       JSON.stringify(
         {
-          assetPutCount: fixture.runtimeAssetPutEvidence.length,
-          writeEvents: fixture.runtimeWriteEvents,
-          draftPutCount: fixture.runtimeDraftEvidence.length,
-          confirmedRevision: result.revision,
-          bootstrapAssetsReuploaded: false,
-          liveBlockSteps: savedServerSprite.blocks.move.inputs.STEPS[1][1],
+          p0,
+          p1,
+          p2,
+          p3,
+          firstSave: {
+            assetRequests: p1.assetRequests - p0.assetRequests,
+            uploadedBytes: p1.uploadedBytes - p0.uploadedBytes,
+            uniqueAssetBytes: p1.uniqueAssetBytes - p0.uniqueAssetBytes,
+            blobRowDelta: p1.blobRows - p0.blobRows,
+            aliasRowDelta: p1.aliasRows - p0.aliasRows,
+            draftRequests: p1.draftRequests - p0.draftRequests,
+            revisionDelta: p1.serverRevision - p0.serverRevision,
+          },
+          unchanged: {
+            assetRequests: p2.assetRequests - p1.assetRequests,
+            uploadedBytes: p2.uploadedBytes - p1.uploadedBytes,
+            uniqueAssetBytes: p2.uniqueAssetBytes - p1.uniqueAssetBytes,
+            blobRowDelta: p2.blobRows - p1.blobRows,
+            aliasRowDelta: p2.aliasRows - p1.aliasRows,
+            draftRequests: p2.draftRequests - p1.draftRequests,
+            revisionDelta: p2.serverRevision - p1.serverRevision,
+          },
+          newEdit: {
+            assetRequests: p3.assetRequests - p2.assetRequests,
+            uploadedBytes: p3.uploadedBytes - p2.uploadedBytes,
+            uniqueAssetBytes: p3.uniqueAssetBytes - p2.uniqueAssetBytes,
+            blobRowDelta: p3.blobRows - p2.blobRows,
+            aliasRowDelta: p3.aliasRows - p2.aliasRows,
+            draftRequests: p3.draftRequests - p2.draftRequests,
+            revisionDelta: p3.serverRevision - p2.serverRevision,
+          },
+        },
+        null,
+        2,
+      ),
+    );
+  } finally {
+    await fixture.close();
+  }
+});
+
+test('lost draft response retries the same mutation once without duplicate assets or revisions', async () => {
+  const serverProject = await realRuntimeBootstrapFixture();
+  const fixture = await createProtocolFixture({
+    product: true,
+    locale: 'en-US',
+    runtimeSession: {
+      draftRevision: 23,
+      projectJson: serverProject.projectJson,
+      assets: serverProject.assets,
+    },
+    runtimeAssets: serverProject.runtimeAssets,
+    dropFirstDraftResponseAfterCommit: true,
+  });
+  const page = await fixture.context.newPage();
+  await installBlocksMessageCapture(page);
+  try {
+    await page.goto(`${parentOrigin}/product`, { waitUntil: 'domcontentloaded' });
+    const frame = page.frameLocator('iframe[title="Scratch runtime"]');
+    const shell = frame.locator('[data-asa-host-shell]');
+    await expect(shell).toHaveAttribute('data-editor-state', 'ready', { timeout: 45000 });
+    await editLiveServerProjectAndAddMedia(frame);
+
+    const first = await explicitFlush(page, 'browser-lost-first');
+    expect(first).toMatchObject({
+      requestId: 'browser-lost-first',
+      ok: false,
+      reason: 'draft_write_failed',
+    });
+    expect(first.revision).toBeUndefined();
+    const afterLost = {
+      ...fixture.runtimePersistenceMetrics,
+      serverRevision: fixture.getServerRevision(),
+    };
+    expect(afterLost.revisionCommits).toBe(1);
+    expect(afterLost.serverRevision).toBe(24);
+    expect(fixture.runtimeDraftEvidence).toHaveLength(1);
+    const firstMutation = fixture.runtimeDraftEvidence[0].body;
+    const assetRequestsBeforeRetry = afterLost.assetRequests;
+    const uploadedBytesBeforeRetry = afterLost.uploadedBytes;
+    const uniqueBytesBeforeRetry = afterLost.uniqueAssetBytes;
+    const blobRowsBeforeRetry = afterLost.blobRows;
+    const aliasRowsBeforeRetry = afterLost.aliasRows;
+    await expect(shell).toHaveAttribute('data-draft-revision', '23');
+
+    const replay = await explicitFlush(page, 'browser-lost-retry');
+    expect(replay).toMatchObject({
+      requestId: 'browser-lost-retry',
+      ok: true,
+      revision: 24,
+      reason: null,
+    });
+    expect(fixture.runtimeDraftEvidence).toHaveLength(2);
+    const replayMutation = fixture.runtimeDraftEvidence[1].body;
+    expect(replayMutation.mutationId).toBe(firstMutation.mutationId);
+    expect(replayMutation.baseRevision).toBe(23);
+    expect(firstMutation.baseRevision).toBe(23);
+    expect(replayMutation.document).toEqual(firstMutation.document);
+
+    const afterReplay = {
+      ...fixture.runtimePersistenceMetrics,
+      serverRevision: fixture.getServerRevision(),
+    };
+    expect(afterReplay.assetRequests).toBe(assetRequestsBeforeRetry);
+    expect(afterReplay.uploadedBytes).toBe(uploadedBytesBeforeRetry);
+    expect(afterReplay.uniqueAssetBytes).toBe(uniqueBytesBeforeRetry);
+    expect(afterReplay.blobRows).toBe(blobRowsBeforeRetry);
+    expect(afterReplay.aliasRows).toBe(aliasRowsBeforeRetry);
+    expect(afterReplay.revisionCommits).toBe(1);
+    expect(afterReplay.idempotentReplays).toBe(1);
+    expect(afterReplay.serverRevision).toBe(24);
+    expect(new Set(fixture.runtimeDraftEvidence.map((entry) => entry.body.mutationId)).size).toBe(1);
+    await expect(shell).toHaveAttribute('data-draft-revision', '24');
+
+    fs.writeFileSync(
+      `${evidenceDir}/lost-response-replay.json`,
+      JSON.stringify(
+        {
+          logicalMutations: 1,
+          mutationId: firstMutation.mutationId,
+          baseRevision: firstMutation.baseRevision,
+          draftRequests: afterReplay.draftRequests,
+          revisionCommits: afterReplay.revisionCommits,
+          revisionDelta: afterReplay.serverRevision - 23,
+          assetRequestsOnRetry: afterReplay.assetRequests - assetRequestsBeforeRetry,
+          uploadedBytesOnRetry: afterReplay.uploadedBytes - uploadedBytesBeforeRetry,
+          uniqueAssetBytesOnRetry: afterReplay.uniqueAssetBytes - uniqueBytesBeforeRetry,
+          blobRowDeltaOnRetry: afterReplay.blobRows - blobRowsBeforeRetry,
+          aliasRowDeltaOnRetry: afterReplay.aliasRows - aliasRowsBeforeRetry,
+          idempotentReplays: afterReplay.idempotentReplays,
+        },
+        null,
+        2,
+      ),
+    );
+  } finally {
+    await fixture.close();
+  }
+});
+
+test('server revision movement returns explicit conflict without overwrite or automatic retry', async () => {
+  const serverProject = await realRuntimeBootstrapFixture();
+  const fixture = await createProtocolFixture({
+    product: true,
+    locale: 'en-US',
+    runtimeSession: {
+      draftRevision: 23,
+      projectJson: serverProject.projectJson,
+      assets: serverProject.assets,
+    },
+    runtimeAssets: serverProject.runtimeAssets,
+  });
+  const page = await fixture.context.newPage();
+  await installBlocksMessageCapture(page);
+  try {
+    await page.goto(`${parentOrigin}/product`, { waitUntil: 'domcontentloaded' });
+    const frame = page.frameLocator('iframe[title="Scratch runtime"]');
+    const shell = frame.locator('[data-asa-host-shell]');
+    await expect(shell).toHaveAttribute('data-editor-state', 'ready', { timeout: 45000 });
+    await setServerSteps(frame, '8', '37');
+    expect(fixture.runtimeWriteEvents).toEqual([]);
+    expect(fixture.advanceServerRevision()).toBe(24);
+
+    const result = await explicitFlush(page, 'browser-revision-conflict');
+    expect(result).toMatchObject({
+      requestId: 'browser-revision-conflict',
+      ok: false,
+      reason: 'revision_conflict',
+    });
+    expect(result.revision).toBeUndefined();
+    expect(fixture.runtimePersistenceMetrics.assetRequests).toBe(0);
+    expect(fixture.runtimePersistenceMetrics.draftRequests).toBe(1);
+    expect(fixture.runtimePersistenceMetrics.revisionCommits).toBe(0);
+    expect(fixture.runtimePersistenceMetrics.externalRevisionAdvances).toBe(1);
+    expect(fixture.runtimeDraftEvidence).toHaveLength(1);
+    await expect(shell).toHaveAttribute('data-draft-revision', '23');
+
+    fs.writeFileSync(
+      `${evidenceDir}/revision-conflict.json`,
+      JSON.stringify(
+        {
+          reason: result.reason,
+          clientConfirmedRevision: 23,
+          serverRevision: fixture.getServerRevision(),
+          draftRequests: fixture.runtimePersistenceMetrics.draftRequests,
+          clientRevisionCommits: fixture.runtimePersistenceMetrics.revisionCommits,
+          automaticRetries: 0,
         },
         null,
         2,

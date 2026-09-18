@@ -37,9 +37,29 @@ describe('Blocks PostgreSQL asset metadata', () => {
       sha256: reference.sha256,
       dataFormat: reference.dataFormat,
     });
+    const counts = async () => {
+      const result = await admin.query(
+        `SELECT
+           (SELECT count(*)::int FROM blocks_blobs WHERE tenant_id=$1) AS blobs,
+           (SELECT count(*)::int FROM blocks_asset_aliases WHERE tenant_id=$1) AS aliases`,
+        [tenantA.tenantId],
+      );
+      return result.rows[0] as { blobs: number; aliases: number };
+    };
+    const before = await counts();
     const first = await store.commit({ tenantId: tenantA.tenantId, reference, objectKey });
+    const afterFirst = await counts();
     expect(first).toMatchObject({ ...reference, tenantId: tenantA.tenantId, blobCommitted: true });
+    expect({
+      blobs: afterFirst.blobs - before.blobs,
+      aliases: afterFirst.aliases - before.aliases,
+    }).toEqual({ blobs: 1, aliases: 1 });
     expect(await store.commit({ tenantId: tenantA.tenantId, reference, objectKey })).toEqual(first);
+    const afterReplay = await counts();
+    expect({
+      blobs: afterReplay.blobs - afterFirst.blobs,
+      aliases: afterReplay.aliases - afterFirst.aliases,
+    }).toEqual({ blobs: 0, aliases: 0 });
     expect(
       await store.resolve({
         tenantId: tenantA.tenantId,
@@ -70,12 +90,6 @@ describe('Blocks PostgreSQL asset metadata', () => {
       }),
     ).rejects.toBeInstanceOf(BlocksAssetIdentityConflictError);
 
-    const rows = await admin.query(
-      `SELECT
-         (SELECT count(*)::int FROM blocks_blobs WHERE tenant_id=$1) AS blobs,
-         (SELECT count(*)::int FROM blocks_asset_aliases WHERE tenant_id=$1) AS aliases`,
-      [tenantA.tenantId],
-    );
-    expect(rows.rows[0]).toEqual({ blobs: 1, aliases: 1 });
+    expect(await counts()).toEqual({ blobs: 1, aliases: 1 });
   });
 });

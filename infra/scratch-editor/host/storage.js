@@ -36,6 +36,25 @@
     a?.dataFormat === b?.dataFormat &&
     a?.sha256 === b?.sha256 &&
     a?.sizeBytes === b?.sizeBytes;
+  const compareReference = (a, b) =>
+    a.assetId === b.assetId
+      ? a.dataFormat.localeCompare(b.dataFormat)
+      : a.assetId.localeCompare(b.assetId);
+
+  const canonicalJson = (value) => {
+    if (value === null) return 'null';
+    if (typeof value === 'string' || typeof value === 'boolean') return JSON.stringify(value);
+    if (typeof value === 'number') {
+      if (!Number.isFinite(value)) throw unavailable('canonical_document_invalid');
+      return JSON.stringify(value);
+    }
+    if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
+    if (typeof value !== 'object') throw unavailable('canonical_document_invalid');
+    return `{${Object.keys(value)
+      .sort()
+      .map((key) => `${JSON.stringify(key)}:${canonicalJson(value[key])}`)
+      .join(',')}}`;
+  };
 
   function createReadOnlyStorage(standalone, options = {}) {
     const scratchStorage = new standalone.ScratchStorage();
@@ -47,6 +66,9 @@
       Number.isSafeInteger(options.draftRevision) && options.draftRevision >= 0
         ? options.draftRevision
         : 0;
+    let durableAssets = new Map(confirmedAssets);
+    let confirmedFingerprint = options.projectJson === null ? null : undefined;
+    let pendingMutation = null;
     const abortController = typeof AbortController === 'undefined' ? null : new AbortController();
     let disposed = false;
 
@@ -99,6 +121,32 @@
       if (!globalThis.crypto?.subtle) throw unavailable('runtime_crypto_unavailable');
       const digest = new Uint8Array(await globalThis.crypto.subtle.digest('SHA-256', bytes));
       return [...digest].map((value) => value.toString(16).padStart(2, '0')).join('');
+    };
+
+    const canonicalReferences = (references) =>
+      [...references]
+        .map((reference) => ({
+          assetId: reference.assetId,
+          dataFormat: reference.dataFormat,
+          sha256: reference.sha256,
+          sizeBytes: reference.sizeBytes,
+        }))
+        .sort(compareReference);
+
+    const documentFingerprint = async (projectJson, references) => {
+      const document = {
+        schemaVersion: 1,
+        format: 'scratch-3',
+        projectJson,
+        assets: canonicalReferences(references),
+      };
+      return sha256(new TextEncoder().encode(canonicalJson(document)));
+    };
+
+    const ensureConfirmedFingerprint = async () => {
+      if (typeof confirmedFingerprint !== 'undefined') return confirmedFingerprint;
+      confirmedFingerprint = await documentFingerprint(options.projectJson, confirmedAssets.values());
+      return confirmedFingerprint;
     };
 
     const getToken = () => {
@@ -184,6 +232,10 @@
       ) {
         throw unavailable('asset_reference_mismatch');
       }
+      durableAssets.set(
+        runtimeKey(expected.assetId, expected.dataFormat),
+        Object.freeze({ ...expected }),
+      );
       return expected;
     };
 
@@ -231,13 +283,16 @@
           if (!type) throw unavailable();
           await loadRuntimeAsset(reference, type, reference.dataFormat);
         }
+        await ensureConfirmedFingerprint();
       },
       async persistSnapshot(snapshot) {
         if (disposed) throw unavailable('storage_disposed');
         if (!snapshot || typeof snapshot !== 'object' || !Array.isArray(snapshot.assets)) {
           throw unavailable('snapshot_invalid');
         }
-        const references = [];
+        await ensureConfirmedFingerprint();
+
+        const assets = [];
         for (const asset of snapshot.assets) {
           if (
             !asset ||
@@ -253,22 +308,50 @@
           ) {
             throw unavailable('snapshot_asset_invalid');
           }
+          assets.push(asset);
+        }
+
+        const references = canonicalReferences(assets);
+        const fingerprint = await documentFingerprint(snapshot.projectJson, references);
+        if (confirmedFingerprint !== null && fingerprint === confirmedFingerprint) {
+          return confirmedRevision;
+        }
+
+        for (const asset of assets) {
           const expected = {
             assetId: asset.assetId,
             dataFormat: asset.dataFormat,
             sha256: asset.sha256,
             sizeBytes: asset.sizeBytes,
           };
-          const durable = confirmedAssets.get(runtimeKey(asset.assetId, asset.dataFormat));
-          references.push(
-            sameReference(durable, expected) ? expected : await uploadSnapshotAsset(asset),
-          );
+          const durable = durableAssets.get(runtimeKey(asset.assetId, asset.dataFormat));
+          if (!sameReference(durable, expected)) await uploadSnapshotAsset(asset);
         }
 
-        const mutationId = globalThis.crypto?.randomUUID?.();
-        if (typeof mutationId !== 'string' || !UUID_V4_RE.test(mutationId)) {
-          throw unavailable('mutation_id_unavailable');
+        const document = {
+          schemaVersion: 1,
+          format: 'scratch-3',
+          projectJson: snapshot.projectJson,
+          assets: references,
+        };
+        if (
+          !pendingMutation ||
+          pendingMutation.fingerprint !== fingerprint ||
+          pendingMutation.baseRevision !== confirmedRevision
+        ) {
+          const mutationId = globalThis.crypto?.randomUUID?.();
+          if (typeof mutationId !== 'string' || !UUID_V4_RE.test(mutationId)) {
+            throw unavailable('mutation_id_unavailable');
+          }
+          pendingMutation = {
+            fingerprint,
+            baseRevision: confirmedRevision,
+            mutationId,
+            document,
+            body: JSON.stringify({ document, baseRevision: confirmedRevision, mutationId }),
+          };
         }
+
         let response;
         try {
           response = await fetch(
@@ -283,23 +366,32 @@
                 authorization: `Bearer ${getToken()}`,
                 'content-type': 'application/vnd.asa.blocks-draft+json',
               },
-              body: JSON.stringify({
-                document: {
-                  schemaVersion: 1,
-                  format: 'scratch-3',
-                  projectJson: snapshot.projectJson,
-                  assets: references,
-                },
-                baseRevision: confirmedRevision,
-                mutationId,
-              }),
+              body: pendingMutation.body,
               ...(abortController ? { signal: abortController.signal } : {}),
             },
           );
         } catch {
           throw unavailable('draft_write_failed');
         }
-        if (!response.ok || response.redirected) throw unavailable('draft_write_failed');
+
+        if (!response.ok || response.redirected) {
+          if (response.status === 409) {
+            let payload = null;
+            try {
+              payload = await response.json();
+            } catch {
+              payload = null;
+            }
+            pendingMutation = null;
+            if (payload?.error?.code === 'project_revision_conflict') {
+              throw unavailable('revision_conflict');
+            }
+            throw unavailable('draft_write_failed');
+          }
+          if (response.status < 500) pendingMutation = null;
+          throw unavailable('draft_write_failed');
+        }
+
         let payload;
         try {
           payload = await response.json();
@@ -315,12 +407,14 @@
         }
 
         confirmedRevision = payload.revision;
+        confirmedFingerprint = fingerprint;
         confirmedAssets = new Map(
           references.map((reference) => [
             runtimeKey(reference.assetId, reference.dataFormat),
             Object.freeze({ ...reference }),
           ]),
         );
+        pendingMutation = null;
         return confirmedRevision;
       },
       getConfirmedRevision() {
@@ -344,6 +438,7 @@
       dispose() {
         disposed = true;
         abortController?.abort();
+        pendingMutation = null;
       },
     };
   }
