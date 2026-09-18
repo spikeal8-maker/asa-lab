@@ -356,9 +356,19 @@ export class ClassroomsController {
     studentCode: string,
     credentialVersion: number,
     tenantId?: string,
+    onlyIfMissing = false,
   ): Promise<void> {
     const config = this.studentCodeProtection();
     if (!config) return;
+    if (onlyIfMissing) {
+      const existing = await client.query(
+        `SELECT credential_version
+           FROM classroom_student_code_protected_read($1,$2)
+          WHERE seat_id=$3`,
+        [accountId, classroomId, seatId],
+      );
+      if (Number(existing.rows[0]?.credential_version) === credentialVersion) return;
+    }
     const authoritativeTenantId =
       tenantId ?? (await this.protectedTenantId(client, accountId, classroomId));
     const envelope = protectStudentCode(config, {
@@ -1058,10 +1068,10 @@ export class ClassroomsController {
         400,
       );
     }
-    const client = await this.requirePool().connect();
-    try {
-      await client.query('BEGIN');
-      const rows = (
+
+    const protection = this.studentCodeProtection();
+    const execute = async (client: pg.Pool | pg.PoolClient) =>
+      (
         await client.query(
           `SELECT result_code,reused,row_index,row_status,reason_code,display_label,
                   login_handle,safe_mode,seat_id,credential_version
@@ -1069,7 +1079,8 @@ export class ClassroomsController {
           [context.accountId, classroomId, requestId, JSON.stringify(students)],
         )
       ).rows;
-      const code = rows[0]?.result_code as string | undefined;
+    const present = (rows: Record<string, unknown>[]) => {
+      const code = rows[0]?.['result_code'] as string | undefined;
       if (code === 'request_conflict') {
         throw new HttpException(
           error('idempotency_conflict', 'Этот requestId уже использован для другого списка.'),
@@ -1082,49 +1093,22 @@ export class ClassroomsController {
           409,
         );
       }
-      const reused = rows[0]?.reused === true;
-      const protection = this.studentCodeProtection();
-      const tenantId = protection
-        ? await this.protectedTenantId(client, context.accountId, classroomId)
-        : undefined;
-      if (protection) {
-        for (const row of rows) {
-          const shouldProtect = row.row_status === 'created' || reused;
-          if (
-            shouldProtect &&
-            typeof row.seat_id === 'string' &&
-            typeof row.login_handle === 'string' &&
-            row.credential_version !== null &&
-            row.credential_version !== undefined
-          ) {
-            await this.storeProtectedStudentCode(
-              client,
-              context.accountId,
-              classroomId,
-              row.seat_id,
-              row.login_handle,
-              Number(row.credential_version),
-              tenantId,
-            );
-          }
-        }
-      }
+      const reused = rows[0]?.['reused'] === true;
       const results = rows.map((row) => ({
-        index: Number(row.row_index),
-        status: row.row_status as 'created' | 'duplicate' | 'conflict' | 'invalid',
-        reasonCode: String(row.reason_code),
-        displayLabel: row.display_label as string | null,
-        studentCode: typeof row.login_handle === 'string' ? String(row.login_handle) : null,
-        loginHandle: row.login_handle as string | null,
-        safeMode: row.safe_mode as boolean | null,
-        seatId: (row.seat_id as string | null) ?? null,
+        index: Number(row['row_index']),
+        status: row['row_status'] as 'created' | 'duplicate' | 'conflict' | 'invalid',
+        reasonCode: String(row['reason_code']),
+        displayLabel: row['display_label'] as string | null,
+        studentCode: typeof row['login_handle'] === 'string' ? String(row['login_handle']) : null,
+        loginHandle: row['login_handle'] as string | null,
+        safeMode: row['safe_mode'] as boolean | null,
+        seatId: (row['seat_id'] as string | null) ?? null,
         credentialVersion:
-          row.credential_version === null || row.credential_version === undefined
+          row['credential_version'] === null || row['credential_version'] === undefined
             ? null
-            : Number(row.credential_version),
+            : Number(row['credential_version']),
         credential: null,
       }));
-      await client.query('COMMIT');
       return {
         requestId,
         reused,
@@ -1132,6 +1116,50 @@ export class ClassroomsController {
         credentialsAvailable: false,
         results,
       };
+    };
+
+    if (!protection) {
+      try {
+        return present(await execute(this.requirePool()));
+      } catch (failure) {
+        if (failure instanceof HttpException) throw failure;
+        const message = failure instanceof Error ? failure.message : '';
+        if (message.includes('classroom unavailable')) {
+          throw new HttpException(error('classroom_not_found', 'Класс не найден.'), 404);
+        }
+        throw failure;
+      }
+    }
+
+    const client = await this.requirePool().connect();
+    try {
+      await client.query('BEGIN');
+      const rows = await execute(client);
+      const response = present(rows);
+      const tenantId = await this.protectedTenantId(client, context.accountId, classroomId);
+      for (const row of rows) {
+        const shouldProtect = row['row_status'] === 'created' || response.reused;
+        if (
+          shouldProtect &&
+          typeof row['seat_id'] === 'string' &&
+          typeof row['login_handle'] === 'string' &&
+          row['credential_version'] !== null &&
+          row['credential_version'] !== undefined
+        ) {
+          await this.storeProtectedStudentCode(
+            client,
+            context.accountId,
+            classroomId,
+            row['seat_id'],
+            row['login_handle'],
+            Number(row['credential_version']),
+            tenantId,
+            response.reused,
+          );
+        }
+      }
+      await client.query('COMMIT');
+      return response;
     } catch (failure) {
       await client.query('ROLLBACK');
       if (failure instanceof HttpException) throw failure;
@@ -1172,58 +1200,46 @@ export class ClassroomsController {
         400,
       );
     }
-    const client = await this.requirePool().connect();
-    try {
-      await client.query('BEGIN');
-      const result =
-        explicitCode === null
-          ? await client.query(
-              'SELECT result_code,student_code,code_version,reused FROM classroom_student_code_generate($1,$2,$3,$4)',
-              [context.accountId, classroomId, seatId, requestId],
-            )
-          : await client.query(
-              'SELECT result_code,code_version,reused FROM classroom_student_code_set($1,$2,$3,$4,$5)',
-              [context.accountId, classroomId, seatId, explicitCode, requestId],
-            );
-      const row = result.rows[0];
-      if (row?.result_code === 'ok') {
-        const studentCode = explicitCode ?? String(row.student_code);
-        await this.storeProtectedStudentCode(
-          client,
-          context.accountId,
-          classroomId,
-          seatId,
-          studentCode,
-          Number(row.code_version),
-        );
-        await client.query('COMMIT');
+
+    const execute = (client: pg.Pool | pg.PoolClient) =>
+      explicitCode === null
+        ? client.query(
+            'SELECT result_code,student_code,code_version,reused FROM classroom_student_code_generate($1,$2,$3,$4)',
+            [context.accountId, classroomId, seatId, requestId],
+          )
+        : client.query(
+            'SELECT result_code,code_version,reused FROM classroom_student_code_set($1,$2,$3,$4,$5)',
+            [context.accountId, classroomId, seatId, explicitCode, requestId],
+          );
+    const present = (row: Record<string, unknown> | undefined) => {
+      if (row?.['result_code'] === 'ok') {
         return {
-          studentCode,
-          version: Number(row.code_version),
-          reused: row.reused === true,
+          studentCode: explicitCode ?? String(row['student_code']),
+          version: Number(row['code_version']),
+          reused: row['reused'] === true,
         };
       }
-      if (row?.result_code === 'code_in_use') {
+      if (row?.['result_code'] === 'code_in_use') {
         throw new HttpException(
           error('student_code_taken', 'Этот код уже используется в классе.'),
           409,
         );
       }
-      if (row?.result_code === 'request_conflict') {
+      if (row?.['result_code'] === 'request_conflict') {
         throw new HttpException(
           error('idempotency_conflict', 'Этот requestId уже использован для другой операции.'),
           409,
         );
       }
-      if (row?.result_code === 'not_found') {
+      if (row?.['result_code'] === 'not_found') {
         throw new HttpException(error('seat_not_found', 'Ученик не найден.'), 404);
       }
       throw new HttpException(
         error('student_code_failed', 'Не удалось изменить код ученика.'),
         409,
       );
-    } catch (failure) {
-      await client.query('ROLLBACK');
+    };
+    const mapFailure = (failure: unknown): never => {
       if (failure instanceof HttpException) throw failure;
       if (failure instanceof Error && failure.message.includes('generation exhausted')) {
         throw new HttpException(
@@ -1232,6 +1248,36 @@ export class ClassroomsController {
         );
       }
       throw failure;
+    };
+
+    const protection = this.studentCodeProtection();
+    if (!protection) {
+      try {
+        return present((await execute(this.requirePool())).rows[0]);
+      } catch (failure) {
+        return mapFailure(failure);
+      }
+    }
+
+    const client = await this.requirePool().connect();
+    try {
+      await client.query('BEGIN');
+      const result = present((await execute(client)).rows[0]);
+      await this.storeProtectedStudentCode(
+        client,
+        context.accountId,
+        classroomId,
+        seatId,
+        result.studentCode,
+        result.version,
+        undefined,
+        result.reused,
+      );
+      await client.query('COMMIT');
+      return result;
+    } catch (failure) {
+      await client.query('ROLLBACK');
+      return mapFailure(failure);
     } finally {
       client.release();
     }
