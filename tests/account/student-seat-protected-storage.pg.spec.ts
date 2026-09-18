@@ -216,13 +216,8 @@ describe('E1-FIX-02B protected Student Code storage foundation', () => {
     });
     expect(signedIn.statusCode, signedIn.body).toBe(200);
 
-    const wrongCase = await inject(app, {
-      method: 'POST',
-      url: '/api/class-join/studentseat',
-      payload: { code: classCode, studentCode: seat.studentCode.swapcase?.() ?? seat.studentCode },
-    });
-    // JS strings have no swapcase; use deterministic case flip below when the
-    // generated code actually contains letters.
+    // Generated codes can theoretically contain only digits. When letters are
+    // present, prove protected lookup retains their exact case.
     if (/[A-Za-z]/.test(seat.studentCode)) {
       const changedCase = seat.studentCode
         .split('')
@@ -237,7 +232,6 @@ describe('E1-FIX-02B protected Student Code storage foundation', () => {
       });
       expect(rejected.statusCode, rejected.body).toBe(401);
     }
-    void wrongCase;
   });
 
   it('rotation retires old keyed digest, is atomic on retired-code reuse, and preserves the current credential', async () => {
