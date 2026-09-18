@@ -9,10 +9,15 @@ Follow root `AGENTS.md` and `START_HERE_FOR_AI.md`: fetch/check Git, run
 `pnpm agent:recover --scope electronics --check`, then
 `pnpm agent:context --scope electronics`. Classify an interrupted diff before editing.
 The Electronics lane in `docs/execution/current.yaml` owns the active task;
-neither this router nor roadmap readiness authorises the next task.
+neither this router nor roadmap readiness authorises the next task. `ARD-*` identifiers in
+the normative README are requirement anchors only: never infer execution order or a next task
+from their numbering.
 
 Before executable work, run `pnpm validate:electronics-agent-docs --task <selected-id>`.
 The explicit ID must match canonical `in_progress` selection and a valid concrete card.
+If the lane is `in_review` or `blocked`, implementation stops: use the declared review/blocker
+path only. A review-found code repair must be explicitly returned to an executable
+`in_progress` scope before editing production runtime.
 
 ## 2. Route one bounded concern
 
