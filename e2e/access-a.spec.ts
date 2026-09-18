@@ -354,7 +354,7 @@ test('H: short Student Code, reusable access cards, profile, logout and learner 
   await expect(cards).toContainText(first.student.studentCode);
   await expect(cards).toContainText(second.student.studentCode);
   await expect(cards).toContainText(classCode);
-  await expect(cards).toContainText('Asolab.ru');
+  await expect(cards).toContainText('asa-lab.ru');
   await expect(cards.getByText('/#/join-class', { exact: false })).toHaveCount(0);
   const firstCard = cards
     .locator('.student-access-card')
@@ -365,7 +365,7 @@ test('H: short Student Code, reusable access cards, profile, logout and learner 
   for (const card of [firstCard, secondCard]) {
     await expect(card.getByTestId('class-join-qr')).toHaveCount(1);
     const qrUrl = (await card.getAttribute('data-qr-url')) ?? '';
-    expect(qrUrl).toContain('https://asolab.ru/#/join-class?code=');
+    expect(qrUrl).toContain('https://asa-lab.ru/#/join-class?code=');
     expect(qrUrl).not.toContain(first.student.studentCode);
     expect(qrUrl).not.toContain(second.student.studentCode);
   }

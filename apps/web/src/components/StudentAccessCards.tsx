@@ -3,8 +3,8 @@ import type { ClassroomStudentSeat } from '../api';
 import { ClassJoinQr } from './ClassJoinQr';
 import './student-access.css';
 
-const PUBLIC_SITE_LABEL = 'Asolab.ru';
-const PUBLIC_SITE_ORIGIN = 'https://asolab.ru';
+const PUBLIC_SITE_LABEL = 'asa-lab.ru';
+const PUBLIC_SITE_ORIGIN = 'https://asa-lab.ru';
 
 export function StudentAccessCards({
   classroomTitle,

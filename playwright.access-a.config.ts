@@ -3,7 +3,12 @@ import { defineConfig } from '@playwright/test';
 // Real API + built SPA; the launcher refuses a non-test database. No mocked API.
 export default defineConfig({
   testDir: './e2e',
-  testMatch: ['access-a.spec.ts', 'account-c1.spec.ts', 'student-seat-access-hardening.spec.ts'],
+  testMatch: [
+    'access-a.spec.ts',
+    'account-c1.spec.ts',
+    'student-seat-access-hardening.spec.ts',
+    'student-access-cards.spec.ts',
+  ],
   workers: 1,
   fullyParallel: false,
   retries: 0,
