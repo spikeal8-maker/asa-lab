@@ -134,9 +134,7 @@ describe('Student Code protection keyring', () => {
     ).toThrow(StudentCodeProtectionConfigError);
 
     expect(() =>
-      loadStudentCodeProtectionConfig(
-        env({ ASA_STUDENT_CODE_LOOKUP_ACTIVE_KEY_ID: 'missing' }),
-      ),
+      loadStudentCodeProtectionConfig(env({ ASA_STUDENT_CODE_LOOKUP_ACTIVE_KEY_ID: 'missing' })),
     ).toThrow(StudentCodeProtectionConfigError);
 
     expect(() =>
@@ -168,9 +166,9 @@ describe('Student Code protection keyring', () => {
       encryptionTag: protectedCode.encryptionTag,
     };
 
-    expect(() => decryptStudentCode(config, { ...stored, encryptionKeyId: 'retired-missing' })).toThrow(
-      StudentCodeProtectionUnavailableError,
-    );
+    expect(() =>
+      decryptStudentCode(config, { ...stored, encryptionKeyId: 'retired-missing' }),
+    ).toThrow(StudentCodeProtectionUnavailableError);
 
     const tampered = Buffer.from(stored.encryptionTag);
     tampered[0] ^= 0xff;

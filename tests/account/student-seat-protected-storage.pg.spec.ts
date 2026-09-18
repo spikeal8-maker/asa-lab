@@ -382,9 +382,7 @@ describe('E1-FIX-02B protected Student Code storage foundation', () => {
         seatId: row.seatId,
         studentCode: row.studentCode,
       })),
-    ).toEqual(
-      resultRows.map((row) => ({ seatId: row.seatId, studentCode: row.studentCode })),
-    );
+    ).toEqual(resultRows.map((row) => ({ seatId: row.seatId, studentCode: row.studentCode })));
 
     const afterReplay = await admin.query(
       `SELECT seat_id,credential_version,encryption_key_id,lookup_key_id,

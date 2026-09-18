@@ -562,8 +562,7 @@ export class ClassroomJoinController {
       [classCodeHashValue],
     );
     const classRow = classLookup.rows[0] as
-      | { tenant_id?: string; classroom_id?: string }
-      | undefined;
+      { tenant_id?: string; classroom_id?: string } | undefined;
     const tenantId = classRow?.tenant_id;
     const classroomId = classRow?.classroom_id;
 
@@ -593,8 +592,7 @@ export class ClassroomJoinController {
         [classroomId, JSON.stringify(lookupCandidates)],
       );
       const match = protectedMatch.rows[0] as
-        | { seat_id?: string; credential_version?: number | string }
-        | undefined;
+        { seat_id?: string; credential_version?: number | string } | undefined;
       if (match?.seat_id && match.credential_version !== undefined) {
         const protectedSession = await this.requirePool().query(
           `SELECT ${SEAT_SESSION_COLUMNS}

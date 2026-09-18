@@ -154,10 +154,7 @@ export function loadStudentCodeProtectionConfig(
 
   for (const encryptionKey of encryption.keys.values()) {
     for (const lookupKey of lookup.keys.values()) {
-      if (
-        encryptionKey.length === lookupKey.length &&
-        timingSafeEqual(encryptionKey, lookupKey)
-      ) {
+      if (encryptionKey.length === lookupKey.length && timingSafeEqual(encryptionKey, lookupKey)) {
         throw new StudentCodeProtectionConfigError(
           'Student Code encryption and lookup key material must be distinct',
         );
@@ -177,10 +174,7 @@ export function studentCodeAad(
   if (!Number.isInteger(credentialVersion) || credentialVersion <= 0) {
     throw new StudentCodeProtectionUnavailableError('invalid credential version');
   }
-  return Buffer.from(
-    `v1|${tenantId}|${classroomId}|${seatId}|${credentialVersion}`,
-    'utf8',
-  );
+  return Buffer.from(`v1|${tenantId}|${classroomId}|${seatId}|${credentialVersion}`, 'utf8');
 }
 
 function normalizeStudentCode(studentCode: string): string {
@@ -227,12 +221,7 @@ export function protectStudentCode(
   const nonce = randomBytes(12);
   const cipher = createCipheriv('aes-256-gcm', encryptionKey, nonce);
   cipher.setAAD(
-    studentCodeAad(
-      input.tenantId,
-      input.classroomId,
-      input.seatId,
-      input.credentialVersion,
-    ),
+    studentCodeAad(input.tenantId, input.classroomId, input.seatId, input.credentialVersion),
   );
   const ciphertext = Buffer.concat([cipher.update(normalized, 'utf8'), cipher.final()]);
   const tag = cipher.getAuthTag();
@@ -269,12 +258,7 @@ export function decryptStudentCode(
   try {
     const decipher = createDecipheriv('aes-256-gcm', key, stored.encryptionNonce);
     decipher.setAAD(
-      studentCodeAad(
-        stored.tenantId,
-        stored.classroomId,
-        stored.seatId,
-        stored.credentialVersion,
-      ),
+      studentCodeAad(stored.tenantId, stored.classroomId, stored.seatId, stored.credentialVersion),
     );
     decipher.setAuthTag(stored.encryptionTag);
     const plaintext = Buffer.concat([
