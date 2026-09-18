@@ -149,12 +149,14 @@ parallel_lanes:
       base_branch: main
       pr: 281
       pr_draft: false
-      status: in_review
-      checkpoint: eopt3d_automated_acceptance_pass_merge_authorized
+      status: done
+      checkpoint: merged_to_main
       owner_acceptance: accepted
     revisions:
       convergence_baseline_sha: 21d286364d99d37b730e1954d2cbae776c41b3e1
       head_sha: 938904fe1657fe04b710a76d67344764d1a609dc
+      owner_accepted_sha: 938904fe1657fe04b710a76d67344764d1a609dc
+      product_merge_sha: 977be69d34128a6b8d2794e3cdb93a6863c995ca
     execution_lease:
       executor_id: codex-electronics-eopt3d
       holder: unassigned
