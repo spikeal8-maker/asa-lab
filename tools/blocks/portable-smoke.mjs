@@ -4,6 +4,9 @@ import process from 'node:process';
 import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
 import { execFileSync, spawn } from 'node:child_process';
+import { performance } from 'node:perf_hooks';
+import { setTimeout } from 'node:timers';
+import { URL } from 'node:url';
 import { chromium, expect } from '@playwright/test';
 
 // CI-only disposable installation. Never point this at a working user database.
@@ -637,7 +640,6 @@ try {
     sizeBytes: beforeSound.sizeBytes,
   });
 
-  const reopenRuntime = phaseRuntimeMetrics(runtimeEvents, 'fresh-reopen');
   const costumeAssetPath = `/api/blocks/runtime/projects/${projectId}/assets/${beforeCostume.md5}.svg`;
   const soundAssetPath = `/api/blocks/runtime/projects/${projectId}/assets/${beforeSound.md5}.wav`;
   expect(
