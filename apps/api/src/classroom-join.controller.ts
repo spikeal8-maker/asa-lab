@@ -41,7 +41,11 @@ const STUDENT_SESSION_COOKIE = 'asa_student_session';
 const STUDENT_CODE_PATTERN = /^[A-Za-z0-9]{4,10}$/;
 const STUDENT_SESSION_HOURS = 8;
 const ATTEMPT_WINDOW_MS = 10 * 60 * 1000;
-const MAX_ATTEMPTS = 30;
+const ACCOUNT_JOIN_ATTEMPT_LIMIT = 30;
+const INVALID_RESOLVE_PER_SOURCE_LIMIT = 60;
+const INVALID_STUDENT_CANDIDATE_PER_CLASS_LIMIT = 5;
+const INVALID_STUDENT_SOURCE_CLASS_LIMIT = 180;
+const INVALID_STUDENT_SOURCE_TOTAL_LIMIT = 300;
 
 interface StudentSessionRow {
   seat_id: string;
@@ -368,15 +372,33 @@ function studentPayload(row: StudentSessionRow) {
 
 @Controller('api/class-join')
 export class ClassroomJoinController {
-  private readonly attemptsByAddress = new FixedWindowRateLimiter({
-    limit: MAX_ATTEMPTS,
+  // Account-class join keeps its existing coarse pre-check. StudentSeat admission
+  // below uses separate failure-only budgets and never checks them before a
+  // correct Class Code / Student Code has had a chance to validate.
+  private readonly accountJoinAttemptsByAddress = new FixedWindowRateLimiter({
+    limit: ACCOUNT_JOIN_ATTEMPT_LIMIT,
     windowMs: ATTEMPT_WINDOW_MS,
     maxKeys: 5_000,
   });
-  private readonly attemptsByCredential = new FixedWindowRateLimiter({
-    limit: 10,
+  private readonly invalidResolveBySource = new FixedWindowRateLimiter({
+    limit: INVALID_RESOLVE_PER_SOURCE_LIMIT,
+    windowMs: ATTEMPT_WINDOW_MS,
+    maxKeys: 5_000,
+  });
+  private readonly invalidStudentByCandidateClass = new FixedWindowRateLimiter({
+    limit: INVALID_STUDENT_CANDIDATE_PER_CLASS_LIMIT,
+    windowMs: ATTEMPT_WINDOW_MS,
+    maxKeys: 20_000,
+  });
+  private readonly invalidStudentBySourceClass = new FixedWindowRateLimiter({
+    limit: INVALID_STUDENT_SOURCE_CLASS_LIMIT,
     windowMs: ATTEMPT_WINDOW_MS,
     maxKeys: 10_000,
+  });
+  private readonly invalidStudentBySource = new FixedWindowRateLimiter({
+    limit: INVALID_STUDENT_SOURCE_TOTAL_LIMIT,
+    windowMs: ATTEMPT_WINDOW_MS,
+    maxKeys: 5_000,
   });
 
   constructor(
@@ -416,8 +438,34 @@ export class ClassroomJoinController {
     }
   }
 
-  private checkRateLimit(request: FastifyRequest): void {
-    this.enforceRateLimit(this.attemptsByAddress, clientAddress(request));
+  private recordFailedAdmission(
+    reply: FastifyReply,
+    buckets: ReadonlyArray<{ limiter: FixedWindowRateLimiter; key: string }>,
+  ): void {
+    let retryAfterSeconds = 0;
+    for (const bucket of buckets) {
+      const decision = bucket.limiter.consume(bucket.key);
+      if (!decision.allowed) {
+        retryAfterSeconds = Math.max(retryAfterSeconds, decision.retryAfterSeconds);
+      }
+    }
+    if (retryAfterSeconds === 0) return;
+
+    reply.header('Retry-After', String(retryAfterSeconds));
+    throw new HttpException(
+      {
+        error: {
+          code: 'too_many_attempts',
+          message: 'Слишком много неверных попыток. Подождите несколько минут.',
+          retryAfterSeconds,
+        },
+      },
+      429,
+    );
+  }
+
+  private checkAccountJoinRateLimit(request: FastifyRequest): void {
+    this.enforceRateLimit(this.accountJoinAttemptsByAddress, clientAddress(request));
   }
 
   private codeFromBody(rawBody: unknown): string {
@@ -431,8 +479,11 @@ export class ClassroomJoinController {
 
   @Post('resolve')
   @HttpCode(200)
-  async resolve(@Req() request: FastifyRequest, @Body() rawBody: unknown) {
-    this.checkRateLimit(request);
+  async resolve(
+    @Req() request: FastifyRequest,
+    @Res({ passthrough: true }) reply: FastifyReply,
+    @Body() rawBody: unknown,
+  ) {
     const code = this.codeFromBody(rawBody);
     const result = await this.requirePool().query(
       `SELECT tenant_id, classroom_id, classroom_title, teacher_display_name, safe_mode_default
@@ -441,6 +492,9 @@ export class ClassroomJoinController {
     );
     const row = result.rows[0];
     if (!row) {
+      this.recordFailedAdmission(reply, [
+        { limiter: this.invalidResolveBySource, key: clientAddress(request) },
+      ]);
       throw new HttpException(
         error('class_not_found', 'Не удалось найти класс. Проверьте код у педагога.'),
         404,
@@ -463,7 +517,6 @@ export class ClassroomJoinController {
     @Res({ passthrough: true }) reply: FastifyReply,
     @Body() rawBody: unknown,
   ) {
-    this.checkRateLimit(request);
     const shape = checkBodyShape(rawBody, ['code', 'studentCode']);
     const code = shape.ok ? shape.body['code'] : null;
     const rawStudentCode = shape.ok ? shape.body['studentCode'] : null;
@@ -482,12 +535,28 @@ export class ClassroomJoinController {
         400,
       );
     }
-    this.enforceRateLimit(this.attemptsByCredential, `${classroomCodeHash(code)}:${studentCode}`);
+    const classCodeHashValue = classroomCodeHash(code);
+    const source = clientAddress(request);
+    const classLookup = await this.requirePool().query(
+      `SELECT classroom_id FROM classroom_public_resolve_join_code($1)`,
+      [classCodeHashValue],
+    );
+    const classroomId = (classLookup.rows[0] as { classroom_id?: string } | undefined)
+      ?.classroom_id;
+
+    if (!classroomId) {
+      this.recordFailedAdmission(reply, [{ limiter: this.invalidResolveBySource, key: source }]);
+      throw new HttpException(
+        error('invalid_class_credentials', 'Код класса или код ученика не подошёл.'),
+        401,
+      );
+    }
+
     const token = createSessionToken();
     const result = await this.requirePool().query(
       `SELECT ${SEAT_SESSION_COLUMNS} FROM classroom_student_seat_sign_in($1, $2, $3, $4, $5)`,
       [
-        classroomCodeHash(code),
+        classCodeHashValue,
         studentCode,
         hashSessionToken(studentCode),
         hashSessionToken(token),
@@ -496,6 +565,14 @@ export class ClassroomJoinController {
     );
     const row = result.rows[0] as StudentSessionRow | undefined;
     if (!row) {
+      this.recordFailedAdmission(reply, [
+        {
+          limiter: this.invalidStudentByCandidateClass,
+          key: `${classroomId}:${hashSessionToken(studentCode)}`,
+        },
+        { limiter: this.invalidStudentBySourceClass, key: `${source}:${classroomId}` },
+        { limiter: this.invalidStudentBySource, key: source },
+      ]);
       throw new HttpException(
         error('invalid_class_credentials', 'Код класса или код ученика не подошёл.'),
         401,
@@ -634,7 +711,7 @@ export class ClassroomJoinController {
   @Post('account')
   @HttpCode(200)
   async joinAsAccount(@Req() request: FastifyRequest, @Body() rawBody: unknown) {
-    this.checkRateLimit(request);
+    this.checkAccountJoinRateLimit(request);
     const context = await this.activeContext.resolve(request.cookies[SESSION_COOKIE]);
     if (!context) throw new HttpException(error('unauthorized', 'Сначала войдите в аккаунт.'), 401);
     const code = this.codeFromBody(rawBody);

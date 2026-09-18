@@ -13,7 +13,7 @@ function request(address: string): FastifyRequest {
 }
 
 function reply(): FastifyReply {
-  return { setCookie: vi.fn() } as unknown as FastifyReply;
+  return { setCookie: vi.fn(), clearCookie: vi.fn(), header: vi.fn() } as unknown as FastifyReply;
 }
 
 function seatRequest(): FastifyRequest {
@@ -23,20 +23,28 @@ function seatRequest(): FastifyRequest {
 }
 
 describe('classroom seat sign-in abuse limits', () => {
-  it('limits one guessed class credential even when source addresses rotate', async () => {
-    const pool = { query: vi.fn(async () => ({ rows: [] })) } as unknown as pg.Pool;
-    const activeContext = {} as ActiveContextUseCase;
-    const controller = new ClassroomJoinController(pool, activeContext);
+  it('counts only failed exact class/candidate checks and limits the sixth invalid attempt', async () => {
+    const query = vi.fn(async (sql: string) =>
+      sql.includes('classroom_public_resolve_join_code')
+        ? { rows: [{ classroom_id: 'classroom-id' }] }
+        : { rows: [] },
+    );
+    const controller = new ClassroomJoinController(
+      { query } as unknown as pg.Pool,
+      {} as ActiveContextUseCase,
+    );
     const body = { code: 'ABC DEF 234', studentCode: 'ACD234' };
 
-    for (let attempt = 0; attempt < 10; attempt += 1) {
+    for (let attempt = 0; attempt < 5; attempt += 1) {
       await expect(
         controller.signIn(request(`203.0.113.${attempt + 1}`), reply(), body),
       ).rejects.toMatchObject({ status: 401 });
     }
-    await expect(controller.signIn(request('203.0.113.99'), reply(), body)).rejects.toMatchObject({
-      status: 429,
-    });
+    const sixthReply = reply();
+    await expect(
+      controller.signIn(request('203.0.113.99'), sixthReply, body),
+    ).rejects.toMatchObject({ status: 429 });
+    expect(sixthReply.header).toHaveBeenCalledWith('Retry-After', expect.any(String));
   });
 });
 
