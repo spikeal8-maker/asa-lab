@@ -54,7 +54,10 @@ an owner-selected governance scope without a product card. All other task IDs us
 Before executable work, `pnpm validate:electronics-agent-docs --task <selected-id>`
 must match canonical `current.yaml` with `status: in_progress`. Default validation
 also checks planned cards; their existence never activates them. Review metadata
-declares a requirement, not proof that review occurred.
+declares a requirement, not proof that review occurred. A canonical `in_review` or
+`blocked` lane is non-executable: inspect/review the candidate or follow its declared
+blocker, but do not continue implementation. A review-found production repair must be
+returned to an explicitly executable `in_progress` scope before editing.
 
 ### Default size budget
 
@@ -115,6 +118,11 @@ May repair routing, plan, task cards and agent rules. No product/runtime edits.
 ## 4. Roadmap dependency rule
 
 `ASA_ELECTRONICS_OPTIMIZATION_PLAN_V2.md` owns long-term dependency order. `docs/execution/current.yaml` owns what is active now.
+
+`ARD-*` headings in the normative README are requirement/capability anchors, not a second
+roadmap, task queue or execution status. Their numeric order cannot select work. A concrete
+Arduino/peripheral change must map the needed ARD requirements to one owner-selected E-OPT
+task card and satisfy that card's prerequisites.
 
 An agent must distinguish:
 
