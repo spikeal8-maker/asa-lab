@@ -541,7 +541,7 @@ async function createClassWithStudents(
     await expect(dialog).toBeHidden();
     const rosterRow = page.getByRole('row').filter({ hasText: student.label });
     const studentCode = (await rosterRow.locator('.classroom-login-handle').innerText()).trim();
-    expect(studentCode).toMatch(/^[2346789ACDEFGHJKMNPQRTUVWXY]{6}$/);
+    expect(studentCode).toMatch(/^[2346789ACDEFGHJKMNPQRTUVWXYacdefghjkmnpqrtuvwxy]{6}$/);
     keys.set(student.handle, studentCode);
   }
   return joinCode;

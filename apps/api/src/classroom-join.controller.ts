@@ -38,6 +38,7 @@ import {
 } from './learning-canonical-projection.service.js';
 
 const STUDENT_SESSION_COOKIE = 'asa_student_session';
+const STUDENT_CODE_PATTERN = /^[A-Za-z0-9]{4,10}$/;
 const STUDENT_SESSION_HOURS = 8;
 const ATTEMPT_WINDOW_MS = 10 * 60 * 1000;
 const MAX_ATTEMPTS = 30;
@@ -466,16 +467,18 @@ export class ClassroomJoinController {
     const shape = checkBodyShape(rawBody, ['code', 'studentCode']);
     const code = shape.ok ? shape.body['code'] : null;
     const rawStudentCode = shape.ok ? shape.body['studentCode'] : null;
-    const studentCode =
-      typeof rawStudentCode === 'string' ? rawStudentCode.trim().toLowerCase() : '';
+    const studentCode = typeof rawStudentCode === 'string' ? rawStudentCode.trim() : '';
     if (
       !shape.ok ||
       typeof code !== 'string' ||
       normalizeClassroomCode(code).length !== 9 ||
-      !/^[2346789acdefghjkmnpqrtuvwxy]{6}$/.test(studentCode)
+      !STUDENT_CODE_PATTERN.test(studentCode)
     ) {
       throw new HttpException(
-        error('validation_error', 'Введите код класса и шестизначный код ученика.'),
+        error(
+          'validation_error',
+          'Введите код класса и код ученика из 4–10 латинских букв или цифр.',
+        ),
         400,
       );
     }

@@ -204,16 +204,16 @@ function BatchDialog({
       setError('Не более 100 учеников за один раз.');
       return;
     }
+    if (!requestId.current) requestId.current = crypto.randomUUID();
     setBusy('preview');
     setError(null);
-    const result = await api.previewClassroomSeatsBatch(classroomId, students);
+    const result = await api.previewClassroomSeatsBatch(classroomId, students, requestId.current);
     setBusy(null);
     if (!result.ok) {
       setError(result.error.message || 'Не удалось проверить список.');
       return;
     }
     setPreview(result.data.results);
-    requestId.current = crypto.randomUUID();
   }
 
   async function commitList(): Promise<void> {

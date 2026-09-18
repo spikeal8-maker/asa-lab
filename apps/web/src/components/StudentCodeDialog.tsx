@@ -2,14 +2,7 @@ import { useRef, useState } from 'react';
 import { api, type ClassroomStudentSeat } from '../api';
 import './student-access.css';
 
-const STUDENT_CODE_PATTERN = /^[2346789ACDEFGHJKMNPQRTUVWXY]{6}$/;
-
-function normalize(value: string): string {
-  return value
-    .toUpperCase()
-    .replace(/[^2346789ACDEFGHJKMNPQRTUVWXY]/g, '')
-    .slice(0, 6);
-}
+const STUDENT_CODE_PATTERN = /^[A-Za-z0-9]{4,10}$/;
 
 export function StudentCodeDialog({
   classroomId,
@@ -58,17 +51,14 @@ export function StudentCodeDialog({
         <input
           id="student-code-value"
           autoFocus
-          autoCapitalize="characters"
+          autoCapitalize="none"
           autoCorrect="off"
           spellCheck={false}
           value={value}
-          maxLength={6}
           disabled={busy !== null}
-          onChange={(event) => setValue(normalize(event.target.value))}
+          onChange={(event) => setValue(event.target.value)}
         />
-        <p className="field-hint">
-          Ровно 6 символов. Похожие символы вроде O/0 и I/1 не используются.
-        </p>
+        <p className="field-hint">От 4 до 10 латинских букв или цифр. Регистр учитывается.</p>
         {error ? (
           <p className="form-error" role="alert">
             {error}

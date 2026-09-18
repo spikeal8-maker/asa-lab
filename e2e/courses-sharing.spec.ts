@@ -271,7 +271,7 @@ test('a teacher builds a course, shares it by name, and a colleague takes a copy
       .locator('.classroom-login-handle')
       .innerText()
   ).trim();
-  expect(studentCode).toMatch(/^[2346789ACDEFGHJKMNPQRTUVWXY]{6}$/);
+  expect(studentCode).toMatch(/^[2346789ACDEFGHJKMNPQRTUVWXYacdefghjkmnpqrtuvwxy]{6}$/);
 
   await authorPage
     .locator('.classroom-workspace-tabs')

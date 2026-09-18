@@ -16,9 +16,7 @@ function initialCode(): string {
   return new URLSearchParams(query).get('code') ?? '';
 }
 
-function normalizeStudentCode(value: string): string {
-  return value.replace(/\s+/g, '').toUpperCase().slice(0, 6);
-}
+const STUDENT_CODE_PATTERN = /^[A-Za-z0-9]{4,10}$/;
 
 /** StudentSeat sign-in deliberately has only two human inputs: class code, then student code. */
 export function JoinClassPage({
@@ -73,8 +71,8 @@ export function JoinClassPage({
   async function signIn(event: FormEvent): Promise<void> {
     event.preventDefault();
     setError(null);
-    if (studentCode.length !== 6) {
-      setError('Введите шестизначный код ученика с карточки.');
+    if (!STUDENT_CODE_PATTERN.test(studentCode)) {
+      setError('Введите код ученика из 4–10 латинских букв или цифр.');
       return;
     }
     setBusy(true);
@@ -148,22 +146,22 @@ export function JoinClassPage({
               ) : null}
             </div>
             <h2>Введите код ученика</h2>
-            <p className="subtitle">Шесть символов с вашей личной карточки доступа.</p>
+            <p className="subtitle">
+              Код с вашей личной карточки доступа. Регистр букв учитывается.
+            </p>
             <label htmlFor="class-student-code">Код ученика</label>
             <input
               id="class-student-code"
               autoFocus
               autoComplete="one-time-code"
-              autoCapitalize="characters"
+              autoCapitalize="none"
               autoCorrect="off"
               spellCheck={false}
               inputMode="text"
               value={studentCode}
               disabled={busy}
-              minLength={6}
-              maxLength={6}
-              placeholder="K7M4Q2"
-              onChange={(event) => setStudentCode(normalizeStudentCode(event.target.value))}
+              placeholder="Ab7k"
+              onChange={(event) => setStudentCode(event.target.value)}
             />
             {error ? (
               <p className="form-error" role="alert">
@@ -173,7 +171,7 @@ export function JoinClassPage({
             <button
               type="submit"
               className="btn-primary"
-              disabled={busy || studentCode.length !== 6}
+              disabled={busy || !STUDENT_CODE_PATTERN.test(studentCode)}
             >
               {busy ? 'Входим…' : 'Войти'}
             </button>

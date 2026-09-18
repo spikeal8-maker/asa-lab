@@ -917,7 +917,7 @@ export interface ClassroomStudentSeat {
   awaitingReview?: number;
   id: string;
   displayLabel: string;
-  /** Six-character classroom credential shown to the teacher and entered by the learner. */
+  /** Current case-sensitive Student Code; automatic creation uses six safe mixed-case characters. */
   studentCode: string;
   /** @deprecated compatibility alias; use studentCode in new UI. */
   loginHandle: string;
@@ -931,7 +931,6 @@ export interface ClassroomStudentSeat {
 
 export interface ClassroomSeatBatchStudentInput {
   displayLabel: string;
-  loginHandle?: string;
   safeMode: boolean;
 }
 
@@ -1988,18 +1987,19 @@ export const api = {
     call<ClassroomStudentDetail>(
       `/api/classrooms/${encodeURIComponent(classroomId)}/students/${encodeURIComponent(seatId)}`,
     ),
-  addClassroomSeat: (
-    classroomId: string,
-    input: { displayLabel: string; loginHandle?: string; safeMode: boolean },
-  ) =>
+  addClassroomSeat: (classroomId: string, input: { displayLabel: string; safeMode: boolean }) =>
     call<{ student: ClassroomStudentSeat }>(
       `/api/classrooms/${encodeURIComponent(classroomId)}/seats`,
       { method: 'POST', body: JSON.stringify(input) },
     ),
-  previewClassroomSeatsBatch: (classroomId: string, students: ClassroomSeatBatchStudentInput[]) =>
+  previewClassroomSeatsBatch: (
+    classroomId: string,
+    students: ClassroomSeatBatchStudentInput[],
+    requestId: string,
+  ) =>
     call<{ results: ClassroomSeatBatchPreviewRow[] }>(
       `/api/classrooms/${encodeURIComponent(classroomId)}/seats/batch/preview`,
-      { method: 'POST', body: JSON.stringify({ students }) },
+      { method: 'POST', body: JSON.stringify({ students, requestId }) },
     ),
   addClassroomSeatsBatch: (
     classroomId: string,

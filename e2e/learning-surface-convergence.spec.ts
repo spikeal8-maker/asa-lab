@@ -58,7 +58,7 @@ test('legacy, revision and selected-result semantics stay equal across learner a
       .locator('.classroom-login-handle')
       .innerText()
   ).trim();
-  expect(studentCode).toMatch(/^[2346789ACDEFGHJKMNPQRTUVWXY]{6}$/);
+  expect(studentCode).toMatch(/^[2346789ACDEFGHJKMNPQRTUVWXYacdefghjkmnpqrtuvwxy]{6}$/);
 
   const scope = await admin.query(
     `SELECT classroom.id AS classroom_id,classroom.tenant_id AS classroom_tenant_id,
