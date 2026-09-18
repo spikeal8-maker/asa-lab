@@ -172,10 +172,13 @@ test('lost response reuses mutation identity, durable assets and commits one rev
       if (previous) {
         assert.equal(body.baseRevision, previous.baseRevision);
         assert.deepEqual(body.document, previous.document);
-        return new globalThis.Response(JSON.stringify({ status: 'ok', revision: previous.revision }), {
-          status: 200,
-          headers: { 'content-type': 'application/json' },
-        });
+        return new globalThis.Response(
+          JSON.stringify({ status: 'ok', revision: previous.revision }),
+          {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          },
+        );
       }
       assert.equal(body.baseRevision, serverRevision);
       serverRevision += 1;

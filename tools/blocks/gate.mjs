@@ -33,21 +33,6 @@ const docs = [
     '.github/workflows/scratch-*.yml',
   ],
 ];
-if (process.env.CI === 'true' && args.length === 0) {
-  const target = 'tools/blocks/flush-semantics.test.mjs';
-  const formatted = spawnSync(
-    process.execPath,
-    [process.env.npm_execpath, 'exec', 'prettier', '--write', target],
-    { cwd: root, stdio: 'inherit', env: { ...process.env } },
-  );
-  if (formatted.status !== 0) process.exit(formatted.status ?? 1);
-  const { readFileSync } = await import('node:fs');
-  console.log(
-    `ASA_FORMATTED_B64 ${target} ${Buffer.from(readFileSync(new URL(`../../${target}`, import.meta.url))).toString('base64')}`,
-  );
-  process.exit(86);
-}
-
 const focused = [
   [
     'pnpm',
