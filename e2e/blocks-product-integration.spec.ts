@@ -695,8 +695,24 @@ test('lost draft response retries the same mutation once without duplicate asset
       assets: serverProject.assets,
     },
     runtimeAssets: serverProject.runtimeAssets,
-    dropFirstDraftResponseAfterCommit: true,
   });
+  let loseFirstDraftResponse = true;
+  await fixture.context.route(
+    (url) =>
+      loseFirstDraftResponse &&
+      url.pathname === `/api/blocks/runtime/projects/${projectId}/draft`,
+    async (route, request) => {
+      if (request.method() !== 'PUT') {
+        await route.continue();
+        return;
+      }
+      loseFirstDraftResponse = false;
+      const committedResponse = await route.fetch();
+      expect(committedResponse.status()).toBe(200);
+      await committedResponse.body();
+      await route.abort('failed');
+    },
+  );
   const page = await fixture.context.newPage();
   await installBlocksMessageCapture(page);
   try {
