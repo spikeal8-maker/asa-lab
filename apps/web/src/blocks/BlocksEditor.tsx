@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { newClientId } from '../client-id';
 import { BlocksEditorShell } from './BlocksEditorShell';
 import { BlocksRuntimeBridge, requireExactHttpOrigin } from './runtime-protocol';
+import { requestBlocksRuntimeSession } from './runtime-session';
 
 interface BlocksEditorProps {
   projectId: string;
@@ -58,7 +58,18 @@ export function BlocksEditor({
     const frame = iframeRef.current;
     if (!frame) return undefined;
     let bridge: BlocksRuntimeBridge | null = null;
-    const startupTimer = window.setTimeout(() => setStatus('Ошибка Scratch runtime'), 45000);
+    let disposed = false;
+    let loadGeneration = 0;
+    let requestController: AbortController | null = null;
+    const startupTimer = window.setTimeout(() => {
+      if (!disposed) setStatus('Ошибка Scratch runtime');
+    }, 45000);
+
+    const failStartup = (): void => {
+      if (disposed) return;
+      window.clearTimeout(startupTimer);
+      setStatus('Ошибка Scratch runtime');
+    };
 
     const onMessage = (event: MessageEvent): void => {
       if (!bridge?.acceptChildMessage(event)) return;
@@ -67,37 +78,68 @@ export function BlocksEditor({
         if (payload['status'] === 'editor-ready') window.clearTimeout(startupTimer);
         setStatus(String(payload['status'] ?? 'Scratch подключён'));
       }
-      if (payload['messageType'] === 'ASA_BLOCKS_FATAL') setStatus('Ошибка Scratch runtime');
+      if (payload['messageType'] === 'ASA_BLOCKS_FATAL') failStartup();
+    };
+
+    const connect = async (generation: number, controller: AbortController): Promise<void> => {
+      const session = await requestBlocksRuntimeSession(projectId, controller.signal);
+      if (disposed || controller.signal.aborted || generation !== loadGeneration) return;
+      if (!session || session.runtimeOrigin !== runtimeOrigin) {
+        failStartup();
+        return;
+      }
+
+      const childWindow = frame.contentWindow;
+      if (!childWindow) {
+        failStartup();
+        return;
+      }
+
+      try {
+        bridge = new BlocksRuntimeBridge({
+          childWindow,
+          runtimeOrigin: session.runtimeOrigin,
+          projectId,
+          mode: 'editor',
+          versionId: null,
+          apiOrigin: window.location.origin,
+          runtimeToken: session.runtimeToken,
+          draftRevision: session.draftRevision,
+          hasProjectJson: session.projectJson !== null,
+          assets: session.assets,
+          recoveryNamespace: `asa-blocks-preview-${projectId}`,
+          onMessage: (message) => {
+            if (message['messageType'] === 'ASA_BLOCKS_READY') setStatus('Scratch готов');
+          },
+          onFatal: failStartup,
+        });
+        bridgeRef.current = bridge;
+        bridge.sendInit();
+      } catch {
+        bridge?.stop();
+        bridge = null;
+        bridgeRef.current = null;
+        failStartup();
+      }
     };
 
     const onLoad = (): void => {
-      const childWindow = frame.contentWindow;
-      if (!childWindow) return;
+      requestController?.abort();
+      requestController = new AbortController();
+      loadGeneration += 1;
       bridge?.stop();
-      bridge = new BlocksRuntimeBridge({
-        childWindow,
-        runtimeOrigin,
-        projectId,
-        mode: 'editor',
-        versionId: null,
-        apiOrigin: window.location.origin,
-        runtimeToken: `preview-${newClientId()}`,
-        draftRevision: 0,
-        hasProjectJson: false,
-        assets: [],
-        recoveryNamespace: `asa-blocks-preview-${projectId}`,
-        onMessage: (message) => {
-          if (message['messageType'] === 'ASA_BLOCKS_READY') setStatus('Scratch готов');
-        },
-        onFatal: () => setStatus('Ошибка Scratch runtime'),
-      });
-      bridgeRef.current = bridge;
-      bridge.sendInit();
+      bridge = null;
+      bridgeRef.current = null;
+      setStatus('Подключение Scratch…');
+      void connect(loadGeneration, requestController);
     };
 
     window.addEventListener('message', onMessage);
     frame.addEventListener('load', onLoad);
     return () => {
+      disposed = true;
+      loadGeneration += 1;
+      requestController?.abort();
       window.clearTimeout(startupTimer);
       frame.removeEventListener('load', onLoad);
       window.removeEventListener('message', onMessage);
