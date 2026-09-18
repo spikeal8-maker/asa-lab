@@ -262,7 +262,7 @@ In-app события E1: назначение/условия, сдача на �
 | E1-FIX-09 | Нет противоречивого контекста и фиктивного test evidence | Compact/master/registry/ledger согласованы; каждый объявленный тест существует и его команда действительно включает; исторический secret-flow не нормативен |
 | E1-FIX-10 | Проверяемая граница репозитория и сайта | Отдельные code SHA, CI SHA, installed Web/API/schema, время наблюдения и выполненный live journey; отсутствие доступа записано как not_run |
 | E1-FIX-11 | Полная функциональная матрица Course Builder | Каждое действие §4.2.1 имеет create/edit/save-reload/permission/error/retry evidence; каждый E1 informational block реально проходит preview/publish/learner render; duplicate/hide/delete не меняют историю |
-| E1-FIX-12 | Production secret integrity, Class Code recovery and race-free credential rollout | Production requires independent `CLASSROOM_CODE_SECRET`; Student Code keyring is wired through deploy/update; old writers are fenced during 0146/backfill; installed acceptance has zero active predictable legacy codes |
+| E1-FIX-12 | Production secret integrity, Class Code recovery and race-free credential rollout | Production requires independent `CLASSROOM_CODE_SECRET`; Student Code keyring is wired through deploy/update; old writers are fenced during protected-storage schema cutover/backfill; installed acceptance has zero active predictable legacy codes |
 
 E1-FIX-01..05 and E1-FIX-12 are primary functional/security corrections. E1-FIX-06..08 and E1-FIX-11 close Course Builder completeness/concurrency. E1-FIX-09/10 protect evidence and the installed-site boundary. Existing correct parts remain; E1 status is never inferred from a raw count of green tests.
 

@@ -53,6 +53,15 @@ ID_PATTERNS = (
     (ACCESS, "docs/product/ASA_USERS_ACCESS_AND_SETTINGS_SPEC_V2_1.md",
      r"\b(?:(?:U|R|P)\d{2}|(?:INV|UI|SET|PREF|AC|UI-AC|PERSONA-AC)-\d{2,3})\b"),
 )
+FORBIDDEN_PREALLOCATED_MIGRATION_REFERENCES = (
+    "migrations/0146_student_seat_protected_codes.sql",
+    "migrations/0147_course_authoring_correctness.sql",
+    "schema-only `0146`",
+    "OLD-WRITER-FENCE-DURING-0146-CUTOVER",
+    "0146/backfill",
+    "Apply additive migration `0146`",
+)
+
 REQUIRED_CLAUSES = {
     "AGENTS.md": ["acceptance_blocker", "execution_blocker", "deployment_blocker"],
     INTEGRATED: ["E1-FIX-11", "E1-FIX-12", "FUNCTIONAL_ACCEPTANCE", "VISUAL_ACCEPTANCE", "INSTALLED_ACCEPTANCE", "Course Builder E1", "CLASSROOM_CODE_SECRET", "legacy_predictable_active=0", "ASA Lab начинается с обычного личного Account", "StudentSeat — способ войти", "Organization/школа — отдельный рабочий workspace", "Organization Workspace имеет одну понятную IA", "Запрещённые продуктовые анти-паттерны"],
@@ -65,7 +74,7 @@ REQUIRED_CLAUSES = {
     LEARNING_CONTRACT: ["LRN-SURFACE-001"],
     SURFACE_CATALOG: ["supporting_target_atlas", "actor_semantics", "organization_owner", "registered_student_shell: ordinary_PORTAL_shell_with_My_Learning", "never invents a Personal Workspace"],
     "docs/product/ASA_AUTH_ENTRY_UX_SPEC.md": ["тот же личный Account", "Новый UI не должен копировать этот legacy-flow"],
-    "docs/execution/LRN_COURSE_01.md": ["student-seat-protected-code-backfill.mjs", "keyring preflight", "0146", "E1-FIX-12", "CLASSROOM_CODE_SECRET", "ASA_STUDENT_CODE_PROTECTION_MODE=compat", "legacy_predictable_active=0"],
+    "docs/execution/LRN_COURSE_01.md": ["student-seat-protected-code-backfill.mjs", "keyring preflight", "next free migration version", "E1-FIX-12", "CLASSROOM_CODE_SECRET", "ASA_STUDENT_CODE_PROTECTION_MODE=compat", "legacy_predictable_active=0"],
 }
 
 
@@ -119,6 +128,20 @@ def validate(root: Path, overrides: Mapping[str, str] | None = None) -> list[str
         for clause in clauses:
             if clause not in texts[path]:
                 errors.append(f"required semantic clause missing from {path}: {clause}")
+
+    migration_order_contracts = {
+        INTEGRATED: texts[INTEGRATED],
+        ACCESS: texts[ACCESS],
+        LEDGER: texts[LEDGER],
+        "docs/execution/LRN_COURSE_01.md": texts["docs/execution/LRN_COURSE_01.md"],
+        CURRENT: read(CURRENT),
+    }
+    for path, text in migration_order_contracts.items():
+        for forbidden in FORBIDDEN_PREALLOCATED_MIGRATION_REFERENCES:
+            if forbidden in text:
+                errors.append(
+                    f"pre-reserved lower migration reference is forbidden in active contract: {path}: {forbidden}"
+                )
 
     try:
         capability_map = yaml.safe_load(texts[CAPABILITY_MAP]) or {}
@@ -262,7 +285,11 @@ def validate(root: Path, overrides: Mapping[str, str] | None = None) -> list[str
         "generated_code_requires_all_character_classes": False,
         "manual_code_pattern": "^[A-Za-z0-9]{4,10}$",
         "code_case_sensitive": True,
-        "migration": "migrations/0146_student_seat_protected_codes.sql",
+        "migration_allocation": {
+            "timing": "fresh_main_immediately_before_implementation",
+            "rule": "next_free_version_greater_than_every_published_migration",
+            "preallocated_version": "forbidden",
+        },
         "backfill_tool": "tools/student-seat-protected-code-backfill.mjs",
         "keyring_env": [
             "ASA_STUDENT_CODE_ENCRYPTION_KEYS_JSON",

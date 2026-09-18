@@ -387,7 +387,7 @@ Current-code readback доступен только actor с действующ�
 Protected-code rollout order is mandatory and race-free:
 1. Provision and validate the Student Code keyring plus an independent production `CLASSROOM_CODE_SECRET` before touching the database.
 2. Stop the old API, or enforce an equivalent credential-write maintenance fence. No legacy writer may create or rotate a Student Code during schema cutover/backfill.
-3. Apply additive migration `0146`. It adds envelope/digest/state/retired-history structures; SQL contains no key material and performs no encryption. Credential authorization must preserve effective exact-class staff access and must not introduce an owner-only regression.
+3. Immediately before implementation, fetch fresh `main`, allocate the next free migration version, and require that version to be greater than every published migration version. No lower migration number is reserved in advance. Apply that additive protected-storage migration; it adds envelope/digest/state/retired-history structures, contains no key material and performs no encryption. Credential authorization must preserve effective exact-class staff access and must not introduce an owner-only regression.
 4. Start the new API in `ASA_STUDENT_CODE_PROTECTION_MODE=compat`. The compat API is now the only credential writer and every new/rotated code is written to protected envelope/HMAC and temporary legacy compatibility storage atomically.
 5. Pass the release fence, then run resumable `tools/student-seat-protected-code-backfill.mjs` while the compat API is the sole writer. The tool never logs Student Code, ciphertext key material or derived HMAC.
 6. Verify `unprotected_active=0` and complete key-ID coverage. Old API concurrency at this point is forbidden.
