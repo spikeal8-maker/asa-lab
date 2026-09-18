@@ -61,6 +61,32 @@ REVOKE ALL ON FUNCTION public.classroom_student_code_protection_context(uuid,uui
 GRANT EXECUTE ON FUNCTION public.classroom_student_code_protection_context(uuid,uuid)
   TO asalab_app;
 
+CREATE OR REPLACE FUNCTION public.classroom_student_code_legacy_current(
+  p_account uuid,p_classroom uuid,p_seat uuid
+)
+RETURNS TABLE(
+  tenant_id uuid,seat_id uuid,student_code varchar,credential_version integer
+)
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $
+BEGIN
+  RETURN QUERY
+  SELECT seat.tenant_id,seat.id,seat.login_handle,cred.version
+  FROM public.classroom_student_seats seat
+  JOIN public.classroom_seat_credentials cred ON cred.seat_id=seat.id
+  CROSS JOIN LATERAL public.classroom_teacher_access(p_account,p_classroom) access
+  WHERE seat.id=p_seat
+    AND seat.classroom_id=p_classroom
+    AND seat.status<>'removed'
+    AND access.user_id IS NOT NULL
+    AND access.tenant_id=seat.tenant_id
+  FOR UPDATE OF seat,cred;
+END;
+$;
+REVOKE ALL ON FUNCTION public.classroom_student_code_legacy_current(uuid,uuid,uuid)
+  FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.classroom_student_code_legacy_current(uuid,uuid,uuid)
+  TO asalab_app;
+
 CREATE OR REPLACE FUNCTION public.classroom_student_code_protected_write(
   p_account uuid,
   p_classroom uuid,
