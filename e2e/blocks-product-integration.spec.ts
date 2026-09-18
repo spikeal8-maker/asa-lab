@@ -4,6 +4,7 @@ import { createHash } from 'node:crypto';
 
 let createProtocolFixture: typeof import('../tools/blocks/browser/fixture.mjs').createProtocolFixture;
 let parentOrigin: string;
+let projectId: string;
 let runtimeUrl: string;
 const evidenceDir = 'reports/blocks/product-integration';
 const barkAssetId = 'cd8fa8390b0efdd281882533fbfcfcfb';
@@ -127,7 +128,7 @@ async function realRuntimeBootstrapFixture() {
 
 test.beforeAll(async () => {
   ({ createProtocolFixture } = await import('../tools/blocks/browser/fixture.mjs'));
-  ({ parentOrigin, runtimeUrl } = await import('../tools/blocks/browser/protocol.mjs'));
+  ({ parentOrigin, projectId, runtimeUrl } = await import('../tools/blocks/browser/protocol.mjs'));
   fs.mkdirSync(evidenceDir, { recursive: true });
 });
 
