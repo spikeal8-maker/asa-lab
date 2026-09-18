@@ -21,10 +21,10 @@ task:
 
 revisions:
   convergence_baseline_sha: 1d101b699b7db34efa838a143a93f9b19940e5c9
-  head_sha: e3b1f768539d9d9f253017b83b4dbef05b0209ea
+  head_sha: b1a0b4392721379016055c9ebc169d441dfe0822
 
 execution_lease:
-  executor_id: codex-vscr-m1-002b
+  executor_id: codex-scratch-real-storage-005b
   holder: unassigned
   acquired_at: null
   expires_at: null
