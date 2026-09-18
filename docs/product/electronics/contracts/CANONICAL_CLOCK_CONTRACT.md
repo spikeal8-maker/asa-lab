@@ -2,9 +2,9 @@
 
 **Roadmap:** E-OPT-3A  
 **Scope:** Electronics physical time, Arduino/runtime ordering, input trace, Worker horizons and committed results.  
-**Status:** candidate until the required independent review is complete and this decision is accepted in `main`.
+**Status:** accepted semantic contract; E-OPT-3A is integrated in `main`. Any incompatible semantic change requires an explicit versioned contract revision.
 
-This document defines semantics only. It does not add a timed public API, change runtime code, or make the current UI timer authoritative.
+This document owns canonical time semantics. E-OPT-3B subsequently introduced the public timed engine facade that implements this contract; later runtime, Worker and UI adapters must conform to it and may not make presentation cadence authoritative.
 
 ## 1. Clock authority
 
@@ -34,7 +34,7 @@ A request is:
 - `yielded` when bounded work stops with `C < H`; no result may be presented as the result for `H`;
 - `fault` when the requested advance cannot be accepted; the caller's previously committed canonical state remains authoritative.
 
-API names for these concepts are deliberately not fixed by E-OPT-3A.
+E-OPT-3A fixed these semantics but not API names. E-OPT-3B subsequently froze the version-1 public timed engine surface; incompatible API or semantic changes require an explicit contract revision and compatibility plan.
 
 ## 3. Canonical state
 
@@ -153,25 +153,29 @@ Intermediate UI refresh horizons are not required replay inputs. Pause duration 
 
 Reset begins a new replay segment. Replaying the same segment must produce byte-equivalent normalized committed results under different UI cadence, render stalls, Worker batching and bounded-yield partitions.
 
-## 11. Current provisional bridges
+## 11. Implementation bridge tracking
 
-The following existing behaviour is compatibility evidence, not the final public timed API:
+This semantic contract does not store live implementation debt or current migration status.
+Provisional adapters, legacy timing paths and their retirement conditions are tracked only in
+`../evidence/hygiene-baseline.yaml`, while the selected implementation slice and candidate
+revision live only in `docs/execution/current.yaml`.
 
-- `advanceArduinoCircuitClock(...)` is the closest existing canonical scheduler foundation and already demonstrates append-only inputs, shared barriers, bounded yield and partition/replay invariance;
-- `advanceLiveSimulation(...)` remains a provisional timed bridge until later E-OPT-3 slices migrate it;
-- Worker `simulationTimeMs` transport fields remain provisional and do not define canonical units/API shape;
-- `useElectronicsWorkbench` currently derives request horizons from `performance.now()` on an approximately 100 ms presentation timer; that cadence is host scheduling only and must not define physical truth;
-- the E-OPT-1 public engine facade remains non-temporal until E-OPT-3B.
+Any bridge that still exists must preserve this contract: canonical time remains integer
+microseconds, requested and committed horizons remain distinct, UI/wall-clock cadence is
+non-authoritative, and Worker execution may not become a second physics implementation.
 
 ## 12. Required migration sequence
 
 This contract authorizes no implementation by itself.
 
-- **E-OPT-3B:** extend the stable engine facade with timed operations conforming to this contract.
-- **E-OPT-3C:** converge Arduino scheduler/physics barriers on the accepted facade/state contract.
-- **E-OPT-3D:** converge Worker evaluator/controller and host requests on canonical horizons rather than presentation cadence semantics.
+- **E-OPT-3B:** define the stable version-1 timed engine facade conforming to this contract.
+- **E-OPT-3C:** converge Arduino scheduler/physics barriers on that accepted facade/state contract.
+- **E-OPT-3D:** converge Worker evaluator/controller and host requests on canonical horizons rather than presentation-cadence semantics.
 - **E-OPT-3E:** prove trace/replay equivalence across different UI cadences and stalls.
 - **E-OPT-3F:** prove reset/pause/resume/input-event and stale-horizon conformance.
+
+This sequence defines semantic dependencies only. Acceptance/progress for a concrete slice is read
+from `docs/execution/current.yaml` and repository evidence, never inferred from this contract.
 
 No Servo/HC-SR04/interrupt/IR/NeoPixel implementation is authorized by this decision.
 
@@ -187,4 +191,4 @@ Later E-OPT-3 implementation is conformant only if it proves all of the followin
 6. pause/resume adds no wall-clock time to physics;
 7. reset creates a clean time-zero generation;
 8. direct and Worker execution use the same canonical semantics;
-9. the public timed API is not frozen until E-OPT-3B implements this accepted contract.
+9. the version-1 public timed API introduced by E-OPT-3B remains compatible with this accepted contract; incompatible change requires a versioned contract/API revision.

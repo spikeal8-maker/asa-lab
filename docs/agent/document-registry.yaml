@@ -330,6 +330,42 @@ documents:
     read_when: [historical_learning_context_only]
     do_not_read_for: [active_learning_implementation]
 
+  - id: ELECTRONICS-ROUTER
+    path: docs/product/electronics/START_HERE.md
+    scope: electronics
+    lanes: [electronics]
+    kind: maintenance_guide
+    status: canonical
+    authority: electronics_routing
+    context_role: compact
+    read_when: [electronics_task_start, electronics_maintenance]
+    delegated_roots:
+      - docs/product/electronics/components/**
+      - docs/product/electronics/tasks/**
+      - docs/product/electronics/contracts/**
+      - docs/product/electronics/evidence/**
+      - docs/product/electronics/generated/**
+
+  - id: ELECTRONICS-COMPONENT-MAP
+    path: docs/product/electronics/COMPONENT_MAP.yaml
+    scope: electronics
+    lanes: [electronics]
+    kind: maintenance_index
+    status: canonical
+    authority: electronics_component_routing
+    context_role: trace
+    read_when: [electronics_component_lookup, electronics_maintenance]
+
+  - id: ELECTRONICS-AGENT-GUIDE
+    path: docs/product/electronics/AGENT_GUIDE.md
+    scope: electronics
+    lanes: [electronics]
+    kind: maintenance_guide
+    status: canonical
+    authority: electronics_agent_process
+    context_role: trace
+    read_when: [electronics_task_start, electronics_review, electronics_maintenance]
+
   - id: ELECTRONICS-MASTER
     path: docs/product/electronics/README.md
     scope: electronics

@@ -17,6 +17,9 @@ review: independent
 
 Executable only when `docs/execution/current.yaml` selects exact task ID
 `TASK-ELECTRONICS-EOPT3D-001` for the Electronics lane with `status: in_progress`.
+When the lane is `in_review`, this card is review-only: no additional production scope is
+authorized. A review-found production repair must return to an explicitly executable
+`in_progress` checkpoint before editing.
 
 ## Goal
 
@@ -62,6 +65,37 @@ apps/web/src/electronics/testing/live-simulation-worker-controller.spec.ts
 ```
 
 `use-electronics-workbench.ts` is a reviewed decomposition candidate above the hygiene threshold. Keep its change surgical: only host horizon conversion/request plumbing. Do not use this slice to decompose the workbench controller.
+
+## Acceptance-repair expansion
+
+Activating the canonical Worker boundary can expose assumptions that were previously hidden by
+the legacy timed path. The following additional paths are permitted **only** for the smallest
+acceptance repair required to preserve the already accepted E-OPT-3A/3B/3C semantics and make
+the E-OPT-3D gates truthful:
+
+```text
+contexts/electronics/domain/arduino-circuit-scheduler.ts
+contexts/electronics/testing/arduino-circuit-scheduler.spec.ts
+contexts/electronics/testing/engine-timed-api.spec.ts
+apps/web/src/electronics/testing/workbench-presentation.spec.ts
+e2e/electronics-simulation.spec.ts
+docs/product/electronics/evidence/hygiene-baseline.yaml
+docs/product/electronics/generated/component-coverage.json
+```
+
+Allowed acceptance repairs are limited to defects directly exposed by canonical Worker
+convergence, such as zero-horizon continuation, yielded-target completion, append-only live-input
+ordering/retiming, passive no-source observations required by supported instruments, and carried
+physical state required for an already supported failure model.
+
+This expansion does **not** authorize a new solver family, broad scheduler redesign, E-OPT-3E
+cadence/replay completion, E-OPT-3F conformance completion, E-OPT-4 DeviceModel hardening,
+E-OPT-5 runtime decomposition, or any new peripheral. Generated coverage is regenerated only
+when the bounded acceptance evidence changes; the hygiene baseline may change only to classify
+the exact bridge made obsolete or still retained by this slice.
+
+Any repair outside these paths/causes is a scope expansion and requires a separately selected
+task or design decision.
 
 ## Required result
 

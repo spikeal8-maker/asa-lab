@@ -131,9 +131,13 @@ StudentSeat не требует предварительной регистра�
 
 ### Electronics / Arduino
 
-`pnpm agent:recover --scope electronics --check` →
-`pnpm agent:context --scope electronics` →
+`pnpm agent:preflight --scope electronics --check` →
 [`docs/product/electronics/START_HERE.md`](docs/product/electronics/START_HERE.md).
+
+Preflight является единственным обычным стартом. Если он возвращает
+`RECOVERY_REQUIRED`, `WAITING_HANDOFF`, blocker или targeted follow-up, выполни
+указанный `SAFE_ACTION`; низкоуровневые `agent:recover` и `agent:context`
+используются только для такой диагностики, а не как параллельный порядок старта.
 
 Дальше: component ID → одна subsystem entry → выбранная task card → точные
 contracts/symbols/tests. Полный Electronics README не загружается по умолчанию.
