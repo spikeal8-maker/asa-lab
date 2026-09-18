@@ -148,7 +148,7 @@ parallel_lanes:
       branch: codex/electronics-eopt3d-worker-horizons
       base_branch: main
       pr: 281
-      pr_draft: true
+      pr_draft: false
       status: in_review
       checkpoint: eopt3d_automated_acceptance_pass_merge_authorized
       owner_acceptance: accepted
