@@ -14,7 +14,7 @@
     "componentInformationTestPath": "apps/web/src/electronics/testing/component-information.spec.ts",
     "componentInformationTestSha256": "ccb21a5621bf1e55b690a97c14eaaad71a5bf0e9e16948320d2cfe19055c41c3",
     "browserEvidencePath": "e2e/electronics-simulation.spec.ts",
-    "browserEvidenceSha256": "af36580eabef01ceca937bc615a58b24548bf37843e7de3d6ed11f2d7ee1cc0f"
+    "browserEvidenceSha256": "1a3530afdf49633c7eae62c5b26a7ba79a3eaaa75e6f20510b0ddc4e4d9dcc61"
   },
   "summary": {
     "total": 43,
