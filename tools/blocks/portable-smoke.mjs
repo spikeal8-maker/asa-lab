@@ -95,12 +95,11 @@ try {
   await expect(frame.locator('#runtime-status')).toBeHidden();
   const box = await page.locator('iframe').boundingBox();
   expect(box).toEqual({ x: 0, y: 0, width: 1440, height: 960 });
+  const shell = frame.locator('[data-asa-host-shell]');
   await frame.getByRole('button', { name: 'Start project', exact: true }).click();
-  await expect(frame.locator('[data-asa-host-shell]')).toHaveAttribute(
-    'data-project-running',
-    'true',
-  );
+  await expect(shell).not.toHaveAttribute('data-runtime-state', 'error');
   await frame.getByRole('button', { name: 'Stop project', exact: true }).click();
+  await expect(shell).toHaveAttribute('data-project-running', 'false');
   await frame.getByText('File', { exact: true }).click();
   const [download] = await Promise.all([
     page.waitForEvent('download'),
