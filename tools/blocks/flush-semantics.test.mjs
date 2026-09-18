@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { createHash, webcrypto } from 'node:crypto';
 import { TextEncoder, TextDecoder } from 'node:util';
+import { URL } from 'node:url';
 import vm from 'node:vm';
 import test from 'node:test';
 
@@ -58,7 +59,12 @@ const asset = (id, format, bytes) => ({
   sha256: sha256(bytes),
   sizeBytes: bytes.byteLength,
 });
-const reference = ({ bytes: _bytes, ...value }) => value;
+const reference = (value) => ({
+  assetId: value.assetId,
+  dataFormat: value.dataFormat,
+  sha256: value.sha256,
+  sizeBytes: value.sizeBytes,
+});
 const project = (name, extra = {}) => ({
   targets: [{ name, costumes: [], sounds: [], ...extra }],
   monitors: [],
@@ -73,8 +79,8 @@ function loadStorage(fetchMock, randomUUID) {
     Uint8Array,
     URL,
     fetch: fetchMock,
-    Response,
-    AbortController,
+    Response: globalThis.Response,
+    AbortController: globalThis.AbortController,
     crypto: { subtle: webcrypto.subtle, randomUUID },
   });
   vm.runInContext(
@@ -154,7 +160,7 @@ test('lost response reuses mutation identity, durable assets and commits one rev
           sha256: sha256(bytes),
           sizeBytes: bytes.byteLength,
         };
-        return new Response(JSON.stringify({ status: 'ok', asset: ref }), {
+        return new globalThis.Response(JSON.stringify({ status: 'ok', asset: ref }), {
           status: 200,
           headers: { 'content-type': 'application/json' },
         });
@@ -166,7 +172,7 @@ test('lost response reuses mutation identity, durable assets and commits one rev
       if (previous) {
         assert.equal(body.baseRevision, previous.baseRevision);
         assert.deepEqual(body.document, previous.document);
-        return new Response(JSON.stringify({ status: 'ok', revision: previous.revision }), {
+        return new globalThis.Response(JSON.stringify({ status: 'ok', revision: previous.revision }), {
           status: 200,
           headers: { 'content-type': 'application/json' },
         });
@@ -179,7 +185,7 @@ test('lost response reuses mutation identity, durable assets and commits one rev
         revision: serverRevision,
       });
       if (draftAttempts === 1) throw new TypeError('lost response after commit');
-      return new Response(JSON.stringify({ status: 'ok', revision: serverRevision }), {
+      return new globalThis.Response(JSON.stringify({ status: 'ok', revision: serverRevision }), {
         status: 200,
         headers: { 'content-type': 'application/json' },
       });
@@ -231,7 +237,7 @@ test('project revision conflict is explicit and never mutates confirmed revision
   const create = loadStorage(
     async (url, init) => {
       calls.push({ url: String(url), init });
-      return new Response(
+      return new globalThis.Response(
         JSON.stringify({
           error: { code: 'project_revision_conflict', message: 'conflict' },
         }),
