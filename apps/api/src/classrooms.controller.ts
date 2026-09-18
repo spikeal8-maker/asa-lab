@@ -264,6 +264,16 @@ function generateStudentCode(): string {
   return code;
 }
 
+const BATCH_STUDENT_INPUT_KEYS = new Set(['displayLabel', 'safeMode']);
+
+function batchStudentInputHasUnsupportedKeys(students: unknown[]): boolean {
+  return students.some(
+    (student) =>
+      isPlainObject(student) &&
+      Object.keys(student).some((key) => !BATCH_STUDENT_INPUT_KEYS.has(key)),
+  );
+}
+
 @Controller('api/classrooms')
 export class ClassroomsController {
   constructor(
@@ -720,31 +730,21 @@ export class ClassroomsController {
   ) {
     const context = await this.requireEducator(request);
     this.requireUuid(classroomId, 'classroom');
-    const shape = checkBodyShape(rawBody, ['displayLabel', 'loginHandle', 'safeMode']);
+    const shape = checkBodyShape(rawBody, ['displayLabel', 'safeMode']);
     const displayLabel = shape.ok ? shape.body['displayLabel'] : null;
-    const requestedHandle = shape.ok ? shape.body['loginHandle'] : undefined;
     const safeMode = shape.ok ? (shape.body['safeMode'] ?? true) : null;
-    const requestedCode =
-      typeof requestedHandle === 'string' && requestedHandle.trim() ? requestedHandle.trim() : null;
     if (
       !shape.ok ||
       typeof displayLabel !== 'string' ||
       displayLabel.trim().length < 1 ||
       displayLabel.trim().length > 120 ||
-      (requestedCode !== null && !STUDENT_CODE_PATTERN.test(requestedCode)) ||
       typeof safeMode !== 'boolean'
     ) {
-      throw new HttpException(
-        error(
-          'validation_error',
-          'Проверьте имя ученика и код ученика из 4–10 латинских букв или цифр.',
-        ),
-        400,
-      );
+      throw new HttpException(error('validation_error', 'Проверьте имя и настройки ученика.'), 400);
     }
 
     for (let attempt = 0; attempt < 12; attempt += 1) {
-      const studentCode = requestedCode ?? generateStudentCode();
+      const studentCode = generateStudentCode();
       const client = await this.requirePool().connect();
       try {
         await client.query('BEGIN');
@@ -769,10 +769,10 @@ export class ClassroomsController {
         await client.query('ROLLBACK');
         const message = failure instanceof Error ? failure.message : '';
         if (message.includes('unique') || message.includes('duplicate')) {
-          if (requestedCode === null && attempt < 11) continue;
+          if (attempt < 11) continue;
           throw new HttpException(
-            error('student_code_taken', 'Этот код ученика уже используется в классе.'),
-            409,
+            error('student_code_unavailable', 'Не удалось подобрать код ученика.'),
+            503,
           );
         }
         if (message.includes('unavailable')) {
@@ -797,19 +797,40 @@ export class ClassroomsController {
   ) {
     const context = await this.requireEducator(request);
     this.requireUuid(classroomId, 'classroom');
-    const shape = checkBodyShape(rawBody, ['students']);
+    const shape = checkBodyShape(rawBody, ['students', 'requestId']);
     const students = shape.ok ? shape.body['students'] : null;
-    if (!Array.isArray(students) || students.length < 1 || students.length > 100) {
-      throw new HttpException(error('validation_error', 'Добавьте от 1 до 100 учеников.'), 400);
+    const requestId = shape.ok ? shape.body['requestId'] : null;
+    if (
+      !Array.isArray(students) ||
+      students.length < 1 ||
+      students.length > 100 ||
+      batchStudentInputHasUnsupportedKeys(students) ||
+      typeof requestId !== 'string' ||
+      !UUID_PATTERN.test(requestId)
+    ) {
+      throw new HttpException(
+        error('validation_error', 'Добавьте от 1 до 100 учеников и корректный requestId.'),
+        400,
+      );
     }
     try {
       const rows = (
         await this.requirePool().query(
-          `SELECT row_index,display_label,login_handle,safe_mode,row_status,reason_code
-             FROM classroom_student_seat_batch_preview($1,$2,$3::jsonb)`,
-          [context.accountId, classroomId, JSON.stringify(students)],
+          `SELECT result_code,reused,row_index,display_label,login_handle,safe_mode,row_status,reason_code
+             FROM classroom_student_seat_batch_prepare_v2($1,$2,$3,$4::jsonb)`,
+          [context.accountId, classroomId, requestId, JSON.stringify(students)],
         )
       ).rows;
+      const code = rows[0]?.result_code as string | undefined;
+      if (code === 'request_conflict') {
+        throw new HttpException(
+          error('idempotency_conflict', 'Этот requestId уже использован для другого списка.'),
+          409,
+        );
+      }
+      if (code !== 'ok') {
+        throw new HttpException(error('validation_error', 'Не удалось подготовить список.'), 400);
+      }
       return {
         results: rows.map((row) => ({
           index: Number(row.row_index),
@@ -845,6 +866,7 @@ export class ClassroomsController {
       !Array.isArray(students) ||
       students.length < 1 ||
       students.length > 100 ||
+      batchStudentInputHasUnsupportedKeys(students) ||
       typeof requestId !== 'string' ||
       !UUID_PATTERN.test(requestId)
     ) {
@@ -935,21 +957,25 @@ export class ClassroomsController {
         400,
       );
     }
-    for (let attempt = 0; attempt < 12; attempt += 1) {
-      const studentCode = explicitCode ?? generateStudentCode();
-      const result = await this.requirePool().query(
-        'SELECT result_code,code_version,reused FROM classroom_student_code_set($1,$2,$3,$4,$5)',
-        [context.accountId, classroomId, seatId, studentCode, requestId],
-      );
+    try {
+      const result =
+        explicitCode === null
+          ? await this.requirePool().query(
+              'SELECT result_code,student_code,code_version,reused FROM classroom_student_code_generate($1,$2,$3,$4)',
+              [context.accountId, classroomId, seatId, requestId],
+            )
+          : await this.requirePool().query(
+              'SELECT result_code,code_version,reused FROM classroom_student_code_set($1,$2,$3,$4,$5)',
+              [context.accountId, classroomId, seatId, explicitCode, requestId],
+            );
       const row = result.rows[0];
       if (row?.result_code === 'ok') {
         return {
-          studentCode,
+          studentCode: explicitCode ?? String(row.student_code),
           version: Number(row.code_version),
           reused: row.reused === true,
         };
       }
-      if (row?.result_code === 'code_in_use' && explicitCode === null && attempt < 11) continue;
       if (row?.result_code === 'code_in_use') {
         throw new HttpException(
           error('student_code_taken', 'Этот код уже используется в классе.'),
@@ -958,7 +984,7 @@ export class ClassroomsController {
       }
       if (row?.result_code === 'request_conflict') {
         throw new HttpException(
-          error('idempotency_conflict', 'Этот requestId уже использован.'),
+          error('idempotency_conflict', 'Этот requestId уже использован для другой операции.'),
           409,
         );
       }
@@ -969,11 +995,16 @@ export class ClassroomsController {
         error('student_code_failed', 'Не удалось изменить код ученика.'),
         409,
       );
+    } catch (failure) {
+      if (failure instanceof HttpException) throw failure;
+      if (failure instanceof Error && failure.message.includes('generation exhausted')) {
+        throw new HttpException(
+          error('student_code_unavailable', 'Не удалось подобрать новый код.'),
+          503,
+        );
+      }
+      throw failure;
     }
-    throw new HttpException(
-      error('student_code_unavailable', 'Не удалось подобрать новый код.'),
-      503,
-    );
   }
 
   /** Legacy long-key endpoint. Kept temporarily for old clients during migration. */

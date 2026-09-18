@@ -140,27 +140,35 @@ describe('Result A: real Account and independent Classroom API', () => {
     ]);
 
     const autoPattern = /^[2346789ACDEFGHJKMNPQRTUVWXYacdefghjkmnpqrtuvwxy]{6}$/;
-    const add = async (name: string, studentCode?: string) => {
+    const add = async (name: string) => {
       const response = await inject(app, {
         method: 'POST',
         url: `/api/classrooms/${classId}/seats`,
         headers: { cookie: teacher.cookie },
-        payload: {
-          displayLabel: name,
-          ...(studentCode ? { loginHandle: studentCode } : {}),
-          safeMode: true,
-        },
+        payload: { displayLabel: name, safeMode: true },
       });
       expect(response.statusCode, response.body).toBe(201);
       const student = response.json().student as { id: string; studentCode: string };
-      if (studentCode) expect(student.studentCode).toBe(studentCode);
-      else expect(student.studentCode).toMatch(autoPattern);
+      expect(student.studentCode).toMatch(autoPattern);
       return student;
     };
     const first = await add('Одинаковое имя');
     const second = await add('Одинаковое имя');
     expect(first.studentCode).not.toBe(second.studentCode);
     const originalFirstCode = first.studentCode;
+
+    for (const forbiddenPayload of [
+      { displayLabel: 'Explicit login handle', loginHandle: 'Ab7k', safeMode: true },
+      { displayLabel: 'Explicit student code', studentCode: 'Ab7k', safeMode: true },
+    ]) {
+      const rejected = await inject(app, {
+        method: 'POST',
+        url: `/api/classrooms/${classId}/seats`,
+        headers: { cookie: teacher.cookie },
+        payload: forbiddenPayload,
+      });
+      expect(rejected.statusCode, rejected.body).toBe(400);
+    }
 
     const signIn = (studentCode?: string) =>
       inject(app, {
@@ -208,6 +216,62 @@ describe('Result A: real Account and independent Classroom API', () => {
       payload: { studentCode: 'QRT234', requestId: crypto.randomUUID() },
     });
     expect([403, 404]).toContain(deniedRotation.statusCode);
+
+    const generatedSeat = await add('Generated replay');
+    const generatedRequestId = crypto.randomUUID();
+    const generated = await inject(app, {
+      method: 'POST',
+      url: `/api/classrooms/${classId}/seats/${generatedSeat.id}/code`,
+      headers: { cookie: teacher.cookie },
+      payload: { requestId: generatedRequestId },
+    });
+    expect(generated.statusCode, generated.body).toBe(201);
+    const generatedResult = generated.json() as {
+      studentCode: string;
+      version: number;
+      reused: boolean;
+    };
+    expect(generatedResult.studentCode).toMatch(autoPattern);
+    expect(generatedResult).toMatchObject({ version: 2, reused: false });
+
+    const generatedDefinition = await admin.query(
+      `SELECT pg_get_functiondef('public.classroom_student_code_generate(uuid,uuid,uuid,uuid)'::regprocedure) AS definition`,
+    );
+    expect(generatedDefinition.rows[0]?.definition).toContain('classroom_student_code_random');
+    expect(generatedDefinition.rows[0]?.definition).not.toContain(
+      'classroom_student_code_candidate',
+    );
+    expect(generatedDefinition.rows[0]?.definition).not.toContain('p_request::text');
+
+    const generatedVersion = await admin.query(
+      'SELECT version FROM classroom_seat_credentials WHERE seat_id=$1',
+      [generatedSeat.id],
+    );
+    expect(Number(generatedVersion.rows[0]?.version)).toBe(generatedResult.version);
+
+    const generatedRetry = await inject(app, {
+      method: 'POST',
+      url: `/api/classrooms/${classId}/seats/${generatedSeat.id}/code`,
+      headers: { cookie: teacher.cookie },
+      payload: { requestId: generatedRequestId },
+    });
+    expect(generatedRetry.statusCode, generatedRetry.body).toBe(201);
+    expect(generatedRetry.json()).toEqual({ ...generatedResult, reused: true });
+
+    const versionAfterRetry = await admin.query(
+      'SELECT version FROM classroom_seat_credentials WHERE seat_id=$1',
+      [generatedSeat.id],
+    );
+    expect(Number(versionAfterRetry.rows[0]?.version)).toBe(generatedResult.version);
+
+    const generatedSemanticConflict = await inject(app, {
+      method: 'POST',
+      url: `/api/classrooms/${classId}/seats/${generatedSeat.id}/code`,
+      headers: { cookie: teacher.cookie },
+      payload: { studentCode: 'QRT234', requestId: generatedRequestId },
+    });
+    expect(generatedSemanticConflict.statusCode, generatedSemanticConflict.body).toBe(409);
+    expect(generatedSemanticConflict.body).toContain('idempotency_conflict');
 
     const requestId = crypto.randomUUID();
     const rotated = await inject(app, {
@@ -389,7 +453,7 @@ describe('Result A: real Account and independent Classroom API', () => {
     }
   });
 
-  it('previews and commits StudentSeat batches idempotently with reusable short codes', async () => {
+  it('previews, reserves and commits StudentSeat batches idempotently with the exact shown codes', async () => {
     const teacher = await account();
     await teach(teacher.cookie);
     const classId = await classroom(teacher.cookie);
@@ -402,73 +466,52 @@ describe('Result A: real Account and independent Classroom API', () => {
     const code = classroomView.json().classroom.joinCode as string;
     expect(code).toBeTruthy();
 
-    const addExisting = async (displayLabel: string, studentCode: string) => {
-      const response = await inject(app, {
-        method: 'POST',
-        url: `/api/classrooms/${classId}/seats`,
-        headers: { cookie: teacher.cookie },
-        payload: { displayLabel, loginHandle: studentCode, safeMode: true },
-      });
-      expect(response.statusCode, response.body).toBe(201);
-    };
-    await addExisting('Taken Person', 'acd234');
-    await addExisting('Existing Same', 'efg678');
-
+    const autoPattern = /^[2346789ACDEFGHJKMNPQRTUVWXYacdefghjkmnpqrtuvwxy]{6}$/;
     const students = [
-      { displayLabel: 'Fresh Learner', safeMode: true },
-      { displayLabel: 'Twin One', loginHandle: 'hjk234', safeMode: true },
-      { displayLabel: 'Twin Two', loginHandle: 'hjk234', safeMode: true },
-      { displayLabel: 'Different Person', loginHandle: 'acd234', safeMode: true },
-      { displayLabel: 'Existing Same', loginHandle: 'efg678', safeMode: true },
-      { displayLabel: '', loginHandle: 'mnp234', safeMode: true },
+      { displayLabel: 'Fresh Learner One', safeMode: true },
+      { displayLabel: 'Fresh Learner Two', safeMode: true },
     ];
+    const requestId = crypto.randomUUID();
+
     const preview = await inject(app, {
       method: 'POST',
       url: `/api/classrooms/${classId}/seats/batch/preview`,
       headers: { cookie: teacher.cookie },
-      payload: { students },
+      payload: { students, requestId },
     });
     expect(preview.statusCode, preview.body).toBe(201);
     const previewRows = preview.json().results as Array<{
       status: string;
-      studentCode: string | null;
+      studentCode: string;
     }>;
-    expect(previewRows.map((row) => row.status)).toEqual([
-      'valid',
-      'valid',
-      'duplicate',
-      'conflict',
-      'duplicate',
-      'invalid',
-    ]);
-    expect(previewRows[0]?.studentCode).toMatch(
-      /^[2346789ACDEFGHJKMNPQRTUVWXYacdefghjkmnpqrtuvwxy]{6}$/,
-    );
-    const secondPreview = await inject(app, {
+    expect(previewRows).toHaveLength(2);
+    expect(previewRows.every((row) => row.status === 'valid')).toBe(true);
+    expect(previewRows[0]?.studentCode).toMatch(autoPattern);
+    expect(previewRows[1]?.studentCode).toMatch(autoPattern);
+    expect(previewRows[0]?.studentCode).not.toBe(previewRows[1]?.studentCode);
+    const previewCodes = previewRows.map((row) => row.studentCode);
+
+    const previewRetry = await inject(app, {
       method: 'POST',
       url: `/api/classrooms/${classId}/seats/batch/preview`,
       headers: { cookie: teacher.cookie },
-      payload: { students },
+      payload: { students, requestId },
     });
-    expect(secondPreview.statusCode, secondPreview.body).toBe(201);
-    expect(secondPreview.json().results[0].studentCode).not.toBe(previewRows[0]?.studentCode);
+    expect(previewRetry.statusCode, previewRetry.body).toBe(201);
+    expect(
+      previewRetry.json().results.map((row: { studentCode: string }) => row.studentCode),
+    ).toEqual(previewCodes);
 
     const generatorDefinition = await admin.query(
       `SELECT pg_get_functiondef('public.classroom_student_code_random()'::regprocedure) AS definition`,
     );
     expect(generatorDefinition.rows[0]?.definition).toContain('gen_random_uuid');
-    const batchDefinition = await admin.query(
-      `SELECT pg_get_functiondef('public.classroom_student_seat_batch_preview(uuid,uuid,jsonb)'::regprocedure) AS definition`,
+    const prepareDefinition = await admin.query(
+      `SELECT pg_get_functiondef('public.classroom_student_seat_batch_prepare_v2(uuid,uuid,uuid,jsonb)'::regprocedure) AS definition`,
     );
-    expect(batchDefinition.rows[0]?.definition).toContain('classroom_student_code_random');
-    expect(batchDefinition.rows[0]?.definition).not.toContain('p_classroom::text');
-    expect(batchDefinition.rows[0]?.definition).not.toContain('v_index::text');
-    expect(batchDefinition.rows[0]?.definition).not.toContain('classroom_student_code_candidate');
-    expect(batchDefinition.rows[0]?.definition).toContain(
-      'v_handle:=public.classroom_student_code_random()',
-    );
-
-    const requestId = crypto.randomUUID();
+    expect(prepareDefinition.rows[0]?.definition).toContain('classroom_student_code_random');
+    expect(prepareDefinition.rows[0]?.definition).not.toContain('classroom_student_code_candidate');
+    expect(prepareDefinition.rows[0]?.definition).not.toContain('v_index::text');
     const committed = await inject(app, {
       method: 'POST',
       url: `/api/classrooms/${classId}/seats/batch`,
@@ -483,30 +526,16 @@ describe('Result A: real Account and independent Classroom API', () => {
       created: 2,
       credentialsAvailable: false,
     });
+    expect(result.results.map((row: { studentCode: string }) => row.studentCode)).toEqual(
+      previewCodes,
+    );
     const created = result.results.filter((row: { status: string }) => row.status === 'created');
     expect(created).toHaveLength(2);
     for (const row of created) {
-      expect(row.studentCode).toMatch(/^[2346789ACDEFGHJKMNPQRTUVWXYacdefghjkmnpqrtuvwxy]{6}$/);
+      expect(row.studentCode).toMatch(autoPattern);
       expect(row.credential).toBeNull();
       expect(row.credentialVersion).toBe(1);
       expect(row.seatId).toMatch(/^[0-9a-f-]{36}$/i);
-    }
-
-    const first = created[0];
-    const signedIn = await inject(app, {
-      method: 'POST',
-      url: '/api/class-join/studentseat',
-      payload: { code, studentCode: first.studentCode },
-    });
-    expect(signedIn.statusCode, signedIn.body).toBe(200);
-
-    const audit = await admin.query(
-      `SELECT payload_json FROM audit_events
-        WHERE entity_id=$1 AND action='classroom.student_seat_batch_committed'`,
-      [classId],
-    );
-    for (const row of created) {
-      expect(JSON.stringify(audit.rows)).not.toContain(row.studentCode);
     }
 
     const retry = await inject(app, {
@@ -522,22 +551,107 @@ describe('Result A: real Account and independent Classroom API', () => {
       created: 2,
       credentialsAvailable: false,
     });
-    expect(
-      retry.json().results.map((row: { studentCode: string | null }) => row.studentCode),
-    ).toEqual(result.results.map((row: { studentCode: string | null }) => row.studentCode));
-    expect(
-      retry.json().results.every((row: { credential: string | null }) => row.credential === null),
-    ).toBe(true);
+    expect(retry.json().results.map((row: { studentCode: string }) => row.studentCode)).toEqual(
+      previewCodes,
+    );
 
-    const conflict = await inject(app, {
+    const payloadConflict = await inject(app, {
       method: 'POST',
       url: `/api/classrooms/${classId}/seats/batch`,
       headers: { cookie: teacher.cookie },
       payload: { students: [{ ...students[0], safeMode: false }], requestId },
     });
-    expect(conflict.statusCode, conflict.body).toBe(409);
-    expect(conflict.body).toContain('idempotency_conflict');
+    expect(payloadConflict.statusCode, payloadConflict.body).toBe(409);
+    expect(payloadConflict.body).toContain('idempotency_conflict');
 
+    const signedIn = await inject(app, {
+      method: 'POST',
+      url: '/api/class-join/studentseat',
+      payload: { code, studentCode: previewCodes[0] },
+    });
+    expect(signedIn.statusCode, signedIn.body).toBe(200);
+
+    const audit = await admin.query(
+      `SELECT payload_json FROM audit_events
+        WHERE entity_id=$1 AND action='classroom.student_seat_batch_committed'`,
+      [classId],
+    );
+    for (const studentCode of previewCodes) {
+      expect(JSON.stringify(audit.rows)).not.toContain(studentCode);
+    }
+    const collisionRequestId = crypto.randomUUID();
+    const collisionStudents = [{ displayLabel: 'Collision target', safeMode: true }];
+    const collisionPreview = await inject(app, {
+      method: 'POST',
+      url: `/api/classrooms/${classId}/seats/batch/preview`,
+      headers: { cookie: teacher.cookie },
+      payload: { students: collisionStudents, requestId: collisionRequestId },
+    });
+    expect(collisionPreview.statusCode, collisionPreview.body).toBe(201);
+    const reservedCode = collisionPreview.json().results[0].studentCode as string;
+    expect(reservedCode).toMatch(autoPattern);
+
+    const blocker = await inject(app, {
+      method: 'POST',
+      url: `/api/classrooms/${classId}/seats`,
+      headers: { cookie: teacher.cookie },
+      payload: { displayLabel: 'Collision blocker', safeMode: true },
+    });
+    expect(blocker.statusCode, blocker.body).toBe(201);
+    const blockerId = blocker.json().student.id as string;
+    const occupyReservedCode = await inject(app, {
+      method: 'POST',
+      url: `/api/classrooms/${classId}/seats/${blockerId}/code`,
+      headers: { cookie: teacher.cookie },
+      payload: { studentCode: reservedCode, requestId: crypto.randomUUID() },
+    });
+    expect(occupyReservedCode.statusCode, occupyReservedCode.body).toBe(201);
+
+    const collisionCommit = await inject(app, {
+      method: 'POST',
+      url: `/api/classrooms/${classId}/seats/batch`,
+      headers: { cookie: teacher.cookie },
+      payload: { students: collisionStudents, requestId: collisionRequestId },
+    });
+    expect(collisionCommit.statusCode, collisionCommit.body).toBe(201);
+    expect(collisionCommit.json()).toMatchObject({ created: 0, reused: false });
+    expect(collisionCommit.json().results[0]).toMatchObject({
+      status: 'conflict',
+      studentCode: reservedCode,
+    });
+
+    const collisionRetry = await inject(app, {
+      method: 'POST',
+      url: `/api/classrooms/${classId}/seats/batch`,
+      headers: { cookie: teacher.cookie },
+      payload: { students: collisionStudents, requestId: collisionRequestId },
+    });
+    expect(collisionRetry.statusCode, collisionRetry.body).toBe(201);
+    expect(collisionRetry.json().results[0]).toMatchObject({
+      status: 'conflict',
+      studentCode: reservedCode,
+    });
+
+    for (const forbiddenStudent of [
+      { displayLabel: 'Injected handle', loginHandle: 'Ab7k', safeMode: true },
+      { displayLabel: 'Injected code', studentCode: 'Ab7k', safeMode: true },
+    ]) {
+      for (const url of [
+        `/api/classrooms/${classId}/seats/batch/preview`,
+        `/api/classrooms/${classId}/seats/batch`,
+      ]) {
+        const rejected = await inject(app, {
+          method: 'POST',
+          url,
+          headers: { cookie: teacher.cookie },
+          payload: {
+            students: [forbiddenStudent],
+            requestId: crypto.randomUUID(),
+          },
+        });
+        expect(rejected.statusCode, rejected.body).toBe(400);
+      }
+    }
     const ordinary = await account();
     for (const url of [
       `/api/classrooms/${classId}/seats/batch/preview`,
@@ -547,9 +661,7 @@ describe('Result A: real Account and independent Classroom API', () => {
         method: 'POST',
         url,
         headers: { cookie: ordinary.cookie },
-        payload: url.endsWith('/preview')
-          ? { students }
-          : { students, requestId: crypto.randomUUID() },
+        payload: { students, requestId: crypto.randomUUID() },
       });
       expect(denied.statusCode, denied.body).toBe(403);
     }
@@ -563,6 +675,7 @@ describe('Result A: real Account and independent Classroom API', () => {
           displayLabel: `Seat ${index}`,
           safeMode: true,
         })),
+        requestId: crypto.randomUUID(),
       },
     });
     expect(tooMany.statusCode, tooMany.body).toBe(400);
@@ -572,6 +685,9 @@ describe('Result A: real Account and independent Classroom API', () => {
     ).rejects.toMatchObject({ code: '42501' });
     await expect(
       runtime.query('SELECT * FROM classroom_student_seat_batch_rows'),
+    ).rejects.toMatchObject({ code: '42501' });
+    await expect(
+      runtime.query('SELECT * FROM classroom_student_code_requests'),
     ).rejects.toMatchObject({ code: '42501' });
   });
 

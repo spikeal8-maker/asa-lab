@@ -2519,7 +2519,7 @@ paths:
         schema: { type: string, format: uuid }
     post:
       operationId: postClassroomStudentSeat
-      summary: Create an email-free StudentSeat
+      summary: Create an email-free StudentSeat with a server-generated Student Code
       requestBody:
         required: true
         content:
@@ -2527,7 +2527,7 @@ paths:
             schema: { $ref: '#/components/schemas/CreateStudentSeatRequest' }
       responses:
         '201':
-          description: StudentSeat created and its assigned handle returned
+          description: StudentSeat created and its server-generated six-character Student Code returned
   /api/classrooms/{classroomId}/seats/batch/preview:
     parameters:
       - name: classroomId
@@ -2536,7 +2536,7 @@ paths:
         schema: { type: string, format: uuid }
     post:
       operationId: previewClassroomStudentSeatsBatch
-      summary: Authoritatively preview 1 to 100 StudentSeat rows without creating seats
+      summary: Reserve and preview server-generated Student Codes for 1 to 100 StudentSeat rows
       requestBody:
         required: true
         content:
@@ -2548,8 +2548,9 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/StudentSeatBatchPreviewResponse' }
-        '400': { description: Invalid batch size or shape }
+        '400': { description: Invalid batch size, shape or requestId }
         '403': { description: Classroom roster management is not allowed }
+        '409': { description: requestId was already used with different payload or scope }
   /api/classrooms/{classroomId}/seats/batch:
     parameters:
       - name: classroomId
@@ -5474,11 +5475,6 @@ components:
       required: [displayLabel, safeMode]
       properties:
         displayLabel: { type: string, minLength: 1, maxLength: 120 }
-        loginHandle:
-          type: string
-          pattern: '^[A-Za-z0-9]{4,10}$'
-          deprecated: true
-          description: Compatibility alias for an explicit case-sensitive Student Code; omit to let the server generate a safe six-character code.
         safeMode: { type: boolean }
     StudentSeatBatchInput:
       type: object
@@ -5486,22 +5482,18 @@ components:
       required: [displayLabel]
       properties:
         displayLabel: { type: string, minLength: 1, maxLength: 120 }
-        loginHandle:
-          type: string
-          pattern: '^[A-Za-z0-9]{4,10}$'
-          deprecated: true
-          description: Compatibility alias for an explicit case-sensitive Student Code; omit for a server-generated safe six-character code.
         safeMode: { type: boolean, default: true }
     StudentSeatBatchPreviewRequest:
       type: object
       additionalProperties: false
-      required: [students]
+      required: [students, requestId]
       properties:
         students:
           type: array
           minItems: 1
           maxItems: 100
           items: { $ref: '#/components/schemas/StudentSeatBatchInput' }
+        requestId: { type: string, format: uuid }
     StudentSeatBatchPreviewRow:
       type: object
       additionalProperties: false
@@ -5511,7 +5503,7 @@ components:
         displayLabel: { type: [string, 'null'] }
         studentCode:
           type: [string, 'null']
-          pattern: '^[A-Za-z0-9]{4,10}$'
+          pattern: '^[2346789ACDEFGHJKMNPQRTUVWXYacdefghjkmnpqrtuvwxy]{6}$'
         loginHandle:
           type: [string, 'null']
           deprecated: true
@@ -5565,7 +5557,7 @@ components:
         displayLabel: { type: [string, 'null'] }
         studentCode:
           type: [string, 'null']
-          pattern: '^[A-Za-z0-9]{4,10}$'
+          pattern: '^[2346789ACDEFGHJKMNPQRTUVWXYacdefghjkmnpqrtuvwxy]{6}$'
         loginHandle:
           type: [string, 'null']
           deprecated: true
