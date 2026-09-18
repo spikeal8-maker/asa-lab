@@ -222,7 +222,7 @@ Classroom memberships optional
 
 ```text
 class code
-six-character Student Code
+Student Code (automatic default: six characters; current value may be 4..10 after authorized exact-class staff rotation)
 no separate login handle / long secret
 no email required
 no public profile
@@ -273,7 +273,7 @@ universal sign-in
 
 ### Ветвь StudentSeat
 
-Class Code → индивидуальный шестисимвольный Student Code → scoped session → собственное обучение. Никакого отдельного login handle + secret, email или видимой CAPTCHA. RNG, массовый вход 30 учеников с одного адреса, repeated readback/print и ротация определяются Access 2.2 §9 и Integrated V1.5 §4.6. Teacher-approved login — отдельно выбираемый будущий preset, не обязательный шаг базового входа.
+Class Code → индивидуальный Student Code → scoped session → собственное обучение. Автоматически созданный код по умолчанию имеет 6 символов из mixed-case safe alphabet; текущий код после разрешённой staff-ротации может иметь 4–10 символов `A–Z`, `a–z`, `0–9`. Регистр значим. Никакого отдельного login handle + secret, email или видимой CAPTCHA. RNG, массовый вход 30 учеников с одного адреса, repeated readback/print и ротация определяются Access 2.2 §9 и Integrated V1.5 §4.6. Teacher-approved login — отдельно выбираемый будущий preset, не обязательный шаг базового входа.
 
 Имя ребёнка не credential. Ошибка не раскрывает существование конкретного Seat. Login не создаёт Attempt и не активирует все Participation. Смена credential не выводит ребёнка из обучения и не переписывает его историю.
 
@@ -455,7 +455,7 @@ tenant/RLS или создание фиктивной публичной шко�
 A. adult visitor → sign-up route
 B. existing creator → universal sign-in
 C. existing educator → same universal sign-in → Classes visible from server grant
-D. student with class code → class preview → six-character Student Code login (Access 2.2 §9)
+D. student with class code → class preview → current case-sensitive Student Code login; automatic default is six characters (Access 2.2 §9)
 E. registered student → same universal sign-in → confirmed learner join from code route
 F. underage sign-up → student-account/class-code options
 G. legacy organization account → separate compatibility link

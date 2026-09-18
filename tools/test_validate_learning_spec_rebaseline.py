@@ -53,6 +53,30 @@ class LearningSpecGateTests(unittest.TestCase):
             row["implementation_contract"]["old_api_concurrent_with_backfill"] = True
         self.assertRejected(changed_yaml(LEDGER, corrupt), "protected storage contract drift")
 
+    def test_rejects_student_code_case_insensitive_contract(self):
+        def corrupt(doc):
+            row = next(r for r in doc["requirements"] if r["id"] == "E1-FIX-02")
+            row["implementation_contract"]["code_case_sensitive"] = False
+        self.assertRejected(changed_yaml(LEDGER, corrupt), "protected storage contract drift: code_case_sensitive")
+
+    def test_rejects_student_code_fixed_manual_six_contract(self):
+        def corrupt(doc):
+            row = next(r for r in doc["requirements"] if r["id"] == "E1-FIX-02")
+            row["implementation_contract"]["manual_code_pattern"] = "^[A-Z0-9]{6}$"
+        self.assertRejected(changed_yaml(LEDGER, corrupt), "protected storage contract drift: manual_code_pattern")
+
+    def test_rejects_student_code_owner_only_contract(self):
+        def corrupt(doc):
+            row = next(r for r in doc["requirements"] if r["id"] == "E1-FIX-02")
+            row["implementation_contract"]["e1_permission_mapping"] = "active_class_owner_only"
+        self.assertRejected(changed_yaml(LEDGER, corrupt), "protected storage contract drift: e1_permission_mapping")
+
+    def test_rejects_temporary_substitute_without_expiry_revoke_contract(self):
+        def corrupt(doc):
+            row = next(r for r in doc["requirements"] if r["id"] == "E1-FIX-02")
+            row["implementation_contract"]["temporary_substitute_access"] = "unbounded"
+        self.assertRejected(changed_yaml(LEDGER, corrupt), "protected storage contract drift: temporary_substitute_access")
+
     def test_rejects_class_code_secret_fallback(self):
         def corrupt(doc):
             row = next(r for r in doc["requirements"] if r["id"] == "E1-FIX-12")

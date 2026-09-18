@@ -252,7 +252,7 @@ In-app события E1: назначение/условия, сдача на �
 | ID | Исправляемый результат | Обязательная опровергающая проверка |
 | --- | --- | --- |
 | E1-FIX-01 | Вход полного класса без общей блокировки | 30 клиентов/один IP: sequential resolve+login и all-resolve-then-login; отдельно QR, опечатки, rate-limit attack/recovery |
-| E1-FIX-02 | Непредсказуемый короткий credential и защищённый повторный readback | Аудит RNG/entropy source; same-name/different request не предсказывает код; replay стабилен; foreign/read-only staff denied; controlled upgrade+rotation сохраняют историю |
+| E1-FIX-02 | Case-sensitive Student Code: автоматический CSPRNG-код 6 символов из mixed-case safe alphabet; staff exact класса может заменить на `[A-Za-z0-9]{4,10}`; временный class-staff доступ имеет expiry/revoke | RNG/entropy source; single/batch parity; confusing symbols absent in auto codes; case-sensitive lookup/uniqueness; owner+co-teacher exact-class allow; org staff без class scope deny; temporary substitute allow only inside active window; rotation preserves learner/history |
 | E1-FIX-03 | Домен карточки и настоящий QR | Декодировать изображение QR независимым decoder; origin `https://asa-lab.ru`, актуальный class code, отсутствие Student Code; не заменять проверяемый origin на localhost |
 | E1-FIX-04 | Безопасный dirty editor | Parent tabs/menu/route/reload; Save/Discard/Cancel; Save A → type B → delayed ack A оставляет B dirty; ошибка не уничтожает ввод |
 | E1-FIX-05 | Идемпотентная публикация | Успех на сервере + потеря ответа + exact retry после роста revision возвращает ту же version; иной payload конфликтует |

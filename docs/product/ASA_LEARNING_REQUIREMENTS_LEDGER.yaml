@@ -321,7 +321,7 @@ requirements:
   milestone: E1
   status: in_progress
   priority: P1
-  summary: Cryptographically random codes, authorized protected readback and controlled legacy rotation
+  summary: Case-sensitive Student Codes, random six-character defaults, 4..10 staff replacements, exact-class staff authority and controlled legacy rotation
   normative_ref: PRODUCT-INTEGRATED-V15 §4.16
   source_paths:
   - migrations/0142_student_seat_short_codes.sql
@@ -355,14 +355,21 @@ requirements:
   - PERMISSION-REVOKED-BEFORE-REPLAY
   - AAD-SEAT-VERSION-SWAP-TAMPER
   - LOOKUP-KEY-DUAL-READ-ROTATION
-  - MANUAL-WEAK-CODE-REJECT
+  - MANUAL-CODE-4-TO-10-ALNUM-CASE-SENSITIVE
   - KEYRING-MISSING-READINESS-FAIL
   - BACKFILL-INTERRUPT-RESUME
   - BACKFILL-NO-SECRETS-IN-LOGS
   - BACKFILL-ZERO-UNMIGRATED-COVERAGE
   - OLD-APP-ROLLBACK-BEFORE-PLAINTEXT-CLEANUP
   - OWNER-CREDENTIAL-MANAGER-ALLOW
-  - CO-TEACHER-CREDENTIAL-DENY
+  - AUTO-CODE-SAFE-MIXED-CASE-ALPHABET
+  - AUTO-CODE-DEFAULT-LENGTH-6
+  - CASE-SENSITIVE-LOOKUP-AND-UNIQUENESS
+  - CO-TEACHER-EXACT-CLASS-CREDENTIAL-ALLOW
+  - ORG-STAFF-EXACT-CLASS-CREDENTIAL-ALLOW
+  - ORG-STAFF-WITHOUT-CLASS-SCOPE-DENY
+  - TEMPORARY-SUBSTITUTE-IN-WINDOW-ALLOW
+  - TEMPORARY-SUBSTITUTE-EXPIRED-OR-REVOKED-DENY
   - COMPAT-DUAL-WRITE-NO-UNPROTECTED-RACE
   - LEGACY-PREDICTABLE-ZERO-BEFORE-INSTALLED-ACCEPTANCE
   implementation_contract:
@@ -380,7 +387,11 @@ requirements:
     encryption_key_bytes: 32
     lookup_key_min_bytes: 32
     lookup_key_rotation: dual_read_then_rehash_then_retire
-    manual_min_distinct_symbols: 4
+    generated_code_length: 6
+    generated_code_alphabet: 2346789ACDEFGHJKMNPQRTUVWXYacdefghjkmnpqrtuvwxy
+    generated_code_requires_all_character_classes: false
+    manual_code_pattern: '^[A-Za-z0-9]{4,10}$'
+    code_case_sensitive: true
     migration: migrations/0146_student_seat_protected_codes.sql
     backfill_tool: tools/student-seat-protected-code-backfill.mjs
     keyring_env:
@@ -390,9 +401,10 @@ requirements:
     - ASA_STUDENT_CODE_LOOKUP_ACTIVE_KEY_ID
     sql_contains_key_material: false
     schema_apply_rotates_student_codes: false
-    e1_permission_mapping: active_class_owner_only
-    credential_manager_guard: classroom_credential_manager_access
-    co_teacher_credential_delegation_stage: E4
+    e1_permission_mapping: active_exact_class_staff_scope
+    existing_owner_and_co_teacher_access_preserved: true
+    organization_role_requires_exact_class_scope: true
+    temporary_substitute_access: active_window_or_explicit_revoke
     rollout_mode_initial: compat
     old_api_concurrent_with_backfill: false
     compat_new_writes_protected_and_legacy: true

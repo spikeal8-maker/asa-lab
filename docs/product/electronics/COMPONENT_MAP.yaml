@@ -12,6 +12,9 @@ rules:
   broad_search: only_if_map_stale_or_cross_cutting
   plan_skip: forbidden
   automatic_next_task: forbidden
+  arduino_requirement_ids_select_tasks: false
+  arduino_requirement_ledger: docs/product/electronics/README.md#157-реестр-требований-и-capability-пакетов-arduino
+  execution_order_source: docs/product/electronics/ASA_ELECTRONICS_OPTIMIZATION_PLAN_V2.md
   index_owns:
   - component_id
   - card_route

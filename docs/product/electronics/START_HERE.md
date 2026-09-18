@@ -5,14 +5,21 @@ do not preload that full specification or the Electronics source/test trees.
 
 ## 1. Confirm the selected task
 
-Follow root `AGENTS.md` and `START_HERE_FOR_AI.md`: fetch/check Git, run
-`pnpm agent:recover --scope electronics --check`, then
-`pnpm agent:context --scope electronics`. Classify an interrupted diff before editing.
+Follow root `AGENTS.md` and `START_HERE_FOR_AI.md`: run
+`pnpm agent:preflight --scope electronics --check` as the single normal entry.
+If preflight reports recovery, handoff, a blocker or a narrower diagnostic action, follow its
+`SAFE_ACTION`; use `agent:recover` / `agent:context` only for that diagnostic follow-up.
+Never start editing from an interrupted or unclassified diff.
 The Electronics lane in `docs/execution/current.yaml` owns the active task;
-neither this router nor roadmap readiness authorises the next task.
+neither this router nor roadmap readiness authorises the next task. `ARD-*` identifiers in
+the normative README are requirement anchors only: never infer execution order or a next task
+from their numbering.
 
 Before executable work, run `pnpm validate:electronics-agent-docs --task <selected-id>`.
 The explicit ID must match canonical `in_progress` selection and a valid concrete card.
+If the lane is `in_review` or `blocked`, implementation stops: use the declared review/blocker
+path only. A review-found code repair must be explicitly returned to an executable
+`in_progress` scope before editing production runtime.
 
 ## 2. Route one bounded concern
 

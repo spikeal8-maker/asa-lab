@@ -329,25 +329,61 @@ how existing acceptance evidence remains valid or must be rerun
 
 Then update this plan and routing before implementation resumes.
 
-## 16. Current dependency sequence after E-OPT-3C
+## 16. Current dependency shape after E-OPT-3C
 
-Accepted foundations E-OPT-0, E-OPT-1, E-OPT-2 and E-OPT-3A..3C are not repeated as future work. The next dependency sequence is:
+Accepted foundations E-OPT-0, E-OPT-1, E-OPT-2 and E-OPT-3A..3C are not repeated as
+future work. This is a dependency shape, not an execution queue: every arrow still ends at
+STOP / owner selection, and only `docs/execution/current.yaml` activates a concrete task.
 
 ```text
-mandatory hygiene checkpoint after the accepted 3A/3B/3C sequence
-→ STOP / owner selection
-→ E-OPT-3D Worker/controller canonical horizons
-→ E-OPT-3E trace/replay determinism across presentation cadence
-→ E-OPT-3F reset/pause/resume/input/stale-horizon conformance
-→ mandatory hygiene checkpoint before leaving major E-OPT-3
-→ E-OPT-4 Solver/DeviceModel hardening
-→ E-OPT-5 Arduino runtime hardening
-→ E-OPT-6 peripherals, one selected vertical slice at a time
-→ E-OPT-7 UI/assets/performance evidence as separately selected work
-→ E-OPT-8 standalone portability proof
-→ E-OPT-9 v1 hardening gate
+mandatory hygiene checkpoint after accepted 3A/3B/3C
+        |
+        v
+STOP / owner selection
+        |
+        v
+E-OPT-3D Worker/controller canonical horizons
+        |
+        v
+E-OPT-3E trace/replay determinism across presentation cadence
+        |
+        v
+E-OPT-3F reset/pause/resume/input/stale-horizon conformance
+        |
+        v
+mandatory hygiene checkpoint before leaving major E-OPT-3
+        |
+        +---------------------------+
+        |                           |
+        v                           v
+E-OPT-4 Solver/DeviceModel    E-OPT-5 Arduino runtime
+hardening                     hardening
+        |                           |
+        +-------------+-------------+
+                      |
+                      v
+E-OPT-6 peripherals, one selected vertical slice at a time
+
+Accepted E-OPT-1 + E-OPT-2 + E-OPT-3 + required E-OPT-5 contracts
+                      |
+                      v
+E-OPT-8 standalone portability proof
+
+E-OPT-7 UI/assets/maintainability is a separately selected bounded parallel lane.
+
+E-OPT-4 + selected E-OPT-6 coverage + E-OPT-7 evidence + E-OPT-8
+                      |
+                      v
+E-OPT-9 v1 hardening gate
 ```
 
-E-OPT-4 and E-OPT-5 may be decomposed into bounded slices and may only overlap where their accepted contracts permit it. Each major-stage transition is subject to the cross-cutting hygiene rule in §2.1.
+E-OPT-4 and E-OPT-5 are sibling hardening programmes, not a mandatory
+`4 → 5` serial queue. They may be decomposed into bounded slices and may overlap only where
+their accepted contracts permit it. E-OPT-6 waits for the required accepted engine/runtime
+primitives; no peripheral task is selected merely because its ARD requirement anchor exists.
 
-No sensor/peripheral work is authorized before its E-OPT-3/E-OPT-5 prerequisites are accepted.
+E-OPT-8 keeps its independent prerequisite boundary from §§2 and 11; this diagram does not make
+it wait for E-OPT-6 or E-OPT-7. E-OPT-7 may run in parallel only where §10 preserves
+engine/runtime semantics, and it never auto-activates from this diagram.
+
+Each major-stage transition remains subject to the cross-cutting hygiene rule in §2.1.

@@ -139,9 +139,12 @@ invariants:
     applies_to: [account, max_provider, student_seat, notifications]
     forbid: [max_required_for_student_seat, max_as_school_identity, max_login_implies_all_notifications]
   - id: IDA-CRED-002
-    statement: Automatically generated six-character Student Codes use cryptographic randomness, not learner names, UUIDs
-      or row indexes; idempotency replays a stored result. Explicit teacher-selected replacements use the same
-      format, uniqueness and rotation rules, without claiming that the chosen value is randomly generated.
+    statement: Automatically generated Student Codes are six characters by default, use cryptographic randomness and the
+      approved mixed-case safe alphabet without visually confusable symbols, and are not derived from learner names,
+      UUIDs or row indexes. Student Code lookup and uniqueness are case-sensitive. Authorized exact-class staff may
+      replace a code with an A-Z/a-z/0-9 value of length 4..10; automatic safe-alphabet restrictions do not apply to
+      staff-selected replacements. Rotation invalidates the previous code and active Seat sessions without changing
+      learner identity or history.
     master_refs:
     - document: IDENTITY-ACCESS-V22
       section: §9.2 / §9.4
@@ -186,7 +189,12 @@ invariants:
     - retired_code_reuse
     - stale_rotation_reactivates_code
   - id: IDA-CRED-004
-    statement: In E1, sensitive Student Code issue/readback/rotation/session-revocation authority maps only to the active exact-class owner membership through one credential-manager guard; co-teacher delegation is deferred to the explicit E4 scoped-grant model. Production Class Code secret is explicit, stable, independent from DB credentials, and protected-code rollout fences legacy writers and reaches zero active predictable legacy codes before installed acceptance.
+    statement: Student Code issue/readback/rotation/session-revocation authority follows active exact-class staff scope,
+      not a hard-coded owner-only role. Existing owner and co-teacher class memberships remain authorized. Coordinator,
+      curator, school/organization manager or administrator roles receive credential authority only when their effective
+      grant includes the exact class. A temporary substitute uses the same class-scoped staff grant with an explicit
+      validity window; expiry or revoke ends credential authority fail-closed. Production Class Code secret remains
+      explicit, stable and independent from DB credentials, and protected-code rollout fences legacy writers.
     master_refs:
     - document: IDENTITY-ACCESS-V22
       section: 'Матрица управления Student Code (TARGET E1)'
@@ -195,11 +203,17 @@ invariants:
     applies_to:
     - classroom_owner
     - classroom_co_teacher
+    - class_scoped_staff
+    - temporary_substitute_staff
+    - organization_staff
     - student_code_storage
     - class_code_secret
     - deployment_recovery
     forbid:
-    - co_teacher_implicit_credential_readback
+    - role_name_without_exact_class_scope_grants_credentials
+    - organization_membership_without_class_scope_grants_credentials
+    - expired_or_revoked_class_grant_keeps_credentials
+    - owner_only_regression_for_existing_co_teacher_access
     - database_password_as_production_class_code_secret
     - old_writer_during_protected_code_backfill
     - installed_acceptance_with_legacy_predictable_codes
