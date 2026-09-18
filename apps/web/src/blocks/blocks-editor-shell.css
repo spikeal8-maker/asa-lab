@@ -140,7 +140,9 @@
   border-radius: 0.5rem;
   background: rgb(255 255 255 / 96%);
   color: #0b3558;
-  font: 600 0.75rem/1 system-ui, sans-serif;
+  font:
+    600 0.75rem/1 system-ui,
+    sans-serif;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

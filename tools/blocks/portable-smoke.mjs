@@ -10,7 +10,10 @@ import { chromium, expect } from '@playwright/test';
 assert.equal(process.env.CI, 'true', 'portable smoke requires an isolated CI runner');
 const root = path.resolve(process.env.ASA_PORTABLE_ROOT ?? '');
 assert.ok(path.basename(root).startsWith('asa-portable-'));
-assert.ok(!fs.existsSync(path.join(root, '.git')), 'use exported tracked sources, not developer files');
+assert.ok(
+  !fs.existsSync(path.join(root, '.git')),
+  'use exported tracked sources, not developer files',
+);
 
 const values = Object.fromEntries(
   fs
@@ -323,7 +326,9 @@ async function verifyDistinctProjectState(page, frame, marker, variable) {
   ).toBeVisible();
 
   await frame.getByRole('tab', { name: 'Code', exact: true }).click();
-  await expect(frame.locator('.blocklyBlockCanvas').first().getByText('73', { exact: true })).toBeVisible();
+  await expect(
+    frame.locator('.blocklyBlockCanvas').first().getByText('73', { exact: true }),
+  ).toBeVisible();
 
   await frame.getByRole('tab', { name: 'Costumes', exact: true }).click();
   await expect(
@@ -376,10 +381,7 @@ async function assertUiRegression(page, frame) {
     assert.ok(saveBox.x + saveBox.width <= viewport.width);
     assert.ok(saveBox.y + saveBox.height <= viewport.height);
     const overlaps = (a, b) =>
-      a.x < b.x + b.width &&
-      a.x + a.width > b.x &&
-      a.y < b.y + b.height &&
-      a.y + a.height > b.y;
+      a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
     assert.equal(overlaps(saveBox, accountBox), false, 'Save must not cover account control');
     assert.equal(overlaps(saveBox, fileBox), false, 'Save must not cover native File');
     assert.equal(overlaps(saveBox, editBox), false, 'Save must not cover native Edit');
@@ -541,7 +543,9 @@ try {
   assert.ok(savedTarget, 'durable document must contain the unique sprite');
   expect(savedTarget.x).toBe(137);
   expect(
-    Object.values(savedTarget.variables).some((entry) => Array.isArray(entry) && entry[0] === variable),
+    Object.values(savedTarget.variables).some(
+      (entry) => Array.isArray(entry) && entry[0] === variable,
+    ),
   ).toBe(true);
   expect(
     Object.values(savedTarget.blocks).some(
@@ -849,7 +853,10 @@ try {
 
   phase = 'storage-failure';
   await freshEditor.frame.getByRole('tab', { name: 'Sounds', exact: true }).click();
-  await freshEditor.frame.getByRole('button', { name: 'Choose a Sound', exact: true }).first().click();
+  await freshEditor.frame
+    .getByRole('button', { name: 'Choose a Sound', exact: true })
+    .first()
+    .click();
   await freshEditor.frame.getByText('Boing', { exact: true }).click();
   await expect(freshEditor.frame.getByRole('textbox', { name: 'Sound', exact: true })).toHaveValue(
     'Boing',
@@ -914,7 +921,10 @@ try {
     },
   };
 
-  fs.writeFileSync(path.join(out, 'real-persistence.json'), JSON.stringify(accountEvidence, null, 2));
+  fs.writeFileSync(
+    path.join(out, 'real-persistence.json'),
+    JSON.stringify(accountEvidence, null, 2),
+  );
   fs.writeFileSync(path.join(out, 'media-digests.json'), JSON.stringify(mediaEvidence, null, 2));
   fs.writeFileSync(
     path.join(out, 'authorization-negative.json'),

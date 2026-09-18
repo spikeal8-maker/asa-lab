@@ -10,27 +10,6 @@ if (args.length > 1 || (args.length === 1 && !modes.has(args[0]))) {
   throw new Error('Usage: pnpm gate:blocks [--browser|--docs|--list]');
 }
 
-if (process.env.CI === 'true' && args.length === 0) {
-  const targets = [
-    'apps/web/src/blocks/blocks-editor-shell.css',
-    'apps/web/src/blocks/testing/editor-runtime-session.spec.ts',
-    'tools/blocks/portable-smoke.mjs',
-  ];
-  const formatted = spawnSync(
-    process.execPath,
-    [process.env.npm_execpath, 'exec', 'prettier', '--write', ...targets],
-    { cwd: root, stdio: 'inherit', env: { ...process.env } },
-  );
-  if (formatted.status !== 0) process.exit(formatted.status ?? 1);
-  const { readFileSync } = await import('node:fs');
-  for (const target of targets) {
-    console.log(
-      `ASA_FORMATTED_B64 ${target} ${Buffer.from(readFileSync(new URL(`../../${target}`, import.meta.url))).toString('base64')}`,
-    );
-  }
-  process.exit(86);
-}
-
 // One cumulative Scratch gate. New slices extend this list, never the root scripts.
 // Full API/Web composition and repository-wide boundaries stay in gate:repository.
 const docs = [
