@@ -314,10 +314,10 @@ describe('BlocksEditor runtime session bootstrap', () => {
       button.textContent?.includes('Сохранить в ASA'),
     );
     if (!save) throw new Error('Save control was not rendered');
-    expect(save).toBeDisabled();
+    expect(save.disabled).toBe(true);
 
     await dispatchChild({ messageType: 'ASA_BLOCKS_STATUS', status: 'editor-ready' });
-    expect(save).not.toBeDisabled();
+    expect(save.disabled).toBe(false);
 
     await act(async () => {
       save.dispatchEvent(new MouseEvent('click', { bubbles: true }));
@@ -332,7 +332,7 @@ describe('BlocksEditor runtime session bootstrap', () => {
     const firstRequest = flushCalls()[0]?.[0] as Record<string, unknown>;
     expect(firstRequest['requestId']).toMatch(/^[0-9a-f-]{36}$/i);
     expect(save.textContent).toContain('Сохранение…');
-    expect(save).toBeDisabled();
+    expect(save.disabled).toBe(true);
 
     await act(async () => {
       save.dispatchEvent(new MouseEvent('click', { bubbles: true }));
