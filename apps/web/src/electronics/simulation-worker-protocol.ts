@@ -1,6 +1,11 @@
+import type {
+  ElectronicsTimedDiagnostic,
+  ElectronicsTimedInputEvent,
+  ElectronicsTimedState,
+} from '@asa-lab/electronics/engine';
 import type { SchematicDocument, SolveResult } from '../api';
 
-export const ELECTRONICS_SIMULATION_WORKER_PROTOCOL = 1 as const;
+export const ELECTRONICS_SIMULATION_WORKER_PROTOCOL = 2 as const;
 export const ELECTRONICS_SIMULATION_ENGINE_REVISION = 'asa-electronics-solver-v21' as const;
 
 interface SimulationWorkerRequestBase {
@@ -14,14 +19,14 @@ interface SimulationWorkerRequestBase {
 export interface SimulationPreflightRequest extends SimulationWorkerRequestBase {
   readonly kind: 'preflight';
   readonly document: SchematicDocument;
-  readonly simulationTimeMs: number;
 }
 
 export interface SimulationAdvanceRequest extends SimulationWorkerRequestBase {
   readonly kind: 'advance';
   readonly document: SchematicDocument;
-  readonly previousResult: SolveResult | null;
-  readonly simulationTimeMs: number;
+  readonly state: ElectronicsTimedState;
+  readonly requestedHorizonMicroseconds: number;
+  readonly inputEvents?: readonly ElectronicsTimedInputEvent[];
 }
 
 export interface SimulationCancelRequest extends SimulationWorkerRequestBase {
@@ -31,12 +36,23 @@ export interface SimulationCancelRequest extends SimulationWorkerRequestBase {
 export type ElectronicsSimulationWorkerRequest =
   SimulationPreflightRequest | SimulationAdvanceRequest | SimulationCancelRequest;
 
+export interface SimulationTimedAdvancePayload {
+  readonly executionStatus: 'ready' | 'yielded' | 'fault';
+  readonly requestedHorizonMicroseconds: number;
+  readonly committedHorizonMicroseconds: number;
+  readonly state: ElectronicsTimedState;
+  readonly result: SolveResult | null;
+  readonly diagnostics: readonly ElectronicsTimedDiagnostic[];
+}
+
 export interface SimulationWorkerMetrics {
   readonly computeMs: number;
   readonly solverRevision: typeof ELECTRONICS_SIMULATION_ENGINE_REVISION;
-  readonly simulationInputDigest: string;
-  readonly topologySignature: string;
-  readonly status: SolveResult['status'];
+  readonly executionStatus: 'preflight' | 'ready' | 'yielded' | 'fault';
+  readonly requestedHorizonMicroseconds?: number;
+  readonly committedHorizonMicroseconds?: number;
+  readonly simulationInputDigest?: string;
+  readonly topologySignature?: string;
 }
 
 interface SimulationWorkerResponseBase {
@@ -46,12 +62,22 @@ interface SimulationWorkerResponseBase {
   readonly projectSessionId: string;
 }
 
-export type ElectronicsSimulationWorkerResponse =
+export type SimulationWorkerSuccessResponse =
   | (SimulationWorkerResponseBase & {
       readonly ok: true;
+      readonly kind: 'preflight';
       readonly result: SolveResult;
       readonly metrics: SimulationWorkerMetrics;
     })
+  | (SimulationWorkerResponseBase & {
+      readonly ok: true;
+      readonly kind: 'advance';
+      readonly advance: SimulationTimedAdvancePayload;
+      readonly metrics: SimulationWorkerMetrics;
+    });
+
+export type ElectronicsSimulationWorkerResponse =
+  | SimulationWorkerSuccessResponse
   | (SimulationWorkerResponseBase & {
       readonly ok: false;
       readonly code:

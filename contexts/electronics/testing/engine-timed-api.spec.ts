@@ -185,6 +185,79 @@ describe('Electronics canonical timed engine facade', () => {
     expect(JSON.parse(result.state.continuation!.serializedState).boards).toEqual([]);
   });
 
+  it('resumes electrothermal circuit-only state after a zero-horizon observation', () => {
+    const parsed = parseElectronicsEngineDocument({
+      schemaVersion: 4,
+      components: [
+        {
+          id: 'uno',
+          kind: 'visual',
+          value: 5,
+          position: { x: 0, y: 0 },
+          componentTypeId: 'arduino-uno',
+          pinIds: ['d13', 'power-gnd-1', 'power-5v', 'power-3v3'],
+          stateProperties: {
+            arduinoSource:
+              'void setup(){pinMode(13,OUTPUT);digitalWrite(13,HIGH);}void loop(){delay(100);}',
+          },
+        },
+        { id: 'r', kind: 'resistor', value: 330, position: { x: 100, y: 0 } },
+        {
+          id: 'rgb',
+          kind: 'rgb-led',
+          value: 2,
+          position: { x: 200, y: 0 },
+          componentTypeId: 'rgb-led',
+          pinIds: ['red', 'green', 'blue', 'common'],
+        },
+      ],
+      connections: [
+        {
+          id: 'w1',
+          from: { componentId: 'uno', terminal: 'd13' },
+          to: { componentId: 'r', terminal: 'a' },
+        },
+        {
+          id: 'w2',
+          from: { componentId: 'r', terminal: 'b' },
+          to: { componentId: 'rgb', terminal: 'red' },
+        },
+        {
+          id: 'w3',
+          from: { componentId: 'rgb', terminal: 'common' },
+          to: { componentId: 'uno', terminal: 'power-gnd-1' },
+        },
+      ],
+    });
+    if (!parsed.ok) throw new Error(parsed.message);
+
+    const atZero = advanceElectronicsToHorizon(parsed.document, {
+      requestedHorizonMicroseconds: 0,
+    });
+    expect(atZero.executionStatus).toBe('ready');
+    if (atZero.executionStatus !== 'ready') return;
+    expect(atZero.committedHorizonMicroseconds).toBe(0);
+
+    const atOne = advanceElectronicsToHorizon(parsed.document, {
+      requestedHorizonMicroseconds: 1,
+      state: atZero.state,
+    });
+    expect(atOne.executionStatus).toBe('ready');
+    if (atOne.executionStatus !== 'ready') return;
+    expect(atOne.committedHorizonMicroseconds).toBe(1);
+
+    const atQuantum = advanceElectronicsToHorizon(parsed.document, {
+      requestedHorizonMicroseconds: 1000,
+      state: atOne.state,
+    });
+    expect(atQuantum.executionStatus).toBe('ready');
+    if (atQuantum.executionStatus !== 'ready') return;
+    expect(atQuantum.committedHorizonMicroseconds).toBe(1000);
+    expect(JSON.parse(atQuantum.state.continuation!.serializedState).physicalState).toBeDefined();
+    expect(atQuantum.observation.components.find((entry) => entry.componentId === 'rgb')?.lit).toBe(
+      true,
+    );
+  });
   it('advances circuit-only RC physics through canonical barriers and resumes deterministically', () => {
     const parsed = parseElectronicsEngineDocument({
       schemaVersion: 4,

@@ -47,22 +47,9 @@ large_sources:
 
 legacy_concerns:
   - path: apps/web/src/electronics/live-simulation.ts
-    class: active-legacy-bridge
-    concern: simulationTimeMs transient advance bridge remains in the production Worker path.
-    retirement_condition: E-OPT-3D canonical Worker horizons are integrated and E-OPT-3F timing/control conformance no longer requires this provisional advance path.
-  - path: apps/web/src/electronics/live-simulation-worker-controller.ts
-    class: active-legacy-bridge
-    concern: Controller targets are still expressed as host-provided simulationTimeMs rather than canonical requested horizons.
-    retirement_condition: E-OPT-3D canonical horizon requests are integrated with direct/Worker parity and stale-horizon rejection.
-  - path: apps/web/src/electronics/simulation-worker-evaluator.ts
-    class: active-legacy-bridge
-    concern: Worker evaluator still delegates timed work to legacy calculate/advance live-simulation functions using simulationTimeMs.
-    retirement_condition: E-OPT-3D moves Worker timed evaluation to the accepted canonical timed engine facade and preserves protocol/parity evidence.
-  - path: apps/web/src/electronics/use-electronics-workbench.ts
-    class: active-legacy-bridge
-    concern: Workbench derives requested simulationTimeMs from performance.now on a 100 ms presentation interval.
-    retirement_condition: E-OPT-3D removes presentation cadence as the requested physical horizon and E-OPT-3E proves replay invariance across UI cadence.
-
+    class: compatibility-shim
+    concern: The exported advanceLiveSimulation helper is no longer used by production Worker/runtime code after E-OPT-3D; it remains referenced by legacy live-simulation unit/reference fixtures while preflight helpers in the same file remain active.
+    retirement_condition: E-OPT-3F accepts reset/pause/resume/input conformance, legacy advance fixtures are migrated to canonical timed-engine coverage, and repository search proves no production or required evidence dependency on advanceLiveSimulation.
 documentation_hotspots:
   - path: docs/product/electronics/README.md
     class: decomposition-candidate
