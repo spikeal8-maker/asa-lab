@@ -423,8 +423,6 @@ parallel_lanes:
     - tools/learning-migration-dry-run-v1.schema.json
     - tools/learning-additive-backfill.mjs
     - tests/courses/**
-    - migrations/0146_student_seat_protected_codes.sql
-    - migrations/0147_course_authoring_correctness.sql
     - tools/student-seat-protected-code-backfill.mjs
     - tests/security/student-seat-rate-limit.spec.ts
     - e2e/student-seat-access-hardening.spec.ts

@@ -392,7 +392,10 @@ requirements:
     generated_code_requires_all_character_classes: false
     manual_code_pattern: '^[A-Za-z0-9]{4,10}$'
     code_case_sensitive: true
-    migration: migrations/0146_student_seat_protected_codes.sql
+    migration_allocation:
+      timing: fresh_main_immediately_before_implementation
+      rule: next_free_version_greater_than_every_published_migration
+      preallocated_version: forbidden
     backfill_tool: tools/student-seat-protected-code-backfill.mjs
     keyring_env:
     - ASA_STUDENT_CODE_ENCRYPTION_KEYS_JSON
@@ -710,7 +713,7 @@ requirements:
   - STUDENT-KEYRING-UPDATER-PREFLIGHT
   - GLOBAL-KEYRING-MISSING-BLOCKS-DEPLOYMENT
   - UNKNOWN-HISTORICAL-ROW-KEY-DEGRADES-CREDENTIAL-ONLY
-  - OLD-WRITER-FENCE-DURING-0146-CUTOVER
+  - OLD-WRITER-FENCE-DURING-PROTECTED-STORAGE-CUTOVER
   - COMPAT-API-SOLE-WRITER-DURING-BACKFILL
   implementation_contract:
     production_class_code_secret_required: true

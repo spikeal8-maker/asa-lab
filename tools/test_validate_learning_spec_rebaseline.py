@@ -53,6 +53,13 @@ class LearningSpecGateTests(unittest.TestCase):
             row["implementation_contract"]["old_api_concurrent_with_backfill"] = True
         self.assertRejected(changed_yaml(LEDGER, corrupt), "protected storage contract drift")
 
+    def test_rejects_preallocated_lower_migration_reference(self):
+        stale = text(ACCESS) + "\nApply additive migration `0146`.\n"
+        self.assertRejected(
+            {ACCESS: stale},
+            "pre-reserved lower migration reference is forbidden",
+        )
+
     def test_rejects_student_code_case_insensitive_contract(self):
         def corrupt(doc):
             row = next(r for r in doc["requirements"] if r["id"] == "E1-FIX-02")
