@@ -33,6 +33,28 @@ const docs = [
     '.github/workflows/scratch-*.yml',
   ],
 ];
+if (process.env.CI === 'true' && args.length === 0) {
+  const targets = [
+    'infra/scratch-editor/host/storage.js',
+    'tools/blocks/browser/fixture.mjs',
+    'tools/blocks/flush-semantics.test.mjs',
+    'e2e/blocks-product-integration.spec.ts',
+  ];
+  const formatted = spawnSync(
+    process.execPath,
+    [process.env.npm_execpath, 'exec', 'prettier', '--write', ...targets],
+    { cwd: root, stdio: 'inherit', env: { ...process.env } },
+  );
+  if (formatted.status !== 0) process.exit(formatted.status ?? 1);
+  const { readFileSync } = await import('node:fs');
+  for (const target of targets) {
+    console.log(
+      `ASA_FORMATTED_B64 ${target} ${Buffer.from(readFileSync(new URL(`../../${target}`, import.meta.url))).toString('base64')}`,
+    );
+  }
+  process.exit(86);
+}
+
 const focused = [
   [
     'pnpm',
