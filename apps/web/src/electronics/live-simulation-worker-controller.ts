@@ -268,10 +268,7 @@ export class ElectronicsLiveSimulationWorkerController {
   ): void {
     if (this.pendingInputEvents.length === 0) return;
     const earliestPendingMicrosecond = this.pendingInputEvents[0]!.atMicroseconds;
-    const deltaMicroseconds = Math.max(
-      0,
-      committedMicroseconds + 1 - earliestPendingMicrosecond,
-    );
+    const deltaMicroseconds = Math.max(0, committedMicroseconds + 1 - earliestPendingMicrosecond);
     if (deltaMicroseconds === 0) return;
     const retimed = this.pendingInputEvents.map((event) => ({
       ...event,
