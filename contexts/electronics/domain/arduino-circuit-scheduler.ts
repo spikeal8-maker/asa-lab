@@ -37,9 +37,29 @@ const ELECTROTHERMAL_MODELS = new Set([
   'n-channel-fet',
   'incandescent-lamp',
   'dc-motor',
-  'digital-multimeter',
   'regulated-dc-supply',
 ]);
+
+function usesElectrothermalProfile(document: ElectronicsDocument): boolean {
+  if (
+    document.components.some((component) =>
+      ELECTROTHERMAL_MODELS.has(electricalModelFor(component).id),
+    )
+  )
+    return true;
+  if (
+    document.components.some(
+      (component) =>
+        electricalModelFor(component).id === 'digital-multimeter' &&
+        component.stateProperties?.['measurementMode'] === 'dc-current',
+    )
+  )
+    return true;
+  if (document.components.some(isElectrolyticCapacitor)) return false;
+  return document.components.some(
+    (component) => electricalModelFor(component).id === 'ideal-dc-source',
+  );
+}
 
 export interface ArduinoCircuitInputEvent {
   readonly atMicroseconds: number;
@@ -98,6 +118,7 @@ function clockedComponent(component: SchematicComponent): boolean {
         'analog-temperature-sensor',
         'resistive-soil-sensor',
         'breadboard-connectivity',
+        'digital-multimeter',
         'ideal-wire',
         'ideal-dc-source',
         'capacitor',
@@ -206,9 +227,7 @@ export function advanceArduinoCircuitClock(
   const budget = options.maxClockEvents ?? 256;
   if (!Number.isInteger(budget) || budget < 1 || budget > 1024)
     return fault('invalid_clock_budget', 'Квант общего scheduler: от 1 до 1024 отметок времени.');
-  const profile = document.components.some((component) =>
-    ELECTROTHERMAL_MODELS.has(electricalModelFor(component).id),
-  )
+  const profile = usesElectrothermalProfile(document)
     ? 'electrothermal-v1'
     : document.components.some(isElectrolyticCapacitor)
       ? 'rc-inputs-v2'
@@ -249,18 +268,19 @@ export function advanceArduinoCircuitClock(
       !integerTime(previous.reachedMicroseconds) ||
       previous.reachedMicroseconds > targetMicroseconds ||
       (hasPhysics
-        ? !previous.physicalState ||
-          !(
-            profile === 'electrothermal-v1'
-              ? clockedPhysicalStateIsCompatible
-              : clockedRcStateIsCompatible
-          )(document, previous.physicalState, previous.reachedMicroseconds / 1000) ||
-          !integerTime(Math.round(previous.physicalState.simulationTimeMs * 1000)) ||
-          Math.round(previous.physicalState.simulationTimeMs * 1000) / 1000 !==
-            previous.physicalState.simulationTimeMs ||
-          previous.reachedMicroseconds -
-            Math.round(previous.physicalState.simulationTimeMs * 1000) >=
-            PHYSICS_QUANTUM_US
+        ? previous.physicalState
+          ? !(
+              profile === 'electrothermal-v1'
+                ? clockedPhysicalStateIsCompatible
+                : clockedRcStateIsCompatible
+            )(document, previous.physicalState, previous.reachedMicroseconds / 1000) ||
+            !integerTime(Math.round(previous.physicalState.simulationTimeMs * 1000)) ||
+            Math.round(previous.physicalState.simulationTimeMs * 1000) / 1000 !==
+              previous.physicalState.simulationTimeMs ||
+            previous.reachedMicroseconds -
+              Math.round(previous.physicalState.simulationTimeMs * 1000) >=
+              PHYSICS_QUANTUM_US
+          : previous.reachedMicroseconds >= PHYSICS_QUANTUM_US
         : previous.physicalState !== undefined) ||
       !validInputs(document, previous.inputs) ||
       !Number.isInteger(previous.nextInputIndex) ||
@@ -364,6 +384,12 @@ export function advanceArduinoCircuitClock(
     cachedFrameTime = time;
     return cachedFrame;
   };
+  const isNonFatalPassiveNoSource = (frame: SolveResult): boolean =>
+    boards.length === 0 &&
+    !hasPhysics &&
+    frame.status === 'invalid' &&
+    frame.diagnostics.some((entry) => entry.code === 'no_source') &&
+    !frame.diagnostics.some((entry) => entry.severity === 'error' && entry.code !== 'no_source');
   const nextTime = (): number =>
     Math.min(
       ...boards.map((board) => {
@@ -399,12 +425,12 @@ export function advanceArduinoCircuitClock(
       cachedFrame = undefined;
     }
     const frame = sample(time);
-    if (!frame.solved)
+    if (!frame.solved && !isNonFatalPassiveNoSource(frame))
       return fault(
         'electrical_sample_failed',
         frame.diagnostics.map((entry) => entry.message).join(' '),
       );
-    if (!frame.quality.passed)
+    if (!frame.quality.passed && !isNonFatalPassiveNoSource(frame))
       return fault(
         'electrical_quality_failed',
         'Не выполнены проверки конечности, KCL или напряжения источников.',
@@ -473,12 +499,12 @@ export function advanceArduinoCircuitClock(
   let result: ArduinoCircuitClockAdvance['result'] = null;
   if (ready) {
     const frame = sample(targetMicroseconds);
-    if (!frame.solved)
+    if (!frame.solved && !isNonFatalPassiveNoSource(frame))
       return fault(
         'electrical_sample_failed',
         frame.diagnostics.map((entry) => entry.message).join(' '),
       );
-    if (!frame.quality.passed)
+    if (!frame.quality.passed && !isNonFatalPassiveNoSource(frame))
       return fault(
         'electrical_quality_failed',
         'Не выполнены проверки конечности, KCL или напряжения источников.',

@@ -216,7 +216,7 @@ export function useElectronicsWorkbench(projectId: string) {
   }
 
   const simulationStartedAtRef = useRef<number | null>(null);
-  const [simulationTimeMs, setSimulationTimeMs] = useState(0);
+  const [requestedHorizonMicroseconds, setRequestedHorizonMicroseconds] = useState(0);
   const [liveResult, setLiveResult] = useState<typeof persistedResult>(null);
   const simulationWorkerRef = useRef<ElectronicsLiveSimulationWorkerController | null>(null);
   if (simulationWorkerRef.current === null) {
@@ -230,17 +230,19 @@ export function useElectronicsWorkbench(projectId: string) {
   useEffect(() => {
     if (!simulationRunning) {
       simulationStartedAtRef.current = null;
-      setSimulationTimeMs(0);
+      setRequestedHorizonMicroseconds(0);
       setLiveResult(null);
       return;
     }
 
     simulationStartedAtRef.current = window.performance.now();
-    setSimulationTimeMs(0);
+    setRequestedHorizonMicroseconds(0);
     const interval = window.setInterval(() => {
       const startedAt = simulationStartedAtRef.current;
       if (startedAt !== null) {
-        setSimulationTimeMs(window.performance.now() - startedAt);
+        setRequestedHorizonMicroseconds(
+          Math.max(0, Math.round((window.performance.now() - startedAt) * 1000)),
+        );
       }
     }, 100);
     return () => window.clearInterval(interval);
@@ -273,15 +275,20 @@ export function useElectronicsWorkbench(projectId: string) {
 
   useEffect(() => {
     if (!runtimeDocument || !simulationRunning) return;
-    simulationWorkerRef.current?.update(runtimeDocument, simulationTimeMs);
-  }, [runtimeDocument, simulationRunning, simulationTimeMs]);
+    simulationWorkerRef.current?.update(runtimeDocument, requestedHorizonMicroseconds);
+  }, [requestedHorizonMicroseconds, runtimeDocument, simulationRunning]);
 
   const result = useMemo(
     () =>
       simulationRunning
         ? liveResult
-        : calculateLiveSimulation(runtimeDocument, persistedResult, false, simulationTimeMs),
-    [liveResult, persistedResult, runtimeDocument, simulationRunning, simulationTimeMs],
+        : calculateLiveSimulation(
+            runtimeDocument,
+            persistedResult,
+            false,
+            requestedHorizonMicroseconds / 1000,
+          ),
+    [liveResult, persistedResult, requestedHorizonMicroseconds, runtimeDocument, simulationRunning],
   );
   usePiezoAudio(runtimeDocument, result, simulationRunning);
 
@@ -1115,8 +1122,12 @@ export function useElectronicsWorkbench(projectId: string) {
       setNotice('Запустите моделирование, чтобы перезапустить Arduino.');
       return;
     }
+    const currentRuntimeDocument = runtimeDocumentRef.current;
+    if (!currentRuntimeDocument) return;
     simulationStartedAtRef.current = window.performance.now();
-    setSimulationTimeMs(0);
+    setRequestedHorizonMicroseconds(0);
+    setLiveResult(null);
+    simulationWorkerRef.current?.restart(currentRuntimeDocument);
     setNotice('Arduino перезапущена: setup() и loop() выполняются сначала.');
   }
 
@@ -2195,7 +2206,7 @@ export function useElectronicsWorkbench(projectId: string) {
     activeWireColor,
     orthogonalWireMode,
     simulationRunning,
-    simulationTimeMs,
+    simulationTimeMs: requestedHorizonMicroseconds / 1000,
     simulationStatus,
     libraryOpen,
     setLibraryOpen,

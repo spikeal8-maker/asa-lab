@@ -1964,6 +1964,23 @@ function arduinoInputDocument(
   return { ...base, components, connections };
 }
 
+function arduinoResetAcceptanceDocument(): SchematicDocument {
+  const base = arduinoInputDocument('button', '2');
+  const source =
+    'void setup(){pinMode(13,OUTPUT);digitalWrite(13,HIGH);delay(1000);}void loop(){digitalWrite(13,LOW);delay(1000);digitalWrite(13,HIGH);delay(1000);}';
+  return {
+    ...base,
+    components: base.components.map((component) =>
+      component.id === 'uno'
+        ? {
+            ...component,
+            stateProperties: { ...component.stateProperties, arduinoSource: source },
+          }
+        : component,
+    ),
+  };
+}
+
 for (const scenario of [
   { mode: 'button', pin: '2' },
   { mode: 'button', pin: 'A0' },
@@ -1999,14 +2016,15 @@ for (const scenario of [
         .click();
       const slider = page.getByRole('slider', { name: 'Положение движка' });
       await slider.press('Home');
+      await expect.poll(() => brightnessValue(page)).toBeGreaterThan(0);
       const first = await brightnessValue(page);
       await slider.press('End');
-      await expect.poll(() => brightnessValue(page)).not.toBe(first);
+      await expect.poll(() => brightnessValue(page)).toBe(0);
       const second = await brightnessValue(page);
       await slider.press('Home');
       await expect.poll(() => brightnessValue(page)).toBe(first);
-      expect(Math.max(first, second)).toBeGreaterThan(0);
-      expect(Math.min(first, second)).toBe(0);
+      expect(first).toBeGreaterThan(0);
+      expect(second).toBe(0);
     } else {
       await expect.poll(() => brightnessValue(page)).toBe(0);
       const buttons = component(page, 'button-tactile-6mm');
@@ -2045,6 +2063,42 @@ for (const scenario of [
     failures.assertEmpty();
   });
 }
+
+test('E-OPT-3D acceptance: Arduino Reset restarts an already progressed canonical run', async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
+  await page.setViewportSize({ width: 1600, height: 1000 });
+  await loginWithOrganization(page, teacher);
+
+  const projectId = await createProject(page, 'E-OPT-3D Arduino reset acceptance');
+  await saveDocument(page, projectId, arduinoResetAcceptanceDocument());
+  await page.goto(`/#/home/${projectId}`);
+  await expect(page.locator('.workbench-stage')).toBeVisible({ timeout: 15_000 });
+
+  await page.getByRole('button', { name: 'Начать моделирование' }).click();
+  await expect(page.getByRole('button', { name: 'Остановить моделирование' })).toBeVisible();
+
+  // Prove the canonical Arduino runtime has progressed beyond its initial state:
+  // setup() drives D13 high, then the first loop iteration drives it low after 1 s.
+  await expect.poll(() => brightnessValue(page), { timeout: 10_000 }).toBeGreaterThan(0);
+  await expect.poll(() => brightnessValue(page), { timeout: 10_000 }).toBe(0);
+
+  const resetButton = page.getByTestId('arduino-reset-button');
+  await expect(resetButton).toHaveAttribute('aria-label', 'Перезапустить Arduino');
+  await resetButton.click();
+
+  // Reset must discard the old continuation and replay setup()/loop() from time zero.
+  await expect.poll(() => brightnessValue(page), { timeout: 10_000 }).toBeGreaterThan(0);
+  await page.waitForTimeout(350);
+  expect(await brightnessValue(page)).toBeGreaterThan(0);
+
+  // The same deterministic sequence must repeat without a fault/stuck runtime.
+  await expect.poll(() => brightnessValue(page), { timeout: 10_000 }).toBe(0);
+  await expect(page.getByRole('button', { name: 'Остановить моделирование' })).toBeVisible();
+  failures.assertEmpty();
+});
 
 test('Arduino correctness: Uno numeric types and scopes across delay', async ({ page }) => {
   const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });

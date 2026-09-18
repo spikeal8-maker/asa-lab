@@ -27,7 +27,7 @@ large_sources:
   - path: apps/web/src/electronics/use-electronics-workbench.ts
     class: decomposition-candidate
     reviewed_bytes: 84505
-    rationale: Active workbench controller coordinates interaction and simulation concerns; E-OPT-3D must retire legacy timing concerns before structural extraction.
+    rationale: Active workbench controller coordinates interaction and simulation concerns; E-OPT-3D timing convergence is accepted, while any structural extraction remains a separately selected responsibility change.
   - path: contexts/electronics/domain/arduino-program-runtime.ts
     class: decomposition-candidate
     reviewed_bytes: 68170
@@ -47,22 +47,13 @@ large_sources:
 
 legacy_concerns:
   - path: apps/web/src/electronics/live-simulation.ts
+    class: compatibility-shim
+    concern: The exported advanceLiveSimulation helper is no longer used by production Worker/runtime code after E-OPT-3D; it remains referenced by legacy live-simulation unit/reference fixtures while preflight helpers in the same file remain active.
+    retirement_condition: E-OPT-3F accepts reset/pause/resume/input conformance, legacy advance fixtures are migrated to canonical timed-engine coverage, and repository search proves no production or required evidence dependency on advanceLiveSimulation.
+  - path: contexts/electronics/domain/arduino-program-runtime.ts
     class: active-legacy-bridge
-    concern: simulationTimeMs transient advance bridge remains in the production Worker path.
-    retirement_condition: E-OPT-3D canonical Worker horizons are integrated and E-OPT-3F timing/control conformance no longer requires this provisional advance path.
-  - path: apps/web/src/electronics/live-simulation-worker-controller.ts
-    class: active-legacy-bridge
-    concern: Controller targets are still expressed as host-provided simulationTimeMs rather than canonical requested horizons.
-    retirement_condition: E-OPT-3D canonical horizon requests are integrated with direct/Worker parity and stale-horizon rejection.
-  - path: apps/web/src/electronics/simulation-worker-evaluator.ts
-    class: active-legacy-bridge
-    concern: Worker evaluator still delegates timed work to legacy calculate/advance live-simulation functions using simulationTimeMs.
-    retirement_condition: E-OPT-3D moves Worker timed evaluation to the accepted canonical timed engine facade and preserves protocol/parity evidence.
-  - path: apps/web/src/electronics/use-electronics-workbench.ts
-    class: active-legacy-bridge
-    concern: Workbench derives requested simulationTimeMs from performance.now on a 100 ms presentation interval.
-    retirement_condition: E-OPT-3D removes presentation cadence as the requested physical horizon and E-OPT-3E proves replay invariance across UI cadence.
-
+    concern: ArduinoClockProfile still includes legacy-ms-v1 and instruction-us-v1; advanceArduinoRuntime(...) explicitly selects legacy-ms-v1, and contexts/electronics/domain/arduino-model.ts uses that wrapper for production snapshot/stateless Arduino state.
+    retirement_condition: E-OPT-3F conformance is accepted, a subsequent Arduino-runtime convergence establishes the canonical clock profile for every production snapshot/stateless caller, and repository search proves no production/public/evidence dependency on legacy-ms-v1 or advanceArduinoRuntime.
 documentation_hotspots:
   - path: docs/product/electronics/README.md
     class: decomposition-candidate

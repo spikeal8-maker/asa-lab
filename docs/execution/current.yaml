@@ -143,20 +143,20 @@ parallel_lanes:
       - tools/validate-electronics-agent-docs.mjs
       - tools/test_validate_electronics_agent_docs.mjs
     task:
-      id: TASK-ELECTRONICS-EOPT3D-001
-      issue: 279
-      branch: codex/electronics-eopt3d-worker-horizons
+      id: TASK-ELECTRONICS-EOPT3E-001
+      issue: 298
+      branch: codex/electronics-eopt3e-trace-replay
       base_branch: main
-      pr: 281
-      pr_draft: false
-      status: in_review
-      checkpoint: eopt3d_automated_acceptance_pass_merge_authorized
-      owner_acceptance: accepted
+      pr: null
+      pr_draft: true
+      status: in_progress
+      checkpoint: eopt3e_trace_replay_characterization
+      owner_acceptance: pending
     revisions:
-      convergence_baseline_sha: 21d286364d99d37b730e1954d2cbae776c41b3e1
-      head_sha: 938904fe1657fe04b710a76d67344764d1a609dc
+      convergence_baseline_sha: 8e5620c8759ace58f6d748724f381d86d3bd3dc9
+      head_sha: 8e5620c8759ace58f6d748724f381d86d3bd3dc9
     execution_lease:
-      executor_id: codex-electronics-eopt3d
+      executor_id: codex-electronics-eopt3e-trace-replay
       holder: unassigned
       acquired_at: null
       expires_at: null
