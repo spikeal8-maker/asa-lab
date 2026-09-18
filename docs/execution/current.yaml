@@ -143,20 +143,20 @@ parallel_lanes:
       - tools/validate-electronics-agent-docs.mjs
       - tools/test_validate_electronics_agent_docs.mjs
     task:
-      id: TASK-ELECTRONICS-GOVERNANCE-002
-      issue: 294
-      branch: main
+      id: TASK-ELECTRONICS-EOPT3E-001
+      issue: 298
+      branch: codex/electronics-eopt3e-trace-replay
       base_branch: main
-      pr: null
-      pr_draft: false
-      status: done
-      checkpoint: post_eopt3d_roadmap_hygiene_accepted
-      owner_acceptance: accepted
+      pr: 300
+      pr_draft: true
+      status: in_review
+      checkpoint: eopt3e_replay_matrix_green_independent_review_pending
+      owner_acceptance: pending
     revisions:
-      convergence_baseline_sha: d5b972e909b8f7de418ed1d06a19be67148c72d1
-      head_sha: 6eb591bbacee76f76a4d3c95e73efad0f581b360
+      convergence_baseline_sha: 8e5620c8759ace58f6d748724f381d86d3bd3dc9
+      head_sha: 68f9d71506e2ebb2bf6dd78b1596c74a1766d5f4
     execution_lease:
-      executor_id: codex-electronics-governance-002
+      executor_id: codex-electronics-eopt3e-trace-replay
       holder: unassigned
       acquired_at: null
       expires_at: null
