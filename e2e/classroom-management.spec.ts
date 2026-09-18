@@ -75,7 +75,7 @@ test('teacher creates a class, issues a StudentSeat and controls learner access'
 
   const studentRow = page.getByRole('row').filter({ hasText: 'Алина К.' });
   const studentCode = (await studentRow.locator('.classroom-login-handle').innerText()).trim();
-  expect(studentCode).toMatch(/^[2346789ACDEFGHJKMNPQRTUVWXY]{6}$/);
+  expect(studentCode).toMatch(/^[2346789ACDEFGHJKMNPQRTUVWXYacdefghjkmnpqrtuvwxy]{6}$/);
   await expect(studentRow).toContainText(studentCode);
   await expect(studentRow).toContainText('Ещё не входил');
   await page.screenshot({ path: `${evidenceDir}/teacher-roster.png`, fullPage: true });

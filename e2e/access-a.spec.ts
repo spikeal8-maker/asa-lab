@@ -329,8 +329,12 @@ test('H: short Student Code, reusable access cards, profile, logout and learner 
     { displayLabel: 'Второй ученик', safeMode: true },
     teacherCookie,
   );
-  expect(first.student.studentCode).toMatch(/^[2346789ACDEFGHJKMNPQRTUVWXY]{6}$/);
-  expect(second.student.studentCode).toMatch(/^[2346789ACDEFGHJKMNPQRTUVWXY]{6}$/);
+  expect(first.student.studentCode).toMatch(
+    /^[2346789ACDEFGHJKMNPQRTUVWXYacdefghjkmnpqrtuvwxy]{6}$/,
+  );
+  expect(second.student.studentCode).toMatch(
+    /^[2346789ACDEFGHJKMNPQRTUVWXYacdefghjkmnpqrtuvwxy]{6}$/,
+  );
   expect(second.student.studentCode).not.toBe(first.student.studentCode);
   const privateTeacherNote = 'Личное замечание преподавателя только первому ученику';
 
@@ -397,7 +401,7 @@ test('H: short Student Code, reusable access cards, profile, logout and learner 
       ),
     ).toBeLessThanOrEqual(0);
     if (width === 390) await shot(page, 'H-qr-join-390');
-    await page.getByLabel('Код ученика', { exact: true }).fill(studentCode.toLowerCase());
+    await page.getByLabel('Код ученика', { exact: true }).fill(studentCode);
     await page.getByRole('button', { name: 'Войти', exact: true }).click();
     await page.setViewportSize({ width: 1366, height: 900 });
     await expect(portalSection(page, 'Главная')).toBeVisible();

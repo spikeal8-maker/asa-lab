@@ -100,7 +100,7 @@ describe('classrooms', () => {
     expect(added.statusCode).toBe(201);
     expect(added.json().student).toMatchObject({
       displayLabel: 'Алина К.',
-      studentCode: expect.stringMatching(/^[2346789ACDEFGHJKMNPQRTUVWXY]{6}$/),
+      studentCode: expect.stringMatching(/^[2346789ACDEFGHJKMNPQRTUVWXYacdefghjkmnpqrtuvwxy]{6}$/),
       status: 'issued',
       safeMode: true,
     });
