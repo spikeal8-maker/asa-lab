@@ -1356,7 +1356,7 @@ test('ASA wordmark confirms leaving, supports keyboard, and returns to home', as
     expect(fixture.context.pages()).toHaveLength(1);
     page.once('dialog', async (dialog) => {
       expect(dialog.type()).toBe('confirm');
-      expect(dialog.message()).toContain('Сохранить на компьютер (.sb3)');
+      expect(dialog.message()).toContain('Сохранить в ASA');
       await dialog.dismiss();
     });
     await home.click();
