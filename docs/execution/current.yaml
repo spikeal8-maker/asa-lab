@@ -149,8 +149,8 @@ parallel_lanes:
       base_branch: main
       pr: 281
       pr_draft: true
-      status: in_review
-      checkpoint: eopt3d_review_repair_candidate_green_rereview_pending
+      status: in_progress
+      checkpoint: eopt3d_automated_behavioral_acceptance
       owner_acceptance: pending
     revisions:
       convergence_baseline_sha: 21d286364d99d37b730e1954d2cbae776c41b3e1
@@ -524,6 +524,7 @@ blocking:
       - focused_verification
       - independent_review
       - bounded_repair
-    reason: Repaired E-OPT-3D candidate passed exact-head CI after the first independent semantic review found three blocking defects. Acceptance remains blocked until an independent semantic rereview of the repaired exact HEAD passes with no unresolved blocker.
+      - regression_authoring
+    reason: Product semantic rereview passed with zero unresolved blocking findings. Manual owner preview is waived for this slice and owner acceptance is delegated to exact-SHA automated behavioural evidence, required exact-SHA CI, independent semantic review PASS, and zero unresolved BLOCKING findings. Only automated owner-behaviour evidence is being strengthened; no product repair is currently authorized.
     evidence: docs/product/electronics/tasks/E-OPT-3D.md
 next_task: null

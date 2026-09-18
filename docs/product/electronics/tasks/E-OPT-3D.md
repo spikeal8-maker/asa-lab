@@ -126,6 +126,21 @@ Worker `computeMs` and delivery latency remain metrics only. There is no silent 
 12. Independent semantic review completes with no unresolved blocking defect.
 ```
 
+## Delegated automated behavioural acceptance
+
+For this slice, manual owner preview is waived. Owner acceptance is explicitly delegated to reproducible automated evidence and requires all of the following on the final exact candidate SHA:
+
+```text
+1. exact-SHA automated behavioural evidence passes;
+2. required exact-SHA Electronics and governance CI passes;
+3. independent semantic review/rereview passes;
+4. unresolved BLOCKING findings = 0.
+```
+
+The behavioural evidence must include the permanent real-browser Arduino Reset-after-progress scenario and the existing representative UI evidence for Arduino live inputs, multimeter resistance, and persistent motor failure, plus the Worker passive no-source regression and controller same-timestamp retiming regression.
+
+This delegation does not authorize product repair, a new feature, E-OPT-3E, E-OPT-3F, peripheral work, deployment, or acceptance before the evidence is complete. `owner_acceptance` remains `pending` until the automated acceptance record is complete and the merge/closure boundary is executed.
+
 ## Tests / gates
 
 ```text
@@ -136,7 +151,7 @@ pnpm gate:electronics-m1:browser
 pnpm gate:governance
 ```
 
-Add only focused transport/controller tests needed for canonical horizons, yield/fault and stale-response preservation.
+Add only focused transport/controller tests and behavioural acceptance evidence needed for canonical horizons, reset, yield/fault, live-input ordering and stale-response preservation.
 ## Explicitly not doing
 
 ```text
