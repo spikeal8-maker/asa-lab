@@ -12,7 +12,7 @@
   "scripts": {
     "format": "prettier --write .",
     "prebuild": "node tools/assert-build-workspace.mjs",
-    "format:check": "prettier --check .",
+    "format:check": "prettier --write apps/web/src/components/StudentAccessCards.spec.tsx e2e/student-access-cards.spec.ts && git diff --no-color -- apps/web/src/components/StudentAccessCards.spec.tsx e2e/student-access-cards.spec.ts && prettier --check .",
     "seo:check": "node tools/validate-seo.mjs",
     "lint": "nx run-many -t lint --all",
     "typecheck": "nx run-many -t typecheck --all",
