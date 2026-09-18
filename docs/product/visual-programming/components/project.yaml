@@ -5,7 +5,7 @@ components:
     state: implemented
     risk: high
     ownership: cross_boundary
-    purpose: Generic pre-save guard plus Blocks validation; no production composition yet.
+    purpose: Generic pre-save guard plus Blocks validation, composed into the production SaveDraftUseCase.
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-002-PERSISTENCE-CONTRACT.md
         section: 'Decision: generic async pre-save persistence guard'
@@ -43,8 +43,7 @@ components:
     risk: high
     ownership: cross_boundary
     purpose:
-      Explicit save/open pipeline through common Project Core and mandatory asset ports; deployed adapters
-      and UI pending.
+      Explicit save/open pipeline through common Project Core and production asset adapters; editor/VM browser wiring pending.
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-002-PERSISTENCE-CONTRACT.md
         section: Asset-before-document invariant

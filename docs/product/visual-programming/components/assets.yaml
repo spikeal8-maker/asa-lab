@@ -41,26 +41,44 @@ components:
       - tests/portal/rls.spec.ts
 
   - id: blocks.assets.upload
-    state: blocked
+    state: implemented
     risk: high
     ownership: cross_boundary
-    purpose: "Validated streaming asset PUT with identity, integrity, content and byte limits."
+    purpose: "Validated streaming runtime asset PUT with identity, integrity, content, request and byte limits."
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-003-ASSET-STORAGE-CONTRACT.md
         section: "Asset upload endpoint"
       - path: docs/product/visual-programming/VSCR-D0-003-ASSET-STORAGE-CONTRACT.md
         section: "Content validation"
-    task: VSCR-M1-004
-    design_gate: VSCR-M1-004P
+    task: VSCR-M1-005B
     depends_on: [blocks.assets.metadata, blocks.runtime.origin-security]
+    sources:
+      - path: apps/api/src/blocks-asset-upload.ts
+        symbols: [BlocksAssetUploadPipeline]
+      - path: apps/api/src/blocks-runtime.controller.ts
+        symbols: [BlocksRuntimeController]
+      - path: apps/api/src/blocks-runtime-persistence.service.ts
+        symbols: [BlocksRuntimePersistenceService]
+    tests:
+      - apps/api/src/blocks-asset-upload.spec.ts
+      - apps/api/src/blocks-runtime.controller.spec.ts
+      - apps/api/src/blocks-runtime-cors.spec.ts
 
   - id: blocks.assets.read
-    state: blocked
+    state: implemented
     risk: high
     ownership: cross_boundary
-    purpose: "Reference-authorised private asset GET for the exact authorised draft/version."
+    purpose: "Reference-authorised private asset GET for the exact editor draft; immutable player-version reads remain deferred to M2."
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-003-ASSET-STORAGE-CONTRACT.md
         section: "Asset GET endpoint"
-    task: VSCR-M1-004
-    depends_on: [blocks.assets.metadata, blocks.runtime.capability]
+    task: VSCR-M1-005B
+    depends_on: [blocks.assets.metadata, blocks.runtime.capability, blocks.runtime.origin-security]
+    sources:
+      - path: apps/api/src/blocks-asset-read.ts
+        symbols: [BlocksDraftAssetReader]
+      - path: apps/api/src/blocks-runtime.controller.ts
+        symbols: [BlocksRuntimeController]
+    tests:
+      - apps/api/src/blocks-asset-read.spec.ts
+      - apps/api/src/blocks-runtime.controller.spec.ts

@@ -72,7 +72,9 @@ import { HealthController } from './health.controller.js';
 import { ModulesController } from './modules.controller.js';
 import { ProjectsController } from './projects.controller.js';
 import { BlocksRuntimeSessionController } from './blocks-runtime-session.controller.js';
+import { BlocksRuntimeController } from './blocks-runtime.controller.js';
 import { BlocksRuntimeSessionIssuer } from './blocks-runtime-session-issuer.js';
+import { BlocksRuntimePersistenceService } from './blocks-runtime-persistence.service.js';
 import { VersionController } from './version.controller.js';
 import { createApiModuleRegistry } from './module-registry.js';
 import { SeatContextUseCase } from './seat-context.js';
@@ -184,6 +186,7 @@ export class AppModule {
         ModulesController,
         ProjectsController,
         BlocksRuntimeSessionController,
+        BlocksRuntimeController,
         CheckersClassroomController,
         ChessLiveController,
         VersionController,
@@ -331,6 +334,12 @@ export class AppModule {
         {
           provide: TOKENS.blocksRuntimeSessionIssuer,
           useFactory: () => new BlocksRuntimeSessionIssuer(pool),
+        },
+        {
+          provide: TOKENS.blocksRuntimePersistence,
+          useFactory: (saveDraft: SaveDraftUseCase) =>
+            new BlocksRuntimePersistenceService(pool, saveDraft),
+          inject: [TOKENS.saveDraftUseCase],
         },
         {
           provide: TOKENS.projectFeedbackService,

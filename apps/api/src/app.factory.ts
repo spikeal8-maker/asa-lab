@@ -19,6 +19,13 @@ import {
   resolveCanonicalWebOrigin,
 } from './origin-policy.js';
 import { MutationAbuseProtection } from './abuse-protection.js';
+import {
+  applyBlocksRuntimeCors,
+  BlocksRuntimeAddressBudget,
+  isBlocksRuntimePath,
+  optionalBlocksRuntimeOrigin,
+  registerBlocksRuntimeTransport,
+} from './blocks-runtime-transport.js';
 
 /**
  * Content-hashed filenames may be cached forever; anything else may not.
@@ -191,6 +198,8 @@ export async function createApiApp(
   // Nest's adapter exposes a differently-parameterised FastifyInstance; one
   // deliberate boundary cast lets the canonical plugin types apply.
   const fastify = app.getHttpAdapter().getInstance() as unknown as FastifyInstance;
+  const blocksRuntimeOrigin = optionalBlocksRuntimeOrigin();
+  registerBlocksRuntimeTransport(fastify, blocksRuntimeOrigin);
   await fastify.register(fastifyCookie);
 
   fastify.addHook('onSend', async (request, reply, payload) => {
@@ -220,6 +229,7 @@ export async function createApiApp(
   const metrics = app.get<RuntimeMetrics>(TOKENS.runtimeMetrics, { strict: false });
   const logRequests = shouldLogRequests(options.logRequests);
   const mutationAbuseProtection = new MutationAbuseProtection();
+  const blocksRuntimeAddressBudget = new BlocksRuntimeAddressBudget();
 
   fastify.addHook('onRequest', async () => {
     metrics.requestStarted();
@@ -267,15 +277,31 @@ export async function createApiApp(
     ) {
       return reply.code(404).send({ error: { code: 'not_found', message: 'not found' } });
     }
+    const runtimePath = isBlocksRuntimePath(path);
+    if (runtimePath && !applyBlocksRuntimeCors(request, reply, blocksRuntimeOrigin)) {
+      return reply
+        .code(403)
+        .send({ error: { code: 'forbidden_origin', message: 'runtime origin is not allowed' } });
+    }
+    if (runtimePath) {
+      const runtimeAbuse = blocksRuntimeAddressBudget.consume(request);
+      if (!runtimeAbuse.allowed) {
+        void reply.header('retry-after', runtimeAbuse.retryAfterSeconds);
+        return reply.code(429).send({
+          error: { code: 'too_many_requests', message: 'runtime request budget exceeded' },
+        });
+      }
+    }
+
     const method = request.method;
     if (method === 'GET' || method === 'HEAD' || method === 'OPTIONS') {
       return;
     }
 
-    // MAX calls this endpoint server-to-server and therefore has no browser
-    // Origin. It is authenticated by a dedicated HMAC-derived webhook secret;
-    // every browser mutation, including MAX pairing, remains origin-bound.
-    if (path !== '/api/auth/max/webhook') {
+    // Runtime mutations use short-lived bearer authority and their own bounded
+    // capability/upload budgets. Do not collapse a whole classroom behind one
+    // school-NAT IP into the generic browser mutation limiter.
+    if (!runtimePath && path !== '/api/auth/max/webhook') {
       const allowed = isAllowedMutationOrigin({
         origin: request.headers.origin,
         requestHost: request.headers.host,
@@ -294,16 +320,18 @@ export async function createApiApp(
       }
     }
 
-    const abuse = mutationAbuseProtection.consume(request);
-    if (!abuse.allowed) {
-      void reply.header('retry-after', abuse.retryAfterSeconds);
-      return reply.code(429).send({
-        error: {
-          code: 'too_many_requests',
-          message: 'Слишком много запросов. Подождите и попробуйте снова.',
-          retryAfterSeconds: abuse.retryAfterSeconds,
-        },
-      });
+    if (!runtimePath) {
+      const abuse = mutationAbuseProtection.consume(request);
+      if (!abuse.allowed) {
+        void reply.header('retry-after', abuse.retryAfterSeconds);
+        return reply.code(429).send({
+          error: {
+            code: 'too_many_requests',
+            message: 'Слишком много запросов. Подождите и попробуйте снова.',
+            retryAfterSeconds: abuse.retryAfterSeconds,
+          },
+        });
+      }
     }
   });
 

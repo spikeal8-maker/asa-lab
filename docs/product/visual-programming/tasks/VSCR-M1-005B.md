@@ -40,6 +40,19 @@ Use D0-003: `@aws-sdk/client-s3`, configured private S3-compatible storage and
 MinIO for self-hosted/test when introduced. MinIO joins the existing ASA Compose
 project; no public console, new permanent Compose project or silently invented bucket.
 
+Runtime request shaping for this slice:
+
+```text
+per editor capability: 2400 runtime requests / 10 minutes
+tracked capability windows: max 4096 per API process
+broad pre-JWT runtime ceiling: 60000 requests / 5 minutes / client address
+asset upload concurrency: 4 per capability (D0-003)
+generic cookie/browser IP mutation limiter: not used for /api/blocks/runtime/**
+```
+
+The runtime-origin hook must pass before the generic school-NAT IP limiter is bypassed;
+controllers still require the exact bearer capability/current-authority check.
+
 ## Optimisation evidence
 
 This high-risk storage slice also follows D0-008 and the repository-wide hygiene policy.
