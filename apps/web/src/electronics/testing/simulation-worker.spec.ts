@@ -197,6 +197,7 @@ describe('ASA Electronics E-OPT-3D Worker boundary', () => {
     expect(response.advance.state).toEqual(direct.state);
     expect(response.advance.result?.current).toBe(direct.observation?.current);
     expect(response.advance.result?.components).toEqual(direct.observation?.components);
+    expect(response.advance.result?.status).toBe('solved');
     expect(response.metrics.executionStatus).toBe(direct.executionStatus);
   });
   it('returns passive no-source diagnostics as a ready Worker observation', () => {
@@ -222,6 +223,7 @@ describe('ASA Electronics E-OPT-3D Worker boundary', () => {
     if (!response.ok || response.kind !== 'advance') return;
     expect(response.advance.executionStatus).toBe('ready');
     expect(response.advance.result?.solved).toBe(false);
+    expect(response.advance.result?.status).toBe('invalid');
     expect(response.advance.result?.diagnostics.map((entry) => entry.code)).toContain('no_source');
   });
 
@@ -239,6 +241,8 @@ describe('ASA Electronics E-OPT-3D Worker boundary', () => {
     expect(response.advance.executionStatus, JSON.stringify(response.advance.diagnostics)).toBe(
       'ready',
     );
+    expect(response.advance.result?.solved).toBe(true);
+    expect(response.advance.result?.status).toBe('solved');
     const meter = response.advance.result?.components.find(
       (entry) => entry.componentId === 'meter',
     );

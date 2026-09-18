@@ -1122,8 +1122,12 @@ export function useElectronicsWorkbench(projectId: string) {
       setNotice('Запустите моделирование, чтобы перезапустить Arduino.');
       return;
     }
+    const currentRuntimeDocument = runtimeDocumentRef.current;
+    if (!currentRuntimeDocument) return;
     simulationStartedAtRef.current = window.performance.now();
     setRequestedHorizonMicroseconds(0);
+    setLiveResult(null);
+    simulationWorkerRef.current?.restart(currentRuntimeDocument);
     setNotice('Arduino перезапущена: setup() и loop() выполняются сначала.');
   }
 

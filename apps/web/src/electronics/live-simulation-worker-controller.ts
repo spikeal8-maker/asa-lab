@@ -207,6 +207,12 @@ export class ElectronicsLiveSimulationWorkerController {
     this.pump();
   }
 
+  restart(document: SchematicDocument): void {
+    if (this.generationId === null || !this.projectSessionId) return;
+    this.horizonOffsetMicroseconds = 0;
+    this.beginGeneration(document, 0);
+  }
+
   stop(): void {
     const active = this.generationId !== null;
     this.clearGeneration();
@@ -261,16 +267,16 @@ export class ElectronicsLiveSimulationWorkerController {
     currentTargetMicroseconds: number,
   ): void {
     if (this.pendingInputEvents.length === 0) return;
-    let nextAvailableMicrosecond = committedMicroseconds + 1;
-    let changed = false;
-    const retimed = this.pendingInputEvents.map((event) => {
-      const atMicroseconds = Math.max(event.atMicroseconds, nextAvailableMicrosecond);
-      nextAvailableMicrosecond = atMicroseconds + 1;
-      if (atMicroseconds === event.atMicroseconds) return event;
-      changed = true;
-      return { ...event, atMicroseconds };
-    });
-    if (!changed) return;
+    const earliestPendingMicrosecond = this.pendingInputEvents[0]!.atMicroseconds;
+    const deltaMicroseconds = Math.max(
+      0,
+      committedMicroseconds + 1 - earliestPendingMicrosecond,
+    );
+    if (deltaMicroseconds === 0) return;
+    const retimed = this.pendingInputEvents.map((event) => ({
+      ...event,
+      atMicroseconds: event.atMicroseconds + deltaMicroseconds,
+    }));
     this.pendingInputEvents = retimed;
     const lastEventMicrosecond = retimed[retimed.length - 1]!.atMicroseconds;
     this.lastInputEventAtMicroseconds = Math.max(

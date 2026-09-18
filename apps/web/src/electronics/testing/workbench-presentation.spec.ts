@@ -165,6 +165,9 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(controllerModuleSource).toContain(
       'simulationWorkerRef.current?.update(runtimeDocument, requestedHorizonMicroseconds)',
     );
+    expect(controllerModuleSource).toContain(
+      'simulationWorkerRef.current?.restart(currentRuntimeDocument)',
+    );
     expect(controllerModuleSource).not.toContain(
       'simulationWorkerRef.current?.update(runtimeDocument, simulationTimeMs)',
     );

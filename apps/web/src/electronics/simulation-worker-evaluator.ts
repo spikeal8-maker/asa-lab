@@ -43,7 +43,7 @@ function presentationResult(
   const transient = continuation?.clockProfileId !== 'dc-inputs-v1';
   return {
     solved: timed.observation.solved,
-    status: 'solved',
+    status: timed.observation.solved ? 'solved' : 'invalid',
     current: timed.observation.current,
     components: structuredClone(timed.observation.components) as SolveResult['components'],
     nodes: timed.observation.nodes.map((node) => ({ ...node, terminals: [...node.terminals] })),
