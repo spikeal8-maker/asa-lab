@@ -350,7 +350,11 @@ describe('E1-FIX-02B protected Student Code storage foundation', () => {
     }>;
 
     const protectedRows = await admin.query(
-      `SELECT seat_id,credential_version,encryption_key_id,lookup_key_id
+      `SELECT seat_id,credential_version,encryption_key_id,lookup_key_id,
+              encode(encryption_nonce,'hex') AS nonce_hex,
+              encode(encryption_ciphertext,'hex') AS ciphertext_hex,
+              encode(encryption_tag,'hex') AS tag_hex,
+              updated_at
          FROM classroom_student_code_protected
         WHERE seat_id=ANY($1::uuid[]) ORDER BY seat_id`,
       [resultRows.map((row) => row.seatId)],
@@ -383,10 +387,16 @@ describe('E1-FIX-02B protected Student Code storage foundation', () => {
     );
 
     const afterReplay = await admin.query(
-      'SELECT count(*)::int AS count,max(credential_version)::int AS max_version FROM classroom_student_code_protected WHERE seat_id=ANY($1::uuid[])',
+      `SELECT seat_id,credential_version,encryption_key_id,lookup_key_id,
+              encode(encryption_nonce,'hex') AS nonce_hex,
+              encode(encryption_ciphertext,'hex') AS ciphertext_hex,
+              encode(encryption_tag,'hex') AS tag_hex,
+              updated_at
+         FROM classroom_student_code_protected
+        WHERE seat_id=ANY($1::uuid[]) ORDER BY seat_id`,
       [resultRows.map((row) => row.seatId)],
     );
-    expect(afterReplay.rows[0]).toEqual({ count: 2, max_version: 1 });
+    expect(afterReplay.rows).toEqual(protectedRows.rows);
   });
 
   it('fails protected current readback closed on an unknown encryption key while compat legacy rows remain supported', async () => {
@@ -416,6 +426,21 @@ describe('E1-FIX-02B protected Student Code storage foundation', () => {
       headers: { cookie: teacher.cookie },
     });
     expect(compat.statusCode, compat.body).toBe(200);
-    expect(compat.json().items.find((item: { id: string }) => item.id === protectedSeat.id)).toBeTruthy();
+    expect(
+      compat.json().items.find((item: { id: string }) => item.id === protectedSeat.id),
+    ).toBeTruthy();
+
+    process.env['ASA_STUDENT_CODE_PROTECTION_MODE'] = 'enforced';
+    try {
+      const enforcedRoster = await inject(app, {
+        method: 'GET',
+        url: `/api/classrooms/${classroomId}/roster`,
+        headers: { cookie: teacher.cookie },
+      });
+      expect(enforcedRoster.statusCode, enforcedRoster.body).toBe(503);
+      expect(enforcedRoster.body).toContain('credential_storage_unavailable');
+    } finally {
+      process.env['ASA_STUDENT_CODE_PROTECTION_MODE'] = 'compat';
+    }
   });
 });
