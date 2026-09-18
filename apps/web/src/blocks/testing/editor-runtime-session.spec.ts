@@ -282,7 +282,9 @@ describe('BlocksEditor runtime session bootstrap', () => {
     });
   });
 
-  it('exposes one parent-owned explicit save and distinguishes success, failure and conflict', async () => {
+  it(
+    'exposes one parent-owned explicit save and distinguishes success, failure and conflict',
+    async () => {
     vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(session())));
     const iframe = await renderEditor();
     const postMessage = spyOnPostMessage(iframe);
@@ -367,14 +369,15 @@ describe('BlocksEditor runtime session bootstrap', () => {
       await flushAsync();
     });
     const thirdRequest = flushCalls()[2]?.[0] as Record<string, unknown>;
-    await dispatchChild({
-      messageType: 'ASA_BLOCKS_FLUSH_RESULT',
-      requestId: thirdRequest['requestId'],
-      ok: false,
-      reason: 'draft_write_failed',
-    });
-    expect(save.textContent).toContain('Ошибка сохранения');
-  });
+      await dispatchChild({
+        messageType: 'ASA_BLOCKS_FLUSH_RESULT',
+        requestId: thirdRequest['requestId'],
+        ok: false,
+        reason: 'draft_write_failed',
+      });
+      expect(save.textContent).toContain('Ошибка сохранения');
+    },
+  );
 
   it('uses the explicit ASA save warning before leaving', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(session())));
