@@ -143,22 +143,20 @@ parallel_lanes:
       - tools/validate-electronics-agent-docs.mjs
       - tools/test_validate_electronics_agent_docs.mjs
     task:
-      id: TASK-ELECTRONICS-EOPT3D-001
-      issue: 279
-      branch: codex/electronics-eopt3d-worker-horizons
+      id: TASK-ELECTRONICS-GOVERNANCE-002
+      issue: 294
+      branch: main
       base_branch: main
-      pr: 281
+      pr: null
       pr_draft: false
-      status: done
-      checkpoint: merged_to_main
-      owner_acceptance: accepted
+      status: in_progress
+      checkpoint: post_eopt3d_roadmap_hygiene_convergence
+      owner_acceptance: pending
     revisions:
-      convergence_baseline_sha: 21d286364d99d37b730e1954d2cbae776c41b3e1
-      head_sha: 938904fe1657fe04b710a76d67344764d1a609dc
-      owner_accepted_sha: 938904fe1657fe04b710a76d67344764d1a609dc
-      product_merge_sha: 977be69d34128a6b8d2794e3cdb93a6863c995ca
+      convergence_baseline_sha: d5b972e909b8f7de418ed1d06a19be67148c72d1
+      head_sha: d5b972e909b8f7de418ed1d06a19be67148c72d1
     execution_lease:
-      executor_id: codex-electronics-eopt3d
+      executor_id: codex-electronics-governance-002
       holder: unassigned
       acquired_at: null
       expires_at: null
