@@ -2511,6 +2511,7 @@ paths:
                   items:
                     type: array
                     items: { $ref: '#/components/schemas/ClassroomStudentSeat' }
+        '503': { description: Protected Student Code keyring or current readback unavailable }
   /api/classrooms/{classroomId}/seats:
     parameters:
       - name: classroomId
@@ -2528,6 +2529,7 @@ paths:
       responses:
         '201':
           description: StudentSeat created and its server-generated six-character Student Code returned
+        '503': { description: Protected Student Code keyring or storage unavailable }
   /api/classrooms/{classroomId}/seats/batch/preview:
     parameters:
       - name: classroomId
@@ -2914,6 +2916,7 @@ paths:
       responses:
         '200': { description: HttpOnly StudentSeat session created }
         '401': { description: Generic invalid class credentials response }
+        '503': { description: Protected Student Code keyring or storage unavailable }
         '429':
           description: Invalid Student Code failure budget exhausted after credential verification
           headers:
