@@ -50,6 +50,8 @@ components:
       - path: docs/product/visual-programming/VSCR-D0-003-ASSET-STORAGE-CONTRACT.md
         section: Project save interaction
     task: VSCR-M1-005A
+    completion_task: VSCR-M1-005B
+    candidate_status: backend_pipeline_implemented_browser_wiring_pending
     depends_on:
       - blocks.project.persistence-guard
       - blocks.assets.upload
