@@ -363,15 +363,18 @@ hardening                     hardening
                       |
                       v
 E-OPT-6 peripherals, one selected vertical slice at a time
+
+Accepted E-OPT-1 + E-OPT-2 + E-OPT-3 + required E-OPT-5 contracts
                       |
                       v
 E-OPT-8 standalone portability proof
+
+E-OPT-7 UI/assets/maintainability is a separately selected bounded parallel lane.
+
+E-OPT-4 + selected E-OPT-6 coverage + E-OPT-7 evidence + E-OPT-8
                       |
                       v
 E-OPT-9 v1 hardening gate
-
-E-OPT-7 UI/assets/maintainability is a separately selected bounded lane.
-It may run in parallel only where §10 prerequisites preserve engine/runtime semantics.
 ```
 
 E-OPT-4 and E-OPT-5 are sibling hardening programmes, not a mandatory
@@ -379,5 +382,8 @@ E-OPT-4 and E-OPT-5 are sibling hardening programmes, not a mandatory
 their accepted contracts permit it. E-OPT-6 waits for the required accepted engine/runtime
 primitives; no peripheral task is selected merely because its ARD requirement anchor exists.
 
+E-OPT-8 keeps its independent prerequisite boundary from §§2 and 11; this diagram does not make
+it wait for E-OPT-6 or E-OPT-7. E-OPT-7 may run in parallel only where §10 preserves
+engine/runtime semantics, and it never auto-activates from this diagram.
+
 Each major-stage transition remains subject to the cross-cutting hygiene rule in §2.1.
-E-OPT-7 never auto-activates from this diagram; it requires its own selection.
