@@ -52,6 +52,24 @@ not permission to merge or expose unreviewed writes. Preserve D0-002/003 semanti
 existing Project Core and all release/security/storage acceptance requirements.
 No further model/provider loop is part of this work.
 
+### Active bounded persistence candidate — M1-005B, 18.09.2026
+
+`docs/execution/current.yaml` selects **VSCR-M1-005B / Issue #287**. The bounded
+implementation continues in **Draft PR #288**, branch
+`codex/scratch-real-storage-005b`. This is the one active persistence candidate;
+do not start a parallel runtime/storage implementation.
+
+The candidate already contains runtime capability/session, Project Core guard,
+private S3-compatible storage, PostgreSQL blob/alias metadata, MinIO in the existing
+Compose and protected runtime asset/draft API. The browser path is still incomplete:
+Parent Web/child Scratch must be wired to the real runtime and prove
+`save → close → new session → open` against PostgreSQL + object storage.
+
+This owner-selected development exception permits the selected 005B work despite
+the normal serial readiness gates below. It does **not** mark M1-003/M1-004/M1-005
+as accepted, merged or production-ready. Before work or claims, fetch the actual
+PR #288 HEAD; static SHA text is never execution authority.
+
 ## Strict order
 
 ```text
@@ -210,9 +228,9 @@ M3 does not globally delete/block native Scratch network-backed or hardware exte
 | `VSCR-M1-002D` | IMPLEMENTED / INTEGRATED         | real editor and fixture path are in main; preserve accepted C/D boundaries |
 | `VSCR-M1-002B` | IMPLEMENTED / ACCEPTANCE PENDING | integrated repairs; B evidence and acceptance closed before E              |
 | `VSCR-M1-002E` | BLOCKED                          | A+C+D+B accepted                                                           |
-| `VSCR-M1-003`  | BLOCKED                          | E + owner acceptance of M1-002                                             |
-| `VSCR-M1-004`  | BLOCKED                          | M1-003                                                                     |
-| `VSCR-M1-005`  | BLOCKED                          | M1-004                                                                     |
+| `VSCR-M1-003`  | DEVELOPMENT CANDIDATE / ACCEPTANCE PENDING | runtime security candidate is part of PR #288; normal acceptance chain remains open |
+| `VSCR-M1-004`  | DEVELOPMENT CANDIDATE / ACCEPTANCE PENDING | durable asset candidate is part of PR #288; not accepted/merged by this label       |
+| `VSCR-M1-005`  | IN PROGRESS — `VSCR-M1-005B`             | finish real browser wiring, exact save/open evidence and independent review          |
 | `VSCR-M1-006`  | BLOCKED                          | M1-005                                                                     |
 | `VSCR-M1-007`  | BLOCKED                          | durable project path accepted                                              |
 | `VSCR-M1-008`  | BLOCKED                          | M1-006 + M1-007                                                            |
@@ -220,7 +238,7 @@ M3 does not globally delete/block native Scratch network-backed or hardware exte
 | `VSCR-M3-*`    | BLOCKED                          | M2                                                                         |
 | `VSCR-M4-001`  | BLOCKED                          | M3 deployment/restore acceptance                                           |
 
-`BLOCKED` means coding STOP.
+`BLOCKED` means coding STOP **unless `current.yaml` explicitly selects an owner-authorized bounded exception**. Such an exception permits only the selected task; it never implies prerequisite acceptance.
 
 ## Historical D integration rule
 
