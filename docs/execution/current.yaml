@@ -149,12 +149,12 @@ parallel_lanes:
       base_branch: main
       pr: 281
       pr_draft: true
-      status: in_progress
-      checkpoint: eopt3d_candidate_green_main_convergence_and_review_pending
+      status: in_review
+      checkpoint: eopt3d_review_repair_candidate_green_rereview_pending
       owner_acceptance: pending
     revisions:
-      convergence_baseline_sha: 54d2a96ef86baeb00feafbb327ca348e99512698
-      head_sha: b0f294fe027f145ee987f532b642e92357c1d9a8
+      convergence_baseline_sha: 21d286364d99d37b730e1954d2cbae776c41b3e1
+      head_sha: 8f7a563bf7f1f66c88bde3cfd30e94b2c1bd6885
     execution_lease:
       executor_id: codex-electronics-eopt3d
       holder: unassigned
@@ -524,6 +524,6 @@ blocking:
       - focused_verification
       - independent_review
       - bounded_repair
-    reason: E-OPT-3D must converge with current main and pass independent semantic review before acceptance; green CI alone does not accept the slice
+    reason: Repaired E-OPT-3D candidate passed exact-head CI after the first independent semantic review found three blocking defects. Acceptance remains blocked until an independent semantic rereview of the repaired exact HEAD passes with no unresolved blocker.
     evidence: docs/product/electronics/tasks/E-OPT-3D.md
 next_task: null
