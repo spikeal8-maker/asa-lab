@@ -220,23 +220,23 @@ M3 does not globally delete/block native Scratch network-backed or hardware exte
 
 ## Readiness matrix
 
-| Task           | Readiness                        | Unlock condition                                                           |
-| -------------- | -------------------------------- | -------------------------------------------------------------------------- |
-| `VSCR-M1-001`  | COMPLETE / OWNER-ACCEPTED        | integrated                                                                 |
-| `VSCR-M1-002A` | COMPLETE / ACCEPTED              | accepted host foundation                                                   |
-| `VSCR-M1-002C` | COMPLETE / ACCEPTED              | accepted security boundary                                                 |
-| `VSCR-M1-002D` | IMPLEMENTED / INTEGRATED         | real editor and fixture path are in main; preserve accepted C/D boundaries |
-| `VSCR-M1-002B` | IMPLEMENTED / ACCEPTANCE PENDING | integrated repairs; B evidence and acceptance closed before E              |
-| `VSCR-M1-002E` | BLOCKED                          | A+C+D+B accepted                                                           |
+| Task           | Readiness                                  | Unlock condition                                                                    |
+| -------------- | ------------------------------------------ | ----------------------------------------------------------------------------------- |
+| `VSCR-M1-001`  | COMPLETE / OWNER-ACCEPTED                  | integrated                                                                          |
+| `VSCR-M1-002A` | COMPLETE / ACCEPTED                        | accepted host foundation                                                            |
+| `VSCR-M1-002C` | COMPLETE / ACCEPTED                        | accepted security boundary                                                          |
+| `VSCR-M1-002D` | IMPLEMENTED / INTEGRATED                   | real editor and fixture path are in main; preserve accepted C/D boundaries          |
+| `VSCR-M1-002B` | IMPLEMENTED / ACCEPTANCE PENDING           | integrated repairs; B evidence and acceptance closed before E                       |
+| `VSCR-M1-002E` | BLOCKED                                    | A+C+D+B accepted                                                                    |
 | `VSCR-M1-003`  | DEVELOPMENT CANDIDATE / ACCEPTANCE PENDING | runtime security candidate is part of PR #288; normal acceptance chain remains open |
 | `VSCR-M1-004`  | DEVELOPMENT CANDIDATE / ACCEPTANCE PENDING | durable asset candidate is part of PR #288; not accepted/merged by this label       |
-| `VSCR-M1-005`  | IN PROGRESS — `VSCR-M1-005B`             | finish real browser wiring, exact save/open evidence and independent review          |
-| `VSCR-M1-006`  | BLOCKED                          | M1-005                                                                     |
-| `VSCR-M1-007`  | BLOCKED                          | durable project path accepted                                              |
-| `VSCR-M1-008`  | BLOCKED                          | M1-006 + M1-007                                                            |
-| `VSCR-M2-*`    | BLOCKED                          | M1-008                                                                     |
-| `VSCR-M3-*`    | BLOCKED                          | M2                                                                         |
-| `VSCR-M4-001`  | BLOCKED                          | M3 deployment/restore acceptance                                           |
+| `VSCR-M1-005`  | IN PROGRESS — `VSCR-M1-005B`               | finish real browser wiring, exact save/open evidence and independent review         |
+| `VSCR-M1-006`  | BLOCKED                                    | M1-005                                                                              |
+| `VSCR-M1-007`  | BLOCKED                                    | durable project path accepted                                                       |
+| `VSCR-M1-008`  | BLOCKED                                    | M1-006 + M1-007                                                                     |
+| `VSCR-M2-*`    | BLOCKED                                    | M1-008                                                                              |
+| `VSCR-M3-*`    | BLOCKED                                    | M2                                                                                  |
+| `VSCR-M4-001`  | BLOCKED                                    | M3 deployment/restore acceptance                                                    |
 
 `BLOCKED` means coding STOP **unless `current.yaml` explicitly selects an owner-authorized bounded exception**. Such an exception permits only the selected task; it never implies prerequisite acceptance.
 
