@@ -167,9 +167,4 @@ components:
       - e2e/blocks-host-storage.spec.ts
       - tools/blocks/host.test.mjs
     task: VSCR-M1-002D
-    completion_task: VSCR-M1-005B
-    active_candidate:
-      pr: 288
-      branch: codex/scratch-real-storage-005b
-      status: fixture_in_main_real_runtime_wiring_pending
     depends_on: [blocks.host.protocol]
