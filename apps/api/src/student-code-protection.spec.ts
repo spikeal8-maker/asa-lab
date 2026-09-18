@@ -80,6 +80,50 @@ describe('Student Code protection keyring', () => {
     );
   });
 
+  it('keeps historical encryption keys usable while a new active key protects new envelopes', () => {
+    const oldConfig = loadStudentCodeProtectionConfig(env())!;
+    const oldEnvelope = protectStudentCode(oldConfig, {
+      tenantId: 'tenant-a',
+      classroomId: 'class-a',
+      seatId: 'seat-a',
+      credentialVersion: 9,
+      studentCode: 'Ab7k',
+    });
+
+    const enc2 = Buffer.alloc(32, 0x71).toString('base64');
+    const rotatedConfig = loadStudentCodeProtectionConfig(
+      env({
+        ASA_STUDENT_CODE_ENCRYPTION_KEYS_JSON: JSON.stringify({
+          enc2,
+          enc1: encryptionKey,
+        }),
+        ASA_STUDENT_CODE_ENCRYPTION_ACTIVE_KEY_ID: 'enc2',
+      }),
+    )!;
+
+    expect(
+      decryptStudentCode(rotatedConfig, {
+        tenantId: 'tenant-a',
+        classroomId: 'class-a',
+        seatId: 'seat-a',
+        credentialVersion: 9,
+        encryptionKeyId: oldEnvelope.encryptionKeyId,
+        encryptionNonce: oldEnvelope.encryptionNonce,
+        encryptionCiphertext: oldEnvelope.encryptionCiphertext,
+        encryptionTag: oldEnvelope.encryptionTag,
+      }),
+    ).toBe('Ab7k');
+
+    const newEnvelope = protectStudentCode(rotatedConfig, {
+      tenantId: 'tenant-a',
+      classroomId: 'class-a',
+      seatId: 'seat-a',
+      credentialVersion: 9,
+      studentCode: 'Ab7k',
+    });
+    expect(newEnvelope.encryptionKeyId).toBe('enc2');
+  });
+
   it('rejects malformed, missing and shared key material while off mode needs no keyring', () => {
     expect(loadStudentCodeProtectionConfig({ ASA_STUDENT_CODE_PROTECTION_MODE: 'off' })).toBeNull();
 
