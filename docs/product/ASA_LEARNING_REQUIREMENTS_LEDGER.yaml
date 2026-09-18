@@ -321,7 +321,7 @@ requirements:
   milestone: E1
   status: in_progress
   priority: P1
-  summary: Cryptographically random codes, authorized protected readback and controlled legacy rotation
+  summary: Case-sensitive Student Codes, random six-character defaults, 4..10 staff replacements, exact-class staff authority and controlled legacy rotation
   normative_ref: PRODUCT-INTEGRATED-V15 §4.16
   source_paths:
   - migrations/0142_student_seat_short_codes.sql
@@ -355,14 +355,21 @@ requirements:
   - PERMISSION-REVOKED-BEFORE-REPLAY
   - AAD-SEAT-VERSION-SWAP-TAMPER
   - LOOKUP-KEY-DUAL-READ-ROTATION
-  - MANUAL-WEAK-CODE-REJECT
+  - MANUAL-CODE-4-TO-10-ALNUM-CASE-SENSITIVE
   - KEYRING-MISSING-READINESS-FAIL
   - BACKFILL-INTERRUPT-RESUME
   - BACKFILL-NO-SECRETS-IN-LOGS
   - BACKFILL-ZERO-UNMIGRATED-COVERAGE
   - OLD-APP-ROLLBACK-BEFORE-PLAINTEXT-CLEANUP
   - OWNER-CREDENTIAL-MANAGER-ALLOW
-  - CO-TEACHER-CREDENTIAL-DENY
+  - AUTO-CODE-SAFE-MIXED-CASE-ALPHABET
+  - AUTO-CODE-DEFAULT-LENGTH-6
+  - CASE-SENSITIVE-LOOKUP-AND-UNIQUENESS
+  - CO-TEACHER-EXACT-CLASS-CREDENTIAL-ALLOW
+  - ORG-STAFF-EXACT-CLASS-CREDENTIAL-ALLOW
+  - ORG-STAFF-WITHOUT-CLASS-SCOPE-DENY
+  - TEMPORARY-SUBSTITUTE-IN-WINDOW-ALLOW
+  - TEMPORARY-SUBSTITUTE-EXPIRED-OR-REVOKED-DENY
   - COMPAT-DUAL-WRITE-NO-UNPROTECTED-RACE
   - LEGACY-PREDICTABLE-ZERO-BEFORE-INSTALLED-ACCEPTANCE
   implementation_contract:
@@ -380,7 +387,10 @@ requirements:
     encryption_key_bytes: 32
     lookup_key_min_bytes: 32
     lookup_key_rotation: dual_read_then_rehash_then_retire
-    manual_min_distinct_symbols: 4
+    generated_code_length: 6
+    generated_code_alphabet: 2346789ACDEFGHJKMNPQRTUVWXYacdefghjkmnpqrtuvwxy
+    generated_code_requires_all_character_classes: false
+    manual_code_pattern: '^[A-Za-z0-9]{4,10}
     migration: migrations/0146_student_seat_protected_codes.sql
     backfill_tool: tools/student-seat-protected-code-backfill.mjs
     keyring_env:
@@ -390,9 +400,1051 @@ requirements:
     - ASA_STUDENT_CODE_LOOKUP_ACTIVE_KEY_ID
     sql_contains_key_material: false
     schema_apply_rotates_student_codes: false
-    e1_permission_mapping: active_class_owner_only
-    credential_manager_guard: classroom_credential_manager_access
-    co_teacher_credential_delegation_stage: E4
+    e1_permission_mapping: active_exact_class_staff_scope
+    existing_owner_and_co_teacher_access_preserved: true
+    organization_role_requires_exact_class_scope: true
+    temporary_substitute_access: active_window_or_explicit_revoke
+    rollout_mode_initial: compat
+    old_api_concurrent_with_backfill: false
+    compat_new_writes_protected_and_legacy: true
+    installed_acceptance_requires_unprotected_active: 0
+    installed_acceptance_requires_legacy_predictable_active: 0
+    final_mode: enforced
+  planned_test_ids: *id001
+- id: E1-FIX-03
+  milestone: E1
+  status: in_progress
+  priority: P1
+  summary: Correct public hostname and actual class-only QR
+  normative_ref: PRODUCT-INTEGRATED-V15 §4.16
+  source_paths:
+  - apps/web/src/components/StudentAccessCards.tsx
+  - apps/web/src/components/ClassJoinQr.tsx
+  - apps/web/src/pages/JoinClassPage.tsx
+  evidence:
+  - docs/review/LRN_E1_SPEC_REBASELINE_2026_09_17.md
+  tests:
+  - e2e/access-a.spec.ts
+  verification:
+    source_sha: 3a54a9edf58633331fd466b5f46cb2a8c4f5d390
+    method: source_review
+    observed_result: Card source and test expect wrong host; actual independent QR decoding and physical print/scan
+      not run.
+    product_fix_verified: false
+    authenticated_live_journey: not_run
+  planned_scenarios:
+  - QR-INDEPENDENT-DECODE-ORIGIN
+  - QR-NO-STUDENT-CODE
+  - QR-ROTATED-CLASS
+  - MANUAL-JOIN
+  - A4-30-CARDS
+  - CAMERA-SCAN-MANUAL
+  planned_test_ids: *id001
+- id: E1-FIX-04
+  milestone: E1
+  status: in_progress
+  priority: P1
+  summary: Draft safety across parent navigation and asynchronous save
+  normative_ref: PRODUCT-INTEGRATED-V15 §4.16
+  source_paths:
+  - apps/web/src/components/CoursesPanel.tsx
+  - apps/web/src/pages/AssignmentLibraryPage.tsx
+  evidence:
+  - docs/review/LRN_E1_SPEC_REBASELINE_2026_09_17.md
+  tests:
+  - e2e/learning-course-01.spec.ts
+  verification:
+    source_sha: 3a54a9edf58633331fd466b5f46cb2a8c4f5d390
+    method: source_review
+    observed_result: Parent selectTab unmounts editor; save acknowledgment generation needs delayed-input regression.
+    product_fix_verified: false
+    authenticated_live_journey: not_run
+  planned_scenarios:
+  - DIRTY-PARENT-TAB
+  - DIRTY-GLOBAL-ROUTE
+  - DIRTY-BROWSER-BACK-RELOAD
+  - SAVE-DISCARD-CANCEL
+  - SAVE-A-TYPE-B-ACK-A
+  - SAVE-FAILURE
+  - STRUCTURE-DIRTY-CONFLICT
+  - DIRTY-PARENT-LIBRARY-TAB
+  - DIRTY-GLOBAL-NAV
+  - DIRTY-BROWSER-HISTORY
+  - DIRTY-RELOAD-BEFOREUNLOAD
+  - DISCARD-ONLY-LOCAL-GENERATION
+  planned_test_ids: &id002
+  - TST-LEARNING-E1-COURSE-AUTHORING-CORRECTNESS-001
+  - TST-E2E-LEARNING-E1-COURSE-AUTHORING-HARDENING-001
+- id: E1-FIX-05
+  milestone: E1
+  status: in_progress
+  priority: P1
+  summary: Replay publication after successful commit and lost response
+  normative_ref: PRODUCT-INTEGRATED-V15 §4.16
+  source_paths:
+  - migrations/0145_course_authoring_closure.sql
+  - migrations/0111_course_authoring_revision.sql
+  - migrations/0137_author_draft_from_published_version.sql
+  - apps/api/src/courses.controller.ts
+  evidence:
+  - docs/review/LRN_E1_SPEC_REBASELINE_2026_09_17.md
+  tests:
+  - tests/courses/course-authoring-closure.pg.spec.ts
+  - apps/api/src/courses.controller.spec.ts
+  verification:
+    source_sha: 3a54a9edf58633331fd466b5f46cb2a8c4f5d390
+    method: source_review
+    observed_result: v3 revision precheck precedes v2 receipt lookup; publication updates revision. DB reproduction
+      not run in doc slice.
+    product_fix_verified: false
+    authenticated_live_journey: not_run
+  planned_scenarios:
+  - PUBLISH-LOST-RESPONSE-REPLAY
+  - PUBLISH-KEY-PAYLOAD-CONFLICT
+  - PUBLISH-CONCURRENT-SAME-KEY
+  - PUBLISH-REVOKED-ACTOR
+  planned_test_ids: *id002
+- id: E1-FIX-06
+  milestone: E1
+  status: in_progress
+  priority: P2
+  summary: Exact structural and pinned-policy comparison
+  normative_ref: PRODUCT-INTEGRATED-V15 §4.16
+  source_paths:
+  - apps/web/src/components/course-version-diff.ts
+  - apps/web/src/components/AuthorVersionHistory.tsx
+  - migrations/0107_course_canonical_material_pins.sql
+  evidence:
+  - docs/review/LRN_E1_SPEC_REBASELINE_2026_09_17.md
+  tests:
+  - tests/courses/course-version-diff.spec.ts
+  verification:
+    source_sha: 3a54a9edf58633331fd466b5f46cb2a8c4f5d390
+    method: component_reproduced
+    observed_result: Synthetic maxAttempts change with changed pin yields only assignment category; historical API
+      pair not exercised.
+    product_fix_verified: false
+    authenticated_live_journey: not_run
+  planned_scenarios:
+  - DIFF-POLICY-ONLY
+  - DIFF-BLOCK-ADD-REMOVE-MOVE
+  - DIFF-EXACT-BEFORE-AFTER
+  - DIFF-MISSING-HISTORICAL-POLICY
+  planned_test_ids: *id002
+- id: E1-FIX-07
+  milestone: E1
+  status: in_progress
+  priority: P2
+  summary: Structured prepublish diagnostics and legacy selection consistency
+  normative_ref: PRODUCT-INTEGRATED-V15 §4.16
+  source_paths:
+  - migrations/0145_course_authoring_closure.sql
+  - apps/api/src/courses.controller.ts
+  - apps/web/src/components/CoursesPanel.tsx
+  evidence:
+  - docs/review/LRN_E1_SPEC_REBASELINE_2026_09_17.md
+  tests:
+  - tests/courses/course-authoring-closure.pg.spec.ts
+  - e2e/learning-course-01.spec.ts
+  verification:
+    source_sha: 3a54a9edf58633331fd466b5f46cb2a8c4f5d390
+    method: source_review
+    observed_result: SQL identifies lesson; API flattens structured issue; legacy options still available.
+    product_fix_verified: false
+    authenticated_live_journey: not_run
+  planned_scenarios:
+  - VALIDATE-SECOND-BLOCK-PATH
+  - VALIDATE-FOCUS-FIELD
+  - VALIDATE-PIN-ASSET-MODULE
+  - LEGACY-PICKER-EXPLAINS-REFUSAL
+  planned_test_ids: *id002
+- id: E1-FIX-08
+  milestone: E1
+  status: in_progress
+  priority: P1
+  summary: Atomic archive and delivery concurrency contract
+  normative_ref: PRODUCT-INTEGRATED-V15 §4.16
+  source_paths:
+  - apps/api/src/courses.controller.ts
+  - migrations/0145_course_authoring_closure.sql
+  evidence:
+  - docs/review/LRN_E1_SPEC_REBASELINE_2026_09_17.md
+  tests:
+  - tests/courses/course-authoring-closure.pg.spec.ts
+  - tests/courses/course-canonical-delivery.pg.spec.ts
+  verification:
+    source_sha: 3a54a9edf58633331fd466b5f46cb2a8c4f5d390
+    method: concurrency_risk_from_source
+    observed_result: Separate controller read then assign is a race candidate, not an observed production incident.
+    product_fix_verified: false
+    authenticated_live_journey: not_run
+  planned_scenarios:
+  - ARCHIVE-ASSIGN-INTERLEAVING
+  - ARCHIVE-RESTORE-OLD-RUN-READ
+  - ASSIGN-REPLAY-AFTER-ARCHIVE
+  - FOREIGN-COURSE-DENIED
+  planned_test_ids: *id002
+- id: E1-FIX-09
+  milestone: E1
+  status: in_progress
+  priority: P2
+  summary: Active documentation and real test coverage reconciliation
+  normative_ref: PRODUCT-INTEGRATED-V15 §4.16
+  source_paths:
+  - docs/agent/contracts/identity.yaml
+  - docs/agent/document-registry.yaml
+  - docs/product/ASA_STUDENT_EXPERIENCE_SPEC.md
+  - docs/execution/current.yaml
+  evidence:
+  - docs/review/LRN_E1_SPEC_REBASELINE_2026_09_17.md
+  tests: []
+  verification:
+    source_sha: 3a54a9edf58633331fd466b5f46cb2a8c4f5d390
+    method: documentation_reconciliation
+    observed_result: New editions, compact contracts and traceability are being validated; doc checks do not prove
+      product repairs.
+    product_fix_verified: false
+    authenticated_live_journey: not_run
+  planned_scenarios:
+  - DOC-REVISIONS-ALIGNED
+  - DOC-NO-STALE-SEAT-SECRET
+  - DOC-PRESERVE-IDS
+  - COVERAGE-COMMAND-INCLUDES-CASE
+  - LEGACY-TESTS-NOT-PROOF
+  - BLOCKER-ACCEPTANCE-ALLOWS-REPAIR
+  - PROVEN-COVERS-ALL-PLANNED-SCENARIOS
+  - PROVEN-EVIDENCE-DIGEST-MATCH
+- id: E1-FIX-10
+  milestone: E1
+  status: in_progress
+  priority: P1
+  summary: Separate source CI from actual installed site and owner acceptance
+  normative_ref: PRODUCT-INTEGRATED-V15 §4.16
+  source_paths:
+  - docs/execution/LRN_COURSE_01.md
+  evidence:
+  - docs/review/LRN_E1_SPEC_REBASELINE_2026_09_17.md
+  tests: []
+  verification:
+    source_sha: 3a54a9edf58633331fd466b5f46cb2a8c4f5d390
+    method: live_readonly_metadata
+    observed_result: 'Read-only 2026-09-17T07:29:57.825Z: live Web/API 1ae93cbb, schema142; authenticated journey
+      not_run.'
+    product_fix_verified: false
+    authenticated_live_journey: not_run
+  planned_scenarios:
+  - LIVE-WEB-API-SCHEMA-MATCH
+  - LIVE-AUTHORIZED-SYNTHETIC-JOURNEY
+  - OWNER-ACCEPTANCE-EXPLICIT
+  - FUNCTIONAL-ACCEPTANCE-EXPLICIT
+  - VISUAL-ACCEPTANCE-EXPLICIT
+  - INSTALLED-ACCEPTANCE-EXPLICIT
+- id: E1-FIX-11
+  milestone: E1
+  status: in_progress
+  priority: P1
+  summary: Complete Course Builder functional action and informational-block matrix before final visual convergence
+  normative_ref: PRODUCT-INTEGRATED-V15 §4.2.1 / §4.16
+  source_paths:
+  - apps/web/src/components/CoursesPanel.tsx
+  - apps/web/src/components/AuthorVersionHistory.tsx
+  - apps/web/src/pages/AssignmentLibraryPage.tsx
+  - apps/api/src/courses.controller.ts
+  evidence:
+  - docs/product/ASA_INTEGRATED_IMPLEMENTATION_SPEC.md
+  tests:
+  - e2e/learning-course-01.spec.ts
+  - tests/courses/course-version-diff.spec.ts
+  verification:
+    source_sha: 0a4b50742b6e127320c01ed81060ae8e51c6eabe
+    method: spec_gap_identified
+    observed_result: Master required structure/block controls were not mapped one-by-one to E1 acceptance; V1.5
+      refinement now makes the functional matrix explicit.
+    product_fix_verified: false
+    authenticated_live_journey: not_run
+  planned_scenarios:
+  - SECTION-CREATE-RENAME-REORDER-DUPLICATE-HIDE-DELETE
+  - LESSON-CREATE-RENAME-REORDER-DUPLICATE-HIDE-DELETE
+  - BLOCK-EACH-INFORMATIONAL-KIND-SAVE-RELOAD
+  - BLOCK-MOVE-KEYBOARD-REORDER-DUPLICATE-SETTINGS-HIDE-DELETE-INSERT
+  - ACTIVITY-ELECTRONICS-3D-EXACT-VERSION
+  - DUPLICATE-DOES-NOT-COPY-LEARNER-EVIDENCE
+  - HIDE-DELETE-DOES-NOT-MUTATE-PUBLISHED-RUN
+  - USAGE-REAL-RUNS-AND-NAVIGATION
+  - MEDIA-BROKEN-ASSET-ERROR
+  - FUNCTIONAL-LAYOUT-1440-390-320
+  planned_test_ids: *id002
+- id: E1-FIX-12
+  milestone: E1
+  status: in_progress
+  priority: P1
+  summary: Production secret integrity, Class Code recovery and race-free protected credential rollout
+  normative_ref: PRODUCT-INTEGRATED-V15 §4.6 / §4.16 / §18
+  source_paths:
+  - apps/api/src/classroom-code-secret.ts
+  - apps/api/src/health.controller.ts
+  - compose.yaml
+  - tools/docker-update.ps1
+  - tools/docker-update.sh
+  - tools/production.mjs
+  - docs/execution/LRN_COURSE_01.md
+  evidence:
+  - docs/review/LRN_E1_SPEC_REBASELINE_2026_09_17.md
+  - docs/product/ASA_USERS_ACCESS_AND_SETTINGS_SPEC.md
+  tests:
+  - contexts/classroom/testing/classroom.spec.ts
+  - apps/api/src/health.spec.ts
+  verification:
+    source_sha: 2c26781c83c247863ddb607b2988dceb95905aaf
+    method: source_review
+    observed_result: Production Class Code secret currently falls back to DB credential material when explicit secret is absent; Student Code keyring is not yet wired through compose/updater. No production secret mutation was attempted.
+    product_fix_verified: false
+    authenticated_live_journey: not_run
+  planned_scenarios:
+  - CLASS-CODE-SECRET-REQUIRED-IN-PROD
+  - DB-PASSWORD-ROTATION-PRESERVES-CLASS-CODE
+  - CLASS-CODE-SECRET-BACKUP-RESTORE
+  - CLASS-CODE-SECRET-EMERGENCY-REISSUE
+  - STUDENT-KEYRING-COMPOSE-WIRING
+  - STUDENT-KEYRING-UPDATER-PREFLIGHT
+  - GLOBAL-KEYRING-MISSING-BLOCKS-DEPLOYMENT
+  - UNKNOWN-HISTORICAL-ROW-KEY-DEGRADES-CREDENTIAL-ONLY
+  - OLD-WRITER-FENCE-DURING-0146-CUTOVER
+  - COMPAT-API-SOLE-WRITER-DURING-BACKFILL
+  implementation_contract:
+    production_class_code_secret_required: true
+    class_code_secret_min_bytes: 32
+    class_code_secret_independent_from_db_password: true
+    production_db_url_secret_fallback: forbidden
+    class_code_secret_rotation: maintenance_reissue_all_active_classes
+    student_code_global_keyring_missing: deployment_blocker
+    unknown_row_key_id: credential_specific_503_and_degraded_diagnostics
+    old_writer_during_backfill: forbidden
+    installed_acceptance_legacy_predictable_active: 0
+  planned_test_ids:
+  - TST-RECOVERY-LEARNING-E1-CREDENTIAL-SECRETS-001
+
+- id: INT-REUSE-HISTORY
+  milestone: unassigned
+  status: target
+  summary: Собрать новый курс из истории фактических выдач, exact content refs/provenance без ответов учеников;
+    требование сохранено, stage_assignment_pending.
+  evidence:
+  - docs/product/ASA_INTEGRATED_IMPLEMENTATION_SPEC.md
+  tests: []
+  stage_assignment: pending_owner_decision
+- id: DB-000
+  milestone: M0
+  status: proven
+  summary: Prove existing contracts cannot safely satisfy required semantics before adding a table
+  evidence:
+  - docs/product/learning/current/LRN_M0_CURRENT_ARCHITECTURE.md
+  - docs/architecture/ADR-LEARNER-IDENTITY-001.md
+  tests: []
+- id: MIG-001
+  milestone: M0
+  status: proven
+  summary: Resolve legacy classroom status and Attempt/Gradebook contradictions before Gradebook 2.0
+  evidence:
+  - docs/product/learning/current/LRN_M0_CURRENT_ARCHITECTURE.md
+  - docs/product/learning/current/LRN_M0_STATUS_DIVERGENCE_REPORT.md
+  - docs/product/learning/current/LRN_M0_SURFACE_CONVERGENCE_REPORT.md
+  - migrations/0089_learning_canonical_read_projection.sql
+  tests:
+  - apps/api/src/learning-canonical-projection.service.spec.ts
+  - tests/courses/learning-surface-convergence.pg.spec.ts
+  - e2e/learning-surface-convergence.spec.ts
+- id: MIG-002
+  milestone: M0
+  status: proven
+  summary: Run a repeatable non-mutating migration dry-run before any Learning backfill
+  evidence:
+  - docs/product/learning/current/LRN_M0_LEGACY_DRY_RUN_REPORT.md
+  - tools/learning-migration-dry-run.mjs
+  - tools/learning-migration-dry-run-v1.schema.json
+  tests:
+  - tests/courses/learning-migration-dry-run.unit.spec.ts
+  - tests/courses/learning-migration-dry-run.pg.spec.ts
+- id: MIG-004
+  milestone: M0
+  status: proven
+  summary: Preserve excellent/good/progress/redo as legacy metadata without automatic grade conversion
+  evidence:
+  - docs/product/learning/current/LRN_M0_LEGACY_DRY_RUN_REPORT.md
+  - tools/learning-migration-dry-run.mjs
+  - docs/product/learning/current/LRN_M0_ADDITIVE_BACKFILL_REPORT.md
+  - migrations/0087_learning_additive_backfill.sql
+  - migrations/0088_learning_m0_006_acceptance_corrections.sql
+  tests:
+  - tests/courses/learning-migration-dry-run.unit.spec.ts
+  - tests/courses/learning-additive-backfill.pg.spec.ts
+- id: MIG-006
+  milestone: M0
+  status: proven
+  summary: Emit required migration totals, conflict counts and direct/course/quiz breakdown
+  evidence:
+  - docs/product/learning/current/LRN_M0_LEGACY_DRY_RUN_REPORT.md
+  - tools/learning-migration-dry-run-v1.schema.json
+  tests:
+  - tests/courses/learning-migration-dry-run.unit.spec.ts
+- id: MIG-007
+  milestone: M0
+  status: proven
+  summary: Keep future migration additive and reversible until canonical cutover
+  evidence:
+  - docs/product/ASA_LEARNING_TECHNICAL_SPEC.md
+  - docs/product/learning/current/LRN_M0_ADDITIVE_BACKFILL_REPORT.md
+  - migrations/0086_learning_identity_foundation.sql
+  - migrations/0087_learning_additive_backfill.sql
+  - migrations/0088_learning_m0_006_acceptance_corrections.sql
+  tests:
+  - tests/courses/learning-additive-backfill.pg.spec.ts
+- id: MIG-005
+  milestone: M0
+  status: proven
+  summary: After accepted migration derive runtime status from Participation, Attempt and Result rather than parallel
+    legacy flags
+  evidence:
+  - docs/product/learning/current/LRN_M0_STATUS_DIVERGENCE_REPORT.md
+  - docs/product/learning/current/LRN_M0_CANONICAL_STATE_RESULT_RESOLVER.md
+  - contexts/learning/domain/canonical-learning-state.ts
+  - apps/api/src/learning-canonical-projection.service.ts
+  - migrations/0089_learning_canonical_read_projection.sql
+  - docs/product/learning/current/LRN_M0_SURFACE_CONVERGENCE_REPORT.md
+  tests:
+  - contexts/learning/testing/canonical-learning-state.spec.ts
+  - tests/courses/learning-canonical-adapters.spec.ts
+  - apps/api/src/learning-canonical-projection.service.spec.ts
+  - tests/courses/learning-surface-convergence.pg.spec.ts
+  - e2e/learning-surface-convergence.spec.ts
+- id: IDN-001
+  milestone: M0
+  status: proven
+  summary: Stable logical learner identity independent of StudentSeat/account login
+  evidence:
+  - docs/architecture/ADR-LEARNER-IDENTITY-001.md
+  - docs/product/learning/current/LRN_M0_CANONICAL_STATE_RESULT_RESOLVER.md
+  - migrations/0086_learning_identity_foundation.sql
+  - docs/product/learning/current/LRN_M0_ADDITIVE_BACKFILL_REPORT.md
+  tests:
+  - tests/courses/learning-additive-backfill.pg.spec.ts
+  - tests/courses/learning-identity-rls.pg.spec.ts
+- id: IDN-002
+  milestone: M0
+  status: proven
+  summary: Audit existing Identity/Classroom model before creating a new learner identity table
+  evidence:
+  - docs/product/learning/current/LRN_M0_CURRENT_ARCHITECTURE.md
+  - docs/architecture/ADR-LEARNER-IDENTITY-001.md
+  tests: []
+  decision: ADR-LEARNER-IDENTITY-001
+- id: IDN-003
+  milestone: M1
+  status: in_progress
+  summary: CourseEnrollment and ActivityParticipation now use learner_identities.id with physical school lineage;
+    overall remains incomplete until Attempt and Result ownership converge
+  evidence:
+  - docs/architecture/ADR-LEARNER-IDENTITY-001.md
+  - docs/product/learning/current/LRN_M0_CANONICAL_STATE_RESULT_RESOLVER.md
+  - migrations/0086_learning_identity_foundation.sql
+  - docs/review/learning/M0_ACCEPTANCE_REPORT.md
+  - migrations/0092_course_enrollments.sql
+  - docs/product/learning/current/LRN_M1_COURSE_ENROLLMENT_REPORT.md
+  - migrations/0094_activity_participations.sql
+  - docs/product/learning/current/LRN_M1_ACTIVITY_PARTICIPATION_REPORT.md
+  - migrations/0095_learning_audiences.sql
+  - docs/product/learning/current/LRN_M1_AUDIENCE_REPORT.md
+  tests:
+  - tests/courses/learning-additive-backfill.pg.spec.ts
+  - tests/courses/course-enrollments.pg.spec.ts
+  - tests/courses/activity-participations.pg.spec.ts
+  - tests/courses/learning-audiences.pg.spec.ts
+- id: IDN-004
+  milestone: M0
+  status: proven
+  summary: StudentSeat to Account linking preserves one logical learner history
+  evidence:
+  - docs/architecture/ADR-LEARNER-IDENTITY-001.md
+  - migrations/0086_learning_identity_foundation.sql
+  - docs/product/learning/current/LRN_M0_ADDITIVE_BACKFILL_REPORT.md
+  tests:
+  - tests/courses/learning-additive-backfill.pg.spec.ts
+  - tests/courses/learning-identity-rls.pg.spec.ts
+- id: AUD-001
+  milestone: M1
+  status: proven
+  summary: CourseEnrollment lifecycle is assigned, active or withdrawn only; completion is not enrollment state
+  evidence:
+  - migrations/0092_course_enrollments.sql
+  - docs/product/learning/execution/LRN-M1-002_EXECUTION_SPEC.md
+  - docs/product/learning/current/LRN_M1_COURSE_ENROLLMENT_REPORT.md
+  tests:
+  - tests/courses/course-enrollments.pg.spec.ts
+- id: AUD-002
+  milestone: M1
+  status: proven
+  summary: A guarded explicit meaningful learner interaction idempotently activates an assigned CourseEnrollment
+  evidence:
+  - migrations/0092_course_enrollments.sql
+  - docs/product/learning/execution/LRN-M1-002_EXECUTION_SPEC.md
+  - docs/product/learning/current/LRN_M1_COURSE_ENROLLMENT_REPORT.md
+  tests:
+  - tests/courses/course-enrollments.pg.spec.ts
+- id: AUD-003
+  milestone: M1
+  status: proven
+  summary: CourseEnrollment withdrawal preserves the row and its assignment and activation history
+  evidence:
+  - migrations/0092_course_enrollments.sql
+  - docs/product/learning/execution/LRN-M1-002_EXECUTION_SPEC.md
+  - docs/product/learning/current/LRN_M1_COURSE_ENROLLMENT_REPORT.md
+  tests:
+  - tests/courses/course-enrollments.pg.spec.ts
+- id: MIG-003
+  milestone: M0
+  status: proven
+  summary: Never fabricate historical immutable submission evidence
+  evidence:
+  - docs/product/learning/current/LRN_M0_LEGACY_DRY_RUN_REPORT.md
+  - tools/learning-migration-dry-run.mjs
+  - migrations/0087_learning_additive_backfill.sql
+  - migrations/0088_learning_m0_006_acceptance_corrections.sql
+  - migrations/0097_learning_direct_project_attempts.sql
+  - docs/product/learning/execution/LRN-VS-002_EXECUTION_SPEC.md
+  - docs/product/learning/current/LRN_M0_ADDITIVE_BACKFILL_REPORT.md
+  tests:
+  - tests/courses/learning-additive-backfill.pg.spec.ts
+- id: ARCH-001
+  milestone: M1
+  status: in_progress
+  summary: Direct and course definitions share LearningActivityVersion, ActivityRun and stable-learner ActivityParticipation
+    storage; direct project Attempts now belong to ActivityParticipation, while course/quiz Attempt convergence
+    remains later scope
+  evidence:
+  - docs/product/learning/execution/LRN-M1-001_EXECUTION_SPEC.md
+  - docs/product/learning/current/LRN_M1_ACTIVITY_VERSION_CONVERGENCE_REPORT.md
+  - migrations/0091_learning_activity_version_convergence.sql
+  - docs/product/learning/execution/LRN-M1-003_EXECUTION_SPEC.md
+  - migrations/0093_activity_runs.sql
+  - docs/product/learning/current/LRN_M1_ACTIVITY_RUN_REPORT.md
+  - migrations/0094_activity_participations.sql
+  - docs/product/learning/current/LRN_M1_ACTIVITY_PARTICIPATION_REPORT.md
+  - migrations/0097_learning_direct_project_attempts.sql
+  - docs/product/learning/execution/LRN-VS-002_EXECUTION_SPEC.md
+  tests:
+  - tests/courses/learning-activity-version-convergence.pg.spec.ts
+  - tests/courses/activity-runs.pg.spec.ts
+  - tests/courses/activity-participations.pg.spec.ts
+- id: ARCH-006
+  milestone: M1
+  status: proven
+  summary: Published canonical LearningActivityVersion content and policy snapshots are immutable at the database
+    boundary
+  evidence:
+  - migrations/0077_learning_assessment_foundation.sql
+  - migrations/0091_learning_activity_version_convergence.sql
+  - docs/product/learning/execution/LRN-M1-001_EXECUTION_SPEC.md
+  - docs/product/learning/current/LRN_M1_ACTIVITY_VERSION_CONVERGENCE_REPORT.md
+  tests:
+  - tests/courses/learning-activity-version-convergence.pg.spec.ts
+- id: VER-001
+  milestone: M1
+  status: in_progress
+  summary: Reusable versioned entities include canonical LearningActivityVersion; other listed entity families retain
+    their own milestone status
+  evidence:
+  - docs/product/learning/execution/LRN-M1-001_EXECUTION_SPEC.md
+  - docs/product/learning/current/LRN_M1_ACTIVITY_VERSION_CONVERGENCE_REPORT.md
+  - migrations/0091_learning_activity_version_convergence.sql
+  tests:
+  - tests/courses/learning-activity-version-convergence.pg.spec.ts
+- id: VER-002
+  milestone: M1
+  status: in_progress
+  summary: LearningActivityVersion policy snapshot is immutable; unlock and future run-level policy portions remain
+    later M1 scope
+  evidence:
+  - docs/product/learning/execution/LRN-M1-001_EXECUTION_SPEC.md
+  - docs/product/learning/current/LRN_M1_ACTIVITY_VERSION_CONVERGENCE_REPORT.md
+  - migrations/0091_learning_activity_version_convergence.sql
+  tests:
+  - tests/courses/learning-activity-version-convergence.pg.spec.ts
+- id: VER-003
+  milestone: M1
+  status: in_progress
+  summary: New canonical ActivityRuns pin an exact immutable LearningActivityVersion and existing CourseRuns pin
+    CourseVersion; universal materialization remains future scope
+  evidence:
+  - migrations/0067_course_versions.sql
+  - migrations/0068_classroom_course_runs.sql
+  - migrations/0093_activity_runs.sql
+  - docs/product/learning/current/LRN_M1_ACTIVITY_RUN_REPORT.md
+  tests:
+  - tests/courses/activity-runs.pg.spec.ts
+- id: VER-004
+  milestone: M1
+  status: in_progress
+  summary: Publishing a later canonical activity draft does not retarget an existing ActivityRun; existing compatibility
+    paths remain outside the new runtime cutover
+  evidence:
+  - migrations/0091_learning_activity_version_convergence.sql
+  - migrations/0093_activity_runs.sql
+  - docs/product/learning/current/LRN_M1_ACTIVITY_RUN_REPORT.md
+  tests:
+  - tests/courses/activity-runs.pg.spec.ts
+- id: ARCH-002
+  milestone: M1
+  status: in_progress
+  summary: Persistent ActivityRun and ActivityParticipation primitives plus whole-class/named audience materialization
+    exist; ClassroomGroup, course-child materialization and executable-path cutover remain incomplete
+  evidence:
+  - docs/product/learning/execution/LRN-M1-003_EXECUTION_SPEC.md
+  - migrations/0093_activity_runs.sql
+  - docs/product/learning/current/LRN_M1_ACTIVITY_RUN_REPORT.md
+  - migrations/0094_activity_participations.sql
+  - docs/product/learning/current/LRN_M1_ACTIVITY_PARTICIPATION_REPORT.md
+  - migrations/0095_learning_audiences.sql
+  - docs/product/learning/current/LRN_M1_AUDIENCE_REPORT.md
+  tests:
+  - tests/courses/activity-runs.pg.spec.ts
+  - tests/courses/activity-participations.pg.spec.ts
+  - tests/courses/learning-audiences.pg.spec.ts
+  - tests/courses/learning-direct-project-attempts.pg.spec.ts
+- id: ARCH-003
+  milestone: M0
+  status: proven
+  summary: Gradebook is a canonical projection and not independent grade storage
+  evidence:
+  - docs/product/learning/current/LRN_M0_CANONICAL_STATE_RESULT_RESOLVER.md
+  - apps/api/src/learning-assessments.controller.ts
+  - apps/api/src/learning-canonical-projection.service.ts
+  - docs/product/learning/current/LRN_M0_SURFACE_CONVERGENCE_REPORT.md
+  tests:
+  - apps/api/src/learning-assessments.controller.spec.ts
+  - tests/courses/learning-surface-convergence.pg.spec.ts
+  - e2e/learning-surface-convergence.spec.ts
+- id: RUN-005
+  milestone: M1
+  status: target
+  summary: CourseRun materializes persistent ActivityRuns exactly once
+  evidence: []
+  tests:
+  - E2E-003
+  - TST-INT-002
+- id: RUN-101
+  milestone: M1
+  status: proven
+  summary: Canonical ActivityRun persists exact classroom/school/LAV/source provenance, dates, policy pins, creator
+    and lifecycle evidence
+  evidence:
+  - migrations/0093_activity_runs.sql
+  - docs/product/learning/current/LRN_M1_ACTIVITY_RUN_REPORT.md
+  tests:
+  - tests/courses/activity-runs.pg.spec.ts
+- id: RUN-102
+  milestone: M1
+  status: proven
+  summary: Stored ActivityRun lifecycle is exactly active, closed, cancelled or archived with guarded monotonic
+    transitions
+  evidence:
+  - migrations/0093_activity_runs.sql
+  - docs/product/learning/current/LRN_M1_ACTIVITY_RUN_REPORT.md
+  tests:
+  - tests/courses/activity-runs.pg.spec.ts
+- id: RUN-103
+  milestone: M1
+  status: in_progress
+  summary: Run-level base availability is derived from explicit as-of time, stored lifecycle, dates and compatibility
+    parent limits; learner overrides remain future
+  evidence:
+  - migrations/0093_activity_runs.sql
+  - docs/product/learning/current/LRN_M1_ACTIVITY_RUN_REPORT.md
+  tests:
+  - tests/courses/activity-runs.pg.spec.ts
+- id: RUN-104
+  milestone: M1
+  status: in_progress
+  summary: ActivityRun stores nullable explicit canonical late policy and derives late as a flag; fallback/effective
+    override semantics remain M1-007
+  evidence:
+  - migrations/0093_activity_runs.sql
+  - docs/product/learning/current/LRN_M1_ACTIVITY_RUN_REPORT.md
+  tests:
+  - tests/courses/activity-runs.pg.spec.ts
+- id: RUN-105
+  milestone: M1
+  status: in_progress
+  summary: Direct and course delivery share one ActivityRun storage/domain primitive; common Attempt APIs remain
+    future scope
+  evidence:
+  - migrations/0093_activity_runs.sql
+  - docs/product/learning/current/LRN_M1_ACTIVITY_RUN_REPORT.md
+  tests:
+  - tests/courses/activity-runs.pg.spec.ts
+- id: RUN-106
+  milestone: M1
+  status: in_progress
+  summary: Run-explicit values retain source provenance without flattening LAV defaults; complete participation
+    > run > course block > LAV resolution remains M1-007
+  evidence:
+  - migrations/0093_activity_runs.sql
+  - docs/product/learning/current/LRN_M1_ACTIVITY_RUN_REPORT.md
+  tests:
+  - tests/courses/activity-runs.pg.spec.ts
+  - TST-INT-RUN-PRECEDENCE
+- id: RUN-107
+  milestone: M1
+  status: in_progress
+  summary: ActivityRun stores inspectable policy source evidence, but teacher effective-settings inspector and learner-specific
+    explanation remain future scope
+  evidence:
+  - migrations/0093_activity_runs.sql
+  - docs/product/learning/current/LRN_M1_ACTIVITY_RUN_REPORT.md
+  tests:
+  - tests/courses/activity-runs.pg.spec.ts
+- id: AUD-101
+  milestone: M1
+  status: proven
+  summary: ActivityParticipation lifecycle is physically constrained to assigned, active or withdrawn with guarded
+    transitions and append-preserved withdrawal
+  evidence:
+  - docs/product/ASA_LEARNING_TECHNICAL_SPEC.md
+  - docs/product/learning/execution/LRN-M1-004_EXECUTION_SPEC.md
+  - migrations/0094_activity_participations.sql
+  - docs/product/learning/current/LRN_M1_ACTIVITY_PARTICIPATION_REPORT.md
+  tests:
+  - tests/courses/activity-participations.pg.spec.ts
+- id: AUD-102
+  milestone: M1
+  status: in_progress
+  summary: Completion must be projected from immutable policy plus Attempt/Result history; canonical Attempt/Result
+    integration is not implemented
+  evidence:
+  - docs/product/ASA_LEARNING_TECHNICAL_SPEC.md
+  - docs/product/learning/execution/LRN-M1-004_EXECUTION_SPEC.md
+  - migrations/0094_activity_participations.sql
+  - docs/product/learning/current/LRN_M1_ACTIVITY_PARTICIPATION_REPORT.md
+  tests:
+  - tests/courses/activity-participations.pg.spec.ts
+- id: AUD-103
+  milestone: M1
+  status: proven
+  summary: Excused is an orthogonal one-way Participation override with actor/time/reason evidence, authorization
+    and append-only audit
+  evidence:
+  - docs/product/ASA_LEARNING_TECHNICAL_SPEC.md
+  - docs/product/learning/execution/LRN-M1-004_EXECUTION_SPEC.md
+  - migrations/0094_activity_participations.sql
+  - docs/product/learning/current/LRN_M1_ACTIVITY_PARTICIPATION_REPORT.md
+  tests:
+  - tests/courses/activity-participations.pg.spec.ts
+- id: AUD-104
+  milestone: M1
+  status: proven
+  summary: Canonical school-safe learner-specific Participation fields and nullable override storage are implemented
+    with guarded commands and RLS
+  evidence:
+  - docs/product/ASA_LEARNING_TECHNICAL_SPEC.md
+  - docs/product/learning/execution/LRN-M1-004_EXECUTION_SPEC.md
+  - migrations/0094_activity_participations.sql
+  - docs/product/learning/current/LRN_M1_ACTIVITY_PARTICIPATION_REPORT.md
+  tests:
+  - tests/courses/activity-participations.pg.spec.ts
+- id: AUD-105
+  milestone: M1
+  status: in_progress
+  summary: Participation time-limit override storage is M1-004 scope; audited active-Attempt expiry extension remains
+    M2 because Attempt ownership is not cut over
+  evidence:
+  - docs/product/ASA_LEARNING_TECHNICAL_SPEC.md
+  - docs/product/learning/execution/LRN-M1-004_EXECUTION_SPEC.md
+  - migrations/0094_activity_participations.sql
+  - docs/product/learning/current/LRN_M1_ACTIVITY_PARTICIPATION_REPORT.md
+  tests:
+  - tests/courses/activity-participations.pg.spec.ts
+- id: AUD-201
+  milestone: M1
+  status: in_progress
+  summary: Canonical whole-class and named-learner audience types are implemented; classroom_group remains LRN-M1-006
+    scope
+  evidence:
+  - docs/product/ASA_LEARNING_TECHNICAL_SPEC.md
+  - docs/product/learning/execution/LRN-M1-005_EXECUTION_SPEC.md
+  - migrations/0095_learning_audiences.sql
+  - docs/product/learning/current/LRN_M1_AUDIENCE_REPORT.md
+  tests:
+  - tests/courses/learning-audiences.pg.spec.ts
+- id: AUD-202
+  milestone: M1
+  status: in_progress
+  summary: Whole-class dynamic and named-learner snapshot mode constraints are physically enforced; group dynamic
+    mode remains LRN-M1-006 scope
+  evidence:
+  - docs/product/ASA_LEARNING_TECHNICAL_SPEC.md
+  - docs/product/learning/execution/LRN-M1-005_EXECUTION_SPEC.md
+  - migrations/0095_learning_audiences.sql
+  - docs/product/learning/current/LRN_M1_AUDIENCE_REPORT.md
+  tests:
+  - tests/courses/learning-audiences.pg.spec.ts
+- id: AUD-203
+  milestone: M1
+  status: proven
+  summary: Durable seat lifecycle integration materializes a newly eligible logical learner exactly once across
+    active whole-class dynamic CourseRun and direct ActivityRun audiences
+  evidence:
+  - docs/product/learning/execution/LRN-M1-005_EXECUTION_SPEC.md
+  - migrations/0095_learning_audiences.sql
+  - docs/product/learning/current/LRN_M1_AUDIENCE_REPORT.md
+  tests:
+  - tests/courses/learning-audiences.pg.spec.ts
+  - TST-INT-003
+  - E2E-006
+- id: AUD-204
+  milestone: M1
+  status: in_progress
+  summary: Classroom membership end withdraws audience-owned membership and preserves history; direct project starts
+    now have participation-owned Attempts, while general post-membership Attempt continuation policy remains unresolved
+  evidence:
+  - docs/product/ASA_LEARNING_TECHNICAL_SPEC.md
+  - docs/product/learning/execution/LRN-M1-005_EXECUTION_SPEC.md
+  - migrations/0095_learning_audiences.sql
+  - docs/product/learning/current/LRN_M1_AUDIENCE_REPORT.md
+  - migrations/0097_learning_direct_project_attempts.sql
+  - docs/product/learning/execution/LRN-VS-002_EXECUTION_SPEC.md
+  tests:
+  - tests/courses/learning-audiences.pg.spec.ts
+  - tests/courses/learning-direct-project-attempts.pg.spec.ts
+- id: AUD-205
+  milestone: M1
+  status: in_progress
+  summary: Audience claim withdrawal preserves independent assignment and history; group removal and active Attempt
+    semantics remain future scope
+  evidence:
+  - docs/product/ASA_LEARNING_TECHNICAL_SPEC.md
+  - docs/product/learning/execution/LRN-M1-005_EXECUTION_SPEC.md
+  - migrations/0095_learning_audiences.sql
+  - docs/product/learning/current/LRN_M1_AUDIENCE_REPORT.md
+  tests:
+  - tests/courses/learning-audiences.pg.spec.ts
+- id: AUD-206
+  milestone: M1
+  status: proven
+  summary: Named snapshot membership changes are explicit, end-dated, audited, idempotent and deterministically
+    reject silent re-add after withdrawal
+  evidence:
+  - docs/product/ASA_LEARNING_TECHNICAL_SPEC.md
+  - docs/product/learning/execution/LRN-M1-005_EXECUTION_SPEC.md
+  - migrations/0095_learning_audiences.sql
+  - docs/product/learning/current/LRN_M1_AUDIENCE_REPORT.md
+  tests:
+  - tests/courses/learning-audiences.pg.spec.ts
+- id: RUN-203
+  milestone: M1
+  status: target
+  summary: Bulk assignment retry is idempotent
+  evidence: []
+  tests:
+  - E2E-009
+- id: ATT-004
+  milestone: M2
+  status: proven
+  summary: A database partial unique index enforces at most one non-terminal Attempt per canonical ActivityParticipation;
+    historical compatibility Attempts remain explicitly unlinked
+  evidence:
+  - migrations/0097_learning_direct_project_attempts.sql
+  - docs/product/learning/execution/LRN-VS-002_EXECUTION_SPEC.md
+  tests:
+  - TST-INT-005
+  - tests/courses/learning-direct-project-attempts.pg.spec.ts
+- id: QUIZ-102
+  milestone: M2
+  status: target
+  summary: Quiz answers persist server-side and recover after reload
+  evidence: []
+  tests:
+  - E2E-001
+  - TST-INT-006
+- id: QUIZ-104
+  milestone: M2
+  status: target
+  summary: Quiz timer is server-authoritative
+  evidence: []
+  tests:
+  - E2E-010
+  - TST-INT-007
+  - TST-INT-008
+- id: ASM-SEL-003
+  milestone: M2
+  status: target
+  summary: Best result selection has deterministic tie-break
+  evidence: []
+  tests:
+  - TST-UNIT-001
+- id: ASM-SEL-006
+  milestone: M2
+  status: target
+  summary: teacher_selected attempt is stored as audited pointer
+  evidence: []
+  tests:
+  - TST-INT-RESULT-SELECTION
+- id: QUIZ-110
+  milestone: M2
+  status: target
+  summary: Regrade scoped to ActivityRun, not global authoring quiz
+  evidence: []
+  tests:
+  - E2E-012
+- id: ASM-006
+  milestone: M3
+  status: target
+  summary: Published result correction is append-only
+  evidence: []
+  tests:
+  - TST-INT-010
+- id: ASM-007
+  milestone: M3
+  status: target
+  summary: Concurrent stale grading cannot overwrite latest result
+  evidence: []
+  tests:
+  - E2E-013
+  - TST-INT-011
+- id: GRD-002
+  milestone: M3
+  status: in_progress
+  summary: Gradebook matrix is built from one canonical server projection
+  evidence:
+  - docs/product/learning/current/LRN_M0_CANONICAL_STATE_RESULT_RESOLVER.md
+  - apps/api/src/learning-assessments.controller.ts
+  - docs/product/learning/current/LRN_M0_SURFACE_CONVERGENCE_REPORT.md
+  tests:
+  - apps/api/src/learning-assessments.controller.spec.ts
+  - e2e/learning-surface-convergence.spec.ts
+- id: GRD-005
+  milestone: M3
+  status: in_progress
+  summary: Gradebook cell separates workflowState, selectedResult and flags
+  evidence:
+  - docs/product/learning/current/LRN_M0_CANONICAL_STATE_RESULT_RESOLVER.md
+  - apps/api/src/learning-canonical-projection.service.ts
+  - apps/web/src/components/ClassroomGradebook.tsx
+  - docs/product/learning/current/LRN_M0_SURFACE_CONVERGENCE_REPORT.md
+  tests:
+  - E2E-005
+  - apps/api/src/learning-canonical-projection.service.spec.ts
+  - e2e/learning-surface-convergence.spec.ts
+- id: GRD-007
+  milestone: M3
+  status: target
+  summary: No generic average without explicit aggregation policy
+  evidence: []
+  tests: []
+- id: CRS-002
+  milestone: M4
+  status: target
+  summary: CourseVersion freezes exact content/activity/media refs
+  evidence: []
+  tests:
+  - TST-INT-001
+- id: CRS-006
+  milestone: M4
+  status: target
+  summary: Prepublish validation blocks invalid/broken/cyclic course
+  evidence: []
+  tests:
+  - TST-UNIT-005
+- id: MED-002
+  milestone: M4
+  status: target
+  summary: Base MVP distinguishes immutable embedded image from external mutable media links
+  evidence: []
+  tests:
+  - E2E-018
+- id: CAT-005
+  milestone: M5
+  status: target
+  summary: Course graph copy includes content graph but excludes all learner runtime
+  evidence: []
+  tests:
+  - TST-INT-013
+- id: MLT-007
+  milestone: M5
+  status: target
+  summary: Learner runtime belongs to target school tenant
+  evidence: []
+  tests:
+  - E2E-015
+  - TST-INT-012
+- id: SEC-CAP-001
+  milestone: M5
+  status: target
+  summary: Authorization uses concrete capabilities and resource scope
+  evidence: []
+  tests:
+  - SEC-NEGATIVE-MATRIX
+- id: PRG-001
+  milestone: TARGET
+  status: target
+  summary: Reusable programming task uses the common Learning runtime and versioned submission evidence
+  evidence: []
+  tests: []
+- id: PRG-002
+  milestone: TARGET
+  status: target
+  summary: Run and check create no official Submission; submit accepts an exact immutable code version
+  evidence: []
+  tests: []
+- id: PRG-003
+  milestone: TARGET
+  status: target
+  summary: Runner is isolated, resource-limited, has no network by default, secrets or hidden-test disclosure
+  evidence: []
+  tests: []
+- id: ACC-ASM-001
+  milestone: TARGET
+  status: target
+  summary: Shared URL or class code alone never authenticates a temporary assessment learner
+  evidence: []
+  tests: []
+- id: ACC-ASM-002
+  milestone: TARGET
+  status: target
+  summary: Temporary access is scoped to exact runtime targets and grants no roster or unrelated content
+  evidence: []
+  tests: []
+- id: ACC-ASM-003
+  milestone: TARGET
+  status: target
+  summary: Credential and session expiry preserve accepted Submission, Result, audit and evidence
+  evidence: []
+  tests: []
+- id: ACC-ASM-004
+  milestone: TARGET
+  status: target
+  summary: Server owns assessment windows and timeLimit; reconnect resumes the same Attempt
+  evidence: []
+  tests: []
+- id: CAT-PRG-001
+  milestone: TARGET
+  status: target
+  summary: Knowledge discovery reuses published content roots including assignments, quizzes and programming tasks
+  evidence: []
+  tests: []
+
+    code_case_sensitive: true
+    migration: migrations/0146_student_seat_protected_codes.sql
+    backfill_tool: tools/student-seat-protected-code-backfill.mjs
+    keyring_env:
+    - ASA_STUDENT_CODE_ENCRYPTION_KEYS_JSON
+    - ASA_STUDENT_CODE_ENCRYPTION_ACTIVE_KEY_ID
+    - ASA_STUDENT_CODE_LOOKUP_KEYS_JSON
+    - ASA_STUDENT_CODE_LOOKUP_ACTIVE_KEY_ID
+    sql_contains_key_material: false
+    schema_apply_rotates_student_codes: false
+    e1_permission_mapping: active_exact_class_staff_scope
+    existing_owner_and_co_teacher_access_preserved: true
+    organization_role_requires_exact_class_scope: true
+    temporary_substitute_access: active_window_or_explicit_revoke
     rollout_mode_initial: compat
     old_api_concurrent_with_backfill: false
     compat_new_writes_protected_and_legacy: true
