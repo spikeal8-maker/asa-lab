@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { act, createElement } from 'react';
+import { act, createElement, type ComponentProps } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BlocksEditor } from '../BlocksEditor';
@@ -52,7 +52,9 @@ async function flushAsync(): Promise<void> {
 let root: Root | null = null;
 let container: HTMLDivElement | null = null;
 
-async function renderEditor(): Promise<HTMLIFrameElement> {
+async function renderEditor(
+  overrides: Partial<ComponentProps<typeof BlocksEditor>> = {},
+): Promise<HTMLIFrameElement> {
   container = document.createElement('div');
   document.body.append(container);
   root = createRoot(container);
@@ -66,6 +68,7 @@ async function renderEditor(): Promise<HTMLIFrameElement> {
         accountLabel: 'ASA test user',
         accountInitials: 'AT',
         onAccountClick: vi.fn(),
+        ...overrides,
       }),
     );
     await flushAsync();
@@ -277,5 +280,120 @@ describe('BlocksEditor runtime session bootstrap', () => {
     expect(initCalls(postMessage)[0]?.[0]).toMatchObject({
       runtimeToken: 'newer.runtime.token',
     });
+  });
+
+  it('exposes one parent-owned explicit save and distinguishes success, failure and conflict', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(session())));
+    const iframe = await renderEditor();
+    const postMessage = spyOnPostMessage(iframe);
+    await fireLoad(iframe);
+
+    const init = initCalls(postMessage)[0]?.[0] as Record<string, unknown>;
+    const childMessage = (extra: Record<string, unknown>) => ({
+      protocolVersion: init['protocolVersion'],
+      projectId: init['projectId'],
+      sessionNonce: init['sessionNonce'],
+      ...extra,
+    });
+    const dispatchChild = async (extra: Record<string, unknown>): Promise<void> => {
+      await act(async () => {
+        const event = new MessageEvent('message', {
+          data: childMessage(extra),
+          origin: RUNTIME_ORIGIN,
+        });
+        Object.defineProperty(event, 'source', { value: iframe.contentWindow });
+        window.dispatchEvent(event);
+        await flushAsync();
+      });
+    };
+
+    const save = Array.from(container!.querySelectorAll('button')).find((button) =>
+      button.textContent?.includes('Сохранить в ASA'),
+    );
+    if (!save) throw new Error('Save control was not rendered');
+    expect(save).toBeDisabled();
+
+    await dispatchChild({ messageType: 'ASA_BLOCKS_STATUS', status: 'editor-ready' });
+    expect(save).not.toBeDisabled();
+
+    await act(async () => {
+      save.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      await flushAsync();
+    });
+    const flushCalls = () =>
+      postMessage.mock.calls.filter(
+        ([message]) =>
+          (message as Record<string, unknown>)?.['messageType'] === 'ASA_BLOCKS_FLUSH_REQUEST',
+      );
+    expect(flushCalls()).toHaveLength(1);
+    const firstRequest = flushCalls()[0]?.[0] as Record<string, unknown>;
+    expect(firstRequest['requestId']).toMatch(/^[0-9a-f-]{36}$/i);
+    expect(save.textContent).toContain('Сохранение…');
+    expect(save).toBeDisabled();
+
+    await act(async () => {
+      save.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      await flushAsync();
+    });
+    expect(flushCalls()).toHaveLength(1);
+
+    await dispatchChild({
+      messageType: 'ASA_BLOCKS_FLUSH_RESULT',
+      requestId: firstRequest['requestId'],
+      ok: true,
+      reason: null,
+      revision: 18,
+    });
+    expect(save.textContent).toContain('Сохранено');
+    expect(save.getAttribute('aria-label')).toBe('Сохранено в ASA, ревизия 18');
+    expect(save.getAttribute('data-confirmed-revision')).toBe('18');
+
+    await act(async () => {
+      save.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      await flushAsync();
+    });
+    const secondRequest = flushCalls()[1]?.[0] as Record<string, unknown>;
+    expect(secondRequest['requestId']).not.toBe(firstRequest['requestId']);
+    await dispatchChild({
+      messageType: 'ASA_BLOCKS_FLUSH_RESULT',
+      requestId: secondRequest['requestId'],
+      ok: false,
+      reason: 'revision_conflict',
+    });
+    expect(save.textContent).toContain('Конфликт сохранения');
+
+    await act(async () => {
+      save.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      await flushAsync();
+    });
+    const thirdRequest = flushCalls()[2]?.[0] as Record<string, unknown>;
+    await dispatchChild({
+      messageType: 'ASA_BLOCKS_FLUSH_RESULT',
+      requestId: thirdRequest['requestId'],
+      ok: false,
+      reason: 'draft_write_failed',
+    });
+    expect(save.textContent).toContain('Ошибка сохранения');
+  });
+
+  it('uses the explicit ASA save warning before leaving', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(session())));
+    const onHomeClick = vi.fn();
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const iframe = await renderEditor({ onHomeClick });
+    spyOnPostMessage(iframe);
+    await fireLoad(iframe);
+
+    const home = container!.querySelector<HTMLButtonElement>('[data-asa-blocks-home-overlay]');
+    if (!home) throw new Error('Home control was not rendered');
+    await act(async () => {
+      home.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      await flushAsync();
+    });
+
+    expect(confirm).toHaveBeenCalledWith(
+      'Несохранённые изменения могут быть потеряны. Перед выходом используйте «Сохранить в ASA». Выйти?',
+    );
+    expect(onHomeClick).toHaveBeenCalledTimes(1);
   });
 });

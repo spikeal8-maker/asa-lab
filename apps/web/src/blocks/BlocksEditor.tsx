@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { BlocksEditorShell } from './BlocksEditorShell';
+import { newClientId } from '../client-id';
+import { BlocksEditorShell, type BlocksSaveState } from './BlocksEditorShell';
 import { BlocksRuntimeBridge, requireExactHttpOrigin } from './runtime-protocol';
 import { requestBlocksRuntimeSession } from './runtime-session';
 
@@ -50,7 +51,10 @@ export function BlocksEditor({
   const runtimeOrigin = useMemo(configuredRuntimeOrigin, []);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const bridgeRef = useRef<BlocksRuntimeBridge | null>(null);
+  const saveRequestRef = useRef<string | null>(null);
   const [status, setStatus] = useState('Подключение Scratch…');
+  const [saveState, setSaveState] = useState<BlocksSaveState>('idle');
+  const [savedRevision, setSavedRevision] = useState<number | null>(null);
   const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
@@ -69,6 +73,11 @@ export function BlocksEditor({
       if (disposed) return;
       window.clearTimeout(startupTimer);
       setStatus('Ошибка Scratch runtime');
+      if (saveRequestRef.current) {
+        saveRequestRef.current = null;
+        setSaveState('error');
+        setSavedRevision(null);
+      }
     };
 
     const onMessage = (event: MessageEvent): void => {
@@ -77,6 +86,19 @@ export function BlocksEditor({
       if (payload['messageType'] === 'ASA_BLOCKS_STATUS') {
         if (payload['status'] === 'editor-ready') window.clearTimeout(startupTimer);
         setStatus(String(payload['status'] ?? 'Scratch подключён'));
+      }
+      if (payload['messageType'] === 'ASA_BLOCKS_FLUSH_RESULT') {
+        const requestId = payload['requestId'];
+        if (requestId === saveRequestRef.current) {
+          saveRequestRef.current = null;
+          if (payload['ok'] === true && Number.isSafeInteger(payload['revision'])) {
+            setSavedRevision(Number(payload['revision']));
+            setSaveState('saved');
+          } else {
+            setSavedRevision(null);
+            setSaveState(payload['reason'] === 'revision_conflict' ? 'conflict' : 'error');
+          }
+        }
       }
       if (payload['messageType'] === 'ASA_BLOCKS_FATAL') failStartup();
     };
@@ -131,7 +153,10 @@ export function BlocksEditor({
       bridge?.stop();
       bridge = null;
       bridgeRef.current = null;
+      saveRequestRef.current = null;
       setStatus('Подключение Scratch…');
+      setSaveState('idle');
+      setSavedRevision(null);
       void connect(loadGeneration, requestController);
     };
 
@@ -146,8 +171,29 @@ export function BlocksEditor({
       window.removeEventListener('message', onMessage);
       bridge?.stop();
       bridgeRef.current = null;
+      saveRequestRef.current = null;
     };
   }, [projectId, runtimeOrigin, attempt]);
+
+  const requestSave = (): void => {
+    if (saveState === 'saving') return;
+    const bridge = bridgeRef.current;
+    if (!bridge || status !== 'editor-ready') {
+      setSavedRevision(null);
+      setSaveState('error');
+      return;
+    }
+    const requestId = newClientId();
+    saveRequestRef.current = requestId;
+    setSavedRevision(null);
+    setSaveState('saving');
+    try {
+      bridge.requestFlush(requestId);
+    } catch {
+      saveRequestRef.current = null;
+      setSaveState('error');
+    }
+  };
 
   if (!runtimeOrigin) {
     return (
@@ -169,11 +215,15 @@ export function BlocksEditor({
         accountLabel={accountLabel}
         accountInitials={accountInitials}
         avatarUrl={avatarUrl}
+        saveState={saveState}
+        savedRevision={savedRevision}
+        saveDisabled={status !== 'editor-ready' || saveState === 'saving'}
+        onSave={requestSave}
         onAccountClick={onAccountClick}
         onHomeClick={() => {
           if (
             window.confirm(
-              'Изменения Scratch не сохраняются в аккаунте. Сначала сохраните работу через Файл → Сохранить на компьютер (.sb3). Выйти на главную?',
+              'Несохранённые изменения могут быть потеряны. Перед выходом используйте «Сохранить в ASA». Выйти?',
             )
           )
             onHomeClick();
