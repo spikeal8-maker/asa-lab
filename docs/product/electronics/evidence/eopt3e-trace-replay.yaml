@@ -1,7 +1,8 @@
 schema: asa-lab.electronics-eopt3e-trace-replay.v1
 task_id: TASK-ELECTRONICS-EOPT3E-001
 issue: 298
-candidate_sha: 2033dd173fd7525d3778a88935216e38614a92ad
+characterization_test_sha: b86159b5e39f97a31371315c2acf2858fa492d20
+review_target: pr_head
 activation_main_sha: a44a0acebf011dea8ee992dff948ad23bf581617
 
 contracts:
@@ -30,11 +31,11 @@ fixtures:
       - Arduino runtime continuation
     canonical_trace:
       - at_microseconds: 50000
-        target: one
+        target: two
         operation: state
         payload: true
       - at_microseconds: 50000
-        target: two
+        target: one
         operation: state
         payload: true
       - at_microseconds: 125000
@@ -91,6 +92,7 @@ checks:
   irregular_stall: pass
   bounded_yield: pass
   same_time_trace_order: pass
+  anti_tautology_alphabetical_reorder: pass
   direct_equivalence: pass
   worker_equivalence: pass
   physical_continuation: pass
