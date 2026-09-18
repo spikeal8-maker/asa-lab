@@ -1,0 +1,51 @@
+name: E1FIX02B Branch Formatter
+on:
+  push:
+    branches:
+      - learning/e1-fix02b-protected-student-code
+permissions:
+  contents: write
+jobs:
+  format:
+    if: ${{ !contains(github.event.head_commit.message, '[formatter]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: learning/e1-fix02b-protected-student-code
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Format bounded slice
+        run: |
+          pnpm exec prettier --write \
+            apps/api/src/classroom-join.controller.ts \
+            apps/api/src/classrooms.controller.ts \
+            apps/api/src/student-code-protection.ts \
+            apps/api/src/student-code-protection.spec.ts \
+            tests/account/student-seat-protected-storage.pg.spec.ts \
+            schemas/openapi.yaml \
+            package.json
+      - name: Commit formatter output
+        shell: bash
+        run: |
+          if git diff --quiet; then
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            apps/api/src/classroom-join.controller.ts \
+            apps/api/src/classrooms.controller.ts \
+            apps/api/src/student-code-protection.ts \
+            apps/api/src/student-code-protection.spec.ts \
+            tests/account/student-seat-protected-storage.pg.spec.ts \
+            schemas/openapi.yaml \
+            package.json
+          git commit -m "style(learning): format E1-FIX-02B [formatter]"
+          git push origin HEAD:learning/e1-fix02b-protected-student-code
