@@ -149,12 +149,12 @@ parallel_lanes:
       base_branch: main
       pr: null
       pr_draft: false
-      status: in_progress
-      checkpoint: post_eopt3d_roadmap_hygiene_convergence
+      status: in_review
+      checkpoint: post_eopt3d_roadmap_hygiene_review_ready
       owner_acceptance: pending
     revisions:
       convergence_baseline_sha: d5b972e909b8f7de418ed1d06a19be67148c72d1
-      head_sha: d5b972e909b8f7de418ed1d06a19be67148c72d1
+      head_sha: 6eb591bbacee76f76a4d3c95e73efad0f581b360
     execution_lease:
       executor_id: codex-electronics-governance-002
       holder: unassigned
