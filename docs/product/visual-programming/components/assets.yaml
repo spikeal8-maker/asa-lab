@@ -29,6 +29,12 @@ components:
       - path: docs/product/visual-programming/VSCR-D0-003-ASSET-STORAGE-CONTRACT.md
         section: "Tenant and RLS policy"
     task: VSCR-M1-004
+    active_candidate:
+      task: VSCR-M1-005B
+      pr: 288
+      branch: codex/scratch-real-storage-005b
+      status: implemented_in_draft_pr
+      acceptance: pending
     design_gate: VSCR-M1-004P
     depends_on: [blocks.runtime.capability]
 
@@ -43,6 +49,12 @@ components:
       - path: docs/product/visual-programming/VSCR-D0-003-ASSET-STORAGE-CONTRACT.md
         section: "Content validation"
     task: VSCR-M1-004
+    active_candidate:
+      task: VSCR-M1-005B
+      pr: 288
+      branch: codex/scratch-real-storage-005b
+      status: implemented_in_draft_pr
+      acceptance: pending
     design_gate: VSCR-M1-004P
     depends_on: [blocks.assets.metadata, blocks.runtime.origin-security]
 
@@ -55,4 +67,10 @@ components:
       - path: docs/product/visual-programming/VSCR-D0-003-ASSET-STORAGE-CONTRACT.md
         section: "Asset GET endpoint"
     task: VSCR-M1-004
+    active_candidate:
+      task: VSCR-M1-005B
+      pr: 288
+      branch: codex/scratch-real-storage-005b
+      status: implemented_in_draft_pr
+      acceptance: pending
     depends_on: [blocks.assets.metadata, blocks.runtime.capability]
