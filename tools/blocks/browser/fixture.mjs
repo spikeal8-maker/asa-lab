@@ -115,7 +115,8 @@ window.addEventListener('message', (event) => {
   );
   const committedMutations = new Map();
   let serverRevision = Number(runtimeSession.draftRevision ?? 0);
-  let dropDraftResponseRemaining = options.dropFirstDraftResponseAfterCommit === true ? 1 : 0;
+  let dropDraftResponseRemaining =
+    options.dropFirstDraftResponseAfterCommit === true ? 1 : 0;
   let runtimeSessionSequence = 0;
   const runtimeSessionPath = `/api/projects/${projectId}/blocks/runtime-session`;
   const runtimeAssetPrefix = `/api/blocks/runtime/projects/${projectId}/assets/`;
@@ -383,6 +384,11 @@ window.addEventListener('message', (event) => {
         runtimePersistenceMetrics.revisionCommits += 1;
         if (dropDraftResponseRemaining > 0) {
           dropDraftResponseRemaining -= 1;
+          const partial = '{"status":"ok","revision":';
+          response.statusCode = 200;
+          response.setHeader('Content-Type', 'application/json; charset=utf-8');
+          response.setHeader('Content-Length', String(partial.length + 32));
+          response.write(partial);
           response.destroy();
           return;
         }

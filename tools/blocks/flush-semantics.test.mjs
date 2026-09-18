@@ -16,9 +16,22 @@ class Storage {
     ImageBitmap: { name: 'ImageBitmap' },
     Sound: { name: 'Sound' },
   };
-  DataFormat = { JSON: 'json', SVG: 'svg', PNG: 'png', JPG: 'jpg', WAV: 'wav', MP3: 'mp3' };
+  DataFormat = {
+    JSON: 'json',
+    SVG: 'svg',
+    PNG: 'png',
+    JPG: 'jpg',
+    WAV: 'wav',
+    MP3: 'mp3',
+  };
   createAsset(assetType, dataFormat, data, assetId) {
-    return { assetType, dataFormat, data, assetId, encodeDataURI: () => 'data:fixture' };
+    return {
+      assetType,
+      dataFormat,
+      data,
+      assetId,
+      encodeDataURI: () => 'data:fixture',
+    };
   }
   addHelper(helper) {
     this.helper = helper;
@@ -65,7 +78,10 @@ function loadStorage(fetchMock, randomUUID) {
     crypto: { subtle: webcrypto.subtle, randomUUID },
   });
   vm.runInContext(
-    fs.readFileSync(new URL('../../infra/scratch-editor/host/storage.js', import.meta.url), 'utf8'),
+    fs.readFileSync(
+      new URL('../../infra/scratch-editor/host/storage.js', import.meta.url),
+      'utf8',
+    ),
     context,
   );
   return context.AsaBlocksStorage.createReadOnlyStorage;
@@ -103,7 +119,10 @@ test('canonical fingerprint ignores object-key and asset ordering and unchanged 
     monitors: [],
     extensions: [],
   };
-  const revision = await storage.persistSnapshot({ projectJson: reordered, assets: [a, b] });
+  const revision = await storage.persistSnapshot({
+    projectJson: reordered,
+    assets: [a, b],
+  });
   assert.equal(revision, 5);
   assert.equal(storage.getConfirmedRevision(), 5);
   assert.equal(uuidCalls, 0);
@@ -135,9 +154,10 @@ test('lost response reuses mutation identity, durable assets and commits one rev
         sizeBytes: bytes.byteLength,
       };
       return new Response(JSON.stringify({ status: 'ok', asset: ref }), {
-        status: 200,
-        headers: { 'content-type': 'application/json' },
-      });
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        },
+      );
     }
     draftAttempts += 1;
     const body = JSON.parse(init.body);
@@ -146,7 +166,9 @@ test('lost response reuses mutation identity, durable assets and commits one rev
     if (previous) {
       assert.equal(body.baseRevision, previous.baseRevision);
       assert.deepEqual(body.document, previous.document);
-      return new Response(JSON.stringify({ status: 'ok', revision: previous.revision }), {
+      return new Response(
+        JSON.stringify({ status: 'ok', revision: previous.revision }),
+        {
         status: 200,
         headers: { 'content-type': 'application/json' },
       });
@@ -209,7 +231,9 @@ test('project revision conflict is explicit and never mutates confirmed revision
   const create = loadStorage(async (url, init) => {
     calls.push({ url: String(url), init });
     return new Response(
-      JSON.stringify({ error: { code: 'project_revision_conflict', message: 'conflict' } }),
+      JSON.stringify({
+        error: { code: 'project_revision_conflict', message: 'conflict' },
+      }),
       { status: 409, headers: { 'content-type': 'application/json' } },
     );
   }, () => 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');

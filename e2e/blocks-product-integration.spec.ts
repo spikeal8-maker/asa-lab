@@ -542,7 +542,9 @@ test('explicit FLUSH fingerprints canonical state, no-ops unchanged work and adv
       ),
     ).toBe(false);
     expect(
-      fixture.runtimeAssetPutEvidence.some((item) => item.assetFile === `${barkAssetId}.wav`),
+      fixture.runtimeAssetPutEvidence.some(
+        (item) => item.assetFile === `${barkAssetId}.wav`,
+      ),
     ).toBe(true);
     expect(
       fixture.runtimeAssetPutEvidence.every(
@@ -756,7 +758,9 @@ test('lost draft response retries the same mutation once without duplicate asset
     expect(afterReplay.revisionCommits).toBe(1);
     expect(afterReplay.idempotentReplays).toBe(1);
     expect(afterReplay.serverRevision).toBe(24);
-    expect(new Set(fixture.runtimeDraftEvidence.map((entry) => entry.body.mutationId)).size).toBe(1);
+    expect(
+      new Set(fixture.runtimeDraftEvidence.map((entry) => entry.body.mutationId)).size,
+    ).toBe(1);
     await expect(shell).toHaveAttribute('data-draft-revision', '24');
 
     fs.writeFileSync(

@@ -66,7 +66,7 @@
       Number.isSafeInteger(options.draftRevision) && options.draftRevision >= 0
         ? options.draftRevision
         : 0;
-    let durableAssets = new Map(confirmedAssets);
+    const durableAssets = new Map(confirmedAssets);
     let confirmedFingerprint = options.projectJson === null ? null : undefined;
     let pendingMutation = null;
     const abortController = typeof AbortController === 'undefined' ? null : new AbortController();
@@ -145,7 +145,10 @@
 
     const ensureConfirmedFingerprint = async () => {
       if (typeof confirmedFingerprint !== 'undefined') return confirmedFingerprint;
-      confirmedFingerprint = await documentFingerprint(options.projectJson, confirmedAssets.values());
+      confirmedFingerprint = await documentFingerprint(
+        options.projectJson,
+        confirmedAssets.values(),
+      );
       return confirmedFingerprint;
     };
 
@@ -324,7 +327,9 @@
             sha256: asset.sha256,
             sizeBytes: asset.sizeBytes,
           };
-          const durable = durableAssets.get(runtimeKey(asset.assetId, asset.dataFormat));
+          const durable = durableAssets.get(
+            runtimeKey(asset.assetId, asset.dataFormat),
+          );
           if (!sameReference(durable, expected)) await uploadSnapshotAsset(asset);
         }
 
