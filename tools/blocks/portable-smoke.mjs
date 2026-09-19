@@ -868,7 +868,7 @@ try {
       data: { ...deniedBody, mutationId: randomUUID() },
     },
   );
-  expect(revokedUse.status()).toBe(404);
+  expect(revokedUse.status()).toBe(403);
 
   phase = 'storage-failure';
   await freshEditor.frame.getByRole('tab', { name: 'Sounds', exact: true }).click();
