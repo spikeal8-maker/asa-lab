@@ -8,7 +8,7 @@ import test from 'node:test';
 import { fileURLToPath, URL } from 'node:url';
 const root = fileURLToPath(new URL('../../', import.meta.url));
 const shell = process.platform === 'win32' ? 'C:/Program Files/Git/bin/bash.exe' : '/bin/sh';
-const pwsh = process.platform === 'win32' ? 'C:/Program Files/PowerShell/7/pwsh.exe' : 'pwsh';
+const pwsh = process.env.ASA_PWSH_PATH ?? 'pwsh';
 const identityRoot = '/srv/asa';
 const files = ['/srv/asa/compose.yaml', '/srv/asa/compose.dev.yaml'];
 const record = (service, extra = {}) => ({
@@ -196,8 +196,8 @@ test('startup guards precede environment mutation and both updaters recheck befo
     assert.match(
       update,
       extension === 'ps1'
-        ? /Assert-AsaInstallationIdentity[^\n]*\n\s*Invoke-Compose -Arguments @\('up'/
-        : /assert_update_identity && compose up/,
+        ? /Assert-AsaInstallationIdentity[^\n]*\n\s*# Validate[^\n]*\n\s*Invoke-Compose -Arguments @\('run', '--rm', '--no-deps', '--entrypoint', 'node', 'migration', 'tools\/migrate\.mjs', '--plan'\)\n\s*Invoke-Compose -Arguments @\('up'/
+        : /assert_update_identity &&\n\s*compose run --rm --no-deps --entrypoint node migration tools\/migrate\.mjs --plan &&\n\s*compose up/,
     );
   }
 });
