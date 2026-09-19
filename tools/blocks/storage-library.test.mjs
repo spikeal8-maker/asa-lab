@@ -112,6 +112,7 @@ test('stock media uses credential-free, redirect-free local requests and caches 
   });
   const first = await storage.load('ImageVector', hash, 'svg');
   assert.equal(first.assetId, hash);
+  assert.equal(first.clean, false);
   assert.equal(await storage.load('ImageVector', hash, 'svg'), first);
   assert.equal(calls.length, 1);
   assert.equal(calls[0].url, `/library-assets/${hash}.svg`);
