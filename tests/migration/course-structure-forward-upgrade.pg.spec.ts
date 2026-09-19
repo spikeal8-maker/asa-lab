@@ -72,8 +72,8 @@ describe('Course Builder structure forward upgrade', () => {
       expect(publishedActivity.result_code).toBe('ok');
       const courseId = (
         await pool.query(
-          "SELECT course_save($1,NULL,'Forward structure course','Preserve history',NULL,'private') AS id",
-          [principal],
+          "SELECT * FROM course_save_v2($1,$2,NULL,'Forward structure course','Preserve history',NULL,'private',NULL,$3)",
+          [principal, teacher.tenantId, 'course-structure-forward-course'],
         )
       ).rows[0].id as string;
       const sectionId = (
