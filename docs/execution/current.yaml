@@ -143,21 +143,20 @@ parallel_lanes:
       - tools/validate-electronics-agent-docs.mjs
       - tools/test_validate_electronics_agent_docs.mjs
     task:
-      id: TASK-ELECTRONICS-GOVERNANCE-003
-      issue: 303
-      branch: main
+      id: TASK-ELECTRONICS-EOPT5A-DESIGN-001
+      issue: 305
+      branch: codex/electronics-eopt5a-runtime-strategy
       base_branch: main
       pr: null
-      pr_draft: false
-      status: done
-      checkpoint: post_eopt3_hygiene_accepted
-      owner_acceptance: accepted
+      pr_draft: true
+      status: in_progress
+      checkpoint: eopt5a_runtime_strategy_design
+      owner_acceptance: pending
     revisions:
-      convergence_baseline_sha: d98f5d278ff9c923dca084773c039c919dec97ed
-      head_sha: eaf4690865d558b246a807c9dce8d1e607c11325
-      owner_accepted_sha: eaf4690865d558b246a807c9dce8d1e607c11325
+      convergence_baseline_sha: c36b1f10bc92497a5d7f22080534f4c0a4e7925c
+      head_sha: c36b1f10bc92497a5d7f22080534f4c0a4e7925c
     execution_lease:
-      executor_id: codex-electronics-governance-003
+      executor_id: codex-electronics-eopt5a-runtime-strategy
       holder: unassigned
       acquired_at: null
       expires_at: null
