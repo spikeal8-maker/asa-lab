@@ -368,9 +368,7 @@ export function advanceArduinoCircuitClock(
           : component,
       )
       .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)),
-    connections: [...document.connections].sort((a, b) =>
-      a.id < b.id ? -1 : a.id > b.id ? 1 : 0,
-    ),
+    connections: [...document.connections].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)),
   };
   let nextInputIndex = previous?.nextInputIndex ?? 0;
   for (const event of inputs.slice(0, nextInputIndex))
@@ -379,8 +377,7 @@ export function advanceArduinoCircuitClock(
     previous?.boards.map((entry) => [entry.componentId, entry.runtime] as const),
   );
   for (const board of boards) {
-    if (compileDiagnostics.has(board.id) && !states.has(board.id))
-      states.set(board.id, coldState);
+    if (compileDiagnostics.has(board.id) && !states.has(board.id)) states.set(board.id, coldState);
   }
   let reachedMicroseconds = previous?.reachedMicroseconds ?? -1;
   let physicalState = previous?.physicalState;
