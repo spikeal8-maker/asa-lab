@@ -143,20 +143,20 @@ parallel_lanes:
       - tools/validate-electronics-agent-docs.mjs
       - tools/test_validate_electronics_agent_docs.mjs
     task:
-      id: TASK-ELECTRONICS-EOPT5B1B-LAST-GOOD-001
-      issue: 314
-      branch: codex/electronics-eopt5b1b-last-good
+      id: TASK-ELECTRONICS-EOPT5B1C-UNSUPPORTED-LOCALITY-001
+      issue: 316
+      branch: codex/electronics-eopt5b1c-unsupported-locality
       base_branch: main
-      pr: 315
+      pr: null
       pr_draft: true
       status: in_progress
-      checkpoint: eopt5b1b_last_good_program_implementation
+      checkpoint: eopt5b1c_unsupported_capability_board_local
       owner_acceptance: pending
     revisions:
-      convergence_baseline_sha: 22c1cee099ff82f9b65a1502411d2aa27c50ce55
-      head_sha: 7a5dd3a1fa53f24743c0795d744ccbcfed01b63e
+      convergence_baseline_sha: 5915f8215390a2819ce4fb749a15e9ce640c52af
+      head_sha: 5915f8215390a2819ce4fb749a15e9ce640c52af
     execution_lease:
-      executor_id: codex-electronics-eopt5b1b-last-good
+      executor_id: codex-electronics-eopt5b1c-unsupported-locality
       holder: unassigned
       acquired_at: null
       expires_at: null
