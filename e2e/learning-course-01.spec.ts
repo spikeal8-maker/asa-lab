@@ -823,6 +823,12 @@ for (const module of ['electronics', 'three-d'])
     await expect(page.getByText('Урок добавлен.', { exact: true })).toBeVisible();
 
     await page.reload();
+    await page.getByRole('button', { name: 'Мои курсы', exact: true }).click();
+    await page
+      .getByTestId('courses-list')
+      .getByRole('button')
+      .filter({ hasText: courseTitle })
+      .click();
     await expect(editor).toBeVisible();
     await expect(editor.getByLabel('Язык кода', { exact: true })).toHaveValue('javascript');
     await expect(editor.getByLabel('Код', { exact: true })).toHaveValue(
