@@ -532,6 +532,34 @@ describe('Arduino shared dc-inputs-v1 circuit clock', () => {
     expect(continued.events.some((event) => event.componentId === 'uno')).toBe(true);
   });
 
+  it('rejects explicit loaded-source mismatches instead of applying legacy inference', () => {
+    const sourceA =
+      'int marker=1;void setup(){pinMode(13,OUTPUT);}void loop(){marker=1;}';
+    const sourceC =
+      'int marker=2;void setup(){pinMode(13,OUTPUT);}void loop(){marker=2;}';
+
+    const loadedC = through(circuit([board('uno', sourceC)]), 10);
+    const runtimeC = loadedC.state!.boards.find((entry) => entry.componentId === 'uno')!.runtime;
+
+    for (const loadedSource of [sourceA, null] as const) {
+      const forged = {
+        ...loadedC.state!,
+        boards: [{ componentId: 'uno', loadedSource, runtime: runtimeC }],
+      };
+      const rejected = through(
+        circuit([board('uno', sourceC)]),
+        20,
+        JSON.parse(JSON.stringify(forged)),
+      );
+
+      expect(rejected.executionStatus).toBe('fault');
+      expect(rejected.diagnostics[0]?.code).toBe('invalid_clock_continuation');
+      expect(rejected.state).toBeNull();
+      expect(rejected.result).toBeNull();
+      expect(rejected.events).toEqual([]);
+    }
+  });
+
   it('replaces A with valid C and keeps C as last-good after malformed B', () => {
     const sourceA =
       'int marker=1;void setup(){pinMode(13,OUTPUT);digitalWrite(13,HIGH);}void loop(){marker=1;}';
