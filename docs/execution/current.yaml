@@ -150,11 +150,12 @@ parallel_lanes:
       pr: 306
       pr_draft: true
       status: in_review
-      checkpoint: eopt5a_owner_rules_corrected_independent_review_pending
-      owner_acceptance: pending
+      checkpoint: eopt5a_strategy_accepted_merge_authorized
+      owner_acceptance: accepted
     revisions:
       convergence_baseline_sha: c36b1f10bc92497a5d7f22080534f4c0a4e7925c
       head_sha: 5846f74e0fdaef5859a60d5ba65744bf5ca33221
+      owner_accepted_sha: 5846f74e0fdaef5859a60d5ba65744bf5ca33221
     execution_lease:
       executor_id: codex-electronics-eopt5a-runtime-strategy
       holder: unassigned
