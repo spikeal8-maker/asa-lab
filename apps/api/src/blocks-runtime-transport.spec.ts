@@ -2,7 +2,6 @@ import { afterEach, describe, expect, it } from 'vitest';
 import Fastify, { type FastifyInstance } from 'fastify';
 import {
   BLOCKS_ASSET_CANONICAL_CONTENT_TYPES,
-  BLOCKS_ASSET_CONTENT_TYPE,
   BLOCKS_DRAFT_CONTENT_TYPE,
   BlocksRuntimeAddressBudget,
   optionalBlocksRuntimeOrigin,
@@ -50,12 +49,12 @@ describe('Blocks runtime transport', () => {
     expect(bad.statusCode).toBe(403);
     expect(bad.headers['access-control-allow-origin']).toBeUndefined();
   });
-  it.each([BLOCKS_ASSET_CONTENT_TYPE, ...BLOCKS_ASSET_CANONICAL_CONTENT_TYPES])(
-    'keeps %s asset bodies as streams for bounded capture',
-    async (contentType) => {
+  it.each(Object.entries(BLOCKS_ASSET_CANONICAL_CONTENT_TYPES))(
+    'keeps runtime asset .%s + %s as a raw stream for bounded capture',
+    async (format, contentType) => {
       app = Fastify();
       registerBlocksRuntimeTransport(app, ORIGIN);
-      app.put('/api/blocks/runtime/test-asset', async (request) => {
+      app.put('/api/blocks/runtime/projects/:projectId/assets/:assetFile', async (request) => {
         let bytes = 0;
         for await (const chunk of request.body as AsyncIterable<Uint8Array>) {
           bytes += chunk.byteLength;
@@ -65,7 +64,7 @@ describe('Blocks runtime transport', () => {
 
       const response = await app.inject({
         method: 'PUT',
-        url: '/api/blocks/runtime/test-asset',
+        url: `/api/blocks/runtime/projects/11111111-1111-4111-8111-111111111111/assets/${'a'.repeat(32)}.${format}`,
         headers: {
           origin: ORIGIN,
           'content-type': contentType,
@@ -74,6 +73,56 @@ describe('Blocks runtime transport', () => {
       });
       expect(response.statusCode).toBe(200);
       expect(response.json()).toEqual({ bytes: 4096 });
+    },
+  );
+
+  it('rejects wrong canonical MIME and application/octet-stream for runtime asset uploads', async () => {
+    app = Fastify();
+    registerBlocksRuntimeTransport(app, ORIGIN);
+    let handled = 0;
+    app.put('/api/blocks/runtime/projects/:projectId/assets/:assetFile', async () => {
+      handled += 1;
+      return { ok: true };
+    });
+    const url = `/api/blocks/runtime/projects/11111111-1111-4111-8111-111111111111/assets/${'b'.repeat(32)}.png`;
+
+    const wrong = await app.inject({
+      method: 'PUT',
+      url,
+      headers: { origin: ORIGIN, 'content-type': 'image/jpeg' },
+      payload: Buffer.alloc(3, 1),
+    });
+    expect(wrong.statusCode).toBe(415);
+
+    const octet = await app.inject({
+      method: 'PUT',
+      url,
+      headers: { origin: ORIGIN, 'content-type': 'application/octet-stream' },
+      payload: Buffer.alloc(3, 1),
+    });
+    expect(octet.statusCode).toBe(415);
+    expect(handled).toBe(0);
+  });
+
+  it.each(Object.values(BLOCKS_ASSET_CANONICAL_CONTENT_TYPES))(
+    'does not apply Scratch raw parser semantics to non-runtime API path for %s',
+    async (contentType) => {
+      app = Fastify();
+      registerBlocksRuntimeTransport(app, ORIGIN);
+      let handled = 0;
+      app.put('/api/generic-media', async () => {
+        handled += 1;
+        return { ok: true };
+      });
+
+      const response = await app.inject({
+        method: 'PUT',
+        url: '/api/generic-media',
+        headers: { 'content-type': contentType },
+        payload: Buffer.alloc(8, 2),
+      });
+      expect(response.statusCode).toBe(415);
+      expect(handled).toBe(0);
     },
   );
   it('allows bounded large draft JSON without raising the global JSON limit', async () => {

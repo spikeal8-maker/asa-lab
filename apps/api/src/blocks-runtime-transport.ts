@@ -4,14 +4,14 @@ import { clientAddress } from './client-address.js';
 import { FixedWindowRateLimiter, type RateLimitDecision } from './rate-limit.js';
 
 export const BLOCKS_DRAFT_CONTENT_TYPE = 'application/vnd.asa.blocks-draft+json';
-export const BLOCKS_ASSET_CONTENT_TYPE = 'application/octet-stream';
-export const BLOCKS_ASSET_CANONICAL_CONTENT_TYPES = [
-  'image/svg+xml',
-  'image/png',
-  'image/jpeg',
-  'audio/wav',
-  'audio/mpeg',
-] as const;
+export const BLOCKS_ASSET_CANONICAL_CONTENT_TYPES = {
+  svg: 'image/svg+xml',
+  png: 'image/png',
+  jpg: 'image/jpeg',
+  wav: 'audio/wav',
+  mp3: 'audio/mpeg',
+} as const;
+export type BlocksRuntimeAssetFormat = keyof typeof BLOCKS_ASSET_CANONICAL_CONTENT_TYPES;
 export const BLOCKS_DRAFT_BODY_LIMIT = BLOCKS_JSON_LIMIT + 2 * 1024 * 1024;
 export const BLOCKS_RUNTIME_ADDRESS_LIMIT = 60_000;
 export const BLOCKS_RUNTIME_ADDRESS_WINDOW_MS = 5 * 60 * 1000;
@@ -63,6 +63,20 @@ export function isBlocksRuntimePath(path: string): boolean {
   return path.startsWith('/api/blocks/runtime/');
 }
 
+const BLOCKS_RUNTIME_ASSET_UPLOAD =
+  /^\/api\/blocks\/runtime\/projects\/[^/?]+\/assets\/[a-f0-9]{32}\.(svg|png|jpg|wav|mp3)$/;
+
+function runtimeAssetUploadFormat(request: FastifyRequest): BlocksRuntimeAssetFormat | null {
+  if (request.method !== 'PUT') return null;
+  const path = (request.raw.url ?? request.url).split('?', 1)[0] ?? '';
+  const match = BLOCKS_RUNTIME_ASSET_UPLOAD.exec(path);
+  return (match?.[1] as BlocksRuntimeAssetFormat | undefined) ?? null;
+}
+
+function unsupportedMediaType(): Error {
+  return Object.assign(new Error('unsupported_blocks_asset_media_type'), { statusCode: 415 });
+}
+
 export function applyBlocksRuntimeCors(
   request: FastifyRequest,
   reply: FastifyReply,
@@ -99,11 +113,17 @@ export function registerBlocksRuntimeTransport(
     payload: NodeJS.ReadableStream,
     done: (error: Error | null, value?: unknown) => void,
   ) => {
-    void request;
+    const format = runtimeAssetUploadFormat(request);
+    if (
+      !format ||
+      request.headers['content-type'] !== BLOCKS_ASSET_CANONICAL_CONTENT_TYPES[format]
+    ) {
+      done(unsupportedMediaType());
+      return;
+    }
     done(null, payload);
   };
-  fastify.addContentTypeParser(BLOCKS_ASSET_CONTENT_TYPE, assetParser);
-  for (const contentType of BLOCKS_ASSET_CANONICAL_CONTENT_TYPES) {
+  for (const contentType of Object.values(BLOCKS_ASSET_CANONICAL_CONTENT_TYPES)) {
     fastify.addContentTypeParser(contentType, assetParser);
   }
   fastify.addContentTypeParser(
