@@ -68,7 +68,10 @@ Every accepted architecture must preserve:
 - stale-generation protection;
 - explicit failure for unsupported behavior;
 - server/reference verification;
-- no arbitrary host JavaScript execution by user sketches.
+- no arbitrary host JavaScript execution by user sketches;
+- learner-correctable circuit/program errors must not disable or tear down the complete Electronics simulation session.
+
+The owner constraints were added after the initial candidate `038ece8f7af63f70b23270a6be1f8573889b9d88`. They were not part of the initial evaluation. SOURCE_LEVEL, AVR and HYBRID were subsequently re-evaluated against the owner constraints before independent review.
 
 Any candidate violating a hard constraint must be rejected regardless of Arduino compatibility.
 

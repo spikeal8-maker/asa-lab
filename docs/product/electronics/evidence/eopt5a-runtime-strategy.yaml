@@ -1,0 +1,363 @@
+schema: asa-lab.electronics-eopt5a-runtime-strategy.v1
+task_id: TASK-ELECTRONICS-EOPT5A-DESIGN-001
+issue: 305
+evaluated_main_sha: f8752c6e54bdd2489a6de5ce3a43c2260be9819e
+roadmap_slice: E-OPT-5
+kind: design-decision
+risk: high
+semantic_change: true
+
+criteria:
+  frozen_before_evaluation: true
+  count: 22
+  names:
+    - canonical_determinism
+    - accepted_EOPT3_clock_compatibility
+    - arduino_sketch_compatibility
+    - uno_atmega328p_correctness
+    - student_diagnostics_quality
+    - browser_feasibility
+    - worker_compatibility
+    - state_serialization_save_resume
+    - execution_performance
+    - bundle_toolchain_size
+    - memory_cost
+    - startup_compile_latency
+    - peripheral_extensibility
+    - serial_feasibility
+    - pulseIn_micros_feasibility
+    - pwm_timer_feasibility
+    - failure_isolation_infinite_loop_protection
+    - licensing
+    - security_untrusted_sketches
+    - portability
+    - implementation_effort
+    - long_term_maintenance_cost
+
+hard_constraints:
+  canonical_physical_time_owned_by_electronics_clock: required
+  browser_wall_clock_is_not_physics: required
+  third_independent_scheduler: forbidden
+  deterministic_replay: required
+  worker_compatible_execution: required
+  bounded_work_no_ui_freeze: required
+  serializable_canonical_state_where_required: required
+  stale_generation_protection: required
+  explicit_unsupported_failures: required
+  server_reference_verification: required
+  arbitrary_host_js_from_user_sketch: forbidden
+
+current_runtime:
+  architecture: source-level TypeScript
+  legacy_clock_profile: legacy-ms-v1
+  canonical_clock_profile: instruction-us-v1
+  canonical_scheduler: contexts/electronics/domain/arduino-circuit-scheduler.ts
+  legacy_entry_point: advanceArduinoRuntime
+  legacy_production_callers:
+    - contexts/electronics/domain/arduino-model.ts
+    - contexts/electronics/domain/solver.ts
+  runtime_state_serializable: true
+  runtime_state_separate_from_saved_schematic: true
+
+compatibility_baseline:
+  command: >-
+    pnpm exec vitest run contexts/electronics/testing/arduino-correctness.spec.ts
+    contexts/electronics/testing/arduino-runtime-state.spec.ts
+    contexts/electronics/testing/arduino-values.spec.ts
+    contexts/electronics/testing/arduino-execution-clock.spec.ts
+    contexts/electronics/testing/arduino-circuit-scheduler.spec.ts
+    contexts/electronics/testing/arduino-capabilities.spec.ts --reporter=dot
+  test_files_passed: 6
+  tests_passed: 148
+  tests_failed: 0
+
+avr_reference:
+  used: true
+  repository_tool: tools/run-arduino-numeric-reference.sh
+  role: independent_reference_only
+  arduino_avr_core: 1.8.6
+  avr_gcc: 7.3.0-atmel3.6.1-arduino7
+  target: ATmega328P
+  frequency_hz: 16000000
+  historical_simavr: 1.6+dfsg-3
+  historical_gdb_avr: 12.1-1+b5
+  production_backend: false
+
+external_feasibility_sources:
+  avr8js:
+    project: wokwi/avr8js
+    observed_version: 0.21.1
+    source: https://github.com/wokwi/avr8js
+    registry: https://www.npmjs.com/package/avr8js
+    license: MIT
+    runtime_dependencies_reported_by_registry: 0
+    browser_node_capable: true
+    requires_precompiled_machine_code: true
+    external_hardware_models_required: true
+    installed_into_product: false
+  simavr:
+    project: buserror/simavr
+    source: https://github.com/buserror/simavr
+    license: GPL-3.0
+    role_in_decision: native_reference_feasibility
+    browser_backend: false
+    installed_into_product: false
+  arduino_avr_core:
+    project: arduino/ArduinoCore-avr
+    source: https://github.com/arduino/ArduinoCore-avr
+    latest_release_observed: 1.8.8
+    reference_version_used_by_repo: 1.8.6
+    licensing_note: component-level LGPL/GPL notices; redistribution requires component review
+  arduino_avr_toolchain:
+    project: arduino/toolchain-avr
+    source: https://github.com/arduino/toolchain-avr
+    reference_gcc_line: 7.3.0
+    licensing_note: GNU toolchain redistribution obligations apply
+
+measurements:
+  source_level:
+    harness: temporary_untracked_vitest_harness_removed_after_run
+    node: v24.14.1
+    vitest: 3.2.7
+    source_chars: 125
+    sketch: >-
+      unsigned long count=0; void setup(){pinMode(13,OUTPUT);}
+      void loop(){count++;digitalWrite(13,count%2);delayMicroseconds(10);}
+    parse_compile:
+      warmup_runs: 50
+      measured_runs: 1000
+      total_ms: 33.253
+      mean_ms: 0.033253
+    execution:
+      warmup_runs: 20
+      measured_runs: 200
+      horizon_ms_per_run: 20
+      total_ms: 1871.983
+      mean_ms: 9.359913
+      simulated_ms_per_wall_ms: 2.137
+      mean_quanta_per_run: 1
+      final_loop_iterations: 1429
+      final_event_queue_length: 256
+    state:
+      json_bytes: 24295
+      v8_serialize_bytes: 21721
+      clock_profile: instruction-us-v1
+      virtual_time_ms: 20
+    scope_note: representative host/sketch measurement; not a universal performance guarantee
+  avr:
+    local_runtime_benchmark: not_run
+    feasibility_basis:
+      - existing isolated AVR GCC + simavr reference proof
+      - AVR8js browser/Node ATmega328P feasibility
+    missing_for_production:
+      - bounded compiler path
+      - canonical clock adapter
+      - external hardware bridge
+      - full continuation serialization contract
+      - source-map_student_diagnostics_contract
+  hybrid:
+    local_runtime_benchmark: not_run
+    feasibility_basis:
+      - source-level production baseline
+      - AVR8js browser/Node feasibility
+    additional_cost:
+      - two production execution truths
+      - backend-discriminated runtime state
+      - cross-backend parity matrix
+      - compiler_toolchain_and_hardware_bridge
+
+candidates:
+  source_level:
+    evaluated: true
+    hard_constraints_satisfied: true
+    browser_feasibility: yes_proven
+    worker_compatibility: yes_proven
+    determinism: strong_proven
+    diagnostics: strong_source_level
+    state_serialization: yes_proven
+    implementation_cost: lowest
+    maintenance_cost: lowest_for_declared_subset
+  avr:
+    evaluated: true
+    hard_constraints_satisfied: conditional
+    browser_feasibility: yes_runtime_conditional_compiler_separate
+    worker_compatibility: feasible
+    determinism: conditional_on_canonical_cycle_horizon_adapter
+    diagnostics: compiler_good_runtime_lower_level
+    state_serialization: major_design_work
+    implementation_cost: high
+    maintenance_cost: high
+  hybrid:
+    evaluated: true
+    hard_constraints_satisfied: conditional
+    browser_feasibility: feasible
+    worker_compatibility: feasible_with_dual_backend
+    determinism: conditional_on_single_clock_adapter
+    diagnostics: high_unification_cost
+    state_serialization: backend_discriminated_major_work
+    implementation_cost: highest
+    maintenance_cost: highest
+
+peripheral_readiness:
+  Servo_SG90:
+    source_level: bounded_microsecond_timed_output_plus_external_model
+    avr: mcu_timer_path_plus_external_model
+    hybrid: dual_parity_burden
+  HC_SR04_PING:
+    source_level: micros_pulseIn_edge_scheduling_plus_external_model
+    avr: mcu_timing_plus_external_echo_bridge
+    hybrid: dual_edge_semantics
+  PIR:
+    source_level: bounded_digital_input_event
+    avr: gpio_plus_external_model
+    hybrid: low_incremental_benefit
+  Serial_Monitor:
+    source_level: serialized_rx_tx_buffers_events
+    avr: uart_emulation_plus_ui_bridge
+    hybrid: dual_serial_semantics
+  I2C:
+    source_level: major_protocol_api_plus_device_models
+    avr: twi_emulation_plus_device_models
+    hybrid: high_parity_burden
+  SPI:
+    source_level: major_protocol_api_plus_device_models
+    avr: spi_emulation_plus_device_models
+    hybrid: high_parity_burden
+  IR:
+    source_level: timed_edge_protocol_plus_device_model
+    avr: mcu_timing_plus_external_model
+    hybrid: dual_timing_semantics
+  NeoPixel:
+    source_level: timing_sensitive_output_abstraction
+    avr: cycle_level_execution_attractive_but_external_led_model_required
+    hybrid: compatibility_benefit_with_high_dual_runtime_cost
+
+compile_load_contract:
+  editor_source_distinct_from_loaded_program: required
+  failed_compile_replaces_loaded_program: false
+  last_successfully_loaded_program_preserved: required
+  compile_error_distinct_from_simulator_unsupported: required
+  learner_compile_error_stops_global_simulation: false
+  no_loaded_program_on_initial_compile_failure: required
+  exact_gpio_reset_values_defined_here: false
+  implementation_status: not_implemented_in_EOPT5A
+
+reevaluation_chronology:
+  initial_candidate_selected_before_owner_clarification: true
+  owner_constraints_added_after_initial_candidate: true
+  all_three_strategies_reevaluated_before_independent_review: true
+  reevaluation_scope:
+    - learner_error_must_not_stop_or_block_global_electronics_simulation
+    - editor_source_distinct_from_last_successfully_loaded_executable
+
+candidate_reevaluation:
+  source_level:
+    result: PASS
+    global_simulation_running_on_compile_or_runtime_error:
+      result: PASS
+      reason: board-local diagnostics/fault state can coexist with continuing shared Electronics session
+    editor_source_and_loaded_executable_separate:
+      result: PASS
+      reason: source and executable/program identity can be separate per-board state
+    failed_compile_preserves_previous_executable:
+      result: PASS
+      reason: executable identity changes only after successful compile/load
+    per_board_failure_isolation:
+      result: PASS
+      reason: board runtime and diagnostics remain board-owned under the shared scheduler
+    compile_error_distinct_from_unsupported_ASA_capability:
+      result: PASS
+      reason: syntax/compile diagnostics and valid-but-unsupported capability diagnostics are separable
+    single_canonical_electronics_clock:
+      result: PASS
+      reason: compile/load separation needs no second scheduler or clock
+  avr:
+    result: CONDITIONAL
+    global_simulation_running_on_compile_or_runtime_error:
+      result: CONDITIONAL
+      reason: compiler/emulator failures must be contained as board-local state
+    editor_source_and_loaded_executable_separate:
+      result: PASS
+      reason: compile-to-binary/load boundary naturally separates source from loaded image
+    failed_compile_preserves_previous_executable:
+      result: PASS
+      reason: failed compile can leave the previous loaded image unchanged
+    per_board_failure_isolation:
+      result: CONDITIONAL
+      reason: each board requires independent emulator/image/runtime state and fault containment
+    compile_error_distinct_from_unsupported_ASA_capability:
+      result: CONDITIONAL
+      reason: compiled valid code may still lack an ASA peripheral/circuit bridge and needs separate classification
+    single_canonical_electronics_clock:
+      result: CONDITIONAL
+      reason: AVR cycles must be subordinated to scheduler-owned horizons
+  hybrid:
+    result: CONDITIONAL
+    global_simulation_running_on_compile_or_runtime_error:
+      result: CONDITIONAL
+      reason: both backends must expose learner failures as board-local faults
+    editor_source_and_loaded_executable_separate:
+      result: CONDITIONAL
+      reason: loaded executable identity must include backend identity without coupling it to editor source
+    failed_compile_preserves_previous_executable:
+      result: CONDITIONAL
+      reason: failed compile/backend selection must preserve the previous executable/backend pair
+    per_board_failure_isolation:
+      result: CONDITIONAL
+      reason: isolation must be equivalent across two runtime state models
+    compile_error_distinct_from_unsupported_ASA_capability:
+      result: CONDITIONAL
+      reason: one taxonomy must separate compiler, backend-selection and ASA capability diagnostics
+    single_canonical_electronics_clock:
+      result: CONDITIONAL
+      reason: both backends must remain subordinate to exactly one canonical scheduler
+
+owner_constraints_satisfied_by_selected_strategy:
+  permissive_global_start: true
+  source_loaded_program_separation: true
+  last_good_program_preservation: true
+  per_board_failure_isolation: true
+  compile_vs_unsupported_separation: true
+  single_canonical_clock: true
+
+selected_strategy: SOURCE_LEVEL
+selection_reason: >-
+  After explicit re-evaluation against the two owner constraints, SOURCE_LEVEL directly supports
+  separate editor/loaded-program state, last-good executable preservation, per-board learner-fault
+  isolation, compile-vs-unsupported diagnostics and global simulation continuation without a
+  second scheduler or violation of the canonical Electronics clock. AVR and HYBRID remain
+  conditional on additional load-state, isolation and clock-adapter architecture.
+
+rejected:
+  avr_production_backend:
+    reason: >-
+      Adds compiler/toolchain distribution, binary lifecycle, emulator continuation serialization,
+      source mapping and MCU-to-circuit bridging before the declared educational subset requires
+      those costs; broader compatibility does not by itself justify a second product runtime.
+  hybrid_production_backend:
+    reason: >-
+      Creates two production execution truths, backend-discriminated state and a multiplied parity
+      and maintenance matrix without current evidence that the extra compatibility justifies it.
+
+legacy_ms_v1_disposition:
+  retained_until_implementation: true
+  retirement_possible: true
+  canonical_replacement: instruction-us-v1
+  migration_shape: additive_code_migration_with_runtime_only_state_reset_on_profile_change
+advanceArduinoRuntime_disposition:
+  retained_until_implementation: true
+  future_action: migrate_production_callers_to_canonical_source_level_instruction_us_v1_path
+
+production_source_changed: false
+test_source_changed: false
+runtime_dependency_changed: false
+package_lock_changed: false
+implementation_started: false
+EOPT4_started: false
+EOPT5B_started: false
+EOPT6_started: false
+issue_304_activated: false
+deployment_performed: false
+independent_review: pending
+owner_acceptance: pending
+next_task: null

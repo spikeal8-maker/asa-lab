@@ -591,6 +591,20 @@ Runtime damage живёт только внутри одного simulation run.
   расчёт. Блокировка вала является runtime-управлением эксперимента и не
   сохраняется в проекте.
 
+- `DEC-MATH-023` — пользовательские ошибки схемы, подключения или программы
+  не запрещают запуск Electronics simulation. Опасная или неправильная
+  поддерживаемая схема запускается и показывает фактический результат,
+  warning/damage/diagnostic в пределах поддерживаемой модели. Arduino
+  compile/runtime error сам по себе не останавливает всю электрическую
+  лабораторию. Fail-closed означает «не выдумывать физический или программный
+  результат», а не «запретить пользователю нажать Start». Явный start contract:
+  wrong wiring → Start allowed; wrong pin → Start allowed; dangerous supported
+  circuit → Start allowed; Arduino compile error → lab Start allowed;
+  unsupported ASA API → lab Start allowed с локальной диагностикой без
+  выдуманного результата. Worker crash, protocol corruption и иные
+  unrecoverable infrastructure failures являются отдельным классом и могут
+  остановить simulation.
+
 ## 14. Порядок развития математического ядра
 
 ### VISUAL-0 — физическая основа
