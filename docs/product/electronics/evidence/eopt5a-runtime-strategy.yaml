@@ -232,6 +232,16 @@ peripheral_readiness:
     avr: cycle_level_execution_attractive_but_external_led_model_required
     hybrid: compatibility_benefit_with_high_dual_runtime_cost
 
+compile_load_contract:
+  editor_source_distinct_from_loaded_program: required
+  failed_compile_replaces_loaded_program: false
+  last_successfully_loaded_program_preserved: required
+  compile_error_distinct_from_simulator_unsupported: required
+  learner_compile_error_stops_global_simulation: false
+  no_loaded_program_on_initial_compile_failure: required
+  exact_gpio_reset_values_defined_here: false
+  implementation_status: not_implemented_in_EOPT5A
+
 selected_strategy: SOURCE_LEVEL
 selection_reason: >-
   Preserve the accepted E-OPT-3 canonical clock/Worker/replay/state model and student-facing
