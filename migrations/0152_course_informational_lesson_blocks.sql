@@ -2,6 +2,40 @@
 -- No new block model or runtime is introduced. This only extends the canonical
 -- validator and the legacy plain-text projection used by existing course flows.
 
+CREATE OR REPLACE FUNCTION public.course_lesson_table_rows_valid(p_rows jsonb)
+RETURNS boolean
+LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE
+SET search_path = pg_catalog, pg_temp AS $
+DECLARE
+    v_row jsonb;
+    v_cell jsonb;
+    v_columns integer := NULL;
+BEGIN
+    IF p_rows IS NULL OR jsonb_typeof(p_rows) <> 'array' THEN RETURN false; END IF;
+    IF jsonb_array_length(p_rows) NOT BETWEEN 1 AND 30 THEN RETURN false; END IF;
+
+    FOR v_row IN SELECT value FROM jsonb_array_elements(p_rows)
+    LOOP
+        IF jsonb_typeof(v_row) <> 'array' THEN RETURN false; END IF;
+        IF jsonb_array_length(v_row) NOT BETWEEN 1 AND 12 THEN RETURN false; END IF;
+        IF v_columns IS NULL THEN
+            v_columns := jsonb_array_length(v_row);
+        ELSIF jsonb_array_length(v_row) <> v_columns THEN
+            RETURN false;
+        END IF;
+
+        FOR v_cell IN SELECT value FROM jsonb_array_elements(v_row)
+        LOOP
+            IF jsonb_typeof(v_cell) <> 'string' OR length(v_cell #>> '{}') > 1000 THEN
+                RETURN false;
+            END IF;
+        END LOOP;
+    END LOOP;
+
+    RETURN true;
+END;
+$;
+
 CREATE OR REPLACE FUNCTION public.course_lesson_blocks_valid(p_blocks jsonb)
 RETURNS boolean
 LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE
@@ -98,24 +132,7 @@ BEGIN
                     OR length(block ->> 'text') > 4000
                 WHEN 'table' THEN
                     block - ARRAY['id','type','rows'] <> '{}'::jsonb
-                    OR CASE
-                        WHEN coalesce(jsonb_typeof(block -> 'rows'), '') <> 'array' THEN true
-                        WHEN jsonb_array_length(block -> 'rows') NOT BETWEEN 1 AND 30 THEN true
-                        ELSE EXISTS (
-                            SELECT 1
-                              FROM jsonb_array_elements(block -> 'rows') row_value
-                             WHERE coalesce(jsonb_typeof(row_value), '') <> 'array'
-                                OR jsonb_array_length(row_value) NOT BETWEEN 1 AND 12
-                                OR jsonb_array_length(row_value)
-                                   <> jsonb_array_length((block -> 'rows') -> 0)
-                                OR EXISTS (
-                                    SELECT 1
-                                      FROM jsonb_array_elements(row_value) cell
-                                     WHERE coalesce(jsonb_typeof(cell), '') <> 'string'
-                                        OR length(cell #>> '{}') > 1000
-                                )
-                        )
-                    END
+                    OR NOT public.course_lesson_table_rows_valid(block -> 'rows')
                 WHEN 'divider' THEN
                     block - ARRAY['id','type'] <> '{}'::jsonb
                 ELSE true
