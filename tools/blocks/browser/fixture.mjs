@@ -157,12 +157,16 @@ window.addEventListener('message', (event) => {
       runtimeSessionSequence += 1;
       response.setHeader('Content-Type', 'application/json; charset=utf-8');
       response.setHeader('Cache-Control', 'no-store');
+      const expiresAt =
+        typeof options.runtimeSessionExpiresAt === 'function'
+          ? options.runtimeSessionExpiresAt(runtimeSessionSequence)
+          : (options.runtimeSessionExpiresAt ?? 4_000_000_000);
       response.end(
         JSON.stringify({
           ...runtimeSession,
           runtimeOrigin: runtimeUrl,
           runtimeToken: `fixture.${runtimeSessionSequence}.signature`,
-          expiresAt: 4_000_000_000,
+          expiresAt,
         }),
       );
       return;
@@ -467,6 +471,9 @@ window.addEventListener('message', (event) => {
       runtimePersistenceMetrics,
       getServerRevision() {
         return serverRevision;
+      },
+      getRuntimeSessionSequence() {
+        return runtimeSessionSequence;
       },
       advanceServerRevision() {
         serverRevision += 1;

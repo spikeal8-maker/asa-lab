@@ -9,11 +9,11 @@ const PROJECT_ID = '11111111-1111-4111-8111-111111111111';
 const RUNTIME_ORIGIN = 'http://127.0.0.1:4613';
 const reactTestGlobal = globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean };
 
-function session(runtimeToken = 'real.runtime.token') {
+function session(runtimeToken = 'real.runtime.token', expiresAt = 4_000_000_000) {
   return {
     runtimeOrigin: RUNTIME_ORIGIN,
     runtimeToken,
-    expiresAt: 4_000_000_000,
+    expiresAt,
     draftRevision: 17,
     projectJson: { targets: [], monitors: [], extensions: [] },
     assets: [
@@ -106,6 +106,7 @@ afterEach(async () => {
   container = null;
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
+  vi.useRealTimers();
 });
 
 describe('BlocksEditor runtime session bootstrap', () => {
@@ -346,10 +347,20 @@ describe('BlocksEditor runtime session bootstrap', () => {
       ok: true,
       reason: null,
       revision: 18,
+      snapshotGeneration: 0,
     });
     expect(save.textContent).toContain('Сохранено');
     expect(save.getAttribute('aria-label')).toBe('Сохранено в ASA, ревизия 18');
     expect(save.getAttribute('data-confirmed-revision')).toBe('18');
+
+    await dispatchChild({
+      messageType: 'ASA_BLOCKS_STATUS',
+      status: 'project-dirty',
+      generation: 1,
+    });
+    expect(save.textContent).toContain('Сохранить в ASA');
+    expect(save.getAttribute('data-confirmed-revision')).toBeNull();
+    expect(flushCalls()).toHaveLength(1);
 
     await act(async () => {
       save.dispatchEvent(new MouseEvent('click', { bubbles: true }));
@@ -377,6 +388,399 @@ describe('BlocksEditor runtime session bootstrap', () => {
       reason: 'draft_write_failed',
     });
     expect(save.textContent).toContain('Ошибка сохранения');
+  });
+
+  it('refreshes expiring authority before Save with TOKEN_UPDATE then FLUSH and no second INIT', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2030-01-01T00:00:00.000Z'));
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse(session('initial.runtime.token', nowSeconds + 30)))
+      .mockResolvedValueOnce(jsonResponse(session('fresh.runtime.token', nowSeconds + 600)));
+    vi.stubGlobal('fetch', fetchMock);
+    const storageSet = vi.spyOn(Storage.prototype, 'setItem');
+    const iframe = await renderEditor();
+    const postMessage = spyOnPostMessage(iframe);
+    await fireLoad(iframe);
+
+    const init = initCalls(postMessage)[0]?.[0] as Record<string, unknown>;
+    const dispatchChild = async (extra: Record<string, unknown>): Promise<void> => {
+      await act(async () => {
+        const event = new MessageEvent('message', {
+          data: {
+            protocolVersion: init['protocolVersion'],
+            projectId: init['projectId'],
+            sessionNonce: init['sessionNonce'],
+            ...extra,
+          },
+          origin: RUNTIME_ORIGIN,
+        });
+        Object.defineProperty(event, 'source', { value: iframe.contentWindow });
+        window.dispatchEvent(event);
+        await flushAsync();
+      });
+    };
+    await dispatchChild({ messageType: 'ASA_BLOCKS_STATUS', status: 'editor-ready' });
+
+    const save = container!.querySelector<HTMLButtonElement>('[data-asa-blocks-save]');
+    if (!save) throw new Error('Save control was not rendered');
+    await act(async () => {
+      save.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      await flushAsync();
+    });
+
+    const messages = postMessage.mock.calls.map(([message]) => message as Record<string, unknown>);
+    const updateIndex = messages.findIndex(
+      (message) => message['messageType'] === 'ASA_BLOCKS_TOKEN_UPDATE',
+    );
+    const flushIndex = messages.findIndex(
+      (message) => message['messageType'] === 'ASA_BLOCKS_FLUSH_REQUEST',
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(initCalls(postMessage)).toHaveLength(1);
+    expect(updateIndex).toBeGreaterThan(0);
+    expect(flushIndex).toBeGreaterThan(updateIndex);
+    expect(messages[updateIndex]).toMatchObject({
+      runtimeToken: 'fresh.runtime.token',
+      sessionNonce: init['sessionNonce'],
+    });
+    expect(messages[flushIndex]).toMatchObject({ sessionNonce: init['sessionNonce'] });
+    expect(storageSet).not.toHaveBeenCalled();
+  });
+
+  it('keeps proactive refresh single-flight when Save joins an in-flight rotation', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2030-01-01T00:00:00.000Z'));
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    let resolveRefresh!: (value: Response) => void;
+    const refreshResponse = new Promise<Response>((resolve) => {
+      resolveRefresh = resolve;
+    });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse(session('initial.runtime.token', nowSeconds + 61)))
+      .mockReturnValueOnce(refreshResponse);
+    vi.stubGlobal('fetch', fetchMock);
+    const iframe = await renderEditor();
+    const postMessage = spyOnPostMessage(iframe);
+    await fireLoad(iframe);
+    const init = initCalls(postMessage)[0]?.[0] as Record<string, unknown>;
+
+    await act(async () => {
+      const event = new MessageEvent('message', {
+        data: {
+          protocolVersion: init['protocolVersion'],
+          projectId: init['projectId'],
+          sessionNonce: init['sessionNonce'],
+          messageType: 'ASA_BLOCKS_STATUS',
+          status: 'editor-ready',
+        },
+        origin: RUNTIME_ORIGIN,
+      });
+      Object.defineProperty(event, 'source', { value: iframe.contentWindow });
+      window.dispatchEvent(event);
+      await vi.advanceTimersByTimeAsync(1_000);
+      await flushAsync();
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    const save = container!.querySelector<HTMLButtonElement>('[data-asa-blocks-save]');
+    if (!save) throw new Error('Save control was not rendered');
+    await act(async () => {
+      save.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      await flushAsync();
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    await act(async () => {
+      resolveRefresh(jsonResponse(session('fresh.runtime.token', nowSeconds + 600)));
+      await flushAsync();
+    });
+    const messages = postMessage.mock.calls.map(([message]) => message as Record<string, unknown>);
+    expect(
+      messages.filter((message) => message['messageType'] === 'ASA_BLOCKS_TOKEN_UPDATE'),
+    ).toHaveLength(1);
+    expect(
+      messages.filter((message) => message['messageType'] === 'ASA_BLOCKS_FLUSH_REQUEST'),
+    ).toHaveLength(1);
+  });
+
+  it.each([401, 503])(
+    'fails Save closed when mandatory capability refresh returns %s',
+    async (status) => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2030-01-01T00:00:00.000Z'));
+      const nowSeconds = Math.floor(Date.now() / 1000);
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(jsonResponse(session('initial.runtime.token', nowSeconds + 30)))
+        .mockResolvedValueOnce(jsonResponse({}, status));
+      vi.stubGlobal('fetch', fetchMock);
+      const iframe = await renderEditor();
+      const postMessage = spyOnPostMessage(iframe);
+      await fireLoad(iframe);
+      const init = initCalls(postMessage)[0]?.[0] as Record<string, unknown>;
+
+      await act(async () => {
+        const event = new MessageEvent('message', {
+          data: {
+            protocolVersion: init['protocolVersion'],
+            projectId: init['projectId'],
+            sessionNonce: init['sessionNonce'],
+            messageType: 'ASA_BLOCKS_STATUS',
+            status: 'editor-ready',
+          },
+          origin: RUNTIME_ORIGIN,
+        });
+        Object.defineProperty(event, 'source', { value: iframe.contentWindow });
+        window.dispatchEvent(event);
+        await flushAsync();
+      });
+      const save = container!.querySelector<HTMLButtonElement>('[data-asa-blocks-save]');
+      if (!save) throw new Error('Save control was not rendered');
+      await act(async () => {
+        save.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        await flushAsync();
+      });
+      const messages = postMessage.mock.calls.map(
+        ([message]) => message as Record<string, unknown>,
+      );
+      expect(
+        messages.filter((message) => message['messageType'] === 'ASA_BLOCKS_TOKEN_UPDATE'),
+      ).toHaveLength(0);
+      expect(
+        messages.filter((message) => message['messageType'] === 'ASA_BLOCKS_FLUSH_REQUEST'),
+      ).toHaveLength(0);
+      expect(save.textContent).toContain('Ошибка сохранения');
+    },
+  );
+
+  it('does not extend revoked authority when refresh returns 404', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2030-01-01T00:00:00.000Z'));
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse(session('initial.runtime.token', nowSeconds + 30)))
+      .mockResolvedValueOnce(jsonResponse({}, 404));
+    vi.stubGlobal('fetch', fetchMock);
+    const iframe = await renderEditor();
+    const postMessage = spyOnPostMessage(iframe);
+    await fireLoad(iframe);
+    const init = initCalls(postMessage)[0]?.[0] as Record<string, unknown>;
+
+    await act(async () => {
+      const event = new MessageEvent('message', {
+        data: {
+          protocolVersion: init['protocolVersion'],
+          projectId: init['projectId'],
+          sessionNonce: init['sessionNonce'],
+          messageType: 'ASA_BLOCKS_STATUS',
+          status: 'editor-ready',
+        },
+        origin: RUNTIME_ORIGIN,
+      });
+      Object.defineProperty(event, 'source', { value: iframe.contentWindow });
+      window.dispatchEvent(event);
+      await flushAsync();
+    });
+    const save = container!.querySelector<HTMLButtonElement>('[data-asa-blocks-save]');
+    if (!save) throw new Error('Save control was not rendered');
+    await act(async () => {
+      save.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      await flushAsync();
+    });
+    const messages = postMessage.mock.calls.map(([message]) => message as Record<string, unknown>);
+    expect(
+      messages.filter((message) => message['messageType'] === 'ASA_BLOCKS_TOKEN_UPDATE'),
+    ).toHaveLength(0);
+    expect(
+      messages.filter((message) => message['messageType'] === 'ASA_BLOCKS_FLUSH_REQUEST'),
+    ).toHaveLength(0);
+    expect(save.textContent).toContain('Ошибка сохранения');
+  });
+
+  it.each(['malformed', 'wrong-origin'])(
+    'rejects %s mandatory refresh without TOKEN_UPDATE or FLUSH',
+    async (kind) => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2030-01-01T00:00:00.000Z'));
+      const nowSeconds = Math.floor(Date.now() / 1000);
+      const invalid =
+        kind === 'malformed'
+          ? { ...session('fresh.runtime.token', nowSeconds + 600), runtimeToken: 'not-a-token' }
+          : {
+              ...session('fresh.runtime.token', nowSeconds + 600),
+              runtimeOrigin: 'http://127.0.0.1:4614',
+            };
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(jsonResponse(session('initial.runtime.token', nowSeconds + 30)))
+        .mockResolvedValueOnce(jsonResponse(invalid));
+      vi.stubGlobal('fetch', fetchMock);
+      const iframe = await renderEditor();
+      const postMessage = spyOnPostMessage(iframe);
+      await fireLoad(iframe);
+      const init = initCalls(postMessage)[0]?.[0] as Record<string, unknown>;
+
+      await act(async () => {
+        const event = new MessageEvent('message', {
+          data: {
+            protocolVersion: init['protocolVersion'],
+            projectId: init['projectId'],
+            sessionNonce: init['sessionNonce'],
+            messageType: 'ASA_BLOCKS_STATUS',
+            status: 'editor-ready',
+          },
+          origin: RUNTIME_ORIGIN,
+        });
+        Object.defineProperty(event, 'source', { value: iframe.contentWindow });
+        window.dispatchEvent(event);
+        await flushAsync();
+      });
+      const save = container!.querySelector<HTMLButtonElement>('[data-asa-blocks-save]');
+      if (!save) throw new Error('Save control was not rendered');
+      await act(async () => {
+        save.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        await flushAsync();
+      });
+      const messages = postMessage.mock.calls.map(
+        ([message]) => message as Record<string, unknown>,
+      );
+      expect(
+        messages.filter((message) => message['messageType'] === 'ASA_BLOCKS_TOKEN_UPDATE'),
+      ).toHaveLength(0);
+      expect(
+        messages.filter((message) => message['messageType'] === 'ASA_BLOCKS_FLUSH_REQUEST'),
+      ).toHaveLength(0);
+      expect(save.textContent).toContain('Ошибка сохранения');
+    },
+  );
+
+  it('ignores stale refresh response after iframe reload', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2030-01-01T00:00:00.000Z'));
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    let resolveRefresh!: (value: Response) => void;
+    const staleRefresh = new Promise<Response>((resolve) => {
+      resolveRefresh = resolve;
+    });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse(session('initial.runtime.token', nowSeconds + 30)))
+      .mockReturnValueOnce(staleRefresh)
+      .mockResolvedValueOnce(jsonResponse(session('reload.runtime.token', nowSeconds + 600)));
+    vi.stubGlobal('fetch', fetchMock);
+    const iframe = await renderEditor();
+    const postMessage = spyOnPostMessage(iframe);
+    await fireLoad(iframe);
+    const firstInit = initCalls(postMessage)[0]?.[0] as Record<string, unknown>;
+
+    await act(async () => {
+      const event = new MessageEvent('message', {
+        data: {
+          protocolVersion: firstInit['protocolVersion'],
+          projectId: firstInit['projectId'],
+          sessionNonce: firstInit['sessionNonce'],
+          messageType: 'ASA_BLOCKS_STATUS',
+          status: 'editor-ready',
+        },
+        origin: RUNTIME_ORIGIN,
+      });
+      Object.defineProperty(event, 'source', { value: iframe.contentWindow });
+      window.dispatchEvent(event);
+      await flushAsync();
+    });
+    const save = container!.querySelector<HTMLButtonElement>('[data-asa-blocks-save]');
+    if (!save) throw new Error('Save control was not rendered');
+    await act(async () => {
+      save.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      await flushAsync();
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    await fireLoad(iframe);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    await act(async () => {
+      resolveRefresh(jsonResponse(session('stale.runtime.token', nowSeconds + 600)));
+      await flushAsync();
+    });
+
+    const messages = postMessage.mock.calls.map(([message]) => message as Record<string, unknown>);
+    expect(initCalls(postMessage)).toHaveLength(2);
+    expect(
+      messages.some(
+        (message) =>
+          message['messageType'] === 'ASA_BLOCKS_TOKEN_UPDATE' &&
+          message['runtimeToken'] === 'stale.runtime.token',
+      ),
+    ).toBe(false);
+    expect(
+      messages.filter((message) => message['messageType'] === 'ASA_BLOCKS_FLUSH_REQUEST'),
+    ).toHaveLength(0);
+  });
+
+  it('does not claim current VM saved when a newer dirty generation arrives during Save', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => jsonResponse(session())),
+    );
+    const iframe = await renderEditor();
+    const postMessage = spyOnPostMessage(iframe);
+    await fireLoad(iframe);
+    const init = initCalls(postMessage)[0]?.[0] as Record<string, unknown>;
+    const dispatchChild = async (extra: Record<string, unknown>): Promise<void> => {
+      await act(async () => {
+        const event = new MessageEvent('message', {
+          data: {
+            protocolVersion: init['protocolVersion'],
+            projectId: init['projectId'],
+            sessionNonce: init['sessionNonce'],
+            ...extra,
+          },
+          origin: RUNTIME_ORIGIN,
+        });
+        Object.defineProperty(event, 'source', { value: iframe.contentWindow });
+        window.dispatchEvent(event);
+        await flushAsync();
+      });
+    };
+    await dispatchChild({ messageType: 'ASA_BLOCKS_STATUS', status: 'editor-ready' });
+    await dispatchChild({
+      messageType: 'ASA_BLOCKS_STATUS',
+      status: 'project-dirty',
+      generation: 5,
+    });
+
+    const save = container!.querySelector<HTMLButtonElement>('[data-asa-blocks-save]');
+    if (!save) throw new Error('Save control was not rendered');
+    await act(async () => {
+      save.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      await flushAsync();
+    });
+    const flushCalls = postMessage.mock.calls.filter(
+      ([message]) =>
+        (message as Record<string, unknown>)?.['messageType'] === 'ASA_BLOCKS_FLUSH_REQUEST',
+    );
+    const request = flushCalls[0]?.[0] as Record<string, unknown>;
+    await dispatchChild({
+      messageType: 'ASA_BLOCKS_STATUS',
+      status: 'project-dirty',
+      generation: 6,
+    });
+    await dispatchChild({
+      messageType: 'ASA_BLOCKS_FLUSH_RESULT',
+      requestId: request['requestId'],
+      ok: true,
+      reason: null,
+      revision: 18,
+      snapshotGeneration: 5,
+    });
+
+    expect(save.textContent).toContain('Сохранить в ASA');
+    expect(save.getAttribute('data-confirmed-revision')).toBeNull();
+    expect(flushCalls).toHaveLength(1);
   });
 
   it('uses the explicit ASA save warning before leaving', async () => {

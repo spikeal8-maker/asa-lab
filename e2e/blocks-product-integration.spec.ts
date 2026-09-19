@@ -141,6 +141,8 @@ type CapturedBlocksMessage = {
   ok?: boolean;
   reason?: string | null;
   revision?: number;
+  generation?: number;
+  snapshotGeneration?: number;
 };
 
 async function installBlocksMessageCapture(page: import('@playwright/test').Page) {
@@ -476,6 +478,200 @@ test('runtime-session opens the real server project and reads declared costume a
     expect(fixture.pageErrors).toEqual([]);
     await page.screenshot({ path: `${evidenceDir}/real-runtime-bootstrap.png` });
   } finally {
+    await fixture.close();
+  }
+});
+
+test('long-lived editor rotates capability in place and saves live VM with the refreshed bearer', async () => {
+  const serverProject = await realRuntimeBootstrapFixture();
+  const fixture = await createProtocolFixture({
+    product: true,
+    locale: 'en-US',
+    runtimeSession: {
+      draftRevision: 23,
+      projectJson: serverProject.projectJson,
+      assets: serverProject.assets,
+    },
+    runtimeAssets: serverProject.runtimeAssets,
+    runtimeSessionExpiresAt: (sequence: number) =>
+      Math.floor(Date.now() / 1000) + (sequence === 1 ? 62 : 600),
+  });
+  const page = await fixture.context.newPage();
+  await installBlocksMessageCapture(page);
+  let runtimeNavigations = 0;
+  page.on('framenavigated', (navigated) => {
+    if (navigated.url().startsWith(runtimeUrl)) runtimeNavigations += 1;
+  });
+  try {
+    await page.goto(`${parentOrigin}/product`, { waitUntil: 'domcontentloaded' });
+    const frame = page.frameLocator('iframe[title="Scratch runtime"]');
+    const shell = frame.locator('[data-asa-host-shell]');
+    await expect(shell).toHaveAttribute('data-editor-state', 'ready', { timeout: 45000 });
+    expect(fixture.getRuntimeSessionSequence()).toBe(1);
+
+    const initialBinding = await page.evaluate(() => {
+      const messages =
+        (window as unknown as { __asaBlocksTestMessages?: CapturedBlocksMessage[] })
+          .__asaBlocksTestMessages ?? [];
+      return messages.find(
+        (message) =>
+          message.messageType === 'ASA_BLOCKS_STATUS' &&
+          (message as CapturedBlocksMessage & { status?: string }).status === 'editor-ready',
+      );
+    });
+    if (!initialBinding?.sessionNonce) throw new Error('initial runtime binding unavailable');
+
+    await frame.locator('body').evaluate(() => {
+      (
+        window as unknown as { __asaCapabilityRefreshMarker?: string }
+      ).__asaCapabilityRefreshMarker = 'same-runtime-realm';
+    });
+    await setServerSteps(frame, '8', '37');
+
+    await expect.poll(() => fixture.getRuntimeSessionSequence(), { timeout: 10_000 }).toBe(2);
+    expect(
+      await frame
+        .locator('body')
+        .evaluate(
+          () =>
+            (window as unknown as { __asaCapabilityRefreshMarker?: string })
+              .__asaCapabilityRefreshMarker,
+        ),
+    ).toBe('same-runtime-realm');
+    await expect(
+      frame.locator('.blocklyBlockCanvas').first().getByText('37', { exact: true }),
+    ).toBeVisible();
+
+    const save = page.locator('[data-asa-blocks-save]');
+    await save.click();
+    await expect(save).toHaveAttribute('data-save-state', 'saved', { timeout: 45000 });
+    expect(fixture.runtimeDraftEvidence).toHaveLength(1);
+    expect(fixture.runtimeDraftEvidence[0].authorizationOk).toBe(true);
+
+    const messages = await page.evaluate(
+      () =>
+        (window as unknown as { __asaBlocksTestMessages?: CapturedBlocksMessage[] })
+          .__asaBlocksTestMessages ?? [],
+    );
+    const readyMessages = messages.filter(
+      (message) =>
+        message.messageType === 'ASA_BLOCKS_STATUS' &&
+        (message as CapturedBlocksMessage & { status?: string }).status === 'editor-ready',
+    );
+    const dirtyMessages = messages.filter(
+      (message) =>
+        message.messageType === 'ASA_BLOCKS_STATUS' &&
+        (message as CapturedBlocksMessage & { status?: string }).status === 'project-dirty',
+    );
+    const flushResult = [...messages]
+      .reverse()
+      .find((message) => message.messageType === 'ASA_BLOCKS_FLUSH_RESULT');
+    expect(readyMessages).toHaveLength(1);
+    expect(dirtyMessages.length).toBeGreaterThan(0);
+    expect(
+      dirtyMessages.every((message) => message.sessionNonce === initialBinding.sessionNonce),
+    ).toBe(true);
+    expect(flushResult?.sessionNonce).toBe(initialBinding.sessionNonce);
+    expect(Number.isSafeInteger(flushResult?.snapshotGeneration)).toBe(true);
+    expect(runtimeNavigations).toBe(1);
+
+    const writesBeforeDirty = fixture.runtimeWriteEvents.length;
+    await setServerSteps(frame, '37', '41');
+    await expect(save).toHaveAttribute('data-save-state', 'idle');
+    await expect(save).not.toHaveAttribute('data-confirmed-revision');
+    expect(fixture.runtimeWriteEvents).toHaveLength(writesBeforeDirty);
+    await expect(
+      frame.locator('.blocklyBlockCanvas').first().getByText('41', { exact: true }),
+    ).toBeVisible();
+  } finally {
+    await fixture.close();
+  }
+});
+
+test('edit during in-flight Save prevents stale success from claiming the current VM is saved', async () => {
+  const serverProject = await realRuntimeBootstrapFixture();
+  const fixture = await createProtocolFixture({
+    product: true,
+    locale: 'en-US',
+    runtimeSession: {
+      draftRevision: 23,
+      projectJson: serverProject.projectJson,
+      assets: serverProject.assets,
+    },
+    runtimeAssets: serverProject.runtimeAssets,
+  });
+  const runtimeDraftPath = `/api/blocks/runtime/projects/${projectId}/draft`;
+  let releaseResponse!: () => void;
+  let markCommitted!: () => void;
+  const release = new Promise<void>((resolve) => {
+    releaseResponse = resolve;
+  });
+  const committed = new Promise<void>((resolve) => {
+    markCommitted = resolve;
+  });
+  await fixture.context.route(
+    (url) => url.pathname === runtimeDraftPath,
+    async (route, request) => {
+      if (request.method() !== 'PUT') {
+        await route.continue();
+        return;
+      }
+      const response = await route.fetch();
+      expect(response.status()).toBe(200);
+      await response.body();
+      markCommitted();
+      await release;
+      await route.fulfill({ response });
+    },
+  );
+
+  const page = await fixture.context.newPage();
+  await installBlocksMessageCapture(page);
+  try {
+    await page.goto(`${parentOrigin}/product`, { waitUntil: 'domcontentloaded' });
+    const frame = page.frameLocator('iframe[title="Scratch runtime"]');
+    const shell = frame.locator('[data-asa-host-shell]');
+    await expect(shell).toHaveAttribute('data-editor-state', 'ready', { timeout: 45000 });
+    await setServerSteps(frame, '8', '37');
+
+    const save = page.locator('[data-asa-blocks-save]');
+    await save.click();
+    await committed;
+    await expect(save).toHaveAttribute('data-save-state', 'saving');
+
+    await setServerSteps(frame, '37', '41');
+    const writesAfterEdit = fixture.runtimeWriteEvents.length;
+    releaseResponse();
+
+    await expect(save).toHaveAttribute('data-save-state', 'idle', { timeout: 45000 });
+    await expect(save).not.toHaveAttribute('data-confirmed-revision');
+    await expect(save).toContainText('Сохранить в ASA');
+    await page.waitForTimeout(300);
+    expect(fixture.runtimeDraftEvidence).toHaveLength(1);
+    expect(fixture.runtimeWriteEvents).toHaveLength(writesAfterEdit);
+
+    const messages = await page.evaluate(
+      () =>
+        (window as unknown as { __asaBlocksTestMessages?: CapturedBlocksMessage[] })
+          .__asaBlocksTestMessages ?? [],
+    );
+    const dirtyGenerations = messages
+      .filter(
+        (message) =>
+          message.messageType === 'ASA_BLOCKS_STATUS' &&
+          (message as CapturedBlocksMessage & { status?: string }).status === 'project-dirty',
+      )
+      .map((message) => Number(message.generation));
+    const flushResult = [...messages]
+      .reverse()
+      .find((message) => message.messageType === 'ASA_BLOCKS_FLUSH_RESULT');
+    expect(Number.isSafeInteger(flushResult?.snapshotGeneration)).toBe(true);
+    expect(Math.max(...dirtyGenerations)).toBeGreaterThan(Number(flushResult?.snapshotGeneration));
+    await expect(
+      frame.locator('.blocklyBlockCanvas').first().getByText('41', { exact: true }),
+    ).toBeVisible();
+  } finally {
+    releaseResponse();
     await fixture.close();
   }
 });

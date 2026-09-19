@@ -303,6 +303,7 @@ async function editorFixture(hasProjectJson = false, mode = 'editor') {
   let ready = 0;
   let prepared = 0;
   let disposedStorage = 0;
+  const dirtyGenerations = [];
   let props;
   let params;
   let requestedId;
@@ -365,6 +366,9 @@ async function editorFixture(hasProjectJson = false, mode = 'editor') {
     onReady() {
       ready++;
     },
+    onDirty(generation) {
+      dirtyGenerations.push(generation);
+    },
   });
   await editor.startup;
   return {
@@ -374,6 +378,7 @@ async function editorFixture(hasProjectJson = false, mode = 'editor') {
     props,
     params,
     requestedId,
+    dirtyGenerations,
     counts: () => ({ stops, quits, unmounts, ready, prepared, disposedStorage }),
   };
 }
@@ -393,6 +398,9 @@ test('new project mount uses Scratch default project and preserves native editor
   fixture.props.onProjectLoaded();
   fixture.machine.emit('PROJECT_CHANGED');
   assert.equal(fixture.shell.dataset.projectChanges, '1');
+  fixture.machine.emit('PROJECT_CHANGED');
+  assert.equal(fixture.shell.dataset.projectChanges, '2');
+  assert.deepEqual(fixture.dirtyGenerations, [1, 2]);
   fixture.machine.emit('PROJECT_RUN_START');
   assert.equal(fixture.shell.dataset.projectRunning, 'true');
   fixture.machine.emit('PROJECT_RUN_STOP');
@@ -647,6 +655,7 @@ test('editor FLUSH captures current vm.toJSON and exact referenced vm asset byte
   let props;
   let captured;
   let resolveSave;
+  const dirtyGenerations = [];
   const saveResult = new Promise((resolve) => {
     resolveSave = resolve;
   });
@@ -713,18 +722,25 @@ test('editor FLUSH captures current vm.toJSON and exact referenced vm asset byte
     },
     getRuntimeToken: () => RUNTIME_TOKEN,
     onReady() {},
+    onDirty(generation) {
+      dirtyGenerations.push(generation);
+    },
   });
   await editor.startup;
   props.onProjectLoaded();
+  machine.emit('PROJECT_CHANGED');
 
   const first = editor.flush();
   const concurrent = await editor.flush();
   assert.equal(concurrent.ok, false);
   assert.equal(concurrent.reason, 'save_in_progress');
+  machine.emit('PROJECT_CHANGED');
   resolveSave(8);
   const saved = await first;
   assert.equal(saved.ok, true);
   assert.equal(saved.revision, 8);
+  assert.equal(saved.snapshotGeneration, 1);
+  assert.deepEqual(dirtyGenerations, [1, 2]);
   assert.equal(shell.dataset.draftRevision, '8');
   assert.equal(captured.projectJson.targets[0].name, 'Live Changed Sprite');
   assert.equal(captured.assets.length, 1);
@@ -801,6 +817,35 @@ test('editor FLUSH fails when live project references bytes unavailable from the
   assert.equal(failed.ok, false);
   assert.equal(failed.reason, 'asset_capture_failed');
   assert.equal(persisted, false);
+});
+
+test('status reporter sends bounded dirty generation and successful FLUSH snapshot generation', () => {
+  const calls = [];
+  const reporter = loadHost('status').AsaBlocksStatus.createStatusReporter({
+    parentWindow: {
+      postMessage(message, targetOrigin) {
+        calls.push({ message, targetOrigin });
+      },
+    },
+    targetOrigin: API_ORIGIN,
+    getBinding: () => ({
+      protocolVersion: 1,
+      projectId: PROJECT_ID,
+      sessionNonce: 'nonce',
+    }),
+  });
+  reporter.projectDirty(3);
+  reporter.flushResult('flush-1', true, null, 8, 3);
+  assert.equal(calls[0].targetOrigin, API_ORIGIN);
+  assert.equal(calls[0].message.protocolVersion, 1);
+  assert.equal(calls[0].message.projectId, PROJECT_ID);
+  assert.equal(calls[0].message.sessionNonce, 'nonce');
+  assert.equal(calls[0].message.messageType, 'ASA_BLOCKS_STATUS');
+  assert.equal(calls[0].message.status, 'project-dirty');
+  assert.equal(calls[0].message.generation, 3);
+  assert.equal(calls[1].message.messageType, 'ASA_BLOCKS_FLUSH_RESULT');
+  assert.equal(calls[1].message.revision, 8);
+  assert.equal(calls[1].message.snapshotGeneration, 3);
 });
 
 function protocolHarness() {
@@ -985,5 +1030,10 @@ for (const [query, mode, delegated] of [
     await Promise.resolve();
     assert.equal(status.hidden, delegated);
     assert.match(status.textContent, /Учебный проект готов/);
+    assert.equal(
+      handlers.onTokenUpdate,
+      undefined,
+      'token rotation must have no user-visible status',
+    );
   });
 }

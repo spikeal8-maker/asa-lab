@@ -107,6 +107,7 @@
     bootstrap,
     getRuntimeToken,
     onReady,
+    onDirty,
   }) {
     const storage = globalThis.AsaBlocksStorage.createReadOnlyStorage(standalone, {
       projectId: session.projectId,
@@ -122,10 +123,13 @@
     let disposed = false;
     let loaded = false;
     let saveInProgress = false;
+    let projectGeneration = 0;
 
     const changed = () => {
       if (disposed || !loaded) return;
-      shell.dataset.projectChanges = String(Number(shell.dataset.projectChanges) + 1);
+      projectGeneration += 1;
+      shell.dataset.projectChanges = String(projectGeneration);
+      onDirty?.(projectGeneration);
     };
     const running = () => {
       if (!disposed) shell.dataset.projectRunning = 'true';
@@ -215,11 +219,12 @@
       if (saveInProgress) return { ok: false, reason: 'save_in_progress' };
       if (disposed || !loaded || !vm) return { ok: false, reason: 'editor_not_ready' };
       saveInProgress = true;
+      const snapshotGeneration = projectGeneration;
       try {
         const snapshot = await captureLiveSnapshot(vm);
         const revision = await storage.persistSnapshot(snapshot);
         shell.dataset.draftRevision = String(revision);
-        return { ok: true, revision };
+        return { ok: true, revision, snapshotGeneration };
       } catch (error) {
         return {
           ok: false,

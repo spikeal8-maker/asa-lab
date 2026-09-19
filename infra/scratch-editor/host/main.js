@@ -98,14 +98,14 @@
             status.textContent = 'Учебный проект готов.';
             reporter.status('editor-ready');
           },
+          onDirty(generation) {
+            reporter?.projectDirty(generation);
+          },
         });
         void editor.startup.catch(() => reportFatal('editor_mount_failed'));
       } catch {
         reportFatal('editor_mount_failed');
       }
-    },
-    onTokenUpdate() {
-      reporter?.status('token-updated');
     },
     onFlushRequest(requestId) {
       if (!editor) {
@@ -114,7 +114,7 @@
       }
       void editor.flush().then((result) => {
         if (result.ok) {
-          reporter?.flushResult(requestId, true, null, result.revision);
+          reporter?.flushResult(requestId, true, null, result.revision, result.snapshotGeneration);
           return;
         }
         reporter?.flushResult(requestId, false, result.reason);

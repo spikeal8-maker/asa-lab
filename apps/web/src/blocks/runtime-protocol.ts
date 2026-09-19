@@ -67,6 +67,10 @@ export function requireExactHttpOrigin(value: string): string {
   }
   return value;
 }
+function isNonNegativeSafeInteger(value: unknown): boolean {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
+}
+
 function isChildMessageType(value: unknown): value is BlocksChildMessageType {
   return (
     value === 'ASA_BLOCKS_READY' ||
@@ -181,6 +185,15 @@ export class BlocksRuntimeBridge {
     ) {
       return false;
     }
+    if (message['messageType'] === 'ASA_BLOCKS_STATUS') {
+      const status = message['status'];
+      if (typeof status !== 'string' || status.length === 0) return false;
+      if (status === 'project-dirty') {
+        if (!isNonNegativeSafeInteger(message['generation'])) return false;
+      } else if (typeof message['generation'] !== 'undefined') {
+        return false;
+      }
+    }
     if (message['messageType'] === 'ASA_BLOCKS_FLUSH_RESULT') {
       const requestId = message['requestId'];
       if (typeof requestId !== 'string' || !this.pendingFlushRequestIds.has(requestId)) {
@@ -188,8 +201,8 @@ export class BlocksRuntimeBridge {
       }
       if (message['ok'] === true) {
         if (
-          !Number.isSafeInteger(message['revision']) ||
-          Number(message['revision']) < 0 ||
+          !isNonNegativeSafeInteger(message['revision']) ||
+          !isNonNegativeSafeInteger(message['snapshotGeneration']) ||
           (message['reason'] !== null && typeof message['reason'] !== 'undefined')
         ) {
           return false;
@@ -198,7 +211,8 @@ export class BlocksRuntimeBridge {
         if (
           typeof message['reason'] !== 'string' ||
           message['reason'].length === 0 ||
-          typeof message['revision'] !== 'undefined'
+          typeof message['revision'] !== 'undefined' ||
+          typeof message['snapshotGeneration'] !== 'undefined'
         ) {
           return false;
         }
