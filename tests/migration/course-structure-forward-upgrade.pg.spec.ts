@@ -91,7 +91,13 @@ describe('Course Builder structure forward upgrade', () => {
       const lessonId = (
         await pool.query(
           "SELECT course_lesson_save_v3($1,$2,$3,NULL,'Pinned lesson',NULL,$4::jsonb,'assignment',NULL,15,$5) AS id",
-          [principal, courseId, sectionId, JSON.stringify(blocks), publishedActivity.activity_version_id],
+          [
+            principal,
+            courseId,
+            sectionId,
+            JSON.stringify(blocks),
+            publishedActivity.activity_version_id,
+          ],
         )
       ).rows[0].id as string;
       const published = (
