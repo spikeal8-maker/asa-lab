@@ -827,6 +827,7 @@ test('Course Builder duplicates a section and excludes hidden lesson only from f
   await expect(
     oldLearner.page.getByText('Материал исходной версии.', { exact: true }),
   ).toBeVisible();
+  await expect(oldLearner.page.getByText(material, { exact: true })).toHaveCount(1);
 
   await page.goto('/#/challenges');
   await page.getByRole('button', { name: 'Мои курсы', exact: true }).click();
@@ -871,6 +872,7 @@ test('Course Builder duplicates a section and excludes hidden lesson only from f
   const preview = page.getByTestId('course-preview-page');
   await expect(preview.getByText('Структурная теория', { exact: true })).toHaveCount(1);
   await expect(preview.getByText('Материал исходной версии.', { exact: true })).toHaveCount(1);
+  await expect(preview.getByText(material, { exact: true })).toHaveCount(2);
   await editor.getByRole('button', { name: 'Редактировать', exact: true }).click();
 
   await editor.getByRole('button', { name: /Опубликовать v2/ }).click();
@@ -898,6 +900,7 @@ test('Course Builder duplicates a section and excludes hidden lesson only from f
   await expect(newLearner.page.getByText('Материал исходной версии.', { exact: true })).toHaveCount(
     1,
   );
+  await expect(newLearner.page.getByText(material, { exact: true })).toHaveCount(2);
 
   await oldLearner.page.reload();
   const oldCoursesAfterV2 = oldLearner.page.getByTestId('seat-courses');
