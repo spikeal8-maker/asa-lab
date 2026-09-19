@@ -1412,6 +1412,18 @@ test('native File saves an edited sb3 and restores code and media in a fresh edi
           '/api/projects/11111111-1111-4111-8111-111111111111/blocks/runtime-session',
     );
     expect(runtimeSessionRequests.length).toBeGreaterThanOrEqual(2);
+    const managedRuntimeMutations = httpRequests.filter(({ method, url }) => {
+      if (method !== 'PUT') return false;
+      const parsed = new URL(url);
+      if (parsed.origin !== parentOrigin) return false;
+      return (
+        /^\/api\/blocks\/runtime\/projects\/[0-9a-f-]+\/assets\/[a-f0-9]{32}\.(svg|png|jpg|wav|mp3)$/i.test(
+          parsed.pathname,
+        ) ||
+        /^\/api\/blocks\/runtime\/projects\/[0-9a-f-]+\/draft$/i.test(parsed.pathname)
+      );
+    });
+    expect(managedRuntimeMutations.length).toBeGreaterThan(0);
     expect(
       httpRequests.filter(
         ({ method, url }) =>
@@ -1419,6 +1431,10 @@ test('native File saves an edited sb3 and restores code and media in a fresh edi
           !runtimeSessionRequests.some(
             (runtimeSessionRequest) =>
               runtimeSessionRequest.method === method && runtimeSessionRequest.url === url,
+          ) &&
+          !managedRuntimeMutations.some(
+            (runtimeMutation) =>
+              runtimeMutation.method === method && runtimeMutation.url === url,
           ),
       ),
     ).toEqual([]);
