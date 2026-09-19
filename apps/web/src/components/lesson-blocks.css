@@ -187,3 +187,23 @@
 .lesson-divider-block {
   margin: 1rem 0;
 }
+
+
+.lesson-table-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.lesson-table-grid {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.lesson-table-grid input {
+  min-width: 0;
+}
+
+.lesson-divider-editor-note {
+  margin: 0;
+}
