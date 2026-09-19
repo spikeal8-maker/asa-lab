@@ -143,20 +143,20 @@ parallel_lanes:
       - tools/validate-electronics-agent-docs.mjs
       - tools/test_validate_electronics_agent_docs.mjs
     task:
-      id: TASK-ELECTRONICS-EOPT5B1A-COMPILE-LOCALITY-001
-      issue: 309
-      branch: codex/electronics-eopt5b1a-compile-locality
+      id: TASK-ELECTRONICS-EOPT5B1B-LAST-GOOD-001
+      issue: 314
+      branch: codex/electronics-eopt5b1b-last-good
       base_branch: main
-      pr: 310
+      pr: 315
       pr_draft: true
       status: in_progress
-      checkpoint: eopt5b1a_compile_failure_board_local
+      checkpoint: eopt5b1b_last_good_program_implementation
       owner_acceptance: pending
     revisions:
-      convergence_baseline_sha: 2b2954baea75dbba8e71c35a7a1cd710f47ce3e5
-      head_sha: c024122565d517c62f5b884f29475030eda6e8e4
+      convergence_baseline_sha: 22c1cee099ff82f9b65a1502411d2aa27c50ce55
+      head_sha: 7a5dd3a1fa53f24743c0795d744ccbcfed01b63e
     execution_lease:
-      executor_id: codex-electronics-eopt5a-runtime-strategy
+      executor_id: codex-electronics-eopt5b1b-last-good
       holder: unassigned
       acquired_at: null
       expires_at: null

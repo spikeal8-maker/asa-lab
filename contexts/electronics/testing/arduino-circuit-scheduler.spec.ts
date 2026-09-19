@@ -10,6 +10,7 @@ import {
   type ElectronicsDocument,
   type SchematicComponent,
 } from '../domain/document.js';
+import { arduinoRuntimeStateMatchesProgram } from '../domain/arduino-program-runtime.js';
 import { analyseCircuit } from '../domain/simulation.js';
 
 function board(id: string, source: string): SchematicComponent {
@@ -490,6 +491,75 @@ describe('Arduino shared dc-inputs-v1 circuit clock', () => {
       expect(result.result).toBeNull();
       expect(result.events).toEqual([]);
     }
+  });
+
+  it('keeps a single-board syntax compile failure local and observable', () => {
+    const doc = circuit([board('broken', 'void setup(){digitalWrite(13,);}void loop(){}')]);
+    const done = through(doc, 10);
+
+    expect(done.executionStatus, JSON.stringify(done.diagnostics)).toBe('ready');
+    expect(done.result).not.toBeNull();
+    expect(done.diagnostics).toContainEqual(
+      expect.objectContaining({ code: 'compile_error', componentId: 'broken' }),
+    );
+    expect(done.events.filter((event) => event.componentId === 'broken')).toEqual([]);
+    expect(runtime(done, 'broken').pinModes).toEqual({});
+    expect(runtime(done, 'broken').outputVoltages).toEqual({});
+  });
+
+  it('keeps a valid peer board running when another board has a syntax compile failure', () => {
+    const doc = circuit([
+      board(
+        'a-valid',
+        'void setup(){pinMode(13,OUTPUT);digitalWrite(13,HIGH);}void loop(){delay(100);}',
+      ),
+      board('b-broken', 'void setup(){digitalWrite(13,);}void loop(){}'),
+    ]);
+    const done = through(doc, 10);
+
+    expect(done.executionStatus, JSON.stringify(done.diagnostics)).toBe('ready');
+    expect(done.result).not.toBeNull();
+    expect(done.diagnostics).toContainEqual(
+      expect.objectContaining({ code: 'compile_error', componentId: 'b-broken' }),
+    );
+    expect(runtime(done, 'a-valid').outputVoltages.d13).toBe(5);
+    expect(runtime(done, 'b-broken').outputVoltages).toEqual({});
+    expect(done.events.some((event) => event.componentId === 'a-valid')).toBe(true);
+    expect(done.events.some((event) => event.componentId === 'b-broken')).toBe(false);
+  });
+
+  it('continues the same invalid source across horizons without invalid_clock_continuation', () => {
+    const doc = circuit([board('broken', 'void setup(){digitalWrite(13,);}void loop(){}')]);
+    const first = through(doc, 10);
+    const reset = runtime(first, 'broken');
+    expect(arduinoRuntimeStateMatchesProgram('', reset)).toBe(true);
+    expect(reset.faults).toEqual([]);
+    expect(reset.eventQueue).toEqual([]);
+    expect(reset.pinModes).toEqual({});
+    expect(reset.outputVoltages).toEqual({});
+    expect(reset.resumeAtMs).toBeGreaterThan(first.state!.reachedMicroseconds / 1000);
+
+    const next = through(doc, 20, JSON.parse(JSON.stringify(first.state)));
+
+    expect(next.executionStatus, JSON.stringify(next.diagnostics)).toBe('ready');
+    expect(next.result).not.toBeNull();
+    expect(next.state?.reachedMicroseconds).toBe(20);
+    expect(next.diagnostics).toContainEqual(
+      expect.objectContaining({ code: 'compile_error', componentId: 'broken' }),
+    );
+    expect(next.diagnostics.map((entry) => entry.code)).not.toContain('invalid_clock_continuation');
+    expect(next.events.filter((event) => event.componentId === 'broken')).toEqual([]);
+  });
+
+  it('keeps valid Arduino unsupported member calls global in B1A', () => {
+    const result = through(
+      circuit([board('uno', 'void setup(){Serial.println(1);}void loop(){}')]),
+      10,
+    );
+    expect(result.executionStatus).toBe('fault');
+    expect(result.result).toBeNull();
+    expect(result.state).toBeNull();
+    expect(result.events).toEqual([]);
   });
 
   it.each([
