@@ -171,8 +171,8 @@ test('new editor binds the stock Scratch default to the managed ASA project UUID
       storage.dispose();
       return {
         library,
-        managedProjectId: managedProject?.assetId ?? null,
         hasManagedProject: Boolean(managedProject),
+        managedProjectHasData: Boolean(managedProject?.data),
         hasLocalZeroProject: Boolean(localZeroProject),
       };
     },
@@ -180,8 +180,8 @@ test('new editor binds the stock Scratch default to the managed ASA project UUID
   );
   expect(storageResult).toEqual({
     library: 'runtime_asset_unavailable',
-    managedProjectId: projectId,
     hasManagedProject: true,
+    managedProjectHasData: true,
     hasLocalZeroProject: false,
   });
   expect(fixture.pageErrors).toEqual([]);
