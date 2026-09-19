@@ -3,7 +3,7 @@ task_id: TASK-ELECTRONICS-EOPT5B1A-COMPILE-LOCALITY-001
 kind: implementation
 risk: high
 semantic_change: yes
-roadmap_slice: E-OPT-5B1A
+roadmap_slice: E-OPT-5
 prerequisites:
   - TASK-ELECTRONICS-EOPT5A-DESIGN-001 accepted and integrated
 acceptance_boundary: slice
