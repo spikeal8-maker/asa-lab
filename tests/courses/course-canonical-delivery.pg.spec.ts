@@ -562,13 +562,13 @@ describe('Э1 existing course → exact versions → runs → inherited particip
       }>;
     };
     const idsIn = (outline: FrozenOutline) =>
-      outline.sections.flatMap((section) =>
-        section.lessons.map((lesson) => lesson.sourceLessonId),
-      );
+      outline.sections.flatMap((section) => section.lessons.map((lesson) => lesson.sourceLessonId));
     const sectionIdsIn = (outline: FrozenOutline) =>
       outline.sections.map((section) => section.sourceSectionId);
     expect(idsIn(outlines.rows[0].outline as FrozenOutline)).toEqual(sourceLessonIds);
-    expect(idsIn(outlines.rows[1].outline as FrozenOutline)).not.toContain(duplicatedLesson.duplicate_id);
+    expect(idsIn(outlines.rows[1].outline as FrozenOutline)).not.toContain(
+      duplicatedLesson.duplicate_id,
+    );
 
     const classV2 = await classroom();
     const studentV2 = await seat(classV2);
