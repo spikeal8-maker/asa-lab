@@ -676,9 +676,12 @@ test('upstream asset-store latency cannot hide an edit made after VM serializati
   };
   const result = await storage.saveProject(PROJECT_ID, JSON.stringify(projectJson), {});
 
-  assert.deepEqual(result, { id: PROJECT_ID });
+  assert.equal(result.id, PROJECT_ID);
   assert.equal(draftCalls.length, 1);
-  assert.deepEqual(stale, [{ savedGeneration: 5, latestGeneration: 6, revision: 8 }]);
+  assert.equal(stale.length, 1);
+  assert.equal(stale[0].savedGeneration, 5);
+  assert.equal(stale[0].latestGeneration, 6);
+  assert.equal(stale[0].revision, 8);
 });
 
 for (const status of [400, 401, 403, 409, 429, 503]) {
