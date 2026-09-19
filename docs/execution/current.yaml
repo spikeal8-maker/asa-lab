@@ -148,13 +148,14 @@ parallel_lanes:
       branch: codex/electronics-eopt3e-trace-replay
       base_branch: main
       pr: 300
-      pr_draft: true
+      pr_draft: false
       status: in_review
-      checkpoint: eopt3e_same_time_order_repair_green_rereview_pending
-      owner_acceptance: pending
+      checkpoint: eopt3e_replay_acceptance_pass_merge_authorized
+      owner_acceptance: accepted
     revisions:
       convergence_baseline_sha: 8e5620c8759ace58f6d748724f381d86d3bd3dc9
       head_sha: 3c8cfea669d10f1251290a03cebf9f47023c6d09
+      owner_accepted_sha: 3c8cfea669d10f1251290a03cebf9f47023c6d09
     execution_lease:
       executor_id: codex-electronics-eopt3e-trace-replay
       holder: unassigned
