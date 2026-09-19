@@ -1419,8 +1419,7 @@ test('native File saves an edited sb3 and restores code and media in a fresh edi
       return (
         /^\/api\/blocks\/runtime\/projects\/[0-9a-f-]+\/assets\/[a-f0-9]{32}\.(svg|png|jpg|wav|mp3)$/i.test(
           parsed.pathname,
-        ) ||
-        /^\/api\/blocks\/runtime\/projects\/[0-9a-f-]+\/draft$/i.test(parsed.pathname)
+        ) || /^\/api\/blocks\/runtime\/projects\/[0-9a-f-]+\/draft$/i.test(parsed.pathname)
       );
     });
     expect(managedRuntimeMutations.length).toBeGreaterThan(0);
@@ -1433,8 +1432,7 @@ test('native File saves an edited sb3 and restores code and media in a fresh edi
               runtimeSessionRequest.method === method && runtimeSessionRequest.url === url,
           ) &&
           !managedRuntimeMutations.some(
-            (runtimeMutation) =>
-              runtimeMutation.method === method && runtimeMutation.url === url,
+            (runtimeMutation) => runtimeMutation.method === method && runtimeMutation.url === url,
           ),
       ),
     ).toEqual([]);
