@@ -23,7 +23,7 @@ test('requires an explicit test/admin database URL and ignores generic DATABASE_
     /BLOCKED: set STUDENT_CODE_BACKFILL_ADMIN_DATABASE_URL or TEST_DATABASE_URL explicitly/,
   );
   assert.throws(
-    () => resolveInventoryDatabaseUrl({ TEST_DATABASE_URL: 'postgresql://admin/db_not_test' }),
+    () => resolveInventoryDatabaseUrl({ TEST_DATABASE_URL: 'postgresql://admin/db_not_safe' }),
     /must end in _test/,
   );
   assert.equal(
