@@ -849,7 +849,9 @@ test('Course Builder duplicates a section and excludes hidden lesson only from f
     .first()
     .click();
   await duplicateSection.getByRole('button', { name: 'Скрыть', exact: true }).click();
-  await expect(duplicateSection.locator('.course-lesson-link small').first()).toContainText('Скрыт');
+  await expect(duplicateSection.locator('.course-lesson-link small').first()).toContainText(
+    'Скрыт',
+  );
 
   await page.reload();
   await page.getByRole('button', { name: 'Мои курсы', exact: true }).click();
