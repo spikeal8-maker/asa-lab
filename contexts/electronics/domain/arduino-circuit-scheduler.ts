@@ -274,10 +274,15 @@ export function advanceArduinoCircuitClock(
     });
   }
   const runnableBoards = boards.filter((board) => !compileDiagnostics.has(board.id));
-  const resetRuntimeAt = (timeMicroseconds: number): ArduinoRuntimeState =>
-    advanceClockedArduinoRuntime('', {}, timeMicroseconds / 1000, undefined, undefined, {
-      instructionBudget: 1,
-    }).state;
+  const emptyRuntime = advanceClockedArduinoRuntime('', {}, 0, undefined, undefined, {
+    instructionBudget: 1,
+  }).state;
+  const resetRuntimeAt = (timeMicroseconds: number): ArduinoRuntimeState => ({
+    ...emptyRuntime,
+    virtualTimeMs: timeMicroseconds / 1000,
+    resumeAtMs: (timeMicroseconds + 1) / 1000,
+    loopStartedAtMs: timeMicroseconds / 1000,
+  });
   const coldState = resetRuntimeAt(0);
   if (previous) {
     if (
