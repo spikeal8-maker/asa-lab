@@ -826,6 +826,13 @@ class ExpressionParser {
       return this.validateOnly
         ? zeroValue('unsigned long')
         : numericValue('unsigned long', Math.floor(this.state.simulationTimeMs) % 4294967296);
+    if (lower === 'micros')
+      return this.validateOnly
+        ? zeroValue('unsigned long')
+        : numericValue(
+            'unsigned long',
+            microsecondsFromMilliseconds(this.state.simulationTimeMs) % 4294967296,
+          );
     throw new SyntaxError(`Команда «${name}» не поддерживается.`);
   }
 }
@@ -843,6 +850,7 @@ function validateCallArguments(name: string, count: number, expression = false):
     digitalRead: [1, 1],
     analogRead: [1, 1],
     millis: [0, 0],
+    micros: [0, 0],
     map: [5, 5],
     constrain: [3, 3],
     abs: [1, 1],
