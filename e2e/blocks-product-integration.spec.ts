@@ -1552,12 +1552,15 @@ test('ASA wordmark supports keyboard and returns to home without an explicit-sav
       'ready',
     );
 
-    const dialog = vi.fn();
-    page.on('dialog', dialog);
+    let dialogSeen = false;
+    page.on('dialog', async (dialog) => {
+      dialogSeen = true;
+      await dialog.dismiss();
+    });
     await home.focus();
     await home.press('Enter');
     await expect(page).toHaveURL(`${parentOrigin}/product#/home`);
-    expect(dialog).not.toHaveBeenCalled();
+    expect(dialogSeen).toBe(false);
     expect(fixture.pageErrors).toEqual([]);
   } finally {
     await fixture.close();
