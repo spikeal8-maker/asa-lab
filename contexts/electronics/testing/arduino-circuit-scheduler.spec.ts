@@ -706,9 +706,86 @@ describe('Arduino shared dc-inputs-v1 circuit clock', () => {
   });
 
   it.each([
+    ['unsupported-call', 'void setup(){micros();}void loop(){}'],
+    ['unsupported-syntax', 'void setup(){int x=1;switch(x){case 1:break;}}void loop(){}'],
+    ['preprocessor', '#include <Servo.h>\nvoid setup(){}\nvoid loop(){}'],
+  ])('keeps known unsupported %s board-local without last-good', (code, source) => {
+    const result = through(circuit([board('uno', source)]), 10);
+    const boardState = result.state!.boards.find((entry) => entry.componentId === 'uno')!;
+
+    expect(result.executionStatus, JSON.stringify(result.diagnostics)).toBe('ready');
+    expect(result.result).not.toBeNull();
+    expect(result.diagnostics).toContainEqual(
+      expect.objectContaining({ code, componentId: 'uno' }),
+    );
+    expect(boardState.loadedSource).toBeNull();
+    expect(runtime(result).faults).toEqual([]);
+    expect(runtime(result).eventQueue).toEqual([]);
+    expect(runtime(result).pinModes).toEqual({});
+    expect(runtime(result).outputVoltages).toEqual({});
+    expect(result.events.filter((event) => event.componentId === 'uno')).toEqual([]);
+  });
+
+  it.each([
+    ['unsupported-call', 'void setup(){micros();}void loop(){}'],
+    ['unsupported-syntax', 'void setup(){int x=1;switch(x){case 1:break;}}void loop(){}'],
+    ['preprocessor', '#include <Servo.h>\nvoid setup(){}\nvoid loop(){}'],
+  ])('keeps last-good runtime through known unsupported %s editor source', (code, source) => {
+    const sourceA =
+      'int count=0;void setup(){pinMode(13,OUTPUT);}void loop(){count++;digitalWrite(13,count%2);}';
+    const loadedA = through(circuit([board('uno', sourceA)]), 10);
+    const countAtA = runtime(loadedA).variables.count ?? 0;
+
+    const continued = through(
+      circuit([board('uno', source)]),
+      20,
+      JSON.parse(JSON.stringify(loadedA.state)),
+    );
+    const boardState = continued.state!.boards.find((entry) => entry.componentId === 'uno')!;
+
+    expect(continued.executionStatus, JSON.stringify(continued.diagnostics)).toBe('ready');
+    expect(continued.diagnostics).toContainEqual(
+      expect.objectContaining({ code, componentId: 'uno' }),
+    );
+    expect(boardState.loadedSource).toBe(sourceA);
+    expect(runtime(continued).variables.count).toBeGreaterThan(countAtA);
+    expect(continued.events.some((event) => event.componentId === 'uno')).toBe(true);
+  });
+
+  it('keeps a valid peer running beside a known unsupported-call board', () => {
+    const done = through(
+      circuit([
+        board(
+          'a-valid',
+          'void setup(){pinMode(13,OUTPUT);digitalWrite(13,HIGH);}void loop(){delay(100);}',
+        ),
+        board('b-unsupported', 'void setup(){micros();}void loop(){}'),
+      ]),
+      10,
+    );
+
+    expect(done.executionStatus, JSON.stringify(done.diagnostics)).toBe('ready');
+    expect(done.diagnostics).toContainEqual(
+      expect.objectContaining({ code: 'unsupported-call', componentId: 'b-unsupported' }),
+    );
+    expect(runtime(done, 'a-valid').outputVoltages.d13).toBe(5);
+    expect(done.events.some((event) => event.componentId === 'a-valid')).toBe(true);
+    expect(done.events.some((event) => event.componentId === 'b-unsupported')).toBe(false);
+  });
+
+  it('keeps ambiguous unknown calls global in B1D', () => {
+    const result = through(circuit([board('uno', 'void setup(){unknown();}void loop(){}')]), 10);
+
+    expect(result.executionStatus).toBe('fault');
+    expect(result.diagnostics[0]?.code).toBe('unknown-call');
+    expect(result.result).toBeNull();
+    expect(result.state).toBeNull();
+    expect(result.events).toEqual([]);
+  });
+
+  it.each([
     'void setup(){pinMode(13,OUTPUT);int x=1/0;}void loop(){}',
     'void setup(){tone(13,440);}void loop(){}',
-    'void setup(){unknown();}void loop(){}',
   ])('fails closed on errors or unscheduled peripherals: %s', (source) => {
     const result = through(circuit([board('uno', source)]), 10);
     expect(result.executionStatus).toBe('fault');
