@@ -95,6 +95,49 @@ describe('simulation input digest', () => {
     expect(simulationInputDigest(document, 100)).not.toBe(simulationInputDigest(document, 200));
   });
 
+  it('does not restart canonical identity for an Arduino source-only edit', () => {
+    const withArduino: ElectronicsDocument = {
+      ...document,
+      components: [
+        ...document.components,
+        {
+          id: 'uno',
+          kind: 'visual',
+          value: 5,
+          position: { x: 80, y: 0 },
+          componentTypeId: 'arduino-uno',
+          pinIds: ['d13', 'power-gnd-1'],
+          stateProperties: {
+            arduinoSource: 'void setup(){pinMode(13,OUTPUT);}void loop(){digitalWrite(13,HIGH);}',
+          },
+        },
+      ],
+    };
+    const sourceEdited: ElectronicsDocument = {
+      ...withArduino,
+      components: withArduino.components.map((component) =>
+        component.id === 'uno'
+          ? {
+              ...component,
+              stateProperties: {
+                ...component.stateProperties,
+                arduinoSource: 'void setup(){digitalWrite(13,);}void loop(){}',
+              },
+            }
+          : component,
+      ),
+    };
+    const structuralEdit: ElectronicsDocument = {
+      ...withArduino,
+      components: withArduino.components.map((component) =>
+        component.id === 'r1' ? { ...component, value: 2200 } : component,
+      ),
+    };
+
+    expect(simulationInputDigest(sourceEdited)).toBe(simulationInputDigest(withArduino));
+    expect(simulationInputDigest(structuralEdit)).not.toBe(simulationInputDigest(withArduino));
+  });
+
   it('binds the digest to the resolved electrical model and profile versions', () => {
     const changedProfile: ElectronicsDocument = {
       ...document,

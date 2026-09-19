@@ -31,6 +31,7 @@ interface SimulationTarget {
 }
 
 const TIMED_STATE_PROPERTIES = ['temperatureCelsius', 'moisturePercent'] as const;
+const ARDUINO_SOURCE_PROPERTY = 'arduinoSource' as const;
 const RUNTIME_INPUT_OBSERVATION_WINDOW_MICROSECONDS = 100_000;
 
 function boundedInputObservationHorizon(
@@ -63,6 +64,7 @@ function stripTimedRuntimeInputs(document: SchematicDocument): unknown {
       if (clone.stateProperties) {
         const stateProperties = { ...clone.stateProperties };
         for (const property of TIMED_STATE_PROPERTIES) delete stateProperties[property];
+        delete stateProperties[ARDUINO_SOURCE_PROPERTY];
         if (Object.keys(stateProperties).length > 0) clone.stateProperties = stateProperties;
         else delete clone.stateProperties;
       }
@@ -75,6 +77,27 @@ function sameCanonicalStructure(left: SchematicDocument, right: SchematicDocumen
   return (
     JSON.stringify(stripTimedRuntimeInputs(left)) === JSON.stringify(stripTimedRuntimeInputs(right))
   );
+}
+
+function withEditorArduinoSources(
+  canonical: SchematicDocument,
+  editor: SchematicDocument,
+): SchematicDocument {
+  const editorById = new Map(editor.components.map((component) => [component.id, component]));
+  return {
+    ...canonical,
+    components: canonical.components.map((component) => {
+      const edited = editorById.get(component.id);
+      if (!edited) return component;
+      const previousSource = component.stateProperties?.[ARDUINO_SOURCE_PROPERTY];
+      const nextSource = edited.stateProperties?.[ARDUINO_SOURCE_PROPERTY];
+      if (previousSource === nextSource) return component;
+      const stateProperties = { ...component.stateProperties };
+      if (typeof nextSource === 'string') stateProperties[ARDUINO_SOURCE_PROPERTY] = nextSource;
+      else delete stateProperties[ARDUINO_SOURCE_PROPERTY];
+      return { ...component, stateProperties };
+    }),
+  };
 }
 
 function timedRuntimeEvents(
@@ -173,6 +196,10 @@ export class ElectronicsLiveSimulationWorkerController {
       return;
     }
 
+    this.canonicalDocument = withEditorArduinoSources(
+      this.canonicalDocument ?? previousDocument,
+      document,
+    );
     const committed = this.timedState.continuation?.committedHorizonMicroseconds ?? 0;
     const eventAtMicroseconds = Math.max(committed + 1, this.lastInputEventAtMicroseconds + 1);
     const events = timedRuntimeEvents(previousDocument, document, eventAtMicroseconds);

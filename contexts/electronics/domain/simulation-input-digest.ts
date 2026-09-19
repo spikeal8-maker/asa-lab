@@ -28,6 +28,7 @@ function canonicalStateProperties(
 ): Readonly<Record<string, CanonicalValue>> {
   return Object.fromEntries(
     Object.entries(component.stateProperties ?? {})
+      .filter(([key]) => key !== 'arduinoSource')
       .sort(([left], [right]) => ordinalCompare(left, right))
       .map(([key, value]) => [key, canonicalStateValue(value, `${component.id}.${key}`)]),
   );
