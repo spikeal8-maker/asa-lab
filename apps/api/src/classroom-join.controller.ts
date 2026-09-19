@@ -586,30 +586,50 @@ export class ClassroomJoinController {
     let row: StudentSessionRow | undefined;
 
     if (protection) {
-      const protectedMatch = await this.requirePool().query(
-        `SELECT seat_id,credential_version
-           FROM classroom_student_code_protected_match($1,$2::jsonb)`,
-        [classroomId, JSON.stringify(lookupCandidates)],
+      const protectedSession = await this.requirePool().query(
+        `SELECT result_code,${SEAT_SESSION_COLUMNS}
+           FROM classroom_student_seat_sign_in_protected($1,$2::jsonb,$3,$4,$5)`,
+        [
+          classCodeHashValue,
+          JSON.stringify(lookupCandidates),
+          hashSessionToken(studentCode),
+          hashSessionToken(token),
+          STUDENT_SESSION_HOURS,
+        ],
       );
-      const match = protectedMatch.rows[0] as
-        { seat_id?: string; credential_version?: number | string } | undefined;
-      if (match?.seat_id && match.credential_version !== undefined) {
-        const protectedSession = await this.requirePool().query(
-          `SELECT ${SEAT_SESSION_COLUMNS}
-             FROM classroom_student_seat_sign_in_protected($1,$2,$3,$4,$5)`,
-          [
-            classCodeHashValue,
-            match.seat_id,
-            Number(match.credential_version),
-            hashSessionToken(token),
-            STUDENT_SESSION_HOURS,
-          ],
+      const protectedRow = protectedSession.rows[0] as
+        (Partial<StudentSessionRow> & { result_code?: string }) | undefined;
+      if (protectedRow?.result_code === 'credential_storage_unavailable') {
+        throw new HttpException(
+          error('credential_storage_unavailable', 'Хранилище кодов учеников временно недоступно.'),
+          503,
         );
-        row = protectedSession.rows[0] as StudentSessionRow | undefined;
+      }
+      if (protectedRow?.result_code === 'invalid_request') {
+        throw new HttpException(
+          error('credential_storage_unavailable', 'Хранилище кодов учеников временно недоступно.'),
+          503,
+        );
+      }
+      if (protectedRow?.result_code === 'ok' && protectedRow.seat_id) {
+        row = protectedRow as StudentSessionRow;
       }
     }
 
-    if (!row && (!protection || protection.mode === 'compat')) {
+    if (!row && protection?.mode === 'compat') {
+      const legacySession = await this.requirePool().query(
+        `SELECT ${SEAT_SESSION_COLUMNS}
+           FROM classroom_student_seat_sign_in_legacy_only($1,$2,$3,$4,$5)`,
+        [
+          classCodeHashValue,
+          studentCode,
+          hashSessionToken(studentCode),
+          hashSessionToken(token),
+          STUDENT_SESSION_HOURS,
+        ],
+      );
+      row = legacySession.rows[0] as StudentSessionRow | undefined;
+    } else if (!row && !protection) {
       const legacySession = await this.requirePool().query(
         `SELECT ${SEAT_SESSION_COLUMNS} FROM classroom_student_seat_sign_in($1,$2,$3,$4,$5)`,
         [

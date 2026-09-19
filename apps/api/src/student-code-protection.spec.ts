@@ -11,6 +11,7 @@ import {
 const encryptionKey = Buffer.alloc(32, 0x11).toString('base64');
 const lookupKey = Buffer.alloc(32, 0x22).toString('base64');
 const retiringLookupKey = Buffer.alloc(32, 0x33).toString('base64');
+const alternateEncryptionKey = Buffer.alloc(32, 0x44).toString('base64');
 
 function env(overrides: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
   return {
@@ -146,8 +147,15 @@ describe('Student Code protection keyring', () => {
     ).toThrow(StudentCodeProtectionConfigError);
   });
 
-  it('fails closed for an unknown historical encryption key ID and tampered tag', () => {
-    const config = loadStudentCodeProtectionConfig(env())!;
+  it('fails closed when any AES-GCM AAD field, tag, or encryption key changes', () => {
+    const config = loadStudentCodeProtectionConfig(
+      env({
+        ASA_STUDENT_CODE_ENCRYPTION_KEYS_JSON: JSON.stringify({
+          enc1: encryptionKey,
+          enc2: alternateEncryptionKey,
+        }),
+      }),
+    )!;
     const protectedCode = protectStudentCode(config, {
       tenantId: 'tenant-a',
       classroomId: 'class-a',
@@ -166,14 +174,25 @@ describe('Student Code protection keyring', () => {
       encryptionTag: protectedCode.encryptionTag,
     };
 
-    expect(() =>
-      decryptStudentCode(config, { ...stored, encryptionKeyId: 'retired-missing' }),
-    ).toThrow(StudentCodeProtectionUnavailableError);
+    const tamperedTag = Buffer.from(stored.encryptionTag);
+    tamperedTag[0] ^= 0xff;
 
-    const tampered = Buffer.from(stored.encryptionTag);
-    tampered[0] ^= 0xff;
-    expect(() => decryptStudentCode(config, { ...stored, encryptionTag: tampered })).toThrow(
-      StudentCodeProtectionUnavailableError,
-    );
+    const failures = [
+      { ...stored, tenantId: 'tenant-b' },
+      { ...stored, classroomId: 'class-b' },
+      { ...stored, seatId: 'seat-b' },
+      { ...stored, credentialVersion: 4 },
+      { ...stored, encryptionTag: tamperedTag },
+      { ...stored, encryptionKeyId: 'enc2' },
+      { ...stored, encryptionKeyId: 'retired-missing' },
+    ];
+
+    for (const changed of failures) {
+      expect(() => decryptStudentCode(config, changed)).toThrow(
+        StudentCodeProtectionUnavailableError,
+      );
+    }
+
+    expect(decryptStudentCode(config, stored)).toBe('QRT234');
   });
 });

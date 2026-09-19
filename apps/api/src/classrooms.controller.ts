@@ -116,6 +116,21 @@ interface ProtectedStudentCodeRow {
   encryption_ciphertext: Buffer;
   encryption_tag: Buffer;
   lookup_key_id: string;
+  lookup_digest: string;
+}
+
+interface RetiredProtectedStudentCodeRow {
+  retired_id: number | string;
+  tenant_id: string;
+  classroom_id: string;
+  seat_id: string;
+  credential_version: number | string;
+  encryption_key_id: string;
+  encryption_nonce: Buffer;
+  encryption_ciphertext: Buffer;
+  encryption_tag: Buffer;
+  lookup_key_id: string;
+  lookup_digest: string;
 }
 
 interface ClassroomActivityRow {
@@ -348,6 +363,88 @@ export class ClassroomsController {
     return tenantId;
   }
 
+  private credentialStorageUnavailable(): HttpException {
+    return new HttpException(
+      error('credential_storage_unavailable', 'Хранилище кодов учеников временно недоступно.'),
+      503,
+    );
+  }
+
+  private async rehashRetiredStudentCodeHistory(
+    client: pg.Pool | pg.PoolClient,
+    accountId: string,
+    classroomId: string,
+    config: StudentCodeProtectionConfig,
+  ): Promise<void> {
+    const retiredRows = (
+      await client.query(
+        `SELECT retired_id,tenant_id,classroom_id,seat_id,credential_version,
+                encryption_key_id,encryption_nonce,encryption_ciphertext,encryption_tag,
+                lookup_key_id,lookup_digest
+           FROM classroom_student_code_retired_read($1,$2)`,
+        [accountId, classroomId],
+      )
+    ).rows as RetiredProtectedStudentCodeRow[];
+
+    for (const retired of retiredRows) {
+      let studentCode: string;
+      try {
+        studentCode = decryptStudentCode(config, {
+          tenantId: retired.tenant_id,
+          classroomId: retired.classroom_id,
+          seatId: retired.seat_id,
+          credentialVersion: Number(retired.credential_version),
+          encryptionKeyId: retired.encryption_key_id,
+          encryptionNonce: retired.encryption_nonce,
+          encryptionCiphertext: retired.encryption_ciphertext,
+          encryptionTag: retired.encryption_tag,
+        });
+      } catch (failure) {
+        if (failure instanceof StudentCodeProtectionUnavailableError) {
+          throw this.credentialStorageUnavailable();
+        }
+        throw failure;
+      }
+
+      const envelope = protectStudentCode(config, {
+        tenantId: retired.tenant_id,
+        classroomId: retired.classroom_id,
+        seatId: retired.seat_id,
+        credentialVersion: Number(retired.credential_version),
+        studentCode,
+      });
+      if (
+        retired.encryption_key_id === envelope.encryptionKeyId &&
+        retired.lookup_key_id === envelope.lookupKeyId &&
+        retired.lookup_digest === envelope.lookupDigest
+      ) {
+        continue;
+      }
+
+      const result = await client.query(
+        `SELECT classroom_student_code_retired_reprotect(
+          $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11
+        ) AS result_code`,
+        [
+          accountId,
+          classroomId,
+          retired.retired_id,
+          retired.lookup_key_id,
+          retired.lookup_digest,
+          envelope.encryptionKeyId,
+          envelope.encryptionNonce,
+          envelope.encryptionCiphertext,
+          envelope.encryptionTag,
+          envelope.lookupKeyId,
+          envelope.lookupDigest,
+        ],
+      );
+      if (result.rows[0]?.result_code !== 'ok') {
+        throw this.credentialStorageUnavailable();
+      }
+    }
+  }
+
   private async storeProtectedStudentCode(
     client: pg.Pool | pg.PoolClient,
     accountId: string,
@@ -361,15 +458,9 @@ export class ClassroomsController {
   ): Promise<void> {
     const config = this.studentCodeProtection();
     if (!config) return;
-    if (onlyIfMissing) {
-      const existing = await client.query(
-        `SELECT credential_version
-           FROM classroom_student_code_protected_read($1,$2)
-          WHERE seat_id=$3`,
-        [accountId, classroomId, seatId],
-      );
-      if (Number(existing.rows[0]?.credential_version) === credentialVersion) return;
-    }
+
+    await this.rehashRetiredStudentCodeHistory(client, accountId, classroomId, config);
+
     const authoritativeTenantId =
       tenantId ?? (await this.protectedTenantId(client, accountId, classroomId));
     const envelope = protectStudentCode(config, {
@@ -379,6 +470,32 @@ export class ClassroomsController {
       credentialVersion,
       studentCode,
     });
+
+    if (onlyIfMissing) {
+      const existing = await client.query(
+        `SELECT credential_version,encryption_key_id,lookup_key_id,lookup_digest
+           FROM classroom_student_code_protected_read($1,$2)
+          WHERE seat_id=$3`,
+        [accountId, classroomId, seatId],
+      );
+      const row = existing.rows[0] as
+        | {
+            credential_version?: number | string;
+            encryption_key_id?: string;
+            lookup_key_id?: string;
+            lookup_digest?: string;
+          }
+        | undefined;
+      if (
+        Number(row?.credential_version) === credentialVersion &&
+        row?.encryption_key_id === envelope.encryptionKeyId &&
+        row?.lookup_key_id === envelope.lookupKeyId &&
+        row?.lookup_digest === envelope.lookupDigest
+      ) {
+        return;
+      }
+    }
+
     const result = await client.query(
       `SELECT classroom_student_code_protected_write(
         $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb
@@ -415,10 +532,7 @@ export class ClassroomsController {
     if (resultCode === 'not_found') {
       throw new HttpException(error('seat_not_found', 'Ученик не найден.'), 404);
     }
-    throw new HttpException(
-      error('credential_storage_unavailable', 'Хранилище кодов учеников временно недоступно.'),
-      503,
-    );
+    throw this.credentialStorageUnavailable();
   }
 
   private async protectLegacyCurrentStudentCode(

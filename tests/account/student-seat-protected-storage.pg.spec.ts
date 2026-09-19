@@ -23,6 +23,18 @@ const originalEnv = {
 const enc1 = Buffer.alloc(32, 0x41);
 const lookup1 = Buffer.alloc(32, 0x51);
 const lookup0 = Buffer.alloc(32, 0x61);
+const lookup2 = Buffer.alloc(32, 0x71);
+
+function useLookupKeyring(keys: Record<string, Buffer>, activeKeyId: string): void {
+  process.env['ASA_STUDENT_CODE_LOOKUP_KEYS_JSON'] = JSON.stringify(
+    Object.fromEntries(Object.entries(keys).map(([keyId, key]) => [keyId, key.toString('base64')])),
+  );
+  process.env['ASA_STUDENT_CODE_LOOKUP_ACTIVE_KEY_ID'] = activeKeyId;
+}
+
+function useDefaultLookupKeyring(): void {
+  useLookupKeyring({ lookup1, lookup0 }, 'lookup1');
+}
 
 function restoreEnv(): void {
   const entries: Array<[string, string | undefined]> = [
@@ -231,6 +243,181 @@ describe('E1-FIX-02B protected Student Code storage foundation', () => {
         payload: { code: classCode, studentCode: changedCase },
       });
       expect(rejected.statusCode, rejected.body).toBe(401);
+    }
+  });
+
+  it('restricted runtime cannot mint a protected session from seat/version without HMAC proof', async () => {
+    const { teacher, classroomId } = await teacherClass();
+    const seat = await addSeat(teacher.cookie, classroomId, 'Atomic proof learner');
+
+    const state = await admin.query(
+      `SELECT code.token_hash,cred.version,cred.credential_hash
+         FROM classroom_student_seats seat
+         JOIN classroom_join_codes code
+           ON code.classroom_id=seat.classroom_id AND code.tenant_id=seat.tenant_id
+         JOIN classroom_seat_credentials cred ON cred.seat_id=seat.id
+        WHERE seat.id=$1 AND code.status='active'`,
+      [seat.id],
+    );
+    const classCodeHash = String(state.rows[0].token_hash);
+    const credentialVersion = Number(state.rows[0].version);
+    const legacyCredentialHash = String(state.rows[0].credential_hash);
+    const directTokenHash = 'f'.repeat(64);
+
+    const protectedFunctions = await admin.query(
+      `SELECT p.oid::regprocedure::text AS signature,
+              has_function_privilege('asalab_app',p.oid,'EXECUTE') AS can_execute
+         FROM pg_proc p
+         JOIN pg_namespace n ON n.oid=p.pronamespace
+        WHERE n.nspname='public'
+          AND p.proname='classroom_student_seat_sign_in_protected'
+        ORDER BY 1`,
+    );
+    expect(protectedFunctions.rows).toHaveLength(1);
+    expect(protectedFunctions.rows[0].signature).toContain(
+      'classroom_student_seat_sign_in_protected(character varying,jsonb,character varying,character varying,integer)',
+    );
+    expect(protectedFunctions.rows[0].can_execute).toBe(true);
+
+    await expect(
+      runtime.query(
+        `SELECT * FROM classroom_student_seat_sign_in_protected(
+          $1,$2::uuid,$3::integer,$4,$5
+        )`,
+        [classCodeHash, seat.id, credentialVersion, directTokenHash, 8],
+      ),
+    ).rejects.toThrow();
+
+    const noProof = await runtime.query(
+      `SELECT result_code
+         FROM classroom_student_seat_sign_in_protected($1,$2::jsonb,$3,$4,$5)`,
+      [
+        classCodeHash,
+        JSON.stringify([{ keyId: 'lookup1', digest: '0'.repeat(64) }]),
+        legacyCredentialHash,
+        directTokenHash,
+        8,
+      ],
+    );
+    expect(noProof.rows[0]?.result_code).toBe('credential_storage_unavailable');
+
+    const minted = await admin.query(
+      `SELECT count(*)::int AS count
+         FROM classroom_student_sessions
+        WHERE seat_id=$1 AND token_hash=$2`,
+      [seat.id, directTokenHash],
+    );
+    expect(minted.rows[0]?.count).toBe(0);
+  });
+
+  it('rehashes retired history K1 to K2 before K1 removal and still blocks historical reuse', async () => {
+    const { teacher, classroomId, classCode } = await teacherClass();
+    const seat = await addSeat(teacher.cookie, classroomId, 'Lookup rotation learner');
+    const x = 'Ab7k';
+    const y = 'Cd8m';
+
+    const establishX = await inject(app, {
+      method: 'POST',
+      url: `/api/classrooms/${classroomId}/seats/${seat.id}/code`,
+      headers: { cookie: teacher.cookie },
+      payload: { studentCode: x, requestId: crypto.randomUUID() },
+    });
+    expect(establishX.statusCode, establishX.body).toBe(201);
+
+    const rotateRequestId = crypto.randomUUID();
+    const rotateToY = await inject(app, {
+      method: 'POST',
+      url: `/api/classrooms/${classroomId}/seats/${seat.id}/code`,
+      headers: { cookie: teacher.cookie },
+      payload: { studentCode: y, requestId: rotateRequestId },
+    });
+    expect(rotateToY.statusCode, rotateToY.body).toBe(201);
+    expect(rotateToY.json()).toMatchObject({ studentCode: y, version: 3 });
+
+    const retiredBefore = await admin.query(
+      `SELECT credential_version,encryption_key_id,lookup_key_id,lookup_digest,
+              encode(encryption_ciphertext,'hex') AS ciphertext_hex
+         FROM classroom_student_code_retired_digests
+        WHERE seat_id=$1 AND credential_version=2`,
+      [seat.id],
+    );
+    expect(retiredBefore.rows).toHaveLength(1);
+    expect(retiredBefore.rows[0].lookup_key_id).toBe('lookup1');
+    expect(retiredBefore.rows[0].lookup_digest).toMatch(/^[0-9a-f]{64}$/);
+    expect(retiredBefore.rows[0].ciphertext_hex).not.toContain(Buffer.from(x).toString('hex'));
+
+    const oldLogin = await inject(app, {
+      method: 'POST',
+      url: '/api/class-join/studentseat',
+      payload: { code: classCode, studentCode: x },
+    });
+    expect(oldLogin.statusCode, oldLogin.body).toBe(401);
+
+    useLookupKeyring({ lookup1, lookup2 }, 'lookup2');
+    try {
+      const rehashReplay = await inject(app, {
+        method: 'POST',
+        url: `/api/classrooms/${classroomId}/seats/${seat.id}/code`,
+        headers: { cookie: teacher.cookie },
+        payload: { studentCode: y, requestId: rotateRequestId },
+      });
+      expect(rehashReplay.statusCode, rehashReplay.body).toBe(201);
+      expect(rehashReplay.json()).toMatchObject({ studentCode: y, version: 3, reused: true });
+
+      const currentAfter = await admin.query(
+        `SELECT lookup_key_id,lookup_digest,encryption_key_id
+           FROM classroom_student_code_protected WHERE seat_id=$1`,
+        [seat.id],
+      );
+      expect(currentAfter.rows[0].lookup_key_id).toBe('lookup2');
+
+      const retiredAfter = await admin.query(
+        `SELECT lookup_key_id,lookup_digest,encryption_key_id,
+                encode(encryption_ciphertext,'hex') AS ciphertext_hex
+           FROM classroom_student_code_retired_digests
+          WHERE seat_id=$1 AND credential_version=2`,
+        [seat.id],
+      );
+      expect(retiredAfter.rows[0].lookup_key_id).toBe('lookup2');
+      expect(retiredAfter.rows[0].lookup_digest).not.toBe(retiredBefore.rows[0].lookup_digest);
+      expect(retiredAfter.rows[0].ciphertext_hex).not.toContain(Buffer.from(x).toString('hex'));
+
+      useLookupKeyring({ lookup2 }, 'lookup2');
+
+      const yLogin = await inject(app, {
+        method: 'POST',
+        url: '/api/class-join/studentseat',
+        payload: { code: classCode, studentCode: y },
+      });
+      expect(yLogin.statusCode, yLogin.body).toBe(200);
+
+      const reuseX = await inject(app, {
+        method: 'POST',
+        url: `/api/classrooms/${classroomId}/seats/${seat.id}/code`,
+        headers: { cookie: teacher.cookie },
+        payload: { studentCode: x, requestId: crypto.randomUUID() },
+      });
+      expect(reuseX.statusCode, reuseX.body).toBe(409);
+      expect(reuseX.body).toContain('student_code_taken');
+
+      const other = await addSeat(teacher.cookie, classroomId, 'Case-sensitive reuse learner');
+      const caseVariant = await inject(app, {
+        method: 'POST',
+        url: `/api/classrooms/${classroomId}/seats/${other.id}/code`,
+        headers: { cookie: teacher.cookie },
+        payload: { studentCode: x.toLowerCase(), requestId: crypto.randomUUID() },
+      });
+      expect(caseVariant.statusCode, caseVariant.body).toBe(201);
+      expect(caseVariant.json().studentCode).toBe(x.toLowerCase());
+
+      const yStillWorks = await inject(app, {
+        method: 'POST',
+        url: '/api/class-join/studentseat',
+        payload: { code: classCode, studentCode: y },
+      });
+      expect(yStillWorks.statusCode, yStillWorks.body).toBe(200);
+    } finally {
+      useDefaultLookupKeyring();
     }
   });
 
@@ -466,6 +653,69 @@ describe('E1-FIX-02B protected Student Code storage foundation', () => {
       [resultRows.map((row) => row.seatId)],
     );
     expect(afterReplay.rows).toEqual(protectedRows.rows);
+  });
+
+  it('unknown protected lookup key fails closed in compat without consuming abuse budget while legacy-only still signs in', async () => {
+    const { teacher, classroomId, classCode } = await teacherClass();
+    const protectedSeat = await addSeat(teacher.cookie, classroomId, 'Missing lookup key learner');
+
+    const normal = await inject(app, {
+      method: 'POST',
+      url: '/api/class-join/studentseat',
+      payload: { code: classCode, studentCode: protectedSeat.studentCode },
+    });
+    expect(normal.statusCode, normal.body).toBe(200);
+
+    await admin.query(
+      `UPDATE classroom_student_code_protected
+          SET lookup_key_id='missing-key'
+        WHERE seat_id=$1`,
+      [protectedSeat.id],
+    );
+    const beforeSessions = await admin.query(
+      `SELECT count(*)::int AS count FROM classroom_student_sessions WHERE seat_id=$1`,
+      [protectedSeat.id],
+    );
+
+    for (let attempt = 0; attempt < 7; attempt += 1) {
+      const unavailable = await inject(app, {
+        method: 'POST',
+        url: '/api/class-join/studentseat',
+        payload: { code: classCode, studentCode: protectedSeat.studentCode },
+      });
+      expect(unavailable.statusCode, unavailable.body).toBe(503);
+      expect(unavailable.body).toContain('credential_storage_unavailable');
+      expect(unavailable.body).not.toContain('too_many_attempts');
+    }
+
+    const afterSessions = await admin.query(
+      `SELECT count(*)::int AS count FROM classroom_student_sessions WHERE seat_id=$1`,
+      [protectedSeat.id],
+    );
+    expect(afterSessions.rows[0]?.count).toBe(beforeSessions.rows[0]?.count);
+
+    process.env['ASA_STUDENT_CODE_PROTECTION_MODE'] = 'off';
+    let legacySeat: { id: string; studentCode: string };
+    try {
+      legacySeat = await addSeat(teacher.cookie, classroomId, 'True legacy-only learner');
+    } finally {
+      process.env['ASA_STUDENT_CODE_PROTECTION_MODE'] = 'compat';
+    }
+
+    const legacyProtected = await admin.query(
+      `SELECT count(*)::int AS count
+         FROM classroom_student_code_protected
+        WHERE seat_id=$1`,
+      [legacySeat!.id],
+    );
+    expect(legacyProtected.rows[0]?.count).toBe(0);
+
+    const legacyLogin = await inject(app, {
+      method: 'POST',
+      url: '/api/class-join/studentseat',
+      payload: { code: classCode, studentCode: legacySeat!.studentCode },
+    });
+    expect(legacyLogin.statusCode, legacyLogin.body).toBe(200);
   });
 
   it('fails protected current readback closed on an unknown encryption key while compat legacy rows remain supported', async () => {
