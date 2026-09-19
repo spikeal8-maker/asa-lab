@@ -143,22 +143,20 @@ parallel_lanes:
       - tools/validate-electronics-agent-docs.mjs
       - tools/test_validate_electronics_agent_docs.mjs
     task:
-      id: TASK-ELECTRONICS-EOPT3E-001
-      issue: 298
-      branch: codex/electronics-eopt3e-trace-replay
+      id: TASK-ELECTRONICS-EOPT3F-001
+      issue: 301
+      branch: codex/electronics-eopt3f-runtime-conformance
       base_branch: main
-      pr: 300
-      pr_draft: false
-      status: done
-      checkpoint: merged_to_main
-      owner_acceptance: accepted
+      pr: null
+      pr_draft: true
+      status: in_progress
+      checkpoint: eopt3f_runtime_conformance_characterization
+      owner_acceptance: pending
     revisions:
-      convergence_baseline_sha: 8e5620c8759ace58f6d748724f381d86d3bd3dc9
-      head_sha: 3c8cfea669d10f1251290a03cebf9f47023c6d09
-      owner_accepted_sha: 3c8cfea669d10f1251290a03cebf9f47023c6d09
-      product_merge_sha: dda8a13103eb09eb75f75787a9647a3e39cd3097
+      convergence_baseline_sha: 6b7b175fbf523dff78333e57e150381fa418a91f
+      head_sha: 6b7b175fbf523dff78333e57e150381fa418a91f
     execution_lease:
-      executor_id: codex-electronics-eopt3e-trace-replay
+      executor_id: codex-electronics-eopt3f-runtime-conformance
       holder: unassigned
       acquired_at: null
       expires_at: null
