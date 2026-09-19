@@ -403,32 +403,37 @@ describe('BlocksEditor runtime session bootstrap', () => {
     ).toHaveLength(0);
   });
 
-  it.each([401, 503])('fails proactive capability refresh closed when it returns %s', async (status) => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date('2030-01-01T00:00:00.000Z'));
-    const nowSeconds = Math.floor(Date.now() / 1000);
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(jsonResponse(session('initial.runtime.token', nowSeconds + 30)))
-      .mockResolvedValueOnce(jsonResponse({}, status));
-    vi.stubGlobal('fetch', fetchMock);
-    const iframe = await renderEditor();
-    const postMessage = spyOnPostMessage(iframe);
-    await fireLoad(iframe);
+  it.each([401, 503])(
+    'fails proactive capability refresh closed when it returns %s',
+    async (status) => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2030-01-01T00:00:00.000Z'));
+      const nowSeconds = Math.floor(Date.now() / 1000);
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(jsonResponse(session('initial.runtime.token', nowSeconds + 30)))
+        .mockResolvedValueOnce(jsonResponse({}, status));
+      vi.stubGlobal('fetch', fetchMock);
+      const iframe = await renderEditor();
+      const postMessage = spyOnPostMessage(iframe);
+      await fireLoad(iframe);
 
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(0);
-      await flushAsync();
-    });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+        await flushAsync();
+      });
 
-    const messages = postMessage.mock.calls.map(([message]) => message as Record<string, unknown>);
-    expect(
-      messages.filter((message) => message['messageType'] === 'ASA_BLOCKS_TOKEN_UPDATE'),
-    ).toHaveLength(0);
-    expect(
-      messages.filter((message) => message['messageType'] === 'ASA_BLOCKS_FLUSH_REQUEST'),
-    ).toHaveLength(0);
-  });
+      const messages = postMessage.mock.calls.map(
+        ([message]) => message as Record<string, unknown>,
+      );
+      expect(
+        messages.filter((message) => message['messageType'] === 'ASA_BLOCKS_TOKEN_UPDATE'),
+      ).toHaveLength(0);
+      expect(
+        messages.filter((message) => message['messageType'] === 'ASA_BLOCKS_FLUSH_REQUEST'),
+      ).toHaveLength(0);
+    },
+  );
 
   it('does not extend revoked authority when proactive refresh returns 404', async () => {
     vi.useFakeTimers();

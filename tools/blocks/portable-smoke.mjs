@@ -375,12 +375,12 @@ function projectHasStep(state, marker, value) {
   const target = state.document?.projectJson?.targets?.find((item) => item.name === marker);
   return Boolean(
     target &&
-      Object.values(target.blocks ?? {}).some(
-        (block) =>
-          block.opcode === 'motion_movesteps' &&
-          Array.isArray(block.inputs?.STEPS) &&
-          JSON.stringify(block.inputs.STEPS).includes(String(value)),
-      ),
+    Object.values(target.blocks ?? {}).some(
+      (block) =>
+        block.opcode === 'motion_movesteps' &&
+        Array.isArray(block.inputs?.STEPS) &&
+        JSON.stringify(block.inputs.STEPS).includes(String(value)),
+    ),
   );
 }
 
@@ -415,10 +415,18 @@ async function assertUiRegression(page, frame) {
     const overlaps = (a, b) =>
       a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
     if (fileBox) {
-      assert.equal(overlaps(accountBox, fileBox), false, 'Account must not cover visible native File');
+      assert.equal(
+        overlaps(accountBox, fileBox),
+        false,
+        'Account must not cover visible native File',
+      );
     }
     if (editBox) {
-      assert.equal(overlaps(accountBox, editBox), false, 'Account must not cover visible native Edit');
+      assert.equal(
+        overlaps(accountBox, editBox),
+        false,
+        'Account must not cover visible native Edit',
+      );
     }
   }
   await page.setViewportSize({ width: 1440, height: 960 });
@@ -564,9 +572,7 @@ try {
     .poll(
       () => {
         const current = projectState(projectId);
-        const target = current.document?.projectJson?.targets?.find(
-          (item) => item.name === marker,
-        );
+        const target = current.document?.projectJson?.targets?.find((item) => item.name === marker);
         const hasVariable = current.document?.projectJson?.targets?.some((item) =>
           Object.values(item.variables ?? {}).some(
             (entry) => Array.isArray(entry) && entry[0] === variable,
@@ -580,11 +586,11 @@ try {
         );
         return Boolean(
           current.revision > p0.revision &&
-            target?.x === 137 &&
-            hasVariable &&
-            hasCostume &&
-            hasSound &&
-            projectHasStep(current, marker, 73),
+          target?.x === 137 &&
+          hasVariable &&
+          hasCostume &&
+          hasSound &&
+          projectHasStep(current, marker, 73),
         );
       },
       { timeout: 45000 },
@@ -796,9 +802,7 @@ try {
 
   phase = 'rapid-edit';
   const pRapid0 = projectState(projectId);
-  const draftPattern = new RegExp(
-    `/api/blocks/runtime/projects/${projectId}/draft$`,
-  );
+  const draftPattern = new RegExp(`/api/blocks/runtime/projects/${projectId}/draft$`);
   let firstRapidDraft = true;
   let releaseRapidResponse;
   let markRapidCommitted;
@@ -1026,9 +1030,9 @@ try {
   await expect(freshEditor.frame.getByRole('textbox', { name: 'Sound', exact: true })).toHaveValue(
     'Boing',
   );
-  await expect(
-    freshEditor.frame.getByText('Project could not save.', { exact: true }),
-  ).toBeVisible({ timeout: 20000 });
+  await expect(freshEditor.frame.getByText('Project could not save.', { exact: true })).toBeVisible(
+    { timeout: 20000 },
+  );
   const afterStorageFailure = projectState(projectId);
   expect(afterStorageFailure.revision).toBe(beforeStorageFailure.revision);
   expect(phaseRuntimeMetrics(runtimeEvents, 'storage-failure').draftPutRequests).toBe(0);

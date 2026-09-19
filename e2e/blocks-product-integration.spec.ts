@@ -545,9 +545,11 @@ test('long-lived editor rotates capability in place and upstream autosaves with 
 
     await expect.poll(() => fixture.runtimeDraftEvidence.length, { timeout: 20_000 }).toBe(1);
     expect(fixture.runtimeDraftEvidence[0].authorizationOk).toBe(true);
-    expect(fixture.runtimeDraftEvidence[0].body.document.projectJson.targets
-      .find((target: { name?: string }) => target.name === 'Server Bootstrap Sprite')
-      .blocks.move.inputs.STEPS[1][1]).toBe('37');
+    expect(
+      fixture.runtimeDraftEvidence[0].body.document.projectJson.targets.find(
+        (target: { name?: string }) => target.name === 'Server Bootstrap Sprite',
+      ).blocks.move.inputs.STEPS[1][1],
+    ).toBe('37');
 
     const messages = await page.evaluate(
       () =>
@@ -569,16 +571,18 @@ test('long-lived editor rotates capability in place and upstream autosaves with 
     expect(
       dirtyMessages.every((message) => message.sessionNonce === initialBinding.sessionNonce),
     ).toBe(true);
-    expect(messages.some((message) => message.messageType === 'ASA_BLOCKS_FLUSH_RESULT')).toBe(false);
+    expect(messages.some((message) => message.messageType === 'ASA_BLOCKS_FLUSH_RESULT')).toBe(
+      false,
+    );
     expect(runtimeNavigations).toBe(1);
 
     await setServerSteps(frame, '37', '41');
     await expect.poll(() => fixture.runtimeDraftEvidence.length, { timeout: 20_000 }).toBe(2);
     const latestDraft = fixture.runtimeDraftEvidence.at(-1);
     expect(
-      latestDraft.body.document.projectJson.targets
-        .find((target: { name?: string }) => target.name === 'Server Bootstrap Sprite')
-        .blocks.move.inputs.STEPS[1][1],
+      latestDraft.body.document.projectJson.targets.find(
+        (target: { name?: string }) => target.name === 'Server Bootstrap Sprite',
+      ).blocks.move.inputs.STEPS[1][1],
     ).toBe('41');
     expect(latestDraft.authorizationOk).toBe(true);
     await expect(
@@ -648,9 +652,9 @@ test('edit during in-flight upstream autosave persists the latest generation', a
 
     const finalDraft = fixture.runtimeDraftEvidence.at(-1);
     expect(
-      finalDraft.body.document.projectJson.targets
-        .find((target: { name?: string }) => target.name === 'Server Bootstrap Sprite')
-        .blocks.move.inputs.STEPS[1][1],
+      finalDraft.body.document.projectJson.targets.find(
+        (target: { name?: string }) => target.name === 'Server Bootstrap Sprite',
+      ).blocks.move.inputs.STEPS[1][1],
     ).toBe('41');
     expect(fixture.runtimeAssetPutEvidence).toHaveLength(0);
     await expect(
