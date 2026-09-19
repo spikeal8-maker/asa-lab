@@ -81,6 +81,7 @@ export interface ArduinoCircuitClockState {
   readonly physicalState?: CapacitorTransientState;
   readonly boards: readonly {
     readonly componentId: string;
+    readonly loadedSource?: string | null;
     readonly runtime: ArduinoRuntimeState;
   }[];
 }
@@ -280,7 +281,55 @@ export function advanceArduinoCircuitClock(
       componentId: board.id,
     });
   }
-  const runnableBoards = boards.filter((board) => !compileDiagnostics.has(board.id));
+  const editorSources = new Map(boards.map((board) => [board.id, arduinoSourceFor(board)] as const));
+  const previousLoadedSources = new Map<string, string | null>();
+  for (const [index, board] of boards.entries()) {
+    const entry = previous?.boards[index];
+    if (!entry || entry.componentId !== board.id) continue;
+    if (
+      typeof entry.loadedSource === 'string' &&
+      arduinoRuntimeStateMatchesProgram(entry.loadedSource, entry.runtime)
+    ) {
+      previousLoadedSources.set(board.id, entry.loadedSource);
+      continue;
+    }
+    if (entry.loadedSource === null && arduinoRuntimeStateMatchesProgram('', entry.runtime)) {
+      previousLoadedSources.set(board.id, null);
+      continue;
+    }
+    const editorSource = editorSources.get(board.id)!;
+    if (
+      !compileDiagnostics.has(board.id) &&
+      arduinoRuntimeStateMatchesProgram(editorSource, entry.runtime)
+    ) {
+      previousLoadedSources.set(board.id, editorSource);
+      continue;
+    }
+    if (arduinoRuntimeStateMatchesProgram('', entry.runtime))
+      previousLoadedSources.set(board.id, null);
+  }
+  const executionSources = new Map<string, string>();
+  for (const board of boards) {
+    const editorSource = editorSources.get(board.id)!;
+    if (!compileDiagnostics.has(board.id)) {
+      executionSources.set(board.id, editorSource);
+      continue;
+    }
+    const lastGood = previousLoadedSources.get(board.id);
+    if (typeof lastGood === 'string') executionSources.set(board.id, lastGood);
+  }
+  const runnableBoards = boards.filter((board) => executionSources.has(board.id));
+  const pendingProgramLoads = new Set(
+    previous
+      ? runnableBoards
+          .filter(
+            (board) =>
+              !compileDiagnostics.has(board.id) &&
+              previousLoadedSources.get(board.id) !== executionSources.get(board.id),
+          )
+          .map((board) => board.id)
+      : [],
+  );
   const emptyRuntime = advanceClockedArduinoRuntime('', {}, 0, undefined, undefined, {
     instructionBudget: 1,
   }).state;
@@ -325,18 +374,16 @@ export function advanceArduinoCircuitClock(
       previous.boards.length !== boards.length ||
       previous.boards.some((entry, index) => {
         const board = boards[index]!;
-        const compileFailed = compileDiagnostics.has(board.id);
+        const loadedSource = previousLoadedSources.get(board.id);
         return (
           !entry ||
           entry.componentId !== board.id ||
-          !arduinoRuntimeStateMatchesProgram(
-            compileFailed ? '' : arduinoSourceFor(board),
-            entry.runtime,
-          ) ||
+          loadedSource === undefined ||
+          !arduinoRuntimeStateMatchesProgram(loadedSource ?? '', entry.runtime) ||
           entry.runtime.clockProfile !== 'instruction-us-v1' ||
           entry.runtime.faults.length > 0 ||
           Object.keys(entry.runtime.tones).length > 0 ||
-          (compileFailed &&
+          (loadedSource === null &&
             (Object.keys(entry.runtime.pinModes).length > 0 ||
               Object.keys(entry.runtime.outputVoltages).length > 0 ||
               entry.runtime.eventQueue.length > 0)) ||
@@ -366,14 +413,16 @@ export function advanceArduinoCircuitClock(
   let activeDocument: ElectronicsDocument = {
     ...document,
     components: document.components
-      .map((component) =>
-        compileDiagnostics.has(component.id)
-          ? {
-              ...component,
-              stateProperties: { ...component.stateProperties, arduinoSource: '' },
-            }
-          : component,
-      )
+      .map((component) => {
+        if (!compileDiagnostics.has(component.id)) return component;
+        return {
+          ...component,
+          stateProperties: {
+            ...component.stateProperties,
+            arduinoSource: executionSources.get(component.id) ?? '',
+          },
+        };
+      })
       .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)),
     connections: [...document.connections].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)),
   };
@@ -383,8 +432,12 @@ export function advanceArduinoCircuitClock(
   const states = new Map(
     previous?.boards.map((entry) => [entry.componentId, entry.runtime] as const),
   );
+  const loadedSources = new Map(previousLoadedSources);
   for (const board of boards) {
-    if (compileDiagnostics.has(board.id) && !states.has(board.id)) states.set(board.id, coldState);
+    if (!executionSources.has(board.id) && !states.has(board.id)) {
+      states.set(board.id, coldState);
+      loadedSources.set(board.id, null);
+    }
   }
   let reachedMicroseconds = previous?.reachedMicroseconds ?? -1;
   let physicalState = previous?.physicalState;
@@ -445,6 +498,7 @@ export function advanceArduinoCircuitClock(
   const nextTime = (): number =>
     Math.min(
       ...runnableBoards.map((board) => {
+        if (pendingProgramLoads.has(board.id)) return previous?.reachedMicroseconds ?? 0;
         const state = states.get(board.id);
         return state ? Math.round(state.resumeAtMs * 1000) : 0;
       }),
@@ -487,12 +541,18 @@ export function advanceArduinoCircuitClock(
         'electrical_quality_failed',
         'Не выполнены проверки конечности, KCL или напряжения источников.',
       );
-    const updates: [string, ArduinoRuntimeState][] = [];
+    const updates: [string, ArduinoRuntimeState, string][] = [];
     for (const board of runnableBoards) {
       const state = states.get(board.id);
-      if (state && Math.round(state.resumeAtMs * 1000) > time) continue;
+      if (
+        !pendingProgramLoads.has(board.id) &&
+        state &&
+        Math.round(state.resumeAtMs * 1000) > time
+      )
+        continue;
+      const executionSource = executionSources.get(board.id)!;
       const advanced = advanceClockedArduinoRuntime(
-        arduinoSourceFor(board),
+        executionSource,
         frame.components.find((entry) => entry.componentId === board.id)?.terminalVoltages ?? {},
         time / 1000,
         state,
@@ -513,12 +573,16 @@ export function advanceArduinoCircuitClock(
           'tone требует планирования периферийных фронтов; общий DC/RC clock не подменяет его постоянным напряжением.',
         );
       }
-      updates.push([board.id, advanced.state]);
+      updates.push([board.id, advanced.state, executionSource]);
       events.push(...advanced.events.map((event) => ({ ...event, componentId: board.id })));
       if (advanced.events.length > 0) cachedFrame = undefined;
     }
     // Commit together, after ALL due boards have consumed the same electrical frame.
-    for (const [id, state] of updates) states.set(id, state);
+    for (const [id, state, loadedSource] of updates) {
+      states.set(id, state);
+      loadedSources.set(id, loadedSource);
+      pendingProgramLoads.delete(id);
+    }
     reachedMicroseconds = time;
     clockEvents++;
   }
@@ -526,13 +590,15 @@ export function advanceArduinoCircuitClock(
   if (ready) {
     reachedMicroseconds = targetMicroseconds;
     for (const board of boards) {
-      if (compileDiagnostics.has(board.id)) {
+      const executionSource = executionSources.get(board.id);
+      if (executionSource === undefined) {
         states.set(board.id, resetRuntimeAt(targetMicroseconds));
+        loadedSources.set(board.id, null);
         continue;
       }
       // No instruction is due in this idle interval; only align the observed horizon.
       const advanced = advanceClockedArduinoRuntime(
-        arduinoSourceFor(board),
+        executionSource,
         {},
         targetMicroseconds / 1000,
         states.get(board.id),
@@ -540,6 +606,8 @@ export function advanceArduinoCircuitClock(
       if (advanced.executionStatus !== 'ready' || advanced.events.length > 0)
         return fault('clock_alignment_failed', 'Платы не достигли общего горизонта.');
       states.set(board.id, advanced.state);
+      loadedSources.set(board.id, executionSource);
+      pendingProgramLoads.delete(board.id);
     }
   }
   const state: ArduinoCircuitClockState = {
@@ -550,7 +618,11 @@ export function advanceArduinoCircuitClock(
     inputs: inputs.map((event) => ({ ...event })),
     nextInputIndex,
     ...(physicalState ? { physicalState } : {}),
-    boards: boards.map((board) => ({ componentId: board.id, runtime: states.get(board.id)! })),
+    boards: boards.map((board) => ({
+      componentId: board.id,
+      loadedSource: loadedSources.get(board.id) ?? null,
+      runtime: states.get(board.id)!,
+    })),
   };
   let result: ArduinoCircuitClockAdvance['result'] = null;
   if (ready) {
