@@ -384,6 +384,57 @@ Additive code migration with deliberate reset of incompatible **runtime-only** c
 
 Legacy-wrapper coverage in `arduino-correctness.spec.ts`, `arduino-runtime-state.spec.ts`, `arduino-values.spec.ts` and `arduino-execution-clock.spec.ts` must later be classified as retained legacy regression proof, migrated canonical coverage or AVR reference parity coverage.
 
+## Editor source vs loaded executable program
+
+The Arduino editor source and the executable program loaded into a virtual board are distinct target concepts:
+
+```text
+editor source
+!=
+last successfully loaded executable program
+```
+
+Target compile/load semantics:
+
+```text
+valid program A compiles and loads successfully
+→ A becomes the executable program
+
+user edits source to invalid program B
+→ B compile fails
+→ B is not executed
+→ B does not replace A
+→ A remains the last successfully loaded executable
+→ the whole Electronics simulation continues
+```
+
+If no program has ever compiled and loaded successfully:
+
+```text
+compile failure
+→ no fabricated program executes
+→ board remains in a defined no-loaded-program/reset state
+→ the whole Electronics simulation continues
+```
+
+E-OPT-5A does not define the exact GPIO reset values for that no-loaded-program/reset state. Those pin-level semantics belong to a later bounded implementation slice.
+
+Two error classes are normative and must remain distinct.
+
+### Arduino compile error
+
+Examples include a missing semicolon, broken syntax or an invalid declaration.
+
+A real compile error means the edited Arduino source did not compile. The new source is not loaded and is not executed. It cannot replace a previously loaded executable program.
+
+### ASA simulation capability unsupported
+
+Valid Arduino source may use a feature that ASA Lab does not yet simulate, for example `micros()`, `pulseIn()`, Serial or Servo.
+
+When the source is valid Arduino code, this is **not** an Arduino compile error. It is an ASA simulation capability diagnostic. ASA Lab must not fabricate a return value or partial behavior for the unsupported capability, but the global Electronics simulation remains running.
+
+This section is a design contract only. The compile/load separation and no-loaded-program/reset behavior are **not implemented by E-OPT-5A**.
+
 ## Rejected alternatives
 
 ### AVR production backend
