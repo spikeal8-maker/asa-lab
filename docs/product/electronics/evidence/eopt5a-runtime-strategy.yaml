@@ -46,6 +46,50 @@ hard_constraints:
   explicit_unsupported_failures: required
   server_reference_verification: required
   arbitrary_host_js_from_user_sketch: forbidden
+  permissive_user_start_and_fail_local_errors: required
+  arduino_compile_success_required_to_replace_loaded_program: required
+
+criteria_history:
+  initial_candidate_sha: 038ece8f7af63f70b23270a6be1f8573889b9d88
+  initial_evaluation_criteria_count: 22
+  initial_evaluation_criteria_frozen_before_candidate: true
+  initial_hard_constraints_count: 11
+  owner_semantic_constraint_added_after_initial_candidate: true
+  owner_constraint_reason: explicit_owner_product_requirement
+  owner_constraints_added_before_independent_review:
+    - permissive_user_start_and_fail_local_errors
+    - arduino_compile_success_required_to_replace_loaded_program
+  all_three_candidates_reevaluated_after_owner_clarification: true
+
+owner_requirements:
+  permissive_simulation_start:
+    added_after_initial_candidate: true
+    source: owner_decision
+    required: true
+  learner_errors_do_not_block_global_start: true
+  fail_closed_does_not_mean_fail_to_start: true
+  compile_failure_is_local_to_board: true
+  compile_failure_does_not_replace_loaded_program: true
+  last_good_loaded_program_is_preserved_after_failed_compile: true
+  wrong_wiring_is_not_start_blocking: true
+  dangerous_supported_circuit_is_startable: true
+  unsupported_simulator_api_is_not_compile_error: true
+  multi_board_failure_isolation_required: true
+  infrastructure_failure_may_stop_session: true
+  editor_source_and_loaded_executable_are_distinct_target_state: true
+
+current_conformance:
+  start_button_blocked_by_diagnostics: false
+  start_button_blocked_by_transient_busy_state: true
+  start_button_source: apps/web/src/electronics/WorkbenchHeader.tsx
+  toggle_simulation_enters_session_before_calculation_result: true
+  toggle_simulation_source: apps/web/src/electronics/use-workbench-project-state.ts
+  canonical_arduino_fault_can_stop_global_session: true
+  live_controller_fault_path_clears_generation: true
+  live_controller_fault_source: apps/web/src/electronics/live-simulation-worker-controller.ts
+  observed_fault_flow: executionStatus_fault_to_fail_to_clearGeneration_and_cancelActiveGeneration
+  full_owner_invariant_satisfied: false
+  status: incomplete
 
 current_runtime:
   architecture: source-level TypeScript
@@ -198,6 +242,42 @@ candidates:
     implementation_cost: highest
     maintenance_cost: highest
 
+candidate_reevaluation:
+  source_level:
+    reevaluated_after_owner_clarification: true
+    permissive_start_feasible: true
+    board_compile_failure_locality_feasible: true
+    last_good_executable_separate_from_editor_source_feasible: true
+    unsupported_ASA_API_can_remain_capability_diagnostic: true
+    multi_board_failure_isolation_feasible: true
+    deterministic_program_identity_load_transitions_feasible: true
+    owner_constraints_satisfied_by_target_architecture: true
+    required_architecture:
+      - per_board_editor_source
+      - per_board_last_successfully_loaded_executable
+      - compile_success_commits_program_identity
+      - compile_failure_keeps_previous_loaded_program
+      - local_board_diagnostics
+      - one_canonical_instruction_us_v1_clock
+  avr:
+    reevaluated_after_owner_clarification: true
+    compile_binary_load_boundary_natural: true
+    last_good_image_feasible: true
+    failed_compile_upload_locality_still_requires_product_contract: true
+    multi_board_isolation_still_required: true
+    canonical_snapshot_replay_still_required: true
+    owner_constraints_satisfied_by_target_architecture: conditional
+    selection_changed: false
+  hybrid:
+    reevaluated_after_owner_clarification: true
+    permissive_start_feasible: true
+    loaded_state_requires_backend_identity: true
+    compile_failure_must_not_switch_backend: true
+    successful_backend_switch_requires_explicit_deterministic_load_transition: true
+    duplicated_truth_surface_cost_increased: true
+    owner_constraints_satisfied_by_target_architecture: conditional
+    selection_changed: false
+
 peripheral_readiness:
   Servo_SG90:
     source_level: bounded_microsecond_timed_output_plus_external_model
@@ -233,10 +313,13 @@ peripheral_readiness:
     hybrid: compatibility_benefit_with_high_dual_runtime_cost
 
 selected_strategy: SOURCE_LEVEL
+selection_after_owner_reevaluation: SOURCE_LEVEL
 selection_reason: >-
   Preserve the accepted E-OPT-3 canonical clock/Worker/replay/state model and student-facing
-  diagnostics while meeting the declared educational subset with no new compiler/emulator
-  runtime dependency. AVR remains an independent hardware-oriented reference oracle.
+  diagnostics while meeting the declared educational subset with no new compiler/emulator runtime
+  dependency, and add real per-board compile/load separation plus last-good executable identity and
+  fail-local learner diagnostics without abandoning the single canonical clock. AVR remains an
+  independent hardware-oriented reference oracle.
 
 rejected:
   avr_production_backend:
@@ -257,6 +340,28 @@ legacy_ms_v1_disposition:
 advanceArduinoRuntime_disposition:
   retained_until_implementation: true
   future_action: migrate_production_callers_to_canonical_source_level_instruction_us_v1_path
+
+implementation_required: true
+future_implementation_acceptance:
+  case_1_valid_circuit_valid_program: start_and_run_normally
+  case_2_dangerous_supported_circuit: start_and_show_physics_damage
+  case_3_wrong_pin_wiring: start_and_show_actual_wrong_behavior
+  case_4_syntax_compile_error: start_lab_show_local_compile_diagnostic_do_not_execute_invalid_source
+  case_5_valid_A_then_invalid_B: keep_A_loaded_and_lab_running
+  case_6_valid_source_unsupported_ASA_API: capability_diagnostic_no_fabricated_result_lab_active
+  case_7_two_boards_one_broken: healthy_board_continues_broken_board_local
+  case_8_non_arduino_subcircuit_plus_broken_arduino: electrical_subcircuit_remains_simulatable
+  infrastructure_failures_that_may_stop:
+    - worker_crash
+    - protocol_version_mismatch
+    - corrupt_canonical_continuation
+    - unrecoverable_internal_engine_failure
+    - electronics_document_parse_load_failure
+  deferred_exact_post_runtime_fault_state:
+    - last_committed_GPIO
+    - pinMode
+    - PWM
+    - tone
 
 production_source_changed: false
 test_source_changed: false
