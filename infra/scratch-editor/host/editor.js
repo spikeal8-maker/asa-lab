@@ -130,6 +130,7 @@
       draftRevision: bootstrap.draftRevision,
       apiOrigin: bootstrap.apiOrigin,
       getRuntimeToken,
+      canSave: session.mode === 'editor',
       getProjectGeneration: () => projectGeneration,
       onSaveCompletedStale: () => {
         globalThis.setTimeout(() => {
