@@ -478,6 +478,8 @@ function Invoke-GuardedUpdate {
       throw "origin/main moved during the build (target=$newRevision latest=$latestRemoteRevision). Re-run the updater so CI, images and deployment use one current SHA."
     }
     Assert-AsaInstallationIdentity -Root $RepoRoot -DefaultProject $projectName -ComposeArguments $script:ComposeArguments -RequireExisting
+    # Validate the real existing history before stopping any working service.
+    Invoke-Compose -Arguments @('run', '--rm', '--no-deps', '--entrypoint', 'node', 'migration', 'tools/migrate.mjs', '--plan')
     Invoke-Compose -Arguments @('up', '-d', '--no-build')
     [void](Wait-ExactReadiness -Revision $newRevision -SchemaVersion $schemaVersion)
     $remainingOriginDrift = @(Get-MixedOriginServices)

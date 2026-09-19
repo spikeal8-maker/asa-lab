@@ -143,3 +143,15 @@ test('startup and guarded updates build every local image before no-build replac
   assert.match(read('tools/asa-lab.sh'), /if \[ -e \.git \]/);
   assert.match(read('tools/asa-lab.sh'), /synchronized/);
 });
+
+test('guarded updates inspect real migration history before replacing running services', () => {
+  const ps = read('tools/docker-update.ps1');
+  const sh = read('tools/docker-update.sh');
+  const psPlan =
+    "@('run', '--rm', '--no-deps', '--entrypoint', 'node', 'migration', 'tools/migrate.mjs', '--plan')";
+  const shPlan = 'compose run --rm --no-deps --entrypoint node migration tools/migrate.mjs --plan';
+  assert.ok(ps.includes(psPlan));
+  assert.ok(sh.includes(shPlan));
+  assert.ok(ps.indexOf(psPlan) < ps.indexOf("@('up', '-d', '--no-build')"));
+  assert.ok(sh.indexOf(shPlan) < sh.indexOf('compose up -d --no-build'));
+});

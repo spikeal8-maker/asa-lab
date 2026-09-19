@@ -389,7 +389,9 @@ main() {
       build_ok=false
     fi
   fi
-  if [ "$build_ok" = true ] && compose config --quiet && assert_update_identity && compose up -d --no-build && wait_exact_readiness &&
+  if [ "$build_ok" = true ] && compose config --quiet && assert_update_identity &&
+    compose run --rm --no-deps --entrypoint node migration tools/migrate.mjs --plan &&
+    compose up -d --no-build && wait_exact_readiness &&
     [ -z "$(mixed_origin_services)" ]; then
     write_receipt "$receipt_path" \
       'status=success' "updated_at_utc=$stamp" "compose_project=$project_name" \

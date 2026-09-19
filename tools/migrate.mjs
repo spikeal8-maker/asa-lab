@@ -5,6 +5,8 @@
 //   --check            Validate the migration set locally (names, order,
 //                      checksums) without any database connection. Exit 0 on
 //                      success.
+//   --plan             Check attested database history in a read-only
+//                      transaction; never create tables or apply pending SQL.
 //   --apply            Apply pending migrations only through the dedicated
 //                      MIGRATION_DATABASE_URL plus two exact target attestations.
 //   --smoke (default)  Apply pending migrations to the ISOLATED test database
@@ -16,9 +18,11 @@
 // code 78 (EX_CONFIG) so the task runner records the test as BLOCKED — an
 // honest "environment unavailable", not a false PASS/FAIL.
 import { createHash } from 'node:crypto';
+import console from 'node:console';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import process from 'node:process';
+import { pathToFileURL, URL } from 'node:url';
 
 const MIGRATIONS_DIR = 'migrations';
 const EX_CONFIG = 78;
@@ -35,8 +39,59 @@ const PUBLISHED_CHECKSUM_LINEAGE = new Map([
 ]);
 const NAME_PATTERN = /^(\d{4})_([a-z0-9_]+)\.sql$/;
 
+// One published late migration has an additive forward repair. This is not a
+// general allow-out-of-order switch: both immutable SQL artifacts must match.
+const ASSET_FORWARD_REPAIR = {
+  source: {
+    version: '0146',
+    file: '0146_blocks_asset_storage.sql',
+    digest: '57213d0cf25809ebff042ff9a2aeaef550fe069cebd1c3e59c8cf440ab97fcae',
+  },
+  replacement: {
+    version: '0151',
+    file: '0151_blocks_asset_storage_forward.sql',
+    digest: '2e2603918b52662a0010ba892aa5955eeb4e7a57d3443dcc2dc7ab23dac64714',
+  },
+};
+
 function sha256(value) {
   return createHash('sha256').update(value).digest('hex');
+}
+
+function matchesRepairArtifact(migration, expected) {
+  return (
+    migration?.version === expected.version &&
+    migration.file === expected.file &&
+    typeof migration.sql === 'string' &&
+    migration.checksum === sha256(migration.sql) &&
+    sha256(migration.sql.replace(/\r\n/g, '\n')) === expected.digest
+  );
+}
+
+/** Approved omissions from a late history; existing ledger rows are never removed. */
+export function forwardReplacedVersions(
+  applied,
+  planned,
+  { requireAppliedReplacement = false } = {},
+) {
+  const { source, replacement } = ASSET_FORWARD_REPAIR;
+  const maxApplied = Math.max(0, ...[...applied.keys()].map(Number));
+  if (
+    !applied.has(source.version) &&
+    (!requireAppliedReplacement || applied.has(replacement.version)) &&
+    maxApplied > Number(source.version) &&
+    matchesRepairArtifact(
+      planned.find((item) => item.version === source.version),
+      source,
+    ) &&
+    matchesRepairArtifact(
+      planned.find((item) => item.version === replacement.version),
+      replacement,
+    )
+  ) {
+    return new Set([source.version]);
+  }
+  return new Set();
 }
 
 /** Read and validate migration files. Pure filesystem logic, no database. */
@@ -92,10 +147,11 @@ export function planMigrations(dir = MIGRATIONS_DIR) {
 export function reconcile(applied, planned) {
   const pending = [];
   const modified = [];
+  const replaced = forwardReplacedVersions(applied, planned);
   for (const migration of planned) {
     const record = applied.get(migration.version);
     if (!record) {
-      pending.push(migration);
+      if (!replaced.has(migration.version)) pending.push(migration);
     } else if (
       record.checksum !== migration.checksum &&
       !(
@@ -124,6 +180,33 @@ export function findOutOfOrderPending(applied, pending) {
     (migration) => Number.parseInt(migration.version, 10) < maxAppliedVersion,
   );
   return { maxAppliedVersion, outOfOrder };
+}
+
+/** Shared preflight/apply contract; no database writes. */
+export function validateMigrationHistory(applied, planned) {
+  const { pending, modified } = reconcile(applied, planned);
+  if (modified.length > 0) {
+    throw new Error(
+      `Applied migration(s) were modified after apply: ${modified.map((item) => item.version).join(', ')}`,
+    );
+  }
+  const { maxAppliedVersion, outOfOrder } = findOutOfOrderPending(applied, pending);
+  if (outOfOrder.length > 0) {
+    throw new Error(
+      `Forbidden out-of-order pending migration(s): ${outOfOrder.map((item) => item.version).join(', ')}; maximum applied migration version is ${String(maxAppliedVersion).padStart(4, '0')}. New additive migrations must use a version greater than every applied migration.`,
+    );
+  }
+  return pending;
+}
+
+export async function inspectPlan(client, planned) {
+  await client.query('BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY');
+  try {
+    const applied = await readApplied(client);
+    return validateMigrationHistory(applied, planned);
+  } finally {
+    await client.query('ROLLBACK');
+  }
 }
 
 async function withClient(databaseUrl, fn) {
@@ -170,23 +253,7 @@ export async function applyPlan(client, planned) {
   try {
     await ensureTable(client);
     const applied = await readApplied(client);
-    const { pending, modified } = reconcile(applied, planned);
-    if (modified.length > 0) {
-      const versions = modified.map((migration) => migration.version).join(', ');
-      throw new Error(`Applied migration(s) were modified after apply: ${versions}`);
-    }
-    const { maxAppliedVersion, outOfOrder } = findOutOfOrderPending(applied, pending);
-    if (outOfOrder.length > 0) {
-      const versions = outOfOrder.map((migration) => migration.version).join(', ');
-      throw new Error(
-        `Forbidden out-of-order pending migration(s): ${versions}; maximum applied migration version is ${String(
-          maxAppliedVersion,
-        ).padStart(
-          4,
-          '0',
-        )}. New additive migrations must use a version greater than every applied migration.`,
-      );
-    }
+    const pending = validateMigrationHistory(applied, planned);
     for (const migration of pending) {
       await client.query('BEGIN');
       try {
@@ -225,7 +292,7 @@ function runCheck() {
   return 0;
 }
 
-async function runApply(smoke) {
+async function runApply(smoke, planOnly = false) {
   let databaseUrl;
   let expectedDatabase;
   if (smoke) {
@@ -278,8 +345,13 @@ async function runApply(smoke) {
         { exitCode: EX_CONFIG },
       );
     }
-    return applyPlan(client, planned);
+    return planOnly ? (await inspectPlan(client, planned)).length : applyPlan(client, planned);
   });
+  if (planOnly) {
+    console.log(`Planned ${firstPass} pending migration(s); read-only, no changes applied.`);
+    console.log('db:migrate --plan PASS');
+    return 0;
+  }
   console.log(`Applied ${firstPass} migration(s).`);
   if (smoke) {
     const secondPass = await applyMigrations(databaseUrl);
@@ -299,7 +371,7 @@ export async function main(argv) {
       return runCheck();
     }
     const smoke = argv.includes('--smoke') || argv.length === 0;
-    return await runApply(smoke);
+    return await runApply(smoke, argv.includes('--plan'));
   } catch (error) {
     console.error(`db:migrate FAIL: ${error instanceof Error ? error.message : String(error)}`);
     return error?.exitCode || 1;

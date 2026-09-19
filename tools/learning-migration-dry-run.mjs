@@ -10,7 +10,7 @@ import { execFileSync } from 'node:child_process';
 import Ajv from 'ajv';
 import addFormats from 'ajv-formats';
 import pg from 'pg';
-import { planMigrations } from './migrate.mjs';
+import { forwardReplacedVersions, planMigrations } from './migrate.mjs';
 
 export const ANALYZER_VERSION = '1.1.0';
 export const SCHEMA_ID = 'asa-learning-migration-dry-run/v1';
@@ -443,18 +443,27 @@ export async function withReadOnlyTransaction(client, callback, explicitAsOf) {
   }
 }
 
-async function verifySchema(client) {
+export async function verifySchema(client) {
   const planned = planMigrations(resolve('migrations'));
   const applied = await client.query(
     'SELECT version, checksum FROM schema_migrations ORDER BY version',
   );
   if (applied.rows.length > planned.length || applied.rows.length === 0)
     throw new Error('unsupported_schema:migration_count');
+  const ledger = new Map(applied.rows.map((row) => [row.version, { checksum: row.checksum }]));
+  // A repaired history may omit the exact late 0146 artifact, but only after
+  // its approved replacement was actually applied (not merely available).
+  const replaced = forwardReplacedVersions(ledger, planned, { requireAppliedReplacement: true });
+  const expectedHistory = planned.filter((migration) => !replaced.has(migration.version));
   for (let index = 0; index < applied.rows.length; index += 1) {
-    const expected = planned[index];
+    const expected = expectedHistory[index];
     const actual = applied.rows[index];
-    if (actual.version !== expected.version || !expected.compatibleChecksums.has(actual.checksum)) {
-      throw new Error(`unsupported_schema:migration_${expected.version}`);
+    if (
+      !expected ||
+      actual.version !== expected.version ||
+      !expected.compatibleChecksums.has(actual.checksum)
+    ) {
+      throw new Error(`unsupported_schema:migration_${expected?.version ?? actual.version}`);
     }
   }
   const latest = applied.rows.at(-1).version;
