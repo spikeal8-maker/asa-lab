@@ -149,8 +149,8 @@ parallel_lanes:
       base_branch: main
       pr: 306
       pr_draft: true
-      status: in_review
-      checkpoint: eopt5a_runtime_strategy_independent_review_pending
+      status: in_progress
+      checkpoint: eopt5a_owner_permissive_start_contract_correction
       owner_acceptance: pending
     revisions:
       convergence_baseline_sha: c36b1f10bc92497a5d7f22080534f4c0a4e7925c
