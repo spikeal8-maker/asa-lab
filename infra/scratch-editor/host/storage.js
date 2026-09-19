@@ -517,7 +517,9 @@
             const contentType = response.headers.get('content-type')?.split(';')[0].trim();
             if (!mediaTypes[format].includes(contentType)) return null;
             const bytes = new Uint8Array(await response.arrayBuffer());
-            return cache(type, format, bytes, id);
+            const asset = cache(type, format, bytes, id);
+            asset.clean = false;
+            return asset;
           } catch {
             return null;
           }
