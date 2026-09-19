@@ -5,7 +5,7 @@
 CREATE OR REPLACE FUNCTION public.course_lesson_table_rows_valid(p_rows jsonb)
 RETURNS boolean
 LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE
-SET search_path = pg_catalog, pg_temp AS $
+SET search_path = pg_catalog, pg_temp AS $$
 DECLARE
     v_row jsonb;
     v_cell jsonb;
@@ -34,7 +34,7 @@ BEGIN
 
     RETURN true;
 END;
-$;
+$$;
 
 CREATE OR REPLACE FUNCTION public.course_lesson_blocks_valid(p_blocks jsonb)
 RETURNS boolean
