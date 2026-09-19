@@ -5,6 +5,12 @@
 
   const failure = (code) => Object.assign(new Error(code), { code });
   const mediaKey = (assetId, dataFormat) => `${assetId}.${dataFormat}`;
+  const chooseAutoSaveIntervalSecs = () => {
+    if (!globalThis.crypto?.getRandomValues) return 6;
+    const value = new Uint8Array(1);
+    globalThis.crypto.getRandomValues(value);
+    return 5 + (value[0] % 4);
+  };
 
   const exactBytes = (data) => {
     if (data instanceof Uint8Array) return Uint8Array.from(data);
@@ -109,14 +115,6 @@
     onReady,
     onDirty,
   }) {
-    const storage = globalThis.AsaBlocksStorage.createReadOnlyStorage(standalone, {
-      projectId: session.projectId,
-      projectJson: bootstrap.projectJson,
-      assets: bootstrap.assets,
-      draftRevision: bootstrap.draftRevision,
-      apiOrigin: bootstrap.apiOrigin,
-      getRuntimeToken,
-    });
     let state = null;
     let vm = null;
     let root = null;
@@ -124,6 +122,22 @@
     let loaded = false;
     let saveInProgress = false;
     let projectGeneration = 0;
+    const autoSaveIntervalSecs = chooseAutoSaveIntervalSecs();
+    const storage = globalThis.AsaBlocksStorage.createReadOnlyStorage(standalone, {
+      projectId: session.projectId,
+      projectJson: bootstrap.projectJson,
+      assets: bootstrap.assets,
+      draftRevision: bootstrap.draftRevision,
+      apiOrigin: bootstrap.apiOrigin,
+      getRuntimeToken,
+      canSave: session.mode === 'editor',
+      getProjectGeneration: () => projectGeneration,
+      onSaveCompletedStale: () => {
+        globalThis.setTimeout(() => {
+          if (!disposed && loaded && vm) vm.emit('PROJECT_CHANGED');
+        }, 0);
+      },
+    });
 
     const changed = () => {
       if (disposed || !loaded) return;
@@ -184,8 +198,9 @@
         standalone.setAppElement(container);
         root = standalone.createStandaloneRoot(state, container);
         root.render({
-          ...(bootstrap.hasProjectJson ? { projectId: session.projectId } : {}),
-          canSave: false,
+          projectId: session.projectId,
+          canSave: session.mode === 'editor',
+          autoSaveIntervalSecs,
           logo: '/asa-lab-scratch-wordmark.svg',
           onVmInit(instance) {
             vm = instance;
@@ -207,7 +222,6 @@
             onReady();
           },
         });
-        if (!bootstrap.hasProjectJson) state.dispatch(standalone.setProjectId('0'));
       } catch (error) {
         if (disposed) return;
         dispose();

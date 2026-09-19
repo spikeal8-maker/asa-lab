@@ -9,10 +9,6 @@ describe('BlocksEditorShell', () => {
       createElement(BlocksEditorShell, {
         accountLabel: 'Александр',
         accountInitials: 'АА',
-        saveState: 'idle',
-        savedRevision: null,
-        saveDisabled: false,
-        onSave: vi.fn(),
         onAccountClick: vi.fn(),
         onHomeClick: vi.fn(),
         avatarUrl: '/account-avatar.png',
@@ -41,10 +37,6 @@ describe('BlocksEditorShell', () => {
       createElement(BlocksEditorShell, {
         accountLabel: 'Пользователь ASA Lab',
         accountInitials: 'АС',
-        saveState: 'idle',
-        savedRevision: null,
-        saveDisabled: false,
-        onSave: vi.fn(),
         onAccountClick: vi.fn(),
         onHomeClick: vi.fn(),
         children: createElement('iframe', {
