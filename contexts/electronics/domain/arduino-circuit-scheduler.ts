@@ -288,15 +288,14 @@ export function advanceArduinoCircuitClock(
   for (const [index, board] of boards.entries()) {
     const entry = previous?.boards[index];
     if (!entry || entry.componentId !== board.id) continue;
-    if (
-      typeof entry.loadedSource === 'string' &&
-      arduinoRuntimeStateMatchesProgram(entry.loadedSource, entry.runtime)
-    ) {
-      previousLoadedSources.set(board.id, entry.loadedSource);
+    if (typeof entry.loadedSource === 'string') {
+      if (arduinoRuntimeStateMatchesProgram(entry.loadedSource, entry.runtime))
+        previousLoadedSources.set(board.id, entry.loadedSource);
       continue;
     }
-    if (entry.loadedSource === null && arduinoRuntimeStateMatchesProgram('', entry.runtime)) {
-      previousLoadedSources.set(board.id, null);
+    if (entry.loadedSource === null) {
+      if (arduinoRuntimeStateMatchesProgram('', entry.runtime))
+        previousLoadedSources.set(board.id, null);
       continue;
     }
     const editorSource = editorSources.get(board.id)!;
