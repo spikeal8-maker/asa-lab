@@ -590,92 +590,20 @@ Runtime damage живёт только внутри одного simulation run.
   ущерб дают разрушительный visual state, но не останавливают поддерживаемый
   расчёт. Блокировка вала является runtime-управлением эксперимента и не
   сохраняется в проекте.
-- `DEC-MATH-023` — исправимые пользователем ошибки схемы, подключения,
-  Arduino-программы или поддерживаемости модели не запрещают пользователю
-  запустить виртуальную лабораторию. Fail-closed запрещает выдуманный
-  физический или программный результат, но не означает fail-to-start всей
-  simulation session. Диагностика остаётся локальной к неисправной цепи,
-  компоненту или плате настолько, насколько это позволяет модель.
 
-### 13.2. Permissive Start и локальность ошибок Arduino
-
-Если Electronics document уже открыт и editor способен создать runtime session,
-кнопка Start должна оставаться доступной при исправимых пользователем ошибках.
-Нельзя блокировать Start только из-за неправильной проводки, open circuit,
-обратной полярности, overcurrent/overvoltage, component damage, неправильного
-Arduino pin, Arduino compile/runtime diagnostic, неподдерживаемого ASA Arduino
-API или неподдерживаемой topology/component capability.
-
-После пользовательского Start simulation session считается запущенной даже
-если отдельный subsystem не может дать достоверный результат. В таком subsystem
-расчёт fail-closed локально: показывается диагностика и не выдумываются
-напряжения, GPIO, API return values или иные результаты. Наличие диагностики
-само по себе не является основанием выключить всю лабораторию.
-
-Настоящая инфраструктурная невозможность остаётся отдельным классом: документ
-невозможно распарсить/загрузить как Electronics document, Worker/engine
-инфраструктура недоступна, protocol/version state повреждён, canonical
-continuation corrupt или произошёл unrecoverable internal engine failure. Такие
-случаи могут остановить session и не считаются learner error.
-
-Arduino editor source и загруженная executable program являются разными
-состояниями. Целевой compile/load контракт:
-
-```text
-edit source
-→ compile
-→ only successful compile/load may replace loaded executable
-```
-
-Если новый source имеет реальную Arduino/C++ syntax/compile error, он не
-исполняется и не создаёт partial new GPIO. Ошибка показывается с source
-location. Если до этого на плате была успешно загружена программа A, а
-отредактированная программа B не компилируется, A остаётся последней успешно
-загруженной executable program и электрическая лаборатория продолжает работать.
-Если успешно загруженной программы ещё не было, compile failure не создаёт
-вымышленную firmware: плата остаётся в определённом reset/default executable
-state, а электрическая часть документа продолжает моделироваться. Точный
-reset/default pin-state contract определяется отдельным implementation slice.
-
-Валидный для настоящей Arduino source, использующий неподдерживаемую ASA
-возможность (`micros()`, `pulseIn()`, Serial, Servo, I2C и т.п.), не должен
-маскироваться под Arduino compile error. Это отдельная
-`ASA SIMULATION CAPABILITY UNSUPPORTED` диагностика. Неподдерживаемый вызов не
-исполняется частично и не возвращает выдуманное значение, но вся лаборатория
-остаётся startable/running.
-
-Ошибочный pin или wiring также не являются compile error и не являются Start
-blocker. Программа выполняется согласно фактическому коду, схема — согласно
-фактическому подключению; пользователь видит поддерживаемый моделью реальный
-результат: LED не светится, меняется другой вывод, датчик не отвечает, ток
-слишком велик, компонент нагревается или повреждается.
-
-Поддерживаемая опасная цепь сохраняет `DEC-MATH-009`, `DEC-MATH-010`,
-`DEC-MATH-015` и `DEC-MATH-022`: она рассчитывается, получает
-warning/damage/post-failure state и не превращается в «simulation cannot
-start».
-
-Для нескольких Arduino Uno source, compile/load state, runtime state,
-diagnostics и program identity принадлежат каждой плате независимо при общем
-canonical Electronics clock. Compile/runtime error платы B не должен сам по
-себе останавливать исправную плату A, независимую не-Arduino цепь или всю
-simulation session.
-
-Runtime fault исправимого пользовательского кода также остаётся локальным:
-никакой partial new output не выдумывается, но глобальная session не должна
-сбрасываться только потому, что learner program ошибочна. Точный контракт
-сохранения last committed GPIO, `pinMode`, PWM и tone после локального board
-runtime fault обязан определить следующий implementation slice.
-
-Текущая реализация соответствует этому контракту не полностью. Start в
-Workbench уже блокируется transient editor state (`busy`), а не
-electrical/program diagnostics, и `toggleSimulation()` запускает session до
-расчёта, оставляя electrical problems affected part. Однако текущий live Worker
-controller трактует любой canonical `executionStatus = fault` через
-`fail(...)`, очищает generation и отменяет активную simulation. Поэтому
-`CURRENT_ALWAYS_START_CONFORMANCE = incomplete`; E-OPT-5A это не исправляет,
-а делает обязательным acceptance concern следующего bounded E-OPT-5
-implementation slice.
+- `DEC-MATH-023` — пользовательские ошибки схемы, подключения или программы
+  не запрещают запуск Electronics simulation. Опасная или неправильная
+  поддерживаемая схема запускается и показывает фактический результат,
+  warning/damage/diagnostic в пределах поддерживаемой модели. Arduino
+  compile/runtime error сам по себе не останавливает всю электрическую
+  лабораторию. Fail-closed означает «не выдумывать физический или программный
+  результат», а не «запретить пользователю нажать Start». Явный start contract:
+  wrong wiring → Start allowed; wrong pin → Start allowed; dangerous supported
+  circuit → Start allowed; Arduino compile error → lab Start allowed;
+  unsupported ASA API → lab Start allowed с локальной диагностикой без
+  выдуманного результата. Worker crash, protocol corruption и иные
+  unrecoverable infrastructure failures являются отдельным классом и могут
+  остановить simulation.
 
 ## 14. Порядок развития математического ядра
 
