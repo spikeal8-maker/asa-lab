@@ -602,7 +602,7 @@ test('upstream saver may fan out dirty assets but ASA transport serializes the w
     async store(assetType, dataFormat, data, assetId) {
       active += 1;
       maxActive = Math.max(maxActive, active);
-      await new Promise((resolve) => setTimeout(resolve, 5));
+      await new Promise((resolve) => globalThis.setTimeout(resolve, 5));
       active -= 1;
       const bytes = new Uint8Array(data);
       return {
