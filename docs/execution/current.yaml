@@ -147,14 +147,14 @@ parallel_lanes:
       issue: 319
       branch: codex/electronics-eopt5b1d-known-unsupported-locality
       base_branch: main
-      pr: null
+      pr: 320
       pr_draft: true
       status: in_progress
       checkpoint: eopt5b1d_known_unsupported_board_local
       owner_acceptance: pending
     revisions:
       convergence_baseline_sha: f82b3d529133e8a3fe45c8c0b953f19129abe692
-      head_sha: f82b3d529133e8a3fe45c8c0b953f19129abe692
+      head_sha: 9f5108317c31f3cb53de9c79637838cfa6784bb9
     execution_lease:
       executor_id: codex-electronics-eopt5b1d-known-unsupported-locality
       holder: unassigned
