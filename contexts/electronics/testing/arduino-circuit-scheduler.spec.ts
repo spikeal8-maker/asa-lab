@@ -492,6 +492,56 @@ describe('Arduino shared dc-inputs-v1 circuit clock', () => {
     }
   });
 
+  it('keeps a single-board syntax compile failure local and observable', () => {
+    const doc = circuit([board('broken', 'void setup(){digitalWrite(13,);}void loop(){}')]);
+    const done = through(doc, 10);
+
+    expect(done.executionStatus).toBe('ready');
+    expect(done.result).not.toBeNull();
+    expect(done.diagnostics).toContainEqual(
+      expect.objectContaining({ code: 'compile_error', componentId: 'broken' }),
+    );
+    expect(done.events.filter((event) => event.componentId === 'broken')).toEqual([]);
+    expect(runtime(done, 'broken').pinModes).toEqual({});
+    expect(runtime(done, 'broken').outputVoltages).toEqual({});
+  });
+
+  it('keeps a valid peer board running when another board has a syntax compile failure', () => {
+    const doc = circuit([
+      board(
+        'a-valid',
+        'void setup(){pinMode(13,OUTPUT);digitalWrite(13,HIGH);}void loop(){delay(100);}',
+      ),
+      board('b-broken', 'void setup(){digitalWrite(13,);}void loop(){}'),
+    ]);
+    const done = through(doc, 10);
+
+    expect(done.executionStatus).toBe('ready');
+    expect(done.result).not.toBeNull();
+    expect(done.diagnostics).toContainEqual(
+      expect.objectContaining({ code: 'compile_error', componentId: 'b-broken' }),
+    );
+    expect(runtime(done, 'a-valid').outputVoltages.d13).toBe(5);
+    expect(runtime(done, 'b-broken').outputVoltages).toEqual({});
+    expect(done.events.some((event) => event.componentId === 'a-valid')).toBe(true);
+    expect(done.events.some((event) => event.componentId === 'b-broken')).toBe(false);
+  });
+
+  it('continues the same invalid source across horizons without invalid_clock_continuation', () => {
+    const doc = circuit([board('broken', 'void setup(){digitalWrite(13,);}void loop(){}')]);
+    const first = through(doc, 10);
+    const next = through(doc, 20, JSON.parse(JSON.stringify(first.state)));
+
+    expect(next.executionStatus).toBe('ready');
+    expect(next.result).not.toBeNull();
+    expect(next.state?.reachedMicroseconds).toBe(20);
+    expect(next.diagnostics).toContainEqual(
+      expect.objectContaining({ code: 'compile_error', componentId: 'broken' }),
+    );
+    expect(next.diagnostics.map((entry) => entry.code)).not.toContain('invalid_clock_continuation');
+    expect(next.events.filter((event) => event.componentId === 'broken')).toEqual([]);
+  });
+
   it.each([
     'void setup(){pinMode(13,OUTPUT);int x=1/0;}void loop(){}',
     'void setup(){tone(13,440);}void loop(){}',
