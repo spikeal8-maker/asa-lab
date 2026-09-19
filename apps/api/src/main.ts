@@ -4,6 +4,7 @@ import {
   type TelemetryLifecycle,
   type ApiRuntime as LaunchedApiRuntime,
 } from './runtime.js';
+import { loadStudentCodeProtectionConfig } from './student-code-protection.js';
 
 export interface ApiRuntime {
   /** Graceful stop: HTTP server + pool first, telemetry last. Idempotent. */
@@ -27,6 +28,10 @@ export async function startApi(options: StartApiOptions = {}): Promise<ApiRuntim
   if (!process.env['APP_DATABASE_URL']) {
     throw new Error('APP_DATABASE_URL is required; the API refuses to start without it');
   }
+
+  // Security-critical credential keyrings are validated before the HTTP
+  // runtime starts. Mode "off" remains the default until an explicit rollout.
+  loadStudentCodeProtectionConfig();
 
   // Password hashing and static file reads share the libuv pool. The default of
   // four threads leaves file serving stalled behind a burst of sign-ins; eight
