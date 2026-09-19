@@ -2,6 +2,10 @@
   const ASSET_ID_RE = /^[a-f0-9]{32}$/;
   const COSTUME_FORMATS = new Set(['svg', 'png', 'jpg']);
   const SOUND_FORMATS = new Set(['wav', 'mp3']);
+  const THUMBNAIL_WIDTH = 480;
+  const THUMBNAIL_HEIGHT = 360;
+  const SNAPSHOT_MAX_BYTES = 262_144;
+  const WEBP_QUALITIES = [0.92, 0.84, 0.76, 0.68, 0.6, 0.52];
 
   const failure = (code) => Object.assign(new Error(code), { code });
   const mediaKey = (assetId, dataFormat) => `${assetId}.${dataFormat}`;
@@ -10,6 +14,53 @@
     const value = new Uint8Array(1);
     globalThis.crypto.getRandomValues(value);
     return 5 + (value[0] % 4);
+  };
+
+  const readBlobAsDataUrl = (blob) =>
+    new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onerror = () => resolve(null);
+      reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : null);
+      reader.readAsDataURL(blob);
+    });
+
+  const canvasToBlob = (canvas, type, quality) =>
+    new Promise((resolve) => {
+      canvas.toBlob(resolve, type, quality);
+    });
+
+  const prepareThumbnailDataUrl = async (blob) => {
+    if (!(blob instanceof Blob) || !['image/png', 'image/webp'].includes(blob.type)) return null;
+    if (blob.size <= SNAPSHOT_MAX_BYTES) return readBlobAsDataUrl(blob);
+    if (typeof globalThis.createImageBitmap !== 'function') return null;
+
+    let bitmap;
+    try {
+      bitmap = await globalThis.createImageBitmap(blob);
+      if (bitmap.width !== THUMBNAIL_WIDTH || bitmap.height !== THUMBNAIL_HEIGHT) return null;
+      const canvas = document.createElement('canvas');
+      canvas.width = THUMBNAIL_WIDTH;
+      canvas.height = THUMBNAIL_HEIGHT;
+      const context = canvas.getContext('2d');
+      if (!context) return null;
+      context.drawImage(bitmap, 0, 0, THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT);
+      for (const quality of WEBP_QUALITIES) {
+        const encoded = await canvasToBlob(canvas, 'image/webp', quality);
+        if (
+          encoded &&
+          encoded.type === 'image/webp' &&
+          encoded.size > 0 &&
+          encoded.size <= SNAPSHOT_MAX_BYTES
+        ) {
+          return readBlobAsDataUrl(encoded);
+        }
+      }
+      return null;
+    } catch {
+      return null;
+    } finally {
+      bitmap?.close?.();
+    }
   };
 
   const exactBytes = (data) => {
@@ -114,6 +165,7 @@
     getRuntimeToken,
     onReady,
     onDirty,
+    onThumbnailReady,
   }) {
     let state = null;
     let vm = null;
@@ -222,6 +274,23 @@
           logo: '/asa-lab-scratch-wordmark.svg',
           onSetProjectSaver(projectSaver) {
             upstreamProjectSaver = typeof projectSaver === 'function' ? projectSaver : null;
+          },
+          onUpdateProjectThumbnail(projectId, imageBlob) {
+            const sourceRevision = storage.getConfirmedRevision();
+            if (
+              disposed ||
+              String(projectId ?? '') !== String(session.projectId) ||
+              storage.getDurableProjectGeneration() < projectGeneration ||
+              !Number.isSafeInteger(sourceRevision) ||
+              sourceRevision < 1
+            ) {
+              return;
+            }
+            void prepareThumbnailDataUrl(imageBlob)
+              .then((imageDataUrl) => {
+                if (!disposed && imageDataUrl) onThumbnailReady?.(sourceRevision, imageDataUrl);
+              })
+              .catch(() => undefined);
           },
           onVmInit(instance) {
             vm = instance;

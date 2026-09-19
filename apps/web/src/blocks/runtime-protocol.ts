@@ -17,6 +17,7 @@ export type BlocksChildMessageType =
   | 'ASA_BLOCKS_TOKEN_REFRESH_REQUIRED'
   | 'ASA_BLOCKS_FLUSH_RESULT'
   | 'ASA_BLOCKS_SAVE_BEFORE_EXIT_RESULT'
+  | 'ASA_BLOCKS_THUMBNAIL_READY'
   | 'ASA_BLOCKS_FATAL';
 
 export interface BlocksPostMessageTarget {
@@ -62,6 +63,8 @@ export interface BlocksRuntimeInitOptions {
 type BlocksRuntimeNonSecretOptions = Omit<BlocksRuntimeInitOptions, 'runtimeToken'>;
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const SNAPSHOT_DATA_URL_RE = /^data:image\/(?:png|webp);base64,[A-Za-z0-9+/]+={0,2}$/;
+const SNAPSHOT_MAX_DATA_URL_LENGTH = 349_590;
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === 'object' && !Array.isArray(value)
@@ -84,6 +87,10 @@ function isNonNegativeSafeInteger(value: unknown): boolean {
   return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
 }
 
+function isPositiveSafeInteger(value: unknown): boolean {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 1;
+}
+
 function isChildMessageType(value: unknown): value is BlocksChildMessageType {
   return (
     value === 'ASA_BLOCKS_READY' ||
@@ -91,6 +98,7 @@ function isChildMessageType(value: unknown): value is BlocksChildMessageType {
     value === 'ASA_BLOCKS_TOKEN_REFRESH_REQUIRED' ||
     value === 'ASA_BLOCKS_FLUSH_RESULT' ||
     value === 'ASA_BLOCKS_SAVE_BEFORE_EXIT_RESULT' ||
+    value === 'ASA_BLOCKS_THUMBNAIL_READY' ||
     value === 'ASA_BLOCKS_FATAL'
   );
 }
@@ -232,6 +240,17 @@ export class BlocksRuntimeBridge {
       if (status === 'project-dirty') {
         if (!isNonNegativeSafeInteger(message['generation'])) return false;
       } else if (typeof message['generation'] !== 'undefined') {
+        return false;
+      }
+    }
+    if (message['messageType'] === 'ASA_BLOCKS_THUMBNAIL_READY') {
+      const imageDataUrl = message['imageDataUrl'];
+      if (
+        !isPositiveSafeInteger(message['sourceRevision']) ||
+        typeof imageDataUrl !== 'string' ||
+        imageDataUrl.length > SNAPSHOT_MAX_DATA_URL_LENGTH ||
+        !SNAPSHOT_DATA_URL_RE.test(imageDataUrl)
+      ) {
         return false;
       }
     }

@@ -41,6 +41,9 @@
           ...(Number.isSafeInteger(savedGeneration) ? { savedGeneration } : {}),
         });
       },
+      thumbnailReady(sourceRevision, imageDataUrl) {
+        return post('ASA_BLOCKS_THUMBNAIL_READY', { sourceRevision, imageDataUrl });
+      },
       fatal(code) {
         return post('ASA_BLOCKS_FATAL', { code });
       },

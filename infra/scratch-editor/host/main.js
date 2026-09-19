@@ -101,6 +101,9 @@
           onDirty(generation) {
             reporter?.projectDirty(generation);
           },
+          onThumbnailReady(sourceRevision, imageDataUrl) {
+            reporter?.thumbnailReady(sourceRevision, imageDataUrl);
+          },
         });
         void editor.startup.catch(() => reportFatal('editor_mount_failed'));
       } catch {
