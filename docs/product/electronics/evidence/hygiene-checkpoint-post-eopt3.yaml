@@ -1,0 +1,198 @@
+schema: asa-lab.electronics-hygiene-post-eopt3.v1
+task_id: TASK-ELECTRONICS-GOVERNANCE-003
+issue: 303
+checkpoint_reason: mandatory post-E-OPT-3 hygiene checkpoint before major-stage transition
+reviewed_main_sha: 6b8e578aa8d052cbea43cdc7edbc1bbd5bcdc309
+
+eopt3_state:
+  status: complete
+  accepted_slices:
+    - E-OPT-3A
+    - E-OPT-3B
+    - E-OPT-3C
+    - E-OPT-3D
+    - E-OPT-3E
+    - E-OPT-3F
+
+large_sources:
+  threshold_bytes: 50000
+  growth_review_percent: 20
+  reviewed:
+    - path: contexts/electronics/domain/solver.ts
+      class: decomposition-candidate
+      previous_reviewed_bytes: 179752
+      current_bytes: 179752
+      growth_percent: 0
+      disposition: retain_for_E-OPT-4
+    - path: apps/web/src/electronics/workbench.css
+      class: decomposition-candidate
+      previous_reviewed_bytes: 120669
+      current_bytes: 120669
+      growth_percent: 0
+      disposition: retain_for_bounded_UI_maintenance
+    - path: apps/web/src/electronics/WorkbenchSidebars.tsx
+      class: decomposition-candidate
+      previous_reviewed_bytes: 103985
+      current_bytes: 103985
+      growth_percent: 0
+      disposition: retain_for_bounded_UI_maintenance
+    - path: apps/web/src/electronics/use-electronics-workbench.ts
+      class: decomposition-candidate
+      previous_reviewed_bytes: 84505
+      current_bytes: 84980
+      growth_percent: 0.56
+      disposition: baseline_reviewed_bytes_updated
+    - path: contexts/electronics/domain/arduino-program-runtime.ts
+      class: decomposition-candidate
+      previous_reviewed_bytes: 68170
+      current_bytes: 68170
+      growth_percent: 0
+      disposition: retain_for_E-OPT-5
+    - path: apps/web/src/electronics/ArduinoCodePanel.tsx
+      class: decomposition-candidate
+      previous_reviewed_bytes: 63884
+      current_bytes: 63884
+      growth_percent: 0
+      disposition: retain_for_bounded_UI_maintenance
+    - path: apps/web/src/electronics/ProductionComponentVisual.tsx
+      class: decomposition-candidate
+      previous_reviewed_bytes: 60089
+      current_bytes: 60089
+      growth_percent: 0
+      disposition: retain_for_bounded_UI_maintenance
+    - path: apps/web/src/electronics/WorkbenchStage.tsx
+      class: decomposition-candidate
+      previous_reviewed_bytes: 54879
+      current_bytes: 54879
+      growth_percent: 0
+      disposition: retain_for_bounded_UI_maintenance
+  new_sources: []
+  over_twenty_percent: []
+  excluded_test_source:
+    path: contexts/electronics/testing/solver.spec.ts
+    current_bytes: 135938
+    reason: test source excluded by hygiene contract and validator production-source collector
+
+legacy:
+  advanceLiveSimulation:
+    path: apps/web/src/electronics/live-simulation.ts
+    class: compatibility-shim
+    retained: true
+    eopt3f_prerequisite_satisfied: true
+    production_runtime_caller_files: []
+    production_runtime_callers: 0
+    test_caller_files:
+      - apps/web/src/electronics/testing/live-simulation.spec.ts
+    test_call_sites: 13
+    benchmark_tool_caller_files:
+      - tools/run-electronics-browser-benchmark.mjs
+      - tools/run-electronics-memory-benchmark.mjs
+    benchmark_tool_call_sites: 3
+    non_call_assertion_files:
+      - apps/web/src/electronics/testing/workbench-presentation.spec.ts
+    historical_evidence_references:
+      - docs/delivery/evidence/electronics-opt0/MEMORY_BASELINE.md
+      - docs/delivery/evidence/electronics-opt0/README.md
+      - docs/delivery/evidence/electronics-opt0/memory-baseline.json
+      - docs/product/electronics/evidence/E-OPT-1A-PUBLIC-BOUNDARY-INVENTORY.md
+      - docs/product/electronics/tasks/E-OPT-1E.md
+    retirement_ready: false
+    retention_reason: active legacy test and benchmark-tool callers remain; historical evidence must remain historically truthful
+    retirement_followup_issue: 304
+  legacy_ms_v1:
+    implementation_path: contexts/electronics/domain/arduino-program-runtime.ts
+    class: active-legacy-bridge
+    retained: true
+    eopt3f_prerequisite_satisfied: true
+    production_caller_files:
+      - contexts/electronics/domain/arduino-model.ts
+      - contexts/electronics/domain/solver.ts
+    test_reference_files:
+      - contexts/electronics/testing/arduino-correctness.spec.ts
+      - contexts/electronics/testing/arduino-execution-clock.spec.ts
+      - contexts/electronics/testing/arduino-runtime-state.spec.ts
+      - contexts/electronics/testing/arduino-values.spec.ts
+    documentation_references:
+      - docs/product/electronics/README.md
+      - docs/product/electronics/tasks/GOVERNANCE-HYGIENE-003.md
+    evidence_references:
+      - docs/product/electronics/evidence/hygiene-baseline.yaml
+    capability_metadata_references:
+      - docs/product/electronics/components/arduino-peripherals.yaml
+    retirement_ready: false
+    next_owner: E-OPT-5_or_separately_selected_prerequisite_runtime_convergence
+    retention_reason: production callers still depend on advanceArduinoRuntime selecting legacy-ms-v1
+
+documentation_hotspots:
+  - path: docs/product/electronics/README.md
+    class: decomposition-candidate
+    disposition: retained
+    reason: normative headings are directly routed; any split requires atomic route/anchor migration
+
+routing:
+  orphaned_routes: []
+  task_card_registered_by_existing_convention: true
+  mass_refactor_performed: false
+
+generated:
+  reviewed:
+    - path: docs/product/electronics/generated/component-coverage.json
+      class: generated
+      generator: tools/generate-electronics-component-coverage.mjs
+      stale_output_validator: tools/validate-electronics-component-information.mjs
+      hand_edited: false
+  issue_297_blocking: false
+
+historical:
+  preserved: true
+  classes:
+    - docs/product/electronics/tasks/**
+    - docs/product/electronics/evidence/**
+    - docs/delivery/evidence/electronics-opt0/**
+  advanceLiveSimulation_mentions_are_historical_evidence_not_runtime_dependencies: true
+
+protected_assets:
+  preserved: true
+  paths:
+    - apps/web/public/assets/electronics/owner-supplied/**
+    - apps/web/public/assets/electronics/owner-audit/**
+  mutations: none
+
+open_followups:
+  - issue: 280
+    classification: diagnostic_unproven_product_vs_test_issue
+    blocks_EOPT4_or_EOPT5: false
+    action_in_checkpoint: none
+  - issue: 295
+    classification: bounded_metadata_consistency_maintenance
+    runtime_semantic_change: no_unless_investigation_proves_otherwise
+    blocks_EOPT4_or_EOPT5: false
+    action_in_checkpoint: none
+  - issue: 296
+    classification: governance_evidence_retention_candidate
+    deletion_authorized: false
+    blocks_EOPT4_or_EOPT5: false
+    action_in_checkpoint: none
+  - issue: 297
+    classification: generated_evidence_maintenance
+    future_improvement: generator_level_evidence_mapping
+    blocks_EOPT4_or_EOPT5: false
+    action_in_checkpoint: none
+  - issue: 304
+    classification: advanceLiveSimulation_retirement_maintenance
+    activated: false
+    action_in_checkpoint: issue_created_only
+
+production_source_changed: false
+test_source_changed: false
+actual_deletions: []
+
+transition_readiness:
+  hygiene_checkpoint_passed: true
+  E-OPT-4_owner_selectable: true
+  E-OPT-5_owner_selectable: true
+  E-OPT-4_started: false
+  E-OPT-5_started: false
+  E-OPT-6_started: false
+  task_selection_authorized_by_this_evidence: false
+  next_task: null
