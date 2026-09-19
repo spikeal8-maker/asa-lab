@@ -594,6 +594,67 @@ test('explicit persistence uploads only changed assets before canonical draft an
   );
 });
 
+test('upstream saver may fan out dirty assets but ASA transport serializes the writes', async () => {
+  let active = 0;
+  let maxActive = 0;
+
+  class UpstreamStorage extends Storage {
+    async store(assetType, dataFormat, data, assetId) {
+      active += 1;
+      maxActive = Math.max(maxActive, active);
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      active -= 1;
+      const bytes = new Uint8Array(data);
+      return {
+        id: assetId,
+        status: 'ok',
+        asset: {
+          assetId: String(assetId),
+          dataFormat,
+          sha256: createHash('sha256').update(bytes).digest('hex'),
+          sizeBytes: bytes.byteLength,
+        },
+      };
+    }
+  }
+
+  const api = loadHost('storage', {
+    crypto: webcrypto,
+    AbortController: globalThis.AbortController,
+    ArrayBuffer,
+    Uint8Array,
+  }).AsaBlocksStorage;
+  const storage = api.createReadOnlyStorage(
+    {
+      ScratchStorage: UpstreamStorage,
+      buildDefaultProject: standaloneFixture().buildDefaultProject,
+    },
+    {
+      projectId: PROJECT_ID,
+      projectJson: null,
+      assets: [],
+      draftRevision: 7,
+      apiOrigin: API_ORIGIN,
+      getRuntimeToken: () => RUNTIME_TOKEN,
+      canSave: true,
+    },
+  );
+
+  const stores = Array.from({ length: 6 }, (_, index) => {
+    const digit = String(index + 1);
+    return storage.scratchStorage.store(
+      storage.scratchStorage.AssetType.ImageVector,
+      'svg',
+      new TextEncoder().encode(`<svg xmlns="http://www.w3.org/2000/svg"><text>${digit}</text></svg>`),
+      digit.repeat(32),
+    );
+  });
+
+  const results = await Promise.all(stores);
+  assert.equal(results.length, 6);
+  assert.equal(maxActive, 1);
+});
+
 test('upstream asset-store latency cannot hide an edit made after VM serialization', async () => {
   let generation = 5;
   let releaseStore;
