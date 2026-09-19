@@ -363,11 +363,32 @@ main() {
   export ASA_BUILD_REVISION ASA_IMAGE_TAG ASA_EXPECTED_SCHEMA_VERSION
   receipt_path="$backup_root/update-$stamp-$(printf '%.8s' "$new_revision").receipt.txt"
 
+  bootstrap_changed=$(git diff --name-only "$old_revision" "$new_revision" -- tools/docker-update.sh compose.yaml 'compose.*.yaml')
+  if [ -n "$bootstrap_changed" ]; then
+    write_receipt "$receipt_path" \
+      'status=retry_with_updated_updater' "updated_at_utc=$stamp" "compose_project=$project_name" \
+      "profile=$profile" "transport=$transport_label" "previous_revision=$old_revision" \
+      "attempted_revision=$new_revision" "backup_path=$backup_path" \
+      "backup_sha256=$backup_sha256" "changed_bootstrap_paths=$(printf '%s' "$bootstrap_changed" | tr '\n' ',')" \
+      'automatic_database_restore=forbidden'
+    printf '%s\n' 'UPDATE RETRY REQUIRED: updater or Compose changed during fast-forward; run the updated guarded updater again.' >&2
+    exit 1
+  fi
+
   # Build first; retain a failure receipt without replacing running services.
   build_ok=true
   for service in minio scratch api web; do
     if ! compose build "$service"; then build_ok=false; break; fi
   done
+  latest_remote_revision=''
+  if [ "$build_ok" = true ]; then
+    git fetch origin main
+    latest_remote_revision=$(git rev-parse origin/main)
+    if [ "$latest_remote_revision" != "$new_revision" ]; then
+      printf 'UPDATE STOPPED: origin/main moved during build (target=%s latest=%s).\n' "$new_revision" "$latest_remote_revision" >&2
+      build_ok=false
+    fi
+  fi
   if [ "$build_ok" = true ] && compose config --quiet && assert_update_identity && compose up -d --no-build && wait_exact_readiness &&
     [ -z "$(mixed_origin_services)" ]; then
     write_receipt "$receipt_path" \

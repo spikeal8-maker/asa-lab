@@ -465,8 +465,18 @@ function Invoke-GuardedUpdate {
 
   $receiptPath = Join-Path $backupRoot "update-$stamp-$($newRevision.Substring(0, 8)).receipt.txt"
   try {
+    $bootstrapChanged = @(& git diff --name-only $oldRevision $newRevision -- tools/docker-update.ps1 compose.yaml "compose.*.yaml")
+    if ($LASTEXITCODE -ne 0) { throw 'Cannot inspect updater/bootstrap changes after fast-forward.' }
+    if ($bootstrapChanged.Count -gt 0) {
+      throw "Updater or Compose changed during fast-forward ($($bootstrapChanged -join ', ')). Re-run the updated guarded updater; the verified backup is preserved."
+    }
     Invoke-Compose -Arguments @('config', '--quiet')
     foreach ($service in @('minio', 'scratch', 'api', 'web')) { Invoke-Compose -Arguments @('build', $service) }
+    Invoke-Native git fetch origin main
+    $latestRemoteRevision = (& git rev-parse origin/main).Trim()
+    if ($LASTEXITCODE -ne 0 -or $latestRemoteRevision -ne $newRevision) {
+      throw "origin/main moved during the build (target=$newRevision latest=$latestRemoteRevision). Re-run the updater so CI, images and deployment use one current SHA."
+    }
     Assert-AsaInstallationIdentity -Root $RepoRoot -DefaultProject $projectName -ComposeArguments $script:ComposeArguments -RequireExisting
     Invoke-Compose -Arguments @('up', '-d', '--no-build')
     [void](Wait-ExactReadiness -Revision $newRevision -SchemaVersion $schemaVersion)
@@ -502,6 +512,7 @@ function Invoke-GuardedUpdate {
       attempted_revision = $newRevision
       backup_path = $backupPath
       backup_sha256 = $backupSha256
+      failure_message = ($_.Exception.Message -replace '[\r\n]+', ' ')
       automatic_database_restore = 'forbidden'
     })
     Write-Warning 'Update stopped. The volume/database were NOT removed and no automatic restore was attempted.'
