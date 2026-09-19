@@ -533,10 +533,8 @@ describe('Arduino shared dc-inputs-v1 circuit clock', () => {
   });
 
   it('rejects explicit loaded-source mismatches instead of applying legacy inference', () => {
-    const sourceA =
-      'int marker=1;void setup(){pinMode(13,OUTPUT);}void loop(){marker=1;}';
-    const sourceC =
-      'int marker=2;void setup(){pinMode(13,OUTPUT);}void loop(){marker=2;}';
+    const sourceA = 'int marker=1;void setup(){pinMode(13,OUTPUT);}void loop(){marker=1;}';
+    const sourceC = 'int marker=2;void setup(){pinMode(13,OUTPUT);}void loop(){marker=2;}';
 
     const loadedC = through(circuit([board('uno', sourceC)]), 10);
     const runtimeC = loadedC.state!.boards.find((entry) => entry.componentId === 'uno')!.runtime;
