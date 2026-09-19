@@ -496,7 +496,7 @@ describe('Arduino shared dc-inputs-v1 circuit clock', () => {
     const doc = circuit([board('broken', 'void setup(){digitalWrite(13,);}void loop(){}')]);
     const done = through(doc, 10);
 
-    expect(done.executionStatus).toBe('ready');
+    expect(done.executionStatus, JSON.stringify(done.diagnostics)).toBe('ready');
     expect(done.result).not.toBeNull();
     expect(done.diagnostics).toContainEqual(
       expect.objectContaining({ code: 'compile_error', componentId: 'broken' }),
@@ -516,7 +516,7 @@ describe('Arduino shared dc-inputs-v1 circuit clock', () => {
     ]);
     const done = through(doc, 10);
 
-    expect(done.executionStatus).toBe('ready');
+    expect(done.executionStatus, JSON.stringify(done.diagnostics)).toBe('ready');
     expect(done.result).not.toBeNull();
     expect(done.diagnostics).toContainEqual(
       expect.objectContaining({ code: 'compile_error', componentId: 'b-broken' }),
@@ -532,7 +532,7 @@ describe('Arduino shared dc-inputs-v1 circuit clock', () => {
     const first = through(doc, 10);
     const next = through(doc, 20, JSON.parse(JSON.stringify(first.state)));
 
-    expect(next.executionStatus).toBe('ready');
+    expect(next.executionStatus, JSON.stringify(next.diagnostics)).toBe('ready');
     expect(next.result).not.toBeNull();
     expect(next.state?.reachedMicroseconds).toBe(20);
     expect(next.diagnostics).toContainEqual(
