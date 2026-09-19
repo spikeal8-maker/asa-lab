@@ -368,6 +368,7 @@ export interface CourseLesson {
   moduleKey: string | null;
   estimatedMinutes: number | null;
   position: number;
+  hidden: boolean;
 }
 
 export interface CourseSection {
@@ -375,6 +376,7 @@ export interface CourseSection {
   title: string;
   summary: string | null;
   position: number;
+  hidden: boolean;
   lessons: CourseLesson[];
 }
 
@@ -2349,6 +2351,26 @@ export const api = {
       `/api/courses/${encodeURIComponent(courseId)}/sections/${encodeURIComponent(sectionId)}/move`,
       { method: 'POST', body: JSON.stringify({ delta, expectedRevision }) },
     ),
+  duplicateCourseSection: (
+    courseId: string,
+    sectionId: string,
+    expectedRevision: number,
+    requestId: string,
+  ) =>
+    call<{ id: string; draftRevision: number; reused: boolean }>(
+      `/api/courses/${encodeURIComponent(courseId)}/sections/${encodeURIComponent(sectionId)}/duplicate`,
+      { method: 'POST', body: JSON.stringify({ expectedRevision, requestId }) },
+    ),
+  setCourseSectionHidden: (
+    courseId: string,
+    sectionId: string,
+    hidden: boolean,
+    expectedRevision: number,
+  ) =>
+    call<{ hidden: boolean; draftRevision: number }>(
+      `/api/courses/${encodeURIComponent(courseId)}/sections/${encodeURIComponent(sectionId)}/hidden`,
+      { method: 'POST', body: JSON.stringify({ hidden, expectedRevision }) },
+    ),
   deleteCourseSection: (courseId: string, sectionId: string, expectedRevision: number) =>
     call<{ removed: true }>(
       `/api/courses/${encodeURIComponent(courseId)}/sections/${encodeURIComponent(sectionId)}`,
@@ -2372,6 +2394,26 @@ export const api = {
     call<{ ok: boolean }>(
       `/api/courses/${encodeURIComponent(courseId)}/lessons/${encodeURIComponent(lessonId)}/move`,
       { method: 'POST', body: JSON.stringify({ delta, expectedRevision }) },
+    ),
+  duplicateCourseLesson: (
+    courseId: string,
+    lessonId: string,
+    expectedRevision: number,
+    requestId: string,
+  ) =>
+    call<{ id: string; draftRevision: number; reused: boolean }>(
+      `/api/courses/${encodeURIComponent(courseId)}/lessons/${encodeURIComponent(lessonId)}/duplicate`,
+      { method: 'POST', body: JSON.stringify({ expectedRevision, requestId }) },
+    ),
+  setCourseLessonHidden: (
+    courseId: string,
+    lessonId: string,
+    hidden: boolean,
+    expectedRevision: number,
+  ) =>
+    call<{ hidden: boolean; draftRevision: number }>(
+      `/api/courses/${encodeURIComponent(courseId)}/lessons/${encodeURIComponent(lessonId)}/hidden`,
+      { method: 'POST', body: JSON.stringify({ hidden, expectedRevision }) },
     ),
   deleteCourseLesson: (courseId: string, lessonId: string, expectedRevision: number) =>
     call<{ removed: true }>(
