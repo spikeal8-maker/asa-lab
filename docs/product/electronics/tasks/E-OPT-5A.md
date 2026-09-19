@@ -68,14 +68,10 @@ Every accepted architecture must preserve:
 - stale-generation protection;
 - explicit failure for unsupported behavior;
 - server/reference verification;
-- no arbitrary host JavaScript execution by user sketches.
+- no arbitrary host JavaScript execution by user sketches;
+- learner-correctable circuit/program errors must not disable or tear down the complete Electronics simulation session.
 
-Owner semantic correction adds two further hard constraints before independent review:
-
-- `permissive_user_start_and_fail_local_errors`: learner-correctable circuit, wiring, code, compile, runtime or simulator-capability diagnostics may not disable Start or tear down the complete Electronics simulation session;
-- `arduino_compile_success_required_to_replace_loaded_program`: editor source and loaded executable are distinct target concepts; only a successful compile/load may replace the executable program for a board.
-
-These owner constraints were added after the initial candidate `038ece8f7af63f70b23270a6be1f8573889b9d88`. The initial 22 evaluation criteria remain unchanged. All three candidates must be re-evaluated against the added constraints before independent review. This chronology must remain explicit; the correction must not claim that the new owner constraints existed before the initial candidate.
+The final hard constraint above was added by the owner after the initial candidate `038ece8f7af63f70b23270a6be1f8573889b9d88`. It was not part of the initial evaluation. All three strategies require later re-evaluation against this owner constraint before independent review; this correction records the rule only and does not perform that re-evaluation.
 
 Any candidate violating a hard constraint must be rejected regardless of Arduino compatibility.
 
@@ -132,26 +128,9 @@ no Issue #304 activation
 no deployment
 ```
 
-## Future implementation acceptance matrix
-
-E-OPT-5A adds no implementation or tests. A later separately selected implementation slice must prove at minimum:
-
-1. valid circuit + valid program → Start succeeds and simulation runs normally;
-2. dangerous but supported circuit → Start succeeds and modeled physics/damage is shown;
-3. wrong pin/wiring → Start succeeds and actual wrong behavior is shown;
-4. Arduino syntax/compile error → lab Start succeeds, compile diagnostic is local, invalid new source does not execute;
-5. previously loaded valid program A + invalid edited program B → B compile fails, A remains loaded/executable, laboratory continues;
-6. valid Arduino code using an ASA-unsupported API → not mislabeled as compile error, local unsupported-capability diagnostic, no fabricated API result, lab remains active;
-7. two Arduino boards with one broken → healthy board continues, failing board remains local;
-8. non-Arduino subcircuit + broken Arduino program → electrical subcircuit remains simulatable.
-
-The implementation slice must also distinguish genuine infrastructure failures that may stop a session: Worker crash, protocol/version mismatch, corrupt canonical continuation, unrecoverable internal engine failure, or a document that cannot be parsed into an Electronics document.
-
-The exact post-runtime-fault retention semantics for last committed GPIO, `pinMode`, PWM and tone state are intentionally deferred to that implementation slice.
-
 ## Acceptance
 
-1. The initial 22 evaluation criteria remain frozen; the later owner hard-constraint addition and re-evaluation chronology are explicit.
+1. Evaluation criteria are frozen before candidate selection.
 2. All three candidates are genuinely evaluated.
 3. Hard constraints are checked explicitly.
 4. Performance claims are reproducible.
