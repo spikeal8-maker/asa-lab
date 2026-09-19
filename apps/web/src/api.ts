@@ -3,9 +3,14 @@
 
 import type { ModulePreviewDescriptor } from '@asa-lab/module-sdk';
 import type { ArduinoControllerState } from '@asa-lab/electronics/simulation';
-import { projectDraftMutationId } from './modules/project-draft-mutation';
-import { fetchWithSessionRefresh, notifySessionLoggedOut } from './session-fetch';
+import { call } from './api-call';
 import { projectEntries } from './games/game-catalog';
+import { projectDraftMutationId } from './modules/project-draft-mutation';
+import { saveProjectSnapshot } from './project-snapshot-client';
+import { notifySessionLoggedOut } from './session-fetch';
+
+export type { ApiError, ApiResult } from './api-call';
+export type { ProjectSnapshotInfo } from './project-snapshot-client';
 
 export interface PublicUser {
   id: string;
@@ -1043,15 +1048,6 @@ export interface ProjectPreview {
   descriptor: ModulePreviewDescriptor;
 }
 
-export interface ProjectSnapshotInfo {
-  projectId: string;
-  contentType: string;
-  width: number;
-  height: number;
-  sourceRevision: number;
-  capturedAt: string;
-}
-
 /**
  * Where a card fetches the editor's picture. The revision is part of the URL,
  * so the image behind any one address never changes and the browser may keep
@@ -1395,44 +1391,6 @@ export interface SolveResult {
     electricalMode: 'dc' | 'transient';
     controllerRuntime: 'none' | 'arduino';
   };
-}
-
-export interface ApiError {
-  code: string;
-  message: string;
-  routes?: string[];
-}
-
-export type ApiResult<T> =
-  { ok: true; status: number; data: T } | { ok: false; status: number; error: ApiError };
-
-async function call<T>(path: string, init?: RequestInit): Promise<ApiResult<T>> {
-  let response: Response;
-  const headers: Record<string, string> = {
-    ...(init?.body === undefined ? {} : { 'content-type': 'application/json' }),
-    ...((init?.headers as Record<string, string> | undefined) ?? {}),
-  };
-  try {
-    response = await fetchWithSessionRefresh(path, {
-      ...init,
-      headers,
-    });
-  } catch {
-    return { ok: false, status: 0, error: { code: 'network', message: 'сервер недоступен' } };
-  }
-  let body: unknown;
-  try {
-    body = await response.json();
-  } catch {
-    body = null;
-  }
-  if (response.ok) {
-    return { ok: true, status: response.status, data: body as T };
-  }
-  const error =
-    (body as { error?: ApiError } | null)?.error ??
-    ({ code: 'server_error', message: 'ошибка сервера' } satisfies ApiError);
-  return { ok: false, status: response.status, error };
 }
 
 export interface ProjectListOptions {
@@ -2803,25 +2761,7 @@ export const api = {
       },
     );
   },
-  /**
-   * Uploads the editor's picture of the project. `keepalive` lets a capture
-   * taken while the page is closing still leave the browser; it caps the body
-   * at roughly 64 KB, which the caller enforces before getting here.
-   */
-  saveProjectSnapshot: (
-    projectId: string,
-    imageDataUrl: string,
-    sourceRevision: number,
-    options: { unloading?: boolean } = {},
-  ) =>
-    call<{ snapshot: ProjectSnapshotInfo }>(
-      `/api/projects/${encodeURIComponent(projectId)}/snapshot`,
-      {
-        method: 'PUT',
-        body: JSON.stringify({ imageDataUrl, sourceRevision }),
-        ...(options.unloading === true ? { keepalive: true } : {}),
-      },
-    ),
+  saveProjectSnapshot,
   myProjectFeedback: () =>
     call<{ items: Record<string, ProjectFeedback> }>('/api/projects/feedback'),
   projectFeedback: (projectId: string) =>

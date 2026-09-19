@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { api } from '../api';
+import { saveProjectSnapshot } from '../project-snapshot-client';
 import { BlocksEditorShell } from './BlocksEditorShell';
 import { BlocksRuntimeBridge, requireExactHttpOrigin } from './runtime-protocol';
 import { requestBlocksRuntimeSession } from './runtime-session';
@@ -146,7 +146,7 @@ export function BlocksEditor({
         void refreshCapability();
       }
       if (payload['messageType'] === 'ASA_BLOCKS_THUMBNAIL_READY') {
-        void api.saveProjectSnapshot(
+        void saveProjectSnapshot(
           projectId,
           payload['imageDataUrl'] as string,
           payload['sourceRevision'] as number,
