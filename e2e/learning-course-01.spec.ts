@@ -790,6 +790,23 @@ for (const module of ['electronics', 'three-d'])
     await editor
       .getByLabel('Текст блока', { exact: true })
       .fill('Резистор ограничивает ток. Затем соберите свою схему.');
+    await editor.getByRole('button', { name: '+ Код', exact: true }).click();
+    await editor.getByLabel('Язык кода', { exact: true }).fill('javascript');
+    await editor
+      .getByLabel('Код', { exact: true })
+      .fill(
+        '<script>window.__courseInformationalBlockExecuted = true</script>\n  const current = voltage / resistance;',
+      );
+    await editor.getByRole('button', { name: '+ Формула', exact: true }).click();
+    await editor.getByLabel('Формула', { exact: true }).fill('I = U / R');
+    await editor.getByRole('button', { name: '+ Таблица', exact: true }).click();
+    await editor.getByLabel('Ячейка 1:1', { exact: true }).fill('Элемент');
+    await editor.getByRole('button', { name: '+ Столбец', exact: true }).click();
+    await editor.getByLabel('Ячейка 1:2', { exact: true }).fill('Значение');
+    await editor.getByRole('button', { name: '+ Строка', exact: true }).click();
+    await editor.getByLabel('Ячейка 2:1', { exact: true }).fill('R1');
+    await editor.getByLabel('Ячейка 2:2', { exact: true }).fill('220 Ω');
+    await editor.getByRole('button', { name: '+ Разделитель', exact: true }).click();
     await editor.getByRole('button', { name: 'Курсы', exact: true }).click();
     await expect(
       editor.getByText(
@@ -804,6 +821,34 @@ for (const module of ['electronics', 'three-d'])
     await expect(page.getByRole('dialog', { name: /раздел/i })).toHaveCount(0);
     await editor.getByRole('button', { name: 'Добавить урок', exact: true }).click();
     await expect(page.getByText('Урок добавлен.', { exact: true })).toBeVisible();
+
+    await page.reload();
+    await expect(editor).toBeVisible();
+    await expect(editor.getByLabel('Язык кода', { exact: true })).toHaveValue('javascript');
+    await expect(editor.getByLabel('Код', { exact: true })).toContainText(
+      '<script>window.__courseInformationalBlockExecuted = true</script>',
+    );
+    await expect(editor.getByLabel('Формула', { exact: true })).toHaveValue('I = U / R');
+    await expect(editor.getByLabel('Ячейка 1:1', { exact: true })).toHaveValue('Элемент');
+    await expect(editor.getByLabel('Ячейка 1:2', { exact: true })).toHaveValue('Значение');
+    await expect(editor.getByLabel('Ячейка 2:1', { exact: true })).toHaveValue('R1');
+    await expect(editor.getByLabel('Ячейка 2:2', { exact: true })).toHaveValue('220 Ω');
+    await expect(editor.getByText('Разделитель', { exact: true })).toBeVisible();
+
+    await page.evaluate(() => Reflect.deleteProperty(window, '__courseInformationalBlockExecuted'));
+    await editor.getByRole('button', { name: 'Предпросмотр', exact: true }).click();
+    const preview = page.getByTestId('course-preview-page');
+    await expect(preview).toBeVisible();
+    await expect(preview.locator('.lesson-code-block')).toContainText(
+      '<script>window.__courseInformationalBlockExecuted = true</script>',
+    );
+    await expect(preview.getByText('I = U / R', { exact: true })).toBeVisible();
+    await expect(preview.getByText('220 Ω', { exact: true })).toBeVisible();
+    await expect(preview.locator('hr.lesson-divider-block')).toHaveCount(1);
+    expect(
+      await page.evaluate(() => Reflect.has(window, '__courseInformationalBlockExecuted')),
+    ).toBe(false);
+    await editor.getByRole('button', { name: 'Редактировать', exact: true }).click();
     await editor
       .locator('.course-outline')
       .getByRole('button', { name: '+ Урок', exact: true })
@@ -857,6 +902,16 @@ for (const module of ['electronics', 'three-d'])
     await expect(
       learner.getByText('Резистор ограничивает ток. Затем соберите свою схему.', { exact: true }),
     ).toBeVisible();
+    await learner.evaluate(() => Reflect.deleteProperty(window, '__courseInformationalBlockExecuted'));
+    await expect(learner.locator('.lesson-code-block')).toContainText(
+      '<script>window.__courseInformationalBlockExecuted = true</script>',
+    );
+    await expect(learner.getByText('I = U / R', { exact: true })).toBeVisible();
+    await expect(learner.getByText('220 Ω', { exact: true })).toBeVisible();
+    await expect(learner.locator('hr.lesson-divider-block')).toHaveCount(1);
+    expect(
+      await learner.evaluate(() => Reflect.has(window, '__courseInformationalBlockExecuted')),
+    ).toBe(false);
     await learner.getByRole('button', { name: 'Отметить пройденным', exact: true }).click();
     await expect(
       learner.getByRole('button', { name: 'Отметить непройденным', exact: true }),
