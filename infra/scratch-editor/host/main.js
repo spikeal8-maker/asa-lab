@@ -4,6 +4,7 @@
   const standalone = globalThis.GUI;
   const protocolApi = globalThis.AsaBlocksProtocol;
   const statusApi = globalThis.AsaBlocksStatus;
+  const recoveryApi = globalThis.AsaBlocksRecovery;
   const requiredExports = [
     'EditorState',
     'createStandaloneRoot',
@@ -30,9 +31,9 @@
     throw new Error(`Scratch standalone bundle missing exports: ${missingExports.join(', ')}`);
   }
 
-  if (!protocolApi || !statusApi) {
+  if (!protocolApi || !statusApi || !recoveryApi) {
     failLocal('error', 'Не удалось загрузить протокол среды визуального программирования.');
-    throw new Error('ASA Blocks protocol/status modules are unavailable');
+    throw new Error('ASA Blocks protocol/status/recovery modules are unavailable');
   }
   const rawParentOrigin = document
     .querySelector('meta[name="asa-parent-origin"]')
@@ -93,6 +94,7 @@
           shell,
           session,
           bootstrap,
+          recoveryApi,
           getRuntimeToken: () => protocol.getRuntimeToken(),
           onReady() {
             status.textContent = 'Учебный проект готов.';

@@ -6,6 +6,7 @@ import { requestBlocksRuntimeSession } from './runtime-session';
 
 interface BlocksEditorProps {
   projectId: string;
+  recoveryPrincipalKey: string;
   onBack: () => void;
   accountLabel: string;
   accountInitials: string;
@@ -43,6 +44,7 @@ function configuredRuntimeOrigin(): string | null {
 
 export function BlocksEditor({
   projectId,
+  recoveryPrincipalKey,
   onBack,
   accountLabel,
   accountInitials,
@@ -182,7 +184,7 @@ export function BlocksEditor({
           projectJson: session.projectJson,
           hasProjectJson: session.projectJson !== null,
           assets: session.assets,
-          recoveryNamespace: `asa-blocks-preview-${projectId}`,
+          recoveryPrincipalKey,
           onMessage: (message) => {
             if (message['messageType'] === 'ASA_BLOCKS_READY') setStatus('Scratch готов');
           },
@@ -229,7 +231,7 @@ export function BlocksEditor({
       if (bridgeRef.current === bridge) bridgeRef.current = null;
       homeSavePendingRef.current = false;
     };
-  }, [projectId, runtimeOrigin, attempt]);
+  }, [projectId, recoveryPrincipalKey, runtimeOrigin, attempt]);
 
   const handleHomeClick = (): void => {
     const activeBridge = bridgeRef.current;

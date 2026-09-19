@@ -15,6 +15,7 @@ function renderEditor(runtimeOrigin: string, parentOrigin = PARENT_ORIGIN, enabl
   return renderToStaticMarkup(
     createElement(BlocksEditor, {
       projectId: '11111111-1111-4111-8111-111111111111',
+      recoveryPrincipalKey: '33333333-3333-4333-8333-333333333333',
       onBack: vi.fn(),
       onHomeClick: vi.fn(),
       accountLabel: 'ASA test user',
@@ -108,6 +109,7 @@ describe('BlocksEditor runtime origin isolation', () => {
     const html = renderToStaticMarkup(
       createElement(BlocksEditor, {
         projectId: '11111111-1111-4111-8111-111111111111',
+        recoveryPrincipalKey: '33333333-3333-4333-8333-333333333333',
         onBack: vi.fn(),
         onHomeClick: vi.fn(),
         accountLabel: 'ASA test user',
