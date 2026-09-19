@@ -144,12 +144,12 @@ async function startObjectTrace() {
       if (!line.trim()) continue;
       try {
         const event = JSON.parse(line);
-        if (typeof event?.api?.name === 'string') {
+        if (typeof event?.api === 'string') {
           events.push({
             phase,
-            name: event.api.name,
-            bucket: event.api.bucket ?? null,
-            object: event.api.object ?? null,
+            name: event.api,
+            bucket: null,
+            object: typeof event.path === 'string' ? event.path : null,
           });
         }
       } catch {
