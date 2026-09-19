@@ -90,10 +90,9 @@ describe('course outline persistence', () => {
       { id: 'divider', type: 'divider' },
     ];
 
-    const validBlocks = await admin.query(
-      `SELECT course_lesson_blocks_valid($1::jsonb) AS valid`,
-      [JSON.stringify(publishedBlocks)],
-    );
+    const validBlocks = await admin.query(`SELECT course_lesson_blocks_valid($1::jsonb) AS valid`, [
+      JSON.stringify(publishedBlocks),
+    ]);
     expect(validBlocks.rows[0].valid).toBe(true);
     const invalidBlocks = await admin.query(
       `SELECT course_lesson_blocks_valid($1::jsonb) AS valid`,
@@ -122,10 +121,9 @@ describe('course outline persistence', () => {
     );
     const lessonId = lesson.rows[0].id as string;
     expect(lessonId).toBeTruthy();
-    const compatibility = await admin.query(
-      `SELECT content FROM course_lessons WHERE id=$1`,
-      [lessonId],
-    );
+    const compatibility = await admin.query(`SELECT content FROM course_lessons WHERE id=$1`, [
+      lessonId,
+    ]);
     expect(compatibility.rows[0].content).toContain('  const current = voltage / resistance;');
     expect(compatibility.rows[0].content).toContain('I = U / R');
     expect(compatibility.rows[0].content).toContain('Элемент | Значение');

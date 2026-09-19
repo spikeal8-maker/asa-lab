@@ -2,10 +2,7 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import type { LessonBlock } from '../api';
-import {
-  createLessonBlock,
-  lessonBlocksValid,
-} from './LessonBlockEditor';
+import { createLessonBlock, lessonBlocksValid } from './LessonBlockEditor';
 import { LessonBlocks } from './LessonBlocks';
 
 describe('informational lesson blocks', () => {
@@ -21,7 +18,16 @@ describe('informational lesson blocks', () => {
 
   it('keeps table structure bounded in client validation', () => {
     expect(
-      lessonBlocksValid([{ id: 'table', type: 'table', rows: [['A', 'B'], ['1', '2']] }]),
+      lessonBlocksValid([
+        {
+          id: 'table',
+          type: 'table',
+          rows: [
+            ['A', 'B'],
+            ['1', '2'],
+          ],
+        },
+      ]),
     ).toBe(true);
     expect(
       lessonBlocksValid([
@@ -32,9 +38,9 @@ describe('informational lesson blocks', () => {
         },
       ]),
     ).toBe(false);
-    expect(
-      lessonBlocksValid([{ id: 'table', type: 'table', rows: [['A', 'B'], ['1']] }]),
-    ).toBe(false);
+    expect(lessonBlocksValid([{ id: 'table', type: 'table', rows: [['A', 'B'], ['1']] }])).toBe(
+      false,
+    );
   });
 
   it('renders code as escaped text together with formula, table and divider', () => {

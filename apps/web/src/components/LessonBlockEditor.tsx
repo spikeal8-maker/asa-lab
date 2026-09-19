@@ -59,11 +59,7 @@ export function lessonBlocksValid(blocks: readonly LessonBlock[]): boolean {
         return block.text.trim().length > 0 && block.text.length <= 3_000;
       }
       if (block.type === 'image') {
-        return (
-          localMediaUrl(block.url) &&
-          block.alt.length <= 300 &&
-          block.caption.length <= 600
-        );
+        return localMediaUrl(block.url) && block.alt.length <= 300 && block.caption.length <= 600;
       }
       if (block.type === 'video' || block.type === 'audio') {
         return localMediaUrl(block.url) && block.title.length <= 300;
