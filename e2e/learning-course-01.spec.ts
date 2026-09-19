@@ -825,8 +825,8 @@ for (const module of ['electronics', 'three-d'])
     await page.reload();
     await expect(editor).toBeVisible();
     await expect(editor.getByLabel('Язык кода', { exact: true })).toHaveValue('javascript');
-    await expect(editor.getByLabel('Код', { exact: true })).toContainText(
-      '<script>window.__courseInformationalBlockExecuted = true</script>',
+    await expect(editor.getByLabel('Код', { exact: true })).toHaveValue(
+      '<script>window.__courseInformationalBlockExecuted = true</script>\n  const current = voltage / resistance;',
     );
     await expect(editor.getByLabel('Формула', { exact: true })).toHaveValue('I = U / R');
     await expect(editor.getByLabel('Ячейка 1:1', { exact: true })).toHaveValue('Элемент');
@@ -894,6 +894,9 @@ for (const module of ['electronics', 'three-d'])
     await page.getByRole('button', { name: 'Принять заявку', exact: true }).click();
     await expect(page.locator('.learning-join-requests')).toContainText('Принята');
     await learner.reload();
+    await learner.evaluate(() =>
+      Reflect.deleteProperty(window, '__courseInformationalBlockExecuted'),
+    );
     await learner
       .getByTestId('seat-courses')
       .getByRole('button')
@@ -902,7 +905,6 @@ for (const module of ['electronics', 'three-d'])
     await expect(
       learner.getByText('Резистор ограничивает ток. Затем соберите свою схему.', { exact: true }),
     ).toBeVisible();
-    await learner.evaluate(() => Reflect.deleteProperty(window, '__courseInformationalBlockExecuted'));
     await expect(learner.locator('.lesson-code-block')).toContainText(
       '<script>window.__courseInformationalBlockExecuted = true</script>',
     );
