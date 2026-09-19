@@ -299,9 +299,11 @@ async function addDistinctProjectState(page, frame, marker, variable) {
     .locator('.blocklyFlyout .blocklyDraggable')
     .filter({ hasText: 'move' })
     .first();
+  const workspaceBackground = frame.locator('.blocklyMainBackground').first();
   const workspace = frame.locator('.blocklyBlockCanvas').first();
   await expect(flyoutBlock).toBeVisible();
-  await flyoutBlock.dragTo(workspace, { targetPosition: { x: 220, y: 160 } });
+  await expect(workspaceBackground).toBeVisible();
+  await flyoutBlock.dragTo(workspaceBackground, { targetPosition: { x: 420, y: 180 } });
   const steps = workspace.getByText('10', { exact: true }).last();
   await expect(steps).toBeVisible();
   await steps.dblclick();
