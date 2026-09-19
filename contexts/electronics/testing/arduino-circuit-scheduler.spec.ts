@@ -213,6 +213,58 @@ describe('Arduino shared dc-inputs-v1 circuit clock', () => {
     ).toEqual(done);
   });
 
+  it('wakes a pending peer pulseIn from committed Arduino GPIO edges without order dependence', () => {
+    const senderId = 'a-sender';
+    const receiverId = 'b-receiver';
+    const sender = board(
+      senderId,
+      `void setup(){pinMode(13,OUTPUT);delayMicroseconds(5);digitalWrite(13,HIGH);delayMicroseconds(20);digitalWrite(13,LOW);}void loop(){delay(100);}`,
+    );
+    const receiver = board(
+      receiverId,
+      `unsigned long duration=0;void setup(){pinMode(2,INPUT);duration=pulseIn(2,HIGH,200);}void loop(){delay(100);}`,
+    );
+    const run = (components: SchematicComponent[]) =>
+      through(
+        circuit(components, [
+          [senderId, 'd13', receiverId, 'd2'],
+          [senderId, 'power-gnd-1', receiverId, 'power-gnd-1'],
+        ]),
+        100,
+        undefined,
+        undefined,
+        1,
+      );
+
+    const pulseWidthFromSenderEvents = (result: ArduinoCircuitClockAdvance) => {
+      const senderEdges = result.events.filter(
+        (event) =>
+          event.componentId === senderId &&
+          event.kind === 'output-change' &&
+          event.terminal === 'd13',
+      );
+      const high = senderEdges.find((event) => event.voltage === 5);
+      const low = senderEdges.find(
+        (event) => event.voltage === 0 && high && event.atMicroseconds > high.atMicroseconds,
+      );
+      expect(high).toBeDefined();
+      expect(low).toBeDefined();
+      return low!.atMicroseconds - high!.atMicroseconds;
+    };
+
+    const forward = run([sender, receiver]);
+    expect(forward.diagnostics).toEqual([]);
+    const forwardWidth = pulseWidthFromSenderEvents(forward);
+    expect(runtime(forward, receiverId).variables.duration).toBe(forwardWidth);
+
+    const reversed = run([receiver, sender]);
+    const reversedWidth = pulseWidthFromSenderEvents(reversed);
+    expect(reversedWidth).toBe(forwardWidth);
+    expect(runtime(reversed, receiverId).variables.duration).toBe(reversedWidth);
+    expect(reversed.state).toEqual(forward.state);
+    expect(reversed.result).toEqual(forward.result);
+  });
+
   it('preserves the complete trace, final state and numerical result across quanta and time partitions', () => {
     const doc = circuit(
       [

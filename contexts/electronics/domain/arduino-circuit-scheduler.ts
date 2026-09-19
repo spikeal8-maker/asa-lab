@@ -566,6 +566,7 @@ export function advanceArduinoCircuitClock(
         'Не выполнены проверки конечности, KCL или напряжения источников.',
       );
     const updates: [string, ArduinoRuntimeState, string][] = [];
+    let electricalStateChanged = false;
     for (const board of runnableBoards) {
       const state = states.get(board.id);
       const pulseInputSample = Boolean(state?.pulseWait) && (inputChanged || physicsDue);
@@ -601,6 +602,12 @@ export function advanceArduinoCircuitClock(
       }
       updates.push([board.id, advanced.state, executionSource]);
       events.push(...advanced.events.map((event) => ({ ...event, componentId: board.id })));
+      if (
+        advanced.events.some(
+          (event) => event.kind === 'pin-mode-change' || event.kind === 'output-change',
+        )
+      )
+        electricalStateChanged = true;
       if (advanced.events.length > 0) cachedFrame = undefined;
     }
     // Commit together, after ALL due boards have consumed the same electrical frame.
@@ -608,6 +615,47 @@ export function advanceArduinoCircuitClock(
       states.set(id, state);
       loadedSources.set(id, loadedSource);
       pendingProgramLoads.delete(id);
+    }
+    if (electricalStateChanged) {
+      const pulseWaiters = runnableBoards.filter((board) => states.get(board.id)?.pulseWait);
+      if (pulseWaiters.length > 0) {
+        cachedFrame = undefined;
+        const postCommitFrame = sample(time);
+        if (!postCommitFrame.solved && !isNonFatalPassiveNoSource(postCommitFrame))
+          return fault(
+            'electrical_sample_failed',
+            postCommitFrame.diagnostics.map((entry) => entry.message).join(' '),
+          );
+        if (!postCommitFrame.quality.passed && !isNonFatalPassiveNoSource(postCommitFrame))
+          return fault(
+            'electrical_quality_failed',
+            'Не выполнены проверки конечности, KCL или напряжения источников.',
+          );
+        const pulseUpdates: [string, ArduinoRuntimeState, string][] = [];
+        for (const board of pulseWaiters) {
+          const executionSource = executionSources.get(board.id)!;
+          const advanced = advanceClockedArduinoRuntime(
+            executionSource,
+            postCommitFrame.components.find((entry) => entry.componentId === board.id)
+              ?.terminalVoltages ?? {},
+            time / 1000,
+            states.get(board.id),
+            undefined,
+            { instructionBudget: 1, pulseInputSample: true },
+          );
+          if (advanced.executionStatus === 'fault')
+            return fault(
+              'arduino_execution_failed',
+              advanced.diagnostics.map((entry) => entry.message).join(' '),
+            );
+          pulseUpdates.push([board.id, advanced.state, executionSource]);
+          events.push(...advanced.events.map((event) => ({ ...event, componentId: board.id })));
+        }
+        for (const [id, state, loadedSource] of pulseUpdates) {
+          states.set(id, state);
+          loadedSources.set(id, loadedSource);
+        }
+      }
     }
     reachedMicroseconds = time;
     clockEvents++;
