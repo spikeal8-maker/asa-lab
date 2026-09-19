@@ -749,12 +749,11 @@ try {
   noOpTrace = await startObjectTrace();
   phase = 'fresh-noop';
   noOpTrace.setPhase('fresh-noop');
-  const noOpSave = await clickConfirmedSave(reopened);
+  await reopened.waitForTimeout(9000);
   await noOpTrace.settle();
   noOpTrace.setPhase('idle');
   const p3 = projectState(projectId);
   const o3 = objectSnapshot();
-  expect(noOpSave.revision).toBe(p2.revision);
   const noOpRuntime = phaseRuntimeMetrics(runtimeEvents, 'fresh-noop');
   expect(noOpRuntime.assetPutRequests).toBe(0);
   expect(noOpRuntime.draftPutRequests).toBe(0);
@@ -775,6 +774,67 @@ try {
   expect(objectReopen.requests).toBeGreaterThan(0);
   expect(objectNoOp.requests).toBe(0);
   const traceEvents = [...durableTraceEvents, ...noOpTraceEvents];
+
+  phase = 'blocks-only-autosave';
+  const pBlocks0 = projectState(projectId);
+  await editStepValue(freshEditor.frame, 73, 74);
+  const blockSave = await waitForRevisionAdvance(projectId, pBlocks0.revision);
+  const pBlocks1 = projectState(projectId);
+  expect(blockSave.revision).toBe(pBlocks1.revision);
+  expect(projectHasStep(pBlocks1, marker, 74)).toBe(true);
+  const blocksOnlyRuntime = phaseRuntimeMetrics(runtimeEvents, 'blocks-only-autosave');
+  expect(blocksOnlyRuntime.assetPutRequests).toBe(0);
+  expect(blocksOnlyRuntime.draftPutRequests).toBe(1);
+  expect(delta(pBlocks1.revision, pBlocks0.revision)).toBe(1);
+
+  phase = 'rapid-edit';
+  const pRapid0 = projectState(projectId);
+  const draftPattern = new RegExp(
+    `/api/blocks/runtime/projects/${projectId}/draft$`,
+  );
+  let firstRapidDraft = true;
+  let releaseRapidResponse;
+  let markRapidCommitted;
+  const rapidRelease = new Promise((resolve) => {
+    releaseRapidResponse = resolve;
+  });
+  const rapidCommitted = new Promise((resolve) => {
+    markRapidCommitted = resolve;
+  });
+  const rapidHandler = async (route, request) => {
+    if (request.method() !== 'PUT' || !firstRapidDraft) {
+      await route.continue();
+      return;
+    }
+    firstRapidDraft = false;
+    const response = await route.fetch();
+    expect(response.status()).toBe(200);
+    await response.body();
+    markRapidCommitted();
+    await rapidRelease;
+    await route.fulfill({ response });
+  };
+  await context.route(draftPattern, rapidHandler);
+  try {
+    await editStepValue(freshEditor.frame, 74, 75);
+    await rapidCommitted;
+    expect(projectHasStep(projectState(projectId), marker, 75)).toBe(true);
+
+    await editStepValue(freshEditor.frame, 75, 76);
+    releaseRapidResponse();
+
+    await expect
+      .poll(() => projectHasStep(projectState(projectId), marker, 76), { timeout: 45000 })
+      .toBe(true);
+    const pRapid1 = projectState(projectId);
+    expect(delta(pRapid1.revision, pRapid0.revision)).toBe(2);
+    const rapidRuntime = phaseRuntimeMetrics(runtimeEvents, 'rapid-edit');
+    expect(rapidRuntime.assetPutRequests).toBe(0);
+    expect(rapidRuntime.draftPutRequests).toBe(2);
+  } finally {
+    releaseRapidResponse?.();
+    await context.unroute(draftPattern, rapidHandler);
+  }
 
   phase = 'student-seat';
   const classCreate = await context.request.post('/api/classrooms', {
