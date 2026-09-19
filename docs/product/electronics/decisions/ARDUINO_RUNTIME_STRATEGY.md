@@ -435,6 +435,97 @@ When the source is valid Arduino code, this is **not** an Arduino compile error.
 
 This section is a design contract only. The compile/load separation and no-loaded-program/reset behavior are **not implemented by E-OPT-5A**.
 
+## Owner-constraint re-evaluation before independent review
+
+Chronology is explicit:
+
+```text
+initial candidate selected before owner clarification
+→ owner constraints added later
+→ all three strategies re-evaluated before independent review
+```
+
+This re-evaluation is intentionally limited to two owner constraints:
+
+1. learner-correctable circuit/program errors must not block or tear down the whole Electronics simulation;
+2. editor source and the last successfully loaded executable program are distinct states.
+
+It does not repeat the original 22-criterion evaluation.
+
+### Candidate A — SOURCE_LEVEL
+
+Overall owner-constraint result: **PASS**.
+
+| Question | Result | Reason |
+| --- | --- | --- |
+| A. Global simulation remains running on compile/runtime error | PASS | Compile/runtime diagnostics can be scoped to one board while the Electronics session and independent circuit state continue. |
+| B. Editor source and loaded executable stored separately | PASS | Source text and serializable runtime/program identity can be represented as separate board-owned state without changing the global scheduler. |
+| C. Failed compile preserves previous executable | PASS | Compilation can commit a new executable identity only on success; failure leaves the previously loaded program identity unchanged. |
+| D. One Arduino failure isolated from another board/rest of circuit | PASS | Board runtime/diagnostics can remain per-board while all boards advance under the shared scheduler. |
+| E. ASA unsupported capability distinct from real compile error | PASS | The source-level front end can distinguish syntax/compile diagnostics from valid-but-unsupported API/capability diagnostics. |
+| F. One canonical Electronics clock preserved | PASS | Compile/load state does not require a second clock; execution remains subordinate to `instruction-us-v1` and the canonical Electronics scheduler. |
+
+SOURCE_LEVEL can therefore implement all newly required semantics:
+
+- separate editor-source and loaded-program state;
+- last-known-good executable preservation;
+- local board fault handling;
+- global simulation continuation;
+- compile error distinct from unsupported ASA capability;
+
+without introducing a second scheduler or violating the canonical Electronics clock.
+
+### Candidate B — AVR
+
+Overall owner-constraint result: **CONDITIONAL**.
+
+| Question | Result | Reason |
+| --- | --- | --- |
+| A. Global simulation remains running on compile/runtime error | CONDITIONAL | The compiler/emulator lifecycle must convert board failures into local board state rather than a global execution failure. |
+| B. Editor source and loaded executable stored separately | PASS | The compile → binary → load boundary naturally allows editor source and loaded image to be distinct. |
+| C. Failed compile preserves previous executable | PASS | A failed compilation can leave the prior loaded ELF/HEX image untouched. |
+| D. One Arduino failure isolated from another board/rest of circuit | CONDITIONAL | Each board needs independent emulator/image/runtime state and fault containment. |
+| E. ASA unsupported capability distinct from real compile error | CONDITIONAL | Valid code may compile while ASA lacks a peripheral/circuit bridge; the product must classify that separately from compiler diagnostics. |
+| F. One canonical Electronics clock preserved | CONDITIONAL | AVR cycle execution must be driven to scheduler-owned horizons; emulator/native wall-clock may never become a second physics clock. |
+
+AVR satisfies the two owner rules only if the production design adds explicit per-board load/runtime state, local fault containment, post-compile capability classification and a strict cycle-to-canonical-clock adapter.
+
+### Candidate C — HYBRID
+
+Overall owner-constraint result: **CONDITIONAL**.
+
+| Question | Result | Reason |
+| --- | --- | --- |
+| A. Global simulation remains running on compile/runtime error | CONDITIONAL | Both backends must expose board-local failure without escalating learner errors to global session failure. |
+| B. Editor source and loaded executable stored separately | CONDITIONAL | Loaded executable identity must include backend identity as well as program identity and remain distinct from editor source. |
+| C. Failed compile preserves previous executable | CONDITIONAL | Failed compile/backend selection must not replace or silently switch the previously loaded executable/backend pair. |
+| D. One Arduino failure isolated from another board/rest of circuit | CONDITIONAL | Isolation must work identically across two backend state models. |
+| E. ASA unsupported capability distinct from real compile error | CONDITIONAL | A unified diagnostic taxonomy must distinguish compiler failure, backend-selection failure and ASA capability gaps. |
+| F. One canonical Electronics clock preserved | CONDITIONAL | Both backends must be subordinated to exactly one scheduler/clock adapter; neither backend may own independent physical time. |
+
+HYBRID can meet the owner rules, but only by adding backend-discriminated loaded-program state and duplicated fault/capability semantics while still maintaining one canonical clock.
+
+### Re-selected strategy under the owner constraints
+
+```text
+SELECTED: SOURCE_LEVEL
+```
+
+SOURCE_LEVEL remains selected **after** re-evaluation, not because it was selected before the owner clarification. It is the only evaluated family that satisfies all six questions directly within the already accepted single-clock/single-scheduler architecture. AVR and HYBRID remain feasible only conditionally on additional load-state, isolation and clock-adapter architecture.
+
+The selected SOURCE_LEVEL design must therefore treat the following as required future implementation semantics:
+
+```text
+editor source != loaded executable
+failed compile preserves last-known-good executable
+learner compile/runtime fault is board-local
+global Electronics simulation continues
+compile error != ASA capability unsupported
+all execution remains under one canonical Electronics clock
+```
+
+No implementation is performed by this re-evaluation.
+
 ## Rejected alternatives
 
 ### AVR production backend
@@ -453,12 +544,13 @@ SELECTED: SOURCE_LEVEL
 
 Why selected:
 
-- satisfies all hard constraints with the least new architecture;
-- preserves accepted E-OPT-3 clock/Worker/replay/state semantics;
-- measured baseline is adequate for the representative sketch;
-- preserves student-readable diagnostics;
-- requires no new runtime/compiler dependency;
-- keeps AVR available as an independent hardware-oriented reference oracle.
+- after owner clarification, SOURCE_LEVEL passes all six owner-constraint questions directly;
+- it can represent editor source, loaded executable identity and last-known-good program as separate per-board state;
+- learner compile/runtime faults can remain local while the global Electronics session continues;
+- compile errors and valid-but-unsupported ASA capabilities can remain distinct diagnostic classes;
+- these semantics require no second scheduler and preserve the single canonical Electronics clock;
+- it still preserves accepted E-OPT-3 clock/Worker/replay/state semantics and student-readable diagnostics;
+- it requires no new runtime/compiler dependency and keeps AVR available as an independent hardware-oriented reference oracle.
 
 ## Known limits
 
