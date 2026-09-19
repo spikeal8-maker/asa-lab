@@ -1,0 +1,113 @@
+schema: asa-lab.electronics-eopt3e-trace-replay.v1
+task_id: TASK-ELECTRONICS-EOPT3E-001
+issue: 298
+characterization_test_sha: b86159b5e39f97a31371315c2acf2858fa492d20
+review_target: pr_head
+activation_main_sha: a44a0acebf011dea8ee992dff948ad23bf581617
+
+contracts:
+  engine_contract_version: 1
+  timed_engine_contract_version: 1
+  clock_contract_version: 1
+  worker_protocol_version: 2
+  worker_engine_revision: asa-electronics-solver-v21
+
+fixtures:
+  - id: physical_rc
+    final_horizon_microseconds: 160000
+    proof:
+      - physical continuation
+      - rc-inputs-v2 clock profile
+  - id: arduino_gpio
+    final_horizon_microseconds: 160000
+    proof:
+      - Arduino instruction-us-v1 runtime state
+      - electrical observation
+  - id: canonical_input_trace
+    final_horizon_microseconds: 160000
+    proof:
+      - ordered input history
+      - same-time event ordering
+      - Arduino runtime continuation
+    canonical_trace:
+      - at_microseconds: 50000
+        target: two
+        operation: state
+        payload: true
+      - at_microseconds: 50000
+        target: one
+        operation: state
+        payload: true
+      - at_microseconds: 125000
+        target: one
+        operation: state
+        payload: false
+
+request_partition_profiles:
+  - single-shot
+  - 16ms-partition
+  - 33ms-partition
+  - 100ms-partition
+  - irregular-stalled
+
+bounded_yield_budgets:
+  - default
+  - 1
+  - 2
+  - 7
+  - 1024
+
+replay_rules:
+  reset_per_profile: true
+  immutable_trace: true
+  event_sent_exactly_once: true
+  event_timestamps_preserved: true
+  same_time_array_order_preserved: true
+  no_commit_past_unsent_event: true
+  yielded_resume_same_horizon: true
+  yielded_inputs_not_resent: true
+  final_status_required: ready
+
+comparison:
+  direct_state: exact
+  serialized_continuation: exact
+  direct_observation: exact
+  direct_diagnostics: exact
+  worker_advance_payload: exact
+  worker_direct_semantic_payload: exact
+  worker_envelope_excluded:
+    - requestId
+    - generationId
+    - projectSessionId
+    - computeMs
+
+checks:
+  fixture_a_physical: pass
+  fixture_b_arduino: pass
+  fixture_c_input_trace: pass
+  single_shot: pass
+  cadence_16ms: pass
+  cadence_33ms: pass
+  cadence_100ms: pass
+  irregular_stall: pass
+  bounded_yield: pass
+  same_time_trace_order: pass
+  anti_tautology_alphabetical_reorder: pass
+  direct_equivalence: pass
+  worker_equivalence: pass
+  physical_continuation: pass
+  arduino_runtime_state: pass
+
+focused_characterization:
+  direct_suite:
+    file: contexts/electronics/testing/engine-trace-replay.spec.ts
+    tests: 9
+    status: pass
+  worker_suite:
+    file: apps/web/src/electronics/testing/simulation-trace-replay.spec.ts
+    tests: 7
+    status: pass
+
+production_source_changed: false
+production_repair_attempted: false
+divergences: []
