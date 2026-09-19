@@ -77,7 +77,9 @@ describe('Course Builder structure forward upgrade', () => {
           [principal, courseId, sectionId, JSON.stringify(blocks), publishedActivity.version_id],
         )
       ).rows[0].id as string;
-      const published = (await pool.query('SELECT * FROM course_publish($1,$2)', [principal, courseId])).rows[0];
+      const published = (
+        await pool.query('SELECT * FROM course_publish($1,$2)', [principal, courseId])
+      ).rows[0];
       const versionId = published.version_id as string;
 
       const classroom = (
@@ -105,7 +107,9 @@ describe('Course Builder structure forward upgrade', () => {
         )
       ).rows[0];
       const versionBefore = (
-        await pool.query('SELECT id,outline,content_hash FROM course_versions WHERE id=$1', [versionId])
+        await pool.query('SELECT id,outline,content_hash FROM course_versions WHERE id=$1', [
+          versionId,
+        ])
       ).rows[0];
       const runBefore = (
         await pool.query(
@@ -135,9 +139,29 @@ describe('Course Builder structure forward upgrade', () => {
         )
       ).rows[0];
       expect(draftAfter).toEqual({ ...draftBefore, section_hidden: false, lesson_hidden: false });
-      expect((await pool.query('SELECT id,outline,content_hash FROM course_versions WHERE id=$1', [versionId])).rows[0]).toEqual(versionBefore);
-      expect((await pool.query('SELECT id,source_section_id,source_lesson_id,blocks FROM classroom_course_run_lessons WHERE run_id=$1 ORDER BY id', [runId])).rows).toEqual(runBefore);
-      expect((await pool.query('SELECT source_lesson_id,learning_activity_version_id FROM activity_runs WHERE source_course_run_id=$1 ORDER BY source_lesson_id', [runId])).rows).toEqual(activityRunsBefore);
+      expect(
+        (
+          await pool.query('SELECT id,outline,content_hash FROM course_versions WHERE id=$1', [
+            versionId,
+          ])
+        ).rows[0],
+      ).toEqual(versionBefore);
+      expect(
+        (
+          await pool.query(
+            'SELECT id,source_section_id,source_lesson_id,blocks FROM classroom_course_run_lessons WHERE run_id=$1 ORDER BY id',
+            [runId],
+          )
+        ).rows,
+      ).toEqual(runBefore);
+      expect(
+        (
+          await pool.query(
+            'SELECT source_lesson_id,learning_activity_version_id FROM activity_runs WHERE source_course_run_id=$1 ORDER BY source_lesson_id',
+            [runId],
+          )
+        ).rows,
+      ).toEqual(activityRunsBefore);
     } finally {
       await pool?.end();
       if (databaseCreated) await owner.query('DROP DATABASE "' + name + '"');
