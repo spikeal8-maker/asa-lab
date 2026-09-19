@@ -442,8 +442,7 @@ describe('Electronics canonical Worker controller', () => {
   it('keeps one canonical generation across Arduino source-only edits', async () => {
     const executor = new FakeExecutor();
     const controller = new ElectronicsLiveSimulationWorkerController(executor);
-    const sourceA =
-      'void setup(){pinMode(13,OUTPUT);}void loop(){digitalWrite(13,HIGH);}';
+    const sourceA = 'void setup(){pinMode(13,OUTPUT);}void loop(){digitalWrite(13,HIGH);}';
     const sourceB = 'void setup(){digitalWrite(13,);}void loop(){}';
     const arduinoCircuit: SchematicDocument = {
       ...circuit,
@@ -481,10 +480,8 @@ describe('Electronics canonical Worker controller', () => {
     expect(executor.preflights).toHaveLength(1);
     expect(executor.advances.at(-1)?.generationId).toBe(1);
     expect(
-      executor.advances
-        .at(-1)
-        ?.document.components.find((component) => component.id === 'uno')?.stateProperties
-        ?.arduinoSource,
+      executor.advances.at(-1)?.document.components.find((component) => component.id === 'uno')
+        ?.stateProperties?.arduinoSource,
     ).toBe(sourceB);
   });
 

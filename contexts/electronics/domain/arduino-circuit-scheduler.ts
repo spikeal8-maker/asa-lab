@@ -281,7 +281,9 @@ export function advanceArduinoCircuitClock(
       componentId: board.id,
     });
   }
-  const editorSources = new Map(boards.map((board) => [board.id, arduinoSourceFor(board)] as const));
+  const editorSources = new Map(
+    boards.map((board) => [board.id, arduinoSourceFor(board)] as const),
+  );
   const previousLoadedSources = new Map<string, string | null>();
   for (const [index, board] of boards.entries()) {
     const entry = previous?.boards[index];
@@ -544,11 +546,7 @@ export function advanceArduinoCircuitClock(
     const updates: [string, ArduinoRuntimeState, string][] = [];
     for (const board of runnableBoards) {
       const state = states.get(board.id);
-      if (
-        !pendingProgramLoads.has(board.id) &&
-        state &&
-        Math.round(state.resumeAtMs * 1000) > time
-      )
+      if (!pendingProgramLoads.has(board.id) && state && Math.round(state.resumeAtMs * 1000) > time)
         continue;
       const executionSource = executionSources.get(board.id)!;
       const advanced = advanceClockedArduinoRuntime(

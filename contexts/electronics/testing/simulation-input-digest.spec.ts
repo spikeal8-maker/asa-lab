@@ -108,8 +108,7 @@ describe('simulation input digest', () => {
           componentTypeId: 'arduino-uno',
           pinIds: ['d13', 'power-gnd-1'],
           stateProperties: {
-            arduinoSource:
-              'void setup(){pinMode(13,OUTPUT);}void loop(){digitalWrite(13,HIGH);}',
+            arduinoSource: 'void setup(){pinMode(13,OUTPUT);}void loop(){digitalWrite(13,HIGH);}',
           },
         },
       ],
