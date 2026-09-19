@@ -14,6 +14,15 @@ export interface ProjectActor {
   readonly userId: string | null;
 }
 
+export type ProjectAccessMode = 'read' | 'edit';
+export interface ProjectAuthorization {
+  readonly tenantId: string;
+  readonly userId: string | null;
+  readonly projectId: string;
+  readonly moduleKey: string;
+  readonly status: ProjectStatus;
+}
+
 export interface CreateProjectInput {
   readonly tenantId: string;
   readonly scope: ProjectScope;
@@ -113,6 +122,12 @@ export interface ProjectRepositoryPort {
     actor: ProjectActor,
     filter: ProjectListFilter,
   ): Promise<Project[]>;
+  authorize(
+    tenantId: string,
+    projectId: string,
+    principalId: string,
+    access: ProjectAccessMode,
+  ): Promise<ProjectAuthorization | null>;
   load(
     tenantId: string,
     projectId: string,
@@ -165,4 +180,23 @@ export interface ProjectRepositoryPort {
     projectId: string,
     actor: ProjectActor,
   ): Promise<ProjectSnapshotBytes | null>;
+}
+
+/** Optional subject-neutral policy, supplied by composition before a draft is committed. */
+export type ProjectPersistenceGuardResult =
+  | { readonly ok: true }
+  | {
+      readonly ok: false;
+      readonly code: 'validation_error' | 'dependency_unavailable';
+      readonly message: string;
+    };
+
+export interface ProjectDraftPersistenceGuardPort {
+  validate(input: {
+    readonly tenantId: string;
+    readonly projectId: string;
+    readonly actor: ProjectActor;
+    readonly moduleKey: string;
+    readonly document: unknown;
+  }): Promise<ProjectPersistenceGuardResult>;
 }

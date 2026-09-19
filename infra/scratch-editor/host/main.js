@@ -73,7 +73,7 @@
   const protocol = protocolApi.createChildProtocol({
     parentWindow: window.parent,
     expectedParentOrigin,
-    onInit(session, { hasProjectJson }) {
+    onInit(session, bootstrap) {
       // Presentation only, after accepted INIT. Other parents keep the local status.
       status.hidden =
         session.mode === 'editor' &&
@@ -84,7 +84,7 @@
         getBinding: () => protocol.getBinding(),
       });
       shell.dataset.runtimeState = 'init-accepted';
-      status.textContent = 'Загрузка учебного проекта… Изменения не сохраняются.';
+      status.textContent = 'Загрузка учебного проекта…';
       reporter.status('init-accepted');
       try {
         editor = globalThis.AsaBlocksEditor.mountEditor({
@@ -92,21 +92,33 @@
           container: document.getElementById('scratch-editor-root'),
           shell,
           session,
-          hasProjectJson,
+          bootstrap,
+          getRuntimeToken: () => protocol.getRuntimeToken(),
           onReady() {
-            status.textContent = 'Учебный проект готов. Изменения не сохраняются.';
+            status.textContent = 'Учебный проект готов.';
             reporter.status('editor-ready');
           },
+          onDirty(generation) {
+            reporter?.projectDirty(generation);
+          },
         });
+        void editor.startup.catch(() => reportFatal('editor_mount_failed'));
       } catch {
         reportFatal('editor_mount_failed');
       }
     },
-    onTokenUpdate() {
-      reporter?.status('token-updated');
-    },
     onFlushRequest(requestId) {
-      reporter?.flushResult(requestId, false, 'storage_not_available');
+      if (!editor) {
+        reporter?.flushResult(requestId, false, 'editor_not_ready');
+        return;
+      }
+      void editor.flush().then((result) => {
+        if (result.ok) {
+          reporter?.flushResult(requestId, true, null, result.revision, result.snapshotGeneration);
+          return;
+        }
+        reporter?.flushResult(requestId, false, result.reason);
+      });
     },
     onStop() {
       reporter?.status('stopped');

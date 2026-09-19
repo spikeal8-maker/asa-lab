@@ -100,15 +100,8 @@ export async function verifyHostProtocol() {
     await sendFromParent(page, {
       ...binding,
       messageType: 'ASA_BLOCKS_TOKEN_UPDATE',
-      runtimeToken: 'rotated-runtime-token-c',
+      runtimeToken: 'rotated.runtime.token',
     });
-    await page.waitForFunction(() =>
-      window.__blocksMessages.some(
-        (message) =>
-          message?.messageType === 'ASA_BLOCKS_STATUS' && message?.status === 'token-updated',
-      ),
-    );
-
     await sendFromParent(page, {
       ...binding,
       messageType: 'ASA_BLOCKS_FLUSH_REQUEST',
@@ -123,7 +116,14 @@ export async function verifyHostProtocol() {
     const flushResult = await page.evaluate(() =>
       window.__blocksMessages.find((message) => message?.messageType === 'ASA_BLOCKS_FLUSH_RESULT'),
     );
-    if (flushResult?.ok !== false || flushResult?.reason !== 'storage_not_available') {
+    if (
+      flushResult?.ok !== true ||
+      flushResult?.reason !== null ||
+      !Number.isSafeInteger(flushResult?.revision) ||
+      flushResult.revision < 1 ||
+      !Number.isSafeInteger(flushResult?.snapshotGeneration) ||
+      flushResult.snapshotGeneration < 0
+    ) {
       throw new Error(`unexpected flush result: ${JSON.stringify(flushResult)}`);
     }
 

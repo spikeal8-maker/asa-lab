@@ -24,17 +24,26 @@ function fixture(fetch) {
     fs.readFileSync(new URL('../../infra/scratch-editor/host/storage.js', import.meta.url), 'utf8'),
     context,
   );
-  const result = context.AsaBlocksStorage.createFixtureStorage({
-    ScratchStorage: Storage,
-    buildDefaultProject: () => [
-      {
-        assetType: 'Project',
-        dataFormat: 'JSON',
-        id: 0,
-        data: JSON.stringify({ targets: [{ isStage: true }, { isStage: false }] }),
-      },
-    ],
-  });
+  const result = context.AsaBlocksStorage.createReadOnlyStorage(
+    {
+      ScratchStorage: Storage,
+      buildDefaultProject: () => [
+        {
+          assetType: 'Project',
+          dataFormat: 'JSON',
+          id: 0,
+          data: JSON.stringify({ targets: [], monitors: [], extensions: [] }),
+        },
+      ],
+    },
+    {
+      projectId: '11111111-1111-4111-8111-111111111111',
+      projectJson: null,
+      assets: [],
+      apiOrigin: 'https://asa.example',
+      getRuntimeToken: () => 'fixture.runtime.token',
+    },
+  );
   result.load = (type, id, format) =>
     result.scratchStorage.helper.load(result.scratchStorage.AssetType[type], id, format);
   return result;
@@ -67,11 +76,11 @@ test('project IDs, traversal, invalid formats and type mismatches never reach fe
     assert.equal(await storage.load(type, id, format), null);
   assert.deepEqual(requests, []);
   for (const id of ['unknown', '../index', '%2findex', `${hash}?x=1`]) {
-    assert.throws(() => storage.getLibraryAssetUrl(id, 'svg'), /fixture_asset_unavailable/);
+    assert.throws(() => storage.getLibraryAssetUrl(id, 'svg'), /runtime_asset_unavailable/);
   }
-  assert.throws(() => storage.getLibraryAssetUrl(hash, 'json'), /fixture_asset_unavailable/);
+  assert.throws(() => storage.getLibraryAssetUrl(hash, 'json'), /runtime_asset_unavailable/);
   assert.equal(storage.getLibraryAssetUrl(hash, 'svg'), `/library-assets/${hash}.svg`);
-  await assert.rejects(storage.saveProject(), /fixture_storage_read_only/);
+  await assert.rejects(storage.saveProject(), /runtime_storage_read_only/);
 });
 
 test('stock media uses credential-free, redirect-free local requests and caches success', async () => {

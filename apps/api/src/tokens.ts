@@ -27,6 +27,8 @@ export const TOKENS = {
   saveProjectSnapshotUseCase: 'SAVE_PROJECT_SNAPSHOT_USECASE',
   readProjectSnapshotUseCase: 'READ_PROJECT_SNAPSHOT_USECASE',
   seatContextUseCase: 'SEAT_CONTEXT_USECASE',
+  blocksRuntimeSessionIssuer: 'BLOCKS_RUNTIME_SESSION_ISSUER',
+  blocksRuntimePersistence: 'BLOCKS_RUNTIME_PERSISTENCE',
   projectFeedbackService: 'PROJECT_FEEDBACK_SERVICE',
   botChallengeService: 'BOT_CHALLENGE_SERVICE',
   maxAuthService: 'MAX_AUTH_SERVICE',

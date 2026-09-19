@@ -1,8 +1,10 @@
 import fs from 'node:fs';
 import http from 'node:http';
+import { Buffer } from 'node:buffer';
+import { createHash } from 'node:crypto';
 import { URL } from 'node:url';
 import { chromium } from '@playwright/test';
-import { runtimeUrl, parentPort, parentOrigin } from './protocol.mjs';
+import { runtimeUrl, parentPort, parentOrigin, projectId, runtimeToken } from './protocol.mjs';
 
 export async function createProtocolFixture(options = {}) {
   const repoRoot = new URL('../../../', import.meta.url);
@@ -13,6 +15,8 @@ export async function createProtocolFixture(options = {}) {
     'infra/scratch-editor/host/storage.js',
     'infra/scratch-editor/host/editor.js',
     'apps/web/src/blocks/runtime-protocol.ts',
+    'apps/web/src/blocks/runtime-session.ts',
+    'apps/web/src/blocks/BlocksEditor.tsx',
   ];
   for (const relative of checkedSources) {
     const text = fs.readFileSync(new URL(relative, repoRoot), 'utf8');
@@ -78,8 +82,331 @@ window.addEventListener('message', (event) => {
   const product = options.product
     ? await (await import('./product-bundle.mjs')).productFiles()
     : null;
-  const server = http.createServer((request, response) => {
-    const productFile = product?.files.get(request.url);
+  const runtimeSession = options.runtimeSession ?? {
+    draftRevision: 0,
+    projectJson: null,
+    assets: [],
+  };
+  const runtimeAssets = options.runtimeAssets ?? new Map();
+  const runtimeAssetEvidence = [];
+  const runtimeAssetPutEvidence = [];
+  const runtimeDraftEvidence = [];
+  const runtimeWriteEvents = [];
+  const runtimePersistenceMetrics = {
+    assetRequests: 0,
+    uploadedBytes: 0,
+    uniqueAssetBytes: 0,
+    blobRows: 0,
+    aliasRows: 0,
+    draftRequests: 0,
+    revisionCommits: 0,
+    idempotentReplays: 0,
+    externalRevisionAdvances: 0,
+  };
+  const durableBlobKeys = new Set(
+    (runtimeSession.assets ?? []).map((reference) => `${reference.sha256}.${reference.dataFormat}`),
+  );
+  const durableAliasKeys = new Set(
+    (runtimeSession.assets ?? []).map(
+      (reference) => `${reference.assetId}.${reference.dataFormat}`,
+    ),
+  );
+  const committedMutations = new Map();
+  let serverRevision = Number(runtimeSession.draftRevision ?? 0);
+  let dropDraftResponseRemaining = options.dropFirstDraftResponseAfterCommit === true ? 1 : 0;
+  let runtimeSessionSequence = 0;
+  const runtimeSessionPath = `/api/projects/${projectId}/blocks/runtime-session`;
+  const runtimeAssetPrefix = `/api/blocks/runtime/projects/${projectId}/assets/`;
+  const runtimeDraftPath = `/api/blocks/runtime/projects/${projectId}/draft`;
+  const canonicalTypes = {
+    svg: 'image/svg+xml',
+    png: 'image/png',
+    jpg: 'image/jpeg',
+    wav: 'audio/wav',
+    mp3: 'audio/mpeg',
+  };
+
+  const expectedRuntimeToken = () =>
+    product ? `fixture.${runtimeSessionSequence}.signature` : runtimeToken;
+  const runtimeAuthorizationOk = (authorization) => {
+    if (authorization === `Bearer ${expectedRuntimeToken()}`) return true;
+    return !product && authorization === 'Bearer rotated.runtime.token';
+  };
+  const urlHasCapability = (requestUrl) =>
+    requestUrl.includes('fixture.') ||
+    requestUrl.includes(runtimeToken) ||
+    requestUrl.includes('rotated.runtime.token');
+  const applyRuntimeCors = (request, response) => {
+    if (request.headers.origin !== runtimeUrl) return false;
+    response.setHeader('Access-Control-Allow-Origin', runtimeUrl);
+    response.setHeader('Vary', 'Origin');
+    response.setHeader('Access-Control-Allow-Methods', 'GET, PUT, OPTIONS');
+    response.setHeader('Access-Control-Allow-Headers', 'authorization, accept, content-type');
+    return true;
+  };
+  const requestBody = async (request) => {
+    const chunks = [];
+    for await (const chunk of request) chunks.push(Buffer.from(chunk));
+    return Buffer.concat(chunks);
+  };
+
+  const server = http.createServer(async (request, response) => {
+    const requestUrl = request.url ?? '/';
+
+    if (product && request.method === 'POST' && requestUrl === runtimeSessionPath) {
+      runtimeSessionSequence += 1;
+      response.setHeader('Content-Type', 'application/json; charset=utf-8');
+      response.setHeader('Cache-Control', 'no-store');
+      const expiresAt =
+        typeof options.runtimeSessionExpiresAt === 'function'
+          ? options.runtimeSessionExpiresAt(runtimeSessionSequence)
+          : (options.runtimeSessionExpiresAt ?? 4_000_000_000);
+      response.end(
+        JSON.stringify({
+          ...runtimeSession,
+          runtimeOrigin: runtimeUrl,
+          runtimeToken: `fixture.${runtimeSessionSequence}.signature`,
+          expiresAt,
+        }),
+      );
+      return;
+    }
+
+    if (
+      requestUrl.startsWith(runtimeAssetPrefix) &&
+      ['OPTIONS', 'GET', 'PUT'].includes(request.method ?? '')
+    ) {
+      if (!applyRuntimeCors(request, response)) {
+        response.statusCode = 403;
+        response.end();
+        return;
+      }
+      if (request.method === 'OPTIONS') {
+        response.statusCode = 204;
+        response.end();
+        return;
+      }
+
+      const assetFile = requestUrl.slice(runtimeAssetPrefix.length);
+      const authorizationOk = runtimeAuthorizationOk(request.headers.authorization);
+      if (request.method === 'GET') {
+        runtimeAssetEvidence.push({
+          assetFile,
+          authorizationOk,
+          cookiePresent: Boolean(request.headers.cookie),
+          urlHasCapability: urlHasCapability(requestUrl),
+          originOk: request.headers.origin === runtimeUrl,
+        });
+        if (!authorizationOk) {
+          response.statusCode = 401;
+          response.end();
+          return;
+        }
+        const configured = runtimeAssets.get(assetFile);
+        if (!configured) {
+          response.statusCode = 404;
+          response.end();
+          return;
+        }
+        response.statusCode = configured.status ?? 200;
+        response.setHeader('Cache-Control', 'no-store');
+        if (configured.contentType) response.setHeader('Content-Type', configured.contentType);
+        if ((configured.status ?? 200) >= 400) {
+          response.end();
+          return;
+        }
+        const body = Buffer.from(configured.body);
+        response.setHeader('Content-Length', String(body.byteLength));
+        response.end(body);
+        return;
+      }
+
+      const body = await requestBody(request);
+      const match = /^([a-f0-9]{32})\.(svg|png|jpg|wav|mp3)$/.exec(assetFile);
+      const dataFormat = match?.[2] ?? null;
+      const canonicalReference = match
+        ? {
+            assetId: match[1],
+            dataFormat,
+            sha256: createHash('sha256').update(body).digest('hex'),
+            sizeBytes: body.byteLength,
+          }
+        : null;
+      const identityOk =
+        Boolean(match) && createHash('md5').update(body).digest('hex') === match?.[1];
+      const contentTypeOk =
+        Boolean(dataFormat) && request.headers['content-type'] === canonicalTypes[dataFormat];
+      const evidence = {
+        assetFile,
+        authorizationOk,
+        cookiePresent: Boolean(request.headers.cookie),
+        urlHasCapability: urlHasCapability(requestUrl),
+        originOk: request.headers.origin === runtimeUrl,
+        identityOk,
+        contentTypeOk,
+        sizeBytes: body.byteLength,
+        sha256: canonicalReference?.sha256 ?? null,
+      };
+      runtimeAssetPutEvidence.push(evidence);
+      runtimeWriteEvents.push({ kind: 'asset-put', assetFile });
+      runtimePersistenceMetrics.assetRequests += 1;
+      runtimePersistenceMetrics.uploadedBytes += body.byteLength;
+      if (!authorizationOk) {
+        response.statusCode = 401;
+        response.end();
+        return;
+      }
+      const assetWriteStatus = options.assetWriteStatus ?? 200;
+      if (assetWriteStatus >= 400) {
+        response.statusCode = assetWriteStatus;
+        response.end();
+        return;
+      }
+      if (!canonicalReference || !identityOk || !contentTypeOk) {
+        response.statusCode = 400;
+        response.end();
+        return;
+      }
+      const blobKey = `${canonicalReference.sha256}.${canonicalReference.dataFormat}`;
+      if (!durableBlobKeys.has(blobKey)) {
+        durableBlobKeys.add(blobKey);
+        runtimePersistenceMetrics.uniqueAssetBytes += body.byteLength;
+        runtimePersistenceMetrics.blobRows += 1;
+      }
+      const aliasKey = `${canonicalReference.assetId}.${canonicalReference.dataFormat}`;
+      if (!durableAliasKeys.has(aliasKey)) {
+        durableAliasKeys.add(aliasKey);
+        runtimePersistenceMetrics.aliasRows += 1;
+      }
+      runtimeAssets.set(assetFile, {
+        body,
+        contentType: canonicalTypes[dataFormat],
+      });
+      const payload =
+        typeof options.assetWriteResponse === 'function'
+          ? options.assetWriteResponse(canonicalReference)
+          : (options.assetWriteResponse ?? { status: 'ok', asset: canonicalReference });
+      response.statusCode = 200;
+      response.setHeader('Content-Type', 'application/json; charset=utf-8');
+      response.setHeader('Cache-Control', 'no-store');
+      response.end(JSON.stringify(payload));
+      return;
+    }
+
+    if (
+      requestUrl === runtimeDraftPath &&
+      (request.method === 'OPTIONS' || request.method === 'PUT')
+    ) {
+      if (!applyRuntimeCors(request, response)) {
+        response.statusCode = 403;
+        response.end();
+        return;
+      }
+      if (request.method === 'OPTIONS') {
+        response.statusCode = 204;
+        response.end();
+        return;
+      }
+      const body = await requestBody(request);
+      let parsed;
+      try {
+        parsed = JSON.parse(body.toString('utf8'));
+      } catch {
+        parsed = null;
+      }
+      const evidence = {
+        authorizationOk: runtimeAuthorizationOk(request.headers.authorization),
+        cookiePresent: Boolean(request.headers.cookie),
+        urlHasCapability: urlHasCapability(requestUrl),
+        originOk: request.headers.origin === runtimeUrl,
+        contentTypeOk: request.headers['content-type'] === 'application/vnd.asa.blocks-draft+json',
+        body: parsed,
+      };
+      runtimeDraftEvidence.push({
+        ...evidence,
+        serverRevisionBefore: serverRevision,
+      });
+      runtimeWriteEvents.push({ kind: 'draft-put' });
+      runtimePersistenceMetrics.draftRequests += 1;
+      if (!evidence.authorizationOk) {
+        response.statusCode = 401;
+        response.end();
+        return;
+      }
+      const draftWriteStatus = options.draftWriteStatus ?? 200;
+      if (draftWriteStatus >= 400) {
+        response.statusCode = draftWriteStatus;
+        response.end();
+        return;
+      }
+      if (!parsed || !evidence.contentTypeOk) {
+        response.statusCode = 400;
+        response.end();
+        return;
+      }
+
+      const mutationId = parsed.mutationId;
+      const previous = committedMutations.get(mutationId);
+      let revision;
+      if (previous) {
+        if (
+          previous.baseRevision !== parsed.baseRevision ||
+          JSON.stringify(previous.document) !== JSON.stringify(parsed.document)
+        ) {
+          response.statusCode = 409;
+          response.setHeader('Content-Type', 'application/json; charset=utf-8');
+          response.end(
+            JSON.stringify({
+              error: { code: 'idempotency_conflict', message: 'mutation payload changed' },
+            }),
+          );
+          return;
+        }
+        runtimePersistenceMetrics.idempotentReplays += 1;
+        revision = previous.revision;
+      } else {
+        if (parsed.baseRevision !== serverRevision) {
+          response.statusCode = 409;
+          response.setHeader('Content-Type', 'application/json; charset=utf-8');
+          response.end(
+            JSON.stringify({
+              error: { code: 'project_revision_conflict', message: 'server revision moved' },
+            }),
+          );
+          return;
+        }
+        serverRevision += 1;
+        revision = serverRevision;
+        committedMutations.set(mutationId, {
+          baseRevision: parsed.baseRevision,
+          document: parsed.document,
+          revision,
+        });
+        runtimePersistenceMetrics.revisionCommits += 1;
+        if (dropDraftResponseRemaining > 0) {
+          dropDraftResponseRemaining -= 1;
+          const partial = '{"status":"ok","revision":';
+          response.statusCode = 200;
+          response.setHeader('Content-Type', 'application/json; charset=utf-8');
+          response.setHeader('Content-Length', String(partial.length + 32));
+          response.write(partial);
+          response.destroy();
+          return;
+        }
+      }
+
+      const payload =
+        typeof options.draftWriteResponse === 'function'
+          ? options.draftWriteResponse(parsed, revision)
+          : (options.draftWriteResponse ?? { status: 'ok', revision });
+      response.statusCode = 200;
+      response.setHeader('Content-Type', 'application/json; charset=utf-8');
+      response.setHeader('Cache-Control', 'no-store');
+      response.end(JSON.stringify(payload));
+      return;
+    }
+
+    const productFile = product?.files.get(requestUrl);
     if (productFile) {
       response.setHeader('Content-Type', productFile.type);
       response.setHeader('Cache-Control', 'no-store');
@@ -88,7 +415,7 @@ window.addEventListener('message', (event) => {
     }
     response.setHeader('Content-Type', 'text/html; charset=utf-8');
     response.setHeader('Cache-Control', 'no-store');
-    if (request.url === '/attacker') {
+    if (requestUrl === '/attacker') {
       response.end(attackerHtml);
       return;
     }
@@ -137,6 +464,22 @@ window.addEventListener('message', (event) => {
       updatedAvatarDataUrl: product?.updatedAvatarDataUrl,
       context,
       pageErrors,
+      runtimeAssetEvidence,
+      runtimeAssetPutEvidence,
+      runtimeDraftEvidence,
+      runtimeWriteEvents,
+      runtimePersistenceMetrics,
+      getServerRevision() {
+        return serverRevision;
+      },
+      getRuntimeSessionSequence() {
+        return runtimeSessionSequence;
+      },
+      advanceServerRevision() {
+        serverRevision += 1;
+        runtimePersistenceMetrics.externalRevisionAdvances += 1;
+        return serverRevision;
+      },
       async close() {
         try {
           await context.close();

@@ -20,7 +20,7 @@ const record = (service, extra = {}) => ({
   Name: `primary-${service}`,
   ...extra,
 });
-const own = ['postgres', 'api', 'web', 'scratch'].map((service) => record(service));
+const own = ['postgres', 'api', 'web', 'scratch', 'minio'].map((service) => record(service));
 const cases = [
   {
     name: 'digest-tagged custom ASA installation',

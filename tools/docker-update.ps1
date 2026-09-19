@@ -38,6 +38,13 @@ function Get-EnvValue {
   return ($line -split '=', 2)[1].Trim()
 }
 
+function New-UpdateRandomHex {
+  param([int]$ByteCount = 32)
+  $bytes = New-Object byte[] $ByteCount
+  [System.Security.Cryptography.RandomNumberGenerator]::Fill($bytes)
+  return -join ($bytes | ForEach-Object { $_.ToString('x2') })
+}
+
 function Get-ComposeArguments {
   $arguments = @('compose', '-f', 'compose.yaml')
   if ($Profile -ne 'base') {
@@ -119,7 +126,7 @@ function Test-SamePath {
 }
 
 function Get-MixedOriginServices {
-  param([string[]]$Services = @('postgres', 'api', 'web', 'scratch'))
+  param([string[]]$Services = @('postgres', 'api', 'web', 'scratch', 'minio'))
 
   $drift = @()
   foreach ($service in $Services) {
@@ -342,6 +349,18 @@ function Invoke-GuardedUpdate {
   if ($Profile -eq 'production' -and (Get-EnvValue 'ASA_SEED_DEV') -ne 'false') {
     throw 'Production update requires ASA_SEED_DEV=false in .env.'
   }
+  $blocksRuntimeKey = Get-EnvValue 'ASA_BLOCKS_RUNTIME_SIGNING_KEY'
+  $needsBlocksRuntimeKey = -not ($blocksRuntimeKey -match '^[a-fA-F0-9]{64}$')
+  $storageNames = @('ASA_OBJECT_STORAGE_ENDPOINT','ASA_OBJECT_STORAGE_REGION','ASA_OBJECT_STORAGE_BUCKET','ASA_OBJECT_STORAGE_ACCESS_KEY','ASA_OBJECT_STORAGE_SECRET_KEY','ASA_OBJECT_STORAGE_FORCE_PATH_STYLE')
+  $storageValues = @($storageNames | ForEach-Object { Get-EnvValue $_ })
+  $storagePresent = @($storageValues | Where-Object { $_ })
+  if ($storagePresent.Count -eq 0) {
+    $needsObjectStorage = $true
+  } elseif ($storagePresent.Count -ne $storageNames.Count) {
+    throw 'Existing .env has an incomplete ASA_OBJECT_STORAGE_* configuration; complete or remove the whole set before updating.'
+  } else {
+    $needsObjectStorage = $false
+  }
   if ($env:COMPOSE_PROJECT_NAME -and $env:COMPOSE_PROJECT_NAME -ne $projectName) {
     throw 'The process COMPOSE_PROJECT_NAME differs from .env; refusing to select an ambiguous PostgreSQL volume.'
   }
@@ -389,6 +408,12 @@ function Invoke-GuardedUpdate {
     if ($originDrift.Count -gt 0) {
       throw 'CHECK BLOCKED: the installation mixes containers from different checkouts. Run the full guarded updater from the PostgreSQL deployment root to reconcile it.'
     }
+    if ($needsBlocksRuntimeKey) {
+      Write-Host 'CHECK NOTE: full update will generate the missing private Blocks runtime signing key.'
+    }
+    if ($needsObjectStorage) {
+      Write-Host 'CHECK NOTE: full update will generate the missing private self-hosted Blocks object-storage configuration.'
+    }
     Write-Host 'CHECK OK: no code, container or database changes were made.'
     return
   }
@@ -422,6 +447,17 @@ function Invoke-GuardedUpdate {
     throw 'Working tree became dirty after fast-forward; build stopped.'
   }
 
+  if ($needsBlocksRuntimeKey) {
+    Add-Content -LiteralPath '.env' -Value "`nASA_BLOCKS_RUNTIME_SIGNING_KEY=$(New-UpdateRandomHex -ByteCount 32)"
+    Write-Host 'Added a private Blocks runtime signing key to the existing .env.'
+  }
+  if ($needsObjectStorage) {
+    $storageAccess = New-UpdateRandomHex -ByteCount 16
+    $storageSecret = New-UpdateRandomHex -ByteCount 32
+    Add-Content -LiteralPath '.env' -Value "`nASA_OBJECT_STORAGE_ENDPOINT=http://minio:9000`nASA_OBJECT_STORAGE_REGION=us-east-1`nASA_OBJECT_STORAGE_BUCKET=asa-blocks`nASA_OBJECT_STORAGE_ACCESS_KEY=$storageAccess`nASA_OBJECT_STORAGE_SECRET_KEY=$storageSecret`nASA_OBJECT_STORAGE_FORCE_PATH_STYLE=true"
+    Write-Host 'Added private self-hosted Blocks object-storage configuration to the existing .env.'
+  }
+
   $schemaVersion = Get-LatestSchemaVersion
   $env:ASA_BUILD_REVISION = $newRevision
   $env:ASA_IMAGE_TAG = $newRevision.Substring(0, 12)
@@ -430,7 +466,7 @@ function Invoke-GuardedUpdate {
   $receiptPath = Join-Path $backupRoot "update-$stamp-$($newRevision.Substring(0, 8)).receipt.txt"
   try {
     Invoke-Compose -Arguments @('config', '--quiet')
-    foreach ($service in @('scratch', 'api', 'web')) { Invoke-Compose -Arguments @('build', $service) }
+    foreach ($service in @('minio', 'scratch', 'api', 'web')) { Invoke-Compose -Arguments @('build', $service) }
     Assert-AsaInstallationIdentity -Root $RepoRoot -DefaultProject $projectName -ComposeArguments $script:ComposeArguments -RequireExisting
     Invoke-Compose -Arguments @('up', '-d', '--no-build')
     [void](Wait-ExactReadiness -Revision $newRevision -SchemaVersion $schemaVersion)
@@ -471,7 +507,7 @@ function Invoke-GuardedUpdate {
     Write-Warning 'Update stopped. The volume/database were NOT removed and no automatic restore was attempted.'
     Write-Warning "Diagnostics: docker $($script:ComposeArguments -join ' ') ps"
     & docker @script:ComposeArguments ps
-    & docker @script:ComposeArguments logs --tail 120 api migration web
+    & docker @script:ComposeArguments logs --tail 120 minio minio-init api migration web scratch
     throw
   }
 

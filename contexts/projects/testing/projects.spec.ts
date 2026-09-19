@@ -72,6 +72,16 @@ function repo(overrides: Partial<ProjectRepositoryPort> = {}): {
     },
     nextTitleSequence: async () => 4,
     listForActor: async () => [personalProject],
+    authorize: async (_tenantId, projectId, _principalId, access) =>
+      projectId === personalProject.id && (access === 'read' || access === 'edit')
+        ? {
+            tenantId: 't1',
+            userId: 'u1',
+            projectId: personalProject.id,
+            moduleKey: personalProject.moduleKey,
+            status: personalProject.status,
+          }
+        : null,
     load: async () => ({
       project: personalProject,
       draft: {

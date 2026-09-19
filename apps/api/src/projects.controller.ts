@@ -50,6 +50,7 @@ function error(code: string, message: string): { error: { code: string; message:
 
 const STATUS_BY_CODE: Record<ProjectErrorCode, number> = {
   validation_error: 400,
+  dependency_unavailable: 503,
   idempotency_conflict: 409,
   project_revision_conflict: 409,
   classroom_not_found: 404,

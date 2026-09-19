@@ -3371,6 +3371,114 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /api/projects/{projectId}/blocks/runtime-session:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+    post:
+      operationId: postBlocksRuntimeSession
+      summary: Issue a short-lived editor capability and current Blocks bootstrap
+      responses:
+        '200':
+          description: Runtime editor session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BlocksRuntimeSessionEnvelope'
+        '401':
+          description: No active account or learner session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Blocks project is unavailable to the active actor
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Runtime capability dependency is unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/blocks/runtime/projects/{projectId}/draft:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+      - $ref: '#/components/parameters/BlocksRuntimeAuthorization'
+      - $ref: '#/components/parameters/BlocksRuntimeOrigin'
+    put:
+      operationId: putBlocksRuntimeDraft
+      summary: Save one Blocks draft through bearer runtime authority
+      requestBody:
+        required: true
+        content:
+          application/vnd.asa.blocks-draft+json:
+            schema:
+              $ref: '#/components/schemas/SaveProjectDraftRequest'
+      responses:
+        '200':
+          description: Draft revision confirmed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BlocksRuntimeDraftSaveEnvelope'
+        '400': { description: Invalid Blocks document or request }
+        '401': { description: Missing, invalid or expired runtime bearer }
+        '403': { description: Wrong origin, permission or current authority }
+        '404': { description: Project is unavailable }
+        '409': { description: Revision or idempotency conflict }
+        '429': { description: Runtime capability request budget exceeded }
+        '503': { description: Project or storage dependency unavailable }
+
+  /api/blocks/runtime/projects/{projectId}/assets/{assetFile}:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+      - $ref: '#/components/parameters/BlocksRuntimeAssetFile'
+      - $ref: '#/components/parameters/BlocksRuntimeAuthorization'
+      - $ref: '#/components/parameters/BlocksRuntimeOrigin'
+    put:
+      operationId: putBlocksRuntimeAsset
+      summary: Persist one exact Scratch asset through private runtime storage
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
+      responses:
+        '200':
+          description: Exact asset is durable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BlocksRuntimeAssetUploadEnvelope'
+        '400': { description: Invalid identity, format or asset bytes }
+        '401': { description: Missing, invalid or expired runtime bearer }
+        '403': { description: Wrong origin, permission or current authority }
+        '409': { description: Immutable Scratch asset identity conflict }
+        '429': { description: Runtime upload/request budget exceeded }
+        '503': { description: Object storage or metadata dependency unavailable }
+    get:
+      operationId: getBlocksRuntimeAsset
+      summary: Read one exact asset referenced by the authorised editor draft
+      responses:
+        '200':
+          description: Exact immutable asset bytes
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '400': { description: Invalid Scratch asset identity }
+        '401': { description: Missing, invalid or expired runtime bearer }
+        '403': { description: Wrong origin, permission, current authority or player mode }
+        '404': { description: Project or referenced asset is unavailable }
+        '429': { description: Runtime capability request budget exceeded }
+        '503': { description: Object storage or metadata dependency unavailable }
+
   /api/projects/{projectId}:
     parameters:
       - $ref: '#/components/parameters/ProjectId'
@@ -3647,6 +3755,27 @@ components:
       schema:
         type: string
         format: uuid
+    BlocksRuntimeAuthorization:
+      name: Authorization
+      in: header
+      required: true
+      schema:
+        type: string
+        pattern: '^Bearer [A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$'
+    BlocksRuntimeOrigin:
+      name: Origin
+      in: header
+      required: true
+      schema:
+        type: string
+        format: uri
+    BlocksRuntimeAssetFile:
+      name: assetFile
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: '^[a-f0-9]{32}\.(svg|png|jpg|wav|mp3)$'
     IdempotencyKey:
       name: Idempotency-Key
       in: header
@@ -5771,6 +5900,64 @@ components:
       properties:
         status:
           $ref: '#/components/schemas/ProjectStatus'
+    BlocksAssetReference:
+      type: object
+      additionalProperties: false
+      required: [assetId, dataFormat, sha256, sizeBytes]
+      properties:
+        assetId:
+          type: string
+          pattern: '^[a-f0-9]{32}$'
+        dataFormat:
+          type: string
+          enum: [svg, png, jpg, wav, mp3]
+        sha256:
+          type: string
+          pattern: '^[a-f0-9]{64}$'
+        sizeBytes:
+          type: integer
+          minimum: 1
+    BlocksRuntimeSessionEnvelope:
+      type: object
+      additionalProperties: false
+      required: [runtimeOrigin, runtimeToken, expiresAt, draftRevision, projectJson, assets]
+      properties:
+        runtimeOrigin:
+          type: string
+          format: uri
+        runtimeToken:
+          type: string
+        expiresAt:
+          type: integer
+          minimum: 1
+        draftRevision:
+          type: integer
+          minimum: 0
+        projectJson:
+          type: [object, 'null']
+        assets:
+          type: array
+          items:
+            $ref: '#/components/schemas/BlocksAssetReference'
+    BlocksRuntimeAssetUploadEnvelope:
+      type: object
+      additionalProperties: false
+      required: [status, asset]
+      properties:
+        status:
+          const: ok
+        asset:
+          $ref: '#/components/schemas/BlocksAssetReference'
+    BlocksRuntimeDraftSaveEnvelope:
+      type: object
+      additionalProperties: false
+      required: [status, revision]
+      properties:
+        status:
+          const: ok
+        revision:
+          type: integer
+          minimum: 1
     SaveProjectDraftRequest:
       type: object
       additionalProperties: false

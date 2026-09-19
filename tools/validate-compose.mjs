@@ -136,7 +136,7 @@ const guardedUpdaterSources = [
       'backup_database "$backup_path"',
       'git pull --ff-only origin main',
       'ASA_BUILD_REVISION=$new_revision',
-      'for service in scratch api web',
+      'for service in minio scratch api web',
       'compose up -d --no-build',
       '&& wait_exact_readiness',
     ],
@@ -153,7 +153,7 @@ const guardedUpdaterSources = [
       'New-DatabaseBackup $backupPath',
       'Invoke-Native git pull --ff-only origin main',
       '$env:ASA_BUILD_REVISION = $newRevision',
-      "foreach ($service in @('scratch', 'api', 'web'))",
+      "foreach ($service in @('minio', 'scratch', 'api', 'web'))",
       "Invoke-Compose -Arguments @('up', '-d', '--no-build')",
       '[void](Wait-ExactReadiness',
     ],
@@ -286,7 +286,7 @@ if (
   errors.push('Scratch runtime must not share API/database networks');
 if (baseServices.web?.depends_on?.scratch?.condition !== 'service_healthy')
   errors.push('Web startup must wait for healthy Scratch');
-const expectedServices = ['api', 'migration', 'postgres', 'scratch', 'web'];
+const expectedServices = ['api', 'migration', 'minio', 'minio-init', 'postgres', 'scratch', 'web'];
 if (JSON.stringify(serviceNames) !== JSON.stringify(expectedServices)) {
   errors.push(
     `base services must be exactly ${expectedServices.join(', ')}, got ${serviceNames.join(', ')}`,

@@ -269,6 +269,20 @@ ASA_BLOCKS_FATAL
 
 Every post-init message binds protocolVersion/projectId/sessionNonce; flush additionally binds requestId. `postMessage('*')` forbidden. ASA cookies, signing keys and object-store credentials never enter messages.
 
+Bounded dirty/save payloads reuse the finite v1 message types:
+
+```text
+ASA_BLOCKS_STATUS:
+  status = project-dirty
+  generation = non-negative safe integer
+
+successful ASA_BLOCKS_FLUSH_RESULT:
+  revision = confirmed Project Core revision
+  snapshotGeneration = non-negative safe integer captured when FLUSH begins
+```
+
+`project-dirty` is a memory-only UI correctness signal, not autosave or generic RPC. Parent may show `Сохранено` only when the successful `snapshotGeneration` is not older than the latest accepted dirty generation for the same bound iframe session.
+
 ## Scratch storage adapter
 
 Host creates ASA-controlled `ScratchStorage`/`GUIStorage` for ASA project/runtime data.

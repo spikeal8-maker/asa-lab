@@ -92,6 +92,23 @@ create_environment() {
       printf '\nASA_SETTINGS_ENCRYPTION_KEY=%s\n' "$(random_hex 32)" >>.env
       echo "Added a private runtime settings encryption key to .env."
     fi
+    if ! grep -Eq '^ASA_BLOCKS_RUNTIME_SIGNING_KEY=[a-fA-F0-9]{64}[[:space:]]*$' .env; then
+      printf '\nASA_BLOCKS_RUNTIME_SIGNING_KEY=%s\n' "$(random_hex 32)" >>.env
+      echo "Added a private Blocks runtime signing key to .env."
+    fi
+    storage_present=0
+    for name in ASA_OBJECT_STORAGE_ENDPOINT ASA_OBJECT_STORAGE_REGION ASA_OBJECT_STORAGE_BUCKET ASA_OBJECT_STORAGE_ACCESS_KEY ASA_OBJECT_STORAGE_SECRET_KEY ASA_OBJECT_STORAGE_FORCE_PATH_STYLE; do
+      if grep -Eq "^${name}=[^[:space:]]" .env; then storage_present=$((storage_present + 1)); fi
+    done
+    if [ "$storage_present" -eq 0 ]; then
+      storage_access=$(random_hex 16)
+      storage_secret=$(random_hex 32)
+      printf '\nASA_OBJECT_STORAGE_ENDPOINT=http://minio:9000\nASA_OBJECT_STORAGE_REGION=us-east-1\nASA_OBJECT_STORAGE_BUCKET=asa-blocks\nASA_OBJECT_STORAGE_ACCESS_KEY=%s\nASA_OBJECT_STORAGE_SECRET_KEY=%s\nASA_OBJECT_STORAGE_FORCE_PATH_STYLE=true\n' "$storage_access" "$storage_secret" >>.env
+      echo "Added private self-hosted Blocks object-storage configuration to .env."
+    elif [ "$storage_present" -ne 6 ]; then
+      echo "Existing .env has an incomplete ASA_OBJECT_STORAGE_* configuration; complete or remove the whole set before continuing." >&2
+      exit 78
+    fi
     if [ "$production_like" = true ] && ! grep -Eq '^ASA_SEED_DEV=false[[:space:]]*$' .env; then
       echo "$profile requires ASA_SEED_DEV=false in .env." >&2
       echo "Refusing to seed development accounts into a production-like database." >&2
@@ -104,6 +121,9 @@ create_environment() {
   runtime_password=$(random_hex)
   teacher_password=$(random_hex)
   settings_encryption_key=$(random_hex 32)
+  blocks_runtime_signing_key=$(random_hex 32)
+  object_storage_access_key=$(random_hex 16)
+  object_storage_secret_key=$(random_hex 32)
   uid=$(id -u 2>/dev/null || printf 1000)
   gid=$(id -g 2>/dev/null || printf 1000)
   case "$profile" in
@@ -130,6 +150,13 @@ MIGRATION_EXPECT_DATABASE=asalab
 MIGRATION_CONFIRM=APPLY:asalab
 APP_DATABASE_URL=postgres://asalab_app:$runtime_password@postgres:5432/asalab
 ASA_SETTINGS_ENCRYPTION_KEY=$settings_encryption_key
+ASA_BLOCKS_RUNTIME_SIGNING_KEY=$blocks_runtime_signing_key
+ASA_OBJECT_STORAGE_ENDPOINT=http://minio:9000
+ASA_OBJECT_STORAGE_REGION=us-east-1
+ASA_OBJECT_STORAGE_BUCKET=asa-blocks
+ASA_OBJECT_STORAGE_ACCESS_KEY=$object_storage_access_key
+ASA_OBJECT_STORAGE_SECRET_KEY=$object_storage_secret_key
+ASA_OBJECT_STORAGE_FORCE_PATH_STYLE=true
 
 ASA_WEB_PORT=4610
 ASA_API_PORT=4611
@@ -174,7 +201,7 @@ wait_for_ready() {
 
   echo "ASA Lab did not become ready within 5 minutes." >&2
   compose ps -a >&2 || true
-  compose logs --tail=120 postgres migration api web scratch >&2 || true
+  compose logs --tail=120 postgres migration minio minio-init api web scratch >&2 || true
   return 1
 }
 
@@ -206,7 +233,7 @@ case "$action" in
     assert_startup_identity
     create_environment
     compose config --quiet
-    for service in scratch api web; do compose build "$service"; done
+    for service in minio scratch api web; do compose build "$service"; done
     assert_startup_identity
     compose up -d --no-build
     wait_for_ready
@@ -228,13 +255,13 @@ case "$action" in
     ;;
   logs)
     require_docker
-    compose logs --tail=200 postgres migration api web scratch
+    compose logs --tail=200 postgres migration minio minio-init api web scratch
     ;;
   down)
     require_docker
     assert_startup_identity
     compose down --remove-orphans
-    echo "ASA Lab stopped; PostgreSQL data volume was preserved."
+    echo "ASA Lab stopped; PostgreSQL and Blocks object-storage data volumes were preserved."
     ;;
   *)
     echo "usage: $0 [up|doctor|health|status|logs|down]" >&2

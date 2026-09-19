@@ -7,7 +7,7 @@ export const parentOrigin = `http://127.0.0.1:${parentPort}`;
 export const alternateParentOrigin = `http://localhost:${parentPort}`;
 export const projectId = '11111111-1111-4111-8111-111111111111';
 export const sessionNonce = 'fixture-session-nonce-c';
-export const runtimeToken = 'fixture-runtime-token-c';
+export const runtimeToken = 'fixture.runtime.token';
 
 export const binding = {
   protocolVersion: 1,
@@ -22,6 +22,7 @@ export const initMessage = {
   apiOrigin: parentOrigin,
   runtimeToken,
   draftRevision: 0,
+  projectJson: null,
   hasProjectJson: false,
   assets: [],
   recoveryNamespace: 'fixture-c',

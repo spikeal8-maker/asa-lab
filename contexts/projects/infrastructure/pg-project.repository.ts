@@ -200,6 +200,36 @@ export class PgProjectRepository implements ProjectRepositoryPort {
     return row ? { tenantId: row.tenant_id, userId: row.user_id } : null;
   }
 
+  async authorize(
+    tenantId: string,
+    projectId: string,
+    principalId: string,
+    access: 'read' | 'edit',
+  ) {
+    const context = await this.projectContext(tenantId, projectId, { principalId, userId: null });
+    if (!context) return null;
+    return withTenantContext(this.pool, context.tenantId, async (client) => {
+      const predicate = access === 'edit' ? EDIT_ACCESS_SQL : ACCESS_SQL;
+      const result = await client.query(
+        `SELECT p.id,p.module_key,p.status
+           FROM projects p
+          WHERE p.tenant_id=$1 AND p.id=$2 AND p.status <> 'trashed' AND ${predicate}`,
+        [context.tenantId, projectId, principalId, context.userId],
+      );
+      const row = result.rows[0] as
+        { id: string; module_key: string; status: ProjectStatus } | undefined;
+      return row
+        ? {
+            tenantId: context.tenantId,
+            userId: context.userId,
+            projectId: row.id,
+            moduleKey: row.module_key,
+            status: row.status,
+          }
+        : null;
+    });
+  }
+
   async createWithDraft(input: CreateProjectInput): Promise<CreateProjectResult> {
     const { principalId, userId } = input.actor;
     let projectTenantId = input.tenantId;

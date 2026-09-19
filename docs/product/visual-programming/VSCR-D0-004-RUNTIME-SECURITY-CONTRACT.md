@@ -92,14 +92,31 @@ Do not create a process-local Scratch token blacklist as the primary model.
 
 ## Token refresh and browser handling
 
-Child cannot mint a token.
+Child cannot mint a token. Parent Web owns the rotation lifecycle and keeps `expiresAt` only in memory.
 
 ```text
-child requests refresh
-→ parent calls normal ASA session endpoint
-→ parent sends token update to exact runtime origin/sessionNonce
-→ child replaces memory-only token
+initial runtime-session
+→ remember expiresAt in Parent memory
+→ schedule proactive refresh 60 seconds before expiry
+→ POST the same /api/projects/{projectId}/blocks/runtime-session endpoint
+→ strict-parse the returned session and require the same configured runtimeOrigin
+→ ASA_BLOCKS_TOKEN_UPDATE to the same projectId/sessionNonce
+→ child replaces only its memory-only bearer
+→ same iframe, VM, Project Core revision/fingerprint, durable-asset knowledge and unresolved mutation identity remain intact
 ```
+
+A child `ASA_BLOCKS_TOKEN_REFRESH_REQUIRED` message, when used, joins the same Parent-owned single-flight refresh. It does not mint authority and does not create a second INIT.
+
+Explicit Save has a timer-throttling fallback:
+
+```text
+Save click
+→ if capability expired or <= 60 seconds remain, refresh first
+→ successful TOKEN_UPDATE
+→ only then ASA_BLOCKS_FLUSH_REQUEST
+```
+
+If mandatory refresh fails, is malformed, has the wrong runtime origin, is stale after reload/unmount, or Project Core authority has been revoked, the old capability is not extended and FLUSH is not sent. There is no automatic save retry/backoff in this contract. Successful token rotation is presentation-invisible: it does not change editor-ready state or reload the iframe/VM.
 
 Token forbidden in URL/query/hash/localStorage/sessionStorage/IndexedDB/cookie/analytics/logs.
 

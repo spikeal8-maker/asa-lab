@@ -2,43 +2,80 @@ schema_version: 2.0.0
 area: project-persistence
 components:
   - id: blocks.project.persistence-guard
-    state: blocked
+    state: implemented
     risk: high
     ownership: cross_boundary
-    purpose: "Generic Project Core pre-save durability guard plus Blocks-specific implementation."
+    purpose: Generic pre-save guard plus Blocks validation, composed into the production SaveDraftUseCase.
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-002-PERSISTENCE-CONTRACT.md
-        section: "Decision: generic async pre-save persistence guard"
+        section: 'Decision: generic async pre-save persistence guard'
       - path: docs/product/visual-programming/VSCR-D0-002-PERSISTENCE-CONTRACT.md
-        section: "Generic project-draft API must not bypass durability"
-    task: VSCR-M1-005
-    active_candidate:
-      task: VSCR-M1-005B
-      pr: 288
-      branch: codex/scratch-real-storage-005b
-      status: implemented_in_draft_pr
-      acceptance: pending
-    design_gate: VSCR-M1-005P
-    depends_on: [blocks.assets.metadata]
+        section: Generic project-draft API must not bypass durability
+    task: VSCR-M1-005A
+    depends_on:
+      - blocks.assets.metadata
+    sources:
+      - path: contexts/projects/application/ports.ts
+        symbols:
+          - ProjectDraftPersistenceGuardPort
+          - ProjectPersistenceGuardResult
+      - path: contexts/projects/application/project.usecases.ts
+        symbols:
+          - SaveDraftUseCase
+      - path: apps/api/src/blocks-persistence.guard.ts
+        symbols:
+          - BlocksDraftPersistenceGuard
+          - BlocksAssetMetadataPort
+      - path: apps/api/src/blocks-durable-document.ts
+        symbols:
+          - inspectBlocksDocument
+          - inspectScratchProject
+          - snapshotJson
+      - path: apps/api/src/projects.controller.ts
+        symbols: [STATUS_BY_CODE, ProjectsController]
+    tests:
+      - apps/api/src/blocks-project-persistence.spec.ts
+      - e2e/blocks-product-integration.spec.ts
+      - tools/blocks/flush-semantics.test.mjs
+      - contexts/projects/testing/projects.spec.ts
+      - apps/api/src/projects-save-status.spec.ts
 
   - id: blocks.project.load-save
-    state: blocked
+    state: implemented
     risk: high
     ownership: cross_boundary
-    purpose: "Durable projectJson load/save with exact already-durable referenced assets."
+    purpose:
+      Real runtime-session open, parent-owned explicit Save, live-VM FLUSH persistence and
+      save-close-fresh-browser exact reopen are implemented candidates through common Project Core
+      and production PostgreSQL/private object-storage adapters; independent critical review remains pending.
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-002-PERSISTENCE-CONTRACT.md
-        section: "Asset-before-document invariant"
+        section: Asset-before-document invariant
       - path: docs/product/visual-programming/VSCR-D0-003-ASSET-STORAGE-CONTRACT.md
-        section: "Project save interaction"
-    task: VSCR-M1-005
-    active_candidate:
-      task: VSCR-M1-005B
-      pr: 288
-      branch: codex/scratch-real-storage-005b
-      status: backend_pipeline_present_browser_wiring_pending
-      acceptance: pending
-    depends_on: [blocks.project.persistence-guard, blocks.assets.upload, blocks.assets.read]
+        section: Project save interaction
+    task: VSCR-M1-005A
+    completion_task: VSCR-M1-005B
+    candidate_status: implementation_complete_independent_review_pending
+    depends_on:
+      - blocks.project.persistence-guard
+      - blocks.assets.upload
+      - blocks.assets.read
+    sources:
+      - path: apps/api/src/blocks-project-persistence.ts
+        symbols:
+          - BlocksProjectPersistence
+          - BlocksDurableAssetPort
+          - BlocksAssetSourcePort
+      - path: apps/api/src/blocks-durable-document.ts
+        symbols:
+          - inspectBlocksDocument
+          - inspectScratchProject
+    tests:
+      - apps/api/src/blocks-project-persistence.spec.ts
+      - apps/web/src/blocks/testing/editor-runtime-session.spec.ts
+      - e2e/blocks-product-integration.spec.ts
+      - tools/blocks/flush-semantics.test.mjs
+      - tools/blocks/portable-smoke.mjs
 
   - id: blocks.project.autosave
     state: blocked
@@ -86,7 +123,9 @@ components:
     state: blocked
     risk: high
     ownership: asa
-    purpose: "Optimistic revision conflict handling with no silent last-write-wins."
+    purpose:
+      Persistence-level revision conflict detection is implemented fail-closed in M1-005B;
+      user-facing conflict UX/recovery remains blocked on M1-006.
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-002-PERSISTENCE-CONTRACT.md
         section: "Conflict behaviour"

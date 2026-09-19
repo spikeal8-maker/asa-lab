@@ -11,7 +11,7 @@ asa_validate_identity_inventory() (
     if [ -n "$r_project$service$r_root$files$image$name" ] && [ -z "$name" ]; then
       asa_identity_fail 'ASA_IDENTITY_DOCKER: malformed inspection record.'; exit 1
     fi
-    case "$service" in postgres|api|web|scratch) ;; *) continue ;; esac
+    case "$service" in postgres|api|web|scratch|minio) ;; *) continue ;; esac
     same_root=false
     [ -n "$r_root" ] && [ "$(asa_identity_path "$r_root")" = "$root_key" ] && same_root=true
     if [ "$r_project" != "$project" ]; then

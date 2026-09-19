@@ -32,7 +32,7 @@ components:
     state: implemented
     risk: medium
     ownership: upstream_patch
-    purpose: 'ASA mark; native UI.'
+    purpose: 'ASA mark/UI.'
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-001-SCRATCH-HOST-CONTRACT.md
         section: 'Branding'
@@ -66,7 +66,7 @@ components:
     state: implemented
     risk: medium
     ownership: asa
-    purpose: 'ASA chrome; native block colours.'
+    purpose: 'ASA chrome/theme.'
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-001-SCRATCH-HOST-CONTRACT.md
         section: 'ASA theme boundary'
@@ -79,16 +79,15 @@ components:
     state: implemented
     risk: high
     ownership: cross_boundary
-    purpose: 'Parent home/account/status.'
+    purpose: 'Parent shell.'
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-001-SCRATCH-HOST-CONTRACT.md
         section: 'ASA identity shell'
     sources:
-      - apps/web/src/blocks/BlocksEditor.tsx
+      - { path: apps/web/src/blocks/BlocksEditor.tsx, symbols: [BlocksEditor] }
       - apps/web/src/blocks/BlocksEditorShell.tsx
       - apps/web/src/blocks/blocks-editor-shell.css
     tests:
-      - e2e/blocks-host-controls.spec.ts
       - e2e/blocks-product-integration.spec.ts
       - apps/web/src/blocks/testing/runtime-origin.spec.ts
       - apps/web/src/blocks/testing/editor-shell.spec.ts
@@ -153,14 +152,15 @@ components:
     state: implemented
     risk: high
     ownership: asa
-    purpose: 'Fixtures; no fallback/writes.'
+    purpose: 'Runtime FLUSH fingerprint/no-op/replay.'
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-001-SCRATCH-HOST-CONTRACT.md
         section: 'Scratch storage adapter'
     sources:
-      - infra/scratch-editor/host/storage.js
+      - path: infra/scratch-editor/host/storage.js
+        symbols: [createReadOnlyStorage]
       - path: infra/scratch-editor/host/editor.js
-        symbols: [mountEditor, createFixtureStorage, EditorState, setProjectId]
+        symbols: [mountEditor, EditorState, setProjectId]
       - path: infra/scratch-editor/host/main.js
         symbols: [editor]
     tests:

@@ -24,10 +24,12 @@ import type {
   ProjectListFilter,
   ProjectModule,
   ProjectRepositoryPort,
+  ProjectDraftPersistenceGuardPort,
 } from './ports.js';
 
 export type ProjectErrorCode =
   | 'validation_error'
+  | 'dependency_unavailable'
   | 'idempotency_conflict'
   | 'project_revision_conflict'
   | 'classroom_not_found'
@@ -460,6 +462,7 @@ export class SaveDraftUseCase {
   constructor(
     private readonly repository: ProjectRepositoryPort,
     private readonly modules: ModuleCatalogPort,
+    private readonly persistenceGuard?: ProjectDraftPersistenceGuardPort,
   ) {}
 
   async execute(input: {
@@ -480,6 +483,13 @@ export class SaveDraftUseCase {
     ) {
       return fail('validation_error', 'mutationId must be a UUID v4');
     }
+    if (this.persistenceGuard) {
+      try {
+        input = { ...input, actor: { ...input.actor }, document: structuredClone(input.document) };
+      } catch {
+        return fail('validation_error', 'Project document must be serializable.');
+      }
+    }
     const loaded = await this.repository.load(input.tenantId, input.projectId, input.actor);
     if (!loaded) {
       return fail('project_not_found', 'project not found');
@@ -492,12 +502,36 @@ export class SaveDraftUseCase {
     if (!parsed.ok) {
       return fail('validation_error', parsed.message);
     }
+    // Detach the validated document from caller and guard mutations across await.
+    let document = parsed.document;
+    if (this.persistenceGuard) {
+      try {
+        document = structuredClone(parsed.document);
+        const result = await this.persistenceGuard.validate({
+          tenantId: input.tenantId,
+          projectId: input.projectId,
+          actor: { ...input.actor },
+          moduleKey: loaded.project.moduleKey,
+          document: structuredClone(document),
+        });
+        if (result.ok !== true) {
+          if (
+            result.ok === false &&
+            (result.code === 'validation_error' || result.code === 'dependency_unavailable')
+          )
+            return fail(result.code, result.message);
+          return fail('dependency_unavailable', 'Project storage validation is unavailable.');
+        }
+      } catch {
+        return fail('dependency_unavailable', 'Project storage validation is unavailable.');
+      }
+    }
     const draft = await this.repository.saveDraft({
       tenantId: input.tenantId,
       projectId: input.projectId,
       actor: input.actor,
-      document: parsed.document,
-      preview: previewOf(module, parsed.document),
+      document,
+      preview: previewOf(module, document),
       baseRevision: input.baseRevision,
       mutationId: input.mutationId,
     });

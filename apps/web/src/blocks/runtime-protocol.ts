@@ -38,6 +38,7 @@ export interface BlocksRuntimeInitOptions {
   apiOrigin: string;
   runtimeToken: string;
   draftRevision: number;
+  projectJson: Record<string, unknown> | null;
   hasProjectJson: boolean;
   assets: readonly unknown[];
   recoveryNamespace: string;
@@ -66,6 +67,10 @@ export function requireExactHttpOrigin(value: string): string {
   }
   return value;
 }
+function isNonNegativeSafeInteger(value: unknown): boolean {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
+}
+
 function isChildMessageType(value: unknown): value is BlocksChildMessageType {
   return (
     value === 'ASA_BLOCKS_READY' ||
@@ -124,6 +129,7 @@ export class BlocksRuntimeBridge {
       apiOrigin: requireExactHttpOrigin(this.options.apiOrigin),
       runtimeToken: this.runtimeToken,
       draftRevision: this.options.draftRevision,
+      projectJson: this.options.projectJson,
       hasProjectJson: this.options.hasProjectJson,
       assets: this.options.assets,
       recoveryNamespace: this.options.recoveryNamespace,
@@ -179,9 +185,38 @@ export class BlocksRuntimeBridge {
     ) {
       return false;
     }
+    if (message['messageType'] === 'ASA_BLOCKS_STATUS') {
+      const status = message['status'];
+      if (typeof status !== 'string' || status.length === 0) return false;
+      if (status === 'project-dirty') {
+        if (!isNonNegativeSafeInteger(message['generation'])) return false;
+      } else if (typeof message['generation'] !== 'undefined') {
+        return false;
+      }
+    }
     if (message['messageType'] === 'ASA_BLOCKS_FLUSH_RESULT') {
       const requestId = message['requestId'];
       if (typeof requestId !== 'string' || !this.pendingFlushRequestIds.has(requestId)) {
+        return false;
+      }
+      if (message['ok'] === true) {
+        if (
+          !isNonNegativeSafeInteger(message['revision']) ||
+          !isNonNegativeSafeInteger(message['snapshotGeneration']) ||
+          (message['reason'] !== null && typeof message['reason'] !== 'undefined')
+        ) {
+          return false;
+        }
+      } else if (message['ok'] === false) {
+        if (
+          typeof message['reason'] !== 'string' ||
+          message['reason'].length === 0 ||
+          typeof message['revision'] !== 'undefined' ||
+          typeof message['snapshotGeneration'] !== 'undefined'
+        ) {
+          return false;
+        }
+      } else {
         return false;
       }
       this.pendingFlushRequestIds.delete(requestId);

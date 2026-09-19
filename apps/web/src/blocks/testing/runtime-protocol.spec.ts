@@ -25,6 +25,7 @@ function makeBridge(target = makeTarget(), onFatal = vi.fn(), onMessage = vi.fn(
       apiOrigin: API_ORIGIN,
       runtimeToken: 'fixture-token',
       draftRevision: 12,
+      projectJson: { targets: [], monitors: [], extensions: [] },
       hasProjectJson: true,
       assets: [],
       recoveryNamespace: 'fixture-recovery',
@@ -54,6 +55,9 @@ describe('BlocksRuntimeBridge', () => {
       projectId: PROJECT_ID,
       sessionNonce: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
       runtimeToken: 'fixture-token',
+      draftRevision: 12,
+      projectJson: { targets: [], monitors: [], extensions: [] },
+      hasProjectJson: true,
     });
   });
 
@@ -111,6 +115,51 @@ describe('BlocksRuntimeBridge', () => {
         source: target,
         origin: RUNTIME_ORIGIN,
         data: { ...valid, protocolVersion: 2 },
+      }),
+    ).toBe(false);
+  });
+
+  it('accepts bounded project-dirty generation and rejects malformed dirty payloads', () => {
+    vi.stubGlobal('crypto', { randomUUID: () => 'abababab-abab-4bab-8bab-abababababab' });
+    const { bridge, target, onMessage } = makeBridge();
+    const base = {
+      protocolVersion: BLOCKS_PROTOCOL_VERSION,
+      messageType: 'ASA_BLOCKS_STATUS',
+      projectId: PROJECT_ID,
+      sessionNonce: bridge.sessionNonce,
+      status: 'project-dirty',
+    };
+
+    expect(
+      bridge.acceptChildMessage({
+        source: target,
+        origin: RUNTIME_ORIGIN,
+        data: { ...base, generation: 4 },
+      }),
+    ).toBe(true);
+    expect(onMessage).toHaveBeenLastCalledWith({ ...base, generation: 4 });
+
+    for (const generation of [undefined, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY, '4']) {
+      expect(
+        bridge.acceptChildMessage({
+          source: target,
+          origin: RUNTIME_ORIGIN,
+          data: { ...base, generation },
+        }),
+      ).toBe(false);
+    }
+    expect(
+      bridge.acceptChildMessage({
+        source: {},
+        origin: RUNTIME_ORIGIN,
+        data: { ...base, generation: 5 },
+      }),
+    ).toBe(false);
+    expect(
+      bridge.acceptChildMessage({
+        source: target,
+        origin: 'http://evil.test',
+        data: { ...base, generation: 5 },
       }),
     ).toBe(false);
   });
@@ -209,5 +258,62 @@ describe('BlocksRuntimeBridge', () => {
         data: result('flush-1'),
       }),
     ).toBe(false);
+  });
+
+  it('accepts successful FLUSH_RESULT only with a confirmed revision', () => {
+    vi.stubGlobal('crypto', { randomUUID: () => 'ffffffff-ffff-4fff-8fff-ffffffffffff' });
+    const { bridge, target, onMessage } = makeBridge();
+    bridge.requestFlush('save-1');
+    const success = {
+      protocolVersion: BLOCKS_PROTOCOL_VERSION,
+      messageType: 'ASA_BLOCKS_FLUSH_RESULT',
+      projectId: PROJECT_ID,
+      sessionNonce: bridge.sessionNonce,
+      requestId: 'save-1',
+      ok: true,
+      reason: null,
+      revision: 12,
+      snapshotGeneration: 3,
+    };
+    expect(
+      bridge.acceptChildMessage({ source: target, origin: RUNTIME_ORIGIN, data: success }),
+    ).toBe(true);
+    expect(onMessage).toHaveBeenCalledWith(success);
+  });
+
+  it.each([
+    { ok: true, reason: null },
+    { ok: true, reason: null, revision: -1, snapshotGeneration: 0 },
+    { ok: true, reason: null, revision: 2 },
+    { ok: true, reason: null, revision: 2, snapshotGeneration: -1 },
+    { ok: true, reason: 'wrong', revision: 2, snapshotGeneration: 0 },
+    { ok: false, reason: '' },
+    { ok: false, reason: 'failed', revision: 2 },
+    { ok: false, reason: 'failed', snapshotGeneration: 2 },
+  ])('rejects malformed FLUSH_RESULT %# without consuming the request', (extra) => {
+    vi.stubGlobal('crypto', { randomUUID: () => 'ffffffff-ffff-4fff-8fff-ffffffffffff' });
+    const { bridge, target } = makeBridge();
+    bridge.requestFlush('save-malformed');
+    const base = {
+      protocolVersion: BLOCKS_PROTOCOL_VERSION,
+      messageType: 'ASA_BLOCKS_FLUSH_RESULT',
+      projectId: PROJECT_ID,
+      sessionNonce: bridge.sessionNonce,
+      requestId: 'save-malformed',
+    };
+    expect(
+      bridge.acceptChildMessage({
+        source: target,
+        origin: RUNTIME_ORIGIN,
+        data: { ...base, ...extra },
+      }),
+    ).toBe(false);
+    expect(
+      bridge.acceptChildMessage({
+        source: target,
+        origin: RUNTIME_ORIGIN,
+        data: { ...base, ok: false, reason: 'save_failed' },
+      }),
+    ).toBe(true);
   });
 });

@@ -71,6 +71,10 @@ import { createRuntimeMetrics } from '@asa-lab/observability';
 import { HealthController } from './health.controller.js';
 import { ModulesController } from './modules.controller.js';
 import { ProjectsController } from './projects.controller.js';
+import { BlocksRuntimeSessionController } from './blocks-runtime-session.controller.js';
+import { BlocksRuntimeController } from './blocks-runtime.controller.js';
+import { BlocksRuntimeSessionIssuer } from './blocks-runtime-session-issuer.js';
+import { BlocksRuntimePersistenceService } from './blocks-runtime-persistence.service.js';
 import { VersionController } from './version.controller.js';
 import { createApiModuleRegistry } from './module-registry.js';
 import { SeatContextUseCase } from './seat-context.js';
@@ -81,6 +85,7 @@ import { RefreshSessionService } from './refresh-session.service.js';
 import { TOKENS } from './tokens.js';
 import { ProductAnalyticsController } from './product-analytics.controller.js';
 import { ProductAnalyticsService } from './product-analytics.service.js';
+import { createBlocksDraftPersistenceGuard } from './blocks-draft-composition.js';
 
 function validationMessage(
   entry: RegisteredModule,
@@ -180,6 +185,8 @@ export class AppModule {
         ClassroomTeacherInvitationsController,
         ModulesController,
         ProjectsController,
+        BlocksRuntimeSessionController,
+        BlocksRuntimeController,
         CheckersClassroomController,
         ChessLiveController,
         VersionController,
@@ -293,7 +300,12 @@ export class AppModule {
         },
         {
           provide: TOKENS.saveDraftUseCase,
-          useFactory: () => new SaveDraftUseCase(projectRepository(), projectModules),
+          useFactory: () =>
+            new SaveDraftUseCase(
+              projectRepository(),
+              projectModules,
+              createBlocksDraftPersistenceGuard(requirePool()),
+            ),
         },
         {
           provide: TOKENS.restoreVersionUseCase,
@@ -318,6 +330,16 @@ export class AppModule {
         {
           provide: TOKENS.seatContextUseCase,
           useFactory: () => new SeatContextUseCase(pool),
+        },
+        {
+          provide: TOKENS.blocksRuntimeSessionIssuer,
+          useFactory: () => new BlocksRuntimeSessionIssuer(pool),
+        },
+        {
+          provide: TOKENS.blocksRuntimePersistence,
+          useFactory: (saveDraft: SaveDraftUseCase) =>
+            new BlocksRuntimePersistenceService(pool, saveDraft),
+          inject: [TOKENS.saveDraftUseCase],
         },
         {
           provide: TOKENS.projectFeedbackService,

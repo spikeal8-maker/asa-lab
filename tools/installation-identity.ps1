@@ -14,7 +14,7 @@ function Assert-AsaIdentityInventory {
   $owned = @{}
   $foreignAsa = @()
   foreach ($r in $Records) {
-    if ($r.Service -notin @('postgres', 'api', 'web', 'scratch')) { continue }
+    if ($r.Service -notin @('postgres', 'api', 'web', 'scratch', 'minio')) { continue }
     $sameRoot = $r.Root -and (ConvertTo-AsaIdentityPath $r.Root) -ceq $rootKey
     if ($r.Project -cne $Project) {
       if ($sameRoot) { throw "ASA_IDENTITY_PROJECT: $($r.Name) already belongs to $($r.Project) in this directory." }

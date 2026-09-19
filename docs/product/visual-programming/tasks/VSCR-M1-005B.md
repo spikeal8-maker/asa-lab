@@ -39,36 +39,42 @@ local File. Это отдельный режим доступности и **н�
 
 ## Current implementation checkpoint
 
-В PR #288 уже существует backend candidate:
+PR #288 carries an **implementation-complete candidate** for M1-005B. Independent
+critical review, merge and release remain pending.
 
-- runtime capability/current-authority/session и exact Origin/CORS boundary;
-- private S3-compatible blob storage + PostgreSQL metadata/aliases;
-- MinIO в существующем ASA Compose;
-- runtime asset PUT/GET и canonical draft PUT;
-- общий Project Core save/open pipeline и production persistence guard;
-- request/upload budgets, OpenAPI, migrations/RLS и focused tests.
+Implemented and evidenced:
 
-Текущий незавершённый участок — **real browser wiring**. Пока Parent Web использует
-preview/bootstrap path, а child Scratch Host остаётся на fixture/local storage,
-нельзя писать «Scratch сохраняется в аккаунте ASA».
+- real Parent Web runtime-session and real existing-project open;
+- parent-owned explicit `Сохранить в ASA` with one FLUSH in flight and distinct
+  saving/saved/error/conflict states;
+- live-VM canonical save, fingerprint no-op, durable-asset knowledge and stable replay;
+- real PostgreSQL + private MinIO/S3-compatible save → destroy browser context →
+  re-authenticate → exact fresh reopen;
+- byte-exact costume/image and sound after reopen;
+- immediate fresh-reopen no-op with zero asset/draft/object-store writes and zero
+  blob/alias/revision deltas;
+- Account + StudentSeat journeys and required security/storage negatives;
+- exact-SHA focused/browser/repository CI.
 
-Канонический следующий путь:
+Implementation evidence SHA: `f4012afa9d056acb8ec54cb365e806094c6df3e3`.
+Measured P0/P1/P2/P3, media digests, authorization negatives and L2 hygiene evidence
+are recorded in `docs/review/VSCR_M1_005B_HYGIENE_2026-09-19.md`.
+
+This is **not** owner acceptance. `M1-005B` stays `in_progress`; the remaining
+DoD item is independent critical review before merge/release.
+
+Current bounded persistence semantics:
 
 ```text
-Parent Web
-→ POST /api/projects/{projectId}/blocks/runtime-session
-→ child Scratch Host real bootstrap
-→ Scratch VM snapshot
-→ project JSON + exact assets
-→ detect missing/changed assets
-→ PUT only missing/changed assets
-→ PUT canonical draft
-→ receive confirmed revision
-→ close editor/browser
-→ new browser session
-→ open same ASA project
-→ restore exact JSON + costume/image/sound bytes
-→ run project
+runtime-session → real bootstrap/open
+→ explicit FLUSH
+→ live VM canonical fingerprint
+→ unchanged: confirmed revision, zero writes
+→ changed: missing durable asset PUTs
+→ stable pending mutationId + canonical draft PUT
+→ confirmed revision
+→ ambiguous lost response: same mutationId/baseRevision replay
+→ revision conflict: explicit fail-closed reason
 ```
 
 ## Scope
@@ -138,28 +144,28 @@ Before acceptance record P0/P2 evidence for the representative browser save fixt
 
 M1-005B остаётся `in_progress`, пока не доказано всё:
 
-- [ ] Parent Web получает настоящий runtime-session, а не preview token.
-- [ ] Child Scratch Host больше не использует fixture/local save path для ASA save/open.
-- [ ] Project JSON сохраняется через существующий Project Core.
-- [ ] Costume/image bytes сохраняются в private object storage и открываются byte-exact.
-- [ ] Sound bytes сохраняются в private object storage и открываются byte-exact.
-- [ ] Explicit save возвращает только подтверждённую сервером revision.
-- [ ] Close → reopen того же проекта восстанавливает точное состояние.
-- [ ] New browser session → reopen восстанавливает точное состояние.
-- [ ] Foreign user/tenant access denied.
-- [ ] Revoked access denied.
-- [ ] Invalid Origin / expired capability / player write denied.
-- [ ] Storage failure не возвращает Saved и не создаёт revision.
-- [ ] Missing referenced asset не превращается в successful draft.
-- [ ] Conflict не превращается в silent overwrite.
-- [ ] Retry одной mutation не создаёт вторую revision.
-- [ ] Repeated unchanged save создаёт 0 новых asset bytes/blob/alias rows.
-- [ ] Unchanged canonical fingerprint создаёт 0 redundant revisions.
-- [ ] P0/P1/P2/P3 evidence записано для exact candidate.
-- [ ] `pnpm gate:blocks`, browser gate и repository gate прошли на candidate SHA.
+- [x] Parent Web получает настоящий runtime-session, а не preview token.
+- [x] Child Scratch Host больше не использует fixture/local save path для ASA save/open.
+- [x] Project JSON сохраняется через существующий Project Core.
+- [x] Costume/image bytes сохраняются в private object storage и открываются byte-exact.
+- [x] Sound bytes сохраняются в private object storage и открываются byte-exact.
+- [x] Explicit save возвращает только подтверждённую сервером revision.
+- [x] Close → reopen того же проекта восстанавливает точное состояние.
+- [x] New browser session → reopen восстанавливает точное состояние.
+- [x] Foreign user/tenant access denied.
+- [x] Revoked access denied.
+- [x] Invalid Origin / expired capability / player write denied.
+- [x] Storage failure не возвращает Saved и не создаёт revision.
+- [x] Missing referenced asset не превращается в successful draft.
+- [x] Conflict не превращается в silent overwrite.
+- [x] Retry одной mutation не создаёт вторую revision.
+- [x] Repeated unchanged save создаёт 0 новых asset bytes/blob/alias rows.
+- [x] Unchanged canonical fingerprint создаёт 0 redundant revisions.
+- [x] P0/P1/P2/P3 evidence записано для exact candidate.
+- [x] `pnpm gate:blocks`, browser gate и repository gate прошли на candidate SHA.
 - [ ] Независимый critical review выполнен до merge/release.
 
-Только после этого допустима формулировка **«M1-005 durable ASA save/load готов»**.
+Текущий максимум формулировки: **«M1-005B implementation complete — independent critical review pending»**. Не `done`, не `accepted`, не `merged`.
 
 ## Out of scope
 

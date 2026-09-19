@@ -17,11 +17,20 @@
       status(status) {
         return post('ASA_BLOCKS_STATUS', { status });
       },
+      projectDirty(generation) {
+        return post('ASA_BLOCKS_STATUS', { status: 'project-dirty', generation });
+      },
       tokenRefreshRequired() {
         return post('ASA_BLOCKS_TOKEN_REFRESH_REQUIRED');
       },
-      flushResult(requestId, ok, reason = null) {
-        return post('ASA_BLOCKS_FLUSH_RESULT', { requestId, ok, reason });
+      flushResult(requestId, ok, reason = null, revision = null, snapshotGeneration = null) {
+        return post('ASA_BLOCKS_FLUSH_RESULT', {
+          requestId,
+          ok,
+          reason,
+          ...(Number.isSafeInteger(revision) ? { revision } : {}),
+          ...(Number.isSafeInteger(snapshotGeneration) ? { snapshotGeneration } : {}),
+        });
       },
       fatal(code) {
         return post('ASA_BLOCKS_FATAL', { code });

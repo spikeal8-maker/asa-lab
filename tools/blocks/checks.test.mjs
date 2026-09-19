@@ -75,7 +75,12 @@ test('stable gate has bounded build/type dependencies and includes the C unit an
   const commands = plan.focused.map((args) => args.join(' '));
   assert.deepEqual(
     commands.filter((cmd) => cmd.includes(' nx ')),
-    ['pnpm nx build blocks', 'pnpm nx run blocks:typecheck'],
+    [
+      'pnpm nx build blocks',
+      'pnpm nx build projects',
+      'pnpm nx build identity',
+      'pnpm nx run blocks:typecheck',
+    ],
   );
   assert.ok(commands.some((cmd) => cmd.includes('apps/web/src/blocks/tsconfig.json')));
   assert.ok(

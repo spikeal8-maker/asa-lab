@@ -2,54 +2,72 @@ schema_version: 2.0.0
 area: runtime-security
 components:
   - id: blocks.runtime.session
-    state: blocked
+    state: implemented
     risk: high
     ownership: asa
-    purpose: "Cookie-authenticated ASA endpoint issuing exact Blocks runtime capabilities."
+    purpose: "Cookie-authenticated parent endpoint issuing exact editor capability plus durable Blocks bootstrap."
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-004-RUNTIME-SECURITY-CONTRACT.md
         section: "Editor runtime-session issuance"
-    task: VSCR-M1-003
-    active_candidate:
-      task: VSCR-M1-005B
-      pr: 288
-      branch: codex/scratch-real-storage-005b
-      status: implemented_in_draft_pr
-      acceptance: pending
-    depends_on: [blocks.host.protocol]
+    task: VSCR-M1-005B
+    depends_on: [blocks.host.protocol, blocks.runtime.capability]
+    sources:
+      - path: apps/api/src/blocks-runtime-session.controller.ts
+        symbols: [BlocksRuntimeSessionController]
+      - path: apps/api/src/blocks-runtime-session.ts
+        symbols: [BlocksRuntimeSessionService]
+      - path: apps/api/src/blocks-runtime-session-issuer.ts
+        symbols: [BlocksRuntimeSessionIssuer]
+      - path: apps/api/src/blocks-runtime-config.ts
+        symbols: [readBlocksRuntimeServerConfig]
+    tests:
+      - apps/api/src/blocks-runtime-session.controller.spec.ts
+      - apps/api/src/blocks-runtime-session.spec.ts
+      - apps/api/src/blocks-runtime-config.spec.ts
 
   - id: blocks.runtime.capability
-    state: blocked
+    state: implemented
     risk: high
     ownership: asa
-    purpose: "Short-lived bearer capability verification plus current ASA resource-authority recheck."
+    purpose: "HS256 capability core with production Project Core current-authority recheck; issuance and protected routes remain separately mapped."
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-004-RUNTIME-SECURITY-CONTRACT.md
         section: "Capability validation"
       - path: docs/product/visual-programming/VSCR-D0-004-RUNTIME-SECURITY-CONTRACT.md
         section: "Current authority recheck"
-    task: VSCR-M1-003
-    active_candidate:
-      task: VSCR-M1-005B
-      pr: 288
-      branch: codex/scratch-real-storage-005b
-      status: implemented_in_draft_pr
-      acceptance: pending
-    depends_on: [blocks.runtime.session]
+    task: VSCR-M1-003A
+    depends_on: [blocks.host.protocol]
+
+    sources:
+      - path: apps/api/src/blocks-runtime-capability.ts
+        symbols: [BlocksRuntimeCapabilityService, BlocksRuntimeAuthorityPort]
+      - path: apps/api/src/blocks-runtime-authority.ts
+        symbols: [BlocksProjectRuntimeAuthority]
+      - path: contexts/projects/infrastructure/pg-project.repository.ts
+        symbols: [PgProjectRepository]
+    tests:
+      - apps/api/src/blocks-runtime-capability.spec.ts
+      - apps/api/src/blocks-runtime-authority.spec.ts
+      - contexts/projects/testing/projects.spec.ts
 
   - id: blocks.runtime.origin-security
-    state: blocked
+    state: implemented
     risk: high
     ownership: cross_boundary
-    purpose: "Path-scoped exact Origin/CORS/CSP without widening normal ASA cookie trust."
+    purpose: "Path-scoped exact runtime Origin/CORS plus bearer/current-authority enforcement without widening normal ASA cookie trust."
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-004-RUNTIME-SECURITY-CONTRACT.md
         section: "Origin CORS CSP boundary"
-    task: VSCR-M1-003
-    active_candidate:
-      task: VSCR-M1-005B
-      pr: 288
-      branch: codex/scratch-real-storage-005b
-      status: implemented_in_draft_pr
-      acceptance: pending
-    depends_on: [blocks.host.protocol]
+    task: VSCR-M1-005B
+    depends_on: [blocks.host.protocol, blocks.runtime.capability]
+    sources:
+      - path: apps/api/src/blocks-runtime-transport.ts
+        symbols: [applyBlocksRuntimeCors, registerBlocksRuntimeTransport]
+      - path: apps/api/src/blocks-runtime-request.ts
+        symbols: [BlocksRuntimeRequestAuthorizer]
+      - path: apps/api/src/app.factory.ts
+        symbols: [createApiApp]
+    tests:
+      - apps/api/src/blocks-runtime-transport.spec.ts
+      - apps/api/src/blocks-runtime-cors.spec.ts
+      - apps/api/src/blocks-runtime-request.spec.ts

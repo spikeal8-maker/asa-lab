@@ -16,7 +16,7 @@ task:
   pr: 288
   pr_draft: true
   status: in_progress
-  checkpoint: owner_selected_real_storage_browser_save
+  checkpoint: implementation_complete_independent_review_pending
   owner_acceptance: pending
 
 revisions:
