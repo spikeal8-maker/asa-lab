@@ -235,7 +235,6 @@ test('lost response reuses mutation identity, durable assets and commits one rev
   assert.equal(seenDrafts[2].baseRevision, 11);
 });
 
-
 for (const ambiguity of ['network', '5xx', 'malformed-2xx']) {
   test(`${ambiguity} ambiguity followed by edit reconciles A before saving generation B`, async () => {
     const mutationIds = [

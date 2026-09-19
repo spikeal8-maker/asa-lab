@@ -762,9 +762,9 @@ test('lost draft response followed by edit reconciles A before saving B without 
     expect(generationB.mutationId).not.toBe(firstMutation.mutationId);
     expect(generationB.baseRevision).toBe(24);
     expect(
-      generationB.document.projectJson.targets
-        .find((target: { name?: string }) => target.name === 'Server Bootstrap Sprite')
-        ?.blocks.move.inputs.STEPS[1][1],
+      generationB.document.projectJson.targets.find(
+        (target: { name?: string }) => target.name === 'Server Bootstrap Sprite',
+      )?.blocks.move.inputs.STEPS[1][1],
     ).toBe('41');
 
     const afterReplayAndB = {
@@ -803,12 +803,9 @@ test('lost draft response followed by edit reconciles A before saving B without 
           revisionCommits: afterReplayAndB.revisionCommits,
           idempotentReplays: afterReplayAndB.idempotentReplays,
           revisionDelta: afterReplayAndB.serverRevision - 23,
-          assetRequestsAfterAmbiguity:
-            afterReplayAndB.assetRequests - assetRequestsBeforeRetry,
-          uploadedBytesAfterAmbiguity:
-            afterReplayAndB.uploadedBytes - uploadedBytesBeforeRetry,
-          uniqueAssetBytesAfterAmbiguity:
-            afterReplayAndB.uniqueAssetBytes - uniqueBytesBeforeRetry,
+          assetRequestsAfterAmbiguity: afterReplayAndB.assetRequests - assetRequestsBeforeRetry,
+          uploadedBytesAfterAmbiguity: afterReplayAndB.uploadedBytes - uploadedBytesBeforeRetry,
+          uniqueAssetBytesAfterAmbiguity: afterReplayAndB.uniqueAssetBytes - uniqueBytesBeforeRetry,
         },
         null,
         2,
