@@ -242,11 +242,91 @@ compile_load_contract:
   exact_gpio_reset_values_defined_here: false
   implementation_status: not_implemented_in_EOPT5A
 
+reevaluation_chronology:
+  initial_candidate_selected_before_owner_clarification: true
+  owner_constraints_added_after_initial_candidate: true
+  all_three_strategies_reevaluated_before_independent_review: true
+  reevaluation_scope:
+    - learner_error_must_not_stop_or_block_global_electronics_simulation
+    - editor_source_distinct_from_last_successfully_loaded_executable
+
+candidate_reevaluation:
+  source_level:
+    result: PASS
+    global_simulation_running_on_compile_or_runtime_error:
+      result: PASS
+      reason: board-local diagnostics/fault state can coexist with continuing shared Electronics session
+    editor_source_and_loaded_executable_separate:
+      result: PASS
+      reason: source and executable/program identity can be separate per-board state
+    failed_compile_preserves_previous_executable:
+      result: PASS
+      reason: executable identity changes only after successful compile/load
+    per_board_failure_isolation:
+      result: PASS
+      reason: board runtime and diagnostics remain board-owned under the shared scheduler
+    compile_error_distinct_from_unsupported_ASA_capability:
+      result: PASS
+      reason: syntax/compile diagnostics and valid-but-unsupported capability diagnostics are separable
+    single_canonical_electronics_clock:
+      result: PASS
+      reason: compile/load separation needs no second scheduler or clock
+  avr:
+    result: CONDITIONAL
+    global_simulation_running_on_compile_or_runtime_error:
+      result: CONDITIONAL
+      reason: compiler/emulator failures must be contained as board-local state
+    editor_source_and_loaded_executable_separate:
+      result: PASS
+      reason: compile-to-binary/load boundary naturally separates source from loaded image
+    failed_compile_preserves_previous_executable:
+      result: PASS
+      reason: failed compile can leave the previous loaded image unchanged
+    per_board_failure_isolation:
+      result: CONDITIONAL
+      reason: each board requires independent emulator/image/runtime state and fault containment
+    compile_error_distinct_from_unsupported_ASA_capability:
+      result: CONDITIONAL
+      reason: compiled valid code may still lack an ASA peripheral/circuit bridge and needs separate classification
+    single_canonical_electronics_clock:
+      result: CONDITIONAL
+      reason: AVR cycles must be subordinated to scheduler-owned horizons
+  hybrid:
+    result: CONDITIONAL
+    global_simulation_running_on_compile_or_runtime_error:
+      result: CONDITIONAL
+      reason: both backends must expose learner failures as board-local faults
+    editor_source_and_loaded_executable_separate:
+      result: CONDITIONAL
+      reason: loaded executable identity must include backend identity without coupling it to editor source
+    failed_compile_preserves_previous_executable:
+      result: CONDITIONAL
+      reason: failed compile/backend selection must preserve the previous executable/backend pair
+    per_board_failure_isolation:
+      result: CONDITIONAL
+      reason: isolation must be equivalent across two runtime state models
+    compile_error_distinct_from_unsupported_ASA_capability:
+      result: CONDITIONAL
+      reason: one taxonomy must separate compiler, backend-selection and ASA capability diagnostics
+    single_canonical_electronics_clock:
+      result: CONDITIONAL
+      reason: both backends must remain subordinate to exactly one canonical scheduler
+
+owner_constraints_satisfied_by_selected_strategy:
+  permissive_global_start: true
+  source_loaded_program_separation: true
+  last_good_program_preservation: true
+  per_board_failure_isolation: true
+  compile_vs_unsupported_separation: true
+  single_canonical_clock: true
+
 selected_strategy: SOURCE_LEVEL
 selection_reason: >-
-  Preserve the accepted E-OPT-3 canonical clock/Worker/replay/state model and student-facing
-  diagnostics while meeting the declared educational subset with no new compiler/emulator
-  runtime dependency. AVR remains an independent hardware-oriented reference oracle.
+  After explicit re-evaluation against the two owner constraints, SOURCE_LEVEL directly supports
+  separate editor/loaded-program state, last-good executable preservation, per-board learner-fault
+  isolation, compile-vs-unsupported diagnostics and global simulation continuation without a
+  second scheduler or violation of the canonical Electronics clock. AVR and HYBRID remain
+  conditional on additional load-state, isolation and clock-adapter architecture.
 
 rejected:
   avr_production_backend:
