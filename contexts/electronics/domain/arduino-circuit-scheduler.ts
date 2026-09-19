@@ -260,20 +260,38 @@ export function advanceArduinoCircuitClock(
       'История входов должна быть упорядоченной, конечной и содержать не более 1024 событий кнопки/переключателя/потенциометра.',
     );
   const compileDiagnostics = new Map<string, ArduinoCircuitClockDiagnostic>();
-  const globalUnsupportedCodes = new Set([
+  const localUnsupportedCodes = new Set([
     'member-call',
     'unsupported-call',
-    'unknown-call',
     'unsupported-syntax',
+    'preprocessor',
   ]);
   for (const board of boards) {
     const source = arduinoSourceFor(board);
+    const supportDiagnostics = analyseArduinoSourceSupport(source).filter(
+      (entry) => entry.status === 'unsupported',
+    );
+    const globalUnsupported = supportDiagnostics.find(
+      (entry) => entry.code !== 'syntax-error' && !localUnsupportedCodes.has(entry.code),
+    );
+    if (globalUnsupported)
+      return fault(globalUnsupported.code, `${board.id}: ${globalUnsupported.message}`);
+
+    const localUnsupported = supportDiagnostics.find((entry) =>
+      localUnsupportedCodes.has(entry.code),
+    );
+    if (localUnsupported) {
+      compileDiagnostics.set(board.id, {
+        code: localUnsupported.code,
+        message: `${board.id}: ${localUnsupported.message}`,
+        componentId: board.id,
+      });
+      continue;
+    }
+
     const diagnostic = analyseArduinoProgramSyntax(source)[0];
     if (!diagnostic) continue;
-    const hasNonSyntaxUnsupported = analyseArduinoSourceSupport(source).some(
-      (entry) => entry.status === 'unsupported' && globalUnsupportedCodes.has(entry.code),
-    );
-    if (diagnostic.code !== 'compile_error' || hasNonSyntaxUnsupported)
+    if (diagnostic.code !== 'compile_error')
       return fault(diagnostic.code, `${board.id}: ${diagnostic.message}`);
     compileDiagnostics.set(board.id, {
       code: diagnostic.code,
