@@ -474,6 +474,7 @@ const page = await context.newPage();
 const pageErrors = [];
 page.on('pageerror', (error) => pageErrors.push(error.message));
 let trace;
+let noOpTrace;
 try {
   const ready = await (await context.request.get('/health/ready')).json();
   const metadata = await (await context.request.get('/build-metadata.json')).json();
@@ -672,11 +673,17 @@ try {
 
   const p2 = projectState(projectId);
   const o2 = objectSnapshot();
-  phase = 'fresh-noop';
-  trace.setPhase('fresh-noop');
-  const noOpSave = await clickConfirmedSave(reopened);
   await trace.settle();
-  trace.setPhase('idle');
+  await trace.stop();
+  const durableTraceEvents = trace.events;
+  trace = undefined;
+
+  noOpTrace = await startObjectTrace();
+  phase = 'fresh-noop';
+  noOpTrace.setPhase('fresh-noop');
+  const noOpSave = await clickConfirmedSave(reopened);
+  await noOpTrace.settle();
+  noOpTrace.setPhase('idle');
   const p3 = projectState(projectId);
   const o3 = objectSnapshot();
   expect(noOpSave.revision).toBe(p2.revision);
@@ -690,15 +697,16 @@ try {
   expect(delta(o3.count, o2.count)).toBe(0);
   expect(delta(o3.bytes, o2.bytes)).toBe(0);
 
-  await trace.stop();
-  const traceEvents = trace.events;
-  trace = undefined;
-  const objectSave = phaseObjectMetrics(traceEvents, 'account-save');
-  const objectReopen = phaseObjectMetrics(traceEvents, 'fresh-reopen');
-  const objectNoOp = phaseObjectMetrics(traceEvents, 'fresh-noop');
+  await noOpTrace.stop();
+  const noOpTraceEvents = noOpTrace.events;
+  noOpTrace = undefined;
+  const objectSave = phaseObjectMetrics(durableTraceEvents, 'account-save');
+  const objectReopen = phaseObjectMetrics(durableTraceEvents, 'fresh-reopen');
+  const objectNoOp = phaseObjectMetrics(noOpTraceEvents, 'fresh-noop');
   expect(objectSave.requests).toBeGreaterThan(0);
   expect(objectReopen.requests).toBeGreaterThan(0);
   expect(objectNoOp.requests).toBe(0);
+  const traceEvents = [...durableTraceEvents, ...noOpTraceEvents];
 
   phase = 'student-seat';
   const classCreate = await context.request.post('/api/classrooms', {
@@ -975,6 +983,7 @@ try {
   throw error;
 } finally {
   await trace?.stop().catch(() => {});
+  await noOpTrace?.stop().catch(() => {});
   await context.close().catch(() => {});
   await browser.close();
 }
