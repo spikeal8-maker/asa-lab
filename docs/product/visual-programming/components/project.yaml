@@ -45,9 +45,9 @@ components:
     risk: high
     ownership: cross_boundary
     purpose:
-      Real runtime-session read-only open and explicit live-VM FLUSH persistence are implemented
-      candidates through common Project Core and production asset adapters; full save-close-fresh-browser
-      reopen acceptance remains pending.
+      Real runtime-session open, parent-owned explicit Save, live-VM FLUSH persistence and
+      save-close-fresh-browser exact reopen are implemented candidates through common Project Core
+      and production PostgreSQL/private object-storage adapters; independent critical review remains pending.
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-002-PERSISTENCE-CONTRACT.md
         section: Asset-before-document invariant
@@ -55,7 +55,7 @@ components:
         section: Project save interaction
     task: VSCR-M1-005A
     completion_task: VSCR-M1-005B
-    candidate_status: runtime_open_flush_noop_replay_conflict_implemented_fresh_reopen_pending
+    candidate_status: implementation_complete_independent_review_pending
     depends_on:
       - blocks.project.persistence-guard
       - blocks.assets.upload
@@ -72,6 +72,10 @@ components:
           - inspectScratchProject
     tests:
       - apps/api/src/blocks-project-persistence.spec.ts
+      - apps/web/src/blocks/testing/editor-runtime-session.spec.ts
+      - e2e/blocks-product-integration.spec.ts
+      - tools/blocks/flush-semantics.test.mjs
+      - tools/blocks/portable-smoke.mjs
 
   - id: blocks.project.autosave
     state: blocked

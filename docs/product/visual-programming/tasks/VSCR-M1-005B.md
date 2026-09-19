@@ -39,22 +39,106 @@ local File. Это отдельный режим доступности и **н�
 
 ## Current implementation checkpoint
 
-PR #288 now carries an **implemented candidate** for the bounded runtime path:
+PR #288 now carries an **implementation-complete candidate** for the bounded M1-005B path.
+Independent critical review, merge and release remain pending.
+
+Implemented and evidenced:
 
 - real Parent Web runtime-session bootstrap;
 - real read-only existing-project open from runtime-session project JSON and assets;
+- parent-owned explicit `Сохранить в ASA` control with one FLUSH in flight and distinct
+  `Сохранение…` / `Сохранено` / `Ошибка сохранения` / `Конфликт сохранения` states;
 - explicit FLUSH using the live Scratch VM snapshot and exact current media bytes;
 - asset PUT before canonical draft PUT with confirmed revision;
 - deterministic canonical-document fingerprint and unchanged-FLUSH zero-write semantics;
 - memory-only durable-asset knowledge across failed draft attempts;
 - stable mutationId/baseRevision replay after ambiguous lost/5xx/malformed draft responses;
 - explicit `revision_conflict` for `project_revision_conflict`;
-- focused/browser evidence for first save, unchanged no-op, lost-response replay,
-  a subsequent edit and conflict.
+- real PostgreSQL + private MinIO/S3-compatible save → destroy browser context →
+  re-authenticate → fresh runtime-session → exact reopen;
+- byte-exact costume/image and sound proof after fresh reopen;
+- immediate fresh-reopen no-op with zero asset/draft/object-store writes and zero
+  blob/alias/revision deltas;
+- Account and StudentSeat authorization journeys plus foreign/revoked/origin/storage negatives;
+- exact-SHA focused/browser/repository CI.
 
-This remains a **candidate, not M1-005B acceptance**. The still-open acceptance boundary is
-full save → close → fresh browser/session → reopen against the real PostgreSQL/object-storage
-stack, plus the remaining authorization/storage acceptance and independent critical review.
+Implementation evidence SHA:
+
+```text
+f4012afa9d056acb8ec54cb365e806094c6df3e3
+```
+
+Portable real-stack evidence:
+
+```text
+first save:
+  asset PUT          = 10
+  uploaded bytes     = 293385
+  draft PUT          = 1
+  revision delta     = +1
+  blob rows          = +10
+  alias rows         = +10
+  MinIO objects      = +10
+  object bytes       = +293385
+  save latency       = 898.41 ms
+
+fresh reopen:
+  asset GET          = 5
+  revision           = 2
+  reopen latency     = 2339.54 ms
+  exact project JSON = confirmed
+
+fresh no-op:
+  asset PUT          = 0
+  draft PUT          = 0
+  uploaded bytes     = 0
+  object requests    = 0
+  blob rows          = +0
+  alias rows         = +0
+  object rows/bytes  = +0 / +0
+  revision delta     = 0
+```
+
+Media proof:
+
+```text
+Abby-a.svg:
+  MD5      809d9b47347a6af2860e7a3a35bce057
+  SHA-256  fd571722a4ccfac705c28aaef6e6310bbd346929b440878c20cbc0ec484e9956
+  bytes    62926
+
+Bark.wav:
+  MD5      cd8fa8390b0efdd281882533fbfcfcfb
+  SHA-256  f9a29b2bb69d732182cb3fcb775a4a9d1888462b81a2a1b01072c25b09cee127
+  bytes    6380
+```
+
+The before/after digests and sizes are identical. Fresh reopen obtains the durable
+media through runtime asset GET, not stock-library fallback.
+
+Authorization/failure evidence on the same disposable real stack:
+
+```text
+Account save/reopen revision       = 2 / 2
+StudentSeat save revision          = 2
+foreign bootstrap                  = 404
+foreign asset                      = 401
+foreign draft                      = 401
+invalid Origin                     = 403
+revoked capability                 = 403
+storage failure UI                 = error
+storage failure revision           = 2 → 2
+portal cookie leaked to runtime    = false
+browser page errors                = 0
+```
+
+Expired capability and player-write denials remain covered by the focused runtime
+security suite; missing referenced asset, optimistic conflict and same-mutation replay
+remain covered by the focused Project Core/Blocks persistence and browser suites.
+No already-proven mechanism was rewritten for this closure.
+
+This is **not** owner acceptance. `M1-005B` stays `in_progress`; the only open DoD
+item is independent critical review before merge/release.
 
 Current bounded persistence semantics:
 
@@ -137,28 +221,28 @@ Before acceptance record P0/P2 evidence for the representative browser save fixt
 
 M1-005B остаётся `in_progress`, пока не доказано всё:
 
-- [ ] Parent Web получает настоящий runtime-session, а не preview token.
-- [ ] Child Scratch Host больше не использует fixture/local save path для ASA save/open.
-- [ ] Project JSON сохраняется через существующий Project Core.
-- [ ] Costume/image bytes сохраняются в private object storage и открываются byte-exact.
-- [ ] Sound bytes сохраняются в private object storage и открываются byte-exact.
-- [ ] Explicit save возвращает только подтверждённую сервером revision.
-- [ ] Close → reopen того же проекта восстанавливает точное состояние.
-- [ ] New browser session → reopen восстанавливает точное состояние.
-- [ ] Foreign user/tenant access denied.
-- [ ] Revoked access denied.
-- [ ] Invalid Origin / expired capability / player write denied.
-- [ ] Storage failure не возвращает Saved и не создаёт revision.
-- [ ] Missing referenced asset не превращается в successful draft.
-- [ ] Conflict не превращается в silent overwrite.
-- [ ] Retry одной mutation не создаёт вторую revision.
-- [ ] Repeated unchanged save создаёт 0 новых asset bytes/blob/alias rows.
-- [ ] Unchanged canonical fingerprint создаёт 0 redundant revisions.
-- [ ] P0/P1/P2/P3 evidence записано для exact candidate.
-- [ ] `pnpm gate:blocks`, browser gate и repository gate прошли на candidate SHA.
+- [x] Parent Web получает настоящий runtime-session, а не preview token.
+- [x] Child Scratch Host больше не использует fixture/local save path для ASA save/open.
+- [x] Project JSON сохраняется через существующий Project Core.
+- [x] Costume/image bytes сохраняются в private object storage и открываются byte-exact.
+- [x] Sound bytes сохраняются в private object storage и открываются byte-exact.
+- [x] Explicit save возвращает только подтверждённую сервером revision.
+- [x] Close → reopen того же проекта восстанавливает точное состояние.
+- [x] New browser session → reopen восстанавливает точное состояние.
+- [x] Foreign user/tenant access denied.
+- [x] Revoked access denied.
+- [x] Invalid Origin / expired capability / player write denied.
+- [x] Storage failure не возвращает Saved и не создаёт revision.
+- [x] Missing referenced asset не превращается в successful draft.
+- [x] Conflict не превращается в silent overwrite.
+- [x] Retry одной mutation не создаёт вторую revision.
+- [x] Repeated unchanged save создаёт 0 новых asset bytes/blob/alias rows.
+- [x] Unchanged canonical fingerprint создаёт 0 redundant revisions.
+- [x] P0/P1/P2/P3 evidence записано для exact candidate.
+- [x] `pnpm gate:blocks`, browser gate и repository gate прошли на candidate SHA.
 - [ ] Независимый critical review выполнен до merge/release.
 
-Только после этого допустима формулировка **«M1-005 durable ASA save/load готов»**.
+Текущий максимум формулировки: **«M1-005B implementation complete — independent critical review pending»**. Не `done`, не `accepted`, не `merged`.
 
 ## Out of scope
 
