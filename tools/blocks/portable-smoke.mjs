@@ -856,7 +856,7 @@ try {
     headers: { origin },
     data: { status: 'trashed' },
   });
-  expect(trash.status(), await trash.text()).toBe(200);
+  expect(trash.status(), await trash.text()).toBe(201);
   const revokedUse = await context.request.put(
     `/api/blocks/runtime/projects/${revokedProject.id}/draft`,
     {
