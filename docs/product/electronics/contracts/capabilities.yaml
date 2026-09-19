@@ -35,6 +35,7 @@ engineering_decisions:
   - DEC-MATH-020
   - DEC-MATH-021
   - DEC-MATH-022
+  - DEC-MATH-023
 
 generated_component_coverage:
   source_layers:
