@@ -532,10 +532,15 @@ try {
 
   const marker = `ASA Durable Sprite ${projectId.slice(0, 8)}`;
   const variable = `ASA_Durable_Proof_${projectId.slice(0, 6)}`;
-  phase = 'account-edit';
+  const p0 = projectState(projectId);
+  const o0 = objectSnapshot();
+  trace = await startObjectTrace();
+  phase = 'account-save';
+  trace.setPhase('account-save');
+  const firstSaveStartedAt = performance.now();
+
   await addDistinctProjectState(page, firstEditor.frame, marker, variable);
 
-  phase = 'pre-save-media';
   const beforeCostume = await exportNamedMedia(
     page,
     firstEditor.frame,
@@ -553,20 +558,46 @@ try {
   expect(beforeCostume.suggestedFilename).toMatch(/\.svg$/i);
   expect(beforeSound.suggestedFilename).toBe('Bark.wav');
 
-  const p0 = projectState(projectId);
-  const o0 = objectSnapshot();
-  trace = await startObjectTrace();
-
-  phase = 'account-save';
-  trace.setPhase('account-save');
-  const firstSave = await clickConfirmedSave(page);
+  await expect
+    .poll(
+      () => {
+        const current = projectState(projectId);
+        const target = current.document?.projectJson?.targets?.find(
+          (item) => item.name === marker,
+        );
+        const hasVariable = current.document?.projectJson?.targets?.some((item) =>
+          Object.values(item.variables ?? {}).some(
+            (entry) => Array.isArray(entry) && entry[0] === variable,
+          ),
+        );
+        const hasCostume = current.document?.assets?.some(
+          (asset) => asset.assetId === beforeCostume.md5,
+        );
+        const hasSound = current.document?.assets?.some(
+          (asset) => asset.assetId === beforeSound.md5,
+        );
+        return Boolean(
+          current.revision > p0.revision &&
+            target?.x === 137 &&
+            hasVariable &&
+            hasCostume &&
+            hasSound &&
+            projectHasStep(current, marker, 73),
+        );
+      },
+      { timeout: 45000 },
+    )
+    .toBe(true);
+  const p1 = projectState(projectId);
+  const firstSave = {
+    revision: p1.revision,
+    latencyMs: Math.round((performance.now() - firstSaveStartedAt) * 100) / 100,
+  };
   await trace.settle();
   trace.setPhase('idle');
-  expect(firstSave.revision).toBe(p0.revision + 1);
 
-  const p1 = projectState(projectId);
   const o1 = objectSnapshot();
-  expect(p1.revision).toBe(firstSave.revision);
+  expect(p1.revision).toBeGreaterThan(p0.revision);
   expect(p1.blobRows).toBeGreaterThan(p0.blobRows);
   expect(p1.aliasRows).toBeGreaterThan(p0.aliasRows);
   expect(p1.blobBytes).toBeGreaterThan(p0.blobBytes);
