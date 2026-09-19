@@ -1020,6 +1020,7 @@ test('status reporter sends bounded dirty generation and successful FLUSH snapsh
   });
   reporter.projectDirty(3);
   reporter.flushResult('flush-1', true, null, 8, 3);
+  reporter.thumbnailReady(8, 'data:image/png;base64,AAAA');
   assert.equal(calls[0].targetOrigin, API_ORIGIN);
   assert.equal(calls[0].message.protocolVersion, 1);
   assert.equal(calls[0].message.projectId, PROJECT_ID);
@@ -1030,6 +1031,9 @@ test('status reporter sends bounded dirty generation and successful FLUSH snapsh
   assert.equal(calls[1].message.messageType, 'ASA_BLOCKS_FLUSH_RESULT');
   assert.equal(calls[1].message.revision, 8);
   assert.equal(calls[1].message.snapshotGeneration, 3);
+  assert.equal(calls[2].message.messageType, 'ASA_BLOCKS_THUMBNAIL_READY');
+  assert.equal(calls[2].message.sourceRevision, 8);
+  assert.equal(calls[2].message.imageDataUrl, 'data:image/png;base64,AAAA');
 });
 
 function protocolHarness() {
@@ -1104,6 +1108,30 @@ test('accepted child INIT exposes validated bootstrap but keeps capability proto
   assert.equal(protocol.getRuntimeToken(), 'rotated.payload.signature');
   protocol.dispose();
   assert.equal(protocol.getRuntimeToken(), null);
+});
+
+test('child INIT accepts canonical Scratch costume without md5ext when the asset is declared', () => {
+  const assetId = 'd'.repeat(32);
+  const { handlers, parent, calls, rejections } = protocolHarness();
+  handlers.get('message')({
+    source: parent,
+    origin: API_ORIGIN,
+    data: validInitMessage({
+      projectJson: {
+        targets: [
+          {
+            costumes: [{ assetId, dataFormat: 'svg' }],
+            sounds: [],
+          },
+        ],
+        monitors: [],
+        extensions: [],
+      },
+      assets: [{ assetId, dataFormat: 'svg', sha256: 'e'.repeat(64), sizeBytes: 1 }],
+    }),
+  });
+  assert.equal(calls.length, 1);
+  assert.deepEqual(rejections, []);
 });
 
 for (const [name, override] of [

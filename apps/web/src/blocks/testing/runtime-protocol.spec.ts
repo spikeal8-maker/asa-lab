@@ -164,6 +164,43 @@ describe('BlocksRuntimeBridge', () => {
     ).toBe(false);
   });
 
+  it('accepts only bounded trusted thumbnail messages with a confirmed source revision', () => {
+    vi.stubGlobal('crypto', { randomUUID: () => 'cdcdcdcd-cdcd-4dcd-8dcd-cdcdcdcdcdcd' });
+    const { bridge, target, onMessage } = makeBridge();
+    const base = {
+      protocolVersion: BLOCKS_PROTOCOL_VERSION,
+      messageType: 'ASA_BLOCKS_THUMBNAIL_READY',
+      projectId: PROJECT_ID,
+      sessionNonce: bridge.sessionNonce,
+    };
+    const valid = {
+      ...base,
+      sourceRevision: 13,
+      imageDataUrl: 'data:image/png;base64,AAAA',
+    };
+
+    expect(bridge.acceptChildMessage({ source: target, origin: RUNTIME_ORIGIN, data: valid })).toBe(
+      true,
+    );
+    expect(onMessage).toHaveBeenLastCalledWith(valid);
+
+    for (const data of [
+      { ...base, sourceRevision: 0, imageDataUrl: 'data:image/png;base64,AAAA' },
+      { ...base, sourceRevision: '13', imageDataUrl: 'data:image/png;base64,AAAA' },
+      { ...base, sourceRevision: 13, imageDataUrl: 'data:image/svg+xml;base64,AAAA' },
+      { ...base, sourceRevision: 13, imageDataUrl: 'data:image/png;base64,not base64' },
+      {
+        ...base,
+        sourceRevision: 13,
+        imageDataUrl: `data:image/png;base64,${'A'.repeat(349_600)}`,
+      },
+    ]) {
+      expect(bridge.acceptChildMessage({ source: target, origin: RUNTIME_ORIGIN, data })).toBe(
+        false,
+      );
+    }
+  });
+
   it('accepts a bound FATAL message without throwing in the parent bridge', () => {
     vi.stubGlobal('crypto', { randomUUID: () => 'dddddddd-dddd-4ddd-8ddd-dddddddddddd' });
     const { bridge, target, onFatal } = makeBridge();

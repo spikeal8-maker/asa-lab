@@ -286,6 +286,19 @@ async function editLiveServerProjectAndAddMedia(
   await expect(frame.getByRole('textbox', { name: 'Sound', exact: true })).toHaveValue('Bark');
 }
 
+async function editPreviewScene(
+  frame: import('@playwright/test').FrameLocator,
+  x: string,
+): Promise<void> {
+  await frame.getByRole('button', { name: 'Choose a Sprite' }).first().click();
+  await frame.getByText('Apple', { exact: true }).click();
+  await expect(frame.getByPlaceholder('Name', { exact: true })).toHaveValue('Apple');
+  await frame.getByPlaceholder('x', { exact: true }).fill(x);
+  await frame.getByPlaceholder('x', { exact: true }).press('Enter');
+  await frame.getByRole('button', { name: 'Choose a Backdrop' }).first().click();
+  await frame.getByText('Blue Sky', { exact: true }).click();
+}
+
 test('shipping fullscreen host loads the account avatar in ASA only and survives runtime failure', async () => {
   const fixture = await createProtocolFixture({ product: true, locale: 'en-US' });
   const page = await fixture.context.newPage();
@@ -1558,6 +1571,311 @@ test('Home waits for the latest generation when an edit arrives during upstream 
   }
 });
 
+test('confirmed autosave publishes the native Scratch 480x360 stage preview and fresh context keeps it', async () => {
+  const serverProject = await realRuntimeBootstrapFixture();
+  let fixture = await createProtocolFixture({
+    product: true,
+    locale: 'en-US',
+    runtimeSession: {
+      draftRevision: 23,
+      projectJson: serverProject.projectJson,
+      assets: serverProject.assets,
+    },
+    runtimeAssets: serverProject.runtimeAssets,
+  });
+  let context = fixture.context;
+  const requests: Array<{ method: string; url: string }> = [];
+  context.on('request', (request) =>
+    requests.push({ method: request.method(), url: request.url() }),
+  );
+  try {
+    const page = await context.newPage();
+    await page.setViewportSize({ width: 1440, height: 960 });
+    await page.goto(`${parentOrigin}/product`, { waitUntil: 'domcontentloaded' });
+    let frame = page.frameLocator('iframe[title="Scratch runtime"]');
+    await expect(frame.locator('[data-asa-host-shell]')).toHaveAttribute(
+      'data-editor-state',
+      'ready',
+      { timeout: 45000 },
+    );
+    await expect(page.locator('[data-asa-blocks-save]')).toHaveCount(0);
+
+    await editPreviewScene(frame, '137');
+    await expect.poll(() => fixture.getServerRevision(), { timeout: 30_000 }).toBe(24);
+    await expect.poll(() => fixture.getSnapshotRevision(), { timeout: 20_000 }).toBe(24);
+    expect(fixture.runtimeSnapshotEvidence).toHaveLength(1);
+    expect(fixture.runtimeSnapshotEvidence[0]).toMatchObject({
+      sourceRevision: 24,
+      serverRevisionBefore: 24,
+    });
+    expect(['image/png', 'image/webp']).toContain(fixture.runtimeSnapshotEvidence[0].contentType);
+    expect(fixture.getStoredSnapshot()?.bytes.length).toBeGreaterThan(64);
+    expect(fixture.getStoredSnapshot()?.bytes.length).toBeLessThanOrEqual(262_144);
+
+    await page.getByRole('button', { name: 'ASA Lab — на главную', exact: true }).click();
+    await expect(page).toHaveURL(`${parentOrigin}/product#/home`);
+    const image = page.getByTestId('project-preview-snapshot');
+    await expect(image).toBeVisible();
+    await expect(page.getByTestId('project-preview-fallback')).toHaveCount(0);
+    await expect(image).toHaveAttribute('src', `/api/projects/${projectId}/snapshot?rev=24`);
+    await expect
+      .poll(() => image.evaluate((node) => (node as HTMLImageElement).naturalWidth))
+      .toBe(480);
+    await expect
+      .poll(() => image.evaluate((node) => (node as HTMLImageElement).naturalHeight))
+      .toBe(360);
+
+    const external = requests.filter(({ url }) => {
+      if (!/^https?:/.test(url)) return false;
+      return ![parentOrigin, runtimeUrl].includes(new URL(url).origin);
+    });
+    expect(external).toEqual([]);
+    expect(fixture.pageErrors).toEqual([]);
+
+    const savedDocument = fixture.runtimeDraftEvidence.at(-1)?.body.document;
+    const savedSnapshot = fixture.getStoredSnapshot();
+    if (!savedDocument || !savedSnapshot) throw new Error('saved preview fixture state missing');
+    const reopenedSession = {
+      draftRevision: fixture.getServerRevision(),
+      projectJson: savedDocument.projectJson,
+      assets: savedDocument.assets,
+    };
+    await fixture.close();
+    fixture = await createProtocolFixture({
+      product: true,
+      locale: 'en-US',
+      runtimeSession: reopenedSession,
+      runtimeAssets: serverProject.runtimeAssets,
+      initialSnapshot: savedSnapshot,
+    });
+    context = fixture.context;
+    const fresh = await context.newPage();
+    await fresh.goto(`${parentOrigin}/product#/home`, { waitUntil: 'domcontentloaded' });
+    const freshImage = fresh.getByTestId('project-preview-snapshot');
+    await expect(freshImage).toBeVisible();
+    await expect(freshImage).toHaveAttribute('src', `/api/projects/${projectId}/snapshot?rev=24`);
+    await expect
+      .poll(() => freshImage.evaluate((node) => (node as HTMLImageElement).naturalWidth))
+      .toBe(480);
+    await expect
+      .poll(() => freshImage.evaluate((node) => (node as HTMLImageElement).naturalHeight))
+      .toBe(360);
+
+    await fresh.goto(`${parentOrigin}/product`, { waitUntil: 'domcontentloaded' });
+    frame = fresh.frameLocator('iframe[title="Scratch runtime"]');
+    await expect(frame.locator('[data-asa-host-shell]')).toHaveAttribute(
+      'data-editor-state',
+      'ready',
+      { timeout: 45000 },
+    );
+    await expect(frame.getByRole('button', { name: 'Apple', exact: true })).toBeVisible();
+    await frame.getByRole('button', { name: 'Apple', exact: true }).click();
+    await expect(frame.getByPlaceholder('x', { exact: true })).toHaveValue('137');
+    const externalWrites = fixture.allRequests.filter(({ method, url }) => {
+      if (['GET', 'HEAD'].includes(method) || !/^https?:/.test(url)) return false;
+      return ![parentOrigin, runtimeUrl].includes(new URL(url).origin);
+    });
+    expect(externalWrites).toEqual([]);
+    expect(fixture.pageErrors).toEqual([]);
+  } finally {
+    await fixture.close();
+  }
+});
+
+test('next confirmed autosave replaces the project preview with the next revision URL', async () => {
+  const serverProject = await realRuntimeBootstrapFixture();
+  const fixture = await createProtocolFixture({
+    product: true,
+    locale: 'en-US',
+    runtimeSession: {
+      draftRevision: 23,
+      projectJson: serverProject.projectJson,
+      assets: serverProject.assets,
+    },
+    runtimeAssets: serverProject.runtimeAssets,
+  });
+  const page = await fixture.context.newPage();
+  try {
+    await page.goto(`${parentOrigin}/product`, { waitUntil: 'domcontentloaded' });
+    const frame = page.frameLocator('iframe[title="Scratch runtime"]');
+    await expect(frame.locator('[data-asa-host-shell]')).toHaveAttribute(
+      'data-editor-state',
+      'ready',
+      { timeout: 45000 },
+    );
+    await editPreviewScene(frame, '137');
+    await expect.poll(() => fixture.getSnapshotRevision(), { timeout: 20_000 }).toBe(24);
+
+    await frame.getByRole('button', { name: 'Apple', exact: true }).click();
+    await frame.getByPlaceholder('x', { exact: true }).fill('166');
+    await frame.getByPlaceholder('x', { exact: true }).press('Enter');
+    await expect.poll(() => fixture.getServerRevision(), { timeout: 20_000 }).toBe(25);
+    await expect.poll(() => fixture.getSnapshotRevision(), { timeout: 20_000 }).toBe(25);
+    expect(fixture.runtimeSnapshotEvidence.map((item) => item.sourceRevision)).toEqual([24, 25]);
+
+    await page.getByRole('button', { name: 'ASA Lab — на главную', exact: true }).click();
+    await expect(page).toHaveURL(`${parentOrigin}/product#/home`);
+    await expect(page.getByTestId('project-preview-snapshot')).toHaveAttribute(
+      'src',
+      `/api/projects/${projectId}/snapshot?rev=25`,
+    );
+  } finally {
+    await fixture.close();
+  }
+});
+
+test('failed draft save keeps the previous preview and never publishes dirty work', async () => {
+  const serverProject = await realRuntimeBootstrapFixture();
+  let failDraft = false;
+  const fixture = await createProtocolFixture({
+    product: true,
+    locale: 'en-US',
+    runtimeSession: {
+      draftRevision: 23,
+      projectJson: serverProject.projectJson,
+      assets: serverProject.assets,
+    },
+    runtimeAssets: serverProject.runtimeAssets,
+    draftWriteStatus: () => (failDraft ? 503 : 200),
+  });
+  const page = await fixture.context.newPage();
+  try {
+    await page.goto(`${parentOrigin}/product`, { waitUntil: 'domcontentloaded' });
+    const frame = page.frameLocator('iframe[title="Scratch runtime"]');
+    await expect(frame.locator('[data-asa-host-shell]')).toHaveAttribute(
+      'data-editor-state',
+      'ready',
+      { timeout: 45000 },
+    );
+    await editPreviewScene(frame, '137');
+    await expect.poll(() => fixture.getSnapshotRevision(), { timeout: 20_000 }).toBe(24);
+    expect(fixture.runtimeSnapshotEvidence).toHaveLength(1);
+
+    failDraft = true;
+    await frame.getByRole('button', { name: 'Apple', exact: true }).click();
+    await frame.getByPlaceholder('x', { exact: true }).fill('177');
+    await frame.getByPlaceholder('x', { exact: true }).press('Enter');
+    await expect.poll(() => fixture.runtimeDraftEvidence.length, { timeout: 20_000 }).toBe(2);
+    await expect(frame.getByText('Project could not save.', { exact: true })).toBeVisible();
+    expect(fixture.getServerRevision()).toBe(24);
+    expect(fixture.getSnapshotRevision()).toBe(24);
+    expect(fixture.runtimeSnapshotEvidence).toHaveLength(1);
+  } finally {
+    await fixture.close();
+  }
+});
+
+test('thumbnail upload failure never rolls back a successful project autosave', async () => {
+  const serverProject = await realRuntimeBootstrapFixture();
+  let failSnapshot = false;
+  const fixture = await createProtocolFixture({
+    product: true,
+    locale: 'en-US',
+    runtimeSession: {
+      draftRevision: 23,
+      projectJson: serverProject.projectJson,
+      assets: serverProject.assets,
+    },
+    runtimeAssets: serverProject.runtimeAssets,
+    snapshotWriteStatus: () => (failSnapshot ? 503 : 200),
+  });
+  const page = await fixture.context.newPage();
+  try {
+    await page.goto(`${parentOrigin}/product`, { waitUntil: 'domcontentloaded' });
+    const frame = page.frameLocator('iframe[title="Scratch runtime"]');
+    await expect(frame.locator('[data-asa-host-shell]')).toHaveAttribute(
+      'data-editor-state',
+      'ready',
+      { timeout: 45000 },
+    );
+    await editPreviewScene(frame, '137');
+    await expect.poll(() => fixture.getSnapshotRevision(), { timeout: 20_000 }).toBe(24);
+
+    failSnapshot = true;
+    await frame.getByRole('button', { name: 'Apple', exact: true }).click();
+    await frame.getByPlaceholder('x', { exact: true }).fill('188');
+    await frame.getByPlaceholder('x', { exact: true }).press('Enter');
+    await expect.poll(() => fixture.getServerRevision(), { timeout: 20_000 }).toBe(25);
+    await expect.poll(() => fixture.runtimeSnapshotEvidence.length, { timeout: 20_000 }).toBe(2);
+    expect(fixture.getSnapshotRevision()).toBe(24);
+    await expect(frame.getByText('Project could not save.', { exact: true })).toHaveCount(0);
+    const latestDraft = fixture.runtimeDraftEvidence
+      .at(-1)
+      ?.body.document.projectJson.targets.find(
+        (target: { name?: string }) => target.name === 'Apple',
+      );
+    expect(latestDraft?.x).toBe(188);
+  } finally {
+    await fixture.close();
+  }
+});
+
+test('stale thumbnail arriving after a newer autosave cannot replace the newer preview', async () => {
+  const serverProject = await realRuntimeBootstrapFixture();
+  const fixture = await createProtocolFixture({
+    product: true,
+    locale: 'en-US',
+    runtimeSession: {
+      draftRevision: 23,
+      projectJson: serverProject.projectJson,
+      assets: serverProject.assets,
+    },
+    runtimeAssets: serverProject.runtimeAssets,
+  });
+  const page = await fixture.context.newPage();
+  let heldSeenResolve: (() => void) | undefined;
+  const heldSeen = new Promise<void>((resolve) => {
+    heldSeenResolve = resolve;
+  });
+  let releaseHeldResolve: (() => void) | undefined;
+  const releaseHeld = new Promise<void>((resolve) => {
+    releaseHeldResolve = resolve;
+  });
+  let held = false;
+  try {
+    await fixture.context.route(
+      `${parentOrigin}/api/projects/${projectId}/snapshot`,
+      async (route) => {
+        const body = route.request().postDataJSON() as { sourceRevision?: number } | null;
+        if (!held && body?.sourceRevision === 24) {
+          held = true;
+          heldSeenResolve?.();
+          await releaseHeld;
+        }
+        await route.continue();
+      },
+    );
+
+    await page.goto(`${parentOrigin}/product`, { waitUntil: 'domcontentloaded' });
+    const frame = page.frameLocator('iframe[title="Scratch runtime"]');
+    await expect(frame.locator('[data-asa-host-shell]')).toHaveAttribute(
+      'data-editor-state',
+      'ready',
+      { timeout: 45000 },
+    );
+    await editPreviewScene(frame, '137');
+    await expect.poll(() => fixture.getServerRevision(), { timeout: 20_000 }).toBe(24);
+    await heldSeen;
+    expect(fixture.getSnapshotRevision()).toBeNull();
+
+    await frame.getByRole('button', { name: 'Apple', exact: true }).click();
+    await frame.getByPlaceholder('x', { exact: true }).fill('199');
+    await frame.getByPlaceholder('x', { exact: true }).press('Enter');
+    await expect.poll(() => fixture.getServerRevision(), { timeout: 20_000 }).toBe(25);
+    await expect.poll(() => fixture.getSnapshotRevision(), { timeout: 20_000 }).toBe(25);
+
+    releaseHeldResolve?.();
+    await expect.poll(() => fixture.runtimeSnapshotEvidence.length, { timeout: 20_000 }).toBe(2);
+    expect(fixture.getSnapshotRevision()).toBe(25);
+    expect(fixture.runtimeSnapshotEvidence.map((item) => item.sourceRevision).sort()).toEqual([
+      24, 25,
+    ]);
+  } finally {
+    releaseHeldResolve?.();
+    await fixture.close();
+  }
+});
+
 // Native Scratch File commands are not ASA durable save or the M1-007 import API.
 // Reopen in a fresh browser so an in-memory VM/storage cache cannot fake restoration.
 test('native File saves an edited sb3 and restores code and media in a fresh editor', async () => {
@@ -1746,7 +2064,9 @@ test('native File saves an edited sb3 and restores code and media in a fresh edi
       return (
         /^\/api\/blocks\/runtime\/projects\/[0-9a-f-]+\/assets\/[a-f0-9]{32}\.(svg|png|jpg|wav|mp3)$/i.test(
           parsed.pathname,
-        ) || /^\/api\/blocks\/runtime\/projects\/[0-9a-f-]+\/draft$/i.test(parsed.pathname)
+        ) ||
+        /^\/api\/blocks\/runtime\/projects\/[0-9a-f-]+\/draft$/i.test(parsed.pathname) ||
+        /^\/api\/projects\/[0-9a-f-]+\/snapshot$/i.test(parsed.pathname)
       );
     });
     expect(managedRuntimeMutations.length).toBeGreaterThan(0);

@@ -60,15 +60,16 @@
         return null;
       }
       for (const costume of target.costumes) {
+        const key = isRecord(costume) ? mediaKey(costume.assetId, costume.dataFormat) : null;
         if (
           !isRecord(costume) ||
           !ASSET_ID_RE.test(costume.assetId ?? '') ||
           !COSTUME_FORMATS.has(costume.dataFormat) ||
-          costume.md5ext !== mediaKey(costume.assetId, costume.dataFormat)
+          (typeof costume.md5ext !== 'undefined' && costume.md5ext !== key)
         ) {
           return null;
         }
-        keys.add(mediaKey(costume.assetId, costume.dataFormat));
+        keys.add(key);
       }
       for (const sound of target.sounds) {
         if (

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { saveProjectSnapshot } from '../project-snapshot-client';
 import { BlocksEditorShell } from './BlocksEditorShell';
 import { BlocksRuntimeBridge, requireExactHttpOrigin } from './runtime-protocol';
 import { requestBlocksRuntimeSession } from './runtime-session';
@@ -143,6 +144,13 @@ export function BlocksEditor({
       }
       if (payload['messageType'] === 'ASA_BLOCKS_TOKEN_REFRESH_REQUIRED') {
         void refreshCapability();
+      }
+      if (payload['messageType'] === 'ASA_BLOCKS_THUMBNAIL_READY') {
+        void saveProjectSnapshot(
+          projectId,
+          payload['imageDataUrl'] as string,
+          payload['sourceRevision'] as number,
+        );
       }
       if (payload['messageType'] === 'ASA_BLOCKS_FATAL') failStartup();
     };

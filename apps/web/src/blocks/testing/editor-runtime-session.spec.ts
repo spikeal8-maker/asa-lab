@@ -304,6 +304,49 @@ describe('BlocksEditor runtime session bootstrap', () => {
     });
   });
 
+  it('uploads a trusted native thumbnail through the authenticated parent snapshot API', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const path = String(input);
+      if (path === `/api/projects/${PROJECT_ID}/snapshot`) {
+        return jsonResponse({
+          snapshot: {
+            projectId: PROJECT_ID,
+            contentType: 'image/png',
+            width: 480,
+            height: 360,
+            sourceRevision: 18,
+            capturedAt: '2026-09-19T20:00:00.000Z',
+          },
+        });
+      }
+      return jsonResponse(session());
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const iframe = await renderEditor();
+    const postMessage = spyOnPostMessage(iframe);
+    await fireLoad(iframe);
+    const init = initCalls(postMessage)[0]?.[0] as Record<string, unknown>;
+
+    await dispatchChild(iframe, init, {
+      messageType: 'ASA_BLOCKS_THUMBNAIL_READY',
+      sourceRevision: 18,
+      imageDataUrl: 'data:image/png;base64,AAAA',
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      `/api/projects/${PROJECT_ID}/snapshot`,
+      expect.objectContaining({
+        method: 'PUT',
+        credentials: 'same-origin',
+        cache: 'no-store',
+        body: JSON.stringify({
+          imageDataUrl: 'data:image/png;base64,AAAA',
+          sourceRevision: 18,
+        }),
+      }),
+    );
+  });
+
   it('does not expose a parent save control or start the legacy FLUSH path', async () => {
     vi.stubGlobal(
       'fetch',
