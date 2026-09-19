@@ -791,10 +791,9 @@ try {
   expect(blockSave.revision).toBe(pBlocks1.revision);
   expect(projectHasStep(pBlocks1, marker, 74)).toBe(true);
   await expect
-    .poll(
-      () => phaseRuntimeMetrics(runtimeEvents, 'blocks-only-autosave').draftPutRequests,
-      { timeout: 5000 },
-    )
+    .poll(() => phaseRuntimeMetrics(runtimeEvents, 'blocks-only-autosave').draftPutRequests, {
+      timeout: 5000,
+    })
     .toBe(1);
   const blocksOnlyRuntime = phaseRuntimeMetrics(runtimeEvents, 'blocks-only-autosave');
   expect(blocksOnlyRuntime.assetPutRequests).toBe(0);
