@@ -498,6 +498,8 @@ const pageErrors = [];
 page.on('pageerror', (error) => pageErrors.push(error.message));
 let trace;
 let noOpTrace;
+let blocksOnlyEvidence;
+let rapidEditEvidence;
 try {
   const ready = await (await context.request.get('/health/ready')).json();
   const metadata = await (await context.request.get('/build-metadata.json')).json();
@@ -786,6 +788,11 @@ try {
   expect(blocksOnlyRuntime.assetPutRequests).toBe(0);
   expect(blocksOnlyRuntime.draftPutRequests).toBe(1);
   expect(delta(pBlocks1.revision, pBlocks0.revision)).toBe(1);
+  blocksOnlyEvidence = {
+    runtime: blocksOnlyRuntime,
+    revisionDelta: delta(pBlocks1.revision, pBlocks0.revision),
+    savedStep: 74,
+  };
 
   phase = 'rapid-edit';
   const pRapid0 = projectState(projectId);
@@ -831,6 +838,12 @@ try {
     const rapidRuntime = phaseRuntimeMetrics(runtimeEvents, 'rapid-edit');
     expect(rapidRuntime.assetPutRequests).toBe(0);
     expect(rapidRuntime.draftPutRequests).toBe(2);
+    rapidEditEvidence = {
+      runtime: rapidRuntime,
+      revisionDelta: delta(pRapid1.revision, pRapid0.revision),
+      firstStep: 75,
+      latestStep: 76,
+    };
   } finally {
     releaseRapidResponse?.();
     await context.unroute(draftPattern, rapidHandler);
@@ -1055,6 +1068,8 @@ try {
       objectDelta: delta(o3.count, o2.count),
       objectByteDelta: delta(o3.bytes, o2.bytes),
     },
+    blocksOnly: blocksOnlyEvidence,
+    rapidEdit: rapidEditEvidence,
   };
   const authorizationEvidence = {
     account: { saveRevision: firstSave.revision, freshReopenRevision: freshSession.draftRevision },
@@ -1097,7 +1112,7 @@ try {
         projectId,
         confirmedRevision: firstSave.revision,
         scenario:
-          'fresh exported stack → account edit/save → destroy context → re-auth → exact reopen → fresh no-op → StudentSeat/negative acceptance',
+          'fresh exported stack → no-click upstream autosave → destroy context → re-auth → exact reopen → no-op → blocks-only → rapid edit → StudentSeat/storage-negative acceptance',
         pageErrors,
       },
       null,
