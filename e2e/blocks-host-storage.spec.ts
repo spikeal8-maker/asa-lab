@@ -118,7 +118,7 @@ async function mount(player = false) {
   return frame;
 }
 
-test('new project opens the stock Scratch default and storage remains read-only', async () => {
+test('new editor binds the stock Scratch default to the managed ASA project UUID', async () => {
   const frame = await mount(false);
   const shell = frame.locator('[data-asa-host-shell]');
   await expect(frame.locator('.blocklySvg').first()).toBeVisible();
@@ -152,32 +152,37 @@ test('new project opens the stock Scratch default and storage remains read-only'
         apiOrigin,
         getRuntimeToken: () => 'fixture.runtime.token',
       });
-      let save = 'unexpected_success';
       let library = 'unexpected_success';
-      try {
-        await storage.saveProject();
-      } catch (error) {
-        save = (error as Error).message;
-      }
       try {
         storage.getLibraryAssetUrl('unavailable-fixture', 'svg');
       } catch (error) {
         library = (error as Error).message;
       }
-      const unknownProject = await storage.scratchStorage.load(
+      const managedProject = await storage.scratchStorage.load(
         storage.scratchStorage.AssetType.Project,
         targetProjectId,
         storage.scratchStorage.DataFormat.JSON,
       );
+      const localZeroProject = await storage.scratchStorage.load(
+        storage.scratchStorage.AssetType.Project,
+        '0',
+        storage.scratchStorage.DataFormat.JSON,
+      );
       storage.dispose();
-      return { save, library, unknownProject };
+      return {
+        library,
+        managedProjectId: managedProject?.assetId ?? null,
+        hasManagedProject: Boolean(managedProject),
+        hasLocalZeroProject: Boolean(localZeroProject),
+      };
     },
     { apiOrigin: parentOrigin, targetProjectId: projectId },
   );
   expect(storageResult).toEqual({
-    save: 'runtime_storage_read_only',
     library: 'runtime_asset_unavailable',
-    unknownProject: null,
+    managedProjectId: projectId,
+    hasManagedProject: true,
+    hasLocalZeroProject: false,
   });
   expect(fixture.pageErrors).toEqual([]);
 
@@ -195,6 +200,31 @@ test('new player remains read-only and controls the actual default VM', async ()
   await expect(shell).not.toHaveAttribute('data-runtime-state', 'error');
   await frame.getByRole('button', { name: 'Stop project', exact: true }).click();
   await expect(shell).toHaveAttribute('data-project-running', 'false');
+  const directSave = await frame.locator('body').evaluate(
+    async ({ apiOrigin, targetProjectId }) => {
+      const storage = window.AsaBlocksStorage.createReadOnlyStorage(window.GUI, {
+        projectId: targetProjectId,
+        projectJson: null,
+        assets: [],
+        apiOrigin,
+        canSave: false,
+        getRuntimeToken: () => 'fixture.runtime.token',
+      });
+      try {
+        await storage.saveProject(
+          targetProjectId,
+          JSON.stringify({ targets: [], monitors: [], extensions: [] }),
+        );
+        return 'unexpected_success';
+      } catch (error) {
+        return (error as Error).message;
+      } finally {
+        storage.dispose();
+      }
+    },
+    { apiOrigin: parentOrigin, targetProjectId: projectId },
+  );
+  expect(directSave).toBe('runtime_storage_read_only');
   await page.screenshot({ path: `${evidenceDir}/02-read-only-player.png` });
   expect(fixture.pageErrors).toEqual([]);
 });
