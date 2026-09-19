@@ -203,6 +203,7 @@ test('declared runtime asset GET uses current Bearer without cookies or URL capa
     'svg',
   );
   assert.deepEqual(Buffer.from(loaded.data), Buffer.from(bytes));
+  assert.equal(loaded.clean, true);
   assert.equal(calls.length, 1, 'verified runtime bytes are cached without a second GET');
 });
 
