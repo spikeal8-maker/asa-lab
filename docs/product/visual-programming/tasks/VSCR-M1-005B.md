@@ -39,106 +39,29 @@ local File. Это отдельный режим доступности и **н�
 
 ## Current implementation checkpoint
 
-PR #288 now carries an **implementation-complete candidate** for the bounded M1-005B path.
-Independent critical review, merge and release remain pending.
+PR #288 carries an **implementation-complete candidate** for M1-005B. Independent
+critical review, merge and release remain pending.
 
 Implemented and evidenced:
 
-- real Parent Web runtime-session bootstrap;
-- real read-only existing-project open from runtime-session project JSON and assets;
-- parent-owned explicit `Сохранить в ASA` control with one FLUSH in flight and distinct
-  `Сохранение…` / `Сохранено` / `Ошибка сохранения` / `Конфликт сохранения` states;
-- explicit FLUSH using the live Scratch VM snapshot and exact current media bytes;
-- asset PUT before canonical draft PUT with confirmed revision;
-- deterministic canonical-document fingerprint and unchanged-FLUSH zero-write semantics;
-- memory-only durable-asset knowledge across failed draft attempts;
-- stable mutationId/baseRevision replay after ambiguous lost/5xx/malformed draft responses;
-- explicit `revision_conflict` for `project_revision_conflict`;
+- real Parent Web runtime-session and real existing-project open;
+- parent-owned explicit `Сохранить в ASA` with one FLUSH in flight and distinct
+  saving/saved/error/conflict states;
+- live-VM canonical save, fingerprint no-op, durable-asset knowledge and stable replay;
 - real PostgreSQL + private MinIO/S3-compatible save → destroy browser context →
-  re-authenticate → fresh runtime-session → exact reopen;
-- byte-exact costume/image and sound proof after fresh reopen;
+  re-authenticate → exact fresh reopen;
+- byte-exact costume/image and sound after reopen;
 - immediate fresh-reopen no-op with zero asset/draft/object-store writes and zero
   blob/alias/revision deltas;
-- Account and StudentSeat authorization journeys plus foreign/revoked/origin/storage negatives;
+- Account + StudentSeat journeys and required security/storage negatives;
 - exact-SHA focused/browser/repository CI.
 
-Implementation evidence SHA:
+Implementation evidence SHA: `f4012afa9d056acb8ec54cb365e806094c6df3e3`.
+Measured P0/P1/P2/P3, media digests, authorization negatives and L2 hygiene evidence
+are recorded in `docs/review/VSCR_M1_005B_HYGIENE_2026-09-19.md`.
 
-```text
-f4012afa9d056acb8ec54cb365e806094c6df3e3
-```
-
-Portable real-stack evidence:
-
-```text
-first save:
-  asset PUT          = 10
-  uploaded bytes     = 293385
-  draft PUT          = 1
-  revision delta     = +1
-  blob rows          = +10
-  alias rows         = +10
-  MinIO objects      = +10
-  object bytes       = +293385
-  save latency       = 898.41 ms
-
-fresh reopen:
-  asset GET          = 5
-  revision           = 2
-  reopen latency     = 2339.54 ms
-  exact project JSON = confirmed
-
-fresh no-op:
-  asset PUT          = 0
-  draft PUT          = 0
-  uploaded bytes     = 0
-  object requests    = 0
-  blob rows          = +0
-  alias rows         = +0
-  object rows/bytes  = +0 / +0
-  revision delta     = 0
-```
-
-Media proof:
-
-```text
-Abby-a.svg:
-  MD5      809d9b47347a6af2860e7a3a35bce057
-  SHA-256  fd571722a4ccfac705c28aaef6e6310bbd346929b440878c20cbc0ec484e9956
-  bytes    62926
-
-Bark.wav:
-  MD5      cd8fa8390b0efdd281882533fbfcfcfb
-  SHA-256  f9a29b2bb69d732182cb3fcb775a4a9d1888462b81a2a1b01072c25b09cee127
-  bytes    6380
-```
-
-The before/after digests and sizes are identical. Fresh reopen obtains the durable
-media through runtime asset GET, not stock-library fallback.
-
-Authorization/failure evidence on the same disposable real stack:
-
-```text
-Account save/reopen revision       = 2 / 2
-StudentSeat save revision          = 2
-foreign bootstrap                  = 404
-foreign asset                      = 401
-foreign draft                      = 401
-invalid Origin                     = 403
-revoked capability                 = 403
-storage failure UI                 = error
-storage failure revision           = 2 → 2
-portal cookie leaked to runtime    = false
-browser page errors                = 0
-```
-
-Expired capability and player-write denials remain covered by the focused runtime
-security suite; missing referenced asset, optimistic conflict and same-mutation replay
-remain covered by the focused Project Core/Blocks persistence and browser suites.
-No already-proven mechanism was rewritten for this closure.
-
-This is **not** owner acceptance. `M1-005B` stays `in_progress`; the only open DoD
-item is independent critical review before merge/release.
+This is **not** owner acceptance. `M1-005B` stays `in_progress`; the remaining
+DoD item is independent critical review before merge/release.
 
 Current bounded persistence semantics:
 
