@@ -593,6 +593,94 @@ test('explicit persistence uploads only changed assets before canonical draft an
   );
 });
 
+test('upstream asset-store latency cannot hide an edit made after VM serialization', async () => {
+  let generation = 5;
+  let releaseStore;
+  const storeGate = new Promise((resolve) => {
+    releaseStore = resolve;
+  });
+  const stale = [];
+  const draftCalls = [];
+
+  class UpstreamStorage extends Storage {
+    async store(assetType, dataFormat, data, assetId) {
+      await storeGate;
+      const bytes = new Uint8Array(data);
+      return {
+        id: assetId,
+        status: 'ok',
+        asset: {
+          assetId: String(assetId),
+          dataFormat,
+          sha256: createHash('sha256').update(bytes).digest('hex'),
+          sizeBytes: bytes.byteLength,
+        },
+      };
+    }
+  }
+
+  const api = loadHost('storage', {
+    fetch: async (url, init) => {
+      assert.match(String(url), /\/draft$/);
+      draftCalls.push(JSON.parse(init.body));
+      return new globalThis.Response(JSON.stringify({ status: 'ok', revision: 8 }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    },
+    crypto: webcrypto,
+    AbortController: globalThis.AbortController,
+    ArrayBuffer,
+    Uint8Array,
+  }).AsaBlocksStorage;
+
+  const standalone = {
+    ScratchStorage: UpstreamStorage,
+    buildDefaultProject: standaloneFixture().buildDefaultProject,
+  };
+  const storage = api.createReadOnlyStorage(standalone, {
+    projectId: PROJECT_ID,
+    projectJson: null,
+    assets: [],
+    draftRevision: 7,
+    apiOrigin: API_ORIGIN,
+    getRuntimeToken: () => RUNTIME_TOKEN,
+    canSave: true,
+    getProjectGeneration: () => generation,
+    onSaveCompletedStale: (value) => stale.push(value),
+  });
+
+  const assetId = '9'.repeat(32);
+  const bytes = new TextEncoder().encode('<svg xmlns="http://www.w3.org/2000/svg"/>');
+  const storePromise = storage.scratchStorage.store(
+    storage.scratchStorage.AssetType.ImageVector,
+    'svg',
+    bytes,
+    assetId,
+  );
+
+  generation = 6;
+  releaseStore();
+  await storePromise;
+
+  const projectJson = {
+    targets: [
+      {
+        name: 'Saved A',
+        costumes: [{ assetId, dataFormat: 'svg' }],
+        sounds: [],
+      },
+    ],
+    monitors: [],
+    extensions: [],
+  };
+  const result = await storage.saveProject(PROJECT_ID, JSON.stringify(projectJson), {});
+
+  assert.deepEqual(result, { id: PROJECT_ID });
+  assert.equal(draftCalls.length, 1);
+  assert.deepEqual(stale, [{ savedGeneration: 5, latestGeneration: 6, revision: 8 }]);
+});
+
 for (const status of [400, 401, 403, 409, 429, 503]) {
   test(`asset PUT HTTP ${status} fails closed before draft PUT`, async () => {
     const asset = snapshotAsset('d'.repeat(32), 'png', Uint8Array.from([10, 11, 12]));
