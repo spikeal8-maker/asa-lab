@@ -808,6 +808,7 @@ test('Course Builder duplicates a section and excludes hidden lesson only from f
   const v1Code = await createClassWithStudents(page, 'Структура курса V1 ' + sequence, [
     { label: 'Ученик V1', handle: 'course-structure-v1-' + sequence },
   ]);
+  const oldLearner = await learnerAssignments(browser, v1Code, 'course-structure-v1-' + sequence);
   await page
     .getByRole('navigation', { name: 'Разделы класса' })
     .getByRole('button', { name: 'Обучение', exact: true })
@@ -819,7 +820,7 @@ test('Course Builder duplicates a section and excludes hidden lesson only from f
   await page.getByLabel('Опубликованный курс').selectOption({ label: courseTitle + ' · v1' });
   await page.getByRole('button', { name: 'Назначить курс', exact: true }).click();
 
-  const oldLearner = await learnerAssignments(browser, v1Code, 'course-structure-v1-' + sequence);
+  await oldLearner.page.reload();
   const oldCourses = oldLearner.page.getByTestId('seat-courses');
   await oldCourses.getByRole('button').filter({ hasText: courseTitle }).click();
   await expect(oldLearner.page.getByText('Структурная теория', { exact: true })).toBeVisible();
@@ -874,6 +875,7 @@ test('Course Builder duplicates a section and excludes hidden lesson only from f
   const v2Code = await createClassWithStudents(page, 'Структура курса V2 ' + sequence, [
     { label: 'Ученик V2', handle: 'course-structure-v2-' + sequence },
   ]);
+  const newLearner = await learnerAssignments(browser, v2Code, 'course-structure-v2-' + sequence);
   await page
     .getByRole('navigation', { name: 'Разделы класса' })
     .getByRole('button', { name: 'Обучение', exact: true })
@@ -885,7 +887,7 @@ test('Course Builder duplicates a section and excludes hidden lesson only from f
   await page.getByLabel('Опубликованный курс').selectOption({ label: courseTitle + ' · v2' });
   await page.getByRole('button', { name: 'Назначить курс', exact: true }).click();
 
-  const newLearner = await learnerAssignments(browser, v2Code, 'course-structure-v2-' + sequence);
+  await newLearner.page.reload();
   const newCourses = newLearner.page.getByTestId('seat-courses');
   await newCourses.getByRole('button').filter({ hasText: courseTitle }).click();
   await expect(newLearner.page.getByText('Структурная теория', { exact: true })).toHaveCount(1);
