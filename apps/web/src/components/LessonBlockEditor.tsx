@@ -1,6 +1,12 @@
 import type { LessonBlock } from '../api';
 
 const ASSET_URL = /^\/assets\/[A-Za-z0-9][A-Za-z0-9/_.%-]*$/;
+const CODE_TEXT_LIMIT = 20_000;
+const FORMULA_TEXT_LIMIT = 4_000;
+const TABLE_ROW_LIMIT = 30;
+const TABLE_COLUMN_LIMIT = 12;
+const TABLE_CELL_TEXT_LIMIT = 1_000;
+const CODE_LANGUAGE = /^[A-Za-z0-9][A-Za-z0-9_+.#-]{0,79}$/;
 
 function localMediaUrl(value: string): boolean {
   return ASSET_URL.test(value) && !value.includes('..');
@@ -14,7 +20,18 @@ function nextId(): string {
   return `b-${crypto.randomUUID().replaceAll('-', '')}`;
 }
 
-function newBlock(type: LessonBlock['type']): LessonBlock {
+function tableRowsValid(rows: readonly (readonly string[])[]): boolean {
+  if (rows.length < 1 || rows.length > TABLE_ROW_LIMIT) return false;
+  const columns = rows[0]?.length ?? 0;
+  if (columns < 1 || columns > TABLE_COLUMN_LIMIT) return false;
+  return rows.every(
+    (row) =>
+      row.length === columns &&
+      row.every((cell) => typeof cell === 'string' && cell.length <= TABLE_CELL_TEXT_LIMIT),
+  );
+}
+
+export function createLessonBlock(type: LessonBlock['type']): LessonBlock {
   const id = nextId();
   if (type === 'paragraph') return { id, type, text: '' };
   if (type === 'heading') return { id, type, text: '', level: 2 };
@@ -22,18 +39,49 @@ function newBlock(type: LessonBlock['type']): LessonBlock {
   if (type === 'image') return { id, type, url: '', alt: '', caption: '' };
   if (type === 'video') return { id, type, url: '', title: '' };
   if (type === 'audio') return { id, type, url: '', title: '' };
-  return { id, type, url: '', label: '' };
+  if (type === 'file') return { id, type, url: '', label: '' };
+  if (type === 'code') return { id, type, text: '' };
+  if (type === 'formula') return { id, type, text: '' };
+  if (type === 'table') return { id, type, rows: [['']] };
+  return { id, type: 'divider' };
 }
 
 export function lessonBlocksValid(blocks: readonly LessonBlock[]): boolean {
   return (
     blocks.length <= 40 &&
+    JSON.stringify(blocks).length <= 60_000 &&
     blocks.every((block) => {
       if (block.type === 'paragraph') return block.text.length <= 12_000;
-      if (block.type === 'heading') return block.text.trim().length > 0;
-      if (block.type === 'callout') return block.text.trim().length > 0;
-      if (block.type === 'file') return fileUrl(block.url) && block.label.trim().length > 0;
-      return localMediaUrl(block.url);
+      if (block.type === 'heading') {
+        return block.text.trim().length > 0 && block.text.length <= 300;
+      }
+      if (block.type === 'callout') {
+        return block.text.trim().length > 0 && block.text.length <= 3_000;
+      }
+      if (block.type === 'image') {
+        return (
+          localMediaUrl(block.url) &&
+          block.alt.length <= 300 &&
+          block.caption.length <= 600
+        );
+      }
+      if (block.type === 'video' || block.type === 'audio') {
+        return localMediaUrl(block.url) && block.title.length <= 300;
+      }
+      if (block.type === 'file') {
+        return fileUrl(block.url) && block.label.trim().length > 0 && block.label.length <= 300;
+      }
+      if (block.type === 'code') {
+        return (
+          block.text.length <= CODE_TEXT_LIMIT &&
+          (block.language === undefined || CODE_LANGUAGE.test(block.language))
+        );
+      }
+      if (block.type === 'formula') {
+        return block.text.trim().length > 0 && block.text.length <= FORMULA_TEXT_LIMIT;
+      }
+      if (block.type === 'table') return tableRowsValid(block.rows);
+      return block.type === 'divider';
     })
   );
 }
@@ -42,6 +90,10 @@ const ADD_OPTIONS: Array<{ type: LessonBlock['type']; label: string }> = [
   { type: 'paragraph', label: 'Текст' },
   { type: 'heading', label: 'Заголовок' },
   { type: 'callout', label: 'Врезка' },
+  { type: 'code', label: 'Код' },
+  { type: 'formula', label: 'Формула' },
+  { type: 'table', label: 'Таблица' },
+  { type: 'divider', label: 'Разделитель' },
   { type: 'image', label: 'Картинка' },
   { type: 'video', label: 'Видео' },
   { type: 'audio', label: 'Аудио' },
@@ -182,6 +234,127 @@ export function LessonBlockEditor({
               </div>
             ) : null}
 
+            {block.type === 'code' ? (
+              <div className="lesson-block-fields">
+                <input
+                  aria-label="Язык кода"
+                  value={block.language ?? ''}
+                  maxLength={80}
+                  placeholder="Например, javascript"
+                  onChange={(event) => {
+                    const language = event.target.value;
+                    replace(
+                      block.id,
+                      language
+                        ? { ...block, language }
+                        : { id: block.id, type: 'code', text: block.text },
+                    );
+                  }}
+                />
+                <textarea
+                  aria-label="Код"
+                  value={block.text}
+                  rows={7}
+                  maxLength={CODE_TEXT_LIMIT}
+                  spellCheck={false}
+                  placeholder="Вставьте код без HTML-исполнения"
+                  onChange={(event) => replace(block.id, { ...block, text: event.target.value })}
+                />
+              </div>
+            ) : null}
+
+            {block.type === 'formula' ? (
+              <textarea
+                aria-label="Формула"
+                value={block.text}
+                rows={2}
+                maxLength={FORMULA_TEXT_LIMIT}
+                placeholder="Например, U = I × R"
+                onChange={(event) => replace(block.id, { ...block, text: event.target.value })}
+              />
+            ) : null}
+
+            {block.type === 'table' ? (
+              <div className="lesson-block-fields lesson-table-editor">
+                <div className="lesson-table-actions">
+                  <button
+                    type="button"
+                    disabled={block.rows.length >= TABLE_ROW_LIMIT}
+                    onClick={() =>
+                      replace(block.id, {
+                        ...block,
+                        rows: [
+                          ...block.rows,
+                          Array.from({ length: block.rows[0]?.length ?? 1 }, () => ''),
+                        ],
+                      })
+                    }
+                  >
+                    + Строка
+                  </button>
+                  <button
+                    type="button"
+                    disabled={block.rows.length <= 1}
+                    onClick={() => replace(block.id, { ...block, rows: block.rows.slice(0, -1) })}
+                  >
+                    − Строка
+                  </button>
+                  <button
+                    type="button"
+                    disabled={(block.rows[0]?.length ?? 1) >= TABLE_COLUMN_LIMIT}
+                    onClick={() =>
+                      replace(block.id, {
+                        ...block,
+                        rows: block.rows.map((row) => [...row, '']),
+                      })
+                    }
+                  >
+                    + Столбец
+                  </button>
+                  <button
+                    type="button"
+                    disabled={(block.rows[0]?.length ?? 1) <= 1}
+                    onClick={() =>
+                      replace(block.id, {
+                        ...block,
+                        rows: block.rows.map((row) => row.slice(0, -1)),
+                      })
+                    }
+                  >
+                    − Столбец
+                  </button>
+                </div>
+                <div
+                  className="lesson-table-grid"
+                  style={{
+                    gridTemplateColumns: `repeat(${block.rows[0]?.length ?? 1}, minmax(8rem, 1fr))`,
+                  }}
+                >
+                  {block.rows.flatMap((row, rowIndex) =>
+                    row.map((cell, columnIndex) => (
+                      <input
+                        key={`${rowIndex}:${columnIndex}`}
+                        aria-label={`Ячейка ${rowIndex + 1}:${columnIndex + 1}`}
+                        value={cell}
+                        maxLength={TABLE_CELL_TEXT_LIMIT}
+                        onChange={(event) => {
+                          const rows = block.rows.map((current) => [...current]);
+                          const targetRow = rows[rowIndex];
+                          if (!targetRow) return;
+                          targetRow[columnIndex] = event.target.value;
+                          replace(block.id, { ...block, rows });
+                        }}
+                      />
+                    )),
+                  )}
+                </div>
+              </div>
+            ) : null}
+
+            {block.type === 'divider' ? (
+              <p className="lesson-divider-editor-note">Разделитель не содержит текста.</p>
+            ) : null}
+
             {block.type === 'image' ? (
               <div className="lesson-block-fields">
                 <input
@@ -262,7 +435,7 @@ export function LessonBlockEditor({
             key={option.type}
             type="button"
             disabled={blocks.length >= 40}
-            onClick={() => onChange([...blocks, newBlock(option.type)])}
+            onClick={() => onChange([...blocks, createLessonBlock(option.type)])}
           >
             + {option.label}
           </button>
