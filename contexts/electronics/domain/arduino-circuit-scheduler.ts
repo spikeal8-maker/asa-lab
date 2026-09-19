@@ -368,7 +368,9 @@ export function advanceArduinoCircuitClock(
           : component,
       )
       .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)),
-    connections: [...document.connections].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)),
+    connections: [...document.connections].sort((a, b) =>
+      a.id < b.id ? -1 : a.id > b.id ? 1 : 0,
+    ),
   };
   let nextInputIndex = previous?.nextInputIndex ?? 0;
   for (const event of inputs.slice(0, nextInputIndex))
