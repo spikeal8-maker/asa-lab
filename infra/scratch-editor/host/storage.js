@@ -205,6 +205,7 @@
     const webStoreRequest = (asset) => {
       if (
         disposed ||
+        options.canSave === false ||
         !asset ||
         !validTypeAndFormat(asset.assetType, asset.dataFormat) ||
         !ASSET_ID_RE.test(String(asset.assetId ?? '')) ||
@@ -572,6 +573,7 @@
       },
       async saveProject(projectId, vmState) {
         if (disposed) throw unavailable('storage_disposed');
+        if (options.canSave === false) throw unavailable('runtime_storage_read_only');
         if (String(projectId ?? '') !== String(options.projectId ?? '')) {
           throw unavailable('project_identity_mismatch');
         }
