@@ -72,7 +72,47 @@ describe('course outline persistence', () => {
         alt: 'Схема цепи',
         caption: 'Пример готовой схемы',
       },
+      {
+        id: 'code',
+        type: 'code',
+        language: 'javascript',
+        text: '<script>alert("never")</script>\n  const current = voltage / resistance;',
+      },
+      { id: 'formula', type: 'formula', text: 'I = U / R' },
+      {
+        id: 'table',
+        type: 'table',
+        rows: [
+          ['Элемент', 'Значение'],
+          ['R1', '220 Ω'],
+        ],
+      },
+      { id: 'divider', type: 'divider' },
     ];
+
+    const validBlocks = await admin.query(
+      `SELECT course_lesson_blocks_valid($1::jsonb) AS valid`,
+      [JSON.stringify(publishedBlocks)],
+    );
+    expect(validBlocks.rows[0].valid).toBe(true);
+    const invalidBlocks = await admin.query(
+      `SELECT course_lesson_blocks_valid($1::jsonb) AS valid`,
+      [JSON.stringify([{ id: 'divider', type: 'divider', text: 'not allowed' }])],
+    );
+    expect(invalidBlocks.rows[0].valid).toBe(false);
+    const oversizedTable = await admin.query(
+      `SELECT course_lesson_blocks_valid($1::jsonb) AS valid`,
+      [
+        JSON.stringify([
+          {
+            id: 'table',
+            type: 'table',
+            rows: Array.from({ length: 31 }, (_, index) => [String(index)]),
+          },
+        ]),
+      ],
+    );
+    expect(oversizedTable.rows[0].valid).toBe(false);
     const lesson = await admin.query(
       `SELECT course_lesson_save_v2(
           $1, $2, $3, NULL, 'Как читать схему', NULL, $4::jsonb,
@@ -82,6 +122,13 @@ describe('course outline persistence', () => {
     );
     const lessonId = lesson.rows[0].id as string;
     expect(lessonId).toBeTruthy();
+    const compatibility = await admin.query(
+      `SELECT content FROM course_lessons WHERE id=$1`,
+      [lessonId],
+    );
+    expect(compatibility.rows[0].content).toContain('  const current = voltage / resistance;');
+    expect(compatibility.rows[0].content).toContain('I = U / R');
+    expect(compatibility.rows[0].content).toContain('Элемент | Значение');
 
     const published = await admin.query(`SELECT * FROM course_publish($1, $2)`, [
       blockIdentity.principalId,
