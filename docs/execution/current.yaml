@@ -147,14 +147,14 @@ parallel_lanes:
       issue: 305
       branch: codex/electronics-eopt5a-runtime-strategy
       base_branch: main
-      pr: null
+      pr: 306
       pr_draft: true
-      status: in_progress
-      checkpoint: eopt5a_runtime_strategy_design
+      status: in_review
+      checkpoint: eopt5a_runtime_strategy_independent_review_pending
       owner_acceptance: pending
     revisions:
       convergence_baseline_sha: c36b1f10bc92497a5d7f22080534f4c0a4e7925c
-      head_sha: c36b1f10bc92497a5d7f22080534f4c0a4e7925c
+      head_sha: 038ece8f7af63f70b23270a6be1f8573889b9d88
     execution_lease:
       executor_id: codex-electronics-eopt5a-runtime-strategy
       holder: unassigned
