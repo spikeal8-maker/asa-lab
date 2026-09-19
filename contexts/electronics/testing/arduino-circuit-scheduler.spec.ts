@@ -10,6 +10,7 @@ import {
   type ElectronicsDocument,
   type SchematicComponent,
 } from '../domain/document.js';
+import { arduinoRuntimeStateMatchesProgram } from '../domain/arduino-program-runtime.js';
 import { analyseCircuit } from '../domain/simulation.js';
 
 function board(id: string, source: string): SchematicComponent {
@@ -530,6 +531,14 @@ describe('Arduino shared dc-inputs-v1 circuit clock', () => {
   it('continues the same invalid source across horizons without invalid_clock_continuation', () => {
     const doc = circuit([board('broken', 'void setup(){digitalWrite(13,);}void loop(){}')]);
     const first = through(doc, 10);
+    const reset = runtime(first, 'broken');
+    expect(arduinoRuntimeStateMatchesProgram('', reset)).toBe(true);
+    expect(reset.faults).toEqual([]);
+    expect(reset.eventQueue).toEqual([]);
+    expect(reset.pinModes).toEqual({});
+    expect(reset.outputVoltages).toEqual({});
+    expect(reset.resumeAtMs).toBeGreaterThan(first.state!.reachedMicroseconds / 1000);
+
     const next = through(doc, 20, JSON.parse(JSON.stringify(first.state)));
 
     expect(next.executionStatus, JSON.stringify(next.diagnostics)).toBe('ready');
