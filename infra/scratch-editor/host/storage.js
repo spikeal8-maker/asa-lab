@@ -106,6 +106,7 @@
     let confirmedFingerprint = options.projectJson === null ? null : undefined;
     let unresolvedMutation = null;
     let upstreamSaveGeneration = null;
+    let upstreamAssetStoreTail = Promise.resolve();
     const abortController = typeof AbortController === 'undefined' ? null : new AbortController();
     let disposed = false;
 
@@ -240,6 +241,14 @@
     );
 
     const upstreamStore = scratchStorage.store.bind(scratchStorage);
+    const enqueueUpstreamAssetStore = (operation) => {
+      const scheduled = upstreamAssetStoreTail.then(operation, operation);
+      upstreamAssetStoreTail = scheduled.then(
+        () => undefined,
+        () => undefined,
+      );
+      return scheduled;
+    };
     scratchStorage.store = async (assetType, dataFormat, data, assetId) => {
       const format = dataFormat || assetType?.runtimeFormat;
       if (
@@ -256,7 +265,9 @@
         upstreamSaveGeneration = generation;
       }
       try {
-        const response = await upstreamStore(assetType, format, data, assetId);
+        const response = await enqueueUpstreamAssetStore(() =>
+          upstreamStore(assetType, format, data, assetId),
+        );
         const expected = {
           assetId: String(assetId),
           dataFormat: format,
