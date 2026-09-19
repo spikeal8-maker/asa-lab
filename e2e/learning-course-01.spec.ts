@@ -827,7 +827,13 @@ test('Course Builder duplicates a section and excludes hidden lesson only from f
   await expect(
     oldLearner.page.getByText('Материал исходной версии.', { exact: true }),
   ).toBeVisible();
-  await expect(oldLearner.page.getByText(material, { exact: true })).toHaveCount(1);
+  const oldPlayer = oldLearner.page.getByTestId('seat-course-player');
+  await expect(oldPlayer.getByRole('navigation', { name: 'Переход между уроками' })).toContainText(
+    '1 из 2',
+  );
+  await expect(oldPlayer.getByRole('complementary', { name: 'Содержание курса' }).locator('li')).toHaveCount(
+    2,
+  );
 
   await page.goto('/#/challenges');
   await page.getByRole('button', { name: 'Мои курсы', exact: true }).click();
@@ -872,7 +878,9 @@ test('Course Builder duplicates a section and excludes hidden lesson only from f
   const preview = page.getByTestId('course-preview-page');
   await expect(preview.getByText('Структурная теория', { exact: true })).toHaveCount(1);
   await expect(preview.getByText('Материал исходной версии.', { exact: true })).toHaveCount(1);
-  await expect(preview.getByText(material, { exact: true })).toHaveCount(2);
+  await expect(preview.locator(':scope > section')).toHaveCount(2);
+  await expect(preview.locator(':scope > section > ol > li')).toHaveCount(3);
+  await expect(preview.locator('.course-preview-assignment')).toHaveCount(2);
   await editor.getByRole('button', { name: 'Редактировать', exact: true }).click();
 
   await editor.getByRole('button', { name: /Опубликовать v2/ }).click();
@@ -900,7 +908,13 @@ test('Course Builder duplicates a section and excludes hidden lesson only from f
   await expect(newLearner.page.getByText('Материал исходной версии.', { exact: true })).toHaveCount(
     1,
   );
-  await expect(newLearner.page.getByText(material, { exact: true })).toHaveCount(2);
+  const newPlayer = newLearner.page.getByTestId('seat-course-player');
+  await expect(newPlayer.getByRole('navigation', { name: 'Переход между уроками' })).toContainText(
+    '1 из 3',
+  );
+  await expect(newPlayer.getByRole('complementary', { name: 'Содержание курса' }).locator('li')).toHaveCount(
+    3,
+  );
 
   await oldLearner.page.reload();
   const oldCoursesAfterV2 = oldLearner.page.getByTestId('seat-courses');
@@ -909,6 +923,13 @@ test('Course Builder duplicates a section and excludes hidden lesson only from f
   await expect(
     oldLearner.page.getByText('Материал исходной версии.', { exact: true }),
   ).toBeVisible();
+  const oldPlayerAfterV2 = oldLearner.page.getByTestId('seat-course-player');
+  await expect(
+    oldPlayerAfterV2.getByRole('navigation', { name: 'Переход между уроками' }),
+  ).toContainText('1 из 2');
+  await expect(
+    oldPlayerAfterV2.getByRole('complementary', { name: 'Содержание курса' }).locator('li'),
+  ).toHaveCount(2);
 
   await oldLearner.context.close();
   await newLearner.context.close();
