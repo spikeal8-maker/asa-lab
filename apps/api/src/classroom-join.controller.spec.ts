@@ -26,7 +26,7 @@ describe('classroom seat sign-in abuse limits', () => {
   it('counts only failed exact class/candidate checks and limits the sixth invalid attempt', async () => {
     const query = vi.fn(async (sql: string) =>
       sql.includes('classroom_public_resolve_join_code')
-        ? { rows: [{ classroom_id: 'classroom-id' }] }
+        ? { rows: [{ tenant_id: 'tenant-id', classroom_id: 'classroom-id' }] }
         : { rows: [] },
     );
     const controller = new ClassroomJoinController(

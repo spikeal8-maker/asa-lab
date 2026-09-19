@@ -135,7 +135,7 @@
     "assets:check": "python tools/validate_electronics_assets.py",
     "assets:test": "python tools/test_validate_electronics_assets.py",
     "validate:electronics-agent-docs": "node --test tools/test_validate_electronics_agent_docs.mjs && node tools/validate-electronics-agent-docs.mjs",
-    "test:learning-e1": "vitest run tests/courses contexts/learning/testing contexts/identity/testing tests/account apps/api/src/learning-activities.controller.spec.ts apps/api/src/learning-canonical-projection.service.spec.ts apps/api/src/learning-direct-assignment.controller.spec.ts apps/api/src/classroom-join.controller.spec.ts apps/web/src/learning apps/web/src/session-fetch.spec.ts apps/web/src/three-d/testing/project-save-evidence.spec.ts",
+    "test:learning-e1": "vitest run tests/courses contexts/learning/testing contexts/identity/testing tests/account apps/api/src/learning-activities.controller.spec.ts apps/api/src/learning-canonical-projection.service.spec.ts apps/api/src/learning-direct-assignment.controller.spec.ts apps/api/src/classroom-join.controller.spec.ts apps/api/src/student-code-protection.spec.ts apps/web/src/learning apps/web/src/session-fetch.spec.ts apps/web/src/three-d/testing/project-save-evidence.spec.ts",
     "e2e:learning-e1": "playwright test e2e/learning-author-preview.spec.ts e2e/learning-course-01.spec.ts --workers=1 && playwright test e2e/learning-learner-submits-project-assignment.spec.ts e2e/learning-surface-convergence.spec.ts e2e/learning-teacher-assigns-activity.spec.ts --workers=1",
     "gate:blocks": "node tools/blocks/gate.mjs"
   },

@@ -150,7 +150,7 @@ parallel_lanes:
       pr: 306
       pr_draft: true
       status: in_progress
-      checkpoint: eopt5a_owner_permissive_start_contract_correction
+      checkpoint: eopt5a_owner_start_rule_correction
       owner_acceptance: pending
     revisions:
       convergence_baseline_sha: c36b1f10bc92497a5d7f22080534f4c0a4e7925c

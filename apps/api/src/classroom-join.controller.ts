@@ -31,6 +31,12 @@ import { ProductAnalyticsService } from './product-analytics.service.js';
 import { SeatContextUseCase } from './seat-context.js';
 import { FixedWindowRateLimiter } from './rate-limit.js';
 import {
+  loadStudentCodeProtectionConfig,
+  StudentCodeProtectionConfigError,
+  studentCodeLookupCandidates,
+  type StudentCodeProtectionConfig,
+} from './student-code-protection.js';
+import {
   LearningCanonicalProjectionService,
   canonicalProjectionKey,
   type CanonicalLearningProjection,
@@ -422,6 +428,20 @@ export class ClassroomJoinController {
     return new LearningCanonicalProjectionService(this.requirePool());
   }
 
+  private studentCodeProtection(): StudentCodeProtectionConfig | null {
+    try {
+      return loadStudentCodeProtectionConfig();
+    } catch (failure) {
+      if (failure instanceof StudentCodeProtectionConfigError) {
+        throw new HttpException(
+          error('credential_storage_unavailable', 'Хранилище кодов учеников временно недоступно.'),
+          503,
+        );
+      }
+      throw failure;
+    }
+  }
+
   private enforceRateLimit(limiter: FixedWindowRateLimiter, key: string): void {
     const decision = limiter.consume(key);
     if (!decision.allowed) {
@@ -538,13 +558,15 @@ export class ClassroomJoinController {
     const classCodeHashValue = classroomCodeHash(code);
     const source = clientAddress(request);
     const classLookup = await this.requirePool().query(
-      `SELECT classroom_id FROM classroom_public_resolve_join_code($1)`,
+      `SELECT tenant_id,classroom_id FROM classroom_public_resolve_join_code($1)`,
       [classCodeHashValue],
     );
-    const classroomId = (classLookup.rows[0] as { classroom_id?: string } | undefined)
-      ?.classroom_id;
+    const classRow = classLookup.rows[0] as
+      { tenant_id?: string; classroom_id?: string } | undefined;
+    const tenantId = classRow?.tenant_id;
+    const classroomId = classRow?.classroom_id;
 
-    if (!classroomId) {
+    if (!tenantId || !classroomId) {
       this.recordFailedAdmission(reply, [{ limiter: this.invalidResolveBySource, key: source }]);
       throw new HttpException(
         error('invalid_class_credentials', 'Код класса или код ученика не подошёл.'),
@@ -552,23 +574,80 @@ export class ClassroomJoinController {
       );
     }
 
+    const protection = this.studentCodeProtection();
+    const lookupCandidates = protection
+      ? studentCodeLookupCandidates(protection, tenantId, classroomId, studentCode)
+      : [];
+    const exactCandidateKey = protection
+      ? `${classroomId}:${lookupCandidates[0]!.digest}`
+      : `${classroomId}:${hashSessionToken(studentCode)}`;
+
     const token = createSessionToken();
-    const result = await this.requirePool().query(
-      `SELECT ${SEAT_SESSION_COLUMNS} FROM classroom_student_seat_sign_in($1, $2, $3, $4, $5)`,
-      [
-        classCodeHashValue,
-        studentCode,
-        hashSessionToken(studentCode),
-        hashSessionToken(token),
-        STUDENT_SESSION_HOURS,
-      ],
-    );
-    const row = result.rows[0] as StudentSessionRow | undefined;
+    let row: StudentSessionRow | undefined;
+
+    if (protection) {
+      const protectedSession = await this.requirePool().query(
+        `SELECT result_code,${SEAT_SESSION_COLUMNS}
+           FROM classroom_student_seat_sign_in_protected($1,$2::jsonb,$3,$4,$5)`,
+        [
+          classCodeHashValue,
+          JSON.stringify(lookupCandidates),
+          hashSessionToken(studentCode),
+          hashSessionToken(token),
+          STUDENT_SESSION_HOURS,
+        ],
+      );
+      const protectedRow = protectedSession.rows[0] as
+        (Partial<StudentSessionRow> & { result_code?: string }) | undefined;
+      if (protectedRow?.result_code === 'credential_storage_unavailable') {
+        throw new HttpException(
+          error('credential_storage_unavailable', 'Хранилище кодов учеников временно недоступно.'),
+          503,
+        );
+      }
+      if (protectedRow?.result_code === 'invalid_request') {
+        throw new HttpException(
+          error('credential_storage_unavailable', 'Хранилище кодов учеников временно недоступно.'),
+          503,
+        );
+      }
+      if (protectedRow?.result_code === 'ok' && protectedRow.seat_id) {
+        row = protectedRow as StudentSessionRow;
+      }
+    }
+
+    if (!row && protection?.mode === 'compat') {
+      const legacySession = await this.requirePool().query(
+        `SELECT ${SEAT_SESSION_COLUMNS}
+           FROM classroom_student_seat_sign_in_legacy_only($1,$2,$3,$4,$5)`,
+        [
+          classCodeHashValue,
+          studentCode,
+          hashSessionToken(studentCode),
+          hashSessionToken(token),
+          STUDENT_SESSION_HOURS,
+        ],
+      );
+      row = legacySession.rows[0] as StudentSessionRow | undefined;
+    } else if (!row && !protection) {
+      const legacySession = await this.requirePool().query(
+        `SELECT ${SEAT_SESSION_COLUMNS} FROM classroom_student_seat_sign_in($1,$2,$3,$4,$5)`,
+        [
+          classCodeHashValue,
+          studentCode,
+          hashSessionToken(studentCode),
+          hashSessionToken(token),
+          STUDENT_SESSION_HOURS,
+        ],
+      );
+      row = legacySession.rows[0] as StudentSessionRow | undefined;
+    }
+
     if (!row) {
       this.recordFailedAdmission(reply, [
         {
           limiter: this.invalidStudentByCandidateClass,
-          key: `${classroomId}:${hashSessionToken(studentCode)}`,
+          key: exactCandidateKey,
         },
         { limiter: this.invalidStudentBySourceClass, key: `${source}:${classroomId}` },
         { limiter: this.invalidStudentBySource, key: source },
