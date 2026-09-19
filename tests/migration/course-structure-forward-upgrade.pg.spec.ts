@@ -39,20 +39,37 @@ describe('Course Builder structure forward upgrade', () => {
       );
       const principal = identity.rows[0].principal_id as string;
       const account = identity.rows[0].account_id as string;
+      const policies = {
+        attemptPolicy: { maxAttempts: 2 },
+        resultSelectionPolicy: { mode: 'latest_accepted' },
+        completionPolicy: { mode: 'accepted' },
+        latePolicy: { mode: 'allow_until_close' },
+        assessmentPolicy: { mode: 'manual' },
+        feedbackReleasePolicy: { mode: 'immediate' },
+      };
       const activity = (
         await pool.query(
-          "SELECT * FROM learning_activity_save_v2($1,$2,NULL,'project',$3,'Keep exact pin',$4,'completion',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL)",
-          [principal, teacher.tenantId, 'Pinned forward material', 'electronics'],
+          "SELECT * FROM learning_activity_create($1,$2,'school','private','project',$3,'Keep exact pin','completion',NULL,$4::jsonb,$5,NULL,NULL,NULL,$6)",
+          [
+            principal,
+            teacher.tenantId,
+            'Pinned forward material',
+            JSON.stringify(policies),
+            'electronics',
+            'course-structure-forward-create',
+          ],
         )
       ).rows[0];
+      expect(activity.result_code).toBe('ok');
       const publishedActivity = (
-        await pool.query('SELECT * FROM learning_activity_publish_v2($1,$2,$3,$4)', [
+        await pool.query('SELECT * FROM learning_activity_publish($1,$2,$3,1,$4)', [
           principal,
+          teacher.tenantId,
           activity.activity_id,
-          activity.draft_revision,
           'course-structure-forward-activity',
         ])
       ).rows[0];
+      expect(publishedActivity.result_code).toBe('ok');
       const courseId = (
         await pool.query(
           "SELECT course_save($1,NULL,'Forward structure course','Preserve history',NULL,'private') AS id",
@@ -74,7 +91,7 @@ describe('Course Builder structure forward upgrade', () => {
       const lessonId = (
         await pool.query(
           "SELECT course_lesson_save_v3($1,$2,$3,NULL,'Pinned lesson',NULL,$4::jsonb,'assignment',NULL,15,$5) AS id",
-          [principal, courseId, sectionId, JSON.stringify(blocks), publishedActivity.version_id],
+          [principal, courseId, sectionId, JSON.stringify(blocks), publishedActivity.activity_version_id],
         )
       ).rows[0].id as string;
       const published = (
