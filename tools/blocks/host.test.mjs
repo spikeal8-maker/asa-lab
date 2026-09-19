@@ -42,11 +42,18 @@ class Storage {
       dataFormat,
       data,
       assetId,
+      clean: true,
       encodeDataURI: () => `data:${dataFormat};base64,fixture`,
     };
   }
   addHelper(helper) {
     this.helper = helper;
+  }
+  addWebStore(types, get, create, update) {
+    this.webStore = { types, get, create, update };
+  }
+  async store() {
+    throw new Error('fixture_store_not_configured');
   }
 }
 
@@ -137,7 +144,7 @@ function createRuntimeStorage({
   return { storage, calls, reference };
 }
 
-test('new project storage keeps the default project local and remains read-only', async () => {
+test('new project storage binds the default project to the ASA UUID', async () => {
   const calls = [];
   const api = loadHost('storage', {
     fetch: async (url) => {
@@ -159,11 +166,14 @@ test('new project storage keeps the default project local and remains read-only'
       storage.scratchStorage.DataFormat.JSON,
     );
 
-  assert.ok(await readProject('0'));
-  assert.equal(await readProject(PROJECT_ID), null);
+  assert.equal(await readProject('0'), null);
+  assert.ok(await readProject(PROJECT_ID));
   assert.equal(storage.getLibraryAssetUrl('b'.repeat(32), 'svg'), 'data:svg;base64,fixture');
   assert.throws(() => storage.getLibraryAssetUrl('unknown', 'svg'), /runtime_asset_unavailable/);
-  await assert.rejects(storage.saveProject(), /runtime_storage_read_only/);
+  await assert.rejects(
+    storage.saveProject('00000000-0000-4000-8000-000000000000', '{}'),
+    /project_identity_mismatch/,
+  );
   assert.equal(storage.cloudVariables, undefined);
   assert.equal(storage.backpackStorage, undefined);
   assert.deepEqual(calls, []);
@@ -385,10 +395,11 @@ async function editorFixture(hasProjectJson = false, mode = 'editor') {
 
 test('new project mount uses Scratch default project and preserves native editor events', async () => {
   const fixture = await editorFixture();
-  assert.equal('projectId' in fixture.props, false);
-  assert.equal(fixture.props.canSave, false);
+  assert.equal(fixture.props.projectId, PROJECT_ID);
+  assert.equal(fixture.props.canSave, true);
+  assert.ok(fixture.props.autoSaveIntervalSecs >= 5 && fixture.props.autoSaveIntervalSecs <= 8);
   assert.equal(fixture.props.logo, '/asa-lab-scratch-wordmark.svg');
-  assert.equal(fixture.requestedId, '0');
+  assert.equal(fixture.requestedId, undefined);
   assert.equal(fixture.shell.dataset.projectSource, 'new-default');
   assert.equal(fixture.shell.dataset.draftRevision, '7');
   assert.equal(fixture.params.isEmbedded, undefined);
@@ -411,6 +422,7 @@ test('new project mount uses Scratch default project and preserves native editor
 test('existing project mount preloads runtime assets and uses the real ASA projectId, never a fixture ID', async () => {
   const fixture = await editorFixture(true, 'player');
   assert.equal(fixture.props.projectId, PROJECT_ID);
+  assert.equal(fixture.props.canSave, false);
   assert.equal(fixture.params.isPlayerOnly, true);
   assert.equal(fixture.shell.dataset.projectSource, 'runtime-session');
   assert.equal(fixture.counts().prepared, 1);

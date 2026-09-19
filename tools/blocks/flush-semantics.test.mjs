@@ -31,11 +31,18 @@ class Storage {
       dataFormat,
       data,
       assetId,
+      clean: true,
       encodeDataURI: () => 'data:fixture',
     };
   }
   addHelper(helper) {
     this.helper = helper;
+  }
+  addWebStore(types, get, create, update) {
+    this.webStore = { types, get, create, update };
+  }
+  async store() {
+    throw new Error('fixture_store_not_configured');
   }
 }
 

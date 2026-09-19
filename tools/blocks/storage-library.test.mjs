@@ -13,10 +13,23 @@ function fixture(fetch) {
     );
     DataFormat = { JSON: 'json', SVG: 'svg' };
     createAsset(assetType, dataFormat, data, assetId) {
-      return { assetType, dataFormat, data, assetId, encodeDataURI: () => 'data:cached' };
+      return {
+        assetType,
+        dataFormat,
+        data,
+        assetId,
+        clean: true,
+        encodeDataURI: () => 'data:cached',
+      };
     }
     addHelper(helper) {
       this.helper = helper;
+    }
+    addWebStore(types, get, create, update) {
+      this.webStore = { types, get, create, update };
+    }
+    async store() {
+      throw new Error('fixture_store_not_configured');
     }
   }
   const context = vm.createContext({ TextEncoder, TextDecoder, fetch });
@@ -56,7 +69,6 @@ test('project IDs, traversal, invalid formats and type mismatches never reach fe
   });
   for (const id of [
     hash,
-    '11111111-1111-4111-8111-111111111111',
     'unavailable-fixture',
     '../index',
     '%2e%2e%2findex',
@@ -74,13 +86,18 @@ test('project IDs, traversal, invalid formats and type mismatches never reach fe
     ['ImageVector', hash, '__proto__'],
   ])
     assert.equal(await storage.load(type, id, format), null);
+  assert.ok(await storage.load('Project', '11111111-1111-4111-8111-111111111111', 'json'));
+  assert.equal(await storage.load('Project', '0', 'json'), null);
   assert.deepEqual(requests, []);
   for (const id of ['unknown', '../index', '%2findex', `${hash}?x=1`]) {
     assert.throws(() => storage.getLibraryAssetUrl(id, 'svg'), /runtime_asset_unavailable/);
   }
   assert.throws(() => storage.getLibraryAssetUrl(hash, 'json'), /runtime_asset_unavailable/);
   assert.equal(storage.getLibraryAssetUrl(hash, 'svg'), `/library-assets/${hash}.svg`);
-  await assert.rejects(storage.saveProject(), /runtime_storage_read_only/);
+  await assert.rejects(
+    storage.saveProject('00000000-0000-4000-8000-000000000000', '{}'),
+    /project_identity_mismatch/,
+  );
 });
 
 test('stock media uses credential-free, redirect-free local requests and caches success', async () => {
