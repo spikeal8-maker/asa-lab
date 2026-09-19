@@ -366,6 +366,7 @@ async function assertUiRegression(page, frame) {
   await expect(frame.getByText('Save to your computer', { exact: true })).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(frame.getByRole('button', { name: 'Settings menu' })).toBeVisible();
+  await frame.getByRole('tab', { name: 'Code', exact: true }).click();
   await expect(frame.getByRole('button', { name: 'Add Extension' })).toBeVisible();
   await expect(page.locator('[data-asa-blocks-home-overlay]')).toBeVisible();
   await expect(page.locator('[data-asa-blocks-account-overlay]')).toBeVisible();
