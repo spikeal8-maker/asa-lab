@@ -551,6 +551,17 @@ describe('Arduino shared dc-inputs-v1 circuit clock', () => {
     expect(next.events.filter((event) => event.componentId === 'broken')).toEqual([]);
   });
 
+  it('keeps valid Arduino unsupported member calls global in B1A', () => {
+    const result = through(
+      circuit([board('uno', 'void setup(){Serial.println(1);}void loop(){}')]),
+      10,
+    );
+    expect(result.executionStatus).toBe('fault');
+    expect(result.result).toBeNull();
+    expect(result.state).toBeNull();
+    expect(result.events).toEqual([]);
+  });
+
   it.each([
     'void setup(){pinMode(13,OUTPUT);int x=1/0;}void loop(){}',
     'void setup(){tone(13,440);}void loop(){}',
