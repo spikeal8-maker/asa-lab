@@ -70,6 +70,40 @@ export function LessonBlocks({
             </aside>
           );
         }
+        if (block.type === 'code') {
+          return (
+            <pre key={block.id} className="lesson-code-block">
+              <code data-language={block.language}>{block.text}</code>
+            </pre>
+          );
+        }
+        if (block.type === 'formula') {
+          return (
+            <div key={block.id} className="lesson-formula-block" role="math" aria-label="Формула">
+              {block.text}
+            </div>
+          );
+        }
+        if (block.type === 'table') {
+          return (
+            <div key={block.id} className="lesson-table-wrap">
+              <table className="lesson-table-block">
+                <tbody>
+                  {block.rows.map((row, rowIndex) => (
+                    <tr key={rowIndex}>
+                      {row.map((cell, columnIndex) => (
+                        <td key={columnIndex}>{cell}</td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          );
+        }
+        if (block.type === 'divider') {
+          return <hr key={block.id} className="lesson-divider-block" />;
+        }
         if (block.type === 'image') {
           if (!isLocalMedia(block.url)) {
             return (
