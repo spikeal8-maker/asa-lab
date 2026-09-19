@@ -270,6 +270,32 @@ describe('Arduino shared dc-inputs-v1 circuit clock', () => {
     expect(through(doc, 70, early.state!, inputs).state).toEqual(late.state);
   });
 
+  it('measures pulseIn from timestamped canonical circuit input events', () => {
+    const doc = circuit(
+      [
+        board(
+          'uno',
+          `unsigned long duration=0;void setup(){pinMode(2,INPUT_PULLUP);duration=pulseIn(2,LOW,100);}void loop(){delay(100);}`,
+        ),
+        part('key', 'button'),
+      ],
+      [
+        ['uno', 'd2', 'key', 'a'],
+        ['key', 'b', 'uno', 'power-gnd-1'],
+      ],
+    );
+    const inputs: ArduinoCircuitInputEvent[] = [
+      { atMicroseconds: 10, componentId: 'key', property: 'state', value: true },
+      { atMicroseconds: 35, componentId: 'key', property: 'state', value: false },
+    ];
+
+    const done = through(doc, 50, undefined, inputs, 1);
+    expect(done.diagnostics).toEqual([]);
+    expect(runtime(done).variables.duration).toBe(25);
+    expect(runtime(done).pulseWait).toBeUndefined();
+    expect(through(doc, 50, undefined, inputs, 7).state).toEqual(done.state);
+  });
+
   it('accepts events at startup and append-only retries; rejects late edits and changed electrical documents', () => {
     const doc = buttonCircuit();
     const input: ArduinoCircuitInputEvent = {
@@ -706,7 +732,7 @@ describe('Arduino shared dc-inputs-v1 circuit clock', () => {
   });
 
   it.each([
-    ['unsupported-call', 'void setup(){pulseIn(2,HIGH);}void loop(){}'],
+    ['unsupported-call', 'void setup(){random();}void loop(){}'],
     ['unsupported-syntax', 'void setup(){int x=1;switch(x){case 1:break;}}void loop(){}'],
     ['preprocessor', '#include <Servo.h>\nvoid setup(){}\nvoid loop(){}'],
   ])('keeps known unsupported %s board-local without last-good', (code, source) => {
@@ -727,7 +753,7 @@ describe('Arduino shared dc-inputs-v1 circuit clock', () => {
   });
 
   it.each([
-    ['unsupported-call', 'void setup(){pulseIn(2,HIGH);}void loop(){}'],
+    ['unsupported-call', 'void setup(){random();}void loop(){}'],
     ['unsupported-syntax', 'void setup(){int x=1;switch(x){case 1:break;}}void loop(){}'],
     ['preprocessor', '#include <Servo.h>\nvoid setup(){}\nvoid loop(){}'],
   ])('keeps last-good runtime through known unsupported %s editor source', (code, source) => {
@@ -759,7 +785,7 @@ describe('Arduino shared dc-inputs-v1 circuit clock', () => {
           'a-valid',
           'void setup(){pinMode(13,OUTPUT);digitalWrite(13,HIGH);}void loop(){delay(100);}',
         ),
-        board('b-unsupported', 'void setup(){pulseIn(2,HIGH);}void loop(){}'),
+        board('b-unsupported', 'void setup(){random();}void loop(){}'),
       ]),
       10,
     );

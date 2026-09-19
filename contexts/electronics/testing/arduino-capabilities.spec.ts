@@ -57,6 +57,22 @@ describe('Arduino capability contract', () => {
     );
   });
 
+  it('publishes pulseIn as a limited blocking primitive without claiming HC-SR04 support', () => {
+    expect(ARDUINO_TEXT_COMMAND_SUPPORT.pulseIn.status).toBe('limited');
+    expect(arduinoBlockSupport('asa_pulse_in').status).toBe('limited');
+    expect(arduinoBlockSupport('asa_ultrasonic').status).toBe('unsupported');
+    const diagnostics = analyseArduinoSourceSupport(`
+      void loop() {
+        unsigned long duration = pulseIn(2, HIGH, 1000);
+      }
+    `);
+
+    expect(diagnostics.some((entry) => entry.code === 'unsupported-call')).toBe(false);
+    expect(diagnostics).toContainEqual(
+      expect.objectContaining({ code: 'bounded-timing', status: 'limited' }),
+    );
+  });
+
   it('accepts the supported digital and analog input slice', () => {
     const diagnostics = analyseArduinoSourceSupport(`
       void setup() { pinMode(13, OUTPUT); }

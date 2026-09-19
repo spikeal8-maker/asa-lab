@@ -514,6 +514,14 @@ export function advanceArduinoCircuitClock(
     frame.status === 'invalid' &&
     frame.diagnostics.some((entry) => entry.code === 'no_source') &&
     !frame.diagnostics.some((entry) => entry.severity === 'error' && entry.code !== 'no_source');
+  const nextPhysicsTime = (): number =>
+    hasPhysics
+      ? (Math.floor(
+          Math.round((physicalState?.simulationTimeMs ?? 0) * 1000) / PHYSICS_QUANTUM_US,
+        ) +
+          1) *
+        PHYSICS_QUANTUM_US
+      : Number.POSITIVE_INFINITY;
   const nextTime = (): number =>
     Math.min(
       ...runnableBoards.map((board) => {
@@ -522,18 +530,13 @@ export function advanceArduinoCircuitClock(
         return state ? Math.round(state.resumeAtMs * 1000) : 0;
       }),
       inputs[nextInputIndex]?.atMicroseconds ?? Number.POSITIVE_INFINITY,
-      hasPhysics
-        ? (Math.floor(
-            Math.round((physicalState?.simulationTimeMs ?? 0) * 1000) / PHYSICS_QUANTUM_US,
-          ) +
-            1) *
-            PHYSICS_QUANTUM_US
-        : Number.POSITIVE_INFINITY,
+      nextPhysicsTime(),
     );
   // A returned frame is never a speculative MCU state. Failure discards this whole batch.
   let clockEvents = 0;
   while (nextTime() <= targetMicroseconds && clockEvents < budget) {
     const time = nextTime();
+    const physicsDue = nextPhysicsTime() === time;
     if (hasPhysics) {
       const advanced = advancePhysics(time);
       if (!advanced.solved || !advanced.quality.passed || !advanced.transientState)
@@ -545,9 +548,11 @@ export function advanceArduinoCircuitClock(
       physicalState = advanced.transientState;
       cachedFrame = undefined;
     }
+    let inputChanged = false;
     while (inputs[nextInputIndex]?.atMicroseconds === time) {
       activeDocument = applyInput(activeDocument, inputs[nextInputIndex++]!);
       cachedFrame = undefined;
+      inputChanged = true;
     }
     const frame = sample(time);
     if (!frame.solved && !isNonFatalPassiveNoSource(frame))
@@ -563,7 +568,13 @@ export function advanceArduinoCircuitClock(
     const updates: [string, ArduinoRuntimeState, string][] = [];
     for (const board of runnableBoards) {
       const state = states.get(board.id);
-      if (!pendingProgramLoads.has(board.id) && state && Math.round(state.resumeAtMs * 1000) > time)
+      const pulseInputSample = Boolean(state?.pulseWait) && (inputChanged || physicsDue);
+      if (
+        !pendingProgramLoads.has(board.id) &&
+        state &&
+        Math.round(state.resumeAtMs * 1000) > time &&
+        !pulseInputSample
+      )
         continue;
       const executionSource = executionSources.get(board.id)!;
       const advanced = advanceClockedArduinoRuntime(
@@ -572,7 +583,7 @@ export function advanceArduinoCircuitClock(
         time / 1000,
         state,
         undefined,
-        { instructionBudget: 1 },
+        { instructionBudget: 1, pulseInputSample },
       );
       if (advanced.executionStatus === 'fault')
         return fault(
