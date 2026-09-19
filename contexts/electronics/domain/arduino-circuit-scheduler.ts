@@ -87,6 +87,7 @@ export interface ArduinoCircuitClockState {
 export interface ArduinoCircuitClockDiagnostic {
   readonly code: string;
   readonly message: string;
+  readonly componentId?: string;
 }
 
 export interface ArduinoCircuitClockAdvance {
@@ -256,10 +257,28 @@ export function advanceArduinoCircuitClock(
       'invalid_input_history',
       'История входов должна быть упорядоченной, конечной и содержать не более 1024 событий кнопки/переключателя/потенциометра.',
     );
+  const compileDiagnostics = new Map<string, ArduinoCircuitClockDiagnostic>();
   for (const board of boards) {
     const diagnostic = analyseArduinoProgramSyntax(arduinoSourceFor(board))[0];
-    if (diagnostic) return fault(diagnostic.code, `${board.id}: ${diagnostic.message}`);
+    if (!diagnostic) continue;
+    const globalFailure =
+      diagnostic.code !== 'compile_error' ||
+      /(?:не поддерживается|не является конечным числом|вне диапазона|деление или остаток от деления на ноль|переполнение знакового|прочитана до присваивания)/i.test(
+        diagnostic.message,
+      );
+    if (globalFailure) return fault(diagnostic.code, `${board.id}: ${diagnostic.message}`);
+    compileDiagnostics.set(board.id, {
+      code: diagnostic.code,
+      message: `${board.id}: ${diagnostic.message}`,
+      componentId: board.id,
+    });
   }
+  const runnableBoards = boards.filter((board) => !compileDiagnostics.has(board.id));
+  const resetRuntimeAt = (timeMicroseconds: number): ArduinoRuntimeState =>
+    advanceClockedArduinoRuntime('', {}, timeMicroseconds / 1000, undefined, undefined, {
+      instructionBudget: 1,
+    }).state;
+  const coldState = resetRuntimeAt(0);
   if (previous) {
     if (
       previous.version !== 1 ||
@@ -292,17 +311,27 @@ export function advanceArduinoCircuitClock(
       ) ||
       !Array.isArray(previous.boards) ||
       previous.boards.length !== boards.length ||
-      previous.boards.some(
-        (entry, index) =>
+      previous.boards.some((entry, index) => {
+        const board = boards[index]!;
+        const compileFailed = compileDiagnostics.has(board.id);
+        return (
           !entry ||
-          entry.componentId !== boards[index]!.id ||
-          !arduinoRuntimeStateMatchesProgram(arduinoSourceFor(boards[index]!), entry.runtime) ||
+          entry.componentId !== board.id ||
+          !arduinoRuntimeStateMatchesProgram(
+            compileFailed ? '' : arduinoSourceFor(board),
+            entry.runtime,
+          ) ||
           entry.runtime.clockProfile !== 'instruction-us-v1' ||
           entry.runtime.faults.length > 0 ||
           Object.keys(entry.runtime.tones).length > 0 ||
+          (compileFailed &&
+            (Object.keys(entry.runtime.pinModes).length > 0 ||
+              Object.keys(entry.runtime.outputVoltages).length > 0 ||
+              entry.runtime.eventQueue.length > 0)) ||
           entry.runtime.virtualTimeMs > previous.reachedMicroseconds / 1000 ||
-          entry.runtime.resumeAtMs <= previous.reachedMicroseconds / 1000,
-      )
+          entry.runtime.resumeAtMs <= previous.reachedMicroseconds / 1000
+        );
+      })
     ) {
       return fault(
         'invalid_clock_continuation',
@@ -333,7 +362,10 @@ export function advanceArduinoCircuitClock(
   const states = new Map(
     previous?.boards.map((entry) => [entry.componentId, entry.runtime] as const),
   );
-  const coldState = advanceClockedArduinoRuntime('').state;
+  for (const board of boards) {
+    if (compileDiagnostics.has(board.id) && !states.has(board.id))
+      states.set(board.id, coldState);
+  }
   let reachedMicroseconds = previous?.reachedMicroseconds ?? -1;
   let physicalState = previous?.physicalState;
   const events: (ArduinoRuntimeEvent & { readonly componentId: string })[] = [];
@@ -392,7 +424,7 @@ export function advanceArduinoCircuitClock(
     !frame.diagnostics.some((entry) => entry.severity === 'error' && entry.code !== 'no_source');
   const nextTime = (): number =>
     Math.min(
-      ...boards.map((board) => {
+      ...runnableBoards.map((board) => {
         const state = states.get(board.id);
         return state ? Math.round(state.resumeAtMs * 1000) : 0;
       }),
@@ -436,7 +468,7 @@ export function advanceArduinoCircuitClock(
         'Не выполнены проверки конечности, KCL или напряжения источников.',
       );
     const updates: [string, ArduinoRuntimeState][] = [];
-    for (const board of boards) {
+    for (const board of runnableBoards) {
       const state = states.get(board.id);
       if (state && Math.round(state.resumeAtMs * 1000) > time) continue;
       const advanced = advanceClockedArduinoRuntime(
@@ -474,6 +506,10 @@ export function advanceArduinoCircuitClock(
   if (ready) {
     reachedMicroseconds = targetMicroseconds;
     for (const board of boards) {
+      if (compileDiagnostics.has(board.id)) {
+        states.set(board.id, resetRuntimeAt(targetMicroseconds));
+        continue;
+      }
       // No instruction is due in this idle interval; only align the observed horizon.
       const advanced = advanceClockedArduinoRuntime(
         arduinoSourceFor(board),
@@ -518,5 +554,11 @@ export function advanceArduinoCircuitClock(
       },
     };
   }
-  return { executionStatus: ready ? 'ready' : 'yielded', result, state, events, diagnostics: [] };
+  return {
+    executionStatus: ready ? 'ready' : 'yielded',
+    result,
+    state,
+    events,
+    diagnostics: [...compileDiagnostics.values()],
+  };
 }
