@@ -37,8 +37,8 @@ describe('Blocks forward upgrade on real PostgreSQL', () => {
           const tenants = (await client.query('SELECT * FROM tenants ORDER BY id')).rows;
           expect((await inspectPlan(client, plan)).map((item) => item.version)).toEqual([
             '0151',
-          '0152',
-          '0153',
+            '0152',
+            '0153',
           ]);
           expect(await applyIsolatedTestPlan(client, plan)).toBe(3);
           expect(await applyIsolatedTestPlan(client, plan)).toBe(0);

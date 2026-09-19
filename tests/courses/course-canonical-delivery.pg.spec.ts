@@ -384,8 +384,12 @@ describe('Э1 existing course → exact versions → runs → inherited particip
     });
 
     let revision = Number(
-      (await admin.query('SELECT course_draft_revision($1,$2) AS revision', [principal, publishedV1.id]))
-        .rows[0].revision,
+      (
+        await admin.query('SELECT course_draft_revision($1,$2) AS revision', [
+          principal,
+          publishedV1.id,
+        ])
+      ).rows[0].revision,
     );
     const sectionRequest = 'course01:section-duplicate:' + ++seq;
     const duplicatedSection = (

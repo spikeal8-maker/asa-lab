@@ -34,8 +34,8 @@ describe('published Blocks forward migration', () => {
   it('only skips the pinned late 0146 when the pinned 0151 is in the plan', () => {
     expect(validateMigrationHistory(ledger(), plan).map((item) => item.version)).toEqual([
       '0151',
-          '0152',
-          '0153',
+      '0152',
+      '0153',
     ]);
     expect(() => validateMigrationHistory(ledger(), oldPlan)).toThrow(/out-of-order.*0146/);
     for (const version of ['0146', '0151']) {
@@ -106,7 +106,9 @@ describe('published Blocks forward migration', () => {
     await expect(
       verifySchema({
         query: async () => ({
-          rows: rows.filter((row) => row.version !== '0151' && row.version !== '0152' && row.version !== '0153'),
+          rows: rows.filter(
+            (row) => row.version !== '0151' && row.version !== '0152' && row.version !== '0153',
+          ),
         }),
       }),
     ).rejects.toThrow(/unsupported_schema:migration_0146/);

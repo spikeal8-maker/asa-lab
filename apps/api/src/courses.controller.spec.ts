@@ -375,9 +375,7 @@ describe('course outline API', () => {
       ['principal-id', COURSE_ID, LESSON_ID, 8, 'course-dup-lesson-0001'],
     );
 
-    const sectionHidden = controller([
-      { result_code: 'ok', draft_revision: '10', hidden: true },
-    ]);
+    const sectionHidden = controller([{ result_code: 'ok', draft_revision: '10', hidden: true }]);
     await expect(
       sectionHidden.value.setSectionHidden(request(), COURSE_ID, SECTION_ID, {
         hidden: true,
@@ -385,9 +383,7 @@ describe('course outline API', () => {
       }),
     ).resolves.toEqual({ hidden: true, draftRevision: 10 });
 
-    const lessonVisible = controller([
-      { result_code: 'ok', draft_revision: '11', hidden: false },
-    ]);
+    const lessonVisible = controller([{ result_code: 'ok', draft_revision: '11', hidden: false }]);
     await expect(
       lessonVisible.value.setLessonHidden(request(), COURSE_ID, LESSON_ID, {
         hidden: false,

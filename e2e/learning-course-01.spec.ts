@@ -819,15 +819,13 @@ test('Course Builder duplicates a section and excludes hidden lesson only from f
   await page.getByLabel('Опубликованный курс').selectOption({ label: courseTitle + ' · v1' });
   await page.getByRole('button', { name: 'Назначить курс', exact: true }).click();
 
-  const oldLearner = await learnerAssignments(
-    browser,
-    v1Code,
-    'course-structure-v1-' + sequence,
-  );
+  const oldLearner = await learnerAssignments(browser, v1Code, 'course-structure-v1-' + sequence);
   const oldCourses = oldLearner.page.getByTestId('seat-courses');
   await oldCourses.getByRole('button').filter({ hasText: courseTitle }).click();
   await expect(oldLearner.page.getByText('Структурная теория', { exact: true })).toBeVisible();
-  await expect(oldLearner.page.getByText('Материал исходной версии.', { exact: true })).toBeVisible();
+  await expect(
+    oldLearner.page.getByText('Материал исходной версии.', { exact: true }),
+  ).toBeVisible();
 
   await page.goto('/#/challenges');
   await page.getByRole('button', { name: 'Мои курсы', exact: true }).click();
@@ -845,7 +843,10 @@ test('Course Builder duplicates a section and excludes hidden lesson only from f
   const duplicateSection = editor.locator('.course-outline-section').nth(1);
   await expect(duplicateSection.locator('li')).toHaveCount(2);
 
-  await duplicateSection.getByRole('button', { name: /Действия урока/ }).first().click();
+  await duplicateSection
+    .getByRole('button', { name: /Действия урока/ })
+    .first()
+    .click();
   await duplicateSection.getByRole('button', { name: 'Скрыть', exact: true }).click();
   await expect(duplicateSection.getByText(/Скрыт/)).toBeVisible();
 
@@ -884,11 +885,7 @@ test('Course Builder duplicates a section and excludes hidden lesson only from f
   await page.getByLabel('Опубликованный курс').selectOption({ label: courseTitle + ' · v2' });
   await page.getByRole('button', { name: 'Назначить курс', exact: true }).click();
 
-  const newLearner = await learnerAssignments(
-    browser,
-    v2Code,
-    'course-structure-v2-' + sequence,
-  );
+  const newLearner = await learnerAssignments(browser, v2Code, 'course-structure-v2-' + sequence);
   const newCourses = newLearner.page.getByTestId('seat-courses');
   await newCourses.getByRole('button').filter({ hasText: courseTitle }).click();
   await expect(newLearner.page.getByText('Структурная теория', { exact: true })).toHaveCount(1);
@@ -900,7 +897,9 @@ test('Course Builder duplicates a section and excludes hidden lesson only from f
   const oldCoursesAfterV2 = oldLearner.page.getByTestId('seat-courses');
   await oldCoursesAfterV2.getByRole('button').filter({ hasText: courseTitle }).click();
   await expect(oldLearner.page.getByText('Структурная теория', { exact: true })).toBeVisible();
-  await expect(oldLearner.page.getByText('Материал исходной версии.', { exact: true })).toBeVisible();
+  await expect(
+    oldLearner.page.getByText('Материал исходной версии.', { exact: true }),
+  ).toBeVisible();
 
   await oldLearner.context.close();
   await newLearner.context.close();
