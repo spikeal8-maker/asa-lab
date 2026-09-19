@@ -831,9 +831,9 @@ test('Course Builder duplicates a section and excludes hidden lesson only from f
   await expect(oldPlayer.getByRole('navigation', { name: 'Переход между уроками' })).toContainText(
     '1 из 2',
   );
-  await expect(oldPlayer.getByRole('complementary', { name: 'Содержание курса' }).locator('li')).toHaveCount(
-    2,
-  );
+  await expect(
+    oldPlayer.getByRole('complementary', { name: 'Содержание курса' }).locator('li'),
+  ).toHaveCount(2);
 
   await page.goto('/#/challenges');
   await page.getByRole('button', { name: 'Мои курсы', exact: true }).click();
@@ -912,9 +912,9 @@ test('Course Builder duplicates a section and excludes hidden lesson only from f
   await expect(newPlayer.getByRole('navigation', { name: 'Переход между уроками' })).toContainText(
     '1 из 3',
   );
-  await expect(newPlayer.getByRole('complementary', { name: 'Содержание курса' }).locator('li')).toHaveCount(
-    3,
-  );
+  await expect(
+    newPlayer.getByRole('complementary', { name: 'Содержание курса' }).locator('li'),
+  ).toHaveCount(3);
 
   await oldLearner.page.reload();
   const oldCoursesAfterV2 = oldLearner.page.getByTestId('seat-courses');
