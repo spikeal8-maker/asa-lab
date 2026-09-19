@@ -148,7 +148,7 @@ parallel_lanes:
       branch: codex/electronics-eopt3e-trace-replay
       base_branch: main
       pr: 300
-      pr_draft: true
+      pr_draft: false
       status: in_review
       checkpoint: eopt3e_replay_acceptance_pass_merge_authorized
       owner_acceptance: accepted
