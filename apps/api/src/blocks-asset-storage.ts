@@ -16,6 +16,7 @@ import type {
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const SHA256 = /^[0-9a-f]{64}$/;
 const FORMATS = new Set<BlocksAssetFormat>(['svg', 'png', 'jpg', 'wav', 'mp3']);
+const BLOCKS_OBJECT_SHA256_METADATA_KEY = 'asa-sha256';
 
 export interface BlocksObjectStorageConfig {
   readonly endpoint: string;
@@ -135,19 +136,27 @@ export class S3BlocksBlobStore implements BlocksBlobStorePort {
       }) as unknown as S3Sender);
   }
 
-  private async headSize(input: {
+  private async headIntegrity(input: {
     tenantId: string;
     sha256: string;
     dataFormat: BlocksAssetFormat;
-  }): Promise<number | null> {
+  }): Promise<{ sizeBytes: number; sha256: string } | null> {
     const Key = blocksObjectKey(input);
     try {
       const result = (await this.client.send(
         new HeadObjectCommand({ Bucket: this.config.bucket, Key }),
-      )) as { ContentLength?: unknown };
-      if (!Number.isSafeInteger(result.ContentLength) || Number(result.ContentLength) < 1)
+      )) as {
+        ContentLength?: unknown;
+        Metadata?: Record<string, string | undefined>;
+      };
+      if (!Number.isSafeInteger(result.ContentLength) || Number(result.ContentLength) < 1) {
         throw new BlocksAssetStorageIntegrityError();
-      return Number(result.ContentLength);
+      }
+      const storedSha256 = result.Metadata?.[BLOCKS_OBJECT_SHA256_METADATA_KEY];
+      if (typeof storedSha256 !== 'string' || !SHA256.test(storedSha256)) {
+        throw new BlocksAssetStorageIntegrityError();
+      }
+      return { sizeBytes: Number(result.ContentLength), sha256: storedSha256 };
     } catch (problem) {
       if (isNotFound(problem)) return null;
       throw problem;
@@ -159,7 +168,10 @@ export class S3BlocksBlobStore implements BlocksBlobStorePort {
     sha256: string;
     dataFormat: BlocksAssetFormat;
   }): Promise<boolean> {
-    return (await this.headSize(input)) !== null;
+    const existing = await this.headIntegrity(input);
+    if (existing === null) return false;
+    if (existing.sha256 !== input.sha256) throw new BlocksAssetStorageIntegrityError();
+    return true;
   }
   async putImmutable(input: {
     tenantId: string;
@@ -175,9 +187,11 @@ export class S3BlocksBlobStore implements BlocksBlobStorePort {
     const actualSize = statSync(input.sourcePath).size;
     if (actualSize !== input.sizeBytes)
       throw new Error('Blocks object size changed before upload.');
-    const existingSize = await this.headSize(input);
-    if (existingSize !== null) {
-      if (existingSize !== input.sizeBytes) throw new BlocksAssetStorageIntegrityError();
+    const existing = await this.headIntegrity(input);
+    if (existing !== null) {
+      if (existing.sizeBytes !== input.sizeBytes || existing.sha256 !== input.sha256) {
+        throw new BlocksAssetStorageIntegrityError();
+      }
       return { objectKey, created: false };
     }
     try {
@@ -188,31 +202,55 @@ export class S3BlocksBlobStore implements BlocksBlobStorePort {
           Body: createReadStream(input.sourcePath),
           ContentLength: input.sizeBytes,
           IfNoneMatch: '*',
+          Metadata: {
+            [BLOCKS_OBJECT_SHA256_METADATA_KEY]: input.sha256,
+          },
         }),
       );
     } catch (problem) {
       if (isPreconditionFailed(problem)) {
-        const racedSize = await this.headSize(input);
-        if (racedSize !== input.sizeBytes) throw new BlocksAssetStorageIntegrityError();
+        const raced = await this.headIntegrity(input);
+        if (
+          raced === null ||
+          raced.sizeBytes !== input.sizeBytes ||
+          raced.sha256 !== input.sha256
+        ) {
+          throw new BlocksAssetStorageIntegrityError();
+        }
         return { objectKey, created: false };
       }
-      let reconciledSize: number | null;
+      let reconciled: { sizeBytes: number; sha256: string } | null;
       try {
-        reconciledSize = await this.headSize(input);
-      } catch {
+        reconciled = await this.headIntegrity(input);
+      } catch (verificationProblem) {
+        if (verificationProblem instanceof BlocksAssetStorageIntegrityError) {
+          throw verificationProblem;
+        }
         throw new BlocksAssetWriteMayHavePersistedError();
       }
-      if (reconciledSize === null) throw problem;
-      if (reconciledSize !== input.sizeBytes) throw new BlocksAssetWriteMayHavePersistedError();
+      if (reconciled === null) throw problem;
+      if (reconciled.sizeBytes !== input.sizeBytes || reconciled.sha256 !== input.sha256) {
+        throw new BlocksAssetStorageIntegrityError();
+      }
       return { objectKey, created: true };
     }
-    let verifiedSize: number | null;
+    let verified: { sizeBytes: number; sha256: string } | null;
     try {
-      verifiedSize = await this.headSize(input);
-    } catch {
+      verified = await this.headIntegrity(input);
+    } catch (verificationProblem) {
+      if (verificationProblem instanceof BlocksAssetStorageIntegrityError) {
+        throw verificationProblem;
+      }
       throw new BlocksAssetWriteMayHavePersistedError();
     }
-    if (verifiedSize !== input.sizeBytes) throw new BlocksAssetWriteMayHavePersistedError();
+    if (
+      verified === null ||
+      verified.sizeBytes !== input.sizeBytes ||
+      verified.sha256 !== input.sha256
+    ) {
+      if (verified === null) throw new BlocksAssetWriteMayHavePersistedError();
+      throw new BlocksAssetStorageIntegrityError();
+    }
     return { objectKey, created: true };
   }
   async open(input: {

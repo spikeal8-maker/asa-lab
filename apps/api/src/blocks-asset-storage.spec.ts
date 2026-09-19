@@ -77,6 +77,13 @@ function tempFile(bytes: Uint8Array): string {
   return file;
 }
 
+function headObject(marker: string | null = sha256, sizeBytes = 3) {
+  return {
+    ContentLength: sizeBytes,
+    Metadata: marker === null ? {} : { 'asa-sha256': marker },
+  };
+}
+
 describe('S3BlocksBlobStore immutable persistence', () => {
   it('puts a missing object, verifies the exact byte count and never accepts a client key', async () => {
     const calls: Array<HeadObjectCommand | PutObjectCommand | GetObjectCommand> = [];
@@ -88,7 +95,7 @@ describe('S3BlocksBlobStore immutable persistence', () => {
           heads += 1;
           if (heads === 1)
             throw Object.assign(new Error('missing'), { $metadata: { httpStatusCode: 404 } });
-          return { ContentLength: 3 };
+          return headObject();
         }
         if (command instanceof PutObjectCommand) {
           const body = command.input.Body;
@@ -123,6 +130,7 @@ describe('S3BlocksBlobStore immutable persistence', () => {
       Key: result.objectKey,
       ContentLength: 3,
       IfNoneMatch: '*',
+      Metadata: { 'asa-sha256': sha256 },
     });
   });
 
@@ -131,22 +139,74 @@ describe('S3BlocksBlobStore immutable persistence', () => {
     const client = {
       async send(command: HeadObjectCommand | PutObjectCommand | GetObjectCommand) {
         calls.push(command);
-        return { ContentLength: 3 };
+        return headObject();
       },
     };
     const store = new S3BlocksBlobStore(config, client);
-    await store.putImmutable({
-      tenantId,
-      sha256,
-      dataFormat: 'png',
-      sizeBytes: 3,
-      sourcePath: tempFile(Uint8Array.of(1, 2, 3)),
-    });
+    await expect(
+      store.putImmutable({
+        tenantId,
+        sha256,
+        dataFormat: 'png',
+        sizeBytes: 3,
+        sourcePath: tempFile(Uint8Array.of(1, 2, 3)),
+      }),
+    ).resolves.toMatchObject({ created: false });
     expect(calls).toHaveLength(1);
     expect(calls[0]).toBeInstanceOf(HeadObjectCommand);
   });
 
-  it('treats a conditional PUT race as an idempotent replay after size verification', async () => {
+  it('rejects a same-size existing object with the wrong SHA marker', async () => {
+    const store = new S3BlocksBlobStore(config, {
+      async send(command: HeadObjectCommand | PutObjectCommand | GetObjectCommand) {
+        if (command instanceof HeadObjectCommand) return headObject('b'.repeat(64));
+        throw new Error('PUT must not run for an existing corrupt key');
+      },
+    });
+    await expect(
+      store.putImmutable({
+        tenantId,
+        sha256,
+        dataFormat: 'png',
+        sizeBytes: 3,
+        sourcePath: tempFile(Uint8Array.of(1, 2, 3)),
+      }),
+    ).rejects.toBeInstanceOf(BlocksAssetStorageIntegrityError);
+  });
+
+  it('rejects a same-size existing object with no SHA marker', async () => {
+    const store = new S3BlocksBlobStore(config, {
+      async send(command: HeadObjectCommand | PutObjectCommand | GetObjectCommand) {
+        if (command instanceof HeadObjectCommand) return headObject(null);
+        throw new Error('PUT must not run for an existing unverifiable key');
+      },
+    });
+    await expect(
+      store.putImmutable({
+        tenantId,
+        sha256,
+        dataFormat: 'png',
+        sizeBytes: 3,
+        sourcePath: tempFile(Uint8Array.of(1, 2, 3)),
+      }),
+    ).rejects.toBeInstanceOf(BlocksAssetStorageIntegrityError);
+  });
+
+  it('exists fails closed for wrong or missing SHA marker', async () => {
+    for (const marker of ['b'.repeat(64), null] as const) {
+      const store = new S3BlocksBlobStore(config, {
+        async send(command: HeadObjectCommand | PutObjectCommand | GetObjectCommand) {
+          if (command instanceof HeadObjectCommand) return headObject(marker);
+          throw new Error('unexpected command');
+        },
+      });
+      await expect(store.exists({ tenantId, sha256, dataFormat: 'png' })).rejects.toBeInstanceOf(
+        BlocksAssetStorageIntegrityError,
+      );
+    }
+  });
+
+  it('treats a conditional PUT race as an idempotent replay after size and SHA verification', async () => {
     let heads = 0;
     const client = {
       async send(command: HeadObjectCommand | PutObjectCommand | GetObjectCommand) {
@@ -154,7 +214,7 @@ describe('S3BlocksBlobStore immutable persistence', () => {
           heads += 1;
           if (heads === 1)
             throw Object.assign(new Error('missing'), { $metadata: { httpStatusCode: 404 } });
-          return { ContentLength: 3 };
+          return headObject();
         }
         if (command instanceof PutObjectCommand) {
           const body = command.input.Body as AsyncIterable<Uint8Array>;
@@ -182,6 +242,38 @@ describe('S3BlocksBlobStore immutable persistence', () => {
     expect(heads).toBe(2);
   });
 
+  it('rejects a conditional PUT race when the raced object has the wrong SHA marker', async () => {
+    let heads = 0;
+    const store = new S3BlocksBlobStore(config, {
+      async send(command: HeadObjectCommand | PutObjectCommand | GetObjectCommand) {
+        if (command instanceof HeadObjectCommand) {
+          heads += 1;
+          if (heads === 1)
+            throw Object.assign(new Error('missing'), { $metadata: { httpStatusCode: 404 } });
+          return headObject('b'.repeat(64));
+        }
+        if (command instanceof PutObjectCommand) {
+          const body = command.input.Body as AsyncIterable<Uint8Array>;
+          for await (const _chunk of body) void _chunk;
+          throw Object.assign(new Error('race'), {
+            name: 'PreconditionFailed',
+            $metadata: { httpStatusCode: 412 },
+          });
+        }
+        throw new Error('unexpected command');
+      },
+    });
+    await expect(
+      store.putImmutable({
+        tenantId,
+        sha256,
+        dataFormat: 'png',
+        sizeBytes: 3,
+        sourcePath: tempFile(Uint8Array.of(1, 2, 3)),
+      }),
+    ).rejects.toBeInstanceOf(BlocksAssetStorageIntegrityError);
+  });
+
   it('reconciles a lost PUT response when the exact object is durably present', async () => {
     let heads = 0;
     const store = new S3BlocksBlobStore(config, {
@@ -190,7 +282,7 @@ describe('S3BlocksBlobStore immutable persistence', () => {
           heads += 1;
           if (heads === 1)
             throw Object.assign(new Error('missing'), { $metadata: { httpStatusCode: 404 } });
-          return { ContentLength: 3 };
+          return headObject();
         }
         if (command instanceof PutObjectCommand) {
           const body = command.input.Body as AsyncIterable<Uint8Array>;
@@ -209,6 +301,35 @@ describe('S3BlocksBlobStore immutable persistence', () => {
         sourcePath: tempFile(Uint8Array.of(1, 2, 3)),
       }),
     ).resolves.toMatchObject({ created: true });
+  });
+
+  it('does not reconcile an ambiguous PUT error to a same-size object with the wrong SHA marker', async () => {
+    let heads = 0;
+    const store = new S3BlocksBlobStore(config, {
+      async send(command: HeadObjectCommand | PutObjectCommand | GetObjectCommand) {
+        if (command instanceof HeadObjectCommand) {
+          heads += 1;
+          if (heads === 1)
+            throw Object.assign(new Error('missing'), { $metadata: { httpStatusCode: 404 } });
+          return headObject('b'.repeat(64));
+        }
+        if (command instanceof PutObjectCommand) {
+          const body = command.input.Body as AsyncIterable<Uint8Array>;
+          for await (const _chunk of body) void _chunk;
+          throw new Error('response lost after put');
+        }
+        throw new Error('unexpected command');
+      },
+    });
+    await expect(
+      store.putImmutable({
+        tenantId,
+        sha256,
+        dataFormat: 'png',
+        sizeBytes: 3,
+        sourcePath: tempFile(Uint8Array.of(1, 2, 3)),
+      }),
+    ).rejects.toBeInstanceOf(BlocksAssetStorageIntegrityError);
   });
 
   it('marks post-write verification failure as possibly persisted', async () => {
@@ -243,7 +364,7 @@ describe('S3BlocksBlobStore immutable persistence', () => {
   it('rejects an existing object whose byte count contradicts the canonical reference', async () => {
     const store = new S3BlocksBlobStore(config, {
       async send(command: HeadObjectCommand | PutObjectCommand | GetObjectCommand) {
-        if (command instanceof HeadObjectCommand) return { ContentLength: 2 };
+        if (command instanceof HeadObjectCommand) return headObject(sha256, 2);
         throw new Error('PUT must not run for an existing key');
       },
     });
