@@ -1,0 +1,151 @@
+schema: asa-lab.electronics-eopt3f-runtime-conformance.v1
+task_id: TASK-ELECTRONICS-EOPT3F-001
+issue: 301
+characterization_test_sha: 989f82a64da2afdb5331aaccde394a38993f8840
+review_target: pr_head
+activation_main_sha: 9c8822639ae9602e9e0359d84f610a76df18a488
+
+scope:
+  kind: analysis/characterization
+  risk: HIGH
+  semantic_change: false
+  production_source_changed: false
+  production_repair_attempted: false
+
+characterization:
+  files:
+    - contexts/electronics/testing/engine-runtime-conformance.spec.ts
+    - apps/web/src/electronics/testing/runtime-conformance.spec.ts
+  engine_tests: 8
+  worker_tests: 4
+  total_tests: 12
+  status: pass
+  fixture_repairs:
+    - classification: test_fixture_only
+      detail: unsupported Arduino ternary expression replaced with equivalent supported if/else before the final characterization commit
+      production_semantics_implicated: false
+
+engine:
+  pause_freezes_state: pass
+  pause_future_input_rejected_without_mutation: pass
+  resume_equivalence: pass
+  reset_new_segment: pass
+  reset_old_input_history_cleared: pass
+  reset_old_runtime_state_cleared: pass
+  stale_horizon_rejected: pass
+  equal_horizon_boundary: pass
+  retroactive_input_rejected: pass
+  future_input_accepted: pass
+  same_time_order_preserved: pass
+  diagnostics:
+    paused: timed_state_paused
+    stale_horizon: invalid_clock_continuation
+    retroactive_input: retroactive_input
+
+worker:
+  paused_state_parity: pass
+  resumed_state_parity: pass
+  stale_horizon_parity: pass
+  retroactive_input_parity: pass
+  stale_generation_rejected: pass
+  foreign_session_rejected: pass
+  cancelled_generation_rejected: pass
+
+controller:
+  restart_new_generation: pass
+  old_advance_discarded: pass
+  old_preflight_discarded: pass
+  structural_change_resets: pass
+  presentation_change_preserves_generation: pass
+  stop_semantics: cancellation
+
+browser:
+  reset_after_progress: pass
+  suite_tests: 52
+  suite_status: pass
+  proof:
+    file: e2e/electronics-simulation.spec.ts
+    test: "E-OPT-3D acceptance: Arduino Reset restarts an already progressed canonical run"
+
+replay_segment:
+  reset_replay_equivalence: pass
+  old_segment_input_absent: pass
+  fresh_reset_exact_state_result_equality: pass
+
+permanent_evidence:
+  total_tests: 35
+  status: pass
+  engine_timed_api:
+    file: contexts/electronics/testing/engine-timed-api.spec.ts
+    tests: 7
+    lifecycle_test: "freezes canonical time while paused, resumes from the same state and resets to time zero"
+  simulation_worker:
+    file: apps/web/src/electronics/testing/simulation-worker.spec.ts
+    tests: 14
+    cases:
+      - "terminates a superseded generation and rejects its pending request"
+      - "rejects a response from the wrong project session"
+      - "returns stale generation errors as rejected promises"
+      - "drops a cancelled generation and accepts the next one"
+  live_simulation_worker_controller:
+    file: apps/web/src/electronics/testing/live-simulation-worker-controller.spec.ts
+    tests: 14
+    cases:
+      - "restarts the active canonical generation from time zero"
+      - "starts a fresh zero-based canonical generation for structural runtime changes"
+      - "keeps the canonical generation across presentation-only viewport changes"
+      - "drops late preflight results after stop and cancels the generation"
+      - "supersedes the previous generation and disposes explicitly"
+
+validation:
+  focused_conformance_tests:
+    status: pass
+    tests: 12
+  existing_permanent_tests:
+    status: pass
+    tests: 35
+  validate_agent_docs:
+    status: pass
+    tests: 80
+  electronics_gate:
+    status: pass
+    domain_tests: 484
+    web_tests: 263
+    typecheck: pass
+    build: pass
+  browser_gate:
+    status: pass
+    tests: 52
+  benchmark:
+    status: pass
+  governance:
+    status: pass
+  diff_check:
+    status: pass
+
+anti_tautology:
+  same_time_fixture_order:
+    - two
+    - one
+  alphabetical_order:
+    - one
+    - two
+  orders_differ: true
+
+sensitivity:
+  pause_advances_logical_time: caught
+  resume_adds_wall_clock_pause_duration: caught
+  reset_retains_old_input_history: caught
+  reset_retains_old_arduino_continuation: caught
+  stale_horizon_rewinds_state: caught
+  retroactive_input_at_committed_horizon_is_accepted: caught
+  same_time_inputs_sort_alphabetically: caught
+  late_old_generation_result_commits_after_reset: caught
+  foreign_project_session_response_commits: caught
+  controller_stop_is_ambiguous_pause_reset: caught
+  structural_change_reuses_incompatible_continuation: caught
+  viewport_only_change_resets_physical_time: caught
+
+production_source_changed: false
+production_repair_attempted: false
+divergences: []
