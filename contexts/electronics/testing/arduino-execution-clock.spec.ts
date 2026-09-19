@@ -45,6 +45,15 @@ describe('Arduino instruction-us-v1 execution clock (scheduler foundation)', () 
     );
   });
 
+  it('returns successive micros() values at integer-microsecond instruction resolution', () => {
+    const source = `unsigned long first=99;unsigned long second=99;
+      void setup(){first=micros();second=micros();}void loop(){delay(100);}`;
+    const result = through(source, 0.01);
+    expect(result.diagnostics).toEqual([]);
+    expect(result.state.variables.first).toBe(0);
+    expect(result.state.variables.second).toBe(1);
+  });
+
   it('assigns successive GPIO instructions distinct integer-microsecond timestamps', () => {
     const source =
       'void setup(){pinMode(13,OUTPUT);digitalWrite(13,HIGH);}void loop(){delay(100);}';
@@ -108,6 +117,23 @@ describe('Arduino instruction-us-v1 execution clock (scheduler foundation)', () 
     expect(events).toEqual(whole.events);
   });
 
+  it('keeps micros-derived values invariant across scheduler yield partitions', () => {
+    const source = `unsigned long first=0;unsigned long last=0;unsigned long count=0;
+      void setup(){pinMode(13,OUTPUT);first=micros();}
+      void loop(){last=micros();count++;digitalWrite(13,count%2);delayMicroseconds(10);}`;
+    const whole = through(source, 0.2);
+    const first = advanceClockedArduinoRuntime(source, {}, 0.2, undefined, undefined, {
+      instructionBudget: 3,
+    });
+    expect(first.executionStatus).toBe('yielded');
+    const resumed = through(source, 0.2, first.state, undefined, 3);
+
+    expect(resumed.state).toEqual(whole.state);
+    expect(resumed.state.variables.first).toBe(whole.state.variables.first);
+    expect(resumed.state.variables.last).toBe(whole.state.variables.last);
+    expect([...first.events, ...resumed.events]).toEqual(whole.events);
+  });
+
   it('uses timestamped input history at execution time, not the final input value', () => {
     const source = `void setup(){pinMode(13,OUTPUT);}void loop(){
       digitalWrite(13,digitalRead(2));delayMicroseconds(10);}`;
@@ -125,6 +151,17 @@ describe('Arduino instruction-us-v1 execution clock (scheduler foundation)', () 
     expect(high.atMicroseconds).toBeGreaterThanOrEqual(30);
     expect(high.atMicroseconds).toBeLessThan(70);
     expect(whole.events.at(-1)).toMatchObject({ voltage: 0 });
+  });
+
+  it('advances micros() across delayMicroseconds without AVR-cycle assumptions', () => {
+    const source = `unsigned long before=0;unsigned long after=0;
+      void setup(){before=micros();delayMicroseconds(10);after=micros();}
+      void loop(){delay(100);}`;
+    const result = through(source, 0.1);
+    expect(result.diagnostics).toEqual([]);
+    expect(result.state.variables.after!).toBeGreaterThanOrEqual(
+      result.state.variables.before! + 10,
+    );
   });
 
   it('does not expire a tone in the future when the MCU yields behind the requested horizon', () => {
@@ -199,6 +236,19 @@ describe('Arduino instruction-us-v1 execution clock (scheduler foundation)', () 
     expect(repeated.state).toEqual(first.state);
     expect(through(source, 1.009, first.state).state).toEqual(through(source, 1.009).state);
     expect(through(source, 1.0009).state.virtualTimeMs).toBe(1);
+  });
+
+  it('wraps micros() as uint32 while the canonical instruction clock keeps advancing', () => {
+    const source = `unsigned long before=0;unsigned long after=99;
+      void setup(){delay(4294967UL);delayMicroseconds(293);before=micros();after=micros();}
+      void loop(){delay(100);}`;
+    const waiting = through(source, 0);
+    const result = through(source, 4294967.4, waiting.state);
+
+    expect(result.diagnostics).toEqual([]);
+    expect(result.state.variables.before).toBe(4294967295);
+    expect(result.state.variables.after).toBe(0);
+    expect(result.state.resumeAtMs).toBeGreaterThan(4294967.296);
   });
 
   it('wraps millis as uint32 after a long delay without executing the waiting interval', () => {
