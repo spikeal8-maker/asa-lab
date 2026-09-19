@@ -439,6 +439,55 @@ describe('Electronics canonical Worker controller', () => {
     });
   });
 
+  it('keeps one canonical generation across Arduino source-only edits', async () => {
+    const executor = new FakeExecutor();
+    const controller = new ElectronicsLiveSimulationWorkerController(executor);
+    const sourceA =
+      'void setup(){pinMode(13,OUTPUT);}void loop(){digitalWrite(13,HIGH);}';
+    const sourceB = 'void setup(){digitalWrite(13,);}void loop(){}';
+    const arduinoCircuit: SchematicDocument = {
+      ...circuit,
+      components: [
+        ...circuit.components,
+        {
+          id: 'uno',
+          kind: 'visual',
+          value: 5,
+          position: { x: 80, y: 0 },
+          componentTypeId: 'arduino-uno',
+          pinIds: ['d13', 'power-gnd-1'],
+          stateProperties: { arduinoSource: sourceA },
+        },
+      ],
+    };
+
+    controller.start('project-a', arduinoCircuit, { onResult: vi.fn(), onFailure: vi.fn() });
+    await completeCanonicalStart(executor, 1);
+
+    const edited: SchematicDocument = {
+      ...arduinoCircuit,
+      components: arduinoCircuit.components.map((component) =>
+        component.id === 'uno'
+          ? {
+              ...component,
+              stateProperties: { ...component.stateProperties, arduinoSource: sourceB },
+            }
+          : component,
+      ),
+    };
+    controller.update(edited, 100_000);
+
+    expect(executor.generation).toBe(1);
+    expect(executor.preflights).toHaveLength(1);
+    expect(executor.advances.at(-1)?.generationId).toBe(1);
+    expect(
+      executor.advances
+        .at(-1)
+        ?.document.components.find((component) => component.id === 'uno')?.stateProperties
+        ?.arduinoSource,
+    ).toBe(sourceB);
+  });
+
   it('starts a fresh zero-based canonical generation for structural runtime changes', async () => {
     const executor = new FakeExecutor();
     const controller = new ElectronicsLiveSimulationWorkerController(executor);
