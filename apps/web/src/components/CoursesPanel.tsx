@@ -401,6 +401,12 @@ function CoursePreview({
   readonly sections: readonly CourseSection[];
 }): JSX.Element {
   let number = 0;
+  const visibleSections = sections
+    .filter((section) => !section.hidden)
+    .map((section) => ({
+      ...section,
+      lessons: section.lessons.filter((lesson) => !lesson.hidden),
+    }));
   return (
     <article className="course-preview-page" data-testid="course-preview-page">
       <header>
@@ -408,7 +414,7 @@ function CoursePreview({
         <h2>{course.title}</h2>
         {course.summary ? <p>{course.summary}</p> : null}
       </header>
-      {sections.map((section) => (
+      {visibleSections.map((section) => (
         <section key={section.id}>
           <div className="course-preview-section-head">
             <h3>{section.title}</h3>
@@ -744,6 +750,7 @@ function CourseEditor({
                       >
                         <span>{sectionIndex + 1}</span>
                         <strong>{section.title}</strong>
+                        {section.hidden ? <small>Скрыт</small> : null}
                       </button>
                       <Dropdown
                         className="course-outline-menu"
@@ -779,6 +786,42 @@ function CourseEditor({
                               }}
                             >
                               Ниже
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                close();
+                                void act(
+                                  () =>
+                                    api.duplicateCourseSection(
+                                      course.id,
+                                      section.id,
+                                      draftRevision,
+                                      `course-duplicate:section:${section.id}:${draftRevision}`,
+                                    ),
+                                  'Раздел продублирован.',
+                                );
+                              }}
+                            >
+                              Дублировать
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                close();
+                                void act(
+                                  () =>
+                                    api.setCourseSectionHidden(
+                                      course.id,
+                                      section.id,
+                                      !section.hidden,
+                                      draftRevision,
+                                    ),
+                                  section.hidden ? 'Раздел показан.' : 'Раздел скрыт.',
+                                );
+                              }}
+                            >
+                              {section.hidden ? 'Показать' : 'Скрыть'}
                             </button>
                             <button
                               type="button"
@@ -828,6 +871,7 @@ function CourseEditor({
                             <span>
                               <strong>{lesson.title}</strong>
                               <small>
+                                {lesson.hidden ? 'Скрыт · ' : ''}
                                 {lesson.kind === 'assignment' ? 'Задание' : 'Материал'}
                                 {lesson.estimatedMinutes
                                   ? ' · ' + lesson.estimatedMinutes + ' мин'
@@ -835,6 +879,52 @@ function CourseEditor({
                               </small>
                             </span>
                           </button>
+                          <Dropdown
+                            className="course-outline-menu"
+                            ariaLabel={'Действия урока «' + lesson.title + '»'}
+                            label={<span aria-hidden="true">•••</span>}
+                          >
+                            {(close) => (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    close();
+                                    void act(
+                                      () =>
+                                        api.duplicateCourseLesson(
+                                          course.id,
+                                          lesson.id,
+                                          draftRevision,
+                                          `course-duplicate:lesson:${lesson.id}:${draftRevision}`,
+                                        ),
+                                      'Урок продублирован.',
+                                    );
+                                  }}
+                                >
+                                  Дублировать
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    close();
+                                    void act(
+                                      () =>
+                                        api.setCourseLessonHidden(
+                                          course.id,
+                                          lesson.id,
+                                          !lesson.hidden,
+                                          draftRevision,
+                                        ),
+                                      lesson.hidden ? 'Урок показан.' : 'Урок скрыт.',
+                                    );
+                                  }}
+                                >
+                                  {lesson.hidden ? 'Показать' : 'Скрыть'}
+                                </button>
+                              </>
+                            )}
+                          </Dropdown>
                           {selectedLessonId === lesson.id && !newLessonSectionId ? (
                             <div className="course-lesson-order" aria-label="Порядок урока">
                               <button
