@@ -382,6 +382,15 @@ describe('Э1 existing course → exact versions → runs → inherited particip
       submissions: 0,
       results: 0,
     });
+    const courseRunsBefore = Number(
+      (
+        await admin.query(
+          'SELECT count(*)::int AS count FROM classroom_course_runs WHERE course_id=$1',
+          [publishedV1.id],
+        )
+      ).rows[0].count,
+    );
+    expect(courseRunsBefore).toBe(1);
 
     let revision = Number(
       (
@@ -510,6 +519,16 @@ describe('Э1 existing course → exact versions → runs → inherited particip
     }).toEqual(sourceLessonRow);
     expect(duplicatedLessonRow.position).toBe(sourceLessonRow.position + 1);
     expect(await evidenceCounts()).toEqual(evidenceBefore);
+    expect(
+      Number(
+        (
+          await admin.query(
+            'SELECT count(*)::int AS count FROM classroom_course_runs WHERE course_id=$1',
+            [publishedV1.id],
+          )
+        ).rows[0].count,
+      ),
+    ).toBe(courseRunsBefore);
 
     const hiddenLesson = (
       await admin.query('SELECT * FROM course_lesson_hidden_set_v1($1,$2,$3,true,$4)', [
@@ -536,12 +555,20 @@ describe('Э1 existing course → exact versions → runs → inherited particip
         WHERE course_id=$1 ORDER BY version_number`,
       [publishedV1.id],
     );
-    const idsIn = (outline: any) =>
-      outline.sections.flatMap((section: any) =>
-        section.lessons.map((lesson: any) => lesson.sourceLessonId),
+    type FrozenOutline = {
+      sections: Array<{
+        sourceSectionId: string;
+        lessons: Array<{ sourceLessonId: string }>;
+      }>;
+    };
+    const idsIn = (outline: FrozenOutline) =>
+      outline.sections.flatMap((section) =>
+        section.lessons.map((lesson) => lesson.sourceLessonId),
       );
-    expect(idsIn(outlines.rows[0].outline)).toEqual(sourceLessonIds);
-    expect(idsIn(outlines.rows[1].outline)).not.toContain(duplicatedLesson.duplicate_id);
+    const sectionIdsIn = (outline: FrozenOutline) =>
+      outline.sections.map((section) => section.sourceSectionId);
+    expect(idsIn(outlines.rows[0].outline as FrozenOutline)).toEqual(sourceLessonIds);
+    expect(idsIn(outlines.rows[1].outline as FrozenOutline)).not.toContain(duplicatedLesson.duplicate_id);
 
     const classV2 = await classroom();
     const studentV2 = await seat(classV2);
@@ -592,7 +619,7 @@ describe('Э1 existing course → exact versions → runs → inherited particip
     const v3 = (
       await admin.query('SELECT outline FROM course_versions WHERE id=$1', [publishV3.version_id])
     ).rows[0].outline;
-    expect(idsIn(v3)).toContain(duplicatedLesson.duplicate_id);
+    expect(idsIn(v3 as FrozenOutline)).toContain(duplicatedLesson.duplicate_id);
 
     const hiddenSection = (
       await admin.query('SELECT * FROM course_section_hidden_set_v1($1,$2,$3,true,$4)', [
@@ -617,9 +644,7 @@ describe('Э1 existing course → exact versions → runs → inherited particip
     const v4 = (
       await admin.query('SELECT outline FROM course_versions WHERE id=$1', [publishV4.version_id])
     ).rows[0].outline;
-    expect(v4.sections.map((section: any) => section.sourceSectionId)).not.toContain(
-      duplicatedSection.duplicate_id,
-    );
+    expect(sectionIdsIn(v4 as FrozenOutline)).not.toContain(duplicatedSection.duplicate_id);
 
     const classV4 = await classroom();
     const studentV4 = await seat(classV4);
@@ -668,14 +693,12 @@ describe('Э1 existing course → exact versions → runs → inherited particip
     const v5 = (
       await admin.query('SELECT outline FROM course_versions WHERE id=$1', [publishV5.version_id])
     ).rows[0].outline;
-    expect(v5.sections.map((section: any) => section.sourceSectionId)).toContain(
-      duplicatedSection.duplicate_id,
-    );
+    expect(sectionIdsIn(v5 as FrozenOutline)).toContain(duplicatedSection.duplicate_id);
 
     const oldV1 = (
       await admin.query('SELECT outline FROM course_versions WHERE id=$1', [publishedV1.versionId])
     ).rows[0].outline;
-    expect(idsIn(oldV1)).toEqual(sourceLessonIds);
+    expect(idsIn(oldV1 as FrozenOutline)).toEqual(sourceLessonIds);
     expect(
       (
         await admin.query(
