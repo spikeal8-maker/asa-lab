@@ -85,9 +85,7 @@ test('reports only deterministic aggregate inventory and performs zero DB mutati
         ('s5','protected','enc-removed','lookup-removed','ciphertext-secret-removed','hmac-secret-removed','actual-key-secret-removed');
     `);
 
-    const beforeSeats = await db.query(
-      'SELECT * FROM classroom_student_seats ORDER BY id',
-    );
+    const beforeSeats = await db.query('SELECT * FROM classroom_student_seats ORDER BY id');
     const beforeProtected = await db.query(
       'SELECT * FROM classroom_student_code_protected ORDER BY seat_id',
     );
@@ -125,9 +123,7 @@ test('reports only deterministic aggregate inventory and performs zero DB mutati
       assert.equal(rendered.includes(forbidden), false, `output leaked ${forbidden}`);
     }
 
-    const afterSeats = await db.query(
-      'SELECT * FROM classroom_student_seats ORDER BY id',
-    );
+    const afterSeats = await db.query('SELECT * FROM classroom_student_seats ORDER BY id');
     const afterProtected = await db.query(
       'SELECT * FROM classroom_student_code_protected ORDER BY seat_id',
     );

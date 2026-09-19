@@ -134,7 +134,9 @@ export async function runStudentSeatProtectedCodeInventoryCli({
   try {
     connectionString = resolveInventoryDatabaseUrl(env);
   } catch (configurationError) {
-    error(configurationError instanceof Error ? configurationError.message : String(configurationError));
+    error(
+      configurationError instanceof Error ? configurationError.message : String(configurationError),
+    );
     return 78;
   }
 
