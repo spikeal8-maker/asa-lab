@@ -706,18 +706,9 @@ describe('Arduino shared dc-inputs-v1 circuit clock', () => {
   });
 
   it.each([
-    [
-      'unsupported-call',
-      'void setup(){micros();}void loop(){}',
-    ],
-    [
-      'unsupported-syntax',
-      'void setup(){int x=1;switch(x){case 1:break;}}void loop(){}',
-    ],
-    [
-      'preprocessor',
-      '#include <Servo.h>\nvoid setup(){}\nvoid loop(){}',
-    ],
+    ['unsupported-call', 'void setup(){micros();}void loop(){}'],
+    ['unsupported-syntax', 'void setup(){int x=1;switch(x){case 1:break;}}void loop(){}'],
+    ['preprocessor', '#include <Servo.h>\nvoid setup(){}\nvoid loop(){}'],
   ])('keeps known unsupported %s board-local without last-good', (code, source) => {
     const result = through(circuit([board('uno', source)]), 10);
     const boardState = result.state!.boards.find((entry) => entry.componentId === 'uno')!;
@@ -736,18 +727,9 @@ describe('Arduino shared dc-inputs-v1 circuit clock', () => {
   });
 
   it.each([
-    [
-      'unsupported-call',
-      'void setup(){micros();}void loop(){}',
-    ],
-    [
-      'unsupported-syntax',
-      'void setup(){int x=1;switch(x){case 1:break;}}void loop(){}',
-    ],
-    [
-      'preprocessor',
-      '#include <Servo.h>\nvoid setup(){}\nvoid loop(){}',
-    ],
+    ['unsupported-call', 'void setup(){micros();}void loop(){}'],
+    ['unsupported-syntax', 'void setup(){int x=1;switch(x){case 1:break;}}void loop(){}'],
+    ['preprocessor', '#include <Servo.h>\nvoid setup(){}\nvoid loop(){}'],
   ])('keeps last-good runtime through known unsupported %s editor source', (code, source) => {
     const sourceA =
       'int count=0;void setup(){pinMode(13,OUTPUT);}void loop(){count++;digitalWrite(13,count%2);}';
