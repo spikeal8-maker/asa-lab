@@ -105,6 +105,7 @@
     const durableAssets = new Map(confirmedAssets);
     let confirmedFingerprint = options.projectJson === null ? null : undefined;
     let unresolvedMutation = null;
+    let upstreamSaveGeneration = null;
     const abortController = typeof AbortController === 'undefined' ? null : new AbortController();
     let disposed = false;
 
@@ -250,26 +251,35 @@
       ) {
         throw unavailable('asset_write_failed');
       }
-      const response = await upstreamStore(assetType, format, data, assetId);
-      const expected = {
-        assetId: String(assetId),
-        dataFormat: format,
-        sha256: await sha256(data),
-        sizeBytes: data.byteLength,
-      };
-      if (
-        !response ||
-        typeof response !== 'object' ||
-        response.status !== 'ok' ||
-        !sameReference(response.asset, expected)
-      ) {
-        throw unavailable('asset_reference_mismatch');
+      const generation = options.getProjectGeneration?.();
+      if (upstreamSaveGeneration === null && Number.isSafeInteger(generation)) {
+        upstreamSaveGeneration = generation;
       }
-      durableAssets.set(
-        runtimeKey(expected.assetId, expected.dataFormat),
-        Object.freeze({ ...expected }),
-      );
-      return response;
+      try {
+        const response = await upstreamStore(assetType, format, data, assetId);
+        const expected = {
+          assetId: String(assetId),
+          dataFormat: format,
+          sha256: await sha256(data),
+          sizeBytes: data.byteLength,
+        };
+        if (
+          !response ||
+          typeof response !== 'object' ||
+          response.status !== 'ok' ||
+          !sameReference(response.asset, expected)
+        ) {
+          throw unavailable('asset_reference_mismatch');
+        }
+        durableAssets.set(
+          runtimeKey(expected.assetId, expected.dataFormat),
+          Object.freeze({ ...expected }),
+        );
+        return response;
+      } catch (error) {
+        upstreamSaveGeneration = null;
+        throw error;
+      }
     };
 
     const loadRuntimeAsset = async (reference, type, format) => {
@@ -586,26 +596,33 @@
           throw unavailable('project_document_invalid');
         }
 
-        const generationAtStart = options.getProjectGeneration?.();
-        const references = referencedProjectAssets(projectJson).map((reference) => {
-          const durable = durableAssets.get(runtimeKey(reference.assetId, reference.dataFormat));
-          if (!durable) throw unavailable('asset_reference_missing');
-          return durable;
-        });
-        const revision = await persistCanonicalDocument(projectJson, references);
-        const generationAtEnd = options.getProjectGeneration?.();
-        if (
-          Number.isSafeInteger(generationAtStart) &&
-          Number.isSafeInteger(generationAtEnd) &&
-          generationAtEnd > generationAtStart
-        ) {
-          options.onSaveCompletedStale?.({
-            savedGeneration: generationAtStart,
-            latestGeneration: generationAtEnd,
-            revision,
+        const currentGeneration = options.getProjectGeneration?.();
+        const generationAtStart = Number.isSafeInteger(upstreamSaveGeneration)
+          ? upstreamSaveGeneration
+          : currentGeneration;
+        try {
+          const references = referencedProjectAssets(projectJson).map((reference) => {
+            const durable = durableAssets.get(runtimeKey(reference.assetId, reference.dataFormat));
+            if (!durable) throw unavailable('asset_reference_missing');
+            return durable;
           });
+          const revision = await persistCanonicalDocument(projectJson, references);
+          const generationAtEnd = options.getProjectGeneration?.();
+          if (
+            Number.isSafeInteger(generationAtStart) &&
+            Number.isSafeInteger(generationAtEnd) &&
+            generationAtEnd > generationAtStart
+          ) {
+            options.onSaveCompletedStale?.({
+              savedGeneration: generationAtStart,
+              latestGeneration: generationAtEnd,
+              revision,
+            });
+          }
+          return { id: options.projectId };
+        } finally {
+          upstreamSaveGeneration = null;
         }
-        return { id: options.projectId };
       },
       getLibraryAssetUrl(id, format) {
         if (confirmedAssets.has(runtimeKey(id, format))) {
@@ -629,6 +646,7 @@
         disposed = true;
         abortController?.abort();
         unresolvedMutation = null;
+        upstreamSaveGeneration = null;
       },
     };
   }
