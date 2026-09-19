@@ -71,7 +71,7 @@ Every accepted architecture must preserve:
 - no arbitrary host JavaScript execution by user sketches;
 - learner-correctable circuit/program errors must not disable or tear down the complete Electronics simulation session.
 
-The final hard constraint above was added by the owner after the initial candidate `038ece8f7af63f70b23270a6be1f8573889b9d88`. It was not part of the initial evaluation. All three strategies require later re-evaluation against this owner constraint before independent review; this correction records the rule only and does not perform that re-evaluation.
+The owner constraints were added after the initial candidate `038ece8f7af63f70b23270a6be1f8573889b9d88`. They were not part of the initial evaluation. SOURCE_LEVEL, AVR and HYBRID were subsequently re-evaluated against the owner constraints before independent review.
 
 Any candidate violating a hard constraint must be rejected regardless of Arduino compatibility.
 
