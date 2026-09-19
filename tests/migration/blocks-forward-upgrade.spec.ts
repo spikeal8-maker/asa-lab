@@ -34,7 +34,8 @@ describe('published Blocks forward migration', () => {
   it('only skips the pinned late 0146 when the pinned 0151 is in the plan', () => {
     expect(validateMigrationHistory(ledger(), plan).map((item) => item.version)).toEqual([
       '0151',
-      '0152',
+          '0152',
+          '0153',
     ]);
     expect(() => validateMigrationHistory(ledger(), oldPlan)).toThrow(/out-of-order.*0146/);
     for (const version of ['0146', '0151']) {
@@ -53,7 +54,7 @@ describe('published Blocks forward migration', () => {
     const anotherGap = ledger(without146.filter((item) => item.version !== '0148'));
     expect(() => validateMigrationHistory(anotherGap, plan)).toThrow(/out-of-order.*0148/);
     const future = ledger();
-    future.set('0153', { checksum: 'a'.repeat(64) });
+    future.set('0154', { checksum: 'a'.repeat(64) });
     expect(() => validateMigrationHistory(future, plan)).toThrow(/out-of-order.*0151/);
     const corrupt146 = ledger(oldPlan);
     corrupt146.set('0146', { checksum: 'b'.repeat(64) });
@@ -86,6 +87,7 @@ describe('published Blocks forward migration', () => {
         expect((await inspectPlan(client, candidate)).map((item) => item.version)).toEqual([
           '0151',
           '0152',
+          '0153',
         ]);
       else await expect(inspectPlan(client, candidate)).rejects.toThrow(/out-of-order/);
       expect(queries).toEqual([
@@ -100,11 +102,11 @@ describe('published Blocks forward migration', () => {
     const rows = plan
       .filter((item) => item.version !== '0146')
       .map((item) => ({ version: item.version, checksum: item.checksum }));
-    expect(await verifySchema({ query: async () => ({ rows }) })).toBe('0152');
+    expect(await verifySchema({ query: async () => ({ rows }) })).toBe('0153');
     await expect(
       verifySchema({
         query: async () => ({
-          rows: rows.filter((row) => row.version !== '0151' && row.version !== '0152'),
+          rows: rows.filter((row) => row.version !== '0151' && row.version !== '0152' && row.version !== '0153'),
         }),
       }),
     ).rejects.toThrow(/unsupported_schema:migration_0146/);
@@ -145,6 +147,7 @@ describe('published Blocks forward migration', () => {
         expect((await inspectPlan(client, plan)).map((item) => item.version)).toEqual([
           '0151',
           '0152',
+          '0153',
         ]);
         expect(
           (
@@ -153,12 +156,12 @@ describe('published Blocks forward migration', () => {
             )
           ).rows,
         ).toEqual(before);
-        expect(await applyPlan(client, plan)).toBe(2);
+        expect(await applyPlan(client, plan)).toBe(3);
         expect(await applyPlan(client, plan)).toBe(0);
         expect(
           (
             await db.query(
-              "SELECT version,name,checksum,applied_at FROM schema_migrations WHERE version NOT IN ('0151','0152') ORDER BY version",
+              "SELECT version,name,checksum,applied_at FROM schema_migrations WHERE version NOT IN ('0151','0152','0153') ORDER BY version",
             )
           ).rows,
         ).toEqual(before);
