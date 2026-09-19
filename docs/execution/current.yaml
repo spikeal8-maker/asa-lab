@@ -148,7 +148,7 @@ parallel_lanes:
       branch: codex/electronics-eopt3f-runtime-conformance
       base_branch: main
       pr: 302
-      pr_draft: true
+      pr_draft: false
       status: in_review
       checkpoint: eopt3f_runtime_conformance_acceptance_pass_merge_authorized
       owner_acceptance: accepted
