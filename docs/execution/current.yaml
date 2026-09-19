@@ -147,14 +147,14 @@ parallel_lanes:
       issue: 309
       branch: codex/electronics-eopt5b1a-compile-locality
       base_branch: main
-      pr: null
+      pr: 310
       pr_draft: true
       status: in_progress
       checkpoint: eopt5b1a_compile_failure_board_local
       owner_acceptance: pending
     revisions:
       convergence_baseline_sha: 2b2954baea75dbba8e71c35a7a1cd710f47ce3e5
-      head_sha: 2b2954baea75dbba8e71c35a7a1cd710f47ce3e5
+      head_sha: c024122565d517c62f5b884f29475030eda6e8e4
     execution_lease:
       executor_id: codex-electronics-eopt5a-runtime-strategy
       holder: unassigned
