@@ -148,13 +148,15 @@ parallel_lanes:
       branch: codex/electronics-eopt3f-runtime-conformance
       base_branch: main
       pr: 302
-      pr_draft: true
-      status: in_review
-      checkpoint: eopt3f_runtime_conformance_green_independent_review_pending
-      owner_acceptance: pending
+      pr_draft: false
+      status: done
+      checkpoint: merged_to_main
+      owner_acceptance: accepted
     revisions:
       convergence_baseline_sha: 6b7b175fbf523dff78333e57e150381fa418a91f
       head_sha: 6e16ebe3c0dac4de95b1b02b2c46f1ddcf2315cc
+      owner_accepted_sha: 6e16ebe3c0dac4de95b1b02b2c46f1ddcf2315cc
+      product_merge_sha: ea5316a8bb296366bc33e5ec72b904c67223a9e4
     execution_lease:
       executor_id: codex-electronics-eopt3f-runtime-conformance
       holder: unassigned
