@@ -188,7 +188,7 @@ BEGIN
   END IF;
 
   PERFORM pg_advisory_xact_lock(
-    hashtextextended(p_principal::text||':'||p_course::text||':'||p_request,1532)
+    hashtextextended(p_principal::text||':'||p_course::text||':'||p_request,1531)
   );
 
   SELECT course.tenant_id,course.draft_revision
