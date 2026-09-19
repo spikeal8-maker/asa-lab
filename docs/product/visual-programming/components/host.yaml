@@ -160,7 +160,7 @@ components:
       - path: infra/scratch-editor/host/storage.js
         symbols: [createReadOnlyStorage]
       - path: infra/scratch-editor/host/editor.js
-        symbols: [mountEditor, EditorState, setProjectId]
+        symbols: [mountEditor, EditorState]
       - path: infra/scratch-editor/host/main.js
         symbols: [editor]
     tests:
