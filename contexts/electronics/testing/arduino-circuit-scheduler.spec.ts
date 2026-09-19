@@ -698,8 +698,9 @@ describe('Arduino shared dc-inputs-v1 circuit clock', () => {
       expect.objectContaining({ code: 'member-call', componentId: 'b-unsupported' }),
     );
     expect(runtime(done, 'a-valid').outputVoltages.d13).toBe(5);
-    expect(done.state!.boards.find((entry) => entry.componentId === 'b-unsupported')!.loadedSource)
-      .toBeNull();
+    expect(
+      done.state!.boards.find((entry) => entry.componentId === 'b-unsupported')!.loadedSource,
+    ).toBeNull();
     expect(done.events.some((event) => event.componentId === 'a-valid')).toBe(true);
     expect(done.events.some((event) => event.componentId === 'b-unsupported')).toBe(false);
   });
