@@ -550,6 +550,14 @@ describe('Э1 existing course → exact versions → runs → inherited particip
       ])
     ).rows[0];
     expect(publishV2).toMatchObject({ result_code: 'ok', version_number: 2, reused: false });
+    revision = Number(
+      (
+        await admin.query('SELECT course_draft_revision($1,$2) AS revision', [
+          principal,
+          publishedV1.id,
+        ])
+      ).rows[0].revision,
+    );
     const outlines = await admin.query(
       `SELECT version_number,outline FROM course_versions
         WHERE course_id=$1 ORDER BY version_number`,
@@ -616,6 +624,14 @@ describe('Э1 existing course → exact versions → runs → inherited particip
       ])
     ).rows[0];
     expect(publishV3).toMatchObject({ result_code: 'ok', version_number: 3, reused: false });
+    revision = Number(
+      (
+        await admin.query('SELECT course_draft_revision($1,$2) AS revision', [
+          principal,
+          publishedV1.id,
+        ])
+      ).rows[0].revision,
+    );
     const v3 = (
       await admin.query('SELECT outline FROM course_versions WHERE id=$1', [publishV3.version_id])
     ).rows[0].outline;
@@ -641,6 +657,14 @@ describe('Э1 existing course → exact versions → runs → inherited particip
       ])
     ).rows[0];
     expect(publishV4).toMatchObject({ result_code: 'ok', version_number: 4, reused: false });
+    revision = Number(
+      (
+        await admin.query('SELECT course_draft_revision($1,$2) AS revision', [
+          principal,
+          publishedV1.id,
+        ])
+      ).rows[0].revision,
+    );
     const v4 = (
       await admin.query('SELECT outline FROM course_versions WHERE id=$1', [publishV4.version_id])
     ).rows[0].outline;
