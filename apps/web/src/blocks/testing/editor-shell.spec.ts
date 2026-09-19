@@ -21,8 +21,8 @@ describe('BlocksEditorShell', () => {
 
     expect(html).toContain('data-asa-blocks-editor-shell');
     expect(html).toContain('data-asa-blocks-runtime-slot');
-    expect(html).toContain('data-asa-blocks-save');
-    expect(html).toContain('Сохранить в ASA');
+    expect(html).not.toContain('data-asa-blocks-save');
+    expect(html).not.toContain('Сохранить в ASA');
     expect(html).toContain('data-asa-blocks-account-overlay');
     expect(html).toContain('data-asa-blocks-home-overlay');
     expect(html).toContain('ASA Lab — на главную');
