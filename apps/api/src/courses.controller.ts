@@ -292,7 +292,6 @@ function classroomCourseRuns(
       title: string;
       summary: string | null;
       position: number;
-      hidden: boolean;
       lessons: Array<{
         id: string;
         sourceLessonId: string;
@@ -1123,6 +1122,7 @@ export class CoursesController {
       title: string;
       summary: string | null;
       position: number;
+      hidden: boolean;
       lessons: Array<{
         id: string;
         title: string;
