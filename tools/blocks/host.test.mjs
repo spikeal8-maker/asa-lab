@@ -645,7 +645,9 @@ test('upstream saver may fan out dirty assets but ASA transport serializes the w
     return storage.scratchStorage.store(
       storage.scratchStorage.AssetType.ImageVector,
       'svg',
-      new TextEncoder().encode(`<svg xmlns="http://www.w3.org/2000/svg"><text>${digit}</text></svg>`),
+      new TextEncoder().encode(
+        `<svg xmlns="http://www.w3.org/2000/svg"><text>${digit}</text></svg>`,
+      ),
       digit.repeat(32),
     );
   });
