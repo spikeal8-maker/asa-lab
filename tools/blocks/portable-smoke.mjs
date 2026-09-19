@@ -790,6 +790,12 @@ try {
   const pBlocks1 = projectState(projectId);
   expect(blockSave.revision).toBe(pBlocks1.revision);
   expect(projectHasStep(pBlocks1, marker, 74)).toBe(true);
+  await expect
+    .poll(
+      () => phaseRuntimeMetrics(runtimeEvents, 'blocks-only-autosave').draftPutRequests,
+      { timeout: 5000 },
+    )
+    .toBe(1);
   const blocksOnlyRuntime = phaseRuntimeMetrics(runtimeEvents, 'blocks-only-autosave');
   expect(blocksOnlyRuntime.assetPutRequests).toBe(0);
   expect(blocksOnlyRuntime.draftPutRequests).toBe(1);
@@ -839,6 +845,11 @@ try {
       .toBe(true);
     const pRapid1 = projectState(projectId);
     expect(delta(pRapid1.revision, pRapid0.revision)).toBe(2);
+    await expect
+      .poll(() => phaseRuntimeMetrics(runtimeEvents, 'rapid-edit').draftPutRequests, {
+        timeout: 5000,
+      })
+      .toBe(2);
     const rapidRuntime = phaseRuntimeMetrics(runtimeEvents, 'rapid-edit');
     expect(rapidRuntime.assetPutRequests).toBe(0);
     expect(rapidRuntime.draftPutRequests).toBe(2);
