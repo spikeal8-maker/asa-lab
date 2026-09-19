@@ -145,7 +145,9 @@ export const ARDUINO_TEXT_COMMAND_SUPPORT = {
   min: SUPPORTED('Минимум поддерживается.'),
   max: SUPPORTED('Максимум поддерживается.'),
   millis: LIMITED('Возвращает время текущего шага симуляции.'),
-  micros: UNSUPPORTED('Микросекундные часы ещё не моделируются.'),
+  micros: LIMITED(
+    'Возвращает детерминированное instruction-us-v1 время в микросекундах без AVR cycle accuracy.',
+  ),
   pulseIn: UNSUPPORTED('Измерение длительности импульса ещё не реализовано.'),
   random: UNSUPPORTED('Случайные числа не входят в детерминированный рантайм.'),
   randomSeed: UNSUPPORTED('Случайные числа не входят в детерминированный рантайм.'),
@@ -235,6 +237,7 @@ const SUPPORTED_CALLS = new Set([
   'min',
   'max',
   'millis',
+  'micros',
 ]);
 
 const CONTROL_CALLS = new Set(['if', 'while', 'for', 'switch']);
@@ -242,7 +245,6 @@ const CONTROL_CALLS = new Set(['if', 'while', 'for', 'switch']);
 const UNSUPPORTED_CALL_MESSAGES = new Map<string, string>([
   ['random', 'random() ещё не исполняется детерминированным рантаймом.'],
   ['randomseed', 'randomSeed() ещё не исполняется детерминированным рантаймом.'],
-  ['micros', 'micros() ещё не моделируется.'],
   ['pulsein', 'pulseIn() и измерение длительности импульса ещё не реализованы.'],
   ['shiftin', 'shiftIn() ещё не исполняется.'],
   ['shiftout', 'shiftOut() ещё не исполняется.'],
@@ -434,9 +436,9 @@ export function analyseArduinoSourceSupport(
       message: 'Звуковой сигнал передаётся нагрузке без полной временной формы в общем solver.',
     },
     {
-      expression: /\bmillis\s*\(/gi,
+      expression: /\b(?:millis|micros)\s*\(/gi,
       code: 'runtime-clock',
-      message: 'millis() возвращает время текущего шага симуляции.',
+      message: 'millis()/micros() возвращают детерминированное время текущего шага симуляции.',
     },
     {
       expression: /(?:\+\+|--)/g,

@@ -706,7 +706,7 @@ describe('Arduino shared dc-inputs-v1 circuit clock', () => {
   });
 
   it.each([
-    ['unsupported-call', 'void setup(){micros();}void loop(){}'],
+    ['unsupported-call', 'void setup(){pulseIn(2,HIGH);}void loop(){}'],
     ['unsupported-syntax', 'void setup(){int x=1;switch(x){case 1:break;}}void loop(){}'],
     ['preprocessor', '#include <Servo.h>\nvoid setup(){}\nvoid loop(){}'],
   ])('keeps known unsupported %s board-local without last-good', (code, source) => {
@@ -727,7 +727,7 @@ describe('Arduino shared dc-inputs-v1 circuit clock', () => {
   });
 
   it.each([
-    ['unsupported-call', 'void setup(){micros();}void loop(){}'],
+    ['unsupported-call', 'void setup(){pulseIn(2,HIGH);}void loop(){}'],
     ['unsupported-syntax', 'void setup(){int x=1;switch(x){case 1:break;}}void loop(){}'],
     ['preprocessor', '#include <Servo.h>\nvoid setup(){}\nvoid loop(){}'],
   ])('keeps last-good runtime through known unsupported %s editor source', (code, source) => {
@@ -759,7 +759,7 @@ describe('Arduino shared dc-inputs-v1 circuit clock', () => {
           'a-valid',
           'void setup(){pinMode(13,OUTPUT);digitalWrite(13,HIGH);}void loop(){delay(100);}',
         ),
-        board('b-unsupported', 'void setup(){micros();}void loop(){}'),
+        board('b-unsupported', 'void setup(){pulseIn(2,HIGH);}void loop(){}'),
       ]),
       10,
     );

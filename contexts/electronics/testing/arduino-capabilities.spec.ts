@@ -43,6 +43,20 @@ describe('Arduino capability contract', () => {
     ).toEqual([]);
   });
 
+  it('publishes micros as a limited canonical runtime clock without unsupported-call', () => {
+    expect(ARDUINO_TEXT_COMMAND_SUPPORT.micros.status).toBe('limited');
+    const diagnostics = analyseArduinoSourceSupport(`
+      void loop() {
+        unsigned long t = micros();
+      }
+    `);
+
+    expect(diagnostics.some((entry) => entry.code === 'unsupported-call')).toBe(false);
+    expect(diagnostics).toContainEqual(
+      expect.objectContaining({ code: 'runtime-clock', status: 'limited' }),
+    );
+  });
+
   it('accepts the supported digital and analog input slice', () => {
     const diagnostics = analyseArduinoSourceSupport(`
       void setup() { pinMode(13, OUTPUT); }
