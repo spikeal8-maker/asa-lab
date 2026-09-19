@@ -145,3 +145,45 @@
     border-radius: 9px;
   }
 }
+
+
+.lesson-code-block {
+  margin: 0;
+  overflow-x: auto;
+  padding: 0.9rem 1rem;
+  border-radius: 0.65rem;
+  background: var(--surface-subtle, #f3f4f6);
+  white-space: pre;
+}
+
+.lesson-code-block code {
+  font: inherit;
+  font-family: ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', monospace;
+}
+
+.lesson-formula-block {
+  overflow-x: auto;
+  padding: 0.8rem 1rem;
+  font-family: ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', monospace;
+  white-space: pre-wrap;
+}
+
+.lesson-table-wrap {
+  overflow-x: auto;
+}
+
+.lesson-table-block {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.lesson-table-block td {
+  padding: 0.55rem 0.7rem;
+  border: 1px solid currentColor;
+  vertical-align: top;
+  white-space: pre-wrap;
+}
+
+.lesson-divider-block {
+  margin: 1rem 0;
+}
