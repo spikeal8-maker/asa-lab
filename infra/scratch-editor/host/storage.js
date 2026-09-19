@@ -642,6 +642,15 @@
       getConfirmedRevision() {
         return confirmedRevision;
       },
+      canRecoverProject(projectJson) {
+        try {
+          return referencedProjectAssets(projectJson).every((reference) =>
+            confirmedAssets.has(runtimeKey(reference.assetId, reference.dataFormat)),
+          );
+        } catch {
+          return false;
+        }
+      },
       getDurableProjectGeneration() {
         return durableProjectGeneration;
       },
@@ -680,16 +689,22 @@
           if (Number.isSafeInteger(generationAtStart)) {
             durableProjectGeneration = Math.max(durableProjectGeneration, generationAtStart);
           }
+          const savedGeneration = Number.isSafeInteger(generationAtStart)
+            ? generationAtStart
+            : durableProjectGeneration;
           publishUpstreamSaveOutcome({
             ok: true,
             revision,
-            savedGeneration: Number.isSafeInteger(generationAtStart)
-              ? generationAtStart
-              : durableProjectGeneration,
+            savedGeneration,
             latestGeneration: Number.isSafeInteger(generationAtEnd)
               ? generationAtEnd
               : durableProjectGeneration,
           });
+          try {
+            options.onProjectDurable?.({ revision, savedGeneration });
+          } catch {
+            // Local recovery cleanup must never turn a durable server save into a failure.
+          }
           if (
             Number.isSafeInteger(generationAtStart) &&
             Number.isSafeInteger(generationAtEnd) &&

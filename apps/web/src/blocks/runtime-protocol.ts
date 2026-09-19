@@ -55,7 +55,7 @@ export interface BlocksRuntimeInitOptions {
   projectJson: Record<string, unknown> | null;
   hasProjectJson: boolean;
   assets: readonly unknown[];
-  recoveryNamespace: string;
+  recoveryPrincipalKey: string;
   onMessage?: (message: Record<string, unknown>) => void;
   onFatal?: (message: Record<string, unknown>) => void;
 }
@@ -125,6 +125,9 @@ export class BlocksRuntimeBridge {
     this.runtimeOrigin = requireExactHttpOrigin(options.runtimeOrigin);
     if (!UUID_RE.test(options.projectId)) throw new Error('Blocks projectId must be a UUID');
     if (!options.runtimeToken) throw new Error('Blocks runtimeToken is required');
+    if (!options.recoveryPrincipalKey || options.recoveryPrincipalKey.length > 256) {
+      throw new Error('Blocks recoveryPrincipalKey is required');
+    }
     const { runtimeToken, ...nonSecretOptions } = options;
     this.options = nonSecretOptions;
     this.projectId = options.projectId;
@@ -161,7 +164,7 @@ export class BlocksRuntimeBridge {
       projectJson: this.options.projectJson,
       hasProjectJson: this.options.hasProjectJson,
       assets: this.options.assets,
-      recoveryNamespace: this.options.recoveryNamespace,
+      recoveryPrincipalKey: this.options.recoveryPrincipalKey,
     });
   }
 

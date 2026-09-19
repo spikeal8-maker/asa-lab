@@ -12,6 +12,7 @@ export async function createProtocolFixture(options = {}) {
     'infra/scratch-editor/host/protocol.js',
     'infra/scratch-editor/host/status.js',
     'infra/scratch-editor/host/main.js',
+    'infra/scratch-editor/host/recovery.js',
     'infra/scratch-editor/host/storage.js',
     'infra/scratch-editor/host/editor.js',
     'apps/web/src/blocks/runtime-protocol.ts',
@@ -20,15 +21,22 @@ export async function createProtocolFixture(options = {}) {
   ];
   for (const relative of checkedSources) {
     const text = fs.readFileSync(new URL(relative, repoRoot), 'utf8');
-    for (const forbidden of [
+    const forbidden = [
       'localStorage',
       'sessionStorage',
-      'indexedDB',
       "postMessage('*')",
       'postMessage("*")',
-    ]) {
-      if (text.includes(forbidden))
-        throw new Error(`${relative} contains forbidden protocol text: ${forbidden}`);
+      ...(relative === 'infra/scratch-editor/host/recovery.js' ? [] : ['indexedDB']),
+    ];
+    for (const token of forbidden) {
+      if (text.includes(token))
+        throw new Error(`${relative} contains forbidden protocol text: ${token}`);
+    }
+    if (relative === 'infra/scratch-editor/host/recovery.js') {
+      for (const secretName of ['runtimeToken', 'sessionNonce', 'password', 'authorization']) {
+        if (text.includes(secretName))
+          throw new Error(`${relative} contains forbidden recovery secret field: ${secretName}`);
+      }
     }
   }
 
@@ -559,7 +567,7 @@ window.addEventListener('message', (event) => {
       return;
     }
 
-    const productFile = product?.files.get(requestUrl);
+    const productFile = product?.files.get(new URL(requestUrl, parentOrigin).pathname);
     if (productFile) {
       response.setHeader('Content-Type', productFile.type);
       response.setHeader('Cache-Control', 'no-store');
@@ -581,16 +589,13 @@ window.addEventListener('message', (event) => {
   });
   let browser;
   let context;
-  try {
-    browser = await chromium.launch({ headless: true });
-    context = await browser.newContext(options.locale ? { locale: options.locale } : undefined);
-    const pageErrors = [];
-    const allRequests = [];
-
-    context.on('request', (request) => {
+  const pageErrors = [];
+  const allRequests = [];
+  const configureContext = async (target) => {
+    target.on('request', (request) => {
       allRequests.push({ method: request.method(), url: request.url() });
     });
-    context.on('page', (page) => {
+    target.on('page', (page) => {
       page.on('pageerror', (error) => {
         if (!error.message.includes('protocol-fixture-fatal')) pageErrors.push(error.message);
       });
@@ -600,8 +605,7 @@ window.addEventListener('message', (event) => {
         }
       });
     });
-
-    await context.route(
+    await target.route(
       (url) => url.origin === runtimeUrl && url.pathname === '/',
       async (route) => {
         const upstream = await route.fetch();
@@ -615,11 +619,26 @@ window.addEventListener('message', (event) => {
         await route.fulfill({ response: upstream, body });
       },
     );
+    return target;
+  };
+  const newContext = async (storageState) =>
+    configureContext(
+      await browser.newContext({
+        ...(options.locale ? { locale: options.locale } : {}),
+        ...(storageState ? { storageState } : {}),
+      }),
+    );
+
+  try {
+    browser = await chromium.launch({ headless: true });
+    context = await newContext();
 
     return {
       avatarDataUrl: product?.avatarDataUrl,
       updatedAvatarDataUrl: product?.updatedAvatarDataUrl,
-      context,
+      get context() {
+        return context;
+      },
       pageErrors,
       allRequests,
       runtimeAssetEvidence,
@@ -641,10 +660,19 @@ window.addEventListener('message', (event) => {
       getStoredSnapshot() {
         return storedSnapshot;
       },
+      captureStorageState() {
+        return context.storageState({ indexedDB: true });
+      },
       advanceServerRevision() {
         serverRevision += 1;
         runtimePersistenceMetrics.externalRevisionAdvances += 1;
         return serverRevision;
+      },
+      async reopenContextWithIndexedDB() {
+        const storageState = await context.storageState({ indexedDB: true });
+        await context.close();
+        context = await newContext(storageState);
+        return context;
       },
       async close() {
         try {

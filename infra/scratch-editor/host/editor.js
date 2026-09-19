@@ -162,6 +162,7 @@
     shell,
     session,
     bootstrap,
+    recoveryApi,
     getRuntimeToken,
     onReady,
     onDirty,
@@ -174,38 +175,50 @@
     let loaded = false;
     let saveInProgress = false;
     let projectGeneration = 0;
+    let storage = null;
+    let recoveryStore = null;
+    let recoveryController = null;
+    let recoveredRecord = null;
+    let recoveryConflict = false;
+    let initialProjectLoadedHandled = false;
+    let readyReported = false;
     let upstreamProjectSaver = null;
     let saveBeforeExitPromise = null;
     let upstreamSaverRearmSequence = 0;
     const upstreamSaverRearmWaiters = new Set();
     const autoSaveIntervalSecs = chooseAutoSaveIntervalSecs();
-    const storage = globalThis.AsaBlocksStorage.createReadOnlyStorage(standalone, {
-      projectId: session.projectId,
-      projectJson: bootstrap.projectJson,
-      assets: bootstrap.assets,
-      draftRevision: bootstrap.draftRevision,
-      apiOrigin: bootstrap.apiOrigin,
-      getRuntimeToken,
-      canSave: session.mode === 'editor',
-      getProjectGeneration: () => projectGeneration,
-      onSaveCompletedStale: () => {
-        globalThis.setTimeout(() => {
-          if (!disposed && loaded && vm) vm.emit('PROJECT_CHANGED');
-          upstreamSaverRearmSequence += 1;
-          for (const waiter of [...upstreamSaverRearmWaiters]) {
-            if (upstreamSaverRearmSequence > waiter.afterSequence) {
-              upstreamSaverRearmWaiters.delete(waiter);
-              waiter.resolve(!disposed);
+    const createStorage = () =>
+      globalThis.AsaBlocksStorage.createReadOnlyStorage(standalone, {
+        projectId: session.projectId,
+        projectJson: bootstrap.projectJson,
+        assets: bootstrap.assets,
+        draftRevision: bootstrap.draftRevision,
+        apiOrigin: bootstrap.apiOrigin,
+        getRuntimeToken,
+        canSave: session.mode === 'editor',
+        getProjectGeneration: () => projectGeneration,
+        onProjectDurable: ({ savedGeneration }) => {
+          void recoveryController?.durable(savedGeneration);
+        },
+        onSaveCompletedStale: () => {
+          globalThis.setTimeout(() => {
+            if (!disposed && loaded && vm) vm.emit('PROJECT_CHANGED');
+            upstreamSaverRearmSequence += 1;
+            for (const waiter of [...upstreamSaverRearmWaiters]) {
+              if (upstreamSaverRearmSequence > waiter.afterSequence) {
+                upstreamSaverRearmWaiters.delete(waiter);
+                waiter.resolve(!disposed);
+              }
             }
-          }
-        }, 0);
-      },
-    });
+          }, 0);
+        },
+      });
 
     const changed = () => {
       if (disposed || !loaded) return;
       projectGeneration += 1;
       shell.dataset.projectChanges = String(projectGeneration);
+      recoveryController?.schedule(projectGeneration);
       onDirty?.(projectGeneration);
     };
     const running = () => {
@@ -219,6 +232,7 @@
     shell.dataset.projectChanges = '0';
     shell.dataset.projectRunning = 'false';
     shell.dataset.projectSource = bootstrap.hasProjectJson ? 'runtime-session' : 'new-default';
+    shell.dataset.recoveryState = 'none';
     shell.dataset.draftRevision = String(bootstrap.draftRevision);
 
     const disposeVm = () => {
@@ -239,7 +253,9 @@
         upstreamSaverRearmWaiters.delete(waiter);
         waiter.resolve(false);
       }
-      storage.dispose();
+      recoveryController?.dispose();
+      recoveryStore?.close();
+      storage?.dispose();
       try {
         disposeVm();
       } finally {
@@ -249,8 +265,117 @@
       }
     };
 
+    const reportReady = () => {
+      if (disposed || readyReported) return;
+      loaded = true;
+      readyReported = true;
+      shell.dataset.editorState = 'ready';
+      onReady();
+    };
+
+    const restoreRecoveredProject = async () => {
+      const record = recoveredRecord;
+      if (!record || session.mode !== 'editor' || !vm) {
+        reportReady();
+        return;
+      }
+
+      let canonicalProjectJson;
+      try {
+        canonicalProjectJson = JSON.parse(vm.toJSON());
+      } catch {
+        shell.dataset.recoveryState = 'restore_failed';
+        reportReady();
+        return;
+      }
+
+      shell.dataset.editorState = 'recovering';
+      shell.dataset.recoveryState = 'restoring';
+      loaded = false;
+      try {
+        await vm.loadProject(record.projectJson);
+        if (disposed) return;
+        projectGeneration = Math.max(0, record.generation - 1);
+        loaded = true;
+        shell.dataset.projectSource = 'recovery';
+        shell.dataset.recoveryState = 'restored';
+        // The upstream VM manager clears projectChanged with a zero-delay timer
+        // after the canonical server project first loads. Re-arm recovery dirty
+        // state on the following task so ProjectSaverHOC observes false -> true.
+        await new Promise((resolve) => globalThis.setTimeout(resolve, 0));
+        if (disposed) return;
+        vm.emit('PROJECT_CHANGED');
+        reportReady();
+      } catch {
+        try {
+          await vm.loadProject(canonicalProjectJson);
+        } catch {
+          // The canonical project had already loaded successfully; recovery remains best-effort.
+        }
+        if (disposed) return;
+        loaded = true;
+        shell.dataset.recoveryState = 'restore_failed';
+        reportReady();
+      }
+    };
+
     const start = async () => {
       try {
+        if (
+          session.mode === 'editor' &&
+          recoveryApi &&
+          typeof bootstrap.recoveryPrincipalKey === 'string'
+        ) {
+          try {
+            recoveryStore = recoveryApi.createRecoveryStore();
+            if (recoveryStore) {
+              const selection = await recoveryApi.selectRecovery({
+                store: recoveryStore,
+                principalKey: bootstrap.recoveryPrincipalKey,
+                projectId: session.projectId,
+                serverRevision: bootstrap.draftRevision,
+                serverProjectJson: bootstrap.projectJson,
+              });
+              if (selection.kind === 'restore' && selection.record) {
+                recoveredRecord = selection.record;
+                shell.dataset.recoveryState = 'restore-pending';
+              } else if (selection.kind === 'conflict') {
+                recoveryConflict = true;
+                shell.dataset.recoveryState = 'recovery_conflict';
+              } else {
+                shell.dataset.recoveryState = selection.kind;
+              }
+            } else {
+              shell.dataset.recoveryState = 'unavailable';
+            }
+          } catch {
+            recoveryStore = null;
+            shell.dataset.recoveryState = 'unavailable';
+          }
+        }
+
+        storage = createStorage();
+        if (recoveredRecord && !storage.canRecoverProject(recoveredRecord.projectJson)) {
+          await recoveryStore?.delete(bootstrap.recoveryPrincipalKey, session.projectId);
+          recoveredRecord = null;
+          shell.dataset.recoveryState = 'media_recovery_required';
+        }
+        if (recoveryStore && !recoveryConflict && recoveryApi) {
+          recoveryController = recoveryApi.createRecoveryController({
+            store: recoveryStore,
+            principalKey: bootstrap.recoveryPrincipalKey,
+            projectId: session.projectId,
+            getBaseRevision: () => storage?.getConfirmedRevision() ?? bootstrap.draftRevision,
+            captureProjectJson: () => {
+              if (!vm || typeof vm.toJSON !== 'function') throw failure('recovery_vm_unavailable');
+              return JSON.parse(vm.toJSON());
+            },
+            canRecoverProject: (projectJson) => storage?.canRecoverProject(projectJson) === true,
+            onState: ({ state: recoveryState }) => {
+              if (!disposed) shell.dataset.recoveryState = recoveryState;
+            },
+          });
+        }
         if (bootstrap.hasProjectJson) {
           await storage.prepareProjectAssets();
         }
@@ -307,9 +432,9 @@
               disposeVm();
               return;
             }
-            loaded = true;
-            shell.dataset.editorState = 'ready';
-            onReady();
+            if (initialProjectLoadedHandled) return;
+            initialProjectLoadedHandled = true;
+            void restoreRecoveredProject();
           },
         });
       } catch (error) {

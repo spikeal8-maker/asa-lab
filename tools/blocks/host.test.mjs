@@ -1075,7 +1075,7 @@ function validInitMessage(overrides = {}) {
     hasProjectJson: true,
     assets: [],
     apiOrigin: API_ORIGIN,
-    recoveryNamespace: 'fixture-c',
+    recoveryPrincipalKey: '33333333-3333-4333-8333-333333333333',
     ...overrides,
   };
 }
@@ -1221,6 +1221,7 @@ for (const [query, mode, delegated] of [
         },
       },
       AsaBlocksStatus: { createStatusReporter: () => ({ status() {} }) },
+      AsaBlocksRecovery: {},
       AsaBlocksEditor: {
         mountEditor: ({ onReady }) => {
           onReady();
@@ -1237,6 +1238,7 @@ for (const [query, mode, delegated] of [
         projectJson: null,
         hasProjectJson: false,
         assets: [],
+        recoveryPrincipalKey: '33333333-3333-4333-8333-333333333333',
       },
     );
     await Promise.resolve();

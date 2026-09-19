@@ -8,11 +8,19 @@ import { ProjectPreview } from '../../../apps/web/src/modules/ProjectPreviewFigu
 const projectId = '11111111-1111-4111-8111-111111111111';
 
 // Browser harness uses shipping components. Only HTTP responses are deterministic fixtures.
-const user = {
-  id: '33333333-3333-4333-8333-333333333333',
-  displayName: 'Scratch acceptance account',
-  email: 'scratch-acceptance@example.test',
-};
+const account = new URL(window.location.href).searchParams.get('account');
+const user =
+  account === 'b'
+    ? {
+        id: '44444444-4444-4444-8444-444444444444',
+        displayName: 'Scratch acceptance account B',
+        email: 'scratch-acceptance-b@example.test',
+      }
+    : {
+        id: '33333333-3333-4333-8333-333333333333',
+        displayName: 'Scratch acceptance account',
+        email: 'scratch-acceptance@example.test',
+      };
 
 function ProductFixture() {
   const avatar = useEditorAvatar(user);
@@ -56,6 +64,7 @@ function ProductFixture() {
   return (
     <BlocksEditor
       projectId={projectId}
+      recoveryPrincipalKey={user.id}
       onBack={() => {
         window.location.hash = '/projects';
       }}

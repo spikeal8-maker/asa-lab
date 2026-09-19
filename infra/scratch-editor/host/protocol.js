@@ -20,6 +20,8 @@
   const nonEmptyString = (value) => typeof value === 'string' && value.length > 0;
   const validRuntimeToken = (value) =>
     typeof value === 'string' && value.length <= 4096 && TOKEN_RE.test(value);
+  const validRecoveryPrincipalKey = (value) =>
+    typeof value === 'string' && value.length >= 1 && value.length <= 256;
   const exactHttpOrigin = (value) => {
     if (typeof value !== 'string') return null;
     try {
@@ -88,6 +90,7 @@
 
   function validatedBootstrap(message, expectedParentOrigin) {
     if (!Number.isSafeInteger(message.draftRevision) || message.draftRevision < 0) return null;
+    if (!validRecoveryPrincipalKey(message.recoveryPrincipalKey)) return null;
     const apiOrigin = exactHttpOrigin(message.apiOrigin);
     if (!apiOrigin || apiOrigin !== expectedParentOrigin) return null;
     if (!Array.isArray(message.assets) || !message.assets.every(validAsset)) return null;
@@ -127,6 +130,7 @@
       projectJson,
       hasProjectJson,
       assets: Object.freeze(assets),
+      recoveryPrincipalKey: message.recoveryPrincipalKey,
     });
   }
 

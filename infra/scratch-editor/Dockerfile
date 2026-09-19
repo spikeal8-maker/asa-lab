@@ -65,6 +65,7 @@ RUN set -eux; \
     fi; \
     test -f /usr/share/nginx/html/index.html; \
     test -f /usr/share/nginx/html/main.js; \
+    test -f /usr/share/nginx/html/recovery.js; \
     test -f /usr/share/nginx/html/asa-lab-mark.svg; \
     test -f /usr/share/nginx/html/asa-lab-scratch-wordmark.svg; \
     test -f /usr/share/nginx/html/library-assets/library-assets-manifest.json; \

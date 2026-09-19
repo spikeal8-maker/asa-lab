@@ -43,6 +43,7 @@ function resolvedParentOrigin(configuredParentOrigin, runtimeHref) {
       addEventListener() {},
     },
     AsaBlocksStatus: {},
+    AsaBlocksRecovery: {},
     AsaBlocksProtocol: {
       createChildProtocol(options) {
         captured = options.expectedParentOrigin;

@@ -28,7 +28,7 @@ function makeBridge(target = makeTarget(), onFatal = vi.fn(), onMessage = vi.fn(
       projectJson: { targets: [], monitors: [], extensions: [] },
       hasProjectJson: true,
       assets: [],
-      recoveryNamespace: 'fixture-recovery',
+      recoveryPrincipalKey: '33333333-3333-4333-8333-333333333333',
       onMessage,
       onFatal,
     }),

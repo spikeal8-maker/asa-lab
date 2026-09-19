@@ -69,12 +69,14 @@ const focused = [
     'e2e/blocks-host-storage.spec.ts',
     'e2e/blocks-host-controls.spec.ts',
     'e2e/blocks-product-integration.spec.ts',
+    'e2e/blocks-recovery.spec.ts',
   ],
   [
     'node',
     '--test',
     'tools/blocks/checks.test.mjs',
     'tools/blocks/host.test.mjs',
+    'tools/blocks/recovery.test.mjs',
     'tools/blocks/flush-semantics.test.mjs',
     'tools/blocks/local-origin.test.mjs',
     'tools/blocks/storage-library.test.mjs',
@@ -97,6 +99,7 @@ const focused = [
     'e2e/blocks-host-storage.spec.ts',
     'e2e/blocks-host-controls.spec.ts',
     'e2e/blocks-product-integration.spec.ts',
+    'e2e/blocks-recovery.spec.ts',
     'tools/verify-blocks-host-protocol.mjs',
     'tools/verify-blocks-host-shell.mjs',
   ],
@@ -225,7 +228,7 @@ const focused = [
     'apps/api/src/blocks-app-composition.spec.ts',
     'apps/api/src/projects-save-status.spec.ts',
   ],
-  ...['main', 'protocol', 'status', 'storage', 'editor'].map((name) => [
+  ...['main', 'protocol', 'status', 'recovery', 'storage', 'editor'].map((name) => [
     'node',
     '--check',
     `infra/scratch-editor/host/${name}.js`,
