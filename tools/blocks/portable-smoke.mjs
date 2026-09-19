@@ -876,9 +876,12 @@ try {
   const seatProject = await createProject(seatContext.request, 'StudentSeat durable Blocks');
   const seatPage = await seatContext.newPage();
   await seatPage.goto(`/#/home/${seatProject.id}?module=blocks`, { waitUntil: 'domcontentloaded' });
-  await waitForEditor(seatPage);
-  const seatSave = await clickConfirmedSave(seatPage);
-  expect(seatSave.revision).toBeGreaterThan(0);
+  const seatEditor = await waitForEditor(seatPage);
+  const seatBefore = projectState(seatProject.id);
+  await seatEditor.frame.getByPlaceholder('x', { exact: true }).fill('19');
+  await seatEditor.frame.getByPlaceholder('x', { exact: true }).press('Enter');
+  const seatSave = await waitForRevisionAdvance(seatProject.id, seatBefore.revision);
+  expect(seatSave.revision).toBeGreaterThan(seatBefore.revision);
   await seatContext.close();
 
   seatContext = await browser.newContext({
@@ -999,6 +1002,8 @@ try {
   expect(revokedUse.status()).toBe(403);
 
   phase = 'storage-failure';
+  const beforeStorageFailure = projectState(projectId);
+  dockerCompose('stop', 'minio');
   await freshEditor.frame.getByRole('tab', { name: 'Sounds', exact: true }).click();
   await freshEditor.frame
     .getByRole('button', { name: 'Choose a Sound', exact: true })
@@ -1008,13 +1013,13 @@ try {
   await expect(freshEditor.frame.getByRole('textbox', { name: 'Sound', exact: true })).toHaveValue(
     'Boing',
   );
-  const beforeStorageFailure = projectState(projectId);
-  dockerCompose('stop', 'minio');
-  const saveButton = reopened.locator('[data-asa-blocks-save]');
-  await saveButton.click();
-  await expect(saveButton).toHaveAttribute('data-save-state', 'error', { timeout: 45000 });
+  await expect(
+    freshEditor.frame.getByText('Project could not save.', { exact: true }),
+  ).toBeVisible({ timeout: 20000 });
   const afterStorageFailure = projectState(projectId);
   expect(afterStorageFailure.revision).toBe(beforeStorageFailure.revision);
+  expect(phaseRuntimeMetrics(runtimeEvents, 'storage-failure').draftPutRequests).toBe(0);
+  expect(phaseRuntimeMetrics(runtimeEvents, 'storage-failure').assetPutRequests).toBeGreaterThan(0);
   dockerCompose('start', 'minio');
   await waitForMinio();
 
@@ -1062,7 +1067,7 @@ try {
     invalidOriginStatus: wrongOrigin.status(),
     revokedCapabilityStatus: revokedUse.status(),
     storageFailure: {
-      uiState: await saveButton.getAttribute('data-save-state'),
+      upstreamErrorVisible: true,
       revisionBefore: beforeStorageFailure.revision,
       revisionAfter: afterStorageFailure.revision,
     },
