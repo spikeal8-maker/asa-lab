@@ -21,9 +21,9 @@ Reconciled capability baseline for this plan revision:
 - E-OPT-0 baseline/golden/benchmark is accepted;
 - E-OPT-1A..1E portable engine boundary is accepted and integrated;
 - E-OPT-2 dedicated Worker boundary is accepted and integrated;
-- E-OPT-3A..3D canonical clock, timed facade, scheduler/physics barriers and Worker/controller canonical horizons are accepted and integrated;
-- E-OPT-3E and E-OPT-3F remain before E-OPT-3 is complete;
-- timing-sensitive peripherals remain blocked on the remaining clock/runtime prerequisites.
+- E-OPT-3A..3F canonical clock, timed facade, scheduler/physics barriers, Worker/controller canonical horizons, replay determinism and runtime lifecycle/stale-horizon conformance are accepted and integrated;
+- E-OPT-3 Canonical Electronics Clock is complete;
+- timing-sensitive peripherals remain blocked on the required Arduino-runtime/peripheral prerequisites rather than on E-OPT-3.
 
 Do not copy live SHA/CI/checkpoint into this plan. Historical evidence belongs in delivery evidence, Git history and issues.
 
@@ -152,7 +152,7 @@ No further E-OPT-2 feature expansion is authorised by this plan alone. Worker ch
 
 ## 6. E-OPT-3 — Canonical Electronics Clock
 
-**Capability state:** E-OPT-3A..3D are accepted and integrated; E-OPT-3E and E-OPT-3F remain.
+**Capability state:** complete through E-OPT-3F; E-OPT-3A..3F are accepted and integrated.
 
 ### Goal
 
@@ -188,7 +188,7 @@ Do not start Servo/HC-SR04/interrupts/IR/NeoPixel in E-OPT-3.
 
 ## 7. E-OPT-4 — Solver and DeviceModel Hardening
 
-**Blocked on E-OPT-3 for transient/timestep-sensitive acceptance; bounded static model cleanup may be separately selected only when it does not depend on time semantics.**
+**E-OPT-3 prerequisite is satisfied. This stage becomes owner-selectable only after the mandatory post-E-OPT-3 hygiene checkpoint is accepted; it is not active by roadmap position alone.**
 
 Required work:
 
@@ -206,7 +206,7 @@ Required work:
 
 ## 8. E-OPT-5 — Arduino Runtime Hardening
 
-**Blocked on E-OPT-3.**
+**E-OPT-3 prerequisite is satisfied. This stage becomes owner-selectable only after the mandatory post-E-OPT-3 hygiene checkpoint is accepted; it is not active by roadmap position alone.**
 
 Logical subsystems:
 
@@ -237,7 +237,7 @@ A separate design spike must compare continued source-level runtime vs AVR emula
 
 ## 9. E-OPT-6 — Sensors and Peripherals
 
-**Blocked until the required E-OPT-3/E-OPT-5 primitives exist and are accepted.**
+**Blocked until the required E-OPT-5 runtime primitives and selected upstream hardening prerequisites exist and are accepted. E-OPT-3 itself is complete.**
 
 Default first-wave order:
 
@@ -329,31 +329,28 @@ how existing acceptance evidence remains valid or must be rerun
 
 Then update this plan and routing before implementation resumes.
 
-## 16. Current dependency shape after E-OPT-3D
+## 16. Current dependency shape after E-OPT-3
 
-Accepted foundations E-OPT-0, E-OPT-1, E-OPT-2 and E-OPT-3A..3D are not repeated as
-future work. This is a dependency shape, not an execution queue: every arrow still ends at
-STOP / owner selection, and only `docs/execution/current.yaml` activates a concrete task.
+E-OPT-0, E-OPT-1, E-OPT-2 and E-OPT-3A..3F are accepted foundations. E-OPT-3 Canonical Electronics Clock is complete.
+
+The mandatory post-E-OPT-3 hygiene checkpoint is the current transition boundary. Roadmap readiness is not task selection: after this checkpoint is accepted, E-OPT-4 and E-OPT-5 become owner-selectable sibling programmes, but neither becomes active automatically. Only `docs/execution/current.yaml` selects a concrete task.
 
 ```text
-accepted E-OPT-3A..3D
+E-OPT-0 ✅
+E-OPT-1 ✅
+E-OPT-2 ✅
+E-OPT-3A..3F ✅
+        |
+        v
+MANDATORY HYGIENE CHECKPOINT
         |
         v
 STOP / owner selection
         |
-        v
-E-OPT-3E trace/replay determinism across presentation cadence
-        |
-        v
-E-OPT-3F reset/pause/resume/input/stale-horizon conformance
-        |
-        v
-mandatory hygiene checkpoint before leaving major E-OPT-3
-        |
         +---------------------------+
         |                           |
         v                           v
-E-OPT-4 Solver/DeviceModel    E-OPT-5 Arduino runtime
+E-OPT-4 Solver/DeviceModel    E-OPT-5 Arduino Runtime
 hardening                     hardening
         |                           |
         +-------------+-------------+
@@ -374,13 +371,8 @@ E-OPT-4 + selected E-OPT-6 coverage + E-OPT-7 evidence + E-OPT-8
 E-OPT-9 v1 hardening gate
 ```
 
-E-OPT-4 and E-OPT-5 are sibling hardening programmes, not a mandatory
-`4 → 5` serial queue. They may be decomposed into bounded slices and may overlap only where
-their accepted contracts permit it. E-OPT-6 waits for the required accepted engine/runtime
-primitives; no peripheral task is selected merely because its ARD requirement anchor exists.
+After the mandatory hygiene checkpoint is accepted, E-OPT-4 and E-OPT-5 are owner-selectable siblings, not a mandatory `4 → 5` serial queue. They may be decomposed into bounded slices and may overlap only where their accepted contracts permit it. This readiness statement does not activate either stage.
 
-E-OPT-8 keeps its independent prerequisite boundary from §§2 and 11; this diagram does not make
-it wait for E-OPT-6 or E-OPT-7. E-OPT-7 may run in parallel only where §10 preserves
-engine/runtime semantics, and it never auto-activates from this diagram.
+E-OPT-6 waits for the required accepted engine/runtime primitives; no peripheral task is selected merely because its ARD requirement anchor exists. E-OPT-8 keeps its independent prerequisite boundary from §§2 and 11. E-OPT-7 may run in parallel only where §10 preserves engine/runtime semantics and it never auto-activates from this diagram.
 
-Each major-stage transition remains subject to the cross-cutting hygiene rule in §2.1.
+Each later major-stage transition remains subject to the cross-cutting hygiene rule in §2.1.

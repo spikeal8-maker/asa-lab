@@ -26,8 +26,8 @@ large_sources:
     rationale: Active sidebar surface contains multiple inspector/library responsibilities and needs bounded responsibility review before further growth.
   - path: apps/web/src/electronics/use-electronics-workbench.ts
     class: decomposition-candidate
-    reviewed_bytes: 84505
-    rationale: Active workbench controller coordinates interaction and simulation concerns; E-OPT-3D timing convergence is accepted, while any structural extraction remains a separately selected responsibility change.
+    reviewed_bytes: 84980
+    rationale: Active workbench controller coordinates interaction and simulation concerns; E-OPT-3 is complete, while any structural extraction remains a separately selected E-OPT-7/maintenance responsibility change.
   - path: contexts/electronics/domain/arduino-program-runtime.ts
     class: decomposition-candidate
     reviewed_bytes: 68170
@@ -48,12 +48,12 @@ large_sources:
 legacy_concerns:
   - path: apps/web/src/electronics/live-simulation.ts
     class: compatibility-shim
-    concern: The exported advanceLiveSimulation helper is no longer used by production Worker/runtime code after E-OPT-3D; it remains referenced by legacy live-simulation unit/reference fixtures while preflight helpers in the same file remain active.
-    retirement_condition: E-OPT-3F accepts reset/pause/resume/input conformance, legacy advance fixtures are migrated to canonical timed-engine coverage, and repository search proves no production or required evidence dependency on advanceLiveSimulation.
+    concern: E-OPT-3F is accepted and production Worker/runtime callers of advanceLiveSimulation are zero, but live/reference tests and active benchmark tooling still call the exported helper; preflight helpers in the same file also remain active.
+    retirement_condition: A separately selected maintenance slice migrates or explicitly retires every active advanceLiveSimulation test/tool caller, preserves historical benchmark evidence as historical evidence, and repository search proves production imports plus active test/tool dependencies are zero before deletion is evaluated.
   - path: contexts/electronics/domain/arduino-program-runtime.ts
     class: active-legacy-bridge
-    concern: ArduinoClockProfile still includes legacy-ms-v1 and instruction-us-v1; advanceArduinoRuntime(...) explicitly selects legacy-ms-v1, and contexts/electronics/domain/arduino-model.ts uses that wrapper for production snapshot/stateless Arduino state.
-    retirement_condition: E-OPT-3F conformance is accepted, a subsequent Arduino-runtime convergence establishes the canonical clock profile for every production snapshot/stateless caller, and repository search proves no production/public/evidence dependency on legacy-ms-v1 or advanceArduinoRuntime.
+    concern: E-OPT-3F is accepted, but ArduinoClockProfile still includes legacy-ms-v1 and instruction-us-v1; advanceArduinoRuntime(...) explicitly selects legacy-ms-v1, with current production callers including arduino-model.ts and solver.ts.
+    retirement_condition: A separately selected E-OPT-5 or prerequisite Arduino-runtime convergence establishes the canonical clock profile for every production snapshot/stateless caller, migrates production dependencies, and repository search proves no production/public/evidence dependency requires legacy-ms-v1 or advanceArduinoRuntime before deletion is evaluated.
 documentation_hotspots:
   - path: docs/product/electronics/README.md
     class: decomposition-candidate
