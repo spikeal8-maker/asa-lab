@@ -41,14 +41,59 @@ import {
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const VISIBILITY = new Set(['private', 'teachers', 'school', 'public']);
 const BLOCK_ID_PATTERN = /^[A-Za-z0-9_-]{1,80}$/;
-const BLOCK_TYPES = new Set(['paragraph', 'heading', 'callout', 'image', 'video', 'audio', 'file']);
+const BLOCK_TYPES = new Set([
+  'paragraph',
+  'heading',
+  'callout',
+  'image',
+  'video',
+  'audio',
+  'file',
+  'code',
+  'formula',
+  'table',
+  'divider',
+]);
 const ASSET_URL_PATTERN = /^\/assets\/[A-Za-z0-9][A-Za-z0-9/_.%-]*$/;
+const CODE_TEXT_LIMIT = 20_000;
+const FORMULA_TEXT_LIMIT = 4_000;
+const TABLE_ROW_LIMIT = 30;
+const TABLE_COLUMN_LIMIT = 12;
+const TABLE_CELL_TEXT_LIMIT = 1_000;
+const CODE_LANGUAGE_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_+.#-]{0,79}$/;
+const BLOCK_FIELDS: Record<string, ReadonlySet<string>> = {
+  paragraph: new Set(['id', 'type', 'text']),
+  heading: new Set(['id', 'type', 'text', 'level']),
+  callout: new Set(['id', 'type', 'text', 'tone']),
+  image: new Set(['id', 'type', 'url', 'alt', 'caption']),
+  video: new Set(['id', 'type', 'url', 'title']),
+  audio: new Set(['id', 'type', 'url', 'title']),
+  file: new Set(['id', 'type', 'url', 'label']),
+  code: new Set(['id', 'type', 'text', 'language']),
+  formula: new Set(['id', 'type', 'text']),
+  table: new Set(['id', 'type', 'rows']),
+  divider: new Set(['id', 'type']),
+};
 
 type LessonBlock = Record<string, unknown> & { id: string; type: string };
 
 function safeLessonUrl(value: string, type: string): boolean {
   const localAsset = ASSET_URL_PATTERN.test(value) && !value.includes('..');
   return type === 'file' ? value.startsWith('https://') || localAsset : localAsset;
+}
+
+function tableRowsValid(value: unknown): boolean {
+  if (!Array.isArray(value) || value.length < 1 || value.length > TABLE_ROW_LIMIT) return false;
+  let columns: number | null = null;
+  for (const row of value) {
+    if (!Array.isArray(row) || row.length < 1 || row.length > TABLE_COLUMN_LIMIT) return false;
+    if (columns === null) columns = row.length;
+    else if (row.length !== columns) return false;
+    if (row.some((cell) => typeof cell !== 'string' || cell.length > TABLE_CELL_TEXT_LIMIT)) {
+      return false;
+    }
+  }
+  return true;
 }
 
 function lessonBlocks(raw: unknown, legacyContent: string | null): LessonBlock[] | null {
@@ -73,7 +118,10 @@ function lessonBlocks(raw: unknown, legacyContent: string | null): LessonBlock[]
       !BLOCK_TYPES.has(block['type'])
     )
       return null;
+    const allowedFields = BLOCK_FIELDS[block['type']];
+    if (!allowedFields || Object.keys(block).some((key) => !allowedFields.has(key))) return null;
     ids.add(block['id']);
+
     const text = block['text'];
     const url = block['url'];
     if (block['type'] === 'paragraph' && (typeof text !== 'string' || text.length > 12_000)) {
@@ -95,6 +143,22 @@ function lessonBlocks(raw: unknown, legacyContent: string | null): LessonBlock[]
         !['note', 'tip', 'warning'].includes(String(block['tone'])))
     )
       return null;
+    if (
+      block['type'] === 'code' &&
+      (typeof text !== 'string' ||
+        text.length > CODE_TEXT_LIMIT ||
+        (block['language'] !== undefined &&
+          (typeof block['language'] !== 'string' ||
+            !CODE_LANGUAGE_PATTERN.test(block['language']))))
+    )
+      return null;
+    if (
+      block['type'] === 'formula' &&
+      (typeof text !== 'string' || text.trim().length === 0 || text.length > FORMULA_TEXT_LIMIT)
+    )
+      return null;
+    if (block['type'] === 'table' && !tableRowsValid(block['rows'])) return null;
+
     if (['image', 'video', 'audio', 'file'].includes(String(block['type']))) {
       if (
         typeof url !== 'string' ||
