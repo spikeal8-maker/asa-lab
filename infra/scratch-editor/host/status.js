@@ -32,6 +32,15 @@
           ...(Number.isSafeInteger(snapshotGeneration) ? { snapshotGeneration } : {}),
         });
       },
+      saveBeforeExitResult(requestId, ok, reason = null, revision = null, savedGeneration = null) {
+        return post('ASA_BLOCKS_SAVE_BEFORE_EXIT_RESULT', {
+          requestId,
+          ok,
+          reason,
+          ...(Number.isSafeInteger(revision) ? { revision } : {}),
+          ...(Number.isSafeInteger(savedGeneration) ? { savedGeneration } : {}),
+        });
+      },
       fatal(code) {
         return post('ASA_BLOCKS_FATAL', { code });
       },

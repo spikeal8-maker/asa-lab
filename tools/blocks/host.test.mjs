@@ -166,7 +166,7 @@ test('new project storage binds the default project to the ASA UUID', async () =
       storage.scratchStorage.DataFormat.JSON,
     );
 
-  assert.equal(await readProject('0'), null);
+  assert.ok(await readProject('0'));
   assert.ok(await readProject(PROJECT_ID));
   assert.equal(storage.getLibraryAssetUrl('b'.repeat(32), 'svg'), 'data:svg;base64,fixture');
   assert.throws(() => storage.getLibraryAssetUrl('unknown', 'svg'), /runtime_asset_unavailable/);
@@ -398,6 +398,8 @@ test('new project mount uses Scratch default project and preserves native editor
   const fixture = await editorFixture();
   assert.equal(fixture.props.projectId, PROJECT_ID);
   assert.equal(fixture.props.canSave, true);
+  assert.equal(fixture.props.canCreateNew, true);
+  assert.equal(fixture.props.showSaveNow, false);
   assert.ok(fixture.props.autoSaveIntervalSecs >= 5 && fixture.props.autoSaveIntervalSecs <= 8);
   assert.equal(fixture.props.logo, '/asa-lab-scratch-wordmark.svg');
   assert.equal(fixture.requestedId, undefined);
@@ -512,6 +514,21 @@ function createPersistenceStorage({
   });
   return { storage, calls };
 }
+
+test('upstream create transition persists native New into the same managed ASA UUID', async () => {
+  const { storage, calls } = createPersistenceStorage();
+  const projectJson = { targets: [], monitors: [], extensions: [] };
+
+  const response = await storage.saveProject(null, JSON.stringify(projectJson));
+
+  assert.equal(response.id, PROJECT_ID);
+  assert.equal(storage.getConfirmedRevision(), 8);
+  assert.deepEqual(
+    calls.map((call) => call.kind),
+    ['draft'],
+  );
+  assert.match(calls[0].url, new RegExp(`/projects/${PROJECT_ID}/draft$`));
+});
 
 test('explicit persistence uploads only changed assets before canonical draft and confirms revision', async () => {
   const unchangedBytes = Uint8Array.from([1, 2, 3]);

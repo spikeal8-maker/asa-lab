@@ -87,7 +87,7 @@ test('project IDs, traversal, invalid formats and type mismatches never reach fe
   ])
     assert.equal(await storage.load(type, id, format), null);
   assert.ok(await storage.load('Project', '11111111-1111-4111-8111-111111111111', 'json'));
-  assert.equal(await storage.load('Project', '0', 'json'), null);
+  assert.ok(await storage.load('Project', '0', 'json'));
   assert.deepEqual(requests, []);
   for (const id of ['unknown', '../index', '%2findex', `${hash}?x=1`]) {
     assert.throws(() => storage.getLibraryAssetUrl(id, 'svg'), /runtime_asset_unavailable/);

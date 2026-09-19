@@ -565,7 +565,7 @@ describe('BlocksEditor runtime session bootstrap', () => {
     ).toHaveLength(0);
   });
 
-  it('leaves through the parent home control without the obsolete explicit-save warning', async () => {
+  it('waits for upstream save-before-exit success before leaving through Home', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async () => jsonResponse(session())),
@@ -573,8 +573,9 @@ describe('BlocksEditor runtime session bootstrap', () => {
     const onHomeClick = vi.fn();
     const confirm = vi.spyOn(window, 'confirm');
     const iframe = await renderEditor({ onHomeClick });
-    spyOnPostMessage(iframe);
+    const postMessage = spyOnPostMessage(iframe);
     await fireLoad(iframe);
+    const init = initCalls(postMessage)[0]?.[0] as Record<string, unknown>;
 
     const home = container!.querySelector<HTMLButtonElement>('[data-asa-blocks-home-overlay]');
     if (!home) throw new Error('Home control was not rendered');
@@ -583,7 +584,53 @@ describe('BlocksEditor runtime session bootstrap', () => {
       await flushAsync();
     });
 
+    const request = postMessage.mock.calls
+      .map(([message]) => message as Record<string, unknown>)
+      .find((message) => message['messageType'] === 'ASA_BLOCKS_SAVE_BEFORE_EXIT_REQUEST');
+    expect(request?.['requestId']).toEqual(expect.any(String));
     expect(confirm).not.toHaveBeenCalled();
+    expect(onHomeClick).not.toHaveBeenCalled();
+
+    await dispatchChild(iframe, init, {
+      messageType: 'ASA_BLOCKS_SAVE_BEFORE_EXIT_RESULT',
+      requestId: request?.['requestId'],
+      ok: true,
+      reason: null,
+      revision: 17,
+      savedGeneration: 0,
+    });
     expect(onHomeClick).toHaveBeenCalledTimes(1);
+  });
+
+  it('stays in the editor when upstream save-before-exit fails', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => jsonResponse(session())),
+    );
+    const onHomeClick = vi.fn();
+    const iframe = await renderEditor({ onHomeClick });
+    const postMessage = spyOnPostMessage(iframe);
+    await fireLoad(iframe);
+    const init = initCalls(postMessage)[0]?.[0] as Record<string, unknown>;
+
+    const home = container!.querySelector<HTMLButtonElement>('[data-asa-blocks-home-overlay]');
+    if (!home) throw new Error('Home control was not rendered');
+    await act(async () => {
+      home.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      home.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      await flushAsync();
+    });
+    const requests = postMessage.mock.calls
+      .map(([message]) => message as Record<string, unknown>)
+      .filter((message) => message['messageType'] === 'ASA_BLOCKS_SAVE_BEFORE_EXIT_REQUEST');
+    expect(requests).toHaveLength(1);
+
+    await dispatchChild(iframe, init, {
+      messageType: 'ASA_BLOCKS_SAVE_BEFORE_EXIT_RESULT',
+      requestId: requests[0]?.['requestId'],
+      ok: false,
+      reason: 'draft_write_failed',
+    });
+    expect(onHomeClick).not.toHaveBeenCalled();
   });
 });

@@ -51,6 +51,8 @@ export function BlocksEditor({
 }: BlocksEditorProps): JSX.Element {
   const runtimeOrigin = useMemo(configuredRuntimeOrigin, []);
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const bridgeRef = useRef<BlocksRuntimeBridge | null>(null);
+  const homeSavePendingRef = useRef(false);
   const [status, setStatus] = useState('Подключение Scratch…');
   const [attempt, setAttempt] = useState(0);
 
@@ -178,10 +180,12 @@ export function BlocksEditor({
           },
           onFatal: failStartup,
         });
+        bridgeRef.current = bridge;
         bridge.sendInit();
         scheduleRefresh(session.expiresAt);
       } catch {
         bridge?.stop();
+        if (bridgeRef.current === bridge) bridgeRef.current = null;
         bridge = null;
         failStartup();
       }
@@ -195,7 +199,9 @@ export function BlocksEditor({
       requestController = new AbortController();
       loadGeneration += 1;
       bridge?.stop();
+      if (bridgeRef.current === bridge) bridgeRef.current = null;
       bridge = null;
+      homeSavePendingRef.current = false;
       setStatus('Подключение Scratch…');
       void connect(loadGeneration, requestController);
     };
@@ -212,8 +218,25 @@ export function BlocksEditor({
       frame.removeEventListener('load', onLoad);
       window.removeEventListener('message', onMessage);
       bridge?.stop();
+      if (bridgeRef.current === bridge) bridgeRef.current = null;
+      homeSavePendingRef.current = false;
     };
   }, [projectId, runtimeOrigin, attempt]);
+
+  const handleHomeClick = (): void => {
+    const activeBridge = bridgeRef.current;
+    if (!activeBridge || homeSavePendingRef.current) return;
+    homeSavePendingRef.current = true;
+    void activeBridge
+      .requestSaveBeforeExit()
+      .then((result) => {
+        if (result.ok && bridgeRef.current === activeBridge) onHomeClick();
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        homeSavePendingRef.current = false;
+      });
+  };
 
   if (!runtimeOrigin) {
     return (
@@ -236,7 +259,7 @@ export function BlocksEditor({
         accountInitials={accountInitials}
         avatarUrl={avatarUrl}
         onAccountClick={onAccountClick}
-        onHomeClick={onHomeClick}
+        onHomeClick={handleHomeClick}
       >
         <iframe
           key={attempt}

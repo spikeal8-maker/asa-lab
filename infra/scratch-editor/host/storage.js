@@ -107,6 +107,10 @@
     let unresolvedMutation = null;
     let upstreamSaveGeneration = null;
     let upstreamAssetStoreTail = Promise.resolve();
+    let durableProjectGeneration = 0;
+    let upstreamSaveSequence = 0;
+    let latestUpstreamSaveOutcome = null;
+    const upstreamSaveWaiters = new Set();
     const abortController = typeof AbortController === 'undefined' ? null : new AbortController();
     let disposed = false;
 
@@ -119,6 +123,7 @@
     };
 
     const defaults = standalone.buildDefaultProject();
+    const defaultMediaAssets = [];
     for (const asset of defaults) {
       if (asset.assetType !== 'Project') {
         const cached = cache(
@@ -127,12 +132,14 @@
           asset.data,
           asset.id,
         );
+        defaultMediaAssets.push(cached);
         if (newProject) cached.clean = false;
       }
     }
 
     const original = defaults.find((asset) => asset.assetType === 'Project');
     if (!original) throw new Error('default_project_unavailable');
+    cache(scratchStorage.AssetType.Project, scratchStorage.DataFormat.JSON, original.data, '0');
     if (newProject) {
       cache(
         scratchStorage.AssetType.Project,
@@ -202,6 +209,35 @@
         throw unavailable('runtime_token_unavailable');
       }
       return token;
+    };
+
+    const saveFailureReason = (error) =>
+      typeof error?.code === 'string' && error.code.length > 0 ? error.code : 'save_failed';
+    const publishUpstreamSaveOutcome = (outcome) => {
+      upstreamSaveSequence += 1;
+      latestUpstreamSaveOutcome = Object.freeze({ sequence: upstreamSaveSequence, ...outcome });
+      for (const waiter of [...upstreamSaveWaiters]) {
+        if (latestUpstreamSaveOutcome.sequence > waiter.afterSequence) {
+          upstreamSaveWaiters.delete(waiter);
+          waiter.resolve(latestUpstreamSaveOutcome);
+        }
+      }
+      return latestUpstreamSaveOutcome;
+    };
+    const waitForUpstreamSaveAfter = (afterSequence) => {
+      if (latestUpstreamSaveOutcome?.sequence > afterSequence) {
+        return Promise.resolve(latestUpstreamSaveOutcome);
+      }
+      if (disposed) {
+        return Promise.resolve({
+          sequence: upstreamSaveSequence,
+          ok: false,
+          reason: 'storage_disposed',
+        });
+      }
+      return new Promise((resolve) => {
+        upstreamSaveWaiters.add({ afterSequence, resolve });
+      });
     };
 
     const webStoreRequest = (asset) => {
@@ -288,7 +324,16 @@
         );
         return response;
       } catch (error) {
+        const failedGeneration = upstreamSaveGeneration;
         upstreamSaveGeneration = null;
+        if (Number.isSafeInteger(failedGeneration)) {
+          publishUpstreamSaveOutcome({
+            ok: false,
+            reason: saveFailureReason(error),
+            savedGeneration: failedGeneration,
+            latestGeneration: options.getProjectGeneration?.(),
+          });
+        }
         throw error;
       }
     };
@@ -504,6 +549,9 @@
       {
         load: async (type, id, format) => {
           if (type === scratchStorage.AssetType.Project) {
+            if (String(id ?? '') === '0') {
+              for (const asset of defaultMediaAssets) asset.clean = false;
+            }
             return cachedAssets.get(key(type, id, format)) ?? null;
           }
 
@@ -594,10 +642,18 @@
       getConfirmedRevision() {
         return confirmedRevision;
       },
+      getDurableProjectGeneration() {
+        return durableProjectGeneration;
+      },
+      getUpstreamSaveSequence() {
+        return upstreamSaveSequence;
+      },
+      waitForUpstreamSaveAfter,
       async saveProject(projectId, vmState) {
         if (disposed) throw unavailable('storage_disposed');
         if (options.canSave === false) throw unavailable('runtime_storage_read_only');
-        if (String(projectId ?? '') !== String(options.projectId ?? '')) {
+        const isManagedReset = projectId === null || typeof projectId === 'undefined';
+        if (!isManagedReset && String(projectId) !== String(options.projectId ?? '')) {
           throw unavailable('project_identity_mismatch');
         }
         if (typeof vmState !== 'string') throw unavailable('project_document_invalid');
@@ -621,6 +677,19 @@
           });
           const revision = await persistCanonicalDocument(projectJson, references);
           const generationAtEnd = options.getProjectGeneration?.();
+          if (Number.isSafeInteger(generationAtStart)) {
+            durableProjectGeneration = Math.max(durableProjectGeneration, generationAtStart);
+          }
+          publishUpstreamSaveOutcome({
+            ok: true,
+            revision,
+            savedGeneration: Number.isSafeInteger(generationAtStart)
+              ? generationAtStart
+              : durableProjectGeneration,
+            latestGeneration: Number.isSafeInteger(generationAtEnd)
+              ? generationAtEnd
+              : durableProjectGeneration,
+          });
           if (
             Number.isSafeInteger(generationAtStart) &&
             Number.isSafeInteger(generationAtEnd) &&
@@ -633,6 +702,14 @@
             });
           }
           return { id: options.projectId };
+        } catch (error) {
+          publishUpstreamSaveOutcome({
+            ok: false,
+            reason: saveFailureReason(error),
+            savedGeneration: Number.isSafeInteger(generationAtStart) ? generationAtStart : null,
+            latestGeneration: options.getProjectGeneration?.(),
+          });
+          throw error;
         } finally {
           upstreamSaveGeneration = null;
         }
@@ -660,6 +737,15 @@
         abortController?.abort();
         unresolvedMutation = null;
         upstreamSaveGeneration = null;
+        const outcome = {
+          sequence: upstreamSaveSequence,
+          ok: false,
+          reason: 'storage_disposed',
+        };
+        for (const waiter of [...upstreamSaveWaiters]) {
+          upstreamSaveWaiters.delete(waiter);
+          waiter.resolve(outcome);
+        }
       },
     };
   }

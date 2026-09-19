@@ -5,13 +5,18 @@ export const BLOCKS_PROTOCOL_VERSION = 1 as const;
 export type BlocksRuntimeMode = 'editor' | 'player';
 
 export type BlocksParentMessageType =
-  'ASA_BLOCKS_INIT' | 'ASA_BLOCKS_TOKEN_UPDATE' | 'ASA_BLOCKS_FLUSH_REQUEST' | 'ASA_BLOCKS_STOP';
+  | 'ASA_BLOCKS_INIT'
+  | 'ASA_BLOCKS_TOKEN_UPDATE'
+  | 'ASA_BLOCKS_FLUSH_REQUEST'
+  | 'ASA_BLOCKS_SAVE_BEFORE_EXIT_REQUEST'
+  | 'ASA_BLOCKS_STOP';
 
 export type BlocksChildMessageType =
   | 'ASA_BLOCKS_READY'
   | 'ASA_BLOCKS_STATUS'
   | 'ASA_BLOCKS_TOKEN_REFRESH_REQUIRED'
   | 'ASA_BLOCKS_FLUSH_RESULT'
+  | 'ASA_BLOCKS_SAVE_BEFORE_EXIT_RESULT'
   | 'ASA_BLOCKS_FATAL';
 
 export interface BlocksPostMessageTarget {
@@ -29,6 +34,14 @@ export interface BlocksRuntimeBinding {
   projectId: string;
   sessionNonce: string;
 }
+
+export interface BlocksSaveBeforeExitResult {
+  ok: boolean;
+  reason: string | null;
+  revision?: number;
+  savedGeneration?: number;
+}
+
 export interface BlocksRuntimeInitOptions {
   childWindow: BlocksPostMessageTarget;
   runtimeOrigin: string;
@@ -77,6 +90,7 @@ function isChildMessageType(value: unknown): value is BlocksChildMessageType {
     value === 'ASA_BLOCKS_STATUS' ||
     value === 'ASA_BLOCKS_TOKEN_REFRESH_REQUIRED' ||
     value === 'ASA_BLOCKS_FLUSH_RESULT' ||
+    value === 'ASA_BLOCKS_SAVE_BEFORE_EXIT_RESULT' ||
     value === 'ASA_BLOCKS_FATAL'
   );
 }
@@ -91,6 +105,13 @@ export class BlocksRuntimeBridge {
   private stopped = false;
   private readonly pendingFlushRequestIds = new Set<string>();
   private readonly issuedFlushRequestIds = new Set<string>();
+  private readonly pendingSaveBeforeExit = new Map<
+    string,
+    {
+      resolve: (result: BlocksSaveBeforeExitResult) => void;
+      reject: (error: Error) => void;
+    }
+  >();
 
   constructor(options: BlocksRuntimeInitOptions) {
     this.runtimeOrigin = requireExactHttpOrigin(options.runtimeOrigin);
@@ -160,6 +181,22 @@ export class BlocksRuntimeBridge {
     }
   }
 
+  requestSaveBeforeExit(): Promise<BlocksSaveBeforeExitResult> {
+    this.assertActive();
+    const requestId = newClientId();
+    return new Promise((resolve, reject) => {
+      this.pendingSaveBeforeExit.set(requestId, { resolve, reject });
+      try {
+        this.post('ASA_BLOCKS_SAVE_BEFORE_EXIT_REQUEST', { requestId });
+      } catch (error) {
+        this.pendingSaveBeforeExit.delete(requestId);
+        reject(
+          error instanceof Error ? error : new Error('Blocks save-before-exit request failed'),
+        );
+      }
+    });
+  }
+
   stop(): void {
     if (this.stopped) return;
     try {
@@ -168,6 +205,10 @@ export class BlocksRuntimeBridge {
       this.runtimeToken = null;
       this.pendingFlushRequestIds.clear();
       this.issuedFlushRequestIds.clear();
+      for (const pending of this.pendingSaveBeforeExit.values()) {
+        pending.reject(new Error('Blocks runtime bridge is stopped'));
+      }
+      this.pendingSaveBeforeExit.clear();
       this.stopped = true;
     }
   }
@@ -220,6 +261,42 @@ export class BlocksRuntimeBridge {
         return false;
       }
       this.pendingFlushRequestIds.delete(requestId);
+    }
+    if (message['messageType'] === 'ASA_BLOCKS_SAVE_BEFORE_EXIT_RESULT') {
+      const requestId = message['requestId'];
+      if (typeof requestId !== 'string') return false;
+      const pending = this.pendingSaveBeforeExit.get(requestId);
+      if (!pending) return false;
+      let result: BlocksSaveBeforeExitResult;
+      if (message['ok'] === true) {
+        if (
+          !isNonNegativeSafeInteger(message['revision']) ||
+          !isNonNegativeSafeInteger(message['savedGeneration']) ||
+          (message['reason'] !== null && typeof message['reason'] !== 'undefined')
+        ) {
+          return false;
+        }
+        result = {
+          ok: true,
+          reason: null,
+          revision: message['revision'] as number,
+          savedGeneration: message['savedGeneration'] as number,
+        };
+      } else if (message['ok'] === false) {
+        if (
+          typeof message['reason'] !== 'string' ||
+          message['reason'].length === 0 ||
+          typeof message['revision'] !== 'undefined' ||
+          typeof message['savedGeneration'] !== 'undefined'
+        ) {
+          return false;
+        }
+        result = { ok: false, reason: message['reason'] };
+      } else {
+        return false;
+      }
+      this.pendingSaveBeforeExit.delete(requestId);
+      pending.resolve(result);
     }
 
     this.options.onMessage?.(message);

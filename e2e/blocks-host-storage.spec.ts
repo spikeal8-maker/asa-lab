@@ -182,7 +182,7 @@ test('new editor binds the stock Scratch default to the managed ASA project UUID
     library: 'runtime_asset_unavailable',
     hasManagedProject: true,
     managedProjectHasData: true,
-    hasLocalZeroProject: false,
+    hasLocalZeroProject: true,
   });
   expect(fixture.pageErrors).toEqual([]);
 

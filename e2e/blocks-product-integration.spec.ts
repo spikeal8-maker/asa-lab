@@ -143,6 +143,7 @@ type CapturedBlocksMessage = {
   revision?: number;
   generation?: number;
   snapshotGeneration?: number;
+  savedGeneration?: number;
 };
 
 async function installBlocksMessageCapture(page: import('@playwright/test').Page) {
@@ -1227,6 +1228,332 @@ test('status presentation opt-in cannot hide local errors before accepted INIT',
     await expect(page.locator('#runtime-status')).toContainText('Ожидание безопасного подключения');
     expect(fixture.pageErrors).toEqual([]);
   } finally {
+    await fixture.close();
+  }
+});
+
+test('native File New resets the same managed ASA project and reopens the Scratch default', async () => {
+  const serverProject = await realRuntimeBootstrapFixture();
+  let fixture: Awaited<ReturnType<typeof createProtocolFixture>> | undefined;
+  try {
+    fixture = await createProtocolFixture({
+      product: true,
+      locale: 'en-US',
+      runtimeSession: {
+        draftRevision: 23,
+        projectJson: serverProject.projectJson,
+        assets: serverProject.assets,
+      },
+      runtimeAssets: serverProject.runtimeAssets,
+    });
+    const page = await fixture.context.newPage();
+    await page.goto(`${parentOrigin}/product`, { waitUntil: 'domcontentloaded' });
+    let frame = page.frameLocator('iframe[title="Scratch runtime"]');
+    const shell = frame.locator('[data-asa-host-shell]');
+    await expect(shell).toHaveAttribute('data-editor-state', 'ready', { timeout: 45000 });
+
+    await setServerSteps(frame, '8', '37');
+    await expect(frame.getByText('Save Now', { exact: true })).toHaveCount(0);
+    await frame.getByText('File', { exact: true }).click();
+    await expect(frame.getByText('Save now', { exact: true })).toHaveCount(0);
+    await expect(frame.getByText('Save to your computer', { exact: true })).toBeVisible();
+    await frame.getByText('File', { exact: true }).click();
+
+    await expect.poll(() => fixture?.runtimeDraftEvidence.length, { timeout: 20_000 }).toBe(1);
+    expect(fixture.getServerRevision()).toBe(24);
+    const editedDraft = fixture.runtimeDraftEvidence[0]!.body.document.projectJson.targets.find(
+      (target: { name?: string }) => target.name === 'Server Bootstrap Sprite',
+    );
+    expect(editedDraft.blocks.move.inputs.STEPS[1][1]).toBe('37');
+
+    page.once('dialog', async (confirmation) => {
+      expect(confirmation.type()).toBe('confirm');
+      expect(confirmation.message()).toBe('Replace contents of the current project?');
+      await confirmation.accept();
+    });
+    await frame.getByText('File', { exact: true }).click();
+    await frame.getByText('New', { exact: true }).click();
+
+    await expect(
+      frame.getByRole('button', { name: 'Server Bootstrap Sprite', exact: true }),
+    ).toHaveCount(0);
+    await expect(frame.getByText('Could not find project', { exact: false })).toHaveCount(0);
+    await expect.poll(() => fixture?.runtimeDraftEvidence.length, { timeout: 20_000 }).toBe(2);
+    expect(fixture.getServerRevision()).toBe(25);
+    const resetDocument = fixture.runtimeDraftEvidence.at(-1)!.body.document;
+    expect(
+      resetDocument.projectJson.targets.some(
+        (target: { name?: string }) => target.name === 'Server Bootstrap Sprite',
+      ),
+    ).toBe(false);
+    const resetSprite = resetDocument.projectJson.targets.find(
+      (target: { isStage?: boolean }) => target.isStage === false,
+    );
+    const resetSpriteName = resetSprite?.name;
+    expect(resetSpriteName).toEqual(expect.any(String));
+    if (typeof resetSpriteName !== 'string') throw new Error('default Scratch sprite name missing');
+    expect(resetSprite?.costumes?.map((costume: { assetId?: string }) => costume.assetId)).toEqual([
+      'bcf454acf82e4504149f7ffe07081dbc',
+      '0fb9be3e8397c983338cb71dc84d0b25',
+    ]);
+    expect(resetSprite?.sounds?.map((sound: { assetId?: string }) => sound.assetId)).toEqual([
+      '83c36d806dc92327b9e7049a565c6bff',
+    ]);
+    expect(
+      resetDocument.projectJson.targets.some((target: { blocks?: Record<string, unknown> }) =>
+        Object.values(target.blocks ?? {}).some(
+          (block) =>
+            typeof block === 'object' && block !== null && JSON.stringify(block).includes('"37"'),
+        ),
+      ),
+    ).toBe(false);
+    expect(fixture.pageErrors).toEqual([]);
+
+    const reopenedSession = {
+      draftRevision: fixture.getServerRevision(),
+      projectJson: resetDocument.projectJson,
+      assets: resetDocument.assets,
+    };
+    await fixture.close();
+    fixture = await createProtocolFixture({
+      product: true,
+      locale: 'en-US',
+      runtimeSession: reopenedSession,
+      runtimeAssets: serverProject.runtimeAssets,
+    });
+    const reopened = await fixture.context.newPage();
+    await reopened.goto(`${parentOrigin}/product`, { waitUntil: 'domcontentloaded' });
+    frame = reopened.frameLocator('iframe[title="Scratch runtime"]');
+    await expect(frame.locator('[data-asa-host-shell]')).toHaveAttribute(
+      'data-editor-state',
+      'ready',
+      { timeout: 45000 },
+    );
+    await expect(
+      frame.getByRole('button', { name: 'Server Bootstrap Sprite', exact: true }),
+    ).toHaveCount(0);
+    await expect(frame.getByRole('button', { name: resetSpriteName, exact: true })).toBeVisible();
+    await expect(frame.getByText('Could not find project', { exact: false })).toHaveCount(0);
+    expect(fixture.pageErrors).toEqual([]);
+  } finally {
+    await fixture?.close();
+  }
+});
+
+test('dirty Home waits for upstream durable save and a fresh browser reopens the saved value', async () => {
+  const serverProject = await realRuntimeBootstrapFixture();
+  let fixture: Awaited<ReturnType<typeof createProtocolFixture>> | undefined;
+  try {
+    fixture = await createProtocolFixture({
+      product: true,
+      locale: 'en-US',
+      runtimeSession: {
+        draftRevision: 23,
+        projectJson: serverProject.projectJson,
+        assets: serverProject.assets,
+      },
+      runtimeAssets: serverProject.runtimeAssets,
+    });
+    const page = await fixture.context.newPage();
+    let draftSeenResolve: (() => void) | undefined;
+    const draftSeen = new Promise<void>((resolve) => {
+      draftSeenResolve = resolve;
+    });
+    let releaseDraftResolve: (() => void) | undefined;
+    const releaseDraft = new Promise<void>((resolve) => {
+      releaseDraftResolve = resolve;
+    });
+    await fixture.context.route(
+      `${parentOrigin}/api/blocks/runtime/projects/${projectId}/draft`,
+      async (route) => {
+        if (route.request().method() !== 'PUT') {
+          await route.continue();
+          return;
+        }
+        draftSeenResolve?.();
+        await releaseDraft;
+        await route.continue();
+      },
+    );
+
+    await page.goto(`${parentOrigin}/product`, { waitUntil: 'domcontentloaded' });
+    let frame = page.frameLocator('iframe[title="Scratch runtime"]');
+    await expect(frame.locator('[data-asa-host-shell]')).toHaveAttribute(
+      'data-editor-state',
+      'ready',
+      { timeout: 45000 },
+    );
+    await setServerSteps(frame, '8', '73');
+    expect(fixture.runtimeDraftEvidence).toHaveLength(0);
+
+    await page.getByRole('button', { name: 'ASA Lab — на главную', exact: true }).click();
+    await draftSeen;
+    expect(page.url()).toBe(`${parentOrigin}/product`);
+    expect(fixture.getServerRevision()).toBe(23);
+    releaseDraftResolve?.();
+
+    await expect.poll(() => fixture?.getServerRevision(), { timeout: 20_000 }).toBe(24);
+    await expect(page).toHaveURL(`${parentOrigin}/product#/home`);
+    expect(fixture.runtimeAssetPutEvidence).toHaveLength(0);
+    const savedDocument = fixture.runtimeDraftEvidence.at(-1)!.body.document;
+    const savedSprite = savedDocument.projectJson.targets.find(
+      (target: { name?: string }) => target.name === 'Server Bootstrap Sprite',
+    );
+    expect(savedSprite.blocks.move.inputs.STEPS[1][1]).toBe('73');
+
+    const reopenedSession = {
+      draftRevision: fixture.getServerRevision(),
+      projectJson: savedDocument.projectJson,
+      assets: savedDocument.assets,
+    };
+    await fixture.close();
+    fixture = await createProtocolFixture({
+      product: true,
+      locale: 'en-US',
+      runtimeSession: reopenedSession,
+      runtimeAssets: serverProject.runtimeAssets,
+    });
+    const reopened = await fixture.context.newPage();
+    await reopened.goto(`${parentOrigin}/product`, { waitUntil: 'domcontentloaded' });
+    frame = reopened.frameLocator('iframe[title="Scratch runtime"]');
+    await expect(frame.locator('[data-asa-host-shell]')).toHaveAttribute(
+      'data-editor-state',
+      'ready',
+      { timeout: 45000 },
+    );
+    await frame.getByRole('button', { name: 'Server Bootstrap Sprite', exact: true }).click();
+    await expect(
+      frame.locator('.blocklyBlockCanvas').first().getByText('73', { exact: true }),
+    ).toBeVisible();
+    expect(fixture.pageErrors).toEqual([]);
+  } finally {
+    await fixture?.close();
+  }
+});
+
+test('dirty Home stays in the editor when upstream draft save fails', async () => {
+  const serverProject = await realRuntimeBootstrapFixture();
+  const fixture = await createProtocolFixture({
+    product: true,
+    locale: 'en-US',
+    runtimeSession: {
+      draftRevision: 23,
+      projectJson: serverProject.projectJson,
+      assets: serverProject.assets,
+    },
+    runtimeAssets: serverProject.runtimeAssets,
+    draftWriteStatus: 503,
+  });
+  const page = await fixture.context.newPage();
+  try {
+    await page.goto(`${parentOrigin}/product`, { waitUntil: 'domcontentloaded' });
+    const frame = page.frameLocator('iframe[title="Scratch runtime"]');
+    await expect(frame.locator('[data-asa-host-shell]')).toHaveAttribute(
+      'data-editor-state',
+      'ready',
+      { timeout: 45000 },
+    );
+    await setServerSteps(frame, '8', '74');
+    expect(fixture.runtimeDraftEvidence).toHaveLength(0);
+
+    await page.getByRole('button', { name: 'ASA Lab — на главную', exact: true }).click();
+    await expect.poll(() => fixture.runtimeDraftEvidence.length, { timeout: 20_000 }).toBe(1);
+    await expect(page).toHaveURL(`${parentOrigin}/product`);
+    await expect(frame.locator('[data-asa-host-shell]')).toHaveAttribute(
+      'data-editor-state',
+      'ready',
+    );
+    await expect(frame.getByText('Project could not save.', { exact: true })).toBeVisible();
+    await expect(frame.getByText('Save Now', { exact: true })).toHaveCount(0);
+    expect(fixture.getServerRevision()).toBe(23);
+    expect(fixture.runtimePersistenceMetrics.revisionCommits).toBe(0);
+  } finally {
+    await fixture.close();
+  }
+});
+
+test('Home waits for the latest generation when an edit arrives during upstream save', async () => {
+  const serverProject = await realRuntimeBootstrapFixture();
+  const fixture = await createProtocolFixture({
+    product: true,
+    locale: 'en-US',
+    runtimeSession: {
+      draftRevision: 23,
+      projectJson: serverProject.projectJson,
+      assets: serverProject.assets,
+    },
+    runtimeAssets: serverProject.runtimeAssets,
+  });
+  const page = await fixture.context.newPage();
+  let putCount = 0;
+  let firstSeenResolve: (() => void) | undefined;
+  const firstSeen = new Promise<void>((resolve) => {
+    firstSeenResolve = resolve;
+  });
+  let secondSeenResolve: (() => void) | undefined;
+  const secondSeen = new Promise<void>((resolve) => {
+    secondSeenResolve = resolve;
+  });
+  let releaseFirstResolve: (() => void) | undefined;
+  const releaseFirst = new Promise<void>((resolve) => {
+    releaseFirstResolve = resolve;
+  });
+  let releaseSecondResolve: (() => void) | undefined;
+  const releaseSecond = new Promise<void>((resolve) => {
+    releaseSecondResolve = resolve;
+  });
+  try {
+    await fixture.context.route(
+      `${parentOrigin}/api/blocks/runtime/projects/${projectId}/draft`,
+      async (route) => {
+        if (route.request().method() !== 'PUT') {
+          await route.continue();
+          return;
+        }
+        putCount += 1;
+        if (putCount === 1) {
+          firstSeenResolve?.();
+          await releaseFirst;
+        } else if (putCount === 2) {
+          secondSeenResolve?.();
+          await releaseSecond;
+        }
+        await route.continue();
+      },
+    );
+    await page.goto(`${parentOrigin}/product`, { waitUntil: 'domcontentloaded' });
+    const frame = page.frameLocator('iframe[title="Scratch runtime"]');
+    await expect(frame.locator('[data-asa-host-shell]')).toHaveAttribute(
+      'data-editor-state',
+      'ready',
+      { timeout: 45000 },
+    );
+
+    await setServerSteps(frame, '8', '73');
+    await page.getByRole('button', { name: 'ASA Lab — на главную', exact: true }).click();
+    await firstSeen;
+    await setServerSteps(frame, '73', '74');
+    expect(page.url()).toBe(`${parentOrigin}/product`);
+    releaseFirstResolve?.();
+
+    await secondSeen;
+    expect(fixture.getServerRevision()).toBe(24);
+    expect(page.url()).toBe(`${parentOrigin}/product`);
+    releaseSecondResolve?.();
+
+    await expect.poll(() => fixture.getServerRevision(), { timeout: 20_000 }).toBe(25);
+    await expect(page).toHaveURL(`${parentOrigin}/product#/home`);
+    expect(fixture.runtimeDraftEvidence).toHaveLength(2);
+    expect(fixture.runtimeAssetPutEvidence).toHaveLength(0);
+    const latestSprite = fixture.runtimeDraftEvidence
+      .at(-1)!
+      .body.document.projectJson.targets.find(
+        (target: { name?: string }) => target.name === 'Server Bootstrap Sprite',
+      );
+    expect(latestSprite.blocks.move.inputs.STEPS[1][1]).toBe('74');
+  } finally {
+    releaseFirstResolve?.();
+    releaseSecondResolve?.();
     await fixture.close();
   }
 });

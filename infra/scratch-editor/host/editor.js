@@ -122,6 +122,10 @@
     let loaded = false;
     let saveInProgress = false;
     let projectGeneration = 0;
+    let upstreamProjectSaver = null;
+    let saveBeforeExitPromise = null;
+    let upstreamSaverRearmSequence = 0;
+    const upstreamSaverRearmWaiters = new Set();
     const autoSaveIntervalSecs = chooseAutoSaveIntervalSecs();
     const storage = globalThis.AsaBlocksStorage.createReadOnlyStorage(standalone, {
       projectId: session.projectId,
@@ -135,6 +139,13 @@
       onSaveCompletedStale: () => {
         globalThis.setTimeout(() => {
           if (!disposed && loaded && vm) vm.emit('PROJECT_CHANGED');
+          upstreamSaverRearmSequence += 1;
+          for (const waiter of [...upstreamSaverRearmWaiters]) {
+            if (upstreamSaverRearmSequence > waiter.afterSequence) {
+              upstreamSaverRearmWaiters.delete(waiter);
+              waiter.resolve(!disposed);
+            }
+          }
         }, 0);
       },
     });
@@ -171,6 +182,11 @@
       if (disposed) return;
       disposed = true;
       loaded = false;
+      upstreamProjectSaver = null;
+      for (const waiter of [...upstreamSaverRearmWaiters]) {
+        upstreamSaverRearmWaiters.delete(waiter);
+        waiter.resolve(false);
+      }
       storage.dispose();
       try {
         disposeVm();
@@ -200,8 +216,13 @@
         root.render({
           projectId: session.projectId,
           canSave: session.mode === 'editor',
+          canCreateNew: session.mode === 'editor',
+          showSaveNow: false,
           autoSaveIntervalSecs,
           logo: '/asa-lab-scratch-wordmark.svg',
+          onSetProjectSaver(projectSaver) {
+            upstreamProjectSaver = typeof projectSaver === 'function' ? projectSaver : null;
+          },
           onVmInit(instance) {
             vm = instance;
             if (disposed) {
@@ -229,6 +250,93 @@
       }
     };
 
+    const waitForUpstreamSaveable = () =>
+      new Promise((resolve) => {
+        const currentStore = state?.store;
+        if (!currentStore || typeof currentStore.subscribe !== 'function') {
+          resolve(false);
+          return;
+        }
+        let unsubscribe = null;
+        const check = () => {
+          if (disposed) {
+            unsubscribe?.();
+            resolve(false);
+            return;
+          }
+          if (storage.getDurableProjectGeneration() >= projectGeneration) {
+            unsubscribe?.();
+            resolve(true);
+            return;
+          }
+          const gui = currentStore.getState()?.scratchGui;
+          if (
+            gui?.projectChanged === true &&
+            gui?.projectState?.loadingState === 'SHOWING_WITH_ID'
+          ) {
+            unsubscribe?.();
+            resolve(true);
+          }
+        };
+        unsubscribe = currentStore.subscribe(check);
+        check();
+      });
+
+    const waitForUpstreamSaverRearmAfter = (afterSequence) => {
+      if (upstreamSaverRearmSequence > afterSequence) return Promise.resolve(true);
+      if (disposed) return Promise.resolve(false);
+      return new Promise((resolve) => {
+        upstreamSaverRearmWaiters.add({ afterSequence, resolve });
+      });
+    };
+
+    const saveBeforeExit = () => {
+      if (saveBeforeExitPromise) return saveBeforeExitPromise;
+      saveBeforeExitPromise = (async () => {
+        if (disposed || !loaded || !vm || session.mode !== 'editor') {
+          return { ok: false, reason: 'editor_not_ready' };
+        }
+        while (!disposed) {
+          if (storage.getDurableProjectGeneration() >= projectGeneration) {
+            return {
+              ok: true,
+              revision: storage.getConfirmedRevision(),
+              savedGeneration: storage.getDurableProjectGeneration(),
+            };
+          }
+          if (!(await waitForUpstreamSaveable())) {
+            return { ok: false, reason: 'editor_not_ready' };
+          }
+          if (storage.getDurableProjectGeneration() >= projectGeneration) continue;
+          if (typeof upstreamProjectSaver !== 'function') {
+            return { ok: false, reason: 'upstream_saver_unavailable' };
+          }
+          const sequence = storage.getUpstreamSaveSequence();
+          const rearmSequence = upstreamSaverRearmSequence;
+          upstreamProjectSaver();
+          const outcome = await storage.waitForUpstreamSaveAfter(sequence);
+          if (!outcome?.ok) {
+            return { ok: false, reason: outcome?.reason || 'save_failed' };
+          }
+          if (Number.isSafeInteger(outcome.revision)) {
+            shell.dataset.draftRevision = String(outcome.revision);
+          }
+          if (
+            Number.isSafeInteger(outcome.savedGeneration) &&
+            Number.isSafeInteger(outcome.latestGeneration) &&
+            outcome.latestGeneration > outcome.savedGeneration &&
+            !(await waitForUpstreamSaverRearmAfter(rearmSequence))
+          ) {
+            return { ok: false, reason: 'editor_not_ready' };
+          }
+        }
+        return { ok: false, reason: 'editor_not_ready' };
+      })().finally(() => {
+        saveBeforeExitPromise = null;
+      });
+      return saveBeforeExitPromise;
+    };
+
     const flush = async () => {
       if (saveInProgress) return { ok: false, reason: 'save_in_progress' };
       if (disposed || !loaded || !vm) return { ok: false, reason: 'editor_not_ready' };
@@ -251,7 +359,7 @@
     };
 
     const startup = start();
-    return { dispose, flush, startup };
+    return { dispose, flush, saveBeforeExit, startup };
   }
 
   globalThis.AsaBlocksEditor = { mountEditor };
