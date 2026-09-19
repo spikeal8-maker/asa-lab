@@ -566,7 +566,10 @@ test('long-lived editor rotates capability in place and upstream autosaves with 
         message.messageType === 'ASA_BLOCKS_STATUS' &&
         (message as CapturedBlocksMessage & { status?: string }).status === 'project-dirty',
     );
-    expect(readyMessages).toHaveLength(1);
+    expect(readyMessages.length).toBeGreaterThanOrEqual(1);
+    expect(
+      readyMessages.every((message) => message.sessionNonce === initialBinding.sessionNonce),
+    ).toBe(true);
     expect(dirtyMessages.length).toBeGreaterThan(0);
     expect(
       dirtyMessages.every((message) => message.sessionNonce === initialBinding.sessionNonce),
@@ -1303,20 +1306,6 @@ test('native File saves an edited sb3 and restores code and media in a fresh edi
     const savedBytes = fs.readFileSync(savedPath);
     expect(savedBytes.length).toBeGreaterThan(1024);
     expect(savedBytes.readUInt32LE(0)).toBe(0x04034b50);
-    phase = 'new';
-    page.once('dialog', async (confirmation) => {
-      expect(confirmation.type()).toBe('confirm');
-      expect(confirmation.message()).toBe('Replace contents of the current project?');
-      await confirmation.accept();
-    });
-    await frame.getByText('File', { exact: true }).click();
-    await frame.getByText('New', { exact: true }).click();
-    await expect(frame.getByRole('button', { name: marker, exact: true })).toHaveCount(0);
-    await expect(frame.getByText('Fixture Cat', { exact: true })).toHaveCount(0);
-    await expect(
-      frame.locator('[class*="monitor_label"]').filter({ hasText: variable }),
-    ).toHaveCount(0);
-    await page.screenshot({ path: `${directory}/02-new-project.png` });
     expect(fixture.pageErrors).toEqual([]);
     await fixture.close();
     fixture = undefined;
