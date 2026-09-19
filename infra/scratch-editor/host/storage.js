@@ -56,8 +56,43 @@
       .join(',')}}`;
   };
 
+  const referencedProjectAssets = (projectJson) => {
+    if (!projectJson || typeof projectJson !== 'object' || !Array.isArray(projectJson.targets)) {
+      throw unavailable('project_document_invalid');
+    }
+    const references = [];
+    const seen = new Set();
+    for (const target of projectJson.targets) {
+      if (
+        !target ||
+        typeof target !== 'object' ||
+        !Array.isArray(target.costumes) ||
+        !Array.isArray(target.sounds)
+      ) {
+        throw unavailable('project_document_invalid');
+      }
+      for (const item of [...target.costumes, ...target.sounds]) {
+        const assetId = item?.assetId;
+        const dataFormat = item?.dataFormat;
+        if (
+          !ASSET_ID_RE.test(assetId ?? '') ||
+          !Object.hasOwn(canonicalMediaType, dataFormat ?? '')
+        ) {
+          throw unavailable('project_document_invalid');
+        }
+        const key = runtimeKey(assetId, dataFormat);
+        if (!seen.has(key)) {
+          seen.add(key);
+          references.push({ assetId, dataFormat });
+        }
+      }
+    }
+    return references;
+  };
+
   function createReadOnlyStorage(standalone, options = {}) {
     const scratchStorage = new standalone.ScratchStorage();
+    const newProject = options.projectJson === null || typeof options.projectJson === 'undefined';
     const cachedAssets = new Map();
     const verifiedRuntimeAssets = new Map();
     let confirmedAssets = new Map(
@@ -84,19 +119,25 @@
     const defaults = standalone.buildDefaultProject();
     for (const asset of defaults) {
       if (asset.assetType !== 'Project') {
-        cache(
+        const cached = cache(
           scratchStorage.AssetType[asset.assetType],
           scratchStorage.DataFormat[asset.dataFormat],
           asset.data,
           asset.id,
         );
+        if (newProject) cached.clean = false;
       }
     }
 
     const original = defaults.find((asset) => asset.assetType === 'Project');
     if (!original) throw new Error('default_project_unavailable');
-    if (options.projectJson === null || typeof options.projectJson === 'undefined') {
-      cache(scratchStorage.AssetType.Project, scratchStorage.DataFormat.JSON, original.data, '0');
+    if (newProject) {
+      cache(
+        scratchStorage.AssetType.Project,
+        scratchStorage.DataFormat.JSON,
+        original.data,
+        options.projectId,
+      );
     } else {
       cache(
         scratchStorage.AssetType.Project,
@@ -159,6 +200,75 @@
         throw unavailable('runtime_token_unavailable');
       }
       return token;
+    };
+
+    const webStoreRequest = (asset) => {
+      if (
+        disposed ||
+        !asset ||
+        !validTypeAndFormat(asset.assetType, asset.dataFormat) ||
+        !ASSET_ID_RE.test(String(asset.assetId ?? '')) ||
+        !Object.hasOwn(canonicalMediaType, asset.dataFormat)
+      ) {
+        throw unavailable('asset_write_failed');
+      }
+      return {
+        url: `${options.apiOrigin}/api/blocks/runtime/projects/${options.projectId}/assets/${asset.assetId}.${asset.dataFormat}`,
+        method: 'PUT',
+        credentials: 'omit',
+        redirect: 'error',
+        cache: 'no-store',
+        headers: {
+          accept: 'application/json',
+          authorization: `Bearer ${getToken()}`,
+          'content-type': canonicalMediaType[asset.dataFormat],
+        },
+      };
+    };
+
+    scratchStorage.addWebStore(
+      [
+        scratchStorage.AssetType.ImageVector,
+        scratchStorage.AssetType.ImageBitmap,
+        scratchStorage.AssetType.Sound,
+      ],
+      () => null,
+      webStoreRequest,
+      webStoreRequest,
+    );
+
+    const upstreamStore = scratchStorage.store.bind(scratchStorage);
+    scratchStorage.store = async (assetType, dataFormat, data, assetId) => {
+      const format = dataFormat || assetType?.runtimeFormat;
+      if (
+        !validTypeAndFormat(assetType, format) ||
+        !ASSET_ID_RE.test(String(assetId ?? '')) ||
+        !ArrayBuffer.isView(data) ||
+        data.BYTES_PER_ELEMENT !== 1 ||
+        data.byteLength < 1
+      ) {
+        throw unavailable('asset_write_failed');
+      }
+      const response = await upstreamStore(assetType, format, data, assetId);
+      const expected = {
+        assetId: String(assetId),
+        dataFormat: format,
+        sha256: await sha256(data),
+        sizeBytes: data.byteLength,
+      };
+      if (
+        !response ||
+        typeof response !== 'object' ||
+        response.status !== 'ok' ||
+        !sameReference(response.asset, expected)
+      ) {
+        throw unavailable('asset_reference_mismatch');
+      }
+      durableAssets.set(
+        runtimeKey(expected.assetId, expected.dataFormat),
+        Object.freeze({ ...expected }),
+      );
+      return response;
     };
 
     const loadRuntimeAsset = async (reference, type, format) => {
@@ -344,6 +454,30 @@
       confirmDraftMutation(mutation, revision);
     };
 
+    const persistCanonicalDocument = async (projectJson, references) => {
+      await ensureConfirmedFingerprint();
+      const canonical = canonicalReferences(references);
+      const fingerprint = await documentFingerprint(projectJson, canonical);
+
+      if (unresolvedMutation) {
+        await reconcileUnresolvedMutation();
+      }
+      if (confirmedFingerprint !== null && fingerprint === confirmedFingerprint) {
+        return confirmedRevision;
+      }
+
+      const document = {
+        schemaVersion: 1,
+        format: 'scratch-3',
+        projectJson,
+        assets: canonical,
+      };
+      const mutation = createDraftMutation(fingerprint, document, canonical);
+      unresolvedMutation = mutation;
+      const revision = await sendDraftMutation(mutation, false);
+      return confirmDraftMutation(mutation, revision);
+    };
+
     scratchStorage.addHelper(
       {
         load: async (type, id, format) => {
@@ -419,14 +553,6 @@
         }
 
         const references = canonicalReferences(assets);
-        const fingerprint = await documentFingerprint(snapshot.projectJson, references);
-
-        if (unresolvedMutation) {
-          await reconcileUnresolvedMutation();
-        }
-        if (confirmedFingerprint !== null && fingerprint === confirmedFingerprint) {
-          return confirmedRevision;
-        }
 
         for (const asset of assets) {
           const expected = {
@@ -439,22 +565,45 @@
           if (!sameReference(durable, expected)) await uploadSnapshotAsset(asset);
         }
 
-        const document = {
-          schemaVersion: 1,
-          format: 'scratch-3',
-          projectJson: snapshot.projectJson,
-          assets: references,
-        };
-        const mutation = createDraftMutation(fingerprint, document, references);
-        unresolvedMutation = mutation;
-        const revision = await sendDraftMutation(mutation, false);
-        return confirmDraftMutation(mutation, revision);
+        return persistCanonicalDocument(snapshot.projectJson, references);
       },
       getConfirmedRevision() {
         return confirmedRevision;
       },
-      async saveProject() {
-        throw new Error('runtime_storage_read_only');
+      async saveProject(projectId, vmState) {
+        if (disposed) throw unavailable('storage_disposed');
+        if (String(projectId ?? '') !== String(options.projectId ?? '')) {
+          throw unavailable('project_identity_mismatch');
+        }
+        if (typeof vmState !== 'string') throw unavailable('project_document_invalid');
+
+        let projectJson;
+        try {
+          projectJson = JSON.parse(vmState);
+        } catch {
+          throw unavailable('project_document_invalid');
+        }
+
+        const generationAtStart = options.getProjectGeneration?.();
+        const references = referencedProjectAssets(projectJson).map((reference) => {
+          const durable = durableAssets.get(runtimeKey(reference.assetId, reference.dataFormat));
+          if (!durable) throw unavailable('asset_reference_missing');
+          return durable;
+        });
+        const revision = await persistCanonicalDocument(projectJson, references);
+        const generationAtEnd = options.getProjectGeneration?.();
+        if (
+          Number.isSafeInteger(generationAtStart) &&
+          Number.isSafeInteger(generationAtEnd) &&
+          generationAtEnd > generationAtStart
+        ) {
+          options.onSaveCompletedStale?.({
+            savedGeneration: generationAtStart,
+            latestGeneration: generationAtEnd,
+            revision,
+          });
+        }
+        return { id: options.projectId };
       },
       getLibraryAssetUrl(id, format) {
         if (confirmedAssets.has(runtimeKey(id, format))) {
