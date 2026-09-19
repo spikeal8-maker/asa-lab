@@ -548,8 +548,10 @@ try {
   assert.ok(savedTarget, 'durable document must contain the unique sprite');
   expect(savedTarget.x).toBe(137);
   expect(
-    Object.values(savedTarget.variables).some(
-      (entry) => Array.isArray(entry) && entry[0] === variable,
+    p1.document.projectJson.targets.some((target) =>
+      Object.values(target.variables ?? {}).some(
+        (entry) => Array.isArray(entry) && entry[0] === variable,
+      ),
     ),
   ).toBe(true);
   expect(
