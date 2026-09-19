@@ -252,7 +252,7 @@ async function waitForEditor(page) {
   const frame = page.frameLocator('iframe[title="Scratch runtime"]');
   const shell = frame.locator('[data-asa-host-shell]');
   await expect(shell).toHaveAttribute('data-editor-state', 'ready', { timeout: 45000 });
-  await expect(page.locator('[data-asa-blocks-save]')).toBeEnabled();
+  await expect(page.locator('[data-asa-blocks-save]')).toHaveCount(0);
   await expect(page.getByRole('status')).toHaveCount(0);
   return { frame, shell };
 }
@@ -358,6 +358,32 @@ async function verifyDistinctProjectState(page, frame, marker, variable) {
   await page.screenshot({ path: path.join(out, '04-fresh-reopen-exact.png') });
 }
 
+async function editStepValue(frame, from, to) {
+  await frame.getByRole('tab', { name: 'Code', exact: true }).click();
+  const workspace = frame.locator('.blocklyBlockCanvas').first();
+  const value = workspace.getByText(String(from), { exact: true }).last();
+  await expect(value).toBeVisible();
+  await value.dblclick();
+  const input = frame.locator('.blocklyHtmlInput:focus');
+  await expect(input).toHaveValue(String(from));
+  await input.fill(String(to));
+  await input.press('Enter');
+  await expect(workspace.getByText(String(to), { exact: true })).toBeVisible();
+}
+
+function projectHasStep(state, marker, value) {
+  const target = state.document?.projectJson?.targets?.find((item) => item.name === marker);
+  return Boolean(
+    target &&
+      Object.values(target.blocks ?? {}).some(
+        (block) =>
+          block.opcode === 'motion_movesteps' &&
+          Array.isArray(block.inputs?.STEPS) &&
+          JSON.stringify(block.inputs.STEPS).includes(String(value)),
+      ),
+  );
+}
+
 async function assertUiRegression(page, frame) {
   await expect(frame.getByText('File', { exact: true })).toBeVisible();
   await expect(frame.getByText('Edit', { exact: true })).toBeVisible();
@@ -378,35 +404,32 @@ async function assertUiRegression(page, frame) {
     { width: 390, height: 844 },
   ]) {
     await page.setViewportSize(viewport);
-    const saveBox = await page.locator('[data-asa-blocks-save]').boundingBox();
+    await expect(page.locator('[data-asa-blocks-save]')).toHaveCount(0);
     const accountBox = await page.locator('[data-asa-blocks-account-overlay]').boundingBox();
     const fileBox = await frame.getByText('File', { exact: true }).boundingBox();
     const editBox = await frame.getByText('Edit', { exact: true }).boundingBox();
-    assert.ok(saveBox && accountBox);
-    assert.ok(saveBox.x >= 0 && saveBox.y >= 0);
-    assert.ok(saveBox.x + saveBox.width <= viewport.width);
-    assert.ok(saveBox.y + saveBox.height <= viewport.height);
+    assert.ok(accountBox);
+    assert.ok(accountBox.x >= 0 && accountBox.y >= 0);
+    assert.ok(accountBox.x + accountBox.width <= viewport.width);
+    assert.ok(accountBox.y + accountBox.height <= viewport.height);
     const overlaps = (a, b) =>
       a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
-    assert.equal(overlaps(saveBox, accountBox), false, 'Save must not cover account control');
     if (fileBox) {
-      assert.equal(overlaps(saveBox, fileBox), false, 'Save must not cover visible native File');
+      assert.equal(overlaps(accountBox, fileBox), false, 'Account must not cover visible native File');
     }
     if (editBox) {
-      assert.equal(overlaps(saveBox, editBox), false, 'Save must not cover visible native Edit');
+      assert.equal(overlaps(accountBox, editBox), false, 'Account must not cover visible native Edit');
     }
   }
   await page.setViewportSize({ width: 1440, height: 960 });
 }
 
-async function clickConfirmedSave(page) {
-  const save = page.locator('[data-asa-blocks-save]');
-  await expect(save).toBeEnabled();
+async function waitForRevisionAdvance(projectId, previousRevision, timeout = 45000) {
   const startedAt = performance.now();
-  await save.click();
-  await expect(save).toHaveAttribute('data-save-state', 'saved', { timeout: 45000 });
-  const revision = Number(await save.getAttribute('data-confirmed-revision'));
-  assert.ok(Number.isSafeInteger(revision) && revision >= 0);
+  await expect
+    .poll(() => projectState(projectId).revision, { timeout })
+    .toBeGreaterThan(previousRevision);
+  const revision = projectState(projectId).revision;
   return { revision, latencyMs: Math.round((performance.now() - startedAt) * 100) / 100 };
 }
 
