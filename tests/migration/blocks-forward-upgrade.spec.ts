@@ -32,7 +32,10 @@ function clientFor(db: PGlite) {
 
 describe('published Blocks forward migration', () => {
   it('only skips the pinned late 0146 when the pinned 0151 is in the plan', () => {
-    expect(validateMigrationHistory(ledger(), plan).map((item) => item.version)).toEqual(['0151', '0152']);
+    expect(validateMigrationHistory(ledger(), plan).map((item) => item.version)).toEqual([
+      '0151',
+      '0152',
+    ]);
     expect(() => validateMigrationHistory(ledger(), oldPlan)).toThrow(/out-of-order.*0146/);
     for (const version of ['0146', '0151']) {
       const altered = plan.map((item) =>
@@ -139,7 +142,10 @@ describe('published Blocks forward migration', () => {
             'SELECT version,name,checksum,applied_at FROM schema_migrations ORDER BY version',
           )
         ).rows;
-        expect((await inspectPlan(client, plan)).map((item) => item.version)).toEqual(['0151', '0152']);
+        expect((await inspectPlan(client, plan)).map((item) => item.version)).toEqual([
+          '0151',
+          '0152',
+        ]);
         expect(
           (
             await db.query(
