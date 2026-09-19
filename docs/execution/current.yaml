@@ -143,21 +143,20 @@ parallel_lanes:
       - tools/validate-electronics-agent-docs.mjs
       - tools/test_validate_electronics_agent_docs.mjs
     task:
-      id: TASK-ELECTRONICS-EOPT3F-001
-      issue: 301
-      branch: codex/electronics-eopt3f-runtime-conformance
+      id: TASK-ELECTRONICS-GOVERNANCE-003
+      issue: 303
+      branch: main
       base_branch: main
-      pr: 302
+      pr: null
       pr_draft: false
-      status: in_review
-      checkpoint: eopt3f_runtime_conformance_acceptance_pass_merge_authorized
-      owner_acceptance: accepted
+      status: in_progress
+      checkpoint: post_eopt3_hygiene_checkpoint
+      owner_acceptance: pending
     revisions:
-      convergence_baseline_sha: 6b7b175fbf523dff78333e57e150381fa418a91f
-      head_sha: 6e16ebe3c0dac4de95b1b02b2c46f1ddcf2315cc
-      owner_accepted_sha: 6e16ebe3c0dac4de95b1b02b2c46f1ddcf2315cc
+      convergence_baseline_sha: d98f5d278ff9c923dca084773c039c919dec97ed
+      head_sha: d98f5d278ff9c923dca084773c039c919dec97ed
     execution_lease:
-      executor_id: codex-electronics-eopt3f-runtime-conformance
+      executor_id: codex-electronics-governance-003
       holder: unassigned
       acquired_at: null
       expires_at: null
