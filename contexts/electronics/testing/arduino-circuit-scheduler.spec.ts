@@ -496,6 +496,7 @@ describe('Arduino shared dc-inputs-v1 circuit clock', () => {
   it('keeps a single-board syntax compile failure local and observable', () => {
     const doc = circuit([board('broken', 'void setup(){digitalWrite(13,);}void loop(){}')]);
     const done = through(doc, 10);
+    const brokenState = done.state!.boards.find((entry) => entry.componentId === 'broken')!;
 
     expect(done.executionStatus, JSON.stringify(done.diagnostics)).toBe('ready');
     expect(done.result).not.toBeNull();
@@ -503,8 +504,69 @@ describe('Arduino shared dc-inputs-v1 circuit clock', () => {
       expect.objectContaining({ code: 'compile_error', componentId: 'broken' }),
     );
     expect(done.events.filter((event) => event.componentId === 'broken')).toEqual([]);
+    expect(brokenState.loadedSource).toBeNull();
+    expect(runtime(done, 'broken').faults).toEqual([]);
+    expect(runtime(done, 'broken').eventQueue).toEqual([]);
     expect(runtime(done, 'broken').pinModes).toEqual({});
     expect(runtime(done, 'broken').outputVoltages).toEqual({});
+  });
+
+  it('keeps the last-good program running after the editor source becomes malformed', () => {
+    const sourceA =
+      'int count=0;void setup(){pinMode(13,OUTPUT);}void loop(){count++;digitalWrite(13,count%2);}';
+    const malformedB = 'void setup(){digitalWrite(13,);}void loop(){}';
+    const documentA = circuit([board('uno', sourceA)]);
+    const loadedA = through(documentA, 10);
+    const countAtA = runtime(loadedA).variables.count ?? 0;
+
+    const documentB = circuit([board('uno', malformedB)]);
+    const continued = through(documentB, 20, JSON.parse(JSON.stringify(loadedA.state)));
+    const boardState = continued.state!.boards.find((entry) => entry.componentId === 'uno')!;
+
+    expect(continued.executionStatus, JSON.stringify(continued.diagnostics)).toBe('ready');
+    expect(continued.diagnostics).toContainEqual(
+      expect.objectContaining({ code: 'compile_error', componentId: 'uno' }),
+    );
+    expect(boardState.loadedSource).toBe(sourceA);
+    expect(runtime(continued).variables.count).toBeGreaterThan(countAtA);
+    expect(continued.events.some((event) => event.componentId === 'uno')).toBe(true);
+  });
+
+  it('replaces A with valid C and keeps C as last-good after malformed B', () => {
+    const sourceA =
+      'int marker=1;void setup(){pinMode(13,OUTPUT);digitalWrite(13,HIGH);}void loop(){marker=1;}';
+    const sourceC =
+      'int marker=2;void setup(){pinMode(13,OUTPUT);digitalWrite(13,LOW);}void loop(){marker=2;}';
+    const malformedB = 'void setup(){digitalWrite(13,);}void loop(){}';
+
+    const loadedA = through(circuit([board('uno', sourceA)]), 10);
+    const loadedC = through(
+      circuit([board('uno', sourceC)]),
+      20,
+      JSON.parse(JSON.stringify(loadedA.state)),
+    );
+    const loopsAtC = runtime(loadedC).loopIterations;
+    const cState = loadedC.state!.boards.find((entry) => entry.componentId === 'uno')!;
+
+    expect(cState.loadedSource).toBe(sourceC);
+    expect(runtime(loadedC).variables.marker).toBe(2);
+    expect(runtime(loadedC).outputVoltages.d13).toBe(0);
+
+    const continuedC = through(
+      circuit([board('uno', malformedB)]),
+      30,
+      JSON.parse(JSON.stringify(loadedC.state)),
+    );
+    const continuedState = continuedC.state!.boards.find((entry) => entry.componentId === 'uno')!;
+
+    expect(continuedC.executionStatus, JSON.stringify(continuedC.diagnostics)).toBe('ready');
+    expect(continuedC.diagnostics).toContainEqual(
+      expect.objectContaining({ code: 'compile_error', componentId: 'uno' }),
+    );
+    expect(continuedState.loadedSource).toBe(sourceC);
+    expect(runtime(continuedC).variables.marker).toBe(2);
+    expect(runtime(continuedC).loopIterations).toBeGreaterThan(loopsAtC);
+    expect(runtime(continuedC).outputVoltages.d13).toBe(0);
   });
 
   it('keeps a valid peer board running when another board has a syntax compile failure', () => {
