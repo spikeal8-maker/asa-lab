@@ -849,7 +849,7 @@ test('Course Builder duplicates a section and excludes hidden lesson only from f
     .first()
     .click();
   await duplicateSection.getByRole('button', { name: 'Скрыть', exact: true }).click();
-  await expect(duplicateSection.getByText(/Скрыт/)).toBeVisible();
+  await expect(duplicateSection.locator('.course-lesson-link small').first()).toContainText('Скрыт');
 
   await page.reload();
   await page.getByRole('button', { name: 'Мои курсы', exact: true }).click();
@@ -861,7 +861,9 @@ test('Course Builder duplicates a section and excludes hidden lesson only from f
   await expect(editor).toBeVisible();
   const reloadedSections = editor.locator('.course-outline-section');
   await expect(reloadedSections).toHaveCount(2);
-  await expect(reloadedSections.nth(1).getByText(/Скрыт/)).toBeVisible();
+  await expect(reloadedSections.nth(1).locator('.course-lesson-link small').first()).toContainText(
+    'Скрыт',
+  );
 
   await editor.getByRole('button', { name: 'Предпросмотр', exact: true }).click();
   const preview = page.getByTestId('course-preview-page');
