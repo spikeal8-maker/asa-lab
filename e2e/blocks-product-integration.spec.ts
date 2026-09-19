@@ -482,7 +482,7 @@ test('runtime-session opens the real server project and reads declared costume a
   }
 });
 
-test('long-lived editor rotates capability in place and saves live VM with the refreshed bearer', async () => {
+test('long-lived editor rotates capability in place and upstream autosaves with the refreshed bearer', async () => {
   const serverProject = await realRuntimeBootstrapFixture();
   const fixture = await createProtocolFixture({
     product: true,
@@ -508,6 +508,7 @@ test('long-lived editor rotates capability in place and saves live VM with the r
     const shell = frame.locator('[data-asa-host-shell]');
     await expect(shell).toHaveAttribute('data-editor-state', 'ready', { timeout: 45000 });
     expect(fixture.getRuntimeSessionSequence()).toBe(1);
+    await expect(page.locator('[data-asa-blocks-save]')).toHaveCount(0);
 
     const initialBinding = await page.evaluate(() => {
       const messages =
@@ -542,11 +543,11 @@ test('long-lived editor rotates capability in place and saves live VM with the r
       frame.locator('.blocklyBlockCanvas').first().getByText('37', { exact: true }),
     ).toBeVisible();
 
-    const save = page.locator('[data-asa-blocks-save]');
-    await save.click();
-    await expect(save).toHaveAttribute('data-save-state', 'saved', { timeout: 45000 });
-    expect(fixture.runtimeDraftEvidence).toHaveLength(1);
+    await expect.poll(() => fixture.runtimeDraftEvidence.length, { timeout: 20_000 }).toBe(1);
     expect(fixture.runtimeDraftEvidence[0].authorizationOk).toBe(true);
+    expect(fixture.runtimeDraftEvidence[0].body.document.projectJson.targets
+      .find((target: { name?: string }) => target.name === 'Server Bootstrap Sprite')
+      .blocks.move.inputs.STEPS[1][1]).toBe('37');
 
     const messages = await page.evaluate(
       () =>
@@ -563,23 +564,23 @@ test('long-lived editor rotates capability in place and saves live VM with the r
         message.messageType === 'ASA_BLOCKS_STATUS' &&
         (message as CapturedBlocksMessage & { status?: string }).status === 'project-dirty',
     );
-    const flushResult = [...messages]
-      .reverse()
-      .find((message) => message.messageType === 'ASA_BLOCKS_FLUSH_RESULT');
     expect(readyMessages).toHaveLength(1);
     expect(dirtyMessages.length).toBeGreaterThan(0);
     expect(
       dirtyMessages.every((message) => message.sessionNonce === initialBinding.sessionNonce),
     ).toBe(true);
-    expect(flushResult?.sessionNonce).toBe(initialBinding.sessionNonce);
-    expect(Number.isSafeInteger(flushResult?.snapshotGeneration)).toBe(true);
+    expect(messages.some((message) => message.messageType === 'ASA_BLOCKS_FLUSH_RESULT')).toBe(false);
     expect(runtimeNavigations).toBe(1);
 
-    const writesBeforeDirty = fixture.runtimeWriteEvents.length;
     await setServerSteps(frame, '37', '41');
-    await expect(save).toHaveAttribute('data-save-state', 'idle');
-    await expect(save).not.toHaveAttribute('data-confirmed-revision');
-    expect(fixture.runtimeWriteEvents).toHaveLength(writesBeforeDirty);
+    await expect.poll(() => fixture.runtimeDraftEvidence.length, { timeout: 20_000 }).toBe(2);
+    const latestDraft = fixture.runtimeDraftEvidence.at(-1);
+    expect(
+      latestDraft.body.document.projectJson.targets
+        .find((target: { name?: string }) => target.name === 'Server Bootstrap Sprite')
+        .blocks.move.inputs.STEPS[1][1],
+    ).toBe('41');
+    expect(latestDraft.authorizationOk).toBe(true);
     await expect(
       frame.locator('.blocklyBlockCanvas').first().getByText('41', { exact: true }),
     ).toBeVisible();
@@ -588,7 +589,7 @@ test('long-lived editor rotates capability in place and saves live VM with the r
   }
 });
 
-test('edit during in-flight Save prevents stale success from claiming the current VM is saved', async () => {
+test('edit during in-flight upstream autosave persists the latest generation', async () => {
   const serverProject = await realRuntimeBootstrapFixture();
   const fixture = await createProtocolFixture({
     product: true,
@@ -626,47 +627,32 @@ test('edit during in-flight Save prevents stale success from claiming the curren
   );
 
   const page = await fixture.context.newPage();
-  await installBlocksMessageCapture(page);
   try {
     await page.goto(`${parentOrigin}/product`, { waitUntil: 'domcontentloaded' });
     const frame = page.frameLocator('iframe[title="Scratch runtime"]');
     const shell = frame.locator('[data-asa-host-shell]');
     await expect(shell).toHaveAttribute('data-editor-state', 'ready', { timeout: 45000 });
-    await setServerSteps(frame, '8', '37');
+    await expect(page.locator('[data-asa-blocks-save]')).toHaveCount(0);
 
-    const save = page.locator('[data-asa-blocks-save]');
-    await save.click();
+    await setServerSteps(frame, '8', '37');
     await committed;
-    await expect(save).toHaveAttribute('data-save-state', 'saving');
+    expect(fixture.runtimeDraftEvidence).toHaveLength(1);
+    expect(fixture.getServerRevision()).toBe(24);
 
     await setServerSteps(frame, '37', '41');
-    const writesAfterEdit = fixture.runtimeWriteEvents.length;
+    expect(fixture.runtimeDraftEvidence).toHaveLength(1);
     releaseResponse();
 
-    await expect(save).toHaveAttribute('data-save-state', 'idle', { timeout: 45000 });
-    await expect(save).not.toHaveAttribute('data-confirmed-revision');
-    await expect(save).toContainText('Сохранить в ASA');
-    await page.waitForTimeout(300);
-    expect(fixture.runtimeDraftEvidence).toHaveLength(1);
-    expect(fixture.runtimeWriteEvents).toHaveLength(writesAfterEdit);
+    await expect.poll(() => fixture.runtimeDraftEvidence.length, { timeout: 20_000 }).toBe(2);
+    await expect.poll(() => fixture.getServerRevision(), { timeout: 20_000 }).toBe(25);
 
-    const messages = await page.evaluate(
-      () =>
-        (window as unknown as { __asaBlocksTestMessages?: CapturedBlocksMessage[] })
-          .__asaBlocksTestMessages ?? [],
-    );
-    const dirtyGenerations = messages
-      .filter(
-        (message) =>
-          message.messageType === 'ASA_BLOCKS_STATUS' &&
-          (message as CapturedBlocksMessage & { status?: string }).status === 'project-dirty',
-      )
-      .map((message) => Number(message.generation));
-    const flushResult = [...messages]
-      .reverse()
-      .find((message) => message.messageType === 'ASA_BLOCKS_FLUSH_RESULT');
-    expect(Number.isSafeInteger(flushResult?.snapshotGeneration)).toBe(true);
-    expect(Math.max(...dirtyGenerations)).toBeGreaterThan(Number(flushResult?.snapshotGeneration));
+    const finalDraft = fixture.runtimeDraftEvidence.at(-1);
+    expect(
+      finalDraft.body.document.projectJson.targets
+        .find((target: { name?: string }) => target.name === 'Server Bootstrap Sprite')
+        .blocks.move.inputs.STEPS[1][1],
+    ).toBe('41');
+    expect(fixture.runtimeAssetPutEvidence).toHaveLength(0);
     await expect(
       frame.locator('.blocklyBlockCanvas').first().getByText('41', { exact: true }),
     ).toBeVisible();
@@ -1522,7 +1508,7 @@ test('unreachable Scratch times out and can reconnect without hiding the editor'
 });
 
 // The parent ASA wordmark navigates; Scratch's own Home action stays inert.
-test('ASA wordmark confirms leaving, supports keyboard, and returns to home', async () => {
+test('ASA wordmark supports keyboard and returns to home without an explicit-save prompt', async () => {
   const fixture = await createProtocolFixture({ product: true, locale: 'en-US' });
   const page = await fixture.context.newPage();
   try {
@@ -1535,6 +1521,7 @@ test('ASA wordmark confirms leaving, supports keyboard, and returns to home', as
     );
     const home = page.getByRole('button', { name: 'ASA Lab — на главную', exact: true });
     await expect(home).toBeVisible();
+    await expect(page.locator('[data-asa-blocks-save]')).toHaveCount(0);
     for (const width of [1440, 1024, 390, 320]) {
       await page.setViewportSize({ width, height: 960 });
       const hit = await home.boundingBox();
@@ -1564,26 +1551,13 @@ test('ASA wordmark confirms leaving, supports keyboard, and returns to home', as
       'data-editor-state',
       'ready',
     );
-    expect(fixture.context.pages()).toHaveLength(1);
-    page.once('dialog', async (dialog) => {
-      expect(dialog.type()).toBe('confirm');
-      expect(dialog.message()).toContain('Сохранить в ASA');
-      await dialog.dismiss();
-    });
-    await home.click();
-    await expect(page).toHaveURL(`${parentOrigin}/product`);
-    await expect(frame.locator('[data-asa-host-shell]')).toHaveAttribute(
-      'data-editor-state',
-      'ready',
-    );
-    page.once('dialog', async (dialog) => {
-      await dialog.accept();
-    });
+
+    const dialog = vi.fn();
+    page.on('dialog', dialog);
     await home.focus();
     await home.press('Enter');
     await expect(page).toHaveURL(`${parentOrigin}/product#/home`);
-    await page.locator('[data-asa-blocks-account-overlay]').click();
-    await expect(page).toHaveURL(`${parentOrigin}/product#/account`);
+    expect(dialog).not.toHaveBeenCalled();
     expect(fixture.pageErrors).toEqual([]);
   } finally {
     await fixture.close();
