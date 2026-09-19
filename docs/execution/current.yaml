@@ -149,12 +149,14 @@ parallel_lanes:
       base_branch: main
       pr: 306
       pr_draft: true
-      status: in_review
-      checkpoint: eopt5a_owner_rules_corrected_independent_review_pending
-      owner_acceptance: pending
+      status: done
+      checkpoint: merged_to_main
+      owner_acceptance: accepted
     revisions:
       convergence_baseline_sha: c36b1f10bc92497a5d7f22080534f4c0a4e7925c
       head_sha: 5846f74e0fdaef5859a60d5ba65744bf5ca33221
+      owner_accepted_sha: 5846f74e0fdaef5859a60d5ba65744bf5ca33221
+      product_merge_sha: f7551bca9beab071135fc0afc680d26a985820c2
     execution_lease:
       executor_id: codex-electronics-eopt5a-runtime-strategy
       holder: unassigned
