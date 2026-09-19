@@ -353,7 +353,16 @@ export function advanceArduinoCircuitClock(
   }
   let activeDocument: ElectronicsDocument = {
     ...document,
-    components: [...document.components].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)),
+    components: document.components
+      .map((component) =>
+        compileDiagnostics.has(component.id)
+          ? {
+              ...component,
+              stateProperties: { ...component.stateProperties, arduinoSource: '' },
+            }
+          : component,
+      )
+      .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)),
     connections: [...document.connections].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)),
   };
   let nextInputIndex = previous?.nextInputIndex ?? 0;
