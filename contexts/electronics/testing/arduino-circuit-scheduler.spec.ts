@@ -639,15 +639,69 @@ describe('Arduino shared dc-inputs-v1 circuit clock', () => {
     expect(next.events.filter((event) => event.componentId === 'broken')).toEqual([]);
   });
 
-  it('keeps valid Arduino unsupported member calls global in B1A', () => {
+  it('keeps unsupported member calls board-local with no previous loaded program', () => {
     const result = through(
       circuit([board('uno', 'void setup(){Serial.println(1);}void loop(){}')]),
       10,
     );
-    expect(result.executionStatus).toBe('fault');
-    expect(result.result).toBeNull();
-    expect(result.state).toBeNull();
-    expect(result.events).toEqual([]);
+    const boardState = result.state!.boards.find((entry) => entry.componentId === 'uno')!;
+
+    expect(result.executionStatus, JSON.stringify(result.diagnostics)).toBe('ready');
+    expect(result.result).not.toBeNull();
+    expect(result.diagnostics).toContainEqual(
+      expect.objectContaining({ code: 'member-call', componentId: 'uno' }),
+    );
+    expect(boardState.loadedSource).toBeNull();
+    expect(runtime(result).faults).toEqual([]);
+    expect(runtime(result).eventQueue).toEqual([]);
+    expect(runtime(result).pinModes).toEqual({});
+    expect(runtime(result).outputVoltages).toEqual({});
+    expect(result.events.filter((event) => event.componentId === 'uno')).toEqual([]);
+  });
+
+  it('keeps last-good runtime running when editor source becomes unsupported', () => {
+    const sourceA =
+      'int count=0;void setup(){pinMode(13,OUTPUT);}void loop(){count++;digitalWrite(13,count%2);}';
+    const unsupportedU = 'void setup(){Serial.println(1);}void loop(){}';
+    const loadedA = through(circuit([board('uno', sourceA)]), 10);
+    const countAtA = runtime(loadedA).variables.count ?? 0;
+
+    const continued = through(
+      circuit([board('uno', unsupportedU)]),
+      20,
+      JSON.parse(JSON.stringify(loadedA.state)),
+    );
+    const boardState = continued.state!.boards.find((entry) => entry.componentId === 'uno')!;
+
+    expect(continued.executionStatus, JSON.stringify(continued.diagnostics)).toBe('ready');
+    expect(continued.diagnostics).toContainEqual(
+      expect.objectContaining({ code: 'member-call', componentId: 'uno' }),
+    );
+    expect(boardState.loadedSource).toBe(sourceA);
+    expect(runtime(continued).variables.count).toBeGreaterThan(countAtA);
+    expect(continued.events.some((event) => event.componentId === 'uno')).toBe(true);
+  });
+
+  it('keeps a valid peer running when another board uses an unsupported member call', () => {
+    const doc = circuit([
+      board(
+        'a-valid',
+        'void setup(){pinMode(13,OUTPUT);digitalWrite(13,HIGH);}void loop(){delay(100);}',
+      ),
+      board('b-unsupported', 'void setup(){Serial.println(1);}void loop(){}'),
+    ]);
+    const done = through(doc, 10);
+
+    expect(done.executionStatus, JSON.stringify(done.diagnostics)).toBe('ready');
+    expect(done.result).not.toBeNull();
+    expect(done.diagnostics).toContainEqual(
+      expect.objectContaining({ code: 'member-call', componentId: 'b-unsupported' }),
+    );
+    expect(runtime(done, 'a-valid').outputVoltages.d13).toBe(5);
+    expect(done.state!.boards.find((entry) => entry.componentId === 'b-unsupported')!.loadedSource)
+      .toBeNull();
+    expect(done.events.some((event) => event.componentId === 'a-valid')).toBe(true);
+    expect(done.events.some((event) => event.componentId === 'b-unsupported')).toBe(false);
   });
 
   it.each([
