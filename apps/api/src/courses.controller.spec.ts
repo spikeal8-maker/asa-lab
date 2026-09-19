@@ -390,6 +390,22 @@ describe('course outline API', () => {
         alt: 'Схема подключения',
         caption: '',
       },
+      {
+        id: 'code',
+        type: 'code',
+        language: 'javascript',
+        text: 'const current = voltage / resistance;\n  console.log(current);',
+      },
+      { id: 'formula', type: 'formula', text: 'I = U / R' },
+      {
+        id: 'table',
+        type: 'table',
+        rows: [
+          ['Элемент', 'Значение'],
+          ['R1', '220 Ω'],
+        ],
+      },
+      { id: 'divider', type: 'divider' },
     ];
 
     await expect(
@@ -450,6 +466,57 @@ describe('course outline API', () => {
       }),
     ).rejects.toMatchObject({ status: 400 });
     expect(externalEmbed.query).not.toHaveBeenCalled();
+
+    const arbitraryField = controller();
+    await expect(
+      arbitraryField.value.createLesson(request(), COURSE_ID, {
+        sectionId: SECTION_ID,
+        title: 'Лишние поля',
+        summary: null,
+        content: null,
+        blocks: [{ id: 'divider', type: 'divider', text: 'not allowed' }],
+        kind: 'material',
+        assignmentId: null,
+        estimatedMinutes: null,
+      }),
+    ).rejects.toMatchObject({ status: 400 });
+    expect(arbitraryField.query).not.toHaveBeenCalled();
+
+    const oversizedTable = controller();
+    await expect(
+      oversizedTable.value.createLesson(request(), COURSE_ID, {
+        sectionId: SECTION_ID,
+        title: 'Слишком большая таблица',
+        summary: null,
+        content: null,
+        blocks: [
+          {
+            id: 'table',
+            type: 'table',
+            rows: Array.from({ length: 31 }, (_, index) => [String(index)]),
+          },
+        ],
+        kind: 'material',
+        assignmentId: null,
+        estimatedMinutes: null,
+      }),
+    ).rejects.toMatchObject({ status: 400 });
+    expect(oversizedTable.query).not.toHaveBeenCalled();
+
+    const malformedTable = controller();
+    await expect(
+      malformedTable.value.createLesson(request(), COURSE_ID, {
+        sectionId: SECTION_ID,
+        title: 'Неровная таблица',
+        summary: null,
+        content: null,
+        blocks: [{ id: 'table', type: 'table', rows: [['a', 'b'], ['c']] }],
+        kind: 'material',
+        assignmentId: null,
+        estimatedMinutes: null,
+      }),
+    ).rejects.toMatchObject({ status: 400 });
+    expect(malformedTable.query).not.toHaveBeenCalled();
   });
 
   it('returns the complete immutable catalogue preview', async () => {
