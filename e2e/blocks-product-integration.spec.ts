@@ -685,7 +685,7 @@ test('explicit FLUSH fingerprints canonical state, no-ops unchanged work and adv
   }
 });
 
-test('lost draft response retries the same mutation once without duplicate assets or revisions', async () => {
+test('lost draft response followed by edit reconciles A before saving B without duplicate assets', async () => {
   const serverProject = await realRuntimeBootstrapFixture();
   const fixture = await createProtocolFixture({
     product: true,
@@ -744,53 +744,71 @@ test('lost draft response retries the same mutation once without duplicate asset
     const aliasRowsBeforeRetry = afterLost.aliasRows;
     await expect(shell).toHaveAttribute('data-draft-revision', '23');
 
-    const replay = await explicitFlush(page, 'browser-lost-retry');
-    expect(replay).toMatchObject({
-      requestId: 'browser-lost-retry',
+    await setServerSteps(frame, '37', '41');
+    const reconciledAndSaved = await explicitFlush(page, 'browser-lost-edit-reconcile');
+    expect(reconciledAndSaved).toMatchObject({
+      requestId: 'browser-lost-edit-reconcile',
       ok: true,
-      revision: 24,
+      revision: 25,
       reason: null,
     });
-    expect(fixture.runtimeDraftEvidence).toHaveLength(2);
+    expect(fixture.runtimeDraftEvidence).toHaveLength(3);
     const replayMutation = fixture.runtimeDraftEvidence[1].body;
+    const generationB = fixture.runtimeDraftEvidence[2].body;
     expect(replayMutation.mutationId).toBe(firstMutation.mutationId);
     expect(replayMutation.baseRevision).toBe(23);
     expect(firstMutation.baseRevision).toBe(23);
     expect(replayMutation.document).toEqual(firstMutation.document);
+    expect(generationB.mutationId).not.toBe(firstMutation.mutationId);
+    expect(generationB.baseRevision).toBe(24);
+    expect(
+      generationB.document.projectJson.targets
+        .find((target: { name?: string }) => target.name === 'Server Bootstrap Sprite')
+        ?.blocks.move.inputs.STEPS[1][1],
+    ).toBe('41');
 
-    const afterReplay = {
+    const afterReplayAndB = {
       ...fixture.runtimePersistenceMetrics,
       serverRevision: fixture.getServerRevision(),
     };
-    expect(afterReplay.assetRequests).toBe(assetRequestsBeforeRetry);
-    expect(afterReplay.uploadedBytes).toBe(uploadedBytesBeforeRetry);
-    expect(afterReplay.uniqueAssetBytes).toBe(uniqueBytesBeforeRetry);
-    expect(afterReplay.blobRows).toBe(blobRowsBeforeRetry);
-    expect(afterReplay.aliasRows).toBe(aliasRowsBeforeRetry);
-    expect(afterReplay.revisionCommits).toBe(1);
-    expect(afterReplay.idempotentReplays).toBe(1);
-    expect(afterReplay.serverRevision).toBe(24);
+    expect(afterReplayAndB.assetRequests).toBe(assetRequestsBeforeRetry);
+    expect(afterReplayAndB.uploadedBytes).toBe(uploadedBytesBeforeRetry);
+    expect(afterReplayAndB.uniqueAssetBytes).toBe(uniqueBytesBeforeRetry);
+    expect(afterReplayAndB.blobRows).toBe(blobRowsBeforeRetry);
+    expect(afterReplayAndB.aliasRows).toBe(aliasRowsBeforeRetry);
+    expect(afterReplayAndB.revisionCommits).toBe(2);
+    expect(afterReplayAndB.idempotentReplays).toBe(1);
+    expect(afterReplayAndB.serverRevision).toBe(25);
     expect(new Set(fixture.runtimeDraftEvidence.map((entry) => entry.body.mutationId)).size).toBe(
-      1,
+      2,
     );
-    await expect(shell).toHaveAttribute('data-draft-revision', '24');
+    await expect(shell).toHaveAttribute('data-draft-revision', '25');
 
     fs.writeFileSync(
-      `${evidenceDir}/lost-response-replay.json`,
+      `${evidenceDir}/lost-response-edit-reconciliation.json`,
       JSON.stringify(
         {
-          logicalMutations: 1,
-          mutationId: firstMutation.mutationId,
-          baseRevision: firstMutation.baseRevision,
-          draftRequests: afterReplay.draftRequests,
-          revisionCommits: afterReplay.revisionCommits,
-          revisionDelta: afterReplay.serverRevision - 23,
-          assetRequestsOnRetry: afterReplay.assetRequests - assetRequestsBeforeRetry,
-          uploadedBytesOnRetry: afterReplay.uploadedBytes - uploadedBytesBeforeRetry,
-          uniqueAssetBytesOnRetry: afterReplay.uniqueAssetBytes - uniqueBytesBeforeRetry,
-          blobRowDeltaOnRetry: afterReplay.blobRows - blobRowsBeforeRetry,
-          aliasRowDeltaOnRetry: afterReplay.aliasRows - aliasRowsBeforeRetry,
-          idempotentReplays: afterReplay.idempotentReplays,
+          logicalMutations: 2,
+          generationA: {
+            mutationId: firstMutation.mutationId,
+            baseRevision: firstMutation.baseRevision,
+            replayMutationId: replayMutation.mutationId,
+            replayBaseRevision: replayMutation.baseRevision,
+          },
+          generationB: {
+            mutationId: generationB.mutationId,
+            baseRevision: generationB.baseRevision,
+          },
+          draftRequests: afterReplayAndB.draftRequests,
+          revisionCommits: afterReplayAndB.revisionCommits,
+          idempotentReplays: afterReplayAndB.idempotentReplays,
+          revisionDelta: afterReplayAndB.serverRevision - 23,
+          assetRequestsAfterAmbiguity:
+            afterReplayAndB.assetRequests - assetRequestsBeforeRetry,
+          uploadedBytesAfterAmbiguity:
+            afterReplayAndB.uploadedBytes - uploadedBytesBeforeRetry,
+          uniqueAssetBytesAfterAmbiguity:
+            afterReplayAndB.uniqueAssetBytes - uniqueBytesBeforeRetry,
         },
         null,
         2,

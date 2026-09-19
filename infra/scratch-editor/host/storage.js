@@ -59,6 +59,7 @@
   function createReadOnlyStorage(standalone, options = {}) {
     const scratchStorage = new standalone.ScratchStorage();
     const cachedAssets = new Map();
+    const verifiedRuntimeAssets = new Map();
     let confirmedAssets = new Map(
       (options.assets ?? []).map((asset) => [runtimeKey(asset.assetId, asset.dataFormat), asset]),
     );
@@ -68,15 +69,15 @@
         : 0;
     const durableAssets = new Map(confirmedAssets);
     let confirmedFingerprint = options.projectJson === null ? null : undefined;
-    let pendingMutation = null;
+    let unresolvedMutation = null;
     const abortController = typeof AbortController === 'undefined' ? null : new AbortController();
     let disposed = false;
 
     const key = (type, id, format) => `${type.name}:${id}:${format}`;
-    const cache = (type, format, data, id) => {
+    const cache = (type, format, data, id, target = cachedAssets) => {
       const bytes = typeof data === 'string' ? new TextEncoder().encode(data) : data;
       const asset = scratchStorage.createAsset(type, format, bytes, String(id), false);
-      cachedAssets.set(key(type, id, format), asset);
+      target.set(key(type, id, format), asset);
       return asset;
     };
 
@@ -162,7 +163,7 @@
 
     const loadRuntimeAsset = async (reference, type, format) => {
       if (disposed || !validTypeAndFormat(type, format)) throw unavailable();
-      const existing = cachedAssets.get(key(type, reference.assetId, format));
+      const existing = verifiedRuntimeAssets.get(key(type, reference.assetId, format));
       if (existing) return existing;
 
       const response = await fetch(
@@ -188,7 +189,7 @@
       if (bytes.byteLength !== reference.sizeBytes) throw unavailable();
       if ((await sha256(bytes)) !== reference.sha256) throw unavailable();
 
-      return cache(type, format, bytes, reference.assetId);
+      return cache(type, format, bytes, reference.assetId, verifiedRuntimeAssets);
     };
 
     const uploadSnapshotAsset = async (asset) => {
@@ -242,12 +243,113 @@
       return expected;
     };
 
+    const createDraftMutation = (fingerprint, document, references) => {
+      const mutationId = globalThis.crypto?.randomUUID?.();
+      if (typeof mutationId !== 'string' || !UUID_V4_RE.test(mutationId)) {
+        throw unavailable('mutation_id_unavailable');
+      }
+      const baseRevision = confirmedRevision;
+      const stableDocument = JSON.parse(JSON.stringify(document));
+      const stableReferences = Object.freeze(
+        references.map((reference) => Object.freeze({ ...reference })),
+      );
+      return Object.freeze({
+        fingerprint,
+        baseRevision,
+        mutationId,
+        document: stableDocument,
+        references: stableReferences,
+        body: JSON.stringify({
+          document: stableDocument,
+          baseRevision,
+          mutationId,
+        }),
+      });
+    };
+
+    const sendDraftMutation = async (mutation, reconciliation) => {
+      let response;
+      try {
+        response = await fetch(
+          `${options.apiOrigin}/api/blocks/runtime/projects/${options.projectId}/draft`,
+          {
+            method: 'PUT',
+            credentials: 'omit',
+            redirect: 'error',
+            cache: 'no-store',
+            headers: {
+              accept: 'application/json',
+              authorization: `Bearer ${getToken()}`,
+              'content-type': 'application/vnd.asa.blocks-draft+json',
+            },
+            body: mutation.body,
+            ...(abortController ? { signal: abortController.signal } : {}),
+          },
+        );
+      } catch {
+        throw unavailable('draft_write_failed');
+      }
+
+      if (!response.ok || response.redirected) {
+        if (response.status === 409) {
+          let payload = null;
+          try {
+            payload = await response.json();
+          } catch {
+            payload = null;
+          }
+          unresolvedMutation = null;
+          if (payload?.error?.code === 'project_revision_conflict') {
+            throw unavailable('revision_conflict');
+          }
+          throw unavailable('draft_write_failed');
+        }
+        if (response.status < 500 && !reconciliation) unresolvedMutation = null;
+        throw unavailable('draft_write_failed');
+      }
+
+      let payload;
+      try {
+        payload = await response.json();
+      } catch {
+        throw unavailable('draft_write_failed');
+      }
+      if (
+        payload?.status !== 'ok' ||
+        !Number.isSafeInteger(payload.revision) ||
+        payload.revision <= mutation.baseRevision
+      ) {
+        throw unavailable('draft_revision_invalid');
+      }
+      return payload.revision;
+    };
+
+    const confirmDraftMutation = (mutation, revision) => {
+      confirmedRevision = revision;
+      confirmedFingerprint = mutation.fingerprint;
+      confirmedAssets = new Map(
+        mutation.references.map((reference) => [
+          runtimeKey(reference.assetId, reference.dataFormat),
+          Object.freeze({ ...reference }),
+        ]),
+      );
+      unresolvedMutation = null;
+      return revision;
+    };
+
+    const reconcileUnresolvedMutation = async () => {
+      const mutation = unresolvedMutation;
+      if (!mutation) return;
+      const revision = await sendDraftMutation(mutation, true);
+      confirmDraftMutation(mutation, revision);
+    };
+
     scratchStorage.addHelper(
       {
         load: async (type, id, format) => {
-          const cached = cachedAssets.get(key(type, id, format));
-          if (cached) return cached;
-          if (type === scratchStorage.AssetType.Project) return null;
+          if (type === scratchStorage.AssetType.Project) {
+            return cachedAssets.get(key(type, id, format)) ?? null;
+          }
 
           const declared = confirmedAssets.get(runtimeKey(id, format));
           if (declared) {
@@ -258,6 +360,8 @@
             }
           }
 
+          const cached = cachedAssets.get(key(type, id, format));
+          if (cached) return cached;
           if (!validLibraryAsset(id, format) || !validTypeAndFormat(type, format)) return null;
           try {
             const response = await fetch(`/library-assets/${id}.${format}`, {
@@ -316,6 +420,10 @@
 
         const references = canonicalReferences(assets);
         const fingerprint = await documentFingerprint(snapshot.projectJson, references);
+
+        if (unresolvedMutation) {
+          await reconcileUnresolvedMutation();
+        }
         if (confirmedFingerprint !== null && fingerprint === confirmedFingerprint) {
           return confirmedRevision;
         }
@@ -337,88 +445,10 @@
           projectJson: snapshot.projectJson,
           assets: references,
         };
-        if (
-          !pendingMutation ||
-          pendingMutation.fingerprint !== fingerprint ||
-          pendingMutation.baseRevision !== confirmedRevision
-        ) {
-          const mutationId = globalThis.crypto?.randomUUID?.();
-          if (typeof mutationId !== 'string' || !UUID_V4_RE.test(mutationId)) {
-            throw unavailable('mutation_id_unavailable');
-          }
-          pendingMutation = {
-            fingerprint,
-            baseRevision: confirmedRevision,
-            mutationId,
-            document,
-            body: JSON.stringify({ document, baseRevision: confirmedRevision, mutationId }),
-          };
-        }
-
-        let response;
-        try {
-          response = await fetch(
-            `${options.apiOrigin}/api/blocks/runtime/projects/${options.projectId}/draft`,
-            {
-              method: 'PUT',
-              credentials: 'omit',
-              redirect: 'error',
-              cache: 'no-store',
-              headers: {
-                accept: 'application/json',
-                authorization: `Bearer ${getToken()}`,
-                'content-type': 'application/vnd.asa.blocks-draft+json',
-              },
-              body: pendingMutation.body,
-              ...(abortController ? { signal: abortController.signal } : {}),
-            },
-          );
-        } catch {
-          throw unavailable('draft_write_failed');
-        }
-
-        if (!response.ok || response.redirected) {
-          if (response.status === 409) {
-            let payload = null;
-            try {
-              payload = await response.json();
-            } catch {
-              payload = null;
-            }
-            pendingMutation = null;
-            if (payload?.error?.code === 'project_revision_conflict') {
-              throw unavailable('revision_conflict');
-            }
-            throw unavailable('draft_write_failed');
-          }
-          if (response.status < 500) pendingMutation = null;
-          throw unavailable('draft_write_failed');
-        }
-
-        let payload;
-        try {
-          payload = await response.json();
-        } catch {
-          throw unavailable('draft_write_failed');
-        }
-        if (
-          payload?.status !== 'ok' ||
-          !Number.isSafeInteger(payload.revision) ||
-          payload.revision <= confirmedRevision
-        ) {
-          throw unavailable('draft_revision_invalid');
-        }
-
-        confirmedRevision = payload.revision;
-        confirmedFingerprint = fingerprint;
-        confirmedAssets = new Map(
-          references.map((reference) => [
-            runtimeKey(reference.assetId, reference.dataFormat),
-            Object.freeze({ ...reference }),
-          ]),
-        );
-        pendingMutation = null;
-        return confirmedRevision;
+        const mutation = createDraftMutation(fingerprint, document, references);
+        unresolvedMutation = mutation;
+        const revision = await sendDraftMutation(mutation, false);
+        return confirmDraftMutation(mutation, revision);
       },
       getConfirmedRevision() {
         return confirmedRevision;
@@ -427,6 +457,13 @@
         throw new Error('runtime_storage_read_only');
       },
       getLibraryAssetUrl(id, format) {
+        if (confirmedAssets.has(runtimeKey(id, format))) {
+          const type = typeForFormat(format);
+          if (!type) throw unavailable();
+          const verified = verifiedRuntimeAssets.get(key(type, id, format));
+          if (verified) return verified.encodeDataURI();
+          throw unavailable();
+        }
         const asset = [...cachedAssets.values()].find(
           (item) =>
             item.assetType !== scratchStorage.AssetType.Project &&
@@ -434,14 +471,13 @@
             item.dataFormat === format,
         );
         if (asset) return asset.encodeDataURI();
-        if (confirmedAssets.has(runtimeKey(id, format))) throw unavailable();
         if (!validLibraryAsset(id, format)) throw unavailable();
         return `/library-assets/${id}.${format}`;
       },
       dispose() {
         disposed = true;
         abortController?.abort();
-        pendingMutation = null;
+        unresolvedMutation = null;
       },
     };
   }

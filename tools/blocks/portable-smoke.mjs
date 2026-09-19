@@ -623,6 +623,20 @@ try {
   expect(freshSession.draftRevision).toBe(p1.revision);
   expect(freshSession.projectJson).toEqual(p1.document.projectJson);
   expect(freshSession.assets).toEqual(p1.document.assets);
+  const canonicalFreshAssetPaths = freshSession.assets.map(
+    (asset) =>
+      `/api/blocks/runtime/projects/${projectId}/assets/${asset.assetId}.${asset.dataFormat}`,
+  );
+  const freshAssetGets = runtimeEvents
+    .filter(
+      (event) =>
+        event.phase === 'fresh-reopen' &&
+        event.method === 'GET' &&
+        event.pathname.includes('/assets/'),
+    )
+    .map((event) => event.pathname);
+  expect(freshAssetGets).toHaveLength(canonicalFreshAssetPaths.length);
+  expect(new Set(freshAssetGets)).toEqual(new Set(canonicalFreshAssetPaths));
   await verifyDistinctProjectState(reopened, freshEditor.frame, marker, variable);
 
   const afterCostume = await exportNamedMedia(

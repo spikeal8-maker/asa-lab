@@ -235,6 +235,177 @@ test('lost response reuses mutation identity, durable assets and commits one rev
   assert.equal(seenDrafts[2].baseRevision, 11);
 });
 
+
+for (const ambiguity of ['network', '5xx', 'malformed-2xx']) {
+  test(`${ambiguity} ambiguity followed by edit reconciles A before saving generation B`, async () => {
+    const mutationIds = [
+      'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+      'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+    ];
+    let uuidIndex = 0;
+    let serverRevision = 10;
+    let draftAttempts = 0;
+    let assetPuts = 0;
+    const mutations = new Map();
+    const seenDrafts = [];
+    const create = loadStorage(
+      async (url, init) => {
+        const href = String(url);
+        if (href.includes('/assets/')) {
+          assetPuts += 1;
+          const bytes = new Uint8Array(init.body);
+          const match = /\/([a-f0-9]{32})\.(png|wav|svg|jpg|mp3)$/.exec(href);
+          const ref = {
+            assetId: match[1],
+            dataFormat: match[2],
+            sha256: sha256(bytes),
+            sizeBytes: bytes.byteLength,
+          };
+          return new globalThis.Response(JSON.stringify({ status: 'ok', asset: ref }), {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          });
+        }
+
+        draftAttempts += 1;
+        const body = JSON.parse(init.body);
+        seenDrafts.push(body);
+        const replay = mutations.get(body.mutationId);
+        if (replay) {
+          assert.equal(body.baseRevision, replay.baseRevision);
+          assert.deepEqual(body.document, replay.document);
+          return new globalThis.Response(
+            JSON.stringify({ status: 'ok', revision: replay.revision }),
+            { status: 200, headers: { 'content-type': 'application/json' } },
+          );
+        }
+
+        assert.equal(body.baseRevision, serverRevision);
+        serverRevision += 1;
+        mutations.set(body.mutationId, {
+          baseRevision: body.baseRevision,
+          document: body.document,
+          revision: serverRevision,
+        });
+
+        if (draftAttempts === 1) {
+          if (ambiguity === 'network') throw new TypeError('lost response after commit');
+          if (ambiguity === '5xx') {
+            return new globalThis.Response(
+              JSON.stringify({ error: { code: 'dependency_unavailable' } }),
+              { status: 503, headers: { 'content-type': 'application/json' } },
+            );
+          }
+          return new globalThis.Response('{malformed', {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          });
+        }
+
+        return new globalThis.Response(JSON.stringify({ status: 'ok', revision: serverRevision }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
+      },
+      () => mutationIds[uuidIndex++],
+    );
+
+    const storage = create(standalone, {
+      projectId: PROJECT_ID,
+      projectJson: null,
+      assets: [],
+      draftRevision: 10,
+      apiOrigin: API_ORIGIN,
+      getRuntimeToken: () => TOKEN,
+    });
+    const media = asset('e'.repeat(32), 'png', Uint8Array.from([5, 4, 3]));
+    const generationA = { projectJson: project('Generation A'), assets: [media] };
+    const generationB = { projectJson: project('Generation B'), assets: [media] };
+
+    await assert.rejects(storage.persistSnapshot(generationA));
+    assert.equal(storage.getConfirmedRevision(), 10);
+    assert.equal(serverRevision, 11);
+
+    const revision = await storage.persistSnapshot(generationB);
+    assert.equal(revision, 12);
+    assert.equal(storage.getConfirmedRevision(), 12);
+    assert.equal(serverRevision, 12);
+    assert.equal(assetPuts, 1, 'reconciliation must not duplicate confirmed asset PUTs');
+    assert.equal(draftAttempts, 3);
+    assert.equal(seenDrafts.length, 3);
+    assert.equal(seenDrafts[1].mutationId, seenDrafts[0].mutationId);
+    assert.equal(seenDrafts[1].baseRevision, 10);
+    assert.deepEqual(seenDrafts[1].document, seenDrafts[0].document);
+    assert.notEqual(seenDrafts[2].mutationId, seenDrafts[0].mutationId);
+    assert.equal(seenDrafts[2].baseRevision, 11);
+    assert.equal(seenDrafts[2].document.projectJson.targets[0].name, 'Generation B');
+    assert.equal(uuidIndex, 2, 'A and B must own distinct mutation identities');
+  });
+}
+
+test('conflict while reconciling ambiguous A blocks generation B and preserves confirmed revision', async () => {
+  const mutationIds = [
+    'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+  ];
+  let uuidIndex = 0;
+  const seenDrafts = [];
+  const create = loadStorage(
+    async (url, init) => {
+      if (String(url).includes('/assets/')) {
+        const bytes = new Uint8Array(init.body);
+        const match = /\/([a-f0-9]{32})\.(png|wav|svg|jpg|mp3)$/.exec(String(url));
+        return new globalThis.Response(
+          JSON.stringify({
+            status: 'ok',
+            asset: {
+              assetId: match[1],
+              dataFormat: match[2],
+              sha256: sha256(bytes),
+              sizeBytes: bytes.byteLength,
+            },
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        );
+      }
+      const body = JSON.parse(init.body);
+      seenDrafts.push(body);
+      if (seenDrafts.length === 1) throw new TypeError('ambiguous request outcome');
+      return new globalThis.Response(
+        JSON.stringify({ error: { code: 'project_revision_conflict', message: 'conflict' } }),
+        { status: 409, headers: { 'content-type': 'application/json' } },
+      );
+    },
+    () => mutationIds[uuidIndex++],
+  );
+
+  const storage = create(standalone, {
+    projectId: PROJECT_ID,
+    projectJson: null,
+    assets: [],
+    draftRevision: 7,
+    apiOrigin: API_ORIGIN,
+    getRuntimeToken: () => TOKEN,
+  });
+  const media = asset('f'.repeat(32), 'png', Uint8Array.from([1, 3, 5]));
+  await assert.rejects(
+    storage.persistSnapshot({ projectJson: project('Generation A'), assets: [media] }),
+    /draft_write_failed/,
+  );
+  await assert.rejects(
+    storage.persistSnapshot({ projectJson: project('Generation B'), assets: [media] }),
+    (error) => error?.code === 'revision_conflict',
+  );
+
+  assert.equal(storage.getConfirmedRevision(), 7);
+  assert.equal(seenDrafts.length, 2, 'generation B must not be sent after reconciliation conflict');
+  assert.equal(seenDrafts[1].mutationId, seenDrafts[0].mutationId);
+  assert.equal(seenDrafts[1].baseRevision, 7);
+  assert.deepEqual(seenDrafts[1].document, seenDrafts[0].document);
+  assert.equal(uuidIndex, 1, 'generation B must not allocate a mutation id');
+});
+
 test('project revision conflict is explicit and never mutates confirmed revision', async () => {
   const calls = [];
   const create = loadStorage(

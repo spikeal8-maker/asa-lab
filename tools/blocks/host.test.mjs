@@ -109,6 +109,7 @@ function createRuntimeStorage({
   status = 200,
   contentType = 'image/svg+xml',
   bytes = new TextEncoder().encode('<svg xmlns="http://www.w3.org/2000/svg"/>'),
+  responseBytes = bytes,
   referenceOverrides = {},
   token = RUNTIME_TOKEN,
 } = {}) {
@@ -116,7 +117,7 @@ function createRuntimeStorage({
   const reference = runtimeReference(bytes, referenceOverrides);
   const fetchMock = async (url, init) => {
     calls.push({ url, init });
-    return new globalThis.Response(bytes, {
+    return new globalThis.Response(responseBytes, {
       status,
       headers: { 'content-type': contentType },
     });
@@ -193,6 +194,58 @@ test('declared runtime asset GET uses current Bearer without cookies or URL capa
   );
   assert.deepEqual(Buffer.from(loaded.data), Buffer.from(bytes));
   assert.equal(calls.length, 1, 'verified runtime bytes are cached without a second GET');
+});
+
+test('confirmed stock/default identity with missing durable object fails closed without stock fallback', async () => {
+  const stockId = 'b'.repeat(32);
+  const { storage, calls } = createRuntimeStorage({
+    status: 404,
+    referenceOverrides: { assetId: stockId },
+  });
+  assert.throws(() => storage.getLibraryAssetUrl(stockId, 'svg'), /runtime_asset_unavailable/);
+  await assert.rejects(storage.prepareProjectAssets(), /runtime_asset_unavailable/);
+  assert.equal(calls.length, 1, 'confirmed stock identity must still perform runtime GET');
+  assert.throws(() => storage.getLibraryAssetUrl(stockId, 'svg'), /runtime_asset_unavailable/);
+});
+
+test('confirmed stock/default identity with corrupt same-size runtime bytes fails SHA verification closed', async () => {
+  const stockId = 'b'.repeat(32);
+  const bytes = new TextEncoder().encode(
+    '<svg xmlns="http://www.w3.org/2000/svg"><rect width="9" height="9"/></svg>',
+  );
+  const corrupt = Uint8Array.from(bytes);
+  corrupt[corrupt.length - 2] ^= 1;
+  const { storage, calls } = createRuntimeStorage({
+    bytes,
+    responseBytes: corrupt,
+    referenceOverrides: { assetId: stockId },
+  });
+  await assert.rejects(storage.prepareProjectAssets(), /runtime_asset_unavailable/);
+  assert.equal(calls.length, 1);
+  assert.throws(() => storage.getLibraryAssetUrl(stockId, 'svg'), /runtime_asset_unavailable/);
+});
+
+test('confirmed stock/default identity verifies runtime bytes once then reuses only verified runtime cache', async () => {
+  const stockId = 'b'.repeat(32);
+  const bytes = new TextEncoder().encode(
+    '<svg xmlns="http://www.w3.org/2000/svg"><circle cx="7" cy="7" r="3"/></svg>',
+  );
+  const { storage, calls } = createRuntimeStorage({
+    bytes,
+    referenceOverrides: { assetId: stockId },
+  });
+  assert.throws(() => storage.getLibraryAssetUrl(stockId, 'svg'), /runtime_asset_unavailable/);
+  await storage.prepareProjectAssets();
+  assert.equal(calls.length, 1, 'fresh confirmed asset must be verified through runtime GET');
+
+  const loaded = await storage.scratchStorage.helper.load(
+    storage.scratchStorage.AssetType.ImageVector,
+    stockId,
+    'svg',
+  );
+  assert.deepEqual(Buffer.from(loaded.data), Buffer.from(bytes));
+  assert.equal(calls.length, 1, 'verified runtime asset may be reused inside the same session');
+  assert.equal(storage.getLibraryAssetUrl(stockId, 'svg'), 'data:svg;base64,fixture');
 });
 
 for (const status of [401, 403, 404, 503]) {
