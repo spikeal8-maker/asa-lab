@@ -142,7 +142,7 @@ describe('Course Builder structure forward upgrade', () => {
       ).rows;
       const activityRunsBefore = (
         await pool.query(
-          'SELECT source_lesson_id,learning_activity_version_id FROM activity_runs WHERE source_course_run_id=$1 ORDER BY source_lesson_id',
+          'SELECT source_course_lesson_id,learning_activity_version_id FROM activity_runs WHERE source_course_run_id=$1 ORDER BY source_course_lesson_id',
           [runId],
         )
       ).rows;
@@ -180,7 +180,7 @@ describe('Course Builder structure forward upgrade', () => {
       expect(
         (
           await pool.query(
-            'SELECT source_lesson_id,learning_activity_version_id FROM activity_runs WHERE source_course_run_id=$1 ORDER BY source_lesson_id',
+            'SELECT source_course_lesson_id,learning_activity_version_id FROM activity_runs WHERE source_course_run_id=$1 ORDER BY source_course_lesson_id',
             [runId],
           )
         ).rows,
