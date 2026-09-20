@@ -148,7 +148,7 @@ Scratch semantic block colours
 
 File/Edit остаются штатными. Native `Load from your computer` / `Save to your computer` — нормальная локальная функция Scratch и не равна ASA durable server-save.
 
-`canSave=false` используется только чтобы не включать upstream Scratch server-save как будто это ASA save.
+`canSave=true` держит upstream `ProjectSaverHOC` активным для ASA-managed autosave: `PROJECT_CHANGED → ProjectSaverHOC → ScratchStorage.store() → ASA asset PUT → GUIStorage.saveProject() → ASA draft PUT`. `showSaveNow=false` скрывает upstream Save Now, не отключая autosave. Native `Load from your computer` / `Save to your computer` остаются штатными локальными File-функциями Scratch.
 
 M1-007 отвечает за безопасную **ASA-интеграцию** `.sb3` (validation, ZIP limits, compatibility, ASA import/export flows), а не за скрытие native local File UI.
 
