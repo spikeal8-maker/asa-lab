@@ -1020,7 +1020,7 @@ describe('deterministic DC solver', () => {
             componentTypeId: 'arduino-uno',
             pinIds: ['d13', 'power-5v', 'power-3v3', 'power-gnd-1'],
             stateProperties: {
-              arduinoSource: 'void loop() { Serial.println(analogRead(A0)); }',
+              arduinoSource: 'void loop() { servo.write(90); }',
             },
           }),
         ],

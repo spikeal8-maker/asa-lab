@@ -815,9 +815,28 @@ describe('Arduino shared dc-inputs-v1 circuit clock', () => {
     expect(next.events.filter((event) => event.componentId === 'broken')).toEqual([]);
   });
 
+  it('keeps Serial TX state isolated per Arduino board', () => {
+    const done = through(
+      circuit([
+        board('a', 'void setup(){Serial.begin(9600);Serial.println(11);}void loop(){delay(100);}'),
+        board(
+          'b',
+          'void setup(){Serial.begin(115200);Serial.println(22);}void loop(){delay(100);}',
+        ),
+      ]),
+      10,
+    );
+
+    expect(done.executionStatus, JSON.stringify(done.diagnostics)).toBe('ready');
+    expect(runtime(done, 'a').serial).toMatchObject({ baudRate: 9600, nextTxSequence: 1 });
+    expect(runtime(done, 'a').serial?.tx.map((entry) => entry.text)).toEqual(['11\n']);
+    expect(runtime(done, 'b').serial).toMatchObject({ baudRate: 115200, nextTxSequence: 1 });
+    expect(runtime(done, 'b').serial?.tx.map((entry) => entry.text)).toEqual(['22\n']);
+  });
+
   it('keeps unsupported member calls board-local with no previous loaded program', () => {
     const result = through(
-      circuit([board('uno', 'void setup(){Serial.println(1);}void loop(){}')]),
+      circuit([board('uno', 'void setup(){servo.write(90);}void loop(){}')]),
       10,
     );
     const boardState = result.state!.boards.find((entry) => entry.componentId === 'uno')!;
@@ -838,7 +857,7 @@ describe('Arduino shared dc-inputs-v1 circuit clock', () => {
   it('keeps last-good runtime running when editor source becomes unsupported', () => {
     const sourceA =
       'int count=0;void setup(){pinMode(13,OUTPUT);}void loop(){count++;digitalWrite(13,count%2);}';
-    const unsupportedU = 'void setup(){Serial.println(1);}void loop(){}';
+    const unsupportedU = 'void setup(){servo.write(90);}void loop(){}';
     const loadedA = through(circuit([board('uno', sourceA)]), 10);
     const countAtA = runtime(loadedA).variables.count ?? 0;
 
@@ -864,7 +883,7 @@ describe('Arduino shared dc-inputs-v1 circuit clock', () => {
         'a-valid',
         'void setup(){pinMode(13,OUTPUT);digitalWrite(13,HIGH);}void loop(){delay(100);}',
       ),
-      board('b-unsupported', 'void setup(){Serial.println(1);}void loop(){}'),
+      board('b-unsupported', 'void setup(){servo.write(90);}void loop(){}'),
     ]);
     const done = through(doc, 10);
 
