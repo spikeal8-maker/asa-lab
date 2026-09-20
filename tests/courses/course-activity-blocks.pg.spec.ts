@@ -124,6 +124,51 @@ async function authorized(blocks: unknown[]) {
   return result.rows[0].ok as boolean;
 }
 
+async function classroomWithSeat() {
+  sequence += 1;
+  const classroom = (
+    await admin.query(
+      'INSERT INTO classrooms(tenant_id,school_id,academic_period_id,title,created_by) VALUES($1,$2,$3,$4,$5) RETURNING id',
+      [
+        author.tenantId,
+        author.schoolId,
+        author.periodId,
+        `D3b class ${sequence}`,
+        author.teacherId,
+      ],
+    )
+  ).rows[0].id as string;
+  await admin.query(
+    "INSERT INTO classroom_memberships(tenant_id,classroom_id,user_id,account_id,member_role) VALUES($1,$2,$3,$4,'owner')",
+    [author.tenantId, classroom, author.teacherId, accountId],
+  );
+  const seat = (
+    await admin.query(
+      "INSERT INTO classroom_student_seats(tenant_id,classroom_id,display_label,login_handle,normalized_login_handle,safe_mode,status,created_by) VALUES($1,$2,'D3b learner',$3,$3,true,'active',$4) RETURNING id",
+      [author.tenantId, classroom, `d3b-seat-${sequence}`, author.teacherId],
+    )
+  ).rows[0].id as string;
+  return { classroom, seat };
+}
+
+async function assignCourseRun(
+  courseId: string,
+  classroomId: string,
+  seatId: string,
+  requestId: string,
+) {
+  return inTenant(
+    author,
+    async (client) =>
+      (
+        await client.query(
+          "SELECT * FROM classroom_course_run_assign_v3($1,$2,$3,NULL,1,'named_learners',$4::uuid[],$5)",
+          [principalId, classroomId, courseId, [seatId], requestId],
+        )
+      ).rows[0],
+  );
+}
+
 describe('E1-FIX-11D2 canonical Activity blocks', () => {
   it('accepts the Activity shape and rejects a malformed version UUID', async () => {
     const exact = await publishActivity(author, principalId, 'electronics');
@@ -304,5 +349,148 @@ describe('E1-FIX-11D2 canonical Activity blocks', () => {
       [published.rows[0].version_id],
     );
     expect(frozen.rows[0].version_id).toBe(electronics.versionId);
+  });
+});
+
+describe('E1-FIX-11D3b Course Activity block materialization', () => {
+  it('materializes two frozen Activity blocks into distinct runs, handouts and inherited participations', async () => {
+    const blockA = await publishActivity(author, principalId, 'electronics');
+    const blockB = await publishActivity(author, principalId, 'three-d');
+    const { courseId, sectionId } = await newCourse('D3b block materialization');
+    const blocks = [
+      { id: 'activity-block-a', type: 'activity', learningActivityVersionId: blockA.versionId },
+      { id: 'activity-block-b', type: 'activity', learningActivityVersionId: blockB.versionId },
+    ];
+    const lessonId = (
+      await admin.query(
+        "SELECT course_lesson_save_v3($1,$2,$3,NULL,'D3b blocks',NULL,$4::jsonb,'material',NULL,15,NULL) AS id",
+        [principalId, courseId, sectionId, JSON.stringify(blocks)],
+      )
+    ).rows[0].id as string;
+    const revision = Number(
+      (await admin.query('SELECT draft_revision FROM courses WHERE id=$1', [courseId])).rows[0]
+        .draft_revision,
+    );
+    const published = (
+      await admin.query('SELECT * FROM course_publish_v3($1,$2,$3,$4)', [
+        principalId,
+        courseId,
+        revision,
+        `d3b:course:publish:${++sequence}`,
+      ])
+    ).rows[0];
+    expect(published).toMatchObject({ result_code: 'ok', version_number: 1 });
+
+    const { classroom, seat } = await classroomWithSeat();
+    const requestId = `d3b:course:assign:${++sequence}`;
+    const assigned = await assignCourseRun(courseId, classroom, seat, requestId);
+    expect(assigned).toMatchObject({ result_code: 'ok', reused: false });
+
+    const runLesson = (
+      await admin.query(
+        'SELECT id,source_lesson_id,blocks FROM classroom_course_run_lessons WHERE run_id=$1',
+        [assigned.run_id],
+      )
+    ).rows[0];
+    expect(runLesson.source_lesson_id).toBe(lessonId);
+    expect(runLesson.blocks).toEqual(blocks);
+
+    const materialized = (
+      await admin.query(
+        `SELECT run.id,run.source_course_lesson_id,run.source_course_block_id,
+                run.learning_activity_version_id,run.source_classroom_assignment_id,
+                assignment.assignment_id,assignment.course_run_id,assignment.status,
+                count(part.id)::int AS participation_count
+           FROM activity_runs run
+           JOIN classroom_assignments assignment
+             ON assignment.id=run.source_classroom_assignment_id
+           LEFT JOIN activity_participations part ON part.activity_run_id=run.id
+          WHERE run.source_course_run_id=$1
+          GROUP BY run.id,assignment.id
+          ORDER BY run.source_course_block_id`,
+        [assigned.run_id],
+      )
+    ).rows;
+    expect(materialized).toHaveLength(2);
+    expect(materialized.map((row) => row.source_course_block_id)).toEqual([
+      'activity-block-a',
+      'activity-block-b',
+    ]);
+    expect(materialized.map((row) => row.learning_activity_version_id)).toEqual([
+      blockA.versionId,
+      blockB.versionId,
+    ]);
+    expect(materialized.every((row) => row.source_course_lesson_id === runLesson.id)).toBe(true);
+    expect(new Set(materialized.map((row) => row.id)).size).toBe(2);
+    expect(new Set(materialized.map((row) => row.source_classroom_assignment_id)).size).toBe(2);
+    expect(
+      materialized.every(
+        (row) =>
+          row.assignment_id === null &&
+          row.course_run_id === assigned.run_id &&
+          row.status === 'open' &&
+          row.participation_count === 1,
+      ),
+    ).toBe(true);
+
+    const retried = await assignCourseRun(courseId, classroom, seat, requestId);
+    expect(retried).toMatchObject({
+      result_code: 'ok',
+      run_id: assigned.run_id,
+      reused: true,
+    });
+    const retryCounts = (
+      await admin.query(
+        `SELECT
+           (SELECT count(*)::int FROM activity_runs WHERE source_course_run_id=$1) AS activity_runs,
+           (SELECT count(*)::int FROM classroom_assignments WHERE course_run_id=$1) AS handouts,
+           (SELECT count(*)::int FROM activity_participations part
+              JOIN activity_runs run ON run.id=part.activity_run_id
+             WHERE run.source_course_run_id=$1) AS participations`,
+        [assigned.run_id],
+      )
+    ).rows[0];
+    expect(retryCounts).toEqual({ activity_runs: 2, handouts: 2, participations: 2 });
+  });
+  it('preserves legacy lesson-level ActivityRun with a null block identity', async () => {
+    const legacy = await publishActivity(author, principalId, 'electronics');
+    const { courseId, sectionId } = await newCourse('D3b legacy runtime');
+    await admin.query(
+      "SELECT course_lesson_save_v3($1,$2,$3,NULL,'Legacy runtime',NULL,'[]'::jsonb,'assignment',NULL,20,$4)",
+      [principalId, courseId, sectionId, legacy.versionId],
+    );
+    const revision = Number(
+      (await admin.query('SELECT draft_revision FROM courses WHERE id=$1', [courseId])).rows[0]
+        .draft_revision,
+    );
+    await admin.query('SELECT * FROM course_publish_v3($1,$2,$3,$4)', [
+      principalId,
+      courseId,
+      revision,
+      `d3b:legacy:publish:${++sequence}`,
+    ]);
+    const { classroom, seat } = await classroomWithSeat();
+    const assigned = await assignCourseRun(
+      courseId,
+      classroom,
+      seat,
+      `d3b:legacy:assign:${++sequence}`,
+    );
+    const runs = (
+      await admin.query(
+        `SELECT run.source_course_block_id,run.learning_activity_version_id,
+                run.source_classroom_assignment_id,lesson.classroom_assignment_id
+           FROM activity_runs run
+           JOIN classroom_course_run_lessons lesson ON lesson.id=run.source_course_lesson_id
+          WHERE run.source_course_run_id=$1`,
+        [assigned.run_id],
+      )
+    ).rows;
+    expect(runs).toHaveLength(1);
+    expect(runs[0]).toMatchObject({
+      source_course_block_id: null,
+      learning_activity_version_id: legacy.versionId,
+    });
+    expect(runs[0].source_classroom_assignment_id).toBe(runs[0].classroom_assignment_id);
   });
 });
