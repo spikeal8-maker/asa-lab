@@ -362,7 +362,9 @@ test('shipping fullscreen host loads the account avatar in ASA only and survives
     await frame.locator('body').evaluate(() => {
       window.dispatchEvent(new ErrorEvent('error', { message: 'protocol-fixture-fatal' }));
     });
-    await expect(page.getByRole('status')).toContainText('Ошибка Scratch runtime');
+    const failureOverlay = page.locator('[data-asa-blocks-loading-overlay]');
+    await expect(failureOverlay).toHaveAttribute('data-state', 'error');
+    await expect(failureOverlay).toContainText('Не удалось открыть среду');
     await expect(account).toBeVisible();
     await expect(avatar).toBeVisible();
     await page.screenshot({ path: `${evidenceDir}/03-parent-survives-failure.png` });
@@ -1177,7 +1179,10 @@ test('ready editor has no footer; connection error stays actionable outside the 
         await frame.locator('body').evaluate(() => {
           window.dispatchEvent(new ErrorEvent('error', { message: 'protocol-fixture-fatal' }));
         });
-        await expect(page.getByRole('status')).toContainText('Ошибка Scratch runtime');
+        await expect(page.locator('[data-asa-blocks-loading-overlay]')).toHaveAttribute(
+          'data-state',
+          'error',
+        );
       }
       for (const size of [
         { width: 1440, height: 960 },
@@ -1186,32 +1191,24 @@ test('ready editor has no footer; connection error stays actionable outside the 
         { width: 320, height: 720 },
       ]) {
         await page.setViewportSize(size);
-        const status = page.getByRole('status');
+        const overlay = page.locator('[data-asa-blocks-loading-overlay]');
         const iframe = await page.locator('iframe[title="Scratch runtime"]').boundingBox();
         expect(iframe).not.toBeNull();
         expect(iframe!.x).toBe(0);
         expect(iframe!.y).toBe(0);
         expect(iframe!.width).toBe(size.width);
+        expect(iframe!.height).toBeCloseTo(size.height, 1);
         await expect(frame.locator('#runtime-status')).toBeHidden();
+        await expect(page.locator('.blocks-editor-connection-status')).toHaveCount(0);
         if (state === 'ready') {
-          await expect(status).toHaveCount(0);
-          expect(iframe!.height).toBeCloseTo(size.height, 1);
-          await expect(page.locator('.blocks-editor-connection-status')).toHaveCount(0);
+          await expect(overlay).toHaveAttribute('data-state', 'ready');
+          await expect(overlay).toHaveAttribute('aria-hidden', 'true');
         } else {
-          await expect(status).toHaveCount(1);
-          await expect(status).toContainText('Ошибка Scratch runtime');
-          await expect(page.getByRole('button', { name: 'Повторить подключение' })).toBeVisible();
-          const footer = await status.boundingBox();
-          expect(footer).not.toBeNull();
-          expect(iframe!.y + iframe!.height).toBeLessThanOrEqual(footer!.y);
-          expect(iframe!.height + footer!.height).toBeCloseTo(size.height, 1);
-          expect(
-            await status.evaluate(
-              (element) =>
-                element.scrollWidth <= element.clientWidth &&
-                element.scrollHeight <= element.clientHeight,
-            ),
-          ).toBe(true);
+          await expect(overlay).toHaveAttribute('data-state', 'error');
+          await expect(overlay).toContainText('Не удалось открыть среду');
+          await expect(page.getByRole('button', { name: 'Повторить', exact: true })).toBeVisible();
+          const box = await overlay.boundingBox();
+          expect(box).toEqual({ x: 0, y: 0, width: size.width, height: size.height });
         }
         expect(
           await page.evaluate(
@@ -2143,18 +2140,18 @@ test('unreachable Scratch times out and can reconnect without hiding the editor'
   try {
     await page.route(`${runtimeUrl}/**`, blockRuntime);
     await page.goto(`${parentOrigin}/product`, { waitUntil: 'domcontentloaded' });
-    await expect(page.getByRole('status')).toContainText('Ошибка Scratch runtime', {
-      timeout: 55000,
-    });
-    await expect(page.getByRole('status')).toContainText('Ошибка Scratch runtime');
+    const overlay = page.locator('[data-asa-blocks-loading-overlay]');
+    await expect(overlay).toHaveAttribute('data-state', 'error', { timeout: 55000 });
+    await expect(overlay).toContainText('Не удалось открыть среду');
     await expect(page.locator('[data-asa-blocks-account-overlay]')).toBeVisible();
     await page.unroute(`${runtimeUrl}/**`, blockRuntime);
-    await page.getByRole('button', { name: 'Повторить подключение' }).click();
+    await page.getByRole('button', { name: 'Повторить', exact: true }).click();
+    await expect(overlay).toHaveAttribute('data-state', 'loading');
     await expect(
       page.frameLocator('iframe[title="Scratch runtime"]').locator('[data-asa-host-shell]'),
     ).toHaveAttribute('data-editor-state', 'ready', { timeout: 45000 });
-    await expect(page.getByRole('button', { name: 'Повторить подключение' })).toHaveCount(0);
-    await expect(page.getByRole('status')).toHaveCount(0);
+    await expect(overlay).toHaveAttribute('data-state', 'ready');
+    await expect(page.getByRole('button', { name: 'Повторить', exact: true })).toHaveCount(0);
     expect(fixture.pageErrors).toEqual([]);
   } finally {
     await fixture.close();

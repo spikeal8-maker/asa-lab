@@ -132,6 +132,59 @@ afterEach(async () => {
 });
 
 describe('BlocksEditor runtime session bootstrap', () => {
+  it('shows the ASA loading overlay on first render without raw runtime status UI', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => jsonResponse(session())),
+    );
+    await renderEditor();
+
+    const overlay = container!.querySelector<HTMLElement>('[data-asa-blocks-loading-overlay]');
+    expect(overlay).not.toBeNull();
+    expect(overlay?.dataset.state).toBe('loading');
+    expect(overlay?.textContent).toContain('Загружаем рабочую среду…');
+    expect(overlay?.textContent).toContain('Открываем ваш проект');
+    expect(overlay?.querySelector<HTMLImageElement>('.blocks-editor-loading-mark')?.src).toContain(
+      '/asa-lab-mark.svg',
+    );
+    expect(overlay?.querySelector('.blocks-editor-loading-spinner')).not.toBeNull();
+    expect(container!.querySelector('.blocks-editor-connection-status')).toBeNull();
+    expect(overlay?.textContent).not.toContain('Scratch');
+  });
+
+  it('keeps technical child statuses hidden and dismisses the overlay only on editor-ready', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => jsonResponse(session())),
+    );
+    const iframe = await renderEditor();
+    const postMessage = spyOnPostMessage(iframe);
+    await fireLoad(iframe);
+    const init = initCalls(postMessage)[0]?.[0] as Record<string, unknown>;
+    const overlay = container!.querySelector<HTMLElement>('[data-asa-blocks-loading-overlay]');
+    expect(overlay?.dataset.state).toBe('loading');
+
+    for (const status of ['init-accepted', 'token-updated', 'project-dirty']) {
+      await dispatchChild(iframe, init, {
+        messageType: 'ASA_BLOCKS_STATUS',
+        status,
+        ...(status === 'project-dirty' ? { generation: 1 } : {}),
+      });
+      expect(overlay?.dataset.state).toBe('loading');
+      expect(container?.textContent).not.toContain(status);
+    }
+    await dispatchChild(iframe, init, { messageType: 'ASA_BLOCKS_READY' });
+    expect(overlay?.dataset.state).toBe('loading');
+    expect(container?.textContent).not.toContain('Scratch готов');
+
+    await dispatchChild(iframe, init, {
+      messageType: 'ASA_BLOCKS_STATUS',
+      status: 'editor-ready',
+    });
+    expect(overlay?.dataset.state).toBe('ready');
+    expect(overlay?.getAttribute('aria-hidden')).toBe('true');
+  });
+
   it('sends real bootstrap values in INIT without persisting the capability', async () => {
     const fetchMock = vi.fn(async () => jsonResponse(session()));
     vi.stubGlobal('fetch', fetchMock);
@@ -176,7 +229,7 @@ describe('BlocksEditor runtime session bootstrap', () => {
     await fireLoad(iframe);
 
     expect(initCalls(postMessage)).toHaveLength(0);
-    expect(container?.textContent).toContain('Ошибка Scratch runtime');
+    expect(container?.textContent).toContain('Не удалось открыть среду');
   });
 
   it('does not INIT when the runtime-session request fails', async () => {
@@ -192,7 +245,7 @@ describe('BlocksEditor runtime session bootstrap', () => {
     await fireLoad(iframe);
 
     expect(initCalls(postMessage)).toHaveLength(0);
-    expect(container?.textContent).toContain('Ошибка Scratch runtime');
+    expect(container?.textContent).toContain('Не удалось открыть среду');
   });
 
   it('fails closed when a successful response is malformed', async () => {
@@ -211,7 +264,7 @@ describe('BlocksEditor runtime session bootstrap', () => {
     await fireLoad(iframe);
 
     expect(initCalls(postMessage)).toHaveLength(0);
-    expect(container?.textContent).toContain('Ошибка Scratch runtime');
+    expect(container?.textContent).toContain('Не удалось открыть среду');
   });
 
   it('fails closed when API runtimeOrigin differs from configured Scratch origin', async () => {
@@ -231,7 +284,7 @@ describe('BlocksEditor runtime session bootstrap', () => {
     await fireLoad(iframe);
 
     expect(initCalls(postMessage)).toHaveLength(0);
-    expect(container?.textContent).toContain('Ошибка Scratch runtime');
+    expect(container?.textContent).toContain('Не удалось открыть среду');
   });
 
   it('requests a new capability after retry instead of reusing a failed session', async () => {
@@ -246,8 +299,8 @@ describe('BlocksEditor runtime session bootstrap', () => {
     await fireLoad(firstIframe);
     expect(initCalls(firstPostMessage)).toHaveLength(0);
 
-    const retry = Array.from(container!.querySelectorAll('button')).find((button) =>
-      button.textContent?.includes('Повторить подключение'),
+    const retry = Array.from(container!.querySelectorAll('button')).find(
+      (button) => button.textContent?.trim() === 'Повторить',
     );
 
     if (!retry) throw new Error('Retry button was not rendered');

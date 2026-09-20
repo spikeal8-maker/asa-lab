@@ -16,6 +16,7 @@ interface BlocksEditorProps {
 }
 
 const CAPABILITY_REFRESH_WINDOW_MS = 60_000;
+type BlocksEditorStartupState = 'loading' | 'ready' | 'error';
 
 function configuredRuntimeOrigin(): string | null {
   if (typeof window === 'undefined') return null;
@@ -56,7 +57,7 @@ export function BlocksEditor({
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const bridgeRef = useRef<BlocksRuntimeBridge | null>(null);
   const homeSavePendingRef = useRef(false);
-  const [status, setStatus] = useState('Подключение Scratch…');
+  const [startupState, setStartupState] = useState<BlocksEditorStartupState>('loading');
   const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
@@ -71,7 +72,7 @@ export function BlocksEditor({
     let refreshController: AbortController | null = null;
     let refreshPromise: Promise<boolean> | null = null;
     const startupTimer = window.setTimeout(() => {
-      if (!disposed) setStatus('Ошибка Scratch runtime');
+      if (!disposed) setStartupState('error');
     }, 45000);
 
     const clearRefreshTimer = (): void => {
@@ -132,17 +133,15 @@ export function BlocksEditor({
     const failStartup = (): void => {
       if (disposed) return;
       window.clearTimeout(startupTimer);
-      setStatus('Ошибка Scratch runtime');
+      setStartupState('error');
     };
 
     const onMessage = (event: MessageEvent): void => {
       if (!bridge?.acceptChildMessage(event)) return;
       const payload = event.data as Record<string, unknown>;
-      if (payload['messageType'] === 'ASA_BLOCKS_STATUS') {
-        if (payload['status'] === 'project-dirty') return;
-        if (payload['status'] === 'token-updated') return;
-        if (payload['status'] === 'editor-ready') window.clearTimeout(startupTimer);
-        setStatus(String(payload['status'] ?? 'Scratch подключён'));
+      if (payload['messageType'] === 'ASA_BLOCKS_STATUS' && payload['status'] === 'editor-ready') {
+        window.clearTimeout(startupTimer);
+        setStartupState('ready');
       }
       if (payload['messageType'] === 'ASA_BLOCKS_TOKEN_REFRESH_REQUIRED') {
         void refreshCapability();
@@ -185,9 +184,7 @@ export function BlocksEditor({
           hasProjectJson: session.projectJson !== null,
           assets: session.assets,
           recoveryPrincipalKey,
-          onMessage: (message) => {
-            if (message['messageType'] === 'ASA_BLOCKS_READY') setStatus('Scratch готов');
-          },
+          onMessage: () => undefined,
           onFatal: failStartup,
         });
         bridgeRef.current = bridge;
@@ -212,7 +209,7 @@ export function BlocksEditor({
       if (bridgeRef.current === bridge) bridgeRef.current = null;
       bridge = null;
       homeSavePendingRef.current = false;
-      setStatus('Подключение Scratch…');
+      setStartupState('loading');
       void connect(loadGeneration, requestController);
     };
 
@@ -278,23 +275,53 @@ export function BlocksEditor({
           src={`${runtimeOrigin}/?asaStatus=parent`}
         />
       </BlocksEditorShell>
-      {status !== 'editor-ready' ? (
-        <div className="blocks-editor-connection-status" role="status">
-          {status}
-          {status === 'Ошибка Scratch runtime' ? (
-            <button
-              type="button"
-              className="blocks-editor-retry"
-              onClick={() => {
-                setStatus('Подключение Scratch…');
-                setAttempt((value) => value + 1);
-              }}
-            >
-              Повторить подключение
-            </button>
-          ) : null}
+      <div
+        className="blocks-editor-loading-overlay"
+        data-asa-blocks-loading-overlay
+        data-state={startupState}
+        role={startupState === 'error' ? 'alert' : 'status'}
+        aria-live={startupState === 'error' ? 'assertive' : 'polite'}
+        aria-hidden={startupState === 'ready'}
+      >
+        <div className="blocks-editor-loading-content">
+          <div className="blocks-editor-loading-visual" aria-hidden="true">
+            <span className="blocks-editor-loading-spinner" />
+            <img className="blocks-editor-loading-mark" src="/asa-lab-mark.svg" alt="" />
+          </div>
+          {startupState === 'error' ? (
+            <>
+              <h1 className="blocks-editor-loading-title">Не удалось открыть среду</h1>
+              <p className="blocks-editor-loading-detail">
+                Проверьте подключение и попробуйте снова.
+              </p>
+              <div className="blocks-editor-loading-actions">
+                <button
+                  type="button"
+                  className="blocks-editor-loading-button blocks-editor-loading-button-primary"
+                  onClick={() => {
+                    setStartupState('loading');
+                    setAttempt((value) => value + 1);
+                  }}
+                >
+                  Повторить
+                </button>
+                <button
+                  type="button"
+                  className="blocks-editor-loading-button blocks-editor-loading-button-secondary"
+                  onClick={onBack}
+                >
+                  К проектам
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="blocks-editor-loading-title">Загружаем рабочую среду…</p>
+              <p className="blocks-editor-loading-detail">Открываем ваш проект</p>
+            </>
+          )}
         </div>
-      ) : null}
+      </div>
     </div>
   );
 }
