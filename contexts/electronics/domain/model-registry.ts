@@ -268,25 +268,25 @@ export function electricalModelFor(component: SchematicComponent): ElectricalMod
             ? PING_ULTRASONIC_MODEL
             : installed && component.componentTypeId === 'ultrasonic-hc-sr04'
               ? HC_SR04_MODEL
-            : installed && component.componentTypeId === 'servo-motor'
-              ? SERVO_MOTOR_MODEL
-              : !installed
-                ? MODELS.visual
-                : isArduinoUno(component)
-                  ? ARDUINO_UNO_MODEL
-                  : component.componentTypeId === 'dc-motor' ||
-                      component.componentTypeId === 'gearmotor' ||
-                      component.componentTypeId === 'vibration-motor'
-                    ? DC_MOTOR_MODEL
-                    : component.componentTypeId === 'electrolytic-capacitor'
-                      ? ELECTROLYTIC_CAPACITOR_MODEL
-                      : component.componentTypeId === 'multimeter'
-                        ? DIGITAL_MULTIMETER_MODEL
-                        : component.componentTypeId === 'signal-generator'
-                          ? FUNCTION_GENERATOR_MODEL
-                          : component.componentTypeId === 'oscilloscope'
-                            ? OSCILLOSCOPE_MODEL
-                            : MODELS[component.kind];
+              : installed && component.componentTypeId === 'servo-motor'
+                ? SERVO_MOTOR_MODEL
+                : !installed
+                  ? MODELS.visual
+                  : isArduinoUno(component)
+                    ? ARDUINO_UNO_MODEL
+                    : component.componentTypeId === 'dc-motor' ||
+                        component.componentTypeId === 'gearmotor' ||
+                        component.componentTypeId === 'vibration-motor'
+                      ? DC_MOTOR_MODEL
+                      : component.componentTypeId === 'electrolytic-capacitor'
+                        ? ELECTROLYTIC_CAPACITOR_MODEL
+                        : component.componentTypeId === 'multimeter'
+                          ? DIGITAL_MULTIMETER_MODEL
+                          : component.componentTypeId === 'signal-generator'
+                            ? FUNCTION_GENERATOR_MODEL
+                            : component.componentTypeId === 'oscilloscope'
+                              ? OSCILLOSCOPE_MODEL
+                              : MODELS[component.kind];
   return {
     ...base,
     id: installed ? (identity.electricalModelId as ElectricalModelId) : 'unsupported',
