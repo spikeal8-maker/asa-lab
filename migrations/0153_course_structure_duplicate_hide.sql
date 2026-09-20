@@ -814,7 +814,7 @@ CREATE OR REPLACE FUNCTION public.assignment_media_visible(
     p_seat_id       uuid
 )
 RETURNS boolean
-LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
     SELECT CASE
         WHEN p_seat_id IS NOT NULL THEN EXISTS (
             SELECT 1
@@ -883,7 +883,7 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $
         )
         ELSE false
     END;
-$;
+$$;
 
 REVOKE ALL ON FUNCTION public.course_publish(uuid,uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.course_publish(uuid,uuid) TO asalab_app;
