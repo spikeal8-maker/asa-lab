@@ -1308,3 +1308,146 @@ for (const module of ['electronics', 'three-d'])
     });
     await context.close();
   });
+
+test('Course Activity blocks preserve mixed order and open exact Electronics and 3D runtimes', async ({
+  browser,
+  page,
+}) => {
+  test.setTimeout(240_000);
+  const suffix = ++sequence;
+  const electronicsTitle = `D5 Electronics Activity ${suffix}`;
+  const threeDTitle = `D5 3D Activity ${suffix}`;
+  const courseTitle = `D5 Activity blocks ${suffix}`;
+
+  await createPublishedProjectActivity(page, electronicsTitle, 'electronics');
+  await createPublishedProjectActivity(page, threeDTitle, 'three-d');
+
+  await page.getByRole('button', { name: 'Мои курсы', exact: true }).click();
+  await page.getByRole('button', { name: 'Создать курс', exact: true }).click();
+  const form = page.getByRole('dialog', { name: 'Новый курс' });
+  await form.getByLabel('Название', { exact: true }).fill(courseTitle);
+  await form.getByRole('button', { name: 'Создать курс', exact: true }).click();
+
+  const editor = page.getByTestId('course-editor');
+  await editor
+    .locator('.course-outline')
+    .getByRole('button', { name: '+ Урок', exact: true })
+    .click();
+  await editor.getByLabel('Название урока').fill('Смешанная практика');
+  await editor.getByLabel('Текст блока', { exact: true }).fill('Перед Electronics');
+
+  await editor.getByRole('button', { name: '+ Практика', exact: true }).click();
+  await editor
+    .getByLabel('Опубликованная активность')
+    .nth(0)
+    .selectOption({ label: electronicsTitle });
+
+  await editor.getByRole('button', { name: '+ Врезка', exact: true }).click();
+  await editor.getByLabel('Текст врезки', { exact: true }).fill('Между двумя практиками');
+
+  await editor.getByRole('button', { name: '+ Практика', exact: true }).click();
+  await editor
+    .getByLabel('Опубликованная активность')
+    .nth(1)
+    .selectOption({ label: threeDTitle });
+
+  await editor.getByRole('button', { name: 'Добавить урок', exact: true }).click();
+  await expect(page.getByText('Урок добавлен.', { exact: true })).toBeVisible();
+
+  await editor.getByRole('button', { name: 'Предпросмотр', exact: true }).click();
+  const preview = page.getByTestId('course-preview-page');
+  const previewBlocks = preview.locator('.lesson-blocks').first().locator(':scope > *');
+  await expect(previewBlocks).toHaveCount(4);
+  await expect(previewBlocks.nth(0)).toContainText('Перед Electronics');
+  await expect(previewBlocks.nth(1)).toContainText('Практика');
+  await expect(previewBlocks.nth(2)).toContainText('Между двумя практиками');
+  await expect(previewBlocks.nth(3)).toContainText('Практика');
+  await editor.getByRole('button', { name: 'Редактировать', exact: true }).click();
+
+  await editor.getByRole('button', { name: 'Опубликовать', exact: true }).click();
+  await expect(page.getByText('Курс опубликован: версия 1.', { exact: true })).toBeVisible();
+
+  const joinCode = await createClassWithStudents(page, 'D5 Activity class ' + suffix, [
+    { label: 'D5 learner', handle: 'd5-activity-' + suffix },
+  ]);
+  await page
+    .getByRole('navigation', { name: 'Разделы класса' })
+    .getByRole('button', { name: 'Обучение', exact: true })
+    .click();
+  await page
+    .getByRole('navigation', { name: 'Материалы класса' })
+    .getByRole('button', { name: 'Курсы', exact: true })
+    .click();
+  await page.getByLabel('Опубликованный курс').selectOption({ label: courseTitle + ' · v1' });
+  await page.getByRole('button', { name: 'Назначить курс', exact: true }).click();
+
+  const learner = await learnerAssignments(browser, joinCode, 'd5-activity-' + suffix);
+  const learnerFailures = collectBrowserFailures(learner.page, {
+    allowAnonymousSessionProbe: true,
+    allowAdminAccessProbe: true,
+  });
+
+  async function openCourse(): Promise<void> {
+    await learner.page.goto('/#/learning');
+    await learner.page
+      .getByTestId('seat-courses')
+      .getByRole('button')
+      .filter({ hasText: courseTitle })
+      .click();
+    await expect(learner.page.getByTestId('seat-course-player')).toBeVisible();
+  }
+
+  await openCourse();
+  const player = learner.page.getByTestId('seat-course-player');
+  const learnerBlocks = player.locator('.lesson-blocks').first().locator(':scope > *');
+  await expect(learnerBlocks).toHaveCount(4);
+  await expect(learnerBlocks.nth(0)).toContainText('Перед Electronics');
+  await expect(learnerBlocks.nth(1)).toContainText(electronicsTitle);
+  await expect(learnerBlocks.nth(2)).toContainText('Между двумя практиками');
+  await expect(learnerBlocks.nth(3)).toContainText(threeDTitle);
+
+  let electronicsCard = player.locator('.lesson-activity-block').filter({ hasText: electronicsTitle });
+  let threeDCard = player.locator('.lesson-activity-block').filter({ hasText: threeDTitle });
+  await expect(electronicsCard).toContainText('Electronics');
+  await expect(electronicsCard).toContainText('Не начато');
+  await expect(threeDCard).toContainText('3D');
+  await expect(threeDCard).toContainText('Не начато');
+
+  await electronicsCard.getByRole('button', { name: 'Начать', exact: true }).click();
+  await editRealProject(learner.page, 'electronics');
+
+  await openCourse();
+  electronicsCard = player.locator('.lesson-activity-block').filter({ hasText: electronicsTitle });
+  threeDCard = player.locator('.lesson-activity-block').filter({ hasText: threeDTitle });
+  await expect(electronicsCard.getByRole('button', { name: 'Открыть работу', exact: true })).toBeVisible();
+  await expect(threeDCard.getByRole('button', { name: 'Начать', exact: true })).toBeVisible();
+
+  await electronicsCard.getByRole('button', { name: 'Открыть работу', exact: true }).click();
+  await expect(learner.page.getByRole('button', { name: 'Резистор', exact: true })).toBeVisible({
+    timeout: 60_000,
+  });
+
+  await openCourse();
+  electronicsCard = player.locator('.lesson-activity-block').filter({ hasText: electronicsTitle });
+  learner.page.once('dialog', (dialog) => void dialog.accept());
+  await electronicsCard.getByRole('button', { name: 'Сдать', exact: true }).click();
+  await expect(
+    electronicsCard.getByRole('button', { name: 'Работа сдана', exact: true }),
+  ).toBeDisabled();
+  await expect(electronicsCard).toContainText(/Сдано|Ждёт проверки/);
+
+  threeDCard = player.locator('.lesson-activity-block').filter({ hasText: threeDTitle });
+  await expect(threeDCard.getByRole('button', { name: 'Начать', exact: true })).toBeVisible();
+  await threeDCard.getByRole('button', { name: 'Начать', exact: true }).click();
+  await editRealProject(learner.page, 'three-d');
+
+  await openCourse();
+  threeDCard = player.locator('.lesson-activity-block').filter({ hasText: threeDTitle });
+  await expect(threeDCard.getByRole('button', { name: 'Открыть работу', exact: true })).toBeVisible();
+  await threeDCard.getByRole('button', { name: 'Открыть работу', exact: true }).click();
+  await expect(learner.page.getByTestId('asa3d-viewport')).toBeVisible({ timeout: 60_000 });
+
+  learnerFailures.assertEmpty();
+  await learner.context.close();
+});
+
