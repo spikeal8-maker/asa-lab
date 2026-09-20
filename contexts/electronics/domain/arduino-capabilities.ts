@@ -76,8 +76,10 @@ export const ARDUINO_BLOCK_SUPPORT = {
   asa_neopixel_set: UNSUPPORTED('Библиотека NeoPixel ещё не исполняется.'),
   asa_digital_read: SUPPORTED('Считывает электрический уровень с D0–D13.'),
   asa_analog_read: SUPPORTED('Считывает напряжение A0–A5 как значение 0–1023.'),
-  asa_ultrasonic: UNSUPPORTED('pulseIn() и временная модель датчика ещё не реализованы.'),
-  asa_pulse_in: UNSUPPORTED('Измерение длительности импульса ещё не реализовано.'),
+  asa_ultrasonic: UNSUPPORTED('Временная модель ультразвукового датчика ещё не реализована.'),
+  asa_pulse_in: LIMITED(
+    'Измеряет HIGH/LOW импульс по canonical instruction-us-v1 времени; без AVR cycle accuracy.',
+  ),
   asa_millis: LIMITED('Возвращает детерминированное время текущего шага симуляции.'),
   asa_temperature: SUPPORTED('Преобразует поддерживаемое analogRead() по формуле TMP36.'),
   asa_servo_read: UNSUPPORTED('Сервопривод ещё не связан с Arduino-рантаймом.'),
@@ -148,7 +150,9 @@ export const ARDUINO_TEXT_COMMAND_SUPPORT = {
   micros: LIMITED(
     'Возвращает детерминированное instruction-us-v1 время в микросекундах без AVR cycle accuracy.',
   ),
-  pulseIn: UNSUPPORTED('Измерение длительности импульса ещё не реализовано.'),
+  pulseIn: LIMITED(
+    'Измеряет HIGH/LOW импульс по canonical instruction-us-v1 времени; без AVR cycle accuracy.',
+  ),
   random: UNSUPPORTED('Случайные числа не входят в детерминированный рантайм.'),
   randomSeed: UNSUPPORTED('Случайные числа не входят в детерминированный рантайм.'),
   'Serial.begin': UNSUPPORTED('Serial Monitor ещё не связан с программой.'),
@@ -238,6 +242,7 @@ const SUPPORTED_CALLS = new Set([
   'max',
   'millis',
   'micros',
+  'pulsein',
 ]);
 
 const CONTROL_CALLS = new Set(['if', 'while', 'for', 'switch']);
@@ -245,7 +250,6 @@ const CONTROL_CALLS = new Set(['if', 'while', 'for', 'switch']);
 const UNSUPPORTED_CALL_MESSAGES = new Map<string, string>([
   ['random', 'random() ещё не исполняется детерминированным рантаймом.'],
   ['randomseed', 'randomSeed() ещё не исполняется детерминированным рантаймом.'],
-  ['pulsein', 'pulseIn() и измерение длительности импульса ещё не реализованы.'],
   ['shiftin', 'shiftIn() ещё не исполняется.'],
   ['shiftout', 'shiftOut() ещё не исполняется.'],
   ['attachinterrupt', 'Прерывания ещё не моделируются.'],
@@ -434,6 +438,11 @@ export function analyseArduinoSourceSupport(
       expression: /\b(?:tone|noTone)\s*\(/gi,
       code: 'bounded-timing',
       message: 'Звуковой сигнал передаётся нагрузке без полной временной формы в общем solver.',
+    },
+    {
+      expression: /\bpulseIn\s*\(/gi,
+      code: 'bounded-timing',
+      message: 'pulseIn() ждёт canonical входные фронты и timeout без AVR cycle accuracy.',
     },
     {
       expression: /\b(?:millis|micros)\s*\(/gi,

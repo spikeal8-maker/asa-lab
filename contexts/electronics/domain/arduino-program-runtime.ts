@@ -1,5 +1,11 @@
 import type { Terminal } from './document.js';
 import {
+  advanceArduinoPulseWait,
+  beginArduinoPulseWait,
+  isArduinoPulseWaitState,
+  type ArduinoPulseWaitState,
+} from './arduino-pulse-runtime.js';
+import {
   ArduinoArithmeticError,
   assignBinding,
   binaryValue,
@@ -103,6 +109,7 @@ export interface ArduinoRuntimeState {
   readonly loopIterations: number;
   readonly nextEventSequence: number;
   readonly eventQueue: readonly ArduinoRuntimeEvent[];
+  readonly pulseWait?: ArduinoPulseWaitState | null;
   readonly variables: Readonly<Record<string, number>>;
   readonly locals: Readonly<Record<string, number>>;
   readonly scopes: readonly ArduinoScopeSnapshot[];
@@ -156,6 +163,7 @@ interface RuntimeState {
   readonly inputs: ArduinoTerminalVoltages;
   readonly actions: ArduinoProgramAction[];
   readonly diagnostics: ArduinoRuntimeDiagnostic[];
+  pulseWait: ArduinoPulseWaitState | null;
   simulationTimeMs: number;
   statementCount: number;
 }
@@ -186,10 +194,15 @@ const MAX_STATEMENTS = 512;
 const MAX_LOOP_ADVANCES = 4_096;
 const MAX_ADVANCE_STATEMENTS = 16_384;
 const MIN_LOOP_DURATION_MS = 1;
+const DEFAULT_PULSE_IN_TIMEOUT_US = 1_000_000;
 // Leave enough floating-point precision for lossless microsecond <-> ms state serialization.
 const MAX_CLOCK_MICROSECONDS = 2 ** 50 - 1;
 const MAX_CLOCK_TARGET_MS = (MAX_CLOCK_MICROSECONDS - 1000) / 1000;
 const PWM_TERMINALS = new Set<Terminal>(['d3', 'd5', 'd6', 'd9', 'd10', 'd11']);
+
+class ArduinoPulseWaitSignal {
+  constructor(readonly wakeAtMicroseconds: number) {}
+}
 
 function finite(value: number, fallback = 0): number {
   return Number.isFinite(value) ? value : fallback;
@@ -281,6 +294,10 @@ function runtimeStateIsValid(state: ArduinoRuntimeState): boolean {
     state.nextEventSequence >= 0 &&
     Array.isArray(state.eventQueue) &&
     state.eventQueue.length <= ARDUINO_RUNTIME_EVENT_QUEUE_LIMIT &&
+    (state.pulseWait == null ||
+      (isArduinoPulseWaitState(state.pulseWait) &&
+        isArduinoGpioTerminal(state.pulseWait.terminal) &&
+        state.pulseWait.deadlineMicroseconds <= MAX_CLOCK_MICROSECONDS)) &&
     state.eventQueue.every(
       (event, index) =>
         event !== null &&
@@ -833,6 +850,45 @@ class ExpressionParser {
             'unsigned long',
             microsecondsFromMilliseconds(this.state.simulationTimeMs) % 4294967296,
           );
+    if (lower === 'pulsein') {
+      if (this.validateOnly) return zeroValue('unsigned long');
+      const terminal = digitalTerminalFromPin(convertValue(argumentsList[0]!, 'byte').value);
+      const target = convertValue(argumentsList[1]!, 'byte').value;
+      if (target !== 0 && target !== 1)
+        throw new SyntaxError('pulseIn() принимает только HIGH или LOW как состояние импульса.');
+      if (!terminal) return zeroValue('unsigned long');
+      const timeoutMicroseconds = argumentsList[2]
+        ? convertValue(argumentsList[2], 'unsigned long').value
+        : DEFAULT_PULSE_IN_TIMEOUT_US;
+      const nowMicroseconds = microsecondsFromMilliseconds(this.state.simulationTimeMs);
+      const targetHigh = target === 1;
+      const targetActive =
+        (arduinoDigitalReading(this.state.inputs, terminal) !== 0) === targetHigh;
+      const pending = this.state.pulseWait;
+      if (
+        pending &&
+        (pending.terminal !== terminal ||
+          pending.targetHigh !== targetHigh ||
+          pending.timeoutMicroseconds !== timeoutMicroseconds)
+      )
+        throw new SyntaxError('Продолжение pulseIn() не соответствует текущему вызову.');
+      const step = pending
+        ? advanceArduinoPulseWait(pending, nowMicroseconds, targetActive)
+        : beginArduinoPulseWait(
+            terminal,
+            targetHigh,
+            timeoutMicroseconds,
+            nowMicroseconds,
+            Math.min(MAX_CLOCK_MICROSECONDS, nowMicroseconds + timeoutMicroseconds),
+            targetActive,
+          );
+      if (step.status === 'done') {
+        this.state.pulseWait = null;
+        return numericValue('unsigned long', step.durationMicroseconds % 4294967296);
+      }
+      this.state.pulseWait = step.state;
+      throw new ArduinoPulseWaitSignal(step.state.deadlineMicroseconds);
+    }
     throw new SyntaxError(`Команда «${name}» не поддерживается.`);
   }
 }
@@ -851,6 +907,7 @@ function validateCallArguments(name: string, count: number, expression = false):
     analogRead: [1, 1],
     millis: [0, 0],
     micros: [0, 0],
+    pulseIn: [2, 3],
     map: [5, 5],
     constrain: [3, 3],
     abs: [1, 1],
@@ -1428,6 +1485,7 @@ function compileArduinoProgram(source: string): ArduinoProgramCompilation {
       inputs: {},
       actions: [],
       diagnostics: [],
+      pulseWait: null,
       simulationTimeMs: 0,
       statementCount: 0,
     };
@@ -1520,7 +1578,10 @@ export function advanceClockedArduinoRuntime(
   simulationTimeMs = 0,
   previous?: ArduinoRuntimeState,
   readInputs?: ArduinoInputReader,
-  options: { readonly instructionBudget?: number } = {},
+  options: {
+    readonly instructionBudget?: number;
+    readonly pulseInputSample?: boolean;
+  } = {},
 ): ArduinoRuntimeAdvance {
   return advanceRuntime(
     source,
@@ -1532,6 +1593,7 @@ export function advanceClockedArduinoRuntime(
     Math.floor(
       clamp(options.instructionBudget ?? MAX_ADVANCE_STATEMENTS, 1, MAX_ADVANCE_STATEMENTS),
     ),
+    Boolean(options.pulseInputSample),
   );
 }
 
@@ -1543,6 +1605,7 @@ function advanceRuntime(
   readInputs: ArduinoInputReader | undefined,
   clockProfile: ArduinoClockProfile,
   instructionBudget = MAX_ADVANCE_STATEMENTS,
+  pulseInputSample = false,
 ): ArduinoRuntimeAdvance {
   const clocked = clockProfile === 'instruction-us-v1';
   const compilation = compileArduinoProgram(source);
@@ -1604,7 +1667,11 @@ function advanceRuntime(
     arduinoRuntimeStateMatchesProgram(source, previous) &&
     previous.clockProfile === clockProfile &&
     previous.virtualTimeMs <= targetTimeMs;
-  if (compatible && (previous.virtualTimeMs === targetTimeMs || previous.faults.length > 0)) {
+  if (
+    compatible &&
+    (previous.faults.length > 0 ||
+      (previous.virtualTimeMs === targetTimeMs && !(previous.pulseWait && pulseInputSample)))
+  ) {
     return {
       executionStatus: previous.faults.length > 0 ? 'fault' : 'ready',
       setupActions: [],
@@ -1638,6 +1705,9 @@ function advanceRuntime(
   const loopActions: ArduinoProgramAction[] = [];
   const resetAtMs = previous && previous.virtualTimeMs <= targetTimeMs ? targetTimeMs : 0;
   let resumeAtMs = compatible ? previous.resumeAtMs : resetAtMs;
+  let pulseWait = compatible ? (previous.pulseWait ?? null) : null;
+  if (clocked && compatible && pulseWait && pulseInputSample && resumeAtMs > targetTimeMs)
+    resumeAtMs = targetTimeMs;
   let phase: ArduinoRuntimeState['phase'] = compatible ? previous.phase : 'setup';
   let programCounter = compatible ? previous.programCounter : 0;
   let loopIterationActive = compatible ? previous.loopIterationActive : false;
@@ -1682,6 +1752,7 @@ function advanceRuntime(
       },
       actions: [],
       diagnostics,
+      pulseWait: null,
       simulationTimeMs: resetAtMs,
       statementCount: 0,
     };
@@ -1689,6 +1760,15 @@ function advanceRuntime(
       try {
         declareVariable(declaration, initializationState, true);
       } catch (error) {
+        if (error instanceof ArduinoPulseWaitSignal) {
+          diagnostics.push({
+            code: 'compile_error',
+            severity: 'error',
+            message: `Строка ${declaration.line ?? 1}: pulseIn() разрешён только внутри setup()/loop().`,
+            line: declaration.line ?? 1,
+          });
+          break;
+        }
         if (!(error instanceof SyntaxError) && !(error instanceof ArduinoArithmeticError))
           throw error;
         diagnostics.push({
@@ -1766,10 +1846,12 @@ function advanceRuntime(
       },
       actions,
       diagnostics,
+      pulseWait,
       simulationTimeMs: resumeAtMs,
       statementCount: clocked ? 0 : continuousStatementCount,
     };
     const statementCountBefore = instructionState.statementCount;
+    let pulseBlocked = false;
 
     try {
       if (instruction.kind === 'branch') {
@@ -1799,20 +1881,27 @@ function advanceRuntime(
         }
       }
     } catch (error) {
-      if (!(error instanceof SyntaxError) && !(error instanceof ArduinoArithmeticError))
-        throw error;
-      diagnostics.push({
-        code: error instanceof ArduinoArithmeticError ? 'arithmetic_error' : 'compile_error',
-        severity: 'error',
-        message: `Строка ${instruction.line}: ${error.message}`,
-        line: instruction.line,
-      });
+      if (error instanceof ArduinoPulseWaitSignal) {
+        pulseBlocked = true;
+        pulseWait = instructionState.pulseWait;
+        resumeAtMs = Math.min(MAX_CLOCK_MICROSECONDS, error.wakeAtMicroseconds) / 1000;
+      } else {
+        if (!(error instanceof SyntaxError) && !(error instanceof ArduinoArithmeticError))
+          throw error;
+        diagnostics.push({
+          code: error instanceof ArduinoArithmeticError ? 'arithmetic_error' : 'compile_error',
+          severity: 'error',
+          message: `Строка ${instruction.line}: ${error.message}`,
+          line: instruction.line,
+        });
+      }
     }
+    pulseWait = instructionState.pulseWait;
     const consumed = instructionState.statementCount - statementCountBefore;
     advanceStatementCount += consumed;
     continuousStatementCount =
       resumeAtMs > instructionState.simulationTimeMs ? 0 : instructionState.statementCount;
-    consumeClockInstruction();
+    if (!pulseBlocked) consumeClockInstruction();
   }
 
   const yielded = clocked && resumeAtMs <= targetTimeMs && diagnostics.length === 0;
@@ -1859,6 +1948,7 @@ function advanceRuntime(
     pinModes.clear();
     outputVoltages.clear();
     tones.clear();
+    pulseWait = null;
     resumeAtMs = Math.max(resumeAtMs, targetTimeMs);
   }
   return {
@@ -1879,6 +1969,7 @@ function advanceRuntime(
       loopIterations,
       nextEventSequence,
       eventQueue,
+      ...(pulseWait ? { pulseWait } : {}),
       variables: scopeNumbers(scopes.slice(0, 1)),
       locals: scopeNumbers(scopes.slice(1)),
       scopes: serializeScopes(scopes),
@@ -1900,5 +1991,5 @@ export function resetArduinoRuntime(
 }
 
 export function arduinoSourceUsesInputReads(source: string): boolean {
-  return /\b(?:analogRead|digitalRead)\s*\(/.test(removeComments(source));
+  return /\b(?:analogRead|digitalRead|pulseIn)\s*\(/.test(removeComments(source));
 }

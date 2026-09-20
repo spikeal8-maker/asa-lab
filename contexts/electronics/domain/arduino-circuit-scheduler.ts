@@ -514,6 +514,14 @@ export function advanceArduinoCircuitClock(
     frame.status === 'invalid' &&
     frame.diagnostics.some((entry) => entry.code === 'no_source') &&
     !frame.diagnostics.some((entry) => entry.severity === 'error' && entry.code !== 'no_source');
+  const nextPhysicsTime = (): number =>
+    hasPhysics
+      ? (Math.floor(
+          Math.round((physicalState?.simulationTimeMs ?? 0) * 1000) / PHYSICS_QUANTUM_US,
+        ) +
+          1) *
+        PHYSICS_QUANTUM_US
+      : Number.POSITIVE_INFINITY;
   const nextTime = (): number =>
     Math.min(
       ...runnableBoards.map((board) => {
@@ -522,18 +530,13 @@ export function advanceArduinoCircuitClock(
         return state ? Math.round(state.resumeAtMs * 1000) : 0;
       }),
       inputs[nextInputIndex]?.atMicroseconds ?? Number.POSITIVE_INFINITY,
-      hasPhysics
-        ? (Math.floor(
-            Math.round((physicalState?.simulationTimeMs ?? 0) * 1000) / PHYSICS_QUANTUM_US,
-          ) +
-            1) *
-            PHYSICS_QUANTUM_US
-        : Number.POSITIVE_INFINITY,
+      nextPhysicsTime(),
     );
   // A returned frame is never a speculative MCU state. Failure discards this whole batch.
   let clockEvents = 0;
   while (nextTime() <= targetMicroseconds && clockEvents < budget) {
     const time = nextTime();
+    const physicsDue = nextPhysicsTime() === time;
     if (hasPhysics) {
       const advanced = advancePhysics(time);
       if (!advanced.solved || !advanced.quality.passed || !advanced.transientState)
@@ -545,9 +548,11 @@ export function advanceArduinoCircuitClock(
       physicalState = advanced.transientState;
       cachedFrame = undefined;
     }
+    let inputChanged = false;
     while (inputs[nextInputIndex]?.atMicroseconds === time) {
       activeDocument = applyInput(activeDocument, inputs[nextInputIndex++]!);
       cachedFrame = undefined;
+      inputChanged = true;
     }
     const frame = sample(time);
     if (!frame.solved && !isNonFatalPassiveNoSource(frame))
@@ -561,9 +566,16 @@ export function advanceArduinoCircuitClock(
         'Не выполнены проверки конечности, KCL или напряжения источников.',
       );
     const updates: [string, ArduinoRuntimeState, string][] = [];
+    let electricalStateChanged = false;
     for (const board of runnableBoards) {
       const state = states.get(board.id);
-      if (!pendingProgramLoads.has(board.id) && state && Math.round(state.resumeAtMs * 1000) > time)
+      const pulseInputSample = Boolean(state?.pulseWait) && (inputChanged || physicsDue);
+      if (
+        !pendingProgramLoads.has(board.id) &&
+        state &&
+        Math.round(state.resumeAtMs * 1000) > time &&
+        !pulseInputSample
+      )
         continue;
       const executionSource = executionSources.get(board.id)!;
       const advanced = advanceClockedArduinoRuntime(
@@ -572,7 +584,7 @@ export function advanceArduinoCircuitClock(
         time / 1000,
         state,
         undefined,
-        { instructionBudget: 1 },
+        { instructionBudget: 1, pulseInputSample },
       );
       if (advanced.executionStatus === 'fault')
         return fault(
@@ -590,6 +602,12 @@ export function advanceArduinoCircuitClock(
       }
       updates.push([board.id, advanced.state, executionSource]);
       events.push(...advanced.events.map((event) => ({ ...event, componentId: board.id })));
+      if (
+        advanced.events.some(
+          (event) => event.kind === 'pin-mode-change' || event.kind === 'output-change',
+        )
+      )
+        electricalStateChanged = true;
       if (advanced.events.length > 0) cachedFrame = undefined;
     }
     // Commit together, after ALL due boards have consumed the same electrical frame.
@@ -597,6 +615,47 @@ export function advanceArduinoCircuitClock(
       states.set(id, state);
       loadedSources.set(id, loadedSource);
       pendingProgramLoads.delete(id);
+    }
+    if (electricalStateChanged) {
+      const pulseWaiters = runnableBoards.filter((board) => states.get(board.id)?.pulseWait);
+      if (pulseWaiters.length > 0) {
+        cachedFrame = undefined;
+        const postCommitFrame = sample(time);
+        if (!postCommitFrame.solved && !isNonFatalPassiveNoSource(postCommitFrame))
+          return fault(
+            'electrical_sample_failed',
+            postCommitFrame.diagnostics.map((entry) => entry.message).join(' '),
+          );
+        if (!postCommitFrame.quality.passed && !isNonFatalPassiveNoSource(postCommitFrame))
+          return fault(
+            'electrical_quality_failed',
+            'Не выполнены проверки конечности, KCL или напряжения источников.',
+          );
+        const pulseUpdates: [string, ArduinoRuntimeState, string][] = [];
+        for (const board of pulseWaiters) {
+          const executionSource = executionSources.get(board.id)!;
+          const advanced = advanceClockedArduinoRuntime(
+            executionSource,
+            postCommitFrame.components.find((entry) => entry.componentId === board.id)
+              ?.terminalVoltages ?? {},
+            time / 1000,
+            states.get(board.id),
+            undefined,
+            { instructionBudget: 1, pulseInputSample: true },
+          );
+          if (advanced.executionStatus === 'fault')
+            return fault(
+              'arduino_execution_failed',
+              advanced.diagnostics.map((entry) => entry.message).join(' '),
+            );
+          pulseUpdates.push([board.id, advanced.state, executionSource]);
+          events.push(...advanced.events.map((event) => ({ ...event, componentId: board.id })));
+        }
+        for (const [id, state, loadedSource] of pulseUpdates) {
+          states.set(id, state);
+          loadedSources.set(id, loadedSource);
+        }
+      }
     }
     reachedMicroseconds = time;
     clockEvents++;
