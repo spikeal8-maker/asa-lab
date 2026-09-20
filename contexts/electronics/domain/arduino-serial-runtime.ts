@@ -1,5 +1,7 @@
 export const ARDUINO_SERIAL_TX_HISTORY_LIMIT = 256 as const;
 export const ARDUINO_SERIAL_TX_TEXT_LIMIT = 1024 as const;
+export const ARDUINO_SERIAL_RX_BUFFER_LIMIT = 256 as const;
+export const ARDUINO_SERIAL_RX_INGRESS_TEXT_LIMIT = 1024 as const;
 const MAX_BAUD_RATE = 4_294_967_295;
 
 interface ArduinoSerialTxEntry {
@@ -8,16 +10,24 @@ interface ArduinoSerialTxEntry {
   readonly text: string;
 }
 
+interface ArduinoSerialRxEntry {
+  readonly sequence: number;
+  readonly atMicroseconds: number;
+  readonly byte: number;
+}
+
 export interface ArduinoSerialState {
   readonly version: 1;
   readonly begun: boolean;
   readonly baudRate?: number | undefined;
   readonly nextTxSequence: number;
   readonly tx: readonly ArduinoSerialTxEntry[];
+  readonly nextRxSequence?: number | undefined;
+  readonly rx?: readonly ArduinoSerialRxEntry[] | undefined;
 }
 
 export function initialArduinoSerialState(): ArduinoSerialState {
-  return { version: 1, begun: false, nextTxSequence: 0, tx: [] };
+  return { version: 1, begun: false, nextTxSequence: 0, tx: [], nextRxSequence: 0, rx: [] };
 }
 
 export function isArduinoSerialState(value: unknown): value is ArduinoSerialState {
@@ -40,7 +50,7 @@ export function isArduinoSerialState(value: unknown): value is ArduinoSerialStat
         state.baudRate > MAX_BAUD_RATE))
   )
     return false;
-  return state.tx.every(
+  const txValid = state.tx.every(
     (entry, index) =>
       entry !== null &&
       typeof entry === 'object' &&
@@ -53,6 +63,32 @@ export function isArduinoSerialState(value: unknown): value is ArduinoSerialStat
       (index === 0 || entry.atMicroseconds >= state.tx![index - 1]!.atMicroseconds) &&
       typeof entry.text === 'string' &&
       entry.text.length <= ARDUINO_SERIAL_TX_TEXT_LIMIT,
+  );
+  if (!txValid) return false;
+
+  const hasRx = state.rx !== undefined || state.nextRxSequence !== undefined;
+  if (!hasRx) return true;
+  if (
+    !Array.isArray(state.rx) ||
+    state.rx.length > ARDUINO_SERIAL_RX_BUFFER_LIMIT ||
+    !Number.isSafeInteger(state.nextRxSequence) ||
+    (state.nextRxSequence ?? -1) < 0
+  )
+    return false;
+  return state.rx.every(
+    (entry, index) =>
+      entry !== null &&
+      typeof entry === 'object' &&
+      Number.isSafeInteger(entry.sequence) &&
+      entry.sequence >= 0 &&
+      entry.sequence < state.nextRxSequence! &&
+      (index === 0 || entry.sequence > state.rx![index - 1]!.sequence) &&
+      Number.isSafeInteger(entry.atMicroseconds) &&
+      entry.atMicroseconds >= 0 &&
+      (index === 0 || entry.atMicroseconds >= state.rx![index - 1]!.atMicroseconds) &&
+      Number.isInteger(entry.byte) &&
+      entry.byte >= 0 &&
+      entry.byte <= 255,
   );
 }
 
@@ -94,6 +130,68 @@ export function appendArduinoSerialTx(
   if (tx.length > ARDUINO_SERIAL_TX_HISTORY_LIMIT)
     tx.splice(0, tx.length - ARDUINO_SERIAL_TX_HISTORY_LIMIT);
   return { ...state, nextTxSequence: state.nextTxSequence + 1, tx };
+}
+
+function utf8Bytes(text: string): readonly number[] {
+  const bytes: number[] = [];
+  for (const character of text) {
+    const codePoint = character.codePointAt(0)!;
+    if (codePoint <= 0x7f) bytes.push(codePoint);
+    else if (codePoint <= 0x7ff) {
+      bytes.push(0xc0 | (codePoint >> 6), 0x80 | (codePoint & 0x3f));
+    } else if (codePoint <= 0xffff) {
+      bytes.push(
+        0xe0 | (codePoint >> 12),
+        0x80 | ((codePoint >> 6) & 0x3f),
+        0x80 | (codePoint & 0x3f),
+      );
+    } else {
+      bytes.push(
+        0xf0 | (codePoint >> 18),
+        0x80 | ((codePoint >> 12) & 0x3f),
+        0x80 | ((codePoint >> 6) & 0x3f),
+        0x80 | (codePoint & 0x3f),
+      );
+    }
+  }
+  return bytes;
+}
+
+export function enqueueArduinoSerialRx(
+  state: ArduinoSerialState,
+  atMicroseconds: number,
+  payload: string,
+): ArduinoSerialState {
+  if (!isArduinoSerialState(state)) throw new TypeError('Invalid Arduino Serial state.');
+  if (!Number.isSafeInteger(atMicroseconds) || atMicroseconds < 0)
+    throw new RangeError('Serial RX timestamp must be a non-negative canonical microsecond.');
+  if (payload.length > ARDUINO_SERIAL_RX_INGRESS_TEXT_LIMIT)
+    throw new RangeError('Serial RX payload exceeds the bounded ingress size.');
+  if (!state.begun) return state;
+
+  const rx = [...(state.rx ?? [])];
+  let nextRxSequence = state.nextRxSequence ?? 0;
+  const capacity = ARDUINO_SERIAL_RX_BUFFER_LIMIT - rx.length;
+  for (const byte of utf8Bytes(payload).slice(0, capacity)) {
+    rx.push({ sequence: nextRxSequence, atMicroseconds, byte });
+    nextRxSequence += 1;
+  }
+  return { ...state, nextRxSequence, rx };
+}
+
+export function arduinoSerialAvailable(state: ArduinoSerialState | undefined): number {
+  return state?.begun ? (state.rx?.length ?? 0) : 0;
+}
+
+export function readArduinoSerial(state: ArduinoSerialState | undefined): {
+  readonly state: ArduinoSerialState | undefined;
+  readonly value: number;
+} {
+  if (!state?.begun) return { state, value: -1 };
+  if (!isArduinoSerialState(state)) throw new TypeError('Invalid Arduino Serial state.');
+  const rx = state.rx ?? [];
+  if (rx.length === 0) return { state, value: -1 };
+  return { state: { ...state, rx: rx.slice(1) }, value: rx[0]!.byte };
 }
 
 export function splitArduinoSerialArguments(source: string): readonly string[] {

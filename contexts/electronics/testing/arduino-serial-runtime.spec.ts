@@ -6,10 +6,15 @@ import {
 } from '../domain/arduino-program-runtime.js';
 import {
   appendArduinoSerialTx,
+  arduinoSerialAvailable,
+  ARDUINO_SERIAL_RX_BUFFER_LIMIT,
   ARDUINO_SERIAL_TX_HISTORY_LIMIT,
   ARDUINO_SERIAL_TX_TEXT_LIMIT,
+  beginArduinoSerial,
+  enqueueArduinoSerialRx,
   initialArduinoSerialState,
   isArduinoSerialState,
+  readArduinoSerial,
 } from '../domain/arduino-serial-runtime.js';
 
 function through(
@@ -140,6 +145,36 @@ describe('Arduino deterministic Serial TX runtime', () => {
     expect(reset.diagnostics).toEqual([]);
     expect(reset.state.serial?.nextTxSequence).toBe(1);
     expect(reset.state.serial?.tx).toEqual([expect.objectContaining({ sequence: 0, text: '7\n' })]);
+  });
+
+  it('keeps old TX-only v1 state valid and round-trips bounded RX bytes deterministically', () => {
+    const legacy = { version: 1 as const, begun: true, baudRate: 9600, nextTxSequence: 0, tx: [] };
+    expect(isArduinoSerialState(legacy)).toBe(true);
+
+    let state = beginArduinoSerial(initialArduinoSerialState(), 9600);
+    state = enqueueArduinoSerialRx(state, 10, 'A€');
+    expect(arduinoSerialAvailable(state)).toBe(4);
+    expect(state.rx?.map((entry) => entry.byte)).toEqual([65, 0xe2, 0x82, 0xac]);
+    expect(JSON.parse(JSON.stringify(state))).toEqual(state);
+
+    const first = readArduinoSerial(state);
+    expect(first.value).toBe(65);
+    expect(arduinoSerialAvailable(first.state)).toBe(3);
+    const second = readArduinoSerial(first.state);
+    expect(second.value).toBe(0xe2);
+  });
+
+  it('ignores RX before begin, returns -1 when empty and drops overflow tail', () => {
+    const cold = initialArduinoSerialState();
+    expect(enqueueArduinoSerialRx(cold, 0, 'AB')).toEqual(cold);
+    expect(readArduinoSerial(cold).value).toBe(-1);
+
+    let state = beginArduinoSerial(cold, 9600);
+    state = enqueueArduinoSerialRx(state, 5, 'x'.repeat(300));
+    expect(state.rx).toHaveLength(ARDUINO_SERIAL_RX_BUFFER_LIMIT);
+    expect(state.nextRxSequence).toBe(ARDUINO_SERIAL_RX_BUFFER_LIMIT);
+    expect(state.rx?.at(-1)).toMatchObject({ sequence: 255, atMicroseconds: 5, byte: 120 });
+    expect(enqueueArduinoSerialRx(state, 6, 'later')).toEqual(state);
   });
 
   it('keeps TX history and each TX payload deterministically bounded', () => {

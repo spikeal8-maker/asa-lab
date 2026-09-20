@@ -24,16 +24,18 @@ describe('Arduino capability contract', () => {
     expect(arduinoBlockSupport('asa_wait').status).toBe('supported');
     expect(arduinoBlockSupport('asa_analog_write').status).toBe('limited');
     expect(arduinoBlockSupport('asa_serial_print').status).toBe('limited');
+    expect(arduinoBlockSupport('asa_serial_available').status).toBe('limited');
+    expect(arduinoBlockSupport('asa_serial_read').status).toBe('limited');
     expect(Object.keys(ARDUINO_BLOCK_SUPPORT).length).toBeGreaterThan(50);
     expect(ARDUINO_TEXT_COMMAND_SUPPORT['Serial.println'].status).toBe('limited');
   });
 
-  it('distinguishes bounded Serial TX members from unsupported RX members', () => {
+  it('publishes bounded Serial TX and RX members without generic member support', () => {
     expect(ARDUINO_TEXT_COMMAND_SUPPORT['Serial.begin'].status).toBe('limited');
     expect(ARDUINO_TEXT_COMMAND_SUPPORT['Serial.print'].status).toBe('limited');
     expect(ARDUINO_TEXT_COMMAND_SUPPORT['Serial.println'].status).toBe('limited');
-    expect(ARDUINO_TEXT_COMMAND_SUPPORT['Serial.available'].status).toBe('unsupported');
-    expect(ARDUINO_TEXT_COMMAND_SUPPORT['Serial.read'].status).toBe('unsupported');
+    expect(ARDUINO_TEXT_COMMAND_SUPPORT['Serial.available'].status).toBe('limited');
+    expect(ARDUINO_TEXT_COMMAND_SUPPORT['Serial.read'].status).toBe('limited');
 
     const tx = analyseArduinoSourceSupport(`
       void setup() {
@@ -52,9 +54,10 @@ describe('Arduino capability contract', () => {
     const rx = analyseArduinoSourceSupport(
       'void loop(){if(Serial.available()){int value=Serial.read();}}',
     );
+    expect(rx.some((entry) => entry.status === 'unsupported')).toBe(false);
     expect(rx).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ code: 'member-call', status: 'unsupported' }),
+        expect.objectContaining({ code: 'bounded-timing', status: 'limited' }),
       ]),
     );
     expect(analyseArduinoSourceSupport('void loop(){servo.write(90);}')).toContainEqual(

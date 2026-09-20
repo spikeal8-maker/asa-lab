@@ -815,6 +815,83 @@ describe('Arduino shared dc-inputs-v1 circuit clock', () => {
     expect(next.events.filter((event) => event.componentId === 'broken')).toEqual([]);
   });
 
+  it('delivers canonical Serial RX bytes to Serial.available/read in accepted order', () => {
+    const source = `int count=0;int first=-2;int second=-2;
+      void setup(){Serial.begin(9600);}void loop(){count=Serial.available();if(count>=2){first=Serial.read();second=Serial.read();delay(100);}}`;
+    const inputs: ArduinoCircuitInputEvent[] = [
+      { atMicroseconds: 5, componentId: 'uno', property: 'serialRx', value: 'AB' },
+    ];
+    const done = through(circuit([board('uno', source)]), 30, undefined, inputs, 1);
+
+    expect(done.diagnostics).toEqual([]);
+    expect(runtime(done).variables).toMatchObject({ count: 2, first: 65, second: 66 });
+    expect(runtime(done).serial?.rx).toEqual([]);
+  });
+
+  it('preserves same-timestamp Serial RX array order', () => {
+    const source = `int first=-2;int second=-2;
+      void setup(){Serial.begin(9600);}void loop(){if(Serial.available()>=2){first=Serial.read();second=Serial.read();delay(100);}}`;
+    const inputs: ArduinoCircuitInputEvent[] = [
+      { atMicroseconds: 5, componentId: 'uno', property: 'serialRx', value: 'A' },
+      { atMicroseconds: 5, componentId: 'uno', property: 'serialRx', value: 'B' },
+    ];
+    const done = through(circuit([board('uno', source)]), 30, undefined, inputs, 2);
+
+    expect(runtime(done).variables).toMatchObject({ first: 65, second: 66 });
+    expect(runtime(done).serial?.nextRxSequence).toBe(2);
+  });
+
+  it('ignores Serial RX before begin and returns -1 from an empty begun queue', () => {
+    const source = `int value=-2;void setup(){Serial.begin(9600);}void loop(){value=Serial.read();delay(100);}`;
+    const inputs: ArduinoCircuitInputEvent[] = [
+      { atMicroseconds: 0, componentId: 'uno', property: 'serialRx', value: 'AB' },
+    ];
+    const done = through(circuit([board('uno', source)]), 20, undefined, inputs);
+
+    expect(done.diagnostics).toEqual([]);
+    expect(runtime(done).variables.value).toBe(-1);
+    expect(runtime(done).serial?.rx).toEqual([]);
+    expect(runtime(done).serial?.nextRxSequence).toBe(0);
+  });
+
+  it('keeps Serial RX isolated to the addressed Arduino', () => {
+    const source = (baud: number) => `int value=-2;void setup(){Serial.begin(${baud});}
+      void loop(){if(Serial.available()){value=Serial.read();delay(100);}}`;
+    const inputs: ArduinoCircuitInputEvent[] = [
+      { atMicroseconds: 5, componentId: 'b', property: 'serialRx', value: 'Z' },
+    ];
+    const done = through(
+      circuit([board('a', source(9600)), board('b', source(115200))]),
+      20,
+      undefined,
+      inputs,
+      1,
+    );
+
+    expect(runtime(done, 'a').variables.value).toBe(-2);
+    expect(runtime(done, 'a').serial?.rx).toEqual([]);
+    expect(runtime(done, 'b').variables.value).toBe(90);
+    expect(runtime(done, 'b').serial?.rx).toEqual([]);
+  });
+
+  it('preserves pending Serial RX through JSON continuation and work partitioning', () => {
+    const source = `int first=-2;int remaining=-2;void setup(){Serial.begin(9600);}
+      void loop(){delayMicroseconds(20);first=Serial.read();remaining=Serial.available();delay(100);}`;
+    const inputs: ArduinoCircuitInputEvent[] = [
+      { atMicroseconds: 5, componentId: 'uno', property: 'serialRx', value: 'AB' },
+    ];
+    const doc = circuit([board('uno', source)]);
+    const pending = through(doc, 10, undefined, inputs, 1);
+    expect(runtime(pending).serial?.rx?.map((entry) => entry.byte)).toEqual([65, 66]);
+
+    const resumed = through(doc, 40, JSON.parse(JSON.stringify(pending.state)), inputs, 1);
+    const whole = through(doc, 40, undefined, inputs, 256);
+    expect(resumed.state).toEqual(whole.state);
+    expect(resumed.result).toEqual(whole.result);
+    expect(runtime(resumed).variables).toMatchObject({ first: 65, remaining: 1 });
+    expect(runtime(resumed).serial).toEqual(runtime(whole).serial);
+  });
+
   it('keeps Serial TX state isolated per Arduino board', () => {
     const done = through(
       circuit([

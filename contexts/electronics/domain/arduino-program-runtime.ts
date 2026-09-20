@@ -7,11 +7,13 @@ import {
 } from './arduino-pulse-runtime.js';
 import {
   appendArduinoSerialTx,
+  arduinoSerialAvailable,
   beginArduinoSerial,
   formatArduinoSerialNumber,
   initialArduinoSerialState,
   isArduinoSerialState,
   parseArduinoSerialStringLiteral,
+  readArduinoSerial,
   splitArduinoSerialArguments,
   type ArduinoSerialState,
 } from './arduino-serial-runtime.js';
@@ -587,7 +589,7 @@ function tokenize(expression: string): readonly Token[] {
       index += 1;
       continue;
     }
-    if ('(),'.includes(character)) {
+    if ('(),.'.includes(character)) {
       tokens.push({ kind: 'punctuation', value: character });
       index += 1;
       continue;
@@ -751,6 +753,21 @@ class ExpressionParser {
       return value;
     }
     if (token.kind !== 'identifier') throw new SyntaxError(`Неожиданный элемент «${token.value}».`);
+    if (token.value === 'Serial' && this.take('.')) {
+      const method = this.take();
+      if (!method || method.kind !== 'identifier' || !['available', 'read'].includes(method.value))
+        throw new SyntaxError(
+          'Поддерживаются только Serial.available() и Serial.read() в выражениях.',
+        );
+      if (!this.take('(') || !this.take(')'))
+        throw new SyntaxError(`Serial.${method.value}() не принимает аргументы.`);
+      if (this.validateOnly) return numericValue('int', method.value === 'read' ? -1 : 0);
+      if (method.value === 'available')
+        return numericValue('int', arduinoSerialAvailable(this.state.serial ?? undefined));
+      const read = readArduinoSerial(this.state.serial ?? undefined);
+      this.state.serial = read.state ?? null;
+      return numericValue('int', read.value);
+    }
     if (this.current()?.value === '(') {
       this.take('(');
       const macro = ['min', 'max', 'abs', 'constrain'].includes(token.value);
