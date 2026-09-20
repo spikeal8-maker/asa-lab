@@ -330,3 +330,198 @@ describe('immutable classroom submissions', () => {
     ).rejects.toMatchObject({ status: 409 });
   });
 });
+
+describe('E1-FIX-11D4b learner course Activity occurrences', () => {
+  it('projects per-block runtime and canonical state for both Account and StudentSeat reads', async () => {
+    const seatId = '50000000-0000-4000-8000-000000000001';
+    const accountId = '51000000-0000-4000-8000-000000000001';
+    const runId = '52000000-0000-4000-8000-000000000001';
+    const lessonId = '53000000-0000-4000-8000-000000000001';
+    const assignmentA = '54000000-0000-4000-8000-000000000001';
+    const assignmentB = '54000000-0000-4000-8000-000000000002';
+    const activityRunA = '55000000-0000-4000-8000-000000000001';
+    const activityRunB = '55000000-0000-4000-8000-000000000002';
+    const versionA = '56000000-0000-4000-8000-000000000001';
+    const versionB = '56000000-0000-4000-8000-000000000002';
+    const projectA = '57000000-0000-4000-8000-000000000001';
+    const courseRow = {
+      run_id: runId,
+      course_id: '58000000-0000-4000-8000-000000000001',
+      course_version_id: '59000000-0000-4000-8000-000000000001',
+      version_number: 1,
+      classroom_title: '7А',
+      run_title: 'D4b course',
+      run_summary: null,
+      due_at: null,
+      run_status: 'open',
+      lesson_id: lessonId,
+      source_lesson_id: '5a000000-0000-4000-8000-000000000001',
+      section_title: 'Section',
+      section_summary: null,
+      section_position: 1,
+      lesson_title: 'Activity lesson',
+      lesson_summary: null,
+      lesson_content: null,
+      lesson_blocks: [
+        { id: 'activity-a', type: 'activity', learningActivityVersionId: versionA },
+        { id: 'activity-b', type: 'activity', learningActivityVersionId: versionB },
+      ],
+      lesson_kind: 'material',
+      estimated_minutes: 15,
+      lesson_position: 1,
+      classroom_assignment_id: null,
+      assignment_title: null,
+      assignment_goal: null,
+      assignment_brief: null,
+      module_key: null,
+      sample_image: null,
+      project_id: null,
+      submitted_at: null,
+      snapshot_revision: null,
+      work_updated_at: null,
+      completed_at: null,
+    };
+    const occurrenceRows = [
+      {
+        seat_id: seatId,
+        run_id: runId,
+        lesson_id: lessonId,
+        block_id: 'activity-a',
+        activity_run_id: activityRunA,
+        classroom_assignment_id: assignmentA,
+        learning_activity_version_id: versionA,
+        title: 'Electronics',
+        module_key: 'electronics',
+        project_id: projectA,
+        submitted_at: null,
+        snapshot_revision: 7,
+        work_updated_at: '2026-09-20T22:00:00.000Z',
+      },
+      {
+        seat_id: seatId,
+        run_id: runId,
+        lesson_id: lessonId,
+        block_id: 'activity-b',
+        activity_run_id: activityRunB,
+        classroom_assignment_id: assignmentB,
+        learning_activity_version_id: versionB,
+        title: '3D',
+        module_key: 'three-d',
+        project_id: null,
+        submitted_at: null,
+        snapshot_revision: null,
+        work_updated_at: null,
+      },
+    ];
+    const evidenceBase = {
+      tenantId: '60000000-0000-4000-8000-000000000001',
+      schoolId: '61000000-0000-4000-8000-000000000001',
+      classroomId: '62000000-0000-4000-8000-000000000001',
+      kind: 'course_project',
+      dueAt: null,
+      assignmentStatus: 'open',
+      seatId,
+      accountId,
+      principalId: '63000000-0000-4000-8000-000000000001',
+      learnerId: null,
+      identityResolution: 'seat_compatibility',
+      seatStatus: 'active',
+      classroomAccess: 'active',
+      courseProgressPresent: false,
+      attempt: null,
+      selectedAttemptExists: false,
+      resultSelectionSource: 'none',
+      selectedAttemptId: null,
+      selectedResult: null,
+      selectionConflict: null,
+      validUnselectedResultCount: 0,
+      compatibilityGradingUnknown: false,
+      reusableAuthoredContent: true,
+    };
+    const evidenceRows = [
+      {
+        ...evidenceBase,
+        classroomAssignmentId: assignmentA,
+        activityRunId: activityRunA,
+        legacyWork: {
+          projectId: projectA,
+          startedAt: '2026-09-20T21:00:00.000Z',
+          submittedAt: null,
+        },
+      },
+      {
+        ...evidenceBase,
+        classroomAssignmentId: assignmentB,
+        activityRunId: activityRunB,
+        legacyWork: null,
+      },
+    ];
+    const query = vi.fn(async (sql: string) => {
+      if (sql.includes('classroom_student_session_context')) {
+        return {
+          rows: [
+            {
+              seat_id: seatId,
+              classroom_id: evidenceBase.classroomId,
+              classroom_title: '7А',
+              display_label: 'Learner',
+              teacher_display_name: 'Teacher',
+              safe_mode: true,
+              avatar_key: null,
+              expires_at: '2026-09-21T00:00:00.000Z',
+            },
+          ],
+        };
+      }
+      if (sql.includes('learning_canonical_evidence_for_')) {
+        return { rows: evidenceRows.map((evidence) => ({ evidence })) };
+      }
+      if (sql.includes('classroom_course_activity_occurrences_for_')) {
+        return { rows: occurrenceRows };
+      }
+      if (sql.includes('classroom_course_runs_for_')) return { rows: [courseRow] };
+      return { rows: [] };
+    });
+    const activeContext = {
+      resolve: vi.fn(async () => ({ accountId })),
+    } as unknown as ActiveContextUseCase;
+    const controller = new ClassroomJoinController({ query } as unknown as pg.Pool, activeContext);
+    const accountRequest = request('203.0.113.40');
+    accountRequest.cookies['asa_session'] = 'account-session';
+
+    const [accountRead, seatRead] = await Promise.all([
+      controller.accountCourseRuns(accountRequest),
+      controller.courseRuns(seatRequest()),
+    ]);
+
+    for (const payload of [accountRead, seatRead]) {
+      const occurrences = payload.items[0]?.sections[0]?.lessons[0]?.activityOccurrences;
+      expect(occurrences).toHaveLength(2);
+      expect(occurrences?.[0]).toMatchObject({
+        blockId: 'activity-a',
+        activityRunId: activityRunA,
+        classroomAssignmentId: assignmentA,
+        learningActivityVersionId: versionA,
+        moduleKey: 'electronics',
+        projectId: projectA,
+        snapshotRevision: 7,
+        canonicalState: {
+          activityRunId: activityRunA,
+          workflowState: 'in_progress',
+        },
+      });
+      expect(occurrences?.[1]).toMatchObject({
+        blockId: 'activity-b',
+        activityRunId: activityRunB,
+        classroomAssignmentId: assignmentB,
+        learningActivityVersionId: versionB,
+        moduleKey: 'three-d',
+        projectId: null,
+        canonicalState: {
+          activityRunId: activityRunB,
+          workflowState: 'not_started',
+        },
+      });
+    }
+  });
+});

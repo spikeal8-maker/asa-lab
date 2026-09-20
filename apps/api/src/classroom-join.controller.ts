@@ -136,6 +136,36 @@ interface SeatCourseRunRow {
   completed_at: Date | string | null;
 }
 
+interface CourseActivityOccurrenceRow {
+  seat_id: string;
+  run_id: string;
+  lesson_id: string;
+  block_id: string;
+  activity_run_id: string;
+  classroom_assignment_id: string;
+  learning_activity_version_id: string;
+  title: string;
+  module_key: string;
+  project_id: string | null;
+  submitted_at: Date | string | null;
+  snapshot_revision: number | string | null;
+  work_updated_at: Date | string | null;
+}
+
+interface CourseActivityOccurrenceView {
+  blockId: string;
+  activityRunId: string;
+  classroomAssignmentId: string;
+  learningActivityVersionId: string;
+  title: string;
+  moduleKey: string;
+  projectId: string | null;
+  submittedAt: string | null;
+  snapshotRevision: number | null;
+  updatedAt: string | null;
+  canonicalState: CanonicalLearningSurfaceState | null;
+}
+
 interface QuizForSeatRow {
   classroom_assignment_id: string;
   classroom_title: string;
@@ -168,7 +198,38 @@ function error(code: string, message: string): { error: { code: string; message:
   return { error: { code, message } };
 }
 
-function seatCourseRuns(rows: SeatCourseRunRow[], projections: CanonicalProjectionMap = new Map()) {
+function courseActivityOccurrenceMap(
+  rows: CourseActivityOccurrenceRow[],
+  projections: CanonicalProjectionMap,
+) {
+  const result = new Map<string, CourseActivityOccurrenceView[]>();
+  for (const row of rows) {
+    const key = `${row.run_id}:${row.lesson_id}`;
+    const values = result.get(key) ?? [];
+    values.push({
+      blockId: row.block_id,
+      activityRunId: row.activity_run_id,
+      classroomAssignmentId: row.classroom_assignment_id,
+      learningActivityVersionId: row.learning_activity_version_id,
+      title: row.title,
+      moduleKey: row.module_key,
+      projectId: row.project_id,
+      submittedAt: row.submitted_at === null ? null : isoDate(row.submitted_at),
+      snapshotRevision: row.snapshot_revision === null ? null : Number(row.snapshot_revision),
+      updatedAt: row.work_updated_at === null ? null : isoDate(row.work_updated_at),
+      canonicalState: canonicalFor(projections, row.classroom_assignment_id, row.seat_id),
+    });
+    result.set(key, values);
+  }
+  return result;
+}
+
+function seatCourseRuns(
+  rows: SeatCourseRunRow[],
+  projections: CanonicalProjectionMap = new Map(),
+  occurrenceRows: CourseActivityOccurrenceRow[] = [],
+) {
+  const activityOccurrences = courseActivityOccurrenceMap(occurrenceRows, projections);
   const runs: Array<{
     id: string;
     courseId: string;
@@ -206,6 +267,7 @@ function seatCourseRuns(rows: SeatCourseRunRow[], projections: CanonicalProjecti
         updatedAt: string | null;
         completedAt: string | null;
         canonicalState: CanonicalLearningSurfaceState | null;
+        activityOccurrences: CourseActivityOccurrenceView[];
       }>;
     }>;
   }> = [];
@@ -260,6 +322,7 @@ function seatCourseRuns(rows: SeatCourseRunRow[], projections: CanonicalProjecti
       updatedAt: row.work_updated_at === null ? null : isoDate(row.work_updated_at),
       completedAt: row.completed_at === null ? null : isoDate(row.completed_at),
       canonicalState: canonicalFor(projections, row.classroom_assignment_id),
+      activityOccurrences: activityOccurrences.get(`${row.run_id}:${row.lesson_id}`) ?? [],
     });
   }
   return runs;
@@ -1009,7 +1072,7 @@ export class ClassroomJoinController {
   async accountCourseRuns(@Req() request: FastifyRequest) {
     const context = await this.activeContext.resolve(request.cookies[SESSION_COOKIE]);
     if (!context) throw new HttpException(error('unauthorized', 'no active session'), 401);
-    const [result, projections] = await Promise.all([
+    const [result, projections, occurrences] = await Promise.all([
       this.requirePool().query(
         `SELECT run_id, course_id, course_version_id, version_number, classroom_title,
               run_title, run_summary, due_at, run_status, lesson_id, source_lesson_id,
@@ -1022,8 +1085,21 @@ export class ClassroomJoinController {
         [context.accountId],
       ),
       this.canonical().forAccount(context.accountId),
+      this.requirePool().query(
+        `SELECT seat_id,run_id,lesson_id,block_id,activity_run_id,classroom_assignment_id,
+                learning_activity_version_id,title,module_key,project_id,submitted_at,
+                snapshot_revision,work_updated_at
+           FROM classroom_course_activity_occurrences_for_account($1)`,
+        [context.accountId],
+      ),
     ]);
-    return { items: seatCourseRuns(result.rows as SeatCourseRunRow[], projections) };
+    return {
+      items: seatCourseRuns(
+        result.rows as SeatCourseRunRow[],
+        projections,
+        occurrences.rows as CourseActivityOccurrenceRow[],
+      ),
+    };
   }
 
   @Post('account/course-runs/:runId/lessons/:lessonId/progress')
@@ -1136,7 +1212,7 @@ export class ClassroomJoinController {
   @Get('me/course-runs')
   async courseRuns(@Req() request: FastifyRequest) {
     const seat = await this.currentSeat(request);
-    const [result, projections] = await Promise.all([
+    const [result, projections, occurrences] = await Promise.all([
       this.requirePool().query(
         `SELECT run_id, course_id, course_version_id, version_number, classroom_title,
               run_title, run_summary, due_at, run_status, lesson_id, source_lesson_id,
@@ -1149,8 +1225,21 @@ export class ClassroomJoinController {
         [seat.seat_id],
       ),
       this.canonical().forSeat(seat.seat_id),
+      this.requirePool().query(
+        `SELECT seat_id,run_id,lesson_id,block_id,activity_run_id,classroom_assignment_id,
+                learning_activity_version_id,title,module_key,project_id,submitted_at,
+                snapshot_revision,work_updated_at
+           FROM classroom_course_activity_occurrences_for_seat($1)`,
+        [seat.seat_id],
+      ),
     ]);
-    return { items: seatCourseRuns(result.rows as SeatCourseRunRow[], projections) };
+    return {
+      items: seatCourseRuns(
+        result.rows as SeatCourseRunRow[],
+        projections,
+        occurrences.rows as CourseActivityOccurrenceRow[],
+      ),
+    };
   }
 
   /** Material completion is explicit; assignment completion comes from submission. */
