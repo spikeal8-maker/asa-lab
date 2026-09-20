@@ -4,7 +4,6 @@ import {
   useMemo,
   useRef,
   useState,
-  type FormEvent,
   type DragEvent,
   type KeyboardEvent,
   type PointerEvent,
@@ -46,6 +45,7 @@ import {
   type ArduinoSourceToken,
 } from './arduino-source-language';
 import { ArduinoCommandReference } from './ArduinoCommandReference';
+import { ArduinoSerialMonitor } from './ArduinoSerialMonitor';
 import {
   ARDUINO_SNIPPET_MIME,
   arduinoSnippetDropTarget,
@@ -1209,80 +1209,6 @@ function ArduinoSourceEditor({
   );
 }
 
-function SerialMonitor({
-  open,
-  baudRate,
-  running,
-  onOpenChange,
-  onBaudRateChange,
-}: {
-  open: boolean;
-  baudRate: number;
-  running: boolean;
-  onOpenChange: (open: boolean) => void;
-  onBaudRateChange: (rate: number) => void;
-}): JSX.Element {
-  const [input, setInput] = useState('');
-  const [lines, setLines] = useState<readonly string[]>([]);
-  const outputRef = useRef<HTMLDivElement>(null);
-  function send(event: FormEvent): void {
-    event.preventDefault();
-    if (!input) return;
-    setLines((current) => [...current, `> ${input}`].slice(-400));
-    setInput('');
-  }
-  useEffect(() => {
-    if (outputRef.current) outputRef.current.scrollTop = outputRef.current.scrollHeight;
-  }, [lines]);
-  return (
-    <section className={`arduino-serial-monitor${open ? ' open' : ''}`}>
-      <button
-        type="button"
-        className="arduino-serial-title"
-        onClick={() => onOpenChange(!open)}
-        aria-expanded={open}
-      >
-        <span className="arduino-serial-icon" aria-hidden="true" />
-        Монитор последовательного интерфейса
-        <span className={`arduino-serial-status${running ? ' running' : ''}`}>
-          {running ? 'Подключён' : 'Остановлен'}
-        </span>
-        <ChevronDown />
-      </button>
-      <div className="arduino-serial-body" aria-hidden={!open}>
-        <div className="arduino-serial-output" ref={outputRef} aria-live="polite">
-          {lines.map((line, index) => (
-            <div key={`${index}:${line}`}>{line}</div>
-          ))}
-        </div>
-        <form onSubmit={send}>
-          <input
-            value={input}
-            onChange={(event) => setInput(event.target.value)}
-            placeholder="Введите сообщение для Arduino"
-            aria-label="Сообщение в последовательный порт"
-          />
-          <select
-            aria-label="Скорость последовательного порта"
-            value={baudRate}
-            onChange={(event) => onBaudRateChange(Number(event.target.value))}
-          >
-            {[300, 1200, 2400, 4800, 9600, 19200, 38400, 57600, 115200].map((rate) => (
-              <option key={rate} value={rate}>
-                {rate} бод
-              </option>
-            ))}
-          </select>
-          <button type="submit">Отпр.</button>
-          <button type="button" onClick={() => setLines([])}>
-            Очист.
-          </button>
-        </form>
-      </div>
-    </section>
-  );
-}
-
 export function ArduinoCodePanel({
   controller: c,
   open,
@@ -1691,12 +1617,13 @@ export function ArduinoCodePanel({
           />
         ) : null}
       </div>
-      <SerialMonitor
+      <ArduinoSerialMonitor
         open={program.serialOpen}
-        baudRate={program.baudRate}
         running={c.simulationRunning}
+        boardId={selectedBoard.id}
+        serial={c.arduinoSerialByBoard[selectedBoard.id]}
         onOpenChange={(serialOpen) => updateProgram({ serialOpen })}
-        onBaudRateChange={(baudRate) => updateProgram({ baudRate })}
+        onSend={c.sendArduinoSerialRx}
       />
       {pendingMode ? (
         <div className="arduino-confirm-backdrop" role="presentation">

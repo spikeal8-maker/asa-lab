@@ -2,6 +2,7 @@ import {
   advanceElectronicsToHorizon,
   analyseElectronicsSnapshot,
   prepareElectronicsSnapshot,
+  projectElectronicsArduinoSerial,
   type ElectronicsTimedAdvanceResult,
 } from '@asa-lab/electronics/engine';
 import type { SchematicDocument, SolveResult } from '../api';
@@ -77,6 +78,7 @@ function advancePayload(
     committedHorizonMicroseconds: timed.committedHorizonMicroseconds,
     state: timed.state,
     result: presentationResult(document, timed),
+    serial: projectElectronicsArduinoSerial(timed.state),
     diagnostics: timed.diagnostics,
   };
 }

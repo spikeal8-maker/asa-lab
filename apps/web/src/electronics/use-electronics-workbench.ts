@@ -7,6 +7,7 @@ import {
   type PointerEvent,
   type WheelEvent,
 } from 'react';
+import type { ElectronicsArduinoSerialProjection } from '@asa-lab/electronics/engine';
 import type { ComponentResult, ProductionStateValue, SchematicComponent, Terminal } from '../api';
 import {
   catalogEntry,
@@ -218,6 +219,9 @@ export function useElectronicsWorkbench(projectId: string) {
   const simulationStartedAtRef = useRef<number | null>(null);
   const [requestedHorizonMicroseconds, setRequestedHorizonMicroseconds] = useState(0);
   const [liveResult, setLiveResult] = useState<typeof persistedResult>(null);
+  const [arduinoSerialByBoard, setArduinoSerialByBoard] = useState<
+    Readonly<Record<string, ElectronicsArduinoSerialProjection>>
+  >({});
   const simulationWorkerRef = useRef<ElectronicsLiveSimulationWorkerController | null>(null);
   if (simulationWorkerRef.current === null) {
     simulationWorkerRef.current = new ElectronicsLiveSimulationWorkerController();
@@ -232,6 +236,7 @@ export function useElectronicsWorkbench(projectId: string) {
       simulationStartedAtRef.current = null;
       setRequestedHorizonMicroseconds(0);
       setLiveResult(null);
+      setArduinoSerialByBoard({});
       return;
     }
 
@@ -258,10 +263,18 @@ export function useElectronicsWorkbench(projectId: string) {
     const initialDocument = runtimeDocumentRef.current;
     if (!initialDocument) return;
     setLiveResult(null);
+    setArduinoSerialByBoard({});
     controller.start(projectId, initialDocument, {
       onResult: (nextResult) => {
         setLiveResult(nextResult);
         confirmSimulationStarted();
+      },
+      onSerialProjection: (serial) => {
+        setArduinoSerialByBoard(
+          Object.fromEntries(serial.map((entry) => [entry.componentId, entry])) as Readonly<
+            Record<string, ElectronicsArduinoSerialProjection>
+          >,
+        );
       },
       onFailure: () => {
         resetSimulationRef.current();
@@ -277,6 +290,11 @@ export function useElectronicsWorkbench(projectId: string) {
     if (!runtimeDocument || !simulationRunning) return;
     simulationWorkerRef.current?.update(runtimeDocument, requestedHorizonMicroseconds);
   }, [requestedHorizonMicroseconds, runtimeDocument, simulationRunning]);
+
+  function sendArduinoSerialRx(boardId: string, text: string): void {
+    if (!simulationRunning || !text) return;
+    simulationWorkerRef.current?.sendSerialRx(boardId, text, requestedHorizonMicroseconds);
+  }
 
   const result = useMemo(
     () =>
@@ -2206,6 +2224,8 @@ export function useElectronicsWorkbench(projectId: string) {
     activeWireColor,
     orthogonalWireMode,
     simulationRunning,
+    arduinoSerialByBoard,
+    sendArduinoSerialRx,
     simulationTimeMs: requestedHorizonMicroseconds / 1000,
     simulationStatus,
     libraryOpen,

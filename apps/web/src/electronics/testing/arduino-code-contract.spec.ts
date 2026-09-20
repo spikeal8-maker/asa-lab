@@ -7,6 +7,10 @@ import { ARDUINO_COMPLETIONS } from '../arduino-source-language';
 const electronicsRoot = resolve(process.cwd(), 'apps/web/src/electronics');
 const blocksSource = readFileSync(resolve(electronicsRoot, 'arduino-blocks.ts'), 'utf8');
 const panelSource = readFileSync(resolve(electronicsRoot, 'ArduinoCodePanel.tsx'), 'utf8');
+const serialMonitorSource = readFileSync(
+  resolve(electronicsRoot, 'ArduinoSerialMonitor.tsx'),
+  'utf8',
+);
 const commandReferenceSource = readFileSync(
   resolve(electronicsRoot, 'ArduinoCommandReference.tsx'),
   'utf8',
@@ -275,15 +279,21 @@ describe('Arduino programming room contract', () => {
     expect(css).toContain('.arduino-code-toolbar.mode-blocks .arduino-download-button');
   });
 
-  it('keeps a collapsible serial monitor with send, clear and baud controls', () => {
-    expect(panelSource).toContain('Монитор последовательного интерфейса');
-    expect(panelSource).toContain('Сообщение в последовательный порт');
-    expect(panelSource).toContain('115200');
-    expect(panelSource).toContain('Отпр.');
-    expect(panelSource).toContain('Очист.');
+  it('uses the extracted real Serial Monitor without fake local output or runtime baud selector', () => {
+    expect(panelSource).toContain("from './ArduinoSerialMonitor'");
+    expect(panelSource).not.toContain('function SerialMonitor(');
+    expect(serialMonitorSource).toContain('Монитор последовательного интерфейса');
+    expect(serialMonitorSource).toContain('Сообщение в последовательный порт');
+    expect(serialMonitorSource).toContain('serial?.baudRate');
+    expect(serialMonitorSource).toContain('onSend(boardId, input)');
+    expect(serialMonitorSource).toContain('clearedThroughByBoard');
+    expect(serialMonitorSource).not.toContain('`> ${input}`');
+    expect(serialMonitorSource).not.toContain('<select');
+    expect(serialMonitorSource).not.toContain('JSON.parse');
+    expect(serialMonitorSource).toContain('Отпр.');
+    expect(serialMonitorSource).toContain('Очист.');
     expect(css).toContain('.arduino-serial-monitor.open');
     expect(css).toContain('height: calc(100% - 34px);');
-    expect(css).toContain('grid-template-rows: repeat(2, 36px);');
   });
 
   it('shows live Uno indicators, restarts the program and keeps pin details compact', () => {

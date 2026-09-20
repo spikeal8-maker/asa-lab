@@ -283,6 +283,54 @@ describe('ASA Electronics E-OPT-3D Worker boundary', () => {
     expect(second.advance.state).toEqual(directSecond.state);
     expect(second.advance.committedHorizonMicroseconds).toBe(100_000);
   });
+  it('projects real Serial TX through ready and yielded Worker advances', () => {
+    const serialDocument: SchematicDocument = {
+      ...arduinoCircuit,
+      components: arduinoCircuit.components.map((component) => ({
+        ...component,
+        stateProperties: {
+          ...component.stateProperties,
+          arduinoSource:
+            'void setup(){Serial.begin(9600);Serial.println("early");}void loop(){while(micros()<5000){}delay(100);}',
+        },
+      })),
+    };
+    const ready = evaluateSimulationWorkerRequest({
+      ...preflightRequest('serial-ready'),
+      kind: 'advance',
+      document: serialDocument,
+      state: resetElectronicsTimedState(),
+      requestedHorizonMicroseconds: 10,
+    });
+    expect(ready.ok).toBe(true);
+    if (!ready.ok || ready.kind !== 'advance') return;
+    expect(ready.advance.serial).toEqual([
+      expect.objectContaining({
+        componentId: 'uno',
+        begun: true,
+        baudRate: 9600,
+        tx: [expect.objectContaining({ sequence: 0, text: 'early\n' })],
+      }),
+    ]);
+
+    const yielded = evaluateSimulationWorkerRequest({
+      ...preflightRequest('serial-yielded'),
+      kind: 'advance',
+      document: serialDocument,
+      state: resetElectronicsTimedState(),
+      requestedHorizonMicroseconds: 10_000,
+    });
+    expect(yielded.ok).toBe(true);
+    if (!yielded.ok || yielded.kind !== 'advance') return;
+    expect(yielded.advance.executionStatus).toBe('yielded');
+    expect(yielded.advance.serial[0]).toMatchObject({
+      componentId: 'uno',
+      begun: true,
+      baudRate: 9600,
+      tx: [expect.objectContaining({ sequence: 0, text: 'early\n' })],
+    });
+  });
+
   it('rejects invalid protocol, solver and non-integer horizons', () => {
     const wrongProtocol = evaluateSimulationWorkerRequest({
       ...preflightRequest(),
