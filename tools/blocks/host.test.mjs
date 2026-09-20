@@ -789,17 +789,80 @@ test('canonical upstream persistence uploads only changed assets before draft an
   );
 });
 
-test('upstream saver may fan out dirty assets but ASA transport serializes the writes', async () => {
-  let active = 0;
-  let maxActive = 0;
+test('upstream saver fan-out is bounded to four concurrent asset writes', async () => {
+  for (const count of [1, 5, 20]) {
+    let active = 0;
+    let maxActive = 0;
+
+    class UpstreamStorage extends Storage {
+      async store(assetType, dataFormat, data, assetId) {
+        active += 1;
+        maxActive = Math.max(maxActive, active);
+        await new Promise((resolve) => globalThis.setTimeout(resolve, 5));
+        active -= 1;
+        const bytes = new Uint8Array(data);
+        return {
+          id: assetId,
+          status: 'ok',
+          asset: {
+            assetId: String(assetId),
+            dataFormat,
+            sha256: createHash('sha256').update(bytes).digest('hex'),
+            sizeBytes: bytes.byteLength,
+          },
+        };
+      }
+    }
+
+    const api = loadHost('storage', {
+      crypto: webcrypto,
+      AbortController: globalThis.AbortController,
+      ArrayBuffer,
+      Uint8Array,
+    }).AsaBlocksStorage;
+    const storage = api.createReadOnlyStorage(
+      {
+        ScratchStorage: UpstreamStorage,
+        buildDefaultProject: standaloneFixture().buildDefaultProject,
+      },
+      {
+        projectId: PROJECT_ID,
+        projectJson: null,
+        assets: [],
+        draftRevision: 7,
+        apiOrigin: API_ORIGIN,
+        getRuntimeToken: () => RUNTIME_TOKEN,
+        canSave: true,
+      },
+    );
+
+    const stores = Array.from({ length: count }, (_, index) => {
+      const assetId = (index + 1).toString(16).padStart(32, '0');
+      return storage.scratchStorage.store(
+        storage.scratchStorage.AssetType.ImageVector,
+        'svg',
+        new TextEncoder().encode(
+          `<svg xmlns="http://www.w3.org/2000/svg"><text>${index + 1}</text></svg>`,
+        ),
+        assetId,
+      );
+    });
+
+    const results = await Promise.all(stores);
+    assert.equal(results.length, count);
+    assert.equal(maxActive, Math.min(count, 4), `${count} assets must respect the limit`);
+  }
+});
+
+test('draft PUT starts only after all required bounded asset writes finish', async () => {
+  const events = [];
 
   class UpstreamStorage extends Storage {
     async store(assetType, dataFormat, data, assetId) {
-      active += 1;
-      maxActive = Math.max(maxActive, active);
+      events.push(`asset-start:${assetId}`);
       await new Promise((resolve) => globalThis.setTimeout(resolve, 5));
-      active -= 1;
       const bytes = new Uint8Array(data);
+      events.push(`asset-finish:${assetId}`);
       return {
         id: assetId,
         status: 'ok',
@@ -814,6 +877,14 @@ test('upstream saver may fan out dirty assets but ASA transport serializes the w
   }
 
   const api = loadHost('storage', {
+    fetch: async (url) => {
+      assert.match(String(url), /\/draft$/);
+      events.push('draft-start');
+      return new globalThis.Response(JSON.stringify({ status: 'ok', revision: 8 }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    },
     crypto: webcrypto,
     AbortController: globalThis.AbortController,
     ArrayBuffer,
@@ -835,21 +906,95 @@ test('upstream saver may fan out dirty assets but ASA transport serializes the w
     },
   );
 
-  const stores = Array.from({ length: 6 }, (_, index) => {
-    const digit = String(index + 1);
-    return storage.scratchStorage.store(
-      storage.scratchStorage.AssetType.ImageVector,
-      'svg',
-      new TextEncoder().encode(
-        `<svg xmlns="http://www.w3.org/2000/svg"><text>${digit}</text></svg>`,
-      ),
-      digit.repeat(32),
-    );
-  });
+  const assets = Array.from({ length: 5 }, (_, index) =>
+    snapshotAsset(
+      (index + 1).toString(16).padStart(32, '0'),
+      'png',
+      Uint8Array.from([index + 1, index + 2, index + 3]),
+    ),
+  );
+  await Promise.all(assets.map((value) => storeCanonicalAsset(storage, value)));
+  await storage.saveProject(PROJECT_ID, JSON.stringify(projectWithAssets('Bounded queue', assets)));
 
-  const results = await Promise.all(stores);
-  assert.equal(results.length, 6);
-  assert.equal(maxActive, 1);
+  const draftIndex = events.indexOf('draft-start');
+  assert.ok(draftIndex > -1);
+  assert.equal(events.filter((event) => event.startsWith('asset-finish:')).length, assets.length);
+  assert.ok(
+    events
+      .map((event, index) => ({ event, index }))
+      .filter(({ event }) => event.startsWith('asset-finish:'))
+      .every(({ index }) => index < draftIndex),
+    'draft PUT must start after every required asset PUT finishes',
+  );
+});
+
+test('one failed bounded asset write prevents draft PUT', async () => {
+  const failedId = '3'.padStart(32, '0');
+  let draftPuts = 0;
+
+  class UpstreamStorage extends Storage {
+    async store(assetType, dataFormat, data, assetId) {
+      await new Promise((resolve) => globalThis.setTimeout(resolve, 5));
+      if (assetId === failedId) throw new Error('asset_write_failed');
+      const bytes = new Uint8Array(data);
+      return {
+        id: assetId,
+        status: 'ok',
+        asset: {
+          assetId: String(assetId),
+          dataFormat,
+          sha256: createHash('sha256').update(bytes).digest('hex'),
+          sizeBytes: bytes.byteLength,
+        },
+      };
+    }
+  }
+
+  const api = loadHost('storage', {
+    fetch: async () => {
+      draftPuts += 1;
+      return new globalThis.Response(JSON.stringify({ status: 'ok', revision: 8 }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    },
+    crypto: webcrypto,
+    AbortController: globalThis.AbortController,
+    ArrayBuffer,
+    Uint8Array,
+  }).AsaBlocksStorage;
+  const storage = api.createReadOnlyStorage(
+    {
+      ScratchStorage: UpstreamStorage,
+      buildDefaultProject: standaloneFixture().buildDefaultProject,
+    },
+    {
+      projectId: PROJECT_ID,
+      projectJson: null,
+      assets: [],
+      draftRevision: 7,
+      apiOrigin: API_ORIGIN,
+      getRuntimeToken: () => RUNTIME_TOKEN,
+      canSave: true,
+    },
+  );
+
+  const assets = Array.from({ length: 5 }, (_, index) =>
+    snapshotAsset(
+      (index + 1).toString(16).padStart(32, '0'),
+      'png',
+      Uint8Array.from([index + 10, index + 11, index + 12]),
+    ),
+  );
+  const settled = await Promise.allSettled(
+    assets.map((value) => storeCanonicalAsset(storage, value)),
+  );
+  assert.equal(settled.filter((result) => result.status === 'rejected').length, 1);
+  await assert.rejects(
+    storage.saveProject(PROJECT_ID, JSON.stringify(projectWithAssets('Failed asset', assets))),
+    /asset_reference_missing/,
+  );
+  assert.equal(draftPuts, 0);
 });
 
 test('upstream asset-store latency cannot hide an edit made after VM serialization', async () => {
