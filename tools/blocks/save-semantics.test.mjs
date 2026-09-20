@@ -337,9 +337,7 @@ test('lost response reuses mutation identity, durable assets and commits one rev
 });
 
 for (const ambiguity of ['network', '5xx', 'malformed-2xx']) {
-  test(
-    ambiguity + ' ambiguity followed by edit reconciles A before saving generation B',
-    async () => {
+  test(`${ambiguity} ambiguity followed by edit reconciles A before saving generation B`, async () => {
     const mutationIds = [
       'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
       'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
@@ -443,9 +441,8 @@ for (const ambiguity of ['network', '5xx', 'malformed-2xx']) {
     assert.notEqual(seenDrafts[2].mutationId, seenDrafts[0].mutationId);
     assert.equal(seenDrafts[2].baseRevision, 11);
     assert.equal(seenDrafts[2].document.projectJson.targets[0].name, 'Generation B');
-      assert.equal(uuidIndex, 2, 'A and B must own distinct mutation identities');
-    },
-  );
+    assert.equal(uuidIndex, 2, 'A and B must own distinct mutation identities');
+  });
 }
 
 test('conflict while reconciling ambiguous A blocks generation B and preserves confirmed revision', async () => {
