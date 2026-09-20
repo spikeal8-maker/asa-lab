@@ -115,6 +115,7 @@ export interface ArduinoCircuitInputEvent {
     | 'temperatureCelsius'
     | 'moisturePercent'
     | 'motionDetected'
+    | 'distanceMeters'
     | 'serialRx';
   readonly value: boolean | number | string;
 }
@@ -236,6 +237,13 @@ function validInputs(
           (event.property === 'motionDetected' &&
             component.componentTypeId === 'pir-sensor' &&
             typeof event.value === 'boolean') ||
+          (event.property === 'distanceMeters' &&
+            (component.componentTypeId === 'ultrasonic-sensor' ||
+              component.componentTypeId === 'ultrasonic-hc-sr04') &&
+            typeof event.value === 'number' &&
+            Number.isFinite(event.value) &&
+            event.value >= 0.02 &&
+            event.value <= (component.componentTypeId === 'ultrasonic-hc-sr04' ? 4 : 3)) ||
           (event.property === 'serialRx' &&
             isArduinoUno(component) &&
             typeof event.value === 'string' &&
@@ -265,7 +273,8 @@ function applyInput(
       component.id === event.componentId
         ? event.property === 'temperatureCelsius' ||
           event.property === 'moisturePercent' ||
-          event.property === 'motionDetected'
+          event.property === 'motionDetected' ||
+          event.property === 'distanceMeters'
           ? {
               ...component,
               stateProperties: { ...component.stateProperties, [event.property]: event.value },
@@ -680,12 +689,14 @@ export function advanceArduinoCircuitClock(
         frame.components.find((entry) => entry.componentId === component.id)?.terminalVoltages ??
         {};
       const levels = hcSr04InputLevels(terminalVoltages);
+      const activeComponent =
+        activeDocument.components.find((entry) => entry.id === component.id) ?? component;
       const step = observeHcSr04Inputs(
         hcSr04States.get(component.id)!,
         time,
         levels.powered,
         levels.triggerHigh,
-        hcSr04DistanceMeters(component)!,
+        hcSr04DistanceMeters(activeComponent)!,
       );
       hcSr04States.set(component.id, step.state);
       echoChanged ||= step.echoChanged;
@@ -695,12 +706,14 @@ export function advanceArduinoCircuitClock(
         frame.components.find((entry) => entry.componentId === component.id)?.terminalVoltages ??
         {};
       const levels = pingUltrasonicInputLevels(terminalVoltages);
+      const activeComponent =
+        activeDocument.components.find((entry) => entry.id === component.id) ?? component;
       const step = observePingUltrasonicSignal(
         pingUltrasonicStates.get(component.id)!,
         time,
         levels.powered,
         levels.signalHigh,
-        pingUltrasonicDistanceMeters(component)!,
+        pingUltrasonicDistanceMeters(activeComponent)!,
       );
       pingUltrasonicStates.set(component.id, step.state);
       echoChanged ||= step.echoChanged;
