@@ -47,6 +47,23 @@ const pirCircuit: SchematicDocument = {
   ],
 };
 
+const ultrasonicCircuit: SchematicDocument = {
+  ...circuit,
+  components: [
+    ...circuit.components,
+    {
+      id: 'sonar',
+      kind: 'visual',
+      value: 0,
+      position: { x: 70, y: 0 },
+      componentTypeId: 'ultrasonic-sensor',
+      variantId: 'ultrasonic-sensor',
+      pinIds: ['gnd', 'vcc', 'signal'],
+      stateProperties: { distanceMeters: 0.5 },
+    },
+  ],
+};
+
 const serialCircuit: SchematicDocument = {
   ...circuit,
   components: [
@@ -279,6 +296,29 @@ describe('Electronics canonical Worker controller', () => {
     controller.update(detected, 0);
     expect(executor.advances[1]!.inputEvents).toEqual([
       { atMicroseconds: 1, targetId: 'pir', operation: 'motionDetected', payload: true },
+    ]);
+  });
+
+  it('routes ultrasonic distance through the existing canonical pending input queue', async () => {
+    const executor = new FakeExecutor();
+    const controller = new ElectronicsLiveSimulationWorkerController(executor);
+    controller.start('project-a', ultrasonicCircuit, { onResult: vi.fn(), onFailure: vi.fn() });
+    await completeCanonicalStart(executor, 1);
+
+    const changed = {
+      ...ultrasonicCircuit,
+      components: ultrasonicCircuit.components.map((component) =>
+        component.id === 'sonar'
+          ? {
+              ...component,
+              stateProperties: { ...component.stateProperties, distanceMeters: 1 },
+            }
+          : component,
+      ),
+    };
+    controller.update(changed, 0);
+    expect(executor.advances[1]!.inputEvents).toEqual([
+      { atMicroseconds: 1, targetId: 'sonar', operation: 'distanceMeters', payload: 1 },
     ]);
   });
 
