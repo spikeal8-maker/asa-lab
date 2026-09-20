@@ -163,99 +163,6 @@ async function installBlocksMessageCapture(page: import('@playwright/test').Page
   });
 }
 
-async function explicitFlush(
-  page: import('@playwright/test').Page,
-  requestId: string,
-): Promise<CapturedBlocksMessage> {
-  await expect
-    .poll(async () =>
-      page.evaluate(() => {
-        const messages =
-          (window as unknown as { __asaBlocksTestMessages?: CapturedBlocksMessage[] })
-            .__asaBlocksTestMessages ?? [];
-        return messages.some(
-          (message) =>
-            message.messageType === 'ASA_BLOCKS_STATUS' &&
-            (message as CapturedBlocksMessage & { status?: string }).status === 'editor-ready',
-        );
-      }),
-    )
-    .toBe(true);
-
-  const binding = await page.evaluate(() => {
-    const messages =
-      (window as unknown as { __asaBlocksTestMessages?: CapturedBlocksMessage[] })
-        .__asaBlocksTestMessages ?? [];
-    const message = [...messages]
-      .reverse()
-      .find(
-        (candidate) =>
-          candidate.messageType === 'ASA_BLOCKS_STATUS' &&
-          (candidate as CapturedBlocksMessage & { status?: string }).status === 'editor-ready',
-      );
-    if (
-      !message ||
-      typeof message.protocolVersion !== 'number' ||
-      typeof message.projectId !== 'string' ||
-      typeof message.sessionNonce !== 'string'
-    ) {
-      return null;
-    }
-    return {
-      protocolVersion: message.protocolVersion,
-      projectId: message.projectId,
-      sessionNonce: message.sessionNonce,
-    };
-  });
-  if (!binding) throw new Error('accepted child binding was not observed');
-
-  await page.evaluate(
-    ({ binding: activeBinding, requestId: activeRequestId, targetOrigin }) => {
-      const frame = document.querySelector<HTMLIFrameElement>('iframe[title="Scratch runtime"]');
-      if (!frame?.contentWindow) throw new Error('Scratch runtime iframe unavailable');
-      frame.contentWindow.postMessage(
-        {
-          ...activeBinding,
-          messageType: 'ASA_BLOCKS_FLUSH_REQUEST',
-          requestId: activeRequestId,
-        },
-        targetOrigin,
-      );
-    },
-    { binding, requestId, targetOrigin: runtimeUrl },
-  );
-
-  await expect
-    .poll(async () =>
-      page.evaluate((targetRequestId) => {
-        const messages =
-          (window as unknown as { __asaBlocksTestMessages?: CapturedBlocksMessage[] })
-            .__asaBlocksTestMessages ?? [];
-        return messages.some(
-          (message) =>
-            message.messageType === 'ASA_BLOCKS_FLUSH_RESULT' &&
-            message.requestId === targetRequestId,
-        );
-      }, requestId),
-    )
-    .toBe(true);
-
-  return await page.evaluate((targetRequestId) => {
-    const messages =
-      (window as unknown as { __asaBlocksTestMessages?: CapturedBlocksMessage[] })
-        .__asaBlocksTestMessages ?? [];
-    return (
-      [...messages]
-        .reverse()
-        .find(
-          (message) =>
-            message.messageType === 'ASA_BLOCKS_FLUSH_RESULT' &&
-            message.requestId === targetRequestId,
-        ) ?? {}
-    );
-  }, requestId);
-}
-
 async function setServerSteps(
   frame: import('@playwright/test').FrameLocator,
   fromValue: string,
@@ -698,9 +605,6 @@ test('long-lived editor rotates capability in place and upstream autosaves with 
     expect(
       dirtyMessages.every((message) => message.sessionNonce === initialBinding.sessionNonce),
     ).toBe(true);
-    expect(messages.some((message) => message.messageType === 'ASA_BLOCKS_FLUSH_RESULT')).toBe(
-      false,
-    );
     expect(runtimeNavigations).toBe(1);
 
     await setServerSteps(frame, '37', '41');
@@ -793,7 +697,7 @@ test('edit during in-flight upstream autosave persists the latest generation', a
   }
 });
 
-test('explicit FLUSH fingerprints canonical state, no-ops unchanged work and advances only new edits', async () => {
+test('ordinary autosave persists canonical state, stays idle while unchanged and advances only new edits', async () => {
   const serverProject = await realRuntimeBootstrapFixture();
   const fixture = await createProtocolFixture({
     product: true,
@@ -806,7 +710,6 @@ test('explicit FLUSH fingerprints canonical state, no-ops unchanged work and adv
     runtimeAssets: serverProject.runtimeAssets,
   });
   const page = await fixture.context.newPage();
-  await installBlocksMessageCapture(page);
   try {
     await page.setViewportSize({ width: 1440, height: 960 });
     await page.goto(`${parentOrigin}/product`, { waitUntil: 'domcontentloaded' });
@@ -821,17 +724,8 @@ test('explicit FLUSH fingerprints canonical state, no-ops unchanged work and adv
     expect(fixture.runtimeWriteEvents).toEqual([]);
 
     await editLiveServerProjectAndAddMedia(frame);
-    expect(fixture.runtimeWriteEvents).toEqual([]);
-
-    const first = await explicitFlush(page, 'browser-save-first');
-    expect(first).toMatchObject({
-      messageType: 'ASA_BLOCKS_FLUSH_RESULT',
-      requestId: 'browser-save-first',
-      ok: true,
-      revision: 24,
-      reason: null,
-    });
-    await expect(shell).toHaveAttribute('data-draft-revision', '24');
+    await expect.poll(() => fixture.runtimeDraftEvidence.length, { timeout: 20_000 }).toBe(1);
+    await expect.poll(() => fixture.getServerRevision(), { timeout: 20_000 }).toBe(24);
 
     const p1 = {
       ...fixture.runtimePersistenceMetrics,
@@ -911,13 +805,7 @@ test('explicit FLUSH fingerprints canonical state, no-ops unchanged work and adv
 
     const writesBeforeNoop = fixture.runtimeWriteEvents.length;
     const draftsBeforeNoop = fixture.runtimeDraftEvidence.length;
-    const unchanged = await explicitFlush(page, 'browser-save-unchanged');
-    expect(unchanged).toMatchObject({
-      requestId: 'browser-save-unchanged',
-      ok: true,
-      revision: 24,
-      reason: null,
-    });
+    await page.waitForTimeout(9_000);
     const p2 = {
       ...fixture.runtimePersistenceMetrics,
       serverRevision: fixture.getServerRevision(),
@@ -925,16 +813,10 @@ test('explicit FLUSH fingerprints canonical state, no-ops unchanged work and adv
     expect(p2).toEqual(p1);
     expect(fixture.runtimeWriteEvents).toHaveLength(writesBeforeNoop);
     expect(fixture.runtimeDraftEvidence).toHaveLength(draftsBeforeNoop);
-    await expect(shell).toHaveAttribute('data-draft-revision', '24');
 
     await setServerSteps(frame, '37', '41');
-    const editedAgain = await explicitFlush(page, 'browser-save-new-edit');
-    expect(editedAgain).toMatchObject({
-      requestId: 'browser-save-new-edit',
-      ok: true,
-      revision: 25,
-      reason: null,
-    });
+    await expect.poll(() => fixture.runtimeDraftEvidence.length, { timeout: 20_000 }).toBe(2);
+    await expect.poll(() => fixture.getServerRevision(), { timeout: 20_000 }).toBe(25);
     const p3 = {
       ...fixture.runtimePersistenceMetrics,
       serverRevision: fixture.getServerRevision(),
@@ -951,10 +833,9 @@ test('explicit FLUSH fingerprints canonical state, no-ops unchanged work and adv
       firstDraft.body.mutationId,
     );
     expect(fixture.runtimeDraftEvidence.at(-1).body.baseRevision).toBe(24);
-    await expect(shell).toHaveAttribute('data-draft-revision', '25');
 
     fs.writeFileSync(
-      `${evidenceDir}/explicit-flush-p0-p3.json`,
+      `${evidenceDir}/canonical-autosave-p0-p3.json`,
       JSON.stringify(
         {
           p0,
@@ -1027,7 +908,6 @@ test('lost draft response followed by edit reconciles A before saving B without 
     },
   );
   const page = await fixture.context.newPage();
-  await installBlocksMessageCapture(page);
   try {
     await page.goto(`${parentOrigin}/product`, { waitUntil: 'domcontentloaded' });
     const frame = page.frameLocator('iframe[title="Scratch runtime"]');
@@ -1035,13 +915,11 @@ test('lost draft response followed by edit reconciles A before saving B without 
     await expect(shell).toHaveAttribute('data-editor-state', 'ready', { timeout: 45000 });
     await editLiveServerProjectAndAddMedia(frame);
 
-    const first = await explicitFlush(page, 'browser-lost-first');
-    expect(first).toMatchObject({
-      requestId: 'browser-lost-first',
-      ok: false,
-      reason: 'draft_write_failed',
+    await expect.poll(() => fixture.runtimeDraftEvidence.length, { timeout: 20_000 }).toBe(1);
+    await expect.poll(() => fixture.getServerRevision(), { timeout: 20_000 }).toBe(24);
+    await expect(frame.getByText('Project could not save.', { exact: true })).toBeVisible({
+      timeout: 20_000,
     });
-    expect(first.revision).toBeUndefined();
     const afterLost = {
       ...fixture.runtimePersistenceMetrics,
       serverRevision: fixture.getServerRevision(),
@@ -1055,17 +933,9 @@ test('lost draft response followed by edit reconciles A before saving B without 
     const uniqueBytesBeforeRetry = afterLost.uniqueAssetBytes;
     const blobRowsBeforeRetry = afterLost.blobRows;
     const aliasRowsBeforeRetry = afterLost.aliasRows;
-    await expect(shell).toHaveAttribute('data-draft-revision', '23');
-
     await setServerSteps(frame, '37', '41');
-    const reconciledAndSaved = await explicitFlush(page, 'browser-lost-edit-reconcile');
-    expect(reconciledAndSaved).toMatchObject({
-      requestId: 'browser-lost-edit-reconcile',
-      ok: true,
-      revision: 25,
-      reason: null,
-    });
-    expect(fixture.runtimeDraftEvidence).toHaveLength(3);
+    await expect.poll(() => fixture.runtimeDraftEvidence.length, { timeout: 20_000 }).toBe(3);
+    await expect.poll(() => fixture.getServerRevision(), { timeout: 20_000 }).toBe(25);
     const replayMutation = fixture.runtimeDraftEvidence[1].body;
     const generationB = fixture.runtimeDraftEvidence[2].body;
     expect(replayMutation.mutationId).toBe(firstMutation.mutationId);
@@ -1095,8 +965,6 @@ test('lost draft response followed by edit reconciles A before saving B without 
     expect(new Set(fixture.runtimeDraftEvidence.map((entry) => entry.body.mutationId)).size).toBe(
       2,
     );
-    await expect(shell).toHaveAttribute('data-draft-revision', '25');
-
     fs.writeFileSync(
       `${evidenceDir}/lost-response-edit-reconciliation.json`,
       JSON.stringify(
@@ -1129,7 +997,7 @@ test('lost draft response followed by edit reconciles A before saving B without 
   }
 });
 
-test('server revision movement returns explicit conflict without overwrite or automatic retry', async () => {
+test('server revision movement rejects autosave without overwrite or automatic retry', async () => {
   const serverProject = await realRuntimeBootstrapFixture();
   const fixture = await createProtocolFixture({
     product: true,
@@ -1142,7 +1010,6 @@ test('server revision movement returns explicit conflict without overwrite or au
     runtimeAssets: serverProject.runtimeAssets,
   });
   const page = await fixture.context.newPage();
-  await installBlocksMessageCapture(page);
   try {
     await page.goto(`${parentOrigin}/product`, { waitUntil: 'domcontentloaded' });
     const frame = page.frameLocator('iframe[title="Scratch runtime"]');
@@ -1152,26 +1019,21 @@ test('server revision movement returns explicit conflict without overwrite or au
     expect(fixture.runtimeWriteEvents).toEqual([]);
     expect(fixture.advanceServerRevision()).toBe(24);
 
-    const result = await explicitFlush(page, 'browser-revision-conflict');
-    expect(result).toMatchObject({
-      requestId: 'browser-revision-conflict',
-      ok: false,
-      reason: 'revision_conflict',
+    await expect.poll(() => fixture.runtimeDraftEvidence.length, { timeout: 20_000 }).toBe(1);
+    await expect(frame.getByText('Project could not save.', { exact: true })).toBeVisible({
+      timeout: 20_000,
     });
-    expect(result.revision).toBeUndefined();
     expect(fixture.runtimePersistenceMetrics.assetRequests).toBe(0);
     expect(fixture.runtimePersistenceMetrics.draftRequests).toBe(1);
     expect(fixture.runtimePersistenceMetrics.revisionCommits).toBe(0);
     expect(fixture.runtimePersistenceMetrics.externalRevisionAdvances).toBe(1);
     expect(fixture.runtimeDraftEvidence).toHaveLength(1);
-    await expect(shell).toHaveAttribute('data-draft-revision', '23');
-
     fs.writeFileSync(
       `${evidenceDir}/revision-conflict.json`,
       JSON.stringify(
         {
-          reason: result.reason,
-          clientConfirmedRevision: 23,
+          reason: 'revision_conflict',
+          clientBaseRevision: 23,
           serverRevision: fixture.getServerRevision(),
           draftRequests: fixture.runtimePersistenceMetrics.draftRequests,
           clientRevisionCommits: fixture.runtimePersistenceMetrics.revisionCommits,
@@ -1186,7 +1048,7 @@ test('server revision movement returns explicit conflict without overwrite or au
   }
 });
 
-test('asset PUT failure returns failed FLUSH and does not issue draft PUT', async () => {
+test('asset PUT failure makes autosave fail closed before draft PUT', async () => {
   const serverProject = await realRuntimeBootstrapFixture();
   const fixture = await createProtocolFixture({
     product: true,
@@ -1200,33 +1062,28 @@ test('asset PUT failure returns failed FLUSH and does not issue draft PUT', asyn
     assetWriteStatus: 503,
   });
   const page = await fixture.context.newPage();
-  await installBlocksMessageCapture(page);
   try {
     await page.goto(`${parentOrigin}/product`, { waitUntil: 'domcontentloaded' });
     const frame = page.frameLocator('iframe[title="Scratch runtime"]');
     const shell = frame.locator('[data-asa-host-shell]');
     await expect(shell).toHaveAttribute('data-editor-state', 'ready', { timeout: 45000 });
     await editLiveServerProjectAndAddMedia(frame);
-    expect(fixture.runtimeWriteEvents).toEqual([]);
-
-    const result = await explicitFlush(page, 'browser-asset-failure');
-    expect(result).toMatchObject({
-      requestId: 'browser-asset-failure',
-      ok: false,
-      reason: 'asset_write_failed',
+    await expect
+      .poll(() => fixture.runtimeAssetPutEvidence.length, { timeout: 20_000 })
+      .toBeGreaterThan(0);
+    await expect(frame.getByText('Project could not save.', { exact: true })).toBeVisible({
+      timeout: 20_000,
     });
-    expect(result.revision).toBeUndefined();
-    expect(fixture.runtimeAssetPutEvidence).toHaveLength(1);
     expect(fixture.runtimeDraftEvidence).toHaveLength(0);
-    expect(fixture.runtimeWriteEvents).toHaveLength(1);
-    expect(fixture.runtimeWriteEvents[0]?.kind).toBe('asset-put');
-    await expect(shell).toHaveAttribute('data-draft-revision', '23');
+    expect(fixture.runtimeWriteEvents.length).toBeGreaterThan(0);
+    expect(fixture.runtimeWriteEvents.every((event) => event.kind === 'asset-put')).toBe(true);
+    expect(fixture.getServerRevision()).toBe(23);
   } finally {
     await fixture.close();
   }
 });
 
-test('draft PUT failure never produces false save success or advances confirmed revision', async () => {
+test('draft PUT failure never produces false autosave success or advances confirmed revision', async () => {
   const serverProject = await realRuntimeBootstrapFixture();
   const fixture = await createProtocolFixture({
     product: true,
@@ -1240,29 +1097,23 @@ test('draft PUT failure never produces false save success or advances confirmed 
     draftWriteStatus: 409,
   });
   const page = await fixture.context.newPage();
-  await installBlocksMessageCapture(page);
   try {
     await page.goto(`${parentOrigin}/product`, { waitUntil: 'domcontentloaded' });
     const frame = page.frameLocator('iframe[title="Scratch runtime"]');
     const shell = frame.locator('[data-asa-host-shell]');
     await expect(shell).toHaveAttribute('data-editor-state', 'ready', { timeout: 45000 });
     await editLiveServerProjectAndAddMedia(frame);
-    expect(fixture.runtimeWriteEvents).toEqual([]);
-
-    const result = await explicitFlush(page, 'browser-draft-failure');
-    expect(result).toMatchObject({
-      requestId: 'browser-draft-failure',
-      ok: false,
-      reason: 'draft_write_failed',
+    await expect.poll(() => fixture.runtimeDraftEvidence.length, { timeout: 20_000 }).toBe(1);
+    await expect(frame.getByText('Project could not save.', { exact: true })).toBeVisible({
+      timeout: 20_000,
     });
-    expect(result.revision).toBeUndefined();
     expect(fixture.runtimeAssetPutEvidence.length).toBeGreaterThan(0);
     expect(fixture.runtimeDraftEvidence).toHaveLength(1);
     expect(fixture.runtimeWriteEvents.at(-1)).toEqual({ kind: 'draft-put' });
     expect(
       fixture.runtimeWriteEvents.slice(0, -1).every((event) => event.kind === 'asset-put'),
     ).toBe(true);
-    await expect(shell).toHaveAttribute('data-draft-revision', '23');
+    expect(fixture.getServerRevision()).toBe(23);
   } finally {
     await fixture.close();
   }

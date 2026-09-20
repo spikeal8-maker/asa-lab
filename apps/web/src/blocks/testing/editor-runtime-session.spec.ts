@@ -401,7 +401,7 @@ describe('BlocksEditor runtime session bootstrap', () => {
     );
   });
 
-  it('does not expose a parent save control or start the legacy FLUSH path', async () => {
+  it('does not expose a parent save control', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async () => jsonResponse(session())),
@@ -420,15 +420,9 @@ describe('BlocksEditor runtime session bootstrap', () => {
 
     expect(container!.querySelector('[data-asa-blocks-save]')).toBeNull();
     expect(container!.textContent).not.toContain('Сохранить в ASA');
-    expect(
-      postMessage.mock.calls.filter(
-        ([message]) =>
-          (message as Record<string, unknown>)?.['messageType'] === 'ASA_BLOCKS_FLUSH_REQUEST',
-      ),
-    ).toHaveLength(0);
   });
 
-  it('refreshes expiring authority proactively with TOKEN_UPDATE and no second INIT or FLUSH', async () => {
+  it('refreshes expiring authority proactively with TOKEN_UPDATE and no second INIT', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2030-01-01T00:00:00.000Z'));
     const nowSeconds = Math.floor(Date.now() / 1000);
@@ -453,9 +447,6 @@ describe('BlocksEditor runtime session bootstrap', () => {
     expect(
       messages.filter((message) => message['messageType'] === 'ASA_BLOCKS_TOKEN_UPDATE'),
     ).toHaveLength(1);
-    expect(
-      messages.filter((message) => message['messageType'] === 'ASA_BLOCKS_FLUSH_REQUEST'),
-    ).toHaveLength(0);
     expect(storageSet).not.toHaveBeenCalled();
   });
 
@@ -495,9 +486,6 @@ describe('BlocksEditor runtime session bootstrap', () => {
     expect(
       messages.filter((message) => message['messageType'] === 'ASA_BLOCKS_TOKEN_UPDATE'),
     ).toHaveLength(1);
-    expect(
-      messages.filter((message) => message['messageType'] === 'ASA_BLOCKS_FLUSH_REQUEST'),
-    ).toHaveLength(0);
   });
 
   it.each([401, 503])(
@@ -525,9 +513,6 @@ describe('BlocksEditor runtime session bootstrap', () => {
       );
       expect(
         messages.filter((message) => message['messageType'] === 'ASA_BLOCKS_TOKEN_UPDATE'),
-      ).toHaveLength(0);
-      expect(
-        messages.filter((message) => message['messageType'] === 'ASA_BLOCKS_FLUSH_REQUEST'),
       ).toHaveLength(0);
     },
   );
@@ -654,12 +639,6 @@ describe('BlocksEditor runtime session bootstrap', () => {
     });
 
     expect(container!.querySelector('[data-asa-blocks-save]')).toBeNull();
-    expect(
-      postMessage.mock.calls.filter(
-        ([message]) =>
-          (message as Record<string, unknown>)?.['messageType'] === 'ASA_BLOCKS_FLUSH_REQUEST',
-      ),
-    ).toHaveLength(0);
   });
 
   it('waits for upstream save-before-exit success before leaving through Home', async () => {
