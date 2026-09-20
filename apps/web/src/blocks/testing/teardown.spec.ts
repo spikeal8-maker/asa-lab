@@ -25,7 +25,7 @@ describe('accepted protocol teardown under exceptions', () => {
       projectJson: null,
       hasProjectJson: false,
       assets: [],
-      recoveryNamespace: 'test',
+      recoveryPrincipalKey: '33333333-3333-4333-8333-333333333333',
     });
     expect(() => bridge.stop()).toThrow('detached iframe');
     expect(JSON.stringify(bridge)).not.toContain('teardown-fixture-token');
@@ -70,6 +70,7 @@ describe('accepted protocol teardown under exceptions', () => {
       projectJson: null,
       hasProjectJson: false,
       assets: [],
+      recoveryPrincipalKey: '33333333-3333-4333-8333-333333333333',
     });
     expect(protocol.getRuntimeToken()).toBe('fixture.runtime.token');
     expect(() => send({ ...binding, messageType: 'ASA_BLOCKS_STOP' })).toThrow(

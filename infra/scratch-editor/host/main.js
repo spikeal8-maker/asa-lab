@@ -4,6 +4,7 @@
   const standalone = globalThis.GUI;
   const protocolApi = globalThis.AsaBlocksProtocol;
   const statusApi = globalThis.AsaBlocksStatus;
+  const recoveryApi = globalThis.AsaBlocksRecovery;
   const requiredExports = [
     'EditorState',
     'createStandaloneRoot',
@@ -30,9 +31,9 @@
     throw new Error(`Scratch standalone bundle missing exports: ${missingExports.join(', ')}`);
   }
 
-  if (!protocolApi || !statusApi) {
+  if (!protocolApi || !statusApi || !recoveryApi) {
     failLocal('error', 'Не удалось загрузить протокол среды визуального программирования.');
-    throw new Error('ASA Blocks protocol/status modules are unavailable');
+    throw new Error('ASA Blocks protocol/status/recovery modules are unavailable');
   }
   const rawParentOrigin = document
     .querySelector('meta[name="asa-parent-origin"]')
@@ -93,6 +94,7 @@
           shell,
           session,
           bootstrap,
+          recoveryApi,
           getRuntimeToken: () => protocol.getRuntimeToken(),
           onReady() {
             status.textContent = 'Учебный проект готов.';
@@ -101,23 +103,32 @@
           onDirty(generation) {
             reporter?.projectDirty(generation);
           },
+          onThumbnailReady(sourceRevision, imageDataUrl) {
+            reporter?.thumbnailReady(sourceRevision, imageDataUrl);
+          },
         });
         void editor.startup.catch(() => reportFatal('editor_mount_failed'));
       } catch {
         reportFatal('editor_mount_failed');
       }
     },
-    onFlushRequest(requestId) {
+    onSaveBeforeExitRequest(requestId) {
       if (!editor) {
-        reporter?.flushResult(requestId, false, 'editor_not_ready');
+        reporter?.saveBeforeExitResult(requestId, false, 'editor_not_ready');
         return;
       }
-      void editor.flush().then((result) => {
+      void editor.saveBeforeExit().then((result) => {
         if (result.ok) {
-          reporter?.flushResult(requestId, true, null, result.revision, result.snapshotGeneration);
+          reporter?.saveBeforeExitResult(
+            requestId,
+            true,
+            null,
+            result.revision,
+            result.savedGeneration,
+          );
           return;
         }
-        reporter?.flushResult(requestId, false, result.reason);
+        reporter?.saveBeforeExitResult(requestId, false, result.reason);
       });
     },
     onStop() {

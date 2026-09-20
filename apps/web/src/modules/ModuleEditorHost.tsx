@@ -36,6 +36,7 @@ function BlocksEditorAdapter(props: ModuleEditorProps): JSX.Element {
   return (
     <BlocksEditor
       projectId={props.projectId}
+      recoveryPrincipalKey={props.user.id}
       onBack={props.onBack}
       onHomeClick={() => {
         window.location.hash = '/home';
