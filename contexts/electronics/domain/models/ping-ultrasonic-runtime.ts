@@ -135,7 +135,9 @@ export function observePingUltrasonicSignal(
     return { state: next, echoChanged: echoBefore };
   }
 
-  let next: PingUltrasonicRuntimeState = state.powered\n    ? state\n    : { ...state, powered: true };
+  let next: PingUltrasonicRuntimeState = state.powered
+    ? state
+    : { ...state, powered: true };
 
   if (next.phase === 'idle' && signalHigh) {
     next = {
