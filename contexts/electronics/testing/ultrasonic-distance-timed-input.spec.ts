@@ -172,8 +172,8 @@ describe('ultrasonic canonical timed distance input', () => {
       property: 'distanceMeters',
       value: 1,
     });
-    expect(clock.boards.find((entry) => entry.componentId === 'uno')!.runtime.variables.duration).toBe(
-      5800,
-    );
+    expect(
+      clock.boards.find((entry) => entry.componentId === 'uno')!.runtime.variables.duration,
+    ).toBe(5800);
   });
 });
