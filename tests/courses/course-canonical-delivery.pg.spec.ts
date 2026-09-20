@@ -341,12 +341,7 @@ describe('Э1 existing course → exact versions → runs → inherited particip
       (
         await admin.query(
           'SELECT sample_bytes,sample_content_type FROM assignment_sample_for_viewer($1,$2,$3,$4,NULL)',
-          [
-            task,
-            viewerIdentity.principal_id,
-            viewerIdentity.account_id,
-            viewer.tenantId,
-          ],
+          [task, viewerIdentity.principal_id, viewerIdentity.account_id, viewer.tenantId],
         )
       ).rows;
 
