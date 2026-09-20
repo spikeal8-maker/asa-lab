@@ -25,6 +25,7 @@
   const SHA256_RE = /^[a-f0-9]{64}$/;
   const RECOVERY_ASSET_TOTAL_LIMIT = 250 * 1024 * 1024;
   const UPSTREAM_ASSET_STORE_CONCURRENCY = 4;
+  const PROJECT_OPEN_ASSET_GET_CONCURRENCY = 4;
   const RECOVERY_ASSET_LIMITS = {
     svg: 10 * 1024 * 1024,
     png: 10 * 1024 * 1024,
@@ -698,11 +699,20 @@
       scratchStorage,
       async prepareProjectAssets() {
         if (options.projectJson === null || typeof options.projectJson === 'undefined') return;
-        for (const reference of confirmedAssets.values()) {
-          const type = typeForFormat(reference.dataFormat);
-          if (!type) throw unavailable();
-          await loadRuntimeAsset(reference, type, reference.dataFormat);
-        }
+        const references = confirmedAssets.values();
+        const loadNextConfirmedAsset = async () => {
+          for (let next = references.next(); !next.done; next = references.next()) {
+            const reference = next.value;
+            const type = typeForFormat(reference.dataFormat);
+            if (!type) throw unavailable();
+            await loadRuntimeAsset(reference, type, reference.dataFormat);
+          }
+        };
+        const workers = Array.from(
+          { length: Math.min(PROJECT_OPEN_ASSET_GET_CONCURRENCY, confirmedAssets.size) },
+          () => loadNextConfirmedAsset(),
+        );
+        await Promise.all(workers);
         await ensureConfirmedFingerprint();
       },
       getConfirmedRevision() {

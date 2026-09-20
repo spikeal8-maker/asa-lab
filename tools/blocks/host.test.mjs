@@ -207,6 +207,55 @@ test('declared runtime asset GET uses current Bearer without cookies or URL capa
   assert.equal(calls.length, 1, 'verified runtime bytes are cached without a second GET');
 });
 
+test('project-open confirmed asset GETs are bounded to four concurrent requests', async () => {
+  for (const count of [1, 5, 20]) {
+    let active = 0;
+    let maxActive = 0;
+    let getCount = 0;
+    const assets = Array.from({ length: count }, (_, index) =>
+      snapshotAsset(
+        (index + 1).toString(16).padStart(32, '0'),
+        'png',
+        Uint8Array.from([index + 1, index + 2, index + 3]),
+      ),
+    );
+    const bytesById = new Map(assets.map((value) => [value.assetId, value.bytes]));
+    const fetchMock = async (url) => {
+      const match = /\/assets\/([a-f0-9]{32})\.png$/.exec(String(url));
+      assert.ok(match);
+      const bytes = bytesById.get(match[1]);
+      assert.ok(bytes);
+      getCount += 1;
+      active += 1;
+      maxActive = Math.max(maxActive, active);
+      await new Promise((resolve) => globalThis.setTimeout(resolve, 5));
+      active -= 1;
+      return new globalThis.Response(bytes, {
+        status: 200,
+        headers: { 'content-type': 'image/png' },
+      });
+    };
+    const api = loadHost('storage', {
+      fetch: fetchMock,
+      crypto: webcrypto,
+      AbortController: globalThis.AbortController,
+    }).AsaBlocksStorage;
+    const storage = api.createReadOnlyStorage(standaloneFixture(), {
+      projectId: PROJECT_ID,
+      projectJson: projectWithAssets('Open bounded', assets),
+      assets,
+      draftRevision: 7,
+      apiOrigin: API_ORIGIN,
+      getRuntimeToken: () => RUNTIME_TOKEN,
+    });
+
+    await storage.prepareProjectAssets();
+
+    assert.equal(getCount, count);
+    assert.equal(maxActive, Math.min(count, 4), `${count} assets must respect the GET limit`);
+  }
+});
+
 test('confirmed stock/default identity with missing durable object fails closed without stock fallback', async () => {
   const stockId = 'b'.repeat(32);
   const { storage, calls } = createRuntimeStorage({
@@ -306,7 +355,7 @@ test('non-declared asset never receives a runtime asset URL and may only use the
   assert.equal(calls[0].init.headers, undefined);
 });
 
-async function editorFixture(hasProjectJson = false, mode = 'editor') {
+async function editorFixture(hasProjectJson = false, mode = 'editor', options = {}) {
   const machine = new EventEmitter();
   let stops = 0;
   let quits = 0;
@@ -321,6 +370,7 @@ async function editorFixture(hasProjectJson = false, mode = 'editor') {
   const storage = {
     async prepareProjectAssets() {
       prepared++;
+      await options.prepareProjectAssets?.();
     },
     dispose() {
       disposedStorage++;
@@ -381,14 +431,20 @@ async function editorFixture(hasProjectJson = false, mode = 'editor') {
       dirtyGenerations.push(generation);
     },
   });
-  await editor.startup;
+  if (options.awaitStartup !== false) await editor.startup;
   return {
     machine,
     shell,
     editor,
-    props,
-    params,
-    requestedId,
+    get props() {
+      return props;
+    },
+    get params() {
+      return params;
+    },
+    get requestedId() {
+      return requestedId;
+    },
     dirtyGenerations,
     counts: () => ({ stops, quits, unmounts, ready, prepared, disposedStorage }),
   };
@@ -420,6 +476,49 @@ test('new project mount uses Scratch default project and preserves native editor
   fixture.machine.emit('PROJECT_RUN_STOP');
   assert.equal(fixture.shell.dataset.projectRunning, 'false');
   assert.equal(fixture.counts().prepared, 0);
+});
+
+test('existing project cannot mount or report ready before confirmed asset preparation completes', async () => {
+  let releasePreparation;
+  const preparationGate = new Promise((resolve) => {
+    releasePreparation = resolve;
+  });
+  const fixture = await editorFixture(true, 'editor', {
+    awaitStartup: false,
+    prepareProjectAssets: () => preparationGate,
+  });
+
+  await Promise.resolve();
+  assert.equal(
+    fixture.props,
+    undefined,
+    'editor must not mount while confirmed assets are loading',
+  );
+  assert.equal(fixture.counts().ready, 0);
+
+  releasePreparation();
+  await fixture.editor.startup;
+  assert.ok(fixture.props, 'editor may mount only after confirmed asset preparation succeeds');
+  assert.equal(fixture.counts().ready, 0, 'editor-ready still waits for upstream project load');
+  fixture.props.onProjectLoaded();
+  await Promise.resolve();
+  assert.equal(fixture.counts().ready, 1);
+});
+
+test('confirmed asset preparation failure blocks editor startup and editor-ready', async () => {
+  const fixture = await editorFixture(true, 'editor', {
+    awaitStartup: false,
+    prepareProjectAssets: async () => {
+      throw Object.assign(new Error('runtime_asset_unavailable'), {
+        code: 'runtime_asset_unavailable',
+      });
+    },
+  });
+
+  await assert.rejects(fixture.editor.startup, /runtime_asset_unavailable/);
+  assert.equal(fixture.props, undefined);
+  assert.equal(fixture.counts().ready, 0);
+  assert.equal(fixture.shell.dataset.editorState, 'disposed');
 });
 
 test('existing project mount preloads runtime assets and uses the real ASA projectId, never a fixture ID', async () => {
