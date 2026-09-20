@@ -515,19 +515,36 @@ function createPersistenceStorage({
       headers: { 'content-type': 'application/json' },
     });
   };
+  class PersistenceStorage extends Storage {
+    async store(assetType, dataFormat, data, assetId) {
+      const format = dataFormat || assetType?.runtimeFormat;
+      const created = this.createAsset(assetType, format, data, assetId);
+      const request = this.webStore?.update?.(created);
+      if (!request) throw new Error('fixture_store_not_configured');
+      const response = await fetchMock(request.url, { ...request, body: data });
+      if (!response.ok || response.redirected) throw new Error('asset_write_failed');
+      return response.json();
+    }
+  }
+
   const api = loadHost('storage', {
     fetch: fetchMock,
     crypto: webcrypto,
     AbortController: globalThis.AbortController,
   }).AsaBlocksStorage;
-  const storage = api.createReadOnlyStorage(standaloneFixture(), {
-    projectId: PROJECT_ID,
-    projectJson: null,
-    assets: bootstrapAssets,
-    draftRevision: 7,
-    apiOrigin: API_ORIGIN,
-    getRuntimeToken: () => RUNTIME_TOKEN,
-    canSave: true,
+  const storage = api.createReadOnlyStorage(
+    {
+      ScratchStorage: PersistenceStorage,
+      buildDefaultProject: standaloneFixture().buildDefaultProject,
+    },
+    {
+      projectId: PROJECT_ID,
+      projectJson: null,
+      assets: bootstrapAssets,
+      draftRevision: 7,
+      apiOrigin: API_ORIGIN,
+      getRuntimeToken: () => RUNTIME_TOKEN,
+      canSave: true,
     },
   );
   return { storage, calls };
@@ -742,7 +759,6 @@ test('canonical upstream persistence uploads only changed assets before draft an
   const result = await storage.saveProject(PROJECT_ID, JSON.stringify(projectJson));
 
   assert.equal(result.id, PROJECT_ID);
-  assert.equal(storage.getConfirmedRevision(), 8);
   assert.equal(storage.getConfirmedRevision(), 8);
   assert.deepEqual(
     calls.map((call) => call.kind),
