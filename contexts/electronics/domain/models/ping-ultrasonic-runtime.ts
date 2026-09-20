@@ -36,9 +36,7 @@ export function initialPingUltrasonicRuntimeState(): PingUltrasonicRuntimeState 
   return { version: 1, phase: 'idle', powered: false };
 }
 
-export function isPingUltrasonicRuntimeState(
-  value: unknown,
-): value is PingUltrasonicRuntimeState {
+export function isPingUltrasonicRuntimeState(value: unknown): value is PingUltrasonicRuntimeState {
   if (!value || typeof value !== 'object') return false;
   const state = value as Partial<PingUltrasonicRuntimeState>;
   if (
@@ -135,9 +133,7 @@ export function observePingUltrasonicSignal(
     return { state: next, echoChanged: echoBefore };
   }
 
-  let next: PingUltrasonicRuntimeState = state.powered
-    ? state
-    : { ...state, powered: true };
+  let next: PingUltrasonicRuntimeState = state.powered ? state : { ...state, powered: true };
 
   if (next.phase === 'idle' && signalHigh) {
     next = {
@@ -150,8 +146,7 @@ export function observePingUltrasonicSignal(
     if (highDuration >= PING_ULTRASONIC_PROFILE.minimumTriggerHighMicroseconds) {
       const echoStartMicroseconds =
         nowMicroseconds + PING_ULTRASONIC_PROFILE.echoStartLatencyMicroseconds;
-      const echoEndMicroseconds =
-        echoStartMicroseconds + pingEchoWidthMicroseconds(distanceMeters);
+      const echoEndMicroseconds = echoStartMicroseconds + pingEchoWidthMicroseconds(distanceMeters);
       next = {
         version: 1,
         phase: 'echo-delay',
