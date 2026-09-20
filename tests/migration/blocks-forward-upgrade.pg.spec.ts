@@ -39,13 +39,14 @@ describe('Blocks forward upgrade on real PostgreSQL', () => {
             '0151',
             '0152',
             '0153',
+            '0154',
           ]);
-          expect(await applyIsolatedTestPlan(client, plan)).toBe(3);
+          expect(await applyIsolatedTestPlan(client, plan)).toBe(4);
           expect(await applyIsolatedTestPlan(client, plan)).toBe(0);
           expect(
             (
               await client.query(
-                "SELECT * FROM schema_migrations WHERE version NOT IN ('0151','0152','0153') ORDER BY version",
+                "SELECT * FROM schema_migrations WHERE version NOT IN ('0151','0152','0153','0154') ORDER BY version",
               )
             ).rows,
           ).toEqual(before);

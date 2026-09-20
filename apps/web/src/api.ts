@@ -342,18 +342,19 @@ export interface CourseItem {
   position: number;
 }
 
-export type LessonBlock =
-  | { id: string; type: 'paragraph'; text: string }
-  | { id: string; type: 'heading'; text: string; level: 2 | 3 }
-  | { id: string; type: 'callout'; text: string; tone: 'note' | 'tip' | 'warning' }
-  | { id: string; type: 'image'; url: string; alt: string; caption: string }
-  | { id: string; type: 'video'; url: string; title: string }
-  | { id: string; type: 'audio'; url: string; title: string }
-  | { id: string; type: 'file'; url: string; label: string }
-  | { id: string; type: 'code'; text: string; language?: string }
-  | { id: string; type: 'formula'; text: string }
-  | { id: string; type: 'table'; rows: string[][] }
-  | { id: string; type: 'divider' };
+export type LessonBlock = { id: string; hidden?: boolean } & (
+  | { type: 'paragraph'; text: string }
+  | { type: 'heading'; text: string; level: 2 | 3 }
+  | { type: 'callout'; text: string; tone: 'note' | 'tip' | 'warning' }
+  | { type: 'image'; url: string; alt: string; caption: string }
+  | { type: 'video'; url: string; title: string }
+  | { type: 'audio'; url: string; title: string }
+  | { type: 'file'; url: string; label: string }
+  | { type: 'code'; text: string; language?: string }
+  | { type: 'formula'; text: string }
+  | { type: 'table'; rows: string[][] }
+  | { type: 'divider' }
+);
 
 export interface CourseLesson {
   id: string;

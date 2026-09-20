@@ -1155,7 +1155,18 @@
 
 .lesson-block-card > header > div {
   display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 3px;
+}
+
+.lesson-block-hidden-state {
+  margin-left: 6px;
+  color: var(--ink-muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
 }
 
 .lesson-block-card > header button {
@@ -1171,6 +1182,45 @@
 
 .lesson-block-card > header button:hover:not(:disabled) {
   background: #edf2f5;
+}
+
+.lesson-block-card > header button.lesson-block-structural-button {
+  width: auto;
+  min-width: 0;
+  padding: 0 6px;
+  font-size: 10px;
+}
+
+.lesson-block-card.is-hidden {
+  border-style: dashed;
+}
+
+.lesson-block-insert-picker {
+  display: grid;
+  gap: 5px;
+  padding: 7px;
+  border-radius: 7px;
+  background: #f3f7f9;
+}
+
+.lesson-block-insert-picker > small {
+  color: var(--ink-muted);
+  font-size: 10px;
+}
+
+.lesson-block-insert-picker > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.lesson-block-insert-picker button {
+  min-height: 28px;
+  padding: 4px 8px;
+  border: 1px solid #cad5dd;
+  border-radius: 6px;
+  background: #fff;
+  cursor: pointer;
 }
 
 .lesson-block-card textarea,

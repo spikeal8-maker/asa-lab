@@ -5,7 +5,7 @@ function visibleBlocks(
   blocks: readonly LessonBlock[],
   legacyContent: string | null,
 ): LessonBlock[] {
-  if (blocks.length > 0) return [...blocks];
+  if (blocks.length > 0) return blocks.filter((block) => block.hidden !== true);
   return legacyContent ? [{ id: 'legacy', type: 'paragraph', text: legacyContent }] : [];
 }
 

@@ -935,6 +935,190 @@ test('Course Builder duplicates a section and excludes hidden lesson only from f
   await newLearner.context.close();
 });
 
+test('Course Builder persists informational block structural controls into future versions only', async ({
+  browser,
+  page,
+}) => {
+  test.setTimeout(180_000);
+  const courseTitle = 'Блочная структура курса ' + ++sequence;
+  await loginWithOrganization(page, teacher);
+  await page.goto('/#/challenges');
+
+  await page.getByRole('button', { name: 'Мои курсы', exact: true }).click();
+  await page.getByRole('button', { name: 'Создать курс', exact: true }).click();
+  const form = page.getByRole('dialog', { name: 'Новый курс' });
+  await form.getByLabel('Название', { exact: true }).fill(courseTitle);
+  await form.getByRole('button', { name: 'Создать курс', exact: true }).click();
+
+  const editor = page.getByTestId('course-editor');
+  await expect(editor).toBeVisible();
+  await editor
+    .locator('.course-outline')
+    .getByRole('button', { name: '+ Урок', exact: true })
+    .click();
+  await editor.getByLabel('Название урока').fill('Блочная теория');
+  await editor.getByLabel('Текст блока', { exact: true }).fill('Исходный A');
+  await editor.getByRole('button', { name: '+ Текст', exact: true }).click();
+  await editor.getByLabel('Текст блока', { exact: true }).nth(1).fill('Исходный B');
+  await editor.getByRole('button', { name: '+ Текст', exact: true }).click();
+  await editor.getByLabel('Текст блока', { exact: true }).nth(2).fill('Исходный C');
+  await editor.getByRole('button', { name: 'Добавить урок', exact: true }).click();
+  await expect(page.getByText('Урок добавлен.', { exact: true })).toBeVisible();
+
+  await editor.getByRole('button', { name: 'Опубликовать', exact: true }).click();
+  await expect(page.getByText('Курс опубликован: версия 1.', { exact: true })).toBeVisible();
+
+  const v1Code = await createClassWithStudents(page, 'Блоки V1 ' + sequence, [
+    { label: 'Ученик блоков V1', handle: 'course-block-v1-' + sequence },
+  ]);
+  const oldLearner = await learnerAssignments(browser, v1Code, 'course-block-v1-' + sequence);
+  await page
+    .getByRole('navigation', { name: 'Разделы класса' })
+    .getByRole('button', { name: 'Обучение', exact: true })
+    .click();
+  await page
+    .getByRole('navigation', { name: 'Материалы класса' })
+    .getByRole('button', { name: 'Курсы', exact: true })
+    .click();
+  await page.getByLabel('Опубликованный курс').selectOption({ label: courseTitle + ' · v1' });
+  await page.getByRole('button', { name: 'Назначить курс', exact: true }).click();
+
+  await oldLearner.page.reload();
+  await oldLearner.page
+    .getByTestId('seat-courses')
+    .getByRole('button')
+    .filter({ hasText: courseTitle })
+    .click();
+  const oldPlayer = oldLearner.page.getByTestId('seat-course-player');
+  await expect(oldPlayer.locator('.lesson-blocks').first().locator(':scope > *')).toHaveText([
+    'Исходный A',
+    'Исходный B',
+    'Исходный C',
+  ]);
+
+  await page.goto('/#/challenges');
+  await page.getByRole('button', { name: 'Мои курсы', exact: true }).click();
+  await page
+    .getByTestId('courses-list')
+    .getByRole('button')
+    .filter({ hasText: courseTitle })
+    .click();
+  await expect(editor).toBeVisible();
+  await editor.locator('.course-lesson-link').first().click();
+
+  const cards = editor.locator('.lesson-block-card');
+  await expect(cards).toHaveCount(3);
+
+  await cards.nth(0).getByRole('button', { name: 'Дублировать', exact: true }).click();
+  await expect(cards).toHaveCount(4);
+  await cards.nth(1).getByLabel('Текст блока', { exact: true }).fill('Дубликат A');
+
+  await cards.nth(1).getByRole('button', { name: 'Вставить ниже', exact: true }).click();
+  await cards
+    .nth(1)
+    .locator('.lesson-block-insert-picker')
+    .getByRole('button', { name: '+ Заголовок', exact: true })
+    .click();
+  await expect(cards).toHaveCount(5);
+  await cards.nth(2).getByLabel('Текст заголовка', { exact: true }).fill('Вставленный заголовок');
+
+  await cards.nth(3).getByRole('button', { name: 'Скрыть', exact: true }).click();
+  await expect(cards.nth(3)).toContainText('Скрыт');
+
+  await cards.nth(4).getByRole('button', { name: 'Поднять блок 5', exact: true }).click();
+  await expect(cards.nth(3).getByLabel('Текст блока', { exact: true })).toHaveValue('Исходный C');
+  await expect(cards.nth(4)).toContainText('Скрыт');
+
+  await editor.getByRole('button', { name: 'Сохранить урок', exact: true }).click();
+  await expect(page.getByText('Урок сохранён.', { exact: true })).toBeVisible();
+
+  await page.reload();
+  await page.getByRole('button', { name: 'Мои курсы', exact: true }).click();
+  await page
+    .getByTestId('courses-list')
+    .getByRole('button')
+    .filter({ hasText: courseTitle })
+    .click();
+  await expect(editor).toBeVisible();
+  await editor.locator('.course-lesson-link').first().click();
+  const reloadedCards = editor.locator('.lesson-block-card');
+  await expect(reloadedCards).toHaveCount(5);
+  await expect(reloadedCards.nth(0).getByLabel('Текст блока', { exact: true })).toHaveValue(
+    'Исходный A',
+  );
+  await expect(reloadedCards.nth(1).getByLabel('Текст блока', { exact: true })).toHaveValue(
+    'Дубликат A',
+  );
+  await expect(reloadedCards.nth(2).getByLabel('Текст заголовка', { exact: true })).toHaveValue(
+    'Вставленный заголовок',
+  );
+  await expect(reloadedCards.nth(3).getByLabel('Текст блока', { exact: true })).toHaveValue(
+    'Исходный C',
+  );
+  await expect(reloadedCards.nth(4)).toContainText('Скрыт');
+
+  await editor.getByRole('button', { name: 'Предпросмотр', exact: true }).click();
+  const preview = page.getByTestId('course-preview-page');
+  await expect(preview.locator('.lesson-blocks').first().locator(':scope > *')).toHaveText([
+    'Исходный A',
+    'Дубликат A',
+    'Вставленный заголовок',
+    'Исходный C',
+  ]);
+  await expect(preview.getByText('Исходный B', { exact: true })).toHaveCount(0);
+  await editor.getByRole('button', { name: 'Редактировать', exact: true }).click();
+
+  await editor.getByRole('button', { name: /Опубликовать v2/ }).click();
+  await expect(page.getByText('Курс опубликован: версия 2.', { exact: true })).toBeVisible();
+
+  const v2Code = await createClassWithStudents(page, 'Блоки V2 ' + sequence, [
+    { label: 'Ученик блоков V2', handle: 'course-block-v2-' + sequence },
+  ]);
+  const newLearner = await learnerAssignments(browser, v2Code, 'course-block-v2-' + sequence);
+  await page
+    .getByRole('navigation', { name: 'Разделы класса' })
+    .getByRole('button', { name: 'Обучение', exact: true })
+    .click();
+  await page
+    .getByRole('navigation', { name: 'Материалы класса' })
+    .getByRole('button', { name: 'Курсы', exact: true })
+    .click();
+  await page.getByLabel('Опубликованный курс').selectOption({ label: courseTitle + ' · v2' });
+  await page.getByRole('button', { name: 'Назначить курс', exact: true }).click();
+
+  await newLearner.page.reload();
+  await newLearner.page
+    .getByTestId('seat-courses')
+    .getByRole('button')
+    .filter({ hasText: courseTitle })
+    .click();
+  const newPlayer = newLearner.page.getByTestId('seat-course-player');
+  await expect(newPlayer.locator('.lesson-blocks').first().locator(':scope > *')).toHaveText([
+    'Исходный A',
+    'Дубликат A',
+    'Вставленный заголовок',
+    'Исходный C',
+  ]);
+  await expect(newPlayer.getByText('Исходный B', { exact: true })).toHaveCount(0);
+
+  await oldLearner.page.reload();
+  await oldLearner.page
+    .getByTestId('seat-courses')
+    .getByRole('button')
+    .filter({ hasText: courseTitle })
+    .click();
+  await expect(
+    oldLearner.page
+      .getByTestId('seat-course-player')
+      .locator('.lesson-blocks')
+      .first()
+      .locator(':scope > *'),
+  ).toHaveText(['Исходный A', 'Исходный B', 'Исходный C']);
+
+  await oldLearner.context.close();
+  await newLearner.context.close();
+});
+
 for (const module of ['electronics', 'three-d'])
   test(`private authored course → approved Account → theory and real ${module} submission → exact review`, async ({
     browser,
