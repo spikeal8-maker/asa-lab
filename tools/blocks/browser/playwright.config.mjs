@@ -8,6 +8,7 @@ export default defineConfig({
     'blocks-product-integration.spec.ts',
     'blocks-recovery.spec.ts',
     'blocks-loading.spec.ts',
+    'blocks-recovery-media.spec.ts',
   ],
   outputDir: '../../../reports/blocks/test-results',
   workers: 1,

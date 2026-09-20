@@ -23,6 +23,14 @@
   };
   const ASSET_ID_RE = /^[a-f0-9]{32}$/;
   const SHA256_RE = /^[a-f0-9]{64}$/;
+  const RECOVERY_ASSET_TOTAL_LIMIT = 250 * 1024 * 1024;
+  const RECOVERY_ASSET_LIMITS = {
+    svg: 10 * 1024 * 1024,
+    png: 10 * 1024 * 1024,
+    jpg: 10 * 1024 * 1024,
+    wav: 25 * 1024 * 1024,
+    mp3: 25 * 1024 * 1024,
+  };
   const UUID_V4_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
   const validLibraryAsset = (id, format) =>
     typeof id === 'string' &&
@@ -31,6 +39,14 @@
     Object.hasOwn(mediaTypes, format);
 
   const runtimeKey = (id, format) => `${id}.${format}`;
+  const exactBytes = (data) => {
+    if (data instanceof Uint8Array) return Uint8Array.from(data);
+    if (data instanceof ArrayBuffer) return new Uint8Array(data.slice(0));
+    if (ArrayBuffer.isView(data) && data.BYTES_PER_ELEMENT === 1) {
+      return new Uint8Array(data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength));
+    }
+    return null;
+  };
   const sameReference = (a, b) =>
     a?.assetId === b?.assetId &&
     a?.dataFormat === b?.dataFormat &&
@@ -94,6 +110,7 @@
     const scratchStorage = new standalone.ScratchStorage();
     const newProject = options.projectJson === null || typeof options.projectJson === 'undefined';
     const cachedAssets = new Map();
+    const recoveryAssets = new Map();
     const verifiedRuntimeAssets = new Map();
     let confirmedAssets = new Map(
       (options.assets ?? []).map((asset) => [runtimeKey(asset.assetId, asset.dataFormat), asset]),
@@ -545,6 +562,119 @@
       return confirmDraftMutation(mutation, revision);
     };
 
+    const validateRecoveryAsset = async (asset) => {
+      if (
+        !asset ||
+        !ASSET_ID_RE.test(asset.assetId ?? '') ||
+        !Object.hasOwn(RECOVERY_ASSET_LIMITS, asset.dataFormat ?? '') ||
+        !SHA256_RE.test(asset.sha256 ?? '') ||
+        !Number.isSafeInteger(asset.sizeBytes) ||
+        asset.sizeBytes < 1 ||
+        asset.sizeBytes > RECOVERY_ASSET_LIMITS[asset.dataFormat]
+      ) {
+        throw unavailable('recovery_asset_invalid');
+      }
+      const bytes = exactBytes(asset.bytes);
+      if (!bytes || bytes.byteLength !== asset.sizeBytes) {
+        throw unavailable('recovery_asset_invalid');
+      }
+      if ((await sha256(bytes)) !== asset.sha256) {
+        throw unavailable('recovery_asset_invalid');
+      }
+      return {
+        assetId: asset.assetId,
+        dataFormat: asset.dataFormat,
+        sha256: asset.sha256,
+        sizeBytes: asset.sizeBytes,
+        bytes,
+      };
+    };
+
+    const captureRecoveryAssets = async (projectJson, liveAssets) => {
+      if (!Array.isArray(liveAssets)) throw unavailable('recovery_vm_assets_unavailable');
+      const liveByKey = new Map();
+      for (const asset of liveAssets) {
+        if (
+          asset &&
+          ASSET_ID_RE.test(String(asset.assetId ?? '')) &&
+          Object.hasOwn(canonicalMediaType, asset.dataFormat ?? '')
+        ) {
+          liveByKey.set(runtimeKey(asset.assetId, asset.dataFormat), asset);
+        }
+      }
+
+      const captured = [];
+      let totalBytes = 0;
+      for (const reference of referencedProjectAssets(projectJson)) {
+        const referenceKey = runtimeKey(reference.assetId, reference.dataFormat);
+        if (confirmedAssets.has(referenceKey)) continue;
+
+        const live = liveByKey.get(referenceKey);
+        if (
+          !live ||
+          !validTypeAndFormat(live.assetType, reference.dataFormat) ||
+          String(live.assetId) !== reference.assetId
+        ) {
+          throw unavailable('media_recovery_required');
+        }
+        const bytes = exactBytes(live.data);
+        const limit = RECOVERY_ASSET_LIMITS[reference.dataFormat];
+        if (!bytes || bytes.byteLength < 1 || bytes.byteLength > limit) {
+          throw unavailable('media_recovery_required');
+        }
+        totalBytes += bytes.byteLength;
+        if (!Number.isSafeInteger(totalBytes) || totalBytes > RECOVERY_ASSET_TOTAL_LIMIT) {
+          throw unavailable('recovery_quota_exceeded');
+        }
+        captured.push(
+          Object.freeze({
+            assetId: reference.assetId,
+            dataFormat: reference.dataFormat,
+            sha256: await sha256(bytes),
+            sizeBytes: bytes.byteLength,
+            bytes,
+          }),
+        );
+      }
+      return Object.freeze(captured);
+    };
+
+    const installRecoveryAssets = async (assets) => {
+      if (!Array.isArray(assets)) throw unavailable('recovery_asset_invalid');
+      const staged = [];
+      const seen = new Set();
+      let totalBytes = 0;
+
+      for (const candidate of assets) {
+        const asset = await validateRecoveryAsset(candidate);
+        const assetKey = runtimeKey(asset.assetId, asset.dataFormat);
+        if (seen.has(assetKey)) throw unavailable('recovery_asset_invalid');
+        seen.add(assetKey);
+        totalBytes += asset.sizeBytes;
+        if (!Number.isSafeInteger(totalBytes) || totalBytes > RECOVERY_ASSET_TOTAL_LIMIT) {
+          throw unavailable('recovery_quota_exceeded');
+        }
+
+        const confirmed = confirmedAssets.get(assetKey);
+        if (confirmed) {
+          if (!sameReference(confirmed, asset)) {
+            throw unavailable('recovery_asset_conflicts_confirmed');
+          }
+          continue;
+        }
+        const type = typeForFormat(asset.dataFormat);
+        if (!type) throw unavailable('recovery_asset_invalid');
+        staged.push({ asset, type });
+      }
+
+      recoveryAssets.clear();
+      for (const { asset, type } of staged) {
+        const cached = cache(type, asset.dataFormat, asset.bytes, asset.assetId, recoveryAssets);
+        cached.clean = false;
+      }
+      return staged.length;
+    };
+
     scratchStorage.addHelper(
       {
         load: async (type, id, format) => {
@@ -563,6 +693,9 @@
               return null;
             }
           }
+
+          const recovered = recoveryAssets.get(key(type, id, format));
+          if (recovered) return recovered;
 
           const cached = cachedAssets.get(key(type, id, format));
           if (cached) return cached;
@@ -642,11 +775,28 @@
       getConfirmedRevision() {
         return confirmedRevision;
       },
-      canRecoverProject(projectJson) {
+      async captureRecoveryAssets(projectJson, liveAssets) {
+        return captureRecoveryAssets(projectJson, liveAssets);
+      },
+      async installRecoveryAssets(assets) {
+        return installRecoveryAssets(assets);
+      },
+      canRecoverProject(projectJson, assets = []) {
         try {
-          return referencedProjectAssets(projectJson).every((reference) =>
-            confirmedAssets.has(runtimeKey(reference.assetId, reference.dataFormat)),
+          const local = new Set(
+            assets
+              .filter(
+                (asset) =>
+                  asset &&
+                  ASSET_ID_RE.test(asset.assetId ?? '') &&
+                  Object.hasOwn(canonicalMediaType, asset.dataFormat ?? ''),
+              )
+              .map((asset) => runtimeKey(asset.assetId, asset.dataFormat)),
           );
+          return referencedProjectAssets(projectJson).every((reference) => {
+            const referenceKey = runtimeKey(reference.assetId, reference.dataFormat);
+            return confirmedAssets.has(referenceKey) || local.has(referenceKey);
+          });
         } catch {
           return false;
         }

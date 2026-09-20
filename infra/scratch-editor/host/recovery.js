@@ -1,11 +1,22 @@
 (() => {
-  const SCHEMA_VERSION = 1;
+  const SCHEMA_VERSION = 2;
+  const LEGACY_SCHEMA_VERSION = 1;
   const DB_NAME = 'asa-blocks-recovery';
   const DB_VERSION = 1;
   const STORE_NAME = 'project-recovery';
   const CHECKPOINT_DEBOUNCE_MS = 400;
   const TTL_MS = 7 * 24 * 60 * 60 * 1000;
+  const RECOVERY_ASSET_TOTAL_LIMIT = 250 * 1024 * 1024;
+  const RECOVERY_ASSET_LIMITS = Object.freeze({
+    svg: 10 * 1024 * 1024,
+    png: 10 * 1024 * 1024,
+    jpg: 10 * 1024 * 1024,
+    wav: 25 * 1024 * 1024,
+    mp3: 25 * 1024 * 1024,
+  });
   const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  const ASSET_ID_RE = /^[a-f0-9]{32}$/;
+  const SHA256_RE = /^[a-f0-9]{64}$/;
 
   const isRecord = (value) => value && typeof value === 'object' && !Array.isArray(value);
   const validPrincipalKey = (value) =>
@@ -35,10 +46,61 @@
     }
   };
 
+  const exactBytes = (value) => {
+    if (value instanceof Uint8Array) return Uint8Array.from(value);
+    if (value instanceof ArrayBuffer) return new Uint8Array(value.slice(0));
+    if (ArrayBuffer.isView(value) && value.BYTES_PER_ELEMENT === 1) {
+      return new Uint8Array(
+        value.buffer.slice(value.byteOffset, value.byteOffset + value.byteLength),
+      );
+    }
+    return null;
+  };
+
+  const normalizedAssets = (value, schemaVersion) => {
+    if (schemaVersion === LEGACY_SCHEMA_VERSION) return Object.freeze([]);
+    if (!Array.isArray(value)) return null;
+
+    const assets = [];
+    const seen = new Set();
+    let totalBytes = 0;
+    for (const asset of value) {
+      if (
+        !isRecord(asset) ||
+        !ASSET_ID_RE.test(asset.assetId ?? '') ||
+        !Object.hasOwn(RECOVERY_ASSET_LIMITS, asset.dataFormat ?? '') ||
+        !SHA256_RE.test(asset.sha256 ?? '') ||
+        !Number.isSafeInteger(asset.sizeBytes) ||
+        asset.sizeBytes < 1 ||
+        asset.sizeBytes > RECOVERY_ASSET_LIMITS[asset.dataFormat]
+      ) {
+        return null;
+      }
+      const bytes = exactBytes(asset.bytes);
+      if (!bytes || bytes.byteLength !== asset.sizeBytes) return null;
+      const key = `${asset.assetId}.${asset.dataFormat}`;
+      if (seen.has(key)) return null;
+      seen.add(key);
+      totalBytes += bytes.byteLength;
+      if (!Number.isSafeInteger(totalBytes) || totalBytes > RECOVERY_ASSET_TOTAL_LIMIT) return null;
+      assets.push(
+        Object.freeze({
+          assetId: asset.assetId,
+          dataFormat: asset.dataFormat,
+          sha256: asset.sha256,
+          sizeBytes: asset.sizeBytes,
+          bytes,
+        }),
+      );
+    }
+    return Object.freeze(assets);
+  };
+
   const normalizedRecord = (value) => {
+    const schemaVersion = value?.schemaVersion;
     if (
       !isRecord(value) ||
-      value.schemaVersion !== SCHEMA_VERSION ||
+      ![LEGACY_SCHEMA_VERSION, SCHEMA_VERSION].includes(schemaVersion) ||
       !validPrincipalKey(value.principalKey) ||
       !UUID_RE.test(value.projectId ?? '') ||
       !Number.isSafeInteger(value.baseRevision) ||
@@ -52,6 +114,8 @@
     ) {
       return null;
     }
+    const assets = normalizedAssets(value.assets ?? [], schemaVersion);
+    if (!assets) return null;
     return Object.freeze({
       schemaVersion: SCHEMA_VERSION,
       principalKey: value.principalKey,
@@ -59,6 +123,7 @@
       baseRevision: value.baseRevision,
       projectJson: JSON.parse(JSON.stringify(value.projectJson)),
       generation: value.generation,
+      assets,
       capturedAt: value.capturedAt,
       expiresAt: value.expiresAt,
     });
@@ -79,6 +144,7 @@
       transaction.onerror = () =>
         reject(transaction.error ?? new Error('recovery_indexeddb_transaction_failed'));
     });
+
   function createRecoveryStore(options = {}) {
     const indexedDb = options.indexedDB ?? globalThis.indexedDB;
     const now = options.now ?? (() => Date.now());
@@ -121,13 +187,23 @@
       const database = await open();
       const transaction = database.transaction(STORE_NAME, 'readwrite');
       const done = transactionDone(transaction);
-      await requestResult(
-        transaction.objectStore(STORE_NAME).put({
-          key: recordKey(normalized.principalKey, normalized.projectId),
-          ...normalized,
-        }),
-      );
-      await done;
+      let requestError = null;
+      try {
+        await requestResult(
+          transaction.objectStore(STORE_NAME).put({
+            key: recordKey(normalized.principalKey, normalized.projectId),
+            ...normalized,
+          }),
+        );
+      } catch (error) {
+        requestError = error;
+      }
+      try {
+        await done;
+      } catch (error) {
+        if (!requestError) throw error;
+      }
+      if (requestError) throw requestError;
       return normalized;
     };
 
@@ -233,27 +309,45 @@
       }
     };
 
+    const capture = async () => {
+      if (typeof options.captureRecoverySnapshot === 'function') {
+        return options.captureRecoverySnapshot();
+      }
+      const projectJson = options.captureProjectJson();
+      if (options.canRecoverProject(projectJson) !== true) {
+        const error = new Error('media_recovery_required');
+        error.code = 'media_recovery_required';
+        throw error;
+      }
+      return { projectJson, assets: [] };
+    };
+
     const checkpoint = (generation) =>
       enqueue(async () => {
         if (disposed || !store) return Object.freeze({ ok: false, reason: 'unavailable' });
-        let projectJson;
+
+        let snapshot;
         try {
-          projectJson = options.captureProjectJson();
-        } catch {
-          publishState('capture_failed');
+          snapshot = await capture();
+        } catch (error) {
+          const reason = error?.code ?? error?.message;
+          if (reason === 'recovery_quota_exceeded') {
+            publishState('quota_exceeded', { generation });
+            return Object.freeze({ ok: false, reason: 'quota_exceeded' });
+          }
+          if (reason === 'media_recovery_required') {
+            publishState('media_recovery_required', { generation });
+            return Object.freeze({ ok: false, reason: 'media_recovery_required' });
+          }
+          publishState('capture_failed', { generation });
           return Object.freeze({ ok: false, reason: 'capture_failed' });
         }
 
-        let recoverable = false;
-        try {
-          recoverable = options.canRecoverProject(projectJson) === true;
-        } catch {
-          recoverable = false;
-        }
-        if (!recoverable) {
-          await store.delete(principalKey, projectId);
-          publishState('media_recovery_required', { generation });
-          return Object.freeze({ ok: false, reason: 'media_recovery_required' });
+        const projectJson = snapshot?.projectJson;
+        const assets = snapshot?.assets ?? [];
+        if (!isRecord(projectJson) || !Array.isArray(assets)) {
+          publishState('capture_failed', { generation });
+          return Object.freeze({ ok: false, reason: 'capture_failed' });
         }
 
         const baseRevision = options.getBaseRevision();
@@ -263,24 +357,37 @@
         }
 
         const capturedAt = now();
-        const record = await store.put({
-          schemaVersion: SCHEMA_VERSION,
-          principalKey,
-          projectId,
-          baseRevision,
-          projectJson,
-          generation,
-          capturedAt,
-          expiresAt: capturedAt + TTL_MS,
-        });
-        publishState('checkpointed', { generation, baseRevision });
-        return Object.freeze({ ok: true, record });
+        try {
+          const record = await store.put({
+            schemaVersion: SCHEMA_VERSION,
+            principalKey,
+            projectId,
+            baseRevision,
+            projectJson,
+            generation,
+            assets,
+            capturedAt,
+            expiresAt: capturedAt + TTL_MS,
+          });
+          publishState('checkpointed', {
+            generation,
+            baseRevision,
+            assetCount: record.assets.length,
+            assetBytes: record.assets.reduce((sum, asset) => sum + asset.sizeBytes, 0),
+          });
+          return Object.freeze({ ok: true, record });
+        } catch (error) {
+          if (error?.name === 'QuotaExceededError' || error?.code === 'recovery_quota_exceeded') {
+            publishState('quota_exceeded', { generation });
+            return Object.freeze({ ok: false, reason: 'quota_exceeded' });
+          }
+          publishState('checkpoint_failed', { generation });
+          return Object.freeze({ ok: false, reason: 'checkpoint_failed' });
+        }
       });
 
     const schedule = (generation) => {
-      if (disposed || !store || !Number.isSafeInteger(generation) || generation < 1) {
-        return;
-      }
+      if (disposed || !store || !Number.isSafeInteger(generation) || generation < 1) return;
       pendingGeneration = generation;
       clearTimer();
       timer = globalThis.setTimeout(() => {
@@ -333,6 +440,8 @@
     SCHEMA_VERSION,
     CHECKPOINT_DEBOUNCE_MS,
     TTL_MS,
+    RECOVERY_ASSET_TOTAL_LIMIT,
+    RECOVERY_ASSET_LIMITS,
     createRecoveryStore,
     selectRecovery,
     createRecoveryController,

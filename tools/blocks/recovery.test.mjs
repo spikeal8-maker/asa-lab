@@ -14,6 +14,8 @@ function loadRecovery(globals = {}) {
   const context = vm.createContext({
     TextEncoder,
     TextDecoder,
+    Uint8Array,
+    ArrayBuffer,
     setTimeout: globalThis.setTimeout,
     clearTimeout: globalThis.clearTimeout,
     ...globals,
@@ -28,11 +30,17 @@ function loadRecovery(globals = {}) {
   return context.AsaBlocksRecovery;
 }
 
-function createFakeIndexedDb() {
+function createFakeIndexedDb(options = {}) {
   const databases = new Map();
   const microtask = (callback) => void Promise.resolve().then(callback);
-  const clone = (value) =>
-    typeof value === 'undefined' ? undefined : JSON.parse(JSON.stringify(value));
+  let putCount = 0;
+  const clone = (value) => {
+    if (typeof value === 'undefined' || value === null || typeof value !== 'object') return value;
+    if (value instanceof Uint8Array) return Uint8Array.from(value);
+    if (value instanceof ArrayBuffer) return value.slice(0);
+    if (Array.isArray(value)) return value.map(clone);
+    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, clone(item)]));
+  };
 
   const createDatabase = () => {
     const stores = new Map();
@@ -85,6 +93,12 @@ function createFakeIndexedDb() {
           },
           put(value) {
             return request(() => {
+              putCount += 1;
+              if (putCount > (options.quotaAfter ?? Number.POSITIVE_INFINITY)) {
+                const error = new Error('quota exceeded');
+                error.name = 'QuotaExceededError';
+                throw error;
+              }
               data.set(value.key, clone(value));
               return value.key;
             });
@@ -177,6 +191,26 @@ function recoveryRecord(overrides = {}) {
   };
 }
 
+function mediaAsset(overrides = {}) {
+  const bytes = overrides.bytes ?? Uint8Array.from([1, 2, 3, 4]);
+  return {
+    assetId: 'a'.repeat(32),
+    dataFormat: 'png',
+    sha256: 'b'.repeat(64),
+    sizeBytes: bytes.byteLength,
+    bytes,
+    ...overrides,
+  };
+}
+
+function mediaRecoveryRecord(overrides = {}) {
+  return recoveryRecord({
+    schemaVersion: 2,
+    assets: [mediaAsset()],
+    ...overrides,
+  });
+}
+
 test('IndexedDB recovery store creates, reads, replaces and deletes one principal/project record', async () => {
   const api = loadRecovery();
   const store = api.createRecoveryStore({ indexedDB: createFakeIndexedDb(), now: () => 1_000 });
@@ -195,6 +229,99 @@ test('IndexedDB recovery store creates, reads, replaces and deletes one principa
 
   assert.equal(await store.delete(PRINCIPAL_A, PROJECT_ID), true);
   assert.equal(await store.get(PRINCIPAL_A, PROJECT_ID), null);
+});
+
+test('legacy v1 recovery remains readable as schema v2 with no embedded assets', async () => {
+  const api = loadRecovery();
+  const store = api.createRecoveryStore({ indexedDB: createFakeIndexedDb(), now: () => 1_000 });
+  await store.put(recoveryRecord());
+  const record = await store.get(PRINCIPAL_A, PROJECT_ID);
+  assert.equal(record.schemaVersion, 2);
+  assert.equal(record.assets.length, 0);
+});
+
+test('schema v2 stores exact binary media as Uint8Array structured-clone values', async () => {
+  const api = loadRecovery();
+  const store = api.createRecoveryStore({ indexedDB: createFakeIndexedDb(), now: () => 1_000 });
+  const bytes = Uint8Array.from([9, 8, 7, 6, 5]);
+  await store.put(
+    mediaRecoveryRecord({ assets: [mediaAsset({ bytes, sizeBytes: bytes.byteLength })] }),
+  );
+  bytes[0] = 0;
+
+  const record = await store.get(PRINCIPAL_A, PROJECT_ID);
+  assert.equal(record.schemaVersion, 2);
+  assert.equal(record.assets.length, 1);
+  assert.ok(record.assets[0].bytes instanceof Uint8Array);
+  assert.deepEqual([...record.assets[0].bytes], [9, 8, 7, 6, 5]);
+});
+
+test('quota failure keeps the previous valid media recovery intact', async () => {
+  const api = loadRecovery();
+  const store = api.createRecoveryStore({
+    indexedDB: createFakeIndexedDb({ quotaAfter: 1 }),
+    now: () => 1_000,
+  });
+  await store.put(mediaRecoveryRecord({ generation: 1, projectJson: project(20) }));
+  const states = [];
+  const controller = api.createRecoveryController({
+    store,
+    principalKey: PRINCIPAL_A,
+    projectId: PROJECT_ID,
+    debounceMs: 5,
+    now: () => 1_100,
+    captureRecoverySnapshot: async () => ({
+      projectJson: project(73),
+      assets: [mediaAsset({ assetId: 'c'.repeat(32) })],
+    }),
+    getBaseRevision: () => 5,
+    onState: (state) => states.push(state.state),
+  });
+
+  controller.schedule(2);
+  await delay(20);
+  const retained = await store.get(PRINCIPAL_A, PROJECT_ID);
+  assert.equal(retained.generation, 1);
+  assert.equal(retained.projectJson.marker, 20);
+  assert.ok(states.includes('quota_exceeded'));
+  controller.dispose();
+});
+
+test('media checkpoint coalesces to the latest generation and durable save removes bytes with record', async () => {
+  const api = loadRecovery();
+  const store = api.createRecoveryStore({ indexedDB: createFakeIndexedDb(), now: () => 1_000 });
+  let marker = 10;
+  let assetId = 'a'.repeat(32);
+  const controller = api.createRecoveryController({
+    store,
+    principalKey: PRINCIPAL_A,
+    projectId: PROJECT_ID,
+    debounceMs: 5,
+    now: () => 1_000,
+    captureRecoverySnapshot: async () => ({
+      projectJson: project(marker),
+      assets: [mediaAsset({ assetId, bytes: Uint8Array.from([marker]) })],
+    }),
+    getBaseRevision: () => 5,
+  });
+
+  marker = 20;
+  assetId = 'a'.repeat(32);
+  controller.schedule(1);
+  marker = 73;
+  assetId = 'd'.repeat(32);
+  controller.schedule(2);
+  await delay(20);
+
+  const record = await store.get(PRINCIPAL_A, PROJECT_ID);
+  assert.equal(record.generation, 2);
+  assert.equal(record.projectJson.marker, 73);
+  assert.equal(record.assets.length, 1);
+  assert.equal(record.assets[0].assetId, 'd'.repeat(32));
+  assert.deepEqual([...record.assets[0].bytes], [73]);
+  assert.equal(await controller.durable(2), true);
+  assert.equal(await store.get(PRINCIPAL_A, PROJECT_ID), null);
+  controller.dispose();
 });
 
 test('TTL GC removes expired recovery without a background daemon', async () => {
