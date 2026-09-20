@@ -17,6 +17,7 @@ export type ElectricalModelId =
   | 'analog-temperature-sensor'
   | 'resistive-soil-sensor'
   | 'hc-sr04-distance-sensor'
+  | 'servo-motor-signal'
   | 'piezo-transducer'
   | 'diode'
   | 'npn-transistor'
@@ -60,6 +61,7 @@ const KNOWN_MODEL_IDS: ReadonlySet<string> = new Set<ElectricalModelId>([
   'analog-temperature-sensor',
   'resistive-soil-sensor',
   'hc-sr04-distance-sensor',
+  'servo-motor-signal',
   'piezo-transducer',
   'diode',
   'npn-transistor',
@@ -78,6 +80,7 @@ const EXACT_IDENTITIES: Readonly<Record<string, ElectricalModelIdentity>> = {
   'soil-moisture-sensor': identity('resistive-soil-sensor', 'asa-resistive-soil-divider'),
   'temperature-sensor': identity('analog-temperature-sensor', 'tmp36-to92-dc'),
   'ultrasonic-hc-sr04': identity('hc-sr04-distance-sensor', 'hc-sr04-canonical-echo-v1'),
+  'servo-motor': identity('servo-motor-signal', 'servo-pulse-angle-v1'),
   'arduino-uno': identity('arduino-uno', 'arduino-uno-r3'),
   'resistor-axial': identity('resistor', 'axial-resistor'),
   'led-5mm': identity('ordinary-led', 'generic-red-led'),
@@ -186,7 +189,7 @@ export function electricalModelIdentityForComponent(
     // placeholder identities. Upgrade only those known placeholders;
     // unknown/future identities must remain fail-closed.
     if (
-      ['temperature-sensor', 'soil-moisture-sensor', 'ultrasonic-hc-sr04'].includes(
+      ['temperature-sensor', 'soil-moisture-sensor', 'ultrasonic-hc-sr04', 'servo-motor'].includes(
         component.componentTypeId ?? '',
       ) &&
       component.electricalModelId === 'unsupported' &&

@@ -45,6 +45,7 @@ import {
   isHcSr04,
   type HcSr04RuntimeState,
 } from './models/hc-sr04-runtime.js';
+import { isServoMotor, type ServoMotorRuntimeState } from './models/servo-runtime.js';
 import {
   createLinearDcDevice,
   isAnySourceDevice,
@@ -231,6 +232,7 @@ export interface ComponentResult {
   readonly sensorOutputVoltageVolt?: number;
   readonly sensorSupplyVoltageVolt?: number;
   readonly sensorOutputCurrentAmp?: number;
+  readonly servoAngleDegrees?: number;
   readonly componentId: string;
   readonly voltageDrop: number;
   readonly current: number;
@@ -413,6 +415,7 @@ interface InternalSolveOptions extends SolveOptions {
   /** Internal read-only electrical solve: never advances the controller. */
   readonly heldArduinoSnapshots?: ReadonlyMap<string, ArduinoRuntimeSnapshot> | undefined;
   readonly hcSr04RuntimeStateById?: ReadonlyMap<string, HcSr04RuntimeState> | undefined;
+  readonly servoRuntimeStateById?: ReadonlyMap<string, ServoMotorRuntimeState> | undefined;
   /** RC clock only: honour t=0/sub-ms horizons and allow zero-duration observation. */
   readonly clockedRcTransient?: boolean;
   /** Algebraic event frame: preserve capacitor voltage, solve its instantaneous current. */
@@ -1908,11 +1911,13 @@ export function solveCircuitWithHeldArduino(
   simulationTimeMs: number,
   snapshots: ReadonlyMap<string, ArduinoRuntimeSnapshot>,
   hcSr04States?: ReadonlyMap<string, HcSr04RuntimeState>,
+  servoStates?: ReadonlyMap<string, ServoMotorRuntimeState>,
 ): SolveResult {
   return solveCircuitStep(document, {
     simulationTimeMs,
     heldArduinoSnapshots: snapshots,
     ...(hcSr04States ? { hcSr04RuntimeStateById: hcSr04States } : {}),
+    ...(servoStates ? { servoRuntimeStateById: servoStates } : {}),
     suppressOscilloscopeTrace: true,
   });
 }
@@ -1988,12 +1993,14 @@ export function solveRcCircuitWithHeldArduino(
   snapshots: ReadonlyMap<string, ArduinoRuntimeSnapshot>,
   transientState?: CapacitorTransientState,
   hcSr04States?: ReadonlyMap<string, HcSr04RuntimeState>,
+  servoStates?: ReadonlyMap<string, ServoMotorRuntimeState>,
 ): SolveResult {
   return solveCircuitBase(document, {
     simulationTimeMs,
     ...(transientState ? { transientState } : {}),
     heldArduinoSnapshots: snapshots,
     ...(hcSr04States ? { hcSr04RuntimeStateById: hcSr04States } : {}),
+    ...(servoStates ? { servoRuntimeStateById: servoStates } : {}),
     clockedRcTransient: true,
     suppressOscilloscopeTrace: true,
   });
@@ -2615,7 +2622,7 @@ function solveCircuitStep(
     }
     for (const component of document.components) {
       if (failedComponentIds.has(component.id)) continue;
-      if (isArduinoUno(component) || isHcSr04(component)) continue;
+      if (isArduinoUno(component) || isHcSr04(component) || isServoMotor(component)) continue;
       if (!isSimulated(component) || component.kind === 'source') continue;
       if (['led', 'diode', 'rgb-led', 'seven-segment', 'transistor'].includes(component.kind))
         continue;
@@ -3588,6 +3595,14 @@ function solveCircuitStep(
                     }
                   : {}),
         power: round(power),
+        ...(isServoMotor(component) && options.servoRuntimeStateById?.has(component.id)
+          ? {
+              servoAngleDegrees: round(
+                options.servoRuntimeStateById.get(component.id)!.angleDegrees,
+                6,
+              ),
+            }
+          : {}),
         ...(temperature
           ? {
               ...('sensorTemperatureCelsius' in temperature

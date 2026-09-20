@@ -192,6 +192,7 @@ const SIMULATED_TYPES = new Set([
   'temperature-sensor',
   'soil-moisture-sensor',
   'ultrasonic-hc-sr04',
+  'servo-motor',
   'diode-do35',
   'diode-do41',
   'transistor-npn',
@@ -438,6 +439,7 @@ function defaults(componentId: string): {
             ? { motorAssemblyProfileId: 'precision-microdrives-310-101-3v' }
             : {},
     };
+  if (componentId === 'servo-motor') return { value: 0, unit: '', properties: {} };
   if (componentId === 'multimeter')
     return {
       value: 0,

@@ -1,4 +1,5 @@
 import { analyseArduinoProgramSyntax } from './arduino-program-runtime.js';
+import { arduinoServoDeclarationNames } from './arduino-servo-runtime.js';
 
 export type ArduinoSupportStatus = 'supported' | 'limited' | 'unsupported';
 
@@ -58,7 +59,7 @@ export const ARDUINO_BLOCK_SUPPORT = {
   asa_builtin_led: SUPPORTED('Управляет цифровым выводом D13.'),
   asa_digital_write: SUPPORTED('Устанавливает цифровой уровень на D0–D13.'),
   asa_analog_write: LIMITED('ШИМ представлен средним постоянным напряжением.'),
-  asa_servo_write: UNSUPPORTED('Сервопривод ещё не связан с Arduino-рантаймом.'),
+  asa_servo_write: LIMITED('Servo.write() управляет canonical 50 Hz waveform на attached GPIO.'),
   asa_tone: LIMITED('Формирует canonical timed 0/5 V waveform без AVR timer accuracy.'),
   asa_play_note: LIMITED('Формирует canonical timed tone waveform без AVR timer accuracy.'),
   asa_no_tone: LIMITED('Немедленно останавливает canonical tone waveform.'),
@@ -84,7 +85,7 @@ export const ARDUINO_BLOCK_SUPPORT = {
   ),
   asa_millis: LIMITED('Возвращает детерминированное время текущего шага симуляции.'),
   asa_temperature: SUPPORTED('Преобразует поддерживаемое analogRead() по формуле TMP36.'),
-  asa_servo_read: UNSUPPORTED('Сервопривод ещё не связан с Arduino-рантаймом.'),
+  asa_servo_read: LIMITED('Servo.read() возвращает последний commanded angle Servo object.'),
   asa_serial_available: LIMITED('Возвращает число pending Serial RX bytes без UI Monitor.'),
   asa_serial_read: LIMITED('Читает один pending Serial RX byte или -1 без UI Monitor.'),
   asa_ir_read: UNSUPPORTED('Протокол ИК-приёмника ещё не декодируется.'),
@@ -141,6 +142,13 @@ export const ARDUINO_TEXT_COMMAND_SUPPORT = {
   delayMicroseconds: SUPPORTED('Задержка управляет виртуальным временем симуляции.'),
   tone: LIMITED('Формирует canonical timed 0/5 V waveform без AVR timer accuracy.'),
   noTone: LIMITED('Немедленно останавливает canonical tone waveform.'),
+  'Servo.h': LIMITED('Поддержан bounded adapter только для exact #include <Servo.h>.'),
+  'Servo.attach': LIMITED(
+    'Подключает Servo object к одному Arduino GPIO и запускает 50 Hz waveform.',
+  ),
+  'Servo.write': LIMITED('Задаёт 0..180° через canonical servo pulse width 544..2400 us.'),
+  'Servo.read': LIMITED('Возвращает последний commanded Servo angle.'),
+  'Servo.detach': LIMITED('Отключает Servo object и оставляет GPIO LOW.'),
   map: SUPPORTED(
     'Целочисленный map Arduino: аргументы и результат long; деление усекается к нулю.',
   ),
@@ -334,6 +342,7 @@ export function analyseArduinoSourceSupport(
   source: string,
 ): readonly ArduinoSourceSupportDiagnostic[] {
   const clean = maskCommentsAndStrings(source);
+  const servoDeclarations = new Set(arduinoServoDeclarationNames(clean));
   const diagnostics: ArduinoSourceSupportDiagnostic[] = [];
   const dedupe = new Set<string>();
   const add = (
@@ -363,19 +372,33 @@ export function analyseArduinoSourceSupport(
 
   for (const match of clean.matchAll(/^\s*#\s*(?:include|define|if|ifdef|ifndef|pragma)\b.*$/gim)) {
     const start = match.index ?? 0;
+    if (/^\s*#\s*include\s*<Servo\.h>\s*$/.test(match[0])) {
+      add(
+        'bounded-timing',
+        'limited',
+        start,
+        Math.max(1, match[0].trim().length),
+        ARDUINO_TEXT_COMMAND_SUPPORT['Servo.h'].summary,
+      );
+      continue;
+    }
     add(
       'preprocessor',
       'unsupported',
       start,
       Math.max(1, match[0].trim().length),
-      'Директивы препроцессора и внешние библиотеки пока не исполняются.',
+      'Разрешён только bounded adapter #include <Servo.h>; остальные директивы fail-closed.',
     );
   }
 
   const memberCallRanges: Array<{ readonly start: number; readonly end: number }> = [];
   for (const match of clean.matchAll(/\b([A-Za-z_]\w*)\s*\.\s*([A-Za-z_]\w*)\s*\(/g)) {
     const start = match.index ?? 0;
-    const command = `${match[1]}.${match[2]}`;
+    const objectName = match[1]!;
+    const method = match[2]!;
+    const command = servoDeclarations.has(objectName)
+      ? `Servo.${method}`
+      : `${objectName}.${method}`;
     const support = ARDUINO_TEXT_COMMAND_SUPPORT[command as ArduinoTextCommand];
     memberCallRanges.push({ start, end: start + match[0].length });
     if (!support || support.status === 'unsupported') {

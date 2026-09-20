@@ -1,4 +1,5 @@
 import type { SchematicComponent, Terminal } from './document.js';
+import { arduinoServoWaveforms } from './arduino-servo-runtime.js';
 import { arduinoWaveformLevel, isArduinoTimedWaveformState } from './arduino-waveform-runtime.js';
 import {
   advanceArduinoRuntime,
@@ -232,10 +233,13 @@ export function arduinoOutputBranchesFromSnapshot(
 
   const programmedOutputs = snapshot.outputs;
   const programmedTones = snapshot.tones;
+  const servoWaveforms = arduinoServoWaveforms(snapshot.state.servo);
+  const servoPins = new Set(servoWaveforms.map(({ pin }) => pin));
   for (const [terminal, targetVoltage] of programmedOutputs) {
     if (
       !pins.has(terminal) ||
       programmedTones.has(terminal) ||
+      servoPins.has(terminal) ||
       snapshot.pinModes.get(terminal) !== 'OUTPUT'
     )
       continue;
@@ -248,7 +252,13 @@ export function arduinoOutputBranchesFromSnapshot(
     });
   }
   for (const [terminal, mode] of snapshot.pinModes) {
-    if (mode !== 'INPUT_PULLUP' || !pins.has(terminal) || programmedTones.has(terminal)) continue;
+    if (
+      mode !== 'INPUT_PULLUP' ||
+      !pins.has(terminal) ||
+      programmedTones.has(terminal) ||
+      servoPins.has(terminal)
+    )
+      continue;
     branches.push({
       id: terminal,
       terminal,
@@ -258,7 +268,7 @@ export function arduinoOutputBranchesFromSnapshot(
     });
   }
   for (const tone of programmedTones.values()) {
-    if (!pins.has(tone.terminal)) continue;
+    if (!pins.has(tone.terminal) || servoPins.has(tone.terminal)) continue;
     const waveform = snapshot.state.tones[tone.terminal];
     branches.push({
       id: tone.terminal,
@@ -266,6 +276,16 @@ export function arduinoOutputBranchesFromSnapshot(
       ground,
       targetVoltage:
         waveform && isArduinoTimedWaveformState(waveform) ? arduinoWaveformLevel(waveform) * 5 : 0,
+      resistanceOhm: 10,
+    });
+  }
+  for (const { pin, waveform } of servoWaveforms) {
+    if (!pins.has(pin)) continue;
+    branches.push({
+      id: `servo-${pin}`,
+      terminal: pin,
+      ground,
+      targetVoltage: arduinoWaveformLevel(waveform) * 5,
       resistanceOhm: 10,
     });
   }

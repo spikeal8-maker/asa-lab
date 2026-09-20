@@ -182,6 +182,14 @@ const HC_SR04_MODEL: ElectricalModelDescriptor = {
   requiredTerminals: ['vcc', 'trigger', 'echo', 'gnd'],
 };
 
+const SERVO_MOTOR_MODEL: ElectricalModelDescriptor = {
+  id: 'servo-motor-signal',
+  kind: 'visual',
+  support: 'supported',
+  topology: 'multi-junction',
+  requiredTerminals: ['vcc', 'signal', 'gnd'],
+};
+
 const ARDUINO_UNO_MODEL: ElectricalModelDescriptor = {
   id: 'arduino-uno',
   kind: 'visual',
@@ -240,23 +248,25 @@ export function electricalModelFor(component: SchematicComponent): ElectricalMod
         ? TMP36_MODEL
         : installed && component.componentTypeId === 'ultrasonic-hc-sr04'
           ? HC_SR04_MODEL
-          : !installed
-            ? MODELS.visual
-            : isArduinoUno(component)
-              ? ARDUINO_UNO_MODEL
-              : component.componentTypeId === 'dc-motor' ||
-                  component.componentTypeId === 'gearmotor' ||
-                  component.componentTypeId === 'vibration-motor'
-                ? DC_MOTOR_MODEL
-                : component.componentTypeId === 'electrolytic-capacitor'
-                  ? ELECTROLYTIC_CAPACITOR_MODEL
-                  : component.componentTypeId === 'multimeter'
-                    ? DIGITAL_MULTIMETER_MODEL
-                    : component.componentTypeId === 'signal-generator'
-                      ? FUNCTION_GENERATOR_MODEL
-                      : component.componentTypeId === 'oscilloscope'
-                        ? OSCILLOSCOPE_MODEL
-                        : MODELS[component.kind];
+          : installed && component.componentTypeId === 'servo-motor'
+            ? SERVO_MOTOR_MODEL
+            : !installed
+              ? MODELS.visual
+              : isArduinoUno(component)
+                ? ARDUINO_UNO_MODEL
+                : component.componentTypeId === 'dc-motor' ||
+                    component.componentTypeId === 'gearmotor' ||
+                    component.componentTypeId === 'vibration-motor'
+                  ? DC_MOTOR_MODEL
+                  : component.componentTypeId === 'electrolytic-capacitor'
+                    ? ELECTROLYTIC_CAPACITOR_MODEL
+                    : component.componentTypeId === 'multimeter'
+                      ? DIGITAL_MULTIMETER_MODEL
+                      : component.componentTypeId === 'signal-generator'
+                        ? FUNCTION_GENERATOR_MODEL
+                        : component.componentTypeId === 'oscilloscope'
+                          ? OSCILLOSCOPE_MODEL
+                          : MODELS[component.kind];
   return {
     ...base,
     id: installed ? (identity.electricalModelId as ElectricalModelId) : 'unsupported',
@@ -278,6 +288,7 @@ function productionRequiredTerminals(component: SchematicComponent): readonly Te
   if (component.componentTypeId === 'soil-moisture-sensor') return SOIL_MODEL.requiredTerminals;
   if (component.componentTypeId === 'temperature-sensor') return TMP36_MODEL.requiredTerminals;
   if (component.componentTypeId === 'ultrasonic-hc-sr04') return HC_SR04_MODEL.requiredTerminals;
+  if (component.componentTypeId === 'servo-motor') return SERVO_MOTOR_MODEL.requiredTerminals;
   if (isArduinoUno(component)) return ARDUINO_UNO_MODEL.requiredTerminals;
   if (
     component.componentTypeId === 'dc-motor' ||

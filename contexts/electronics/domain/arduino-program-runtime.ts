@@ -6,6 +6,18 @@ import {
   type ArduinoPulseWaitState,
 } from './arduino-pulse-runtime.js';
 import {
+  advanceArduinoServoWaveforms,
+  arduinoServoDeclarationNames,
+  attachArduinoServo,
+  detachArduinoServo,
+  initialArduinoServoRuntimeState,
+  isArduinoServoRuntimeState,
+  readArduinoServo,
+  syncArduinoServoDeclarations,
+  writeArduinoServo,
+  type ArduinoServoRuntimeState,
+} from './arduino-servo-runtime.js';
+import {
   appendArduinoSerialTx,
   arduinoSerialAvailable,
   beginArduinoSerial,
@@ -133,6 +145,7 @@ export interface ArduinoRuntimeState {
   readonly eventQueue: readonly ArduinoRuntimeEvent[];
   readonly pulseWait?: ArduinoPulseWaitState | null;
   readonly serial?: ArduinoSerialState;
+  readonly servo?: ArduinoServoRuntimeState;
   readonly variables: Readonly<Record<string, number>>;
   readonly locals: Readonly<Record<string, number>>;
   readonly scopes: readonly ArduinoScopeSnapshot[];
@@ -175,6 +188,7 @@ interface RuntimeState {
   readonly diagnostics: ArduinoRuntimeDiagnostic[];
   pulseWait: ArduinoPulseWaitState | null;
   serial: ArduinoSerialState | null;
+  servo: ArduinoServoRuntimeState;
   simulationTimeMs: number;
   statementCount: number;
 }
@@ -323,6 +337,7 @@ function runtimeStateIsValid(state: ArduinoRuntimeState): boolean {
         isArduinoGpioTerminal(state.pulseWait.terminal) &&
         state.pulseWait.deadlineMicroseconds <= MAX_CLOCK_MICROSECONDS)) &&
     (state.serial === undefined || isArduinoSerialState(state.serial)) &&
+    (state.servo === undefined || isArduinoServoRuntimeState(state.servo)) &&
     state.eventQueue.every(
       (event, index) =>
         event !== null &&
@@ -795,6 +810,16 @@ class ExpressionParser {
       this.state.serial = read.state ?? null;
       return numericValue('int', read.value);
     }
+    if (this.state.servo.objects[token.value] && this.take('.')) {
+      const method = this.take();
+      if (!method || method.kind !== 'identifier' || method.value !== 'read')
+        throw new SyntaxError(
+          `Для Servo object «${token.value}» в выражении поддерживается только read().`,
+        );
+      if (!this.take('(') || !this.take(')'))
+        throw new SyntaxError(`${token.value}.read() не принимает аргументы.`);
+      return numericValue('int', readArduinoServo(this.state.servo, token.value));
+    }
     if (this.current()?.value === '(') {
       this.take('(');
       const macro = ['min', 'max', 'abs', 'constrain'].includes(token.value);
@@ -1069,10 +1094,41 @@ function executeSerialMemberStatement(statement: string, state: RuntimeState): b
   return true;
 }
 
+function executeServoMemberStatement(statement: string, state: RuntimeState): boolean {
+  const call = /^([A-Za-z_]\w*)\s*\.\s*(attach|write|detach)\s*\(([\s\S]*)\)$/.exec(statement);
+  if (!call || !(call[1]! in state.servo.objects)) return false;
+  const name = call[1]!;
+  const method = call[2]!;
+  const argumentsList = splitArguments(call[3] ?? '').filter(Boolean);
+  const atMicroseconds = microsecondsFromMilliseconds(state.simulationTimeMs);
+  if (method === 'detach') {
+    if (argumentsList.length !== 0)
+      throw new SyntaxError(`${name}.detach() не принимает аргументы.`);
+    const pin = state.servo.objects[name]?.pin;
+    state.servo = detachArduinoServo(state.servo, name);
+    if (pin)
+      state.actions.push({ kind: 'write', terminal: pin, targetVoltage: 0, enableOutput: true });
+    return true;
+  }
+  if (argumentsList.length !== 1)
+    throw new SyntaxError(`${name}.${method}() принимает один аргумент.`);
+  const value = evaluateValue(argumentsList[0]!, state).value;
+  if (method === 'attach') {
+    const terminal = digitalTerminalFromPin(value);
+    if (!terminal) throw new SyntaxError(`${name}.attach() требует цифровой вывод D0–D13.`);
+    state.servo = attachArduinoServo(state.servo, name, terminal, atMicroseconds);
+    state.actions.push({ kind: 'pin-mode', terminal, mode: 'OUTPUT' });
+    return true;
+  }
+  state.servo = writeArduinoServo(state.servo, name, value, atMicroseconds);
+  return true;
+}
+
 function executeSimpleStatement(statement: string, state: RuntimeState): void {
   const compact = statement.trim();
   if (!compact || !consumeStatement(state)) return;
-  if (executeSerialMemberStatement(compact, state)) return;
+  if (executeSerialMemberStatement(compact, state) || executeServoMemberStatement(compact, state))
+    return;
 
   const declaration = parseDeclaration(compact);
   if (declaration) {
@@ -1562,6 +1618,7 @@ function compileArduinoProgram(source: string): ArduinoProgramCompilation {
   }
   const setupBody = extractedSetupBody ?? '';
   const loopBody = extractedLoopBody ?? (declaredSetup || declaredLoop ? '' : cleanSource);
+  const servoDeclarations = arduinoServoDeclarationNames(cleanSource);
   const bodyLine = (name: string): number => {
     const match = new RegExp(`\\bvoid\\s+${name}\\s*\\([^)]*\\)\\s*\\{`).exec(cleanSource);
     return match
@@ -1581,6 +1638,7 @@ function compileArduinoProgram(source: string): ArduinoProgramCompilation {
       diagnostics: [],
       pulseWait: null,
       serial: null,
+      servo: initialArduinoServoRuntimeState(servoDeclarations),
       simulationTimeMs: 0,
       statementCount: 0,
     };
@@ -1631,8 +1689,13 @@ export function arduinoRuntimeStateMatchesProgram(
   const compilation = compileArduinoProgram(source);
   const instructions =
     state.phase === 'setup' ? compilation.setupInstructions : compilation.loopInstructions;
+  const servoDeclarations = arduinoServoDeclarationNames(compilation.cleanSource);
+  const persistedServoNames = state.servo ? Object.keys(state.servo.objects).sort() : [];
   return (
     compilation.diagnostics.length === 0 &&
+    (state.servo === undefined ||
+      (servoDeclarations.length === persistedServoNames.length &&
+        servoDeclarations.every((name, index) => name === persistedServoNames[index]))) &&
     state.programFingerprint === programFingerprint(source) &&
     state.programCounter <= instructions.length &&
     state.scopes.length ===
@@ -1706,6 +1769,7 @@ function advanceRuntime(
   const compilation = compileArduinoProgram(source);
   const { cleanSource, setupInstructions, loopInstructions } = compilation;
   const declarations = globalDeclarations(cleanSource);
+  const servoDeclarations = arduinoServoDeclarationNames(cleanSource);
   const fingerprint = programFingerprint(source);
   const invalidClockTime =
     clocked &&
@@ -1753,6 +1817,9 @@ function advanceRuntime(
         pinModes: {},
         outputVoltages: {},
         tones: {},
+        ...(servoDeclarations.length > 0
+          ? { servo: initialArduinoServoRuntimeState(servoDeclarations) }
+          : {}),
       },
       diagnostics: initialDiagnostics,
     };
@@ -1810,6 +1877,10 @@ function advanceRuntime(
   let resumeAtMs = compatible ? previous.resumeAtMs : resetAtMs;
   let pulseWait = compatible ? (previous.pulseWait ?? null) : null;
   let serial = compatible ? (previous.serial ?? null) : null;
+  let servo = syncArduinoServoDeclarations(
+    compatible ? previous.servo : undefined,
+    servoDeclarations,
+  );
   if (clocked && compatible && pulseWait && pulseInputSample && resumeAtMs > targetTimeMs)
     resumeAtMs = targetTimeMs;
   let phase: ArduinoRuntimeState['phase'] = compatible ? previous.phase : 'setup';
@@ -1858,6 +1929,7 @@ function advanceRuntime(
       diagnostics,
       pulseWait: null,
       serial: null,
+      servo,
       simulationTimeMs: resetAtMs,
       statementCount: 0,
     };
@@ -1953,6 +2025,7 @@ function advanceRuntime(
       diagnostics,
       pulseWait,
       serial,
+      servo,
       simulationTimeMs: resumeAtMs,
       statementCount: clocked ? 0 : continuousStatementCount,
     };
@@ -2004,6 +2077,7 @@ function advanceRuntime(
     }
     pulseWait = instructionState.pulseWait;
     serial = instructionState.serial;
+    servo = instructionState.servo;
     const consumed = instructionState.statementCount - statementCountBefore;
     advanceStatementCount += consumed;
     continuousStatementCount =
@@ -2023,6 +2097,7 @@ function advanceRuntime(
   expireTones(reachedTimeMs, tones, emit);
   if (!clocked) {
     const reachedMicroseconds = microsecondsFromMilliseconds(reachedTimeMs);
+    servo = advanceArduinoServoWaveforms(servo, reachedMicroseconds).state;
     for (const [terminal, tone] of tones) {
       const advanced = advanceArduinoTimedWaveform(tone, reachedMicroseconds);
       if (advanced.state) tones.set(terminal, advanced.state);
@@ -2065,6 +2140,7 @@ function advanceRuntime(
     tones.clear();
     pulseWait = null;
     serial = null;
+    servo = initialArduinoServoRuntimeState(servoDeclarations);
     resumeAtMs = Math.max(resumeAtMs, targetTimeMs);
   }
   return {
@@ -2087,6 +2163,7 @@ function advanceRuntime(
       eventQueue,
       ...(pulseWait ? { pulseWait } : {}),
       ...(serial ? { serial } : {}),
+      ...(servoDeclarations.length > 0 ? { servo } : {}),
       variables: scopeNumbers(scopes.slice(0, 1)),
       locals: scopeNumbers(scopes.slice(1)),
       scopes: serializeScopes(scopes),

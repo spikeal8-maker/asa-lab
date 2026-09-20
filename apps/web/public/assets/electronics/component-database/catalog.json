@@ -28259,7 +28259,7 @@
         "type": "servo",
         "angleDegrees": [0, 180]
       },
-      "simulationSupport": "unsupported_fail_closed",
+      "simulationSupport": "servo_pulse_angle_v1",
       "blockReason": null,
       "catalogTier": "core",
       "metadataOnlyProof": {
