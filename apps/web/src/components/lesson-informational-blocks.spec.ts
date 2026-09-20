@@ -2,7 +2,7 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import type { LessonBlock } from '../api';
-import { createLessonBlock, lessonBlocksValid } from './LessonBlockEditor';
+import { LessonBlockEditor, createLessonBlock, lessonBlocksValid } from './LessonBlockEditor';
 import { LessonBlocks } from './LessonBlocks';
 
 describe('informational lesson blocks', () => {
@@ -14,6 +14,36 @@ describe('informational lesson blocks', () => {
     const divider = createLessonBlock('divider');
     expect(divider).toMatchObject({ type: 'divider' });
     expect('text' in divider).toBe(false);
+  });
+
+  it('keeps existing add, settings, move and delete controls as native editor controls', () => {
+    const blocks: LessonBlock[] = [
+      { id: 'heading', type: 'heading', text: 'Heading', level: 2 },
+      { id: 'callout', type: 'callout', text: 'Callout', tone: 'tip' },
+      { id: 'code', type: 'code', text: 'const x = 1;', language: 'javascript' },
+      {
+        id: 'image',
+        type: 'image',
+        url: '/assets/example.png',
+        alt: 'Example',
+        caption: 'Caption',
+      },
+      { id: 'table', type: 'table', rows: [['A', 'B']] },
+    ];
+    const markup = renderToStaticMarkup(
+      createElement(LessonBlockEditor, { blocks, onChange: () => undefined }),
+    );
+
+    expect(markup).toContain('aria-label="Поднять блок 1"');
+    expect(markup).toContain('aria-label="Опустить блок 1"');
+    expect(markup).toContain('aria-label="Удалить блок 1"');
+    expect(markup).toContain('aria-label="Уровень заголовка"');
+    expect(markup).toContain('aria-label="Тип врезки"');
+    expect(markup).toContain('aria-label="Язык кода"');
+    expect(markup).toContain('aria-label="Описание изображения"');
+    expect(markup).toContain('+ Строка');
+    expect(markup).toContain('+ Текст');
+    expect(markup).toContain('type="button"');
   });
 
   it('keeps table structure bounded in client validation', () => {
