@@ -7,7 +7,6 @@ export type BlocksRuntimeMode = 'editor' | 'player';
 export type BlocksParentMessageType =
   | 'ASA_BLOCKS_INIT'
   | 'ASA_BLOCKS_TOKEN_UPDATE'
-  | 'ASA_BLOCKS_FLUSH_REQUEST'
   | 'ASA_BLOCKS_SAVE_BEFORE_EXIT_REQUEST'
   | 'ASA_BLOCKS_STOP';
 
@@ -15,7 +14,6 @@ export type BlocksChildMessageType =
   | 'ASA_BLOCKS_READY'
   | 'ASA_BLOCKS_STATUS'
   | 'ASA_BLOCKS_TOKEN_REFRESH_REQUIRED'
-  | 'ASA_BLOCKS_FLUSH_RESULT'
   | 'ASA_BLOCKS_SAVE_BEFORE_EXIT_RESULT'
   | 'ASA_BLOCKS_THUMBNAIL_READY'
   | 'ASA_BLOCKS_FATAL';
@@ -96,7 +94,6 @@ function isChildMessageType(value: unknown): value is BlocksChildMessageType {
     value === 'ASA_BLOCKS_READY' ||
     value === 'ASA_BLOCKS_STATUS' ||
     value === 'ASA_BLOCKS_TOKEN_REFRESH_REQUIRED' ||
-    value === 'ASA_BLOCKS_FLUSH_RESULT' ||
     value === 'ASA_BLOCKS_SAVE_BEFORE_EXIT_RESULT' ||
     value === 'ASA_BLOCKS_THUMBNAIL_READY' ||
     value === 'ASA_BLOCKS_FATAL'
@@ -111,8 +108,6 @@ export class BlocksRuntimeBridge {
   private readonly options: BlocksRuntimeNonSecretOptions;
   private runtimeToken: string | null;
   private stopped = false;
-  private readonly pendingFlushRequestIds = new Set<string>();
-  private readonly issuedFlushRequestIds = new Set<string>();
   private readonly pendingSaveBeforeExit = new Map<
     string,
     {
@@ -175,23 +170,6 @@ export class BlocksRuntimeBridge {
     this.post('ASA_BLOCKS_TOKEN_UPDATE', { runtimeToken });
   }
 
-  requestFlush(requestId: string): void {
-    this.assertActive();
-    if (!requestId) throw new Error('Blocks flush requestId is required');
-    if (this.issuedFlushRequestIds.has(requestId)) {
-      throw new Error(`Blocks flush requestId was already issued: ${requestId}`);
-    }
-    this.issuedFlushRequestIds.add(requestId);
-    this.pendingFlushRequestIds.add(requestId);
-    try {
-      this.post('ASA_BLOCKS_FLUSH_REQUEST', { requestId });
-    } catch (error) {
-      this.pendingFlushRequestIds.delete(requestId);
-      this.issuedFlushRequestIds.delete(requestId);
-      throw error;
-    }
-  }
-
   requestSaveBeforeExit(): Promise<BlocksSaveBeforeExitResult> {
     this.assertActive();
     const requestId = newClientId();
@@ -214,8 +192,6 @@ export class BlocksRuntimeBridge {
       this.post('ASA_BLOCKS_STOP');
     } finally {
       this.runtimeToken = null;
-      this.pendingFlushRequestIds.clear();
-      this.issuedFlushRequestIds.clear();
       for (const pending of this.pendingSaveBeforeExit.values()) {
         pending.reject(new Error('Blocks runtime bridge is stopped'));
       }
@@ -256,33 +232,6 @@ export class BlocksRuntimeBridge {
       ) {
         return false;
       }
-    }
-    if (message['messageType'] === 'ASA_BLOCKS_FLUSH_RESULT') {
-      const requestId = message['requestId'];
-      if (typeof requestId !== 'string' || !this.pendingFlushRequestIds.has(requestId)) {
-        return false;
-      }
-      if (message['ok'] === true) {
-        if (
-          !isNonNegativeSafeInteger(message['revision']) ||
-          !isNonNegativeSafeInteger(message['snapshotGeneration']) ||
-          (message['reason'] !== null && typeof message['reason'] !== 'undefined')
-        ) {
-          return false;
-        }
-      } else if (message['ok'] === false) {
-        if (
-          typeof message['reason'] !== 'string' ||
-          message['reason'].length === 0 ||
-          typeof message['revision'] !== 'undefined' ||
-          typeof message['snapshotGeneration'] !== 'undefined'
-        ) {
-          return false;
-        }
-      } else {
-        return false;
-      }
-      this.pendingFlushRequestIds.delete(requestId);
     }
     if (message['messageType'] === 'ASA_BLOCKS_SAVE_BEFORE_EXIT_RESULT') {
       const requestId = message['requestId'];
