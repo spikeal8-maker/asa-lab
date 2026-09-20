@@ -112,19 +112,6 @@
         reportFatal('editor_mount_failed');
       }
     },
-    onFlushRequest(requestId) {
-      if (!editor) {
-        reporter?.flushResult(requestId, false, 'editor_not_ready');
-        return;
-      }
-      void editor.flush().then((result) => {
-        if (result.ok) {
-          reporter?.flushResult(requestId, true, null, result.revision, result.snapshotGeneration);
-          return;
-        }
-        reporter?.flushResult(requestId, false, result.reason);
-      });
-    },
     onSaveBeforeExitRequest(requestId) {
       if (!editor) {
         reporter?.saveBeforeExitResult(requestId, false, 'editor_not_ready');
