@@ -184,7 +184,7 @@ describe('Course Builder structure forward upgrade', () => {
 
       const upgrade = await pool.connect();
       try {
-        expect(await applyIsolatedTestPlan(upgrade, plan)).toBe(2);
+        expect(await applyIsolatedTestPlan(upgrade, plan)).toBe(3);
         expect(await applyIsolatedTestPlan(upgrade, plan)).toBe(0);
       } finally {
         upgrade.release();
@@ -215,11 +215,16 @@ describe('Course Builder structure forward upgrade', () => {
       expect(
         (
           await pool.query(
-            'SELECT source_course_lesson_id,learning_activity_version_id FROM activity_runs WHERE source_course_run_id=$1 ORDER BY source_course_lesson_id',
+            'SELECT source_course_lesson_id,source_course_block_id,learning_activity_version_id FROM activity_runs WHERE source_course_run_id=$1 ORDER BY source_course_lesson_id',
             [runId],
           )
         ).rows,
-      ).toEqual(activityRunsBefore);
+      ).toEqual(
+        activityRunsBefore.map((row) => ({
+          ...row,
+          source_course_block_id: null,
+        })),
+      );
 
       expect(
         (
