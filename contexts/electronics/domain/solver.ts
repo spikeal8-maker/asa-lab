@@ -54,6 +54,11 @@ import {
   isHcSr04,
   type HcSr04RuntimeState,
 } from './models/hc-sr04-runtime.js';
+import {
+  isPingUltrasonic,
+  pingUltrasonicElectricalBranch,
+  type PingUltrasonicRuntimeState,
+} from './models/ping-ultrasonic-runtime.js';
 import { isServoMotor, type ServoMotorRuntimeState } from './models/servo-runtime.js';
 import {
   createLinearDcDevice,
@@ -427,6 +432,9 @@ interface InternalSolveOptions extends SolveOptions {
   /** Internal read-only electrical solve: never advances the controller. */
   readonly heldArduinoSnapshots?: ReadonlyMap<string, ArduinoRuntimeSnapshot> | undefined;
   readonly hcSr04RuntimeStateById?: ReadonlyMap<string, HcSr04RuntimeState> | undefined;
+  readonly pingUltrasonicRuntimeStateById?:
+    | ReadonlyMap<string, PingUltrasonicRuntimeState>
+    | undefined;
   readonly servoRuntimeStateById?: ReadonlyMap<string, ServoMotorRuntimeState> | undefined;
   /** RC clock only: honour t=0/sub-ms horizons and allow zero-duration observation. */
   readonly clockedRcTransient?: boolean;
@@ -1314,6 +1322,7 @@ function solveCircuitBase(
       simulationTimeMs: targetTimeMs,
       heldArduinoSnapshots: options.heldArduinoSnapshots,
       hcSr04RuntimeStateById: options.hcSr04RuntimeStateById,
+      pingUltrasonicRuntimeStateById: options.pingUltrasonicRuntimeStateById,
       holdCapacitorVoltages: true,
       holdMotorStates: true,
       capacitorPreviousVoltageById: previousVoltageById,
@@ -1388,6 +1397,7 @@ function solveCircuitBase(
       arduinoRuntimeStateById,
       heldArduinoSnapshots: options.heldArduinoSnapshots,
       hcSr04RuntimeStateById: options.hcSr04RuntimeStateById,
+      pingUltrasonicRuntimeStateById: options.pingUltrasonicRuntimeStateById,
     } as const;
     let acceptedResult: SolveResult;
     let acceptedMotorStateById = motorStateById;
@@ -1472,6 +1482,8 @@ function solveCircuitBase(
         arduinoRuntimeStateById: arduinoRuntimeStatesFromController(firstHalf.controllerState),
         heldArduinoSnapshots: options.heldArduinoSnapshots,
         hcSr04RuntimeStateById: options.hcSr04RuntimeStateById,
+        pingUltrasonicRuntimeStateById: options.pingUltrasonicRuntimeStateById,
+      pingUltrasonicRuntimeStateById: options.pingUltrasonicRuntimeStateById,
       });
       accumulatedIterations += full.iterations + firstHalf.iterations + secondHalf.iterations;
       const failedSolve = [full, firstHalf, secondHalf].find((result) => !result.solved);
@@ -1656,6 +1668,8 @@ function solveCircuitBase(
       const postFailure = solveCircuitStep(document, {
         heldArduinoSnapshots: options.heldArduinoSnapshots,
         hcSr04RuntimeStateById: options.hcSr04RuntimeStateById,
+        pingUltrasonicRuntimeStateById: options.pingUltrasonicRuntimeStateById,
+      pingUltrasonicRuntimeStateById: options.pingUltrasonicRuntimeStateById,
         holdCapacitorVoltages: options.clockedRcTransient,
         simulationTimeMs: stepEndTimeMs,
         transientStepSeconds: TRANSIENT_FAILURE_EVENT_STEP_MS / 1_000,
@@ -1724,6 +1738,8 @@ function solveCircuitBase(
       solveCircuitStep(document, {
         heldArduinoSnapshots: options.heldArduinoSnapshots,
         hcSr04RuntimeStateById: options.hcSr04RuntimeStateById,
+        pingUltrasonicRuntimeStateById: options.pingUltrasonicRuntimeStateById,
+      pingUltrasonicRuntimeStateById: options.pingUltrasonicRuntimeStateById,
         failedComponentIds,
         motorPreviousStateById: motorStateById,
         arduinoRuntimeStateById,
@@ -1926,12 +1942,16 @@ export function solveCircuitWithHeldArduino(
   simulationTimeMs: number,
   snapshots: ReadonlyMap<string, ArduinoRuntimeSnapshot>,
   hcSr04States?: ReadonlyMap<string, HcSr04RuntimeState>,
+  pingUltrasonicStates?: ReadonlyMap<string, PingUltrasonicRuntimeState>,
   servoStates?: ReadonlyMap<string, ServoMotorRuntimeState>,
 ): SolveResult {
   return solveCircuitStep(document, {
     simulationTimeMs,
     heldArduinoSnapshots: snapshots,
     ...(hcSr04States ? { hcSr04RuntimeStateById: hcSr04States } : {}),
+    ...(pingUltrasonicStates
+      ? { pingUltrasonicRuntimeStateById: pingUltrasonicStates }
+      : {}),
     ...(servoStates ? { servoRuntimeStateById: servoStates } : {}),
     suppressOscilloscopeTrace: true,
   });
@@ -2008,6 +2028,7 @@ export function solveRcCircuitWithHeldArduino(
   snapshots: ReadonlyMap<string, ArduinoRuntimeSnapshot>,
   transientState?: CapacitorTransientState,
   hcSr04States?: ReadonlyMap<string, HcSr04RuntimeState>,
+  pingUltrasonicStates?: ReadonlyMap<string, PingUltrasonicRuntimeState>,
   servoStates?: ReadonlyMap<string, ServoMotorRuntimeState>,
 ): SolveResult {
   return solveCircuitBase(document, {
@@ -2015,6 +2036,9 @@ export function solveRcCircuitWithHeldArduino(
     ...(transientState ? { transientState } : {}),
     heldArduinoSnapshots: snapshots,
     ...(hcSr04States ? { hcSr04RuntimeStateById: hcSr04States } : {}),
+    ...(pingUltrasonicStates
+      ? { pingUltrasonicRuntimeStateById: pingUltrasonicStates }
+      : {}),
     ...(servoStates ? { servoRuntimeStateById: servoStates } : {}),
     clockedRcTransient: true,
     suppressOscilloscopeTrace: true,
@@ -2177,6 +2201,12 @@ function solveCircuitStep(
     if (!isHcSr04(component) || failedComponentIds.has(component.id)) return [];
     const state = options.hcSr04RuntimeStateById?.get(component.id);
     const branch = state ? hcSr04ElectricalBranch(state) : null;
+    return branch ? [{ component, ...branch }] : [];
+  });
+  const pingUltrasonicBranches = document.components.flatMap((component) => {
+    if (!isPingUltrasonic(component) || failedComponentIds.has(component.id)) return [];
+    const state = options.pingUltrasonicRuntimeStateById?.get(component.id);
+    const branch = state ? pingUltrasonicElectricalBranch(state) : null;
     return branch ? [{ component, ...branch }] : [];
   });
   const empty = (
@@ -2630,7 +2660,7 @@ function solveCircuitStep(
     };
 
     for (const variable of nodeVariables.values()) matrix[variable]![variable] += GMIN;
-    for (const branch of [...arduinoBranches, ...hcSr04Branches]) {
+    for (const branch of [...arduinoBranches, ...hcSr04Branches, ...pingUltrasonicBranches]) {
       const positive = physicalNodeIndex(branch.component, branch.terminal);
       const ground = physicalNodeIndex(branch.component, branch.ground);
       const conductance = 1 / branch.resistanceOhm;
@@ -2639,7 +2669,13 @@ function solveCircuitStep(
     }
     for (const component of document.components) {
       if (failedComponentIds.has(component.id)) continue;
-      if (isArduinoUno(component) || isHcSr04(component) || isServoMotor(component)) continue;
+      if (
+        isArduinoUno(component) ||
+        isHcSr04(component) ||
+        isPingUltrasonic(component) ||
+        isServoMotor(component)
+      )
+        continue;
       if (!isSimulated(component) || component.kind === 'source') continue;
       if (['led', 'diode', 'rgb-led', 'seven-segment', 'transistor'].includes(component.kind))
         continue;
