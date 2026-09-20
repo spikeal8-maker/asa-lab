@@ -129,28 +129,12 @@ function createRuntimeStorage({
       headers: { 'content-type': contentType },
     });
   };
-  class PersistenceStorage extends Storage {
-    async store(assetType, dataFormat, data, assetId) {
-      const format = dataFormat || assetType?.runtimeFormat;
-      const created = this.createAsset(assetType, format, data, assetId);
-      const request = this.webStore?.update?.(created);
-      if (!request) throw new Error('fixture_store_not_configured');
-      const response = await fetchMock(request.url, { ...request, body: data });
-      if (!response.ok || response.redirected) throw new Error('asset_write_failed');
-      return response.json();
-    }
-  }
   const api = loadHost('storage', {
     fetch: fetchMock,
     crypto: webcrypto,
     AbortController: globalThis.AbortController,
   }).AsaBlocksStorage;
-  const storage = api.createReadOnlyStorage(
-    {
-      ScratchStorage: PersistenceStorage,
-      buildDefaultProject: standaloneFixture().buildDefaultProject,
-    },
-    {
+  const storage = api.createReadOnlyStorage(standaloneFixture(), {
     projectId: PROJECT_ID,
     projectJson: runtimeProject(reference),
     assets: [reference],
@@ -159,7 +143,6 @@ function createRuntimeStorage({
   });
   return { storage, calls, reference };
 }
-
 test('new project storage binds the default project to the ASA UUID', async () => {
   const calls = [];
   const api = loadHost('storage', {
