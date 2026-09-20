@@ -152,12 +152,39 @@ async function createCourseHandout(targetClassroomId = classroomId) {
   };
 }
 
+async function createCourseCompatibilityHandout(
+  courseRunId: string,
+  targetClassroomId = classroomId,
+) {
+  const handout = await admin.query(
+    `INSERT INTO classroom_assignments
+       (tenant_id,classroom_id,status,created_by,course_run_id)
+     VALUES ($1,$2,'open',$3,$4) RETURNING id`,
+    [owner.tenantId, targetClassroomId, owner.teacherId, courseRunId],
+  );
+  return handout.rows[0].id as string;
+}
+
+async function createCourseMaterialLesson(courseRunId: string) {
+  sequence += 1;
+  const lesson = await admin.query(
+    `INSERT INTO classroom_course_run_lessons
+       (tenant_id,run_id,source_section_id,source_lesson_id,section_title,
+        section_position,title,kind,lesson_position)
+     VALUES ($1,$2,gen_random_uuid(),gen_random_uuid(),'Section',1,$3,'material',2)
+     RETURNING id`,
+    [owner.tenantId, courseRunId, `Activity block lesson ${sequence}`],
+  );
+  return lesson.rows[0].id as string;
+}
+
 async function createRun(input: {
   handoutId: string;
   versionId?: string;
   sourceKind?: 'direct' | 'course';
   courseRunId?: string | null;
   lessonId?: string | null;
+  blockId?: string | null;
   opensAt?: string | null;
   dueAt?: string | null;
   closesAt?: string | null;
@@ -170,25 +197,32 @@ async function createRun(input: {
 }) {
   sequence += 1;
   return inTenant(input.tenantId ?? owner.tenantId, async (client) => {
+    const requestId = input.requestId ?? `m1:003:run:${sequence}`;
+    const values = [
+      input.actorPrincipalId ?? ownerPrincipalId,
+      input.handoutId,
+      input.versionId ?? lavV1,
+      input.sourceKind ?? 'direct',
+      input.courseRunId ?? null,
+      input.lessonId ?? null,
+      input.opensAt ?? null,
+      input.dueAt ?? null,
+      input.closesAt ?? null,
+      input.latePolicy ?? null,
+      input.gradingSchemeId ?? null,
+      JSON.stringify(input.runtimeExplicit ?? {}),
+      requestId,
+    ];
+    const hasBlockId = Object.prototype.hasOwnProperty.call(input, 'blockId');
     const result = await client.query(
-      `SELECT * FROM activity_run_create(
-         $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb,$13
-       )`,
-      [
-        input.actorPrincipalId ?? ownerPrincipalId,
-        input.handoutId,
-        input.versionId ?? lavV1,
-        input.sourceKind ?? 'direct',
-        input.courseRunId ?? null,
-        input.lessonId ?? null,
-        input.opensAt ?? null,
-        input.dueAt ?? null,
-        input.closesAt ?? null,
-        input.latePolicy ?? null,
-        input.gradingSchemeId ?? null,
-        JSON.stringify(input.runtimeExplicit ?? {}),
-        input.requestId ?? `m1:003:run:${sequence}`,
-      ],
+      hasBlockId
+        ? `SELECT * FROM activity_run_create(
+             $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb,$13,$14
+           )`
+        : `SELECT * FROM activity_run_create(
+             $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb,$13
+           )`,
+      hasBlockId ? [...values, input.blockId ?? null] : values,
     );
     return result.rows[0] as RunResult;
   });
@@ -475,6 +509,136 @@ describe('LRN-M1-003 persistent ActivityRun', () => {
         blockA.id,
       ]),
     ).rejects.toThrow(/immutable/);
+  });
+
+  it('E1-FIX-11D3a creates block-aware course runs without collapsing lesson occurrences', async () => {
+    const source = await createCourseHandout();
+    const legacy = await createRun({
+      handoutId: source.handoutId,
+      sourceKind: 'course',
+      courseRunId: source.courseRunId,
+      lessonId: source.lessonId,
+      blockId: null,
+      requestId: `e1:11d3a:legacy:${++sequence}`,
+    });
+    expect(legacy).toMatchObject({ result_code: 'ok', reused: false });
+    expect(
+      (
+        await admin.query('SELECT source_course_block_id FROM activity_runs WHERE id=$1', [
+          legacy.activity_run_id,
+        ])
+      ).rows[0],
+    ).toEqual({ source_course_block_id: null });
+
+    const materialLessonId = await createCourseMaterialLesson(source.courseRunId);
+    const blockAHandout = await createCourseCompatibilityHandout(source.courseRunId);
+    const blockBHandout = await createCourseCompatibilityHandout(source.courseRunId);
+    const blockARequest = `e1:11d3a:block-a:${++sequence}`;
+    const blockA = await createRun({
+      handoutId: blockAHandout,
+      sourceKind: 'course',
+      courseRunId: source.courseRunId,
+      lessonId: materialLessonId,
+      blockId: 'activity-block-a',
+      requestId: blockARequest,
+    });
+    expect(blockA).toMatchObject({ result_code: 'ok', reused: false });
+
+    const blockARetry = await createRun({
+      handoutId: blockAHandout,
+      sourceKind: 'course',
+      courseRunId: source.courseRunId,
+      lessonId: materialLessonId,
+      blockId: 'activity-block-a',
+      requestId: blockARequest,
+    });
+    expect(blockARetry).toMatchObject({ activity_run_id: blockA.activity_run_id, reused: true });
+
+    const blockADuplicateRequest = await createRun({
+      handoutId: blockAHandout,
+      sourceKind: 'course',
+      courseRunId: source.courseRunId,
+      lessonId: materialLessonId,
+      blockId: 'activity-block-a',
+      requestId: `e1:11d3a:block-a-retry:${++sequence}`,
+    });
+    expect(blockADuplicateRequest).toMatchObject({
+      activity_run_id: blockA.activity_run_id,
+      reused: true,
+    });
+
+    const blockB = await createRun({
+      handoutId: blockBHandout,
+      sourceKind: 'course',
+      courseRunId: source.courseRunId,
+      lessonId: materialLessonId,
+      blockId: 'activity-block-b',
+      requestId: `e1:11d3a:block-b:${++sequence}`,
+    });
+    expect(blockB).toMatchObject({ result_code: 'ok', reused: false });
+    expect(blockB.activity_run_id).not.toBe(blockA.activity_run_id);
+
+    const occurrences = await admin.query(
+      `SELECT id,source_classroom_assignment_id,source_course_block_id
+         FROM activity_runs
+        WHERE source_course_run_id=$1 AND source_course_lesson_id=$2
+        ORDER BY source_course_block_id NULLS FIRST`,
+      [source.courseRunId, materialLessonId],
+    );
+    expect(occurrences.rows).toEqual([
+      {
+        id: blockA.activity_run_id,
+        source_classroom_assignment_id: blockAHandout,
+        source_course_block_id: 'activity-block-a',
+      },
+      {
+        id: blockB.activity_run_id,
+        source_classroom_assignment_id: blockBHandout,
+        source_course_block_id: 'activity-block-b',
+      },
+    ]);
+
+    const legacyMismatch = await createRun({
+      handoutId: blockAHandout,
+      sourceKind: 'course',
+      courseRunId: source.courseRunId,
+      lessonId: source.lessonId,
+      blockId: null,
+      requestId: `e1:11d3a:legacy-mismatch:${++sequence}`,
+    });
+    expect(legacyMismatch.result_code).toBe('course_source_forbidden');
+
+    const foreign = await createCourseHandout();
+    const foreignLesson = await createRun({
+      handoutId: blockAHandout,
+      sourceKind: 'course',
+      courseRunId: source.courseRunId,
+      lessonId: foreign.lessonId,
+      blockId: 'activity-block-foreign-lesson',
+      requestId: `e1:11d3a:foreign-lesson:${++sequence}`,
+    });
+    expect(foreignLesson.result_code).toBe('course_source_forbidden');
+
+    const foreignHandout = await createCourseCompatibilityHandout(foreign.courseRunId);
+    const foreignAssignment = await createRun({
+      handoutId: foreignHandout,
+      sourceKind: 'course',
+      courseRunId: source.courseRunId,
+      lessonId: materialLessonId,
+      blockId: 'activity-block-foreign-assignment',
+      requestId: `e1:11d3a:foreign-assignment:${++sequence}`,
+    });
+    expect(foreignAssignment.result_code).toBe('course_source_forbidden');
+
+    const malformedBlock = await createRun({
+      handoutId: await createCourseCompatibilityHandout(source.courseRunId),
+      sourceKind: 'course',
+      courseRunId: source.courseRunId,
+      lessonId: materialLessonId,
+      blockId: 'bad block id',
+      requestId: `e1:11d3a:bad-block:${++sequence}`,
+    });
+    expect(malformedBlock.result_code).toBe('invalid_source');
   });
 
   it('supports only active to closed/cancelled and closed to archived', async () => {
