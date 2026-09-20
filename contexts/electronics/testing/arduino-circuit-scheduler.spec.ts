@@ -31,6 +31,18 @@ function board(id: string, source: string): SchematicComponent {
 function part(id: string, kind: SchematicComponent['kind'], value = 1000): SchematicComponent {
   return { id, kind, value, position: { x: 0, y: 0 } };
 }
+function servoMotor(id: string): SchematicComponent {
+  return {
+    id,
+    kind: 'visual',
+    value: 0,
+    position: { x: 0, y: 0 },
+    componentTypeId: 'servo-motor',
+    variantId: 'servo-motor',
+    pinIds: ['gnd', 'vcc', 'signal'],
+    stateProperties: { angleDegrees: 90 },
+  };
+}
 function hcSr04(id: string, distanceMeters = 1): SchematicComponent {
   return {
     id,
@@ -85,6 +97,22 @@ const runtime = (result: ArduinoCircuitClockAdvance, id = 'uno') =>
   result.state!.boards.find((entry) => entry.componentId === id)!.runtime;
 const hcRuntime = (result: ArduinoCircuitClockAdvance, id = 'sonar') =>
   result.state!.hcSr04!.find((entry) => entry.componentId === id)!.runtime;
+const servoRuntime = (result: ArduinoCircuitClockAdvance, id = 'servo') =>
+  result.state!.servoMotors!.find((entry) => entry.componentId === id)!.runtime;
+
+function servoCircuit(angleDegrees: number, powered = true, reversed = false) {
+  const source = `#include <Servo.h>\nServo motor;int readback=-1;
+    void setup(){motor.attach(9);}void loop(){motor.write(${angleDegrees});readback=motor.read();delay(100);}`;
+  const wires: [string, string, string, string][] = [
+    ['uno', 'power-gnd-1', 'servo', 'gnd'],
+    ['uno', 'd9', 'servo', 'signal'],
+  ];
+  if (powered) wires.unshift(['uno', 'power-5v', 'servo', 'vcc']);
+  const components = reversed
+    ? [servoMotor('servo'), board('uno', source)]
+    : [board('uno', source), servoMotor('servo')];
+  return circuit(components, reversed ? [...wires].reverse() : wires);
+}
 
 function hcSr04Circuit(distanceMeters: number, triggerDelayUs = 10, powered = true) {
   const source = `unsigned long duration=0;void setup(){pinMode(13,OUTPUT);pinMode(2,INPUT);
@@ -984,7 +1012,7 @@ describe('Arduino shared dc-inputs-v1 circuit clock', () => {
   it.each([
     ['unsupported-call', 'void setup(){random();}void loop(){}'],
     ['unsupported-syntax', 'void setup(){int x=1;switch(x){case 1:break;}}void loop(){}'],
-    ['preprocessor', '#include <Servo.h>\nvoid setup(){}\nvoid loop(){}'],
+    ['preprocessor', '#include <Unknown.h>\nvoid setup(){}\nvoid loop(){}'],
   ])('keeps known unsupported %s board-local without last-good', (code, source) => {
     const result = through(circuit([board('uno', source)]), 10);
     const boardState = result.state!.boards.find((entry) => entry.componentId === 'uno')!;
@@ -1005,7 +1033,7 @@ describe('Arduino shared dc-inputs-v1 circuit clock', () => {
   it.each([
     ['unsupported-call', 'void setup(){random();}void loop(){}'],
     ['unsupported-syntax', 'void setup(){int x=1;switch(x){case 1:break;}}void loop(){}'],
-    ['preprocessor', '#include <Servo.h>\nvoid setup(){}\nvoid loop(){}'],
+    ['preprocessor', '#include <Unknown.h>\nvoid setup(){}\nvoid loop(){}'],
   ])('keeps last-good runtime through known unsupported %s editor source', (code, source) => {
     const sourceA =
       'int count=0;void setup(){pinMode(13,OUTPUT);}void loop(){count++;digitalWrite(13,count%2);}';
@@ -1136,6 +1164,125 @@ describe('Arduino shared dc-inputs-v1 circuit clock', () => {
     const resumed = through(doc, 5000, JSON.parse(JSON.stringify(mid.state)), undefined, 3);
     expect(resumed.state).toEqual(large.state);
     expect(resumed.result).toEqual(large.result);
+  });
+
+  it.each([
+    [0, 544],
+    [90, 1472],
+    [180, 2400],
+  ])('drives servo-motor through real 50 Hz electrical pulses for %i degrees', (angle, pulse) => {
+    const done = through(servoCircuit(angle), 5000, undefined, undefined, 1);
+    expect(done.executionStatus, JSON.stringify(done.diagnostics)).toBe('ready');
+    expect(runtime(done).variables.readback).toBe(angle);
+    expect(runtime(done).servo?.objects.motor).toMatchObject({
+      attached: true,
+      pin: 'd9',
+      commandedAngle: angle,
+      pulseWidthMicroseconds: pulse,
+    });
+    expect(runtime(done).servo?.objects.motor?.waveform).toMatchObject({
+      frequencyHz: 50,
+      dutyNumerator: pulse,
+      dutyDenominator: 20_000,
+    });
+    expect(servoRuntime(done)).toMatchObject({
+      powered: true,
+      lastValidPulseWidthMicroseconds: pulse,
+    });
+    expect(servoRuntime(done).angleDegrees).toBeCloseTo(angle, 8);
+    expect(
+      done.result?.components.find((entry) => entry.componentId === 'servo')?.servoAngleDegrees,
+    ).toBeCloseTo(angle, 8);
+  });
+
+  it('uses 1500 us immediately after attach before the first write', () => {
+    const source =
+      '#include <Servo.h>\nServo motor;void setup(){motor.attach(9);}void loop(){delay(100);}';
+    const doc = circuit(
+      [board('uno', source), servoMotor('servo')],
+      [
+        ['uno', 'power-5v', 'servo', 'vcc'],
+        ['uno', 'power-gnd-1', 'servo', 'gnd'],
+        ['uno', 'd9', 'servo', 'signal'],
+      ],
+    );
+    const done = through(doc, 2500, undefined, undefined, 1);
+    expect(runtime(done).servo?.objects.motor?.pulseWidthMicroseconds).toBe(1500);
+    expect(servoRuntime(done).lastValidPulseWidthMicroseconds).toBe(1500);
+  });
+
+  it('ignores signal pulses while servo-motor is unpowered without faulting the lab', () => {
+    const done = through(servoCircuit(180, false), 5000, undefined, undefined, 1);
+    expect(done.executionStatus, JSON.stringify(done.diagnostics)).toBe('ready');
+    expect(servoRuntime(done).powered).toBe(false);
+    expect(servoRuntime(done).lastValidPulseWidthMicroseconds).toBeUndefined();
+    expect(servoRuntime(done).angleDegrees).toBe(90);
+  });
+
+  it('preserves Servo state through JSON continuation and scheduler yield partitioning', () => {
+    const doc = servoCircuit(180);
+    const mid = through(doc, 1000, undefined, undefined, 1);
+    expect(servoRuntime(mid).signalHigh).toBe(true);
+    const resumed = through(doc, 5000, JSON.parse(JSON.stringify(mid.state)), undefined, 1);
+    const whole = through(doc, 5000, undefined, undefined, 256);
+    expect(runtime(resumed)).toEqual(runtime(whole));
+    expect(servoRuntime(resumed)).toEqual(servoRuntime(whole));
+    expect(
+      resumed.result?.components.find((entry) => entry.componentId === 'servo')?.servoAngleDegrees,
+    ).toEqual(
+      whole.result?.components.find((entry) => entry.componentId === 'servo')?.servoAngleDegrees,
+    );
+  });
+
+  it('keeps Servo result invariant under component and wire order reversal', () => {
+    const forward = through(servoCircuit(30, true, false), 5000, undefined, undefined, 1);
+    const reversed = through(servoCircuit(30, true, true), 5000, undefined, undefined, 256);
+    expect(runtime(reversed)).toEqual(runtime(forward));
+    expect(servoRuntime(reversed)).toEqual(servoRuntime(forward));
+    expect(
+      reversed.result?.components.find((entry) => entry.componentId === 'servo')?.servoAngleDegrees,
+    ).toEqual(
+      forward.result?.components.find((entry) => entry.componentId === 'servo')?.servoAngleDegrees,
+    );
+  });
+
+  it('continues the last-good Servo program when editor source becomes unsupported', () => {
+    const validDocument = servoCircuit(90);
+    const loaded = through(validDocument, 5000, undefined, undefined, 1);
+    const validSource = String(
+      validDocument.components.find((component) => component.id === 'uno')!.stateProperties
+        ?.arduinoSource,
+    );
+    const invalidDocument: ElectronicsDocument = {
+      ...validDocument,
+      components: validDocument.components.map((component) =>
+        component.id === 'uno'
+          ? {
+              ...component,
+              stateProperties: {
+                ...component.stateProperties,
+                arduinoSource: '#include <Unknown.h>\nvoid setup(){}\nvoid loop(){}',
+              },
+            }
+          : component,
+      ),
+    };
+    const continued = through(
+      invalidDocument,
+      25_000,
+      JSON.parse(JSON.stringify(loaded.state)),
+      undefined,
+      1,
+    );
+    expect(continued.executionStatus, JSON.stringify(continued.diagnostics)).toBe('ready');
+    expect(continued.diagnostics).toContainEqual(
+      expect.objectContaining({ code: 'preprocessor', componentId: 'uno' }),
+    );
+    expect(continued.state?.boards.find((entry) => entry.componentId === 'uno')?.loadedSource).toBe(
+      validSource,
+    );
+    expect(runtime(continued).servo?.objects.motor?.commandedAngle).toBe(90);
+    expect(servoRuntime(continued).angleDegrees).toBeCloseTo(90, 8);
   });
 
   it('keeps ambiguous unknown calls global in B1D', () => {

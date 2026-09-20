@@ -984,6 +984,21 @@ describe('electrical model registry', () => {
       topology: 'multi-junction',
       requiredTerminals: ['vcc', 'trigger', 'echo', 'gnd'],
     });
+    const servo = component('servo', 'visual', 0, {
+      componentTypeId: 'servo-motor',
+      variantId: 'servo-motor',
+      pinIds: ['vcc', 'signal', 'gnd'],
+    });
+    expect(electricalModelIdentityForComponent(servo)).toMatchObject({
+      electricalModelId: 'servo-motor-signal',
+      modelProfileId: 'servo-pulse-angle-v1',
+    });
+    expect(electricalModelFor(servo)).toMatchObject({
+      id: 'servo-motor-signal',
+      support: 'supported',
+      topology: 'multi-junction',
+      requiredTerminals: ['vcc', 'signal', 'gnd'],
+    });
   });
 });
 

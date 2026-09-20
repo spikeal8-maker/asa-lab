@@ -12,6 +12,10 @@ import {
   enqueueArduinoSerialRx,
 } from './arduino-serial-runtime.js';
 import {
+  advanceArduinoServoWaveforms,
+  arduinoServoNextDueMicroseconds,
+} from './arduino-servo-runtime.js';
+import {
   advanceArduinoTimedWaveform,
   arduinoWaveformNextDueMicroseconds,
   isArduinoTimedWaveformState,
@@ -43,6 +47,14 @@ import {
   observeHcSr04Inputs,
   type HcSr04RuntimeState,
 } from './models/hc-sr04-runtime.js';
+import {
+  initialServoMotorRuntimeState,
+  isServoMotor,
+  isServoMotorRuntimeState,
+  observeServoMotorInputs,
+  servoMotorInputLevels,
+  type ServoMotorRuntimeState,
+} from './models/servo-runtime.js';
 
 const MAX_TIME_US = 2 ** 50 - 1001;
 const MAX_INPUT_EVENTS = 1024;
@@ -105,6 +117,10 @@ export interface ArduinoCircuitClockState {
     readonly componentId: string;
     readonly runtime: HcSr04RuntimeState;
   }[];
+  readonly servoMotors?: readonly {
+    readonly componentId: string;
+    readonly runtime: ServoMotorRuntimeState;
+  }[];
   readonly boards: readonly {
     readonly componentId: string;
     readonly loadedSource?: string | null;
@@ -140,6 +156,7 @@ function clockedComponent(component: SchematicComponent): boolean {
       [
         'arduino-uno',
         'hc-sr04-distance-sensor',
+        'servo-motor-signal',
         'resistor',
         'momentary-button',
         'spdt-switch',
@@ -280,6 +297,9 @@ export function advanceArduinoCircuitClock(
   const hcSr04Components = document.components
     .filter(isHcSr04)
     .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  const servoComponents = document.components
+    .filter(isServoMotor)
+    .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   const invalidHcSr04 = hcSr04Components.find(
     (component) => hcSr04DistanceMeters(component) === null,
   );
@@ -403,6 +423,7 @@ export function advanceArduinoCircuitClock(
   });
   const coldState = resetRuntimeAt(0);
   const previousHcSr04 = previous?.hcSr04 ?? [];
+  const previousServoMotors = previous?.servoMotors ?? [];
   if (previous) {
     if (
       previous.version !== 1 ||
@@ -439,6 +460,12 @@ export function advanceArduinoCircuitClock(
       previousHcSr04.some(
         (entry, index) =>
           entry.componentId !== hcSr04Components[index]?.id || !isHcSr04RuntimeState(entry.runtime),
+      ) ||
+      previousServoMotors.length !== servoComponents.length ||
+      previousServoMotors.some(
+        (entry, index) =>
+          entry.componentId !== servoComponents[index]?.id ||
+          !isServoMotorRuntimeState(entry.runtime),
       ) ||
       previous.boards.some((entry, index) => {
         const board = boards[index]!;
@@ -506,6 +533,15 @@ export function advanceArduinoCircuitClock(
         [component.id, previousHcSr04[index]?.runtime ?? initialHcSr04RuntimeState()] as const,
     ),
   );
+  const servoStates = new Map(
+    servoComponents.map(
+      (component, index) =>
+        [
+          component.id,
+          previousServoMotors[index]?.runtime ?? initialServoMotorRuntimeState(),
+        ] as const,
+    ),
+  );
   for (const board of boards) {
     if (!executionSources.has(board.id) && !states.has(board.id)) {
       states.set(board.id, coldState);
@@ -540,6 +576,7 @@ export function advanceArduinoCircuitClock(
         snapshots(),
         physicalState,
         hcSr04States,
+        servoStates,
       ),
       time,
     );
@@ -557,12 +594,19 @@ export function advanceArduinoCircuitClock(
           snapshots(),
           advanced.transientState,
           hcSr04States,
+          servoStates,
         ),
         time,
       );
     } else {
       cachedFrame = withQuality(
-        solveCircuitWithHeldArduino(activeDocument, time / 1000, snapshots(), hcSr04States),
+        solveCircuitWithHeldArduino(
+          activeDocument,
+          time / 1000,
+          snapshots(),
+          hcSr04States,
+          servoStates,
+        ),
         time,
       );
     }
@@ -589,6 +633,21 @@ export function advanceArduinoCircuitClock(
       hcSr04States.set(component.id, step.state);
       echoChanged ||= step.echoChanged;
     }
+    for (const component of servoComponents) {
+      const terminalVoltages =
+        frame.components.find((entry) => entry.componentId === component.id)?.terminalVoltages ??
+        {};
+      const levels = servoMotorInputLevels(terminalVoltages);
+      const previousServo = servoStates.get(component.id)!;
+      const nextServo = observeServoMotorInputs(
+        previousServo,
+        time,
+        levels.powered,
+        levels.signalHigh,
+      );
+      servoStates.set(component.id, nextServo);
+      echoChanged ||= nextServo !== previousServo;
+    }
     return echoChanged;
   };
   const isNonFatalPassiveNoSource = (frame: SolveResult): boolean =>
@@ -606,13 +665,14 @@ export function advanceArduinoCircuitClock(
     );
   const nextToneTime = (): number =>
     Math.min(
-      ...runnableBoards.flatMap((board) =>
-        Object.values(states.get(board.id)?.tones ?? {}).flatMap((tone) =>
+      ...runnableBoards.flatMap((board) => [
+        arduinoServoNextDueMicroseconds(states.get(board.id)?.servo),
+        ...Object.values(states.get(board.id)?.tones ?? {}).flatMap((tone) =>
           tone && isArduinoTimedWaveformState(tone)
             ? [arduinoWaveformNextDueMicroseconds(tone)]
             : [],
         ),
-      ),
+      ]),
       Number.POSITIVE_INFINITY,
     );
   const nextPhysicsTime = (): number =>
@@ -694,12 +754,14 @@ export function advanceArduinoCircuitClock(
       const state = states.get(board.id);
       const pulseInputSample =
         Boolean(state?.pulseWait) && (inputChanged || physicsDue || sensorOutputChanged);
-      const toneBarrierDue = Object.values(state?.tones ?? {}).some(
-        (tone) =>
-          tone &&
-          isArduinoTimedWaveformState(tone) &&
-          arduinoWaveformNextDueMicroseconds(tone) === time,
-      );
+      const toneBarrierDue =
+        arduinoServoNextDueMicroseconds(state?.servo) === time ||
+        Object.values(state?.tones ?? {}).some(
+          (tone) =>
+            tone &&
+            isArduinoTimedWaveformState(tone) &&
+            arduinoWaveformNextDueMicroseconds(tone) === time,
+        );
       if (
         !pendingProgramLoads.has(board.id) &&
         state &&
@@ -724,6 +786,7 @@ export function advanceArduinoCircuitClock(
         );
       updates.push([board.id, advanced.state, executionSource]);
       events.push(...advanced.events.map((event) => ({ ...event, componentId: board.id })));
+      if (advanced.state.servo !== state?.servo) electricalStateChanged = true;
       if (
         advanced.events.some(
           (event) =>
@@ -759,7 +822,14 @@ export function advanceArduinoCircuitClock(
         stateChanged = true;
         waveformOutputChanged ||= advanced.levelChanged;
       }
-      if (stateChanged) states.set(board.id, { ...state, tones });
+      let nextState = stateChanged ? { ...state, tones } : state;
+      if (nextState.servo && arduinoServoNextDueMicroseconds(nextState.servo) === time) {
+        const advanced = advanceArduinoServoWaveforms(nextState.servo, time);
+        nextState = { ...nextState, servo: advanced.state };
+        waveformOutputChanged ||= advanced.levelChanged;
+        stateChanged = true;
+      }
+      if (stateChanged) states.set(board.id, nextState);
     }
     if (waveformOutputChanged) {
       electricalStateChanged = true;
@@ -767,7 +837,7 @@ export function advanceArduinoCircuitClock(
     }
     if (electricalStateChanged) {
       const pulseWaiters = runnableBoards.filter((board) => states.get(board.id)?.pulseWait);
-      if (pulseWaiters.length > 0 || hcSr04Components.length > 0) {
+      if (pulseWaiters.length > 0 || hcSr04Components.length > 0 || servoComponents.length > 0) {
         cachedFrame = undefined;
         let postCommitFrame = sample(time);
         if (!postCommitFrame.solved && !isNonFatalPassiveNoSource(postCommitFrame))
@@ -850,6 +920,14 @@ export function advanceArduinoCircuitClock(
           hcSr04: hcSr04Components.map((component) => ({
             componentId: component.id,
             runtime: hcSr04States.get(component.id)!,
+          })),
+        }
+      : {}),
+    ...(servoComponents.length > 0
+      ? {
+          servoMotors: servoComponents.map((component) => ({
+            componentId: component.id,
+            runtime: servoStates.get(component.id)!,
           })),
         }
       : {}),

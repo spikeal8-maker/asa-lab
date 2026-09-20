@@ -8,6 +8,7 @@ import {
 import type { ComponentResult, SchematicComponent } from '../api';
 import type { CatalogEntry, ComponentVisualState } from './component-catalog';
 import { visualAsset } from './component-catalog';
+import { OwnerServoVisual } from './OwnerServoVisual';
 import {
   dcMotorRuntimeMarkup,
   dcMotorVisualMotion,
@@ -1355,6 +1356,13 @@ export function ProductionComponentVisual({
               vibrationLevelPercent={
                 simulationRunning ? Number(result?.vibrationLevelPercent ?? 0) : 0
               }
+            />
+          ) : entry.key === 'servo-motor' ? (
+            <OwnerServoVisual
+              asset={asset}
+              width={width}
+              height={height}
+              angleDegrees={simulationRunning ? Number(result?.servoAngleDegrees ?? 90) : 90}
             />
           ) : entry.key === 'multimeter' ? (
             <OwnerMultimeterVisual

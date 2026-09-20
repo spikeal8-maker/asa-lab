@@ -126,21 +126,32 @@ describe('Arduino capability contract', () => {
     );
   });
 
-  it('reports libraries, member calls and unknown functions with source positions', () => {
-    const diagnostics = analyseArduinoSourceSupport(`#include <Servo.h>
+  it('supports exact Servo.h adapter while keeping unknown libraries and members fail-closed', () => {
+    const supported = analyseArduinoSourceSupport(`#include <Servo.h>
+Servo servo_9;
 void loop() {
   servo_9.write(90);
   mysteryCommand(2);
 }`);
-
-    expect(diagnostics).toEqual(
+    expect(supported).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ code: 'preprocessor', status: 'unsupported', line: 1 }),
-        expect.objectContaining({ code: 'member-call', status: 'unsupported', line: 3 }),
-        expect.objectContaining({ code: 'unknown-call', status: 'unsupported', line: 4 }),
+        expect.objectContaining({ code: 'bounded-timing', status: 'limited', line: 1 }),
+        expect.objectContaining({ code: 'bounded-timing', status: 'limited', line: 4 }),
+        expect.objectContaining({ code: 'unknown-call', status: 'unsupported', line: 5 }),
       ]),
     );
-    expect(arduinoSourceHasUnsupportedFeatures('#include <Servo.h>')).toBe(true);
+    expect(supported.some((entry) => entry.code === 'preprocessor')).toBe(false);
+    expect(supported.some((entry) => entry.code === 'member-call')).toBe(false);
+    expect(arduinoSourceHasUnsupportedFeatures('#include <Servo.h>')).toBe(false);
+
+    const unsupported = analyseArduinoSourceSupport(`#include <Unknown.h>
+void loop(){foo.write(90);}`);
+    expect(unsupported).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ code: 'preprocessor', status: 'unsupported', line: 1 }),
+        expect.objectContaining({ code: 'member-call', status: 'unsupported', line: 2 }),
+      ]),
+    );
   });
 
   it('does not mistake comments and string contents for commands', () => {

@@ -320,7 +320,7 @@ describe('owner SVG integration in the real Electronics document', () => {
     });
     expect(productionCatalogEntry('servo-motor')).toMatchObject({
       enabled: true,
-      simulationSupported: false,
+      simulationSupported: true,
       catalogStatus: 'enabled',
     });
     expect(productionCatalogEntry('dc-motor')).toMatchObject({
@@ -431,6 +431,17 @@ describe('owner SVG integration in the real Electronics document', () => {
       enabled: true,
       simulationSupported: true,
       catalogStatus: 'enabled',
+    });
+    expect(productionCatalogEntry('servo-motor')).toMatchObject({
+      enabled: true,
+      simulationSupported: true,
+      catalogStatus: 'enabled',
+      defaultStateProperties: {},
+    });
+    expect(families.find((family) => family.familyId === 'servo')).toMatchObject({
+      defaultVariantId: 'servo-motor',
+      enabled: true,
+      simulationStatus: 'supported',
     });
     expect(productionCatalogEntry('ultrasonic-sensor')).toMatchObject({
       enabled: true,
