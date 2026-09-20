@@ -23,9 +23,43 @@ describe('Arduino capability contract', () => {
     expect(arduinoBlockSupport('asa_digital_write').status).toBe('supported');
     expect(arduinoBlockSupport('asa_wait').status).toBe('supported');
     expect(arduinoBlockSupport('asa_analog_write').status).toBe('limited');
-    expect(arduinoBlockSupport('asa_serial_print').status).toBe('unsupported');
+    expect(arduinoBlockSupport('asa_serial_print').status).toBe('limited');
     expect(Object.keys(ARDUINO_BLOCK_SUPPORT).length).toBeGreaterThan(50);
-    expect(ARDUINO_TEXT_COMMAND_SUPPORT['Serial.println'].status).toBe('unsupported');
+    expect(ARDUINO_TEXT_COMMAND_SUPPORT['Serial.println'].status).toBe('limited');
+  });
+
+  it('distinguishes bounded Serial TX members from unsupported RX members', () => {
+    expect(ARDUINO_TEXT_COMMAND_SUPPORT['Serial.begin'].status).toBe('limited');
+    expect(ARDUINO_TEXT_COMMAND_SUPPORT['Serial.print'].status).toBe('limited');
+    expect(ARDUINO_TEXT_COMMAND_SUPPORT['Serial.println'].status).toBe('limited');
+    expect(ARDUINO_TEXT_COMMAND_SUPPORT['Serial.available'].status).toBe('unsupported');
+    expect(ARDUINO_TEXT_COMMAND_SUPPORT['Serial.read'].status).toBe('unsupported');
+
+    const tx = analyseArduinoSourceSupport(`
+      void setup() {
+        Serial.begin(9600);
+        Serial.print(12);
+        Serial.println("hello");
+        Serial.println();
+      }
+      void loop() { delay(100); }
+    `);
+    expect(tx.some((entry) => entry.status === 'unsupported')).toBe(false);
+    expect(tx).toContainEqual(
+      expect.objectContaining({ code: 'bounded-timing', status: 'limited', line: 3 }),
+    );
+
+    const rx = analyseArduinoSourceSupport(
+      'void loop(){if(Serial.available()){int value=Serial.read();}}',
+    );
+    expect(rx).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ code: 'member-call', status: 'unsupported' }),
+      ]),
+    );
+    expect(analyseArduinoSourceSupport('void loop(){servo.write(90);}')).toContainEqual(
+      expect.objectContaining({ code: 'member-call', status: 'unsupported' }),
+    );
   });
 
   it('treats the implemented delay timeline as supported', () => {
