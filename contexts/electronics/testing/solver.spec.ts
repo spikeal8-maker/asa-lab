@@ -1435,7 +1435,7 @@ describe('deterministic DC solver', () => {
         [
           component('source', 'source', 5),
           component('r1', 'resistor', 1000),
-          component('sensor', 'visual', 0, { componentTypeId: 'ultrasonic-sensor' }),
+          component('sensor', 'visual', 0, { componentTypeId: 'unsupported-test-component' }),
         ],
         [connect('w1', 'source', 'a', 'r1', 'a'), connect('w2', 'r1', 'b', 'source', 'b')],
       ),
