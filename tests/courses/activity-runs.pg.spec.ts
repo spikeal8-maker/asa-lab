@@ -152,7 +152,10 @@ async function createCourseHandout(targetClassroomId = classroomId) {
   };
 }
 
-async function createCourseCompatibilityHandout(courseRunId: string, targetClassroomId = classroomId) {
+async function createCourseCompatibilityHandout(
+  courseRunId: string,
+  targetClassroomId = classroomId,
+) {
   const handout = await admin.query(
     `INSERT INTO classroom_assignments
        (tenant_id,classroom_id,status,created_by,course_run_id)
