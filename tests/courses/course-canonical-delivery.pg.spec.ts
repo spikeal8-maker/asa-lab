@@ -121,16 +121,23 @@ async function course(version: string) {
   expect(published.rows[0].version_number).toBe(1);
   return { id, versionId: published.rows[0].version_id as string };
 }
-async function assign(courseId: string, classId: string, seats: string[], request: string) {
+async function assign(
+  courseId: string,
+  classId: string,
+  seats: string[],
+  request: string,
+  versionNumber = 1,
+) {
   return tx(
     async (c) =>
       (
         await c.query(
-          'SELECT * FROM classroom_course_run_assign_v3($1,$2,$3,NULL,1,$4,$5::uuid[],$6)',
+          'SELECT * FROM classroom_course_run_assign_v3($1,$2,$3,NULL,$4,$5,$6::uuid[],$7)',
           [
             principal,
             classId,
             courseId,
+            versionNumber,
             seats.length ? 'named_learners' : 'whole_class',
             seats,
             request,
@@ -310,6 +317,780 @@ describe('Э1 existing course → exact versions → runs → inherited particip
       ).rows[0].n,
     ).toBe(4);
   });
+  it('keeps hidden media and legacy items aligned with effective published occurrences', async () => {
+    const sample = Buffer.alloc(128, 7);
+    const task = (
+      await admin.query(
+        `INSERT INTO teacher_assignments(
+           tenant_id,owner_principal_id,title,brief,module_key,
+           sample_bytes,sample_content_type,visibility
+         ) VALUES($1,$2,$3,'Versioned sample','electronics',$4,'image/png','private')
+         RETURNING id`,
+        [teacher.tenantId, principal, 'Legacy media task ' + ++seq, sample],
+      )
+    ).rows[0].id as string;
+
+    const viewer = await seedTeacher(admin, 'course-hidden-media-viewer-' + ++seq);
+    const viewerIdentity = (
+      await admin.query(
+        'SELECT principal_id,account_id FROM legacy_user_account_links WHERE tenant_id=$1 AND user_id=$2',
+        [viewer.tenantId, viewer.teacherId],
+      )
+    ).rows[0] as { principal_id: string; account_id: string };
+    const sampleForViewer = async () =>
+      (
+        await admin.query(
+          'SELECT sample_bytes,sample_content_type FROM assignment_sample_for_viewer($1,$2,$3,$4,NULL)',
+          [task, viewerIdentity.principal_id, viewerIdentity.account_id, viewer.tenantId],
+        )
+      ).rows;
+
+    const saved = await tx((client) =>
+      client.query(
+        "SELECT * FROM course_save_v2($1,$2,NULL,'Hidden media course',NULL,NULL,'private',NULL,$3)",
+        [principal, teacher.tenantId, 'course01:hidden-media-course:' + ++seq],
+      ),
+    );
+    expect(saved.rows[0].result_code).toBe('ok');
+    const courseId = saved.rows[0].id as string;
+    const madePublic = await tx((client) =>
+      client.query(
+        "SELECT * FROM course_save_v2($1,$2,$3,'Hidden media course',NULL,NULL,'public',$4,$5)",
+        [
+          principal,
+          teacher.tenantId,
+          courseId,
+          Number(saved.rows[0].draft_revision),
+          'course01:hidden-media-public:' + ++seq,
+        ],
+      ),
+    );
+    expect(madePublic.rows[0].result_code).toBe('ok');
+    const sectionId = (
+      await admin.query(
+        'SELECT id FROM course_sections WHERE course_id=$1 ORDER BY position,id LIMIT 1',
+        [courseId],
+      )
+    ).rows[0].id as string;
+    const blocks = [{ id: 'legacy-media', type: 'paragraph', text: 'Legacy media lesson' }];
+    const lessonA = (
+      await tx((client) =>
+        client.query(
+          "SELECT course_lesson_save_v3($1,$2,$3,NULL,'Legacy media A',NULL,$4::jsonb,'assignment',$5,15,NULL) AS id",
+          [principal, courseId, sectionId, JSON.stringify(blocks), task],
+        ),
+      )
+    ).rows[0].id as string;
+
+    const v1 = (
+      await tx((client) =>
+        client.query('SELECT * FROM course_publish($1,$2)', [principal, courseId]),
+      )
+    ).rows[0];
+    expect(v1).toMatchObject({ result_code: 'ok', version_number: 1, reused: false });
+    expect(
+      (
+        await admin.query(
+          "SELECT outline #>> '{sections,0,lessons,0,sourceLessonId}' AS lesson FROM course_versions WHERE id=$1",
+          [v1.version_id],
+        )
+      ).rows[0].lesson,
+    ).toBe(lessonA);
+    expect(
+      (
+        await admin.query('SELECT source_lesson_id FROM course_version_media WHERE version_id=$1', [
+          v1.version_id,
+        ])
+      ).rows,
+    ).toEqual([{ source_lesson_id: lessonA }]);
+
+    const classV1 = await classroom();
+    const runV1 = (
+      await tx((client) =>
+        client.query('SELECT * FROM classroom_course_run_assign($1,$2,$3,NULL)', [
+          principal,
+          classV1,
+          courseId,
+        ]),
+      )
+    ).rows[0];
+    expect(runV1).toMatchObject({ result_code: 'ok', version_number: 1, reused: false });
+    expect(
+      (
+        await tx((client) =>
+          client.query('SELECT * FROM classroom_course_run_media($1,$2,NULL,$3)', [
+            runV1.run_id,
+            lessonA,
+            account,
+          ]),
+        )
+      ).rows,
+    ).toHaveLength(1);
+
+    const visibleItems = async () =>
+      (
+        await tx((client) =>
+          client.query('SELECT * FROM course_contents($1,$2,$3,$4)', [
+            courseId,
+            principal,
+            account,
+            teacher.tenantId,
+          ]),
+        )
+      ).rows;
+    expect((await visibleItems()).map((row) => row.id)).toEqual([task]);
+    expect(await sampleForViewer()).toHaveLength(1);
+
+    let revision = Number(
+      (await admin.query('SELECT course_draft_revision($1,$2) AS revision', [principal, courseId]))
+        .rows[0].revision,
+    );
+    const duplicated = (
+      await admin.query('SELECT * FROM course_lesson_duplicate_v1($1,$2,$3,$4,$5)', [
+        principal,
+        courseId,
+        lessonA,
+        revision,
+        'course01:hidden-media-duplicate:' + ++seq,
+      ])
+    ).rows[0];
+    expect(duplicated).toMatchObject({ result_code: 'ok', reused: false });
+    const lessonB = duplicated.duplicate_id as string;
+    expect(lessonB).not.toBe(lessonA);
+    revision = Number(duplicated.draft_revision);
+    expect((await visibleItems()).map((row) => row.id)).toEqual([task]);
+
+    const hiddenA = (
+      await admin.query('SELECT * FROM course_lesson_hidden_set_v1($1,$2,$3,true,$4)', [
+        principal,
+        courseId,
+        lessonA,
+        revision,
+      ])
+    ).rows[0];
+    expect(hiddenA).toMatchObject({ result_code: 'ok', hidden: true });
+    revision = Number(hiddenA.draft_revision);
+    expect((await visibleItems()).map((row) => row.id)).toEqual([task]);
+    expect(await sampleForViewer()).toHaveLength(1);
+
+    const v2 = (
+      await tx((client) =>
+        client.query('SELECT * FROM course_publish($1,$2)', [principal, courseId]),
+      )
+    ).rows[0];
+    expect(v2).toMatchObject({ result_code: 'ok', version_number: 2, reused: false });
+    const v2Outline = (
+      await admin.query('SELECT outline FROM course_versions WHERE id=$1', [v2.version_id])
+    ).rows[0].outline as {
+      sections: Array<{ lessons: Array<{ sourceLessonId: string }> }>;
+    };
+    expect(
+      v2Outline.sections.flatMap((section) =>
+        section.lessons.map((lesson) => lesson.sourceLessonId),
+      ),
+    ).toEqual([lessonB]);
+    expect(
+      (
+        await admin.query(
+          'SELECT source_lesson_id FROM course_version_media WHERE version_id=$1 ORDER BY source_lesson_id',
+          [v2.version_id],
+        )
+      ).rows.map((row) => row.source_lesson_id),
+    ).toEqual([lessonB]);
+    expect(
+      (
+        await admin.query('SELECT source_lesson_id FROM course_version_media WHERE version_id=$1', [
+          v1.version_id,
+        ])
+      ).rows,
+    ).toEqual([{ source_lesson_id: lessonA }]);
+
+    const classV2 = await classroom();
+    const runV2 = (
+      await tx((client) =>
+        client.query('SELECT * FROM classroom_course_run_assign($1,$2,$3,NULL)', [
+          principal,
+          classV2,
+          courseId,
+        ]),
+      )
+    ).rows[0];
+    expect(runV2).toMatchObject({ result_code: 'ok', version_number: 2, reused: false });
+    expect(
+      (
+        await tx((client) =>
+          client.query('SELECT * FROM classroom_course_run_media($1,$2,NULL,$3)', [
+            runV2.run_id,
+            lessonB,
+            account,
+          ]),
+        )
+      ).rows,
+    ).toHaveLength(1);
+
+    await admin.query(
+      `INSERT INTO course_version_media(
+         version_id,source_lesson_id,sample_bytes,content_type,content_hash
+       )
+       SELECT $1,$2,sample_bytes,content_type,content_hash
+         FROM course_version_media
+        WHERE version_id=$3 AND source_lesson_id=$2`,
+      [v2.version_id, lessonA, v1.version_id],
+    );
+    expect(
+      (
+        await tx((client) =>
+          client.query('SELECT * FROM classroom_course_run_media($1,$2,NULL,$3)', [
+            runV2.run_id,
+            lessonA,
+            account,
+          ]),
+        )
+      ).rows,
+    ).toHaveLength(0);
+
+    revision = Number(
+      (await admin.query('SELECT course_draft_revision($1,$2) AS revision', [principal, courseId]))
+        .rows[0].revision,
+    );
+    const hiddenB = (
+      await admin.query('SELECT * FROM course_lesson_hidden_set_v1($1,$2,$3,true,$4)', [
+        principal,
+        courseId,
+        lessonB,
+        revision,
+      ])
+    ).rows[0];
+    expect(hiddenB).toMatchObject({ result_code: 'ok', hidden: true });
+    revision = Number(hiddenB.draft_revision);
+    expect(await visibleItems()).toHaveLength(0);
+    expect(await sampleForViewer()).toHaveLength(0);
+
+    const shownA = (
+      await admin.query('SELECT * FROM course_lesson_hidden_set_v1($1,$2,$3,false,$4)', [
+        principal,
+        courseId,
+        lessonA,
+        revision,
+      ])
+    ).rows[0];
+    expect(shownA).toMatchObject({ result_code: 'ok', hidden: false });
+    revision = Number(shownA.draft_revision);
+    expect((await visibleItems()).map((row) => row.id)).toEqual([task]);
+    expect(await sampleForViewer()).toHaveLength(1);
+    expect(
+      (await admin.query('SELECT id FROM course_lessons WHERE id=$1 AND hidden=false', [lessonA]))
+        .rows,
+    ).toEqual([{ id: lessonA }]);
+
+    const v3 = (
+      await tx((client) =>
+        client.query('SELECT * FROM course_publish($1,$2)', [principal, courseId]),
+      )
+    ).rows[0];
+    expect(v3).toMatchObject({ result_code: 'ok', version_number: 3, reused: false });
+    expect(
+      (
+        await admin.query('SELECT source_lesson_id FROM course_version_media WHERE version_id=$1', [
+          v3.version_id,
+        ])
+      ).rows,
+    ).toEqual([{ source_lesson_id: lessonA }]);
+
+    revision = Number(
+      (await admin.query('SELECT course_draft_revision($1,$2) AS revision', [principal, courseId]))
+        .rows[0].revision,
+    );
+    const hiddenSection = (
+      await admin.query('SELECT * FROM course_section_hidden_set_v1($1,$2,$3,true,$4)', [
+        principal,
+        courseId,
+        sectionId,
+        revision,
+      ])
+    ).rows[0];
+    expect(hiddenSection).toMatchObject({ result_code: 'ok', hidden: true });
+    revision = Number(hiddenSection.draft_revision);
+    expect(await visibleItems()).toHaveLength(0);
+    expect(await sampleForViewer()).toHaveLength(0);
+
+    const v4 = (
+      await tx((client) =>
+        client.query('SELECT * FROM course_publish($1,$2)', [principal, courseId]),
+      )
+    ).rows[0];
+    expect(v4).toMatchObject({ result_code: 'ok', version_number: 4, reused: false });
+    expect(
+      (await admin.query('SELECT outline FROM course_versions WHERE id=$1', [v4.version_id]))
+        .rows[0].outline.sections,
+    ).toEqual([]);
+    expect(
+      (
+        await admin.query('SELECT source_lesson_id FROM course_version_media WHERE version_id=$1', [
+          v4.version_id,
+        ])
+      ).rows,
+    ).toHaveLength(0);
+    expect(
+      (
+        await admin.query('SELECT source_lesson_id FROM course_version_media WHERE version_id=$1', [
+          v3.version_id,
+        ])
+      ).rows,
+    ).toEqual([{ source_lesson_id: lessonA }]);
+    expect(
+      (
+        await tx((client) =>
+          client.query('SELECT * FROM classroom_course_run_media($1,$2,NULL,$3)', [
+            runV1.run_id,
+            lessonA,
+            account,
+          ]),
+        )
+      ).rows,
+    ).toHaveLength(1);
+
+    revision = Number(
+      (await admin.query('SELECT course_draft_revision($1,$2) AS revision', [principal, courseId]))
+        .rows[0].revision,
+    );
+    const shownSection = (
+      await admin.query('SELECT * FROM course_section_hidden_set_v1($1,$2,$3,false,$4)', [
+        principal,
+        courseId,
+        sectionId,
+        revision,
+      ])
+    ).rows[0];
+    expect(shownSection).toMatchObject({ result_code: 'ok', hidden: false });
+    expect((await visibleItems()).map((row) => row.id)).toEqual([task]);
+    expect(await sampleForViewer()).toHaveLength(1);
+    expect(
+      (
+        await admin.query('SELECT id FROM course_sections WHERE id=$1 AND hidden=false', [
+          sectionId,
+        ])
+      ).rows,
+    ).toEqual([{ id: sectionId }]);
+  });
+
+  it('duplicates and hides draft structure without copying learner runtime evidence', async () => {
+    const authored = await material('electronics');
+    const publishedV1 = await course(authored.version);
+    const classV1 = await classroom();
+    const studentV1 = await seat(classV1);
+    const runV1 = await assign(
+      publishedV1.id,
+      classV1,
+      [studentV1],
+      'course01:structure-v1:' + ++seq,
+      1,
+    );
+    expect(runV1).toMatchObject({ result_code: 'ok', version_number: 1, reused: false });
+
+    const original = await admin.query(
+      `SELECT section_id,section_position,lesson_id,lesson_position,lesson_title,
+              lesson_blocks,learning_activity_version_id
+         FROM course_outline_v4($1,$2,$3,$4)
+        WHERE lesson_id IS NOT NULL
+        ORDER BY section_position,lesson_position,lesson_id`,
+      [publishedV1.id, principal, account, teacher.tenantId],
+    );
+    expect(original.rows).toHaveLength(2);
+    const sourceSectionId = original.rows[0].section_id as string;
+    const sourceLessonIds = original.rows.map((row) => row.lesson_id as string);
+
+    const evidenceCounts = async () => {
+      const runtime = await admin.query(
+        `SELECT
+           (SELECT count(*)::int FROM classroom_course_run_lessons WHERE run_id=$1) AS run_lessons,
+           (SELECT count(*)::int FROM activity_runs WHERE source_course_run_id=$1) AS activity_runs,
+           (SELECT count(*)::int
+              FROM activity_participations part
+              JOIN activity_runs run ON run.id=part.activity_run_id
+             WHERE run.source_course_run_id=$1) AS participations,
+           (SELECT count(*)::int
+              FROM learning_attempts attempt
+              JOIN activity_participations part ON part.id=attempt.activity_participation_id
+              JOIN activity_runs run ON run.id=part.activity_run_id
+             WHERE run.source_course_run_id=$1) AS attempts,
+           (SELECT count(*)::int
+              FROM learning_submissions submission
+              JOIN learning_attempts attempt ON attempt.id=submission.attempt_id
+              JOIN activity_participations part ON part.id=attempt.activity_participation_id
+              JOIN activity_runs run ON run.id=part.activity_run_id
+             WHERE run.source_course_run_id=$1) AS submissions,
+           (SELECT count(*)::int
+              FROM assessment_results result
+              JOIN learning_attempts attempt ON attempt.id=result.attempt_id
+              JOIN activity_participations part ON part.id=attempt.activity_participation_id
+              JOIN activity_runs run ON run.id=part.activity_run_id
+             WHERE run.source_course_run_id=$1) AS results`,
+        [runV1.run_id],
+      );
+      return runtime.rows[0];
+    };
+    const evidenceBefore = await evidenceCounts();
+    expect(evidenceBefore).toMatchObject({
+      run_lessons: 2,
+      activity_runs: 2,
+      participations: 2,
+      attempts: 0,
+      submissions: 0,
+      results: 0,
+    });
+    const courseRunsBefore = Number(
+      (
+        await admin.query(
+          'SELECT count(*)::int AS count FROM classroom_course_runs WHERE course_id=$1',
+          [publishedV1.id],
+        )
+      ).rows[0].count,
+    );
+    expect(courseRunsBefore).toBe(1);
+
+    let revision = Number(
+      (
+        await admin.query('SELECT course_draft_revision($1,$2) AS revision', [
+          principal,
+          publishedV1.id,
+        ])
+      ).rows[0].revision,
+    );
+    const sectionRequest = 'course01:section-duplicate:' + ++seq;
+    const duplicatedSection = (
+      await admin.query('SELECT * FROM course_section_duplicate_v1($1,$2,$3,$4,$5)', [
+        principal,
+        publishedV1.id,
+        sourceSectionId,
+        revision,
+        sectionRequest,
+      ])
+    ).rows[0];
+    expect(duplicatedSection).toMatchObject({ result_code: 'ok', reused: false });
+    expect(duplicatedSection.duplicate_id).not.toBe(sourceSectionId);
+
+    const retriedSection = (
+      await admin.query('SELECT * FROM course_section_duplicate_v1($1,$2,$3,$4,$5)', [
+        principal,
+        publishedV1.id,
+        sourceSectionId,
+        revision,
+        sectionRequest,
+      ])
+    ).rows[0];
+    expect(retriedSection).toMatchObject({
+      result_code: 'ok',
+      duplicate_id: duplicatedSection.duplicate_id,
+      reused: true,
+    });
+    revision = Number(retriedSection.draft_revision);
+
+    const afterSectionDuplicate = await admin.query(
+      `SELECT section_id,section_position,section_hidden,lesson_id,lesson_position,lesson_title,
+              lesson_blocks,learning_activity_version_id,lesson_hidden
+         FROM course_outline_v4($1,$2,$3,$4)
+        WHERE lesson_id IS NOT NULL
+        ORDER BY section_position,lesson_position,lesson_id`,
+      [publishedV1.id, principal, account, teacher.tenantId],
+    );
+    const copiedRows = afterSectionDuplicate.rows.filter(
+      (row) => row.section_id === duplicatedSection.duplicate_id,
+    );
+    expect(copiedRows).toHaveLength(2);
+    expect(new Set(copiedRows.map((row) => row.lesson_id)).size).toBe(2);
+    expect(copiedRows.map((row) => row.lesson_id).some((id) => sourceLessonIds.includes(id))).toBe(
+      false,
+    );
+    expect(copiedRows.map((row) => row.lesson_title)).toEqual(
+      original.rows.map((row) => row.lesson_title),
+    );
+    expect(copiedRows.map((row) => row.lesson_blocks)).toEqual(
+      original.rows.map((row) => row.lesson_blocks),
+    );
+    expect(copiedRows.every((row) => row.learning_activity_version_id === authored.version)).toBe(
+      true,
+    );
+    expect(copiedRows[0].section_position).toBe(Number(original.rows[0].section_position) + 1);
+
+    const lessonRequest = 'course01:lesson-duplicate:' + ++seq;
+    const duplicatedLesson = (
+      await admin.query('SELECT * FROM course_lesson_duplicate_v1($1,$2,$3,$4,$5)', [
+        principal,
+        publishedV1.id,
+        sourceLessonIds[0],
+        revision,
+        lessonRequest,
+      ])
+    ).rows[0];
+    expect(duplicatedLesson).toMatchObject({ result_code: 'ok', reused: false });
+    expect(duplicatedLesson.duplicate_id).not.toBe(sourceLessonIds[0]);
+
+    const retriedLesson = (
+      await admin.query('SELECT * FROM course_lesson_duplicate_v1($1,$2,$3,$4,$5)', [
+        principal,
+        publishedV1.id,
+        sourceLessonIds[0],
+        revision,
+        lessonRequest,
+      ])
+    ).rows[0];
+    expect(retriedLesson).toMatchObject({
+      result_code: 'ok',
+      duplicate_id: duplicatedLesson.duplicate_id,
+      reused: true,
+    });
+    revision = Number(retriedLesson.draft_revision);
+
+    const conflict = (
+      await admin.query('SELECT * FROM course_lesson_duplicate_v1($1,$2,$3,$4,$5)', [
+        principal,
+        publishedV1.id,
+        sourceLessonIds[1],
+        revision,
+        sectionRequest,
+      ])
+    ).rows[0];
+    expect(conflict.result_code).toBe('idempotency_conflict');
+
+    const duplicatedLessonRow = (
+      await admin.query(
+        `SELECT id,section_id,title,summary,content,blocks,kind,assignment_id,
+                learning_activity_version_id,estimated_minutes,position,hidden
+           FROM course_lessons WHERE id=$1`,
+        [duplicatedLesson.duplicate_id],
+      )
+    ).rows[0];
+    const sourceLessonRow = (
+      await admin.query(
+        `SELECT id,section_id,title,summary,content,blocks,kind,assignment_id,
+                learning_activity_version_id,estimated_minutes,position,hidden
+           FROM course_lessons WHERE id=$1`,
+        [sourceLessonIds[0]],
+      )
+    ).rows[0];
+    expect({
+      ...duplicatedLessonRow,
+      id: sourceLessonRow.id,
+      position: sourceLessonRow.position,
+    }).toEqual(sourceLessonRow);
+    expect(duplicatedLessonRow.position).toBe(sourceLessonRow.position + 1);
+    expect(await evidenceCounts()).toEqual(evidenceBefore);
+    expect(
+      Number(
+        (
+          await admin.query(
+            'SELECT count(*)::int AS count FROM classroom_course_runs WHERE course_id=$1',
+            [publishedV1.id],
+          )
+        ).rows[0].count,
+      ),
+    ).toBe(courseRunsBefore);
+
+    const hiddenLesson = (
+      await admin.query('SELECT * FROM course_lesson_hidden_set_v1($1,$2,$3,true,$4)', [
+        principal,
+        publishedV1.id,
+        duplicatedLesson.duplicate_id,
+        revision,
+      ])
+    ).rows[0];
+    expect(hiddenLesson).toMatchObject({ result_code: 'ok', hidden: true });
+    revision = Number(hiddenLesson.draft_revision);
+
+    const publishV2 = (
+      await admin.query('SELECT * FROM course_publish_v2($1,$2,$3,$4)', [
+        principal,
+        publishedV1.id,
+        revision,
+        'course01:structure-publish-v2:' + ++seq,
+      ])
+    ).rows[0];
+    expect(publishV2).toMatchObject({ result_code: 'ok', version_number: 2, reused: false });
+    revision = Number(
+      (
+        await admin.query('SELECT course_draft_revision($1,$2) AS revision', [
+          principal,
+          publishedV1.id,
+        ])
+      ).rows[0].revision,
+    );
+    const outlines = await admin.query(
+      `SELECT version_number,outline FROM course_versions
+        WHERE course_id=$1 ORDER BY version_number`,
+      [publishedV1.id],
+    );
+    type FrozenOutline = {
+      sections: Array<{
+        sourceSectionId: string;
+        lessons: Array<{ sourceLessonId: string }>;
+      }>;
+    };
+    const idsIn = (outline: FrozenOutline) =>
+      outline.sections.flatMap((section) => section.lessons.map((lesson) => lesson.sourceLessonId));
+    const sectionIdsIn = (outline: FrozenOutline) =>
+      outline.sections.map((section) => section.sourceSectionId);
+    expect(idsIn(outlines.rows[0].outline as FrozenOutline)).toEqual(sourceLessonIds);
+    expect(idsIn(outlines.rows[1].outline as FrozenOutline)).not.toContain(
+      duplicatedLesson.duplicate_id,
+    );
+
+    const classV2 = await classroom();
+    const studentV2 = await seat(classV2);
+    const runV2 = await assign(
+      publishedV1.id,
+      classV2,
+      [studentV2],
+      'course01:structure-v2:' + ++seq,
+      2,
+    );
+    expect(runV2.version_number).toBe(2);
+    const runV2Lessons = await admin.query(
+      'SELECT source_lesson_id FROM classroom_course_run_lessons WHERE run_id=$1 ORDER BY lesson_position,source_lesson_id',
+      [runV2.run_id],
+    );
+    expect(runV2Lessons.rows.map((row) => row.source_lesson_id)).not.toContain(
+      duplicatedLesson.duplicate_id,
+    );
+    expect((await evidenceCounts()).run_lessons).toBe(2);
+
+    const shownLesson = (
+      await admin.query('SELECT * FROM course_lesson_hidden_set_v1($1,$2,$3,false,$4)', [
+        principal,
+        publishedV1.id,
+        duplicatedLesson.duplicate_id,
+        revision,
+      ])
+    ).rows[0];
+    expect(shownLesson).toMatchObject({ result_code: 'ok', hidden: false });
+    revision = Number(shownLesson.draft_revision);
+    expect(
+      (
+        await admin.query('SELECT id FROM course_lessons WHERE id=$1 AND hidden=false', [
+          duplicatedLesson.duplicate_id,
+        ])
+      ).rows,
+    ).toHaveLength(1);
+
+    const publishV3 = (
+      await admin.query('SELECT * FROM course_publish_v2($1,$2,$3,$4)', [
+        principal,
+        publishedV1.id,
+        revision,
+        'course01:structure-publish-v3:' + ++seq,
+      ])
+    ).rows[0];
+    expect(publishV3).toMatchObject({ result_code: 'ok', version_number: 3, reused: false });
+    revision = Number(
+      (
+        await admin.query('SELECT course_draft_revision($1,$2) AS revision', [
+          principal,
+          publishedV1.id,
+        ])
+      ).rows[0].revision,
+    );
+    const v3 = (
+      await admin.query('SELECT outline FROM course_versions WHERE id=$1', [publishV3.version_id])
+    ).rows[0].outline;
+    expect(idsIn(v3 as FrozenOutline)).toContain(duplicatedLesson.duplicate_id);
+
+    const hiddenSection = (
+      await admin.query('SELECT * FROM course_section_hidden_set_v1($1,$2,$3,true,$4)', [
+        principal,
+        publishedV1.id,
+        duplicatedSection.duplicate_id,
+        revision,
+      ])
+    ).rows[0];
+    expect(hiddenSection).toMatchObject({ result_code: 'ok', hidden: true });
+    revision = Number(hiddenSection.draft_revision);
+
+    const publishV4 = (
+      await admin.query('SELECT * FROM course_publish_v2($1,$2,$3,$4)', [
+        principal,
+        publishedV1.id,
+        revision,
+        'course01:structure-publish-v4:' + ++seq,
+      ])
+    ).rows[0];
+    expect(publishV4).toMatchObject({ result_code: 'ok', version_number: 4, reused: false });
+    revision = Number(
+      (
+        await admin.query('SELECT course_draft_revision($1,$2) AS revision', [
+          principal,
+          publishedV1.id,
+        ])
+      ).rows[0].revision,
+    );
+    const v4 = (
+      await admin.query('SELECT outline FROM course_versions WHERE id=$1', [publishV4.version_id])
+    ).rows[0].outline;
+    expect(sectionIdsIn(v4 as FrozenOutline)).not.toContain(duplicatedSection.duplicate_id);
+
+    const classV4 = await classroom();
+    const studentV4 = await seat(classV4);
+    const runV4 = await assign(
+      publishedV1.id,
+      classV4,
+      [studentV4],
+      'course01:structure-v4:' + ++seq,
+      4,
+    );
+    const runV4Sections = await admin.query(
+      'SELECT DISTINCT source_section_id FROM classroom_course_run_lessons WHERE run_id=$1',
+      [runV4.run_id],
+    );
+    expect(runV4Sections.rows.map((row) => row.source_section_id)).not.toContain(
+      duplicatedSection.duplicate_id,
+    );
+
+    const shownSection = (
+      await admin.query('SELECT * FROM course_section_hidden_set_v1($1,$2,$3,false,$4)', [
+        principal,
+        publishedV1.id,
+        duplicatedSection.duplicate_id,
+        revision,
+      ])
+    ).rows[0];
+    expect(shownSection).toMatchObject({ result_code: 'ok', hidden: false });
+    revision = Number(shownSection.draft_revision);
+    expect(
+      (
+        await admin.query('SELECT id FROM course_sections WHERE id=$1 AND hidden=false', [
+          duplicatedSection.duplicate_id,
+        ])
+      ).rows,
+    ).toHaveLength(1);
+
+    const publishV5 = (
+      await admin.query('SELECT * FROM course_publish_v2($1,$2,$3,$4)', [
+        principal,
+        publishedV1.id,
+        revision,
+        'course01:structure-publish-v5:' + ++seq,
+      ])
+    ).rows[0];
+    expect(publishV5).toMatchObject({ result_code: 'ok', version_number: 5, reused: false });
+    const v5 = (
+      await admin.query('SELECT outline FROM course_versions WHERE id=$1', [publishV5.version_id])
+    ).rows[0].outline;
+    expect(sectionIdsIn(v5 as FrozenOutline)).toContain(duplicatedSection.duplicate_id);
+
+    const oldV1 = (
+      await admin.query('SELECT outline FROM course_versions WHERE id=$1', [publishedV1.versionId])
+    ).rows[0].outline;
+    expect(idsIn(oldV1 as FrozenOutline)).toEqual(sourceLessonIds);
+    expect(
+      (
+        await admin.query(
+          'SELECT source_lesson_id FROM classroom_course_run_lessons WHERE run_id=$1 ORDER BY lesson_position,source_lesson_id',
+          [runV1.run_id],
+        )
+      ).rows.map((row) => row.source_lesson_id),
+    ).toEqual(expect.arrayContaining(sourceLessonIds));
+    expect(await evidenceCounts()).toEqual(evidenceBefore);
+  });
+
   it('dynamic late enrollment inherits children; a foreign named seat cannot create a partial run', async () => {
     const authored = await material();
     const published = await course(authored.version);

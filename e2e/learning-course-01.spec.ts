@@ -766,6 +766,175 @@ for (const module of ['three-d', 'electronics'])
     await learner.context.close();
   });
 
+test('Course Builder duplicates a section and excludes hidden lesson only from future versions', async ({
+  browser,
+  page,
+}) => {
+  test.setTimeout(180_000);
+  const material = 'Структурный Electronics материал ' + ++sequence;
+  const courseTitle = 'Структурный курс ' + sequence;
+  await createPublishedProjectActivity(page, material, 'electronics');
+
+  await page.getByRole('button', { name: 'Мои курсы', exact: true }).click();
+  await page.getByRole('button', { name: 'Создать курс', exact: true }).click();
+  const form = page.getByRole('dialog', { name: 'Новый курс' });
+  await form.getByLabel('Название', { exact: true }).fill(courseTitle);
+  await form.getByRole('button', { name: 'Создать курс', exact: true }).click();
+  const editor = page.getByTestId('course-editor');
+  await expect(editor).toBeVisible();
+
+  await editor
+    .locator('.course-outline')
+    .getByRole('button', { name: '+ Урок', exact: true })
+    .click();
+  await editor.getByLabel('Название урока').fill('Структурная теория');
+  await editor.getByLabel('Текст блока', { exact: true }).fill('Материал исходной версии.');
+  await editor.getByRole('button', { name: 'Добавить урок', exact: true }).click();
+
+  await editor
+    .locator('.course-outline')
+    .getByRole('button', { name: '+ Урок', exact: true })
+    .click();
+  await editor.getByLabel('Тип урока').selectOption('assignment');
+  await editor
+    .getByLabel('Задание из банка', { exact: true })
+    .selectOption({ label: material + ' · опубликованная версия' });
+  await editor.getByRole('button', { name: 'Добавить урок', exact: true }).click();
+  await expect(editor.locator('.course-outline-section').first().locator('li')).toHaveCount(2);
+
+  await editor.getByRole('button', { name: 'Опубликовать', exact: true }).click();
+  await expect(page.getByText('Курс опубликован: версия 1.', { exact: true })).toBeVisible();
+
+  const v1Code = await createClassWithStudents(page, 'Структура курса V1 ' + sequence, [
+    { label: 'Ученик V1', handle: 'course-structure-v1-' + sequence },
+  ]);
+  const oldLearner = await learnerAssignments(browser, v1Code, 'course-structure-v1-' + sequence);
+  await page
+    .getByRole('navigation', { name: 'Разделы класса' })
+    .getByRole('button', { name: 'Обучение', exact: true })
+    .click();
+  await page
+    .getByRole('navigation', { name: 'Материалы класса' })
+    .getByRole('button', { name: 'Курсы', exact: true })
+    .click();
+  await page.getByLabel('Опубликованный курс').selectOption({ label: courseTitle + ' · v1' });
+  await page.getByRole('button', { name: 'Назначить курс', exact: true }).click();
+
+  await oldLearner.page.reload();
+  const oldCourses = oldLearner.page.getByTestId('seat-courses');
+  await oldCourses.getByRole('button').filter({ hasText: courseTitle }).click();
+  await expect(oldLearner.page.getByText('Структурная теория', { exact: true })).toBeVisible();
+  await expect(
+    oldLearner.page.getByText('Материал исходной версии.', { exact: true }),
+  ).toBeVisible();
+  const oldPlayer = oldLearner.page.getByTestId('seat-course-player');
+  await expect(oldPlayer.getByRole('navigation', { name: 'Переход между уроками' })).toContainText(
+    '1 из 2',
+  );
+  await expect(
+    oldPlayer.getByRole('complementary', { name: 'Содержание курса' }).locator('li'),
+  ).toHaveCount(2);
+
+  await page.goto('/#/challenges');
+  await page.getByRole('button', { name: 'Мои курсы', exact: true }).click();
+  await page
+    .getByTestId('courses-list')
+    .getByRole('button')
+    .filter({ hasText: courseTitle })
+    .click();
+  await expect(editor).toBeVisible();
+
+  const sourceSection = editor.locator('.course-outline-section').first();
+  await sourceSection.getByRole('button', { name: /Действия раздела/ }).click();
+  await sourceSection.getByRole('button', { name: 'Дублировать', exact: true }).click();
+  await expect(editor.locator('.course-outline-section')).toHaveCount(2);
+  const duplicateSection = editor.locator('.course-outline-section').nth(1);
+  await expect(duplicateSection.locator('li')).toHaveCount(2);
+
+  await duplicateSection
+    .getByRole('button', { name: /Действия урока/ })
+    .first()
+    .click();
+  await duplicateSection.getByRole('button', { name: 'Скрыть', exact: true }).click();
+  await expect(duplicateSection.locator('.course-lesson-link small').first()).toContainText(
+    'Скрыт',
+  );
+
+  await page.reload();
+  await page.getByRole('button', { name: 'Мои курсы', exact: true }).click();
+  await page
+    .getByTestId('courses-list')
+    .getByRole('button')
+    .filter({ hasText: courseTitle })
+    .click();
+  await expect(editor).toBeVisible();
+  const reloadedSections = editor.locator('.course-outline-section');
+  await expect(reloadedSections).toHaveCount(2);
+  await expect(reloadedSections.nth(1).locator('.course-lesson-link small').first()).toContainText(
+    'Скрыт',
+  );
+
+  await editor.getByRole('button', { name: 'Предпросмотр', exact: true }).click();
+  const preview = page.getByTestId('course-preview-page');
+  await expect(preview.getByText('Структурная теория', { exact: true })).toHaveCount(1);
+  await expect(preview.getByText('Материал исходной версии.', { exact: true })).toHaveCount(1);
+  await expect(preview.locator(':scope > section')).toHaveCount(2);
+  await expect(preview.locator(':scope > section > ol > li')).toHaveCount(3);
+  await expect(preview.locator('.course-preview-assignment')).toHaveCount(2);
+  await editor.getByRole('button', { name: 'Редактировать', exact: true }).click();
+
+  await editor.getByRole('button', { name: /Опубликовать v2/ }).click();
+  await expect(page.getByText('Курс опубликован: версия 2.', { exact: true })).toBeVisible();
+
+  const v2Code = await createClassWithStudents(page, 'Структура курса V2 ' + sequence, [
+    { label: 'Ученик V2', handle: 'course-structure-v2-' + sequence },
+  ]);
+  const newLearner = await learnerAssignments(browser, v2Code, 'course-structure-v2-' + sequence);
+  await page
+    .getByRole('navigation', { name: 'Разделы класса' })
+    .getByRole('button', { name: 'Обучение', exact: true })
+    .click();
+  await page
+    .getByRole('navigation', { name: 'Материалы класса' })
+    .getByRole('button', { name: 'Курсы', exact: true })
+    .click();
+  await page.getByLabel('Опубликованный курс').selectOption({ label: courseTitle + ' · v2' });
+  await page.getByRole('button', { name: 'Назначить курс', exact: true }).click();
+
+  await newLearner.page.reload();
+  const newCourses = newLearner.page.getByTestId('seat-courses');
+  await newCourses.getByRole('button').filter({ hasText: courseTitle }).click();
+  await expect(newLearner.page.getByText('Структурная теория', { exact: true })).toHaveCount(1);
+  await expect(newLearner.page.getByText('Материал исходной версии.', { exact: true })).toHaveCount(
+    1,
+  );
+  const newPlayer = newLearner.page.getByTestId('seat-course-player');
+  await expect(newPlayer.getByRole('navigation', { name: 'Переход между уроками' })).toContainText(
+    '1 из 3',
+  );
+  await expect(
+    newPlayer.getByRole('complementary', { name: 'Содержание курса' }).locator('li'),
+  ).toHaveCount(3);
+
+  await oldLearner.page.reload();
+  const oldCoursesAfterV2 = oldLearner.page.getByTestId('seat-courses');
+  await oldCoursesAfterV2.getByRole('button').filter({ hasText: courseTitle }).click();
+  await expect(oldLearner.page.getByText('Структурная теория', { exact: true })).toBeVisible();
+  await expect(
+    oldLearner.page.getByText('Материал исходной версии.', { exact: true }),
+  ).toBeVisible();
+  const oldPlayerAfterV2 = oldLearner.page.getByTestId('seat-course-player');
+  await expect(
+    oldPlayerAfterV2.getByRole('navigation', { name: 'Переход между уроками' }),
+  ).toContainText('1 из 2');
+  await expect(
+    oldPlayerAfterV2.getByRole('complementary', { name: 'Содержание курса' }).locator('li'),
+  ).toHaveCount(2);
+
+  await oldLearner.context.close();
+  await newLearner.context.close();
+});
+
 for (const module of ['electronics', 'three-d'])
   test(`private authored course → approved Account → theory and real ${module} submission → exact review`, async ({
     browser,

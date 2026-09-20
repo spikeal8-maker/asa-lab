@@ -417,6 +417,7 @@ interface CourseOutlineRow {
   section_title: string;
   section_summary: string | null;
   section_position: number | string;
+  section_hidden: boolean;
   lesson_id: string | null;
   lesson_title: string | null;
   lesson_summary: string | null;
@@ -429,6 +430,7 @@ interface CourseOutlineRow {
   module_key: string | null;
   estimated_minutes: number | string | null;
   lesson_position: number | string | null;
+  lesson_hidden: boolean | null;
 }
 
 interface CatalogueRow {
@@ -1104,10 +1106,10 @@ export class CoursesController {
     const context = await this.requireAuthor(request);
     this.requireUuid(courseId, 'course');
     const result = await this.requirePool().query(
-      'SELECT section_id, section_title, section_summary, section_position, ' +
+      'SELECT section_id, section_title, section_summary, section_position, section_hidden, ' +
         'lesson_id, lesson_title, lesson_summary, lesson_content, lesson_blocks, lesson_kind, ' +
         'lesson_assignment_id, learning_activity_version_id, assignment_title, module_key, estimated_minutes, ' +
-        'lesson_position, course_draft_revision($2,$1) AS draft_revision FROM course_outline_v3($1, $2, $3, $4)',
+        'lesson_position, lesson_hidden, course_draft_revision($2,$1) AS draft_revision FROM course_outline_v4($1, $2, $3, $4)',
       [courseId, context.principalId, context.accountId, context.tenantId],
     );
     const rows = result.rows as CourseOutlineRow[];
@@ -1120,6 +1122,7 @@ export class CoursesController {
       title: string;
       summary: string | null;
       position: number;
+      hidden: boolean;
       lessons: Array<{
         id: string;
         title: string;
@@ -1133,6 +1136,7 @@ export class CoursesController {
         moduleKey: string | null;
         estimatedMinutes: number | null;
         position: number;
+        hidden: boolean;
       }>;
     }> = [];
     for (const row of rows) {
@@ -1143,6 +1147,7 @@ export class CoursesController {
           title: row.section_title,
           summary: row.section_summary,
           position: Number(row.section_position),
+          hidden: row.section_hidden,
           lessons: [],
         };
         sections.push(section);
@@ -1161,6 +1166,7 @@ export class CoursesController {
           moduleKey: row.module_key,
           estimatedMinutes: row.estimated_minutes === null ? null : Number(row.estimated_minutes),
           position: Number(row.lesson_position),
+          hidden: row.lesson_hidden === true,
         });
       }
     }
@@ -1238,6 +1244,114 @@ export class CoursesController {
       [context.principalId, courseId, sectionId, delta],
     );
     return { ok: (result.rows[0] as { ok: boolean } | undefined)?.ok === true };
+  }
+
+  @Post('courses/:courseId/sections/:sectionId/duplicate')
+  async duplicateSection(
+    @Req() request: FastifyRequest,
+    @Param('courseId') courseId: string,
+    @Param('sectionId') sectionId: string,
+    @Body() rawBody: unknown,
+  ) {
+    const context = await this.requireAuthor(request);
+    this.requireUuid(courseId, 'course');
+    this.requireUuid(sectionId, 'section');
+    const shape = checkBodyShape(rawBody, ['expectedRevision', 'requestId']);
+    const expectedRevision = shape.ok ? shape.body['expectedRevision'] : null;
+    const requestId = shape.ok ? shape.body['requestId'] : null;
+    if (
+      !shape.ok ||
+      !Number.isSafeInteger(expectedRevision) ||
+      Number(expectedRevision) < 1 ||
+      typeof requestId !== 'string' ||
+      !/^[A-Za-z0-9._:-]{8,128}$/.test(requestId)
+    ) {
+      throw new HttpException(
+        error('validation_error', 'Укажите текущую редакцию и идентификатор операции.'),
+        400,
+      );
+    }
+    const result = await this.requirePool().query(
+      'SELECT * FROM course_section_duplicate_v1($1,$2,$3,$4,$5)',
+      [context.principalId, courseId, sectionId, expectedRevision, requestId],
+    );
+    const row = result.rows[0] as
+      | {
+          result_code: string;
+          duplicate_id: string | null;
+          draft_revision: number | string | null;
+          reused: boolean;
+        }
+      | undefined;
+    if (!row || row.result_code !== 'ok' || !row.duplicate_id) {
+      const code = row?.result_code ?? 'section_not_found';
+      throw new HttpException(
+        error(
+          code,
+          code === 'draft_conflict'
+            ? 'Курс изменён в другом окне. Обновите содержание.'
+            : code === 'idempotency_conflict'
+              ? 'Этот идентификатор операции уже использован для другого дублирования.'
+              : 'Раздел не найден.',
+        ),
+        code.endsWith('_not_found') ? 404 : 409,
+      );
+    }
+    return {
+      id: row.duplicate_id,
+      draftRevision: Number(row.draft_revision),
+      reused: row.reused,
+    };
+  }
+
+  @Post('courses/:courseId/sections/:sectionId/hidden')
+  async setSectionHidden(
+    @Req() request: FastifyRequest,
+    @Param('courseId') courseId: string,
+    @Param('sectionId') sectionId: string,
+    @Body() rawBody: unknown,
+  ) {
+    const context = await this.requireAuthor(request);
+    this.requireUuid(courseId, 'course');
+    this.requireUuid(sectionId, 'section');
+    const shape = checkBodyShape(rawBody, ['hidden', 'expectedRevision']);
+    if (
+      !shape.ok ||
+      typeof shape.body['hidden'] !== 'boolean' ||
+      !Number.isSafeInteger(shape.body['expectedRevision']) ||
+      Number(shape.body['expectedRevision']) < 1
+    ) {
+      throw new HttpException(
+        error('validation_error', 'Укажите состояние видимости и текущую редакцию.'),
+        400,
+      );
+    }
+    const result = await this.requirePool().query(
+      'SELECT * FROM course_section_hidden_set_v1($1,$2,$3,$4,$5)',
+      [
+        context.principalId,
+        courseId,
+        sectionId,
+        shape.body['hidden'],
+        shape.body['expectedRevision'],
+      ],
+    );
+    const row = result.rows[0] as
+      | { result_code: string; draft_revision: number | string | null; hidden: boolean | null }
+      | undefined;
+    if (!row || row.result_code !== 'ok' || row.hidden === null) {
+      const code = row?.result_code ?? 'section_not_found';
+      throw new HttpException(
+        error(
+          code,
+          code === 'draft_conflict'
+            ? 'Курс изменён в другом окне. Обновите содержание.'
+            : 'Раздел не найден.',
+        ),
+        code.endsWith('_not_found') ? 404 : 409,
+      );
+    }
+    return { hidden: row.hidden, draftRevision: Number(row.draft_revision) };
   }
 
   @Delete('courses/:courseId/sections/:sectionId')
@@ -1403,6 +1517,114 @@ export class CoursesController {
       [context.principalId, courseId, lessonId, delta],
     );
     return { ok: (result.rows[0] as { ok: boolean } | undefined)?.ok === true };
+  }
+
+  @Post('courses/:courseId/lessons/:lessonId/duplicate')
+  async duplicateLesson(
+    @Req() request: FastifyRequest,
+    @Param('courseId') courseId: string,
+    @Param('lessonId') lessonId: string,
+    @Body() rawBody: unknown,
+  ) {
+    const context = await this.requireAuthor(request);
+    this.requireUuid(courseId, 'course');
+    this.requireUuid(lessonId, 'lesson');
+    const shape = checkBodyShape(rawBody, ['expectedRevision', 'requestId']);
+    const expectedRevision = shape.ok ? shape.body['expectedRevision'] : null;
+    const requestId = shape.ok ? shape.body['requestId'] : null;
+    if (
+      !shape.ok ||
+      !Number.isSafeInteger(expectedRevision) ||
+      Number(expectedRevision) < 1 ||
+      typeof requestId !== 'string' ||
+      !/^[A-Za-z0-9._:-]{8,128}$/.test(requestId)
+    ) {
+      throw new HttpException(
+        error('validation_error', 'Укажите текущую редакцию и идентификатор операции.'),
+        400,
+      );
+    }
+    const result = await this.requirePool().query(
+      'SELECT * FROM course_lesson_duplicate_v1($1,$2,$3,$4,$5)',
+      [context.principalId, courseId, lessonId, expectedRevision, requestId],
+    );
+    const row = result.rows[0] as
+      | {
+          result_code: string;
+          duplicate_id: string | null;
+          draft_revision: number | string | null;
+          reused: boolean;
+        }
+      | undefined;
+    if (!row || row.result_code !== 'ok' || !row.duplicate_id) {
+      const code = row?.result_code ?? 'lesson_not_found';
+      throw new HttpException(
+        error(
+          code,
+          code === 'draft_conflict'
+            ? 'Курс изменён в другом окне. Обновите содержание.'
+            : code === 'idempotency_conflict'
+              ? 'Этот идентификатор операции уже использован для другого дублирования.'
+              : 'Урок не найден.',
+        ),
+        code.endsWith('_not_found') ? 404 : 409,
+      );
+    }
+    return {
+      id: row.duplicate_id,
+      draftRevision: Number(row.draft_revision),
+      reused: row.reused,
+    };
+  }
+
+  @Post('courses/:courseId/lessons/:lessonId/hidden')
+  async setLessonHidden(
+    @Req() request: FastifyRequest,
+    @Param('courseId') courseId: string,
+    @Param('lessonId') lessonId: string,
+    @Body() rawBody: unknown,
+  ) {
+    const context = await this.requireAuthor(request);
+    this.requireUuid(courseId, 'course');
+    this.requireUuid(lessonId, 'lesson');
+    const shape = checkBodyShape(rawBody, ['hidden', 'expectedRevision']);
+    if (
+      !shape.ok ||
+      typeof shape.body['hidden'] !== 'boolean' ||
+      !Number.isSafeInteger(shape.body['expectedRevision']) ||
+      Number(shape.body['expectedRevision']) < 1
+    ) {
+      throw new HttpException(
+        error('validation_error', 'Укажите состояние видимости и текущую редакцию.'),
+        400,
+      );
+    }
+    const result = await this.requirePool().query(
+      'SELECT * FROM course_lesson_hidden_set_v1($1,$2,$3,$4,$5)',
+      [
+        context.principalId,
+        courseId,
+        lessonId,
+        shape.body['hidden'],
+        shape.body['expectedRevision'],
+      ],
+    );
+    const row = result.rows[0] as
+      | { result_code: string; draft_revision: number | string | null; hidden: boolean | null }
+      | undefined;
+    if (!row || row.result_code !== 'ok' || row.hidden === null) {
+      const code = row?.result_code ?? 'lesson_not_found';
+      throw new HttpException(
+        error(
+          code,
+          code === 'draft_conflict'
+            ? 'Курс изменён в другом окне. Обновите содержание.'
+            : 'Урок не найден.',
+        ),
+        code.endsWith('_not_found') ? 404 : 409,
+      );
+    }
+    return { hidden: row.hidden, draftRevision: Number(row.draft_revision) };
   }
 
   @Delete('courses/:courseId/lessons/:lessonId')

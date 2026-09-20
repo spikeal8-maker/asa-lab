@@ -276,6 +276,7 @@ describe('course outline API', () => {
         section_title: 'Старт',
         section_summary: null,
         section_position: '1',
+        section_hidden: true,
         lesson_id: LESSON_ID,
         lesson_title: 'Зачем нужен резистор',
         lesson_summary: 'Разбираем роль сопротивления',
@@ -287,12 +288,14 @@ describe('course outline API', () => {
         module_key: 'electronics',
         estimated_minutes: '20',
         lesson_position: '1',
+        lesson_hidden: true,
       },
       {
         section_id: SECOND_SECTION_ID,
         section_title: 'Следующий шаг',
         section_summary: 'Пока без уроков',
         section_position: '2',
+        section_hidden: false,
         lesson_id: null,
         lesson_title: null,
         lesson_summary: null,
@@ -304,6 +307,7 @@ describe('course outline API', () => {
         module_key: null,
         estimated_minutes: null,
         lesson_position: null,
+        lesson_hidden: null,
       },
     ]);
 
@@ -313,22 +317,90 @@ describe('course outline API', () => {
     expect(result.sections[0]).toMatchObject({
       id: SECTION_ID,
       position: 1,
+      hidden: true,
       lessons: [
         expect.objectContaining({
           id: LESSON_ID,
           kind: 'assignment',
           assignmentId: ASSIGNMENT_ID,
           estimatedMinutes: 20,
+          hidden: true,
         }),
       ],
     });
-    expect(result.sections[1]).toMatchObject({ id: SECOND_SECTION_ID, lessons: [] });
+    expect(result.sections[1]).toMatchObject({
+      id: SECOND_SECTION_ID,
+      hidden: false,
+      lessons: [],
+    });
     expect(target.query).toHaveBeenCalledWith(expect.stringContaining('course_outline'), [
       COURSE_ID,
       'principal-id',
       'account-id',
       'tenant-id',
     ]);
+  });
+
+  it('exposes bounded structural duplicate and hide/show mutations', async () => {
+    const sectionDuplicate = controller([
+      {
+        result_code: 'ok',
+        duplicate_id: SECOND_SECTION_ID,
+        draft_revision: '8',
+        reused: false,
+      },
+    ]);
+    await expect(
+      sectionDuplicate.value.duplicateSection(request(), COURSE_ID, SECTION_ID, {
+        expectedRevision: 7,
+        requestId: 'course-dup-section-0001',
+      }),
+    ).resolves.toEqual({ id: SECOND_SECTION_ID, draftRevision: 8, reused: false });
+    expect(sectionDuplicate.query).toHaveBeenCalledWith(
+      'SELECT * FROM course_section_duplicate_v1($1,$2,$3,$4,$5)',
+      ['principal-id', COURSE_ID, SECTION_ID, 7, 'course-dup-section-0001'],
+    );
+
+    const lessonDuplicate = controller([
+      { result_code: 'ok', duplicate_id: VERSION_ID, draft_revision: '9', reused: true },
+    ]);
+    await expect(
+      lessonDuplicate.value.duplicateLesson(request(), COURSE_ID, LESSON_ID, {
+        expectedRevision: 8,
+        requestId: 'course-dup-lesson-0001',
+      }),
+    ).resolves.toEqual({ id: VERSION_ID, draftRevision: 9, reused: true });
+    expect(lessonDuplicate.query).toHaveBeenCalledWith(
+      'SELECT * FROM course_lesson_duplicate_v1($1,$2,$3,$4,$5)',
+      ['principal-id', COURSE_ID, LESSON_ID, 8, 'course-dup-lesson-0001'],
+    );
+
+    const sectionHidden = controller([{ result_code: 'ok', draft_revision: '10', hidden: true }]);
+    await expect(
+      sectionHidden.value.setSectionHidden(request(), COURSE_ID, SECTION_ID, {
+        hidden: true,
+        expectedRevision: 9,
+      }),
+    ).resolves.toEqual({ hidden: true, draftRevision: 10 });
+
+    const lessonVisible = controller([{ result_code: 'ok', draft_revision: '11', hidden: false }]);
+    await expect(
+      lessonVisible.value.setLessonHidden(request(), COURSE_ID, LESSON_ID, {
+        hidden: false,
+        expectedRevision: 10,
+      }),
+    ).resolves.toEqual({ hidden: false, draftRevision: 11 });
+  });
+
+  it('rejects malformed duplicate commands before database execution', async () => {
+    const target = controller();
+    await expect(
+      target.value.duplicateLesson(request(), COURSE_ID, LESSON_ID, {
+        expectedRevision: 1,
+        requestId: 'short',
+      }),
+    ).rejects.toMatchObject({ status: 400 });
+    expect(target.query).not.toHaveBeenCalled();
   });
 
   it('rejects an assignment link on a material lesson before querying the database', async () => {
