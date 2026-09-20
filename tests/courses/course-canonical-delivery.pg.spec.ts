@@ -366,15 +366,12 @@ describe('Э1 existing course → exact versions → runs → inherited particip
       ),
     );
     expect(madePublic.rows[0].result_code).toBe('ok');
-    const outline = await tx((client) =>
-      client.query('SELECT * FROM course_outline_v4($1,$2,$3,$4)', [
-        courseId,
-        principal,
-        account,
-        teacher.tenantId,
-      ]),
-    );
-    const sectionId = outline.rows[0].section_id as string;
+    const sectionId = (
+      await admin.query(
+        'SELECT id FROM course_sections WHERE course_id=$1 ORDER BY position,id LIMIT 1',
+        [courseId],
+      )
+    ).rows[0].id as string;
     const blocks = [{ id: 'legacy-media', type: 'paragraph', text: 'Legacy media lesson' }];
     const lessonA = (
       await tx((client) =>
