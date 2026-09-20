@@ -955,21 +955,21 @@ for (const status of [400, 401, 403, 409, 429, 503]) {
 
 test('asset PUT network and canonical-reference mismatch fail closed before draft PUT', async () => {
   const asset = snapshotAsset('e'.repeat(32), 'svg', new TextEncoder().encode('<svg/>'));
-  for (const options of [
-    { assetNetworkFailure: true },
-    {
-      assetPayload: (reference) => ({
-        status: 'ok',
-        asset: { ...reference, sha256: '0'.repeat(64) },
-      }),
-    },
-    { assetPayload: { status: 'ok' } },
+  for (const [options, expected] of [
+    [{ assetNetworkFailure: true }, /asset network/],
+    [
+      {
+        assetPayload: (reference) => ({
+          status: 'ok',
+          asset: { ...reference, sha256: '0'.repeat(64) },
+        }),
+      },
+      /asset_reference_mismatch/,
+    ],
+    [{ assetPayload: { status: 'ok' } }, /asset_reference_mismatch/],
   ]) {
     const { storage, calls } = createPersistenceStorage(options);
-    await assert.rejects(
-      storeCanonicalAsset(storage, asset),
-      /asset_write_failed|asset_reference_mismatch/,
-    );
+    await assert.rejects(storeCanonicalAsset(storage, asset), expected);
     assert.equal(calls.filter((call) => call.kind === 'draft').length, 0);
     assert.equal(storage.getConfirmedRevision(), 7);
   }
