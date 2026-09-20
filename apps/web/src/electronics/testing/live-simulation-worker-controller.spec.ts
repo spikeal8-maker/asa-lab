@@ -262,6 +262,24 @@ describe('Electronics canonical Worker controller', () => {
     ]);
   });
 
+  it('clears Serial projection when a new generation starts', async () => {
+    const executor = new FakeExecutor();
+    const onSerialProjection = vi.fn();
+    const controller = new ElectronicsLiveSimulationWorkerController(executor);
+    controller.start('project-a', serialCircuit, {
+      onResult: vi.fn(),
+      onSerialProjection,
+      onFailure: vi.fn(),
+    });
+    await completeCanonicalStart(executor, 1);
+    onSerialProjection.mockClear();
+
+    controller.restart(serialCircuit);
+
+    expect(onSerialProjection).toHaveBeenCalledTimes(1);
+    expect(onSerialProjection).toHaveBeenCalledWith([]);
+  });
+
   it('publishes Serial projection from yielded canonical work', async () => {
     const executor = new FakeExecutor();
     const onSerialProjection = vi.fn();
