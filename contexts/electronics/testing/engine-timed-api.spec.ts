@@ -89,6 +89,31 @@ describe('Electronics canonical timed engine facade', () => {
     }
   });
 
+  it('delivers canonical serialRx timed input through the engine into Arduino Serial.read', () => {
+    const document = circuit(`int count=0;int first=-2;int second=-2;
+      void setup(){Serial.begin(9600);}void loop(){delayMicroseconds(20);count=Serial.available();
+      if(count>=2){first=Serial.read();second=Serial.read();delay(100);}}`);
+    const begun = advanceElectronicsToHorizon(document, { requestedHorizonMicroseconds: 5 });
+    expect(begun.executionStatus).toBe('ready');
+    if (begun.executionStatus !== 'ready') return;
+
+    const received = advanceElectronicsToHorizon(document, {
+      requestedHorizonMicroseconds: 50,
+      state: begun.state,
+      inputEvents: [{ atMicroseconds: 10, targetId: 'uno', operation: 'serialRx', payload: 'AB' }],
+    });
+    expect(received.executionStatus).toBe('ready');
+    if (received.executionStatus !== 'ready') return;
+
+    const schedulerState = JSON.parse(received.state.continuation!.serializedState);
+    const runtime = schedulerState.boards.find(
+      (entry: { componentId: string }) => entry.componentId === 'uno',
+    ).runtime;
+    expect(runtime.variables).toMatchObject({ count: 2, first: 65, second: 66 });
+    expect(runtime.serial.rx).toEqual([]);
+    expect(runtime.serial.nextRxSequence).toBe(2);
+  });
+
   it('preserves the last committed continuation when a new input operation is rejected', () => {
     const document = circuit(`void setup(){pinMode(13,OUTPUT);}${IDLE}`);
     const ready = advanceElectronicsToHorizon(document, {

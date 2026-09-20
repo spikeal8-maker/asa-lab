@@ -181,6 +181,14 @@ function schedulerInputEvent(event: ElectronicsTimedInputEvent): ArduinoCircuitI
       value: event.payload,
     };
   }
+  if (event.operation === 'serialRx' && typeof event.payload === 'string') {
+    return {
+      atMicroseconds: event.atMicroseconds,
+      componentId: event.targetId,
+      property: 'serialRx',
+      value: event.payload,
+    };
+  }
   return null;
 }
 

@@ -6,6 +6,10 @@ import {
   type ArduinoRuntimeState,
 } from './arduino-program-runtime.js';
 import { analyseArduinoSourceSupport } from './arduino-capabilities.js';
+import {
+  ARDUINO_SERIAL_RX_INGRESS_TEXT_LIMIT,
+  enqueueArduinoSerialRx,
+} from './arduino-serial-runtime.js';
 import { arduinoSnapshotFromState, arduinoSourceFor, isArduinoUno } from './arduino-model.js';
 import type { ElectronicsDocument, SchematicComponent } from './document.js';
 import { simulationInputDigest } from './simulation-input-digest.js';
@@ -76,8 +80,9 @@ function usesElectrothermalProfile(document: ElectronicsDocument): boolean {
 export interface ArduinoCircuitInputEvent {
   readonly atMicroseconds: number;
   readonly componentId: string;
-  readonly property: 'state' | 'wiperPosition' | 'temperatureCelsius' | 'moisturePercent';
-  readonly value: boolean | number;
+  readonly property:
+    'state' | 'wiperPosition' | 'temperatureCelsius' | 'moisturePercent' | 'serialRx';
+  readonly value: boolean | number | string;
 }
 
 export interface ArduinoCircuitClockState {
@@ -182,7 +187,11 @@ function validInputs(
             typeof event.value === 'number' &&
             Number.isFinite(event.value) &&
             event.value >= -40 &&
-            event.value <= 125))
+            event.value <= 125) ||
+          (event.property === 'serialRx' &&
+            isArduinoUno(component) &&
+            typeof event.value === 'string' &&
+            event.value.length <= ARDUINO_SERIAL_RX_INGRESS_TEXT_LIMIT))
       );
     })
   );
@@ -201,6 +210,7 @@ function applyInput(
   document: ElectronicsDocument,
   event: ArduinoCircuitInputEvent,
 ): ElectronicsDocument {
+  if (event.property === 'serialRx') return document;
   return {
     ...document,
     components: document.components.map((component) =>
@@ -635,7 +645,17 @@ export function advanceArduinoCircuitClock(
     }
     let inputChanged = false;
     while (inputs[nextInputIndex]?.atMicroseconds === time) {
-      activeDocument = applyInput(activeDocument, inputs[nextInputIndex++]!);
+      const input = inputs[nextInputIndex++]!;
+      if (input.property === 'serialRx') {
+        const state = states.get(input.componentId);
+        if (state?.serial?.begun)
+          states.set(input.componentId, {
+            ...state,
+            serial: enqueueArduinoSerialRx(state.serial, time, input.value as string),
+          });
+        continue;
+      }
+      activeDocument = applyInput(activeDocument, input);
       cachedFrame = undefined;
       inputChanged = true;
     }
