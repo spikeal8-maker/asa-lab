@@ -30,6 +30,23 @@ const circuit: SchematicDocument = {
   simulation: { running: true, maxIterations: 24 },
 };
 
+const pirCircuit: SchematicDocument = {
+  ...circuit,
+  components: [
+    ...circuit.components,
+    {
+      id: 'pir',
+      kind: 'visual',
+      value: 0,
+      position: { x: 70, y: 0 },
+      componentTypeId: 'pir-sensor',
+      variantId: 'pir-sensor',
+      pinIds: ['vcc', 'signal', 'gnd'],
+      stateProperties: { motionDetected: false },
+    },
+  ],
+};
+
 const serialCircuit: SchematicDocument = {
   ...circuit,
   components: [
@@ -239,6 +256,29 @@ describe('Electronics canonical Worker controller', () => {
     expect(executor.advances[2]).toMatchObject({ requestedHorizonMicroseconds: 2 });
     expect(executor.advances[2]!.inputEvents).toEqual([
       { atMicroseconds: 2, targetId: 'button', operation: 'state', payload: false },
+    ]);
+  });
+
+  it('routes PIR motion changes through the existing canonical pending input queue', async () => {
+    const executor = new FakeExecutor();
+    const controller = new ElectronicsLiveSimulationWorkerController(executor);
+    controller.start('project-a', pirCircuit, { onResult: vi.fn(), onFailure: vi.fn() });
+    await completeCanonicalStart(executor, 1);
+
+    const detected = {
+      ...pirCircuit,
+      components: pirCircuit.components.map((component) =>
+        component.id === 'pir'
+          ? {
+              ...component,
+              stateProperties: { ...component.stateProperties, motionDetected: true },
+            }
+          : component,
+      ),
+    };
+    controller.update(detected, 0);
+    expect(executor.advances[1]!.inputEvents).toEqual([
+      { atMicroseconds: 1, targetId: 'pir', operation: 'motionDetected', payload: true },
     ]);
   });
 

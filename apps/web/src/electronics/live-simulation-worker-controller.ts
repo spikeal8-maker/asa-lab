@@ -32,7 +32,7 @@ interface SimulationTarget {
   readonly requestedHorizonMicroseconds: number;
 }
 
-const TIMED_STATE_PROPERTIES = ['temperatureCelsius', 'moisturePercent'] as const;
+const TIMED_STATE_PROPERTIES = ['temperatureCelsius', 'moisturePercent', 'motionDetected'] as const;
 const ARDUINO_SOURCE_PROPERTY = 'arduinoSource' as const;
 const RUNTIME_INPUT_OBSERVATION_WINDOW_MICROSECONDS = 100_000;
 
@@ -136,8 +136,9 @@ function timedRuntimeEvents(
       const value = component.stateProperties?.[property];
       if (
         value !== before.stateProperties?.[property] &&
-        typeof value === 'number' &&
-        Number.isFinite(value)
+        (property === 'motionDetected'
+          ? typeof value === 'boolean'
+          : typeof value === 'number' && Number.isFinite(value))
       ) {
         events.push({
           atMicroseconds,

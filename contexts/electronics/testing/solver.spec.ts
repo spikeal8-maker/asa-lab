@@ -984,6 +984,21 @@ describe('electrical model registry', () => {
       topology: 'multi-junction',
       requiredTerminals: ['vcc', 'trigger', 'echo', 'gnd'],
     });
+    const pir = component('pir', 'visual', 0, {
+      componentTypeId: 'pir-sensor',
+      variantId: 'pir-sensor',
+      pinIds: ['vcc', 'signal', 'gnd'],
+    });
+    expect(electricalModelIdentityForComponent(pir)).toMatchObject({
+      electricalModelId: 'pir-motion-sensor',
+      modelProfileId: 'pir-digital-motion-v1',
+    });
+    expect(electricalModelFor(pir)).toMatchObject({
+      id: 'pir-motion-sensor',
+      support: 'supported',
+      topology: 'three-terminal',
+      requiredTerminals: ['vcc', 'signal', 'gnd'],
+    });
     const servo = component('servo', 'visual', 0, {
       componentTypeId: 'servo-motor',
       variantId: 'servo-motor',
@@ -1420,7 +1435,7 @@ describe('deterministic DC solver', () => {
         [
           component('source', 'source', 5),
           component('r1', 'resistor', 1000),
-          component('sensor', 'visual', 0, { componentTypeId: 'pir-sensor' }),
+          component('sensor', 'visual', 0, { componentTypeId: 'ultrasonic-sensor' }),
         ],
         [connect('w1', 'source', 'a', 'r1', 'a'), connect('w2', 'r1', 'b', 'source', 'b')],
       ),

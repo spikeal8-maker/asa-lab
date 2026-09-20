@@ -191,6 +191,7 @@ const SIMULATED_TYPES = new Set([
   'photoresistor',
   'temperature-sensor',
   'soil-moisture-sensor',
+  'pir-sensor',
   'ultrasonic-hc-sr04',
   'servo-motor',
   'diode-do35',
@@ -440,6 +441,8 @@ function defaults(componentId: string): {
             : {},
     };
   if (componentId === 'servo-motor') return { value: 0, unit: '', properties: {} };
+  if (componentId === 'pir-sensor')
+    return { value: 0, unit: '', properties: { motionDetected: false } };
   if (componentId === 'multimeter')
     return {
       value: 0,

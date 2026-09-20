@@ -43,6 +43,55 @@ function circuit(source: string): ElectronicsEngineDocument {
 
 const IDLE = 'void loop(){delay(100);}';
 
+function pirCircuit(): ElectronicsEngineDocument {
+  const parsed = parseElectronicsEngineDocument({
+    schemaVersion: 4,
+    components: [
+      {
+        id: 'uno',
+        kind: 'visual',
+        value: 5,
+        position: { x: 0, y: 0 },
+        componentTypeId: 'arduino-uno',
+        pinIds: ['d2', 'd13', 'power-5v', 'power-3v3', 'power-gnd-1'],
+        stateProperties: {
+          arduinoSource:
+            'int motion=0;void setup(){pinMode(2,INPUT);}void loop(){motion=digitalRead(2);delay(10);}',
+        },
+      },
+      {
+        id: 'pir',
+        kind: 'visual',
+        value: 0,
+        position: { x: 40, y: 0 },
+        componentTypeId: 'pir-sensor',
+        variantId: 'pir-sensor',
+        pinIds: ['vcc', 'signal', 'gnd'],
+        stateProperties: { motionDetected: false },
+      },
+    ],
+    connections: [
+      {
+        id: 'vcc',
+        from: { componentId: 'uno', terminal: 'power-5v' },
+        to: { componentId: 'pir', terminal: 'vcc' },
+      },
+      {
+        id: 'gnd',
+        from: { componentId: 'uno', terminal: 'power-gnd-1' },
+        to: { componentId: 'pir', terminal: 'gnd' },
+      },
+      {
+        id: 'signal',
+        from: { componentId: 'pir', terminal: 'signal' },
+        to: { componentId: 'uno', terminal: 'd2' },
+      },
+    ],
+  });
+  if (!parsed.ok) throw new Error(parsed.message);
+  return parsed.document;
+}
+
 describe('Electronics canonical timed engine facade', () => {
   it('returns a serializable ready continuation at the requested microsecond horizon', () => {
     const document = circuit(`void setup(){pinMode(13,OUTPUT);digitalWrite(13,HIGH);}${IDLE}`);
@@ -134,6 +183,52 @@ describe('Electronics canonical timed engine facade', () => {
     expect(runtime.variables).toMatchObject({ count: 2, first: 65, second: 66 });
     expect(runtime.serial.rx).toEqual([]);
     expect(runtime.serial.nextRxSequence).toBe(2);
+  });
+
+  it('delivers motionDetected through canonical engine input and survives JSON continuation', () => {
+    const document = pirCircuit();
+    const low = advanceElectronicsToHorizon(document, {
+      requestedHorizonMicroseconds: 4_000,
+    });
+    expect(low.executionStatus).toBe('ready');
+    if (low.executionStatus !== 'ready') return;
+
+    const detected = advanceElectronicsToHorizon(document, {
+      requestedHorizonMicroseconds: 12_000,
+      state: JSON.parse(JSON.stringify(low.state)),
+      inputEvents: [
+        { atMicroseconds: 5_000, targetId: 'pir', operation: 'motionDetected', payload: true },
+      ],
+    });
+    expect(detected.executionStatus).toBe('ready');
+    if (detected.executionStatus !== 'ready') return;
+    const detectedState = JSON.parse(detected.state.continuation!.serializedState);
+    expect(
+      detectedState.boards.find((entry: { componentId: string }) => entry.componentId === 'uno')
+        .runtime.variables.motion,
+    ).toBe(1);
+    expect(
+      detected.observation.components.find((entry) => entry.componentId === 'pir'),
+    ).toMatchObject({
+      sensorMotionDetected: true,
+      sensorPowerState: 'powered',
+      sensorOutputRegion: 'digital-high',
+    });
+
+    const cleared = advanceElectronicsToHorizon(document, {
+      requestedHorizonMicroseconds: 25_000,
+      state: JSON.parse(JSON.stringify(detected.state)),
+      inputEvents: [
+        { atMicroseconds: 15_000, targetId: 'pir', operation: 'motionDetected', payload: false },
+      ],
+    });
+    expect(cleared.executionStatus).toBe('ready');
+    if (cleared.executionStatus !== 'ready') return;
+    const clearedState = JSON.parse(cleared.state.continuation!.serializedState);
+    expect(
+      clearedState.boards.find((entry: { componentId: string }) => entry.componentId === 'uno')
+        .runtime.variables.motion,
+    ).toBe(0);
   });
 
   it('preserves the last committed continuation when a new input operation is rejected', () => {

@@ -41,6 +41,15 @@ import {
   type SoilObservation,
 } from './models/soil-moisture-model.js';
 import {
+  createPirSensorDevices,
+  evaluatePirSensorDevices,
+  initialPirSensorStates,
+  observePirSensorDevices,
+  PIR_SENSOR_MODEL,
+  stampPirSensorDevices,
+  type PirSensorObservation,
+} from './models/pir-sensor-model.js';
+import {
   hcSr04ElectricalBranch,
   isHcSr04,
   type HcSr04RuntimeState,
@@ -226,9 +235,12 @@ export interface ComponentResult {
   readonly sensorMoisturePercent?: number;
   readonly sensorResistanceOhm?: number;
   readonly sensorTemperatureCelsius?: number;
+  readonly sensorMotionDetected?: boolean;
   readonly sensorPowerState?: Tmp36Observation['sensorPowerState'];
   readonly sensorOutputRegion?:
-    Tmp36Observation['sensorOutputRegion'] | SoilObservation['sensorOutputRegion'];
+    | Tmp36Observation['sensorOutputRegion']
+    | SoilObservation['sensorOutputRegion']
+    | PirSensorObservation['sensorOutputRegion'];
   readonly sensorOutputVoltageVolt?: number;
   readonly sensorSupplyVoltageVolt?: number;
   readonly sensorOutputCurrentAmp?: number;
@@ -774,6 +786,7 @@ function logicalTerminal(component: SchematicComponent, terminal: LogicalTermina
 function isSimulated(component: SchematicComponent): boolean {
   return (
     component.componentTypeId === 'soil-moisture-sensor' ||
+    component.componentTypeId === 'pir-sensor' ||
     component.componentTypeId === 'temperature-sensor' ||
     isArduinoUno(component) ||
     isBrushedMotor(component) ||
@@ -830,6 +843,8 @@ function roundCurrent(value: number): number {
 function propertyError(component: SchematicComponent): string | null {
   if (component.componentTypeId === 'soil-moisture-sensor')
     return SOIL_MOISTURE_MODEL.validate(component)[0]?.message ?? null;
+  if (component.componentTypeId === 'pir-sensor')
+    return PIR_SENSOR_MODEL.validate(component)[0]?.message ?? null;
   if (component.componentTypeId === 'temperature-sensor')
     return TMP36_DEVICE_MODEL.validate(component)[0]?.message ?? null;
   if (component.componentTypeId === 'signal-generator') {
@@ -2041,6 +2056,7 @@ function solveCircuitStep(
     const device = createSoilMoistureDevice(component);
     return device ? [device] : [];
   });
+  const pirDevices = createPirSensorDevices(document.components);
   const npnDcDevices = document.components.flatMap((component) => {
     if (failedComponentIds.has(component.id)) return [];
     const device = createNpnDcDevice(component);
@@ -2498,6 +2514,7 @@ function solveCircuitStep(
       device.model.initialIterationState(device.instance),
     ]),
   );
+  const pirStates = initialPirSensorStates(pirDevices);
   const npnIterationStates = new Map<string, NpnIterationState>(
     npnDcDevices.map((device) => {
       const initial = device.model.initialIterationState(device.instance);
@@ -2720,9 +2737,9 @@ function solveCircuitStep(
       }
     }
 
-    for (const device of soilDevices) {
+    for (const device of soilDevices)
       device.model.stampDc(iterativeStampContext, device.instance, null);
-    }
+    stampPirSensorDevices(iterativeStampContext, pirDevices, pirStates);
     for (const device of tmp36Devices) {
       device.model.stampDc(
         iterativeStampContext,
@@ -2852,6 +2869,9 @@ function solveCircuitStep(
       tmp36States.set(component.id, evaluated.state);
       if (evaluated.changed) changed = true;
     }
+    changed ||= evaluatePirSensorDevices(pirDevices, pirStates, (component, terminal) =>
+      voltageFrom(solution!, physicalNodeIndex(component, terminal)),
+    );
     for (const device of npnDcDevices) {
       const component = device.instance.component;
       const previous =
@@ -3035,6 +3055,7 @@ function solveCircuitStep(
       ];
     }),
   );
+  const pirResults = observePirSensorDevices(pirDevices, pirStates, physicalVoltageAt);
   const npnResultById = new Map<string, TransistorOperatingResult>(
     npnDcDevices.map((device) => {
       const component = device.instance.component;
@@ -3222,7 +3243,11 @@ function solveCircuitStep(
         branchResults[0]?.voltageDrop ??
         arduinoBranchResults.find((entry) => entry.branch.id === 'd13')?.voltageDrop ??
         arduinoBranchResults[0]?.voltageDrop ??
-        (isSimulated(component) ? voltageAt(component, 'a') - voltageAt(component, 'b') : 0);
+        (component.componentTypeId === 'pir-sensor'
+          ? physicalVoltageAt(component, 'signal') - physicalVoltageAt(component, 'gnd')
+          : isSimulated(component)
+            ? voltageAt(component, 'a') - voltageAt(component, 'b')
+            : 0);
       let capacitorObservation = isElectrolyticCapacitor(component)
         ? observeCapacitor(
             capacitorParameters(component),
@@ -3275,7 +3300,10 @@ function solveCircuitStep(
           ? undefined
           : incandescentLampResistanceOhm(lampTemperatureCelsius);
       const linearDcDevice = linearDcDeviceById.get(component.id);
-      const temperature = tmp36Results.get(component.id) ?? soilResults.get(component.id);
+      const sensor =
+        tmp36Results.get(component.id) ??
+        soilResults.get(component.id) ??
+        pirResults.get(component.id);
       const reportedLinearCurrent =
         component.kind === 'source' ||
         (linearDcDevice !== undefined && isMultimeterResistanceDevice(linearDcDevice))
@@ -3325,7 +3353,7 @@ function solveCircuitStep(
       }
       if (linearDcObservation) linearDcObservationById.set(component.id, linearDcObservation);
       let current = 0;
-      if (temperature) current = temperature.current;
+      if (sensor) current = sensor.current;
       else if (linearDcObservation) current = linearDcObservation.current;
       else if (isArduinoUno(component))
         current = Math.max(0, ...arduinoBranchResults.map((entry) => Math.abs(entry.current)));
@@ -3352,7 +3380,7 @@ function solveCircuitStep(
       else if (branches.length > 0)
         current = branchResults.reduce((sum, branch) => sum + branch.current, 0);
       const power =
-        temperature?.power ??
+        sensor?.power ??
         linearDcObservation?.power ??
         transistorResult?.power ??
         Math.abs(
@@ -3603,21 +3631,23 @@ function solveCircuitStep(
               ),
             }
           : {}),
-        ...(temperature
+        ...(sensor
           ? {
-              ...('sensorTemperatureCelsius' in temperature
-                ? { sensorTemperatureCelsius: temperature.sensorTemperatureCelsius }
-                : {
-                    sensorMoisturePercent: temperature.sensorMoisturePercent,
-                    sensorResistanceOhm: temperature.sensorResistanceOhm,
-                  }),
-              sensorPowerState: temperature.sensorPowerState,
-              sensorOutputRegion: temperature.sensorOutputRegion,
-              sensorOutputVoltageVolt: round(temperature.sensorOutputVoltageVolt),
-              sensorSupplyVoltageVolt: round(temperature.sensorSupplyVoltageVolt),
-              sensorOutputCurrentAmp: roundCurrent(temperature.sensorOutputCurrentAmp),
+              ...('sensorTemperatureCelsius' in sensor
+                ? { sensorTemperatureCelsius: sensor.sensorTemperatureCelsius }
+                : 'sensorMoisturePercent' in sensor
+                  ? {
+                      sensorMoisturePercent: sensor.sensorMoisturePercent,
+                      sensorResistanceOhm: sensor.sensorResistanceOhm,
+                    }
+                  : { sensorMotionDetected: sensor.sensorMotionDetected }),
+              sensorPowerState: sensor.sensorPowerState,
+              sensorOutputRegion: sensor.sensorOutputRegion,
+              sensorOutputVoltageVolt: round(sensor.sensorOutputVoltageVolt),
+              sensorSupplyVoltageVolt: round(sensor.sensorSupplyVoltageVolt),
+              sensorOutputCurrentAmp: roundCurrent(sensor.sensorOutputCurrentAmp),
               terminalCurrents: Object.fromEntries(
-                Object.entries(temperature.terminalCurrents).map(([pin, value]) => [
+                Object.entries(sensor.terminalCurrents).map(([pin, value]) => [
                   pin,
                   roundCurrent(value),
                 ]),
@@ -3871,7 +3901,7 @@ function solveCircuitStep(
       };
     });
 
-  for (const [componentId, observation] of [...tmp36Results, ...soilResults]) {
+  for (const [componentId, observation] of [...tmp36Results, ...soilResults, ...pirResults]) {
     diagnostics.push(
       ...observation.diagnostics.map((diagnostic) => ({
         ...diagnostic,

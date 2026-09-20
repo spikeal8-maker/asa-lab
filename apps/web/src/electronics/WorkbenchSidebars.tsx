@@ -19,6 +19,7 @@ import {
   type ComponentCategory,
 } from './component-catalog';
 import { ComponentPreview } from './component-preview';
+import { PirSensorControls } from './PirSensorControls';
 import { CollapseIcon, ExpandIcon, ListIcon, SearchIcon, WireIcon } from './workbench-icons';
 import { WIRE_COLORS } from './workbench-model';
 import {
@@ -1355,6 +1356,12 @@ export function WorkbenchSidebars({
                     />
                   </label>
                 </>
+              ) : null}
+              {c.selectedComponent.componentTypeId === 'pir-sensor' ? (
+                <PirSensorControls
+                  motionDetected={c.selectedComponent.stateProperties?.['motionDetected'] === true}
+                  onChange={(motionDetected) => c.setSelectedProperties({ motionDetected })}
+                />
               ) : null}
               {c.selectedComponent.componentTypeId === 'temperature-sensor' ? (
                 <>

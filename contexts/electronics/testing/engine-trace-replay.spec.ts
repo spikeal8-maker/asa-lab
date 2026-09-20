@@ -69,6 +69,19 @@ function button(id: string) {
   };
 }
 
+function pirSensor() {
+  return {
+    id: 'pir',
+    kind: 'visual' as const,
+    value: 0,
+    position: { x: 60, y: 0 },
+    componentTypeId: 'pir-sensor',
+    variantId: 'pir-sensor',
+    pinIds: ['vcc', 'signal', 'gnd'],
+    stateProperties: { motionDetected: false },
+  };
+}
+
 function physicalFixture(): ReplayFixture {
   return {
     name: 'physical-rc',
@@ -211,7 +224,49 @@ function inputTraceFixture(): ReplayFixture {
   };
 }
 
-const FIXTURES = [physicalFixture(), arduinoFixture(), inputTraceFixture()] as const;
+function pirMotionFixture(): ReplayFixture {
+  return {
+    name: 'pir-motion',
+    horizon: 60_000,
+    trace: [
+      { atMicroseconds: 15_000, targetId: 'pir', operation: 'motionDetected', payload: true },
+      { atMicroseconds: 45_000, targetId: 'pir', operation: 'motionDetected', payload: false },
+    ],
+    document: parseDocument({
+      schemaVersion: 4,
+      components: [
+        board(
+          'int motion=0;void setup(){pinMode(2,INPUT);}void loop(){motion=digitalRead(2);delay(10);}',
+        ),
+        pirSensor(),
+      ],
+      connections: [
+        {
+          id: 'vcc',
+          from: { componentId: 'uno', terminal: 'power-5v' },
+          to: { componentId: 'pir', terminal: 'vcc' },
+        },
+        {
+          id: 'gnd',
+          from: { componentId: 'uno', terminal: 'power-gnd-1' },
+          to: { componentId: 'pir', terminal: 'gnd' },
+        },
+        {
+          id: 'signal',
+          from: { componentId: 'pir', terminal: 'signal' },
+          to: { componentId: 'uno', terminal: 'd2' },
+        },
+      ],
+    }),
+  };
+}
+
+const FIXTURES = [
+  physicalFixture(),
+  arduinoFixture(),
+  inputTraceFixture(),
+  pirMotionFixture(),
+] as const;
 
 function steppedTargets(
   horizon: number,
