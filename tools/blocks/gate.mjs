@@ -71,6 +71,7 @@ const focused = [
     'e2e/blocks-product-integration.spec.ts',
     'e2e/blocks-recovery.spec.ts',
     'e2e/blocks-loading.spec.ts',
+    'e2e/blocks-recovery-media.spec.ts',
   ],
   [
     'node',
@@ -102,6 +103,7 @@ const focused = [
     'e2e/blocks-product-integration.spec.ts',
     'e2e/blocks-recovery.spec.ts',
     'e2e/blocks-loading.spec.ts',
+    'e2e/blocks-recovery-media.spec.ts',
     'tools/verify-blocks-host-protocol.mjs',
     'tools/verify-blocks-host-shell.mjs',
   ],

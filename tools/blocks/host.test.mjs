@@ -515,6 +515,135 @@ function createPersistenceStorage({
   return { storage, calls };
 }
 
+test('recovery capture embeds only referenced assets absent from confirmed server draft', async () => {
+  const confirmedBytes = Uint8Array.from([1, 2, 3]);
+  const localBytes = Uint8Array.from([9, 8, 7, 6]);
+  const confirmed = snapshotAsset('a'.repeat(32), 'png', confirmedBytes);
+  const { storage } = createPersistenceStorage({
+    bootstrapAssets: [
+      {
+        assetId: confirmed.assetId,
+        dataFormat: confirmed.dataFormat,
+        sha256: confirmed.sha256,
+        sizeBytes: confirmed.sizeBytes,
+      },
+    ],
+  });
+  const localId = 'b'.repeat(32);
+  const projectJson = {
+    targets: [
+      {
+        name: 'Stage',
+        costumes: [
+          { assetId: confirmed.assetId, dataFormat: 'png' },
+          { assetId: localId, dataFormat: 'png' },
+        ],
+        sounds: [],
+      },
+    ],
+    monitors: [],
+    extensions: [],
+  };
+  const liveAssets = [
+    {
+      assetId: confirmed.assetId,
+      dataFormat: 'png',
+      assetType: storage.scratchStorage.AssetType.ImageBitmap,
+      data: confirmedBytes,
+    },
+    {
+      assetId: localId,
+      dataFormat: 'png',
+      assetType: storage.scratchStorage.AssetType.ImageBitmap,
+      data: localBytes,
+    },
+  ];
+
+  const captured = await storage.captureRecoveryAssets(projectJson, liveAssets);
+  assert.equal(captured.length, 1);
+  assert.equal(captured[0].assetId, localId);
+  assert.equal(captured[0].dataFormat, 'png');
+  assert.equal(captured[0].sizeBytes, localBytes.byteLength);
+  assert.equal(captured[0].sha256, createHash('sha256').update(localBytes).digest('hex'));
+  assert.deepEqual([...captured[0].bytes], [...localBytes]);
+});
+
+test('installed recovery asset loads locally as dirty and cannot override confirmed authority', async () => {
+  const confirmedBytes = Uint8Array.from([1, 2, 3]);
+  const confirmed = snapshotAsset('a'.repeat(32), 'png', confirmedBytes);
+  const { storage } = createPersistenceStorage({
+    bootstrapAssets: [
+      {
+        assetId: confirmed.assetId,
+        dataFormat: confirmed.dataFormat,
+        sha256: confirmed.sha256,
+        sizeBytes: confirmed.sizeBytes,
+      },
+    ],
+  });
+  const localBytes = Uint8Array.from([4, 5, 6, 7]);
+  const local = snapshotAsset('b'.repeat(32), 'png', localBytes);
+
+  assert.equal(await storage.installRecoveryAssets([local]), 1);
+  const recovered = await storage.scratchStorage.helper.load(
+    storage.scratchStorage.AssetType.ImageBitmap,
+    local.assetId,
+    local.dataFormat,
+  );
+  assert.ok(recovered);
+  assert.equal(recovered.clean, false);
+  assert.deepEqual([...recovered.data], [...localBytes]);
+
+  await assert.rejects(
+    storage.installRecoveryAssets([
+      {
+        ...confirmed,
+        sha256: 'f'.repeat(64),
+        bytes: confirmedBytes,
+      },
+    ]),
+    /recovery_asset_invalid|recovery_asset_conflicts_confirmed/,
+  );
+});
+
+test('recovery capture remains based on confirmedAssets after transient asset durability', async () => {
+  const localBytes = Uint8Array.from([7, 7, 7, 7]);
+  const local = snapshotAsset('c'.repeat(32), 'png', localBytes);
+  const { storage, calls } = createPersistenceStorage({ draftStatus: 503 });
+  const projectJson = {
+    targets: [
+      {
+        name: 'Stage',
+        costumes: [{ assetId: local.assetId, dataFormat: 'png' }],
+        sounds: [],
+      },
+    ],
+    monitors: [],
+    extensions: [],
+  };
+
+  await assert.rejects(
+    storage.persistSnapshot({ projectJson, assets: [local] }),
+    /draft_write_failed/,
+  );
+  assert.deepEqual(
+    calls.map((call) => call.kind),
+    ['asset', 'draft'],
+  );
+
+  const captured = await storage.captureRecoveryAssets(projectJson, [
+    {
+      assetId: local.assetId,
+      dataFormat: 'png',
+      assetType: storage.scratchStorage.AssetType.ImageBitmap,
+      data: localBytes,
+    },
+  ]);
+  assert.equal(captured.length, 1);
+  assert.equal(captured[0].assetId, local.assetId);
+  assert.deepEqual([...captured[0].bytes], [...localBytes]);
+});
+
 test('upstream create transition persists native New into the same managed ASA UUID', async () => {
   const { storage, calls } = createPersistenceStorage();
   const projectJson = { targets: [], monitors: [], extensions: [] };

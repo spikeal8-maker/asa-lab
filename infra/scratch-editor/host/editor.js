@@ -293,6 +293,7 @@
       shell.dataset.recoveryState = 'restoring';
       loaded = false;
       try {
+        await storage.installRecoveryAssets(record.assets ?? []);
         await vm.loadProject(record.projectJson);
         if (disposed) return;
         projectGeneration = Math.max(0, record.generation - 1);
@@ -355,8 +356,10 @@
         }
 
         storage = createStorage();
-        if (recoveredRecord && !storage.canRecoverProject(recoveredRecord.projectJson)) {
-          await recoveryStore?.delete(bootstrap.recoveryPrincipalKey, session.projectId);
+        if (
+          recoveredRecord &&
+          !storage.canRecoverProject(recoveredRecord.projectJson, recoveredRecord.assets ?? [])
+        ) {
           recoveredRecord = null;
           shell.dataset.recoveryState = 'media_recovery_required';
         }
@@ -366,11 +369,14 @@
             principalKey: bootstrap.recoveryPrincipalKey,
             projectId: session.projectId,
             getBaseRevision: () => storage?.getConfirmedRevision() ?? bootstrap.draftRevision,
-            captureProjectJson: () => {
-              if (!vm || typeof vm.toJSON !== 'function') throw failure('recovery_vm_unavailable');
-              return JSON.parse(vm.toJSON());
+            captureRecoverySnapshot: async () => {
+              if (!vm || typeof vm.toJSON !== 'function' || !Array.isArray(vm.assets)) {
+                throw failure('recovery_vm_unavailable');
+              }
+              const projectJson = JSON.parse(vm.toJSON());
+              const assets = await storage.captureRecoveryAssets(projectJson, vm.assets);
+              return { projectJson, assets };
             },
-            canRecoverProject: (projectJson) => storage?.canRecoverProject(projectJson) === true,
             onState: ({ state: recoveryState }) => {
               if (!disposed) shell.dataset.recoveryState = recoveryState;
             },
