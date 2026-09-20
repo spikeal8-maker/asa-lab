@@ -357,7 +357,9 @@ describe('Э1 existing course → exact versions → runs → inherited particip
     ).rows[0].id as string;
 
     const v1 = (
-      await tx((client) => client.query('SELECT * FROM course_publish($1,$2)', [principal, courseId]))
+      await tx((client) =>
+        client.query('SELECT * FROM course_publish($1,$2)', [principal, courseId]),
+      )
     ).rows[0];
     expect(v1).toMatchObject({ result_code: 'ok', version_number: 1, reused: false });
     expect(
@@ -370,10 +372,9 @@ describe('Э1 existing course → exact versions → runs → inherited particip
     ).toBe(lessonA);
     expect(
       (
-        await admin.query(
-          'SELECT source_lesson_id FROM course_version_media WHERE version_id=$1',
-          [v1.version_id],
-        )
+        await admin.query('SELECT source_lesson_id FROM course_version_media WHERE version_id=$1', [
+          v1.version_id,
+        ])
       ).rows,
     ).toEqual([{ source_lesson_id: lessonA }]);
 
@@ -414,9 +415,8 @@ describe('Э1 existing course → exact versions → runs → inherited particip
     expect((await visibleItems()).map((row) => row.id)).toEqual([task]);
 
     let revision = Number(
-      (
-        await admin.query('SELECT course_draft_revision($1,$2) AS revision', [principal, courseId])
-      ).rows[0].revision,
+      (await admin.query('SELECT course_draft_revision($1,$2) AS revision', [principal, courseId]))
+        .rows[0].revision,
     );
     const duplicated = (
       await admin.query('SELECT * FROM course_lesson_duplicate_v1($1,$2,$3,$4,$5)', [
@@ -446,7 +446,9 @@ describe('Э1 existing course → exact versions → runs → inherited particip
     expect((await visibleItems()).map((row) => row.id)).toEqual([task]);
 
     const v2 = (
-      await tx((client) => client.query('SELECT * FROM course_publish($1,$2)', [principal, courseId]))
+      await tx((client) =>
+        client.query('SELECT * FROM course_publish($1,$2)', [principal, courseId]),
+      )
     ).rows[0];
     expect(v2).toMatchObject({ result_code: 'ok', version_number: 2, reused: false });
     const v2Outline = (
@@ -469,10 +471,9 @@ describe('Э1 existing course → exact versions → runs → inherited particip
     ).toEqual([lessonB]);
     expect(
       (
-        await admin.query(
-          'SELECT source_lesson_id FROM course_version_media WHERE version_id=$1',
-          [v1.version_id],
-        )
+        await admin.query('SELECT source_lesson_id FROM course_version_media WHERE version_id=$1', [
+          v1.version_id,
+        ])
       ).rows,
     ).toEqual([{ source_lesson_id: lessonA }]);
 
@@ -521,9 +522,8 @@ describe('Э1 existing course → exact versions → runs → inherited particip
     ).toHaveLength(0);
 
     revision = Number(
-      (
-        await admin.query('SELECT course_draft_revision($1,$2) AS revision', [principal, courseId])
-      ).rows[0].revision,
+      (await admin.query('SELECT course_draft_revision($1,$2) AS revision', [principal, courseId]))
+        .rows[0].revision,
     );
     const hiddenB = (
       await admin.query('SELECT * FROM course_lesson_hidden_set_v1($1,$2,$3,true,$4)', [
@@ -549,28 +549,27 @@ describe('Э1 existing course → exact versions → runs → inherited particip
     revision = Number(shownA.draft_revision);
     expect((await visibleItems()).map((row) => row.id)).toEqual([task]);
     expect(
-      (
-        await admin.query('SELECT id FROM course_lessons WHERE id=$1 AND hidden=false', [lessonA])
-      ).rows,
+      (await admin.query('SELECT id FROM course_lessons WHERE id=$1 AND hidden=false', [lessonA]))
+        .rows,
     ).toEqual([{ id: lessonA }]);
 
     const v3 = (
-      await tx((client) => client.query('SELECT * FROM course_publish($1,$2)', [principal, courseId]))
+      await tx((client) =>
+        client.query('SELECT * FROM course_publish($1,$2)', [principal, courseId]),
+      )
     ).rows[0];
     expect(v3).toMatchObject({ result_code: 'ok', version_number: 3, reused: false });
     expect(
       (
-        await admin.query(
-          'SELECT source_lesson_id FROM course_version_media WHERE version_id=$1',
-          [v3.version_id],
-        )
+        await admin.query('SELECT source_lesson_id FROM course_version_media WHERE version_id=$1', [
+          v3.version_id,
+        ])
       ).rows,
     ).toEqual([{ source_lesson_id: lessonA }]);
 
     revision = Number(
-      (
-        await admin.query('SELECT course_draft_revision($1,$2) AS revision', [principal, courseId])
-      ).rows[0].revision,
+      (await admin.query('SELECT course_draft_revision($1,$2) AS revision', [principal, courseId]))
+        .rows[0].revision,
     );
     const hiddenSection = (
       await admin.query('SELECT * FROM course_section_hidden_set_v1($1,$2,$3,true,$4)', [
@@ -585,25 +584,27 @@ describe('Э1 existing course → exact versions → runs → inherited particip
     expect(await visibleItems()).toHaveLength(0);
 
     const v4 = (
-      await tx((client) => client.query('SELECT * FROM course_publish($1,$2)', [principal, courseId]))
+      await tx((client) =>
+        client.query('SELECT * FROM course_publish($1,$2)', [principal, courseId]),
+      )
     ).rows[0];
     expect(v4).toMatchObject({ result_code: 'ok', version_number: 4, reused: false });
     expect(
-      (
-        await admin.query('SELECT outline FROM course_versions WHERE id=$1', [v4.version_id])
-      ).rows[0].outline.sections,
+      (await admin.query('SELECT outline FROM course_versions WHERE id=$1', [v4.version_id]))
+        .rows[0].outline.sections,
     ).toEqual([]);
     expect(
-      (await admin.query('SELECT source_lesson_id FROM course_version_media WHERE version_id=$1', [
-        v4.version_id,
-      ])).rows,
+      (
+        await admin.query('SELECT source_lesson_id FROM course_version_media WHERE version_id=$1', [
+          v4.version_id,
+        ])
+      ).rows,
     ).toHaveLength(0);
     expect(
       (
-        await admin.query(
-          'SELECT source_lesson_id FROM course_version_media WHERE version_id=$1',
-          [v3.version_id],
-        )
+        await admin.query('SELECT source_lesson_id FROM course_version_media WHERE version_id=$1', [
+          v3.version_id,
+        ])
       ).rows,
     ).toEqual([{ source_lesson_id: lessonA }]);
     expect(
@@ -619,9 +620,8 @@ describe('Э1 existing course → exact versions → runs → inherited particip
     ).toHaveLength(1);
 
     revision = Number(
-      (
-        await admin.query('SELECT course_draft_revision($1,$2) AS revision', [principal, courseId])
-      ).rows[0].revision,
+      (await admin.query('SELECT course_draft_revision($1,$2) AS revision', [principal, courseId]))
+        .rows[0].revision,
     );
     const shownSection = (
       await admin.query('SELECT * FROM course_section_hidden_set_v1($1,$2,$3,false,$4)', [
@@ -635,7 +635,9 @@ describe('Э1 existing course → exact versions → runs → inherited particip
     expect((await visibleItems()).map((row) => row.id)).toEqual([task]);
     expect(
       (
-        await admin.query('SELECT id FROM course_sections WHERE id=$1 AND hidden=false', [sectionId])
+        await admin.query('SELECT id FROM course_sections WHERE id=$1 AND hidden=false', [
+          sectionId,
+        ])
       ).rows,
     ).toEqual([{ id: sectionId }]);
   });
