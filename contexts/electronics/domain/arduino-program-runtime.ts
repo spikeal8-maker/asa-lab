@@ -6,6 +6,16 @@ import {
   type ArduinoPulseWaitState,
 } from './arduino-pulse-runtime.js';
 import {
+  appendArduinoSerialTx,
+  beginArduinoSerial,
+  formatArduinoSerialNumber,
+  initialArduinoSerialState,
+  isArduinoSerialState,
+  parseArduinoSerialStringLiteral,
+  splitArduinoSerialArguments,
+  type ArduinoSerialState,
+} from './arduino-serial-runtime.js';
+import {
   ArduinoArithmeticError,
   assignBinding,
   binaryValue,
@@ -110,6 +120,7 @@ export interface ArduinoRuntimeState {
   readonly nextEventSequence: number;
   readonly eventQueue: readonly ArduinoRuntimeEvent[];
   readonly pulseWait?: ArduinoPulseWaitState | null;
+  readonly serial?: ArduinoSerialState;
   readonly variables: Readonly<Record<string, number>>;
   readonly locals: Readonly<Record<string, number>>;
   readonly scopes: readonly ArduinoScopeSnapshot[];
@@ -164,6 +175,7 @@ interface RuntimeState {
   readonly actions: ArduinoProgramAction[];
   readonly diagnostics: ArduinoRuntimeDiagnostic[];
   pulseWait: ArduinoPulseWaitState | null;
+  serial: ArduinoSerialState | null;
   simulationTimeMs: number;
   statementCount: number;
 }
@@ -298,6 +310,7 @@ function runtimeStateIsValid(state: ArduinoRuntimeState): boolean {
       (isArduinoPulseWaitState(state.pulseWait) &&
         isArduinoGpioTerminal(state.pulseWait.terminal) &&
         state.pulseWait.deadlineMicroseconds <= MAX_CLOCK_MICROSECONDS)) &&
+    (state.serial === undefined || isArduinoSerialState(state.serial)) &&
     state.eventQueue.every(
       (event, index) =>
         event !== null &&
@@ -976,9 +989,46 @@ function splitArguments(source: string): readonly string[] {
   return parts;
 }
 
+function executeSerialMemberStatement(statement: string, state: RuntimeState): boolean {
+  const call = /^Serial\s*\.\s*(begin|print|println)\s*\(([\s\S]*)\)$/.exec(statement);
+  if (!call) return false;
+  const method = call[1]!;
+  const argumentsList = splitArduinoSerialArguments(call[2] ?? '');
+  const expected = method === 'begin' || method === 'print' ? [1, 1] : [0, 1];
+  if (argumentsList.length < expected[0] || argumentsList.length > expected[1])
+    throw new SyntaxError(`Serial.${method}() получил неверное число аргументов.`);
+
+  if (method === 'begin') {
+    const rawBaud = evaluateValue(argumentsList[0]!, state);
+    const baud = convertValue(rawBaud, 'unsigned long', state.validateOnly).value;
+    if (!state.validateOnly) {
+      if (!Number.isSafeInteger(rawBaud.value) || rawBaud.value <= 0 || rawBaud.value > 0xffffffff)
+        throw new SyntaxError('Serial.begin() требует положительную baud rate типа unsigned long.');
+      state.serial = beginArduinoSerial(state.serial ?? initialArduinoSerialState(), baud);
+    }
+    return true;
+  }
+
+  let text = '';
+  if (argumentsList.length === 1) {
+    const literal = parseArduinoSerialStringLiteral(argumentsList[0]!);
+    if (literal !== null) text = literal;
+    else text = formatArduinoSerialNumber(evaluateValue(argumentsList[0]!, state).value);
+  }
+  if (!state.validateOnly)
+    state.serial = appendArduinoSerialTx(
+      state.serial ?? initialArduinoSerialState(),
+      microsecondsFromMilliseconds(state.simulationTimeMs),
+      text,
+      method === 'println',
+    );
+  return true;
+}
+
 function executeSimpleStatement(statement: string, state: RuntimeState): void {
   const compact = statement.trim();
   if (!compact || !consumeStatement(state)) return;
+  if (executeSerialMemberStatement(compact, state)) return;
 
   const declaration = parseDeclaration(compact);
   if (declaration) {
@@ -1486,6 +1536,7 @@ function compileArduinoProgram(source: string): ArduinoProgramCompilation {
       actions: [],
       diagnostics: [],
       pulseWait: null,
+      serial: null,
       simulationTimeMs: 0,
       statementCount: 0,
     };
@@ -1706,6 +1757,7 @@ function advanceRuntime(
   const resetAtMs = previous && previous.virtualTimeMs <= targetTimeMs ? targetTimeMs : 0;
   let resumeAtMs = compatible ? previous.resumeAtMs : resetAtMs;
   let pulseWait = compatible ? (previous.pulseWait ?? null) : null;
+  let serial = compatible ? (previous.serial ?? null) : null;
   if (clocked && compatible && pulseWait && pulseInputSample && resumeAtMs > targetTimeMs)
     resumeAtMs = targetTimeMs;
   let phase: ArduinoRuntimeState['phase'] = compatible ? previous.phase : 'setup';
@@ -1753,6 +1805,7 @@ function advanceRuntime(
       actions: [],
       diagnostics,
       pulseWait: null,
+      serial: null,
       simulationTimeMs: resetAtMs,
       statementCount: 0,
     };
@@ -1847,6 +1900,7 @@ function advanceRuntime(
       actions,
       diagnostics,
       pulseWait,
+      serial,
       simulationTimeMs: resumeAtMs,
       statementCount: clocked ? 0 : continuousStatementCount,
     };
@@ -1897,6 +1951,7 @@ function advanceRuntime(
       }
     }
     pulseWait = instructionState.pulseWait;
+    serial = instructionState.serial;
     const consumed = instructionState.statementCount - statementCountBefore;
     advanceStatementCount += consumed;
     continuousStatementCount =
@@ -1949,6 +2004,7 @@ function advanceRuntime(
     outputVoltages.clear();
     tones.clear();
     pulseWait = null;
+    serial = null;
     resumeAtMs = Math.max(resumeAtMs, targetTimeMs);
   }
   return {
@@ -1970,6 +2026,7 @@ function advanceRuntime(
       nextEventSequence,
       eventQueue,
       ...(pulseWait ? { pulseWait } : {}),
+      ...(serial ? { serial } : {}),
       variables: scopeNumbers(scopes.slice(0, 1)),
       locals: scopeNumbers(scopes.slice(1)),
       scopes: serializeScopes(scopes),

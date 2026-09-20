@@ -62,7 +62,9 @@ export const ARDUINO_BLOCK_SUPPORT = {
   asa_tone: LIMITED('Частота передаётся пьезоэлементу, но не моделируется как общий сигнал.'),
   asa_play_note: LIMITED('Частота передаётся пьезоэлементу, но не моделируется как общий сигнал.'),
   asa_no_tone: LIMITED('Останавливает поддерживаемый ограниченный tone()-выход.'),
-  asa_serial_print: UNSUPPORTED('Монитор порта пока не подключён к Serial в программе.'),
+  asa_serial_print: LIMITED(
+    'Передаёт детерминированный Serial TX в bounded runtime history без UI Monitor и UART bit timing.',
+  ),
   asa_rgb_write: LIMITED('Три ШИМ-канала представлены средними постоянными напряжениями.'),
   asa_lcd_setup: UNSUPPORTED('ЖК-экран ещё не связан с Arduino-рантаймом.'),
   asa_lcd_print: UNSUPPORTED('ЖК-экран ещё не связан с Arduino-рантаймом.'),
@@ -155,9 +157,9 @@ export const ARDUINO_TEXT_COMMAND_SUPPORT = {
   ),
   random: UNSUPPORTED('Случайные числа не входят в детерминированный рантайм.'),
   randomSeed: UNSUPPORTED('Случайные числа не входят в детерминированный рантайм.'),
-  'Serial.begin': UNSUPPORTED('Serial Monitor ещё не связан с программой.'),
-  'Serial.print': UNSUPPORTED('Serial Monitor ещё не связан с программой.'),
-  'Serial.println': UNSUPPORTED('Serial Monitor ещё не связан с программой.'),
+  'Serial.begin': LIMITED('Сохраняет baud rate как deterministic TX metadata без UART bit timing.'),
+  'Serial.print': LIMITED('Пишет numeric или quoted-literal TX в bounded runtime history.'),
+  'Serial.println': LIMITED('Пишет TX с завершающим переводом строки в bounded runtime history.'),
   'Serial.available': UNSUPPORTED('Serial Monitor ещё не связан с программой.'),
   'Serial.read': UNSUPPORTED('Serial Monitor ещё не связан с программой.'),
   HIGH: SUPPORTED('Высокий логический уровень поддерживается.'),
@@ -191,7 +193,9 @@ export const ARDUINO_LANGUAGE_FEATURE_SUPPORT = {
   ),
   'type-bool': SUPPORTED('bool и boolean хранят true/false; числовое преобразование даёт 1/0.'),
   'type-byte': SUPPORTED('byte — 8 бит без знака; присваивание целого выполняется по модулю 256.'),
-  'type-text': UNSUPPORTED('char, String и операции со строками ещё не исполняются.'),
+  'type-text': UNSUPPORTED(
+    'char, String и строковые операции не исполняются; quoted literal разрешён только как аргумент Serial.print/println.',
+  ),
   constant: SUPPORTED(
     'const требует начального значения и запрещает последующие присваивания и инкремент.',
   ),
@@ -369,14 +373,20 @@ export function analyseArduinoSourceSupport(
   const memberCallRanges: Array<{ readonly start: number; readonly end: number }> = [];
   for (const match of clean.matchAll(/\b([A-Za-z_]\w*)\s*\.\s*([A-Za-z_]\w*)\s*\(/g)) {
     const start = match.index ?? 0;
+    const command = `${match[1]}.${match[2]}`;
+    const support = ARDUINO_TEXT_COMMAND_SUPPORT[command as ArduinoTextCommand];
     memberCallRanges.push({ start, end: start + match[0].length });
-    add(
-      'member-call',
-      'unsupported',
-      start,
-      Math.max(1, match[0].length - 1),
-      `${match[1]}.${match[2]}() пока не исполняется Arduino-рантаймом.`,
-    );
+    if (!support || support.status === 'unsupported') {
+      add(
+        'member-call',
+        'unsupported',
+        start,
+        Math.max(1, match[0].length - 1),
+        support?.summary ?? `${command}() пока не исполняется Arduino-рантаймом.`,
+      );
+    } else if (support.status === 'limited') {
+      add('bounded-timing', 'limited', start, Math.max(1, match[0].length - 1), support.summary);
+    }
   }
 
   for (const match of clean.matchAll(/\b([A-Za-z_]\w*)\s*\(/g)) {
