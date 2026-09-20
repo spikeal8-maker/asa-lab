@@ -8,6 +8,7 @@ let projectId: string;
 let runtimeUrl: string;
 const evidenceDir = 'reports/blocks/product-integration';
 const barkAssetId = 'cd8fa8390b0efdd281882533fbfcfcfb';
+const popAssetId = '83a9787d4cb6f3b7632b4ddfebf74367';
 
 async function realRuntimeBootstrapFixture() {
   const imageBytes = Buffer.from(
@@ -493,6 +494,113 @@ test('runtime-session opens the real server project and reads declared costume a
     expect(requests.some((url) => url.includes('fixture.1.signature'))).toBe(false);
     expect(fixture.pageErrors).toEqual([]);
     await page.screenshot({ path: `${evidenceDir}/real-runtime-bootstrap.png` });
+  } finally {
+    await fixture.close();
+  }
+});
+
+test('existing project adding Abby dirties default-cached Pop and completes ordinary no-click autosave', async () => {
+  const serverProject = await realRuntimeBootstrapFixture();
+  const fixture = await createProtocolFixture({
+    product: true,
+    locale: 'en-US',
+    runtimeSession: {
+      draftRevision: 23,
+      projectJson: serverProject.projectJson,
+      assets: serverProject.assets,
+    },
+    runtimeAssets: serverProject.runtimeAssets,
+  });
+  try {
+    let page = await fixture.context.newPage();
+    await page.goto(`${parentOrigin}/product`, { waitUntil: 'domcontentloaded' });
+    let frame = page.frameLocator('iframe[title="Scratch runtime"]');
+    await expect(frame.locator('[data-asa-host-shell]')).toHaveAttribute(
+      'data-editor-state',
+      'ready',
+      { timeout: 45000 },
+    );
+
+    await frame.getByRole('button', { name: 'Choose a Sprite' }).first().click();
+    await frame.getByText('Abby', { exact: true }).click();
+    await expect(frame.getByPlaceholder('Name', { exact: true })).toHaveValue('Abby');
+
+    expect(fixture.getServerRevision()).toBe(23);
+    await expect.poll(() => fixture.getServerRevision(), { timeout: 30000 }).toBe(24);
+
+    const popFile = `${popAssetId}.wav`;
+    const popPuts = fixture.runtimeAssetPutEvidence.filter((item) => item.assetFile === popFile);
+    expect(popPuts.length).toBeGreaterThanOrEqual(1);
+    expect(popPuts.at(-1)).toMatchObject({
+      authorizationOk: true,
+      cookiePresent: false,
+      urlHasCapability: false,
+      originOk: true,
+      identityOk: true,
+      contentTypeOk: true,
+    });
+    expect(fixture.runtimeDraftEvidence.length).toBeGreaterThan(0);
+
+    const savedDocument = fixture.runtimeDraftEvidence.at(-1)?.body?.document?.projectJson as
+      | {
+          targets?: Array<{
+            name?: string;
+            costumes?: Array<{ assetId?: string; dataFormat?: string }>;
+            sounds?: Array<{ name?: string; assetId?: string; dataFormat?: string }>;
+          }>;
+        }
+      | undefined;
+    const abby = savedDocument?.targets?.find((target) => target.name === 'Abby');
+    expect(abby).toBeTruthy();
+    expect(
+      abby?.sounds?.some((sound) => sound.name === 'Pop' && sound.assetId === popAssetId),
+    ).toBe(true);
+
+    const abbyAssetFiles = [...(abby?.costumes ?? []), ...(abby?.sounds ?? [])].map(
+      (asset) => `${asset.assetId}.${asset.dataFormat}`,
+    );
+    const uploaded = new Set(fixture.runtimeAssetPutEvidence.map((item) => item.assetFile));
+    for (const assetFile of abbyAssetFiles) expect(uploaded.has(assetFile)).toBe(true);
+
+    await fixture.reopenContextWithIndexedDB();
+    page = await fixture.context.newPage();
+    await page.goto(`${parentOrigin}/product`, { waitUntil: 'domcontentloaded' });
+    frame = page.frameLocator('iframe[title="Scratch runtime"]');
+    await expect(frame.locator('[data-asa-host-shell]')).toHaveAttribute(
+      'data-editor-state',
+      'ready',
+      { timeout: 45000 },
+    );
+    await expect(frame.locator('[data-asa-host-shell]')).toHaveAttribute(
+      'data-project-source',
+      'runtime-session',
+    );
+    const abbyButton = frame.getByRole('button', { name: 'Abby', exact: true });
+    await expect(abbyButton).toBeVisible();
+    await abbyButton.click();
+    await frame.getByRole('tab', { name: 'Costumes', exact: true }).click();
+    await expect
+      .poll(() =>
+        abbyButton
+          .locator('img')
+          .first()
+          .evaluate((image) => (image as HTMLImageElement).naturalWidth),
+      )
+      .toBeGreaterThan(0);
+    await frame.getByRole('tab', { name: 'Sounds', exact: true }).click();
+    await expect(
+      frame
+        .getByRole('tabpanel', { name: 'Sounds', exact: true })
+        .getByText('Pop', { exact: true }),
+    ).toBeVisible();
+
+    const scratchFoundationWrites = fixture.allRequests.filter(({ method, url }) => {
+      if (['GET', 'HEAD', 'OPTIONS'].includes(method) || !/^https?:/.test(url)) return false;
+      const host = new URL(url).hostname.toLowerCase();
+      return host.includes('scratch.mit.edu') || host.includes('scratchfoundation');
+    });
+    expect(scratchFoundationWrites).toEqual([]);
+    expect(fixture.pageErrors).toEqual([]);
   } finally {
     await fixture.close();
   }
