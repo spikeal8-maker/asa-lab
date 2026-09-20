@@ -143,6 +143,7 @@ function createRuntimeStorage({
   });
   return { storage, calls, reference };
 }
+
 test('new project storage binds the default project to the ASA UUID', async () => {
   const calls = [];
   const api = loadHost('storage', {
@@ -1000,7 +1001,10 @@ test('draft network and malformed success never advance confirmed revision', asy
     const { storage } = createPersistenceStorage(options);
     await storeCanonicalAsset(storage, asset);
     await assert.rejects(
-      storage.saveProject(PROJECT_ID, JSON.stringify(projectWithAssets('Draft malformed', [asset]))),
+      storage.saveProject(
+        PROJECT_ID,
+        JSON.stringify(projectWithAssets('Draft malformed', [asset])),
+      ),
       /draft_write_failed|draft_revision_invalid/,
     );
     assert.equal(storage.getConfirmedRevision(), 7);
