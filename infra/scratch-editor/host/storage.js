@@ -24,6 +24,7 @@
   const ASSET_ID_RE = /^[a-f0-9]{32}$/;
   const SHA256_RE = /^[a-f0-9]{64}$/;
   const RECOVERY_ASSET_TOTAL_LIMIT = 250 * 1024 * 1024;
+  const UPSTREAM_ASSET_STORE_CONCURRENCY = 4;
   const RECOVERY_ASSET_LIMITS = {
     svg: 10 * 1024 * 1024,
     png: 10 * 1024 * 1024,
@@ -123,7 +124,8 @@
     let confirmedFingerprint = options.projectJson === null ? null : undefined;
     let unresolvedMutation = null;
     let upstreamSaveGeneration = null;
-    let upstreamAssetStoreTail = Promise.resolve();
+    const upstreamAssetStoreQueue = [];
+    let activeUpstreamAssetStores = 0;
     let durableProjectGeneration = 0;
     let upstreamSaveSequence = 0;
     let latestUpstreamSaveOutcome = null;
@@ -294,14 +296,34 @@
     );
 
     const upstreamStore = scratchStorage.store.bind(scratchStorage);
-    const enqueueUpstreamAssetStore = (operation) => {
-      const scheduled = upstreamAssetStoreTail.then(operation, operation);
-      upstreamAssetStoreTail = scheduled.then(
-        () => undefined,
-        () => undefined,
-      );
-      return scheduled;
+    const drainUpstreamAssetStoreQueue = () => {
+      while (
+        activeUpstreamAssetStores < UPSTREAM_ASSET_STORE_CONCURRENCY &&
+        upstreamAssetStoreQueue.length > 0
+      ) {
+        const queued = upstreamAssetStoreQueue.shift();
+        activeUpstreamAssetStores += 1;
+        Promise.resolve()
+          .then(queued.operation)
+          .then(
+            (value) => {
+              activeUpstreamAssetStores -= 1;
+              queued.resolve(value);
+              drainUpstreamAssetStoreQueue();
+            },
+            (error) => {
+              activeUpstreamAssetStores -= 1;
+              queued.reject(error);
+              drainUpstreamAssetStoreQueue();
+            },
+          );
+      }
     };
+    const enqueueUpstreamAssetStore = (operation) =>
+      new Promise((resolve, reject) => {
+        upstreamAssetStoreQueue.push({ operation, resolve, reject });
+        drainUpstreamAssetStoreQueue();
+      });
     scratchStorage.store = async (assetType, dataFormat, data, assetId) => {
       const format = dataFormat || assetType?.runtimeFormat;
       if (
