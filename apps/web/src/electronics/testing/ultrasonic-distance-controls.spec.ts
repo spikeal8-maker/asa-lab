@@ -14,7 +14,11 @@ import {
 let host: HTMLDivElement | null = null;
 let root: Root | null = null;
 
-function render(type: UltrasonicDistanceComponentTypeId, distanceMeters: number, onChange = vi.fn()) {
+function render(
+  type: UltrasonicDistanceComponentTypeId,
+  distanceMeters: number,
+  onChange = vi.fn(),
+) {
   host ??= document.body.appendChild(document.createElement('div'));
   root ??= createRoot(host);
   act(() =>
