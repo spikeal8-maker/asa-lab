@@ -376,10 +376,12 @@ BEGIN
         RETURN QUERY SELECT 'forbidden'::varchar, NULL::uuid, NULL::varchar, false;
         RETURN;
     END IF;
-    IF p_source_kind = 'course' AND v_course.status <> 'open' THEN
-        RETURN QUERY SELECT 'course_source_forbidden'::varchar,
-                            NULL::uuid, NULL::varchar, false;
-        RETURN;
+    IF p_source_kind = 'course' THEN
+        IF v_course.status <> 'open' THEN
+            RETURN QUERY SELECT 'course_source_forbidden'::varchar,
+                                NULL::uuid, NULL::varchar, false;
+            RETURN;
+        END IF;
     END IF;
 
     INSERT INTO public.activity_runs (
