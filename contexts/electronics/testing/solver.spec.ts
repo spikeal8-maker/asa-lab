@@ -969,6 +969,21 @@ describe('electrical model registry', () => {
       support: 'supported',
       topology: 'multi-junction',
     });
+    const sonar = component('sonar', 'visual', 0, {
+      componentTypeId: 'ultrasonic-hc-sr04',
+      variantId: 'ultrasonic-hc-sr04',
+      pinIds: ['vcc', 'trigger', 'echo', 'gnd'],
+    });
+    expect(electricalModelIdentityForComponent(sonar)).toMatchObject({
+      electricalModelId: 'hc-sr04-distance-sensor',
+      modelProfileId: 'hc-sr04-canonical-echo-v1',
+    });
+    expect(electricalModelFor(sonar)).toMatchObject({
+      id: 'hc-sr04-distance-sensor',
+      support: 'supported',
+      topology: 'multi-junction',
+      requiredTerminals: ['vcc', 'trigger', 'echo', 'gnd'],
+    });
   });
 });
 
