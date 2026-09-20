@@ -438,10 +438,25 @@ export interface ClassroomCourseRun {
   }>;
 }
 
+export interface CourseActivityOccurrence {
+  blockId: string;
+  activityRunId: string;
+  classroomAssignmentId: string;
+  learningActivityVersionId: string;
+  title: string;
+  moduleKey: string;
+  projectId: string | null;
+  submittedAt: string | null;
+  snapshotRevision: number | null;
+  updatedAt: string | null;
+  canonicalState: CanonicalLearningSurfaceState | null;
+}
+
 export interface SeatCourseRunLesson extends Omit<
   ClassroomCourseRunLesson,
   'seatCount' | 'startedCount' | 'submittedCount' | 'completedCount'
 > {
+  activityOccurrences: CourseActivityOccurrence[];
   projectId: string | null;
   submittedAt: string | null;
   snapshotRevision: number | null;
