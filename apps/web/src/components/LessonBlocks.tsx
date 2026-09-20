@@ -134,6 +134,9 @@ export function LessonBlocks({
             </figure>
           );
         }
+        if (block.type === 'activity') {
+          return null;
+        }
         if (block.type === 'audio') {
           if (!isLocalMedia(block.url)) {
             return (

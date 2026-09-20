@@ -53,6 +53,7 @@ const BLOCK_TYPES = new Set([
   'formula',
   'table',
   'divider',
+  'activity',
 ]);
 const ASSET_URL_PATTERN = /^\/assets\/[A-Za-z0-9][A-Za-z0-9/_.%-]*$/;
 const CODE_TEXT_LIMIT = 20_000;
@@ -73,6 +74,7 @@ const BLOCK_FIELDS: Record<string, ReadonlySet<string>> = {
   formula: new Set(['id', 'type', 'text', 'hidden']),
   table: new Set(['id', 'type', 'rows', 'hidden']),
   divider: new Set(['id', 'type', 'hidden']),
+  activity: new Set(['id', 'type', 'learningActivityVersionId', 'hidden']),
 };
 
 type LessonBlock = Record<string, unknown> & { id: string; type: string };
@@ -159,6 +161,12 @@ function lessonBlocks(raw: unknown, legacyContent: string | null): LessonBlock[]
     )
       return null;
     if (block['type'] === 'table' && !tableRowsValid(block['rows'])) return null;
+    if (
+      block['type'] === 'activity' &&
+      (typeof block['learningActivityVersionId'] !== 'string' ||
+        !UUID_PATTERN.test(block['learningActivityVersionId']))
+    )
+      return null;
 
     if (['image', 'video', 'audio', 'file'].includes(String(block['type']))) {
       if (
@@ -496,6 +504,23 @@ export class CoursesController {
   private requireUuid(value: string, label: string): void {
     if (!UUID_PATTERN.test(value)) {
       throw new HttpException(error('validation_error', `${label} is invalid`), 400);
+    }
+  }
+
+  private async validateActivityBlocks(
+    context: ActiveContext,
+    blocks: LessonBlock[],
+  ): Promise<void> {
+    if (!blocks.some((block) => block.type === 'activity')) return;
+    const result = await this.requirePool().query(
+      'SELECT course_activity_blocks_authorized($1,$2,$3::jsonb) AS ok',
+      [context.principalId, context.tenantId, JSON.stringify(blocks)],
+    );
+    if (result.rows[0]?.ok !== true) {
+      throw new HttpException(
+        error('validation_error', 'Проверьте опубликованную версию практической работы.'),
+        400,
+      );
     }
   }
 
@@ -1450,6 +1475,7 @@ export class CoursesController {
         400,
       );
     }
+    await this.validateActivityBlocks(context, blocks);
     if (kind !== 'material' && kind !== 'assignment') {
       throw new HttpException(error('validation_error', 'Неизвестный тип урока.'), 400);
     }

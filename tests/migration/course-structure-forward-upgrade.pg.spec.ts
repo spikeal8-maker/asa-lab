@@ -184,7 +184,7 @@ describe('Course Builder structure forward upgrade', () => {
 
       const upgrade = await pool.connect();
       try {
-        expect(await applyIsolatedTestPlan(upgrade, plan)).toBe(3);
+        expect(await applyIsolatedTestPlan(upgrade, plan)).toBe(4);
         expect(await applyIsolatedTestPlan(upgrade, plan)).toBe(0);
       } finally {
         upgrade.release();
