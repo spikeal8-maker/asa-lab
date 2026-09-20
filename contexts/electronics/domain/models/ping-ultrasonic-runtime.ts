@@ -1,9 +1,18 @@
+import type { SchematicComponent, Terminal } from '../document.js';
 import { hcSr04EchoWidthMicroseconds } from './hc-sr04-runtime.js';
 
 export const PING_ULTRASONIC_PROFILE = Object.freeze({
   componentTypeId: 'ultrasonic-sensor',
+  minimumDistanceMeters: 0.02,
+  maximumDistanceMeters: 3,
+  defaultDistanceMeters: 1,
   minimumTriggerHighMicroseconds: 2,
   echoStartLatencyMicroseconds: 350,
+  minimumSupplyVolt: 4.5,
+  maximumSupplyVolt: 5.5,
+  digitalHighThresholdVolt: 2.5,
+  echoHighVolt: 5,
+  echoOutputResistanceOhm: 10,
 });
 
 type PingUltrasonicPhase = 'idle' | 'trigger-high' | 'echo-delay' | 'echo-high';
@@ -24,8 +33,35 @@ interface PingUltrasonicRuntimeStep {
   readonly echoChanged: boolean;
 }
 
+interface PingUltrasonicElectricalBranch {
+  readonly id: 'echo';
+  readonly terminal: 'signal';
+  readonly ground: 'gnd';
+  readonly targetVoltage: number;
+  readonly resistanceOhm: number;
+}
+
 function canonicalTime(value: number): boolean {
   return Number.isSafeInteger(value) && value >= 0;
+}
+
+export function isPingUltrasonic(component: SchematicComponent): boolean {
+  return (
+    component.componentTypeId === PING_ULTRASONIC_PROFILE.componentTypeId ||
+    component.variantId === PING_ULTRASONIC_PROFILE.componentTypeId
+  );
+}
+
+export function pingUltrasonicDistanceMeters(component: SchematicComponent): number | null {
+  if (!isPingUltrasonic(component)) return null;
+  const value =
+    component.stateProperties?.['distanceMeters'] ?? PING_ULTRASONIC_PROFILE.defaultDistanceMeters;
+  return typeof value === 'number' &&
+    Number.isFinite(value) &&
+    value >= PING_ULTRASONIC_PROFILE.minimumDistanceMeters &&
+    value <= PING_ULTRASONIC_PROFILE.maximumDistanceMeters
+    ? value
+    : null;
 }
 
 export function pingEchoWidthMicroseconds(distanceMeters: number): number {
@@ -72,6 +108,36 @@ export function pingNextDueMicroseconds(state: PingUltrasonicRuntimeState): numb
 
 export function pingEchoHigh(state: PingUltrasonicRuntimeState): boolean {
   return state.powered && state.phase === 'echo-high';
+}
+
+export function pingUltrasonicElectricalBranch(
+  state: PingUltrasonicRuntimeState,
+): PingUltrasonicElectricalBranch | null {
+  if (!pingEchoHigh(state)) return null;
+  return {
+    id: 'echo',
+    terminal: 'signal',
+    ground: 'gnd',
+    targetVoltage: PING_ULTRASONIC_PROFILE.echoHighVolt,
+    resistanceOhm: PING_ULTRASONIC_PROFILE.echoOutputResistanceOhm,
+  };
+}
+
+export function pingUltrasonicInputLevels(
+  terminalVoltages: Readonly<Partial<Record<Terminal, number>>>,
+): {
+  readonly powered: boolean;
+  readonly signalHigh: boolean;
+} {
+  const ground = terminalVoltages.gnd ?? 0;
+  const supply = (terminalVoltages.vcc ?? 0) - ground;
+  const signal = (terminalVoltages.signal ?? 0) - ground;
+  return {
+    powered:
+      supply >= PING_ULTRASONIC_PROFILE.minimumSupplyVolt &&
+      supply <= PING_ULTRASONIC_PROFILE.maximumSupplyVolt,
+    signalHigh: signal >= PING_ULTRASONIC_PROFILE.digitalHighThresholdVolt,
+  };
 }
 
 export function advancePingUltrasonicDue(
