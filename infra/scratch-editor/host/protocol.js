@@ -11,7 +11,6 @@
   const PARENT_TYPES = new Set([
     'ASA_BLOCKS_INIT',
     'ASA_BLOCKS_TOKEN_UPDATE',
-    'ASA_BLOCKS_FLUSH_REQUEST',
     'ASA_BLOCKS_SAVE_BEFORE_EXIT_REQUEST',
     'ASA_BLOCKS_STOP',
   ]);
@@ -189,11 +188,6 @@
         if (!validRuntimeToken(message.runtimeToken)) return reject('runtime_token');
         session.runtimeToken = message.runtimeToken;
         options.onTokenUpdate?.();
-        return true;
-      }
-      if (message.messageType === 'ASA_BLOCKS_FLUSH_REQUEST') {
-        if (!nonEmptyString(message.requestId)) return reject('request_id');
-        options.onFlushRequest?.(message.requestId);
         return true;
       }
       if (message.messageType === 'ASA_BLOCKS_SAVE_BEFORE_EXIT_REQUEST') {
