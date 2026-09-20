@@ -105,6 +105,28 @@ describe('Course Builder structure forward upgrade', () => {
       ).rows[0];
       const versionId = published.version_id as string;
 
+      const compatibilitySample = Buffer.alloc(128, 9);
+      const compatibilityTask = (
+        await pool.query(
+          `INSERT INTO teacher_assignments(
+             tenant_id,owner_principal_id,title,module_key,
+             sample_bytes,sample_content_type,visibility
+           ) VALUES($1,$2,'Forward compatibility item','electronics',$3,'image/png','private')
+           RETURNING id`,
+          [teacher.tenantId, principal, compatibilitySample],
+        )
+      ).rows[0].id as string;
+      await pool.query(
+        'INSERT INTO course_items(course_id,assignment_id,position) VALUES($1,$2,99)',
+        [courseId, compatibilityTask],
+      );
+      await pool.query(
+        `INSERT INTO course_version_media(
+           version_id,source_lesson_id,sample_bytes,content_type,content_hash
+         ) VALUES($1,$2,$3,'image/png',md5(encode($3::bytea,'base64')))`,
+        [versionId, lessonId, compatibilitySample],
+      );
+
       const classroom = (
         await pool.query(
           "INSERT INTO classrooms(tenant_id,school_id,academic_period_id,title,created_by) VALUES($1,$2,$3,'Forward structure class',$4) RETURNING id",
@@ -147,6 +169,19 @@ describe('Course Builder structure forward upgrade', () => {
         )
       ).rows;
 
+      const courseItemsBefore = (
+        await pool.query(
+          'SELECT course_id,assignment_id,position,created_at FROM course_items WHERE course_id=$1 ORDER BY assignment_id',
+          [courseId],
+        )
+      ).rows;
+      const versionMediaBefore = (
+        await pool.query(
+          'SELECT version_id,source_lesson_id,sample_bytes,content_type,content_hash FROM course_version_media WHERE version_id=$1 ORDER BY source_lesson_id',
+          [versionId],
+        )
+      ).rows;
+
       const upgrade = await pool.connect();
       try {
         expect(await applyIsolatedTestPlan(upgrade, plan)).toBe(1);
@@ -185,6 +220,23 @@ describe('Course Builder structure forward upgrade', () => {
           )
         ).rows,
       ).toEqual(activityRunsBefore);
+
+      expect(
+        (
+          await pool.query(
+            'SELECT course_id,assignment_id,position,created_at FROM course_items WHERE course_id=$1 ORDER BY assignment_id',
+            [courseId],
+          )
+        ).rows,
+      ).toEqual(courseItemsBefore);
+      expect(
+        (
+          await pool.query(
+            'SELECT version_id,source_lesson_id,sample_bytes,content_type,content_hash FROM course_version_media WHERE version_id=$1 ORDER BY source_lesson_id',
+            [versionId],
+          )
+        ).rows,
+      ).toEqual(versionMediaBefore);
     } finally {
       await pool?.end();
       if (databaseCreated) await owner.query('DROP DATABASE "' + name + '"');
