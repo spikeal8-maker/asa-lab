@@ -352,6 +352,7 @@ describe('Э1 existing course → exact versions → runs → inherited particip
       ),
     );
     const courseId = saved.rows[0].id as string;
+    await tx((client) => client.query('SELECT course_outline_ensure($1)', [courseId]));
     const outline = await tx((client) =>
       client.query('SELECT * FROM course_outline_v4($1,$2,$3,$4)', [
         courseId,
