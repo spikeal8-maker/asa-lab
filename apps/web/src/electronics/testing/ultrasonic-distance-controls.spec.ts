@@ -37,8 +37,10 @@ function distanceInput(): HTMLInputElement {
 
 function changeDistance(value: string): void {
   const input = distanceInput();
+  const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+  if (!setValue) throw new Error('Missing native HTMLInputElement value setter.');
   act(() => {
-    input.value = value;
+    setValue.call(input, value);
     input.dispatchEvent(new Event('input', { bubbles: true }));
   });
 }
