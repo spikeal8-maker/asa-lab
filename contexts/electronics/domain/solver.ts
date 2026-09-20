@@ -41,6 +41,11 @@ import {
   type SoilObservation,
 } from './models/soil-moisture-model.js';
 import {
+  hcSr04ElectricalBranch,
+  isHcSr04,
+  type HcSr04RuntimeState,
+} from './models/hc-sr04-runtime.js';
+import {
   createLinearDcDevice,
   isAnySourceDevice,
   isFunctionGeneratorDevice,
@@ -407,6 +412,7 @@ interface InternalSolveOptions extends SolveOptions {
   readonly arduinoRuntimeStateById?: Readonly<Record<string, ArduinoRuntimeState>>;
   /** Internal read-only electrical solve: never advances the controller. */
   readonly heldArduinoSnapshots?: ReadonlyMap<string, ArduinoRuntimeSnapshot> | undefined;
+  readonly hcSr04RuntimeStateById?: ReadonlyMap<string, HcSr04RuntimeState> | undefined;
   /** RC clock only: honour t=0/sub-ms horizons and allow zero-duration observation. */
   readonly clockedRcTransient?: boolean;
   /** Algebraic event frame: preserve capacitor voltage, solve its instantaneous current. */
@@ -1289,6 +1295,7 @@ function solveCircuitBase(
     const frame = solveCircuitStep(document, {
       simulationTimeMs: targetTimeMs,
       heldArduinoSnapshots: options.heldArduinoSnapshots,
+      hcSr04RuntimeStateById: options.hcSr04RuntimeStateById,
       holdCapacitorVoltages: true,
       holdMotorStates: true,
       capacitorPreviousVoltageById: previousVoltageById,
@@ -1362,6 +1369,7 @@ function solveCircuitBase(
       ),
       arduinoRuntimeStateById,
       heldArduinoSnapshots: options.heldArduinoSnapshots,
+      hcSr04RuntimeStateById: options.hcSr04RuntimeStateById,
     } as const;
     let acceptedResult: SolveResult;
     let acceptedMotorStateById = motorStateById;
@@ -1445,6 +1453,7 @@ function solveCircuitBase(
         meterFuseBlownById: common.meterFuseBlownById,
         arduinoRuntimeStateById: arduinoRuntimeStatesFromController(firstHalf.controllerState),
         heldArduinoSnapshots: options.heldArduinoSnapshots,
+        hcSr04RuntimeStateById: options.hcSr04RuntimeStateById,
       });
       accumulatedIterations += full.iterations + firstHalf.iterations + secondHalf.iterations;
       const failedSolve = [full, firstHalf, secondHalf].find((result) => !result.solved);
@@ -1628,6 +1637,7 @@ function solveCircuitBase(
     if (failureOccurred) {
       const postFailure = solveCircuitStep(document, {
         heldArduinoSnapshots: options.heldArduinoSnapshots,
+        hcSr04RuntimeStateById: options.hcSr04RuntimeStateById,
         holdCapacitorVoltages: options.clockedRcTransient,
         simulationTimeMs: stepEndTimeMs,
         transientStepSeconds: TRANSIENT_FAILURE_EVENT_STEP_MS / 1_000,
@@ -1695,6 +1705,7 @@ function solveCircuitBase(
       finalResult ??
       solveCircuitStep(document, {
         heldArduinoSnapshots: options.heldArduinoSnapshots,
+        hcSr04RuntimeStateById: options.hcSr04RuntimeStateById,
         failedComponentIds,
         motorPreviousStateById: motorStateById,
         arduinoRuntimeStateById,
@@ -1896,10 +1907,12 @@ export function solveCircuitWithHeldArduino(
   document: ElectronicsDocument,
   simulationTimeMs: number,
   snapshots: ReadonlyMap<string, ArduinoRuntimeSnapshot>,
+  hcSr04States?: ReadonlyMap<string, HcSr04RuntimeState>,
 ): SolveResult {
   return solveCircuitStep(document, {
     simulationTimeMs,
     heldArduinoSnapshots: snapshots,
+    ...(hcSr04States ? { hcSr04RuntimeStateById: hcSr04States } : {}),
     suppressOscilloscopeTrace: true,
   });
 }
@@ -1974,11 +1987,13 @@ export function solveRcCircuitWithHeldArduino(
   simulationTimeMs: number,
   snapshots: ReadonlyMap<string, ArduinoRuntimeSnapshot>,
   transientState?: CapacitorTransientState,
+  hcSr04States?: ReadonlyMap<string, HcSr04RuntimeState>,
 ): SolveResult {
   return solveCircuitBase(document, {
     simulationTimeMs,
     ...(transientState ? { transientState } : {}),
     heldArduinoSnapshots: snapshots,
+    ...(hcSr04States ? { hcSr04RuntimeStateById: hcSr04States } : {}),
     clockedRcTransient: true,
     suppressOscilloscopeTrace: true,
   });
@@ -2135,6 +2150,12 @@ function solveCircuitStep(
             : [];
         })(),
   );
+  const hcSr04Branches = document.components.flatMap((component) => {
+    if (!isHcSr04(component) || failedComponentIds.has(component.id)) return [];
+    const state = options.hcSr04RuntimeStateById?.get(component.id);
+    const branch = state ? hcSr04ElectricalBranch(state) : null;
+    return branch ? [{ component, ...branch }] : [];
+  });
   const empty = (
     status: Exclude<SimulationSolveStatus, 'solved'>,
     iterations = 0,
@@ -2585,7 +2606,7 @@ function solveCircuitStep(
     };
 
     for (const variable of nodeVariables.values()) matrix[variable]![variable] += GMIN;
-    for (const branch of arduinoBranches) {
+    for (const branch of [...arduinoBranches, ...hcSr04Branches]) {
       const positive = physicalNodeIndex(branch.component, branch.terminal);
       const ground = physicalNodeIndex(branch.component, branch.ground);
       const conductance = 1 / branch.resistanceOhm;
@@ -2594,7 +2615,7 @@ function solveCircuitStep(
     }
     for (const component of document.components) {
       if (failedComponentIds.has(component.id)) continue;
-      if (isArduinoUno(component)) continue;
+      if (isArduinoUno(component) || isHcSr04(component)) continue;
       if (!isSimulated(component) || component.kind === 'source') continue;
       if (['led', 'diode', 'rgb-led', 'seven-segment', 'transistor'].includes(component.kind))
         continue;

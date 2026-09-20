@@ -380,7 +380,7 @@ describe('owner SVG integration in the real Electronics document', () => {
     expect(families.find((family) => family.familyId === 'ultrasonic-sensor')).toMatchObject({
       defaultVariantId: 'ultrasonic-sensor',
       enabled: true,
-      simulationStatus: 'not_yet_supported',
+      simulationStatus: 'supported',
     });
     expect(
       families
@@ -427,13 +427,21 @@ describe('owner SVG integration in the real Electronics document', () => {
       enabled: true,
       simulationStatus: 'supported',
     });
-    for (const componentId of ['ultrasonic-hc-sr04', 'pir-sensor']) {
-      expect(productionCatalogEntry(componentId), componentId).toMatchObject({
-        enabled: true,
-        simulationSupported: false,
-        catalogStatus: 'enabled',
-      });
-    }
+    expect(productionCatalogEntry('ultrasonic-hc-sr04')).toMatchObject({
+      enabled: true,
+      simulationSupported: true,
+      catalogStatus: 'enabled',
+    });
+    expect(productionCatalogEntry('ultrasonic-sensor')).toMatchObject({
+      enabled: true,
+      simulationSupported: false,
+      catalogStatus: 'enabled',
+    });
+    expect(productionCatalogEntry('pir-sensor')).toMatchObject({
+      enabled: true,
+      simulationSupported: false,
+      catalogStatus: 'enabled',
+    });
     expect(families.find((family) => family.familyId === 'temperature-sensor')).toMatchObject({
       defaultVariantId: 'temperature-sensor',
       enabled: true,

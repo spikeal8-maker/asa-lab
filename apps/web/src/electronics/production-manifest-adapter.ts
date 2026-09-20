@@ -191,6 +191,7 @@ const SIMULATED_TYPES = new Set([
   'photoresistor',
   'temperature-sensor',
   'soil-moisture-sensor',
+  'ultrasonic-hc-sr04',
   'diode-do35',
   'diode-do41',
   'transistor-npn',

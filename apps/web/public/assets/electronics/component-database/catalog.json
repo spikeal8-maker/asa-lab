@@ -29838,8 +29838,8 @@
           "channels": []
         }
       ],
-      "simulationSupport": "unsupported_fail_closed",
-      "blockReason": "Размещение, соединение и схема доступны; математическая модель пока не реализована.",
+      "simulationSupport": "hc_sr04_canonical_echo_v1",
+      "blockReason": null,
       "catalogTier": "core",
       "metadataOnlyProof": {
         "source": "owner_direct_upload",
