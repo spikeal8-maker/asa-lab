@@ -347,12 +347,25 @@ describe('Э1 existing course → exact versions → runs → inherited particip
 
     const saved = await tx((client) =>
       client.query(
-        "SELECT * FROM course_save_v2($1,$2,NULL,'Hidden media course',NULL,NULL,'public',NULL,$3)",
+        "SELECT * FROM course_save_v2($1,$2,NULL,'Hidden media course',NULL,NULL,'private',NULL,$3)",
         [principal, teacher.tenantId, 'course01:hidden-media-course:' + ++seq],
       ),
     );
+    expect(saved.rows[0].result_code).toBe('ok');
     const courseId = saved.rows[0].id as string;
-    await admin.query('SELECT course_outline_ensure($1)', [courseId]);
+    const madePublic = await tx((client) =>
+      client.query(
+        "SELECT * FROM course_save_v2($1,$2,$3,'Hidden media course',NULL,NULL,'public',$4,$5)",
+        [
+          principal,
+          teacher.tenantId,
+          courseId,
+          Number(saved.rows[0].draft_revision),
+          'course01:hidden-media-public:' + ++seq,
+        ],
+      ),
+    );
+    expect(madePublic.rows[0].result_code).toBe('ok');
     const outline = await tx((client) =>
       client.query('SELECT * FROM course_outline_v4($1,$2,$3,$4)', [
         courseId,
