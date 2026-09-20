@@ -192,6 +192,7 @@ const SIMULATED_TYPES = new Set([
   'temperature-sensor',
   'soil-moisture-sensor',
   'pir-sensor',
+  'ultrasonic-sensor',
   'ultrasonic-hc-sr04',
   'servo-motor',
   'diode-do35',
@@ -237,7 +238,7 @@ const COMPONENT_DESCRIPTIONS: Readonly<Record<string, string>> = {
   'soil-moisture-sensor':
     'Трёхвыводный резистивный датчик влажности: питание VCC/GND и аналоговый выход SIG для мультиметра или Arduino.',
   'ultrasonic-sensor':
-    'Ультразвуковой датчик расстояния PING или HC-SR04. Размещение и соединение доступны; математическая модель готовится.',
+    'PING 3-pin: один вывод SIG формирует trigger и затем принимает echo для измерения расстояния.',
   'pir-sensor':
     'Пироэлектрический ИК-датчик движения. Размещение и соединение доступны; математическая модель готовится.',
   'temperature-sensor':
@@ -495,6 +496,8 @@ function defaults(componentId: string): {
   if (componentId === 'temperature-sensor') return {
     value: 0, unit: '', properties: { temperatureCelsius: 25 },
   };
+  if (componentId === 'ultrasonic-sensor')
+    return { value: 0, unit: '', properties: { distanceMeters: 1 } };
   return { value: 0, unit: '', properties: { simulationStatus: 'not_yet_supported' } };
 }
 
