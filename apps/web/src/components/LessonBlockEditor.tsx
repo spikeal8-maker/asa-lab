@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type { LessonBlock } from '../api';
 
 const ASSET_URL = /^\/assets\/[A-Za-z0-9][A-Za-z0-9/_.%-]*$/;
@@ -6,6 +7,7 @@ const FORMULA_TEXT_LIMIT = 4_000;
 const TABLE_ROW_LIMIT = 30;
 const TABLE_COLUMN_LIMIT = 12;
 const TABLE_CELL_TEXT_LIMIT = 1_000;
+export const MAX_LESSON_BLOCKS = 40;
 const CODE_LANGUAGE = /^[A-Za-z0-9][A-Za-z0-9_+.#-]{0,79}$/;
 
 function localMediaUrl(value: string): boolean {
@@ -33,24 +35,93 @@ function tableRowsValid(rows: readonly (readonly string[])[]): boolean {
 
 export function createLessonBlock(type: LessonBlock['type']): LessonBlock {
   const id = nextId();
-  if (type === 'paragraph') return { id, type, text: '' };
-  if (type === 'heading') return { id, type, text: '', level: 2 };
-  if (type === 'callout') return { id, type, text: '', tone: 'note' };
-  if (type === 'image') return { id, type, url: '', alt: '', caption: '' };
-  if (type === 'video') return { id, type, url: '', title: '' };
-  if (type === 'audio') return { id, type, url: '', title: '' };
-  if (type === 'file') return { id, type, url: '', label: '' };
-  if (type === 'code') return { id, type, text: '' };
-  if (type === 'formula') return { id, type, text: '' };
-  if (type === 'table') return { id, type, rows: [['']] };
-  return { id, type: 'divider' };
+  if (type === 'paragraph') return { id, type, text: '', hidden: false };
+  if (type === 'heading') return { id, type, text: '', level: 2, hidden: false };
+  if (type === 'callout') return { id, type, text: '', tone: 'note', hidden: false };
+  if (type === 'image') return { id, type, url: '', alt: '', caption: '', hidden: false };
+  if (type === 'video') return { id, type, url: '', title: '', hidden: false };
+  if (type === 'audio') return { id, type, url: '', title: '', hidden: false };
+  if (type === 'file') return { id, type, url: '', label: '', hidden: false };
+  if (type === 'code') return { id, type, text: '', hidden: false };
+  if (type === 'formula') return { id, type, text: '', hidden: false };
+  if (type === 'table') return { id, type, rows: [['']], hidden: false };
+  return { id, type: 'divider', hidden: false };
+}
+
+function cloneLessonBlock(source: LessonBlock): LessonBlock {
+  if (source.type === 'table') {
+    return {
+      ...source,
+      id: nextId(),
+      rows: source.rows.map((row) => [...row]),
+    };
+  }
+  return { ...source, id: nextId() };
+}
+
+export function duplicateLessonBlock(
+  blocks: readonly LessonBlock[],
+  sourceId: string,
+): LessonBlock[] {
+  if (blocks.length >= MAX_LESSON_BLOCKS) return [...blocks];
+  const index = blocks.findIndex((block) => block.id === sourceId);
+  if (index < 0) return [...blocks];
+  const source = blocks[index];
+  if (!source) return [...blocks];
+  const next = [...blocks];
+  next.splice(index + 1, 0, cloneLessonBlock(source));
+  return next;
+}
+
+export function setLessonBlockHidden(
+  blocks: readonly LessonBlock[],
+  sourceId: string,
+  hidden: boolean,
+): LessonBlock[] {
+  return blocks.map((block) => (block.id === sourceId ? { ...block, hidden } : block));
+}
+
+export function insertLessonBlock(
+  blocks: readonly LessonBlock[],
+  sourceId: string,
+  placement: 'before' | 'after',
+  type: LessonBlock['type'],
+): LessonBlock[] {
+  if (blocks.length >= MAX_LESSON_BLOCKS) return [...blocks];
+  const index = blocks.findIndex((block) => block.id === sourceId);
+  if (index < 0) return [...blocks];
+  const next = [...blocks];
+  next.splice(index + (placement === 'after' ? 1 : 0), 0, createLessonBlock(type));
+  return next;
+}
+
+export function moveLessonBlock(
+  blocks: readonly LessonBlock[],
+  index: number,
+  delta: -1 | 1,
+): LessonBlock[] {
+  const target = index + delta;
+  if (index < 0 || index >= blocks.length || target < 0 || target >= blocks.length) {
+    return [...blocks];
+  }
+  const next = [...blocks];
+  [next[index], next[target]] = [next[target] as LessonBlock, next[index] as LessonBlock];
+  return next;
+}
+
+export function deleteLessonBlock(
+  blocks: readonly LessonBlock[],
+  sourceId: string,
+): LessonBlock[] {
+  return blocks.filter((block) => block.id !== sourceId);
 }
 
 export function lessonBlocksValid(blocks: readonly LessonBlock[]): boolean {
   return (
-    blocks.length <= 40 &&
+    blocks.length <= MAX_LESSON_BLOCKS &&
     JSON.stringify(blocks).length <= 60_000 &&
     blocks.every((block) => {
+      if (block.hidden !== undefined && typeof block.hidden !== 'boolean') return false;
       if (block.type === 'paragraph') return block.text.length <= 12_000;
       if (block.type === 'heading') {
         return block.text.trim().length > 0 && block.text.length <= 300;
@@ -107,16 +178,13 @@ export function LessonBlockEditor({
   readonly blocks: readonly LessonBlock[];
   readonly onChange: (blocks: LessonBlock[]) => void;
 }): JSX.Element {
+  const [insertTarget, setInsertTarget] = useState<{
+    blockId: string;
+    placement: 'before' | 'after';
+  } | null>(null);
+
   function replace(id: string, block: LessonBlock): void {
     onChange(blocks.map((entry) => (entry.id === id ? block : entry)));
-  }
-
-  function move(index: number, delta: -1 | 1): void {
-    const target = index + delta;
-    if (target < 0 || target >= blocks.length) return;
-    const next = [...blocks];
-    [next[index], next[target]] = [next[target] as LessonBlock, next[index] as LessonBlock];
-    onChange(next);
   }
 
   return (
@@ -126,7 +194,7 @@ export function LessonBlockEditor({
           <strong id="lesson-block-editor-title">Содержание урока</strong>
           <small>Соберите страницу из коротких блоков</small>
         </div>
-        <span>{blocks.length}/40</span>
+        <span>{blocks.length}/{MAX_LESSON_BLOCKS}</span>
       </div>
 
       <div className="lesson-block-list" data-testid="lesson-block-list">
@@ -137,15 +205,48 @@ export function LessonBlockEditor({
           </div>
         ) : null}
         {blocks.map((block, index) => (
-          <article key={block.id} className="lesson-block-card">
+          <article
+            key={block.id}
+            className={block.hidden ? 'lesson-block-card is-hidden' : 'lesson-block-card'}
+          >
             <header>
-              <span>{blockLabel(block)}</span>
+              <span>
+                {blockLabel(block)}
+                {block.hidden ? <small className="lesson-block-hidden-state">Скрыт</small> : null}
+              </span>
               <div>
+                <button
+                  type="button"
+                  disabled={blocks.length >= MAX_LESSON_BLOCKS}
+                  onClick={() => onChange(duplicateLessonBlock(blocks, block.id))}
+                >
+                  Дублировать
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onChange(setLessonBlockHidden(blocks, block.id, !block.hidden))}
+                >
+                  {block.hidden ? 'Показать' : 'Скрыть'}
+                </button>
+                <button
+                  type="button"
+                  disabled={blocks.length >= MAX_LESSON_BLOCKS}
+                  onClick={() => setInsertTarget({ blockId: block.id, placement: 'before' })}
+                >
+                  Вставить выше
+                </button>
+                <button
+                  type="button"
+                  disabled={blocks.length >= MAX_LESSON_BLOCKS}
+                  onClick={() => setInsertTarget({ blockId: block.id, placement: 'after' })}
+                >
+                  Вставить ниже
+                </button>
                 <button
                   type="button"
                   aria-label={`Поднять блок ${index + 1}`}
                   disabled={index === 0}
-                  onClick={() => move(index, -1)}
+                  onClick={() => onChange(moveLessonBlock(blocks, index, -1))}
                 >
                   ↑
                 </button>
@@ -153,19 +254,51 @@ export function LessonBlockEditor({
                   type="button"
                   aria-label={`Опустить блок ${index + 1}`}
                   disabled={index === blocks.length - 1}
-                  onClick={() => move(index, 1)}
+                  onClick={() => onChange(moveLessonBlock(blocks, index, 1))}
                 >
                   ↓
                 </button>
                 <button
                   type="button"
                   aria-label={`Удалить блок ${index + 1}`}
-                  onClick={() => onChange(blocks.filter((entry) => entry.id !== block.id))}
+                  onClick={() => onChange(deleteLessonBlock(blocks, block.id))}
                 >
                   ×
                 </button>
               </div>
             </header>
+
+            {insertTarget?.blockId === block.id ? (
+              <div className="lesson-block-insert-picker" aria-label="Выберите тип вставляемого блока">
+                <small>
+                  {insertTarget.placement === 'before' ? 'Вставить выше' : 'Вставить ниже'}
+                </small>
+                <div>
+                  {ADD_OPTIONS.map((option) => (
+                    <button
+                      key={option.type}
+                      type="button"
+                      onClick={() => {
+                        onChange(
+                          insertLessonBlock(
+                            blocks,
+                            block.id,
+                            insertTarget.placement,
+                            option.type,
+                          ),
+                        );
+                        setInsertTarget(null);
+                      }}
+                    >
+                      + {option.label}
+                    </button>
+                  ))}
+                  <button type="button" onClick={() => setInsertTarget(null)}>
+                    Отмена
+                  </button>
+                </div>
+              </div>
+            ) : null}
 
             {block.type === 'paragraph' ? (
               <textarea
@@ -239,12 +372,7 @@ export function LessonBlockEditor({
                   placeholder="Например, javascript"
                   onChange={(event) => {
                     const language = event.target.value;
-                    replace(
-                      block.id,
-                      language
-                        ? { ...block, language }
-                        : { id: block.id, type: 'code', text: block.text },
-                    );
+                    replace(block.id, { ...block, language: language || undefined });
                   }}
                 />
                 <textarea
@@ -430,7 +558,7 @@ export function LessonBlockEditor({
           <button
             key={option.type}
             type="button"
-            disabled={blocks.length >= 40}
+            disabled={blocks.length >= MAX_LESSON_BLOCKS}
             onClick={() => onChange([...blocks, createLessonBlock(option.type)])}
           >
             + {option.label}
