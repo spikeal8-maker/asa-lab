@@ -365,6 +365,7 @@ function LessonEditor({
 
       <LessonBlockEditor
         blocks={blocks}
+        activities={materials}
         onChange={(value) => {
           setBlocks(value);
           onDirty();
