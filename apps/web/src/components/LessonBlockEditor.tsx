@@ -9,6 +9,14 @@ const TABLE_COLUMN_LIMIT = 12;
 const TABLE_CELL_TEXT_LIMIT = 1_000;
 export const MAX_LESSON_BLOCKS = 40;
 const CODE_LANGUAGE = /^[A-Za-z0-9][A-Za-z0-9_+.#-]{0,79}$/;
+const ACTIVITY_VERSION_ID =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+export interface LessonActivityOption {
+  readonly id: string;
+  readonly title: string;
+  readonly currentPublishedVersionId: string | null;
+}
 
 function localMediaUrl(value: string): boolean {
   return ASSET_URL.test(value) && !value.includes('..');
@@ -45,6 +53,7 @@ export function createLessonBlock(type: LessonBlock['type']): LessonBlock {
   if (type === 'code') return { id, type, text: '', hidden: false };
   if (type === 'formula') return { id, type, text: '', hidden: false };
   if (type === 'table') return { id, type, rows: [['']], hidden: false };
+  if (type === 'activity') return { id, type, learningActivityVersionId: '', hidden: false };
   return { id, type: 'divider', hidden: false };
 }
 
@@ -79,6 +88,18 @@ export function setLessonBlockHidden(
   hidden: boolean,
 ): LessonBlock[] {
   return blocks.map((block) => (block.id === sourceId ? { ...block, hidden } : block));
+}
+
+export function setLessonActivityVersion(
+  blocks: readonly LessonBlock[],
+  sourceId: string,
+  learningActivityVersionId: string,
+): LessonBlock[] {
+  return blocks.map((block) =>
+    block.id === sourceId && block.type === 'activity'
+      ? { ...block, learningActivityVersionId }
+      : block,
+  );
 }
 
 export function insertLessonBlock(
@@ -145,6 +166,9 @@ export function lessonBlocksValid(blocks: readonly LessonBlock[]): boolean {
         return block.text.trim().length > 0 && block.text.length <= FORMULA_TEXT_LIMIT;
       }
       if (block.type === 'table') return tableRowsValid(block.rows);
+      if (block.type === 'activity') {
+        return ACTIVITY_VERSION_ID.test(block.learningActivityVersionId);
+      }
       return block.type === 'divider';
     })
   );
@@ -162,6 +186,7 @@ const ADD_OPTIONS: Array<{ type: LessonBlock['type']; label: string }> = [
   { type: 'video', label: 'Видео' },
   { type: 'audio', label: 'Аудио' },
   { type: 'file', label: 'Файл' },
+  { type: 'activity', label: 'Практика' },
 ];
 
 function blockLabel(block: LessonBlock): string {
@@ -170,9 +195,11 @@ function blockLabel(block: LessonBlock): string {
 
 export function LessonBlockEditor({
   blocks,
+  activities,
   onChange,
 }: {
   readonly blocks: readonly LessonBlock[];
+  readonly activities: readonly LessonActivityOption[];
   readonly onChange: (blocks: LessonBlock[]) => void;
 }): JSX.Element {
   const [insertTarget, setInsertTarget] = useState<{
@@ -200,7 +227,7 @@ export function LessonBlockEditor({
         {blocks.length === 0 ? (
           <div className="lesson-block-empty">
             <strong>Страница пока пустая</strong>
-            <span>Добавьте текст, медиа или полезную ссылку.</span>
+            <span>Добавьте текст, медиа, практику или полезную ссылку.</span>
           </div>
         ) : null}
         {blocks.map((block, index) => (
@@ -484,6 +511,37 @@ export function LessonBlockEditor({
 
             {block.type === 'divider' ? (
               <p className="lesson-divider-editor-note">Разделитель не содержит текста.</p>
+            ) : null}
+
+            {block.type === 'activity' ? (
+              <label className="lesson-block-fields">
+                <span>Опубликованная активность</span>
+                <select
+                  aria-label="Опубликованная активность"
+                  value={block.learningActivityVersionId}
+                  onChange={(event) =>
+                    onChange(setLessonActivityVersion(blocks, block.id, event.target.value))
+                  }
+                >
+                  <option value="">Выберите опубликованную активность…</option>
+                  {activities.map((entry) => (
+                    <option
+                      key={entry.id}
+                      value={entry.currentPublishedVersionId ?? `draft:${entry.id}`}
+                      disabled={!entry.currentPublishedVersionId}
+                    >
+                      {entry.title}
+                      {entry.currentPublishedVersionId ? '' : ' · черновик — сначала опубликуйте'}
+                    </option>
+                  ))}
+                  {block.learningActivityVersionId &&
+                  !activities.some(
+                    (entry) => entry.currentPublishedVersionId === block.learningActivityVersionId,
+                  ) ? (
+                    <option value={block.learningActivityVersionId}>Закреплённая версия</option>
+                  ) : null}
+                </select>
+              </label>
             ) : null}
 
             {block.type === 'image' ? (
