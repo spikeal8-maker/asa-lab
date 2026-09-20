@@ -29,6 +29,32 @@ function through(
   throw new Error('Clock did not reach its requested horizon');
 }
 
+function pulseThrough(
+  source: string,
+  timeMicroseconds: number,
+  high: boolean,
+  previous?: ArduinoRuntimeState,
+  instructionBudget = 16_384,
+  pulseInputSample = false,
+) {
+  const events: ArduinoRuntimeEvent[] = [];
+  for (let quantum = 0; quantum < 100_000; quantum++) {
+    const result = advanceClockedArduinoRuntime(
+      source,
+      { d2: high ? 5 : 0 },
+      timeMicroseconds / 1000,
+      previous,
+      undefined,
+      { instructionBudget, pulseInputSample },
+    );
+    pulseInputSample = false;
+    events.push(...result.events);
+    if (result.executionStatus !== 'yielded') return { ...result, events };
+    previous = JSON.parse(JSON.stringify(result.state));
+  }
+  throw new Error('Pulse program did not reach its requested horizon');
+}
+
 describe('Arduino instruction-us-v1 execution clock (scheduler foundation)', () => {
   it('finishes millis busy-wait instead of treating it as an infinite program', () => {
     const source = `void setup(){pinMode(13,OUTPUT);while(millis()<10){}
@@ -52,6 +78,92 @@ describe('Arduino instruction-us-v1 execution clock (scheduler foundation)', () 
     expect(result.diagnostics).toEqual([]);
     expect(result.state.variables.first).toBe(0);
     expect(result.state.variables.second).toBe(1);
+  });
+
+  it.each([
+    ['HIGH', true, false, 10, true, 35, false, 25],
+    ['LOW', false, true, 12, false, 30, true, 18],
+  ] as const)(
+    'measures an exact %s pulse from canonical input samples',
+    (_label, highPulse, initialHigh, startAt, activeHigh, endAt, endHigh, expected) => {
+      const source = `unsigned long duration=0;
+        void setup(){duration=pulseIn(2,${highPulse ? 'HIGH' : 'LOW'},100);}
+        void loop(){delay(100);}`;
+      const started = pulseThrough(source, 0, initialHigh, undefined, 16_384, true);
+      expect(started.diagnostics).toEqual([]);
+      expect(started.state.pulseWait).not.toBeNull();
+      const measuring = pulseThrough(source, startAt, activeHigh, started.state, 16_384, true);
+      expect(measuring.state.pulseWait?.phase).toBe('measure-pulse');
+      const done = pulseThrough(source, endAt, endHigh, measuring.state, 16_384, true);
+      expect(done.diagnostics).toEqual([]);
+      expect(done.state.pulseWait).toBeUndefined();
+      expect(done.state.variables.duration).toBe(expected);
+    },
+  );
+
+  it('skips an already-active pulse before measuring the next pulse', () => {
+    const source = `unsigned long duration=0;
+      void setup(){duration=pulseIn(2,HIGH,100);}void loop(){delay(100);}`;
+    const existing = pulseThrough(source, 0, true, undefined, 16_384, true);
+    expect(existing.state.pulseWait?.phase).toBe('wait-previous-pulse-end');
+    const ended = pulseThrough(source, 5, false, existing.state, 16_384, true);
+    expect(ended.state.pulseWait?.phase).toBe('wait-pulse-start');
+    const started = pulseThrough(source, 12, true, ended.state, 16_384, true);
+    const done = pulseThrough(source, 28, false, started.state, 16_384, true);
+    expect(done.state.variables.duration).toBe(16);
+  });
+
+  it('returns zero at pulseIn timeout without a runtime fault', () => {
+    const source = `unsigned long duration=99;
+      void setup(){duration=pulseIn(2,HIGH,20);}void loop(){delay(100);}`;
+    const waiting = pulseThrough(source, 0, false, undefined, 16_384, true);
+    const done = pulseThrough(source, 20, false, waiting.state);
+    expect(done.executionStatus).toBe('ready');
+    expect(done.diagnostics).toEqual([]);
+    expect(done.state.variables.duration).toBe(0);
+    expect(done.state.pulseWait).toBeUndefined();
+  });
+
+  it('uses the Arduino default 1,000,000 microsecond pulseIn timeout', () => {
+    const source = `unsigned long duration=99;
+      void setup(){duration=pulseIn(2,HIGH);}void loop(){delay(100);}`;
+    const waiting = pulseThrough(source, 0, false, undefined, 16_384, true);
+    expect(waiting.state.pulseWait?.timeoutMicroseconds).toBe(1_000_000);
+    expect(waiting.state.resumeAtMs).toBe(1000);
+  });
+
+  it('serializes a measuring pulse wait and resumes the same measurement', () => {
+    const source = `unsigned long duration=0;
+      void setup(){duration=pulseIn(2,HIGH,100);}void loop(){delay(100);}`;
+    const waiting = pulseThrough(source, 0, false, undefined, 16_384, true);
+    const measuring = pulseThrough(source, 10, true, waiting.state, 16_384, true);
+    const restored = JSON.parse(JSON.stringify(measuring.state)) as ArduinoRuntimeState;
+    const resumed = pulseThrough(source, 30, false, restored, 16_384, true);
+    const direct = pulseThrough(source, 30, false, measuring.state, 16_384, true);
+    expect(resumed.state).toEqual(direct.state);
+    expect(resumed.events).toEqual(direct.events);
+    expect(resumed.state.variables.duration).toBe(20);
+  });
+
+  it('keeps pulseIn results, state and events invariant across scheduler work partitions', () => {
+    const source = `unsigned long duration=0;unsigned long count=0;
+      void setup(){duration=pulseIn(2,HIGH,100);pinMode(13,OUTPUT);digitalWrite(13,HIGH);
+      for(int i=0;i<8;i++){count++;}}void loop(){delay(100);}`;
+    const run = (budget: number) => {
+      const first = pulseThrough(source, 0, false, undefined, budget, true);
+      const second = pulseThrough(source, 10, true, first.state, budget, true);
+      const third = pulseThrough(source, 30, false, second.state, budget, true);
+      const last = pulseThrough(source, 60, false, third.state, budget);
+      return {
+        state: last.state,
+        events: [...first.events, ...second.events, ...third.events, ...last.events],
+      };
+    };
+    const whole = run(16_384);
+    const partitioned = run(1);
+    expect(partitioned.state).toEqual(whole.state);
+    expect(partitioned.events).toEqual(whole.events);
+    expect(partitioned.state.variables.duration).toBe(20);
   });
 
   it('assigns successive GPIO instructions distinct integer-microsecond timestamps', () => {

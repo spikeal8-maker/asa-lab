@@ -213,6 +213,58 @@ describe('Arduino shared dc-inputs-v1 circuit clock', () => {
     ).toEqual(done);
   });
 
+  it('wakes a pending peer pulseIn from committed Arduino GPIO edges without order dependence', () => {
+    const senderId = 'a-sender';
+    const receiverId = 'b-receiver';
+    const sender = board(
+      senderId,
+      `void setup(){pinMode(13,OUTPUT);delayMicroseconds(5);digitalWrite(13,HIGH);delayMicroseconds(20);digitalWrite(13,LOW);}void loop(){delay(100);}`,
+    );
+    const receiver = board(
+      receiverId,
+      `unsigned long duration=0;void setup(){pinMode(2,INPUT);duration=pulseIn(2,HIGH,200);}void loop(){delay(100);}`,
+    );
+    const run = (components: SchematicComponent[]) =>
+      through(
+        circuit(components, [
+          [senderId, 'd13', receiverId, 'd2'],
+          [senderId, 'power-gnd-1', receiverId, 'power-gnd-1'],
+        ]),
+        100,
+        undefined,
+        undefined,
+        1,
+      );
+
+    const pulseWidthFromSenderEvents = (result: ArduinoCircuitClockAdvance) => {
+      const senderEdges = result.events.filter(
+        (event) =>
+          event.componentId === senderId &&
+          event.kind === 'output-change' &&
+          event.terminal === 'd13',
+      );
+      const high = senderEdges.find((event) => event.voltage === 5);
+      const low = senderEdges.find(
+        (event) => event.voltage === 0 && high && event.atMicroseconds > high.atMicroseconds,
+      );
+      expect(high).toBeDefined();
+      expect(low).toBeDefined();
+      return low!.atMicroseconds - high!.atMicroseconds;
+    };
+
+    const forward = run([sender, receiver]);
+    expect(forward.diagnostics).toEqual([]);
+    const forwardWidth = pulseWidthFromSenderEvents(forward);
+    expect(runtime(forward, receiverId).variables.duration).toBe(forwardWidth);
+
+    const reversed = run([receiver, sender]);
+    const reversedWidth = pulseWidthFromSenderEvents(reversed);
+    expect(reversedWidth).toBe(forwardWidth);
+    expect(runtime(reversed, receiverId).variables.duration).toBe(reversedWidth);
+    expect(reversed.state).toEqual(forward.state);
+    expect(reversed.result).toEqual(forward.result);
+  });
+
   it('preserves the complete trace, final state and numerical result across quanta and time partitions', () => {
     const doc = circuit(
       [
@@ -268,6 +320,32 @@ describe('Arduino shared dc-inputs-v1 circuit clock', () => {
     expect(runtime(late).variables.level).toBe(0);
     expect(through(doc, 70, undefined, inputs).state).toEqual(late.state);
     expect(through(doc, 70, early.state!, inputs).state).toEqual(late.state);
+  });
+
+  it('measures pulseIn from timestamped canonical circuit input events', () => {
+    const doc = circuit(
+      [
+        board(
+          'uno',
+          `unsigned long duration=0;void setup(){pinMode(2,INPUT_PULLUP);duration=pulseIn(2,LOW,100);}void loop(){delay(100);}`,
+        ),
+        part('key', 'button'),
+      ],
+      [
+        ['uno', 'd2', 'key', 'a'],
+        ['key', 'b', 'uno', 'power-gnd-1'],
+      ],
+    );
+    const inputs: ArduinoCircuitInputEvent[] = [
+      { atMicroseconds: 10, componentId: 'key', property: 'state', value: true },
+      { atMicroseconds: 35, componentId: 'key', property: 'state', value: false },
+    ];
+
+    const done = through(doc, 50, undefined, inputs, 1);
+    expect(done.diagnostics).toEqual([]);
+    expect(runtime(done).variables.duration).toBe(25);
+    expect(runtime(done).pulseWait).toBeUndefined();
+    expect(through(doc, 50, undefined, inputs, 7).state).toEqual(done.state);
   });
 
   it('accepts events at startup and append-only retries; rejects late edits and changed electrical documents', () => {
@@ -706,7 +784,7 @@ describe('Arduino shared dc-inputs-v1 circuit clock', () => {
   });
 
   it.each([
-    ['unsupported-call', 'void setup(){pulseIn(2,HIGH);}void loop(){}'],
+    ['unsupported-call', 'void setup(){random();}void loop(){}'],
     ['unsupported-syntax', 'void setup(){int x=1;switch(x){case 1:break;}}void loop(){}'],
     ['preprocessor', '#include <Servo.h>\nvoid setup(){}\nvoid loop(){}'],
   ])('keeps known unsupported %s board-local without last-good', (code, source) => {
@@ -727,7 +805,7 @@ describe('Arduino shared dc-inputs-v1 circuit clock', () => {
   });
 
   it.each([
-    ['unsupported-call', 'void setup(){pulseIn(2,HIGH);}void loop(){}'],
+    ['unsupported-call', 'void setup(){random();}void loop(){}'],
     ['unsupported-syntax', 'void setup(){int x=1;switch(x){case 1:break;}}void loop(){}'],
     ['preprocessor', '#include <Servo.h>\nvoid setup(){}\nvoid loop(){}'],
   ])('keeps last-good runtime through known unsupported %s editor source', (code, source) => {
@@ -759,7 +837,7 @@ describe('Arduino shared dc-inputs-v1 circuit clock', () => {
           'a-valid',
           'void setup(){pinMode(13,OUTPUT);digitalWrite(13,HIGH);}void loop(){delay(100);}',
         ),
-        board('b-unsupported', 'void setup(){pulseIn(2,HIGH);}void loop(){}'),
+        board('b-unsupported', 'void setup(){random();}void loop(){}'),
       ]),
       10,
     );
