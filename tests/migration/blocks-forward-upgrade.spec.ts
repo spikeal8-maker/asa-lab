@@ -109,7 +109,11 @@ describe('published Blocks forward migration', () => {
       verifySchema({
         query: async () => ({
           rows: rows.filter(
-            (row) => row.version !== '0151' && row.version !== '0152' && row.version !== '0153' && row.version !== '0154',
+            (row) =>
+              row.version !== '0151' &&
+              row.version !== '0152' &&
+              row.version !== '0153' &&
+              row.version !== '0154',
           ),
         }),
       }),

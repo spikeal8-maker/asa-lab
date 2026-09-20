@@ -109,10 +109,7 @@ export function moveLessonBlock(
   return next;
 }
 
-export function deleteLessonBlock(
-  blocks: readonly LessonBlock[],
-  sourceId: string,
-): LessonBlock[] {
+export function deleteLessonBlock(blocks: readonly LessonBlock[], sourceId: string): LessonBlock[] {
   return blocks.filter((block) => block.id !== sourceId);
 }
 
@@ -194,7 +191,9 @@ export function LessonBlockEditor({
           <strong id="lesson-block-editor-title">Содержание урока</strong>
           <small>Соберите страницу из коротких блоков</small>
         </div>
-        <span>{blocks.length}/{MAX_LESSON_BLOCKS}</span>
+        <span>
+          {blocks.length}/{MAX_LESSON_BLOCKS}
+        </span>
       </div>
 
       <div className="lesson-block-list" data-testid="lesson-block-list">
@@ -273,7 +272,10 @@ export function LessonBlockEditor({
             </header>
 
             {insertTarget?.blockId === block.id ? (
-              <div className="lesson-block-insert-picker" aria-label="Выберите тип вставляемого блока">
+              <div
+                className="lesson-block-insert-picker"
+                aria-label="Выберите тип вставляемого блока"
+              >
                 <small>
                   {insertTarget.placement === 'before' ? 'Вставить выше' : 'Вставить ниже'}
                 </small>
@@ -284,12 +286,7 @@ export function LessonBlockEditor({
                       type="button"
                       onClick={() => {
                         onChange(
-                          insertLessonBlock(
-                            blocks,
-                            block.id,
-                            insertTarget.placement,
-                            option.type,
-                          ),
+                          insertLessonBlock(blocks, block.id, insertTarget.placement, option.type),
                         );
                         setInsertTarget(null);
                       }}

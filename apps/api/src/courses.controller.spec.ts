@@ -454,7 +454,13 @@ describe('course outline API', () => {
     const target = controller([{ id: LESSON_ID }]);
     const blocks = [
       { id: 'heading', type: 'heading', level: 2, text: 'Что мы построим' },
-      { id: 'tip', type: 'callout', tone: 'tip', hidden: true, text: 'Сначала проверьте полярность.' },
+      {
+        id: 'tip',
+        type: 'callout',
+        tone: 'tip',
+        hidden: true,
+        text: 'Сначала проверьте полярность.',
+      },
       {
         id: 'diagram',
         type: 'image',

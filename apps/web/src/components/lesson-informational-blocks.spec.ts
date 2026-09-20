@@ -71,7 +71,14 @@ describe('informational lesson blocks', () => {
       { id: 'video', type: 'video', url: '/assets/video.mp4', title: 'Video' },
       { id: 'audio', type: 'audio', url: '/assets/audio.mp3', title: 'Audio' },
       { id: 'file', type: 'file', url: 'https://example.test/file.pdf', label: 'File' },
-      { id: 'table', type: 'table', rows: [['A', 'B'], ['1', '2']] },
+      {
+        id: 'table',
+        type: 'table',
+        rows: [
+          ['A', 'B'],
+          ['1', '2'],
+        ],
+      },
       { id: 'formula', type: 'formula', text: 'U = I × R' },
       { id: 'code', type: 'code', text: 'const x = 1;', language: 'typescript' },
       { id: 'divider', type: 'divider' },
@@ -90,7 +97,10 @@ describe('informational lesson blocks', () => {
     const source: LessonBlock = {
       id: 'table',
       type: 'table',
-      rows: [['A', 'B'], ['1', '2']],
+      rows: [
+        ['A', 'B'],
+        ['1', '2'],
+      ],
     };
     const duplicated = duplicateLessonBlock([source], source.id);
     const copy = duplicated[1];

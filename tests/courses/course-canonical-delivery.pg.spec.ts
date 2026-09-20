@@ -809,11 +809,7 @@ describe('Э1 existing course → exact versions → runs → inherited particip
     expect(runV1.result_code).toBe('ok');
     expect(ids(await runBlocks(runV1.run_id))).toEqual(['block-a', 'block-b', 'block-c']);
 
-    const hiddenDraft = [
-      blocksV1[0],
-      { ...blocksV1[1], hidden: true },
-      blocksV1[2],
-    ];
+    const hiddenDraft = [blocksV1[0], { ...blocksV1[1], hidden: true }, blocksV1[2]];
     expect(
       (
         await tx((client) =>

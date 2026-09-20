@@ -935,7 +935,6 @@ test('Course Builder duplicates a section and excludes hidden lesson only from f
   await newLearner.context.close();
 });
 
-
 test('Course Builder persists informational block structural controls into future versions only', async ({
   browser,
   page,
@@ -1107,9 +1106,11 @@ test('Course Builder persists informational block structural controls into futur
     .filter({ hasText: courseTitle })
     .click();
   await expect(
-    oldLearner.page.getByTestId('seat-course-player').locator('.lesson-blocks').first().locator(
-      ':scope > *',
-    ),
+    oldLearner.page
+      .getByTestId('seat-course-player')
+      .locator('.lesson-blocks')
+      .first()
+      .locator(':scope > *'),
   ).toHaveText(['Исходный A', 'Исходный B', 'Исходный C']);
 
   await oldLearner.context.close();
