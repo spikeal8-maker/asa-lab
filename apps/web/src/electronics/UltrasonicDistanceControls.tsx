@@ -1,6 +1,4 @@
-export type UltrasonicDistanceComponentTypeId =
-  | 'ultrasonic-sensor'
-  | 'ultrasonic-hc-sr04';
+export type UltrasonicDistanceComponentTypeId = 'ultrasonic-sensor' | 'ultrasonic-hc-sr04';
 
 export function UltrasonicDistanceControls({
   componentTypeId,
