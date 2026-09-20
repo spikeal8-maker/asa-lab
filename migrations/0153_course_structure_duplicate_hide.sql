@@ -606,3 +606,211 @@ GRANT EXECUTE ON FUNCTION public.course_section_hidden_set_v1(uuid,uuid,uuid,boo
 
 REVOKE ALL ON FUNCTION public.course_lesson_hidden_set_v1(uuid,uuid,uuid,boolean,integer) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.course_lesson_hidden_set_v1(uuid,uuid,uuid,boolean,integer) TO asalab_app;
+
+
+-- Independent-review repair: keep every published sidecar aligned with the exact
+-- immutable outline and require an actual CourseRun lesson occurrence for media reads.
+CREATE OR REPLACE FUNCTION public.course_publish(
+    p_principal_id uuid,
+    p_course_id    uuid
+)
+RETURNS TABLE (
+    result_code    varchar,
+    version_id     uuid,
+    version_number integer,
+    published_at   timestamptz,
+    reused         boolean
+)
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
+DECLARE
+    v_course       record;
+    v_snapshot     jsonb;
+    v_hash         varchar(32);
+    v_latest       record;
+    v_version_id   uuid;
+    v_number       integer;
+    v_published_at timestamptz;
+BEGIN
+    SELECT course.id, course.tenant_id, course.title, course.summary, course.age_band,
+           course.draft_base_version_id
+      INTO v_course
+      FROM public.courses course
+     WHERE course.id = p_course_id
+       AND course.owner_principal_id = p_principal_id
+     FOR UPDATE;
+
+    IF v_course.id IS NULL THEN
+        RETURN QUERY SELECT 'course_not_found'::varchar, NULL::uuid, NULL::integer,
+                            NULL::timestamptz, false;
+        RETURN;
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM public.course_lessons lesson WHERE lesson.course_id = p_course_id
+    ) THEN
+        RETURN QUERY SELECT 'course_empty'::varchar, NULL::uuid, NULL::integer,
+                            NULL::timestamptz, false;
+        RETURN;
+    END IF;
+
+    v_snapshot := public.course_snapshot_build(p_course_id);
+    v_hash := md5(v_snapshot::text);
+
+    SELECT version.id, version.version_number, version.content_hash,
+           version.published_at, version.outline
+      INTO v_latest
+      FROM public.course_versions version
+     WHERE version.course_id = p_course_id
+     ORDER BY version.version_number DESC
+     LIMIT 1;
+
+    IF v_latest.id IS NOT NULL
+       AND public.course_snapshot_normalize_pins(v_latest.outline)
+           = public.course_snapshot_normalize_pins(v_snapshot) THEN
+        INSERT INTO public.audit_events(tenant_id,entity_type,entity_id,action,payload_json)
+        SELECT v_course.tenant_id,'course',p_course_id,'course.draft.published',
+          jsonb_build_object(
+            'sourceVersionId',v_course.draft_base_version_id,
+            'publishedVersionId',v_latest.id
+          )
+        WHERE v_course.draft_base_version_id IS NOT NULL;
+        UPDATE public.courses
+           SET draft_active=false,draft_base_version_id=NULL,draft_started_revision=NULL
+         WHERE id=p_course_id AND draft_active;
+        RETURN QUERY SELECT 'ok'::varchar, v_latest.id, v_latest.version_number,
+                            v_latest.published_at, true;
+        RETURN;
+    END IF;
+
+    v_number := COALESCE(v_latest.version_number, 0) + 1;
+    INSERT INTO public.course_versions (
+        tenant_id, course_id, version_number, title, summary, age_band,
+        outline, content_hash, published_by_principal_id
+    ) VALUES (
+        v_course.tenant_id, p_course_id, v_number, v_course.title,
+        v_course.summary, v_course.age_band, v_snapshot, v_hash, p_principal_id
+    )
+    RETURNING id, course_versions.published_at INTO v_version_id, v_published_at;
+
+    INSERT INTO public.course_version_media (
+        version_id, source_lesson_id, sample_bytes, content_type, content_hash
+    )
+    SELECT v_version_id, lesson.id, task.sample_bytes, task.sample_content_type,
+           md5(encode(task.sample_bytes, 'base64'))
+      FROM public.course_lessons lesson
+      JOIN public.course_sections section
+        ON section.id = lesson.section_id
+       AND section.course_id = lesson.course_id
+      JOIN public.teacher_assignments task ON task.id = lesson.assignment_id
+     WHERE lesson.course_id = p_course_id
+       AND NOT lesson.hidden
+       AND NOT section.hidden
+       AND task.sample_bytes IS NOT NULL
+       AND task.sample_content_type IS NOT NULL
+       AND EXISTS (
+           SELECT 1
+             FROM jsonb_array_elements(v_snapshot -> 'sections')
+                    AS frozen_section(section_json)
+             CROSS JOIN LATERAL jsonb_array_elements(frozen_section.section_json -> 'lessons')
+                    AS frozen_lesson(lesson_json)
+            WHERE frozen_lesson.lesson_json ->> 'sourceLessonId' = lesson.id::text
+       );
+
+    INSERT INTO public.audit_events(tenant_id,entity_type,entity_id,action,payload_json)
+    SELECT v_course.tenant_id,'course',p_course_id,'course.draft.published',
+      jsonb_build_object(
+        'sourceVersionId',v_course.draft_base_version_id,
+        'publishedVersionId',v_version_id
+      )
+    WHERE v_course.draft_base_version_id IS NOT NULL;
+    UPDATE public.courses
+       SET draft_active=false,draft_base_version_id=NULL,draft_started_revision=NULL
+     WHERE id=p_course_id AND draft_active;
+    RETURN QUERY SELECT 'ok'::varchar, v_version_id, v_number, v_published_at, false;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.classroom_course_run_media(
+    p_run_id           uuid,
+    p_source_lesson_id uuid,
+    p_seat_id          uuid,
+    p_account_id       uuid
+)
+RETURNS TABLE (sample_bytes bytea, content_type varchar)
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
+    SELECT media.sample_bytes, media.content_type
+      FROM public.classroom_course_runs run
+      JOIN public.classroom_course_run_lessons run_lesson
+        ON run_lesson.tenant_id = run.tenant_id
+       AND run_lesson.run_id = run.id
+       AND run_lesson.source_lesson_id = p_source_lesson_id
+      JOIN public.course_version_media media
+        ON media.version_id = run.course_version_id
+       AND media.source_lesson_id = run_lesson.source_lesson_id
+     WHERE run.id = p_run_id
+       AND (
+           EXISTS (
+               SELECT 1 FROM public.classroom_student_seats seat
+                WHERE seat.id = p_seat_id
+                  AND seat.classroom_id = run.classroom_id
+                  AND seat.tenant_id = run.tenant_id
+                  AND seat.status = 'active'
+           )
+           OR EXISTS (
+               SELECT 1 FROM public.classroom_memberships membership
+                WHERE membership.account_id = p_account_id
+                  AND membership.classroom_id = run.classroom_id
+                  AND membership.tenant_id = run.tenant_id
+                  AND membership.member_role IN ('owner', 'co_teacher', 'student')
+           )
+       );
+$$;
+
+-- course_items remains a non-destructive compatibility index. Visibility is
+-- derived from effective visible authoring occurrences instead of mutating it.
+CREATE OR REPLACE FUNCTION public.course_contents(
+    p_course_id    uuid,
+    p_principal_id uuid,
+    p_account_id   uuid,
+    p_tenant_id    uuid
+)
+RETURNS TABLE (
+    id uuid,
+    title varchar,
+    goal varchar,
+    module_key varchar,
+    sample_image varchar,
+    step_number integer
+)
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
+    SELECT task.id, task.title, task.goal, task.module_key, task.sample_image, item.position
+      FROM public.courses course
+      JOIN public.course_items item ON item.course_id = course.id
+      JOIN public.teacher_assignments task ON task.id = item.assignment_id
+     WHERE course.id = p_course_id
+       AND public.content_is_visible(
+           'course', course.id, course.visibility, course.owner_principal_id,
+           course.tenant_id, p_principal_id, p_account_id, p_tenant_id
+       )
+       AND EXISTS (
+           SELECT 1
+             FROM public.course_lessons lesson
+             JOIN public.course_sections section
+               ON section.id = lesson.section_id
+              AND section.course_id = lesson.course_id
+            WHERE lesson.course_id = course.id
+              AND lesson.assignment_id = item.assignment_id
+              AND NOT lesson.hidden
+              AND NOT section.hidden
+       )
+     ORDER BY item.position;
+$$;
+
+REVOKE ALL ON FUNCTION public.course_publish(uuid,uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.course_publish(uuid,uuid) TO asalab_app;
+
+REVOKE ALL ON FUNCTION public.classroom_course_run_media(uuid,uuid,uuid,uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.classroom_course_run_media(uuid,uuid,uuid,uuid) TO asalab_app;
+
+REVOKE ALL ON FUNCTION public.course_contents(uuid,uuid,uuid,uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.course_contents(uuid,uuid,uuid,uuid) TO asalab_app;
