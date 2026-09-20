@@ -454,7 +454,7 @@ describe('course outline API', () => {
     const target = controller([{ id: LESSON_ID }]);
     const blocks = [
       { id: 'heading', type: 'heading', level: 2, text: 'Что мы построим' },
-      { id: 'tip', type: 'callout', tone: 'tip', text: 'Сначала проверьте полярность.' },
+      { id: 'tip', type: 'callout', tone: 'tip', hidden: true, text: 'Сначала проверьте полярность.' },
       {
         id: 'diagram',
         type: 'image',
@@ -521,6 +521,28 @@ describe('course outline API', () => {
       }),
     ).rejects.toMatchObject({ status: 400 });
     expect(unsafe.query).not.toHaveBeenCalled();
+
+    const invalidHidden = controller();
+    await expect(
+      invalidHidden.value.createLesson(request(), COURSE_ID, {
+        sectionId: SECTION_ID,
+        title: 'Некорректное скрытие',
+        summary: null,
+        content: null,
+        blocks: [
+          {
+            id: 'paragraph',
+            type: 'paragraph',
+            text: 'Текст',
+            hidden: 'yes',
+          },
+        ],
+        kind: 'material',
+        assignmentId: null,
+        estimatedMinutes: null,
+      }),
+    ).rejects.toMatchObject({ status: 400 });
+    expect(invalidHidden.query).not.toHaveBeenCalled();
 
     const externalEmbed = controller();
     await expect(
