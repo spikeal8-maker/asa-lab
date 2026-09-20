@@ -373,7 +373,12 @@ export function LessonBlockEditor({
                   placeholder="Например, javascript"
                   onChange={(event) => {
                     const language = event.target.value;
-                    replace(block.id, { ...block, language: language || undefined });
+                    if (language) {
+                      replace(block.id, { ...block, language });
+                      return;
+                    }
+                    const { language: _language, ...withoutLanguage } = block;
+                    replace(block.id, withoutLanguage);
                   }}
                 />
                 <textarea
