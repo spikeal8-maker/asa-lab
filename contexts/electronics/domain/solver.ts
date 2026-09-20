@@ -433,8 +433,7 @@ interface InternalSolveOptions extends SolveOptions {
   readonly heldArduinoSnapshots?: ReadonlyMap<string, ArduinoRuntimeSnapshot> | undefined;
   readonly hcSr04RuntimeStateById?: ReadonlyMap<string, HcSr04RuntimeState> | undefined;
   readonly pingUltrasonicRuntimeStateById?:
-    | ReadonlyMap<string, PingUltrasonicRuntimeState>
-    | undefined;
+    ReadonlyMap<string, PingUltrasonicRuntimeState> | undefined;
   readonly servoRuntimeStateById?: ReadonlyMap<string, ServoMotorRuntimeState> | undefined;
   /** RC clock only: honour t=0/sub-ms horizons and allow zero-duration observation. */
   readonly clockedRcTransient?: boolean;
@@ -1946,9 +1945,7 @@ export function solveCircuitWithHeldArduino(
     simulationTimeMs,
     heldArduinoSnapshots: snapshots,
     ...(hcSr04States ? { hcSr04RuntimeStateById: hcSr04States } : {}),
-    ...(pingUltrasonicStates
-      ? { pingUltrasonicRuntimeStateById: pingUltrasonicStates }
-      : {}),
+    ...(pingUltrasonicStates ? { pingUltrasonicRuntimeStateById: pingUltrasonicStates } : {}),
     ...(servoStates ? { servoRuntimeStateById: servoStates } : {}),
     suppressOscilloscopeTrace: true,
   });
@@ -2033,9 +2030,7 @@ export function solveRcCircuitWithHeldArduino(
     ...(transientState ? { transientState } : {}),
     heldArduinoSnapshots: snapshots,
     ...(hcSr04States ? { hcSr04RuntimeStateById: hcSr04States } : {}),
-    ...(pingUltrasonicStates
-      ? { pingUltrasonicRuntimeStateById: pingUltrasonicStates }
-      : {}),
+    ...(pingUltrasonicStates ? { pingUltrasonicRuntimeStateById: pingUltrasonicStates } : {}),
     ...(servoStates ? { servoRuntimeStateById: servoStates } : {}),
     clockedRcTransient: true,
     suppressOscilloscopeTrace: true,
