@@ -162,6 +162,19 @@ async function createCourseCompatibilityHandout(courseRunId: string, targetClass
   return handout.rows[0].id as string;
 }
 
+async function createCourseMaterialLesson(courseRunId: string) {
+  sequence += 1;
+  const lesson = await admin.query(
+    `INSERT INTO classroom_course_run_lessons
+       (tenant_id,run_id,source_section_id,source_lesson_id,section_title,
+        section_position,title,kind,lesson_position)
+     VALUES ($1,$2,gen_random_uuid(),gen_random_uuid(),'Section',1,$3,'material',2)
+     RETURNING id`,
+    [owner.tenantId, courseRunId, `Activity block lesson ${sequence}`],
+  );
+  return lesson.rows[0].id as string;
+}
+
 async function createRun(input: {
   handoutId: string;
   versionId?: string;
@@ -514,6 +527,7 @@ describe('LRN-M1-003 persistent ActivityRun', () => {
       ).rows[0],
     ).toEqual({ source_course_block_id: null });
 
+    const materialLessonId = await createCourseMaterialLesson(source.courseRunId);
     const blockAHandout = await createCourseCompatibilityHandout(source.courseRunId);
     const blockBHandout = await createCourseCompatibilityHandout(source.courseRunId);
     const blockARequest = `e1:11d3a:block-a:${++sequence}`;
@@ -521,7 +535,7 @@ describe('LRN-M1-003 persistent ActivityRun', () => {
       handoutId: blockAHandout,
       sourceKind: 'course',
       courseRunId: source.courseRunId,
-      lessonId: source.lessonId,
+      lessonId: materialLessonId,
       blockId: 'activity-block-a',
       requestId: blockARequest,
     });
@@ -531,7 +545,7 @@ describe('LRN-M1-003 persistent ActivityRun', () => {
       handoutId: blockAHandout,
       sourceKind: 'course',
       courseRunId: source.courseRunId,
-      lessonId: source.lessonId,
+      lessonId: materialLessonId,
       blockId: 'activity-block-a',
       requestId: blockARequest,
     });
@@ -541,7 +555,7 @@ describe('LRN-M1-003 persistent ActivityRun', () => {
       handoutId: blockAHandout,
       sourceKind: 'course',
       courseRunId: source.courseRunId,
-      lessonId: source.lessonId,
+      lessonId: materialLessonId,
       blockId: 'activity-block-a',
       requestId: `e1:11d3a:block-a-retry:${++sequence}`,
     });
@@ -554,7 +568,7 @@ describe('LRN-M1-003 persistent ActivityRun', () => {
       handoutId: blockBHandout,
       sourceKind: 'course',
       courseRunId: source.courseRunId,
-      lessonId: source.lessonId,
+      lessonId: materialLessonId,
       blockId: 'activity-block-b',
       requestId: `e1:11d3a:block-b:${++sequence}`,
     });
@@ -566,14 +580,9 @@ describe('LRN-M1-003 persistent ActivityRun', () => {
          FROM activity_runs
         WHERE source_course_run_id=$1 AND source_course_lesson_id=$2
         ORDER BY source_course_block_id NULLS FIRST`,
-      [source.courseRunId, source.lessonId],
+      [source.courseRunId, materialLessonId],
     );
     expect(occurrences.rows).toEqual([
-      {
-        id: legacy.activity_run_id,
-        source_classroom_assignment_id: source.handoutId,
-        source_course_block_id: null,
-      },
       {
         id: blockA.activity_run_id,
         source_classroom_assignment_id: blockAHandout,
@@ -612,7 +621,7 @@ describe('LRN-M1-003 persistent ActivityRun', () => {
       handoutId: foreignHandout,
       sourceKind: 'course',
       courseRunId: source.courseRunId,
-      lessonId: source.lessonId,
+      lessonId: materialLessonId,
       blockId: 'activity-block-foreign-assignment',
       requestId: `e1:11d3a:foreign-assignment:${++sequence}`,
     });
@@ -622,7 +631,7 @@ describe('LRN-M1-003 persistent ActivityRun', () => {
       handoutId: await createCourseCompatibilityHandout(source.courseRunId),
       sourceKind: 'course',
       courseRunId: source.courseRunId,
-      lessonId: source.lessonId,
+      lessonId: materialLessonId,
       blockId: 'bad block id',
       requestId: `e1:11d3a:bad-block:${++sequence}`,
     });

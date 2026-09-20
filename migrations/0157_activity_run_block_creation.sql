@@ -59,14 +59,13 @@ BEGIN
         END IF;
     ELSE
         SELECT run.tenant_id, run.classroom_id, run.status,
-               lesson.classroom_assignment_id
+               lesson.kind, lesson.classroom_assignment_id
           INTO v_course
           FROM public.classroom_course_runs run
           JOIN public.classroom_course_run_lessons lesson
             ON lesson.tenant_id = run.tenant_id
            AND lesson.run_id = run.id
            AND lesson.id = NEW.source_course_lesson_id
-           AND lesson.kind = 'assignment'
          WHERE run.id = NEW.source_course_run_id;
         IF v_course.tenant_id IS NULL
            OR v_course.tenant_id <> NEW.tenant_id
@@ -75,7 +74,10 @@ BEGIN
            OR v_assignment.course_run_id <> NEW.source_course_run_id
            OR (
                NEW.source_course_block_id IS NULL
-               AND v_course.classroom_assignment_id <> NEW.source_classroom_assignment_id
+               AND (
+                   v_course.kind <> 'assignment'
+                   OR v_course.classroom_assignment_id <> NEW.source_classroom_assignment_id
+               )
            ) THEN
             RAISE EXCEPTION 'course activity run provenance is incoherent';
         END IF;
@@ -268,21 +270,25 @@ BEGIN
         RETURN;
     END IF;
     IF p_source_kind = 'course' THEN
-        SELECT run.status, lesson.classroom_assignment_id
+        SELECT run.status, lesson.kind, lesson.classroom_assignment_id
           INTO v_course
           FROM public.classroom_course_runs run
           JOIN public.classroom_course_run_lessons lesson
             ON lesson.tenant_id = run.tenant_id
            AND lesson.run_id = run.id
            AND lesson.id = p_source_course_lesson_id
-           AND lesson.kind = 'assignment'
          WHERE run.id = p_source_course_run_id
            AND run.tenant_id = v_source.tenant_id
            AND run.classroom_id = v_source.classroom_id
            AND v_source.course_run_id = run.id;
         IF v_course.status IS NULL
-           OR (p_source_course_block_id IS NULL
-               AND v_course.classroom_assignment_id <> p_classroom_assignment_id) THEN
+           OR (
+               p_source_course_block_id IS NULL
+               AND (
+                   v_course.kind <> 'assignment'
+                   OR v_course.classroom_assignment_id <> p_classroom_assignment_id
+               )
+           ) THEN
             RETURN QUERY SELECT 'course_source_forbidden'::varchar,
                                 NULL::uuid, NULL::varchar, false;
             RETURN;
