@@ -22,6 +22,17 @@ import {
   isElectrolyticCapacitor,
   type CapacitorTransientState,
 } from './models/capacitor-transient-model.js';
+import {
+  advanceHcSr04Due,
+  hcSr04DistanceMeters,
+  hcSr04InputLevels,
+  hcSr04NextDueMicroseconds,
+  initialHcSr04RuntimeState,
+  isHcSr04,
+  isHcSr04RuntimeState,
+  observeHcSr04Inputs,
+  type HcSr04RuntimeState,
+} from './models/hc-sr04-runtime.js';
 
 const MAX_TIME_US = 2 ** 50 - 1001;
 const MAX_INPUT_EVENTS = 1024;
@@ -79,6 +90,10 @@ export interface ArduinoCircuitClockState {
   readonly nextInputIndex: number;
   /** Committed physics at the last clock barrier, NOT a speculative UI-horizon sample. */
   readonly physicalState?: CapacitorTransientState;
+  readonly hcSr04?: readonly {
+    readonly componentId: string;
+    readonly runtime: HcSr04RuntimeState;
+  }[];
   readonly boards: readonly {
     readonly componentId: string;
     readonly loadedSource?: string | null;
@@ -113,6 +128,7 @@ function clockedComponent(component: SchematicComponent): boolean {
     (ELECTROTHERMAL_MODELS.has(model.id) ||
       [
         'arduino-uno',
+        'hc-sr04-distance-sensor',
         'resistor',
         'momentary-button',
         'spdt-switch',
@@ -245,6 +261,17 @@ export function advanceArduinoCircuitClock(
   const boards = document.components
     .filter(isArduinoUno)
     .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  const hcSr04Components = document.components
+    .filter(isHcSr04)
+    .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  const invalidHcSr04 = hcSr04Components.find(
+    (component) => hcSr04DistanceMeters(component) === null,
+  );
+  if (invalidHcSr04)
+    return fault(
+      'invalid_hc_sr04_distance',
+      `${invalidHcSr04.id}: distanceMeters должен быть 0.02…4.00 м.`,
+    );
   if (boards.length > MAX_BOARDS)
     return fault('invalid_board_count', 'Профиль поддерживает не более 8 плат Arduino.');
   let digest: string;
@@ -359,6 +386,7 @@ export function advanceArduinoCircuitClock(
     loopStartedAtMs: timeMicroseconds / 1000,
   });
   const coldState = resetRuntimeAt(0);
+  const previousHcSr04 = previous?.hcSr04 ?? [];
   if (previous) {
     if (
       previous.version !== 1 ||
@@ -391,6 +419,11 @@ export function advanceArduinoCircuitClock(
       ) ||
       !Array.isArray(previous.boards) ||
       previous.boards.length !== boards.length ||
+      previousHcSr04.length !== hcSr04Components.length ||
+      previousHcSr04.some(
+        (entry, index) =>
+          entry.componentId !== hcSr04Components[index]?.id || !isHcSr04RuntimeState(entry.runtime),
+      ) ||
       previous.boards.some((entry, index) => {
         const board = boards[index]!;
         const loadedSource = previousLoadedSources.get(board.id);
@@ -452,6 +485,12 @@ export function advanceArduinoCircuitClock(
     previous?.boards.map((entry) => [entry.componentId, entry.runtime] as const),
   );
   const loadedSources = new Map(previousLoadedSources);
+  const hcSr04States = new Map(
+    hcSr04Components.map(
+      (component, index) =>
+        [component.id, previousHcSr04[index]?.runtime ?? initialHcSr04RuntimeState()] as const,
+    ),
+  );
   for (const board of boards) {
     if (!executionSources.has(board.id) && !states.has(board.id)) {
       states.set(board.id, coldState);
@@ -480,7 +519,13 @@ export function advanceArduinoCircuitClock(
   });
   const advancePhysics = (time: number) =>
     withQuality(
-      solveRcCircuitWithHeldArduino(activeDocument, time / 1000, snapshots(), physicalState),
+      solveRcCircuitWithHeldArduino(
+        activeDocument,
+        time / 1000,
+        snapshots(),
+        physicalState,
+        hcSr04States,
+      ),
       time,
     );
   const sample = (time: number): NonNullable<ArduinoCircuitClockAdvance['result']> => {
@@ -496,17 +541,40 @@ export function advanceArduinoCircuitClock(
           time / 1000,
           snapshots(),
           advanced.transientState,
+          hcSr04States,
         ),
         time,
       );
     } else {
       cachedFrame = withQuality(
-        solveCircuitWithHeldArduino(activeDocument, time / 1000, snapshots()),
+        solveCircuitWithHeldArduino(activeDocument, time / 1000, snapshots(), hcSr04States),
         time,
       );
     }
     cachedFrameTime = time;
     return cachedFrame;
+  };
+  const observeSensors = (
+    frame: NonNullable<ArduinoCircuitClockAdvance['result']>,
+    time: number,
+  ): boolean => {
+    let echoChanged = false;
+    for (const component of hcSr04Components) {
+      const terminalVoltages =
+        frame.components.find((entry) => entry.componentId === component.id)?.terminalVoltages ??
+        {};
+      const levels = hcSr04InputLevels(terminalVoltages);
+      const step = observeHcSr04Inputs(
+        hcSr04States.get(component.id)!,
+        time,
+        levels.powered,
+        levels.triggerHigh,
+        hcSr04DistanceMeters(component)!,
+      );
+      hcSr04States.set(component.id, step.state);
+      echoChanged ||= step.echoChanged;
+    }
+    return echoChanged;
   };
   const isNonFatalPassiveNoSource = (frame: SolveResult): boolean =>
     boards.length === 0 &&
@@ -514,6 +582,13 @@ export function advanceArduinoCircuitClock(
     frame.status === 'invalid' &&
     frame.diagnostics.some((entry) => entry.code === 'no_source') &&
     !frame.diagnostics.some((entry) => entry.severity === 'error' && entry.code !== 'no_source');
+  const nextSensorTime = (): number =>
+    Math.min(
+      ...hcSr04Components.map((component) =>
+        hcSr04NextDueMicroseconds(hcSr04States.get(component.id)!),
+      ),
+      Number.POSITIVE_INFINITY,
+    );
   const nextPhysicsTime = (): number =>
     hasPhysics
       ? (Math.floor(
@@ -530,12 +605,22 @@ export function advanceArduinoCircuitClock(
         return state ? Math.round(state.resumeAtMs * 1000) : 0;
       }),
       inputs[nextInputIndex]?.atMicroseconds ?? Number.POSITIVE_INFINITY,
+      nextSensorTime(),
       nextPhysicsTime(),
     );
   // A returned frame is never a speculative MCU state. Failure discards this whole batch.
   let clockEvents = 0;
   while (nextTime() <= targetMicroseconds && clockEvents < budget) {
     const time = nextTime();
+    let sensorOutputChanged = false;
+    for (const component of hcSr04Components) {
+      const state = hcSr04States.get(component.id)!;
+      if (hcSr04NextDueMicroseconds(state) !== time) continue;
+      const step = advanceHcSr04Due(state, time);
+      hcSr04States.set(component.id, step.state);
+      sensorOutputChanged ||= step.echoChanged;
+    }
+    if (sensorOutputChanged) cachedFrame = undefined;
     const physicsDue = nextPhysicsTime() === time;
     if (hasPhysics) {
       const advanced = advancePhysics(time);
@@ -565,11 +650,13 @@ export function advanceArduinoCircuitClock(
         'electrical_quality_failed',
         'Не выполнены проверки конечности, KCL или напряжения источников.',
       );
+    sensorOutputChanged ||= observeSensors(frame, time);
     const updates: [string, ArduinoRuntimeState, string][] = [];
     let electricalStateChanged = false;
     for (const board of runnableBoards) {
       const state = states.get(board.id);
-      const pulseInputSample = Boolean(state?.pulseWait) && (inputChanged || physicsDue);
+      const pulseInputSample =
+        Boolean(state?.pulseWait) && (inputChanged || physicsDue || sensorOutputChanged);
       if (
         !pendingProgramLoads.has(board.id) &&
         state &&
@@ -618,9 +705,9 @@ export function advanceArduinoCircuitClock(
     }
     if (electricalStateChanged) {
       const pulseWaiters = runnableBoards.filter((board) => states.get(board.id)?.pulseWait);
-      if (pulseWaiters.length > 0) {
+      if (pulseWaiters.length > 0 || hcSr04Components.length > 0) {
         cachedFrame = undefined;
-        const postCommitFrame = sample(time);
+        let postCommitFrame = sample(time);
         if (!postCommitFrame.solved && !isNonFatalPassiveNoSource(postCommitFrame))
           return fault(
             'electrical_sample_failed',
@@ -631,6 +718,10 @@ export function advanceArduinoCircuitClock(
             'electrical_quality_failed',
             'Не выполнены проверки конечности, KCL или напряжения источников.',
           );
+        if (observeSensors(postCommitFrame, time)) {
+          cachedFrame = undefined;
+          postCommitFrame = sample(time);
+        }
         const pulseUpdates: [string, ArduinoRuntimeState, string][] = [];
         for (const board of pulseWaiters) {
           const executionSource = executionSources.get(board.id)!;
@@ -692,6 +783,14 @@ export function advanceArduinoCircuitClock(
     inputs: inputs.map((event) => ({ ...event })),
     nextInputIndex,
     ...(physicalState ? { physicalState } : {}),
+    ...(hcSr04Components.length > 0
+      ? {
+          hcSr04: hcSr04Components.map((component) => ({
+            componentId: component.id,
+            runtime: hcSr04States.get(component.id)!,
+          })),
+        }
+      : {}),
     boards: boards.map((board) => ({
       componentId: board.id,
       loadedSource: loadedSources.get(board.id) ?? null,

@@ -27,6 +27,18 @@ function board(id: string, source: string): SchematicComponent {
 function part(id: string, kind: SchematicComponent['kind'], value = 1000): SchematicComponent {
   return { id, kind, value, position: { x: 0, y: 0 } };
 }
+function hcSr04(id: string, distanceMeters = 1): SchematicComponent {
+  return {
+    id,
+    kind: 'visual',
+    value: 0,
+    position: { x: 0, y: 0 },
+    componentTypeId: 'ultrasonic-hc-sr04',
+    variantId: 'ultrasonic-hc-sr04',
+    pinIds: ['vcc', 'trigger', 'echo', 'gnd'],
+    stateProperties: { distanceMeters },
+  };
+}
 function circuit(
   components: SchematicComponent[],
   wires: [string, string, string, string][] = [],
@@ -67,6 +79,22 @@ function through(
 const idle = 'void loop(){delay(100);}';
 const runtime = (result: ArduinoCircuitClockAdvance, id = 'uno') =>
   result.state!.boards.find((entry) => entry.componentId === id)!.runtime;
+const hcRuntime = (result: ArduinoCircuitClockAdvance, id = 'sonar') =>
+  result.state!.hcSr04!.find((entry) => entry.componentId === id)!.runtime;
+
+function hcSr04Circuit(distanceMeters: number, triggerDelayUs = 10, powered = true) {
+  const source = `unsigned long duration=0;void setup(){pinMode(13,OUTPUT);pinMode(2,INPUT);
+    digitalWrite(13,LOW);delayMicroseconds(2);digitalWrite(13,HIGH);
+    delayMicroseconds(${triggerDelayUs});digitalWrite(13,LOW);duration=pulseIn(2,HIGH,30000);}
+    void loop(){delay(100);}`;
+  const wires: [string, string, string, string][] = [
+    ['uno', 'power-gnd-1', 'sonar', 'gnd'],
+    ['uno', 'd13', 'sonar', 'trigger'],
+    ['sonar', 'echo', 'uno', 'd2'],
+  ];
+  if (powered) wires.unshift(['uno', 'power-5v', 'sonar', 'vcc']);
+  return circuit([board('uno', source), hcSr04('sonar', distanceMeters)], wires);
+}
 
 describe('Arduino shared dc-inputs-v1 circuit clock', () => {
   it('verifies the existing DC path from committed GPIO, without replaying input-dependent code', () => {
@@ -263,6 +291,76 @@ describe('Arduino shared dc-inputs-v1 circuit clock', () => {
     expect(runtime(reversed, receiverId).variables.duration).toBe(reversedWidth);
     expect(reversed.state).toEqual(forward.state);
     expect(reversed.result).toEqual(forward.result);
+  });
+
+  it.each([
+    [0.02, 116],
+    [1, 5800],
+    [4, 23200],
+  ])('drives HC-SR04 at %s m through Arduino trigger -> echo -> pulseIn', (distance, width) => {
+    const done = through(hcSr04Circuit(distance), 25000);
+    expect(done.diagnostics).toEqual([]);
+    const sensor = hcRuntime(done);
+    expect(sensor.lastEchoStartMicroseconds).toBeDefined();
+    expect(sensor.lastEchoEndMicroseconds).toBeDefined();
+    const generatedWidth = sensor.lastEchoEndMicroseconds! - sensor.lastEchoStartMicroseconds!;
+    expect(generatedWidth).toBe(width);
+    expect(runtime(done).variables.duration).toBe(generatedWidth);
+  });
+
+  it('ignores a sub-10us Arduino trigger and pulseIn times out cleanly', () => {
+    const done = through(hcSr04Circuit(1, 5), 31000);
+    const triggerEdges = done.events.filter(
+      (event) =>
+        event.componentId === 'uno' && event.kind === 'output-change' && event.terminal === 'd13',
+    );
+    const high = triggerEdges.find((event) => event.voltage === 5)!;
+    const low = triggerEdges.find(
+      (event) => event.voltage === 0 && event.atMicroseconds > high.atMicroseconds,
+    )!;
+    expect(low.atMicroseconds - high.atMicroseconds).toBeLessThan(10);
+    expect(hcRuntime(done).lastEchoStartMicroseconds).toBeUndefined();
+    expect(runtime(done).variables.duration).toBe(0);
+  });
+
+  it('does not generate echo when HC-SR04 is unpowered', () => {
+    const done = through(hcSr04Circuit(1, 10, false), 31000);
+    expect(done.diagnostics).toEqual([]);
+    expect(hcRuntime(done).powered).toBe(false);
+    expect(hcRuntime(done).lastEchoStartMicroseconds).toBeUndefined();
+    expect(runtime(done).variables.duration).toBe(0);
+  });
+
+  it('keeps HC-SR04 result invariant across scheduler work quanta', () => {
+    const doc = hcSr04Circuit(1);
+    expect(through(doc, 7000, undefined, undefined, 1)).toEqual(
+      through(doc, 7000, undefined, undefined, 256),
+    );
+  });
+
+  it('resumes a JSON-serialized HC-SR04 pending echo identically', () => {
+    const doc = hcSr04Circuit(1);
+    const early = through(doc, 100, undefined, undefined, 3);
+    expect(hcRuntime(early).phase).toBe('echo-delay');
+    const resumed = through(doc, 7000, JSON.parse(JSON.stringify(early.state)), undefined, 3);
+    const direct = through(doc, 7000);
+    expect(resumed.state).toEqual(direct.state);
+    expect(resumed.result).toEqual(direct.result);
+    expect([...early.events, ...resumed.events]).toEqual(direct.events);
+  });
+
+  it('keeps HC-SR04 canonical result invariant under component and wire order', () => {
+    const doc = hcSr04Circuit(1);
+    const reference = through(doc, 7000);
+    const reversed = through(
+      {
+        ...doc,
+        components: [...doc.components].reverse(),
+        connections: [...doc.connections].reverse(),
+      },
+      7000,
+    );
+    expect(reversed).toEqual(reference);
   });
 
   it('preserves the complete trace, final state and numerical result across quanta and time partitions', () => {
