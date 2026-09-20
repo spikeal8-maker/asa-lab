@@ -806,6 +806,85 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
      ORDER BY item.position;
 $$;
 
+CREATE OR REPLACE FUNCTION public.assignment_media_visible(
+    p_assignment_id uuid,
+    p_principal_id  uuid,
+    p_account_id    uuid,
+    p_tenant_id     uuid,
+    p_seat_id       uuid
+)
+RETURNS boolean
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $
+    SELECT CASE
+        WHEN p_seat_id IS NOT NULL THEN EXISTS (
+            SELECT 1
+              FROM public.classroom_student_seats seat
+              JOIN public.classroom_assignments handout
+                ON handout.tenant_id = seat.tenant_id
+               AND handout.classroom_id = seat.classroom_id
+             WHERE seat.id = p_seat_id
+               AND seat.tenant_id = p_tenant_id
+               AND seat.status IN ('issued', 'active')
+               AND handout.assignment_id = p_assignment_id
+        )
+        WHEN p_account_id IS NOT NULL THEN EXISTS (
+            SELECT 1
+              FROM public.teacher_assignments task
+             WHERE task.id = p_assignment_id
+               AND (
+                   public.content_is_visible(
+                       'assignment', task.id, task.visibility,
+                       task.owner_principal_id, task.tenant_id,
+                       p_principal_id, p_account_id, p_tenant_id
+                   )
+                   OR EXISTS (
+                       SELECT 1
+                         FROM public.classroom_assignments handout
+                         JOIN public.classroom_memberships membership
+                           ON membership.tenant_id = handout.tenant_id
+                          AND membership.classroom_id = handout.classroom_id
+                        WHERE handout.assignment_id = task.id
+                          AND membership.account_id = p_account_id
+                          AND membership.member_role IN ('owner', 'co_teacher')
+                   )
+                   OR EXISTS (
+                       SELECT 1
+                         FROM public.classroom_assignments handout
+                         JOIN public.classroom_student_seats seat
+                           ON seat.tenant_id = handout.tenant_id
+                          AND seat.classroom_id = handout.classroom_id
+                        WHERE handout.assignment_id = task.id
+                          AND seat.account_id = p_account_id
+                          AND seat.status = 'active'
+                   )
+                   OR EXISTS (
+                       SELECT 1
+                         FROM public.course_items item
+                         JOIN public.courses course ON course.id = item.course_id
+                        WHERE item.assignment_id = task.id
+                          AND public.content_is_visible(
+                              'course', course.id, course.visibility,
+                              course.owner_principal_id, course.tenant_id,
+                              p_principal_id, p_account_id, p_tenant_id
+                          )
+                          AND EXISTS (
+                              SELECT 1
+                                FROM public.course_lessons lesson
+                                JOIN public.course_sections section
+                                  ON section.id = lesson.section_id
+                                 AND section.course_id = lesson.course_id
+                               WHERE lesson.course_id = course.id
+                                 AND lesson.assignment_id = item.assignment_id
+                                 AND NOT lesson.hidden
+                                 AND NOT section.hidden
+                          )
+                   )
+               )
+        )
+        ELSE false
+    END;
+$;
+
 REVOKE ALL ON FUNCTION public.course_publish(uuid,uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.course_publish(uuid,uuid) TO asalab_app;
 
@@ -814,3 +893,6 @@ GRANT EXECUTE ON FUNCTION public.classroom_course_run_media(uuid,uuid,uuid,uuid)
 
 REVOKE ALL ON FUNCTION public.course_contents(uuid,uuid,uuid,uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.course_contents(uuid,uuid,uuid,uuid) TO asalab_app;
+
+REVOKE ALL ON FUNCTION public.assignment_media_visible(uuid,uuid,uuid,uuid,uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.assignment_media_visible(uuid,uuid,uuid,uuid,uuid) TO asalab_app;
