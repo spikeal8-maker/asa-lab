@@ -377,8 +377,7 @@ export function LessonBlockEditor({
                       replace(block.id, { ...block, language });
                       return;
                     }
-                    const { language: _language, ...withoutLanguage } = block;
-                    replace(block.id, withoutLanguage);
+                    replace(block.id, { ...block, language: undefined });
                   }}
                 />
                 <textarea
