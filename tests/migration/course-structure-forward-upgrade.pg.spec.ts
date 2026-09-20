@@ -196,11 +196,7 @@ describe('Course Builder structure forward upgrade', () => {
           [sectionId, lessonId],
         )
       ).rows[0];
-      expect(draftAfter).toEqual({
-        ...draftBefore,
-        section_hidden: false,
-        lesson_hidden: false,
-      });
+      expect(draftAfter).toEqual({ ...draftBefore, section_hidden: false, lesson_hidden: false });
       expect(
         (
           await pool.query('SELECT id,outline,content_hash FROM course_versions WHERE id=$1', [
