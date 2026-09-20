@@ -62,17 +62,17 @@ const TABLE_COLUMN_LIMIT = 12;
 const TABLE_CELL_TEXT_LIMIT = 1_000;
 const CODE_LANGUAGE_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_+.#-]{0,79}$/;
 const BLOCK_FIELDS: Record<string, ReadonlySet<string>> = {
-  paragraph: new Set(['id', 'type', 'text']),
-  heading: new Set(['id', 'type', 'text', 'level']),
-  callout: new Set(['id', 'type', 'text', 'tone']),
-  image: new Set(['id', 'type', 'url', 'alt', 'caption']),
-  video: new Set(['id', 'type', 'url', 'title']),
-  audio: new Set(['id', 'type', 'url', 'title']),
-  file: new Set(['id', 'type', 'url', 'label']),
-  code: new Set(['id', 'type', 'text', 'language']),
-  formula: new Set(['id', 'type', 'text']),
-  table: new Set(['id', 'type', 'rows']),
-  divider: new Set(['id', 'type']),
+  paragraph: new Set(['id', 'type', 'text', 'hidden']),
+  heading: new Set(['id', 'type', 'text', 'level', 'hidden']),
+  callout: new Set(['id', 'type', 'text', 'tone', 'hidden']),
+  image: new Set(['id', 'type', 'url', 'alt', 'caption', 'hidden']),
+  video: new Set(['id', 'type', 'url', 'title', 'hidden']),
+  audio: new Set(['id', 'type', 'url', 'title', 'hidden']),
+  file: new Set(['id', 'type', 'url', 'label', 'hidden']),
+  code: new Set(['id', 'type', 'text', 'language', 'hidden']),
+  formula: new Set(['id', 'type', 'text', 'hidden']),
+  table: new Set(['id', 'type', 'rows', 'hidden']),
+  divider: new Set(['id', 'type', 'hidden']),
 };
 
 type LessonBlock = Record<string, unknown> & { id: string; type: string };
@@ -120,6 +120,7 @@ function lessonBlocks(raw: unknown, legacyContent: string | null): LessonBlock[]
       return null;
     const allowedFields = BLOCK_FIELDS[block['type']];
     if (!allowedFields || Object.keys(block).some((key) => !allowedFields.has(key))) return null;
+    if (block['hidden'] !== undefined && typeof block['hidden'] !== 'boolean') return null;
     ids.add(block['id']);
 
     const text = block['text'];
