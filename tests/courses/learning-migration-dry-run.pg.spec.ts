@@ -24,7 +24,7 @@ describePg('LRN-M0-005 PostgreSQL read-only evidence', () => {
     }
   });
 
-  it('repeats the same snapshot with bounded set-based reads', async () => {
+  it('keeps one assignment x Seat unit with D1 block occurrences', async () => {
     const client = new pg.Client({ connectionString: databaseUrl });
     await client.connect();
     const options = {
@@ -40,7 +40,8 @@ describePg('LRN-M0-005 PostgreSQL read-only evidence', () => {
           const first = await analyzeLearningData(tx, options);
           const second = await analyzeLearningData(tx, options);
           expect(second.deterministic).toEqual(first.deterministic);
-          // Result revisions must not multiply the one assignment/Seat analysis unit.
+          // Result revisions and D1 block occurrences must not multiply the legacy
+          // one classroom assignment x one Seat analysis unit.
           const expected = await tx.query(
             'SELECT count(*)::int AS count FROM classroom_assignments ca JOIN classroom_student_seats seat ON seat.classroom_id=ca.classroom_id',
           );

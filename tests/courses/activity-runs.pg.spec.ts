@@ -194,6 +194,29 @@ async function createRun(input: {
   });
 }
 
+async function cloneCourseOccurrence(sourceRunId: string, blockId: string | null) {
+  sequence += 1;
+  const result = await admin.query(
+    `INSERT INTO activity_runs (
+       tenant_id,school_id,classroom_id,learning_activity_version_id,source_kind,
+       source_classroom_assignment_id,source_course_run_id,source_course_lesson_id,
+       source_course_block_id,lifecycle_status,opens_at,due_at,closes_at,late_policy,
+       grading_scheme_version_id,runtime_policy_snapshot,created_by_principal_id,
+       creation_request_id,creation_request_digest,closed_at,cancelled_at,archived_at
+     )
+     SELECT tenant_id,school_id,classroom_id,learning_activity_version_id,source_kind,
+       source_classroom_assignment_id,source_course_run_id,source_course_lesson_id,
+       $2,lifecycle_status,opens_at,due_at,closes_at,late_policy,
+       grading_scheme_version_id,runtime_policy_snapshot,created_by_principal_id,
+       $3,$4,closed_at,cancelled_at,archived_at
+       FROM activity_runs
+      WHERE id=$1
+     RETURNING id,source_course_block_id`,
+    [sourceRunId, blockId, `e1:11d1:occurrence:${sequence}`, 'd'.repeat(64)],
+  );
+  return result.rows[0] as { id: string; source_course_block_id: string | null };
+}
+
 async function transition(runId: string, target: string | null) {
   return inTenant(owner.tenantId, async (client) => {
     const result = await client.query(`SELECT * FROM activity_run_transition($1,$2,$3)`, [
@@ -398,12 +421,60 @@ describe('LRN-M1-003 persistent ActivityRun', () => {
       requestId,
     });
     expect(delayedRetry).toMatchObject({ activity_run_id: first.activity_run_id, reused: true });
-    const columns = await admin.query(
-      `SELECT column_name FROM information_schema.columns
-        WHERE table_schema='public' AND table_name='activity_runs'
-          AND column_name='source_course_block_id'`,
+    const stored = await admin.query(
+      `SELECT source_course_block_id FROM activity_runs WHERE id=$1`,
+      [first.activity_run_id],
     );
-    expect(columns.rowCount).toBe(0);
+    expect(stored.rows[0]).toEqual({ source_course_block_id: null });
+  });
+
+  it('E1-FIX-11D1 distinguishes course occurrences by nullable block identity', async () => {
+    const source = await createCourseHandout();
+    const legacy = await createRun({
+      handoutId: source.handoutId,
+      sourceKind: 'course',
+      courseRunId: source.courseRunId,
+      lessonId: source.lessonId,
+    });
+    expect(legacy).toMatchObject({ result_code: 'ok', lifecycle_status: 'active' });
+
+    const legacyStored = await admin.query(
+      `SELECT source_course_block_id FROM activity_runs WHERE id=$1`,
+      [legacy.activity_run_id],
+    );
+    expect(legacyStored.rows[0]).toEqual({ source_course_block_id: null });
+
+    await expect(cloneCourseOccurrence(legacy.activity_run_id!, null)).rejects.toThrow(
+      /duplicate key/,
+    );
+
+    const blockA = await cloneCourseOccurrence(legacy.activity_run_id!, 'activity-block-a');
+    const blockB = await cloneCourseOccurrence(legacy.activity_run_id!, 'activity-block-b');
+    expect(blockA.source_course_block_id).toBe('activity-block-a');
+    expect(blockB.source_course_block_id).toBe('activity-block-b');
+    expect(blockA.id).not.toBe(blockB.id);
+
+    const occurrences = await admin.query(
+      `SELECT source_course_block_id
+         FROM activity_runs
+        WHERE source_course_run_id=$1 AND source_course_lesson_id=$2
+        ORDER BY source_course_block_id NULLS FIRST`,
+      [source.courseRunId, source.lessonId],
+    );
+    expect(occurrences.rows).toEqual([
+      { source_course_block_id: null },
+      { source_course_block_id: 'activity-block-a' },
+      { source_course_block_id: 'activity-block-b' },
+    ]);
+
+    await expect(
+      cloneCourseOccurrence(legacy.activity_run_id!, 'activity-block-a'),
+    ).rejects.toThrow(/duplicate key/);
+    await expect(
+      admin.query(`UPDATE activity_runs SET source_course_block_id='other-block' WHERE id=$1`, [
+        blockA.id,
+      ]),
+    ).rejects.toThrow(/immutable/);
   });
 
   it('supports only active to closed/cancelled and closed to archived', async () => {

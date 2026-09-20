@@ -122,7 +122,8 @@ const E1_UNIT_QUERY = UNIT_QUERY.replace(
   .replace(
     ' ORDER BY c.school_id, ca.id, seat.id',
     `
-  LEFT JOIN activity_runs run ON run.source_classroom_assignment_id=ca.id
+  LEFT JOIN activity_runs run
+    ON run.source_classroom_assignment_id=ca.id AND run.source_course_block_id IS NULL
   LEFT JOIN learner_identity_links link
     ON link.seat_id=seat.id AND link.tenant_id=c.tenant_id
    AND link.school_id=c.school_id AND link.link_kind='student_seat'
