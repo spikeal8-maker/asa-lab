@@ -243,8 +243,7 @@ function validInputs(
             typeof event.value === 'number' &&
             Number.isFinite(event.value) &&
             event.value >= 0.02 &&
-            event.value <=
-              (component.componentTypeId === 'ultrasonic-hc-sr04' ? 4 : 3)) ||
+            event.value <= (component.componentTypeId === 'ultrasonic-hc-sr04' ? 4 : 3)) ||
           (event.property === 'serialRx' &&
             isArduinoUno(component) &&
             typeof event.value === 'string' &&
