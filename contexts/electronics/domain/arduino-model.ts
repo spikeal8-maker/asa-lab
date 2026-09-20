@@ -1,4 +1,5 @@
 import type { SchematicComponent, Terminal } from './document.js';
+import { arduinoWaveformLevel, isArduinoTimedWaveformState } from './arduino-waveform-runtime.js';
 import {
   advanceArduinoRuntime,
   type ArduinoInputReader,
@@ -203,7 +204,7 @@ export function arduinoOutputBranches(
 export function arduinoOutputBranchesFromSnapshot(
   component: SchematicComponent,
   snapshot: ArduinoRuntimeSnapshot,
-  simulationTimeMs = 0,
+  _simulationTimeMs = 0,
 ): readonly ArduinoOutputBranch[] {
   const pins = new Set(component.pinIds ?? []);
   const ground = ARDUINO_GROUND_TERMINALS.find((terminal) => pins.has(terminal));
@@ -258,13 +259,13 @@ export function arduinoOutputBranchesFromSnapshot(
   }
   for (const tone of programmedTones.values()) {
     if (!pins.has(tone.terminal)) continue;
-    const periodMs = 1000 / tone.frequencyHz;
-    const phaseMs = Math.max(0, simulationTimeMs) % periodMs;
+    const waveform = snapshot.state.tones[tone.terminal];
     branches.push({
       id: tone.terminal,
       terminal: tone.terminal,
       ground,
-      targetVoltage: phaseMs < periodMs / 2 ? 5 : 0,
+      targetVoltage:
+        waveform && isArduinoTimedWaveformState(waveform) ? arduinoWaveformLevel(waveform) * 5 : 0,
       resistanceOhm: 10,
     });
   }

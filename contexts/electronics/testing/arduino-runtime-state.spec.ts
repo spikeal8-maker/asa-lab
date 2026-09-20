@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { advanceArduinoRuntime, resetArduinoRuntime } from '../domain/arduino-program-runtime.js';
+import { isArduinoTimedWaveformState } from '../domain/arduino-waveform-runtime.js';
 
 describe('Arduino persistent runtime state', () => {
   it('keeps nested typed bindings and const across a serialized delay', () => {
@@ -37,6 +38,23 @@ describe('Arduino persistent runtime state', () => {
     const forged = JSON.parse(JSON.stringify(first.state));
     forged.scopes[0].value.value = 256;
     expect(advanceArduinoRuntime(source, {}, 100, forged).state.variables.value).toBe(0);
+  });
+
+  it('migrates legacy v7 tone state without a waveform anchor to canonical state', () => {
+    const source = 'void setup(){tone(13,1000);delay(100);}void loop(){delay(100);}';
+    const started = advanceArduinoRuntime(source, {}, 0);
+    const legacy = JSON.parse(JSON.stringify(started.state));
+    legacy.tones.d13 = { frequencyHz: 1000, expiresAtMs: 50 };
+
+    const resumed = advanceArduinoRuntime(source, {}, 10, legacy);
+
+    expect(resumed.state.version).toBe(7);
+    expect(isArduinoTimedWaveformState(resumed.state.tones.d13)).toBe(true);
+    expect(resumed.state.tones.d13).toMatchObject({
+      startedAtMicroseconds: 0,
+      frequencyHz: 1000,
+      endAtMicroseconds: 50_000,
+    });
   });
 
   it('runs setup once, repeats loop on virtual time and preserves globals', () => {
