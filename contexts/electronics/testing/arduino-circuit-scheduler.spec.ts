@@ -31,6 +31,18 @@ function board(id: string, source: string): SchematicComponent {
 function part(id: string, kind: SchematicComponent['kind'], value = 1000): SchematicComponent {
   return { id, kind, value, position: { x: 0, y: 0 } };
 }
+function pirSensor(id: string, motionDetected = false): SchematicComponent {
+  return {
+    id,
+    kind: 'visual',
+    value: 0,
+    position: { x: 0, y: 0 },
+    componentTypeId: 'pir-sensor',
+    variantId: 'pir-sensor',
+    pinIds: ['vcc', 'signal', 'gnd'],
+    stateProperties: { motionDetected },
+  };
+}
 function servoMotor(id: string): SchematicComponent {
   return {
     id,
@@ -99,6 +111,22 @@ const hcRuntime = (result: ArduinoCircuitClockAdvance, id = 'sonar') =>
   result.state!.hcSr04!.find((entry) => entry.componentId === id)!.runtime;
 const servoRuntime = (result: ArduinoCircuitClockAdvance, id = 'servo') =>
   result.state!.servoMotors!.find((entry) => entry.componentId === id)!.runtime;
+
+function pirCircuit(
+  motionDetected = false,
+  supply: 'power-5v' | 'power-3v3' | 'none' | 'reversed' = 'power-5v',
+) {
+  const source =
+    'int motion=0;void setup(){pinMode(2,INPUT);}void loop(){motion=digitalRead(2);delay(10);}';
+  const wires: [string, string, string, string][] = [['pir', 'signal', 'uno', 'd2']];
+  if (supply === 'reversed') {
+    wires.push(['uno', 'power-gnd-1', 'pir', 'vcc'], ['uno', 'power-5v', 'pir', 'gnd']);
+  } else {
+    wires.push(['uno', 'power-gnd-1', 'pir', 'gnd']);
+    if (supply !== 'none') wires.push(['uno', supply, 'pir', 'vcc']);
+  }
+  return circuit([board('uno', source), pirSensor('pir', motionDetected)], wires);
+}
 
 function servoCircuit(angleDegrees: number, powered = true, reversed = false) {
   const source = `#include <Servo.h>\nServo motor;int readback=-1;
@@ -1164,6 +1192,105 @@ describe('Arduino shared dc-inputs-v1 circuit clock', () => {
     const resumed = through(doc, 5000, JSON.parse(JSON.stringify(mid.state)), undefined, 3);
     expect(resumed.state).toEqual(large.state);
     expect(resumed.result).toEqual(large.result);
+  });
+
+  it('drives Arduino digitalRead from the real powered PIR electrical output', () => {
+    const low = through(pirCircuit(false), 12_000, undefined, undefined, 1);
+    const high = through(pirCircuit(true), 12_000, undefined, undefined, 1);
+    expect(low.executionStatus, JSON.stringify(low.diagnostics)).toBe('ready');
+    expect(high.executionStatus, JSON.stringify(high.diagnostics)).toBe('ready');
+    expect(runtime(low).variables.motion).toBe(0);
+    expect(runtime(high).variables.motion).toBe(1);
+
+    const lowPir = low.result!.components.find((entry) => entry.componentId === 'pir')!;
+    const highPir = high.result!.components.find((entry) => entry.componentId === 'pir')!;
+    expect(lowPir).toMatchObject({
+      sensorMotionDetected: false,
+      sensorPowerState: 'powered',
+      sensorOutputRegion: 'digital-low',
+    });
+    expect(lowPir.sensorOutputVoltageVolt).toBeCloseTo(0, 6);
+    expect(highPir).toMatchObject({
+      sensorMotionDetected: true,
+      sensorPowerState: 'powered',
+      sensorOutputRegion: 'digital-high',
+    });
+    expect(highPir.sensorOutputVoltageVolt).toBeCloseTo(3.3, 3);
+  });
+
+  it('keeps PIR HIGH Arduino-readable from the 3.3 V rail', () => {
+    const done = through(pirCircuit(true, 'power-3v3'), 12_000, undefined, undefined, 1);
+    expect(runtime(done).variables.motion).toBe(1);
+    const result = done.result!.components.find((entry) => entry.componentId === 'pir')!;
+    expect(result.sensorPowerState).toBe('powered');
+    expect(result.sensorSupplyVoltageVolt).toBeCloseTo(3.3, 6);
+    expect(result.sensorOutputVoltageVolt).toBeCloseTo(3.3, 3);
+  });
+
+  it.each([
+    ['none', 'unpowered'],
+    ['reversed', 'reversed'],
+  ] as const)('does not fabricate PIR HIGH with %s power', (supply, powerState) => {
+    const done = through(pirCircuit(true, supply), 12_000, undefined, undefined, 1);
+    expect(done.executionStatus, JSON.stringify(done.diagnostics)).toBe('ready');
+    expect(runtime(done).variables.motion).toBe(0);
+    const result = done.result!.components.find((entry) => entry.componentId === 'pir')!;
+    expect(result.sensorPowerState).toBe(powerState);
+    expect(result.sensorOutputRegion).toBe('high-impedance');
+    expect(result.terminalVoltages.signal ?? 0).toBeLessThan(1);
+  });
+
+  it('applies canonical PIR motion inputs through the electrical circuit at recorded timestamps', () => {
+    const doc = pirCircuit(false);
+    const inputs: ArduinoCircuitInputEvent[] = [
+      { atMicroseconds: 1_000, componentId: 'pir', property: 'motionDetected', value: false },
+      { atMicroseconds: 5_000, componentId: 'pir', property: 'motionDetected', value: true },
+      { atMicroseconds: 15_000, componentId: 'pir', property: 'motionDetected', value: false },
+    ];
+    const before = through(doc, 4_000, undefined, inputs, 1);
+    const detected = through(doc, 12_000, before.state!, inputs, 1);
+    const cleared = through(doc, 25_000, detected.state!, inputs, 1);
+
+    expect(runtime(before).variables.motion).toBe(0);
+    expect(runtime(detected).variables.motion).toBe(1);
+    expect(runtime(cleared).variables.motion).toBe(0);
+    expect(cleared.result!.components.find((entry) => entry.componentId === 'pir')).toMatchObject({
+      sensorMotionDetected: false,
+      sensorOutputRegion: 'digital-low',
+    });
+  });
+
+  it('preserves accepted same-timestamp PIR event array order', () => {
+    const doc = pirCircuit(false);
+    const trueThenFalse: ArduinoCircuitInputEvent[] = [
+      { atMicroseconds: 5_000, componentId: 'pir', property: 'motionDetected', value: true },
+      { atMicroseconds: 5_000, componentId: 'pir', property: 'motionDetected', value: false },
+    ];
+    const falseThenTrue: ArduinoCircuitInputEvent[] = [...trueThenFalse].reverse();
+    const low = through(doc, 12_000, undefined, trueThenFalse, 1);
+    const high = through(doc, 12_000, undefined, falseThenTrue, 256);
+
+    expect(runtime(low).variables.motion).toBe(0);
+    expect(runtime(high).variables.motion).toBe(1);
+    expect(
+      low.result!.components.find((entry) => entry.componentId === 'pir')?.sensorMotionDetected,
+    ).toBe(false);
+    expect(
+      high.result!.components.find((entry) => entry.componentId === 'pir')?.sensorMotionDetected,
+    ).toBe(true);
+  });
+
+  it('keeps PIR timed state identical through JSON continuation and work partitioning', () => {
+    const doc = pirCircuit(false);
+    const inputs: ArduinoCircuitInputEvent[] = [
+      { atMicroseconds: 5_000, componentId: 'pir', property: 'motionDetected', value: true },
+    ];
+    const mid = through(doc, 7_000, undefined, inputs, 1);
+    const resumed = through(doc, 15_000, JSON.parse(JSON.stringify(mid.state)), inputs, 1);
+    const whole = through(doc, 15_000, undefined, inputs, 256);
+    expect(resumed.state).toEqual(whole.state);
+    expect(resumed.result).toEqual(whole.result);
+    expect(runtime(resumed).variables.motion).toBe(1);
   });
 
   it.each([

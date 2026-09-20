@@ -450,8 +450,14 @@ describe('owner SVG integration in the real Electronics document', () => {
     });
     expect(productionCatalogEntry('pir-sensor')).toMatchObject({
       enabled: true,
-      simulationSupported: false,
+      simulationSupported: true,
       catalogStatus: 'enabled',
+      defaultStateProperties: { motionDetected: false },
+    });
+    expect(families.find((family) => family.familyId === 'pir-sensor')).toMatchObject({
+      defaultVariantId: 'pir-sensor',
+      enabled: true,
+      simulationStatus: 'supported',
     });
     expect(families.find((family) => family.familyId === 'temperature-sensor')).toMatchObject({
       defaultVariantId: 'temperature-sensor',

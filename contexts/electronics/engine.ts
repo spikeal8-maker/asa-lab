@@ -193,6 +193,14 @@ function schedulerInputEvent(event: ElectronicsTimedInputEvent): ArduinoCircuitI
       value: event.payload,
     };
   }
+  if (event.operation === 'motionDetected' && typeof event.payload === 'boolean') {
+    return {
+      atMicroseconds: event.atMicroseconds,
+      componentId: event.targetId,
+      property: 'motionDetected',
+      value: event.payload,
+    };
+  }
   if (event.operation === 'serialRx' && typeof event.payload === 'string') {
     return {
       atMicroseconds: event.atMicroseconds,

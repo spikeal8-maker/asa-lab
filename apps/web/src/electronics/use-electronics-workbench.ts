@@ -951,7 +951,9 @@ export function useElectronicsWorkbench(projectId: string) {
           (component?.componentTypeId === 'multimeter' &&
             Object.keys(properties).every(
               (key) => key === 'measurementMode' || key === 'meterRange',
-            ))
+            )) ||
+          (component?.componentTypeId === 'pir-sensor' &&
+            Object.keys(properties).every((key) => key === 'motionDetected'))
         );
       })()
     ) {
