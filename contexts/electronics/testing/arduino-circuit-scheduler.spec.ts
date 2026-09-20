@@ -67,6 +67,18 @@ function hcSr04(id: string, distanceMeters = 1): SchematicComponent {
     stateProperties: { distanceMeters },
   };
 }
+function pingUltrasonic(id: string, distanceMeters = 1): SchematicComponent {
+  return {
+    id,
+    kind: 'visual',
+    value: 0,
+    position: { x: 0, y: 0 },
+    componentTypeId: 'ultrasonic-sensor',
+    variantId: 'ultrasonic-sensor',
+    pinIds: ['gnd', 'vcc', 'signal'],
+    stateProperties: { distanceMeters },
+  };
+}
 function circuit(
   components: SchematicComponent[],
   wires: [string, string, string, string][] = [],
@@ -109,6 +121,8 @@ const runtime = (result: ArduinoCircuitClockAdvance, id = 'uno') =>
   result.state!.boards.find((entry) => entry.componentId === id)!.runtime;
 const hcRuntime = (result: ArduinoCircuitClockAdvance, id = 'sonar') =>
   result.state!.hcSr04!.find((entry) => entry.componentId === id)!.runtime;
+const pingRuntime = (result: ArduinoCircuitClockAdvance, id = 'ping') =>
+  result.state!.pingUltrasonic!.find((entry) => entry.componentId === id)!.runtime;
 const servoRuntime = (result: ArduinoCircuitClockAdvance, id = 'servo') =>
   result.state!.servoMotors!.find((entry) => entry.componentId === id)!.runtime;
 
@@ -154,6 +168,19 @@ function hcSr04Circuit(distanceMeters: number, triggerDelayUs = 10, powered = tr
   ];
   if (powered) wires.unshift(['uno', 'power-5v', 'sonar', 'vcc']);
   return circuit([board('uno', source), hcSr04('sonar', distanceMeters)], wires);
+}
+
+function pingUltrasonicCircuit(distanceMeters = 1, powered = true) {
+  const source = `unsigned long duration=0;void setup(){pinMode(13,OUTPUT);
+    digitalWrite(13,LOW);delayMicroseconds(2);digitalWrite(13,HIGH);
+    delayMicroseconds(2);digitalWrite(13,LOW);pinMode(13,INPUT);
+    duration=pulseIn(13,HIGH,30000);}void loop(){delay(100);}`;
+  const wires: [string, string, string, string][] = [
+    ['uno', 'power-gnd-1', 'ping', 'gnd'],
+    ['uno', 'd13', 'ping', 'signal'],
+  ];
+  if (powered) wires.unshift(['uno', 'power-5v', 'ping', 'vcc']);
+  return circuit([board('uno', source), pingUltrasonic('ping', distanceMeters)], wires);
 }
 
 describe('Arduino shared dc-inputs-v1 circuit clock', () => {
@@ -351,6 +378,51 @@ describe('Arduino shared dc-inputs-v1 circuit clock', () => {
     expect(runtime(reversed, receiverId).variables.duration).toBe(reversedWidth);
     expect(reversed.state).toEqual(forward.state);
     expect(reversed.result).toEqual(forward.result);
+  });
+
+  it('drives PING trigger and echo through the same Arduino pin after OUTPUT -> INPUT', () => {
+    const done = through(pingUltrasonicCircuit(1), 10_000);
+    expect(done.diagnostics).toEqual([]);
+    const modeEvents = done.events.filter(
+      (event) =>
+        event.componentId === 'uno' && event.kind === 'pin-mode-change' && event.terminal === 'd13',
+    );
+    expect(modeEvents.map((event) => event.mode)).toEqual(['OUTPUT', 'INPUT']);
+    expect(runtime(done).pinModes.d13).toBe('INPUT');
+    expect(pingRuntime(done).lastEchoStartMicroseconds).toBeDefined();
+  });
+
+  it('measures the canonical 1 m PING echo with pulseIn on the same D13 pin', () => {
+    const done = through(pingUltrasonicCircuit(1), 10_000);
+    expect(done.diagnostics).toEqual([]);
+    const sensor = pingRuntime(done);
+    expect(sensor.lastEchoStartMicroseconds).toBeDefined();
+    expect(sensor.lastEchoEndMicroseconds).toBeDefined();
+    const generatedWidth = sensor.lastEchoEndMicroseconds! - sensor.lastEchoStartMicroseconds!;
+    expect(generatedWidth).toBe(5800);
+    expect(runtime(done).variables.duration).toBe(5800);
+  });
+
+  it('does not generate a PING echo while unpowered', () => {
+    const done = through(pingUltrasonicCircuit(1, false), 31_000);
+    expect(done.diagnostics).toEqual([]);
+    expect(pingRuntime(done).powered).toBe(false);
+    expect(pingRuntime(done).lastEchoStartMicroseconds).toBeUndefined();
+    expect(runtime(done).variables.duration).toBe(0);
+  });
+
+  it('keeps PING same-pin electrical integration invariant under component and wire order', () => {
+    const doc = pingUltrasonicCircuit(1);
+    const reference = through(doc, 10_000);
+    const reversed = through(
+      {
+        ...doc,
+        components: [...doc.components].reverse(),
+        connections: [...doc.connections].reverse(),
+      },
+      10_000,
+    );
+    expect(reversed).toEqual(reference);
   });
 
   it.each([

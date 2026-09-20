@@ -18,6 +18,7 @@ export type ElectricalModelId =
   | 'resistive-soil-sensor'
   | 'pir-motion-sensor'
   | 'hc-sr04-distance-sensor'
+  | 'ping-ultrasonic-distance-sensor'
   | 'servo-motor-signal'
   | 'piezo-transducer'
   | 'diode'
@@ -63,6 +64,7 @@ const KNOWN_MODEL_IDS: ReadonlySet<string> = new Set<ElectricalModelId>([
   'resistive-soil-sensor',
   'pir-motion-sensor',
   'hc-sr04-distance-sensor',
+  'ping-ultrasonic-distance-sensor',
   'servo-motor-signal',
   'piezo-transducer',
   'diode',
@@ -82,6 +84,7 @@ const EXACT_IDENTITIES: Readonly<Record<string, ElectricalModelIdentity>> = {
   'soil-moisture-sensor': identity('resistive-soil-sensor', 'asa-resistive-soil-divider'),
   'pir-sensor': identity('pir-motion-sensor', 'pir-digital-motion-v1'),
   'temperature-sensor': identity('analog-temperature-sensor', 'tmp36-to92-dc'),
+  'ultrasonic-sensor': identity('ping-ultrasonic-distance-sensor', 'ping-3pin-canonical-echo-v1'),
   'ultrasonic-hc-sr04': identity('hc-sr04-distance-sensor', 'hc-sr04-canonical-echo-v1'),
   'servo-motor': identity('servo-motor-signal', 'servo-pulse-angle-v1'),
   'arduino-uno': identity('arduino-uno', 'arduino-uno-r3'),
@@ -196,6 +199,7 @@ export function electricalModelIdentityForComponent(
         'temperature-sensor',
         'soil-moisture-sensor',
         'pir-sensor',
+        'ultrasonic-sensor',
         'ultrasonic-hc-sr04',
         'servo-motor',
       ].includes(component.componentTypeId ?? '') &&

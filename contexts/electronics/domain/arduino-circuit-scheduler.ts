@@ -48,6 +48,17 @@ import {
   type HcSr04RuntimeState,
 } from './models/hc-sr04-runtime.js';
 import {
+  advancePingUltrasonicDue,
+  initialPingUltrasonicRuntimeState,
+  isPingUltrasonic,
+  isPingUltrasonicRuntimeState,
+  observePingUltrasonicSignal,
+  pingNextDueMicroseconds,
+  pingUltrasonicDistanceMeters,
+  pingUltrasonicInputLevels,
+  type PingUltrasonicRuntimeState,
+} from './models/ping-ultrasonic-runtime.js';
+import {
   initialServoMotorRuntimeState,
   isServoMotor,
   isServoMotorRuntimeState,
@@ -122,6 +133,10 @@ export interface ArduinoCircuitClockState {
     readonly componentId: string;
     readonly runtime: HcSr04RuntimeState;
   }[];
+  readonly pingUltrasonic?: readonly {
+    readonly componentId: string;
+    readonly runtime: PingUltrasonicRuntimeState;
+  }[];
   readonly servoMotors?: readonly {
     readonly componentId: string;
     readonly runtime: ServoMotorRuntimeState;
@@ -161,6 +176,7 @@ function clockedComponent(component: SchematicComponent): boolean {
       [
         'arduino-uno',
         'hc-sr04-distance-sensor',
+        'ping-ultrasonic-distance-sensor',
         'servo-motor-signal',
         'resistor',
         'momentary-button',
@@ -308,6 +324,9 @@ export function advanceArduinoCircuitClock(
   const hcSr04Components = document.components
     .filter(isHcSr04)
     .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  const pingUltrasonicComponents = document.components
+    .filter(isPingUltrasonic)
+    .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   const servoComponents = document.components
     .filter(isServoMotor)
     .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
@@ -318,6 +337,14 @@ export function advanceArduinoCircuitClock(
     return fault(
       'invalid_hc_sr04_distance',
       `${invalidHcSr04.id}: distanceMeters должен быть 0.02…4.00 м.`,
+    );
+  const invalidPingUltrasonic = pingUltrasonicComponents.find(
+    (component) => pingUltrasonicDistanceMeters(component) === null,
+  );
+  if (invalidPingUltrasonic)
+    return fault(
+      'invalid_ping_ultrasonic_distance',
+      `${invalidPingUltrasonic.id}: distanceMeters должен быть 0.02…3.00 м.`,
     );
   if (boards.length > MAX_BOARDS)
     return fault('invalid_board_count', 'Профиль поддерживает не более 8 плат Arduino.');
@@ -434,6 +461,7 @@ export function advanceArduinoCircuitClock(
   });
   const coldState = resetRuntimeAt(0);
   const previousHcSr04 = previous?.hcSr04 ?? [];
+  const previousPingUltrasonic = previous?.pingUltrasonic ?? [];
   const previousServoMotors = previous?.servoMotors ?? [];
   if (previous) {
     if (
@@ -471,6 +499,12 @@ export function advanceArduinoCircuitClock(
       previousHcSr04.some(
         (entry, index) =>
           entry.componentId !== hcSr04Components[index]?.id || !isHcSr04RuntimeState(entry.runtime),
+      ) ||
+      previousPingUltrasonic.length !== pingUltrasonicComponents.length ||
+      previousPingUltrasonic.some(
+        (entry, index) =>
+          entry.componentId !== pingUltrasonicComponents[index]?.id ||
+          !isPingUltrasonicRuntimeState(entry.runtime),
       ) ||
       previousServoMotors.length !== servoComponents.length ||
       previousServoMotors.some(
@@ -544,6 +578,15 @@ export function advanceArduinoCircuitClock(
         [component.id, previousHcSr04[index]?.runtime ?? initialHcSr04RuntimeState()] as const,
     ),
   );
+  const pingUltrasonicStates = new Map(
+    pingUltrasonicComponents.map(
+      (component, index) =>
+        [
+          component.id,
+          previousPingUltrasonic[index]?.runtime ?? initialPingUltrasonicRuntimeState(),
+        ] as const,
+    ),
+  );
   const servoStates = new Map(
     servoComponents.map(
       (component, index) =>
@@ -587,6 +630,7 @@ export function advanceArduinoCircuitClock(
         snapshots(),
         physicalState,
         hcSr04States,
+        pingUltrasonicStates,
         servoStates,
       ),
       time,
@@ -605,6 +649,7 @@ export function advanceArduinoCircuitClock(
           snapshots(),
           advanced.transientState,
           hcSr04States,
+          pingUltrasonicStates,
           servoStates,
         ),
         time,
@@ -616,6 +661,7 @@ export function advanceArduinoCircuitClock(
           time / 1000,
           snapshots(),
           hcSr04States,
+          pingUltrasonicStates,
           servoStates,
         ),
         time,
@@ -642,6 +688,21 @@ export function advanceArduinoCircuitClock(
         hcSr04DistanceMeters(component)!,
       );
       hcSr04States.set(component.id, step.state);
+      echoChanged ||= step.echoChanged;
+    }
+    for (const component of pingUltrasonicComponents) {
+      const terminalVoltages =
+        frame.components.find((entry) => entry.componentId === component.id)?.terminalVoltages ??
+        {};
+      const levels = pingUltrasonicInputLevels(terminalVoltages);
+      const step = observePingUltrasonicSignal(
+        pingUltrasonicStates.get(component.id)!,
+        time,
+        levels.powered,
+        levels.signalHigh,
+        pingUltrasonicDistanceMeters(component)!,
+      );
+      pingUltrasonicStates.set(component.id, step.state);
       echoChanged ||= step.echoChanged;
     }
     for (const component of servoComponents) {
@@ -671,6 +732,9 @@ export function advanceArduinoCircuitClock(
     Math.min(
       ...hcSr04Components.map((component) =>
         hcSr04NextDueMicroseconds(hcSr04States.get(component.id)!),
+      ),
+      ...pingUltrasonicComponents.map((component) =>
+        pingNextDueMicroseconds(pingUltrasonicStates.get(component.id)!),
       ),
       Number.POSITIVE_INFINITY,
     );
@@ -716,6 +780,13 @@ export function advanceArduinoCircuitClock(
       if (hcSr04NextDueMicroseconds(state) !== time) continue;
       const step = advanceHcSr04Due(state, time);
       hcSr04States.set(component.id, step.state);
+      sensorOutputChanged ||= step.echoChanged;
+    }
+    for (const component of pingUltrasonicComponents) {
+      const state = pingUltrasonicStates.get(component.id)!;
+      if (pingNextDueMicroseconds(state) !== time) continue;
+      const step = advancePingUltrasonicDue(state, time);
+      pingUltrasonicStates.set(component.id, step.state);
       sensorOutputChanged ||= step.echoChanged;
     }
     if (sensorOutputChanged) cachedFrame = undefined;
@@ -848,7 +919,12 @@ export function advanceArduinoCircuitClock(
     }
     if (electricalStateChanged) {
       const pulseWaiters = runnableBoards.filter((board) => states.get(board.id)?.pulseWait);
-      if (pulseWaiters.length > 0 || hcSr04Components.length > 0 || servoComponents.length > 0) {
+      if (
+        pulseWaiters.length > 0 ||
+        hcSr04Components.length > 0 ||
+        pingUltrasonicComponents.length > 0 ||
+        servoComponents.length > 0
+      ) {
         cachedFrame = undefined;
         let postCommitFrame = sample(time);
         if (!postCommitFrame.solved && !isNonFatalPassiveNoSource(postCommitFrame))
@@ -931,6 +1007,14 @@ export function advanceArduinoCircuitClock(
           hcSr04: hcSr04Components.map((component) => ({
             componentId: component.id,
             runtime: hcSr04States.get(component.id)!,
+          })),
+        }
+      : {}),
+    ...(pingUltrasonicComponents.length > 0
+      ? {
+          pingUltrasonic: pingUltrasonicComponents.map((component) => ({
+            componentId: component.id,
+            runtime: pingUltrasonicStates.get(component.id)!,
           })),
         }
       : {}),

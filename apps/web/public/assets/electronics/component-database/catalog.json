@@ -29809,8 +29809,8 @@
         "type": "sensor_input",
         "distanceMeters": [0.02, 3]
       },
-      "simulationSupport": "unsupported_fail_closed",
-      "blockReason": "Размещение, соединение и схема доступны; математическая модель расстояния ещё не реализована.",
+      "simulationSupport": "ping_3pin_canonical_echo_v1",
+      "blockReason": null,
       "catalogTier": "core",
       "metadataOnlyProof": {
         "source": "owner_direct_upload",
