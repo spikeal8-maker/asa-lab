@@ -674,6 +674,236 @@ describe('Э1 existing course → exact versions → runs → inherited particip
     ).toEqual([{ id: sectionId }]);
   });
 
+  it('freezes only visible informational blocks while preserving draft and historical runs', async () => {
+    const allKinds = [
+      { id: 'p', type: 'paragraph', text: 'Paragraph', hidden: true },
+      { id: 'h', type: 'heading', text: 'Heading', level: 2, hidden: false },
+      { id: 'c', type: 'callout', text: 'Callout', tone: 'note', hidden: true },
+      {
+        id: 'i',
+        type: 'image',
+        url: '/assets/lesson.png',
+        alt: 'Image',
+        caption: 'Caption',
+        hidden: false,
+      },
+      { id: 'v', type: 'video', url: '/assets/lesson.mp4', title: 'Video', hidden: true },
+      { id: 'a', type: 'audio', url: '/assets/lesson.mp3', title: 'Audio', hidden: false },
+      {
+        id: 'f',
+        type: 'file',
+        url: 'https://example.test/file.pdf',
+        label: 'File',
+        hidden: true,
+      },
+      {
+        id: 't',
+        type: 'table',
+        rows: [
+          ['A', 'B'],
+          ['1', '2'],
+        ],
+        hidden: false,
+      },
+      { id: 'm', type: 'formula', text: 'U = I × R', hidden: true },
+      { id: 'k', type: 'code', text: 'const x = 1;', language: 'javascript', hidden: false },
+      { id: 'd', type: 'divider', hidden: true },
+    ];
+    expect(
+      (
+        await admin.query('SELECT course_lesson_blocks_valid($1::jsonb) AS valid', [
+          JSON.stringify(allKinds),
+        ])
+      ).rows[0].valid,
+    ).toBe(true);
+
+    const saved = (
+      await tx((client) =>
+        client.query(
+          "SELECT * FROM course_save_v2($1,$2,NULL,'Block controls course',NULL,NULL,'private',NULL,$3)",
+          [principal, teacher.tenantId, 'course01:block-controls:' + ++seq],
+        ),
+      )
+    ).rows[0];
+    expect(saved.result_code).toBe('ok');
+    const courseId = saved.id as string;
+    const sectionId = (
+      await admin.query(
+        'SELECT id FROM course_sections WHERE course_id=$1 ORDER BY position,id LIMIT 1',
+        [courseId],
+      )
+    ).rows[0].id as string;
+
+    const blocksV1 = [
+      { id: 'block-a', type: 'paragraph', text: 'Block A' },
+      {
+        id: 'block-b',
+        type: 'image',
+        url: '/assets/block-b.png',
+        alt: 'Block B image',
+        caption: 'Block B caption',
+      },
+      { id: 'block-c', type: 'code', text: 'const c = 3;', language: 'javascript' },
+    ];
+    const lessonId = (
+      await tx((client) =>
+        client.query(
+          "SELECT course_lesson_save_v3($1,$2,$3,NULL,'Block lesson',NULL,$4::jsonb,'material',NULL,15,NULL) AS id",
+          [principal, courseId, sectionId, JSON.stringify(blocksV1)],
+        ),
+      )
+    ).rows[0].id as string;
+
+    const revision = async () =>
+      Number(
+        (
+          await admin.query('SELECT course_draft_revision($1,$2) AS revision', [
+            principal,
+            courseId,
+          ])
+        ).rows[0].revision,
+      );
+    const publish = async (requestId: string) => {
+      const row = (
+        await tx((client) =>
+          client.query('SELECT * FROM course_publish_v3($1,$2,$3,$4)', [
+            principal,
+            courseId,
+            await revision(),
+            requestId,
+          ]),
+        )
+      ).rows[0];
+      expect(row.result_code).toBe('ok');
+      return row;
+    };
+    const frozenBlocks = async (versionId: string) =>
+      (
+        await admin.query(
+          "SELECT outline #> '{sections,0,lessons,0,blocks}' AS blocks FROM course_versions WHERE id=$1",
+          [versionId],
+        )
+      ).rows[0].blocks as Array<Record<string, unknown>>;
+    const runBlocks = async (runId: string) =>
+      (
+        await admin.query(
+          'SELECT blocks FROM classroom_course_run_lessons WHERE run_id=$1 ORDER BY lesson_position,source_lesson_id',
+          [runId],
+        )
+      ).rows[0].blocks as Array<Record<string, unknown>>;
+    const ids = (blocks: Array<Record<string, unknown>>) => blocks.map((block) => block.id);
+
+    const v1 = await publish('course01:block-controls-v1:' + ++seq);
+    expect(v1.version_number).toBe(1);
+    expect(ids(await frozenBlocks(v1.version_id))).toEqual(['block-a', 'block-b', 'block-c']);
+
+    const classV1 = await classroom();
+    const studentV1 = await seat(classV1);
+    const runV1 = await assign(
+      courseId,
+      classV1,
+      [studentV1],
+      'course01:block-controls-run-v1:' + ++seq,
+      1,
+    );
+    expect(runV1.result_code).toBe('ok');
+    expect(ids(await runBlocks(runV1.run_id))).toEqual(['block-a', 'block-b', 'block-c']);
+
+    const hiddenDraft = [
+      blocksV1[0],
+      { ...blocksV1[1], hidden: true },
+      blocksV1[2],
+    ];
+    expect(
+      (
+        await tx((client) =>
+          client.query(
+            "SELECT course_lesson_save_v3($1,$2,$3,$4,'Block lesson',NULL,$5::jsonb,'material',NULL,15,NULL) AS id",
+            [principal, courseId, sectionId, lessonId, JSON.stringify(hiddenDraft)],
+          ),
+        )
+      ).rows[0].id,
+    ).toBe(lessonId);
+
+    const draftHidden = (
+      await admin.query('SELECT blocks,content FROM course_lessons WHERE id=$1', [lessonId])
+    ).rows[0] as { blocks: Array<Record<string, unknown>>; content: string | null };
+    expect(ids(draftHidden.blocks)).toEqual(['block-a', 'block-b', 'block-c']);
+    expect(draftHidden.blocks[1]).toMatchObject({ id: 'block-b', hidden: true });
+    expect(draftHidden.content).toContain('Block A');
+    expect(draftHidden.content).toContain('const c = 3;');
+    expect(draftHidden.content).not.toContain('Block B caption');
+
+    const v2 = await publish('course01:block-controls-v2:' + ++seq);
+    expect(v2.version_number).toBe(2);
+    const frozenV2 = await frozenBlocks(v2.version_id);
+    expect(ids(frozenV2)).toEqual(['block-a', 'block-c']);
+    expect(frozenV2.every((block) => !Object.hasOwn(block, 'hidden'))).toBe(true);
+
+    const classV2 = await classroom();
+    const studentV2 = await seat(classV2);
+    const runV2 = await assign(
+      courseId,
+      classV2,
+      [studentV2],
+      'course01:block-controls-run-v2:' + ++seq,
+      2,
+    );
+    expect(ids(await runBlocks(runV2.run_id))).toEqual(['block-a', 'block-c']);
+    expect(ids(await frozenBlocks(v1.version_id))).toEqual(['block-a', 'block-b', 'block-c']);
+    expect(ids(await runBlocks(runV1.run_id))).toEqual(['block-a', 'block-b', 'block-c']);
+
+    const shownDraft = [
+      blocksV1[0],
+      { ...blocksV1[1], hidden: false, caption: 'Block B shown' },
+      blocksV1[2],
+    ];
+    expect(
+      (
+        await tx((client) =>
+          client.query(
+            "SELECT course_lesson_save_v3($1,$2,$3,$4,'Block lesson',NULL,$5::jsonb,'material',NULL,15,NULL) AS id",
+            [principal, courseId, sectionId, lessonId, JSON.stringify(shownDraft)],
+          ),
+        )
+      ).rows[0].id,
+    ).toBe(lessonId);
+    const v3 = await publish('course01:block-controls-v3:' + ++seq);
+    const frozenV3 = await frozenBlocks(v3.version_id);
+    expect(ids(frozenV3)).toEqual(['block-a', 'block-b', 'block-c']);
+    expect(frozenV3[1]).toMatchObject({ id: 'block-b', caption: 'Block B shown' });
+    expect(frozenV3[1]).not.toHaveProperty('hidden');
+
+    const reorderedAfterDelete = [blocksV1[2], blocksV1[0]];
+    expect(
+      (
+        await tx((client) =>
+          client.query(
+            "SELECT course_lesson_save_v3($1,$2,$3,$4,'Block lesson',NULL,$5::jsonb,'material',NULL,15,NULL) AS id",
+            [principal, courseId, sectionId, lessonId, JSON.stringify(reorderedAfterDelete)],
+          ),
+        )
+      ).rows[0].id,
+    ).toBe(lessonId);
+    const v4 = await publish('course01:block-controls-v4:' + ++seq);
+    expect(ids(await frozenBlocks(v4.version_id))).toEqual(['block-c', 'block-a']);
+
+    const classV4 = await classroom();
+    const studentV4 = await seat(classV4);
+    const runV4 = await assign(
+      courseId,
+      classV4,
+      [studentV4],
+      'course01:block-controls-run-v4:' + ++seq,
+      4,
+    );
+    expect(ids(await runBlocks(runV4.run_id))).toEqual(['block-c', 'block-a']);
+
+    expect(ids(await frozenBlocks(v1.version_id))).toEqual(['block-a', 'block-b', 'block-c']);
+    expect(ids(await frozenBlocks(v2.version_id))).toEqual(['block-a', 'block-c']);
+    expect(ids(await runBlocks(runV1.run_id))).toEqual(['block-a', 'block-b', 'block-c']);
+  });
+
   it('duplicates and hides draft structure without copying learner runtime evidence', async () => {
     const authored = await material('electronics');
     const publishedV1 = await course(authored.version);
