@@ -445,8 +445,9 @@ describe('owner SVG integration in the real Electronics document', () => {
     });
     expect(productionCatalogEntry('ultrasonic-sensor')).toMatchObject({
       enabled: true,
-      simulationSupported: false,
+      simulationSupported: true,
       catalogStatus: 'enabled',
+      defaultStateProperties: { distanceMeters: 1 },
     });
     expect(productionCatalogEntry('pir-sensor')).toMatchObject({
       enabled: true,
