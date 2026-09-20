@@ -11,6 +11,7 @@ import {
   insertLessonBlock,
   lessonBlocksValid,
   moveLessonBlock,
+  setLessonActivityVersion,
   setLessonBlockHidden,
 } from './LessonBlockEditor';
 import { LessonBlocks } from './LessonBlocks';
@@ -41,7 +42,7 @@ describe('informational lesson blocks', () => {
       { id: 'table', type: 'table', rows: [['A', 'B']] },
     ];
     const markup = renderToStaticMarkup(
-      createElement(LessonBlockEditor, { blocks, onChange: () => undefined }),
+      createElement(LessonBlockEditor, { blocks, activities: [], onChange: () => undefined }),
     );
 
     expect(markup).toContain('aria-label="Поднять блок 1"');
@@ -56,7 +57,7 @@ describe('informational lesson blocks', () => {
     expect(markup).toContain('type="button"');
   });
 
-  it('duplicates all 11 block kinds with new ids and exact settings', () => {
+  it('duplicates all 12 block kinds with new ids and exact settings', () => {
     const blocks: LessonBlock[] = [
       { id: 'paragraph', type: 'paragraph', text: 'Paragraph' },
       { id: 'heading', type: 'heading', text: 'Heading', level: 3 },
@@ -82,6 +83,11 @@ describe('informational lesson blocks', () => {
       { id: 'formula', type: 'formula', text: 'U = I × R' },
       { id: 'code', type: 'code', text: 'const x = 1;', language: 'typescript' },
       { id: 'divider', type: 'divider' },
+      {
+        id: 'activity',
+        type: 'activity',
+        learningActivityVersionId: '11111111-1111-4111-8111-111111111111',
+      },
     ];
 
     for (const source of blocks) {
@@ -110,12 +116,24 @@ describe('informational lesson blocks', () => {
     expect(source.rows[0]![0]).toBe('A');
   });
 
-  it('hides and shows the same persistent block id', () => {
-    const source: LessonBlock = { id: 'p1', type: 'paragraph', text: 'Visible' };
+  it('hides and shows an Activity block without changing its id or exact version', () => {
+    const source: LessonBlock = {
+      id: 'activity-1',
+      type: 'activity',
+      learningActivityVersionId: '11111111-1111-4111-8111-111111111111',
+    };
     const hidden = setLessonBlockHidden([source], source.id, true);
-    expect(hidden[0]).toMatchObject({ id: 'p1', hidden: true, text: 'Visible' });
+    expect(hidden[0]).toMatchObject({
+      id: 'activity-1',
+      hidden: true,
+      learningActivityVersionId: source.learningActivityVersionId,
+    });
     const shown = setLessonBlockHidden(hidden, source.id, false);
-    expect(shown[0]).toMatchObject({ id: 'p1', hidden: false, text: 'Visible' });
+    expect(shown[0]).toMatchObject({
+      id: 'activity-1',
+      hidden: false,
+      learningActivityVersionId: source.learningActivityVersionId,
+    });
   });
 
   it('inserts canonical defaults directly above and below the selected block', () => {
@@ -131,10 +149,106 @@ describe('informational lesson blocks', () => {
     expect(below[1]).toMatchObject({ type: 'code', text: '', hidden: false });
   });
 
+  it('creates an invalid empty Activity block and accepts a selected published UUID', () => {
+    const empty = createLessonBlock('activity');
+    expect(empty).toMatchObject({
+      type: 'activity',
+      learningActivityVersionId: '',
+      hidden: false,
+    });
+    expect(lessonBlocksValid([empty])).toBe(false);
+
+    const selected = setLessonActivityVersion(
+      [empty],
+      empty.id,
+      '11111111-1111-4111-8111-111111111111',
+    );
+    expect(selected[0]).toMatchObject({
+      id: empty.id,
+      type: 'activity',
+      learningActivityVersionId: '11111111-1111-4111-8111-111111111111',
+    });
+    expect(lessonBlocksValid(selected)).toBe(true);
+  });
+
+  it('changes the exact Activity version while keeping the persistent block id', () => {
+    const source: LessonBlock = {
+      id: 'activity-version',
+      type: 'activity',
+      learningActivityVersionId: '11111111-1111-4111-8111-111111111111',
+      hidden: false,
+    };
+    const changed = setLessonActivityVersion(
+      [source],
+      source.id,
+      '22222222-2222-4222-8222-222222222222',
+    );
+    expect(changed[0]).toEqual({
+      ...source,
+      learningActivityVersionId: '22222222-2222-4222-8222-222222222222',
+    });
+  });
+
+  it('renders Activity add/select controls, disables drafts and preserves a missing current pin', () => {
+    const pinnedVersion = '33333333-3333-4333-8333-333333333333';
+    const blocks: LessonBlock[] = [
+      { id: 'activity-pinned', type: 'activity', learningActivityVersionId: pinnedVersion },
+    ];
+    const markup = renderToStaticMarkup(
+      createElement(LessonBlockEditor, {
+        blocks,
+        activities: [
+          {
+            id: 'published',
+            title: 'Опубликованная практика',
+            currentPublishedVersionId: '11111111-1111-4111-8111-111111111111',
+          },
+          {
+            id: 'draft',
+            title: 'Черновая практика',
+            currentPublishedVersionId: null,
+          },
+        ],
+        onChange: () => undefined,
+      }),
+    );
+
+    expect(markup).toContain('+ Практика');
+    expect(markup).toContain('Выберите опубликованную активность…');
+    expect(markup).toContain('Опубликованная практика');
+    expect(markup).toContain('Черновая практика · черновик — сначала опубликуйте');
+    expect(markup).toContain('disabled=""');
+    expect(markup).toContain('Закреплённая версия');
+    expect(markup).toContain(`value="${pinnedVersion}"`);
+  });
+
+  it('inserts an empty Activity block above and below through generic insertion semantics', () => {
+    const source: LessonBlock = { id: 'source-activity-insert', type: 'paragraph', text: 'Source' };
+    const above = insertLessonBlock([source], source.id, 'before', 'activity');
+    expect(above[0]).toMatchObject({
+      type: 'activity',
+      learningActivityVersionId: '',
+      hidden: false,
+    });
+    expect(above[1]?.id).toBe(source.id);
+
+    const below = insertLessonBlock([source], source.id, 'after', 'activity');
+    expect(below[0]?.id).toBe(source.id);
+    expect(below[1]).toMatchObject({
+      type: 'activity',
+      learningActivityVersionId: '',
+      hidden: false,
+    });
+  });
+
   it('keeps existing move and delete semantics', () => {
     const blocks: LessonBlock[] = [
       { id: 'a', type: 'paragraph', text: 'A' },
-      { id: 'b', type: 'paragraph', text: 'B' },
+      {
+        id: 'b',
+        type: 'activity',
+        learningActivityVersionId: '11111111-1111-4111-8111-111111111111',
+      },
       { id: 'c', type: 'paragraph', text: 'C' },
     ];
     expect(moveLessonBlock(blocks, 1, -1).map((block) => block.id)).toEqual(['b', 'a', 'c']);
