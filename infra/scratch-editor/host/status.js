@@ -23,15 +23,6 @@
       tokenRefreshRequired() {
         return post('ASA_BLOCKS_TOKEN_REFRESH_REQUIRED');
       },
-      flushResult(requestId, ok, reason = null, revision = null, snapshotGeneration = null) {
-        return post('ASA_BLOCKS_FLUSH_RESULT', {
-          requestId,
-          ok,
-          reason,
-          ...(Number.isSafeInteger(revision) ? { revision } : {}),
-          ...(Number.isSafeInteger(snapshotGeneration) ? { snapshotGeneration } : {}),
-        });
-      },
       saveBeforeExitResult(requestId, ok, reason = null, revision = null, savedGeneration = null) {
         return post('ASA_BLOCKS_SAVE_BEFORE_EXIT_RESULT', {
           requestId,
