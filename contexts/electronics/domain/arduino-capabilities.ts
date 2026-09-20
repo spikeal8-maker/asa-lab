@@ -59,9 +59,9 @@ export const ARDUINO_BLOCK_SUPPORT = {
   asa_digital_write: SUPPORTED('Устанавливает цифровой уровень на D0–D13.'),
   asa_analog_write: LIMITED('ШИМ представлен средним постоянным напряжением.'),
   asa_servo_write: UNSUPPORTED('Сервопривод ещё не связан с Arduino-рантаймом.'),
-  asa_tone: LIMITED('Частота передаётся пьезоэлементу, но не моделируется как общий сигнал.'),
-  asa_play_note: LIMITED('Частота передаётся пьезоэлементу, но не моделируется как общий сигнал.'),
-  asa_no_tone: LIMITED('Останавливает поддерживаемый ограниченный tone()-выход.'),
+  asa_tone: LIMITED('Формирует canonical timed 0/5 V waveform без AVR timer accuracy.'),
+  asa_play_note: LIMITED('Формирует canonical timed tone waveform без AVR timer accuracy.'),
+  asa_no_tone: LIMITED('Немедленно останавливает canonical tone waveform.'),
   asa_serial_print: LIMITED(
     'Передаёт детерминированный Serial TX в bounded runtime history без UI Monitor и UART bit timing.',
   ),
@@ -139,8 +139,8 @@ export const ARDUINO_TEXT_COMMAND_SUPPORT = {
   analogWrite: LIMITED('ШИМ представлен средним постоянным напряжением.'),
   delay: SUPPORTED('Задержка управляет виртуальным временем симуляции.'),
   delayMicroseconds: SUPPORTED('Задержка управляет виртуальным временем симуляции.'),
-  tone: LIMITED('Работает со звуковой нагрузкой без общей временной формы сигнала.'),
-  noTone: LIMITED('Останавливает поддерживаемый ограниченный tone()-выход.'),
+  tone: LIMITED('Формирует canonical timed 0/5 V waveform без AVR timer accuracy.'),
+  noTone: LIMITED('Немедленно останавливает canonical tone waveform.'),
   map: SUPPORTED(
     'Целочисленный map Arduino: аргументы и результат long; деление усекается к нулю.',
   ),
@@ -449,7 +449,7 @@ export function analyseArduinoSourceSupport(
     {
       expression: /\b(?:tone|noTone)\s*\(/gi,
       code: 'bounded-timing',
-      message: 'Звуковой сигнал передаётся нагрузке без полной временной формы в общем solver.',
+      message: 'tone/noTone используют canonical timed waveform без AVR timer accuracy.',
     },
     {
       expression: /\bpulseIn\s*\(/gi,

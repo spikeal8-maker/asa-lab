@@ -4,14 +4,20 @@ import {
   arduinoRuntimeStateMatchesProgram,
   type ArduinoRuntimeEvent,
   type ArduinoRuntimeState,
+  type ArduinoToneState,
 } from './arduino-program-runtime.js';
 import { analyseArduinoSourceSupport } from './arduino-capabilities.js';
 import {
   ARDUINO_SERIAL_RX_INGRESS_TEXT_LIMIT,
   enqueueArduinoSerialRx,
 } from './arduino-serial-runtime.js';
+import {
+  advanceArduinoTimedWaveform,
+  arduinoWaveformNextDueMicroseconds,
+  isArduinoTimedWaveformState,
+} from './arduino-waveform-runtime.js';
 import { arduinoSnapshotFromState, arduinoSourceFor, isArduinoUno } from './arduino-model.js';
-import type { ElectronicsDocument, SchematicComponent } from './document.js';
+import type { ElectronicsDocument, SchematicComponent, Terminal } from './document.js';
 import { simulationInputDigest } from './simulation-input-digest.js';
 import { electricalModelFor } from './model-registry.js';
 import { compileCircuit, verifyCircuitQuality, type SimulationQuality } from './simulation.js';
@@ -444,7 +450,6 @@ export function advanceArduinoCircuitClock(
           !arduinoRuntimeStateMatchesProgram(loadedSource ?? '', entry.runtime) ||
           entry.runtime.clockProfile !== 'instruction-us-v1' ||
           entry.runtime.faults.length > 0 ||
-          Object.keys(entry.runtime.tones).length > 0 ||
           (loadedSource === null &&
             (Object.keys(entry.runtime.pinModes).length > 0 ||
               Object.keys(entry.runtime.outputVoltages).length > 0 ||
@@ -599,6 +604,17 @@ export function advanceArduinoCircuitClock(
       ),
       Number.POSITIVE_INFINITY,
     );
+  const nextToneTime = (): number =>
+    Math.min(
+      ...runnableBoards.flatMap((board) =>
+        Object.values(states.get(board.id)?.tones ?? {}).flatMap((tone) =>
+          tone && isArduinoTimedWaveformState(tone)
+            ? [arduinoWaveformNextDueMicroseconds(tone)]
+            : [],
+        ),
+      ),
+      Number.POSITIVE_INFINITY,
+    );
   const nextPhysicsTime = (): number =>
     hasPhysics
       ? (Math.floor(
@@ -616,6 +632,7 @@ export function advanceArduinoCircuitClock(
       }),
       inputs[nextInputIndex]?.atMicroseconds ?? Number.POSITIVE_INFINITY,
       nextSensorTime(),
+      nextToneTime(),
       nextPhysicsTime(),
     );
   // A returned frame is never a speculative MCU state. Failure discards this whole batch.
@@ -677,11 +694,18 @@ export function advanceArduinoCircuitClock(
       const state = states.get(board.id);
       const pulseInputSample =
         Boolean(state?.pulseWait) && (inputChanged || physicsDue || sensorOutputChanged);
+      const toneBarrierDue = Object.values(state?.tones ?? {}).some(
+        (tone) =>
+          tone &&
+          isArduinoTimedWaveformState(tone) &&
+          arduinoWaveformNextDueMicroseconds(tone) === time,
+      );
       if (
         !pendingProgramLoads.has(board.id) &&
         state &&
         Math.round(state.resumeAtMs * 1000) > time &&
-        !pulseInputSample
+        !pulseInputSample &&
+        !toneBarrierDue
       )
         continue;
       const executionSource = executionSources.get(board.id)!;
@@ -698,20 +722,15 @@ export function advanceArduinoCircuitClock(
           'arduino_execution_failed',
           advanced.diagnostics.map((entry) => entry.message).join(' '),
         );
-      if (
-        Object.keys(advanced.state.tones).length > 0 ||
-        advanced.events.some((event) => event.kind === 'tone-start')
-      ) {
-        return fault(
-          'clocked_profile_unsupported',
-          'tone требует планирования периферийных фронтов; общий DC/RC clock не подменяет его постоянным напряжением.',
-        );
-      }
       updates.push([board.id, advanced.state, executionSource]);
       events.push(...advanced.events.map((event) => ({ ...event, componentId: board.id })));
       if (
         advanced.events.some(
-          (event) => event.kind === 'pin-mode-change' || event.kind === 'output-change',
+          (event) =>
+            event.kind === 'pin-mode-change' ||
+            event.kind === 'output-change' ||
+            event.kind === 'tone-start' ||
+            event.kind === 'tone-stop',
         )
       )
         electricalStateChanged = true;
@@ -722,6 +741,29 @@ export function advanceArduinoCircuitClock(
       states.set(id, state);
       loadedSources.set(id, loadedSource);
       pendingProgramLoads.delete(id);
+    }
+    let waveformOutputChanged = false;
+    for (const board of runnableBoards) {
+      const state = states.get(board.id)!;
+      const tones = { ...state.tones } as Partial<Record<Terminal, ArduinoToneState>>;
+      let stateChanged = false;
+      for (const [terminal, tone] of Object.entries(state.tones) as [
+        Terminal,
+        ArduinoToneState,
+      ][]) {
+        if (!isArduinoTimedWaveformState(tone) || arduinoWaveformNextDueMicroseconds(tone) !== time)
+          continue;
+        const advanced = advanceArduinoTimedWaveform(tone, time);
+        if (advanced.state) tones[terminal] = advanced.state;
+        else delete tones[terminal];
+        stateChanged = true;
+        waveformOutputChanged ||= advanced.levelChanged;
+      }
+      if (stateChanged) states.set(board.id, { ...state, tones });
+    }
+    if (waveformOutputChanged) {
+      electricalStateChanged = true;
+      cachedFrame = undefined;
     }
     if (electricalStateChanged) {
       const pulseWaiters = runnableBoards.filter((board) => states.get(board.id)?.pulseWait);
