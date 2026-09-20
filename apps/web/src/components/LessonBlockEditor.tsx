@@ -377,7 +377,8 @@ export function LessonBlockEditor({
                       replace(block.id, { ...block, language });
                       return;
                     }
-                    const { language: _language, ...withoutLanguage } = block;
+                    const withoutLanguage = { ...block };
+                    delete withoutLanguage.language;
                     replace(block.id, withoutLanguage);
                   }}
                 />
