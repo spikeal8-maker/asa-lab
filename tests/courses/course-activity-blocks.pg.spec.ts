@@ -124,7 +124,7 @@ async function authorized(blocks: unknown[]) {
   return result.rows[0].ok as boolean;
 }
 
-async function classroomWithSeat() {
+async function classroomWithSeat(linkedAccountId: string | null = null) {
   sequence += 1;
   const classroom = (
     await admin.query(
@@ -144,8 +144,11 @@ async function classroomWithSeat() {
   );
   const seat = (
     await admin.query(
-      "INSERT INTO classroom_student_seats(tenant_id,classroom_id,display_label,login_handle,normalized_login_handle,safe_mode,status,created_by) VALUES($1,$2,'D3b learner',$3,$3,true,'active',$4) RETURNING id",
-      [author.tenantId, classroom, `d3b-seat-${sequence}`, author.teacherId],
+      `INSERT INTO classroom_student_seats
+         (tenant_id,classroom_id,display_label,login_handle,normalized_login_handle,
+          safe_mode,status,created_by,account_id)
+       VALUES($1,$2,'D3b learner',$3,$3,true,'active',$4,$5) RETURNING id`,
+      [author.tenantId, classroom, `d3b-seat-${sequence}`, author.teacherId, linkedAccountId],
     )
   ).rows[0].id as string;
   return { classroom, seat };
@@ -492,5 +495,171 @@ describe('E1-FIX-11D3b Course Activity block materialization', () => {
       learning_activity_version_id: legacy.versionId,
     });
     expect(runs[0].source_classroom_assignment_id).toBe(runs[0].classroom_assignment_id);
+  });
+});
+
+describe('E1-FIX-11D4b learner Activity-block runtime projection', () => {
+  it('projects exact block occurrences for seat and account without changing legacy lesson runtime', async () => {
+    const blockA = await publishActivity(author, principalId, 'electronics');
+    const blockB = await publishActivity(author, principalId, 'three-d');
+    const { courseId, sectionId } = await newCourse('D4b learner projection');
+    const blocks = [
+      { id: 'activity-a', type: 'activity', learningActivityVersionId: blockA.versionId },
+      { id: 'activity-b', type: 'activity', learningActivityVersionId: blockB.versionId },
+    ];
+    const activityLessonId = (
+      await admin.query(
+        "SELECT course_lesson_save_v3($1,$2,$3,NULL,'D4b activities',NULL,$4::jsonb,'material',NULL,15,NULL) AS id",
+        [principalId, courseId, sectionId, JSON.stringify(blocks)],
+      )
+    ).rows[0].id as string;
+    const materialLessonId = (
+      await admin.query(
+        "SELECT course_lesson_save_v3($1,$2,$3,NULL,'D4b material',NULL,$4::jsonb,'material',NULL,10,NULL) AS id",
+        [
+          principalId,
+          courseId,
+          sectionId,
+          JSON.stringify([{ id: 'paragraph', type: 'paragraph', text: 'Material only' }]),
+        ],
+      )
+    ).rows[0].id as string;
+    const legacyLessonId = (
+      await admin.query(
+        "SELECT course_lesson_save_v3($1,$2,$3,NULL,'D4b legacy',NULL,'[]'::jsonb,'assignment',NULL,20,$4) AS id",
+        [principalId, courseId, sectionId, blockA.versionId],
+      )
+    ).rows[0].id as string;
+    const revision = Number(
+      (await admin.query('SELECT draft_revision FROM courses WHERE id=$1', [courseId])).rows[0]
+        .draft_revision,
+    );
+    await admin.query('SELECT * FROM course_publish_v3($1,$2,$3,$4)', [
+      principalId,
+      courseId,
+      revision,
+      `d4b:publish:${++sequence}`,
+    ]);
+
+    const { classroom, seat } = await classroomWithSeat(accountId);
+    const assigned = await assignCourseRun(courseId, classroom, seat, `d4b:assign:${++sequence}`);
+    expect(assigned).toMatchObject({ result_code: 'ok', reused: false });
+
+    const readSeat = async () =>
+      (
+        await inTenant(author, (client) =>
+          client.query(
+            'SELECT * FROM classroom_course_activity_occurrences_for_seat($1) ORDER BY block_id',
+            [seat],
+          ),
+        )
+      ).rows;
+    const readAccount = async () =>
+      (
+        await inTenant(author, (client) =>
+          client.query(
+            'SELECT * FROM classroom_course_activity_occurrences_for_account($1) ORDER BY block_id',
+            [accountId],
+          ),
+        )
+      ).rows;
+
+    const initialSeat = await readSeat();
+    const initialAccount = await readAccount();
+    for (const rows of [initialSeat, initialAccount]) {
+      expect(rows).toHaveLength(2);
+      expect(rows.map((row) => row.block_id)).toEqual(['activity-a', 'activity-b']);
+      expect(new Set(rows.map((row) => row.activity_run_id)).size).toBe(2);
+      expect(new Set(rows.map((row) => row.classroom_assignment_id)).size).toBe(2);
+      expect(rows.map((row) => row.learning_activity_version_id)).toEqual([
+        blockA.versionId,
+        blockB.versionId,
+      ]);
+      expect(rows.map((row) => row.module_key)).toEqual(['electronics', 'three-d']);
+      expect(rows.every((row) => row.project_id === null)).toBe(true);
+    }
+
+    const a = initialSeat.find((row) => row.block_id === 'activity-a');
+    if (!a) throw new Error('activity A occurrence missing');
+    const projectId = (
+      await admin.query(
+        `INSERT INTO projects
+           (tenant_id,project_scope,module_key,title,owner_principal_id)
+         VALUES($1,'personal','electronics',$2,$3) RETURNING id`,
+        [author.tenantId, `D4b learner work ${++sequence}`, principalId],
+      )
+    ).rows[0].id as string;
+    await admin.query(
+      `INSERT INTO project_drafts
+         (tenant_id,project_id,document_json,revision,updated_by_principal_id)
+       VALUES($1,$2,'{"schemaVersion":1,"components":[]}'::jsonb,7,$3)`,
+      [author.tenantId, projectId, principalId],
+    );
+    await inTenant(author, (client) =>
+      client.query('SELECT * FROM classroom_assignment_work_start($1,$2,$3)', [
+        seat,
+        a.classroom_assignment_id,
+        projectId,
+      ]),
+    );
+
+    const afterSeat = await readSeat();
+    const afterAccount = await readAccount();
+    for (const rows of [afterSeat, afterAccount]) {
+      const projectedA = rows.find((row) => row.block_id === 'activity-a');
+      const projectedB = rows.find((row) => row.block_id === 'activity-b');
+      expect(projectedA).toMatchObject({
+        project_id: projectId,
+        classroom_assignment_id: a.classroom_assignment_id,
+        learning_activity_version_id: blockA.versionId,
+        module_key: 'electronics',
+      });
+      expect(projectedA?.work_updated_at).toBeTruthy();
+      expect(projectedB).toMatchObject({
+        project_id: null,
+        learning_activity_version_id: blockB.versionId,
+        module_key: 'three-d',
+      });
+    }
+
+    const evidence = (
+      await inTenant(author, (client) =>
+        client.query(
+          `SELECT evidence
+             FROM learning_canonical_evidence_for_seat($1)
+            WHERE evidence ->> 'classroomAssignmentId' = ANY($2::text[])`,
+          [seat, afterSeat.map((row) => row.classroom_assignment_id)],
+        ),
+      )
+    ).rows.map((row) => row.evidence);
+    expect(evidence).toHaveLength(2);
+    for (const occurrence of afterSeat) {
+      const state = evidence.find(
+        (row) => row.classroomAssignmentId === occurrence.classroom_assignment_id,
+      );
+      expect(state?.activityRunId).toBe(occurrence.activity_run_id);
+    }
+    expect(
+      evidence.find((row) => row.classroomAssignmentId === a.classroom_assignment_id)?.legacyWork
+        ?.projectId,
+    ).toBe(projectId);
+
+    const legacyRows = (
+      await inTenant(author, (client) =>
+        client.query(
+          `SELECT source_lesson_id,classroom_assignment_id
+             FROM classroom_course_runs_for_seat_v2($1)
+            WHERE run_id=$2`,
+          [seat, assigned.run_id],
+        ),
+      )
+    ).rows;
+    expect(legacyRows.map((row) => row.source_lesson_id)).toEqual(
+      expect.arrayContaining([activityLessonId, materialLessonId, legacyLessonId]),
+    );
+    expect(
+      legacyRows.find((row) => row.source_lesson_id === legacyLessonId)?.classroom_assignment_id,
+    ).toBeTruthy();
+    expect(afterSeat.every((row) => row.lesson_id !== legacyLessonId)).toBe(true);
   });
 });
