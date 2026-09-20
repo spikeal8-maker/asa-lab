@@ -941,6 +941,7 @@ test('Course Builder persists informational block structural controls into futur
 }) => {
   test.setTimeout(180_000);
   const courseTitle = 'Блочная структура курса ' + ++sequence;
+  await loginWithOrganization(page, teacher);
   await page.goto('/#/challenges');
 
   await page.getByRole('button', { name: 'Мои курсы', exact: true }).click();
