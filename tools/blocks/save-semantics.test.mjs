@@ -6,6 +6,25 @@ import { URL } from 'node:url';
 import vm from 'node:vm';
 import test from 'node:test';
 
+const SOURCE_EXTENSIONS = new Set(['.js', '.mjs', '.ts', '.tsx', '.css']);
+
+function sourceFiles(root) {
+  const files = [];
+  const visit = (directory) => {
+    for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+      const child = new URL(entry.name + (entry.isDirectory() ? '/' : ''), directory);
+      if (entry.isDirectory()) {
+        visit(child);
+        continue;
+      }
+      const match = /\.[^.]+$/.exec(entry.name);
+      if (match && SOURCE_EXTENSIONS.has(match[0])) files.push(child);
+    }
+  };
+  visit(root);
+  return files;
+}
+
 const PROJECT_ID = '11111111-1111-4111-8111-111111111111';
 const API_ORIGIN = 'https://asa.example';
 const TOKEN = 'header.payload.signature';
@@ -135,6 +154,38 @@ async function storeAsset(storage, value) {
     value.assetId,
   );
 }
+
+test('legacy parallel persistence symbols are absent from current Scratch source and tests', () => {
+  const legacySymbols = [
+    ['ASA_BLOCKS_', 'FLUSH_REQUEST'].join(''),
+    ['ASA_BLOCKS_', 'FLUSH_RESULT'].join(''),
+    ['request', 'Flush'].join(''),
+    ['flush', 'Result'].join(''),
+    ['persist', 'Snapshot'].join(''),
+    ['captureLive', 'Snapshot'].join(''),
+    ['blocks-editor-', 'save'].join(''),
+    ['editor', '.flush'].join(''),
+  ];
+  const roots = [
+    new URL('../../infra/scratch-editor/', import.meta.url),
+    new URL('../../apps/web/src/blocks/', import.meta.url),
+    new URL('../../tools/blocks/', import.meta.url),
+    new URL('../../e2e/', import.meta.url),
+  ];
+
+  for (const root of roots) {
+    for (const file of sourceFiles(root)) {
+      const content = fs.readFileSync(file, 'utf8');
+      for (const symbol of legacySymbols) {
+        assert.equal(
+          content.includes(symbol),
+          false,
+          symbol + ' remains in ' + file.pathname,
+        );
+      }
+    }
+  }
+});
 
 test('canonical fingerprint ignores object-key and reference ordering and unchanged save writes nothing', async () => {
   let uuidCalls = 0;
