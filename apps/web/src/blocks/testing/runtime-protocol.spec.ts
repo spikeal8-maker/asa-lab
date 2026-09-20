@@ -34,6 +34,7 @@ function makeBridge(target = makeTarget(), onFatal = vi.fn(), onMessage = vi.fn(
     }),
   };
 }
+
 describe('BlocksRuntimeBridge', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
@@ -244,6 +245,4 @@ describe('BlocksRuntimeBridge', () => {
       }),
     ).toBe(false);
   });
-
-
 });
