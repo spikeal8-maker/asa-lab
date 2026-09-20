@@ -690,12 +690,14 @@ export function advanceArduinoCircuitClock(
         frame.components.find((entry) => entry.componentId === component.id)?.terminalVoltages ??
         {};
       const levels = hcSr04InputLevels(terminalVoltages);
+      const activeComponent =
+        activeDocument.components.find((entry) => entry.id === component.id) ?? component;
       const step = observeHcSr04Inputs(
         hcSr04States.get(component.id)!,
         time,
         levels.powered,
         levels.triggerHigh,
-        hcSr04DistanceMeters(component)!,
+        hcSr04DistanceMeters(activeComponent)!,
       );
       hcSr04States.set(component.id, step.state);
       echoChanged ||= step.echoChanged;
@@ -705,12 +707,14 @@ export function advanceArduinoCircuitClock(
         frame.components.find((entry) => entry.componentId === component.id)?.terminalVoltages ??
         {};
       const levels = pingUltrasonicInputLevels(terminalVoltages);
+      const activeComponent =
+        activeDocument.components.find((entry) => entry.id === component.id) ?? component;
       const step = observePingUltrasonicSignal(
         pingUltrasonicStates.get(component.id)!,
         time,
         levels.powered,
         levels.signalHigh,
-        pingUltrasonicDistanceMeters(component)!,
+        pingUltrasonicDistanceMeters(activeComponent)!,
       );
       pingUltrasonicStates.set(component.id, step.state);
       echoChanged ||= step.echoChanged;
