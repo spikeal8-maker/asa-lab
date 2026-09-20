@@ -4,14 +4,15 @@ import vm from 'node:vm';
 import test from 'node:test';
 import { URL } from 'node:url';
 import { TextEncoder, TextDecoder } from 'node:util';
+import { createHash, webcrypto } from 'node:crypto';
 
 const hash = '0123456789abcdef0123456789abcdef';
-function fixture(fetch) {
+function fixture(fetch, options = {}) {
   class Storage {
     AssetType = Object.fromEntries(
       ['Project', 'ImageVector', 'ImageBitmap', 'Sound'].map((name) => [name, { name }]),
     );
-    DataFormat = { JSON: 'json', SVG: 'svg' };
+    DataFormat = { JSON: 'json', SVG: 'svg', PNG: 'png', JPG: 'jpg', WAV: 'wav', MP3: 'mp3' };
     createAsset(assetType, dataFormat, data, assetId) {
       return {
         assetType,
@@ -32,7 +33,7 @@ function fixture(fetch) {
       throw new Error('fixture_store_not_configured');
     }
   }
-  const context = vm.createContext({ TextEncoder, TextDecoder, fetch });
+  const context = vm.createContext({ TextEncoder, TextDecoder, fetch, crypto: webcrypto });
   vm.runInContext(
     fs.readFileSync(new URL('../../infra/scratch-editor/host/storage.js', import.meta.url), 'utf8'),
     context,
@@ -47,12 +48,13 @@ function fixture(fetch) {
           id: 0,
           data: JSON.stringify({ targets: [], monitors: [], extensions: [] }),
         },
+        ...(options.defaultAssets ?? []),
       ],
     },
     {
       projectId: '11111111-1111-4111-8111-111111111111',
-      projectJson: null,
-      assets: [],
+      projectJson: options.projectJson ?? null,
+      assets: options.assets ?? [],
       apiOrigin: 'https://asa.example',
       getRuntimeToken: () => 'fixture.runtime.token',
     },
@@ -98,6 +100,86 @@ test('project IDs, traversal, invalid formats and type mismatches never reach fe
     storage.saveProject('00000000-0000-4000-8000-000000000000', '{}'),
     /project_identity_mismatch/,
   );
+});
+
+test('existing project dirties an unconfirmed sound returned from the default cache on demand', async () => {
+  const soundId = '8'.repeat(32);
+  const soundBytes = Uint8Array.from([82, 73, 70, 70, 1, 2, 3, 4]);
+  const requests = [];
+  const storage = fixture(
+    async (url) => {
+      requests.push(url);
+      throw new Error('unconfirmed default cache must not fetch');
+    },
+    {
+      projectJson: { targets: [], monitors: [], extensions: [] },
+      defaultAssets: [
+        {
+          assetType: 'Sound',
+          dataFormat: 'WAV',
+          id: soundId,
+          data: soundBytes,
+        },
+      ],
+    },
+  );
+
+  const sound = await storage.load('Sound', soundId, 'wav');
+
+  assert.ok(sound);
+  assert.equal(sound.assetId, soundId);
+  assert.equal(sound.clean, false);
+  assert.deepEqual(Array.from(sound.data), Array.from(soundBytes));
+  assert.deepEqual(requests, []);
+});
+
+test('confirmed server sound keeps priority over same-key default cache bytes', async () => {
+  const soundId = '9'.repeat(32);
+  const defaultBytes = Uint8Array.from([1, 2, 3, 4]);
+  const serverBytes = Uint8Array.from([9, 8, 7, 6, 5]);
+  const reference = {
+    assetId: soundId,
+    dataFormat: 'wav',
+    sha256: createHash('sha256').update(serverBytes).digest('hex'),
+    sizeBytes: serverBytes.byteLength,
+  };
+  const calls = [];
+  const storage = fixture(
+    async (url) => {
+      calls.push(url);
+      return {
+        ok: true,
+        redirected: false,
+        headers: { get: () => 'audio/wav' },
+        arrayBuffer: async () =>
+          serverBytes.buffer.slice(
+            serverBytes.byteOffset,
+            serverBytes.byteOffset + serverBytes.byteLength,
+          ),
+      };
+    },
+    {
+      projectJson: { targets: [], monitors: [], extensions: [] },
+      assets: [reference],
+      defaultAssets: [
+        {
+          assetType: 'Sound',
+          dataFormat: 'WAV',
+          id: soundId,
+          data: defaultBytes,
+        },
+      ],
+    },
+  );
+
+  const sound = await storage.load('Sound', soundId, 'wav');
+
+  assert.ok(sound);
+  assert.equal(sound.clean, true);
+  assert.deepEqual(Array.from(sound.data), Array.from(serverBytes));
+  assert.notDeepEqual(Array.from(sound.data), Array.from(defaultBytes));
+  assert.equal(calls.length, 1);
+  assert.match(calls[0], new RegExp('/assets/' + soundId + '\\.wav$'));
 });
 
 test('stock media uses credential-free, redirect-free local requests and caches success', async () => {

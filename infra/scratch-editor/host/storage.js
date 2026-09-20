@@ -698,7 +698,10 @@
           if (recovered) return recovered;
 
           const cached = cachedAssets.get(key(type, id, format));
-          if (cached) return cached;
+          if (cached) {
+            if (!confirmedAssets.has(runtimeKey(id, format))) cached.clean = false;
+            return cached;
+          }
           if (!validLibraryAsset(id, format) || !validTypeAndFormat(type, format)) return null;
           try {
             const response = await fetch(`/library-assets/${id}.${format}`, {
