@@ -173,18 +173,10 @@ describe('E1-FIX-11D2 canonical Activity blocks', () => {
   it('accepts the Activity shape and rejects a malformed version UUID', async () => {
     const exact = await publishActivity(author, principalId, 'electronics');
     const valid = [
-      {
-        id: 'activity-a',
-        type: 'activity',
-        learningActivityVersionId: exact.versionId,
-      },
+      { id: 'activity-a', type: 'activity', learningActivityVersionId: exact.versionId },
     ];
     const invalid = [
-      {
-        id: 'activity-b',
-        type: 'activity',
-        learningActivityVersionId: 'not-a-uuid',
-      },
+      { id: 'activity-b', type: 'activity', learningActivityVersionId: 'not-a-uuid' },
     ];
     expect(
       (
@@ -211,43 +203,23 @@ describe('E1-FIX-11D2 canonical Activity blocks', () => {
 
     expect(
       await authorized([
-        {
-          id: 'electronics',
-          type: 'activity',
-          learningActivityVersionId: electronics.versionId,
-        },
-        {
-          id: 'three-d',
-          type: 'activity',
-          learningActivityVersionId: threeD.versionId,
-        },
+        { id: 'electronics', type: 'activity', learningActivityVersionId: electronics.versionId },
+        { id: 'three-d', type: 'activity', learningActivityVersionId: threeD.versionId },
       ]),
     ).toBe(true);
     expect(
       await authorized([
-        {
-          id: 'missing',
-          type: 'activity',
-          learningActivityVersionId: missingVersionId,
-        },
+        { id: 'missing', type: 'activity', learningActivityVersionId: missingVersionId },
       ]),
     ).toBe(false);
     expect(
       await authorized([
-        {
-          id: 'unsupported',
-          type: 'activity',
-          learningActivityVersionId: unsupported.versionId,
-        },
+        { id: 'unsupported', type: 'activity', learningActivityVersionId: unsupported.versionId },
       ]),
     ).toBe(false);
     expect(
       await authorized([
-        {
-          id: 'foreign',
-          type: 'activity',
-          learningActivityVersionId: foreign.versionId,
-        },
+        { id: 'foreign', type: 'activity', learningActivityVersionId: foreign.versionId },
       ]),
     ).toBe(false);
     expect(
@@ -323,10 +295,7 @@ describe('E1-FIX-11D2 canonical Activity blocks', () => {
       revision,
       `d2:course:publish:${++sequence}`,
     ]);
-    expect(published.rows[0]).toMatchObject({
-      result_code: 'ok',
-      version_number: 1,
-    });
+    expect(published.rows[0]).toMatchObject({ result_code: 'ok', version_number: 1 });
 
     const frozen = await admin.query(
       `SELECT outline ->> 'schemaVersion' AS schema_version,
@@ -389,16 +358,8 @@ describe('E1-FIX-11D3b Course Activity block materialization', () => {
     const blockB = await publishActivity(author, principalId, 'three-d');
     const { courseId, sectionId } = await newCourse('D3b block materialization');
     const blocks = [
-      {
-        id: 'activity-block-a',
-        type: 'activity',
-        learningActivityVersionId: blockA.versionId,
-      },
-      {
-        id: 'activity-block-b',
-        type: 'activity',
-        learningActivityVersionId: blockB.versionId,
-      },
+      { id: 'activity-block-a', type: 'activity', learningActivityVersionId: blockA.versionId },
+      { id: 'activity-block-b', type: 'activity', learningActivityVersionId: blockB.versionId },
     ];
     const lessonId = (
       await admin.query(
@@ -489,11 +450,7 @@ describe('E1-FIX-11D3b Course Activity block materialization', () => {
         [assigned.run_id],
       )
     ).rows[0];
-    expect(retryCounts).toEqual({
-      activity_runs: 2,
-      handouts: 2,
-      participations: 2,
-    });
+    expect(retryCounts).toEqual({ activity_runs: 2, handouts: 2, participations: 2 });
   });
   it('preserves legacy lesson-level ActivityRun with a null block identity', async () => {
     const legacy = await publishActivity(author, principalId, 'electronics');
