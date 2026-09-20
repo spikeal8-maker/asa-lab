@@ -354,6 +354,7 @@ export type LessonBlock = { id: string; hidden?: boolean } & (
   | { type: 'formula'; text: string }
   | { type: 'table'; rows: string[][] }
   | { type: 'divider' }
+  | { type: 'activity'; learningActivityVersionId: string }
 );
 
 export interface CourseLesson {

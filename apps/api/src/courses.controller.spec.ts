@@ -17,15 +17,17 @@ function request(): FastifyRequest {
   return { cookies: { asa_session: 'session' } } as unknown as FastifyRequest;
 }
 
-function controller(rows: unknown[] = []) {
+function controller(rows: unknown[] = [], activityBlocksAuthorized = true) {
   const query = vi.fn(async (sql: string) => ({
     rows: sql.includes('learning_canonical_evidence')
       ? []
-      : sql.includes('course_draft_lock')
-        ? [{ ok: true }]
-        : sql.includes('course_library_list_v3($1) WHERE id=$2')
-          ? [{ archived_at: null }]
-          : rows,
+      : sql.includes('course_activity_blocks_authorized')
+        ? [{ ok: activityBlocksAuthorized }]
+        : sql.includes('course_draft_lock')
+          ? [{ ok: true }]
+          : sql.includes('course_library_list_v3($1) WHERE id=$2')
+            ? [{ archived_at: null }]
+            : rows,
   }));
   const activeContext = {
     resolve: vi.fn(async () => ({
@@ -617,6 +619,101 @@ describe('course outline API', () => {
       }),
     ).rejects.toMatchObject({ status: 400 });
     expect(malformedTable.query).not.toHaveBeenCalled();
+  });
+
+  it('accepts an exact activity block and validates hidden activity blocks server-side', async () => {
+    const target = controller([{ id: LESSON_ID }]);
+    const blocks = [
+      {
+        id: 'activity',
+        type: 'activity',
+        learningActivityVersionId: VERSION_ID,
+        hidden: true,
+      },
+    ];
+
+    await expect(
+      target.value.createLesson(request(), COURSE_ID, {
+        sectionId: SECTION_ID,
+        title: 'Практика внутри материала',
+        summary: null,
+        content: null,
+        blocks,
+        kind: 'material',
+        assignmentId: null,
+        estimatedMinutes: 15,
+        expectedRevision: 1,
+      }),
+    ).resolves.toEqual({ id: LESSON_ID });
+
+    expect(target.query).toHaveBeenCalledWith(
+      'SELECT course_activity_blocks_authorized($1,$2,$3::jsonb) AS ok',
+      ['principal-id', 'tenant-id', JSON.stringify(blocks)],
+    );
+    expect(target.query).toHaveBeenCalledWith(expect.stringContaining('course_lesson_save_v3'), [
+      'principal-id',
+      COURSE_ID,
+      SECTION_ID,
+      null,
+      'Практика внутри материала',
+      null,
+      JSON.stringify(blocks),
+      'material',
+      null,
+      15,
+      null,
+    ]);
+  });
+
+  it('rejects malformed and unauthorized activity block versions', async () => {
+    const malformed = controller();
+    await expect(
+      malformed.value.createLesson(request(), COURSE_ID, {
+        sectionId: SECTION_ID,
+        title: 'Некорректная практика',
+        summary: null,
+        content: null,
+        blocks: [
+          {
+            id: 'activity',
+            type: 'activity',
+            learningActivityVersionId: 'not-a-uuid',
+          },
+        ],
+        kind: 'material',
+        assignmentId: null,
+        estimatedMinutes: null,
+      }),
+    ).rejects.toMatchObject({ status: 400 });
+    expect(malformed.query).not.toHaveBeenCalled();
+
+    const denied = controller([], false);
+    await expect(
+      denied.value.createLesson(request(), COURSE_ID, {
+        sectionId: SECTION_ID,
+        title: 'Чужая практика',
+        summary: null,
+        content: null,
+        blocks: [
+          {
+            id: 'activity',
+            type: 'activity',
+            learningActivityVersionId: VERSION_ID,
+          },
+        ],
+        kind: 'material',
+        assignmentId: null,
+        estimatedMinutes: null,
+      }),
+    ).rejects.toMatchObject({ status: 400 });
+    expect(denied.query).toHaveBeenCalledWith(
+      'SELECT course_activity_blocks_authorized($1,$2,$3::jsonb) AS ok',
+      ['principal-id', 'tenant-id', expect.any(String)],
+    );
+    expect(denied.query).not.toHaveBeenCalledWith(
+      expect.stringContaining('course_lesson_save_v3'),
+      expect.anything(),
+    );
   });
 
   it('returns the complete immutable catalogue preview', async () => {
