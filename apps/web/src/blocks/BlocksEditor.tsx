@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { newClientId } from '../client-id';
-import { BlocksEditorShell, type BlocksSaveState } from './BlocksEditorShell';
+import { BlocksEditorShell } from './BlocksEditorShell';
 import { BlocksRuntimeBridge, requireExactHttpOrigin } from './runtime-protocol';
 import { requestBlocksRuntimeSession } from './runtime-session';
 
@@ -15,10 +14,6 @@ interface BlocksEditorProps {
 }
 
 const CAPABILITY_REFRESH_WINDOW_MS = 60_000;
-
-function capabilityNeedsRefresh(expiresAt: number | null, nowMs = Date.now()): boolean {
-  return expiresAt === null || expiresAt * 1000 - nowMs <= CAPABILITY_REFRESH_WINDOW_MS;
-}
 
 function configuredRuntimeOrigin(): string | null {
   if (typeof window === 'undefined') return null;
@@ -57,14 +52,8 @@ export function BlocksEditor({
   const runtimeOrigin = useMemo(configuredRuntimeOrigin, []);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const bridgeRef = useRef<BlocksRuntimeBridge | null>(null);
-  const saveRequestRef = useRef<string | null>(null);
-  const saveOperationRef = useRef(false);
-  const capabilityExpiresAtRef = useRef<number | null>(null);
-  const refreshCapabilityRef = useRef<(() => Promise<boolean>) | null>(null);
-  const latestDirtyGenerationRef = useRef(0);
+  const homeSavePendingRef = useRef(false);
   const [status, setStatus] = useState('Подключение Scratch…');
-  const [saveState, setSaveState] = useState<BlocksSaveState>('idle');
-  const [savedRevision, setSavedRevision] = useState<number | null>(null);
   const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
@@ -90,7 +79,6 @@ export function BlocksEditor({
     };
 
     const scheduleRefresh = (expiresAt: number): void => {
-      capabilityExpiresAtRef.current = expiresAt;
       clearRefreshTimer();
       const delay = Math.min(
         2_147_483_647,
@@ -138,58 +126,20 @@ export function BlocksEditor({
       return activePromise;
     }
 
-    refreshCapabilityRef.current = refreshCapability;
-
     const failStartup = (): void => {
       if (disposed) return;
       window.clearTimeout(startupTimer);
       setStatus('Ошибка Scratch runtime');
-      saveOperationRef.current = false;
-      if (saveRequestRef.current) {
-        saveRequestRef.current = null;
-        setSaveState('error');
-        setSavedRevision(null);
-      }
     };
 
     const onMessage = (event: MessageEvent): void => {
       if (!bridge?.acceptChildMessage(event)) return;
       const payload = event.data as Record<string, unknown>;
       if (payload['messageType'] === 'ASA_BLOCKS_STATUS') {
-        if (payload['status'] === 'project-dirty') {
-          const generation = Number(payload['generation']);
-          latestDirtyGenerationRef.current = Math.max(latestDirtyGenerationRef.current, generation);
-          setSavedRevision(null);
-          setSaveState((current) => (current === 'saved' ? 'idle' : current));
-          return;
-        }
+        if (payload['status'] === 'project-dirty') return;
         if (payload['status'] === 'token-updated') return;
         if (payload['status'] === 'editor-ready') window.clearTimeout(startupTimer);
         setStatus(String(payload['status'] ?? 'Scratch подключён'));
-      }
-      if (payload['messageType'] === 'ASA_BLOCKS_FLUSH_RESULT') {
-        const requestId = payload['requestId'];
-        if (requestId === saveRequestRef.current) {
-          saveRequestRef.current = null;
-          saveOperationRef.current = false;
-          if (
-            payload['ok'] === true &&
-            Number.isSafeInteger(payload['revision']) &&
-            Number.isSafeInteger(payload['snapshotGeneration'])
-          ) {
-            const snapshotGeneration = Number(payload['snapshotGeneration']);
-            if (snapshotGeneration >= latestDirtyGenerationRef.current) {
-              setSavedRevision(Number(payload['revision']));
-              setSaveState('saved');
-            } else {
-              setSavedRevision(null);
-              setSaveState('idle');
-            }
-          } else {
-            setSavedRevision(null);
-            setSaveState(payload['reason'] === 'revision_conflict' ? 'conflict' : 'error');
-          }
-        }
       }
       if (payload['messageType'] === 'ASA_BLOCKS_TOKEN_REFRESH_REQUIRED') {
         void refreshCapability();
@@ -235,8 +185,8 @@ export function BlocksEditor({
         scheduleRefresh(session.expiresAt);
       } catch {
         bridge?.stop();
+        if (bridgeRef.current === bridge) bridgeRef.current = null;
         bridge = null;
-        bridgeRef.current = null;
         failStartup();
       }
     };
@@ -249,15 +199,10 @@ export function BlocksEditor({
       requestController = new AbortController();
       loadGeneration += 1;
       bridge?.stop();
+      if (bridgeRef.current === bridge) bridgeRef.current = null;
       bridge = null;
-      bridgeRef.current = null;
-      saveRequestRef.current = null;
-      saveOperationRef.current = false;
-      capabilityExpiresAtRef.current = null;
-      latestDirtyGenerationRef.current = 0;
+      homeSavePendingRef.current = false;
       setStatus('Подключение Scratch…');
-      setSaveState('idle');
-      setSavedRevision(null);
       void connect(loadGeneration, requestController);
     };
 
@@ -273,54 +218,24 @@ export function BlocksEditor({
       frame.removeEventListener('load', onLoad);
       window.removeEventListener('message', onMessage);
       bridge?.stop();
-      bridgeRef.current = null;
-      saveRequestRef.current = null;
-      saveOperationRef.current = false;
-      capabilityExpiresAtRef.current = null;
-      latestDirtyGenerationRef.current = 0;
-      if (refreshCapabilityRef.current === refreshCapability) {
-        refreshCapabilityRef.current = null;
-      }
+      if (bridgeRef.current === bridge) bridgeRef.current = null;
+      homeSavePendingRef.current = false;
     };
   }, [projectId, runtimeOrigin, attempt]);
 
-  const requestSave = async (): Promise<void> => {
-    if (saveOperationRef.current) return;
-    const bridge = bridgeRef.current;
-    if (!bridge || status !== 'editor-ready') {
-      setSavedRevision(null);
-      setSaveState('error');
-      return;
-    }
-
-    saveOperationRef.current = true;
-    setSavedRevision(null);
-    setSaveState('saving');
-
-    if (capabilityNeedsRefresh(capabilityExpiresAtRef.current)) {
-      const refresh = refreshCapabilityRef.current;
-      const refreshed = refresh ? await refresh() : false;
-      if (bridgeRef.current !== bridge) {
-        saveOperationRef.current = false;
-        return;
-      }
-      if (!refreshed) {
-        saveOperationRef.current = false;
-        setSavedRevision(null);
-        setSaveState('error');
-        return;
-      }
-    }
-
-    const requestId = newClientId();
-    saveRequestRef.current = requestId;
-    try {
-      bridge.requestFlush(requestId);
-    } catch {
-      saveRequestRef.current = null;
-      saveOperationRef.current = false;
-      setSaveState('error');
-    }
+  const handleHomeClick = (): void => {
+    const activeBridge = bridgeRef.current;
+    if (!activeBridge || homeSavePendingRef.current) return;
+    homeSavePendingRef.current = true;
+    void activeBridge
+      .requestSaveBeforeExit()
+      .then((result) => {
+        if (result.ok && bridgeRef.current === activeBridge) onHomeClick();
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        homeSavePendingRef.current = false;
+      });
   };
 
   if (!runtimeOrigin) {
@@ -343,19 +258,8 @@ export function BlocksEditor({
         accountLabel={accountLabel}
         accountInitials={accountInitials}
         avatarUrl={avatarUrl}
-        saveState={saveState}
-        savedRevision={savedRevision}
-        saveDisabled={status !== 'editor-ready' || saveState === 'saving'}
-        onSave={() => void requestSave()}
         onAccountClick={onAccountClick}
-        onHomeClick={() => {
-          if (
-            window.confirm(
-              'Несохранённые изменения могут быть потеряны. Перед выходом используйте «Сохранить в ASA». Выйти?',
-            )
-          )
-            onHomeClick();
-        }}
+        onHomeClick={handleHomeClick}
       >
         <iframe
           key={attempt}

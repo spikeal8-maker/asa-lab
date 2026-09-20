@@ -42,11 +42,18 @@ class Storage {
       dataFormat,
       data,
       assetId,
+      clean: true,
       encodeDataURI: () => `data:${dataFormat};base64,fixture`,
     };
   }
   addHelper(helper) {
     this.helper = helper;
+  }
+  addWebStore(types, get, create, update) {
+    this.webStore = { types, get, create, update };
+  }
+  async store() {
+    throw new Error('fixture_store_not_configured');
   }
 }
 
@@ -137,7 +144,7 @@ function createRuntimeStorage({
   return { storage, calls, reference };
 }
 
-test('new project storage keeps the default project local and remains read-only', async () => {
+test('new project storage binds the default project to the ASA UUID', async () => {
   const calls = [];
   const api = loadHost('storage', {
     fetch: async (url) => {
@@ -160,10 +167,13 @@ test('new project storage keeps the default project local and remains read-only'
     );
 
   assert.ok(await readProject('0'));
-  assert.equal(await readProject(PROJECT_ID), null);
+  assert.ok(await readProject(PROJECT_ID));
   assert.equal(storage.getLibraryAssetUrl('b'.repeat(32), 'svg'), 'data:svg;base64,fixture');
   assert.throws(() => storage.getLibraryAssetUrl('unknown', 'svg'), /runtime_asset_unavailable/);
-  await assert.rejects(storage.saveProject(), /runtime_storage_read_only/);
+  await assert.rejects(
+    storage.saveProject('00000000-0000-4000-8000-000000000000', '{}'),
+    /project_identity_mismatch/,
+  );
   assert.equal(storage.cloudVariables, undefined);
   assert.equal(storage.backpackStorage, undefined);
   assert.deepEqual(calls, []);
@@ -193,6 +203,7 @@ test('declared runtime asset GET uses current Bearer without cookies or URL capa
     'svg',
   );
   assert.deepEqual(Buffer.from(loaded.data), Buffer.from(bytes));
+  assert.equal(loaded.clean, true);
   assert.equal(calls.length, 1, 'verified runtime bytes are cached without a second GET');
 });
 
@@ -385,10 +396,13 @@ async function editorFixture(hasProjectJson = false, mode = 'editor') {
 
 test('new project mount uses Scratch default project and preserves native editor events', async () => {
   const fixture = await editorFixture();
-  assert.equal('projectId' in fixture.props, false);
-  assert.equal(fixture.props.canSave, false);
+  assert.equal(fixture.props.projectId, PROJECT_ID);
+  assert.equal(fixture.props.canSave, true);
+  assert.equal(fixture.props.canCreateNew, true);
+  assert.equal(fixture.props.showSaveNow, false);
+  assert.ok(fixture.props.autoSaveIntervalSecs >= 5 && fixture.props.autoSaveIntervalSecs <= 8);
   assert.equal(fixture.props.logo, '/asa-lab-scratch-wordmark.svg');
-  assert.equal(fixture.requestedId, '0');
+  assert.equal(fixture.requestedId, undefined);
   assert.equal(fixture.shell.dataset.projectSource, 'new-default');
   assert.equal(fixture.shell.dataset.draftRevision, '7');
   assert.equal(fixture.params.isEmbedded, undefined);
@@ -411,6 +425,7 @@ test('new project mount uses Scratch default project and preserves native editor
 test('existing project mount preloads runtime assets and uses the real ASA projectId, never a fixture ID', async () => {
   const fixture = await editorFixture(true, 'player');
   assert.equal(fixture.props.projectId, PROJECT_ID);
+  assert.equal(fixture.props.canSave, false);
   assert.equal(fixture.params.isPlayerOnly, true);
   assert.equal(fixture.shell.dataset.projectSource, 'runtime-session');
   assert.equal(fixture.counts().prepared, 1);
@@ -500,6 +515,21 @@ function createPersistenceStorage({
   return { storage, calls };
 }
 
+test('upstream create transition persists native New into the same managed ASA UUID', async () => {
+  const { storage, calls } = createPersistenceStorage();
+  const projectJson = { targets: [], monitors: [], extensions: [] };
+
+  const response = await storage.saveProject(null, JSON.stringify(projectJson));
+
+  assert.equal(response.id, PROJECT_ID);
+  assert.equal(storage.getConfirmedRevision(), 8);
+  assert.deepEqual(
+    calls.map((call) => call.kind),
+    ['draft'],
+  );
+  assert.match(calls[0].url, new RegExp(`/projects/${PROJECT_ID}/draft$`));
+});
+
 test('explicit persistence uploads only changed assets before canonical draft and confirms revision', async () => {
   const unchangedBytes = Uint8Array.from([1, 2, 3]);
   const newBytes = Uint8Array.from([4, 5, 6, 7]);
@@ -579,6 +609,160 @@ test('explicit persistence uploads only changed assets before canonical draft an
     false,
     'bootstrap assets no longer referenced by live JSON must not survive the draft',
   );
+});
+
+test('upstream saver may fan out dirty assets but ASA transport serializes the writes', async () => {
+  let active = 0;
+  let maxActive = 0;
+
+  class UpstreamStorage extends Storage {
+    async store(assetType, dataFormat, data, assetId) {
+      active += 1;
+      maxActive = Math.max(maxActive, active);
+      await new Promise((resolve) => globalThis.setTimeout(resolve, 5));
+      active -= 1;
+      const bytes = new Uint8Array(data);
+      return {
+        id: assetId,
+        status: 'ok',
+        asset: {
+          assetId: String(assetId),
+          dataFormat,
+          sha256: createHash('sha256').update(bytes).digest('hex'),
+          sizeBytes: bytes.byteLength,
+        },
+      };
+    }
+  }
+
+  const api = loadHost('storage', {
+    crypto: webcrypto,
+    AbortController: globalThis.AbortController,
+    ArrayBuffer,
+    Uint8Array,
+  }).AsaBlocksStorage;
+  const storage = api.createReadOnlyStorage(
+    {
+      ScratchStorage: UpstreamStorage,
+      buildDefaultProject: standaloneFixture().buildDefaultProject,
+    },
+    {
+      projectId: PROJECT_ID,
+      projectJson: null,
+      assets: [],
+      draftRevision: 7,
+      apiOrigin: API_ORIGIN,
+      getRuntimeToken: () => RUNTIME_TOKEN,
+      canSave: true,
+    },
+  );
+
+  const stores = Array.from({ length: 6 }, (_, index) => {
+    const digit = String(index + 1);
+    return storage.scratchStorage.store(
+      storage.scratchStorage.AssetType.ImageVector,
+      'svg',
+      new TextEncoder().encode(
+        `<svg xmlns="http://www.w3.org/2000/svg"><text>${digit}</text></svg>`,
+      ),
+      digit.repeat(32),
+    );
+  });
+
+  const results = await Promise.all(stores);
+  assert.equal(results.length, 6);
+  assert.equal(maxActive, 1);
+});
+
+test('upstream asset-store latency cannot hide an edit made after VM serialization', async () => {
+  let generation = 5;
+  let releaseStore;
+  const storeGate = new Promise((resolve) => {
+    releaseStore = resolve;
+  });
+  const stale = [];
+  const draftCalls = [];
+
+  class UpstreamStorage extends Storage {
+    async store(assetType, dataFormat, data, assetId) {
+      await storeGate;
+      const bytes = new Uint8Array(data);
+      return {
+        id: assetId,
+        status: 'ok',
+        asset: {
+          assetId: String(assetId),
+          dataFormat,
+          sha256: createHash('sha256').update(bytes).digest('hex'),
+          sizeBytes: bytes.byteLength,
+        },
+      };
+    }
+  }
+
+  const api = loadHost('storage', {
+    fetch: async (url, init) => {
+      assert.match(String(url), /\/draft$/);
+      draftCalls.push(JSON.parse(init.body));
+      return new globalThis.Response(JSON.stringify({ status: 'ok', revision: 8 }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    },
+    crypto: webcrypto,
+    AbortController: globalThis.AbortController,
+    ArrayBuffer,
+    Uint8Array,
+  }).AsaBlocksStorage;
+
+  const standalone = {
+    ScratchStorage: UpstreamStorage,
+    buildDefaultProject: standaloneFixture().buildDefaultProject,
+  };
+  const storage = api.createReadOnlyStorage(standalone, {
+    projectId: PROJECT_ID,
+    projectJson: null,
+    assets: [],
+    draftRevision: 7,
+    apiOrigin: API_ORIGIN,
+    getRuntimeToken: () => RUNTIME_TOKEN,
+    canSave: true,
+    getProjectGeneration: () => generation,
+    onSaveCompletedStale: (value) => stale.push(value),
+  });
+
+  const assetId = '9'.repeat(32);
+  const bytes = new TextEncoder().encode('<svg xmlns="http://www.w3.org/2000/svg"/>');
+  const storePromise = storage.scratchStorage.store(
+    storage.scratchStorage.AssetType.ImageVector,
+    'svg',
+    bytes,
+    assetId,
+  );
+
+  generation = 6;
+  releaseStore();
+  await storePromise;
+
+  const projectJson = {
+    targets: [
+      {
+        name: 'Saved A',
+        costumes: [{ assetId, dataFormat: 'svg' }],
+        sounds: [],
+      },
+    ],
+    monitors: [],
+    extensions: [],
+  };
+  const result = await storage.saveProject(PROJECT_ID, JSON.stringify(projectJson), {});
+
+  assert.equal(result.id, PROJECT_ID);
+  assert.equal(draftCalls.length, 1);
+  assert.equal(stale.length, 1);
+  assert.equal(stale[0].savedGeneration, 5);
+  assert.equal(stale[0].latestGeneration, 6);
+  assert.equal(stale[0].revision, 8);
 });
 
 for (const status of [400, 401, 403, 409, 429, 503]) {

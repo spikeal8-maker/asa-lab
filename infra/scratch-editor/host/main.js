@@ -120,6 +120,25 @@
         reporter?.flushResult(requestId, false, result.reason);
       });
     },
+    onSaveBeforeExitRequest(requestId) {
+      if (!editor) {
+        reporter?.saveBeforeExitResult(requestId, false, 'editor_not_ready');
+        return;
+      }
+      void editor.saveBeforeExit().then((result) => {
+        if (result.ok) {
+          reporter?.saveBeforeExitResult(
+            requestId,
+            true,
+            null,
+            result.revision,
+            result.savedGeneration,
+          );
+          return;
+        }
+        reporter?.saveBeforeExitResult(requestId, false, result.reason);
+      });
+    },
     onStop() {
       reporter?.status('stopped');
       editor?.dispose();

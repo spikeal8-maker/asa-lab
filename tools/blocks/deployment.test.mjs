@@ -124,7 +124,8 @@ test('ready editor omits the footer instead of visually obscuring it', () => {
   const editor = read('apps/web/src/blocks/BlocksEditor.tsx');
   assert.match(editor, /status !== 'editor-ready' \? \(/);
   assert.doesNotMatch(editor, /className="blocks-editor-preview-status"/);
-  assert.match(editor, /window\.confirm/);
+  assert.doesNotMatch(editor, /window\.confirm/);
+  assert.doesNotMatch(editor, /Сохранить в ASA/);
   assert.match(editor, /Повторить подключение/);
 });
 
