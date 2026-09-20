@@ -1,4 +1,5 @@
 import type {
+  ElectronicsArduinoSerialProjection,
   ElectronicsTimedDiagnostic,
   ElectronicsTimedInputEvent,
   ElectronicsTimedState,
@@ -42,6 +43,7 @@ export interface SimulationTimedAdvancePayload {
   readonly committedHorizonMicroseconds: number;
   readonly state: ElectronicsTimedState;
   readonly result: SolveResult | null;
+  readonly serial: readonly ElectronicsArduinoSerialProjection[];
   readonly diagnostics: readonly ElectronicsTimedDiagnostic[];
 }
 

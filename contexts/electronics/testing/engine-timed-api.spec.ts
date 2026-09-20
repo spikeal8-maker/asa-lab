@@ -3,6 +3,7 @@ import {
   advanceElectronicsToHorizon,
   parseElectronicsEngineDocument,
   pauseElectronicsTimedState,
+  projectElectronicsArduinoSerial,
   resetElectronicsTimedState,
   resumeElectronicsTimedState,
   type ElectronicsEngineDocument,
@@ -58,6 +59,27 @@ describe('Electronics canonical timed engine facade', () => {
     expect(result.observation.quality.passed).toBe(true);
     expect(() => JSON.parse(result.state.continuation!.serializedState)).not.toThrow();
     expect(JSON.parse(JSON.stringify(result.state))).toEqual(result.state);
+  });
+
+  it('projects bounded Arduino Serial state from canonical continuation without web decoding', () => {
+    const document = circuit(
+      'void setup(){Serial.begin(9600);Serial.println("one");Serial.println("two");}void loop(){delay(100);}',
+    );
+    const result = advanceElectronicsToHorizon(document, { requestedHorizonMicroseconds: 10 });
+    expect(result.executionStatus).toBe('ready');
+    expect(projectElectronicsArduinoSerial(result.state)).toEqual([
+      {
+        componentId: 'uno',
+        begun: true,
+        baudRate: 9600,
+        tx: [
+          expect.objectContaining({ sequence: 0, text: 'one\n' }),
+          expect.objectContaining({ sequence: 1, text: 'two\n' }),
+        ],
+        rxPendingBytes: 0,
+      },
+    ]);
+    expect(projectElectronicsArduinoSerial(resetElectronicsTimedState())).toEqual([]);
   });
 
   it('distinguishes yielded progress from a completed horizon and resumes deterministically', () => {

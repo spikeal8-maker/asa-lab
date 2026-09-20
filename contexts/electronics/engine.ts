@@ -97,6 +97,18 @@ export interface ElectronicsTimedDiagnostic {
   readonly message: string;
 }
 
+export interface ElectronicsArduinoSerialProjection {
+  readonly componentId: string;
+  readonly begun: boolean;
+  readonly baudRate?: number;
+  readonly tx: readonly {
+    readonly sequence: number;
+    readonly atMicroseconds: number;
+    readonly text: string;
+  }[];
+  readonly rxPendingBytes: number;
+}
+
 export interface ElectronicsTimedObservation {
   readonly solved: boolean;
   readonly current: number;
@@ -248,6 +260,35 @@ function timedObservation(
     numericalTolerance: result.numericalTolerance,
     quality: result.quality,
   };
+}
+
+export function projectElectronicsArduinoSerial(
+  state: ElectronicsTimedState,
+): readonly ElectronicsArduinoSerialProjection[] {
+  const serialized = state.continuation?.serializedState;
+  if (!serialized) return [];
+  try {
+    return (JSON.parse(serialized) as ArduinoCircuitClockState).boards.flatMap(
+      ({ componentId, runtime }) => {
+        const serial = runtime.serial;
+        return serial
+          ? [
+              {
+                componentId,
+                begun: serial.begun,
+                ...(serial.baudRate === undefined ? {} : { baudRate: serial.baudRate }),
+                tx: serial.tx.map((entry: ElectronicsArduinoSerialProjection['tx'][number]) => ({
+                  ...entry,
+                })),
+                rxPendingBytes: serial.rx?.length ?? 0,
+              },
+            ]
+          : [];
+      },
+    );
+  } catch {
+    return [];
+  }
 }
 
 export function resetElectronicsTimedState(): ElectronicsTimedState {

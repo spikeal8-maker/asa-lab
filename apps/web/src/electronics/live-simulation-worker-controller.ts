@@ -1,5 +1,6 @@
 import {
   resetElectronicsTimedState,
+  type ElectronicsArduinoSerialProjection,
   type ElectronicsTimedInputEvent,
   type ElectronicsTimedState,
 } from '@asa-lab/electronics/engine';
@@ -23,6 +24,7 @@ export interface ElectronicsSimulationWorkerExecutor {
 
 export interface LiveSimulationWorkerCallbacks {
   readonly onResult: (result: SolveResult) => void;
+  readonly onSerialProjection?: (serial: readonly ElectronicsArduinoSerialProjection[]) => void;
   readonly onFailure: (error: Error) => void;
 }
 
@@ -204,18 +206,7 @@ export class ElectronicsLiveSimulationWorkerController {
     const eventAtMicroseconds = Math.max(committed + 1, this.lastInputEventAtMicroseconds + 1);
     const events = timedRuntimeEvents(previousDocument, document, eventAtMicroseconds);
     this.lastRuntimeDocument = document;
-    let requestedHorizonMicroseconds = canonicalHorizon;
-    if (events.length > 0) {
-      this.pendingInputEvents.push(...events);
-      this.lastInputEventAtMicroseconds = eventAtMicroseconds;
-      this.inputTarget = {
-        requestedHorizonMicroseconds: boundedInputObservationHorizon(
-          eventAtMicroseconds,
-          canonicalHorizon,
-        ),
-      };
-      requestedHorizonMicroseconds = Math.max(requestedHorizonMicroseconds, eventAtMicroseconds);
-    }
+    const requestedHorizonMicroseconds = this.enqueueInputEvents(events, canonicalHorizon);
     if (
       this.inFlight &&
       this.inFlightKind === 'preflight' &&
@@ -225,6 +216,34 @@ export class ElectronicsLiveSimulationWorkerController {
     ) {
       return;
     }
+    this.latestTarget = {
+      requestedHorizonMicroseconds: Math.max(
+        requestedHorizonMicroseconds,
+        this.latestTarget?.requestedHorizonMicroseconds ?? 0,
+      ),
+    };
+    this.pump();
+  }
+
+  sendSerialRx(componentId: string, text: string, hostHorizonMicroseconds: number): void {
+    if (
+      this.generationId === null ||
+      !this.canonicalDocument?.components.some(
+        (component) => component.id === componentId && component.componentTypeId === 'arduino-uno',
+      ) ||
+      !text ||
+      text.length > 1024 ||
+      !Number.isSafeInteger(hostHorizonMicroseconds) ||
+      hostHorizonMicroseconds < 0
+    )
+      return;
+    const canonicalHorizon = Math.max(0, hostHorizonMicroseconds - this.horizonOffsetMicroseconds);
+    const committed = this.timedState.continuation?.committedHorizonMicroseconds ?? 0;
+    const atMicroseconds = Math.max(committed + 1, this.lastInputEventAtMicroseconds + 1);
+    const requestedHorizonMicroseconds = this.enqueueInputEvents(
+      [{ atMicroseconds, targetId: componentId, operation: 'serialRx', payload: text }],
+      canonicalHorizon,
+    );
     this.latestTarget = {
       requestedHorizonMicroseconds: Math.max(
         requestedHorizonMicroseconds,
@@ -251,6 +270,23 @@ export class ElectronicsLiveSimulationWorkerController {
     this.executor.dispose();
   }
 
+  private enqueueInputEvents(
+    events: readonly ElectronicsTimedInputEvent[],
+    canonicalHorizonMicroseconds: number,
+  ): number {
+    if (events.length === 0) return canonicalHorizonMicroseconds;
+    this.pendingInputEvents.push(...events);
+    const lastAt = events[events.length - 1]!.atMicroseconds;
+    this.lastInputEventAtMicroseconds = Math.max(this.lastInputEventAtMicroseconds, lastAt);
+    this.inputTarget = {
+      requestedHorizonMicroseconds: boundedInputObservationHorizon(
+        lastAt,
+        canonicalHorizonMicroseconds,
+      ),
+    };
+    return Math.max(canonicalHorizonMicroseconds, lastAt);
+  }
+
   private beginGeneration(document: SchematicDocument, canonicalHorizonMicroseconds: number): void {
     const projectSessionId = this.projectSessionId;
     if (!projectSessionId) return;
@@ -262,6 +298,7 @@ export class ElectronicsLiveSimulationWorkerController {
     this.inputTarget = null;
     this.pendingInputEvents = [];
     this.lastInputEventAtMicroseconds = -1;
+    this.callbacks?.onSerialProjection?.([]);
     const generationId = this.executor.beginGeneration(projectSessionId);
     this.generationId = generationId;
     this.inFlight = true;
@@ -370,6 +407,7 @@ export class ElectronicsLiveSimulationWorkerController {
     this.inFlight = false;
     this.inFlightKind = null;
     this.timedState = advance.state;
+    this.callbacks?.onSerialProjection?.(advance.serial);
     if (advance.executionStatus === 'fault') {
       const message =
         advance.diagnostics

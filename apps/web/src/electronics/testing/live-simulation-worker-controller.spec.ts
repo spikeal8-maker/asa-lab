@@ -30,6 +30,24 @@ const circuit: SchematicDocument = {
   simulation: { running: true, maxIterations: 24 },
 };
 
+const serialCircuit: SchematicDocument = {
+  ...circuit,
+  components: [
+    ...circuit.components,
+    {
+      id: 'uno',
+      kind: 'visual',
+      value: 5,
+      position: { x: 60, y: 0 },
+      componentTypeId: 'arduino-uno',
+      pinIds: ['d13', 'power-5v', 'power-3v3', 'power-gnd-1'],
+      stateProperties: {
+        arduinoSource: 'void setup(){Serial.begin(9600);}void loop(){delay(100);}',
+      },
+    },
+  ],
+};
+
 function result(current: number): SolveResult {
   return {
     solved: true,
@@ -74,6 +92,7 @@ function timedAdvance(
     committedHorizonMicroseconds,
     state: timedState(committedHorizonMicroseconds),
     result: executionStatus === 'ready' ? result(current) : null,
+    serial: [],
     diagnostics: executionStatus === 'fault' ? [{ code: 'fixture-fault', message: 'fault' }] : [],
   };
 }
@@ -220,6 +239,63 @@ describe('Electronics canonical Worker controller', () => {
     expect(executor.advances[2]).toMatchObject({ requestedHorizonMicroseconds: 2 });
     expect(executor.advances[2]!.inputEvents).toEqual([
       { atMicroseconds: 2, targetId: 'button', operation: 'state', payload: false },
+    ]);
+  });
+
+  it('routes Serial RX through the canonical pending input queue in accepted order', async () => {
+    const executor = new FakeExecutor();
+    const controller = new ElectronicsLiveSimulationWorkerController(executor);
+    controller.start('project-a', serialCircuit, { onResult: vi.fn(), onFailure: vi.fn() });
+    await completeCanonicalStart(executor, 1);
+
+    controller.sendSerialRx('uno', 'A', 0);
+    expect(executor.advances[1]!.inputEvents).toEqual([
+      { atMicroseconds: 1, targetId: 'uno', operation: 'serialRx', payload: 'A' },
+    ]);
+    controller.sendSerialRx('uno', 'B', 0);
+    expect(executor.advances).toHaveLength(2);
+
+    executor.advances[1]!.deferred.resolve(timedAdvance('ready', 1, 1, 2));
+    await flush();
+    expect(executor.advances[2]!.inputEvents).toEqual([
+      { atMicroseconds: 2, targetId: 'uno', operation: 'serialRx', payload: 'B' },
+    ]);
+  });
+
+  it('publishes Serial projection from yielded canonical work', async () => {
+    const executor = new FakeExecutor();
+    const onSerialProjection = vi.fn();
+    const controller = new ElectronicsLiveSimulationWorkerController(executor);
+    controller.start('project-a', serialCircuit, {
+      onResult: vi.fn(),
+      onSerialProjection,
+      onFailure: vi.fn(),
+    });
+    await completeCanonicalStart(executor, 1);
+    onSerialProjection.mockClear();
+
+    controller.update(serialCircuit, 100);
+    executor.advances[1]!.deferred.resolve({
+      ...timedAdvance('yielded', 100, 50),
+      serial: [
+        {
+          componentId: 'uno',
+          begun: true,
+          baudRate: 9600,
+          tx: [{ sequence: 0, atMicroseconds: 4, text: 'one\n' }],
+          rxPendingBytes: 0,
+        },
+      ],
+    });
+    await flush();
+
+    expect(onSerialProjection).toHaveBeenCalledWith([
+      expect.objectContaining({
+        componentId: 'uno',
+        begun: true,
+        baudRate: 9600,
+        tx: [{ sequence: 0, atMicroseconds: 4, text: 'one\n' }],
+      }),
     ]);
   });
 
