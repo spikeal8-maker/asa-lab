@@ -11,6 +11,10 @@ import {
   type SchematicComponent,
 } from '../domain/document.js';
 import { arduinoRuntimeStateMatchesProgram } from '../domain/arduino-program-runtime.js';
+import {
+  arduinoWaveformEdgeMicroseconds,
+  isArduinoTimedWaveformState,
+} from '../domain/arduino-waveform-runtime.js';
 import { analyseCircuit } from '../domain/simulation.js';
 
 function board(id: string, source: string): SchematicComponent {
@@ -1045,6 +1049,95 @@ describe('Arduino shared dc-inputs-v1 circuit clock', () => {
     expect(done.events.some((event) => event.componentId === 'b-unsupported')).toBe(false);
   });
 
+  it('drives peer pulseIn from canonical 1000 Hz tone independent of component order', () => {
+    const sender = board('sender', 'void setup(){tone(13,1000);}void loop(){delay(100);}');
+    const receiver = board(
+      'receiver',
+      'unsigned long duration=0;void setup(){pinMode(2,INPUT);duration=pulseIn(2,HIGH,5000);}void loop(){delay(100);}',
+    );
+    const wires: [string, string, string, string][] = [
+      ['sender', 'd13', 'receiver', 'd2'],
+      ['sender', 'power-gnd-1', 'receiver', 'power-gnd-1'],
+    ];
+    const forward = through(circuit([sender, receiver], wires), 4000, undefined, undefined, 1);
+    const reversed = through(
+      circuit([receiver, sender], [...wires].reverse()),
+      4000,
+      undefined,
+      undefined,
+      256,
+    );
+
+    const tone = runtime(forward, 'sender').tones.d13;
+    expect(tone && isArduinoTimedWaveformState(tone)).toBe(true);
+    if (!tone || !isArduinoTimedWaveformState(tone)) return;
+    const highWidth =
+      arduinoWaveformEdgeMicroseconds(tone, 1) - arduinoWaveformEdgeMicroseconds(tone, 0);
+    expect(highWidth).toBe(500);
+    expect(runtime(forward, 'receiver').variables.duration).toBe(highWidth);
+    expect(runtime(reversed, 'receiver').variables.duration).toBe(highWidth);
+    expect(runtime(reversed, 'sender')).toEqual(runtime(forward, 'sender'));
+    expect(runtime(reversed, 'receiver')).toEqual(runtime(forward, 'receiver'));
+    expect(reversed.result).toEqual(forward.result);
+  });
+
+  it('stops a duration-limited tone at its exact canonical end timestamp', () => {
+    const done = through(
+      circuit([board('uno', 'void setup(){tone(13,1000,2);delay(10);}void loop(){delay(100);}')]),
+      5000,
+      undefined,
+      undefined,
+      1,
+    );
+    const start = done.events.find((event) => event.kind === 'tone-start')!;
+    const stop = done.events.find((event) => event.kind === 'tone-stop')!;
+    expect(stop.atMicroseconds - start.atMicroseconds).toBe(2000);
+    expect(runtime(done).tones.d13).toBeUndefined();
+    expect(
+      done.result?.components.find((entry) => entry.componentId === 'uno')?.terminalVoltages.d13,
+    ).toBeCloseTo(0, 8);
+  });
+
+  it('noTone stops immediately instead of waiting for a natural waveform edge', () => {
+    const done = through(
+      circuit([
+        board(
+          'uno',
+          'void setup(){tone(13,1000);delayMicroseconds(750);noTone(13);delay(10);}void loop(){delay(100);}',
+        ),
+      ]),
+      3000,
+    );
+    const start = done.events.find((event) => event.kind === 'tone-start')!;
+    const stop = done.events.find((event) => event.kind === 'tone-stop')!;
+    const delta = stop.atMicroseconds - start.atMicroseconds;
+    expect(delta).toBeGreaterThan(500);
+    expect(delta).toBeLessThan(1000);
+    expect(delta).not.toBe(500);
+    expect(runtime(done).tones.d13).toBeUndefined();
+    expect(
+      done.result?.components.find((entry) => entry.componentId === 'uno')?.terminalVoltages.d13,
+    ).toBeCloseTo(0, 8);
+  });
+
+  it('keeps active tones deterministic across JSON continuation, work quantum and boards', () => {
+    const doc = circuit([
+      board('a', 'void setup(){tone(13,1000);}void loop(){delay(100);}'),
+      board('b', 'void setup(){tone(13,440);}void loop(){delay(100);}'),
+    ]);
+    const small = through(doc, 5000, undefined, undefined, 1);
+    const large = through(doc, 5000, undefined, undefined, 256);
+    expect(small.state).toEqual(large.state);
+    expect(small.result).toEqual(large.result);
+    expect(runtime(small, 'a').tones.d13?.frequencyHz).toBe(1000);
+    expect(runtime(small, 'b').tones.d13?.frequencyHz).toBe(440);
+
+    const mid = through(doc, 2500, undefined, undefined, 3);
+    const resumed = through(doc, 5000, JSON.parse(JSON.stringify(mid.state)), undefined, 3);
+    expect(resumed.state).toEqual(large.state);
+    expect(resumed.result).toEqual(large.result);
+  });
+
   it('keeps ambiguous unknown calls global in B1D', () => {
     const result = through(circuit([board('uno', 'void setup(){unknown();}void loop(){}')]), 10);
 
@@ -1055,11 +1148,11 @@ describe('Arduino shared dc-inputs-v1 circuit clock', () => {
     expect(result.events).toEqual([]);
   });
 
-  it.each([
-    'void setup(){pinMode(13,OUTPUT);int x=1/0;}void loop(){}',
-    'void setup(){tone(13,440);}void loop(){}',
-  ])('fails closed on errors or unscheduled peripherals: %s', (source) => {
-    const result = through(circuit([board('uno', source)]), 10);
+  it('fails closed on arithmetic errors', () => {
+    const result = through(
+      circuit([board('uno', 'void setup(){pinMode(13,OUTPUT);int x=1/0;}void loop(){}')]),
+      10,
+    );
     expect(result.executionStatus).toBe('fault');
     expect(result.result).toBeNull();
     expect(result.state).toBeNull();

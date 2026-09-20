@@ -18,6 +18,12 @@ import {
   type ArduinoSerialState,
 } from './arduino-serial-runtime.js';
 import {
+  advanceArduinoTimedWaveform,
+  createArduinoTimedWaveform,
+  isArduinoTimedWaveformState,
+  type ArduinoTimedWaveformState,
+} from './arduino-waveform-runtime.js';
+import {
   ArduinoArithmeticError,
   assignBinding,
   binaryValue,
@@ -63,6 +69,10 @@ export interface ArduinoNoToneAction {
   readonly kind: 'no-tone';
   readonly terminal: Terminal;
 }
+
+export type ArduinoToneState =
+  | (ArduinoTimedWaveformState & { readonly expiresAtMs?: undefined })
+  | { readonly frequencyHz: number; readonly expiresAtMs?: number };
 
 export interface ArduinoPinModeAction {
   readonly kind: 'pin-mode';
@@ -129,17 +139,7 @@ export interface ArduinoRuntimeState {
   readonly faults: readonly ArduinoRuntimeDiagnostic[];
   readonly pinModes: Readonly<Partial<Record<Terminal, ArduinoPinMode>>>;
   readonly outputVoltages: Readonly<Partial<Record<Terminal, number>>>;
-  readonly tones: Readonly<
-    Partial<
-      Record<
-        Terminal,
-        {
-          readonly frequencyHz: number;
-          readonly expiresAtMs?: number;
-        }
-      >
-    >
-  >;
+  readonly tones: Readonly<Partial<Record<Terminal, ArduinoToneState>>>;
 }
 
 export interface ArduinoRuntimeAdvance {
@@ -158,10 +158,7 @@ export interface ArduinoElectricalState {
   readonly simulationTimeMs: number;
   readonly pinModes: ReadonlyMap<Terminal, ArduinoPinMode>;
   readonly outputVoltages: ReadonlyMap<Terminal, number>;
-  readonly tones: ReadonlyMap<
-    Terminal,
-    { readonly frequencyHz: number; readonly expiresAtMs?: number }
-  >;
+  readonly tones: ReadonlyMap<Terminal, ArduinoToneState>;
 }
 export type ArduinoInputReader = (state: ArduinoElectricalState) => ArduinoTerminalVoltages;
 
@@ -256,6 +253,19 @@ function programFingerprint(source: string): string {
 
 function isArduinoGpioTerminal(value: unknown): value is Terminal {
   return typeof value === 'string' && /^(?:d(?:[0-9]|1[0-3])|a[0-5])$/.test(value);
+}
+
+function toneStateIsValid(tone: ArduinoToneState): boolean {
+  return (
+    isArduinoTimedWaveformState(tone) ||
+    (tone != null &&
+      Number.isFinite(tone.frequencyHz) &&
+      tone.frequencyHz >= 1 &&
+      tone.frequencyHz <= 20_000 &&
+      (!('expiresAtMs' in tone) ||
+        tone.expiresAtMs === undefined ||
+        (Number.isFinite(tone.expiresAtMs) && tone.expiresAtMs >= 0)))
+  );
 }
 
 function runtimeStateIsValid(state: ArduinoRuntimeState): boolean {
@@ -356,15 +366,7 @@ function runtimeStateIsValid(state: ArduinoRuntimeState): boolean {
     state.tones !== null &&
     typeof state.tones === 'object' &&
     toneEntries.every(([terminal]) => isArduinoGpioTerminal(terminal)) &&
-    tones.every(
-      (tone) =>
-        tone != null &&
-        Number.isFinite(tone.frequencyHz) &&
-        tone.frequencyHz >= 1 &&
-        tone.frequencyHz <= 20_000 &&
-        (tone.expiresAtMs === undefined ||
-          (Number.isFinite(tone.expiresAtMs) && tone.expiresAtMs >= 0)),
-    )
+    tones.every((tone) => tone !== undefined && toneStateIsValid(tone))
   );
 }
 
@@ -384,20 +386,33 @@ function terminalMap<T>(entries: Readonly<Partial<Record<Terminal, T>>>): Map<Te
   );
 }
 
+function canonicalToneState(
+  tone: ArduinoToneState,
+  fallbackStartMicroseconds: number,
+): ArduinoTimedWaveformState | null {
+  if (isArduinoTimedWaveformState(tone)) return tone;
+  const endAtMicroseconds =
+    tone.expiresAtMs === undefined ? undefined : microsecondsFromMilliseconds(tone.expiresAtMs);
+  if (endAtMicroseconds !== undefined && endAtMicroseconds <= fallbackStartMicroseconds)
+    return null;
+  return createArduinoTimedWaveform(fallbackStartMicroseconds, tone.frequencyHz, endAtMicroseconds);
+}
+
 function expireTones(
   targetTimeMs: number,
-  tones: Map<Terminal, { readonly frequencyHz: number; readonly expiresAtMs?: number }>,
+  tones: Map<Terminal, ArduinoTimedWaveformState>,
   emit: (event: Omit<ArduinoRuntimeEvent, 'sequence' | 'atMicroseconds'>, atMs: number) => void,
 ): void {
+  const targetMicroseconds = microsecondsFromMilliseconds(targetTimeMs);
   const ordered = [...tones].sort(
     ([a, left], [b, right]) =>
-      (left.expiresAtMs ?? Number.MAX_VALUE) - (right.expiresAtMs ?? Number.MAX_VALUE) ||
-      (a < b ? -1 : a > b ? 1 : 0),
+      (left.endAtMicroseconds ?? Number.MAX_SAFE_INTEGER) -
+        (right.endAtMicroseconds ?? Number.MAX_SAFE_INTEGER) || (a < b ? -1 : a > b ? 1 : 0),
   );
   for (const [terminal, tone] of ordered) {
-    if (tone.expiresAtMs !== undefined && tone.expiresAtMs <= targetTimeMs) {
+    if (tone.endAtMicroseconds !== undefined && tone.endAtMicroseconds <= targetMicroseconds) {
       tones.delete(terminal);
-      emit({ kind: 'tone-stop', terminal }, tone.expiresAtMs);
+      emit({ kind: 'tone-stop', terminal }, tone.endAtMicroseconds / 1000);
     }
   }
 }
@@ -407,7 +422,7 @@ function applyRuntimeAction(
   executionTimeMs: number,
   pinModes: Map<Terminal, ArduinoPinMode>,
   outputVoltages: Map<Terminal, number>,
-  tones: Map<Terminal, { readonly frequencyHz: number; readonly expiresAtMs?: number }>,
+  tones: Map<Terminal, ArduinoTimedWaveformState>,
   emit: (event: Omit<ArduinoRuntimeEvent, 'sequence' | 'atMicroseconds'>, atMs: number) => void,
 ): void {
   if (action.kind === 'pin-mode') {
@@ -460,19 +475,31 @@ function applyRuntimeAction(
     }
     outputVoltages.set(action.terminal, action.targetVoltage);
   } else if (action.kind === 'tone') {
-    const previous = tones.get(action.terminal);
-    if (previous?.frequencyHz !== action.frequencyHz) {
-      emit(
-        { kind: 'tone-start', terminal: action.terminal, frequencyHz: action.frequencyHz },
+    if (pinModes.get(action.terminal) !== 'OUTPUT')
+      applyRuntimeAction(
+        { kind: 'pin-mode', terminal: action.terminal, mode: 'OUTPUT' },
         executionTimeMs,
+        pinModes,
+        outputVoltages,
+        tones,
+        emit,
       );
-    }
-    tones.set(action.terminal, {
-      frequencyHz: action.frequencyHz,
-      ...(action.durationMs !== undefined
-        ? { expiresAtMs: executionTimeMs + action.durationMs }
-        : {}),
-    });
+    outputVoltages.set(action.terminal, 0);
+    emit(
+      { kind: 'tone-start', terminal: action.terminal, frequencyHz: action.frequencyHz },
+      executionTimeMs,
+    );
+    const startedAtMicroseconds = microsecondsFromMilliseconds(executionTimeMs);
+    tones.set(
+      action.terminal,
+      createArduinoTimedWaveform(
+        startedAtMicroseconds,
+        action.frequencyHz,
+        action.durationMs === undefined
+          ? undefined
+          : startedAtMicroseconds + microsecondsFromMilliseconds(action.durationMs),
+      ),
+    );
   } else {
     if (tones.has(action.terminal)) {
       emit({ kind: 'tone-stop', terminal: action.terminal }, executionTimeMs);
@@ -1766,8 +1793,16 @@ function advanceRuntime(
     ? terminalMap(previous.outputVoltages)
     : new Map<Terminal, number>();
   const tones = compatible
-    ? terminalMap(previous.tones)
-    : new Map<Terminal, { readonly frequencyHz: number; readonly expiresAtMs?: number }>();
+    ? new Map(
+        [...terminalMap(previous.tones)].flatMap(([terminal, tone]) => {
+          const canonical = canonicalToneState(
+            tone,
+            microsecondsFromMilliseconds(previous.virtualTimeMs),
+          );
+          return canonical ? ([[terminal, canonical]] as const) : [];
+        }),
+      )
+    : new Map<Terminal, ArduinoTimedWaveformState>();
   const diagnostics: ArduinoRuntimeDiagnostic[] = [];
   const setupActions: ArduinoProgramAction[] = [];
   const loopActions: ArduinoProgramAction[] = [];
@@ -1986,6 +2021,14 @@ function advanceRuntime(
       )
     : targetTimeMs;
   expireTones(reachedTimeMs, tones, emit);
+  if (!clocked) {
+    const reachedMicroseconds = microsecondsFromMilliseconds(reachedTimeMs);
+    for (const [terminal, tone] of tones) {
+      const advanced = advanceArduinoTimedWaveform(tone, reachedMicroseconds);
+      if (advanced.state) tones.set(terminal, advanced.state);
+      else tones.delete(terminal);
+    }
+  }
 
   if (
     !clocked &&
