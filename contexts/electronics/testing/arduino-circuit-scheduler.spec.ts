@@ -385,9 +385,7 @@ describe('Arduino shared dc-inputs-v1 circuit clock', () => {
     expect(done.diagnostics).toEqual([]);
     const modeEvents = done.events.filter(
       (event) =>
-        event.componentId === 'uno' &&
-        event.kind === 'pin-mode-change' &&
-        event.terminal === 'd13',
+        event.componentId === 'uno' && event.kind === 'pin-mode-change' && event.terminal === 'd13',
     );
     expect(modeEvents.map((event) => event.mode)).toEqual(['OUTPUT', 'INPUT']);
     expect(runtime(done).pinModes.d13).toBe('INPUT');
