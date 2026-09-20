@@ -330,9 +330,29 @@ describe('Э1 existing course → exact versions → runs → inherited particip
       )
     ).rows[0].id as string;
 
+    const viewer = await seedTeacher(admin, 'course-hidden-media-viewer-' + ++seq);
+    const viewerIdentity = (
+      await admin.query(
+        'SELECT principal_id,account_id FROM legacy_user_account_links WHERE tenant_id=$1 AND user_id=$2',
+        [viewer.tenantId, viewer.teacherId],
+      )
+    ).rows[0] as { principal_id: string; account_id: string };
+    const sampleForViewer = async () =>
+      (
+        await admin.query(
+          'SELECT sample_bytes,sample_content_type FROM assignment_sample_for_viewer($1,$2,$3,$4,NULL)',
+          [
+            task,
+            viewerIdentity.principal_id,
+            viewerIdentity.account_id,
+            viewer.tenantId,
+          ],
+        )
+      ).rows;
+
     const saved = await tx((client) =>
       client.query(
-        "SELECT * FROM course_save_v2($1,$2,NULL,'Hidden media course',NULL,NULL,'private',NULL,$3)",
+        "SELECT * FROM course_save_v2($1,$2,NULL,'Hidden media course',NULL,NULL,'public',NULL,$3)",
         [principal, teacher.tenantId, 'course01:hidden-media-course:' + ++seq],
       ),
     );
@@ -413,6 +433,7 @@ describe('Э1 existing course → exact versions → runs → inherited particip
         )
       ).rows;
     expect((await visibleItems()).map((row) => row.id)).toEqual([task]);
+    expect(await sampleForViewer()).toHaveLength(1);
 
     let revision = Number(
       (await admin.query('SELECT course_draft_revision($1,$2) AS revision', [principal, courseId]))
@@ -444,6 +465,7 @@ describe('Э1 existing course → exact versions → runs → inherited particip
     expect(hiddenA).toMatchObject({ result_code: 'ok', hidden: true });
     revision = Number(hiddenA.draft_revision);
     expect((await visibleItems()).map((row) => row.id)).toEqual([task]);
+    expect(await sampleForViewer()).toHaveLength(1);
 
     const v2 = (
       await tx((client) =>
@@ -536,6 +558,7 @@ describe('Э1 existing course → exact versions → runs → inherited particip
     expect(hiddenB).toMatchObject({ result_code: 'ok', hidden: true });
     revision = Number(hiddenB.draft_revision);
     expect(await visibleItems()).toHaveLength(0);
+    expect(await sampleForViewer()).toHaveLength(0);
 
     const shownA = (
       await admin.query('SELECT * FROM course_lesson_hidden_set_v1($1,$2,$3,false,$4)', [
@@ -548,6 +571,7 @@ describe('Э1 existing course → exact versions → runs → inherited particip
     expect(shownA).toMatchObject({ result_code: 'ok', hidden: false });
     revision = Number(shownA.draft_revision);
     expect((await visibleItems()).map((row) => row.id)).toEqual([task]);
+    expect(await sampleForViewer()).toHaveLength(1);
     expect(
       (await admin.query('SELECT id FROM course_lessons WHERE id=$1 AND hidden=false', [lessonA]))
         .rows,
@@ -582,6 +606,7 @@ describe('Э1 existing course → exact versions → runs → inherited particip
     expect(hiddenSection).toMatchObject({ result_code: 'ok', hidden: true });
     revision = Number(hiddenSection.draft_revision);
     expect(await visibleItems()).toHaveLength(0);
+    expect(await sampleForViewer()).toHaveLength(0);
 
     const v4 = (
       await tx((client) =>
@@ -633,6 +658,7 @@ describe('Э1 existing course → exact versions → runs → inherited particip
     ).rows[0];
     expect(shownSection).toMatchObject({ result_code: 'ok', hidden: false });
     expect((await visibleItems()).map((row) => row.id)).toEqual([task]);
+    expect(await sampleForViewer()).toHaveLength(1);
     expect(
       (
         await admin.query('SELECT id FROM course_sections WHERE id=$1 AND hidden=false', [
