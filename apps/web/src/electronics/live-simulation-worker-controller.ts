@@ -32,7 +32,12 @@ interface SimulationTarget {
   readonly requestedHorizonMicroseconds: number;
 }
 
-const TIMED_STATE_PROPERTIES = ['temperatureCelsius', 'moisturePercent', 'motionDetected'] as const;
+const TIMED_STATE_PROPERTIES = [
+  'temperatureCelsius',
+  'moisturePercent',
+  'motionDetected',
+  'distanceMeters',
+] as const;
 const ARDUINO_SOURCE_PROPERTY = 'arduinoSource' as const;
 const RUNTIME_INPUT_OBSERVATION_WINDOW_MICROSECONDS = 100_000;
 
