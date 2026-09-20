@@ -386,57 +386,6 @@
       return cache(type, format, bytes, reference.assetId, verifiedRuntimeAssets);
     };
 
-    const uploadSnapshotAsset = async (asset) => {
-      const expected = {
-        assetId: asset.assetId,
-        dataFormat: asset.dataFormat,
-        sha256: asset.sha256,
-        sizeBytes: asset.sizeBytes,
-      };
-      let response;
-      try {
-        response = await fetch(
-          `${options.apiOrigin}/api/blocks/runtime/projects/${options.projectId}/assets/${asset.assetId}.${asset.dataFormat}`,
-          {
-            method: 'PUT',
-            credentials: 'omit',
-            redirect: 'error',
-            cache: 'no-store',
-            headers: {
-              accept: 'application/json',
-              authorization: `Bearer ${getToken()}`,
-              'content-type': canonicalMediaType[asset.dataFormat],
-            },
-            body: asset.bytes,
-            ...(abortController ? { signal: abortController.signal } : {}),
-          },
-        );
-      } catch {
-        throw unavailable('asset_write_failed');
-      }
-      if (!response.ok || response.redirected) throw unavailable('asset_write_failed');
-      let payload;
-      try {
-        payload = await response.json();
-      } catch {
-        throw unavailable('asset_write_failed');
-      }
-      if (
-        payload?.status !== 'ok' ||
-        !payload.asset ||
-        !sameReference(payload.asset, expected) ||
-        !ASSET_ID_RE.test(payload.asset.assetId ?? '') ||
-        !SHA256_RE.test(payload.asset.sha256 ?? '')
-      ) {
-        throw unavailable('asset_reference_mismatch');
-      }
-      durableAssets.set(
-        runtimeKey(expected.assetId, expected.dataFormat),
-        Object.freeze({ ...expected }),
-      );
-      return expected;
-    };
-
     const createDraftMutation = (fingerprint, document, references) => {
       const mutationId = globalThis.crypto?.randomUUID?.();
       if (typeof mutationId !== 'string' || !UUID_V4_RE.test(mutationId)) {
@@ -733,47 +682,6 @@
           await loadRuntimeAsset(reference, type, reference.dataFormat);
         }
         await ensureConfirmedFingerprint();
-      },
-      async persistSnapshot(snapshot) {
-        if (disposed) throw unavailable('storage_disposed');
-        if (!snapshot || typeof snapshot !== 'object' || !Array.isArray(snapshot.assets)) {
-          throw unavailable('snapshot_invalid');
-        }
-        await ensureConfirmedFingerprint();
-
-        const assets = [];
-        for (const asset of snapshot.assets) {
-          if (
-            !asset ||
-            !ASSET_ID_RE.test(asset.assetId ?? '') ||
-            !Object.hasOwn(canonicalMediaType, asset.dataFormat) ||
-            !SHA256_RE.test(asset.sha256 ?? '') ||
-            !Number.isSafeInteger(asset.sizeBytes) ||
-            asset.sizeBytes < 1 ||
-            !ArrayBuffer.isView(asset.bytes) ||
-            asset.bytes.BYTES_PER_ELEMENT !== 1 ||
-            asset.bytes.byteLength !== asset.sizeBytes ||
-            (await sha256(asset.bytes)) !== asset.sha256
-          ) {
-            throw unavailable('snapshot_asset_invalid');
-          }
-          assets.push(asset);
-        }
-
-        const references = canonicalReferences(assets);
-
-        for (const asset of assets) {
-          const expected = {
-            assetId: asset.assetId,
-            dataFormat: asset.dataFormat,
-            sha256: asset.sha256,
-            sizeBytes: asset.sizeBytes,
-          };
-          const durable = durableAssets.get(runtimeKey(asset.assetId, asset.dataFormat));
-          if (!sameReference(durable, expected)) await uploadSnapshotAsset(asset);
-        }
-
-        return persistCanonicalDocument(snapshot.projectJson, references);
       },
       getConfirmedRevision() {
         return confirmedRevision;
