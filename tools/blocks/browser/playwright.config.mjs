@@ -7,6 +7,7 @@ export default defineConfig({
     'blocks-host-controls.spec.ts',
     'blocks-product-integration.spec.ts',
     'blocks-recovery.spec.ts',
+    'blocks-loading.spec.ts',
   ],
   outputDir: '../../../reports/blocks/test-results',
   workers: 1,
