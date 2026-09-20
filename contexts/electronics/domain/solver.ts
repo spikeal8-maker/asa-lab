@@ -1483,7 +1483,6 @@ function solveCircuitBase(
         heldArduinoSnapshots: options.heldArduinoSnapshots,
         hcSr04RuntimeStateById: options.hcSr04RuntimeStateById,
         pingUltrasonicRuntimeStateById: options.pingUltrasonicRuntimeStateById,
-      pingUltrasonicRuntimeStateById: options.pingUltrasonicRuntimeStateById,
       });
       accumulatedIterations += full.iterations + firstHalf.iterations + secondHalf.iterations;
       const failedSolve = [full, firstHalf, secondHalf].find((result) => !result.solved);
@@ -1669,7 +1668,6 @@ function solveCircuitBase(
         heldArduinoSnapshots: options.heldArduinoSnapshots,
         hcSr04RuntimeStateById: options.hcSr04RuntimeStateById,
         pingUltrasonicRuntimeStateById: options.pingUltrasonicRuntimeStateById,
-      pingUltrasonicRuntimeStateById: options.pingUltrasonicRuntimeStateById,
         holdCapacitorVoltages: options.clockedRcTransient,
         simulationTimeMs: stepEndTimeMs,
         transientStepSeconds: TRANSIENT_FAILURE_EVENT_STEP_MS / 1_000,
@@ -1739,7 +1737,6 @@ function solveCircuitBase(
         heldArduinoSnapshots: options.heldArduinoSnapshots,
         hcSr04RuntimeStateById: options.hcSr04RuntimeStateById,
         pingUltrasonicRuntimeStateById: options.pingUltrasonicRuntimeStateById,
-      pingUltrasonicRuntimeStateById: options.pingUltrasonicRuntimeStateById,
         failedComponentIds,
         motorPreviousStateById: motorStateById,
         arduinoRuntimeStateById,
