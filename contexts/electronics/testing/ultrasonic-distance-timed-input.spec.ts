@@ -148,9 +148,9 @@ describe('ultrasonic canonical timed distance input', () => {
       property: 'distanceMeters',
       value: 1,
     });
-    expect(clock.boards.find((entry) => entry.componentId === 'uno')!.runtime.variables.duration).toBe(
-      5800,
-    );
+    expect(
+      clock.boards.find((entry) => entry.componentId === 'uno')!.runtime.variables.duration,
+    ).toBe(5800);
   });
 
   it('applies an HC-SR04 UI distance event through the same canonical timed path', () => {
