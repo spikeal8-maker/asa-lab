@@ -115,6 +115,7 @@ export interface ArduinoCircuitInputEvent {
     | 'temperatureCelsius'
     | 'moisturePercent'
     | 'motionDetected'
+    | 'distanceMeters'
     | 'serialRx';
   readonly value: boolean | number | string;
 }
@@ -236,6 +237,14 @@ function validInputs(
           (event.property === 'motionDetected' &&
             component.componentTypeId === 'pir-sensor' &&
             typeof event.value === 'boolean') ||
+          (event.property === 'distanceMeters' &&
+            (component.componentTypeId === 'ultrasonic-sensor' ||
+              component.componentTypeId === 'ultrasonic-hc-sr04') &&
+            typeof event.value === 'number' &&
+            Number.isFinite(event.value) &&
+            event.value >= 0.02 &&
+            event.value <=
+              (component.componentTypeId === 'ultrasonic-hc-sr04' ? 4 : 3)) ||
           (event.property === 'serialRx' &&
             isArduinoUno(component) &&
             typeof event.value === 'string' &&
@@ -265,7 +274,8 @@ function applyInput(
       component.id === event.componentId
         ? event.property === 'temperatureCelsius' ||
           event.property === 'moisturePercent' ||
-          event.property === 'motionDetected'
+          event.property === 'motionDetected' ||
+          event.property === 'distanceMeters'
           ? {
               ...component,
               stateProperties: { ...component.stateProperties, [event.property]: event.value },
