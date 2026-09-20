@@ -217,6 +217,7 @@ export function LessonBlockEditor({
               <div>
                 <button
                   type="button"
+                  className="lesson-block-structural-button"
                   disabled={blocks.length >= MAX_LESSON_BLOCKS}
                   onClick={() => onChange(duplicateLessonBlock(blocks, block.id))}
                 >
@@ -224,12 +225,14 @@ export function LessonBlockEditor({
                 </button>
                 <button
                   type="button"
+                  className="lesson-block-structural-button"
                   onClick={() => onChange(setLessonBlockHidden(blocks, block.id, !block.hidden))}
                 >
                   {block.hidden ? 'Показать' : 'Скрыть'}
                 </button>
                 <button
                   type="button"
+                  className="lesson-block-structural-button"
                   disabled={blocks.length >= MAX_LESSON_BLOCKS}
                   onClick={() => setInsertTarget({ blockId: block.id, placement: 'before' })}
                 >
@@ -237,6 +240,7 @@ export function LessonBlockEditor({
                 </button>
                 <button
                   type="button"
+                  className="lesson-block-structural-button"
                   disabled={blocks.length >= MAX_LESSON_BLOCKS}
                   onClick={() => setInsertTarget({ blockId: block.id, placement: 'after' })}
                 >
