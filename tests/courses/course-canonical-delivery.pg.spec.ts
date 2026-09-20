@@ -764,12 +764,13 @@ describe('Э1 existing course → exact versions → runs → inherited particip
         ).rows[0].revision,
       );
     const publish = async (requestId: string) => {
+      const currentRevision = await revision();
       const row = (
         await tx((client) =>
           client.query('SELECT * FROM course_publish_v3($1,$2,$3,$4)', [
             principal,
             courseId,
-            await revision(),
+            currentRevision,
             requestId,
           ]),
         )
