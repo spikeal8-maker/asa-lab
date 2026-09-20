@@ -647,7 +647,7 @@ describe('E1-FIX-11D4b learner Activity-block runtime projection', () => {
     const legacyRows = (
       await inTenant(author, (client) =>
         client.query(
-          `SELECT source_lesson_id,classroom_assignment_id
+          `SELECT lesson_id,source_lesson_id,classroom_assignment_id
              FROM classroom_course_runs_for_seat_v2($1)
             WHERE run_id=$2`,
           [seat, assigned.run_id],
@@ -657,9 +657,8 @@ describe('E1-FIX-11D4b learner Activity-block runtime projection', () => {
     expect(legacyRows.map((row) => row.source_lesson_id)).toEqual(
       expect.arrayContaining([activityLessonId, materialLessonId, legacyLessonId]),
     );
-    expect(
-      legacyRows.find((row) => row.source_lesson_id === legacyLessonId)?.classroom_assignment_id,
-    ).toBeTruthy();
-    expect(afterSeat.every((row) => row.lesson_id !== legacyLessonId)).toBe(true);
+    const legacyRuntimeLesson = legacyRows.find((row) => row.source_lesson_id === legacyLessonId);
+    expect(legacyRuntimeLesson?.classroom_assignment_id).toBeTruthy();
+    expect(afterSeat.every((row) => row.lesson_id !== legacyRuntimeLesson?.lesson_id)).toBe(true);
   });
 });
