@@ -22,6 +22,7 @@ BEGIN
                 'paragraph', 'heading', 'callout', 'image', 'video', 'audio', 'file',
                 'code', 'formula', 'table', 'divider'
             )
+            OR (block ? 'hidden' AND coalesce(jsonb_typeof(block -> 'hidden'), '') <> 'boolean')
             OR CASE block ->> 'type'
                 WHEN 'paragraph' THEN
                     block - ARRAY['id','type','text','hidden'] <> '{}'::jsonb
