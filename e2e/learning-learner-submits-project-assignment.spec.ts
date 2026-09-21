@@ -342,7 +342,6 @@ test('named audience excludes the third learner from read, start and submit', as
   await excluded.context.close();
 });
 
-
 test('A0 desktop Electronics shell is movable, bounded, resettable and keyboard accessible', async ({
   browser,
   page,
@@ -371,12 +370,20 @@ test('A0 desktop Electronics shell is movable, bounded, resettable and keyboard 
   const workbench = (await learner.page.locator('.workbench-canvas').boundingBox())!;
   await learner.page.mouse.move(dragBox.x + dragBox.width / 2, dragBox.y + dragBox.height / 2);
   await learner.page.mouse.down();
-  await learner.page.mouse.move(workbench.x + workbench.width * 0.65, workbench.y + workbench.height * 0.35, {
-    steps: 20,
-  });
-  await learner.page.mouse.move(workbench.x + workbench.width * 0.72, workbench.y + workbench.height * 0.45, {
-    steps: 12,
-  });
+  await learner.page.mouse.move(
+    workbench.x + workbench.width * 0.65,
+    workbench.y + workbench.height * 0.35,
+    {
+      steps: 20,
+    },
+  );
+  await learner.page.mouse.move(
+    workbench.x + workbench.width * 0.72,
+    workbench.y + workbench.height * 0.45,
+    {
+      steps: 12,
+    },
+  );
   await learner.page.mouse.up();
   const moved = (await brief.boundingBox())!;
   expect(Math.abs(moved.x - initial.x) + Math.abs(moved.y - initial.y)).toBeGreaterThan(20);
@@ -529,13 +536,17 @@ test('A0 mobile shell is a bounded bottom panel at 390 and 320 without desktop h
     if ((await toggle.getAttribute('aria-expanded')) === 'true') await toggle.click();
     await expect(toggle).toHaveAttribute('aria-expanded', 'false');
     await expect(brief).toBeVisible();
-    await expect(brief.getByRole('button', { name: 'Переместить карточку задания' })).toHaveCount(0);
+    await expect(brief.getByRole('button', { name: 'Переместить карточку задания' })).toHaveCount(
+      0,
+    );
     await expect(brief.locator('.assignment-brief-resize')).toHaveCount(0);
 
     await toggle.click();
     await expect(toggle).toHaveAttribute('aria-expanded', 'true');
     await expect(body).toHaveCSS('overflow-y', 'auto');
-    expect(await body.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(true);
+    expect(await body.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(
+      true,
+    );
 
     const panelBox = (await brief.boundingBox())!;
     expect(panelBox.x).toBeGreaterThanOrEqual(7);
