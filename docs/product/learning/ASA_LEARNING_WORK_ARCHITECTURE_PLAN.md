@@ -391,3 +391,19 @@ Course Activity occurrence runtime из PR #361 является upstream для
 8. Completed academic history не зависит от project learning archive.
 
 Learning Work Context A1 должен предоставлять availability/action data так, чтобы list/detail/editor не вычисляли opens/due/closes/policy независимо.
+
+
+## 18. Teacher learner oversight
+
+Педагогический обзор ученика определён в ASA_TEACHER_LEARNER_OVERSIGHT_SPEC.md.
+
+Архитектурный инвариант:
+- learner profile reads current allowed projects;
+- assignment review reads exact Submission;
+- обе поверхности используют одну canonical Learning provenance;
+- current project и submitted version могут различаться, но не подменяют друг друга;
+- StudentSeat exact-class staff sees all managed Seat projects;
+- Account personal workspace outside class scope remains private;
+- review-only access не становится project-edit authority.
+
+Teacher review workspace A8 должен уметь переходить в существующий ClassroomStudentPage и обратно, а не создавать второй learner profile.
