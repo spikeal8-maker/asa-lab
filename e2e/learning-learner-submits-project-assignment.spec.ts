@@ -7,6 +7,12 @@ import { openPortalSection } from './portal-navigation';
 import { e2eAdminPool, seedTeacher, type SeededTeacher } from './seed';
 
 const evidenceDir = 'e2e/artifacts/learning/vs-002';
+const workShellV1EvidenceDir = 'e2e/artifacts/learning/work-shell-v1';
+const desktopV1Viewport = { width: 1440, height: 900 } as const;
+const mobileV1Viewports = [
+  { width: 390, height: 844 },
+  { width: 320, height: 568 },
+] as const;
 const policies = {
   attemptPolicy: { maxAttempts: 1 },
   resultSelectionPolicy: { mode: 'latest' },
@@ -26,6 +32,7 @@ test.beforeAll(async () => {
   admin = e2eAdminPool();
   teacher = await seedTeacher(admin, 'learning-vs-002-browser');
   mkdirSync(evidenceDir, { recursive: true });
+  mkdirSync(workShellV1EvidenceDir, { recursive: true });
 });
 
 test.afterAll(async () => {
@@ -156,8 +163,11 @@ async function learnerAssignments(
   browser: Browser,
   joinCode: string,
   handle: string,
+  viewport?: { readonly width: number; readonly height: number },
 ): Promise<{ context: import('@playwright/test').BrowserContext; page: Page }> {
-  const context = await browser.newContext();
+  const context = await browser.newContext(
+    viewport ? { viewport: { width: viewport.width, height: viewport.height } } : undefined,
+  );
   const page = await context.newPage();
   await page.goto(`/#/join-class?code=${encodeURIComponent(joinCode)}`);
   await expect(page.getByLabel('Код ученика', { exact: true })).toBeVisible();
@@ -176,19 +186,22 @@ async function openAssignedProject(
   browser: Browser,
   teacherPage: Page,
   moduleKey: 'electronics' | 'three-d' | 'blocks',
-  brief?: string,
+  options: {
+    brief?: string;
+    viewport?: { readonly width: number; readonly height: number };
+  } = {},
 ): Promise<{ context: import('@playwright/test').BrowserContext; page: Page; title: string }> {
   const token = ++sequence;
   const title = `A0 ${moduleKey} ${token}`;
   const handle = `a0-${moduleKey}-${token}`;
-  await createPublishedProjectActivity(title, moduleKey, brief);
+  await createPublishedProjectActivity(title, moduleKey, options.brief);
   const joinCode = await createClassWithStudents(teacherPage, `A0 ${moduleKey} ${token}`, [
     { label: `Ученик ${moduleKey} ${token}`, handle },
   ]);
   await openAssignments(teacherPage);
   await assignFromUi(teacherPage, { title, due: '2027-05-30' });
 
-  const learner = await learnerAssignments(browser, joinCode, handle);
+  const learner = await learnerAssignments(browser, joinCode, handle, options.viewport);
   const row = assignmentRow(learner.page, title);
   await expect(row).toContainText('Не начато');
   await row.getByRole('button', { name: 'Открыть', exact: true }).click();
@@ -347,8 +360,10 @@ test('A0 desktop Electronics shell is movable, bounded, resettable and keyboard 
   page,
 }) => {
   test.setTimeout(240_000);
-  await page.setViewportSize({ width: 1440, height: 900 });
-  const learner = await openAssignedProject(browser, page, 'electronics');
+  await page.setViewportSize(desktopV1Viewport);
+  const learner = await openAssignedProject(browser, page, 'electronics', {
+    viewport: desktopV1Viewport,
+  });
   const brief = learner.page.getByTestId('assignment-brief');
   const toggle = brief.getByRole('button', { name: /^Задание:/ });
   const drag = brief.getByRole('button', { name: 'Переместить карточку задания' });
@@ -363,6 +378,10 @@ test('A0 desktop Electronics shell is movable, bounded, resettable and keyboard 
     y: 428,
     width: 460,
     height: 460,
+  });
+  await learner.page.screenshot({
+    path: `${workShellV1EvidenceDir}/V1-electronics-expanded-1440.png`,
+    fullPage: false,
   });
 
   const initial = (await brief.boundingBox())!;
@@ -387,6 +406,10 @@ test('A0 desktop Electronics shell is movable, bounded, resettable and keyboard 
   await learner.page.mouse.up();
   const moved = (await brief.boundingBox())!;
   expect(Math.abs(moved.x - initial.x) + Math.abs(moved.y - initial.y)).toBeGreaterThan(20);
+  await learner.page.screenshot({
+    path: `${workShellV1EvidenceDir}/V1-electronics-moved-1440.png`,
+    fullPage: false,
+  });
 
   const resize = brief.locator('.assignment-brief-resize-bottom-right');
   const resizeBox = (await resize.boundingBox())!;
@@ -440,8 +463,10 @@ test('A0 3D shell stays above the editor while editor controls remain interactiv
   page,
 }) => {
   test.setTimeout(240_000);
-  await page.setViewportSize({ width: 1440, height: 900 });
-  const learner = await openAssignedProject(browser, page, 'three-d');
+  await page.setViewportSize(desktopV1Viewport);
+  const learner = await openAssignedProject(browser, page, 'three-d', {
+    viewport: desktopV1Viewport,
+  });
   const brief = learner.page.getByTestId('assignment-brief');
   const viewport = learner.page.getByTestId('asa3d-viewport');
   const toggle = brief.getByRole('button', { name: /^Задание:/ });
@@ -465,6 +490,10 @@ test('A0 3D shell stays above the editor while editor controls remain interactiv
 
   await tool.click();
   await expect(viewport).toHaveAttribute('data-selected-node-id', /.+/);
+  await learner.page.screenshot({
+    path: `${workShellV1EvidenceDir}/V1-three-d-expanded-1440.png`,
+    fullPage: false,
+  });
   await toggle.click();
   await expect(toggle).toHaveAttribute('aria-expanded', 'false');
   await expect(viewport).toHaveAttribute('data-runtime-ready', 'true');
@@ -479,19 +508,18 @@ test('A0 real Blocks assignment keeps AssignmentBrief topmost over fullscreen Sc
   page,
 }) => {
   test.setTimeout(300_000);
-  await page.setViewportSize({ width: 1440, height: 900 });
-  const learner = await openAssignedProject(browser, page, 'blocks');
+  await page.setViewportSize(desktopV1Viewport);
+  const learner = await openAssignedProject(browser, page, 'blocks', {
+    viewport: desktopV1Viewport,
+  });
   const brief = learner.page.getByTestId('assignment-brief');
   const fullscreen = learner.page.locator('[data-asa-blocks-fullscreen]');
 
   await expect(fullscreen).toBeVisible({ timeout: 60_000 });
-  const frame = learner.page.frameLocator('iframe[title="Scratch runtime"]');
-  await expect(frame.locator('[data-asa-host-shell]')).toHaveAttribute(
-    'data-editor-state',
-    'ready',
-    { timeout: 60_000 },
-  );
-  await expect(frame.locator('.blocklySvg').first()).toBeVisible({ timeout: 60_000 });
+  const loadingOverlay = learner.page.locator('[data-asa-blocks-loading-overlay]');
+  const runtimeFrame = learner.page.locator('iframe[title="Scratch runtime"]');
+  await expect(loadingOverlay).toHaveAttribute('data-state', 'ready', { timeout: 60_000 });
+  await expect(runtimeFrame).toBeVisible({ timeout: 60_000 });
 
   const box = (await brief.boundingBox())!;
   const topmost = await learner.page.evaluate(
@@ -508,6 +536,10 @@ test('A0 real Blocks assignment keeps AssignmentBrief topmost over fullscreen Sc
     brief: getComputedStyle(document.querySelector('[data-testid="assignment-brief"]')!).zIndex,
   }));
   expect(stacking).toEqual({ blocks: '1000', brief: '1100' });
+  await learner.page.screenshot({
+    path: `${workShellV1EvidenceDir}/V1-blocks-overlay-1440.png`,
+    fullPage: false,
+  });
   await learner.context.close();
 });
 
@@ -521,15 +553,15 @@ test('A0 mobile shell is a bounded bottom panel at 390 and 320 without desktop h
     (_, index) =>
       `Шаг ${index + 1}: соберите и проверьте учебную цепь, затем зафиксируйте результат.`,
   ).join('\n');
-  const learner = await openAssignedProject(browser, page, 'electronics', longBrief);
+  const learner = await openAssignedProject(browser, page, 'electronics', {
+    brief: longBrief,
+    viewport: mobileV1Viewports[0],
+  });
   const brief = learner.page.getByTestId('assignment-brief');
   const toggle = brief.getByRole('button', { name: /^Задание:/ });
   const body = brief.locator('.assignment-brief-body');
 
-  for (const viewport of [
-    { width: 390, height: 844 },
-    { width: 320, height: 568 },
-  ]) {
+  for (const viewport of mobileV1Viewports) {
     await learner.page.setViewportSize(viewport);
     await expect(brief).toHaveClass(/is-mobile/);
 
@@ -578,6 +610,10 @@ test('A0 mobile shell is a bounded bottom panel at 390 and 320 without desktop h
         panelPoint,
       ),
     ).toBe(true);
+    await learner.page.screenshot({
+      path: `${workShellV1EvidenceDir}/V1-mobile-${viewport.width}.png`,
+      fullPage: false,
+    });
   }
 
   await learner.context.close();
