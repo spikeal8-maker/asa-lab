@@ -450,7 +450,8 @@ async function editorFixture(hasProjectJson = false, mode = 'editor', options = 
       return requestedId;
     },
     dirtyGenerations,
-    counts: () => ({ stops, quits, unmounts, ready, prepared, disposedStorage, homeRequests }),
+    homeRequests: () => homeRequests,
+    counts: () => ({ stops, quits, unmounts, ready, prepared, disposedStorage }),
   };
 }
 
@@ -464,7 +465,7 @@ test('new project mount uses Scratch default project and preserves native editor
   assert.equal(fixture.props.logo, '/asa-lab-scratch-wordmark.svg');
   assert.equal(typeof fixture.props.onClickLogo, 'function');
   fixture.props.onClickLogo();
-  assert.equal(fixture.counts().homeRequests, 1);
+  assert.equal(fixture.homeRequests(), 1);
   assert.equal(fixture.requestedId, undefined);
   assert.equal(fixture.shell.dataset.projectSource, 'new-default');
   assert.equal(fixture.shell.dataset.draftRevision, '7');
@@ -1290,7 +1291,7 @@ test('status reporter sends bounded dirty generation and native thumbnail revisi
   assert.equal(calls[1].message.messageType, 'ASA_BLOCKS_THUMBNAIL_READY');
   assert.equal(calls[1].message.sourceRevision, 8);
   assert.equal(calls[1].message.imageDataUrl, 'data:image/png;base64,AAAA');
-  assert.deepEqual(calls[2].message, {
+  assert.deepEqual(JSON.parse(JSON.stringify(calls[2].message)), {
     protocolVersion: 1,
     projectId: PROJECT_ID,
     sessionNonce: 'nonce',
