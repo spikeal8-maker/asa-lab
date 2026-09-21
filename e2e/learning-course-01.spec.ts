@@ -13,6 +13,24 @@ let teacher: SeededTeacher;
 let sequence = 0;
 const keys = new Map<string, string>();
 async function editRealProject(page: Page, module: string) {
+  const assignmentAnchor = page.getByTestId('assignment-brief-anchor');
+  const assignmentPanel = page.getByTestId('assignment-brief');
+  await expect(assignmentAnchor).toBeVisible();
+  if ((await assignmentAnchor.getAttribute('aria-expanded')) !== 'true') {
+    await assignmentAnchor.click();
+  }
+  await expect(assignmentPanel).toBeVisible();
+
+  const continueAction = assignmentPanel.getByRole('button', {
+    name: 'Продолжить',
+    exact: true,
+  });
+  if ((await continueAction.count()) > 0) {
+    await expect(continueAction).toBeEnabled();
+    await continueAction.click();
+    await expect(continueAction).toHaveCount(0);
+  }
+
   if (module === 'three-d') {
     await expect(page.getByTestId('asa3d-viewport')).toBeVisible({ timeout: 60000 });
     await page.getByRole('button', { name: 'Параллелепипед', exact: true }).click();
@@ -30,13 +48,7 @@ async function editRealProject(page: Page, module: string) {
     await page.mouse.up();
     await expect(page.getByTestId('schematic-component')).toHaveCount(count + 1);
   }
-  const assignmentAnchor = page.getByTestId('assignment-brief-anchor');
-  const assignmentPanel = page.getByTestId('assignment-brief');
-  await expect(assignmentAnchor).toBeVisible();
-  if ((await assignmentAnchor.getAttribute('aria-expanded')) !== 'true') {
-    await assignmentAnchor.click();
-  }
-  await expect(assignmentPanel).toBeVisible();
+
   await expect(assignmentPanel.getByText('Сохранено', { exact: true })).toBeVisible();
   await page.reload();
   await expect(assignmentPanel).toBeVisible();
