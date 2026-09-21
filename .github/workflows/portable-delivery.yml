@@ -4,7 +4,7 @@ name: ASA Portable Delivery Checks
   pull_request:
     paths: ['tools/deployment/**', 'tools/*manager*', 'tools/*maintenance*', 'Dockerfile.*', 'compose*.yaml', 'infra/**', 'apps/web/src/blocks/**', 'apps/web/index.html', 'apps/web/public/runtime-config.js', 'docker/**', '.github/workflows/portable-*.yml']
   push:
-    branches: ['main', 'codex/portable-updates']
+    branches: ['main']
     paths: ['tools/deployment/**', 'tools/*manager*', 'tools/*maintenance*', 'Dockerfile.*', 'compose*.yaml', 'infra/**', 'apps/web/src/blocks/**', 'apps/web/index.html', 'apps/web/public/runtime-config.js', 'docker/**', '.github/workflows/portable-*.yml']
   workflow_dispatch: {}
 
@@ -12,7 +12,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: portable-checks-${{ github.head_ref || github.ref }}
+  group: portable-checks-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 
 jobs:
@@ -24,6 +24,8 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
