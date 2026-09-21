@@ -113,17 +113,18 @@ export function resizeAssignmentBriefRect(
   }
   if (edge.includes('bottom')) height += deltaY;
 
-  const candidate = clampAssignmentBriefRect({ x, y, width, height }, viewportWidth, viewportHeight);
+  const candidate = clampAssignmentBriefRect(
+    { x, y, width, height },
+    viewportWidth,
+    viewportHeight,
+  );
 
   // When a left/top edge hits the minimum size, keep the opposite edge stationary.
   const adjusted = {
     ...candidate,
     ...(edge.includes('left')
       ? {
-          x: Math.max(
-            ASSIGNMENT_BRIEF_EDGE_INSET,
-            rect.x + rect.width - candidate.width,
-          ),
+          x: Math.max(ASSIGNMENT_BRIEF_EDGE_INSET, rect.x + rect.width - candidate.width),
         }
       : {}),
     ...(edge.includes('top')
