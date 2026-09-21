@@ -157,9 +157,7 @@ async function assign(
   });
 }
 
-async function learnerWithSeatStatus(
-  status: 'issued' | 'active' | 'suspended' | 'removed',
-) {
+async function learnerWithSeatStatus(status: 'issued' | 'active' | 'suspended' | 'removed') {
   const suffix = `${status}-${++sequence}`;
   const seat = (
     await admin.query(
