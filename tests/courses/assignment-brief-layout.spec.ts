@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   ASSIGNMENT_BRIEF_EDGE_INSET,
+  ASSIGNMENT_BRIEF_EXPANDED_HEIGHT_RATIO,
+  ASSIGNMENT_BRIEF_EXPANDED_WIDTH,
   ASSIGNMENT_BRIEF_MAX_HEIGHT_RATIO,
   ASSIGNMENT_BRIEF_MAX_WIDTH_RATIO,
   ASSIGNMENT_BRIEF_MIN_HEIGHT,
@@ -8,19 +10,37 @@ import {
   ASSIGNMENT_BRIEF_TOP_INSET,
   clampAssignmentBriefRect,
   defaultAssignmentBriefRect,
+  expandedAssignmentBriefRect,
   moveAssignmentBriefRect,
   parseAssignmentBriefRect,
   resizeAssignmentBriefRect,
 } from '../../apps/web/src/components/assignment-brief-layout';
 
 describe('learning work shell assignment brief geometry', () => {
-  it('places a readable default card inside the desktop viewport', () => {
+  it('places the compact default panel above the permanent anchor', () => {
     expect(defaultAssignmentBriefRect(1440, 900)).toEqual({
       x: ASSIGNMENT_BRIEF_EDGE_INSET,
-      y: 428,
-      width: 460,
-      height: 460,
+      y: 524,
+      width: 380,
+      height: 300,
     });
+  });
+
+  it('creates a larger expanded preset while keeping the panel inside the viewport', () => {
+    const compact = defaultAssignmentBriefRect(1440, 900);
+    const expanded = expandedAssignmentBriefRect(compact, 1440, 900);
+    const usableHeight = 900 - ASSIGNMENT_BRIEF_TOP_INSET - ASSIGNMENT_BRIEF_EDGE_INSET * 2;
+
+    expect(expanded.width).toBe(ASSIGNMENT_BRIEF_EXPANDED_WIDTH);
+    expect(expanded.height).toBe(Math.floor(usableHeight * ASSIGNMENT_BRIEF_EXPANDED_HEIGHT_RATIO));
+    expect(expanded.width).toBeGreaterThan(compact.width);
+    expect(expanded.height).toBeGreaterThan(compact.height);
+    expect(expanded.x).toBeGreaterThanOrEqual(ASSIGNMENT_BRIEF_EDGE_INSET);
+    expect(expanded.y).toBeGreaterThanOrEqual(
+      ASSIGNMENT_BRIEF_TOP_INSET + ASSIGNMENT_BRIEF_EDGE_INSET,
+    );
+    expect(expanded.x + expanded.width).toBeLessThanOrEqual(1440 - ASSIGNMENT_BRIEF_EDGE_INSET);
+    expect(expanded.y + expanded.height).toBeLessThanOrEqual(900 - ASSIGNMENT_BRIEF_EDGE_INSET);
   });
 
   it('clamps movement on every viewport boundary', () => {
@@ -84,7 +104,7 @@ describe('learning work shell assignment brief geometry', () => {
     expect(bottomLeft.y).toBe(rect.y);
   });
 
-  it('limits a desktop task card to the normative viewport ratios', () => {
+  it('limits a desktop task panel to the normative viewport ratios', () => {
     const rect = clampAssignmentBriefRect({ x: 12, y: 70, width: 5000, height: 5000 }, 1440, 900);
     expect(rect.width).toBeLessThanOrEqual(Math.floor(1440 * ASSIGNMENT_BRIEF_MAX_WIDTH_RATIO));
     const usableHeight = 900 - ASSIGNMENT_BRIEF_TOP_INSET - ASSIGNMENT_BRIEF_EDGE_INSET * 2;

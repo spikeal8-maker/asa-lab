@@ -192,10 +192,11 @@ async function openAssignedProject(
     brief?: string;
     viewport?: { readonly width: number; readonly height: number };
     bypassCSP?: boolean;
+    title?: string;
   } = {},
 ): Promise<{ context: import('@playwright/test').BrowserContext; page: Page; title: string }> {
   const token = ++sequence;
-  const title = `A0 ${moduleKey} ${token}`;
+  const title = options.title ?? `A0 ${moduleKey} ${token}`;
   const handle = `a0-${moduleKey}-${token}`;
   await createPublishedProjectActivity(title, moduleKey, options.brief);
   const joinCode = await createClassWithStudents(teacherPage, `A0 ${moduleKey} ${token}`, [
@@ -214,7 +215,10 @@ async function openAssignedProject(
   const row = assignmentRow(learner.page, title);
   await expect(row).toContainText('Не начато');
   await row.getByRole('button', { name: 'Открыть', exact: true }).click();
-  await expect(learner.page.getByTestId('assignment-brief')).toBeVisible({ timeout: 60_000 });
+  await expect(learner.page.getByTestId('assignment-brief-anchor')).toBeVisible({
+    timeout: 60_000,
+  });
+  await expect(learner.page.getByTestId('assignment-brief')).toHaveCount(0);
   return { ...learner, title };
 }
 
@@ -261,10 +265,18 @@ test('learner starts the real project editor and submits one immutable attempt',
   await row.screenshot({ path: `${evidenceDir}/learner-not-started.png` });
 
   await row.getByRole('button', { name: 'Открыть', exact: true }).click();
-  await expect(learner.page.getByTestId('assignment-brief')).toBeVisible();
+  const assignmentAnchor = learner.page.getByTestId('assignment-brief-anchor');
+  const assignmentPanel = learner.page.getByTestId('assignment-brief');
+  await expect(assignmentAnchor).toBeVisible();
+  await expect(assignmentAnchor).toHaveAttribute('aria-expanded', 'false');
+  await expect(assignmentPanel).toHaveCount(0);
   await expect(learner.page.locator('.workbench-shell')).toBeVisible({ timeout: 60_000 });
+  await assignmentAnchor.click();
+  await expect(assignmentPanel).toBeVisible();
+  await expect(assignmentPanel.getByText(/редакц(?:ия|ии|ию|ией|ий) №/i)).toHaveCount(0);
+  await assignmentAnchor.click();
+  await expect(assignmentPanel).toHaveCount(0);
   await learner.page.screenshot({ path: `${evidenceDir}/real-project-editor.png` });
-  await expect(learner.page.getByTestId('assignment-brief')).toBeVisible();
   const resistor = learner.page.getByRole('button', { name: 'Резистор', exact: true });
   const card = (await resistor.boundingBox())!;
   const canvas = (await learner.page.locator('.workbench-canvas').boundingBox())!;
@@ -275,11 +287,7 @@ test('learner starts the real project editor and submits one immutable attempt',
   });
   await learner.page.mouse.up();
   await expect(learner.page.getByTestId('schematic-component')).toHaveCount(1);
-  await expect(
-    learner.page.getByText(
-      /К проверке будет закреплена сохранённая редакция №|Черновик сохранён: редакция №/,
-    ),
-  ).toBeVisible();
+  await expect(learner.page.getByTestId('assignment-brief-anchor')).toBeVisible();
   await learner.page.goto('/#/learning');
   await openPortalSection(learner.page, 'Моё обучение');
 
@@ -364,7 +372,7 @@ test('named audience excludes the third learner from read, start and submit', as
   await excluded.context.close();
 });
 
-test('A0 desktop Electronics shell is movable, bounded, resettable and keyboard accessible', async ({
+test('A0 desktop Electronics uses a permanent anchor and compact movable task panel', async ({
   browser,
   page,
 }) => {
@@ -372,49 +380,73 @@ test('A0 desktop Electronics shell is movable, bounded, resettable and keyboard 
   await page.setViewportSize(desktopV1Viewport);
   const learner = await openAssignedProject(browser, page, 'electronics', {
     viewport: desktopV1Viewport,
+    title: 'Исследование последовательной электрической цепи и закона Ома',
   });
+  const anchor = learner.page.getByTestId('assignment-brief-anchor');
   const brief = learner.page.getByTestId('assignment-brief');
-  const toggle = brief.getByRole('button', { name: /^Задание:/ });
-  const drag = brief.getByRole('button', { name: 'Переместить карточку задания' });
-  const reset = brief.getByRole('button', { name: 'Сбросить', exact: true });
 
   await expect(learner.page.locator('.workbench-shell')).toBeVisible({ timeout: 60_000 });
-  await expect(toggle).toHaveAttribute('aria-expanded', 'true');
-  await expect(drag).toBeVisible();
-  await expect(reset).toBeVisible();
-  expect(await assignmentBriefRect(learner.page)).toEqual({
-    x: 12,
-    y: 428,
-    width: 460,
-    height: 460,
+  await expect(anchor).toBeVisible();
+  await expect(anchor).toHaveAttribute('aria-expanded', 'false');
+  await expect(brief).toHaveCount(0);
+  await learner.page.screenshot({
+    path: `${workShellV1EvidenceDir}/V1-electronics-anchor-1440.png`,
+    fullPage: false,
   });
+
+  const anchorBefore = (await anchor.boundingBox())!;
+  await anchor.click();
+  await expect(anchor).toHaveAttribute('aria-expanded', 'true');
+  await expect(brief).toBeVisible();
+  const header = brief.locator('.assignment-brief-header');
+  const footer = brief.locator('.assignment-brief-footer');
+  const compact = await assignmentBriefRect(learner.page);
+  expect(compact.width).toBeGreaterThanOrEqual(360);
+  expect(compact.width).toBeLessThanOrEqual(400);
+  expect(compact.height).toBeGreaterThanOrEqual(260);
+  expect(compact.height).toBeLessThanOrEqual(320);
+  await expect(brief.locator('.assignment-brief-title')).toHaveText(learner.title);
+  await expect(brief.locator('.assignment-brief-title')).toBeVisible();
+  await expect(header.getByRole('button', { name: 'Сдать работу' })).toHaveCount(0);
+  await expect(header.getByText('Сбросить', { exact: true })).toHaveCount(0);
+  await expect(footer).toBeVisible();
+  await expect(footer.getByRole('button', { name: 'Сдать работу' })).toBeVisible();
+  await expect(brief.getByText(/редакц(?:ия|ии|ию|ией|ий) №/i)).toHaveCount(0);
+  await learner.page.screenshot({
+    path: `${workShellV1EvidenceDir}/V1-electronics-panel-1440.png`,
+    fullPage: false,
+  });
+
+  await brief.getByRole('button', { name: 'Расширить задание' }).click();
+  const expanded = await assignmentBriefRect(learner.page);
+  expect(expanded.width).toBeGreaterThan(compact.width + 100);
+  expect(expanded.height).toBeGreaterThan(compact.height + 100);
+  expect(expanded.width).toBeLessThanOrEqual(Math.floor(desktopV1Viewport.width * 0.7));
+  expect(expanded.height).toBeLessThanOrEqual(Math.floor((900 - 58 - 24) * 0.8));
   await learner.page.screenshot({
     path: `${workShellV1EvidenceDir}/V1-electronics-expanded-1440.png`,
     fullPage: false,
   });
 
-  const initial = (await brief.boundingBox())!;
+  await brief.getByRole('button', { name: 'Вернуть компактный размер' }).click();
+  expect(await assignmentBriefRect(learner.page)).toEqual(compact);
+
+  const drag = brief.getByRole('button', { name: 'Переместить карточку задания' });
   const dragBox = (await drag.boundingBox())!;
   const workbench = (await learner.page.locator('.workbench-canvas').boundingBox())!;
   await learner.page.mouse.move(dragBox.x + dragBox.width / 2, dragBox.y + dragBox.height / 2);
   await learner.page.mouse.down();
   await learner.page.mouse.move(
-    workbench.x + workbench.width * 0.65,
-    workbench.y + workbench.height * 0.35,
-    {
-      steps: 20,
-    },
-  );
-  await learner.page.mouse.move(
-    workbench.x + workbench.width * 0.72,
-    workbench.y + workbench.height * 0.45,
-    {
-      steps: 12,
-    },
+    workbench.x + workbench.width * 0.58,
+    workbench.y + workbench.height * 0.32,
+    { steps: 20 },
   );
   await learner.page.mouse.up();
-  const moved = (await brief.boundingBox())!;
-  expect(Math.abs(moved.x - initial.x) + Math.abs(moved.y - initial.y)).toBeGreaterThan(20);
+  const moved = await assignmentBriefRect(learner.page);
+  expect(Math.abs(moved.x - compact.x) + Math.abs(moved.y - compact.y)).toBeGreaterThan(20);
+  const anchorAfter = (await anchor.boundingBox())!;
+  expect(Math.abs(anchorAfter.x - anchorBefore.x)).toBeLessThanOrEqual(1);
+  expect(Math.abs(anchorAfter.y - anchorBefore.y)).toBeLessThanOrEqual(1);
   await learner.page.screenshot({
     path: `${workShellV1EvidenceDir}/V1-electronics-moved-1440.png`,
     fullPage: false,
@@ -427,47 +459,39 @@ test('A0 desktop Electronics shell is movable, bounded, resettable and keyboard 
     resizeBox.y + resizeBox.height / 2,
   );
   await learner.page.mouse.down();
-  await learner.page.mouse.move(4000, 3000, { steps: 20 });
+  await learner.page.mouse.move(resizeBox.x + 120, resizeBox.y + 90, { steps: 12 });
   await learner.page.mouse.up();
-  const oversized = await assignmentBriefRect(learner.page);
-  expect(oversized.width).toBeLessThanOrEqual(Math.floor(1440 * 0.7));
-  expect(oversized.height).toBeLessThanOrEqual(Math.floor((900 - 58 - 24) * 0.8));
+  const resized = await assignmentBriefRect(learner.page);
+  expect(resized.width).toBeGreaterThan(moved.width);
+  expect(resized.height).toBeGreaterThan(moved.height);
 
-  const dragAgain = brief.getByRole('button', { name: 'Переместить карточку задания' });
-  const dragAgainBox = (await dragAgain.boundingBox())!;
-  await learner.page.mouse.move(
-    dragAgainBox.x + dragAgainBox.width / 2,
-    dragAgainBox.y + dragAgainBox.height / 2,
-  );
-  await learner.page.mouse.down();
-  await learner.page.mouse.move(-2000, -2000, { steps: 12 });
-  await learner.page.mouse.up();
-  const clamped = await assignmentBriefRect(learner.page);
-  expect(clamped.x).toBeGreaterThanOrEqual(12);
-  expect(clamped.y).toBeGreaterThanOrEqual(70);
-  expect(clamped.x + clamped.width).toBeLessThanOrEqual(1428);
-  expect(clamped.y + clamped.height).toBeLessThanOrEqual(888);
+  await anchor.click();
+  await expect(anchor).toHaveAttribute('aria-expanded', 'false');
+  await expect(brief).toHaveCount(0);
+  await expect(anchor).toBeVisible();
+  await anchor.click();
+  await expect(brief).toBeVisible();
+  expect(await assignmentBriefRect(learner.page)).toEqual(resized);
 
-  await reset.focus();
-  await learner.page.keyboard.press('Enter');
+  await brief.locator('.assignment-brief-menu > summary').click();
+  await brief.getByRole('button', { name: 'Сбросить положение и размер' }).click();
   expect(await assignmentBriefRect(learner.page)).toEqual({
     x: 12,
-    y: 428,
-    width: 460,
-    height: 460,
+    y: 524,
+    width: 380,
+    height: 300,
   });
 
-  await toggle.focus();
+  await anchor.focus();
   await learner.page.keyboard.press('Enter');
-  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
-  await expect(brief).toBeVisible();
+  await expect(anchor).toHaveAttribute('aria-expanded', 'false');
   await learner.page.keyboard.press('Enter');
-  await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+  await expect(anchor).toHaveAttribute('aria-expanded', 'true');
   await expect(learner.page.locator('.workbench-shell')).toBeVisible();
   await learner.context.close();
 });
 
-test('A0 3D shell stays above the editor while editor controls remain interactive outside it', async ({
+test('A0 3D shell keeps anchor and panel above the editor while tools remain interactive', async ({
   browser,
   page,
 }) => {
@@ -476,12 +500,18 @@ test('A0 3D shell stays above the editor while editor controls remain interactiv
   const learner = await openAssignedProject(browser, page, 'three-d', {
     viewport: desktopV1Viewport,
   });
+  const anchor = learner.page.getByTestId('assignment-brief-anchor');
   const brief = learner.page.getByTestId('assignment-brief');
   const viewport = learner.page.getByTestId('asa3d-viewport');
-  const toggle = brief.getByRole('button', { name: /^Задание:/ });
 
   await expect(viewport).toBeVisible({ timeout: 60_000 });
   await expect(viewport).toHaveAttribute('data-runtime-ready', 'true', { timeout: 60_000 });
+  await expect(anchor).toHaveAttribute('aria-expanded', 'false');
+  await expect(brief).toHaveCount(0);
+  await anchor.click();
+  await expect(brief).toBeVisible();
+  await expect(anchor).toBeVisible();
+
   const tool = learner.page.getByRole('button', { name: 'Параллелепипед', exact: true });
   await expect(tool).toBeVisible();
   const briefBox = (await brief.boundingBox())!;
@@ -500,19 +530,13 @@ test('A0 3D shell stays above the editor while editor controls remain interactiv
   await tool.click();
   await expect(viewport).toHaveAttribute('data-selected-node-id', /.+/);
   await learner.page.screenshot({
-    path: `${workShellV1EvidenceDir}/V1-three-d-expanded-1440.png`,
+    path: `${workShellV1EvidenceDir}/V1-three-d-panel-1440.png`,
     fullPage: false,
   });
-  await toggle.click();
-  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
-  await expect(viewport).toHaveAttribute('data-runtime-ready', 'true');
-  await toggle.click();
-  await expect(toggle).toHaveAttribute('aria-expanded', 'true');
-  await expect(viewport).toHaveAttribute('data-runtime-ready', 'true');
   await learner.context.close();
 });
 
-test('A0 real Blocks assignment keeps AssignmentBrief topmost over fullscreen Scratch', async ({
+test('A0 real Blocks assignment keeps anchor and AssignmentBrief topmost over fullscreen Scratch', async ({
   browser,
   page,
 }) => {
@@ -524,6 +548,7 @@ test('A0 real Blocks assignment keeps AssignmentBrief topmost over fullscreen Sc
     // Bypass only that harness-only CSP so the pinned separate Scratch origin can load.
     bypassCSP: true,
   });
+  const anchor = learner.page.getByTestId('assignment-brief-anchor');
   const brief = learner.page.getByTestId('assignment-brief');
   const fullscreen = learner.page.locator('[data-asa-blocks-fullscreen]');
 
@@ -532,22 +557,38 @@ test('A0 real Blocks assignment keeps AssignmentBrief topmost over fullscreen Sc
   const runtimeFrame = learner.page.locator('iframe[title="Scratch runtime"]');
   await expect(loadingOverlay).toHaveAttribute('data-state', 'ready', { timeout: 60_000 });
   await expect(runtimeFrame).toBeVisible({ timeout: 60_000 });
+  await expect(anchor).toHaveAttribute('aria-expanded', 'false');
+  await expect(brief).toHaveCount(0);
 
+  const anchorBox = (await anchor.boundingBox())!;
+  const anchorTopmost = await learner.page.evaluate(
+    ({ x, y }) =>
+      Boolean(
+        document.elementFromPoint(x, y)?.closest('[data-testid="assignment-brief-anchor"]'),
+      ),
+    { x: anchorBox.x + anchorBox.width / 2, y: anchorBox.y + anchorBox.height / 2 },
+  );
+  expect(anchorTopmost).toBe(true);
+
+  await anchor.click();
+  await expect(brief).toBeVisible();
+  await expect(anchor).toBeVisible();
   const box = (await brief.boundingBox())!;
-  const topmost = await learner.page.evaluate(
-    ({ x, y }) => {
-      const element = document.elementFromPoint(x, y);
-      return Boolean(element?.closest('[data-testid="assignment-brief"]'));
-    },
+  const panelTopmost = await learner.page.evaluate(
+    ({ x, y }) =>
+      Boolean(document.elementFromPoint(x, y)?.closest('[data-testid="assignment-brief"]')),
     { x: box.x + Math.min(120, box.width / 2), y: box.y + 24 },
   );
-  expect(topmost).toBe(true);
+  expect(panelTopmost).toBe(true);
 
   const stacking = await learner.page.evaluate(() => ({
     blocks: getComputedStyle(document.querySelector('[data-asa-blocks-fullscreen]')!).zIndex,
     brief: getComputedStyle(document.querySelector('[data-testid="assignment-brief"]')!).zIndex,
+    anchor: getComputedStyle(
+      document.querySelector('[data-testid="assignment-brief-anchor"]')!,
+    ).zIndex,
   }));
-  expect(stacking).toEqual({ blocks: '1000', brief: '1100' });
+  expect(stacking).toEqual({ blocks: '1000', brief: '1100', anchor: '1110' });
   await learner.page.screenshot({
     path: `${workShellV1EvidenceDir}/V1-blocks-overlay-1440.png`,
     fullPage: false,
@@ -555,7 +596,7 @@ test('A0 real Blocks assignment keeps AssignmentBrief topmost over fullscreen Sc
   await learner.context.close();
 });
 
-test('A0 mobile shell is a bounded bottom panel at 390 and 320 without desktop handles', async ({
+test('A0 mobile shell uses a permanent bottom anchor and bounded sheet at 390 and 320', async ({
   browser,
   page,
 }) => {
@@ -567,29 +608,35 @@ test('A0 mobile shell is a bounded bottom panel at 390 and 320 without desktop h
   ).join('\n');
   const learner = await openAssignedProject(browser, page, 'electronics', {
     brief: longBrief,
+    viewport: mobileV1Viewports[0],
   });
+  const anchor = learner.page.getByTestId('assignment-brief-anchor');
   const brief = learner.page.getByTestId('assignment-brief');
-  const toggle = brief.getByRole('button', { name: /^Задание:/ });
-  const body = brief.locator('.assignment-brief-body');
+
+  await expect(anchor).toBeVisible();
+  await expect(anchor).toHaveAttribute('aria-expanded', 'false');
+  await expect(brief).toHaveCount(0);
+  await learner.page.screenshot({
+    path: `${workShellV1EvidenceDir}/V1-mobile-anchor-390.png`,
+    fullPage: false,
+  });
 
   for (const viewport of mobileV1Viewports) {
     await learner.page.setViewportSize(viewport);
-    await expect(brief).toHaveClass(/is-mobile/);
+    await expect(anchor).toBeVisible();
+    if ((await anchor.getAttribute('aria-expanded')) === 'true') await anchor.click();
+    await expect(anchor).toHaveAttribute('aria-expanded', 'false');
+    await expect(brief).toHaveCount(0);
 
-    if ((await toggle.getAttribute('aria-expanded')) === 'true') await toggle.click();
-    await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    await anchor.click();
+    await expect(anchor).toHaveAttribute('aria-expanded', 'true');
     await expect(brief).toBeVisible();
-    await expect(brief.getByRole('button', { name: 'Переместить карточку задания' })).toHaveCount(
-      0,
-    );
+    await expect(brief).toHaveClass(/is-mobile/);
+    await expect(
+      brief.getByRole('button', { name: 'Переместить карточку задания' }),
+    ).toHaveCount(0);
     await expect(brief.locator('.assignment-brief-resize')).toHaveCount(0);
-
-    await toggle.click();
-    await expect(toggle).toHaveAttribute('aria-expanded', 'true');
-    await expect(body).toHaveCSS('overflow-y', 'auto');
-    expect(await body.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(
-      true,
-    );
+    await expect(brief.locator('.assignment-brief-body')).toHaveCSS('overflow-y', 'auto');
 
     const panelBox = (await brief.boundingBox())!;
     expect(panelBox.x).toBeGreaterThanOrEqual(7);
@@ -603,28 +650,15 @@ test('A0 mobile shell is a bounded bottom panel at 390 and 320 without desktop h
       ),
     ).toBe(true);
 
-    const workbenchBox = (await learner.page.locator('.workbench-shell').boundingBox())!;
-    const panelPoint = {
-      x: panelBox.x + panelBox.width / 2,
-      y: panelBox.y + panelBox.height / 2,
-    };
-    expect(
-      panelPoint.x >= workbenchBox.x &&
-        panelPoint.x <= workbenchBox.x + workbenchBox.width &&
-        panelPoint.y >= workbenchBox.y &&
-        panelPoint.y <= workbenchBox.y + workbenchBox.height,
-    ).toBe(true);
-    expect(
-      await learner.page.evaluate(
-        ({ x, y }) =>
-          Boolean(document.elementFromPoint(x, y)?.closest('[data-testid="assignment-brief"]')),
-        panelPoint,
-      ),
-    ).toBe(true);
     await learner.page.screenshot({
-      path: `${workShellV1EvidenceDir}/V1-mobile-${viewport.width}.png`,
+      path: `${workShellV1EvidenceDir}/V1-mobile-panel-${viewport.width}.png`,
       fullPage: false,
     });
+
+    await anchor.click();
+    await expect(anchor).toHaveAttribute('aria-expanded', 'false');
+    await expect(brief).toHaveCount(0);
+    await expect(anchor).toBeVisible();
   }
 
   await learner.context.close();

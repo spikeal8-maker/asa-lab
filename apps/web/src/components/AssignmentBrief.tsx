@@ -18,6 +18,7 @@ import {
 import {
   clampAssignmentBriefRect,
   defaultAssignmentBriefRect,
+  expandedAssignmentBriefRect,
   moveAssignmentBriefRect,
   parseAssignmentBriefRect,
   resizeAssignmentBriefRect,
@@ -34,8 +35,8 @@ import {
  * collapsible and independently responsive above them.
  */
 
-const OPEN_KEY = 'asa-assignment-brief-open-v2';
-const RECT_KEY = 'asa-assignment-brief-rect-v2';
+const OPEN_KEY = 'asa-assignment-brief-open-v3';
+const RECT_KEY = 'asa-assignment-brief-rect-v3';
 const MOBILE_QUERY = '(max-width: 720px)';
 
 const RESIZE_EDGES: readonly AssignmentBriefResizeEdge[] = [
@@ -73,7 +74,7 @@ function openStorageKey(projectId: string): string {
 }
 
 function readOpen(projectId: string): boolean {
-  return window.localStorage.getItem(openStorageKey(projectId)) !== 'closed';
+  return window.localStorage.getItem(openStorageKey(projectId)) === 'open';
 }
 
 function readRect(): AssignmentBriefRect {
@@ -95,13 +96,18 @@ export function AssignmentBrief({
   const [open, setOpen] = useState(() => readOpen(projectId));
   const [mobile, setMobile] = useState(() => window.matchMedia(MOBILE_QUERY).matches);
   const [rect, setRect] = useState<AssignmentBriefRect>(readRect);
+  const [expanded, setExpanded] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const revision = useConfirmedProjectRevision();
   const submissionRequest = useRef<{ revision: number; id: string } | null>(null);
   const operation = useRef<PointerOperation | null>(null);
   const rectRef = useRef(rect);
+  const compactRectRef = useRef(rect);
+  const expandedRef = useRef(expanded);
+  const menuRef = useRef<HTMLDetailsElement | null>(null);
   rectRef.current = rect;
+  expandedRef.current = expanded;
 
   const load = useCallback(async () => {
     const [direct, courses] = await Promise.all([
@@ -123,6 +129,11 @@ export function AssignmentBrief({
 
   useEffect(() => {
     setOpen(readOpen(projectId));
+    const next = readRect();
+    compactRectRef.current = next;
+    rectRef.current = next;
+    setRect(next);
+    setExpanded(false);
   }, [projectId]);
 
   useEffect(() => {
@@ -136,6 +147,11 @@ export function AssignmentBrief({
   useEffect(() => {
     const onResize = (): void => {
       if (window.matchMedia(MOBILE_QUERY).matches) return;
+      compactRectRef.current = clampAssignmentBriefRect(
+        compactRectRef.current,
+        window.innerWidth,
+        window.innerHeight,
+      );
       setRect((current) =>
         clampAssignmentBriefRect(current, window.innerWidth, window.innerHeight),
       );
@@ -177,7 +193,10 @@ export function AssignmentBrief({
         current.target.releasePointerCapture(current.pointerId);
       }
       operation.current = null;
-      window.localStorage.setItem(RECT_KEY, JSON.stringify(rectRef.current));
+      if (!expandedRef.current) {
+        compactRectRef.current = rectRef.current;
+        window.localStorage.setItem(RECT_KEY, JSON.stringify(rectRef.current));
+      }
     };
     window.addEventListener('pointermove', onPointerMove);
     window.addEventListener('pointerup', finish);
@@ -243,11 +262,40 @@ export function AssignmentBrief({
     };
   }
 
-  function resetPosition(): void {
+  function resetPanel(): void {
     const next = defaultAssignmentBriefRect(window.innerWidth, window.innerHeight);
+    compactRectRef.current = next;
     rectRef.current = next;
     setRect(next);
+    setExpanded(false);
     window.localStorage.setItem(RECT_KEY, JSON.stringify(next));
+    if (menuRef.current) menuRef.current.open = false;
+  }
+
+  function toggleExpanded(): void {
+    if (mobile) return;
+    setExpanded((current) => {
+      if (!current) {
+        compactRectRef.current = rectRef.current;
+        const next = expandedAssignmentBriefRect(
+          rectRef.current,
+          window.innerWidth,
+          window.innerHeight,
+        );
+        rectRef.current = next;
+        setRect(next);
+        return true;
+      }
+      const next = clampAssignmentBriefRect(
+        compactRectRef.current,
+        window.innerWidth,
+        window.innerHeight,
+      );
+      rectRef.current = next;
+      setRect(next);
+      window.localStorage.setItem(RECT_KEY, JSON.stringify(next));
+      return false;
+    });
   }
 
   async function submit(): Promise<void> {
@@ -276,6 +324,10 @@ export function AssignmentBrief({
     } else setError(result.error.message);
   }
 
+  const locked = assignment.canonicalState
+    ? canonicalSubmissionLocked(assignment.canonicalState)
+    : assignment.submittedAt !== null;
+  const changesRequested = assignment.canonicalState?.workflowState === 'changes_requested';
   const floatingStyle: CSSProperties | undefined =
     open && !mobile
       ? {
@@ -287,100 +339,102 @@ export function AssignmentBrief({
       : undefined;
 
   return (
-    <aside
-      className={`assignment-brief${open ? ' is-open' : ''}${mobile ? ' is-mobile' : ''}`}
-      data-testid="assignment-brief"
-      style={floatingStyle}
-    >
-      <div className="assignment-brief-bar">
-        {open && !mobile ? (
-          <button
-            type="button"
-            className="assignment-brief-drag"
-            aria-label="Переместить карточку задания"
-            title="Переместить карточку задания"
-            onPointerDown={beginMove}
-          >
-            ⠿
-          </button>
-        ) : null}
-        <button
-          type="button"
-          className="assignment-brief-toggle"
-          aria-expanded={open}
-          onClick={toggle}
-        >
-          <span aria-hidden="true">{open ? '▾' : '▸'}</span>
-          Задание: {assignment.title}
-        </button>
-        {open ? (
-          <span className="assignment-brief-state">
-            {canonicalLearningLabel(assignment.canonicalState) ??
-              (assignment.submittedAt ? 'Сдано' : 'В работе')}
-          </span>
-        ) : null}
-        {open && !mobile ? (
-          <button
-            type="button"
-            className="assignment-brief-reset"
-            onClick={resetPosition}
-            title="Вернуть карточку в исходное положение"
-          >
-            Сбросить
-          </button>
-        ) : null}
-        {open ? (
-          <button
-            type="button"
-            className="assignment-brief-submit"
-            disabled={
-              busy ||
-              revision === null ||
-              (assignment.canonicalState
-                ? canonicalSubmissionLocked(assignment.canonicalState)
-                : assignment.submittedAt !== null)
-            }
-            onClick={() => void submit()}
-          >
-            {assignment.canonicalState
-              ? assignment.canonicalState.workflowState === 'changes_requested'
-                ? 'Начать доработку'
-                : canonicalSubmissionLocked(assignment.canonicalState)
-                  ? 'Работа сдана'
-                  : 'Сдать работу'
-              : assignment.submittedAt
-                ? 'Работа сдана'
-                : 'Сдать работу'}
-          </button>
-        ) : null}
-      </div>
-
+    <>
       {open ? (
-        <>
-          <div className="assignment-brief-meta">
-            {assignment.canonicalState && canonicalSubmissionLocked(assignment.canonicalState) ? (
-              <small>
-                Работа сдана. Изменения черновика не меняют закреплённую сдачу.
-                {revision !== null
-                  ? ` Черновик сохранён: редакция №${revision}.`
-                  : ' Дождитесь сохранения изменений черновика.'}
-              </small>
-            ) : revision === null ? (
-              <p role="status">Перед сдачей дождитесь сохранения проекта.</p>
-            ) : (
-              <small>К проверке будет закреплена сохранённая редакция №{revision}.</small>
-            )}
-            {error ? <p role="alert">{error}</p> : null}
-          </div>
+        <aside
+          id="assignment-brief-panel"
+          className={`assignment-brief-panel${mobile ? ' is-mobile' : ''}${expanded ? ' is-expanded' : ''}`}
+          data-testid="assignment-brief"
+          style={floatingStyle}
+        >
+          <header className="assignment-brief-header">
+            {!mobile ? (
+              <button
+                type="button"
+                className="assignment-brief-drag"
+                aria-label="Переместить карточку задания"
+                title="Переместить карточку задания"
+                onPointerDown={beginMove}
+              >
+                ⠿
+              </button>
+            ) : null}
+            <div className="assignment-brief-heading">
+              <div className="assignment-brief-title">{assignment.title}</div>
+              <span className="assignment-brief-state">
+                {canonicalLearningLabel(assignment.canonicalState) ??
+                  (assignment.submittedAt ? 'Сдано' : 'В работе')}
+              </span>
+            </div>
+            {!mobile ? (
+              <button
+                type="button"
+                className="assignment-brief-expand"
+                aria-label={expanded ? 'Вернуть компактный размер' : 'Расширить задание'}
+                aria-pressed={expanded}
+                title={expanded ? 'Вернуть компактный размер' : 'Расширить задание'}
+                onClick={toggleExpanded}
+              >
+                {expanded ? '↙' : '↗'}
+              </button>
+            ) : null}
+            <details ref={menuRef} className="assignment-brief-menu">
+              <summary aria-label="Другие действия" title="Другие действия">
+                ⋯
+              </summary>
+              <div className="assignment-brief-menu-popover">
+                <button type="button" onClick={resetPanel}>
+                  Сбросить положение и размер
+                </button>
+              </div>
+            </details>
+          </header>
 
           <div className="assignment-brief-body">
-            <p>
-              {assignment.dueAt
-                ? `Срок: ${new Date(assignment.dueAt).toLocaleString()}`
-                : 'Без срока'}
-            </p>
-            <AssignmentView assignment={assignment} />
+            {assignment.dueAt ? (
+              <p className="assignment-brief-due">
+                Срок: {new Date(assignment.dueAt).toLocaleString()}
+              </p>
+            ) : null}
+            {error ? (
+              <p role="alert" className="assignment-brief-error">
+                {error}
+              </p>
+            ) : null}
+            <AssignmentView assignment={assignment} compact />
           </div>
+
+          <footer className="assignment-brief-footer">
+            {locked ? (
+              <span className="assignment-brief-footer-state">Сдано на проверку</span>
+            ) : changesRequested ? (
+              <>
+                <span className="assignment-brief-footer-state">Требуется доработка</span>
+                <button
+                  type="button"
+                  className="assignment-brief-submit"
+                  disabled={busy || revision === null}
+                  onClick={() => void submit()}
+                >
+                  {busy ? 'Открываем…' : 'Продолжить'}
+                </button>
+              </>
+            ) : (
+              <>
+                <span className="assignment-brief-save-state">
+                  {revision === null ? 'Сохраняем…' : 'Сохранено'}
+                </span>
+                <button
+                  type="button"
+                  className="assignment-brief-submit"
+                  disabled={busy || revision === null}
+                  onClick={() => void submit()}
+                >
+                  {busy ? 'Сдаём…' : 'Сдать работу'}
+                </button>
+              </>
+            )}
+          </footer>
 
           {!mobile
             ? RESIZE_EDGES.map((edge) => (
@@ -392,8 +446,28 @@ export function AssignmentBrief({
                 />
               ))
             : null}
-        </>
+        </aside>
       ) : null}
-    </aside>
+
+      <button
+        type="button"
+        className="assignment-brief-anchor"
+        data-testid="assignment-brief-anchor"
+        aria-controls="assignment-brief-panel"
+        aria-expanded={open}
+        onClick={toggle}
+      >
+        <span className="assignment-brief-anchor-icon" aria-hidden="true">
+          ▣
+        </span>
+        <span className="assignment-brief-anchor-label">Задание</span>
+        <span className="assignment-brief-anchor-title" aria-hidden="true">
+          · {assignment.title}
+        </span>
+        <span className="assignment-brief-anchor-chevron" aria-hidden="true">
+          {open ? '⌄' : '⌃'}
+        </span>
+      </button>
+    </>
   );
 }

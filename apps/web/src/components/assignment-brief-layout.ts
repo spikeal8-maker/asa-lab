@@ -6,14 +6,24 @@ export interface AssignmentBriefRect {
 }
 
 export type AssignmentBriefResizeEdge =
-  'top' | 'right' | 'bottom' | 'left' | 'top-left' | 'top-right' | 'bottom-right' | 'bottom-left';
+  | 'top'
+  | 'right'
+  | 'bottom'
+  | 'left'
+  | 'top-left'
+  | 'top-right'
+  | 'bottom-right'
+  | 'bottom-left';
 
 export const ASSIGNMENT_BRIEF_EDGE_INSET = 12;
 export const ASSIGNMENT_BRIEF_TOP_INSET = 58;
+export const ASSIGNMENT_BRIEF_ANCHOR_CLEARANCE = 64;
 export const ASSIGNMENT_BRIEF_MIN_WIDTH = 320;
 export const ASSIGNMENT_BRIEF_MIN_HEIGHT = 220;
-export const ASSIGNMENT_BRIEF_DEFAULT_WIDTH = 460;
-export const ASSIGNMENT_BRIEF_DEFAULT_HEIGHT = 460;
+export const ASSIGNMENT_BRIEF_DEFAULT_WIDTH = 380;
+export const ASSIGNMENT_BRIEF_DEFAULT_HEIGHT = 300;
+export const ASSIGNMENT_BRIEF_EXPANDED_WIDTH = 540;
+export const ASSIGNMENT_BRIEF_EXPANDED_HEIGHT_RATIO = 0.64;
 export const ASSIGNMENT_BRIEF_MAX_WIDTH_RATIO = 0.7;
 export const ASSIGNMENT_BRIEF_MAX_HEIGHT_RATIO = 0.8;
 
@@ -39,7 +49,27 @@ export function defaultAssignmentBriefRect(
   return clampAssignmentBriefRect(
     {
       x: ASSIGNMENT_BRIEF_EDGE_INSET,
-      y: viewportHeight - height - ASSIGNMENT_BRIEF_EDGE_INSET,
+      y: viewportHeight - height - ASSIGNMENT_BRIEF_ANCHOR_CLEARANCE - ASSIGNMENT_BRIEF_EDGE_INSET,
+      width,
+      height,
+    },
+    viewportWidth,
+    viewportHeight,
+  );
+}
+
+export function expandedAssignmentBriefRect(
+  rect: AssignmentBriefRect,
+  viewportWidth: number,
+  viewportHeight: number,
+): AssignmentBriefRect {
+  const heightAvailable = availableHeight(viewportHeight);
+  const width = Math.min(ASSIGNMENT_BRIEF_EXPANDED_WIDTH, availableWidth(viewportWidth));
+  const height = Math.floor(heightAvailable * ASSIGNMENT_BRIEF_EXPANDED_HEIGHT_RATIO);
+  return clampAssignmentBriefRect(
+    {
+      x: rect.x,
+      y: rect.y + rect.height - height,
       width,
       height,
     },

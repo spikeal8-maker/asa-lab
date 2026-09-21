@@ -1,126 +1,251 @@
 /* Universal learning task overlay.
  *
  * The assignment belongs to Learning and floats above the subject editor.
- * Subject modules keep their own layout untouched. Desktop gets a movable,
- * resizable card; narrow screens get a dedicated bottom sheet.
+ * The anchor is permanent; the desktop panel moves/resizes independently and
+ * narrow screens use a dedicated bottom sheet.
  */
 
-.assignment-brief {
+.assignment-brief-anchor {
   position: fixed;
-  /* Subject editors, including the fullscreen Blocks/Scratch shell, stay below 1100. */
-  z-index: 1100;
+  z-index: 1110;
   left: 16px;
   bottom: 16px;
-  max-width: calc(100vw - 32px);
-  border: 1px solid #b9d7e5;
-  border-radius: 12px;
-  background: #f4fafd;
-  box-shadow: 0 10px 28px rgba(17, 52, 71, 0.18);
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 42px;
+  max-width: min(460px, calc(100vw - 32px));
+  padding: 0 13px;
+  border: 1px solid #a9cfdf;
+  border-radius: 999px;
+  background: #f8fcfe;
+  box-shadow: 0 8px 22px rgba(17, 52, 71, 0.16);
   color: #16232c;
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
 }
 
-.assignment-brief.is-open {
+.assignment-brief-anchor:hover,
+.assignment-brief-anchor:focus-visible {
+  border-color: #6faec8;
+  background: #eef8fc;
+}
+
+.assignment-brief-anchor-icon,
+.assignment-brief-anchor-chevron {
+  flex: 0 0 auto;
+  color: #0a6f9c;
+}
+
+.assignment-brief-anchor-label {
+  flex: 0 0 auto;
+  font-weight: 700;
+}
+
+.assignment-brief-anchor-title {
+  min-width: 0;
+  overflow: hidden;
+  color: #344b58;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.assignment-brief-anchor-chevron {
+  margin-left: 2px;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.assignment-brief-panel {
+  position: fixed;
+  z-index: 1100;
   display: flex;
   flex-direction: column;
-  bottom: auto;
-  max-width: none;
-  max-height: none;
   min-width: min(320px, calc(100vw - 24px));
   min-height: 220px;
   overflow: hidden;
+  border: 1px solid #b9d7e5;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 14px 34px rgba(17, 52, 71, 0.2);
+  color: #16232c;
 }
 
-.assignment-brief-bar {
+.assignment-brief-header {
+  position: relative;
   display: flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 38px;
-  padding: 5px 6px 5px 8px;
-}
-
-.assignment-brief.is-open .assignment-brief-bar {
   flex: 0 0 auto;
+  align-items: flex-start;
+  gap: 7px;
+  min-height: 52px;
+  padding: 8px 8px 7px;
   border-bottom: 1px solid rgba(11, 111, 159, 0.12);
+  background: #f8fcfe;
 }
 
 .assignment-brief-drag,
-.assignment-brief-reset {
+.assignment-brief-expand,
+.assignment-brief-menu > summary {
+  display: grid;
   flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  padding: 0;
   border: 0;
+  border-radius: 8px;
   background: transparent;
   color: #526773;
+  font: inherit;
   cursor: pointer;
 }
 
 .assignment-brief-drag {
-  width: 28px;
-  min-height: 28px;
-  padding: 0;
-  border-radius: 7px;
   font-size: 18px;
   line-height: 1;
   cursor: move;
   touch-action: none;
 }
 
+.assignment-brief-expand {
+  font-size: 16px;
+}
+
 .assignment-brief-drag:hover,
-.assignment-brief-reset:hover {
-  background: rgba(11, 111, 159, 0.08);
+.assignment-brief-expand:hover,
+.assignment-brief-menu > summary:hover,
+.assignment-brief-drag:focus-visible,
+.assignment-brief-expand:focus-visible,
+.assignment-brief-menu > summary:focus-visible {
+  background: rgba(11, 111, 159, 0.09);
   color: #0b6f9f;
 }
 
-.assignment-brief-reset {
-  min-height: 28px;
-  padding: 0 6px;
-  border-radius: 7px;
-  font: inherit;
-  font-size: 12px;
-  white-space: nowrap;
-}
-
-.assignment-brief-toggle {
-  display: flex;
-  align-items: center;
-  gap: 7px;
+.assignment-brief-heading {
   min-width: 0;
   flex: 1 1 auto;
-  padding: 2px 0;
-  border: 0;
-  background: none;
+}
+
+.assignment-brief-title {
+  display: -webkit-box;
+  overflow: hidden;
   color: #16232c;
-  font: inherit;
   font-size: 14px;
   font-weight: 700;
+  line-height: 1.25;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.assignment-brief-state {
+  display: inline-block;
+  margin-top: 3px;
+  color: #0a6f9c;
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+.assignment-brief-menu {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.assignment-brief-menu > summary {
+  list-style: none;
+  font-size: 20px;
+  line-height: 1;
+}
+
+.assignment-brief-menu > summary::-webkit-details-marker {
+  display: none;
+}
+
+.assignment-brief-menu-popover {
+  position: absolute;
+  z-index: 4;
+  top: 34px;
+  right: 0;
+  width: max-content;
+  max-width: min(260px, calc(100vw - 32px));
+  padding: 5px;
+  border: 1px solid #c6dce6;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 10px 24px rgba(17, 52, 71, 0.18);
+}
+
+.assignment-brief-menu-popover button {
+  width: 100%;
+  min-height: 34px;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: #263b47;
+  font: inherit;
+  font-size: 12px;
   text-align: left;
   cursor: pointer;
 }
 
-.assignment-brief-toggle > span:first-child {
-  flex: 0 0 auto;
-  color: #0a6f9c;
+.assignment-brief-menu-popover button:hover,
+.assignment-brief-menu-popover button:focus-visible {
+  background: #eef7fb;
 }
 
-.assignment-brief-toggle {
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
+.assignment-brief-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 10px 14px 12px;
 }
 
-.assignment-brief-state {
-  flex: 0 0 auto;
-  padding: 2px 9px;
-  border-radius: 999px;
-  background: #e2f0f8;
-  color: #0a6f9c;
+.assignment-brief-due {
+  margin: 0 0 8px;
+  color: #526773;
   font-size: 12px;
-  font-weight: 700;
-  white-space: nowrap;
+}
+
+.assignment-brief-error {
+  margin: 0 0 8px;
+  color: #9d2d23;
+  font-size: 12px;
+}
+
+.assignment-brief-body .assignment-view {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+}
+
+.assignment-brief-footer {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 48px;
+  padding: 7px 10px 8px 14px;
+  border-top: 1px solid rgba(11, 111, 159, 0.12);
+  background: #f8fcfe;
+}
+
+.assignment-brief-save-state,
+.assignment-brief-footer-state {
+  min-width: 0;
+  color: #526773;
+  font-size: 12px;
+}
+
+.assignment-brief-footer-state {
+  color: #0a6f9c;
 }
 
 .assignment-brief-submit {
   flex: 0 0 auto;
-  min-height: 28px;
-  padding: 0 12px;
+  min-height: 32px;
+  padding: 0 13px;
   border: 0;
   border-radius: 999px;
   background: #0b6f9f;
@@ -138,39 +263,6 @@
 .assignment-brief-submit:disabled {
   cursor: default;
   opacity: 0.58;
-}
-
-.assignment-brief-meta {
-  flex: 0 0 auto;
-  padding: 7px 14px 0;
-  color: #526773;
-}
-
-.assignment-brief-meta > :first-child {
-  margin-top: 0;
-}
-
-.assignment-brief-meta > :last-child {
-  margin-bottom: 0;
-}
-
-.assignment-brief-body {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow: auto;
-  overscroll-behavior: contain;
-  padding: 8px 14px 14px;
-}
-
-.assignment-brief-body > p:first-child {
-  margin-top: 0;
-  color: #526773;
-  font-size: 13px;
-}
-
-.assignment-brief-body .assignment-view {
-  grid-template-columns: minmax(0, 1fr) minmax(160px, 32%);
-  gap: 14px;
 }
 
 /* Eight resize zones keep the visual handle subtle while making every edge usable. */
@@ -246,33 +338,32 @@
 }
 
 @media (max-width: 720px) {
-  .assignment-brief {
-    left: 12px;
-    right: auto;
-    bottom: calc(12px + env(safe-area-inset-bottom, 0px));
-    max-width: calc(100vw - 24px);
-    border-radius: 999px;
+  .assignment-brief-anchor {
+    left: 8px;
+    bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+    min-height: 42px;
+    max-width: calc(100vw - 16px);
+    padding-inline: 11px;
   }
 
-  .assignment-brief .assignment-brief-bar {
-    min-height: 40px;
-    padding: 5px 10px;
+  .assignment-brief-anchor-title {
+    flex: 1 1 auto;
   }
 
-  .assignment-brief.is-open {
+  .assignment-brief-panel.is-mobile {
     left: 8px !important;
     right: 8px;
     top: auto !important;
-    bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+    bottom: calc(58px + env(safe-area-inset-bottom, 0px));
     width: auto !important;
-    height: min(82dvh, 680px) !important;
+    height: min(68dvh, 520px) !important;
     min-width: 0;
-    min-height: min(280px, 72dvh);
-    max-height: 82dvh;
-    border-radius: 18px 18px 10px 10px;
+    min-height: min(260px, 58dvh);
+    max-height: 76dvh;
+    border-radius: 18px 18px 12px 12px;
   }
 
-  .assignment-brief.is-open::before {
+  .assignment-brief-panel.is-mobile::before {
     content: '';
     align-self: center;
     width: 42px;
@@ -282,39 +373,29 @@
     background: #a9bbc4;
   }
 
-  .assignment-brief.is-open .assignment-brief-bar {
-    flex-wrap: wrap;
-    padding-top: 4px;
+  .assignment-brief-panel.is-mobile .assignment-brief-header {
+    min-height: 48px;
+    padding-top: 5px;
   }
 
-  .assignment-brief.is-open .assignment-brief-toggle {
-    flex-basis: calc(100% - 8px);
-  }
-
-  .assignment-brief-state {
-    margin-left: 2px;
-  }
-
-  .assignment-brief-submit {
-    margin-left: auto;
-  }
-
-  .assignment-brief-meta {
-    padding-inline: 12px;
+  .assignment-brief-panel.is-mobile .assignment-brief-menu {
+    display: none;
   }
 
   .assignment-brief-body {
-    padding: 8px 12px calc(16px + env(safe-area-inset-bottom, 0px));
+    padding-inline: 12px;
   }
 
-  .assignment-brief-body .assignment-view {
-    grid-template-columns: minmax(0, 1fr);
+  .assignment-brief-footer {
+    padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+    padding-left: 12px;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .assignment-brief,
-  .assignment-brief * {
+  .assignment-brief-anchor,
+  .assignment-brief-panel,
+  .assignment-brief-panel * {
     scroll-behavior: auto;
   }
 }
