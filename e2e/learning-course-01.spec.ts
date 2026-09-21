@@ -31,13 +31,19 @@ async function editRealProject(page: Page, module: string) {
     await expect(continueAction).toHaveCount(0);
   }
 
+  let expectedObjectCount = 0;
   if (module === 'three-d') {
-    await expect(page.getByTestId('asa3d-viewport')).toBeVisible({ timeout: 60000 });
+    const viewport = page.getByTestId('asa3d-viewport');
+    const objectCount = page.locator('.asa3d-object-count');
+    await expect(viewport).toBeVisible({ timeout: 60000 });
+    await expect(viewport).toHaveAttribute('data-runtime-ready', 'true');
+    expectedObjectCount = Number.parseInt(await objectCount.innerText(), 10) + 1;
     await page.getByRole('button', { name: 'Параллелепипед', exact: true }).click();
+    await expect(objectCount).toContainText(new RegExp(`^${expectedObjectCount} `));
   } else {
     const resistor = page.getByRole('button', { name: 'Резистор', exact: true });
     await expect(resistor).toBeVisible({ timeout: 60000 });
-    const count = await page.getByTestId('schematic-component').count();
+    expectedObjectCount = (await page.getByTestId('schematic-component').count()) + 1;
     const card = (await resistor.boundingBox())!,
       canvas = (await page.locator('.workbench-canvas').boundingBox())!;
     await page.mouse.move(card.x + card.width / 2, card.y + card.height / 2);
@@ -46,16 +52,19 @@ async function editRealProject(page: Page, module: string) {
       steps: 20,
     });
     await page.mouse.up();
-    await expect(page.getByTestId('schematic-component')).toHaveCount(count + 1);
+    await expect(page.getByTestId('schematic-component')).toHaveCount(expectedObjectCount);
   }
 
-  await expect(assignmentPanel.getByText('Сохранено', { exact: true })).toBeVisible();
   await page.reload();
   await expect(assignmentPanel).toBeVisible();
-  await expect(assignmentPanel.getByText('Сохранено', { exact: true })).toBeVisible();
-  if (module === 'electronics')
-    await expect(page.getByTestId('schematic-component').first()).toBeVisible();
-  else await expect(page.getByTestId('asa3d-viewport')).toBeVisible();
+  if (module === 'electronics') {
+    await expect(page.getByTestId('schematic-component')).toHaveCount(expectedObjectCount);
+  } else {
+    await expect(page.getByTestId('asa3d-viewport')).toHaveAttribute('data-runtime-ready', 'true');
+    await expect(page.locator('.asa3d-object-count')).toContainText(
+      new RegExp(`^${expectedObjectCount} `),
+    );
+  }
 }
 test.use({ actionTimeout: 12000 });
 
