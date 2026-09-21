@@ -79,7 +79,9 @@ export const ARDUINO_BLOCK_SUPPORT = {
   asa_neopixel_set: UNSUPPORTED('Библиотека NeoPixel ещё не исполняется.'),
   asa_digital_read: SUPPORTED('Считывает электрический уровень с D0–D13.'),
   asa_analog_read: SUPPORTED('Считывает напряжение A0–A5 как значение 0–1023.'),
-  asa_ultrasonic: UNSUPPORTED('Временная модель ультразвукового датчика ещё не реализована.'),
+  asa_ultrasonic: LIMITED(
+    'Поддержан exact adapter readUltrasonicCm(triggerPin, echoPin) поверх canonical GPIO/delay/pulseIn.',
+  ),
   asa_pulse_in: LIMITED(
     'Измеряет HIGH/LOW импульс по canonical instruction-us-v1 времени; без AVR cycle accuracy.',
   ),
@@ -162,6 +164,9 @@ export const ARDUINO_TEXT_COMMAND_SUPPORT = {
   ),
   pulseIn: LIMITED(
     'Измеряет HIGH/LOW импульс по canonical instruction-us-v1 времени; без AVR cycle accuracy.',
+  ),
+  readUltrasonicCm: LIMITED(
+    'Exact built-in adapter для ASA Lab: trigger/echo последовательность поверх pinMode(), digitalWrite(), delayMicroseconds() и pulseIn().',
   ),
   random: UNSUPPORTED('Случайные числа не входят в детерминированный рантайм.'),
   randomSeed: UNSUPPORTED('Случайные числа не входят в детерминированный рантайм.'),
@@ -257,6 +262,7 @@ const SUPPORTED_CALLS = new Set([
   'millis',
   'micros',
   'pulsein',
+  'readultrasoniccm',
 ]);
 
 const CONTROL_CALLS = new Set(['if', 'while', 'for', 'switch']);
@@ -268,7 +274,6 @@ const UNSUPPORTED_CALL_MESSAGES = new Map<string, string>([
   ['shiftout', 'shiftOut() ещё не исполняется.'],
   ['attachinterrupt', 'Прерывания ещё не моделируются.'],
   ['detachinterrupt', 'Прерывания ещё не моделируются.'],
-  ['readultrasoniccm', 'Временная модель ультразвукового датчика ещё не реализована.'],
 ]);
 
 function maskCommentsAndStrings(source: string): string {
@@ -478,6 +483,12 @@ export function analyseArduinoSourceSupport(
       expression: /\bpulseIn\s*\(/gi,
       code: 'bounded-timing',
       message: 'pulseIn() ждёт canonical входные фронты и timeout без AVR cycle accuracy.',
+    },
+    {
+      expression: /\breadUltrasonicCm\s*\(/gi,
+      code: 'bounded-timing',
+      message:
+        'readUltrasonicCm() поддержан только как exact built-in adapter ASA Lab поверх canonical GPIO/delay/pulseIn.',
     },
     {
       expression: /\b(?:millis|micros)\s*\(/gi,

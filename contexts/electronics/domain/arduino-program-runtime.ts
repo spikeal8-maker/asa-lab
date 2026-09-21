@@ -125,6 +125,12 @@ export interface ArduinoRuntimeDiagnostic {
   readonly line?: number;
 }
 
+interface ArduinoUltrasonicAdapterState {
+  readonly triggerTerminal: Terminal;
+  readonly echoTerminal: Terminal;
+  readonly phase: 'trigger-low-delay' | 'trigger-high-delay' | 'pulse';
+}
+
 /**
  * Serializable runtime-only state. It is deliberately separate from the saved
  * schematic document: browser and server may carry it between simulation
@@ -144,6 +150,7 @@ export interface ArduinoRuntimeState {
   readonly nextEventSequence: number;
   readonly eventQueue: readonly ArduinoRuntimeEvent[];
   readonly pulseWait?: ArduinoPulseWaitState | null;
+  readonly ultrasonicAdapter?: ArduinoUltrasonicAdapterState | null;
   readonly serial?: ArduinoSerialState;
   readonly servo?: ArduinoServoRuntimeState;
   readonly variables: Readonly<Record<string, number>>;
@@ -187,6 +194,7 @@ interface RuntimeState {
   readonly actions: ArduinoProgramAction[];
   readonly diagnostics: ArduinoRuntimeDiagnostic[];
   pulseWait: ArduinoPulseWaitState | null;
+  ultrasonicAdapter: ArduinoUltrasonicAdapterState | null;
   serial: ArduinoSerialState | null;
   servo: ArduinoServoRuntimeState;
   simulationTimeMs: number;
@@ -226,6 +234,10 @@ const MAX_CLOCK_TARGET_MS = (MAX_CLOCK_MICROSECONDS - 1000) / 1000;
 const PWM_TERMINALS = new Set<Terminal>(['d3', 'd5', 'd6', 'd9', 'd10', 'd11']);
 
 class ArduinoPulseWaitSignal {
+  constructor(readonly wakeAtMicroseconds: number) {}
+}
+
+class ArduinoUltrasonicAdapterWaitSignal {
   constructor(readonly wakeAtMicroseconds: number) {}
 }
 
@@ -336,6 +348,12 @@ function runtimeStateIsValid(state: ArduinoRuntimeState): boolean {
       (isArduinoPulseWaitState(state.pulseWait) &&
         isArduinoGpioTerminal(state.pulseWait.terminal) &&
         state.pulseWait.deadlineMicroseconds <= MAX_CLOCK_MICROSECONDS)) &&
+    (state.ultrasonicAdapter == null ||
+      (isArduinoGpioTerminal(state.ultrasonicAdapter.triggerTerminal) &&
+        isArduinoGpioTerminal(state.ultrasonicAdapter.echoTerminal) &&
+        ['trigger-low-delay', 'trigger-high-delay', 'pulse'].includes(
+          state.ultrasonicAdapter.phase,
+        ))) &&
     (state.serial === undefined || isArduinoSerialState(state.serial)) &&
     (state.servo === undefined || isArduinoServoRuntimeState(state.servo)) &&
     state.eventQueue.every(
@@ -932,6 +950,70 @@ class ExpressionParser {
             'unsigned long',
             microsecondsFromMilliseconds(this.state.simulationTimeMs) % 4294967296,
           );
+    if (lower === 'readultrasoniccm') {
+      if (this.validateOnly) return zeroValue('float');
+      const triggerTerminal = digitalTerminalFromPin(
+        convertValue(argumentsList[0]!, 'byte').value,
+      );
+      const echoTerminal = digitalTerminalFromPin(
+        convertValue(argumentsList[1]!, 'byte').value,
+      );
+      if (!triggerTerminal || !echoTerminal) return zeroValue('float');
+      const nowMicroseconds = microsecondsFromMilliseconds(this.state.simulationTimeMs);
+      const pending = this.state.ultrasonicAdapter;
+      if (
+        pending &&
+        (pending.triggerTerminal !== triggerTerminal || pending.echoTerminal !== echoTerminal)
+      )
+        throw new SyntaxError(
+          'Продолжение readUltrasonicCm() не соответствует текущему вызову.',
+        );
+      if (!pending) {
+        this.state.actions.push(
+          { kind: 'pin-mode', terminal: triggerTerminal, mode: 'OUTPUT' },
+          { kind: 'write', terminal: triggerTerminal, targetVoltage: 0 },
+        );
+        this.state.ultrasonicAdapter = {
+          triggerTerminal,
+          echoTerminal,
+          phase: 'trigger-low-delay',
+        };
+        throw new ArduinoUltrasonicAdapterWaitSignal(
+          Math.min(MAX_CLOCK_MICROSECONDS, nowMicroseconds + 2),
+        );
+      }
+      if (pending.phase === 'trigger-low-delay') {
+        this.state.actions.push({
+          kind: 'write',
+          terminal: triggerTerminal,
+          targetVoltage: 5,
+        });
+        this.state.ultrasonicAdapter = {
+          triggerTerminal,
+          echoTerminal,
+          phase: 'trigger-high-delay',
+        };
+        throw new ArduinoUltrasonicAdapterWaitSignal(
+          Math.min(MAX_CLOCK_MICROSECONDS, nowMicroseconds + 10),
+        );
+      }
+      if (pending.phase === 'trigger-high-delay') {
+        this.state.actions.push(
+          { kind: 'write', terminal: triggerTerminal, targetVoltage: 0 },
+          { kind: 'pin-mode', terminal: echoTerminal, mode: 'INPUT' },
+        );
+        this.state.ultrasonicAdapter = { triggerTerminal, echoTerminal, phase: 'pulse' };
+        throw new ArduinoUltrasonicAdapterWaitSignal(
+          Math.min(MAX_CLOCK_MICROSECONDS, nowMicroseconds + 1),
+        );
+      }
+      const duration = this.call('pulseIn', [
+        argumentsList[1]!,
+        numericValue('byte', 1),
+      ]);
+      this.state.ultrasonicAdapter = null;
+      return numericValue('float', duration.value * 0.01723);
+    }
     if (lower === 'pulsein') {
       if (this.validateOnly) return zeroValue('unsigned long');
       const terminal = digitalTerminalFromPin(convertValue(argumentsList[0]!, 'byte').value);
@@ -990,6 +1072,7 @@ function validateCallArguments(name: string, count: number, expression = false):
     millis: [0, 0],
     micros: [0, 0],
     pulseIn: [2, 3],
+    readUltrasonicCm: [2, 2],
     map: [5, 5],
     constrain: [3, 3],
     abs: [1, 1],
@@ -1637,6 +1720,7 @@ function compileArduinoProgram(source: string): ArduinoProgramCompilation {
       actions: [],
       diagnostics: [],
       pulseWait: null,
+      ultrasonicAdapter: null,
       serial: null,
       servo: initialArduinoServoRuntimeState(servoDeclarations),
       simulationTimeMs: 0,
@@ -1832,7 +1916,9 @@ function advanceRuntime(
   if (
     compatible &&
     (previous.faults.length > 0 ||
-      (previous.virtualTimeMs === targetTimeMs && !(previous.pulseWait && pulseInputSample)))
+      (previous.virtualTimeMs === targetTimeMs &&
+        previous.ultrasonicAdapter == null &&
+        !(previous.pulseWait && pulseInputSample)))
   ) {
     return {
       executionStatus: previous.faults.length > 0 ? 'fault' : 'ready',
@@ -1876,6 +1962,7 @@ function advanceRuntime(
   const resetAtMs = previous && previous.virtualTimeMs <= targetTimeMs ? targetTimeMs : 0;
   let resumeAtMs = compatible ? previous.resumeAtMs : resetAtMs;
   let pulseWait = compatible ? (previous.pulseWait ?? null) : null;
+  let ultrasonicAdapter = compatible ? (previous.ultrasonicAdapter ?? null) : null;
   let serial = compatible ? (previous.serial ?? null) : null;
   let servo = syncArduinoServoDeclarations(
     compatible ? previous.servo : undefined,
@@ -1928,6 +2015,7 @@ function advanceRuntime(
       actions: [],
       diagnostics,
       pulseWait: null,
+      ultrasonicAdapter: null,
       serial: null,
       servo,
       simulationTimeMs: resetAtMs,
@@ -2024,6 +2112,7 @@ function advanceRuntime(
       actions,
       diagnostics,
       pulseWait,
+      ultrasonicAdapter,
       serial,
       servo,
       simulationTimeMs: resumeAtMs,
@@ -2031,6 +2120,25 @@ function advanceRuntime(
     };
     const statementCountBefore = instructionState.statementCount;
     let pulseBlocked = false;
+    let ultrasonicAdapterBlocked = false;
+    const actionStart = actions.length;
+    const executionTimeMs = resumeAtMs;
+    const commitActions = (start: number, atMs: number): void => {
+      for (const action of actions.slice(start)) {
+        if (action.kind === 'delay') {
+          resumeAtMs = clocked
+            ? Math.min(
+                MAX_CLOCK_MICROSECONDS,
+                microsecondsFromMilliseconds(resumeAtMs) +
+                  microsecondsFromMilliseconds(action.durationMs),
+              ) / 1000
+            : resumeAtMs + action.durationMs;
+          if (action.durationMs > 0) continuousStatementCount = 0;
+        } else {
+          applyRuntimeAction(action, atMs, pinModes, outputVoltages, tones, emit);
+        }
+      }
+    };
 
     try {
       if (instruction.kind === 'branch') {
@@ -2040,27 +2148,16 @@ function advanceRuntime(
             ? programCounter + 1
             : instruction.falseTarget;
       } else if (instruction.kind === 'simple') {
-        const actionStart = actions.length;
         executeSimpleStatement(instruction.statement, instructionState);
         programCounter += 1;
-        const executionTimeMs = resumeAtMs;
-        for (const action of actions.slice(actionStart)) {
-          if (action.kind === 'delay') {
-            resumeAtMs = clocked
-              ? Math.min(
-                  MAX_CLOCK_MICROSECONDS,
-                  microsecondsFromMilliseconds(resumeAtMs) +
-                    microsecondsFromMilliseconds(action.durationMs),
-                ) / 1000
-              : resumeAtMs + action.durationMs;
-            if (action.durationMs > 0) continuousStatementCount = 0;
-          } else {
-            applyRuntimeAction(action, executionTimeMs, pinModes, outputVoltages, tones, emit);
-          }
-        }
+        commitActions(actionStart, executionTimeMs);
       }
     } catch (error) {
-      if (error instanceof ArduinoPulseWaitSignal) {
+      if (error instanceof ArduinoUltrasonicAdapterWaitSignal) {
+        ultrasonicAdapterBlocked = true;
+        commitActions(actionStart, executionTimeMs);
+        resumeAtMs = Math.min(MAX_CLOCK_MICROSECONDS, error.wakeAtMicroseconds) / 1000;
+      } else if (error instanceof ArduinoPulseWaitSignal) {
         pulseBlocked = true;
         pulseWait = instructionState.pulseWait;
         resumeAtMs = Math.min(MAX_CLOCK_MICROSECONDS, error.wakeAtMicroseconds) / 1000;
@@ -2076,13 +2173,14 @@ function advanceRuntime(
       }
     }
     pulseWait = instructionState.pulseWait;
+    ultrasonicAdapter = instructionState.ultrasonicAdapter;
     serial = instructionState.serial;
     servo = instructionState.servo;
     const consumed = instructionState.statementCount - statementCountBefore;
     advanceStatementCount += consumed;
     continuousStatementCount =
       resumeAtMs > instructionState.simulationTimeMs ? 0 : instructionState.statementCount;
-    if (!pulseBlocked) consumeClockInstruction();
+    if (!pulseBlocked && !ultrasonicAdapterBlocked) consumeClockInstruction();
   }
 
   const yielded = clocked && resumeAtMs <= targetTimeMs && diagnostics.length === 0;
@@ -2139,6 +2237,7 @@ function advanceRuntime(
     outputVoltages.clear();
     tones.clear();
     pulseWait = null;
+    ultrasonicAdapter = null;
     serial = null;
     servo = initialArduinoServoRuntimeState(servoDeclarations);
     resumeAtMs = Math.max(resumeAtMs, targetTimeMs);
@@ -2162,6 +2261,7 @@ function advanceRuntime(
       nextEventSequence,
       eventQueue,
       ...(pulseWait ? { pulseWait } : {}),
+      ...(ultrasonicAdapter ? { ultrasonicAdapter } : {}),
       ...(serial ? { serial } : {}),
       ...(servoDeclarations.length > 0 ? { servo } : {}),
       variables: scopeNumbers(scopes.slice(0, 1)),

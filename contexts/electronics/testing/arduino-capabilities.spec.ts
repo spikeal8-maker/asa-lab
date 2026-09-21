@@ -97,7 +97,8 @@ describe('Arduino capability contract', () => {
   it('publishes pulseIn as a limited blocking primitive without claiming HC-SR04 support', () => {
     expect(ARDUINO_TEXT_COMMAND_SUPPORT.pulseIn.status).toBe('limited');
     expect(arduinoBlockSupport('asa_pulse_in').status).toBe('limited');
-    expect(arduinoBlockSupport('asa_ultrasonic').status).toBe('unsupported');
+    expect(arduinoBlockSupport('asa_ultrasonic').status).toBe('limited');
+    expect(ARDUINO_TEXT_COMMAND_SUPPORT.readUltrasonicCm.status).toBe('limited');
     const diagnostics = analyseArduinoSourceSupport(`
       void loop() {
         unsigned long duration = pulseIn(2, HIGH, 1000);
