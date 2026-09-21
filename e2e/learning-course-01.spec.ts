@@ -1330,7 +1330,8 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
   const threeDTitle = `D5 3D Activity ${suffix}`;
   const courseTitle = `D5 Activity blocks ${suffix}`;
 
-  await loginWithOrganization(page, teacher);
+  const d5Teacher = await seedTeacher(admin, 'learning-course01-d5');
+  await loginWithOrganization(page, d5Teacher);
   await createPublishedProjectActivityAfterLogin(page, electronicsTitle, 'electronics');
   await createPublishedProjectActivityAfterLogin(page, threeDTitle, 'three-d');
 
