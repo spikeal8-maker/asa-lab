@@ -917,16 +917,20 @@ export function WorkbenchStage({
                               className="workbench-breadboard-hole-hit"
                               cx={point.x}
                               cy={point.y}
-                              r={(coarseInteraction ? 10 : 5) / c.viewport.zoom}
+                              r={coarseInteraction ? 10 : 5}
                               data-terminal-component-id={component.id}
                               data-terminal-id={hole.id}
                               role="button"
                               tabIndex={0}
                               aria-label={`${entry.label}: отверстие ${hole.id}`}
-                              onPointerDown={(event) => event.stopPropagation()}
+                              onPointerDown={(event) =>
+                                c.startWireTerminalPointer(event, component.id, hole.id)
+                              }
                               onClick={(event) => {
                                 event.stopPropagation();
-                                c.clickTerminal(component.id, hole.id);
+                                if (!c.consumeTerminalClick()) {
+                                  c.clickTerminal(component.id, hole.id, event.shiftKey);
+                                }
                               }}
                               onKeyDown={(event) => {
                                 if (event.key === 'Enter' || event.key === ' ') {
@@ -937,11 +941,11 @@ export function WorkbenchStage({
                             />
                             <rect
                               className="workbench-contact-square"
-                              x={point.x - 5 / c.viewport.zoom}
-                              y={point.y - 5 / c.viewport.zoom}
-                              width={10 / c.viewport.zoom}
-                              height={10 / c.viewport.zoom}
-                              rx={1 / c.viewport.zoom}
+                              x={point.x - 5}
+                              y={point.y - 5}
+                              width={10}
+                              height={10}
+                              rx={1}
                             />
                             <circle
                               className="workbench-breadboard-hole"
@@ -989,13 +993,17 @@ export function WorkbenchStage({
                     >
                       <circle
                         className="workbench-terminal-hit"
-                        r={(coarseInteraction ? 14 : 8) / c.viewport.zoom}
+                        r={coarseInteraction ? 14 : 8}
                         data-terminal-component-id={component.id}
                         data-terminal-id={terminal}
-                        onPointerDown={(e) => e.stopPropagation()}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          c.clickTerminal(component.id, terminal);
+                        onPointerDown={(event) =>
+                          c.startWireTerminalPointer(event, component.id, terminal)
+                        }
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          if (!c.consumeTerminalClick()) {
+                            c.clickTerminal(component.id, terminal, event.shiftKey);
+                          }
                         }}
                         role="button"
                         tabIndex={0}
@@ -1011,12 +1019,11 @@ export function WorkbenchStage({
                       />
                       <rect
                         className="workbench-terminal-dot"
-                        x={-5 / c.viewport.zoom}
-                        y={-5 / c.viewport.zoom}
-                        width={10 / c.viewport.zoom}
-                        height={10 / c.viewport.zoom}
-                        rx={1 / c.viewport.zoom}
-                        vectorEffect="non-scaling-stroke"
+                        x={-5}
+                        y={-5}
+                        width={10}
+                        height={10}
+                        rx={1}
                       />
                       {(() => {
                         const label = terminalSpec.label;
@@ -1182,7 +1189,7 @@ export function WorkbenchStage({
                   data-wire-endpoint={endpoint}
                   cx={displayed.x}
                   cy={displayed.y}
-                  r={5 / c.viewport.zoom}
+                  r={5}
                   // The endpoint in hand rides exactly under the pointer. It must
                   // not eat hit-testing: the terminal beneath it still needs the
                   // hover highlight and the drop target lookup.

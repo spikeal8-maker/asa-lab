@@ -5411,3 +5411,121 @@ html.arduino-palette-resizing * {
     width: 48px;
   }
 }
+
+
+/* Natural wire routing controls: compact swatches and a single-row selected-wire toolset. */
+.workbench-wire-color {
+  flex: 0 0 48px;
+  min-width: 48px;
+  width: 48px;
+}
+.workbench-wire-color summary {
+  padding: 0 5px;
+}
+.workbench-wire-color summary > span {
+  flex-basis: 26px;
+  width: 26px;
+  height: 26px;
+}
+.workbench-wire-color-menu {
+  grid-template-columns: repeat(3, 28px);
+  gap: 4px;
+  width: max-content;
+  padding: 5px;
+}
+.workbench-wire-color-menu button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
+  min-height: 28px;
+  padding: 2px;
+}
+.workbench-wire-color-menu button > span {
+  width: 20px;
+  height: 20px;
+}
+.workbench-wire-inspector-compact {
+  display: grid;
+  gap: 8px;
+}
+.workbench-wire-inspector-compact .workbench-wire-swatches {
+  display: grid;
+  grid-template-columns: repeat(6, 24px);
+  gap: 5px;
+  margin: 0;
+}
+.workbench-wire-inspector-compact .workbench-wire-swatches button {
+  width: 24px;
+  height: 24px;
+}
+.workbench-wire-compact-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+}
+.workbench-wire-compact-actions > button,
+.workbench-wire-more > summary {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-height: 30px;
+  padding: 4px 8px;
+  border: 1px solid #cbd4db;
+  border-radius: 5px;
+  background: #fff;
+  color: #344c5c;
+  font: inherit;
+  cursor: pointer;
+}
+.workbench-wire-compact-actions > button.active {
+  border-color: #1596ce;
+  background: #eef8fc;
+  color: #0b84b9;
+}
+.workbench-wire-compact-actions > button svg {
+  width: 16px;
+  height: 16px;
+}
+.workbench-wire-more {
+  position: relative;
+}
+.workbench-wire-more > summary {
+  width: 32px;
+  padding: 4px;
+  list-style: none;
+}
+.workbench-wire-more > summary::-webkit-details-marker {
+  display: none;
+}
+.workbench-wire-more-menu {
+  position: absolute;
+  z-index: 85;
+  top: calc(100% + 4px);
+  right: 0;
+  display: grid;
+  min-width: 190px;
+  padding: 5px;
+  border: 1px solid #cbd4db;
+  border-radius: 5px;
+  background: #fff;
+  box-shadow: 0 5px 14px rgba(41, 58, 70, 0.2);
+}
+.workbench-wire-more-menu button {
+  padding: 7px 9px;
+  border: 0;
+  background: transparent;
+  color: #344c5c;
+  text-align: left;
+}
+.workbench-wire-more-menu button:hover {
+  background: #eef4f7;
+}
+.workbench-wire-more-menu button.danger {
+  color: #a83b34;
+}

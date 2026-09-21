@@ -2230,9 +2230,11 @@ export function WorkbenchSidebars({
           ) : null}
 
           {c.selectedWire ? (
-            <div className="workbench-inspector-body">
-              <p>Цвет провода</p>
-              <div className="workbench-wire-swatches">
+            <div
+              className="workbench-inspector-body workbench-wire-inspector-compact"
+              data-testid="wire-inspector-compact"
+            >
+              <div className="workbench-wire-swatches" aria-label="Цвет выбранного провода">
                 {WIRE_COLORS.map((color) => (
                   <button
                     key={color}
@@ -2241,25 +2243,42 @@ export function WorkbenchSidebars({
                     style={{ background: color }}
                     onClick={() => c.setWireColor(color)}
                     aria-label={`Цвет ${color}`}
+                    title={`Цвет ${color}`}
                   />
                 ))}
               </div>
-              <div className="workbench-inspector-actions vertical">
-                <button type="button" onClick={c.toggleWireRoute}>
-                  <WireIcon /> Проложить автоматически под 90°
+              <div className="workbench-wire-compact-actions">
+                <button
+                  type="button"
+                  className={c.orthogonalWireMode ? 'active' : ''}
+                  aria-pressed={c.orthogonalWireMode}
+                  onClick={c.toggleWireRoute}
+                  title="Прокладка под 90°"
+                >
+                  <WireIcon /> 90°
                 </button>
                 <button type="button" onClick={c.removeWireBends}>
                   Убрать изгибы
                 </button>
-                <button type="button" onClick={() => c.beginReconnect('from')}>
-                  Переподключить начало
-                </button>
-                <button type="button" onClick={() => c.beginReconnect('to')}>
-                  Переподключить конец
-                </button>
-                <button type="button" className="danger" onClick={c.removeSelection}>
-                  Удалить
-                </button>
+                <details className="workbench-wire-more">
+                  <summary
+                    aria-label="Переподключение и удаление"
+                    title="Переподключение и удаление"
+                  >
+                    …
+                  </summary>
+                  <div className="workbench-wire-more-menu">
+                    <button type="button" onClick={() => c.beginReconnect('from')}>
+                      Переподключить начало
+                    </button>
+                    <button type="button" onClick={() => c.beginReconnect('to')}>
+                      Переподключить конец
+                    </button>
+                    <button type="button" className="danger" onClick={c.removeSelection}>
+                      Удалить
+                    </button>
+                  </div>
+                </details>
               </div>
             </div>
           ) : null}

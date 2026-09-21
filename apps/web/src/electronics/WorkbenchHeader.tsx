@@ -235,9 +235,10 @@ export function WorkbenchHeader({
                       c.setWireColor(color);
                       wireColorMenuRef.current?.removeAttribute('open');
                     }}
+                    aria-label={`Цвет провода: ${WIRE_COLOR_NAMES[color]}`}
+                    title={WIRE_COLOR_NAMES[color]}
                   >
                     <span style={{ background: color }} />
-                    {WIRE_COLOR_NAMES[color]}
                   </button>
                 ))}
               </div>
