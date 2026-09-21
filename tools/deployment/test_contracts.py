@@ -218,6 +218,12 @@ class IdentityTests(unittest.TestCase):
         with patch.object(self.install, "containers", return_value=[self.record()]):
             self.assertIn("postgres", self.install.identity())
 
+    def test_equivalent_compose_file_paths_are_canonicalized(self):
+        record = self.record()
+        record["labels"]["com.docker.compose.project.config_files"] = ",".join(str(self.root) + os.sep + "." + os.sep + p for p in self.install.files)
+        with patch.object(self.install, "containers", return_value=[record]):
+            self.assertIn("postgres", self.install.identity())
+
     def test_old_checkout_different_profile_and_duplicate_refused(self):
         inventories = [[self.record(**{"com.docker.compose.project.working_dir": str(self.root / "old")})],
                        [self.record(**{"com.docker.compose.project.config_files": "compose.yaml"})],

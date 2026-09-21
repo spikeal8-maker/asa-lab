@@ -117,7 +117,7 @@ class Installation:
                 continue
             require(self.env, "IDENTITY_ENV", "Existing installation has no private .env.")
             require(same_root, "IDENTITY_ROOT", "Container belongs to another deployment directory.", "Run from the directory recorded on PostgreSQL.")
-            actual_files = [os.path.normcase(item).replace("\\", "/") for item in labels.get("com.docker.compose.project.config_files", "").split(",")]
+            actual_files = [os.path.normcase(str(Path(item).resolve())).replace("\\", "/") for item in labels.get("com.docker.compose.project.config_files", "").split(",") if item]
             require(actual_files == expected_files, "IDENTITY_FILES", "Compose profile/transport differs from the existing installation.", "Preserve the existing profile and transport overlays.")
             require(service not in selected, "IDENTITY_DUPLICATE", f"Multiple {service} containers in the installation.")
             selected[service] = record
