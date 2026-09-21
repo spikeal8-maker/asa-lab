@@ -832,6 +832,48 @@ requirements:
   - SINGLE-LEARNING-WORK-POLICY-GUARDS-MUTATIONS
   planned_test_ids: []
 
+
+- id: E1-FIX-15
+  milestone: E1
+  status: in_progress
+  priority: P1
+  issue: 368
+  summary: Coherent learner hub from notifications and multiple groups through assignment detail into subject work
+  normative_ref: PRODUCT-INTEGRATED-V15 §4.5.1 / ASA_LEARNER_LEARNING_HUB_SPEC
+  source_paths:
+  - apps/web/src/pages/LearningPage.tsx
+  - apps/web/src/pages/AttendedClassesPage.tsx
+  - apps/web/src/components/SeatAssignments.tsx
+  - apps/web/src/components/SeatCourses.tsx
+  - apps/web/src/components/LearningInbox.tsx
+  - apps/web/src/components/PortalHeader.tsx
+  - apps/web/src/pages/CreatorHomePage.tsx
+  - docs/product/learning/ASA_LEARNER_LEARNING_HUB_SPEC.md
+  - docs/product/learning/ASA_LEARNING_VISIBLE_DELIVERY_PLAN.md
+  evidence:
+  - docs/product/ASA_INTEGRATED_IMPLEMENTATION_SPEC.md
+  - docs/product/learning/ASA_LEARNER_LEARNING_HUB_SPEC.md
+  tests: []
+  verification:
+    source_sha: null
+    method: specification_added
+    observed_result: Existing My Learning, multi-class account access and notifications are present but not yet converged into the normative aggregated learner journey.
+    product_fix_verified: false
+    authenticated_live_journey: not_run
+  planned_scenarios:
+  - ACCOUNT-HOME-SHOWS-LEARNING-ATTENTION-WITHOUT-ROLE-MODE
+  - LEARNING-NOW-AGGREGATES-TWO-GROUPS
+  - BELL-UNREAD-DIFFERS-FROM-ACTIONABLE-COUNT
+  - SCHEDULED-FUTURE-TITLE-VISIBLE-CONTENT-LOCKED
+  - AVAILABLE-TASK-DETAIL-BEFORE-START
+  - VIEW-DETAIL-DOES-NOT-CREATE-PROJECT
+  - NOTIFICATION-DESTINATION-OPENS-LEARNING-CONTEXT
+  - START-FROM-DETAIL-ENTERS-EDITOR-WITH-ANCHOR
+  - SUBMITTED-WAITING-REVIEW-NOT-ACTIONABLE
+  - CHANGES-REQUESTED-IS-HIGH-PRIORITY-ACTION
+  - COMPLETED-HISTORY-INDEPENDENT-OF-PROJECT-ARCHIVE
+  planned_test_ids: []
+
 - id: INT-REUSE-HISTORY
   milestone: unassigned
   status: target
