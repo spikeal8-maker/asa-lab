@@ -349,6 +349,30 @@ Normal editor entry после task detail начинается с постоя�
 
 «Завершённое» в «Моём обучении» — академическая история и не исчезает из-за learner project archive в списке проектов.
 
+#### 4.5.2. Педагогический обзор ученика и его проектов
+
+Нормативная детализация: [ASA_TEACHER_LEARNER_OVERSIGHT_SPEC.md](learning/ASA_TEACHER_LEARNER_OVERSIGHT_SPEC.md).
+
+Преподавательский профиль ученика и проверка задания являются двумя разными входами в одну согласованную модель.
+
+**Профиль ученика** отвечает на вопрос «чем ученик занимается и что он создавал». Staff exact Classroom видит разрешённые проекты ученика, activity history, учебные состояния, preview и переход в project.
+
+**Проверка задания** отвечает на вопрос «что именно ученик сдал по конкретной работе». Основной объект здесь — exact Submission/ProjectVersion, а не latest mutable draft.
+
+Для StudentSeat преподаватель exact Classroom видит все проекты этого управляемого StudentSeat, включая не связанные с assignment самостоятельные проекты в лабораториях. StudentSeat является class-managed learner profile.
+
+Для обычного Account преподаватель не получает глобальный доступ ко всем personal projects. Видимы learning projects своего Classroom/CourseRun и явно переданные/shared в этот учебный scope ресурсы. Проекты других групп и личной области Account остаются вне class-staff scope.
+
+Одна assignment-linked работа должна быть достижима:
+- из «Ученик → Работы» как текущий project с canonical state;
+- из «Задание → Ученик» как exact submitted evidence.
+
+Если current project новее Submission, UI явно различает «текущая работа» и «сданная версия». Официальная проверка всегда открывает submitted version. Профиль ученика может отдельно открыть current project.
+
+Learning archive, завершение курса или personal copy не удаляют Attempt/Submission/ProjectVersion/Result из преподавательской истории.
+
+Редактирование project преподавателем, если разрешено отдельной policy, является audited teacher action и не переписывает уже существующую Submission.
+
 ### 4.6 Короткий вход, массовая выдача и карточки
 
 **Ручной вход: код класса → код ученика → вход. QR-вход: QR класса → код ученика → вход.** Никаких дополнительных имени для входа, длинного пароля, email, явной CAPTCHA или выбора роли. Отображаемое имя не credential. Account-вход остаётся самостоятельной ветвью, не дополнительным шагом StudentSeat.
