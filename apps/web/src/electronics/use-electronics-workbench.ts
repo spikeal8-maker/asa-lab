@@ -1674,7 +1674,9 @@ export function useElectronicsWorkbench(projectId: string) {
       const start = wireTerminalPoint(wireStartPress.source);
       if (start) {
         const anchor = wireDraftVertices[wireDraftVertices.length - 1] ?? start;
-        setWirePreviewEnd(wireDraftPoint(anchor, world, orthogonalWireMode || event.shiftKey));
+        setWirePreviewEnd(
+          wireDraftPoint(anchor, world, orthogonalWireMode || event.shiftKey),
+        );
       }
       setReconnectHover(terminalTargetAt(event.clientX, event.clientY));
       return;

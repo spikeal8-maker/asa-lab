@@ -891,18 +891,22 @@ export function WorkbenchStage({
                           component.rotation ?? 0,
                         );
                         if (!point) return null;
+                        const dropTarget =
+                          c.reconnectHover?.componentId === component.id &&
+                          c.reconnectHover.terminal === hole.id;
                         const pending =
                           (c.pendingTerminal?.componentId === component.id &&
                             c.pendingTerminal.terminal === hole.id) ||
-                          (c.reconnectHover?.componentId === component.id &&
-                            c.reconnectHover.terminal === hole.id);
+                          dropTarget;
                         const connected =
                           hoveredBreadboardNet?.boardId === component.id &&
                           hoveredBreadboardNet.groupId === hole.groupId;
                         return (
                           <g
                             key={hole.id}
-                            className={`workbench-breadboard-terminal${pending ? ' pending' : ''}${connected ? ' connected' : ''}`}
+                            className={`workbench-breadboard-terminal${pending ? ' pending' : ''}${
+                              dropTarget ? ' drop-target' : ''
+                            }${connected ? ' connected' : ''}`}
                             data-hole-id={hole.id}
                             data-group-id={hole.groupId}
                             onPointerEnter={() =>
@@ -976,18 +980,20 @@ export function WorkbenchStage({
                     component.rotation ?? 0,
                   );
                   if (!point) return null;
+                  const dropTarget =
+                    c.reconnectHover?.componentId === component.id &&
+                    c.reconnectHover.terminal === terminal;
                   const pending =
                     (c.pendingTerminal?.componentId === component.id &&
                       c.pendingTerminal.terminal === terminal) ||
-                    (c.reconnectHover?.componentId === component.id &&
-                      c.reconnectHover.terminal === terminal);
+                    dropTarget;
                   const connected = c.terminalConnectionCount(component.id, terminal) > 0;
                   return (
                     <g
                       key={terminal}
                       className={`workbench-terminal${pending ? ' pending' : ''}${
-                        connected ? ' connected' : ''
-                      }`}
+                        dropTarget ? ' drop-target' : ''
+                      }${connected ? ' connected' : ''}`}
                       transform={`translate(${point.x} ${point.y})`}
                       data-connected={connected ? 'true' : 'false'}
                     >

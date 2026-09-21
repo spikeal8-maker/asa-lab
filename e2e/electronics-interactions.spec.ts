@@ -499,7 +499,6 @@ test.describe('interaction: catalog and carrier', () => {
   });
 });
 
-
 const wireTerminal = (page: Page, componentId: string, terminalId: string) =>
   page
     .locator(
@@ -537,13 +536,17 @@ test.describe('interaction: natural precise wire routing', () => {
   test('TERMINAL_ZOOM_SCALE + HIT_TARGET_ZOOM_SCALE', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 1000 });
     await openEditor(page, wiredDocument());
+
     const wirePath = page.getByTestId('wire-hit').first();
     const wirePoint = await wirePath.evaluate((element) => {
       const path = element as SVGPathElement;
-      return path.getPointAtLength(path.getTotalLength() * 0.5).matrixTransform(path.getScreenCTM()!);
+      return path
+        .getPointAtLength(path.getTotalLength() * 0.5)
+        .matrixTransform(path.getScreenCTM()!);
     });
     await page.mouse.click(wirePoint.x, wirePoint.y);
     await expect(page.getByTestId('wire-endpoint')).toHaveCount(2);
+
     const componentHit = wireTerminal(page, 'led', 'cathode');
     const componentDot = componentHit.locator('..').locator('.workbench-terminal-dot');
     const breadboardHit = wireTerminal(page, 'board', 'J8');
@@ -554,15 +557,18 @@ test.describe('interaction: natural precise wire routing', () => {
       breadboard: (await breadboardHit.boundingBox())!.width,
       endpoint: (await endpoint.boundingBox())!.width,
     });
+
     const initial = await sizes();
     await page.getByRole('button', { name: 'Увеличить масштаб' }).click();
     await page.getByRole('button', { name: 'Увеличить масштаб' }).click();
     await frames(page);
     const zoomed = await sizes();
+
     for (const key of ['hit', 'dot', 'breadboard', 'endpoint'] as const) {
       expect(zoomed[key] / initial[key]).toBeGreaterThan(1.25);
     }
     expect(zoomed.hit / initial.hit).toBeCloseTo(zoomed.dot / initial.dot, 1);
+
     for (let i = 0; i < 4; i++)
       await page.getByRole('button', { name: 'Уменьшить масштаб' }).click();
     await frames(page);
@@ -572,43 +578,58 @@ test.describe('interaction: natural precise wire routing', () => {
     }
   });
 
-  test('FREE_WIRE_POINTER_FOLLOW + NO_FREE_MODE_AXIS_SNAP + CLICK_CLICK_CONNECT', async ({ page }) => {
-    await page.setViewportSize({ width: 1440, height: 1000 });
-    await openEditor(page);
-    const source = wireTerminal(page, 'led', 'cathode');
-    const target = wireTerminal(page, 'battery', 'BAT+');
-    const sourcePoint = await locatorCenter(source);
-    await page.mouse.click(sourcePoint.x, sourcePoint.y);
-    const preview = page.locator('.workbench-wire-preview');
-    await expect(preview).toBeVisible();
-    const freePointer = { x: sourcePoint.x + 120, y: sourcePoint.y + 6 };
-    await page.mouse.move(freePointer.x, freePointer.y);
-    await frames(page);
-    const previewEnd = await pathScreenEnd(preview);
-    expect(previewEnd.x).toBeCloseTo(freePointer.x, 0);
-    expect(previewEnd.y).toBeCloseTo(freePointer.y, 0);
-    expect(Math.abs(previewEnd.y - sourcePoint.y)).toBeGreaterThan(3);
-    const targetPoint = await locatorCenter(target);
-    await page.mouse.click(targetPoint.x, targetPoint.y);
-    await expect(page.getByTestId('schematic-wire')).toHaveCount(1);
-    await expect(preview).toHaveCount(0);
-    await expect(page.getByTestId('wire-vertex')).toHaveCount(0);
-    await page.screenshot({ path: 'reports/interactions/wire-click-click.png' });
-  });
+  test(
+    'FREE_WIRE_POINTER_FOLLOW + NO_FREE_MODE_AXIS_SNAP + CLICK_CLICK_CONNECT',
+    async ({ page }) => {
+      await page.setViewportSize({ width: 1440, height: 1000 });
+      await openEditor(page);
+      const source = wireTerminal(page, 'led', 'cathode');
+      const target = wireTerminal(page, 'battery', 'BAT+');
+      const sourcePoint = await locatorCenter(source);
+
+      await page.mouse.click(sourcePoint.x, sourcePoint.y);
+      const preview = page.locator('.workbench-wire-preview');
+      await expect(preview).toBeVisible();
+
+      const freePointer = { x: sourcePoint.x + 120, y: sourcePoint.y + 6 };
+      await page.mouse.move(freePointer.x, freePointer.y);
+      await frames(page);
+      const previewEnd = await pathScreenEnd(preview);
+      expect(previewEnd.x).toBeCloseTo(freePointer.x, 0);
+      expect(previewEnd.y).toBeCloseTo(freePointer.y, 0);
+      expect(Math.abs(previewEnd.y - sourcePoint.y)).toBeGreaterThan(3);
+
+      const targetPoint = await locatorCenter(target);
+      await page.mouse.click(targetPoint.x, targetPoint.y);
+      await expect(page.getByTestId('schematic-wire')).toHaveCount(1);
+      await expect(preview).toHaveCount(0);
+      await expect(page.getByTestId('wire-vertex')).toHaveCount(0);
+      await page.screenshot({ path: 'reports/interactions/wire-click-click.png' });
+    },
+  );
 
   test('DRAG_CONNECT + NO_DOUBLE_COMMIT', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 1000 });
     await openEditor(page);
     const sourcePoint = await locatorCenter(wireTerminal(page, 'led', 'cathode'));
     const targetPoint = await locatorCenter(wireTerminal(page, 'battery', 'BAT+'));
-    const writes = await page.evaluate(() => (window as unknown as { draftWrites: number }).draftWrites);
+    const writes = await page.evaluate(
+      () => (window as unknown as { draftWrites: number }).draftWrites,
+    );
+
     await page.mouse.move(sourcePoint.x, sourcePoint.y);
     await page.mouse.down();
     await page.mouse.move(targetPoint.x, targetPoint.y, { steps: 12 });
+    await expect(wireTerminal(page, 'battery', 'BAT+').locator('..')).toHaveClass(
+      /drop-target/,
+    );
     await page.mouse.up();
+
     await expect(page.getByTestId('schematic-wire')).toHaveCount(1);
     await expect(page.locator('.workbench-wire-preview')).toHaveCount(0);
-    expect(await page.evaluate(() => (window as unknown as { draftWrites: number }).draftWrites)).toBe(writes + 1);
+    expect(
+      await page.evaluate(() => (window as unknown as { draftWrites: number }).draftWrites),
+    ).toBe(writes + 1);
     await page.waitForTimeout(20);
     await expect(page.locator('.workbench-wire-preview')).toHaveCount(0);
     await page.screenshot({ path: 'reports/interactions/wire-drag-connect.png' });
@@ -618,14 +639,20 @@ test.describe('interaction: natural precise wire routing', () => {
     await page.setViewportSize({ width: 1440, height: 1000 });
     await openEditor(page);
     const sourcePoint = await locatorCenter(wireTerminal(page, 'led', 'cathode'));
-    const writes = await page.evaluate(() => (window as unknown as { draftWrites: number }).draftWrites);
+    const writes = await page.evaluate(
+      () => (window as unknown as { draftWrites: number }).draftWrites,
+    );
+
     await page.mouse.move(sourcePoint.x, sourcePoint.y);
     await page.mouse.down();
     await page.mouse.move(sourcePoint.x + 180, sourcePoint.y + 120, { steps: 10 });
     await page.mouse.up();
+
     await expect(page.getByTestId('schematic-wire')).toHaveCount(0);
     await expect(page.locator('.workbench-wire-preview')).toHaveCount(0);
-    expect(await page.evaluate(() => (window as unknown as { draftWrites: number }).draftWrites)).toBe(writes);
+    expect(
+      await page.evaluate(() => (window as unknown as { draftWrites: number }).draftWrites),
+    ).toBe(writes);
   });
 
   test('SHIFT_ORTHOGONAL + EXPLICIT_90_MODE', async ({ page }) => {
@@ -633,65 +660,85 @@ test.describe('interaction: natural precise wire routing', () => {
     await openEditor(page);
     const sourcePoint = await locatorCenter(wireTerminal(page, 'led', 'cathode'));
     const targetPoint = await locatorCenter(wireTerminal(page, 'battery', 'BAT+'));
+
     await page.mouse.click(sourcePoint.x, sourcePoint.y);
     await page.keyboard.down('Shift');
     const shiftedPointer = { x: sourcePoint.x + 110, y: sourcePoint.y + 38 };
     await page.mouse.move(shiftedPointer.x, shiftedPointer.y);
     await frames(page);
     const shiftedEnd = await pathScreenEnd(page.locator('.workbench-wire-preview'));
-    expect(Math.min(Math.abs(shiftedEnd.x - sourcePoint.x), Math.abs(shiftedEnd.y - sourcePoint.y))).toBeLessThan(2);
+    expect(
+      Math.min(Math.abs(shiftedEnd.x - sourcePoint.x), Math.abs(shiftedEnd.y - sourcePoint.y)),
+    ).toBeLessThan(2);
     await page.mouse.click(targetPoint.x, targetPoint.y);
     await page.keyboard.up('Shift');
     await expect(page.getByTestId('schematic-wire')).toHaveCount(1);
     await expect(page.getByTestId('wire-vertex')).toHaveCount(1);
+
     await page.getByRole('button', { name: /Отменить/ }).click();
     await expect(page.getByTestId('schematic-wire')).toHaveCount(0);
-    const mode = page.getByRole('button', { name: 'Автоматическая прокладка провода под 90 градусов' });
+    const mode = page.getByRole('button', {
+      name: 'Автоматическая прокладка провода под 90 градусов',
+    });
     await mode.click();
     await expect(mode).toHaveAttribute('aria-pressed', 'true');
+
     await page.mouse.click(sourcePoint.x, sourcePoint.y);
     const freePointer = { x: sourcePoint.x + 105, y: sourcePoint.y + 34 };
     await page.mouse.move(freePointer.x, freePointer.y);
     await frames(page);
     const orthogonalEnd = await pathScreenEnd(page.locator('.workbench-wire-preview'));
-    expect(Math.min(Math.abs(orthogonalEnd.x - sourcePoint.x), Math.abs(orthogonalEnd.y - sourcePoint.y))).toBeLessThan(2);
+    expect(
+      Math.min(
+        Math.abs(orthogonalEnd.x - sourcePoint.x),
+        Math.abs(orthogonalEnd.y - sourcePoint.y),
+      ),
+    ).toBeLessThan(2);
     await page.mouse.click(targetPoint.x, targetPoint.y);
     await expect(page.getByTestId('schematic-wire')).toHaveCount(1);
     await expect(page.getByTestId('wire-vertex')).toHaveCount(1);
   });
 
-  test('WIRE_COLOR_COMPACT keeps six accessible swatches and compact selected-wire actions', async ({ page }) => {
-    await page.setViewportSize({ width: 1440, height: 1000 });
-    await openEditor(page, wiredDocument());
-    const colorSummary = page.locator('.workbench-wire-color summary');
-    await colorSummary.click();
-    const colorMenu = page.locator('.workbench-wire-color-menu');
-    const swatches = colorMenu.getByRole('menuitemradio');
-    await expect(swatches).toHaveCount(6);
-    for (const swatch of await swatches.all()) {
-      expect((await swatch.textContent())?.trim()).toBe('');
-      await expect(swatch).toHaveAttribute('aria-label', /Цвет провода:/);
-      await expect(swatch).toHaveAttribute('title', /.+/);
-    }
-    const menuBox = await colorMenu.boundingBox();
-    expect(menuBox!.width).toBeLessThanOrEqual(110);
-    expect(menuBox!.height).toBeLessThanOrEqual(80);
-    await colorSummary.click();
-    const wirePath = page.getByTestId('wire-hit').first();
-    const wirePoint = await wirePath.evaluate((element) => {
-      const path = element as SVGPathElement;
-      return path.getPointAtLength(path.getTotalLength() * 0.5).matrixTransform(path.getScreenCTM()!);
-    });
-    await page.mouse.click(wirePoint.x, wirePoint.y);
-    const compact = page.getByTestId('wire-inspector-compact');
-    await expect(compact).toBeVisible();
-    await expect(compact.locator('.workbench-wire-swatches button')).toHaveCount(6);
-    await expect(compact.locator('.workbench-inspector-actions.vertical')).toHaveCount(0);
-    const compactBox = await compact.boundingBox();
-    expect(compactBox!.height).toBeLessThanOrEqual(150);
-    await expect(compact.getByRole('button', { name: /90°/ })).toBeVisible();
-    await expect(compact.getByText('Убрать изгибы', { exact: true })).toBeVisible();
-    await expect(compact.getByText('…', { exact: true })).toBeVisible();
-    await page.screenshot({ path: 'reports/interactions/wire-compact-ui.png' });
-  });
+  test(
+    'WIRE_COLOR_COMPACT keeps six accessible swatches and compact selected-wire actions',
+    async ({ page }) => {
+      await page.setViewportSize({ width: 1440, height: 1000 });
+      await openEditor(page, wiredDocument());
+
+      const colorSummary = page.locator('.workbench-wire-color summary');
+      await colorSummary.click();
+      const colorMenu = page.locator('.workbench-wire-color-menu');
+      const swatches = colorMenu.getByRole('menuitemradio');
+      await expect(swatches).toHaveCount(6);
+      for (const swatch of await swatches.all()) {
+        expect((await swatch.textContent())?.trim()).toBe('');
+        await expect(swatch).toHaveAttribute('aria-label', /Цвет провода:/);
+        await expect(swatch).toHaveAttribute('title', /.+/);
+      }
+      const menuBox = await colorMenu.boundingBox();
+      expect(menuBox!.width).toBeLessThanOrEqual(110);
+      expect(menuBox!.height).toBeLessThanOrEqual(80);
+      await colorSummary.click();
+
+      const wirePath = page.getByTestId('wire-hit').first();
+      const wirePoint = await wirePath.evaluate((element) => {
+        const path = element as SVGPathElement;
+        return path
+          .getPointAtLength(path.getTotalLength() * 0.5)
+          .matrixTransform(path.getScreenCTM()!);
+      });
+      await page.mouse.click(wirePoint.x, wirePoint.y);
+      const compact = page.getByTestId('wire-inspector-compact');
+      await expect(compact).toBeVisible();
+      await expect(compact.locator('.workbench-wire-swatches button')).toHaveCount(6);
+      await expect(compact.locator('.workbench-inspector-actions.vertical')).toHaveCount(0);
+      const compactBox = await compact.boundingBox();
+      expect(compactBox!.height).toBeLessThanOrEqual(150);
+      await expect(compact.getByRole('button', { name: /90°/ })).toBeVisible();
+      await expect(compact.getByText('Убрать изгибы', { exact: true })).toBeVisible();
+      await expect(compact.getByText('…', { exact: true })).toBeVisible();
+      await page.screenshot({ path: 'reports/interactions/wire-compact-ui.png' });
+    },
+  );
 });
+

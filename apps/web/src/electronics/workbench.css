@@ -5412,6 +5412,13 @@ html.arduino-palette-resizing * {
   }
 }
 
+/* Pointer capture keeps hover ownership on the stage, so mark the real drop target explicitly. */
+.workbench-terminal.drop-target .workbench-terminal-dot,
+.workbench-breadboard-terminal.drop-target .workbench-contact-square {
+  opacity: 1;
+  fill: #17a34a;
+  stroke: #117c39;
+}
 
 /* Natural wire routing controls: compact swatches and a single-row selected-wire toolset. */
 .workbench-wire-color {
