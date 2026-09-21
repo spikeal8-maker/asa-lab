@@ -35,11 +35,7 @@ describe('learning work shell assignment brief geometry', () => {
   });
 
   it('enforces readable minimum dimensions whenever the viewport allows them', () => {
-    const rect = clampAssignmentBriefRect(
-      { x: 300, y: 200, width: 1, height: 1 },
-      1440,
-      900,
-    );
+    const rect = clampAssignmentBriefRect({ x: 300, y: 200, width: 1, height: 1 }, 1440, 900);
     expect(rect.width).toBe(ASSIGNMENT_BRIEF_MIN_WIDTH);
     expect(rect.height).toBe(ASSIGNMENT_BRIEF_MIN_HEIGHT);
   });
@@ -75,27 +71,13 @@ describe('learning work shell assignment brief geometry', () => {
     expect(topRight.x).toBe(rect.x);
     expect(topRight.y + topRight.height).toBe(rect.y + rect.height);
 
-    const bottomRight = resizeAssignmentBriefRect(
-      rect,
-      'bottom-right',
-      -400,
-      -400,
-      1440,
-      900,
-    );
+    const bottomRight = resizeAssignmentBriefRect(rect, 'bottom-right', -400, -400, 1440, 900);
     expect(bottomRight.width).toBe(ASSIGNMENT_BRIEF_MIN_WIDTH);
     expect(bottomRight.height).toBe(ASSIGNMENT_BRIEF_MIN_HEIGHT);
     expect(bottomRight.x).toBe(rect.x);
     expect(bottomRight.y).toBe(rect.y);
 
-    const bottomLeft = resizeAssignmentBriefRect(
-      rect,
-      'bottom-left',
-      400,
-      -400,
-      1440,
-      900,
-    );
+    const bottomLeft = resizeAssignmentBriefRect(rect, 'bottom-left', 400, -400, 1440, 900);
     expect(bottomLeft.width).toBe(ASSIGNMENT_BRIEF_MIN_WIDTH);
     expect(bottomLeft.height).toBe(ASSIGNMENT_BRIEF_MIN_HEIGHT);
     expect(bottomLeft.x + bottomLeft.width).toBe(rect.x + rect.width);
@@ -103,14 +85,8 @@ describe('learning work shell assignment brief geometry', () => {
   });
 
   it('limits a desktop task card to the normative viewport ratios', () => {
-    const rect = clampAssignmentBriefRect(
-      { x: 12, y: 70, width: 5000, height: 5000 },
-      1440,
-      900,
-    );
-    expect(rect.width).toBeLessThanOrEqual(
-      Math.floor(1440 * ASSIGNMENT_BRIEF_MAX_WIDTH_RATIO),
-    );
+    const rect = clampAssignmentBriefRect({ x: 12, y: 70, width: 5000, height: 5000 }, 1440, 900);
+    expect(rect.width).toBeLessThanOrEqual(Math.floor(1440 * ASSIGNMENT_BRIEF_MAX_WIDTH_RATIO));
     const usableHeight = 900 - ASSIGNMENT_BRIEF_TOP_INSET - ASSIGNMENT_BRIEF_EDGE_INSET * 2;
     expect(rect.height).toBeLessThanOrEqual(
       Math.floor(usableHeight * ASSIGNMENT_BRIEF_MAX_HEIGHT_RATIO),
@@ -150,8 +126,7 @@ describe('learning work shell assignment brief geometry', () => {
       height,
     );
     const widthAvailable = width - ASSIGNMENT_BRIEF_EDGE_INSET * 2;
-    const heightAvailable =
-      height - ASSIGNMENT_BRIEF_TOP_INSET - ASSIGNMENT_BRIEF_EDGE_INSET * 2;
+    const heightAvailable = height - ASSIGNMENT_BRIEF_TOP_INSET - ASSIGNMENT_BRIEF_EDGE_INSET * 2;
 
     expect(rect.width).toBeLessThanOrEqual(widthAvailable);
     expect(rect.height).toBeLessThanOrEqual(heightAvailable);
