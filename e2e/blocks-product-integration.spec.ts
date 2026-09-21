@@ -2172,6 +2172,7 @@ test('native Scratch library Back controls never navigate the parent', async () 
     await frame.getByRole('button', { name: 'Back', exact: true }).click();
     await expect(page).toHaveURL(parentUrl);
 
+    await frame.getByRole('tab', { name: 'Code', exact: true }).click();
     await frame.getByRole('button', { name: 'Add Extension', exact: true }).click();
     await expect(frame.getByText('Music', { exact: true })).toBeVisible();
     await frame.getByRole('button', { name: 'Back', exact: true }).click();
