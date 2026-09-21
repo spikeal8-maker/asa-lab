@@ -371,3 +371,23 @@ Course Activity occurrence runtime из PR #361 является upstream для
 2. D5 / PR #361;
 3. V2/A1+A2;
 4. остальные checkpoints по ASA_LEARNING_VISIBLE_DELIVERY_PLAN.md.
+
+
+## 17. Learner entry and attention model
+
+Полный путь до editor определён в ASA_LEARNER_LEARNING_HUB_SPEC.md.
+
+Архитектурные правила:
+
+1. Account Home остаётся личной поверхностью; при learner attention может показывать компактный блок «Учебные дела».
+2. «Моё обучение» агрегирует все разрешённые Classroom Account; StudentSeat остаётся scoped к одному Classroom.
+3. Bell unread и Learning actionable badge являются разными проекциями:
+   - unread = notification events;
+   - actionable = unique learner works requiring action.
+4. Scheduled future delivery является известным learner item, но не actionable: title/context/opensAt видимы, full task/Start закрыты.
+5. Assignment detail является reader exact task snapshot до Start; просмотр не создаёт Project.
+6. Target notification destination ведёт в learner task/course context, не напрямую в subject editor.
+7. Normal Start/Resume enters editor with collapsed assignment anchor; panel открывается по требованию.
+8. Completed academic history не зависит от project learning archive.
+
+Learning Work Context A1 должен предоставлять availability/action data так, чтобы list/detail/editor не вычисляли opens/due/closes/policy независимо.
