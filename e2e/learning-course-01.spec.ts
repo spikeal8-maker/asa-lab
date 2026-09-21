@@ -33,7 +33,9 @@ async function editRealProject(page: Page, module: string) {
   const assignmentAnchor = page.getByTestId('assignment-brief-anchor');
   const assignmentPanel = page.getByTestId('assignment-brief');
   await expect(assignmentAnchor).toBeVisible();
-  await assignmentAnchor.click();
+  if ((await assignmentAnchor.getAttribute('aria-expanded')) !== 'true') {
+    await assignmentAnchor.click();
+  }
   await expect(assignmentPanel).toBeVisible();
   await expect(assignmentPanel.getByText('Сохранено', { exact: true })).toBeVisible();
   await page.reload();
