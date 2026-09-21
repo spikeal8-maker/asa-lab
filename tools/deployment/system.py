@@ -12,10 +12,10 @@ import urllib.request
 from .contracts import Blocked, atomic_json, attest_database_targets, read_env, require
 
 
-def run(args, *, cwd=None, env=None, capture=False, output=None, input_data=None):
+def run(args, *, cwd=None, env=None, capture=False, output=None, input_data=None, input_file=None):
     started = time.monotonic()
     try:
-        result = subprocess.run([str(arg) for arg in args], cwd=cwd, env=env, input=input_data,
+        result = subprocess.run([str(arg) for arg in args], cwd=cwd, env=env, input=input_data, stdin=input_file,
                                 stdout=output if output else subprocess.PIPE if capture else None,
                                 stderr=subprocess.PIPE if capture or output else None,
                                 text=not output, encoding="utf-8" if not output else None,

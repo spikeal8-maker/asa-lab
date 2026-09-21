@@ -32,6 +32,15 @@ def db_command(install, command, *, database=None, **kwargs):
     return install.compose(*args, "postgres", "sh", "-eu", "-c", command, **kwargs)
 
 
+def upload_dump(install, local, remote):
+    # docker cp creates root-owned files in sticky /tmp. Stream through the
+    # PostgreSQL user instead, preserving binary bytes and private permissions.
+    with Path(local).open("rb") as source:
+        install.compose("exec", "-T", "postgres", "sh", "-eu", "-c",
+                        'umask 077; cat > "$1"', "asa-dump-copy", remote,
+                        input_file=source, capture=True)
+
+
 def privileges(install, database=None):
     args = ["exec", "-T"]
     if database:
@@ -116,7 +125,7 @@ def export_backup(install, destination=None):
         # Verify actual pg_restore readability, not only the file size.
         remote = f"/tmp/asa-verify-{uuid.uuid4().hex}.dump"
         try:
-            run(["docker", "cp", str(partial / "database.dump"), f"{records['postgres']['id']}:{remote}"], capture=True)
+            upload_dump(install, partial / "database.dump", remote)
             install.compose("exec", "-T", "postgres", "pg_restore", "--list", remote, capture=True)
         finally:
             install.compose("exec", "-T", "postgres", "rm", "-f", remote, capture=True)
@@ -150,7 +159,7 @@ def restore_check(install, backup, database):
     require(not exists, "RESTORE_EXISTS", "Restore-test database already exists.", "Choose a new *_test database; no database is deleted automatically.")
     remote = f"/tmp/asa-restore-{uuid.uuid4().hex}.dump"
     try:
-        run(["docker", "cp", str(Path(backup).resolve() / "database.dump"), f"{records['postgres']['id']}:{remote}"], capture=True)
+        upload_dump(install, Path(backup).resolve() / "database.dump", remote)
         install.compose("exec", "-T", "postgres", "pg_restore", "--list", remote, capture=True)
         db_command(install, 'createdb -U "$POSTGRES_USER" "$RESTORE_DATABASE"', database=database)
         # Keep ACLs; target admin owns restored objects. Missing referenced roles

@@ -13,7 +13,7 @@ from deployment.contracts import (Blocked, DEFAULT_WINDOW, REGISTRY, SERVICES, a
                                   attest_database_targets, exact_origin, in_window, inventory_files, read_env, safe_member,
                                   validate_release, verify_backup)
 from deployment.backup import recovery_configuration
-from deployment.system import Installation, operation_lock
+from deployment.system import Installation, operation_lock, run
 from deployment.releases import assert_ci
 import asa_manager
 
@@ -118,6 +118,15 @@ class BackupTests(unittest.TestCase):
 
     def test_complete_backup(self):
         self.assertEqual(len(verify_backup(self.root)["files"]), 4)
+
+    def test_binary_dump_stream_is_not_text_decoded(self):
+        payload = b"PGDMP\x00\xff\r\n\x1a\x80" * 1024
+        source = self.root / "binary-source"
+        destination = self.root / "binary-copy"
+        source.write_bytes(payload)
+        with source.open("rb") as incoming, destination.open("wb") as outgoing:
+            run([sys.executable, "-c", "import sys; sys.stdout.buffer.write(sys.stdin.buffer.read())"], input_file=incoming, output=outgoing)
+        self.assertEqual(destination.read_bytes(), payload)
 
     def test_corrupt_database(self):
         (self.root / "database.dump").write_bytes(b"changed")
