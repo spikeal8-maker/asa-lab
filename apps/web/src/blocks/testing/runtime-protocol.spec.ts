@@ -196,6 +196,29 @@ describe('BlocksRuntimeBridge', () => {
     }
   });
 
+  it('accepts only a bound payload-free HOME_REQUEST message', () => {
+    vi.stubGlobal('crypto', { randomUUID: () => 'acacacac-acac-4cac-8cac-acacacacacac' });
+    const { bridge, target, onMessage } = makeBridge();
+    const valid = {
+      protocolVersion: BLOCKS_PROTOCOL_VERSION,
+      messageType: 'ASA_BLOCKS_HOME_REQUEST',
+      projectId: PROJECT_ID,
+      sessionNonce: bridge.sessionNonce,
+    };
+
+    expect(bridge.acceptChildMessage({ source: target, origin: RUNTIME_ORIGIN, data: valid })).toBe(
+      true,
+    );
+    expect(onMessage).toHaveBeenLastCalledWith(valid);
+    expect(
+      bridge.acceptChildMessage({
+        source: target,
+        origin: RUNTIME_ORIGIN,
+        data: { ...valid, payload: 'not-allowed' },
+      }),
+    ).toBe(false);
+  });
+
   it('accepts a bound FATAL message without throwing in the parent bridge', () => {
     vi.stubGlobal('crypto', { randomUUID: () => 'dddddddd-dddd-4ddd-8ddd-dddddddddddd' });
     const { bridge, target, onFatal } = makeBridge();
