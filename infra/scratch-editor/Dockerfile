@@ -49,6 +49,7 @@ ARG ASA_BLOCKS_PARENT_ORIGIN=
 
 # Bake the static config: the preview runtime is non-root with a read-only rootfs.
 COPY infra/scratch-editor/nginx.conf.template /etc/nginx/conf.d/default.conf
+COPY --chmod=0555 infra/scratch-editor/start.sh /usr/local/bin/asa-scratch-start
 COPY infra/scratch-editor/host/ /usr/share/nginx/html/
 COPY apps/web/public/asa-lab-mark.svg /usr/share/nginx/html/asa-lab-mark.svg
 COPY apps/web/public/asa-lab-scratch-wordmark.svg /usr/share/nginx/html/asa-lab-scratch-wordmark.svg
@@ -73,6 +74,7 @@ RUN set -eux; \
     ! grep -F "Scratch 3.0 GUI" /usr/share/nginx/html/index.html
 
 EXPOSE 8080
+ENTRYPOINT ["/usr/local/bin/asa-scratch-start"]
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD wget -q -O /dev/null http://127.0.0.1:8080/healthz || exit 1

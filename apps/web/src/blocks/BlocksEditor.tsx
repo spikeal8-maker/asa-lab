@@ -20,10 +20,13 @@ type BlocksEditorStartupState = 'loading' | 'ready' | 'error';
 
 function configuredRuntimeOrigin(): string | null {
   if (typeof window === 'undefined') return null;
-  if (typeof __ASA_BLOCKS_RUNTIME_ORIGIN__ === 'undefined' || !__ASA_BLOCKS_RUNTIME_ORIGIN__)
-    return null;
+  const runtimeConfig = globalThis.__ASA_RUNTIME_CONFIG__?.blocksRuntimeOrigin;
+  const originSetting =
+    runtimeConfig ||
+    (typeof __ASA_BLOCKS_RUNTIME_ORIGIN__ === 'undefined' ? '' : __ASA_BLOCKS_RUNTIME_ORIGIN__);
+  if (!originSetting) return null;
   try {
-    const configured = new URL(requireExactHttpOrigin(__ASA_BLOCKS_RUNTIME_ORIGIN__));
+    const configured = new URL(requireExactHttpOrigin(originSetting));
     // Preserve the default localhost runtime beside the 127.0.0.1 portal.
     // Different ports alone do not isolate host cookies. Keep the existing
     // non-loopback LAN template behavior; explicit production origins stay exact.

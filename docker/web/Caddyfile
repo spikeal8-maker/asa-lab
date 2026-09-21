@@ -5,6 +5,12 @@
 
 :8080 {
 	encode zstd gzip
+	# Public per-installation configuration; never contains keys or account data.
+	handle /runtime-config.js {
+		root * /tmp
+		header Cache-Control "no-store"
+		file_server
+	}
 
 	handle /api/* {
 		reverse_proxy api:4611

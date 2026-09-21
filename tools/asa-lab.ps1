@@ -12,6 +12,9 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $RepoRoot = Split-Path -Parent $PSScriptRoot
+if ($Action -eq 'up' -and (Test-Path (Join-Path $RepoRoot '.asa/installed-release.json'))) {
+  throw 'This installation uses published releases. Use tools/asa-manager.ps1 update.'
+}
 $EnvPath = Join-Path $RepoRoot '.env'
 $ComposeFiles = @('-f', 'compose.yaml')
 if ($Profile -ne 'base') {
