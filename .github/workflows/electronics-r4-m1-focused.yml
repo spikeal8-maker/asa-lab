@@ -120,6 +120,7 @@ jobs:
           retention-days: 14
   browser:
     name: Actual editor live simulation journey
+    if: ${{ always() }}
     needs: focused
     runs-on: ubuntu-24.04
     timeout-minutes: 35
