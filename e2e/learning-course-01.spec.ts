@@ -36,9 +36,9 @@ async function editRealProject(page: Page, module: string) {
   await assignmentAnchor.click();
   await expect(assignmentPanel).toBeVisible();
   await expect(assignmentPanel.getByText('Сохранено', { exact: true })).toBeVisible();
-  await assignmentAnchor.click();
-  await expect(assignmentPanel).toHaveCount(0);
   await page.reload();
+  await expect(assignmentPanel).toBeVisible();
+  await expect(assignmentPanel.getByText('Сохранено', { exact: true })).toBeVisible();
   if (module === 'electronics')
     await expect(page.getByTestId('schematic-component').first()).toBeVisible();
   else await expect(page.getByTestId('asa3d-viewport')).toBeVisible();
@@ -137,8 +137,8 @@ test('author-only content keeps exact ID and versions after teaching activation;
   await editRealProject(learner.page, 'electronics');
   await learner.page.getByRole('button', { name: 'Сдать работу', exact: true }).click();
   await expect(
-    learner.page.getByRole('button', { name: 'Работа сдана', exact: true }),
-  ).toBeDisabled();
+    learner.page.getByText('Сдано на проверку', { exact: true }),
+  ).toBeVisible();
   await page
     .getByRole('navigation', { name: 'Разделы класса' })
     .getByRole('button', { name: 'Журнал', exact: true })
@@ -360,8 +360,8 @@ test('Teacher Home: empty, exact review, read/OFF, return/resubmit, accept and e
   const submit = async () => {
     await learner.page.getByRole('button', { name: 'Сдать работу', exact: true }).click();
     await expect(
-      learner.page.getByRole('button', { name: 'Работа сдана', exact: true }),
-    ).toBeDisabled();
+      learner.page.getByText('Сдано на проверку', { exact: true }),
+    ).toBeVisible();
   };
   await submit();
   await page.goto('/#/');
@@ -492,8 +492,8 @@ test('ungraded real submission has an official acceptance but no manufactured po
   await editRealProject(learner.page, 'three-d');
   await learner.page.getByRole('button', { name: 'Сдать работу', exact: true }).click();
   await expect(
-    learner.page.getByRole('button', { name: 'Работа сдана', exact: true }),
-  ).toBeDisabled();
+    learner.page.getByText('Сдано на проверку', { exact: true }),
+  ).toBeVisible();
   await page
     .getByRole('navigation', { name: 'Разделы класса' })
     .getByRole('button', { name: 'Журнал', exact: true })
@@ -720,7 +720,7 @@ for (const module of ['three-d', 'electronics'])
     const brief = learner.page.getByTestId('assignment-brief');
     await expect(brief.getByRole('button', { name: 'Сдать работу', exact: true })).toBeEnabled();
     await brief.getByRole('button', { name: 'Сдать работу', exact: true }).click();
-    await expect(brief.getByRole('button', { name: 'Работа сдана', exact: true })).toBeDisabled();
+    await expect(brief.getByText('Сдано на проверку', { exact: true })).toBeVisible();
     await learner.page.screenshot({
       path: evidenceDir + '/' + module + '-exact-submission.png',
       fullPage: true,
@@ -752,7 +752,7 @@ for (const module of ['three-d', 'electronics'])
     await editRealProject(learner.page, module);
     await expect(brief.getByRole('button', { name: 'Сдать работу', exact: true })).toBeEnabled();
     await brief.getByRole('button', { name: 'Сдать работу', exact: true }).click();
-    await expect(brief.getByRole('button', { name: 'Работа сдана', exact: true })).toBeDisabled();
+    await expect(brief.getByText('Сдано на проверку', { exact: true })).toBeVisible();
     await page.goto(teacherUrl);
     await page
       .getByRole('navigation', { name: 'Разделы класса' })
@@ -1286,7 +1286,7 @@ for (const module of ['electronics', 'three-d'])
     const brief = learner.getByTestId('assignment-brief');
     await expect(brief.getByRole('button', { name: 'Сдать работу', exact: true })).toBeEnabled();
     await brief.getByRole('button', { name: 'Сдать работу', exact: true }).click();
-    await expect(brief.getByRole('button', { name: 'Работа сдана', exact: true })).toBeDisabled();
+    await expect(brief.getByText('Сдано на проверку', { exact: true })).toBeVisible();
     await learner.screenshot({
       path: evidenceDir + '/account-course-' + module + '-submitted.png',
     });
