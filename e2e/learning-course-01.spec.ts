@@ -30,11 +30,14 @@ async function editRealProject(page: Page, module: string) {
     await page.mouse.up();
     await expect(page.getByTestId('schematic-component')).toHaveCount(count + 1);
   }
-  await expect(
-    page.getByText(
-      /К проверке будет закреплена сохранённая редакция №|Черновик сохранён: редакция №/,
-    ),
-  ).toBeVisible();
+  const assignmentAnchor = page.getByTestId('assignment-brief-anchor');
+  const assignmentPanel = page.getByTestId('assignment-brief');
+  await expect(assignmentAnchor).toBeVisible();
+  await assignmentAnchor.click();
+  await expect(assignmentPanel).toBeVisible();
+  await expect(assignmentPanel.getByText('Сохранено', { exact: true })).toBeVisible();
+  await assignmentAnchor.click();
+  await expect(assignmentPanel).toHaveCount(0);
   await page.reload();
   if (module === 'electronics')
     await expect(page.getByTestId('schematic-component').first()).toBeVisible();

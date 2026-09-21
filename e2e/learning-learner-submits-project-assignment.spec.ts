@@ -562,8 +562,10 @@ test('A0 Blocks keeps anchor and panel topmost over fullscreen Scratch', async (
 
   const anchorBox = (await anchor.boundingBox())!;
   const anchorTopmost = await learner.page.evaluate(
-    ({ x, y }) =>
-      Boolean(document.elementFromPoint(x, y)?.closest('[data-testid="assignment-brief-anchor"]')),
+    ({ x, y }) => {
+      const element = document.elementFromPoint(x, y);
+      return Boolean(element?.closest('[data-testid="assignment-brief-anchor"]'));
+    },
     { x: anchorBox.x + anchorBox.width / 2, y: anchorBox.y + anchorBox.height / 2 },
   );
   expect(anchorTopmost).toBe(true);
@@ -573,20 +575,17 @@ test('A0 Blocks keeps anchor and panel topmost over fullscreen Scratch', async (
   await expect(anchor).toBeVisible();
   const box = (await brief.boundingBox())!;
   const panelTopmost = await learner.page.evaluate(
-    ({ x, y }) =>
-      Boolean(document.elementFromPoint(x, y)?.closest('[data-testid="assignment-brief"]')),
+    ({ x, y }) => {
+      const element = document.elementFromPoint(x, y);
+      return Boolean(element?.closest('[data-testid="assignment-brief"]'));
+    },
     { x: box.x + Math.min(120, box.width / 2), y: box.y + 24 },
   );
   expect(panelTopmost).toBe(true);
 
-  const stacking = await learner.page.evaluate(() => ({
-    blocks: getComputedStyle(document.querySelector('[data-asa-blocks-fullscreen]')!).zIndex,
-    brief: getComputedStyle(document.querySelector('[data-testid="assignment-brief"]')!).zIndex,
-    anchor: getComputedStyle(
-      document.querySelector('[data-testid="assignment-brief-anchor"]')!,
-    ).zIndex,
-  }));
-  expect(stacking).toEqual({ blocks: '1000', brief: '1100', anchor: '1110' });
+  await expect(fullscreen).toHaveCSS('z-index', '1000');
+  await expect(brief).toHaveCSS('z-index', '1100');
+  await expect(anchor).toHaveCSS('z-index', '1110');
   await learner.page.screenshot({
     path: `${workShellV1EvidenceDir}/V1-blocks-overlay-1440.png`,
     fullPage: false,
