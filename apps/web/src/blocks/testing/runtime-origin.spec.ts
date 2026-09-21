@@ -15,6 +15,7 @@ function renderEditor(runtimeOrigin: string, parentOrigin = PARENT_ORIGIN, enabl
   return renderToStaticMarkup(
     createElement(BlocksEditor, {
       projectId: '11111111-1111-4111-8111-111111111111',
+      recoveryPrincipalKey: '33333333-3333-4333-8333-333333333333',
       onBack: vi.fn(),
       onHomeClick: vi.fn(),
       accountLabel: 'ASA test user',
@@ -47,7 +48,9 @@ describe('BlocksEditor runtime origin isolation', () => {
   ])('preserves the separate-origin preview from %s to %s', (parent, runtime) => {
     const html = renderEditor(runtime, parent);
     expect(html).toContain(`<iframe title="Scratch runtime" src="${runtime}/?asaStatus=parent"`);
-    expect(html).toContain('Подключение Scratch');
+    expect(html).toContain('Загружаем рабочую среду');
+    expect(html).toContain('/asa-lab-mark.svg');
+    expect(html).not.toContain('blocks-editor-connection-status');
     expect(html).not.toContain('Сохранить на компьютер');
     expect(html).not.toContain('role="alert"');
   });
@@ -108,6 +111,7 @@ describe('BlocksEditor runtime origin isolation', () => {
     const html = renderToStaticMarkup(
       createElement(BlocksEditor, {
         projectId: '11111111-1111-4111-8111-111111111111',
+        recoveryPrincipalKey: '33333333-3333-4333-8333-333333333333',
         onBack: vi.fn(),
         onHomeClick: vi.fn(),
         accountLabel: 'ASA test user',

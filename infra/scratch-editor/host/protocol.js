@@ -11,7 +11,7 @@
   const PARENT_TYPES = new Set([
     'ASA_BLOCKS_INIT',
     'ASA_BLOCKS_TOKEN_UPDATE',
-    'ASA_BLOCKS_FLUSH_REQUEST',
+    'ASA_BLOCKS_SAVE_BEFORE_EXIT_REQUEST',
     'ASA_BLOCKS_STOP',
   ]);
 
@@ -19,6 +19,8 @@
   const nonEmptyString = (value) => typeof value === 'string' && value.length > 0;
   const validRuntimeToken = (value) =>
     typeof value === 'string' && value.length <= 4096 && TOKEN_RE.test(value);
+  const validRecoveryPrincipalKey = (value) =>
+    typeof value === 'string' && value.length >= 1 && value.length <= 256;
   const exactHttpOrigin = (value) => {
     if (typeof value !== 'string') return null;
     try {
@@ -59,15 +61,16 @@
         return null;
       }
       for (const costume of target.costumes) {
+        const key = isRecord(costume) ? mediaKey(costume.assetId, costume.dataFormat) : null;
         if (
           !isRecord(costume) ||
           !ASSET_ID_RE.test(costume.assetId ?? '') ||
           !COSTUME_FORMATS.has(costume.dataFormat) ||
-          costume.md5ext !== mediaKey(costume.assetId, costume.dataFormat)
+          (typeof costume.md5ext !== 'undefined' && costume.md5ext !== key)
         ) {
           return null;
         }
-        keys.add(mediaKey(costume.assetId, costume.dataFormat));
+        keys.add(key);
       }
       for (const sound of target.sounds) {
         if (
@@ -86,6 +89,7 @@
 
   function validatedBootstrap(message, expectedParentOrigin) {
     if (!Number.isSafeInteger(message.draftRevision) || message.draftRevision < 0) return null;
+    if (!validRecoveryPrincipalKey(message.recoveryPrincipalKey)) return null;
     const apiOrigin = exactHttpOrigin(message.apiOrigin);
     if (!apiOrigin || apiOrigin !== expectedParentOrigin) return null;
     if (!Array.isArray(message.assets) || !message.assets.every(validAsset)) return null;
@@ -125,6 +129,7 @@
       projectJson,
       hasProjectJson,
       assets: Object.freeze(assets),
+      recoveryPrincipalKey: message.recoveryPrincipalKey,
     });
   }
 
@@ -185,9 +190,9 @@
         options.onTokenUpdate?.();
         return true;
       }
-      if (message.messageType === 'ASA_BLOCKS_FLUSH_REQUEST') {
+      if (message.messageType === 'ASA_BLOCKS_SAVE_BEFORE_EXIT_REQUEST') {
         if (!nonEmptyString(message.requestId)) return reject('request_id');
-        options.onFlushRequest?.(message.requestId);
+        options.onSaveBeforeExitRequest?.(message.requestId);
         return true;
       }
       if (message.messageType === 'ASA_BLOCKS_STOP') {
