@@ -41,7 +41,16 @@
     ?.trim();
 
   let expectedParentOrigin = null;
-  if (rawParentOrigin) {
+  // The shipping editor is a component of this ASA page, never a standalone
+  // application. The configured origin below remains for isolated protocol CI.
+  const integrated = new URL(window.location.href).pathname.startsWith('/internal/blocks/');
+  if (integrated) {
+    if (window.parent === window) {
+      failLocal('configuration-required', 'Откройте проект через приложение ASA Lab.');
+      return;
+    }
+    expectedParentOrigin = new URL(window.location.href).origin;
+  } else if (rawParentOrigin) {
     try {
       const parsed = new URL(rawParentOrigin);
       if (['http:', 'https:'].includes(parsed.protocol) && parsed.origin === rawParentOrigin) {

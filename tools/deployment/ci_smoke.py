@@ -71,7 +71,10 @@ with tempfile.TemporaryDirectory(prefix="asa-delivery-") as directory:
         with urllib.request.urlopen(request, timeout=15) as response:
             require(response.status in (200, 201), "SMOKE", "Login against the restored database failed.")
         with urllib.request.urlopen("http://127.0.0.1:4610/runtime-config.js") as response:
-            require(b"http://localhost:4613" in response.read(), "SMOKE", "Runtime origin configuration is missing.")
+            require(b"http://127.0.0.1:4610" in response.read(), "SMOKE", "ASA origin configuration is missing.")
+        with urllib.request.urlopen("http://127.0.0.1:4610/internal/blocks/") as response:
+            require(b'./vendor/scratch/scratch-gui-standalone.js' in response.read(), "SMOKE", "Embedded editor route is missing.")
+            require(response.headers.get("X-Frame-Options") != "DENY", "SMOKE", "Embedded editor framing is denied.")
         with urllib.request.urlopen("http://localhost:4613/") as response:
             require(b'content="http://127.0.0.1:4610"' in response.read(), "SMOKE", "Scratch parent configuration is missing.")
         print("PORTABLE_SMOKE PASS: prebuilt boot, complete backup, ACL/RLS restore, restricted-role login, origins")

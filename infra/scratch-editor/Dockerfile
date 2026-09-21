@@ -8,6 +8,7 @@ WORKDIR /opt/scratch-editor
 COPY infra/scratch-editor/upstream.env /tmp/scratch-upstream.env
 COPY infra/scratch-editor/patches/0001-host-logo-prop.patch /tmp/0001-host-logo-prop.patch
 COPY infra/scratch-editor/patches/0002-separate-manual-save-ui.patch /tmp/0002-separate-manual-save-ui.patch
+COPY infra/scratch-editor/patches/0003-embedded-assets-and-builtin-extensions.patch /tmp/0003-embedded-assets-and-builtin-extensions.patch
 COPY infra/scratch-editor/fetch-library-assets.mjs /tmp/fetch-library-assets.mjs
 
 RUN set -eux; \
@@ -20,7 +21,9 @@ RUN set -eux; \
     git apply --check /tmp/0001-host-logo-prop.patch; \
     git apply /tmp/0001-host-logo-prop.patch; \
     git apply --check /tmp/0002-separate-manual-save-ui.patch; \
-    git apply /tmp/0002-separate-manual-save-ui.patch
+    git apply /tmp/0002-separate-manual-save-ui.patch; \
+    git apply --check /tmp/0003-embedded-assets-and-builtin-extensions.patch; \
+    git apply /tmp/0003-embedded-assets-and-builtin-extensions.patch
 
 RUN node /tmp/fetch-library-assets.mjs /opt/scratch-editor /opt/scratch-library-assets
 

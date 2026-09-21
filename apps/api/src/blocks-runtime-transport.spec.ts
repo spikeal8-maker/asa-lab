@@ -4,6 +4,8 @@ import {
   BLOCKS_ASSET_CANONICAL_CONTENT_TYPES,
   BLOCKS_DRAFT_CONTENT_TYPE,
   BlocksRuntimeAddressBudget,
+  applyBlocksRuntimeCors,
+  blocksRuntimeRequestOrigin,
   optionalBlocksRuntimeOrigin,
   registerBlocksRuntimeTransport,
 } from './blocks-runtime-transport.js';
@@ -17,6 +19,75 @@ afterEach(async () => {
 });
 
 describe('Blocks runtime transport', () => {
+  it.each([
+    {
+      origin: 'null',
+      'sec-fetch-site': 'same-origin',
+      referer: 'https://asa-lab.ru/internal/blocks/',
+    },
+    { origin: '', 'sec-fetch-site': 'same-origin', referer: 'https://asa-lab.ru/internal/blocks/' },
+    { 'sec-fetch-site': 'same-origin', referer: 'https://foreign.test/internal/blocks/' },
+    { 'sec-fetch-site': 'same-site', referer: 'https://asa-lab.ru/internal/blocks/' },
+    { 'sec-fetch-site': 'same-origin' },
+  ])('rejects untrusted embedded read metadata at the transport hook: %j', async (headers) => {
+    app = Fastify();
+    app.addHook('onRequest', async (request, reply) => {
+      if (!applyBlocksRuntimeCors(request, reply, 'https://asa-lab.ru'))
+        return reply.code(403).send();
+    });
+    app.get('/api/blocks/runtime/probe', async () => ({ ok: true }));
+    const response = await app.inject({ method: 'GET', url: '/api/blocks/runtime/probe', headers });
+    expect(response.statusCode).toBe(403);
+    expect(response.headers['access-control-allow-origin']).toBeUndefined();
+  });
+  it('recognizes an embedded same-origin asset GET without granting cookie authority', () => {
+    expect(
+      blocksRuntimeRequestOrigin({
+        method: 'GET',
+        headers: {
+          'sec-fetch-site': 'same-origin',
+          referer: 'https://asa-lab.ru/internal/blocks/?asaStatus=parent',
+        },
+      }),
+    ).toBe('https://asa-lab.ru');
+  });
+  it.each([
+    {
+      method: 'PUT',
+      headers: { 'sec-fetch-site': 'same-origin', referer: 'https://asa-lab.ru/internal/blocks/' },
+    },
+    {
+      method: 'GET',
+      headers: { 'sec-fetch-site': 'cross-site', referer: 'https://asa-lab.ru/internal/blocks/' },
+    },
+    { method: 'GET', headers: { referer: 'https://asa-lab.ru/internal/blocks/' } },
+    {
+      method: 'GET',
+      headers: { 'sec-fetch-site': 'same-origin', referer: 'https://asa-lab.ru/account' },
+    },
+    {
+      method: 'GET',
+      headers: {
+        'sec-fetch-site': 'same-origin',
+        referer: 'https://asa-lab.ru/internal/blocks-evil/',
+      },
+    },
+    { method: 'GET', headers: { 'sec-fetch-site': 'same-origin', referer: 'invalid' } },
+  ])('rejects missing-origin requests outside the embedded read path: %j', (request) => {
+    expect(blocksRuntimeRequestOrigin(request)).toBeUndefined();
+  });
+  it('does not replace an explicit foreign Origin with a trusted Referer', () => {
+    expect(
+      blocksRuntimeRequestOrigin({
+        method: 'GET',
+        headers: {
+          origin: 'https://foreign.test',
+          'sec-fetch-site': 'same-origin',
+          referer: 'https://asa-lab.ru/internal/blocks/',
+        },
+      }),
+    ).toBe('https://foreign.test');
+  });
   it('accepts only an exact configured runtime origin', () => {
     expect(optionalBlocksRuntimeOrigin({ ASA_BLOCKS_RUNTIME_ORIGIN: ORIGIN })).toBe(ORIGIN);
     expect(optionalBlocksRuntimeOrigin({})).toBeNull();

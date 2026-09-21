@@ -10,7 +10,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from deployment.contracts import (Blocked, DEFAULT_WINDOW, REGISTRY, SERVICES, atomic_json,
-                                  attest_database_targets, exact_origin, in_window, inventory_files, read_env, safe_member,
+                                  attest_database_targets, attest_embedded_editor, exact_origin, in_window, inventory_files, read_env, safe_member,
                                   validate_release, verify_backup)
 from deployment.backup import recovery_configuration
 from deployment.system import Installation, operation_lock, run
@@ -31,6 +31,24 @@ def compose_config():
         "api": {"environment": {"APP_DATABASE_URL": "postgres://asalab_app:synthetic@postgres:5432/asalab"}},
         "migration": {"environment": {"MIGRATION_DATABASE_URL": "postgres://admin:synthetic@postgres:5432/asalab", "MIGRATION_EXPECT_DATABASE": "asalab", "MIGRATION_CONFIRM": "APPLY:asalab"}},
     }, "volumes": {"postgres-data": {"name": "asa-lab-dev_postgres-data"}, "objects": {"name": "asa-lab-dev_objects"}}}
+
+
+class EmbeddedEntryTests(unittest.TestCase):
+    def config(self, origin, parent, public=''):
+        return {'services': {'api': {'environment': {'ASA_BLOCKS_RUNTIME_ORIGIN': origin, 'ASA_PUBLIC_WEB_ORIGINS': public}},
+                             'scratch': {'environment': {'ASA_BLOCKS_PARENT_ORIGIN': parent}}}}
+
+    def test_single_local_or_explicit_public_portal_is_valid(self):
+        attest_embedded_editor(self.config('http://127.0.0.1:4610', 'http://127.0.0.1:4610'))
+        attest_embedded_editor(self.config('https://asa-lab.ru', 'https://asa-lab.ru', 'https://asa-lab.ru'))
+
+    def test_old_saved_separate_origin_blocks_before_service_switch(self):
+        for origin, parent, public in [('http://localhost:4613', 'http://127.0.0.1:4610', ''),
+                                       ('https://scratch.example.test', 'https://asa-lab.ru', 'https://asa-lab.ru'),
+                                       ('https://scratch.example.test', 'https://scratch.example.test', 'https://asa-lab.ru')]:
+            with self.subTest(origin=origin), self.assertRaises(Blocked) as problem:
+                attest_embedded_editor(self.config(origin, parent, public))
+            self.assertEqual(problem.exception.code, 'EDITOR_ENTRY')
 
 
 class WindowTests(unittest.TestCase):

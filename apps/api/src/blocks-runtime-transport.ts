@@ -63,6 +63,29 @@ export function isBlocksRuntimePath(path: string): boolean {
   return path.startsWith('/api/blocks/runtime/');
 }
 
+/** Same-origin asset GETs omit Origin. Accept only browser metadata for the
+ * embedded ASA document; bearer/project authority is still checked separately. */
+export function blocksRuntimeRequestOrigin(
+  request: Pick<FastifyRequest, 'method' | 'headers'>,
+): string | undefined {
+  if (request.headers.origin !== undefined) return request.headers.origin;
+  if (request.method !== 'GET' || request.headers['sec-fetch-site'] !== 'same-origin')
+    return undefined;
+  try {
+    const referer = new URL(request.headers.referer ?? '');
+    if (
+      !['http:', 'https:'].includes(referer.protocol) ||
+      referer.username ||
+      referer.password ||
+      !referer.pathname.startsWith('/internal/blocks/')
+    )
+      return undefined;
+    return referer.origin;
+  } catch {
+    return undefined;
+  }
+}
+
 const BLOCKS_RUNTIME_ASSET_UPLOAD =
   /^\/api\/blocks\/runtime\/projects\/[^/?]+\/assets\/[a-f0-9]{32}\.(svg|png|jpg|wav|mp3)$/;
 
@@ -82,7 +105,7 @@ export function applyBlocksRuntimeCors(
   reply: FastifyReply,
   runtimeOrigin: string | null,
 ): boolean {
-  if (!runtimeOrigin || request.headers.origin !== runtimeOrigin) return false;
+  if (!runtimeOrigin || blocksRuntimeRequestOrigin(request) !== runtimeOrigin) return false;
   void reply
     .header('Access-Control-Allow-Origin', runtimeOrigin)
     .header('Vary', 'Origin')

@@ -5,6 +5,18 @@
 
 :8080 {
 	encode zstd gzip
+	@portal not path /internal/blocks/*
+	header @portal X-Frame-Options DENY
+	# Embedded component assets share the ASA entry point; this is not a second site.
+	handle_path /internal/blocks/* {
+		header X-Frame-Options SAMEORIGIN
+		header Content-Security-Policy "frame-ancestors 'self'"
+		reverse_proxy scratch:8080 {
+			header_up -Cookie
+			header_up -Authorization
+			header_down -Set-Cookie
+		}
+	}
 	# Public per-installation configuration; never contains keys or account data.
 	handle /runtime-config.js {
 		root * /tmp
@@ -57,6 +69,5 @@
 		-Server
 		X-Content-Type-Options nosniff
 		Referrer-Policy strict-origin-when-cross-origin
-		X-Frame-Options DENY
 	}
 }

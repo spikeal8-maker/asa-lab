@@ -61,7 +61,7 @@ def first_environment(root, profile):
               "ASA_OBJECT_STORAGE_BUCKET": "asa-blocks", "ASA_OBJECT_STORAGE_ACCESS_KEY": secrets.token_hex(16),
               "ASA_OBJECT_STORAGE_SECRET_KEY": secrets.token_hex(32), "ASA_OBJECT_STORAGE_FORCE_PATH_STYLE": "true",
               "ASA_WEB_PORT": "4610", "ASA_API_PORT": "4611", "ASA_BLOCKS_PORT": "4613",
-              "ASA_BLOCKS_PARENT_ORIGIN": "http://127.0.0.1:4610", "ASA_BLOCKS_RUNTIME_ORIGIN": "http://localhost:4613",
+              "ASA_BLOCKS_PARENT_ORIGIN": "http://127.0.0.1:4610", "ASA_BLOCKS_RUNTIME_ORIGIN": "http://127.0.0.1:4610",
               "ASA_SEED_DEV": "true" if profile == "dev" else "false",
               "ASA_SEED_WORKSPACE": "school-1580", "ASA_SEED_TEACHER_EMAIL": "teacher@school-1580.local",
               "ASA_SEED_TEACHER_PASSWORD": secrets.token_hex(24)}

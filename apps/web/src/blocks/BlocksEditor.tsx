@@ -20,27 +20,10 @@ type BlocksEditorStartupState = 'loading' | 'ready' | 'error';
 
 function configuredRuntimeOrigin(): string | null {
   if (typeof window === 'undefined') return null;
-  const runtimeConfig = globalThis.__ASA_RUNTIME_CONFIG__?.blocksRuntimeOrigin;
-  const originSetting =
-    runtimeConfig ||
-    (typeof __ASA_BLOCKS_RUNTIME_ORIGIN__ === 'undefined' ? '' : __ASA_BLOCKS_RUNTIME_ORIGIN__);
-  if (!originSetting) return null;
   try {
-    const configured = new URL(requireExactHttpOrigin(originSetting));
-    // Preserve the default localhost runtime beside the 127.0.0.1 portal.
-    // Different ports alone do not isolate host cookies. Keep the existing
-    // non-loopback LAN template behavior; explicit production origins stay exact.
-    const parentHostname = window.location.hostname;
-    const loopbackParent =
-      parentHostname === 'localhost' ||
-      parentHostname === '[::1]' ||
-      /^127(?:\.\d{1,3}){3}$/.test(parentHostname);
-    if (configured.hostname === 'localhost' && !loopbackParent)
-      configured.hostname = parentHostname;
-    const origin = configured.origin;
-    // Visibility never grants the runtime portal authority or permits mixed content.
-    if (window.location.origin.startsWith('https:') && origin.startsWith('http:')) return null;
-    return origin === window.location.origin ? null : origin;
+    // The editor is shipped inside ASA. Deployment settings cannot turn it into
+    // another website or send a project capability to an external iframe.
+    return requireExactHttpOrigin(window.location.origin);
   } catch {
     return null;
   }
@@ -256,8 +239,8 @@ export function BlocksEditor({
     return (
       <main className="page-center" role="alert">
         <section className="login-card">
-          <h1>Среда Scratch не подключена</h1>
-          <p>Для этого развёртывания не настроен изолированный Scratch runtime.</p>
+          <h1>Не удалось открыть среду</h1>
+          <p>Откройте проект через приложение ASA Lab.</p>
           <button type="button" className="btn-secondary" onClick={onBack}>
             К проектам
           </button>
@@ -278,7 +261,7 @@ export function BlocksEditor({
           key={attempt}
           ref={iframeRef}
           title="Scratch runtime"
-          src={`${runtimeOrigin}/?asaStatus=parent`}
+          src="/internal/blocks/?asaStatus=parent"
         />
       </BlocksEditorShell>
       <div

@@ -676,7 +676,7 @@
           }
           if (!validLibraryAsset(id, format) || !validTypeAndFormat(type, format)) return null;
           try {
-            const response = await fetch(`/library-assets/${id}.${format}`, {
+            const response = await fetch(`./library-assets/${id}.${format}`, {
               credentials: 'omit',
               redirect: 'error',
             });
@@ -838,7 +838,7 @@
         );
         if (asset) return asset.encodeDataURI();
         if (!validLibraryAsset(id, format)) throw unavailable();
-        return `/library-assets/${id}.${format}`;
+        return `./library-assets/${id}.${format}`;
       },
       dispose() {
         disposed = true;

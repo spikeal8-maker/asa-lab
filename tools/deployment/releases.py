@@ -7,7 +7,7 @@ import tempfile
 import urllib.request
 import uuid
 
-from .contracts import REGISTRY, REPOSITORY, SERVICES, Blocked, attest_database_targets, require, validate_release
+from .contracts import REGISTRY, REPOSITORY, SERVICES, Blocked, attest_database_targets, attest_embedded_editor, require, validate_release
 from .system import run
 
 
@@ -80,6 +80,7 @@ def apply_release_environment(install, release):
 
 def validate_resolved_images(install, release):
     config = json.loads(install.compose("config", "--format", "json", capture=True))
+    attest_embedded_editor(config)
     attest_database_targets(config, config["services"]["postgres"]["environment"])
     for service in (*SERVICES, "migration"):
         expected = release["images"]["api" if service == "migration" else service]

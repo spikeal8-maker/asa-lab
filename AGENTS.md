@@ -212,6 +212,11 @@ Push в GitHub не является deployment. Перезапуск или о�
 `postgres`. Отдельные Docker-образ, runtime-origin и порт — границы компонента,
 не разрешение создать другой Compose project, checkout, аккаунт или БД.
 `standalone` в Scratch означает формат GUI/VM-сборки, не отдельный продукт.
+Пользовательский вход единый: портал ASA и встроенный редактор на том же
+домене и порту. Ресурсы редактора обслуживаются Web через `/internal/blocks/`.
+Запрещено предлагать или создавать для него отдельный публичный поддомен,
+порт или FRP-маршрут. Историческое требование отдельного browser origin
+заменено [актуальным ADR](docs/architecture/ADR-VSCR-001-SCRATCH-EDITOR-INTEGRATION.md).
 
 Перед install/update/repair прочитай
 [`docs/deployment/SCRATCH_INSTALLATION.md`](docs/deployment/SCRATCH_INSTALLATION.md).

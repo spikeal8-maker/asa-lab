@@ -34,21 +34,27 @@ Do not create a parallel `scratch` module.
 User-facing product naming is ASA Lab `Визуальное программирование`. Scratch is a factual
 compatibility statement, not ASA product branding.
 
-## Decision 2 — isolated ASA-owned host
+## Decision 2 — one public ASA entry, embedded editor
 
 Scratch GUI/VM packages do not enter the main ASA Web dependency graph.
 
-The pinned upstream source is built into a separate runtime container and exposed through an
-ASA-owned host around the shipping standalone distribution.
+The pinned upstream source is built as an internal service of the same installation.
+The ASA Web proxy serves its assets under `/internal/blocks/` on the portal's own
+origin. This resource path is not a separate application entry. Users open an ASA
+project; the editor requires the parent application and its project capability.
 
 ```text
 ASA Web
-→ separate-origin iframe
+→ same-origin embedded frame at /internal/blocks/
 → ASA Scratch host
 → pinned Scratch GUI/VM runtime
 ```
 
 The upstream playground is technical build evidence only, not the product host.
+
+The owner's single-entry requirement supersedes the earlier separate-origin
+deployment design. Do not create an editor subdomain, a second public port or
+another FRP route. Container separation is an internal implementation detail.
 
 ## Decision 3 — ASA remains system of record
 
@@ -116,14 +122,23 @@ conflict/retry/recovery handling and save-status reporting.
 
 Upstream save and ASA save must never run in parallel.
 
-## Decision 8 — separate runtime trust surface
+## Decision 8 — scoped project authority inside one trusted application
 
-Scratch iframe runtime is not an ambient ASA account session.
+The bundled editor is trusted application code sharing the ASA browser origin.
+A same-origin frame is not a cookie/DOM isolation boundary. Do not claim that it
+provides one or add `allow-same-origin` sandboxing as a substitute for isolation.
+Only the pinned built-in extension implementations may execute; imported projects
+cannot load arbitrary extension scripts. Built-in extension catalogue entries stay.
 
 Runtime requests use short-lived project/version-scoped bearer capability authority on
 `/api/blocks/runtime/**`, with exact origin/CORS/CSP handling.
 
-The runtime origin is never added to generic cookie-authenticated mutation trust.
+Editor persistence requests continue to omit cookies and require the project
+capability; ordinary ASA authentication and CSRF rules remain unchanged. Static
+proxying strips Cookie/Authorization before contacting the internal asset service.
+Same-origin GETs may omit Origin: the server accepts only the embedded document's
+same-origin browser metadata, then still validates the signed capability and current
+resource authority. This does not make cookies sufficient for runtime requests.
 
 A valid capability still requires current ASA resource authority checks where defined by the
 runtime-security contract.

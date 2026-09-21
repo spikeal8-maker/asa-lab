@@ -67,6 +67,17 @@ def attest_database_targets(config, postgres_env, api_env=None):
             "DATABASE_TARGET", "Migration target attestations differ from the backed-up database.")
 
 
+def attest_embedded_editor(config):
+    api = config['services']['api']['environment']
+    parent = config['services']['scratch']['environment'].get('ASA_BLOCKS_PARENT_ORIGIN')
+    origin = api.get('ASA_BLOCKS_RUNTIME_ORIGIN')
+    allowed = {f"http://127.0.0.1:{api.get('ASA_WEB_PORT', '4610')}"}
+    allowed.update(value.strip() for value in api.get('ASA_PUBLIC_WEB_ORIGINS', '').split(',') if value.strip())
+    require(origin == parent and origin in allowed, 'EDITOR_ENTRY',
+            'The saved editor origin does not match the single ASA application entry.',
+            'Keep the running version. Back up the existing installation, then set both Blocks origins to the approved portal origin using the controlled configuration transition; do not create an editor domain.')
+
+
 def validate_window(window):
     require(set(window) == set(DEFAULT_WINDOW), "WINDOW", "Invalid maintenance window fields.")
     require(type(window["weekday"]) is int and 0 <= window["weekday"] <= 6,
