@@ -3,7 +3,8 @@
 **Идентификатор:** LRN-WORK-SHELL-01
 **Статус:** нормативная детализация E1
 **Дата:** 21 сентября 2026 года
-**Каноническая ссылка:** `ASA_INTEGRATED_IMPLEMENTATION_SPEC.md §4.2.2–4.2.3`
+**Каноническая ссылка:** `ASA_INTEGRATED_IMPLEMENTATION_SPEC.md §4.2.2–4.2.5`  
+**Архитектурный контракт:** `ASA_LEARNING_WORK_ARCHITECTURE_PLAN.md`
 
 ## 1. Назначение
 
@@ -408,45 +409,103 @@ Lesson-level legacy assignment остаётся совместимым.
 - сдать;
 - teacher preview/review.
 
-## 16. Границы первой реализации
+## 16. Порядок реализации после архитектурного пересмотра
 
-### Срез A — оболочка
+### A0 — фундамент общей оболочки
 
-- существующий общий `AssignmentBrief`;
-- desktop: безопасное плавающее окно, сворачивание, перемещение, ограничение viewport;
-- mobile: отдельная нижняя панель;
-- локальное состояние представления;
-- предметные редакторы не меняются.
+Этот срез не зависит от предметного содержания задания и может быть завершён отдельно.
 
-### Срез B — полный контекст Activity occurrence
+Обязательно:
+- platform layer выше fullscreen/iframe/canvas предметной среды;
+- desktop pointer capture для drag/resize;
+- max width ≤ 70% viewport;
+- max height ≤ 80% usable viewport;
+- reset без drag;
+- 1440/390/320;
+- browser evidence минимум Electronics, 3D и Blocks/Scratch;
+- предметные редакторы не получают Learning UI.
 
-- `AssignmentBrief` видит direct/legacy/course-block assignment;
-- полный exact published task content;
-- отсутствие контекста не создаёт fake assignment.
+### A1 — единый Learning Work Context
 
-### Срез C — rich content
+До rich UI карточка переводится на один server resolver по projectId.
 
-- изображение/схема;
+Обязательно:
+- direct assignment;
+- legacy lesson assignment;
+- Course Activity occurrence;
+- exact learningActivityVersionId;
+- courseBlockId для block occurrence;
+- canonical workflow;
+- server-derived allowed actions;
+- состояния resolving / not_learning / ready / denied / unavailable.
+
+После A1 AssignmentBrief не перебирает списки назначений/курсов.
+
+### A2 — полный immutable task snapshot
+
+До video/file/pinned-image UI опубликованная версия должна реально замораживать:
+- title;
+- goal;
+- упорядоченное learner-facing content;
+- immutable media refs;
+- starter project version;
+- digest.
+
+Текущий mutable sample/media автора не может подмешиваться в старую published version.
+
+### A3 — learning capabilities модулей
+
+Module registry сообщает, пригоден ли модуль для:
+- назначения;
+- редактируемого учебного evidence;
+- сдачи ProjectVersion;
+- snapshot/interactive/summary preview.
+
+Course Builder и Learning используют capabilities, не конкретные имена модулей.
+
+### A4 — атомарный старт и immutable origin
+
+Новый learner Start является одной idempotent server operation:
+- разрешить Participation;
+- создать/reuse Project;
+- зафиксировать Project↔Participation origin;
+- создать/reuse Attempt;
+- вернуть projectId/context.
+
+Клиентская пара createProject → startAssignment не остаётся конечной архитектурой.
+
+### A5 — защита и список учебных работ
+
+- единая server policy для archive/trash/duplicate/publish/edit/copy;
+- учебные badges/filters;
+- accepted original read-only;
+- отдельный learning archive;
+- changes_requested автоматически возвращает работу в active attention.
+
+### A6 — rich task shell
+
+Только после A2:
+- image zoom;
+- pinned reference;
 - video;
 - file/link;
-- отдельный reference-window.
+- desktop/mobile refinement.
 
-### Срез D — review workspace
+### A7 — personal copy
 
-- activity-level очередь;
-- filters;
-- exact preview;
-- assessment controls;
+- отдельная server command;
+- новый personal project id;
+- нет Learning runtime linkage;
+- нет private classroom/learner provenance в public metadata.
+
+### A8 — поточная проверка преподавателем
+
+- activity occurrence queue;
+- exact submitted evidence;
+- filter/order;
 - previous/next;
-- возврат из full editor.
-
-### Срез E — межмодульная приёмка
-
-Минимум:
-- Electronics;
-- 3D;
-- Blocks/Scratch либо другой принципиально отличный module;
-- 320/390/1440.
+- assessment;
+- optional full editor.
 
 ## 17. Критерии приёмки
 
