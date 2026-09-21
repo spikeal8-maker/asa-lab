@@ -157,6 +157,42 @@ async function assign(
   });
 }
 
+async function learnerWithSeatStatus(
+  status: 'issued' | 'active' | 'suspended' | 'removed',
+) {
+  const suffix = `${status}-${++sequence}`;
+  const seat = (
+    await admin.query(
+      `INSERT INTO classroom_student_seats
+         (tenant_id,classroom_id,display_label,login_handle,normalized_login_handle,
+          safe_mode,status,created_by)
+       VALUES ($1,$2,$3,$4,$4,true,$5,$6) RETURNING id`,
+      [
+        owner.tenantId,
+        classroom,
+        `Participation ${status}`,
+        `m1-004-${suffix}`,
+        status,
+        owner.teacherId,
+      ],
+    )
+  ).rows[0].id as string;
+  const learnerId = (
+    await admin.query(
+      `INSERT INTO learner_identities (id,tenant_id,school_id)
+       VALUES (gen_random_uuid(),$1,$2) RETURNING id`,
+      [owner.tenantId, owner.schoolId],
+    )
+  ).rows[0].id as string;
+  await admin.query(
+    `INSERT INTO learner_identity_links
+       (id,tenant_id,school_id,learner_identity_id,link_kind,seat_id)
+     VALUES (gen_random_uuid(),$1,$2,$3,'student_seat',$4)`,
+    [owner.tenantId, owner.schoolId, learnerId, seat],
+  );
+  return { learner: learnerId, seat };
+}
+
 async function command(name: string, parameters: unknown[]) {
   return inTenant(owner.tenantId, async (client) => {
     const placeholders = parameters.map((_, index) => `$${index + 1}`).join(',');
@@ -378,6 +414,76 @@ describe('LRN-M1-004 ActivityParticipation', () => {
     expect((await assign(direct, learner, enrollment.rows[0].enrollment_id)).result_code).toBe(
       'course_enrollment_forbidden',
     );
+  });
+
+  it('keeps issued seats Course-inherited only and rejects suspended or removed seats', async () => {
+    const issued = await learnerWithSeatStatus('issued');
+    const directRun = await createRun({ handout: await directHandout() });
+    expect(await assign(directRun, issued.learner)).toMatchObject({
+      result_code: 'learner_not_available',
+    });
+
+    const source = await courseHandout();
+    const courseRun = await createRun({
+      handout: source.handout,
+      kind: 'course',
+      courseRun: source.courseRun,
+      lesson: source.lesson,
+    });
+    const enrollment = await inTenant(owner.tenantId, (client) =>
+      client.query('SELECT * FROM course_enrollment_assign($1,$2,$3)', [
+        ownerPrincipal,
+        source.courseRun,
+        issued.learner,
+      ]),
+    );
+    expect(enrollment.rows[0].result_code).toBe('ok');
+    expect(
+      (
+        await admin.query(
+          `SELECT enrollment.status,part.source_course_enrollment_id,part.status AS participation_status
+             FROM course_enrollments enrollment
+             JOIN activity_participations part
+               ON part.source_course_enrollment_id=enrollment.id
+            WHERE enrollment.id=$1 AND part.activity_run_id=$2`,
+          [enrollment.rows[0].enrollment_id, courseRun],
+        )
+      ).rows[0],
+    ).toEqual({
+      status: 'assigned',
+      source_course_enrollment_id: enrollment.rows[0].enrollment_id,
+      participation_status: 'assigned',
+    });
+
+    for (const status of ['suspended', 'removed'] as const) {
+      const blocked = await learnerWithSeatStatus(status);
+      const blockedSource = await courseHandout();
+      const blockedRun = await createRun({
+        handout: blockedSource.handout,
+        kind: 'course',
+        courseRun: blockedSource.courseRun,
+        lesson: blockedSource.lesson,
+      });
+      await expect(
+        inTenant(owner.tenantId, (client) =>
+          client.query('SELECT * FROM course_enrollment_assign($1,$2,$3)', [
+            ownerPrincipal,
+            blockedSource.courseRun,
+            blocked.learner,
+          ]),
+        ),
+      ).rejects.toThrow(/course participation: learner_not_available/);
+      expect(
+        (
+          await admin.query(
+            `SELECT count(*)::int AS count
+               FROM activity_participations
+              WHERE activity_run_id=$1 AND learner_identity_id=$2`,
+            [blockedRun, blocked.learner],
+          )
+        ).rows[0].count,
+      ).toBe(0);
+    }
   });
 
   it('enforces assigned-active-withdrawn lifecycle and preserves withdrawn history', async () => {
