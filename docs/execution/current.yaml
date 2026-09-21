@@ -14,10 +14,10 @@ task:
   branch: codex/scratch-real-storage-005b
   base_branch: main
   pr: 288
-  pr_draft: true
-  status: in_progress
-  checkpoint: implementation_complete_independent_review_pending
-  owner_acceptance: pending
+  pr_draft: false
+  status: done
+  checkpoint: merged
+  owner_acceptance: accepted
 
 revisions:
   convergence_baseline_sha: 1d101b699b7db34efa838a143a93f9b19940e5c9
