@@ -536,7 +536,7 @@ test('A0 3D shell keeps anchor and panel above the editor while tools remain int
   await learner.context.close();
 });
 
-test('A0 real Blocks assignment keeps anchor and AssignmentBrief topmost over fullscreen Scratch', async ({
+test('A0 Blocks keeps anchor and panel topmost over fullscreen Scratch', async ({
   browser,
   page,
 }) => {

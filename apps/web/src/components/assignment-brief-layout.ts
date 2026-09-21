@@ -6,14 +6,7 @@ export interface AssignmentBriefRect {
 }
 
 export type AssignmentBriefResizeEdge =
-  | 'top'
-  | 'right'
-  | 'bottom'
-  | 'left'
-  | 'top-left'
-  | 'top-right'
-  | 'bottom-right'
-  | 'bottom-left';
+  'top' | 'right' | 'bottom' | 'left' | 'top-left' | 'top-right' | 'bottom-right' | 'bottom-left';
 
 export const ASSIGNMENT_BRIEF_EDGE_INSET = 12;
 export const ASSIGNMENT_BRIEF_TOP_INSET = 58;
