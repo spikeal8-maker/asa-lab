@@ -283,7 +283,7 @@ Preview строится из exact submitted revision/version/snapshot. Бол�
 
 #### 4.2.5. Архитектурные обязательные условия учебной работы
 
-Архитектурный порядок и зависимости §4.2.2–4.2.4 уточняет [ASA_LEARNING_WORK_ARCHITECTURE_PLAN.md](learning/ASA_LEARNING_WORK_ARCHITECTURE_PLAN.md). До признания универсальной оболочки и жизненного цикла реализованными обязательны следующие условия:
+Архитектурный порядок и зависимости §4.2.2–4.2.4 уточняет [ASA_LEARNING_WORK_ARCHITECTURE_PLAN.md](learning/ASA_LEARNING_WORK_ARCHITECTURE_PLAN.md). Формат видимой поставки и приёмки владельцем определяет [ASA_LEARNING_VISIBLE_DELIVERY_PLAN.md](learning/ASA_LEARNING_VISIBLE_DELIVERY_PLAN.md). До признания универсальной оболочки и жизненного цикла реализованными обязательны следующие условия:
 
 1. **Один Learning Work Context по projectId.** Конкретная открытая работа разрешается сервером одним canonical read; editor UI не определяет её происхождение перебором assignment/course списков.
 2. **Полный immutable task snapshot.** Exact LearningActivityVersion закрепляет learner-facing title/goal/content/media refs; mutable current media автора не подмешивается в старую опубликованную версию.
@@ -569,7 +569,7 @@ Evidence chain: requirement ID -> exact scenario -> **active test ID** from `doc
 
 Focused tests — во время изменения. На готовом product candidate — требуемые repository/DB/RLS/upgrade и browser gates, без маскировки unrelated failure. Документальная проверка не запускает production Docker и не считается повторной проверкой самого продукта. Независимый review не заменяется отчётом автора.
 
-Fixtures готовят synthetic users/нагрузку; принимаемое действие выполняется через штатный UI/API. Тест карточки декодирует реальный QR, проверяет полный origin и выполняет локальный путь отдельно; localhost test не доказывает существование публичного host. Physical scan/print и реальный домен имеют отдельную отметку manual/live. Снимки старого запуска не доказывают новую ревизию.
+Fixtures готовят synthetic users/нагрузку; принимаемое действие выполняется через штатный UI/API. Тест карточки декодирует реальный QR, проверяет полный origin и выполняет локальный путь отдельно; localhost test не доказывает существование публичного host. Physical scan/print и реальный домен имеют отдельную отметку manual/live. Снимки старого запуска не доказывают новую ревизию. Для любого UI-changing checkpoint реальные screenshots exact HEAD обязательны как owner-visible evidence; их недостаточно автоматически создать — независимый review обязан их открыть и прочитать. Без такого review `VISUAL_ACCEPTANCE = NOT_RUN`, даже если browser CI зелёный.
 
 ## 18. Поставка и реальный сайт
 
@@ -591,7 +591,7 @@ CI-артефакты, documentation screenshots и утверждённые vis
 
 Начать с AGENTS, `agent:recover`, `agent:context --scope learning`, фактического HEAD и рабочего дерева. Затем прочитать выбранный FIX-ID из ledger, его секцию здесь и точные domain/access sections. Прочие мастера и архив читаются только по конкретной зависимости. Не запускать ещё один глобальный аудит после каждой кнопки.
 
-Цикл: воспроизвести или явно квалифицировать гипотезу → regression, падающий на старом продукте → исправить один целый переход → positive/negative/retry/concurrent checks → self-review → независимый review при требовании policy → exact candidate gate → отдельный отчёт и STOP. Изменение теста допустимо только при изменении истинного контракта, не ради зелёного CI. Повтор проверки без новой гипотезы/изменения не доказывает больше.
+Цикл: воспроизвести или явно квалифицировать гипотезу → regression, падающий на старом продукте → исправить один целый переход → positive/negative/retry/concurrent checks → real browser journey → owner-visible evidence для UI-changing slice → self-review → независимый review → exact candidate gate → отдельный отчёт и STOP. Следующий продуктовый checkpoint не начинается, пока предыдущий не имеет явного решения. Изменение теста допустимо при исправлении stale/over-specific assertion, если тест ошибочно проверяет внутренность соседнего модуля или состояние, которое контракт разрешает восстанавливать; при этом принимаемый публичный контракт обязан сохраниться или стать строже. Нельзя ослаблять тест только ради зелёного CI. Повтор проверки без новой гипотезы/изменения не доказывает больше.
 
 Вывод отчёта разделяет CODE, TESTS, DOCS, LIVE, DEPLOYMENT, OWNER_ACCEPTANCE и UNVERIFIED. Закрывать дефект только по существованию документа или закрытому Issue запрещено.
 
