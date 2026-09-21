@@ -66,7 +66,8 @@ with tempfile.TemporaryDirectory(prefix="asa-delivery-") as directory:
         install.compose("up", "-d", "--no-build", "--no-deps", "api")
         install.wait_ready(release["revision"], release["schema"])
         body = json.dumps({"workspace": install.env["ASA_SEED_WORKSPACE"], "email": install.env["ASA_SEED_TEACHER_EMAIL"], "password": install.env["ASA_SEED_TEACHER_PASSWORD"]}).encode()
-        request = urllib.request.Request("http://127.0.0.1:4610/api/auth/login", data=body, headers={"Content-Type": "application/json"})
+        request = urllib.request.Request("http://127.0.0.1:4610/api/auth/login", data=body,
+                                         headers={"Content-Type": "application/json", "Origin": "http://127.0.0.1:4610"})
         with urllib.request.urlopen(request, timeout=15) as response:
             require(response.status in (200, 201), "SMOKE", "Login against the restored database failed.")
         with urllib.request.urlopen("http://127.0.0.1:4610/runtime-config.js") as response:
