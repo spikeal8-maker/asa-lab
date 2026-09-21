@@ -18,8 +18,8 @@ server {
 
     # Only the entry document receives the configured exact parent origin.
     location = / {
-        alias /var/cache/nginx/asa-index.html;
-        default_type text/html;
+        # A file alias on a trailing-slash URI triggers nginx's index handler.
+        rewrite ^ /index.html last;
     }
     location = /index.html {
         alias /var/cache/nginx/asa-index.html;
