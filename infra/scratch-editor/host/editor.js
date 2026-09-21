@@ -70,6 +70,7 @@
     onReady,
     onDirty,
     onThumbnailReady,
+    onHomeRequest,
   }) {
     let state = null;
     let vm = null;
@@ -305,6 +306,9 @@
           showSaveNow: false,
           autoSaveIntervalSecs,
           logo: '/asa-lab-scratch-wordmark.svg',
+          onClickLogo() {
+            if (!disposed && session.mode === 'editor') onHomeRequest?.();
+          },
           onSetProjectSaver(projectSaver) {
             upstreamProjectSaver = typeof projectSaver === 'function' ? projectSaver : null;
           },
