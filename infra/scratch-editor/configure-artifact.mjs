@@ -37,6 +37,7 @@ export function configureArtifact(directory, revision, parentOrigin) {
   for (const file of [
     'main.js',
     'editor.js',
+    'recovery.js',
     'storage.js',
     'protocol.js',
     'vendor/scratch/scratch-gui-standalone.js',

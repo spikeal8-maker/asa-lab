@@ -12,6 +12,7 @@ export async function createProtocolFixture(options = {}) {
     'infra/scratch-editor/host/protocol.js',
     'infra/scratch-editor/host/status.js',
     'infra/scratch-editor/host/main.js',
+    'infra/scratch-editor/host/recovery.js',
     'infra/scratch-editor/host/storage.js',
     'infra/scratch-editor/host/editor.js',
     'apps/web/src/blocks/runtime-protocol.ts',
@@ -20,15 +21,22 @@ export async function createProtocolFixture(options = {}) {
   ];
   for (const relative of checkedSources) {
     const text = fs.readFileSync(new URL(relative, repoRoot), 'utf8');
-    for (const forbidden of [
+    const forbidden = [
       'localStorage',
       'sessionStorage',
-      'indexedDB',
       "postMessage('*')",
       'postMessage("*")',
-    ]) {
-      if (text.includes(forbidden))
-        throw new Error(`${relative} contains forbidden protocol text: ${forbidden}`);
+      ...(relative === 'infra/scratch-editor/host/recovery.js' ? [] : ['indexedDB']),
+    ];
+    for (const token of forbidden) {
+      if (text.includes(token))
+        throw new Error(`${relative} contains forbidden protocol text: ${token}`);
+    }
+    if (relative === 'infra/scratch-editor/host/recovery.js') {
+      for (const secretName of ['runtimeToken', 'sessionNonce', 'password', 'authorization']) {
+        if (text.includes(secretName))
+          throw new Error(`${relative} contains forbidden recovery secret field: ${secretName}`);
+      }
     }
   }
 
@@ -91,7 +99,10 @@ window.addEventListener('message', (event) => {
   const runtimeAssetEvidence = [];
   const runtimeAssetPutEvidence = [];
   const runtimeDraftEvidence = [];
+  const runtimeSnapshotEvidence = [];
+  const runtimeSnapshotReads = [];
   const runtimeWriteEvents = [];
+  let storedSnapshot = options.initialSnapshot ?? null;
   const runtimePersistenceMetrics = {
     assetRequests: 0,
     uploadedBytes: 0,
@@ -113,11 +124,17 @@ window.addEventListener('message', (event) => {
   );
   const committedMutations = new Map();
   let serverRevision = Number(runtimeSession.draftRevision ?? 0);
+  let durableProjectDocument =
+    runtimeSession.projectJson === null || typeof runtimeSession.projectJson === 'undefined'
+      ? null
+      : { projectJson: runtimeSession.projectJson, assets: runtimeSession.assets ?? [] };
   let dropDraftResponseRemaining = options.dropFirstDraftResponseAfterCommit === true ? 1 : 0;
   let runtimeSessionSequence = 0;
   const runtimeSessionPath = `/api/projects/${projectId}/blocks/runtime-session`;
   const runtimeAssetPrefix = `/api/blocks/runtime/projects/${projectId}/assets/`;
   const runtimeDraftPath = `/api/blocks/runtime/projects/${projectId}/draft`;
+  const projectPath = `/api/projects/${projectId}`;
+  const projectSnapshotPath = `${projectPath}/snapshot`;
   const canonicalTypes = {
     svg: 'image/svg+xml',
     png: 'image/png',
@@ -164,6 +181,9 @@ window.addEventListener('message', (event) => {
       response.end(
         JSON.stringify({
           ...runtimeSession,
+          draftRevision: serverRevision,
+          projectJson: durableProjectDocument?.projectJson ?? null,
+          assets: durableProjectDocument?.assets ?? [],
           runtimeOrigin: runtimeUrl,
           runtimeToken: `fixture.${runtimeSessionSequence}.signature`,
           expiresAt,
@@ -333,7 +353,10 @@ window.addEventListener('message', (event) => {
         response.end();
         return;
       }
-      const draftWriteStatus = options.draftWriteStatus ?? 200;
+      const draftWriteStatus =
+        typeof options.draftWriteStatus === 'function'
+          ? options.draftWriteStatus(parsed, serverRevision)
+          : (options.draftWriteStatus ?? 200);
       if (draftWriteStatus >= 400) {
         response.statusCode = draftWriteStatus;
         response.end();
@@ -382,6 +405,7 @@ window.addEventListener('message', (event) => {
           document: parsed.document,
           revision,
         });
+        durableProjectDocument = parsed.document;
         runtimePersistenceMetrics.revisionCommits += 1;
         if (dropDraftResponseRemaining > 0) {
           dropDraftResponseRemaining -= 1;
@@ -406,7 +430,144 @@ window.addEventListener('message', (event) => {
       return;
     }
 
-    const productFile = product?.files.get(requestUrl);
+    if (product && request.method === 'PUT' && requestUrl === projectSnapshotPath) {
+      const body = await requestBody(request);
+      let parsed;
+      try {
+        parsed = JSON.parse(body.toString('utf8'));
+      } catch {
+        parsed = null;
+      }
+      const sourceRevision = parsed?.sourceRevision;
+      const imageDataUrl = parsed?.imageDataUrl;
+      runtimeSnapshotEvidence.push({
+        sourceRevision,
+        serverRevisionBefore: serverRevision,
+        contentType:
+          typeof imageDataUrl === 'string'
+            ? imageDataUrl.slice(5, imageDataUrl.indexOf(';'))
+            : null,
+      });
+
+      const configuredStatus =
+        typeof options.snapshotWriteStatus === 'function'
+          ? options.snapshotWriteStatus(parsed)
+          : (options.snapshotWriteStatus ?? 200);
+      if (configuredStatus >= 400) {
+        response.statusCode = configuredStatus;
+        response.setHeader('Content-Type', 'application/json; charset=utf-8');
+        response.end(
+          JSON.stringify({
+            error: { code: 'snapshot_write_failed', message: 'snapshot rejected' },
+          }),
+        );
+        return;
+      }
+      if (!Number.isSafeInteger(sourceRevision) || sourceRevision !== serverRevision) {
+        response.statusCode = 409;
+        response.setHeader('Content-Type', 'application/json; charset=utf-8');
+        response.end(
+          JSON.stringify({
+            error: { code: 'project_revision_conflict', message: 'snapshot revision is stale' },
+          }),
+        );
+        return;
+      }
+      const match =
+        typeof imageDataUrl === 'string'
+          ? /^data:image\/(png|webp);base64,([A-Za-z0-9+/]+={0,2})$/.exec(imageDataUrl)
+          : null;
+      if (!match) {
+        response.statusCode = 400;
+        response.setHeader('Content-Type', 'application/json; charset=utf-8');
+        response.end(
+          JSON.stringify({ error: { code: 'validation_error', message: 'invalid snapshot' } }),
+        );
+        return;
+      }
+      const bytes = Buffer.from(match[2], 'base64');
+      if (bytes.length < 64 || bytes.length > 262_144) {
+        response.statusCode = 400;
+        response.setHeader('Content-Type', 'application/json; charset=utf-8');
+        response.end(
+          JSON.stringify({ error: { code: 'validation_error', message: 'snapshot size' } }),
+        );
+        return;
+      }
+      storedSnapshot = {
+        sourceRevision,
+        contentType: `image/${match[1]}`,
+        bytes,
+      };
+      response.statusCode = 200;
+      response.setHeader('Content-Type', 'application/json; charset=utf-8');
+      response.setHeader('Cache-Control', 'no-store');
+      response.end(
+        JSON.stringify({
+          snapshot: {
+            projectId,
+            contentType: storedSnapshot.contentType,
+            width: 480,
+            height: 360,
+            sourceRevision,
+            capturedAt: '2026-09-19T20:00:00.000Z',
+          },
+        }),
+      );
+      return;
+    }
+
+    if (product && request.method === 'GET' && requestUrl.startsWith(projectSnapshotPath)) {
+      const parsedUrl = new URL(requestUrl, parentOrigin);
+      runtimeSnapshotReads.push({
+        requestedRevision: parsedUrl.searchParams.get('rev'),
+        storedRevision: storedSnapshot?.sourceRevision ?? null,
+      });
+      if (!storedSnapshot) {
+        response.statusCode = 404;
+        response.end();
+        return;
+      }
+      response.statusCode = 200;
+      response.setHeader('Content-Type', storedSnapshot.contentType);
+      response.setHeader('Cache-Control', 'private, max-age=31536000, immutable');
+      response.end(storedSnapshot.bytes);
+      return;
+    }
+
+    if (product && request.method === 'GET' && requestUrl === projectPath) {
+      response.statusCode = 200;
+      response.setHeader('Content-Type', 'application/json; charset=utf-8');
+      response.setHeader('Cache-Control', 'no-store');
+      response.end(
+        JSON.stringify({
+          project: {
+            id: projectId,
+            scope: 'personal',
+            classroomId: null,
+            moduleKey: 'blocks',
+            title: 'Scratch preview acceptance',
+            status: 'active',
+            createdAt: '2026-09-19T20:00:00.000Z',
+            updatedAt: '2026-09-19T20:00:00.000Z',
+            preview: null,
+            snapshotRevision: storedSnapshot?.sourceRevision ?? null,
+            copiedFrom: null,
+          },
+          draft: {
+            projectId,
+            document: null,
+            revision: serverRevision,
+            updatedAt: '2026-09-19T20:00:00.000Z',
+          },
+          versions: [],
+          result: null,
+        }),
+      );
+      return;
+    }
+
+    const productFile = product?.files.get(new URL(requestUrl, parentOrigin).pathname);
     if (productFile) {
       response.setHeader('Content-Type', productFile.type);
       response.setHeader('Cache-Control', 'no-store');
@@ -428,12 +589,13 @@ window.addEventListener('message', (event) => {
   });
   let browser;
   let context;
-  try {
-    browser = await chromium.launch({ headless: true });
-    context = await browser.newContext(options.locale ? { locale: options.locale } : undefined);
-    const pageErrors = [];
-
-    context.on('page', (page) => {
+  const pageErrors = [];
+  const allRequests = [];
+  const configureContext = async (target) => {
+    target.on('request', (request) => {
+      allRequests.push({ method: request.method(), url: request.url() });
+    });
+    target.on('page', (page) => {
       page.on('pageerror', (error) => {
         if (!error.message.includes('protocol-fixture-fatal')) pageErrors.push(error.message);
       });
@@ -443,8 +605,7 @@ window.addEventListener('message', (event) => {
         }
       });
     });
-
-    await context.route(
+    await target.route(
       (url) => url.origin === runtimeUrl && url.pathname === '/',
       async (route) => {
         const upstream = await route.fetch();
@@ -458,15 +619,33 @@ window.addEventListener('message', (event) => {
         await route.fulfill({ response: upstream, body });
       },
     );
+    return target;
+  };
+  const newContext = async (storageState) =>
+    configureContext(
+      await browser.newContext({
+        ...(options.locale ? { locale: options.locale } : {}),
+        ...(storageState ? { storageState } : {}),
+      }),
+    );
+
+  try {
+    browser = await chromium.launch({ headless: true });
+    context = await newContext();
 
     return {
       avatarDataUrl: product?.avatarDataUrl,
       updatedAvatarDataUrl: product?.updatedAvatarDataUrl,
-      context,
+      get context() {
+        return context;
+      },
       pageErrors,
+      allRequests,
       runtimeAssetEvidence,
       runtimeAssetPutEvidence,
       runtimeDraftEvidence,
+      runtimeSnapshotEvidence,
+      runtimeSnapshotReads,
       runtimeWriteEvents,
       runtimePersistenceMetrics,
       getServerRevision() {
@@ -475,10 +654,25 @@ window.addEventListener('message', (event) => {
       getRuntimeSessionSequence() {
         return runtimeSessionSequence;
       },
+      getSnapshotRevision() {
+        return storedSnapshot?.sourceRevision ?? null;
+      },
+      getStoredSnapshot() {
+        return storedSnapshot;
+      },
+      captureStorageState() {
+        return context.storageState({ indexedDB: true });
+      },
       advanceServerRevision() {
         serverRevision += 1;
         runtimePersistenceMetrics.externalRevisionAdvances += 1;
         return serverRevision;
+      },
+      async reopenContextWithIndexedDB() {
+        const storageState = await context.storageState({ indexedDB: true });
+        await context.close();
+        context = await newContext(storageState);
+        return context;
       },
       async close() {
         try {

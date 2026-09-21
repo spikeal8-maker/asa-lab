@@ -25,7 +25,7 @@ export const initMessage = {
   projectJson: null,
   hasProjectJson: false,
   assets: [],
-  recoveryNamespace: 'fixture-c',
+  recoveryPrincipalKey: '33333333-3333-4333-8333-333333333333',
 };
 export async function sendFromParent(page, message) {
   await page.evaluate((payload) => window.sendToRuntime(payload), message);

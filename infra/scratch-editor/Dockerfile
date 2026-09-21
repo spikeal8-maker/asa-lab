@@ -7,6 +7,7 @@ RUN apt-get update \
 WORKDIR /opt/scratch-editor
 COPY infra/scratch-editor/upstream.env /tmp/scratch-upstream.env
 COPY infra/scratch-editor/patches/0001-host-logo-prop.patch /tmp/0001-host-logo-prop.patch
+COPY infra/scratch-editor/patches/0002-separate-manual-save-ui.patch /tmp/0002-separate-manual-save-ui.patch
 COPY infra/scratch-editor/fetch-library-assets.mjs /tmp/fetch-library-assets.mjs
 
 RUN set -eux; \
@@ -17,7 +18,9 @@ RUN set -eux; \
     git checkout --detach FETCH_HEAD; \
     test "$(git rev-parse HEAD)" = "$SCRATCH_EDITOR_COMMIT"; \
     git apply --check /tmp/0001-host-logo-prop.patch; \
-    git apply /tmp/0001-host-logo-prop.patch
+    git apply /tmp/0001-host-logo-prop.patch; \
+    git apply --check /tmp/0002-separate-manual-save-ui.patch; \
+    git apply /tmp/0002-separate-manual-save-ui.patch
 
 RUN node /tmp/fetch-library-assets.mjs /opt/scratch-editor /opt/scratch-library-assets
 
@@ -62,6 +65,7 @@ RUN set -eux; \
     fi; \
     test -f /usr/share/nginx/html/index.html; \
     test -f /usr/share/nginx/html/main.js; \
+    test -f /usr/share/nginx/html/recovery.js; \
     test -f /usr/share/nginx/html/asa-lab-mark.svg; \
     test -f /usr/share/nginx/html/asa-lab-scratch-wordmark.svg; \
     test -f /usr/share/nginx/html/library-assets/library-assets-manifest.json; \

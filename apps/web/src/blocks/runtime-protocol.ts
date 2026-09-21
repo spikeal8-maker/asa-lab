@@ -5,13 +5,17 @@ export const BLOCKS_PROTOCOL_VERSION = 1 as const;
 export type BlocksRuntimeMode = 'editor' | 'player';
 
 export type BlocksParentMessageType =
-  'ASA_BLOCKS_INIT' | 'ASA_BLOCKS_TOKEN_UPDATE' | 'ASA_BLOCKS_FLUSH_REQUEST' | 'ASA_BLOCKS_STOP';
+  | 'ASA_BLOCKS_INIT'
+  | 'ASA_BLOCKS_TOKEN_UPDATE'
+  | 'ASA_BLOCKS_SAVE_BEFORE_EXIT_REQUEST'
+  | 'ASA_BLOCKS_STOP';
 
 export type BlocksChildMessageType =
   | 'ASA_BLOCKS_READY'
   | 'ASA_BLOCKS_STATUS'
   | 'ASA_BLOCKS_TOKEN_REFRESH_REQUIRED'
-  | 'ASA_BLOCKS_FLUSH_RESULT'
+  | 'ASA_BLOCKS_SAVE_BEFORE_EXIT_RESULT'
+  | 'ASA_BLOCKS_THUMBNAIL_READY'
   | 'ASA_BLOCKS_FATAL';
 
 export interface BlocksPostMessageTarget {
@@ -29,6 +33,14 @@ export interface BlocksRuntimeBinding {
   projectId: string;
   sessionNonce: string;
 }
+
+export interface BlocksSaveBeforeExitResult {
+  ok: boolean;
+  reason: string | null;
+  revision?: number;
+  savedGeneration?: number;
+}
+
 export interface BlocksRuntimeInitOptions {
   childWindow: BlocksPostMessageTarget;
   runtimeOrigin: string;
@@ -41,7 +53,7 @@ export interface BlocksRuntimeInitOptions {
   projectJson: Record<string, unknown> | null;
   hasProjectJson: boolean;
   assets: readonly unknown[];
-  recoveryNamespace: string;
+  recoveryPrincipalKey: string;
   onMessage?: (message: Record<string, unknown>) => void;
   onFatal?: (message: Record<string, unknown>) => void;
 }
@@ -49,6 +61,8 @@ export interface BlocksRuntimeInitOptions {
 type BlocksRuntimeNonSecretOptions = Omit<BlocksRuntimeInitOptions, 'runtimeToken'>;
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const SNAPSHOT_DATA_URL_RE = /^data:image\/(?:png|webp);base64,[A-Za-z0-9+/]+={0,2}$/;
+const SNAPSHOT_MAX_DATA_URL_LENGTH = 349_590;
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === 'object' && !Array.isArray(value)
@@ -71,12 +85,17 @@ function isNonNegativeSafeInteger(value: unknown): boolean {
   return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
 }
 
+function isPositiveSafeInteger(value: unknown): boolean {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 1;
+}
+
 function isChildMessageType(value: unknown): value is BlocksChildMessageType {
   return (
     value === 'ASA_BLOCKS_READY' ||
     value === 'ASA_BLOCKS_STATUS' ||
     value === 'ASA_BLOCKS_TOKEN_REFRESH_REQUIRED' ||
-    value === 'ASA_BLOCKS_FLUSH_RESULT' ||
+    value === 'ASA_BLOCKS_SAVE_BEFORE_EXIT_RESULT' ||
+    value === 'ASA_BLOCKS_THUMBNAIL_READY' ||
     value === 'ASA_BLOCKS_FATAL'
   );
 }
@@ -89,13 +108,21 @@ export class BlocksRuntimeBridge {
   private readonly options: BlocksRuntimeNonSecretOptions;
   private runtimeToken: string | null;
   private stopped = false;
-  private readonly pendingFlushRequestIds = new Set<string>();
-  private readonly issuedFlushRequestIds = new Set<string>();
+  private readonly pendingSaveBeforeExit = new Map<
+    string,
+    {
+      resolve: (result: BlocksSaveBeforeExitResult) => void;
+      reject: (error: Error) => void;
+    }
+  >();
 
   constructor(options: BlocksRuntimeInitOptions) {
     this.runtimeOrigin = requireExactHttpOrigin(options.runtimeOrigin);
     if (!UUID_RE.test(options.projectId)) throw new Error('Blocks projectId must be a UUID');
     if (!options.runtimeToken) throw new Error('Blocks runtimeToken is required');
+    if (!options.recoveryPrincipalKey || options.recoveryPrincipalKey.length > 256) {
+      throw new Error('Blocks recoveryPrincipalKey is required');
+    }
     const { runtimeToken, ...nonSecretOptions } = options;
     this.options = nonSecretOptions;
     this.projectId = options.projectId;
@@ -132,7 +159,7 @@ export class BlocksRuntimeBridge {
       projectJson: this.options.projectJson,
       hasProjectJson: this.options.hasProjectJson,
       assets: this.options.assets,
-      recoveryNamespace: this.options.recoveryNamespace,
+      recoveryPrincipalKey: this.options.recoveryPrincipalKey,
     });
   }
 
@@ -143,21 +170,20 @@ export class BlocksRuntimeBridge {
     this.post('ASA_BLOCKS_TOKEN_UPDATE', { runtimeToken });
   }
 
-  requestFlush(requestId: string): void {
+  requestSaveBeforeExit(): Promise<BlocksSaveBeforeExitResult> {
     this.assertActive();
-    if (!requestId) throw new Error('Blocks flush requestId is required');
-    if (this.issuedFlushRequestIds.has(requestId)) {
-      throw new Error(`Blocks flush requestId was already issued: ${requestId}`);
-    }
-    this.issuedFlushRequestIds.add(requestId);
-    this.pendingFlushRequestIds.add(requestId);
-    try {
-      this.post('ASA_BLOCKS_FLUSH_REQUEST', { requestId });
-    } catch (error) {
-      this.pendingFlushRequestIds.delete(requestId);
-      this.issuedFlushRequestIds.delete(requestId);
-      throw error;
-    }
+    const requestId = newClientId();
+    return new Promise((resolve, reject) => {
+      this.pendingSaveBeforeExit.set(requestId, { resolve, reject });
+      try {
+        this.post('ASA_BLOCKS_SAVE_BEFORE_EXIT_REQUEST', { requestId });
+      } catch (error) {
+        this.pendingSaveBeforeExit.delete(requestId);
+        reject(
+          error instanceof Error ? error : new Error('Blocks save-before-exit request failed'),
+        );
+      }
+    });
   }
 
   stop(): void {
@@ -166,8 +192,10 @@ export class BlocksRuntimeBridge {
       this.post('ASA_BLOCKS_STOP');
     } finally {
       this.runtimeToken = null;
-      this.pendingFlushRequestIds.clear();
-      this.issuedFlushRequestIds.clear();
+      for (const pending of this.pendingSaveBeforeExit.values()) {
+        pending.reject(new Error('Blocks runtime bridge is stopped'));
+      }
+      this.pendingSaveBeforeExit.clear();
       this.stopped = true;
     }
   }
@@ -194,32 +222,52 @@ export class BlocksRuntimeBridge {
         return false;
       }
     }
-    if (message['messageType'] === 'ASA_BLOCKS_FLUSH_RESULT') {
-      const requestId = message['requestId'];
-      if (typeof requestId !== 'string' || !this.pendingFlushRequestIds.has(requestId)) {
+    if (message['messageType'] === 'ASA_BLOCKS_THUMBNAIL_READY') {
+      const imageDataUrl = message['imageDataUrl'];
+      if (
+        !isPositiveSafeInteger(message['sourceRevision']) ||
+        typeof imageDataUrl !== 'string' ||
+        imageDataUrl.length > SNAPSHOT_MAX_DATA_URL_LENGTH ||
+        !SNAPSHOT_DATA_URL_RE.test(imageDataUrl)
+      ) {
         return false;
       }
+    }
+    if (message['messageType'] === 'ASA_BLOCKS_SAVE_BEFORE_EXIT_RESULT') {
+      const requestId = message['requestId'];
+      if (typeof requestId !== 'string') return false;
+      const pending = this.pendingSaveBeforeExit.get(requestId);
+      if (!pending) return false;
+      let result: BlocksSaveBeforeExitResult;
       if (message['ok'] === true) {
         if (
           !isNonNegativeSafeInteger(message['revision']) ||
-          !isNonNegativeSafeInteger(message['snapshotGeneration']) ||
+          !isNonNegativeSafeInteger(message['savedGeneration']) ||
           (message['reason'] !== null && typeof message['reason'] !== 'undefined')
         ) {
           return false;
         }
+        result = {
+          ok: true,
+          reason: null,
+          revision: message['revision'] as number,
+          savedGeneration: message['savedGeneration'] as number,
+        };
       } else if (message['ok'] === false) {
         if (
           typeof message['reason'] !== 'string' ||
           message['reason'].length === 0 ||
           typeof message['revision'] !== 'undefined' ||
-          typeof message['snapshotGeneration'] !== 'undefined'
+          typeof message['savedGeneration'] !== 'undefined'
         ) {
           return false;
         }
+        result = { ok: false, reason: message['reason'] };
       } else {
         return false;
       }
-      this.pendingFlushRequestIds.delete(requestId);
+      this.pendingSaveBeforeExit.delete(requestId);
+      pending.resolve(result);
     }
 
     this.options.onMessage?.(message);
