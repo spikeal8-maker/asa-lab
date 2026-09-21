@@ -7,7 +7,8 @@
 
 .assignment-brief {
   position: fixed;
-  z-index: 60;
+  /* Subject editors, including the fullscreen Blocks/Scratch shell, stay below 1100. */
+  z-index: 1100;
   left: 16px;
   bottom: 16px;
   max-width: calc(100vw - 32px);
