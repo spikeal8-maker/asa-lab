@@ -91,13 +91,13 @@ test('delayed startup shows one full-screen ASA loader until canonical editor-re
     await page.goto(`${parentOrigin}/product`, { waitUntil: 'domcontentloaded' });
     await assertLoadingSurface(page);
 
-    const home = page.locator('[data-asa-blocks-home-overlay]');
-    const homeCovered = await home.evaluate((node) => {
+    const account = page.locator('[data-asa-blocks-account-overlay]');
+    const accountCovered = await account.evaluate((node) => {
       const rect = node.getBoundingClientRect();
       const top = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
       return top !== node;
     });
-    expect(homeCovered).toBe(true);
+    expect(accountCovered).toBe(true);
 
     await page.screenshot({ path: `${evidenceDir}/loading-1440x960.png`, fullPage: true });
     await page.setViewportSize({ width: 1920, height: 1080 });
