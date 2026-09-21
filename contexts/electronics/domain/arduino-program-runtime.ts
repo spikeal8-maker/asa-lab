@@ -2150,7 +2150,6 @@ function advanceRuntime(
         resumeAtMs = Math.min(MAX_CLOCK_MICROSECONDS, error.wakeAtMicroseconds) / 1000;
       } else if (error instanceof ArduinoPulseWaitSignal) {
         pulseBlocked = true;
-        pulseWait = instructionState.pulseWait;
         resumeAtMs = Math.min(MAX_CLOCK_MICROSECONDS, error.wakeAtMicroseconds) / 1000;
       } else {
         if (!(error instanceof SyntaxError) && !(error instanceof ArduinoArithmeticError))
