@@ -2156,27 +2156,63 @@ test('native Scratch library Back controls never navigate the parent', async () 
     const parentUrl = `${parentOrigin}/product`;
     await expect(page.locator('[data-asa-blocks-home-overlay]')).toHaveCount(0);
 
-    await frame.getByRole('button', { name: 'Choose a Sprite' }).first().click();
-    await expect(frame.getByText('Abby', { exact: true })).toBeVisible();
-    await frame.getByRole('button', { name: 'Back', exact: true }).click();
-    await expect(page).toHaveURL(parentUrl);
+    const assertBackClosesLibrary = async (
+      openLibrary: () => Promise<void>,
+      markerText: string,
+    ): Promise<void> => {
+      await openLibrary();
+      await expect(page).toHaveURL(parentUrl);
 
-    await frame.getByRole('button', { name: 'Choose a Backdrop' }).first().click();
-    await expect(frame.getByText('Blue Sky', { exact: true })).toBeVisible();
-    await frame.getByRole('button', { name: 'Back', exact: true }).click();
-    await expect(page).toHaveURL(parentUrl);
+      const account = page.locator('[data-asa-blocks-account-overlay]');
+      const back = frame.getByRole('button', { name: 'Back', exact: true });
+      const marker = frame.getByText(markerText, { exact: true });
 
-    await frame.getByRole('tab', { name: 'Sounds', exact: true }).click();
-    await frame.getByRole('button', { name: 'Choose a Sound', exact: true }).first().click();
-    await expect(frame.getByText('Bark', { exact: true })).toBeVisible();
-    await frame.getByRole('button', { name: 'Back', exact: true }).click();
-    await expect(page).toHaveURL(parentUrl);
+      await expect(account).toBeVisible();
+      await expect(back).toBeVisible();
+      await expect(marker).toBeVisible();
 
-    await frame.getByRole('tab', { name: 'Code', exact: true }).click();
-    await frame.getByRole('button', { name: 'Add Extension', exact: true }).click();
-    await expect(frame.getByText('Music', { exact: true })).toBeVisible();
-    await frame.getByRole('button', { name: 'Back', exact: true }).click();
-    await expect(page).toHaveURL(parentUrl);
+      const accountBox = await account.boundingBox();
+      const backBox = await back.boundingBox();
+      expect(accountBox).not.toBeNull();
+      expect(backBox).not.toBeNull();
+      const overlaps =
+        accountBox!.x < backBox!.x + backBox!.width &&
+        accountBox!.x + accountBox!.width > backBox!.x &&
+        accountBox!.y < backBox!.y + backBox!.height &&
+        accountBox!.y + accountBox!.height > backBox!.y;
+      expect(overlaps).toBe(false);
+
+      await back.click();
+      await expect(back).toBeHidden();
+      await expect(marker).toBeHidden();
+      await expect(page).toHaveURL(parentUrl);
+    };
+
+    for (const viewport of [
+      { width: 390, height: 844 },
+      { width: 320, height: 720 },
+    ]) {
+      await page.setViewportSize(viewport);
+
+      await assertBackClosesLibrary(async () => {
+        await frame.getByRole('button', { name: 'Choose a Sprite' }).first().click();
+      }, 'Abby');
+
+      await assertBackClosesLibrary(async () => {
+        await frame.getByRole('button', { name: 'Choose a Backdrop' }).first().click();
+      }, 'Blue Sky');
+
+      await assertBackClosesLibrary(async () => {
+        await frame.getByRole('tab', { name: 'Sounds', exact: true }).click();
+        await frame.getByRole('button', { name: 'Choose a Sound', exact: true }).first().click();
+      }, 'Bark');
+
+      await assertBackClosesLibrary(async () => {
+        await frame.getByRole('tab', { name: 'Code', exact: true }).click();
+        await frame.getByRole('button', { name: 'Add Extension', exact: true }).click();
+      }, 'Music');
+    }
+
     expect(fixture.pageErrors).toEqual([]);
   } finally {
     await fixture.close();
