@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { saveProjectSnapshot } from '../project-snapshot-client';
 import { BlocksEditorShell } from './BlocksEditorShell';
 import { BlocksRuntimeBridge, requireExactHttpOrigin } from './runtime-protocol';
@@ -57,8 +57,26 @@ export function BlocksEditor({
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const bridgeRef = useRef<BlocksRuntimeBridge | null>(null);
   const homeSavePendingRef = useRef(false);
+  const onHomeClickRef = useRef(onHomeClick);
   const [startupState, setStartupState] = useState<BlocksEditorStartupState>('loading');
   const [attempt, setAttempt] = useState(0);
+
+  onHomeClickRef.current = onHomeClick;
+
+  const requestHomeExit = useCallback((): void => {
+    const activeBridge = bridgeRef.current;
+    if (!activeBridge || homeSavePendingRef.current) return;
+    homeSavePendingRef.current = true;
+    void activeBridge
+      .requestSaveBeforeExit()
+      .then((result) => {
+        if (result.ok && bridgeRef.current === activeBridge) onHomeClickRef.current();
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        homeSavePendingRef.current = false;
+      });
+  }, []);
 
   useEffect(() => {
     if (!runtimeOrigin) return undefined;
@@ -153,6 +171,7 @@ export function BlocksEditor({
           payload['sourceRevision'] as number,
         );
       }
+      if (payload['messageType'] === 'ASA_BLOCKS_HOME_REQUEST') requestHomeExit();
       if (payload['messageType'] === 'ASA_BLOCKS_FATAL') failStartup();
     };
 
@@ -228,22 +247,7 @@ export function BlocksEditor({
       if (bridgeRef.current === bridge) bridgeRef.current = null;
       homeSavePendingRef.current = false;
     };
-  }, [projectId, recoveryPrincipalKey, runtimeOrigin, attempt]);
-
-  const handleHomeClick = (): void => {
-    const activeBridge = bridgeRef.current;
-    if (!activeBridge || homeSavePendingRef.current) return;
-    homeSavePendingRef.current = true;
-    void activeBridge
-      .requestSaveBeforeExit()
-      .then((result) => {
-        if (result.ok && bridgeRef.current === activeBridge) onHomeClick();
-      })
-      .catch(() => undefined)
-      .finally(() => {
-        homeSavePendingRef.current = false;
-      });
-  };
+  }, [projectId, recoveryPrincipalKey, runtimeOrigin, attempt, requestHomeExit]);
 
   if (!runtimeOrigin) {
     return (
@@ -266,7 +270,6 @@ export function BlocksEditor({
         accountInitials={accountInitials}
         avatarUrl={avatarUrl}
         onAccountClick={onAccountClick}
-        onHomeClick={handleHomeClick}
       >
         <iframe
           key={attempt}

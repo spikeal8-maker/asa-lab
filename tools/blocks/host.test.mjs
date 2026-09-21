@@ -364,6 +364,7 @@ async function editorFixture(hasProjectJson = false, mode = 'editor', options = 
   let prepared = 0;
   let disposedStorage = 0;
   const dirtyGenerations = [];
+  let homeRequests = 0;
   let props;
   let params;
   let requestedId;
@@ -430,6 +431,9 @@ async function editorFixture(hasProjectJson = false, mode = 'editor', options = 
     onDirty(generation) {
       dirtyGenerations.push(generation);
     },
+    onHomeRequest() {
+      homeRequests += 1;
+    },
   });
   if (options.awaitStartup !== false) await editor.startup;
   return {
@@ -446,6 +450,7 @@ async function editorFixture(hasProjectJson = false, mode = 'editor', options = 
       return requestedId;
     },
     dirtyGenerations,
+    homeRequests: () => homeRequests,
     counts: () => ({ stops, quits, unmounts, ready, prepared, disposedStorage }),
   };
 }
@@ -458,6 +463,9 @@ test('new project mount uses Scratch default project and preserves native editor
   assert.equal(fixture.props.showSaveNow, false);
   assert.ok(fixture.props.autoSaveIntervalSecs >= 5 && fixture.props.autoSaveIntervalSecs <= 8);
   assert.equal(fixture.props.logo, '/asa-lab-scratch-wordmark.svg');
+  assert.equal(typeof fixture.props.onClickLogo, 'function');
+  fixture.props.onClickLogo();
+  assert.equal(fixture.homeRequests(), 1);
   assert.equal(fixture.requestedId, undefined);
   assert.equal(fixture.shell.dataset.projectSource, 'new-default');
   assert.equal(fixture.shell.dataset.draftRevision, '7');
@@ -1272,6 +1280,7 @@ test('status reporter sends bounded dirty generation and native thumbnail revisi
   });
   reporter.projectDirty(3);
   reporter.thumbnailReady(8, 'data:image/png;base64,AAAA');
+  reporter.homeRequest();
   assert.equal(calls[0].targetOrigin, API_ORIGIN);
   assert.equal(calls[0].message.protocolVersion, 1);
   assert.equal(calls[0].message.projectId, PROJECT_ID);
@@ -1282,6 +1291,12 @@ test('status reporter sends bounded dirty generation and native thumbnail revisi
   assert.equal(calls[1].message.messageType, 'ASA_BLOCKS_THUMBNAIL_READY');
   assert.equal(calls[1].message.sourceRevision, 8);
   assert.equal(calls[1].message.imageDataUrl, 'data:image/png;base64,AAAA');
+  assert.deepEqual(JSON.parse(JSON.stringify(calls[2].message)), {
+    protocolVersion: 1,
+    projectId: PROJECT_ID,
+    sessionNonce: 'nonce',
+    messageType: 'ASA_BLOCKS_HOME_REQUEST',
+  });
 });
 
 function protocolHarness() {

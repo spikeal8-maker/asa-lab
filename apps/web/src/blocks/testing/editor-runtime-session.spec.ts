@@ -653,11 +653,8 @@ describe('BlocksEditor runtime session bootstrap', () => {
     await fireLoad(iframe);
     const init = initCalls(postMessage)[0]?.[0] as Record<string, unknown>;
 
-    const home = container!.querySelector<HTMLButtonElement>('[data-asa-blocks-home-overlay]');
-    if (!home) throw new Error('Home control was not rendered');
-    await act(async () => {
-      home.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-      await flushAsync();
+    await dispatchChild(iframe, init, {
+      messageType: 'ASA_BLOCKS_HOME_REQUEST',
     });
 
     const request = postMessage.mock.calls
@@ -689,12 +686,11 @@ describe('BlocksEditor runtime session bootstrap', () => {
     await fireLoad(iframe);
     const init = initCalls(postMessage)[0]?.[0] as Record<string, unknown>;
 
-    const home = container!.querySelector<HTMLButtonElement>('[data-asa-blocks-home-overlay]');
-    if (!home) throw new Error('Home control was not rendered');
-    await act(async () => {
-      home.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-      home.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-      await flushAsync();
+    await dispatchChild(iframe, init, {
+      messageType: 'ASA_BLOCKS_HOME_REQUEST',
+    });
+    await dispatchChild(iframe, init, {
+      messageType: 'ASA_BLOCKS_HOME_REQUEST',
     });
     const requests = postMessage.mock.calls
       .map(([message]) => message as Record<string, unknown>)

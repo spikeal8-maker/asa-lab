@@ -103,6 +103,9 @@
           onDirty(generation) {
             reporter?.projectDirty(generation);
           },
+          onHomeRequest() {
+            reporter?.homeRequest();
+          },
           onThumbnailReady(sourceRevision, imageDataUrl) {
             reporter?.thumbnailReady(sourceRevision, imageDataUrl);
           },

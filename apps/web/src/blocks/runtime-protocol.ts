@@ -15,6 +15,7 @@ export type BlocksChildMessageType =
   | 'ASA_BLOCKS_STATUS'
   | 'ASA_BLOCKS_TOKEN_REFRESH_REQUIRED'
   | 'ASA_BLOCKS_SAVE_BEFORE_EXIT_RESULT'
+  | 'ASA_BLOCKS_HOME_REQUEST'
   | 'ASA_BLOCKS_THUMBNAIL_READY'
   | 'ASA_BLOCKS_FATAL';
 
@@ -95,6 +96,7 @@ function isChildMessageType(value: unknown): value is BlocksChildMessageType {
     value === 'ASA_BLOCKS_STATUS' ||
     value === 'ASA_BLOCKS_TOKEN_REFRESH_REQUIRED' ||
     value === 'ASA_BLOCKS_SAVE_BEFORE_EXIT_RESULT' ||
+    value === 'ASA_BLOCKS_HOME_REQUEST' ||
     value === 'ASA_BLOCKS_THUMBNAIL_READY' ||
     value === 'ASA_BLOCKS_FATAL'
   );
@@ -212,6 +214,13 @@ export class BlocksRuntimeBridge {
       message['sessionNonce'] !== this.sessionNonce
     ) {
       return false;
+    }
+    if (message['messageType'] === 'ASA_BLOCKS_HOME_REQUEST') {
+      const allowedKeys = new Set(['protocolVersion', 'messageType', 'projectId', 'sessionNonce']);
+      const keys = Object.keys(message);
+      if (keys.length !== allowedKeys.size || !keys.every((key) => allowedKeys.has(key))) {
+        return false;
+      }
     }
     if (message['messageType'] === 'ASA_BLOCKS_STATUS') {
       const status = message['status'];
