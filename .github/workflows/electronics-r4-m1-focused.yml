@@ -144,13 +144,9 @@ jobs:
       - name: Install exact dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Print exact Prettier repair
-        run: |
-          pnpm exec prettier --write e2e/electronics-interactions.spec.ts
-          git diff -- e2e/electronics-interactions.spec.ts
-
       - name: Wire regression unit tests
         run: >-
+          pnpm nx build module-sdk &&
           pnpm exec vitest run
           apps/web/src/electronics/testing/workbench-document.spec.ts
           apps/web/src/electronics/testing/workbench-autosave.spec.ts

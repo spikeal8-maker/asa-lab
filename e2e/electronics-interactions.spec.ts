@@ -729,4 +729,3 @@ test.describe('interaction: natural precise wire routing', () => {
     await page.screenshot({ path: 'reports/interactions/wire-compact-ui.png' });
   });
 });
-
