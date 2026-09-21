@@ -448,3 +448,52 @@ Hard delete исходной учебной работы и её историч�
 - direct assignment;
 - Course Activity occurrence;
 - Electronics/3D/другой module.
+
+
+## 23. Архитектурные уточнения после критического анализа
+
+Этот документ реализуется совместно с ASA_LEARNING_WORK_ARCHITECTURE_PLAN.md.
+
+### 23.1 Проект не создаётся отдельно от учебного происхождения
+
+Новый продуктовый Start не выполняет две независимые клиентские mutation createProject → startAssignment.
+
+Project, Learning Project Origin и Attempt создаются/reuse одной идемпотентной server operation. Частичный сбой не должен оставлять обычный personal project, который на самом деле был началом задания.
+
+### 23.2 Защита охватывает обычное дублирование
+
+Generic Duplicate Project не является обходом запрета публикации учебного оригинала.
+
+Для protected learning work:
+- обычное duplicate либо запрещено, либо перенаправляет пользователя на отдельное действие «Создать личную копию»;
+- eligibility личной копии возвращает сервер;
+- active/submitted/changes_requested original по умолчанию не копируется в personal space;
+- terminal accepted/withdrawn может разрешить personal copy по policy.
+
+### 23.3 Принятая исходная работа read-only
+
+После accepted/completed:
+- исходный learning project доступен для просмотра;
+- generic edit запрещён;
+- learning archive разрешается по policy;
+- дальнейшее экспериментирование выполняется в personal copy.
+
+Если canonical workflow позже становится changes_requested, исходная работа снова получает edit/resubmit actions.
+
+### 23.4 Один policy resolver
+
+Allowed actions для project lifecycle вычисляются одной Learning Work Policy и используются:
+- Projects status mutation;
+- duplicate;
+- gallery publish;
+- learning archive;
+- personal copy;
+- editor write authorization.
+
+Запрещено поддерживать пять расходящихся списков условий.
+
+### 23.5 Список проектов читает server-derived provenance
+
+Account project list не должен определять badge «Учебная работа» по classroomId, title или client-side lookup assignments.
+
+Project list API/projection получает server-derived learning origin/state/allowed actions либо присоединяет canonical Learning Work Context проекцию на сервере.
