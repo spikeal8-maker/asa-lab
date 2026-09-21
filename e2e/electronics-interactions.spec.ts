@@ -512,11 +512,14 @@ async function locatorCenter(locator: Locator) {
   return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
 }
 
-async function pathScreenEnd(locator: Locator) {
-  return locator.evaluate((element) => {
+async function pathScreenPoint(locator: Locator, ratio = 1) {
+  return locator.evaluate((element, positionRatio) => {
     const path = element as SVGPathElement;
-    return path.getPointAtLength(path.getTotalLength()).matrixTransform(path.getScreenCTM()!);
-  });
+    const point = path
+      .getPointAtLength(path.getTotalLength() * positionRatio)
+      .matrixTransform(path.getScreenCTM()!);
+    return { x: point.x, y: point.y };
+  }, ratio);
 }
 
 function wiredDocument(): SchematicDocument {
@@ -538,12 +541,7 @@ test.describe('interaction: natural precise wire routing', () => {
     await openEditor(page, wiredDocument());
 
     const wirePath = page.getByTestId('wire-hit').first();
-    const wirePoint = await wirePath.evaluate((element) => {
-      const path = element as SVGPathElement;
-      return path
-        .getPointAtLength(path.getTotalLength() * 0.5)
-        .matrixTransform(path.getScreenCTM()!);
-    });
+    const wirePoint = await pathScreenPoint(wirePath, 0.5);
     await page.mouse.click(wirePoint.x, wirePoint.y);
     await expect(page.getByTestId('wire-endpoint')).toHaveCount(2);
 
@@ -589,12 +587,13 @@ test.describe('interaction: natural precise wire routing', () => {
 
       await page.mouse.click(sourcePoint.x, sourcePoint.y);
       const preview = page.locator('.workbench-wire-preview');
-      await expect(preview).toBeVisible();
+      await expect(preview).toHaveCount(1);
 
       const freePointer = { x: sourcePoint.x + 120, y: sourcePoint.y + 6 };
       await page.mouse.move(freePointer.x, freePointer.y);
       await frames(page);
-      const previewEnd = await pathScreenEnd(preview);
+      await expect(preview).toBeVisible();
+      const previewEnd = await pathScreenPoint(preview);
       expect(previewEnd.x).toBeCloseTo(freePointer.x, 0);
       expect(previewEnd.y).toBeCloseTo(freePointer.y, 0);
       expect(Math.abs(previewEnd.y - sourcePoint.y)).toBeGreaterThan(3);
@@ -666,7 +665,7 @@ test.describe('interaction: natural precise wire routing', () => {
     const shiftedPointer = { x: sourcePoint.x + 110, y: sourcePoint.y + 38 };
     await page.mouse.move(shiftedPointer.x, shiftedPointer.y);
     await frames(page);
-    const shiftedEnd = await pathScreenEnd(page.locator('.workbench-wire-preview'));
+    const shiftedEnd = await pathScreenPoint(page.locator('.workbench-wire-preview'));
     expect(
       Math.min(Math.abs(shiftedEnd.x - sourcePoint.x), Math.abs(shiftedEnd.y - sourcePoint.y)),
     ).toBeLessThan(2);
@@ -687,7 +686,7 @@ test.describe('interaction: natural precise wire routing', () => {
     const freePointer = { x: sourcePoint.x + 105, y: sourcePoint.y + 34 };
     await page.mouse.move(freePointer.x, freePointer.y);
     await frames(page);
-    const orthogonalEnd = await pathScreenEnd(page.locator('.workbench-wire-preview'));
+    const orthogonalEnd = await pathScreenPoint(page.locator('.workbench-wire-preview'));
     expect(
       Math.min(
         Math.abs(orthogonalEnd.x - sourcePoint.x),
@@ -721,12 +720,7 @@ test.describe('interaction: natural precise wire routing', () => {
       await colorSummary.click();
 
       const wirePath = page.getByTestId('wire-hit').first();
-      const wirePoint = await wirePath.evaluate((element) => {
-        const path = element as SVGPathElement;
-        return path
-          .getPointAtLength(path.getTotalLength() * 0.5)
-          .matrixTransform(path.getScreenCTM()!);
-      });
+      const wirePoint = await pathScreenPoint(wirePath, 0.5);
       await page.mouse.click(wirePoint.x, wirePoint.y);
       const compact = page.getByTestId('wire-inspector-compact');
       await expect(compact).toBeVisible();

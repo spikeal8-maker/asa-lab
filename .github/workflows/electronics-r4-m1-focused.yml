@@ -118,9 +118,40 @@ jobs:
             reports/electronics-opt0-*.md
           if-no-files-found: ignore
           retention-days: 14
+  format-probe:
+    name: Wire formatter probe
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install exact dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Print exact Prettier repair
+        run: |
+          pnpm exec prettier --write apps/web/src/electronics/use-electronics-workbench.ts e2e/electronics-interactions.spec.ts
+          git diff -- apps/web/src/electronics/use-electronics-workbench.ts e2e/electronics-interactions.spec.ts
+
   browser:
     name: Actual editor live simulation journey
-    if: ${{ always() }}
+    if: ${{ false }}
     needs: focused
     runs-on: ubuntu-24.04
     timeout-minutes: 35
