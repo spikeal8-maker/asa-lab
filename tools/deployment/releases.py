@@ -46,7 +46,8 @@ def assert_ci(release):
             publication = json.load(response)
     except (OSError, ValueError, KeyError) as exc:
         raise Blocked("CI_UNAVAILABLE", "Cannot verify GitHub CI for the selected release.", "Retry when GitHub is accessible; the current installation is unchanged.") from exc
-    require(publication.get("name") == "ASA Portable Release"
+    # GitHub's run metadata can use run-name instead of the workflow's static name.
+    require(publication.get("name") in ("ASA Portable Release", f"Release {revision}")
             and publication.get("path") == ".github/workflows/portable-release.yml"
             and publication.get("display_title") == f"Release {revision}"
             and publication.get("head_branch") == "main"

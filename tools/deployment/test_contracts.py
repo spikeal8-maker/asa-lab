@@ -56,16 +56,18 @@ class WindowTests(unittest.TestCase):
 
 class ReleaseTests(unittest.TestCase):
     def test_publication_and_general_ci_must_both_match(self):
-        publication = {"name": "ASA Portable Release", "path": ".github/workflows/portable-release.yml",
+        publication = {"name": "Release " + "a" * 40, "path": ".github/workflows/portable-release.yml",
                        "display_title": "Release " + "a" * 40, "head_branch": "main",
                        "status": "completed", "conclusion": "success"}
         general = {"name": "ASA Lab Governance and Code Gates", "head_sha": "a" * 40,
                    "head_branch": "main", "status": "completed", "conclusion": "success", "run_number": 1}
-        for change in ({}, {"conclusion": "failure"}, {"head_branch": "feature"}, {"display_title": "Release " + "b" * 40}):
+        for change in ({}, {"name": "ASA Portable Release"}, {"name": "Unrelated workflow"},
+                       {"path": ".github/workflows/other.yml"}, {"status": "in_progress"},
+                       {"conclusion": "failure"}, {"head_branch": "feature"}, {"display_title": "Release " + "b" * 40}):
             responses = [io.BytesIO(json.dumps({"workflow_runs": [general]}).encode()),
                          io.BytesIO(json.dumps({**publication, **change}).encode())]
             with self.subTest(change=change), patch("deployment.releases.urllib.request.urlopen", side_effect=responses):
-                if change:
+                if change and change != {"name": "ASA Portable Release"}:
                     with self.assertRaises(Blocked):
                         assert_ci(release())
                 else:

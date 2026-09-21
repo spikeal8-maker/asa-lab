@@ -16,7 +16,7 @@ task:
   pr: null
   pr_draft: false
   status: in_progress
-  checkpoint: owner_requested_release_activation_test_baseline_repair
+  checkpoint: first_release_published_client_metadata_repair
   owner_acceptance: pending
 
 revisions:

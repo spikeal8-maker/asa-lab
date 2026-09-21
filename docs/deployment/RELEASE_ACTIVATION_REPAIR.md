@@ -35,3 +35,19 @@ backup/restore smoke test. The prior failed run is
 [35660288631](https://github.com/spikeal8-maker/asa-lab/actions/runs/35660288631):
 2,622 tests passed; eight historical migration expectations and one Servo timeout
 failed. No assertion is skipped and no gate is bypassed.
+
+## Exact publication metadata repair
+
+The first real publication succeeded in
+[run 35662408770](https://github.com/spikeal8-maker/asa-lab/actions/runs/35662408770).
+The client's first read-only `check` rejected it because the observed GitHub run
+response uses `Release <revision>` in both `name` and `display_title`, while the
+client expected the workflow's static name in `name`. This is a defect of the
+portable implementation (category A), discovered before changing live services.
+
+The bounded repair affects `tools/deployment/releases.py` and its contract test.
+Accept the two exact name forms while retaining the exact workflow path, release
+title, main branch, completed/success publication and exact-SHA green general CI.
+Tests use the observed name form and reject an unrelated name/path, an unfinished
+or failed run, the wrong branch/title, and a newer failed general run. No override
+of publication verification or live data operation is introduced.
