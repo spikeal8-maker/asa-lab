@@ -41,9 +41,7 @@ export function LessonBlocks({
   readonly blocks: readonly LessonBlock[];
   readonly legacyContent?: string | null;
   readonly compact?: boolean;
-  readonly renderActivity?: (
-    block: Extract<LessonBlock, { type: 'activity' }>,
-  ) => ReactNode;
+  readonly renderActivity?: (block: Extract<LessonBlock, { type: 'activity' }>) => ReactNode;
 }): JSX.Element | null {
   const content = visibleBlocks(blocks, legacyContent);
   if (content.length === 0) return null;
