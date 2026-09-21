@@ -305,14 +305,12 @@ test.afterAll(async () => {
   await admin.end();
 });
 
-async function createPublishedProjectActivity(
+async function createPublishedProjectActivityAfterLogin(
   page: Page,
   title: string,
   module = 'electronics',
   resultMode = 'completion',
-  actor = teacher,
 ): Promise<void> {
-  await loginWithOrganization(page, actor);
   await page.goto('/#/challenges');
   await page.getByLabel('Название материала', { exact: true }).fill(title);
   await page
@@ -325,6 +323,17 @@ async function createPublishedProjectActivity(
   await page.getByRole('button', { name: 'Опубликовать', exact: true }).click();
   await expect(page.getByText(/Опубликована версия 1/)).toBeVisible();
   await page.screenshot({ path: evidenceDir + '/authored-material-published.png', fullPage: true });
+}
+
+async function createPublishedProjectActivity(
+  page: Page,
+  title: string,
+  module = 'electronics',
+  resultMode = 'completion',
+  actor = teacher,
+): Promise<void> {
+  await loginWithOrganization(page, actor);
+  await createPublishedProjectActivityAfterLogin(page, title, module, resultMode);
 }
 
 test('Teacher Home: empty, exact review, read/OFF, return/resubmit, accept and exact join approval', async ({
@@ -1319,8 +1328,9 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
   const threeDTitle = `D5 3D Activity ${suffix}`;
   const courseTitle = `D5 Activity blocks ${suffix}`;
 
-  await createPublishedProjectActivity(page, electronicsTitle, 'electronics');
-  await createPublishedProjectActivity(page, threeDTitle, 'three-d');
+  await loginWithOrganization(page, teacher);
+  await createPublishedProjectActivityAfterLogin(page, electronicsTitle, 'electronics');
+  await createPublishedProjectActivityAfterLogin(page, threeDTitle, 'three-d');
 
   await page.getByRole('button', { name: 'Мои курсы', exact: true }).click();
   await page.getByRole('button', { name: 'Создать курс', exact: true }).click();
@@ -1346,10 +1356,7 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
   await editor.getByLabel('Текст врезки', { exact: true }).fill('Между двумя практиками');
 
   await editor.getByRole('button', { name: '+ Практика', exact: true }).click();
-  await editor
-    .getByLabel('Опубликованная активность')
-    .nth(1)
-    .selectOption({ label: threeDTitle });
+  await editor.getByLabel('Опубликованная активность').nth(1).selectOption({ label: threeDTitle });
 
   await editor.getByRole('button', { name: 'Добавить урок', exact: true }).click();
   await expect(page.getByText('Урок добавлен.', { exact: true })).toBeVisible();
@@ -1406,7 +1413,9 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
   await expect(learnerBlocks.nth(2)).toContainText('Между двумя практиками');
   await expect(learnerBlocks.nth(3)).toContainText(threeDTitle);
 
-  let electronicsCard = player.locator('.lesson-activity-block').filter({ hasText: electronicsTitle });
+  let electronicsCard = player
+    .locator('.lesson-activity-block')
+    .filter({ hasText: electronicsTitle });
   let threeDCard = player.locator('.lesson-activity-block').filter({ hasText: threeDTitle });
   await expect(electronicsCard).toContainText('Electronics');
   await expect(electronicsCard).toContainText('Не начато');
@@ -1419,7 +1428,9 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
   await openCourse();
   electronicsCard = player.locator('.lesson-activity-block').filter({ hasText: electronicsTitle });
   threeDCard = player.locator('.lesson-activity-block').filter({ hasText: threeDTitle });
-  await expect(electronicsCard.getByRole('button', { name: 'Открыть работу', exact: true })).toBeVisible();
+  await expect(
+    electronicsCard.getByRole('button', { name: 'Открыть работу', exact: true }),
+  ).toBeVisible();
   await expect(threeDCard.getByRole('button', { name: 'Начать', exact: true })).toBeVisible();
 
   await electronicsCard.getByRole('button', { name: 'Открыть работу', exact: true }).click();
@@ -1443,11 +1454,12 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
 
   await openCourse();
   threeDCard = player.locator('.lesson-activity-block').filter({ hasText: threeDTitle });
-  await expect(threeDCard.getByRole('button', { name: 'Открыть работу', exact: true })).toBeVisible();
+  await expect(
+    threeDCard.getByRole('button', { name: 'Открыть работу', exact: true }),
+  ).toBeVisible();
   await threeDCard.getByRole('button', { name: 'Открыть работу', exact: true }).click();
   await expect(learner.page.getByTestId('asa3d-viewport')).toBeVisible({ timeout: 60_000 });
 
   learnerFailures.assertEmpty();
   await learner.context.close();
 });
-
