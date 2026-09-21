@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   ASSIGNMENT_BRIEF_EDGE_INSET,
+  ASSIGNMENT_BRIEF_MAX_HEIGHT_RATIO,
+  ASSIGNMENT_BRIEF_MAX_WIDTH_RATIO,
   ASSIGNMENT_BRIEF_MIN_HEIGHT,
   ASSIGNMENT_BRIEF_MIN_WIDTH,
   ASSIGNMENT_BRIEF_TOP_INSET,
@@ -47,6 +49,20 @@ describe('learning work shell assignment brief geometry', () => {
     const expanded = resizeAssignmentBriefRect(rect, 'bottom-right', 5000, 5000, 1440, 900);
     expect(expanded.x + expanded.width).toBeLessThanOrEqual(1440 - ASSIGNMENT_BRIEF_EDGE_INSET);
     expect(expanded.y + expanded.height).toBeLessThanOrEqual(900 - ASSIGNMENT_BRIEF_EDGE_INSET);
+  });
+
+
+  it('limits a desktop task card to the normative viewport ratios', () => {
+    const rect = clampAssignmentBriefRect(
+      { x: 12, y: 70, width: 5000, height: 5000 },
+      1440,
+      900,
+    );
+    expect(rect.width).toBeLessThanOrEqual(Math.floor(1440 * ASSIGNMENT_BRIEF_MAX_WIDTH_RATIO));
+    const usableHeight = 900 - ASSIGNMENT_BRIEF_TOP_INSET - ASSIGNMENT_BRIEF_EDGE_INSET * 2;
+    expect(rect.height).toBeLessThanOrEqual(
+      Math.floor(usableHeight * ASSIGNMENT_BRIEF_MAX_HEIGHT_RATIO),
+    );
   });
 
   it('recovers corrupt or off-screen stored geometry safely', () => {
