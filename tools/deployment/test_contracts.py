@@ -26,7 +26,7 @@ def release():
 
 def compose_config():
     return {"services": {
-        "postgres": {"environment": {"POSTGRES_DB": "asalab"}, "volumes": [{"type": "volume", "target": "/var/lib/postgresql/data", "source": "postgres-data"}]},
+        "postgres": {"image": "postgres:17.7-bookworm", "environment": {"POSTGRES_DB": "asalab"}, "volumes": [{"type": "volume", "target": "/var/lib/postgresql/data", "source": "postgres-data"}]},
         "minio": {"volumes": [{"type": "volume", "target": "/data", "source": "objects"}]},
         "api": {"environment": {"APP_DATABASE_URL": "postgres://asalab_app:synthetic@postgres:5432/asalab"}},
         "migration": {"environment": {"MIGRATION_DATABASE_URL": "postgres://admin:synthetic@postgres:5432/asalab", "MIGRATION_EXPECT_DATABASE": "asalab", "MIGRATION_CONFIRM": "APPLY:asalab"}},
@@ -179,7 +179,16 @@ class IdentityTests(unittest.TestCase):
                   "com.docker.compose.project.working_dir": str(self.root),
                   "com.docker.compose.project.config_files": ",".join(str(self.root / p) for p in self.install.files)}
         labels.update(overrides)
-        return {"labels": labels, "running": True, "mounts": [{"Type": "volume", "Destination": "/var/lib/postgresql/data", "Name": "asa-lab-dev_postgres-data"}]}
+        return {"labels": labels, "image": "postgres:17.7-bookworm", "running": True, "mounts": [{"Type": "volume", "Destination": "/var/lib/postgresql/data", "Name": "asa-lab-dev_postgres-data"}]}
+
+    def test_changed_pgdata_or_engine_cannot_initialize_a_new_empty_database(self):
+        for section, key, value in (("environment", "PGDATA", "/var/lib/postgresql/data/new"), (None, "image", "postgres:18")):
+            config = compose_config()
+            target = config["services"]["postgres"]
+            (target[section] if section else target)[key] = value
+            self.install.compose.return_value = json.dumps(config)
+            with self.subTest(key=key), patch.object(self.install, "containers", return_value=[self.record()]), self.assertRaises(Blocked):
+                self.install.identity()
 
     def test_renamed_and_external_database_volumes_are_refused(self):
         for name in ("asa-lab-dev_new-data", "external-other-database"):

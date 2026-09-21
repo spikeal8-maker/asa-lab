@@ -145,6 +145,8 @@ class Installation:
             require(name and name == actual[0].get("Name"), "IDENTITY_VOLUME", f"Persistent volume identity changed for {service}.",
                     "Keep the original volume; a data migration requires a separate explicit operation.")
         if "postgres" in records:
+            require(config["services"]["postgres"]["image"] == records["postgres"]["image"], "DATABASE_ENGINE",
+                    "The PostgreSQL engine image changed.", "Upgrade the database engine as a separate backed-up operation before application updates.")
             attest_database_targets(config, self.container_environment(records["postgres"]),
                                     self.container_environment(records["api"]) if "api" in records else None)
 

@@ -46,6 +46,9 @@ def attest_database_targets(config, postgres_env, api_env=None):
     services = config["services"]
     expected = services["postgres"]["environment"]["POSTGRES_DB"]
     require(postgres_env.get("POSTGRES_DB") == expected, "DATABASE_TARGET", "PostgreSQL database configuration changed.")
+    require(services["postgres"]["environment"].get("PGDATA", "/var/lib/postgresql/data") == postgres_env.get("PGDATA", "/var/lib/postgresql/data"),
+            "DATABASE_TARGET", "PostgreSQL data directory changed inside the volume.",
+            "Preserve PGDATA; changing the storage layout requires an explicit data migration.")
     def target(value):
         parsed = urlsplit(value or "")
         require(parsed.scheme in ("postgres", "postgresql") and not parsed.query and not parsed.fragment,
