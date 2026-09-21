@@ -1313,11 +1313,7 @@ export function useElectronicsWorkbench(projectId: string) {
     stageRef.current?.setPointerCapture(event.pointerId);
   }
 
-  function clickTerminal(
-    componentId: string,
-    terminal: Terminal,
-    forceOrthogonal = false,
-  ): void {
+  function clickTerminal(componentId: string, terminal: Terminal, forceOrthogonal = false): void {
     if (!document) return;
     if (simulationRunning) {
       setNotice('Идёт моделирование: остановите его, чтобы менять соединения.');
@@ -1674,9 +1670,7 @@ export function useElectronicsWorkbench(projectId: string) {
       const start = wireTerminalPoint(wireStartPress.source);
       if (start) {
         const anchor = wireDraftVertices[wireDraftVertices.length - 1] ?? start;
-        setWirePreviewEnd(
-          wireDraftPoint(anchor, world, orthogonalWireMode || event.shiftKey),
-        );
+        setWirePreviewEnd(wireDraftPoint(anchor, world, orthogonalWireMode || event.shiftKey));
       }
       setReconnectHover(terminalTargetAt(event.clientX, event.clientY));
       return;
