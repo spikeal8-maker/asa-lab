@@ -273,3 +273,35 @@
     grid-template-columns: 1fr auto 1fr;
   }
 }
+.seat-course-activity {
+  display: grid;
+  gap: 10px;
+}
+
+.seat-course-activity-main {
+  display: grid;
+  gap: 3px;
+}
+
+.seat-course-activity-main > strong {
+  color: #172a34;
+  font-size: 15px;
+}
+
+.seat-course-activity-main > small {
+  color: var(--ink-muted);
+  font-size: 11px;
+}
+
+.seat-course-activity-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+@media (max-width: 460px) {
+  .seat-course-activity-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}
