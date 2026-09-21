@@ -118,43 +118,8 @@ jobs:
             reports/electronics-opt0-*.md
           if-no-files-found: ignore
           retention-days: 14
-  wire-validation-probe:
-    name: Wire formatter and regression probe
-    runs-on: ubuntu-24.04
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          persist-credentials: false
-          fetch-depth: 0
-
-      - name: Set up pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 9.15.9
-          run_install: false
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-
-      - name: Install exact dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Wire regression unit tests
-        run: >-
-          pnpm nx build module-sdk &&
-          pnpm exec vitest run
-          apps/web/src/electronics/testing/workbench-document.spec.ts
-          apps/web/src/electronics/testing/workbench-autosave.spec.ts
-          apps/web/src/electronics/testing/workbench-geometry.spec.ts
-
   browser:
     name: Actual editor live simulation journey
-    if: ${{ false }}
     needs: focused
     runs-on: ubuntu-24.04
     timeout-minutes: 35
