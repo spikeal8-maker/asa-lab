@@ -28,11 +28,14 @@ existing solver result and benchmark receipt to explain the reported fingerprint
 - `apps/web/src/electronics/arduino-source-language.ts`
 - `apps/web/src/api.ts` (existing optional Servo result only)
 - `apps/web/src/electronics/testing/arduino-source-language.spec.ts`
+- `apps/web/src/electronics/testing/live-simulation.spec.ts` (unsupported fixture;
+  PIR now has an implemented model)
 - `contexts/electronics/testing/benchmark-corpus.spec.ts`
 - benchmark fixture/generator only if a result-by-result comparison justifies it
 - hygiene baseline and a bounded review record for Arduino runtime growth
 
-The code budget is three production files and two focused test files. Existing
+The code budget is three production files and three focused test files; the extra
+fixture preserves the unsupported-circuit assertion after PIR gained a model. Existing
 Servo/ultrasonic semantics are read from the registry/runtime, not invented here.
 No solver equations, canonical time, runtime semantics, owner media, database or
 permission changes. No blind golden regeneration and no disabled assertions.

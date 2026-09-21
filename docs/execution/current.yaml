@@ -144,7 +144,7 @@ parallel_lanes:
       - tools/test_validate_electronics_agent_docs.mjs
     task:
       id: TASK-ELECTRONICS-RELEASE-BASELINE-001
-      issue: null
+      issue: 380
       branch: main
       base_branch: main
       pr: null

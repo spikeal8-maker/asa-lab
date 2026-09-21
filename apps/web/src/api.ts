@@ -1305,6 +1305,7 @@ export interface ComponentResult {
   motorRpm?: number;
   outputRpm?: number;
   vibrationFrequencyHz?: number;
+  readonly servoAngleDegrees?: number;
   vibrationAccelerationG?: number;
   vibrationLevelPercent?: number;
   motorAngularPhaseRadian?: number;
