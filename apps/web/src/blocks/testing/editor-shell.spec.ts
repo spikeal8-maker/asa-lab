@@ -10,7 +10,6 @@ describe('BlocksEditorShell', () => {
         accountLabel: 'Александр',
         accountInitials: 'АА',
         onAccountClick: vi.fn(),
-        onHomeClick: vi.fn(),
         avatarUrl: '/account-avatar.png',
         children: createElement('iframe', {
           title: 'Scratch runtime',
@@ -24,8 +23,9 @@ describe('BlocksEditorShell', () => {
     expect(html).not.toContain('data-asa-blocks-save');
     expect(html).not.toContain('Сохранить в ASA');
     expect(html).toContain('data-asa-blocks-account-overlay');
-    expect(html).toContain('data-asa-blocks-home-overlay');
-    expect(html).toContain('ASA Lab — на главную');
+    expect(html).not.toContain('data-asa-blocks-home-overlay');
+    expect(html).not.toContain('blocks-editor-home');
+    expect(html).not.toContain('ASA Lab — на главную');
     expect(html).toContain('/account-avatar.png');
     expect(html).toContain('https://scratch-runtime.example');
     expect(html).not.toContain('runtimeToken');
@@ -38,7 +38,6 @@ describe('BlocksEditorShell', () => {
         accountLabel: 'Пользователь ASA Lab',
         accountInitials: 'АС',
         onAccountClick: vi.fn(),
-        onHomeClick: vi.fn(),
         children: createElement('iframe', {
           title: 'Scratch runtime',
           src: 'https://scratch-runtime.example',
