@@ -563,9 +563,7 @@ test('A0 Blocks keeps anchor and panel topmost over fullscreen Scratch', async (
   const anchorBox = (await anchor.boundingBox())!;
   const anchorTopmost = await learner.page.evaluate(
     ({ x, y }) =>
-      Boolean(
-        document.elementFromPoint(x, y)?.closest('[data-testid="assignment-brief-anchor"]'),
-      ),
+      Boolean(document.elementFromPoint(x, y)?.closest('[data-testid="assignment-brief-anchor"]')),
     { x: anchorBox.x + anchorBox.width / 2, y: anchorBox.y + anchorBox.height / 2 },
   );
   expect(anchorTopmost).toBe(true);
