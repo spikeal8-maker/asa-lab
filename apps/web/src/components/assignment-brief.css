@@ -1,36 +1,80 @@
-/* The task, over the work.
+/* Universal learning task overlay.
  *
- * Fixed to the top so it survives whatever the editor does with its own layout,
- * and clear of the editor's own toolbar so it never covers the controls the
- * learner needs to build with. Folded away it is a pill the width of its own
- * words; opened it is a card, and the model keeps the middle of the screen.
+ * The assignment belongs to Learning and floats above the subject editor.
+ * Subject modules keep their own layout untouched. Desktop gets a movable,
+ * resizable card; narrow screens get a dedicated bottom sheet.
  */
 
 .assignment-brief {
   position: fixed;
   z-index: 60;
-  top: 62px;
-  left: 50%;
-  width: max-content;
-  max-width: calc(100vw - 24px);
-  transform: translateX(-50%);
+  left: 16px;
+  bottom: 16px;
+  max-width: calc(100vw - 32px);
   border: 1px solid #b9d7e5;
   border-radius: 12px;
   background: #f4fafd;
   box-shadow: 0 10px 28px rgba(17, 52, 71, 0.18);
+  color: #16232c;
 }
 
 .assignment-brief.is-open {
-  width: min(760px, calc(100vw - 24px));
+  display: flex;
+  flex-direction: column;
+  bottom: auto;
+  max-width: none;
+  max-height: none;
+  min-width: min(320px, calc(100vw - 24px));
+  min-height: 220px;
+  overflow: hidden;
 }
 
-/* Полоса над холстом: свёрнутая она должна быть строкой, а не панелью —
-   место на экране принадлежит модели, а не напоминанию о задании. */
 .assignment-brief-bar {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 3px 6px 3px 10px;
+  gap: 8px;
+  min-height: 38px;
+  padding: 5px 6px 5px 8px;
+}
+
+.assignment-brief.is-open .assignment-brief-bar {
+  flex: 0 0 auto;
+  border-bottom: 1px solid rgba(11, 111, 159, 0.12);
+}
+
+.assignment-brief-drag,
+.assignment-brief-reset {
+  flex: 0 0 auto;
+  border: 0;
+  background: transparent;
+  color: #526773;
+  cursor: pointer;
+}
+
+.assignment-brief-drag {
+  width: 28px;
+  min-height: 28px;
+  padding: 0;
+  border-radius: 7px;
+  font-size: 18px;
+  line-height: 1;
+  cursor: move;
+  touch-action: none;
+}
+
+.assignment-brief-drag:hover,
+.assignment-brief-reset:hover {
+  background: rgba(11, 111, 159, 0.08);
+  color: #0b6f9f;
+}
+
+.assignment-brief-reset {
+  min-height: 28px;
+  padding: 0 6px;
+  border-radius: 7px;
+  font: inherit;
+  font-size: 12px;
+  white-space: nowrap;
 }
 
 .assignment-brief-toggle {
@@ -50,8 +94,15 @@
   cursor: pointer;
 }
 
-.assignment-brief-toggle span {
+.assignment-brief-toggle > span:first-child {
+  flex: 0 0 auto;
   color: #0a6f9c;
+}
+
+.assignment-brief-toggle {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .assignment-brief-state {
@@ -67,7 +118,7 @@
 
 .assignment-brief-submit {
   flex: 0 0 auto;
-  min-height: 26px;
+  min-height: 28px;
   padding: 0 12px;
   border: 0;
   border-radius: 999px;
@@ -83,21 +134,186 @@
   background: #075c85;
 }
 
-/* Вёрстка самого задания — общая (assignment-view). Полосе остаётся рамка
-   вокруг неё и потолок по высоте: экран принадлежит модели. */
+.assignment-brief-submit:disabled {
+  cursor: default;
+  opacity: 0.58;
+}
+
+.assignment-brief-meta {
+  flex: 0 0 auto;
+  padding: 7px 14px 0;
+  color: #526773;
+}
+
+.assignment-brief-meta > :first-child {
+  margin-top: 0;
+}
+
+.assignment-brief-meta > :last-child {
+  margin-bottom: 0;
+}
+
 .assignment-brief-body {
-  overflow-y: auto;
-  max-height: 46vh;
-  padding: 0 14px 14px;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 8px 14px 14px;
+}
+
+.assignment-brief-body > p:first-child {
+  margin-top: 0;
+  color: #526773;
+  font-size: 13px;
 }
 
 .assignment-brief-body .assignment-view {
-  grid-template-columns: minmax(0, 1fr) 180px;
+  grid-template-columns: minmax(0, 1fr) minmax(160px, 32%);
   gap: 14px;
 }
 
+/* Eight resize zones keep the visual handle subtle while making every edge usable. */
+.assignment-brief-resize {
+  position: absolute;
+  z-index: 2;
+  display: block;
+  touch-action: none;
+}
+
+.assignment-brief-resize-top,
+.assignment-brief-resize-bottom {
+  left: 12px;
+  right: 12px;
+  height: 10px;
+  cursor: ns-resize;
+}
+
+.assignment-brief-resize-top {
+  top: -5px;
+}
+
+.assignment-brief-resize-bottom {
+  bottom: -5px;
+}
+
+.assignment-brief-resize-left,
+.assignment-brief-resize-right {
+  top: 12px;
+  bottom: 12px;
+  width: 10px;
+  cursor: ew-resize;
+}
+
+.assignment-brief-resize-left {
+  left: -5px;
+}
+
+.assignment-brief-resize-right {
+  right: -5px;
+}
+
+.assignment-brief-resize-top-left,
+.assignment-brief-resize-top-right,
+.assignment-brief-resize-bottom-left,
+.assignment-brief-resize-bottom-right {
+  width: 16px;
+  height: 16px;
+}
+
+.assignment-brief-resize-top-left {
+  top: -5px;
+  left: -5px;
+  cursor: nwse-resize;
+}
+
+.assignment-brief-resize-top-right {
+  top: -5px;
+  right: -5px;
+  cursor: nesw-resize;
+}
+
+.assignment-brief-resize-bottom-left {
+  bottom: -5px;
+  left: -5px;
+  cursor: nesw-resize;
+}
+
+.assignment-brief-resize-bottom-right {
+  right: -5px;
+  bottom: -5px;
+  cursor: nwse-resize;
+}
+
 @media (max-width: 720px) {
+  .assignment-brief {
+    left: 12px;
+    right: auto;
+    bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+    max-width: calc(100vw - 24px);
+    border-radius: 999px;
+  }
+
+  .assignment-brief .assignment-brief-bar {
+    min-height: 40px;
+    padding: 5px 10px;
+  }
+
+  .assignment-brief.is-open {
+    left: 8px !important;
+    right: 8px;
+    top: auto !important;
+    bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+    width: auto !important;
+    height: min(82dvh, 680px) !important;
+    min-width: 0;
+    min-height: min(280px, 72dvh);
+    max-height: 82dvh;
+    border-radius: 18px 18px 10px 10px;
+  }
+
+  .assignment-brief.is-open::before {
+    content: '';
+    align-self: center;
+    width: 42px;
+    height: 4px;
+    margin-top: 7px;
+    border-radius: 999px;
+    background: #a9bbc4;
+  }
+
+  .assignment-brief.is-open .assignment-brief-bar {
+    flex-wrap: wrap;
+    padding-top: 4px;
+  }
+
+  .assignment-brief.is-open .assignment-brief-toggle {
+    flex-basis: calc(100% - 8px);
+  }
+
+  .assignment-brief-state {
+    margin-left: 2px;
+  }
+
+  .assignment-brief-submit {
+    margin-left: auto;
+  }
+
+  .assignment-brief-meta {
+    padding-inline: 12px;
+  }
+
+  .assignment-brief-body {
+    padding: 8px 12px calc(16px + env(safe-area-inset-bottom, 0px));
+  }
+
   .assignment-brief-body .assignment-view {
     grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .assignment-brief,
+  .assignment-brief * {
+    scroll-behavior: auto;
   }
 }
