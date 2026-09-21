@@ -30,8 +30,8 @@ large_sources:
     rationale: Active workbench controller coordinates interaction and simulation concerns; E-OPT-3 is complete, while any structural extraction remains a separately selected E-OPT-7/maintenance responsibility change.
   - path: contexts/electronics/domain/arduino-program-runtime.ts
     class: decomposition-candidate
-    reviewed_bytes: 68170
-    rationale: Active source-level Arduino runtime owns several logical subsystems; decomposition/design belongs to E-OPT-5 rather than cleanup-by-size.
+    reviewed_bytes: 84880
+    rationale: Active source-level Arduino runtime remains a decomposition-candidate; growth reflects already accepted Arduino runtime capabilities. Urgent mechanical decomposition is not required; any future structural split must be a separate maintenance/design task.
   - path: apps/web/src/electronics/ArduinoCodePanel.tsx
     class: decomposition-candidate
     reviewed_bytes: 63884
