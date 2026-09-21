@@ -36,7 +36,7 @@ components:
     tests:
       - apps/api/src/blocks-project-persistence.spec.ts
       - e2e/blocks-product-integration.spec.ts
-      - tools/blocks/flush-semantics.test.mjs
+      - tools/blocks/save-semantics.test.mjs
       - contexts/projects/testing/projects.spec.ts
       - apps/api/src/projects-save-status.spec.ts
 
@@ -74,7 +74,7 @@ components:
       - apps/api/src/blocks-project-persistence.spec.ts
       - apps/web/src/blocks/testing/editor-runtime-session.spec.ts
       - e2e/blocks-product-integration.spec.ts
-      - tools/blocks/flush-semantics.test.mjs
+      - tools/blocks/save-semantics.test.mjs
       - tools/blocks/portable-smoke.mjs
 
   - id: blocks.project.autosave

@@ -120,12 +120,17 @@ test('normal install and guarded update include Scratch in successful readiness'
   assert.match(recipe, /asa-commit\.txt/);
 });
 
-test('ready editor omits the footer instead of visually obscuring it', () => {
+test('parent startup uses the full-screen ASA loader instead of a footer status strip', () => {
   const editor = read('apps/web/src/blocks/BlocksEditor.tsx');
-  assert.match(editor, /status !== 'editor-ready' \? \(/);
-  assert.doesNotMatch(editor, /className="blocks-editor-preview-status"/);
-  assert.match(editor, /window\.confirm/);
-  assert.match(editor, /Повторить подключение/);
+  const css = read('apps/web/src/blocks/blocks-editor-shell.css');
+  assert.match(editor, /data-asa-blocks-loading-overlay/);
+  assert.match(editor, /\/asa-lab-mark\.svg/);
+  assert.doesNotMatch(editor, /blocks-editor-connection-status/);
+  assert.doesNotMatch(editor, /window\.confirm/);
+  assert.doesNotMatch(editor, /Сохранить в ASA/);
+  assert.match(editor, /Не удалось открыть среду/);
+  assert.match(editor, /Повторить/);
+  assert.match(css, /@media \(prefers-reduced-motion: reduce\)/);
 });
 
 test('startup and guarded updates build every local image before no-build replacement', () => {

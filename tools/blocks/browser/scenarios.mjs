@@ -102,30 +102,6 @@ export async function verifyHostProtocol() {
       messageType: 'ASA_BLOCKS_TOKEN_UPDATE',
       runtimeToken: 'rotated.runtime.token',
     });
-    await sendFromParent(page, {
-      ...binding,
-      messageType: 'ASA_BLOCKS_FLUSH_REQUEST',
-      requestId: 'flush-c-1',
-    });
-    await page.waitForFunction(() =>
-      window.__blocksMessages.some(
-        (message) =>
-          message?.messageType === 'ASA_BLOCKS_FLUSH_RESULT' && message?.requestId === 'flush-c-1',
-      ),
-    );
-    const flushResult = await page.evaluate(() =>
-      window.__blocksMessages.find((message) => message?.messageType === 'ASA_BLOCKS_FLUSH_RESULT'),
-    );
-    if (
-      flushResult?.ok !== true ||
-      flushResult?.reason !== null ||
-      !Number.isSafeInteger(flushResult?.revision) ||
-      flushResult.revision < 1 ||
-      !Number.isSafeInteger(flushResult?.snapshotGeneration) ||
-      flushResult.snapshotGeneration < 0
-    ) {
-      throw new Error(`unexpected flush result: ${JSON.stringify(flushResult)}`);
-    }
 
     await frame.locator('body').evaluate(() => {
       setTimeout(() => {
@@ -153,22 +129,6 @@ export async function verifyHostProtocol() {
       runtimeToken: 'must-not-be-accepted-after-stop',
     });
     await expectRejectionIncrement(frame, beforePostStopToken, 'token update after STOP');
-
-    const beforePostStopFlush = await rejectionCount(frame);
-    await sendFromParent(page, {
-      ...binding,
-      messageType: 'ASA_BLOCKS_FLUSH_REQUEST',
-      requestId: 'flush-after-stop',
-    });
-    await expectRejectionIncrement(frame, beforePostStopFlush, 'flush after STOP');
-    const postStopFlushResult = await page.evaluate(() =>
-      window.__blocksMessages.find(
-        (message) =>
-          message?.messageType === 'ASA_BLOCKS_FLUSH_RESULT' &&
-          message?.requestId === 'flush-after-stop',
-      ),
-    );
-    if (postStopFlushResult) throw new Error('flush after STOP retained runtime authority');
 
     const beforePostStopInit = await rejectionCount(frame);
     await sendFromParent(page, initMessage);

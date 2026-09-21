@@ -1,0 +1,141 @@
+diff --git a/packages/scratch-gui/src/components/gui/gui.jsx b/packages/scratch-gui/src/components/gui/gui.jsx
+index c0c4173..8dac8ad 100644
+--- a/packages/scratch-gui/src/components/gui/gui.jsx
++++ b/packages/scratch-gui/src/components/gui/gui.jsx
+@@ -191,6 +191,7 @@ const GUIComponent = props => {
+         onTelemetryModalOptOut,
+         onUpdateProjectThumbnail,
+         showComingSoon,
++        showSaveNow,
+         showNewFeatureCallouts,
+         soundsTabVisible,
+         stageSizeMode,
+@@ -358,6 +359,7 @@ const GUIComponent = props => {
+                             logo={logo}
+                             renderLogin={renderLogin}
+                             showComingSoon={showComingSoon}
++                            showSaveNow={showSaveNow}
+                             onClickAbout={onClickAbout}
+                             onClickLogo={onClickLogo}
+                             onLogOut={onLogOut}
+@@ -653,6 +655,7 @@ GUIComponent.propTypes = {
+     renderLogin: PropTypes.func,
+     setTheme: PropTypes.func.isRequired,
+     showComingSoon: PropTypes.bool,
++    showSaveNow: PropTypes.bool,
+     showNewFeatureCallouts: PropTypes.bool,
+     soundsTabVisible: PropTypes.bool,
+     stageSizeMode: PropTypes.oneOf(Object.keys(STAGE_SIZE_MODES)),
+@@ -694,6 +697,7 @@ GUIComponent.defaultProps = {
+     loading: false,
+     menuBarHidden: false,
+     showComingSoon: false,
++    showSaveNow: true,
+     showNewFeatureCallouts: false,
+     stageSizeMode: STAGE_SIZE_MODES.large,
+     useExternalPeripheralList: false
+diff --git a/packages/scratch-gui/src/components/menu-bar/file-menu.jsx b/packages/scratch-gui/src/components/menu-bar/file-menu.jsx
+index 5618d79..cd2c27f 100644
+--- a/packages/scratch-gui/src/components/menu-bar/file-menu.jsx
++++ b/packages/scratch-gui/src/components/menu-bar/file-menu.jsx
+@@ -25,6 +25,7 @@ const fileMenu = defineMessage({
+ const FileMenu = ({
+     isRtl,
+     canSave,
++    showSaveNow,
+     canCreateCopy,
+     canRemix,
+     onClickNew,
+@@ -109,7 +110,7 @@ const FileMenu = ({
+                 </MenuSection>
+                 {(canSave || canCreateCopy || canRemix) && (
+                     <MenuSection>
+-                        {canSave && (
++                        {canSave && showSaveNow && (
+                             <MenuItem
+                                 onClick={onClickSave}
+                                 isDataMenuItem
+@@ -169,6 +170,7 @@ const FileMenu = ({
+ FileMenu.propTypes = {
+     isRtl: PropTypes.bool,
+     canSave: PropTypes.bool.isRequired,
++    showSaveNow: PropTypes.bool,
+     canCreateCopy: PropTypes.bool.isRequired,
+     canRemix: PropTypes.bool.isRequired,
+     onStartSelectingFileUpload: PropTypes.func.isRequired,
+@@ -181,6 +183,10 @@ FileMenu.propTypes = {
+     depth: PropTypes.number
+ };
+
++FileMenu.defaultProps = {
++    showSaveNow: true
++};
++
+ const mapStateToProps = state => ({
+     isRtl: state.locales.isRtl
+ });
+diff --git a/packages/scratch-gui/src/components/menu-bar/menu-bar.jsx b/packages/scratch-gui/src/components/menu-bar/menu-bar.jsx
+index a64f36a..fee3ed9 100644
+--- a/packages/scratch-gui/src/components/menu-bar/menu-bar.jsx
++++ b/packages/scratch-gui/src/components/menu-bar/menu-bar.jsx
+@@ -358,6 +358,7 @@ class MenuBar extends React.Component {
+                             onClickSave={this.props.onClickSave}
+                             getSaveToComputerHandler={this.getSaveToComputerHandler}
+                             canSave={this.props.canSave}
++                            showSaveNow={this.props.showSaveNow}
+                             canCreateCopy={this.props.canCreateCopy}
+                             canRemix={this.props.canRemix}
+                             intl={this.props.intl}
+@@ -493,7 +494,10 @@ class MenuBar extends React.Component {
+                 <div className={styles.accountInfoGroup}>
+                     <div className={styles.menuBarItem}>
+                         {this.props.canSave && (
+-                            <SaveStatus className={classNames(styles.hoverable, styles.menuBarItem)} />
++                            <SaveStatus
++                                className={classNames(styles.hoverable, styles.menuBarItem)}
++                                showSaveNow={this.props.showSaveNow}
++                            />
+                         )}
+                     </div>
+
+@@ -708,6 +712,7 @@ MenuBar.propTypes = {
+     renderLogin: PropTypes.func,
+     shouldSaveBeforeTransition: PropTypes.func,
+     showComingSoon: PropTypes.bool,
++    showSaveNow: PropTypes.bool,
+     username: PropTypes.string,
+     avatarBadge: PropTypes.number,
+     userOwnsProject: PropTypes.bool,
+diff --git a/packages/scratch-gui/src/components/menu-bar/save-status.jsx b/packages/scratch-gui/src/components/menu-bar/save-status.jsx
+index 832839f..27a6403 100644
+--- a/packages/scratch-gui/src/components/menu-bar/save-status.jsx
++++ b/packages/scratch-gui/src/components/menu-bar/save-status.jsx
+@@ -26,11 +26,12 @@ const SaveStatus = ({
+     alertsList,
+     projectChanged,
+     onClickSave,
+-    className
++    className,
++    showSaveNow
+ }) => (
+     filterInlineAlerts(alertsList).length > 0 ? (
+         <InlineMessages className={styles.alert} />
+-    ) : projectChanged && (
++    ) : showSaveNow && projectChanged && (
+         <button
+             className={classNames(styles.saveNow, className)}
+             onClick={onClickSave}
+@@ -47,7 +48,12 @@ SaveStatus.propTypes = {
+     className: PropTypes.string,
+     alertsList: PropTypes.arrayOf(PropTypes.object),
+     onClickSave: PropTypes.func,
+-    projectChanged: PropTypes.bool
++    projectChanged: PropTypes.bool,
++    showSaveNow: PropTypes.bool
++};
++
++SaveStatus.defaultProps = {
++    showSaveNow: true
+ };
+
+ const mapStateToProps = state => ({

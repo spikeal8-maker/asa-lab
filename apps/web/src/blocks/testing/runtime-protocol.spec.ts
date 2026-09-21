@@ -28,12 +28,13 @@ function makeBridge(target = makeTarget(), onFatal = vi.fn(), onMessage = vi.fn(
       projectJson: { targets: [], monitors: [], extensions: [] },
       hasProjectJson: true,
       assets: [],
-      recoveryNamespace: 'fixture-recovery',
+      recoveryPrincipalKey: '33333333-3333-4333-8333-333333333333',
       onMessage,
       onFatal,
     }),
   };
 }
+
 describe('BlocksRuntimeBridge', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
@@ -61,20 +62,14 @@ describe('BlocksRuntimeBridge', () => {
     });
   });
 
-  it('binds token update and flush requests to the same project and nonce', () => {
+  it('binds token updates to the same project and nonce', () => {
     vi.stubGlobal('crypto', { randomUUID: () => 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb' });
     const { bridge, target } = makeBridge();
     bridge.updateToken('rotated-fixture-token');
-    bridge.requestFlush('flush-1');
 
+    expect(target.postMessage).toHaveBeenCalledTimes(1);
     expect(target.postMessage.mock.calls[0][0]).toMatchObject({
       messageType: 'ASA_BLOCKS_TOKEN_UPDATE',
-      projectId: PROJECT_ID,
-      sessionNonce: bridge.sessionNonce,
-    });
-    expect(target.postMessage.mock.calls[1][0]).toMatchObject({
-      messageType: 'ASA_BLOCKS_FLUSH_REQUEST',
-      requestId: 'flush-1',
       projectId: PROJECT_ID,
       sessionNonce: bridge.sessionNonce,
     });
@@ -164,6 +159,43 @@ describe('BlocksRuntimeBridge', () => {
     ).toBe(false);
   });
 
+  it('accepts only bounded trusted thumbnail messages with a confirmed source revision', () => {
+    vi.stubGlobal('crypto', { randomUUID: () => 'cdcdcdcd-cdcd-4dcd-8dcd-cdcdcdcdcdcd' });
+    const { bridge, target, onMessage } = makeBridge();
+    const base = {
+      protocolVersion: BLOCKS_PROTOCOL_VERSION,
+      messageType: 'ASA_BLOCKS_THUMBNAIL_READY',
+      projectId: PROJECT_ID,
+      sessionNonce: bridge.sessionNonce,
+    };
+    const valid = {
+      ...base,
+      sourceRevision: 13,
+      imageDataUrl: 'data:image/png;base64,AAAA',
+    };
+
+    expect(bridge.acceptChildMessage({ source: target, origin: RUNTIME_ORIGIN, data: valid })).toBe(
+      true,
+    );
+    expect(onMessage).toHaveBeenLastCalledWith(valid);
+
+    for (const data of [
+      { ...base, sourceRevision: 0, imageDataUrl: 'data:image/png;base64,AAAA' },
+      { ...base, sourceRevision: '13', imageDataUrl: 'data:image/png;base64,AAAA' },
+      { ...base, sourceRevision: 13, imageDataUrl: 'data:image/svg+xml;base64,AAAA' },
+      { ...base, sourceRevision: 13, imageDataUrl: 'data:image/png;base64,not base64' },
+      {
+        ...base,
+        sourceRevision: 13,
+        imageDataUrl: `data:image/png;base64,${'A'.repeat(349_600)}`,
+      },
+    ]) {
+      expect(bridge.acceptChildMessage({ source: target, origin: RUNTIME_ORIGIN, data })).toBe(
+        false,
+      );
+    }
+  });
+
   it('accepts a bound FATAL message without throwing in the parent bridge', () => {
     vi.stubGlobal('crypto', { randomUUID: () => 'dddddddd-dddd-4ddd-8ddd-dddddddddddd' });
     const { bridge, target, onFatal } = makeBridge();
@@ -196,7 +228,6 @@ describe('BlocksRuntimeBridge', () => {
 
     expect(() => bridge.sendInit()).toThrow('Blocks runtime bridge is stopped');
     expect(() => bridge.updateToken('stale-token')).toThrow('Blocks runtime bridge is stopped');
-    expect(() => bridge.requestFlush('stale-flush')).toThrow('Blocks runtime bridge is stopped');
     bridge.stop();
     expect(target.postMessage).toHaveBeenCalledTimes(1);
 
@@ -213,107 +244,5 @@ describe('BlocksRuntimeBridge', () => {
         },
       }),
     ).toBe(false);
-  });
-
-  it('accepts each FLUSH_RESULT only for one session-unique requestId', () => {
-    vi.stubGlobal('crypto', { randomUUID: () => 'ffffffff-ffff-4fff-8fff-ffffffffffff' });
-    const { bridge, target, onMessage } = makeBridge();
-    const result = (requestId: string) => ({
-      protocolVersion: BLOCKS_PROTOCOL_VERSION,
-      messageType: 'ASA_BLOCKS_FLUSH_RESULT',
-      projectId: PROJECT_ID,
-      sessionNonce: bridge.sessionNonce,
-      requestId,
-      ok: false,
-      reason: 'storage_not_available',
-    });
-
-    expect(
-      bridge.acceptChildMessage({
-        source: target,
-        origin: RUNTIME_ORIGIN,
-        data: result('unknown'),
-      }),
-    ).toBe(false);
-
-    bridge.requestFlush('flush-1');
-    expect(() => bridge.requestFlush('flush-1')).toThrow(
-      'Blocks flush requestId was already issued: flush-1',
-    );
-    expect(
-      bridge.acceptChildMessage({
-        source: target,
-        origin: RUNTIME_ORIGIN,
-        data: result('flush-1'),
-      }),
-    ).toBe(true);
-    expect(onMessage).toHaveBeenCalledWith(result('flush-1'));
-    expect(() => bridge.requestFlush('flush-1')).toThrow(
-      'Blocks flush requestId was already issued: flush-1',
-    );
-    expect(
-      bridge.acceptChildMessage({
-        source: target,
-        origin: RUNTIME_ORIGIN,
-        data: result('flush-1'),
-      }),
-    ).toBe(false);
-  });
-
-  it('accepts successful FLUSH_RESULT only with a confirmed revision', () => {
-    vi.stubGlobal('crypto', { randomUUID: () => 'ffffffff-ffff-4fff-8fff-ffffffffffff' });
-    const { bridge, target, onMessage } = makeBridge();
-    bridge.requestFlush('save-1');
-    const success = {
-      protocolVersion: BLOCKS_PROTOCOL_VERSION,
-      messageType: 'ASA_BLOCKS_FLUSH_RESULT',
-      projectId: PROJECT_ID,
-      sessionNonce: bridge.sessionNonce,
-      requestId: 'save-1',
-      ok: true,
-      reason: null,
-      revision: 12,
-      snapshotGeneration: 3,
-    };
-    expect(
-      bridge.acceptChildMessage({ source: target, origin: RUNTIME_ORIGIN, data: success }),
-    ).toBe(true);
-    expect(onMessage).toHaveBeenCalledWith(success);
-  });
-
-  it.each([
-    { ok: true, reason: null },
-    { ok: true, reason: null, revision: -1, snapshotGeneration: 0 },
-    { ok: true, reason: null, revision: 2 },
-    { ok: true, reason: null, revision: 2, snapshotGeneration: -1 },
-    { ok: true, reason: 'wrong', revision: 2, snapshotGeneration: 0 },
-    { ok: false, reason: '' },
-    { ok: false, reason: 'failed', revision: 2 },
-    { ok: false, reason: 'failed', snapshotGeneration: 2 },
-  ])('rejects malformed FLUSH_RESULT %# without consuming the request', (extra) => {
-    vi.stubGlobal('crypto', { randomUUID: () => 'ffffffff-ffff-4fff-8fff-ffffffffffff' });
-    const { bridge, target } = makeBridge();
-    bridge.requestFlush('save-malformed');
-    const base = {
-      protocolVersion: BLOCKS_PROTOCOL_VERSION,
-      messageType: 'ASA_BLOCKS_FLUSH_RESULT',
-      projectId: PROJECT_ID,
-      sessionNonce: bridge.sessionNonce,
-      requestId: 'save-malformed',
-    };
-    expect(
-      bridge.acceptChildMessage({
-        source: target,
-        origin: RUNTIME_ORIGIN,
-        data: { ...base, ...extra },
-      }),
-    ).toBe(false);
-    expect(
-      bridge.acceptChildMessage({
-        source: target,
-        origin: RUNTIME_ORIGIN,
-        data: { ...base, ok: false, reason: 'save_failed' },
-      }),
-    ).toBe(true);
   });
 });

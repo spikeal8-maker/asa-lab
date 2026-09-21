@@ -106,14 +106,15 @@ running installation is a separate explicitly authorised guarded deployment.
 
 ## Deliberate limits
 
-The current runtime uses read-only controlled project fixtures. The ready editor
-has no permanent notice; local-file limitations remain in docs and leave confirmation.
-Native Save to your computer
-is upstream local export, not ASA durable persistence. This integration does not
-claim runtime JWT endpoints, durable asset storage, ASA save/reopen, autosave,
-recovery/conflicts, publication, Learning submission or coherent managed-storage
-backup/restore. Those require their separately selected canonical milestones.
-Basic local-file access is already active by the owner decision.
+The current managed editor has durable ASA project save/reopen through the upstream
+`ProjectSaverHOC` and the ASA storage adapter. Ordinary edits autosave without a
+separate ASA save button. Native `Save to your computer` / `Load from your computer`
+remain the upstream local `.sb3` flows and are separate from managed persistence.
+Recovery is project/principal-scoped IndexedDB recovery, including media recovery;
+the automatic preview comes from the native Scratch stage only after confirmed
+durable state. Managed persistence performs no Scratch Foundation project/asset
+writes. Publication, Learning submission and deployment are not claimed by this
+runtime README; those remain separate product/operational scopes.
 
 ## License and provenance
 
