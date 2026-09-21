@@ -340,6 +340,23 @@ Acceptance дополнительно проверяет отсутствие н
 - returned;
 - accepted.
 
+### Профиль ученика и проверка — обязательная связка
+
+V7 принимает не только очередь задания, но и согласованность с профилем ученика.
+
+Synthetic learner имеет:
+- самостоятельный StudentSeat project без assignment;
+- assignment work in progress;
+- submitted work;
+- completed work.
+
+Teacher должен:
+- открыть learner profile и увидеть все StudentSeat-owned projects;
+- из assignment-linked work перейти в exact review;
+- увидеть различие current project vs submitted version, если оно есть;
+- вернуться из review к learner profile;
+- не получить personal Account project из другого scope.
+
 Owner screenshots:
 - queue;
 - selected learner exact submission;
