@@ -155,10 +155,7 @@ export function SeatCourses({
   const completion = courseCompletion(lessons);
   const completedLessonCount = completion.completed;
 
-  async function startAssignment(
-    assignment: SeatAssignment,
-    busyKey: string,
-  ): Promise<void> {
+  async function startAssignment(assignment: SeatAssignment, busyKey: string): Promise<void> {
     if (assignment.moduleKey === 'unknown') return;
     setBusy(busyKey);
     setError(null);
@@ -335,9 +332,7 @@ export function SeatCourses({
                             type="button"
                             className="portal-create-button"
                             onClick={async () =>
-                              setError(
-                                await openAssignmentWork(activityAssignment, onOpenProject),
-                              )
+                              setError(await openAssignmentWork(activityAssignment, onOpenProject))
                             }
                           >
                             Открыть работу
