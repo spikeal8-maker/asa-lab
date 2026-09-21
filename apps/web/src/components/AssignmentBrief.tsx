@@ -55,6 +55,8 @@ type PointerOperation =
       readonly startX: number;
       readonly startY: number;
       readonly startRect: AssignmentBriefRect;
+      readonly pointerId: number;
+      readonly target: HTMLElement;
     }
   | {
       readonly kind: 'resize';
@@ -62,6 +64,8 @@ type PointerOperation =
       readonly startX: number;
       readonly startY: number;
       readonly startRect: AssignmentBriefRect;
+      readonly pointerId: number;
+      readonly target: HTMLElement;
     };
 
 function openStorageKey(projectId: string): string {
@@ -143,7 +147,7 @@ export function AssignmentBrief({
   useEffect(() => {
     const onPointerMove = (event: PointerEvent): void => {
       const current = operation.current;
-      if (!current) return;
+      if (!current || event.pointerId !== current.pointerId) return;
       const deltaX = event.clientX - current.startX;
       const deltaY = event.clientY - current.startY;
       const next =
@@ -166,8 +170,12 @@ export function AssignmentBrief({
       rectRef.current = next;
       setRect(next);
     };
-    const finish = (): void => {
-      if (!operation.current) return;
+    const finish = (event: PointerEvent): void => {
+      const current = operation.current;
+      if (!current || event.pointerId !== current.pointerId) return;
+      if (current.target.hasPointerCapture(current.pointerId)) {
+        current.target.releasePointerCapture(current.pointerId);
+      }
       operation.current = null;
       window.localStorage.setItem(RECT_KEY, JSON.stringify(rectRef.current));
     };
@@ -203,13 +211,16 @@ export function AssignmentBrief({
   }
 
   function beginMove(event: ReactPointerEvent<HTMLButtonElement>): void {
-    if (mobile) return;
+    if (mobile || !event.isPrimary || event.button !== 0) return;
     event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
     operation.current = {
       kind: 'move',
       startX: event.clientX,
       startY: event.clientY,
       startRect: rectRef.current,
+      pointerId: event.pointerId,
+      target: event.currentTarget,
     };
   }
 
@@ -217,15 +228,18 @@ export function AssignmentBrief({
     edge: AssignmentBriefResizeEdge,
     event: ReactPointerEvent<HTMLSpanElement>,
   ): void {
-    if (mobile) return;
+    if (mobile || !event.isPrimary || event.button !== 0) return;
     event.preventDefault();
     event.stopPropagation();
+    event.currentTarget.setPointerCapture(event.pointerId);
     operation.current = {
       kind: 'resize',
       edge,
       startX: event.clientX,
       startY: event.clientY,
       startRect: rectRef.current,
+      pointerId: event.pointerId,
+      target: event.currentTarget,
     };
   }
 
