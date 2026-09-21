@@ -144,9 +144,11 @@ Acceptance не должна предполагать default geometry, если
 ### Пользователь видит
 
 Electronics desktop:
-- раскрытая карточка;
+- compact карточка по умолчанию;
+- expanded preset по явному действию;
+- collapsed control;
 - карточка после перемещения;
-- карточка после resize/collapse.
+- ручной resize в safety limits.
 
 3D desktop:
 - карточка поверх редактора;
@@ -164,8 +166,11 @@ Mobile:
 
 ### Визуальные критерии
 
-- полный смысл названия задания доступен в раскрытом состоянии; essential title не существует только как обрезанный ellipsis;
-- status/submit/reset не делают header нечитаемым;
+- default card компактна и не доминирует над лабораторией;
+- полный смысл названия задания доступен в compact/expanded состоянии; essential title не существует только как обрезанный ellipsis;
+- permanent «Сбросить» и primary «Сдать работу» не конкурируют с title в header;
+- submit находится в footer/контекстной зоне действия;
+- compact → expanded → collapsed являются различимыми состояниями;
 - карточка не закрывает критические инструменты лаборатории по умолчанию;
 - вне карточки предметная среда остаётся визуально и функционально доступной;
 - mobile controls помещаются без горизонтального overflow.
@@ -173,6 +178,7 @@ Mobile:
 ### Обязательные screenshots
 
 ~~~text
+V1-electronics-compact-1440.png
 V1-electronics-expanded-1440.png
 V1-electronics-moved-1440.png
 V1-three-d-expanded-1440.png
@@ -180,6 +186,25 @@ V1-blocks-overlay-1440.png
 V1-mobile-390.png
 V1-mobile-320.png
 ~~~
+
+### Owner decision 21.09.2026 — first A0 screenshot
+
+Первый фактический Electronics screenshot текущей реализации функционально подтвердил overlay, но **VISUAL_ACCEPTANCE = FAIL**.
+
+Причины:
+- default 460×460 воспринимается слишком крупным для рабочего задания;
+- header перегружен title + status + Reset + Submit;
+- title визуально обрезан;
+- технический revision-text занимает слишком высокий приоритет.
+
+Требуемый V1 visual repair:
+- compact default около 360–400 px шириной и content-fit высотой;
+- explicit expand control;
+- collapse control;
+- reset secondary/overflow;
+- submit в footer;
+- короткий save state вместо protocol/revision wording;
+- новый owner-visible screenshot review.
 
 ### Не доказывает
 
