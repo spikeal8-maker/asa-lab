@@ -770,6 +770,51 @@ requirements:
   - FUTURE-MODULE-REUSES-SHELL-WITHOUT-COPIED-LEARNING-UI
   planned_test_ids: []
 
+
+- id: E1-FIX-14
+  milestone: E1
+  status: in_progress
+  priority: P1
+  summary: Protected learner-work lifecycle for assignment-created projects, separate learning archive and safe personal copy
+  normative_ref: PRODUCT-INTEGRATED-V15 §4.2.4 / ASA_LEARNER_WORK_LIFECYCLE_SPEC
+  issue: 371
+  source_paths:
+  - contexts/projects/**
+  - apps/api/src/projects.controller.ts
+  - apps/api/src/gallery.controller.ts
+  - apps/web/src/pages/MyProjectsPage.tsx
+  - apps/web/src/modules/ProjectCard.tsx
+  - apps/web/src/components/SeatAssignments.tsx
+  - apps/web/src/components/SeatCourses.tsx
+  - apps/web/src/api.ts
+  - docs/product/learning/ASA_LEARNER_WORK_LIFECYCLE_SPEC.md
+  evidence:
+  - docs/product/ASA_INTEGRATED_IMPLEMENTATION_SPEC.md
+  - docs/product/learning/ASA_LEARNER_WORK_LIFECYCLE_SPEC.md
+  tests: []
+  verification:
+    source_sha: null
+    method: specification_added
+    observed_result: Learner project provenance, protection, learning archive, publication ban and personal-copy boundary are now normative; implementation not yet claimed.
+    product_fix_verified: false
+    authenticated_live_journey: not_run
+  planned_scenarios:
+  - DIRECT-START-CREATES-LEARNING-PROVENANCE
+  - COURSE-ACTIVITY-START-CREATES-EXACT-LEARNING-PROVENANCE
+  - ACTIVE-LEARNING-WORK-CANNOT-GENERIC-ARCHIVE-OR-TRASH
+  - LEARNING-WORK-CANNOT-PUBLISH-ORIGINAL
+  - SEAT-TO-ACCOUNT-LINK-PRESERVES-PROTECTION
+  - SUBMITTED-WAITING-REVIEW-REMAINS-PROTECTED
+  - CHANGES-REQUESTED-REQUIRES-WORK-RESURFACE
+  - ACCEPTED-WORK-MAY-MOVE-TO-LEARNING-ARCHIVE
+  - LEARNING-ARCHIVE-DOES-NOT-MUTATE-SUBMISSION-RESULT
+  - WITHDRAWN-WORK-MAY-LEARNING-ARCHIVE-WITH-HISTORY
+  - PERSONAL-COPY-NEW-ID-NO-LEARNING-RUNTIME-LINK
+  - PERSONAL-COPY-CHANGES-DO-NOT-MUTATE-ORIGINAL
+  - TEACHER-EXACT-REVIEW-SURVIVES-LEARNER-ARCHIVE
+  - ACCOUNT-PROJECT-LIST-DISTINGUISHES-PERSONAL-LEARNING-SERVER-SIDE
+  planned_test_ids: []
+
 - id: INT-REUSE-HISTORY
   milestone: unassigned
   status: target
