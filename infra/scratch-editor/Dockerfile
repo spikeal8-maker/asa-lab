@@ -40,6 +40,10 @@ RUN set -eux; \
     npm run build:dist-standalone --workspace=@scratch/scratch-gui; \
     test -f packages/scratch-gui/dist/scratch-gui-standalone.js
 
+# Verify the real patched VM: native Pen stays available, project-supplied code
+# cannot execute in the shared ASA browser origin.
+RUN node -e "const assert=require('node:assert/strict'); const VM=require('./packages/scratch-vm/src/virtual-machine'); const vm=new VM(); (async()=>{try{await assert.rejects(vm.extensionManager.loadExtensionURL('https://untrusted.invalid/extension.js'), /external extension code/); await vm.extensionManager.loadExtensionURL('pen'); assert.equal(vm.extensionManager.isExtensionLoaded('pen'),true);}finally{vm.quit();}})().catch(e=>{console.error(e);process.exit(1);});"
+
 # Reuse pinned build outputs; compression does not modify source media or GUI.
 COPY infra/scratch-editor/configure-artifact.mjs /tmp/configure-artifact.mjs
 RUN node --input-type=module -e "import { precompressStaticAssets as pack } from '/tmp/configure-artifact.mjs'; console.log(pack('/opt/scratch-library-assets'), pack('/opt/scratch-editor/packages/scratch-gui/dist'));"

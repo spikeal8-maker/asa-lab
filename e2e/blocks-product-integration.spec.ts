@@ -234,7 +234,7 @@ test('shipping fullscreen host loads the account avatar in ASA only and survives
     await expect(frame.locator('header[role="banner"]')).toHaveCount(1);
     await expect(frame.locator('#logo_img')).toHaveAttribute(
       'src',
-      '/asa-lab-scratch-wordmark.svg',
+      './asa-lab-scratch-wordmark.svg',
     );
     for (const size of [
       { width: 1440, height: 960 },
@@ -2136,7 +2136,7 @@ test('clean Scratch ASA logo requests parent Home with no overlay', async () => 
     await expect(page.locator('[data-asa-blocks-save]')).toHaveCount(0);
     const logo = frame.locator('#logo_img');
     await expect(logo).toBeVisible();
-    await expect(logo).toHaveAttribute('src', '/asa-lab-scratch-wordmark.svg');
+    await expect(logo).toHaveAttribute('src', './asa-lab-scratch-wordmark.svg');
     await frame.getByRole('button', { name: 'Home', exact: true }).click();
     await expect(page).toHaveURL(`${parentOrigin}/product#/home`);
     expect(fixture.pageErrors).toEqual([]);
