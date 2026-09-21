@@ -551,3 +551,20 @@ Review workspace считается готовым, когда:
 - личная копия, если разрешена, имеет новый project id и не наследует Participation/Attempt/Submission linkage.
 
 В `ModuleEditorHost` и `AssignmentBrief` запрещено вычислять эти разрешения локально по маршруту, роли или типу модуля. UI использует server-derived lifecycle/allowed actions.
+
+
+## 19. Видимая приёмка владельцем
+
+Визуальная и браузерная приёмка этой оболочки подчиняется ASA_LEARNING_VISIBLE_DELIVERY_PLAN.md.
+
+Для V1 обязательны exact-HEAD screenshots:
+- Electronics expanded desktop;
+- Electronics moved desktop;
+- 3D desktop;
+- Blocks/Scratch overlay desktop;
+- mobile 390;
+- mobile 320.
+
+A0 integration test не доказывает штатное authoring/assignability конкретного нового module, если activity fixture подготовлен напрямую. Такая поддержка доказывается отдельно в V5.
+
+A0 test обязан проверять platform-owned overlay contract и видимый runtime, но не должен зависеть от private DOM marker соседнего embedded module, если этот marker не объявлен стабильным контрактом.
