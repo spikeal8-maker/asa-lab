@@ -30,7 +30,7 @@ services:
       target: runtime
       args:
         ASA_BUILD_REVISION: ${ASA_BUILD_REVISION:-unknown}
-    image: asa-lab-api:${ASA_IMAGE_TAG:-local}
+    image: ${ASA_API_IMAGE:-asa-lab-api:${ASA_IMAGE_TAG:-local}}
     entrypoint: ['/app/docker/migrate-entrypoint.sh']
     restart: 'no'
     depends_on:
@@ -61,7 +61,7 @@ services:
     build:
       context: .
       dockerfile: infra/minio/Dockerfile
-    image: asa-lab-minio:${ASA_IMAGE_TAG:-local}
+    image: ${ASA_MINIO_IMAGE:-asa-lab-minio:${ASA_IMAGE_TAG:-local}}
     restart: unless-stopped
     command: server /data
     user: '1000:1000'
@@ -122,7 +122,7 @@ services:
       target: runtime
       args:
         ASA_BUILD_REVISION: ${ASA_BUILD_REVISION:-unknown}
-    image: asa-lab-api:${ASA_IMAGE_TAG:-local}
+    image: ${ASA_API_IMAGE:-asa-lab-api:${ASA_IMAGE_TAG:-local}}
     restart: unless-stopped
     init: true
     depends_on:
@@ -173,7 +173,9 @@ services:
         ASA_BUILD_REVISION: ${ASA_BUILD_REVISION:-unknown}
         ASA_BLOCKS_PREVIEW: ${ASA_BLOCKS_PREVIEW:-0}
         ASA_BLOCKS_RUNTIME_ORIGIN: ${ASA_BLOCKS_RUNTIME_ORIGIN:-http://localhost:${ASA_BLOCKS_PORT:-4613}}
-    image: asa-lab-web:${ASA_IMAGE_TAG:-local}
+    image: ${ASA_WEB_IMAGE:-asa-lab-web:${ASA_IMAGE_TAG:-local}}
+    environment:
+      ASA_BLOCKS_RUNTIME_ORIGIN: ${ASA_BLOCKS_RUNTIME_ORIGIN:-http://localhost:${ASA_BLOCKS_PORT:-4613}}
     restart: unless-stopped
     init: true
     depends_on:
@@ -201,7 +203,9 @@ services:
       args:
         ASA_BUILD_REVISION: ${ASA_BUILD_REVISION:-unknown}
         ASA_BLOCKS_PARENT_ORIGIN: ${ASA_BLOCKS_PARENT_ORIGIN:-http://127.0.0.1:${ASA_WEB_PORT:-4610}}
-    image: asa-lab-scratch:${ASA_IMAGE_TAG:-local}
+    image: ${ASA_SCRATCH_IMAGE:-asa-lab-scratch:${ASA_IMAGE_TAG:-local}}
+    environment:
+      ASA_BLOCKS_PARENT_ORIGIN: ${ASA_BLOCKS_PARENT_ORIGIN:-http://127.0.0.1:${ASA_WEB_PORT:-4610}}
     restart: unless-stopped
     init: true
     user: '101:101'

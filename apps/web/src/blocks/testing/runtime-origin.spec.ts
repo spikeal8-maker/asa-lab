@@ -35,6 +35,19 @@ function expectBlocked(html: string) {
 describe('BlocksEditor runtime origin isolation', () => {
   afterEach(() => vi.unstubAllGlobals());
 
+  it('uses the installation origin from a prebuilt image without recompiling', () => {
+    vi.stubGlobal('__ASA_RUNTIME_CONFIG__', {
+      blocksRuntimeOrigin: 'https://scratch.example.test',
+    });
+    const html = renderEditor('http://localhost:4613', 'https://portal.example.test');
+    expect(html).toContain('src="https://scratch.example.test/?asaStatus=parent"');
+  });
+
+  it('fails closed for an invalid runtime override instead of trusting the build fallback', () => {
+    vi.stubGlobal('__ASA_RUNTIME_CONFIG__', { blocksRuntimeOrigin: 'https://portal.example.test' });
+    expectBlocked(renderEditor('https://scratch.example.test', 'https://portal.example.test'));
+  });
+
   it.each([PARENT_ORIGIN, 'https://portal.example.test'])(
     'rejects the portal origin %s before creating an iframe',
     (origin) => {

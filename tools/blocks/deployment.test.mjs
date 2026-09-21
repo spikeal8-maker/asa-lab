@@ -18,7 +18,7 @@ test('default distribution contains an isolated source-built Scratch without mac
     true,
     'internal-only runtime networks suppress Docker published ports',
   );
-  assert.equal(scratch.environment, undefined);
+  assert.match(scratch.environment.ASA_BLOCKS_PARENT_ORIGIN, /ASA_BLOCKS_PARENT_ORIGIN/);
   assert.equal(scratch.volumes, undefined);
   assert.equal(scratch.profiles, undefined);
   assert.equal(config.services.web.depends_on.scratch.condition, 'service_healthy');
@@ -61,7 +61,7 @@ test('private Blocks object storage stays inside the canonical Compose project',
   const api = config.services.api;
   const web = config.services.web;
   const scratch = config.services.scratch;
-  assert.equal(minio.image, 'asa-lab-minio:${ASA_IMAGE_TAG:-local}');
+  assert.equal(minio.image, '${ASA_MINIO_IMAGE:-asa-lab-minio:${ASA_IMAGE_TAG:-local}}');
   assert.equal(minio.build.context, '.');
   assert.equal(minio.build.dockerfile, 'infra/minio/Dockerfile');
   assert.equal(init.image, 'quay.io/minio/mc:RELEASE.2024-09-16T17-43-14Z');
