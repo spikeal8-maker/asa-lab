@@ -350,3 +350,24 @@ Course Activity occurrence runtime из PR #361 является upstream для
 - разрешать publish original через linked Account;
 - teacher preview latest draft вместо submitted version;
 - считать overlay готовым, если он виден в Electronics, но скрыт fullscreen Scratch runtime.
+
+
+## 16. Видимая поставка и границы тестов
+
+Порядок owner-visible checkpoints V1–V7 и обязательный evidence contract определены в ASA_LEARNING_VISIBLE_DELIVERY_PLAN.md.
+
+Инженерный A-срез не считается продуктово принятым только по unit/API evidence. Для UI-changing slice нужны:
+- real browser journey;
+- exact-HEAD screenshots;
+- независимый просмотр screenshots;
+- явное READY_TO_MERGE.
+
+Интеграционные тесты общей Learning-оболочки проверяют публичную границу subject module. Нельзя привязывать A0 к случайному внутреннему selector соседнего runtime.
+
+Если ТЗ разрешает восстановление локального UI state, тест не предполагает canonical default без явного reset/clean storage. Default geometry проверяется отдельно от persisted geometry.
+
+На текущем маршруте:
+1. V1/A0 / PR #369;
+2. D5 / PR #361;
+3. V2/A1+A2;
+4. остальные checkpoints по ASA_LEARNING_VISIBLE_DELIVERY_PLAN.md.
