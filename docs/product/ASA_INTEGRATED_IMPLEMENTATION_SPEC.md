@@ -1,7 +1,7 @@
 # ASA Lab — интеграционное ТЗ V1.5
 
 **Документ:** `PRODUCT-INTEGRATED-V15` · **Редакция:** 1.5 · **Дата:** 17 сентября 2026 года.
-**Статус:** NORMATIVE TARGET / договор поставки, не подтверждение реализации.\n**Дополнение E1 от 21 сентября 2026 года:** универсальная оболочка учебной работы, поточная проверка и жизненный цикл учебного проекта (§4.2.2–4.2.4).
+**Статус:** NORMATIVE TARGET / договор поставки, не подтверждение реализации.\n**Дополнение E1 от 21 сентября 2026 года:** универсальная оболочка учебной работы, поточная проверка, жизненный цикл учебного проекта и архитектурные условия их реализации (§4.2.2–4.2.5).
 **Канонический путь:** `docs/product/ASA_INTEGRATED_IMPLEMENTATION_SPEC.md`.
 **Публичный ресурс:** `https://asa-lab.ru/`. Человекочитаемый адрес: `asa-lab.ru`.
 
@@ -280,6 +280,21 @@ Preview строится из exact submitted revision/version/snapshot. Бол�
 │ [Посмотреть] [Убрать из активных]  │
 └────────────────────────────────────┘
 ```
+
+#### 4.2.5. Архитектурные обязательные условия учебной работы
+
+Архитектурный порядок и зависимости §4.2.2–4.2.4 уточняет [ASA_LEARNING_WORK_ARCHITECTURE_PLAN.md](learning/ASA_LEARNING_WORK_ARCHITECTURE_PLAN.md). До признания универсальной оболочки и жизненного цикла реализованными обязательны следующие условия:
+
+1. **Один Learning Work Context по projectId.** Конкретная открытая работа разрешается сервером одним canonical read; editor UI не определяет её происхождение перебором assignment/course списков.
+2. **Полный immutable task snapshot.** Exact LearningActivityVersion закрепляет learner-facing title/goal/content/media refs; mutable current media автора не подмешивается в старую опубликованную версию.
+3. **Module learning capabilities.** Assignability/save/submission/preview задаются общим module registry contract; Learning не расширяется списками конкретных module keys.
+4. **Atomic StartLearningWork.** Создание Project, immutable learning origin и canonical Attempt является одной идемпотентной командой либо одним транзакционно эквивалентным server operation. Новый UI не оставляет orphan personal project при частичном сбое.
+5. **Единая project protection policy.** Archive/trash/duplicate/gallery publish/personal copy/edit-after-acceptance используют одну server-derived learning policy.
+6. **Platform overlay contract.** Subject fullscreen/iframe/canvas находится ниже общей learner work overlay; drag/resize сохраняет pointer capture поверх embedded runtime.
+7. **Exact teacher evidence.** Review preview использует submitted ProjectVersion/evidence, а не текущий draft.
+8. **Принятая работа read-only.** После accepted/completed исходная учебная работа ученика не редактируется; дальнейшее творчество идёт через отдельную personal copy. Changes requested снова открывает исходную работу по canonical workflow.
+
+Текущий E1 Course Activity runtime из E1-FIX-11D является upstream для project-context/origin реализации. До его принятия допускаются фундамент оболочки, документация и независимые contracts, но не второй параллельный occurrence runtime.
 
 ### 4.3 Версии, восстановление и сравнение
 
