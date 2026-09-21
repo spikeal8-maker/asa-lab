@@ -44,14 +44,7 @@ describe('learning work shell assignment brief geometry', () => {
     expect(top.height).toBe(ASSIGNMENT_BRIEF_MIN_HEIGHT);
     expect(top.y + top.height).toBe(rect.y + rect.height);
 
-    const expanded = resizeAssignmentBriefRect(
-      rect,
-      'bottom-right',
-      5000,
-      5000,
-      1440,
-      900,
-    );
+    const expanded = resizeAssignmentBriefRect(rect, 'bottom-right', 5000, 5000, 1440, 900);
     expect(expanded.x + expanded.width).toBeLessThanOrEqual(1440 - ASSIGNMENT_BRIEF_EDGE_INSET);
     expect(expanded.y + expanded.height).toBeLessThanOrEqual(900 - ASSIGNMENT_BRIEF_EDGE_INSET);
   });
@@ -72,11 +65,7 @@ describe('learning work shell assignment brief geometry', () => {
   });
 
   it('still returns an in-bounds card on a narrow viewport', () => {
-    const rect = clampAssignmentBriefRect(
-      { x: 0, y: 0, width: 460, height: 460 },
-      390,
-      700,
-    );
+    const rect = clampAssignmentBriefRect({ x: 0, y: 0, width: 460, height: 460 }, 390, 700);
     expect(rect.width).toBeLessThanOrEqual(390 - ASSIGNMENT_BRIEF_EDGE_INSET * 2);
     expect(rect.x).toBe(ASSIGNMENT_BRIEF_EDGE_INSET);
   });
