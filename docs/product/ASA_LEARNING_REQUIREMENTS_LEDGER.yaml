@@ -874,6 +874,44 @@ requirements:
   - COMPLETED-HISTORY-INDEPENDENT-OF-PROJECT-ARCHIVE
   planned_test_ids: []
 
+
+- id: E1-FIX-16
+  milestone: E1
+  status: in_progress
+  priority: P1
+  issue: 368
+  summary: Coherent teacher oversight of learner projects and exact assignment submissions
+  normative_ref: PRODUCT-INTEGRATED-V15 §4.5.2 / ASA_TEACHER_LEARNER_OVERSIGHT_SPEC
+  source_paths:
+  - apps/web/src/pages/ClassroomStudentPage.tsx
+  - apps/api/src/classrooms.controller.ts
+  - apps/web/src/components/WorkPreview.tsx
+  - apps/web/src/components/ClassroomCourses.tsx
+  - docs/product/learning/ASA_TEACHER_LEARNER_OVERSIGHT_SPEC.md
+  evidence:
+  - docs/product/ASA_INTEGRATED_IMPLEMENTATION_SPEC.md
+  - docs/product/ASA_USERS_ACCESS_AND_SETTINGS_SPEC.md
+  - docs/product/learning/ASA_TEACHER_LEARNER_OVERSIGHT_SPEC.md
+  tests: []
+  verification:
+    source_sha: null
+    method: current_surface_review
+    observed_result: ClassroomStudentPage already lists classroom_seat_projects and current canonical states, but coherent current-project versus exact-submission navigation/review acceptance remains target.
+    product_fix_verified: false
+    authenticated_live_journey: not_run
+  planned_scenarios:
+  - TEACHER-SEES-ALL-STUDENTSEAT-PROJECTS
+  - TEACHER-SEES-NON-ASSIGNMENT-STUDENTSEAT-PROJECT
+  - ASSIGNMENT-PROJECT-LINKS-TO-EXACT-REVIEW
+  - REVIEW-USES-SUBMITTED-NOT-LATEST-DRAFT
+  - CURRENT-VS-SUBMITTED-EXPLICIT-WHEN-DIFFERENT
+  - REVIEW-RETURNS-TO-SAME-LEARNER-PROFILE
+  - ACCOUNT-PERSONAL-OUTSIDE-CLASS-NOT-VISIBLE
+  - OTHER-CLASS-PROJECT-NOT-VISIBLE
+  - LEARNING-ARCHIVE-PRESERVES-TEACHER-HISTORY
+  - TEACHER-EDIT-WHEN-ALLOWED-IS-AUDITED
+  planned_test_ids: []
+
 - id: INT-REUSE-HISTORY
   milestone: unassigned
   status: target
