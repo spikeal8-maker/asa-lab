@@ -1355,7 +1355,7 @@ test('dirty Home waits for upstream durable save and a fresh browser reopens the
     await setServerSteps(frame, '8', '73');
     expect(fixture.runtimeDraftEvidence).toHaveLength(0);
 
-    await page.getByRole('button', { name: 'ASA Lab — на главную', exact: true }).click();
+    await frame.getByRole('button', { name: 'Home', exact: true }).click();
     await draftSeen;
     expect(page.url()).toBe(`${parentOrigin}/product`);
     expect(fixture.getServerRevision()).toBe(23);
@@ -1425,7 +1425,7 @@ test('dirty Home stays in the editor when upstream draft save fails', async () =
     await setServerSteps(frame, '8', '74');
     expect(fixture.runtimeDraftEvidence).toHaveLength(0);
 
-    await page.getByRole('button', { name: 'ASA Lab — на главную', exact: true }).click();
+    await frame.getByRole('button', { name: 'Home', exact: true }).click();
     await expect.poll(() => fixture.runtimeDraftEvidence.length, { timeout: 20_000 }).toBe(1);
     await expect(page).toHaveURL(`${parentOrigin}/product`);
     await expect(frame.locator('[data-asa-host-shell]')).toHaveAttribute(
@@ -1499,7 +1499,7 @@ test('Home waits for the latest generation when an edit arrives during upstream 
     );
 
     await setServerSteps(frame, '8', '73');
-    await page.getByRole('button', { name: 'ASA Lab — на главную', exact: true }).click();
+    await frame.getByRole('button', { name: 'Home', exact: true }).click();
     await firstSeen;
     await setServerSteps(frame, '73', '74');
     expect(page.url()).toBe(`${parentOrigin}/product`);
@@ -1568,7 +1568,7 @@ test('confirmed autosave publishes the native Scratch 480x360 stage preview and 
     expect(fixture.getStoredSnapshot()?.bytes.length).toBeGreaterThan(64);
     expect(fixture.getStoredSnapshot()?.bytes.length).toBeLessThanOrEqual(262_144);
 
-    await page.getByRole('button', { name: 'ASA Lab — на главную', exact: true }).click();
+    await frame.getByRole('button', { name: 'Home', exact: true }).click();
     await expect(page).toHaveURL(`${parentOrigin}/product#/home`);
     const image = page.getByTestId('project-preview-snapshot');
     await expect(image).toBeVisible();
@@ -1669,7 +1669,7 @@ test('next confirmed autosave replaces the project preview with the next revisio
     await expect.poll(() => fixture.getSnapshotRevision(), { timeout: 20_000 }).toBe(25);
     expect(fixture.runtimeSnapshotEvidence.map((item) => item.sourceRevision)).toEqual([24, 25]);
 
-    await page.getByRole('button', { name: 'ASA Lab — на главную', exact: true }).click();
+    await frame.getByRole('button', { name: 'Home', exact: true }).click();
     await expect(page).toHaveURL(`${parentOrigin}/product#/home`);
     await expect(page.getByTestId('project-preview-snapshot')).toHaveAttribute(
       'src',
@@ -2117,8 +2117,7 @@ test('unreachable Scratch times out and can reconnect without hiding the editor'
   }
 });
 
-// The parent ASA wordmark navigates; Scratch's own Home action stays inert.
-test('ASA wordmark supports keyboard and returns to home without an explicit-save prompt', async () => {
+test('clean Scratch ASA logo requests parent Home with no overlay', async () => {
   const fixture = await createProtocolFixture({ product: true, locale: 'en-US' });
   const page = await fixture.context.newPage();
   try {
@@ -2129,48 +2128,54 @@ test('ASA wordmark supports keyboard and returns to home without an explicit-sav
       'ready',
       { timeout: 45000 },
     );
-    const home = page.getByRole('button', { name: 'ASA Lab — на главную', exact: true });
-    await expect(home).toBeVisible();
+    await expect(page.locator('[data-asa-blocks-home-overlay]')).toHaveCount(0);
+    await expect(page.locator('.blocks-editor-home')).toHaveCount(0);
     await expect(page.locator('[data-asa-blocks-save]')).toHaveCount(0);
-    for (const width of [1440, 1024, 390, 320]) {
-      await page.setViewportSize({ width, height: 960 });
-      const hit = await home.boundingBox();
-      const logo = await frame.locator('#logo_img').boundingBox();
-      const settings = await frame
-        .getByRole('button', { name: 'Settings menu', exact: true })
-        .boundingBox();
-      expect(hit).not.toBeNull();
-      expect(logo).not.toBeNull();
-      expect(settings).not.toBeNull();
-      expect(hit!.x).toBeLessThanOrEqual(logo!.x);
-      expect(hit!.x + hit!.width).toBeGreaterThanOrEqual(logo!.x + logo!.width);
-      expect(hit!.y).toBeLessThanOrEqual(logo!.y);
-      expect(hit!.y + hit!.height).toBeGreaterThanOrEqual(logo!.y + logo!.height);
-      expect(hit!.x + hit!.width).toBeLessThanOrEqual(settings!.x);
-      await home.hover();
-      expect(await home.evaluate((el) => getComputedStyle(el).cursor)).toBe('pointer');
-      await page.screenshot({ path: `${evidenceDir}/home-wordmark-${width}.png` });
-    }
-    const childUrl = await frame.locator('body').evaluate(() => window.location.href);
-    await frame
-      .getByRole('button', { name: 'Home', exact: true })
-      .evaluate((button) => (button as HTMLButtonElement).click());
-    await expect(page).toHaveURL(`${parentOrigin}/product`);
-    expect(await frame.locator('body').evaluate(() => window.location.href)).toBe(childUrl);
+    const logo = frame.locator('#logo_img');
+    await expect(logo).toBeVisible();
+    await expect(logo).toHaveAttribute('src', '/asa-lab-scratch-wordmark.svg');
+    await frame.getByRole('button', { name: 'Home', exact: true }).click();
+    await expect(page).toHaveURL(`${parentOrigin}/product#/home`);
+    expect(fixture.pageErrors).toEqual([]);
+  } finally {
+    await fixture.close();
+  }
+});
+
+test('native Scratch library Back controls never navigate the parent', async () => {
+  const fixture = await createProtocolFixture({ product: true, locale: 'en-US' });
+  const page = await fixture.context.newPage();
+  try {
+    await page.goto(`${parentOrigin}/product`, { waitUntil: 'domcontentloaded' });
+    const frame = page.frameLocator('iframe[title="Scratch runtime"]');
     await expect(frame.locator('[data-asa-host-shell]')).toHaveAttribute(
       'data-editor-state',
       'ready',
+      { timeout: 45000 },
     );
+    const parentUrl = `${parentOrigin}/product`;
+    await expect(page.locator('[data-asa-blocks-home-overlay]')).toHaveCount(0);
 
-    let dialogSeen = false;
-    page.on('dialog', async (dialog) => {
-      dialogSeen = true;
-      await dialog.dismiss();
-    });
-    await home.focus();
-    await home.press('Enter');
-    await expect(page).toHaveURL(`${parentOrigin}/product#/home`);
-    expect(dialogSeen).toBe(false);
+    await frame.getByRole('button', { name: 'Choose a Sprite' }).first().click();
+    await expect(frame.getByText('Abby', { exact: true })).toBeVisible();
+    await frame.getByRole('button', { name: 'Back', exact: true }).click();
+    await expect(page).toHaveURL(parentUrl);
+
+    await frame.getByRole('button', { name: 'Choose a Backdrop' }).first().click();
+    await expect(frame.getByText('Blue Sky', { exact: true })).toBeVisible();
+    await frame.getByRole('button', { name: 'Back', exact: true }).click();
+    await expect(page).toHaveURL(parentUrl);
+
+    await frame.getByRole('tab', { name: 'Sounds', exact: true }).click();
+    await frame.getByRole('button', { name: 'Choose a Sound', exact: true }).first().click();
+    await expect(frame.getByText('Bark', { exact: true })).toBeVisible();
+    await frame.getByRole('button', { name: 'Back', exact: true }).click();
+    await expect(page).toHaveURL(parentUrl);
+
+    await frame.getByRole('button', { name: 'Add Extension', exact: true }).click();
+    await expect(frame.getByText('Music', { exact: true })).toBeVisible();
+    await frame.getByRole('button', { name: 'Back', exact: true }).click();
+    await expect(page).toHaveURL(parentUrl);
     expect(fixture.pageErrors).toEqual([]);
   } finally {
     await fixture.close();
