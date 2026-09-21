@@ -629,9 +629,9 @@ test('A0 mobile shell uses a permanent bottom anchor and bounded sheet at 390 an
     await expect(anchor).toHaveAttribute('aria-expanded', 'true');
     await expect(brief).toBeVisible();
     await expect(brief).toHaveClass(/is-mobile/);
-    await expect(
-      brief.getByRole('button', { name: 'Переместить карточку задания' }),
-    ).toHaveCount(0);
+    await expect(brief.getByRole('button', { name: 'Переместить карточку задания' })).toHaveCount(
+      0,
+    );
     await expect(brief.locator('.assignment-brief-resize')).toHaveCount(0);
     await expect(brief.locator('.assignment-brief-body')).toHaveCSS('overflow-y', 'auto');
 

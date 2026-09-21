@@ -136,9 +136,7 @@ test('author-only content keeps exact ID and versions after teaching activation;
     .click();
   await editRealProject(learner.page, 'electronics');
   await learner.page.getByRole('button', { name: 'Сдать работу', exact: true }).click();
-  await expect(
-    learner.page.getByText('Сдано на проверку', { exact: true }),
-  ).toBeVisible();
+  await expect(learner.page.getByText('Сдано на проверку', { exact: true })).toBeVisible();
   await page
     .getByRole('navigation', { name: 'Разделы класса' })
     .getByRole('button', { name: 'Журнал', exact: true })
@@ -359,9 +357,7 @@ test('Teacher Home: empty, exact review, read/OFF, return/resubmit, accept and e
   await editRealProject(learner.page, 'three-d');
   const submit = async () => {
     await learner.page.getByRole('button', { name: 'Сдать работу', exact: true }).click();
-    await expect(
-      learner.page.getByText('Сдано на проверку', { exact: true }),
-    ).toBeVisible();
+    await expect(learner.page.getByText('Сдано на проверку', { exact: true })).toBeVisible();
   };
   await submit();
   await page.goto('/#/');
@@ -491,9 +487,7 @@ test('ungraded real submission has an official acceptance but no manufactured po
     .click();
   await editRealProject(learner.page, 'three-d');
   await learner.page.getByRole('button', { name: 'Сдать работу', exact: true }).click();
-  await expect(
-    learner.page.getByText('Сдано на проверку', { exact: true }),
-  ).toBeVisible();
+  await expect(learner.page.getByText('Сдано на проверку', { exact: true })).toBeVisible();
   await page
     .getByRole('navigation', { name: 'Разделы класса' })
     .getByRole('button', { name: 'Журнал', exact: true })
