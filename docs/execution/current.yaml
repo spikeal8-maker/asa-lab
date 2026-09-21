@@ -15,13 +15,13 @@ task:
   base_branch: main
   pr: null
   pr_draft: false
-  status: in_progress
-  checkpoint: first_release_published_client_metadata_repair
+  status: done
+  checkpoint: verified_portable_release_deployed_and_idempotent
   owner_acceptance: pending
 
 revisions:
-  convergence_baseline_sha: 1d101b699b7db34efa838a143a93f9b19940e5c9
-  head_sha: fa64bb97c394b730d815d9103580ae07d5bb4fab
+  convergence_baseline_sha: 8c4a6fa961455be759efdca01b2839e183dc0000
+  head_sha: f150219098d5f2a92239cf438d52dc063def5359
 
 execution_lease:
   executor_id: codex-scratch-real-storage-005b
@@ -149,12 +149,12 @@ parallel_lanes:
       base_branch: main
       pr: null
       pr_draft: false
-      status: in_progress
-      checkpoint: owner_requested_portable_release_baseline_repair
+      status: done
+      checkpoint: bounded_baseline_repair_verified_in_release
       owner_acceptance: pending
     revisions:
-      convergence_baseline_sha: f82b3d529133e8a3fe45c8c0b953f19129abe692
-      head_sha: 9f5108317c31f3cb53de9c79637838cfa6784bb9
+      convergence_baseline_sha: eb7204267b21c11fb9201c95020ddc6a2d4b44cc
+      head_sha: f150219098d5f2a92239cf438d52dc063def5359
     execution_lease:
       executor_id: codex-electronics-eopt5b1d-known-unsupported-locality
       holder: unassigned
