@@ -164,10 +164,12 @@ async function learnerAssignments(
   joinCode: string,
   handle: string,
   viewport?: { readonly width: number; readonly height: number },
+  bypassCSP = false,
 ): Promise<{ context: import('@playwright/test').BrowserContext; page: Page }> {
-  const context = await browser.newContext(
-    viewport ? { viewport: { width: viewport.width, height: viewport.height } } : undefined,
-  );
+  const context = await browser.newContext({
+    ...(viewport ? { viewport: { width: viewport.width, height: viewport.height } } : {}),
+    ...(bypassCSP ? { bypassCSP: true } : {}),
+  });
   const page = await context.newPage();
   await page.goto(`/#/join-class?code=${encodeURIComponent(joinCode)}`);
   await expect(page.getByLabel('Код ученика', { exact: true })).toBeVisible();
@@ -189,6 +191,7 @@ async function openAssignedProject(
   options: {
     brief?: string;
     viewport?: { readonly width: number; readonly height: number };
+    bypassCSP?: boolean;
   } = {},
 ): Promise<{ context: import('@playwright/test').BrowserContext; page: Page; title: string }> {
   const token = ++sequence;
@@ -201,7 +204,13 @@ async function openAssignedProject(
   await openAssignments(teacherPage);
   await assignFromUi(teacherPage, { title, due: '2027-05-30' });
 
-  const learner = await learnerAssignments(browser, joinCode, handle, options.viewport);
+  const learner = await learnerAssignments(
+    browser,
+    joinCode,
+    handle,
+    options.viewport,
+    options.bypassCSP,
+  );
   const row = assignmentRow(learner.page, title);
   await expect(row).toContainText('Не начато');
   await row.getByRole('button', { name: 'Открыть', exact: true }).click();
@@ -511,6 +520,9 @@ test('A0 real Blocks assignment keeps AssignmentBrief topmost over fullscreen Sc
   await page.setViewportSize(desktopV1Viewport);
   const learner = await openAssignedProject(browser, page, 'blocks', {
     viewport: desktopV1Viewport,
+    // The E2E API serves the SPA with a stricter CSP than production Caddy.
+    // Bypass only that harness-only CSP so the pinned separate Scratch origin can load.
+    bypassCSP: true,
   });
   const brief = learner.page.getByTestId('assignment-brief');
   const fullscreen = learner.page.locator('[data-asa-blocks-fullscreen]');
@@ -555,7 +567,6 @@ test('A0 mobile shell is a bounded bottom panel at 390 and 320 without desktop h
   ).join('\n');
   const learner = await openAssignedProject(browser, page, 'electronics', {
     brief: longBrief,
-    viewport: mobileV1Viewports[0],
   });
   const brief = learner.page.getByTestId('assignment-brief');
   const toggle = brief.getByRole('button', { name: /^Задание:/ });
