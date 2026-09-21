@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type PointerEvent as ReactPointerEvent,
+} from 'react';
 import { api, type SeatAssignment } from '../api';
 import { AssignmentView } from './AssignmentView';
 import './assignment-brief.css';
@@ -8,23 +15,70 @@ import {
   canonicalLearningLabel,
   canonicalSubmissionLocked,
 } from '../learning/canonical-learning-presentation';
+import {
+  clampAssignmentBriefRect,
+  defaultAssignmentBriefRect,
+  moveAssignmentBriefRect,
+  parseAssignmentBriefRect,
+  resizeAssignmentBriefRect,
+  type AssignmentBriefRect,
+  type AssignmentBriefResizeEdge,
+} from './assignment-brief-layout';
 
 /**
  * What to make, while you are making it.
  *
- * A learner opened their assignment, landed in the editor, and the task was
- * gone — the picture and the list of required parts were on a page they had
- * just left. Going back to read "four windows, all the same size" and returning
- * to build it is not something a ten-year-old does twice; they build what they
- * remember, which is usually a house with three windows.
- *
- * So the brief travels with the work. It sits over the editor as a strip that
- * opens to the full task and the reference picture, and closes back to a line,
- * because the model needs the screen too. Which state it was left in is
- * remembered: a learner who folded it away is not asked again every time.
+ * This component belongs to Learning, not to any subject editor. ModuleEditorHost
+ * mounts it above Electronics, 3D, Blocks, Chess, Checkers and future editors.
+ * Subject editors keep owning the project surface; the assignment stays movable,
+ * collapsible and independently responsive above them.
  */
 
-const OPEN_KEY = 'asa-assignment-brief-open';
+const OPEN_KEY = 'asa-assignment-brief-open-v2';
+const RECT_KEY = 'asa-assignment-brief-rect-v2';
+const MOBILE_QUERY = '(max-width: 720px)';
+
+const RESIZE_EDGES: readonly AssignmentBriefResizeEdge[] = [
+  'top',
+  'right',
+  'bottom',
+  'left',
+  'top-left',
+  'top-right',
+  'bottom-right',
+  'bottom-left',
+];
+
+type PointerOperation =
+  | {
+      readonly kind: 'move';
+      readonly startX: number;
+      readonly startY: number;
+      readonly startRect: AssignmentBriefRect;
+    }
+  | {
+      readonly kind: 'resize';
+      readonly edge: AssignmentBriefResizeEdge;
+      readonly startX: number;
+      readonly startY: number;
+      readonly startRect: AssignmentBriefRect;
+    };
+
+function openStorageKey(projectId: string): string {
+  return `${OPEN_KEY}:${projectId}`;
+}
+
+function readOpen(projectId: string): boolean {
+  return window.localStorage.getItem(openStorageKey(projectId)) !== 'closed';
+}
+
+function readRect(): AssignmentBriefRect {
+  return parseAssignmentBriefRect(
+    window.localStorage.getItem(RECT_KEY),
+    window.innerWidth,
+    window.innerHeight,
+  );
+}
 
 export function AssignmentBrief({
   projectId,
@@ -34,11 +88,17 @@ export function AssignmentBrief({
   readonly seatLearner: boolean;
 }): JSX.Element | null {
   const [assignment, setAssignment] = useState<SeatAssignment | null>(null);
-  const [open, setOpen] = useState(() => window.localStorage.getItem(OPEN_KEY) !== 'closed');
+  const [open, setOpen] = useState(() => readOpen(projectId));
+  const [mobile, setMobile] = useState(() => window.matchMedia(MOBILE_QUERY).matches);
+  const [rect, setRect] = useState<AssignmentBriefRect>(readRect);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const revision = useConfirmedProjectRevision();
   const submissionRequest = useRef<{ revision: number; id: string } | null>(null);
+  const operation = useRef<PointerOperation | null>(null);
+  const rectRef = useRef(rect);
+  rectRef.current = rect;
+
   const load = useCallback(async () => {
     const [direct, courses] = await Promise.all([
       seatLearner ? api.seatAssignments() : api.attendedAssignments(),
@@ -58,6 +118,70 @@ export function AssignmentBrief({
   }, [projectId, seatLearner]);
 
   useEffect(() => {
+    setOpen(readOpen(projectId));
+  }, [projectId]);
+
+  useEffect(() => {
+    const media = window.matchMedia(MOBILE_QUERY);
+    const update = (): void => setMobile(media.matches);
+    update();
+    media.addEventListener('change', update);
+    return () => media.removeEventListener('change', update);
+  }, []);
+
+  useEffect(() => {
+    const onResize = (): void => {
+      if (window.matchMedia(MOBILE_QUERY).matches) return;
+      setRect((current) =>
+        clampAssignmentBriefRect(current, window.innerWidth, window.innerHeight),
+      );
+    };
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
+  useEffect(() => {
+    const onPointerMove = (event: PointerEvent): void => {
+      const current = operation.current;
+      if (!current) return;
+      const deltaX = event.clientX - current.startX;
+      const deltaY = event.clientY - current.startY;
+      const next =
+        current.kind === 'move'
+          ? moveAssignmentBriefRect(
+              current.startRect,
+              deltaX,
+              deltaY,
+              window.innerWidth,
+              window.innerHeight,
+            )
+          : resizeAssignmentBriefRect(
+              current.startRect,
+              current.edge,
+              deltaX,
+              deltaY,
+              window.innerWidth,
+              window.innerHeight,
+            );
+      rectRef.current = next;
+      setRect(next);
+    };
+    const finish = (): void => {
+      if (!operation.current) return;
+      operation.current = null;
+      window.localStorage.setItem(RECT_KEY, JSON.stringify(rectRef.current));
+    };
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', finish);
+    window.addEventListener('pointercancel', finish);
+    return () => {
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', finish);
+      window.removeEventListener('pointercancel', finish);
+    };
+  }, []);
+
+  useEffect(() => {
     let cancelled = false;
     // Resolve the same delivery through the authenticated Account or Seat reader.
     void load().then((result) => {
@@ -73,9 +197,43 @@ export function AssignmentBrief({
 
   function toggle(): void {
     setOpen((current) => {
-      window.localStorage.setItem(OPEN_KEY, current ? 'closed' : 'open');
+      window.localStorage.setItem(openStorageKey(projectId), current ? 'closed' : 'open');
       return !current;
     });
+  }
+
+  function beginMove(event: ReactPointerEvent<HTMLButtonElement>): void {
+    if (mobile) return;
+    event.preventDefault();
+    operation.current = {
+      kind: 'move',
+      startX: event.clientX,
+      startY: event.clientY,
+      startRect: rectRef.current,
+    };
+  }
+
+  function beginResize(
+    edge: AssignmentBriefResizeEdge,
+    event: ReactPointerEvent<HTMLSpanElement>,
+  ): void {
+    if (mobile) return;
+    event.preventDefault();
+    event.stopPropagation();
+    operation.current = {
+      kind: 'resize',
+      edge,
+      startX: event.clientX,
+      startY: event.clientY,
+      startRect: rectRef.current,
+    };
+  }
+
+  function resetPosition(): void {
+    const next = defaultAssignmentBriefRect(window.innerWidth, window.innerHeight);
+    rectRef.current = next;
+    setRect(next);
+    window.localStorage.setItem(RECT_KEY, JSON.stringify(next));
   }
 
   async function submit(): Promise<void> {
@@ -104,9 +262,34 @@ export function AssignmentBrief({
     } else setError(result.error.message);
   }
 
+  const floatingStyle: CSSProperties | undefined =
+    open && !mobile
+      ? {
+          left: rect.x,
+          top: rect.y,
+          width: rect.width,
+          height: rect.height,
+        }
+      : undefined;
+
   return (
-    <aside className={`assignment-brief${open ? ' is-open' : ''}`} data-testid="assignment-brief">
+    <aside
+      className={`assignment-brief${open ? ' is-open' : ''}${mobile ? ' is-mobile' : ''}`}
+      data-testid="assignment-brief"
+      style={floatingStyle}
+    >
       <div className="assignment-brief-bar">
+        {open && !mobile ? (
+          <button
+            type="button"
+            className="assignment-brief-drag"
+            aria-label="Переместить карточку задания"
+            title="Переместить карточку задания"
+            onPointerDown={beginMove}
+          >
+            ⠿
+          </button>
+        ) : null}
         <button
           type="button"
           className="assignment-brief-toggle"
@@ -116,56 +299,86 @@ export function AssignmentBrief({
           <span aria-hidden="true">{open ? '▾' : '▸'}</span>
           Задание: {assignment.title}
         </button>
-        <span className="assignment-brief-state">
-          {canonicalLearningLabel(assignment.canonicalState) ??
-            (assignment.submittedAt ? 'Сдано' : 'В работе')}
-        </span>
-        <button
-          type="button"
-          className="assignment-brief-submit"
-          disabled={
-            busy ||
-            revision === null ||
-            (assignment.canonicalState
-              ? canonicalSubmissionLocked(assignment.canonicalState)
-              : assignment.submittedAt !== null)
-          }
-          onClick={() => void submit()}
-        >
-          {assignment.canonicalState
-            ? assignment.canonicalState.workflowState === 'changes_requested'
-              ? 'Начать доработку'
-              : canonicalSubmissionLocked(assignment.canonicalState)
+        {open ? (
+          <span className="assignment-brief-state">
+            {canonicalLearningLabel(assignment.canonicalState) ??
+              (assignment.submittedAt ? 'Сдано' : 'В работе')}
+          </span>
+        ) : null}
+        {open && !mobile ? (
+          <button
+            type="button"
+            className="assignment-brief-reset"
+            onClick={resetPosition}
+            title="Вернуть карточку в исходное положение"
+          >
+            Сбросить
+          </button>
+        ) : null}
+        {open ? (
+          <button
+            type="button"
+            className="assignment-brief-submit"
+            disabled={
+              busy ||
+              revision === null ||
+              (assignment.canonicalState
+                ? canonicalSubmissionLocked(assignment.canonicalState)
+                : assignment.submittedAt !== null)
+            }
+            onClick={() => void submit()}
+          >
+            {assignment.canonicalState
+              ? assignment.canonicalState.workflowState === 'changes_requested'
+                ? 'Начать доработку'
+                : canonicalSubmissionLocked(assignment.canonicalState)
+                  ? 'Работа сдана'
+                  : 'Сдать работу'
+              : assignment.submittedAt
                 ? 'Работа сдана'
-                : 'Сдать работу'
-            : assignment.submittedAt
-              ? 'Работа сдана'
-              : 'Сдать работу'}
-        </button>
+                : 'Сдать работу'}
+          </button>
+        ) : null}
       </div>
-      {assignment.canonicalState && canonicalSubmissionLocked(assignment.canonicalState) ? (
-        <small>
-          Работа сдана. Изменения черновика не меняют закреплённую сдачу.
-          {revision !== null
-            ? ` Черновик сохранён: редакция №${revision}.`
-            : ' Дождитесь сохранения изменений черновика.'}
-        </small>
-      ) : revision === null ? (
-        <p role="status">Перед сдачей дождитесь сохранения проекта.</p>
-      ) : (
-        <small>К проверке будет закреплена сохранённая редакция №{revision}.</small>
-      )}
-      {error ? <p role="alert">{error}</p> : null}
 
       {open ? (
-        <div className="assignment-brief-body">
-          <p>
-            {assignment.dueAt
-              ? `Срок: ${new Date(assignment.dueAt).toLocaleString()}`
-              : 'Без срока'}
-          </p>
-          <AssignmentView assignment={assignment} />
-        </div>
+        <>
+          <div className="assignment-brief-meta">
+            {assignment.canonicalState && canonicalSubmissionLocked(assignment.canonicalState) ? (
+              <small>
+                Работа сдана. Изменения черновика не меняют закреплённую сдачу.
+                {revision !== null
+                  ? ` Черновик сохранён: редакция №${revision}.`
+                  : ' Дождитесь сохранения изменений черновика.'}
+              </small>
+            ) : revision === null ? (
+              <p role="status">Перед сдачей дождитесь сохранения проекта.</p>
+            ) : (
+              <small>К проверке будет закреплена сохранённая редакция №{revision}.</small>
+            )}
+            {error ? <p role="alert">{error}</p> : null}
+          </div>
+
+          <div className="assignment-brief-body">
+            <p>
+              {assignment.dueAt
+                ? `Срок: ${new Date(assignment.dueAt).toLocaleString()}`
+                : 'Без срока'}
+            </p>
+            <AssignmentView assignment={assignment} />
+          </div>
+
+          {!mobile
+            ? RESIZE_EDGES.map((edge) => (
+                <span
+                  key={edge}
+                  className={`assignment-brief-resize assignment-brief-resize-${edge}`}
+                  aria-hidden="true"
+                  onPointerDown={(event) => beginResize(edge, event)}
+                />
+              ))
+            : null}
+        </>
       ) : null}
     </aside>
   );
