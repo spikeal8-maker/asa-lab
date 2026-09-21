@@ -952,12 +952,8 @@ class ExpressionParser {
           );
     if (lower === 'readultrasoniccm') {
       if (this.validateOnly) return zeroValue('float');
-      const triggerTerminal = digitalTerminalFromPin(
-        convertValue(argumentsList[0]!, 'byte').value,
-      );
-      const echoTerminal = digitalTerminalFromPin(
-        convertValue(argumentsList[1]!, 'byte').value,
-      );
+      const triggerTerminal = digitalTerminalFromPin(convertValue(argumentsList[0]!, 'byte').value);
+      const echoTerminal = digitalTerminalFromPin(convertValue(argumentsList[1]!, 'byte').value);
       if (!triggerTerminal || !echoTerminal) return zeroValue('float');
       const nowMicroseconds = microsecondsFromMilliseconds(this.state.simulationTimeMs);
       const pending = this.state.ultrasonicAdapter;
@@ -965,9 +961,7 @@ class ExpressionParser {
         pending &&
         (pending.triggerTerminal !== triggerTerminal || pending.echoTerminal !== echoTerminal)
       )
-        throw new SyntaxError(
-          'Продолжение readUltrasonicCm() не соответствует текущему вызову.',
-        );
+        throw new SyntaxError('Продолжение readUltrasonicCm() не соответствует текущему вызову.');
       if (!pending) {
         this.state.actions.push(
           { kind: 'pin-mode', terminal: triggerTerminal, mode: 'OUTPUT' },
@@ -1007,10 +1001,7 @@ class ExpressionParser {
           Math.min(MAX_CLOCK_MICROSECONDS, nowMicroseconds + 1),
         );
       }
-      const duration = this.call('pulseIn', [
-        argumentsList[1]!,
-        numericValue('byte', 1),
-      ]);
+      const duration = this.call('pulseIn', [argumentsList[1]!, numericValue('byte', 1)]);
       this.state.ultrasonicAdapter = null;
       return numericValue('float', duration.value * 0.01723);
     }
