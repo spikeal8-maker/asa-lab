@@ -137,101 +137,136 @@ Acceptance не должна предполагать default geometry, если
 
 Конкретные default coordinates проверяются после явного reset или в чистом storage context.
 
-## 6. V1 — «Задание видно в лаборатории»
+## 6. V1 — «Бирка задания доступна в лаборатории»
 
 Инженерная основа: A0.
 
+V1 проверяет только platform overlay contract. Он не доказывает весь learner hub.
+
 ### Пользователь видит
 
+При normal target journey editor открывается с collapsed anchor:
+
+~~~text
+[ ▣ Задание · Закон Ома   ˄ ]
+~~~
+
+По нажатию открывается compact panel над/рядом с anchor. Anchor остаётся toggle.
+
 Electronics desktop:
-- compact карточка по умолчанию;
-- expanded preset по явному действию;
-- collapsed control;
-- карточка после перемещения;
-- ручной resize в safety limits.
+- anchor collapsed;
+- compact panel open;
+- panel после перемещения;
+- manual resize;
+- expanded preset.
 
 3D desktop:
-- карточка поверх редактора;
-- инструмент редактора доступен вне карточки.
+- anchor/panel поверх editor;
+- инструмент editor доступен вне panel.
 
-Blocks/Scratch desktop:
+Blocks/Scratch:
 - fullscreen runtime реально открыт;
-- карточка визуально находится поверх него.
+- anchor/panel находятся поверх subject fullscreen.
 
 Mobile:
 - 390×844;
 - 320×568;
-- collapsed control;
-- открытая bottom panel.
+- anchor;
+- bottom sheet по нажатию.
 
 ### Визуальные критерии
 
-- default card компактна и не доминирует над лабораторией;
-- полный смысл названия задания доступен в compact/expanded состоянии; essential title не существует только как обрезанный ellipsis;
-- permanent «Сбросить» и primary «Сдать работу» не конкурируют с title в header;
-- submit находится в footer/контекстной зоне действия;
-- compact → expanded → collapsed являются различимыми состояниями;
-- карточка не закрывает критические инструменты лаборатории по умолчанию;
-- вне карточки предметная среда остаётся визуально и функционально доступной;
-- mobile controls помещаются без горизонтального overflow.
+- лаборатория является основной поверхностью при входе;
+- collapsed anchor занимает минимум пространства;
+- panel открывается только по явному действию;
+- anchor остаётся видимой при открытой panel;
+- title читаем;
+- Submit не конкурирует с title в header;
+- panel не перекрывает критические инструменты по умолчанию;
+- mobile controls помещаются без horizontal overflow.
 
 ### Обязательные screenshots
 
 ~~~text
-V1-electronics-compact-1440.png
-V1-electronics-expanded-1440.png
+V1-electronics-anchor-1440.png
+V1-electronics-panel-1440.png
 V1-electronics-moved-1440.png
-V1-three-d-expanded-1440.png
+V1-three-d-panel-1440.png
 V1-blocks-overlay-1440.png
-V1-mobile-390.png
-V1-mobile-320.png
+V1-mobile-anchor-390.png
+V1-mobile-panel-390.png
+V1-mobile-panel-320.png
 ~~~
-
-### Owner decision 21.09.2026 — first A0 screenshot
-
-Первый фактический Electronics screenshot текущей реализации функционально подтвердил overlay, но **VISUAL_ACCEPTANCE = FAIL**.
-
-Причины:
-- default 460×460 воспринимается слишком крупным для рабочего задания;
-- header перегружен title + status + Reset + Submit;
-- title визуально обрезан;
-- технический revision-text занимает слишком высокий приоритет.
-
-Требуемый V1 visual repair:
-- compact default около 360–400 px шириной и content-fit высотой;
-- explicit expand control;
-- collapse control;
-- reset secondary/overflow;
-- submit в footer;
-- короткий save state вместо protocol/revision wording;
-- новый owner-visible screenshot review.
 
 ### Не доказывает
 
 V1 не означает:
-- полный Course Activity context;
+- multi-group learner hub;
+- exact Course Activity context;
 - immutable full task content;
 - штатное authoring Blocks assignment;
 - project protection;
 - teacher review.
 
-## 7. V2 — «В карточке именно то, что назначил учитель»
+## 7. V2 — «Ученик находит и открывает именно своё назначенное задание»
 
-Инженерная основа: A1 + минимальный A2.
+Инженерная основа: learner hub convergence + A1 + минимальный A2. Course Activity occurrence использует принятую D5 модель.
 
-Сценарий:
-1. преподаватель создаёт/публикует activity;
-2. назначает exact version;
-3. ученик открывает работу;
-4. карточка показывает title/goal/instructions именно этой версии;
-5. преподаватель меняет будущий draft;
-6. уже назначенный learner продолжает видеть прежний snapshot.
+### Сценарий multi-group Account
 
-Owner evidence:
-- author published version;
-- learner card before author edit;
-- author future draft changed;
-- learner card still old exact version.
+Fixture минимум:
+- две учебные группы;
+- два CourseRun;
+- direct assignment;
+- состояния scheduled, available, in progress, submitted, changes requested, completed.
+
+Путь:
+
+~~~text
+Вход
+→ Главная с «Учебными делами»
+→ bell показывает unread events
+→ «Моё обучение» показывает actionable count
+→ Сейчас агрегирует работы двух групп
+→ Scheduled task виден locked
+→ Available task открывает assignment detail
+→ full exact task content
+→ Начать/Продолжить
+→ editor с collapsed assignment anchor
+~~~
+
+### Exact-version доказательство
+
+1. преподаватель публикует activity v1;
+2. выдаёт/назначает exact v1;
+3. learner detail показывает v1;
+4. автор создаёт/изменяет будущий draft/v2;
+5. существующий learner delivery продолжает показывать v1.
+
+### Scheduled semantics
+
+Future opensAt:
+- title/context/open time visible;
+- full task content hidden;
+- Start disabled;
+- editor не открывается.
+
+После opensAt task становится actionable.
+
+### Owner evidence
+
+~~~text
+V2-home-learning-attention.png
+V2-learning-now-two-groups.png
+V2-scheduled-locked.png
+V2-assignment-detail-v1.png
+V2-author-future-draft.png
+V2-learner-still-v1.png
+V2-editor-anchor-after-start.png
+V2-completed-history.png
+~~~
+
+Bell unread count и Learning actionable count проверяются отдельно.
 
 ## 8. V3 — «Начать создаёт одну учебную работу»
 
