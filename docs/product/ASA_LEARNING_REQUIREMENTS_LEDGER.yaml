@@ -728,6 +728,48 @@ requirements:
   planned_test_ids:
   - TST-RECOVERY-LEARNING-E1-CREDENTIAL-SECRETS-001
 
+
+- id: E1-FIX-13
+  milestone: E1
+  status: in_progress
+  priority: P1
+  summary: Universal learner work shell above every lab plus activity-level teacher review queue
+  normative_ref: PRODUCT-INTEGRATED-V15 §4.2.2 / §4.2.3 / §16
+  issue: 368
+  source_paths:
+  - apps/web/src/components/AssignmentBrief.tsx
+  - apps/web/src/components/assignment-brief.css
+  - apps/web/src/components/assignment-brief-layout.ts
+  - apps/web/src/modules/ModuleEditorHost.tsx
+  - apps/web/src/components/ClassroomCourses.tsx
+  - apps/web/src/components/WorkPreview.tsx
+  - docs/product/learning/ASA_LEARNING_WORK_SHELL_SPEC.md
+  evidence:
+  - docs/product/ASA_INTEGRATED_IMPLEMENTATION_SPEC.md
+  - docs/product/learning/ASA_LEARNING_WORK_SHELL_SPEC.md
+  tests:
+  - tests/courses/assignment-brief-layout.spec.ts
+  verification:
+    source_sha: null
+    method: implementation_started
+    observed_result: Normative and visual contract added; first bounded slice implements shared overlay geometry without changing subject editors.
+    product_fix_verified: false
+    authenticated_live_journey: not_run
+  planned_scenarios:
+  - LEARNER-TASK-AVAILABLE-ABOVE-EVERY-MODULE
+  - DIRECT-AND-COURSE-BLOCK-EXACT-TASK-CONTEXT
+  - DESKTOP-TASK-MOVE-RESIZE-CLAMP-RESET
+  - MOBILE-TASK-BOTTOM-SHEET-320-390
+  - TASK-IMAGE-ZOOM-AND-PIN
+  - TASK-VIDEO-FILE-LINK-RENDER
+  - TEACHER-ACTIVITY-REVIEW-QUEUE
+  - REVIEW-EXACT-SUBMISSION-NOT-LATEST-DRAFT
+  - REVIEW-PREVIOUS-NEXT-FILTERS
+  - REVIEW-ACCEPT-RETURN-GRADE-WITHOUT-FULL-EDITOR
+  - MODULE-ADAPTER-ELECTRONICS-THREE-D-BLOCKS
+  - FUTURE-MODULE-REUSES-SHELL-WITHOUT-COPIED-LEARNING-UI
+  planned_test_ids: []
+
 - id: INT-REUSE-HISTORY
   milestone: unassigned
   status: target
