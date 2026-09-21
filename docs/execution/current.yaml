@@ -9,15 +9,15 @@ development_policy:
   lane_path_ownership: advisory
 
 task:
-  id: VSCR-M1-005B
-  issue: 287
-  branch: codex/scratch-real-storage-005b
+  id: TASK-PORTABLE-RELEASE-ACTIVATION-001
+  issue: 381
+  branch: main
   base_branch: main
-  pr: 288
+  pr: null
   pr_draft: false
-  status: done
-  checkpoint: merged
-  owner_acceptance: accepted
+  status: in_progress
+  checkpoint: owner_requested_release_activation_test_baseline_repair
+  owner_acceptance: pending
 
 revisions:
   convergence_baseline_sha: 1d101b699b7db34efa838a143a93f9b19940e5c9
