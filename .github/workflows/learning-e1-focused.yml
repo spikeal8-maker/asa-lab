@@ -53,6 +53,9 @@ jobs:
       MIGRATION_CONFIRM: APPLY:asa_learning_e1_test
       NODE_ENV: test
       ASA_SEED_DEMO: 'false'
+      ASA_BLOCKS_RUNTIME_ORIGIN: http://127.0.0.1:4613
+      ASA_BLOCKS_RUNTIME_SIGNING_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      VITE_ASA_BLOCKS_RUNTIME_ORIGIN: http://127.0.0.1:4613
     steps:
       - uses: actions/checkout@v4
         with:
@@ -74,11 +77,39 @@ jobs:
           psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -c "ALTER ROLE asalab_app WITH LOGIN PASSWORD 'learning-e1-ci-isolated-test'"
       - name: Existing E1 and populated upgrade regressions
         run: pnpm test:learning-e1
+      - name: Build pinned Scratch standalone host image
+        run: >-
+          docker build -f infra/scratch-editor/Dockerfile
+          --build-arg ASA_BUILD_REVISION=${{ github.event.pull_request.head.sha || github.sha }}
+          -t asa-lab-scratch-editor:learning-e1 .
+      - name: Start isolated Scratch host
+        run: >-
+          docker run -d --name asa-lab-scratch-editor-learning-e1
+          --user 101:101 --read-only
+          --tmpfs /var/cache/nginx:uid=101,gid=101,mode=0700,size=64m
+          --tmpfs /var/run:uid=101,gid=101,mode=0700,size=8m
+          --cap-drop ALL --security-opt no-new-privileges:true
+          -p 127.0.0.1:4613:8080 asa-lab-scratch-editor:learning-e1
+      - name: Verify isolated Scratch host
+        run: |
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent --show-error http://127.0.0.1:4613/healthz; then
+              break
+            fi
+            sleep 1
+          done
+          curl --fail --silent --show-error http://127.0.0.1:4613/healthz
       - name: Real author Account Seat and exact project journeys
         env:
           ASA_WEB_PORT: '4612'
           ASA_WEB_ORIGIN: http://127.0.0.1:4612
         run: pnpm e2e:learning-e1
+      - name: Show isolated Scratch host logs
+        if: always()
+        run: docker logs asa-lab-scratch-editor-learning-e1 || true
+      - name: Remove isolated Scratch host
+        if: always()
+        run: docker rm -f asa-lab-scratch-editor-learning-e1 || true
       - name: Preserve synthetic browser evidence
         if: always()
         uses: actions/upload-artifact@v4
