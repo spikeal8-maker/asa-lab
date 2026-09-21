@@ -312,6 +312,8 @@ async function createPublishedProjectActivityAfterLogin(
   resultMode = 'completion',
 ): Promise<void> {
   await page.goto('/#/challenges');
+  const newMaterial = page.getByRole('button', { name: 'Новый материал', exact: true });
+  if (await newMaterial.isVisible()) await newMaterial.click();
   await page.getByLabel('Название материала', { exact: true }).fill(title);
   await page
     .getByLabel('Содержание', { exact: true })
