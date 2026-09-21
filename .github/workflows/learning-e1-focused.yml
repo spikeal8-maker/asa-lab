@@ -81,6 +81,7 @@ jobs:
         run: >-
           docker build -f infra/scratch-editor/Dockerfile
           --build-arg ASA_BUILD_REVISION=${{ github.event.pull_request.head.sha || github.sha }}
+          --build-arg ASA_BLOCKS_PARENT_ORIGIN=http://127.0.0.1:4612
           -t asa-lab-scratch-editor:learning-e1 .
       - name: Start isolated Scratch host
         run: >-
