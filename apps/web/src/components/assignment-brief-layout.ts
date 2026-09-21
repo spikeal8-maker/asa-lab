@@ -14,6 +14,8 @@ export const ASSIGNMENT_BRIEF_MIN_WIDTH = 320;
 export const ASSIGNMENT_BRIEF_MIN_HEIGHT = 220;
 export const ASSIGNMENT_BRIEF_DEFAULT_WIDTH = 460;
 export const ASSIGNMENT_BRIEF_DEFAULT_HEIGHT = 460;
+export const ASSIGNMENT_BRIEF_MAX_WIDTH_RATIO = 0.7;
+export const ASSIGNMENT_BRIEF_MAX_HEIGHT_RATIO = 0.8;
 
 function clamp(value: number, minimum: number, maximum: number): number {
   if (maximum < minimum) return minimum;
@@ -51,10 +53,18 @@ export function clampAssignmentBriefRect(
   viewportWidth: number,
   viewportHeight: number,
 ): AssignmentBriefRect {
-  const maxWidth = availableWidth(viewportWidth);
-  const maxHeight = availableHeight(viewportHeight);
-  const minWidth = Math.min(ASSIGNMENT_BRIEF_MIN_WIDTH, maxWidth);
-  const minHeight = Math.min(ASSIGNMENT_BRIEF_MIN_HEIGHT, maxHeight);
+  const widthAvailable = availableWidth(viewportWidth);
+  const heightAvailable = availableHeight(viewportHeight);
+  const minWidth = Math.min(ASSIGNMENT_BRIEF_MIN_WIDTH, widthAvailable);
+  const minHeight = Math.min(ASSIGNMENT_BRIEF_MIN_HEIGHT, heightAvailable);
+  const maxWidth = Math.min(
+    widthAvailable,
+    Math.max(minWidth, Math.floor(viewportWidth * ASSIGNMENT_BRIEF_MAX_WIDTH_RATIO)),
+  );
+  const maxHeight = Math.min(
+    heightAvailable,
+    Math.max(minHeight, Math.floor(heightAvailable * ASSIGNMENT_BRIEF_MAX_HEIGHT_RATIO)),
+  );
   const width = clamp(rect.width, minWidth, maxWidth);
   const height = clamp(rect.height, minHeight, maxHeight);
   const minX = ASSIGNMENT_BRIEF_EDGE_INSET;
