@@ -15,13 +15,13 @@ task:
   base_branch: main
   pr: null
   pr_draft: false
-  status: in_progress
-  checkpoint: single_entry_candidate_verified_locally_ci_pending
+  status: done
+  checkpoint: production_single_entry_deployed_verified_owner_review_pending
   owner_acceptance: pending
 
 revisions:
   convergence_baseline_sha: 4c64b26ef5d1de643ac3c142c91674e871ad6ef6
-  head_sha: 4c64b26ef5d1de643ac3c142c91674e871ad6ef6
+  head_sha: f56a71edb41548932d47154d68fcde87b64402da
 
 execution_lease:
   executor_id: codex-scratch-real-storage-005b
