@@ -5,6 +5,9 @@
 
 :8080 {
 	encode zstd gzip
+	# The public alias must reach the same canonical origin as the embedded editor.
+	@publicAlias host www.asa-lab.ru
+	redir @publicAlias https://asa-lab.ru{uri} 308
 	@portal not path /internal/blocks/*
 	header @portal X-Frame-Options DENY
 	# Embedded component assets share the ASA entry point; this is not a second site.

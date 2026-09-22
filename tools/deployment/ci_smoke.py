@@ -1,5 +1,6 @@
 """Disposable Linux CI only: boot prebuilt images, export, restore and check login."""
 
+import http.client
 import json
 import os
 from pathlib import Path
@@ -75,6 +76,15 @@ with tempfile.TemporaryDirectory(prefix="asa-delivery-") as directory:
         with urllib.request.urlopen("http://127.0.0.1:4610/internal/blocks/") as response:
             require(b'./vendor/scratch/scratch-gui-standalone.js' in response.read(), "SMOKE", "Embedded editor route is missing.")
             require(response.headers.get("X-Frame-Options") != "DENY", "SMOKE", "Embedded editor framing is denied.")
+        alias = http.client.HTTPConnection("127.0.0.1", 4610, timeout=10)
+        try:
+            alias.request("GET", "/internal/blocks/?asaStatus=parent", headers={"Host": "www.asa-lab.ru"})
+            response = alias.getresponse()
+            require(response.status == 308 and response.getheader("Location") ==
+                    "https://asa-lab.ru/internal/blocks/?asaStatus=parent", "SMOKE", "Public alias must preserve the canonical editor entry.")
+            response.read()
+        finally:
+            alias.close()
         with urllib.request.urlopen("http://localhost:4613/") as response:
             require(b'content="http://127.0.0.1:4610"' in response.read(), "SMOKE", "Scratch parent configuration is missing.")
         print("PORTABLE_SMOKE PASS: prebuilt boot, complete backup, ACL/RLS restore, restricted-role login, origins")

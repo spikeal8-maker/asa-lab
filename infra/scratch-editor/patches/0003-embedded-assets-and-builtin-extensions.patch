@@ -9,6 +9,17 @@ diff --git a/packages/scratch-gui/webpack.config.js b/packages/scratch-gui/webpa
              path: path.resolve(__dirname, 'dist')
          }
      });
+diff --git a/packages/scratch-storage/webpack.config.js b/packages/scratch-storage/webpack.config.js
+--- a/packages/scratch-storage/webpack.config.js
++++ b/packages/scratch-storage/webpack.config.js
+@@ -25,6 +25,7 @@ const baseConfig = new ScratchWebpackConfigBuilder(
+ const webConfig = baseConfig.clone()
+     .merge({
+         output: {
++            publicPath: 'auto',
+             library: {
+                 name: 'ScratchStorage',
+                 type: 'umd2'
 diff --git a/packages/scratch-vm/src/extension-support/extension-manager.js b/packages/scratch-vm/src/extension-support/extension-manager.js
 --- a/packages/scratch-vm/src/extension-support/extension-manager.js
 +++ b/packages/scratch-vm/src/extension-support/extension-manager.js

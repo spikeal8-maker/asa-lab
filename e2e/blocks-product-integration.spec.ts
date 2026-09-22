@@ -261,6 +261,12 @@ test('shipping fullscreen host loads the account avatar in ASA only and survives
     await expect(avatar).toHaveAttribute('src', updatedAvatar ?? 'missing-avatar');
     expect(requests).toContain(`${parentOrigin}/api/account/avatar`);
     expect(requests.filter((url) => url.startsWith(`${runtimeUrl}/api/account`))).toEqual([]);
+    expect(requests.filter((url) => url.startsWith(`${parentOrigin}/chunks/`))).toEqual([]);
+    expect(
+      requests.some((url) =>
+        url.startsWith(`${parentOrigin}/internal/blocks/vendor/scratch/chunks/fetch-worker.`),
+      ),
+    ).toBe(true);
     expect(
       requests.filter(
         (url) => /^https?:/.test(url) && ![parentOrigin, runtimeUrl].includes(new URL(url).origin),
