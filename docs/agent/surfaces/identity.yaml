@@ -1,6 +1,35 @@
 schema_version: 1.0.0
 context: identity
 surfaces:
+- id: SURF-OWNER-ADMIN-OPERATOR
+  routes:
+  - 'operator:owner-admin'
+  implementation:
+    files:
+    - tools/platform-admin.mjs
+    - tools/owner-admin.py
+    - docs/deployment/OWNER_ADMIN.md
+  invariants:
+  - IDA-ACC-001
+  - IDA-AUTH-001
+  - IDA-SCOPE-001
+  tests:
+  - TST-OWNER-ADMIN-OPERATOR-001
+  controls:
+  - id: CTRL-OWNER-ADMIN-GRANT
+    label: Grant platform authority to one confirmed existing account
+    change_class: L3_CRITICAL
+    files:
+    - tools/platform-admin.mjs
+    - tools/owner-admin.py
+    commands:
+    - owner_admin_grant
+    invariants:
+    - IDA-ACC-001
+    - IDA-AUTH-001
+    - IDA-SCOPE-001
+    tests:
+    - TST-OWNER-ADMIN-OPERATOR-001
 - id: SURF-ACCOUNT-SETTINGS
   routes:
   - '#/account'

@@ -73,23 +73,26 @@ parallel_lanes:
       - migrations/0078_max_verification_lifecycle.sql
       - migrations/0100_max_runtime_settings.sql
       - tests/admin/**
+      - tools/platform-admin.mjs
+      - tools/owner-admin.py
+      - docs/deployment/OWNER_ADMIN.md
       - tests/account/**
       - e2e/admin-auth-max.spec.ts
       - docs/execution/ADMIN_AUTH_MAX_EXECUTION_PLAN.md
       - docs/execution/ASA_ACCESS_A.md
     task:
-      id: TASK-ASA-ACCESS-A-INTEGRATE-001
-      issue: 173
+      id: TASK-OWNER-ADMIN-PROVISIONING-001
+      issue: 383
       branch: main
       base_branch: main
-      pr: 174
+      pr: null
       pr_draft: false
-      status: done
-      checkpoint: owner_accepted_result_a_merged_without_deployment
-      owner_acceptance: accepted
+      status: in_progress
+      checkpoint: confirmed_existing_account_operator_cli_hardening
+      owner_acceptance: pending
       normative_refs:
-        - document: IDENTITY-ACCESS-V20
-          revision: '2.0'
+        - document: IDENTITY-ACCESS-V22
+          revision: '2.2'
     accepted_result:
       id: ASA-ACCESS-A
       status: OWNER_ACCEPTED
@@ -108,9 +111,8 @@ parallel_lanes:
           status: unverified
           evidence: docs/testing/ACCESS_A_WINDOWS_TOUCH_REPRO.md
     revisions:
-      convergence_baseline_sha: cc712bc5155291b64dca3207457d26b055c118f6
-      head_sha: 07ffd4e5266ded960ae8485a93a20103d607d6d9
-      product_merge_sha: 07ffd4e5266ded960ae8485a93a20103d607d6d9
+      convergence_baseline_sha: 959e68502af8b8c69a4aaaf87a4f502e057140ac
+      head_sha: 959e68502af8b8c69a4aaaf87a4f502e057140ac
     execution_lease:
       executor_id: codex-admin-auth-max
       holder: unassigned
@@ -121,7 +123,7 @@ parallel_lanes:
       focused:
         workflow: ASA Lab Governance and Code Gates
         commands:
-          - pnpm test:access-a
+          - pnpm test:owner-admin
       browser:
         workflow: ASA Lab Governance and Code Gates
         commands:
