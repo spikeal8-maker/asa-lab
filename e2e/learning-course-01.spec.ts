@@ -38,8 +38,12 @@ async function editRealProject(page: Page, module: string) {
     await expect(viewport).toBeVisible({ timeout: 60000 });
     await expect(viewport).toHaveAttribute('data-runtime-ready', 'true');
     expectedObjectCount = Number.parseInt(await objectCount.innerText(), 10) + 1;
+    const saveState = page.locator('.asa3d-save-state');
     await page.getByRole('button', { name: 'Параллелепипед', exact: true }).click();
     await expect(objectCount).toContainText(new RegExp(`^${expectedObjectCount} `));
+    await expect(saveState).toHaveClass(/save-(dirty|saving)/);
+    await expect(saveState).toHaveClass(/save-saved/);
+    await expect(saveState).toContainText('Все изменения сохранены');
   } else {
     const resistor = page.getByRole('button', { name: 'Резистор', exact: true });
     await expect(resistor).toBeVisible({ timeout: 60000 });
