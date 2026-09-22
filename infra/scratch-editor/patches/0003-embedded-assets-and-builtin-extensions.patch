@@ -1,0 +1,70 @@
+diff --git a/packages/scratch-gui/webpack.config.js b/packages/scratch-gui/webpack.config.js
+--- a/packages/scratch-gui/webpack.config.js
++++ b/packages/scratch-gui/webpack.config.js
+@@ -150,6 +150,7 @@ const distStandaloneConfig = baseConfig.clone()
+             'scratch-gui-standalone': path.join(__dirname, 'src/index-standalone.tsx')
+         },
+         output: {
++            publicPath: 'auto',
+             path: path.resolve(__dirname, 'dist')
+         }
+     });
+diff --git a/packages/scratch-storage/webpack.config.js b/packages/scratch-storage/webpack.config.js
+--- a/packages/scratch-storage/webpack.config.js
++++ b/packages/scratch-storage/webpack.config.js
+@@ -25,6 +25,7 @@ const baseConfig = new ScratchWebpackConfigBuilder(
+ const webConfig = baseConfig.clone()
+     .merge({
+         output: {
++            publicPath: 'auto',
+             library: {
+                 name: 'ScratchStorage',
+                 type: 'umd2'
+diff --git a/packages/scratch-vm/src/extension-support/extension-manager.js b/packages/scratch-vm/src/extension-support/extension-manager.js
+--- a/packages/scratch-vm/src/extension-support/extension-manager.js
++++ b/packages/scratch-vm/src/extension-support/extension-manager.js
+@@ -140,6 +140,11 @@ class ExtensionManager {
+      * @returns {Promise} resolved once the extension is loaded and initialized or rejected on failure
+      */
+     loadExtensionURL (extensionURL) {
++        // ASA ships trusted built-in extensions as part of its application.
++        // Imported projects must never install arbitrary scripts into the ASA origin.
++        if (!Object.prototype.hasOwnProperty.call(builtinExtensions, extensionURL)) {
++            return Promise.reject(new Error('ASA: external extension code is not supported'));
++        }
+         if (Object.prototype.hasOwnProperty.call(builtinExtensions, extensionURL)) {
+             /** @TODO dupe handling for non-builtin extensions. See commit 670e51d33580e8a2e852b3b038bb3afc282f81b9 */
+             if (this.isExtensionLoaded(extensionURL)) {
+diff --git a/packages/scratch-vm/src/extensions/scratch3_face_sensing/index.js b/packages/scratch-vm/src/extensions/scratch3_face_sensing/index.js
+--- a/packages/scratch-vm/src/extensions/scratch3_face_sensing/index.js
++++ b/packages/scratch-vm/src/extensions/scratch3_face_sensing/index.js
+@@ -7,7 +7,6 @@
+ const {distance, toScratchCoords} = require('./utils');
+
+ const FaceDetection = require('@tensorflow-models/face-detection');
+-const mediapipePackage = require('@mediapipe/face_detection/package.json');
+
+ /**
+  * Icon svg to be displayed in the blocks category menu, encoded as a data URI.
+@@ -94,20 +93,11 @@
+         const model = FaceDetection.SupportedModels.MediaPipeFaceDetector;
+         const detectorConfig = {
+             runtime: 'mediapipe',
+-            solutionPath: '/chunks/mediapipe/face_detection',
++            solutionPath: './chunks/mediapipe/face_detection',
+             maxFaces: 1
+         };
+
+         FaceDetection.createDetector(model, detectorConfig)
+-            .catch(() => {
+-                const fallbackConfig = {
+-                    runtime: 'mediapipe',
+-                    solutionPath: `https://cdn.jsdelivr.net/npm/@mediapipe/face_detection@${mediapipePackage.version}`,
+-                    maxFaces: 1
+-                };
+-
+-                return FaceDetection.createDetector(model, fallbackConfig);
+-            })
+             .then(detector => {
+                 this._faceDetector = detector;
+                 if (this.runtime.ioDevices) {

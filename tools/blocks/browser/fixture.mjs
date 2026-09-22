@@ -154,12 +154,24 @@ window.addEventListener('message', (event) => {
     requestUrl.includes(runtimeToken) ||
     requestUrl.includes('rotated.runtime.token');
   const applyRuntimeCors = (request, response) => {
-    if (request.headers.origin !== runtimeUrl) return false;
-    response.setHeader('Access-Control-Allow-Origin', runtimeUrl);
+    const expected = product ? parentOrigin : runtimeUrl;
+    if (runtimeRequestOrigin(request) !== expected) return false;
+    response.setHeader('Access-Control-Allow-Origin', expected);
     response.setHeader('Vary', 'Origin');
     response.setHeader('Access-Control-Allow-Methods', 'GET, PUT, OPTIONS');
     response.setHeader('Access-Control-Allow-Headers', 'authorization, accept, content-type');
     return true;
+  };
+  const runtimeRequestOrigin = (request) => {
+    if (request.headers.origin !== undefined) return request.headers.origin;
+    if (
+      product &&
+      request.method === 'GET' &&
+      request.headers['sec-fetch-site'] === 'same-origin' &&
+      request.headers.referer?.startsWith(`${parentOrigin}/internal/blocks/`)
+    )
+      return parentOrigin;
+    return undefined;
   };
   const requestBody = async (request) => {
     const chunks = [];
@@ -169,6 +181,20 @@ window.addEventListener('message', (event) => {
 
   const server = http.createServer(async (request, response) => {
     const requestUrl = request.url ?? '/';
+    if (product && requestUrl.startsWith('/internal/blocks/')) {
+      const upstream = http.get(
+        `${runtimeUrl}/${requestUrl.slice('/internal/blocks/'.length)}`,
+        (source) => {
+          response.writeHead(source.statusCode ?? 502, source.headers);
+          source.pipe(response);
+        },
+      );
+      upstream.on('error', () => {
+        response.statusCode = 502;
+        response.end();
+      });
+      return;
+    }
 
     if (product && request.method === 'POST' && requestUrl === runtimeSessionPath) {
       runtimeSessionSequence += 1;
@@ -184,7 +210,7 @@ window.addEventListener('message', (event) => {
           draftRevision: serverRevision,
           projectJson: durableProjectDocument?.projectJson ?? null,
           assets: durableProjectDocument?.assets ?? [],
-          runtimeOrigin: runtimeUrl,
+          runtimeOrigin: parentOrigin,
           runtimeToken: `fixture.${runtimeSessionSequence}.signature`,
           expiresAt,
         }),
@@ -215,7 +241,7 @@ window.addEventListener('message', (event) => {
           authorizationOk,
           cookiePresent: Boolean(request.headers.cookie),
           urlHasCapability: urlHasCapability(requestUrl),
-          originOk: request.headers.origin === runtimeUrl,
+          originOk: runtimeRequestOrigin(request) === (product ? parentOrigin : runtimeUrl),
         });
         if (!authorizationOk) {
           response.statusCode = 401;
@@ -261,7 +287,7 @@ window.addEventListener('message', (event) => {
         authorizationOk,
         cookiePresent: Boolean(request.headers.cookie),
         urlHasCapability: urlHasCapability(requestUrl),
-        originOk: request.headers.origin === runtimeUrl,
+        originOk: runtimeRequestOrigin(request) === (product ? parentOrigin : runtimeUrl),
         identityOk,
         contentTypeOk,
         sizeBytes: body.byteLength,
@@ -338,7 +364,7 @@ window.addEventListener('message', (event) => {
         authorizationOk: runtimeAuthorizationOk(request.headers.authorization),
         cookiePresent: Boolean(request.headers.cookie),
         urlHasCapability: urlHasCapability(requestUrl),
-        originOk: request.headers.origin === runtimeUrl,
+        originOk: runtimeRequestOrigin(request) === (product ? parentOrigin : runtimeUrl),
         contentTypeOk: request.headers['content-type'] === 'application/vnd.asa.blocks-draft+json',
         body: parsed,
       };

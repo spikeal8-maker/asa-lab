@@ -27,6 +27,9 @@ describe('Blocks forward upgrade on real PostgreSQL', () => {
         const client = await pool.connect();
         try {
           const plan = planMigrations();
+          const forwardVersions = plan
+            .filter((item) => Number(item.version) > 150)
+            .map((item) => item.version);
           const oldPlan = plan.filter(
             (item) => Number(item.version) <= 150 && (has0146 || item.version !== '0146'),
           );
@@ -35,18 +38,16 @@ describe('Blocks forward upgrade on real PostgreSQL', () => {
           const before = (await client.query('SELECT * FROM schema_migrations ORDER BY version'))
             .rows;
           const tenants = (await client.query('SELECT * FROM tenants ORDER BY id')).rows;
-          expect((await inspectPlan(client, plan)).map((item) => item.version)).toEqual([
-            '0151',
-            '0152',
-            '0153',
-            '0154',
-          ]);
-          expect(await applyIsolatedTestPlan(client, plan)).toBe(4);
+          expect((await inspectPlan(client, plan)).map((item) => item.version)).toEqual(
+            forwardVersions,
+          );
+          expect(await applyIsolatedTestPlan(client, plan)).toBe(forwardVersions.length);
           expect(await applyIsolatedTestPlan(client, plan)).toBe(0);
           expect(
             (
               await client.query(
-                "SELECT * FROM schema_migrations WHERE version NOT IN ('0151','0152','0153','0154') ORDER BY version",
+                'SELECT * FROM schema_migrations WHERE NOT (version = ANY($1::text[])) ORDER BY version',
+                [forwardVersions],
               )
             ).rows,
           ).toEqual(before);

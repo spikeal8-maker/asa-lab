@@ -82,6 +82,12 @@ const ARDUINO_COMMAND_TITLES = {
   delayMicroseconds: 'Пауза в микросекундах',
   tone: 'Включить звуковой тон',
   noTone: 'Остановить звуковой тон',
+  'Servo.h': 'Подключить библиотеку Servo',
+  'Servo.attach': 'Подключить сервопривод к выводу',
+  'Servo.write': 'Задать угол сервопривода',
+  'Servo.read': 'Прочитать заданный угол',
+  'Servo.detach': 'Отключить сервопривод',
+  readUltrasonicCm: 'Измерить расстояние',
   map: 'Перенести число в диапазон',
   constrain: 'Ограничить число',
   abs: 'Модуль числа',
@@ -106,6 +112,43 @@ const ARDUINO_COMMAND_TITLES = {
 } as const satisfies Readonly<Record<ArduinoTextCommand, string>>;
 
 const REFERENCE_METADATA = {
+  'Servo.h': {
+    signature: '#include <Servo.h>',
+    category: 'io',
+    limits:
+      'Поддерживается только встроенный адаптер Servo; произвольные библиотеки не загружаются.',
+    example: '#include <Servo.h>\nServo servo;',
+  },
+  'Servo.attach': {
+    signature: 'servo.attach(pin)',
+    category: 'io',
+    limits: 'Нужен объявленный объект Servo. Подключает его к цифровому выводу, сигнал 50 Гц.',
+    example: 'servo.attach(9);',
+  },
+  'Servo.write': {
+    signature: 'servo.write(angle)',
+    category: 'io',
+    limits: 'Заданный угол 0–180° преобразуется в импульс 544–2400 мкс.',
+    example: 'servo.write(90);',
+  },
+  'Servo.read': {
+    signature: 'servo.read()',
+    category: 'io',
+    limits: 'Возвращает заданный угол, а не измерение положения физического вала.',
+    example: 'int angle = servo.read();',
+  },
+  'Servo.detach': {
+    signature: 'servo.detach()',
+    category: 'io',
+    limits: 'Останавливает сигнал Servo и оставляет вывод в состоянии LOW.',
+    example: 'servo.detach();',
+  },
+  readUltrasonicCm: {
+    signature: 'readUltrasonicCm(triggerPin, echoPin)',
+    category: 'io',
+    limits: 'Встроенный адаптер ASA: измерение trigger/echo через pulseIn по времени симуляции.',
+    example: 'int distance = readUltrasonicCm(7, 8);',
+  },
   setup: {
     signature: 'void setup()',
     category: 'program',

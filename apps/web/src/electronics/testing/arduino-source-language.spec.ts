@@ -37,6 +37,26 @@ describe('Arduino source language support', () => {
     expect(arduinoCompletionsAt('x', 1)).toBeNull();
   });
 
+  it('replaces the whole Servo API prefix and exposes the implemented distance adapter', () => {
+    const source = '  servo.wr';
+    const completion = arduinoCompletionsAt(source, source.length);
+    expect(completion?.from).toBe(2);
+    expect(completion?.items[0]?.label).toBe('Servo.write');
+    const result = insertArduinoCompletion(
+      source,
+      completion!.from,
+      source.length,
+      completion!.items[0]!,
+      'Tab',
+    );
+    expect(result.source).toBe('  servo.write(90);');
+    expect(arduinoCompletionsAt('servo.re', 8)?.items.map((item) => item.label)).toEqual([
+      'Servo.read',
+    ]);
+    expect(arduinoCompletionsAt('other.re', 8)).toBeNull();
+    expect(arduinoCompletionsAt('readUltra', 9)?.items[0]?.label).toBe('readUltrasonicCm');
+  });
+
   it('completes a statement and moves Enter to a correctly indented new line', () => {
     const source = 'void loop() {\n  dela\n}\n';
     const cursor = source.indexOf('dela') + 4;

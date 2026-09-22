@@ -30,7 +30,7 @@ services:
       target: runtime
       args:
         ASA_BUILD_REVISION: ${ASA_BUILD_REVISION:-unknown}
-    image: asa-lab-api:${ASA_IMAGE_TAG:-local}
+    image: ${ASA_API_IMAGE:-asa-lab-api:${ASA_IMAGE_TAG:-local}}
     entrypoint: ['/app/docker/migrate-entrypoint.sh']
     restart: 'no'
     depends_on:
@@ -61,7 +61,7 @@ services:
     build:
       context: .
       dockerfile: infra/minio/Dockerfile
-    image: asa-lab-minio:${ASA_IMAGE_TAG:-local}
+    image: ${ASA_MINIO_IMAGE:-asa-lab-minio:${ASA_IMAGE_TAG:-local}}
     restart: unless-stopped
     command: server /data
     user: '1000:1000'
@@ -122,7 +122,7 @@ services:
       target: runtime
       args:
         ASA_BUILD_REVISION: ${ASA_BUILD_REVISION:-unknown}
-    image: asa-lab-api:${ASA_IMAGE_TAG:-local}
+    image: ${ASA_API_IMAGE:-asa-lab-api:${ASA_IMAGE_TAG:-local}}
     restart: unless-stopped
     init: true
     depends_on:
@@ -141,7 +141,7 @@ services:
       APP_DATABASE_URL: ${APP_DATABASE_URL:-postgres://asalab_app:asa-local-runtime-change-me@postgres:5432/asalab}
       ASA_SETTINGS_ENCRYPTION_KEY: ${ASA_SETTINGS_ENCRYPTION_KEY:-}
       ASA_BLOCKS_RUNTIME_SIGNING_KEY: ${ASA_BLOCKS_RUNTIME_SIGNING_KEY:-}
-      ASA_BLOCKS_RUNTIME_ORIGIN: ${ASA_BLOCKS_RUNTIME_ORIGIN:-http://localhost:${ASA_BLOCKS_PORT:-4613}}
+      ASA_BLOCKS_RUNTIME_ORIGIN: ${ASA_BLOCKS_RUNTIME_ORIGIN:-http://127.0.0.1:${ASA_WEB_PORT:-4610}}
       ASA_OBJECT_STORAGE_ENDPOINT: ${ASA_OBJECT_STORAGE_ENDPOINT:-http://minio:9000}
       ASA_OBJECT_STORAGE_REGION: ${ASA_OBJECT_STORAGE_REGION:-us-east-1}
       ASA_OBJECT_STORAGE_BUCKET: ${ASA_OBJECT_STORAGE_BUCKET:-asa-blocks}
@@ -172,8 +172,10 @@ services:
       args:
         ASA_BUILD_REVISION: ${ASA_BUILD_REVISION:-unknown}
         ASA_BLOCKS_PREVIEW: ${ASA_BLOCKS_PREVIEW:-0}
-        ASA_BLOCKS_RUNTIME_ORIGIN: ${ASA_BLOCKS_RUNTIME_ORIGIN:-http://localhost:${ASA_BLOCKS_PORT:-4613}}
-    image: asa-lab-web:${ASA_IMAGE_TAG:-local}
+        ASA_BLOCKS_RUNTIME_ORIGIN: ${ASA_BLOCKS_RUNTIME_ORIGIN:-http://127.0.0.1:${ASA_WEB_PORT:-4610}}
+    image: ${ASA_WEB_IMAGE:-asa-lab-web:${ASA_IMAGE_TAG:-local}}
+    environment:
+      ASA_BLOCKS_RUNTIME_ORIGIN: ${ASA_BLOCKS_RUNTIME_ORIGIN:-http://127.0.0.1:${ASA_WEB_PORT:-4610}}
     restart: unless-stopped
     init: true
     depends_on:
@@ -189,6 +191,7 @@ services:
     user: '65534:65534'
     networks:
       - application
+      - scratch-runtime
     security_opt:
       - no-new-privileges:true
     cap_drop:
@@ -201,7 +204,9 @@ services:
       args:
         ASA_BUILD_REVISION: ${ASA_BUILD_REVISION:-unknown}
         ASA_BLOCKS_PARENT_ORIGIN: ${ASA_BLOCKS_PARENT_ORIGIN:-http://127.0.0.1:${ASA_WEB_PORT:-4610}}
-    image: asa-lab-scratch:${ASA_IMAGE_TAG:-local}
+    image: ${ASA_SCRATCH_IMAGE:-asa-lab-scratch:${ASA_IMAGE_TAG:-local}}
+    environment:
+      ASA_BLOCKS_PARENT_ORIGIN: ${ASA_BLOCKS_PARENT_ORIGIN:-http://127.0.0.1:${ASA_WEB_PORT:-4610}}
     restart: unless-stopped
     init: true
     user: '101:101'
@@ -219,7 +224,7 @@ services:
       - scratch-runtime
 
 networks:
-  # Dedicated bridge: no API/DB membership. It must permit the loopback published port.
+  # Only Web can proxy the embedded editor; API/DB are not members.
   scratch-runtime:
   application:
   database:

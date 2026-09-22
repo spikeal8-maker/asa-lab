@@ -349,7 +349,7 @@ test('non-declared asset never receives a runtime asset URL and may only use the
   );
   assert.equal(loaded, null);
   assert.equal(calls.length, 1);
-  assert.equal(calls[0].url, `/library-assets/${unknown}.svg`);
+  assert.equal(calls[0].url, `./library-assets/${unknown}.svg`);
   assert.equal(String(calls[0].url).startsWith(API_ORIGIN), false);
   assert.equal(calls[0].init.credentials, 'omit');
   assert.equal(calls[0].init.headers, undefined);
@@ -462,7 +462,7 @@ test('new project mount uses Scratch default project and preserves native editor
   assert.equal(fixture.props.canCreateNew, true);
   assert.equal(fixture.props.showSaveNow, false);
   assert.ok(fixture.props.autoSaveIntervalSecs >= 5 && fixture.props.autoSaveIntervalSecs <= 8);
-  assert.equal(fixture.props.logo, '/asa-lab-scratch-wordmark.svg');
+  assert.equal(fixture.props.logo, './asa-lab-scratch-wordmark.svg');
   assert.equal(typeof fixture.props.onClickLogo, 'function');
   fixture.props.onClickLogo();
   assert.equal(fixture.homeRequests(), 1);

@@ -142,6 +142,16 @@ export default defineConfig(({ command }) => {
       strictPort: true,
       host: '127.0.0.1',
       proxy: {
+        '/internal/blocks/': {
+          target: `http://127.0.0.1:${resolvePort('ASA_BLOCKS_PORT', 4613)}`,
+          rewrite: (path) => path.replace(/^\/internal\/blocks/, ''),
+          configure(proxy) {
+            proxy.on('proxyReq', (request) => {
+              request.removeHeader('cookie');
+              request.removeHeader('authorization');
+            });
+          },
+        },
         // The API accepts a state-changing request from exactly one origin,
         // http://127.0.0.1:<web port>, and refuses every other — localhost
         // included, deliberately, so that another local service cannot become a

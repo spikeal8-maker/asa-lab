@@ -1,0 +1,142 @@
+name: ASA Portable Release
+run-name: Release ${{ github.event.workflow_run.head_sha || github.sha }}
+
+"on":
+  workflow_run:
+    workflows: ['ASA Lab Governance and Code Gates']
+    branches: [main]
+    types: [completed]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: asa-stable-release
+  cancel-in-progress: false
+
+jobs:
+  contracts:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m unittest discover -s tools/deployment -p "test_*.py" -v
+  gate:
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_repository.full_name == github.repository))
+    runs-on: ubuntu-latest
+    outputs:
+      revision: ${{ steps.source.outputs.revision }}
+    steps:
+      - id: source
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          REVISION: ${{ github.event.workflow_run.head_sha || github.sha }}
+        run: |
+          gh api "repos/$REPOSITORY/actions/runs?head_sha=$REVISION&branch=main&per_page=100" > /tmp/runs.json
+          python - <<'PY'
+          import json, os
+          runs = json.load(open('/tmp/runs.json'))['workflow_runs']
+          required = [r for r in runs if r['name'] == 'ASA Lab Governance and Code Gates' and r['head_sha'] == os.environ['REVISION']]
+          required.sort(key=lambda r: (r['run_number'], r.get('run_attempt', 0)), reverse=True)
+          assert required and required[0]['status'] == 'completed' and required[0]['conclusion'] == 'success', 'Exact-SHA general CI is not green'
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write('revision=' + os.environ['REVISION'] + '\n')
+          PY
+  build:
+    needs: [gate, contracts]
+    permissions:
+      contents: read
+      packages: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    strategy:
+      matrix:
+        include:
+          - {service: api, file: Dockerfile.api, target: runtime}
+          - {service: web, file: Dockerfile.web, target: runtime}
+          - {service: scratch, file: infra/scratch-editor/Dockerfile, target: ''}
+          - {service: minio, file: infra/minio/Dockerfile, target: ''}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.gate.outputs.revision }}
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.file }}
+          target: ${{ matrix.target }}
+          platforms: linux/amd64
+          push: true
+          tags: ghcr.io/${{ github.repository }}/${{ matrix.service }}:${{ needs.gate.outputs.revision }}
+          labels: org.opencontainers.image.source=https://github.com/${{ github.repository }}
+          build-args: |
+            ASA_BUILD_REVISION=${{ needs.gate.outputs.revision }}
+            ASA_BLOCKS_PARENT_ORIGIN=http://127.0.0.1:4610
+            ASA_BLOCKS_RUNTIME_ORIGIN=http://localhost:4613
+          cache-from: type=gha,scope=portable-${{ matrix.service }}
+          cache-to: type=gha,scope=portable-${{ matrix.service }},mode=max
+  publish:
+    needs: [gate, build]
+    permissions:
+      contents: read
+      packages: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      ASA_BUILD_REVISION: ${{ needs.gate.outputs.revision }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.gate.outputs.revision }}
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - run: python -m unittest discover -s tools/deployment -p "test_*.py" -v
+      - run: python tools/deployment/ci_manifest.py
+      - name: Verify the exact images before promoting stable
+        run: python tools/deployment/ci_smoke.py .asa/release/release.json
+      - name: Prevent a delayed workflow from rolling the channel backward
+        run: |
+          python - <<'PY'
+          import os, sys
+          sys.path.insert(0, 'tools')
+          from deployment.system import run
+          from deployment.contracts import require
+          latest = run(['git', 'ls-remote', 'origin', 'refs/heads/main'], capture=True).split()[0]
+          require(latest == os.environ['ASA_BUILD_REVISION'], 'STALE_RELEASE',
+                  'Main advanced during the build; keep stable unchanged and publish the next green main.')
+          PY
+      - uses: docker/build-push-action@v6
+        with:
+          context: .asa/release
+          file: infra/deployment/Dockerfile
+          push: true
+          platforms: linux/amd64
+          tags: |
+            ghcr.io/${{ github.repository }}/deployment:${{ needs.gate.outputs.revision }}
+            ghcr.io/${{ github.repository }}/deployment:stable
+          labels: org.opencontainers.image.source=https://github.com/${{ github.repository }}

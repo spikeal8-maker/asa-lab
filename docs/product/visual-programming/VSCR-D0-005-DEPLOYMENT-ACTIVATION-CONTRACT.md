@@ -7,12 +7,12 @@
 
 ## Deployment principle
 
-Scratch runtime работает на отдельном browser origin, но остаётся частью одной установки ASA Lab.
+Scratch — встроенная часть единой ASA Lab. Портал и редактор используют один
+browser origin; отдельные публичные домены, порты и FRP-маршруты не создаются.
 
 ```text
 student browser
-├── ASA Web/API origin
-└── Blocks runtime origin
+└── ASA Web/API origin, including /internal/blocks/ editor resources
 
 server/install
 ├── ASA Web/API/PostgreSQL
@@ -20,7 +20,7 @@ server/install
 └── private S3-compatible object storage (planned managed persistence, not current local-file prerequisite)
 ```
 
-Separate origin не означает отдельный аккаунт, БД, Compose project или второй продукт.
+Внутренний контейнер не означает отдельный аккаунт, БД, Compose project или второй продукт.
 Для первого запуска и обновления действует один
 [deployment runbook](../../deployment/SCRATCH_INSTALLATION.md). `standalone` —
 формат GUI/VM bundle, не разрешение разворачивать редактор отдельно от ASA.
@@ -31,7 +31,7 @@ Separate origin не означает отдельный аккаунт, БД, C
 ASA_WEB_PORT                 # default 4610
 ASA_BLOCKS_PORT              # default 4613, existing installation keeps its value
 ASA_BLOCKS_PARENT_ORIGIN     # exact ASA browser origin
-ASA_BLOCKS_RUNTIME_ORIGIN    # exact editor browser origin
+ASA_BLOCKS_RUNTIME_ORIGIN    # same exact ASA browser origin; capability binding
 ```
 
 `ASA_WEB_ORIGIN`, `ASA_BLOCKS_RUNTIME_PORT` и `ASA_BLOCKS_RUNTIME_BIND_ADDRESS`
@@ -44,7 +44,9 @@ Object storage/security configuration определяются профильн�
 
 ## Browser-visible runtime URL rule
 
-`127.0.0.1` допустим только когда browser и server находятся на одной development-машине. Ученическому browser на другом ПК сервер должен отдавать реальный LAN/public runtime origin.
+Браузер загружает редактор по относительному `/internal/blocks/` того же сайта.
+Ему не передают localhost другого компьютера или отдельный runtime domain.
+Origin в подписанном runtime-session должен совпадать с origin портала.
 
 ## Supported deployment shapes
 

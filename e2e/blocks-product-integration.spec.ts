@@ -234,7 +234,7 @@ test('shipping fullscreen host loads the account avatar in ASA only and survives
     await expect(frame.locator('header[role="banner"]')).toHaveCount(1);
     await expect(frame.locator('#logo_img')).toHaveAttribute(
       'src',
-      '/asa-lab-scratch-wordmark.svg',
+      './asa-lab-scratch-wordmark.svg',
     );
     for (const size of [
       { width: 1440, height: 960 },
@@ -261,6 +261,12 @@ test('shipping fullscreen host loads the account avatar in ASA only and survives
     await expect(avatar).toHaveAttribute('src', updatedAvatar ?? 'missing-avatar');
     expect(requests).toContain(`${parentOrigin}/api/account/avatar`);
     expect(requests.filter((url) => url.startsWith(`${runtimeUrl}/api/account`))).toEqual([]);
+    expect(requests.filter((url) => url.startsWith(`${parentOrigin}/chunks/`))).toEqual([]);
+    expect(
+      requests.some((url) =>
+        url.startsWith(`${parentOrigin}/internal/blocks/vendor/scratch/chunks/fetch-worker.`),
+      ),
+    ).toBe(true);
     expect(
       requests.filter(
         (url) => /^https?:/.test(url) && ![parentOrigin, runtimeUrl].includes(new URL(url).origin),
@@ -531,7 +537,7 @@ test('long-lived editor rotates capability in place and upstream autosaves with 
   await installBlocksMessageCapture(page);
   let runtimeNavigations = 0;
   page.on('framenavigated', (navigated) => {
-    if (navigated.url().startsWith(runtimeUrl)) runtimeNavigations += 1;
+    if (navigated.url().startsWith(`${parentOrigin}/internal/blocks/`)) runtimeNavigations += 1;
   });
   try {
     await page.goto(`${parentOrigin}/product`, { waitUntil: 'domcontentloaded' });
@@ -2042,7 +2048,8 @@ test('native File saves an edited sb3 and restores code and media in a fresh edi
     expect(
       httpRequests.filter(
         ({ phase: step, url }) =>
-          step === 'restore' && new URL(url).pathname.startsWith('/library-assets/'),
+          step === 'restore' &&
+          new URL(url).pathname.startsWith('/internal/blocks/library-assets/'),
       ),
     ).toEqual([]);
     // Closing a stock picker may cancel an unused thumbnail. Keep that evidence,
@@ -2054,8 +2061,10 @@ test('native File saves an edited sb3 and restores code and media in a fresh edi
             failure.phase === 'sprite-library' &&
             failure.type === 'image' &&
             failure.error === 'net::ERR_ABORTED' &&
-            new URL(failure.url).origin === runtimeUrl &&
-            /^\/library-assets\/[a-f0-9]{32}\.(svg|png|jpg)$/.test(new URL(failure.url).pathname)
+            new URL(failure.url).origin === parentOrigin &&
+            /^\/internal\/blocks\/library-assets\/[a-f0-9]{32}\.(svg|png|jpg)$/.test(
+              new URL(failure.url).pathname,
+            )
           ),
       ),
     ).toEqual([]);
@@ -2097,13 +2106,13 @@ test('unreachable Scratch times out and can reconnect without hiding the editor'
   const page = await fixture.context.newPage();
   const blockRuntime = (route: import('@playwright/test').Route) => route.abort();
   try {
-    await page.route(`${runtimeUrl}/**`, blockRuntime);
+    await page.route(`${parentOrigin}/internal/blocks/**`, blockRuntime);
     await page.goto(`${parentOrigin}/product`, { waitUntil: 'domcontentloaded' });
     const overlay = page.locator('[data-asa-blocks-loading-overlay]');
     await expect(overlay).toHaveAttribute('data-state', 'error', { timeout: 55000 });
     await expect(overlay).toContainText('Не удалось открыть среду');
     await expect(page.locator('[data-asa-blocks-account-overlay]')).toBeVisible();
-    await page.unroute(`${runtimeUrl}/**`, blockRuntime);
+    await page.unroute(`${parentOrigin}/internal/blocks/**`, blockRuntime);
     await page.getByRole('button', { name: 'Повторить', exact: true }).click();
     await expect(overlay).toHaveAttribute('data-state', 'loading');
     await expect(
@@ -2133,7 +2142,7 @@ test('clean Scratch ASA logo requests parent Home with no overlay', async () => 
     await expect(page.locator('[data-asa-blocks-save]')).toHaveCount(0);
     const logo = frame.locator('#logo_img');
     await expect(logo).toBeVisible();
-    await expect(logo).toHaveAttribute('src', '/asa-lab-scratch-wordmark.svg');
+    await expect(logo).toHaveAttribute('src', './asa-lab-scratch-wordmark.svg');
     await frame.getByRole('button', { name: 'Home', exact: true }).click();
     await expect(page).toHaveURL(`${parentOrigin}/product#/home`);
     expect(fixture.pageErrors).toEqual([]);

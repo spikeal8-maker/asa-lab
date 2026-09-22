@@ -28,7 +28,7 @@ const values = Object.fromEntries(
 assert.equal(values.ASA_SEED_DEV, 'true');
 
 const origin = 'http://127.0.0.1:4610';
-const runtimeOrigin = 'http://localhost:4613';
+const runtimeOrigin = origin;
 const out = path.resolve('reports/blocks/portable-install');
 const composeArgs = ['compose', '-f', 'compose.yaml', '-f', 'compose.dev.yaml'];
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -488,14 +488,15 @@ const projectIds = [];
 let phase = 'readiness';
 observeRuntime(context, runtimeEvents, () => phase, projectIds);
 
-// A non-secret HttpOnly marker proves the iframe does not receive portal cookies.
+// The integrated editor shares the ASA origin; its persistence transport must
+// still omit account cookies and use only its scoped project capability.
 const cookieProbe = 'asa_portable_host_cookie';
 await context.addCookies([
   { name: cookieProbe, value: 'isolation-test', domain: '127.0.0.1', path: '/', httpOnly: true },
 ]);
 let runtimeRequests = 0;
 let portalCookieLeaked = false;
-await context.route(/^http:\/\/(?:localhost|127\.0\.0\.1):4613\//, async (route) => {
+await context.route(`${origin}/api/blocks/runtime/**`, async (route) => {
   const headers = await route.request().allHeaders();
   runtimeRequests += 1;
   portalCookieLeaked ||= (headers.cookie ?? '').includes(`${cookieProbe}=`);
@@ -534,12 +535,8 @@ try {
   const projectId = projectIds.at(-1);
   assert.ok(projectId && UUID_RE.test(projectId), 'runtime-session must expose created project id');
 
-  expect(runtimeRequests).toBeGreaterThan(0);
-  expect(portalCookieLeaked, 'Scratch must not receive portal host cookie').toBe(false);
-  await expect(page.locator('iframe')).toHaveAttribute(
-    'src',
-    'http://localhost:4613/?asaStatus=parent',
-  );
+  expect(portalCookieLeaked, 'Editor persistence must omit account cookies').toBe(false);
+  await expect(page.locator('iframe')).toHaveAttribute('src', '/internal/blocks/?asaStatus=parent');
 
   const marker = `ASA Durable Sprite ${projectId.slice(0, 8)}`;
   const variable = `ASA_Durable_Proof_${projectId.slice(0, 6)}`;
@@ -680,6 +677,16 @@ try {
   const freshSessionResponse = await sessionResponsePromise;
   expect(freshSessionResponse.status()).toBe(200);
   const freshSession = await freshSessionResponse.json();
+  expect(freshSession.runtimeOrigin).toBe(origin);
+  expect(runtimeRequests).toBeGreaterThan(0);
+  expect(portalCookieLeaked, 'Editor persistence must omit account cookies').toBe(false);
+  const firstAsset = freshSession.assets[0];
+  assert.ok(firstAsset, 'saved project must contain media for authorization proof');
+  const cookieOnlyAsset = await context.request.get(
+    `/api/blocks/runtime/projects/${projectId}/assets/${firstAsset.assetId}.${firstAsset.dataFormat}`,
+    { headers: { 'sec-fetch-site': 'same-origin', referer: `${origin}/internal/blocks/` } },
+  );
+  expect(cookieOnlyAsset.status(), 'account cookies cannot replace a project capability').toBe(401);
   await trace.settle();
   trace.setPhase('idle');
 

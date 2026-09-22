@@ -305,7 +305,7 @@
           canCreateNew: session.mode === 'editor',
           showSaveNow: false,
           autoSaveIntervalSecs,
-          logo: '/asa-lab-scratch-wordmark.svg',
+          logo: './asa-lab-scratch-wordmark.svg',
           onClickLogo() {
             if (!disposed && session.mode === 'editor') onHomeRequest?.();
           },

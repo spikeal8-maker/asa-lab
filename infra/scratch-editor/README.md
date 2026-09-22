@@ -1,6 +1,6 @@
 # ASA Lab Scratch Editor runtime
 
-This directory builds the pinned upstream Scratch Editor as an isolated ASA runtime.
+This directory builds the pinned upstream Scratch Editor as an internal component of the single ASA application. Users open it within an ASA project on the same domain and port; no editor subdomain or public FRP route is created.
 Scratch GUI/VM stays outside the ASA Web dependency graph. Execution state and owner
 acceptance live only in `docs/execution/current.yaml`.
 
@@ -67,12 +67,13 @@ does not control visibility, creation or mounting. The root Compose supplies the
 `scratch` service. `compose.blocks-preview.yaml` is a compatibility overlay only,
 not an additional application or a required second startup step.
 
-`ASA_BLOCKS_RUNTIME_ORIGIN` is the exact browser-visible editor origin;
+`ASA_BLOCKS_RUNTIME_ORIGIN` is the exact ASA portal origin used for capability binding;
 `ASA_BLOCKS_PARENT_ORIGIN` is the exact ASA parent origin. Preserve approved
-values on update. The normal runtime host port is `ASA_BLOCKS_PORT=4613`, bound
-to loopback; 8080 is internal to the container. Distinct origin is required for
-isolation, not a request for a distinct product. Cookie isolation also needs
-the documented host separation, not merely another port on the same host.
+values on ordinary updates. Port `ASA_BLOCKS_PORT=4613` is a local technical
+health endpoint; 8080 is internal to the container. Users load the editor through
+the ASA Web `/internal/blocks/` resource path. The same-origin component is trusted
+application code; it is not a cookie/DOM isolation boundary. The VM permits the
+pinned built-in extensions and rejects arbitrary extension script URLs.
 
 Missing configuration or timeout must not hide the module. Native `.sb3` controls
 remain; the ready editor has no persistent footer. Failure/retry stays parent-owned.
