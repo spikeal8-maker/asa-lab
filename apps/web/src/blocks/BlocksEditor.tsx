@@ -1,11 +1,12 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { newClientId } from '../client-id';
-import { BlocksEditorShell, type BlocksSaveState } from './BlocksEditorShell';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { saveProjectSnapshot } from '../project-snapshot-client';
+import { BlocksEditorShell } from './BlocksEditorShell';
 import { BlocksRuntimeBridge, requireExactHttpOrigin } from './runtime-protocol';
 import { requestBlocksRuntimeSession } from './runtime-session';
 
 interface BlocksEditorProps {
   projectId: string;
+  recoveryPrincipalKey: string;
   onBack: () => void;
   accountLabel: string;
   accountInitials: string;
@@ -15,31 +16,14 @@ interface BlocksEditorProps {
 }
 
 const CAPABILITY_REFRESH_WINDOW_MS = 60_000;
-
-function capabilityNeedsRefresh(expiresAt: number | null, nowMs = Date.now()): boolean {
-  return expiresAt === null || expiresAt * 1000 - nowMs <= CAPABILITY_REFRESH_WINDOW_MS;
-}
+type BlocksEditorStartupState = 'loading' | 'ready' | 'error';
 
 function configuredRuntimeOrigin(): string | null {
   if (typeof window === 'undefined') return null;
-  if (typeof __ASA_BLOCKS_RUNTIME_ORIGIN__ === 'undefined' || !__ASA_BLOCKS_RUNTIME_ORIGIN__)
-    return null;
   try {
-    const configured = new URL(requireExactHttpOrigin(__ASA_BLOCKS_RUNTIME_ORIGIN__));
-    // Preserve the default localhost runtime beside the 127.0.0.1 portal.
-    // Different ports alone do not isolate host cookies. Keep the existing
-    // non-loopback LAN template behavior; explicit production origins stay exact.
-    const parentHostname = window.location.hostname;
-    const loopbackParent =
-      parentHostname === 'localhost' ||
-      parentHostname === '[::1]' ||
-      /^127(?:\.\d{1,3}){3}$/.test(parentHostname);
-    if (configured.hostname === 'localhost' && !loopbackParent)
-      configured.hostname = parentHostname;
-    const origin = configured.origin;
-    // Visibility never grants the runtime portal authority or permits mixed content.
-    if (window.location.origin.startsWith('https:') && origin.startsWith('http:')) return null;
-    return origin === window.location.origin ? null : origin;
+    // The editor is shipped inside ASA. Deployment settings cannot turn it into
+    // another website or send a project capability to an external iframe.
+    return requireExactHttpOrigin(window.location.origin);
   } catch {
     return null;
   }
@@ -47,6 +31,7 @@ function configuredRuntimeOrigin(): string | null {
 
 export function BlocksEditor({
   projectId,
+  recoveryPrincipalKey,
   onBack,
   accountLabel,
   accountInitials,
@@ -57,15 +42,27 @@ export function BlocksEditor({
   const runtimeOrigin = useMemo(configuredRuntimeOrigin, []);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const bridgeRef = useRef<BlocksRuntimeBridge | null>(null);
-  const saveRequestRef = useRef<string | null>(null);
-  const saveOperationRef = useRef(false);
-  const capabilityExpiresAtRef = useRef<number | null>(null);
-  const refreshCapabilityRef = useRef<(() => Promise<boolean>) | null>(null);
-  const latestDirtyGenerationRef = useRef(0);
-  const [status, setStatus] = useState('Подключение Scratch…');
-  const [saveState, setSaveState] = useState<BlocksSaveState>('idle');
-  const [savedRevision, setSavedRevision] = useState<number | null>(null);
+  const homeSavePendingRef = useRef(false);
+  const onHomeClickRef = useRef(onHomeClick);
+  const [startupState, setStartupState] = useState<BlocksEditorStartupState>('loading');
   const [attempt, setAttempt] = useState(0);
+
+  onHomeClickRef.current = onHomeClick;
+
+  const requestHomeExit = useCallback((): void => {
+    const activeBridge = bridgeRef.current;
+    if (!activeBridge || homeSavePendingRef.current) return;
+    homeSavePendingRef.current = true;
+    void activeBridge
+      .requestSaveBeforeExit()
+      .then((result) => {
+        if (result.ok && bridgeRef.current === activeBridge) onHomeClickRef.current();
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        homeSavePendingRef.current = false;
+      });
+  }, []);
 
   useEffect(() => {
     if (!runtimeOrigin) return undefined;
@@ -79,7 +76,7 @@ export function BlocksEditor({
     let refreshController: AbortController | null = null;
     let refreshPromise: Promise<boolean> | null = null;
     const startupTimer = window.setTimeout(() => {
-      if (!disposed) setStatus('Ошибка Scratch runtime');
+      if (!disposed) setStartupState('error');
     }, 45000);
 
     const clearRefreshTimer = (): void => {
@@ -90,7 +87,6 @@ export function BlocksEditor({
     };
 
     const scheduleRefresh = (expiresAt: number): void => {
-      capabilityExpiresAtRef.current = expiresAt;
       clearRefreshTimer();
       const delay = Math.min(
         2_147_483_647,
@@ -138,62 +134,30 @@ export function BlocksEditor({
       return activePromise;
     }
 
-    refreshCapabilityRef.current = refreshCapability;
-
     const failStartup = (): void => {
       if (disposed) return;
       window.clearTimeout(startupTimer);
-      setStatus('Ошибка Scratch runtime');
-      saveOperationRef.current = false;
-      if (saveRequestRef.current) {
-        saveRequestRef.current = null;
-        setSaveState('error');
-        setSavedRevision(null);
-      }
+      setStartupState('error');
     };
 
     const onMessage = (event: MessageEvent): void => {
       if (!bridge?.acceptChildMessage(event)) return;
       const payload = event.data as Record<string, unknown>;
-      if (payload['messageType'] === 'ASA_BLOCKS_STATUS') {
-        if (payload['status'] === 'project-dirty') {
-          const generation = Number(payload['generation']);
-          latestDirtyGenerationRef.current = Math.max(latestDirtyGenerationRef.current, generation);
-          setSavedRevision(null);
-          setSaveState((current) => (current === 'saved' ? 'idle' : current));
-          return;
-        }
-        if (payload['status'] === 'token-updated') return;
-        if (payload['status'] === 'editor-ready') window.clearTimeout(startupTimer);
-        setStatus(String(payload['status'] ?? 'Scratch подключён'));
-      }
-      if (payload['messageType'] === 'ASA_BLOCKS_FLUSH_RESULT') {
-        const requestId = payload['requestId'];
-        if (requestId === saveRequestRef.current) {
-          saveRequestRef.current = null;
-          saveOperationRef.current = false;
-          if (
-            payload['ok'] === true &&
-            Number.isSafeInteger(payload['revision']) &&
-            Number.isSafeInteger(payload['snapshotGeneration'])
-          ) {
-            const snapshotGeneration = Number(payload['snapshotGeneration']);
-            if (snapshotGeneration >= latestDirtyGenerationRef.current) {
-              setSavedRevision(Number(payload['revision']));
-              setSaveState('saved');
-            } else {
-              setSavedRevision(null);
-              setSaveState('idle');
-            }
-          } else {
-            setSavedRevision(null);
-            setSaveState(payload['reason'] === 'revision_conflict' ? 'conflict' : 'error');
-          }
-        }
+      if (payload['messageType'] === 'ASA_BLOCKS_STATUS' && payload['status'] === 'editor-ready') {
+        window.clearTimeout(startupTimer);
+        setStartupState('ready');
       }
       if (payload['messageType'] === 'ASA_BLOCKS_TOKEN_REFRESH_REQUIRED') {
         void refreshCapability();
       }
+      if (payload['messageType'] === 'ASA_BLOCKS_THUMBNAIL_READY') {
+        void saveProjectSnapshot(
+          projectId,
+          payload['imageDataUrl'] as string,
+          payload['sourceRevision'] as number,
+        );
+      }
+      if (payload['messageType'] === 'ASA_BLOCKS_HOME_REQUEST') requestHomeExit();
       if (payload['messageType'] === 'ASA_BLOCKS_FATAL') failStartup();
     };
 
@@ -224,10 +188,8 @@ export function BlocksEditor({
           projectJson: session.projectJson,
           hasProjectJson: session.projectJson !== null,
           assets: session.assets,
-          recoveryNamespace: `asa-blocks-preview-${projectId}`,
-          onMessage: (message) => {
-            if (message['messageType'] === 'ASA_BLOCKS_READY') setStatus('Scratch готов');
-          },
+          recoveryPrincipalKey,
+          onMessage: () => undefined,
           onFatal: failStartup,
         });
         bridgeRef.current = bridge;
@@ -235,8 +197,8 @@ export function BlocksEditor({
         scheduleRefresh(session.expiresAt);
       } catch {
         bridge?.stop();
+        if (bridgeRef.current === bridge) bridgeRef.current = null;
         bridge = null;
-        bridgeRef.current = null;
         failStartup();
       }
     };
@@ -249,15 +211,10 @@ export function BlocksEditor({
       requestController = new AbortController();
       loadGeneration += 1;
       bridge?.stop();
+      if (bridgeRef.current === bridge) bridgeRef.current = null;
       bridge = null;
-      bridgeRef.current = null;
-      saveRequestRef.current = null;
-      saveOperationRef.current = false;
-      capabilityExpiresAtRef.current = null;
-      latestDirtyGenerationRef.current = 0;
-      setStatus('Подключение Scratch…');
-      setSaveState('idle');
-      setSavedRevision(null);
+      homeSavePendingRef.current = false;
+      setStartupState('loading');
       void connect(loadGeneration, requestController);
     };
 
@@ -273,62 +230,17 @@ export function BlocksEditor({
       frame.removeEventListener('load', onLoad);
       window.removeEventListener('message', onMessage);
       bridge?.stop();
-      bridgeRef.current = null;
-      saveRequestRef.current = null;
-      saveOperationRef.current = false;
-      capabilityExpiresAtRef.current = null;
-      latestDirtyGenerationRef.current = 0;
-      if (refreshCapabilityRef.current === refreshCapability) {
-        refreshCapabilityRef.current = null;
-      }
+      if (bridgeRef.current === bridge) bridgeRef.current = null;
+      homeSavePendingRef.current = false;
     };
-  }, [projectId, runtimeOrigin, attempt]);
-
-  const requestSave = async (): Promise<void> => {
-    if (saveOperationRef.current) return;
-    const bridge = bridgeRef.current;
-    if (!bridge || status !== 'editor-ready') {
-      setSavedRevision(null);
-      setSaveState('error');
-      return;
-    }
-
-    saveOperationRef.current = true;
-    setSavedRevision(null);
-    setSaveState('saving');
-
-    if (capabilityNeedsRefresh(capabilityExpiresAtRef.current)) {
-      const refresh = refreshCapabilityRef.current;
-      const refreshed = refresh ? await refresh() : false;
-      if (bridgeRef.current !== bridge) {
-        saveOperationRef.current = false;
-        return;
-      }
-      if (!refreshed) {
-        saveOperationRef.current = false;
-        setSavedRevision(null);
-        setSaveState('error');
-        return;
-      }
-    }
-
-    const requestId = newClientId();
-    saveRequestRef.current = requestId;
-    try {
-      bridge.requestFlush(requestId);
-    } catch {
-      saveRequestRef.current = null;
-      saveOperationRef.current = false;
-      setSaveState('error');
-    }
-  };
+  }, [projectId, recoveryPrincipalKey, runtimeOrigin, attempt, requestHomeExit]);
 
   if (!runtimeOrigin) {
     return (
       <main className="page-center" role="alert">
         <section className="login-card">
-          <h1>Среда Scratch не подключена</h1>
-          <p>Для этого развёртывания не настроен изолированный Scratch runtime.</p>
+          <h1>Не удалось открыть среду</h1>
+          <p>Откройте проект через приложение ASA Lab.</p>
           <button type="button" className="btn-secondary" onClick={onBack}>
             К проектам
           </button>
@@ -343,44 +255,62 @@ export function BlocksEditor({
         accountLabel={accountLabel}
         accountInitials={accountInitials}
         avatarUrl={avatarUrl}
-        saveState={saveState}
-        savedRevision={savedRevision}
-        saveDisabled={status !== 'editor-ready' || saveState === 'saving'}
-        onSave={() => void requestSave()}
         onAccountClick={onAccountClick}
-        onHomeClick={() => {
-          if (
-            window.confirm(
-              'Несохранённые изменения могут быть потеряны. Перед выходом используйте «Сохранить в ASA». Выйти?',
-            )
-          )
-            onHomeClick();
-        }}
       >
         <iframe
           key={attempt}
           ref={iframeRef}
           title="Scratch runtime"
-          src={`${runtimeOrigin}/?asaStatus=parent`}
+          src="/internal/blocks/?asaStatus=parent"
         />
       </BlocksEditorShell>
-      {status !== 'editor-ready' ? (
-        <div className="blocks-editor-connection-status" role="status">
-          {status}
-          {status === 'Ошибка Scratch runtime' ? (
-            <button
-              type="button"
-              className="blocks-editor-retry"
-              onClick={() => {
-                setStatus('Подключение Scratch…');
-                setAttempt((value) => value + 1);
-              }}
-            >
-              Повторить подключение
-            </button>
-          ) : null}
+      <div
+        className="blocks-editor-loading-overlay"
+        data-asa-blocks-loading-overlay
+        data-state={startupState}
+        role={startupState === 'error' ? 'alert' : 'status'}
+        aria-live={startupState === 'error' ? 'assertive' : 'polite'}
+        aria-hidden={startupState === 'ready'}
+      >
+        <div className="blocks-editor-loading-content">
+          <div className="blocks-editor-loading-visual" aria-hidden="true">
+            <span className="blocks-editor-loading-spinner" />
+            <img className="blocks-editor-loading-mark" src="/asa-lab-mark.svg" alt="" />
+          </div>
+          {startupState === 'error' ? (
+            <>
+              <h1 className="blocks-editor-loading-title">Не удалось открыть среду</h1>
+              <p className="blocks-editor-loading-detail">
+                Проверьте подключение и попробуйте снова.
+              </p>
+              <div className="blocks-editor-loading-actions">
+                <button
+                  type="button"
+                  className="blocks-editor-loading-button blocks-editor-loading-button-primary"
+                  onClick={() => {
+                    setStartupState('loading');
+                    setAttempt((value) => value + 1);
+                  }}
+                >
+                  Повторить
+                </button>
+                <button
+                  type="button"
+                  className="blocks-editor-loading-button blocks-editor-loading-button-secondary"
+                  onClick={onBack}
+                >
+                  К проектам
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="blocks-editor-loading-title">Загружаем рабочую среду…</p>
+              <p className="blocks-editor-loading-detail">Открываем ваш проект</p>
+            </>
+          )}
         </div>
-      ) : null}
+      </div>
     </div>
   );
 }

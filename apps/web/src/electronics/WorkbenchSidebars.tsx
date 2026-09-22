@@ -20,6 +20,7 @@ import {
 } from './component-catalog';
 import { ComponentPreview } from './component-preview';
 import { PirSensorControls } from './PirSensorControls';
+import { UltrasonicDistanceControls } from './UltrasonicDistanceControls';
 import { CollapseIcon, ExpandIcon, ListIcon, SearchIcon, WireIcon } from './workbench-icons';
 import { WIRE_COLORS } from './workbench-model';
 import {
@@ -1361,6 +1362,20 @@ export function WorkbenchSidebars({
                 <PirSensorControls
                   motionDetected={c.selectedComponent.stateProperties?.['motionDetected'] === true}
                   onChange={(motionDetected) => c.setSelectedProperties({ motionDetected })}
+                />
+              ) : null}
+              {c.selectedComponent.componentTypeId === 'ultrasonic-sensor' ||
+              c.selectedComponent.componentTypeId === 'ultrasonic-hc-sr04' ? (
+                <UltrasonicDistanceControls
+                  componentTypeId={
+                    c.selectedComponent.componentTypeId === 'ultrasonic-hc-sr04'
+                      ? 'ultrasonic-hc-sr04'
+                      : 'ultrasonic-sensor'
+                  }
+                  distanceMeters={Number(
+                    c.selectedComponent.stateProperties?.['distanceMeters'] ?? 1,
+                  )}
+                  onChange={(distanceMeters) => c.setSelectedProperties({ distanceMeters })}
                 />
               ) : null}
               {c.selectedComponent.componentTypeId === 'temperature-sensor' ? (

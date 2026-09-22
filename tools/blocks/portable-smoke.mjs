@@ -28,7 +28,7 @@ const values = Object.fromEntries(
 assert.equal(values.ASA_SEED_DEV, 'true');
 
 const origin = 'http://127.0.0.1:4610';
-const runtimeOrigin = 'http://localhost:4613';
+const runtimeOrigin = origin;
 const out = path.resolve('reports/blocks/portable-install');
 const composeArgs = ['compose', '-f', 'compose.yaml', '-f', 'compose.dev.yaml'];
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -252,7 +252,7 @@ async function waitForEditor(page) {
   const frame = page.frameLocator('iframe[title="Scratch runtime"]');
   const shell = frame.locator('[data-asa-host-shell]');
   await expect(shell).toHaveAttribute('data-editor-state', 'ready', { timeout: 45000 });
-  await expect(page.locator('[data-asa-blocks-save]')).toBeEnabled();
+  await expect(page.locator('[data-asa-blocks-save]')).toHaveCount(0);
   await expect(page.getByRole('status')).toHaveCount(0);
   return { frame, shell };
 }
@@ -358,6 +358,32 @@ async function verifyDistinctProjectState(page, frame, marker, variable) {
   await page.screenshot({ path: path.join(out, '04-fresh-reopen-exact.png') });
 }
 
+async function editStepValue(frame, from, to) {
+  await frame.getByRole('tab', { name: 'Code', exact: true }).click();
+  const workspace = frame.locator('.blocklyBlockCanvas').first();
+  const value = workspace.getByText(String(from), { exact: true }).last();
+  await expect(value).toBeVisible();
+  await value.dblclick();
+  const input = frame.locator('.blocklyHtmlInput:focus');
+  await expect(input).toHaveValue(String(from));
+  await input.fill(String(to));
+  await input.press('Enter');
+  await expect(workspace.getByText(String(to), { exact: true })).toBeVisible();
+}
+
+function projectHasStep(state, marker, value) {
+  const target = state.document?.projectJson?.targets?.find((item) => item.name === marker);
+  return Boolean(
+    target &&
+    Object.values(target.blocks ?? {}).some(
+      (block) =>
+        block.opcode === 'motion_movesteps' &&
+        Array.isArray(block.inputs?.STEPS) &&
+        JSON.stringify(block.inputs.STEPS).includes(String(value)),
+    ),
+  );
+}
+
 async function assertUiRegression(page, frame) {
   await expect(frame.getByText('File', { exact: true })).toBeVisible();
   await expect(frame.getByText('Edit', { exact: true })).toBeVisible();
@@ -368,7 +394,8 @@ async function assertUiRegression(page, frame) {
   await expect(frame.getByRole('button', { name: 'Settings menu' })).toBeVisible();
   await frame.getByRole('tab', { name: 'Code', exact: true }).click();
   await expect(frame.getByRole('button', { name: 'Add Extension' })).toBeVisible();
-  await expect(page.locator('[data-asa-blocks-home-overlay]')).toBeVisible();
+  await expect(page.locator('[data-asa-blocks-home-overlay]')).toHaveCount(0);
+  await expect(frame.getByRole('button', { name: 'Home', exact: true })).toBeVisible();
   await expect(page.locator('[data-asa-blocks-account-overlay]')).toBeVisible();
   await expect(page.locator('.blocks-editor-connection-status')).toHaveCount(0);
 
@@ -378,35 +405,40 @@ async function assertUiRegression(page, frame) {
     { width: 390, height: 844 },
   ]) {
     await page.setViewportSize(viewport);
-    const saveBox = await page.locator('[data-asa-blocks-save]').boundingBox();
+    await expect(page.locator('[data-asa-blocks-save]')).toHaveCount(0);
     const accountBox = await page.locator('[data-asa-blocks-account-overlay]').boundingBox();
     const fileBox = await frame.getByText('File', { exact: true }).boundingBox();
     const editBox = await frame.getByText('Edit', { exact: true }).boundingBox();
-    assert.ok(saveBox && accountBox);
-    assert.ok(saveBox.x >= 0 && saveBox.y >= 0);
-    assert.ok(saveBox.x + saveBox.width <= viewport.width);
-    assert.ok(saveBox.y + saveBox.height <= viewport.height);
+    assert.ok(accountBox);
+    assert.ok(accountBox.x >= 0 && accountBox.y >= 0);
+    assert.ok(accountBox.x + accountBox.width <= viewport.width);
+    assert.ok(accountBox.y + accountBox.height <= viewport.height);
     const overlaps = (a, b) =>
       a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
-    assert.equal(overlaps(saveBox, accountBox), false, 'Save must not cover account control');
     if (fileBox) {
-      assert.equal(overlaps(saveBox, fileBox), false, 'Save must not cover visible native File');
+      assert.equal(
+        overlaps(accountBox, fileBox),
+        false,
+        'Account must not cover visible native File',
+      );
     }
     if (editBox) {
-      assert.equal(overlaps(saveBox, editBox), false, 'Save must not cover visible native Edit');
+      assert.equal(
+        overlaps(accountBox, editBox),
+        false,
+        'Account must not cover visible native Edit',
+      );
     }
   }
   await page.setViewportSize({ width: 1440, height: 960 });
 }
 
-async function clickConfirmedSave(page) {
-  const save = page.locator('[data-asa-blocks-save]');
-  await expect(save).toBeEnabled();
+async function waitForRevisionAdvance(projectId, previousRevision, timeout = 45000) {
   const startedAt = performance.now();
-  await save.click();
-  await expect(save).toHaveAttribute('data-save-state', 'saved', { timeout: 45000 });
-  const revision = Number(await save.getAttribute('data-confirmed-revision'));
-  assert.ok(Number.isSafeInteger(revision) && revision >= 0);
+  await expect
+    .poll(() => projectState(projectId).revision, { timeout })
+    .toBeGreaterThan(previousRevision);
+  const revision = projectState(projectId).revision;
   return { revision, latencyMs: Math.round((performance.now() - startedAt) * 100) / 100 };
 }
 
@@ -456,14 +488,15 @@ const projectIds = [];
 let phase = 'readiness';
 observeRuntime(context, runtimeEvents, () => phase, projectIds);
 
-// A non-secret HttpOnly marker proves the iframe does not receive portal cookies.
+// The integrated editor shares the ASA origin; its persistence transport must
+// still omit account cookies and use only its scoped project capability.
 const cookieProbe = 'asa_portable_host_cookie';
 await context.addCookies([
   { name: cookieProbe, value: 'isolation-test', domain: '127.0.0.1', path: '/', httpOnly: true },
 ]);
 let runtimeRequests = 0;
 let portalCookieLeaked = false;
-await context.route(/^http:\/\/(?:localhost|127\.0\.0\.1):4613\//, async (route) => {
+await context.route(`${origin}/api/blocks/runtime/**`, async (route) => {
   const headers = await route.request().allHeaders();
   runtimeRequests += 1;
   portalCookieLeaked ||= (headers.cookie ?? '').includes(`${cookieProbe}=`);
@@ -475,6 +508,8 @@ const pageErrors = [];
 page.on('pageerror', (error) => pageErrors.push(error.message));
 let trace;
 let noOpTrace;
+let blocksOnlyEvidence;
+let rapidEditEvidence;
 try {
   const ready = await (await context.request.get('/health/ready')).json();
   const metadata = await (await context.request.get('/build-metadata.json')).json();
@@ -500,19 +535,20 @@ try {
   const projectId = projectIds.at(-1);
   assert.ok(projectId && UUID_RE.test(projectId), 'runtime-session must expose created project id');
 
-  expect(runtimeRequests).toBeGreaterThan(0);
-  expect(portalCookieLeaked, 'Scratch must not receive portal host cookie').toBe(false);
-  await expect(page.locator('iframe')).toHaveAttribute(
-    'src',
-    'http://localhost:4613/?asaStatus=parent',
-  );
+  expect(portalCookieLeaked, 'Editor persistence must omit account cookies').toBe(false);
+  await expect(page.locator('iframe')).toHaveAttribute('src', '/internal/blocks/?asaStatus=parent');
 
   const marker = `ASA Durable Sprite ${projectId.slice(0, 8)}`;
   const variable = `ASA_Durable_Proof_${projectId.slice(0, 6)}`;
-  phase = 'account-edit';
+  const p0 = projectState(projectId);
+  const o0 = objectSnapshot();
+  trace = await startObjectTrace();
+  phase = 'account-save';
+  trace.setPhase('account-save');
+  const firstSaveStartedAt = performance.now();
+
   await addDistinctProjectState(page, firstEditor.frame, marker, variable);
 
-  phase = 'pre-save-media';
   const beforeCostume = await exportNamedMedia(
     page,
     firstEditor.frame,
@@ -530,20 +566,44 @@ try {
   expect(beforeCostume.suggestedFilename).toMatch(/\.svg$/i);
   expect(beforeSound.suggestedFilename).toBe('Bark.wav');
 
-  const p0 = projectState(projectId);
-  const o0 = objectSnapshot();
-  trace = await startObjectTrace();
-
-  phase = 'account-save';
-  trace.setPhase('account-save');
-  const firstSave = await clickConfirmedSave(page);
+  await expect
+    .poll(
+      () => {
+        const current = projectState(projectId);
+        const target = current.document?.projectJson?.targets?.find((item) => item.name === marker);
+        const hasVariable = current.document?.projectJson?.targets?.some((item) =>
+          Object.values(item.variables ?? {}).some(
+            (entry) => Array.isArray(entry) && entry[0] === variable,
+          ),
+        );
+        const hasCostume = current.document?.assets?.some(
+          (asset) => asset.assetId === beforeCostume.md5,
+        );
+        const hasSound = current.document?.assets?.some(
+          (asset) => asset.assetId === beforeSound.md5,
+        );
+        return Boolean(
+          current.revision > p0.revision &&
+          target?.x === 137 &&
+          hasVariable &&
+          hasCostume &&
+          hasSound &&
+          projectHasStep(current, marker, 73),
+        );
+      },
+      { timeout: 45000 },
+    )
+    .toBe(true);
+  const p1 = projectState(projectId);
+  const firstSave = {
+    revision: p1.revision,
+    latencyMs: Math.round((performance.now() - firstSaveStartedAt) * 100) / 100,
+  };
   await trace.settle();
   trace.setPhase('idle');
-  expect(firstSave.revision).toBe(p0.revision + 1);
 
-  const p1 = projectState(projectId);
   const o1 = objectSnapshot();
-  expect(p1.revision).toBe(firstSave.revision);
+  expect(p1.revision).toBeGreaterThan(p0.revision);
   expect(p1.blobRows).toBeGreaterThan(p0.blobRows);
   expect(p1.aliasRows).toBeGreaterThan(p0.aliasRows);
   expect(p1.blobBytes).toBeGreaterThan(p0.blobBytes);
@@ -617,6 +677,16 @@ try {
   const freshSessionResponse = await sessionResponsePromise;
   expect(freshSessionResponse.status()).toBe(200);
   const freshSession = await freshSessionResponse.json();
+  expect(freshSession.runtimeOrigin).toBe(origin);
+  expect(runtimeRequests).toBeGreaterThan(0);
+  expect(portalCookieLeaked, 'Editor persistence must omit account cookies').toBe(false);
+  const firstAsset = freshSession.assets[0];
+  assert.ok(firstAsset, 'saved project must contain media for authorization proof');
+  const cookieOnlyAsset = await context.request.get(
+    `/api/blocks/runtime/projects/${projectId}/assets/${firstAsset.assetId}.${firstAsset.dataFormat}`,
+    { headers: { 'sec-fetch-site': 'same-origin', referer: `${origin}/internal/blocks/` } },
+  );
+  expect(cookieOnlyAsset.status(), 'account cookies cannot replace a project capability').toBe(401);
   await trace.settle();
   trace.setPhase('idle');
 
@@ -695,12 +765,11 @@ try {
   noOpTrace = await startObjectTrace();
   phase = 'fresh-noop';
   noOpTrace.setPhase('fresh-noop');
-  const noOpSave = await clickConfirmedSave(reopened);
+  await reopened.waitForTimeout(9000);
   await noOpTrace.settle();
   noOpTrace.setPhase('idle');
   const p3 = projectState(projectId);
   const o3 = objectSnapshot();
-  expect(noOpSave.revision).toBe(p2.revision);
   const noOpRuntime = phaseRuntimeMetrics(runtimeEvents, 'fresh-noop');
   expect(noOpRuntime.assetPutRequests).toBe(0);
   expect(noOpRuntime.draftPutRequests).toBe(0);
@@ -721,6 +790,86 @@ try {
   expect(objectReopen.requests).toBeGreaterThan(0);
   expect(objectNoOp.requests).toBe(0);
   const traceEvents = [...durableTraceEvents, ...noOpTraceEvents];
+
+  phase = 'blocks-only-autosave';
+  const pBlocks0 = projectState(projectId);
+  await editStepValue(freshEditor.frame, 73, 74);
+  const blockSave = await waitForRevisionAdvance(projectId, pBlocks0.revision);
+  const pBlocks1 = projectState(projectId);
+  expect(blockSave.revision).toBe(pBlocks1.revision);
+  expect(projectHasStep(pBlocks1, marker, 74)).toBe(true);
+  await expect
+    .poll(() => phaseRuntimeMetrics(runtimeEvents, 'blocks-only-autosave').draftPutRequests, {
+      timeout: 5000,
+    })
+    .toBe(1);
+  const blocksOnlyRuntime = phaseRuntimeMetrics(runtimeEvents, 'blocks-only-autosave');
+  expect(blocksOnlyRuntime.assetPutRequests).toBe(0);
+  expect(blocksOnlyRuntime.draftPutRequests).toBe(1);
+  expect(delta(pBlocks1.revision, pBlocks0.revision)).toBe(1);
+  blocksOnlyEvidence = {
+    runtime: blocksOnlyRuntime,
+    revisionDelta: delta(pBlocks1.revision, pBlocks0.revision),
+    savedStep: 74,
+  };
+
+  phase = 'rapid-edit';
+  const pRapid0 = projectState(projectId);
+  const draftPattern = new RegExp(`/api/blocks/runtime/projects/${projectId}/draft$`);
+  let firstRapidDraft = true;
+  let releaseRapidResponse;
+  let markRapidCommitted;
+  const rapidRelease = new Promise((resolve) => {
+    releaseRapidResponse = resolve;
+  });
+  const rapidCommitted = new Promise((resolve) => {
+    markRapidCommitted = resolve;
+  });
+  const rapidHandler = async (route, request) => {
+    if (request.method() !== 'PUT' || !firstRapidDraft) {
+      await route.continue();
+      return;
+    }
+    firstRapidDraft = false;
+    const response = await route.fetch();
+    expect(response.status()).toBe(200);
+    await response.body();
+    markRapidCommitted();
+    await rapidRelease;
+    await route.fulfill({ response });
+  };
+  await context.route(draftPattern, rapidHandler);
+  try {
+    await editStepValue(freshEditor.frame, 74, 75);
+    await rapidCommitted;
+    expect(projectHasStep(projectState(projectId), marker, 75)).toBe(true);
+
+    await editStepValue(freshEditor.frame, 75, 76);
+    releaseRapidResponse();
+
+    await expect
+      .poll(() => projectHasStep(projectState(projectId), marker, 76), { timeout: 45000 })
+      .toBe(true);
+    const pRapid1 = projectState(projectId);
+    expect(delta(pRapid1.revision, pRapid0.revision)).toBe(2);
+    await expect
+      .poll(() => phaseRuntimeMetrics(runtimeEvents, 'rapid-edit').draftPutRequests, {
+        timeout: 5000,
+      })
+      .toBe(2);
+    const rapidRuntime = phaseRuntimeMetrics(runtimeEvents, 'rapid-edit');
+    expect(rapidRuntime.assetPutRequests).toBe(0);
+    expect(rapidRuntime.draftPutRequests).toBe(2);
+    rapidEditEvidence = {
+      runtime: rapidRuntime,
+      revisionDelta: delta(pRapid1.revision, pRapid0.revision),
+      firstStep: 75,
+      latestStep: 76,
+    };
+  } finally {
+    releaseRapidResponse?.();
+    await context.unroute(draftPattern, rapidHandler);
+  }
 
   phase = 'student-seat';
   const classCreate = await context.request.post('/api/classrooms', {
@@ -762,9 +911,12 @@ try {
   const seatProject = await createProject(seatContext.request, 'StudentSeat durable Blocks');
   const seatPage = await seatContext.newPage();
   await seatPage.goto(`/#/home/${seatProject.id}?module=blocks`, { waitUntil: 'domcontentloaded' });
-  await waitForEditor(seatPage);
-  const seatSave = await clickConfirmedSave(seatPage);
-  expect(seatSave.revision).toBeGreaterThan(0);
+  const seatEditor = await waitForEditor(seatPage);
+  const seatBefore = projectState(seatProject.id);
+  await seatEditor.frame.getByPlaceholder('x', { exact: true }).fill('19');
+  await seatEditor.frame.getByPlaceholder('x', { exact: true }).press('Enter');
+  const seatSave = await waitForRevisionAdvance(seatProject.id, seatBefore.revision);
+  expect(seatSave.revision).toBeGreaterThan(seatBefore.revision);
   await seatContext.close();
 
   seatContext = await browser.newContext({
@@ -885,6 +1037,8 @@ try {
   expect(revokedUse.status()).toBe(403);
 
   phase = 'storage-failure';
+  const beforeStorageFailure = projectState(projectId);
+  dockerCompose('stop', 'minio');
   await freshEditor.frame.getByRole('tab', { name: 'Sounds', exact: true }).click();
   await freshEditor.frame
     .getByRole('button', { name: 'Choose a Sound', exact: true })
@@ -894,13 +1048,13 @@ try {
   await expect(freshEditor.frame.getByRole('textbox', { name: 'Sound', exact: true })).toHaveValue(
     'Boing',
   );
-  const beforeStorageFailure = projectState(projectId);
-  dockerCompose('stop', 'minio');
-  const saveButton = reopened.locator('[data-asa-blocks-save]');
-  await saveButton.click();
-  await expect(saveButton).toHaveAttribute('data-save-state', 'error', { timeout: 45000 });
+  await expect(freshEditor.frame.getByText('Project could not save.', { exact: true })).toBeVisible(
+    { timeout: 20000 },
+  );
   const afterStorageFailure = projectState(projectId);
   expect(afterStorageFailure.revision).toBe(beforeStorageFailure.revision);
+  expect(phaseRuntimeMetrics(runtimeEvents, 'storage-failure').draftPutRequests).toBe(0);
+  expect(phaseRuntimeMetrics(runtimeEvents, 'storage-failure').assetPutRequests).toBeGreaterThan(0);
   dockerCompose('start', 'minio');
   await waitForMinio();
 
@@ -936,6 +1090,8 @@ try {
       objectDelta: delta(o3.count, o2.count),
       objectByteDelta: delta(o3.bytes, o2.bytes),
     },
+    blocksOnly: blocksOnlyEvidence,
+    rapidEdit: rapidEditEvidence,
   };
   const authorizationEvidence = {
     account: { saveRevision: firstSave.revision, freshReopenRevision: freshSession.draftRevision },
@@ -948,7 +1104,7 @@ try {
     invalidOriginStatus: wrongOrigin.status(),
     revokedCapabilityStatus: revokedUse.status(),
     storageFailure: {
-      uiState: await saveButton.getAttribute('data-save-state'),
+      upstreamErrorVisible: true,
       revisionBefore: beforeStorageFailure.revision,
       revisionAfter: afterStorageFailure.revision,
     },
@@ -978,7 +1134,7 @@ try {
         projectId,
         confirmedRevision: firstSave.revision,
         scenario:
-          'fresh exported stack → account edit/save → destroy context → re-auth → exact reopen → fresh no-op → StudentSeat/negative acceptance',
+          'fresh exported stack → no-click upstream autosave → destroy context → re-auth → exact reopen → no-op → blocks-only → rapid edit → StudentSeat/storage-negative acceptance',
         pageErrors,
       },
       null,

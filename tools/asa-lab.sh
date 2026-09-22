@@ -6,6 +6,10 @@ profile=${ASA_COMPOSE_PROFILE:-dev}
 script_dir=$(CDPATH= cd -- "$(dirname "$0")" && pwd)
 repo_root=$(CDPATH= cd -- "$script_dir/.." && pwd)
 cd "$repo_root"
+if [ "$action" = up ] && [ -f .asa/installed-release.json ]; then
+  echo 'This installation uses published releases. Use sh tools/asa-manager.sh update.' >&2
+  exit 78
+fi
 . "$script_dir/installation-identity.sh"
 
 case "$profile" in

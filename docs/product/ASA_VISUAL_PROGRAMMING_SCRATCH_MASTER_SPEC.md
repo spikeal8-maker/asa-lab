@@ -73,7 +73,7 @@ runtime security/deployment/backup/activation
 
 ```text
 ASA Lab Web
-└── separate-origin iframe
+└── same-origin embedded frame via ASA Web /internal/blocks/
     └── ASA Scratch Host
         ├── pinned official Scratch Editor standalone
         ├── ASA bootstrap/protocol
@@ -148,7 +148,7 @@ Scratch semantic block colours
 
 File/Edit остаются штатными. Native `Load from your computer` / `Save to your computer` — нормальная локальная функция Scratch и не равна ASA durable server-save.
 
-`canSave=false` используется только чтобы не включать upstream Scratch server-save как будто это ASA save.
+`canSave=true` держит upstream `ProjectSaverHOC` активным для ASA-managed autosave: `PROJECT_CHANGED → ProjectSaverHOC → ScratchStorage.store() → ASA asset PUT → GUIStorage.saveProject() → ASA draft PUT`. `showSaveNow=false` скрывает upstream Save Now, не отключая autosave. Native `Load from your computer` / `Save to your computer` остаются штатными локальными File-функциями Scratch.
 
 M1-007 отвечает за безопасную **ASA-интеграцию** `.sb3` (validation, ZIP limits, compatibility, ASA import/export flows), а не за скрытие native local File UI.
 
@@ -274,7 +274,7 @@ mutate the immutable executable project version or become an authorisation sourc
 contexts/blocks/**      domain/application/infrastructure
 apps/api/**             transport/composition
 apps/web/src/blocks/**  ASA parent UI / iframe shell
-infra/scratch-editor/** isolated Scratch runtime image
+infra/scratch-editor/** internal Scratch component image
 ```
 
 ## 10. Capability-oriented milestone order

@@ -11,6 +11,9 @@ import { verifySchema } from '../../tools/learning-migration-dry-run.mjs';
 
 const plan = planMigrations('migrations');
 const oldPlan = plan.filter((item) => Number(item.version) <= 150);
+const forwardVersions = plan
+  .filter((item) => Number(item.version) > 150)
+  .map((item) => item.version);
 const without146 = oldPlan.filter((item) => item.version !== '0146');
 const ledger = (items = without146) =>
   new Map(items.map((item) => [item.version, { checksum: item.checksum }]));
@@ -32,12 +35,9 @@ function clientFor(db: PGlite) {
 
 describe('published Blocks forward migration', () => {
   it('only skips the pinned late 0146 when the pinned 0151 is in the plan', () => {
-    expect(validateMigrationHistory(ledger(), plan).map((item) => item.version)).toEqual([
-      '0151',
-      '0152',
-      '0153',
-      '0154',
-    ]);
+    expect(validateMigrationHistory(ledger(), plan).map((item) => item.version)).toEqual(
+      forwardVersions,
+    );
     expect(() => validateMigrationHistory(ledger(), oldPlan)).toThrow(/out-of-order.*0146/);
     for (const version of ['0146', '0151']) {
       const altered = plan.map((item) =>
@@ -55,7 +55,8 @@ describe('published Blocks forward migration', () => {
     const anotherGap = ledger(without146.filter((item) => item.version !== '0148'));
     expect(() => validateMigrationHistory(anotherGap, plan)).toThrow(/out-of-order.*0148/);
     const future = ledger();
-    future.set('0155', { checksum: 'a'.repeat(64) });
+    const futureVersion = String(Number(plan.at(-1)!.version) + 1).padStart(4, '0');
+    future.set(futureVersion, { checksum: 'a'.repeat(64) });
     expect(() => validateMigrationHistory(future, plan)).toThrow(/out-of-order.*0151/);
     const corrupt146 = ledger(oldPlan);
     corrupt146.set('0146', { checksum: 'b'.repeat(64) });
@@ -85,12 +86,9 @@ describe('published Blocks forward migration', () => {
         },
       };
       if (candidate === plan)
-        expect((await inspectPlan(client, candidate)).map((item) => item.version)).toEqual([
-          '0151',
-          '0152',
-          '0153',
-          '0154',
-        ]);
+        expect((await inspectPlan(client, candidate)).map((item) => item.version)).toEqual(
+          forwardVersions,
+        );
       else await expect(inspectPlan(client, candidate)).rejects.toThrow(/out-of-order/);
       expect(queries).toEqual([
         'BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY',
@@ -104,17 +102,11 @@ describe('published Blocks forward migration', () => {
     const rows = plan
       .filter((item) => item.version !== '0146')
       .map((item) => ({ version: item.version, checksum: item.checksum }));
-    expect(await verifySchema({ query: async () => ({ rows }) })).toBe('0154');
+    expect(await verifySchema({ query: async () => ({ rows }) })).toBe(plan.at(-1)!.version);
     await expect(
       verifySchema({
         query: async () => ({
-          rows: rows.filter(
-            (row) =>
-              row.version !== '0151' &&
-              row.version !== '0152' &&
-              row.version !== '0153' &&
-              row.version !== '0154',
-          ),
+          rows: rows.filter((row) => Number(row.version) <= 150),
         }),
       }),
     ).rejects.toThrow(/unsupported_schema:migration_0146/);
@@ -152,12 +144,9 @@ describe('published Blocks forward migration', () => {
             'SELECT version,name,checksum,applied_at FROM schema_migrations ORDER BY version',
           )
         ).rows;
-        expect((await inspectPlan(client, plan)).map((item) => item.version)).toEqual([
-          '0151',
-          '0152',
-          '0153',
-          '0154',
-        ]);
+        expect((await inspectPlan(client, plan)).map((item) => item.version)).toEqual(
+          forwardVersions,
+        );
         expect(
           (
             await db.query(
@@ -165,12 +154,13 @@ describe('published Blocks forward migration', () => {
             )
           ).rows,
         ).toEqual(before);
-        expect(await applyPlan(client, plan)).toBe(4);
+        expect(await applyPlan(client, plan)).toBe(forwardVersions.length);
         expect(await applyPlan(client, plan)).toBe(0);
         expect(
           (
             await db.query(
-              "SELECT version,name,checksum,applied_at FROM schema_migrations WHERE version NOT IN ('0151','0152','0153','0154') ORDER BY version",
+              'SELECT version,name,checksum,applied_at FROM schema_migrations WHERE NOT (version = ANY($1::text[])) ORDER BY version',
+              [forwardVersions],
             )
           ).rows,
         ).toEqual(before);

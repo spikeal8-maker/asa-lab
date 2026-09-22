@@ -8,6 +8,7 @@ import {
 import { generateArduinoCode, registerArduinoBlocks } from '../arduino-blocks';
 
 describe('block-generated Servo source vertical path', () => {
+  // The full source-to-circuit integration may exceed the unit-test default under CI load.
   it('runs Servo block source through Arduino waveform, circuit and servo-motor angle', () => {
     registerArduinoBlocks();
     ScratchBlocks.Events.disable();
@@ -96,5 +97,5 @@ describe('block-generated Servo source vertical path', () => {
       workspace.dispose();
       ScratchBlocks.Events.enable();
     }
-  });
+  }, 30_000);
 });

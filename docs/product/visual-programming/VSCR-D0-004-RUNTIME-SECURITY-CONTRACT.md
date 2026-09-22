@@ -20,7 +20,9 @@ B. Scratch runtime iframe → /api/blocks/runtime/**
    credentials: omit
 ```
 
-Scratch runtime origin не становится generic trusted origin для cookie-authenticated ASA mutations.
+Редактор — доверенный встроенный код на том же origin ASA. Отдельный домен не
+создаётся. Историческая модель отдельного runtime origin заменена Decision 2/8
+в ADR-VSCR-001. Runtime API по-прежнему требует capability, а не account cookies.
 
 ## Capability profile
 
@@ -138,16 +140,19 @@ Runtime API prefix:
 For ASA runtime API requests:
 
 ```text
-Origin must exactly equal configured Scratch runtime origin
+Origin must exactly equal the configured ASA origin
 bearer capability required
 cookies ignored as authority
 Access-Control-Allow-Origin = exact runtime origin
 no wildcard credentials
 ```
 
-Normal ASA API paths keep existing cookie/origin policy. Не добавлять Scratch runtime origin в generic allowed mutation origins.
+Normal ASA API paths keep existing cookie/origin policy. Runtime asset GET may
+omit Origin only with `Sec-Fetch-Site: same-origin` and an exact-origin Referer
+under `/internal/blocks/`; bearer and current project authority remain required.
+An explicit foreign Origin is never replaced by the Referer.
 
-Parent CSP frames only configured runtime origin.
+The embedded document allows framing only by the same ASA origin.
 
 ### Runtime CSP principle
 
@@ -186,11 +191,10 @@ Parent uses exact runtime origin for `postMessage`. Child accepts INIT only from
 
 ## Iframe sandbox
 
-Core sandbox starts narrow:
-
-```html
-sandbox="allow-scripts allow-same-origin"
-```
+The shipping frame shares the ASA origin and is trusted bundled application code.
+`allow-scripts allow-same-origin` on a same-origin frame is not an isolation
+boundary and must not be described as one. Arbitrary extension script URLs are
+rejected by the pinned VM loader; all pinned built-in extensions remain available.
 
 Не расширять sandbox глобально ради одной функции. Когда конкретной native integration реально нужен download/popup/camera/mic/device permission, handle it in a dedicated integration task with least privilege and browser evidence.
 
@@ -204,14 +208,14 @@ Exact limits live in selected M1-003/M1-004 implementation card and evidence. Li
 
 ## Endpoint permission matrix
 
-| Endpoint | Editor | Player |
-|---|---|---|
-| bootstrap/project JSON | allow | version-scoped allow |
-| asset GET referenced by authorised document | allow | allow |
-| asset PUT | allow | deny |
-| draft PUT | allow | deny |
-| snapshot PUT | allow | deny |
-| generic ASA account/classroom/admin routes | deny by trust boundary | deny |
+| Endpoint                                    | Editor                 | Player               |
+| ------------------------------------------- | ---------------------- | -------------------- |
+| bootstrap/project JSON                      | allow                  | version-scoped allow |
+| asset GET referenced by authorised document | allow                  | allow                |
+| asset PUT                                   | allow                  | deny                 |
+| draft PUT                                   | allow                  | deny                 |
+| snapshot PUT                                | allow                  | deny                 |
+| generic ASA account/classroom/admin routes  | deny by trust boundary | deny                 |
 
 ## Runtime error contract
 

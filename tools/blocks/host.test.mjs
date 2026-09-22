@@ -42,11 +42,18 @@ class Storage {
       dataFormat,
       data,
       assetId,
+      clean: true,
       encodeDataURI: () => `data:${dataFormat};base64,fixture`,
     };
   }
   addHelper(helper) {
     this.helper = helper;
+  }
+  addWebStore(types, get, create, update) {
+    this.webStore = { types, get, create, update };
+  }
+  async store() {
+    throw new Error('fixture_store_not_configured');
   }
 }
 
@@ -137,7 +144,7 @@ function createRuntimeStorage({
   return { storage, calls, reference };
 }
 
-test('new project storage keeps the default project local and remains read-only', async () => {
+test('new project storage binds the default project to the ASA UUID', async () => {
   const calls = [];
   const api = loadHost('storage', {
     fetch: async (url) => {
@@ -160,10 +167,13 @@ test('new project storage keeps the default project local and remains read-only'
     );
 
   assert.ok(await readProject('0'));
-  assert.equal(await readProject(PROJECT_ID), null);
+  assert.ok(await readProject(PROJECT_ID));
   assert.equal(storage.getLibraryAssetUrl('b'.repeat(32), 'svg'), 'data:svg;base64,fixture');
   assert.throws(() => storage.getLibraryAssetUrl('unknown', 'svg'), /runtime_asset_unavailable/);
-  await assert.rejects(storage.saveProject(), /runtime_storage_read_only/);
+  await assert.rejects(
+    storage.saveProject('00000000-0000-4000-8000-000000000000', '{}'),
+    /project_identity_mismatch/,
+  );
   assert.equal(storage.cloudVariables, undefined);
   assert.equal(storage.backpackStorage, undefined);
   assert.deepEqual(calls, []);
@@ -193,7 +203,57 @@ test('declared runtime asset GET uses current Bearer without cookies or URL capa
     'svg',
   );
   assert.deepEqual(Buffer.from(loaded.data), Buffer.from(bytes));
+  assert.equal(loaded.clean, true);
   assert.equal(calls.length, 1, 'verified runtime bytes are cached without a second GET');
+});
+
+test('project-open confirmed asset GETs are bounded to four concurrent requests', async () => {
+  for (const count of [1, 5, 20]) {
+    let active = 0;
+    let maxActive = 0;
+    let getCount = 0;
+    const assets = Array.from({ length: count }, (_, index) =>
+      snapshotAsset(
+        (index + 1).toString(16).padStart(32, '0'),
+        'png',
+        Uint8Array.from([index + 1, index + 2, index + 3]),
+      ),
+    );
+    const bytesById = new Map(assets.map((value) => [value.assetId, value.bytes]));
+    const fetchMock = async (url) => {
+      const match = /\/assets\/([a-f0-9]{32})\.png$/.exec(String(url));
+      assert.ok(match);
+      const bytes = bytesById.get(match[1]);
+      assert.ok(bytes);
+      getCount += 1;
+      active += 1;
+      maxActive = Math.max(maxActive, active);
+      await new Promise((resolve) => globalThis.setTimeout(resolve, 5));
+      active -= 1;
+      return new globalThis.Response(bytes, {
+        status: 200,
+        headers: { 'content-type': 'image/png' },
+      });
+    };
+    const api = loadHost('storage', {
+      fetch: fetchMock,
+      crypto: webcrypto,
+      AbortController: globalThis.AbortController,
+    }).AsaBlocksStorage;
+    const storage = api.createReadOnlyStorage(standaloneFixture(), {
+      projectId: PROJECT_ID,
+      projectJson: projectWithAssets('Open bounded', assets),
+      assets,
+      draftRevision: 7,
+      apiOrigin: API_ORIGIN,
+      getRuntimeToken: () => RUNTIME_TOKEN,
+    });
+
+    await storage.prepareProjectAssets();
+
+    assert.equal(getCount, count);
+    assert.equal(maxActive, Math.min(count, 4), `${count} assets must respect the GET limit`);
+  }
 });
 
 test('confirmed stock/default identity with missing durable object fails closed without stock fallback', async () => {
@@ -289,13 +349,13 @@ test('non-declared asset never receives a runtime asset URL and may only use the
   );
   assert.equal(loaded, null);
   assert.equal(calls.length, 1);
-  assert.equal(calls[0].url, `/library-assets/${unknown}.svg`);
+  assert.equal(calls[0].url, `./library-assets/${unknown}.svg`);
   assert.equal(String(calls[0].url).startsWith(API_ORIGIN), false);
   assert.equal(calls[0].init.credentials, 'omit');
   assert.equal(calls[0].init.headers, undefined);
 });
 
-async function editorFixture(hasProjectJson = false, mode = 'editor') {
+async function editorFixture(hasProjectJson = false, mode = 'editor', options = {}) {
   const machine = new EventEmitter();
   let stops = 0;
   let quits = 0;
@@ -304,12 +364,14 @@ async function editorFixture(hasProjectJson = false, mode = 'editor') {
   let prepared = 0;
   let disposedStorage = 0;
   const dirtyGenerations = [];
+  let homeRequests = 0;
   let props;
   let params;
   let requestedId;
   const storage = {
     async prepareProjectAssets() {
       prepared++;
+      await options.prepareProjectAssets?.();
     },
     dispose() {
       disposedStorage++;
@@ -369,26 +431,42 @@ async function editorFixture(hasProjectJson = false, mode = 'editor') {
     onDirty(generation) {
       dirtyGenerations.push(generation);
     },
+    onHomeRequest() {
+      homeRequests += 1;
+    },
   });
-  await editor.startup;
+  if (options.awaitStartup !== false) await editor.startup;
   return {
     machine,
     shell,
     editor,
-    props,
-    params,
-    requestedId,
+    get props() {
+      return props;
+    },
+    get params() {
+      return params;
+    },
+    get requestedId() {
+      return requestedId;
+    },
     dirtyGenerations,
+    homeRequests: () => homeRequests,
     counts: () => ({ stops, quits, unmounts, ready, prepared, disposedStorage }),
   };
 }
 
 test('new project mount uses Scratch default project and preserves native editor events', async () => {
   const fixture = await editorFixture();
-  assert.equal('projectId' in fixture.props, false);
-  assert.equal(fixture.props.canSave, false);
-  assert.equal(fixture.props.logo, '/asa-lab-scratch-wordmark.svg');
-  assert.equal(fixture.requestedId, '0');
+  assert.equal(fixture.props.projectId, PROJECT_ID);
+  assert.equal(fixture.props.canSave, true);
+  assert.equal(fixture.props.canCreateNew, true);
+  assert.equal(fixture.props.showSaveNow, false);
+  assert.ok(fixture.props.autoSaveIntervalSecs >= 5 && fixture.props.autoSaveIntervalSecs <= 8);
+  assert.equal(fixture.props.logo, './asa-lab-scratch-wordmark.svg');
+  assert.equal(typeof fixture.props.onClickLogo, 'function');
+  fixture.props.onClickLogo();
+  assert.equal(fixture.homeRequests(), 1);
+  assert.equal(fixture.requestedId, undefined);
   assert.equal(fixture.shell.dataset.projectSource, 'new-default');
   assert.equal(fixture.shell.dataset.draftRevision, '7');
   assert.equal(fixture.params.isEmbedded, undefined);
@@ -408,9 +486,53 @@ test('new project mount uses Scratch default project and preserves native editor
   assert.equal(fixture.counts().prepared, 0);
 });
 
+test('existing project cannot mount or report ready before confirmed asset preparation completes', async () => {
+  let releasePreparation;
+  const preparationGate = new Promise((resolve) => {
+    releasePreparation = resolve;
+  });
+  const fixture = await editorFixture(true, 'editor', {
+    awaitStartup: false,
+    prepareProjectAssets: () => preparationGate,
+  });
+
+  await Promise.resolve();
+  assert.equal(
+    fixture.props,
+    undefined,
+    'editor must not mount while confirmed assets are loading',
+  );
+  assert.equal(fixture.counts().ready, 0);
+
+  releasePreparation();
+  await fixture.editor.startup;
+  assert.ok(fixture.props, 'editor may mount only after confirmed asset preparation succeeds');
+  assert.equal(fixture.counts().ready, 0, 'editor-ready still waits for upstream project load');
+  fixture.props.onProjectLoaded();
+  await Promise.resolve();
+  assert.equal(fixture.counts().ready, 1);
+});
+
+test('confirmed asset preparation failure blocks editor startup and editor-ready', async () => {
+  const fixture = await editorFixture(true, 'editor', {
+    awaitStartup: false,
+    prepareProjectAssets: async () => {
+      throw Object.assign(new Error('runtime_asset_unavailable'), {
+        code: 'runtime_asset_unavailable',
+      });
+    },
+  });
+
+  await assert.rejects(fixture.editor.startup, /runtime_asset_unavailable/);
+  assert.equal(fixture.props, undefined);
+  assert.equal(fixture.counts().ready, 0);
+  assert.equal(fixture.shell.dataset.editorState, 'disposed');
+});
+
 test('existing project mount preloads runtime assets and uses the real ASA projectId, never a fixture ID', async () => {
   const fixture = await editorFixture(true, 'player');
   assert.equal(fixture.props.projectId, PROJECT_ID);
+  assert.equal(fixture.props.canSave, false);
   assert.equal(fixture.params.isPlayerOnly, true);
   assert.equal(fixture.shell.dataset.projectSource, 'runtime-session');
   assert.equal(fixture.counts().prepared, 1);
@@ -484,23 +606,222 @@ function createPersistenceStorage({
       headers: { 'content-type': 'application/json' },
     });
   };
+  class PersistenceStorage extends Storage {
+    async store(assetType, dataFormat, data, assetId) {
+      const format = dataFormat || assetType?.runtimeFormat;
+      const created = this.createAsset(assetType, format, data, assetId);
+      const request = this.webStore?.update?.(created);
+      if (!request) throw new Error('fixture_store_not_configured');
+      const response = await fetchMock(request.url, { ...request, body: data });
+      if (!response.ok || response.redirected) throw new Error('asset_write_failed');
+      return response.json();
+    }
+  }
+
   const api = loadHost('storage', {
     fetch: fetchMock,
     crypto: webcrypto,
     AbortController: globalThis.AbortController,
   }).AsaBlocksStorage;
-  const storage = api.createReadOnlyStorage(standaloneFixture(), {
-    projectId: PROJECT_ID,
-    projectJson: null,
-    assets: bootstrapAssets,
-    draftRevision: 7,
-    apiOrigin: API_ORIGIN,
-    getRuntimeToken: () => RUNTIME_TOKEN,
-  });
+  const storage = api.createReadOnlyStorage(
+    {
+      ScratchStorage: PersistenceStorage,
+      buildDefaultProject: standaloneFixture().buildDefaultProject,
+    },
+    {
+      projectId: PROJECT_ID,
+      projectJson: null,
+      assets: bootstrapAssets,
+      draftRevision: 7,
+      apiOrigin: API_ORIGIN,
+      getRuntimeToken: () => RUNTIME_TOKEN,
+      canSave: true,
+    },
+  );
   return { storage, calls };
 }
 
-test('explicit persistence uploads only changed assets before canonical draft and confirms revision', async () => {
+function assetTypeFor(storage, dataFormat) {
+  if (dataFormat === 'svg') return storage.scratchStorage.AssetType.ImageVector;
+  if (dataFormat === 'png' || dataFormat === 'jpg') {
+    return storage.scratchStorage.AssetType.ImageBitmap;
+  }
+  return storage.scratchStorage.AssetType.Sound;
+}
+
+async function storeCanonicalAsset(storage, value) {
+  return storage.scratchStorage.store(
+    assetTypeFor(storage, value.dataFormat),
+    value.dataFormat,
+    value.bytes,
+    value.assetId,
+  );
+}
+
+function projectWithAssets(name, assets) {
+  return {
+    targets: [
+      {
+        name,
+        costumes: assets
+          .filter((value) => ['svg', 'png', 'jpg'].includes(value.dataFormat))
+          .map((value) => ({ assetId: value.assetId, dataFormat: value.dataFormat })),
+        sounds: assets
+          .filter((value) => ['wav', 'mp3'].includes(value.dataFormat))
+          .map((value) => ({ assetId: value.assetId, dataFormat: value.dataFormat })),
+      },
+    ],
+    monitors: [],
+    extensions: [],
+  };
+}
+
+test('recovery capture embeds only referenced assets absent from confirmed server draft', async () => {
+  const confirmedBytes = Uint8Array.from([1, 2, 3]);
+  const localBytes = Uint8Array.from([9, 8, 7, 6]);
+  const confirmed = snapshotAsset('a'.repeat(32), 'png', confirmedBytes);
+  const { storage } = createPersistenceStorage({
+    bootstrapAssets: [
+      {
+        assetId: confirmed.assetId,
+        dataFormat: confirmed.dataFormat,
+        sha256: confirmed.sha256,
+        sizeBytes: confirmed.sizeBytes,
+      },
+    ],
+  });
+  const localId = 'b'.repeat(32);
+  const projectJson = {
+    targets: [
+      {
+        name: 'Stage',
+        costumes: [
+          { assetId: confirmed.assetId, dataFormat: 'png' },
+          { assetId: localId, dataFormat: 'png' },
+        ],
+        sounds: [],
+      },
+    ],
+    monitors: [],
+    extensions: [],
+  };
+  const liveAssets = [
+    {
+      assetId: confirmed.assetId,
+      dataFormat: 'png',
+      assetType: storage.scratchStorage.AssetType.ImageBitmap,
+      data: confirmedBytes,
+    },
+    {
+      assetId: localId,
+      dataFormat: 'png',
+      assetType: storage.scratchStorage.AssetType.ImageBitmap,
+      data: localBytes,
+    },
+  ];
+
+  const captured = await storage.captureRecoveryAssets(projectJson, liveAssets);
+  assert.equal(captured.length, 1);
+  assert.equal(captured[0].assetId, localId);
+  assert.equal(captured[0].dataFormat, 'png');
+  assert.equal(captured[0].sizeBytes, localBytes.byteLength);
+  assert.equal(captured[0].sha256, createHash('sha256').update(localBytes).digest('hex'));
+  assert.deepEqual([...captured[0].bytes], [...localBytes]);
+});
+
+test('installed recovery asset loads locally as dirty and cannot override confirmed authority', async () => {
+  const confirmedBytes = Uint8Array.from([1, 2, 3]);
+  const confirmed = snapshotAsset('a'.repeat(32), 'png', confirmedBytes);
+  const { storage } = createPersistenceStorage({
+    bootstrapAssets: [
+      {
+        assetId: confirmed.assetId,
+        dataFormat: confirmed.dataFormat,
+        sha256: confirmed.sha256,
+        sizeBytes: confirmed.sizeBytes,
+      },
+    ],
+  });
+  const localBytes = Uint8Array.from([4, 5, 6, 7]);
+  const local = snapshotAsset('b'.repeat(32), 'png', localBytes);
+
+  assert.equal(await storage.installRecoveryAssets([local]), 1);
+  const recovered = await storage.scratchStorage.helper.load(
+    storage.scratchStorage.AssetType.ImageBitmap,
+    local.assetId,
+    local.dataFormat,
+  );
+  assert.ok(recovered);
+  assert.equal(recovered.clean, false);
+  assert.deepEqual([...recovered.data], [...localBytes]);
+
+  await assert.rejects(
+    storage.installRecoveryAssets([
+      {
+        ...confirmed,
+        sha256: 'f'.repeat(64),
+        bytes: confirmedBytes,
+      },
+    ]),
+    /recovery_asset_invalid|recovery_asset_conflicts_confirmed/,
+  );
+});
+
+test('recovery capture remains based on confirmedAssets after transient asset durability', async () => {
+  const localBytes = Uint8Array.from([7, 7, 7, 7]);
+  const local = snapshotAsset('c'.repeat(32), 'png', localBytes);
+  const { storage, calls } = createPersistenceStorage({ draftStatus: 503 });
+  const projectJson = {
+    targets: [
+      {
+        name: 'Stage',
+        costumes: [{ assetId: local.assetId, dataFormat: 'png' }],
+        sounds: [],
+      },
+    ],
+    monitors: [],
+    extensions: [],
+  };
+
+  await storeCanonicalAsset(storage, local);
+  await assert.rejects(
+    storage.saveProject(PROJECT_ID, JSON.stringify(projectJson)),
+    /draft_write_failed/,
+  );
+  assert.deepEqual(
+    calls.map((call) => call.kind),
+    ['asset', 'draft'],
+  );
+
+  const captured = await storage.captureRecoveryAssets(projectJson, [
+    {
+      assetId: local.assetId,
+      dataFormat: 'png',
+      assetType: storage.scratchStorage.AssetType.ImageBitmap,
+      data: localBytes,
+    },
+  ]);
+  assert.equal(captured.length, 1);
+  assert.equal(captured[0].assetId, local.assetId);
+  assert.deepEqual([...captured[0].bytes], [...localBytes]);
+});
+
+test('upstream create transition persists native New into the same managed ASA UUID', async () => {
+  const { storage, calls } = createPersistenceStorage();
+  const projectJson = { targets: [], monitors: [], extensions: [] };
+
+  const response = await storage.saveProject(null, JSON.stringify(projectJson));
+
+  assert.equal(response.id, PROJECT_ID);
+  assert.equal(storage.getConfirmedRevision(), 8);
+  assert.deepEqual(
+    calls.map((call) => call.kind),
+    ['draft'],
+  );
+  assert.match(calls[0].url, new RegExp(`/projects/${PROJECT_ID}/draft$`));
+});
+
+test('canonical upstream persistence uploads only changed assets before draft and confirms revision', async () => {
   const unchangedBytes = Uint8Array.from([1, 2, 3]);
   const newBytes = Uint8Array.from([4, 5, 6, 7]);
   const staleBytes = Uint8Array.from([8, 9]);
@@ -523,18 +844,12 @@ test('explicit persistence uploads only changed assets before canonical draft an
       },
     ],
   });
-  const projectJson = {
-    targets: [{ name: 'Live VM', costumes: [], sounds: [] }],
-    monitors: [],
-    extensions: [],
-  };
+  const projectJson = projectWithAssets('Live VM', [unchanged, added]);
 
-  const revision = await storage.persistSnapshot({
-    projectJson,
-    assets: [unchanged, added],
-  });
+  await storeCanonicalAsset(storage, added);
+  const result = await storage.saveProject(PROJECT_ID, JSON.stringify(projectJson));
 
-  assert.equal(revision, 8);
+  assert.equal(result.id, PROJECT_ID);
   assert.equal(storage.getConfirmedRevision(), 8);
   assert.deepEqual(
     calls.map((call) => call.kind),
@@ -581,14 +896,310 @@ test('explicit persistence uploads only changed assets before canonical draft an
   );
 });
 
+test('upstream saver fan-out is bounded to four concurrent asset writes', async () => {
+  for (const count of [1, 5, 20]) {
+    let active = 0;
+    let maxActive = 0;
+
+    class UpstreamStorage extends Storage {
+      async store(assetType, dataFormat, data, assetId) {
+        active += 1;
+        maxActive = Math.max(maxActive, active);
+        await new Promise((resolve) => globalThis.setTimeout(resolve, 5));
+        active -= 1;
+        const bytes = new Uint8Array(data);
+        return {
+          id: assetId,
+          status: 'ok',
+          asset: {
+            assetId: String(assetId),
+            dataFormat,
+            sha256: createHash('sha256').update(bytes).digest('hex'),
+            sizeBytes: bytes.byteLength,
+          },
+        };
+      }
+    }
+
+    const api = loadHost('storage', {
+      crypto: webcrypto,
+      AbortController: globalThis.AbortController,
+      ArrayBuffer,
+      Uint8Array,
+    }).AsaBlocksStorage;
+    const storage = api.createReadOnlyStorage(
+      {
+        ScratchStorage: UpstreamStorage,
+        buildDefaultProject: standaloneFixture().buildDefaultProject,
+      },
+      {
+        projectId: PROJECT_ID,
+        projectJson: null,
+        assets: [],
+        draftRevision: 7,
+        apiOrigin: API_ORIGIN,
+        getRuntimeToken: () => RUNTIME_TOKEN,
+        canSave: true,
+      },
+    );
+
+    const stores = Array.from({ length: count }, (_, index) => {
+      const assetId = (index + 1).toString(16).padStart(32, '0');
+      return storage.scratchStorage.store(
+        storage.scratchStorage.AssetType.ImageVector,
+        'svg',
+        new TextEncoder().encode(
+          `<svg xmlns="http://www.w3.org/2000/svg"><text>${index + 1}</text></svg>`,
+        ),
+        assetId,
+      );
+    });
+
+    const results = await Promise.all(stores);
+    assert.equal(results.length, count);
+    assert.equal(maxActive, Math.min(count, 4), `${count} assets must respect the limit`);
+  }
+});
+
+test('draft PUT starts only after all required bounded asset writes finish', async () => {
+  const events = [];
+
+  class UpstreamStorage extends Storage {
+    async store(assetType, dataFormat, data, assetId) {
+      events.push(`asset-start:${assetId}`);
+      await new Promise((resolve) => globalThis.setTimeout(resolve, 5));
+      const bytes = new Uint8Array(data);
+      events.push(`asset-finish:${assetId}`);
+      return {
+        id: assetId,
+        status: 'ok',
+        asset: {
+          assetId: String(assetId),
+          dataFormat,
+          sha256: createHash('sha256').update(bytes).digest('hex'),
+          sizeBytes: bytes.byteLength,
+        },
+      };
+    }
+  }
+
+  const api = loadHost('storage', {
+    fetch: async (url) => {
+      assert.match(String(url), /\/draft$/);
+      events.push('draft-start');
+      return new globalThis.Response(JSON.stringify({ status: 'ok', revision: 8 }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    },
+    crypto: webcrypto,
+    AbortController: globalThis.AbortController,
+    ArrayBuffer,
+    Uint8Array,
+  }).AsaBlocksStorage;
+  const storage = api.createReadOnlyStorage(
+    {
+      ScratchStorage: UpstreamStorage,
+      buildDefaultProject: standaloneFixture().buildDefaultProject,
+    },
+    {
+      projectId: PROJECT_ID,
+      projectJson: null,
+      assets: [],
+      draftRevision: 7,
+      apiOrigin: API_ORIGIN,
+      getRuntimeToken: () => RUNTIME_TOKEN,
+      canSave: true,
+    },
+  );
+
+  const assets = Array.from({ length: 5 }, (_, index) =>
+    snapshotAsset(
+      (index + 1).toString(16).padStart(32, '0'),
+      'png',
+      Uint8Array.from([index + 1, index + 2, index + 3]),
+    ),
+  );
+  await Promise.all(assets.map((value) => storeCanonicalAsset(storage, value)));
+  await storage.saveProject(PROJECT_ID, JSON.stringify(projectWithAssets('Bounded queue', assets)));
+
+  const draftIndex = events.indexOf('draft-start');
+  assert.ok(draftIndex > -1);
+  assert.equal(events.filter((event) => event.startsWith('asset-finish:')).length, assets.length);
+  assert.ok(
+    events
+      .map((event, index) => ({ event, index }))
+      .filter(({ event }) => event.startsWith('asset-finish:'))
+      .every(({ index }) => index < draftIndex),
+    'draft PUT must start after every required asset PUT finishes',
+  );
+});
+
+test('one failed bounded asset write prevents draft PUT', async () => {
+  const failedId = '3'.padStart(32, '0');
+  let draftPuts = 0;
+
+  class UpstreamStorage extends Storage {
+    async store(assetType, dataFormat, data, assetId) {
+      await new Promise((resolve) => globalThis.setTimeout(resolve, 5));
+      if (assetId === failedId) throw new Error('asset_write_failed');
+      const bytes = new Uint8Array(data);
+      return {
+        id: assetId,
+        status: 'ok',
+        asset: {
+          assetId: String(assetId),
+          dataFormat,
+          sha256: createHash('sha256').update(bytes).digest('hex'),
+          sizeBytes: bytes.byteLength,
+        },
+      };
+    }
+  }
+
+  const api = loadHost('storage', {
+    fetch: async () => {
+      draftPuts += 1;
+      return new globalThis.Response(JSON.stringify({ status: 'ok', revision: 8 }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    },
+    crypto: webcrypto,
+    AbortController: globalThis.AbortController,
+    ArrayBuffer,
+    Uint8Array,
+  }).AsaBlocksStorage;
+  const storage = api.createReadOnlyStorage(
+    {
+      ScratchStorage: UpstreamStorage,
+      buildDefaultProject: standaloneFixture().buildDefaultProject,
+    },
+    {
+      projectId: PROJECT_ID,
+      projectJson: null,
+      assets: [],
+      draftRevision: 7,
+      apiOrigin: API_ORIGIN,
+      getRuntimeToken: () => RUNTIME_TOKEN,
+      canSave: true,
+    },
+  );
+
+  const assets = Array.from({ length: 5 }, (_, index) =>
+    snapshotAsset(
+      (index + 1).toString(16).padStart(32, '0'),
+      'png',
+      Uint8Array.from([index + 10, index + 11, index + 12]),
+    ),
+  );
+  const settled = await Promise.allSettled(
+    assets.map((value) => storeCanonicalAsset(storage, value)),
+  );
+  assert.equal(settled.filter((result) => result.status === 'rejected').length, 1);
+  await assert.rejects(
+    storage.saveProject(PROJECT_ID, JSON.stringify(projectWithAssets('Failed asset', assets))),
+    /asset_reference_missing/,
+  );
+  assert.equal(draftPuts, 0);
+});
+
+test('upstream asset-store latency cannot hide an edit made after VM serialization', async () => {
+  let generation = 5;
+  let releaseStore;
+  const storeGate = new Promise((resolve) => {
+    releaseStore = resolve;
+  });
+  const stale = [];
+  const draftCalls = [];
+
+  class UpstreamStorage extends Storage {
+    async store(assetType, dataFormat, data, assetId) {
+      await storeGate;
+      const bytes = new Uint8Array(data);
+      return {
+        id: assetId,
+        status: 'ok',
+        asset: {
+          assetId: String(assetId),
+          dataFormat,
+          sha256: createHash('sha256').update(bytes).digest('hex'),
+          sizeBytes: bytes.byteLength,
+        },
+      };
+    }
+  }
+
+  const api = loadHost('storage', {
+    fetch: async (url, init) => {
+      assert.match(String(url), /\/draft$/);
+      draftCalls.push(JSON.parse(init.body));
+      return new globalThis.Response(JSON.stringify({ status: 'ok', revision: 8 }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    },
+    crypto: webcrypto,
+    AbortController: globalThis.AbortController,
+    ArrayBuffer,
+    Uint8Array,
+  }).AsaBlocksStorage;
+
+  const standalone = {
+    ScratchStorage: UpstreamStorage,
+    buildDefaultProject: standaloneFixture().buildDefaultProject,
+  };
+  const storage = api.createReadOnlyStorage(standalone, {
+    projectId: PROJECT_ID,
+    projectJson: null,
+    assets: [],
+    draftRevision: 7,
+    apiOrigin: API_ORIGIN,
+    getRuntimeToken: () => RUNTIME_TOKEN,
+    canSave: true,
+    getProjectGeneration: () => generation,
+    onSaveCompletedStale: (value) => stale.push(value),
+  });
+
+  const assetId = '9'.repeat(32);
+  const bytes = new TextEncoder().encode('<svg xmlns="http://www.w3.org/2000/svg"/>');
+  const storePromise = storage.scratchStorage.store(
+    storage.scratchStorage.AssetType.ImageVector,
+    'svg',
+    bytes,
+    assetId,
+  );
+
+  generation = 6;
+  releaseStore();
+  await storePromise;
+
+  const projectJson = {
+    targets: [
+      {
+        name: 'Saved A',
+        costumes: [{ assetId, dataFormat: 'svg' }],
+        sounds: [],
+      },
+    ],
+    monitors: [],
+    extensions: [],
+  };
+  const result = await storage.saveProject(PROJECT_ID, JSON.stringify(projectJson), {});
+
+  assert.equal(result.id, PROJECT_ID);
+  assert.equal(draftCalls.length, 1);
+  assert.equal(stale.length, 1);
+  assert.equal(stale[0].savedGeneration, 5);
+  assert.equal(stale[0].latestGeneration, 6);
+  assert.equal(stale[0].revision, 8);
+});
+
 for (const status of [400, 401, 403, 409, 429, 503]) {
   test(`asset PUT HTTP ${status} fails closed before draft PUT`, async () => {
     const asset = snapshotAsset('d'.repeat(32), 'png', Uint8Array.from([10, 11, 12]));
     const { storage, calls } = createPersistenceStorage({ assetStatus: status });
-    await assert.rejects(
-      storage.persistSnapshot({ projectJson: { targets: [] }, assets: [asset] }),
-      /asset_write_failed/,
-    );
+    await assert.rejects(storeCanonicalAsset(storage, asset), /asset_write_failed/);
     assert.equal(calls.filter((call) => call.kind === 'draft').length, 0);
     assert.equal(storage.getConfirmedRevision(), 7);
   });
@@ -596,21 +1207,21 @@ for (const status of [400, 401, 403, 409, 429, 503]) {
 
 test('asset PUT network and canonical-reference mismatch fail closed before draft PUT', async () => {
   const asset = snapshotAsset('e'.repeat(32), 'svg', new TextEncoder().encode('<svg/>'));
-  for (const options of [
-    { assetNetworkFailure: true },
-    {
-      assetPayload: (reference) => ({
-        status: 'ok',
-        asset: { ...reference, sha256: '0'.repeat(64) },
-      }),
-    },
-    { assetPayload: { status: 'ok' } },
+  for (const [options, expected] of [
+    [{ assetNetworkFailure: true }, /asset network/],
+    [
+      {
+        assetPayload: (reference) => ({
+          status: 'ok',
+          asset: { ...reference, sha256: '0'.repeat(64) },
+        }),
+      },
+      /asset_reference_mismatch/,
+    ],
+    [{ assetPayload: { status: 'ok' } }, /asset_reference_mismatch/],
   ]) {
     const { storage, calls } = createPersistenceStorage(options);
-    await assert.rejects(
-      storage.persistSnapshot({ projectJson: { targets: [] }, assets: [asset] }),
-      /asset_write_failed|asset_reference_mismatch/,
-    );
+    await assert.rejects(storeCanonicalAsset(storage, asset), expected);
     assert.equal(calls.filter((call) => call.kind === 'draft').length, 0);
     assert.equal(storage.getConfirmedRevision(), 7);
   }
@@ -620,8 +1231,9 @@ for (const status of [400, 401, 403, 409, 429, 503]) {
   test(`draft PUT HTTP ${status} never advances confirmed revision`, async () => {
     const asset = snapshotAsset('f'.repeat(32), 'png', Uint8Array.from([13, 14, 15]));
     const { storage, calls } = createPersistenceStorage({ draftStatus: status });
+    await storeCanonicalAsset(storage, asset);
     await assert.rejects(
-      storage.persistSnapshot({ projectJson: { targets: [] }, assets: [asset] }),
+      storage.saveProject(PROJECT_ID, JSON.stringify(projectWithAssets('Draft failure', [asset]))),
       /draft_write_failed/,
     );
     assert.equal(calls.filter((call) => call.kind === 'asset').length, 1);
@@ -639,187 +1251,19 @@ test('draft network and malformed success never advance confirmed revision', asy
     { draftPayload: { status: 'nope', revision: 8 } },
   ]) {
     const { storage } = createPersistenceStorage(options);
+    await storeCanonicalAsset(storage, asset);
     await assert.rejects(
-      storage.persistSnapshot({ projectJson: { targets: [] }, assets: [asset] }),
+      storage.saveProject(
+        PROJECT_ID,
+        JSON.stringify(projectWithAssets('Draft malformed', [asset])),
+      ),
       /draft_write_failed|draft_revision_invalid/,
     );
     assert.equal(storage.getConfirmedRevision(), 7);
   }
 });
 
-test('editor FLUSH captures current vm.toJSON and exact referenced vm asset bytes', async () => {
-  const bytes = new TextEncoder().encode(
-    '<svg xmlns="http://www.w3.org/2000/svg"><circle r="4"/></svg>',
-  );
-  const assetId = '2'.repeat(32);
-  let props;
-  let captured;
-  let resolveSave;
-  const dirtyGenerations = [];
-  const saveResult = new Promise((resolve) => {
-    resolveSave = resolve;
-  });
-  const storage = {
-    async prepareProjectAssets() {},
-    async persistSnapshot(snapshot) {
-      captured = snapshot;
-      return saveResult;
-    },
-    dispose() {},
-  };
-  const machine = new EventEmitter();
-  machine.assets = [{ assetId, dataFormat: 'svg', data: bytes }];
-  machine.toJSON = () =>
-    JSON.stringify({
-      targets: [
-        {
-          name: 'Live Changed Sprite',
-          costumes: [
-            {
-              assetId,
-              dataFormat: 'svg',
-              md5ext: `${assetId}.svg`,
-            },
-          ],
-          sounds: [],
-        },
-      ],
-      monitors: [],
-      extensions: [],
-    });
-  machine.stopAll = () => {};
-  machine.quit = () => {};
-  const standalone = {
-    EditorState: class {
-      dispatch() {}
-    },
-    setProjectId: (projectId) => ({ projectId }),
-    setAppElement() {},
-    createStandaloneRoot: () => ({
-      render(value) {
-        props = value;
-        value.onVmInit(machine);
-      },
-      unmount() {},
-    }),
-  };
-  const shell = { dataset: {} };
-  const api = loadHost('editor', {
-    crypto: webcrypto,
-    AsaBlocksStorage: { createReadOnlyStorage: () => storage },
-  }).AsaBlocksEditor;
-  const editor = api.mountEditor({
-    standalone,
-    container: {},
-    shell,
-    session: { mode: 'editor', projectId: PROJECT_ID },
-    bootstrap: {
-      apiOrigin: API_ORIGIN,
-      draftRevision: 7,
-      projectJson: null,
-      hasProjectJson: false,
-      assets: [],
-    },
-    getRuntimeToken: () => RUNTIME_TOKEN,
-    onReady() {},
-    onDirty(generation) {
-      dirtyGenerations.push(generation);
-    },
-  });
-  await editor.startup;
-  props.onProjectLoaded();
-  machine.emit('PROJECT_CHANGED');
-
-  const first = editor.flush();
-  const concurrent = await editor.flush();
-  assert.equal(concurrent.ok, false);
-  assert.equal(concurrent.reason, 'save_in_progress');
-  machine.emit('PROJECT_CHANGED');
-  resolveSave(8);
-  const saved = await first;
-  assert.equal(saved.ok, true);
-  assert.equal(saved.revision, 8);
-  assert.equal(saved.snapshotGeneration, 1);
-  assert.deepEqual(dirtyGenerations, [1, 2]);
-  assert.equal(shell.dataset.draftRevision, '8');
-  assert.equal(captured.projectJson.targets[0].name, 'Live Changed Sprite');
-  assert.equal(captured.assets.length, 1);
-  assert.equal(captured.assets[0].assetId, assetId);
-  assert.equal(captured.assets[0].dataFormat, 'svg');
-  assert.deepEqual(Buffer.from(captured.assets[0].bytes), Buffer.from(bytes));
-  assert.equal(captured.assets[0].sizeBytes, bytes.byteLength);
-  assert.equal(captured.assets[0].sha256, createHash('sha256').update(bytes).digest('hex'));
-});
-
-test('editor FLUSH fails when live project references bytes unavailable from the VM', async () => {
-  const assetId = '3'.repeat(32);
-  let props;
-  let persisted = false;
-  const machine = new EventEmitter();
-  machine.assets = [];
-  machine.toJSON = () =>
-    JSON.stringify({
-      targets: [
-        {
-          costumes: [{ assetId, dataFormat: 'png', md5ext: `${assetId}.png` }],
-          sounds: [],
-        },
-      ],
-      monitors: [],
-      extensions: [],
-    });
-  machine.stopAll = () => {};
-  machine.quit = () => {};
-  const api = loadHost('editor', {
-    crypto: webcrypto,
-    AsaBlocksStorage: {
-      createReadOnlyStorage: () => ({
-        async prepareProjectAssets() {},
-        async persistSnapshot() {
-          persisted = true;
-          return 8;
-        },
-        dispose() {},
-      }),
-    },
-  }).AsaBlocksEditor;
-  const editor = api.mountEditor({
-    standalone: {
-      EditorState: class {
-        dispatch() {}
-      },
-      setProjectId: (projectId) => ({ projectId }),
-      setAppElement() {},
-      createStandaloneRoot: () => ({
-        render(value) {
-          props = value;
-          value.onVmInit(machine);
-        },
-        unmount() {},
-      }),
-    },
-    container: {},
-    shell: { dataset: {} },
-    session: { mode: 'editor', projectId: PROJECT_ID },
-    bootstrap: {
-      apiOrigin: API_ORIGIN,
-      draftRevision: 7,
-      projectJson: null,
-      hasProjectJson: false,
-      assets: [],
-    },
-    getRuntimeToken: () => RUNTIME_TOKEN,
-    onReady() {},
-  });
-  await editor.startup;
-  props.onProjectLoaded();
-  const failed = await editor.flush();
-  assert.equal(failed.ok, false);
-  assert.equal(failed.reason, 'asset_capture_failed');
-  assert.equal(persisted, false);
-});
-
-test('status reporter sends bounded dirty generation and successful FLUSH snapshot generation', () => {
+test('status reporter sends bounded dirty generation and native thumbnail revision', () => {
   const calls = [];
   const reporter = loadHost('status').AsaBlocksStatus.createStatusReporter({
     parentWindow: {
@@ -835,7 +1279,8 @@ test('status reporter sends bounded dirty generation and successful FLUSH snapsh
     }),
   });
   reporter.projectDirty(3);
-  reporter.flushResult('flush-1', true, null, 8, 3);
+  reporter.thumbnailReady(8, 'data:image/png;base64,AAAA');
+  reporter.homeRequest();
   assert.equal(calls[0].targetOrigin, API_ORIGIN);
   assert.equal(calls[0].message.protocolVersion, 1);
   assert.equal(calls[0].message.projectId, PROJECT_ID);
@@ -843,9 +1288,15 @@ test('status reporter sends bounded dirty generation and successful FLUSH snapsh
   assert.equal(calls[0].message.messageType, 'ASA_BLOCKS_STATUS');
   assert.equal(calls[0].message.status, 'project-dirty');
   assert.equal(calls[0].message.generation, 3);
-  assert.equal(calls[1].message.messageType, 'ASA_BLOCKS_FLUSH_RESULT');
-  assert.equal(calls[1].message.revision, 8);
-  assert.equal(calls[1].message.snapshotGeneration, 3);
+  assert.equal(calls[1].message.messageType, 'ASA_BLOCKS_THUMBNAIL_READY');
+  assert.equal(calls[1].message.sourceRevision, 8);
+  assert.equal(calls[1].message.imageDataUrl, 'data:image/png;base64,AAAA');
+  assert.deepEqual(JSON.parse(JSON.stringify(calls[2].message)), {
+    protocolVersion: 1,
+    projectId: PROJECT_ID,
+    sessionNonce: 'nonce',
+    messageType: 'ASA_BLOCKS_HOME_REQUEST',
+  });
 });
 
 function protocolHarness() {
@@ -887,7 +1338,7 @@ function validInitMessage(overrides = {}) {
     hasProjectJson: true,
     assets: [],
     apiOrigin: API_ORIGIN,
-    recoveryNamespace: 'fixture-c',
+    recoveryPrincipalKey: '33333333-3333-4333-8333-333333333333',
     ...overrides,
   };
 }
@@ -920,6 +1371,30 @@ test('accepted child INIT exposes validated bootstrap but keeps capability proto
   assert.equal(protocol.getRuntimeToken(), 'rotated.payload.signature');
   protocol.dispose();
   assert.equal(protocol.getRuntimeToken(), null);
+});
+
+test('child INIT accepts canonical Scratch costume without md5ext when the asset is declared', () => {
+  const assetId = 'd'.repeat(32);
+  const { handlers, parent, calls, rejections } = protocolHarness();
+  handlers.get('message')({
+    source: parent,
+    origin: API_ORIGIN,
+    data: validInitMessage({
+      projectJson: {
+        targets: [
+          {
+            costumes: [{ assetId, dataFormat: 'svg' }],
+            sounds: [],
+          },
+        ],
+        monitors: [],
+        extensions: [],
+      },
+      assets: [{ assetId, dataFormat: 'svg', sha256: 'e'.repeat(64), sizeBytes: 1 }],
+    }),
+  });
+  assert.equal(calls.length, 1);
+  assert.deepEqual(rejections, []);
 });
 
 for (const [name, override] of [
@@ -1009,6 +1484,7 @@ for (const [query, mode, delegated] of [
         },
       },
       AsaBlocksStatus: { createStatusReporter: () => ({ status() {} }) },
+      AsaBlocksRecovery: {},
       AsaBlocksEditor: {
         mountEditor: ({ onReady }) => {
           onReady();
@@ -1025,6 +1501,7 @@ for (const [query, mode, delegated] of [
         projectJson: null,
         hasProjectJson: false,
         assets: [],
+        recoveryPrincipalKey: '33333333-3333-4333-8333-333333333333',
       },
     );
     await Promise.resolve();

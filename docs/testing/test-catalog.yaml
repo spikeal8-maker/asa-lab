@@ -26,6 +26,17 @@ suites:
   accessibility:
     description: Доступность критических пользовательских путей.
 tests:
+  - id: TST-OWNER-ADMIN-OPERATOR-001
+    title: Confirmed owner identity, runtime authority, rollback and repeat safety
+    suite: authorization
+    level: system
+    phase_available: PHASE-12
+    required_for: [TASK-OWNER-ADMIN-PROVISIONING-001]
+    command: pnpm test:owner-admin
+    timeout_seconds: 120
+    owner: admin-auth
+    artifacts: [vitest-report]
+
   - id: TST-ADMIN-AUTH-MAX-CORE-001
     title: Integrated Admin authorization, PostgreSQL isolation and MAX signature boundary
     suite: authorization

@@ -5,7 +5,7 @@ import { URL } from 'node:url';
 import YAML from 'yaml';
 const read = (name) => fs.readFileSync(new URL(`../../${name}`, import.meta.url), 'utf8');
 
-test('default distribution contains an isolated source-built Scratch without machine artifacts', () => {
+test('default distribution contains an internal source-built Scratch without machine artifacts', () => {
   const config = YAML.parse(read('compose.yaml'));
   const scratch = config.services.scratch;
   assert.equal(scratch.build.context, '.');
@@ -18,11 +18,11 @@ test('default distribution contains an isolated source-built Scratch without mac
     true,
     'internal-only runtime networks suppress Docker published ports',
   );
-  assert.equal(scratch.environment, undefined);
+  assert.match(scratch.environment.ASA_BLOCKS_PARENT_ORIGIN, /ASA_BLOCKS_PARENT_ORIGIN/);
   assert.equal(scratch.volumes, undefined);
   assert.equal(scratch.profiles, undefined);
   assert.equal(config.services.web.depends_on.scratch.condition, 'service_healthy');
-  assert.match(config.services.web.build.args.ASA_BLOCKS_RUNTIME_ORIGIN, /http:\/\/localhost:/);
+  assert.match(config.services.web.build.args.ASA_BLOCKS_RUNTIME_ORIGIN, /http:\/\/127\.0\.0\.1:/);
   assert.match(scratch.build.args.ASA_BLOCKS_PARENT_ORIGIN, /http:\/\/127\.0\.0\.1:/);
   assert.doesNotMatch(read('compose.yaml'), /C:\\|runtime-context|Dockerfile\.artifact|backups\//);
 });
@@ -61,7 +61,7 @@ test('private Blocks object storage stays inside the canonical Compose project',
   const api = config.services.api;
   const web = config.services.web;
   const scratch = config.services.scratch;
-  assert.equal(minio.image, 'asa-lab-minio:${ASA_IMAGE_TAG:-local}');
+  assert.equal(minio.image, '${ASA_MINIO_IMAGE:-asa-lab-minio:${ASA_IMAGE_TAG:-local}}');
   assert.equal(minio.build.context, '.');
   assert.equal(minio.build.dockerfile, 'infra/minio/Dockerfile');
   assert.equal(init.image, 'quay.io/minio/mc:RELEASE.2024-09-16T17-43-14Z');
@@ -120,12 +120,17 @@ test('normal install and guarded update include Scratch in successful readiness'
   assert.match(recipe, /asa-commit\.txt/);
 });
 
-test('ready editor omits the footer instead of visually obscuring it', () => {
+test('parent startup uses the full-screen ASA loader instead of a footer status strip', () => {
   const editor = read('apps/web/src/blocks/BlocksEditor.tsx');
-  assert.match(editor, /status !== 'editor-ready' \? \(/);
-  assert.doesNotMatch(editor, /className="blocks-editor-preview-status"/);
-  assert.match(editor, /window\.confirm/);
-  assert.match(editor, /Повторить подключение/);
+  const css = read('apps/web/src/blocks/blocks-editor-shell.css');
+  assert.match(editor, /data-asa-blocks-loading-overlay/);
+  assert.match(editor, /\/asa-lab-mark\.svg/);
+  assert.doesNotMatch(editor, /blocks-editor-connection-status/);
+  assert.doesNotMatch(editor, /window\.confirm/);
+  assert.doesNotMatch(editor, /Сохранить в ASA/);
+  assert.match(editor, /Не удалось открыть среду/);
+  assert.match(editor, /Повторить/);
+  assert.match(css, /@media \(prefers-reduced-motion: reduce\)/);
 });
 
 test('startup and guarded updates build every local image before no-build replacement', () => {

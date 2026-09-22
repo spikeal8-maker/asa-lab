@@ -207,6 +207,8 @@ export function arduinoOutputBranchesFromSnapshot(
   snapshot: ArduinoRuntimeSnapshot,
   _simulationTimeMs = 0,
 ): readonly ArduinoOutputBranch[] {
+  // Keep the public call signature; waveform voltage already belongs to the snapshot.
+  void _simulationTimeMs;
   const pins = new Set(component.pinIds ?? []);
   const ground = ARDUINO_GROUND_TERMINALS.find((terminal) => pins.has(terminal));
   if (!ground) return [];

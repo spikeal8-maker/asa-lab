@@ -5,22 +5,24 @@ ARG CADDY_IMAGE=caddy:2.10.2-alpine
 
 FROM ${NODE_IMAGE} AS build
 
-ARG ASA_BUILD_REVISION=unknown
-ARG ASA_BLOCKS_PREVIEW=0
-ARG ASA_BLOCKS_RUNTIME_ORIGIN=
 ENV PNPM_HOME=/pnpm
 ENV PATH=${PNPM_HOME}:${PATH}
-ENV VITE_ASA_BUILD_REVISION="${ASA_BUILD_REVISION}"
-ENV VITE_ASA_BLOCKS_PREVIEW="${ASA_BLOCKS_PREVIEW}"
-ENV VITE_ASA_BLOCKS_RUNTIME_ORIGIN="${ASA_BLOCKS_RUNTIME_ORIGIN}"
 
 RUN corepack enable \
     && corepack prepare pnpm@9.15.9 --activate
 
 WORKDIR /workspace
+COPY pnpm-lock.yaml pnpm-workspace.yaml ./
+RUN --mount=type=cache,id=asa-pnpm9,target=/pnpm/store pnpm fetch --frozen-lockfile --store-dir /pnpm/store
 COPY . .
 
-RUN pnpm install --frozen-lockfile
+RUN --mount=type=cache,id=asa-pnpm9,target=/pnpm/store pnpm install --offline --frozen-lockfile --store-dir /pnpm/store
+ARG ASA_BUILD_REVISION=unknown
+ARG ASA_BLOCKS_PREVIEW=0
+ARG ASA_BLOCKS_RUNTIME_ORIGIN=
+ENV VITE_ASA_BUILD_REVISION="${ASA_BUILD_REVISION}"
+ENV VITE_ASA_BLOCKS_PREVIEW="${ASA_BLOCKS_PREVIEW}"
+ENV VITE_ASA_BLOCKS_RUNTIME_ORIGIN="${ASA_BLOCKS_RUNTIME_ORIGIN}"
 RUN pnpm nx run web:build
 
 FROM ${CADDY_IMAGE} AS runtime
@@ -33,9 +35,11 @@ ENV XDG_DATA_HOME=/tmp/caddy-data
 RUN setcap -r /usr/bin/caddy
 
 COPY docker/web/Caddyfile /etc/caddy/Caddyfile
+COPY --chmod=0555 docker/web/start.sh /usr/local/bin/asa-web-start
 COPY --from=build /workspace/apps/web/dist /srv
 
 USER 65534:65534
+ENTRYPOINT ["/usr/local/bin/asa-web-start"]
 
 EXPOSE 8080
 

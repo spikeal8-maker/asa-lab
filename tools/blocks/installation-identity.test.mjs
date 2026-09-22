@@ -7,7 +7,9 @@ import { spawnSync } from 'node:child_process';
 import test from 'node:test';
 import { fileURLToPath, URL } from 'node:url';
 const root = fileURLToPath(new URL('../../', import.meta.url));
-const shell = process.platform === 'win32' ? 'C:/Program Files/Git/bin/bash.exe' : '/bin/sh';
+const shell =
+  process.env.ASA_BASH ??
+  (process.platform === 'win32' ? 'C:/Program Files/Git/bin/bash.exe' : '/bin/sh');
 const pwsh = process.env.ASA_PWSH_PATH ?? 'pwsh';
 const identityRoot = '/srv/asa';
 const files = ['/srv/asa/compose.yaml', '/srv/asa/compose.dev.yaml'];

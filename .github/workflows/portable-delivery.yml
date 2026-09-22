@@ -1,0 +1,73 @@
+name: ASA Portable Delivery Checks
+
+"on":
+  pull_request:
+    paths: ['tools/deployment/**', 'tools/*manager*', 'tools/*maintenance*', 'Dockerfile.*', 'compose*.yaml', 'infra/**', 'apps/web/src/blocks/**', 'apps/web/index.html', 'apps/web/public/runtime-config.js', 'docker/**', '.github/workflows/portable-*.yml']
+  push:
+    branches: ['main']
+    paths: ['tools/deployment/**', 'tools/*manager*', 'tools/*maintenance*', 'Dockerfile.*', 'compose*.yaml', 'infra/**', 'apps/web/src/blocks/**', 'apps/web/index.html', 'apps/web/public/runtime-config.js', 'docker/**', '.github/workflows/portable-*.yml']
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: portable-checks-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  contracts:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m unittest discover -s tools/deployment -p "test_*.py" -v
+      - name: Validate native Windows wrappers
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          foreach ($file in @('tools/asa-manager.ps1', 'tools/install-maintenance.ps1')) {
+            $tokens = $null; $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $file), [ref]$tokens, [ref]$errors) | Out-Null
+            if ($errors) { throw ($errors | Out-String) }
+          }
+      - name: Validate Linux wrapper syntax
+        if: runner.os == 'Linux'
+        run: sh -n tools/asa-manager.sh tools/install-maintenance.sh docker/web/start.sh infra/scratch-editor/start.sh
+
+  images:
+    needs: contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      ASA_BUILD_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
+      ASA_IMAGE_TAG: ci
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: docker/setup-buildx-action@v3
+        with:
+          driver: docker
+      - name: Build the source fallback once
+        run: |
+          for service in minio scratch api web; do docker compose build "$service"; done
+          python - <<'PY'
+          import json, os, pathlib, re
+          schema = max(int(re.match(r'(\d+)_', p.name)[1]) for p in pathlib.Path('migrations').glob('*.sql'))
+          pathlib.Path('/tmp/release.json').write_text(json.dumps({'revision': os.environ['ASA_BUILD_REVISION'], 'schema': schema,
+            'images': {name: f'asa-lab-{name}:ci' for name in ('api','web','scratch','minio')}}))
+          PY
+      - name: Verify portable boot and complete backup restoration
+        run: python tools/deployment/ci_smoke.py /tmp/release.json

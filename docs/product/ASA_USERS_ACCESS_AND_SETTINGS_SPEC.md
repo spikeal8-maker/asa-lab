@@ -266,6 +266,8 @@ Allow объединяются по конкретному ресурсу, не 
 | `support.session.start` | Запрос утверждённого ограниченного сеанса |
 | `support.session.use` | Только согласованные actions/resources/time |
 
+**Педагогический обзор проектов ученика.** `project.read` остаётся resource-scoped и не означает «все проекты любого Account этого человека». Для managed StudentSeat exact Classroom действующий class-staff scope делает все проекты этого StudentSeat разрешёнными classroom resources для read/preview в профиле ученика, включая не связанные с assignment самостоятельные проекты. Для обычного Account learner class staff видит только projects, происходящие из Participation/Assignment/CourseRun этого Classroom, либо явно shared/associated с этим class scope. Seat→Account linking не расширяет teacher visibility до personal workspace Account или других Classroom. `submission.read` независимо разрешает exact submitted evidence и не даёт edit current draft.
+
 Ученику для собственного результата не нужен `gradebook.read`. Простое наличие `organization.read` не позволяет приглашать staff. Любой нужный новый технический permission фиксируется в mapping и тестах; нельзя подменить отсутствие права соседним широким admin.
 
 **Матрица управления Student Code (TARGET E1):**

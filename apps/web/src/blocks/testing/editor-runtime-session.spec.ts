@@ -6,7 +6,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { BlocksEditor } from '../BlocksEditor';
 
 const PROJECT_ID = '11111111-1111-4111-8111-111111111111';
-const RUNTIME_ORIGIN = 'http://127.0.0.1:4613';
+const RUNTIME_ORIGIN = window.location.origin;
 const reactTestGlobal = globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean };
 
 function session(runtimeToken = 'real.runtime.token', expiresAt = 4_000_000_000) {
@@ -44,6 +44,27 @@ function initCalls(postMessage: ReturnType<typeof vi.spyOn>) {
   );
 }
 
+async function dispatchChild(
+  iframe: HTMLIFrameElement,
+  init: Record<string, unknown>,
+  extra: Record<string, unknown>,
+): Promise<void> {
+  await act(async () => {
+    const event = new MessageEvent('message', {
+      data: {
+        protocolVersion: init['protocolVersion'],
+        projectId: init['projectId'],
+        sessionNonce: init['sessionNonce'],
+        ...extra,
+      },
+      origin: RUNTIME_ORIGIN,
+    });
+    Object.defineProperty(event, 'source', { value: iframe.contentWindow });
+    window.dispatchEvent(event);
+    await flushAsync();
+  });
+}
+
 async function flushAsync(): Promise<void> {
   await Promise.resolve();
   await Promise.resolve();
@@ -63,6 +84,7 @@ async function renderEditor(
     root?.render(
       createElement(BlocksEditor, {
         projectId: PROJECT_ID,
+        recoveryPrincipalKey: '33333333-3333-4333-8333-333333333333',
         onBack: vi.fn(),
         onHomeClick: vi.fn(),
         accountLabel: 'ASA test user',
@@ -110,6 +132,59 @@ afterEach(async () => {
 });
 
 describe('BlocksEditor runtime session bootstrap', () => {
+  it('shows the ASA loading overlay on first render without raw runtime status UI', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => jsonResponse(session())),
+    );
+    await renderEditor();
+
+    const overlay = container!.querySelector<HTMLElement>('[data-asa-blocks-loading-overlay]');
+    expect(overlay).not.toBeNull();
+    expect(overlay?.dataset.state).toBe('loading');
+    expect(overlay?.textContent).toContain('Загружаем рабочую среду…');
+    expect(overlay?.textContent).toContain('Открываем ваш проект');
+    expect(overlay?.querySelector<HTMLImageElement>('.blocks-editor-loading-mark')?.src).toContain(
+      '/asa-lab-mark.svg',
+    );
+    expect(overlay?.querySelector('.blocks-editor-loading-spinner')).not.toBeNull();
+    expect(container!.querySelector('.blocks-editor-connection-status')).toBeNull();
+    expect(overlay?.textContent).not.toContain('Scratch');
+  });
+
+  it('keeps technical child statuses hidden and dismisses the overlay only on editor-ready', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => jsonResponse(session())),
+    );
+    const iframe = await renderEditor();
+    const postMessage = spyOnPostMessage(iframe);
+    await fireLoad(iframe);
+    const init = initCalls(postMessage)[0]?.[0] as Record<string, unknown>;
+    const overlay = container!.querySelector<HTMLElement>('[data-asa-blocks-loading-overlay]');
+    expect(overlay?.dataset.state).toBe('loading');
+
+    for (const status of ['init-accepted', 'token-updated', 'project-dirty']) {
+      await dispatchChild(iframe, init, {
+        messageType: 'ASA_BLOCKS_STATUS',
+        status,
+        ...(status === 'project-dirty' ? { generation: 1 } : {}),
+      });
+      expect(overlay?.dataset.state).toBe('loading');
+      expect(container?.textContent).not.toContain(status);
+    }
+    await dispatchChild(iframe, init, { messageType: 'ASA_BLOCKS_READY' });
+    expect(overlay?.dataset.state).toBe('loading');
+    expect(container?.textContent).not.toContain('Scratch готов');
+
+    await dispatchChild(iframe, init, {
+      messageType: 'ASA_BLOCKS_STATUS',
+      status: 'editor-ready',
+    });
+    expect(overlay?.dataset.state).toBe('ready');
+    expect(overlay?.getAttribute('aria-hidden')).toBe('true');
+  });
+
   it('sends real bootstrap values in INIT without persisting the capability', async () => {
     const fetchMock = vi.fn(async () => jsonResponse(session()));
     vi.stubGlobal('fetch', fetchMock);
@@ -154,7 +229,7 @@ describe('BlocksEditor runtime session bootstrap', () => {
     await fireLoad(iframe);
 
     expect(initCalls(postMessage)).toHaveLength(0);
-    expect(container?.textContent).toContain('Ошибка Scratch runtime');
+    expect(container?.textContent).toContain('Не удалось открыть среду');
   });
 
   it('does not INIT when the runtime-session request fails', async () => {
@@ -170,7 +245,7 @@ describe('BlocksEditor runtime session bootstrap', () => {
     await fireLoad(iframe);
 
     expect(initCalls(postMessage)).toHaveLength(0);
-    expect(container?.textContent).toContain('Ошибка Scratch runtime');
+    expect(container?.textContent).toContain('Не удалось открыть среду');
   });
 
   it('fails closed when a successful response is malformed', async () => {
@@ -189,7 +264,7 @@ describe('BlocksEditor runtime session bootstrap', () => {
     await fireLoad(iframe);
 
     expect(initCalls(postMessage)).toHaveLength(0);
-    expect(container?.textContent).toContain('Ошибка Scratch runtime');
+    expect(container?.textContent).toContain('Не удалось открыть среду');
   });
 
   it('fails closed when API runtimeOrigin differs from configured Scratch origin', async () => {
@@ -209,7 +284,7 @@ describe('BlocksEditor runtime session bootstrap', () => {
     await fireLoad(iframe);
 
     expect(initCalls(postMessage)).toHaveLength(0);
-    expect(container?.textContent).toContain('Ошибка Scratch runtime');
+    expect(container?.textContent).toContain('Не удалось открыть среду');
   });
 
   it('requests a new capability after retry instead of reusing a failed session', async () => {
@@ -224,8 +299,8 @@ describe('BlocksEditor runtime session bootstrap', () => {
     await fireLoad(firstIframe);
     expect(initCalls(firstPostMessage)).toHaveLength(0);
 
-    const retry = Array.from(container!.querySelectorAll('button')).find((button) =>
-      button.textContent?.includes('Повторить подключение'),
+    const retry = Array.from(container!.querySelectorAll('button')).find(
+      (button) => button.textContent?.trim() === 'Повторить',
     );
 
     if (!retry) throw new Error('Retry button was not rendered');
@@ -283,7 +358,50 @@ describe('BlocksEditor runtime session bootstrap', () => {
     });
   });
 
-  it('exposes one parent-owned explicit save and distinguishes success, failure and conflict', async () => {
+  it('uploads a trusted native thumbnail through the authenticated parent snapshot API', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const path = String(input);
+      if (path === `/api/projects/${PROJECT_ID}/snapshot`) {
+        return jsonResponse({
+          snapshot: {
+            projectId: PROJECT_ID,
+            contentType: 'image/png',
+            width: 480,
+            height: 360,
+            sourceRevision: 18,
+            capturedAt: '2026-09-19T20:00:00.000Z',
+          },
+        });
+      }
+      return jsonResponse(session());
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const iframe = await renderEditor();
+    const postMessage = spyOnPostMessage(iframe);
+    await fireLoad(iframe);
+    const init = initCalls(postMessage)[0]?.[0] as Record<string, unknown>;
+
+    await dispatchChild(iframe, init, {
+      messageType: 'ASA_BLOCKS_THUMBNAIL_READY',
+      sourceRevision: 18,
+      imageDataUrl: 'data:image/png;base64,AAAA',
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      `/api/projects/${PROJECT_ID}/snapshot`,
+      expect.objectContaining({
+        method: 'PUT',
+        credentials: 'same-origin',
+        cache: 'no-store',
+        body: JSON.stringify({
+          imageDataUrl: 'data:image/png;base64,AAAA',
+          sourceRevision: 18,
+        }),
+      }),
+    );
+  });
+
+  it('does not expose a parent save control', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async () => jsonResponse(session())),
@@ -293,104 +411,18 @@ describe('BlocksEditor runtime session bootstrap', () => {
     await fireLoad(iframe);
 
     const init = initCalls(postMessage)[0]?.[0] as Record<string, unknown>;
-    const childMessage = (extra: Record<string, unknown>) => ({
-      protocolVersion: init['protocolVersion'],
-      projectId: init['projectId'],
-      sessionNonce: init['sessionNonce'],
-      ...extra,
-    });
-    const dispatchChild = async (extra: Record<string, unknown>): Promise<void> => {
-      await act(async () => {
-        const event = new MessageEvent('message', {
-          data: childMessage(extra),
-          origin: RUNTIME_ORIGIN,
-        });
-        Object.defineProperty(event, 'source', { value: iframe.contentWindow });
-        window.dispatchEvent(event);
-        await flushAsync();
-      });
-    };
-
-    const save = Array.from(container!.querySelectorAll('button')).find((button) =>
-      button.textContent?.includes('Сохранить в ASA'),
-    );
-    if (!save) throw new Error('Save control was not rendered');
-    expect(save.disabled).toBe(true);
-
-    await dispatchChild({ messageType: 'ASA_BLOCKS_STATUS', status: 'editor-ready' });
-    expect(save.disabled).toBe(false);
-
-    await act(async () => {
-      save.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-      await flushAsync();
-    });
-    const flushCalls = () =>
-      postMessage.mock.calls.filter(
-        ([message]) =>
-          (message as Record<string, unknown>)?.['messageType'] === 'ASA_BLOCKS_FLUSH_REQUEST',
-      );
-    expect(flushCalls()).toHaveLength(1);
-    const firstRequest = flushCalls()[0]?.[0] as Record<string, unknown>;
-    expect(firstRequest['requestId']).toMatch(/^[0-9a-f-]{36}$/i);
-    expect(save.textContent).toContain('Сохранение…');
-    expect(save.disabled).toBe(true);
-
-    await act(async () => {
-      save.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-      await flushAsync();
-    });
-    expect(flushCalls()).toHaveLength(1);
-
-    await dispatchChild({
-      messageType: 'ASA_BLOCKS_FLUSH_RESULT',
-      requestId: firstRequest['requestId'],
-      ok: true,
-      reason: null,
-      revision: 18,
-      snapshotGeneration: 0,
-    });
-    expect(save.textContent).toContain('Сохранено');
-    expect(save.getAttribute('aria-label')).toBe('Сохранено в ASA, ревизия 18');
-    expect(save.getAttribute('data-confirmed-revision')).toBe('18');
-
-    await dispatchChild({
+    await dispatchChild(iframe, init, { messageType: 'ASA_BLOCKS_STATUS', status: 'editor-ready' });
+    await dispatchChild(iframe, init, {
       messageType: 'ASA_BLOCKS_STATUS',
       status: 'project-dirty',
       generation: 1,
     });
-    expect(save.textContent).toContain('Сохранить в ASA');
-    expect(save.getAttribute('data-confirmed-revision')).toBeNull();
-    expect(flushCalls()).toHaveLength(1);
 
-    await act(async () => {
-      save.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-      await flushAsync();
-    });
-    const secondRequest = flushCalls()[1]?.[0] as Record<string, unknown>;
-    expect(secondRequest['requestId']).not.toBe(firstRequest['requestId']);
-    await dispatchChild({
-      messageType: 'ASA_BLOCKS_FLUSH_RESULT',
-      requestId: secondRequest['requestId'],
-      ok: false,
-      reason: 'revision_conflict',
-    });
-    expect(save.textContent).toContain('Конфликт сохранения');
-
-    await act(async () => {
-      save.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-      await flushAsync();
-    });
-    const thirdRequest = flushCalls()[2]?.[0] as Record<string, unknown>;
-    await dispatchChild({
-      messageType: 'ASA_BLOCKS_FLUSH_RESULT',
-      requestId: thirdRequest['requestId'],
-      ok: false,
-      reason: 'draft_write_failed',
-    });
-    expect(save.textContent).toContain('Ошибка сохранения');
+    expect(container!.querySelector('[data-asa-blocks-save]')).toBeNull();
+    expect(container!.textContent).not.toContain('Сохранить в ASA');
   });
 
-  it('refreshes expiring authority before Save with TOKEN_UPDATE then FLUSH and no second INIT', async () => {
+  it('refreshes expiring authority proactively with TOKEN_UPDATE and no second INIT', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2030-01-01T00:00:00.000Z'));
     const nowSeconds = Math.floor(Date.now() / 1000);
@@ -404,52 +436,21 @@ describe('BlocksEditor runtime session bootstrap', () => {
     const postMessage = spyOnPostMessage(iframe);
     await fireLoad(iframe);
 
-    const init = initCalls(postMessage)[0]?.[0] as Record<string, unknown>;
-    const dispatchChild = async (extra: Record<string, unknown>): Promise<void> => {
-      await act(async () => {
-        const event = new MessageEvent('message', {
-          data: {
-            protocolVersion: init['protocolVersion'],
-            projectId: init['projectId'],
-            sessionNonce: init['sessionNonce'],
-            ...extra,
-          },
-          origin: RUNTIME_ORIGIN,
-        });
-        Object.defineProperty(event, 'source', { value: iframe.contentWindow });
-        window.dispatchEvent(event);
-        await flushAsync();
-      });
-    };
-    await dispatchChild({ messageType: 'ASA_BLOCKS_STATUS', status: 'editor-ready' });
-
-    const save = container!.querySelector<HTMLButtonElement>('[data-asa-blocks-save]');
-    if (!save) throw new Error('Save control was not rendered');
     await act(async () => {
-      save.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      await vi.advanceTimersByTimeAsync(0);
       await flushAsync();
     });
 
     const messages = postMessage.mock.calls.map(([message]) => message as Record<string, unknown>);
-    const updateIndex = messages.findIndex(
-      (message) => message['messageType'] === 'ASA_BLOCKS_TOKEN_UPDATE',
-    );
-    const flushIndex = messages.findIndex(
-      (message) => message['messageType'] === 'ASA_BLOCKS_FLUSH_REQUEST',
-    );
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(initCalls(postMessage)).toHaveLength(1);
-    expect(updateIndex).toBeGreaterThan(0);
-    expect(flushIndex).toBeGreaterThan(updateIndex);
-    expect(messages[updateIndex]).toMatchObject({
-      runtimeToken: 'fresh.runtime.token',
-      sessionNonce: init['sessionNonce'],
-    });
-    expect(messages[flushIndex]).toMatchObject({ sessionNonce: init['sessionNonce'] });
+    expect(
+      messages.filter((message) => message['messageType'] === 'ASA_BLOCKS_TOKEN_UPDATE'),
+    ).toHaveLength(1);
     expect(storageSet).not.toHaveBeenCalled();
   });
 
-  it('keeps proactive refresh single-flight when Save joins an in-flight rotation', async () => {
+  it('keeps proactive refresh single-flight when child refresh demand joins an in-flight rotation', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2030-01-01T00:00:00.000Z'));
     const nowSeconds = Math.floor(Date.now() / 1000);
@@ -468,46 +469,27 @@ describe('BlocksEditor runtime session bootstrap', () => {
     const init = initCalls(postMessage)[0]?.[0] as Record<string, unknown>;
 
     await act(async () => {
-      const event = new MessageEvent('message', {
-        data: {
-          protocolVersion: init['protocolVersion'],
-          projectId: init['projectId'],
-          sessionNonce: init['sessionNonce'],
-          messageType: 'ASA_BLOCKS_STATUS',
-          status: 'editor-ready',
-        },
-        origin: RUNTIME_ORIGIN,
-      });
-      Object.defineProperty(event, 'source', { value: iframe.contentWindow });
-      window.dispatchEvent(event);
       await vi.advanceTimersByTimeAsync(1_000);
       await flushAsync();
     });
     expect(fetchMock).toHaveBeenCalledTimes(2);
 
-    const save = container!.querySelector<HTMLButtonElement>('[data-asa-blocks-save]');
-    if (!save) throw new Error('Save control was not rendered');
-    await act(async () => {
-      save.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-      await flushAsync();
-    });
+    await dispatchChild(iframe, init, { messageType: 'ASA_BLOCKS_TOKEN_REFRESH_REQUIRED' });
     expect(fetchMock).toHaveBeenCalledTimes(2);
 
     await act(async () => {
       resolveRefresh(jsonResponse(session('fresh.runtime.token', nowSeconds + 600)));
       await flushAsync();
     });
+
     const messages = postMessage.mock.calls.map(([message]) => message as Record<string, unknown>);
     expect(
       messages.filter((message) => message['messageType'] === 'ASA_BLOCKS_TOKEN_UPDATE'),
     ).toHaveLength(1);
-    expect(
-      messages.filter((message) => message['messageType'] === 'ASA_BLOCKS_FLUSH_REQUEST'),
-    ).toHaveLength(1);
   });
 
   it.each([401, 503])(
-    'fails Save closed when mandatory capability refresh returns %s',
+    'fails proactive capability refresh closed when it returns %s',
     async (status) => {
       vi.useFakeTimers();
       vi.setSystemTime(new Date('2030-01-01T00:00:00.000Z'));
@@ -520,43 +502,22 @@ describe('BlocksEditor runtime session bootstrap', () => {
       const iframe = await renderEditor();
       const postMessage = spyOnPostMessage(iframe);
       await fireLoad(iframe);
-      const init = initCalls(postMessage)[0]?.[0] as Record<string, unknown>;
 
       await act(async () => {
-        const event = new MessageEvent('message', {
-          data: {
-            protocolVersion: init['protocolVersion'],
-            projectId: init['projectId'],
-            sessionNonce: init['sessionNonce'],
-            messageType: 'ASA_BLOCKS_STATUS',
-            status: 'editor-ready',
-          },
-          origin: RUNTIME_ORIGIN,
-        });
-        Object.defineProperty(event, 'source', { value: iframe.contentWindow });
-        window.dispatchEvent(event);
+        await vi.advanceTimersByTimeAsync(0);
         await flushAsync();
       });
-      const save = container!.querySelector<HTMLButtonElement>('[data-asa-blocks-save]');
-      if (!save) throw new Error('Save control was not rendered');
-      await act(async () => {
-        save.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-        await flushAsync();
-      });
+
       const messages = postMessage.mock.calls.map(
         ([message]) => message as Record<string, unknown>,
       );
       expect(
         messages.filter((message) => message['messageType'] === 'ASA_BLOCKS_TOKEN_UPDATE'),
       ).toHaveLength(0);
-      expect(
-        messages.filter((message) => message['messageType'] === 'ASA_BLOCKS_FLUSH_REQUEST'),
-      ).toHaveLength(0);
-      expect(save.textContent).toContain('Ошибка сохранения');
     },
   );
 
-  it('does not extend revoked authority when refresh returns 404', async () => {
+  it('does not extend revoked authority when proactive refresh returns 404', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2030-01-01T00:00:00.000Z'));
     const nowSeconds = Math.floor(Date.now() / 1000);
@@ -568,41 +529,21 @@ describe('BlocksEditor runtime session bootstrap', () => {
     const iframe = await renderEditor();
     const postMessage = spyOnPostMessage(iframe);
     await fireLoad(iframe);
-    const init = initCalls(postMessage)[0]?.[0] as Record<string, unknown>;
 
     await act(async () => {
-      const event = new MessageEvent('message', {
-        data: {
-          protocolVersion: init['protocolVersion'],
-          projectId: init['projectId'],
-          sessionNonce: init['sessionNonce'],
-          messageType: 'ASA_BLOCKS_STATUS',
-          status: 'editor-ready',
-        },
-        origin: RUNTIME_ORIGIN,
-      });
-      Object.defineProperty(event, 'source', { value: iframe.contentWindow });
-      window.dispatchEvent(event);
+      await vi.advanceTimersByTimeAsync(0);
       await flushAsync();
     });
-    const save = container!.querySelector<HTMLButtonElement>('[data-asa-blocks-save]');
-    if (!save) throw new Error('Save control was not rendered');
-    await act(async () => {
-      save.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-      await flushAsync();
-    });
+
     const messages = postMessage.mock.calls.map(([message]) => message as Record<string, unknown>);
     expect(
       messages.filter((message) => message['messageType'] === 'ASA_BLOCKS_TOKEN_UPDATE'),
     ).toHaveLength(0);
-    expect(
-      messages.filter((message) => message['messageType'] === 'ASA_BLOCKS_FLUSH_REQUEST'),
-    ).toHaveLength(0);
-    expect(save.textContent).toContain('Ошибка сохранения');
+    expect(initCalls(postMessage)).toHaveLength(1);
   });
 
   it.each(['malformed', 'wrong-origin'])(
-    'rejects %s mandatory refresh without TOKEN_UPDATE or FLUSH',
+    'rejects %s proactive refresh without TOKEN_UPDATE',
     async (kind) => {
       vi.useFakeTimers();
       vi.setSystemTime(new Date('2030-01-01T00:00:00.000Z'));
@@ -622,39 +563,19 @@ describe('BlocksEditor runtime session bootstrap', () => {
       const iframe = await renderEditor();
       const postMessage = spyOnPostMessage(iframe);
       await fireLoad(iframe);
-      const init = initCalls(postMessage)[0]?.[0] as Record<string, unknown>;
 
       await act(async () => {
-        const event = new MessageEvent('message', {
-          data: {
-            protocolVersion: init['protocolVersion'],
-            projectId: init['projectId'],
-            sessionNonce: init['sessionNonce'],
-            messageType: 'ASA_BLOCKS_STATUS',
-            status: 'editor-ready',
-          },
-          origin: RUNTIME_ORIGIN,
-        });
-        Object.defineProperty(event, 'source', { value: iframe.contentWindow });
-        window.dispatchEvent(event);
+        await vi.advanceTimersByTimeAsync(0);
         await flushAsync();
       });
-      const save = container!.querySelector<HTMLButtonElement>('[data-asa-blocks-save]');
-      if (!save) throw new Error('Save control was not rendered');
-      await act(async () => {
-        save.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-        await flushAsync();
-      });
+
       const messages = postMessage.mock.calls.map(
         ([message]) => message as Record<string, unknown>,
       );
       expect(
         messages.filter((message) => message['messageType'] === 'ASA_BLOCKS_TOKEN_UPDATE'),
       ).toHaveLength(0);
-      expect(
-        messages.filter((message) => message['messageType'] === 'ASA_BLOCKS_FLUSH_REQUEST'),
-      ).toHaveLength(0);
-      expect(save.textContent).toContain('Ошибка сохранения');
+      expect(initCalls(postMessage)).toHaveLength(1);
     },
   );
 
@@ -668,40 +589,23 @@ describe('BlocksEditor runtime session bootstrap', () => {
     });
     const fetchMock = vi
       .fn()
-      .mockResolvedValueOnce(jsonResponse(session('initial.runtime.token', nowSeconds + 30)))
+      .mockResolvedValueOnce(jsonResponse(session('initial.runtime.token', nowSeconds + 61)))
       .mockReturnValueOnce(staleRefresh)
       .mockResolvedValueOnce(jsonResponse(session('reload.runtime.token', nowSeconds + 600)));
     vi.stubGlobal('fetch', fetchMock);
     const iframe = await renderEditor();
     const postMessage = spyOnPostMessage(iframe);
     await fireLoad(iframe);
-    const firstInit = initCalls(postMessage)[0]?.[0] as Record<string, unknown>;
 
     await act(async () => {
-      const event = new MessageEvent('message', {
-        data: {
-          protocolVersion: firstInit['protocolVersion'],
-          projectId: firstInit['projectId'],
-          sessionNonce: firstInit['sessionNonce'],
-          messageType: 'ASA_BLOCKS_STATUS',
-          status: 'editor-ready',
-        },
-        origin: RUNTIME_ORIGIN,
-      });
-      Object.defineProperty(event, 'source', { value: iframe.contentWindow });
-      window.dispatchEvent(event);
-      await flushAsync();
-    });
-    const save = container!.querySelector<HTMLButtonElement>('[data-asa-blocks-save]');
-    if (!save) throw new Error('Save control was not rendered');
-    await act(async () => {
-      save.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      await vi.advanceTimersByTimeAsync(1_000);
       await flushAsync();
     });
     expect(fetchMock).toHaveBeenCalledTimes(2);
 
     await fireLoad(iframe);
     expect(fetchMock).toHaveBeenCalledTimes(3);
+
     await act(async () => {
       resolveRefresh(jsonResponse(session('stale.runtime.token', nowSeconds + 600)));
       await flushAsync();
@@ -716,12 +620,9 @@ describe('BlocksEditor runtime session bootstrap', () => {
           message['runtimeToken'] === 'stale.runtime.token',
       ),
     ).toBe(false);
-    expect(
-      messages.filter((message) => message['messageType'] === 'ASA_BLOCKS_FLUSH_REQUEST'),
-    ).toHaveLength(0);
   });
 
-  it('does not claim current VM saved when a newer dirty generation arrives during Save', async () => {
+  it('accepts dirty generation status without parent-side save orchestration', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async () => jsonResponse(session())),
@@ -730,80 +631,78 @@ describe('BlocksEditor runtime session bootstrap', () => {
     const postMessage = spyOnPostMessage(iframe);
     await fireLoad(iframe);
     const init = initCalls(postMessage)[0]?.[0] as Record<string, unknown>;
-    const dispatchChild = async (extra: Record<string, unknown>): Promise<void> => {
-      await act(async () => {
-        const event = new MessageEvent('message', {
-          data: {
-            protocolVersion: init['protocolVersion'],
-            projectId: init['projectId'],
-            sessionNonce: init['sessionNonce'],
-            ...extra,
-          },
-          origin: RUNTIME_ORIGIN,
-        });
-        Object.defineProperty(event, 'source', { value: iframe.contentWindow });
-        window.dispatchEvent(event);
-        await flushAsync();
-      });
-    };
-    await dispatchChild({ messageType: 'ASA_BLOCKS_STATUS', status: 'editor-ready' });
-    await dispatchChild({
-      messageType: 'ASA_BLOCKS_STATUS',
-      status: 'project-dirty',
-      generation: 5,
-    });
 
-    const save = container!.querySelector<HTMLButtonElement>('[data-asa-blocks-save]');
-    if (!save) throw new Error('Save control was not rendered');
-    await act(async () => {
-      save.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-      await flushAsync();
-    });
-    const flushCalls = postMessage.mock.calls.filter(
-      ([message]) =>
-        (message as Record<string, unknown>)?.['messageType'] === 'ASA_BLOCKS_FLUSH_REQUEST',
-    );
-    const request = flushCalls[0]?.[0] as Record<string, unknown>;
-    await dispatchChild({
+    await dispatchChild(iframe, init, {
       messageType: 'ASA_BLOCKS_STATUS',
       status: 'project-dirty',
       generation: 6,
     });
-    await dispatchChild({
-      messageType: 'ASA_BLOCKS_FLUSH_RESULT',
-      requestId: request['requestId'],
-      ok: true,
-      reason: null,
-      revision: 18,
-      snapshotGeneration: 5,
-    });
 
-    expect(save.textContent).toContain('Сохранить в ASA');
-    expect(save.getAttribute('data-confirmed-revision')).toBeNull();
-    expect(flushCalls).toHaveLength(1);
+    expect(container!.querySelector('[data-asa-blocks-save]')).toBeNull();
   });
 
-  it('uses the explicit ASA save warning before leaving', async () => {
+  it('waits for upstream save-before-exit success before leaving through Home', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async () => jsonResponse(session())),
     );
     const onHomeClick = vi.fn();
-    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const confirm = vi.spyOn(window, 'confirm');
     const iframe = await renderEditor({ onHomeClick });
-    spyOnPostMessage(iframe);
+    const postMessage = spyOnPostMessage(iframe);
     await fireLoad(iframe);
+    const init = initCalls(postMessage)[0]?.[0] as Record<string, unknown>;
 
-    const home = container!.querySelector<HTMLButtonElement>('[data-asa-blocks-home-overlay]');
-    if (!home) throw new Error('Home control was not rendered');
-    await act(async () => {
-      home.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-      await flushAsync();
+    await dispatchChild(iframe, init, {
+      messageType: 'ASA_BLOCKS_HOME_REQUEST',
     });
 
-    expect(confirm).toHaveBeenCalledWith(
-      'Несохранённые изменения могут быть потеряны. Перед выходом используйте «Сохранить в ASA». Выйти?',
-    );
+    const request = postMessage.mock.calls
+      .map(([message]) => message as Record<string, unknown>)
+      .find((message) => message['messageType'] === 'ASA_BLOCKS_SAVE_BEFORE_EXIT_REQUEST');
+    expect(request?.['requestId']).toEqual(expect.any(String));
+    expect(confirm).not.toHaveBeenCalled();
+    expect(onHomeClick).not.toHaveBeenCalled();
+
+    await dispatchChild(iframe, init, {
+      messageType: 'ASA_BLOCKS_SAVE_BEFORE_EXIT_RESULT',
+      requestId: request?.['requestId'],
+      ok: true,
+      reason: null,
+      revision: 17,
+      savedGeneration: 0,
+    });
     expect(onHomeClick).toHaveBeenCalledTimes(1);
+  });
+
+  it('stays in the editor when upstream save-before-exit fails', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => jsonResponse(session())),
+    );
+    const onHomeClick = vi.fn();
+    const iframe = await renderEditor({ onHomeClick });
+    const postMessage = spyOnPostMessage(iframe);
+    await fireLoad(iframe);
+    const init = initCalls(postMessage)[0]?.[0] as Record<string, unknown>;
+
+    await dispatchChild(iframe, init, {
+      messageType: 'ASA_BLOCKS_HOME_REQUEST',
+    });
+    await dispatchChild(iframe, init, {
+      messageType: 'ASA_BLOCKS_HOME_REQUEST',
+    });
+    const requests = postMessage.mock.calls
+      .map(([message]) => message as Record<string, unknown>)
+      .filter((message) => message['messageType'] === 'ASA_BLOCKS_SAVE_BEFORE_EXIT_REQUEST');
+    expect(requests).toHaveLength(1);
+
+    await dispatchChild(iframe, init, {
+      messageType: 'ASA_BLOCKS_SAVE_BEFORE_EXIT_RESULT',
+      requestId: requests[0]?.['requestId'],
+      ok: false,
+      reason: 'draft_write_failed',
+    });
+    expect(onHomeClick).not.toHaveBeenCalled();
   });
 });
