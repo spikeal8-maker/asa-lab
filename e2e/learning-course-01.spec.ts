@@ -13,13 +13,41 @@ let teacher: SeededTeacher;
 let sequence = 0;
 const keys = new Map<string, string>();
 async function editRealProject(page: Page, module: string) {
+  const assignmentAnchor = page.getByTestId('assignment-brief-anchor');
+  const assignmentPanel = page.getByTestId('assignment-brief');
+  await expect(assignmentAnchor).toBeVisible();
+  if ((await assignmentAnchor.getAttribute('aria-expanded')) !== 'true') {
+    await assignmentAnchor.click();
+  }
+  await expect(assignmentPanel).toBeVisible();
+
+  const continueAction = assignmentPanel.getByRole('button', {
+    name: 'Продолжить',
+    exact: true,
+  });
+  if ((await continueAction.count()) > 0) {
+    await expect(continueAction).toBeEnabled();
+    await continueAction.click();
+    await expect(continueAction).toHaveCount(0);
+  }
+
+  let expectedObjectCount = 0;
   if (module === 'three-d') {
-    await expect(page.getByTestId('asa3d-viewport')).toBeVisible({ timeout: 60000 });
+    const viewport = page.getByTestId('asa3d-viewport');
+    const objectCount = page.locator('.asa3d-object-count');
+    await expect(viewport).toBeVisible({ timeout: 60000 });
+    await expect(viewport).toHaveAttribute('data-runtime-ready', 'true');
+    expectedObjectCount = Number.parseInt(await objectCount.innerText(), 10) + 1;
+    const saveState = page.locator('.asa3d-save-state');
     await page.getByRole('button', { name: 'Параллелепипед', exact: true }).click();
+    await expect(objectCount).toContainText(new RegExp(`^${expectedObjectCount} `));
+    await expect(saveState).toHaveClass(/save-(dirty|saving)/);
+    await expect(saveState).toHaveClass(/save-saved/);
+    await expect(saveState).toContainText('Все изменения сохранены');
   } else {
     const resistor = page.getByRole('button', { name: 'Резистор', exact: true });
     await expect(resistor).toBeVisible({ timeout: 60000 });
-    const count = await page.getByTestId('schematic-component').count();
+    expectedObjectCount = (await page.getByTestId('schematic-component').count()) + 1;
     const card = (await resistor.boundingBox())!,
       canvas = (await page.locator('.workbench-canvas').boundingBox())!;
     await page.mouse.move(card.x + card.width / 2, card.y + card.height / 2);
@@ -28,17 +56,19 @@ async function editRealProject(page: Page, module: string) {
       steps: 20,
     });
     await page.mouse.up();
-    await expect(page.getByTestId('schematic-component')).toHaveCount(count + 1);
+    await expect(page.getByTestId('schematic-component')).toHaveCount(expectedObjectCount);
   }
-  await expect(
-    page.getByText(
-      /К проверке будет закреплена сохранённая редакция №|Черновик сохранён: редакция №/,
-    ),
-  ).toBeVisible();
+
   await page.reload();
-  if (module === 'electronics')
-    await expect(page.getByTestId('schematic-component').first()).toBeVisible();
-  else await expect(page.getByTestId('asa3d-viewport')).toBeVisible();
+  await expect(assignmentPanel).toBeVisible();
+  if (module === 'electronics') {
+    await expect(page.getByTestId('schematic-component')).toHaveCount(expectedObjectCount);
+  } else {
+    await expect(page.getByTestId('asa3d-viewport')).toHaveAttribute('data-runtime-ready', 'true');
+    await expect(page.locator('.asa3d-object-count')).toContainText(
+      new RegExp(`^${expectedObjectCount} `),
+    );
+  }
 }
 test.use({ actionTimeout: 12000 });
 
@@ -133,9 +163,7 @@ test('author-only content keeps exact ID and versions after teaching activation;
     .click();
   await editRealProject(learner.page, 'electronics');
   await learner.page.getByRole('button', { name: 'Сдать работу', exact: true }).click();
-  await expect(
-    learner.page.getByRole('button', { name: 'Работа сдана', exact: true }),
-  ).toBeDisabled();
+  await expect(learner.page.getByText('Сдано на проверку', { exact: true })).toBeVisible();
   await page
     .getByRole('navigation', { name: 'Разделы класса' })
     .getByRole('button', { name: 'Журнал', exact: true })
@@ -356,9 +384,7 @@ test('Teacher Home: empty, exact review, read/OFF, return/resubmit, accept and e
   await editRealProject(learner.page, 'three-d');
   const submit = async () => {
     await learner.page.getByRole('button', { name: 'Сдать работу', exact: true }).click();
-    await expect(
-      learner.page.getByRole('button', { name: 'Работа сдана', exact: true }),
-    ).toBeDisabled();
+    await expect(learner.page.getByText('Сдано на проверку', { exact: true })).toBeVisible();
   };
   await submit();
   await page.goto('/#/');
@@ -488,9 +514,7 @@ test('ungraded real submission has an official acceptance but no manufactured po
     .click();
   await editRealProject(learner.page, 'three-d');
   await learner.page.getByRole('button', { name: 'Сдать работу', exact: true }).click();
-  await expect(
-    learner.page.getByRole('button', { name: 'Работа сдана', exact: true }),
-  ).toBeDisabled();
+  await expect(learner.page.getByText('Сдано на проверку', { exact: true })).toBeVisible();
   await page
     .getByRole('navigation', { name: 'Разделы класса' })
     .getByRole('button', { name: 'Журнал', exact: true })
@@ -717,7 +741,7 @@ for (const module of ['three-d', 'electronics'])
     const brief = learner.page.getByTestId('assignment-brief');
     await expect(brief.getByRole('button', { name: 'Сдать работу', exact: true })).toBeEnabled();
     await brief.getByRole('button', { name: 'Сдать работу', exact: true }).click();
-    await expect(brief.getByRole('button', { name: 'Работа сдана', exact: true })).toBeDisabled();
+    await expect(brief.getByText('Сдано на проверку', { exact: true })).toBeVisible();
     await learner.page.screenshot({
       path: evidenceDir + '/' + module + '-exact-submission.png',
       fullPage: true,
@@ -749,7 +773,7 @@ for (const module of ['three-d', 'electronics'])
     await editRealProject(learner.page, module);
     await expect(brief.getByRole('button', { name: 'Сдать работу', exact: true })).toBeEnabled();
     await brief.getByRole('button', { name: 'Сдать работу', exact: true }).click();
-    await expect(brief.getByRole('button', { name: 'Работа сдана', exact: true })).toBeDisabled();
+    await expect(brief.getByText('Сдано на проверку', { exact: true })).toBeVisible();
     await page.goto(teacherUrl);
     await page
       .getByRole('navigation', { name: 'Разделы класса' })
@@ -1283,7 +1307,7 @@ for (const module of ['electronics', 'three-d'])
     const brief = learner.getByTestId('assignment-brief');
     await expect(brief.getByRole('button', { name: 'Сдать работу', exact: true })).toBeEnabled();
     await brief.getByRole('button', { name: 'Сдать работу', exact: true }).click();
-    await expect(brief.getByRole('button', { name: 'Работа сдана', exact: true })).toBeDisabled();
+    await expect(brief.getByText('Сдано на проверку', { exact: true })).toBeVisible();
     await learner.screenshot({
       path: evidenceDir + '/account-course-' + module + '-submitted.png',
     });
